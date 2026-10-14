@@ -1,0 +1,10 @@
+.usage-controls { display: flex; flex-wrap: wrap; gap: var(--space-5); margin-block: var(--space-6); }
+.usage-controls .form-field { flex: 1 1 9rem; }
+.usage-table-scroll { overflow-x: auto; margin-block-end: var(--space-6); }
+.usage-table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+.usage-table caption { text-align: left; margin-block-end: var(--space-4); color: var(--muted); }
+.usage-table th, .usage-table td { padding: var(--space-4) var(--space-4); border-bottom: var(--border-thin) solid var(--border); text-align: right; }
+.usage-table th:first-child { text-align: left; min-width: 9rem; }
+.usage-kind { display: block; color: var(--muted); font-weight: normal; }
+.usage-unused { padding-inline-start: var(--space-6); columns: 2 14rem; }
+.usage-unused li { break-inside: avoid; margin-block-end: var(--space-2); }

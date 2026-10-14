@@ -1,0 +1,25 @@
+/* Map icons grouped legend only; uses the picker theme and native disclosures. */
+.pin-grouped-legend{margin-top:var(--space-4)}
+.pin-group{display:grid;grid-template-columns:36px minmax(0,1fr);border-top:var(--border-thin) solid var(--border)}
+.pin-group-toggle{display:flex;align-items:center;justify-content:center;align-self:start;min-height:44px;cursor:pointer}
+.pin-group-toggle input{margin:0}
+.pin-group-details{min-width:0}
+.pin-group-details>summary{min-height:44px;padding:var(--space-3) var(--space-2);cursor:pointer;line-height:var(--leading-body);overflow-wrap:anywhere}
+.pin-group-details>summary:hover{background:var(--surface);color:var(--surface-text,var(--text))}
+.pin-group-name{font-size:var(--type-body);font-weight:var(--weight-bold)}
+.pin-group-count{display:block;font-size:var(--type-xs);color:var(--panel-muted,var(--muted));font-variant-numeric:tabular-nums}
+.pin-group-categories{padding-bottom:var(--space-4)}
+.pin-group-categories .pin-category{align-items:center;min-height:36px}
+.pin-group-categories .pin-category:last-child{border-bottom:0}
+@media(pointer:coarse),(max-width:480px){
+  .pin-group{grid-template-columns:44px minmax(0,1fr)}
+  .pin-group-categories .pin-category{min-height:44px}
+}
+.travel-lines-control{margin:0;padding:var(--space-5) var(--space-5);border:var(--border-thin) solid var(--hairline);border-radius:var(--radius-sm);min-width:0}
+.travel-lines-control legend{font-family:var(--display);padding:0 var(--space-2)}
+.travel-lines-control>label{min-height:36px;font-weight:var(--weight-semibold)}
+.travel-lines-control>p{margin:var(--space-2) 0 var(--space-4)}
+.travel-lines-key{display:grid;grid-template-columns:1fr 1fr;gap:var(--space-3) var(--space-5);font-size:var(--type-sm);color:var(--panel-text,var(--text))}
+.travel-line-key{display:flex;align-items:center;gap:var(--space-3);min-width:0}
+.travel-line-key svg{width:52px;height:12px;flex:none;stroke:var(--travel-colour)}
+:root[data-scheme=light] .travel-line-key svg{stroke:var(--travel-light-colour)}

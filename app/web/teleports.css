@@ -1,0 +1,44 @@
+/* Personal travel ledger: the active theme supplies every surface and contrast pair. */
+.teleports-panel{display:flex;flex-direction:column;gap:var(--space-7);min-width:0;color:var(--panel-text,var(--text))}
+.teleports-panel h3{font-family:var(--display);font-size:var(--type-heading)}
+.teleports-panel h4{font-family:inherit;font-weight:var(--weight-semibold);font-size:var(--type-base);line-height:var(--leading-body);margin:0;overflow-wrap:anywhere}
+.teleports-intro{max-width:70ch;line-height:var(--leading-legacy-1-55)}
+.teleports-mode{padding:var(--space-6) 0;border-block:var(--border-thin) solid var(--hairline);display:flex;flex-direction:column;gap:var(--space-4)}
+.teleports-mode>.teleports-checkbox{font-weight:var(--weight-semibold);color:var(--gold)}
+.teleports-help,.teleports-empty,.teleports-count,.teleports-group-count,.teleports-destination,.teleports-signal{color:var(--panel-muted,var(--muted));font-size:var(--type-sm);line-height:var(--leading-copy)}
+.teleports-feedback:empty{display:none}
+.teleports-error{color:var(--danger);font-size:var(--type-body);line-height:var(--leading-copy)}
+:root[data-scheme=light] .teleports-error{color:var(--color-fixed-a13329)}
+dialog:has(.teleports-panel){scrollbar-color:var(--border) var(--panel)}
+.teleports-toolbar,.teleports-group-heading{display:flex;gap:var(--space-4);align-items:center;justify-content:space-between}
+.teleports-toolbar button{font-size:var(--type-sm);min-height:36px;flex-shrink:0}
+.teleports-catalogue{min-width:0;margin-top:calc(-1 * var(--space-4))}
+.teleports-catalogue[aria-busy=true]{min-height:3rem}
+.teleports-count{font-variant-numeric:tabular-nums;margin-bottom:var(--space-6)}
+.teleports-group+.teleports-group{margin-top:var(--space-7)}
+.teleports-group-heading{padding-bottom:var(--space-4);border-bottom:var(--border-thin) solid var(--hairline)}
+.teleports-group-count{font-variant-numeric:tabular-nums;white-space:nowrap}
+.teleports-route{display:grid;grid-template-columns:minmax(0,1fr) 155px;gap:var(--space-5) var(--space-6);padding:var(--space-5) 0;border-bottom:var(--border-thin) solid var(--hairline)}
+.teleports-route-body{min-width:0;display:flex;flex-direction:column;gap:var(--space-2)}
+.teleports-route-heading{display:flex;gap:var(--space-5);align-items:baseline;flex-wrap:wrap}
+.teleports-status{font-size:var(--type-xs);font-weight:var(--weight-semibold);white-space:nowrap;color:var(--panel-muted,var(--muted))}
+.teleports-status.is-usable{color:var(--ok)}
+.teleports-reason{font-size:var(--type-body);line-height:var(--leading-copy);overflow-wrap:anywhere}
+.teleports-signal{font-size:var(--type-xs)}
+.teleports-members{margin-top:var(--space-3)}
+.teleports-members>summary{cursor:pointer;padding:var(--space-4) 0;font-size:var(--type-sm);color:var(--panel-muted,var(--muted))}
+.teleports-members>summary:hover{color:var(--panel-text,var(--text))}
+.teleports-members .teleports-route{opacity:.75}
+.teleports-route .form-field{gap:var(--space-2);align-self:start}
+.teleports-route .form-field>label{font-size:var(--type-xs);color:var(--panel-muted,var(--muted))}
+.teleports-route select{width:100%;min-height:36px;font-size:var(--type-sm)}
+.teleports-checkbox{gap:var(--space-4);min-height:36px;line-height:var(--leading-body);font-size:var(--type-body);cursor:pointer}
+.teleports-custom{padding-top:var(--space-6);border-top:var(--border-thin) solid var(--hairline);display:flex;flex-direction:column;gap:var(--space-4)}
+.teleports-manual{padding:var(--space-5) 0;border-bottom:var(--border-thin) solid var(--hairline)}
+.teleports-manual-actions{display:flex;gap:var(--space-4) var(--space-6);align-items:center;flex-wrap:wrap;margin-top:var(--space-2)}
+.teleports-remove{margin-left:auto;font-size:var(--type-sm);min-height:36px}
+.teleports-add{display:flex;flex-direction:column;gap:var(--space-4);margin-top:var(--space-2)}
+.teleports-add-fields{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:var(--space-5)}
+.teleports-add input[type=text]{width:100%;min-width:0;min-height:40px}
+.teleports-add-button{align-self:start;min-height:40px;background:var(--gold);color:var(--on-gold);font-weight:var(--weight-semibold);margin-top:var(--space-2)}
+@media(max-width:540px){.teleports-panel{gap:var(--space-6)}.teleports-toolbar{align-items:baseline}.teleports-route{grid-template-columns:minmax(0,1fr);gap:var(--space-4)}.teleports-route .form-field{display:grid;grid-template-columns:4.5rem minmax(0,1fr);align-items:center;max-width:250px}.teleports-route select,.teleports-toolbar button,.teleports-remove,.teleports-checkbox,.teleports-add-button,.teleports-add input[type=text]{min-height:44px}.teleports-add-fields{grid-template-columns:minmax(0,1fr)}.teleports-manual-actions{gap:var(--space-2) var(--space-5)}.teleports-remove{margin-left:0}.teleports-group-count{font-size:var(--type-sm)}}

@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+  <title>Thieving: hand taking a coin placeholder</title>
+  <g fill="none" stroke="#f4efe4" stroke-width="4.4" stroke-linecap="round" stroke-linejoin="round">
+    <circle cx="17" cy="6" r="4"/>
+    <path d="m3 20 1-8 4-4 6 0 0 3-5 1 6 1 5-3 2 3-7 7-7 1Z"/>
+    <path d="m17 4 0 4"/>
+  </g>
+  <g fill="none" stroke="#25313b" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+    <circle cx="17" cy="6" r="4" fill="#e99768"/>
+    <path d="m3 20 1-8 4-4 6 0 0 3-5 1 6 1 5-3 2 3-7 7-7 1Z" fill="#fff0cc"/>
+    <path d="m17 4 0 4"/>
+  </g>
+</svg>

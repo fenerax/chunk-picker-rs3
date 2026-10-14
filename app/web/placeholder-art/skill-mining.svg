@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+  <title>Mining: bent pickaxe placeholder</title>
+  <g fill="none" stroke="#f4efe4" stroke-width="4.4" stroke-linecap="round" stroke-linejoin="round">
+    <path d="m11 8 4 2-9 12-3-2Z"/>
+    <path d="M3 8C7 1 17 3 22 12L15 9 9 7Z"/>
+  </g>
+  <g fill="none" stroke="#25313b" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+    <path d="m11 8 4 2-9 12-3-2Z" fill="#fff0cc"/>
+    <path d="M3 8C7 1 17 3 22 12L15 9 9 7Z" fill="#70b7ae"/>
+  </g>
+</svg>

@@ -1,0 +1,14 @@
+{
+  "name": "chunk-picker-rs3",
+  "version": "0.1.0",
+  "private": true,
+  "description": "An unofficial non-commercial F2P chunk challenge picker",
+  "license": "MIT",
+  "scripts": {
+    "start": "node scripts/start-public-game.mjs",
+    "start:f2p": "node scripts/start-public-game.mjs",
+    "test:quick": "node scripts/test.mjs quick",
+    "test": "node scripts/test.mjs full"
+  },
+  "engines": { "node": ">=24" }
+}

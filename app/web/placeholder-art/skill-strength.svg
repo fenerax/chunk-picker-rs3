@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+  <title>Strength: bent arm placeholder</title>
+  <g fill="none" stroke="#f4efe4" stroke-width="4.4" stroke-linecap="round" stroke-linejoin="round">
+    <path d="m3 20 1-8 5-8 5 1 0 4-5-1-1 6 6-2 6 3 1 5-9 2Z"/>
+    <path d="m9 8 4 0 M11 17Q15 13 18 17"/>
+  </g>
+  <g fill="none" stroke="#25313b" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+    <path d="m3 20 1-8 5-8 5 1 0 4-5-1-1 6 6-2 6 3 1 5-9 2Z" fill="#fff0cc"/>
+    <path d="m9 8 4 0 M11 17Q15 13 18 17" stroke="#e99768"/>
+  </g>
+</svg>

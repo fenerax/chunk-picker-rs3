@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+  <title>Defence: wonky shield placeholder</title>
+  <g fill="none" stroke="#f4efe4" stroke-width="4.4" stroke-linecap="round" stroke-linejoin="round">
+    <path d="m4 4 8-1 8 3-2 11-6 5-7-6Z"/>
+    <path d="m12 6-1 12 M7 11 17 12" stroke-width="5.6"/>
+  </g>
+  <g fill="none" stroke="#25313b" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+    <path d="m4 4 8-1 8 3-2 11-6 5-7-6Z" fill="#fff0cc"/>
+    <path d="m12 6-1 12 M7 11 17 12" stroke="#70b7ae" stroke-width="3"/>
+  </g>
+</svg>

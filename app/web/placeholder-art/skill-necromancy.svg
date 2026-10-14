@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+  <title>Necromancy: tiny ghost placeholder</title>
+  <g fill="none" stroke="#f4efe4" stroke-width="4.4" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M5 20 4 11C4 0 19 0 20 11L20 21 15 18 12 22 9 18Z"/>
+    <ellipse cx="9" cy="10" rx="1" ry="2"/>
+    <ellipse cx="15" cy="9" rx="1" ry="2"/>
+    <path d="m10 15 4-1"/>
+  </g>
+  <g fill="none" stroke="#25313b" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M5 20 4 11C4 0 19 0 20 11L20 21 15 18 12 22 9 18Z" fill="#fff0cc"/>
+    <ellipse cx="9" cy="10" rx="1" ry="2" fill="#70b7ae"/>
+    <ellipse cx="15" cy="9" rx="1" ry="2" fill="#70b7ae"/>
+    <path d="m10 15 4-1"/>
+  </g>
+</svg>

@@ -1,0 +1,67 @@
+/* The existing mobile breakpoint. Every override stays inside this query. */
+@media (max-width:720px) {
+  :root { --phone-tabs-height:calc(56px + env(safe-area-inset-bottom,0px)); }
+  .phone-layout .topbar { gap:var(--space-2) var(--space-4); }
+  .phone-layout .player-controls { gap:var(--space-4); }
+  .phone-layout .workspace { display:block;height:calc(100dvh - var(--topbar-height,110px) - var(--phone-tabs-height));min-height:0; }
+  .phone-layout .map-panel { height:100%; }
+  .phone-layout .map-stage { position:absolute;inset:0;height:100%;min-height:0; }
+  .phone-layout .map-dock { position:absolute;top:calc(var(--map-toolbar-height,56px) + 1rem);bottom:.5rem;left:.5rem;right:.5rem;width:auto;margin:0;min-height:0; }
+  .phone-layout .map-dock-panels { max-height:100%; }
+  .phone-layout .task-sidebar { height:100%;max-height:none;min-height:0;border-top:0;overscroll-behavior:contain; }
+  .phone-layout .map-toolbar .toolbar-undo { flex-basis:auto; }
+  .phone-layout .map-toolbar .toolbar-undo #undo { width:auto;max-width:13rem; }
+  .phone-layout .map-toolbar .toolbar-undo #undo-own { flex-basis:auto; }
+  #phone-tabs { position:fixed;bottom:0;left:0;right:0;z-index:12;display:flex;gap:var(--space-3);padding:var(--space-3) var(--space-4) calc(var(--space-3) + env(safe-area-inset-bottom,var(--space-legacy-0px)));height:var(--phone-tabs-height);background:var(--panel);border-top:var(--border-thin) solid var(--hairline); }
+  #phone-tabs button { flex:1;background:transparent;color:var(--panel-muted,var(--muted));font-weight:var(--weight-semibold); }
+  #phone-tabs button[aria-selected=true] { background:var(--surface);color:var(--gold); }
+  :root:not([data-theme=dark]) #phone-tabs button[aria-selected=true] { color:var(--surface-link,var(--link)); }
+  .phone-more { height:100%;overflow:auto;padding:var(--space-6) var(--space-5);overscroll-behavior:contain;background:var(--panel);color:var(--panel-text,var(--text)); }
+  .phone-more h2 { margin-bottom:var(--space-5); }
+  #phone-tools nav { display:flex;flex-wrap:wrap;gap:var(--space-4);white-space:normal; }
+  #phone-tools nav>button { flex:1 1 40%; }
+  #phone-tools .more-tools { width:100%;position:relative; }
+  #phone-tools nav>details>summary { display:flex;align-items:center;justify-content:center;gap:var(--space-3); }
+  #phone-tools .more-tools>summary { font-size:var(--type-base);background:var(--surface);color:var(--surface-text,var(--text)); }
+  #phone-tools .more-tools-menu { position:static;min-width:0;width:100%;margin-top:var(--space-3);box-shadow:none; }
+  #phone-tools .more-tools-menu button { white-space:normal; }
+  #phone-map-summary { display:flex;flex-direction:column;gap:var(--space-5);margin-top:var(--space-6); }
+  #phone-map-summary .map-summary { margin-top:0;box-shadow:none; }
+  #phone-map-summary #map-hint { display:block;margin-top:var(--space-4);font-size:var(--type-sm); }
+  .phone-layout .map-display-panel { bottom:var(--phone-tabs-height);max-height:55dvh; }
+
+  /* Large targets retain the existing component shapes and palette. */
+  :root button,:root select,:root summary,:root input:not([type=checkbox]):not([type=radio]),:root [role=tab] { min-height:44px!important; }
+  :root button,:root select,:root [role=tab] { min-width:44px!important; }
+  :root a.icon-button,:root .map-menu-link { min-width:44px;min-height:44px; }
+  :root summary { min-width:44px;align-content:center; }
+  :root label:has(input[type=checkbox]),:root label:has(input[type=radio]),:root .checkbox-field { min-height:44px; }
+  :root input[type=checkbox],:root input[type=radio] { width:44px;height:44px;min-width:44px;min-height:44px; }
+  :root input[type=checkbox]:not([role=switch]) { background:transparent;border-color:transparent; }
+  :root input[type=checkbox]:not([role=switch])::before { content:"";grid-area:1/1;width:20px;height:20px;border:var(--border-check) solid color-mix(in srgb,var(--muted) var(--border-legacy-75),transparent);border-radius:var(--radius-check); }
+  :root input[type=checkbox]:not([role=switch]):checked::before { background:var(--gold);border-color:var(--gold); }
+  :root input[type=checkbox]:not([role=switch])::after { grid-area:1/1;justify-self:center;align-self:center; }
+  :root .group-toggle input { width:44px;height:26px;min-height:26px; }
+  :root .group-toggle { min-height:44px; }
+  :root .group-toggle input::after { width:20px;height:20px;top:2px;left:2px; }
+  :root .group-toggle input:checked::after { left:calc(100% - 22px); }
+  :root .member-switch button { padding-inline:var(--space-5); }
+  :root .map-toolbar { gap:var(--space-2); }
+  :root .map-toolbar button { padding:var(--space-2) var(--space-3); }
+  :root .map-toolbar .zoom-group button { min-width:44px; }
+  /* The 44 px checkbox needs its own column, or it covers the task icon. */
+  :root .task-row { align-items:start;grid-template-columns:44px minmax(0,1fr) auto auto;gap:var(--space-3); }
+  :root .duo-task-row { grid-template-columns:44px minmax(0,1fr) auto; }
+  :root .task-row>input[type=checkbox] { margin-top:calc(-1 * var(--space-5)); }
+  :root .task-row>.icon-button { opacity:1; }
+
+  /* Dialogs scroll inside the viewport, including wide data tables. */
+  :root dialog { max-width:calc(100vw - 1rem);max-height:calc(100dvh - 1rem);overflow:auto; }
+  :root .dialog-header { gap:var(--space-4);padding:var(--space-4) var(--space-6); }
+  :root .dialog-header h2 { min-width:0;font-size:var(--type-heading);overflow-wrap:anywhere; }
+  :root #dialog-content { min-width:0;overflow-x:auto; }
+  :root .form-actions { flex-wrap:wrap; }
+  :root .form-actions>* { max-width:100%; }
+  .screenshot-mode #phone-tabs { display:none; }
+  .phone-layout.screenshot-mode .workspace { height:100dvh; }
+}

@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+  <title>Runecrafting: marked pebble placeholder</title>
+  <g fill="none" stroke="#f4efe4" stroke-width="4.4" stroke-linecap="round" stroke-linejoin="round">
+    <path d="m5 5 10-2 6 7-3 11-12 0-3-8Z"/>
+    <path d="m8 15 3-7 5 2-3 7Z"/>
+    <path d="m11 8 2 9"/>
+  </g>
+  <g fill="none" stroke="#25313b" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+    <path d="m5 5 10-2 6 7-3 11-12 0-3-8Z" fill="#fff0cc"/>
+    <path d="m8 15 3-7 5 2-3 7Z" fill="#70b7ae"/>
+    <path d="m11 8 2 9"/>
+  </g>
+</svg>

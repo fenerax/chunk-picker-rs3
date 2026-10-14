@@ -1,0 +1,11 @@
+.list-copy-control{display:inline-flex;align-items:center;gap:var(--space-3);flex-wrap:wrap;margin-left:var(--space-3)}
+.list-copy-button{font-size:var(--type-sm);padding:var(--space-2) var(--space-4);min-height:1.9rem}
+.list-copy-status{font-size:var(--type-sm);color:var(--panel-text,var(--text));font-weight:var(--weight-normal)}
+.list-copy-status:empty{display:none}
+.task-heading{flex-wrap:wrap}
+.task-heading>.list-copy-control{background:none;padding:0;border-radius:0;margin-left:auto}
+.list-copy-fallback{margin:var(--space-4) 0;display:grid;gap:var(--space-3);min-width:0;font-size:var(--type-sm)}
+.list-copy-fallback[hidden]{display:none}
+.list-copy-fallback textarea{width:100%;min-height:8rem;font:inherit}
+.list-copy-actions{display:flex;gap:var(--space-3)}
+@media(max-width:600px){.list-copy-button,.list-copy-actions button{min-height:2.4rem}}

@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+  <title>General pin: crooked location marker placeholder</title>
+  <g fill="none" stroke="#f4efe4" stroke-width="4.4" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M12 22C9 16 3 13 4 8C4 0 21 0 20 9C20 14 15 17 12 22Z"/>
+    <circle cx="12" cy="9" r="3"/>
+  </g>
+  <g fill="none" stroke="#25313b" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M12 22C9 16 3 13 4 8C4 0 21 0 20 9C20 14 15 17 12 22Z" fill="#fff0cc"/>
+    <circle cx="12" cy="9" r="3" fill="#70b7ae"/>
+  </g>
+</svg>

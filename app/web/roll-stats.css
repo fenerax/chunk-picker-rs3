@@ -1,0 +1,32 @@
+.roll-stats-panel{display:grid;gap:var(--space-6);min-width:0}
+.roll-stats-figure{margin:0;min-width:0}
+.roll-stats-ranges{display:flex;flex-wrap:wrap;gap:var(--space-3);margin:0 0 var(--space-4)}
+.roll-stats-range{font-size:var(--type-sm);background:transparent;color:var(--panel-text,var(--text));border:var(--border-thin) solid var(--hairline);border-radius:var(--radius-pill);min-height:32px;padding:var(--space-2) var(--space-5)}
+.roll-stats-range[aria-pressed=true]{border-color:var(--gold);background:color-mix(in srgb,var(--gold) 12%,var(--panel));color:var(--panel-link,var(--link))}
+.roll-stats-chart{display:block;width:100%;max-height:360px}
+.roll-stats-chart text{fill:var(--panel-muted,var(--muted));font-family:inherit;font-size:var(--type-legacy-14px)}
+.roll-stats-y-label{text-anchor:end}
+.roll-stats-date-end{text-anchor:end}
+.roll-stats-grid{stroke:var(--hairline);stroke-width:1}
+.roll-stats-line{fill:none;stroke-width:2;vector-effect:non-scaling-stroke;stroke-linejoin:round}
+.roll-stats-player-0{stroke:var(--panel-link,var(--link));border-color:var(--panel-link,var(--link))}
+.roll-stats-player-1{stroke:var(--panel-text,var(--text));border-color:var(--panel-text,var(--text));stroke-dasharray:6 3}
+.roll-stats-player-2{stroke:var(--panel-muted,var(--muted));border-color:var(--panel-muted,var(--muted));stroke-dasharray:2 3}
+.roll-stats-player-3{stroke:var(--panel-link,var(--link));border-color:var(--panel-link,var(--link));stroke-dasharray:8 3 2 3}
+.roll-stats-duo{stroke:var(--panel-text,var(--text));border-color:var(--panel-text,var(--text));stroke-width:3;stroke-dasharray:2 4}
+.roll-stats-legend{display:flex;flex-wrap:wrap;gap:var(--space-3) var(--space-6);list-style:none;padding:0;margin:var(--space-3) 0 var(--space-4)}
+.roll-stats-legend li{display:flex;align-items:center;gap:var(--space-3)}
+.roll-stats-key{width:1.4rem;border-top-width:var(--border-focus);border-top-style:solid}
+.roll-stats-key.roll-stats-player-1{border-top-style:dashed}
+.roll-stats-key.roll-stats-duo,.roll-stats-key.roll-stats-player-2{border-top-style:dotted}
+.roll-stats-figure figcaption,.roll-stats-note,.roll-stats-missing{font-size:var(--type-body);color:var(--panel-muted,var(--muted));line-height:var(--leading-copy)}
+.roll-stats-table{width:100%;border-collapse:collapse;font-size:var(--type-body);font-variant-numeric:tabular-nums;table-layout:fixed}
+.roll-stats-table caption{text-align:left;font-weight:var(--weight-semibold);padding-bottom:var(--space-4)}
+.roll-stats-table th,.roll-stats-table td{padding:var(--space-4) var(--space-2);border-bottom:var(--border-thin) solid var(--hairline);text-align:right;overflow-wrap:anywhere}
+.roll-stats-table th:first-child{text-align:left;width:31%}
+.roll-stats-table thead th{font-weight:var(--weight-semibold)}
+.roll-stats-table tbody th{font-weight:var(--weight-normal)}
+.roll-stats-missing{padding-left:var(--space-6);margin:0}
+/* The chart scales with the dialog; keep its labels near body size on wide screens. */
+@media(min-width:600px){.roll-stats-chart text{font-size:var(--type-legacy-9px)}}
+@media(max-width:450px){.roll-stats-range{min-height:44px}.roll-stats-table{font-size:var(--type-sm)}.roll-stats-table th,.roll-stats-table td{padding:var(--space-4) var(--space-2)}.roll-stats-legend{font-size:var(--type-body)}}

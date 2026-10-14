@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+  <title>Minigame: lopsided die placeholder</title>
+  <g fill="none" stroke="#f4efe4" stroke-width="4.4" stroke-linecap="round" stroke-linejoin="round">
+    <path d="m4 4 16 1 0 15-17 1Z"/>
+    <circle cx="8" cy="8" r="1.5"/>
+    <circle cx="12" cy="12" r="1.5"/>
+    <circle cx="16" cy="17" r="1.5"/>
+  </g>
+  <g fill="none" stroke="#25313b" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+    <path d="m4 4 16 1 0 15-17 1Z" fill="#fff0cc"/>
+    <circle cx="8" cy="8" r="1.5" fill="#70b7ae"/>
+    <circle cx="12" cy="12" r="1.5" fill="#70b7ae"/>
+    <circle cx="16" cy="17" r="1.5" fill="#70b7ae"/>
+  </g>
+</svg>

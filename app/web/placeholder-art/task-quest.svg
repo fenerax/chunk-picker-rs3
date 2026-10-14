@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+  <title>Quest: open book placeholder</title>
+  <g fill="none" stroke="#f4efe4" stroke-width="4.4" stroke-linecap="round" stroke-linejoin="round">
+    <path d="m3 4 7 1 2 2 3-2 6-1-1 16-6 0-2 2-3-2-6-1Z"/>
+    <path d="m12 7 0 15 M6 9 9 10 M15 10 18 9 M6 14 9 15"/>
+  </g>
+  <g fill="none" stroke="#25313b" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+    <path d="m3 4 7 1 2 2 3-2 6-1-1 16-6 0-2 2-3-2-6-1Z" fill="#fff0cc"/>
+    <path d="m12 7 0 15 M6 9 9 10 M15 10 18 9 M6 14 9 15" stroke="#70b7ae"/>
+  </g>
+</svg>

@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+  <title>Ranged: bow with arrow placeholder</title>
+  <g fill="none" stroke="#f4efe4" stroke-width="4.4" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M6 3Q22 12 5 21L9 12Z"/>
+    <path d="m3 12 17 0 M17 8 22 12 17 15"/>
+  </g>
+  <g fill="none" stroke="#25313b" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M6 3Q22 12 5 21L9 12Z" fill="#fff0cc"/>
+    <path d="m3 12 17 0 M17 8 22 12 17 15" stroke="#70b7ae"/>
+  </g>
+</svg>

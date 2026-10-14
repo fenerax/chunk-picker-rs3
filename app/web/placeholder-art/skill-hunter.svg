@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+  <title>Hunter: paw print placeholder</title>
+  <g fill="none" stroke="#f4efe4" stroke-width="4.4" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M5 18 8 12 14 12 19 18C20 23 14 20 12 21C8 23 3 22 5 18Z"/>
+    <ellipse cx="5" cy="9" rx="2" ry="3"/>
+    <ellipse cx="11" cy="5" rx="2" ry="3"/>
+    <ellipse cx="17" cy="7" rx="2" ry="3"/>
+    <circle cx="21" cy="12" r="1.5"/>
+  </g>
+  <g fill="none" stroke="#25313b" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M5 18 8 12 14 12 19 18C20 23 14 20 12 21C8 23 3 22 5 18Z" fill="#fff0cc"/>
+    <ellipse cx="5" cy="9" rx="2" ry="3" fill="#e99768"/>
+    <ellipse cx="11" cy="5" rx="2" ry="3" fill="#e99768"/>
+    <ellipse cx="17" cy="7" rx="2" ry="3" fill="#e99768"/>
+    <circle cx="21" cy="12" r="1.5" fill="#e99768"/>
+  </g>
+</svg>

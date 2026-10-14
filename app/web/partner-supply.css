@@ -1,0 +1,24 @@
+/* Partner requests use the existing compact task and Info-dialog palette. */
+dialog:has(.partner-supply-panel){width:min(760px,calc(100vw - 1.5rem))}
+.partner-supply-panel{min-width:0;color:var(--panel-text,var(--text));font-variant-numeric:tabular-nums}
+.partner-supply-toolbar{display:flex;align-items:center;gap:var(--space-4);flex-wrap:wrap;margin-bottom:var(--space-5)}
+.partner-supply-toolbar>button{margin-left:auto}
+.partner-supply-toolbar button{font-size:var(--type-sm);min-height:36px}
+.partner-supply-copy{display:flex;align-items:center;flex-wrap:wrap;gap:var(--space-3);min-width:0}
+.partner-supply-copy:has(.list-copy-fallback:not([hidden])){flex-basis:100%}
+.partner-supply-copy .list-copy-fallback{flex-basis:100%;width:100%}
+.partner-supply-intro{font-size:var(--type-body);margin:0 0 var(--space-5)}
+.partner-supply-member{margin-top:var(--space-6);border-top:var(--border-thin) solid var(--hairline);padding-top:var(--space-5)}
+.partner-supply-member h2{font-size:var(--type-base);margin:0 0 var(--space-4)}
+.partner-supply-note,.partner-supply-needs,.partner-supply-sources{font-size:var(--type-sm);color:var(--panel-muted,var(--muted));line-height:var(--leading-body);overflow-wrap:anywhere}
+.partner-supply-footnote{margin:var(--space-6) 0 0;border-top:var(--border-thin) solid var(--hairline);padding-top:var(--space-5)}
+.partner-supply-list{list-style:none;margin:0;padding:0}
+.partner-supply-row{padding:var(--space-4) 0;border-top:var(--border-thin) solid var(--hairline);overflow-wrap:anywhere}
+.partner-supply-row:first-child{border-top:0;padding-top:0}
+.partner-supply-row strong{font-size:var(--type-body);font-weight:var(--weight-semibold)}
+.partner-supply-needs{list-style:none;padding:0;margin:var(--space-2) 0}
+.partner-supply-sources summary{min-height:32px;display:flex;align-items:center;cursor:pointer}
+.partner-supply-sources ul{padding-left:var(--space-6);margin:var(--space-2) 0}
+@media(max-width:500px){
+  .partner-supply-toolbar button,.partner-supply-sources summary{min-height:44px}
+}

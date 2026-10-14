@@ -1,0 +1,24 @@
+.members-start{display:flex;flex-direction:column;gap:var(--space-6);min-width:0;line-height:var(--leading-copy)}
+.members-start p{margin:0;max-width:72ch}
+.members-start h3{margin:0 0 var(--space-4);font-size:var(--type-heading)}
+.members-start ul{margin:var(--space-4) 0;padding-left:var(--space-7)}
+.members-start-summary{padding-bottom:var(--space-6);border-bottom:var(--border-thin) solid var(--hairline)}
+.members-start-group{margin:0;padding:var(--space-5) var(--space-6) var(--space-5);border:var(--border-thin) solid var(--hairline);border-radius:var(--radius-sm);min-width:0}
+.members-start-group legend{font-weight:var(--weight-bold);padding:0 var(--space-2)}
+.members-start-choice{display:flex;align-items:flex-start;gap:var(--space-5);padding:var(--space-3) 0;cursor:pointer}
+.members-start-choice>input{flex:none;margin-top:var(--space-2)}
+.members-start-choice>span{min-width:0}
+.members-start-choice .field-help{display:block;margin-top:var(--space-2)}
+.members-start .members-start-pool-size{margin:0 0 var(--space-3) var(--space-legacy-1-65rem)}
+.members-start-preview details{padding:var(--space-4) 0;border-bottom:var(--border-thin) solid var(--hairline)}
+.members-start-preview summary{font-weight:var(--weight-semibold);cursor:pointer}
+.members-start-banks{display:flex;flex-direction:column;gap:var(--space-5)}
+.members-start-banks p{margin:var(--space-1) 0 0}
+.members-start-notice{font-weight:var(--weight-semibold)}
+.members-start-confirm{display:flex;flex-direction:column;gap:var(--space-4);font-weight:var(--weight-semibold)}
+.members-start-confirm input{width:min(100%,20rem)}
+.members-start-status:empty{display:none}
+.members-start-actions{display:flex;align-items:center;justify-content:flex-end;gap:var(--space-5)}
+.members-start-actions button{white-space:normal}
+.members-start-results{font-weight:var(--weight-semibold)}
+@media(max-width:540px){.members-start-actions{align-items:stretch;flex-direction:column-reverse}.members-start-actions button{width:100%}.members-start-group{padding:var(--space-4) var(--space-5)}.members-start-confirm input{width:100%}}

@@ -1,0 +1,10 @@
+/* Inset map outlines leave personal colours and roll highlights visible. */
+.swatch-clue-layer{background:var(--color-fixed-122027);border:var(--border-focus) dashed var(--color-fixed-71e4ef);border-radius:0}
+.swatch-slayer-layer{background:var(--color-fixed-20172b);border:var(--border-focus) dotted var(--color-fixed-d8a3ff);border-radius:0}
+.map-activity-controls{display:flex;flex-direction:column;gap:var(--space-3)}
+.map-activity-option{display:flex;align-items:center;gap:var(--space-3);min-height:36px}
+.map-activity-option select{margin-left:auto;min-height:36px;max-width:9rem}
+.map-activity-legend{border-top:var(--border-thin) solid var(--hairline);padding-top:var(--space-3);grid-column:1/-1}
+.map-activity-legend .map-activity-option{min-height:32px}
+.map-activity-legend .map-activity-option select{min-height:32px;font-size:var(--type-sm)}
+.map-activity-legend .map-display-note{max-width:32ch}

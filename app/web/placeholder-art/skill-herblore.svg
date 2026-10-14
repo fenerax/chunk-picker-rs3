@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+  <title>Herblore: bottle with a leaf placeholder</title>
+  <g fill="none" stroke="#f4efe4" stroke-width="4.4" stroke-linecap="round" stroke-linejoin="round">
+    <path d="m9 3 7 0-1 6 5 7-2 6-12-1-2-5 6-7Z"/>
+    <path d="m5 16 14-1-1 7-12-1Z"/>
+    <path d="M10 13C10 8 14 9 16 10C15 14 12 15 10 13Z"/>
+    <path d="m8 3 9 0"/>
+  </g>
+  <g fill="none" stroke="#25313b" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+    <path d="m9 3 7 0-1 6 5 7-2 6-12-1-2-5 6-7Z" fill="#fff0cc"/>
+    <path d="m5 16 14-1-1 7-12-1Z" fill="#70b7ae"/>
+    <path d="M10 13C10 8 14 9 16 10C15 14 12 15 10 13Z" fill="#70b7ae"/>
+    <path d="m8 3 9 0"/>
+  </g>
+</svg>

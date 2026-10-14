@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+  <title>Clue: folded paper with a cross placeholder</title>
+  <g fill="none" stroke="#f4efe4" stroke-width="4.4" stroke-linecap="round" stroke-linejoin="round">
+    <path d="m3 5 6-2 6 3 6-2-1 16-6 1-6-3-5 3Z"/>
+    <path d="m9 4-1 13 M15 6 15 20"/>
+    <path d="m11 10 6 6 M17 10 11 16"/>
+  </g>
+  <g fill="none" stroke="#25313b" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+    <path d="m3 5 6-2 6 3 6-2-1 16-6 1-6-3-5 3Z" fill="#fff0cc"/>
+    <path d="m9 4-1 13 M15 6 15 20"/>
+    <path d="m11 10 6 6 M17 10 11 16" stroke="#e99768"/>
+  </g>
+</svg>

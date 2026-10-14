@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+  <title>Minigames pin: puzzle piece placeholder</title>
+  <g fill="none" stroke="#f4efe4" stroke-width="4.4" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M3 5 9 5C6 0 16 0 14 5L21 6 20 12C15 9 15 18 20 16L20 21 13 21C16 16 7 16 9 21L3 20 3 15C8 17 8 8 3 10Z"/>
+    <circle cx="11" cy="11" r="2"/>
+  </g>
+  <g fill="none" stroke="#25313b" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M3 5 9 5C6 0 16 0 14 5L21 6 20 12C15 9 15 18 20 16L20 21 13 21C16 16 7 16 9 21L3 20 3 15C8 17 8 8 3 10Z" fill="#fff0cc"/>
+    <circle cx="11" cy="11" r="2" fill="#70b7ae"/>
+  </g>
+</svg>

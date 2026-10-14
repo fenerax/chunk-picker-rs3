@@ -1,0 +1,39 @@
+.task-hover{position:fixed;z-index:45;width:320px;padding:var(--space-6);background:var(--panel);color:var(--panel-text,var(--text));box-shadow:var(--shadow);border-radius:var(--radius);pointer-events:none;overflow:hidden;font-size:var(--type-body);line-height:var(--leading-body);--context-link:var(--panel-link,var(--link))}
+.task-hover-content{display:grid;gap:var(--space-4)}
+.task-hover-heading{display:flex;align-items:center;gap:var(--space-4);font-size:var(--type-base);line-height:var(--leading-body)}
+.task-hover-icon,.task-equipment-icon{object-fit:contain;flex-shrink:0}
+.task-hover-asks{line-height:var(--leading-copy)}
+.task-hover-meta{color:var(--panel-muted,var(--muted));font-size:var(--type-sm)}
+.task-hover-state{font-weight:var(--weight-semibold)}
+.task-hover-state[data-doable=true]{color:var(--ok)}
+.task-hover-sources{margin:0;padding:var(--space-4) 0 0 var(--space-6);border-top:var(--border-thin) solid var(--hairline);font-size:var(--type-sm);color:var(--panel-muted,var(--muted));display:grid;gap:var(--space-2)}
+.task-equipment{display:grid;gap:var(--space-5);padding:var(--space-6) 0;border-block:var(--border-thin) solid var(--hairline)}
+.task-equipment-item{display:grid;gap:var(--space-4)}
+.task-equipment-header{display:flex;gap:var(--space-5);align-items:center}
+.task-equipment-header h3{font-size:var(--type-heading)}
+.task-equipment-meta,.task-equipment-evidence,.task-equipment-comparison{font-size:var(--type-body);color:var(--panel-muted,var(--muted))}
+.task-equipment-stats{display:flex;flex-wrap:wrap;gap:var(--space-3) var(--space-6);margin:0;font-variant-numeric:tabular-nums}
+.task-equipment-stats>div{display:flex;gap:var(--space-3);align-items:baseline}
+.task-equipment-stats dt{color:var(--panel-muted,var(--muted));font-size:var(--type-sm)}
+.task-equipment-stats dd{margin:0;font-weight:var(--weight-semibold)}
+.task-equipment-compact{padding:var(--space-4) 0;gap:var(--space-3)}
+.task-equipment-compact .task-equipment-header{display:none}
+.task-equipment-compact .task-equipment-stats{gap:var(--space-2) var(--space-5);font-size:var(--type-sm)}
+.task-equipment-more{font-size:var(--type-sm)}
+.task-equipment-more>summary{color:var(--panel-link,var(--link));padding:var(--space-3) 0}
+.task-equipment-more>details{padding:var(--space-3) 0}
+.task-equipment-comparison h4{margin:var(--space-2) 0 var(--space-4)}
+.task-methods{display:grid;gap:var(--space-6)}
+.task-methods-controls{display:flex;align-items:center;justify-content:space-between;gap:var(--space-4);flex-wrap:wrap}
+.task-methods-hint{font-size:var(--type-sm);color:var(--panel-muted,var(--muted))}
+.task-methods-auto,.task-method-details{font-size:var(--type-sm);padding:var(--space-2) var(--space-4);background:transparent;color:var(--panel-link,var(--link))}
+.task-methods-group{display:grid;gap:var(--space-3)}
+.task-methods-group h4{font-size:var(--type-sm);font-weight:var(--weight-semibold);color:var(--panel-muted,var(--muted));margin:0 0 var(--space-2)}
+.task-method{display:flex;align-items:center;gap:var(--space-2);border-radius:var(--radius-sm);border:var(--border-thin) solid transparent}
+.task-method[data-active=true]{border-color:var(--gold);background:color-mix(in srgb,var(--gold) 9%,var(--panel))}
+.task-method-choice{flex:1;min-width:0;display:grid;gap:var(--space-2);text-align:left;padding:var(--space-4) var(--space-5);background:transparent;color:var(--panel-text,var(--text));overflow-wrap:anywhere}
+.task-method-meta{font-size:var(--type-sm);line-height:var(--leading-body);color:var(--panel-muted,var(--muted))}
+.task-method-active{font-size:var(--type-xs);font-weight:var(--weight-semibold);color:var(--panel-link,var(--link))}
+.task-methods-error{color:var(--danger);font-size:var(--type-sm)}
+.task-methods-more{font-size:var(--type-sm);background:var(--surface);color:var(--surface-text,var(--text));border:var(--border-thin) solid transparent;min-height:36px}
+@media(max-width:500px){.task-hover{padding:var(--space-5);font-size:var(--type-sm)}.task-hover-content{gap:var(--space-3)}.task-equipment-stats{gap:var(--space-2) var(--space-5)}.task-method-details{padding:var(--space-3)}.task-method-choice{min-height:44px}}
