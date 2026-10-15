@@ -1,3 +1,4 @@
+import { fixtureDataset } from './helpers/server-dataset.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
@@ -22,7 +23,7 @@ function fakeFactory() {
 async function fixture(t, options = {}) {
   const base = path.resolve('.local/reliability-tests'); await mkdir(base, { recursive: true });
   const directory = await mkdtemp(path.join(base, 'server-'));
-  const application = await createServer({ dataDir: directory, definitions, taskMap: {}, port: 0,
+  const application = await createServer({ dataset: fixtureDataset, dataDir: directory, definitions, taskMap: {}, port: 0,
     initialState: createGroupState([{ id: 'actor1', name: 'Player' }, { id: 'reed', name: 'Reed' }]), ...options });
   await application.listen();
   t.after(async () => { await application.close(); await rm(directory, { recursive: true, force: true }); });

@@ -1,3 +1,4 @@
+import { fixtureDataset } from './helpers/server-dataset.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import http from 'node:http';
@@ -24,7 +25,7 @@ async function fixture(t, options = {}) {
   initialState.members[0].taskStatus = { 'custom:goal': { favorite: true, note: 'Private task note' } };
   let app, origin;
   async function start(initial) {
-    app = await createServer({ dataDir, definitions, taskMap: {}, initialState: initial, host: '127.0.0.1', port: 0, predictionPrewarm: false, ...options });
+    app = await createServer({ dataset: fixtureDataset, dataDir, definitions, taskMap: {}, initialState: initial, host: '127.0.0.1', port: 0, predictionPrewarm: false, ...options });
     await app.listen(); origin = `http://127.0.0.1:${app.address().port}`;
   }
   await start(initialState);
@@ -239,9 +240,9 @@ test('invalid overlay sidecar fails startup without retaining the gameplay direc
   await prepareGameStorage(dataDir, await resolveDataset());
   await writeFile(path.join(dataDir, 'overlays.json'), JSON.stringify({ schemaVersion: 1, links: [{ token: 'plaintext must not be accepted' }] }));
   const options = { dataDir, definitions, taskMap: {}, host: '127.0.0.1', port: 0, predictionPrewarm: false };
-  await assert.rejects(createServer(options), /Invalid overlay record/);
+  await assert.rejects(createServer({ dataset: fixtureDataset, ...options }), /Invalid overlay record/);
   await writeFile(path.join(dataDir, 'overlays.json'), JSON.stringify({ schemaVersion: 1, links: [] }));
-  app = await createServer(options);
+  app = await createServer({ dataset: fixtureDataset, ...options });
   await app.listen();
   assert.ok(app.address().port > 0);
 });

@@ -5,6 +5,7 @@ import { datasetCatalogueKey, datasetBrowserPayload, datasetLocalMetadataBytes }
 import { datasetJSON, selectedDataset, adoptLegacyMetadataProvider } from "./dataset-runtime.mjs";
 import http from 'node:http';
 import { serveGallery } from './gallery-route.mjs';
+import { loadPrivateAddon, datasetWithPrivateAddon } from './private-addon.mjs';
 import { readFile, realpath, stat } from 'node:fs/promises';
 import { readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
@@ -326,7 +327,7 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
   worldImagesRoot,
   packsDir = process.env.RS3_PACKS_DIR || path.join(ROOT, '.local', 'packs'),
   packSelection = process.env.RS3_PACK_SELECTION,
-  runeMetrics = {}, originalSync = {},
+  runeMetrics = {}, originalSync = {}, privateAddonOptions = {},
   mapAssetsDir = process.env.RS3_MAP_ASSETS_DIR,
   terrainAssetsDir = process.env.RS3_TERRAIN_ASSETS_DIR || mapAssetsDir,
   iconAssetsDir = process.env.RS3_ICON_ASSETS_DIR || mapAssetsDir,
@@ -346,6 +347,11 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
   dataset ??= await resolveDataset({ packsDir, selectionPath: packSelection, mapAssetsDir, gameDataDir });
   worldImagesRoot ??= path.join(ROOT, ...(dataset.gameDefaults.compatibility?.worldImagesPath ?? ['.local', 'world-images']));
   adoptLegacyMetadataProvider(dataset);
+  const privateAddon = await loadPrivateAddon(privateAddonOptions);
+  const appVersion = privateAddon ? createHash('sha256').update(`${APP_VERSION}:${privateAddon.addonSha256}`).digest('hex').slice(0, 12) : APP_VERSION;
+  dataset = datasetWithPrivateAddon(dataset, privateAddon);
+  // Refuse a broken executable installation before opening or preparing saves.
+  const originalSyncIntegration = await loadOriginalSyncIntegration(dataset, undefined, privateAddon);
   dataDir ??= defaultGameDirectory(ROOT, dataset);
   await prepareGameStorage(dataDir, dataset);
   if (initialImport && !datasetFeature(dataset, 'originalSync')) throw httpError(422, 'Restore a starter backup through Backup & Import.');
@@ -567,7 +573,6 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
   }
   const runeMetricsClient = createRuneMetricsClient(runeMetrics), questMapping = createQuestMapping(parsedDefinitions);
   const runeMetricsPreviews = new Map();
-  const originalSyncIntegration = await loadOriginalSyncIntegration(dataset);
   const originalSyncClient = originalSyncIntegration?.createOriginalSyncClient(originalSync), originalSyncPreviews = new Map();
   const originalSyncNow = () => (originalSync.now?.() ?? new Date()).getTime();
   const previewLifetimeMs = 10 * 60 * 1000;
@@ -1087,7 +1092,7 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
           'Set-Cookie': invites.cookie(session, security) });
         response.end(); return;
       }
-      if (await serveGallery(request, response, { route, identity, dataset })) return;
+      if (await serveGallery(request, response, { route, identity, dataset, privateAddon: privateAddon?.features.gallery ? privateAddon : null })) return;
       if (!identity) {
         if (route.startsWith('/api/')) throw httpError(401, 'Access required.');
         response.writeHead(401, { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': PRIVATE_NO_STORE });
@@ -1109,6 +1114,7 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
       if (!originalSyncIntegration && (route.startsWith('/api/original-sync/') || unavailableDatasetFeature(dataset, route) === 'originalSync')) {
         throw httpError(404, 'Not found.');
       }
+      if (privateAddon?.features.originalSync && route.startsWith('/api/original-sync/')) await privateAddon.verify();
       if (route.startsWith('/api/')) {
         requirePermission();
         if (unavailableDatasetFeature(dataset, route)) throw httpError(422, 'This feature is unavailable in this game.');
@@ -1214,11 +1220,16 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
             const warming = startupWarmup && ['pending', 'running'].includes(startupWarmup.diagnostics().status);
             await json(request, response, 200, { ready: !closed && worker.ready && !worker.stuck && !worker.restartRequired, status: closed ? 'stopping' : worker.stuck ? 'stuck' : worker.restartRequired ? 'restart-required' : warming ? 'warming' : worker.ready ? 'ready'
               : ['sleeping', 'waking'].includes(worker.status) ? worker.status : 'degraded',
-              savesReady: !closed, worker, local: true, revision: store.getInfo().revision, version: APP_VERSION, schemaVersion: 1 }); return;
+              savesReady: !closed, worker, local: true, revision: store.getInfo().revision, version: appVersion, schemaVersion: 1 }); return;
           }
-          if (route === '/api/changelog') { await json(request, response, 200, datasetFeature(dataset, 'projectUpdates') ? JSON.parse(await readFile(path.join(ROOT, 'app', 'data', 'changelog.json'), 'utf8')) : { entries: [] }); return; }
-          // Read on every request so a roadmap status update needs no restart.
-          if (route === '/api/roadmap') { await json(request, response, 200, datasetFeature(dataset, 'projectUpdates') ? JSON.parse(await readFile(path.join(ROOT, 'app', 'data', 'roadmap.json'), 'utf8')) : { items: [] }); return; }
+          if (route === '/api/changelog' || route === '/api/roadmap') {
+            const filename = route === '/api/changelog' ? 'changelog.json' : 'roadmap.json';
+            let value = route === '/api/changelog' ? { entries: [] } : { items: [] };
+            if (datasetFeature(dataset, 'projectUpdates')) value = privateAddon?.features.projectUpdates
+              ? await privateAddon.json(`app/data/${filename}`)
+              : JSON.parse(await readFile(path.join(ROOT, 'app', 'data', filename), 'utf8'));
+            await json(request, response, 200, value); return;
+          }
           if (route === '/api/diagnostics') {
             await json(request, response, 200, { status: closed ? 'stopping' : 'running', ...(taskWorker?.getDiagnostics() ?? { worker: { status: 'not-configured' } }),
               poolRanking: poolRanking.diagnostics(),
@@ -1512,7 +1523,7 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
             response.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': PRIVATE_NO_STORE, Connection: 'keep-alive' });
             if (request.method === 'HEAD') { response.end(); return; }
             response.write(`event: revision\ndata: ${JSON.stringify({ revision: store.getInfo().revision })}\n\n`);
-            response.write(`event: version\ndata: ${JSON.stringify({ version: APP_VERSION })}\n\n`);
+            response.write(`event: version\ndata: ${JSON.stringify({ version: appVersion })}\n\n`);
             if (taskWorker) response.write(`event: worker\ndata: ${JSON.stringify(taskWorker.getHealth())}\n\n`);
             clients.add(response);
             clientCredentials.set(response, { request, security });
@@ -1742,6 +1753,7 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
               }
               response.once('finish', scheduleClaimCleanup);
               if (command?.type === 'sync-original') {
+                if (privateAddon?.features.originalSync) await privateAddon.verify();
                 if (Object.keys(command).some(key => !['type', 'previewId', 'members'].includes(key)) || typeof command.previewId !== 'string') throw httpError(400, 'Original-picker sync requires a reviewed preview ID and group selections.');
                 const review = originalSyncPreviews.get(command.previewId);
                 if (!review || originalSyncNow() - review.createdAt >= previewLifetimeMs) {
@@ -1899,6 +1911,10 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
       else if (['/core/interior-maps.mjs', '/core/archaeology.mjs'].includes(route)) file = await containedFile(path.join(ROOT, 'app', 'core'), route.slice('/core/'.length));
       else if (['/core/experience.mjs', '/core/combat-level.mjs', '/core/f2p-skill-caps.mjs', '/core/finish-line.mjs', '/core/group-goals.mjs', '/core/group-goal-types.mjs'].includes(route)) file = await containedFile(path.join(ROOT, 'app', 'core'), route.slice('/core/'.length));
       else if (['/copy-lists.mjs', '/copy-list-control.mjs', '/copy-list-model.mjs', '/copy-lists.css'].includes(route)) file = await containedFile(webRoot, route.slice(1));
+      else if (route === '/original-sync.mjs' && privateAddon?.features.originalSync) {
+        const bytes = await privateAddon.read('app/web/original-sync.mjs');
+        await sendCached(request, response, createRepresentation(bytes, { type: MIME['.mjs'] })); return;
+      }
       else if (['/style.css', '/map-pin-groups.css', '/main.mjs', '/command-state.mjs', '/map.mjs', '/map-tools.mjs', '/map-pins.mjs', '/map-info.mjs', '/map-terrain.mjs', '/map-pin-renderer.mjs', '/chunk-planning.mjs', '/death-chunks.mjs', '/death-settings.mjs', '/info-panels.mjs', '/settings-panel.mjs', '/runemetrics.mjs', '/original-sync.mjs', '/invites.mjs', '/favicon.svg'].includes(route)) file = await containedFile(webRoot, route.slice(1));
       else if (['/style.css', '/map-pin-groups.css', '/main.mjs', '/command-state.mjs', '/map.mjs', '/map-tools.mjs', '/map-pins.mjs', '/map-terrain.mjs', '/map-pin-renderer.mjs', '/chunk-planning.mjs', '/death-chunks.mjs', '/death-settings.mjs', '/info-panels.mjs', '/settings-panel.mjs', '/runemetrics.mjs', '/original-sync.mjs', '/icons.mjs', '/interior-view.mjs', '/chunk-sections.mjs', '/sticker-picker.mjs', '/history-text.mjs', '/feedback.mjs', '/updates.mjs', '/task-icon-painter.mjs', '/favicon.svg'].includes(route)) file = await containedFile(webRoot, route.slice(1));
       else if (['/core/territory.mjs', '/core/state.mjs', '/core/rules.mjs', '/core/cache-surface.mjs', '/core/transport-access.mjs', '/core/map-boundaries.mjs', '/core/tasks.mjs', '/core/planning.mjs', '/core/preferences.mjs', '/core/death-settings.mjs', '/core/progress.mjs', '/core/player-controls.mjs', '/core/game-progress.mjs', '/core/map-markers.mjs', '/core/task-alternatives.mjs'].includes(route)) file = await containedFile(path.join(ROOT, 'app', 'core'), route.slice('/core/'.length));

@@ -31,11 +31,14 @@ export async function safeArtFile(root, relative = '') {
   for (const segment of target.slice(base.length).split(path.sep).filter(Boolean)) {
     current = path.join(current, segment);
     const metadata = await lstat(current);
-    if (metadata.isSymbolicLink() || !equalPath(await realpath(current), current)) fail();
+    if (metadata.isSymbolicLink()) fail();
     if (current !== target && !metadata.isDirectory()) fail();
   }
   const metadata = await lstat(target);
   if (relative ? !metadata.isFile() : !metadata.isDirectory()) fail();
+  // Canonicalizing the complete root and target covers their ancestor paths too.
+  // Keep the ordered lstat walk (including ancestors above root), and repeat this
+  // validation after reads as before. Nothing is cached across file opens.
   if (!equalPath(await realpath(absoluteRoot), absoluteRoot) || !equalPath(await realpath(target), target)) fail();
   return target;
 }

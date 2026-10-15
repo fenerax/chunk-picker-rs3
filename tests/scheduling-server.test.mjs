@@ -1,3 +1,4 @@
+import { fixtureDataset } from './helpers/server-dataset.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
@@ -63,7 +64,7 @@ async function fixture(t, { serializedStateInput = false, predictionPrewarm = fa
   const dataDir = path.join(directory, 'data');
   let application;
   t.after(async () => { try { await application?.close(); } finally { application = undefined; await rm(directory, { recursive: true, force: true }); } });
-  application = await createServer({ definitions, taskMap: {}, initialState, webRoot, dataDir, port: 0, predictionPrewarm, shutdownDeadlineMs: 500, schedulingClock: clock,
+  application = await createServer({ dataset: fixtureDataset, definitions, taskMap: {}, initialState, webRoot, dataDir, port: 0, predictionPrewarm, shutdownDeadlineMs: 500, schedulingClock: clock,
     taskWorkerOptions: { workerFactory: foreground.create, duoWorkerFactory: peer.create, predictionWorkerFactory: side.create,
       deathWorkerFactory: death.create, serializedStateInput, deadlineMs: 3000, predictionDeadlineMs: 3000, deathDeadlineMs: 3000 } });
   await application.listen();

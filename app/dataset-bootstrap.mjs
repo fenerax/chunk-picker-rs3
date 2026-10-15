@@ -26,7 +26,14 @@ export async function loadDatasetInputs(dataset, { loadDefinitions = true, loadT
 }
 
 export async function loadOriginalSyncIntegration(dataset,
-  load = () => import(originalSyncModule)) {
+  load = () => import(originalSyncModule), addon = null) {
   if (dataset.capabilities?.features?.originalSync === false) return null;
+  if (addon?.features.originalSync) {
+    const [datasetRuntime, migration, collection, settings, identity] = await Promise.all([
+      import('./dataset-runtime.mjs'), import('./tasks/migration.mjs'), import('./tasks/collection.mjs'),
+      import('./data/settings.mjs'), import('./tasks/identity.mjs'),
+    ]);
+    return addon.loadServerIntegration({ datasetRuntime, migration, collection, settings, identity });
+  }
   return load();
 }

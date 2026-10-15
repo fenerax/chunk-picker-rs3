@@ -1,3 +1,4 @@
+import { emptyMetadataDataset } from './helpers/server-dataset.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
@@ -46,7 +47,7 @@ async function fixture(t, { prewarm = false, personal = false, evaluationGate, p
     initialState.members[0].taskStatus = { [task.id]: { challengeCompleted: true } };
   }
   if (prewarm) { initialState.members[0].unlocked = ['12341']; initialState.members[0].selected = ['12342']; }
-  let app = await createServer({ dataDir, schedulingClock: clock, shutdownDeadlineMs: 500, definitions: { chunks: prewarm ? { '12341': {}, '12342': {} } : {}, walkableChunks: prewarm ? ['12341', '12342'] : [], walkableChunksF2P: prewarm ? ['12341', '12342'] : [], challenges: { Mining: { [task.label]: { PickerId: task.id } } } }, taskMap: {}, initialState, port: 0, host: '127.0.0.1', predictionPrewarm: prewarm,
+  let app = await createServer({ dataset: await emptyMetadataDataset(), dataDir, schedulingClock: clock, shutdownDeadlineMs: 500, definitions: { chunks: prewarm ? { '12341': {}, '12342': {} } : {}, walkableChunks: prewarm ? ['12341', '12342'] : [], walkableChunksF2P: prewarm ? ['12341', '12342'] : [], challenges: { Mining: { [task.label]: { PickerId: task.id } } } }, taskMap: {}, initialState, port: 0, host: '127.0.0.1', predictionPrewarm: prewarm,
     gameDataDir: path.join(dataDir, 'game'), mapAssetsDir: path.join(dataDir, 'assets'), taskWorkerOptions: { workerFactory, duoWorkerFactory: workerFactory, serializedStateInput: true } });
   t.after(async () => {
     try { await app?.close(); }

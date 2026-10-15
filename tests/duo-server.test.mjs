@@ -1,3 +1,4 @@
+import { emptyMetadataDataset } from './helpers/server-dataset.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
@@ -47,7 +48,7 @@ async function fixture(t, options = {}) {
   assert.equal(path.dirname(directory), base);
   const initialState = createGroupState([{ id: 'one', name: 'One', unlocked: ['12341'] }, { id: 'two', name: 'Two', unlocked: ['12342'] }]);
   initialState.provenance = { privateFixture: 'Synthetic archive excluded from calculation bytes' };
-  const app = await createServer({ dataDir: directory, definitions, taskMap: {}, initialState, port: 0, predictionPrewarm: false,
+  const app = await createServer({ dataset: await emptyMetadataDataset(), dataDir: directory, definitions, taskMap: {}, initialState, port: 0, predictionPrewarm: false,
     mapAssetsDir: path.join(directory, 'assets'), gameDataDir: path.join(directory, 'game-data'), ...options });
   t.after(async () => { await app.close(); await rm(directory, { recursive: true, force: true }); });
   await app.listen(); const invite = new URL(app.inviteUrl), origin = invite.origin;

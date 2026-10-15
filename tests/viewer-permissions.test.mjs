@@ -1,3 +1,4 @@
+import { fixtureDataset } from './helpers/server-dataset.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
@@ -89,7 +90,7 @@ async function fixture(t, options = {}) {
     await writeFile(path.join(dataDir, 'feedback.json'), JSON.stringify(feedbackDocument));
   }
   const initialState = createGroupState([{ id: 'actor1', name: 'Player' }, { id: 'reed', name: 'Reed' }]);
-  let application = await createServer({ dataDir, port: 0, definitions, taskMap: {}, initialState, predictionPrewarm: false, publicOrigin, shutdownDeadlineMs: 500, ...serverOptions });
+  let application = await createServer({ dataset: fixtureDataset, dataDir, port: 0, definitions, taskMap: {}, initialState, predictionPrewarm: false, publicOrigin, shutdownDeadlineMs: 500, ...serverOptions });
   t.after(async () => {
     try { await application?.close(); }
     finally { application = undefined; await rm(dataDir, { recursive: true, force: true }); }

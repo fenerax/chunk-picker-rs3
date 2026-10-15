@@ -1,3 +1,4 @@
+import { fixtureDataset } from './helpers/server-dataset.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtemp, rm } from 'node:fs/promises';
@@ -12,7 +13,7 @@ async function fixture(t) {
   const initialState = createGroupState([{ id: 'actor1', name: 'Player' }, { id: 'reed', name: 'Reed' }]);
   let app, origin;
   async function start(initial) {
-    app = await createServer({ dataDir: directory, definitions, taskMap: {}, initialState: initial, port: 0, predictionPrewarm: false });
+    app = await createServer({ dataset: fixtureDataset, dataDir: directory, definitions, taskMap: {}, initialState: initial, port: 0, predictionPrewarm: false });
     await app.listen(); origin = `http://127.0.0.1:${app.address().port}`;
   }
   await start(initialState);

@@ -8,6 +8,7 @@ import { gunzipSync } from 'node:zlib';
 import { safeArtFile, packRelative, PACK_VERSION } from './packs.mjs';
 import { loadGameDefaults } from './game-defaults.mjs';
 import { loadDatasetProfile } from './dataset-profile.mjs';
+import { checkedBatches } from './checked-batches.mjs';
 
 export const DATASET_CONTRACT = Object.freeze({ datasetId: 'duo-legacy', datasetContractVersion: 1, identityNamespace: 'rs3', coordinateSystem: 'surface-grid-v1', corePackApi: 1 });
 export const DATASET_OVERLAY_ORDER = Object.freeze({
@@ -250,8 +251,8 @@ export async function resolveDataset(options = {}) {
       if (inheritedSnapshots !== undefined && (Object.keys(inheritedSnapshots).length !== metadata.size
         || Object.keys(inheritedSnapshots).some(key => !metadata.has(key)))) fail();
       legacyMetadataSnapshots = {};
-      for (const key of [...catalogue.inputs, ...catalogue.sourceInputs]) {
-        if (key.startsWith('local-map/') && !metadata.has(key)) continue;
+      const inspectTracked = async key => {
+        if (key.startsWith('local-map/') && !metadata.has(key)) return null;
         if (metadata.has(key) && inheritedSnapshots !== undefined) {
           const snapshot = inheritedSnapshots[key];
           if (!plain(snapshot) || Object.keys(snapshot).length !== 3 || !Number.isSafeInteger(snapshot.bytes) || snapshot.bytes < 0
@@ -260,9 +261,7 @@ export async function resolveDataset(options = {}) {
           const snapshotData = Buffer.from(snapshot.data, 'base64');
           if (snapshotData.length !== snapshot.bytes || snapshotData.toString('base64') !== snapshot.data || sha(snapshotData) !== snapshot.sha256) fail();
           const record = Object.freeze({ path: key, bytes: snapshot.bytes, sha256: snapshot.sha256, kind: 'input' });
-          opened.set(key, { filename: metadata.get(key), snapshotData, record }); files.push(record);
-          legacyMetadataSnapshots[key] = Object.freeze({ ...snapshot });
-          continue;
+          return { key, entry: { filename: metadata.get(key), snapshotData, record }, record, snapshot: Object.freeze({ ...snapshot }) };
         }
         const source = key.startsWith('local-map/')
           ? { root: path.dirname(metadata.get(key)), relative: path.basename(metadata.get(key)), optional: false }
@@ -270,9 +269,15 @@ export async function resolveDataset(options = {}) {
         try {
           const { data: snapshotData, ...entry } = await inspectFile(source.root, { path: source.relative }, metadata.has(key));
           const record = Object.freeze({ path: key, bytes: entry.bytes, sha256: entry.sha256, kind: catalogue.sourceInputs.includes(key) ? 'evidence' : 'input' });
-          opened.set(key, { ...entry, record }); files.push(record);
-          if (snapshotData) legacyMetadataSnapshots[key] = Object.freeze({ bytes: record.bytes, sha256: record.sha256, data: snapshotData.toString('base64') });
+          return { key, entry: { ...entry, record }, record,
+            snapshot: snapshotData ? Object.freeze({ bytes: record.bytes, sha256: record.sha256, data: snapshotData.toString('base64') }) : null };
         } catch (error) { if (!source.optional || error.code !== 'ENOENT') throw error; }
+        return null;
+      };
+      for await (const result of checkedBatches([...catalogue.inputs, ...catalogue.sourceInputs], inspectTracked)) {
+        if (!result) continue;
+        opened.set(result.key, result.entry); files.push(result.record);
+        if (result.snapshot) legacyMetadataSnapshots[result.key] = result.snapshot;
       }
       legacyMetadataSnapshots = Object.freeze(legacyMetadataSnapshots);
     }

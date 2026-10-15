@@ -11,7 +11,7 @@ export function galleryPreviewHTML(shell) {
   return shell.replace('<script type="module" src="/main.mjs"></script>',
     '<link rel="stylesheet" href="/gallery.css"><script type="module" src="/gallery-preview.mjs"></script>');
 }
-export async function serveGallery(request, response, { route, identity, dataset = selectedDataset }) {
+export async function serveGallery(request, response, { route, identity, dataset = selectedDataset, privateAddon = null }) {
   let fromGallery = false;
   try { fromGallery = /^\/gallery(?:\/|$)/.test(new URL(request.headers.referer).pathname); } catch {}
   // Defense in depth if a future renderer bypasses the browser fixture adapter.
@@ -23,7 +23,8 @@ export async function serveGallery(request, response, { route, identity, dataset
     response.writeHead(404, { 'Content-Type': 'text/plain', 'Cache-Control': PRIVATE_NO_STORE }); response.end('Not found.'); return true;
   }
   let bytes, type, asset = false;
-  if (route === '/gallery') { bytes = await readFile(new URL('./web/gallery.html', import.meta.url)); type = 'text/html; charset=utf-8'; }
+  const readGallery = filename => privateAddon ? privateAddon.read(`app/web/${filename}`) : readFile(new URL(`./web/${filename}`, import.meta.url));
+  if (route === '/gallery') { bytes = await readGallery('gallery.html'); type = 'text/html; charset=utf-8'; }
   else if (route === '/gallery/preview') {
     bytes = Buffer.from(galleryPreviewHTML(await readFile(new URL('./web/index.html', import.meta.url), 'utf8'))); type = 'text/html; charset=utf-8';
     // The gallery shows this page in its own frame; every other page stays unframeable.
@@ -33,9 +34,9 @@ export async function serveGallery(request, response, { route, identity, dataset
   else if (route === '/gallery-fixture-data.json') {
     const digest = new URL(request.url, 'http://localhost').searchParams.get('digest');
     if (digest && digest !== dataset.digest) { response.writeHead(409); response.end('Reload the gallery.'); return true; }
-    bytes = dataset.bytes('app/web/gallery-fixture-data.json'); type = 'application/json; charset=utf-8'; asset = true;
+    bytes = privateAddon ? await readGallery('gallery-fixture-data.json') : dataset.bytes('app/web/gallery-fixture-data.json'); type = 'application/json; charset=utf-8'; asset = true;
   }
-  else if (files.has(route.slice(1))) { asset = true; bytes = await readFile(new URL(`./web/${route.slice(1)}`, import.meta.url)); type = route.endsWith('.css') ? 'text/css' : route.endsWith('.json') ? 'application/json' : 'text/javascript'; }
+  else if (files.has(route.slice(1))) { asset = true; bytes = await readGallery(route.slice(1)); type = route.endsWith('.css') ? 'text/css' : route.endsWith('.json') ? 'application/json' : 'text/javascript'; }
   else { response.writeHead(404); response.end('Not found.'); return true; }
   await sendRepresentation(request, response, createRepresentation(bytes, { type, cacheControl: asset ? PRIVATE_REVALIDATE : PRIVATE_NO_STORE }), { conditional: asset });
   return true;

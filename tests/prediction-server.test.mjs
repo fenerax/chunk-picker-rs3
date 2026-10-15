@@ -1,3 +1,4 @@
+import { fixtureDataset } from './helpers/server-dataset.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdir, mkdtemp, rm } from 'node:fs/promises';
@@ -38,7 +39,7 @@ test('server warms selected and pending predictions without calculating the unop
   initialState.members[0].unlocked = ['12341'];
   initialState.members[0].selected = ['13108'];
   initialState.members[0].pendingRoll = ['12597'];
-  app = await createServer({ dataDir, port: 0, schedulingClock: clock, shutdownDeadlineMs: 500, definitions, taskMap: {}, initialState });
+  app = await createServer({ dataset: fixtureDataset, dataDir, port: 0, schedulingClock: clock, shutdownDeadlineMs: 500, definitions, taskMap: {}, initialState });
   await app.listen();
   const invitation = new URL(app.inviteUrl), origin = invitation.origin;
   const headers = { Authorization: `Bearer ${invitation.pathname.slice('/join/'.length)}` };
@@ -93,7 +94,7 @@ test('bounded server warming prioritizes pending rolls across players before lar
   const initialState = createGroupState([{ id: 'first', name: 'First', unlocked: ['12341'], selected: ['13108', '12342'] },
     { id: 'second', name: 'Second', unlocked: ['12342'], pendingRoll: ['12597'] }]);
   initialState.rules['roll.neighborMode'] = geometricMode;
-  app = await createServer({ dataDir, port: 0, schedulingClock: clock, shutdownDeadlineMs: 500, definitions, taskMap: {}, initialState,
+  app = await createServer({ dataset: fixtureDataset, dataDir, port: 0, schedulingClock: clock, shutdownDeadlineMs: 500, definitions, taskMap: {}, initialState,
     taskWorkerOptions: { workerFactory, maxPrewarmQueue: 2 } });
   await app.listen();
   const request = worker => worker?.messages.filter(message => message.type === 'predict');
@@ -120,7 +121,7 @@ test('state loading and active foreground work defer warming; stale completions 
     workers.push(worker); queueMicrotask(() => worker.emit('message', { type: 'ready', catalogue: [] })); return worker;
   };
   const initialState = createGroupState([{ id: 'one', name: 'One', unlocked: ['12341'], selected: ['12342'] }]);
-  let app = await createServer({ dataDir, port: 0, schedulingClock: clock, shutdownDeadlineMs: 500, definitions, taskMap: {}, initialState, taskWorkerOptions: { workerFactory, maxPrewarmQueue: 1 } });
+  let app = await createServer({ dataset: fixtureDataset, dataDir, port: 0, schedulingClock: clock, shutdownDeadlineMs: 500, definitions, taskMap: {}, initialState, taskWorkerOptions: { workerFactory, maxPrewarmQueue: 1 } });
   t.after(async () => { try { await app?.close(); } finally { app = undefined; await rm(dataDir, { recursive: true, force: true }); } });
   await app.listen(); const invite = new URL(app.inviteUrl), origin = invite.origin;
   const headers = { Authorization: `Bearer ${invite.pathname.slice('/join/'.length)}` };
@@ -159,7 +160,7 @@ async function automaticDeathFixture(t, automatic, { selected = ['12342'], maxPr
   };
   const initialState = createGroupState([{ id: 'one', name: 'One', unlocked: ['12341'], selected }]);
   if (fixtureRules.get('travel.automatic')) initialState.rules['travel.automatic'] = automatic;
-  let app = await createServer({ dataDir, port: 0, schedulingClock: clock, shutdownDeadlineMs: 500, definitions, taskMap: {}, initialState,
+  let app = await createServer({ dataset: fixtureDataset, dataDir, port: 0, schedulingClock: clock, shutdownDeadlineMs: 500, definitions, taskMap: {}, initialState,
     taskWorkerOptions: { workerFactory, maxPrewarmQueue } });
   t.after(async () => { try { await app?.close(); } finally { app = undefined; await rm(dataDir, { recursive: true, force: true }); } });
   await app.listen(); const invite = new URL(app.inviteUrl), origin = invite.origin;

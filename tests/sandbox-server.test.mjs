@@ -1,3 +1,4 @@
+import { emptyMetadataDataset } from './helpers/server-dataset.mjs';
 import { genericWorkerData } from './helpers/worker-dataset.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -40,7 +41,7 @@ async function fixture(t, options = {}) {
     try { await app?.close(); }
     finally { app = undefined; await rm(dataDir, { recursive: true, force: true }); }
   });
-  app = await createServer({ dataDir, port: 0, initialState, definitions, taskMap: {}, predictionPrewarm: false, shutdownDeadlineMs: 500,
+  app = await createServer({ dataset: await emptyMetadataDataset(), dataDir, port: 0, initialState, definitions, taskMap: {}, predictionPrewarm: false, shutdownDeadlineMs: 500,
     mapAssetsDir: path.join(dataDir, 'assets'), gameDataDir: path.join(dataDir, 'game-data'), ...options });
   await app.listen();
   const invitation = new URL(app.inviteUrl), origin = invitation.origin;

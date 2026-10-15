@@ -1,3 +1,4 @@
+import { emptyMetadataDataset } from './helpers/server-dataset.mjs';
 import { genericWorkerData } from './helpers/worker-dataset.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -20,7 +21,7 @@ async function fixture(t, options = {}) {
   const dataDir = await mkdtemp(path.join(tmpdir(), 'rs3-play-server-'));
   const state = createGroupState([{ id: 'one', name: 'One', unlocked: ['12341'] }, { id: 'two', name: 'Two', unlocked: ['12342'] }]);
   state.provenance = { retainedArchive: { original: 'archived '.repeat(2000) }, restore: { previousHistory: [{ id: 'archived-event', revision: 0, type: 'import', at: '2026-10-01T00:00:00.000Z' }] } };
-  let app = await createServer({ dataDir, definitions, taskMap: {}, initialState: state, port: 0, predictionPrewarm: false, shutdownDeadlineMs: 500,
+  let app = await createServer({ dataset: await emptyMetadataDataset(), dataDir, definitions, taskMap: {}, initialState: state, port: 0, predictionPrewarm: false, shutdownDeadlineMs: 500,
     mapAssetsDir: path.join(dataDir, 'assets'), gameDataDir: path.join(dataDir, 'game-data'), ...serverOptions });
   t.after(async () => {
     try { await app?.close(); }

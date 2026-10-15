@@ -1,6 +1,7 @@
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { discoverTests, concurrencyFor } from './test-selection.mjs';
+import { testRunEnvironment } from './test-run-environment.mjs';
 
 const suite = process.argv[2] ?? 'full';
 const environment = { ...process.env, RS3_DATASET: 'open-f2p' };
@@ -14,11 +15,15 @@ if (options.includes('--list')) {
   console.log(files.map(name => `tests/${name}`).join('\n'));
 } else {
   const concurrency = concurrencyFor(suite);
+  const run = await testRunEnvironment(environment);
   const child = spawn(process.execPath, ['--test', `--test-concurrency=${concurrency}`, ...files.map(name => `tests/${name}`)], {
-    env: environment,
+    env: run.env,
     cwd: fileURLToPath(new URL('../', import.meta.url)), stdio: 'inherit', windowsHide: true,
   });
   for (const signal of ['SIGINT', 'SIGTERM']) process.on(signal, () => child.kill(signal));
   child.on('error', error => { console.error(error); process.exitCode = 1; });
-  child.on('exit', (code, signal) => { process.exitCode = code ?? (signal ? 1 : 0); });
+  child.on('close', async (code, signal) => {
+    try { await run.cleanup(); }
+    finally { process.exitCode = code ?? (signal ? 1 : 0); }
+  });
 }
