@@ -1,4 +1,4 @@
-export const PHONE_MEDIA_QUERY = '(max-width:720px)';
+export { PHONE_QUERY as PHONE_MEDIA_QUERY } from './phone-layout.mjs';
 export const CHUNK_HOLD_MS = 550;
 export const CHUNK_HOLD_SLOP = 5;
 

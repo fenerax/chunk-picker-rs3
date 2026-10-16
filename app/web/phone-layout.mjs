@@ -1,6 +1,14 @@
-export const PHONE_QUERY = '(max-width: 720px)';
+export const PHONE_QUERY = '(max-width:720px), (max-width:980px) and (max-height:500px) and (pointer:coarse)';
 export const PHONE_TAB_KEY = 'picker.phone-tab';
 const tabs = ['map', 'tasks', 'more'];
+
+// Every visible banner takes space above the workspace, including updates.
+export function observeScreenBars(document, Observer = globalThis.ResizeObserver) {
+  const bars = [document.querySelector('.topbar'), ...['update-banner', 'notice', 'backup-status-notice', 'sandbox-banner', 'duo-catchup', 'duo-live'].map(id => document.getElementById(id))].filter(Boolean);
+  const observer = new Observer(() => document.documentElement.style.setProperty('--topbar-height', `${bars.reduce((height, bar) => height + bar.getBoundingClientRect().height, 0)}px`));
+  for (const bar of bars) observer.observe(bar);
+  return observer;
+}
 
 // Move the actual panels and tools, so their listeners and future menu entries
 // keep one owner. Their original positions are restored above the breakpoint.

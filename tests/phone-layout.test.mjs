@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { createContext, runInContext } from 'node:vm';
-import { createPhoneLayout, PHONE_TAB_KEY } from '../app/web/phone-layout.mjs';
+import { createPhoneLayout, PHONE_TAB_KEY, observeScreenBars } from '../app/web/phone-layout.mjs';
 
 class Node {
   constructor() { this.children = []; this.attributes = {}; this.listeners = {}; this.hidden = false; this.dataset = {}; this.classes = new Set(); this.classList = { toggle: (name, on) => on ? this.classes.add(name) : this.classes.delete(name) }; }
@@ -21,6 +21,22 @@ class Node {
   querySelectorAll() { return this.menus ?? []; }
   focus() { this.focused = true; }
 }
+
+test('showing and hiding the update banner reserves its height above the fixed phone tabs', () => {
+  const heights = new Map([['topbar', 60], ['update-banner', 0], ['notice', 0], ['backup-status-notice', 40], ['sandbox-banner', 0], ['duo-catchup', 0], ['duo-live', 0]]);
+  const nodes = new Map([...heights.keys()].map(id => [id, { getBoundingClientRect: () => ({ height: heights.get(id) }) }]));
+  const values = new Map(), observed = [];
+  class Observer { constructor(callback) { this.refresh = callback; } observe(node) { observed.push(node); } }
+  const document = { documentElement: { style: { setProperty: (key, value) => values.set(key, value) } },
+    querySelector: () => nodes.get('topbar'), getElementById: id => nodes.get(id) };
+  const observer = observeScreenBars(document, Observer);
+  assert.equal(observed.length, 7); assert.ok(observed.includes(nodes.get('update-banner')));
+  observer.refresh(); assert.equal(values.get('--topbar-height'), '100px');
+  heights.set('update-banner', 44); heights.set('notice', 30); observer.refresh();
+  assert.equal(values.get('--topbar-height'), '174px');
+  heights.set('update-banner', 0); observer.refresh();
+  assert.equal(values.get('--topbar-height'), '130px');
+});
 
 function fixture({ phone = true, saved, blocked = false } = {}) {
   const root = new Node(), tabBar = new Node(), buttons = Object.fromEntries(['map', 'tasks', 'more'].map(tab => [tab, new Node()]));

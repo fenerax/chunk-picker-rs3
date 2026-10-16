@@ -1,4 +1,5 @@
 import { applyTheme } from './map-tools.mjs';
+import { observeScreenBars } from './phone-layout.mjs';
 
 const topMenuIds = ['info-tools', 'admin-tools', 'more-tools'];
 
@@ -58,7 +59,7 @@ export function createScreenControls(c) {
     });
     document.querySelector('.topbar nav').addEventListener('click', event => { if (event.target.closest('button, a')) c.closeTopMenus(); });
     document.addEventListener('click', event => { for (const menu of menus) if (!menu.contains(event.target)) menu.open = false; });
-    const layout = new ResizeObserver(() => document.documentElement.style.setProperty('--topbar-height', `${document.querySelector('.topbar').getBoundingClientRect().height + c.$('notice').getBoundingClientRect().height + c.$('backup-status-notice').getBoundingClientRect().height + c.$('sandbox-banner').getBoundingClientRect().height + c.$('duo-catchup').getBoundingClientRect().height + c.$('duo-live').getBoundingClientRect().height}px`)); layout.observe(document.querySelector('.topbar')); layout.observe(c.$('notice')); layout.observe(c.$('backup-status-notice')); layout.observe(c.$('sandbox-banner')); layout.observe(c.$('duo-catchup')); layout.observe(c.$('duo-live'));
+    observeScreenBars(document);
     const toolbarLayout = new ResizeObserver(() => c.$('map-panel').style.setProperty('--map-toolbar-height', `${document.querySelector('.map-toolbar').getBoundingClientRect().height}px`)); toolbarLayout.observe(document.querySelector('.map-toolbar'));
     c.phoneLayout?.mount();
   }

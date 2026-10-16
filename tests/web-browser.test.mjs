@@ -1,4 +1,5 @@
 import { appendTaskClaim, createTaskClaimClock } from '../app/web/task-claims.mjs';
+import { observeScreenBars } from '../app/web/phone-layout.mjs';
 import { readScreenGraph, runScreenGraph } from './browser-screen-harness.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -290,8 +291,11 @@ test('viewer display routes remain open when either player saved hidden sidebar,
 test('viewer appearance toolbar, chunk IDs and map selection save only local preferences', async () => {
   const entries=new Map(),localStorage={getItem:key=>entries.get(key)??null,setItem:(key,value)=>entries.set(key,value),removeItem:key=>entries.delete(key)};
   const h=viewerHarness({localStorage}); h.context.document.addEventListener=()=>{}; h.context.document.querySelectorAll=()=>[];
-  h.context.ResizeObserver=class {observe(){}}; h.map.setOverlay=()=>{};
+  const observedBars = [];
+  h.context.ResizeObserver=class {observe(node){observedBars.push(node);}}; h.map.setOverlay=()=>{};
   h.run('bindControls()');
+  assert.ok(observedBars.includes(h.context.document.querySelector('.topbar')));
+  assert.ok(observedBars.includes(h.nodes.get('update-banner')), 'startup observes the update banner as well as the topbar');
   await h.nodes.get('theme-switch').emit('click',{target:{closest:()=>({dataset:{themeChoice:'gray'}})}});
   h.run("setViewerPreference('ids',true)");
   h.nodes.get('member').value='reed'; await h.nodes.get('member').emit('change');
@@ -1104,6 +1108,7 @@ function harness({ realPlanning = false, localStorage } = {}) {
     return { state, pools: {} };
   };
   const context = createContext({ createMapTaskCounts, historyChangeTypes, historyChangeType, backupSaveLabel, appendTaskClaim, createTaskClaimClock, document, localStorage, initialState, initialDefinitions: definitions, initialWorld: world, initialMap: map, renders,
+    observeScreenBars: doc => observeScreenBars(doc, context.ResizeObserver),
     artStatusText, datasetStatusText, loadArtStatus: async () => null, installPictureFallbacks() {}, observeArtStatus: listener => listener(null),
     createActivityFilterControls: (collaborators, options) => createActivityFilterControls({ ...collaborators, storage: localStorage }, options), selectActivityRows,
     createChunkQuestList: (collaborators, entries) => { collaborators.storage = localStorage; return createChunkQuestList(collaborators, entries); },

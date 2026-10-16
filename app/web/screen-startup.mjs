@@ -61,7 +61,7 @@ export function createScreenStartup(c) {
     if (!loaded.state.members.some(item => item.id === c.memberId)) c.memberId = loaded.state.members.find(item => item.id === c.sessionMember)?.id ?? loaded.state.members[0]?.id;
     c.map = new ChunkMap({ stage: c.$('map-stage'), baseCanvas: c.$('map-base'), stateCanvas: c.$('map-state'), pinCanvas: c.$('map-pins'), hoverCanvas: c.$('map-hover'), tooltip: c.$('map-tooltip'), deferFallback: true, onChunk: (id, event) => {
       c.closeChunkMenu();
-      if (event?.pointerType === 'touch' && c.phoneLayout?.isPhone) c.showChunk(id);
+      if (event?.pointerType === 'touch') c.showChunk(id);
       else if (c.canWrite() && (c.sandbox.active || c.preferences().shiftUnlock && event?.shiftKey)) c.toggleChunk(id).catch(c.showError);
       // Ctrl/Cmd-click toggles a roll candidate without opening anything.
       else if (c.canWrite() && event?.ctrlKey && c.world.surface.has(id) && !c.member().unlocked.includes(id) && !c.member().pendingRoll.includes(id)) c.command({ type: 'set-chunk', memberId: c.memberId, chunkId: id, status: c.member().selected.includes(id) ? 'locked' : 'selected' }).catch(c.showError);

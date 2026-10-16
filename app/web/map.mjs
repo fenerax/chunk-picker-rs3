@@ -501,7 +501,7 @@ export class ChunkMap {
   resize() {
     this.chunkHold?.cancel();
     if (this.disposed) return;
-    if (this.touchPointers?.size && !this.isPhone()) this.cancelTouchGesture();
+    if (this.touchPointers?.size) this.cancelTouchGesture();
     const bounds = this.stage.getBoundingClientRect();
     const width = Math.max(1, Math.round(bounds.width));
     const height = Math.max(1, Math.round(bounds.height));
@@ -618,9 +618,9 @@ export class ChunkMap {
   pointerDown(event) {
     if (this.pointerTool?.down(event)) { this.chunkHold.cancel(); return; }
     const point = this.localPoint(event);
-    if (event.pointerType === 'touch' && this.isPhone()) {
+    if (event.pointerType === 'touch') {
       this.touchPointers.set(event.pointerId, point);
-      this.chunkHold.down(event, this.chunkAt(point));
+      if (this.isPhone()) this.chunkHold.down(event, this.chunkAt(point));
       if (this.touchPointers.size > 1) {
         this.hoverCanvas.setPointerCapture(event.pointerId);
         this.startPinch();
@@ -679,7 +679,7 @@ export class ChunkMap {
     this.endDrag();
     if (this.hoverCanvas.hasPointerCapture(event.pointerId)) this.hoverCanvas.releasePointerCapture(event.pointerId);
     if (id) this.onChunk(id, { shiftKey: event.shiftKey === true, ctrlKey: event.ctrlKey === true || event.metaKey === true,
-      ...(event.pointerType === 'touch' && this.isPhone() ? { pointerType: 'touch' } : {}) });
+      ...(event.pointerType === 'touch' ? { pointerType: 'touch' } : {}) });
   }
 
   endDrag() {
@@ -730,7 +730,7 @@ export class ChunkMap {
       this.chunkHold.release(event);
       this.touchPointers.delete(event.pointerId);
       this.resumeTouchDrag();
-    } else if (!this.isPhone() || event.pointerId === undefined || this.drag?.pointerId === event.pointerId) this.endDrag();
+    } else if ((!this.isPhone() && !this.touchPointers.size) || event.pointerId === undefined || this.drag?.pointerId === event.pointerId) this.endDrag();
   }
 
   cancelTouchGesture() {

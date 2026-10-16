@@ -1,22 +1,29 @@
-/* The existing mobile breakpoint. Every override stays inside this query. */
-@media (max-width:720px) {
-  :root { --phone-tabs-height:calc(56px + env(safe-area-inset-bottom,0px)); }
-  .phone-layout .topbar { gap:var(--space-2) var(--space-4); }
-  .phone-layout .player-controls { gap:var(--space-4); }
+/* Keep the phone composition in short touch landscape as well as portrait. */
+@media (max-width:720px), (max-width:980px) and (max-height:500px) and (pointer:coarse) {
+  :root { --phone-tabs-height:calc(max(56px,3rem) + env(safe-area-inset-bottom,0px)); }
+  .topbar { padding:calc(var(--space-3) + env(safe-area-inset-top,0px)) max(var(--space-5),env(safe-area-inset-right,0px)) var(--space-3) max(var(--space-5),env(safe-area-inset-left,0px)); }
+  .topbar h1 { min-width:0;max-width:100%;white-space:normal;flex-wrap:wrap; }
+  .player-controls { flex-wrap:wrap;max-width:100%; }
+  .phone-layout .topbar { flex-wrap:wrap;gap:var(--space-2) var(--space-4); }
+  .phone-layout #save-status { order:1;margin-left:auto;max-width:100%;white-space:normal; }
+  .phone-layout .player-controls { order:3;flex-basis:100%;padding-left:0;border-left:0;justify-content:space-between;gap:var(--space-4); }
+  :is(#update-banner,#notice,#backup-status-notice,#sandbox-banner,#duo-catchup,#duo-live) { padding-inline:max(var(--space-6),env(safe-area-inset-left,0px)) max(var(--space-6),env(safe-area-inset-right,0px)); }
   .phone-layout .workspace { display:block;height:calc(100dvh - var(--topbar-height,110px) - var(--phone-tabs-height));min-height:0; }
   .phone-layout .map-panel { height:100%; }
   .phone-layout .map-stage { position:absolute;inset:0;height:100%;min-height:0; }
-  .phone-layout .map-dock { position:absolute;top:calc(var(--map-toolbar-height,56px) + 1rem);bottom:.5rem;left:.5rem;right:.5rem;width:auto;margin:0;min-height:0; }
+  .phone-layout .map-toolbar { top:.5rem;left:calc(.5rem + env(safe-area-inset-left,0px));right:calc(.5rem + env(safe-area-inset-right,0px));flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;pointer-events:auto;padding-bottom:var(--space-legacy-2px); }
+  .phone-layout .map-toolbar .toolbar-group { flex:none; }
+  .phone-layout .map-dock { position:absolute;top:calc(var(--map-toolbar-height,56px) + 1rem);bottom:.5rem;left:calc(.5rem + env(safe-area-inset-left,0px));right:calc(.5rem + env(safe-area-inset-right,0px));width:auto;max-width:none;margin:0;min-height:0; }
   .phone-layout .map-dock-panels { max-height:100%; }
-  .phone-layout .task-sidebar { height:100%;max-height:none;min-height:0;border-top:0;overscroll-behavior:contain; }
+  .phone-layout .task-sidebar { height:100%;max-height:none;min-height:0;border-top:0;overscroll-behavior:contain;padding-inline:max(var(--space-6),env(safe-area-inset-left,0px)) max(var(--space-6),env(safe-area-inset-right,0px)); }
   .phone-layout .map-toolbar .toolbar-undo { flex-basis:auto; }
   .phone-layout .map-toolbar .toolbar-undo #undo { width:auto;max-width:13rem; }
   .phone-layout .map-toolbar .toolbar-undo #undo-own { flex-basis:auto; }
-  #phone-tabs { position:fixed;bottom:0;left:0;right:0;z-index:12;display:flex;gap:var(--space-3);padding:var(--space-3) var(--space-4) calc(var(--space-3) + env(safe-area-inset-bottom,var(--space-legacy-0px)));height:var(--phone-tabs-height);background:var(--panel);border-top:var(--border-thin) solid var(--hairline); }
+  #phone-tabs { position:fixed;bottom:0;left:0;right:0;z-index:12;display:flex;gap:var(--space-3);padding:var(--space-3) max(var(--space-4),env(safe-area-inset-right,0px)) calc(var(--space-3) + env(safe-area-inset-bottom,0px)) max(var(--space-4),env(safe-area-inset-left,0px));height:var(--phone-tabs-height);background:var(--panel);border-top:var(--border-thin) solid var(--hairline); }
   #phone-tabs button { flex:1;background:transparent;color:var(--panel-muted,var(--muted));font-weight:var(--weight-semibold); }
   #phone-tabs button[aria-selected=true] { background:var(--surface);color:var(--gold); }
   :root:not([data-theme=dark]) #phone-tabs button[aria-selected=true] { color:var(--surface-link,var(--link)); }
-  .phone-more { height:100%;overflow:auto;padding:var(--space-6) var(--space-5);overscroll-behavior:contain;background:var(--panel);color:var(--panel-text,var(--text)); }
+  .phone-more { height:100%;overflow:auto;padding:var(--space-6) max(var(--space-5),env(safe-area-inset-right,0px)) var(--space-6) max(var(--space-5),env(safe-area-inset-left,0px));overscroll-behavior:contain;background:var(--panel);color:var(--panel-text,var(--text)); }
   .phone-more h2 { margin-bottom:var(--space-5); }
   #phone-tools nav { display:flex;flex-wrap:wrap;gap:var(--space-4);white-space:normal; }
   #phone-tools nav>button { flex:1 1 40%; }
@@ -28,12 +35,22 @@
   #phone-map-summary { display:flex;flex-direction:column;gap:var(--space-5);margin-top:var(--space-6); }
   #phone-map-summary .map-summary { margin-top:0;box-shadow:none; }
   #phone-map-summary #map-hint { display:block;margin-top:var(--space-4);font-size:var(--type-sm); }
-  .phone-layout .map-display-panel { bottom:var(--phone-tabs-height);max-height:55dvh; }
+  .phone-layout .map-display-panel { position:fixed;top:auto;bottom:var(--phone-tabs-height);left:env(safe-area-inset-left,0px);right:env(safe-area-inset-right,0px);width:auto;max-width:none;max-height:min(55dvh,calc(100dvh - var(--topbar-height,110px) - var(--phone-tabs-height) - .5rem));padding-bottom:0; }
+  .phone-layout .helper-page { padding-bottom:max(var(--space-legacy-4rem),calc(var(--phone-tabs-height) + var(--space-6))); }
+  .screenshot-mode #phone-tabs { display:none; }
+  .phone-layout.screenshot-mode .workspace { height:100dvh; }
+}
 
-  /* Large targets retain the existing component shapes and palette. */
+/* Touch tablets keep their columns, with the same targets as phones. */
+@media (max-width:720px), (pointer:coarse) {
+  :root #notice { flex-wrap:wrap; }
+  :root #notice>span { flex:1 1 12rem;min-width:0;overflow-wrap:anywhere; }
   :root button,:root select,:root summary,:root input:not([type=checkbox]):not([type=radio]),:root [role=tab] { min-height:44px!important; }
   :root button,:root select,:root [role=tab] { min-width:44px!important; }
   :root a.icon-button,:root .map-menu-link { min-width:44px;min-height:44px; }
+  :root .more-tools-menu>a { min-height:44px!important;display:flex;align-items:center; }
+  :root input[type=color] { min-width:44px; }
+  :root input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=color]),:root select,:root textarea { font-size:max(var(--type-input-mobile),1rem)!important;min-width:0;max-width:100%; }
   :root summary { min-width:44px;align-content:center; }
   :root label:has(input[type=checkbox]),:root label:has(input[type=radio]),:root .checkbox-field { min-height:44px; }
   :root input[type=checkbox],:root input[type=radio] { width:44px;height:44px;min-width:44px;min-height:44px; }
@@ -54,14 +71,14 @@
   :root .duo-task-row { grid-template-columns:44px minmax(0,1fr) auto; }
   :root .task-row>input[type=checkbox] { margin-top:calc(-1 * var(--space-5)); }
   :root .task-row>.icon-button { opacity:1; }
+  :root .task-heading { flex-wrap:wrap; }
+  :root .panel-header h2 { min-width:0;overflow-wrap:anywhere; }
 
   /* Dialogs scroll inside the viewport, including wide data tables. */
-  :root dialog { max-width:calc(100vw - 1rem);max-height:calc(100dvh - 1rem);overflow:auto; }
+  :root dialog { inset:env(safe-area-inset-top,0px) env(safe-area-inset-right,0px) env(safe-area-inset-bottom,0px) env(safe-area-inset-left,0px);max-width:calc(100vw - 1rem - env(safe-area-inset-left,0px) - env(safe-area-inset-right,0px));max-height:calc(100dvh - 1rem - env(safe-area-inset-top,0px) - env(safe-area-inset-bottom,0px));overflow:auto; }
   :root .dialog-header { gap:var(--space-4);padding:var(--space-4) var(--space-6); }
   :root .dialog-header h2 { min-width:0;font-size:var(--type-heading);overflow-wrap:anywhere; }
   :root #dialog-content { min-width:0;overflow-x:auto; }
   :root .form-actions { flex-wrap:wrap; }
   :root .form-actions>* { max-width:100%; }
-  .screenshot-mode #phone-tabs { display:none; }
-  .phone-layout.screenshot-mode .workspace { height:100dvh; }
 }

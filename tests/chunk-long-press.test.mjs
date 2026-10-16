@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createChunkLongPress, CHUNK_HOLD_MS, PHONE_MEDIA_QUERY } from '../app/web/chunk-long-press.mjs';
 import { ChunkMap } from '../app/web/map.mjs';
+import { PHONE_QUERY } from '../app/web/phone-layout.mjs';
 
 function manualClock() {
   let now = 0, next = 0;
@@ -45,8 +46,10 @@ function mapHarness() {
   return { ...h, map, chosen, captured };
 }
 
-test('the phone hold breakpoint matches the existing 720px layout', () => {
-  assert.equal(PHONE_MEDIA_QUERY, '(max-width:720px)');
+test('holds and phone tabs share the portrait and short touch landscape breakpoint', () => {
+  assert.equal(PHONE_MEDIA_QUERY, PHONE_QUERY);
+  assert.match(PHONE_QUERY, /max-height:500px/);
+  assert.match(PHONE_QUERY, /pointer:coarse/);
 });
 
 test('a short phone tap still opens chunk info and cannot fire later', () => {
@@ -139,15 +142,30 @@ test('write permission and phone layout are checked again before a hold fires', 
   }
 });
 
-test('desktop and tablet gestures never arm holds and preserve existing click modifiers', () => {
+test('wide touch taps carry touch identity while mouse and pen keep their modifiers', () => {
   const { map, clock, held, chosen } = mapHarness();
   map.isPhone = () => false;
   for (const event of [touch(), { ...touch(2), pointerType: 'mouse', ctrlKey: true }, { ...touch(3), pointerType: 'pen', shiftKey: true }]) {
     map.pointerDown(event); clock.advance(CHUNK_HOLD_MS); map.pointerUp(event);
   }
   assert.deepEqual(held, []);
-  assert.deepEqual(chosen.map(item => item.event), [{ shiftKey: false, ctrlKey: false }, { shiftKey: false, ctrlKey: true }, { shiftKey: true, ctrlKey: false }]);
+  assert.deepEqual(chosen.map(item => item.event), [{ shiftKey: false, ctrlKey: false, pointerType: 'touch' }, { shiftKey: false, ctrlKey: true }, { shiftKey: true, ctrlKey: false }]);
   assert.equal(map.touchPointers.size, 0);
+});
+
+test('a wide touch layout pinches and resumes panning without arming a hold or selecting a chunk', () => {
+  const { map, clock, held, chosen } = mapHarness();
+  map.isPhone = () => false;
+  map.pointerDown(touch(1, 100, 100)); map.pointerDown(touch(2, 200, 100));
+  map.pointerMove(touch(2, 300, 100));
+  assert.equal(map.zoom, 2);
+  map.pointerUp(touch(2, 300, 100)); map.cancelPointer(touch(2, 300, 100));
+  assert.equal(map.drag.pointerId, 1, 'Delayed capture loss cannot cancel the remaining finger');
+  map.pointerMove(touch(1, 110, 110)); map.applyPointer();
+  assert.deepEqual(map.offset, { x: -90, y: -90 });
+  map.pointerUp(touch(1, 110, 110)); clock.advance(CHUNK_HOLD_MS * 2);
+  assert.deepEqual(held, []); assert.deepEqual(chosen, []);
+  assert.equal(map.touchPointers.size, 0); assert.equal(map.pinch, null);
 });
 
 test('resizing out of the phone layout cancels a touch gesture and releases both captures', () => {
