@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import http from 'node:http';
+import { Worker } from 'node:worker_threads';
 import { gunzipSync } from 'node:zlib';
 import { fileURLToPath } from 'node:url';
 import { createServer, routePermissions, commandPermissions, apiPermission, redactInviteTokens, serverReadyMessage, gzipSavedTaskResult } from '../app/server.mjs';
@@ -279,8 +280,29 @@ test('Backlog chunk search reads only the selected player and never submits view
   assert.deepEqual(f.application.store.getState(), saved, 'search never changes saved tasks, revisions or History');
 });
 
+test('native calculator announces readiness after its asynchronous module graph finishes evaluating', async t => {
+  const entry = `import { parentPort } from 'node:worker_threads';
+    await import(${JSON.stringify(new URL('../app/tasks/worker.mjs', import.meta.url).href)});
+    parentPort.postMessage({ type: 'module-evaluated' });`;
+  const worker = new Worker(new URL(`data:text/javascript,${encodeURIComponent(entry)}`), { workerData: {
+    definitions, datasetSelection: fixtureDataset.workerSelection(), datasetDigest: fixtureDataset.digest,
+    datasetOptions: { cacheWalking: false },
+  } });
+  t.after(() => worker.terminate());
+  const messages = await new Promise((resolve, reject) => {
+    const messages = [];
+    worker.once('error', reject);
+    worker.once('exit', () => reject(new Error('Calculator exited before readiness.')));
+    worker.on('message', message => {
+      messages.push(message.type);
+      if (messages.includes('ready') && messages.includes('module-evaluated')) resolve(messages);
+    });
+  });
+  assert.deepEqual(messages, ['module-evaluated', 'ready'], 'idle retirement must not terminate a still-evaluating module graph');
+});
+
 test('view-only requests read completed tasks without submitting work, including after calculator sleep', async t => {
-  const f = await fixture(t, { taskWorkerOptions: { idleMs: 100 } });
+  const f = await fixture(t, { taskWorkerOptions: { idleMs: 100 } }), stream = await openEvents(t, f);
   const memberId = f.application.store.getState().members[0].id;
   const route = `/api/tasks?memberId=${memberId}`;
   const diagnostics = () => f.admin('/api/diagnostics').then(response => response.json());
@@ -291,9 +313,10 @@ test('view-only requests read completed tasks without submitting work, including
   assert.equal((await diagnostics()).counts.requested, before.counts.requested);
   const calculated = await f.admin(route); assert.equal(calculated.status, 200);
   const expected = await calculated.json();
-  // Results are kept just after the player's response, off its critical path.
-  let loaded = await f.viewer(route);
-  for (const until = Date.now() + 3000; loaded.status === 409 && Date.now() < until;) { await loaded.arrayBuffer(); await new Promise(resolve => setTimeout(resolve, 20)); loaded = await f.viewer(route); }
+  // Retention is asynchronous; task-ready confirms the viewer's bytes exist.
+  await until(() => stream.events.some(event => event.event === 'task-ready' && event.data.memberId === memberId
+    && event.data.revision === expected.stateRevision), 'first player results are retained');
+  const loaded = await f.viewer(route);
   assert.equal(loaded.status, 200);
   const actual = await loaded.json();
   const { cache: expectedCache, ...expectedResult } = expected, { cache: actualCache, ...actualResult } = actual;
@@ -305,7 +328,8 @@ test('view-only requests read completed tasks without submitting work, including
   assert.equal((await browserStyle.json()).memberId, memberId, 'fetch automatically decodes the complete single gzip stream');
   const secondId = f.application.store.getState().members[1].id, revision = expected.stateRevision;
   const secondCalculated = await f.admin(`/api/tasks?memberId=${secondId}`); assert.equal(secondCalculated.status, 200); await secondCalculated.arrayBuffer();
-  await new Promise(resolve => setTimeout(resolve, 200));
+  await until(() => stream.events.some(event => event.event === 'task-ready' && event.data.memberId === secondId
+    && event.data.revision === revision), 'second player results are retained');
   const groupRoute = `/api/tasks?memberId=${secondId}&view=play-v1&lane=duo-v1&peerFor=${memberId}&revision=${revision}`;
   const sidebarRoute = route + `&view=play-v1&projection=duo-sidebar-v1&revision=${revision}`;
   for (const request of [groupRoute, sidebarRoute]) {

@@ -230,8 +230,6 @@ async function deathEstimates(state, memberId, chunkIds, timingMs, request, inpu
     cache: { baselineHit: hit, estimateHits, estimatedCount, baselineEvaluations: hit ? 0 : 1, predictionEvaluations: estimatedCount } };
 }
 
-parentPort.postMessage({ type: 'ready', datasetDigest: selectedDataset.digest, catalogue: [...engine.catalogue.filter(row => row.kind !== 'house-storage'), ...equipmentCatalogue],
-  dynamicCatalogue: [...collectionEngine.catalogue, ...houseStorageCatalogue, ...generatedTaskCatalogue], compileMs: performance.now() - compileStarted });
 const requests = new Map();
 const serializedStateSizes = new WeakMap();
 function sharedJSON(value) {
@@ -365,3 +363,11 @@ parentPort.on('message', async ({ id, type = 'evaluate', state, memberId, chunkI
     parentPort.postMessage({ id, error: { name: error.name, message: error.message }, evaluationMs: timingMs.totalMs, timingMs });
   } finally { requests.delete(id); }
 });
+
+// Module dependencies include top-level await. Let ESM finish its fulfillment
+// callbacks before the scheduler can retire this isolate, even with idleMs=1.
+// Terminating during that fulfillment can abort the host in V8 on Linux.
+const compileMs = performance.now() - compileStarted;
+setImmediate(() => parentPort.postMessage({ type: 'ready', datasetDigest: selectedDataset.digest,
+  catalogue: [...engine.catalogue.filter(row => row.kind !== 'house-storage'), ...equipmentCatalogue],
+  dynamicCatalogue: [...collectionEngine.catalogue, ...houseStorageCatalogue, ...generatedTaskCatalogue], compileMs }));
