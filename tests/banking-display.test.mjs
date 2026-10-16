@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { renderBankingComparison, bankingRateText } from '../app/web/banking-display.mjs';
 import { createBankingSettings } from '../app/web/banking-settings.mjs';
+import { calculatorBankingSettingDefinitions as bankingSettingDefinitions } from '../app/core/gathering-settings.mjs';
 
 class Node {
   constructor(tag, text = '', className = '') { this.tag = tag; this.textContent = text ?? ''; this.className = className; this.children = []; this.attributes = {}; this.events = {}; }
@@ -46,14 +47,14 @@ test('unreachable banks and missing coordinates stay explicit with no fabricated
   assert.equal(bankingRateText({ xpPerHour: 0, resourcesPerHour: 0 }), '0 XP/hour · 0 resources/hour gathered');
 });
 
-function settingsHarness({ canWrite = true, fail = false, skill = 'Mining' } = {}) {
+function settingsHarness({ canWrite = true, fail = false, skill = 'Mining', advanced = false } = {}) {
   let prefs = {}, dialog = 1; const calls = [], errors = [], changes = [];
   const ctx = { el, canWrite: () => canWrite, preferences: () => prefs, showError: error => errors.push(error),
     dialogGeneration: () => dialog, dialogCurrent: value => value === dialog,
     select: (options, value) => { const control = el('select'); control.options = options; control.value = value; return control; },
     command: async command => { calls.push(command); if (fail) throw Error('Save failed'); prefs = { ...prefs, [command.preferenceId]: command.value }; },
   };
-  const view = createBankingSettings(ctx, 'actor1', { inline: true, skill, onChange: value => changes.push(value) });
+  const view = createBankingSettings(ctx, 'actor1', { inline: true, skill, advanced, onChange: value => changes.push(value) });
   const visible = node => node.hidden ? [] : [node, ...node.children.flatMap(visible)];
   const control = title => visible(view).find(node => node.attributes['aria-label'] === title);
   return { view, control, calls, errors, changes, prefs: () => prefs, stale: () => { dialog++; } };
@@ -73,4 +74,31 @@ test('large spot collections keep three comparisons up front and all others insp
   assert.equal(view.children.filter(node => node.className === 'helper-training-banking-spot').length, 3);
   assert.equal(more.children[0].textContent, 'More spots (997)'); assert.equal(more.children.length, 998);
   assert.match(text(more), /Spot 999/); assert.equal(more.open, undefined);
+});
+
+test('processing uses plain separate XP, preserves level context and hides source details until Advanced', () => {
+  const processing = { mode: 'cook-drop', status: 'bounded', xpPerHour: 20000, resourcesPerHour: 400,
+    processingXpPerHour: { Cooking: null }, processingXpBoundsPerHour: { Cooking: { min: 0, max: 30000 } },
+    assumptions: ['Unmeasured menus.'], sources: [{ title: 'Cooking', oldid: 37179285, url: 'https://runescape.wiki/w/Cooking?oldid=37179285' }] };
+  const data = { ...sample, level: 50, processing };
+  const copy = text(renderBankingComparison(el, data));
+  assert.match(copy, /at level 50/); assert.match(copy, /Cook and drop 20,000 XP\/hour/);
+  assert.match(copy, /0–30,000 Cooking XP\/hour; burn chance unknown/);
+  assert.doesNotMatch(copy, /revision|Unmeasured/);
+  assert.match(text(renderBankingComparison(el, data, { advanced: true })), /Cooking · revision 37179285/);
+  const unknown = text(renderBankingComparison(el, { processing: { mode: 'cook-drop', status: 'unavailable', unavailableReason: 'Confirm a cooker.' } }));
+  assert.match(unknown, /Confirm a cooker/); assert.doesNotMatch(unknown, /0 XP/);
+});
+
+test('processing controls follow the skill, and detailed burn scenarios require Advanced', async () => {
+  const h = settingsHarness({ skill: 'Fishing' }), processing = h.control('Process before dropping');
+  assert.equal(processing.options.find(row => row.value === 'fletch-drop').disabled, true);
+  assert.equal(h.control('Cooking at the spot'), undefined);
+  processing.value = 'cook-drop'; await processing.events.change();
+  assert.ok(h.control('Cooking at the spot')); assert.equal(h.control('Cooking success estimate'), undefined);
+  const advanced = settingsHarness({ skill: 'Fishing', advanced: true });
+  const control = advanced.control('Process before dropping'); control.value = 'cook-drop'; await control.events.change();
+  assert.ok(advanced.control('Cooking success estimate'));
+  const mode = h.control(bankingSettingDefinitions.find(row => row.id === 'gatheringMode').label); mode.value = 'bank'; await mode.events.change();
+  assert.ok(h.control('Use Surge')); assert.ok(h.control('Use unlocked lodestones'));
 });

@@ -1,5 +1,6 @@
 import { sameRuneScapeName } from '../core/game-progress.mjs';
 import { decodeLegacyText } from './migration.mjs';
+import { gatheringSettingDefinitions } from '../core/gathering-settings.mjs';
 
 const entries = value => value && typeof value === 'object' ? Object.entries(value) : [];
 const array = value => value == null ? [] : Array.isArray(value) ? value : [value];
@@ -104,6 +105,9 @@ export function buildTrainingAvailability(result, { state, memberId, definitions
     gatheringMode: member.preferences?.gatheringMode ?? 'drop',
     gatheringOreBox: member.preferences?.gatheringOreBox ?? 'none',
     gatheringWoodBox: member.preferences?.gatheringWoodBox ?? 'none',
+    ...Object.fromEntries(gatheringSettingDefinitions.map(row => [row.id, member.preferences?.[row.id] ?? row.default])),
+    gatheringTravelUnlocks: { confirmations: { ...member.transportFacts?.confirmations }, conditions: { ...member.transportFacts?.conditions },
+      overrides: { ...member.teleportOverrides }, teleports: (member.teleports ?? []).filter(row => row.available && !row.consumable) },
     members: state.rules?.['content.f2p'] === false, aliases,
     sourceLocations: sourceLocations ?? createTrainingSourceIndex(definitions),
     // Retained legacy decoding is confined to selector names in reference data.

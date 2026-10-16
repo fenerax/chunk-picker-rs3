@@ -24,8 +24,11 @@ export const quickTests = new Set([
   "backlog-tools.test.mjs",
   "backup-transfer.test.mjs",
   "banking-display.test.mjs",
+  "banking-interiors.test.mjs",
+  "banking-preferences.test.mjs",
   "banking-plan.test.mjs",
   "banking-rates.test.mjs",
+  "banking-travel.test.mjs",
   "bis-compare.test.mjs",
   "bis-controls.test.mjs",
   "chunk-colour-picker.test.mjs",
@@ -58,6 +61,7 @@ export const quickTests = new Set([
   "game-defaults.test.mjs",
   "game-profile.test.mjs",
   "gameplay-fingerprint.test.mjs",
+  "gathering-processing.test.mjs",
   "group-goals-view.test.mjs",
   "group-goals.test.mjs",
   "helper-custom-tasks.test.mjs",
@@ -130,6 +134,7 @@ export const quickTests = new Set([
   "xp-choices-web.test.mjs"
 ]);
 const fullOnlyTests = new Set([
+  "banking-routes.test.mjs",
   "achievement-rules.test.mjs",
   "activity-view.test.mjs",
   "advisory-retirement.test.mjs",
@@ -220,6 +225,7 @@ const fullOnlyTests = new Set([
   "task-equipment.test.mjs",
   "task-icons.test.mjs",
   "task-ui-server.test.mjs",
+  "training-server.test.mjs",
   "teleports-web.test.mjs",
   "unlock-reuse.test.mjs",
   "usage-server.test.mjs",

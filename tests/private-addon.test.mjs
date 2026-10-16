@@ -12,7 +12,7 @@ const sha = value => createHash('sha256').update(value).digest('hex');
 const disabled = { digest: 'invented-gameplay-digest', capabilities: { features: { originalSync: false, gallery: false, projectUpdates: false, training: true } },
   workerSelection: () => ({ digest: 'invented-gameplay-digest' }) };
 const serverSource = 'export function createIntegration(core) { return { createOriginalSyncClient: () => core.marker, previewOriginalSync() {}, originalSyncCommand() {} }; }';
-async function installation(t, { sync = false, gallery = false, updates = true } = {}) {
+async function installation(t, { sync = false, gallery = false, updates = true, interiors = false } = {}) {
   const directory = await mkdtemp(path.join(os.tmpdir(), 'private-addon-'));
   t.after(() => rm(directory, { recursive: true, force: true }));
   const features = {}, contents = new Map();
@@ -29,6 +29,10 @@ async function installation(t, { sync = false, gallery = false, updates = true }
     features.projectUpdates = true;
     contents.set('app/data/changelog.json', '{"entries":[{"title":"Invented update"}]}');
     contents.set('app/data/roadmap.json', '{"items":[]}');
+  }
+  if (interiors) {
+    features.bankingInteriors = true;
+    contents.set('app/data/banking-interiors.json', '{"schemaVersion":1,"candidates":[]}');
   }
   for (const [filename, bytes] of contents) { await mkdir(path.dirname(path.join(directory, filename)), { recursive: true }); await writeFile(path.join(directory, filename), bytes); }
   const descriptor = { schemaVersion: 1, features, files: [...contents].map(([filename, bytes]) => ({ path: filename, sha256: sha(bytes) })) };
@@ -98,6 +102,18 @@ test('changed or missing private files and manifests fail before reuse', async t
   await assert.rejects(addon.json('app/data/roadmap.json'), { code: 'PRIVATE_ADDON_INVALID' });
   await writeFile(options.addonPath, '{}');
   await assert.rejects(addon.read('app/data/changelog.json'), { code: 'PRIVATE_ADDON_INVALID' });
+});
+
+test('calculator interior evidence is optional, pinned and separate from gameplay identity', async t => {
+  const { addon, descriptor, directory } = await installation(t, { updates: false, interiors: true });
+  assert.deepEqual(await addon.json('app/data/banking-interiors.json'), { schemaVersion: 1, candidates: [] });
+  assert.equal(datasetWithPrivateAddon(disabled, addon).digest, disabled.digest);
+  for (const change of [value => { value.features.bankingInteriors = false; }, value => { value.files = []; }]) {
+    const value = structuredClone(descriptor); change(value);
+    assert.throws(() => validatePrivateAddon(value), { code: 'PRIVATE_ADDON_INVALID' });
+  }
+  await writeFile(path.join(directory, 'app/data/banking-interiors.json'), '{"schemaVersion":1,"candidates":[{}]}');
+  await assert.rejects(addon.json('app/data/banking-interiors.json'), { code: 'PRIVATE_ADDON_INVALID' });
 });
 
 test('private add-on refuses a symlink even when its bytes match', async t => {

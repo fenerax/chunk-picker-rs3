@@ -18,9 +18,9 @@ export const privateGalleryFiles = Object.freeze(['gallery.html', 'gallery.mjs',
 export function validatePrivateAddon(value) {
   if (!plain(value) || value.schemaVersion !== 1 || !plain(value.features) || !Array.isArray(value.files)
     || Object.keys(value).some(key => !['schemaVersion', 'features', 'files'].includes(key))
-    || Object.keys(value.features).some(key => !['originalSync', 'gallery', 'projectUpdates'].includes(key))) fail();
+    || Object.keys(value.features).some(key => !['originalSync', 'gallery', 'projectUpdates', 'bankingInteriors'].includes(key))) fail();
   const required = new Set();
-  const { originalSync, gallery, projectUpdates } = value.features;
+  const { originalSync, gallery, projectUpdates, bankingInteriors } = value.features;
   if (originalSync !== undefined) {
     if (!plain(originalSync) || Object.keys(originalSync).length !== 2
       || originalSync.server !== serverEntry || originalSync.browser !== browserEntry) fail();
@@ -33,6 +33,11 @@ export function validatePrivateAddon(value) {
   if (projectUpdates !== undefined) {
     if (projectUpdates !== true) fail();
     required.add('app/data/changelog.json'); required.add('app/data/roadmap.json');
+  }
+  // Optional calculator evidence never supplies access edges or dataset inputs.
+  if (bankingInteriors !== undefined) {
+    if (bankingInteriors !== true) fail();
+    required.add('app/data/banking-interiors.json');
   }
   if (!required.size || value.files.length !== required.size) fail();
   const seen = new Set();

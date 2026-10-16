@@ -10,7 +10,7 @@ import { WOODCUTTING_HATCHETS, lookupWoodcuttingRate } from '../training/woodcut
 const woodcuttingRateCatalogue = await datasetJSON("app/data/training/woodcutting-rates.v1.json");
 import { fishingMetrics, fishingSegment, fishingOutputQuantity, canMergeFishing, mergeFishingSegment } from './fishing-plan.mjs';
 import { withGatheringBanking } from './banking-plan.mjs';
-import { bankingSettingDefinitions } from '../core/banking-settings.mjs';
+import { gatheringSettingDefinitions, calculatorBankingSettingDefinitions as bankingSettingDefinitions } from '../core/gathering-settings.mjs';
 
 export const trainingPreferences = Object.freeze(['best-xp', 'balanced', 'money-making']);
 const list = value => value == null ? [] : Array.isArray(value) ? value : value instanceof Set ? [...value] : [value];
@@ -238,7 +238,7 @@ export function planTraining(skill, fromLevel, toLevel, availability = {}, prefe
   if (!Number.isSafeInteger(toLevel) || toLevel < 1 || toLevel > 120) throw new RangeError('Target level must be an integer from 1 through 120.');
   if (fromLevel !== null && fromLevel !== undefined && (!Number.isSafeInteger(fromLevel) || fromLevel < 1 || fromLevel > 120)) throw new RangeError('Starting level must be an integer from 1 through 120, or unknown.');
   if (preference !== 'all' && !trainingPreferences.includes(preference)) throw new RangeError(`Unknown training preference: ${preference}`);
-  for (const definition of bankingSettingDefinitions) if (availability[definition.id] !== undefined && !definition.options.includes(availability[definition.id])) throw new RangeError(`Choose a valid ${definition.label.toLowerCase()}.`);
+  for (const definition of [...bankingSettingDefinitions, ...gatheringSettingDefinitions]) if (availability[definition.id] !== undefined && !definition.options.includes(availability[definition.id])) throw new RangeError(`Choose a valid ${definition.label.toLowerCase()}.`);
   if (availability.cheapCostPerXp !== undefined && (!Number.isFinite(availability.cheapCostPerXp) || availability.cheapCostPerXp < 0)) throw new RangeError('Cheap cost per XP must be finite and nonnegative.');
   if (skill === 'Mining') {
     if (availability.miningPickaxe !== undefined && availability.miningPickaxe !== 'auto' && !MINING_PICKAXES.some(tool => tool.id === availability.miningPickaxe)) throw new RangeError('Choose a reviewed F2P Mining pickaxe.');
@@ -254,7 +254,9 @@ export function planTraining(skill, fromLevel, toLevel, availability = {}, prefe
   const skillInfo = catalogue.skills?.find(value => value.skill === skill);
   const cap = availability.f2pCap ?? (availability.members === true ? skillCaps[skill] : skillInfo?.f2pCap ?? f2pCap(skill));
   const base = { schemaVersion: 1, catalogueVersion: catalogue.version, skill, fromLevel: fromLevel ?? null, toLevel, preference, cap,
-    ...(['Mining', 'Woodcutting', 'Fishing'].includes(skill) ? { gatheringMode: availability.gatheringMode ?? 'drop' } : {}),
+    ...(['Mining', 'Woodcutting', 'Fishing'].includes(skill) ? { gatheringMode: availability.gatheringMode ?? 'drop',
+      gatheringProcessing: skill === 'Fishing' && availability.gatheringProcessing === 'cook-drop' ? 'cook-drop'
+        : skill === 'Woodcutting' && availability.gatheringProcessing === 'fletch-drop' ? 'fletch-drop' : 'none' } : {}),
     ...(skill === 'Mining' ? { miningSettings: { pickaxeId: availability.miningPickaxe ?? 'auto', profileId: availability.miningAttention ?? 'active' } } : {}),
     ...(skill === 'Woodcutting' ? { woodcuttingSettings: { hatchetId: availability.woodcuttingHatchet ?? 'auto' } } : {}),
     skillGuideBreakpoints: skillGuideBreakpoints(skill, { catalogue: availability.skillGuideCatalogue, members: availability.members === true }),

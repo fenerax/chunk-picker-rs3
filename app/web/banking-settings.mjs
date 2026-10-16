@@ -1,9 +1,10 @@
-import { bankingSettingDefinitions } from '../core/banking-settings.mjs';
+import { gatheringSettingDefinitions, calculatorBankingSettingDefinitions as bankingSettingDefinitions } from '../core/gathering-settings.mjs';
 
-const label = value => value === 'none' ? 'None' : value === 'basic' ? 'Wood box' : value[0].toUpperCase() + value.slice(1);
+const labels = { 'cook-drop': 'Cook and drop', 'fletch-drop': 'Fletch and drop', unknown: 'Unknown', fire: 'Fire', range: 'Range' };
+const label = value => labels[value] ?? (/^\d+$/.test(value) ? `${value}%` : value === 'none' ? 'None' : value === 'basic' ? 'Wood box' : value[0].toUpperCase() + value.slice(1));
 
 /** Saved personal estimate choices, using the shell's revision-checked command. */
-export function createBankingSettings(ctx, memberId, { query = '', inline = false, skill, isCurrent = () => true, onChange = () => {} } = {}) {
+export function createBankingSettings(ctx, memberId, { query = '', inline = false, skill, advanced, isCurrent = () => true, onChange = () => {} } = {}) {
   const { el, select, command, showError = () => {} } = ctx;
   const content = el('section', undefined, inline ? 'helper-training-banking' : 'form-stack banking-settings');
   const writable = () => (typeof ctx.canWrite === 'function' ? ctx.canWrite() : ctx.canWrite) === true && typeof command === 'function';
@@ -13,14 +14,24 @@ export function createBankingSettings(ctx, memberId, { query = '', inline = fals
   const fields = el('div', undefined, inline ? 'helper-training-row' : 'form-stack');
   content.append(el(inline ? 'p' : 'h4', 'Gathering', inline ? 'helper-training-note' : undefined), fields);
   const controls = [], listeners = [];
-  const definitions = bankingSettingDefinitions;
+  const definitions = [...bankingSettingDefinitions, ...gatheringSettingDefinitions];
   function restore() { for (const { definition, control } of controls) control.value = preferences()[definition.id] ?? definition.default; }
   function updateVisibility() {
     const selectedSkill = typeof skill === 'function' ? skill() : skill;
-    for (const { definition, row, help } of controls) {
-      const shown = !inline || !selectedSkill || definition.id === 'gatheringMode'
+    for (const { definition, row, help, control } of controls) {
+      const process = preferences().gatheringProcessing ?? 'none';
+      if (inline && selectedSkill && definition.id === 'gatheringProcessing') {
+        const allowed = selectedSkill === 'Fishing' ? 'cook-drop' : 'fletch-drop';
+        for (const option of control.options ?? []) option.disabled = option.hidden = !['none', allowed].includes(option.value);
+        if (!['none', allowed].includes(control.value)) control.value = 'none';
+      }
+      const extra = definition.id === 'gatheringProcessing' && ['Fishing', 'Woodcutting'].includes(selectedSkill)
+        || definition.id === 'gatheringCookingFacility' && selectedSkill === 'Fishing' && process === 'cook-drop'
+        || definition.id === 'gatheringCookingSuccess' && selectedSkill === 'Fishing' && process === 'cook-drop'
+        || ['gatheringSurge', 'gatheringLodestones'].includes(definition.id) && (preferences().gatheringMode ?? 'drop') === 'bank';
+      const shown = (!definition.advanced || (advanced ?? preferences().advanced) === true) && (!inline || !selectedSkill || definition.id === 'gatheringMode'
         || definition.id === 'gatheringOreBox' && selectedSkill === 'Mining'
-        || definition.id === 'gatheringWoodBox' && selectedSkill === 'Woodcutting';
+        || definition.id === 'gatheringWoodBox' && selectedSkill === 'Woodcutting' || extra);
       row.hidden = !shown; if (inline) help.hidden = !shown;
     }
   }
@@ -31,7 +42,7 @@ export function createBankingSettings(ctx, memberId, { query = '', inline = fals
     controls.forEach(row => { row.control.disabled = true; }); onChange('saving');
     try {
       await command({ type: 'set-preference', memberId, preferenceId: definition.id, value: control.value });
-      if (current()) { restore(); onChange('saved'); }
+      if (current()) { restore(); updateVisibility(); onChange('saved'); }
     } catch (error) {
       if (current()) { restore(); showError(error); onChange('error', error); }
     } finally { if (current()) controls.forEach(row => { row.control.disabled = !writable(); }); }

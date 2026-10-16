@@ -2,11 +2,11 @@ import { settingDefinitions, authoredSettingDefinitions } from '../data/settings
 import { deathSettingDefinitions, validateDeathSetting } from './death-settings.mjs';
 import { miningSettingDefinitions } from './mining-settings.mjs';
 import { woodcuttingSettingDefinitions } from './woodcutting-settings.mjs';
-import { bankingSettingDefinitions } from './banking-settings.mjs';
+import { gatheringSettingDefinitions, calculatorBankingSettingDefinitions as bankingSettingDefinitions } from './gathering-settings.mjs';
 
 // Neighbor selection changes the shared roll pool and is owned by group rules.
 // Defaults belong to presentation fallback, never to a member's saved overrides.
-export const preferenceDefinitions = Object.freeze([...settingDefinitions.filter(definition => definition.type !== 'object'), ...deathSettingDefinitions, ...miningSettingDefinitions, ...woodcuttingSettingDefinitions, ...bankingSettingDefinitions, ...authoredSettingDefinitions]);
+export const preferenceDefinitions = Object.freeze([...settingDefinitions.filter(definition => definition.type !== 'object'), ...deathSettingDefinitions, ...miningSettingDefinitions, ...woodcuttingSettingDefinitions, ...bankingSettingDefinitions, ...gatheringSettingDefinitions, ...authoredSettingDefinitions]);
 const definitions = new Map(preferenceDefinitions.map(definition => [definition.id, definition]));
 const deathIds = new Set(deathSettingDefinitions.map(definition => definition.id));
 const unsafeIds = new Set(['__proto__', 'prototype', 'constructor']);

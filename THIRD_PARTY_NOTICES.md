@@ -10,6 +10,12 @@ RuneScape Wiki contributors supply the adapted factual dataset in
 revision IDs and source URLs provide attribution and describe changes.
 That folder uses Creative Commons Attribution-NonCommercial-ShareAlike 3.0
 Unported: https://creativecommons.org/licenses/by-nc-sa/3.0/ .
+The cooking, fletching and travel facts in
+`app/training/gathering-processing.mjs` and `app/training/banking-travel.mjs`
+also adapt RuneScape Wiki contributors' facts under that licence. Their source
+tables retain page titles, revision IDs, timestamps, content hashes and URLs.
+The calculator combines those facts with project-authored timing estimates;
+its displayed assumptions describe the limits of those estimates.
 Keep its attribution, non-commercial and share-alike terms when redistributing
 covered adaptations. This separate data licence is not replaced by MIT.
 

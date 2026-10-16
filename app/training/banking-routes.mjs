@@ -3,6 +3,10 @@ import { inflateRawSync } from 'node:zlib';
 const masks = await datasetJSON("app/data/training/banking-masks.v1.json");
 const fishing = await datasetJSON("app/data/training/banking-fishing-spots.v1.json");
 import { reviewedBankingService, bankingServiceEvidence } from '../data/training/banking-destinations.mjs';
+import { bankingTileSearch, straightRuns } from './banking-paths.mjs';
+import { confirmedBankingLodestones } from './banking-lodestones.mjs';
+import { HOME_TELEPORT_TICKS } from './banking-travel.mjs';
+import { interiorBankCandidates } from './banking-interiors.mjs';
 
 const DIR = [[-1, 0], [0, 1], [1, 0], [0, -1], [-1, 1], [1, 1], [1, -1], [-1, -1]];
 const OPPOSITE = [2, 3, 0, 1, 6, 7, 4, 5];
@@ -10,7 +14,7 @@ const list = value => value instanceof Set ? [...value] : Array.isArray(value) ?
 const chunkAt = (x, y) => String(Math.floor(x / 64) * 256 + Math.floor(y / 64));
 const componentId = (base, label) => `${base}-${1000000 + label}`;
 const limitations = Object.freeze([...masks.limits,
-  'The nearest reviewed usable surface bank or deposit is selected. Unreviewed services, NPC-only banks, upper floors and connected interiors have no automatic route.',
+  'Routes use reviewed services and admitted tiles. Upper-floor walking and stairs are separately labelled estimates; unlocated services remain unknown.',
   'Interaction perimeter tiles come from the cache placement witness. Bank opening, deposit clicks and gathering reaction times are separate cycle assumptions.']);
 
 export function stilesSupports(method) {
@@ -39,16 +43,16 @@ function selectorsFor(method, availability) {
 /** A provider holds at most two territory fields. Distances are a multi-source
  * BFS (one game step for a diagonal or cardinal step), shared across methods.
  * No state, source gates, topology or saves are mutated. Node-only, on demand. */
-export function createBankingRoutes({ world, tileData = masks, destinations, fishingSpots = fishing } = {}) {
+export function createBankingRoutes({ world, tileData = masks, destinations, fishingSpots = fishing, interiorCandidates, transportCatalogue } = {}) {
   const packed = new Map(tileData.regions.map(row => [String(row[0]), row]));
   const unreviewedServices = destinations ? [] : [...(world?.cacheResources?.byChunk?.values() ?? [])].flatMap(groups =>
     [...groups.values()].flatMap(group => group.placements.filter(p => /^facility:(?:bank-|deposit-box)/.test(p.classKey)
       && !reviewedBankingService(p))));
-  const destinationRows = destinations ?? [...(world?.cacheResources?.byChunk?.values() ?? [])].flatMap(groups =>
+  const destinationRows = (destinations ?? [...(world?.cacheResources?.byChunk?.values() ?? [])].flatMap(groups =>
     [...groups.values()].flatMap(group => group.placements.map(p => {
       const service = reviewedBankingService(p);
       return service && { ...service, id: p.id, chunkId: String(p.chunkId), x: p.x, y: p.y, witnessTiles: p.witnessTiles };
-    }).filter(Boolean)));
+    }).filter(Boolean)))).concat(interiorBankCandidates(interiorCandidates));
   // The same physical bank placement appears in only one byChunk class, but
   // deduplicate nevertheless for future catalogue classes sharing a placement.
   const banks = [...new Map(destinationRows.map(row => [row.id, row])).values()].sort((a, b) => a.id.localeCompare(b.id));
@@ -58,7 +62,8 @@ export function createBankingRoutes({ world, tileData = masks, destinations, fis
     const bases = new Set(list(availability.access?.bases).map(String));
     const components = new Set(list(availability.access?.components).map(String));
     const members = availability.members === true;
-    const key = JSON.stringify([members, includeStiles, [...bases].sort(), [...components].sort(), list(availability.completedQuests).sort()]);
+    const stones = confirmedBankingLodestones(availability, transportCatalogue);
+    const key = JSON.stringify([members, includeStiles, [...bases].sort(), [...components].sort(), list(availability.completedQuests).sort(), stones.map(row => row.id)]);
     if (profiles.has(key)) {
       const field = profiles.get(key); profiles.delete(key); profiles.set(key, field); return field;
     }
@@ -80,7 +85,6 @@ export function createBankingRoutes({ world, tileData = masks, destinations, fis
       byBase.set(base, r); regions.push(r);
     }
     const size = regions.length * 4096;
-    const distance = new Int32Array(size).fill(-1), next = new Uint8Array(size).fill(255), owner = new Uint16Array(size).fill(65535);
     const lookup = (x, y) => {
       const r = byBase.get(chunkAt(x, y)), i = (x & 63) * 64 + (y & 63);
       return r?.allowed[i] ? r.offset + i : -1;
@@ -93,26 +97,38 @@ export function createBankingRoutes({ world, tileData = masks, destinations, fis
     if (includeStiles && bases.has('11313')) candidates.push({ id: 'npc:stiles', label: 'Stiles (fish noting)', kind: 'stiles',
       members: false, chunkId: '11313', x: 2851, y: 3143, evidence: bankingServiceEvidence.stiles,
       witnessTiles: DIR.slice(0, 4).map(([dx, dy]) => [2851 + dx, 3143 + dy]) });
-    const queue = new Uint32Array(size), eligible = [];
-    let head = 0, tail = 0;
+    const eligible = [], seeds = [];
     for (const candidate of candidates) {
       const starts = (candidate.witnessTiles ?? []).map(([x, y]) => lookup(x, y)).filter(node => node >= 0);
       if (!starts.length) continue;
       const index = eligible.length; eligible.push(candidate);
-      for (const node of starts) if (distance[node] === -1) { distance[node] = 0; owner[node] = index; queue[tail++] = node; }
+      for (const node of starts) seeds.push({ node, cost: Math.round((candidate.interiorSeconds ?? 0) / .6), owner: index });
     }
-    while (head < tail) {
-      const node = queue[head++], r = regions[node >> 12], mask = r.moves[node & 4095], [x, y] = coords(node);
+    function* neighbors(node) {
+      const r = regions[node >> 12], mask = r.moves[node & 4095], [x, y] = coords(node);
       for (let d = 0; d < 8; d++) {
         if (!(mask & (1 << d))) continue;
         const [dx, dy] = DIR[d], neighbor = lookup(x + dx, y + dy);
-        if (neighbor < 0 || distance[neighbor] >= 0) continue;
+        if (neighbor < 0) continue;
         // Admission is checked for both corner tiles, too: a diagonal may
         // never slip through a locked chunk, blocked component or members tile.
         if (d >= 4 && (lookup(x + dx, y) < 0 || lookup(x, y + dy) < 0)) continue;
-        distance[neighbor] = distance[node] + 1; next[neighbor] = OPPOSITE[d]; owner[neighbor] = owner[node]; queue[tail++] = neighbor;
+        yield [neighbor, OPPOSITE[d]];
       }
     }
+    const graph = { size, neighbors }, walking = bankingTileSearch(graph, seeds);
+    const admittedStones = stones.filter(stone => bases.has(stone.chunkId) && lookup(stone.x, stone.y) >= 0);
+    const stoneField = admittedStones.length ? bankingTileSearch(graph, admittedStones.map((stone, owner) => ({ node: lookup(stone.x, stone.y), cost: 0, owner }))) : null;
+    const teleportSeeds = [], bankStone = new Map();
+    if (stoneField) for (const [index, bank] of eligible.entries()) {
+      const reached = (bank.witnessTiles ?? []).map(([x, y]) => lookup(x, y)).filter(node => node >= 0 && stoneField.distance[node] >= 0)
+        .sort((a, b) => stoneField.distance[a] - stoneField.distance[b]);
+      if (!reached.length) continue;
+      const first = reached[0]; bankStone.set(index, first);
+      const cost = HOME_TELEPORT_TICKS + stoneField.distance[first] + Math.round((bank.interiorSeconds ?? 0) * 2 / .6);
+      teleportSeeds.push({ node: first, cost, owner: index });
+    }
+    const teleportField = teleportSeeds.length ? bankingTileSearch(graph, teleportSeeds) : null;
     const unknownServices = unreviewedServices.filter(p => bases.has(String(p.chunkId))
       // These two positively reviewed members services are unavailable in F2P.
       && (members || ![19230, 112405].includes(p.objectId))
@@ -120,7 +136,10 @@ export function createBankingRoutes({ world, tileData = masks, destinations, fis
     // Reviewed NPC-only or upper-floor banks have no surface interaction
     // placement. Their existence cannot be converted to a guessed tile route.
     if (!destinations) for (const base of ['12598', '13626', '9770']) if (bases.has(base)) unknownServices.push(`unlocated-bank:${base}`);
-    const field = { bases, components, regions, byBase, missing, unknownServices, eligible, distance, next, owner, lookup, coords };
+    const travelLimitations = stones.length > admittedStones.length
+      ? ['Some confirmed lodestones have no admitted exact landing tile in the static walking snapshot; those teleport routes are unknown and walking remains available.'] : [];
+    const field = { bases, components, regions, byBase, missing, unknownServices, eligible, ...walking, lookup, coords, travelLimitations,
+      stoneField, teleportField, admittedStones, bankStone };
     profiles.set(key, field);
     if (profiles.size > 2) profiles.delete(profiles.keys().next().value);
     return field;
@@ -173,7 +192,7 @@ export function createBankingRoutes({ world, tileData = masks, destinations, fis
       const witnesses = spot.witnessTiles ?? [[spot.x, spot.y]];
       const starts = witnesses.map(([x, y]) => field.lookup(x, y)).filter(node => node >= 0);
       const row = { spot: { ...spot, witnessTiles: undefined }, status: 'unknown', destination: null,
-        tileSteps: null, roundTripTileSteps: null, chunks: [], limitations: [...limitations, ...(spot.limitations ?? [])] };
+        tileSteps: null, roundTripTileSteps: null, chunks: [], limitations: [...limitations, ...field.travelLimitations, ...(spot.limitations ?? [])] };
       if (spot.unknownReason || !starts.length) return { ...row, reason: spot.unknownReason ?? 'No admitted interaction tile in the available surface coverage.' };
       const reached = starts.filter(node => field.distance[node] >= 0).sort((a, b) => field.distance[a] - field.distance[b]);
       if (!reached.length) return { ...row, status: field.missing.length || field.unknownServices.length ? 'unknown' : 'no-bank',
@@ -182,20 +201,41 @@ export function createBankingRoutes({ world, tileData = masks, destinations, fis
           : 'No reviewed usable bank, deposit or noting service has a walking route within the admitted chunks in the closed cache snapshot.',
         ...(field.missing.length ? { missingCoverage: field.missing } : {}),
         ...(field.unknownServices.length ? { unreviewedServices: field.unknownServices } : {}) };
-      const first = reached[0], candidate = field.eligible[field.owner[first]], chunks = [];
-      let node = first;
-      while (true) {
-        const base = field.regions[node >> 12].base;
-        if (chunks[chunks.length - 1] !== base) chunks.push(base);
-        if (field.next[node] === 255) break;
-        const [x, y] = field.coords(node), [dx, dy] = DIR[field.next[node]];
-        node = field.lookup(x + dx, y + dy);
+      const trace = (search, start) => {
+        const points = [], chunks = [];
+        let node = start;
+        while (true) {
+          const base = field.regions[node >> 12].base;
+          if (chunks[chunks.length - 1] !== base) chunks.push(base);
+          const [x, y] = field.coords(node); points.push([x, y]);
+          if (search.next[node] === 255) break;
+          const [dx, dy] = DIR[search.next[node]]; node = field.lookup(x + dx, y + dy);
+        }
+        return { points, chunks, tileSteps: points.length - 1, last: points.at(-1) };
+      };
+      const first = reached[0], candidate = field.eligible[field.owner[first]], path = trace(field, first);
+      const { chunks, tileSteps } = path, [toX, toY] = path.last, [fromX, fromY] = field.coords(first);
+      let teleportOption;
+      if (field.teleportField) {
+        const reached = starts.filter(node => field.teleportField.distance[node] >= 0).sort((a, b) => field.teleportField.distance[a] - field.teleportField.distance[b]);
+        if (reached.length) {
+          const start = reached[0], index = field.teleportField.owner[start], bank = field.eligible[index];
+          const back = trace(field.teleportField, start), stoneStart = field.bankStone.get(index);
+          const out = trace(field.stoneField, stoneStart), stone = field.admittedStones[field.stoneField.owner[stoneStart]];
+          teleportOption = { tileSteps: back.tileSteps, outboundTileSteps: out.tileSteps, returnTileSteps: back.tileSteps,
+            outboundRuns: straightRuns([...out.points].reverse()), returnRuns: straightRuns([...back.points].reverse()),
+            extraTravelSeconds: (bank.interiorSeconds ?? 0) * 2, teleportSeconds: HOME_TELEPORT_TICKS * .6,
+            lodestone: { id: stone.id, name: stone.name, x: stone.x, y: stone.y, evidence: stone.evidence },
+            destination: { ...bank, witnessTiles: undefined }, chunks: [...new Set([...out.chunks, ...back.chunks])],
+            limitations: ['Home Teleport assumes a safe, uninterrupted cast; quick teleports and interface reaction time are excluded.', ...(bank.interiorEstimate?.assumptions ?? [])] };
+        }
       }
-      const [toX, toY] = field.coords(node), [fromX, fromY] = field.coords(first), tileSteps = field.distance[first];
       return { ...row, status: 'routed', reason: 'Shortest diagonal-aware route to a reviewed usable service in the admitted surface tiles.',
         destination: { ...candidate, witnessTiles: undefined, interactionTile: { x: toX, y: toY } },
         interactionTile: { x: fromX, y: fromY }, tileSteps, roundTripTileSteps: tileSteps * 2, chunks,
-        returnChunks: [...chunks].reverse(), model: 'closed-cache-tile-walking', exactWithinModel: true,
+        walkingRuns: straightRuns(path.points), extraTravelSeconds: (candidate.interiorSeconds ?? 0) * 2,
+        teleportOption, limitations: [...row.limitations, ...(candidate.interiorEstimate?.assumptions ?? [])],
+        returnChunks: [...chunks].reverse(), model: 'closed-cache-tile-walking', exactWithinModel: !candidate.interiorEstimate,
         ...(field.unknownServices.length ? { unreviewedServices: field.unknownServices } : {}) };
     });
     if (!rows.length) return [{ spot: { id: `${method.id}:unlocated`, label: method.label ?? method.id }, status: 'unknown',

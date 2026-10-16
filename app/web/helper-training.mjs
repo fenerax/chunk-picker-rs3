@@ -163,7 +163,7 @@ export function renderTraining(host, { document = globalThis.document, api, memb
   const bankingSettings = createBankingSettings({ el, command, canWrite, preferences: getPreferences,
     select: (options, value) => { const control = el('select'); for (const row of options) { const option = el('option', row.label); option.value = row.value; control.append(option); } control.value = value; return control; },
     showError: error => notice(error.message || 'Banking settings could not save. Try again.', true),
-  }, member.id, { inline: true, skill: () => skill.value, isCurrent: () => !disposed && isCurrent(),
+  }, member.id, { inline: true, skill: () => skill.value, advanced, isCurrent: () => !disposed && isCurrent(),
     onChange: state => { invalidate(); bankingSaving = state === 'saving'; submit.disabled = miningSaving || woodcuttingSaving || bankingSaving; if (state !== 'error') notice(state === 'saving' ? 'Saving banking settings…' : 'Banking settings saved. Plan your grind again.'); },
   });
   bankingSettings.hidden = true; form.append(bankingSettings);
@@ -306,7 +306,7 @@ export function renderTraining(host, { document = globalThis.document, api, memb
     if ((plan.issues ?? []).some(issue => issue.code === 'skill-cap')) { view.append(el('p', `This target is outside the F2P limit for ${skill.value}. Choose level ${info().f2pCap} or below.`)); output.replaceChildren(view); return; }
     view.append(el('h3', `${skill.value} ${plan.fromLevel} → ${plan.toLevel}`), el('p', `${number(plan.xpNeeded)} XP needed`, 'helper-training-total'));
     const comparedMethods = new Set();
-    if (plan.gatheringMode) view.append(el('p', plan.gatheringMode === 'bank' ? 'Training time includes banking on foot.' : 'Training time assumes you drop resources.', 'helper-training-note'));
+    if (plan.gatheringMode) view.append(el('p', plan.gatheringMode === 'bank' ? 'Training time includes the estimated bank trip.' : plan.gatheringProcessing && plan.gatheringProcessing !== 'none' ? 'Training time includes processing and dropping.' : 'Training time assumes you drop resources.', 'helper-training-note'));
     if (plan.progress?.source === 'manual' || (plan.issues ?? []).some(issue => issue.code === 'level-floor')) view.append(el('p', `Exact starting XP is unknown. This estimate starts at the minimum XP for level ${plan.fromLevel}.`, 'helper-training-note'));
     if (route?.complete && plan.xpNeeded === 0) view.append(el('p', 'Your starting progress already meets this target.'));
     else {

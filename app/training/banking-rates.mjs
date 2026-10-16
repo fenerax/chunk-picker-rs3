@@ -166,7 +166,8 @@ export function calculateBankingRates(input = {}) {
   Object.assign(inventory, {capacity: fill.capacity, boxStoredPerTrip: fill.stored, boxFillsPerTrip: fill.boxFills});
   if (route == null) return {inventory, drop, bank: null, running: null, assumptions, unavailableReason: 'No verified storage route.'};
   if (!Number.isInteger(route.tileSteps) || route.tileSteps < 0 || route.tileSteps > 100000
-    || !['bank', 'deposit', 'deposit-box', 'metal-bank', 'stiles'].includes(route.kind)) return null;
+    || !['bank', 'deposit', 'deposit-box', 'metal-bank', 'stiles'].includes(route.kind)
+    || route.travelSeconds !== undefined && !nonnegative(route.travelSeconds)) return null;
   if (route.kind === 'stiles' && (skill !== 'Fishing' || resources.some(row => row.perHour > 0 && !stilesFish.has(row.id)))) {
     return {inventory, drop, bank: null, running: null, assumptions, unavailableReason: 'Stiles notes only tuna, lobster and swordfish.'};
   }
@@ -180,7 +181,7 @@ export function calculateBankingRates(input = {}) {
   const common = {xpPerHour, resources, capacity: fill.capacity, gatheringSeconds: fill.seconds,
     handlingSeconds: boxHandlingSeconds + destinationSeconds, retained: true, route: {...route},
     boxHandlingSeconds, destinationSeconds};
-  const bank = estimate({...common, travelSeconds: route.tileSteps * 1.2, label: route.kind === 'stiles' ? 'Walk to Stiles' : 'Walk and bank'});
+  const bank = estimate({...common, travelSeconds: route.travelSeconds ?? route.tileSteps * 1.2, label: route.kind === 'stiles' ? 'Walk to Stiles' : 'Walk and bank'});
   let running = null;
   if (settings.travelMode === 'run') {
     const energy = settings.energy;

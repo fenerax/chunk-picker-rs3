@@ -1216,3 +1216,12 @@ test('alternative commands, state and historical references reject unknown ids, 
   }
   assert.deepEqual(original, state()); assert.equal(Object.prototype['Starter route'], undefined);
 });
+
+// Public synthetic coverage of application-owned calculator preferences.
+test('calculator definitions join typed preferences without becoming dataset rules', async () => {
+  const { gatheringSettingDefinitions } = await import('../app/core/gathering-settings.mjs');
+  for (const definition of gatheringSettingDefinitions) {
+    assert.equal(preferenceDefinitions.find(row => row.id === definition.id), definition);
+    assert.equal(validatePreference(definition.id, definition.default), definition.default);
+  }
+});

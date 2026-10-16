@@ -54,3 +54,43 @@ test('running is Advanced only and never changes walking plan rates', () => {
   assert.equal(result.xpPerHour, result.banking.spots[0].rates.walking.xpPerHour);
   assert.equal(withGatheringBanking(metric, method, 7, input).banking.spots[0].rates.running, undefined);
 });
+
+const route = (extra = {}) => ({ status: 'routed', spot: { id: 'spot', label: 'Synthetic resource' },
+  tileSteps: 100, roundTripTileSteps: 200, chunks: ['257'], destination: { kind: 'bank', name: 'Synthetic bank' }, ...extra });
+const mining = { id: 'ore', skill: 'Mining', miningCurve: { rockId: 'copper' } };
+const syntheticMetric = { xpPerHour: 24000, orePerHour: 1200 };
+
+test('processing slows gathering and reports secondary XP without blending the target skill', () => {
+  const method = { id: 'wood', skill: 'Woodcutting', woodcuttingCurve: { treeId: 'oak' } };
+  const availability = { gatheringProcessing: 'fletch-drop', skills: { Fletching: 15 } };
+  const input = { xpPerHour: 60000, logsPerHour: 1000 }, result = withGatheringBanking(input, method, 45, availability, true);
+  assert(result.xpPerHour < input.xpPerHour); assert(result.banking.processing.processingXpPerHour.Fletching > 0);
+  assert(Math.abs(result.xpPerHour / result.logsPerHour - 60) < 1e-8);
+  const yew = withGatheringBanking(input, { ...method, woodcuttingCurve: { treeId: 'yew' } }, 75, availability, true);
+  assert.equal(yew.xpPerHour, null); assert.equal(yew.banking.processing.reasonCode, 'members-required');
+  assert.equal(withGatheringBanking(input, method, 45, { ...availability, gatheringProcessing: 'cook-drop' }, true).xpPerHour, input.xpPerHour);
+});
+
+test('unavailable processing clears every mixed-species derived rate', () => {
+  const species = [{ id: 'trout', fishPerHour: 360, xpPerHour: 18000 }, { id: 'salmon', fishPerHour: 240, xpPerHour: 16800 }];
+  const input = { xpPerHour: 34800, fishPerHour: 600, species, fishing: { species, fishPerHour: 600, xpPerHour: 34800 } };
+  const result = withGatheringBanking(input, { id: 'fish', skill: 'Fishing' }, 35,
+    { gatheringProcessing: 'cook-drop', skills: { Cooking: 60 } }, true);
+  assert.equal(result.xpPerHour, null); assert.equal(result.species[0].fishPerHour, null);
+  assert.equal(result.fishing.fishPerHour, null); assert.equal(result.fishing.species[1].xpPerHour, null);
+});
+
+test('bank comparison selects the faster travel cycle including stairs and saved Surge gate', () => {
+  const routed = route({ extraTravelSeconds: 14.4, walkingRuns: [100], teleportOption: route({
+    outboundTileSteps: 5, returnTileSteps: 100, outboundRuns: [5], returnRuns: [100], teleportSeconds: 10.2,
+    extraTravelSeconds: 14.4, lodestone: { name: 'Synthetic stone' } }) });
+  const availability = { gatheringMode: 'bank', bankingRoutes: () => [routed] };
+  const result = withGatheringBanking(syntheticMetric, mining, 7, availability, true), spot = result.banking.spots[0];
+  assert.equal(spot.travel.mode, 'lodestone'); assert.equal(spot.tileSteps, 105);
+  assert(Math.abs(spot.rates.walking.travelSeconds - 87.6) < 1e-8);
+  assert.equal(spot.walkingSeconds, 134.4);
+  assert(withGatheringBanking(syntheticMetric, mining, 7, { ...availability, gatheringSurge: 'on', skills: { Agility: 5 } }, true).xpPerHour > result.xpPerHour);
+  assert.equal(withGatheringBanking(syntheticMetric, mining, 7, { ...availability, gatheringSurge: 'on', skills: { Agility: 4 } }, true).xpPerHour, result.xpPerHour);
+  const slow = { ...routed, teleportOption: { ...routed.teleportOption, teleportSeconds: 1000 } };
+  assert.equal(withGatheringBanking(syntheticMetric, mining, 7, { ...availability, bankingRoutes: () => [slow] }, true).banking.spots[0].travel.mode, 'walk');
+});

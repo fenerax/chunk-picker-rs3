@@ -1359,7 +1359,9 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
               const availability = buildTrainingAvailability(evaluation.result, { state, memberId, definitions: parsedDefinitions, sourceLocations: trainingSourceIndex });
               Object.assign(availability, gatheringOptions);
               if (['Mining', 'Woodcutting', 'Fishing'].includes(skill)) {
-                bankingRouteProvider ??= createBankingRoutes({ world: indexedWorld });
+                bankingRouteProvider ??= createBankingRoutes({ world: indexedWorld,
+                  interiorCandidates: privateAddon?.features.bankingInteriors
+                    ? await privateAddon.json('app/data/banking-interiors.json') : undefined });
                 availability.bankingRoutes = createGatheringRouteLookup(bankingRouteProvider, availability);
                 availability.bankingAdvanced = member.preferences?.advanced === true;
               }
@@ -1861,6 +1863,7 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
       else if (route === '/core/mining-settings.mjs') file = await containedFile(path.join(ROOT, 'app', 'core'), 'mining-settings.mjs');
       else if (route === '/core/woodcutting-settings.mjs') file = await containedFile(path.join(ROOT, 'app', 'core'), 'woodcutting-settings.mjs');
       else if (route === '/core/banking-settings.mjs') file = await containedFile(path.join(ROOT, 'app', 'core'), 'banking-settings.mjs');
+      else if (route === '/core/gathering-settings.mjs') file = await containedFile(path.join(ROOT, 'app', 'core'), 'gathering-settings.mjs');
       else if (['/banking-settings.mjs', '/banking-display.mjs', '/banking.css'].includes(route)) file = await containedFile(webRoot, route.slice(1));
       else if (['/training/mining-rates.mjs', '/training/mining-rules.mjs'].includes(route)) file = await containedFile(path.join(ROOT, 'app', 'training'), route.slice('/training/'.length));
       else if (route === '/dataset-runtime.mjs') file = await containedFile(path.join(ROOT, 'app'), 'dataset-runtime.mjs');
