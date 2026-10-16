@@ -7,6 +7,7 @@ export function createTaskFilters({ document, getStorage = () => globalThis.loca
   let storage;
   try { storage = getStorage(); } catch { /* Browsers can deny storage access. */ }
   let filters = readTaskFilters(storage), categoryKey, skillInputs = [], expanded = false, categoryId = 0;
+  let shownCategories = [], categoryBodies = [];
   const el = (tag, text, cls) => { const node = document.createElement(tag); if (text !== undefined) node.textContent = text; if (cls) node.className = cls; return node; };
   const root = el('div', undefined, 'active-task-filters');
   const toggle = el('button', 'Filter & sort', 'task-filters-toggle'); toggle.id = 'task-filters-toggle'; toggle.type = 'button';
@@ -25,6 +26,21 @@ export function createTaskFilters({ document, getStorage = () => globalThis.loca
     event.preventDefault(); event.stopPropagation(); skills.open = false; setExpanded(false); toggle.focus();
   });
   const save = () => { writeTaskFilters(storage, filters); onChange(); };
+  const foldAll = el('button', 'Collapse all', 'task-category-fold-all'); foldAll.id = 'task-category-fold-all'; foldAll.type = 'button'; foldAll.hidden = true;
+  const refreshFoldAll = () => {
+    foldAll.hidden = !shownCategories.length;
+    foldAll.textContent = shownCategories.some(category => !filters.folded.includes(category)) ? 'Collapse all' : 'Expand all';
+    foldAll.setAttribute('aria-label', `${foldAll.textContent} skill groups`);
+    foldAll.setAttribute('aria-controls', categoryBodies.join(' '));
+  };
+  foldAll.addEventListener('click', () => {
+    if (!shownCategories.length) return;
+    const collapse = shownCategories.some(category => !filters.folded.includes(category));
+    filters = { ...filters, folded: collapse ? [...new Set([...filters.folded, ...shownCategories])] : filters.folded.filter(category => !shownCategories.includes(category)) };
+    refreshFoldAll();
+    // Reuse the screen's single, cancellable paint queue for every open group.
+    save();
+  });
   const checkbox = (id, text, key) => {
     const label = el('label'), control = el('input'); control.type = 'checkbox'; control.id = id; control.checked = filters[key];
     control.addEventListener('change', () => { filters = { ...filters, [key]: control.checked }; save(); });
@@ -48,7 +64,7 @@ export function createTaskFilters({ document, getStorage = () => globalThis.loca
     doable.control.checked = pinned.control.checked = hidePartnerClaims.control.checked = onlyMyClaims.control.checked = false; sort.value = 'default'; categoryKey = undefined;
     clearSearch(); save();
   });
-  summary.append(hiddenCount, clear); root.append(toggle, panel, summary);
+  summary.append(hiddenCount, clear); root.append(toggle, foldAll, panel, summary);
   function refreshCategories(categories) {
     const options = [...new Set([...categories, ...filters.skills])].sort((a, b) => categoryName(a).localeCompare(categoryName(b)));
     const key = JSON.stringify(options);
@@ -80,6 +96,8 @@ export function createTaskFilters({ document, getStorage = () => globalThis.loca
       doable.control.disabled = doableFixed; doable.control.title = doable.label.title = fixedHint;
       help.textContent = fixedHint || (group ? 'Doable now hides tasks that need a level or requirement you don’t have yet. In group view, a task stays if either player on it can do it.' : 'Doable now hides tasks that need a level or requirement you don’t have yet.');
       const shown = selection.rows;
+      shownCategories = [...new Set(shown.map(row => (row.task ?? row).category))];
+      categoryBodies = []; refreshFoldAll();
       const hidden = selection.hidden + ownerHidden;
       clear.hidden = !externalActive && !hidden && !search && !filters.skills.length && !filters.doable && !filters.pinned && !filters.hidePartnerClaims && !filters.onlyMyClaims && filters.sort === 'default';
       hiddenCount.textContent = `${hidden.toLocaleString()} hidden by filters${clear.hidden ? '' : ' · '}`;
@@ -90,6 +108,7 @@ export function createTaskFilters({ document, getStorage = () => globalThis.loca
     category(heading, category, body, paint) {
       const control = el('button', undefined, 'task-category-toggle'); control.type = 'button'; control.dataset.category = category;
       body.id = `active-task-category-${++categoryId}`; control.setAttribute('aria-controls', body.id);
+      categoryBodies.push(body.id); refreshFoldAll();
       // Preserve the existing category label and its icon inside the button.
       if (heading.childNodes) control.append(...Array.from(heading.childNodes));
       else { control.textContent = heading.textContent; control.append(...heading.children); }
@@ -100,7 +119,7 @@ export function createTaskFilters({ document, getStorage = () => globalThis.loca
       control.addEventListener('click', () => {
         const fold = !filters.folded.includes(category);
         filters = { ...filters, folded: fold ? [...filters.folded, category] : filters.folded.filter(value => value !== category) };
-        writeTaskFilters(storage, filters); if (show()) void paintOnce();
+        writeTaskFilters(storage, filters); refreshFoldAll(); if (show()) void paintOnce();
       });
       return show();
     },

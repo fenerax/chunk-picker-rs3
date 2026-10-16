@@ -94,7 +94,7 @@ export function controlUsageId(control) {
   if (!control.closest?.('.task-sidebar')) return;
   if (control.matches?.('.task-backlog') && control.querySelector?.('.icon-restore')) return 'tasks:row-restore';
   for (const [selector, id] of [
-    ['.task-label-button', 'tasks:row-name'], ['.task-category-toggle', 'tasks:category-fold'],
+    ['.task-label-button', 'tasks:row-name'], ['.task-category-toggle', 'tasks:category-fold'], ['.task-category-fold-all', 'tasks:category-fold-all'],
     ['.task-skill-choices input', 'tasks:skill-choice'], ['.task-skill-picker summary', 'tasks:skill-fold:disclosure'],
     ['.duo-task-row > input', 'tasks:duo-row-check'], ['.task-row > input', 'tasks:row-check'],
     ['.task-row .icon-wiki', 'tasks:row-wiki'], ['.task-row a.icon-button', 'tasks:row-wiki'],

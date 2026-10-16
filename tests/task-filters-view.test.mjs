@@ -1,5 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
+import { createContext, runInContext } from 'node:vm';
 import { createTaskFilters, appendTaskPin } from '../app/web/task-filters.mjs';
 import { TASK_FILTERS_STORAGE_KEY } from '../app/web/task-filters-model.mjs';
 
@@ -160,6 +162,71 @@ test('initially open category retains already painted body across fold toggles',
   assert.equal(h.controller.category(heading, 'Mining', body, () => lazyPaints++), true);
   const button = heading.children[0]; button.emit('click'); button.emit('click');
   assert.equal(lazyPaints, 0); assert.equal(body.hidden, false); assert.equal(button.getAttribute('aria-expanded'), 'true');
+});
+
+test('bulk folding follows shown groups, single folds update its label, and empty views hide it', () => {
+  const h = harness({ folded: ['Absent', 'Mining'] }), bulk = h.byId('task-category-fold-all');
+  assert.equal(bulk.hidden, true);
+  h.select([task('mine'), task('fish', 'Fishing')]);
+  assert.equal(bulk.textContent, 'Collapse all');
+  const headings = [], bodies = [];
+  for (const category of ['Mining', 'Fishing']) {
+    const heading = document.createElement('h3'), body = document.createElement('div');
+    h.controller.category(heading, category, body, () => {}); headings.push(heading); bodies.push(body);
+  }
+  assert.equal(bulk.type, 'button');
+  assert.equal(bulk.getAttribute('aria-controls'), bodies.map(body => body.id).join(' '));
+  headings[1].children[0].emit('click'); assert.equal(bulk.textContent, 'Expand all');
+  headings[0].children[0].emit('click'); assert.equal(bulk.textContent, 'Collapse all');
+  bulk.emit('click'); assert.equal(bulk.textContent, 'Expand all');
+  assert.deepEqual(h.saved().folded, ['Absent', 'Fishing', 'Mining']);
+  assert.equal(h.changes(), 1); assert.equal(h.writes.length, 3);
+  const reopened = harness(h.saved()); reopened.select([task('mine')]);
+  assert.equal(reopened.byId('task-category-fold-all').textContent, 'Expand all');
+  reopened.byId('task-category-fold-all').emit('click');
+  assert.deepEqual(reopened.saved().folded, ['Absent', 'Fishing'], 'unshown folds survive expansion');
+  assert.equal(reopened.byId('task-category-fold-all').getAttribute('aria-label'), 'Collapse all skill groups');
+  h.select([], { search: 'no match' });
+  assert.equal(bulk.hidden, true); assert.equal(bulk.getAttribute('aria-controls'), '');
+  bulk.emit('click'); assert.equal(h.writes.length, 3);
+});
+
+for (const group of [false, true]) test(`bulk folds reuse lazy painting in the ${group ? 'duo' : 'solo'} list renderer`, async () => {
+  const h = harness({ folded: ['Fishing'] }), target = document.createElement('div');
+  const controls = new Map(['hide-completed', 'show-blocked', 'show-all', 'task-count'].map(id => [id, new Node('input')]));
+  const tasks = [task('mine'), ...Array.from({ length: 75 }, (_, i) => task(`fish${i}`, 'Fishing'))];
+  const entries = tasks.map(task => ({ task, memberIds: ['actor1', 'reed'] }));
+  const results = ['actor1', 'reed'].map(memberId => ({ memberId, stateRevision: 1, tasks }));
+  let painted = 0;
+  const c = { el: (tag, text, cls) => { const node = new Node(tag, text); node.className = cls ?? ''; return node; },
+    button: (text, action, cls) => { const node = new Node('button', text); node.className = cls ?? ''; node.addEventListener('click', action); return node; },
+    $: id => controls.get(id), taskRenderGeneration: 1, activeTaskFilters: () => h.controller,
+    state: { revision: 1, members: [{ id: 'actor1', name: 'Player' }, { id: 'reed', name: 'Reed' }] }, memberId: 'actor1', sandbox: { signature: () => '' },
+  };
+  const source = (await readFile(new URL('../app/web/screen-tasks.mjs', import.meta.url), 'utf8')).replace(/^import .*;\r?\n/gm, '').replace(/^export /gm, '');
+  runInContext(source + '\ncreateScreenTasks(c);', createContext({ c, document, createTaskClaimClock: () => ({}), createTaskIconPainter: () => ({ append() {} }),
+    selectDuoTasks: () => ({ rows: entries, counts: { union: entries.length } }),
+  }));
+  const row = value => { painted++; return new Node('div', (value.task ?? value).id); };
+  c.taskFiltersView = h.controller;
+  c.taskRow = row; c.duoView = () => ({ row, filter: () => 'all', personalFilter: () => 'group', selectionNeedsInspection: () => false });
+  c.duoResults = () => ({ results: () => new Map(results.map(value => [value.memberId, value])) });
+  const render = async () => {
+    const jobs = []; ++c.taskRenderGeneration;
+    if (group) c.renderDuoTasks(target, jobs, c.taskRenderGeneration, '');
+    else { h.select(tasks); c.grouped(target, tasks, jobs, c.taskRenderGeneration, true); }
+    await c.paintTaskJobs(jobs, c.taskRenderGeneration);
+  };
+  await render(); assert.equal(painted, 1);
+  const bulk = h.byId('task-category-fold-all'); bulk.emit('click'); await render();
+  assert.equal(bulk.textContent, 'Expand all'); assert.equal(painted, 1);
+  assert.ok(walk(target).filter(node => node.className === 'task-category-body').every(node => node.hidden));
+  bulk.emit('click'); await render();
+  assert.equal(bulk.textContent, 'Collapse all'); assert.equal(painted, 72, 'only the first 70 rows per group are painted');
+  assert.ok(walk(target).some(node => node.textContent === 'Show more Fishing tasks (5)'));
+  const bodies = walk(target).filter(node => node.className === 'task-category-body');
+  assert.ok(bodies.every(node => !node.hidden));
+  assert.equal(bulk.getAttribute('aria-controls'), bodies.map(body => body.id).join(' '));
 });
 
 test('phone Filter toggle changes expansion without applying filters or saving preferences', () => {

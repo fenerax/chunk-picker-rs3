@@ -108,6 +108,7 @@ export const usageEvents = Object.freeze([
   Object.freeze({"id":"dom:task-filters-clear","label":"Clear","kind":"use"}),
   Object.freeze({"id":"tasks:skill-choice","label":"Filter by skill","kind":"use"}),
   Object.freeze({"id":"tasks:category-fold","label":"Fold task category","kind":"use"}),
+  Object.freeze({"id":"tasks:category-fold-all","label":"Fold or unfold all task categories","kind":"use"}),
   Object.freeze({"id":"tasks:owner-all","label":"Show tasks for all players","kind":"use"}),
   Object.freeze({"id":"tasks:owner-player","label":"Filter by player","kind":"use"}),
   Object.freeze({"id":"tasks:owner-both","label":"Show shared tasks","kind":"use"}),

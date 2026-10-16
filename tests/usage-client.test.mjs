@@ -94,6 +94,17 @@ test('delegated controls count activations once and ignore all values, URLs and 
   assert.equal(controlUsageId({ id: 'usage-open', dataset: {} }), 'dom:usage-open');
 });
 
+test('the bulk task fold button records one registered usage activation', async () => {
+  const control = { tagName: 'BUTTON', id: 'task-category-fold-all', dataset: {},
+    matches: selector => selector === '.task-category-fold-all',
+    closest: selector => selector === 'button, summary, input, select, textarea, a' || selector === '.task-sidebar' ? control : undefined };
+  const f = fixture();
+  handleUsageControl({ type: 'click', target: control }, id => f.counter.count(id));
+  await f.counter.flush();
+  assert.equal(JSON.parse(f.requests[0].body).counts[0].id, 'tasks:category-fold-all');
+  assert.equal(JSON.parse(f.requests[0].body).counts[0].count, 1);
+});
+
 test('pagehide attempts keepalive fetch when a beacon cannot be queued', async () => {
   for (const beacon of [undefined, () => false, () => { throw new Error('blocked'); }]) {
     const requests = [], counter = createUsageCounter({ actor: () => 'viewer', width: () => 390,
