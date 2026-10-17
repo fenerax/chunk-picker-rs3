@@ -4,6 +4,7 @@ import { buildTrainingAvailability } from './training-availability.mjs';
 import { trainingMethodBlockers } from './training-planner.mjs';
 import { divinationEvidence } from '../data/divination-training.mjs';
 import { selectPresentedTasks } from './presentation.mjs';
+import { areaTaskDifference } from './area-check-tasks.mjs';
 
 export const AREA_CHECK_FORMAT = 'area-check-v1';
 export const AREA_CHECK_MAX_CHUNKS = 128;
@@ -166,20 +167,27 @@ function skillSummary(skill, result, methods, members, asMembers, empty, localRe
     reachableLevel: empty ? null : training.level ?? null, repeatability: !empty && training.primary ? 'engine-primary' : 'unknown' };
 }
 
-/** Two immutable drafts, both evaluated by the ordinary task fixed point.
+/** Two immutable drafts and a current baseline use the ordinary task fixed point.
  * Method levels are entry requirements. Neither entry spacing nor the highest
  * method is an XP ceiling. Primary training to cap remains the engine's model. */
-export function analyzeAreaCheck(state, memberId, draft, { engine, definitions = {}, world, catalogue = trainingCatalogue } = {}) {
+export function analyzeAreaCheck(state, memberId, draft, { engine, definitions = {}, world, catalogue = trainingCatalogue, baseline, baselineTaskIds } = {}) {
   const normalized = normalizeAreaCheckRequest(draft, { state, world, memberId });
   if (typeof engine?.evaluate !== 'function') throw new TypeError('Area check requires a task engine.');
+  const current = baselineTaskIds ? { presentation: { tasks: baselineTaskIds.map(id => ({ id })) } }
+    : baseline ?? engine.evaluate(state, memberId);
   const aloneState = scenarioState(state, memberId, normalized.chunkIds, true, normalized.asMembers);
   const combinedState = scenarioState(state, memberId, normalized.chunkIds, false, normalized.asMembers);
   const alone = engine.evaluate(aloneState, memberId), combined = engine.evaluate(combinedState, memberId);
   // The ordinary active list owns eligibility, rule visibility, goal ranking,
   // backlog and shared completion. Satisfied duties need no new grind target.
   // Select once per scope; training methods still describe available capability.
-  const aloneTargets = selectPresentedTasks(alone, aloneState, memberId, definitions).tasks;
-  const combinedTargets = selectPresentedTasks(combined, combinedState, memberId, definitions).tasks;
+  // Worker results already include the ordinary equipment/collection selection.
+  const presented = (result, input) => result.presentation ?? selectPresentedTasks(result, input, memberId, definitions);
+  const currentTargets = presented(current, state).tasks;
+  const aloneTargets = presented(alone, aloneState).tasks;
+  const combinedTargets = presented(combined, combinedState).tasks;
+  const tasks = { alone: areaTaskDifference(currentTargets, normalized.chunkIds.length ? aloneTargets : []),
+    combined: areaTaskDifference(currentTargets, combinedTargets) };
   const members = combinedState.rules['content.f2p'] === false;
   const aloneMethods = normalized.chunkIds.length ? candidateMethods(alone, aloneState, memberId, definitions, catalogue) : [];
   const combinedMethods = candidateMethods(combined, combinedState, memberId, definitions, catalogue);
@@ -193,8 +201,9 @@ export function analyzeAreaCheck(state, memberId, draft, { engine, definitions =
   });
   const biggestGaps = Object.fromEntries(['alone', 'combined'].map(scope => [scope, rows.filter(row => row[scope].largestGap)
     .map(row => ({ skill: row.skill, ...row[scope].largestGap })).sort((a, b) => b.size - a.size || a.skill.localeCompare(b.skill))]));
-  return { format: AREA_CHECK_FORMAT, memberId, stateRevision: state.revision, ...normalized, members, rows, biggestGaps,
+  return { format: AREA_CHECK_FORMAT, memberId, stateRevision: state.revision, ...normalized, members, rows, biggestGaps, tasks,
     limitations: [
+      'Task predictions compare ordinary active lists using current engine coverage, rules and saved progress; blocked near-misses are not shown.',
       'Lowest and highest are catalogue method entry levels, not XP ceilings. Training gaps are stretches of at least 15 levels using an older available method, ending at or below the highest active task requirement in each scope. Targets follow the ordinary task list rules, backlog and shared completion. Without an active task requirement there is no gap. They do not measure XP rates or prove better methods do not exist.',
       'Can\'t start warnings identify an unestablished route to a needed method or task requirement in the current engine, not proof that no game method exists. Without a task requirement there is no warning. Missing-source or missing-supply methods are excluded. Conditional methods remain in details but never close training gaps.',
       'The task engine models an available primary method as training to the allowed skill cap. It does not verify renewable supplies, zero-XP exceptions, finite rewards or a continuous XP route for every retained method.',

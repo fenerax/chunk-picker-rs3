@@ -1385,6 +1385,12 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
             const chunks = query.get('chunks');
             const draft = normalizeAreaCheckRequest({ chunkIds: chunks ? chunks.split(',') : [], asMembers: membersText === 'true' },
               { state: captured.metadata, world: indexedWorld, memberId });
+            // Advisory workers are isolated from the live list worker. Only
+            // its ordinary presented IDs are needed for the task difference.
+            const currentList = savedTaskResults.get(memberId);
+            if (currentList?.revision === revision && currentList.playJSON) {
+              draft.baselineTaskIds = JSON.parse(currentList.playJSON.toString('utf8')).presentation?.tasks.map(task => task.id);
+            }
             const started = performance.now(), controller = new AbortController();
             const disconnected = () => { if (!response.writableEnded) controller.abort(); };
             request.once('aborted', disconnected); response.once('close', disconnected);

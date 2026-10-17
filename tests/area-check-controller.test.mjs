@@ -54,7 +54,7 @@ function fixture(t, { group = false, viewer = false } = {}) {
   };
   c.map = { model: {}, hoverCanvas: nodes['map-hover'], cells: new Map([['12341', { x: 0, y: 0 }]]),
     offset: { x: 0, y: 0 }, zoom: 1, width: 128, height: 128, endDrag() {}, setHover() {}, invalidate() {} };
-  const factory = runInNewContext(source + '\n({ createScreenAreaCheck, renderAreaTable });', {
+  const factory = runInNewContext(source + '\n({ createScreenAreaCheck, renderAreaTable, areaTaskSummary, areaDiscordMessages });', {
     document, createAreaSelection, AREA_CHECK_CAP, AbortController, URLSearchParams,
     loadIcons: async () => {}, skillIcon: () => null,
   }); factory.createScreenAreaCheck(c);
@@ -63,12 +63,13 @@ function fixture(t, { group = false, viewer = false } = {}) {
   const start = async () => { toggle.click(); await nextTurn(); };
   const select = async () => { await start(); c.map.pointerTool.corner({ x: 10, y: 10 }); c.map.pointerTool.corner({ x: 10, y: 10 }); await nextTurn(); };
   const output = () => find(nodes['tool-dialog'], node => node.className === 'area-check-output');
-  const complete = async (index, skill = 'Mining', scopes = { alone: range, combined: range }, rows = [{ skill, ...scopes }]) => {
+  const complete = async (index, skill = 'Mining', scopes = { alone: range, combined: range }, rows = [{ skill, ...scopes }], tasks) => {
     const request = requests[index], query = new URL(request.path, 'http://localhost').searchParams;
     request.resolve({ memberId: query.get('memberId'), stateRevision: Number(query.get('revision')), members: query.get('asMembers') === 'true',
-      chunkIds: ['12341'], rows, limitations: ['Synthetic coverage'] }); await nextTurn();
+      chunkIds: ['12341'], rows, tasks, limitations: ['Synthetic coverage'] }); await nextTurn();
   };
-  return { c, nodes, requests, toggle, start, select, output, complete, render: result => factory.renderAreaTable(c, result) };
+  return { c, nodes, requests, toggle, start, select, output, complete, render: result => factory.renderAreaTable(c, result),
+    taskSummary: factory.areaTaskSummary, discord: factory.areaDiscordMessages };
 }
 
 test('queued dialog close preserves the newly started Select another area tool', async t => {
@@ -252,4 +253,66 @@ test('multiple methods use plain words in both visible and screen-reader gap tex
   assert.ok(find(output, node => node.textContent === '5 → 80 on Cowhide tanning and 2 more'));
   assert.ok(find(output, node => node.attributes.get('aria-label')?.includes('5 → 80 on Cowhide tanning and 2 more')));
   assert.ok(!find(output, node => String(node.textContent).includes('+2')));
+});
+
+const taskScope = categories => ({ total: categories.reduce((sum, category) => sum + category.count, 0), categories });
+const taskCategory = (category, labels) => ({ category, count: labels.length,
+  tasks: labels.map((label, index) => ({ id: `${category}-${index}`, label, level: 1 })) });
+
+test('task summaries count quests, achievements and other categories with useful empty and singular text', t => {
+  const h = fixture(t);
+  assert.equal(h.taskSummary(taskScope([
+    taskCategory('Quest', ['One quest']), taskCategory('Diary', ['First', 'Second']),
+    taskCategory('Extra', ['Extra']), taskCategory('BiS', ['Gear']), taskCategory('Slayer', ['Monster']),
+  ])), 'Opens 1 quest, 2 achievements, 3 other tasks');
+  assert.equal(h.taskSummary(taskScope([taskCategory('Diary', ['One'])])), 'Opens 1 achievement');
+  assert.equal(h.taskSummary(taskScope([taskCategory('Nonskill', ['One'])])), 'Opens 1 other task');
+  assert.equal(h.taskSummary(taskScope([])), 'No new tasks');
+});
+
+test('Tasks shows both scopes with lazy plain category lists and its prediction limitation', async t => {
+  const h = fixture(t); await h.select();
+  assert.match(h.toggle.title, /tasks and training/);
+  assert.ok(find(h.nodes['tool-dialog'], node => String(node.textContent).startsWith('Checking tasks and training')));
+  const tasks = {
+    alone: taskScope([taskCategory('Quest', ['Alone quest <img src=x>']), taskCategory('Diary', ['Alone achievement']),
+      taskCategory('Extra', ['Extra action']), taskCategory('Nonskill', ['Nonskill action']), taskCategory('BiS', ['Gear action']),
+      taskCategory('Slayer', ['Slayer action'])]),
+    combined: taskScope([taskCategory('Quest', ['Combined quest'])]),
+  };
+  const before = JSON.stringify(tasks);
+  await h.complete(0, undefined, undefined, undefined, tasks);
+  const section = find(h.output(), node => node.className === 'area-check-tasks');
+  assert.ok(find(section, node => node.textContent === 'Compared with your current task list.'));
+  assert.ok(find(section, node => node.textContent === 'Task predictions follow the current engine, rules and saved progress; blocked near-misses are not shown.'));
+  const alone = find(section, node => node.attributes.get('aria-label') === 'Alone');
+  const combined = find(section, node => node.attributes.get('aria-label') === 'With current chunks');
+  assert.ok(find(alone, node => node.textContent === 'Opens 1 quest, 1 achievement, 4 other tasks'));
+  assert.ok(find(combined, node => node.textContent === 'Opens 1 quest'));
+  const details = descendants(alone).filter(node => node.tagName === 'details');
+  assert.deepEqual(details.map(node => node.textContent), ['Quests (1)', 'Achievements (1)', 'Extra (1)', 'Nonskill (1)', 'BiS (1)', 'Slayer (1)']);
+  assert.ok(details.every(node => node.children.length === 0 && !node.open));
+  for (const node of details) { node.open = true; node.emit('toggle'); }
+  assert.ok(find(alone, node => node.tagName === 'li' && node.textContent === 'Alone quest <img src=x>'));
+  assert.ok(!find(alone, node => ['button', 'a', 'input', 'img'].includes(node.tagName)), 'task labels remain text without actions or markup');
+  assert.ok(!find(combined, node => node.tagName === 'li'), 'the other scope remains folded and lazy');
+  const combinedDetails = find(combined, node => node.tagName === 'details'); combinedDetails.open = true; combinedDetails.emit('toggle');
+  assert.ok(find(combined, node => node.textContent === 'Combined quest'));
+  const count = details[0].children.length; details[0].emit('toggle'); assert.equal(details[0].children.length, count);
+  assert.equal(JSON.stringify(tasks), before);
+});
+
+test('Discord copy includes concise task summaries for both scopes and retains training text', async t => {
+  const h = fixture(t); await h.select();
+  const tasks = { alone: taskScope([]), combined: taskScope([taskCategory('Quest', ['Quest']), taskCategory('Extra', ['Extra'])]) };
+  await h.complete(0, undefined, undefined, undefined, tasks);
+  const copy = find(h.output(), node => node.tagName === 'textarea').value;
+  assert.match(copy, /Tasks · Alone: No new tasks\./);
+  assert.match(copy, /Tasks · With current chunks: Opens 1 quest, 1 other task\./);
+  assert.match(copy, /Mining: alone/);
+  const messages = h.discord({ chunkIds: ['12341'], members: false, tasks, rows: [] }, 'One', 220);
+  assert.ok(messages.length > 1);
+  assert.ok(messages.every(message => message.length <= 220));
+  assert.equal(messages.filter(message => message.includes('Tasks · Alone:')).length, 1);
+  assert.equal(messages.filter(message => message.includes('Tasks · With current chunks:')).length, 1);
 });
