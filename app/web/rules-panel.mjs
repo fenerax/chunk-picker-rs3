@@ -13,9 +13,10 @@ export function createRulesPanel(ctx) {
   const { el, input, select, field, button, details, command, showError } = ctx;
   const guidedReview = createRulesReview(ctx);
   let reviewMode = false;
-  function open() {
+  function open({ ruleId, memberId } = {}) {
+    if (ruleId) reviewMode = false;
     const writable = ctx.canWrite?.() !== false;
-    let target = ctx.memberId(), generation, busy = false, reviewApply;
+    let target = ctx.state().members.some(member => member.id === memberId) ? memberId : ctx.memberId(), generation, busy = false, reviewApply;
     const expanded = new Set([rulesCatalogue.sections[0].id]);
     const root = el('div', undefined, 'rules-panel');
     const tools = el('div', undefined, 'rules-tools'), targetControl = select([
@@ -25,6 +26,7 @@ export function createRulesPanel(ctx) {
     const presetControl = select(rulesCatalogue.presets.map(preset => ({ value: preset.name, label: preset.name })), rulesCatalogue.presets[0].name);
     presetControl.id = 'rules-preset';
     const search = input('search'); search.id = 'rules-search'; search.placeholder = 'Find a rule…';
+    search.value = ruleId ?? '';
     const onlyOn = input('checkbox'); onlyOn.id = 'rules-only-on';
     const onLabel = el('label', undefined, 'rules-on-filter'); onLabel.htmlFor = onlyOn.id; onLabel.append(onlyOn, el('span', 'Only show rules that are on'));
     const scope = el('p', undefined, 'rules-scope'), status = el('p', undefined, 'rules-status'); status.setAttribute('role', 'status'); status.setAttribute('aria-live', 'polite');
@@ -132,9 +134,11 @@ export function createRulesPanel(ctx) {
       if (advanced(ctx) && limited) { const badge = el('span', behavior.status === 'partial' ? 'Partly supported' : 'No effect yet', 'rules-coverage'); badge.title = behavior.status === 'partial' ? behavior.detail : 'Saved, but it does not change tasks in this picker yet.'; label.append(badge); }
       copy.append(label);
       if (!isShared) {
-        const automatic = memberIds().map(id => taskRuleAutomaticValue(ctx.state(), id, definition).value);
-        const label = automatic.every(item => Object.is(item, automatic[0])) ? ruleValueText(automatic[0]) : 'different values';
-        copy.append(el('p', value.source === 'Automatic' ? `Automatic (${ruleValueText(value.value)})` : `Automatic (${label})`, 'rules-value-source'));
+        for (const id of memberIds()) {
+          const current = fact(definition, id), automatic = taskRuleAutomaticValue(ctx.state(), id, definition).value;
+          const name = memberIds().length > 1 ? `${ctx.state().members.find(member => member.id === id).name}: ` : '';
+          copy.append(el('p', `${name}Current: ${ruleValueText(current.value)} · ${current.explicit ? 'Your choice' : 'Automatic'}. Automatic default: ${ruleValueText(automatic)}.`, 'rules-value-source'));
+        }
       }
       // Skip a description that only repeats the label.
       const plainText = text => String(text ?? '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
@@ -248,6 +252,7 @@ export function createRulesPanel(ctx) {
     footer.append(el('p', 'Automatic clears your personal choice and uses the shared or imported value, then the picker’s default if neither exists. The value beside Automatic shows the result. Turning off a parent rule keeps the choices beneath it.', 'field-help'), button(writable ? 'History & Undo' : 'History', () => { guidedReview.cancel(); ctx.historyDialog(); }));
     root.append(footer);
     generation = ctx.openDialog('Chunk Rules', root); render();
+    if (ruleId) ctx.$?.(`rules-control-${encodeURIComponent(ruleId)}`)?.focus?.();
     ctx.$?.('tool-dialog')?.addEventListener('close', () => guidedReview.cancel(), { once: true });
     return root;
   }

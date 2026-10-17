@@ -1,5 +1,6 @@
 import { applyTheme } from './map-tools.mjs';
 import { observeScreenBars } from './phone-layout.mjs';
+import { createMapControlDiscovery, mountMembersStartEntry } from './map-control-discovery.mjs';
 
 const topMenuIds = ['info-tools', 'admin-tools', 'more-tools'];
 
@@ -11,6 +12,7 @@ export function handleScreenEscape(c, event) {
   else {
     const menu = topMenuIds.map(id => c.$(id)).find(node => node?.open);
     if (menu) { menu.open = false; menu.querySelector('summary').focus(); }
+    else if (c.mapControlDiscovery?.isOpen()) c.mapControlDiscovery.close({ restoreFocus: true });
     else if (c.mapDisplay?.isOpen()) c.mapDisplay.close();
     else if (!c.$('map-menu').hidden) { c.closeChunkMenu(); c.$('map-hover').focus(); }
     else if (!c.$('chunk-info').hidden) c.$('chunk-close').click();
@@ -22,6 +24,8 @@ export function handleScreenEscape(c, event) {
 // Toolbar, member switching, task filters, menus, shortcuts and responsive sizing.
 export function createScreenControls(c) {
   function bindControls() {
+    c.mapControlDiscovery = createMapControlDiscovery(c); c.mapControlDiscovery.mount();
+    c.membersStartEntry = mountMembersStartEntry(c);
     c.$('help-open')?.addEventListener('click', () => c.openDialog('Help', c.mapControls()));
     c.mapCapture?.mount();
     c.$('member').addEventListener('change', () => { const nextMember = c.$('member').value; if (c.sandbox.active) { c.sandbox.exit(); c.notice('Sandbox closed. Start Sandbox again to try changes for this player.'); } c.memberId = nextMember; c.result = c.fullResult = undefined; c.taskRequest++; c.taskController?.abort(); c.closeDialog(); c.stickerPicker.close(); c.closeChunkMenu(); try { localStorage.setItem('duo-member', c.memberId); } catch {} c.renderState(); c.map.centerOnUnlocked(); c.scheduleTasks(); });

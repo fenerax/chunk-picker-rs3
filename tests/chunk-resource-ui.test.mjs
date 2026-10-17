@@ -25,6 +25,7 @@ function harness() {
     setAttribute(key, value) { this.attributes[key] = value; }
     append(...children) { this.children.push(...children); }
     replaceChildren(...children) { this.children = children; }
+    querySelector(selector) { for (const child of this.children) { if (selector.startsWith('.') && child.className?.split(' ').includes(selector.slice(1))) return child; const nested = child.querySelector?.(selector); if (nested) return nested; } return null; }
     addEventListener() {}
   }
   const nodes = new Map(), document = { hidden: false, addEventListener() {}, createElement: tag => new Node(tag), getElementById: id => {

@@ -67,7 +67,7 @@ export function createScreenDialogs(c) {
 
   function searchDialog() { return search.open(); }
 
-  function rulesDialog() { return c.sandbox.active ? openSandboxRules(c.panelContext) : c.rulesPanel.open(); }
+  function rulesDialog(options) { return c.sandbox.active ? openSandboxRules(c.panelContext) : c.rulesPanel.open(options); }
 
   function teleportsDialog() {
     if (c.supportsFeature?.('rsCatalogues') === false) return;

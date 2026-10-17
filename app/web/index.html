@@ -111,22 +111,34 @@
   <section id="sandbox-banner" class="sandbox-banner" aria-label="Sandbox" hidden></section>
   <main class="workspace">
     <section id="map-panel" class="map-panel" aria-label="Chunk map">
-      <div class="map-toolbar">
+      <div class="map-toolbar" id="map-toolbar" aria-label="Map controls">
         <div class="toolbar-group toolbar-roll" role="group" aria-label="Roll">
-          <button id="pick" class="pick-action">Roll 1</button>
-          <button id="roll-two">Roll 2</button>
+          <button id="pick" class="pick-action">Roll for selected player</button>
+          <button id="roll-two">Roll two choices</button>
           <button id="pool-ranking-toggle" aria-expanded="false" aria-pressed="false" aria-controls="pool-ranking-panel" title="See how many new tasks each chunk in your roll pool would add">Compare roll pool</button>
           <button id="unpick" hidden>Forfeit</button>
         </div>
         <div class="toolbar-group" role="group" aria-label="View">
           <button id="center-map">Center on Unlocked</button>
           <button id="membership-overlay" aria-pressed="false" title="Tint members-only land and outline where it meets free-to-play land">Members-only land</button>
+          <button id="members-start-open" hidden>Ready for members</button>
           <button id="map-pins-open" aria-expanded="false" aria-controls="map-pins-panel" hidden>Map icons</button>
         </div>
         <div class="toolbar-group zoom-group" role="group" aria-label="Zoom"><button id="zoom-in" aria-label="Zoom in">+</button><button id="zoom-out" aria-label="Zoom out">−</button></div>
         <div class="toolbar-group toolbar-undo" role="group" aria-label="History"><button id="undo">Undo</button><span id="undo-own"></span></div>
         <div class="toolbar-group toolbar-sandbox" role="group" aria-label="Sandbox"><button id="sandbox-toggle" aria-pressed="false" title="Try locking or unlocking chunks and see the task changes. Nothing is saved.">Sandbox</button></div>
       </div>
+      <div id="phone-map-actions" class="phone-map-actions" aria-label="Map tools" hidden>
+        <div class="toolbar-group">
+          <button id="phone-legend-open" aria-expanded="false" aria-controls="phone-legend-sheet">Legend</button>
+          <button id="phone-map-controls" aria-controls="map-toolbar" title="Scroll through the map toolbar">More controls</button>
+        </div>
+        <div id="phone-undo-host" class="toolbar-group" role="group" aria-label="History"></div>
+      </div>
+      <section id="phone-legend-sheet" class="phone-legend-sheet" aria-labelledby="phone-legend-title" hidden>
+        <header class="map-display-header"><h2 id="phone-legend-title">Map legend</h2><button id="phone-legend-close" type="button">Done</button></header>
+        <div id="phone-legend-content" class="phone-legend-content"></div>
+      </section>
       <div class="map-stage" id="map-stage">
         <canvas id="map-base" aria-hidden="true"></canvas>
         <canvas id="map-state" aria-hidden="true"></canvas>

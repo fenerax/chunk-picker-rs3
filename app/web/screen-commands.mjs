@@ -1,9 +1,19 @@
 import { mergeCommandState, projectChunkState, projectTaskState } from './command-state.mjs';
 import { reviewedNoteRevision } from './info-panels.mjs';
 import { groupGoalCommandTypes } from '../core/group-goal-types.mjs';
+import { createCalculationFeedback, calculationLabel } from './calculation-feedback.mjs';
 
 // Main-screen commands; shared values and callbacks live in the explicit screen context.
 export function createScreenCommands(c) {
+  const feedback = createCalculationFeedback({ show(text) {
+    let node = c.$('calculation-status');
+    if (!node && text) {
+      node = c.el('span', undefined, 'status-detail'); node.id = 'calculation-status';
+      node.setAttribute('role', 'status'); node.setAttribute('aria-live', 'polite');
+      document.querySelector('.topbar').append(node);
+    }
+    if (node) { node.textContent = text; node.hidden = !text; }
+  } });
   let checks = [], displayState, displaySource, displayChecks;
   function taskDisplayState() {
     if (displaySource !== c.state || displayChecks !== checks) {
@@ -17,6 +27,8 @@ export function createScreenCommands(c) {
     if (!c.canWrite() && (body !== undefined || /^\/api\/(?:predict|death-estimates|chunk-planning|training-plan|teleports)(?:[/?]|$)/.test(path))) throw new Error('This link is view only.');
     if (c.sandbox.active && body !== undefined && path !== '/api/sandbox/evaluate'
       && !(path === '/api/pool-ranking-intent' && body.visible === false)) throw new Error('Exit Sandbox before saving changes. Nothing here is saved.');
+    const finishFeedback = feedback.begin(calculationLabel(path, body?.command, c.state, c.memberId, c.duoEnabled?.()));
+    try {
     const baseline = c.state;
     // Any of these routes can return authoritative state, including conflicts
     // raised while preparing a review. Hydrated maps need its matching pool facts.
@@ -53,6 +65,7 @@ export function createScreenCommands(c) {
       value.state = merged;
     }
     return value;
+    } finally { finishFeedback(); }
   }
 
   function command(payload, reviewedRevision, reviewedNote, reviewCurrent, chunkPreview) {

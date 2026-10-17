@@ -74,6 +74,46 @@ test('roll pool actions use plain labels and preserve command statuses', async (
   assert.ok(h.run("chunkStatusActions('12341').some(action => action.label === 'Allow in roll pool')"));
 });
 
+test('saved chunk actions refresh while focused and keep an independent note draft intact', () => {
+  const h = harness();
+  h.run("member().unlocked = []; member().selected = []; chunkTab = 'note'; showChunk('12341')");
+  const textarea = h.all().find(node => node.tagName === 'TEXTAREA');
+  textarea.value = 'Keep this unsaved draft'; textarea.emit('input'); textarea.focus();
+  const next = h.snapshot(); next.revision++; next.members[0].selected = ['12341'];
+  h.adopt(next);
+  assert.equal(h.context.document.activeElement, textarea);
+  assert.equal(textarea.value, 'Keep this unsaved draft');
+  assert.ok(h.find('p', 'In roll pool (added by hand)'));
+  assert.ok(h.find('button', 'Remove from roll pool'));
+  assert.ok(!h.find('button', 'Add to roll pool'));
+  const remove = h.find('button', 'Remove from roll pool'); remove.focus();
+  const locked = h.snapshot(); locked.revision++; locked.members[0].selected = [];
+  h.adopt(locked);
+  assert.ok(h.find('p', 'Locked'));
+  assert.equal(h.context.document.activeElement.textContent, 'Add to roll pool');
+});
+
+test('hidden task search offers an undoable preference change beside the field', async () => {
+  const h = harness(), sent = [];
+  h.nodes.get('test-task-header').append(h.nodes.get('task-filter'));
+  const lookup = h.context.document.getElementById;
+  h.context.document.getElementById = id => id === 'show-task-search' ? h.all().find(node => node.id === id) ?? null : lookup(id);
+  h.context.sent = sent;
+  h.run("member().preferences.taskSearchbar = false; applyPreferences(); command = async value => { sent.push(value); member().preferences.taskSearchbar = true; preferenceSignature = undefined; applyPreferences(); }");
+  const restore = h.find('button', 'Show task search'); assert.ok(restore); assert.equal(restore.hidden, false);
+  await restore.emit('click');
+  assert.deepEqual(JSON.parse(JSON.stringify(sent[0])), { type: 'set-preference', memberId: 'actor1', preferenceId: 'taskSearchbar', value: true });
+  assert.equal(h.nodes.get('task-filter').hidden, false);
+});
+
+test('a blocking-rule link leaves a remembered guided review and opens the requested player’s editor', async () => {
+  const h = harness(); h.run('rulesPanel.open()');
+  await h.click('Review rules'); assert.ok(h.find('button', 'Back to all rules'));
+  h.run("rulesPanel.open({ruleId:'content.f2p',memberId:'reed'})");
+  assert.ok(h.find('button', 'Review rules'));
+  assert.ok(h.all().some(node => node.textContent === 'Task rules belong to Reed. Shared map rules always affect both players.'));
+});
+
 test('Ctrl and Cmd click toggle the roll pool without unlocking, including with Shift held', async () => {
   const h = harness(), sent = []; h.context.sent = sent;
   h.run("command = async value => { sent.push(value); }; member().unlocked = []; member().selected = []; member().pendingRoll = []");
@@ -861,7 +901,7 @@ test('partner popup loads its own full evidence and keeps note commands bound to
   await h.click('Reed goal'); await flush(); await h.run('duoDetailRequests.get("7:reed")'); await flush();
   assert.ok(h.find('p', 'Reed full task evidence')); assert.ok(h.find('p', 'Reed personal requirements'));
   assert.equal(h.context.evidenceOwner, 'reed', 'sources use the obligation owner’s calculation');
-  assert.ok(h.find('label', 'Done for Reed') || h.all().some(node => node.textContent === 'Done for Reed'));
+  assert.ok(h.find('label', 'Counts for our chunk challenge · Reed') || h.all().some(node => node.textContent === 'Counts for our chunk challenge · Reed'));
   assert.ok(h.all().some(node => node.tagName === 'TEXTAREA' && node.value === 'Reed task note'));
   await h.click('View source method: Reed source method'); await flush();
   assert.equal(h.nodes.get('dialog-title').textContent, 'Reed source method');
@@ -937,9 +977,9 @@ test('a partner task popup uses the reviewed player status and saves without swi
   h.context.partnerResult = { ...taskResult(7), memberId: 'reed', tasks: [task], presentation: { tasks: [task], alternatives: {} } };
   h.run("showTask(partnerResult.tasks[0], true, {memberId:'reed', result:partnerResult})");
   const checkbox = text => h.all().find(node => node.tagName === 'LABEL' && node.children.some(child => child.tagName === 'TEXT' && child.textContent === text))?.children[0];
-  const done = checkbox('Done for Reed'), personal = checkbox('Reed did this in-game personally');
+  const done = checkbox('Counts for our chunk challenge · Reed'), personal = checkbox('Reed did this in-game personally');
   assert.equal(done.checked, true); assert.equal(personal.checked, true);
-  assert.ok(h.find('p', 'Backlogged: Reed backlog reason')); assert.ok(!checkbox('Done for Player'));
+  assert.ok(h.find('p', 'Backlogged: Reed backlog reason')); assert.ok(!checkbox('Counts for our chunk challenge · Player'));
   done.checked = false; await done.emit('change');
   assert.deepEqual(h.calls.at(-1).body.command, { type: 'set-task-status', memberId: 'reed', taskId: task.id, challengeCompleted: false });
   personal.checked = false; await personal.emit('change');
@@ -1101,7 +1141,7 @@ test('durable SSE starts selected and Group peer reads before delayed acknowledg
   assert.ok(h.calls.some(call => call.requestPath === '/api/tasks?memberId=reed&view=play-v1&lane=duo-v1&peerFor=actor1&revision=8'));
   assert.equal(h.run('earlyTaskLoad.requests.size'), 2); assert.equal(h.run('state.revision'), 7); assert.equal(h.run('result.stateRevision'), 7);
   assert.equal(h.run('foregroundSettled()'), false);
-  h.run("workerStatus({ready:false,status:'waking'}); workerStatus({ready:true})"); assert.equal(h.timers.size, 0);
+  h.run("workerStatus({ready:false,status:'waking'}); workerStatus({ready:true})"); assert.equal([...h.timers.values()].filter(timer => timer.delay === 0).length, 0);
   f.selected.resolve(f.selectedResult); f.peer.resolve(f.peerResult); await flush(); await flush();
   assert.equal(h.run('state.revision'), 7); assert.equal(h.run('result.stateRevision'), 7); assert.equal(h.run('foregroundSettled()'), false);
   const duplicate = f.notify(8); await flush(); assert.equal(h.calls.filter(call => call.path.startsWith('/api/tasks?')).length, 2);
@@ -1281,6 +1321,8 @@ function harness({ realPlanning = false, localStorage } = {}) {
     get firstChild() { return this.children[0] ?? null; }
     insertBefore(node, before) { node.remove?.(); node.parent = this; const index = this.children.indexOf(before); if (index < 0) this.children.push(node); else this.children.splice(index, 0, node); }
     get parentElement() { return this.parent; }
+    replaceWith(node) { this.after(node); this.remove(); }
+    querySelectorAll(selector) { const found = []; const visit = node => { for (const child of node.children.filter(item => typeof item === 'object')) { if (selector === 'button' && child.tagName === 'BUTTON') found.push(child); visit(child); } }; visit(this); return found; }
     after(...nodes) { if (this.parent) { const parent = this.parent, index = parent.children.indexOf(this); for (const node of nodes) { node.remove?.(); node.parent = parent; } parent.children.splice(index + 1, 0, ...nodes); } }
     remove() { if (this.parent) this.parent.children = this.parent.children.filter(node => node !== this); this.parent = undefined; }
     setAttribute(key, value) { this.attributes[key] = value; }
@@ -2206,7 +2248,7 @@ test('repeated ready advisory events do not abort foreground calculations', asyn
   const h = harness(), response = deferred(); h.route(() => response.promise);
   const loading = h.run('loadTasks()');
   h.run('workerStatus({ready:true});workerStatus({ready:true})');
-  assert.equal(h.timers.size, 0); assert.equal(h.run('taskController.signal.aborted'), false);
+  assert.equal([...h.timers.values()].filter(timer => timer.delay === 0).length, 0); assert.equal(h.run('taskController.signal.aborted'), false);
   response.resolve(taskResult(7)); await loading;
   h.run('workerStatus({ready:true})'); assert.equal(h.timers.size, 0);
 });
@@ -2735,8 +2777,8 @@ test('a partner-only source method retains reviewed player controls and commands
   h.run("result = { ...partnerMethodResult, memberId:'actor1', tasks:[], presentation:{tasks:[], alternatives:{}} }; showTask(partnerSourceTask, true, {memberId:'reed', result:partnerMethodResult, onReturn:partnerReturn})");
   await h.click('View source method: Reed source method'); assert.equal(h.nodes.get('dialog-title').textContent, method.label);
   const checkbox = text => h.all().find(node => node.tagName === 'LABEL' && node.children.some(child => child.tagName === 'TEXT' && child.textContent === text))?.children[0];
-  const done = checkbox('Done for Reed'), personal = checkbox('Reed did this in-game personally');
-  assert.equal(done?.checked, true); assert.equal(personal?.checked, true); assert.ok(!checkbox('Done for Player'));
+  const done = checkbox('Counts for our chunk challenge · Reed'), personal = checkbox('Reed did this in-game personally');
+  assert.equal(done?.checked, true); assert.equal(personal?.checked, true); assert.ok(!checkbox('Counts for our chunk challenge · Player'));
   assert.ok(h.find('p', 'Backlogged: Reed method backlog'));
   done.checked = false; await done.emit('change'); assert.deepEqual(h.calls.at(-1).body.command, { type: 'set-task-status', memberId: 'reed', taskId: method.id, challengeCompleted: false });
   personal.checked = false; await personal.emit('change'); assert.deepEqual(h.calls.at(-1).body.command, { type: 'complete-task', memberId: 'reed', taskId: method.id, completed: false });
@@ -2790,7 +2832,7 @@ test('task popup opens at once from the slim list and fills in sources when full
   h.route(() => response.promise);
   h.run('showTask(result.tasks[0])'); await flush();
   assert.ok(h.find('p', 'Defeat the Chaos Elemental 25 times.'), 'what the task asks shows immediately');
-  assert.ok(h.all().some(node => /^Done for /.test(node.textContent ?? '')), 'controls are usable before details load');
+  assert.ok(h.all().some(node => /^Counts for our chunk challenge · /.test(node.textContent ?? '')), 'controls are usable before details load');
   assert.ok(h.find('p', 'Loading sources and details…'));
   response.resolve({ ...taskResult(7), tasks: [{ ...slim.tasks[0], explanation: 'Full evidence', sources: [{ kind: 'shop', source: 'Fixture shop', item: 'Thing' }], record: { Description: 'Defeat the Chaos Elemental 25 times.' } }] });
   await flush(); await flush();
@@ -2851,13 +2893,13 @@ test('duo popup uses canonical commands but an inspected alternative drops the o
   await h.click('Save note');
   let saved = h.calls.find(call => call.body?.command.note === 'Canonical note updated');
   assert.equal(saved.body.command.memberId, 'reed'); assert.equal(saved.body.command.taskId, entry.id);
-  for (const text of ['Done for Reed', 'Reed did this in-game personally', 'Pin to the top of the list']) {
+  for (const text of ['Counts for our chunk challenge · Reed', 'Reed did this in-game personally', 'Pin to the top of the list']) {
     const checkbox = dialogNodes(h).find(node => node.tagName === 'LABEL' && node.children.some(child => child.tagName === 'TEXT' && child.textContent === text))?.children[0];
     assert.ok(checkbox, text); checkbox.checked = true; await checkbox.emit('change');
     assert.equal(h.calls.at(-1).body.command.memberId, 'reed'); assert.equal(h.calls.at(-1).body.command.taskId, entry.id);
   }
   await h.click('View for Player');
-  assert.ok(dialogNodes(h).some(node => node.tagName === 'TEXT' && node.textContent === 'Done for Player'));
+  assert.ok(dialogNodes(h).some(node => node.tagName === 'TEXT' && node.textContent === 'Counts for our chunk challenge · Player'));
   await h.click('Back to Completed Tasks'); assert.equal(returned, 1, 'the owner switch preserves the original return action');
   h.run("showTask(identityAlternative, true, {memberId:'reed', duoEntry:identityEntry, onReturn:identityReturn})");
   assert.equal(h.all().some(node => node.className === 'duo-task-dialog-owners'), false, 'another task must not retain the original Both owner switcher');
@@ -3025,7 +3067,7 @@ test('a nonactive player slim popup opens immediately and hydrates through its r
   await flush(); assert.equal(loads, 1);
   response.resolve({ ...taskResult(7), memberId: 'reed', tasks: [{ ...compact, explanation: 'Reed scoped full evidence', sources: [{ kind: 'shop', source: 'Reed fixture shop' }], record: { Description: compact.description } }] }); await flush(); await flush();
   assert.ok(h.find('p', 'Reed scoped full evidence')); assert.ok(!h.find('p', 'Loading sources and details…'));
-  const done = h.all().find(node => node.tagName === 'LABEL' && node.children.some(child => child.tagName === 'TEXT' && child.textContent === 'Done for Reed'))?.children[0];
+  const done = h.all().find(node => node.tagName === 'LABEL' && node.children.some(child => child.tagName === 'TEXT' && child.textContent === 'Counts for our chunk challenge · Reed'))?.children[0];
   assert.equal(done?.checked, true); done.checked = false; await done.emit('change');
   assert.deepEqual(h.calls.at(-1).body.command, { type: 'set-task-status', memberId: 'reed', taskId: compact.id, challengeCompleted: false });
   await h.click('Back to Completed Tasks'); assert.equal(returned, 1); assert.equal(h.run('memberId'), 'actor1');

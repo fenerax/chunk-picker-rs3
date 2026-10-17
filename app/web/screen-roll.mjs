@@ -5,7 +5,13 @@ export function createScreenRoll(c) {
     const blocked = !c.canWrite() || c.sandbox.active || c.rollBusy || !owner || !!owner.pendingRoll.length;
     c.$('pick').disabled = blocked || candidates < 1;
     c.$('roll-two').disabled = blocked || candidates < 2;
-    c.$('pick').textContent = c.preferences().randomStartAlways ? 'Roll anywhere' : 'Roll 1';
+    const target = owner?.name ?? 'selected player';
+    c.$('pick').textContent = c.preferences().randomStartAlways ? `Roll anywhere for ${target}` : `Roll for ${target}`;
+    c.$('roll-two').textContent = `Roll 2 choices for ${target}`;
+    c.$('roll-two').title = `Roll two choices for ${target}, then choose which chunk to unlock`;
+    c.$('roll-two').setAttribute('aria-label', `Roll two choices for ${target}`);
+    c.$('pick').title = `Roll one chunk for ${target}`;
+    c.membersStartEntry?.refresh();
     c.$('unpick').disabled = blocked || !owner?.unlocked.length;
   }
 

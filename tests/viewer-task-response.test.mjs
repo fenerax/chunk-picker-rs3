@@ -9,7 +9,8 @@ import { readScreenGraph, screenFunctionSource } from './browser-screen-harness.
 const apiSource = screenFunctionSource(await readScreenGraph(), 'api');
 const payload = () => ({memberId:'reed',stateRevision:7,tasks:[{id:'custom:one',label:'Saved goal'}],metrics:{availableCount:1}});
 function harness(response, canWrite = false) {
-  const context=createContext({canWrite:()=>canWrite,sandbox:{active:false},state:{revision:8},fetch:async()=>response});
+  const context=createContext({canWrite:()=>canWrite,sandbox:{active:false},state:{revision:8},fetch:async()=>response,
+    feedback:{begin:()=>()=>{}},calculationLabel:()=>'',memberId:'reed',duoEnabled:()=>false});
   runInContext(apiSource,context); return context;
 }
 

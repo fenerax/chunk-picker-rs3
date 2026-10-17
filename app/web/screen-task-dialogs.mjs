@@ -4,6 +4,7 @@ import { itemIcon } from './icons.mjs';
 import { createTaskMethods } from './task-methods.mjs';
 import { resolveTaskAlternatives } from './core/task-alternatives.mjs';
 import { createQuestMap } from './quest-map.mjs';
+import { renderTaskBlockerGuidance } from './screen-task-guidance.mjs';
 
 // Main-screen taskDialogs; shared values and callbacks live in the explicit screen context.
 export function createScreenTaskDialogs(c) {
@@ -44,12 +45,26 @@ export function createScreenTaskDialogs(c) {
     stack.append(topSlot);
     const displayLevel = task.record?.RequirementAlternatives && task.level === 1 ? undefined : task.level;
     const explanation = c.el('p', task.explanation || (progressive ? task.blockers?.[0]?.detail ?? '' : 'Custom task.'));
-    stack.append(c.el('p', `${task.category}${displayLevel && !(task.generated && task.category === 'BiS') ? ` · Level ${displayLevel}` : ''} · ${task.status}`, 'status-detail'), explanation);
+    const guidanceSlot = c.el('div', undefined, 'task-blocker-actions');
+    const showGuidance = (full, result) => {
+      const guidance = renderTaskBlockerGuidance(c, full, result ?? {}, { memberId: dialogMemberId, openTask: row => c.showTask(row, true, { ...review, memberId: dialogMemberId, result }) });
+      guidanceSlot.replaceChildren(...(guidance ? [guidance] : []));
+    };
+    stack.append(c.el('p', `${task.category}${displayLevel && !(task.generated && task.category === 'BiS') ? ` · Level ${displayLevel}` : ''} · ${task.status}`, 'status-detail'), explanation, guidanceSlot);
+    if (progressive) showGuidance(task, detailResult);
     const backlogBox = c.el('div', undefined, 'task-backlog-box');
     if (status.backlogged) backlogBox.append(c.el('p', status.backlogReason ? `Backlogged: ${status.backlogReason}` : 'Backlogged.', 'backlog-reason'), ...(c.canWrite() ? [c.button('Restore from backlog', () => c.command({ type: 'set-task-status', memberId: dialogMemberId, taskId: commandTaskId, backlogged: false }).then(() => c.closeDialog(generation)))] : []));
     else if (c.canWrite()) backlogBox.append(c.button('Backlog…', () => c.backlogForm(backlogBox, { ...task, id: commandTaskId }, () => c.closeDialog(generation), dialogMemberId), 'backlog-open'));
     stack.append(backlogBox);
-    stack.append(c.check(`Done for ${name}`, !!status.challengeCompleted, value => c.command({ type: 'set-task-status', memberId: dialogMemberId, taskId: commandTaskId, challengeCompleted: value })), c.check(`${name} did this in-game personally`, (owner.completedTasks.includes(commandTaskId) || owner.completedTasks.includes(task.id)), value => c.command({ type: 'complete-task', memberId: dialogMemberId, taskId: commandTaskId, completed: value })), ...(c.canWrite() ? [c.check('Pin to the top of the list', !!status.favorite, value => c.command({ type: 'set-task-status', memberId: dialogMemberId, taskId: commandTaskId, favorite: value }))] : []));
+    const completion = c.el('div', undefined, 'form-stack task-completion-controls');
+    const challengeCheck = c.check(`Counts for our chunk challenge · ${name}`, !!status.challengeCompleted, value => c.command({ type: 'set-task-status', memberId: dialogMemberId, taskId: commandTaskId, challengeCompleted: value }));
+    const challengeHelp = c.el('p', 'The task-list checkbox records this challenge check. Your group completion rule decides whose checks satisfy the task.', 'field-help'); challengeHelp.id = 'task-challenge-completion-help';
+    challengeCheck.querySelector?.('input')?.setAttribute('aria-describedby', challengeHelp.id);
+    const personalCheck = c.check(`${name} did this in-game personally`, (owner.completedTasks.includes(commandTaskId) || owner.completedTasks.includes(task.id)), value => c.command({ type: 'complete-task', memberId: dialogMemberId, taskId: commandTaskId, completed: value }));
+    const personalHelp = c.el('p', `Records ${name}’s own in-game completion. Personal completion also counts toward the challenge; a challenge check alone does not record personal completion.`, 'field-help'); personalHelp.id = 'task-personal-completion-help';
+    personalCheck.querySelector?.('input')?.setAttribute('aria-describedby', personalHelp.id);
+    completion.append(challengeCheck, challengeHelp, personalCheck, personalHelp);
+    stack.append(completion, ...(c.canWrite() ? [c.check('Pin to the top of the list', !!status.favorite, value => c.command({ type: 'set-task-status', memberId: dialogMemberId, taskId: commandTaskId, favorite: value }))] : []));
     stack.append(createNoteEditor(c.panelContext, { label: 'Task note', saveLabel: 'Save note', payload: { type: 'set-task-status', memberId: dialogMemberId, taskId: commandTaskId }, review: { revision: dialogRevision, original: owner.taskStatus?.[commandTaskId]?.note ?? '', value: status.note ?? '' }, isCurrent: () => c.dialogCurrent(generation) }));
     if (task.wiki && c.supportsFeature?.('rsCatalogues') !== false) { const link = c.el('a', 'Open RuneScape Wiki'); link.href = task.wiki; link.target = '_blank'; link.rel = 'noopener noreferrer'; stack.append(link); }
     stack.append(bottomSlot);
@@ -58,6 +73,7 @@ export function createScreenTaskDialogs(c) {
       const equipment = c.supportsFeature?.('equipment') === false ? null : renderTaskEquipment(full, fullResultValue, c.definitions.equipment, { document, iconLookup: itemIcon, advanced: c.advanced() });
       topSlot.replaceChildren(...(equipment ? [equipment] : []));
       if (full.explanation) explanation.textContent = full.explanation;
+      showGuidance(full, fullResultValue);
       if (!asks && full.record?.Description) stack.prepend(c.el('p', c.plain(full.record.Description), 'task-asks'));
       bottomSlot.replaceChildren(...c.taskDetailSections(full, fullResultValue, () => generation, review));
     };

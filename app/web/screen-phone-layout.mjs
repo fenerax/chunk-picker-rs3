@@ -10,6 +10,7 @@ export function createScreenPhoneLayout(c) {
     tools: document.querySelector('.topbar nav'), moreTools: c.$('phone-tools'), moreMap: c.$('phone-map-summary'),
     recent: c.$('recent-panel'), summary: document.querySelector('.map-summary'),
     onChange: (tab, phone) => {
+      c.mapControlDiscovery?.close();
       c.closeChunkMenu(); c.stickerPicker?.close(); c.map?.cancelTouchGesture();
       const hint = c.$('map-hint');
       if (hint && !c.map?.pointerTool?.active) hint.textContent = phone

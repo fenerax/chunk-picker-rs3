@@ -57,6 +57,7 @@ export function createScreenMap(c) {
     c.$('recent-content').replaceChildren(c.mapTools.recentPanel());
     if (c.chunkId && !c.$('chunk-info').hidden && (c.accessSections && c.accessSectionsMember !== c.memberId || c.sandbox.active && ['unlock', 'challenges', 'clues', 'tasks'].includes(c.chunkTab ?? c.defaultChunkTab()) || !c.$('chunk-content').contains(document.activeElement)) && c.chunkSignature(c.chunkId) !== c.shownChunkSignature) c.showChunk(c.chunkId);
     c.refreshChunkNotes();
+    c.refreshChunkSummary();
     c.renderTasks();
     c.$('map-hint').textContent = c.sandbox.active ? 'Sandbox: click chunks to lock or unlock · Right-click or Search for details' : 'Drag to pan · Scroll to zoom · Click for chunk info';
     c.areaCheck?.refreshRevision();

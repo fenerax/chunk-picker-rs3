@@ -66,7 +66,7 @@ export function createScreenTasks(c) {
   function taskRow(task) {
     const facts = c.taskFacts(task), row = c.el('div', undefined, 'task-row'); row.dataset.completed = facts.group;
     row.dataset.taskId = task.id;
-    const checkbox = c.input('checkbox'); checkbox.checked = facts.personal; checkbox.disabled = !c.canWrite(); checkbox.setAttribute('aria-label', `Mark ${c.plain(task.label)} done for ${c.member().name}`); checkbox.addEventListener('change', async () => { if (!c.canWrite()) { checkbox.checked = c.taskFacts(task).personal; return; } checkbox.disabled = true; try { await c.command({ type: 'set-task-status', memberId: c.memberId, taskId: task.id, challengeCompleted: checkbox.checked }); } catch (error) { checkbox.checked = c.taskFacts(task).personal; c.showError(error); } finally { checkbox.disabled = !c.canWrite(); } });
+    const checkbox = c.input('checkbox'); checkbox.checked = facts.personal; checkbox.disabled = !c.canWrite(); checkbox.setAttribute('aria-label', `Mark ${c.plain(task.label)} done for ${c.member().name}`); checkbox.title = 'Counts for our chunk challenge. Record personal in-game completion in task details.'; checkbox.addEventListener('change', async () => { if (!c.canWrite()) { checkbox.checked = c.taskFacts(task).personal; return; } checkbox.disabled = true; try { await c.command({ type: 'set-task-status', memberId: c.memberId, taskId: task.id, challengeCompleted: checkbox.checked }); } catch (error) { checkbox.checked = c.taskFacts(task).personal; c.showError(error); } finally { checkbox.disabled = !c.canWrite(); } });
     const content = c.el('div'), label = c.button(task.label, () => c.showTask(task), 'task-label-button'); content.append(label);
     appendTaskPin(document, label, c.taskPins ? c.taskPins(task) : isTaskPinned(task, { state: c.state, memberId: c.memberId }));
     if (c.sandbox.isNewTask(task.id)) content.append(c.el('span', 'new', 'sandbox-new'));
@@ -322,7 +322,7 @@ export function createScreenTasks(c) {
     const waiting = loadError === 'waiting';
     // The status line above already carries the note when no list is saved yet.
     const shownAbove = waiting && c.$('task-engine-status').textContent === c.viewerTaskWait();
-    if (!ready && !shownAbove) target.append(c.el('p', waiting ? c.viewerTaskWait() : loadError ? `Duo tasks could not load: ${loadError}` : inspect && baseReady ? 'Loading more group tasks…' : 'Updating duo tasks…', 'status-detail'));
+    if (!ready && !shownAbove) target.append(c.el('p', waiting ? c.viewerTaskWait() : loadError ? `Duo tasks could not load: ${loadError}` : inspect && baseReady ? 'Loading more group tasks…' : 'Updating tasks for both players… Previous tasks and counts are shown until ready.', 'status-detail'));
     if (loadError && !waiting) target.append(c.button('Retry duo tasks', () => { c.duoLoadError = c.duoInspectionError = undefined; c.renderTasks(); }));
     if (!rows.length && ready) target.append(c.el('p', 'No tasks in this view.', 'empty-list'));
     const groups = new Map();
@@ -335,7 +335,7 @@ export function createScreenTasks(c) {
       if (c.activeTaskFilters().category(heading, category, body, () => c.paintTaskJobs(rowJobs(), generation))) jobs.push(...rowJobs());
     }
     const count = { union: rows.length, byMember: Object.fromEntries(c.state.members.map(owner => [owner.id, rows.filter(row => (row.displayMemberIds ?? row.memberIds).includes(owner.id)).length])), shared: rows.filter(row => (row.displayMemberIds ?? row.memberIds).length > 1).length };
-    c.$('task-count').textContent = sourceValues.length ? `Duo tasks ${count.union} · ${c.state.members.map(owner => `${owner.name} ${count.byMember[owner.id] ?? 0}`).join(' · ')} · shared ${count.shared}${ready ? '' : ' · updating'}` : waiting ? 'Duo tasks' : 'Loading duo tasks…';
+    c.$('task-count').textContent = sourceValues.length ? `Duo tasks ${count.union} · ${c.state.members.map(owner => `${owner.name} ${count.byMember[owner.id] ?? 0}`).join(' · ')} · shared ${count.shared}${ready ? '' : ' · previous counts, updating'}` : waiting ? 'Duo tasks' : 'Loading duo tasks…';
     if (!baseReady) c.startDuoTaskLoad(c.foregroundTaskLoad?.memberId === c.memberId && c.foregroundTaskLoad.revision === c.state.revision);
     return ready;
   }
@@ -398,6 +398,7 @@ export function createScreenTasks(c) {
     c.taskListRows.set('backlog-tasks', backlogRows);
     if (typeof c.renderBacklog === 'function') c.renderBacklog(backlogRows, jobs, generation);
     if (!groupOn) c.$('task-count').textContent = c.preferences().numTasksPercent ? `${goalProgress(goals, c.taskFactsCache).percent}% complete` : active.length.toLocaleString();
+    if (!groupOn && view && view.stateRevision !== c.state.revision) c.$('task-count').textContent += ' · previous count, updating';
     const updating = groupOn && !duoReady ? ' · updating' : '';
     c.$('backlog-count').textContent = `(${backlogRows.length}${updating})`; c.$('completed-count').textContent = `(${completedRows.length}${updating})`;
     const areaList = c.$('accessible-areas');

@@ -94,6 +94,17 @@ export function createScreenChunks(c) {
     c.usage?.panelOpened('chunk-info');
     c.syncPredictionIntents();
     const content = c.$('chunk-content'); content.replaceChildren();
+    const area = c.world.areas.has(id);
+    const summary = chunkSummary(id, indexed, record); content.append(summary);
+    c.$('chunk-tools').replaceChildren(...(c.supportsFeature?.('rsCatalogues') === false ? [] : [c.iconLink(c.wikiSearch(c.plain(indexed.name)), `Search the RuneScape Wiki for ${c.plain(indexed.name)}`, 'wiki')]));
+    renderChunkTabs(id, record, area, c.member().unlocked.includes(id), content);
+    c.shownChunkSummarySignature = c.chunkSignature(id);
+  }
+
+  // Saved status and actions have their own surface. Refreshing them never
+  // replaces a focused note editor, its draft, or a running tab request.
+  function chunkSummary(id, indexed, record) {
+    const content = c.el('div', undefined, 'chunk-live-summary');
     const owned = c.state.members.filter(item => item.unlocked.includes(id)).map(item => item.name), area = c.world.areas.has(id);
     content.append(c.el('p', area ? c.result?.access.areas.includes(id) ? 'Accessible interior' : 'Interior not currently accessible' : owned.length ? `Unlocked by ${owned.join(' and ')}` : c.member().pendingRoll.includes(id) ? 'Pending roll choice' : c.member().selected.includes(id) ? 'In roll pool (added by hand)' : c.member().blacklisted.includes(id) ? 'Never roll' : 'Locked', 'chunk-status'));
     const facts = c.el('div', undefined, 'chunk-facts'), entry = [...c.pool.eligible, ...c.pool.excluded].find(item => item.id === id);
@@ -128,7 +139,24 @@ export function createScreenChunks(c) {
     if (c.canWrite() && c.world.surface.has(id)) { const sticker = c.button('', () => { const box = sticker.getBoundingClientRect(); c.stickerPicker.open(id, { x: box.left, y: box.bottom + 6 }); }, 'sticker-action'); sticker.append(c.icon('sticker'), document.createTextNode(' Sticker')); actions.append(sticker); }
     const colour = c.chunkColours.action(id); if (colour) actions.append(colour);
     if (actions.children.length) content.append(actions);
-    c.$('chunk-tools').replaceChildren(...(c.supportsFeature?.('rsCatalogues') === false ? [] : [c.iconLink(c.wikiSearch(c.plain(indexed.name)), `Search the RuneScape Wiki for ${c.plain(indexed.name)}`, 'wiki')]));
+    if (leadsRow) leadsRow.hidden = c.chunkTab === 'interior';
+    return content;
+  }
+
+  function refreshChunkSummary() {
+    const id = c.chunkId, old = c.$('chunk-content').querySelector('.chunk-live-summary');
+    if (!old || c.$('chunk-info').hidden) return;
+    const signature = c.chunkSignature(id);
+    if (signature === c.shownChunkSummarySignature) return;
+    c.shownChunkSummarySignature = signature;
+    const indexed = c.world.chunks.get(id) ?? c.world.areas.get(id), record = c.world.resourceContents?.get(id) ?? c.definitions.chunks[id] ?? {};
+    const focused = old.contains(document.activeElement), label = focused ? document.activeElement.textContent : null;
+    const next = chunkSummary(id, indexed, record); old.replaceWith(next);
+    const inverse = { 'Add to roll pool': 'Remove from roll pool', 'Remove from roll pool': 'Add to roll pool', 'Unlock': 'Lock chunk', 'Never roll': 'Allow in roll pool' };
+    if (focused) ([...next.querySelectorAll('button')].find(node => node.textContent === (inverse[label] ?? label)) ?? next.querySelector('.chunk-actions')?.querySelector('button'))?.focus();
+  }
+
+  function renderChunkTabs(id, record, area, mine, content) {
     // One panel, a row of tabs: the old stack of collapsible sections made every visit a hunt.
     let planningSections;
     const planningSection = index => (planningSections ??= [...c.chunkPlanning.render(id).children])[index];
@@ -142,7 +170,7 @@ export function createScreenChunks(c) {
       ...(area || topology ? [{ id: 'access', label: 'Access', render: () => c.chunkAccess(id, topology) }] : []),
     ];
     // The Inside tab lists the same places as its map picker, so hide the duplicate row there.
-    content.append(c.tabStrip(tabs, c.chunkTab ?? c.defaultChunkTab(), tab => { c.chunkTab = tab; if (leadsRow) leadsRow.hidden = tab === 'interior'; }));
+    content.append(c.tabStrip(tabs, c.chunkTab ?? c.defaultChunkTab(), tab => { c.chunkTab = tab; const row = content.querySelector('.leads-to'); if (row) row.hidden = tab === 'interior'; }));
   }
 
   function closeChunkMenu() {
@@ -350,7 +378,7 @@ export function createScreenChunks(c) {
     return container;
   }
 
-  Object.assign(c, { disposeAccessSections, syncPredictionIntents, chunkSignature, showChunk, closeChunkMenu, chunkMenu, tabStrip, chunkStatusActions, predictUnlock, unlockPreview, chunkAccess, chunkContents });
+  Object.assign(c, { disposeAccessSections, syncPredictionIntents, chunkSignature, showChunk, refreshChunkSummary, closeChunkMenu, chunkMenu, tabStrip, chunkStatusActions, predictUnlock, unlockPreview, chunkAccess, chunkContents });
 
   c.$?.('map-menu')?.addEventListener('keydown', event => {
     const keys = ['ArrowDown', 'ArrowUp', 'Home', 'End'];

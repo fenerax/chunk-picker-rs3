@@ -9,16 +9,19 @@ const unresolvedEndpointReasons = new Set([
 // Translate only these known diagnostic messages; personal requirements keep
 // their original wording, and the API's evidence remains untouched.
 function displayReason(value) {
+  if (value === 'Members only.' || value === 'membership: conditions requirement is unknown or not met.') return 'Requires members rules. Review the F2P rule in Chunk Rules.';
+  if (value === 'Personal membership not confirmed.') return 'Membership is not confirmed. Check in-game before choosing “I can use it” in Override.';
   if (unresolvedEndpointReasons.has(value)) return 'Exact landing spot is not mapped yet.';
   if (value.startsWith('Lodestone activation is estimated from its reachable chunk')) return 'You can reach this lodestone to activate it.';
   if (value.startsWith('Teleport requirements and destination chunk are verified')) return 'You meet the requirements.';
   if (value === 'Consumable teleport — rule off.') return 'Uses up an item. Turn on Allow consumable teleports in Chunk Rules to count it.';
   if (value.includes('Personal requirements met from reachable supplies and game progress.')) return value.replace('Personal requirements met from reachable supplies and game progress.', 'You meet the requirements.').replace(' Levels use estimated reachable training ceilings.', '').trim();
-  if (/^lodestone-[a-z0-9]+(?:-[a-z0-9]+)*-activated: confirmations requirement is unknown or not met\.$/.test(value)) return 'Lodestone activation is not confirmed.';
+  if (/^lodestone-[a-z0-9]+(?:-[a-z0-9]+)*-activated: confirmations requirement is unknown or not met\.$/.test(value)) return 'Lodestone activation is not confirmed. If you have activated it in-game, choose “I can use it” in Override.';
   if (value === 'wilderness-pvp-warning-accepted: confirmations requirement is unknown or not met.') return 'Wilderness PvP warning acceptance is not confirmed. Accept the warning before using this lever.';
   if (/^[a-z0-9-]+: confirmations requirement is unknown or not met\.$/.test(value)) return 'Required in-game confirmation is missing or unknown.';
   if (/^Destination or departure section .+ is blocked\.$/.test(value)) return 'The departure or destination area is blocked.';
   if (/^Section .+ is not verified F2P\.$/.test(value)) return 'The departure or destination area has not been confirmed as free-to-play.';
+  if (/^[a-z0-9-]+: [a-z-]+ requirement is unknown or not met\.$/.test(value)) return 'An in-game requirement needs checking. If you meet all requirements, choose “I can use it” in Override.';
   return value;
 }
 
@@ -79,18 +82,22 @@ export function openTeleportsDialog(ctx, { uuid = () => globalThis.crypto.random
     heading.append(el('h4', row.name), status); body.append(heading);
     const destination = String(row.destination ?? '');
     body.append(el('p', destinationLabel(row.destinationName, destination), 'teleports-destination'));
-    const reasons = [...new Set([row.reason, ...(row.reasons ?? [])].filter(Boolean).map(displayReason))];
+    const rawReasons = [row.reason, ...(row.reasons ?? [])].filter(Boolean);
+    const reasons = [...new Set(rawReasons.filter(value => row.group !== 'lodestones' || !row.rollOnly || !unresolvedEndpointReasons.has(value)).map(displayReason))];
     body.append(el('p', reasons.join(' · ') || 'No availability details returned.', 'teleports-reason'));
+    if (rawReasons.some(value => value === 'Members only.' || value === 'membership: conditions requirement is unknown or not met.') && ctx.rulesDialog) {
+      body.append(button('Review members rule', () => { if (current()) return ctx.rulesDialog({ ruleId: 'content.f2p', memberId: requestedMember }); }));
+    }
     if (advanced()) {
       const diagnostics = el('details', undefined, 'teleports-diagnostics');
       diagnostics.append(el('summary', 'Route diagnostics'), el('p', `Route ID: ${row.id}`));
       for (const reason of new Set([row.reason, ...(row.reasons ?? []), row.accessReason].filter(Boolean))) diagnostics.append(el('p', reason));
       body.append(diagnostics);
     }
-    if (row.rollOnly) {
+    if (row.rollOnly && row.group !== 'lodestones') {
       body.append(el('p', 'Its destination can come up in your rolls. The exact landing spot isn’t mapped yet, so it doesn’t open up any area by itself.', 'teleports-reason'));
       const access = row.accessReason && displayReason(row.accessReason);
-      if (access && !reasons.includes(access) && access !== 'Exact landing spot is not mapped yet.') body.append(el('p', access, 'teleports-signal'));
+      if (advanced() && access && !reasons.includes(access) && access !== 'Exact landing spot is not mapped yet.') body.append(el('p', access, 'teleports-signal'));
     }
     const signal = [row.pending ? 'Not mapped yet' : row.estimated && !reasons.includes('You can reach this lodestone to activate it.') ? 'Based on estimated levels, so check in-game' : '',
       row.override === true ? 'You marked this usable' : row.override === false ? 'You marked this unusable' : ''].filter(Boolean).join(' · ');
@@ -133,7 +140,9 @@ export function openTeleportsDialog(ctx, { uuid = () => globalThis.crypto.random
         const groupHeading = el('div', undefined, 'teleports-group-heading');
         const shown = routes.filter(row => !membersOnly(row)).sort((a, b) => Number(b.available) - Number(a.available)), hidden = routes.filter(membersOnly);
         groupHeading.append(el('h3', title), el('span', `${shown.filter(row => row.available).length} / ${shown.length} usable`, 'teleports-group-count'));
-        section.append(groupHeading, ...shown.map(row => routeRow(row, revision)));
+        section.append(groupHeading);
+        if (id === 'lodestones' && routes.some(row => row.rollOnly)) section.append(el('p', 'Usable lodestones add roll options. Exact landing areas are not confirmed, so they do not open areas by themselves. Check activation in-game, then choose “I can use it” in that lodestone’s Override dropdown.', 'teleports-help'));
+        section.append(...shown.map(row => routeRow(row, revision)));
         if (hidden.length) {
           const more = el('details', undefined, 'teleports-members');
           more.append(el('summary', `Members-only ${title.toLowerCase()} (${hidden.length})`), ...hidden.map(row => routeRow(row, revision)));

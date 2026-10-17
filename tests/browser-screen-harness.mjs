@@ -15,10 +15,12 @@ import { createXpChoices } from '../app/web/lamp-choices.mjs';
 import { chunkColourLegend } from '../app/web/chunk-colour-picker.mjs';
 import { createGroupGoals } from '../app/web/group-goals.mjs';
 import { groupGoalCommandTypes } from '../app/core/group-goal-types.mjs';
+import { createCalculationFeedback, calculationLabel } from '../app/web/calculation-feedback.mjs';
 import { createMapActivityLayers } from '../app/web/map-activity-layers.mjs';
 import { dialogUsageId, handleUsageControl } from '../app/web/usage-client.mjs';
 import { usageSummary } from '../app/web/usage-model.mjs';
 import { supportsDatasetFeature, applyDatasetFeatureControls, applyDatasetLaunchCopy } from '../app/web/dataset-features.mjs';
+import { buildChunkPlanningIndex } from '../app/tasks/chunk-planning-index.mjs';
 
 const entry = new URL('../app/web/main.mjs', import.meta.url);
 const imports = /^import\s+([\s\S]*?)\s+from\s+['"]([^'"]+)['"];?\r?\n/gm;
@@ -50,6 +52,7 @@ export function runScreenGraph(context, modules) {
   for (const [name, value] of Object.entries({ ...customTasks, playerControlSkills, validateControlLevel })) if (!(name in context)) context[name] = value;
   context.createStreamSafe ??= createStreamSafe;
   context.createQuestMap ??= createQuestMap;
+  context.buildChunkPlanningIndex ??= buildChunkPlanningIndex;
   context.selectDuoTaskLists ??= selectDuoTaskLists;
   context.createDuoBacklogView ??= createDuoBacklogView;
   context.createMembersStart ??= createMembersStart;
@@ -63,6 +66,8 @@ export function runScreenGraph(context, modules) {
   context.createScreenChunkColours ??= c => { c.chunkColours = { summary: () => c.el('div'), action: () => null }; };
   context.createGroupGoals ??= createGroupGoals;
   context.groupGoalCommandTypes ??= groupGoalCommandTypes;
+  context.createCalculationFeedback ??= options => createCalculationFeedback({ ...options, setTimer: context.setTimeout, clearTimer: context.clearTimeout });
+  context.calculationLabel ??= calculationLabel;
   context.createMapActivityLayers ??= createMapActivityLayers;
   context.dialogUsageId ??= dialogUsageId;
   context.handleUsageControl ??= handleUsageControl;
@@ -72,6 +77,9 @@ export function runScreenGraph(context, modules) {
   // Area check is covered by its own DOM/controller fixture. Other screen
   // fixtures keep this toolbar collaborator explicit, like their existing mocks.
   context.createScreenAreaCheck ??= () => {};
+  // The live legend/toolbar DOM is covered by map-control-discovery.test.mjs.
+  context.createMapControlDiscovery ??= () => ({ mount() {}, close() {}, isOpen: () => false });
+  context.mountMembersStartEntry ??= () => ({ refresh() {} });
   const loaded = new Map();
   function load(url) {
     if (loaded.has(url.href)) return loaded.get(url.href);

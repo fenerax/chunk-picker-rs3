@@ -104,7 +104,7 @@ test('roll-eligible routes keep their usable status while disclosing unverified 
   const row = h.walk().find(node => node.className === 'teleports-route' && h.walk(node.children).some(child => child.textContent === 'magic route'));
   assert.ok(h.walk(row.children).some(node => node.tag === 'span' && node.textContent === 'Usable'));
   assert.ok(h.find('p', 'Its destination can come up in your rolls. The exact landing spot isn’t mapped yet, so it doesn’t open up any area by itself.'));
-  assert.ok(h.find('p', 'Exact landing section is not verified; destination resources are excluded.'));
+  assert.equal(h.find('p', 'Exact landing section is not verified; destination resources are excluded.'), undefined);
   assert.match(h.text(), /2 of 4 routes usable/);
   assert.equal(h.ui.commands.length, 0);
 });
@@ -205,4 +205,24 @@ test('Advanced reveals route diagnostics and known destination IDs without chang
     assert.equal(h.inputFor('Destination chunk').placeholder, 'Destination chunk ID');
     assert.deepEqual(h.state, before); assert.equal(h.ui.commands.length, 0);
   }
+});
+
+test('lodestone requirements lead to the members rule and personal Override without normal-mode diagnostics', async () => {
+  const h = harness(); const reviews = [];
+  h.ctx.rulesDialog = options => reviews.push(options);
+  Object.assign(h.routes[0], { available: false, rollOnly: true, reasons: [
+    'membership: conditions requirement is unknown or not met.',
+    'lodestone-test-activated: confirmations requirement is unknown or not met.',
+    'station coordinate needs exact decoded tile evidence',
+  ], accessReason: 'Private decoded landing diagnostic' });
+  await h.open().ready;
+  assert.match(h.text(), /Requires members rules/);
+  assert.match(h.text(), /activation is not confirmed.*choose “I can use it” in Override/);
+  assert.doesNotMatch(h.text(), /conditions requirement|confirmations requirement|decoded/);
+  assert.equal(h.walk().filter(node => node.textContent.startsWith('Usable lodestones add roll options')).length, 1);
+  await h.click('Review members rule');
+  assert.deepEqual(reviews, [{ ruleId: 'content.f2p', memberId: 'a' }]);
+  assert.equal(h.ui.commands.length, 0);
+  const control = h.override('home'); control.value = 'true'; await control.events.change();
+  assert.deepEqual(h.ui.commands[0].command, { type: 'set-teleport-override', memberId: 'a', routeId: 'home', value: true });
 });

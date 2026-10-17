@@ -49,6 +49,16 @@ export function createScreenSettings(c) {
     c.$('hide-completed').checked = prefs.hideChecked;
     c.$('task-filter').hidden = !prefs.taskSearchbar;
     document.querySelector('label[for="task-filter"]').hidden = !prefs.taskSearchbar;
+    let restoreSearch = c.$('show-task-search');
+    if (!restoreSearch && !prefs.taskSearchbar) {
+      restoreSearch = c.button('Show task search', async () => {
+        await c.command({ type: 'set-preference', memberId: c.memberId, preferenceId: 'taskSearchbar', value: true });
+        c.$('task-filter').focus();
+      });
+      restoreSearch.id = 'show-task-search';
+      c.$('task-filter').after(restoreSearch);
+    }
+    if (restoreSearch) { restoreSearch.hidden = !!prefs.taskSearchbar; restoreSearch.disabled = !c.canWrite() || c.sandbox.active; }
     document.querySelector('.task-sidebar').hidden = !prefs.chunkTasks;
     document.querySelector('.workspace').dataset.sidebar = prefs.chunkTasks ? prefs.taskSidebar ? 'expanded' : 'compact' : 'hidden';
     c.$('bis-open').hidden = c.$('activity-open').hidden = !prefs.topButtons;

@@ -9,6 +9,7 @@ import { renderTaskEquipment } from '../app/web/task-equipment.mjs';
 import { createTaskFilters, appendTaskPin } from '../app/web/task-filters.mjs';
 import { isTaskPinned, createTaskPinChecker } from '../app/web/task-filters-model.mjs';
 import { supportsDatasetFeature } from '../app/web/dataset-features.mjs';
+import { renderTaskBlockerGuidance } from '../app/web/screen-task-guidance.mjs';
 
 const graph = await readScreenGraph();
 const taskDialogSource = ['showTask', 'taskDetailSections'].map(name => screenFunctionSource(graph, name)).join('\n');
@@ -23,7 +24,7 @@ function dialogHarness() {
   const context = createContext({ appendTaskClaim, createTaskClaimClock,
     supportsFeature: feature => supportsDatasetFeature({ capabilities: { features: {} } }, feature),
     canWrite: () => true, advanced: () => false, createMapDisplay: () => ({ sizes: { rollNumberScale: 1, chunkIdScale: 1, stickerScale: 1 }, open() {}, close() {}, refresh() {}, isOpen: () => false }), createHelperView: () => ({}), createBackupStatus: () => ({ start() {}, refresh: async () => {}, line: () => null }), createDuoCoordination, sandbox: { active: false }, duoEnabled: () => false, state, memberId: 'reed', result: undefined, fullResult: undefined, definitions: {}, document: { createElement: node }, itemIcon: () => null,
-    createNoteEditor, renderTaskEquipment, createTaskFilters, appendTaskPin, isTaskPinned, createTaskPinChecker, dialogCurrent: () => true,
+    createNoteEditor, renderTaskEquipment, renderTaskBlockerGuidance, createTaskFilters, appendTaskPin, isTaskPinned, createTaskPinChecker, dialogCurrent: () => true,
     el: node, field: () => node('label'), openDialog() {},
     check(label, checked, action) { controls.push({ label, checked, action }); return node('checkbox'); },
     button(label, action) { buttons.push({ label, action }); return node('button'); },
@@ -35,6 +36,7 @@ function dialogHarness() {
     },
   });
   context.panelContext = { el: context.el, field: context.field, button: context.button, command: context.command, state: () => state, showError(error) { throw error; } };
+  context.c = context;
   runInContext(taskDialogSource, context);
   context.showTask({ id: 'custom:obtain', label: 'Obtain equipment', category: 'Custom', status: 'available' });
   nodes.find(value => value.tag === 'textarea').value = 'Reed’s personal note';
@@ -43,7 +45,7 @@ function dialogHarness() {
 
 test('task-dialog progress and notes stay bound to the reviewed member after selection changes', async () => {
   const harness = dialogHarness();
-  assert.match(harness.controls[0].label, /Done for Reed/);
+  assert.match(harness.controls[0].label, /Counts for our chunk challenge · Reed/);
   assert.match(harness.controls[1].label, /Reed did this in-game personally/);
   harness.context.memberId = 'actor1';
   for (const control of harness.controls) await control.action(true);

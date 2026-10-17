@@ -11,14 +11,27 @@
   .phone-layout .workspace { display:block;height:calc(100dvh - var(--topbar-height,110px) - var(--phone-tabs-height));min-height:0; }
   .phone-layout .map-panel { height:100%; }
   .phone-layout .map-stage { position:absolute;inset:0;height:100%;min-height:0; }
-  .phone-layout .map-toolbar { top:.5rem;left:calc(.5rem + env(safe-area-inset-left,0px));right:calc(.5rem + env(safe-area-inset-right,0px));flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;pointer-events:auto;padding-bottom:var(--space-legacy-2px); }
+  .phone-layout .map-toolbar { top:.5rem;left:calc(.5rem + env(safe-area-inset-left,0px));right:calc(.5rem + env(safe-area-inset-right,0px));flex-wrap:nowrap;overflow-x:auto;scrollbar-width:thin;scrollbar-color:var(--gold) var(--panel);pointer-events:auto;padding-bottom:var(--space-legacy-2px); }
+  .phone-layout .map-toolbar::-webkit-scrollbar { display:block;height:6px; }
+  .phone-layout .map-toolbar::-webkit-scrollbar-thumb { background:var(--gold);border-radius:var(--radius-sm); }
   .phone-layout .map-toolbar .toolbar-group { flex:none; }
-  .phone-layout .map-dock { position:absolute;top:calc(var(--map-toolbar-height,56px) + 1rem);bottom:.5rem;left:calc(.5rem + env(safe-area-inset-left,0px));right:calc(.5rem + env(safe-area-inset-right,0px));width:auto;max-width:none;margin:0;min-height:0; }
+  .phone-layout .map-dock { position:absolute;top:calc(var(--map-toolbar-height,56px) + 1rem);bottom:4rem;left:calc(.5rem + env(safe-area-inset-left,0px));right:calc(.5rem + env(safe-area-inset-right,0px));width:auto;max-width:none;margin:0;min-height:0; }
   .phone-layout .map-dock-panels { max-height:100%; }
   .phone-layout .task-sidebar { height:100%;max-height:none;min-height:0;border-top:0;overscroll-behavior:contain;padding-inline:max(var(--space-6),env(safe-area-inset-left,0px)) max(var(--space-6),env(safe-area-inset-right,0px)); }
   .phone-layout .map-toolbar .toolbar-undo { flex-basis:auto; }
   .phone-layout .map-toolbar .toolbar-undo #undo { width:auto;max-width:13rem; }
   .phone-layout .map-toolbar .toolbar-undo #undo-own { flex-basis:auto; }
+  .phone-map-actions { position:absolute;z-index:5;bottom:.5rem;left:calc(.5rem + env(safe-area-inset-left,0px));right:calc(.5rem + env(safe-area-inset-right,0px));display:flex;gap:var(--space-2);align-items:start;pointer-events:none; }
+  .phone-map-actions .toolbar-group { min-width:0;flex-basis:auto; }
+  .phone-map-actions button { background:transparent;color:var(--panel-text,var(--text));font-size:var(--type-sm);padding:var(--space-2) var(--space-3); }
+  .phone-map-actions button:hover { background:var(--surface); }
+  .phone-map-actions #phone-undo-host { flex:1; }
+  .phone-map-actions #undo { width:100%;max-width:100%;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis; }
+  .phone-layout .map-toolbar .toolbar-undo:has(#undo-own>button) { display:inline-flex; }
+  .phone-legend-sheet { position:absolute;z-index:8;bottom:4rem;left:calc(.5rem + env(safe-area-inset-left,0px));right:calc(.5rem + env(safe-area-inset-right,0px));max-height:55%;display:flex;flex-direction:column;background:var(--panel);color:var(--panel-text,var(--text));border-radius:var(--radius);box-shadow:var(--shadow);--context-link:var(--panel-link,var(--link)); }
+  .phone-legend-content { overflow:auto;overscroll-behavior:contain;padding:0 var(--space-5) var(--space-4);scrollbar-width:thin;scrollbar-color:var(--gold) var(--panel); }
+  .phone-legend-sheet #legend-details { margin:0;border:0; }
+  .phone-legend-sheet #legend-details>summary { display:none; }
   #phone-tabs { position:fixed;bottom:0;left:0;right:0;z-index:12;display:flex;gap:var(--space-3);padding:var(--space-3) max(var(--space-4),env(safe-area-inset-right,0px)) calc(var(--space-3) + env(safe-area-inset-bottom,0px)) max(var(--space-4),env(safe-area-inset-left,0px));height:var(--phone-tabs-height);background:var(--panel);border-top:var(--border-thin) solid var(--hairline); }
   #phone-tabs button { flex:1;background:transparent;color:var(--panel-muted,var(--muted));font-weight:var(--weight-semibold); }
   #phone-tabs button[aria-selected=true] { background:var(--surface);color:var(--gold); }

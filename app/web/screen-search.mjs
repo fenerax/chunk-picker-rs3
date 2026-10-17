@@ -112,10 +112,10 @@ export function createSearchDialog(c) {
         if (renderedMode === 'Chunks') await c.ensureChunkSearch();
         if (!ready()) return;
         if (renderedMode === 'Chunks') {
-          entries = matchingSearchChunks(c.chunkSearch, notes, query).map(({ id, name }) => {
+          entries = matchingSearchChunks(c.chunkSearch, notes, query, c.world.areas).map(({ id, name }) => {
             const owners = c.state.members.filter(owner => owner.unlocked.includes(id)).map(owner => owner.name);
             return { label: c.advanced() && !c.world.areas.has(id) ? `${id} · ${name}` : name,
-              subtitle: c.world.areas.has(id) ? 'Area or interior' : owners.length ? `Unlocked by ${owners.join(' and ')}` : c.member().selected.includes(id) ? 'In roll pool (added by hand)' : c.member().blacklisted?.includes(id) ? 'Never roll' : c.pool?.eligible?.some(item => item.id === id) ? 'In roll pool' : 'Locked',
+              subtitle: c.world.areas.has(id) ? 'Interior or connected area' : `Surface chunk · ${owners.length ? `Unlocked by ${owners.join(' and ')}` : c.member().selected.includes(id) ? 'In roll pool (added by hand)' : c.member().blacklisted?.includes(id) ? 'Never roll' : c.pool?.eligible?.some(item => item.id === id) ? 'In roll pool' : 'Locked'}`,
               locations: [id], notes: notes.get(id) ?? [], action: () => openChunk(id) };
           });
         } else if (['Tasks', 'Quests'].includes(renderedMode)) {

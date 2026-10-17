@@ -30,14 +30,32 @@ export function createMembersStart(ctx) {
     node.append(list, el('p', 'Keep skills and XP, quests and achievements, completed tasks, equipment, notes and journal, backlogs, custom tasks, RuneMetrics name, stickers, never-roll list, travel and transport settings, access overrides, Slayer lock and other preferences. Starting sections open for the new chunk.'));
     return node;
   }
-  function preview(data, state, options) {
+  function preview(data, state, options, searchable = true) {
     const pools = membersStartPools(data, state.members, options), node = el('section', undefined, 'members-start-preview');
     node.setAttribute('aria-live', 'polite'); node.append(el('h3', 'Eligible starting banks'));
     for (const pool of pools) {
       const name = state.members.find(member => member.id === pool.memberId)?.name ?? pool.memberId;
       const disclosure = el('details'), banks = el('ul', undefined, 'members-start-banks');
       disclosure.append(el('summary', `${name}: ${pool.banks.length} ${pool.banks.length === 1 ? 'bank' : 'banks'}`));
-      for (const bank of pool.banks) { const row = el('li'); row.append(el('strong', bankLabel(bank.place, bank.chunkId)), el('p', bank.requirementsNote, 'field-help')); banks.append(row); }
+      const search = input('search'); search.placeholder = 'Bank name or place';
+      search.setAttribute('aria-label', `Search starting banks for ${name}`);
+      const searchLabel = el('label', 'Find a bank', 'form-field'); searchLabel.append(search);
+      const count = el('p', '', 'field-help'); count.setAttribute('role', 'status');
+      const bankRows = pool.banks.map(bank => {
+        const row = el('li'), title = bank.bankName ?? bank.bank ?? bank.place;
+        row.append(el('strong', bankLabel(title, bank.chunkId)));
+        if (title !== bank.place) row.append(el('p', bank.place, 'field-help'));
+        const conditional = [...(data.optionAConditional ?? []), ...(data.optionBConditional ?? [])].some(entry => entry.chunkId === bank.chunkId);
+        if (conditional) row.append(el('span', 'Conditional bank — check requirements below', 'field-help'));
+        row.append(el('p', bank.requirementsNote, 'field-help')); banks.append(row);
+        return { row, search: `${title} ${bank.place} ${bank.requirementsNote ?? ''}`.toLowerCase() };
+      });
+      search.addEventListener('input', () => {
+        const query = search.value.trim().toLowerCase(); let matches = 0;
+        for (const bank of bankRows) { bank.row.hidden = !bank.search.includes(query); if (!bank.row.hidden) matches++; }
+        count.textContent = `${matches} of ${pool.banks.length} banks shown`;
+      });
+      if (searchable) disclosure.append(searchLabel, count);
       disclosure.append(banks); node.append(disclosure);
     }
     return { node, pools, single: new Set(pools.flatMap(pool => pool.banks.map(bank => bank.chunkId))).size === 1 };
@@ -87,7 +105,7 @@ export function createMembersStart(ctx) {
   function confirm(data, options) {
     if (!allowed()) return;
     const state = ctx.state(), revision = state.revision, content = el('div', undefined, 'members-start');
-    content.append(el('p', 'Review the members start for the whole group.', 'section-intro'), summary(state), el('p', `Pool: ${poolNames[options.pool]}. ${options.pairing === 'different' ? 'Different banks where possible.' : 'Independent random rolls; players may share a bank.'} ${options.switchToMembers ? 'Members rules will be enabled.' : 'The current F2P-only rule will be kept.'}`), preview(data, state, options).node);
+    content.append(el('p', 'Review the members start for the whole group.', 'section-intro'), summary(state), el('p', `Pool: ${poolNames[options.pool]}. ${options.pairing === 'different' ? 'Different banks where possible.' : 'Independent random rolls; players may share a bank.'} ${options.switchToMembers ? 'Members rules will be enabled.' : 'The current F2P-only rule will be kept.'}`), preview(data, state, options, false).node);
     content.append(el('p', 'A full backup named “Before going members” is saved first. One Undo in History restores this change.'));
     const typed = input('text'); typed.autocomplete = 'off'; typed.spellcheck = false;
     const label = el('label', 'Type members to confirm resetting everyone’s maps', 'members-start-confirm'); label.append(typed); content.append(label);
@@ -108,7 +126,7 @@ export function createMembersStart(ctx) {
         if (shownStart) ctx.centerOnChunk?.(shownStart.chunkId);
         const result = el('div', undefined, 'members-start'); result.append(el('p', 'Your members starts are saved.', 'section-intro'));
         const list = el('ul', undefined, 'members-start-results');
-        for (const member of saved.members) { const start = starts.find(row => row.memberId === member.id), chunkId = start?.chunkId ?? member.preferences?.startingChunk ?? member.unlocked[0]; const bank = membersStartPools(data, state.members, options).find(pool => pool.memberId === member.id)?.banks.find(bank => bank.chunkId === chunkId); list.append(el('li', `${member.name}: ${bankLabel(start?.place ?? bank?.place ?? 'starting bank', chunkId)}`)); }
+        for (const member of saved.members) { const start = starts.find(row => row.memberId === member.id), chunkId = start?.chunkId ?? member.preferences?.startingChunk ?? member.unlocked[0]; const bank = membersStartPools(data, state.members, options).find(pool => pool.memberId === member.id)?.banks.find(bank => bank.chunkId === chunkId); list.append(el('li', `${member.name}: ${bankLabel(bank?.bankName ?? bank?.bank ?? start?.place ?? bank?.place ?? 'starting bank', chunkId)}`)); }
         result.append(list, el('p', 'Your previous F2P maps are kept as read-only snapshots. Use Undo in History to reverse this group start.'), button('Done', () => ctx.closeDialog(), 'primary')); ctx.openDialog('Members starts', result);
       } catch (error) { if (current()) { status.textContent = `${error.reviewAbandoned ? 'The saved maps changed while this review was waiting.' : error.message} Go Back and review again.`; back.disabled = false; } }
     }, 'primary');

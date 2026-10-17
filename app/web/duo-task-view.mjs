@@ -64,7 +64,8 @@ export function createDuoTaskView({ document, getState, getSelectedMember, comma
     const checked = entry.personalCompletion ? facts.personal : facts.group;
     node.dataset.completed = String(checked); node.dataset.taskId = task.id; node.dataset.owners = entry.memberIds.join(',');
     const checkbox = el('input'); checkbox.type = 'checkbox'; checkbox.checked = checked;
-    checkbox.disabled = !canComplete(); checkbox.setAttribute('aria-label', `Mark ${task.label} done · ${entry.label}`);
+    checkbox.disabled = !canComplete(); checkbox.setAttribute('aria-label', `Counts for our chunk challenge: ${task.label} · ${entry.label}`);
+    checkbox.title = 'Records challenge completion. Open task details to record personal in-game completion.';
     checkbox.addEventListener('change', async () => {
       if (!canComplete()) { checkbox.checked = checked; return; }
       const completed = checkbox.checked; checkbox.checked = checked;

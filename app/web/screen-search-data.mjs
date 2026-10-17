@@ -10,9 +10,12 @@ export function chunkNotesForSearch(members) {
   return notes;
 }
 
-export function matchingSearchChunks(index, notes, query) {
+export function matchingSearchChunks(index, notes, query, areas = new Map()) {
+  query = query.toLowerCase().trim();
   return index.filter(entry => !query || entry.search.includes(query) || notes.get(entry.id)?.some(note => note.search.includes(query)))
-    .sort((a, b) => Number(b.id.toLowerCase() === query) - Number(a.id.toLowerCase() === query));
+    .sort((a, b) => Number(b.id.toLowerCase() === query) - Number(a.id.toLowerCase() === query)
+      || Number(b.name?.toLowerCase().trim() === query) - Number(a.name?.toLowerCase().trim() === query)
+      || Number(areas.has(a.id)) - Number(areas.has(b.id)));
 }
 
 export function searchNoteExcerpt(text, query, limit = 160) {
