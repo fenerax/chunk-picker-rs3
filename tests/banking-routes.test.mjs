@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { deflateRawSync } from 'node:zlib';
 import { createBankingRoutes } from '../app/training/banking-routes.mjs';
+import { permanentTaskId } from '../app/tasks/identity.mjs';
 
 const baseAt = (x, y) => String(Math.floor(x / 64) * 256 + Math.floor(y / 64));
 const directions = [[-1, 0], [0, 1], [1, 0], [0, -1], [-1, 1], [1, 1], [1, -1], [-1, -1]];
@@ -27,6 +28,35 @@ const catalogue = { stations: [{ id: 'stone', name: 'Synthetic stone', mapId: 7,
 routes: [{ id: 'home-stone', from: null, to: 'stone', kind: 'lodestone', members: false, f2p: true,
   requirements: { confirmations: ['stone-activated'] } }] };
 const unlocked = { gatheringTravelUnlocks: { confirmations: { 'stone-activated': true } } };
+
+test('fish-only deposits never route woodcutting and preserve personal quest conditions', () => {
+  const f = fixture([[70, 70], [71, 70], [72, 70]]);
+  const provider = createBankingRoutes({ ...f, destinations: [bank(72, 70, {
+    kind: 'deposit', depositCapability: 'fish-only', quest: 'Synthetic entry quest',
+  })] });
+  const query = (skill, completedQuests = []) => provider.routesForGathering({ method: { id: skill, skill },
+    spots: [spot(70, 70)], availability: { ...f.availability, completedQuests } })[0];
+  assert.equal(query('Fishing').status, 'no-bank');
+  const admitted = query('Fishing', ['Synthetic entry quest']);
+  assert.equal(admitted.status, 'routed'); assert.equal(admitted.destination.kind, 'deposit');
+  assert.equal(admitted.destination.depositCapability, 'fish-only');
+  assert.equal(query('Woodcutting', ['Synthetic entry quest']).status, 'no-bank');
+  assert.equal(query('Fishing', ['Synthetic entry quest']).status, 'routed');
+});
+
+test('reviewed partial access needs personal confirmation or quest completion', () => {
+  const f = fixture([[70, 70], [71, 70]]);
+  const entry = permanentTaskId('Nonskill', 'Synthetic service entry');
+  const provider = createBankingRoutes({ ...f, destinations: [bank(71, 70, { kind: 'deposit', depositCapability: 'fish-only',
+    questOrPersonalTask: { quest: 'Synthetic entry quest', completedTask: entry } })] });
+  const query = extra => provider.routesForGathering({ method: { id: 'fish', skill: 'Fishing' }, spots: [spot(70, 70)],
+    availability: { ...f.availability, ...extra } })[0];
+  assert.equal(query({}).status, 'no-bank');
+  assert.equal(query({ completedTasks: [{ id: permanentTaskId('Nonskill', 'Other service entry') }] }).status, 'no-bank');
+  assert.equal(query({ completedTasks: [{ id: entry }] }).status, 'routed');
+  assert.equal(query({}).status, 'no-bank');
+  assert.equal(query({ completedQuests: ['Synthetic entry quest'] }).status, 'routed');
+});
 
 test('personal exact lodestone landing has an outbound bank walk and complete return walk', () => {
   const f = fixture(Array.from({ length: 42 }, (_, i) => [69 + i, 70]));

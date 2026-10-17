@@ -62,6 +62,8 @@ function* chunkPlanningIndexSteps(definitions, result, world) {
     for (const token of values(record.Chunks)) for (const location of expand('chunks', token)) add(task, location, 'Declared location requirement');
     for (const [field, kind, aliasKind] of [['Objects', 'Object', 'objects'], ['NPCs', 'NPC', 'npcs'], ['Monsters', 'Monster', 'monsters'], ['Monster', 'Monster', 'monsters'], ['Shops', 'Shop', 'shops'], ['Spawns', 'Spawn', 'items'], ['Items', 'Spawn', 'items']]) {
       for (const token of values(record[field])) for (const name of expand(aliasKind, token)) for (const location of declarations.sources.get(`${kind}:${name}`) ?? []) {
+        if (Array.isArray(record.SourceLocations) && record.SourceLocations.filter(selector => selector?.field === field && selector.name === name)
+          .some(selector => !Array.isArray(selector.locations) || !selector.locations.includes(location))) continue;
         const plural = { Object: 'Objects', NPC: 'NPCs', Monster: 'Monsters', Shop: 'Shops', Spawn: 'Spawns' }[kind];
         const gates = definitions.taskUnlocks?.[plural]?.[name], gate = gates?.[location] ?? gates?.[baseLocationId(location)];
         const suffix = gate === false ? ' · Source is disabled by its declaration' : gate != null && gate !== true ? ' · An additional source-task gate is declared' : '';

@@ -1,5 +1,7 @@
 import { datasetJSON } from "../../dataset-runtime.mjs";
 import { datasetValue } from "../../dataset-runtime.mjs";
+import { selectedDefinitionOverlays } from '../selected-definition-overlays.mjs';
+import { reviewedServiceVariant } from '../reviewed-service-variants.mjs';
 const review = await datasetJSON("app/data/members-start-banks.2026-10-12.v1.json");
 
 // Match a reviewed service's physical cache placement, rather than declaring
@@ -11,6 +13,8 @@ const reviewed = new Map([...review.optionA, ...review.optionAF2PExtension].map(
 export const bankingServiceEvidence = datasetValue("app/data/training/banking-destinations.mjs#bankingServiceEvidence");
 
 export function reviewedBankingService(placement) {
+  const variant = reviewedServiceVariant(placement, selectedDefinitionOverlays.flatMap(row => row.bankingServices ?? []));
+  if (variant) return variant;
   const base = String(placement.chunkId), key = placement.classKey;
   if (!/^facility:(?:bank-|deposit-box)/.test(key)) return null;
   if (base === '12597') {

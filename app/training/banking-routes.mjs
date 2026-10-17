@@ -23,6 +23,8 @@ export function stilesSupports(method) {
 }
 
 function questsAllow(destination, availability) {
+  if (destination.questOrPersonalTask) return list(availability.completedQuests).includes(destination.questOrPersonalTask.quest)
+    || list(availability.completedTasks).some(row => (typeof row === 'string' ? row : row.id) === destination.questOrPersonalTask.completedTask);
   return !destination.quest || list(availability.completedQuests).includes(destination.quest);
 }
 
@@ -58,12 +60,13 @@ export function createBankingRoutes({ world, tileData = masks, destinations, fis
   const banks = [...new Map(destinationRows.map(row => [row.id, row])).values()].sort((a, b) => a.id.localeCompare(b.id));
   const profiles = new Map();
 
-  function makeField(availability, includeStiles) {
+  function makeField(availability, includeStiles, fishOnly) {
     const bases = new Set(list(availability.access?.bases).map(String));
     const components = new Set(list(availability.access?.components).map(String));
     const members = availability.members === true;
     const stones = confirmedBankingLodestones(availability, transportCatalogue);
-    const key = JSON.stringify([members, includeStiles, [...bases].sort(), [...components].sort(), list(availability.completedQuests).sort(), stones.map(row => row.id)]);
+    const key = JSON.stringify([members, includeStiles, fishOnly, [...bases].sort(), [...components].sort(), list(availability.completedQuests).sort(),
+      list(availability.completedTasks).map(row => typeof row === 'string' ? row : row.id).sort(), stones.map(row => row.id)]);
     if (profiles.has(key)) {
       const field = profiles.get(key); profiles.delete(key); profiles.set(key, field); return field;
     }
@@ -93,7 +96,8 @@ export function createBankingRoutes({ world, tileData = masks, destinations, fis
       const r = regions[node >> 12], i = node & 4095;
       return [r.x + (i >> 6), r.y + (i & 63)];
     };
-    const candidates = banks.filter(bank => bases.has(bank.chunkId) && (members || bank.members === false) && questsAllow(bank, availability));
+    const candidates = banks.filter(bank => bases.has(bank.chunkId) && (members || bank.members === false) && questsAllow(bank, availability)
+      && (bank.depositCapability !== 'fish-only' || fishOnly));
     if (includeStiles && bases.has('11313')) candidates.push({ id: 'npc:stiles', label: 'Stiles (fish noting)', kind: 'stiles',
       members: false, chunkId: '11313', x: 2851, y: 3143, evidence: bankingServiceEvidence.stiles,
       witnessTiles: DIR.slice(0, 4).map(([dx, dy]) => [2851 + dx, 3143 + dy]) });
@@ -187,7 +191,7 @@ export function createBankingRoutes({ world, tileData = masks, destinations, fis
   function routesForGathering({ method, availability = {}, spots } = {}) {
     if (!method) throw new TypeError('A gathering method is required.');
     const candidates = spots ?? defaultSpots(method, availability);
-    const field = makeField(availability, stilesSupports(method));
+    const field = makeField(availability, stilesSupports(method), method.skill === 'Fishing');
     const rows = candidates.filter(spot => field.bases.has(String(spot.chunkId ?? chunkAt(spot.x, spot.y)))).map(spot => {
       const witnesses = spot.witnessTiles ?? [[spot.x, spot.y]];
       const starts = witnesses.map(([x, y]) => field.lookup(x, y)).filter(node => node >= 0);
