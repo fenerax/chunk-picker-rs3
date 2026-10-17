@@ -989,8 +989,8 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
       }
     }
   }
-  let lastUnchangedTaskRevision;
-  const unsubscribe = store.subscribe(({ revision }) => {
+  let lastUnchangedTaskRevision, refreshMemberId;
+  const unsubscribe = store.subscribe(({ revision, ownershipChanged }) => {
     const gameplay = taskFingerprint(), taskResultsUnchanged = gameplay === savedTaskFingerprint;
     lastUnchangedTaskRevision = taskResultsUnchanged ? revision : undefined;
     if (taskResultsUnchanged) {
@@ -1003,6 +1003,18 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
     if (!taskResultsUnchanged) {
       if (taskWorker) (taskWorker.setRevision ?? taskWorker.supersede).call(taskWorker, revision, gameplay);
       awaitForeground(revision);
+      // Refresh the active play view from the durable revision while the store
+      // independently rebuilds travel/pools. Existing scheduler keys coalesce
+      // the following HTTP reads; sleeping foreground workers are not woken.
+      if (ownershipChanged && nativeForegroundState && refreshMemberId && taskWorker?.getHealth().resident) {
+        const captured = calculationState(), group = requiredTaskMembers.size > 1;
+        for (const memberId of requiredTaskMembers) {
+          if (!knownTaskMembers.has(memberId)) continue;
+          void evaluatedTasks(captured.metadata, memberId, 'evaluate', undefined, undefined, [], PLAY_VIEW,
+            captured.stateInput, memberId === refreshMemberId ? 'foreground' : 'duo',
+            group && memberId === refreshMemberId).catch(() => {});
+        }
+      }
     } else {
       if (foregroundCompletedRevision >= revision - 1) {
         foregroundCompletedRevision = revision;
@@ -1438,6 +1450,7 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
               if (query.get('revision') !== String(metadata.revision)) throw httpError(409, 'Saved state changed before the duo calculation. Request the current tasks.');
             }
             if (type === 'evaluate' && viewFor(request) === PLAY_VIEW && evaluationLane === 'foreground' && !duoInspectionProjection) {
+              refreshMemberId = memberId;
               requiredTaskMembers = new Set(duoSidebarProjection ? metadata.members.map(member => member.id) : [memberId]);
             }
             const state = serialized ? metadata : captured.state;

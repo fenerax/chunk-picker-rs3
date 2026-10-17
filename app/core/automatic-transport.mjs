@@ -69,7 +69,7 @@ function baselineFor(world, state, memberId, supplied, signature) {
     // No automatic route can prove its own runes, fare, activation, training,
     // partner connection or item. Retain existing manual travel semantics.
     const baselineState = { ...state, rules: { ...state.rules, [AUTOMATIC_TRANSPORT_RULE]: false, 'access.transport': false } };
-    cache.byMember.set(memberId, engine.evaluate(baselineState, memberId));
+    cache.byMember.set(memberId, engine.evaluate(baselineState, memberId, { reuseEligibility: false }));
   }
   return cache.byMember.get(memberId);
 }

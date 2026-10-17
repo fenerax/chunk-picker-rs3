@@ -21,7 +21,7 @@ The key contains these inputs for **every member**, in roster order:
 | `id`, `name`, `sourceMapId` | Member lookup, partner/source explanations and legacy personal controls |
 | `unlocked` | Personal reachability, partner supplies, training and reachable lodestone activation |
 | `sectionOverrides`, `areaOverrides`, `sourceBacklogs` | Entry safety, reachable interiors and allowed supply sources |
-| `completedTasks` | Actual personal completion can prove prerequisites and finite quest rewards |
+| `completedTasks`, `obtainedEquipment` | Actual personal completion can prove prerequisites and finite quest rewards; equipment recorded by hand supplies items even without reachable sources |
 | `taskStatus[*].backlogged` | Removing or restoring a task can change production and training; explicit false overrides imported/aliased true |
 | `taskRules` | Personal method rules, retained conservatively as complete trees |
 | `primaryOverrides`, `passiveLevels`, `maxLevels`, `slayerLock`, `xpChoices` | Training, caps, source restrictions and allocated reward XP |
@@ -64,7 +64,7 @@ their own location projections.
 | Selected candidates, pending roll, never-roll marks | These control offers and exclusions, without changing owned chunks or personal travel facts |
 | Revision, history, claims, progress snapshots | Save coordination and historical records do not supply capabilities |
 | Notes, journal, preferences, stickers, colours and colour names | Display/planning data are not consumed by the conservative evaluator or travel fact projection |
-| Obtained equipment and the saved F2P map | The proof uses reachable supplies and current ownership, not collection checkmarks or the archived starting map |
+| Saved F2P map | The proof uses current ownership, not the archived starting map |
 | Sync summaries | The actual account-bound skill/quest records and source declarations are keyed; sync bookkeeping is not evidence |
 | Finish Line, group goals and rule reviews | Planning targets and review records do not supply capabilities |
 | Non-Quest saved task metadata | The evaluator compiles definitions; the separate saved-label travel projection reads only Quest IDs and labels |
