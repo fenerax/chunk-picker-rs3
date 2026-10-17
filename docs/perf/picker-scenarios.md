@@ -33,3 +33,9 @@ measurements, rather than an object-retention or heap-size guarantee.
 The original `scripts/perf/map-growth.mjs` also runs in alternating trials with
 a 1536 MiB heap limit and a 1500 MiB worker RSS stop. Walking stops at the
 reachable component boundary; no claim is made about unreachable checkpoints.
+
+An experimental exact-Set obligation footprint was rejected: tracking appeared
+as a major self-time frame and slowed the matched unlock. A smaller conservative
+fingerprint memo is described in [obligation memo](obligation-memo.md). The task
+and source data model remains unchanged. Fresh-engine equivalence tests disable
+both reuse layers and retain cyclic, growth and retraction coverage.

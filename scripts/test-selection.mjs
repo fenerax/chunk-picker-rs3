@@ -17,6 +17,7 @@ export const quickTests = new Set([
   "task-blocker-guidance.test.mjs",
   "rule-explanations.test.mjs",
   "eligibility-reuse.test.mjs",
+  "obligation-cache.test.mjs",
   "automatic-transport.test.mjs",
   "task-claim-server.test.mjs",
   "perf-inputs.test.mjs",
@@ -271,7 +272,6 @@ export function selectTests(names, suite = 'quick') {
   if (!selected.length) throw new Error('No tests selected for ' + suite);
   return selected;
 }
-
 export async function discoverTests(directory = new URL('../tests/', import.meta.url), suite = 'quick') {
   const names = await readdir(directory);
   const selected = selectTests(names, suite);
