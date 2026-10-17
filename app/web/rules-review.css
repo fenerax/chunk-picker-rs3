@@ -1,4 +1,5 @@
 .rules-panel[data-review-mode=true] > :is(.rules-scope,.rules-tools,.rules-on-filter,.rules-review-host,.rules-layout,.form-field,details){display:none}
+.rules-panel[data-review-mode=true] > .form-field:has(#rules-jump){display:none}
 .rules-panel > button:first-child{min-height:44px;margin-bottom:var(--space-5)}
 .rules-walk[hidden]{display:none}
 .rules-walk{max-width:78ch;margin-inline:auto}
