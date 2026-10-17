@@ -159,11 +159,14 @@ export function createRulesPanel(ctx) {
       if (writable && !isShared && memberIds().some(id => taskRuleValue(ctx.state(), id, definition).explicit)) {
         const automatic = memberIds().map(id => taskRuleAutomaticValue(ctx.state(), id, definition).value);
         const same = automatic.every((item, index) => Object.is(item, fact(definition, memberIds()[index]).value));
-        const reset = button(same ? 'Same as automatic' : `Use automatic (${automatic.every(item => Object.is(item, automatic[0])) ? ruleValueText(automatic[0]) : 'different values'})`, () => {
-          if (!freshRow()) return;
-          return save(memberIds().filter(id => taskRuleValue(ctx.state(), id, definition).explicit).map(memberId => ({ type: 'reset-task-rule', memberId, ruleId: definition.id })), renderedRevision);
-        }, 'rules-reset');
-        reset.disabled = busy || !canEdit || same; help.append(reset);
+        if (same) help.append(el('p', 'Same as automatic', 'field-help'));
+        else {
+          const reset = button(`Use automatic (${automatic.every(item => Object.is(item, automatic[0])) ? ruleValueText(automatic[0]) : 'different values'})`, () => {
+            if (!freshRow()) return;
+            return save(memberIds().filter(id => taskRuleValue(ctx.state(), id, definition).explicit).map(memberId => ({ type: 'reset-task-rule', memberId, ruleId: definition.id })), renderedRevision);
+          }, 'rules-reset');
+          reset.disabled = busy || !canEdit; help.append(reset);
+        }
       }
       return row;
     }

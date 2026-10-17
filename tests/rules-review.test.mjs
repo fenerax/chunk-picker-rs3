@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { captureReview, reviewChanges, reviewRules, reviewSelection, reviewSummary } from '../app/web/rules-review-model.mjs';
+import { captureReview, reviewChanges, reviewRules, reviewSelection, reviewSummary, reviewRuleLabel } from '../app/web/rules-review-model.mjs';
 import { createRulesReview } from '../app/web/rules-review.mjs';
 const sections = [{ id: 'first', name: 'First', rules: [{ id: 'Boosting', label: 'Boosting', type: 'boolean', description: 'Allow boosts.', tooltips: ['Original wording'] }, { id: 'InsidePOH', label: 'Furniture', type: 'boolean', membersOnly: true }] },
   { id: 'second', name: 'Second', rules: [{ id: 'Skills', label: 'Skills', type: 'boolean' }] }];
@@ -23,12 +23,22 @@ test('changed filter and Discord summary compare session values and remove undon
   const doc = state(), rules = sections.flatMap(section => section.rules), baseline = captureReview(doc, rules, registry);
   doc.members[1].taskRules.Boosting = true;
   const changes = reviewChanges(doc, rules, baseline, registry);
-  assert.equal(changes.length, 1); assert.match(reviewSummary(changes), /Player B · Boosting: Off → On/);
+  assert.equal(changes.length, 1); assert.match(reviewSummary(changes), /Player B · Allow boosts.: Off → On/);
   assert.deepEqual(reviewRules(sections, doc, { filter: 'changed', changes, registry }).map(row => row.id), ['Boosting']);
   doc.members[1].taskRules.Boosting = false; assert.equal(reviewChanges(doc, rules, baseline, registry).length, 0);
 });
 
-function harness(writable = true, beforeSave = async () => {}) {
+test('review counts unique rules in the current filter and labels raw catalogue keys with their explanation', () => {
+  const repeated = [...sections, { id: 'duplicate', name: 'Duplicate', rules: [sections[0].rules[0]] }];
+  const doc = state(), baseline = captureReview(doc, repeated.flatMap(s => s.rules), registry);
+  assert.equal(reviewRules(repeated, doc, { registry }).length, 3);
+  doc.members[1].taskRules.Boosting = true;
+  assert.equal(reviewChanges(doc, repeated.flatMap(s => s.rules), baseline, registry).length, 1);
+  assert.equal(reviewRuleLabel({ id: 'InsidePOH', label: 'InsidePOH', description: 'Construct furniture on a workbench*' }), 'Construct furniture on a workbench');
+  assert.equal(reviewRuleLabel({ id: 'InsidePOH', label: 'Furniture', description: 'Explanation' }), 'Furniture');
+});
+
+function harness(writable = true, beforeSave = async () => {}, advanced = false) {
   class Node {
     constructor(tag, text = '', className) { Object.assign(this, { tag, textContent: text, className, children: [], dataset: {}, attrs: {}, events: {} }); }
     append(...children) { this.children.push(...children); }
@@ -39,6 +49,7 @@ function harness(writable = true, beforeSave = async () => {}) {
   const doc = state(), calls = [], host = new Node('div'), el = (...args) => new Node(...args);
   const ctx = { el, state: () => doc, memberId: () => 'a', registry: () => registry, canWrite: () => writable,
     input: (type, value) => Object.assign(el('input'), { type, value }),
+    preferences: () => ({ advanced }),
     select: (options, value) => Object.assign(el('select'), { options, value }),
     button: (text, action) => { const node = el('button', text); node.events.click = action; return node; },
     field: (label, control) => { const node = el('label', label); node.append(control); return node; },
@@ -54,7 +65,7 @@ function harness(writable = true, beforeSave = async () => {}) {
   const walk = node => [node, ...node.children.flatMap(walk)], nodes = () => walk(host);
   const button = label => nodes().find(node => node.tag === 'button' && node.textContent === label);
   const control = label => nodes().find(node => node.tag === 'label' && node.textContent === label)?.children[0];
-  return { doc, calls, panel, nodes, button, control };
+  return { doc, calls, panel, nodes, button, control, host };
 }
 
 test('guided view shows both values and automatic, changes Both through revision checked commands, saves shared notes', async () => {
@@ -74,10 +85,38 @@ test('guided view shows both values and automatic, changes Both through revision
 
 test('viewer can navigate and read progress/notes but gets no save or preview controls', () => {
   const h = harness(false); h.button('Next').events.click(); h.button('Next').events.click();
-  assert.equal(h.control('Shared note (up to 500 characters)').value, 'Keep');
-  assert.equal(h.control('Shared note (up to 500 characters)').disabled, true);
+  assert.ok(h.nodes().some(node => node.tag === 'p' && node.textContent === 'Keep'));
+  assert.equal(h.control('Shared note (up to 500 characters)'), undefined);
   for (const label of ['On', 'Off', 'Save note', 'Check task effect', 'Save value']) assert.equal(h.button(label), undefined);
   assert.equal(h.calls.length, 0);
+});
+
+test('review has status text for automatic, navigation after the note, filtered progress and optional small IDs', () => {
+  const h = harness();
+  assert.equal(h.button('Same as automatic'), undefined);
+  h.doc.members[0].taskRules.InsidePOH = true;
+  h.button('Next').events.click();
+  assert.ok(h.nodes().some(n => n.tag === 'p' && n.textContent === 'Same as automatic'));
+  const navs = h.nodes().filter(n => n.tag === 'nav');
+  assert.equal(navs.length, 2);
+  assert.ok(h.nodes().indexOf(navs[1]) > h.nodes().indexOf(h.button('Save note')));
+  assert.equal(h.nodes().some(n => n.className === 'rules-walk-id'), false);
+  const show = h.control('Show'); show.value = 'unreviewed'; show.events.change();
+  assert.ok(h.nodes().some(n => n.textContent === '0 of 2 reviewed · shared by both players'));
+  const a = harness(true, async () => {}, true);
+  assert.ok(a.nodes().some(n => n.tag === 'small' && n.textContent === 'Boosting'));
+  assert.ok(a.nodes().some(n => n.textContent.includes('3 reviewed (including advanced)')));
+});
+
+test('Alt arrow navigation clamps ends and leaves editing keys alone', () => {
+  const h = harness(); let prevented = 0;
+  const key = (value, tagName = 'H3') => h.host.onkeydown({ key: value, altKey: true, target: { tagName }, preventDefault: () => prevented++ });
+  key('ArrowLeft'); assert.equal(prevented, 0);
+  key('ArrowRight', 'TEXTAREA'); assert.equal(prevented, 0);
+  key('ArrowRight'); assert.equal(prevented, 1);
+  assert.ok(h.nodes().some(n => n.tag === 'h3' && n.textContent === 'Furniture'));
+  key('ArrowLeft'); assert.equal(prevented, 2);
+  assert.ok(h.nodes().some(n => n.tag === 'h3' && n.textContent === 'Allow boosts.'));
 });
 
 test('a note draft protects a newer shared save until the latest note is reviewed', async () => {

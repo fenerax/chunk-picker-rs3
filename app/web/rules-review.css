@@ -9,6 +9,10 @@
 .rules-walk-navigation span{font-variant-numeric:tabular-nums;color:var(--panel-muted,var(--muted))}
 .rules-walk-rule{border-block:1px solid var(--hairline);padding-block:var(--space-6);margin-bottom:var(--space-6)}
 .rules-walk-rule h3{font-family:var(--display);font-size:var(--type-heading);line-height:var(--leading-body);overflow-wrap:anywhere;margin-bottom:var(--space-5)}
+.rules-walk-id{display:block;color:var(--panel-muted,var(--muted));overflow-wrap:anywhere;margin-bottom:var(--space-4)}
+.rules-walk-note{white-space:pre-wrap;overflow-wrap:anywhere}
+.rules-walk-automatic{align-self:center;margin:0}
+.rules-walk-shortcuts{margin-bottom:var(--space-5)}
 .rules-walk-explanation{line-height:var(--leading-copy);margin-block:var(--space-4)}
 .rules-walk details p{white-space:pre-line;line-height:var(--leading-copy);margin-block:var(--space-4)}
 .rules-walk-values{display:grid;grid-template-columns:auto minmax(0,1fr);gap:var(--space-3) var(--space-6);margin-block:var(--space-6)}

@@ -82,6 +82,17 @@ test('sandbox delta counts presented active goals and projects tasks/items witho
   assert.deepEqual(projected.delta.itemsAdded, [{ name: 'New' }]);
 });
 
+test('sandbox compares task identity across label and presentation changes', () => {
+  const before = { tasks: [{ id: 'custom:chair', label: 'Old wording', category: 'Construction', status: 'available' }] };
+  const after = { tasks: [{ ...before.tasks[0], label: 'Readable wording', aliases: ['older wording'] }] };
+  assert.deepEqual(sandboxDelta(before, after).tasksAdded, []);
+  assert.deepEqual(sandboxDelta(before, after).tasksRemoved, []);
+  // Similar labels do not merge separate objectives.
+  after.tasks[0].id = 'custom:flatpack';
+  assert.deepEqual(sandboxDelta(before, after).tasksAdded.map(t => t.id), ['custom:flatpack']);
+  assert.deepEqual(sandboxDelta(before, after).tasksRemoved.map(t => t.id), ['custom:chair']);
+});
+
 test('sandbox challenge deltas follow the displayed any/all/personal completion facts without inferring game completion', () => {
   const registry = createRuleRegistry();
   for (const mode of ['any', 'all', 'personal']) {

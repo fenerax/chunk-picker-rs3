@@ -1,6 +1,6 @@
 import { taskRuleBehavior, taskRuleCategoryCounts } from '../data/settings.mjs';
 import { taskRuleAutomaticValue, planTaskRuleChange } from './rules-model.mjs';
-import { captureReview, reviewChanges, reviewRules, reviewSelection, reviewRecord, reviewValue, ruleValueText, reviewSummary } from './rules-review-model.mjs';
+import { captureReview, reviewChanges, reviewRules, reviewSelection, reviewRecord, reviewValue, ruleValueText, reviewSummary, reviewRuleLabel } from './rules-review-model.mjs';
 import { createRuleReviewPreview, rulePreviewText } from './rules-review-preview.mjs';
 
 /** Session choices survive closing Rules for History; shared progress lives in the save. */
@@ -10,6 +10,8 @@ export function createRulesReview(ctx) {
   const drafts = new Map(), previews = createRuleReviewPreview(ctx.api);
   let host, options;
   const writable = () => ctx.canWrite?.() !== false;
+  const advanced = () => writable() && ctx.preferences?.().advanced === true;
+  const focus = selector => host.querySelector?.(selector)?.focus?.();
   function cancel() { previewToken++; previews.cancel(); previewStatus = ''; }
   function mount(node, config) { host = node; options = config; render(); }
   function render() {
@@ -20,35 +22,48 @@ export function createRulesReview(ctx) {
     const changes = reviewChanges(state, all, baseline, registry), rows = reviewRules(sections, state, { filter, changes, registry });
     const rule = reviewSelection(rows, selectedId); selectedId = rule?.id;
     host.replaceChildren();
-    const progress = all.filter(row => reviewRecord(state, row.id).reviewed).length;
-    host.append(el('p', `${progress} of ${all.length} reviewed · shared by both players`, 'rules-walk-progress'));
+    const progress = rows.filter(row => reviewRecord(state, row.id).reviewed).length;
+    host.append(el('p', `${progress} of ${rows.length} reviewed${advanced() ? ' (including advanced)' : ''} · shared by both players`, 'rules-walk-progress'));
     const filters = select([{ value: 'all', label: 'All rules' }, { value: 'unreviewed', label: 'Not reviewed' },
       { value: 'different', label: 'Different between players' }, { value: 'changed', label: 'Changed during this review' },
       ...(all.some(row => row.members === true || row.membersOnly === true || row.requiresMembers === true) ? [{ value: 'members', label: 'Members content' }] : [])], filter);
-    filters.addEventListener('change', () => { cancel(); filter = filters.value; render(); });
+    filters.addEventListener('change', () => { cancel(); filter = filters.value; render(); host.querySelector?.('[data-review-filter]')?.focus(); });
+    filters.dataset.reviewFilter = '';
     const jump = select([...new Map(rows.map(row => [row.sectionId, { value: row.sectionId, label: row.sectionName }])).values()], rule?.sectionId);
-    jump.addEventListener('change', () => { cancel(); selectedId = rows.find(row => row.sectionId === jump.value)?.id; render(); });
-    const nav = el('div', undefined, 'rules-walk-navigation');
+    jump.disabled = !rows.length;
+    jump.addEventListener('change', () => { cancel(); selectedId = rows.find(row => row.sectionId === jump.value)?.id; render(); host.querySelector?.('h3')?.focus(); });
     const move = direction => { cancel(); selectedId = reviewSelection(rows, selectedId, direction)?.id; render(); host.querySelector?.('h3')?.focus?.(); };
-    const previous = button('Previous', () => move(-1)), next = button('Next', () => move(1));
     const index = rows.findIndex(row => row.id === selectedId);
-    previous.disabled = index <= 0; next.disabled = index < 0 || index === rows.length - 1;
-    nav.append(previous, el('span', rows.length ? `${index + 1} of ${rows.length}` : '0 rules'), next);
+    const navigation = label => {
+      const nav = el('nav', undefined, 'rules-walk-navigation'); nav.setAttribute('aria-label', label);
+      const previous = button('Previous', () => move(-1)), next = button('Next', () => move(1));
+      previous.disabled = index <= 0; next.disabled = index < 0 || index === rows.length - 1;
+      previous.setAttribute('aria-keyshortcuts', 'Alt+ArrowLeft'); next.setAttribute('aria-keyshortcuts', 'Alt+ArrowRight');
+      nav.append(previous, el('span', rows.length ? `${index + 1} of ${rows.length}` : '0 rules'), next);
+      return nav;
+    };
+    host.onkeydown = event => {
+      if (!event.altKey || event.ctrlKey || event.metaKey || event.shiftKey || event.target?.isContentEditable
+        || /^(INPUT|TEXTAREA|SELECT)$/.test(event.target?.tagName)) return;
+      const direction = event.key === 'ArrowLeft' ? -1 : event.key === 'ArrowRight' ? 1 : 0;
+      if (!direction || index + direction < 0 || index + direction >= rows.length) return;
+      event.preventDefault(); move(direction);
+    };
     const tools = el('div', undefined, 'rules-walk-tools'); tools.append(field('Show', filters), field('Section', jump));
-    host.append(tools, nav);
+    host.append(tools, navigation('Review navigation'));
     if (!rule) host.append(el('p', 'No rules match this filter. Choose All rules to keep going.', 'empty-list'));
     else {
-      const title = el('h3', rule.label); title.tabIndex = -1;
+      const label = reviewRuleLabel(rule), title = el('h3', label); title.tabIndex = -1;
       const sheet = el('section', undefined, 'rules-walk-rule'); sheet.dataset.ruleId = rule.id;
       sheet.append(el('p', rule.sectionName, 'field-help'), title);
-      if (rule.description) sheet.append(el('p', rule.description, 'rules-walk-explanation'));
+      if (advanced()) sheet.append(el('small', rule.id, 'rules-walk-id'));
+      if (rule.description && reviewRuleLabel({ ...rule, label: rule.id }) !== label) sheet.append(el('p', rule.description, 'rules-walk-explanation'));
       const more = details('More');
       for (const text of rule.tooltips ?? []) more.append(el('p', text, 'rules-original-tooltip'));
       if (rule.currentDescription && rule.currentDescription !== rule.description) more.append(el('p', rule.currentDescription));
       const behavior = rule.sharedRuleId ? null : taskRuleBehavior(rule.id);
-      if (behavior && ['retained-only', 'not-implemented', 'partial'].includes(behavior.status)) more.append(el('p', behavior.detail));
-      if (!(rule.tooltips?.length || rule.currentDescription)) more.append(el('p', rule.description || rule.label));
-      sheet.append(more);
+      if (behavior && ['retained-only', 'not-implemented', 'partial'].includes(behavior.status)) more.append(el('p', advanced() ? behavior.detail : 'Some parts of this rule do not affect tasks yet.'));
+      if (rule.tooltips?.length || rule.currentDescription || behavior && ['retained-only', 'not-implemented', 'partial'].includes(behavior.status)) sheet.append(more);
       const values = el('dl', undefined, 'rules-walk-values');
       for (const member of state.members) {
         const automatic = rule.sharedRuleId ? registry.get(rule.sharedRuleId).default : taskRuleAutomaticValue(state, member.id, rule).value;
@@ -63,9 +78,10 @@ export function createRulesReview(ctx) {
       const fresh = () => options.current() && !options.busy() && writable() && ctx.state().revision === renderedRevision;
       if (writable()) {
         const who = select([...state.members.map(member => ({ value: member.id, label: member.name })), { value: 'both', label: 'Both players' }], target);
+        who.dataset.changeFor = '';
         who.disabled = options.busy() || !!rule.sharedRuleId;
         if (rule.sharedRuleId) who.value = 'both';
-        who.addEventListener('change', () => { cancel(); target = who.value; render(); });
+        who.addEventListener('change', () => { cancel(); target = who.value; render(); focus('[data-change-for]'); });
         const controls = el('div', undefined, 'rules-walk-controls'); controls.append(field('Change for', who));
         const ids = () => target === 'both' ? ctx.state().members.map(member => member.id) : [target];
         const apply = async value => {
@@ -73,11 +89,14 @@ export function createRulesReview(ctx) {
           cancel();
           await options.save(rule.sharedRuleId ? [{ type: 'set-rule', ruleId: rule.sharedRuleId, value }]
             : planTaskRuleChange(ctx.state(), ids(), rule, value).commands, renderedRevision);
+          focus(`[data-set-value="${value}"]`);
         };
         if (rule.type === 'boolean') {
           for (const value of [true, false]) {
             const set = button(value ? 'On' : 'Off', () => apply(value)); set.disabled = options.busy();
-            set.setAttribute('aria-label', `Set ${rule.label} ${value ? 'On' : 'Off'}`); controls.append(set);
+            set.dataset.setValue = String(value);
+            set.setAttribute('aria-label', `Set ${label} ${value ? 'On' : 'Off'}`);
+            set.setAttribute('aria-pressed', String(ids().every(id => reviewValue(state, id, rule, registry) === value))); controls.append(set);
           }
         } else {
           const value = rule.type === 'enum' ? select(rule.options, selectedValue) : input(rule.type === 'number' ? 'number' : 'text', selectedValue ?? '');
@@ -89,22 +108,25 @@ export function createRulesReview(ctx) {
         if (!rule.sharedRuleId) {
           const automatic = ids().map(id => taskRuleAutomaticValue(state, id, rule).value);
           const same = automatic.every((value, i) => Object.is(value, reviewValue(state, ids()[i], rule, registry)));
-          const label = same ? 'Same as automatic' : `Use automatic (${automatic.every(value => Object.is(value, automatic[0])) ? ruleValueText(automatic[0]) : 'different values'})`;
-          const reset = button(label, async () => {
-            if (!fresh()) { options.stale(); render(); return; }
-            cancel(); await options.save(ids().filter(id => Object.hasOwn(ctx.state().members.find(member => member.id === id).taskRules ?? {}, rule.id))
-              .map(memberId => ({ type: 'reset-task-rule', memberId, ruleId: rule.id })), renderedRevision);
-          });
-          reset.disabled = options.busy() || same; controls.append(reset);
+          if (same) controls.append(el('p', 'Same as automatic', 'field-help rules-walk-automatic'));
+          else {
+            const reset = button(`Use automatic (${automatic.every(value => Object.is(value, automatic[0])) ? ruleValueText(automatic[0]) : 'different values'})`, async () => {
+              if (!fresh()) { options.stale(); render(); return; }
+              cancel(); await options.save(ids().filter(id => Object.hasOwn(ctx.state().members.find(member => member.id === id).taskRules ?? {}, rule.id))
+                .map(memberId => ({ type: 'reset-task-rule', memberId, ruleId: rule.id })), renderedRevision);
+            });
+            reset.disabled = options.busy(); controls.append(reset);
+          }
         }
         sheet.append(controls);
         if (!rule.sharedRuleId) {
           const preview = el('div', undefined, 'rules-walk-preview');
           const previewMember = select(state.members.map(member => ({ value: member.id, label: member.name })), owner.id);
-          previewMember.addEventListener('change', () => { cancel(); target = previewMember.value; render(); });
+          previewMember.dataset.previewMember = '';
+          previewMember.addEventListener('change', () => { cancel(); target = previewMember.value; render(); focus('[data-preview-member]'); });
           const value = rule.type === 'boolean' ? select([{ value: 'true', label: 'On' }, { value: 'false', label: 'Off' }], String(previewValue))
             : rule.type === 'enum' ? select(rule.options, previewValue) : input(rule.type === 'number' ? 'number' : 'text', previewValue ?? '');
-          value.addEventListener('change', () => { cancel(); previewValue = rule.type === 'boolean' ? value.value === 'true' : rule.type === 'number' ? Number(value.value) : value.value; render(); });
+          value.addEventListener('change', () => { cancel(); previewValue = rule.type === 'boolean' ? value.value === 'true' : rule.type === 'number' ? Number(value.value) : value.value; message.textContent = ''; });
           const message = el('p', previewStatus, 'rules-walk-preview-status'); message.setAttribute('role', 'status');
           const check = button('Check task effect', async () => {
             if (!options.current()) return;
@@ -141,18 +163,21 @@ export function createRulesReview(ctx) {
         await options.save([{ type: 'set-rule-review', ruleId: rule.id, reviewed: checked, note: text }], renderedRevision);
         if (reviewRecord(ctx.state(), rule.id).note === text && drafts.get(rule.id) === submittedDraft) drafts.delete(rule.id);
         render();
+        focus(checked !== record.reviewed ? 'h3' : '[data-save-note]');
       };
       reviewed.disabled = note.disabled = !writable() || options.busy();
       reviewed.addEventListener('change', () => saveRecord(reviewed.checked).catch(ctx.showError));
-      sheet.append(tick, field('Shared note (up to 500 characters)', note));
+      if (writable()) sheet.append(tick, field('Shared note (up to 500 characters)', note));
+      else sheet.append(el('p', record.reviewed ? 'Reviewed together' : 'Not reviewed yet'), el('p', record.note || 'No shared note.', 'rules-walk-note'));
       if (writable() && drafts.has(rule.id) && draft.revision !== renderedRevision) {
         sheet.append(el('p', `The save changed. Saved note: ${record.note || '(empty)'}`, 'field-help'), button('Keep draft after reading saved note', () => {
           if (!fresh()) { options.stale(); render(); return; }
           drafts.set(rule.id, { note: note.value, revision: renderedRevision }); render();
         }), button('Reload saved note', () => { drafts.delete(rule.id); render(); }));
       }
-      if (writable()) { const saveNote = button('Save note', () => saveRecord(record.reviewed)); saveNote.disabled = options.busy(); sheet.append(saveNote); }
+      if (writable()) { const saveNote = button('Save note', () => saveRecord(record.reviewed)); saveNote.dataset.saveNote = ''; saveNote.disabled = options.busy(); sheet.append(saveNote); }
       host.append(sheet);
+      if (rows.length > 1) host.append(navigation('Review navigation after note'), el('p', 'Keyboard: Alt + ← Previous · Alt + → Next', 'field-help rules-walk-shortcuts'));
     }
     const summaryText = reviewSummary(changes), summary = details(`Changes made during this review (${changes.length})`);
     const list = el('ul');
