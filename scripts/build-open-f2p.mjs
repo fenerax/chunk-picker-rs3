@@ -3,7 +3,7 @@ import { createHash } from 'node:crypto';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { wikiReceiptSha256 } from './lib/open-f2p-receipt.mjs';
-import { buildServices } from './lib/open-f2p-services.mjs';
+import { buildServices, buildOrdinarySupplies } from './lib/open-f2p-services.mjs';
 import { buildWalking } from './lib/open-f2p-walking.mjs';
 import { buildStories } from './lib/open-f2p-stories.mjs';
 import { buildEquipment } from './lib/open-f2p-equipment.mjs';
@@ -145,10 +145,12 @@ export async function buildOpenF2P({ cacheDir = defaultCache, outputDir = defaul
   tasks.push(...facilities.tasks);
   const stories = buildStories({ spec, pages, cells, templates });
   tasks.push(...stories.tasks);
+  const ordinary = buildOrdinarySupplies({ spec, pages, cells });
+  tasks.push(...ordinary.tasks);
   const gear = buildEquipment({ spec, pages, cells, templates, stock: facilities.stock, sources: sourceRows });
   tasks.push(...gear.tasks);
   const usedPages = new Set([...cells.values(), ...sourceRows, ...connections, ...tasks, ...facilities.shops, ...facilities.stock, ...facilities.services, ...facilities.routes,
-    ...stories.quests, ...stories.achievements, ...stories.achievementReview,
+    ...stories.quests, ...stories.achievements, ...stories.achievementReview, ...ordinary.harvests, ...ordinary.dialogueSupplies,
     ...gear.equipment, ...gear.acquisitions, ...gear.monsters, ...gear.drops, ...gear.facilities, ...gear.recipes, ...gear.equipmentReview].flatMap(row => row.provenance.map(p => p.page)));
   const coverage = { cells: cells.size, connections: connections.length, sources: sourceRows.length, tasks: tasks.length,
     wikiPages: usedPages.size, ...(spec.shops ? { shops: facilities.shops.length, stock: facilities.stock.length,
@@ -156,6 +158,7 @@ export async function buildOpenF2P({ cacheDir = defaultCache, outputDir = defaul
       routes: facilities.routes.length } : {}), ...(spec.questActivities ? { quests: stories.quests.length, achievements: stories.achievements.length,
       seasonalQuests: stories.quests.filter(row => row.seasonal).length, skippedAchievements: stories.achievementReview.length } : {}), omitted: spec.omitted };
   Object.assign(coverage, Object.fromEntries(['equipment', 'acquisitions', 'monsters', 'drops', 'facilities', 'recipes', 'equipmentReview'].map(key => [key, gear[key].length])));
+  Object.assign(coverage, { harvests: ordinary.harvests.length, dialogueSupplies: ordinary.dialogueSupplies.length });
   const dataset = { schemaVersion: 1, id: spec.id, version: spec.version, licence: 'CC-BY-NC-SA-3.0',
     coordinateDerivation: { cellSize: 64, idFormula: 'floor(x / 64) * 256 + floor(y / 64)',
       description: 'Project-authored arithmetic converts Wiki tile coordinates to standard region keys. Wiki provenance supports the input coordinates; no Wiki statement of the numeric ID formula was found.',
@@ -164,6 +167,7 @@ export async function buildOpenF2P({ cacheDir = defaultCache, outputDir = defaul
     ...(spec.shops ? { shops: facilities.shops, stock: facilities.stock, services: facilities.services, routes: facilities.routes } : {}),
     ...(spec.questActivities ? { quests: stories.quests, achievements: stories.achievements, achievementReview: stories.achievementReview } : {}),
     equipment: gear.equipment, acquisitions: gear.acquisitions, monsters: gear.monsters, drops: gear.drops, facilities: gear.facilities, recipes: gear.recipes, equipmentReview: gear.equipmentReview,
+    harvests: ordinary.harvests, dialogueSupplies: ordinary.dialogueSupplies,
     buildInputs: { authored: { path: 'app/datasets/open-f2p/authored/batch.json', sha256: hash(authoredBytes) }, wiki: receipts } };
   const bytes = JSON.stringify(dataset, null, 2) + '\n';
   await mkdir(outputDir, { recursive: true });

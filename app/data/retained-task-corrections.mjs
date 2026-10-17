@@ -1,5 +1,6 @@
 import { datasetJSON } from "../dataset-runtime.mjs";
 import { createHash } from 'node:crypto';
+import { selectedRetainedTaskCorrections } from './selected-definition-overlays.mjs';
 const evidence = await datasetJSON("app/data/retained-task-corrections.2026-10-09.v1.json");
 const entryEvidence = await datasetJSON("app/data/retained-entry-corrections.2026-10-12.v2.json");
 const wordingEvidence = await datasetJSON("app/data/retained-wording-corrections.2026-10-12.v1.json");
@@ -8,6 +9,7 @@ export const retainedTaskCorrections = evidence;
 export const retainedEntryCorrections = entryEvidence;
 export const retainedWordingCorrections = wordingEvidence;
 const reviewedCorrections = [...evidence.corrections, ...entryEvidence.corrections, ...wordingEvidence.corrections];
+const selectedCorrections = selectedRetainedTaskCorrections.filter(row => !reviewedCorrections.some(existing => JSON.stringify(existing) === JSON.stringify(row)));
 const hash = value => createHash('sha256').update(JSON.stringify(value)).digest('hex');
 const fields = new Set(['Level', 'Description', 'RequirementAlternatives', 'RequirementAlternativesDescription', 'Skills']);
 
@@ -54,4 +56,9 @@ export function applyRetainedTaskCorrections(definitions, { corrections = review
     };
   }
   return result;
+}
+
+/** Only the selected full-dataset preparation boundary enables successors. */
+export function applySelectedRetainedTaskCorrections(definitions) {
+  return applyRetainedTaskCorrections(definitions, { corrections: selectedCorrections, strict: true });
 }

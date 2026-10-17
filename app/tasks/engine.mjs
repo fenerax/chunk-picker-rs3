@@ -34,6 +34,8 @@ import { applyDivinationTraining } from '../data/divination-training.mjs';
 import { personalQuestProgressBlocker } from './personal-quest-progress.mjs';
 import { taskRuleEnabled } from './rule-defaults.mjs';
 import { withActivityTimingTags } from '../data/activity-timing.mjs';
+import { compileDialogueSupply, dialogueSupplyBlocker, dialogueSupplyNote, dialoguePaymentText, compileFiniteRewards, finiteRewardPreview,
+  compilePersonalAlternatives, personalAlternativesBlocker, compileSourceLocations, sourceLocationBlocker } from './reviewed-supplies.mjs';
 
 // Authored implementation. Reference JSON is declarative input, never executable code.
 export const taskId = permanentTaskId;
@@ -59,6 +61,10 @@ KNOWN.add('RequirementAlternativesDescription');
 KNOWN.add('PersonalQuestProgress');
 KNOWN.add('ManualChecks');
 KNOWN.add('CompletedTasks');
+KNOWN.add('DialogueSupply');
+KNOWN.add('FiniteRewards');
+KNOWN.add('PersonalRequirementAlternatives');
+KNOWN.add('SourceLocations');
 function compileManualChecks(value) {
   if (value === undefined) return [];
   if (!Array.isArray(value) || value.some(reason => typeof reason !== 'string' || !reason.trim())) return null;
@@ -121,14 +127,14 @@ function experienceLevel(xp, ceiling = 120) {
  * Explicit booleans force a preview scenario; omitted options read state.rules.
  * Separate compiled variants keep disabled outputs out of capability closure. */
 export function createTaskEngine(definitions, options = {}) {
-  const { dataset, skillGuideTasks, skillGuideMilestones, skillGuideCorrections, retainedTaskCorrections, retainedUnsupportedCorrections, divinationTraining, skillGuideCatalogue: catalogue = skillGuideCatalogue,
+  const { dataset, reviewedOverlays = Boolean(dataset), skillGuideTasks, skillGuideMilestones, skillGuideCorrections, retainedTaskCorrections, retainedUnsupportedCorrections, divinationTraining, skillGuideCatalogue: catalogue = skillGuideCatalogue,
     skillGuideCorrectionOverlay = applySkillguideCombatCorrections, ...baseOptions } = options;
   for (const [name, value] of Object.entries({ skillGuideTasks, skillGuideMilestones, skillGuideCorrections })) {
     if (value !== undefined && typeof value !== 'boolean') throw new TypeError(`${name} must be a boolean.`);
   }
   if (!definitions || typeof definitions.challenges !== 'object') throw new TypeError('Task definitions need challenges.');
   if (dataset) requireSelectedDataset(dataset);
-  definitions = prepareTaskDefinitions(definitions, dataset, { ...baseOptions, divinationTraining, retainedTaskCorrections, retainedUnsupportedCorrections });
+  definitions = prepareTaskDefinitions(definitions, dataset, { ...baseOptions, reviewedOverlays, divinationTraining, retainedTaskCorrections, retainedUnsupportedCorrections });
   if (dataset) {
     for (const key of ['cacheWalking', 'cacheResources', 'cacheArchaeology', 'cacheShops']) baseOptions[key] ??= dataset.capabilities[key];
     baseOptions.dataset = dataset;
@@ -218,6 +224,16 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
     if (requirementAlternatives === null) unknown.push('Invalid RequirementAlternatives');
     const manualChecks = compileManualChecks(record.ManualChecks);
     if (manualChecks === null) unknown.push('Invalid ManualChecks');
+    const dialogueSupply = compileDialogueSupply(record.DialogueSupply);
+    if (dialogueSupply === null) unknown.push('Invalid DialogueSupply');
+    if (dialogueSupply && (!array(record.NPCs).length || array(record.NPCs).some(name => typeof name !== 'string' || !name.trim())
+      || !array(record.Output).length || array(record.Output).some(name => typeof name !== 'string' || !name.trim()))) unknown.push('DialogueSupply needs an NPC and output');
+    const finiteRewards = compileFiniteRewards(record.FiniteRewards, record);
+    if (finiteRewards === null) unknown.push('Invalid FiniteRewards');
+    const personalAlternatives = compilePersonalAlternatives(record.PersonalRequirementAlternatives);
+    if (personalAlternatives === null) unknown.push('Invalid PersonalRequirementAlternatives');
+    const sourceLocations = compileSourceLocations(record.SourceLocations);
+    if (sourceLocations === null) unknown.push('Invalid SourceLocations');
     const completedDependencies = record.CompletedTasks === undefined ? [] : record.CompletedTasks;
     const validCompletedDependencies = Array.isArray(completedDependencies) && completedDependencies.every(isPermanentId);
     if (!validCompletedDependencies) unknown.push('Invalid CompletedTasks');
@@ -233,7 +249,7 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
     const item = { id: taskId(category, rawLabel, record), key: keyOf(category, rawLabel), order: compiled.length, label: plainLabel(rawLabel), rawLabel, category, level, record, unknown, requirements, dependencies,
       wiki: wiki ? `https://runescape.wiki/w/${encodeURIComponent(wiki.replace(/#/g, '/'))}` : undefined,
       needs: Object.entries(needs), presentationNeeds: Object.entries({ ...record.Requirements, ...record.SkillsNeeded, ...record.Skills, ...(skillCaps[category] ? { [category]: level } : {}) }),
-      tags: array(record.Category), manualChecks: manualChecks ?? [], completedDependencies: validCompletedDependencies ? [...new Set(completedDependencies)] : [], requirementAlternatives: requirementAlternatives ?? [], localRequirements: requirements.filter(requirement => requirement.field !== 'Items'), itemRequirements: requirements.filter(requirement => requirement.field === 'Items') };
+      tags: array(record.Category), manualChecks: manualChecks ?? [], dialogueSupply, finiteRewards: finiteRewards ?? [], personalAlternatives: personalAlternatives ?? [], sourceLocations: sourceLocations ?? [], completedDependencies: validCompletedDependencies ? [...new Set(completedDependencies)] : [], requirementAlternatives: requirementAlternatives ?? [], localRequirements: requirements.filter(requirement => requirement.field !== 'Items'), itemRequirements: requirements.filter(requirement => requirement.field === 'Items') };
     if (unknown.length) compileDiagnostics.push({ kind: 'unknown-metadata', taskId: item.id, fields: unknown });
     compiled.push(item); byKey.set(item.key, item);
   }
@@ -317,6 +333,7 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
       task.invalidRequirements = task.requirements.filter(requirement => requirement.alias && !requirement.alternatives && requirement.clean !== 'Monster[+]');
       task.invalidDependencies = task.dependencies.filter(dependency => dependency.alias ? !dependency.alternatives : !byKey.has(keyOf(dependency.category, dependency.clean.split('--')[0])));
       task.invalidCompletedDependencies = task.completedDependencies.filter(id => !byId.has(id));
+      task.invalidCompletedDependencies.push(...task.personalAlternatives.filter(clause => clause.completedTask && !byId.has(clause.completedTask)).map(clause => clause.completedTask));
     }
     unsupportedTasks = new Set(compiled.filter(task => task.unknown.length || task.record.Categories || task.record.OutputVar
       || task.invalidRequirements.length || task.invalidDependencies.length || task.invalidCompletedDependencies.length
@@ -448,6 +465,7 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
     // level, reward or prerequisite whose hard requirements are still unknown.
     const valid = new Set(), validRows = [], completed = recordedCompleted;
     const completedTask = task => completed.has(task.id) && !unsupportedTasks.has(task);
+    const supportedPersonalCompletions = new Set([...recordedCompleted].filter(id => byId.has(id) && completedTask(byId.get(id))));
     const personallyCompletedQuests = compiled.filter(task => task.category === 'Quest' && completedTask(task)
       && task.record.QuestPoints !== undefined && (!member.questProgress?.[task.id]
         || sameRuneScapeName(member.questProgress[task.id].runescapeName, member.runescapeName)))
@@ -781,6 +799,7 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
     function computeObligation(task, visiting) {
       if (visiting.has(task.key)) return ownTaskKeys.has(task.key);
       visiting.add(task.key);
+      if (sourceLocationBlocker(task.sourceLocations, ownAccess)) return false;
       const local = task.localRequirements;
       if (task.record.UnlocksArea) return ownAccess.areas.has(task.rawLabel) || ownAccess.possibleAreas.has(task.rawLabel);
       if (task.record.ConnectsSections) return array(task.record.Sections).every(name => ownAccess.bases.has(name.split('-')[0]) || ownLocation(name)) && array(task.record.Sections).some(ownLocation);
@@ -866,6 +885,13 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
         const prerequisite = personalQuestProgressBlocker(record.PersonalQuestProgress, personallyCompletedQuests);
         if (prerequisite) add(prerequisite.kind, prerequisite.detail);
       }
+      const personalAlternative = personalAlternativesBlocker(task.personalAlternatives, personallyCompletedQuests, supportedPersonalCompletions,
+        id => byId.get(id)?.label ?? 'the entry confirmation');
+      if (personalAlternative) add(personalAlternative.kind, personalAlternative.detail);
+      const payment = dialogueSupplyBlocker(task.dialogueSupply, name => hasItem(name, record, category));
+      if (payment) add(payment.kind, payment.detail);
+      const sourceLocation = sourceLocationBlocker(task.sourceLocations, access);
+      if (sourceLocation) add(sourceLocation.kind, sourceLocation.detail);
       for (const id of task.completedDependencies) {
         counters.dependencyChecks++;
         const target = byId.get(id);
@@ -1034,6 +1060,10 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
       if (f2p && (task.record['Not F2P'] || membershipByTask.get(task).length
         || task.needs.some(([skill, level]) => typeof level === 'number' && level > f2pCap(skill)))) return false;
       if (unsupportedTasks.has(task)) return false;
+      // A recorded purchase does not make future goods free or preserve an
+      // inaccessible seller. Recheck payment/source capability on this adapter.
+      if (task.dialogueSupply && check(task).length) return false;
+      if (sourceLocationBlocker(task.sourceLocations, access)) return false;
       if (processingTasks.has(task) && !admitted.has(task.id) && !completedTask(task) && !(multi && multiAdmitted.has(task.id))) return false;
       let changed = false;
       const own = obligation(task);
@@ -1053,6 +1083,7 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
         if (!items.has(name)) { items.add(name); changed = true; }
         if (own && !ownItems.has(name)) { ownItems.add(name); changed = true; }
         changed = addSource(name, { kind: 'task', name: task.rawLabel, taskId: task.id, category: task.category, ...evidence,
+          ...(task.dialogueSupply ? { dialogueSupply: structuredClone(task.dialogueSupply), balanceVerified: false, renewable: true } : {}),
           own, ...(multi ? { processingMode: 'multi', producerLevel: task.level } : {}), ...(task.record.Source ? { sourceKind: task.record.Source } : {}), primary: primary && (!Object.hasOwn(evidence, 'probability') || passesRateCutoff(evidence.probability, rules, 'primary')) }) || changed;
       }
       if (multi) { remember(); return changed; }
@@ -1225,7 +1256,9 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
           if (requirement.field === 'Items') {
             for (const source of sourceList(name)) taskSources.push({ ...typeof source === 'object' ? source : { name: source }, item: name });
           } else taskSources.push({ kind: requirement.field.toLowerCase(), name,
-            locations: [...(access.locations.get(`${requirement.field === 'Objects' ? 'Object' : requirement.field === 'NPCs' ? 'NPC' : requirement.field === 'Monsters' ? 'Monster' : 'Shop'}:${name}`) ?? [])] });
+            locations: [...(access.locations.get(`${requirement.field === 'Objects' ? 'Object' : requirement.field === 'NPCs' ? 'NPC' : requirement.field === 'Monsters' ? 'Monster' : 'Shop'}:${name}`) ?? [])]
+              .filter(location => !task.sourceLocations.length || task.sourceLocations.filter(selector => selector.field === requirement.field && selector.name === name)
+                .every(selector => selector.locations.includes(location))) });
         }
       }
       const filters = [];
@@ -1253,6 +1286,15 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
       const explanation = blockers.length ? blockers.map(value => value.detail).join(' ') : taskSources.length ? 'You can reach the required locations, item sources, prerequisite tasks and training methods.' : completed.has(task.id) ? 'You recorded completing this task in-game.' : 'All listed requirements are met.';
       const sourceEligible = !processingTasks.has(task) || admitted.has(task.id) || completedTask(task);
       const row = { id: task.id, label: task.label, rawLabel: task.rawLabel, category: task.category, obligation: own, level: task.level, primary: !!record.Primary, ...(!sourceEligible && !blockers.length ? { sourceEligible: false } : {}), primaryMethod: !!primaryEligible(task, blockers.length > 0) && (task.category !== 'Smithing' || smithingPrimary), status: blockers.some(value => value.kind === 'unsupported') ? 'unsupported' : blockers.length ? 'blocked' : 'available', blockers, sources: taskSources, explanation: [explanation, ...partnerTraining, ...partnerSupplies, ...(!sourceEligible && !blockers.length ? ['You can make this recipe, but your processing rules exclude its products from available supplies and training.'] : [])].join(' '), personalCompleted: recordedCompleted.has(task.id), challengeSatisfied: challengeSatisfied(task.id), hidden: filters.length > 0, hiddenReasons: filters, wiki: task.wiki, baseQuest: record.BaseQuest, record };
+      if (task.dialogueSupply) {
+        row.dialogueSupply = structuredClone(task.dialogueSupply);
+        row.explanation += ` Payment: ${dialoguePaymentText(task.dialogueSupply)}. ${dialogueSupplyNote}`;
+      }
+      const rewards = finiteRewardPreview(task.finiteRewards, { ...row, taskId: task.id });
+      if (rewards.length) {
+        row.finiteRewards = rewards;
+        row.explanation += ` One-time completion reward: ${rewards.map(reward => `${reward.quantity} ${reward.item}`).join(', ')}. Held quantities are not tracked.`;
+      }
       if (partnerItemNeeds.length) row.partnerItemNeeds = partnerItemNeeds;
       // Direct same-quest prerequisites retain supply evidence when the whole
       // completion row hides its steps. Alternative branches stay unexpanded.
@@ -1280,6 +1322,7 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
         manualPrimary: playerControls.primaryOverrides[skill] === true }])), rules, definitions, serializedAccess, ordinaryProcessingInput);
     const result = { tasks: rows, houseStorage: { ...houseStorage, tasks: undefined }, playerControls, effectiveSlayerLock, slayerLockRelease, access: serializedAccess, obligationAccess: serializeAccess(ownAccess), ownItems: [...ownItems].sort(), ownItemOrigins, partnerConnections: connections ?? { regions: [], byChunk: {} }, items: [...items].sort().map(name => ({ name, sources: sourceList(name) })), equipment, training: Object.fromEntries(Object.keys(skillCaps).map(skill => [skill, { level: levels[skill], cap: caps[skill], primary: trained.has(skill), passiveLevel: passive[skill], viaPartners: ownTraining.has(skill) ? [] : [...(trainingVia.get(skill) ?? [])], primaryOverride: playerControls.primaryOverrides[skill] ?? null, manualPrimary: playerControls.primaryOverrides[skill] === true, passiveOverride: playerControls.passiveLevels[skill] ?? null, maxOverride: playerControls.maxLevels[skill] ?? null, observedLevel: observedProgress[skill]?.level ?? null, observedXp: observedProgress[skill]?.xp ?? null, observedSource: observedProgress[skill]?.source ?? null, observedFetchedAt: observedProgress[skill]?.fetchedAt ?? null, observedRunescapeName: observedProgress[skill]?.runescapeName ?? null, observedCapabilityLevel: observedProgress[skill] ? Math.min(observedProgress[skill].level, caps[skill]) : null }])), points, metrics: { ...counters, elapsedMs: performance.now() - started, catalogueCount: compiled.length, availableCount: rows.filter(row => row.status === 'available' && row.obligation).length, unsupportedCount: unsupported }, diagnostics, coverage: { declaredTasks: compiled.length, supportedTasks: compiled.length - unsupported, unsupportedTasks: unsupported, supportedFields: [...KNOWN].filter(field => !['Categories', 'OutputVar'].includes(field)), unsupportedFields: ['Categories', 'OutputVar'], unsupportedRules: UNSUPPORTED_RULES, limitations: ['Some original highest-level task links and Best in Slot comparisons are still incomplete.', 'Some optional XP choices and special item sources are still incomplete. Tasks with unsupported requirements or unidentified sources are excluded.'] } };
     Object.defineProperty(result, 'processing', { value: processing });
+    result.finiteRewards = rows.flatMap(row => row.finiteRewards ?? []);
     replay.finalizations++;
     Object.defineProperties(result.metrics, { processingAccessEvaluations: { value: replay.accessEvaluations },
       processingBaseCollections: { value: replay.baseCollections }, processingFinalizations: { value: replay.finalizations },

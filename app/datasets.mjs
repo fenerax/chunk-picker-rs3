@@ -58,9 +58,10 @@ export function datasetCapabilities(environment = process.env) {
   return Object.freeze({ cacheWalking: true, cacheResources: chosen.RS3_RESOURCE_CONTENTS !== 'retained', cacheArchaeology: chosen.RS3_ARCHAEOLOGY_CONTENTS === 'game-data', cacheShops: chosen.RS3_CACHE_SHOP_CONTENTS === '1',
     mapCorrections: true, divinationTraining: true, retainedTaskCorrections: true, retainedUnsupportedCorrections: true, metadataCorrections: true, equipmentCorrections: true });
 }
-export function datasetDigest(files, capabilities) {
+export function datasetDigest(files, capabilities, definitionOverlays = []) {
   const records = files.filter(record => ['input', 'evidence'].includes(record.kind)).map(({ path: name, bytes, sha256, kind }) => ({ path: name, bytes, sha256, kind })).sort((a, b) => a.path.localeCompare(b.path, 'en'));
-  return sha(JSON.stringify({ contract: DATASET_CONTRACT, capabilities, overlayOrder: DATASET_OVERLAY_ORDER, files: records }));
+  return sha(JSON.stringify({ contract: DATASET_CONTRACT, capabilities, overlayOrder: DATASET_OVERLAY_ORDER, files: records,
+    ...(definitionOverlays.length ? { definitionOverlays } : {}) }));
 }
 export function datasetRuleTextContract(capture) {
   const ruleKeys = ['key', 'default', 'hasDeclaredDefault', 'control', 'numericKey', 'parentKey', 'childKeys', 'childEnablePolicy', 'disabledChildPolicy'];
@@ -83,6 +84,7 @@ export async function datasetCatalogue(options = {}) {
     valueKeys: options.valueKeys ?? defaults.DATASET_VALUE_KEYS,
     ruleTextValueKeys: options.ruleTextValueKeys ?? defaults.RULE_TEXT_VALUE_KEYS,
     ruleContractValueKeys: options.ruleContractValueKeys ?? defaults.DATASET_RULE_CONTRACT_VALUE_KEYS,
+    definitionOverlays: options.definitionOverlays ?? defaults.DATASET_DEFINITION_OVERLAYS ?? [],
   };
 }
 export function datasetSourcePath(key, { root, mapAssetsDir, gameDataDir }) {
@@ -228,7 +230,7 @@ export async function resolveDataset(options = {}) {
       ruleContractHash = datasetRuleContractHash(values, catalogue.ruleContractValueKeys, capturedContracts);
       if (ruleContractHash !== data.manifest.ruleContractHash) fail();
       version = data.manifest.version;
-      if (datasetDigest(files, capabilities) !== data.manifest.datasetDigest) fail();
+      if (datasetDigest(files, capabilities, catalogue.definitionOverlays) !== data.manifest.datasetDigest) fail();
     } else {
       environment = datasetEnvironment(options.environment); capabilities = datasetCapabilities(environment);
       const inheritedSnapshots = options.legacyMetadataSnapshots;
@@ -281,12 +283,13 @@ export async function resolveDataset(options = {}) {
       }
       legacyMetadataSnapshots = Object.freeze(legacyMetadataSnapshots);
     }
-    const digest = datasetDigest(files, capabilities);
+    const digest = datasetDigest(files, capabilities, catalogue.definitionOverlays);
     if (options.digest !== undefined && options.digest !== digest) fail();
     if (installed && (installed.profile.datasetDigest !== digest || installed.profile.ruleContractHash !== ruleContractHash)) fail();
     const legacyGameDefaults = installed?.profile.gameDefaults ?? await loadGameDefaults('duo-legacy');
     const provider = {
       gameDefaults: legacyGameDefaults,
+      definitionOverlays: Object.freeze([...(catalogue.definitionOverlays ?? [])]),
       ...DATASET_CONTRACT, id: DATASET_CONTRACT.datasetId, contractVersion: DATASET_CONTRACT.datasetContractVersion, digest, capabilities, overlayOrder: DATASET_OVERLAY_ORDER, environment, ruleContractHash, packed,
       ...(installed ? { capabilities: Object.freeze({ ...capabilities, features: Object.freeze({ originalSync: false, gallery: false, projectUpdates: false }) }),
         materializeValues: () => encodeDatasetValue(values) } : {}),
@@ -339,6 +342,7 @@ export async function resolveDataset(options = {}) {
         if (!Object.hasOwn(trackedValues, key)) fail(); return trackedValues[key];
       },
       workerSelection: () => ({ root, packsDir, selection: structuredClone(receipt ?? { schemaVersion: 1, data: null }), mapAssetsDir, gameDataDir, environment, digest,
+        ...(catalogue.definitionOverlays?.length ? { definitionOverlays: catalogue.definitionOverlays } : {}),
         ...(installed ? { profilePath: installed.profilePath, profileSha256: installed.profileSha256 } : {}),
         ...(!packed ? { legacyMetadataFiles, legacyMetadataSnapshots, legacyMetadataMapAssetsDir: operatorMapAssetsDir ?? null } : {}) }),
       serialize: () => provider.workerSelection(),

@@ -8,7 +8,7 @@ export function datasetCatalogueKey(route, dataset) {
 }
 export async function datasetBrowserPayload(dataset) {
   return { schemaVersion: 1, dataset: dataset.status(), capabilities: dataset.capabilities,
-    gameDefaults: dataset.gameDefaults,
+    gameDefaults: dataset.gameDefaults, definitionOverlays: dataset.definitionOverlays ?? [],
     values: await materializeDatasetValues() };
 }
 export async function datasetLocalMetadataBytes(route, dataset) {

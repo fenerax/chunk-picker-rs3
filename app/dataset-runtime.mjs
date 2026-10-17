@@ -25,7 +25,7 @@ export let selectedDataset = await (async () => {
   };
   const values = decode(payload.values), cache = new Map();
   return Object.freeze({ ...payload.dataset, capabilities: payload.capabilities,
-    gameDefaults: payload.gameDefaults,
+    gameDefaults: payload.gameDefaults, definitionOverlays: payload.definitionOverlays ?? [],
     status: () => payload.dataset,
     value(key) {
       if (!Object.hasOwn(values, key)) throw new Error('Game data does not contain the requested catalogue.');
@@ -98,6 +98,7 @@ export function datasetEngineContext(dataset = selectedDataset) {
 // gameplay/rule/identity inputs must already be identical to the bootstrap.
 export function adoptLegacyMetadataProvider(dataset) {
   const core = provider => JSON.stringify({ capabilities: provider.capabilities,
+    definitionOverlays: provider.definitionOverlays ?? [],
     files: provider.files.filter(file => !file.path.startsWith('local-map/') && !file.path.startsWith('local-game/'))
       .map(({ path, bytes, sha256, kind }) => ({ path, bytes, sha256, kind })).sort((a, b) => a.path.localeCompare(b.path)),
   });

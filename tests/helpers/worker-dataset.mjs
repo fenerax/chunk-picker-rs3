@@ -6,6 +6,6 @@ export function genericWorkerData(input) {
   return { ...input,
     datasetSelection: input.datasetSelection ?? selectedDataset.workerSelection(),
     datasetDigest: input.datasetDigest ?? selectedDataset.digest,
-    datasetOptions: { cacheWalking: false, ...input.datasetOptions },
+    datasetOptions: { cacheWalking: false, reviewedOverlays: false, ...input.datasetOptions },
   };
 }

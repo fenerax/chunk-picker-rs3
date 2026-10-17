@@ -27,7 +27,7 @@ import { constants as zlibConstants, crc32, gzipSync } from 'node:zlib';
 const rawDefinitions = workerData.definitionBytes === undefined ? workerData.definitions
   : JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(workerData.definitionBytes));
 if (workerData.datasetDigest && workerData.datasetDigest !== selectedDataset.digest) throw new Error('Worker dataset digest mismatch.');
-const definitions = prepareWorkerDefinitions(rawDefinitions, selectedDataset, workerData.preparedDatasetStages);
+const definitions = prepareWorkerDefinitions(rawDefinitions, selectedDataset, workerData.preparedDatasetStages, workerData.datasetOptions);
 const mapLocationResults = new WeakMap();
 function mapPlayResult(result) {
   let locations = mapLocationResults.get(result);

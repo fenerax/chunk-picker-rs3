@@ -1,6 +1,6 @@
 import { resolveDataset } from './datasets.mjs';
 import { defaultGameDirectory, prepareGameStorage, gameArtOptions, datasetFeature, unavailableDatasetFeature, requireGameBackup, preserveGameIdentity } from './game-profile.mjs';
-import { prepareServerDefinitions } from './dataset-pipeline.mjs';
+import { prepareServerDefinitions, preparedDefinitionStages } from './dataset-pipeline.mjs';
 import { datasetCatalogueKey, datasetBrowserPayload, datasetLocalMetadataBytes } from './dataset-catalogues.mjs';
 import { datasetJSON, selectedDataset, adoptLegacyMetadataProvider } from "./dataset-runtime.mjs";
 import http from 'node:http';
@@ -266,7 +266,7 @@ async function startTaskWorker(definitions, definitionBytes, world, registry, op
     new Uint8Array(shared).set(definitionBytes);
     input = { definitionBytes: shared };
   }
-  return createTaskScheduler({ ...options, workerData: { ...input, datasetSelection: dataset.workerSelection(), datasetDigest: dataset.digest, datasetOptions, preparedDatasetStages: [...(dataset.capabilities.equipmentCorrections ? ['equipmentCorrections'] : []), ...(dataset.capabilities.cacheShops ? ['cacheShops'] : [])], world: { chunks: world.chunks, areas: world.areas, ...(world.surface ? { surface: world.surface } : {}) }, extraRules } });
+  return createTaskScheduler({ ...options, workerData: { ...input, datasetSelection: dataset.workerSelection(), datasetDigest: dataset.digest, datasetOptions, preparedDatasetStages: preparedDefinitionStages(definitions), world: { chunks: world.chunks, areas: world.areas, ...(world.surface ? { surface: world.surface } : {}) }, extraRules } });
 }
 
 function migrationSummary(state) {
@@ -423,10 +423,10 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
   const originalData = await loadDatasetInputs(dataset, { loadDefinitions: definitions === undefined, loadTaskMap: taskMap === undefined });
   let definitionBytes = definitions === undefined ? originalData.definitionBytes : Buffer.from(JSON.stringify(definitions));
   const taskBytes = taskMap === undefined ? originalData.taskBytes : Buffer.from(JSON.stringify(taskMap));
-  const parsedDefinitions = prepareServerDefinitions(JSON.parse(definitionBytes.toString('utf8')), dataset);
+  const parsedDefinitions = prepareServerDefinitions(JSON.parse(definitionBytes.toString('utf8')), dataset, { reviewedOverlays: definitions === undefined });
   definitionBytes = Buffer.from(JSON.stringify(parsedDefinitions));
   const parsedTaskMap = JSON.parse(taskBytes.toString('utf8'));
-  const datasetOptions = definitions === undefined ? {} : { cacheWalking: false };
+  const datasetOptions = { reviewedOverlays: definitions === undefined, ...(definitions === undefined ? {} : { cacheWalking: false }) };
   const indexedWorld = world ?? buildWorld(parsedDefinitions, { dataset, ...datasetOptions });
   startupTimingMs.cataloguesMs = performance.now() - initializationStarted;
   const workerStarted = performance.now();

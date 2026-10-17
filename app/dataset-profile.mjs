@@ -19,7 +19,7 @@ export function validateDatasetProfile(value) {
     || !digest.test(value.datasetDigest ?? '') || !digest.test(value.ruleContractHash ?? '')
     || !plain(value.catalogue) || !plain(value.gameDefaults)) fail();
   if (Object.keys(value).some(key => !['schemaVersion', 'datasetId', 'datasetDigest', 'ruleContractHash', 'catalogue', 'gameDefaults'].includes(key))
-    || Object.keys(value.catalogue).some(key => !catalogueKeys.includes(key))) fail();
+    || Object.keys(value.catalogue).some(key => ![...catalogueKeys, 'definitionOverlays'].includes(key))) fail();
   for (const key of catalogueKeys) {
     const rows = value.catalogue[key];
     if (!Array.isArray(rows) || !rows.length || rows.length > 10000 || rows.some(row => typeof row !== 'string' || row.length > 512)) fail();
@@ -31,6 +31,11 @@ export function validateDatasetProfile(value) {
     }
   }
   const values = new Set([...value.catalogue.valueKeys, ...value.catalogue.ruleTextValueKeys]);
+  if (value.catalogue.definitionOverlays !== undefined) {
+    const overlays = value.catalogue.definitionOverlays;
+    if (!Array.isArray(overlays) || overlays.length > 100 || new Set(overlays).size !== overlays.length
+      || overlays.some(key => typeof key !== 'string' || !key.endsWith('.json') || !value.catalogue.inputs.includes(key))) fail();
+  }
   if (value.catalogue.ruleContractValueKeys.some(key => !values.has(key))) fail();
   const defaults = value.gameDefaults;
   if (!Array.isArray(defaults.members) || !defaults.members.length || defaults.members.length > 32
