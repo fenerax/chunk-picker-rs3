@@ -17,6 +17,7 @@ export const quickTests = new Set([
   "advanced-preference.test.mjs",
   "area-check-controller.test.mjs",
   "area-check-selection.test.mjs",
+  "area-check-tasks.test.mjs",
   "area-check.test.mjs",
   "art-fallbacks.test.mjs",
   "backlog-reason.test.mjs",
@@ -134,6 +135,7 @@ export const quickTests = new Set([
   "xp-choices-web.test.mjs"
 ]);
 const fullOnlyTests = new Set([
+  "area-check-server.test.mjs",
   "banking-routes.test.mjs",
   "achievement-rules.test.mjs",
   "activity-view.test.mjs",

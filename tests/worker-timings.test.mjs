@@ -84,6 +84,22 @@ test('worker reports compilation and all evaluation stages without personal timi
   assert.equal(response.timingMs.deathMs, 0);
 });
 
+test('area checks reuse live baselines, include full ordinary goals and keep draft membership out of the cache', async t => {
+  const { send } = await fixture(t);
+  const baseline = await send({ type: 'evaluate' });
+  const area = await send({ type: 'area-check', chunkId: { chunkIds: ['12342'], asMembers: true } });
+  assert.equal(area.error, undefined);
+  assert.equal(area.result.cache.baselineHit, true);
+  assert.deepEqual(area.result.tasks.combined.categories.find(group => group.category === 'Quest').tasks.map(task => task.label), ['Future quest']);
+  assert.ok(area.timingMs.collectionMs > 0, 'area scenarios use the ordinary collection pipeline');
+  assert.ok(area.timingMs.equipmentMs > 0, 'area scenarios use the ordinary equipment pipeline');
+  assert.equal(area.timingMs.currentBiSMs, 0);
+  assert.equal(area.timingMs.activityMs, 0);
+  const unchanged = await send({ type: 'evaluate' });
+  assert.equal(unchanged.timingMs.engineMs, 0);
+  assert.deepEqual(unchanged.result, baseline.result);
+});
+
 test('predictions reuse the baseline and time full hypothetical obligations without mutating state', async t => {
   const { state, send } = await fixture(t);
   const before = structuredClone(state);

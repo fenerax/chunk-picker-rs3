@@ -2,6 +2,15 @@
 .area-check-controls{display:flex;align-items:center;flex-wrap:wrap;gap:var(--space-5) var(--space-6)}
 .area-check-controls .form-field{flex-direction:row;align-items:center}
 .area-check-panel>button{justify-self:start}
+.area-check-tasks{margin-bottom:var(--space-6);min-width:0}
+.area-check-tasks h3{margin:0;font-size:var(--type-body)}
+.area-check-task-scopes{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--space-6);margin:var(--space-5) 0}
+.area-check-task-scope{min-width:0}
+.area-check-task-scope h4{margin:0;font-size:var(--type-sm);font-weight:var(--weight-semibold)}
+.area-check-task-summary{margin:var(--space-2) 0 var(--space-3);font-size:var(--type-body);line-height:var(--leading-body)}
+.area-check-task-details{font-size:var(--type-sm);border-bottom:var(--border-thin) solid var(--hairline)}
+.area-check-task-details>summary{min-height:44px;box-sizing:border-box;padding:var(--space-3) 0;align-content:center;cursor:pointer;color:var(--panel-link,var(--link));overflow-wrap:anywhere}
+.area-check-task-details ul{padding-left:var(--space-6);line-height:var(--leading-body);overflow-wrap:anywhere}
 .area-check-note,.area-check-methods{font-size:var(--type-sm);color:var(--panel-muted,var(--muted));line-height:var(--leading-body)}
 .area-check-note{margin:0 0 var(--space-5);max-width:70ch}
 .area-check-biggest{font-size:var(--type-body);color:var(--panel-link,var(--link));margin-bottom:var(--space-5)}
@@ -38,6 +47,7 @@
 .area-check-copy textarea{width:100%;resize:vertical}
 .area-check-copy output{font-size:var(--type-sm)}
 @media(max-width:600px){
+  .area-check-task-scopes{grid-template-columns:minmax(0,1fr);gap:var(--space-5)}
   .area-check-row{grid-template-columns:minmax(0,1fr);gap:var(--space-4);padding:var(--space-5) var(--space-2)}
   .area-check-details{grid-column:auto}
   .area-check-skill{font-size:var(--type-body)}

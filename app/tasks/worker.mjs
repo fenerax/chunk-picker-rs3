@@ -19,7 +19,7 @@ import { projectDuoSidebarResult } from '../duo-play-view.mjs';
 import { buildChunkPlanningIndex } from './chunk-planning-index.mjs';
 import { projectMapTaskLocations } from './map-task-locations.mjs';
 import { createTaskReuseFingerprint } from './unlock-reuse.mjs';
-import { analyzeAreaCheck } from './area-check.mjs';
+import { analyzeAreaCheck, normalizeAreaCheckRequest } from './area-check.mjs';
 import { constants as zlibConstants, crc32, gzipSync } from 'node:zlib';
 
 // Definitions compile once in this isolated worker. Evaluation never runs on
@@ -298,8 +298,15 @@ parentPort.on('message', async ({ id, type = 'evaluate', state, memberId, chunkI
       timed(timingMs, 'preparationMs', () => engine.prepare(state.rules));
       result = { prepared: true };
     } else if (type === 'sandbox') result = sandboxFor(state, memberId, chunkId, timingMs, input);
-    else if (type === 'area-check') result = timed(timingMs, 'areaCheckMs', () => analyzeAreaCheck(state, memberId, chunkId,
-      { engine, definitions, world: workerData.world }));
+    else if (type === 'area-check') result = timed(timingMs, 'areaCheckMs', () => {
+      const { baselineTaskIds, ...requested } = chunkId;
+      const draft = normalizeAreaCheckRequest(requested, { state, memberId, world: workerData.world });
+      const cached = baselineTaskIds ? undefined : snapshotFor(state, memberId, timingMs, input, false);
+      return { ...analyzeAreaCheck(state, memberId, draft, {
+        engine: { evaluate: (input, member) => evaluateFull(input, member, { includeViews: false, timingMs }) },
+        baseline: cached?.snapshot.baseline, baselineTaskIds, definitions, world: workerData.world,
+      }), cache: { baselineHit: !!baselineTaskIds || cached.hit, baselineSource: baselineTaskIds ? 'current-list' : 'worker' } };
+    });
     else if (type === 'death-estimates') result = await deathEstimates(state, memberId, chunkIds, timingMs, request, input);
     else {
       const compact = type === 'evaluate' && resultTransport === 'json-shared-v1' && resultView === 'play-v1';

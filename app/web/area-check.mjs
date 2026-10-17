@@ -26,10 +26,50 @@ export function areaStartText(range) {
   const source = gap.source === 'f2p-reference' ? 'F2P reference level' : gap.source === 'personal' ? 'recorded level' : 'starting level';
   return `Can't start: ${gap.fromLevel} → ${gap.toLevel} (${source})`;
 }
+export function areaTaskSummary(scope) {
+  const counts = { quests: 0, achievements: 0, other: 0 };
+  for (const { category, count } of scope?.categories ?? []) {
+    counts[category === 'Quest' ? 'quests' : category === 'Diary' ? 'achievements' : 'other'] += count;
+  }
+  const parts = [];
+  if (counts.quests) parts.push(`${counts.quests} quest${counts.quests === 1 ? '' : 's'}`);
+  if (counts.achievements) parts.push(`${counts.achievements} achievement${counts.achievements === 1 ? '' : 's'}`);
+  if (counts.other) parts.push(`${counts.other} other task${counts.other === 1 ? '' : 's'}`);
+  return parts.length ? `Opens ${parts.join(', ')}` : 'No new tasks';
+}
+export function renderAreaTasks(c, tasks) {
+  const section = c.el('section', undefined, 'area-check-tasks');
+  section.setAttribute('aria-label', 'Tasks');
+  section.append(c.el('h3', 'Tasks'), c.el('p', 'Compared with your current task list.', 'area-check-methods'));
+  const scopes = c.el('div', undefined, 'area-check-task-scopes');
+  for (const [key, label] of [['alone', 'Alone'], ['combined', 'With current chunks']]) {
+    const scope = tasks?.[key];
+    const block = c.el('section', undefined, 'area-check-task-scope');
+    block.setAttribute('aria-label', label);
+    block.append(c.el('h4', label), c.el('p', areaTaskSummary(scope), 'area-check-task-summary'));
+    for (const { category, count, tasks: rows } of scope?.categories ?? []) {
+      const name = category === 'Quest' ? 'Quests' : category === 'Diary' ? 'Achievements' : category;
+      const details = c.details(`${name} (${count})`);
+      details.className = 'area-check-task-details';
+      let expanded = false;
+      details.addEventListener('toggle', () => {
+        if (!details.open || expanded) return;
+        expanded = true;
+        details.append(c.list(rows.map(task => c.plain(task.label))));
+      });
+      block.append(details);
+    }
+    scopes.append(block);
+  }
+  section.append(scopes, c.el('p', 'Task predictions follow the current engine, rules and saved progress; blocked near-misses are not shown.', 'area-check-methods'));
+  return section;
+}
 export function areaDiscordMessages(result, name, limit = 1900) {
   const title = `Area check · ${name} · ${result.chunkIds.length} chunks · ${result.members ? 'ASSUMES MEMBERS' : 'F2P'}`;
   const scopeText = (label, range) => `${label} ${areaRangeText(range)}; ${range.largestGap ? `gap ${areaGapText(range)} (${areaGapEndText(range.largestGap)})` : areaGapText(range)}${range.bootstrapGap ? `; ${areaStartText(range)}` : ''}`;
-  const lines = ['Method entry levels. Gaps of 15+ levels mean continuing with an old method. Alone / with current chunks:', ...result.rows.map(row =>
+  const lines = [`Tasks · Alone: ${areaTaskSummary(result.tasks?.alone)}.`,
+    `Tasks · With current chunks: ${areaTaskSummary(result.tasks?.combined)}.`,
+    'Method entry levels. Gaps of 15+ levels mean continuing with an old method. Alone / with current chunks:', ...result.rows.map(row =>
     `${row.skill}: ${scopeText('alone', row.alone)} / ${scopeText('with current', row.combined)}`),
   'Gap targets stop at what tasks need: selected area alone, or current chunks plus the area. No requirement means no gap. Missing usable methods mean unknown coverage.'];
   const messages = []; let current = title;
@@ -149,7 +189,7 @@ export function createScreenAreaCheck(c) {
     c.$('map-hover').focus({ preventScroll: true });
   });
   toggle.id = 'area-check-toggle'; toggle.setAttribute('aria-pressed', 'false');
-  toggle.title = `Compare training in an area of up to ${AREA_CHECK_CAP} chunks. Nothing is saved.`;
+  toggle.title = `Compare tasks and training in an area of up to ${AREA_CHECK_CAP} chunks. Nothing is saved.`;
   group.append(toggle); document.querySelector('.map-toolbar').append(group);
   const normalHint = () => { c.$('map-hint').textContent = 'Drag to pan · Scroll to zoom · Click for chunk info'; };
   c.$('map-hover').addEventListener('pointercancel', () => selection?.cancel());
@@ -188,7 +228,7 @@ export function createScreenAreaCheck(c) {
       const request = ++sequence; controller?.abort(); controller = new AbortController();
       const revision = c.state.revision, chosenMember = memberId;
       dialogRevision = revision;
-      state.textContent = 'Checking training… You can close this panel while it runs.'; output.replaceChildren(); output.setAttribute('aria-busy', 'true');
+      state.textContent = 'Checking tasks and training… You can close this panel while it runs.'; output.replaceChildren(); output.setAttribute('aria-busy', 'true');
       const query = new URLSearchParams({ memberId, chunks: lastChunks.join(','), asMembers: String(asMembers), revision: String(revision) });
       try {
         const [result] = await Promise.all([c.api(`/api/area-check?${query}`, undefined, controller.signal), loadIcons()]);
@@ -196,6 +236,7 @@ export function createScreenAreaCheck(c) {
         if (c.state.revision !== revision || result.memberId !== chosenMember || result.stateRevision !== revision) throw new Error('The saved map changed. Select the area again.');
         const name = c.state.members.find(member => member.id === memberId)?.name ?? memberId;
         state.textContent = `${name} · ${result.members ? 'Assumes members content' : 'F2P content'}`;
+        output.append(renderAreaTasks(c, result.tasks));
         const big = result.rows.filter(row => row.alone.largestGap).sort((a, b) => b.alone.largestGap.size - a.alone.largestGap.size).slice(0, 3);
         if (big.length) output.append(c.el('p', `Biggest gaps in this area: ${big.map(row => `${row.skill} ${row.alone.largestGap.fromLevel} → ${row.alone.largestGap.toLevel}`).join(' · ')}`, 'area-check-biggest'));
         output.append(renderAreaTable(c, result));
