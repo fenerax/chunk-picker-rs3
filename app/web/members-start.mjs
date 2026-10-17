@@ -21,6 +21,7 @@ export function createMembersStart(ctx) {
     const row = el('label', undefined, 'members-start-choice'); row.append(control, el('strong', label));
     control.addEventListener('change', () => { if (control.checked) change(value); }); return row;
   }
+  function count(n, noun) { return `${n} ${noun}${n === 1 ? '' : 's'}`; }
   function group(title) { const node = el('fieldset', undefined, 'members-start-group'); node.append(el('legend', title)); return node; }
   function conditionalBanks(banks) {
     const list = el('ul', undefined, 'members-start-banks');
@@ -35,7 +36,7 @@ export function createMembersStart(ctx) {
     const node = el('section', undefined, 'members-start-summary');
     node.append(el('h3', 'What changes for everyone'), el('p', 'Each player gets one starting bank chunk and a new starting flag. Their previous F2P map is kept as a read-only snapshot.'));
     const list = el('ul');
-    for (const member of state.members) list.append(el('li', `${member.name}: replace ${member.unlocked.length} unlocked chunks; clear ${member.selected.length} chunks added to the roll pool by hand and ${member.pendingRoll.length} pending roll choices.`));
+    for (const member of state.members) list.append(el('li', `${member.name}: replace ${count(member.unlocked.length, 'unlocked chunk')}; clear ${count(member.selected.length, 'chunk')} added to the roll pool by hand and ${count(member.pendingRoll.length, 'pending roll choice')}.`));
     node.append(list, el('p', 'Keep skills and XP, quests and achievements, completed tasks, equipment, notes and journal, backlogs, custom tasks, RuneMetrics name, stickers, never-roll list, travel and transport settings, access overrides, Slayer lock and other preferences. Starting sections open for the new chunk.'));
     return node;
   }
