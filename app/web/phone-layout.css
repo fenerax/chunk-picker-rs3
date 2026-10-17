@@ -75,6 +75,7 @@
   :root summary { min-width:44px;align-content:center; }
   :root label:has(input[type=checkbox]),:root label:has(input[type=radio]),:root .checkbox-field { min-height:44px; }
   :root input[type=checkbox],:root input[type=radio] { width:44px;height:44px;min-width:44px;min-height:44px; }
+  :root label>input[type=radio] { width:20px;height:20px;min-width:20px;min-height:20px;margin:12px;accent-color:var(--gold); }
   :root input[type=checkbox]:not([role=switch]) { background:transparent;border-color:transparent; }
   :root input[type=checkbox]:not([role=switch])::before { content:"";grid-area:1/1;width:20px;height:20px;border:var(--border-check) solid color-mix(in srgb,var(--muted) var(--border-legacy-75),transparent);border-radius:var(--radius-check); }
   :root input[type=checkbox]:not([role=switch]):checked::before { background:var(--gold);border-color:var(--gold); }
