@@ -738,6 +738,22 @@ function migrateOwnedTaskIdentities(next, { catalogue = [], taskMap, history, pr
   const legacyAlternativeMembers = cloneJson(previous.legacyAlternativeMembers ?? []);
   const original = { tasks: cloneJson(next.tasks ?? []), members: cloneJson(next.members ?? []), history: cloneJson(next.history ?? []),
     ...(next.identityRegistry ? { identityRegistry: cloneJson(next.identityRegistry) } : {}) };
+  // A definition can supply both its label alias and its explicit permanent row.
+  // Only unreferenced, equivalent catalogue duplicates are harmless: never infer
+  // equivalence for personal facts or sparse undo guards. Scan references once.
+  const referencedRows = new Set();
+  const retainReferences = value => {
+    if (typeof value === 'string') {
+      referencedRows.add(value);
+      const result = index.resolve(value);
+      for (const id of result.candidates ?? []) referencedRows.add(id);
+    } else if (value && typeof value === 'object') {
+      for (const [key, child] of Object.entries(value)) { retainReferences(key); retainReferences(child); }
+    }
+  };
+  retainReferences({ members: next.members, history: next.history, taskClaims: next.taskClaims,
+    finishLine: next.finishLine, groupGoals: next.groupGoals });
+  const catalogueUndo = (next.history ?? []).some(event => event.undo?.tasks || event.undo?.taskChanges);
   const rows = new Map();
   const knownRows = new Map(allRows.map(task => [task.id, task]));
   const currentRows = new Map(catalogue.map((task, position) => [task.id, projectCatalogueTask ? position : task]));
@@ -784,7 +800,12 @@ function migrateOwnedTaskIdentities(next, { catalogue = [], taskMap, history, pr
       const custom = id.startsWith('custom:') || id.startsWith('rs3:task:custom:');
       const row = { id, label: task.label, category: !custom && isPermanentId(id) ? currentTask(id)?.category ?? index.lookup(id)?.category ?? task.category : task.category,
         ...Object.fromEntries((custom ? ['completionIds', 'skill', 'level', 'memberIds'] : []).filter(field => task[field] !== undefined).map(field => [field, cloneJson(task[field])])) };
-      if (result.has(id)) conflicts.push({ path, permanentId: id, reason: 'multiple saved catalogue rows', originalIds: originalsById.get(id) });
+      if (result.has(id)) {
+        const harmless = path === 'tasks' && !catalogueUndo
+          && JSON.stringify(result.get(id)) === JSON.stringify(row)
+          && !referencedRows.has(id) && originalsById.get(id).every(originalId => !referencedRows.has(originalId));
+        if (!harmless) conflicts.push({ path, permanentId: id, reason: 'multiple saved catalogue rows', originalIds: originalsById.get(id) });
+      }
       // A row already carrying its permanent key is the authored authority.
       if (!result.has(id) || id === task.id) result.set(id, row);
     }
