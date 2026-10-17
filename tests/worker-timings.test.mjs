@@ -100,6 +100,37 @@ test('area checks reuse live baselines, include full ordinary goals and keep dra
   assert.deepEqual(unchanged.result, baseline.result);
 });
 
+test('two retained calculation graphs evict older results without evicting transferred states or changing cold bytes', async t => {
+  const warm = await fixture(t), cold = await fixture(t);
+  const saved = [];
+  const bytes = value => JSON.stringify(value, (key, child) => key === 'elapsedMs' ? undefined : child);
+  for (let revision = 0; revision < 4; revision++) {
+    warm.state.revision = revision;
+    warm.state.members[0].unlocked = revision % 2 ? ['12341', '12342'] : ['12341'];
+    const request = serializedRequest(warm.state, `revision-${revision}`);
+    const result = await warm.send({ type: 'evaluate', ...request });
+    assert.equal(result.error, undefined);
+    saved.push({ request, bytes: Buffer.from(result.playJSON).toString() });
+  }
+  const previous = await warm.send({ type: 'evaluate', ...saved[2].request, stateJSON: undefined });
+  assert.equal(previous.error, undefined);
+  assert.equal(previous.timingMs.engineMs, 0, 'the second most recent calculation stays retained');
+  const latest = await warm.send({ type: 'evaluate', ...saved[3].request, stateJSON: undefined });
+  assert.equal(latest.error, undefined);
+  assert.equal(latest.timingMs.engineMs, 0, 'current result stays retained');
+  const third = await warm.send({ type: 'evaluate', ...saved[1].request, stateJSON: undefined });
+  assert.equal(third.error, undefined);
+  assert.ok(third.timingMs.collectionMs > 0, 'the third most recent calculation was evicted');
+  const oldest = await warm.send({ type: 'evaluate', ...saved[0].request, stateJSON: undefined });
+  assert.equal(oldest.error, undefined, 'the independent state-transfer cache still holds four inputs');
+  assert.ok(oldest.timingMs.collectionMs > 0, 'the evicted full calculation is rebuilt');
+  const fresh = await cold.send({ type: 'evaluate', ...saved[0].request });
+  assert.equal(fresh.error, undefined);
+  const decoded = message => JSON.parse(Buffer.from(message.playJSON).toString());
+  assert.equal(bytes(decoded(oldest)), bytes(decoded(fresh)), 'rebuilt complete play projection matches cold');
+  assert.equal(bytes(decoded(oldest)), bytes(JSON.parse(saved[0].bytes)), 'eviction preserves the original response');
+});
+
 test('predictions reuse the baseline and time full hypothetical obligations without mutating state', async t => {
   const { state, send } = await fixture(t);
   const before = structuredClone(state);

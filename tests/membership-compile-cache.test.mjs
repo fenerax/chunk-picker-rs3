@@ -32,6 +32,47 @@ test('Wiki-only corrections use the ordinary exact-target seam, without cache ev
   assert.throws(() => applyMetadataCorrections(drift, { corrections: [gate], strict: true }), /drift/);
 });
 
+test('batched metadata dictionaries equal cold one-correction applications without mutating shared inputs', () => {
+  const rows = Object.fromEntries(Array.from({ length: 50 }, (_, index) => [`Task ${index}`,
+    { QuestPoints: index, Requirements: { Crafting: 1 }, Chunks: ['100'] }]));
+  Object.defineProperty(rows, '__proto__', { value: { QuestPoints: 0 }, enumerable: true });
+  const raw = { chunks: { '100': {} }, challenges: { Quest: rows, Alias: rows, Extra: { Unchanged: { Items: ['Token'] } } } };
+  const corrections = Array.from({ length: 50 }, (_, index) => ({ category: 'Quest', label: `Task ${index}`, changes: [
+    { field: 'QuestPoints', before: index, after: index + 1 }, { field: 'Requirements.Crafting', before: 1, after: 2 },
+  ] }));
+  corrections.push(
+    { category: 'Quest', label: 'Task 0', changes: [{ field: 'QuestPoints', before: 1, after: 99 }] },
+    { category: 'Quest', label: 'Task 1', changes: [{ field: 'Chunks', before: ['100'], after: null, afterPresent: false }] },
+    { category: 'Quest', label: 'Task 2', changes: [{ field: 'Skills.Mining', before: null, beforePresent: false, after: 7 }] },
+    { category: 'Quest', label: '__proto__', changes: [{ field: 'QuestPoints', before: 0, after: 2 }] },
+    { category: 'Alias', label: 'Task 0', changes: [{ field: 'QuestPoints', before: 0, after: 7 }] },
+    { category: 'Quest', label: 'Missing', changes: [{ field: 'QuestPoints', before: 0, after: 1 }] },
+    { category: 'Quest', label: 'Task 3', changes: [{ field: 'QuestPoints', before: 500, after: 501 }] },
+  );
+  const before = JSON.stringify(raw);
+  const freeze = value => {
+    if (value && typeof value === 'object' && !Object.isFrozen(value)) {
+      for (const child of Object.values(value)) freeze(child);
+      Object.freeze(value);
+    }
+  };
+  freeze(raw);
+  const cold = corrections.reduce((data, correction) => applyMetadataCorrections(data, { corrections: [correction] }), raw);
+  const batched = applyMetadataCorrections(raw, { corrections });
+  assert.equal(JSON.stringify(batched), JSON.stringify(cold), 'complete bytes and property order match the original per-record copying path');
+  assert.equal(JSON.stringify(raw), before);
+  assert.equal(batched.chunks, raw.chunks); assert.equal(batched.challenges.Extra, raw.challenges.Extra);
+  assert.equal(batched.challenges.Alias['Task 2'], rows['Task 2'], 'aliased category maps remain independent');
+  assert.equal(batched.challenges.Quest['Task 0'].QuestPoints, 99);
+  assert.equal(batched.challenges.Alias['Task 0'].QuestPoints, 7);
+  assert.equal(Object.hasOwn(batched.challenges.Quest, '__proto__'), true);
+  assert.equal(Object.getPrototypeOf(batched.challenges.Quest), Object.prototype);
+  assert.equal(batched.challenges.Quest.__proto__.QuestPoints, 2);
+  assert.equal(applyMetadataCorrections(batched, { corrections }), batched, 'no-op corrections preserve identity');
+  assert.throws(() => applyMetadataCorrections(raw, { corrections: [corrections[0], corrections.at(-1)], strict: true }), /drift/);
+  assert.equal(JSON.stringify(raw), before, 'strict failure preserves the complete original graph');
+});
+
 test('a corrected free gate preserves entry prerequisites and unlocks whole-quest presentation', () => {
   const raw = { chunks: { '100': { Sections: { '1': {}, '2': {} } } },
     sections: { '100': { '1': [] } }, challenges: {

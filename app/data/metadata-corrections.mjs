@@ -38,6 +38,7 @@ function matches(actual, value, present = value !== null) {
  */
 export function applyMetadataCorrections(definitions, { corrections = reviewedCorrections, strict = false } = {}) {
   let result = definitions;
+  const copiedCategories = new Set();
   for (const correction of corrections) {
     const original = result?.challenges?.[correction.category]?.[correction.label];
     if (!original) {
@@ -65,7 +66,14 @@ export function applyMetadataCorrections(definitions, { corrections = reviewedCo
     }
     if (record === original) continue;
     if (result === definitions) result = { ...definitions, challenges: { ...definitions.challenges } };
-    result.challenges[correction.category] = { ...result.challenges[correction.category], [correction.label]: record };
+    // A category can contain thousands of rows and hundreds of corrections.
+    // Copy its dictionary once; each changed record is already private above.
+    if (!copiedCategories.has(correction.category)) {
+      result.challenges[correction.category] = { ...result.challenges[correction.category] };
+      copiedCategories.add(correction.category);
+    }
+    Object.defineProperty(result.challenges[correction.category], correction.label,
+      { value: record, writable: true, enumerable: true, configurable: true });
   }
   return result;
 }

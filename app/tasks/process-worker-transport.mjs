@@ -20,7 +20,37 @@ function transform(value, replace, seen = new WeakMap()) {
   return copy;
 }
 
-export function encodeProcessMessage(value) {
+// Consume a graph freshly cloned by a native message boundary. Unchanged
+// children need no property write; only shared placeholders change identity.
+function transformOwned(value, replace, seen = new WeakMap()) {
+  if (typeof value === 'function' || typeof value === 'symbol') throw new DOMException('Value cannot be cloned by a process worker.', 'DataCloneError');
+  if (!value || typeof value !== 'object') return value;
+  if (seen.has(value)) return seen.get(value);
+  const replacement = replace(value);
+  if (replacement !== undefined) { seen.set(value, replacement); return replacement; }
+  seen.set(value, value);
+  if (Buffer.isBuffer(value) || ArrayBuffer.isView(value) || value instanceof ArrayBuffer
+    || value instanceof Date || value instanceof RegExp || value instanceof Error) return value;
+  if (value instanceof Map) {
+    const entries = [...value], restored = entries.map(([key, entry]) => [transformOwned(key, replace, seen), transformOwned(entry, replace, seen)]);
+    if (restored.some(([key, entry], index) => key !== entries[index][0] || entry !== entries[index][1])) {
+      value.clear(); for (const [key, entry] of restored) value.set(key, entry);
+    }
+  } else if (value instanceof Set) {
+    const entries = [...value], restored = entries.map(entry => transformOwned(entry, replace, seen));
+    if (restored.some((entry, index) => entry !== entries[index])) {
+      value.clear(); for (const entry of restored) value.add(entry);
+    }
+  } else for (const key of Object.keys(value)) {
+    const child = value[key], restored = transformOwned(child, replace, seen);
+    if (restored !== child) Object.defineProperty(value, key, {
+      value: restored, writable: true, enumerable: true, configurable: true,
+    });
+  }
+  return value;
+}
+
+function encode(value, walk) {
   const shared = [], views = [], buffers = new WeakMap();
   function sharedPlaceholder(buffer) {
     if (buffers.has(buffer)) return buffers.get(buffer);
@@ -29,7 +59,7 @@ export function encodeProcessMessage(value) {
     shared.push({ placeholder, bytes: Buffer.from(new Uint8Array(buffer)) });
     return placeholder;
   }
-  const data = transform(value, entry => {
+  const data = walk(value, entry => {
     if (entry instanceof SharedArrayBuffer) return sharedPlaceholder(entry);
     if (ArrayBuffer.isView(entry) && entry.buffer instanceof SharedArrayBuffer) {
       const placeholder = {};
@@ -42,12 +72,18 @@ export function encodeProcessMessage(value) {
   return { data, shared, views };
 }
 
+export function encodeProcessMessage(value) { return encode(value, transform); }
+
+// Native Worker message events own a fresh cloned result. Its source in the
+// worker isolate stays untouched while the host prepares the IPC envelope.
+export function encodeReceivedWorkerMessage(value) { return encode(value, transformOwned); }
+
 const viewTypes = new Map([
   Int8Array, Uint8Array, Uint8ClampedArray, Int16Array, Uint16Array, Int32Array,
   Uint32Array, Float32Array, Float64Array, BigInt64Array, BigUint64Array, DataView,
 ].map(type => [type.name, type]));
 
-export function decodeProcessMessage({ data, shared, views }) {
+function sharedReplacements(shared, views) {
   const replacements = new WeakMap();
   for (const { placeholder, bytes } of shared) {
     const buffer = new SharedArrayBuffer(bytes.byteLength);
@@ -63,5 +99,18 @@ export function decodeProcessMessage({ data, shared, views }) {
       replacements.set(placeholder, new Type(buffer, byteOffset, type === 'DataView' ? byteLength : byteLength / Type.BYTES_PER_ELEMENT));
     }
   }
+  return replacements;
+}
+
+export function decodeProcessMessage({ data, shared, views }) {
+  const replacements = sharedReplacements(shared, views);
   return transform(data, entry => replacements.get(entry));
+}
+
+// Only consume freshly deserialized IPC envelopes here: IPC has already cloned
+// their graph. Preserve that owned graph while restoring shared placeholders.
+export function decodeReceivedProcessMessage({ data, shared, views }) {
+  if (!shared.length && !views.length) return data;
+  const replacements = sharedReplacements(shared, views);
+  return transformOwned(data, entry => replacements.get(entry));
 }

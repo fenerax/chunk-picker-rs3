@@ -1,7 +1,7 @@
 import { fork } from 'node:child_process';
 import { EventEmitter } from 'node:events';
 import { fileURLToPath } from 'node:url';
-import { encodeProcessMessage, decodeProcessMessage } from './process-worker-transport.mjs';
+import { encodeProcessMessage, decodeReceivedProcessMessage } from './process-worker-transport.mjs';
 
 // A Worker-compatible endpoint whose entire allocator belongs to an owned
 // process. Retirement resolves only once that process has actually exited.
@@ -26,7 +26,7 @@ export class ProcessWorker extends EventEmitter {
     });
     this.#child.on('message', message => {
       try {
-        if (message.kind === 'message') this.emit('message', decodeProcessMessage(message.payload));
+        if (message.kind === 'message') this.emit('message', decodeReceivedProcessMessage(message.payload));
         else if (message.kind === 'error') this.#fail(Object.assign(new Error(message.error.message), message.error));
         else if (message.kind === 'memory') {
           const request = this.#memory.get(message.id);

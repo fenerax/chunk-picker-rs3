@@ -1,5 +1,5 @@
 import { Worker, MessageChannel } from 'node:worker_threads';
-import { encodeProcessMessage, decodeProcessMessage } from './process-worker-transport.mjs';
+import { encodeReceivedWorkerMessage, decodeReceivedProcessMessage } from './process-worker-transport.mjs';
 
 let worker, stopping = false, failed = false, probeEnabled = false;
 const cancellations = new Map();
@@ -61,21 +61,21 @@ process.on('message', message => {
       const probeImport = message.probeImport ?? process.env.RS3_WORKER_MEMORY_PROBE_IMPORT;
       probeEnabled = !!probeImport;
       worker = new Worker(new URL('./worker.mjs', import.meta.url), {
-        workerData: decodeProcessMessage(message.data),
+        workerData: decodeReceivedProcessMessage(message.data),
         // Diagnostic preloads need an explicit list. Native inheritance filters
         // process-only V8 flags; explicitly forwarding those flags rejects them.
         ...(probeEnabled ? { execArgv: ['--import', probeImport] } : {}),
       });
       worker.on('message', result => {
         if (result.id !== undefined && !['progress', 'prediction-prepared'].includes(result.type)) cancellations.delete(result.id);
-        try { send({ kind: 'message', payload: encodeProcessMessage(result) }); }
+        try { send({ kind: 'message', payload: encodeReceivedWorkerMessage(result) }); }
         catch (error) { fail(error); }
       });
       worker.on('error', fail);
       worker.once('exit', code => { if (!stopping && !failed) void stop(code); });
     } else if (message.kind === 'post') {
       if (!worker) throw new Error('Task worker process has not initialized.');
-      const request = decodeProcessMessage(message.payload);
+      const request = decodeReceivedProcessMessage(message.payload);
       if (request.type === 'cancel') {
         const cancellation = cancellations.get(request.id);
         if (cancellation) Atomics.store(new Int32Array(cancellation), 0, 1);

@@ -29,6 +29,7 @@ import { itemMembershipBlocker as evaluateItemMembership, taskItemMembershipBloc
 import { isProcessingSourceTask, processingSkills, selectProcessingSources } from './processing.mjs';
 import { combatLevelFromSkills } from '../core/combat-level.mjs';
 import { createEligibilityCache } from './eligibility-cache.mjs';
+import { createObligationCache } from './obligation-cache.mjs';
 import { recordedEquipment } from './recorded-equipment.mjs';
 import { applyDivinationTraining } from '../data/divination-training.mjs';
 import { personalQuestProgressBlocker } from './personal-quest-progress.mjs';
@@ -377,7 +378,7 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
     }
     evaluationPrepared = true;
   }
-  function* evaluatePass(state, memberId, { ownItemQueries = [] } = {}, admitted = new Set(), multiAdmitted = new Set(), replay, projectOnly = false) {
+  function* evaluatePass(state, memberId, { ownItemQueries = [], reuseObligations = true } = {}, admitted = new Set(), multiAdmitted = new Set(), replay, projectOnly = false) {
     const started = performance.now();
     const sourceMembershipBlocker = replay.membership.source, itemMembershipBlocker = replay.membership.item;
     const member = state.members.find(value => value.id === memberId);
@@ -786,10 +787,11 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
     // Spatial requirements define a task. Supplies may be sourced from the
     // capability map. Location-free item/dependency goals inherit own provenance.
     const ownRootProofs = new Set();
+    const obligationCache = createObligationCache({ enabled: reuseObligations });
     function obligation(task, visiting = new Set()) {
       const root = visiting.size === 0;
       if (root && ownRootProofs.has(task)) return true;
-      const own = computeObligation(task, visiting);
+      const own = obligationCache.evaluate(task, visiting, () => computeObligation(task, visiting));
       // Personal reachability and source ownership only grow in this closure.
       // Recursive calls still use their path-specific cycle guard, and a fresh
       // replay gets a fresh proof cache whenever admissions retract/change mode.
@@ -1002,9 +1004,9 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
       const existing = bucket.find(value => sourceName(value) === sourceName(source) && sourceType(value) === sourceType(source)
         && value.taskId === source.taskId && value.location === source.location && value.rate === source.rate && value.quantity === source.quantity
         && JSON.stringify(value.tables) === JSON.stringify(source.tables));
-      if (!existing) { list.push(source); sources.set(name, list); bucket.push(source); index.set(key, bucket); return true; }
-      if (source.own === true && existing.own !== true) { existing.own = true; ownItems.add(name); return true; }
-      if (source.primary === true && existing.primary !== true) { existing.primary = true; return true; }
+      if (!existing) { list.push(source); sources.set(name, list); bucket.push(source); index.set(key, bucket); obligationCache.clear(); return true; }
+      if (source.own === true && existing.own !== true) { existing.own = true; ownItems.add(name); obligationCache.clear(); return true; }
+      if (source.primary === true && existing.primary !== true) { existing.primary = true; obligationCache.clear(); return true; }
       return false;
     }
     function primaryEligible(task, forSelection = false) {
@@ -1078,7 +1080,7 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
         modes.set(multi, { access: cachedAccess, own, primary, reads });
         publicationReads = undefined;
       };
-      if (own && !ownTaskKeys.has(task.key)) { ownTaskKeys.add(task.key); changed = true; }
+      if (own && !ownTaskKeys.has(task.key)) { ownTaskKeys.add(task.key); obligationCache.clear(); changed = true; }
       for (const output of array(task.record.Output)) for (const { name, ...evidence } of outputItems(task, output)) if (outputGate(name, task, 'task', evidence)) {
         if (!items.has(name)) { items.add(name); changed = true; }
         if (own && !ownItems.has(name)) { ownItems.add(name); changed = true; }
@@ -1173,6 +1175,7 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
       const roundStart = counters.passes;
       while (changed && counters.passes - roundStart < compiled.length + 2) {
         counters.passes++; changed = false;
+        obligationCache.clear();
         refreshAccess(); counters.accessPasses++;
         const priorLock = effectiveSlayerLock;
         releaseForTargets(access);
