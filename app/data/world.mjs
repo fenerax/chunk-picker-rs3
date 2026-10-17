@@ -11,7 +11,7 @@ import { applyCacheArchaeology, cacheArchaeologyContentsEnabled } from './cache-
 /** Index the local reference data once. No upstream executable code is imported. */
 export function buildWorld(definitions, { dataset, cacheWalking = dataset?.capabilities.cacheWalking ?? false,
   cacheResources = dataset?.capabilities.cacheResources ?? false, resourceCatalogue, resourceSelectors,
-  cacheArchaeology = dataset?.capabilities.cacheArchaeology ?? false, archaeologyCatalogue } = {}) {
+  cacheArchaeology = dataset?.capabilities.cacheArchaeology ?? false, archaeologyCatalogue, reviewedOverlays } = {}) {
   if (!definitions || typeof definitions !== 'object' || Array.isArray(definitions)
     || !definitions.chunks || typeof definitions.chunks !== 'object' || Array.isArray(definitions.chunks)) {
     throw new TypeError('Definitions must contain a chunks object.');
@@ -120,7 +120,9 @@ export function buildWorld(definitions, { dataset, cacheWalking = dataset?.capab
   registerWorldConnectionResolver(world, (state, memberId) => partnerConnections(world, state, memberId));
   Object.defineProperties(world, {
     definitions: { value: definitions },
-    automaticTransportOptions: { value: { dataset: dataset && datasetEngineContext(dataset), cacheWalking, cacheResources, resourceCatalogue, resourceSelectors, cacheArchaeology, archaeologyCatalogue } },
+    automaticTransportOptions: { value: { dataset: dataset && datasetEngineContext(dataset), cacheWalking, cacheResources, resourceCatalogue, resourceSelectors, cacheArchaeology, archaeologyCatalogue,
+      // Servers built from injected definitions opt out of reviewed overlays; travel must inherit that policy.
+      ...(reviewedOverlays === undefined ? {} : { reviewedOverlays }) } },
   });
   return world;
 }

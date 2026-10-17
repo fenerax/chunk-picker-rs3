@@ -583,3 +583,9 @@ test('cache-component round-trip recursion preserves renewable budgets and does 
 
 
 
+test('automatic travel inherits the world reviewed-overlay policy', () => {
+  const definitions = { chunks: { '12853': {} }, sections: { '12853': { '0': [] } }, walkableChunks: ['12853'], walkableChunksF2P: ['12853'], challenges: {}, codeItems: {} };
+  assert.equal(buildWorld(definitions, { ...options, reviewedOverlays: false }).automaticTransportOptions.reviewedOverlays, false);
+  assert.equal(buildWorld(definitions, { ...options, reviewedOverlays: true }).automaticTransportOptions.reviewedOverlays, true);
+  assert.equal(Object.hasOwn(buildWorld(definitions, options).automaticTransportOptions, 'reviewedOverlays'), false);
+});
