@@ -48,6 +48,10 @@ const review = { type: 'set-rule-review', ruleId: 'roll.adjacent', reviewed: tru
 
 test('rule reviews survive compact responses, backups and restart without changing calculation inputs', { timeout: 20000 }, async t => {
   const f = await fixture(t), original = f.app.store.getState();
+  const explanationModule = await f.request('/rule-explanations.mjs');
+  assert.equal(explanationModule.status, 200);
+  assert.match(explanationModule.headers.get('content-type'), /javascript/);
+  assert.match(await explanationModule.text(), /export function appendRuleExplanation/);
   const input = f.app.store.getCalculationSnapshot(), fingerprint = f.app.store.getGameplayFingerprint();
   const baseline = (await (await f.request('/api/state?view=play-v1')).json()).state;
   const response = await f.command(review);

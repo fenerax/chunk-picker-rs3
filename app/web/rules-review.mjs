@@ -2,6 +2,7 @@ import { taskRuleBehavior, taskRuleCategoryCounts } from '../data/settings.mjs';
 import { taskRuleAutomaticValue, planTaskRuleChange } from './rules-model.mjs';
 import { captureReview, reviewChanges, reviewRules, reviewSelection, reviewRecord, reviewValue, ruleValueText, reviewSummary, reviewRuleLabel } from './rules-review-model.mjs';
 import { createRuleReviewPreview, rulePreviewText } from './rules-review-preview.mjs';
+import { appendRuleExplanation } from './rule-explanations.mjs';
 
 /** Session choices survive closing Rules for History; shared progress lives in the save. */
 export function createRulesReview(ctx) {
@@ -57,19 +58,22 @@ export function createRulesReview(ctx) {
       const sheet = el('section', undefined, 'rules-walk-rule'); sheet.dataset.ruleId = rule.id;
       sheet.append(el('p', rule.sectionName, 'field-help'), title);
       if (advanced()) sheet.append(el('small', rule.id, 'rules-walk-id'));
-      if (rule.description && reviewRuleLabel({ ...rule, label: rule.id }) !== label) sheet.append(el('p', rule.description, 'rules-walk-explanation'));
+      if (!appendRuleExplanation(ctx, sheet, rule) && rule.description && reviewRuleLabel({ ...rule, label: rule.id }) !== label) sheet.append(el('p', rule.description, 'rules-walk-explanation'));
       const more = details('More');
+      if (rule.explanation && rule.description) more.append(el('p', rule.description, 'rules-original-tooltip'));
       for (const text of rule.tooltips ?? []) more.append(el('p', text, 'rules-original-tooltip'));
       if (rule.currentDescription && rule.currentDescription !== rule.description) more.append(el('p', rule.currentDescription));
       const behavior = rule.sharedRuleId ? null : taskRuleBehavior(rule.id);
       if (behavior && ['retained-only', 'not-implemented', 'partial'].includes(behavior.status)) more.append(el('p', advanced() ? behavior.detail : 'Some parts of this rule do not affect tasks yet.'));
-      if (rule.tooltips?.length || rule.currentDescription || behavior && ['retained-only', 'not-implemented', 'partial'].includes(behavior.status)) sheet.append(more);
+      if (rule.explanation && rule.description || rule.tooltips?.length || rule.currentDescription || behavior && ['retained-only', 'not-implemented', 'partial'].includes(behavior.status)) sheet.append(more);
       const values = el('dl', undefined, 'rules-walk-values');
       for (const member of state.members) {
         const automatic = rule.sharedRuleId ? registry.get(rule.sharedRuleId).default : taskRuleAutomaticValue(state, member.id, rule).value;
         values.append(el('dt', member.name), el('dd', `${ruleValueText(reviewValue(state, member.id, rule, registry))} · Automatic (${ruleValueText(automatic)})`));
       }
       sheet.append(values);
+      sheet.append(el('p', rule.sharedRuleId ? 'This choice is shared by both players. Automatic shows the picker’s default for this shared rule.'
+        : 'Automatic uses the shared or imported choice, then the picker’s default. “Use automatic” removes your personal override; it does not choose rules for you.', 'field-help'));
       const owner = state.members.find(member => member.id === target) ?? state.members[0];
       const selectedValue = reviewValue(state, owner.id, rule, registry);
       const identity = JSON.stringify([rule.id, target, state.revision]);

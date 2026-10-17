@@ -4,6 +4,7 @@ import { taskRuleDefinitions, taskRuleCutoffDefaults } from '../data/settings.mj
 import { hasGameplayMigration } from '../tasks/gameplay-compat.mjs';
 import { isKeptTaskRule } from './kept-rules.mjs';
 import { taskRuleDefault } from '../tasks/rule-defaults.mjs';
+import { loadRuleExplanations } from './rule-explanations.mjs';
 
 const own = (record, key) => Object.hasOwn(record ?? {}, key);
 const text = value => String(value ?? '').replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]*>/g, '').trim();
@@ -41,6 +42,9 @@ export function loadRulesCatalogue(raw) {
 }
 
 export const rulesCatalogue = loadRulesCatalogue(capturedCatalogue);
+if (rulesCatalogue.explanationsFile && !/^app\/data\/[a-z0-9.-]+\.json$/.test(rulesCatalogue.explanationsFile)) throw new TypeError('Invalid rule explanations path.');
+export const ruleExplanations = rulesCatalogue.explanationsFile
+  ? loadRuleExplanations(await datasetJSON(rulesCatalogue.explanationsFile)) : Object.freeze({});
 
 /** Original copy and order are presentation data; current types stay registry-owned. */
 export function buildRulesSections(catalogue, state, sharedDefinitions = []) {
@@ -72,7 +76,8 @@ export function buildRulesSections(catalogue, state, sharedDefinitions = []) {
   if (extra.length) sections.push({ id: 'additional-rules', name: 'Additional and older rules', scope: 'personal', rules: extra });
   const shared = sharedDefinitions.filter(rule => rule.id !== 'content.f2p').map(rule => ({ ...rule, depth: 0, scope: 'shared', sharedRuleId: rule.id }));
   if (shared.length) sections.push({ id: 'shared-map-rules', name: 'Shared map & access', scope: 'shared', rules: shared });
-  return sections;
+  return sections.map(section => ({ ...section, rules: section.rules.map(rule => ({ ...rule,
+    explanation: Object.hasOwn(ruleExplanations, rule.id) ? ruleExplanations[rule.id] : undefined })) }));
 }
 
 /** Absence means automatic, not a copy of the original picker's defaults. */
@@ -111,7 +116,7 @@ export function ruleEnabled(definition, values, definitions) {
 export function filterRulesSections(sections, values, { query = '', onlyOn = false } = {}) {
   const words = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
   return sections.flatMap(section => {
-    const matches = new Set(section.rules.filter(rule => words.every(word => `${rule.label} ${rule.id} ${rule.description} ${section.name}`.toLowerCase().includes(word)) && (!onlyOn || values.get(rule.id) === true)).map(rule => rule.id));
+    const matches = new Set(section.rules.filter(rule => words.every(word => `${rule.label} ${rule.id} ${rule.description} ${rule.explanation?.what ?? ''} ${rule.explanation?.example ?? ''} ${rule.explanation?.grindWarning ?? ''} ${section.name}`.toLowerCase().includes(word)) && (!onlyOn || values.get(rule.id) === true)).map(rule => rule.id));
     const visible = new Set(matches);
     for (const id of matches) {
       let parent = section.rules.find(rule => rule.id === id)?.parent;
