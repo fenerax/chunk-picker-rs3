@@ -11,11 +11,19 @@
   .phone-layout .workspace { display:block;height:calc(100dvh - var(--topbar-height,110px) - var(--phone-tabs-height));min-height:0; }
   .phone-layout .map-panel { height:100%; }
   .phone-layout .map-stage { position:absolute;inset:0;height:100%;min-height:0; }
-  .phone-layout .map-toolbar { top:.5rem;left:calc(.5rem + env(safe-area-inset-left,0px));right:calc(.5rem + env(safe-area-inset-right,0px));flex-wrap:nowrap;overflow-x:auto;scrollbar-width:thin;scrollbar-color:var(--gold) var(--panel);pointer-events:auto;padding-bottom:var(--space-legacy-2px); }
+  .phone-layout .map-toolbar { top:4.25rem;left:calc(.5rem + env(safe-area-inset-left,0px));right:calc(.5rem + env(safe-area-inset-right,0px));flex-wrap:nowrap;overflow-x:auto;scrollbar-width:thin;scrollbar-color:var(--gold) var(--panel);pointer-events:auto;padding-bottom:var(--space-legacy-2px); }
+  .phone-map-primary { position:absolute;z-index:5;top:.5rem;left:calc(.5rem + env(safe-area-inset-left,0px));right:calc(.5rem + env(safe-area-inset-right,0px));display:flex;gap:var(--space-2);align-items:start;pointer-events:none; }
+  .phone-map-primary button { font-size:var(--type-sm);padding:var(--space-2) var(--space-3);background:transparent;color:var(--panel-text,var(--text)); }
+  .phone-map-primary button:hover { background:var(--surface); }
+  .phone-map-primary #phone-roll-host { min-width:0; }
+  .phone-map-primary #pick { background:var(--gold);color:var(--on-gold);font-weight:var(--weight-bold);overflow-wrap:anywhere; }
+  .phone-map-primary #pick:hover { background:var(--gold-strong); }
+  :root[data-read-only=true] :is(#phone-roll-host,#phone-undo-host,.toolbar-roll) { display:none; }
   .phone-layout .map-toolbar::-webkit-scrollbar { display:block;height:6px; }
   .phone-layout .map-toolbar::-webkit-scrollbar-thumb { background:var(--gold);border-radius:var(--radius-sm); }
   .phone-layout .map-toolbar .toolbar-group { flex:none; }
-  .phone-layout .map-dock { position:absolute;top:calc(var(--map-toolbar-height,56px) + 1rem);bottom:4rem;left:calc(.5rem + env(safe-area-inset-left,0px));right:calc(.5rem + env(safe-area-inset-right,0px));width:auto;max-width:none;margin:0;min-height:0; }
+  .phone-layout .map-dock { position:absolute;top:calc(var(--map-toolbar-height,56px) + 4.75rem);bottom:4rem;left:calc(.5rem + env(safe-area-inset-left,0px));right:calc(.5rem + env(safe-area-inset-right,0px));width:auto;max-width:none;margin:0;min-height:0; }
+  .phone-layout .map-panel:has(#map-toolbar[hidden]) .map-dock { top:4.25rem; }
   .phone-layout .map-dock-panels { max-height:100%; }
   .phone-layout .task-sidebar { height:100%;max-height:none;min-height:0;border-top:0;overscroll-behavior:contain;padding-inline:max(var(--space-6),env(safe-area-inset-left,0px)) max(var(--space-6),env(safe-area-inset-right,0px)); }
   .phone-layout .map-toolbar .toolbar-undo { flex-basis:auto; }
