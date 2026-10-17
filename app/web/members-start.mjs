@@ -1,4 +1,4 @@
-import { normalizeMembersStartOptions, membersStartPools } from '../core/members-start.mjs';
+import { normalizeMembersStartOptions, membersStartPools, membersStartBankCondition } from '../core/members-start.mjs';
 
 const poolNames = { optionA: 'Any bank you can reach after F2P', optionB: 'Havenhythe' };
 
@@ -22,6 +22,15 @@ export function createMembersStart(ctx) {
     control.addEventListener('change', () => { if (control.checked) change(value); }); return row;
   }
   function group(title) { const node = el('fieldset', undefined, 'members-start-group'); node.append(el('legend', title)); return node; }
+  function conditionalBanks(banks) {
+    const list = el('ul', undefined, 'members-start-banks');
+    for (const bank of banks ?? []) {
+      const row = el('li');
+      row.append(el('strong', bankLabel(bank.place, bank.chunkId)), el('p', `Condition: ${membersStartBankCondition(bank)}`, 'field-help'));
+      list.append(row);
+    }
+    return list;
+  }
   function summary(state) {
     const node = el('section', undefined, 'members-start-summary');
     node.append(el('h3', 'What changes for everyone'), el('p', 'Each player gets one starting bank chunk and a new starting flag. Their previous F2P map is kept as a read-only snapshot.'));
@@ -37,7 +46,7 @@ export function createMembersStart(ctx) {
       const name = state.members.find(member => member.id === pool.memberId)?.name ?? pool.memberId;
       const disclosure = el('details'), banks = el('ul', undefined, 'members-start-banks');
       disclosure.append(el('summary', `${name}: ${pool.banks.length} ${pool.banks.length === 1 ? 'bank' : 'banks'}`));
-      const search = input('search'); search.placeholder = 'Bank name or place';
+      const search = input('search'); search.placeholder = 'Bank name, place or condition';
       search.setAttribute('aria-label', `Search starting banks for ${name}`);
       const searchLabel = el('label', 'Find a bank', 'form-field'); searchLabel.append(search);
       const count = el('p', '', 'field-help'); count.setAttribute('role', 'status');
@@ -46,9 +55,14 @@ export function createMembersStart(ctx) {
         row.append(el('strong', bankLabel(title, bank.chunkId)));
         if (title !== bank.place) row.append(el('p', bank.place, 'field-help'));
         const conditional = [...(data.optionAConditional ?? []), ...(data.optionBConditional ?? [])].some(entry => entry.chunkId === bank.chunkId);
-        if (conditional) row.append(el('span', 'Conditional bank — check requirements below', 'field-help'));
-        row.append(el('p', bank.requirementsNote, 'field-help')); banks.append(row);
-        return { row, search: `${title} ${bank.place} ${bank.requirementsNote ?? ''}`.toLowerCase() };
+        const condition = conditional ? membersStartBankCondition(bank) : '';
+        if (conditional) {
+          const detail = el('details');
+          row.append(el('p', `Condition: ${condition}`, 'field-help'));
+          detail.append(el('summary', 'More detail'), el('p', bank.requirementsNote, 'field-help')); row.append(detail);
+        } else row.append(el('p', bank.requirementsNote, 'field-help'));
+        banks.append(row);
+        return { row, search: `${title} ${bank.place} ${condition} ${bank.requirementsNote ?? ''}`.toLowerCase() };
       });
       search.addEventListener('input', () => {
         const query = search.value.trim().toLowerCase(); let matches = 0;
@@ -78,12 +92,13 @@ export function createMembersStart(ctx) {
     content.append(pool);
     if (options.pool === 'optionA') {
       const extra = group('Optional banks');
-      extra.append(check('Include conditional banks', options.includeConditional, value => choices(data, { ...options, includeConditional: value }), 'By checking this, you confirm every listed requirement, payment and access route for every player. Open the bank list below to review the requirements.'), check('Include F2P banks', options.includeF2P, value => choices(data, { ...options, includeF2P: value }), 'Add the researched F2P bank chunks to the pool.'));
+      extra.append(check('Include conditional banks', options.includeConditional, value => choices(data, { ...options, includeConditional: value }), 'These banks have an extra requirement or cost. Tick this only if every player meets them.'), conditionalBanks(data.optionAConditional), check('Include F2P banks', options.includeF2P, value => choices(data, { ...options, includeF2P: value }), 'Add the researched F2P bank chunks to the pool.'));
       content.append(extra);
     } else {
       const trader = group('Trader Woes completed');
       trader.append(el('p', 'Wendlewick is available after Visions of Havenhythe. Add Dalia’s Tree Nursery only for players who have completed Trader Woes.', 'field-help'));
       for (const member of state.members) trader.append(check(`${member.name}: I have done Trader Woes`, options.traderWoes?.[member.id] === true, value => choices(data, { ...options, traderWoes: { ...options.traderWoes, [member.id]: value } })));
+      trader.append(conditionalBanks(data.optionBConditional));
       content.append(trader, el('p', 'Havenhythe progression has unverified island-only training gaps, including Construction 20–30 and Slayer 5–28. Settle your progression and supply rules before rolling.', 'field-help'));
     }
     const currentOptions = normalizeMembersStartOptions(options, state.members.map(member => member.id)), banks = preview(data, state, currentOptions);

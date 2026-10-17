@@ -45,6 +45,11 @@ export function normalizeMembersStartOptions(options = {}, memberIds) {
     Object.hasOwn(achievements, id) ? achievements[id] : false])), pairing };
 }
 
+/** Older bank data keeps its short condition in the first sentence of the note. */
+export function membersStartBankCondition(bank) {
+  return bank.condition ?? bank.requirementsNote?.trim().match(/^[\s\S]*?[.!?](?=\s|$)|^[\s\S]+$/)?.[0] ?? '';
+}
+
 function uniqueBanks(banks) {
   if (!Array.isArray(banks) || !banks.length) throw new TypeError('Bank pool must be a non-empty array');
   const unique = new Map();
@@ -53,6 +58,9 @@ function uniqueBanks(banks) {
     if (typeof bank.chunkId !== 'string' || !/^\d+$/.test(bank.chunkId)
       || typeof bank.place !== 'string' || !bank.place.trim()) {
       throw new TypeError('Banks require a numeric chunkId string and a place');
+    }
+    if (Object.hasOwn(bank, 'condition') && typeof bank.condition !== 'string') {
+      throw new TypeError('Bank condition must be a string');
     }
     if (!unique.has(bank.chunkId)) unique.set(bank.chunkId, { ...bank });
   }
