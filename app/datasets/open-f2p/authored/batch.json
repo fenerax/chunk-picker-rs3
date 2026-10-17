@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "open-f2p",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "pages": [
     {
       "requestedTitle": "Lumbridge",
@@ -1487,6 +1487,26 @@
       "title": "Module:Map/templates",
       "revision": 37167411,
       "contentModel": "Scribunto"
+    },
+    {
+      "requestedTitle": "Onion (scenery)",
+      "title": "Onion (scenery)",
+      "revision": 37147464
+    },
+    {
+      "requestedTitle": "Potato (scenery)",
+      "title": "Potato (scenery)",
+      "revision": 37131971
+    },
+    {
+      "requestedTitle": "Ned",
+      "title": "Ned",
+      "revision": 37127315
+    },
+    {
+      "requestedTitle": "Karim",
+      "title": "Karim",
+      "revision": 37209164
     }
   ],
   "bounds": {
@@ -1790,7 +1810,11 @@
     "Quest and achievement interiors, unreviewed locations, inventory quantities and seasonal availability need manual checks.",
     "The area-achievement slice is partial; five reviewed candidates are excluded with individual reasons.",
     "Equipment coverage is seven exact starter variants; other tiers, upgrades and BiS are unreviewed.",
-    "Monster coverage is four families; conditional, transcluded and uncertain drops are omitted."
+    "Monster coverage is four families; conditional, transcluded and uncertain drops are omitted.",
+    "Ordinary harvest coverage is limited to Draynor onions and two reviewed potato fields; other crop placements and dye recipes remain unreviewed.",
+    "Dialogue supplies check renewable payment capabilities, not quantities held or completed purchases; no wallet or stock simulation.",
+    "Finite quest rewards are previews only; completion does not prove a reward remains in inventory or grant renewable training.",
+    "Catherby and Wendlewick candle sellers, silk-stall theft, Havenhythe geography and member-instance corrections remain outside this public slice."
   ],
   "shops": [
     {
@@ -4335,7 +4359,33 @@
         "y": 3329,
         "plane": null,
         "cell": "12340"
-      }
+      },
+      "finiteRewards": [
+        {
+          "item": "Coins",
+          "quantity": 3000,
+          "evidence": {
+            "page": "Ernest the Chicken",
+            "needle": "* 3,000 [[coins]]"
+          }
+        },
+        {
+          "item": "Egg",
+          "quantity": 10,
+          "evidence": {
+            "page": "Ernest the Chicken",
+            "needle": "* 10 [[egg]]s"
+          }
+        },
+        {
+          "item": "Feather",
+          "quantity": 300,
+          "evidence": {
+            "page": "Ernest the Chicken",
+            "needle": "* 300 [[feather]]s"
+          }
+        }
+      ]
     },
     {
       "slug": "gertrude-s-cat",
@@ -10083,6 +10133,115 @@
     {
       "page": "Module:Map/templates",
       "needle": "mapid = pin.mapID or args.mapID or 28,"
+    }
+  ],
+  "ordinaryHarvests": [
+    {
+      "slug": "onion-draynor",
+      "page": "Onion (scenery)",
+      "cell": "12338",
+      "location": "[[Draynor Village]], south of the bank",
+      "item": "Onion",
+      "label": "Pick wild onions south of Draynor bank",
+      "evidence": [
+        {
+          "page": "Onion (scenery)",
+          "needle": "They can be picked to obtain  [[onion]]s"
+        },
+        {
+          "page": "Onion (scenery)",
+          "needle": "Onion plants will respawn after 30 seconds."
+        }
+      ]
+    },
+    {
+      "slug": "potato-draynor-east",
+      "page": "Potato (scenery)",
+      "cell": "12595",
+      "location": "East of [[Draynor Village]]",
+      "item": "Raw potato",
+      "label": "Pick wild potatoes east of Draynor Village",
+      "evidence": [
+        {
+          "page": "Potato (scenery)",
+          "needle": "They can be picked to obtain a [[raw potato]]"
+        },
+        {
+          "page": "Potato (scenery)",
+          "needle": "A plant respawns in 30 seconds after being picked."
+        }
+      ]
+    },
+    {
+      "slug": "potato-lumbridge-north-east",
+      "page": "Potato (scenery)",
+      "cell": "13107",
+      "location": "North-east of [[Lumbridge]]",
+      "item": "Raw potato",
+      "label": "Pick wild potatoes north-east of Lumbridge (13107)",
+      "evidence": [
+        {
+          "page": "Potato (scenery)",
+          "needle": "They can be picked to obtain a [[raw potato]]"
+        },
+        {
+          "page": "Potato (scenery)",
+          "needle": "A plant respawns in 30 seconds after being picked."
+        }
+      ]
+    }
+  ],
+  "dialogueSupplies": [
+    {
+      "slug": "ned-rope",
+      "page": "Ned",
+      "variant": "1",
+      "cell": "12338",
+      "item": "Rope",
+      "label": "Obtain rope from Ned in Draynor",
+      "paymentAlternatives": [
+        {
+          "Coins": 15
+        },
+        {
+          "Ball of wool": 4
+        }
+      ],
+      "reason": "Talk to Ned and pay 15 coins or exchange 4 balls of wool for 1 rope. The picker checks a renewable payment source, not the amount in your wallet or backpack; verify payment and space in game.",
+      "evidence": [
+        {
+          "page": "Ned",
+          "needle": "He sells rope in exchange for 15 [[coins]] or 4 [[Ball of wool|balls of wool]]."
+        },
+        {
+          "page": "Ned",
+          "needle": "|map1 = {{NPC map|npcname=Ned|npcid:918,x:3100,y:3257|group=918}}"
+        }
+      ]
+    },
+    {
+      "slug": "karim-kebab",
+      "page": "Karim",
+      "variant": "1",
+      "cell": "13105",
+      "item": "Kebab",
+      "label": "Buy a kebab from Karim in Al Kharid",
+      "paymentAlternatives": [
+        {
+          "Coins": 1
+        }
+      ],
+      "reason": "Talk to Karim and pay 1 coin for 1 kebab. This dialogue purchase has no shop interface. The picker checks a renewable coin source, not a wallet balance; verify payment and space in game.",
+      "evidence": [
+        {
+          "page": "Karim",
+          "needle": "When talked to, Karim sells kebabs for 1 coin each."
+        },
+        {
+          "page": "Karim",
+          "needle": "|map1 = {{NPC map|npcname=Karim|npcid=543|x=3269|y=3183}}"
+        }
+      ]
     }
   ]
 }

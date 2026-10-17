@@ -169,3 +169,63 @@ export function buildServices({ spec, pages, addCell, anchors }) {
   }
   return { shops: sort(shops), stock: sort(stock), services: sort(services), routes: sort(routes), tasks: sort(tasks) };
 }
+
+/** Ordinary non-skill harvests and dialogue purchases, without shop semantics. */
+export function buildOrdinarySupplies({ spec, pages, cells }) {
+  const harvests = [], dialogueSupplies = [], tasks = [];
+  const evidence = review => {
+    if (!review.evidence?.length) throw new Error(`Ordinary supply lacks evidence: ${review.slug}.`);
+    return union(review.evidence.map(({ page, needle }) => {
+      const source = pages.get(page);
+      if (!source || !needle || !source.text.includes(needle)) throw new Error(`Ordinary supply evidence changed: ${page}: ${needle}.`);
+      return source.provenance;
+    }));
+  };
+  const knownCell = cell => { if (!cells.has(cell)) throw new Error(`Ordinary supply cell is outside the reviewed slice: ${cell}.`); };
+  for (const review of spec.ordinaryHarvests ?? []) {
+    const source = pages.get(review.page), box = templates(source?.text ?? '', 'Infobox Scenery')[0];
+    if (!box || field(box, 'members')?.toLowerCase() !== 'no' || field(box, 'options') !== 'Pick, Examine') throw new Error(`Not a reviewed free ordinary harvest: ${review.page}.`);
+    const provenance = union([source.provenance, ...evidence(review)]);
+    const row = templates(source.text, 'ObjectLocLine').find(row => field(row, 'loc') === review.location);
+    if (!row || field(row, 'mem')?.toLowerCase() !== 'no' || !ungated(row)
+      || field(row, 'plane') && field(row, 'plane') !== '0' || field(row, 'mapID') && field(row, 'mapID') !== '28') throw new Error(`Ordinary harvest location changed: ${review.slug}.`);
+    const loot = templates(source.text, 'DropsLineSearch').find(row => field(row, 'name') === review.item);
+    if (!loot || field(loot, 'quantity') !== '1' || field(loot, 'rarity') !== 'Common') throw new Error(`Ordinary harvest output changed: ${review.slug}.`);
+    knownCell(review.cell);
+    const coordinates = coords(row).filter(point => String(Math.floor(point.x / 64) * 256 + Math.floor(point.y / 64)) === review.cell);
+    if (!coordinates.length) throw new Error(`Ordinary harvest has no placement in its reviewed cell: ${review.slug}.`);
+    const harvest = { id: `${prefix}harvest:${review.slug}`, cell: review.cell, name: clean(field(box, 'name')),
+      item: review.item, coordinates, membership: 'free', renewable: true, provenance };
+    harvests.push(harvest);
+    tasks.push({ id: `${prefix}activity:harvest:${review.slug}`, sourceId: harvest.id, cell: harvest.cell, skill: 'Extra', level: 1,
+      label: review.label, reason: 'Pick the ordinary wild crop. No Farming level, seed or Farming experience is involved; the plant respawns. This is a renewable supply option, not an owned item.',
+      objectRequirements: [harvest.name], output: [harvest.item], provenance });
+  }
+  for (const review of spec.dialogueSupplies ?? []) {
+    const source = pages.get(review.page), box = templates(source?.text ?? '', 'Infobox NPC')[0];
+    const suffix = review.variant ?? '';
+    if (!box || (field(box, `members${suffix}`) ?? field(box, 'members'))?.toLowerCase() !== 'no') throw new Error(`No explicit free dialogue NPC variant: ${review.page}.`);
+    const map = field(box, `map${suffix}`) ?? '';
+    const coordinates = [...mapPoints(map), ...coords(map)];
+    if (coordinates.length !== 1 || coordinates[0].plane !== 0) throw new Error(`Dialogue NPC placement is ambiguous: ${review.page}.`);
+    const point = coordinates[0], cell = String(Math.floor(point.x / 64) * 256 + Math.floor(point.y / 64));
+    knownCell(cell);
+    if (cell !== review.cell || !review.paymentAlternatives?.length
+      || review.paymentAlternatives.some(payment => !Object.keys(payment).length || Object.entries(payment).some(([item, count]) => !item || !Number.isSafeInteger(count) || count <= 0))) throw new Error(`Invalid reviewed dialogue payment/location: ${review.slug}.`);
+    const standard = templates(source.text, 'StoreLine').find(row => field(row, 'name') === review.item && !field(row, 'quest') && (!field(row, 'quantity') || field(row, 'quantity') === '1'));
+    if (!standard || field(standard, 'stock') !== 'inf') throw new Error(`Dialogue output is not reviewed repeatable supply: ${review.slug}.`);
+    for (const payment of review.paymentAlternatives) for (const [item, count] of Object.entries(payment)) {
+      const escaped = item.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      if (item === 'Coins' ? Number(field(standard, 'sell')) !== count
+        : !new RegExp(`\\b${count} \\[\\[${escaped}(?:\\|[^\\]]+)?\\]\\]`).test(source.text)) throw new Error(`Dialogue payment differs from pinned evidence: ${review.slug}: ${item}.`);
+    }
+    const provenance = union([source.provenance, ...evidence(review)]);
+    const supply = { id: `${prefix}dialogue-supply:${review.slug}`, cell, name: clean(field(box, 'name')), item: review.item,
+      quantity: 1, coordinates, membership: 'free', mode: 'closure-only', paymentAlternatives: review.paymentAlternatives, provenance };
+    dialogueSupplies.push(supply);
+    tasks.push({ id: `${prefix}activity:dialogue-supply:${review.slug}`, sourceId: supply.id, cell, skill: 'Extra', level: 1,
+      label: review.label, reason: review.reason, npcRequirements: [supply.name], output: [supply.item],
+      dialogueSupply: { mode: supply.mode, paymentAlternatives: supply.paymentAlternatives }, provenance });
+  }
+  return { harvests: sort(harvests), dialogueSupplies: sort(dialogueSupplies), tasks: sort(tasks) };
+}

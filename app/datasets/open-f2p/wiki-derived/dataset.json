@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "open-f2p",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "licence": "CC-BY-NC-SA-3.0",
   "coordinateDerivation": {
     "cellSize": 64,
@@ -24,8 +24,8 @@
     "cells": 52,
     "connections": 47,
     "sources": 120,
-    "tasks": 271,
-    "wikiPages": 274,
+    "tasks": 276,
+    "wikiPages": 278,
     "shops": 13,
     "stock": 126,
     "banks": 11,
@@ -44,7 +44,11 @@
       "Quest and achievement interiors, unreviewed locations, inventory quantities and seasonal availability need manual checks.",
       "The area-achievement slice is partial; five reviewed candidates are excluded with individual reasons.",
       "Equipment coverage is seven exact starter variants; other tiers, upgrades and BiS are unreviewed.",
-      "Monster coverage is four families; conditional, transcluded and uncertain drops are omitted."
+      "Monster coverage is four families; conditional, transcluded and uncertain drops are omitted.",
+      "Ordinary harvest coverage is limited to Draynor onions and two reviewed potato fields; other crop placements and dye recipes remain unreviewed.",
+      "Dialogue supplies check renewable payment capabilities, not quantities held or completed purchases; no wallet or stock simulation.",
+      "Finite quest rewards are previews only; completion does not prove a reward remains in inventory or grant renewable training.",
+      "Catherby and Wendlewick candle sellers, silk-stall theft, Havenhythe geography and member-instance corrections remain outside this public slice."
     ],
     "equipment": 7,
     "acquisitions": 37,
@@ -52,7 +56,9 @@
     "drops": 24,
     "facilities": 4,
     "recipes": 9,
-    "equipmentReview": 4
+    "equipmentReview": 4,
+    "harvests": 3,
+    "dialogueSupplies": 2
   },
   "cells": [
     {
@@ -8982,6 +8988,69 @@
       ]
     },
     {
+      "id": "rs3:open-f2p:activity:dialogue-supply:karim-kebab",
+      "sourceId": "rs3:open-f2p:dialogue-supply:karim-kebab",
+      "cell": "13105",
+      "skill": "Extra",
+      "level": 1,
+      "label": "Buy a kebab from Karim in Al Kharid",
+      "reason": "Talk to Karim and pay 1 coin for 1 kebab. This dialogue purchase has no shop interface. The picker checks a renewable coin source, not a wallet balance; verify payment and space in game.",
+      "npcRequirements": [
+        "Karim"
+      ],
+      "output": [
+        "Kebab"
+      ],
+      "dialogueSupply": {
+        "mode": "closure-only",
+        "paymentAlternatives": [
+          {
+            "Coins": 1
+          }
+        ]
+      },
+      "provenance": [
+        {
+          "page": "Karim",
+          "revision": 37209164,
+          "url": "https://runescape.wiki/w/Karim?oldid=37209164"
+        }
+      ]
+    },
+    {
+      "id": "rs3:open-f2p:activity:dialogue-supply:ned-rope",
+      "sourceId": "rs3:open-f2p:dialogue-supply:ned-rope",
+      "cell": "12338",
+      "skill": "Extra",
+      "level": 1,
+      "label": "Obtain rope from Ned in Draynor",
+      "reason": "Talk to Ned and pay 15 coins or exchange 4 balls of wool for 1 rope. The picker checks a renewable payment source, not the amount in your wallet or backpack; verify payment and space in game.",
+      "npcRequirements": [
+        "Ned"
+      ],
+      "output": [
+        "Rope"
+      ],
+      "dialogueSupply": {
+        "mode": "closure-only",
+        "paymentAlternatives": [
+          {
+            "Coins": 15
+          },
+          {
+            "Ball of wool": 4
+          }
+        ]
+      },
+      "provenance": [
+        {
+          "page": "Ned",
+          "revision": 37127315,
+          "url": "https://runescape.wiki/w/Ned?oldid=37127315"
+        }
+      ]
+    },
+    {
       "id": "rs3:open-f2p:activity:gold:11826",
       "sourceId": "rs3:open-f2p:source:gold:11826",
       "cell": "11826",
@@ -9036,6 +9105,72 @@
           "page": "Bronze pickaxe",
           "revision": 37131931,
           "url": "https://runescape.wiki/w/Bronze_pickaxe?oldid=37131931"
+        }
+      ]
+    },
+    {
+      "id": "rs3:open-f2p:activity:harvest:onion-draynor",
+      "sourceId": "rs3:open-f2p:harvest:onion-draynor",
+      "cell": "12338",
+      "skill": "Extra",
+      "level": 1,
+      "label": "Pick wild onions south of Draynor bank",
+      "reason": "Pick the ordinary wild crop. No Farming level, seed or Farming experience is involved; the plant respawns. This is a renewable supply option, not an owned item.",
+      "objectRequirements": [
+        "Onion"
+      ],
+      "output": [
+        "Onion"
+      ],
+      "provenance": [
+        {
+          "page": "Onion (scenery)",
+          "revision": 37147464,
+          "url": "https://runescape.wiki/w/Onion_(scenery)?oldid=37147464"
+        }
+      ]
+    },
+    {
+      "id": "rs3:open-f2p:activity:harvest:potato-draynor-east",
+      "sourceId": "rs3:open-f2p:harvest:potato-draynor-east",
+      "cell": "12595",
+      "skill": "Extra",
+      "level": 1,
+      "label": "Pick wild potatoes east of Draynor Village",
+      "reason": "Pick the ordinary wild crop. No Farming level, seed or Farming experience is involved; the plant respawns. This is a renewable supply option, not an owned item.",
+      "objectRequirements": [
+        "Potato"
+      ],
+      "output": [
+        "Raw potato"
+      ],
+      "provenance": [
+        {
+          "page": "Potato (scenery)",
+          "revision": 37131971,
+          "url": "https://runescape.wiki/w/Potato_(scenery)?oldid=37131971"
+        }
+      ]
+    },
+    {
+      "id": "rs3:open-f2p:activity:harvest:potato-lumbridge-north-east",
+      "sourceId": "rs3:open-f2p:harvest:potato-lumbridge-north-east",
+      "cell": "13107",
+      "skill": "Extra",
+      "level": 1,
+      "label": "Pick wild potatoes north-east of Lumbridge (13107)",
+      "reason": "Pick the ordinary wild crop. No Farming level, seed or Farming experience is involved; the plant respawns. This is a renewable supply option, not an owned item.",
+      "objectRequirements": [
+        "Potato"
+      ],
+      "output": [
+        "Raw potato"
+      ],
+      "provenance": [
+        {
+          "page": "Potato (scenery)",
+          "revision": 37131971,
+          "url": "https://runescape.wiki/w/Potato_(scenery)?oldid=37131971"
         }
       ]
     },
@@ -12902,6 +13037,20 @@
           "page": "Module:Questreq",
           "revision": 36822741,
           "url": "https://runescape.wiki/w/Module%3AQuestreq?oldid=36822741"
+        }
+      ],
+      "finiteRewards": [
+        {
+          "item": "Coins",
+          "quantity": 3000
+        },
+        {
+          "item": "Egg",
+          "quantity": 10
+        },
+        {
+          "item": "Feather",
+          "quantity": 300
         }
       ]
     },
@@ -21316,6 +21465,20 @@
           "page": "Module:Questreq",
           "revision": 36822741,
           "url": "https://runescape.wiki/w/Module%3AQuestreq?oldid=36822741"
+        }
+      ],
+      "finiteRewards": [
+        {
+          "item": "Coins",
+          "quantity": 3000
+        },
+        {
+          "item": "Egg",
+          "quantity": 10
+        },
+        {
+          "item": "Feather",
+          "quantity": 300
         }
       ]
     },
@@ -32370,10 +32533,609 @@
       ]
     }
   ],
+  "harvests": [
+    {
+      "id": "rs3:open-f2p:harvest:onion-draynor",
+      "cell": "12338",
+      "name": "Onion",
+      "item": "Onion",
+      "coordinates": [
+        {
+          "x": 3096,
+          "y": 3237,
+          "plane": 0
+        },
+        {
+          "x": 3098,
+          "y": 3237,
+          "plane": 0
+        },
+        {
+          "x": 3100,
+          "y": 3237,
+          "plane": 0
+        },
+        {
+          "x": 3095,
+          "y": 3236,
+          "plane": 0
+        },
+        {
+          "x": 3097,
+          "y": 3236,
+          "plane": 0
+        },
+        {
+          "x": 3099,
+          "y": 3236,
+          "plane": 0
+        },
+        {
+          "x": 3096,
+          "y": 3235,
+          "plane": 0
+        },
+        {
+          "x": 3098,
+          "y": 3235,
+          "plane": 0
+        },
+        {
+          "x": 3100,
+          "y": 3235,
+          "plane": 0
+        }
+      ],
+      "membership": "free",
+      "renewable": true,
+      "provenance": [
+        {
+          "page": "Onion (scenery)",
+          "revision": 37147464,
+          "url": "https://runescape.wiki/w/Onion_(scenery)?oldid=37147464"
+        }
+      ]
+    },
+    {
+      "id": "rs3:open-f2p:harvest:potato-draynor-east",
+      "cell": "12595",
+      "name": "Potato",
+      "item": "Raw potato",
+      "coordinates": [
+        {
+          "x": 3139,
+          "y": 3286,
+          "plane": 0
+        },
+        {
+          "x": 3140,
+          "y": 3286,
+          "plane": 0
+        },
+        {
+          "x": 3144,
+          "y": 3286,
+          "plane": 0
+        },
+        {
+          "x": 3145,
+          "y": 3286,
+          "plane": 0
+        },
+        {
+          "x": 3138,
+          "y": 3285,
+          "plane": 0
+        },
+        {
+          "x": 3139,
+          "y": 3285,
+          "plane": 0
+        },
+        {
+          "x": 3140,
+          "y": 3285,
+          "plane": 0
+        },
+        {
+          "x": 3141,
+          "y": 3285,
+          "plane": 0
+        },
+        {
+          "x": 3142,
+          "y": 3285,
+          "plane": 0
+        },
+        {
+          "x": 3143,
+          "y": 3285,
+          "plane": 0
+        },
+        {
+          "x": 3145,
+          "y": 3285,
+          "plane": 0
+        },
+        {
+          "x": 3146,
+          "y": 3285,
+          "plane": 0
+        },
+        {
+          "x": 3147,
+          "y": 3285,
+          "plane": 0
+        },
+        {
+          "x": 3148,
+          "y": 3285,
+          "plane": 0
+        },
+        {
+          "x": 3149,
+          "y": 3285,
+          "plane": 0
+        },
+        {
+          "x": 3139,
+          "y": 3284,
+          "plane": 0
+        },
+        {
+          "x": 3140,
+          "y": 3284,
+          "plane": 0
+        },
+        {
+          "x": 3141,
+          "y": 3284,
+          "plane": 0
+        },
+        {
+          "x": 3143,
+          "y": 3284,
+          "plane": 0
+        },
+        {
+          "x": 3144,
+          "y": 3284,
+          "plane": 0
+        },
+        {
+          "x": 3145,
+          "y": 3284,
+          "plane": 0
+        },
+        {
+          "x": 3146,
+          "y": 3284,
+          "plane": 0
+        },
+        {
+          "x": 3147,
+          "y": 3284,
+          "plane": 0
+        },
+        {
+          "x": 3148,
+          "y": 3284,
+          "plane": 0
+        },
+        {
+          "x": 3139,
+          "y": 3283,
+          "plane": 0
+        },
+        {
+          "x": 3140,
+          "y": 3283,
+          "plane": 0
+        },
+        {
+          "x": 3141,
+          "y": 3283,
+          "plane": 0
+        },
+        {
+          "x": 3142,
+          "y": 3283,
+          "plane": 0
+        },
+        {
+          "x": 3143,
+          "y": 3283,
+          "plane": 0
+        },
+        {
+          "x": 3145,
+          "y": 3283,
+          "plane": 0
+        },
+        {
+          "x": 3146,
+          "y": 3283,
+          "plane": 0
+        },
+        {
+          "x": 3147,
+          "y": 3283,
+          "plane": 0
+        },
+        {
+          "x": 3148,
+          "y": 3283,
+          "plane": 0
+        },
+        {
+          "x": 3149,
+          "y": 3283,
+          "plane": 0
+        },
+        {
+          "x": 3139,
+          "y": 3282,
+          "plane": 0
+        },
+        {
+          "x": 3141,
+          "y": 3282,
+          "plane": 0
+        },
+        {
+          "x": 3142,
+          "y": 3282,
+          "plane": 0
+        },
+        {
+          "x": 3143,
+          "y": 3282,
+          "plane": 0
+        },
+        {
+          "x": 3144,
+          "y": 3282,
+          "plane": 0
+        },
+        {
+          "x": 3145,
+          "y": 3282,
+          "plane": 0
+        },
+        {
+          "x": 3146,
+          "y": 3282,
+          "plane": 0
+        },
+        {
+          "x": 3147,
+          "y": 3282,
+          "plane": 0
+        },
+        {
+          "x": 3149,
+          "y": 3282,
+          "plane": 0
+        },
+        {
+          "x": 3150,
+          "y": 3282,
+          "plane": 0
+        },
+        {
+          "x": 3138,
+          "y": 3281,
+          "plane": 0
+        },
+        {
+          "x": 3139,
+          "y": 3281,
+          "plane": 0
+        },
+        {
+          "x": 3140,
+          "y": 3281,
+          "plane": 0
+        },
+        {
+          "x": 3141,
+          "y": 3281,
+          "plane": 0
+        },
+        {
+          "x": 3142,
+          "y": 3281,
+          "plane": 0
+        },
+        {
+          "x": 3143,
+          "y": 3281,
+          "plane": 0
+        },
+        {
+          "x": 3144,
+          "y": 3281,
+          "plane": 0
+        },
+        {
+          "x": 3145,
+          "y": 3281,
+          "plane": 0
+        },
+        {
+          "x": 3146,
+          "y": 3281,
+          "plane": 0
+        },
+        {
+          "x": 3147,
+          "y": 3281,
+          "plane": 0
+        },
+        {
+          "x": 3148,
+          "y": 3281,
+          "plane": 0
+        },
+        {
+          "x": 3149,
+          "y": 3281,
+          "plane": 0
+        },
+        {
+          "x": 3139,
+          "y": 3280,
+          "plane": 0
+        },
+        {
+          "x": 3140,
+          "y": 3280,
+          "plane": 0
+        },
+        {
+          "x": 3141,
+          "y": 3280,
+          "plane": 0
+        },
+        {
+          "x": 3142,
+          "y": 3280,
+          "plane": 0
+        },
+        {
+          "x": 3144,
+          "y": 3280,
+          "plane": 0
+        },
+        {
+          "x": 3145,
+          "y": 3280,
+          "plane": 0
+        },
+        {
+          "x": 3146,
+          "y": 3280,
+          "plane": 0
+        },
+        {
+          "x": 3148,
+          "y": 3280,
+          "plane": 0
+        },
+        {
+          "x": 3149,
+          "y": 3280,
+          "plane": 0
+        },
+        {
+          "x": 3150,
+          "y": 3280,
+          "plane": 0
+        },
+        {
+          "x": 3138,
+          "y": 3279,
+          "plane": 0
+        },
+        {
+          "x": 3139,
+          "y": 3279,
+          "plane": 0
+        },
+        {
+          "x": 3140,
+          "y": 3279,
+          "plane": 0
+        },
+        {
+          "x": 3141,
+          "y": 3279,
+          "plane": 0
+        },
+        {
+          "x": 3142,
+          "y": 3279,
+          "plane": 0
+        },
+        {
+          "x": 3143,
+          "y": 3279,
+          "plane": 0
+        },
+        {
+          "x": 3144,
+          "y": 3279,
+          "plane": 0
+        },
+        {
+          "x": 3145,
+          "y": 3279,
+          "plane": 0
+        },
+        {
+          "x": 3146,
+          "y": 3279,
+          "plane": 0
+        },
+        {
+          "x": 3147,
+          "y": 3279,
+          "plane": 0
+        },
+        {
+          "x": 3148,
+          "y": 3279,
+          "plane": 0
+        },
+        {
+          "x": 3149,
+          "y": 3279,
+          "plane": 0
+        },
+        {
+          "x": 3139,
+          "y": 3278,
+          "plane": 0
+        },
+        {
+          "x": 3140,
+          "y": 3278,
+          "plane": 0
+        },
+        {
+          "x": 3142,
+          "y": 3278,
+          "plane": 0
+        },
+        {
+          "x": 3143,
+          "y": 3278,
+          "plane": 0
+        },
+        {
+          "x": 3144,
+          "y": 3278,
+          "plane": 0
+        }
+      ],
+      "membership": "free",
+      "renewable": true,
+      "provenance": [
+        {
+          "page": "Potato (scenery)",
+          "revision": 37131971,
+          "url": "https://runescape.wiki/w/Potato_(scenery)?oldid=37131971"
+        }
+      ]
+    },
+    {
+      "id": "rs3:open-f2p:harvest:potato-lumbridge-north-east",
+      "cell": "13107",
+      "name": "Potato",
+      "item": "Raw potato",
+      "coordinates": [
+        {
+          "x": 3264,
+          "y": 3302,
+          "plane": 0
+        },
+        {
+          "x": 3264,
+          "y": 3305,
+          "plane": 0
+        },
+        {
+          "x": 3264,
+          "y": 3308,
+          "plane": 0
+        },
+        {
+          "x": 3265,
+          "y": 3304,
+          "plane": 0
+        },
+        {
+          "x": 3265,
+          "y": 3307,
+          "plane": 0
+        }
+      ],
+      "membership": "free",
+      "renewable": true,
+      "provenance": [
+        {
+          "page": "Potato (scenery)",
+          "revision": 37131971,
+          "url": "https://runescape.wiki/w/Potato_(scenery)?oldid=37131971"
+        }
+      ]
+    }
+  ],
+  "dialogueSupplies": [
+    {
+      "id": "rs3:open-f2p:dialogue-supply:karim-kebab",
+      "cell": "13105",
+      "name": "Karim",
+      "item": "Kebab",
+      "quantity": 1,
+      "coordinates": [
+        {
+          "x": 3269,
+          "y": 3183,
+          "plane": 0
+        }
+      ],
+      "membership": "free",
+      "mode": "closure-only",
+      "paymentAlternatives": [
+        {
+          "Coins": 1
+        }
+      ],
+      "provenance": [
+        {
+          "page": "Karim",
+          "revision": 37209164,
+          "url": "https://runescape.wiki/w/Karim?oldid=37209164"
+        }
+      ]
+    },
+    {
+      "id": "rs3:open-f2p:dialogue-supply:ned-rope",
+      "cell": "12338",
+      "name": "Ned",
+      "item": "Rope",
+      "quantity": 1,
+      "coordinates": [
+        {
+          "x": 3100,
+          "y": 3257,
+          "plane": 0
+        }
+      ],
+      "membership": "free",
+      "mode": "closure-only",
+      "paymentAlternatives": [
+        {
+          "Coins": 15
+        },
+        {
+          "Ball of wool": 4
+        }
+      ],
+      "provenance": [
+        {
+          "page": "Ned",
+          "revision": 37127315,
+          "url": "https://runescape.wiki/w/Ned?oldid=37127315"
+        }
+      ]
+    }
+  ],
   "buildInputs": {
     "authored": {
       "path": "app/datasets/open-f2p/authored/batch.json",
-      "sha256": "0713b799abf9e0134bc1d7c2d63babd8a04815548104eff5c33aafec8e637bbf"
+      "sha256": "9bcd364e2588e093d02cb6654ec75ff10e0edeb34209926bcde9a3cb93ad7bf6"
     },
     "wiki": [
       {
@@ -34748,6 +35510,38 @@
         "cacheFile": "module-map-templates-1dbe598d24.json",
         "receipt": "pinned-scribunto-v1",
         "sha256": "7591d183cd1a4f815a7dbb93f9bb98325a191227f69fda92199e0f3f368f968e"
+      },
+      {
+        "requestedTitle": "Onion (scenery)",
+        "title": "Onion (scenery)",
+        "revision": 37147464,
+        "cacheFile": "onion-scenery-4550508e16.json",
+        "receipt": "pinned-wikitext-v1",
+        "sha256": "b850139ded204a32b6a98fff198539b1afa15c65d72177c56027e650bc38a6ea"
+      },
+      {
+        "requestedTitle": "Potato (scenery)",
+        "title": "Potato (scenery)",
+        "revision": 37131971,
+        "cacheFile": "potato-scenery-6b8a17f20a.json",
+        "receipt": "pinned-wikitext-v1",
+        "sha256": "2b149eb57076e1faf4c2ac01cf55a4c8c7325922910bd56f06120b9ac56b7fca"
+      },
+      {
+        "requestedTitle": "Ned",
+        "title": "Ned",
+        "revision": 37127315,
+        "cacheFile": "ned-7c95b1b284.json",
+        "receipt": "pinned-wikitext-v1",
+        "sha256": "9abcad234ac36882b51be5e447436a172fadc7d4144ff9170beda8e3d4e07d37"
+      },
+      {
+        "requestedTitle": "Karim",
+        "title": "Karim",
+        "revision": 37209164,
+        "cacheFile": "karim-f6c9942480.json",
+        "receipt": "pinned-wikitext-v1",
+        "sha256": "626a03b55b38a9967f688bf355a2f1eb2f4f1ce83828dbdc743717bfd041ca4e"
       }
     ]
   }

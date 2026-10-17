@@ -100,6 +100,13 @@ export function buildStories({ spec, pages, cells, templates }) {
     for (const check of selection.itemChecks ?? []) manualChecks.push(`Check supplies: ${check}`);
     if (selection.itemRequirements?.length && !selection.itemChecks?.length) manualChecks.push('Check the required items and quantities in game; inventory is not tracked.');
     for (const check of selection.ironmanRequirements ?? []) manualChecks.push(`Check self-supply: ${check}.`);
+    const finiteRewards = selection.finiteRewards?.map(reward => {
+      if (kind !== 'quest' || !reward.item || !Number.isSafeInteger(reward.quantity) || reward.quantity <= 0) throw new Error(`Invalid finite quest reward: ${selection.page}.`);
+      receipts.push(proof(reward.evidence));
+      const quantity = reward.quantity.toLocaleString('en-US');
+      if (!new RegExp(`^\\* ${quantity} \\[\\[${reward.item.toLowerCase()}\\]\\]s?$`).test(reward.evidence.needle)) throw new Error(`Finite reward quantity/item differs from evidence: ${selection.page}.`);
+      return { item: reward.item, quantity: reward.quantity };
+    });
     const provenance = [...new Map(receipts.map(row => [row.page, row])).values()];
     const id = `rs3:open-f2p:${kind}:${selection.slug}`;
     const requirementText = details.requirements ?? '';
@@ -111,6 +118,7 @@ export function buildStories({ spec, pages, cells, templates }) {
       // Keep full source fields as attributed evidence, away from authored code.
       wikiRequirements: requirementText, wikiItems: details.items ?? '',
       manualChecks: unique(manualChecks), provenance };
+    if (finiteRewards?.length) row.finiteRewards = finiteRewards;
     if (kind === 'quest' && (!Number.isSafeInteger(row.questPoints) || row.questPoints < 0)) throw new Error(`Invalid quest points: ${selection.page}.`);
     const reason = `${selection.summary ?? `Complete ${selection.page} in game.`} ${row.manualChecks.join(' ')}`.trim();
     const task = { id: `rs3:open-f2p:activity:${kind}:${selection.slug}`, sourceId: id, cell, skill: kind === 'quest' ? 'Quest' : 'Diary', level: 1,
@@ -118,6 +126,7 @@ export function buildStories({ spec, pages, cells, templates }) {
       supplyItems: row.itemRequirements, manualChecks: row.manualChecks,
       ...(row.questPointsNeeded !== undefined ? { questPointsNeeded: row.questPointsNeeded } : {}),
       ...(kind === 'quest' ? { questPoints: row.questPoints, baseQuest: selection.page } : {}), provenance };
+    if (finiteRewards?.length) task.finiteRewards = finiteRewards;
     return { row, task };
   };
   const quests = spec.questActivities.map(row => build(row, 'quest'));

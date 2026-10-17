@@ -1,4 +1,5 @@
 import test from 'node:test';
+import { wikiCacheRoot } from '../scripts/fetch-open-f2p-wiki.mjs';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { readFile, readdir, mkdir, mkdtemp, writeFile, copyFile, rm, access } from 'node:fs/promises';
@@ -19,6 +20,7 @@ const baseline = JSON.parse(await readFile(path.join(folder, 'wiki-derived/basel
 const baseline4 = JSON.parse(await readFile(path.join(folder, 'wiki-derived/baseline-0.4.0.json'), 'utf8'));
 const baseline3 = JSON.parse(await readFile(path.join(folder, 'wiki-derived/baseline-0.3.0.json'), 'utf8'));
 const baseline2 = JSON.parse(await readFile(path.join(folder, 'wiki-derived/baseline-0.2.0.json'), 'utf8'));
+const baseline5 = JSON.parse(await readFile(path.join(folder, 'wiki-derived/baseline-0.5.0.json'), 'utf8'));
 const { selectedDataset: dataset } = await import('../app/dataset-runtime.mjs');
 const { authoredIdentityRegistry, resolveTaskAlias, permanentTaskId, isPermanentId } = await import('../app/tasks/identity.mjs');
 const { chunkId, templates } = await import('../scripts/build-open-f2p.mjs');
@@ -86,11 +88,15 @@ test('batch 3 rows retain every identity, label, requirement and meaning byte fo
   }
 });
 
-test('batch 4 rows retain every identity, label, prerequisite and source meaning byte for byte', () => {
+test('batch 4 rows retain their reviewed facts, with only Ernest finite reward metadata added', () => {
   assert.equal(baseline4.version, '0.4.0');
   for (const kind of ['cells', 'sources', 'tasks', 'connections', 'shops', 'stock', 'services', 'routes', 'quests', 'achievements', 'achievementReview']) {
     const current = new Map(batch[kind].map(row => [row.id ?? row.page, row]));
-    for (const row of baseline4[kind]) assert.deepEqual(current.get(row.id ?? row.page), row, `Changed batch 4 ${kind}: ${row.id}`);
+    for (const row of baseline4[kind]) {
+      const actual = structuredClone(current.get(row.id ?? row.page));
+      if (['rs3:open-f2p:activity:quest:ernest-the-chicken', 'rs3:open-f2p:quest:ernest-the-chicken'].includes(row.id)) delete actual.finiteRewards;
+      assert.deepEqual(actual, row, `Changed batch 4 ${kind}: ${row.id}`);
+    }
   }
 });
 
@@ -219,15 +225,32 @@ async function guardedBuild({ generator, authoredFile, pins, cacheDir, outputDir
   return result;
 }
 
+test('batch 5 identities and reviewed facts survive the ordinary-supply expansion', () => {
+  assert.equal(baseline5.version, '0.5.0');
+  const receipts = new Map(batch.buildInputs.wiki.map(({ cacheFile, ...row }) => [row.requestedTitle, row]));
+  for (const receipt of baseline5.buildInputs.wiki) {
+    assert.equal(Object.hasOwn(receipt, 'cacheFile'), false, 'Historical receipts omit local filenames for archive portability');
+    assert.deepEqual(receipt, receipts.get(receipt.requestedTitle), 'Historical page, revision and receipt hash remain identical');
+  }
+  for (const kind of ['cells', 'sources', 'tasks', 'connections', 'shops', 'stock', 'services', 'routes', 'quests', 'achievements', 'equipment', 'acquisitions', 'monsters', 'drops', 'facilities', 'recipes', 'equipmentReview']) {
+    const current = new Map(batch[kind].map(row => [row.id, row]));
+    for (const original of baseline5[kind]) {
+      const row = current.get(original.id);
+      assert.ok(row, `Lost batch 5 identity: ${original.id}`);
+      for (const [key, value] of Object.entries(original)) assert.deepEqual(row[key], value, `Changed batch 5 ${original.id}.${key}`);
+    }
+  }
+});
+
 test('every fact has a real region cell and pinned Wiki page/revision provenance', () => {
   assert.equal(batch.id, 'open-f2p');
-  assert.equal(batch.version, '0.5.0');
+  assert.equal(batch.version, '0.6.0');
   const cells = new Map(batch.cells.map(row => [row.id, row]));
   const sources = new Map(batch.sources.map(row => [row.id, row]));
   assert.equal(cells.size, batch.cells.length);
   const pins = new Map(spec.pages.map(pin => [pin.title, pin.revision]));
   for (const row of [...batch.cells, ...batch.connections, ...batch.sources, ...batch.tasks,
-    ...(batch.shops ?? []), ...(batch.stock ?? []), ...(batch.services ?? []), ...(batch.routes ?? []), ...(batch.quests ?? []), ...(batch.achievements ?? []), ...(batch.achievementReview ?? []), ...batch.equipment, ...batch.monsters, ...batch.drops, ...batch.facilities, ...batch.recipes, ...batch.equipmentReview, ...batch.acquisitions, batch.coordinateDerivation]) {
+    ...(batch.shops ?? []), ...(batch.stock ?? []), ...(batch.services ?? []), ...(batch.routes ?? []), ...(batch.quests ?? []), ...(batch.achievements ?? []), ...(batch.achievementReview ?? []), ...batch.equipment, ...batch.monsters, ...batch.drops, ...batch.facilities, ...batch.recipes, ...batch.equipmentReview, ...batch.acquisitions, ...batch.harvests, ...batch.dialogueSupplies, batch.coordinateDerivation]) {
     assert.ok(row.provenance.length > 0);
     for (const receipt of row.provenance) {
       assert.equal(receipt.revision, pins.get(receipt.page));
@@ -248,7 +271,7 @@ test('every fact has a real region cell and pinned Wiki page/revision provenance
     assert.ok(source.coordinates.length);
     for (const point of source.coordinates) assert.equal(chunkId(point.x, point.y), source.cell);
   }
-  const taskSources = new Map([...batch.sources, ...(batch.services ?? []), ...(batch.stock ?? []), ...(batch.routes ?? []), ...(batch.quests ?? []), ...(batch.achievements ?? []), ...batch.drops, ...batch.recipes, ...batch.acquisitions, ...batch.equipment].map(row => [row.id, row]));
+  const taskSources = new Map([...batch.sources, ...(batch.services ?? []), ...(batch.stock ?? []), ...(batch.routes ?? []), ...(batch.quests ?? []), ...(batch.achievements ?? []), ...batch.drops, ...batch.recipes, ...batch.acquisitions, ...batch.equipment, ...batch.harvests, ...batch.dialogueSupplies].map(row => [row.id, row]));
   for (const task of batch.tasks) {
     assert.ok(cells.has(task.cell));
     const source = taskSources.get(task.sourceId);
@@ -277,7 +300,7 @@ test('every fact has a real region cell and pinned Wiki page/revision provenance
     assert.ok(cells.has(row.from)); assert.ok(cells.has(row.to));
   }
   for (const edge of batch.connections) { assert.ok(cells.has(edge.from)); assert.ok(cells.has(edge.to)); }
-  for (const name of ['cells', 'sources', 'tasks', 'connections', 'shops', 'stock', 'routes', 'equipment', 'monsters', 'drops', 'facilities', 'recipes', 'equipmentReview', 'acquisitions']) assert.equal(batch.coverage[name], batch[name].length);
+  for (const name of ['cells', 'sources', 'tasks', 'connections', 'shops', 'stock', 'routes', 'equipment', 'monsters', 'drops', 'facilities', 'recipes', 'equipmentReview', 'acquisitions', 'harvests', 'dialogueSupplies']) assert.equal(batch.coverage[name], batch[name].length);
   assert.equal(batch.coverage.banks, batch.services.filter(row => row.kind === 'bank').length);
   assert.equal(batch.coverage.depositBoxes, batch.services.filter(row => row.kind === 'deposit-box').length);
   assert.match(batch.coordinateDerivation.description, /Project-authored arithmetic/);
@@ -643,7 +666,7 @@ test('cage and harpoon fishing require their respective reviewed tools', () => {
 });
 
 test('open-f2p folder contains only declared authored and attributed Wiki-derived assets', async () => {
-  const allowed = new Set(['authored/batch.json', 'wiki-derived/dataset.json', 'wiki-derived/baseline-0.1.0.json', 'wiki-derived/baseline-0.2.0.json', 'wiki-derived/baseline-0.3.0.json', 'wiki-derived/baseline-0.4.0.json', 'wiki-derived/NOTICE']);
+  const allowed = new Set(['authored/batch.json', 'wiki-derived/dataset.json', 'wiki-derived/baseline-0.1.0.json', 'wiki-derived/baseline-0.2.0.json', 'wiki-derived/baseline-0.3.0.json', 'wiki-derived/baseline-0.4.0.json', 'wiki-derived/baseline-0.5.0.json', 'wiki-derived/NOTICE']);
   const seen = [];
   async function scan(directory, prefix = '') {
     for (const row of await readdir(directory, { withFileTypes: true })) {
@@ -784,7 +807,7 @@ test('minimal pinned fixture generates deterministically and excludes gated/memb
 });
 
 test('available real pinned cache rebuilds committed facts byte-for-byte with audited input reads', async t => {
-  const cacheDir = path.join(root, '.local/wiki-open-f2p');
+  const cacheDir = path.resolve(root, process.env.OPEN_F2P_WIKI_CACHE ?? wikiCacheRoot);
   try { for (const pin of spec.pages) await access(path.join(cacheDir, cacheFilename(pin.requestedTitle))); }
   catch (error) { if (error.code === 'ENOENT') { t.skip('Optional pinned local cache is absent; synthetic offline build remains mandatory.'); return; } throw error; }
   const directory = await scratch(t);

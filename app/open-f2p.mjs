@@ -57,6 +57,8 @@ export function resolveOpenF2P(options = {}) {
   for (const row of batch.sources) chunks[row.cell].Object[row.name] = true;
   for (const row of batch.shops ?? []) chunks[row.cell].Shop[row.name] = true;
   for (const row of batch.services ?? []) chunks[row.cell].Object[row.name] = true;
+  for (const row of batch.harvests ?? []) chunks[row.cell].Object[row.name] = true;
+  for (const row of batch.dialogueSupplies ?? []) (chunks[row.cell].NPC ??= {})[row.name] = true;
   for (const row of batch.facilities ?? []) {
     if (row.kind === 'tanner') (chunks[row.cell].NPC ??= {})[row.name] = true;
     else chunks[row.cell].Object[row.name] = true;
@@ -90,6 +92,8 @@ export function resolveOpenF2P(options = {}) {
     ...(row.output?.length ? { Output: row.output } : gatheringById.has(row.sourceId) ? { Output: [gatheringById.get(row.sourceId).output] } : {}),
     ...(row.objectRequirements?.length ? { Objects: row.objectRequirements } : {}),
     ...(row.npcRequirements?.length ? { NPCs: row.npcRequirements } : {}),
+    ...(row.dialogueSupply ? { DialogueSupply: row.dialogueSupply } : {}),
+    ...(row.finiteRewards?.length ? { FiniteRewards: row.finiteRewards } : {}),
     ...(row.monsterRequirements?.length ? { Monsters: row.monsterRequirements.map(id => monsterNames.get(id) ?? id) } : {}),
     ...(row.sourceId?.startsWith('rs3:open-f2p:stock:') ? { Shops: [shopNames.get(batch.stock.find(stock => stock.id === row.sourceId)?.shopId)] } : {}) };
   for (const row of batch.tasks) {
