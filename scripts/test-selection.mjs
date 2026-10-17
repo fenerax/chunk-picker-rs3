@@ -9,6 +9,7 @@ export const concurrencyFor = (suite, env = process.env) => {
 
 // Reviewed synthetic checks. New F2P batch tests follow the public dataset family.
 export const quickTests = new Set([
+  "perf-inputs.test.mjs",
   "automatic-rule-defaults.test.mjs",
   "rule-reviews-server.test.mjs",
   "rules-review.test.mjs",
