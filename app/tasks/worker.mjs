@@ -131,8 +131,9 @@ function evaluateFull(state, memberId, { includeViews = true, timingMs } = {}) {
   return result;
 }
 
-// Keep only a few coherent member/revision snapshots. Each candidate reuses the
-// complete current obligations, including collections and equipment goals.
+// Keep two coherent member/revision results. Each retains a complete graph,
+// including collections and equipment goals; older revisions can be rebuilt.
+// This bound is independent of the four-entry state-transfer protocol below.
 const snapshots = new Map();
 const stateSnapshots = new Map();
 let latestRevision = -1;
@@ -142,7 +143,11 @@ function snapshotFor(state, memberId, timingMs, input, includeViews = true) {
   const key = JSON.stringify([state.revision, memberId, input ?? null, state.rules, state.taskRules,
     state.members.map(owner => [owner.id, owner.taskRules, state.legacy?.maps?.[owner.sourceMapId]?.rules])]);
   let snapshot = snapshots.get(key), hit = !!snapshot;
-  if (!snapshot) snapshot = { baseline: evaluateFull(state, memberId, { includeViews, timingMs }), includeViews, estimates: new Map() };
+  if (!snapshot) {
+    // Release the oldest graph before allocating its replacement.
+    while (snapshots.size >= 2) snapshots.delete(snapshots.keys().next().value);
+    snapshot = { baseline: evaluateFull(state, memberId, { includeViews, timingMs }), includeViews, estimates: new Map() };
+  }
   else if (includeViews && !snapshot.includeViews) {
     // Advisory lanes need the complete obligations, but not the separate BiS
     // and activity panels. A later full caller must receive both views.
@@ -150,7 +155,6 @@ function snapshotFor(state, memberId, timingMs, input, includeViews = true) {
     snapshot.includeViews = true;
   }
   snapshots.delete(key); snapshots.set(key, snapshot);
-  while (snapshots.size > 4) snapshots.delete(snapshots.keys().next().value);
   return { snapshot, hit };
 }
 const taskReuseFingerprint = createTaskReuseFingerprint();
