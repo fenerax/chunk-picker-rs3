@@ -2,6 +2,10 @@ import { datasetJSON } from "../dataset-runtime.mjs";
 const evidence = await datasetJSON("app/data/metadata-corrections.2026-10-08.v1.json");
 
 export const metadataCorrections = evidence.corrections;
+// Some access and partial-quest facts are documented only by the Wiki. Keep
+// their provenance separate from the cache-backed scalar audit.
+export const wikiMetadataCorrections = evidence.wikiCorrections ?? [];
+const reviewedCorrections = [...metadataCorrections, ...wikiMetadataCorrections];
 const scalarFields = new Set(['QuestPoints', 'Not F2P', 'BaseQuest', 'RuneScore', 'Difficulty', 'Length', 'QuestPointsNeeded']);
 const numericMaps = new Set(['Skills', 'SkillsNeeded', 'Requirements']);
 const unsafe = new Set(['__proto__', 'prototype', 'constructor']);
@@ -32,7 +36,7 @@ function matches(actual, value, present = value !== null) {
  * The archival export, labels, task IDs and all other authored fields survive.
  * Custom datasets with different values are left alone; strict audits reject drift.
  */
-export function applyMetadataCorrections(definitions, { corrections = metadataCorrections, strict = false } = {}) {
+export function applyMetadataCorrections(definitions, { corrections = reviewedCorrections, strict = false } = {}) {
   let result = definitions;
   for (const correction of corrections) {
     const original = result?.challenges?.[correction.category]?.[correction.label];
