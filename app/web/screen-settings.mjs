@@ -58,7 +58,7 @@ export function createScreenSettings(c) {
     c.$('recent-panel').hidden = !prefs.recent;
     if (!prefs.info) { c.$('chunk-info').hidden = true; c.disposeAccessSections(); c.map?.setConnectionChunk?.(null); }
     c.mapDisplay?.refresh();
-    if (!c.canWrite()) for (const id of ['rules-open', 'settings-open', 'runemetrics-open', 'feedback-open', 'teleports-open', 'invites-open', 'backup-open', 'original-sync-open', 'pick', 'roll-two', 'unpick', 'undo', 'sandbox-toggle', 'custom-task-open', 'empty-import', 'random-start']) { const node = c.$(id); if (node) node.hidden = node.disabled = true; }
+    if (!c.canWrite()) for (const id of ['settings-open', 'runemetrics-open', 'feedback-open', 'teleports-open', 'invites-open', 'backup-open', 'original-sync-open', 'pick', 'roll-two', 'unpick', 'undo', 'sandbox-toggle', 'custom-task-open', 'empty-import', 'random-start']) { const node = c.$(id); if (node) node.hidden = node.disabled = true; }
     c.applyDatasetControls?.();
   }
 

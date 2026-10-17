@@ -95,6 +95,7 @@ function writeSide(member, changes, side) {
   }
 }
 function rewind(state, event, events) {
+  if (event.type === 'set-rule-review') return null;
   if (finishLineCommandTypes.includes(event.type)) return null;
   if (['restore', 'catalogue-refresh'].includes(event.type)) return 'Restore or catalogue refresh boundary';
   if (event.type === 'undo') {

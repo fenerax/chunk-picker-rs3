@@ -120,7 +120,7 @@ export const routePermissions = Object.freeze({
 export const commandPermissions = Object.freeze(Object.fromEntries([
   ...groupGoalCommandTypes,
   'set-finish-line-item', 'add-finish-line-custom', 'set-finish-line-custom', 'delete-finish-line-custom',
-  'set-teleport-override', 'set-transport-facts', 'sync-original', 'set-rule', 'set-profile',
+  'set-teleport-override', 'set-transport-facts', 'sync-original', 'set-rule', 'set-rule-review', 'set-profile',
   'set-teleport', 'delete-teleport', 'set-chunk', 'set-note', 'set-journal', 'add-task', 'update-task', 'delete-task', 'clear-challenge-ticks',
   'clear-backlog', 'set-task-status', 'set-task-rule', 'set-preference', 'reset-task-rule',
   'set-task-alternative', 'set-primary-override', 'set-skill-levels', 'set-xp-choices', 'replace-member',
@@ -1911,10 +1911,10 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
       else if (['/map-capture.mjs', '/screen-capture.mjs', '/map-capture.css'].includes(route)) file = await containedFile(webRoot, route.slice(1));
       else if (['/area-check.mjs', '/area-check-selection.mjs', '/area-check.css'].includes(route)) file = await containedFile(webRoot, route.slice(1));
       else if (['/partner-supply-model.mjs', '/partner-supply-view.mjs', '/partner-supply.css'].includes(route)) file = await containedFile(webRoot, route.slice(1));
-      else if (['/tasks/fact-projection.mjs', '/tasks/gameplay-compat.mjs', '/tasks/gameplay-facts.mjs', '/tasks/chunk-planning-index.mjs'].includes(route)) file = await containedFile(path.join(ROOT, 'app', 'tasks'), route.slice('/tasks/'.length));
+      else if (['/tasks/rule-defaults.mjs', '/tasks/fact-projection.mjs', '/tasks/gameplay-compat.mjs', '/tasks/gameplay-facts.mjs', '/tasks/chunk-planning-index.mjs'].includes(route)) file = await containedFile(path.join(ROOT, 'app', 'tasks'), route.slice('/tasks/'.length));
       else if (['/data/surface-grid.mjs', '/data/world-connections.mjs'].includes(route)) file = await containedFile(path.join(ROOT, 'app', 'data'), route.slice('/data/'.length));
       else if (['/data/cache-archaeology.mjs', '/data/cache-interiors.mjs'].includes(route)) file = await containedFile(path.join(ROOT, 'app', 'data'), route.slice('/data/'.length));
-      else if (['/rules-panel.mjs', '/rules-model.mjs', '/kept-rules.mjs', '/sandbox.mjs', '/sandbox.css', '/sandbox-rules.mjs', '/duo-coordination.mjs'].includes(route)) file = await containedFile(webRoot, route.slice(1));
+      else if (['/rules-panel.mjs', '/rules-model.mjs', '/rules-review.mjs', '/rules-review-model.mjs', '/rules-review-preview.mjs', '/rules-review.css', '/kept-rules.mjs', '/sandbox.mjs', '/sandbox.css', '/sandbox-rules.mjs', '/duo-coordination.mjs'].includes(route)) file = await containedFile(webRoot, route.slice(1));
       else if (['/completed-view.mjs', '/completed-model.mjs', '/completed-range.mjs', '/completed-range-preference.mjs', '/completed-view.css'].includes(route)) file = await containedFile(webRoot, route.slice(1));
       else if (['/helper.mjs', '/helper.css', '/helper-model.mjs', '/helper-training.mjs', '/helper-goals.mjs', '/helper-drops.mjs', '/helper-charts.mjs', '/helper-utilities.mjs', '/helper-progress.mjs', '/helper-progress-model.mjs'].includes(route)) file = await containedFile(webRoot, route.slice(1));
       else if (['/core/interior-maps.mjs', '/core/archaeology.mjs'].includes(route)) file = await containedFile(path.join(ROOT, 'app', 'core'), route.slice('/core/'.length));
@@ -1926,7 +1926,7 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
       }
       else if (['/style.css', '/map-pin-groups.css', '/main.mjs', '/command-state.mjs', '/map.mjs', '/map-tools.mjs', '/map-pins.mjs', '/map-info.mjs', '/map-terrain.mjs', '/map-pin-renderer.mjs', '/chunk-planning.mjs', '/death-chunks.mjs', '/death-settings.mjs', '/info-panels.mjs', '/settings-panel.mjs', '/runemetrics.mjs', '/original-sync.mjs', '/invites.mjs', '/favicon.svg'].includes(route)) file = await containedFile(webRoot, route.slice(1));
       else if (['/style.css', '/map-pin-groups.css', '/main.mjs', '/command-state.mjs', '/map.mjs', '/map-tools.mjs', '/map-pins.mjs', '/map-terrain.mjs', '/map-pin-renderer.mjs', '/chunk-planning.mjs', '/death-chunks.mjs', '/death-settings.mjs', '/info-panels.mjs', '/settings-panel.mjs', '/runemetrics.mjs', '/original-sync.mjs', '/icons.mjs', '/interior-view.mjs', '/chunk-sections.mjs', '/sticker-picker.mjs', '/history-text.mjs', '/feedback.mjs', '/updates.mjs', '/task-icon-painter.mjs', '/favicon.svg'].includes(route)) file = await containedFile(webRoot, route.slice(1));
-      else if (['/core/territory.mjs', '/core/state.mjs', '/core/rules.mjs', '/core/cache-surface.mjs', '/core/transport-access.mjs', '/core/map-boundaries.mjs', '/core/tasks.mjs', '/core/planning.mjs', '/core/preferences.mjs', '/core/death-settings.mjs', '/core/progress.mjs', '/core/player-controls.mjs', '/core/game-progress.mjs', '/core/map-markers.mjs', '/core/task-alternatives.mjs'].includes(route)) file = await containedFile(path.join(ROOT, 'app', 'core'), route.slice('/core/'.length));
+      else if (['/core/territory.mjs', '/core/state.mjs', '/core/rule-reviews.mjs', '/core/rules.mjs', '/core/cache-surface.mjs', '/core/transport-access.mjs', '/core/map-boundaries.mjs', '/core/tasks.mjs', '/core/planning.mjs', '/core/preferences.mjs', '/core/death-settings.mjs', '/core/progress.mjs', '/core/player-controls.mjs', '/core/game-progress.mjs', '/core/map-markers.mjs', '/core/task-alternatives.mjs'].includes(route)) file = await containedFile(path.join(ROOT, 'app', 'core'), route.slice('/core/'.length));
       else if (['/tasks/migration.mjs', '/tasks/rates.mjs', '/tasks/identity.mjs'].includes(route)) file = await containedFile(path.join(ROOT, 'app', 'tasks'), route.slice('/tasks/'.length));
       else if (['/task-icons.mjs', '/tasks/task-icons.mjs'].includes(route)) file = await containedFile(path.join(ROOT, 'app', 'tasks'), 'task-icons.mjs');
       else if (route === '/data/skill-guide-rules.mjs') file = await containedFile(path.join(ROOT, 'app', 'data'), 'skill-guide-rules.mjs');

@@ -381,7 +381,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
   function capturedCalculation() {
     refreshSnapshots();
     if (!calculationSnapshot) {
-      const { provenance, history, taskClaims, progressSnapshots, finishLine, groupGoals, ...input } = current;
+      const { provenance, history, taskClaims, progressSnapshots, finishLine, groupGoals, ruleReviews, ...input } = current;
       input.history = [];
       let state, stateJSON, taskInputKey;
       const revision = current.revision, members = Object.freeze(current.members.map(member => Object.freeze({ id: member.id })));

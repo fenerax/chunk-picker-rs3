@@ -17,7 +17,7 @@ const changeTypes = new Map([
   ['tasks', groupGoalCommandTypes],
   ['map', ['set-chunk', 'roll', 'unlock-selection', 'pick-for-me', 'unlock-both', 'cancel-roll', 'random-start', 'unpick', 'set-starting-chunk']],
   ['tasks', ['claim-task', 'clear-task-claim', 'prune-task-claims', 'set-task-status', 'clear-challenge-ticks', 'clear-backlog', 'add-task', 'update-task', 'delete-task', 'set-task-alternative', 'set-source-backlog', 'add-finish-line-custom', 'set-finish-line-custom', 'delete-finish-line-custom']],
-  ['settings', ['set-task-rule', 'reset-task-rule', 'set-rule', 'set-profile', 'set-preference', 'set-primary-override', 'set-skill-levels', 'set-slayer-lock', 'set-finish-line-item']],
+  ['settings', ['set-task-rule', 'reset-task-rule', 'set-rule', 'set-rule-review', 'set-profile', 'set-preference', 'set-primary-override', 'set-skill-levels', 'set-slayer-lock', 'set-finish-line-item']],
   ['travel', ['set-section', 'set-area', 'set-teleport', 'set-teleport-override', 'delete-teleport', 'set-transport-facts']],
   ['progress', ['complete-task', 'set-obtained-equipment', 'set-runescape-name', 'apply-runemetrics', 'set-xp-choices']],
   ['notes', ['set-note', 'set-journal', 'add-sticker', 'set-sticker', 'update-sticker', 'remove-sticker', 'clear-stickers', 'set-chunk-colour', 'rename-chunk-colour']],
@@ -108,6 +108,7 @@ export function describeHistoryEvent(event = {}, { memberName = id => id, chunkN
     case 'set-task-alternative': return `${c.taskId ? `Chose ${task(c.taskId)} as the preferred method` : 'Reset the preferred task method to automatic'}${forWho}`;
     case 'set-task-rule': return `${typeof c.value === 'boolean' ? 'Turned' : 'Changed'} ${rule()} ${onOff(c.value)}${forWho}`;
     case 'reset-task-rule': return `Reset ${rule()} to automatic${forWho}`;
+    case 'set-rule-review': return `${c.reviewed ? 'Reviewed' : 'Reopened review of'} ${rule()}`;
     case 'set-rule': return `${typeof c.value === 'boolean' ? 'Turned' : 'Changed'} ${rule() === 'a rule' ? 'a shared rule' : `shared rule ${rule()}`} ${onOff(c.value)}`;
     case 'set-profile': return `Applied a rule preset${forWho}`;
     case 'set-preference': return `Changed ${setting ? `setting ${setting}` : 'a setting'}${forWho}`;
