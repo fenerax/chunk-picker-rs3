@@ -32,6 +32,7 @@ import { recordedEquipment } from './recorded-equipment.mjs';
 import { applyDivinationTraining } from '../data/divination-training.mjs';
 import { personalQuestProgressBlocker } from './personal-quest-progress.mjs';
 import { taskRuleEnabled } from './rule-defaults.mjs';
+import { withActivityTimingTags } from '../data/activity-timing.mjs';
 
 // Authored implementation. Reference JSON is declarative input, never executable code.
 export const taskId = permanentTaskId;
@@ -195,7 +196,7 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
   const code = definitions.codeItems ?? {};
   const compiled = [], byKey = new Map(), compileDiagnostics = [];
   for (const [category, entries] of Object.entries(definitions.challenges)) for (const [rawLabel, rawRecord] of Object.entries(entries)) {
-    const record = normalize(rawRecord);
+    const record = normalize(withActivityTimingTags(category, rawRecord));
     for (const field of ['Skills', 'SkillsNeeded', 'Requirements']) if (record[field]) {
       record[field] = Object.fromEntries(Object.entries(record[field]).map(([skill, level]) => {
         const canonical = canonicalSkills.get(skill.toLowerCase()) ?? (skill === 'Constituiton' ? 'Constitution' : skill);

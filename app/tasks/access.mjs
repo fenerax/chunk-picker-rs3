@@ -1,4 +1,6 @@
 import { decodeLegacyText, hasGameplayMigration } from './migration.mjs';
+import { activityTimingSourceRules } from '../data/activity-timing.mjs';
+import { taskRuleEnabled } from './rule-defaults.mjs';
 import { membershipSourceBlocker } from '../data/access-policy.mjs';
 import { sourceMembershipBlocker as evaluateSourceMembership } from '../data/source-membership.mjs';
 import { itemMembershipBlocker as evaluateItemMembership } from './membership.mjs';
@@ -729,6 +731,12 @@ export function collectBaseItemSources(definitions, access, { rules = {}, validT
   const cutoffCache = new Map();
   const backloggedSources = access.backloggedSources ?? normalizedBacklogs(rules.backloggedSources);
   const add = (item, reason) => {
+    const disabled = activityTimingSourceRules(item, reason.source).filter(rule => !taskRuleEnabled(rules, rule));
+    if (disabled.length) {
+      diagnostic(result.diagnostics, 'activity-rule-disabled', { item, source: reason.source, rules: disabled,
+        detail: `Turned off in Rules: ${disabled.join(', ')}.` });
+      return;
+    }
     const sourceKind = { drop: 'monsters', object: 'objects', shop: 'shops', spawn: 'spawns' }[reason.kind];
     if (backloggedSources.items?.[item] || backloggedSources[sourceKind]?.[reason.source]) {
       diagnostic(result.diagnostics, 'source-backlogged', { item, source: reason.source, kind: reason.kind });

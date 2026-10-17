@@ -91,6 +91,10 @@ test('automatic mode is explicitly shared and its revision-reviewed save refresh
   assert.match(h.text(), /On for both of you/);
   assert.equal(h.checkbox('Automatic availability').checked, true);
   assert.equal(h.ui.fetch.length, 2);
+  assert.match(h.text(), /RuneMetrics sync supplies levels and quests, but not lodestone activations/);
+  assert.match(h.text(), /choose “I can use it” in its Override dropdown/);
+  assert.match(h.text(), /Do this separately for each player/);
+  assert.match(h.text(), /outward trip only/);
 });
 
 test('roll-eligible routes keep their usable status while disclosing unverified landing access', async () => {

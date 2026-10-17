@@ -1,3 +1,5 @@
+import { evaluateEquipment } from '../app/tasks/equipment.mjs';
+import { withActivityTimingTags } from '../app/data/activity-timing.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createTaskEngine, taskId } from '../app/tasks/engine.mjs';
@@ -197,3 +199,61 @@ test('required achievement groups follow family rules independently of active se
   assert.deepEqual(activity.achievements.filter(group => group.required).map(group => group.name).sort(),
     ['Fixture Achievements', 'Skills achievements', 'Exploration achievements', 'Activities achievements'].sort());
 });
+
+// Reviewed timing gates also apply to supplies and generated equipment goals.
+{
+  const options = { cacheWalking: false, cacheResources: false, cacheArchaeology: false, cacheShops: false,
+    metadataCorrections: false, equipmentCorrections: false, retainedTaskCorrections: false,
+    skillGuideTasks: false, skillGuideMilestones: false, skillGuideCorrections: false };
+  const description = 'Score 1,111 in a session of the Big Chinchompa minigame.';
+  const definitions = {
+    chunks: { '1': { Spawn: { 'Protea flower': 1, 'Ordinary flower': 1 }, Shop: { 'Fixture shop': true } } },
+    shopItems: { 'Fixture shop': { 'Ordinary flower': 1 } },
+    challenges: { Diary: { 'Fixture score': { Category: ['Comp achievements'], Description: description, Chunks: ['1'] },
+      'Untimed fixture': { Category: ['Comp achievements'], Chunks: ['1'] } },
+      Crafting: { 'Fixture recipe': { Items: ['Protea flower'], Output: 'Fixture product', Level: 1 } } },
+    equipment: { 'Protea flower': { slot: '2h weapon', class: 'melee', tier: 1, style: 'slash', ability_damage: 10, accuracy: 20, speed: 3, requirements: {} } },
+  };
+  const saved = taskRules => ({ rules: { 'content.f2p': false }, members: [{ id: 'a', unlocked: ['1'], completedTasks: [], taskRules }] });
+
+  for (const [Timegated, DnD, allowed] of [[false, true, false], [true, false, false], [true, true, true]]) {
+    test(`activity timing gates achievement, supplies and equipment: Timegated=${Timegated}, DnD=${DnD}`, () => {
+      const state = saved({ Timegated, DnD, 'Comp achievements': true });
+      const before = structuredClone({ definitions, state });
+      const result = createTaskEngine(definitions, options).evaluate(state, 'a');
+      const score = result.tasks.find(row => row.rawLabel === 'Fixture score');
+      assert.deepEqual(score.record.Category, ['Comp achievements', 'Timegated', 'DnD']);
+      assert.equal(score.status === 'available', allowed);
+      assert.equal(result.tasks.find(row => row.rawLabel === 'Untimed fixture').status, 'available');
+      assert.equal(result.items.some(item => item.name === 'Protea flower'), allowed);
+      assert.equal(result.items.some(item => item.name === 'Fixture product'), allowed, 'disabled activity cannot supply a recipe');
+      assert.ok(result.items.some(item => item.name === 'Ordinary flower'));
+      const equipment = evaluateEquipment(result, state, 'a', definitions);
+      assert.equal(equipment.tasks.some(row => row.equipmentName === 'Protea flower'), allowed);
+      const presented = selectPresentedTasks(result, state, 'a', definitions);
+      assert.equal(presented.tasks.some(row => row.id === score.id), allowed);
+      if (!allowed) assert.ok(result.diagnostics.some(row => row.code === 'activity-rule-disabled'));
+      assert.deepEqual({ definitions, state }, before);
+    });
+  }
+
+  test('timing tags are idempotent and unrelated activities keep their authored classification', () => {
+    const record = { Description: description, Category: ['Comp achievements'] };
+    const tagged = withActivityTimingTags('Diary', record);
+    assert.equal(withActivityTimingTags('Diary', tagged), tagged);
+    assert.equal(withActivityTimingTags('Hunter', record), record);
+    const other = { Description: 'Catch an ordinary chinchompa.', Category: ['Minigame'] };
+    assert.equal(withActivityTimingTags('Diary', other), other);
+  });
+
+  test('reward-shop supplies respect timing rules without blocking the same ordinary item elsewhere', () => {
+    const data = { ...definitions, chunks: { '1': { Spawn: { 'Ordinary flower': 1 }, Shop: { 'Reward Shop (Big Chinchompa)': true } } },
+      shopItems: { 'Reward Shop (Big Chinchompa)': { 'Fixture reward': 1, 'Ordinary flower': 1 } } };
+    const engine = createTaskEngine(data, options);
+    const off = engine.evaluate(saved({ Timegated: false, DnD: true }), 'a');
+    assert.equal(off.items.some(item => item.name === 'Fixture reward'), false);
+    assert.deepEqual(off.items.find(item => item.name === 'Ordinary flower').sources.map(source => source.kind), ['spawn']);
+    const on = engine.evaluate(saved({ Timegated: true, DnD: true }), 'a');
+    assert.ok(on.items.some(item => item.name === 'Fixture reward'));
+  });
+}

@@ -156,7 +156,8 @@ export function openTeleportsDialog(ctx, { uuid = () => globalThis.crypto.random
     const automatic = ctx.state().rules?.['travel.automatic'] === true;
     mode.append(checkbox('Automatic availability', automatic, value => save({ type: 'set-rule', ruleId: 'travel.automatic', value }, revision)).wrap,
       el('p', automatic ? 'On for both of you. Each player gets the teleports their own levels, quests and items allow.' : 'Off for both of you: only the custom teleports below count. The list shows what would count if you turn this on.', 'teleports-help'),
-      el('p', 'The picker can’t see your bank or which lodestones you’ve activated, so use the dropdown on a route to correct it. Changes can be undone in History.', 'teleports-help'));
+      el('p', 'RuneMetrics sync supplies levels and quests, but not lodestone activations or bank contents. For each lodestone you have activated, choose “I can use it” in its Override dropdown below. Do this separately for each player. Changes can be undone in History.', 'teleports-help'),
+      el('p', 'The old F2P map does not confirm activated lodestones after a members restart. Teleport roll options currently check the outward trip only; confirm your return route if you play with a two-way travel rule.', 'teleports-help'));
     const toolbar = el('div', undefined, 'teleports-toolbar');
     toolbar.append(el('h3', 'Automatic routes'), remember(button('Refresh', render)));
     catalogue = el('div', undefined, 'teleports-catalogue');
