@@ -31,8 +31,9 @@ function fixture({ items = [], training = { Magic: { level: 99 }, Woodcutting: {
   world.transportRoutes = catalogue;
   let calls = 0;
   const baseline = { training, access: { bases: ['12853'], sections: [] }, items };
-  configureAutomaticTransport(world, { definitions, engine: { evaluate(input, memberId) {
+  configureAutomaticTransport(world, { definitions, engine: { evaluate(input, memberId, options) {
     calls++; assert.equal(input.rules['travel.automatic'], false); assert.equal(input.rules['access.transport'], false);
+    assert.deepEqual(options, { reuseEligibility: false }, 'Transport owns the baseline cache');
     assert.equal(memberId, 'actor1'); return baseline;
   } } });
   return { definitions, world, state, catalogue, baseline, calls: () => calls };
@@ -230,7 +231,7 @@ test('travel invalidation covers both members, aliases, legacy controls and ever
   for (const index of [0, 1]) for (const [field, value] of Object.entries({
     unlocked: ['13108'], sectionOverrides: { '12853-0': false }, areaOverrides: { cave: false },
     sourceBacklogs: { items: { 'Air rune': true } }, taskRules: { Boosting: false },
-    taskStatus: { task: { backlogged: false } }, completedTasks: ['quest'], runescapeName: 'DemoExplorer',
+    taskStatus: { task: { backlogged: false } }, completedTasks: ['quest'], obtainedEquipment: ['Fixture item'], runescapeName: 'DemoExplorer',
     skillProgress: { Magic: observation(25) }, questProgress: { quest: { source: 'runemetrics', runescapeName: 'DemoExplorer', title: 'A quest' } },
     primaryOverrides: { Magic: false }, passiveLevels: { Magic: 30 }, maxLevels: { Magic: 40 }, slayerLock: { level: 10 },
     xpChoices: { task: { 0: 'Magic' } },

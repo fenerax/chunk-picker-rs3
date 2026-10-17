@@ -1,6 +1,6 @@
 // These inputs belong to the transport-disabled task proof and the personal
 // fact projection in automatic-transport.mjs. Keep this browser-compatible.
-const memberFields = ['id', 'name', 'sourceMapId', 'unlocked', 'completedTasks',
+const memberFields = ['id', 'name', 'sourceMapId', 'unlocked', 'completedTasks', 'obtainedEquipment',
   'teleports', 'teleportOverrides', 'taskRules', 'sectionOverrides', 'sourceBacklogs',
   'areaOverrides', 'primaryOverrides', 'passiveLevels', 'maxLevels', 'slayerLock',
   'runescapeName', 'skillProgress', 'questProgress', 'transportFacts', 'xpChoices'];

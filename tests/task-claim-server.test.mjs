@@ -132,8 +132,13 @@ test('roll bookkeeping rebinds both task lists while refreshing pools and preser
     if (edit.status === 'selected') assert.ok(saved.pools.actor1.eligible.some(row => row.id === '12342'));
   }
   await command({ type: 'roll', memberId: 'actor1', count: 2 });
+  const beforeUnlock = messages.filter(message => message.type === 'evaluate').length;
   await command({ type: 'unlock-selection', memberId: 'actor1', chunkId: '12342' });
+  assert.equal(messages.filter(message => message.type === 'evaluate').length, beforeUnlock + 2,
+    'Both previously viewed Group lanes start from the committed unlock before command acknowledgement');
   await lists();
+  assert.equal(messages.filter(message => message.type === 'evaluate').length, beforeUnlock + 2,
+    'Group HTTP refresh coalesces with the already started unlock evaluations');
   assert.ok(messages.length > count, 'Ownership still invalidates tasks');
 });
 

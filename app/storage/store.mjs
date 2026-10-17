@@ -761,12 +761,17 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     const diskDocument = await serializedDiskState(validated);
     await atomicWrite(stateFile, diskDocument,
       beforeCommit ? () => beforeCommit({ operation, state: structuredClone(validated) }) : undefined);
+    const ownershipChanged = JSON.stringify(current.members.map(member => [member.id, member.unlocked]))
+      !== JSON.stringify(validated.members.map(member => [member.id, member.unlocked]));
     current = validated;
     currentDiskSerialized = diskDocument;
     if (!cleanup && ++maintenanceWrites >= 50) { maintenanceWrites = 0; void enqueueMaintenance(maintainRetention); }
     for (const listener of listeners) {
-      try { listener({ revision: current.revision }); } catch { /* A subscriber cannot roll back a committed write. */ }
+      try { listener({ revision: current.revision, ...(ownershipChanged ? { ownershipChanged: true } : {}) }); } catch { /* A subscriber cannot roll back a committed write. */ }
     }
+    // Let already-requested task lanes receive the committed snapshot before
+    // synchronous travel/pool rebuilding occupies the HTTP process.
+    if (ownershipChanged) await new Promise(resolve => setImmediate(resolve));
     return cleanup ? structuredClone({ revision: current.revision, taskClaims: current.taskClaims, history: current.history })
       : serializedResult ? commandSnapshot(baseline, omitUnchanged, view) : cloneCurrent();
   }

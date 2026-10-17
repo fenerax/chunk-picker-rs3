@@ -28,6 +28,7 @@ import { membershipSourceBlocker, membershipSourcePolicies } from '../data/acces
 import { itemMembershipBlocker as evaluateItemMembership, taskItemMembershipBlockers } from './membership.mjs';
 import { isProcessingSourceTask, processingSkills, selectProcessingSources } from './processing.mjs';
 import { combatLevelFromSkills } from '../core/combat-level.mjs';
+import { createEligibilityCache } from './eligibility-cache.mjs';
 import { recordedEquipment } from './recorded-equipment.mjs';
 import { applyDivinationTraining } from '../data/divination-training.mjs';
 import { personalQuestProgressBlocker } from './personal-quest-progress.mjs';
@@ -471,14 +472,9 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
       }
       return valid.has(key);
     }
-    // Completion is an explicit personal game fact. Imported picker checkmarks are
-    // challenge satisfaction only and never prove a character's quest or skill state.
-    const completionScope = state.rules?.['tasks.completion'] ?? 'any';
-    const challengeOwners = completionScope === 'personal' ? [member] : state.members;
-    const challengeCompletions = new Map(challengeOwners.map(owner => [owner, owner === member ? completed : new Set(owner.completedTasks ?? [])]));
-    const challengeSatisfied = id => completionScope === 'all'
-      ? challengeOwners.every(owner => challengeCompletions.get(owner).has(id) || owner.taskStatus?.[id]?.challengeCompleted)
-      : challengeOwners.some(owner => challengeCompletions.get(owner).has(id) || owner.taskStatus?.[id]?.challengeCompleted);
+    // Personal completion above can seed capabilities. Challenge satisfaction
+    // is neutral in the retained proof and applied only by the final overlay.
+    const challengeSatisfied = () => false;
     for (const task of compiled) if (completedTask(task)) { valid.add(task.key); validRows.push(task); }
     const discoveryRows = uniqueTaskKeys && discoveryTasks
       ? processingRowsForDiscovery.filter(task => !staticBlocked.has(task) || completedTask(task))
@@ -1291,10 +1287,9 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
       processingRawAccessEvaluations: { value: replay.rawAccessEvaluations } });
     return result;
   }
-  function evaluate(state, memberId, options) {
+  function computeEligibility(state, memberId, options) {
     const started = performance.now();
     prepareEvaluation();
-    state = { ...state, members: state.members.map(owner => projectMemberTaskFacts(state, owner, catalogue)) };
     // Immutable replay caches are confined to one evaluation. Ordinary growth
     // resumes discovery; full, retracted and mode-changing closures start fresh.
     const replay = { access: [], rawAccess: new Map(), transportMemo: {}, surfaceEligibility: new WeakMap(), spatialFailures: new WeakMap(), base: new Map(), baseOwnership: new WeakMap(), expansions: new Map(), accessEvaluations: 0, rawAccessEvaluations: 0, baseCollections: 0,
@@ -1418,6 +1413,11 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
     result.diagnostics.push({ kind: 'processing-source-limit', detail: 'Processing source selection exceeded its bounded passes; recipe outputs were excluded.' });
     result.metrics.elapsedMs = performance.now() - started;
     return result;
+  }
+  const eligibilityCache = createEligibilityCache();
+  function evaluate(state, memberId, options) {
+    state = { ...state, members: state.members.map(owner => projectMemberTaskFacts(state, owner, catalogue)) };
+    return eligibilityCache.evaluate(state, memberId, options, () => computeEligibility(state, memberId, options));
   }
   return Object.freeze({ catalogue, prepare: prepareEvaluation, evaluate });
 }

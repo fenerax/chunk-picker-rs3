@@ -318,7 +318,10 @@ test('inspection API reuses and caches complete ordinary bytes without entering 
   assert.equal(rebound.stateRevision, 1); assert.equal(rebound.cache.worker, false); assert.deepEqual(rebound.tasks, first.tasks);
   assert.equal((await request('/api/command?view=play-v1', { body: { expectedRevision: 1,
     command: { type: 'set-chunk', memberId: 'one', chunkId: '12342', status: 'unlocked' } } })).status, 200);
-  assert.equal((await diagnostics()).viewerTaskCache.entries, 0);
+  await until(async () => (await diagnostics()).viewerTaskCache.entries === 1);
+  const unlocked = await (await request(inspectionRoute(2))).json();
+  assert.equal(unlocked.stateRevision, 2);
+  assert.equal(unlocked.cache.worker, false, 'Inspection reuses the proactively refreshed unlock result');
 });
 
 test('cold inspection coalesces with ordinary play work and caches its projection after response', async t => {
