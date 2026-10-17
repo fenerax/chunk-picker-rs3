@@ -56,10 +56,10 @@ export const starterGameDefaults = Object.freeze({ title: 'Grid challenge', mast
 
 const sharedRules = [
   { id: 'access.shared', type: 'boolean', default: true, label: 'Share access', description: 'Both explorers may use owned cells.' },
-  { id: 'roll.selected', type: 'boolean', default: true, label: 'Include chosen cells', description: 'Include cells explicitly selected for the next draw.' },
+  { id: 'roll.selected', type: 'boolean', default: true, label: 'Chunks added to the roll pool by hand can be rolled', description: 'Include your hand-added chunks when rolling. Other roll rules still apply.' },
   { id: 'roll.adjacent', type: 'boolean', default: true, label: 'Include neighbouring cells', description: 'Draw from cells connected to owned cells.' },
-  { id: 'roll.neighborMode', type: 'enum', default: 'accessible', options: ['accessible', 'geometric', 'manual'], label: 'Neighbour policy', description: 'Use connected neighbours, all grid neighbours, or your own selection.' },
-  { id: 'roll.clearSelected', type: 'boolean', default: true, label: 'Clear selections after a draw', description: 'Start the following selection with an empty list.' },
+  { id: 'roll.neighborMode', type: 'enum', default: 'accessible', options: ['accessible', 'geometric', 'manual'], label: 'Neighbour policy', description: 'Use connected neighbours, all grid neighbours, or only chunks added to the roll pool by hand.' },
+  { id: 'roll.clearSelected', type: 'boolean', default: true, label: 'Empty the hand-added roll pool after each roll', description: 'After you unlock a rolled chunk, remove the remaining hand-added chunks from the roll pool. Cancelling a roll keeps them.' },
   { id: 'roll.walkable', type: 'boolean', default: true, label: 'Use declared cells', description: 'Limit automatic draws to declared cells.' },
   { id: 'tasks.completion', type: 'enum', default: 'any', options: ['any', 'all', 'personal'], label: 'Goal completion', description: 'Choose whether one explorer, every explorer, or each explorer separately must check a goal.' },
 ];

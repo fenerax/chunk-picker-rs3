@@ -71,7 +71,20 @@ export function describeHistoryEvent(event = {}, { memberName = id => id, chunkN
       : `${who || event.actor?.label || 'A player'} started ${savedTask()}`;
     case 'clear-task-claim': return `${who || event.actor?.label || 'A player'} is no longer doing ${savedTask()}`;
     case 'prune-task-claims': return 'Released inactive task claims';
-    case 'set-chunk': return `${{ unlocked: 'Unlocked', selected: 'Selected', locked: 'Locked', blacklisted: 'Blacklisted' }[c.status] ?? 'Changed'} ${chunk(c.chunkId)}${forWho}`;
+    case 'set-chunk': {
+      if (c.status === 'selected') return `Added ${chunk(c.chunkId)} to the roll pool by hand${forWho}`;
+      if (c.status === 'blacklisted') return `Set ${chunk(c.chunkId)} to never roll${forWho}`;
+      if (c.status === 'locked') {
+        const previous = event.undo?.members?.find(member => member.id === c.memberId);
+        const changes = event.undo?.memberChanges?.find(member => member.id === c.memberId)?.changes ?? [];
+        const had = field => previous?.[field]?.includes(c.chunkId) || changes.some(patch => patch.path.length === 1 && patch.path[0] === field && patch.before?.value?.includes(c.chunkId));
+        if (had('selected')) return `Removed ${chunk(c.chunkId)} from the roll pool${forWho}`;
+        if (had('blacklisted')) return `Allowed ${chunk(c.chunkId)} in the roll pool${forWho}`;
+        // Older records without a snapshot cannot identify which status was cleared.
+        return `Reset ${chunk(c.chunkId)} to locked${forWho}`;
+      }
+      return `${c.status === 'unlocked' ? 'Unlocked' : 'Changed'} ${chunk(c.chunkId)}${forWho}`;
+    }
     case 'roll': return `Rolled ${c.count === 2 ? 'two chunks' : 'a chunk'}${forWho}`;
     case 'unlock-selection': return `Unlocked ${chunk(c.chunkId)} from the roll${forWho}`;
     case 'pick-for-me': return `Picked a rolled chunk at random${forWho}`;

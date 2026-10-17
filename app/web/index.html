@@ -83,6 +83,7 @@
       <details class="more-tools" id="more-tools">
         <summary>More</summary>
         <div class="more-tools-menu">
+          <button id="help-open">Help</button>
           <button id="settings-open">Settings</button>
           <button id="stream-safe-toggle" role="switch" aria-checked="false">Stream-safe mode</button>
           <button id="map-display-open" aria-expanded="false" aria-controls="map-display-panel">Map display</button>
@@ -112,14 +113,14 @@
     <section id="map-panel" class="map-panel" aria-label="Chunk map">
       <div class="map-toolbar">
         <div class="toolbar-group toolbar-roll" role="group" aria-label="Roll">
-          <button id="pick" class="pick-action">Pick Chunk</button>
+          <button id="pick" class="pick-action">Roll 1</button>
           <button id="roll-two">Roll 2</button>
-          <button id="pool-ranking-toggle" aria-expanded="false" aria-pressed="false" aria-controls="pool-ranking-panel" title="See how many new tasks each chunk in your roll pool would add">Compare pool</button>
+          <button id="pool-ranking-toggle" aria-expanded="false" aria-pressed="false" aria-controls="pool-ranking-panel" title="See how many new tasks each chunk in your roll pool would add">Compare roll pool</button>
           <button id="unpick" hidden>Forfeit</button>
         </div>
         <div class="toolbar-group" role="group" aria-label="View">
           <button id="center-map">Center on Unlocked</button>
-          <button id="membership-overlay" aria-pressed="false" title="Tint members-only land and outline where it meets free-to-play land">Members / F2P</button>
+          <button id="membership-overlay" aria-pressed="false" title="Tint members-only land and outline where it meets free-to-play land">Members-only land</button>
           <button id="map-pins-open" aria-expanded="false" aria-controls="map-pins-panel" hidden>Map icons</button>
         </div>
         <div class="toolbar-group zoom-group" role="group" aria-label="Zoom"><button id="zoom-in" aria-label="Zoom in">+</button><button id="zoom-out" aria-label="Zoom out">−</button></div>
@@ -169,7 +170,7 @@
       </div>
       <section id="empty-map" class="empty-map" hidden>
         <h2 id="empty-map-title">Bring your maps into One Chunk Duo</h2>
-        <p id="empty-map-instructions">Import a gameplay export or a full backup. Your two maps retain their owners, selected candidates, notes and progress.</p>
+        <p id="empty-map-instructions">Import a gameplay export or a full backup. Your two maps retain their owners, hand-added roll pool, notes and progress.</p>
         <button id="empty-import">Import maps</button>
         <button id="random-start">Choose a random starting chunk</button>
       </section>

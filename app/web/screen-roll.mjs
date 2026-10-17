@@ -5,7 +5,7 @@ export function createScreenRoll(c) {
     const blocked = !c.canWrite() || c.sandbox.active || c.rollBusy || !owner || !!owner.pendingRoll.length;
     c.$('pick').disabled = blocked || candidates < 1;
     c.$('roll-two').disabled = blocked || candidates < 2;
-    c.$('pick').textContent = c.preferences().randomStartAlways ? 'Random Chunk' : 'Pick Chunk';
+    c.$('pick').textContent = c.preferences().randomStartAlways ? 'Roll anywhere' : 'Roll 1';
     c.$('unpick').disabled = blocked || !owner?.unlocked.length;
   }
 
@@ -78,7 +78,7 @@ export function createScreenRoll(c) {
 
   function unpickDialog() {
     const ownerId = c.memberId, revision = c.state.revision;
-    const generation = c.openDialog('Forfeit a chunk', c.el('p', `Re-lock a random chunk from ${c.member().name}’s map? It will stay selected for future rolls. Your progress is kept, and Undo can reverse this change.`), c.button('Forfeit one chunk', async () => { await c.command({ type: 'unpick', memberId: ownerId }, revision); c.closeDialog(generation); }), c.button('Cancel', () => c.closeDialog(generation)));
+    const generation = c.openDialog('Forfeit a chunk', c.el('p', `Re-lock a random chunk from ${c.member().name}’s map? It will be added to the roll pool for future rolls. Your progress is kept, and Undo can reverse this change.`), c.button('Forfeit one chunk', async () => { await c.command({ type: 'unpick', memberId: ownerId }, revision); c.closeDialog(generation); }), c.button('Cancel', () => c.closeDialog(generation)));
   }
 
   async function acceptRoll(payload) {

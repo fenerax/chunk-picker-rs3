@@ -95,7 +95,7 @@ export function createScreenChunks(c) {
     c.syncPredictionIntents();
     const content = c.$('chunk-content'); content.replaceChildren();
     const owned = c.state.members.filter(item => item.unlocked.includes(id)).map(item => item.name), area = c.world.areas.has(id);
-    content.append(c.el('p', area ? c.result?.access.areas.includes(id) ? 'Accessible interior' : 'Interior not currently accessible' : owned.length ? `Unlocked by ${owned.join(' and ')}` : c.member().pendingRoll.includes(id) ? 'Pending roll choice' : c.member().selected.includes(id) ? 'Selected roll candidate' : c.member().blacklisted.includes(id) ? 'Blacklisted' : 'Locked', 'chunk-status'));
+    content.append(c.el('p', area ? c.result?.access.areas.includes(id) ? 'Accessible interior' : 'Interior not currently accessible' : owned.length ? `Unlocked by ${owned.join(' and ')}` : c.member().pendingRoll.includes(id) ? 'Pending roll choice' : c.member().selected.includes(id) ? 'In roll pool (added by hand)' : c.member().blacklisted.includes(id) ? 'Never roll' : 'Locked', 'chunk-status'));
     const facts = c.el('div', undefined, 'chunk-facts'), entry = [...c.pool.eligible, ...c.pool.excluded].find(item => item.id === id);
     const mine = c.member().unlocked.includes(id);
     if (!area && !mine) facts.append(c.el('p', c.member().pendingRoll.includes(id) ? `Offered in ${c.member().name}’s pending roll.` : c.pool.eligible.some(item => item.id === id) ? `Eligible for ${c.member().name}’s next roll.` : `Outside ${c.member().name}’s current roll pool.`, 'status-detail'));
@@ -109,7 +109,7 @@ export function createScreenChunks(c) {
       facts.append(c.details('Partner connection', travel));
     }
     if (entry?.reasons.length && !mine) {
-      const reasons = c.el('div', undefined, 'form-stack'); entry.reasons.forEach(reason => reasons.append(c.el('p', reason.detail, 'eligibility-reason')));
+      const reasons = c.el('div', undefined, 'form-stack'); entry.reasons.forEach(reason => reasons.append(c.el('p', reason.ruleId === 'roll.selected' ? 'Added to the roll pool by hand.' : reason.ruleId === 'state.blacklisted' ? 'Set to never roll for this player.' : reason.detail, 'eligibility-reason')));
       facts.append(c.details('Why this roll status?', reasons));
     }
     // Places this chunk leads into that have no spot on the surface map (interiors, instances, other maps).
@@ -159,7 +159,7 @@ export function createScreenChunks(c) {
     }
   }
 
-  function chunkMenu(id, x, y) {
+  function chunkMenu(id, x, y, pointerType) {
     const indexed = c.world.chunks.get(id); if (!indexed) return;
     c.closeChunkMenu();
     const menu = c.$('map-menu'), item = (label, run, cls) => { const node = c.button(label, () => { c.closeChunkMenu(); return run(); }, cls); node.setAttribute('role', 'menuitem'); return node; };
@@ -168,7 +168,11 @@ export function createScreenChunks(c) {
     const stickers = c.canWrite() && surface ? c.el('button', 'Sticker ▸', 'sticker-action') : null;
     if (stickers) stickers.type = 'button';
     menu.replaceChildren(c.el('p', c.advanced() ? `${id} · ${name}` : name, 'map-menu-title'), item('Chunk details', () => c.showChunk(id)),
-      ...c.chunkStatusActions(id).map(action => item(action.label, action.run, action.primary ? 'is-primary' : undefined)),
+      ...c.chunkStatusActions(id).map(action => {
+        const node = item(action.label, action.run, action.primary ? 'is-primary' : undefined);
+        if (action.poolToggle && pointerType !== 'touch' && !globalThis.matchMedia?.('(hover: none)').matches) node.append(c.el('small', 'Ctrl/Cmd-click', 'roll-pool-shortcut'));
+        return node;
+      }),
       ...(c.canWrite() && surface && !mine ? [item('Preview unlock', () => { c.chunkTab = 'unlock'; c.showChunk(id); })] : []),
       ...(stickers ? [stickers] : []), ...[c.chunkColours.action(id)].filter(Boolean), wiki);
     menu.querySelector('.chunk-colour-action')?.setAttribute('role', 'menuitem');
@@ -227,9 +231,9 @@ export function createScreenChunks(c) {
     if (c.sandbox.active) return c.world.surface.has(id) ? [{ label: c.member().unlocked.includes(id) ? 'Lock in Sandbox' : 'Unlock in Sandbox', primary: true, run: () => c.sandbox.toggleChunk(id) }] : [];
     if (!c.world.surface.has(id) || c.member().pendingRoll.includes(id)) return [];
     const current = c.member().unlocked.includes(id) ? 'unlocked' : c.member().selected.includes(id) ? 'selected' : c.member().blacklisted.includes(id) ? 'blacklisted' : 'locked';
-    return [['Unlock', 'unlocked'], ['Select', 'selected'], ['Blacklist', 'blacklisted'], ['Lock / clear', 'locked']]
+    return [['Unlock', 'unlocked'], ['Add to roll pool', 'selected'], ['Never roll', 'blacklisted'], [current === 'selected' ? 'Remove from roll pool' : current === 'blacklisted' ? 'Allow in roll pool' : 'Lock chunk', 'locked']]
       .filter(([, status]) => status !== current && !(current === 'unlocked' && status !== 'locked'))
-      .map(([label, status]) => ({ label, primary: status === 'unlocked', run: () => {
+      .map(([label, status]) => ({ label, poolToggle: status === 'selected' || current === 'selected' && status === 'locked', primary: status === 'unlocked', run: () => {
         // Button positions shift with the chunk's status, so removing an unlock needs an explicit yes.
         if (current === 'unlocked' && status === 'locked') {
           c.usage?.pageOpened('dialog:native-lock');

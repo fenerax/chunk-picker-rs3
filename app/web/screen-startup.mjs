@@ -16,6 +16,20 @@ import { loadArtStatus, installPictureFallbacks, observeArtStatus } from './art-
 // Main-screen startup; shared values and callbacks live in the explicit screen context.
 export function createScreenStartup(c) {
   let feedbackSessionReady = false;
+  function mapChunkClick(id, event) {
+    c.closeChunkMenu();
+    if (event?.pointerType === 'touch') return c.showChunk(id);
+    if (event?.ctrlKey || event?.metaKey) {
+      if (!c.canWrite()) return c.notice('View-only link: you can’t change the roll pool.');
+      if (c.sandbox.active) return c.notice('Leave Sandbox to change the roll pool.');
+      if (!c.world.surface.has(id)) return c.notice('Only surface chunks can be added to the roll pool.');
+      if (c.member().unlocked.includes(id)) return c.notice('This chunk is already unlocked. Only locked chunks can be added to the roll pool.');
+      if (c.member().pendingRoll.includes(id)) return c.notice('This chunk is a pending roll choice. Finish or cancel the roll first.');
+      return c.command({ type: 'set-chunk', memberId: c.memberId, chunkId: id, status: c.member().selected.includes(id) ? 'locked' : 'selected' }).catch(c.showError);
+    }
+    if (c.canWrite() && (c.sandbox.active || c.preferences().shiftUnlock && event?.shiftKey)) return c.toggleChunk(id).catch(c.showError);
+    if (c.preferences().info) { if (!c.$('chunk-info').hidden && c.chunkId === id) c.$('chunk-close').click(); else c.showChunk(id); }
+  }
   async function start() {
     feedbackSessionReady = false;
     // Feedback: what the sender is looking at helps reproduce bugs.
@@ -59,22 +73,10 @@ export function createScreenStartup(c) {
     });
     try { c.memberId = localStorage.getItem('duo-member'); } catch { /* Private browsing may block preference storage. */ }
     if (!loaded.state.members.some(item => item.id === c.memberId)) c.memberId = loaded.state.members.find(item => item.id === c.sessionMember)?.id ?? loaded.state.members[0]?.id;
-    c.map = new ChunkMap({ stage: c.$('map-stage'), baseCanvas: c.$('map-base'), stateCanvas: c.$('map-state'), pinCanvas: c.$('map-pins'), hoverCanvas: c.$('map-hover'), tooltip: c.$('map-tooltip'), deferFallback: true, onChunk: (id, event) => {
-      c.closeChunkMenu();
-      if (event?.pointerType === 'touch') c.showChunk(id);
-      else if (c.canWrite() && (c.sandbox.active || c.preferences().shiftUnlock && event?.shiftKey)) c.toggleChunk(id).catch(c.showError);
-      // Ctrl/Cmd-click toggles a roll candidate without opening anything.
-      else if (c.canWrite() && event?.ctrlKey && c.world.surface.has(id) && !c.member().unlocked.includes(id) && !c.member().pendingRoll.includes(id)) c.command({ type: 'set-chunk', memberId: c.memberId, chunkId: id, status: c.member().selected.includes(id) ? 'locked' : 'selected' }).catch(c.showError);
-      else if (c.preferences().info) { if (!c.$('chunk-info').hidden && c.chunkId === id) c.$('chunk-close').click(); else c.showChunk(id); }
-    }, canChunkHold: () => c.canWrite() && !document.documentElement.classList.contains('screenshot-mode'), onChunkHold: id => {
-      c.closeChunkMenu();
-      if (c.canWrite() && c.member().pendingRoll.includes(id)) {
-        c.acceptRoll({ type: 'unlock-selection', memberId: c.memberId, chunkId: id }).catch(c.showError); return;
-      }
-      const action = c.chunkStatusActions(id).find(action => action.label === 'Unlock' || action.label === 'Unlock in Sandbox');
-      if (action) Promise.resolve(action.run()).catch(c.showError);
-      else c.showChunk(id);
-    }, onContext: (id, x, y) => c.chunkMenu(id, x, y) });
+    c.map = new ChunkMap({ stage: c.$('map-stage'), baseCanvas: c.$('map-base'), stateCanvas: c.$('map-state'), pinCanvas: c.$('map-pins'), hoverCanvas: c.$('map-hover'), tooltip: c.$('map-tooltip'), deferFallback: true, onChunk: c.mapChunkClick,
+      canChunkHold: () => !document.documentElement.classList.contains('screenshot-mode'),
+      onChunkHold: (id, point) => c.chunkMenu(id, point.clientX, point.clientY, 'touch'),
+      onContext: (id, x, y, pointerType) => c.chunkMenu(id, x, y, pointerType) });
     loadIcons().then(loaded => { c.taskIconPainter.settle(loaded); c.categoryIconPainter.settle(loaded); });
     terrainManifest.then(async manifest => {
       c.map.setMapAssets(manifest, { pins: [] });
@@ -100,5 +102,5 @@ export function createScreenStartup(c) {
     c.connectEvents();
   }
 
-  Object.assign(c, { start });
+  Object.assign(c, { start, mapChunkClick });
 }

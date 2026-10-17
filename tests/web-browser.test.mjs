@@ -61,6 +61,73 @@ const taskResult = revision => ({ stateRevision: revision, memberId: 'actor1', t
 function deferred() { let resolve, reject; const promise = new Promise((done, fail) => { resolve = done; reject = fail; }); return { promise, resolve, reject }; }
 const flush = async () => { for (let i = 0; i < 12; i++) await Promise.resolve(); };
 
+test('roll pool actions use plain labels and preserve command statuses', async () => {
+  const h = harness(), sent = []; h.context.sent = sent;
+  h.run("command = async value => { sent.push(value); }; member().unlocked = []; member().selected = []; member().blacklisted = []; member().pendingRoll = []");
+  assert.deepEqual(Array.from(h.run("chunkStatusActions('12341').map(action => action.label)")), ['Unlock', 'Add to roll pool', 'Never roll']);
+  await h.run("chunkStatusActions('12341').find(action => action.label === 'Add to roll pool').run()");
+  assert.equal(sent.at(-1).status, 'selected');
+  h.run("member().selected = ['12341']");
+  await h.run("chunkStatusActions('12341').find(action => action.label === 'Remove from roll pool').run()");
+  assert.equal(sent.at(-1).status, 'locked');
+  h.run("member().selected = []; member().blacklisted = ['12341']");
+  assert.ok(h.run("chunkStatusActions('12341').some(action => action.label === 'Allow in roll pool')"));
+});
+
+test('Ctrl and Cmd click toggle the roll pool without unlocking, including with Shift held', async () => {
+  const h = harness(), sent = []; h.context.sent = sent;
+  h.run("command = async value => { sent.push(value); }; member().unlocked = []; member().selected = []; member().pendingRoll = []");
+  await h.run("mapChunkClick('12341', { ctrlKey: true, shiftKey: true })");
+  assert.equal(sent.at(-1).status, 'selected');
+  h.run("member().selected = ['12341']");
+  await h.run("mapChunkClick('12341', { metaKey: true })");
+  assert.equal(sent.at(-1).status, 'locked');
+  assert.deepEqual(Array.from(h.run('member().unlocked')), []);
+});
+
+for (const [setup, reason] of [
+  ["member().unlocked = ['12341']", /already unlocked/],
+  ["member().unlocked = []; member().pendingRoll = ['12341']", /pending roll choice/],
+  ["world.surface.delete('12341')", /Only surface chunks/],
+  ["applySession({readOnly:true, capabilities:{canWrite:false}, admin:false})", /View-only link/],
+  ["sandbox = { active: true }", /Leave Sandbox/],
+]) test(`Ctrl click explains blocked roll pool changes: ${reason.source}`, async () => {
+  const h = harness(); let writes = 0; h.context.recordWrite = () => { writes++; };
+  h.run('command = async () => recordWrite()'); h.run(setup);
+  await h.run("mapChunkClick('12341', {ctrlKey:true})");
+  assert.equal(writes, 0); assert.match(h.nodes.get('notice').children[0].textContent, reason);
+});
+
+test('desktop menu hints are omitted on touch and viewer menus have no writes', () => {
+  const h = harness();
+  h.context.bindStickerFlyout = () => ({ destroy() {} });
+  h.nodes.get('map-panel').getBoundingClientRect = () => ({left:0,top:0,width:800,height:600});
+  h.run("member().unlocked = []; chunkMenu('12341',100,100)");
+  assert.ok(h.find('small', 'Ctrl/Cmd-click'));
+  h.run("chunkMenu('12341',100,100,'touch')");
+  assert.ok(!h.find('small', 'Ctrl/Cmd-click'));
+  h.context.matchMedia = () => ({ matches: true });
+  h.run("chunkMenu('12341',100,100)");
+  assert.ok(!h.find('small', 'Ctrl/Cmd-click'), 'touch devices omit the desktop hint even without a pointer type');
+  const viewer = viewerHarness();
+  viewer.nodes.get('map-panel').getBoundingClientRect = () => ({left:0,top:0,width:800,height:600});
+  viewer.run("chunkMenu('12341',100,100,'touch')");
+  assert.ok(viewer.find('button', 'Chunk details'));
+  assert.ok(!viewer.find('button', 'Add to roll pool'));
+  assert.ok(!viewer.find('button', 'Unlock'));
+});
+
+test('touch Ctrl taps open info; shared Help and legend controls explain shortcuts', () => {
+  const h = harness(); let opened; h.context.recordOpen = id => { opened = id; };
+  h.run("showChunk = id => recordOpen(id); mapChunkClick('12341', {pointerType:'touch',ctrlKey:true})");
+  assert.equal(opened, '12341');
+  h.run("openDialog('Help', mapControls())");
+  assert.equal(h.nodes.get('dialog-title').textContent, 'Help');
+  for (const text of ['Ctrl/Cmd-click', 'Shift-click', 'Right-click or long-press', 'keeps the chunk locked']) {
+    assert.ok(h.all().some(node => node.textContent.includes(text)), text);
+  }
+});
+
 function viewerHarness(options) {
   const h = harness(options);
   h.run('applySession({readOnly:true, capabilities:{canWrite:false},admin:false}); renderState()');
@@ -1999,7 +2066,7 @@ test('startup fetches display definitions and leaves chunk search and full evide
     createOverlayPanel: () => ({ open: async () => {} }),
     loadTerrainManifest: async () => null, loadMapInformation: async () => null,
     hydrateDisplayWorld, createRuleRegistryFromDefinitions: () => createRuleRegistry(),
-    ChunkMap: class { constructor() { return h.map; } }, localStorage: { getItem: () => null, setItem() {}, removeItem() {} },
+    ChunkMap: class { constructor(options) { h.context.mapOptions = options; return h.map; } }, localStorage: { getItem: () => null, setItem() {}, removeItem() {} },
     ResizeObserver: class { observe() {} } });
   h.map.setOverlay = () => {}; h.context.document.addEventListener = () => {};
   const worldPayload = projectDisplayWorld(h.context.initialWorld);
@@ -2013,6 +2080,14 @@ test('startup fetches display definitions and leaves chunk search and full evide
   });
   h.run('state=undefined;definitions=undefined;world=undefined;map=undefined;result=undefined;chunkSearch=undefined');
   await h.run('start()'); await flush();
+  const held = []; h.context.recordMenu = (...args) => held.push(args);
+  h.run('chunkMenu = (...args) => recordMenu(...args)');
+  h.context.mapOptions.onChunkHold('12341', { clientX: 120, clientY: 180 });
+  assert.deepEqual(held, [['12341', 120, 180, 'touch']]);
+  h.run('applySession({readOnly:true, capabilities:{canWrite:false}, admin:false})');
+  h.context.document.documentElement.classList = { contains: () => false };
+  assert.equal(h.context.mapOptions.canChunkHold(), true, 'viewers can open a read-only menu by holding');
+  h.run('applySession({admin:true, readOnly:false, capabilities:{canWrite:true}})');
   assert.equal(h.run('state.revision'), 7); assert.equal(h.run('result.stateRevision'), 7);
   assert.equal(indexedChunks, 0); assert.equal(h.run('chunkSearch'), undefined); assert.equal(h.run('chunkSearchRequest'), undefined);
   assert.equal(h.run('definitionsAreFull'), false);

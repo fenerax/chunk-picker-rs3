@@ -107,6 +107,7 @@ export function createScreenPoolRanking(c) {
     entry.title.textContent = `${name(id)}${c.advanced() && name(id) !== `Chunk ${id}` ? ` · Chunk ${id}` : ''}`;
     entry.count.textContent = value === null ? '—' : `+${value.toLocaleString()}`;
     entry.status.textContent = !checked ? 'Still checking' : value === 0 ? `No new ${sort ? `${sort} ` : ''}tasks` : 'Checked';
+    if (c.member().selected?.includes(id)) entry.status.textContent = `Added to roll pool by hand · ${entry.status.textContent}`;
     entry.node.dataset.status = checked ? 'checked' : 'estimated';
     entry.view.setAttribute('aria-label', `Center map on ${name(id)}. ${checked && value !== null ? `${value} new ${sort ? `${sort} ` : ''}tasks. Checked.` : 'Still checking.'}`);
     entry.sample.textContent = examples(sort ? row.bySkill?.[sort]?.examples : row.examples);

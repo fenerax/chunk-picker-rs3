@@ -64,16 +64,16 @@ export function createCopyLists(c) {
     details.after(controls.get('copy-completed-tasks').fallback);
   }
   function map(owner, pool) {
-    const counts = c.$('map-counts'), names = ids => ids.map(id => {
+    const counts = c.$('map-counts'), name = id => {
       const name = c.plain(c.world.chunks.get(String(id))?.name);
       return name && name !== String(id) ? `${name} (${id})` : String(id);
-    });
+    }, names = ids => ids.map(name);
     const title = value => c.sandbox.active ? `Sandbox ${value.toLowerCase()}` : value;
     update('copy-unlocked-chunks', 'Copy unlocked chunks', counts.children[0], counts.parentElement, {
       player: owner.name, title: title('Unlocked chunks'), groups: [{ items: names(owner.unlocked) }],
     });
     update('copy-pool-chunks', 'Copy roll pool chunks', counts.children[2], counts.parentElement, {
-      player: owner.name, title: title('Roll pool chunks'), groups: [{ items: names(pool.eligible.map(entry => entry.id)) }],
+      player: owner.name, title: title('Roll pool chunks'), groups: [{ items: pool.eligible.map(({ id }) => `${name(id)}${owner.selected?.includes(id) ? ' (added by hand)' : ''}`) }],
     });
     counts.after(controls.get('copy-unlocked-chunks').fallback, controls.get('copy-pool-chunks').fallback);
   }

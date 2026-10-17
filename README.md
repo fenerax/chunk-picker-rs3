@@ -24,7 +24,7 @@ npm test
 ```
 
 Choose an empty storage directory for a new game. A directory bound to another
-dataset is refused. Roll with **Pick Chunk**, check an available activity, and
+dataset is refused. Roll with **Roll 1**, check an available activity, and
 use **Undo** to reverse it. Reload resumes saved progress.
 
 `open-f2p` is a reviewed slice of the free-to-play world, not all of it and not

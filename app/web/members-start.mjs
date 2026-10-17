@@ -26,8 +26,8 @@ export function createMembersStart(ctx) {
     const node = el('section', undefined, 'members-start-summary');
     node.append(el('h3', 'What changes for everyone'), el('p', 'Each player gets one starting bank chunk and a new starting flag. Their previous F2P map is kept as a read-only snapshot.'));
     const list = el('ul');
-    for (const member of state.members) list.append(el('li', `${member.name}: replace ${member.unlocked.length} unlocked chunks; clear ${member.selected.length} selected chunks and ${member.pendingRoll.length} pending roll choices.`));
-    node.append(list, el('p', 'Keep skills and XP, quests and achievements, completed tasks, equipment, notes and journal, backlogs, custom tasks, RuneMetrics name, stickers, blacklist, travel and transport settings, access overrides, Slayer lock and other preferences. Starting sections open for the new chunk.'));
+    for (const member of state.members) list.append(el('li', `${member.name}: replace ${member.unlocked.length} unlocked chunks; clear ${member.selected.length} chunks added to the roll pool by hand and ${member.pendingRoll.length} pending roll choices.`));
+    node.append(list, el('p', 'Keep skills and XP, quests and achievements, completed tasks, equipment, notes and journal, backlogs, custom tasks, RuneMetrics name, stickers, never-roll list, travel and transport settings, access overrides, Slayer lock and other preferences. Starting sections open for the new chunk.'));
     return node;
   }
   function preview(data, state, options) {

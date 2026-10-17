@@ -8,6 +8,14 @@ import { createMapActivityLayers } from './map-activity-layers.mjs';
 export function createScreenMap(c) {
   c.mapTaskCounts = createMapTaskCounts(c);
   c.activityLayers = createMapActivityLayers(c);
+  function mapControls() {
+    const section = c.el('section', undefined, 'map-controls');
+    section.append(c.el('h3', 'Map controls'), c.el('p', 'Click or tap: chunk info · Ctrl/Cmd-click: add/remove a locked surface chunk from the roll pool · Shift-click: unlock or re-lock (when Shift-click unlock is on in Settings) · Right-click or long-press: chunk menu.', 'status-detail'));
+    if (!c.canWrite()) section.append(c.el('p', 'View-only link: map changes are unavailable.', 'status-detail'));
+    else if (c.sandbox.active) section.append(c.el('p', 'In Sandbox, click to lock or unlock. Leave Sandbox to change the roll pool.', 'status-detail'));
+    else section.append(c.el('p', 'Adding to the roll pool keeps the chunk locked. Other roll rules still apply. By default, remaining hand-added chunks are removed after you unlock a rolled chunk; change this in Chunk Rules.', 'status-detail'));
+    return section;
+  }
   function renderState() {
     if (!c.member()) return;
     c.originalSync.refresh();
@@ -63,7 +71,7 @@ export function createScreenMap(c) {
     c.questMap?.refresh();
     void c.activityLayers.refresh();
     const count = (value, label) => { const node = c.el('span', undefined, 'map-count'); node.append(c.el('strong', value.toLocaleString()), ` ${label}`); return node; };
-    c.$('map-counts').replaceChildren(count(owner.unlocked.length, `${owner.name} unlocked`), count(new Set(projected.members.flatMap(item => item.unlocked)).size, 'group'), count(c.pool.eligible.length, 'in roll pool'));
+    c.$('map-counts').replaceChildren(count(owner.unlocked.length, `${owner.name} unlocked`), count(new Set(projected.members.flatMap(item => item.unlocked)).size, 'group'), count(c.pool.eligible.length, 'can be rolled'));
     c.copyLists?.map(owner, c.pool);
     c.$('empty-map').hidden = projected.members.some(item => item.unlocked.length || item.selected.length);
     c.renderLegend();
@@ -87,7 +95,7 @@ export function createScreenMap(c) {
     c.$('map-legend').replaceChildren(
       ...(visible.some(owner => owner.unlocked?.length) ? [item('Unlocked', 'border', c.preferences().unlockedBorderColor || '#FF0000')] : []), ...owners,
       ...(disconnected ? [item('Disconnected partner', 'disconnected')] : []),
-      ...(visible.some(owner => owner.selected?.length) || c.pool?.eligible?.length ? [item('Roll candidate (numbered)', 'selected')] : []),
+      ...(visible.some(owner => owner.selected?.length) || c.pool?.eligible?.length ? [item('In roll pool (numbered)', 'selected')] : []),
       ...(visible.some(owner => owner.pendingRoll?.length) ? [item('Roll choices', 'pending')] : []),
       item('Chunk info open', 'open'),
       chunkColourLegend(c, visible),
@@ -96,11 +104,11 @@ export function createScreenMap(c) {
       ...(c.sandbox.active ? [item('Sandbox change (hatched)', 'sandbox')] : []),
       ...(c.preferences().showDeathChunks !== false && c.map.deathMarkers?.size ? [item('Estimated death chunk', 'death')] : []),
       ...(c.map.pins?.enabled?.size ? [item('Map icons', 'pin')] : []),
-      ...(c.map.overlay === 'membership' ? [item('Members-only land', 'members'), item('Members / F2P edge', 'members-edge'), item('Not walkable', 'border', '#96a5b4')] : []),
-      c.activityLayers.controls('legend'),
+      ...(c.map.overlay === 'membership' ? [item('Members-only land', 'members'), item('Free-to-play boundary', 'members-edge'), item('Not walkable', 'border', '#96a5b4')] : []),
+      c.activityLayers.controls('legend'), c.mapControls(),
       ...(c.map.travelLinesVisible !== false && typeof createTravelLinesKey === 'function' ? [(() => { const group = c.el('div', undefined, 'legend-travel'); group.append(c.el('span', 'Travel lines (selected chunk)', 'legend-travel-title'), createTravelLinesKey(document)); return group; })()] : []));
     if (focusedLayer) c.$(focusedLayer)?.focus?.();
   }
 
-  Object.assign(c, { renderState, renderMapState, storedOverlay, setMembershipOverlay, renderLegend });
+  Object.assign(c, { renderState, renderMapState, storedOverlay, setMembershipOverlay, renderLegend, mapControls });
 }
