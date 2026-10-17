@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { serialize, deserialize } from 'node:v8';
 import { automaticTravelInputKey } from '../core/travel-inputs.mjs';
 
 // Use the conservative travel proof boundary: every personal completion and
@@ -15,18 +16,23 @@ export function eligibilityInputKey(state, memberId, options) {
   return createHash('sha256').update(automaticTravelInputKey(input)).update(JSON.stringify([memberId, options ?? null])).digest('hex');
 }
 
-// Keep non-enumerable engine facts, which structuredClone deliberately omits.
-// A private clone protects the cache from worker augmentation and direct callers.
-function copyResult(result) {
-  const copy = structuredClone({ result, processing: result.processing,
-    primary: result.tasks.map(row => row.processingPrimary) });
+// Retain bytes instead of allocating a second full graph on every cold miss.
+// Decoding on a hit still gives callers private, mutable rows. Keep engine facts
+// explicitly: neither structured cloning nor V8 serialization keeps descriptors.
+function retainResult(result) {
+  return serialize({ result, processing: result.processing,
+    primary: result.tasks.map(row => row.processingPrimary),
+    metrics: Object.fromEntries(Object.entries(Object.getOwnPropertyDescriptors(result.metrics))
+      .filter(([, descriptor]) => !descriptor.enumerable)) });
+}
+
+function copyResult(bytes) {
+  const copy = deserialize(bytes);
   if (copy.processing !== undefined) Object.defineProperty(copy.result, 'processing', { value: copy.processing });
   copy.result.tasks.forEach((row, index) => {
     if (copy.primary[index] !== undefined) Object.defineProperty(row, 'processingPrimary', { value: copy.primary[index] });
   });
-  for (const key of Object.getOwnPropertyNames(result.metrics)) if (!Object.hasOwn(copy.result.metrics, key)) {
-    Object.defineProperty(copy.result.metrics, key, Object.getOwnPropertyDescriptor(result.metrics, key));
-  }
+  Object.defineProperties(copy.result.metrics, copy.metrics);
   return copy.result;
 }
 
@@ -60,10 +66,10 @@ export function createEligibilityCache({ limit = 2 } = {}) {
         entries.delete(key); entries.set(key, cached);
         result = copyResult(cached);
       } else {
-        // Release the oldest graph before allocating a new closure/projection.
+        // Release the oldest retained proof before computing a new one.
         if (entries.size >= limit) entries.delete(entries.keys().next().value);
         result = compute();
-        entries.set(key, copyResult(result));
+        entries.set(key, retainResult(result));
         while (entries.size > limit) entries.delete(entries.keys().next().value);
       }
       Object.defineProperty(result.metrics, 'eligibilityCacheHit', { value: !!cached });

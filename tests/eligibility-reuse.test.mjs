@@ -63,6 +63,9 @@ for (const scope of ['any', 'all', 'personal']) test(`eligibility reuse equals c
       assert.deepEqual(normalize(actual), normalize(cold));
       assert.deepEqual(actual.processing, cold.processing);
       assert.deepEqual(actual.tasks.map(row => row.processingPrimary), cold.tasks.map(row => row.processingPrimary));
+      for (const key of Object.getOwnPropertyNames(cold.metrics).filter(key => key.startsWith('processing'))) {
+        assert.deepEqual(Object.getOwnPropertyDescriptor(actual.metrics, key), Object.getOwnPropertyDescriptor(cold.metrics, key));
+      }
     }
   };
   compare(false);

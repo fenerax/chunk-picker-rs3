@@ -2,9 +2,15 @@
 
 Task evaluation now keeps the eligibility proof separately from challenge
 completion and display selection. `app/tasks/eligibility-cache.mjs` owns two
-content-addressed results per compiled engine variant. Each returned result is
+content-addressed serialized results per compiled engine variant. Each returned result is
 independent of the retained graph, including processing facts and the engine's
-non-enumerable counters. No save state or HTTP credentials are retained there.
+non-enumerable counters. No complete save snapshot or HTTP credentials are retained there.
+
+Cold misses serialize the retained proof with Node's V8 serializer and return
+the newly computed graph directly. Hits deserialize private graphs before
+applying completion. This avoids allocating a second full graph on each miss
+and retains compact bytes between evaluations. Processing facts, row flags and
+non-enumerable metric descriptors are stored explicitly and restored on hits.
 
 The engine projects saved aliases and legacy facts before looking up the key.
 The conservative key in `app/core/travel-inputs.mjs` covers access, both members'
@@ -101,52 +107,87 @@ The walking comparison uses `scripts/perf/map-growth.mjs --full --repeat 1
 response hashes and screenshots stay outside tracked source. Disposable saves
 and their sidecars are removed after verification.
 
-## Matched measurements
+## Cold evaluation recheck
 
-Windows, v24.20.0, baseline core 789f972 and this branch, copied save and pinned companion, seed 1729. The old/new interaction runs and old/new walking runs executed back to back under one heavy-lock ownership. Each process started with at least 6 GiB free physical memory. These are single trials, not percentiles. Earlier samples taken across separate lock windows were excluded from this comparison.
+The follow-up used Windows, v24.20.0, the same disposable save/static copy and pinned companion, seed 1729, and the production process-worker walking method. Each table contains three alternating before/after trials at 1, 10 and the exhausted 40-chunk component. Every checkpoint is an eligibility miss; later checkpoints use the same worker, as in perfwalk. The repeated final revision is a warm measurement and is excluded from these cold tables.
 
-| Action | Before wall s | After wall s | Before acknowledgement s | After acknowledgement s |
+Both the shared heavy and light lanes were reserved during each batch, excluding other gated tests and browser sessions. Five-second process CPU samples before every trial found no other test/perf process. Background applications included Claude, Chrome, Wave Link, audio and Directory Opus. The desktop remained active throughout the measurements.
+
+Pre-trial aggregate CPU use was 14.5–20.4% on 12 logical CPUs, with 8.8–9.2 GiB free RAM. The wrappers' BelowNormal priority and picker-use admission guard remained enabled. An earlier pair overlapped a separate phone-browser server and was discarded. No release gate overlapped the accepted trials.
+
+Sources were exported directly from 789f972 and 59e7162. The final batch replaces only the eligibility-cache module in the latter export with this branch's serialized implementation. Explicit archive/module pins are retained with the private scratch reports; the embedded Git metadata in an export resolves the enclosing checkout and is not the source pin.
+
+### Original tips: 789f972 versus 59e7162
+
+| Chunks | Before median s (min–max) | After median s (min–max) |
+| ---: | ---: | ---: |
+| 1 | 3.399 (3.308–3.417) | 3.668 (3.590–3.700) |
+| 10 | 2.587 (2.545–2.665) | 2.907 (2.815–2.942) |
+| 40 | 1.793 (1.659–1.835) | 2.050 (2.013–2.091) |
+
+The original cold regression is real but smaller than the loaded single pair suggested. It is about 0.27–0.32 s in these medians, rather than the earlier 0.7–2.9 s differences.
+
+A separate instrumented run measured 415/231/372 ms cloning the retained result at 1/10/40 chunks, versus 3.9/3.5/2.3 ms building the key. The computation and processing proof passes were unchanged. This identified the extra full-graph clone as the avoidable cost, rather than fingerprinting or another capability pass.
+
+### Final serialized cache: 789f972 versus this branch
+
+| Chunks | Before median s (min–max) | After median s (min–max) |
+| ---: | ---: | ---: |
+| 1 | 3.658 (3.282–4.140) | 3.768 (3.483–4.165) |
+| 10 | 2.652 (2.475–2.771) | 2.867 (2.621–2.910) |
+| 40 | 1.652 (1.591–1.865) | 1.842 (1.837–2.106) |
+
+Cold misses now serialize the retained proof instead of allocating a second full object graph. The instrumented retention times fell to 166/141/120 ms at 1/10/40 chunks. Cache hits decode private graphs, retaining caller-mutation protection and non-enumerable facts. Both caches remain bounded to two proofs per compiled variant.
+
+The final medians remain about 0.11/0.22/0.19 s above their paired baselines (3%/8%/11%). The min–max ranges overlap at each size, so these trials do not establish exact residual percentages. Retention still has a measured cold cost; the change reduces that cost. No incremental per-chunk evaluation was introduced.
+
+Input/dataset pins and task, presented, available and roll-eligible counts match in all twelve walks. Every walk exhausted the same 40-chunk component. Peak worker RSS, including warm repetitions, was 1271.6 MiB, below the 1,500 MiB ceiling. Larger/grid stress cases were not run.
+
+## Final interaction measurements
+
+One matched before/final pair ran sequentially under both reserved lanes, with fresh disposable servers and credentials. It measures the active tick, untick, roll and immediate unlock plus both Group list reads. Prediction warming is disabled. These are single observations.
+
+| Action | Before wall s | Final wall s | Before acknowledgement s | Final acknowledgement s |
 | --- | ---: | ---: | ---: | ---: |
-| tick | 5.346 | 1.708 | 0.442 | 0.304 |
-| untick | 4.357 | 1.457 | 0.455 | 0.267 |
-| roll | 0.574 | 0.384 | 0.521 | 0.316 |
-| unlock | 7.520 | 4.331 | 3.646 | 4.321 |
+| tick | 3.297 | 1.886 | 0.293 | 0.453 |
+| untick | 3.050 | 1.452 | 0.272 | 0.413 |
+| roll | 0.612 | 0.613 | 0.553 | 0.542 |
+| unlock | 6.402 | 6.031 | 3.057 | 6.022 |
 
-Both members' normalized response hashes match at startup, tick, untick, roll and unlock. Input bytes, dataset digest and Node version match. Only revision/cache/timing metadata was removed. The selected active tick changes the task projections, rather than merely writing an already-satisfied catalogue row.
+Both members' complete normalized response hashes match at startup and after every action. Only revision/cache/timing metadata is removed. The active tick changes the response, and the save, dataset and Node pins match the walking inputs.
 
 ### Unlock breakdown
 
-Profile numbers below are inclusive sampled spans on the HTTP process. Travel is nested inside pool work. Worker spans overlap one another and, after the change, overlap the command acknowledgement; these rows must not be added.
+Travel is nested in roll-pool work. The member evaluations overlap one another and, after the change, overlap acknowledgement. These inclusive spans must not be added.
 
-| Component | Before s | After s | Measurement |
-| --- | ---: | ---: | --- |
-| Durable-save phase | 0.084 | 0.120 | Command start to commit notification; includes notification overhead |
-| Automatic travel rebuild | 3.237 | 3.614 | Inclusive profile span |
-| Roll pool including travel | 3.331 | 3.738 | Inclusive profile span |
-| Member 1 engine | 3.078 | 3.017 | Worker stage wall time |
-| Member 2 engine | 1.586 | 1.831 | Worker stage wall time |
-| Member 1 complete evaluation | 3.737 | 3.483 | Engine plus projections/serialization |
-| Member 2 complete evaluation | 2.311 | 2.597 | Engine plus projections/serialization |
-| Group refresh after acknowledgement | 3.874 | 0.010 | Both parallel HTTP reads |
+| Component | Before s | Final s |
+| --- | ---: | ---: |
+| Durable-save phase | 0.110 | 0.166 |
+| Automatic travel rebuild, sampled HTTP span | 2.652 | 5.155 |
+| Roll pool including travel, sampled HTTP span | 2.748 | 5.361 |
+| Member 1 engine | 2.623 | 4.671 |
+| Member 2 engine | 1.501 | 2.881 |
+| Member 1 complete evaluation | 3.242 | 5.403 |
+| Member 2 complete evaluation | 2.007 | 3.691 |
+| Group refresh after acknowledgement | 3.345 | 0.009 |
 
-The shared-map unlock still rebuilds genuine travel/capability facts and both members' eligibility. Safe reuse removes the redundant capability-proof copy and coalesces the following Group reads with evaluations started after commit. Durability, pool admission and revision checks remain on their existing paths.
+Shared unlocks still need both members' eligibility and a genuine travel rebuild. Starting the requested Group lanes after durable commit overlaps that work and coalesces the following reads. Incremental evaluation of newly admitted sources and their transitive consumers remains a proposal requiring its own dependency model and cold-equivalence proof.
 
-### Walking comparison
+## Final verification
 
-| Owned chunks | Before evaluation s | After evaluation s | Before pool s | After pool s |
-| ---: | ---: | ---: | ---: | ---: |
-| 1 | 3.593 | 4.378 | 4.295 | 5.876 |
-| 10 | 2.650 | 5.557 | 1.933 | 2.361 |
-| 40 | 1.625 | 2.323 | 1.082 | 1.311 |
+- quick: 1267 tests, 1266 passed, 1 skipped, zero failures.
+- companion-quick: 1553 tests, 1552 passed, 1 skipped, zero failures.
+- focused: 132 tests, 132 passed, 0 skipped, zero failures.
+- full: 2484 tests, 2483 passed, 1 skipped, zero failures.
 
-Task, presented-task, available-task and eligible-roll counts match at every checkpoint. Both legal walks exhausted the same 40-chunk component; larger/grid stress cases were not measured. Worker peaks, including the repeated final-map revision, were 1166.8 MiB before and 1264.8 MiB after, below the 1,500 MiB ceiling. Cold samples do not establish a calculation-complexity improvement; the change primarily skips unchanged work.
+The full suite was rerun once at the end under the heavy lock, after both the obsolete inspection assertion repair and the serialized-cache change. The focused cold-equivalence test also checks every non-enumerable processing metric descriptor, processing facts, caller mutation and both Group projections. The public-boundary scanner is run on the final tracked source before committing.
 
-The repeated same-map revision took 1.509 s before and 0.871 s after.
+The first direct focused command failed during module loading because it inherited the ambient dataset selection. The corrected command explicitly selects `open-f2p` and clears pack/profile overrides before loading tests. Both quick suites had already selected their datasets correctly; the full suite started only after the corrected focused run passed.
 
-## Verification
+Canonical private source was not edited. Follow-ups there:
 
-Public quick: 1266 passed, 1 skipped, no failures. Companion quick: 1552 passed, 1 skipped, no failures. Focused engine, transport, prediction, unlock and Group checks: 137 passed, no failures.
+- `checks/private-source/tests/duo-server.test.mjs:321`: replace the empty-cache-after-unlock assertion with fresh revision-2 inspection reuse, matching the public repair.
+- `checks/private-source/tests/automatic-transport.test.mjs:33`: assert the transport evaluator receives `{ reuseEligibility: false }`.
+- `checks/private-source/tests/automatic-transport.test.mjs:205`: extend the capability-cache boundary coverage for challenge-only ticks, retained equipment, aliases and explicit backlog values, using the public synthetic checks as the reference.
 
-The single full suite ran 2484 tests: 2482 passed, 1 skipped and one obsolete assertion failed. That assertion required an empty task cache immediately after unlock; proactive refresh can already have stored the new revision. It now requires fresh revision-2 inspection bytes, and all 137 affected checks pass after repair. The full suite was not repeated, following the one-full-run rule.
-
-The public-boundary scanner runs after this report is generated. No canonical private source, private changelog/roadmap, installed save or live server was changed. Disposable save copies and scratch server stores are removed after the final checks.
+The installed save, live servers, private changelog/roadmap and other worktrees were unchanged. Disposable copied saves and scratch server credentials are deleted after the measurements. Screenshots from the existing implementation remain valid because this follow-up changes no UI.
