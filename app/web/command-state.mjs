@@ -1,5 +1,17 @@
 const retainedFields = new Set(['tasks', 'identityRegistry', 'legacy', 'provenance']);
 
+/** Pending checks affect presentation only; commands still use acknowledged state. */
+export function projectTaskState(state, changes) {
+  if (!changes.length) return state;
+  return { ...state, members: state.members.map(member => {
+    const edits = changes.filter(change => change.memberId === member.id);
+    if (!edits.length) return member;
+    const taskStatus = { ...member.taskStatus };
+    for (const edit of edits) taskStatus[edit.taskId] = { ...taskStatus[edit.taskId], challengeCompleted: edit.challengeCompleted };
+    return { ...member, taskStatus };
+  }) };
+}
+
 /** Preview queued chunk edits without changing the saved revision or history. */
 export function projectChunkState(state, changes) {
   if (!changes.length) return state;

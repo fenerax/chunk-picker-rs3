@@ -1,9 +1,18 @@
-import { mergeCommandState, projectChunkState } from './command-state.mjs';
+import { mergeCommandState, projectChunkState, projectTaskState } from './command-state.mjs';
 import { reviewedNoteRevision } from './info-panels.mjs';
 import { groupGoalCommandTypes } from '../core/group-goal-types.mjs';
 
 // Main-screen commands; shared values and callbacks live in the explicit screen context.
 export function createScreenCommands(c) {
+  let checks = [], displayState, displaySource, displayChecks;
+  function taskDisplayState() {
+    if (displaySource !== c.state || displayChecks !== checks) {
+      displaySource = c.state; displayChecks = checks;
+      displayState = projectTaskState(c.state, checks);
+    }
+    return displayState;
+  }
+  function removeCheck(check) { checks = checks.filter(item => item !== check); }
   async function api(path, body, signal) {
     if (!c.canWrite() && (body !== undefined || /^\/api\/(?:predict|death-estimates|chunk-planning|training-plan|teleports)(?:[/?]|$)/.test(path))) throw new Error('This link is view only.');
     if (c.sandbox.active && body !== undefined && path !== '/api/sandbox/evaluate'
@@ -49,6 +58,8 @@ export function createScreenCommands(c) {
   function command(payload, reviewedRevision, reviewedNote, reviewCurrent, chunkPreview) {
     if (!c.canWrite()) return Promise.reject(new Error('This link is view only.'));
     if (c.sandbox.active) return c.sandbox.command(payload);
+    const check = payload.type === 'set-task-status' && typeof payload.challengeCompleted === 'boolean' ? { ...payload } : undefined;
+    if (check) { checks = [...checks, check]; c.saved('Saving…'); c.renderTasks(); }
     const task = c.queue.then(async () => {
       if (c.sandbox.active) throw new Error('Exit Sandbox before saving changes. Nothing here is saved.');
       if (reviewCurrent && !reviewCurrent()) throw Object.assign(new Error(reviewedNote !== undefined ? 'The note editor was closed or the selected player changed. Reopen the note before saving.' : 'The original-picker review was closed. Fetch and review again.'), { reviewAbandoned: true });
@@ -110,9 +121,11 @@ export function createScreenCommands(c) {
         c.removeChunkPreview(chunkPreview);
         if (response.state.revision < c.state.revision) c.renderMapState();
       }
+      if (check) removeCheck(check);
       c.adopt(response.state, response.pools, reuse);
-      c.saved('Saved', false, c.state.revision); return response;
+      c.saved(checks.length ? 'Saving…' : 'Saved', false, c.state.revision); return response;
     }).catch(error => {
+      if (check) { removeCheck(check); c.renderTasks(); }
       if (chunkPreview) {
         c.removeChunkPreview(chunkPreview);
         c.renderMapState();
@@ -196,5 +209,5 @@ export function createScreenCommands(c) {
     if (schedule && (!reuseResult || reuseResult.memberId !== c.memberId)) c.scheduleTasks();
   }
 
-  Object.assign(c, { api, command, removeChunkPreview, toggleChunk, applyRuneMetrics, adopt });
+  Object.assign(c, { api, command, taskDisplayState, removeChunkPreview, toggleChunk, applyRuneMetrics, adopt });
 }

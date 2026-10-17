@@ -19,7 +19,7 @@ import { createDeathSettings } from '../app/web/death-settings.mjs';
 import { createMiningSettings } from '../app/web/mining-settings.mjs';
 import { createWoodcuttingSettings } from '../app/web/woodcutting-settings.mjs';
 import { createBankingSettings } from '../app/web/banking-settings.mjs';
-import { mergeCommandState, projectChunkState } from '../app/web/command-state.mjs';
+import { mergeCommandState, projectChunkState, projectTaskState } from '../app/web/command-state.mjs';
 import { createOriginalSync } from '../app/web/dataset-panels.mjs';
 import { projectDisplayWorld, hydrateDisplayWorld } from '../app/display-world.mjs';
 import { ChunkMap } from '../app/web/map.mjs';
@@ -436,7 +436,7 @@ test('Group view paints the selected player new tasks before a delayed partner r
   h.context.updated = f.resultFor('actor1', [next], 8);
   h.route(() => partner.promise);
   h.run('state.revision = 8; result = updated; renderTasks()'); await flush();
-  assert.deepEqual(activeLabels(h), ['New Player goal']);
+  assert.deepEqual(activeLabels(h).sort(), ['New Player goal', 'Reed goal', 'Shared goal']);
   assert.equal(h.run('duoRowsReady'), false);
   partner.resolve(f.resultFor('reed', [f.partner], 8)); await h.run('duoLoading'); await flush();
   assert.deepEqual(activeLabels(h).sort(), ['New Player goal', 'Reed goal']);
@@ -452,6 +452,136 @@ async function reviewPlayer(h, name) {
   assert.ok(choice, `Missing Completed review player ${name}`); await choice.emit('click'); await flush(); await flush();
 }
 async function enableDuo(h) { h.run("document.getElementById('group-view').checked = true; renderTasks()"); await h.run('duoLoading'); await flush(); }
+
+test('Group queues several optimistic checks while refreshing, without repaint flicker or premature Saved', async () => {
+  const h = harness(), f = duoFixture(h);
+  h.route(() => f.reed); await enableDuo(h);
+  const acks = [deferred(), deferred()], refresh = deferred();
+  let sent = 0;
+  h.route((path) => path === '/api/command' ? acks[sent++].promise : refresh.promise);
+  h.run("document.getElementById('hide-completed').checked=false; renderTasks()");
+  const row = id => h.all().find(node => node.isConnected && node.className === 'task-row duo-task-row' && node.dataset.taskId === id);
+  const tick = id => { const box = row(id).children[0]; assert.equal(box.disabled, false); box.checked = true; return box.emit('change'); };
+  const first = tick(f.own.id); await flush();
+  assert.equal(row(f.own.id).children[0].checked, true);
+  assert.equal(h.run('duoRowsReady'), false);
+  assert.equal(row(f.partner.id).querySelector('.duo-task-backlog').disabled, true);
+  const next = h.snapshot(); next.revision = 8;
+  next.members[0].taskStatus[f.own.id] = { challengeCompleted: true }; next.tasks.push(f.own);
+  acks[0].resolve({ state: next, pools: {} }); await first; await flush();
+  assert.equal(h.run('duoRowsReady'), false);
+  const second = tick(f.partner.id); await flush();
+  assert.equal(row(f.partner.id).children[0].checked, true);
+  h.run('renderTasks()');
+  assert.equal(row(f.partner.id).children[0].checked, true);
+  assert.equal(row(f.own.id).children[0].checked, true);
+  assert.equal(h.nodes.get('save-status').textContent, 'Saving…');
+  assert.equal(row(f.partner.id).querySelector('.duo-task-backlog').disabled, true);
+  const final = structuredClone(next); final.revision = 9;
+  final.members[1].taskStatus = { [f.partner.id]: { challengeCompleted: true } }; final.tasks.push(f.partner);
+  acks[1].resolve({ state: final, pools: {} }); await second; await flush();
+  assert.deepEqual(h.calls.filter(call => call.body?.command).map(call => call.body.expectedRevision), [7, 8]);
+  assert.equal(h.nodes.get('save-status').textContent, 'Saved');
+  assert.equal(row(f.partner.id).children[0].checked, true);
+  h.context.fresh = f.resultFor('actor1', [f.shared], 9);
+  h.run('result=fresh; renderTasks()');
+  assert.equal(row(f.partner.id).children[0].checked, true, 'fresh selected result cannot undo a partner check');
+});
+
+test('Group can untick from Completed during refresh even when a replacement result removes the task', async () => {
+  const h = harness(), f = duoFixture(h);
+  h.route(() => f.reed); await enableDuo(h);
+  const ack = deferred(), refresh = deferred();
+  h.route(path => path === '/api/command' ? ack.promise : refresh.promise);
+  h.run("document.getElementById('completed-details').open=true");
+  const row = () => h.all().find(node => node.isConnected && node.className === 'task-row duo-task-row' && node.dataset.taskId === f.own.id);
+  const box = row().children[0]; box.checked = true; const saving = box.emit('change'); await flush();
+  assert.ok(!activeLabels(h).includes(f.own.label));
+  assert.equal(row().children[0].checked, true);
+  const next = h.snapshot(); next.revision = 8; next.tasks.push(f.own);
+  next.members[0].taskStatus[f.own.id] = { challengeCompleted: true };
+  ack.resolve({ state: next, pools: {} }); await saving; await flush();
+  h.context.removed = f.resultFor('actor1', [f.shared], 8);
+  h.run('result=removed; renderTasks()');
+  assert.equal(row().children[0].checked, true);
+  assert.equal(row().children[0].disabled, false);
+  const untickAck = deferred(); h.route(path => path === '/api/command' ? untickAck.promise : refresh.promise);
+  const check = row().children[0]; check.checked = false; const clearing = check.emit('change'); await flush();
+  assert.equal(h.run(`taskDisplayState().members[0].taskStatus[${JSON.stringify(f.own.id)}].challengeCompleted`), false);
+  const cleared = structuredClone(next); cleared.revision = 9; cleared.members[0].taskStatus[f.own.id].challengeCompleted = false;
+  untickAck.resolve({ state: cleared, pools: {} }); await clearing;
+  assert.equal(h.snapshot().members[0].taskStatus[f.own.id].challengeCompleted, false);
+  assert.deepEqual(h.calls.filter(call => call.body?.command).map(call => call.body.command.challengeCompleted), [true, false]);
+});
+
+test('Group retains previously inspected rows with current checks while detailed rows refresh', async () => {
+  const h = harness(), f = duoFixture(h), refresh = deferred();
+  h.route(path => path.includes('reed') ? f.reed : f.actor1); await enableDuo(h);
+  h.run("document.getElementById('show-all').checked=true; renderTasks()"); await flush();
+  assert.ok(activeLabels(h).includes('Unpresented goal'));
+  h.route(() => refresh.promise);
+  const next = h.snapshot(); next.revision = 8; next.tasks.push(f.own); next.members[0].taskStatus[f.own.id] = { challengeCompleted: true };
+  h.context.next = next; h.run('adopt(next,{})'); await flush();
+  assert.equal(h.run('duoRowsReady'), false);
+  assert.ok(activeLabels(h).includes('Unpresented goal'));
+  assert.ok(!activeLabels(h).includes(f.own.label));
+  const other = h.all().find(node => node.isConnected && node.className === 'task-row duo-task-row' && node.dataset.taskId === f.partner.id);
+  assert.equal(other.children[0].disabled, false);
+  assert.equal(other.querySelector('.task-label-button').disabled, true);
+});
+
+test('Group checkbox focus cannot start full-detail work while rows refresh', async () => {
+  const h = harness(), f = duoFixture(h), hovers = [];
+  h.context.createTaskHover = options => { hovers.push(options); return { attach() {}, hide() {} }; };
+  h.route(() => f.reed); await enableDuo(h);
+  h.run('duoRowsReady=false');
+  const requests = h.calls.length;
+  assert.strictEqual(await hovers[0].getDetails(f.own), f.own);
+  assert.equal(h.calls.length, requests);
+  h.context.detailed = { ...f.own, record: { detail: 'Loaded' } };
+  h.run('duoRowsReady=true; ensureDuoDetails=async()=>({tasks:[detailed]})');
+  assert.equal((await hovers[0].getDetails(f.own)).record.detail, 'Loaded');
+});
+
+for (const group of [false, true]) test(`${group ? 'Group' : 'solo'} keeps a rapid tick then untick optimistic until both acknowledgements`, async () => {
+  const h = harness(), f = duoFixture(h);
+  if (group) { h.route(() => f.reed); await enableDuo(h); }
+  const acks = [deferred(), deferred()]; let sends = 0;
+  h.route(path => path === '/api/command' ? acks[sends++].promise : deferred().promise);
+  h.run("document.getElementById('hide-completed').checked=false; renderTasks()");
+  const row = () => h.all().find(node => node.isConnected && node.dataset.taskId === f.own.id && node.className.includes('task-row'));
+  const firstBox = row().children[0]; firstBox.checked = true;
+  const first = firstBox.emit('change'); await flush();
+  assert.equal(row().children[0].checked, true);
+  const secondBox = row().children[0]; assert.equal(secondBox.disabled, false); secondBox.checked = false;
+  const second = secondBox.emit('change'); await flush();
+  assert.equal(row().children[0].checked, false);
+  const next = h.snapshot(); next.revision = 8; next.tasks.push(f.own); next.members[0].taskStatus[f.own.id] = { challengeCompleted: true };
+  acks[0].resolve({ state: next, pools: {} }); await first; await flush();
+  assert.equal(row().children[0].checked, false);
+  assert.equal(h.nodes.get('save-status').textContent, 'Saving…');
+  const final = structuredClone(next); final.revision = 9; final.members[0].taskStatus[f.own.id].challengeCompleted = false;
+  acks[1].resolve({ state: final, pools: {} }); await second;
+  assert.equal(row().children[0].checked, false);
+  assert.equal(h.nodes.get('save-status').textContent, 'Saved');
+});
+
+test('an unsaved Group check rolls back on a gameplay conflict while queued checks retain their previews', async () => {
+  const h = harness(), f = duoFixture(h);
+  h.route(() => f.reed); await enableDuo(h);
+  const ack = deferred(), later = deferred(); let sends = 0;
+  h.route(path => path === '/api/command' ? (sends++ ? later.promise : ack.promise) : deferred().promise);
+  const first = h.run(`command({type:'set-task-status',memberId:'actor1',taskId:${JSON.stringify(f.own.id)},challengeCompleted:true})`);
+  const rejected = assert.rejects(first, /Another save arrived first/);
+  const second = h.run(`command({type:'set-task-status',memberId:'reed',taskId:${JSON.stringify(f.partner.id)},challengeCompleted:true})`);
+  const remote = h.snapshot(); remote.revision = 8;
+  ack.resolve({ ok: false, status: 409, value: { state: remote, pools: {} } }); await rejected; await flush();
+  assert.equal(h.run(`taskDisplayState().members[0].taskStatus[${JSON.stringify(f.own.id)}]?.challengeCompleted`), undefined);
+  assert.equal(h.run(`taskDisplayState().members[1].taskStatus[${JSON.stringify(f.partner.id)}].challengeCompleted`), true);
+  const saved = structuredClone(remote); saved.revision = 9; saved.members[1].taskStatus = { [f.partner.id]: { challengeCompleted: true } };
+  later.resolve({ state: saved, pools: {} }); await second;
+  assert.deepEqual(h.calls.filter(call => call.body?.command).map(call => call.body.expectedRevision), [7, 8]);
+});
 
 test('Group Backlog and Completed share the owner chips, counts and disclosure renderer; off stays personal', async () => {
   const h = harness(), f = duoFixture(h); h.context.f = f;
@@ -1114,7 +1244,7 @@ function harness({ realPlanning = false, localStorage } = {}) {
     createChunkQuestList: (collaborators, entries) => { collaborators.storage = localStorage; return createChunkQuestList(collaborators, entries); },
     createMapDisplay: () => ({ sizes: { rollNumberScale: 1, chunkIdScale: 1, stickerScale: 1 }, open() {}, close() {}, refresh() {}, isOpen: () => false }), createHelperView: () => ({}), createBackupStatus: () => ({ start() {}, refresh: async () => {}, line: () => null }), createSandbox, openSandboxRules, createTaskHover, createTaskMethods, renderTaskEquipment, resolveTaskAlternatives, createDuoResultCache, selectDuoTasks, createDuoTaskView, createTaskFilters, appendTaskPin, isTaskPinned, createTaskPinChecker, createCompletedView, createDuoCoordination, openTeleportsDialog,
     selectDuoTaskLists, createDuoBacklogView, buildWorld, createRuleRegistry, originalSettings, settingDefinitions, createRulesPanel,
-    taskItemIcon, taskIcon, taskCategoryIcon, createTaskIconPainter, skillIcon: () => null, itemIcon: () => null, loadIcons: async () => false, interiorCandidates: () => [], interiorPanel: () => ({}), describeHistoryEvent: event => event.type, createFeedback: () => ({ open() {}, setSession() {}, start() {}, stop() {} }), createUpdates: () => ({ seen() {}, openList() {} }), createRuneMetricsControls: () => ({}), createStickerPicker: () => ({ open() {}, close() {}, isOpen: () => false, element: { contains: () => false } }), createInfoPanels, createNoteEditor, reviewedNoteRevision, createMapTools, applyTheme, createTaskFactsIndex, goalProgress, createDeathSettings, createMiningSettings, createWoodcuttingSettings, createBankingSettings, mergeCommandState, projectChunkState, createOriginalSync,
+    taskItemIcon, taskIcon, taskCategoryIcon, createTaskIconPainter, skillIcon: () => null, itemIcon: () => null, loadIcons: async () => false, interiorCandidates: () => [], interiorPanel: () => ({}), describeHistoryEvent: event => event.type, createFeedback: () => ({ open() {}, setSession() {}, start() {}, stop() {} }), createUpdates: () => ({ seen() {}, openList() {} }), createRuneMetricsControls: () => ({}), createStickerPicker: () => ({ open() {}, close() {}, isOpen: () => false, element: { contains: () => false } }), createInfoPanels, createNoteEditor, reviewedNoteRevision, createMapTools, applyTheme, createTaskFactsIndex, goalProgress, createDeathSettings, createMiningSettings, createWoodcuttingSettings, createBankingSettings, mergeCommandState, projectChunkState, projectTaskState, createOriginalSync,
     EventSource: class extends Node { constructor(url) { super(); this.url = url; eventSources.push(this); } },
     createDeathChunks: ctx => createDeathChunks({ ...ctx, setTimeout: action => { const id = Symbol(); deathTimers.set(id, action); return id; }, clearTimeout: id => deathTimers.delete(id) }),
     createChunkPlanning: ctx => realPlanning ? createChunkPlanning(ctx) : ({ render: id => { planningRenders.push(id); const node = new Node(); node.append(new Node('details'), new Node('details')); return node; }, prime: value => planningPrimes.push(value) }), AbortController, Uint8Array, crypto: { randomUUID: () => 'test-id', getRandomValues: values => values.fill(1) },

@@ -16,6 +16,14 @@ import { createDuoBacklogView } from './duo-backlog-view.mjs';
 
 // Main-screen tasks; shared values and callbacks live in the explicit screen context.
 export function createScreenTasks(c) {
+  const taskDisplayState = () => c.taskDisplayState?.() ?? c.state;
+  const displayResults = new WeakMap();
+  function currentDisplayResult(value) {
+    if (value.stateRevision === c.state.revision) return value;
+    let display = displayResults.get(value);
+    if (display?.stateRevision !== c.state.revision) { display = { ...value, stateRevision: c.state.revision }; displayResults.set(value, display); }
+    return display;
+  }
   c.taskClaimClock = createTaskClaimClock({ document });
   if (typeof createCopyLists === 'function') c.copyLists = createCopyLists(c);
   function buildTaskFactsCache(snapshot, activeMemberId, ruleRegistry, sourceResult) {
@@ -23,8 +31,9 @@ export function createScreenTasks(c) {
   }
 
   function taskFacts(task) {
+    const state = taskDisplayState();
     const source = c.result ?? (typeof c.shownResult !== 'undefined' && c.shownResult?.memberId === c.memberId ? c.shownResult : undefined);
-    if (c.taskFactsCache?.state !== c.state || c.taskFactsCache.memberId !== c.memberId || c.taskFactsCache.registry !== c.registry || c.taskFactsCache.sourceResult !== source) c.taskFactsCache = c.buildTaskFactsCache(c.state, c.memberId, c.registry, source);
+    if (c.taskFactsCache?.state !== state || c.taskFactsCache.memberId !== c.memberId || c.taskFactsCache.registry !== c.registry || c.taskFactsCache.sourceResult !== source) c.taskFactsCache = c.buildTaskFactsCache(state, c.memberId, c.registry, source);
     return c.taskFactsCache.get(task.id, task.completionIds);
   }
 
@@ -241,7 +250,9 @@ export function createScreenTasks(c) {
       getScope: () => `${c.duoEnabled()}:${c.memberId}:${c.state.revision}:${c.sandbox.signature()}`,
       getContext: () => ({ result: c.duoDetails.get(`${c.state.revision}:${ownerId}`) ?? c.duoResults().results().get(ownerId), equipment: c.definitions.equipment,
         locationName: id => c.plain((c.world.chunks.get(String(id)) ?? c.world.areas.get(String(id)))?.name ?? id) }),
-      getDetails: async value => value.record || isCustomTask(value) ? value : (await c.ensureDuoDetails(ownerId, false)).tasks.find(item => item.id === value.id) ?? value,
+      // A checkbox can retain focus during refresh. Its tooltip must not start
+      // an expensive full-detail calculation for rows being replaced.
+      getDetails: async value => !c.duoRowsReady || value.record || isCustomTask(value) ? value : (await c.ensureDuoDetails(ownerId, false)).tasks.find(item => item.id === value.id) ?? value,
     }));
     c.duoHovers.get(ownerId).attach(row, label, task);
   }
@@ -252,8 +263,10 @@ export function createScreenTasks(c) {
         getStorage: () => globalThis.localStorage, getViewerId: () => c.sessionMember ?? (c.canWrite() ? 'admin' : 'viewer'),
         getClaimMember: () => c.sessionMember ?? c.memberId, actingForMember: () => !c.sessionMember,
         command: c.command, backlog: c.backlogForm, showTask: c.showTask, attachHover: c.attachDuoHover, appendIcon: (body, task) => c.taskIconPainter.append(body, task),
+        canComplete: () => c.canWrite() && !c.sandbox.active && c.duoEnabled(),
         canEdit: () => c.canWrite() && !c.sandbox.active && c.duoEnabled() && c.duoRowsReady, canInspect: () => !c.sandbox.active && (c.duoRowsReady || !c.canWrite() && c.result?.stateRevision === c.state.revision && c.result.memberId === c.memberId), showError: c.showError, onFilter: c.renderTasks,
-        appendPin: (content, entry) => appendTaskPin(document, content, c.duoPins(entry)), appendEdit: c.appendCustomTaskEdit });
+        appendPin: (content, entry) => appendTaskPin(document, content, c.duoPins(entry)),
+        appendEdit: (content, task) => { c.appendCustomTaskEdit(content, task); const edit = content.querySelector('.custom-task-edit'); if (edit) edit.disabled ||= !c.duoRowsReady; } });
       c.$('task-count').parentElement.after(c.duoTaskView.controls());
       const sheet = c.el('link'); sheet.rel = 'stylesheet'; sheet.href = '/duo-tasks.css'; document.head.append(sheet);
     }
@@ -280,18 +293,25 @@ export function createScreenTasks(c) {
       inspectionValues = [...inspection.results().values()];
       if (baseReady && inspectionValues.length !== c.state.members.length) c.startDuoInspectionLoad();
     }
-    const ready = baseReady && (!inspect || inspectionValues.length === c.state.members.length);
+    const ready = baseReady && (!inspect || inspectionValues.length === c.state.members.length) && taskDisplayState() === c.state;
     if (ready && inspect) c.duoInspectionError = undefined;
+    if (ready && inspect) c.lastDuoInspectionResults = inspectionValues;
     c.duoRowsReady = ready;
     if (baseReady) c.lastDuoResults = current;
-    const selectedReady = current.some(value => value.memberId === c.memberId);
-    const sourceValues = inspect && inspectionValues.length === c.state.members.length ? inspectionValues : baseReady || selectedReady ? current : c.lastDuoResults;
-    const selectionKey = [c.state, c.state.revision, c.registry, c.memberId, ownerFilter, personalFilter, showCompleted, showBlocked, showAll, !!filter, ready, ...sourceValues];
+    // Keep each partner's last rows until their replacement arrives. Completion
+    // facts always come from saved state plus queued checks, never result bytes.
+    const inspected = inspect ? c.state.members.map(owner => inspectionValues.find(value => value.memberId === owner.id)
+      ?? c.lastDuoInspectionResults?.find(value => value.memberId === owner.id)).filter(Boolean) : [];
+    const showInspection = inspect && inspected.length === c.state.members.length;
+    const sourceValues = showInspection ? inspected
+      : c.state.members.map(owner => current.find(value => value.memberId === owner.id) ?? c.lastDuoResults?.find(value => value.memberId === owner.id)).filter(Boolean);
+    const state = taskDisplayState();
+    c.duoDisplayResults = sourceValues.map(currentDisplayResult);
+    const selectionKey = [state, c.state.revision, c.registry, c.memberId, ownerFilter, personalFilter, showCompleted, showBlocked, showAll, !!filter, ready, ...sourceValues];
     if (!c.duoSelectionKey || selectionKey.length !== c.duoSelectionKey.length || selectionKey.some((value, index) => value !== c.duoSelectionKey[index])) {
-      const values = ready || selectedReady ? sourceValues : sourceValues.map(value => ({ ...value, stateRevision: c.state.revision }));
-      c.duoSelection = selectDuoTasks({ state: c.state, results: values, registry: c.registry, selectedMemberId: c.memberId, ownerFilter,
-        personalFilter: ready ? personalFilter : 'group', showCompleted,
-        showBlocked: ready && showBlocked, showAll: ready && showAll, searchAll: ready && !!filter });
+      c.duoSelection = selectDuoTasks({ state, results: c.duoDisplayResults, registry: c.registry, selectedMemberId: c.memberId, ownerFilter,
+        personalFilter: showInspection ? personalFilter : 'group', showCompleted,
+        showBlocked: showInspection && showBlocked, showAll: showInspection && showAll, searchAll: showInspection && !!filter });
       c.duoSelectionKey = selectionKey;
     }
     const duo = c.duoSelection;
@@ -365,10 +385,10 @@ export function createScreenTasks(c) {
     c.mapTaskCounts?.refresh();
     let completedRows = completed, backlogRows = backlog;
     if (groupOn) {
-      const results = [...c.duoResults().results().values()], ownerFilter = c.duoView().filter();
-      const key = [c.state, c.registry, c.memberId, ownerFilter, filter, ...results];
+      const results = c.duoDisplayResults, state = taskDisplayState(), ownerFilter = c.duoView().filter();
+      const key = [state, c.registry, c.memberId, ownerFilter, filter, ...results];
       if (!c.duoListKey || key.length !== c.duoListKey.length || key.some((value, index) => value !== c.duoListKey[index])) {
-        c.duoListSelection = selectDuoTaskLists({ state: c.state, results, registry: c.registry, selectedMemberId: c.memberId, ownerFilter, filter });
+        c.duoListSelection = selectDuoTaskLists({ state, results, registry: c.registry, selectedMemberId: c.memberId, ownerFilter, filter });
         c.duoListKey = key;
       }
       completedRows = c.duoListSelection.completed.rows; backlogRows = c.duoListSelection.backlog.rows;

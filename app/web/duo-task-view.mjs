@@ -5,7 +5,7 @@ import { readDuoPersonalFilter, writeDuoPersonalFilter, normalizeDuoPersonalFilt
 
 /** Duo rows keep their task owner separate from the selected map. */
 export function createDuoTaskView({ document, getState, getSelectedMember, command, backlog, showTask, attachHover,
-  getClaimMember = getSelectedMember, getViewerId = () => 'viewer', getStorage = () => globalThis.localStorage, actingForMember = () => false, appendIcon = () => {}, appendPin = () => {}, appendEdit = () => {}, showError, canEdit = () => true, canInspect = canEdit, onFilter = () => {} }) {
+  getClaimMember = getSelectedMember, getViewerId = () => 'viewer', getStorage = () => globalThis.localStorage, actingForMember = () => false, appendIcon = () => {}, appendPin = () => {}, appendEdit = () => {}, showError, canEdit = () => true, canComplete = canEdit, canInspect = canEdit, onFilter = () => {} }) {
   const el = (tag, text, cls) => { const node = document.createElement(tag); if (text !== undefined) node.textContent = text; if (cls) node.className = cls; return node; };
   const button = (text, action, cls) => { const node = el('button', text, cls); node.type = 'button'; node.addEventListener('click', () => Promise.resolve().then(action).catch(showError)); return node; };
   let ownerFilter = 'all', enabled = false;
@@ -36,8 +36,9 @@ export function createDuoTaskView({ document, getState, getSelectedMember, comma
       : personalFilter === 'not-done' ? `Tasks ${name} can do now and has not personally completed, including tasks their partner has done.`
         : `Tasks ${name} can do now and has not personally completed, which their partner cannot do on their own map.`;
   }
-  function choose(host, entry, action, done) {
-    const current = () => canEdit() && (entry.stateRevision === undefined || entry.stateRevision === getState().revision);
+  function choose(host, entry, action, done, completion = false) {
+    const current = () => completion ? canComplete() && entry.memberIds.every(id => getState().members.some(owner => owner.id === id))
+      : canEdit() && (entry.stateRevision === undefined || entry.stateRevision === getState().revision);
     if (!current()) throw new Error('The task list changed. Review it and try again.');
     const commandEntry = entry.personalCompletion ? { ...entry, memberIds: entry.filterMemberIds } : entry;
     const target = duoCommandTarget(commandEntry, getSelectedMember());
@@ -63,11 +64,11 @@ export function createDuoTaskView({ document, getState, getSelectedMember, comma
     const checked = entry.personalCompletion ? facts.personal : facts.group;
     node.dataset.completed = String(checked); node.dataset.taskId = task.id; node.dataset.owners = entry.memberIds.join(',');
     const checkbox = el('input'); checkbox.type = 'checkbox'; checkbox.checked = checked;
-    checkbox.disabled = !canEdit(); checkbox.setAttribute('aria-label', `Mark ${task.label} done · ${entry.label}`);
+    checkbox.disabled = !canComplete(); checkbox.setAttribute('aria-label', `Mark ${task.label} done · ${entry.label}`);
     checkbox.addEventListener('change', async () => {
-      if (!canEdit()) { checkbox.checked = checked; return; }
+      if (!canComplete()) { checkbox.checked = checked; return; }
       const completed = checkbox.checked; checkbox.checked = checked;
-      try { await choose(node, entry, async owner => { checkbox.disabled = true; try { await command({ type: 'set-task-status', memberId: owner, taskId: commandTaskId, challengeCompleted: completed }); } finally { checkbox.disabled = !canEdit(); } }, completed ? 'Mark done' : 'Clear check'); }
+      try { await choose(node, entry, async owner => { checkbox.checked = completed; node.dataset.completed = String(completed); try { await command({ type: 'set-task-status', memberId: owner, taskId: commandTaskId, challengeCompleted: completed }); } catch (error) { checkbox.checked = checked; node.dataset.completed = String(checked); throw error; } }, completed ? 'Mark done' : 'Clear check', true); }
       catch (error) { showError(error); }
     });
     const body = el('div', undefined, 'task-body'), content = el('div');
