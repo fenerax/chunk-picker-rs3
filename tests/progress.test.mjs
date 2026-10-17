@@ -94,7 +94,7 @@ test('main task-facts cache refreshes when worker results add new derived IDs or
   const source = ['buildTaskFactsCache', 'taskFacts'].map(name => screenFunctionSource(graph, name)).join('\n');
   const old = { id: 'drop:old' }, derived = { id: 'drop:new', completionGroup: 'item:drop' };
   const state = { rules: {}, tasks: [old], members: [{ id: 'a', completedTasks: [old.id], taskStatus: {} }] };
-  const context = createContext({ createTaskFactsIndex, createTaskIconPainter, skillIcon: () => null, registry, state, memberId: 'a', result: { tasks: [old] }, taskFactsCache: undefined });
+  const context = createContext({ createTaskFactsIndex, createTaskIconPainter, skillIcon: () => null, registry, state, taskDisplayState: () => state, memberId: 'a', result: { tasks: [old] }, taskFactsCache: undefined });
   runInContext(source, context);
   assert.equal(context.taskFacts(old).group, true);
   const first = context.taskFactsCache;
