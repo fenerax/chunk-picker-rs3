@@ -459,11 +459,11 @@ details[open]>summary::before{transform:rotate(45deg)}
 .empty-map button{margin-right:var(--space-4);margin-bottom:var(--space-4)}
 #pending-panel{border-color:color-mix(in srgb,var(--gold) var(--border-legacy-70),transparent);box-shadow:0 0 0 1px color-mix(in srgb,var(--gold) 35%,transparent),0 6px 22px var(--color-fixed-00000066)}
 .pending-intro{font-size:var(--type-sm);color:var(--panel-muted,var(--muted));margin:var(--space-3) 0 var(--space-5)}
-.pending-choice{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:var(--space-3) var(--space-4);padding:var(--space-5) 0;border-top:var(--border-thin) solid var(--hairline)}
-.pending-choice-title{min-width:0;line-height:var(--leading-body);font-size:var(--type-body)}
+.pending-choice{display:grid;grid-template-columns:minmax(min(8rem,50%),1fr) auto;align-items:center;gap:var(--space-3) var(--space-4);padding:var(--space-5) 0;border-top:var(--border-thin) solid var(--hairline)}
+.pending-choice-title{min-width:0;overflow-wrap:break-word;line-height:var(--leading-body);font-size:var(--type-body)}
 .pending-choice-title small{display:block;color:var(--panel-muted,var(--muted));font-size:var(--type-sm);margin-top:var(--space-1)}
-.pending-choice .choice-view{grid-column:1;justify-self:start;font-size:var(--type-sm);padding:var(--space-2) 0;border-color:transparent;background:transparent;color:var(--panel-link,var(--link))}
-.pending-choice .primary-action{grid-column:2;grid-row:1 / span 2}
+.pending-choice .choice-view{grid-column:1;justify-self:start;text-align:left;font-size:var(--type-sm);padding:var(--space-2) 0;border-color:transparent;background:transparent;color:var(--panel-link,var(--link))}
+.pending-choice .primary-action{grid-column:2;grid-row:1 / span 2;max-width:11rem;overflow-wrap:break-word}
 .pending-actions{display:flex;flex-wrap:wrap;gap:var(--space-3);padding-top:var(--space-5);border-top:var(--border-thin) solid var(--hairline)}
 .pending-actions .cancel-roll{margin-left:auto}
 .primary-action{background:var(--gold);border-color:var(--gold);color:var(--on-gold);font-weight:var(--weight-bold)}
