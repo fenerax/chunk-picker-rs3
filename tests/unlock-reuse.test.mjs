@@ -37,6 +37,7 @@ test('unlock reuse ignores save and roll bookkeeping while retaining every task 
   copy.progressSnapshots = { days: [[1, 2, 3]] };
   copy.taskClaims = { quest: { memberId: 'actor1', at: '2026-10-12T12:00:00Z' } };
   copy.members[0].preferences = { startingChunk: '12342', mapShowTaskCounts: false };
+  copy.members[0].journal = 'Plans'; copy.groupGoals = { changed: true }; copy.ruleReviews = { changed: true };
   copy.members[0].selected = []; copy.members[0].pendingRoll = ['12344']; copy.members[0].blacklisted = ['12345'];
   assert.equal(taskReuseInputKey(copy), input);
   const changes = [

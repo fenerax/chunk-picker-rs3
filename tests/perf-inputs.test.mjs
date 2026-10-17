@@ -1,0 +1,50 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
+import { gzipSync } from 'node:zlib';
+import { createHash } from 'node:crypto';
+import { readScratchState, seededRandom } from '../scripts/perf/inputs.mjs';
+
+test('performance input hydrates checked sidecars only inside designated scratch', async t => {
+  const directory = await mkdtemp(path.join(tmpdir(), 'picker-perf-'));
+  t.after(() => rm(directory, { recursive: true, force: true }));
+  const scratch = path.join(directory, 'perfwalk');
+  await mkdir(path.join(scratch, 'static'), { recursive: true });
+  const bytes = Buffer.from(JSON.stringify([{ id: 'custom:example' }]));
+  const sha256 = createHash('sha256').update(bytes).digest('hex');
+  const id = `static-${sha256}.json.gz`;
+  await writeFile(path.join(scratch, 'static', id), gzipSync(bytes));
+  const document = { state: { members: [], revision: 1 }, storage: { fields: { tasks: { id, sha256 } } } };
+  const filename = path.join(scratch, 'state.json');
+  await writeFile(filename, JSON.stringify(document));
+  const loaded = await readScratchState(filename);
+  assert.deepEqual(loaded.state.tasks, [{ id: 'custom:example' }]);
+  assert.deepEqual(loaded.state.history, []);
+  assert.match(loaded.sha256, /^[a-f0-9]{64}$/);
+  document.state.provenance = { archive: 'not a calculation input' };
+  document.state.groupGoals = [{ id: 'example' }];
+  await writeFile(filename, JSON.stringify(document));
+  const calculation = await readScratchState(filename, { calculationOnly: true });
+  assert.equal(calculation.state.provenance, undefined);
+  assert.equal(calculation.state.groupGoals, undefined);
+  assert.deepEqual(calculation.state.tasks, loaded.state.tasks);
+  const outside = path.join(directory, 'state.json');
+  await writeFile(outside, JSON.stringify(document));
+  await assert.rejects(readScratchState(outside), /scratch directory/);
+  document.storage.fields.tasks.sha256 = '0'.repeat(64);
+  await writeFile(filename, JSON.stringify(document));
+  await assert.rejects(readScratchState(filename), /checksum/);
+  document.storage.fields.tasks.id = '../state.json';
+  await writeFile(filename, JSON.stringify(document));
+  await assert.rejects(readScratchState(filename), /reference/);
+});
+
+test('seeded walk choices repeat and stay in the sampling interval', () => {
+  const first = seededRandom(1729), same = seededRandom(1729), other = seededRandom(1730);
+  const a = Array.from({ length: 100 }, first), b = Array.from({ length: 100 }, same);
+  assert.deepEqual(a, b);
+  assert.notDeepEqual(a, Array.from({ length: 100 }, other));
+  assert.ok(a.every(value => value >= 0 && value < 1));
+});

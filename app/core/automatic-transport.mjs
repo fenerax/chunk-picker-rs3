@@ -1,4 +1,5 @@
 import { sameRuneScapeName } from './game-progress.mjs';
+import { automaticTravelInputKey } from './travel-inputs.mjs';
 
 export const AUTOMATIC_TRANSPORT_RULE = 'travel.automatic';
 export const automaticTransportEnabled = state => state.rules?.[AUTOMATIC_TRANSPORT_RULE] === true;
@@ -46,13 +47,15 @@ function baselineFor(world, state, memberId, supplied, signature) {
     engines.set(world, engine);
   }
   // The evaluator's catalogue is compiled from definitions, not state.tasks.
-  // Saved task labels only affect the personal quest projection below, whose
-  // cache separately tracks the tasks reference.
+  // Saved quest labels affect the personal quest projection below and are
+  // included by content in the capability key.
   // Projected task states and roll hooks can be distinct objects representing
   // the same save. A content key also notices in-place edits in preview/tests.
   // Retained resource worlds and exact component worlds share one dispatcher.
   // Their derived location projections differ, but their unchanged baseline
-  // task result must be evaluated only once.
+  // task result must be evaluated only once. Only supplies, training, access
+  // and source records are consumed below; challenge flags on cached task rows
+  // are not authoritative task-list results.
   let entries = baselines.get(engine);
   if (!entries) { entries = new Map(); baselines.set(engine, entries); }
   let cache = entries.get(signature);
@@ -78,12 +81,11 @@ export function deriveAutomaticTransport(world, state, memberId, { baseline, tra
   const member = state.members.find(value => value.id === memberId);
   if (!member) throw new TypeError(`Unknown member: ${memberId}`);
   const explicit = transportFactsByMember?.[memberId] ?? member.transportFacts ?? {};
-  const signature = automaticTransportEnabled(state) ? JSON.stringify([state.rules, state.taskRules, state.members, state.legacy, state.gameplayMigration,
-    state.identityRegistry?.savedAliases, state.identityRegistry?.aliases, transportFactsByMember]) : null;
+  const signature = automaticTransportEnabled(state) ? automaticTravelInputKey(state, transportFactsByMember) : null;
   let cached = derived.get(world);
-  if (signature && !baseline && cached?.signature === signature && cached.tasks === state.tasks && cached.byMember.has(memberId)) return cached.byMember.get(memberId);
-  if (signature && (!cached || cached.signature !== signature || cached.tasks !== state.tasks)) {
-    cached = { signature, tasks: state.tasks, byMember: new Map() }; derived.set(world, cached);
+  if (signature && !baseline && cached?.signature === signature && cached.byMember.has(memberId)) return cached.byMember.get(memberId);
+  if (signature && (!cached || cached.signature !== signature)) {
+    cached = { signature, byMember: new Map() }; derived.set(world, cached);
   }
   const facts = Object.fromEntries(['levels', 'quests', 'items', 'currencies', 'conditions', 'confirmations'].map(field => [field, { ...explicit[field] }]));
   const estimatedLevels = new Set(), observedLevels = new Set(), renewableBudget = {}, itemEvidence = new Map();
