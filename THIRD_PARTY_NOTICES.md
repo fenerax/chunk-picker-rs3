@@ -14,6 +14,8 @@ The cooking, fletching and travel facts in
 `app/training/gathering-processing.mjs` and `app/training/banking-travel.mjs`
 also adapt RuneScape Wiki contributors' facts under that licence. Their source
 tables retain page titles, revision IDs, timestamps, content hashes and URLs.
+The activity timing facts in `app/data/activity-timing.mjs` also adapt Wiki
+contributors' facts under that licence, with source URLs beside the rules.
 The calculator combines those facts with project-authored timing estimates;
 its displayed assumptions describe the limits of those estimates.
 Keep its attribution, non-commercial and share-alike terms when redistributing

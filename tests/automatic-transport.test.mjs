@@ -55,6 +55,19 @@ const spell = () => route('spell--varrock', { from: null, consumable: true, auto
   levels: { Magic: 25 }, items: [{ name: 'Air rune', quantity: 3 }, { name: 'Fire rune', quantity: 1 }, { name: 'Law rune', quantity: 1 }],
   conditions: ['standard-spellbook-active', 'teleport-origin-permitted'], confirmations: ['teleport-runes-or-valid-substitution-available'] }) });
 
+test('an archived F2P map does not confirm activation; personal overrides confirm outward availability', () => {
+  const f = fixture();
+  f.state.rules['roll.teleports'] = true;
+  f.state.members[0].f2pMap = { unlocked: ['13108'], at: '2026-01-01T00:00:00.000Z' };
+  f.catalogue.routes = [route('away-stone', { from: null, kind: 'lodestone', automatic: { activation: 'touch' },
+    requirements: requirements({ confirmations: ['lodestone-away-activated'] }) })];
+  assert.equal(evaluateTransportRoutes(f.world, f.state, 'actor1')[0].available, false);
+  f.state.members[0].teleportOverrides = { 'away-stone': true };
+  assert.equal(evaluateTransportRoutes(f.world, f.state, 'actor1')[0].available, true);
+  f.state.members[0].teleportOverrides['away-stone'] = false;
+  assert.equal(evaluateTransportRoutes(f.world, f.state, 'actor1')[0].available, false);
+});
+
 test('automatic OFF preserves declared-fact route behavior and never evaluates capabilities', () => {
   const f = fixture(); f.catalogue.routes = [spell()]; f.state.rules['travel.automatic'] = false;
   const before = evaluateTransportRoutes(f.world, f.state, 'actor1');
