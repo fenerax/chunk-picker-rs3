@@ -66,11 +66,17 @@ test('server warms selected and pending predictions without calculating the unop
   });
   assert.equal(response.status, 200);
   assert.equal((await response.json()).state.revision, 1);
-  // The preceding revision's cache is discarded before the save is acknowledged.
-  assert.equal((await get('/api/diagnostics')).predictionLane.cache.entries, 0);
+  // Cancelling an offer changes no task inputs. Keep both prepared predictions
+  // and rebind their response revisions without calculating them again.
+  assert.equal((await get('/api/diagnostics')).predictionLane.cache.entries, 2);
   assert.equal((await get('/api/tasks?memberId=synthetic&view=play-v1')).stateRevision, 1);
   await clock.advance(1000);
-  await until(() => get('/api/diagnostics'), value => value.predictionLane.prewarm.completed >= 4 && !value.predictionLane.prewarm.pending && !value.predictionLane.prewarm.active);
+  const retained = await until(() => get('/api/diagnostics'), value => !value.predictionLane.prewarm.pending && !value.predictionLane.prewarm.active);
+  assert.equal(retained.predictionLane.prewarm.completed, 2);
+  for (const chunkId of ['13108', '12597']) {
+    const value = await get(`/api/predict?memberId=synthetic&chunkId=${chunkId}`);
+    assert.equal(value.cache.hit, true); assert.equal(value.stateRevision, 1);
+  }
   const next = await get('/api/predict?memberId=synthetic&chunkId=12342');
   assert.equal(next.cache.hit, false); assert.equal(next.stateRevision, 1);
 });

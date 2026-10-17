@@ -15,7 +15,7 @@ async function until(check, message) {
   while (!check() && Date.now() < deadline) await new Promise(resolve => setTimeout(resolve, 15));
   assert.ok(check(), message);
 }
-async function fixture(t, { prewarm = false, personal = false, evaluationGate, predictionGate } = {}) {
+async function fixture(t, { prewarm = false, rollPair = false, personal = false, evaluationGate, predictionGate } = {}) {
   const clock = createManualClock();
   const base = path.resolve('.local/task-claim-server-tests'); await mkdir(base, { recursive: true });
   const dataDir = await mkdtemp(path.join(base, 'server-')), messages = [];
@@ -47,7 +47,9 @@ async function fixture(t, { prewarm = false, personal = false, evaluationGate, p
     initialState.members[0].taskStatus = { [task.id]: { challengeCompleted: true } };
   }
   if (prewarm) { initialState.members[0].unlocked = ['12341']; initialState.members[0].selected = ['12342']; }
-  let app = await createServer({ dataset: await emptyMetadataDataset(), dataDir, schedulingClock: clock, shutdownDeadlineMs: 500, definitions: { chunks: prewarm ? { '12341': {}, '12342': {} } : {}, walkableChunks: prewarm ? ['12341', '12342'] : [], walkableChunksF2P: prewarm ? ['12341', '12342'] : [], challenges: { Mining: { [task.label]: { PickerId: task.id } } } }, taskMap: {}, initialState, port: 0, host: '127.0.0.1', predictionPrewarm: prewarm,
+  if (rollPair) initialState.members[0].selected.push('12343');
+  const chunks = prewarm ? ['12341', '12342', ...(rollPair ? ['12343'] : [])] : [];
+  let app = await createServer({ dataset: await emptyMetadataDataset(), dataDir, schedulingClock: clock, shutdownDeadlineMs: 500, definitions: { chunks: Object.fromEntries(chunks.map(id => [id, {}])), walkableChunks: chunks, walkableChunksF2P: chunks, challenges: { Mining: { [task.label]: { PickerId: task.id } } } }, taskMap: {}, initialState, port: 0, host: '127.0.0.1', predictionPrewarm: prewarm,
     gameDataDir: path.join(dataDir, 'game'), mapAssetsDir: path.join(dataDir, 'assets'), taskWorkerOptions: { workerFactory, duoWorkerFactory: workerFactory, serializedStateInput: true } });
   t.after(async () => {
     try { await app?.close(); }
@@ -93,6 +95,46 @@ test('claims publish live saved data, retain friendly History, and do no worker 
   await command({ type: 'set-task-status', memberId: 'reed', taskId: task.id, challengeCompleted: true });
   assert.equal(app.store.getTaskClaimSnapshot().taskClaims[task.id], undefined);
   await command({ type: 'undo' }); assert.equal(app.store.getTaskClaimSnapshot().taskClaims[task.id], undefined);
+});
+
+test('roll bookkeeping rebinds both task lists while refreshing pools and preserving revision guards', async t => {
+  const { app, messages, request, command, lists } = await fixture(t, { prewarm: true, rollPair: true });
+  await lists();
+  const read = async () => {
+    const revision = app.store.getInfo().revision;
+    const response = await request(`/api/tasks?memberId=actor1&view=play-v1&projection=duo-sidebar-v1&revision=${revision}`);
+    assert.equal(response.status, 200);
+    const { stateRevision, cache, ...result } = await response.json();
+    assert.equal(stateRevision, revision);
+    return result;
+  };
+  const before = await read(), count = messages.length;
+  for (const route of ['/core/automatic-transport.mjs', '/core/travel-inputs.mjs']) {
+    assert.equal((await request(route)).status, 200);
+  }
+  const input = app.store.getCalculationSnapshot().taskInputKey;
+  for (const edit of [
+    { type: 'roll', memberId: 'actor1', count: 2 },
+    { type: 'cancel-roll', memberId: 'actor1' },
+    { type: 'set-chunk', memberId: 'actor1', chunkId: '12342', status: 'blacklisted' },
+    { type: 'set-chunk', memberId: 'actor1', chunkId: '12342', status: 'selected' },
+  ]) {
+    const revision = app.store.getInfo().revision;
+    const saved = await command(edit);
+    assert.equal(app.store.getCalculationSnapshot().taskInputKey, input, `${edit.type}: task fingerprint`);
+    await lists();
+    assert.deepEqual(await read(), before);
+    assert.equal(messages.filter(message => message.type === 'evaluate').length,
+      messages.slice(0, count).filter(message => message.type === 'evaluate').length, edit.type);
+    assert.equal((await request(`/api/tasks?memberId=actor1&view=play-v1&projection=duo-sidebar-v1&revision=${revision}`)).status, 409);
+    assert.equal((await request('/api/command', { expectedRevision: revision, command: edit })).status, 409);
+    if (edit.status === 'blacklisted') assert.ok(!saved.pools.actor1.eligible.some(row => row.id === '12342'));
+    if (edit.status === 'selected') assert.ok(saved.pools.actor1.eligible.some(row => row.id === '12342'));
+  }
+  await command({ type: 'roll', memberId: 'actor1', count: 2 });
+  await command({ type: 'unlock-selection', memberId: 'actor1', chunkId: '12342' });
+  await lists();
+  assert.ok(messages.length > count, 'Ownership still invalidates tasks');
 });
 
 test('natural lists remove inactive claims in a separate revision without changing unrelated Undo', async t => {

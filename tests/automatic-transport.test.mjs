@@ -4,10 +4,11 @@ import { createGroupState } from '../app/core/state.mjs';
 import { buildWorld } from '../app/data/world.mjs';
 import { createTaskEngine, taskId } from '../app/tasks/engine.mjs';
 import { buildAccessIndex, calculateAccess } from '../app/tasks/access.mjs';
-import { evaluateRollPool } from '../app/core/rules.mjs';
+import { evaluateRollPool, createRuleRegistry, builtInRules } from '../app/core/rules.mjs';
 import { evaluatePartnerConnections } from '../app/core/territory.mjs';
 import { evaluateTransportRoutes as evaluateRoutes, transportBudget, expandTransportReachability, affordableTransportPaths, physicalTransportRoutes } from '../app/core/transport-access.mjs';
 import { configureAutomaticTransport, deriveAutomaticTransport, releaseAutomaticTransportCaches } from '../app/core/automatic-transport.mjs';
+import { automaticTravelInputKey } from '../app/core/travel-inputs.mjs';
 
 const requirements = extra => ({ levels: {}, quests: [], items: [], fare: null, conditions: [], confirmations: [], ...extra });
 const station = (id, chunkId, section = '0') => ({ id, name: id, chunkId, locationId: `${chunkId}-${section}`,
@@ -179,6 +180,151 @@ test('baseline capability work is cached and invalidated by personal progress ch
   f.state.members[0].skillProgress = { Magic: observation(1) }; evaluateTransportRoutes(f.world, f.state, 'actor1'); assert.equal(f.calls(), 2);
 });
 
+test('travel input identity ignores bookkeeping, ticks and notes, including replaced task catalogues', () => {
+  const f = fixture(); f.catalogue.routes = [spell()];
+  const key = automaticTravelInputKey(f.state);
+  deriveAutomaticTransport(f.world, f.state, 'actor1');
+  for (const change of [
+    state => { state.revision++; state.history.push({ type: 'roll' }); },
+    state => { state.members[0].taskStatus = { task: { challengeCompleted: true, favorite: true, note: 'Plan' } }; },
+    state => { state.members[0].taskStatus.task.challengeCompleted = false; },
+    state => { state.members[0].selected = ['13108']; state.members[0].pendingRoll = ['11569']; state.members[0].blacklisted = ['13108']; },
+    state => { state.members[0].notes = { '12853': 'Plan' }; state.members[0].journal = 'Plan'; },
+    state => { state.members[0].taskAlternatives = { Extra: { group: 'task' } }; },
+    state => { state.rules['roll.adjacent'] = false; state.rules['tasks.completion'] = 'personal'; },
+    state => { state.tasks = structuredClone(state.tasks); },
+  ]) {
+    change(f.state);
+    assert.equal(automaticTravelInputKey(f.state), key);
+    deriveAutomaticTransport(f.world, f.state, 'actor1');
+    assert.equal(f.calls(), 1, change.toString());
+  }
+  const reversed = structuredClone(f.state);
+  reversed.rules = Object.fromEntries(Object.entries(reversed.rules).reverse());
+  assert.equal(automaticTravelInputKey(reversed), key, 'Object insertion order is irrelevant');
+});
+
+test('travel invalidation covers both members, aliases, legacy controls and every capability input', () => {
+  const original = fixture().state, key = automaticTravelInputKey(original);
+  const changes = [
+    state => { state.rules['content.f2p'] = false; },
+    state => { state.rules['access.shared'] = false; },
+    state => { state.rules['roll.consumableTeleports'] = true; },
+    state => { state.rules['future-rule'] = true; },
+    state => { state.taskRules = { Boosting: false }; },
+    state => { state.legacy = { maps: { demo: { chunkinfo: { passiveSkill: { Magic: 30 } } } } }; },
+  ];
+  for (const index of [0, 1]) for (const [field, value] of Object.entries({
+    unlocked: ['13108'], sectionOverrides: { '12853-0': false }, areaOverrides: { cave: false },
+    sourceBacklogs: { items: { 'Air rune': true } }, taskRules: { Boosting: false },
+    taskStatus: { task: { backlogged: false } }, completedTasks: ['quest'], runescapeName: 'DemoExplorer',
+    skillProgress: { Magic: observation(25) }, questProgress: { quest: { source: 'runemetrics', runescapeName: 'DemoExplorer', title: 'A quest' } },
+    primaryOverrides: { Magic: false }, passiveLevels: { Magic: 30 }, maxLevels: { Magic: 40 }, slayerLock: { level: 10 },
+    xpChoices: { task: { 0: 'Magic' } },
+    transportFacts: { confirmations: { 'lodestone-home-activated': false } },
+    teleports: [{ id: 'home', destination: '13108', available: true }], teleportOverrides: { home: false },
+    sourceMapId: original.members[0].id, name: 'Changed',
+  })) changes.push(state => { state.members[index][field] = value; });
+  for (const change of changes) {
+    const changed = structuredClone(original); change(changed);
+    assert.notEqual(automaticTravelInputKey(changed), key, change.toString());
+  }
+  assert.notEqual(automaticTravelInputKey(original, { actor1: { levels: { Magic: 25 } } }), key);
+  const identity = structuredClone(original);
+  identity.members[0].completedTasks = ['old'];
+  identity.identityRegistry = { entries: { quest: { category: 'Quest', aliases: ['old'], label: 'Before' } } };
+  const identityKey = automaticTravelInputKey(identity);
+  identity.identityRegistry.entries.quest.label = 'After';
+  assert.equal(automaticTravelInputKey(identity), identityKey, 'Registry review/display metadata is not identity resolution');
+  identity.identityRegistry.aliases = { old: 'quest' };
+  assert.notEqual(automaticTravelInputKey(identity), identityKey);
+  const aliasedKey = automaticTravelInputKey(identity);
+  delete identity.identityRegistry.entries.quest;
+  assert.notEqual(automaticTravelInputKey(identity), aliasedKey, 'Candidate entry existence affects alias admission');
+  const unrelated = structuredClone(original);
+  const unrelatedKey = automaticTravelInputKey(unrelated);
+  unrelated.identityRegistry = { entries: { registered: { category: 'Extra' } }, aliases: { registered: 'registered' } };
+  unrelated.tasks.push({ id: 'registered', category: 'Extra', label: 'New tick registration' });
+  unrelated.members[0].taskStatus = { registered: { challengeCompleted: true } };
+  assert.equal(automaticTravelInputKey(unrelated), unrelatedKey, 'A first challenge tick can register its row without changing capabilities');
+  unrelated.tasks.push({ id: 'quest', category: 'Quest', label: 'A quest' });
+  assert.equal(automaticTravelInputKey(unrelated), unrelatedKey, 'An uncompleted saved Quest label cannot prove personal completion');
+  unrelated.members[0].completedTasks = ['quest'];
+  const questKey = automaticTravelInputKey(unrelated);
+  unrelated.tasks.find(task => task.id === 'quest').label = 'Renamed quest';
+  assert.notEqual(automaticTravelInputKey(unrelated), questKey, 'Completed Quest labels are keyed by content, including in-place edits');
+  const aliases = structuredClone(original);
+  aliases.members[0].taskStatus = { first: { backlogged: true }, second: { backlogged: false } };
+  const ordered = automaticTravelInputKey(aliases);
+  aliases.members[0].taskStatus = { second: { backlogged: false }, first: { backlogged: true } };
+  assert.notEqual(automaticTravelInputKey(aliases), ordered, 'Alias backlog merge order is semantic');
+  const beforeClear = automaticTravelInputKey(aliases);
+  aliases.members[0].taskStatus.canonical = { backlogged: undefined };
+  assert.notEqual(automaticTravelInputKey(aliases), beforeClear, 'Direct callers can explicitly clear an aliased flag');
+  const legacy = structuredClone(original);
+  legacy.legacy = { maps: { example: { chunkinfo: { manualAreas: { Cave: true, '%43ave': false } } } } };
+  const beforeReorder = automaticTravelInputKey(legacy);
+  legacy.legacy.maps.example.chunkinfo.manualAreas = { '%43ave': false, Cave: true };
+  assert.notEqual(automaticTravelInputKey(legacy), beforeReorder, 'Decoded legacy names can collide; save order must survive');
+});
+
+test('cached travel, roll pool and task outputs equal cold calculations after representative edits', () => {
+  const f = fixture();
+  f.catalogue.routes = [spell(), route('home-stone', { kind: 'lodestone', to: 'home', automatic: { activation: 'default' },
+    requirements: requirements({ confirmations: ['lodestone-home-activated'] }) })];
+  f.state.members[0].runescapeName = 'DemoExplorer';
+  f.state.members[0].taskStatus = {};
+  f.state.rules['roll.neighborMode'] = 'manual';
+  const quest = { id: taskId('Quest', 'A quest'), category: 'Quest', label: 'A quest' };
+  f.state.tasks.push(quest);
+  f.definitions.challenges.Quest = { 'A quest': { QuestPoints: 1 } };
+  let proofs = 0;
+  const engine = createTaskEngine(f.definitions, { ...options, transportRoutes: f.catalogue });
+  const registry = createRuleRegistry(['travel.automatic', 'access.transport', 'content.f2p'].filter(id => !builtInRules.some(rule => rule.id === id))
+    .map(id => ({ id, type: 'boolean', default: false })));
+  configureAutomaticTransport(f.world, { definitions: f.definitions, engine: { evaluate(state, id) { proofs++; return engine.evaluate(state, id); } } });
+  // Elapsed time is diagnostic, not picker output.
+  const clean = value => JSON.parse(JSON.stringify(value, (key, child) => key === 'elapsedMs' ? undefined : child));
+  const outputs = (taskEngine = engine) => clean({ routes: evaluateTransportRoutes(f.world, f.state, 'actor1'),
+    pool: evaluateRollPool(f.world, f.state, 'actor1', registry), tasks: taskEngine.evaluate(f.state, 'actor1') });
+  outputs();
+  for (const [name, relevant, change] of [
+    ['first generated tick', false, state => {
+      state.tasks.push({ id: 'registered', category: 'Extra', label: 'New tick registration' });
+      state.identityRegistry = { entries: { registered: { category: 'Extra' } }, aliases: { registered: 'registered' } };
+      state.members[0].taskStatus.registered = { challengeCompleted: true };
+    }],
+    ['first Quest tick', false, state => {
+      state.tasks.push({ id: 'registered-quest', category: 'Quest', label: 'New quest registration' });
+      state.identityRegistry.entries['registered-quest'] = { category: 'Quest' };
+      state.identityRegistry.aliases['registered-quest'] = 'registered-quest';
+      state.members[0].taskStatus['registered-quest'] = { challengeCompleted: true };
+    }],
+    ['tick', false, state => { state.members[0].taskStatus[quest.id] = { challengeCompleted: true }; }],
+    ['untick', false, state => { state.members[0].taskStatus[quest.id].challengeCompleted = false; }],
+    ['task note', false, state => { state.members[0].taskStatus[quest.id].note = 'Plan'; }],
+    ['travel rule', true, state => { state.rules['content.f2p'] = false; }],
+    ['task capability rule', true, state => { state.members[0].taskRules = { Boosting: false }; }],
+    ['roll rule', false, state => { state.rules['roll.adjacent'] = false; }],
+    ['roll', false, state => { state.members[0].pendingRoll = ['13108']; }],
+    ['unlock', true, state => { state.members[0].unlocked.push('13108'); }],
+    ['roll pool', false, state => { state.members[0].selected = ['11569']; }],
+    ['never roll', false, state => { state.members[0].blacklisted = ['11569']; }],
+    ['lodestone override', true, state => { state.members[0].teleportOverrides = { 'home-stone': false }; }],
+    ['lodestone confirmation', true, state => { state.members[0].transportFacts = { confirmations: { 'lodestone-home-activated': false } }; }],
+    ['quest sync', true, state => { state.members[0].completedTasks = [quest.id]; state.members[0].questProgress = { [quest.id]: { source: 'runemetrics', runescapeName: 'DemoExplorer', title: 'A quest' } }; }],
+    ['level sync', true, state => { state.members[0].skillProgress = { Magic: observation(25) }; }],
+    ['backlog', true, state => { state.members[0].taskStatus[taskId('Extra', 'Anvil')] = { backlogged: true }; }],
+  ]) {
+    const before = proofs; change(f.state); f.state.revision++;
+    const cached = outputs();
+    assert.equal(proofs - before, relevant ? 1 : 0, `${name}: baseline cache boundary`);
+    releaseAutomaticTransportCaches(f.world);
+    const cold = outputs(createTaskEngine(f.definitions, { ...options, transportRoutes: f.catalogue }));
+    assert.deepEqual(cached, cold, name);
+  }
+});
+
 test('shared retained/component providers reuse one unchanged baseline result', () => {
   const f = fixture(); let calls = 0;
   const provider = { definitions: f.definitions, engine: { evaluate: () => { calls++; return f.baseline; } } };
@@ -201,8 +347,10 @@ test('two exact baseline signatures retain actual and hypothetical supplies with
   deriveAutomaticTransport(f.world, third, 'actor1'); deriveAutomaticTransport(f.world, actual, 'actor1'); assert.equal(calls, 3);
   deriveAutomaticTransport(f.world, candidate, 'actor1'); assert.equal(calls, 4, 'Third state evicts the older candidate');
   candidate.taskRules = { 'Primary Woodcutting': false }; deriveAutomaticTransport(f.world, candidate, 'actor1'); assert.equal(calls, 5);
-  candidate.identityRegistry = { aliases: { 'old-task': ['new-task'] } }; deriveAutomaticTransport(f.world, candidate, 'actor1'); assert.equal(calls, 6);
-  candidate.members[0].passiveLevels = { Magic: 2 }; deriveAutomaticTransport(f.world, candidate, 'actor1'); assert.equal(calls, 7);
+  candidate.identityRegistry = { aliases: { 'old-task': ['new-task'] } }; deriveAutomaticTransport(f.world, candidate, 'actor1'); assert.equal(calls, 5, 'Unreferenced identity does not affect capabilities');
+  candidate.members[0].passiveLevels = { Magic: 2 }; deriveAutomaticTransport(f.world, candidate, 'actor1'); assert.equal(calls, 6);
+  candidate.members[0].completedTasks = ['old-task']; deriveAutomaticTransport(f.world, candidate, 'actor1'); assert.equal(calls, 7);
+  candidate.identityRegistry.aliases['old-task'] = 'other-task'; deriveAutomaticTransport(f.world, candidate, 'actor1'); assert.equal(calls, 8, 'Referenced identity changes invalidate');
 });
 
 test('automatic own-resource access requires an affordable return from the original walking bound', () => {

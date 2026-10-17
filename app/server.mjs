@@ -641,7 +641,8 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
   // they never touch scheduler admission, cache LRU, prewarming or worker timers.
   const savedTaskResults = new Map();
   const retainedFullBytes = row => row.fullGzip?.length ?? 0;
-  let savedTaskFingerprint = store.getGameplayFingerprint();
+  const taskFingerprint = () => calculationState().input;
+  let savedTaskFingerprint = store.getCalculationSnapshot().taskInputKey;
   poolRanking.sync(savedTaskFingerprint);
   let knownTaskMembers = new Set(store.getCalculationSnapshot().members.map(member => member.id));
   function rebindTaskRevision(entry, revision) {
@@ -765,7 +766,7 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
     const claims = store.getTaskClaimSnapshot();
     const ids = Object.keys(claims.taskClaims).sort();
     if (!ids.length) return;
-    const input = store.getGameplayFingerprint(), key = `${input}:${ids.join(',')}`;
+    const input = taskFingerprint(), key = `${input}:${ids.join(',')}`;
     if (key === lastClaimCheckKey || input !== savedTaskFingerprint) return;
     const state = store.getTaskClaimState();
     const ready = state.members.map(member => ({ member, entry: savedTaskResults.get(member.id) }));
@@ -825,7 +826,7 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
   async function waitForList(revision, signal, taskInput) {
     // Panel preparation can follow identical task inputs across display saves;
     // keep the original gate deadline and quiet window while rebinding guards.
-    if (revision !== store.getInfo().revision && taskInput !== undefined && taskInput === store.getGameplayFingerprint()) revision = store.getInfo().revision;
+    if (revision !== store.getInfo().revision && taskInput !== undefined && taskInput === taskFingerprint()) revision = store.getInfo().revision;
     if (!requiredTaskMembers.size || !listPending(revision)) return;
     await new Promise((resolve, reject) => {
       let timer;
@@ -836,7 +837,7 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
         schedulingClock.clearTimeout(timer);
         if (closed) { finish(httpError(409, 'The saved map changed. Request the current list.')); return; }
         if (revision !== store.getInfo().revision) {
-          if (taskInput === undefined || taskInput !== store.getGameplayFingerprint()) { finish(httpError(409, 'The saved map changed. Request the current list.')); return; }
+          if (taskInput === undefined || taskInput !== taskFingerprint()) { finish(httpError(409, 'The saved map changed. Request the current list.')); return; }
           revision = store.getInfo().revision;
         }
         if (!listPending(revision)) { finish(); return; }
@@ -861,10 +862,10 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
     if (!calculationSnapshot || calculationSnapshot.metadata.revision !== store.getInfo().revision) {
       const captured = store.getCalculationSnapshot();
       let taskIndex;
-      calculationSnapshot = { metadata: { revision: captured.revision, members: captured.members }, input: captured.inputKey,
+      calculationSnapshot = { metadata: { revision: captured.revision, members: captured.members }, input: captured.taskInputKey,
         get state() { return captured.state; },
         get sandboxTaskIndex() { return taskIndex ??= sandboxTaskCatalogue(captured.state, sandboxCatalogue); },
-        get stateInput() { return { get stateJSON() { return captured.stateJSON; }, inputKey: captured.inputKey,
+        get stateInput() { return { get stateJSON() { return captured.stateJSON; }, inputKey: captured.taskInputKey,
           get taskInputKey() { return captured.taskInputKey; } }; } };
     }
     return calculationSnapshot;
@@ -947,8 +948,8 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
       automaticDeathActive++;
       schedulingClock.clearTimeout(prewarmTimer); taskWorker.cancelPrewarm();
     }
-    // Keep the conservative gameplay fingerprint: display preferences and history
-    // do not alter gameplay, including when a save arrives during an evaluation.
+    // Share the task-input boundary with unlock predictions. Pool selections,
+    // pending offers and blacklists cannot change these calculation results.
     let completed = false;
     const input = stateInput?.inputKey ?? calculationState().input;
     try {
@@ -990,14 +991,13 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
   }
   let lastUnchangedTaskRevision;
   const unsubscribe = store.subscribe(({ revision }) => {
-    const gameplay = store.getGameplayFingerprint(), taskResultsUnchanged = gameplay === savedTaskFingerprint;
+    const gameplay = taskFingerprint(), taskResultsUnchanged = gameplay === savedTaskFingerprint;
     lastUnchangedTaskRevision = taskResultsUnchanged ? revision : undefined;
     if (taskResultsUnchanged) {
       for (const entry of savedTaskResults.values()) rebindTaskRevision(entry, revision);
     } else { savedTaskResults.clear(); lastClaimCheckKey = undefined; }
     savedTaskFingerprint = gameplay;
     poolRanking.sync(gameplay);
-    calculationSnapshot = undefined;
     knownTaskMembers = new Set(calculationState().metadata.members.map(member => member.id));
     sandboxPools.clear();
     if (!taskResultsUnchanged) {
@@ -1593,7 +1593,7 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
                 await evaluatedTasks(current.state, member.id, 'predict', body.chunkId, controller.signal);
               } finally { request.off('aborted', disconnected); response.off('close', disconnected); }
               if (response.destroyed) return;
-              if (store.getGameplayFingerprint() !== captured.input) throw httpError(409, 'The saved map changed.');
+              if (taskFingerprint() !== captured.input) throw httpError(409, 'The saved map changed.');
               if (!invites.authenticate(request, security)) throw httpError(401, 'Access required.');
               await json(request, response, 200, { memberId: member.id, chunkId: body.chunkId, stateRevision: store.getInfo().revision, prepared: true }); return;
             }
@@ -1893,7 +1893,7 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
       else if (route === '/display-world.mjs') file = await containedFile(path.join(ROOT, 'app'), 'display-world.mjs');
       else if (route === '/data/access-policy.mjs') file = await containedFile(path.join(ROOT, 'app', 'data'), 'access-policy.mjs');
       else if (['/map-activity-layers.mjs', '/map-activity-layer-model.mjs', '/map-activity-layer-renderer.mjs', '/map-activity-layers.css'].includes(route)) file = await containedFile(webRoot, route.slice(1));
-      else if (['/core/rule-registry.mjs', '/core/progress-index.mjs', '/core/automatic-transport.mjs', '/core/progress-snapshots.mjs'].includes(route)) file = await containedFile(path.join(ROOT, 'app', 'core'), route.slice('/core/'.length));
+      else if (['/core/rule-registry.mjs', '/core/progress-index.mjs', '/core/automatic-transport.mjs', '/core/travel-inputs.mjs', '/core/progress-snapshots.mjs'].includes(route)) file = await containedFile(path.join(ROOT, 'app', 'core'), route.slice('/core/'.length));
       else if (['/teleports.mjs', '/teleports.css', '/backup-status.mjs', '/backup-transfer.mjs', '/map-display.mjs', '/map-display.css', '/map-task-counts.mjs', '/map-task-count-renderer.mjs', '/map-task-count-obstacles.mjs', '/map-place-labels.mjs'].includes(route)) file = await containedFile(webRoot, route.slice(1));
       else if (['/stream-safe.mjs', '/stream-safe.css', '/feedback-badge.css'].includes(route)) file = await containedFile(webRoot, route.slice(1));
       else if (['/screen-roll-stats.mjs', '/roll-stats.css'].includes(route)) file = await containedFile(webRoot, route.slice(1));

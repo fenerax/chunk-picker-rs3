@@ -14,9 +14,9 @@ export function createTaskReuseFingerprint() {
   return state => {
     const fields = [];
     for (const key of Object.keys(state).sort()) {
-      if (['revision', 'history', 'provenance', 'taskClaims', 'progressSnapshots', 'finishLine'].includes(key)) continue;
+      if (['revision', 'history', 'provenance', 'taskClaims', 'progressSnapshots', 'finishLine', 'groupGoals', 'ruleReviews'].includes(key)) continue;
       let value = state[key];
-      if (key === 'members') value = value.map(({ selected, pendingRoll, blacklisted, preferences, chunkColours, chunkColourNames, ...member }) => member);
+      if (key === 'members') value = value.map(({ selected, pendingRoll, blacklisted, preferences, journal, chunkColours, chunkColourNames, ...member }) => member);
       const reusable = staticFields.has(key) && value && typeof value === 'object';
       let fingerprint = reusable ? staticDigests.get(value) : undefined;
       if (!fingerprint) {
