@@ -3,6 +3,7 @@ import { rulesCatalogue, buildRulesSections, taskRuleValue, taskRuleAutomaticVal
 import { visibleRulesSections } from './kept-rules.mjs';
 import { createRulesReview } from './rules-review.mjs';
 import { ruleValueText } from './rules-review-model.mjs';
+import { appendRuleExplanation } from './rule-explanations.mjs';
 
 const advanced = ctx => ctx.canWrite?.() !== false && ctx.preferences?.().advanced === true;
 const displayValue = value => value === undefined ? 'Automatic' : value === true ? 'On' : value === false ? 'Off' : String(value);
@@ -137,11 +138,12 @@ export function createRulesPanel(ctx) {
       }
       // Skip a description that only repeats the label.
       const plainText = text => String(text ?? '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
-      if (definition.description && plainText(definition.description) !== plainText(definition.label)) copy.append(el('p', definition.description, 'rules-desc'));
+      if (!appendRuleExplanation(ctx, copy, definition) && definition.description && plainText(definition.description) !== plainText(definition.label)) copy.append(el('p', definition.description, 'rules-desc'));
       // Only say where a value comes from when it matters: players differ, or the parent rule is off.
       const note = value.mixed ? `${ctx.state().members.map(member => member.name).join(' and ')} have different values.` : !canEdit ? `Turn on ${definition.parent ?? 'the parent rule'} to change this; its value is kept.` : '';
       if (note) copy.append(el('p', note, 'rules-value-source'));
       const help = details('More', el('p', isShared ? 'Shared by both players.' : 'For the selected player.', 'rules-current-description')); if (advanced(ctx)) help.append(el('p', `${isShared ? 'Shared by both players' : 'Personal'} · ${value.source}`, 'rules-current-description'));
+      if (definition.explanation && definition.description) help.append(el('p', definition.description, 'rules-original-tooltip'));
       if (limited) help.append(el('p', behavior.status === 'partial' ? behavior.detail : 'This rule is saved but does not affect tasks yet.', 'rules-coverage-detail'));
       for (const tooltip of definition.tooltips ?? []) help.append(el('p', tooltip, 'rules-original-tooltip'));
       if (definition.currentDescription && definition.currentDescription !== definition.description) help.append(el('p', `In this picker: ${definition.currentDescription}`, 'rules-current-description'));
@@ -176,6 +178,14 @@ export function createRulesPanel(ctx) {
       row.title = taskRuleBehavior(definition.id).detail;
       row.append(el('span', definition.label), el('span', value.mixed ? value.source : value.source === 'Automatic'
         ? `Automatic (${ruleValueText(value.value)})` : `${ruleValueText(value.value)}${writable ? ` · ${value.source}` : ''}`, 'rules-kept-value'));
+      const copy = el('div', undefined, 'rules-kept-copy');
+      appendRuleExplanation(ctx, copy, definition);
+      const more = details('More');
+      if (definition.description) more.append(el('p', definition.description, 'rules-original-tooltip'));
+      for (const tooltip of definition.tooltips ?? []) more.append(el('p', tooltip, 'rules-original-tooltip'));
+      if (definition.currentDescription && definition.currentDescription !== definition.description) more.append(el('p', definition.currentDescription));
+      if (definition.description || definition.tooltips?.length || definition.currentDescription) copy.append(more);
+      row.append(copy);
       return row;
     }
     function render() {
@@ -235,7 +245,7 @@ export function createRulesPanel(ctx) {
     profileHost.append(el('h3', 'Saved profiles'), el('p', 'Export or import a profile for the selected player. With Both players selected, the current map player owns the profile.', 'field-help'), exportButton, field('Import rule profile', file));
     if (writable) root.append(details('Profiles & history', profileHost));
     const footer = el('div', undefined, 'rules-footer');
-    footer.append(el('p', 'Automatic uses the value shown for each rule. Turning off a parent rule keeps the choices beneath it.', 'field-help'), button(writable ? 'History & Undo' : 'History', () => { guidedReview.cancel(); ctx.historyDialog(); }));
+    footer.append(el('p', 'Automatic clears your personal choice and uses the shared or imported value, then the picker’s default if neither exists. The value beside Automatic shows the result. Turning off a parent rule keeps the choices beneath it.', 'field-help'), button(writable ? 'History & Undo' : 'History', () => { guidedReview.cancel(); ctx.historyDialog(); }));
     root.append(footer);
     generation = ctx.openDialog('Chunk Rules', root); render();
     ctx.$?.('tool-dialog')?.addEventListener('close', () => guidedReview.cancel(), { once: true });

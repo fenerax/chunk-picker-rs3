@@ -2,7 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { captureReview, reviewChanges, reviewRules, reviewSelection, reviewSummary, reviewRuleLabel } from '../app/web/rules-review-model.mjs';
 import { createRulesReview } from '../app/web/rules-review.mjs';
-const sections = [{ id: 'first', name: 'First', rules: [{ id: 'Boosting', label: 'Boosting', type: 'boolean', description: 'Allow boosts.', tooltips: ['Original wording'] }, { id: 'InsidePOH', label: 'Furniture', type: 'boolean', membersOnly: true }] },
+const sections = [{ id: 'first', name: 'First', rules: [{ id: 'Boosting', label: 'Boosting', type: 'boolean', description: 'Allow boosts.', tooltips: ['Original wording'],
+  explanation: { what: 'New decision text.', example: 'A concrete example.', grindWarning: 'A long grind.', sources: [{ title: 'Synthetic source', url: 'https://runescape.wiki/w/Example?oldid=1' }] } }, { id: 'InsidePOH', label: 'Furniture', type: 'boolean', membersOnly: true }] },
   { id: 'second', name: 'Second', rules: [{ id: 'Skills', label: 'Skills', type: 'boolean' }] }];
 const state = () => ({ revision: 4, rules: {}, members: [{ id: 'a', name: 'Player A', taskRules: { Boosting: true, InsidePOH: false } }, { id: 'b', name: 'Player B', taskRules: { Boosting: false, InsidePOH: false } }], ruleReviews: { Skills: { reviewed: true, note: 'Keep' } } });
 const registry = { resolve: rules => rules };
@@ -89,6 +90,21 @@ test('viewer can navigate and read progress/notes but gets no save or preview co
   assert.equal(h.control('Shared note (up to 500 characters)'), undefined);
   for (const label of ['On', 'Off', 'Save note', 'Check task effect', 'Save value']) assert.equal(h.button(label), undefined);
   assert.equal(h.calls.length, 0);
+});
+
+test('review keeps authored explanation visible and original wording under More for players and viewers', () => {
+  for (const writable of [true, false]) {
+    const h = harness(writable), sheet = h.nodes().find(node => node.className === 'rules-walk-rule');
+    assert.ok(sheet.children.some(node => node.textContent === 'What it does: New decision text.'));
+    const example = sheet.children.find(node => node.tag === 'details' && node.textContent === 'Example & grind warning');
+    assert.equal(example.open, undefined);
+    assert.ok(example.children.some(node => node.textContent === 'Example: A concrete example.'));
+    assert.ok(example.children.some(node => node.textContent === 'Grind warning: A long grind.'));
+    const more = sheet.children.find(node => node.tag === 'details' && node.textContent === 'More');
+    assert.ok(more.children.some(node => node.textContent === 'Original wording'));
+    assert.ok(more.children.some(node => node.textContent === 'Allow boosts.'));
+    assert.equal(sheet.children.some(node => node.textContent === 'Original wording'), false);
+  }
 });
 
 test('review has status text for automatic, navigation after the note, filtered progress and optional small IDs', () => {
