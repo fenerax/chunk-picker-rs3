@@ -31,6 +31,7 @@ import { combatLevelFromSkills } from '../core/combat-level.mjs';
 import { recordedEquipment } from './recorded-equipment.mjs';
 import { applyDivinationTraining } from '../data/divination-training.mjs';
 import { personalQuestProgressBlocker } from './personal-quest-progress.mjs';
+import { taskRuleEnabled } from './rule-defaults.mjs';
 
 // Authored implementation. Reference JSON is declarative input, never executable code.
 export const taskId = permanentTaskId;
@@ -42,7 +43,7 @@ export function plainLabel(value) {
   return String(value).replace(/~\|([^|]+)\|~/g, (_, text) => text.split('#')[0]).replace(/\*+$/g, '');
 }
 const array = value => value == null ? [] : Array.isArray(value) ? value : [value];
-const on = (rules, key, fallback = true) => rules[key] === undefined ? fallback : rules[key] !== false && rules[key] !== 'false' && rules[key] !== 0;
+const on = taskRuleEnabled;
 const F2P = datasetValue("app/tasks/engine.mjs#F2P");
 const TWENTY = datasetValue("app/tasks/engine.mjs#TWENTY");
 export const skillCaps = datasetValue("app/tasks/engine.mjs#skillCaps");
@@ -400,7 +401,7 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
       || task.invalidRequirements.length || task.invalidDependencies.length || task.invalidCompletedDependencies.length || task.unsupportedCompletedDependencies.length || f2p && task.record['Not F2P']
       || membershipByTask.get(task).length
       || task.record['Not Skiller'] && on(rules, 'Skiller', false)
-      || task.tags.some(tag => !PRESENTATION_RULES.has(tag) && !MAYBE_PRIMARY.has(tag) && !on(rules, tag, true))
+      || task.tags.some(tag => !PRESENTATION_RULES.has(tag) && !MAYBE_PRIMARY.has(tag) && !on(rules, tag))
       || task.level > 1 && task.tags.includes('InsidePOH Primary') && !on(rules, 'InsidePOH', true)
       || member.taskStatus?.[task.id]?.backlogged));
     // Rules are fixed throughout this evaluation. Source probabilities recur
@@ -855,7 +856,7 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
         const membership = membershipByTask.get(task);
         if (membership.length) { blocked = true; blockers.push(...membership); }
         if (record['Not Skiller'] && on(rules, 'Skiller', false)) add('rule', 'Unavailable under the skiller rule.');
-        for (const tag of task.tags) if (!PRESENTATION_RULES.has(tag) && !MAYBE_PRIMARY.has(tag) && !on(rules, tag, true)) add('rule', `Turned off in Rules: ${tag}.`);
+        for (const tag of task.tags) if (!PRESENTATION_RULES.has(tag) && !MAYBE_PRIMARY.has(tag) && !on(rules, tag)) add('rule', `Turned off in Rules: ${tag}.`);
         if (task.level > 1 && task.tags.includes('InsidePOH Primary') && !on(rules, 'InsidePOH', true)) add('rule', 'InsidePOH is disabled for workbench tasks above level 1.');
         if (member.taskStatus?.[task.id]?.backlogged) add('backlog', 'This task is backlogged by the current member.');
       }
@@ -988,7 +989,7 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
       if (!forSelection && processingTasks.has(task) && !admitted.has(task.id) && !completedTask(task)) return false;
       if (!task.record.Primary) return task.record.Primary;
       const secondaryInputs = task.itemRequirements.filter(requirement => requirement.token.includes('*')).some(requirement => !(requirement.alternatives ?? [requirement.clean]).some(item => sourceList(item).some(sourcePrimary)));
-      const disabledMethod = task.tags.some(tag => MAYBE_PRIMARY.has(tag) && !on(rules, tag, true));
+      const disabledMethod = task.tags.some(tag => MAYBE_PRIMARY.has(tag) && !on(rules, tag));
       return task.record.Primary && (!task.tags.includes('Secondary Primary') || on(rules, 'Secondary Primary', false)) && !secondaryInputs && !disabledMethod;
     }
     function outputItems(task, output, path = [], probability = 1, ratesPath = [], quantity = '1') {

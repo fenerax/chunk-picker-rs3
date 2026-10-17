@@ -1,6 +1,6 @@
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 const UNLOCK_TYPES = new Set(['roll', 'random-start', 'unlock-selection', 'pick-for-me', 'unlock-both', 'set-chunk']);
-const NON_MAP_TYPES = new Set(['set-rule', 'set-profile', 'set-teleport', 'set-teleport-override', 'set-transport-facts',
+const NON_MAP_TYPES = new Set(['set-rule-review', 'set-rule', 'set-profile', 'set-teleport', 'set-teleport-override', 'set-transport-facts',
   'claim-task', 'clear-task-claim', 'prune-task-claims', 'complete-task', 'set-note', 'set-journal', 'add-task', 'update-task', 'delete-task',
   'set-task-status', 'clear-backlog', 'clear-challenge-ticks', 'set-task-rule', 'reset-task-rule', 'set-task-alternative',
   'set-preference', 'set-primary-override', 'set-skill-levels', 'set-runescape-name', 'apply-runemetrics', 'set-slayer-lock',

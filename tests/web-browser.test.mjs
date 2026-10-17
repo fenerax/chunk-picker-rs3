@@ -145,7 +145,7 @@ for (const loader of ['loadTasks','ensureResult']) test(`viewer ${loader} accept
 });
 
 test('viewer capability hides every saved editor entry while player and admin sessions retain editing', async () => {
-  const editorIds = ['rules-open', 'settings-open', 'runemetrics-open', 'feedback-open', 'teleports-open', 'invites-open', 'backup-open', 'original-sync-open', 'pick', 'roll-two', 'unpick', 'undo', 'sandbox-toggle', 'custom-task-open', 'empty-import', 'random-start'];
+  const editorIds = ['settings-open', 'runemetrics-open', 'feedback-open', 'teleports-open', 'invites-open', 'backup-open', 'original-sync-open', 'pick', 'roll-two', 'unpick', 'undo', 'sandbox-toggle', 'custom-task-open', 'empty-import', 'random-start'];
   for (const session of [{readOnly:true}, {capabilities:{canWrite:false}}, {canWrite:false,admin:true}]) {
     const h = harness(); h.context.sessionFixture = session;
     h.run('applySession(sessionFixture); renderState()');
@@ -849,6 +849,22 @@ test('claim saves reuse both current duo lists and personal cached results', asy
   assert.equal(h.run("duoResults().results().get('reed').stateRevision"), 8);
   assert.equal(h.run("normalPlayResults.get('actor1').stateRevision"), 8);
   assert.equal([...h.timers.values()].some(timer => timer.delay === 100), false);
+});
+
+test('rule review notes retain current tasks without starting gameplay calculation', async () => {
+  const h = harness(); h.context.compact = taskResult(7);
+  h.run("result = { ...compact, memberId: 'actor1', stateRevision: 7 }; normalPlayResults.set('actor1', result)");
+  h.route(async (path, body) => {
+    assert.equal(path, '/api/command');
+    const state = h.snapshot(); state.revision++;
+    state.ruleReviews = { [body.command.ruleId]: { reviewed: body.command.reviewed, note: body.command.note } };
+    return { state, pools: {} };
+  });
+  await h.run("command({ type: 'set-rule-review', ruleId: 'roll.adjacent', reviewed: true, note: 'Agreed' }, 7)");
+  assert.deepEqual(h.calls.map(call => call.path), ['/api/command']);
+  assert.equal(h.run('result.stateRevision'), 8);
+  assert.equal(h.run("normalPlayResults.get('actor1').stateRevision"), 8);
+  assert.equal(h.run('pendingGameplayAttempt'), undefined);
 });
 
 test('remote claim-only events repaint current rows without scheduling a task request', async () => {

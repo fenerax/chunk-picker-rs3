@@ -1,12 +1,12 @@
-import { datasetJSON, datasetValue } from "../dataset-runtime.mjs";
+import { datasetJSON } from "../dataset-runtime.mjs";
 const capturedCatalogue = await datasetJSON("app/data/original-rules-ui.2026-10-08.v1.json");
 import { taskRuleDefinitions, taskRuleCutoffDefaults } from '../data/settings.mjs';
 import { hasGameplayMigration } from '../tasks/gameplay-compat.mjs';
 import { isKeptTaskRule } from './kept-rules.mjs';
+import { taskRuleDefault } from '../tasks/rule-defaults.mjs';
 
 const own = (record, key) => Object.hasOwn(record ?? {}, key);
 const text = value => String(value ?? '').replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]*>/g, '').trim();
-const actualDefaults = datasetValue('app/web/rules-model.mjs#actualDefaults');
 
 /** Validate the captured presentation inventory; never execute upstream code. */
 export function loadRulesCatalogue(raw) {
@@ -81,10 +81,18 @@ export function taskRuleValue(state, memberId, definition) {
   if (!member) throw new TypeError('Unknown rules player.');
   const id = definition.id;
   if (own(member.taskRules, id)) return { value: member.taskRules[id], source: 'Personal override', explicit: true };
+  return taskRuleAutomaticValue(state, memberId, definition);
+}
+
+/** The value revealed by clearing this player's override, without mutating state. */
+export function taskRuleAutomaticValue(state, memberId, definition) {
+  const member = state.members.find(owner => owner.id === memberId);
+  if (!member) throw new TypeError('Unknown rules player.');
+  const id = definition.id;
   if (own(state.taskRules, id)) return { value: state.taskRules[id], source: 'Inherited', explicit: false };
   const inherited = !hasGameplayMigration(state, member) && state.legacy?.maps?.[member.sourceMapId]?.rules;
   if (own(inherited, id)) return { value: inherited[id], source: 'Imported', explicit: false };
-  return { value: actualDefaults[id], source: 'Automatic', explicit: false };
+  return { value: taskRuleDefault(id), source: 'Automatic', explicit: false };
 }
 
 export function ruleEnabled(definition, values, definitions) {

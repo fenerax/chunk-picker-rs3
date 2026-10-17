@@ -1,6 +1,8 @@
 import { taskRuleBehavior } from '../data/settings.mjs';
-import { rulesCatalogue, buildRulesSections, taskRuleValue, ruleEnabled, filterRulesSections, planTaskRuleChange, reviewPreset, profileCommands } from './rules-model.mjs';
+import { rulesCatalogue, buildRulesSections, taskRuleValue, taskRuleAutomaticValue, ruleEnabled, filterRulesSections, planTaskRuleChange, reviewPreset, profileCommands } from './rules-model.mjs';
 import { visibleRulesSections } from './kept-rules.mjs';
+import { createRulesReview } from './rules-review.mjs';
+import { ruleValueText } from './rules-review-model.mjs';
 
 const advanced = ctx => ctx.canWrite?.() !== false && ctx.preferences?.().advanced === true;
 const displayValue = value => value === undefined ? 'Automatic' : value === true ? 'On' : value === false ? 'Off' : String(value);
@@ -8,8 +10,10 @@ const displayValue = value => value === undefined ? 'Automatic' : value === true
 /** The catalogue editor uses only the revision-checked command/profile seam. */
 export function createRulesPanel(ctx) {
   const { el, input, select, field, button, details, command, showError } = ctx;
+  const guidedReview = createRulesReview(ctx);
+  let reviewMode = false;
   function open() {
-    if (ctx.canWrite?.() === false) return;
+    const writable = ctx.canWrite?.() !== false;
     let target = ctx.memberId(), generation, busy = false, reviewApply;
     const expanded = new Set([rulesCatalogue.sections[0].id]);
     const root = el('div', undefined, 'rules-panel');
@@ -44,7 +48,7 @@ export function createRulesPanel(ctx) {
       return section.rules.filter(rule => memberIds().some(id => fact(rule, id).value === true)).length;
     }
     async function save(commands, revision = ctx.state().revision) {
-      if (!current() || busy || !commands.length) return;
+      if (!writable || !current() || busy || !commands.length) return;
       busy = true; render();
       let applied = 0;
       try {
@@ -90,7 +94,12 @@ export function createRulesPanel(ctx) {
       if (preset) renderReview(reviewPreset(ctx.state(), memberIds(), preset));
     });
     tools.append(field('Task rules for', targetControl), field('Original preset', presetControl), reviewButton);
-    root.append(scope, tools, field('Find a rule', search), onLabel, status, reviewHost, field('Jump to section', jump), layout);
+    const guidedHost = el('div', undefined, 'rules-walk');
+    const modeButton = button('Review rules', () => { guidedReview.cancel(); reviewMode = !reviewMode; render(); });
+    root.append(modeButton, guidedHost);
+    root.append(scope);
+    if (writable) root.append(tools);
+    root.append(field('Find a rule', search), onLabel, status, reviewHost, field('Jump to section', jump), layout);
     layout.append(navigation, sectionsHost);
 
     function rowFor(definition, definitions, memberValues) {
@@ -111,7 +120,7 @@ export function createRulesPanel(ctx) {
       if (definition.type === 'boolean') { control.checked = value.value === true; control.indeterminate = value.mixed || value.value === undefined; }
       else { control.placeholder = value.mixed ? 'Different values' : 'Automatic'; if (/Amount$/.test(definition.id)) control.setAttribute('inputmode', 'decimal'); }
       const canEdit = isShared || memberIds().every(id => ruleEnabled(definition, memberValues.get(id), definitions));
-      control.disabled = busy || !canEdit;
+      control.disabled = !writable || busy || !canEdit;
       row.dataset.disabled = String(!canEdit);
       const label = el('label', undefined, 'rules-rule-title'); label.htmlFor = controlId;
       label.title = definition.description;
@@ -121,6 +130,11 @@ export function createRulesPanel(ctx) {
       const limited = behavior && ['retained-only', 'not-implemented', 'partial'].includes(behavior.status);
       if (advanced(ctx) && limited) { const badge = el('span', behavior.status === 'partial' ? 'Partly supported' : 'No effect yet', 'rules-coverage'); badge.title = behavior.status === 'partial' ? behavior.detail : 'Saved, but it does not change tasks in this picker yet.'; label.append(badge); }
       copy.append(label);
+      if (!isShared) {
+        const automatic = memberIds().map(id => taskRuleAutomaticValue(ctx.state(), id, definition).value);
+        const label = automatic.every(item => Object.is(item, automatic[0])) ? ruleValueText(automatic[0]) : 'different values';
+        copy.append(el('p', value.source === 'Automatic' ? `Automatic (${ruleValueText(value.value)})` : `Automatic (${label})`, 'rules-value-source'));
+      }
       // Skip a description that only repeats the label.
       const plainText = text => String(text ?? '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
       if (definition.description && plainText(definition.description) !== plainText(definition.label)) copy.append(el('p', definition.description, 'rules-desc'));
@@ -142,12 +156,14 @@ export function createRulesPanel(ctx) {
         const commands = isShared ? [{ type: 'set-rule', ruleId: definition.sharedRuleId, value: next }] : planTaskRuleChange(ctx.state(), memberIds(), definition, next).commands;
         await save(commands, renderedRevision);
       });
-      if (!isShared && memberIds().some(id => taskRuleValue(ctx.state(), id, definition).explicit)) {
-        const reset = button('Use automatic', () => {
+      if (writable && !isShared && memberIds().some(id => taskRuleValue(ctx.state(), id, definition).explicit)) {
+        const automatic = memberIds().map(id => taskRuleAutomaticValue(ctx.state(), id, definition).value);
+        const same = automatic.every((item, index) => Object.is(item, fact(definition, memberIds()[index]).value));
+        const reset = button(same ? 'Same as automatic' : `Use automatic (${automatic.every(item => Object.is(item, automatic[0])) ? ruleValueText(automatic[0]) : 'different values'})`, () => {
           if (!freshRow()) return;
           return save(memberIds().filter(id => taskRuleValue(ctx.state(), id, definition).explicit).map(memberId => ({ type: 'reset-task-rule', memberId, ruleId: definition.id })), renderedRevision);
         }, 'rules-reset');
-        reset.disabled = busy || !canEdit; help.append(reset);
+        reset.disabled = busy || !canEdit || same; help.append(reset);
       }
       return row;
     }
@@ -155,18 +171,28 @@ export function createRulesPanel(ctx) {
       const value = combinedFact(definition), row = el('div', undefined, 'rules-kept-row');
       row.dataset.ruleId = definition.id;
       row.title = taskRuleBehavior(definition.id).detail;
-      row.append(el('span', definition.label), el('span', value.mixed ? value.source : `${displayValue(value.value)}${value.source === 'Automatic' ? '' : ` · ${value.source}`}`, 'rules-kept-value'));
+      row.append(el('span', definition.label), el('span', value.mixed ? value.source : value.source === 'Automatic'
+        ? `Automatic (${ruleValueText(value.value)})` : `${ruleValueText(value.value)}${writable ? ` · ${value.source}` : ''}`, 'rules-kept-value'));
       return row;
     }
     function render() {
       const sections = ruleDefinitions(), definitions = sections.flatMap(section => section.rules);
+      modeButton.textContent = reviewMode ? 'Back to all rules' : 'Review rules';
+      modeButton.setAttribute('aria-pressed', String(reviewMode));
+      root.dataset.reviewMode = String(reviewMode);
+      guidedHost.hidden = !reviewMode;
+      if (reviewMode) {
+        guidedReview.mount(guidedHost, { sections: ruleDefinitions, current, busy: () => busy, save,
+          stale: () => { status.textContent = 'Rules changed. Review the latest value and try again.'; } });
+        return;
+      }
       const memberValues = new Map(memberIds().map(id => [id, new Map(definitions.map(rule => [rule.id, fact(rule, id).value]))]));
       const values = new Map(definitions.map(rule => [rule.id, memberIds().some(id => fact(rule, id).value === true) ? true : combinedFact(rule).value]));
       const filtered = filterRulesSections(sections, values, { query: search.value, onlyOn: onlyOn.checked });
       navigation.replaceChildren(); sectionsHost.replaceChildren(); jump.replaceChildren();
       const jumpPrompt = el('option', 'Choose a section…'); jumpPrompt.value = ''; jump.append(jumpPrompt);
       scope.textContent = target === 'both' ? `Task rules apply to ${ctx.state().members.map(member => member.name).join(' and ')}. Shared map rules always affect both players.` : `Task rules belong to ${ctx.state().members.find(member => member.id === target).name}. Shared map rules always affect both players.`;
-      targetControl.disabled = presetControl.disabled = reviewButton.disabled = busy;
+      targetControl.disabled = presetControl.disabled = reviewButton.disabled = !writable || busy;
       if (reviewApply) reviewApply.button.disabled = busy || !reviewApply.hasChanges;
       for (const section of filtered) {
         const full = sections.find(item => item.id === section.id), count = section.kept ? `${full.rules.length} kept` : `${sectionCount(full)} on / ${full.rules.filter(rule => rule.type === 'boolean').length}`;
@@ -177,7 +203,7 @@ export function createRulesPanel(ctx) {
         const summary = el('summary'); summary.append(el('span', section.name, 'rules-section-name'), el('span', count, 'rules-section-count')); group.append(summary);
         group.addEventListener('toggle', () => { if (group.open) expanded.add(section.id); else expanded.delete(section.id); });
         const rows = el('div', undefined, 'rules-section-rows');
-        for (const definition of section.rules) rows.append(section.kept ? keptRow(definition) : rowFor(definition, definitions, memberValues));
+        for (const definition of section.rules) rows.append(section.kept || !writable ? keptRow(definition) : rowFor(definition, definitions, memberValues));
         group.append(rows); sectionsHost.append(group);
       }
       if (!filtered.length) sectionsHost.append(el('p', 'No matching rules. Clear the search or turn off the On filter.', 'empty-list'));
@@ -204,11 +230,12 @@ export function createRulesPanel(ctx) {
       } catch (error) { if (ctx.dialogCurrent?.(requestGeneration)) showError(error); }
     });
     profileHost.append(el('h3', 'Saved profiles'), el('p', 'Export or import a profile for the selected player. With Both players selected, the current map player owns the profile.', 'field-help'), exportButton, field('Import rule profile', file));
-    root.append(details('Profiles & history', profileHost));
+    if (writable) root.append(details('Profiles & history', profileHost));
     const footer = el('div', undefined, 'rules-footer');
-    footer.append(el('p', 'A switch with a dash uses the automatic choice. Counts show rules that are on. Turning off a parent rule keeps the choices beneath it.', 'field-help'), button('History & Undo', ctx.historyDialog));
+    footer.append(el('p', 'Automatic uses the value shown for each rule. Turning off a parent rule keeps the choices beneath it.', 'field-help'), button(writable ? 'History & Undo' : 'History', () => { guidedReview.cancel(); ctx.historyDialog(); }));
     root.append(footer);
     generation = ctx.openDialog('Chunk Rules', root); render();
+    ctx.$?.('tool-dialog')?.addEventListener('close', () => guidedReview.cancel(), { once: true });
     return root;
   }
   return { open };

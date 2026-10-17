@@ -30,7 +30,7 @@ export function createGameplayFingerprint() {
     if (state === previousState) return previousFingerprint;
     const fields = [];
     for (const [key, original] of Object.entries(state)) {
-      if (key === 'revision' || key === 'history' || key === 'taskClaims' || key === 'progressSnapshots' || key === 'finishLine' || key === 'groupGoals') continue;
+      if (key === 'revision' || key === 'history' || key === 'taskClaims' || key === 'progressSnapshots' || key === 'finishLine' || key === 'groupGoals' || key === 'ruleReviews') continue;
       const value = key === 'members' && Array.isArray(original)
         // Preferences, the journal and planning colours never change task results.
         ? original.map(({ preferences, journal, chunkColours, chunkColourNames, ...member }) => member) : original;

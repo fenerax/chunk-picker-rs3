@@ -19,6 +19,9 @@ import { validateFinishLine, validateFinishLineItemId, validateFinishLineOverrid
   validateFinishLineChange, restoreFinishLineChange, MAX_FINISH_LINE_CUSTOM_ITEMS, finishLineCommandTypes } from './finish-line.mjs';
 import { groupGoalCommandKeys, groupGoalCommandTypes, applyGroupGoalCommand, validateGroupGoals,
   groupGoalChanges, validateGroupGoalChanges, restoreGroupGoalChanges } from './group-goals.mjs';
+import { validateRuleReviewId, normalizeRuleReviewNote, validateRuleReviews, ruleReviewChange,
+  validateRuleReviewChange, restoreRuleReviewChange } from './rule-reviews.mjs';
+export { MAX_RULE_REVIEW_NOTE_LENGTH } from './rule-reviews.mjs';
 export { preferenceDefinitions, validatePreference } from './preferences.mjs';
 
 export const SCHEMA_VERSION = 1;
@@ -29,7 +32,7 @@ const BASE_CHUNK = /^[1-9]\d*$/;
 const GAMEPLAY_KEYS = new Set(['rules', 'chunkOrder', 'settings', 'chunkinfo', 'chunks',
   'activeSubTabs', 'topbarSelection', 'manualPrimary', 'recentFancyRollTime',
   'recent', 'recentTime', 'randomLoot', 'chunkNotes', 'userTasks', 'friends', 'friendsAlt']);
-const STATE_KEYS = new Set(['schemaVersion', 'revision', 'rules', 'members', 'tasks', 'history', 'legacy', 'provenance', 'identityRegistry', 'taskClaims', 'progressSnapshots', 'finishLine', 'groupGoals']);
+const STATE_KEYS = new Set(['schemaVersion', 'revision', 'rules', 'members', 'tasks', 'history', 'legacy', 'provenance', 'identityRegistry', 'taskClaims', 'progressSnapshots', 'finishLine', 'groupGoals', 'ruleReviews']);
 export const MEMBER_KEYS = new Set(['id', 'name', 'sourceMapId', 'unlocked', 'selected', 'pendingRoll', 'blacklisted', 'completedTasks', 'obtainedEquipment', 'teleports', 'teleportOverrides', 'notes', 'journal', 'taskStatus', 'taskRules', 'sectionOverrides', 'sourceBacklogs', 'areaOverrides', 'preferences', 'primaryOverrides', 'passiveLevels', 'maxLevels', 'slayerLock', 'stickers', 'chunkColours', 'chunkColourNames', 'taskAlternatives', 'runescapeName', 'skillProgress', 'questProgress', 'runeMetricsSync', 'originalPickerSync', 'transportFacts', 'f2pMap', 'xpChoices']);
 const SOURCE_KINDS = new Set(['objects', 'npcs', 'monsters', 'shops', 'spawns', 'items']);
 const MEMBER_ARRAY_FIELDS = new Set(['unlocked', 'selected', 'pendingRoll', 'blacklisted', 'completedTasks', 'obtainedEquipment', 'teleports']);
@@ -47,6 +50,7 @@ const COMMAND_KEYS = new Map([
   ['delete-finish-line-custom', new Set(['type', 'itemId'])],
   ['set-xp-choices', new Set(['type', 'memberId', 'taskId', 'choices'])],
   ['set-rule', new Set(['type', 'ruleId', 'value'])],
+  ['set-rule-review', new Set(['type', 'ruleId', 'reviewed', 'note'])],
   ['set-profile', new Set(['type', 'memberId', 'rules', 'taskRules'])],
   ['set-teleport', new Set(['type', 'memberId', 'teleport'])],
   ['set-teleport-override', new Set(['type', 'memberId', 'routeId', 'value'])],
@@ -641,6 +645,7 @@ function validateStateCopy(copy, registry) {
   if (!Number.isSafeInteger(copy.revision) || copy.revision < 0) fail('revision must be a nonnegative safe integer');
   record(copy.rules, 'rules');
   registryOrDefault(registry).resolve(copy.rules);
+  if (copy.ruleReviews !== undefined) validateRuleReviews(copy.ruleReviews, registryOrDefault(registry));
   uniqueRecords(copy.tasks, 'tasks');
   for (const task of copy.tasks) validateTask(task, new Set((copy.members ?? []).map(member => member.id)));
   const tasks = new Set(copy.tasks.map(task => task.id));
@@ -774,7 +779,7 @@ function validateStateCopy(copy, registry) {
   });
   for (const event of copy.history) {
     if (event.undo !== undefined) {
-      record(event.undo, 'history undo'); knownKeys(event.undo, new Set(['members', 'rules', 'tasks', 'memberChanges', 'taskChanges', 'taskClaimChanges', 'finishLineChange', 'groupGoalChanges']), 'history undo');
+      record(event.undo, 'history undo'); knownKeys(event.undo, new Set(['members', 'rules', 'tasks', 'memberChanges', 'taskChanges', 'taskClaimChanges', 'finishLineChange', 'groupGoalChanges', 'ruleReviewChange']), 'history undo');
       if (!Object.keys(event.undo).length) fail('History undo needs a snapshot');
       if (event.undo.members !== undefined && event.undo.memberChanges !== undefined) fail('Undo cannot mix member snapshots and changes');
       if (event.undo.tasks !== undefined && event.undo.taskChanges !== undefined) fail('Undo cannot mix task snapshots and changes');
@@ -791,6 +796,7 @@ function validateStateCopy(copy, registry) {
       if (event.undo.taskClaimChanges !== undefined) validateTaskClaimChanges(event.undo.taskClaimChanges, historicalTasks, memberIds);
       if (event.undo.finishLineChange !== undefined) validateFinishLineChange(event.undo.finishLineChange, memberIds);
       if (event.undo.groupGoalChanges !== undefined) validateGroupGoalChanges(event.undo.groupGoalChanges, memberIds);
+      if (event.undo.ruleReviewChange !== undefined) validateRuleReviewChange(event.undo.ruleReviewChange, registryOrDefault(registry));
       const snapshotMembers = event.undo.members ?? [];
       uniqueRecords(snapshotMembers, 'history undo members');
       const references = new Set();
@@ -826,8 +832,8 @@ function validateStateCopy(copy, registry) {
   // Older snapshots have no after-value guards, but still form valid boundaries
   // for later sparse deltas. This catches stale/corrupt imported history before
   // it can be selected by undo without copying the catalogue per event.
-  if (copy.history.some(event => event.undo?.memberChanges || event.undo?.taskChanges || event.undo?.taskClaimChanges || event.undo?.finishLineChange || event.undo?.groupGoalChanges)) {
-    const replay = { members: jsonClone(copy.members), tasks: [...copy.tasks], ...(copy.taskClaims !== undefined ? { taskClaims: jsonClone(copy.taskClaims) } : {}), ...(copy.finishLine !== undefined ? { finishLine: jsonClone(copy.finishLine) } : {}), ...(copy.groupGoals !== undefined ? { groupGoals: jsonClone(copy.groupGoals) } : {}) };
+  if (copy.history.some(event => event.undo?.memberChanges || event.undo?.taskChanges || event.undo?.taskClaimChanges || event.undo?.finishLineChange || event.undo?.groupGoalChanges || event.undo?.ruleReviewChange)) {
+    const replay = { members: jsonClone(copy.members), tasks: [...copy.tasks], ...(copy.taskClaims !== undefined ? { taskClaims: jsonClone(copy.taskClaims) } : {}), ...(copy.finishLine !== undefined ? { finishLine: jsonClone(copy.finishLine) } : {}), ...(copy.groupGoals !== undefined ? { groupGoals: jsonClone(copy.groupGoals) } : {}), ...(copy.ruleReviews !== undefined ? { ruleReviews: jsonClone(copy.ruleReviews) } : {}) };
     let replayTaskIds = new Set(copy.tasks.map(task => task.id));
     for (let index = copy.history.length - 1; index >= 0; index--) {
       const event = copy.history[index];
@@ -842,6 +848,7 @@ function validateStateCopy(copy, registry) {
       if (event.undo.taskClaimChanges) restoreTaskClaimChanges(replay, jsonClone(event.undo.taskClaimChanges));
       if (event.undo.finishLineChange) restoreFinishLineChange(replay, event.undo.finishLineChange);
       if (event.undo.groupGoalChanges) restoreGroupGoalChanges(replay, event.undo.groupGoalChanges);
+      if (event.undo.ruleReviewChange) restoreRuleReviewChange(replay, event.undo.ruleReviewChange);
       if (event.undo.tasks) { replay.tasks = [...event.undo.tasks]; replayTaskIds = new Set(replay.tasks.map(task => task.id)); }
       if (event.undo.taskChanges) {
         restoreTaskChanges(replay, event.undo.taskChanges);
@@ -1129,6 +1136,8 @@ function hasRandomStartChoices(state, member) {
 
 function undoChanges(before, after) {
   const undo = {};
+  const reviewChange = ruleReviewChange(before, after);
+  if (reviewChange) undo.ruleReviewChange = reviewChange;
   const goalsChange = groupGoalChanges(before, after);
   if (goalsChange) undo.groupGoalChanges = goalsChange;
   if (JSON.stringify(before.finishLine) !== JSON.stringify(after.finishLine)) undo.finishLineChange = {
@@ -1198,7 +1207,7 @@ export function taskClaimInvalidatingEvent(event) {
   const command = event.command ?? { type: event.type };
   if (finishLineCommandTypes.includes(command.type)) return false;
   if (groupGoalCommandTypes.includes(command.type)) return false;
-  if (['claim-task', 'clear-task-claim', 'prune-task-claims', 'set-preference', 'set-note', 'set-journal',
+  if (['set-rule-review', 'claim-task', 'clear-task-claim', 'prune-task-claims', 'set-preference', 'set-note', 'set-journal',
     'set-sticker', 'add-sticker', 'update-sticker', 'remove-sticker', 'clear-stickers', 'set-chunk-colour', 'rename-chunk-colour'].includes(command.type)) return false;
   if (command.type === 'set-task-status') return Object.hasOwn(command, 'backlogged') || Object.hasOwn(command, 'challengeCompleted');
   // Task availability depends on shared access, progress and presentation rules.
@@ -1237,7 +1246,7 @@ function prepareUndo(state, undoRevision, registry) {
   }
   // Copy gameplay members, never history, provenance, or the task catalogue.
   // The same preparation supplies both preview eligibility and actual undo.
-  const restored = { members: jsonClone(state.members), rules: state.rules, tasks: state.tasks, ...(state.taskClaims !== undefined ? { taskClaims: jsonClone(state.taskClaims) } : {}), ...(state.finishLine !== undefined ? { finishLine: state.finishLine } : {}), ...(state.groupGoals !== undefined ? { groupGoals: state.groupGoals } : {}) };
+  const restored = { members: jsonClone(state.members), rules: state.rules, tasks: state.tasks, ...(state.taskClaims !== undefined ? { taskClaims: jsonClone(state.taskClaims) } : {}), ...(state.finishLine !== undefined ? { finishLine: state.finishLine } : {}), ...(state.groupGoals !== undefined ? { groupGoals: state.groupGoals } : {}), ...(state.ruleReviews !== undefined ? { ruleReviews: state.ruleReviews } : {}) };
   if (target.undo.members) for (const member of target.undo.members) restored.members[restored.members.findIndex(candidate => candidate.id === member.id)] = jsonClone(member);
   if (target.undo.memberChanges) for (const change of target.undo.memberChanges) restoreMemberChanges(findMember(restored, change.id), jsonClone(change.changes));
   if (claimChanges.length) restoreTaskClaimChanges(restored, jsonClone({ ...target.undo.taskClaimChanges, changes: claimChanges }));
@@ -1249,6 +1258,10 @@ function prepareUndo(state, undoRevision, registry) {
   if (target.undo.groupGoalChanges) {
     validateGroupGoalChanges(target.undo.groupGoalChanges, new Set(state.members.map(member => member.id)));
     restoreGroupGoalChanges(restored, target.undo.groupGoalChanges);
+  }
+  if (target.undo.ruleReviewChange) {
+    validateRuleReviewChange(target.undo.ruleReviewChange, registryOrDefault(registry));
+    restoreRuleReviewChange(restored, target.undo.ruleReviewChange);
   }
   if (target.undo.tasks) restored.tasks = jsonClone(target.undo.tasks);
   if (target.undo.taskChanges) {
@@ -1313,6 +1326,7 @@ export function applyValidatedCommand(state, command, options = {}) {
 }
 
 function validateCommandGameplay(state, baseline, registry) {
+  if (state.ruleReviews !== undefined) validateRuleReviews(state.ruleReviews, registryOrDefault(registry));
   if (state.finishLine !== undefined) validateFinishLine(state.finishLine, new Set(state.members.map(member => member.id)));
   if (state.groupGoals !== undefined) validateGroupGoals(state.groupGoals, new Set(state.members.map(member => member.id)));
   const rows = indexedTaskRows(state.tasks), oldRows = indexedTaskRows(baseline.tasks), referenced = new Map();
@@ -1347,8 +1361,8 @@ function validateCommandGameplay(state, baseline, registry) {
 function applyCommandCopy(next, command, { expectedRevision, world, registry, random, now, taskCatalogue, actor, membersStartBanks, xpChoiceCatalogue } = {}, baseline) {
   const attribution = actor === undefined ? undefined : validateHistoryActor(actor);
   // Commands replace/add/remove catalogue rows; they do not mutate old rows.
-  const before = baseline ? { members: baseline.members, rules: baseline.rules, tasks: baseline.tasks, taskClaims: baseline.taskClaims, finishLine: baseline.finishLine, groupGoals: baseline.groupGoals }
-    : { members: jsonClone(next.members), rules: jsonClone(next.rules), tasks: [...next.tasks], taskClaims: next.taskClaims, finishLine: next.finishLine, groupGoals: next.groupGoals };
+  const before = baseline ? { members: baseline.members, rules: baseline.rules, tasks: baseline.tasks, taskClaims: baseline.taskClaims, finishLine: baseline.finishLine, groupGoals: baseline.groupGoals, ruleReviews: baseline.ruleReviews }
+    : { members: jsonClone(next.members), rules: jsonClone(next.rules), tasks: [...next.tasks], taskClaims: next.taskClaims, finishLine: next.finishLine, groupGoals: next.groupGoals, ruleReviews: next.ruleReviews };
   record(command, 'command');
   const payload = jsonClone(command);
   if (!COMMAND_KEYS.has(payload.type)) fail(`Unknown command type: ${payload.type}`);
@@ -1553,6 +1567,12 @@ function applyCommandCopy(next, command, { expectedRevision, world, registry, ra
       if (f2pValues.size) next.rules = { ...next.rules, 'content.f2p': [...f2pValues][0] };
       break;
     }
+    case 'set-rule-review':
+      validateRuleReviewId(payload.ruleId, registryOrDefault(registry));
+      if (typeof payload.reviewed !== 'boolean') fail('Rule review reviewed must be boolean');
+      payload.note = normalizeRuleReviewNote(payload.note);
+      next.ruleReviews = { ...next.ruleReviews, [payload.ruleId]: { reviewed: payload.reviewed, note: payload.note } };
+      break;
     case 'set-rule':
       string(payload.ruleId, 'ruleId');
       next.rules = { ...next.rules, [payload.ruleId]: payload.value };
@@ -2010,6 +2030,7 @@ function applyCommandCopy(next, command, { expectedRevision, world, registry, ra
       if (!Object.hasOwn(restored, 'taskClaims')) delete next.taskClaims;
       if (!Object.hasOwn(restored, 'finishLine')) delete next.finishLine;
       if (!Object.hasOwn(restored, 'groupGoals')) delete next.groupGoals;
+      if (!Object.hasOwn(restored, 'ruleReviews')) delete next.ruleReviews;
       Object.assign(next, restored);
       if (baseline) next.history[next.history.findIndex(event => event.revision === target.revision)] = { ...target, undoneRevision: next.revision + 1 };
       else target.undoneRevision = next.revision + 1;
@@ -2065,6 +2086,7 @@ function applyCommandCopy(next, command, { expectedRevision, world, registry, ra
     if (undo.taskClaimChanges) validateTaskClaimChanges(undo.taskClaimChanges, commandTasks, new Set(next.members.map(member => member.id)));
     if (undo.finishLineChange) validateFinishLineChange(undo.finishLineChange, new Set(next.members.map(member => member.id)));
     if (undo.groupGoalChanges) validateGroupGoalChanges(undo.groupGoalChanges, new Set(next.members.map(member => member.id)));
+    if (undo.ruleReviewChange) validateRuleReviewChange(undo.ruleReviewChange, registryOrDefault(registry));
   }
   // After-value guards must not share objects with editable gameplay rows.
   // Clone the new event rather than recopying the complete saved state.

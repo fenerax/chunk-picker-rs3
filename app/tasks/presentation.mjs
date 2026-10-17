@@ -6,10 +6,11 @@ import { entityId, generatedGoalId, legacyTaskId } from './identity.mjs';
 import { isNonPermanentEquipment } from '../data/equipment-permanence.mjs';
 import { itemMembership } from '../data/item-membership.mjs';
 import { selectProcessingSources } from './processing.mjs';
+import { taskRuleEnabled } from './rule-defaults.mjs';
 
 // Authored display selection. Eligibility and source production belong to engine.mjs.
 const list = value => value == null ? [] : Array.isArray(value) ? value : [value];
-const enabled = (rules, name, fallback = true) => rules[name] === undefined ? fallback : ![false, 'false', 0].includes(rules[name]);
+const enabled = taskRuleEnabled;
 const clean = value => String(value).replace(/\*/g, '');
 
 /** An explicit member restriction remains authoritative for custom definitions.

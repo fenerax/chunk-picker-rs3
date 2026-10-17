@@ -12,7 +12,7 @@ export function openSandboxRules(ctx) {
     if (!rule) return;
     const current = taskRuleValue(ctx.state(), owner.id, rule);
     const source = current.source === 'Inherited' ? 'Shared setting' : current.source === 'Personal override' ? 'Personal setting' : current.source === 'Imported' ? 'From the original picker' : 'Automatic';
-    const currentText = current.value === undefined ? 'Default' : typeof current.value === 'boolean' ? (current.value ? 'On' : 'Off') : String(current.value);
+    const currentText = current.value === undefined ? 'No effect' : typeof current.value === 'boolean' ? (current.value ? 'On' : 'Off') : String(current.value);
     const value = rule.type === 'boolean'
       ? ctx.select([{ value: 'true', label: 'On' }, { value: 'false', label: 'Off' }], String(current.value === true))
       : ctx.input('text', current.value ?? taskRuleCutoffDefaults[rule.id] ?? '');
@@ -28,7 +28,7 @@ export function openSandboxRules(ctx) {
     });
     status.textContent = '';
     editor.replaceChildren(ctx.el('p', ctx.plain(rule.description), 'section-intro'),
-      ctx.el('p', `${source}: ${currentText}`, 'status-detail'),
+      ctx.el('p', current.source === 'Automatic' ? `Automatic (${currentText})` : `${source}: ${currentText}`, 'status-detail'),
       ctx.field('Try this setting', value), apply);
   };
   choice.addEventListener('change', render); render();
