@@ -1,8 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createMapControlDiscovery, mountMembersStartEntry } from '../app/web/map-control-discovery.mjs';
+import { createMapControlDiscovery, mountMembersStartEntry, PHONE_CONTROLS_KEY } from '../app/web/map-control-discovery.mjs';
 import { createScreenRoll } from '../app/web/screen-roll.mjs';
 import { handleScreenEscape } from '../app/web/screen-controls.mjs';
+import { readFile } from 'node:fs/promises';
 
 class Node {
   constructor() { this.children = []; this.listeners = {}; this.attributes = {}; this.hidden = false; }
@@ -16,26 +17,98 @@ class Node {
   emit(name, event = {}) { for (const listener of this.listeners[name] ?? []) listener(event); }
   setAttribute(name, value) { this.attributes[name] = value; }
   contains(node) { return node === this || this.children.some(child => child.contains(node)); }
-  focus() { this.focused = true; }
+  focus() { this.focused = true; if (this.ownerDocument) this.ownerDocument.activeElement = this; }
+  checkVisibility() { return !this.hidden && !this.viewerHidden && (!this.parentNode || this.parentNode.checkVisibility()); }
+  querySelectorAll() { return this.children.flatMap(child => [child, ...child.querySelectorAll()]).filter(child => child.isButton); }
 }
 
-function fixture() {
+function fixture({ saved, blocked = false, viewer = false, phone = true } = {}) {
   const ids = ['phone-map-actions', 'phone-legend-open', 'phone-legend-sheet', 'phone-legend-content',
-    'phone-legend-close', 'phone-map-controls', 'phone-undo-host', 'legend-details', 'undo'];
+    'phone-legend-close', 'phone-map-controls', 'phone-undo-host', 'legend-details', 'undo',
+    'phone-map-primary', 'phone-controls-toggle', 'phone-map-extras', 'phone-roll-host', 'pick', 'roll-two', 'center-map', 'map-hover'];
   const nodes = Object.fromEntries(ids.map(id => [id, new Node()]));
   const toolbar = new Node(), history = new Node(), ownUndo = new Node(), sandbox = new Node(), home = new Node(), hint = new Node();
+  nodes['map-toolbar'] = toolbar;
+  const rollGroup = new Node(); toolbar.append(rollGroup);
+  rollGroup.append(nodes.pick); rollGroup.append(nodes['roll-two']); toolbar.append(nodes['center-map']);
+  for (const id of ['pick', 'roll-two', 'center-map']) nodes[id].isButton = true;
+  nodes.pick.viewerHidden = nodes['roll-two'].viewerHidden = viewer;
   toolbar.append(history); toolbar.append(sandbox); history.append(nodes.undo); history.append(ownUndo);
   home.append(nodes['legend-details']); home.append(hint); nodes['legend-details'].open = false;
   nodes['phone-legend-sheet'].append(nodes['phone-legend-content']); nodes['phone-legend-sheet'].hidden = true;
   nodes['phone-map-actions'].append(nodes['phone-undo-host']);
+  nodes['phone-map-actions'].append(nodes['phone-map-extras']);
+  nodes['phone-map-primary'].append(nodes['phone-roll-host']); nodes['phone-map-primary'].append(nodes['phone-controls-toggle']);
   toolbar.scrollLeft = 0; toolbar.clientWidth = 300; toolbar.scrollWidth = 1000;
   toolbar.scrollTo = ({ left }) => { toolbar.scrollLeft = Math.max(0, Math.min(700, left)); toolbar.emit('scroll'); };
   const document = new Node(); document.querySelector = () => toolbar;
-  const media = new Node(); media.matches = true;
+  for (const node of Object.values(nodes)) node.ownerDocument = document;
+  const media = new Node(); media.matches = phone;
+  const values = new Map(saved === undefined ? [] : [[PHONE_CONTROLS_KEY, saved]]);
+  const storage = () => {
+    if (blocked === true) throw new Error('Storage blocked');
+    return {
+      getItem: key => { if (blocked === 'methods') throw new Error('Read blocked'); return values.get(key); },
+      setItem: (key, value) => { if (blocked === 'methods') throw new Error('Write blocked'); values.set(key, value); },
+    };
+  };
   const c = { $: id => nodes[id], closeChunkMenu() {}, mapDisplay: { close() {} } };
-  const controller = createMapControlDiscovery(c, { document, media }); controller.mount();
-  return { nodes, toolbar, history, ownUndo, sandbox, home, hint, document, media, c, controller };
+  const controller = createMapControlDiscovery(c, { document, media, storage }); controller.mount();
+  return { nodes, toolbar, rollGroup, values, history, ownUndo, sandbox, home, hint, document, media, c, controller };
 }
+
+test('phone starts folded with the live roll and Undo outside the hidden controls', () => {
+  const h = fixture();
+  assert.equal(h.toolbar.hidden, true); assert.equal(h.nodes['phone-map-extras'].hidden, true);
+  assert.equal(h.nodes['phone-controls-toggle'].attributes['aria-expanded'], 'false');
+  assert.equal(h.nodes.pick.parentNode, h.nodes['phone-roll-host']);
+  assert.equal(h.nodes.pick.checkVisibility(), true); assert.equal(h.nodes.undo.checkVisibility(), true);
+  assert.equal(h.nodes['roll-two'].checkVisibility(), false);
+});
+
+test('one tap reveals controls and focuses the first available action; collapse closes the legend and restores focus', () => {
+  const h = fixture(), toggle = h.nodes['phone-controls-toggle'];
+  toggle.emit('click');
+  assert.equal(h.toolbar.hidden, false); assert.equal(h.nodes['phone-map-extras'].hidden, false);
+  assert.equal(toggle.attributes['aria-expanded'], 'true'); assert.equal(h.document.activeElement, h.nodes['roll-two']);
+  h.controller.open(); toggle.emit('click');
+  assert.equal(h.toolbar.hidden, true); assert.equal(h.controller.isOpen(), false);
+  assert.equal(h.document.activeElement, toggle);
+});
+
+test('phone choice persists in both directions and restores on another mount', () => {
+  const h = fixture(); h.nodes['phone-controls-toggle'].emit('click');
+  assert.equal(h.values.get(PHONE_CONTROLS_KEY), 'expanded');
+  const restored = fixture({ saved: h.values.get(PHONE_CONTROLS_KEY) });
+  assert.equal(restored.toolbar.hidden, false);
+  restored.nodes['phone-controls-toggle'].emit('click');
+  assert.equal(restored.values.get(PHONE_CONTROLS_KEY), 'folded');
+  assert.equal(fixture({ saved: 'unexpected' }).toolbar.hidden, true);
+});
+
+test('blocked storage acquisition, reads and writes still allow folding', () => {
+  for (const blocked of [true, 'methods']) {
+    const h = fixture({ blocked });
+    h.nodes['phone-controls-toggle'].emit('click'); assert.equal(h.toolbar.hidden, false);
+    h.nodes['phone-controls-toggle'].emit('click'); assert.equal(h.toolbar.hidden, true);
+  }
+});
+
+test('viewer expansion skips invisible write actions, while desktop restores original roll order', () => {
+  const h = fixture({ viewer: true }); h.nodes['phone-controls-toggle'].emit('click');
+  assert.equal(h.document.activeElement, h.nodes['center-map']);
+  h.media.matches = false; h.media.emit('change');
+  assert.equal(h.toolbar.hidden, false); assert.equal(h.nodes['phone-map-primary'].hidden, true);
+  assert.deepEqual(h.rollGroup.children, [h.nodes.pick, h.nodes['roll-two']]);
+  const desktop = fixture({ phone: false }); assert.equal(desktop.toolbar.hidden, false);
+});
+
+test('phone shell labels the fold toggle and removes empty viewer roll and Undo bars', async () => {
+  const html = await readFile(new URL('../app/web/index.html', import.meta.url), 'utf8');
+  const css = await readFile(new URL('../app/web/phone-layout.css', import.meta.url), 'utf8');
+  assert.match(html, /id="phone-controls-toggle"[^>]*aria-expanded="false"[^>]*aria-controls="map-toolbar phone-map-extras">Controls/);
+  assert.match(css, /:root\[data-read-only=true\] :is\(#phone-roll-host,#phone-undo-host,\.toolbar-roll\) \{ display:none; \}/);
+});
 
 test('phone Legend displays the live key and its controls, preserving its home and disclosure state', () => {
   const h = fixture(), legend = h.nodes['legend-details'], layer = new Node();

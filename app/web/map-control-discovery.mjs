@@ -1,8 +1,53 @@
 import { PHONE_QUERY } from './phone-layout.mjs';
 
+export const PHONE_CONTROLS_KEY = 'picker.phone-map-controls';
+
+// Borrow the live roll button so player labels, permissions and commands keep
+// their existing owner. Desktop gets the exact original node order back.
+function createPhoneMapControls(c, { media, document, storage, closeLegend }) {
+  const primary = c.$('phone-map-primary'), toggle = c.$('phone-controls-toggle');
+  const toolbar = c.$('map-toolbar'), extras = c.$('phone-map-extras');
+  const roll = c.$('pick'), rollHost = c.$('phone-roll-host');
+  const parent = roll.parentNode, next = roll.nextSibling;
+  let expanded = false;
+  try { expanded = storage()?.getItem(PHONE_CONTROLS_KEY) === 'expanded'; } catch {}
+
+  function render() {
+    const phone = media.matches;
+    primary.hidden = !phone;
+    toolbar.hidden = phone && !expanded;
+    extras.hidden = !phone || !expanded;
+    toggle.setAttribute('aria-expanded', String(expanded));
+    if (phone) rollHost.append(roll);
+    else parent.insertBefore(roll, next);
+  }
+  function setExpanded(value) {
+    expanded = value;
+    if (!expanded) closeLegend();
+    render();
+    try { storage()?.setItem(PHONE_CONTROLS_KEY, expanded ? 'expanded' : 'folded'); } catch {}
+    if (expanded) {
+      toolbar.scrollLeft = 0;
+      const first = [...toolbar.querySelectorAll('button')].find(button =>
+        !button.disabled && !button.hidden && button.checkVisibility());
+      (first ?? toggle).focus();
+    } else toggle.focus();
+  }
+  function adapt() {
+    const hadFocus = primary.contains(document.activeElement) || toolbar.contains(document.activeElement) || extras.contains(document.activeElement);
+    render();
+    if (hadFocus && document.activeElement?.checkVisibility?.() === false) {
+      (media.matches ? toggle : c.$('map-hover')).focus();
+    }
+  }
+  toggle.addEventListener('click', () => setExpanded(!expanded));
+  media.addEventListener('change', adapt);
+  adapt();
+}
+
 // The phone sheet borrows the live legend, including its layer controls. There
 // is still exactly one key for renderLegend() and existing event listeners.
-export function createMapControlDiscovery(c, { document = globalThis.document, media = globalThis.matchMedia?.(PHONE_QUERY) } = {}) {
+export function createMapControlDiscovery(c, { document = globalThis.document, media = globalThis.matchMedia?.(PHONE_QUERY), storage = () => globalThis.localStorage } = {}) {
   const actions = c.$('phone-map-actions'), trigger = c.$('phone-legend-open');
   const sheet = c.$('phone-legend-sheet'), host = c.$('phone-legend-content');
   const legend = c.$('legend-details'), toolbar = document.querySelector('.map-toolbar');
@@ -39,6 +84,7 @@ export function createMapControlDiscovery(c, { document = globalThis.document, m
   function mount() {
     if (mounted || !media) return;
     mounted = true;
+    createPhoneMapControls(c, { media, document, storage, closeLegend: close });
     trigger.addEventListener('click', () => sheet.hidden ? open() : close({ restoreFocus: true }));
     c.$('phone-legend-close').addEventListener('click', () => close({ restoreFocus: true }));
     const more = c.$('phone-map-controls');
