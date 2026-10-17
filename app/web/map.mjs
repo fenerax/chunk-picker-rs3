@@ -145,7 +145,7 @@ export class ChunkMap {
     this.isPhone = () => globalThis.matchMedia?.(PHONE_MEDIA_QUERY).matches === true;
     this.chunkHold = createChunkLongPress({ isPhone: this.isPhone,
       canHold: id => typeof onChunkHold === 'function' && typeof canChunkHold === 'function' && canChunkHold(id),
-      onHold: id => onChunkHold(id) });
+      onHold: (id, point) => onChunkHold(id, point) });
     this.hoverId = null;
     this.dirty = { base: true, state: true, pins: true, hover: true };
     this.frame = null;
@@ -195,7 +195,7 @@ export class ChunkMap {
       event.preventDefault();
       if (this.isPhone() && (this.touchPointers.size || event.pointerType === 'touch')) return;
       const id = this.chunkAt(this.localPoint(event));
-      if (id) this.onContext(id, event.clientX, event.clientY);
+      if (id) this.onContext(id, event.clientX, event.clientY, event.pointerType);
     });
     this.bind(hoverCanvas, 'pointermove', event => this.pointerMove(event));
     this.bind(hoverCanvas, 'pointerup', event => this.pointerUp(event));
@@ -778,8 +778,8 @@ export class ChunkMap {
     const selected = this.visibleMembers.filter(owner => owner.selectedRanks.has(id));
     const pending = this.visibleMembers.filter(owner => owner.pendingSet.has(id));
     const status = pending.length ? `Roll choice: ${pending.map(owner => owner.name).join(', ')}`
-      : selected.length ? selected.map(owner => `Selected ${owner.selectedRanks.get(id)}: ${owner.name}`).join(', ')
-      : owners.length ? `Unlocked: ${owners.join(', ')}` : this.candidateRanks?.has(id) ? `Roll candidate ${this.candidateRanks.get(id)}` : 'Locked';
+      : selected.length ? selected.map(owner => `In roll pool (added by hand) ${owner.selectedRanks.get(id)}: ${owner.name}`).join(', ')
+      : owners.length ? `Unlocked: ${owners.join(', ')}` : this.active.blacklisted?.includes(id) ? 'Never roll' : this.candidateRanks?.has(id) ? `In roll pool ${this.candidateRanks.get(id)}` : 'Locked';
     const annotations = this.visibleMembers.flatMap(owner => {
       return [...(owner.startingChunk === id ? [`${owner.name}: Starting marker`] : []),
         ...(owner.stickers[id] ?? []).map(marker => `${owner.name}: ${stickerLabel(marker.type)}${marker.text ? ` · ${marker.text}` : ''}`)];

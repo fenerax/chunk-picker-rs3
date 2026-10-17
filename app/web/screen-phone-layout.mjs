@@ -13,7 +13,7 @@ export function createScreenPhoneLayout(c) {
       c.closeChunkMenu(); c.stickerPicker?.close(); c.map?.cancelTouchGesture();
       const hint = c.$('map-hint');
       if (hint && !c.map?.pointerTool?.active) hint.textContent = phone
-        ? `Drag to pan · Pinch to zoom · Tap for chunk info${c.canWrite() ? ' · Hold to unlock' : ''}`
+        ? `Drag to pan · Pinch to zoom · Tap for chunk info · Hold for chunk menu`
         : 'Drag to pan · Scroll to zoom · Click for chunk info';
     }
   });

@@ -25,6 +25,13 @@ function manualClock() {
 
 const touch = (pointerId = 1, clientX = 150, clientY = 150) => ({ pointerId, pointerType: 'touch', button: 0, clientX, clientY });
 
+test('a long press supplies the touch position for the chunk menu', () => {
+  const clock = manualClock(), held = [];
+  const hold = createChunkLongPress({ clock, isPhone: () => true, canHold: () => true, onHold: (...args) => held.push(args) });
+  hold.down(touch(1, 125, 175), '7495'); clock.advance(CHUNK_HOLD_MS);
+  assert.deepEqual(held, [['7495', { clientX: 125, clientY: 175 }]]);
+});
+
 function holdHarness() {
   const clock = manualClock(), held = [];
   let phone = true, writable = true;

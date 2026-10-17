@@ -34,7 +34,7 @@ export function createChunkLongPress({ isPhone, canHold, onHold, clock = globalT
       const touch = touches.get(candidate.pointerId);
       if (!touch || touch.suppressTap || touches.size !== 1) return;
       touch.suppressTap = true;
-      onHold(chunkId);
+      onHold(chunkId, { clientX: event.clientX, clientY: event.clientY });
     }, CHUNK_HOLD_MS);
   }
 

@@ -33,7 +33,9 @@ const coverage = [
   ['tasks', 'add-finish-line-custom', { itemId: 'finish:bank', text: 'Fill the bank' }, 'Added F2P finish line item “Fill the bank”'],
   ['tasks', 'set-finish-line-custom', { itemId: 'finish:bank', itemText: 'Fill the bank', memberId: 'actor1', completed: true }, 'Ticked F2P finish line item “Fill the bank” for Player'],
   ['tasks', 'delete-finish-line-custom', { itemId: 'finish:bank', itemText: 'Fill the bank' }, 'Deleted F2P finish line item “Fill the bank”'],
-  ['map', 'set-chunk', { chunkId: '12850', status: 'selected' }, 'Selected Lumbridge'],
+  ['map', 'set-chunk', { chunkId: '12850', status: 'selected' }, 'Added Lumbridge to the roll pool by hand'],
+  ['map', 'set-chunk', { chunkId: '12850', status: 'blacklisted' }, 'Set Lumbridge to never roll'],
+  ['map', 'set-chunk', { chunkId: '12850', status: 'locked' }, 'Reset Lumbridge to locked'],
   ['map', 'roll', { count: 2 }, 'Rolled two chunks'],
   ['map', 'unlock-selection', { chunkId: '12850' }, 'Unlocked Lumbridge from the roll'],
   ['map', 'pick-for-me', {}, 'Picked a rolled chunk at random'],
@@ -96,4 +98,14 @@ test('legacy task names remain readable while unresolved technical identifiers s
   assert.equal(describe('Dragon Slayer'), 'Reed started “Dragon Slayer”');
   assert.equal(describe("Cook's Assistant"), 'Reed started “Cook\'s Assistant”');
   for (const id of ['unknown-task', 't:cape', 'opaque:task', 'rs3:task:quest:cooks-assistant', 't_raw_1']) assert.equal(describe(id), 'Reed started a task', id);
+});
+
+test('old member snapshots and sparse History changes name roll pool removals', () => {
+  const command = { type: 'set-chunk', memberId: 'actor1', chunkId: '12850', status: 'locked' };
+  for (const [field, expected] of [['selected', 'Removed Lumbridge from the roll pool for Player'], ['blacklisted', 'Allowed Lumbridge in the roll pool for Player']]) {
+    for (const undo of [
+      { members: [{ id: 'actor1', [field]: ['12850'] }] },
+      { memberChanges: [{ id: 'actor1', changes: [{ path: [field], before: { exists: true, value: ['12850'] }, after: { exists: true, value: [] } }] }] },
+    ]) assert.equal(describeHistoryEvent({ type: 'set-chunk', command, undo }, lookups), expected);
+  }
 });

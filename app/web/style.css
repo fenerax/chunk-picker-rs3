@@ -826,6 +826,7 @@ dialog:has(.rules-panel){width:min(1100px,calc(100vw - 2rem));height:min(850px,c
 .map-menu .is-primary{color:var(--panel-link,var(--link));font-weight:var(--weight-bold)}
 :root[data-scheme=light] .map-menu .is-primary{color:var(--panel-link,var(--link))}
 :root .map-menu .is-primary:is(:hover,:focus-visible){color:var(--surface-link,var(--link))}
+.map-menu .roll-pool-shortcut{display:block;font-size:var(--type-xs);color:var(--panel-muted,var(--muted))}
 .map-menu-link{border-top:var(--border-thin) solid var(--hairline);margin-top:var(--space-2);border-radius:0 0 var(--radius-sm) var(--radius-sm)}
 
 /* Sticker dialog: pick by icon. */
@@ -1059,6 +1060,9 @@ img.skill-badge{border-radius:0;object-fit:contain;image-rendering:auto}
 .pin-about>summary{min-height:28px;color:var(--panel-link,var(--link))}
 .pin-about .pin-source-button{margin-top:var(--space-2)}
 /* Legend: travel line key spans the full width. */
+.map-controls{grid-column:1 / -1;min-width:0}
+.map-controls h3{font-size:var(--type-body);margin-top:var(--space-3)}
+.map-controls p{max-width:70ch;line-height:1.5;white-space:normal}
 .legend-travel{grid-column:1 / -1;margin-top:var(--space-2)}
 .legend-travel-title{display:block;font-size:var(--type-xs);color:var(--panel-muted,var(--muted));margin-bottom:var(--space-1)}
 .legend-travel .travel-lines-key{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--space-1) var(--space-4)}

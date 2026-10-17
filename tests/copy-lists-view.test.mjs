@@ -155,6 +155,9 @@ test('map owner switches refresh unlocked and eligible pool lists with chunk nam
   f.view.map(f.members[0], { eligible: [{ id: '2' }], excluded: [{ id: '1' }], all: [{ id: '1' }, { id: '2' }] });
   assert.match(await f.copy('copy-unlocked-chunks'), /^Player — Unlocked chunks \(1\) — .*\n- Lumbridge \(1\)$/u);
   assert.match(await f.copy('copy-pool-chunks'), /^Player — Roll pool chunks \(1\) — .*\n- Draynor \(2\)$/u);
+  f.members[0].selected = ['2'];
+  f.view.map(f.members[0], { eligible: [{ id: '2' }] });
+  assert.match(await f.copy('copy-pool-chunks'), /Draynor \(2\) \(added by hand\)$/u);
   f.context.sandbox.active = true;
   f.view.map(f.members[1], { eligible: [{ id: '3' }, { id: '1' }], excluded: [{ id: '2' }] });
   assert.equal(f.byId('copy-unlocked-chunks-text').parentElement.hidden, true);
