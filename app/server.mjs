@@ -1910,7 +1910,9 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
       else if (route === '/display-world.mjs') file = await containedFile(path.join(ROOT, 'app'), 'display-world.mjs');
       else if (route === '/data/access-policy.mjs') file = await containedFile(path.join(ROOT, 'app', 'data'), 'access-policy.mjs');
       else if (['/map-activity-layers.mjs', '/map-activity-layer-model.mjs', '/map-activity-layer-renderer.mjs', '/map-activity-layers.css'].includes(route)) file = await containedFile(webRoot, route.slice(1));
-      else if (['/core/rule-registry.mjs', '/core/progress-index.mjs', '/core/automatic-transport.mjs', '/core/travel-inputs.mjs', '/core/progress-snapshots.mjs'].includes(route)) file = await containedFile(path.join(ROOT, 'app', 'core'), route.slice('/core/'.length));
+      // Optional full-state tools share these small, pure travel helpers. Their
+      // catalogue dependencies already use the selected dataset's static routes.
+      else if (['/core/rule-registry.mjs', '/core/progress-index.mjs', '/core/automatic-transport.mjs', '/core/travel-inputs.mjs', '/core/progress-snapshots.mjs', '/core/teleport-returns.mjs', '/core/teleport-return-cache.mjs'].includes(route)) file = await containedFile(path.join(ROOT, 'app', 'core'), route.slice('/core/'.length));
       else if (['/teleports.mjs', '/teleports.css', '/backup-status.mjs', '/backup-transfer.mjs', '/map-display.mjs', '/map-display.css', '/map-task-counts.mjs', '/map-task-count-renderer.mjs', '/map-task-count-obstacles.mjs', '/map-place-labels.mjs'].includes(route)) file = await containedFile(webRoot, route.slice(1));
       else if (['/stream-safe.mjs', '/stream-safe.css', '/feedback-badge.css'].includes(route)) file = await containedFile(webRoot, route.slice(1));
       else if (['/screen-roll-stats.mjs', '/roll-stats.css'].includes(route)) file = await containedFile(webRoot, route.slice(1));
