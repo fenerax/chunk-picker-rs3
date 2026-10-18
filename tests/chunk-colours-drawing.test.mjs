@@ -19,6 +19,7 @@ function context() {
     fillRect(...rect) { calls.push({ type: 'fill', color: this.fillStyle, rect }); },
     strokeRect(...rect) { calls.push({ type: 'outline', color: this.strokeStyle, width: this.lineWidth, rect }); },
     fillText(text) { calls.push({ type: 'text', text }); },
+    setLineDash(dash) { calls.push({ type: 'dash', dash }); },
     rect(...rect) { calls.push({ type: 'reveal', rect }); },
     measureText(text) { return { width: String(text).length * 6 }; },
     setTransform(...value) { transform = value; },
@@ -56,6 +57,25 @@ function drawingMap({ dense = false } = {}) {
   map.setModel({ world, state, memberId: 'actor1', preferences: { ids: true } });
   return { map, ctx, world, state, attributes };
 }
+
+test('automatic lodestone options differ from saved selections and deselection updates the tooltip', () => {
+  const { map, ctx, world, state } = drawingMap();
+  const id = chunkId(1, 1);
+  const pool = { eligible: [{ id, reasons: [{ travelKind: 'lodestone' }] }] };
+  map.setModel({ world, state, memberId: 'actor1', pool });
+  map.drawState();
+  assert.ok(ctx.calls.some(call => call.type === 'outline' && call.color === '#8dcaff'));
+  assert.ok(ctx.calls.some(call => call.type === 'outline' && call.color === '#5fe35a'));
+  assert.ok(ctx.calls.some(call => call.type === 'dash' && call.dash.join() === '4,3'));
+  map.setHover(id); assert.match(map.tooltip.textContent, /Lodestone roll option/);
+  state.members[0].selected.push(id);
+  map.setModel({ world, state, memberId: 'actor1', pool }); map.setHover(id);
+  assert.match(map.tooltip.textContent, /added by hand/);
+  state.members[0].selected = state.members[0].selected.filter(value => value !== id);
+  map.setModel({ world, state, memberId: 'actor1', pool: { eligible: [] } }); map.setHover(id);
+  assert.match(map.tooltip.textContent, /Locked/);
+  assert.doesNotMatch(map.tooltip.textContent, /roll option|added by hand/);
+});
 
 test('all modern and retained colours have a subtle wash and readable accent in dark/light high visibility', () => {
   for (const theme of ['dark', 'light']) for (const highvis of [false, true]) {

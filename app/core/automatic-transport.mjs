@@ -1,5 +1,6 @@
 import { sameRuneScapeName } from './game-progress.mjs';
 import { automaticTravelInputKey } from './travel-inputs.mjs';
+import { teleportReturnCache } from './teleport-return-cache.mjs';
 
 export const AUTOMATIC_TRANSPORT_RULE = 'travel.automatic';
 export const automaticTransportEnabled = state => state.rules?.[AUTOMATIC_TRANSPORT_RULE] === true;
@@ -18,6 +19,7 @@ export function registerAutomaticTransportEngineFactory(factory) { engineFactory
 /** Attach the existing task evaluator without putting functions in saved state
  * or in the world's public/serialized rule context. */
 export function configureAutomaticTransport(world, configuration) {
+  teleportReturnCache.clear(world);
   const previous = configurations.get(world);
   if (previous?.engine !== configuration.engine) baselines.delete(previous?.engine ?? world);
   configurations.set(world, configuration);
@@ -30,6 +32,7 @@ export function configureAutomaticTransport(world, configuration) {
 /** Drop rebuildable results and an implicit evaluator while preserving the
  * caller's definitions and any explicitly supplied evaluator. */
 export function releaseAutomaticTransportCaches(world) {
+  teleportReturnCache.clear(world);
   const engine = configurations.get(world)?.engine ?? engines.get(world);
   if (engine) baselines.delete(engine);
   engines.delete(world); baselines.delete(world); derived.delete(world);

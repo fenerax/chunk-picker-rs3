@@ -9,6 +9,7 @@ import { SKILL_GUIDE_TASKS_RULE, SKILL_GUIDE_MILESTONES_RULE, SKILL_GUIDE_CORREC
 import { expandTransportReachability, evaluateTransportRoutes, transportEdges, transportReachabilityPaths, transportBudget, affordableTransportCost, addTransportCosts, physicalTransportRoutes } from './transport-access.mjs';
 import { TRANSPORT_ROUTES } from '../data/transport-routes.mjs';
 import { CACHE_SECTION_OFFSET } from '../data/surface-grid.mjs';
+import { personalTeleportRows } from './teleport-returns.mjs';
 
 /**
  * Pure rules and rolling API. Settings use flat IDs (for example `roll.adjacent`).
@@ -43,6 +44,39 @@ const explicitlySelected = reasons => reasons.some(reason => reason.ruleId === '
 const typedEntry = reason => reason.ruleId === TRANSPORT_ACCESS_RULE
   || reason.ruleId === 'roll.teleports' && (typeof reason.destinationSection === 'string' || reason.verifiedTeleportDestination === true);
 
+export function teleportRollCandidates({ value, world, state, member, settings, needsAutomaticTravel }) {
+  if (!value) return [];
+  const owners = settings['roll.teleportScope'] === 'group' ? state.members : [member];
+  const candidates = [];
+  for (const owner of owners) {
+    let routes;
+    const routeOptions = {
+      transportRoutes: world.transportRoutes, transportFactsByMember: world.transportFactsByMember,
+      sectionOverrides: effectiveSectionOverrides(state, owner) };
+    let personal = (owner.teleports ?? []).length ? personalTeleportRows(world, state, owner.id, [], routeOptions) : [];
+    if (settings['travel.automatic'] && personal.some(row => !row.available && owner.teleports.find(saved => saved.id === row.id)?.available)) {
+      routes = evaluateTransportRoutes(world, state, owner.id, routeOptions);
+      personal = personalTeleportRows(world, state, owner.id, routes, routeOptions);
+    }
+    for (const teleport of personal) {
+      if (teleport.available && (!teleport.consumable || settings['roll.consumableTeleports'])) {
+        candidates.push({ id: teleport.destination, detail: `Available teleport ${teleport.label || teleport.id} (${owner.name || owner.id}).` });
+      }
+    }
+    if (settings['travel.automatic'] && needsAutomaticTravel?.(true) !== false) {
+      for (const route of routes ?? evaluateTransportRoutes(world, state, owner.id, routeOptions)) {
+        if (!route.global || !(route.rollAvailable ?? route.available)) continue;
+        const destination = route.rollDestination?.chunkId ?? route.to?.split('-')[0];
+        if (!destination) continue;
+        candidates.push({ id: destination, verifiedTeleportDestination: true, travelKind: route.kind,
+          ...(route.to ? { destinationSection: route.to.split('-')[1] ?? '0' } : {}),
+          detail: `Automatic ${route.name || route.id} (${owner.name || owner.id})${route.estimated ? '; estimated from reachable training' : ''}.` });
+      }
+    }
+  }
+  return candidates;
+}
+
 const authoredRuleHooks = Object.freeze([
   { id: SKILL_GUIDE_TASKS_RULE, },
   { id: SKILL_GUIDE_MILESTONES_RULE, },
@@ -61,7 +95,7 @@ const authoredRuleHooks = Object.freeze([
       return routes.filter(route => route.available).flatMap(route => {
         const legs = route.global ? paths.size ? [{ to: route.to }] : [] : transportEdges([route]).filter(edge =>
           (paths.get(edge.from) ?? []).some(cost => affordableTransportCost(addTransportCosts(cost, edge.cost), budget)));
-        return legs.map(leg => ({ id: leg.to.split('-')[0], destinationSection: leg.to.split('-')[1] ?? '0', detail: `${route.name || route.id}; personal travel requirements confirmed.` }));
+        return legs.map(leg => ({ id: leg.to.split('-')[0], destinationSection: leg.to.split('-')[1] ?? '0', travelKind: route.kind, detail: `${route.name || route.id}; personal travel requirements confirmed.` }));
       });
     } },
   {
@@ -118,30 +152,7 @@ const authoredRuleHooks = Object.freeze([
     },
   },
   {
-    id: 'roll.teleports', candidates({ value, world, state, member, settings, needsAutomaticTravel }) {
-      if (!value) return [];
-      const owners = settings['roll.teleportScope'] === 'group' ? state.members : [member];
-      const candidates = [];
-      for (const owner of owners) {
-        for (const teleport of owner.teleports ?? []) {
-          if (teleport.available && (!teleport.consumable || settings['roll.consumableTeleports'])) {
-            candidates.push({ id: teleport.destination, detail: `Available teleport ${teleport.label || teleport.id} (${owner.name || owner.id}).` });
-          }
-        }
-        if (settings['travel.automatic'] && needsAutomaticTravel?.(true) !== false) {
-          for (const route of evaluateTransportRoutes(world, state, owner.id, { transportRoutes: world.transportRoutes,
-            transportFactsByMember: world.transportFactsByMember, sectionOverrides: effectiveSectionOverrides(state, owner) })) {
-            if (!route.global || !(route.rollAvailable ?? route.available)) continue;
-            const destination = route.rollDestination?.chunkId ?? route.to?.split('-')[0];
-            if (!destination) continue;
-            candidates.push({ id: destination, verifiedTeleportDestination: true,
-              ...(route.to ? { destinationSection: route.to.split('-')[1] ?? '0' } : {}),
-              detail: `Automatic ${route.name || route.id} (${owner.name || owner.id})${route.estimated ? '; estimated from reachable training' : ''}.` });
-          }
-        }
-      }
-      return candidates;
-    },
+    id: 'roll.teleports', candidates: teleportRollCandidates,
   },
   { id: 'roll.teleportScope', },
   { id: 'roll.consumableTeleports', },
@@ -386,6 +397,7 @@ export function evaluateRollPool(world, state, memberId, registry = defaultRegis
     for (const addition of additions) {
       if (!addition || typeof addition.id !== 'string' || !addition.id) throw new TypeError(`Rule ${definition.id} returned an invalid candidate ID.`);
       const reason = { ruleId: definition.id, detail: checkedDetail(addition.detail, definition.id),
+          ...(['roll.teleports', TRANSPORT_ACCESS_RULE].includes(definition.id) && trustedDefinitions.has(definition) && addition.travelKind === 'lodestone' ? { travelKind: 'lodestone' } : {}),
         ...(definition.id === 'roll.teleports' && trustedDefinitions.has(definition) && addition.verifiedTeleportDestination === true ? { verifiedTeleportDestination: true } : {}),
         ...(typeof addition.destinationSection === 'string' ? { destinationSection: addition.destinationSection } : {}) };
       if (!candidates.has(addition.id)) candidates.set(addition.id, []);

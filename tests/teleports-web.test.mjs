@@ -84,6 +84,15 @@ test('personal catalogue groups availability, destinations, reasons and evidence
   assert.equal(h.ui.commands.length, 0);
 });
 
+test('custom teleport confirmation stays saved while missing return makes the route unavailable', async () => {
+  const h = harness();
+  h.ui.responses.push({ ...h.snapshot(), personalTeleports: [{ id: 'custom', available: false, reason: 'One-way for now: there’s no way back to your chunks from here.' }] });
+  await h.open().ready;
+  assert.match(h.text(), /One-way for now/);
+  assert.equal(h.state.members[0].teleports[0].available, true);
+  assert.equal(h.ui.commands.length, 0);
+});
+
 test('automatic mode is explicitly shared and its revision-reviewed save refreshes the catalogue', async () => {
   const h = harness(); await h.open().ready;
   await h.changeCheck('Automatic availability', true);
@@ -94,7 +103,7 @@ test('automatic mode is explicitly shared and its revision-reviewed save refresh
   assert.match(h.text(), /RuneMetrics sync supplies levels and quests, but not lodestone activations/);
   assert.match(h.text(), /choose “I can use it” in its Override dropdown/);
   assert.match(h.text(), /Do this separately for each player/);
-  assert.match(h.text(), /outward trip only/);
+  assert.match(h.text(), /Teleports need a way back to your chunks/);
 });
 
 test('roll-eligible routes keep their usable status while disclosing unverified landing access', async () => {

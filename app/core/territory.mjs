@@ -2,7 +2,7 @@ import { surfaceLodestones } from '../data/lodestones.mjs';
 import { surfaceReachability, componentLocations, projectLegacySections, componentBlocked } from './cache-surface.mjs';
 import { isWalkingSectionEdge } from './map-boundaries.mjs';
 import { transportAccessEnabled, evaluateTransportRoutes, transportEdges, expandTransportReachability, transportBudget,
-  affordableTransportPaths, affordableTransportCost, addTransportCosts, physicalTransportRoutes, reviewedLodestoneUsable } from './transport-access.mjs';
+  affordableTransportPaths, affordableTransportCost, addTransportCosts, physicalTransportRoutes, reviewedLodestoneUsable, transportReachabilityPaths } from './transport-access.mjs';
 import { automaticTransportEnabled } from './automatic-transport.mjs';
 
 const baseOf = id => id.split('-')[0];
@@ -163,12 +163,18 @@ export function evaluatePartnerConnections(world, state, memberId, { sectionsByM
   }
   const journeyRoots = personalTravelSeeds ? new Set([...focusedSeeds].filter(id => personal.has(id))) : personal;
   const journeys = typed.length || automatic;
+  const outsideHome = !_bound && automatic && typed.some(route => route.available && route.global && route.to && !nodes.has(route.to));
+  const homeReturns = outsideHome ? transportReachabilityPaths(world, state, memberId, journeyRoots, {
+    claimed: new Set(state.members.flatMap(owner => owner.unlocked ?? [])), sectionOverrides: blocked,
+    transportRoutes: catalogue, transportFactsByMember: transportFactsByMember ?? world.transportFactsByMember,
+    typedRoutes: typed, transportMemo, transportBudgetOverride: budget, lodestones, _skipNoop: true }).returnPaths : null;
   const outward = journeys ? affordableTransportPaths([...journeyRoots].map(id => ({ id })), costOut, budget) : null;
   if (outward) for (const id of out.keys()) if (!outward.has(id)) out.delete(id);
   const back = new Map(), reverseQueue = [];
   const returnTo = (id, detail) => { if (!back.has(id)) { back.set(id, detail); reverseQueue.push(id); } };
   for (const id of sorted(personal)) returnTo(id, `own ${id}`);
   for (let cursor = 0; cursor < reverseQueue.length; cursor++) for (const from of incoming.get(reverseQueue[cursor]) ?? []) returnTo(from, `${edgeDetails.get(`${from}\u0000${reverseQueue[cursor]}`) ?? `walking via ${reverseQueue[cursor]}`}${personal.has(reverseQueue[cursor]) ? '' : `; ${back.get(reverseQueue[cursor])}`}`);
+  for (const id of out.keys()) if (homeReturns?.has(id) && !back.has(id)) returnTo(id, 'available teleport home');
   // Reaching the actual lodestone section satisfies activation. No locked or
   // unreachable destination can activate itself through a circular teleport.
   const activated = lodestones.filter(stone => (state.rules?.['content.f2p'] === false || stone.f2p) && world.chunks.has(stone.chunkId))
@@ -179,7 +185,9 @@ export function evaluatePartnerConnections(world, state, memberId, { sectionsByM
   for (const stone of activated) for (const id of nodes) {
     if (!costBack.has(stone.to)) costBack.set(stone.to, []); costBack.get(stone.to).push({ to: id, cost: {} });
   }
-  const returnPaths = journeys ? affordableTransportPaths([...journeyRoots].map(id => ({ id })), costBack, budget) : null;
+  const returnSeeds = [...journeyRoots].map(id => ({ id }));
+  for (const [id, costs] of homeReturns ?? []) if (nodes.has(id)) for (const cost of costs) returnSeeds.push({ id, cost });
+  const returnPaths = journeys ? affordableTransportPaths(returnSeeds, costBack, budget) : null;
   const connected = new Set([...out.keys()].filter(id => back.has(id) && (!journeys || (outward.get(id) ?? []).some(outCost =>
     (returnPaths.get(id) ?? []).some(backCost => affordableTransportCost(addTransportCosts(outCost, backCost), budget)))))), regions = [], byChunk = {};
   for (const owner of state.members.filter(owner => owner.id !== memberId)) {

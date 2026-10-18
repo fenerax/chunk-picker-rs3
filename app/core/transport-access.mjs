@@ -4,6 +4,7 @@ import { componentLocations, componentBlocked, surfaceReachability } from './cac
 import { isWalkingSectionEdge, sectionIsFree } from './map-boundaries.mjs';
 import { sameRuneScapeName } from './game-progress.mjs';
 import { surfaceLodestones } from '../data/lodestones.mjs';
+import { requireTeleportReturns } from './teleport-returns.mjs';
 import { automaticTransportEnabled, deriveAutomaticTransport, automaticRouteFacts, automaticRouteGroup,
   automaticConfirmationRequiresDeclaration } from './automatic-transport.mjs';
 
@@ -136,10 +137,10 @@ function verifiedRollDestination(world, route, station, blocked, f2p) {
   return destination;
 }
 
-export function evaluateTransportRoutes(world, state, memberId, { transportRoutes = TRANSPORT_ROUTES, transportFactsByMember, sectionOverrides, _rollPlanning = false, _physical = false, transportMemo } = {}) {
+export function evaluateTransportRoutes(world, state, memberId, { transportRoutes = TRANSPORT_ROUTES, transportFactsByMember, sectionOverrides, _rollPlanning = false, _physical = false, transportMemo, returnProofCache } = {}) {
   const member = state.members.find(value => value.id === memberId);
   if (!member) throw new TypeError(`Unknown member: ${memberId}`);
-  const routeCache = evaluationCache(transportMemo, 'routes', world, state);
+  const routeCache = returnProofCache === false ? null : evaluationCache(transportMemo, 'routes', world, state);
   const routeKey = routeCache && JSON.stringify([memberId, sectionOverrides ?? member.sectionOverrides ?? {}, _rollPlanning, _physical]);
   const prior = routeCache?.get(routeKey);
   if (prior?.catalogue === transportRoutes && prior.facts === transportFactsByMember) return prior.rows;
@@ -269,8 +270,12 @@ export function evaluateTransportRoutes(world, state, memberId, { transportRoute
     if (requirement.requirement === 'free-component') return `Section ${requirement.key} is not verified F2P.`;
     return `${requirement.key}: ${requirement.requirement} requirement is unknown or not met.`;
   };
-  const displayRows = evaluated.map(row => {
-    const priority = value => ['endpoint', 'section-block', 'free-component', 'membership', 'consumable'].indexOf(value.requirement);
+  const planningRows = automatic && !_rollPlanning ? new Map(evaluateTransportRoutes(world, state, memberId, { transportRoutes, transportFactsByMember, sectionOverrides,
+    _rollPlanning: true, transportMemo, returnProofCache }).map(row => [row.id, row])) : new Map();
+  const usable = _physical ? evaluated : requireTeleportReturns(world, state, memberId, evaluated, {
+    transportRoutes, transportFactsByMember, sectionOverrides: blocked, transportMemo, returnProofCache, automaticContext, planningRows: [...planningRows.values()] });
+  const displayRows = usable.map(row => {
+    const priority = value => ['return-route', 'endpoint', 'section-block', 'free-component', 'membership', 'consumable'].indexOf(value.requirement);
     const reasons = [...row.unmet, ...row.unknown].sort((a, b) => {
       const first = priority(a), second = priority(b);
       return (first < 0 ? 10 : first) - (second < 0 ? 10 : second);
@@ -282,8 +287,6 @@ export function evaluateTransportRoutes(world, state, memberId, { transportRoute
       estimated: false, override: null, ...row, reason: reasons[0], reasons };
   });
   if (_rollPlanning) return remember(displayRows);
-  const planningRows = automatic ? new Map(evaluateTransportRoutes(world, state, memberId, { transportRoutes, transportFactsByMember, sectionOverrides,
-    _rollPlanning: true, transportMemo }).map(row => [row.id, row])) : new Map();
   return remember(displayRows.map(row => {
     const planning = planningRows.get(row.id), rollAvailable = row.available || !!(row.global && row.rollDestination && planning?.available);
     const rollReasons = rollAvailable && !row.available ? [planning?.planningActivation
@@ -313,9 +316,12 @@ export function reviewedLodestoneUsable(catalogue = TRANSPORT_ROUTES, rows, ston
   return !reviewed.length || !lower && reviewed.some(route => rows.some(row => row.id === route.id && row.available));
 }
 
-export function transportBudget(state, memberId, transportFactsByMember, world) {
-  const member = state.members.find(value => value.id === memberId), explicit = personalFacts(state, member, transportFactsByMember?.[memberId]);
-  const context = world && automaticTransportEnabled(state) ? deriveAutomaticTransport(world, state, memberId, { transportFactsByMember }) : null;
+export function transportBudget(state, memberId, transportFactsByMember, world, automaticContext) {
+  const member = state.members.find(value => value.id === memberId);
+  // Route evaluation has already validated/projected these facts. Reusing its
+  // context avoids a second saved-quest scan on every warm return-proof hit.
+  const explicit = automaticContext ? null : personalFacts(state, member, transportFactsByMember?.[memberId]);
+  const context = automaticContext ?? (world && automaticTransportEnabled(state) ? deriveAutomaticTransport(world, state, memberId, { transportFactsByMember }) : null);
   const facts = context?.facts ?? explicit;
   const budget = {};
   for (const field of ['items', 'currencies']) for (const [key, count] of Object.entries(facts[field] ?? {})) budget[`${field}:${key}`] = count;
@@ -350,7 +356,7 @@ export function affordableTransportPaths(seeds, graph, budget) {
  * unchanged walking edges. Neither locked intermediates nor partner ownership
  * can become personal origins. */
 export function transportReachabilityPaths(world, state, memberId, initial, { claimed, sectionOverrides, transportRoutes, transportFactsByMember, lodestones = surfaceLodestones, transportMemo,
-  typedRoutes, transportBudgetOverride, _physicalUpper = false, _proofLower = false, _skipNoop = false } = {}) {
+  typedRoutes, transportBudgetOverride, _physicalUpper = false, _proofLower = false, _skipNoop = false, _requireReturn = false } = {}) {
   const member = state.members.find(value => value.id === memberId), owned = new Set(claimed ?? member.unlocked ?? []);
   const overrides = sectionOverrides ?? member.sectionOverrides ?? {};
   if (!_skipNoop && typedRoutes === undefined && automaticTransportEnabled(state) && transportAccessEnabled(state)) {
@@ -371,7 +377,7 @@ export function transportReachabilityPaths(world, state, memberId, initial, { cl
   const cached = previous?.routes === routes ? previous : null;
   let graph = cached?.graph ?? new Map();
   const nodes = cached?.nodes ?? new Set(initial);
-  const eligible = id => owned.has(baseOf(id)) && (cache ? !componentBlocked(world, id, overrides)
+  const eligible = id => typeof id === 'string' && owned.has(baseOf(id)) && (cache ? !componentBlocked(world, id, overrides)
     && (!cache.blockedRegions?.has(baseOf(id)) || admittedBases.has(baseOf(id)))
     && (!f2p || (cache.components.has(id) ? cache.components.get(id).free === true : sectionIsFree(world, baseOf(id), id.split('-')[1] ?? '0')))
     : overrides[`${baseOf(id)}-${id.split('-')[1] ?? '0'}`] !== false && (!f2p || sectionIsFree(world, baseOf(id), id.split('-')[1] ?? '0')));
@@ -381,7 +387,7 @@ export function transportReachabilityPaths(world, state, memberId, initial, { cl
     if (!graph.has(from)) graph.set(from, []); graph.get(from).push({ to, cost });
   };
   if (!cached) {
-    for (const [base, parts] of cache?.topology ?? world.sectionTopology) for (const [part, incoming] of parts) {
+    for (const [base, parts] of cache?.topology ?? world.sectionTopology ?? []) for (const [part, incoming] of parts) {
       const to = cache ? `${base}-${part}` : part === '0' ? base : `${base}-${part}`;
       if (eligible(to)) nodes.add(to);
       for (const source of incoming) if (cache || isWalkingSectionEdge(world, base, part, source)) edge(!cache && source.endsWith('-0') ? baseOf(source) : source, to);
@@ -393,7 +399,7 @@ export function transportReachabilityPaths(world, state, memberId, initial, { cl
   const budget = transportBudgetOverride ?? cached?.budget ?? transportBudget(state, memberId, transportFactsByMember, world);
   if (!cached) graphCache?.set(graphKey, { graph, nodes, routes, budget });
   const outward = affordableTransportPaths(seeds, graph, budget);
-  if (_physicalUpper || !automaticTransportEnabled(state) || !transportAccessEnabled(state)) return outward;
+  if (_physicalUpper || !_requireReturn && (!automaticTransportEnabled(state) || !transportAccessEnabled(state))) return outward;
   // The original walking bound remains the only journey root. A typed
   // arrival must have a directed return with the combined journey affordable;
   // ownership or a newly reached endpoint cannot provide a free return.
@@ -426,10 +432,23 @@ export function transportReachabilityPaths(world, state, memberId, initial, { cl
     if (!reverse.has(leg.to)) reverse.set(leg.to, []);
     reverse.get(leg.to).push({ to: from, cost: leg.cost });
   }
-  const back = affordableTransportPaths(seeds, reverse, budget);
-  return new Map([...outward].map(([id, costs]) => [id, costs.filter(outCost => (back.get(id) ?? [])
+  const returnSeeds = [...seeds];
+  // A usable home teleport can land just outside claimed territory and walk
+  // back in. Prove that return against these same roots, without admitting the
+  // outside landing as an outward task/resource node. Availability's internal
+  // proof already supplies its own candidate bound, so it never recurses here.
+  if (!_requireReturn) for (const route of routes) if (route.available && route.global && route.to && !owned.has(baseOf(route.to))) {
+    const anchor = transportReachabilityPaths(world, state, memberId, initial, { claimed: new Set([...owned, baseOf(route.to)]),
+      sectionOverrides: overrides, transportRoutes, transportFactsByMember, lodestones, transportMemo, typedRoutes: routes,
+      transportBudgetOverride: budget, _requireReturn: true, _skipNoop: true });
+    for (const cost of anchor.returnPaths?.get(route.to) ?? []) for (const id of nodes) returnSeeds.push({ id, cost: addTransportCosts(route.cost ?? {}, cost) });
+  }
+  const back = affordableTransportPaths(returnSeeds, reverse, budget);
+  const roundTrips = new Map([...outward].map(([id, costs]) => [id, costs.filter(outCost => (back.get(id) ?? [])
     .some(backCost => affordableTransportCost(addTransportCosts(outCost, backCost), budget)))])
     .filter(([, costs]) => costs.length));
+  Object.defineProperty(roundTrips, 'returnPaths', { value: back });
+  return roundTrips;
 }
 
 export function expandTransportReachability(world, state, memberId, initial, options = {}) {

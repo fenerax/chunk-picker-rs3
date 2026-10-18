@@ -356,7 +356,7 @@ details[open]>summary::before{transform:rotate(45deg)}
 .swatch-selected{background:var(--color-fixed-rgba-100-255-100-55);border:var(--border-thin) solid var(--color-fixed-5fe35a)}
 .swatch-pending{background:var(--color-fixed-rgba-255-230-90-6);border:var(--border-thin) solid var(--color-fixed-ffe55c)}
 .swatch-open{background:transparent;border:var(--border-focus) solid var(--color-fixed-5cd6ff);box-shadow:var(--shadow-selection)}
-.swatch-pool{background:var(--color-fixed-69d55b29);border:var(--border-thin) dashed var(--color-fixed-80d966)}
+.swatch-pool{background:rgba(110,190,255,.18);border:var(--border-thin) dashed #8dcaff}
 .swatch-death{font-style:normal;color:var(--color-fixed-ffe3ea);background:var(--color-fixed-1a0914);display:inline-flex;align-items:center;justify-content:center;width:1rem;height:1rem}
 .swatch-death::before{content:'\2620';font-family:var(--font-symbol);font-size:var(--type-base)}
 .swatch-pin{border:var(--border-thin) solid var(--panel-text,var(--text));border-radius:var(--radius-circle);background:var(--surface)}

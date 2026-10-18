@@ -12,7 +12,7 @@ function drawingMap(size, preferences = {}, pinLayer = false) {
   const texts = [], rectangles = [];
   const context = {
     save() {}, restore() {}, beginPath() {}, rect() {}, clip() {}, setTransform() {}, moveTo() {}, lineTo() {},
-    stroke() {}, strokeRect() {}, strokeText() {},
+    stroke() {}, strokeRect() {}, strokeText() {}, setLineDash() {},
     fillRect(...rect) { rectangles.push({ rect, color: this.fillStyle }); },
     measureText(value) { return { width: value.length * parseFloat(this.font.match(/[\d.]+px/)[0]) * .6 }; },
     fillText(value, x, y, maxWidth) { texts.push({ value, x, y, maxWidth, font: parseFloat(this.font.match(/[\d.]+px/)[0]) }); },

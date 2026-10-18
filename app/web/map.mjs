@@ -470,8 +470,8 @@ export class ChunkMap {
     this.unlocked = new Set(this.visibleMembers.flatMap(owner => owner.unlocked));
     this.visibleTaskCounts = new Map([...(this.taskCounts ?? [])].filter(([id]) => this.unlocked.has(id)));
     this.poolIds = new Set((pool?.eligible ?? (Array.isArray(pool) ? pool : [])).map(entry => typeof entry === 'string' ? entry : entry.id));
-    // Like the original picker, every chunk the active member can roll is green and numbered:
-    // hand-picked selections keep their order, other eligible chunks follow by chunk ID.
+    this.lodestoneOptions = new Set((pool?.eligible ?? []).filter(entry => entry.reasons?.some(reason => reason.travelKind === 'lodestone')).map(entry => entry.id));
+    // Hand-picked selections keep their order; automatic options follow by ID.
     const extraCandidates = [...this.poolIds].filter(id => !this.active.selectedRanks.has(id) && !this.active.unlockedSet.has(id) && !this.active.pendingSet.has(id)).sort((a, b) => Number(a) - Number(b));
     this.candidateRanks = new Map([...this.active.selectedRanks, ...extraCandidates.map((id, index) => [id, this.active.selected.length + index + 1])]);
     // Model-dependent ownership and reveal geometry are shared by every pan frame.
@@ -779,7 +779,8 @@ export class ChunkMap {
     const pending = this.visibleMembers.filter(owner => owner.pendingSet.has(id));
     const status = pending.length ? `Roll choice: ${pending.map(owner => owner.name).join(', ')}`
       : selected.length ? selected.map(owner => `In roll pool (added by hand) ${owner.selectedRanks.get(id)}: ${owner.name}`).join(', ')
-      : owners.length ? `Unlocked: ${owners.join(', ')}` : this.active.blacklisted?.includes(id) ? 'Never roll' : this.candidateRanks?.has(id) ? `In roll pool ${this.candidateRanks.get(id)}` : 'Locked';
+      : owners.length ? `Unlocked: ${owners.join(', ')}` : this.active.blacklisted?.includes(id) ? 'Never roll' : this.candidateRanks?.has(id)
+        ? `${this.lodestoneOptions?.has(id) ? 'Lodestone roll option' : 'Automatic roll option'} ${this.candidateRanks.get(id)}` : 'Locked';
     const annotations = this.visibleMembers.flatMap(owner => {
       return [...(owner.startingChunk === id ? [`${owner.name}: Starting marker`] : []),
         ...(owner.stickers[id] ?? []).map(marker => `${owner.name}: ${stickerLabel(marker.type)}${marker.text ? ` · ${marker.text}` : ''}`)];
@@ -997,11 +998,17 @@ export class ChunkMap {
       if (this.sandboxUnlocks?.has(id) || this.sandboxLocks?.has(id)) drawSandboxMarker(context, x, y, size, this.sandboxLocks.has(id));
       let color = null;
       let rank = owners.length || pending ? this.active.selectedRanks.get(id) : this.candidateRanks.get(id);
-      if (selected.length || (rank && !owners.length && !pending)) {
+      const automaticOption = !selected.length && rank && !owners.length && !pending;
+      if (selected.length) {
         context.fillStyle = highvis ? 'rgba(100,255,100,.22)' : 'rgba(100,255,100,.42)';
         context.fillRect(x, y, size, size);
         color = '#5fe35a';
         rank ??= selected[0]?.selectedRanks.get(id);
+      }
+      if (automaticOption) {
+        context.fillStyle = highvis ? 'rgba(110,190,255,.12)' : 'rgba(110,190,255,.18)';
+        context.fillRect(x, y, size, size);
+        color = '#8dcaff';
       }
       if (pending) {
         context.fillStyle = highvis ? 'rgba(255,230,90,.25)' : 'rgba(255,230,90,.48)';
@@ -1011,7 +1018,9 @@ export class ChunkMap {
       if (color) {
         context.strokeStyle = color;
         context.lineWidth = highvis ? 1 : pending ? 2.5 : 1.5;
+        if (automaticOption) context.setLineDash([4, 3]);
         context.strokeRect(x + 1, y + 1, Math.max(0, size - 2), Math.max(0, size - 2));
+        if (automaticOption) context.setLineDash([]);
       }
     }
     this.activityLayerRenderer?.draw(context, this, { ...this.activityLayerPreferences, theme: this.model.preferences.theme });

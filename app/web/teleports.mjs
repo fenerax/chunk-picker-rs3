@@ -45,6 +45,7 @@ export function openTeleportsDialog(ctx, { uuid = () => globalThis.crypto.random
   const current = () => ctx.memberId() === requestedMember && ctx.dialogCurrent(generation);
   let request = 0, controller, saving = false;
   const controls = [];
+  const customStatuses = new Map();
   let feedback, catalogue;
   const remember = node => { controls.push(node); return node; };
   const report = message => { if (current()) feedback.replaceChildren(el('p', message, 'teleports-error')); };
@@ -128,6 +129,10 @@ export function openTeleportsDialog(ctx, { uuid = () => globalThis.crypto.random
         return;
       }
       const rows = value.rows ?? []; ctx.onTravelRoutes?.(rows); const usable = rows.filter(row => row.available).length;
+      for (const row of value.personalTeleports ?? []) {
+        const node = customStatuses.get(row.id);
+        if (node) node.textContent = row.available ? 'Usable' : row.reason ?? 'Not usable';
+      }
       // Members-only routes can never be used in free-to-play, so they fold away instead of filling the list.
       const membersOnly = row => !row.available && (row.reasons ?? [row.reason]).includes('Members only.');
       const folded = rows.filter(membersOnly).length;
@@ -159,6 +164,7 @@ export function openTeleportsDialog(ctx, { uuid = () => globalThis.crypto.random
     if (!current()) return;
     const personal = owner(), revision = ctx.state().revision;
     controls.length = 0;
+    customStatuses.clear();
     feedback = el('div', undefined, 'teleports-feedback'); feedback.setAttribute('role', 'status');
     const intro = el('p', `Teleports ${personal.name} can use add their destination to ${personal.name}’s roll options. The destination stays locked until it’s rolled.`, 'teleports-intro');
     const mode = el('section', undefined, 'teleports-mode');
@@ -166,7 +172,7 @@ export function openTeleportsDialog(ctx, { uuid = () => globalThis.crypto.random
     mode.append(checkbox('Automatic availability', automatic, value => save({ type: 'set-rule', ruleId: 'travel.automatic', value }, revision)).wrap,
       el('p', automatic ? 'On for both of you. Each player gets the teleports their own levels, quests and items allow.' : 'Off for both of you: only the custom teleports below count. The list shows what would count if you turn this on.', 'teleports-help'),
       el('p', 'RuneMetrics sync supplies levels and quests, but not lodestone activations or bank contents. For each lodestone you have activated, choose “I can use it” in its Override dropdown below. Do this separately for each player. Changes can be undone in History.', 'teleports-help'),
-      el('p', 'The old F2P map does not confirm activated lodestones after a members restart. Teleport roll options currently check the outward trip only; confirm your return route if you play with a two-way travel rule.', 'teleports-help'));
+      el('p', 'The old F2P map does not confirm activated lodestones after a members restart. Teleports need a way back to your chunks. Activate a lodestone in your own area or confirm another teleport home.', 'teleports-help'));
     const toolbar = el('div', undefined, 'teleports-toolbar');
     toolbar.append(el('h3', 'Automatic routes'), remember(button('Refresh', render)));
     catalogue = el('div', undefined, 'teleports-catalogue');
@@ -176,6 +182,8 @@ export function openTeleportsDialog(ctx, { uuid = () => globalThis.crypto.random
     for (const teleport of personal.teleports ?? []) {
       const row = el('article', undefined, 'teleports-manual');
       row.append(el('h4', teleport.label), el('p', destinationLabel(ctx.world?.()?.chunks.get(String(teleport.destination))?.name, teleport.destination), 'teleports-destination'));
+      const status = el('p', 'Checking return route…', 'teleports-reason');
+      customStatuses.set(teleport.id, status); row.append(status);
       const actions = el('div', undefined, 'teleports-manual-actions');
       actions.append(checkbox('Usable by this player', teleport.available, value => save({ type: 'set-teleport', memberId: requestedMember, teleport: { ...teleport, available: value } }, revision)).wrap,
         checkbox('Consumable', teleport.consumable, value => save({ type: 'set-teleport', memberId: requestedMember, teleport: { ...teleport, consumable: value } }, revision)).wrap,

@@ -96,7 +96,8 @@ export function createScreenMap(c) {
     c.$('map-legend').replaceChildren(
       ...(visible.some(owner => owner.unlocked?.length) ? [item('Unlocked', 'border', c.preferences().unlockedBorderColor || '#FF0000')] : []), ...owners,
       ...(disconnected ? [item('Disconnected partner', 'disconnected')] : []),
-      ...(visible.some(owner => owner.selected?.length) || c.pool?.eligible?.length ? [item('In roll pool (numbered)', 'selected')] : []),
+      ...(visible.some(owner => owner.selected?.length) ? [item('In roll pool (added by hand)', 'selected')] : []),
+      ...(c.pool?.eligible?.some(row => !visible.some(owner => owner.selected?.includes(row.id))) ? [item('Automatic roll option (numbered)', 'pool')] : []),
       ...(visible.some(owner => owner.pendingRoll?.length) ? [item('Roll choices', 'pending')] : []),
       item('Chunk info open', 'open'),
       chunkColourLegend(c, visible),

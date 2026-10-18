@@ -28,6 +28,7 @@ import { normalizePublicOrigin, requestContext, checkRequestOrigin, createRateLi
 import { buildWorld } from './data/world.mjs';
 import { loadDatasetInputs, loadOriginalSyncIntegration } from './dataset-bootstrap.mjs';
 import { evaluateTransportRoutes } from './core/transport-access.mjs';
+import { personalTeleportRows } from './core/teleport-returns.mjs';
 import { archaeologyTaskCorrections } from './data/archaeology-task-corrections.mjs';
 import { createGroupState, importBackup, importLegacyMaps, previewRestore, BACKUP_FORMAT, SCHEMA_VERSION } from './core/state.mjs';
 import { groupGoalCommandTypes } from './core/group-goals.mjs';
@@ -1316,7 +1317,10 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
             // persisted by opening this panel.
             const preview = state.rules?.['travel.automatic'] === true ? state
               : { ...state, rules: { ...state.rules, 'travel.automatic': true } };
-            const rows = evaluateTransportRoutes(indexedWorld, preview, memberId).map(row => ({
+            const travelRows = evaluateTransportRoutes(indexedWorld, preview, memberId);
+            const personalTeleports = personalTeleportRows(indexedWorld, state, memberId,
+              state.rules?.['travel.automatic'] === true ? travelRows : []).map(({ id, available, reason }) => ({ id, available, reason }));
+            const rows = travelRows.map(row => ({
               id: row.id, name: row.name, group: row.group ?? 'transport',
               available: row.global ? (row.rollAvailable ?? row.available) : row.available,
               reason: (row.global ? row.rollReason : row.reason) ?? row.reason ?? 'Travel evidence unresolved',
@@ -1329,7 +1333,7 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
               provenance: row.provenance, endpointEvidence: row.endpointEvidence,
             }));
             await json(request, response, 200, { stateRevision: state.revision, memberId,
-              automatic: state.rules?.['travel.automatic'] === true, rows,
+              automatic: state.rules?.['travel.automatic'] === true, rows, personalTeleports,
               counts: { usable: rows.filter(row => row.available).length, total: rows.length } }); return;
           }
           if (route === '/api/skill-guide-catalogue') { await json(request, response, 200, skillGuideCatalogue); return; }

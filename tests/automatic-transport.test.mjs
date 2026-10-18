@@ -59,6 +59,7 @@ const spell = () => route('spell--varrock', { from: null, consumable: true, auto
 
 test('an archived F2P map does not confirm activation; personal overrides confirm outward availability', () => {
   const f = fixture();
+  f.state.members[0].teleports = [{ id: 'fixture-home', destination: '12853', available: true, consumable: false }];
   f.state.rules['roll.teleports'] = true;
   f.state.members[0].f2pMap = { unlocked: ['13108'], at: '2026-01-01T00:00:00.000Z' };
   f.catalogue.routes = [route('away-stone', { from: null, kind: 'lodestone', automatic: { activation: 'touch' },
@@ -84,6 +85,7 @@ test('automatic OFF preserves declared-fact route behavior and never evaluates c
 
 test('standard spellbook aliases and selecting a free world use explicit F2P planning evidence', () => {
   const f = fixture({ items: [supply('Air rune'), supply('Fire rune'), supply('Law rune')] });
+  f.state.members[0].teleports = [{ id: 'fixture-home', destination: '12853', available: true, consumable: false }];
   f.state.rules['roll.consumableTeleports'] = true;
   const teleport = spell(); teleport.requirements.conditions = ['standard-spellbook', 'free-to-play-world', 'teleport-origin-permitted'];
   f.catalogue.routes = [teleport];
@@ -139,6 +141,7 @@ test('a task consuming a finite quest reward cannot manufacture a renewable fare
 
 test('reviewed global item teleports use obtainable items while arbitrary global routes still need a confirmation', () => {
   const f = fixture({ items: [supply('Earth altar teleport', 'shop')] });
+  f.state.members[0].teleports = [{ id: 'fixture-home', destination: '12853', available: true, consumable: false }];
   f.state.rules['roll.consumableTeleports'] = true;
   const req = requirements({ items: [{ name: 'Earth altar teleport', quantity: 1, consumed: true }], conditions: ['teleport-origin-permitted'] });
   f.catalogue.routes = [route('reviewed-item', { from: null, consumable: true, automatic: { type: 'item-teleport' }, requirements: req }),
@@ -150,6 +153,7 @@ test('reviewed global item teleports use obtainable items while arbitrary global
 test('Explorer ring automatic itemAlternatives accepts either obtainable upgrade without blind confirmation', () => {
   for (const name of ["Explorer's ring 3", "Explorer's ring 4"]) {
     const f = fixture({ items: [supply(name)] });
+  f.state.members[0].teleports = [{ id: 'fixture-home', destination: '12853', available: true, consumable: false }];
     f.catalogue.routes = [route('explorer-ring--cabbage-port', { from: null, automatic: { type: 'item-teleport',
       itemAlternatives: ["Explorer's ring 3", "Explorer's ring 4"] }, requirements: requirements({ confirmations: ['explorer-ring-3-or-4-available'] }) })];
     assert.equal(evaluateTransportRoutes(f.world, f.state, 'actor1')[0].available, true);
@@ -163,7 +167,8 @@ test('Explorer ring automatic itemAlternatives accepts either obtainable upgrade
 });
 
 test('overrides remain personal and cannot bypass membership, consumables or endpoint section safety', () => {
-  const f = fixture(); f.catalogue.routes = [route('unknown', { requirements: requirements({ quests: ['Unobserved'] }) }),
+  const f = fixture();
+  f.state.members[0].teleports = [{ id: 'fixture-home', destination: '12853', available: true, consumable: false }]; f.catalogue.routes = [route('unknown', { requirements: requirements({ quests: ['Unobserved'] }) }),
     route('member', { members: true, f2p: false }), route('consumed', { consumable: true }), route('bad-endpoint', { to: 'missing' })];
   f.state.members[0].teleportOverrides = Object.fromEntries(f.catalogue.routes.map(r => [r.id, true]));
   let rows = evaluateTransportRoutes(f.world, f.state, 'actor1'); assert.equal(rows[0].available, true); assert.ok(rows.slice(1).every(row => !row.available));
