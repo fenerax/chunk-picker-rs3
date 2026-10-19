@@ -99,3 +99,20 @@ test('unavailable storage and invalid remembered values fall back to Map; viewer
 
 
 
+
+test('the Top bar section lists the button switches only when the top bar module is present', async () => {
+  const { createTopBarSettings } = await import('../app/web/top-bar-buttons.mjs');
+  const without = harness(); without.panel.settings();
+  assert.equal(without.button('Top bar'), undefined);
+  // Time estimates need the full catalogue harness, so this search leaves them out.
+  const h = harness({ remembered: 'topbar', supportsFeature: feature => feature !== 'training' });
+  h.ctx.topBar = createTopBarSettings({ ...h.ctx, preferences: id => h.ctx.preferences(id) });
+  h.panel.settings();
+  assert.deepEqual(h.headings(), ['Top bar']);
+  assert.ok(h.control('Show Search')); assert.equal(h.control('Show More').disabled, true);
+  h.control('Show Search').checked = false; await h.control('Show Search').events.change();
+  assert.deepEqual(h.calls.at(-1), { type: 'set-preference', memberId: 'actor1', preferenceId: 'topBarHidden', value: ['search'] });
+  assert.deepEqual(h.state().members[0].preferences.topBarHidden, ['search']);
+  const search = h.control('Find a setting'); search.value = 'sync levels'; search.events.input();
+  assert.deepEqual(h.headings(), ['Top bar']);
+});

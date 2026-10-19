@@ -1,0 +1,4 @@
+/* Buttons hidden from the top bar sit at the start of More, in the menu's own column. */
+.top-bar-overflow:not([hidden]){display:contents}
+.top-bar-overflow>.menu-heading:first-child{margin-top:0;padding-top:var(--space-2);border-top:0}
+.top-bar-settings .top-bar-intro>button{max-width:none;white-space:nowrap}
