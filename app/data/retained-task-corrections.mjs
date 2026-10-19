@@ -9,7 +9,8 @@ export const retainedTaskCorrections = evidence;
 export const retainedEntryCorrections = entryEvidence;
 export const retainedWordingCorrections = wordingEvidence;
 const reviewedCorrections = [...evidence.corrections, ...entryEvidence.corrections, ...wordingEvidence.corrections];
-const selectedCorrections = selectedRetainedTaskCorrections.filter(row => !reviewedCorrections.some(existing => JSON.stringify(existing) === JSON.stringify(row)));
+const reviewedKeys = new Set(reviewedCorrections.map(row => JSON.stringify(row)));
+const selectedCorrections = selectedRetainedTaskCorrections.filter(row => !reviewedKeys.has(JSON.stringify(row)));
 const hash = value => createHash('sha256').update(JSON.stringify(value)).digest('hex');
 const fields = new Set(['Level', 'Description', 'RequirementAlternatives', 'RequirementAlternativesDescription', 'Skills']);
 

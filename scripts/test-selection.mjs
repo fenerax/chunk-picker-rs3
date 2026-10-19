@@ -78,6 +78,8 @@ export const quickTests = new Set([
   "copy-lists-view.test.mjs",
   "custom-tasks-state.test.mjs",
   "dataset-bootstrap.test.mjs",
+  "dataset-json-check.test.mjs",
+  "dataset-packs.test.mjs",
   "dataset-features.test.mjs",
   "dataset-profile.test.mjs",
   "death-settings.test.mjs",

@@ -15,9 +15,12 @@ export async function loadDatasetInputs(dataset, { loadDefinitions = true, loadT
   const selection = await dataset.json('app/data/original-data.2026-10-13.v1.json');
   const pinned = input => {
     if (typeof input?.path !== 'string' || !/^[a-f0-9]{64}$/.test(input.sha256 ?? '')) throw new TypeError('Invalid dataset input selection.');
-    const bytes = dataset.bytes(input.path);
+    const { bytes, sha256: verified } = typeof dataset.verifiedBytes === 'function' ? dataset.verifiedBytes(input.path) : { bytes: dataset.bytes(input.path) };
     if (path.isAbsolute(input.path) || input.path.split(/[\\/]/).some(part => !part || part === '.' || part === '..')) throw new TypeError('Invalid dataset input path.');
-    const digest = dataset.capabilities?.independent === true ? createHash('sha256').update(bytes).digest('hex') : sha256RepositoryText(bytes);
+    // A provider's verified digest is of these exact bytes. Repository text
+    // hashes the same bytes unless it has CRLF pairs to normalize.
+    const digest = dataset.capabilities?.independent === true ? verified ?? createHash('sha256').update(bytes).digest('hex')
+      : verified !== undefined && !bytes.includes('\r\n') ? verified : sha256RepositoryText(bytes);
     if (digest !== input.sha256) throw new Error('Dataset input hash mismatch.');
     return bytes;
   };

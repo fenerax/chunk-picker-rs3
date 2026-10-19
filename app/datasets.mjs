@@ -9,6 +9,7 @@ import { safeArtFile, packRelative, PACK_VERSION } from './packs.mjs';
 import { loadGameDefaults } from './game-defaults.mjs';
 import { loadDatasetProfile } from './dataset-profile.mjs';
 import { checkedBatches } from './checked-batches.mjs';
+import { createJsonSyntaxCheck, checkJsonSyntax } from './dataset-json-check.mjs';
 
 export const DATASET_CONTRACT = Object.freeze({ datasetId: 'duo-legacy', datasetContractVersion: 1, identityNamespace: 'rs3', coordinateSystem: 'surface-grid-v1', corePackApi: 1 });
 export const DATASET_OVERLAY_ORDER = Object.freeze({
@@ -27,6 +28,10 @@ const fingerprint = stat => `${stat.dev}:${stat.ino}:${stat.size}:${stat.mtimeMs
 const samePath = (a, b) => process.platform === 'win32' ? a.toLowerCase() === b.toLowerCase() : a === b;
 export function datasetFailure(message = 'The selected data pack is invalid.') { const error = new Error(message); error.code = 'DATASET_PACK_INVALID'; return error; }
 const fail = () => { throw datasetFailure(); };
+let loadTrace = null;
+/** Profiling only (scripts/perf/dataset-load.mjs): called with each load stage name. */
+export function traceDatasetLoad(callback) { loadTrace = typeof callback === 'function' ? callback : null; }
+const mark = stage => { loadTrace?.(stage); };
 
 export function encodeDatasetValue(value) {
   if (value === undefined) return { $datasetType: 'Undefined' };
@@ -47,6 +52,17 @@ export function decodeDatasetValue(value) {
       fail();
     }
     return Object.fromEntries(Object.entries(value).map(([key, entry]) => [key, decodeDatasetValue(entry)]));
+  }
+  return value;
+}
+// In-place twin of decodeDatasetValue for a tree this module has just parsed
+// and owns: same result and refusals, without copying every object and array.
+export function decodeParsedDatasetValue(value) {
+  if (Array.isArray(value)) { for (let index = 0; index < value.length; index++) value[index] = decodeParsedDatasetValue(value[index]); return value; }
+  if (plain(value)) {
+    if (Object.hasOwn(value, '$datasetType')) return decodeDatasetValue(value);
+    // JSON.parse made every key an own data property, so assignment never reaches a setter.
+    for (const key of Object.keys(value)) value[key] = decodeParsedDatasetValue(value[key]);
   }
   return value;
 }
@@ -93,19 +109,46 @@ export function datasetSourcePath(key, { root, mapAssetsDir, gameDataDir }) {
   if (key.startsWith('local-game/')) return { root: gameDataDir, relative: key.slice(11), optional: true };
   return { root, relative: key, optional: false };
 }
-async function inspectFile(root, record, collect = false, limit = DATASET_LIMITS.fileBytes) {
+const readChunkBytes = 1024 * 1024;
+/** One read pass: every byte is hashed (and optionally syntax-checked) as it
+ * arrives, while the next chunk is already being read. Collected files are
+ * read straight into one exact-size buffer; others reuse two bounded chunks,
+ * so no file is held twice. */
+async function inspectFile(root, record, collect = false, limit = DATASET_LIMITS.fileBytes, check = null) {
   const filename = await safeArtFile(root, record.path), handle = await open(filename, 'r');
+  let pending;
   try {
     const before = await handle.stat();
     if (!before.isFile() || before.size > limit || (record.bytes !== undefined && before.size !== record.bytes)) fail();
-    const hash = createHash('sha256'), pieces = collect ? [] : null;
-    for await (const bytes of handle.createReadStream({ autoClose: false })) { hash.update(bytes); if (pieces) pieces.push(bytes); }
+    const hash = createHash('sha256'), data = collect ? Buffer.allocUnsafe(before.size) : null;
+    const size = Math.max(1, Math.min(readChunkBytes, before.size));
+    const chunks = [Buffer.allocUnsafe(size), ...(data ? [] : [Buffer.allocUnsafe(size)])];
+    // Past the expected end a collected read probes a spare chunk: a file that
+    // grew after stat is refused, as its changed fingerprint was before.
+    const readAt = (position, turn) => {
+      const target = data && position < data.length ? data : chunks[turn % chunks.length], offset = target === data ? position : 0;
+      return handle.read(target, offset, Math.min(readChunkBytes, target.length - offset), position)
+        .then(({ bytesRead }) => ({ bytes: target.subarray(offset, offset + bytesRead), collected: target === data }));
+    };
+    let total = 0, turn = 0;
+    pending = readAt(0, turn);
+    while (true) {
+      const { bytes, collected } = await pending;
+      pending = undefined;
+      if (!bytes.length) break;
+      if (data && !collected) fail();
+      total += bytes.length;
+      pending = readAt(total, ++turn);
+      hash.update(bytes); check?.feed(bytes);
+    }
+    if (total !== before.size) fail();
+    check?.end();
     const digest = hash.digest('hex');
     if (record.sha256 !== undefined && record.sha256 !== digest) fail();
     await safeArtFile(root, record.path);
     if (fingerprint(before) !== fingerprint(await handle.stat()) || fingerprint(before) !== fingerprint(await lstat(filename))) fail();
-    return { filename, fingerprint: fingerprint(before), bytes: before.size, sha256: digest, ...(pieces ? { data: Buffer.concat(pieces) } : {}) };
-  } finally { await handle.close(); }
+    return { filename, fingerprint: fingerprint(before), bytes: before.size, sha256: digest, ...(data ? { data } : {}) };
+  } finally { await pending?.catch(() => {}); await handle.close(); }
 }
 function safeSyncFile(filename) {
   const base = path.parse(filename).root; let current = base;
@@ -142,7 +185,7 @@ async function loadPack(packsDir, choice, kind) {
     || manifest.files.length > DATASET_LIMITS.files || !digestPattern.test(manifest.ruleContractHash ?? '')) fail();
   for (const [key, value] of Object.entries(DATASET_CONTRACT)) if (manifest.requires[key] !== value) fail();
   if (kind === 'data' && !isDeepStrictEqual(manifest.overlayOrder, DATASET_OVERLAY_ORDER)) fail();
-  const records = new Map(), opened = new Map(); let total = 0;
+  const records = new Map(), opened = new Map(); let total = 0, snapshotBytes;
   for (const record of manifest.files) {
     packRelative(record?.path);
     if (record.path === 'pack.json' || records.has(record.path.toLowerCase()) || !Number.isSafeInteger(record.bytes) || record.bytes < 0 || record.bytes > DATASET_LIMITS.fileBytes
@@ -150,19 +193,22 @@ async function loadPack(packsDir, choice, kind) {
       || (record.kind === 'evidence' ? !record.path.endsWith('.mjs') : record.kind === 'input' ? !/\.json(?:\.gz)?$/.test(record.path) : !record.path.endsWith('.json'))) fail();
     total += record.bytes; if (total > DATASET_LIMITS.totalBytes) fail();
     records.set(record.path.toLowerCase(), record);
-    const { data: payload, ...checked } = await inspectFile(root, record, record.kind === 'input');
-    if (record.kind === 'input') {
-      const json = record.path.endsWith('.json.gz') ? gunzipSync(payload, { maxOutputLength: DATASET_LIMITS.fileBytes }) : payload;
-      JSON.parse(json.toString('utf8')); // Validate eagerly; retain no parsed input tree.
-    }
+    // Validate every input eagerly while it streams; retain no parsed input
+    // tree or input bytes. The values snapshot is parsed from this same read.
+    const gzip = record.kind === 'input' && record.path.endsWith('.json.gz');
+    const snapshot = record.path === manifest.catalogues.values;
+    const { data: payload, ...checked } = await inspectFile(root, record, gzip || snapshot, DATASET_LIMITS.fileBytes,
+      record.kind === 'input' && !gzip ? createJsonSyntaxCheck() : null);
+    if (gzip) checkJsonSyntax(gunzipSync(payload, { maxOutputLength: DATASET_LIMITS.fileBytes }));
+    if (snapshot) snapshotBytes = payload;
     opened.set(record.path, { ...checked, record });
   }
   if (![manifest.catalogues.values, manifest.provenance].every(key => typeof key === 'string' && opened.has(key))) fail();
   const valuesRecord = opened.get(manifest.catalogues.values);
   if (valuesRecord.record.kind !== 'generated' || opened.get(manifest.provenance).record.kind !== 'provenance') fail();
-  const snapshot = JSON.parse((await inspectFile(root, valuesRecord.record, true)).data.toString('utf8'));
+  const snapshot = JSON.parse(snapshotBytes.toString('utf8'));
   if (snapshot.schemaVersion !== 1 || !plain(snapshot.values)) fail();
-  return { root, manifest, opened, values: decodeDatasetValue(snapshot.values) };
+  return { root, manifest, opened, values: decodeParsedDatasetValue(snapshot.values) };
 }
 
 /** Complete selection resolves and verifies before callers compile a world or open storage. */
@@ -184,6 +230,7 @@ export async function resolveDataset(options = {}) {
     const catalogue = installed ? installed.profile.catalogue : await datasetCatalogue(options);
     const receipt = options.selection === undefined ? await readSelection(selectionPath) : structuredClone(options.selection);
     if (receipt !== null) validateSelection(receipt);
+    mark('profile');
     const packed = Boolean(receipt?.data), opened = new Map(), files = [], parsed = new Map(); let trackedValues, legacyMetadataFiles, legacyMetadataSnapshots, legacyMetadataResolver;
     if (installed && !packed) fail();
     const metadataKeys = catalogue.inputs.filter(key => key.startsWith('local-map/') && key.endsWith('.json'));
@@ -193,7 +240,8 @@ export async function resolveDataset(options = {}) {
     if (packed) {
       if (options.legacyMetadataSnapshots !== undefined) fail();
       if (!receipt.rulesText) fail();
-      const data = await loadPack(packsDir, receipt.data, 'data'), text = await loadPack(packsDir, receipt.rulesText, 'rules-text');
+      const data = await loadPack(packsDir, receipt.data, 'data'); mark('data-pack');
+      const text = await loadPack(packsDir, receipt.rulesText, 'rules-text'); mark('rules-pack');
       if (data.manifest.ruleContractHash !== text.manifest.ruleContractHash || !plain(data.manifest.capabilities) || !plain(data.manifest.environment)) fail();
       environment = datasetEnvironment(data.manifest.environment); capabilities = datasetCapabilities(environment);
       if (JSON.stringify(capabilities) !== JSON.stringify(data.manifest.capabilities)) fail();
@@ -212,6 +260,7 @@ export async function resolveDataset(options = {}) {
       if ([...catalogue.valueKeys, ...catalogue.ruleTextValueKeys].some(key => !Object.hasOwn(values, key))) fail();
       const allowedValues = new Set([...catalogue.valueKeys, ...catalogue.ruleTextValueKeys]);
       if (Object.keys(values).some(key => !allowedValues.has(key))) fail();
+      mark('values');
       // Generated indexes cannot change meaning without changing the frozen raw
       // inputs whose digest binds storage. Compare the authored transcriptions.
       for (const key of catalogue.inputs.filter(name => /(?:^|\/)legacy-(?:dataset|rules-text)-values\.[^/]+\.json$/.test(name))) {
@@ -219,8 +268,9 @@ export async function resolveDataset(options = {}) {
         const pack = /legacy-rules-text-values/.test(key) ? text : data;
         const raw = JSON.parse((await inspectFile(pack.root, entry.record, true)).data.toString('utf8'));
         if (raw.schemaVersion !== 1 || !plain(raw.values)) fail();
-        for (const [name, value] of Object.entries(decodeDatasetValue(raw.values))) if (!Object.hasOwn(values, name) || !isDeepStrictEqual(values[name], value)) fail();
+        for (const [name, value] of Object.entries(decodeParsedDatasetValue(raw.values))) if (!Object.hasOwn(values, name) || !isDeepStrictEqual(values[name], value)) fail();
       }
+      mark('legacy-values');
       const capturedContracts = {};
       for (const key of catalogue.inputs.filter(name => /(?:^|\/)original-rules-ui\.[^/]+\.json$/.test(name))) {
         const entry = opened.get(key); if (!entry) fail();
@@ -228,6 +278,7 @@ export async function resolveDataset(options = {}) {
         capturedContracts[key] = datasetRuleTextContract(JSON.parse(checked.data.toString('utf8')));
       }
       ruleContractHash = datasetRuleContractHash(values, catalogue.ruleContractValueKeys, capturedContracts);
+      mark('rule-contract');
       if (ruleContractHash !== data.manifest.ruleContractHash) fail();
       version = data.manifest.version;
       if (datasetDigest(files, capabilities, catalogue.definitionOverlays) !== data.manifest.datasetDigest) fail();
@@ -286,6 +337,7 @@ export async function resolveDataset(options = {}) {
     const digest = datasetDigest(files, capabilities, catalogue.definitionOverlays);
     if (options.digest !== undefined && options.digest !== digest) fail();
     if (installed && (installed.profile.datasetDigest !== digest || installed.profile.ruleContractHash !== ruleContractHash)) fail();
+    mark('digest');
     const legacyGameDefaults = installed?.profile.gameDefaults ?? await loadGameDefaults('duo-legacy');
     const provider = {
       gameDefaults: legacyGameDefaults,
@@ -327,6 +379,8 @@ export async function resolveDataset(options = {}) {
           return bytes;
         } catch { throw datasetFailure(); }
       },
+      // bytes() checked these exact bytes against the pinned record digest.
+      verifiedBytes(key) { const bytes = provider.bytes(key); return { bytes, sha256: opened.get(key).record.sha256 }; },
       json(key) { try { if (!parsed.has(key)) parsed.set(key, JSON.parse(provider.bytes(key).toString('utf8'))); return parsed.get(key); } catch { throw datasetFailure(); } },
       value(key, fallback) {
         if (packed) { if (!Object.hasOwn(values, key)) fail(); return values[key]; }
