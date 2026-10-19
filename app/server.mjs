@@ -76,6 +76,9 @@ import { buildXpChoiceCatalogue, buildXpChoiceView } from './core/xp-choices.mjs
 import { createArtProvider } from './art-provider.mjs';
 import { artBinding } from './art-bindings.mjs';
 
+// Operator-supplied context adapter; HTTP input cannot select it.
+export const frontDoorIngressProtocol = 1;
+
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 // A fingerprint of the shipped app code; open pages compare it after reconnecting to offer a refresh.
 const APP_VERSION = (() => {
@@ -350,6 +353,7 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
   taskWorkerOptions, idleMemoryOptions, shutdownDeadlineMs = 10000, retention, predictionPrewarm = true,
   schedulingClock = { now: () => performance.now(), setTimeout, clearTimeout },
   publicOrigin = process.env.RS3_PUBLIC_ORIGIN, rateLimits = {}, usageRateLimits = {},
+  requestContextFor = requestContext,
   // Optional second listener on 127.0.0.1 for Tailscale Funnel, which can only proxy to loopback.
   loopbackPort = process.env.RS3_LOOPBACK_PORT ? Number(process.env.RS3_LOOPBACK_PORT) : undefined,
   httpServer, httpLoopbackServer, startupConnections, onRequestHandler, startupSignal,
@@ -1089,7 +1093,7 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
   });
   let importingBackup = false;
   const applicationRequestHandler = async (request, response, lease) => {
-    const security = requestContext(request, { host, publicOrigin });
+    const security = requestContextFor(request, { host, publicOrigin });
     response.setHeader('X-Content-Type-Options', 'nosniff');
     response.setHeader('Referrer-Policy', 'no-referrer');
     response.setHeader('Cache-Control', PRIVATE_NO_STORE);
@@ -2077,8 +2081,11 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
       await json(request, response, error.status ?? 400, { message: error.status ? error.message : 'Invalid URL.', ...(error.code ? { code: error.code } : {}) });
     } finally { lease?.finish(); }
   };
-  const server = httpServer ?? http.createServer(requestHandler);
-  const loopbackServer = httpLoopbackServer ?? (loopbackPort === undefined ? null : http.createServer(requestHandler));
+  // The private ingress envelope expands already parsed headers. Keep the
+  // ordinary listener budget unchanged when no operator adapter is selected.
+  const headerOptions = { maxHeaderSize: requestContextFor === requestContext ? http.maxHeaderSize : 64 * 1024 };
+  const server = httpServer ?? http.createServer(headerOptions, requestHandler);
+  const loopbackServer = httpLoopbackServer ?? (loopbackPort === undefined ? null : http.createServer(headerOptions, requestHandler));
   for (const listener of [server, loopbackServer]) listener?.on('connection', socket => { connections.add(socket); socket.once('close', () => connections.delete(socket)); });
   let activationPending;
   const handle = {
