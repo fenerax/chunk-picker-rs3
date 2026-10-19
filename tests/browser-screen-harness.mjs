@@ -101,6 +101,8 @@ export function runScreenGraph(context, modules) {
   // The live legend/toolbar DOM is covered by map-control-discovery.test.mjs.
   context.createMapControlDiscovery ??= () => ({ mount() {}, close() {}, isOpen: () => false });
   context.mountMembersStartEntry ??= () => ({ refresh() {} });
+  // The top bar layout and its Settings rows are covered by top-bar-buttons.test.mjs.
+  context.createScreenTopBar ??= () => {};
   const loaded = new Map();
   function load(url) {
     if (loaded.has(url.href)) return loaded.get(url.href);
