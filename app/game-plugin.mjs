@@ -12,7 +12,7 @@ export async function openGamePlugin({ dataDir, store, world, registry, questMap
   serializeMutation, checkRequestOrigin, notify = () => {}, clock = Date.now }) {
   const keys = await openPluginKeys({ dataDir, clock });
   const positions = new Map(), pending = new Map(), sequences = new Map(), buckets = new Map(), diagnostics = new Map();
-  let statusRevision = -1; const statuses = new Map(); let closed = false;
+  let statusRevision = -1; const statuses = new Map(); let closed = false, warming = false;
   function state() { return store.getCalculationSnapshot().state; }
   function member(player) {
     const owner = state().members.find(owner => owner.id === player);
@@ -36,6 +36,12 @@ export async function openGamePlugin({ dataDir, store, world, registry, questMap
     const owner = member(player), revision = store.getInfo().revision;
     if (revision !== statusRevision) { statuses.clear(); statusRevision = revision; }
     const pool = store.peekRollPool(player);
+    // Nobody may have the picker page open. Warm the pool after this response, outside the
+    // mutation queue, so a later status can say "can be picked next".
+    if (!pool && store.rollPool && !warming) {
+      warming = true;
+      setTimeout(() => { warming = false; if (!closed) try { store.rollPool(player); } catch {} }, 0).unref?.();
+    }
     if (!statuses.has(player) || statuses.get(player).pool !== pool) {
       const shared = registry.resolve(state().rules)['access.shared'];
       statuses.set(player, { pool, unlocked: new Set((shared ? state().members : [owner]).flatMap(owner => owner.unlocked).map(id => id.split('-')[0])),

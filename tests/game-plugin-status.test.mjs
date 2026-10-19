@@ -77,3 +77,27 @@ test('world hops preserve pending skills; switching beta/live copies starts a ne
   await send(3, { id: 3, beta: true }, { ATTACK: { level: 1, xp: 0 } });
   const review = controller.review(identity, 'a'); assert.equal(review.skills.length, 1); assert.equal(review.world.beta, true);
 });
+
+test('a missing pool is warmed after the status reply, so the next status shows available chunks', async t => {
+  const dataDir = await mkdtemp(path.join(tmpdir(), 'picker-plugin-warm-'));
+  let at = Date.now(), pool = null, calculated = 0, output;
+  const state = { revision: 0, rules: {}, tasks: [], members: [{ id: 'a', name: 'Explorer', unlocked: ['12850'], selected: [], pendingRoll: [], completedTasks: [] }] };
+  const controller = await openGamePlugin({ dataDir, clock: () => at,
+    store: { getInfo: () => ({ revision: 0 }), getCalculationSnapshot: () => ({ state, members: state.members }), peekRollPool: () => pool,
+      rollPool: () => { calculated++; pool = { eligible: [{ id: '13107' }] }; return pool; } },
+    world: { chunks: new Map([['12850', { name: 'Lumbridge' }], ['13107', { name: 'Mine' }]]) },
+    registry: { resolve: () => ({}) }, questMapping: new Map(),
+    serializeMutation: operation => operation(), bodyJSON: async () => ({ v: 1, seq: 1, sentAt: new Date(at).toISOString(), position: { x: 51, z: 51, floor: 0 } }),
+    json: async (_request, _response, _status, value) => { output = value; }, checkRequestOrigin: () => {},
+  });
+  t.after(async () => { await controller.close(); await rm(dataDir, { recursive: true, force: true }); });
+  const { key } = await controller.create({ admin: true }, { memberId: 'a', label: 'Warm test' });
+  const request = { method: 'POST', url: '/api/plugin/v1/report', headers: { authorization: `Bearer ${key}` } };
+  await controller.handle(request, {}, { route: request.url, security: {} });
+  assert.equal(output.state, 'locked'); assert.equal(calculated, 0, 'The reply never waits for a pool');
+  await new Promise(resolve => setTimeout(resolve, 5));
+  assert.equal(calculated, 1);
+  at += 1001; request.method = 'GET'; request.url = '/api/plugin/v1/status';
+  await controller.handle(request, {}, { route: request.url, security: {} });
+  assert.equal(output.state, 'available'); assert.equal(calculated, 1);
+});

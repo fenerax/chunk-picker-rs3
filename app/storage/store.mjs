@@ -1087,6 +1087,8 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     getCalculationSnapshot: capturedCalculation,
     // Advisory clients may reuse an existing pool, never trigger travel/task work.
     peekRollPool(memberId) { refreshSnapshots(); return fullPools?.[memberId] ?? null; },
+    // Computes the pool when no page has asked yet; memoized per state like the page's own pools.
+    rollPool(memberId) { return rollPools()[memberId] ?? null; },
     releaseTaskCaches() {
       calculationSnapshot = undefined; poolState = undefined; fullPools = undefined; playPools = undefined;
       serializedFields = new WeakMap();
