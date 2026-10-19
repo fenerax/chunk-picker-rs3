@@ -21,6 +21,7 @@ import { dialogUsageId, handleUsageControl } from '../app/web/usage-client.mjs';
 import { usageSummary } from '../app/web/usage-model.mjs';
 import { supportsDatasetFeature, applyDatasetFeatureControls, applyDatasetLaunchCopy } from '../app/web/dataset-features.mjs';
 import { buildChunkPlanningIndex } from '../app/tasks/chunk-planning-index.mjs';
+import { createLiveSwapCommandClient } from '../app/web/live-swap-client.mjs';
 
 const entry = new URL('../app/web/main.mjs', import.meta.url);
 const imports = /^import\s+([\s\S]*?)\s+from\s+['"]([^'"]+)['"];?\r?\n/gm;
@@ -69,6 +70,24 @@ export function runScreenGraph(context, modules) {
   context.createCalculationFeedback ??= options => createCalculationFeedback({ ...options, setTimer: context.setTimeout, clearTimer: context.clearTimeout });
   context.calculationLabel ??= calculationLabel;
   context.createMapActivityLayers ??= createMapActivityLayers;
+  const commandStorage = new Map();
+  context.createLiveSwapCommandClient ??= options => createLiveSwapCommandClient({ ...options,
+    acquireSession: () => () => {},
+    storage: { getItem: key => commandStorage.get(key) ?? null, setItem: (key, value) => commandStorage.set(key, value) },
+    fetch: async (path, options) => {
+      // Session registration is transport plumbing; these screen fixtures inspect
+      // their command/state traffic. Protocol persistence has its own tests.
+      if (path === '/api/action-session') return { ok: true, status: 200, json: async () => ({ slot: 0, generation: 1, sequence: 0, acknowledged: 0 }) };
+      const response = await context.fetch(path, options);
+      if (!path.startsWith('/api/command')) return response;
+      if (!response.ok) return { ...response, status: response.status ?? 500 };
+      return { ...response, ok: response.ok, status: response.status ?? 200, headers: response.headers, json: async () => {
+        const value = await response.json();
+        return { ...value, receipt: { requestId: JSON.parse(options.body).requestId, revision: value.state?.revision,
+          outcome: { type: JSON.parse(options.body).command.type, revision: value.state?.revision } } };
+      } };
+    },
+  });
   context.dialogUsageId ??= dialogUsageId;
   context.handleUsageControl ??= handleUsageControl;
   context.usageSummary ??= usageSummary;

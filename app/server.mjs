@@ -1,4 +1,7 @@
 import { resolveDataset } from './datasets.mjs';
+import { verifyDatasetBinding } from './dataset-binding.mjs';
+import { createLiveSwapAdmission } from './live-swap-admission.mjs';
+import { reportActivationTiming } from './live-swap-timing.mjs';
 import { defaultGameDirectory, prepareGameStorage, gameArtOptions, datasetFeature, unavailableDatasetFeature, requireGameBackup, preserveGameIdentity } from './game-profile.mjs';
 import { prepareServerDefinitions, preparedDefinitionStages } from './dataset-pipeline.mjs';
 import { datasetCatalogueKey, datasetBrowserPayload, datasetLocalMetadataBytes } from './dataset-catalogues.mjs';
@@ -76,11 +79,16 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 // A fingerprint of the shipped app code; open pages compare it after reconnecting to offer a refresh.
 const APP_VERSION = (() => {
   const hash = createHash('sha256');
-  for (const dir of ['web', 'core', 'tasks', 'data']) {
-    const base = path.join(ROOT, 'app', dir);
-    let names = []; try { names = readdirSync(base).filter(name => /\.(mjs|css|html)$/.test(name)).sort(); } catch {}
-    for (const name of names) { hash.update(name); hash.update(readFileSync(path.join(base, name))); }
+  function visit(directory) {
+    for (const entry of readdirSync(directory, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name, 'en'))) {
+      const file = path.join(directory, entry.name);
+      if (entry.isDirectory()) visit(file);
+      else if (entry.isFile() && /\.(mjs|css|html)$/.test(entry.name)) {
+        hash.update(path.relative(ROOT, file).replaceAll('\\', '/')); hash.update(readFileSync(file));
+      }
+    }
   }
+  visit(path.join(ROOT, 'app'));
   return hash.digest('hex').slice(0, 12);
 })();
 const MAX_BODY = 32 * 1024 * 1024;
@@ -108,7 +116,7 @@ export const routePermissions = Object.freeze({
     '/api/backups/:id': 'write', '/api/members-start': 'write', '/api/events': 'read',
   }),
   POST: Object.freeze({
-    '/api/sandbox/evaluate': 'write', '/api/prediction-intent': 'write', '/api/pool-ranking-intent': 'write', '/api/feedback': 'write', '/api/feedback/:id/status': 'admin',
+    '/api/action-session': 'write', '/api/sandbox/evaluate': 'write', '/api/prediction-intent': 'write', '/api/pool-ranking-intent': 'write', '/api/feedback': 'write', '/api/feedback/:id/status': 'admin',
     '/api/feedback/seen': 'write', '/api/usage': 'usage',
     '/api/invites': 'admin', '/api/invites/:id/player': 'admin', '/api/invites/:id/revoke': 'admin',
     '/api/overlays': 'admin', '/api/overlays/:id/revoke': 'admin',
@@ -224,7 +232,8 @@ async function commandJSON(request, response, saved) {
   const metadata = saved.unchangedFields?.length
     ? `,"baseRevision":${saved.baseRevision},"unchangedFields":${JSON.stringify(saved.unchangedFields)}` : '';
   const view = saved.format ? `,"format":${JSON.stringify(saved.format)},"schemaVersion":1` : '';
-  return jsonBytes(request, response, 200, Buffer.from(`{"state":${saved.stateJSON},"pools":${JSON.stringify(saved.pools)}${metadata}${view}}`));
+  const receipt = saved.receipt ? `,"receipt":${JSON.stringify(saved.receipt)}` : '';
+  return jsonBytes(request, response, 200, Buffer.from(`{"state":${saved.stateJSON},"pools":${JSON.stringify(saved.pools)}${metadata}${view}${receipt}}`));
 }
 async function bodyJSON(request, maxBytes = MAX_BODY) {
   if (!/^application\/json(?:\s*;|$)/i.test(request.headers['content-type'] ?? '')) throw httpError(415, 'Use application/json.');
@@ -343,18 +352,23 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
   // Optional second listener on 127.0.0.1 for Tailscale Funnel, which can only proxy to loopback.
   loopbackPort = process.env.RS3_LOOPBACK_PORT ? Number(process.env.RS3_LOOPBACK_PORT) : undefined,
   httpServer, httpLoopbackServer, startupConnections, onRequestHandler, startupSignal,
+  // Operator capability only: no HTTP endpoint can acquire writer ownership.
+  liveSwap,
 } = {}) {
   const initializationStarted = performance.now();
   dataset ??= await resolveDataset({ packsDir, selectionPath: packSelection, mapAssetsDir, gameDataDir });
   worldImagesRoot ??= path.join(ROOT, ...(dataset.gameDefaults.compatibility?.worldImagesPath ?? ['.local', 'world-images']));
   adoptLegacyMetadataProvider(dataset);
   const privateAddon = await loadPrivateAddon(privateAddonOptions);
-  const appVersion = privateAddon ? createHash('sha256').update(`${APP_VERSION}:${privateAddon.addonSha256}`).digest('hex').slice(0, 12) : APP_VERSION;
+  const appVersion = liveSwap?.version ?? (privateAddon ? createHash('sha256').update(`${APP_VERSION}:${privateAddon.addonSha256}`).digest('hex').slice(0, 12) : APP_VERSION);
   dataset = datasetWithPrivateAddon(dataset, privateAddon);
   // Refuse a broken executable installation before opening or preparing saves.
   const originalSyncIntegration = await loadOriginalSyncIntegration(dataset, undefined, privateAddon);
   dataDir ??= defaultGameDirectory(ROOT, dataset);
-  await prepareGameStorage(dataDir, dataset);
+  if (liveSwap?.standby) {
+    const binding = await verifyDatasetBinding(dataDir, dataset);
+    if (dataset.capabilities?.independent && !binding.bound) throw new Error('Standby requires existing bound storage.');
+  } else await prepareGameStorage(dataDir, dataset);
   if (initialImport && !datasetFeature(dataset, 'originalSync')) throw httpError(422, 'Restore a starter backup through Backup & Import.');
   const browserDataset = await datasetBrowserPayload(dataset);
   const startupTimingMs = { cataloguesMs: 0, workerAndReferencesMs: 0, storeMs: 0, authMs: 0, variantMs: 0, stateResponseMs: 0 };
@@ -526,10 +540,12 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
     initialState.tasks = structuredClone(dataset.gameDefaults.tasks ?? []);
     initialState.provenance = { dataset: { id: dataset.datasetId, contractVersion: dataset.datasetContractVersion, digest: dataset.digest } };
   }
+  const handover = createLiveSwapAdmission();
   let store;
   prepareState = preserveGameIdentity(dataset, prepareState);
   try { store = await openStore({ dataDir, world: indexedWorld, registry: ruleRegistry, initialState, migrateState, prepareState, beforeCommit, now, random, retention, membersStartBanks, xpChoiceCatalogue, progressQuestPoints: createProgressQuestPoints(parsedDefinitions),
-    taskCatalogue: taskWorker ? new Map([...taskWorker.catalogue, ...taskWorker.dynamicCatalogue].map(({ level, ...task }) => [task.id, task])) : undefined }); }
+    taskCatalogue: taskWorker ? new Map([...taskWorker.catalogue, ...taskWorker.dynamicCatalogue].map(({ level, ...task }) => [task.id, task])) : undefined,
+    readOnly: liveSwap?.standby === true, liveSwapStrict: liveSwap?.strict === true, expectedCheckpoint: liveSwap?.checkpoint, onActivationTiming: liveSwap?.onActivationTiming }); }
   catch (error) { await taskWorker?.close(); throw error; }
   try {
     startupSignal?.throwIfAborted();
@@ -548,19 +564,20 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
   const token = store.getAccessToken();
   // The first map belongs to the master owner. Feedback aliases her private
   // master sessions to linked owner invitations without changing History actors.
-  const feedbackOwnerId = store.getState().members[0]?.id;
+  let feedbackOwnerId = store.getCalculationSnapshot().members[0]?.id;
   const feedbackActor = identity => identity.kind === 'master' && feedbackOwnerId
     ? { ...identity.actor, memberId: feedbackOwnerId } : identity.actor;
   let invites, feedback, overlays, usage;
-  try {
+  async function openSidecars() {
     invites = await openInviteStore({ dataDir, masterToken: token, masterLabel: dataset.gameDefaults.masterLabel }); feedback = await openFeedbackStore({ dataDir });
-    usage = await openUsageRoute({ dataDir, members: store.getState().members,
+    usage = await openUsageRoute({ dataDir, readOnly: liveSwap?.standby === true, members: store.getCalculationSnapshot().members,
       authenticate: (request, security) => invites.authenticate(request, security), bodyJSON, json,
       ...(now === undefined ? {} : { now: () => typeof now === 'function' ? now() : now }), rateLimits: usageRateLimits });
     overlays = await openOverlays({ dataDir, store, world: indexedWorld, webRoot, publicOrigin,
       authenticateAdmin: (request, security) => invites.authenticate(request, security), checkRequestOrigin, serializeMutation,
       unauthenticated: key => limits.unauthenticated(key) });
   }
+  try { await openSidecars(); }
   catch (error) { await Promise.all([invites?.close(), feedback?.close(), usage?.close(), store.close(), taskWorker?.close()]); throw error; }
   if (startupSignal?.aborted) { await overlays.close(); await Promise.all([store.close(), taskWorker?.close(), invites.close(), feedback.close(), usage.close()]); startupSignal.throwIfAborted(); }
   startupTimingMs.authMs = performance.now() - authStarted;
@@ -784,17 +801,19 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
     return { activeTaskIds, revision: claims.revision, key };
   }
   function scheduleClaimCleanup() {
-    if (closed) return;
+    if (closed || handover.frozen || liveSwap?.standby) return;
     if (claimCleanupRun) { claimCleanupAgain = true; return; }
     if (claimCleanupImmediate) return;
     claimCleanupImmediate = setImmediate(() => {
       claimCleanupImmediate = undefined;
       claimCleanupRun = Promise.resolve().then(async () => {
-        if (closed) return;
+        if (closed || handover.frozen || liveSwap?.standby) return;
         const candidates = claimCleanupCandidates();
         if (!candidates) return;
         lastClaimCheckKey = candidates.key;
-        await serializeMutation(() => closed ? undefined : store.reconcileTaskClaims(candidates.activeTaskIds, candidates.revision));
+        const lease = handover.begin();
+        try { await serializeMutation(() => closed ? undefined : store.reconcileTaskClaims(candidates.activeTaskIds, candidates.revision)); }
+        finally { lease.finish(); }
       }).catch(error => {
         if (error.code === 'REVISION_CONFLICT') lastClaimCheckKey = undefined;
         else console.error('Could not tidy task claims.', { code: error.code ?? 'CLAIM_CLEANUP_FAILED' });
@@ -872,7 +891,7 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
     return calculationSnapshot;
   }
   function schedulePredictions(delay = 1000) {
-    if (!taskWorker || closed || !predictionPrewarm && !poolRanking.interestedMembers().size) return;
+    if (!taskWorker || closed || liveSwap?.standby || !predictionPrewarm && !poolRanking.interestedMembers().size) return;
     schedulingClock.clearTimeout(prewarmTimer);
     // Cheap guards run before cloning state, computing pools, or starting the
     // prediction worker. Foreground loading wins even on slow state transfers.
@@ -1068,7 +1087,7 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
     for (const client of clients) client.write(`event: worker\ndata: ${JSON.stringify(worker)}\n\n`);
   });
   let importingBackup = false;
-  const requestHandler = async (request, response) => {
+  const applicationRequestHandler = async (request, response, lease) => {
     const security = requestContext(request, { host, publicOrigin });
     response.setHeader('X-Content-Type-Options', 'nosniff');
     response.setHeader('Referrer-Policy', 'no-referrer');
@@ -1111,7 +1130,8 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
         response.writeHead(401, { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': PRIVATE_NO_STORE });
         response.end('Access required.'); return;
       }
-      await invites.touch(identity);
+      // Health probes must remain read only while standby/freeze is active.
+      if (route !== '/api/health' && !liveSwap?.standby) await invites.touch(identity);
       // A concurrent revoke can finish while persisting the usage timestamp.
       identity = invites.authenticate(request, security);
       if (!identity) throw httpError(401, 'Access required.');
@@ -1231,9 +1251,10 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
           if (route === '/api/health') {
             const worker = taskWorker?.getHealth() ?? { status: 'not-configured', ready: true, restartRequired: false };
             const warming = startupWarmup && ['pending', 'running'].includes(startupWarmup.diagnostics().status);
-            await json(request, response, 200, { ready: !closed && worker.ready && !worker.stuck && !worker.restartRequired, status: closed ? 'stopping' : worker.stuck ? 'stuck' : worker.restartRequired ? 'restart-required' : warming ? 'warming' : worker.ready ? 'ready'
+            await json(request, response, 200, { ready: !closed && !handover.frozen && worker.ready && !worker.stuck && !worker.restartRequired, status: closed ? 'stopping' : handover.frozen ? 'updating' : worker.stuck ? 'stuck' : worker.restartRequired ? 'restart-required' : warming ? 'warming' : worker.ready ? 'ready'
               : ['sleeping', 'waking'].includes(worker.status) ? worker.status : 'degraded',
-              savesReady: !closed, worker, local: true, revision: store.getInfo().revision, version: appVersion, schemaVersion: 1 }); return;
+              savesReady: !closed && !handover.frozen && !liveSwap?.standby, standby: liveSwap?.standby === true, worker, local: true, revision: store.getInfo().revision, version: appVersion, schemaVersion: 1,
+              liveSwapProtocol: 2, actionReceiptFormat: 2, saveSchemaVersion: store.getInfo().schemaVersion }); return;
           }
           if (route === '/api/changelog' || route === '/api/roadmap') {
             const filename = route === '/api/changelog' ? 'changelog.json' : 'roadmap.json';
@@ -1566,12 +1587,23 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
           const importedFile = isImportRoute(route) ? await readBackupRequest(request) : null;
           const body = importedFile ? importedFile.body : await bodyJSON(request, route === '/api/sandbox/evaluate' ? 64 * 1024 : route === '/api/worker-restart' || route === '/api/prediction-intent' || route === '/api/pool-ranking-intent' || route.startsWith('/api/runemetrics/') || route.startsWith('/api/invites') ? 8192 : route.startsWith('/api/feedback') ? 16384 : MAX_BODY);
           if (importedFile?.uploaded && body.document && route.startsWith('/api/restore')) route = route.replace('/api/restore', '/api/import');
+          // Keep slow uploads and reviewed sync-original commands excluded. Only
+          // ordinary accepted commands may drain across the freeze boundary.
+          if (route === '/api/command' && Object.hasOwn(commandPermissions, body.command?.type)
+            && !['sync-original', 'replace-member', 'apply-runemetrics'].includes(body.command.type)) lease.ordinary();
           const execute = async () => {
             if (closed) throw httpError(503, 'The picker is stopping. Retry after it restarts.');
             // A session may have been revoked while a slow body was arriving.
             identity = invites.authenticate(request, security);
             if (!identity) throw httpError(401, 'Access required.');
             requirePermission();
+            if (route === '/api/action-session') {
+              if (Object.keys(body).some(key => !['clientId', 'acknowledge'].includes(key))) throw httpError(400, 'Use a client ID and optional acknowledgement.');
+              const session = Object.hasOwn(body, 'acknowledge')
+                ? await store.acknowledgeActionSession(body.clientId, body.acknowledge, { actor: identity.actor })
+                : await store.openActionSession(body.clientId, { actor: identity.actor });
+              await json(request, response, 200, session); return;
+            }
             const knownMember = value => value === undefined || value === null || store.getState().members.some(member => member.id === value);
             if (route === '/api/pool-ranking-intent') {
               if (!taskWorker) throw httpError(503, 'Task data is unavailable for this save.');
@@ -1745,6 +1777,11 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
               if (body.command?.type === 'replace-member') throw httpError(400, 'To replace a player’s map, review the backup in Backup & Import first.');
               if (body.command?.type === 'apply-runemetrics') throw httpError(400, 'Review the RuneMetrics sync preview before saving progress.');
               let command = body.command;
+              if (command.type !== 'sync-original') {
+                // Resolve committed Undo before checking its now-changed target.
+                const replay = await store.replayCommandSerialized(command, body.requestId, { actor: identity.actor, view: viewFor(request), requestAck: body.requestAck });
+                if (replay) { await commandJSON(request, response, replay); return; }
+              } else if (body.requestId !== undefined || body.requestAck !== undefined) throw httpError(400, 'Sync requires its reviewed preview.');
               if (unavailableDatasetFeature(dataset, route, command?.type)) throw httpError(422, 'This feature is unavailable in this game.');
               if (command?.type === 'set-xp-choices' && !identity.admin && (!identity.memberId || command.memberId !== identity.memberId)) {
                 throw httpError(403, 'You can only change XP choices for your signed-in player.');
@@ -1792,7 +1829,7 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
                 originalSyncPreviews.delete(previewId);
                 await commandJSON(request, response, saved); return;
               }
-              await commandJSON(request, response, await store.commandSerialized(command, body.expectedRevision, { omitUnchanged: true, actor: identity.actor, view: viewFor(request) })); return;
+              await commandJSON(request, response, await store.commandSerialized(command, body.expectedRevision, { omitUnchanged: true, actor: identity.actor, view: viewFor(request), requestId: body.requestId, requestAck: body.requestAck })); return;
             }
             // One player's map: admins choose any player; an invite only its own player.
             if (route === '/api/member-restore/preview' || route === '/api/member-restore') {
@@ -1848,7 +1885,7 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
           };
           // Order revocation with accepted saves. Once revoke returns, a queued
           // request cannot commit using the revoked session or admin capability.
-          const durable = ['/api/command', '/api/restore', '/api/import', '/api/member-restore', '/api/runemetrics/apply', '/api/shutdown'].includes(route)
+          const durable = ['/api/action-session', '/api/command', '/api/restore', '/api/import', '/api/member-restore', '/api/runemetrics/apply', '/api/shutdown'].includes(route)
             || route === '/api/invites' || /^\/api\/invites\/[^/]+\/(?:revoke|player)$/.test(route);
           await (durable ? serializeMutation(execute) : execute());
           return;
@@ -1926,7 +1963,7 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
       else if (['/phone-layout.css', '/phone-layout.mjs', '/screen-phone-layout.mjs', '/chunk-long-press.mjs', '/map-control-discovery.mjs', '/calculation-feedback.mjs', '/screen-task-guidance.mjs'].includes(route)) file = await containedFile(webRoot, route.slice(1));
       else if (['/screen-usage.mjs', '/usage-client.mjs', '/usage-model.mjs', '/usage-catalogue.mjs', '/usage.css'].includes(route)) file = await containedFile(webRoot, route.slice(1));
       else if (['/quest-map.mjs', '/quest-map-model.mjs', '/quest-map.css'].includes(route)) file = await containedFile(webRoot, route.slice(1));
-      else if (['/screen-context.mjs', '/screen-ui.mjs', '/screen-settings.mjs', '/screen-commands.mjs', '/screen-roll.mjs', '/screen-map.mjs', '/screen-loading.mjs', '/screen-tasks.mjs', '/screen-task-dialogs.mjs', '/screen-chunks.mjs', '/screen-dialogs.mjs', '/screen-history.mjs', '/screen-live.mjs', '/screen-startup.mjs', '/screen-controls.mjs', '/screen-panels.mjs', '/dataset-panels.mjs', '/original-sync-loader.mjs'].includes(route)) file = await containedFile(webRoot, route.slice(1));
+      else if (['/live-swap-client.mjs', '/screen-context.mjs', '/screen-ui.mjs', '/screen-settings.mjs', '/screen-commands.mjs', '/screen-roll.mjs', '/screen-map.mjs', '/screen-loading.mjs', '/screen-tasks.mjs', '/screen-task-dialogs.mjs', '/screen-chunks.mjs', '/screen-dialogs.mjs', '/screen-history.mjs', '/screen-live.mjs', '/screen-startup.mjs', '/screen-controls.mjs', '/screen-panels.mjs', '/dataset-panels.mjs', '/original-sync-loader.mjs'].includes(route)) file = await containedFile(webRoot, route.slice(1));
       else if (['/map-capture.mjs', '/screen-capture.mjs', '/map-capture.css'].includes(route)) file = await containedFile(webRoot, route.slice(1));
       else if (['/area-check.mjs', '/area-check-selection.mjs', '/area-check.css'].includes(route)) file = await containedFile(webRoot, route.slice(1));
       else if (['/partner-supply-model.mjs', '/partner-supply-view.mjs', '/partner-supply.css'].includes(route)) file = await containedFile(webRoot, route.slice(1));
@@ -2014,18 +2051,86 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
       const status = error.code === 'REVISION_CONFLICT' ? 409 : error.status ?? (error.code === 'ENOENT' ? 404 : error instanceof TypeError || error instanceof RangeError || error instanceof SyntaxError ? 400 : 500);
       if (error.retryAfter) response.setHeader('Retry-After', error.retryAfter);
       await json(request, response, status, { message: status === 500 ? 'The save could not be completed. Your previous save remains available.' : redactInviteTokens(error.message),
-        ...(error.code === 'TASK_RESULTS_UNAVAILABLE' ? { code: error.code } : {}),
+        ...(error.code === 'TASK_RESULTS_UNAVAILABLE' || error.code === 'PICKER_UPDATING' || /^(?:REQUEST_|ACTION_SESSION_)/.test(error.code ?? '') ? { code: error.code } : {}),
+        ...(error.code === 'ACTION_SESSION_RETIRED' && error.safeToRetry === true ? { safeToRetry: true } : {}),
         ...(error.code === 'REVISION_CONFLICT' ? viewEnvelope(error.state, viewFor(request)) : {}),
         ...(error.code === 'REVISION_CONFLICT' && error.claimOnlyChanges === true ? { claimOnlyChanges: true } : {}),
         ...((routeIsRuneMetrics(request) || (request.url ?? '').startsWith('/api/original-sync/')) && error.code !== 'REVISION_CONFLICT' && error.code ? { code: error.code } : {}) });
     } finally { if (ownsImport) importingBackup = false; }
   };
+  const requestHandler = async (request, response) => {
+    let route, lease;
+    try {
+      route = decodeURIComponent((request.url ?? '/').split('?')[0]);
+      const health = ['GET', 'HEAD'].includes(request.method) && route === '/api/health';
+      const safeStandbyRead = ['GET', 'HEAD'].includes(request.method) && !route.startsWith('/join/')
+        && (['/', '/api/health', '/api/art-status', '/api/overlays', '/api/state'].includes(route)
+          || (!route.startsWith('/api/') && (route.startsWith('/overlay/') || /\.(?:mjs|css|html|json|svg|png|jpg|webp|woff2)$/.test(route))));
+      if ((handover.frozen && !health) || (liveSwap?.standby && !safeStandbyRead)) {
+        throw Object.assign(httpError(503, 'Please try again in a moment.'), { code: 'PICKER_UPDATING', retryAfter: 1 });
+      }
+      // All handlers, including overlays, join, usage retention and invitation
+      // touches, enter this exclusion before their first asynchronous operation.
+      if (!health) lease = handover.begin();
+      await applicationRequestHandler(request, response, lease);
+    } catch (error) {
+      request.resume();
+      if (response.destroyed || response.headersSent) return;
+      response.setHeader('Cache-Control', PRIVATE_NO_STORE);
+      if (error.retryAfter) response.setHeader('Retry-After', error.retryAfter);
+      await json(request, response, error.status ?? 400, { message: error.status ? error.message : 'Invalid URL.', ...(error.code ? { code: error.code } : {}) });
+    } finally { lease?.finish(); }
+  };
   const server = httpServer ?? http.createServer(requestHandler);
   const loopbackServer = httpLoopbackServer ?? (loopbackPort === undefined ? null : http.createServer(requestHandler));
   for (const listener of [server, loopbackServer]) listener?.on('connection', socket => { connections.add(socket); socket.once('close', () => connections.delete(socket)); });
+  let activationPending;
   const handle = {
     server, store, world: indexedWorld, dataset,
     getStartupTimingMs: () => ({ ...startupTimingMs }),
+    activate(checkpoint) {
+      if (closed || !liveSwap?.standby) return Promise.reject(new Error('Only a prepared standby can activate.'));
+      if (activationPending) return Promise.reject(new Error('Standby activation is already running.'));
+      const activation = (async () => {
+        const activationStarted = performance.now();
+        try {
+          await handover.freeze(liveSwap?.freezeDeadlineMs ?? 2000);
+          let phaseStarted = performance.now();
+          await Promise.all([invites.close(), feedback.close(), usage.close(), overlays.close()]);
+          reportActivationTiming(liveSwap?.onActivationTiming, 'app.sidecarsClose', phaseStarted);
+          if (closed) throw new Error('Standby activation was cancelled by shutdown.');
+          await store.activate(checkpoint);
+          if (closed) throw new Error('Standby activation was cancelled by shutdown.');
+          liveSwap = { ...liveSwap, standby: false, strict: true };
+          feedbackOwnerId = store.getCalculationSnapshot().members[0]?.id;
+          phaseStarted = performance.now();
+          await openSidecars();
+          reportActivationTiming(liveSwap?.onActivationTiming, 'app.sidecarsOpen', phaseStarted);
+          if (closed) throw new Error('Standby activation was cancelled by shutdown.');
+          responseCache.clear(); sandboxPools.clear(); rankingPools.clear(); calculationSnapshot = undefined;
+          handover.cancelFreeze();
+          schedulePredictions(10000);
+          return store.getInfo();
+        } finally { reportActivationTiming(liveSwap?.onActivationTiming, 'app.total', activationStarted); }
+      })();
+      activationPending = activation;
+      return activation.catch(async error => { await handle.close(); throw error; })
+        .finally(() => { if (activationPending === activation) activationPending = undefined; });
+    },
+    async freeze({ requireIdle = false, maxSaveBytes } = {}) {
+      if (maxSaveBytes !== undefined && (!Number.isSafeInteger(maxSaveBytes) || maxSaveBytes <= 0)) throw new TypeError('maxSaveBytes must be a positive safe integer.');
+      if (closed) throw new Error('A closed writer cannot freeze.');
+      if (requireIdle && handover.ordinary) throw Object.assign(new Error('A save is still running. Please try again in a moment.'), { status: 503, code: 'LIVE_SWAP_BUSY' });
+      await handover.freeze(liveSwap?.freezeDeadlineMs ?? 2000);
+      clearImmediate(claimCleanupImmediate); claimCleanupImmediate = undefined;
+      for (const client of clients) client.end();
+      clients.clear();
+      try { await mutationQueue; return await store.freeze({ maxSaveBytes }); }
+      catch (error) {
+        if (error.code === 'LIVE_SWAP_BUSY') handover.cancelFreeze();
+        throw error;
+      }
+    },
     address: () => server.address(),
     loopbackAddress: () => loopbackServer?.address() ?? null,
     get inviteUrl() {
@@ -2072,7 +2177,7 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
       // initial admission time; foreground completion resumes the usual quiet
       // delay, while an unattended server still warms autonomously.
       schedulePredictions(10000);
-      if (httpServer && taskWorker && nativeForegroundState) startupWarmup = createStartupWarmup({ worker: taskWorker, clock: schedulingClock,
+      if (!liveSwap?.standby && httpServer && taskWorker && nativeForegroundState) startupWarmup = createStartupWarmup({ worker: taskWorker, clock: schedulingClock,
         snapshot: calculationState, busy: () => foregroundActive > 0 || automaticDeathActive > 0 || listPending(store.getInfo().revision)
           || schedulingClock.now() - foregroundLastActivity < 1000 });
       return handle;
@@ -2087,6 +2192,7 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
       startupWarmup?.close();
       clearTimeout(rankingLeaseTimer);
       closePromise = (async () => {
+        if (activationPending) await activationPending.catch(() => {});
         const overlaysClosed = overlays.close();
         unsubscribe();
         runeMetricsClient.close(); runeMetricsPreviews.clear();
@@ -2134,9 +2240,13 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
 /** Production startup exposes private health before opening the save. */
 export function startServer(options = {}) {
   const configured = { dataDir: defaultGameDirectory(ROOT, selectedDataset), ...options };
-  return selectedDataset.capabilities.independent
-    ? prepareGameStorage(configured.dataDir, selectedDataset).then(() => startEarlyServer(configured, createServer))
-    : startEarlyServer(configured, createServer);
+  if (!selectedDataset.capabilities.independent) return startEarlyServer(configured, createServer);
+  const storageReady = configured.liveSwap?.standby === true
+    ? verifyDatasetBinding(configured.dataDir, selectedDataset).then(binding => {
+      if (!binding.bound) throw new Error('Standby requires existing bound storage.');
+    })
+    : prepareGameStorage(configured.dataDir, selectedDataset);
+  return storageReady.then(() => startEarlyServer(configured, createServer));
 }
 
 function cliOptions(args) {

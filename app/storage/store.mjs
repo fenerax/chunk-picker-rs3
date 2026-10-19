@@ -18,15 +18,30 @@ import { readHistoryEvents } from './history-reader.mjs';
 import { computeRollStats, selectRollStatsEvent } from '../core/roll-stats.mjs';
 import { describeHistoryEvent, historyChangeType, historyChangeTypes } from '../web/history-text.mjs';
 import { loadGameDefaults } from '../game-defaults.mjs';
+import { ACTION_CLIENT_SLOTS, loadActionReceipts, inspectActionReceipt, commitActionReceipt, openActionSession, acknowledgeActionSession } from './action-receipts.mjs';
+import { reportActivationTiming } from '../live-swap-timing.mjs';
 
 const gzipAsync = promisify(gzip), gunzipAsync = promisify(gunzip);
 
 // Unlike public importBackup(), this input comes only from our private file.
 // JSON.parse already gives storage ownership; retain every envelope/schema
 // check without serializing and copying the complete state a second time.
+function parseSavedDocument(value) {
+  try { return typeof value === 'string' || Buffer.isBuffer(value) ? JSON.parse(value) : value; }
+  catch { throw new TypeError('Backup is not valid JSON'); }
+}
+function pinSerializedDocument(value) {
+  const bytes = Buffer.isBuffer(value) ? value : Buffer.from(value);
+  let end = bytes.length;
+  while (end) {
+    const byte = bytes[end - 1];
+    if (byte !== 0x20 && byte !== 0x09 && byte !== 0x0a && byte !== 0x0d) break;
+    end--;
+  }
+  return Buffer.concat([bytes.subarray(0, end - 1), Buffer.from(',"retentionPinned":true}')]);
+}
 function importSavedState(bytes, registry) {
-  let backup;
-  try { backup = typeof bytes === 'string' || Buffer.isBuffer(bytes) ? JSON.parse(bytes) : bytes; } catch { throw new TypeError('Backup is not valid JSON'); }
+  const backup = parseSavedDocument(bytes);
   if (!backup || typeof backup !== 'object' || Array.isArray(backup)) throw new TypeError('backup must be an object');
   if (backup.format !== BACKUP_FORMAT) throw new TypeError('Unsupported backup format');
   if (backup.schemaVersion !== SCHEMA_VERSION) throw new TypeError(`Unsupported backup schema version: ${backup.schemaVersion}`);
@@ -204,7 +219,7 @@ async function atomicWrite(file, contents, beforeRename) {
 }
 
 /** One durable, exclusively locked store. All writes share one revision queue. */
-export async function openStore({ dataDir, world, registry, initialState, migrateState, prepareState, beforeCommit, beforeLockRecovery, now, random, taskCatalogue, retention, progressQuestPoints, membersStartBanks, xpChoiceCatalogue } = {}) {
+export async function openStore({ dataDir, world, registry, initialState, migrateState, prepareState, beforeCommit, beforeLockRecovery, now, random, taskCatalogue, retention, progressQuestPoints, membersStartBanks, xpChoiceCatalogue, readOnly = false, liveSwapStrict = false, expectedCheckpoint, onActivationTiming } = {}) {
   if (!dataDir) throw new TypeError('dataDir is required.');
   const policy = retention === false ? false : { ...DEFAULT_RETENTION, ...retention };
   if (policy) {
@@ -213,10 +228,10 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     if (Object.keys(policy).some(key => !['backupDays', 'historyEntries'].includes(key))) throw new TypeError('Unknown retention policy setting.');
   }
   const directory = path.resolve(dataDir);
-  await mkdir(directory, { recursive: true });
-  const releaseGuard = await acquireProcessGuard(directory);
+  if (!readOnly) await mkdir(directory, { recursive: true });
+  let releaseGuard = readOnly ? async () => {} : await acquireProcessGuard(directory);
   let releaseFileLock;
-  try { releaseFileLock = await acquireLock(directory, beforeLockRecovery); }
+  try { releaseFileLock = readOnly ? async () => {} : await acquireLock(directory, beforeLockRecovery); }
   catch (error) { await releaseGuard(); throw error; }
   const releaseLock = async () => { try { await releaseFileLock(); } finally { await releaseGuard(); } };
   const stateFile = path.join(directory, 'state.json');
@@ -224,13 +239,83 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
   const historyDir = path.join(directory, 'history');
   const archivesDir = path.join(backupsDir, 'archives');
   const staticDir = path.join(directory, 'static');
+  const acknowledgementsFile = path.join(directory, 'action-acknowledgements.json');
   let current;
+  // Receipts are private storage metadata, committed in the SAME replacement
+  // as gameplay. Never evict IDs: an arbitrarily delayed retry must fail closed.
+  let receipts;
+  let acknowledgements = [];
+  function acknowledgementFor(slot, row) {
+    return { slot, clientId: row.clientId, generation: row.generation, principal: row.principal,
+      ...(row.scope ? { scope: row.scope } : {}), sequence: row.sequence,
+      requestId: row.receipt.requestId, fingerprint: row.receipt.fingerprint, revision: row.receipt.revision };
+  }
+  async function acknowledgedReceipts(ledger) {
+    let records;
+    try {
+      const bytes = await readFile(acknowledgementsFile);
+      if (bytes.length > 64 * 1024) return { ledger, records: [] };
+      const document = JSON.parse(bytes);
+      records = document?.entries;
+      if (document?.schemaVersion !== 1 || !Array.isArray(records) || records.length > ACTION_CLIENT_SLOTS
+        || new Set(records.map(row => row?.slot)).size !== records.length
+        || records.some(row => !row || typeof row !== 'object' || Array.isArray(row)
+          || Object.keys(row).some(key => !['slot', 'clientId', 'generation', 'principal', 'scope', 'sequence', 'requestId', 'fingerprint', 'revision'].includes(key))
+          || !Number.isSafeInteger(row.slot) || row.slot < 0 || row.slot >= ACTION_CLIENT_SLOTS)) return { ledger, records: [] };
+    } catch {
+      // ACKs only prune outcomes whose browser copy is already durable. Losing
+      // or rejecting this optional optimization must retain the replay receipt.
+      return { ledger, records: [] };
+    }
+    let slots;
+    const retained = [];
+    for (const record of records) {
+      const row = ledger?.slots[record.slot];
+      if (!row?.receipt || row.acknowledged >= row.sequence
+        || !isDeepStrictEqual(record, acknowledgementFor(record.slot, row))) continue;
+      slots ??= [...ledger.slots];
+      const acknowledged = { ...row, acknowledged: row.sequence }; delete acknowledged.receipt;
+      slots[record.slot] = acknowledged;
+      retained.push(record);
+    }
+    return { ledger: slots ? { ...ledger, slots } : ledger, records: retained };
+  }
+  let receiptQuarantine;
+  function receiptMetadata(value, revision) {
+    try { return { ledger: loadActionReceipts(value, revision) }; }
+    catch (error) {
+      if (!(error instanceof TypeError)) throw error;
+      // A damaged private ledger is not damaged gameplay. Keep the evidence
+      // in memory until an explicit write would replace it; startup and standby
+      // must keep the authoritative document and its checkpoint byte-for-byte.
+      // Unknown outcomes cannot be replayed or inferred to be safe to retry.
+      return { ledger: undefined, quarantine: Buffer.from(`${JSON.stringify({ schemaVersion: 1, revision,
+        reason: error.message, actionReceipts: value })}\n`) };
+    }
+  }
+  async function retainReceiptQuarantine() {
+    if (!receiptQuarantine) return;
+    const bytes = receiptQuarantine;
+    const quarantineDirectory = path.join(directory, 'receipt-quarantine');
+    const file = path.join(quarantineDirectory, `${createHash('sha256').update(bytes).digest('hex')}.json`);
+    await mkdir(quarantineDirectory, { recursive: true });
+    let existing;
+    try { existing = await readFile(file); }
+    catch (error) { if (error.code !== 'ENOENT') throw error; }
+    if (existing && !existing.equals(bytes)) throw new Error('Action receipt quarantine evidence changed.');
+    if (!existing) await atomicWrite(file, bytes);
+    receiptQuarantine = undefined;
+  }
+  let frozen = readOnly;
+  let freezePending = false;
   let currentDiskSerialized;
   let token;
   let closing = false;
   let closePromise;
+  let activationPending;
   let queue = Promise.resolve();
   let maintenanceQueue = Promise.resolve();
+  let maintenancePending = 0;
   let maintenanceWrites = 0;
   let retentionFailure;
   let archiveIndex;
@@ -239,6 +324,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
   const envelopePrefix = `${JSON.stringify({ format: BACKUP_FORMAT, schemaVersion: SCHEMA_VERSION }).slice(0, -1)},"state":`;
   let serializedFields = new WeakMap();
   const staticReferences = new WeakMap();
+  const standbyStaticFields = new Map();
   // Private commit metadata does not enter gameplay snapshots or portable
   // backups. Full backup/Undo hydration projects these cancelled claim leaves.
   const coordination = new WeakMap();
@@ -274,12 +360,14 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
   }
   // Registries and exact migration archives can dwarf gameplay. Compact JSON
   // keeps durable writes bounded without changing portable backup semantics.
-  const serialized = state => `${envelopePrefix}{${[...stateFields(state)].join('')}}${coordination.has(state) ? `,"coordination":${JSON.stringify(coordinationOf(state))}` : ''}}\n`;
+  const serialized = (state, ledger = receipts) => `${envelopePrefix}{${[...stateFields(state)].join('')}}${coordination.has(state) ? `,"coordination":${JSON.stringify(coordinationOf(state))}` : ''}${ledger ? `,"actionReceipts":${JSON.stringify(ledger)}` : ''}}\n`;
   async function readStaticField(key, reference) {
     const match = STATIC_ID.exec(reference?.id ?? '');
     if (!match || reference?.sha256 !== match[1] || Object.keys(reference).some(name => !['id', 'sha256'].includes(name))) {
       throw new TypeError(`Invalid static field reference: ${key}`);
     }
+    const cacheKey = `${key}:${reference.id}`;
+    if (readOnly && standbyStaticFields.has(cacheKey)) return standbyStaticFields.get(cacheKey);
     let compressed;
     try {
       const base = await realpath(staticDir);
@@ -293,7 +381,12 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     }
     const bytes = await gunzipAsync(compressed);
     if (createHash('sha256').update(bytes).digest('hex') !== reference.sha256) throw new TypeError(`Static field checksum mismatch: ${key}`);
-    return { value: JSON.parse(bytes.toString('utf8')), bytes: bytes.toString('utf8') };
+    const result = { value: JSON.parse(bytes.toString('utf8')), bytes: bytes.toString('utf8') };
+    if (readOnly) {
+      if (standbyStaticFields.size >= reusableFields.size) standbyStaticFields.delete(standbyStaticFields.keys().next().value);
+      standbyStaticFields.set(cacheKey, result);
+    }
+    return result;
   }
   async function hydrateStaticDocument(document, ownsDocument) {
     if (document?.storage === undefined) return ownsDocument ? document : { ...document, state: structuredClone(document?.state) };
@@ -311,9 +404,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     return { ...document, state };
   }
   async function importStoredBackup(document, ownsDocument = false) {
-    if (typeof document === 'string') {
-      try { document = JSON.parse(document); } catch { throw new TypeError('Backup is not valid JSON'); }
-    }
+    document = parseSavedDocument(document);
     const state = importSavedState(await hydrateStaticDocument(document, ownsDocument), registry);
     if (document.coordination !== undefined) coordination.set(state, validateCoordination(document.coordination, state.revision));
     for (const [key, reference] of Object.entries(document.storage?.fields ?? {})) {
@@ -341,7 +432,10 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     staticReferences.set(value, reference);
     return reference;
   }
-  async function serializedDiskState(state) {
+  async function serializedDiskState(state, ledger = receipts) {
+    // Preserve rejected metadata before ANY replacement can drop it. Evidence
+    // remains private, content addressed, and outside ordinary backup pruning.
+    await retainReceiptQuarantine();
     const compact = { ...state }, fields = {};
     for (const key of reusableFields) {
       const value = state[key];
@@ -356,8 +450,9 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
       fields[key] = await staticReference(key, value, bytes);
       delete compact[key];
     }
-    if (!Object.keys(fields).length) return serialized(state);
+    if (!Object.keys(fields).length) return serialized(state, ledger);
     return `${JSON.stringify({ ...envelope(compact), ...(coordination.has(state) ? { coordination: coordinationOf(state) } : {}),
+      ...(ledger ? { actionReceipts: ledger } : {}),
       ...(Object.keys(fields).length ? { storage: { schemaVersion: 1, fields } } : {}) })}\n`;
   }
   function gameplayFingerprint() {
@@ -442,7 +537,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     // archived History and fields normally stored in compact sidecars.
     const document = label ? JSON.stringify({ ...envelope((await hydrateHistory(state)).state), retentionPinned: true, retentionLabel: label })
       : ['replace', 'catalogue-refresh'].includes(operation)
-      ? `${currentDiskSerialized.trimEnd().slice(0, -1)},"retentionPinned":true}` : currentDiskSerialized;
+      ? pinSerializedDocument(currentDiskSerialized) : currentDiskSerialized;
     const bytes = await gzipAsync(document, { level: constants.Z_BEST_SPEED });
     const file = path.join(backupsDir, name);
     await atomicWrite(file, bytes);
@@ -457,6 +552,8 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     return date.toISOString();
   };
   async function prepared(state, operation) {
+    if (operation === 'load' && prepareState?.isCurrent?.(state) === true
+      && (!migrateState || migrateState.isCurrent?.(state) === true)) return state;
     // Gameplay commands start from an already migrated private state. Caller
     // preparation hooks still receive migration context and may require repair
     // of catalogue changes made by an earlier hook.
@@ -662,24 +759,42 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
   // Backup readers share maintenance ownership so pruning cannot remove a
   // standalone file midway through a read or race archive-index initialization.
   // This queue is separate from gameplay: commits do not await packing.
-  function enqueueMaintenance(work) {
-    const result = maintenanceQueue.then(work);
+  function enqueueMaintenance(work, { allowClosing = false, backupRead = false } = {}) {
+    // Backup browsing remains a pure disk/cache read after an ordinary close.
+    // A frozen handover still refuses new reads before writer ownership moves.
+    if (!allowClosing && (frozen || (closing && !backupRead))) return Promise.reject(Object.assign(new Error('Please try again in a moment.'), { status: 503, code: 'PICKER_UPDATING' }));
+    maintenancePending++;
+    const result = maintenanceQueue.then(work).finally(() => { maintenancePending--; });
     maintenanceQueue = result.catch(() => {});
     return result;
   }
   try {
-    await mkdir(backupsDir, { recursive: true });
-    await mkdir(historyDir, { recursive: true });
+    // Check the exact final document before ANY startup mutation. Hash includes
+    // receipt/coordination metadata, not just the public revision number.
+    if (expectedCheckpoint) {
+      const bytes = await readFile(stateFile);
+      if (createHash('sha256').update(bytes).digest('hex') !== expectedCheckpoint.sha256
+        || parseSavedDocument(bytes)?.state?.revision !== expectedCheckpoint.revision) throw new Error('Handover checkpoint changed.');
+    }
+    if (!readOnly) { await mkdir(backupsDir, { recursive: true }); await mkdir(historyDir, { recursive: true }); }
     const tokenFile = path.join(directory, 'access-token');
     try { token = (await readFile(tokenFile, 'utf8')).trim(); } catch (error) {
-      if (error.code !== 'ENOENT') throw error;
+      if (error.code !== 'ENOENT' || readOnly) throw error;
       token = randomBytes(32).toString('base64url');
       await atomicWrite(tokenFile, `${token}\n`);
     }
     if (!/^[A-Za-z0-9_-]{43}$/.test(token)) throw new Error('The persisted access token is malformed; inspect the private data directory.');
     let existing = false;
-    try { current = await importStoredBackup(await readFile(stateFile, 'utf8'), true); existing = true; } catch (error) {
+    try {
+      const bytes = await readFile(stateFile), document = parseSavedDocument(bytes);
+      current = await importStoredBackup(document, true);
+      const metadata = receiptMetadata(document.actionReceipts, current.revision);
+      const acknowledged = await acknowledgedReceipts(metadata.ledger);
+      receipts = acknowledged.ledger; acknowledgements = acknowledged.records; receiptQuarantine = metadata.quarantine;
+      currentDiskSerialized = bytes; existing = true;
+    } catch (error) {
       if (error.code !== 'ENOENT') throw new Error(`Cannot load the saved state: ${error.message}`, { cause: error });
+      if (readOnly || expectedCheckpoint) throw error;
       const seed = initialState === undefined
         ? createGroupState((await loadGameDefaults()).members.map(({ id, name }) => ({ id, name })), registry)
         : validateState(initialState, registry);
@@ -703,6 +818,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
       // and a changed projection should not stringify its large archive twice.
       // Exceptional numeric distinctions such as -0 conservatively refresh.
       if (!isDeepStrictEqual(ready, current)) {
+        if (readOnly || liveSwapStrict) throw Object.assign(new Error('Live swap refuses a save migration; use a reviewed offline migration.'), { code: 'LIVE_SWAP_MIGRATION_REQUIRED' });
         if (current.revision === Number.MAX_SAFE_INTEGER) throw new RangeError('State revision limit reached.');
         ready.revision = current.revision + 1;
         ready.history.push({ id: `revision-${ready.revision}`, revision: ready.revision, type: 'catalogue-refresh', at: timestamp() });
@@ -721,7 +837,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     if (current.provenance?.historyArchive?.length) await hydrateHistory(current);
     // Daily observation metadata is independent of commands/catalogue changes.
     // Startup records today's counts without incrementing revision or History.
-    if (progressQuestPoints !== undefined) {
+    if (!readOnly && !liveSwapStrict && progressQuestPoints !== undefined) {
       const observed = captureProgressSnapshot(current, { questPoints: progressQuestPoints, at: timestamp() });
       if (observed !== current) {
         if (coordination.has(current)) coordination.set(observed, coordinationOf(current));
@@ -730,7 +846,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
         current = observed; currentDiskSerialized = diskDocument;
       }
     }
-    await maintainRetention();
+    if (!readOnly && !liveSwapStrict) await maintainRetention();
   } catch (error) { await releaseLock(); throw error; }
 
   const cloneCurrent = () => structuredClone(current);
@@ -745,11 +861,12 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
   }
   function enqueue(work) {
     if (closing) return Promise.reject(new Error('The store is closed.'));
+    if (frozen) return Promise.reject(Object.assign(new Error('The picker is updating.'), { status: 503, code: 'PICKER_UPDATING' }));
     const result = queue.then(work);
     queue = result.catch(() => {});
     return result;
   }
-  async function persist(next, operation, archived, serializedResult = false, baseline, omitUnchanged = false, view, { claimOnly = false, cleanup = false, backupLabel } = {}) {
+  async function persist(next, operation, archived, serializedResult = false, baseline, omitUnchanged = false, view, { claimOnly = false, cleanup = false, backupLabel, receipt } = {}) {
     const observed = cleanup || progressQuestPoints === undefined ? next : captureProgressSnapshot(next, { questPoints: progressQuestPoints, at: timestamp() });
     const validated = cleanup ? observed : await compactHistory(observed, archived);
     const previousCoordination = operation === 'replace' ? { schemaVersion: 1, invalidatedUndo: {} }
@@ -758,14 +875,16 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
       { ...previousCoordination, lastNonClaimRevision: claimOnly ? previousCoordination.lastNonClaimRevision : validated.revision });
     // Preserve the old durable state before replacing its revision.
     if (!cleanup) await retainBackup(current, operation, backupLabel);
-    const diskDocument = await serializedDiskState(validated);
+    const { ledger: nextReceipts, result: receiptResult } = commitActionReceipt(receipts, receipt, validated);
+    const diskDocument = await serializedDiskState(validated, nextReceipts);
     await atomicWrite(stateFile, diskDocument,
       beforeCommit ? () => beforeCommit({ operation, state: structuredClone(validated) }) : undefined);
     const ownershipChanged = JSON.stringify(current.members.map(member => [member.id, member.unlocked]))
       !== JSON.stringify(validated.members.map(member => [member.id, member.unlocked]));
     current = validated;
+    receipts = nextReceipts;
     currentDiskSerialized = diskDocument;
-    if (!cleanup && ++maintenanceWrites >= 50) { maintenanceWrites = 0; void enqueueMaintenance(maintainRetention); }
+    if (!cleanup && ++maintenanceWrites >= 50 && !frozen && !closing) { maintenanceWrites = 0; void enqueueMaintenance(maintainRetention); }
     for (const listener of listeners) {
       try { listener({ revision: current.revision, ...(ownershipChanged ? { ownershipChanged: true } : {}) }); } catch { /* A subscriber cannot roll back a committed write. */ }
     }
@@ -773,11 +892,16 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     // synchronous travel/pool rebuilding occupies the HTTP process.
     if (ownershipChanged) await new Promise(resolve => setImmediate(resolve));
     return cleanup ? structuredClone({ revision: current.revision, taskClaims: current.taskClaims, history: current.history })
-      : serializedResult ? commandSnapshot(baseline, omitUnchanged, view) : cloneCurrent();
+      : serializedResult ? { ...commandSnapshot(baseline, omitUnchanged, view), ...(receiptResult ? { receipt: receiptResult } : {}) } : cloneCurrent();
   }
-  function runCommand(command, expectedRevision, serializedResult = false, omitUnchanged = false, actor, view) {
+  const commandReceipt = (command, actor, requestId, requestAck) => inspectActionReceipt(receipts, command, actor, requestId, requestAck);
+  function runCommand(command, expectedRevision, serializedResult = false, omitUnchanged = false, actor, view, requestId, requestAck) {
     const attribution = actor === undefined ? undefined : validateHistoryActor(actor);
     return enqueue(async () => {
+      const receipt = commandReceipt(command, attribution, requestId, requestAck);
+      if (receipt) {
+        if (receipt.replay) return serializedResult ? { ...commandSnapshot(undefined, false, view), receipt: receipt.result } : cloneCurrent();
+      }
       checkRevision(expectedRevision);
       const baseline = current;
       const sparseUndo = hasRetainedSparseUndo(current, command) && !current.provenance?.historyArchive?.length;
@@ -808,6 +932,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
         }
       }
       return persist(ready, 'command', input.archived, serializedResult, baseline, omitUnchanged, view, { claimOnly,
+        receipt,
         ...(command.type === 'go-members' ? { backupLabel: 'Before going members' } : {}) });
     });
   }
@@ -992,7 +1117,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
         await visitHistory(current, event => { if (revisions.has(event.revision)) events.set(event.revision, historyRecord(event)); });
         for (const backup of backups) backup.event = events.get(backup.revision) ?? null;
         return backups.sort((a, b) => b.revision - a.revision || b.at.localeCompare(a.at) || a.id.localeCompare(b.id));
-      });
+      }, { backupRead: true });
     },
     async readBackup(id) {
       if (typeof id !== 'string' || !BACKUP_ID.test(id)) throw new TypeError('Invalid retained backup ID.');
@@ -1020,14 +1145,110 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
         const state = await importStoredBackup(decoded.toString('utf8'));
         if (state.revision !== Number(BACKUP_ID.exec(id)[1])) throw new TypeError('Retained backup revision does not match its ID.');
         return envelope((await hydrateHistory(state)).state);
-      });
+      }, { backupRead: true });
     },
     getAccessToken: () => token,
     subscribe(listener) { listeners.add(listener); return () => listeners.delete(listener); },
-    command(command, expectedRevision, { actor } = {}) {
-      return runCommand(command, expectedRevision, false, false, actor);
+    command(command, expectedRevision, { actor, requestId, requestAck } = {}) {
+      return runCommand(command, expectedRevision, false, false, actor, undefined, requestId, requestAck);
     },
-    commandSerialized(command, expectedRevision, { omitUnchanged = false, actor, view } = {}) { return runCommand(command, expectedRevision, true, omitUnchanged, actor, view); },
+    commandSerialized(command, expectedRevision, { omitUnchanged = false, actor, view, requestId, requestAck } = {}) { return runCommand(command, expectedRevision, true, omitUnchanged, actor, view, requestId, requestAck); },
+    replayCommandSerialized(command, requestId, { actor, view, requestAck } = {}) {
+      const receipt = commandReceipt(command, actor, requestId, requestAck);
+      return receipt?.replay ? { ...commandSnapshot(undefined, false, view), receipt: receipt.result } : undefined;
+    },
+    openActionSession(clientId, { actor } = {}) {
+      return enqueue(async () => {
+        const result = openActionSession(receipts, clientId, actor);
+        if (result.ledger !== receipts) {
+          const bytes = await serializedDiskState(current, result.ledger);
+          await atomicWrite(stateFile, bytes);
+          receipts = result.ledger; currentDiskSerialized = bytes;
+        }
+        return result.session;
+      });
+    },
+    acknowledgeActionSession(clientId, input, { actor } = {}) {
+      return enqueue(async () => {
+        const result = acknowledgeActionSession(receipts, clientId, input, actor);
+        if (result.ledger !== receipts) {
+          const record = acknowledgementFor(input.slot, receipts.slots[input.slot]);
+          const next = acknowledgements.filter(row => row.slot !== input.slot).concat(record);
+          // Keep the action+outcome atomic in state.json. This small, bounded
+          // file confirms only its exact durable receipt; the next gameplay
+          // write naturally embeds the resulting watermark without extra I/O.
+          await atomicWrite(acknowledgementsFile, `${JSON.stringify({ schemaVersion: 1, entries: next })}\n`);
+          acknowledgements = next; receipts = result.ledger;
+        }
+        return result.session;
+      });
+    },
+    activate(checkpoint) {
+      if (activationPending) return Promise.reject(new Error('Standby activation is already running.'));
+      const activation = (async () => {
+        if (!readOnly || closing) throw new Error('Only an open standby can acquire writer ownership.');
+        if (!checkpoint || checkpoint.schemaVersion !== SCHEMA_VERSION) throw new Error('A compatible handover checkpoint is required.');
+        // Reuse the warmed world, worker and verified immutable static fields.
+        // Acquire the ORIGINAL locks before reading the final authoritative save.
+        let phaseStarted = performance.now();
+        const guard = await acquireProcessGuard(directory);
+        reportActivationTiming(onActivationTiming, 'store.guard', phaseStarted);
+        let fileLock;
+        try {
+          phaseStarted = performance.now();
+          fileLock = await acquireLock(directory, beforeLockRecovery);
+          reportActivationTiming(onActivationTiming, 'store.ownerLock', phaseStarted);
+          phaseStarted = performance.now();
+          const bytes = await readFile(stateFile), document = parseSavedDocument(bytes);
+          if (createHash('sha256').update(bytes).digest('hex') !== checkpoint.sha256 || document?.state?.revision !== checkpoint.revision) throw new Error('Handover checkpoint changed.');
+          const latest = await importStoredBackup(document, true);
+          const metadata = receiptMetadata(document.actionReceipts, latest.revision);
+          const acknowledged = await acknowledgedReceipts(metadata.ledger);
+          reportActivationTiming(onActivationTiming, 'store.readValidate', phaseStarted);
+          phaseStarted = performance.now();
+          const baseline = migrateState && latest.provenance?.historyArchive?.length ? (await hydrateHistory(latest)).state : latest;
+          const ready = await prepared(baseline, 'load');
+          if (baseline !== latest && JSON.stringify(ready.history) === JSON.stringify(baseline.history)) {
+            ready.history = structuredClone(latest.history);
+            ready.provenance = { ...ready.provenance, historyArchive: structuredClone(latest.provenance.historyArchive) };
+          }
+          if (!isDeepStrictEqual(ready, latest)) throw Object.assign(new Error('Live swap refuses a save migration; use a reviewed offline migration.'), { code: 'LIVE_SWAP_MIGRATION_REQUIRED' });
+          if (latest.provenance?.historyArchive?.length) await hydrateHistory(latest);
+          reportActivationTiming(onActivationTiming, 'store.prepare', phaseStarted);
+          if (closing) throw new Error('Standby activation was cancelled by shutdown.');
+          current = latest; receipts = acknowledged.ledger; acknowledgements = acknowledged.records;
+          receiptQuarantine = metadata.quarantine; currentDiskSerialized = bytes;
+          releaseGuard = guard; releaseFileLock = fileLock;
+          readOnly = false; frozen = false; liveSwapStrict = true;
+          phaseStarted = performance.now();
+          for (const listener of listeners) { try { listener({ revision: current.revision, ownershipChanged: true }); } catch {} }
+          reportActivationTiming(onActivationTiming, 'store.listeners', phaseStarted);
+          return { revision: current.revision, schemaVersion: SCHEMA_VERSION };
+        } catch (error) {
+          try { await fileLock?.(); } finally { await guard(); }
+          throw error;
+        } finally { standbyStaticFields.clear(); }
+      })();
+      activationPending = activation;
+      void activation.finally(() => { if (activationPending === activation) activationPending = undefined; }).catch(() => {});
+      return activation;
+    },
+    async freeze({ maxSaveBytes } = {}) {
+      if (maxSaveBytes !== undefined && (!Number.isSafeInteger(maxSaveBytes) || maxSaveBytes <= 0)) throw new TypeError('maxSaveBytes must be a positive safe integer.');
+      if (maintenancePending || freezePending) throw Object.assign(new Error('Save maintenance or a freeze is still running. Please try again in a moment.'), { status: 503, code: 'LIVE_SWAP_BUSY' });
+      const wasFrozen = frozen;
+      freezePending = true;
+      frozen = true;
+      try {
+        await queue; await maintenanceQueue;
+        if (maxSaveBytes !== undefined && Buffer.byteLength(currentDiskSerialized) > maxSaveBytes) throw Object.assign(new Error('The saved state exceeds the live update size limit. Please retry with a compatible release budget.'), { status: 503, code: 'LIVE_SWAP_BUSY' });
+        // These are the exact bytes of the last completed, synced replacement.
+        // The controller checks the physical file against this checkpoint before
+        // unlock; rereading it here adds allocation and I/O to the frozen window.
+        return { revision: current.revision, sha256: createHash('sha256').update(currentDiskSerialized).digest('hex'), schemaVersion: SCHEMA_VERSION };
+      } catch (error) { frozen = wasFrozen; throw error; }
+      finally { freezePending = false; }
+    },
     reconcileTaskClaims(activeTaskIds, expectedRevision) {
       const active = new Set(activeTaskIds);
       for (const id of active) if (typeof id !== 'string' || !id) throw new TypeError('Active task IDs must be nonempty strings.');
@@ -1063,7 +1284,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     close({ beforeUnlock } = {}) {
       if (closePromise) return closePromise;
       closing = true;
-      closePromise = (async () => { await queue; await enqueueMaintenance(maintainRetention); await beforeUnlock; listeners.clear(); await releaseLock(); })();
+      closePromise = (async () => { await activationPending?.catch(() => {}); await queue; if (!readOnly && !frozen && !liveSwapStrict) await enqueueMaintenance(maintainRetention, { allowClosing: true }); else await maintenanceQueue; await beforeUnlock; listeners.clear(); await releaseLock(); })();
       return closePromise;
     },
   };

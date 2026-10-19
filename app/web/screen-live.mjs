@@ -1,6 +1,8 @@
 // Main-screen live; shared values and callbacks live in the explicit screen context.
 export function createScreenLive(c) {
   function connectEvents() {
+    const recovery = c.queue.then(() => c.recoverPendingCommand());
+    c.queue = recovery.catch(error => { c.saved(error.retryPaused ? 'Save not confirmed' : 'Save confirmation needed', true); c.showError(error); });
     const events = new EventSource('/api/events');
     events.addEventListener('revision', async event => {
       const update = JSON.parse(event.data), revision = update.revision;
@@ -8,7 +10,7 @@ export function createScreenLive(c) {
       // Our own commit notification can precede its HTTP acknowledgement. Let
       // queued commands adopt that response before deciding whether to fetch.
       await c.queue.catch(() => {});
-      if (revision <= c.state.revision) return;
+      if (revision <= c.state.revision) { if (!c.hasPendingCommand()) c.saved('Saved', false, c.state.revision); return; }
       try {
         const response = await c.api('/api/state');
         const unchanged = update.taskResultsUnchanged === true && revision === c.state.revision + 1 && response.state.revision === revision;
@@ -16,10 +18,15 @@ export function createScreenLive(c) {
         const reuse = unchanged
           && c.result?.stateRevision === c.state.revision ? c.result : undefined;
         c.adopt(response.state, response.pools, reuse);
-        c.saved('Saved', false, c.state.revision);
-      } catch (error) { c.saved('Sync failed', true); c.showError(error); }
+        if (!c.hasPendingCommand()) c.saved('Saved', false, c.state.revision);
+      } catch (error) { c.saved(c.pendingCommandPaused?.() ? 'Save not confirmed' : 'Sync failed', true); c.showError(error); }
     });
-    events.addEventListener('error', () => c.saved('Reconnecting…', true)); events.addEventListener('open', () => { c.saved('Saved', false, c.state.revision); void c.duoCoordination?.refresh(); });
+    events.addEventListener('error', () => c.saved(c.pendingCommandPaused?.() ? 'Save not confirmed' : 'Reconnecting…', true));
+    events.addEventListener('open', () => {
+      if (c.pendingCommandPaused?.()) c.saved('Save not confirmed', true);
+      else c.saved(c.hasPendingCommand() ? 'Confirming pending save…' : 'Syncing…');
+      void c.duoCoordination?.refresh();
+    });
     events.addEventListener('worker', event => c.workerStatus(JSON.parse(event.data)));
     const ready = new Set();
     events.addEventListener('task-ready', async event => {

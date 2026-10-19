@@ -61,7 +61,7 @@ async function atomicWrite(file, document) {
 }
 
 /** Shares the gameplay directory lock, but never writes gameplay or its backups. */
-export async function openUsageStore({ dataDir, actors, now = Date.now } = {}) {
+export async function openUsageStore({ dataDir, actors, now = Date.now, readOnly = false } = {}) {
   const file = path.join(dataDir, 'usage.json'), known = new Set([...actors, 'viewer', 'unlinked']);
   let current = { schemaVersion: 1, counts: [] }, queue = Promise.resolve(), closed = false;
   const retained = rows => {
@@ -74,7 +74,7 @@ export async function openUsageStore({ dataDir, actors, now = Date.now } = {}) {
       || current.counts.some(row => !validRow(row, known, Number.MAX_SAFE_INTEGER))
       || new Set(current.counts.map(rowKey)).size !== current.counts.length) throw new TypeError('Invalid usage store.');
     const counts = retained(current.counts);
-    if (counts.length !== current.counts.length) { current = { schemaVersion: 1, counts }; await atomicWrite(file, current); }
+    if (counts.length !== current.counts.length) { current = { schemaVersion: 1, counts }; if (!readOnly) await atomicWrite(file, current); }
   } catch (error) { if (error.code !== 'ENOENT') throw error; }
   function enqueue(operation) {
     if (closed) return Promise.reject(failure(503, 'Usage storage is closed.'));
@@ -83,6 +83,7 @@ export async function openUsageStore({ dataDir, actors, now = Date.now } = {}) {
   }
   return {
     add(input, actor) {
+      if (readOnly) return Promise.reject(failure(503, 'Usage storage is read only.'));
       const rows = validateUsagePayload(input, { actors, actor, now });
       return enqueue(async () => {
         const merged = new Map(retained(current.counts).map(row => [rowKey(row), { ...row }]));
@@ -102,7 +103,7 @@ export async function openUsageStore({ dataDir, actors, now = Date.now } = {}) {
       return enqueue(async () => {
         const counts = retained(current.counts);
         if (counts.length !== current.counts.length) {
-          const next = { schemaVersion: 1, counts }; await atomicWrite(file, next); current = next;
+          const next = { schemaVersion: 1, counts }; if (!readOnly) await atomicWrite(file, next); current = next;
         }
         return structuredClone(current);
       });

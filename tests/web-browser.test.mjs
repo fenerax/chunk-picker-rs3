@@ -59,7 +59,9 @@ const settingsSource = (await readFile(new URL('../app/web/settings-panel.mjs', 
 const task = { id: 'custom:note', label: 'Test task', category: 'Custom', status: 'available' };
 const taskResult = revision => ({ stateRevision: revision, memberId: 'actor1', tasks: [], presentation: { tasks: [], alternatives: {} }, metrics: { availableCount: 0, elapsedMs: 1 }, access: { areas: [] } });
 function deferred() { let resolve, reject; const promise = new Promise((done, fail) => { resolve = done; reject = fail; }); return { promise, resolve, reject }; }
-const flush = async () => { for (let i = 0; i < 12; i++) await Promise.resolve(); };
+// Registration and recovery add promise hops before a command reaches the wire.
+// Drain the current turn without guessing their count or resolving deferred IO.
+const flush = () => new Promise(resolve => setImmediate(resolve));
 
 test('roll pool actions use plain labels and preserve command statuses', async () => {
   const h = harness(), sent = []; h.context.sent = sent;
@@ -1063,7 +1065,7 @@ test('revision events avoid fetching our pending save and still synchronize remo
   const remoteNotification = events.emit('revision', { data: JSON.stringify({ revision: 9 }) });
   await flush();
   assert.equal(h.calls.filter(call => call.path === '/api/state').length, 0, 'Remote synchronization must wait for the in-flight save');
-  failure.resolve({ ok: false, status: 500, value: { message: 'Injected save failure' } });
+  failure.resolve({ ok: false, status: 422, value: { message: 'Injected save failure' } });
   await rejected; await remoteNotification;
   assert.deepEqual(h.calls.filter(call => !call.path.startsWith('/api/tasks?')).map(call => call.path), ['/api/command', '/api/command', '/api/state']);
   assert.equal(h.run('state.revision'), 9);
@@ -1224,13 +1226,13 @@ test('provisional revision mismatch and network failures fall back to ordinary t
 });
 
 test('failed or conflicting commands clear provisional reads and preserve ordinary remote synchronization', async () => {
-  for (const status of [409, 500]) {
+  for (const status of [409, 422]) {
     const f = await sseWriteFixture(false), { h } = f, rejected = assert.rejects(f.saving), notification = f.notify(8); await flush();
     const request = h.calls.find(call => call.path.startsWith('/api/tasks?'));
     h.route(path => path === '/api/state' ? { state: f.next, pools: {} } : f.selectedResult);
     f.acknowledgement.resolve({ ok: false, status, value: { message: 'Save failed', ...(status === 409 ? { state: f.next, pools: {} } : {}) } });
     await rejected; await notification; assert.equal(h.run('earlyTaskLoad'), undefined); assert.equal(request.options.signal.aborted, true);
-    assert.equal(h.run('state.revision'), 8); assert.equal(h.calls.filter(call => call.path === '/api/state').length, status === 500 ? 1 : 0);
+    assert.equal(h.run('state.revision'), 8); assert.equal(h.calls.filter(call => call.path === '/api/state').length, status === 422 ? 1 : 0);
     f.selected.resolve(f.selectedResult); await flush(); assert.notEqual(h.run('result'), f.selectedResult);
   }
 });
@@ -2295,7 +2297,7 @@ test('Backlog toggles reason groups independently of Active search and restores 
   search.value = 'copper'; await search.emit('input');
   assert.ok(h.find('span', 'Later (1)')); await h.click('Restore these');
   assert.equal(h.calls.length, 1);
-  assert.deepEqual(h.calls[0].body, { expectedRevision: 7, command: { type: 'clear-backlog', memberId: 'actor1', taskIds: ['custom:backlog-copper'] } });
+  assert.deepEqual(h.calls[0].body, { requestId: 'v2.0.1.1', requestAck: 0, expectedRevision: 7, command: { type: 'clear-backlog', memberId: 'actor1', taskIds: ['custom:backlog-copper'] } });
 });
 
 test('closed completed and backlog lists retain exact counts without constructing hidden rows', () => {
@@ -2488,10 +2490,40 @@ test('failed shift-click reverts only its preview and reports the unsaved chunk'
   h.route(() => acknowledgement.promise);
   const failed = assert.rejects(h.run("toggleChunk('12341')"), /Chunk 12341 was not saved.*preview was reverted.*Injected failure/);
   assert.ok(h.map.members[0].unlocked.includes('12341')); await flush();
-  acknowledgement.resolve({ ok: false, status: 500, value: { message: 'Injected failure' } }); await failed;
+  acknowledgement.resolve({ ok: false, status: 422, value: { message: 'Injected failure' } }); await failed;
   assert.deepEqual(h.snapshot(), baseline); assert.ok(!h.map.members[0].unlocked.includes('12341'));
   assert.equal(h.run('pendingChunkChanges.length'), 0); assert.equal(h.nodes.get('save-status').textContent, 'Save failed');
   assert.match(h.nodes.get('notice').children[0].textContent, /Chunk 12341 was not saved.*reverted/);
+});
+
+test('an ambiguous HTTP 500 retries the same optimistic action until one acknowledgement arrives', async () => {
+  const h = harness(), acknowledgement = deferred(), retried = deferred(), baseline = h.snapshot();
+  let attempts = 0;
+  h.route(path => {
+    assert.equal(path, '/api/command');
+    if (++attempts === 1) return { ok: false, status: 500, value: { message: 'The save answer is uncertain.' } };
+    retried.resolve();
+    return acknowledgement.promise;
+  });
+  const saving = h.run("toggleChunk('12341')");
+  await retried.promise;
+  assert.equal(h.calls.length, 2);
+  assert.equal(h.calls[0].options.body, h.calls[1].options.body, 'A transient failure cannot assign a fresh action identity');
+  assert.equal(h.calls[1].body.requestId, 'v2.0.1.1');
+  assert.equal(h.calls[1].body.requestAck, 0);
+  assert.equal(h.calls[1].body.expectedRevision, 7);
+  assert.deepEqual(h.snapshot(), baseline);
+  assert.ok(h.map.members[0].unlocked.includes('12341'), 'The optimistic preview remains while confirmation is retried');
+  assert.equal(h.run('pendingChunkChanges.length'), 1);
+  assert.equal(h.run('hasPendingCommand()'), true);
+  const next = structuredClone(baseline); next.revision = 8; next.members[0].unlocked.push('12341');
+  next.history.push({ type: 'set-chunk', revision: 8, undo: { saved: true } });
+  acknowledgement.resolve({ state: next, pools: {} }); await saving;
+  assert.equal(h.run('state.revision'), 8);
+  assert.equal(h.snapshot().history.filter(event => event.type === 'set-chunk').length, 1);
+  assert.equal(h.run('pendingChunkChanges.length'), 0);
+  assert.equal(h.run('hasPendingCommand()'), false);
+  assert.equal(h.nodes.get('save-status').textContent, 'Saved');
 });
 
 test('conflicting shift-click preserves the remote map and undo history without retry', async () => {
@@ -2526,7 +2558,7 @@ test('a rejected preview preserves a later chunk edit and the queue continues fr
   let requests = 0; h.route(() => ++requests === 1 ? first.promise : second.promise);
   const failed = assert.rejects(h.run("toggleChunk('12341')"), /preview was reverted/), saving = h.run("toggleChunk('12342')");
   assert.deepEqual([...h.map.members[0].unlocked], ['12341', '12342']); await flush();
-  first.resolve({ ok: false, status: 500, value: { message: 'First save failed' } }); await failed; await flush();
+  first.resolve({ ok: false, status: 422, value: { message: 'First save failed' } }); await failed; await flush();
   assert.deepEqual([...h.map.members[0].unlocked], ['12342']); assert.equal(h.calls[1].body.expectedRevision, 7);
   const next = structuredClone(baseline); next.revision = 8; next.members[0].unlocked = ['12342'];
   second.resolve({ state: next, pools: {} }); await saving;

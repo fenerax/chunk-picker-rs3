@@ -58,9 +58,17 @@ export function requireGameBackup(dataset, backup) {
 
 export function preserveGameIdentity(dataset, prepareState) {
   if (!dataset.capabilities?.independent) return prepareState;
-  return async (state, context) => {
+  const prepare = async (state, context) => {
     const ready = await prepareState?.(state, context) ?? state;
     ready.provenance = { ...ready.provenance, dataset: { id: dataset.datasetId, contractVersion: dataset.datasetContractVersion, digest: dataset.digest } };
     return ready;
   };
+  // Only the first-party identity-only hook can prove its load is a no-op.
+  // A caller hook always runs, even if the dataset identity already matches.
+  if (!prepareState) prepare.isCurrent = state => {
+    const identity = state.provenance?.dataset;
+    return identity && Object.keys(identity).length === 3 && identity.id === dataset.datasetId
+      && identity.contractVersion === dataset.datasetContractVersion && identity.digest === dataset.digest;
+  };
+  return prepare;
 }

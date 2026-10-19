@@ -149,12 +149,23 @@ test('graceful shutdown drains queued saves, rejects new writes and bounds unfin
   await new Promise(resolve => socket.once('connect', resolve));
   socket.write(`POST /api/command HTTP/1.1\r\nHost: ${new URL(origin).host}\r\nAuthorization: Bearer ${application.store.getAccessToken()}\r\nContent-Type: application/json\r\nContent-Length: 5000\r\n\r\n{`);
   const started = performance.now(); const closing = application.close();
-  await assert.rejects(application.store.command({ type: 'set-rule', ruleId: 'access.shared', value: true }, 0), /closed/);
-  // Let the network deadline expire while an accepted save is still queued.
-  await delay(90); release();
-  assert.equal((await saving).status, 200); await closing;
-  assert.equal(application.store.getState().revision, 1); assert.ok(performance.now() - started < 5000);
-  socket.destroy();
+  let admissionTimer;
+  try {
+    // Store admission closes synchronously; a regression must fail without
+    // waiting forever behind the deliberately held first save.
+    await assert.rejects(Promise.race([
+      application.store.command({ type: 'set-rule', ruleId: 'access.shared', value: true }, 0),
+      new Promise((_, reject) => { admissionTimer = setTimeout(() => reject(new Error('Store admission stayed open during shutdown.')), 1000); }),
+    ]), /closed/);
+    clearTimeout(admissionTimer);
+    // Let the network deadline expire while an accepted save is still queued.
+    await delay(90); release();
+    assert.equal((await saving).status, 200); await closing;
+    assert.equal(application.store.getState().revision, 1); assert.ok(performance.now() - started < 5000);
+  } finally {
+    clearTimeout(admissionTimer); release(); socket.destroy();
+    await closing.catch(() => {}); await saving.catch(() => {});
+  }
 });
 
 test('a nonreading save requester cannot keep shutdown open after its save commits', async t => {
