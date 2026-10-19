@@ -16,6 +16,7 @@ import { taskCountAnnotationCells, taskCountObstacles } from './map-task-count-o
 import { MapPlaceLabels } from './map-place-labels.mjs';
 import { MapActivityLayerRenderer } from './map-activity-layer-renderer.mjs';
 import { createChunkLongPress, PHONE_MEDIA_QUERY } from './chunk-long-press.mjs';
+import { drawGamePluginPositions } from './game-plugin.mjs';
 
 const CELL = 128;
 const WORLD_WIDTH = SURFACE_GRID.columns * CELL;
@@ -537,6 +538,11 @@ export class ChunkMap {
     this.deathMarkers = markers instanceof Map ? markers : new Map();
     if (this.hoverId && this.pointer) this.setHover(this.hoverId);
     this.invalidate(false, true, true);
+  }
+
+  setGamePluginPositions(positions) {
+    this.gamePluginPositions = Array.isArray(positions) ? positions : [];
+    this.invalidate(false, false, true);
   }
 
   centerOnUnlocked() {
@@ -1242,6 +1248,7 @@ export class ChunkMap {
     if (this.searchLayer && !this.searchLayer.canvas) this.searchLayer.draw(this, context, true);
     this.drawConnectionLines(context);
     this.drawSectionHighlight(context);
+    drawGamePluginPositions(context, this, surfaceCoordinates);
     this.drawOpenChunk(context);
     this.pointerTool?.draw(context);
     const point = this.cells.get(this.hoverId);

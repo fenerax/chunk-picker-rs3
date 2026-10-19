@@ -3,7 +3,7 @@ const UNLOCK_TYPES = new Set(['roll', 'random-start', 'unlock-selection', 'pick-
 const NON_MAP_TYPES = new Set(['set-rule-review', 'set-rule', 'set-profile', 'set-teleport', 'set-teleport-override', 'set-transport-facts',
   'claim-task', 'clear-task-claim', 'prune-task-claims', 'complete-task', 'set-note', 'set-journal', 'add-task', 'update-task', 'delete-task',
   'set-task-status', 'clear-backlog', 'clear-challenge-ticks', 'tick-active-tasks', 'set-task-rule', 'reset-task-rule', 'set-task-alternative',
-  'set-preference', 'set-primary-override', 'set-skill-levels', 'set-runescape-name', 'apply-runemetrics', 'set-slayer-lock',
+  'set-preference', 'set-primary-override', 'set-skill-levels', 'set-runescape-name', 'apply-runemetrics', 'apply-game-progress', 'set-slayer-lock',
   'set-sticker', 'add-sticker', 'update-sticker', 'remove-sticker', 'clear-stickers', 'set-chunk-colour', 'rename-chunk-colour', 'set-starting-chunk', 'set-section',
   'set-source-backlog', 'set-area', 'delete-teleport']);
 

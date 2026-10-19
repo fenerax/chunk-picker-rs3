@@ -1,8 +1,14 @@
 import { datasetValue } from "../dataset-runtime.mjs";
-import { playerControlSkills } from './player-controls.mjs';
 
 export const defaultRuneScapeNames = datasetValue("app/core/game-progress.mjs#defaultRuneScapeNames");
-const skills = new Set(playerControlSkills);
+export const observedSkills = Object.freeze([
+  'Attack', 'Defence', 'Strength', 'Constitution', 'Ranged', 'Prayer', 'Magic',
+  'Cooking', 'Woodcutting', 'Fletching', 'Fishing', 'Firemaking', 'Crafting',
+  'Smithing', 'Mining', 'Herblore', 'Agility', 'Thieving', 'Slayer', 'Farming',
+  'Runecrafting', 'Hunter', 'Construction', 'Summoning', 'Dungeoneering',
+  'Divination', 'Invention', 'Archaeology', 'Necromancy',
+]);
+const skills = new Set(observedSkills);
 
 export function validateRuneScapeName(name) {
   if (typeof name !== 'string') throw new TypeError('RuneScape name must be a string');
@@ -18,11 +24,11 @@ export function sameRuneScapeName(first, second) {
   return !!first.trim() && !!second.trim() && name === canonical(second);
 }
 
-export function validateRuneMetricsTimestamp(value) {
-  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?Z$/.test(value)) throw new TypeError('RuneMetrics fetchedAt must be an ISO UTC timestamp');
+export function validateRuneMetricsTimestamp(value, source = 'RuneMetrics') {
+  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?Z$/.test(value)) throw new TypeError(`${source} fetchedAt must be an ISO UTC timestamp`);
   const date = new Date(value);
   const canonical = value.replace(/(?:\.(\d{1,3}))?Z$/, (_, fraction) => `.${(fraction ?? '').padEnd(3, '0')}Z`);
-  if (!Number.isFinite(date.getTime()) || date.toISOString() !== canonical) throw new TypeError('RuneMetrics fetchedAt must be a valid ISO UTC timestamp');
+  if (!Number.isFinite(date.getTime()) || date.toISOString() !== canonical) throw new TypeError(`${source} fetchedAt must be a valid ISO UTC timestamp`);
   return value;
 }
 
@@ -44,14 +50,26 @@ export function validateRuneMetricsProvenance(value, keys = ['source', 'fetchedA
   if (validateRuneScapeName(value.runescapeName) !== value.runescapeName) throw new TypeError(`${path} RuneScape name must be trimmed`);
 }
 
-export function validateSkillProgress(skill, value) {
-  validateRuneMetricsProvenance(value, ['level', 'xp', 'source', 'fetchedAt', 'runescapeName'], 'skill progress');
+export function validateGamePluginProvenance(value, memberId, keys = ['source', 'fetchedAt', 'memberId'], path = 'Game plugin provenance') {
+  fields(value, keys, path);
+  if (value.source !== 'game-plugin') throw new TypeError(`${path} source must be game-plugin`);
+  validateRuneMetricsTimestamp(value.fetchedAt, 'Game plugin');
+  if (typeof value.memberId !== 'string' || !value.memberId.trim() || value.memberId !== memberId) throw new TypeError(`${path} memberId must match the owning member`);
+}
+
+function validateProgressProvenance(value, memberId, keys, path) {
+  if (value?.source === 'game-plugin') validateGamePluginProvenance(value, memberId, [...keys, 'source', 'fetchedAt', 'memberId'], path);
+  else validateRuneMetricsProvenance(value, [...keys, 'source', 'fetchedAt', 'runescapeName'], path);
+}
+
+export function validateSkillProgress(skill, value, memberId) {
+  validateProgressProvenance(value, memberId, ['level', 'xp'], 'skill progress');
   validateObservedSkill(skill, value);
 }
 
-export function validateQuestProgress(taskId, value, tasks) {
-  validateRuneMetricsProvenance(value, ['title', 'source', 'fetchedAt', 'runescapeName'], 'quest progress');
+export function validateQuestProgress(taskId, value, tasks, memberId) {
+  validateProgressProvenance(value, memberId, ['title'], 'quest progress');
   if (typeof value.title !== 'string' || !value.title.trim()) throw new TypeError('Quest progress title must be nonempty text');
   if (!tasks.has(taskId)) throw new TypeError(`Quest progress references absent task: ${taskId}`);
-  if (String(tasks.get(taskId).category).toLowerCase() !== 'quest') throw new TypeError(`RuneMetrics quest progress requires a quest task: ${taskId}`);
+  if (String(tasks.get(taskId).category).toLowerCase() !== 'quest') throw new TypeError(`${value.source === 'game-plugin' ? 'Game plugin' : 'RuneMetrics'} quest progress requires a quest task: ${taskId}`);
 }

@@ -37,7 +37,7 @@ export function renderProfile(context, model, { openBiS, openXpChoices, refresh 
   }
   skills.append(grid, el('p', model.skills.lastSyncAt ? `Last synced ${date(model.skills.lastSyncAt)}`
     : model.skills.knownCount ? 'Recorded account levels · Last sync date unknown.'
-      : 'No synced levels yet. Sync RuneMetrics in Activity Info → Skills.', 'profile-note'));
+      : 'No synced levels yet. Open RuneMetrics sync or Game plugin in Activity Info.', 'profile-note'));
   if (model.skills.knownCount > 0 && model.skills.knownCount < model.skills.totalCount) skills.append(el('p', `${model.skills.knownCount}/${model.skills.totalCount} levels recorded. Total needs all skills; combat needs all combat skills.`, 'profile-note'));
   if (openXpChoices) skills.append(button('XP choices', openXpChoices));
   const progress = el('div', undefined, 'profile-progress');

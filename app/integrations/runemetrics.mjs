@@ -1,14 +1,8 @@
 import { taskId, plainLabel } from '../tasks/engine.mjs';
-import { validateRuneScapeName } from '../core/game-progress.mjs';
+import { validateRuneScapeName, observedSkills } from '../core/game-progress.mjs';
 import { applyMetadataCorrections } from '../data/metadata-corrections.mjs';
 
-export const RUNE_METRICS_SKILLS = Object.freeze([
-  'Attack', 'Defence', 'Strength', 'Constitution', 'Ranged', 'Prayer', 'Magic',
-  'Cooking', 'Woodcutting', 'Fletching', 'Fishing', 'Firemaking', 'Crafting',
-  'Smithing', 'Mining', 'Herblore', 'Agility', 'Thieving', 'Slayer', 'Farming',
-  'Runecrafting', 'Hunter', 'Construction', 'Summoning', 'Dungeoneering',
-  'Divination', 'Invention', 'Archaeology', 'Necromancy',
-]);
+export const RUNE_METRICS_SKILLS = observedSkills;
 export const RUNE_METRICS_CACHE_MS = 3 * 60 * 1000;
 export const RUNE_METRICS_TIMEOUT_MS = 10 * 1000;
 export const RUNE_METRICS_USER_AGENT = 'RS3ChunkPicker/0.1 (private duo; on-demand personal progress sync)';
@@ -31,13 +25,14 @@ export function createQuestMapping(definitions) {
   for (const [rawLabel, record] of Object.entries(definitions.challenges?.Quest ?? {})) {
     if (!Object.hasOwn(record, 'QuestPoints')) continue;
     const label = plainLabel(rawLabel);
-    const whole = / Complete the (?:quest|miniquest|subquest)$/i.test(label);
+    const whole = / Complete the (?:quest|miniquest|subquest)$/i.test(label)
+      || typeof record.PickerId === 'string' && typeof record.BaseQuest === 'string' && label === `Finish ${record.BaseQuest}`;
     // Bare title records are used by small/custom catalogues. Mystery, step and
     // reward rows in the retained catalogue must not become quest evidence.
     if (!whole && (record.BaseQuest || /~\||Archaeology Mystery:/i.test(rawLabel))) continue;
     const title = record.BaseQuest ?? (whole ? label.replace(/ Complete the (?:quest|miniquest|subquest)$/i, '') : label);
     const key = canonicalTitle(title), candidates = titles.get(key) ?? [];
-    candidates.push({ taskId: taskId('Quest', rawLabel), title, label });
+    candidates.push({ taskId: taskId('Quest', rawLabel, record), title, label });
     titles.set(key, candidates);
   }
   return titles;

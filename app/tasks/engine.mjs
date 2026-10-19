@@ -5,7 +5,7 @@ import { importedXpAllocations, xpChoiceAllocation } from '../core/xp-choices.mj
 import { buildAccessIndex, calculateAccess, collectBaseItemSources, baseItemSourceView, walkingConnections, copyAccess } from './access.mjs';
 import { decodeLegacyText, hasGameplayMigration, projectMemberTaskFacts } from './migration.mjs';
 import { playerControlSkills, resolvePlayerControls } from '../core/player-controls.mjs';
-import { sameRuneScapeName } from '../core/game-progress.mjs';
+import { sameRuneScapeName, observedSkills } from '../core/game-progress.mjs';
 import { configureAutomaticTransport, registerAutomaticTransportEngineFactory } from '../core/automatic-transport.mjs';
 import { taskRuleCutoffDefaults, taskRuleDiagnostics } from '../data/settings.mjs';
 import { parseDropRate, composeDropRates, passesRateCutoff as evaluateRateCutoff, rateEvidence } from './rates.mjs';
@@ -389,9 +389,12 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
     const authoredXpTasks = new Set(Object.keys(member.xpChoices ?? {}));
     const playerControls = resolvePlayerControls(state, member);
     const observedProgress = {};
-    for (const skill of playerControlSkills) {
+    for (const skill of observedSkills) {
+      if (!Object.hasOwn(skillCaps, skill)) continue;
       const observation = member.skillProgress?.[skill];
-      if (observation?.source === 'runemetrics' && sameRuneScapeName(observation.runescapeName, member.runescapeName)
+      const boundObservation = observation?.source === 'game-plugin' ? observation.memberId === member.id
+        : observation?.source === 'runemetrics' && sameRuneScapeName(observation.runescapeName, member.runescapeName);
+      if (boundObservation
         && Number.isSafeInteger(observation.level) && observation.level >= 1 && observation.level <= 120
         && Number.isFinite(observation.xp) && observation.xp >= 0) observedProgress[skill] = observation;
     }

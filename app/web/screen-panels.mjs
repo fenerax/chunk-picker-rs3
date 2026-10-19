@@ -14,6 +14,7 @@ import { createSandbox } from './sandbox.mjs';
 import { createHelperView } from './helper.mjs';
 import { createMapDisplay } from './map-display.mjs';
 import { loadBiSMemberResult } from './bis-results.mjs';
+import { createGamePlugin } from './game-plugin.mjs';
 
 // Main-screen panels; shared values and callbacks live in the explicit screen context.
 export function createScreenPanels(c) {
@@ -29,6 +30,8 @@ export function createScreenPanels(c) {
   c.panelContext.canWriteMember = id => c.canWrite() && !c.sandbox.active && (!c.sessionMember || c.sessionMember === id);
   c.panelContext.supportsFeature = c.supportsFeature;
   c.panelContext.streamSafe = c.streamSafe;
+  c.gamePlugin = createGamePlugin(c);
+  c.panelContext.gamePlugin = c.gamePlugin;
   c.panelContext.usage = c.usage;
   c.panelContext.membersStartAvailable = () => c.canWrite() && !c.sandbox?.active;
   c.membersStart = createMembersStart({ ...c.panelContext, canWrite: c.panelContext.membersStartAvailable });

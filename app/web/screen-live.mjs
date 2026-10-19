@@ -26,7 +26,9 @@ export function createScreenLive(c) {
       if (c.pendingCommandPaused?.()) c.saved('Save not confirmed', true);
       else c.saved(c.hasPendingCommand() ? 'Confirming pending save…' : 'Syncing…');
       void c.duoCoordination?.refresh();
+      void c.gamePlugin?.refresh();
     });
+    events.addEventListener('game-plugin', () => void c.gamePlugin?.refresh());
     events.addEventListener('worker', event => c.workerStatus(JSON.parse(event.data)));
     const ready = new Set();
     events.addEventListener('task-ready', async event => {
