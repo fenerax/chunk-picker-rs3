@@ -85,6 +85,8 @@ export function createCompletedModel({ state, result, memberId, registry, now = 
     if (!command) continue;
     if (event.type === 'set-task-status' && Object.hasOwn(command, 'challengeCompleted')) {
       checks.set(key(command.memberId, resolve(command.taskId)), { completed: command.challengeCompleted === true, at: timestamp(event.at), imported: false });
+    } else if (event.type === 'tick-active-tasks') {
+      for (const id of command.taskIds ?? []) checks.set(key(command.memberId, resolve(id)), { completed: true, at: timestamp(event.at), imported: false });
     } else if (event.type === 'complete-task') {
       actual.set(key(command.memberId, resolve(command.taskId)), { completed: command.completed === true, at: timestamp(event.at) });
     } else if (event.type === 'sync-original') {

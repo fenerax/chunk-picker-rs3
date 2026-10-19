@@ -21,6 +21,7 @@ import { groupGoalCommandKeys, groupGoalCommandTypes, applyGroupGoalCommand, val
   groupGoalChanges, validateGroupGoalChanges, restoreGroupGoalChanges } from './group-goals.mjs';
 import { validateRuleReviewId, normalizeRuleReviewNote, validateRuleReviews, ruleReviewChange,
   validateRuleReviewChange, restoreRuleReviewChange } from './rule-reviews.mjs';
+import { TICK_ACTIVE_TASKS, tickActiveTasksKeys, applyTickActiveTasks } from './tick-active-tasks.mjs';
 export { MAX_RULE_REVIEW_NOTE_LENGTH } from './rule-reviews.mjs';
 export { preferenceDefinitions, validatePreference } from './preferences.mjs';
 
@@ -77,6 +78,7 @@ const COMMAND_KEYS = new Map([
   ['set-task-status', new Set(['type', 'memberId', 'taskId', 'backlogged', 'backlogReason', 'favorite', 'note', 'challengeCompleted'])],
   ['clear-backlog', new Set(['type', 'memberId', 'taskIds'])],
   ['clear-challenge-ticks', new Set(['type', 'memberId', 'taskIds', 'reason'])],
+  [TICK_ACTIVE_TASKS, tickActiveTasksKeys],
   ['set-task-rule', new Set(['type', 'memberId', 'ruleId', 'value'])],
   ['reset-task-rule', new Set(['type', 'memberId', 'ruleId'])],
   ['set-task-alternative', new Set(['type', 'memberId', 'category', 'group', 'taskId'])],
@@ -1680,6 +1682,9 @@ function applyCommandCopy(next, command, { expectedRevision, world, registry, ra
       payload.taskIds = ids; payload.cleared = ids.length;
       break;
     }
+    case TICK_ACTIVE_TASKS:
+      applyTickActiveTasks(findMember(next, payload.memberId), payload, id => registerCatalogueTask(next, id, taskCatalogue));
+      break;
     case 'clear-backlog': {
       // Restore saved statuses, even for tasks absent from the current calculated catalogue.
       const member = findMember(next, payload.memberId);
@@ -2044,7 +2049,7 @@ function applyCommandCopy(next, command, { expectedRevision, world, registry, ra
   // Availability changes are
   // reconciled after calculation, without attaching their cleanup to History.
   const completionCommand = payload.type === 'complete-task' || payload.type === 'set-task-status' && Object.hasOwn(payload, 'challengeCompleted')
-    || ['apply-runemetrics', 'sync-original', 'replace-member', 'clear-challenge-ticks', 'undo'].includes(payload.type);
+    || ['apply-runemetrics', 'sync-original', 'replace-member', 'clear-challenge-ticks', TICK_ACTIVE_TASKS, 'undo'].includes(payload.type);
   if (completionCommand && Object.keys(next.taskClaims ?? {}).length) {
     const satisfiedIds = member => new Set([...(member?.completedTasks ?? []),
       ...Object.entries(member?.taskStatus ?? {}).filter(([, status]) => status.challengeCompleted === true).map(([id]) => id)]

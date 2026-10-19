@@ -36,6 +36,7 @@ import { personalTeleportRows } from './core/teleport-returns.mjs';
 import { archaeologyTaskCorrections } from './data/archaeology-task-corrections.mjs';
 import { createGroupState, importBackup, importLegacyMaps, previewRestore, BACKUP_FORMAT, SCHEMA_VERSION } from './core/state.mjs';
 import { groupGoalCommandTypes } from './core/group-goals.mjs';
+import { TICK_ACTIVE_TASKS, tickActiveTasksDenied } from './core/tick-active-tasks.mjs';
 import { builtInRules, createRuleRegistry, evaluateRollPool, partnerConnections } from './core/rules.mjs';
 import { previewRuleProfile } from './core/planning.mjs';
 import { hasGameplayMigration, hasCurrentProgressAliasMigration, hasCurrentJournalMigration, migrateOwnedGameplay, resolveSavedTaskId } from './tasks/migration.mjs';
@@ -140,7 +141,7 @@ export const commandPermissions = Object.freeze(Object.fromEntries([
   'set-runescape-name', 'apply-runemetrics', 'set-slayer-lock', 'set-sticker', 'add-sticker',
   'update-sticker', 'remove-sticker', 'clear-stickers', 'set-chunk-colour', 'rename-chunk-colour', 'set-starting-chunk', 'set-section',
   'set-source-backlog', 'set-area', 'complete-task', 'set-obtained-equipment', 'roll', 'pick-for-me', 'unlock-selection',
-  'cancel-roll', 'unlock-both', 'random-start', 'go-members', 'unpick', 'undo', 'claim-task', 'clear-task-claim',
+  'cancel-roll', 'unlock-both', 'random-start', 'go-members', 'unpick', 'undo', 'claim-task', 'clear-task-claim', TICK_ACTIVE_TASKS,
 ].map(type => [type, 'write'])));
 export function apiPermission(method, route) {
   const routes = routePermissions[method === 'HEAD' ? 'GET' : method];
@@ -187,6 +188,8 @@ function actorOwnsEvent(actor, identity) {
   return Boolean(actor.label && actor.label === identity.label);
 }
 
+const personalUndoReasons = new Map([['set-xp-choices', 'You can only undo XP choices for your signed-in player.'],
+  [TICK_ACTIVE_TASKS, 'You can only undo your own ticked tasks.']]);
 // Small committed History metadata only; never hydrate save/undo archives for a notice.
 export function coordinationView(store, identity) {
   const records = store.getRecentHistory(Number.MAX_SAFE_INTEGER);
@@ -196,9 +199,9 @@ export function coordinationView(store, identity) {
     return event;
   };
   const latest = store.getUndoEligibility();
-  const personalXpUndo = view => view?.event?.type === 'set-xp-choices' && !identity.admin
+  const personalXpUndo = view => personalUndoReasons.has(view?.event?.type) && !identity.admin
     && (!identity.memberId || view.event.command?.memberId !== identity.memberId)
-    ? { ...view, canUndo: false, reason: 'You can only undo XP choices for your signed-in player.' } : view;
+    ? { ...view, canUndo: false, reason: personalUndoReasons.get(view.event.type) } : view;
   const latestUndo = personalXpUndo({ ...latest, event: publicEvent(store.getHistoryEvent(latest.undoRevision)) });
   const own = records.findLast(event => event.hasUndo && event.type !== 'undo' && event.undoneRevision === undefined && actorOwnsEvent(event.actor, identity));
   const ownUndo = !own || own.revision === latest.undoRevision ? null : personalXpUndo({ ...store.getUndoEligibility(own.revision), event: publicEvent(own) });
@@ -1786,8 +1789,11 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
               if (command?.type === 'set-finish-line-custom' && !identity.admin && (!identity.memberId || command.memberId !== identity.memberId)) {
                 throw httpError(403, 'You can only tick custom finish line items for your signed-in player.');
               }
+              if (command?.type === TICK_ACTIVE_TASKS) { const denied = tickActiveTasksDenied(identity, command); if (denied) throw httpError(403, denied); }
               if (command?.type === 'undo' && !identity.admin) {
                 const target = store.getHistoryEvent(command.undoRevision ?? store.getUndoEligibility().undoRevision);
+                const tickDenied = tickActiveTasksDenied(identity, command, target);
+                if (tickDenied) throw httpError(403, tickDenied);
                 if (target?.type === 'set-finish-line-custom' && (!identity.memberId || target.command?.memberId !== identity.memberId)) {
                   throw httpError(403, 'You can only undo finish line ticks for your signed-in player.');
                 }
@@ -1974,8 +1980,9 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
       else if (['/completed-view.mjs', '/completed-model.mjs', '/completed-range.mjs', '/completed-range-preference.mjs', '/completed-view.css'].includes(route)) file = await containedFile(webRoot, route.slice(1));
       else if (['/helper.mjs', '/helper.css', '/helper-model.mjs', '/helper-training.mjs', '/helper-goals.mjs', '/helper-drops.mjs', '/helper-charts.mjs', '/helper-utilities.mjs', '/helper-progress.mjs', '/helper-progress-model.mjs'].includes(route)) file = await containedFile(webRoot, route.slice(1));
       else if (['/core/interior-maps.mjs', '/core/archaeology.mjs'].includes(route)) file = await containedFile(path.join(ROOT, 'app', 'core'), route.slice('/core/'.length));
-      else if (['/core/experience.mjs', '/core/combat-level.mjs', '/core/f2p-skill-caps.mjs', '/core/finish-line.mjs', '/core/group-goals.mjs', '/core/group-goal-types.mjs'].includes(route)) file = await containedFile(path.join(ROOT, 'app', 'core'), route.slice('/core/'.length));
+      else if (['/core/experience.mjs', '/core/combat-level.mjs', '/core/f2p-skill-caps.mjs', '/core/finish-line.mjs', '/core/group-goals.mjs', '/core/group-goal-types.mjs', '/core/tick-active-tasks.mjs'].includes(route)) file = await containedFile(path.join(ROOT, 'app', 'core'), route.slice('/core/'.length));
       else if (['/copy-lists.mjs', '/copy-list-control.mjs', '/copy-list-model.mjs', '/copy-lists.css'].includes(route)) file = await containedFile(webRoot, route.slice(1));
+      else if (['/tick-active-tasks.mjs', '/tick-active-tasks-model.mjs', '/tick-active-tasks.css'].includes(route)) file = await containedFile(webRoot, route.slice(1));
       else if (route === '/original-sync.mjs' && privateAddon?.features.originalSync) {
         const bytes = await privateAddon.read('app/web/original-sync.mjs');
         await sendCached(request, response, createRepresentation(bytes, { type: MIME['.mjs'] })); return;

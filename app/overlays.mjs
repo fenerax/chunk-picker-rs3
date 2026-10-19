@@ -13,7 +13,7 @@ const HASH = /^[a-f0-9]{64}$/;
 const PLAYER = /^[A-Za-z0-9_-]{1,64}$/;
 const ID = /^[a-f0-9-]{36}$/;
 const ROLL_EVENTS = new Set(['roll', 'random-start', 'cancel-roll', 'unlock-selection', 'pick-for-me', 'unlock-both']);
-const ROLL_UNCHANGED = new Set(['set-journal', 'set-note', 'set-preference', 'complete-task', 'set-task-status', 'add-task', 'update-task', 'delete-task', 'set-rule', 'set-task-rule', 'reset-task-rule', 'clear-backlog', 'clear-challenge-ticks']);
+const ROLL_UNCHANGED = new Set(['set-journal', 'set-note', 'set-preference', 'complete-task', 'set-task-status', 'add-task', 'update-task', 'delete-task', 'set-rule', 'set-task-rule', 'reset-task-rule', 'clear-backlog', 'clear-challenge-ticks', 'tick-active-tasks']);
 const fail = (status, message) => Object.assign(new Error(message), { status });
 const digest = token => createHash('sha256').update(token).digest('hex');
 const equals = (a, b) => timingSafeEqual(Buffer.from(a, 'hex'), Buffer.from(b, 'hex'));

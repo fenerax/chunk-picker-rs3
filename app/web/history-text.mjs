@@ -16,7 +16,7 @@ export const historyChangeTypes = Object.freeze([
 const changeTypes = new Map([
   ['tasks', groupGoalCommandTypes],
   ['map', ['set-chunk', 'roll', 'unlock-selection', 'pick-for-me', 'unlock-both', 'cancel-roll', 'random-start', 'unpick', 'set-starting-chunk']],
-  ['tasks', ['claim-task', 'clear-task-claim', 'prune-task-claims', 'set-task-status', 'clear-challenge-ticks', 'clear-backlog', 'add-task', 'update-task', 'delete-task', 'set-task-alternative', 'set-source-backlog', 'add-finish-line-custom', 'set-finish-line-custom', 'delete-finish-line-custom']],
+  ['tasks', ['claim-task', 'clear-task-claim', 'prune-task-claims', 'set-task-status', 'clear-challenge-ticks', 'tick-active-tasks', 'clear-backlog', 'add-task', 'update-task', 'delete-task', 'set-task-alternative', 'set-source-backlog', 'add-finish-line-custom', 'set-finish-line-custom', 'delete-finish-line-custom']],
   ['settings', ['set-task-rule', 'reset-task-rule', 'set-rule', 'set-rule-review', 'set-profile', 'set-preference', 'set-primary-override', 'set-skill-levels', 'set-slayer-lock', 'set-finish-line-item']],
   ['travel', ['set-section', 'set-area', 'set-teleport', 'set-teleport-override', 'delete-teleport', 'set-transport-facts']],
   ['progress', ['complete-task', 'set-obtained-equipment', 'set-runescape-name', 'apply-runemetrics', 'set-xp-choices']],
@@ -112,6 +112,7 @@ export function describeHistoryEvent(event = {}, { memberName = id => id, chunkN
       return `${parts.join('; ') || `Changed ${task(c.taskId)}`}${forWho}`;
     }
     case 'clear-challenge-ticks': return `Unticked ${c.cleared ?? c.taskIds?.length ?? 'all checked'} tasks${c.reason ? ` (${c.reason})` : ''}${forWho}`;
+    case 'tick-active-tasks': return `Ticked ${c.ticked ?? c.taskIds?.length ?? 'all'} active tasks${c.skipped ? ` (${c.skipped} left for a choice)` : ''}${forWho}`;
     case 'clear-backlog': return `Restored ${c.taskIds ? '' : 'all '}${c.restored ?? ''} backlogged tasks`.replace('  ', ' ') + forWho;
     case 'complete-task': return `${c.completed ? 'Marked' : 'Unmarked'} ${task(c.taskId)} as done in-game${forWho}`;
     case 'set-obtained-equipment': return c.obtained ? `Recorded ${c.equipmentName || 'equipment'} as obtained${forWho}` : `Removed the hand-added obtain record for ${c.equipmentName || 'equipment'}${forWho}`;
