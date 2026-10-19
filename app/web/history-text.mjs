@@ -6,7 +6,8 @@ import { miningSettingDefinitions } from '../core/mining-settings.mjs';
 import { woodcuttingSettingDefinitions } from '../core/woodcutting-settings.mjs';
 import { gatheringSettingDefinitions, calculatorBankingSettingDefinitions as bankingSettingDefinitions } from '../core/gathering-settings.mjs';
 import { groupGoalCommandTypes } from '../core/group-goal-types.mjs';
-const settingNames = new Map([...settingDefinitions, ...authoredSettingDefinitions, ...deathSettingDefinitions, ...miningSettingDefinitions, ...woodcuttingSettingDefinitions, ...bankingSettingDefinitions, ...gatheringSettingDefinitions].map(row => [row.id, row.label]));
+import { setupGuideSettingDefinitions } from '../core/setup-guide.mjs';
+const settingNames = new Map([...settingDefinitions, ...authoredSettingDefinitions, ...deathSettingDefinitions, ...miningSettingDefinitions, ...woodcuttingSettingDefinitions, ...bankingSettingDefinitions, ...gatheringSettingDefinitions, ...setupGuideSettingDefinitions].map(row => [row.id, row.label]));
 const ruleNames = new Map(taskRuleDefinitions.map(row => [row.id, row.label]));
 export const historyChangeTypes = Object.freeze([
   { id: 'map', label: 'Map' }, { id: 'tasks', label: 'Tasks' }, { id: 'settings', label: 'Settings and rules' },

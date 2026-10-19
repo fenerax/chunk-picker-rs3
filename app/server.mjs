@@ -1976,6 +1976,8 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
       else if (['/core/interior-maps.mjs', '/core/archaeology.mjs'].includes(route)) file = await containedFile(path.join(ROOT, 'app', 'core'), route.slice('/core/'.length));
       else if (['/core/experience.mjs', '/core/combat-level.mjs', '/core/f2p-skill-caps.mjs', '/core/finish-line.mjs', '/core/group-goals.mjs', '/core/group-goal-types.mjs'].includes(route)) file = await containedFile(path.join(ROOT, 'app', 'core'), route.slice('/core/'.length));
       else if (['/copy-lists.mjs', '/copy-list-control.mjs', '/copy-list-model.mjs', '/copy-lists.css'].includes(route)) file = await containedFile(webRoot, route.slice(1));
+      else if (['/setup-guide.mjs', '/setup-guide.css'].includes(route)) file = await containedFile(webRoot, route.slice(1));
+      else if (route === '/core/setup-guide.mjs') file = await containedFile(path.join(ROOT, 'app', 'core'), 'setup-guide.mjs');
       else if (route === '/original-sync.mjs' && privateAddon?.features.originalSync) {
         const bytes = await privateAddon.read('app/web/original-sync.mjs');
         await sendCached(request, response, createRepresentation(bytes, { type: MIME['.mjs'] })); return;

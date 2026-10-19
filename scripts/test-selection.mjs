@@ -147,6 +147,7 @@ export const quickTests = new Set([
   "screenshot-mode.test.mjs",
   "search.test.mjs",
   "settings-panel.test.mjs",
+  "setup-guide.test.mjs",
   "startup-warmup.test.mjs",
   "state.test.mjs",
   "sticker-flyout.test.mjs",

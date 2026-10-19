@@ -84,6 +84,13 @@ test('map settings hand off to the existing editors and omit duplicate display p
   assert.deepEqual(h.calls, ['close', 'map-display', 'close', 'starting-flag']);
 });
 
+test('Map settings reopen the setup guide only when the screen offers it', () => {
+  const h = harness({ supportsFeature: () => false }); h.panel.settings(); assert.equal(h.button('Setup guide…'), undefined);
+  h.ctx.setupGuide = () => h.calls.push('setup-guide'); h.panel.settings();
+  h.button('Setup guide…').events.click(); assert.deepEqual(h.calls, ['close', 'setup-guide']);
+  const search = h.control('Find a setting'); search.value = 'walkthrough'; search.events.input(); assert.ok(h.button('Setup guide…'));
+});
+
 
 
 test('unavailable storage and invalid remembered values fall back to Map; viewers cannot open Settings', () => {

@@ -149,6 +149,11 @@ export function createSettingsPanel(ctx) {
           text.append(el('strong', 'Map display'), el('p', 'Adjust chunk labels, borders, marker sizes and sticker colour.', 'field-help'));
           row.append(text, button('Map display\u2026', () => { ctx.closeDialog?.(); ctx.mapDisplay(); })); node.append(row); count++;
         }
+        if (section.id === 'map' && ctx.setupGuide && (!query || 'setup guide first time walkthrough roll style theme starting bank invite'.includes(query))) {
+          const row = el('div', undefined, 'rule-row settings-option'), text = el('div', undefined, 'field-copy');
+          text.append(el('strong', 'Setup guide'), el('p', 'Go through roll style, theme, your starting bank and the main buttons again.', 'field-help'));
+          row.append(text, button('Setup guide\u2026', () => { if (ctx.canWrite?.() === false) return; ctx.closeDialog?.(); ctx.setupGuide(); })); node.append(row); count++;
+        }
         if (section.id === 'map' && ctx.membersStart && (!query || 'ready for members group reset f2p starting bank havenhythe'.includes(query))) {
           const row = el('div', undefined, 'rule-row settings-option'), text = el('div', undefined, 'field-copy');
           text.append(el('strong', 'Ready for members'), el('p', 'Start fresh maps for the whole group while keeping your progress. Review starting banks and changes before saving.', 'field-help'));
