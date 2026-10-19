@@ -310,3 +310,28 @@ test('invited member Undo refusal consumes no action ID and permits a following 
   assert.equal(next.status, 200); await next.arrayBuffer();
   assert.equal(app.store.getInfo().revision, 3);
 });
+
+test('coins saves use action receipts, preserve facts, reject another invited member and support Undo', async t => {
+  const { app, request } = await fixture(t);
+  const created = await (await request('/api/invites', { label: 'Player', memberId: 'one' })).json();
+  const joined = await fetch(created.link, { redirect: 'manual' });
+  const headers = { Cookie: joined.headers.get('set-cookie').split(';')[0] };
+  const session = await (await request('/api/action-session', { clientId: '90000000-0000-4000-8000-000000000002' }, headers)).json();
+  const requestId = `v3.${session.scope}.${session.slot}.${session.generation}.1`;
+  const facts = { quests: { 'A quest': true }, currencies: { coins: 2000 } };
+  const refused = await request('/api/command', { expectedRevision: 0, command: { type: 'set-transport-facts', memberId: 'two', facts }, requestId, requestAck: 0 }, headers);
+  assert.equal(refused.status, 403); await refused.arrayBuffer();
+  const body = { expectedRevision: 0, command: { type: 'set-transport-facts', memberId: 'one', facts }, requestId, requestAck: 0 };
+  const saved = await request('/api/command', body, headers); assert.equal(saved.status, 200); await saved.arrayBuffer();
+  const replay = await request('/api/command', body, headers); assert.equal(replay.status, 200); await replay.arrayBuffer();
+  assert.equal(app.store.getInfo().revision, 1); assert.deepEqual(app.store.getState().members[0].transportFacts, facts);
+  const cleared = await request('/api/command', { expectedRevision: 1, command: { type: 'set-transport-facts', memberId: 'one', facts: { quests: { 'A quest': true } } } }, headers);
+  assert.equal(cleared.status, 200); await cleared.arrayBuffer();
+  assert.equal(app.store.getState().members[0].transportFacts.currencies, undefined);
+  await app.store.command({ type: 'undo' }, 2);
+  assert.deepEqual(app.store.getState().members[0].transportFacts, facts);
+  const host = await request('/api/command', { expectedRevision: 3, command: { type: 'set-transport-facts', memberId: 'two', facts } });
+  assert.equal(host.status, 200); await host.arrayBuffer();
+  const undoOther = await request('/api/command', { expectedRevision: 4, command: { type: 'undo' } }, headers);
+  assert.equal(undoOther.status, 403); await undoOther.arrayBuffer();
+});

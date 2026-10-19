@@ -48,7 +48,7 @@
     <div class="player-controls">
       <div class="member-switch" id="member-switch" role="group" aria-label="Whose map"></div>
       <label class="member-picker">Map <select id="member"></select></label>
-      <label class="group-toggle"><input id="group-view" type="checkbox" role="switch" checked> Group view</label>
+      <label class="group-toggle"><input id="group-view" type="checkbox" role="switch" autocomplete="off" checked> Group view</label>
     </div>
     <nav aria-label="Picker tools">
       <button id="helper-open">Helper</button>
@@ -197,9 +197,9 @@
       <label class="sr-only" for="task-filter">Search tasks</label>
       <input id="task-filter" type="search" placeholder="Filter tasks…">
       <div class="task-options">
-        <label><input id="hide-completed" type="checkbox" checked> Hide completed</label>
-        <label><input id="show-blocked" type="checkbox"> Show blocked</label>
-        <label><input id="show-all" type="checkbox"> All possible tasks</label>
+        <label><input id="hide-completed" type="checkbox" autocomplete="off" checked> Hide completed</label>
+        <label><input id="show-blocked" type="checkbox" autocomplete="off"> Show blocked</label>
+        <label><input id="show-all" type="checkbox" autocomplete="off"> All possible tasks</label>
       </div>
       <div id="task-engine-status" role="status">Loading tasks…</div>
       <div id="active-tasks" class="task-list"></div>

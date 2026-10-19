@@ -6,6 +6,11 @@
 .teleports-mode{padding:var(--space-6) 0;border-block:var(--border-thin) solid var(--hairline);display:flex;flex-direction:column;gap:var(--space-4)}
 .teleports-mode>.teleports-checkbox{font-weight:var(--weight-semibold);color:var(--gold)}
 .teleports-help,.teleports-empty,.teleports-count,.teleports-group-count,.teleports-destination,.teleports-signal{color:var(--panel-muted,var(--muted));font-size:var(--type-sm);line-height:var(--leading-copy)}
+.teleports-coins{display:flex;flex-wrap:wrap;align-items:end;gap:var(--space-4)}
+.teleports-coins .form-field{min-width:0;flex:1 1 12rem}
+.teleports-coins input{width:100%;min-width:0;min-height:44px;font-variant-numeric:tabular-nums}
+.teleports-coins button{min-height:44px}
+.teleports-coins .teleports-help{flex-basis:100%;order:1}
 .teleports-feedback:empty{display:none}
 .teleports-error{color:var(--danger);font-size:var(--type-body);line-height:var(--leading-copy)}
 :root[data-scheme=light] .teleports-error{color:var(--color-fixed-a13329)}

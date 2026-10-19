@@ -1,3 +1,4 @@
+import { projectTeleportRoute } from './teleports-response.mjs';
 import { resolveDataset } from './datasets.mjs';
 import { verifyDatasetBinding } from './dataset-binding.mjs';
 import { createLiveSwapAdmission } from './live-swap-admission.mjs';
@@ -1341,18 +1342,7 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
             const travelRows = evaluateTransportRoutes(indexedWorld, preview, memberId);
             const personalTeleports = personalTeleportRows(indexedWorld, state, memberId,
               state.rules?.['travel.automatic'] === true ? travelRows : []).map(({ id, available, reason }) => ({ id, available, reason }));
-            const rows = travelRows.map(row => ({
-              id: row.id, name: row.name, group: row.group ?? 'transport',
-              available: row.global ? (row.rollAvailable ?? row.available) : row.available,
-              reason: (row.global ? row.rollReason : row.reason) ?? row.reason ?? 'Travel evidence unresolved',
-              reasons: (row.global ? row.rollReasons : row.reasons) ?? row.reasons ?? [],
-              accessAvailable: row.available, accessReason: row.reason,
-              rollOnly: !!(row.global && row.rollAvailable && !row.available),
-              destination: row.rollDestination?.chunkId ?? row.destination ?? row.to?.split('-')[0] ?? '',
-              destinationName: indexedWorld.chunks.get(row.rollDestination?.chunkId ?? row.destination)?.name ?? row.destinationName ?? '', estimated: !!row.estimated,
-              override: row.override ?? null, pending: !!row.pending,
-              provenance: row.provenance, endpointEvidence: row.endpointEvidence,
-            }));
+            const rows = travelRows.map(row => projectTeleportRoute(row, indexedWorld));
             await json(request, response, 200, { stateRevision: state.revision, memberId,
               automatic: state.rules?.['travel.automatic'] === true, rows, personalTeleports,
               counts: { usable: rows.filter(row => row.available).length, total: rows.length } }); return;
@@ -1783,6 +1773,9 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
                 if (replay) { await commandJSON(request, response, replay); return; }
               } else if (body.requestId !== undefined || body.requestAck !== undefined) throw httpError(400, 'Sync requires its reviewed preview.');
               if (unavailableDatasetFeature(dataset, route, command?.type)) throw httpError(422, 'This feature is unavailable in this game.');
+              if (command?.type === 'set-transport-facts' && !identity.admin && (!identity.memberId || command.memberId !== identity.memberId)) {
+                throw httpError(403, 'You can only change travel facts for your signed-in player.');
+              }
               if (command?.type === 'set-xp-choices' && !identity.admin && (!identity.memberId || command.memberId !== identity.memberId)) {
                 throw httpError(403, 'You can only change XP choices for your signed-in player.');
               }
@@ -1793,6 +1786,9 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
                 const target = store.getHistoryEvent(command.undoRevision ?? store.getUndoEligibility().undoRevision);
                 if (target?.type === 'set-finish-line-custom' && (!identity.memberId || target.command?.memberId !== identity.memberId)) {
                   throw httpError(403, 'You can only undo finish line ticks for your signed-in player.');
+                }
+                if (target?.type === 'set-transport-facts' && (!identity.memberId || target.command?.memberId !== identity.memberId)) {
+                  throw httpError(403, 'You can only undo travel facts for your signed-in player.');
                 }
                 if (target?.type === 'set-xp-choices' && (!identity.memberId || target.command?.memberId !== identity.memberId)) {
                   throw httpError(403, 'You can only undo XP choices for your signed-in player.');
@@ -1958,7 +1954,7 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
       else if (route === '/screen-chunk-notes.mjs') file = await containedFile(webRoot, 'screen-chunk-notes.mjs');
       else if (['/screen-journal.mjs', '/journal.css'].includes(route)) file = await containedFile(webRoot, route.slice(1));
       else if (route === '/screen-backlog.mjs') file = await containedFile(webRoot, 'screen-backlog.mjs');
-      else if (['/duo-task-lists.mjs', '/duo-backlog-view.mjs', '/duo-task-preferences.mjs'].includes(route)) file = await containedFile(webRoot, route.slice(1));
+      else if (['/duo-task-lists.mjs', '/duo-backlog-view.mjs', '/duo-task-preferences.mjs', '/task-view-preferences.mjs'].includes(route)) file = await containedFile(webRoot, route.slice(1));
       else if (['/screen-search.mjs', '/screen-search-data.mjs', '/search.css', '/map-search-layer.mjs'].includes(route)) file = await containedFile(webRoot, route.slice(1));
       else if (['/phone-layout.css', '/phone-layout.mjs', '/screen-phone-layout.mjs', '/chunk-long-press.mjs', '/map-control-discovery.mjs', '/calculation-feedback.mjs', '/screen-task-guidance.mjs'].includes(route)) file = await containedFile(webRoot, route.slice(1));
       else if (['/screen-usage.mjs', '/usage-client.mjs', '/usage-model.mjs', '/usage-catalogue.mjs', '/usage.css'].includes(route)) file = await containedFile(webRoot, route.slice(1));

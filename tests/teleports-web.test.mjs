@@ -1,3 +1,4 @@
+import { projectTeleportRoute } from '../app/teleports-response.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { openTeleportsDialog } from '../app/web/teleports.mjs';
@@ -35,6 +36,7 @@ function harness(preferences = {}) {
       if (ui.commandError) throw ui.commandError;
       ui.commands.push({ command, revision });
       const personal = state.members.find(row => row.id === command.memberId);
+      if (command.type === 'set-transport-facts') personal.transportFacts = command.facts;
       if (command.type === 'set-rule') state.rules[command.ruleId] = command.value;
       if (command.type === 'set-teleport-override') routes.find(row => row.id === command.routeId).override = command.value;
       if (command.type === 'set-teleport') {
@@ -216,16 +218,16 @@ test('Advanced reveals route diagnostics and known destination IDs without chang
   }
 });
 
-test('lodestone requirements lead to the members rule and personal Override without normal-mode diagnostics', async () => {
+test('an F2P members refusal leads to the members rule and activation Override without normal-mode diagnostics', async () => {
   const h = harness(); const reviews = [];
   h.ctx.rulesDialog = options => reviews.push(options);
   Object.assign(h.routes[0], { available: false, rollOnly: true, reasons: [
-    'membership: conditions requirement is unknown or not met.',
+    'Members only.',
     'lodestone-test-activated: confirmations requirement is unknown or not met.',
     'station coordinate needs exact decoded tile evidence',
   ], accessReason: 'Private decoded landing diagnostic' });
   await h.open().ready;
-  assert.match(h.text(), /Requires members rules/);
+  assert.match(h.text(), /Members only\. Turn off F2P in Chunk Rules/);
   assert.match(h.text(), /activation is not confirmed.*choose “I can use it” in Override/);
   assert.doesNotMatch(h.text(), /conditions requirement|confirmations requirement|decoded/);
   assert.equal(h.walk().filter(node => node.textContent.startsWith('Usable lodestones add roll options')).length, 1);
@@ -234,4 +236,58 @@ test('lodestone requirements lead to the members rule and personal Override with
   assert.equal(h.ui.commands.length, 0);
   const control = h.override('home'); control.value = 'true'; await control.events.change();
   assert.deepEqual(h.ui.commands[0].command, { type: 'set-teleport-override', memberId: 'a', routeId: 'home', value: true });
+});
+
+test('coins edits and clearing preserve other personal facts and use the reviewed command path', async () => {
+  const h = harness();
+  const other = { quests: { 'A quest': true }, levels: { Magic: 12 }, items: { Rope: 1 }, currencies: { tokens: 3 }, conditions: { gate: true }, confirmations: { seen: false } };
+  h.state.members[0].transportFacts = structuredClone(other);
+  await h.open().ready;
+  h.inputFor('Coins on hand').value = '2000';
+  await h.click('Save coins');
+  assert.deepEqual(h.ui.commands[0], { command: { type: 'set-transport-facts', memberId: 'a', facts: { ...other, currencies: { tokens: 3, coins: 2000 } } }, revision: 7 });
+  assert.equal(h.inputFor('Coins on hand').value, 2000);
+  h.inputFor('Coins on hand').value = '';
+  await h.click('Save coins');
+  assert.deepEqual(h.state.members[0].transportFacts, other);
+  assert.equal(h.ui.commands[1].revision, 8);
+});
+
+test('coins accepts zero, refuses invalid counts and keeps failures visible', async () => {
+  const h = harness(); await h.open().ready;
+  for (const value of ['-1', '1.5', '1000000000001']) {
+    h.inputFor('Coins on hand').value = value; await h.click('Save coins');
+    assert.match(h.text(), /Enter a whole number/); assert.equal(h.ui.commands.length, 0);
+  }
+  h.inputFor('Coins on hand').value = '0'; h.ui.commandError = new Error('Save failed');
+  await h.click('Save coins'); assert.match(h.text(), /Save failed/);
+  assert.equal(h.inputFor('Coins on hand').value, '0');
+  h.ui.commandError = null; await h.click('Save coins');
+  assert.equal(h.state.members[0].transportFacts.currencies.coins, 0);
+});
+
+test('only the permitted member gets editable coins controls', async () => {
+  const h = harness(); h.ctx.canWriteMember = id => id === 'b'; await h.open().ready;
+  assert.equal(h.inputFor('Coins on hand').disabled, true); assert.equal(h.find('button', 'Save coins'), undefined);
+});
+
+test('coins-only refusals point to the box without replacing other requirements', async () => {
+  const h = harness();
+  Object.assign(h.routes[3], { kind: 'carpet', cost: { 'currencies:coins': 1000 }, unmet: [{ requirement: 'return-coins' }], unknown: [] });
+  await h.open().ready; assert.match(h.text(), /Needs 1,000 coins for this carpet leg.*Enter your coins on hand above/);
+  h.routes[3].unmet.push({ requirement: 'quests', key: 'A quest' });
+  await h.open().ready; assert.doesNotMatch(h.text(), /Enter your coins on hand above/);
+});
+
+test('API serialization keeps coin requirement evidence for the Teleports refusal', async () => {
+  const h = harness();
+  const row = { id: 'boat', name: 'Carpet', group: 'transport', kind: 'carpet', available: false,
+    destination: '123', reasons: ['Needs coins for the outward and return journey.'], cost: { 'currencies:coins': 1000 },
+    unmet: [{ requirement: 'return-coins', key: 'boat' }], unknown: [] };
+  h.routes[3] = JSON.parse(JSON.stringify(projectTeleportRoute(row, { chunks: new Map() })));
+  await h.open().ready;
+  assert.match(h.text(), /Needs 1,000 coins for this carpet leg.*Enter your coins on hand above/);
+  row.unmet.push({ requirement: 'quests', key: 'A quest' });
+  h.routes[3] = JSON.parse(JSON.stringify(projectTeleportRoute(row, { chunks: new Map() })));
+  await h.open().ready; assert.doesNotMatch(h.text(), /Enter your coins on hand above/);
 });

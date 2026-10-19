@@ -104,6 +104,20 @@ test('a return transport from the landing works, but an outward-only boat does n
   assert.equal(f.rows()[0].available, false);
 });
 
+test('a carpet in the owned chunk proves a way home and counts both paid legs', () => {
+  const f = fixture();
+  f.catalogue.routes = [stone(lumbridge), { id: 'home-carpet', name: 'Home carpet', from: island, to: lumbridge,
+    kind: 'carpet', bidirectional: true, members: true, f2p: false,
+    requirements: requirements({ fare: { currency: 'coins', amount: 1000 } }) }];
+  f.state.members[0].transportFacts = { currencies: { coins: 2000 }, confirmations: { [`lodestone-${lumbridge}-activated`]: true } };
+  assert.ok(f.rows().every(row => row.available));
+  assert.ok(f.pool().includes(lumbridge));
+  f.state.members[0].transportFacts.currencies.coins = 1999;
+  assert.equal(f.rows().find(row => row.kind === 'carpet').available, false);
+  f.catalogue.routes[1].bidirectional = false;
+  assert.equal(f.rows()[0].available, false, 'An outbound carpet cannot invent a return');
+});
+
 test('confirmed home teleports enable stones and custom outbound teleports; remote teleports cannot self-prove a return', () => {
   const f = fixture();
   const member = f.state.members[0];

@@ -139,7 +139,24 @@ export function describeHistoryEvent(event = {}, { memberName = id => id, chunkN
     case 'set-teleport': return `Saved ${c.teleport?.label ? `teleport “${c.teleport.label}”` : 'a teleport'}${forWho}`;
     case 'set-teleport-override': return `${c.value === null ? 'Reset automatic availability for' : c.value ? 'Marked usable' : 'Marked unusable'} ${named(c.routeId, routeLabel, 'a travel route')}${forWho}`;
     case 'delete-teleport': return `Deleted a teleport${forWho}`;
-    case 'set-transport-facts': return `Updated travel unlocks${forWho}`;
+    case 'set-transport-facts': {
+      const change = event.undo?.memberChanges?.find(member => member.id === c.memberId)?.changes
+        ?.find(patch => patch.path.length === 1 && patch.path[0] === 'transportFacts');
+      const previous = change ? change.before.value ?? {} : event.undo?.members?.find(member => member.id === c.memberId)?.transportFacts;
+      const withoutCoins = facts => Object.fromEntries(Object.entries(facts ?? {}).flatMap(([key, value]) => {
+        if (key !== 'currencies') return [[key, value]];
+        const currencies = Object.fromEntries(Object.entries(value).filter(([name]) => name !== 'coins'));
+        return Object.keys(currencies).length ? [[key, currencies]] : [];
+      }));
+      const stable = value => JSON.stringify(value, (key, item) => item && typeof item === 'object' && !Array.isArray(item)
+        ? Object.fromEntries(Object.entries(item).sort(([a], [b]) => a.localeCompare(b))) : item);
+      if (previous !== undefined && stable(withoutCoins(previous)) === stable(withoutCoins(c.facts))
+        && previous.currencies?.coins !== c.facts?.currencies?.coins) {
+        return c.facts?.currencies?.coins === undefined ? `Cleared coins on hand${forWho}`
+          : `Set coins on hand to ${c.facts.currencies.coins.toLocaleString('en-GB')}${forWho}`;
+      }
+      return `Updated travel unlocks${forWho}`;
+    }
     case 'undo': return 'Undid a change';
     case 'restore': return 'Restored the whole save from a backup';
     case 'catalogue-refresh': return 'Updated game data';

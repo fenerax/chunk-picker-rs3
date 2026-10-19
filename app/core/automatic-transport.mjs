@@ -146,7 +146,7 @@ export function deriveAutomaticTransport(world, state, memberId, { baseline, tra
     // Coins sold by a shop or a speculative quest reward cannot finance their
     // own purchase. Unknown currencies never acquire a fabricated balance.
     if (normalize(item.name) === 'coins' && sources.some(source => source.kind !== 'shop' && renewableSource(source))) {
-      facts.currencies.coins = renewableCount;
+      facts.currencies.coins = Math.max(facts.currencies.coins ?? 0, renewableCount);
       renewableBudget['currencies:coins'] = renewableCount;
     }
   }

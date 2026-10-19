@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { describeHistoryEvent, historyChangeType, historyChangeTypes } from '../app/web/history-text.mjs';
+import { createGroupState, applyCommand } from '../app/core/state.mjs';
 import { groupGoalCommandTypes } from '../app/core/group-goals.mjs';
 
 const lookups = { memberName: id => ({ actor1: 'Player', reed: 'Reed' })[id] ?? id, chunkName: id => ({ 12850: 'Lumbridge' })[id] ?? id, taskLabel: id => ({ 't:cape': 'Obtain a Team-1 cape' })[id] ?? id };
@@ -108,4 +109,14 @@ test('old member snapshots and sparse History changes name roll pool removals', 
       { memberChanges: [{ id: 'actor1', changes: [{ path: [field], before: { exists: true, value: ['12850'] }, after: { exists: true, value: [] } }] }] },
     ]) assert.equal(describeHistoryEvent({ type: 'set-chunk', command, undo }, lookups), expected);
   }
+});
+
+test('History names coins-only set and clear commands using their actual undo facts', () => {
+  let state = createGroupState([{ id: 'actor1', name: 'Player', unlocked: [] }, { id: 'reed', name: 'Reed', unlocked: [] }]);
+  const run = facts => { state = applyCommand(state, { type: 'set-transport-facts', memberId: 'actor1', facts }); return describeHistoryEvent(state.history.at(-1), lookups); };
+  assert.equal(run({ currencies: { coins: 2000 } }), 'Set coins on hand to 2,000 for Player');
+  assert.equal(run({}), 'Cleared coins on hand for Player');
+  assert.equal(run({ quests: { 'A quest': true }, currencies: { coins: 5000 } }), 'Updated travel unlocks for Player');
+  assert.equal(run({ quests: { 'A quest': true }, currencies: { coins: 1000 } }), 'Set coins on hand to 1,000 for Player');
+  assert.equal(run({ quests: { 'A quest': true } }), 'Cleared coins on hand for Player');
 });

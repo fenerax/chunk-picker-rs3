@@ -3,6 +3,7 @@ import { runInContext, Script } from 'node:vm';
 import * as customTasks from '../app/web/custom-tasks-model.mjs';
 import { playerControlSkills, validateControlLevel } from '../app/core/player-controls.mjs';
 import { createStreamSafe } from '../app/web/stream-safe.mjs';
+import { bindTaskViewPreferences } from '../app/web/task-view-preferences.mjs';
 import { createQuestMap } from '../app/web/quest-map.mjs';
 import { selectDuoTaskLists } from '../app/web/duo-task-lists.mjs';
 import { createDuoBacklogView } from '../app/web/duo-backlog-view.mjs';
@@ -52,6 +53,7 @@ export function runScreenGraph(context, modules) {
   context.applyDatasetLaunchCopy ??= applyDatasetLaunchCopy;
   for (const [name, value] of Object.entries({ ...customTasks, playerControlSkills, validateControlLevel })) if (!(name in context)) context[name] = value;
   context.createStreamSafe ??= createStreamSafe;
+  context.bindTaskViewPreferences ??= get => bindTaskViewPreferences(get, () => context.localStorage);
   context.createQuestMap ??= createQuestMap;
   context.buildChunkPlanningIndex ??= buildChunkPlanningIndex;
   context.selectDuoTaskLists ??= selectDuoTaskLists;

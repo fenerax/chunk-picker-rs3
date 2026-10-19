@@ -9,8 +9,7 @@ const unresolvedEndpointReasons = new Set([
 // Translate only these known diagnostic messages; personal requirements keep
 // their original wording, and the API's evidence remains untouched.
 function displayReason(value) {
-  if (value === 'Members only.' || value === 'membership: conditions requirement is unknown or not met.') return 'Requires members rules. Review the F2P rule in Chunk Rules.';
-  if (value === 'Personal membership not confirmed.') return 'Membership is not confirmed. Check in-game before choosing “I can use it” in Override.';
+  if (value === 'Members only.') return 'Members only. Turn off F2P in Chunk Rules to include this route.';
   if (unresolvedEndpointReasons.has(value)) return 'Exact landing spot is not mapped yet.';
   if (value.startsWith('Lodestone activation is estimated from its reachable chunk')) return 'You can reach this lodestone to activate it.';
   if (value.startsWith('Teleport requirements and destination chunk are verified')) return 'You meet the requirements.';
@@ -84,9 +83,15 @@ export function openTeleportsDialog(ctx, { uuid = () => globalThis.crypto.random
     const destination = String(row.destination ?? '');
     body.append(el('p', destinationLabel(row.destinationName, destination), 'teleports-destination'));
     const rawReasons = [row.reason, ...(row.reasons ?? [])].filter(Boolean);
-    const reasons = [...new Set(rawReasons.filter(value => row.group !== 'lodestones' || !row.rollOnly || !unresolvedEndpointReasons.has(value)).map(displayReason))];
+    const failures = [...(row.unmet ?? []), ...(row.unknown ?? [])];
+    const coinsOnly = !row.available && failures.length && failures.every(value =>
+      value.requirement === 'currencies' && value.key === 'coins' || value.requirement === 'return-coins');
+    const coinReason = row.kind === 'carpet' && row.cost?.['currencies:coins'] > 0
+      ? `Needs ${row.cost['currencies:coins'].toLocaleString('en-GB')} coins for this carpet leg and enough for the way home. Enter your coins on hand above if you have them.`
+      : 'Needs coins for this journey. Enter your coins on hand above if you have them.';
+    const reasons = coinsOnly ? [coinReason] : [...new Set(rawReasons.filter(value => row.group !== 'lodestones' || !row.rollOnly || !unresolvedEndpointReasons.has(value)).map(displayReason))];
     body.append(el('p', reasons.join(' · ') || 'No availability details returned.', 'teleports-reason'));
-    if (rawReasons.some(value => value === 'Members only.' || value === 'membership: conditions requirement is unknown or not met.') && ctx.rulesDialog) {
+    if (rawReasons.includes('Members only.') && ctx.rulesDialog) {
       body.append(button('Review members rule', () => { if (current()) return ctx.rulesDialog({ ruleId: 'content.f2p', memberId: requestedMember }); }));
     }
     if (advanced()) {
@@ -173,6 +178,36 @@ export function openTeleportsDialog(ctx, { uuid = () => globalThis.crypto.random
       el('p', automatic ? 'On for both of you. Each player gets the teleports their own levels, quests and items allow.' : 'Off for both of you: only the custom teleports below count. The list shows what would count if you turn this on.', 'teleports-help'),
       el('p', 'RuneMetrics sync supplies levels and quests, but not lodestone activations or bank contents. For each lodestone you have activated, choose “I can use it” in its Override dropdown below. Do this separately for each player. Changes can be undone in History.', 'teleports-help'),
       el('p', 'The old F2P map does not confirm activated lodestones after a members restart. Teleports need a way back to your chunks. Activate a lodestone in your own area or confirm another teleport home.', 'teleports-help'));
+    const coinsForm = el('form', undefined, 'teleports-coins');
+    const coins = input('number');
+    coins.min = '0'; coins.max = '1000000000000'; coins.step = '1'; coins.inputMode = 'numeric';
+    coins.id = 'transport-coins'; coins.setAttribute('autocomplete', 'off');
+    coins.value = personal.transportFacts?.currencies?.coins ?? '';
+    const coinsField = field('Coins on hand', coins);
+    const coinsLabel = coinsField.children[0]; coinsLabel?.setAttribute('for', coins.id);
+    const canEditCoins = ctx.canWriteMember?.(requestedMember) ?? ctx.canWrite?.() ?? true;
+    coins.disabled = !canEditCoins;
+    if (canEditCoins) remember(coins);
+    coins.setAttribute('aria-describedby', 'transport-coins-help');
+    const coinsHelp = el('p', 'At least this many coins. Renewable coins still count if higher. Fares are checked, not spent. Clear the field to remove your declaration.', 'teleports-help');
+    coinsHelp.id = 'transport-coins-help';
+    async function saveCoins() {
+      if (!canEditCoins) return;
+      const value = coins.value.trim(), amount = Number(value);
+      if (coins.validity?.badInput || value && (!Number.isSafeInteger(amount) || amount < 0 || amount > 1e12)) {
+        report('Enter a whole number from 0 to 1,000,000,000,000, or clear the field.'); return;
+      }
+      const facts = structuredClone(personal.transportFacts ?? {});
+      if (value) facts.currencies = { ...facts.currencies, coins: amount };
+      else if (facts.currencies) {
+        delete facts.currencies.coins;
+        if (!Object.keys(facts.currencies).length) delete facts.currencies;
+      }
+      await save({ type: 'set-transport-facts', memberId: requestedMember, facts }, revision);
+    }
+    coinsForm.append(coinsField, coinsHelp);
+    if (canEditCoins) coinsForm.append(remember(button('Save coins', saveCoins)));
+    coinsForm.addEventListener('submit', event => { event.preventDefault(); void saveCoins(); });
     const toolbar = el('div', undefined, 'teleports-toolbar');
     toolbar.append(el('h3', 'Automatic routes'), remember(button('Refresh', render)));
     catalogue = el('div', undefined, 'teleports-catalogue');
@@ -204,7 +239,7 @@ export function openTeleportsDialog(ctx, { uuid = () => globalThis.crypto.random
     }
     form.addEventListener('submit', event => { event.preventDefault(); void addTeleport(); });
     form.append(fields, available.wrap, consumable.wrap, add);
-    content.replaceChildren(intro, mode, feedback, toolbar, catalogue, custom, form);
+    content.replaceChildren(intro, mode, coinsForm, feedback, toolbar, catalogue, custom, form);
     await loadCatalogue();
   }
   const ready = render();

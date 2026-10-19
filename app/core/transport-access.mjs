@@ -162,7 +162,8 @@ export function evaluateTransportRoutes(world, state, memberId, { transportRoute
     const facts = automatic ? automaticRouteFacts(route, automaticContext, to.location, planningChunk) : explicitFacts;
     const unmet = [], unknown = [], cost = {};
     const require = (field, key, needed = true) => {
-      const actual = facts[field]?.[key];
+      // Membership follows the content rule; it is not a personal declaration.
+      const actual = field === 'conditions' && key === 'membership' ? !f2p : facts[field]?.[key];
       if (actual === undefined) unknown.push({ requirement: field, key, needed });
       else if (typeof needed === 'number' ? actual < needed : actual !== needed) unmet.push({ requirement: field, key, needed, actual });
     };
@@ -265,7 +266,7 @@ export function evaluateTransportRoutes(world, state, memberId, { transportRoute
       return `Needs ${requirement.needed} ${requirement.key}; ${requirement.actual === undefined ? 'reachable supply unknown' : `${requirement.actual} available`}.`;
     }
     if (requirement.requirement === 'consumable') return 'Consumable teleport — rule off.';
-    if (requirement.requirement === 'membership') return f2p ? 'Members only.' : 'Personal membership not confirmed.';
+    if (requirement.requirement === 'membership' || requirement.requirement === 'conditions' && requirement.key === 'membership') return 'Members only.';
     if (requirement.requirement === 'section-block') return `Destination or departure section ${requirement.key} is blocked.`;
     if (requirement.requirement === 'free-component') return `Section ${requirement.key} is not verified F2P.`;
     return `${requirement.key}: ${requirement.requirement} requirement is unknown or not met.`;

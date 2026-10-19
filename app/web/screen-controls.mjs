@@ -1,6 +1,7 @@
 import { applyTheme } from './map-tools.mjs';
 import { observeScreenBars } from './phone-layout.mjs';
 import { createMapControlDiscovery, mountMembersStartEntry } from './map-control-discovery.mjs';
+import { bindTaskViewPreferences } from './task-view-preferences.mjs';
 
 const topMenuIds = ['info-tools', 'admin-tools', 'more-tools'];
 
@@ -24,6 +25,7 @@ export function handleScreenEscape(c, event) {
 // Toolbar, member switching, task filters, menus, shortcuts and responsive sizing.
 export function createScreenControls(c) {
   function bindControls() {
+    bindTaskViewPreferences(c.$);
     c.mapControlDiscovery = createMapControlDiscovery(c); c.mapControlDiscovery.mount();
     c.membersStartEntry = mountMembersStartEntry(c);
     c.$('help-open')?.addEventListener('click', () => c.openDialog('Help', c.mapControls()));

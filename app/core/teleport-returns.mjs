@@ -11,7 +11,9 @@ export const ONE_WAY_REASON = "One-way for now: there’s no way back to your ch
 // This module calls the shared journey evaluator with already evaluated rows.
 // It never evaluates routes recursively or turns a teleport arrival into a root.
 export function requireTeleportReturns(world, state, memberId, rows, options = {}) {
-  const needsReturn = row => row.global || ['teleport', 'lodestone', 'portal'].includes(row.kind) && !row.bidirectional;
+  // Carpet roll options are journeys too: budget the paid outward and return
+  // legs, including the monkey colony's directed service, before offering one.
+  const needsReturn = row => row.kind === 'carpet' || row.global || ['teleport', 'lodestone', 'portal'].includes(row.kind) && !row.bidirectional;
   if (!rows.some(needsReturn)) return rows;
   const member = state.members.find(row => row.id === memberId);
   const owned = new Set(member.unlocked ?? []), overrides = options.sectionOverrides ?? member.sectionOverrides ?? {};
@@ -77,8 +79,19 @@ export function requireTeleportReturns(world, state, memberId, rows, options = {
     (catalogue.routes ?? []).map(row => [row.id, row.kind, row.to]),
   ]);
   const back = key === null ? compute() : (options.returnProofCache ?? teleportReturnCache).evaluate(world, key, compute);
+  // Distinguish a missing fare from a missing way home. Raise only coins in
+  // this diagnostic proof; quests, items, geometry and confirmations still gate it.
+  const coinFailure = value => value.requirement === 'currencies' && value.key === 'coins';
+  const coinCandidates = rows.some((row, index) => !back[index] && row.kind === 'carpet'
+    && [...row.unmet, ...row.unknown].every(coinFailure));
+  const coinProof = !options._coinProof && coinCandidates ? requireTeleportReturns(world, state, memberId,
+    rows.map(row => ({ ...row, unmet: row.unmet.filter(value => !coinFailure(value)), unknown: row.unknown.filter(value => !coinFailure(value)),
+      available: row.available || [...row.unmet, ...row.unknown].length > 0 && [...row.unmet, ...row.unknown].every(coinFailure) })),
+    { ...options, _coinProof: true, transportBudgetOverride: { ...budget, 'currencies:coins': 1e12 } }) : null;
   return rows.map((row, index) => back[index] ? row : { ...row, available: false,
-    unmet: [...row.unmet, { requirement: 'return-route', key: row.id, detail: ONE_WAY_REASON }] });
+    unmet: [...row.unmet, coinProof?.[index].available && row.kind === 'carpet'
+      ? { requirement: 'return-coins', key: row.id, detail: 'Needs coins for the outward and return journey.' }
+      : { requirement: 'return-route', key: row.id, detail: ONE_WAY_REASON }] });
 }
 
 function personalLanding(world, destination) {

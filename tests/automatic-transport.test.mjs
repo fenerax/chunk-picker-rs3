@@ -40,6 +40,32 @@ function fixture({ items = [], training = { Magic: { level: 99 }, Woodcutting: {
 }
 const supply = (name, kind = 'drop', extra = {}) => ({ name, sources: [{ kind, location: '12853', ...extra }] });
 
+for (const automatic of [false, true]) test(`members rules satisfy membership without a personal fact (automatic ${automatic})`, () => {
+  const f = fixture();
+  Object.assign(f.state.rules, { 'content.f2p': false, 'travel.automatic': automatic });
+  f.catalogue.routes = [route('members-carpet', { kind: 'carpet', bidirectional: true, members: true, f2p: false })];
+  assert.equal(evaluateTransportRoutes(f.world, f.state, 'actor1')[0].available, true);
+  f.catalogue.routes[0].requirements = requirements({ quests: ['The Golem'] });
+  const gated = evaluateTransportRoutes(f.world, f.state, 'actor1')[0];
+  assert.equal(gated.available, false);
+  assert.ok(gated.unknown.some(row => row.requirement === 'quests' && row.key === 'The Golem'));
+  f.state.rules['content.f2p'] = true;
+  const free = evaluateTransportRoutes(f.world, f.state, 'actor1')[0];
+  assert.equal(free.available, false);
+  assert.ok(free.reasons.includes('Members only.'));
+});
+
+test('an explicit membership condition follows members rules; other personal conditions remain gates', () => {
+  const f = fixture();
+  Object.assign(f.state.rules, { 'content.f2p': false, 'travel.automatic': false });
+  f.state.members[0].transportFacts = { conditions: { membership: false } };
+  f.catalogue.routes = [route('member-condition', { kind: 'carpet', bidirectional: true, members: true, f2p: false,
+    requirements: requirements({ conditions: ['membership'] }) })];
+  assert.equal(evaluateTransportRoutes(f.world, f.state, 'actor1')[0].available, true);
+  f.catalogue.routes[0].requirements.conditions.push('personal-condition');
+  assert.equal(evaluateTransportRoutes(f.world, f.state, 'actor1')[0].available, false);
+});
+
 test('idle release rebuilds the same transport facts with the configured evaluator', () => {
   const f = fixture({ items: [supply('Air rune')] });
   const before = deriveAutomaticTransport(f.world, f.state, 'actor1');
@@ -593,4 +619,31 @@ test('automatic travel inherits the world reviewed-overlay policy', () => {
   assert.equal(buildWorld(definitions, { ...options, reviewedOverlays: false }).automaticTransportOptions.reviewedOverlays, false);
   assert.equal(buildWorld(definitions, { ...options, reviewedOverlays: true }).automaticTransportOptions.reviewedOverlays, true);
   assert.equal(Object.hasOwn(buildWorld(definitions, options).automaticTransportOptions, 'reviewedOverlays'), false);
+});
+
+test('effective coins keep renewable capability above a smaller declaration for every transport consumer', () => {
+  const f = fixture({ items: [supply('Coins')] });
+  f.state.members[0].transportFacts = { currencies: { coins: 1 } };
+  f.catalogue.routes = [route('fare', { kind: 'ferry', bidirectional: true, requirements: requirements({ fare: { currency: 'coins', amount: 1000 } }) })];
+  const context = deriveAutomaticTransport(f.world, f.state, 'actor1');
+  assert.equal(context.facts.currencies.coins, 1e12);
+  assert.equal(transportBudget(f.state, 'actor1', undefined, f.world)['currencies:coins'], 1e12);
+  assert.equal(evaluateTransportRoutes(f.world, f.state, 'actor1')[0].available, true);
+  assert.equal(f.state.members[0].transportFacts.currencies.coins, 1, 'Derived facts never change the declaration');
+});
+
+test('carpet return refusal distinguishes a coin shortfall from quests and a missing return', () => {
+  const f = fixture(); f.state.rules['content.f2p'] = false;
+  f.catalogue.routes = [route('out', { kind: 'carpet', requirements: requirements({ fare: { currency: 'coins', amount: 1000 } }) }),
+    route('back', { kind: 'carpet', from: 'away', to: 'home', requirements: requirements({ fare: { currency: 'coins', amount: 1000 } }) })];
+  for (const coins of [0, 999, 1000, 1999]) {
+    f.state.members[0].transportFacts = { currencies: { coins } };
+    const row = evaluateTransportRoutes(f.world, f.state, 'actor1')[0];
+    assert.equal(row.available, false); assert.ok(row.unmet.some(value => value.requirement === 'return-coins'));
+    assert.ok(!row.unmet.some(value => value.requirement === 'return-route'));
+  }
+  f.state.members[0].transportFacts.currencies.coins = 2000;
+  assert.equal(evaluateTransportRoutes(f.world, f.state, 'actor1')[0].available, true);
+  f.catalogue.routes[1].requirements.quests = ['A quest']; releaseAutomaticTransportCaches(f.world);
+  assert.ok(evaluateTransportRoutes(f.world, f.state, 'actor1')[0].unmet.some(value => value.requirement === 'return-route'));
 });
