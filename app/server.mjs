@@ -20,6 +20,7 @@ import { Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import { isImportRoute, readBackupRequest, sendGzipBackup, backupPreviewState } from './backup-transfer.mjs';
 import { createTaskScheduler } from './tasks/scheduler.mjs';
+import { sharedJSONBytes, sharedBuffer } from './tasks/shared-bytes.mjs';
 import { createPoolRanking } from './tasks/pool-ranking.mjs';
 import { openStore, prepareStoreProcessIdentity } from './storage/store.mjs';
 import { openInviteStore } from './storage/invites.mjs';
@@ -68,7 +69,7 @@ import { normalizeAreaCheckRequest } from './tasks/area-check.mjs';
 import { helperDrops } from './helper-drops.mjs';
 import { backlogSearchTasks } from './tasks/backlog-search.mjs';
 import { createProgressQuestPoints } from './helper-progress.mjs';
-import { startEarlyServer } from './startup.mjs';
+import { startEarlyServer, reuseEquivalentDataset } from './startup.mjs';
 import { createStartupWarmup } from './tasks/startup-warmup.mjs';
 import { createIdleMemoryReclaimer } from './idle-memory.mjs';
 import { releaseAutomaticTransportCaches } from './core/automatic-transport.mjs';
@@ -276,9 +277,7 @@ async function startTaskWorker(definitions, definitionBytes, world, registry, op
   // the already available JSON without cloning the entire definition graph.
   let input = { definitions };
   if (!options?.workerFactory && !options?.deathWorkerFactory && !options?.duoWorkerFactory) {
-    const shared = new SharedArrayBuffer(definitionBytes.byteLength);
-    new Uint8Array(shared).set(definitionBytes);
-    input = { definitionBytes: shared };
+    input = { definitionBytes: sharedBuffer(definitionBytes) };
   }
   return createTaskScheduler({ ...options, workerData: { ...input, datasetSelection: dataset.workerSelection(), datasetDigest: dataset.digest, datasetOptions, preparedDatasetStages: preparedDefinitionStages(definitions), world: { chunks: world.chunks, areas: world.areas, ...(world.surface ? { surface: world.surface } : {}) }, extraRules } });
 }
@@ -361,7 +360,7 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
   liveSwap,
 } = {}) {
   const initializationStarted = performance.now();
-  dataset ??= await resolveDataset({ packsDir, selectionPath: packSelection, mapAssetsDir, gameDataDir });
+  dataset ??= reuseEquivalentDataset(await resolveDataset({ packsDir, selectionPath: packSelection, mapAssetsDir, gameDataDir }), selectedDataset);
   worldImagesRoot ??= path.join(ROOT, ...(dataset.gameDefaults.compatibility?.worldImagesPath ?? ['.local', 'world-images']));
   adoptLegacyMetadataProvider(dataset);
   const privateAddon = await loadPrivateAddon(privateAddonOptions);
@@ -444,7 +443,7 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
   let definitionBytes = definitions === undefined ? originalData.definitionBytes : Buffer.from(JSON.stringify(definitions));
   const taskBytes = taskMap === undefined ? originalData.taskBytes : Buffer.from(JSON.stringify(taskMap));
   const parsedDefinitions = prepareServerDefinitions(JSON.parse(definitionBytes.toString('utf8')), dataset, { reviewedOverlays: definitions === undefined });
-  definitionBytes = Buffer.from(JSON.stringify(parsedDefinitions));
+  definitionBytes = sharedJSONBytes(parsedDefinitions);
   const parsedTaskMap = JSON.parse(taskBytes.toString('utf8'));
   const datasetOptions = { reviewedOverlays: definitions === undefined, ...(definitions === undefined ? {} : { cacheWalking: false }) };
   const indexedWorld = world ?? buildWorld(parsedDefinitions, { dataset, ...datasetOptions });

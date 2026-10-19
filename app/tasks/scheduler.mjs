@@ -2,6 +2,7 @@ import { Worker } from 'node:worker_threads';
 import { ProcessWorker } from './process-worker.mjs';
 import { createHash } from 'node:crypto';
 import { createUnlockResultCache, taskReuseInputKey } from './unlock-reuse.mjs';
+import { STATE_SNAPSHOT_LIMIT } from './state-transfer.mjs';
 
 const unavailable = message => Object.assign(new Error(message), { status: 503 });
 const positive = (value, name, minimum = 1) => {
@@ -533,7 +534,7 @@ async function createWorkerLane({ workerData, workerFactory = nativeWorker, onCr
         ...(duoResults && entry.resultView === 'play-v1' ? { duoProjection: true } : {}),
         ...(entry.duoSidebarProjection ? { duoSidebarProjection: true } : {}) }
         : entry.type === 'sandbox' ? { resultTransport: 'json-shared-v1' } : {}) });
-      if (snapshotKey) { sentSnapshots.delete(snapshotKey); sentSnapshots.set(snapshotKey, entry.stateInput ? 'json-shared-v1' : state ? 'object' : sentKind); while (sentSnapshots.size > 4) sentSnapshots.delete(sentSnapshots.keys().next().value); }
+      if (snapshotKey) { sentSnapshots.delete(snapshotKey); sentSnapshots.set(snapshotKey, entry.stateInput ? 'json-shared-v1' : state ? 'object' : sentKind); while (sentSnapshots.size > STATE_SNAPSHOT_LIMIT) sentSnapshots.delete(sentSnapshots.keys().next().value); }
     }
     catch { failure('worker-send'); }
     // The worker now owns its structured clone; do not retain another snapshot.

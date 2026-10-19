@@ -90,3 +90,12 @@ export async function startEarlyServer(options, createApplication) {
   handle.ready.catch(() => {}); // Callers observe ready; avoid a race with handlers.
   return handle;
 }
+
+// The import-time provider stays reachable from its module's top-level await.
+// Keeping an equivalent second resolution would retain every catalogue twice.
+// Workers rebuild providers from workerSelection(), so it defines equivalence.
+export function reuseEquivalentDataset(resolved, imported) {
+  if (!imported || resolved === imported || resolved?.digest !== imported.digest) return resolved;
+  try { return JSON.stringify(resolved.workerSelection()) === JSON.stringify(imported.workerSelection()) ? imported : resolved; }
+  catch { return resolved; }
+}

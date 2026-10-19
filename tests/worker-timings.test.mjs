@@ -11,6 +11,7 @@ import { projectDuoSidebarResult } from '../app/duo-play-view.mjs';
 import { buildChunkPlanningIndex } from '../app/tasks/chunk-planning-index.mjs';
 import { projectMapTaskLocations } from '../app/tasks/map-task-locations.mjs';
 import { SKILL_GUIDE_TASKS_RULE, SKILL_GUIDE_CORRECTIONS_RULE } from '../app/data/skill-guides.mjs';
+import { STATE_SNAPSHOT_LIMIT } from '../app/tasks/state-transfer.mjs';
 
 const definitions = {
   chunks: { '12341': {}, '12342': {} },
@@ -100,7 +101,7 @@ test('area checks reuse live baselines, include full ordinary goals and keep dra
   assert.deepEqual(unchanged.result, baseline.result);
 });
 
-test('two retained calculation graphs evict older results without evicting transferred states or changing cold bytes', async t => {
+test('two retained calculation graphs and transferred states evict older inputs without changing cold bytes', async t => {
   const warm = await fixture(t), cold = await fixture(t);
   const saved = [];
   const bytes = value => JSON.stringify(value, (key, child) => key === 'elapsedMs' ? undefined : child);
@@ -112,17 +113,21 @@ test('two retained calculation graphs evict older results without evicting trans
     assert.equal(result.error, undefined);
     saved.push({ request, bytes: Buffer.from(result.playJSON).toString() });
   }
+  assert.equal(STATE_SNAPSHOT_LIMIT, 2);
   const previous = await warm.send({ type: 'evaluate', ...saved[2].request, stateJSON: undefined });
   assert.equal(previous.error, undefined);
   assert.equal(previous.timingMs.engineMs, 0, 'the second most recent calculation stays retained');
   const latest = await warm.send({ type: 'evaluate', ...saved[3].request, stateJSON: undefined });
   assert.equal(latest.error, undefined);
   assert.equal(latest.timingMs.engineMs, 0, 'current result stays retained');
-  const third = await warm.send({ type: 'evaluate', ...saved[1].request, stateJSON: undefined });
+  // Older parsed states are released; the scheduler's mirrored LRU resends them.
+  const missing = await warm.send({ type: 'evaluate', ...saved[1].request, stateJSON: undefined });
+  assert.equal(missing.error?.name, 'RangeError', 'the third most recent state was released');
+  const third = await warm.send({ type: 'evaluate', ...saved[1].request });
   assert.equal(third.error, undefined);
   assert.ok(third.timingMs.collectionMs > 0, 'the third most recent calculation was evicted');
-  const oldest = await warm.send({ type: 'evaluate', ...saved[0].request, stateJSON: undefined });
-  assert.equal(oldest.error, undefined, 'the independent state-transfer cache still holds four inputs');
+  const oldest = await warm.send({ type: 'evaluate', ...saved[0].request });
+  assert.equal(oldest.error, undefined);
   assert.ok(oldest.timingMs.collectionMs > 0, 'the evicted full calculation is rebuilt');
   const fresh = await cold.send({ type: 'evaluate', ...saved[0].request });
   assert.equal(fresh.error, undefined);

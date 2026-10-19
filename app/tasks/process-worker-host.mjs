@@ -1,8 +1,10 @@
 import { Worker, MessageChannel } from 'node:worker_threads';
 import { encodeReceivedWorkerMessage, decodeReceivedProcessMessage } from './process-worker-transport.mjs';
+import { createRelayCollector, envelopeBytes } from './relay-collector.mjs';
 
 let worker, stopping = false, failed = false, probeEnabled = false;
 const cancellations = new Map();
+const relay = createRelayCollector();
 
 function send(message) {
   if (!process.connected) return;
@@ -12,7 +14,7 @@ function send(message) {
 
 async function stop(code = 0) {
   if (stopping) return;
-  stopping = true; cancellations.clear();
+  stopping = true; cancellations.clear(); relay.close();
   // Parent also has a force-kill deadline; this covers orphan cleanup after a
   // parent crash or IPC disconnect.
   const deadline = setTimeout(() => process.exit(code || 1), 1500);
@@ -68,14 +70,17 @@ process.on('message', message => {
       });
       worker.on('message', result => {
         if (result.id !== undefined && !['progress', 'prediction-prepared'].includes(result.type)) cancellations.delete(result.id);
-        try { send({ kind: 'message', payload: encodeReceivedWorkerMessage(result) }); }
+        try { const payload = encodeReceivedWorkerMessage(result); send({ kind: 'message', payload }); relay.note(envelopeBytes(payload)); }
         catch (error) { fail(error); }
       });
       worker.on('error', fail);
       worker.once('exit', code => { if (!stopping && !failed) void stop(code); });
+      // The decoded definitions and world are garbage once the Worker owns them.
+      relay.note(Infinity);
     } else if (message.kind === 'post') {
       if (!worker) throw new Error('Task worker process has not initialized.');
       const request = decodeReceivedProcessMessage(message.payload);
+      relay.note(envelopeBytes(message.payload));
       if (request.type === 'cancel') {
         const cancellation = cancellations.get(request.id);
         if (cancellation) Atomics.store(new Int32Array(cancellation), 0, 1);
