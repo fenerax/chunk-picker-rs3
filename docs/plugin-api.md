@@ -101,8 +101,12 @@ No body or query parameters. Both successful routes return the same exact shape:
   "nearby": [
     { "chunkId": "12336", "state": "locked" },
     { "chunkId": "12592", "state": "available" },
+    { "chunkId": "12850", "state": "unlocked", "by": "partner" },
     "… 25 rows in all …"
-  ]
+  ],
+  "pickableCount": 3,
+  "pendingRoll": [{ "chunkId": "12593", "chunkName": "Draynor" }],
+  "partners": [{ "name": "Explorer 2", "chunkId": "12850", "chunkName": "Lumbridge", "seenAt": "2026-10-19T12:00:00.000Z" }]
 }
 ```
 
@@ -123,7 +127,17 @@ null. Each row has exactly `chunkId` and `state`, with the same rules and cached
 sets as the top-level `state`. Rows run from the south-west corner, x fastest:
 `(x-2, z-2)`, `(x-1, z-2)`, … `(x+2, z+2)`, so row 12 is the current chunk. Map
 squares outside 0–199 are omitted, which leaves fewer than 25 rows at the map
-edge. Match rows by `chunkId`, not by index.
+edge. Match rows by `chunkId`, not by index. When access is shared and the
+group has more than one player, unlocked rows also carry `by`: `me`, `partner`
+or `both`, saying whose saved unlocks contain the chunk.
+
+`pickableCount` is how many chunks the roll pool offers, or null until a pool
+exists. Status never calculates a pool inside its reply: when none exists it
+schedules one calculation after replying, so a later status has it.
+`pendingRoll` lists a roll's choices still waiting for this player to pick
+(empty when none). `partners` has one row per other player with the chunk
+their own plugin last reported; `chunkId`, `chunkName` and `seenAt` are null
+when that report is older than ten minutes. Exact tiles are never shared.
 
 ## Simulator
 

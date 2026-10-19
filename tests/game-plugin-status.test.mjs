@@ -101,3 +101,39 @@ test('a missing pool is warmed after the status reply, so the next status shows 
   await controller.handle(request, {}, { route: request.url, security: {} });
   assert.equal(output.state, 'available'); assert.equal(calculated, 1);
 });
+test('status names whose chunks are whose, partners\' chunks and a waiting roll', async t => {
+  const dataDir = await mkdtemp(path.join(tmpdir(), 'picker-plugin-duo-'));
+  let at = Date.now(), output, input;
+  const state = { revision: 0, rules: {}, tasks: [], members: [
+    { id: 'a', name: 'Explorer 1', unlocked: ['13107', '13108'], selected: [], pendingRoll: ['13363'], completedTasks: [] },
+    { id: 'b', name: 'Explorer 2', unlocked: ['13108', '12851-1'], selected: [], pendingRoll: [], completedTasks: [] },
+  ] };
+  const controller = await openGamePlugin({ dataDir, clock: () => at,
+    store: { getInfo: () => ({ revision: 0 }), getCalculationSnapshot: () => ({ state, members: state.members }), peekRollPool: () => ({ eligible: [{ id: '13109' }, { id: '12852' }] }) },
+    world: { chunks: new Map([['13107', { name: 'Mine' }], ['13108', { name: 'Farm' }], ['12851', { name: 'Swamp' }], ['13363', { name: 'Draynor' }]]) },
+    registry: { resolve: () => ({ 'access.shared': true }) }, questMapping: new Map(),
+    serializeMutation: operation => operation(), bodyJSON: async () => input,
+    json: async (_request, _response, _status, value) => { output = value; }, checkRequestOrigin: () => {},
+  });
+  t.after(async () => { await controller.close(); await rm(dataDir, { recursive: true, force: true }); });
+  const keyA = (await controller.create({ admin: true }, { memberId: 'a', label: 'A' })).key;
+  const keyB = (await controller.create({ admin: true }, { memberId: 'b', label: 'B' })).key;
+  async function report(key, seq, x, z) {
+    at += 1001; input = { v: 1, seq, sentAt: new Date(at).toISOString(), position: { x, z, floor: 0 } };
+    const request = { method: 'POST', url: '/api/plugin/v1/report', headers: { authorization: `Bearer ${key}` } };
+    await controller.handle(request, {}, { route: request.url, security: {} }); return output;
+  }
+  const first = await report(keyA, 1, 51, 51);
+  assert.deepEqual(first.partners, [{ name: 'Explorer 2', chunkId: null, chunkName: null, seenAt: null }]);
+  await report(keyB, 1, 50, 51);
+  const status = await report(keyA, 2, 51, 51);
+  const rows = Object.fromEntries(status.nearby.map(row => [row.chunkId, row]));
+  assert.equal(rows['13107'].by, 'me'); assert.equal(rows['13108'].by, 'both'); assert.equal(rows['12851'].by, 'partner');
+  assert.equal(rows['13109'].by, undefined, 'Only unlocked rows say who unlocked them');
+  assert.deepEqual(status.partners, [{ name: 'Explorer 2', chunkId: '12851', chunkName: 'Swamp', seenAt: status.partners[0].seenAt }]);
+  assert.ok(status.partners[0].seenAt);
+  assert.deepEqual(status.pendingRoll, [{ chunkId: '13363', chunkName: 'Draynor' }]);
+  assert.equal(status.pickableCount, 2);
+  at += 10 * 60 * 1000 + 1;
+  assert.equal((await report(keyA, 3, 51, 51)).partners[0].chunkId, null, 'A stale partner report is not shown');
+});

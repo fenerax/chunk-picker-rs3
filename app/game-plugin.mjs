@@ -44,7 +44,10 @@ export async function openGamePlugin({ dataDir, store, world, registry, questMap
     }
     if (!statuses.has(player) || statuses.get(player).pool !== pool) {
       const shared = registry.resolve(state().rules)['access.shared'];
-      statuses.set(player, { pool, unlocked: new Set((shared ? state().members : [owner]).flatMap(owner => owner.unlocked).map(id => id.split('-')[0])),
+      const base = id => id.split('-')[0], others = state().members.filter(other => other.id !== player);
+      statuses.set(player, { pool, unlocked: new Set((shared ? state().members : [owner]).flatMap(owner => owner.unlocked).map(base)),
+        // Shared access only: who unlocked each chunk, so the game can mark a partner's chunks.
+        own: new Set(owner.unlocked.map(base)), partner: shared ? new Set(others.flatMap(other => other.unlocked).map(base)) : new Set(),
         available: new Set([...(pool?.eligible ?? []).map(row => row.id), ...(owner.pendingRoll ?? []), ...(owner.selected ?? [])].map(id => id.split('-')[0])), count: owner.unlocked.length });
     }
     const cached = statuses.get(player), latest = positions.get(player);
@@ -59,12 +62,25 @@ export async function openGamePlugin({ dataDir, store, world, registry, questMap
       for (let dz = -NEARBY_RADIUS; dz <= NEARBY_RADIUS; dz++) for (let dx = -NEARBY_RADIUS; dx <= NEARBY_RADIUS; dx++) {
         const nx = x + dx, nz = z + dz;
         if (nx < 0 || nx > 199 || nz < 0 || nz > 199) continue;
-        const id = String(nx * 256 + nz); nearby.push({ chunkId: id, state: stateOf(id) });
+        const id = String(nx * 256 + nz), row = { chunkId: id, state: stateOf(id) };
+        if (row.state === 'unlocked' && cached.partner.size) row.by = !cached.partner.has(id) ? 'me' : cached.own.has(id) ? 'both' : 'partner';
+        nearby.push(row);
       }
     }
     return { v: 1, player: { id: player, name: owner.name }, chunkId, chunkName: chunk?.name ?? null,
       state: !position ? 'unknown' : stateOf(chunkId),
-      activeTaskCount: null, unlockedChunkCount: cached.count, pendingProgress: !!liveReview(player), seenAt: position?.seenAt ?? null, nearby };
+      activeTaskCount: null, unlockedChunkCount: cached.count, pendingProgress: !!liveReview(player), seenAt: position?.seenAt ?? null, nearby,
+      pickableCount: pool ? pool.eligible.length : null,
+      pendingRoll: (owner.pendingRoll ?? []).map(id => ({ chunkId: id, chunkName: world.chunks.get(id.split('-')[0])?.name ?? null })),
+      partners: partners(player) };
+  }
+  // Other players' last reported chunks, from their own plugins. Never their exact tiles.
+  function partners(player) {
+    return state().members.filter(other => other.id !== player).map(other => {
+      const latest = positions.get(other.id), fresh = latest && clock() - Date.parse(latest.seenAt) < LIFETIME;
+      return { name: other.name, chunkId: fresh ? latest.chunkId : null, chunkName: fresh ? world.chunks.get(latest.chunkId)?.name ?? null : null,
+        seenAt: fresh ? latest.seenAt : null };
+    });
   }
   return {
     async handle(request, response, { route, security, closed: serverClosed }) {
