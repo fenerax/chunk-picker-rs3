@@ -3,39 +3,32 @@ import { reviewedNoteRevision } from './info-panels.mjs';
 import { groupGoalCommandTypes } from '../core/group-goal-types.mjs';
 import { createCalculationFeedback, calculationLabel } from './calculation-feedback.mjs';
 import { createLiveSwapCommandClient } from './live-swap-client.mjs';
+import { createSaveRecovery } from './screen-save-recovery.mjs';
 
 // Main-screen commands; shared values and callbacks live in the explicit screen context.
 export function createScreenCommands(c) {
-  let durableCommands, retrySave, connectionNoticeShown = false;
-  function showSaveRetry(show) {
-    if (!show) { retrySave?.remove(); retrySave = undefined; return; }
-    const status = c.$('save-status');
-    if (retrySave || !status?.after || !c.el || !c.button) return;
-    retrySave = c.el('span', undefined, 'status-detail');
-    const retry = c.button('Retry save', () => {
+  let durableCommands, connectionNoticeShown = false;
+  const showSaveRetry = createSaveRecovery(c, {
+    retry: () => {
       const task = c.queue.then(() => c.recoverPendingCommand({ retry: true }));
       c.queue = task.catch(error => {
         c.saved(error.retryPaused ? 'Save not confirmed' : 'Save confirmation needed', true);
-        showSaveRetry(true); c.showError(error);
+        showSaveRetry(hasPendingCommand()); c.showError(error);
       });
       return c.queue;
-    });
-    retry.id = 'pending-save-retry';
-    const discard = c.button('Discard pending save', () => {
+    },
+    discard: () => {
       if (!confirm('Check History first: this change may already be saved. Discard the pending save and start a fresh saving session?')) return;
       const task = c.queue.then(async () => {
         await commandClient().discard(); showSaveRetry(false);
-        c.$('history-open')?.focus();
+        if (!c.$('tool-dialog')?.open) c.$('history-open')?.focus();
         const response = await c.api('/api/state'); c.adopt(response.state, response.pools);
-        c.saved('Pending save discarded'); c.notice?.('Pending save discarded. Check History before repeating the change.');
+        c.saved('Pending save discarded', false, undefined, { resolved: true }); c.notice?.('Pending save discarded. Check History before repeating the change.');
       });
       c.queue = task.catch(error => { c.saved('Save failed', true); c.showError(error); });
       return c.queue;
-    });
-    discard.id = 'pending-save-discard';
-    retrySave.append(c.el('span', 'Save not confirmed. '), retry, discard);
-    status.after(retrySave);
-  }
+    },
+  });
   const commandClient = () => durableCommands ??= createLiveSwapCommandClient({ onRetry: event => {
     if (event?.status === 'paused') { c.saved('Save not confirmed', true); showSaveRetry(true); }
     else { showSaveRetry(false); if (event?.status !== 'confirmed') c.saved('Reconnecting… Confirming save', true); }
@@ -77,6 +70,10 @@ export function createScreenCommands(c) {
     const provisionalTaskState = /^\/api\/tasks(?:\?|$)/.test(path) && typeof c.hasProvisionalTasks === 'function' && c.hasProvisionalTasks();
     if (!provisionalTaskState && path !== '/api/prediction-intent' && value.state && (response.status === 409 || /^\/api\/(?:state|command|runemetrics\/apply|restore|import|member-restore)$/.test(path))) c.stateIsPlayView = value.format === 'play-v1';
     if (!response.ok) {
+      if (body !== undefined && [403, 409, 422].includes(response.status)
+        && /^\/api\/(?:command|runemetrics\/apply|restore|import|member-restore)$/.test(path)) {
+        c.saved('Change refused · review', true, undefined, { refused: true });
+      }
       if (!provisionalTaskState && response.status === 409 && value.state && !['/api/sandbox/evaluate', '/api/prediction-intent'].includes(path)) {
         if (path === '/api/command' && value.claimOnlyChanges === true && Number.isSafeInteger(body?.expectedRevision)
           && body.expectedRevision <= baseline.revision && c.state.revision === baseline.revision) {
@@ -124,7 +121,7 @@ export function createScreenCommands(c) {
     c.saved('Confirming pending save…');
     const response = await c.api('/api/command', pending, undefined, { retry });
     c.adopt(response.state, response.pools);
-    c.saved('Saved', false, c.state.revision);
+    c.saved('Saved', false, c.state.revision, { confirmed: true });
     if (retry) c.notice?.('Saved. Your pending change is confirmed.');
     } catch (error) { if (error.pendingCommand && !error.insecureConnection) showSaveRetry(true); throw error; }
   }
@@ -134,6 +131,7 @@ export function createScreenCommands(c) {
   function command(payload, reviewedRevision, reviewedNote, reviewCurrent, chunkPreview) {
     if (!c.canWrite()) return Promise.reject(new Error('This link is view only.'));
     if (c.sandbox.active) return c.sandbox.command(payload);
+    c.lastSaveControl = document.activeElement;
     const check = payload.type === 'set-task-status' && typeof payload.challengeCompleted === 'boolean' ? { ...payload } : undefined;
     if (check) { checks = [...checks, check]; c.saved('Saving…'); c.renderTasks(); }
     const task = c.queue.then(async () => {
@@ -200,7 +198,7 @@ export function createScreenCommands(c) {
       }
       if (check) removeCheck(check);
       c.adopt(response.state, response.pools, reuse);
-      c.saved(checks.length ? 'Saving…' : 'Saved', false, c.state.revision); return response;
+      c.saved(checks.length ? 'Saving…' : 'Saved', false, c.state.revision, { confirmed: true }); return response;
     }).catch(error => {
       if (check) { removeCheck(check); c.renderTasks(); }
       if (chunkPreview) {
@@ -214,7 +212,7 @@ export function createScreenCommands(c) {
       }
       throw error;
     });
-    c.queue = task.catch(error => { if (error.reviewAbandoned) return; if (error.pendingCommand && !error.insecureConnection) showSaveRetry(true); c.saved(error.insecureConnection ? 'This address cannot save' : error.retryPaused ? 'Save not confirmed' : error.pendingCommand ? 'Save confirmation needed' : 'Save failed', true); c.showError(error); });
+    c.queue = task.catch(error => { if (error.reviewAbandoned) return; if (error.pendingCommand && !error.insecureConnection) showSaveRetry(true); c.saved(error.insecureConnection ? 'This address cannot save' : error.retryPaused ? 'Save not confirmed' : error.pendingCommand ? 'Save confirmation needed' : 'Save failed', true, undefined, { refused: [403, 409, 422].includes(error.status) }); c.showError(error); });
     return task;
   }
 
@@ -244,7 +242,7 @@ export function createScreenCommands(c) {
         if (c.state.revision !== expectedRevision) throw Object.assign(new Error('Saved state changed.'), { status: 409 });
         const response = await c.api('/api/runemetrics/apply', { previewId, expectedRevision });
         c.adopt(response.state, response.pools);
-        c.saved('Saved', false, c.state.revision);
+        c.saved('Saved', false, c.state.revision, { confirmed: true });
         return response;
       } catch (error) {
         if (error.status === 409) error.message = 'Saved state changed. Fetch a new RuneMetrics preview and review it before applying.';
@@ -273,7 +271,7 @@ export function createScreenCommands(c) {
     if (reuseResult?.memberId === c.memberId) {
       clearTimeout(c.syncTimer); c.taskRequest++; c.taskController?.abort();
       c.result = { ...reuseResult, stateRevision: c.state.revision };
-      c.$('task-engine-status').replaceChildren(c.el('span', `${c.result.metrics.availableCount.toLocaleString()} possible tasks${c.advanced() ? ' · cached' : ''}`), ...(c.advanced() ? [c.button('Details', c.engineDetails)] : []));
+      c.$('task-engine-status').replaceChildren(c.el('span', `${c.taskEngineCount(c.result)}${c.advanced() ? ' · cached' : ''}`), ...(c.advanced() ? [c.button('Details', c.engineDetails)] : []));
       if (c.taskHealth && !c.taskHealth.ready) c.workerStatus(c.taskHealth);
     }
     // A save makes the result stale; keep showing it (with the new ticks) until the recalculation lands, instead of emptying the list.

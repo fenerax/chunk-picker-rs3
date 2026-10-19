@@ -12,6 +12,7 @@ import { loadIcons } from './icons.mjs';
 import { loadMapInformation } from './map-info.mjs';
 import { createDuoCoordination } from './duo-coordination.mjs';
 import { loadArtStatus, installPictureFallbacks, observeArtStatus } from './art-status.mjs';
+import { bindTaskViewPreferences } from './task-view-preferences.mjs';
 
 // Main-screen startup; shared values and callbacks live in the explicit screen context.
 export function createScreenStartup(c) {
@@ -90,6 +91,7 @@ export function createScreenStartup(c) {
     }).catch(c.showError);
     if (c.supportsFeature?.('mapMetadata') !== false) loadMapInformation().then(information => { if (information) c.map.setMapInformation(information); });
     c.$('chunk-close').addEventListener('click', () => { c.disposeAccessSections(); c.map.setConnectionChunk(null); });
+    bindTaskViewPreferences(c.$);
     c.adopt(loaded.state, loaded.pools, undefined, false); c.map.centerOnUnlocked(); c.saved('Saved', false, c.state.revision); void c.loadTasks();
     c.duoCoordination = createDuoCoordination({ canWrite: c.canWrite, api: c.api, viewer: session ?? {}, getState: () => ({ revision: c.state.revision, members: c.state.members, sandboxActive: c.sandbox.active }),
       lookups: () => { const names = c.historyLookups(); return { ...names, chunkName: id => c.advanced() ? `${names.chunkName(id)} (${id})` : names.chunkName(id) }; }, el: c.el, button: c.button, openDialog: c.openDialog, closeDialog: c.closeDialog, command: c.command, openHistory: c.historyDialog,

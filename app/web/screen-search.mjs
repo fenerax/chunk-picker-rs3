@@ -40,7 +40,11 @@ export function createSearchDialog(c) {
       const surfaces = new Set(ids.map(id => id.split('-')[0]).filter(id => c.world.surface?.has(id) ?? c.world.chunks.has(id)));
       mapCount.textContent = current() && highlight.checked && query && taskLocationStatus ? taskLocationStatus : surfaces.size ? `${surfaces.size.toLocaleString()} ${surfaces.size === 1 ? 'chunk' : 'chunks'} highlighted in pink` : query ? 'No chunks highlighted' : 'Type to highlight matching chunks';
     };
-    const openChunk = id => { c.closeDialog(generation); c.map.centerOnChunk(id); c.showChunk(id); };
+    const openChunk = (id, matchedNotes, query) => {
+      c.chunkNoteReveal = matchedNotes?.length ? { chunkId: id, memberIds: matchedNotes.map(note => note.memberId), query } : undefined;
+      if (c.chunkNoteReveal) c.chunkTab = 'note';
+      c.closeDialog(generation); c.map.centerOnChunk(id); c.showChunk(id);
+    };
 
     async function enrichTaskMatches(request, targetEntries) {
       const ready = () => current() && request === requestId && ['Tasks', 'Quests'].includes(requestedMode) && highlight.checked && query;
@@ -114,9 +118,10 @@ export function createSearchDialog(c) {
         if (renderedMode === 'Chunks') {
           entries = matchingSearchChunks(c.chunkSearch, notes, query, c.world.areas).map(({ id, name }) => {
             const owners = c.state.members.filter(owner => owner.unlocked.includes(id)).map(owner => owner.name);
+            const matchedNotes = renderedQuery ? (notes.get(id) ?? []).filter(note => note.search.includes(renderedQuery)) : [];
             return { label: c.advanced() && !c.world.areas.has(id) ? `${id} · ${name}` : name,
               subtitle: c.world.areas.has(id) ? 'Interior or connected area' : `Surface chunk · ${owners.length ? `Unlocked by ${owners.join(' and ')}` : c.member().selected.includes(id) ? 'In roll pool (added by hand)' : c.member().blacklisted?.includes(id) ? 'Never roll' : c.pool?.eligible?.some(item => item.id === id) ? 'In roll pool' : 'Locked'}`,
-              locations: [id], notes: notes.get(id) ?? [], action: () => openChunk(id) };
+              locations: [id], notes: notes.get(id) ?? [], action: () => openChunk(id, matchedNotes, renderedQuery) };
           });
         } else if (['Tasks', 'Quests'].includes(renderedMode)) {
           needsTaskLocations = sourceResult?.format === 'play-v1';

@@ -56,7 +56,7 @@
       <details class="more-tools" id="info-tools">
         <summary>Info</summary>
         <div class="more-tools-menu">
-          <p class="menu-heading">Game</p>
+          <p id="info-game-heading" class="menu-heading">Game</p>
           <button id="bis-open">Current BiS</button>
           <button id="profile-open">Profile</button>
           <button id="finish-line-open">F2P finish line</button>
@@ -201,6 +201,7 @@
         <label><input id="show-blocked" type="checkbox" autocomplete="off"> Show blocked</label>
         <label><input id="show-all" type="checkbox" autocomplete="off"> All possible tasks</label>
       </div>
+      <p id="task-inclusion-hint" class="field-help" hidden>Show blocked already includes all possible tasks.</p>
       <div id="task-engine-status" role="status">Loading tasks…</div>
       <div id="active-tasks" class="task-list"></div>
       <details id="backlog-details"><summary>Backlog <span id="backlog-count"></span></summary><div id="backlog-actions" class="backlog-actions"></div><div id="backlog-tasks" class="task-list"></div></details>

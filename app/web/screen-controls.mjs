@@ -1,9 +1,21 @@
 import { applyTheme } from './map-tools.mjs';
 import { observeScreenBars } from './phone-layout.mjs';
 import { createMapControlDiscovery, mountMembersStartEntry } from './map-control-discovery.mjs';
-import { bindTaskViewPreferences } from './task-view-preferences.mjs';
 
 const topMenuIds = ['info-tools', 'admin-tools', 'more-tools'];
+
+export function bindHideCompletedPreference(c) {
+  const control = c.$('hide-completed');
+  control.addEventListener('change', async () => {
+    if (!c.canWrite() || c.sandbox.active) return;
+    const owner = c.memberId, value = control.checked;
+    try { await c.command({ type: 'set-preference', memberId: owner, preferenceId: 'hideChecked', value }); }
+    catch (error) {
+      if (owner === c.memberId) { c.preferenceSignature = undefined; c.applyPreferences(); c.renderTasks(); }
+      c.showError(error);
+    }
+  });
+}
 
 // One Escape dismisses only the foremost surface, including modeless Search.
 export function handleScreenEscape(c, event) {
@@ -25,7 +37,7 @@ export function handleScreenEscape(c, event) {
 // Toolbar, member switching, task filters, menus, shortcuts and responsive sizing.
 export function createScreenControls(c) {
   function bindControls() {
-    bindTaskViewPreferences(c.$);
+    bindHideCompletedPreference(c);
     c.mapControlDiscovery = createMapControlDiscovery(c); c.mapControlDiscovery.mount();
     c.membersStartEntry = mountMembersStartEntry(c);
     c.$('help-open')?.addEventListener('click', () => c.openDialog('Help', c.mapControls()));

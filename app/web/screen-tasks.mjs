@@ -349,6 +349,10 @@ export function createScreenTasks(c) {
     const generation = ++c.taskRenderGeneration, jobs = [];
     if (c.result?.memberId === c.memberId) c.shownResult = c.result;
     const view = c.result ?? (typeof c.shownResult !== 'undefined' && c.shownResult?.memberId === c.memberId ? c.shownResult : undefined);
+    const countLine = c.$('task-engine-status').firstChild;
+    if (view?.metrics && view.memberId === c.memberId && view.stateRevision === c.state.revision && / possible tasks/.test(countLine?.textContent)) {
+      countLine.textContent = c.taskEngineCount(view) + (countLine.textContent.match(/ · .*/)?.[0] ?? '');
+    }
     c.map.setConnections?.(view?.partnerConnections);
     c.renderLegend();
     const filter = c.$('task-filter').value.toLowerCase().trim(), status = c.member().taskStatus ?? {};
@@ -358,7 +362,14 @@ export function createScreenTasks(c) {
     const allRows = (c.sandbox.active ? [...(view?.tasks ?? []), ...extras] : personalCustomTaskRows([...(view?.tasks ?? []), ...extras], c.state, c.member())).filter(task => task.obligation !== false && !task.hidden);
     const rows = filter ? allRows.filter(task => `${task.label} ${task.category}`.toLowerCase().includes(filter)) : allRows;
     const completed = rows.filter(task => c.taskFacts(task).group), backlog = allRows.filter(task => status[task.id]?.backlogged);
-    const presentedIds = new Set(view?.presentation?.tasks.map(task => task.id) ?? rows.map(task => task.id));
+    // Completion is a display filter, independent of the other presentation
+    // gates. Both the compact result and full catalogue identify rows hidden
+    // only by completion; do not re-admit rows suppressed for another reason.
+    const completionRows = view?.presentation?.completedTasks ?? (view?.tasks ?? []).filter(task => {
+      const reasons = view?.presentation?.suppressed?.[task.id];
+      return reasons?.length && reasons.every(reason => reason === 'Challenge already satisfied.');
+    });
+    const presentedIds = new Set([...(view?.presentation?.tasks ?? rows), ...(!c.$('hide-completed').checked ? completionRows : [])].map(task => task.id));
     c.claimableTaskIds = new Set([...presentedIds, ...allRows.filter(isCustomTask).map(task => task.id)]);
     const groupOn = c.duoEnabled();
     c.duoInspectionCache?.results();
@@ -381,6 +392,9 @@ export function createScreenTasks(c) {
       control.title = hint;
       if (control.parentElement) control.parentElement.title = hint;
     }
+    const inclusionHint = c.$('task-inclusion-hint');
+    inclusionHint.textContent = 'Show blocked already includes all possible tasks.';
+    inclusionHint.hidden = !groupOn || !c.$('show-blocked').checked || personalGroup;
     const duoReady = groupOn ? c.renderDuoTasks(c.$('active-tasks'), jobs, generation, filter) : (c.grouped(c.$('active-tasks'), active, jobs, generation, true), false);
     c.mapTaskCounts?.refresh();
     let completedRows = completed, backlogRows = backlog;

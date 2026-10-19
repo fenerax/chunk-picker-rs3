@@ -221,6 +221,18 @@ test('Search Escape closes even after a saved revision changes', async t => {
   assert.equal(h.c.$('tool-dialog').open, false); assert.equal(escape.defaultPrevented, true); assert.deepEqual(h.matches.at(-1), []);
 });
 
+test('uifix: a note match opens Note for the matching owners while a name match keeps the chosen tab', async t => {
+  const h=harness(t);
+  const chunkId=h.c.chunkSearch[0].id;
+  for(const [query,owner] of [['gate',h.c.state.members[0].id],['home',h.c.state.members[1].id]]) {
+    h.c.chunkTab='contents'; h.search.open(); await h.settle(); await h.type(query);await h.find('View').emit('click');
+    assert.equal(h.c.chunkTab,'note');assert.deepEqual(h.c.chunkNoteReveal,{chunkId,memberIds:[owner],query});
+  }
+  h.c.chunkTab='contents'; h.search.open(); await h.settle(); await h.type(chunkId); await h.find('View').emit('click');
+  assert.equal(h.c.chunkTab,'contents');
+  assert.equal(h.c.chunkNoteReveal,undefined);
+});
+
 test('shipped dialog lifecycle allows Search map interaction and restores modal tools without stale close cleanup', async t => {
   const previous = globalThis.document, document = new EventTarget(); globalThis.document = document;
   t.after(() => { if (previous === undefined) delete globalThis.document; else globalThis.document = previous; });

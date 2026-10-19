@@ -63,6 +63,112 @@ function deferred() { let resolve, reject; const promise = new Promise((done, fa
 // Drain the current turn without guessing their count or resolving deferred IO.
 const flush = () => new Promise(resolve => setImmediate(resolve));
 
+for (const compact of [true, false]) test(`uifix: Hide completed off restores completion-only presentation rows (${compact ? 'compact' : 'full'})`, async () => {
+  const h = harness();
+  const done = { id: 'builtin:purchase', label: 'Buy a bronze tool', category: 'Shopping', status: 'available' };
+  const excluded = { ...done, id: 'builtin:excluded', label: 'Excluded purchase' };
+  h.context.completedFixture = { ...taskResult(7), ...(compact ? { format: 'play-v1' } : {}), tasks: [done, excluded],
+    presentation: { tasks: [], ...(compact ? { completedTasks: [{ id: done.id }] } : {
+      suppressed: { [done.id]: ['Challenge already satisfied.'], [excluded.id]: ['Challenge already satisfied.', 'Hidden by rule.'] },
+    }) } };
+  h.run("member().taskStatus = { 'builtin:purchase': { challengeCompleted:true }, 'builtin:excluded': { challengeCompleted:true } }; result = completedFixture; $('hide-completed').checked = false; renderTasks()");
+  await h.run('taskRenderDone');
+  const rows = h.nodes.get('active-tasks');
+  assert.ok(h.find('button', done.label) && rows.contains(h.find('button', done.label)));
+  assert.ok(!h.all().some(node => node.textContent === excluded.label && rows.contains(node)), 'Other presentation gates remain authoritative');
+  const checkbox = h.find('button', done.label).parentElement.parentElement.parentElement.querySelector('input');
+  assert.equal(checkbox.checked, true);
+  h.run("$('hide-completed').checked = true; renderTasks()"); await h.run('taskRenderDone');
+  assert.ok(!rows.contains(h.find('button', done.label)));
+});
+
+test('uifix: starting guidance follows the selected unstarted member', () => {
+  const h = harness(); h.run("state.members[0].unlocked = ['12341']; state.members[1].unlocked = []; memberId = state.members[1].id; renderState()");
+  assert.equal(h.nodes.get('empty-map').hidden, false);
+  h.run("memberId = state.members[0].id; renderState()"); assert.equal(h.nodes.get('empty-map').hidden, true);
+  h.run("memberId = state.members[1].id; member().selected = ['12342']; renderState()"); assert.equal(h.nodes.get('empty-map').hidden, false);
+});
+
+for (const clipped of [false, true]) test(`uifix: note search ${clipped ? 'expands a clipped note' : 'keeps a short note compact'}`, async () => {
+  const h=harness(); h.run("chunkNoteReveal={chunkId:'12341',memberIds:[memberId],query:member().notes['12341'].slice(0,6).toLowerCase()}; chunkTab='note'; showChunk('12341')");
+  const editor=h.all().find(node=>node.className==='chunk-own-note'), text=editor.querySelector('textarea');
+  text.clientHeight=60;text.scrollHeight=clipped?300:60;await flush();
+  assert.equal(editor.dataset.expanded,String(clipped));assert.equal(h.context.document.activeElement,text);
+});
+
+for (const status of [403, 409, 422]) test(`uifix: HTTP ${status} stays refused across live revisions until a later save`, async () => {
+  const h = harness();
+  h.route(() => ({ ok:false, status, value:{message:'Synthetic refusal'} }));
+  await assert.rejects(h.run("command({type:'set-note',memberId,chunkId:'12341',note:'Rejected'})")); await h.run('queue');
+  h.run('connectEvents()'); await flush();
+  const remote = h.snapshot(); remote.revision++;
+  h.route(path => path === '/api/state' ? {state:remote,pools:{}} : {state:{...remote,revision:remote.revision+1},pools:{}});
+  await h.eventSources[0].emit('revision',{data:JSON.stringify({revision:remote.revision})});
+  assert.equal(h.nodes.get('save-status').textContent, 'Change refused · review');
+  assert.equal(h.nodes.get('save-status').dataset.status, 'failed');
+  await h.run("command({type:'set-note',memberId,chunkId:'12341',note:'Accepted'})");
+  assert.equal(h.nodes.get('save-status').textContent, 'Saved');
+});
+
+for (const action of ['Retry save', 'Discard pending save']) test(`uifix: real pending transport shares ${action} beside the failed dialog control`, async () => {
+  const h = harness(), original = h.context.createLiveSwapCommandClient;
+  h.context.createLiveSwapCommandClient = options => original({ ...options, maxAttempts:2, sleep:async()=>{} });
+  h.nodes.get('test-task-header').append(h.nodes.get('save-status'));
+  h.run("showTask(state.tasks[0])");
+  const save = h.find('button','Save note'); save.focus();
+  let blocked = true;
+  h.route((path, body) => { if(blocked) throw Error('Synthetic connection loss'); const state=h.snapshot(); if(path==='/api/command') { state.revision++; state.members[0].taskStatus[task.id].note=body.command.note; } return {state,pools:{}}; });
+  await save.emit('click'); await h.run('queue');
+  const dialog = h.nodes.get('dialog-content'), recoveries = h.all().filter(node=>node.textContent==='Retry save' && dialog.contains(node));
+  assert.ok(recoveries.length);
+  assert.equal(h.run('hasPendingCommand()'),true);
+  h.run("saved('Saved',false,state.revision)"); assert.notEqual(h.nodes.get('save-status').textContent,'Saved');
+  await h.click('Dismiss');assert.equal(h.run('hasPendingCommand()'),true);assert.notEqual(h.nodes.get('save-status').textContent,'Saved');
+  h.context.confirm=()=>true;
+  blocked=false; await h.all().find(node=>node.textContent===action && dialog.contains(node)).emit('click');
+  assert.equal(h.run('hasPendingCommand()'),false);
+  assert.equal(h.nodes.get('save-status').textContent,action==='Retry save'?'Saved':'Pending save discarded');
+  assert.ok(!h.all().some(node=>node.textContent==='Retry save'));
+  assert.equal(h.calls.filter(call=>call.path==='/api/command').length,action==='Retry save'?2:1);
+  if(action==='Retry save') assert.deepEqual(h.calls[0].body,h.calls[1].body,'Both controls replay the single frozen command');
+});
+
+test('uifix: dismissing a refusal acknowledges it without hiding an insecure or pending save', async () => {
+  const h=harness();h.route(()=>({ok:false,status:422,value:{message:'Synthetic refusal'}}));
+  await assert.rejects(h.run("command({type:'set-note',memberId,chunkId:'12341',note:'Refused'})"));await h.run('queue');
+  assert.equal(h.nodes.get('save-status').textContent,'Change refused · review');await h.click('Dismiss');
+  assert.equal(h.nodes.get('save-status').textContent,'Saved');
+  h.context.isSecureContext=false;h.run("saved('Change refused · review',true,undefined,{refused:true}); notice('Cannot save',true)");await h.click('Dismiss');
+  assert.equal(h.nodes.get('save-status').textContent,'This address cannot save');
+});
+
+test('uifix: insecure origin outranks startup, live sync and a refused attempt', () => {
+  const h=harness(); h.context.isSecureContext=false;
+  h.run("saved('Saved',false,state.revision)");
+  assert.equal(h.nodes.get('save-status').textContent,'This address cannot save');
+  h.run("saved('Saving…'); saved('Save failed',true); saved('Saved',false,state.revision)");
+  assert.equal(h.nodes.get('save-status').textContent,'This address cannot save');
+  assert.equal(h.nodes.get('save-status').dataset.status,'failed');
+});
+
+test('uifix: group filters show the inclusion explanation without a tooltip', () => {
+  const h=harness(); h.run("$('group-view').checked=true; $('show-blocked').checked=true; renderTasks()");
+  const hint=h.nodes.get('task-inclusion-hint');
+  assert.equal(hint.textContent,'Show blocked already includes all possible tasks.'); assert.equal(hint.hidden,false);
+  h.run("$('show-blocked').checked=false; renderTasks()"); assert.equal(hint.hidden,true);
+});
+
+test('uifix: group calculation count names its member after reuse and a fresh load', async () => {
+  const h=harness(); h.context.countFixture=taskResult(7);
+  const expected=h.run("'0 possible tasks for '+member().name");
+  h.run("result=countFixture; adopt(state,{},countFixture,false); $('group-view').checked=true; renderTasks()");
+  assert.equal(h.nodes.get('task-engine-status').children[0].textContent,expected);
+  h.run("$('group-view').checked=false; renderTasks()");assert.equal(h.nodes.get('task-engine-status').children[0].textContent,'0 possible tasks');
+  h.run("$('group-view').checked=true; renderTasks()");
+  h.route(()=>taskResult(7)); await h.run('loadTasks()');
+  assert.equal(h.nodes.get('task-engine-status').children[0].textContent,expected);
+});
+
 test('roll pool actions use plain labels and preserve command statuses', async () => {
   const h = harness(), sent = []; h.context.sent = sent;
   h.run("command = async value => { sent.push(value); }; member().unlocked = []; member().selected = []; member().blacklisted = []; member().pendingRoll = []");
@@ -2492,7 +2598,7 @@ test('failed shift-click reverts only its preview and reports the unsaved chunk'
   assert.ok(h.map.members[0].unlocked.includes('12341')); await flush();
   acknowledgement.resolve({ ok: false, status: 422, value: { message: 'Injected failure' } }); await failed;
   assert.deepEqual(h.snapshot(), baseline); assert.ok(!h.map.members[0].unlocked.includes('12341'));
-  assert.equal(h.run('pendingChunkChanges.length'), 0); assert.equal(h.nodes.get('save-status').textContent, 'Save failed');
+  assert.equal(h.run('pendingChunkChanges.length'), 0); assert.equal(h.nodes.get('save-status').textContent, 'Change refused · review');
   assert.match(h.nodes.get('notice').children[0].textContent, /Chunk 12341 was not saved.*reverted/);
 });
 
@@ -3282,7 +3388,7 @@ test('a confirmed takeover requires a fresh review when its target claim was ren
   const authoritative = h.snapshot(); authoritative.revision = 8; authoritative.taskClaims[task.id].at = '2026-10-12T12:00:00Z';
   pending.resolve({ ok: false, status: 409, value: { state: authoritative, pools: {}, claimOnlyChanges: true } }); await taking;
   assert.equal(h.calls.length, 1); assert.deepEqual(h.snapshot(), authoritative);
-  assert.equal(h.nodes.get('save-status').textContent, 'Save failed');
+  assert.equal(h.nodes.get('save-status').textContent, 'Change refused · review');
 });
 
 for (const changeTarget of [false, true]) test(`a persisted claim alias ${changeTarget ? 'blocks a changed-target' : 'allows an unrelated'} retry`, async () => {
@@ -3310,7 +3416,7 @@ test('claim-only retry keeps the pending Unlock visible until acknowledgement', 
   assert.equal(h.run('state.revision'), 8); assert.equal(h.run('pendingChunkChanges.length'), 1);
   assert.ok(!h.snapshot().members[0].unlocked.includes('12341'));
   assert.ok(h.map.members[0].unlocked.includes('12341'), 'Claim-only conflict adoption retains the optimistic Unlock');
-  assert.equal(h.nodes.get('save-status').textContent, 'Saving…');
+  assert.equal(h.nodes.get('save-status').textContent, 'Change refused · review');
   const saved = structuredClone(claimed); saved.revision = 9; saved.members[0].unlocked.push('12341');
   second.resolve({ state: saved, pools: {} }); await saving;
   assert.equal(h.run('state.revision'), 9); assert.equal(h.run('pendingChunkChanges.length'), 0);
@@ -3335,7 +3441,7 @@ test('a second claim-only conflict stops after one retry and reverts the unsaved
   assert.deepEqual(h.calls.map(call => call.body.expectedRevision), [7, 8]);
   assert.equal(h.run('state.revision'), 9); assert.equal(h.run('pendingChunkChanges.length'), 0);
   assert.ok(!h.map.members[0].unlocked.includes('12341'));
-  assert.equal(h.nodes.get('save-status').textContent, 'Save failed');
+  assert.equal(h.nodes.get('save-status').textContent, 'Change refused · review');
 });
 
 for (const transition of ['member', 'group-view', 'session-member', 'session-admin', 'read-only', 'review-closed']) test(`claim-only retry stops if ${transition} changes during the request`, async () => {

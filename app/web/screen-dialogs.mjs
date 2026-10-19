@@ -46,6 +46,7 @@ export function createScreenDialogs(c) {
     if (dialog.open && !!dialog.classList?.contains('search-dialog') !== modeless) dialog.close();
     dialog.classList?.toggle('search-dialog', modeless); dialog.scrollTop = 0;
     if (!dialog.open) { if (modeless) dialog.show(); else dialog.showModal(); }
+    c.refreshSaveRecovery?.();
     return c.dialogGeneration;
   }
 
@@ -122,7 +123,7 @@ export function createScreenDialogs(c) {
       const value = await c.api(`${path}/preview`, payload); if (!c.dialogCurrent(generation) || request !== previewRequest) return; const expectedRevision = (value.preview ?? value).currentRevision;
       preview.replaceChildren(c.el('h3', 'Review replacement'), c.el('p', memberScope ? `Applying this replaces ${c.state.members.find(member => member.id === memberScope)?.name ?? 'this player'}’s map only. Undo can reverse it.` : 'Applying this replaces the saved group with the previewed state. Download a full backup above to keep a portable copy.', 'warning'), c.replacementSummary(value.preview ?? value, value.state ?? document?.state));
       if (value.warnings?.length) preview.append(c.details('Import warnings', c.list(value.warnings)));
-      preview.append(c.button('Apply reviewed replacement', async () => { const response = await c.api(path, { ...payload, expectedRevision }); c.adopt(response.state, response.pools); c.saved('Saved', false, c.state.revision); if (!c.dialogCurrent(generation)) return; c.closeDialog(generation); c.map.centerOnUnlocked(); c.notice(memberScope ? `${c.state.members.find(member => member.id === memberScope)?.name ?? 'The'}’s map was replaced. Undo can reverse it.` : legacyImport ? 'Import saved. Your imported records and previous save are kept in the backup.' : 'Backup restored. The previous save is retained, and Undo can reverse this replacement.'); }));
+      preview.append(c.button('Apply reviewed replacement', async () => { const response = await c.api(path, { ...payload, expectedRevision }); c.adopt(response.state, response.pools); c.saved('Saved', false, c.state.revision, { confirmed: true }); if (!c.dialogCurrent(generation)) return; c.closeDialog(generation); c.map.centerOnUnlocked(); c.notice(memberScope ? `${c.state.members.find(member => member.id === memberScope)?.name ?? 'The'}’s map was replaced. Undo can reverse it.` : legacyImport ? 'Import saved. Your imported records and previous save are kept in the backup.' : 'Backup restored. The previous save is retained, and Undo can reverse this replacement.'); }));
       } finally { reading = false; previewButton.disabled = false; }
     };
     const retained = c.el('div', undefined, 'form-stack'); retained.append(c.button('Browse previous saves', async () => {

@@ -21,17 +21,25 @@ export function createScreenChunkNotes(c) {
       if (typeof ResizeObserver === 'function') { observer = new ResizeObserver(paint); observer.observe(text); }
     });
     text.addEventListener('input', paint);
-    return { paint, dispose() { disposed = true; observer?.disconnect(); } };
+    return { paint, setExpanded(value) { expanded = value; paint(); }, dispose() { disposed = true; observer?.disconnect(); } };
   }
 
   function chunkNote(id) {
     disposeChunkNotes();
     const draftKey = `${c.memberId}:${id}`, noteMember = c.memberId, original = c.member().notes?.[id] ?? '';
+    const reveal = c.chunkNoteReveal?.chunkId === id ? c.chunkNoteReveal : undefined;
+    if (reveal) c.chunkNoteReveal = undefined;
     const review = c.chunkDrafts.get(draftKey) ?? { revision: c.state.revision, original, value: original };
     const editor = createNoteEditor(c.panelContext, { label: `${c.member().name}’s note${c.chunkDrafts.has(draftKey) ? ' · unsaved draft' : ''}`, saveLabel: 'Save chunk note', payload: { type: 'set-note', memberId: noteMember, chunkId: id }, review, isCurrent: () => editor.isConnected && c.chunkId === id && c.memberId === noteMember, onChange: () => c.chunkDrafts.set(draftKey, review), onSaved: value => { if (c.chunkDrafts.get(draftKey)?.value === value) c.chunkDrafts.delete(draftKey); ownExpansion.paint(); } });
     editor.className = 'chunk-own-note'; editor.children[0].className = 'chunk-note';
     const text = editor.querySelector('textarea');
     const ownExpansion = expansion(editor, text, `${c.member().name}’s note`);
+    if (reveal?.memberIds.includes(noteMember)) requestAnimationFrame(() => {
+      if (!editor.isConnected) return;
+      if (text.scrollHeight > text.clientHeight + 1) ownExpansion.setExpanded(true);
+      const start = text.value.toLowerCase().indexOf(reveal.query);
+      if (start >= 0) { text.focus({ preventScroll: true }); text.setSelectionRange?.(start, start + reveal.query.length); }
+    });
     const element = c.el('div', undefined, 'chunk-notes'), partners = c.el('div', undefined, 'chunk-partner-notes'), expanded = new Map();
     element.append(editor, partners);
     let signature, partnerExpansions = [];
@@ -47,7 +55,8 @@ export function createScreenChunkNotes(c) {
         const label = `${owner.name}’s note`, section = c.el('section', undefined, 'chunk-partner-note'), body = c.el('p', owner.notes[id], 'chunk-note-text');
         section.setAttribute('aria-label', label);
         section.append(c.el('h3', label, 'chunk-note-label'), body);
-        partnerExpansions.push(expansion(section, body, label, expanded.get(owner.id), value => expanded.set(owner.id, value)));
+        partnerExpansions.push(expansion(section, body, label, expanded.get(owner.id) ?? reveal?.memberIds.includes(owner.id), value => expanded.set(owner.id, value)));
+        if (reveal?.memberIds.includes(owner.id)) requestAnimationFrame(() => { if (section.isConnected) section.scrollIntoView?.({ block: 'nearest' }); });
         return section;
       }));
     }

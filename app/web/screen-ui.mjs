@@ -1,3 +1,5 @@
+import { createSaveStatus } from './screen-save-status.mjs';
+
 // Main-screen ui; shared values and callbacks live in the explicit screen context.
 export function createScreenUi(c) {
   function perfMark(name, detail = {}) {
@@ -23,9 +25,9 @@ export function createScreenUi(c) {
 
   function showError(error) { c.notice(error.message || String(error), true); }
 
-  function notice(message, error = false) { clearTimeout(c.noticeTimer); c.$('notice').replaceChildren(c.el('span', message), c.button('Dismiss', () => { c.$('notice').hidden = true; })); c.$('notice').hidden = false; c.$('notice').className = error ? 'error' : ''; if (!error) c.noticeTimer = setTimeout(() => { c.$('notice').hidden = true; }, 10000); }
+  function notice(message, error = false) { clearTimeout(c.noticeTimer); c.$('notice').replaceChildren(c.el('span', message), c.button('Dismiss', () => { c.$('notice').hidden = true; c.reviewSaveRefusal?.(); })); c.$('notice').hidden = false; c.$('notice').className = error ? 'error' : ''; if (!error) c.noticeTimer = setTimeout(() => { c.$('notice').hidden = true; }, 10000); }
 
-  function saved(text, failed = false, revision) { c.$('save-status').textContent = !c.canWrite() && text === 'Saved' ? 'Live' : text; c.$('save-status').title = revision ? `Saved revision ${revision}` : ''; c.$('save-status').dataset.status = failed ? 'failed' : text === 'Saving…' ? 'saving' : 'saved'; }
+  const saved = createSaveStatus(c);
 
   Object.assign(c, { perfMark, browserUUID, iconLink, iconButton, lazyJSON, showError, notice, saved });
 

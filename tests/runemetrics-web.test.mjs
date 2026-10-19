@@ -226,7 +226,8 @@ test('main queues one apply, adopts committed state and uses shared save status'
   release(); await pending;
   assert.deepEqual(JSON.parse(JSON.stringify(h.requests)), [{ path: '/api/runemetrics/apply', body: { previewId: 'review-a', expectedRevision: 7 } }]);
   assert.equal(h.ctx.state.revision, 8); assert.ok(h.ctx.pools.a);
-  assert.equal(h.statuses[0][0], 'Saving…'); assert.deepEqual(h.statuses.at(-1), ['Saved', false, 8]);
+  assert.equal(h.statuses[0][0], 'Saving…'); assert.deepEqual(h.statuses.at(-1).slice(0, 3), ['Saved', false, 8]);
+  assert.equal(h.statuses.at(-1)[3].confirmed, true);
 });
 
 test('an already dispatched main Apply adopts saved state while preserving a newer dialog', async () => {

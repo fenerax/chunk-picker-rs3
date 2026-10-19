@@ -75,7 +75,7 @@ export function runScreenGraph(context, modules) {
   const commandStorage = new Map();
   context.createLiveSwapCommandClient ??= options => createLiveSwapCommandClient({ ...options,
     acquireSession: () => () => {},
-    storage: { getItem: key => commandStorage.get(key) ?? null, setItem: (key, value) => commandStorage.set(key, value) },
+    storage: { getItem: key => commandStorage.get(key) ?? null, setItem: (key, value) => commandStorage.set(key, value), removeItem: key => commandStorage.delete(key) },
     fetch: async (path, options) => {
       // Session registration is transport plumbing; these screen fixtures inspect
       // their command/state traffic. Protocol persistence has its own tests.

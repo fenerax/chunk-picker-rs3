@@ -5,6 +5,7 @@ import { createContext, runInContext } from 'node:vm';
 import { createTaskFilters, appendTaskPin } from '../app/web/task-filters.mjs';
 import { TASK_FILTERS_STORAGE_KEY } from '../app/web/task-filters-model.mjs';
 import { TASK_VIEW_STORAGE_KEY, readTaskViewPreferences, writeTaskViewPreferences, bindTaskViewPreferences } from '../app/web/task-view-preferences.mjs';
+import { bindHideCompletedPreference } from '../app/web/screen-controls.mjs';
 
 // Browser controller only: fake DOM and in-memory storage, no server or saves.
 class Node {
@@ -279,37 +280,57 @@ test('claim filter controller reads the current session identity independently o
   assert.deepEqual(h.controller.select(rows,options).map(row=>row.id), ['actor1Claim','free']);
 });
 
-test('task view stores only the two local filters under a stable key', () => {
+test('task view stores the local filters and Group view under a stable key', () => {
   const values = new Map(), storage = { getItem: key => values.get(key), setItem: (key, value) => values.set(key, value) };
-  assert.deepEqual(readTaskViewPreferences(storage), { showBlocked: false, showAll: false });
-  assert.equal(writeTaskViewPreferences(storage, { showBlocked: true, showAll: true, hideChecked: false }), true);
-  assert.deepEqual(readTaskViewPreferences(storage), { showBlocked: true, showAll: true });
-  assert.deepEqual(JSON.parse(values.get(TASK_VIEW_STORAGE_KEY)), { showBlocked: true, showAll: true });
+  assert.deepEqual(readTaskViewPreferences(storage), { showBlocked: false, showAll: false, groupView: true });
+  assert.equal(writeTaskViewPreferences(storage, { showBlocked: true, showAll: true, groupView: false, hideChecked: false }), true);
+  assert.deepEqual(readTaskViewPreferences(storage), { showBlocked: true, showAll: true, groupView: false });
+  assert.deepEqual(JSON.parse(values.get(TASK_VIEW_STORAGE_KEY)), { showBlocked: true, showAll: true, groupView: false });
   assert.doesNotMatch(TASK_VIEW_STORAGE_KEY, /:v\d|\d+\.\d+/);
 });
 
 test('missing, malformed and denied storage use both filters off', () => {
   const denied = { getItem() { throw Error('denied'); }, setItem() { throw Error('denied'); } };
   for (const storage of [undefined, denied, { getItem: () => '{' }, { getItem: () => '{"showBlocked":1,"showAll":"true"}' }]) {
-    assert.deepEqual(readTaskViewPreferences(storage), { showBlocked: false, showAll: false });
+    assert.deepEqual(readTaskViewPreferences(storage), { showBlocked: false, showAll: false, groupView: true });
   }
   assert.equal(writeTaskViewPreferences(denied, {}), false);
   assert.equal(writeTaskViewPreferences(undefined, {}), false);
 });
 
 test('binding resets restored controls, writes changes, and leaves Hide completed alone', () => {
-  const nodes = new Map(['hide-completed', 'show-blocked', 'show-all'].map(id => [id, { checked: true, addEventListener(_, fn) { this.change = fn; } }]));
+  const nodes = new Map(['hide-completed', 'show-blocked', 'show-all', 'group-view'].map(id => [id, { checked: true, addEventListener(_, fn) { this.change = fn; } }]));
   let saved;
   const storage = { getItem: () => saved, setItem: (_, value) => { saved = value; } };
   bindTaskViewPreferences(id => nodes.get(id), () => storage);
   assert.equal(nodes.get('show-blocked').checked, false);
   assert.equal(nodes.get('show-all').checked, false);
   assert.equal(nodes.get('hide-completed').checked, true);
+  nodes.get('group-view').checked = false; nodes.get('group-view').change();
   nodes.get('show-blocked').checked = true; nodes.get('show-blocked').change();
   bindTaskViewPreferences(id => nodes.get(id), () => storage);
   assert.equal(nodes.get('show-blocked').checked, true);
+  assert.equal(nodes.get('group-view').checked, false);
   bindTaskViewPreferences(id => nodes.get(id), () => { throw Error('denied'); });
   assert.equal(nodes.get('show-blocked').checked, false);
+});
+
+test('uifix: Hide completed saves hideChecked for its owner and rolls back a refused preference', async () => {
+  let change, failure=false, renders=0; const sent=[], owner={preferences:{hideChecked:true}};
+  const control={checked:false,addEventListener(_event,action){change=action;}};
+  const c={$:()=>control,memberId:'one',canWrite:()=>true,sandbox:{active:false},showError(){},
+    command:async payload=>{sent.push(payload);if(failure)throw Error('Refused');owner.preferences.hideChecked=payload.value;},
+    applyPreferences(){control.checked=owner.preferences.hideChecked;},renderTasks(){renders++;}};
+  bindHideCompletedPreference(c); await change();
+  assert.deepEqual(sent,[{type:'set-preference',memberId:'one',preferenceId:'hideChecked',value:false}]);
+  assert.equal(owner.preferences.hideChecked,false);
+  control.checked=true; failure=true; await change(); assert.equal(control.checked,false); assert.equal(renders,1);
+  c.canWrite=()=>false; await change(); assert.equal(sent.length,2,'Viewers retain a local filter without saving');
+});
+
+test('uifix: existing task-view records migrate without resetting the local filters', () => {
+  const old=JSON.stringify({showBlocked:true,showAll:true});
+  assert.deepEqual(readTaskViewPreferences({getItem:()=>old}),{showBlocked:true,showAll:true,groupView:true});
 });
 
 test('task controls disable browser form restoration', async () => {

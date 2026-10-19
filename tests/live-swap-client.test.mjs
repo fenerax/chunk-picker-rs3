@@ -579,10 +579,11 @@ test('pagehide releases ownership and pageshow requires reacquisition before ano
 
 async function screen(fetch, { outbox = storage(), clientOptions = {}, context = {}, clientFactory = client } = {}) {
   const source = await readFile(new URL('../app/web/screen-commands.mjs', import.meta.url), 'utf8');
-  const scope = { fetch, confirm: context.confirm ?? (() => true), createLiveSwapCommandClient: options => clientFactory({ ...options, storage: outbox, fetch, ...clientOptions }),
+  const recovery = await readFile(new URL('../app/web/screen-save-recovery.mjs', import.meta.url), 'utf8');
+  const scope = { document: { activeElement: null }, fetch, confirm: context.confirm ?? (() => true), createLiveSwapCommandClient: options => clientFactory({ ...options, storage: outbox, fetch, ...clientOptions }),
     createCalculationFeedback: () => ({ begin: () => () => {} }), calculationLabel: () => '',
     groupGoalCommandTypes: [], reviewedNoteRevision: (state, _payload, revision) => revision ?? state.revision };
-  runInNewContext(source.replace(/^import .*;\r?\n/gm, '').replace('export function createScreenCommands', 'function createScreenCommands')
+  runInNewContext(recovery.replace('export function createSaveRecovery', 'function createSaveRecovery') + '\n' + source.replace(/^import .*;\r?\n/gm, '').replace('export function createScreenCommands', 'function createScreenCommands')
     + '\nglobalThis.install = createScreenCommands;', scope);
   const c = { queue: Promise.resolve(), canWrite: () => true, sandbox: { active: false }, state: { revision: 7, history: [] },
     memberId: 'a', sessionMember: 'a', sessionAdmin: false, sessionReadOnly: false,
@@ -804,7 +805,7 @@ test('startup confirmation and saving share ownership acquisition while stale AC
 
 test('Retry save survives reload and SSE, preserves drafts and clears only after an explicit successful retry', async () => {
   const adjacent = [], statuses = [], notices = [], outbox = registeredStorage(), requests = [];
-  const node = (tag, text) => ({ tag, textContent: text, children: [], append(...items) { this.children.push(...items); },
+  const node = (tag, text) => ({ tag, textContent: text, children: [], setAttribute() {}, contains() { return false; }, get isConnected() { return adjacent.includes(this); }, append(...items) { this.children.push(...items); },
     remove() { const index = adjacent.indexOf(this); if (index >= 0) adjacent.splice(index, 1); } });
   const status = { after: item => adjacent.push(item) };
   const context = { $: id => id === 'save-status' ? status : undefined, el: node,
@@ -891,7 +892,7 @@ test('discard removes current and legacy outboxes, releases ownership and saves 
 test('Discard pending save asks to check History, honors cancel, clears storage and allows a new save', async () => {
   const adjacent = [], outbox = registeredStorage(), prompts = [], requests = [];
   let accepted = false, fail = true, historyFocused = false;
-  const node = (tag, text) => ({ tag, textContent: text, children: [], append(...items) { this.children.push(...items); },
+  const node = (tag, text) => ({ tag, textContent: text, children: [], setAttribute() {}, contains() { return false; }, get isConnected() { return adjacent.includes(this); }, append(...items) { this.children.push(...items); },
     remove() { adjacent.splice(adjacent.indexOf(this), 1); } });
   const context = { $: id => id === 'save-status' ? { after: item => adjacent.push(item) } : id === 'history-open' ? { focus() { historyFocused = true; } } : undefined,
     el: node, button: (text, action) => ({ tag: 'button', textContent: text, click: action }),

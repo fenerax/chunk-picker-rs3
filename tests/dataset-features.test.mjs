@@ -26,6 +26,19 @@ test('feature gates preserve session-hidden controls and tolerate omitted contro
   applyDatasetFeatureControls(starter, () => null);
 });
 
+test('uifix: the Info Game heading follows its available entries', () => {
+  const ids=['info-game-heading','bis-open','profile-open','finish-line-open','activity-open','teleports-open'];
+  const nodes=new Map(ids.map(id=>[id,{hidden:false,disabled:false}]));
+  applyDatasetFeatureControls(starter,id=>nodes.get(id));
+  assert.equal(nodes.get('info-game-heading').hidden,true);
+  nodes.get('bis-open').hidden=false;
+  applyDatasetFeatureControls({capabilities:{}},id=>nodes.get(id));
+  assert.equal(nodes.get('info-game-heading').hidden,false);
+  nodes.get('bis-open').hidden=true;
+  applyDatasetFeatureControls({capabilities:{}},id=>nodes.get(id));
+  assert.equal(nodes.get('info-game-heading').hidden,true,'Session and preference visibility also count');
+});
+
 test('launch copy uses provider status values and independently declared capability', () => {
   const copy = datasetLaunchCopy(starter);
   assert.equal(copy.title, 'Sample grid'); assert.equal(copy.label, 'Sample dataset');
