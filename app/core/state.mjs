@@ -1682,7 +1682,7 @@ function applyCommandCopy(next, command, { expectedRevision, world, registry, ra
       payload.taskIds = ids; payload.cleared = ids.length;
       break;
     }
-    case TICK_ACTIVE_TASKS:
+    case 'tick-active-tasks':
       applyTickActiveTasks(findMember(next, payload.memberId), payload, id => registerCatalogueTask(next, id, taskCatalogue));
       break;
     case 'clear-backlog': {
