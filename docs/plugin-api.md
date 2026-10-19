@@ -97,11 +97,16 @@ No body or query parameters. Both successful routes return the same exact shape:
   "activeTaskCount": null,
   "unlockedChunkCount": 1,
   "pendingProgress": true,
-  "seenAt": "2026-10-19T12:00:00.000Z"
+  "seenAt": "2026-10-19T12:00:00.000Z",
+  "nearby": [
+    { "chunkId": "12336", "state": "locked" },
+    { "chunkId": "12592", "state": "available" },
+    "… 25 rows in all …"
+  ]
 }
 ```
 
-`chunkId`, `chunkName`, and `seenAt` can be null. `state` is `unlocked`, `locked`,
+`chunkId`, `chunkName`, `seenAt`, and `nearby` can be null. `state` is `unlocked`, `locked`,
 `available`, or `unknown`. Unlocked respects the saved shared-access rule;
 available means eligible in an already cached roll pool or already offered/selected.
 Unknown means no recent position or no dataset chunk. A chunk known to be
@@ -111,6 +116,14 @@ is currently always null: status caches saved ownership per revision, reuses an
 existing roll pool when present, and
 never runs the task engine. `pendingProgress` means a proposal is waiting for
 review, including proposals containing only unmatched/informational quests.
+
+`nearby` lists the 5×5 block of map squares centred on the reported position,
+so the plugin can shade neighbouring chunks. It is null whenever `chunkId` is
+null. Each row has exactly `chunkId` and `state`, with the same rules and cached
+sets as the top-level `state`. Rows run from the south-west corner, x fastest:
+`(x-2, z-2)`, `(x-1, z-2)`, … `(x+2, z+2)`, so row 12 is the current chunk. Map
+squares outside 0–199 are omitted, which leaves fewer than 25 rows at the map
+edge. Match rows by `chunkId`, not by index.
 
 ## Simulator
 

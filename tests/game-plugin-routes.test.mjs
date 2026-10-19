@@ -133,6 +133,8 @@ test('position stays ephemeral, optional progress deltas wait for explicit revie
   const first = await f.plugin('/api/plugin/v1/report', created.key, report(0, { world: { id: 84, beta: false }, skills: { ATTACK: { level: 20, xp: 4470.5 } } }));
   assert.equal(first.status, 200); const status = await first.json();
   assert.equal(status.chunkId, '11825'); assert.equal(status.state, 'unlocked'); assert.equal(status.pendingProgress, true);
+  assert.equal(status.nearby.length, 25); assert.deepEqual(status.nearby[12], { chunkId: '11825', state: 'unlocked' });
+  for (const row of status.nearby) assert.deepEqual(Object.keys(row), ['chunkId', 'state']);
   for (const privateField of ['Private journal', 'completedTasks', 'skillProgress', 'tokenHash', 'history']) assert.equal(JSON.stringify(status).includes(privateField), false);
   assert.equal((await f.plugin('/api/plugin/v1/report', created.key, report(1, { quests: { finished: ['Unrecognized quest'], started: ['Unrecognized started quest'] } }))).status, 200);
   assert.equal((await f.plugin('/api/plugin/v1/report', created.key, report(2))).status, 200);

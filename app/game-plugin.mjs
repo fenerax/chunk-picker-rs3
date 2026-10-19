@@ -3,6 +3,8 @@ import { fields, validatePluginReport, pluginProposal } from './integrations/gam
 
 const fail = (status, message) => Object.assign(new Error(message), { status });
 const LIFETIME = 10 * 60 * 1000;
+// Status also describes the block of map squares centred on the player (2 each way: 5x5).
+const NEARBY_RADIUS = 2;
 const PLUGIN_ROUTES = new Map([['/api/plugin/v1/report', 'POST'], ['/api/plugin/v1/status', 'GET']]);
 
 /** Positions/proposals are ephemeral. Only reviewed progress can reach store.command. */
@@ -42,9 +44,21 @@ export async function openGamePlugin({ dataDir, store, world, registry, questMap
     const cached = statuses.get(player), latest = positions.get(player);
     const position = latest && clock() - Date.parse(latest.seenAt) < LIFETIME ? latest : null;
     const chunkId = position?.chunkId ?? null, chunk = chunkId === null ? null : world.chunks.get(chunkId);
+    // Set lookups only: the same cached sets answer the current chunk and its neighbours.
+    const stateOf = id => cached.unlocked.has(id) ? 'unlocked' : !world.chunks.get(id) ? 'unknown' : cached.available.has(id) ? 'available' : 'locked';
+    let nearby = null;
+    if (position) {
+      nearby = [];
+      const { x, z } = position.position;
+      for (let dz = -NEARBY_RADIUS; dz <= NEARBY_RADIUS; dz++) for (let dx = -NEARBY_RADIUS; dx <= NEARBY_RADIUS; dx++) {
+        const nx = x + dx, nz = z + dz;
+        if (nx < 0 || nx > 199 || nz < 0 || nz > 199) continue;
+        const id = String(nx * 256 + nz); nearby.push({ chunkId: id, state: stateOf(id) });
+      }
+    }
     return { v: 1, player: { id: player, name: owner.name }, chunkId, chunkName: chunk?.name ?? null,
-      state: !position ? 'unknown' : cached.unlocked.has(chunkId) ? 'unlocked' : !chunk ? 'unknown' : cached.available.has(chunkId) ? 'available' : 'locked',
-      activeTaskCount: null, unlockedChunkCount: cached.count, pendingProgress: !!liveReview(player), seenAt: position?.seenAt ?? null };
+      state: !position ? 'unknown' : stateOf(chunkId),
+      activeTaskCount: null, unlockedChunkCount: cached.count, pendingProgress: !!liveReview(player), seenAt: position?.seenAt ?? null, nearby };
   }
   return {
     async handle(request, response, { route, security, closed: serverClosed }) {
