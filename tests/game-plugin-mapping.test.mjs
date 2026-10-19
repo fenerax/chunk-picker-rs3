@@ -51,7 +51,10 @@ test('plugin reports enforce the small versioned schema and reject ambiguous or 
     { quests: { finished: ['Vampire Slayer'], started: ['Vampyre_Slayer'] } },
     { quests: { finished: Array.from({ length: 501 }, (_, i) => `Quest ${i}`), started: [] } },
     { player: 'another-player' }, { completedTasks: ['anything'] },
+    { diagnostics: 'Skills: 29/29' }, { diagnostics: ['two\nlines'] }, { diagnostics: [7] },
+    { diagnostics: ['x'.repeat(161)] }, { diagnostics: Array.from({ length: 81 }, () => 'line') },
   ]) assert.throws(() => validatePluginReport(report(extra)), undefined, JSON.stringify(extra));
+  assert.deepEqual(validatePluginReport(report({ diagnostics: ['Skills: 29/29', 'x'.repeat(160)] })).diagnostics, ['Skills: 29/29', 'x'.repeat(160)]);
   assert.doesNotThrow(() => validatePluginReport(report({ seq: Number.MAX_SAFE_INTEGER, world: { id: 10000, beta: true }, position: { x: 199, z: 199, floor: 3 } })));
 });
 
@@ -65,13 +68,14 @@ test('quest mapping accepts explicit aliases and whole completions while retaini
   mapping.set('missing quest', [{ taskId: 'absent', title: 'Missing Quest' }]);
   const state = createGroupState([{ id: 'actor1', name: 'Player' }]);
   state.tasks = [...mapping.values()].flat().filter(row => row.taskId !== 'absent').map(row => ({ id: row.taskId, label: row.title, category: 'Quest' }));
-  const validated = validatePluginReport(report({ quests: { finished: ['VAMPIRE_SLAYER', 'Ambiguous Quest', 'Missing Quest', 'Step-only quest', 'Vampire Slayer reward', 'Never heard of this'], started: ["Cook’s_Assistant"] } }));
+  const validated = validatePluginReport(report({ quests: { finished: ['VAMPIRE_SLAYER', 'Ambiguous Quest', 'Missing Quest', 'Step-only quest', 'Vampire Slayer reward', 'Never heard of this', "Doric's Task I (miniquest)"], started: ["Cook’s_Assistant"] } }));
   const { preview, command } = pluginProposal(state, 'actor1', validated, mapping);
   assert.deepEqual(command.quests.map(row => row.title), ['Vampyre Slayer']);
   assert.equal(preview.quests.length, 1);
   assert.deepEqual(preview.startedQuests, ["Cook’s_Assistant"]);
-  assert.deepEqual(preview.unmatched.quests.map(row => row.title), ['Ambiguous Quest', 'Missing Quest', 'Step-only quest', 'Vampire Slayer reward', 'Never heard of this']);
+  assert.deepEqual(preview.unmatched.quests.map(row => row.title), ['Ambiguous Quest', 'Missing Quest', 'Step-only quest', 'Vampire Slayer reward', 'Never heard of this', "Doric's Task I (miniquest)"]);
   assert.match(preview.unmatched.quests[0].reason, /Several/);
+  assert.match(preview.unmatched.quests[5].reason, /^Miniquest/);
   assert.equal(preview.world, null);
 });
 

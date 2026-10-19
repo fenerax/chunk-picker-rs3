@@ -9,7 +9,7 @@ const PLUGIN_ROUTES = new Map([['/api/plugin/v1/report', 'POST'], ['/api/plugin/
 export async function openGamePlugin({ dataDir, store, world, registry, questMapping, bodyJSON, json,
   serializeMutation, checkRequestOrigin, notify = () => {}, clock = Date.now }) {
   const keys = await openPluginKeys({ dataDir, clock });
-  const positions = new Map(), pending = new Map(), sequences = new Map(), buckets = new Map();
+  const positions = new Map(), pending = new Map(), sequences = new Map(), buckets = new Map(), diagnostics = new Map();
   let statusRevision = -1; const statuses = new Map(); let closed = false;
   function state() { return store.getCalculationSnapshot().state; }
   function member(player) {
@@ -72,6 +72,7 @@ export async function openGamePlugin({ dataDir, store, world, registry, questMap
           sequences.set(credential.id, report.seq);
           positions.set(credential.player, { memberId: credential.player, chunkId: String(report.position.x * 256 + report.position.z),
             position: report.position, seenAt: new Date(clock()).toISOString() });
+          if (report.diagnostics) diagnostics.set(credential.id, { lines: [...report.diagnostics], receivedAt: new Date(clock()).toISOString() });
           if (report.skills !== undefined || report.quests !== undefined) {
             const prior = liveReview(credential.player)?.report;
             const previous = report.world && prior?.world && report.world.beta !== prior.world.beta ? null : prior;
@@ -91,7 +92,8 @@ export async function openGamePlugin({ dataDir, store, world, registry, questMap
     },
     list(identity) {
       const latest = [...positions.values()].filter(position => clock() - Date.parse(position.seenAt) < LIFETIME && store.getCalculationSnapshot().members.some(owner => owner.id === position.memberId));
-      return { keys: identity.readOnly || !identity.admin && !identity.memberId ? [] : keys.list(identity.admin ? undefined : identity.memberId), positions: latest, active: latest.length > 0 };
+      const visible = identity.readOnly || !identity.admin && !identity.memberId ? [] : keys.list(identity.admin ? undefined : identity.memberId);
+      return { keys: visible.map(record => ({ ...record, diagnostics: diagnostics.get(record.id) ?? null })), positions: latest, active: latest.length > 0 };
     },
     review(identity, player) {
       member(player); const review = liveReview(player);
@@ -119,6 +121,6 @@ export async function openGamePlugin({ dataDir, store, world, registry, questMap
       return review.proposal;
     },
     finish(memberId) { pending.delete(memberId); notify(); },
-    async close() { closed = true; await keys.close(); positions.clear(); pending.clear(); },
+    async close() { closed = true; await keys.close(); positions.clear(); pending.clear(); diagnostics.clear(); },
   };
 }

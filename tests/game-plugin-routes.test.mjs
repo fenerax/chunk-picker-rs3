@@ -172,6 +172,21 @@ test('plugin sequence ordering is per key and stale reports do not overwrite the
   assert.equal(f.app.store.getInfo().revision, 0);
 });
 
+test('plugin diagnostics stay in memory and are listed only with their own key', async t => {
+  const f = await fixture(t), mine = await f.create(), other = await f.create('reed');
+  const owner = await f.invite({ label: 'Player', memberId: 'actor1' }), viewer = await f.invite({ label: 'Viewer', viewer: true });
+  const lines = ['Skills: 29/29', 'Quests: config.Quest; count=360'];
+  assert.equal((await f.plugin('/api/plugin/v1/report', mine.key, report(0, { diagnostics: lines }))).status, 200);
+  const own = await (await f.request('/api/game-plugin', { headers: { Cookie: owner.cookie } })).json();
+  assert.deepEqual(own.keys.map(row => row.diagnostics?.lines ?? null), [lines]);
+  const admin = await (await f.admin('/api/game-plugin')).json();
+  assert.equal(admin.keys.find(row => row.id === other.record.id).diagnostics, null);
+  assert.deepEqual((await (await f.request('/api/game-plugin', { headers: { Cookie: viewer.cookie } })).json()).keys, []);
+  assert.equal(f.app.store.getInfo().revision, 0);
+  await f.restart();
+  assert.equal((await (await f.admin('/api/game-plugin')).json()).keys.find(row => row.id === mine.record.id).diagnostics, null);
+});
+
 test('plugin GET and POST share a four-request-per-second key bucket and report bodies have a 16 KiB limit', async t => {
   const f = await fixture(t), first = await f.create(), second = await f.create();
   for (let seq = 0; seq < 2; seq++) {

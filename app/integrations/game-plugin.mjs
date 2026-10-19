@@ -13,7 +13,10 @@ skillNames.set('RUNECRAFT', 'Runecrafting');
 skillNames.set('HITPOINTS', 'Constitution');
 
 export function validatePluginReport(body) {
-  fields(body, ['v', 'seq', 'sentAt', 'world', 'position', 'skills', 'quests'], 'report');
+  fields(body, ['v', 'seq', 'sentAt', 'world', 'position', 'skills', 'quests', 'diagnostics'], 'report');
+  // Diagnostics are the plugin's own status lines, shown only to this player and admins.
+  if (body.diagnostics !== undefined && (!Array.isArray(body.diagnostics) || body.diagnostics.length > 80
+    || body.diagnostics.some(line => typeof line !== 'string' || line.length > 160 || /[\x00-\x1f\x7f]/.test(line)))) fail('Diagnostics must be at most 80 single lines of up to 160 characters.');
   if (body.v !== 1 || !Number.isSafeInteger(body.seq) || body.seq < 0) fail('Use v:1 and a nonnegative integer seq.');
   validateRuneMetricsTimestamp(body.sentAt);
   fields(body.position, ['x', 'z', 'floor'], 'position');
@@ -63,7 +66,8 @@ export function pluginProposal(state, memberId, report, questMapping) {
   for (const kind of ['finished', 'started']) for (const title of report.quests?.[kind] ?? []) {
     const candidates = questMapping.get(canonicalQuest(title)) ?? [];
     const match = candidates.length === 1 && state.tasks.some(task => task.id === candidates[0].taskId && task.category === 'Quest') ? candidates[0] : null;
-    if (!match) { unmatched.quests.push({ title, reason: candidates.length > 1 ? 'Several quest completions match. Review manually.' : 'No whole-quest completion matches this name.' }); continue; }
+    if (!match) { unmatched.quests.push({ title, reason: candidates.length > 1 ? 'Several quest completions match. Review manually.'
+      : /\(miniquest\)$/i.test(title) ? 'Miniquest. The picker has no completion task for it.' : 'No whole-quest completion matches this name.' }); continue; }
     if (kind !== 'finished') continue;
     observedQuests.push({ taskId: match.taskId, title: match.title });
     if (!member.completedTasks.includes(match.taskId)) quests.push({ ...match });

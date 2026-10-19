@@ -61,6 +61,11 @@ a supplied quests object replaces the earlier quest lists. Switching between
 beta and live starts a new proposal; ordinary world hops retain progress. Reports
 containing progress replace an earlier review token; review again before apply.
 
+`diagnostics` is optional: an array of at most 80 single-line strings of up to
+160 characters, the plugin's own status lines. The latest set for each key is
+kept in memory only and shown under that key in the Game plugin dialog to the
+key's player and administrators. Never put the key or other secrets in it.
+
 All 29 skill names accept Title Case or uppercase enum spelling. `RUNECRAFT`
 and `RUNECRAFTING` both map to `Runecrafting`; `HITPOINTS` maps to `Constitution`.
 Unknown skills, duplicate aliases and unknown fields are rejected. Level is an

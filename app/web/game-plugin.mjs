@@ -65,6 +65,7 @@ export function createGamePlugin(c) {
     root.append(el('h3', 'Game plugin'), el('p', 'Send levels, completed quests and your recent position from the game. Review progress here before saving it.', 'field-help'), status, content);
     const current = () => isCurrent() && root.isConnected && c.state.members.some(item => item.id === memberId);
     let busy = false, disposed = false, reviewRequest = 0, renderedSignature, draftLabel = '', secret = '', secretInput, secretHost;
+    const openDiagnostics = new Set();
     const report = (message, failed = false) => { status.textContent = message; status.className = failed ? 'warning' : 'info-meta'; };
     const clearSecret = () => { secret = ''; if (secretInput) secretInput.value = ''; secretHost?.remove(); secretInput = secretHost = undefined; };
     const unsubscribeSafe = c.streamSafe?.subscribe(() => { clearSecret(); renderedSignature = undefined; void update(); });
@@ -81,6 +82,14 @@ export function createGamePlugin(c) {
       for (const record of records) {
         const row = el('div', undefined, 'game-plugin-key');
         row.append(el('strong', record.label || 'Game plugin key'), el('p', `Created ${date(record.createdAt)} · Last used ${date(record.lastUsedAt)}${record.lastWorld ? ` · World ${record.lastWorld.id ?? record.lastWorld}` : ''}${record.revoked ? ' · Revoked' : ''}`, 'info-meta'));
+        if (record.diagnostics?.lines?.length) {
+          // The plugin's own status lines, so nobody has to screenshot the in-game console.
+          const details = el('details', undefined, 'game-plugin-diagnostics');
+          details.open = openDiagnostics.has(record.id);
+          details.addEventListener('toggle', () => { if (details.open) openDiagnostics.add(record.id); else openDiagnostics.delete(record.id); });
+          details.append(el('summary', `Plugin diagnostics · received ${date(record.diagnostics.receivedAt)}`), c.list(record.diagnostics.lines));
+          row.append(details);
+        }
         if (!record.revoked && writable(memberId)) row.append(button('Revoke key', async () => {
           if (!current() || busy || !writable(memberId)) return;
           busy = true; row.setAttribute('aria-busy', 'true');
