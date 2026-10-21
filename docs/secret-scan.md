@@ -61,10 +61,11 @@ node scripts/secret-scan/corpus-add.mjs --file values.txt
 ```
 
 Values come one per line from `--file` or standard input. `--save` reads the
-member names and ids from a disposable copy of a save instead, plus the literal
-ids and labels in `app/legacy-game-defaults.mjs`; it never looks for a save by
-itself, so never point it at live storage. After adding, each value must block
-in every form, or the command fails. Values are only ever held in memory; the
+member names and ids from a disposable copy of a save instead; it never looks
+for a save by itself, so never point it at live storage. It skips values listed
+as placeholders in `reviewed.json`: they are committed on purpose, and a
+fingerprint for one would block every file that uses it. After adding, each
+value must block in every form, or the command fails. Values are only ever held in memory; the
 corpus stores HMAC digests.
 
 ## Reviewed exceptions

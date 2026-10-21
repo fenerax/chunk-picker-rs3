@@ -2,17 +2,17 @@
 //   node scripts/secret-scan/corpus-add.mjs < values.txt         one value per line
 //   node scripts/secret-scan/corpus-add.mjs --file values.txt
 //   node scripts/secret-scan/corpus-add.mjs --save copy-of-save.json
-// --save reads member identities from a disposable copy of a save, plus the
-// literal ids and labels in app/legacy-game-defaults.mjs. It never looks for a
-// save by itself. Every added value must then block in plain, upper-case,
-// decomposed, JSON, escaped and file-name form, or the run fails.
+// --save reads member identities from a disposable copy of a save. It never
+// looks for a save by itself. Committed placeholders are skipped: they are
+// public, and a fingerprint for one would block every file that uses it. Every
+// added value must then block in plain, upper-case, decomposed, JSON, escaped
+// and file-name form, or the run fails.
 // --corpus-dir picks a corpus other than .local/export-gate.
 import { lstat, readFile } from 'node:fs/promises';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { pathToFileURL } from 'node:url';
 import { addFingerprints, blocked, defaultCorpusDir, hasFingerprint, loadCorpus } from './fingerprints.mjs';
-import { scanEntries } from './scan.mjs';
+import { loadReviewed, scanEntries } from './scan.mjs';
 
-const defaultsPath = fileURLToPath(new URL('../../app/legacy-game-defaults.mjs', import.meta.url));
 const identityKeys = ['id', 'name', 'runescapeName', 'rsn', 'accountName', 'handle', 'mapId', 'sourceMapId'];
 const decode = bytes => new TextDecoder('utf-8', { fatal: true }).decode(bytes);
 
@@ -31,20 +31,6 @@ async function stdinBytes(limit) {
     chunks.push(Buffer.from(chunk));
   }
   return Buffer.concat(chunks);
-}
-
-// Reads quoted literals only; the module is never executed.
-function defaultsValues(text) {
-  const values = [];
-  for (const match of text.matchAll(/\b(?:id|name|mapId|masterLabel)\s*:\s*('(?:\\.|[^'\\])*'|"(?:\\.|[^"\\])*")/g)) {
-    const literal = match[1];
-    if (literal.startsWith('"')) { values.push(JSON.parse(literal)); continue; }
-    const body = literal.slice(1, -1);
-    if (/\\(?![\\'"nrtbf/]|u[\da-f]{4}|x[\da-f]{2})/i.test(body)) throw blocked('defaults-invalid');
-    values.push(body.replace(/\\(?:u([\da-f]{4})|x([\da-f]{2})|([\\'"nrtbf/]))/gi, (_, unicode, hex, escaped) =>
-      unicode || hex ? String.fromCharCode(parseInt(unicode ?? hex, 16)) : ({ n: '\n', r: '\r', t: '\t', b: '\b', f: '\f' }[escaped] ?? escaped)));
-  }
-  return values;
 }
 
 function memberValues(text) {
@@ -75,15 +61,18 @@ function verifyBlocks(values, corpus) {
   }
 }
 
-export async function addValues({ file, save, corpusDir = defaultCorpusDir, defaults = defaultsPath } = {}) {
-  let values;
-  if (save) values = [...defaultsValues(decode(await fileBytes(defaults, 64 * 1024))), ...memberValues(decode(await fileBytes(save, 64 * 1024 ** 2)))];
-  else values = decode(file ? await fileBytes(file, 2 * 1024 ** 2) : await stdinBytes(2 * 1024 ** 2)).split(/\r?\n/).filter(value => value.length);
+export async function addValues({ file, save, corpusDir = defaultCorpusDir, reviewed = loadReviewed() } = {}) {
+  let values, skipped = 0;
+  if (save) {
+    const members = [...new Set(memberValues(decode(await fileBytes(save, 64 * 1024 ** 2))))];
+    values = members.filter(value => !reviewed.placeholders.has(value.trim().toLowerCase()));
+    skipped = members.length - values.length;
+  } else values = decode(file ? await fileBytes(file, 2 * 1024 ** 2) : await stdinBytes(2 * 1024 ** 2)).split(/\r?\n/).filter(value => value.length);
   values = [...new Set(values)];
   if (!values.length || values.some(value => value.length > 4096)) throw blocked('input-invalid');
   const entries = await addFingerprints(values, corpusDir);
   verifyBlocks(values, await loadCorpus(corpusDir));
-  return { entries, added: values.length };
+  return { entries, added: values.length, skipped };
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {
@@ -96,8 +85,8 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {
       options[name] = args[index + 1];
     }
     if (options.file && options.save) throw blocked('usage');
-    const { entries, added } = await addValues(options);
-    console.log(`Corpus ready: ${entries} entries; ${added} values checked to block.`);
+    const { entries, added, skipped } = await addValues(options);
+    console.log(`Corpus ready: ${entries} entries; ${added} values checked to block${skipped ? `; ${skipped} committed placeholders skipped` : ''}.`);
   } catch (error) {
     console.error(`blocked, not clean (${error.category ?? 'corpus-add-failed'})`);
     process.exitCode = 2;

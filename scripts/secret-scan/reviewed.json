@@ -306,6 +306,24 @@
       "reason": "Wording table showing a template expression, not an account name."
     },
     {
+      "path": "scripts/public-export/scan.mjs",
+      "category": "machine-path",
+      "sha256": "9bc56d813596d11a1d29cc95118063a17a2f0218e5a93ca2f1db941ff36159c8",
+      "reason": "Pattern source of the old scanner kept for the release kits, not a value. The file was removed later; the row covers the line in history."
+    },
+    {
+      "path": "scripts/public-export/scan.mjs",
+      "category": "service-binding",
+      "sha256": "3b49eaec4e7b9d9c6a00c46022d2419866568fcfb6728000b1150870f04288f1",
+      "reason": "Pattern source of the old scanner kept for the release kits, not a value. The file was removed later; the row covers the line in history."
+    },
+    {
+      "path": "scripts/public-export/scan.mjs",
+      "category": "service-binding",
+      "sha256": "9169d627bb83b598f1c5e0a61a6fa56f86ad8cd30c0e80c76275b6e15bc193c3",
+      "reason": "Pattern source of the old scanner kept for the release kits, not a value. The file was removed later; the row covers the line in history."
+    },
+    {
       "path": "scripts/research/original-parity.mjs",
       "category": "network-identifier",
       "sha256": "3597adc5190aee7dadd77e096fed1cf639f60d04a73ebff7fd1c480152b29c2a",
@@ -592,6 +610,54 @@
       "category": "network-identifier",
       "sha256": "d60c73a6573a86b5ce52e7085808fbb261de7e443e4ed20301643791ac24e74c",
       "reason": "Synthetic tailnet-range, loopback, mapped and ULA addresses for front-door tests. None matched any real tailnet address on 2026-10-21."
+    },
+    {
+      "path": "tests/public-export-scanner.test.mjs",
+      "category": "machine-path",
+      "sha256": "3809da377808e8356bc9cda7fa36e7379ff453102c3ec6b49eaed44c208d353e",
+      "reason": "Invented blocking or boundary case in the old scanner tests; checked against the corpus like every line. The file was removed later; the row covers the line in history."
+    },
+    {
+      "path": "tests/public-export-scanner.test.mjs",
+      "category": "network-identifier",
+      "sha256": "9fa59ecd3e85a7972a8e128438beba062e6d5361c46ff4cd89f588265234e27b",
+      "reason": "Invented blocking or boundary case in the old scanner tests; checked against the corpus like every line. The file was removed later; the row covers the line in history."
+    },
+    {
+      "path": "tests/public-export-scanner.test.mjs",
+      "category": "network-identifier",
+      "sha256": "96a7ab9eaa1c340889ed6c6478e891cdce9d46ed3d16c454b2ed4e5fe21d5a5a",
+      "reason": "Invented blocking or boundary case in the old scanner tests; checked against the corpus like every line. The file was removed later; the row covers the line in history."
+    },
+    {
+      "path": "tests/public-export-scanner.test.mjs",
+      "category": "network-identifier",
+      "sha256": "3302962096280a321b4434ca58852476869e3e7ac484a3f4b81dd2bbac3c9d6d",
+      "reason": "Invented blocking or boundary case in the old scanner tests; checked against the corpus like every line. The file was removed later; the row covers the line in history."
+    },
+    {
+      "path": "tests/public-export-scanner.test.mjs",
+      "category": "network-identifier",
+      "sha256": "0aff84e71a825298aa1b3d770ca39112160b77273dd0c89fa17e21583eac1562",
+      "reason": "Invented blocking or boundary case in the old scanner tests; checked against the corpus like every line. The file was removed later; the row covers the line in history."
+    },
+    {
+      "path": "tests/public-export-scanner.test.mjs",
+      "category": "network-identifier",
+      "sha256": "d6c2537033e24ee4869cecd40bd1945345e2ab90306885af0fabd25e1dec017e",
+      "reason": "Invented blocking or boundary case in the old scanner tests; checked against the corpus like every line. The file was removed later; the row covers the line in history."
+    },
+    {
+      "path": "tests/public-export-scanner.test.mjs",
+      "category": "network-identifier",
+      "sha256": "951db98122111f5b03e28921f4a31ef9a1273cd1a15ea68d7db59c71b184b452",
+      "reason": "Invented blocking or boundary case in the old scanner tests; checked against the corpus like every line. The file was removed later; the row covers the line in history."
+    },
+    {
+      "path": "tests/public-export-scanner.test.mjs",
+      "category": "network-identifier",
+      "sha256": "552cd375f70cdb997f5470f241017567a97b7378a00a3fdf9dd6d2dec4b87f5f",
+      "reason": "Invented blocking or boundary case in the old scanner tests; checked against the corpus like every line. The file was removed later; the row covers the line in history."
     },
     {
       "path": "tests/retained-task-corrections.test.mjs",

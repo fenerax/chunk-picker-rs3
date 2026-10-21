@@ -264,20 +264,26 @@ test('corpus-add seeds values from a list or a save copy, checks each blocks, an
   const { root } = await scratch(t);
   const tool = fileURLToPath(new URL('../scripts/secret-scan/corpus-add.mjs', import.meta.url));
   const { addValues } = await import('../scripts/secret-scan/corpus-add.mjs');
-  const defaults = path.join(root, 'defaults.mjs'), save = path.join(root, 'synthetic-save.json'), corpusDir = path.join(root, 'seeded');
-  await writeFile(defaults, "export const legacyGameDefaults = Object.freeze({members: [{id: 'zeloria', name: 'Zéloria', mapId: 'invented-map'}], masterLabel: 'Zéloria'});");
-  await writeFile(save, JSON.stringify({ state: { members: [{ id: 'invented-member', name: 'Invented Ariadne', runescapeName: 'InventedHandle', sourceMapId: 'invented-source', journal: 'DO-NOT-SEED-JOURNAL' }] } }));
-  const result = await addValues({ save, defaults, corpusDir });
+  const save = path.join(root, 'synthetic-save.json'), corpusDir = path.join(root, 'seeded');
+  const reviewed = { hosts: [], placeholders: new Set(['qxa']), lines: new Set() };
+  await writeFile(save, JSON.stringify({ state: { members: [
+    { id: 'invented-member', name: 'Invented Ariadne', runescapeName: 'InventedHandle', sourceMapId: 'invented-source', journal: 'DO-NOT-SEED-JOURNAL' },
+    { id: 'zeloria', name: 'Zéloria', mapId: 'QXA' },
+  ] } }));
+  const result = await addValues({ save, corpusDir, reviewed });
+  assert.equal(result.skipped, 1);
   const corpus = await loadCorpus(corpusDir);
-  for (const value of ['zeloria', 'Zéloria', 'invented-map', 'invented-member', 'Invented Ariadne', 'InventedHandle', 'invented-source']) {
+  for (const value of ['zeloria', 'Zéloria', 'invented-member', 'Invented Ariadne', 'InventedHandle', 'invented-source']) {
     assert.equal(hasFingerprint(value, corpus), true, value);
     assert.equal(JSON.stringify(result).includes(value), false);
     assert.equal((await readFile(path.join(corpusDir, 'corpus.json'), 'utf8')).includes(value), false);
   }
+  // A committed placeholder would block every file that uses it.
+  assert.equal(hasFingerprint('QXA', corpus), false);
   assert.equal(hasFingerprint('DO-NOT-SEED-JOURNAL', corpus), false);
   assert.deepEqual((await readdir(corpusDir)).sort(), ['corpus.json', 'key']);
   await writeFile(save, JSON.stringify({ members: [{ id: 'invented' }] }));
-  await assert.rejects(addValues({ save, defaults, corpusDir }), { category: 'members-invalid' });
+  await assert.rejects(addValues({ save, corpusDir, reviewed }), { category: 'members-invalid' });
   const listed = spawnSync(process.execPath, [tool, '--corpus-dir', corpusDir], { input: 'Qx7 Invented Value\n', encoding: 'utf8', windowsHide: true });
   assert.equal(listed.status, 0);
   assert.equal(listed.stdout.includes('Qx7'), false);
