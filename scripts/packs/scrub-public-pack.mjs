@@ -194,17 +194,19 @@ function hashTransitions() {
   return { remember, repair };
 }
 
-export async function scrubPublicPack({ inputDir, outputDir, rulesTextDir, version, reportFile, kind = 'data', scrub = scrubPublicDocument } = {}) {
+export async function scrubPublicPack({ inputDir, outputDir, rulesTextDir, artSourceDir, artPublicDir, version, reportFile, kind = 'data', scrub = scrubPublicDocument } = {}) {
   let createdOutput = false, createdReport = false, output, report;
   try {
+    const artPair = artSourceDir !== undefined || artPublicDir !== undefined;
     if (!['data', 'art'].includes(kind)
-      || ![inputDir, outputDir, ...(kind === 'data' ? [rulesTextDir] : [])].every(value => typeof value === 'string' && path.isAbsolute(value))
+      || ![inputDir, outputDir, ...(kind === 'data' ? [rulesTextDir] : []), ...(artPair ? [artSourceDir, artPublicDir] : [])].every(value => typeof value === 'string' && path.isAbsolute(value))
       || !PACK_VERSION.test(version ?? '') || !/-public\.\d+$/.test(version ?? '') || typeof scrub !== 'function'
-      || (kind === 'art' && rulesTextDir !== undefined)
+      || (kind === 'art' && (rulesTextDir !== undefined || artPair))
       || (reportFile !== undefined && (typeof reportFile !== 'string' || !path.isAbsolute(reportFile)))) throw fail('usage');
     const input = path.resolve(inputDir), rules = kind === 'data' ? path.resolve(rulesTextDir) : null;
+    const artSource = artPair ? path.resolve(artSourceDir) : null, artPublic = artPair ? path.resolve(artPublicDir) : null;
     output = path.resolve(outputDir); report = reportFile && path.resolve(reportFile);
-    const protectedRoots = [repository, input, ...(rules ? [rules] : [])];
+    const protectedRoots = [repository, input, ...(rules ? [rules] : []), ...(artPair ? [artSource, artPublic] : [])];
     await absentOutput(output, protectedRoots);
     if (report) await absentOutput(report, [...protectedRoots, output]);
     const source = await readPack(input, kind), text = rules ? await readPack(rules, 'rules-text') : null;
@@ -217,6 +219,21 @@ export async function scrubPublicPack({ inputDir, outputDir, rulesTextDir, versi
     }
     let manifest = structuredClone(source.manifest);
     const changes = new Map(), transitions = hashTransitions();
+    // Data catalogues pin art files by hash (the interiors manifest). The art
+    // scrub changes those bytes, so its public pair seeds the repair table.
+    if (artPair) {
+      const before = await readPack(artSource, 'art'), after = await readPack(artPublic, 'art');
+      const cleaned = new Map(after.manifest.files.map(record => [record.path, record]));
+      if (cleaned.size !== before.manifest.files.length) throw fail('art-pair');
+      for (const record of before.manifest.files) {
+        const clean = cleaned.get(record.path);
+        if (!clean) throw fail('art-pair');
+        if (clean.sha256 === record.sha256) continue;
+        const oldBytes = await payload(artSource, record.path), newBytes = await payload(artPublic, record.path);
+        if (sha(oldBytes) !== record.sha256 || sha(newBytes) !== clean.sha256) throw fail('input-changed');
+        transitions.remember(oldBytes, newBytes, record.path);
+      }
+    }
     const note = (relative, fileKind, replacements = 0, hashReferences = 0) => {
       if (!replacements && !hashReferences) return;
       const row = changes.get(relative) ?? { path: relative, kind: fileKind, replacements: 0, hashReferences: 0 };
@@ -310,7 +327,7 @@ export async function scrubPublicPack({ inputDir, outputDir, rulesTextDir, versi
 }
 
 export function parseArgs(args) {
-  const flags = { '--input': 'inputDir', '--output': 'outputDir', '--rules-text-pack': 'rulesTextDir', '--version': 'version', '--report': 'reportFile', '--kind': 'kind' }, options = {};
+  const flags = { '--input': 'inputDir', '--output': 'outputDir', '--rules-text-pack': 'rulesTextDir', '--art-source': 'artSourceDir', '--art-public': 'artPublicDir', '--version': 'version', '--report': 'reportFile', '--kind': 'kind' }, options = {};
   for (let i = 0; i < args.length; i += 2) {
     const key = flags[args[i]];
     if (!key || Object.hasOwn(options, key) || !args[i + 1] || args[i + 1].startsWith('--')) throw fail('usage');

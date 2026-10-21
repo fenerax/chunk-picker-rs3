@@ -968,6 +968,12 @@
       "reason": "Read-window URL fragment: complete JSON payload scans clean. This exact public game catalogue is reviewed without changing URL or network patterns."
     },
     {
+      "path": "duo-data/app/data/cache-interiors.2026-10-08.v2.json",
+      "category": "network-identifier",
+      "sha256": "82bddf92143b5df8c113578737113ed6e985ad8b3f0ade4a8657367c4f3338cb",
+      "reason": "Read-window URL fragment: complete JSON payload scans clean. This exact public game catalogue is reviewed without changing URL or network patterns."
+    },
+    {
       "path": "duo-data/app/data/equipment-corrections.2026-10-08.v1.json",
       "category": "network-identifier",
       "sha256": "afab2de5480c6fcd2a5401d29aaae66a6bdc6c47ad8c91735ccc5f4946b56579",

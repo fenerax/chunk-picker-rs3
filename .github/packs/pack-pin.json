@@ -4,8 +4,8 @@
   "selection": {
     "data": {
       "id": "duo-data",
-      "version": "1.0.6-public.2",
-      "sha256": "6efa3a8251db046169e9e93e65230ad7962e0fde294321d68ff8f70293567c8d"
+      "version": "1.0.6-public.3",
+      "sha256": "d50f94a27ef646d17d4411fda5185e147a70bd4d834f68f8d016ab55c996b106"
     },
     "rulesText": {
       "id": "duo-rules-text",
@@ -20,9 +20,9 @@
   },
   "assets": [
     {
-      "name": "duo-data-1.0.6-public.2.tar.gz",
-      "bytes": 16851383,
-      "sha256": "d7cf7c62a9ef17c81d86a8b6ec9dc8c26430ef4d6ab8b3a31c39958f568a578f"
+      "name": "duo-data-1.0.6-public.3.tar.gz",
+      "bytes": 16851370,
+      "sha256": "0268013a082fc0f1f777744e356878183d391bb96583a0016567544792688919"
     },
     {
       "name": "duo-rules-text-1.0.6.tar.gz",

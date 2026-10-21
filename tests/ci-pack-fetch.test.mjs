@@ -40,7 +40,7 @@ test('the committed pack pin names the approved public release and all three pac
   const pin = readPin(repository);
   assert.equal(pin.tag, 'packs-public-2026-10-21');
   assert.deepEqual(pin.assets.map(asset => asset.name),
-    ['duo-data-1.0.6-public.2.tar.gz', 'duo-rules-text-1.0.6.tar.gz', 'duo-art-1.0.0-public.1.tar.gz']);
+    ['duo-data-1.0.6-public.3.tar.gz', 'duo-rules-text-1.0.6.tar.gz', 'duo-art-1.0.0-public.1.tar.gz']);
   assert.deepEqual(Object.keys(pin.selection), ['data', 'rulesText', 'art']);
 });
 

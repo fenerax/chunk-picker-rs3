@@ -8,7 +8,7 @@ Use Node 24 with no installed dependencies. Supply all three packs explicitly:
 
 ```powershell
 node scripts/packs/publish-assets.mjs --tag packs-public-2026-10-21 `
-  --data-pack ../public-packs/duo-data/1.0.6-public.2 `
+  --data-pack ../public-packs/duo-data/1.0.6-public.3 `
   --rules-text-pack ../public-packs/duo-rules-text/1.0.6 `
   --art-pack ../public-packs/duo-art/1.0.0-public.1 `
   --corpus-dir ../local-corpus `
@@ -123,10 +123,19 @@ Create a separate public data pack before publishing:
 ```powershell
 node scripts/packs/scrub-public-pack.mjs `
   --input C:/pack-work/private/duo-data/1.0.6 `
-  --output C:/pack-work/public/duo-data/1.0.6-public.2 `
+  --output C:/pack-work/public/duo-data/1.0.6-public.3 `
   --rules-text-pack C:/pack-work/public/duo-rules-text/1.0.6 `
-  --version 1.0.6-public.2 --report C:/pack-work/scrub-report.json
+  --art-source C:/pack-work/private/duo-art/1.0.0 `
+  --art-public C:/pack-work/public/duo-art/1.0.0-public.1 `
+  --version 1.0.6-public.3 --report C:/pack-work/scrub-report.json
 ```
+
+Scrub the art pack first. The data catalogue pins the interiors manifest by
+hash, and the art scrub changes that manifest, so `--art-source` and
+`--art-public` (always together) seed each changed art file's hash into the
+data pack's receipt repair. Without them the data pack keeps pinning the
+private manifest and the server reports interior tiles as unavailable;
+`1.0.6-public.2` had that defect and `1.0.6-public.3` replaces it.
 
 All paths are explicit; the script never finds a save or installed private pack.
 It verifies source receipts and rejects unlisted files, links, protected input

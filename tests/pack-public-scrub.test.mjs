@@ -131,6 +131,39 @@ test('art metadata can be scrubbed into a separate public version without a rule
   assert.equal(hasPackHomePath(await readFile(path.join(options.outputDir, after.files[0].path), 'utf8')), false);
 });
 
+test('data pins of scrubbed art files follow the public art pair, and a mismatched pair refuses', async t => {
+  const { root, manifest, options } = await fixture(t);
+  const artSourceDir = path.join(root, 'art-source'), artPublicDir = path.join(root, 'art-public');
+  const home = [String.fromCharCode(67, 58), 'Users', 'User', 'cache.dat'].join('/');
+  const artManifest = Buffer.from(encode({ sources: [{ path: home }], tiles: [{ x: 40, y: 67 }] }));
+  const tile = Buffer.from('tile\n');
+  const artFiles = [['map-assets/interiors/manifest.json', artManifest], ['map-assets/interiors/tile.png', tile]];
+  for (const [name, bytes] of artFiles) await put(path.join(artSourceDir, name), bytes);
+  await put(path.join(artSourceDir, 'pack.json'), encode({ schemaVersion: 1, id: 'duo-art', kind: 'art', version: '1.0.0', distribution: 'private-local',
+    files: artFiles.map(([name, bytes]) => ({ path: name, bytes: bytes.length, sha256: sha(bytes) })) }));
+  await scrubPublicPack({ inputDir: artSourceDir, outputDir: artPublicDir, version: '1.0.0-public.1', kind: 'art' });
+  const cleanManifest = await readFile(path.join(artPublicDir, 'map-assets/interiors/manifest.json'));
+  assert.notEqual(sha(cleanManifest), sha(artManifest));
+  const catalogue = Buffer.from(encode({ assets: { manifestSha256: sha(artManifest) }, tile: sha(tile) }));
+  await put(path.join(options.inputDir, manifest.files[0].path), catalogue);
+  Object.assign(manifest.files[0], { sha256: sha(catalogue), bytes: catalogue.length });
+  manifest.datasetDigest = datasetDigest(manifest.files, manifest.capabilities);
+  await writeFile(path.join(options.inputDir, 'pack.json'), encode(manifest));
+  // Without the pair, the data pack keeps pinning the private manifest.
+  await scrubPublicPack({ ...options, outputDir: path.join(root, 'unpaired') });
+  assert.equal(JSON.parse(await readFile(path.join(root, 'unpaired', manifest.files[0].path))).assets.manifestSha256, sha(artManifest));
+  const report = await scrubPublicPack({ ...options, artSourceDir, artPublicDir });
+  const repaired = JSON.parse(await readFile(path.join(options.outputDir, manifest.files[0].path)));
+  assert.deepEqual(repaired, { assets: { manifestSha256: sha(cleanManifest) }, tile: sha(tile) });
+  assert.ok(report.changes.some(row => row.path === manifest.files[0].path && row.hashReferences === 1));
+  const after = JSON.parse(await readFile(path.join(options.outputDir, 'pack.json')));
+  assert.equal(after.datasetDigest, datasetDigest(after.files, after.capabilities));
+  await writeFile(path.join(artPublicDir, 'map-assets/interiors/manifest.json'), encode({ tampered: true }));
+  await assert.rejects(scrubPublicPack({ ...options, outputDir: path.join(root, 'broken'), artSourceDir, artPublicDir }), { category: 'receipt' });
+  await missing(path.join(root, 'broken'));
+  await assert.rejects(scrubPublicPack({ ...options, outputDir: path.join(root, 'half'), artSourceDir }), { category: 'usage' });
+});
+
 test('custom transformations run sequentially and produce new receipts and a value-free report', async t => {
   const { root, options } = await fixture(t), calls = [];
   let active = 0;
