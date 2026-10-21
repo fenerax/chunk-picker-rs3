@@ -964,7 +964,7 @@
     {
       "path": "duo-data/app/data/cache-interiors.2026-10-08.v2.json",
       "category": "network-identifier",
-      "sha256": "7bf6f74ef669542b06d62c66e4d38c0486577d190b50b1be26450762bd2dbaa4",
+      "sha256": "f95e0fe930b818ef8092c54dd8e749e54009f4691847ef27fbe4ec7efb43df1d",
       "reason": "Read-window URL fragment: complete JSON payload scans clean. This exact public game catalogue is reviewed without changing URL or network patterns."
     },
     {
@@ -988,7 +988,7 @@
     {
       "path": "duo-data/app/data/map-connections.2026-10-09.v1.json",
       "category": "network-identifier",
-      "sha256": "f3b0a0b521ef92c2b22f22a5d410b00c75ec023c99322073b5a598f0387f78e5",
+      "sha256": "1edf7b6197e8679c0b33f53822b5f8700316324f62bdcf912cd0d7d6f63fa003",
       "reason": "Read-window URL fragment: complete JSON payload scans clean. This exact public game catalogue is reviewed without changing URL or network patterns."
     },
     {
@@ -1014,13 +1014,13 @@
     {
       "path": "duo-data/app/data/source-membership.2026-10-08.v1.json",
       "category": "network-identifier",
-      "sha256": "8aa15c682ba6bd66eab771ae727770a6f12654bee9e218b4f3b6909247a0c74b",
+      "sha256": "cf5cd9ad39586496e663cc3913dac207f045288b800e10e90f9148d893740cb3",
       "reason": "Read-window URL fragment: complete JSON payload scans clean. This exact public game catalogue is reviewed without changing URL or network patterns."
     },
     {
       "path": "duo-data/app/data/source-row-membership.2026-10-08.v1.json",
       "category": "network-identifier",
-      "sha256": "259b0e5bf3b6e88c49d68c144d4f066c4a84097dd4972d82dffbfaccc7860bae",
+      "sha256": "a64c1f364ea417b5e892e28944aaada665f296e4d1ef29d3f18410342bbd1b47",
       "reason": "Read-window URL fragment: complete JSON payload scans clean. This exact public game catalogue is reviewed without changing URL or network patterns."
     },
     {
@@ -1045,7 +1045,7 @@
     {
       "path": "duo-data/local-game/chunk-sections.cache-audit-2026-10-07-v4-v1/sections.v1.json",
       "category": "token",
-      "sha256": "821a325e87c05de5ee0ced28d2b92cee401e420569a7e8b15e259df5e5e2013f",
+      "sha256": "8bda8f9e3c13495fd60c4d942c1df79df3b9beddf08a194c12d60605831c79d8",
       "reason": "Generated geographic 64x64 tile masks, verified as canonical base64 with 512 bytes per component. Token-shaped runs are encoding coincidences.",
       "jsonPaths": [
         "/components"
@@ -1054,7 +1054,7 @@
     {
       "path": "duo-data/local-game/chunk-sections.cache-audit-2026-10-07-v4-v1/sections.v1.json.gz#gzip-transport",
       "category": "private-fingerprint",
-      "sha256": "b6f9d265586623bcc2a114b88fa4acf1244bbfc7d7511f838e482bb918241de9",
+      "sha256": "f5c200eaa973ebb3394dd1edb5a583de637220be6111d7efb1e4bbe2148f40e8",
       "reason": "Short corpus collision inside gzip transport bytes. Header has no optional metadata; expanded payload consists of verified game geometry.",
       "corpusSha256": "63fad0d76af3c6569139071ea1ca35558af326e15c50a39d177ea09e16337758"
     },

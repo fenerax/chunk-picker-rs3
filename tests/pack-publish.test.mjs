@@ -10,6 +10,7 @@ import { gzipSync, gunzipSync } from 'node:zlib';
 import { addFingerprints } from '../scripts/secret-scan/fingerprints.mjs';
 import { readPin, placePacks } from '../.github/packs/fetch-packs.mjs';
 import { publishAssets } from '../scripts/packs/publish-assets.mjs';
+import { scanEntries } from '../scripts/secret-scan/scan.mjs';
 
 // All inputs, outputs and fingerprint corpora are synthetic and temporary.
 // No approved apply call, release download, live save or installed pack is used.
@@ -110,6 +111,16 @@ test('directory publishing produces deterministic asset bytes and a CI-compatibl
   const second = await publishAssets(secondOptions, { log() {} });
   assert.deepEqual(second.pin, first.pin);
   for (const asset of first.assets) assert.deepEqual(await readFile(path.join(secondOptions.outputDir, asset.name)), await readFile(path.join(options.outputDir, asset.name)));
+});
+
+test('pack provenance home paths block even when the account is generic in source examples', async t => {
+  const { options } = await fixture(t);
+  const home = [String.fromCharCode(67, 58), 'Users', 'User', 'provenance.json'].join('/');
+  const text = JSON.stringify({ provenance: { source: home } });
+  assert.equal(scanEntries([{ path: 'facts.json', bytes: Buffer.from(text) }], { corpus: null }).status, 'clean');
+  await replaceFile(options, 'dataPack', text);
+  await refused(options, 'secret-scan', [home]);
+  await noOutput(options);
 });
 
 test('previously generated tar.gz packs are accepted and preserve the CI selection', async t => {

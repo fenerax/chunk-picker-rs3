@@ -10,9 +10,10 @@ import { execFileSync } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { StringDecoder } from 'node:string_decoder';
-import { scanEntries, loadReviewed } from '../secret-scan/scan.mjs';
+import { scanEntries, loadReviewed, textOf } from '../secret-scan/scan.mjs';
 import { defaultCorpusDir, loadCorpus } from '../secret-scan/fingerprints.mjs';
 import { loadPackReviewed, reviewedPackCategories } from '../secret-scan/pack-reviewed.mjs';
+import { inspectPackPaths } from '../secret-scan/pack-patterns.mjs';
 import { fail, relativeName, visitArchive, writeArchive } from './publish-archive.mjs';
 
 const repository = 'fenerax/chunk-picker-rs3';
@@ -61,7 +62,7 @@ async function* directoryFiles(root, relative = '') {
 function scanner(corpus, corpusSha256) {
   const reviewed = loadReviewed(), overlap = Math.max(65536, (corpus?.maxLength ?? 0) * 12);
   const packReviewed = loadPackReviewed();
-  const state = { files: 0, bytes: 0, findings: 0, categories: {}, locations: [], reviewed: 0, reviewedCategories: {} };
+  const state = { files: 0, bytes: 0, findings: 0, categories: {}, locations: [], reviewed: 0, reviewedCategories: {}, homePathFindings: 0 };
   const add = result => {
     for (const finding of result.findings) {
       state.findings++;
@@ -72,6 +73,11 @@ function scanner(corpus, corpusSha256) {
     }
   };
   const inspect = (name, bytes, pending) => {
+    const homes = inspectPackPaths(bytes ? textOf(bytes) : name);
+    // These supplement the repository scanner's generic-account exemption.
+    // A prior binary false-positive review must never suppress a home path.
+    state.homePathFindings += homes.length;
+    add({ findings: homes });
     const result = scanEntries([{ path: name, bytes }], { corpus, reviewed });
     if (pending) {
       for (const finding of result.findings) pending.set(finding.category, (pending.get(finding.category) ?? 0) + 1);
@@ -252,6 +258,7 @@ export async function publishAssets(options, { log = console.log } = {}) {
     save = { source, ...await scan.file('scrubbed-save.json', createReadStream(source), true) };
   }
   log(`Secret scan: ${corpus ? 'local corpus and patterns' : 'patterns only; no local corpus found'}; ${scan.state.files} files, ${scan.state.bytes} input bytes, ${scan.state.findings} hits.`);
+  log(`Pack home-folder check: ${scan.state.homePathFindings} hits; generic account names are not exempt.`);
   if (scan.state.reviewed) log(`Exact-payload reviews: ${scan.state.reviewed} false-positive hits; ${JSON.stringify(scan.state.reviewedCategories)}.`);
   if (scan.state.findings) {
     log(`Scan categories: ${JSON.stringify(scan.state.categories)}`);
