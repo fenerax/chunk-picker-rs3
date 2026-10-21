@@ -3,7 +3,8 @@ import { taskIcon } from './browser-task-icons.mjs';
 export { baseLocationId, buildChunkPlanningIndex, buildChunkPlanningIndexIncremental };
 const values = value => value == null ? [] : Array.isArray(value) ? value : [value];
 
-let taskFilter = 'highest';
+// The last view picked sticks across chunks; 'map' (what the badge counts) opens first where it applies.
+let taskFilter = 'map';
 const SKILLS = new Set(['Agility', 'Archaeology', 'Attack', 'Constitution', 'Construction', 'Cooking', 'Crafting', 'Defence', 'Divination', 'Dungeoneering', 'Farming', 'Firemaking', 'Fishing', 'Fletching', 'Herblore', 'Hunter', 'Invention', 'Magic', 'Mining', 'Necromancy', 'Prayer', 'Ranged', 'Runecrafting', 'Slayer', 'Smithing', 'Strength', 'Summoning', 'Thieving', 'Woodcutting']);
 export function createChunkPlanning(context) {
   const { el, button, details, list, showTask, ensureResult } = context;
@@ -119,21 +120,28 @@ export function createChunkPlanning(context) {
         if (!best || Number(row.task.level) > Number(best.task.level)) top.set(row.task.category, row);
       }
       const highest = row => row.task.status === 'available' && (SKILLS.has(row.task.category) ? top.get(row.task.category) === row : true);
+      // "On the map": exactly the tasks the map badge counts here, from the same count pass.
+      const onMap = context.mapTasksAt?.(snapshot.chunkId) ?? [], mine = onMap.filter(entry => entry.memberIds.includes(snapshot.memberId));
+      const own = new Set(mine.map(entry => entry.taskIdByMember[snapshot.memberId])), others = onMap.length - mine.length;
+      const otherNames = [...new Set(onMap.filter(entry => !entry.memberIds.includes(snapshot.memberId)).flatMap(entry => entry.memberIds))]
+        .map(id => plain(context.state().members.find(member => member.id === id)?.name ?? 'your partner'));
+      const partner = otherNames.length === 1 ? otherNames[0] : 'other players';
       const filters = [['highest', 'Highest level', highest], ['doable', 'Doable', row => row.task.status === 'available'],
         ['blocked', 'Blocked', row => row.task.status !== 'available'], ['all', 'All', () => true]];
+      if (onMap.length) filters.unshift(['map', 'On the map', row => own.has(row.task.id)]);
       // "If unlocked": the new tasks this member would have to do after unlocking this chunk (shared Preview prediction).
       const unlockable = context.unlockable?.(snapshot.chunkId) === true && typeof context.predictUnlock === 'function';
       if (unlockable) filters.push(['unlock', 'If unlocked', null]);
-      if (!unlockable && taskFilter === 'unlock') taskFilter = 'highest';
       const node = el('div', undefined, 'form-stack'), bar = el('div', undefined, 'task-filter-bar'), list = el('div'), chips = new Map();
       bar.setAttribute('role', 'group'); bar.setAttribute('aria-label', 'Which tasks to show');
-      const show = key => {
-        taskFilter = key;
+      const show = (key, remember = true) => {
+        if (remember) taskFilter = key;
         for (const [chip, id] of chips) chip.setAttribute('aria-pressed', String(id === key));
         if (key === 'unlock') { list.replaceChildren(unlockList()); return; }
         const shown = rows.filter(filters.find(([id]) => id === key)[2]);
         list.replaceChildren(shown.length ? paged(shown, row => taskView(row, result, index), 'tasks')
-          : note(key === 'highest' ? 'Nothing doable uses this chunk yet. Try Blocked or All.' : 'No tasks in this view.'));
+          : note(key === 'highest' ? 'Nothing doable uses this chunk yet. Try Blocked or All.'
+            : key === 'map' ? `The map's tasks here all belong to ${partner}.` : 'No tasks in this view.'));
       };
       let unlockChip;
       for (const [key, label, test] of filters) { const chip = button(test ? `${label} ${rows.filter(test).length}` : label, () => show(key), `filter-chip${key === 'unlock' ? ' filter-chip-unlock' : ''}`); chips.set(chip, key); bar.append(chip); if (key === 'unlock') unlockChip = chip; }
@@ -157,7 +165,13 @@ export function createChunkPlanning(context) {
         }).catch(error => { if (current()) box.replaceChildren(note(error.message || String(error), 'error')); });
         return box;
       }
-      node.append(bar, list); show(taskFilter); return node;
+      if (onMap.length) node.append(note(others
+        ? `The map number here (${onMap.length}) counts the group's active tasks: ${own.size} yours and ${others} for ${partner}, with the default Active Tasks filters. The other views list only your tasks, including ones the map leaves out, such as backlogged, completed or blocked tasks.`
+        : `The map number here (${onMap.length}) counts your active tasks that use this chunk, with the default Active Tasks filters. The other views also list tasks the map leaves out, such as backlogged, completed or blocked tasks.`));
+      node.append(bar, list);
+      // A view this chunk lacks falls back for now without forgetting the player's choice.
+      if (filters.some(([id]) => id === taskFilter)) show(taskFilter); else show('highest', false);
+      return node;
     })); return container;
   }
   return { render, prime: indexFor };

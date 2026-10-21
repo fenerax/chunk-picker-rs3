@@ -187,3 +187,40 @@ test('clue locations show place names and section numbers while raw markers requ
     assert.equal(/Reference marker: true/.test(text), advanced && canWrite);
   }
 });
+
+test('On the map lists exactly the badge tasks and says whose the rest are', async () => {
+  class Node {
+    constructor(tag, text) { Object.assign(this, { tag, textContent: text ?? '', children: [], events: {}, attributes: {}, value: '' }); }
+    append(...nodes) { this.children.push(...nodes); }
+    replaceChildren(...nodes) { this.children = nodes; }
+    setAttribute(key, value) { this.attributes[key] = value; }
+    addEventListener(name, action) { this.events[name] = action; }
+  }
+  const el = (tag, text) => new Node(tag, text), state = { revision: 1, members: [{ id: 'a', name: 'Maple' }, { id: 'b', name: 'Reed' }] };
+  const tasks = [
+    { ...task('top', { Objects: ['Anvil'] }), category: 'Smithing', level: 50, status: 'available' },
+    { ...task('low', { Objects: ['Anvil'] }), category: 'Smithing', level: 10, status: 'available' },
+    { ...task('backlogged', { Objects: ['Anvil'] }), status: 'available' },
+    task('blocked', { Objects: ['Anvil'] }),
+  ];
+  const result = { memberId: 'a', stateRevision: 1, tasks };
+  let onMap = [{ memberIds: ['a'], taskIdByMember: { a: 'top' } }, { memberIds: ['a', 'b'], taskIdByMember: { a: 'low', b: 'low' } }, { memberIds: ['b'], taskIdByMember: { b: 'theirs' } }];
+  const context = { el, button: (text, action) => { const node = el('button', text); node.events.click = action; return node; },
+    details: (title, ...nodes) => { const node = el('details'); node.append(el('summary', title), ...nodes); return node; }, list: () => el('ul'), plain: value => value,
+    state: () => state, memberId: () => 'a', selectedChunkId: () => '12342', definitions: fixture, ensureResult: async () => result, showTask() {},
+    mapTasksAt: id => { assert.equal(id, '12342'); return onMap; } };
+  const walk = node => [node, ...node.children.flatMap(walk)];
+  const open = async () => { const node = createChunkPlanning(context).render('12342'); node.children[1].open = true; node.children[1].events.toggle(); await new Promise(resolve => setImmediate(resolve)); return node.children[1]; };
+  let section = await open();
+  const chip = walk(section).find(node => node.tag === 'button' && node.textContent.startsWith('On the map'));
+  assert.equal(chip.textContent, 'On the map 2'); chip.events.click();
+  const texts = walk(section).map(node => node.textContent);
+  assert.ok(texts.includes('top') && texts.includes('low')); assert.ok(!texts.includes('backlogged') && !texts.includes('blocked'));
+  assert.ok(texts.some(text => text.startsWith("The map number here (3) counts the group's active tasks: 2 yours and 1 for Reed")));
+  onMap = []; section = await open();
+  assert.ok(!walk(section).some(node => node.tag === 'button' && node.textContent.startsWith('On the map')), 'no badge, no map view');
+  assert.ok(walk(section).some(node => node.textContent === 'Highest level 2' && node.attributes['aria-pressed'] === 'true'), 'falls back to Highest level');
+  onMap = [{ memberIds: ['a'], taskIdByMember: { a: 'top' } }]; section = await open();
+  assert.ok(walk(section).some(node => node.textContent === 'On the map 1' && node.attributes['aria-pressed'] === 'true'), 'the map choice is remembered');
+  assert.ok(walk(section).some(node => /^The map number here \(1\) counts your active tasks/.test(node.textContent)));
+});

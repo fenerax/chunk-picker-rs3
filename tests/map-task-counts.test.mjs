@@ -37,3 +37,18 @@ test('result refresh reuses count identity through filter redraws and clears dur
   c.state = { ...snapshot, revision: 4 }; assert.equal(cache.refresh().size, 0);
   c.state = snapshot; c.sandbox.active = true; assert.equal(cache.refresh().size, 0);
 });
+
+test('Chunk Info reads the same entries the badge counts, with each owner task id', () => {
+  const snapshot = state(), shared = task('shared'), own = task('own'), peer = task('peer');
+  const a = result('actor1', [shared, own], { shared: ['12342'], own: ['12342'] }), b = result('reed', [shared, peer], { shared: ['12342'], peer: ['12342'] });
+  const c = { state: snapshot, registry, memberId: 'actor1', result: a, sandbox: { active: false }, duoEnabled: () => false, map: {} };
+  const cache = createMapTaskCounts(c);
+  assert.deepEqual(cache.at('12342').map(entry => entry.taskIdByMember.actor1).sort(), ['own', 'shared']);
+  assert.equal(cache.at(12342).length, cache.refresh().get('12342'));
+  c.duoEnabled = () => true; c.duoResults = () => ({ results: () => new Map([['actor1', a], ['reed', b]]) });
+  const group = cache.at('12342');
+  assert.equal(group.length, 3); assert.equal(group.length, cache.refresh().get('12342'));
+  assert.deepEqual(group.find(entry => entry.taskIdByMember.reed === 'peer').memberIds, ['reed']);
+  assert.deepEqual(cache.at('12341'), []);
+  c.sandbox.active = true; assert.deepEqual(cache.at('12342'), []);
+});

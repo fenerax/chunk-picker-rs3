@@ -30,6 +30,7 @@ export function createScreenPanels(c) {
   c.panelContext.supportsFeature = c.supportsFeature;
   c.panelContext.streamSafe = c.streamSafe;
   c.panelContext.usage = c.usage;
+  c.panelContext.mapTasksAt = id => c.mapTaskCounts?.at?.(id) ?? [];
   c.panelContext.membersStartAvailable = () => c.canWrite() && !c.sandbox?.active;
   c.membersStart = createMembersStart({ ...c.panelContext, canWrite: c.panelContext.membersStartAvailable });
   if (c.supportsFeature?.('rsCatalogues') !== false) c.panelContext.membersStart = c.membersStart.open;

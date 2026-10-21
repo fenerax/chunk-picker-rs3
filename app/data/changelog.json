@@ -3,6 +3,15 @@
   "entries": [
     {
       "date": "2026-10-21",
+      "title": "Chunk task numbers match the map",
+      "items": [
+        "Chunk Info's Possible Tasks opens on a new On the map view that lists exactly the tasks the map number counts for that chunk",
+        "A short note explains the difference: the map counts active tasks with the default Active Tasks filters, while the other views also show backlogged, completed and blocked tasks",
+        "In group view the note says how many of the map's tasks are yours and how many belong to your partner"
+      ]
+    },
+    {
+      "date": "2026-10-21",
       "title": "Updates are checked on GitHub",
       "items": [
         "Every update is now tested on GitHub before it ships: the full test suite on Linux and Windows, the component screens, and a practice install that starts the picker and stops it again",

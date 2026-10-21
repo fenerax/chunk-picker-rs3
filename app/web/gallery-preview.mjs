@@ -39,6 +39,8 @@ async function build() {
   c.normalPlayResults = new Map(c.state.members.map(member => [member.id, fixtures.resultFor(member.id)]));
   const sandbox = { active: false, signature: () => 'gallery', isNewTask: () => false, markers: () => ({ unlocked: [], locked: [] }), refreshChrome: noOp, exit: noOp };
   c.sandbox = sandbox;
+  // Map badges and Chunk Info's "On the map" view read task locations; as in the app, only doable tasks get them (all at 12341).
+  for (const member of c.state.members) { const result = fixtures.resultFor(member.id); result.taskLocations ??= Object.fromEntries(result.tasks.filter(task => task.status === 'available').map(task => [task.id, ['12341']])); c.duoResults?.().remember?.(result); }
   const { ChunkMap } = await import('./map.mjs');
   c.map = new ChunkMap({ stage: c.$('map-stage'), baseCanvas: c.$('map-base'), stateCanvas: c.$('map-state'), pinCanvas: c.$('map-pins'), hoverCanvas: c.$('map-hover'), tooltip: c.$('map-tooltip'), deferFallback: true, onChunk: id => c.showChunk(id) });
   createScreenPanels(c); c.sandbox = sandbox;
