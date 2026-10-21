@@ -109,8 +109,8 @@ test('CLI checks disposable artifacts against the full inventory and refuses mis
   const ubuntu = make('test', inventory), windows = make('windows', windowsBoundTests.map(file => `tests/${file}`));
   await writeFile(path.join(directory, 'test.json'), JSON.stringify(ubuntu));
   await writeFile(path.join(directory, 'windows.json'), JSON.stringify(windows));
-  const run = () => spawnSync(process.execPath, [fileURLToPath(new URL('../scripts/ci/coverage-gate.mjs', import.meta.url)), directory],
-    { encoding: 'utf8', windowsHide: true, timeout: 30000 });
+  const run = (extraEnv = {}) => spawnSync(process.execPath, [fileURLToPath(new URL('../scripts/ci/coverage-gate.mjs', import.meta.url)), directory],
+    { encoding: 'utf8', windowsHide: true, timeout: 30000, env: { ...process.env, ...extraEnv } });
   const failed = run();
   assert.equal(failed.status, 1);
   assert.match(failed.stderr, /UNCOVERED tests\/skill-guides-extraction/);
@@ -124,6 +124,10 @@ test('CLI checks disposable artifacts against the full inventory and refuses mis
   const passed = run();
   assert.equal(passed.status, 0, passed.stderr);
   assert.match(passed.stdout, /0 uncovered/);
+  for (const result of ['failure', 'cancelled', 'skipped']) {
+    assert.equal(run({ RS3_COVERAGE_TEST_RESULT: result }).status, 1);
+    assert.equal(run({ RS3_COVERAGE_WINDOWS_RESULT: result }).status, 1);
+  }
   await rm(path.join(directory, 'windows.json'));
   assert.equal(run().status, 1);
 });

@@ -90,6 +90,10 @@ export async function coverageGate(directory, checkout = fileURLToPath(new URL('
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   try {
     if (process.argv.length !== 3) throw Error('Usage: node scripts/ci/coverage-gate.mjs <report directory>');
+    // Rerunning failed jobs can leave an earlier attempt's artifacts behind.
+    // They cannot rescue a job that failed or was cancelled this time.
+    for (const key of ['RS3_COVERAGE_TEST_RESULT', 'RS3_COVERAGE_WINDOWS_RESULT'])
+      if (process.env[key] !== undefined && process.env[key] !== 'success') throw Error('An upstream test job did not succeed.');
     const result = await coverageGate(path.resolve(process.argv[2]));
     console.log(`Coverage: ${result.covered}/${result.total} tests passed somewhere; ${result.allowed.length} reviewed exceptions; ${result.uncovered.length} uncovered.`);
     for (const row of result.uncovered) console.error(`UNCOVERED ${row.file}: ${row.name.join(' > ')} (#${row.occurrence})`);

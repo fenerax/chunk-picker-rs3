@@ -50,6 +50,7 @@ jobs:
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: test-coverage
+          overwrite: true
           path: ${{ runner.temp }}/test.json
           retention-days: 14
           if-no-files-found: error
@@ -78,6 +79,7 @@ jobs:
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: windows-tests
+          overwrite: true
           path: ${{ runner.temp }}/ws/windows-slice.json
           retention-days: 14
           if-no-files-found: ignore
@@ -86,6 +88,7 @@ jobs:
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: windows-coverage
+          overwrite: true
           path: ${{ runner.temp }}/ws/windows.json
           retention-days: 14
           if-no-files-found: error
@@ -108,6 +111,9 @@ jobs:
           path: ${{ runner.temp }}/coverage
           merge-multiple: true
       - name: Every test passes somewhere
+        env:
+          RS3_COVERAGE_TEST_RESULT: ${{ needs.test.result }}
+          RS3_COVERAGE_WINDOWS_RESULT: ${{ needs.windows.result }}
         run: node scripts/ci/coverage-gate.mjs "${{ runner.temp }}/coverage"
 
   # Credentials and personal values: every file at the tested commit, plus each
