@@ -17,6 +17,7 @@ export const adaptiveOptionsFor = (suite, env = process.env) => {
 export const quickTests = new Set([
   "game-plugin-state.test.mjs",
   "game-plugin-status.test.mjs",
+  "game-plugin-tasks.test.mjs",
   "game-plugin-web.test.mjs",
   "game-plugin-mapping.test.mjs",
   "ci-cache-inputs-pack.test.mjs",

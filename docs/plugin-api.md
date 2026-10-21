@@ -10,7 +10,7 @@ progress. Each player can have three active keys. Copy a newly created key once
 and paste it into the plugin. Only SHA-256 hashes are stored in the separate
 key sidecar. Keys can be revoked. Never put them in URLs, logs, or saves.
 
-Both routes require `Authorization: Bearer gpk_…` with a dedicated plugin key.
+All three routes require `Authorization: Bearer gpk_…` with a dedicated plugin key.
 Cookies, picker master/invite credentials and overlay keys cannot authorize
 them. A plugin key cannot authorize any other route, even alongside a valid
 picker cookie. An Origin header is optional, including through Funnel. If sent,
@@ -85,7 +85,7 @@ pending proposals; send progress again after reconnecting.
 
 ## GET /api/plugin/v1/status
 
-No body or query parameters. Both successful routes return the same exact shape:
+No body or query parameters. Report and status return the same exact shape:
 
 ```json
 {
@@ -116,9 +116,10 @@ available means eligible in an already cached roll pool or already offered/selec
 Unknown means no recent position or no dataset chunk. A chunk known to be
 unlocked still returns unlocked if it lacks dataset metadata.
 `unlockedChunkCount` counts the player's own saved unlocks. `activeTaskCount`
-is currently always null: status caches saved ownership per revision, reuses an
-existing roll pool when present, and
-never runs the task engine. `pendingProgress` means a proposal is waiting for
+is the length of the in-game task list (below) once the plugin has read it at
+the current save revision, and null otherwise. Status caches saved ownership
+per revision, reuses an existing roll pool when present, and never runs the
+task engine. `pendingProgress` means a proposal is waiting for
 review, including proposals containing only unmatched/informational quests.
 
 `nearby` lists the 5×5 block of map squares centred on the reported position,
@@ -138,6 +139,47 @@ schedules one calculation after replying, so a later status has it.
 (empty when none). `partners` has one row per other player with the chunk
 their own plugin last reported; `chunkId`, `chunkName` and `seenAt` are null
 when that report is older than ten minutes. Exact tiles are never shared.
+
+## GET /api/plugin/v1/tasks
+
+No body or query parameters. Returns the player's active tasks for the game
+panel, read from the task list the picker last saved for that player:
+
+```json
+{
+  "v": 1,
+  "ready": true,
+  "stale": false,
+  "stateRevision": 42,
+  "chunkId": "12850",
+  "hereKnown": true,
+  "here": [{ "id": "rs3:Skills:Cut%20a%20tree", "label": "Cut a tree", "category": "Skills", "level": 1 }],
+  "all": ["… up to 100 rows …"],
+  "hereCount": 1,
+  "allCount": 37
+}
+```
+
+Rows use the picker's Active Tasks order: favourites, then category, then
+highest level, then label. They are the player's own default list: blocked,
+hidden, backlogged and completed tasks are left out. `level` is omitted when the
+task has none. Labels have control characters removed and are cut at 120
+characters. `all` holds at most 100 rows and `here` at most 50;
+`allCount` and `hereCount` give the true totals.
+
+`here` lists the tasks whose map locations include `chunkId`, the chunk from
+the player's latest report (null after ten minutes without one). `hereKnown`
+is false when there is no recent position or the saved list has no map
+locations; `here` is then empty.
+
+The route never calculates tasks. The picker saves a player's list whenever
+someone opens that player's tasks in the picker. A tick, unlock or other change
+clears that saved list; the plugin then keeps serving the last list it had,
+with `stale: true`, after applying the current save's completions, backlog and
+favourites. New unlocks appear once the picker saves a new list; an open picker
+page does that on its own. `ready` is
+false, with empty lists, when no list has been saved since the picker started:
+open the picker's task list once.
 
 ## Simulator
 

@@ -138,7 +138,7 @@ test('every dispatched API route and gameplay command has an explicit permission
     checkRoutes(method, section);
     for (const [route, permission] of Object.entries(routePermissions[method])) {
       assert.ok(['read', 'admin', 'write', 'saved-tasks', 'usage', 'plugin'].includes(permission), `${method} ${route} has a recognized permission`);
-      if (permission === 'plugin') assert.ok(['GET /api/plugin/v1/status', 'POST /api/plugin/v1/report'].includes(`${method} ${route}`), 'plugin authentication has exactly two routes');
+      if (permission === 'plugin') assert.ok(['GET /api/plugin/v1/status', 'GET /api/plugin/v1/tasks', 'POST /api/plugin/v1/report'].includes(`${method} ${route}`), 'plugin authentication has exactly three routes');
       if (permission === 'usage') assert.equal(`${method} ${route}`, 'POST /api/usage', 'viewer telemetry has one exact route');
       assert.equal(apiPermission(method, concrete(route)), permission);
     }

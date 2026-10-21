@@ -1,18 +1,23 @@
 import { openPluginKeys } from './plugin-keys.mjs';
 import { fields, validatePluginReport, pluginProposal } from './integrations/game-plugin.mjs';
+import { pluginTaskRows, pluginTaskList } from './game-plugin-tasks.mjs';
 
 const fail = (status, message) => Object.assign(new Error(message), { status });
 const LIFETIME = 10 * 60 * 1000;
 // Status also describes the block of map squares centred on the player (2 each way: 5x5).
 const NEARBY_RADIUS = 2;
-const PLUGIN_ROUTES = new Map([['/api/plugin/v1/report', 'POST'], ['/api/plugin/v1/status', 'GET']]);
+const PLUGIN_ROUTES = new Map([['/api/plugin/v1/report', 'POST'], ['/api/plugin/v1/status', 'GET'], ['/api/plugin/v1/tasks', 'GET']]);
 
 /** Positions/proposals are ephemeral. Only reviewed progress can reach store.command. */
 export async function openGamePlugin({ dataDir, store, world, registry, questMapping, bodyJSON, json,
-  serializeMutation, checkRequestOrigin, notify = () => {}, clock = Date.now }) {
+  serializeMutation, checkRequestOrigin, notify = () => {}, clock = Date.now, savedTasks = () => null }) {
   const keys = await openPluginKeys({ dataDir, clock });
   const positions = new Map(), pending = new Map(), sequences = new Map(), buckets = new Map(), diagnostics = new Map();
   let statusRevision = -1; const statuses = new Map(); let closed = false, warming = false;
+  // Last saved task list per plugin player. The bytes are the server's own saved
+  // play result, so a fresh list costs no extra memory; after a tick clears the
+  // saved results, this reference keeps the list readable until the next load.
+  const retainedTasks = new Map(), taskRows = new Map();
   function state() { return store.getCalculationSnapshot().state; }
   function member(player) {
     const owner = state().members.find(owner => owner.id === player);
@@ -69,10 +74,28 @@ export async function openGamePlugin({ dataDir, store, world, registry, questMap
     }
     return { v: 1, player: { id: player, name: owner.name }, chunkId, chunkName: chunk?.name ?? null,
       state: !position ? 'unknown' : stateOf(chunkId),
-      activeTaskCount: null, unlockedChunkCount: cached.count, pendingProgress: !!liveReview(player), seenAt: position?.seenAt ?? null, nearby,
+      activeTaskCount: taskRows.get(player)?.revision === revision && !taskRows.get(player).stale ? taskRows.get(player).rows.length : null, unlockedChunkCount: cached.count, pendingProgress: !!liveReview(player), seenAt: position?.seenAt ?? null, nearby,
       pickableCount: pool ? pool.eligible.length : null,
       pendingRoll: (owner.pendingRoll ?? []).map(id => ({ chunkId: id, chunkName: world.chunks.get(id.split('-')[0])?.name ?? null })),
       partners: partners(player) };
+  }
+  function hasActiveKey(player) { return keys.list(player).some(record => !record.revoked); }
+  // Reads the saved task list only. A missing list is reported, never calculated.
+  function tasks(player) {
+    member(player);
+    const revision = store.getInfo().revision, fresh = savedTasks(player);
+    if (fresh?.bytes) retainedTasks.set(player, fresh.bytes);
+    const current = fresh?.bytes && fresh.revision === revision, bytes = current ? fresh.bytes : retainedTasks.get(player);
+    const latest = positions.get(player), chunkId = latest && clock() - Date.parse(latest.seenAt) < LIFETIME ? latest.chunkId : null;
+    if (!bytes) return pluginTaskList({ rows: null, chunkId, stateRevision: revision, stale: false });
+    let cached = taskRows.get(player);
+    if (cached?.bytes !== bytes || cached.revision !== revision) {
+      const state = store.getTaskClaimState?.() ?? store.getCalculationSnapshot().state;
+      cached = { bytes, revision, stale: !current,
+        rows: pluginTaskRows({ state, result: JSON.parse(bytes.toString('utf8')), registry, memberId: player, stale: !current }) };
+      taskRows.set(player, cached);
+    }
+    return pluginTaskList({ rows: cached.rows, chunkId, stateRevision: revision, stale: cached.stale });
   }
   // Other players' last reported chunks, from their own plugins. Never their exact tiles.
   function partners(player) {
@@ -92,13 +115,17 @@ export async function openGamePlugin({ dataDir, store, world, registry, questMap
       const credential = keys.authenticate(request); member(credential.player); rate(credential.id);
       if (request.method !== PLUGIN_ROUTES.get(route)) throw fail(405, 'Method not allowed.');
       if (new URL(request.url, 'http://localhost').search) throw fail(400, 'Game plugin routes take no query parameters.');
-      if (route === '/api/plugin/v1/status' && (Number(request.headers['content-length']) > 0 || request.headers['transfer-encoding'])) {
-        throw fail(Number(request.headers['content-length']) > 16384 ? 413 : 400, 'Status takes no body.');
+      if (request.method === 'GET' && (Number(request.headers['content-length']) > 0 || request.headers['transfer-encoding'])) {
+        throw fail(Number(request.headers['content-length']) > 16384 ? 413 : 400, 'Plugin reads take no body.');
       }
       if (closed || serverClosed) throw fail(503, 'The picker is stopping.');
       // This exact authenticated boundary never reads browser credentials. Missing
       // Origin is allowed, including Funnel; supplied origins retain normal checks.
       if (request.headers.origin || request.headers['sec-fetch-site'] === 'cross-site') checkRequestOrigin(request, security);
+      if (route === '/api/plugin/v1/tasks') {
+        // Outside the mutation queue: parsing a saved list must not delay commands.
+        keys.touch(credential.id); await json(request, response, 200, tasks(credential.player)); return true;
+      }
       const report = route === '/api/plugin/v1/report' ? validatePluginReport(await bodyJSON(request, 16384)) : null;
       const result = await serializeMutation(async () => {
         if (closed || serverClosed) throw fail(503, 'The picker is stopping.');
@@ -157,6 +184,10 @@ export async function openGamePlugin({ dataDir, store, world, registry, questMap
       return review.proposal;
     },
     finish(memberId) { pending.delete(memberId); notify(); },
-    async close() { closed = true; await keys.close(); positions.clear(); pending.clear(); diagnostics.clear(); },
+    rememberTasks(memberId, bytes) {
+      if (closed || !bytes) return;
+      if (hasActiveKey(memberId)) retainedTasks.set(memberId, bytes); else { retainedTasks.delete(memberId); taskRows.delete(memberId); }
+    },
+    async close() { closed = true; await keys.close(); positions.clear(); pending.clear(); diagnostics.clear(); retainedTasks.clear(); taskRows.clear(); },
   };
 }

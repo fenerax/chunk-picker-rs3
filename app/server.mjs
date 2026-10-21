@@ -111,7 +111,7 @@ function httpError(status, message) { return Object.assign(new Error(message), {
 export const routePermissions = Object.freeze({
   GET: Object.freeze({
     '/api/game-plugin': 'read', '/api/game-plugin/review': 'read',
-    '/api/plugin/v1/status': 'plugin', '/api/session': 'read', '/api/coordination': 'read', '/api/invites': 'admin', '/api/overlays': 'admin', '/api/feedback': 'admin',
+    '/api/plugin/v1/status': 'plugin', '/api/plugin/v1/tasks': 'plugin', '/api/session': 'read', '/api/coordination': 'read', '/api/invites': 'admin', '/api/overlays': 'admin', '/api/feedback': 'admin',
     '/api/feedback/summary': 'write', '/api/feedback/own': 'write', '/api/usage': 'admin',
     '/api/admin/master-link': 'admin', '/api/icons': 'read', '/api/ids/:id': 'read',
     '/api/state': 'read', '/api/history': 'read', '/api/history/:id': 'read', '/api/roll-stats': 'read', '/api/display-world': 'read', '/api/health': 'read', '/api/art-status': 'read', '/api/dataset-status': 'read', '/api/dataset-runtime': 'read', '/api/dataset-input': 'read',
@@ -605,6 +605,8 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
       unauthenticated: key => limits.unauthenticated(key) });
     gamePlugin = await openGamePlugin({ dataDir, store, world: indexedWorld, registry: ruleRegistry, questMapping, bodyJSON, json,
       serializeMutation, checkRequestOrigin,
+      // In-game lists read the saved task result only; they never start an evaluation.
+      savedTasks: memberId => { const entry = savedTaskResults.get(memberId); return entry?.playJSON ? { bytes: entry.playJSON, revision: entry.revision } : null; },
       notify: () => { for (const client of clients) if (!client.write('event: game-plugin\ndata: {}\n\n')) client.end(); } });
   }
   try { await openSidecars(); }
@@ -739,6 +741,7 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
     }
     if (entry.bytes > 32 * 1024 * 1024) return;
     savedTaskResults.set(memberId, entry);
+    gamePlugin?.rememberTasks(memberId, entry.playJSON);
     for (const row of savedTaskResults.values()) {
       if ([...savedTaskResults.values()].reduce((sum, result) => sum + result.bytes, 0) <= 32 * 1024 * 1024) break;
       if (row.duoInspectionJSON) { row.bytes -= row.duoInspectionJSON.length; delete row.duoInspectionJSON; }
