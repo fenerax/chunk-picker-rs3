@@ -9,7 +9,9 @@ import { loadCorpus, defaultCorpusDir } from '../secret-scan/fingerprints.mjs';
 const placeholder = value => /^(?:(?:(?:rs3:task:)?custom:)?example\d{5}|player\d+|qx[a-z])$/.test(value);
 const personalField = /(?:email|hostname|computername|ipaddress|account(?:name|id)|displayname|player(?:name|id)|runescapename|rsn|memberid|mapid|invite|token|secret|password|credential|join|homepath|nickname|username|address)/i;
 const freeField = /^(?:name|handle|note|notes|journal|text|backlogReason|reason|warnings|chunkNotes|stickeredNotes|friends|friendsAlt|chunkColourNames)$/i;
-const timestamps = /^(?:at|capturedAt|appliedAt|fetchedAt|createdAt|updatedAt)$/;
+const taskLabelLocation = /\.(?:tasks\[\]|identityRegistry\.entries\.\{key\})\.label$/;
+const itemTaskLabel = /^Obtain an? [^\r\n]{1,120}$/;
+const timestamps =/^(?:at|capturedAt|appliedAt|fetchedAt|createdAt|updatedAt)$/;
 const numeric = /^\d+(?:-\d+)?$/;
 const publicSourceHash = `sha256:${'0'.repeat(64)}`;
 const gameNumericFields = new Set(['unlocked','selected','pendingRoll','blacklisted','startingChunk','chunkId','rolled','path','topbarSelection','chunkOrder','manualPrimary','recent','recentTime','recentFancyRollTime','randomLoot','chunkNeighboursOptions']);
@@ -82,6 +84,8 @@ export function scrubBackup(document, { vocabulary, checking = false, blockedStr
     }
     else if (/^#[a-f0-9]{6}$/i.test(value) && /colou?r|stickeredColors/i.test(field)) kind = 'game-number-or-colour';
     else if (vocabulary.gameValue?.(value) || vocabulary.values.has(value) || vocabulary.values.has(value.replace(/^\*fb\*_/, ''))) kind = 'authored-game-data';
+    // Generated item tasks name a game item; the owner approved keeping them visible (2026-10-21).
+    else if (field === 'label' && taskLabelLocation.test(location) && itemTaskLabel.test(value)) kind = 'game-item-task-label';
     else { kind = 'unknown-string'; output = replacement(value); }
     const action = output === value ? 'kept' : 'replaced';
     record(location, kind, action, 'string');

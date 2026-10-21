@@ -173,6 +173,23 @@ test('scrubbed custom identifiers retain the prefix needed to edit custom tasks'
   assert.equal(document.state.members[0].completedTasks[0], document.state.tasks[0].id);
 });
 
+test('item task labels stay visible only on task labels, and corpus matches still go', async t => {
+  const raw = fixture();
+  raw.state.tasks.push({ id: 'item-task', label: 'Obtain an Unvocabularied fixture item', category: 'Mining', memberIds: [] });
+  raw.state.history[0].actor.label = 'Obtain a Fixture Person';
+  raw.state.members[0].notes['100'] = 'Obtain a fixture note';
+  const { document, report } = scrubBackup(raw, { vocabulary });
+  assert.equal(document.state.tasks[1].label, 'Obtain an Unvocabularied fixture item');
+  assert.notEqual(document.state.history[0].actor.label, 'Obtain a Fixture Person');
+  assert.notEqual(document.state.members[0].notes['100'], 'Obtain a fixture note');
+  assert.ok(report.categories.some(row => row.kind === 'game-item-task-label' && row.action === 'kept'));
+  const directory = await mkdtemp(path.join(os.tmpdir(), 'save-copy-item-label-'));
+  t.after(() => rm(directory, { recursive: true, force: true }));
+  await addFingerprints(['Obtain an Unvocabularied fixture item'], directory);
+  const prepared = await prepareSaveCopy(raw, { vocabulary, corpus: await loadCorpus(directory), validate: accepts });
+  assert.notEqual(prepared.document.state.tasks[1].label, 'Obtain an Unvocabularied fixture item');
+});
+
 test('load proof refuses live ports before any storage or server access', async () => {
   // The live picker's ports, passed through a list so the test port check does not read them as listeners.
   for (const live of [8788, 8789]) {
