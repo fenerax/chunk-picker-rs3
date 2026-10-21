@@ -226,7 +226,9 @@ export async function rehearse({ repo = checkout, packsDir, summary }) {
   const started = performance.now();
   const result = { schema: 'rs3-release-rehearsal-v1', passed: false, synthetic: true, node: process.version,
     platform: process.platform, commit: null, steps: {}, seconds: {} };
-  let work, stage = 'setup';
+  // GitHub's Windows temp dir is an 8.3 short path (RUNNER~1); the pack checks
+  // require every path to equal its realpath, so canonicalize the root once.
+  let work, tmpRoot, stage = 'setup';
   const step = async (name, action) => {
     stage = name; const began = performance.now();
     try { const value = await action(); result.steps[name] = { passed: true }; return value; }
@@ -235,9 +237,8 @@ export async function rehearse({ repo = checkout, packsDir, summary }) {
   };
   try {
     if (process.version !== 'v24.20.0') throw Error('Release Node version required.');
-    // GitHub's Windows temp dir is an 8.3 short path (RUNNER~1); the pack
-    // checks require every path to equal its realpath, so canonicalize once.
-    work = await realpath(await mkdtemp(path.join(os.tmpdir(), 'rs3-ci-rehearsal-')));
+    tmpRoot = await realpath(os.tmpdir());
+    work = await mkdtemp(path.join(tmpRoot, 'rs3-ci-rehearsal-'));
     const releaseDir = path.join(work, 'release'), core = path.join(releaseDir, 'core');
     await mkdir(releaseDir);
     const exported = await step('export', () => exportHead({ repo, core }));
@@ -288,7 +289,7 @@ export async function rehearse({ repo = checkout, packsDir, summary }) {
     try {
       for (const child of [...processes]) { await terminate(child); await child.done; }
       if (work) {
-        if (path.dirname(path.resolve(work)) !== path.resolve(os.tmpdir()) || !path.basename(work).startsWith('rs3-ci-rehearsal-')) throw Error('Scratch cleanup boundary differs.');
+        if (path.dirname(path.resolve(work)) !== tmpRoot ||!path.basename(work).startsWith('rs3-ci-rehearsal-')) throw Error('Scratch cleanup boundary differs.');
         await rm(work, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
       }
       result.steps.cleanup = { passed: true };
