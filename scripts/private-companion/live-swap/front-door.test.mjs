@@ -20,7 +20,7 @@ async function fixture(t) {
 }
 test('restart ignores retained admitted state and refuses ordinary ingress', async t => {
   const config = await fixture(t); await atomicJSON(config.stateFile, { frozen: false, target: { port: 18788, version: 'retained' } });
-  const door = await createFrontDoor(config); t.after(async () => { await door.close(); await rm(path.dirname(config.stateFile), { recursive: true, force: true }); });
+  const door = await createFrontDoor(config); t.after(async () => { await door.close(); await rm(path.dirname(config.stateFile), { recursive: true, force: true, maxRetries: 5 }); });
   assert.equal((await door.status()).frozen, true); assert.equal(await get(config.listen), 503);
   const retained = JSON.parse(await readFile(config.stateFile)); assert.equal(retained.frozen, true); assert.equal(retained.recoveryRequired, true);
 });
@@ -29,13 +29,13 @@ test('production ownership guard is mandatory and refuses before backend authent
   await assert.rejects(createFrontDoor({ ...config, requireOwnership: true }), { code: 'LIVE_SWAP_DOOR_OWNERSHIP_REQUIRED' });
   let checked = 0;
   const door = await createFrontDoor({ ...config, requireOwnership: true, assertTargetOwned: async () => { checked++; throw new Error('foreign listener'); } });
-  t.after(async () => { await door.close(); await rm(path.dirname(config.stateFile), { recursive: true, force: true }); });
+  t.after(async () => { await door.close(); await rm(path.dirname(config.stateFile), { recursive: true, force: true, maxRetries: 5 }); });
   await door.route({ version: 'synthetic', port: 8999 }); await assert.rejects(door.probe(), /foreign listener/); assert.equal(checked, 1); assert.equal((await door.status()).frozen, true);
 });
 test('a diagnostic write failure after admission freezes without a retry loop', async t => {
   const config = await fixture(t); let writes = 0, fail = false;
   const door = await createFrontDoor({ ...config, writeState: async (file, value) => { writes++; if (fail && !value.frozen) throw Object.assign(new Error('Injected disk failure'), { code: 'EIO' }); await atomicJSON(file, value); } });
-  t.after(async () => { await door.close(); await rm(path.dirname(config.stateFile), { recursive: true, force: true }); });
+  t.after(async () => { await door.close(); await rm(path.dirname(config.stateFile), { recursive: true, force: true, maxRetries: 5 }); });
   const identity = { version: 'synthetic', port: 8999 }; await door.route(identity); await door.settled();
   // The transport/health route is covered by the other real HTTP tests. This
   // controlled proof isolates the asynchronous persistence failure boundary.
@@ -51,7 +51,7 @@ test('persistent control uses constant-memory signed sequences and refuses repla
   socket.on('data', data => { input += data; for (;;) { const end = input.indexOf('\n'); if (end < 0) break; const row = JSON.parse(input.slice(0, end)); input = input.slice(end + 1); const reader = readers.shift(); if (reader) reader(row); else rows.push(row); } });
   const next = () => rows.length ? Promise.resolve(rows.shift()) : new Promise(resolve => readers.push(resolve));
   await once(socket, 'connect'); const { challenge } = await next();
-  t.after(async () => { socket.destroy(); await closeControl(); await door.close(); await rm(path.dirname(config.stateFile), { recursive: true, force: true }); });
+  t.after(async () => { socket.destroy(); await closeControl(); await door.close(); await rm(path.dirname(config.stateFile), { recursive: true, force: true, maxRetries: 5 }); });
   const request = async id => {
     const payload = { id, method: 'status', challenge, nonce: randomUUID() }, mac = createHmac('sha256', config.token).update(`request:${JSON.stringify(payload)}`).digest('hex');
     socket.write(`${JSON.stringify({ ...payload, mac })}\n`); return next();
@@ -65,7 +65,7 @@ test('persistent control uses constant-memory signed sequences and refuses repla
 });
 test('control-channel loss durably freezes; replacement control lease can inspect', async t => {
   const config = await fixture(t), door = await createFrontDoor(config), closeControl = await door.control(config.control);
-  t.after(async () => { await closeControl(); await door.close(); await rm(path.dirname(config.stateFile), { recursive: true, force: true }); });
+  t.after(async () => { await closeControl(); await door.close(); await rm(path.dirname(config.stateFile), { recursive: true, force: true, maxRetries: 5 }); });
   const control = await connectFrontDoor(config.control, config.token);
   await control.freeze(); control.disconnect();
   const deadline = Date.now() + 2000;
@@ -92,7 +92,7 @@ for (const window of ['probe', 'disk']) test(`lease loss during resume ${window}
   assert.ok(port, 'One free scratch backend port required');
   const door = await createFrontDoor({ ...config, writeState: async (file, value) => { if (window === 'disk' && !value.frozen) { reached(); await waiting; } await atomicJSON(file, value); } });
   const closeControl = await door.control(config.control);
-  t.after(async () => { release(); await closeControl(); await door.close(); await new Promise(resolve => backend.close(resolve)); await rm(path.dirname(config.stateFile), { recursive: true, force: true }); });
+  t.after(async () => { release(); await closeControl(); await door.close(); await new Promise(resolve => backend.close(resolve)); await rm(path.dirname(config.stateFile), { recursive: true, force: true, maxRetries: 5 }); });
   const controller = await connectFrontDoor(config.control, config.token), identity = { port, version: 'synthetic' };
   await controller.route(identity); const result = controller.resume(identity).catch(error => error); await barrier;
   controller.disconnect(); await result; await new Promise(resolve => setTimeout(resolve, 25)); release(); await door.settled();

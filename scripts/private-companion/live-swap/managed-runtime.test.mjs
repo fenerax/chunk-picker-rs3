@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import { createRuntimeAdapter, createTargetGuard, signMessage, constantEqual, validateProductionEvidence, assertDistinctTopologyPaths } from './managed-runtime.mjs';
 
 const identity = { slot: 'old', version: 'bridge-old', port: 18731, releaseId: 'old', configHash: 'a'.repeat(64), configPin: { path: 'C:/immutable/config.json', sha256: 'b'.repeat(64) }, coreTreeSha256: 'c'.repeat(64) };
-test('runtime, credential, current pointer and retained immutable paths cannot alias', () => {
+// Windows path rules (case, 8.3 names, streams): the live swap runs only on the Windows server.
+test('runtime, credential, current pointer and retained immutable paths cannot alias', { skip: process.platform !== 'win32' }, () => {
   const paths = { mutable: ['C:/state/journal.json', 'C:/state/control-token'], immutable: ['C:/old/pointer.json', 'C:/next/pointer.json'], current: 'C:/live/current.json' };
   assert.doesNotThrow(() => assertDistinctTopologyPaths(paths));
   assert.throws(() => assertDistinctTopologyPaths({ ...paths, mutable: [...paths.mutable, 'C:/STATE/JOURNAL.json'] }), { code: 'LIVE_SWAP_STATE_ALIAS' });
