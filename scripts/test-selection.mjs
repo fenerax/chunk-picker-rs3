@@ -69,6 +69,8 @@ export const quickTests = new Set([
   "game-profile.test.mjs",
   "game-defaults.test.mjs",
   "secret-scan.test.mjs",
+  "save-copy.test.mjs",
+  "pack-publish.test.mjs",
   "public-shadow.test.mjs",
   "dataset-profile.test.mjs",
   "dataset-bootstrap.test.mjs",

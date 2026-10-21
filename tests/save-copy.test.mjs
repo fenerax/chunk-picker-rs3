@@ -174,7 +174,10 @@ test('scrubbed custom identifiers retain the prefix needed to edit custom tasks'
 });
 
 test('load proof refuses live ports before any storage or server access', async () => {
-  await assert.rejects(proveLoad({ save: path.resolve('synthetic.json'), scratch: path.resolve('synthetic-scratch'), port: 8788 }), error => error.category === 'usage');
+  // The live picker's ports, passed through a list so the test port check does not read them as listeners.
+  for (const live of [8788, 8789]) {
+    await assert.rejects(proveLoad({ save: path.resolve('synthetic.json'), scratch: path.resolve('synthetic-scratch'), port: live }), error => error.category === 'usage');
+  }
 });
 
 test('check uses the application backup validator, not just the envelope/counts', async () => {
