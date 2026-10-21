@@ -11,15 +11,23 @@ if (process.argv.includes('--help')) {
   const { discoverTests, adaptiveOptionsFor } = await import('./test-selection.mjs');
   const suite = process.argv[2] ?? 'full';
   const options = process.argv.slice(3);
+  if (process.env.RS3_COVERAGE_REPORT && (suite !== 'full' || options.includes('--list'))) throw new Error('Coverage reports require a full test run');
   if (options.some(option => option !== '--list')) throw new Error('Only --list is supported');
   const files = await discoverTests(undefined, suite);
   console.log(`${suite}: ${files.length} test files`);
   if (options.includes('--list')) {
     console.log(files.map(name => `tests/${name}`).join('\n'));
   } else {
+    const cwd = fileURLToPath(new URL('../', import.meta.url));
+    const coverage = process.env.RS3_COVERAGE_REPORT ? (await import('./ci/coverage-reporter.mjs')).createCoverageReporter({
+      lane: process.env.RS3_COVERAGE_LANE ?? 'test', cwd, files: files.map(name => `tests/${name}`) }) : undefined;
     const { testRunEnvironment } = await import('./test-run-environment.mjs');
     const { runAdaptive } = await import('./adaptive-test-runner.mjs');
     const environment = await testRunEnvironment();
+    // Only this controller owns the report. Tests that spawn the CLI must not
+    // inherit the destination or overwrite the full run with a nested run.
+    delete environment.env.RS3_COVERAGE_REPORT;
+    delete environment.env.RS3_COVERAGE_LANE;
     const controller = new AbortController();
     const abort = () => controller.abort();
     for (const signal of ['SIGINT', 'SIGTERM']) process.on(signal, abort);
@@ -33,13 +41,13 @@ if (process.argv.includes('--help')) {
     const write = async event => { if (reportingError) throw reportingError; if (!events.write(event)) await once(events, 'drain'); };
     // spec matches each pass/fail to the latest start on one stack, so overlapping
     // files must not interleave. Hold each file's events until its controller exits.
-    const cwd = fileURLToPath(new URL('../', import.meta.url));
     const held = new Map();
     const flush = async key => { const queue = held.get(key) ?? []; held.delete(key); for (const event of queue) await write(event); };
     try {
       const result = await runAdaptive({ files: files.map(name => `tests/${name}`),
         ...adaptiveOptionsFor(suite), cwd, env: environment.env, signal: controller.signal,
         onEvent: async event => {
+          coverage?.onEvent(event);
           // A case's file can be a shared helper; entryFile names the test file that ran it.
           const file = event.data?.entryFile ?? event.data?.file;
           if (!file) return write(event);
@@ -47,7 +55,8 @@ if (process.argv.includes('--help')) {
           if (!held.has(key)) held.set(key, []);
           held.get(key).push(event);
         },
-        onFile: result => flush(path.resolve(cwd, result.file).toLowerCase()) });
+        onFile: result => { coverage?.onFile(result); return flush(path.resolve(cwd, result.file).toLowerCase()); } });
+      if (coverage) await coverage.write(process.env.RS3_COVERAGE_REPORT, { passed: result.passed });
       process.exitCode = result.exitCode;
     } finally {
       for (const key of [...held.keys()]) await flush(key).catch(() => {});

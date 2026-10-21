@@ -809,7 +809,7 @@ test('minimal pinned fixture generates deterministically and excludes gated/memb
 test('available real pinned cache rebuilds committed facts byte-for-byte with audited input reads', async t => {
   const cacheDir = path.resolve(root, process.env.OPEN_F2P_WIKI_CACHE ?? wikiCacheRoot);
   try { for (const pin of spec.pages) await access(path.join(cacheDir, cacheFilename(pin.requestedTitle))); }
-  catch (error) { if (error.code === 'ENOENT') { t.skip('Optional pinned local cache is absent; synthetic offline build remains mandatory.'); return; } throw error; }
+  catch (error) { if (error.code === 'ENOENT' && !process.env.OPEN_F2P_WIKI_CACHE) { t.skip('Optional pinned local cache is absent; synthetic offline build remains mandatory.'); return; } throw error; }
   const directory = await scratch(t);
   const result = await guardedBuild({ generator: path.join(root, 'scripts/build-open-f2p.mjs'), authoredFile: authored,
     pins: spec.pages, cacheDir, outputDir: path.join(directory, 'output') });

@@ -38,7 +38,7 @@ test('guide extractor rejects untyped root pointers before attempting data joins
 
 // The copied-cache export lives in the local game data, as the app finds it; the test skips without it.
 const exported=process.env.RS3_SKILL_GUIDES_EXPORT??`${process.env.RS3_GAME_DATA_DIR??fileURLToPath(new URL('../.local/game-data',import.meta.url))}/skill-guides-2026-10-08-v1`;
-test('copied-cache guide artifact has every real skill, resolved fallbacks, typed references and archive hashes',{skip:!existsSync(`${exported}/skill-guides.v1.json`)},()=>{
+test('copied-cache guide artifact has every real skill, resolved fallbacks, typed references and archive hashes',{skip:!process.env.RS3_SKILL_GUIDES_EXPORT&&!existsSync(`${exported}/skill-guides.v1.json`)&&'copied-cache skill guide export is absent'},()=>{
   const bytes=readFileSync(`${exported}/skill-guides.v1.json`),data=JSON.parse(bytes),manifest=JSON.parse(readFileSync(`${exported}/skill-guides-manifest.v1.json`));
   assert.equal(data.skills.length,29);assert.equal(data.entries.length,6281);assert.equal(data.coverage.tabs,248);
   assert.deepEqual(data.skills.map(x=>x.id).sort((a,b)=>a-b),Array.from({length:29},(_,i)=>i+1));

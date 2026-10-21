@@ -1,0 +1,718 @@
+{
+  "schema": "gh-coverage-skip-classification-v1",
+  "source": "https://github.com/fenerax/chunk-picker-rs3/actions/runs/39603812368/job/119234756949 (full: 590 test files)",
+  "total": 116,
+  "categories": [
+    {
+      "class": "A",
+      "cases": 107
+    },
+    {
+      "class": "B",
+      "cases": 5
+    },
+    {
+      "class": "C",
+      "cases": 4
+    }
+  ],
+  "unmatched": 0,
+  "tests": [
+    {
+      "test": "mandatory full masks retain pinned manifest, membership and decoder identities",
+      "file": "cache-resources-catalogue.test.mjs",
+      "class": "C",
+      "skipReason": "Pinned mask data is under a hard-coded machine-local game-data root and is not shipped in the public pack or checkout."
+    },
+    {
+      "test": "PowerShell backup records success, preserves it after redacted failure and cleans local staging",
+      "file": "backup-status.private.test.mjs",
+      "class": "A",
+      "skipReason": "Requires Windows-native process, PowerShell, ACL, or Task Scheduler behavior; included in the Windows slice."
+    },
+    {
+      "test": "private browser harness supplies every public collaborator",
+      "file": "browser-screen-harness-contract.test.mjs",
+      "class": "C",
+      "skipReason": "Requires a separate independently identified paired public harness."
+    },
+    {
+      "test": "dry run is immutable and redacted; changed pins refuse",
+      "file": "cutover-live.test.mjs",
+      "class": "A",
+      "skipReason": "Requires Windows-native process, PowerShell, ACL, or Task Scheduler behavior; included in the Windows slice."
+    },
+    {
+      "test": "all forward receipts and rollback retain gameplay, credentials and secured snapshot; no save restore",
+      "file": "cutover-live.test.mjs",
+      "class": "A",
+      "skipReason": "Requires Windows-native process, PowerShell, ACL, or Task Scheduler behavior; included in the Windows slice."
+    },
+    {
+      "test": "failed acceptance records failure, blocks registration and needs explicit retry",
+      "file": "cutover-live.test.mjs",
+      "class": "A",
+      "skipReason": "Requires Windows-native process, PowerShell, ACL, or Task Scheduler behavior; included in the Windows slice."
+    },
+    {
+      "test": "plan changes during a run refuse before operator actions",
+      "file": "cutover-live.test.mjs",
+      "class": "A",
+      "skipReason": "Requires Windows-native process, PowerShell, ACL, or Task Scheduler behavior; included in the Windows slice."
+    },
+    {
+      "test": "damaged snapshot prevents binding, and candidate corruption cannot prevent rollback pause",
+      "file": "cutover-live.test.mjs",
+      "class": "A",
+      "skipReason": "Requires Windows-native process, PowerShell, ACL, or Task Scheduler behavior; included in the Windows slice."
+    },
+    {
+      "test": "PowerShell 7 retains exact runtime timestamps and bounded integer schema; legacy timeout cannot Kill",
+      "file": "cutover-live.test.mjs",
+      "class": "A",
+      "skipReason": "Requires Windows-native process, PowerShell, ACL, or Task Scheduler behavior; included in the Windows slice."
+    },
+    {
+      "test": "acceptance follows real local-origin policy, uses fresh roles and verifies every revocation",
+      "file": "cutover-live.test.mjs",
+      "class": "A",
+      "skipReason": "Requires Windows-native process, PowerShell, ACL, or Task Scheduler behavior; included in the Windows slice."
+    },
+    {
+      "test": "stopped-writer lease blocks other helpers, releases on failure and reasserts pause",
+      "file": "cutover-live.test.mjs",
+      "class": "A",
+      "skipReason": "Requires Windows-native process, PowerShell, ACL, or Task Scheduler behavior; included in the Windows slice."
+    },
+    {
+      "test": "foreground completion does not wait for inherited background pipe handles",
+      "file": "cutover-live.test.mjs",
+      "class": "A",
+      "skipReason": "Requires Windows-native process, PowerShell, ACL, or Task Scheduler behavior; included in the Windows slice."
+    },
+    {
+      "test": "receipt and snapshot ACL setup is repeatable after protected files are written",
+      "file": "cutover-live.test.mjs",
+      "class": "A",
+      "skipReason": "Requires Windows-native process, PowerShell, ACL, or Task Scheduler behavior; included in the Windows slice."
+    },
+    {
+      "test": "real worktree ACL protection supports every runbook receipt and rollback step",
+      "file": "cutover-live.test.mjs",
+      "class": "A",
+      "skipReason": "Requires Windows-native process, PowerShell, ACL, or Task Scheduler behavior; included in the Windows slice."
+    },
+    {
+      "test": "CLI verification finishes its dynamic import and saves a receipt with mocked process and HTTP records",
+      "file": "cutover-live.test.mjs",
+      "class": "A",
+      "skipReason": "Requires Windows-native process, PowerShell, ACL, or Task Scheduler behavior; included in the Windows slice."
+    },
+    {
+      "test": "native lifecycle and independent reconciliation scripts parse under Windows PowerShell",
+      "file": "live-base-compatibility.test.mjs",
+      "class": "A",
+      "skipReason": "Requires Windows-native process, PowerShell, ACL, or Task Scheduler behavior; included in the Windows slice."
+    },
+    {
+      "test": "Windows helpers reports a save-ready server with restart-required task health as running and degraded",
+      "file": "operations-degraded.test.mjs",
+      "class": "A",
+      "skipReason": "Requires Windows-native process, PowerShell, ACL, or Task Scheduler behavior; included in the Windows slice."
+    },
+    {
+      "test": "Windows helpers bounds shutdown of an uncooperative owned process and reports forced stop",
+      "file": "operations-forced.test.mjs",
+      "class": "A",
+      "skipReason": "Requires Windows-native process, PowerShell, ACL, or Task Scheduler behavior; included in the Windows slice."
+    },
+    {
+      "test": "Windows helpers waits for authenticated graceful shutdown and queued saves",
+      "file": "operations-graceful.test.mjs",
+      "class": "A",
+      "skipReason": "Requires Windows-native process, PowerShell, ACL, or Task Scheduler behavior; included in the Windows slice."
+    },
+    {
+      "test": "Windows helpers rejects a reused PID or mismatched process creation time",
+      "file": "operations-owner.test.mjs",
+      "class": "A",
+      "skipReason": "Requires Windows-native process, PowerShell, ACL, or Task Scheduler behavior; included in the Windows slice."
+    },
+    {
+      "test": "Windows helpers records slow startup immediately, refuses competitors, recovers missing ownership, and stops starting children",
+      "file": "operations.test.mjs",
+      "class": "A",
+      "skipReason": "Requires Windows-native process, PowerShell, ACL, or Task Scheduler behavior; included in the Windows slice."
+    },
+    {
+      "test": "operator start/stop/rollback dry runs validate synthetic pins without writes or secret output",
+      "file": "operator-cutover.test.mjs",
+      "class": "A",
+      "skipReason": "Requires Windows-native process, PowerShell, ACL, or Task Scheduler behavior; included in the Windows slice."
+    },
+    {
+      "test": "initial handover Start dry run permits an absent binding while real Start still refuses before writes",
+      "file": "operator-cutover.test.mjs",
+      "class": "A",
+      "skipReason": "Requires Windows-native process, PowerShell, ACL, or Task Scheduler behavior; included in the Windows slice."
+    },
+    {
+      "test": "operator dry run refuses changed pack, unknown settings and unsafe rollback before process actions",
+      "file": "operator-cutover.test.mjs",
+      "class": "A",
+      "skipReason": "Requires Windows-native process, PowerShell, ACL, or Task Scheduler behavior; included in the Windows slice."
+    },
+    {
+      "test": "operator sources parse without loading application modules",
+      "file": "operator-cutover.test.mjs",
+      "class": "A",
+      "skipReason": "Requires Windows-native process, PowerShell, ACL, or Task Scheduler behavior; included in the Windows slice."
+    },
+    {
+      "test": "pure ownership and listener validators reject reused PID, executable and unrelated socket owner",
+      "file": "operator-cutover.test.mjs",
+      "class": "A",
+      "skipReason": "Requires Windows-native process, PowerShell, ACL, or Task Scheduler behavior; included in the Windows slice."
+    },
+    {
+      "test": "stop dry run tolerates damaged addon while start refuses it and fully qualified positive settings are required",
+      "file": "operator-cutover.test.mjs",
+      "class": "A",
+      "skipReason": "Requires Windows-native process, PowerShell, ACL, or Task Scheduler behavior; included in the Windows slice."
+    },
+    {
+      "test": "ship dry run pins a clean synthetic revision and stages without executing tests or creating logs",
+      "file": "operator-cutover.test.mjs",
+      "class": "A",
+      "skipReason": "Requires Windows-native process, PowerShell, ACL, or Task Scheduler behavior; included in the Windows slice."
+    },
+    {
+      "test": "ship separates new private pins from immutable previous ownership and rechecks both contexts",
+      "file": "operator-cutover.test.mjs",
+      "class": "A",
+      "skipReason": "Requires Windows-native process, PowerShell, ACL, or Task Scheduler behavior; included in the Windows slice."
+    },
+    {
+      "test": "frozen inventory holds write/delete denial, catches additions, expires and releases every handle on refusal",
+      "file": "operator-frozen-bundle.test.mjs",
+      "class": "A",
+      "skipReason": "Requires Windows-native process, PowerShell, ACL, or Task Scheduler behavior; included in the Windows slice."
+    },
+    {
+      "test": "available real pinned cache rebuilds committed facts byte-for-byte with audited input reads",
+      "file": "open-f2p.test.mjs",
+      "class": "B",
+      "skipReason": "Optional pinned public Wiki cache is absent."
+    },
+    {
+      "test": "native owned command preserves arguments/output and observes empty job",
+      "file": "owned-child-processes.test.mjs",
+      "class": "A",
+      "skipReason": "Requires Windows-native process, PowerShell, ACL, or Task Scheduler behavior; included in the Windows slice."
+    },
+    {
+      "test": "native failure retains output and proves cleanup",
+      "file": "owned-child-processes.test.mjs",
+      "class": "A",
+      "skipReason": "Requires Windows-native process, PowerShell, ACL, or Task Scheduler behavior; included in the Windows slice."
+    },
+    {
+      "test": "compiler scratch is isolated and child TEMP/TMP retain their original values",
+      "file": "owned-child-processes.test.mjs",
+      "class": "A",
+      "skipReason": "Requires Windows-native process, PowerShell, ACL, or Task Scheduler behavior; included in the Windows slice."
+    },
+    {
+      "test": "detached descendants are contained on normal exit and timeout; unrelated process survives",
+      "file": "owned-child-processes.test.mjs",
+      "class": "A",
+      "skipReason": "Requires Windows-native process, PowerShell, ACL, or Task Scheduler behavior; included in the Windows slice."
+    },
+    {
+      "test": "actual scrubbed packs resolve with the current runtime",
+      "file": "pack-public-scrub.test.mjs",
+      "class": "B",
+      "skipReason": "Scrubbed public pack or artwork input is absent."
+    },
+    {
+      "test": "actual scrubbed art resolves all metadata and image samples from every component without fallback",
+      "file": "pack-public-scrub.test.mjs",
+      "class": "B",
+      "skipReason": "Scrubbed public pack or artwork input is absent."
+    },
+    {
+      "test": "real first-kit history catches the original-sync stub omission and accepts its committed repair",
+      "file": "private-drift.test.mjs",
+      "class": "C",
+      "skipReason": "Historical private/core Git mirrors are unavailable in hosted CI."
+    },
+    {
+      "test": "real accepted rel7 private fcbe7ff and core 6a1ae1e pair passes the source-only drift check",
+      "file": "private-drift.test.mjs",
+      "class": "C",
+      "skipReason": "Historical private/core Git mirrors are unavailable in hosted CI."
+    },
+    {
+      "test": "real child pipe supports repeated lifecycle requests and exact status PID",
+      "file": "private-live-swap.test.mjs",
+      "class": "A",
+      "skipReason": "Requires Windows-native process, PowerShell, ACL, or Task Scheduler behavior; included in the Windows slice."
+    },
+    {
+      "test": "real child rejects replay and wrong MAC without executing commands",
+      "file": "private-live-swap.test.mjs",
+      "class": "A",
+      "skipReason": "Requires Windows-native process, PowerShell, ACL, or Task Scheduler behavior; included in the Windows slice."
+    },
+    {
+      "test": "real child shutdown queued behind start never opens an orphan application",
+      "file": "private-live-swap.test.mjs",
+      "class": "A",
+      "skipReason": "Requires Windows-native process, PowerShell, ACL, or Task Scheduler behavior; included in the Windows slice."
+    },
+    {
+      "test": "foreign pipe squatter cannot forge a mutually authenticated runtime reply",
+      "file": "private-live-swap.test.mjs",
+      "class": "A",
+      "skipReason": "Requires Windows-native process, PowerShell, ACL, or Task Scheduler behavior; included in the Windows slice."
+    },
+    {
+      "test": "runtime, credential, current pointer and retained immutable paths cannot alias",
+      "file": "private-live-swap.test.mjs",
+      "class": "A",
+      "skipReason": "Requires Windows-native process, PowerShell, ACL, or Task Scheduler behavior; included in the Windows slice."
+    },
+    {
+      "test": "bridge ownership checks exact process identity",
+      "file": "private-live-swap.test.mjs",
+      "class": "A",
+      "skipReason": "Requires Windows-native process, PowerShell, ACL, or Task Scheduler behavior; included in the Windows slice."
+    },
+    {
+      "test": "admission budgets leave 3 GiB after every outstanding reservation",
+      "file": "release-admission-v2.test.mjs",
+      "class": "A",
+      "skipReason": "Requires Windows-native process, PowerShell, ACL, or Task Scheduler behavior; included in the Windows slice."
+    },
+    {
+      "test": "legacy lane ownership waits, stale ownership fails closed without removal",
+      "file": "release-admission-v2.test.mjs",
+      "class": "A",
+      "skipReason": "Requires Windows-native process, PowerShell, ACL, or Task Scheduler behavior; included in the Windows slice."
+    },
+    {
+      "test": "changed lane owner or process identity prevents cleanup and future admission",
+      "file": "release-admission-v2.test.mjs",
+      "class": "A",
+      "skipReason": "Requires Windows-native process, PowerShell, ACL, or Task Scheduler behavior; included in the Windows slice."
+    },
+    {
+      "test": "command failure releases its verified reservation and restores environment",
+      "file": "release-admission-v2.test.mjs",
+      "class": "A",
+      "skipReason": "Requires Windows-native process, PowerShell, ACL, or Task Scheduler behavior; included in the Windows slice."
+    },
+    {
+      "test": "exclusive gate and atomic reservation state prevent parallel oversubscription",
+      "file": "release-admission-v2.test.mjs",
+      "class": "A",
+      "skipReason": "Requires Windows-native process, PowerShell, ACL, or Task Scheduler behavior; included in the Windows slice."
+    },
+    {
+      "test": "Windows owner adapter parses without executing native changes",
+      "file": "release-ci-evidence-workflow-harness.test.mjs",
+      "class": "A",
+      "skipReason": "Requires Windows-native process, PowerShell, ACL, or Task Scheduler behavior; included in the Windows slice."
+    },
+    {
+      "test": "PowerShell PreflightOnly reads stdin through the shim and creates no files",
+      "file": "release-run-ci-powershell.test.mjs",
+      "class": "A",
+      "skipReason": "Requires Windows-native process, PowerShell, ACL, or Task Scheduler behavior; included in the Windows slice."
+    },
+    {
+      "test": "PowerShell failed PreflightOnly refuses without calling clock or writing",
+      "file": "release-run-ci-powershell.test.mjs",
+      "class": "A",
+      "skipReason": "Requires Windows-native process, PowerShell, ACL, or Task Scheduler behavior; included in the Windows slice."
+    },
+    {
+      "test": "PowerShell malformed config refuses before the shim and makes no writes",
+      "file": "release-run-ci-powershell.test.mjs",
+      "class": "A",
+      "skipReason": "Requires Windows-native process, PowerShell, ACL, or Task Scheduler behavior; included in the Windows slice."
+    },
+    {
+      "test": "PowerShell rejects unknown machine config keys without writing",
+      "file": "release-run-ci-powershell.test.mjs",
+      "class": "A",
+      "skipReason": "Requires Windows-native process, PowerShell, ACL, or Task Scheduler behavior; included in the Windows slice."
+    },
+    {
+      "test": "PowerShell explicit path parameters override config before read-only preflight",
+      "file": "release-run-ci-powershell.test.mjs",
+      "class": "A",
+      "skipReason": "Requires Windows-native process, PowerShell, ACL, or Task Scheduler behavior; included in the Windows slice."
+    },
+    {
+      "test": "normal refusal records exactly one legacy-shaped failure clock call and stops",
+      "file": "release-run-ci-powershell.test.mjs",
+      "class": "A",
+      "skipReason": "Requires Windows-native process, PowerShell, ACL, or Task Scheduler behavior; included in the Windows slice."
+    },
+    {
+      "test": "upgrade interruption before-journal: reconcile under ownership, preserve current save",
+      "file": "release-pack-upgrade-v2.test.mjs",
+      "class": "A",
+      "skipReason": "Requires Windows-native process, PowerShell, ACL, or Task Scheduler behavior; included in the Windows slice."
+    },
+    {
+      "test": "upgrade interruption after-journal: reconcile under ownership, preserve current save",
+      "file": "release-pack-upgrade-v2.test.mjs",
+      "class": "A",
+      "skipReason": "Requires Windows-native process, PowerShell, ACL, or Task Scheduler behavior; included in the Windows slice."
+    },
+    {
+      "test": "upgrade interruption after-binding: reconcile under ownership, preserve current save",
+      "file": "release-pack-upgrade-v2.test.mjs",
+      "class": "A",
+      "skipReason": "Requires Windows-native process, PowerShell, ACL, or Task Scheduler behavior; included in the Windows slice."
+    },
+    {
+      "test": "upgrade interruption after-pointer: reconcile under ownership, preserve current save",
+      "file": "release-pack-upgrade-v2.test.mjs",
+      "class": "A",
+      "skipReason": "Requires Windows-native process, PowerShell, ACL, or Task Scheduler behavior; included in the Windows slice."
+    },
+    {
+      "test": "upgrade interruption during-start: reconcile under ownership, preserve current save",
+      "file": "release-pack-upgrade-v2.test.mjs",
+      "class": "A",
+      "skipReason": "Requires Windows-native process, PowerShell, ACL, or Task Scheduler behavior; included in the Windows slice."
+    },
+    {
+      "test": "upgrade interruption unknown-binding: reconcile under ownership, preserve current save",
+      "file": "release-pack-upgrade-v2.test.mjs",
+      "class": "A",
+      "skipReason": "Requires Windows-native process, PowerShell, ACL, or Task Scheduler behavior; included in the Windows slice."
+    },
+    {
+      "test": "upgrade interruption uncertain-owner: reconcile under ownership, preserve current save",
+      "file": "release-pack-upgrade-v2.test.mjs",
+      "class": "A",
+      "skipReason": "Requires Windows-native process, PowerShell, ACL, or Task Scheduler behavior; included in the Windows slice."
+    },
+    {
+      "test": "upgrade interruption failed-verification: reconcile under ownership, preserve current save",
+      "file": "release-pack-upgrade-v2.test.mjs",
+      "class": "A",
+      "skipReason": "Requires Windows-native process, PowerShell, ACL, or Task Scheduler behavior; included in the Windows slice."
+    },
+    {
+      "test": "upgrade process-exit before-journal: reconcile under ownership, preserve current save",
+      "file": "release-pack-upgrade-v2.test.mjs",
+      "class": "A",
+      "skipReason": "Requires Windows-native process, PowerShell, ACL, or Task Scheduler behavior; included in the Windows slice."
+    },
+    {
+      "test": "upgrade process-exit after-journal: reconcile under ownership, preserve current save",
+      "file": "release-pack-upgrade-v2.test.mjs",
+      "class": "A",
+      "skipReason": "Requires Windows-native process, PowerShell, ACL, or Task Scheduler behavior; included in the Windows slice."
+    },
+    {
+      "test": "upgrade process-exit after-binding: reconcile under ownership, preserve current save",
+      "file": "release-pack-upgrade-v2.test.mjs",
+      "class": "A",
+      "skipReason": "Requires Windows-native process, PowerShell, ACL, or Task Scheduler behavior; included in the Windows slice."
+    },
+    {
+      "test": "upgrade process-exit after-pointer: reconcile under ownership, preserve current save",
+      "file": "release-pack-upgrade-v2.test.mjs",
+      "class": "A",
+      "skipReason": "Requires Windows-native process, PowerShell, ACL, or Task Scheduler behavior; included in the Windows slice."
+    },
+    {
+      "test": "upgrade process-exit during-start: reconcile under ownership, preserve current save",
+      "file": "release-pack-upgrade-v2.test.mjs",
+      "class": "A",
+      "skipReason": "Requires Windows-native process, PowerShell, ACL, or Task Scheduler behavior; included in the Windows slice."
+    },
+    {
+      "test": "rollback interruption before-journal: reconcile under ownership, preserve current save",
+      "file": "release-pack-upgrade-v2.test.mjs",
+      "class": "A",
+      "skipReason": "Requires Windows-native process, PowerShell, ACL, or Task Scheduler behavior; included in the Windows slice."
+    },
+    {
+      "test": "rollback interruption after-journal: reconcile under ownership, preserve current save",
+      "file": "release-pack-upgrade-v2.test.mjs",
+      "class": "A",
+      "skipReason": "Requires Windows-native process, PowerShell, ACL, or Task Scheduler behavior; included in the Windows slice."
+    },
+    {
+      "test": "rollback interruption after-binding: reconcile under ownership, preserve current save",
+      "file": "release-pack-upgrade-v2.test.mjs",
+      "class": "A",
+      "skipReason": "Requires Windows-native process, PowerShell, ACL, or Task Scheduler behavior; included in the Windows slice."
+    },
+    {
+      "test": "rollback interruption after-pointer: reconcile under ownership, preserve current save",
+      "file": "release-pack-upgrade-v2.test.mjs",
+      "class": "A",
+      "skipReason": "Requires Windows-native process, PowerShell, ACL, or Task Scheduler behavior; included in the Windows slice."
+    },
+    {
+      "test": "rollback interruption during-start: reconcile under ownership, preserve current save",
+      "file": "release-pack-upgrade-v2.test.mjs",
+      "class": "A",
+      "skipReason": "Requires Windows-native process, PowerShell, ACL, or Task Scheduler behavior; included in the Windows slice."
+    },
+    {
+      "test": "rollback interruption unknown-binding: reconcile under ownership, preserve current save",
+      "file": "release-pack-upgrade-v2.test.mjs",
+      "class": "A",
+      "skipReason": "Requires Windows-native process, PowerShell, ACL, or Task Scheduler behavior; included in the Windows slice."
+    },
+    {
+      "test": "rollback interruption uncertain-owner: reconcile under ownership, preserve current save",
+      "file": "release-pack-upgrade-v2.test.mjs",
+      "class": "A",
+      "skipReason": "Requires Windows-native process, PowerShell, ACL, or Task Scheduler behavior; included in the Windows slice."
+    },
+    {
+      "test": "rollback interruption failed-verification: reconcile under ownership, preserve current save",
+      "file": "release-pack-upgrade-v2.test.mjs",
+      "class": "A",
+      "skipReason": "Requires Windows-native process, PowerShell, ACL, or Task Scheduler behavior; included in the Windows slice."
+    },
+    {
+      "test": "rollback process-exit before-journal: reconcile under ownership, preserve current save",
+      "file": "release-pack-upgrade-v2.test.mjs",
+      "class": "A",
+      "skipReason": "Requires Windows-native process, PowerShell, ACL, or Task Scheduler behavior; included in the Windows slice."
+    },
+    {
+      "test": "rollback process-exit after-journal: reconcile under ownership, preserve current save",
+      "file": "release-pack-upgrade-v2.test.mjs",
+      "class": "A",
+      "skipReason": "Requires Windows-native process, PowerShell, ACL, or Task Scheduler behavior; included in the Windows slice."
+    },
+    {
+      "test": "rollback process-exit after-binding: reconcile under ownership, preserve current save",
+      "file": "release-pack-upgrade-v2.test.mjs",
+      "class": "A",
+      "skipReason": "Requires Windows-native process, PowerShell, ACL, or Task Scheduler behavior; included in the Windows slice."
+    },
+    {
+      "test": "rollback process-exit after-pointer: reconcile under ownership, preserve current save",
+      "file": "release-pack-upgrade-v2.test.mjs",
+      "class": "A",
+      "skipReason": "Requires Windows-native process, PowerShell, ACL, or Task Scheduler behavior; included in the Windows slice."
+    },
+    {
+      "test": "rollback process-exit during-start: reconcile under ownership, preserve current save",
+      "file": "release-pack-upgrade-v2.test.mjs",
+      "class": "A",
+      "skipReason": "Requires Windows-native process, PowerShell, ACL, or Task Scheduler behavior; included in the Windows slice."
+    },
+    {
+      "test": "rollback interruption pending-after-binding: reconcile under ownership, preserve current save",
+      "file": "release-pack-upgrade-v2.test.mjs",
+      "class": "A",
+      "skipReason": "Requires Windows-native process, PowerShell, ACL, or Task Scheduler behavior; included in the Windows slice."
+    },
+    {
+      "test": "rollback interruption pending-after-pointer: reconcile under ownership, preserve current save",
+      "file": "release-pack-upgrade-v2.test.mjs",
+      "class": "A",
+      "skipReason": "Requires Windows-native process, PowerShell, ACL, or Task Scheduler behavior; included in the Windows slice."
+    },
+    {
+      "test": "rollback interruption pending-during-start: reconcile under ownership, preserve current save",
+      "file": "release-pack-upgrade-v2.test.mjs",
+      "class": "A",
+      "skipReason": "Requires Windows-native process, PowerShell, ACL, or Task Scheduler behavior; included in the Windows slice."
+    },
+    {
+      "test": "prepare exports exact commit; one inherited owner gates both fixture runners; exact reuse and mutation refusal",
+      "file": "release-pipeline-v2.test.mjs",
+      "class": "A",
+      "skipReason": "Requires Windows-native process, PowerShell, ACL, or Task Scheduler behavior; included in the Windows slice."
+    },
+    {
+      "test": "checked freeze binds retained rollback and runs dry runs once before sealed admission",
+      "file": "release-pipeline-v2.test.mjs",
+      "class": "A",
+      "skipReason": "Requires Windows-native process, PowerShell, ACL, or Task Scheduler behavior; included in the Windows slice."
+    },
+    {
+      "test": "a new kit prepares a changed-pack release with its own packs, bidirectional evidence and fresh full/gallery keys",
+      "file": "release-pipeline-v2.test.mjs",
+      "class": "A",
+      "skipReason": "Requires Windows-native process, PowerShell, ACL, or Task Scheduler behavior; included in the Windows slice."
+    },
+    {
+      "test": "release runtime PowerShell sources parse without invoking entrypoints",
+      "file": "release-runtime-v2.test.mjs",
+      "class": "A",
+      "skipReason": "Requires Windows-native process, PowerShell, ACL, or Task Scheduler behavior; included in the Windows slice."
+    },
+    {
+      "test": "native detached launch releases redirected foreground pipes while synthetic child stays alive",
+      "file": "release-runtime-v2.test.mjs",
+      "class": "A",
+      "skipReason": "Requires Windows-native process, PowerShell, ACL, or Task Scheduler behavior; included in the Windows slice."
+    },
+    {
+      "test": "pointer resolution binds exact config bytes and origin hash; transition permits distinct roots only with stable pins",
+      "file": "release-runtime-v2.test.mjs",
+      "class": "A",
+      "skipReason": "Requires Windows-native process, PowerShell, ACL, or Task Scheduler behavior; included in the Windows slice."
+    },
+    {
+      "test": "atomic pointer update retains byte-exact history and accepts explicit reverse transition",
+      "file": "release-runtime-v2.test.mjs",
+      "class": "A",
+      "skipReason": "Requires Windows-native process, PowerShell, ACL, or Task Scheduler behavior; included in the Windows slice."
+    },
+    {
+      "test": "managed transition keeps one helper owner through verification and readiness, failure leaves pause",
+      "file": "release-runtime-v2.test.mjs",
+      "class": "A",
+      "skipReason": "Requires Windows-native process, PowerShell, ACL, or Task Scheduler behavior; included in the Windows slice."
+    },
+    {
+      "test": "watchdog follows current pointer after promotion and keeps mismatched runtime ownership fail closed",
+      "file": "release-runtime-v2.test.mjs",
+      "class": "A",
+      "skipReason": "Requires Windows-native process, PowerShell, ACL, or Task Scheduler behavior; included in the Windows slice."
+    },
+    {
+      "test": "one-time installer synthetic task backend preserves triggers/backups, snapshots exact originals, and restores reversibly",
+      "file": "release-runtime-v2.test.mjs",
+      "class": "A",
+      "skipReason": "Requires Windows-native process, PowerShell, ACL, or Task Scheduler behavior; included in the Windows slice."
+    },
+    {
+      "test": "PowerShell runner parses without executing any statement",
+      "file": "release-run-ci.test.mjs",
+      "class": "A",
+      "skipReason": "Requires Windows-native process, PowerShell, ACL, or Task Scheduler behavior; included in the Windows slice."
+    },
+    {
+      "test": "PowerShell restores the exact daily ZIP pair and leaves source archive immutable",
+      "file": "restore-picker.private.test.mjs",
+      "class": "A",
+      "skipReason": "Requires Windows-native process, PowerShell, ACL, or Task Scheduler behavior; included in the Windows slice."
+    },
+    {
+      "test": "PowerShell rejects traversal, duplicates, credentials, extra files and oversized ZIP entries",
+      "file": "restore-picker.private.test.mjs",
+      "class": "A",
+      "skipReason": "Requires Windows-native process, PowerShell, ACL, or Task Scheduler behavior; included in the Windows slice."
+    },
+    {
+      "test": "PowerShell omitted target creates distinct scratch stores directly under this worktree local folder",
+      "file": "restore-picker.private.test.mjs",
+      "class": "A",
+      "skipReason": "Requires Windows-native process, PowerShell, ACL, or Task Scheduler behavior; included in the Windows slice."
+    },
+    {
+      "test": "copied-cache guide artifact has every real skill, resolved fallbacks, typed references and archive hashes",
+      "file": "skill-guides-extraction.test.mjs",
+      "class": "B",
+      "skipReason": "Copied game-cache guide artifact is absent."
+    },
+    {
+      "test": "generated PNGs match manifest bytes, hashes, dimensions and native alpha",
+      "file": "skill-icons.test.mjs",
+      "class": "B",
+      "skipReason": "Generated icon PNG artifact is absent."
+    },
+    {
+      "test": "core watchdog healthy and sleeping checks never wake task workers",
+      "file": "watchdog-core.test.mjs",
+      "class": "A",
+      "skipReason": "Requires Windows-native process, PowerShell, ACL, or Task Scheduler behavior; included in the Windows slice."
+    },
+    {
+      "test": "core watchdog pause and absent runtime preserve intended actions",
+      "file": "watchdog-core.test.mjs",
+      "class": "A",
+      "skipReason": "Requires Windows-native process, PowerShell, ACL, or Task Scheduler behavior; included in the Windows slice."
+    },
+    {
+      "test": "core watchdog recovers worker first and safely restarts failed health or worker",
+      "file": "watchdog-core.test.mjs",
+      "class": "A",
+      "skipReason": "Requires Windows-native process, PowerShell, ACL, or Task Scheduler behavior; included in the Windows slice."
+    },
+    {
+      "test": "core watchdog refuses foreign processes/listeners and stopping or unknown records before credentials",
+      "file": "watchdog-core.test.mjs",
+      "class": "A",
+      "skipReason": "Requires Windows-native process, PowerShell, ACL, or Task Scheduler behavior; included in the Windows slice."
+    },
+    {
+      "test": "core watchdog retains initial startup grace and waits for pinned Tailscale address",
+      "file": "watchdog-core.test.mjs",
+      "class": "A",
+      "skipReason": "Requires Windows-native process, PowerShell, ACL, or Task Scheduler behavior; included in the Windows slice."
+    },
+    {
+      "test": "managed Stop PreservePause retains marker presence and absence",
+      "file": "watchdog-core.test.mjs",
+      "class": "A",
+      "skipReason": "Requires Windows-native process, PowerShell, ACL, or Task Scheduler behavior; included in the Windows slice."
+    },
+    {
+      "test": "task dry run reports exact current/desired actions and triggers without mutation",
+      "file": "watchdog-core.test.mjs",
+      "class": "A",
+      "skipReason": "Requires Windows-native process, PowerShell, ACL, or Task Scheduler behavior; included in the Windows slice."
+    },
+    {
+      "test": "mock task registration and restoration preserve non-action subtrees and exact originals",
+      "file": "watchdog-core.test.mjs",
+      "class": "A",
+      "skipReason": "Requires Windows-native process, PowerShell, ACL, or Task Scheduler behavior; included in the Windows slice."
+    },
+    {
+      "test": "task drift refuses every write and partial registration restores both originals",
+      "file": "watchdog-core.test.mjs",
+      "class": "A",
+      "skipReason": "Requires Windows-native process, PowerShell, ACL, or Task Scheduler behavior; included in the Windows slice."
+    },
+    {
+      "test": "task wrappers reject credential or URL action text without echoing it",
+      "file": "watchdog-core.test.mjs",
+      "class": "A",
+      "skipReason": "Requires Windows-native process, PowerShell, ACL, or Task Scheduler behavior; included in the Windows slice."
+    },
+    {
+      "test": "task XML refuses a bare scratch credential in actions or triggers before summaries",
+      "file": "watchdog-core.test.mjs",
+      "class": "A",
+      "skipReason": "Requires Windows-native process, PowerShell, ACL, or Task Scheduler behavior; included in the Windows slice."
+    },
+    {
+      "test": "task restore uses retained originals when candidate config or watch script is missing",
+      "file": "watchdog-core.test.mjs",
+      "class": "A",
+      "skipReason": "Requires Windows-native process, PowerShell, ACL, or Task Scheduler behavior; included in the Windows slice."
+    },
+    {
+      "test": "watchdog helper returns on foreground exit while an inert redirected child is alive in PS5 and PS7",
+      "file": "watchdog-core.test.mjs",
+      "class": "A",
+      "skipReason": "Requires Windows-native process, PowerShell, ACL, or Task Scheduler behavior; included in the Windows slice."
+    },
+    {
+      "test": "watchdog helper deadline stops only its launched foreground helper",
+      "file": "watchdog-core.test.mjs",
+      "class": "A",
+      "skipReason": "Requires Windows-native process, PowerShell, ACL, or Task Scheduler behavior; included in the Windows slice."
+    }
+  ]
+}

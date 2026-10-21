@@ -19,10 +19,11 @@ export const textPaths = Object.freeze(['app/data/changelog.json', 'app/data/roa
 export const allowlistPath = 'scripts/private-companion/neutral-allowlist.json';
 // Phase A's Windows slice (.github/windows-slice/run.mjs); a test keeps both equal.
 export const windowsBoundTests = Object.freeze([
-  'backup-status.private.test.mjs', 'cutover-live.test.mjs', 'operations-degraded.test.mjs', 'operations-forced.test.mjs',
+  'backup-status.private.test.mjs', 'cutover-live.test.mjs', 'live-base-compatibility.test.mjs', 'operations-degraded.test.mjs', 'operations-forced.test.mjs',
   'operations-graceful.test.mjs', 'operations-owner.test.mjs', 'operations.test.mjs', 'operator-cutover.test.mjs',
-  'private-live-swap.test.mjs', 'release-admission-v2.test.mjs', 'release-pack-upgrade-v2.test.mjs', 'release-pipeline-v2.test.mjs',
-  'release-run-ci-powershell.test.mjs', 'release-runtime-v2.test.mjs', 'restore-picker.private.test.mjs', 'watchdog-core.test.mjs', 'watchdog-script.test.mjs',
+  'operator-frozen-bundle.test.mjs', 'owned-child-processes.test.mjs',
+  'private-live-swap.test.mjs', 'release-admission-v2.test.mjs', 'release-ci-evidence-workflow-harness.test.mjs', 'release-pack-upgrade-v2.test.mjs', 'release-pipeline-v2.test.mjs',
+  'release-run-ci-powershell.test.mjs', 'release-run-ci.test.mjs', 'release-runtime-v2.test.mjs', 'restore-picker.private.test.mjs', 'watchdog-core.test.mjs', 'watchdog-script.test.mjs',
 ]);
 // The private overlay may replace only these core paths (companion-check.mjs).
 const replaceable = name => name.startsWith('tests/') || ['scripts/test-selection.mjs', 'scripts/test.mjs', 'scripts/adaptive-test-runner.mjs'].includes(name);

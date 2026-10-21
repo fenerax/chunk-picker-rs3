@@ -81,7 +81,7 @@ test('exporter refuses existing output before accessing a cache', async () => {
 });
 
 const assetRoot = process.env.SKILL_ICON_ASSET_ROOT;
-test('generated PNGs match manifest bytes, hashes, dimensions and native alpha', { skip: !assetRoot }, () => {
+test('generated PNGs match manifest bytes, hashes, dimensions and native alpha', { skip: !assetRoot && 'public skill icon asset root is absent' }, () => {
   const dir = resolve(assetRoot);
   assert.ok(existsSync(dir));
   assert.deepEqual(JSON.parse(readFileSync(join(dir, 'manifest.json'))), manifest);
