@@ -605,9 +605,15 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     }
     const events = new Map(archived);
     for (const event of state.history) events.set(event.revision, event);
-    const complete = structuredClone(state);
-    complete.history = [...events.values()].sort((a, b) => a.revision - b.revision);
-    if (complete.provenance?.historyArchive !== undefined) delete complete.provenance.historyArchive;
+    // Only the history array and archive references change before validation.
+    // Undo cancellation replaces event nodes; the public JSON boundary below
+    // still owns and normalizes every returned field without an earlier clone.
+    const complete = { ...state,
+      history: [...events.values()].sort((a, b) => a.revision - b.revision) };
+    if (complete.provenance?.historyArchive !== undefined) {
+      complete.provenance = { ...complete.provenance };
+      delete complete.provenance.historyArchive;
+    }
     for (const [id, through] of Object.entries(coordinationOf(state).invalidatedUndo)) cancelTaskClaimUndo(complete, [id], through);
     const validated = validateState(complete, registry);
     coordination.set(validated, coordinationOf(state));
