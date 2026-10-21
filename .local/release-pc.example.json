@@ -1,0 +1,14 @@
+{
+  "Checkout": "C:/placeholder/approved-candidate-checkout",
+  "Current": "C:/placeholder/installation/current.json",
+  "KitsRoot": "C:/placeholder/staged-kits",
+  "WorkRoot": "C:/placeholder/release-work",
+  "EvidenceDir": "C:/placeholder/private-gate-evidence",
+  "ExpectedEvidence": "C:/placeholder/approved-ci-expectations.json",
+  "Request": "C:/placeholder/approved-release-request.json",
+  "Clock": "C:/placeholder/local-tools/clock.mjs",
+  "WatchdogLog": "C:/placeholder/local-tools/watchdog.log",
+  "Node": "C:/placeholder/node/node.exe",
+  "Ps": "C:/placeholder/powershell/powershell.exe",
+  "Gh": "gh"
+}

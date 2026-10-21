@@ -13,7 +13,7 @@ passes through environment variables and Actions checkout, not shell commands.
 No workflow publishes a release or uploads release assets.
 
 The gate-by-gate source audit and migration plan are in the local consolidation
-handoff `RELEASE-CI-PLAN.md`. This change does not modify the PC release runner.
+handoff `RELEASE-CI-PLAN.md`. The legacy PC release runner remains unchanged.
 
 ## Assets
 
@@ -169,8 +169,8 @@ current pointer, live identity defaults or real release config.
 On the PC, verify evidence and payload bytes, rebind local paths and live member
 identities, perform final current-pointer/ACL/owner/save admission, reseal, and
 retain the existing per-release go-live approval. Only then swap and check both
-listeners and the watchdog. Nothing in this change wires or bypasses those
-checks. Do not treat `portable-checks` as READY FOR GO-LIVE.
+listeners and the watchdog. The new PC runner refuses until this consumer
+integration exists. Do not treat `portable-checks` as READY FOR GO-LIVE.
 
 After consumer/envelope integration, budget 2-5 minutes of PC work plus network
 transfer and save-size-dependent checks. This estimate needs measurement. The
@@ -178,12 +178,66 @@ current unmodified release runner still performs its roughly 64-minute private
 lane. Publishing the workflow/assets and launching the first hosted release run
 remain separate approved actions.
 
+## Running a release from GitHub evidence
+
+Copy `.local/release-pc.example.json` to `.local/release-pc.json` and replace
+its placeholder paths. The real config is ignored by Git and must stay local.
+Every config path also has a matching PowerShell parameter. `ExpectedEvidence`
+points to the independently approved expectation JSON described above;
+`Request` points to the approved release request. Use a clean checkout at the
+exact candidate. Each kit and its work directory must be new.
+
+```powershell
+Copy-Item .local/release-pc.example.json .local/release-pc.json
+$candidate = '<approved-40-character-commit>'
+$run = '<approved-run-id>'
+& scripts/release/pc/release-run-ci.ps1 -Release rel-example -Kit r-example -ExpectLive rel-example-old -CandidateCommit $candidate -RunId $run -PreflightOnly
+& scripts/release/pc/release-run-ci.ps1 -Release rel-example -Kit r-example -ExpectLive rel-example-old -CandidateCommit $candidate -RunId $run
+# After preparation and approval for this release:
+& scripts/release/pc/release-run-ci.ps1 -Release rel-example -Kit r-example -ExpectLive rel-example-old -CandidateCommit $candidate -RunId $run -GoLive
+```
+
+Omit `-RunId` (or use `-RunId latest`) to resolve the newest successful
+`release-check.yml` run with this commit as its GitHub head SHA. Its run ID and
+current attempt must still match the independent expectation record; a newer
+run requires fresh approval of that record. For manual dispatch from a different
+workflow-source SHA, supply the run ID explicitly. Missing/expired evidence,
+changed pins or bytes, a rerun, a dirty candidate or the wrong live ID refuses.
+There is no override or local-test fallback.
+
+Preflight uses only Git reads, `gh api --method GET` and the existing verifier.
+It authenticates the immutable ZIP in memory without downloading files, writing
+receipts, recording failures in the clock or importing candidate code. Success
+means portable checks passed; it also reports a missing consumer integration.
+Normal failures record the same failure clock command as the legacy runner and
+stop without retries. Refused kits remain evidence and cannot be reused.
+
+The PC keeps candidate staging/local path and identity binding, final live
+pointer/ACL/owner/save admission, forward and rollback dry runs, the freeze seal,
+and the existing go-live/listener/watchdog checks. Tests, pack verification and
+portable kit gates belong on GitHub. The orchestrator never calls legacy
+practice, prepare, gates-only or a heavy-lock wrapper.
+
+**Current integration limit:** this branch's artifact approves portable checks
+only, its pack pin is empty and it has no save pin. It cannot prepare or activate
+a release. The candidate must first provide the versioned
+`scripts/private-companion/release-ci-consumer.mjs` contract enforced by
+`scripts/release/pc/ci-consumer.mjs`. That consumer must authenticate separate
+hosted evidence for all six kit gates listed above, validate the private baseline
+bridge, stage the exact candidate and bind local inputs. Its admission must
+validate paths, ACLs, owners, the save and rollback; adapted kit tools must still
+validate those receipts during freeze/activation. A filename or portable pass
+alone grants no authority. Until that work lands, the runner refuses before
+staging and cannot print READY FOR GO-LIVE.
+
 ## Validation
 
 Run only the focused verifier and workflow-driver harness tests locally:
 
 ```powershell
 node --test --test-timeout=120000 tests/release-ci-evidence-harness.test.mjs tests/release-ci-evidence-workflow-harness.test.mjs
+node --test --test-timeout=120000 tests/release-run-ci.test.mjs
+node --test --test-timeout=120000 tests/release-run-ci-powershell.test.mjs
 ```
 
 The workflow harness uses synthetic modules and a disposable fixture Git repository;
