@@ -102,7 +102,7 @@ try {
   send({ type: 'imports', elapsedMs: performance.now() - started, main: mainMemory(), workers: [], activeWorkerCount: 0 });
   const options = { dataDir: process.env.RS3_IDLEMEM_SCRATCH, host: '127.0.0.1',
     port: Number(process.env.RS3_IDLEMEM_PORT), loopbackPort: undefined, publicOrigin: undefined,
-    taskWorkerOptions: { idleMs: 60000, startupDeadlineMs: 300000 } };
+    taskWorkerOptions: { idleMs: Number(process.env.RS3_IDLEMEM_IDLE_MS ?? 60000), startupDeadlineMs: 300000 } };
   if (module.startServer) application = await module.startServer(options);
   else { application = await module.createServer(options); await application.listen(); }
   if (application.address()?.port !== options.port) throw new Error('Unexpected listener.');

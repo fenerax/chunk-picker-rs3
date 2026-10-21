@@ -3,6 +3,14 @@
   "entries": [
     {
       "date": "2026-10-21",
+      "title": "Faster backups",
+      "items": [
+        "Making a backup takes about half the work it used to on a large save",
+        "Opening the save at startup uses a little less time and memory"
+      ]
+    },
+    {
+      "date": "2026-10-21",
       "title": "Achievements tick themselves",
       "items": [
         "The game plugin now sends your completed achievements, Achievement Diaries included, and the picker ticks the matching diary tasks for you",

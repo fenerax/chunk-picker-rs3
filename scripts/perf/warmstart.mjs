@@ -9,18 +9,20 @@ import { performance } from 'node:perf_hooks';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const OUTPUT = path.join(ROOT, '.local/warmstart');
-const TIMEOUT = 300000, IDLE_MS = 60000;
+const TIMEOUT = 300000;
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 const sha256 = bytes => createHash('sha256').update(bytes).digest('hex');
-const options = { port: 9121, source: path.join(ROOT, '.local/warmstart-save'), condition: 'both', 'defer-ms': 0 };
+const options = { port: 9121, source: path.join(ROOT, '.local/warmstart-save'), condition: 'both', 'defer-ms': 0, 'idle-ms': 60000 };
 for (let i = 2; i < process.argv.length; i += 2) {
   const key = process.argv[i], value = process.argv[i + 1];
-  if (!value || !['--label', '--entry', '--port', '--source', '--condition', '--defer-ms'].includes(key)) throw new Error('Use --label before|after [--entry PATH] [--port 9121] [--source PATH] [--condition idle|busy] [--defer-ms MS].');
-  options[key.slice(2)] = ['--port', '--defer-ms'].includes(key) ? Number(value) : value;
+  if (!value || !['--label', '--entry', '--port', '--source', '--condition', '--defer-ms', '--idle-ms'].includes(key)) throw new Error('Use --label before|after [--entry PATH] [--port 8900..8999|9121] [--source PATH] [--condition idle|busy] [--defer-ms MS] [--idle-ms 60000].');
+  options[key.slice(2)] = ['--port', '--defer-ms', '--idle-ms'].includes(key) ? Number(value) : value;
 }
-if (!/^[a-z][a-z0-9-]{0,40}$/.test(options.label ?? '') || options.port !== 9121) throw new Error('A plain report label and assigned port 9121 are required.');
+if (!/^[a-z][a-z0-9-]{0,40}$/.test(options.label ?? '') || !Number.isInteger(options.port)
+  || !(options.port === 9121 || options.port >= 8900 && options.port <= 8999)) throw new Error('Use a plain report label and port 8900–8999 (or legacy port 9121).');
 if (!['both', 'idle', 'busy'].includes(options.condition)) throw new Error('Condition must be idle or busy.');
 if (!Number.isSafeInteger(options['defer-ms']) || options['defer-ms'] < 0 || options['defer-ms'] > TIMEOUT) throw new Error('Defer must be an integer from 0 through 300000.');
+if (!Number.isSafeInteger(options['idle-ms']) || options['idle-ms'] < 1 || options['idle-ms'] > 2147483647) throw new Error('Worker idle must be a positive integer within the timer range.');
 options.source = path.resolve(options.source);
 if (options.entry) options.entry = path.resolve(options.entry);
 const within = (base, target) => { const relative = path.relative(base, target); return relative && relative !== '..' && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative); };
@@ -116,7 +118,8 @@ async function runCell(condition, sourceHash) {
       })();
     }
     const env = { ...process.env, RS3_WARMSTART_SCRATCH: dataDir, RS3_DATA_DIR: dataDir,
-      RS3_WARMSTART_PORT: String(options.port), RS3_WORKER_IDLE_MS: String(IDLE_MS) };
+      RS3_WARMSTART_PORT: String(options.port), RS3_WORKER_IDLE_MS: String(options['idle-ms']),
+      RS3_WARMSTART_IDLE_MS: String(options['idle-ms']) };
     if (options.entry) env.RS3_WARMSTART_ENTRY = options.entry;
     else delete env.RS3_WARMSTART_ENTRY;
     delete env.RS3_PUBLIC_ORIGIN; delete env.RS3_LOOPBACK_PORT;
@@ -183,14 +186,16 @@ async function runCell(condition, sourceHash) {
       if (busyChild) await stopChild(busyChild);
       await loadLoop;
     }
-    const sleepDeadline = performance.now() + 90000;
+    const retirementStartedAt = performance.now(), retirementDeadlineMs = options['idle-ms'] + 30000;
+    const sleepDeadline = retirementStartedAt + retirementDeadlineMs;
     let sleepingDiagnostic;
     do {
       sleepingDiagnostic = (await request('/api/diagnostics')).data;
       if (sleeping(sleepingDiagnostic)) break;
-      if (performance.now() > sleepDeadline) throw new Error('Workers did not retire within accelerated idle window.');
+      if (performance.now() > sleepDeadline) throw new Error('Workers did not retire within the configured idle window.');
       await sleep(1000);
     } while (true);
+    const retirementObservedWaitMs = performance.now() - retirementStartedAt;
     // Thread teardown and allocator RSS release can trail the sleeping notice.
     await sleep(3000);
     const sleepingMemory = await rss();
@@ -200,7 +205,9 @@ async function runCell(condition, sourceHash) {
     busy.runs = busy.runs.map(run => ({ startedFromSpawnMs: run.startedAt - spawnedAt, durationMs: run.finishedAt - run.startedAt,
       exitCode: run.exitCode, terminated: run.terminated ?? false, failedToSpawn: run.failedToSpawn ?? false }));
     busy.valid = busy.runs.every(run => run.exitCode === 0 && !run.failedToSpawn && !run.terminated);
-    return { condition, valid: busy.valid, listening, storeReadyMs, deferMs: options['defer-ms'], firstHealth200Ms, firstBothTaskListsMs, tasksBatchMs: tasksEndedAt - tasksStartedAt,
+    return { condition, valid: busy.valid, listening, storeReadyMs, deferMs: options['defer-ms'],
+      workerIdleMs: options['idle-ms'], retirementDeadlineMs, retirementObservedWaitMs, retirementSettleMs: 3000,
+      firstHealth200Ms, firstBothTaskListsMs, tasksBatchMs: tasksEndedAt - tasksStartedAt,
       tasks: taskResults.map(summary), firstPrediction: summary(prediction), warmCompletedMs,
       repeated: { tasks: cachedTaskResults.map(summary), tasksBatchMs: cachedTasksBatchMs, prediction: summary(cachedPrediction) },
       rss: { peakBytes: peakRssBytes, warmBytes: warmMemory.rssBytes, sleepingBytes: sleepingMemory.rssBytes },
@@ -227,15 +234,19 @@ if (!within(ROOT, await realpath(options.source))) throw new Error('Use a frozen
 if (options.entry && (!options.entry.endsWith('.mjs') || !within(ROOT, await realpath(options.entry)))) throw new Error('Use a local worktree server module.');
 await rejectLinks(options.source);
 const sourceHash = sha256(await readFile(path.join(options.source, 'state.json')));
+const selectedRoot = path.resolve(path.dirname(options.entry ?? path.join(ROOT, 'app/server.mjs')), '..');
 const sourceFiles = [...new Set([options.entry ?? path.join(ROOT, 'app/server.mjs'),
+  'app/storage/store.mjs', 'app/play-view.mjs', 'app/core/state.mjs',
   'app/startup.mjs', 'app/tasks/startup-warmup.mjs', 'app/tasks/scheduler.mjs', 'app/tasks/worker.mjs', 'app/tasks/engine.mjs',
-  'rs3-chunkpicker-chunkinfo-export.json', 'reference/original-picker/tasksMap.json', 'app/data/legacy-task-history.json'].map(filename => path.resolve(filename)))];
+  'rs3-chunkpicker-chunkinfo-export.json', 'reference/original-picker/tasksMap.json', 'app/data/legacy-task-history.json'].map(filename => path.resolve(selectedRoot, filename)))];
 const fingerprints = async () => Object.fromEntries(await Promise.all(sourceFiles.map(async filename =>
   [path.relative(ROOT, filename).split(path.sep).join('/'), sha256(await readFile(filename))])));
 const applicationSource = await fingerprints();
 const report = { schemaVersion: 2, label: options.label, port: options.port, sourceStateSha256: sourceHash, deferMs: options['defer-ms'],
   applicationSource,
-  workerIdleMs: IDLE_MS, productionWorkerIdleMs: 600000, idlePolicy: 'Accelerated retirement at 60 seconds; production default is 10 minutes.',
+  workerIdleMs: options['idle-ms'], productionWorkerIdleMs: 600000, acceleratedWorkerRetirement: options['idle-ms'] < 600000,
+  retirementDeadlineMs: options['idle-ms'] + 30000,
+  idlePolicy: `Configured worker retirement at ${options['idle-ms']}ms, then 3000ms allocator settling; production default is 600000ms. Explicit shorter settings are diagnostic runs.`,
   startupDeadlineMs: TIMEOUT, rssPolicy: 'Process RSS, sampled every 500ms; main-thread heap/external/arrayBuffers; no forced GC.',
   warmPolicy: 'After explicit full tasks and prediction, startupWarmup settled when present, then repeated full tasks and prediction. Candidate preparation need not settle.', cells: [] };
 try {
@@ -243,7 +254,7 @@ try {
     try {
       const previous = JSON.parse(await readFile(path.join(OUTPUT, `${options.label}.json`), 'utf8'));
       if (previous.schemaVersion === report.schemaVersion && previous.sourceStateSha256 === sourceHash
-        && previous.deferMs === report.deferMs) report.cells = previous.cells.filter(cell => cell.condition !== options.condition);
+        && previous.deferMs === report.deferMs && previous.workerIdleMs === report.workerIdleMs) report.cells = previous.cells.filter(cell => cell.condition !== options.condition);
     } catch {}
   }
   for (const condition of options.condition === 'both' ? ['idle', 'busy'] : [options.condition]) {

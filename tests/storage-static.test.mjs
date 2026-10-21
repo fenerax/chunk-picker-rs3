@@ -284,3 +284,84 @@ test('retention leaves old standalone snapshots intact when their static depende
   await writeFile(path.join(dataDir, 'static', reference.id), staticBytes);
   assert.deepEqual((await resumed.readBackup(old.id)).state.legacy, initialState().legacy);
 });
+
+test('hydrated archive exports and rejected Undo hooks cannot mutate current state or retained history', async t => {
+  const dataDir = await directory(t);
+  const world = buildWorld({ chunks: { '12341': {} }, walkableChunks: ['12341'], walkableChunksF2P: ['12341'] });
+  let hookInput, migrationInput, rejectUndo = false;
+  const migrateState = input => { migrationInput = input; return input; };
+  const prepareState = (input, { operation }) => {
+    hookInput = input;
+    if (rejectUndo && operation === 'command') {
+      input.legacy.evidence = 'Rejected hook mutation';
+      input.history[0].at = '2000-01-01T00:00:00.000Z';
+      throw new Error('Rejected hydrated Undo');
+    }
+    return input;
+  };
+  const options = { dataDir, world, retention: { historyEntries: 2 }, migrateState, prepareState };
+  const store = await openStore({ ...options, initialState: initialState(true) });
+  t.after(() => store.close());
+  const initial = store.getState();
+  for (let revision = 0; revision < 5; revision++) await store.command({ ...command, value: Boolean(revision % 2) }, revision);
+  assert.ok(store.getInfo().retention.historyArchives > 0);
+  const baseline = store.getState(), expectedPortable = await store.backup();
+  const retained = (await store.listBackups()).find(item => item.revision === 4);
+  assert.ok(retained);
+  const expectedRetained = await store.readBackup(retained.id);
+  const detached = await store.backup();
+  detached.state.legacy.evidence = 'Export mutation';
+  detached.state.members[0].name = 'Export name';
+  detached.state.history[0].at = '2000-01-01T00:00:00.000Z';
+  assert.deepEqual(store.getState(), baseline);
+  assert.deepEqual(await store.backup(), expectedPortable);
+  assert.deepEqual(await store.readBackup(retained.id), expectedRetained);
+  await store.close();
+  const reopened = await openStore(options);
+  t.after(() => reopened.close());
+  migrationInput.legacy.evidence = 'Retained migration input mutation';
+  hookInput.members[0].name = 'Retained hook name';
+  hookInput.history[0].at = '2000-01-01T00:00:00.000Z';
+  assert.deepEqual(reopened.getState(), baseline);
+  assert.deepEqual(await reopened.backup(), expectedPortable);
+  const diskBeforeRejectedUndo = await readFile(path.join(dataDir, 'state.json'));
+  rejectUndo = true;
+  await assert.rejects(() => reopened.command({ type: 'undo' }, baseline.revision), /Rejected hydrated Undo/);
+  rejectUndo = false;
+  assert.deepEqual(reopened.getState(), baseline);
+  assert.deepEqual(await readFile(path.join(dataDir, 'state.json')), diskBeforeRejectedUndo);
+  assert.deepEqual(await reopened.backup(), expectedPortable);
+  assert.deepEqual(await reopened.readBackup(retained.id), expectedRetained);
+  for (let count = 0; count < 5; count++) await reopened.command({ type: 'undo' }, reopened.getState().revision);
+  assert.deepEqual(reopened.getState().rules, initial.rules);
+  assert.deepEqual(reopened.getState().members, initial.members);
+  assert.deepEqual(reopened.getState().legacy, initial.legacy);
+  assert.deepEqual(importBackup(JSON.stringify(await reopened.backup())), (await reopened.backup()).state);
+  await assert.rejects(() => reopened.command({ type: 'undo' }, reopened.getState().revision), /No reversible command/);
+});
+
+test('history hydration retains JSON number normalization without mutating owned loaded evidence', async t => {
+  const dataDir = await directory(t), seed = initialState();
+  seed.legacy.negativeZero = 0;
+  const store = await openStore({ dataDir, initialState: seed, retention: { historyEntries: 2 } });
+  t.after(() => store.close());
+  for (let revision = 0; revision < 5; revision++) await store.command({ ...command, value: Boolean(revision % 2) }, revision);
+  assert.ok(store.getInfo().retention.historyArchives > 0);
+  await store.close();
+  const document = await diskDocument(dataDir), oldReference = document.storage.fields.legacy;
+  const text = gunzipSync(await readFile(path.join(dataDir, 'static', oldReference.id))).toString('utf8');
+  assert.ok(text.includes('"negativeZero":0'));
+  const bytes = Buffer.from(text.replace('"negativeZero":0', '"negativeZero":-0'));
+  const sha256 = createHash('sha256').update(bytes).digest('hex');
+  document.storage.fields.legacy = { id: `static-${sha256}.json.gz`, sha256 };
+  await writeFile(path.join(dataDir, 'static', document.storage.fields.legacy.id), gzipSync(bytes));
+  await writeFile(path.join(dataDir, 'state.json'), JSON.stringify(document));
+  const reopened = await openStore({ dataDir, retention: { historyEntries: 2 } });
+  t.after(() => reopened.close());
+  assert.ok(Object.is(reopened.getState().legacy.negativeZero, -0));
+  const portable = await reopened.backup();
+  assert.equal(portable.state.legacy.negativeZero, 0);
+  assert.equal(Object.is(portable.state.legacy.negativeZero, -0), false);
+  assert.ok(Object.is(reopened.getState().legacy.negativeZero, -0));
+  assert.deepEqual(importBackup(JSON.stringify(portable)), portable.state);
+});

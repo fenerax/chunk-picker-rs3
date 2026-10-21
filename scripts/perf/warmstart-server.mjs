@@ -32,7 +32,7 @@ try {
     ? pathToFileURL(process.env.RS3_WARMSTART_ENTRY).href : '../../app/server.mjs');
   const options = { dataDir: process.env.RS3_WARMSTART_SCRATCH, host: '127.0.0.1',
     port: Number(process.env.RS3_WARMSTART_PORT), loopbackPort: undefined, publicOrigin: undefined,
-    taskWorkerOptions: { idleMs: 60000, startupDeadlineMs: 300000 } };
+    taskWorkerOptions: { idleMs: Number(process.env.RS3_WARMSTART_IDLE_MS ?? 60000), startupDeadlineMs: 300000 } };
   if (module.startServer) application = await module.startServer(options);
   else { application = await module.createServer(options); await application.listen(); }
   if (application.address()?.port !== options.port) throw new Error('Unexpected benchmark listener.');
