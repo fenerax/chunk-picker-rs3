@@ -2,8 +2,8 @@
 
 The public runner uses one harness checkout to measure two application checkouts.
 It imports the same checksum-verified backup into two fresh data directories, then
-alternates A, B, A, B for the requested repetitions. Each app trial runs Group off
-and Group on in independent server/browser sessions. The default is three trials
+alternates A, B, A, B for the requested repetitions, pairing each group view
+before moving to the next. Group off and Group on use independent server/browser sessions. The default is three trials
 per app/view. Raw harness files and disposable stores stay outside the artifact.
 
 ```sh

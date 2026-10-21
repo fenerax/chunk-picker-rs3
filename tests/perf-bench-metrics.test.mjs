@@ -1,6 +1,34 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { interactionScenarios, measureBrowserInteractions, unlockTimeline } from '../scripts/perf/browser-interactions.mjs';
+import vm from 'node:vm';
+import { browserInteraction, interactionScenarios, measureBrowserInteractions, unlockTimeline } from '../scripts/perf/browser-interactions.mjs';
+
+test('Possible Tasks opens its collapsed section and ignores offscreen lazy icons', async () => {
+  let now = 0, loaded = false, opened = 0;
+  const summary = { textContent: 'Possible Tasks', click: () => { section.open = true; loaded = true; opened++; } };
+  const section = { open: false, querySelector: selector => selector === 'summary' ? summary : null };
+  const panel = { children: [{}], querySelector: selector => selector === '.task-filter-bar' && loaded ? {} : null };
+  const input = { value: '', dispatchEvent() {} };
+  const dialog = { open: false };
+  const button = { click() {} };
+  const target = { querySelectorAll: selector => selector === 'img' ? [{ complete: false,
+    getBoundingClientRect: () => ({ top: 2000, bottom: 2020, left: 0, right: 20 }) }] : [] };
+  const byId = { 'tool-dialog': dialog, 'chunk-content': target, 'chunk-info': { hidden: false },
+    'search-open': { click: () => { dialog.open = true; } } };
+  const document = { getElementById: id => byId[id],
+    querySelector: selector => selector === '#tool-dialog input[type="search"]' ? input
+      : selector === '#tool-dialog .search-results' ? { getAttribute: () => 'false', querySelector: value => value === '.error' ? null : button }
+        : selector === '#chunk-content [role="tabpanel"]' ? panel : button,
+    querySelectorAll: selector => selector === '#chunk-content details' ? [section] : [] };
+  const context = vm.createContext({ document, innerHeight: 900, innerWidth: 1440,
+    performance: { now: () => now }, Event: class {},
+    requestAnimationFrame: callback => { now += 16; callback(); }, MutationObserver: class { observe() {} disconnect() {} } });
+  const result = await vm.runInContext(`(${browserInteraction.toString()})('possible-tasks',1000)`, context);
+  assert.equal(result.name, 'possible-tasks');
+  assert.equal(opened, 1);
+  assert.equal(loaded, true);
+  assert.ok(result.durationMs > 0 && result.durationMs < 1000);
+});
 
 test('interaction aliases select only fixed UI scenarios without duplicates', () => {
   assert.deepEqual(interactionScenarios(['cold', 'panels', 'search', 'possible-tasks', 'group-view']),

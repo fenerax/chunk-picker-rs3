@@ -31,7 +31,7 @@ test('starter smoke uses its backup importer; legacy production import remains f
 test('one scenario catalogue controls bounded requests and alternating plans', () => {
   const request = normalizeRequest({ runs: 3, scenarios: ['unlock', 'panels'] });
   assert.deepEqual(measurementPlan(request).map(row => `${row.arm}${row.run}/${row.groupView}`),
-    ['A1/off','A1/on','B1/off','B1/on','A2/off','A2/on','B2/off','B2/on','A3/off','A3/on','B3/off','B3/on']);
+    ['A1/off','B1/off','A1/on','B1/on','A2/off','B2/off','A2/on','B2/on','A3/off','B3/off','A3/on','B3/on']);
   assert.ok(estimatedSeconds({}) >= 1100 && estimatedSeconds({}) <= 1400);
   for (const invalid of [{ runs: 0 }, { runs: 11 }, { scenarios: ['../save'] }, { scenarios: ['cold', 'cold'] },
     { options: { command: 'fixture' } }, { options: { screenshots: 'false' } }, { options: { groupViews: ['off', 'off'] } },

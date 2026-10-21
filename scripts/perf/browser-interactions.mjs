@@ -57,7 +57,13 @@ export async function browserInteraction(name, timeout) {
     action = () => required(document.querySelector('#tool-dialog .search-result button')).click();
   } else if (name === 'possible-tasks') {
     await openChunk(); target = required(byId('chunk-content')); ready = tasksReady;
-    action = () => required(document.querySelector('#chunk-content [data-tab="tasks"]')).click();
+    action = async () => {
+      required(document.querySelector('#chunk-content [data-tab="tasks"]')).click();
+      const section = () => [...document.querySelectorAll('#chunk-content details')]
+        .find(node => node.querySelector('summary')?.textContent === 'Possible Tasks');
+      await wait(section);
+      if (!section().open) required(section().querySelector('summary')).click();
+    };
   } else if (name === 'group-view-on' || name === 'group-view-off') {
     const checkbox = required(byId('group-view')), wanted = name === 'group-view-on';
     const groupReady = () => {
@@ -86,7 +92,10 @@ export async function browserInteraction(name, timeout) {
     while (stable < 2) {
       if (performance.now() - started >= timeout) throw new Error('Scratch interaction paint timed out.');
       changed = false; await nextFrame();
-      const imagesReady = [...target.querySelectorAll('img')].every(image => image.complete);
+      const imagesReady = [...target.querySelectorAll('img')].every(image => {
+        const box = image.getBoundingClientRect();
+        return box.bottom <= 0 || box.top >= innerHeight || box.right <= 0 || box.left >= innerWidth || image.complete;
+      });
       stable = ready() && imagesReady && !changed ? stable + 1 : 0;
     }
     return { name, durationMs: performance.now() - started, completion: 'content-plus-two-animation-frames' };

@@ -47,8 +47,8 @@ export function normalizeRequest(request = {}, { requireRevisions = false } = {}
 export function measurementPlan(request) {
   const value = normalizeRequest(request);
   const plan = [];
-  for (let run = 1; run <= value.runs; run++) for (const arm of ['A', 'B']) {
-    for (const groupView of value.options.groupViews) plan.push({ run, arm, groupView, scenarios: value.scenarios });
+  for (let run = 1; run <= value.runs; run++) for (const groupView of value.options.groupViews) {
+    for (const arm of ['A', 'B']) plan.push({ run, arm, groupView, scenarios: value.scenarios });
   }
   return plan;
 }
