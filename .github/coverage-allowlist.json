@@ -1,0 +1,23 @@
+{
+  "schema": "rs3-coverage-allowlist-v1",
+  "tests": [
+    {
+      "file": "tests/browser-screen-harness-contract.test.mjs",
+      "name": ["private browser harness supplies every public collaborator"],
+      "occurrence": 1,
+      "reason": "Requires an authentic independent private/public harness pair; the single public checkout has no private overlay reference."
+    },
+    {
+      "file": "tests/private-drift.test.mjs",
+      "name": ["real first-kit history catches the original-sync stub omission and accepts its committed repair"],
+      "occurrence": 1,
+      "reason": "Requires historical private/core Git mirrors containing private first-kit source revisions."
+    },
+    {
+      "file": "tests/private-drift.test.mjs",
+      "name": ["real accepted rel7 private fcbe7ff and core 6a1ae1e pair passes the source-only drift check"],
+      "occurrence": 1,
+      "reason": "Requires the historical private rel7 Git mirror and its paired core revision."
+    }
+  ]
+}

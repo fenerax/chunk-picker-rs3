@@ -38,14 +38,28 @@ jobs:
         with:
           path: ${{ runner.temp }}/packs
           key: packs-${{ hashFiles('.github/packs/pack-pin.json') }}
+      - name: Configure public test inputs
+        run: node scripts/ci/coverage-inputs.mjs . "${{ runner.temp }}/packs/tree"
       - run: npm run test:quick
       - run: npm test
+        env:
+          RS3_COVERAGE_REPORT: ${{ runner.temp }}/test.json
+          RS3_COVERAGE_LANE: test
+      - name: Keep per-test results
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: test-coverage
+          overwrite: true
+          path: ${{ runner.temp }}/test.json
+          retention-days: 14
+          if-no-files-found: error
 
   # The test files that skip Windows and PowerShell cases on Linux, run on
-  # hosted Windows. A signal only; the release still runs them on the release PC.
+  # hosted Windows. The coverage job matches each Linux skip to its exact case.
   windows:
     runs-on: windows-latest
-    timeout-minutes: 25
+    timeout-minutes: 20
     steps:
       # .gitattributes pins LF (and keeps the `-text` files as stored), so no
       # autocrlf setting is needed to match the release PC.
@@ -65,9 +79,42 @@ jobs:
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: windows-tests
+          overwrite: true
           path: ${{ runner.temp }}/ws/windows-slice.json
           retention-days: 14
           if-no-files-found: ignore
+      - name: Keep per-test results
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: windows-coverage
+          overwrite: true
+          path: ${{ runner.temp }}/ws/windows.json
+          retention-days: 14
+          if-no-files-found: error
+
+  coverage:
+    needs: [test, windows]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 24
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          pattern: '*-coverage'
+          path: ${{ runner.temp }}/coverage
+          merge-multiple: true
+      - name: Every test passes somewhere
+        env:
+          RS3_COVERAGE_TEST_RESULT: ${{ needs.test.result }}
+          RS3_COVERAGE_WINDOWS_RESULT: ${{ needs.windows.result }}
+        run: node scripts/ci/coverage-gate.mjs "${{ runner.temp }}/coverage"
 
   # Credentials and personal values: every file at the tested commit, plus each
   # new commit's changes, message and noreply attribution. The private-value

@@ -1,6 +1,6 @@
 // Windows job of the Tests workflow: runs the Windows-bound test files on a
-// hosted Windows runner. A signal only: release evidence still comes from the
-// release PC until a verified import exists.
+// hosted Windows runner. The coverage gate matches these native results to
+// Ubuntu cases, including files omitted from the original 17-file slice.
 // Usage: node run.mjs <checkout> <work dir> [--check]
 // --check validates the file list and the lane environment, then stops.
 import { mkdir, writeFile, appendFile } from 'node:fs/promises';
@@ -9,24 +9,29 @@ import path from 'node:path';
 import { inspect } from 'node:util';
 import { pathToFileURL } from 'node:url';
 import { spawnSync } from 'node:child_process';
+import { createCoverageReporter } from '../../scripts/ci/coverage-reporter.mjs';
 
-// The files that skip Windows/PowerShell cases or fail off Windows, from the P3
-// cloud probe (reports/cloud-lane-probe.md on claude/keen-einstein-cxt4ri):
-// 96 cases across 15 files skip on Linux, plus release-pipeline-v2.
+// Audited against all 116 skips in run 39603812368. Keep equal to
+// scripts/private-companion/neutral-lane.mjs windowsBoundTests.
 export const windowsFiles = [
   'backup-status.private.test.mjs',
   'cutover-live.test.mjs',
+  'live-base-compatibility.test.mjs',
   'operations-degraded.test.mjs',
   'operations-forced.test.mjs',
   'operations-graceful.test.mjs',
   'operations-owner.test.mjs',
   'operations.test.mjs',
   'operator-cutover.test.mjs',
+  'operator-frozen-bundle.test.mjs',
+  'owned-child-processes.test.mjs',
   'private-live-swap.test.mjs',
   'release-admission-v2.test.mjs',
+  'release-ci-evidence-workflow-harness.test.mjs',
   'release-pack-upgrade-v2.test.mjs',
   'release-pipeline-v2.test.mjs',
   'release-run-ci-powershell.test.mjs',
+  'release-run-ci.test.mjs',
   'release-runtime-v2.test.mjs',
   'restore-picker.private.test.mjs',
   'watchdog-core.test.mjs',
@@ -61,14 +66,15 @@ const env = await laneEnvironment(release, process.execPath, {
   RS3_PUBLIC_BROWSER_SCREEN_HARNESS: path.join(checkout, 'tests/browser-screen-harness.mjs'),
 });
 
-if (check) { console.log(`Check passed: ${windowsFiles.length} files in the inventory; lane PATH ${env.PATH}`); process.exit(0); }
+if (check) { console.log(`Check passed: ${windowsFiles.length} files in the inventory; isolated lane environment ready`); process.exit(0); }
 console.log(`Node ${process.version}; memory ${(freemem() / GiB).toFixed(1)} of ${(totalmem() / GiB).toFixed(1)} GiB free; ${windowsFiles.length} files`);
-const output = new Map(), failures = new Map();
+const output = new Map(), failures = new Map(), coverage = new Map();
 const keyOf = file => path.basename(file);
 const onEvent = async ({ type, data }) => {
   const file = data?.entryFile ?? data?.file;
   if (!file) return;
   const key = keyOf(file);
+  coverage.get(key)?.onEvent({ type, data });
   if (type === 'test:stdout' || type === 'test:stderr') output.set(key, (output.get(key) ?? '') + data.message);
   if (type === 'test:fail' && data.details?.type !== 'suite') {
     // Errors cross the worker IPC as structured clones; inspect keeps what survives.
@@ -80,6 +86,7 @@ const onEvent = async ({ type, data }) => {
   }
 };
 const onFile = async result => {
+  coverage.get(keyOf(result.file))?.onFile(result);
   const c = result.summary?.counts ?? {};
   console.log(`${result.passed ? 'pass' : 'FAIL'} ${keyOf(result.file)}  tests ${c.tests} pass ${c.passed} fail ${c.failed} skipped ${c.skipped}  ${(result.processWallMs / 1000).toFixed(1)} s`);
   if (!result.passed) {
@@ -92,7 +99,11 @@ const onFile = async result => {
 // runAdaptive never admits below its 4 GiB floor. Fail clearly instead of
 // waiting out the job timeout if the runner is too small.
 const run = (files, maxConcurrency) => {
-  for (const name of files) { output.delete(keyOf(name)); failures.delete(keyOf(name)); }
+  for (const name of files) {
+    output.delete(keyOf(name)); failures.delete(keyOf(name));
+    // A retry replaces that file's failed attempt, as in the slice verdict.
+    coverage.set(keyOf(name), createCoverageReporter({ lane: 'windows', cwd: assembly, files: ['tests/' + keyOf(name)] }));
+  }
   const controller = new AbortController();
   let idleSince = Date.now(), starved = false;
   const onSchedule = async ({ freeBytes, active, pending }) => {
@@ -130,6 +141,12 @@ const summary = { schema: 'rs3-windows-slice-v1', node: process.version, passed:
   wallMs: Date.now() - started, maxActive: result.maxActive, counts: result.summary?.counts ?? null,
   notRun: windowsFiles.filter(name => !rows.some(row => row.file === name)), files: rows };
 await writeFile(path.join(work, 'windows-slice.json'), JSON.stringify(summary, null, 2) + '\n');
+await writeFile(path.join(work, 'windows.json'), JSON.stringify({ schema: 'rs3-test-coverage-v1', lane: 'windows',
+  passed: summary.passed, files: windowsFiles.map(file => 'tests/' + file).sort(),
+  completedFiles: rows.map(row => 'tests/' + row.file).sort(),
+  fileResults: result.files.flatMap(file => coverage.get(keyOf(file.file)).report({ passed: file.passed }).fileResults),
+  tests: result.files.flatMap(file => coverage.get(keyOf(file.file)).report({ passed: file.passed }).tests).sort((a, b) => a.key.localeCompare(b.key)),
+}, null, 2) + '\n');
 
 const c = summary.counts ?? {};
 const lines = [`### Windows slice: ${summary.passed ? 'passed' : 'FAILED'}`, '',

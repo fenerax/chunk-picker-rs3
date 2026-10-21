@@ -217,7 +217,7 @@ const actualRoot = process.env.RS3_PUBLIC_SCRUB_PACKS_DIR;
 const actualData = process.env.RS3_PUBLIC_SCRUB_DATA_VERSION;
 const actualRules = process.env.RS3_PUBLIC_SCRUB_RULES_VERSION;
 const actualArt = process.env.RS3_PUBLIC_SCRUB_ART_VERSION;
-test('actual scrubbed packs resolve with the current runtime', { skip: !actualRoot && !actualData && !actualRules }, async t => {
+test('actual scrubbed packs resolve with the current runtime', { skip: !actualRoot && !actualData && !actualRules && 'public scrubbed data and rules packs are absent' }, async t => {
   assert.ok(actualRoot && actualData && actualRules, 'All three public scrub test settings are required.');
   assert.ok(path.isAbsolute(actualRoot), 'The public scrub packs root must be absolute.');
   assert.ok(!/(?:^|[/\\])(?:kits|operator|release-v2)(?:[/\\]|$)|[/\\]\.local[/\\]duo(?:[/\\]|$)/i.test(actualRoot), 'Protected pack roots are forbidden.');
@@ -262,7 +262,7 @@ test('actual scrubbed packs resolve with the current runtime', { skip: !actualRo
   }
 });
 
-test('actual scrubbed art resolves all metadata and image samples from every component without fallback', { skip: !actualArt }, async () => {
+test('actual scrubbed art resolves all metadata and image samples from every component without fallback', { skip: !actualArt && 'public scrubbed art pack is absent' }, async () => {
   assert.ok(actualRoot && path.isAbsolute(actualRoot));
   assert.ok(!/(?:^|[/\\])(?:kits|operator|release-v2)(?:[/\\]|$)|[/\\]\.local[/\\]duo(?:[/\\]|$)/i.test(actualRoot));
   assert.match(actualArt, /^\d+\.\d+\.\d+-public\.\d+$/);
