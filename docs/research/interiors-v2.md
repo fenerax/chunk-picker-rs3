@@ -61,7 +61,7 @@ The existing `interiorCandidates` helper in `app/web/interior-view.mjs` now reco
 
 ## Assets, provenance and verification
 
-The selected directory is this worktree's `.local/map-assets/interiors.cache-2026-10-08-v2-reviewed`. Its manifest SHA-256 is `c14358e36c1e8e5499011f03afcebd633ab3b21249ee86f4592ed03385f7d793`. Publication is local to the `interiors2` worktree; the main checkout's assets and asset selection were not replaced. Historical versions remain intact.
+The selected directory is this worktree's `.local/map-assets/interiors.cache-2026-10-08-v2-reviewed`. Its manifest SHA-256 is `c14358e36c1e8e5499011f03afcebd633ab3b21249ee86f4592ed03385f7d793`. Publication is local to the `interiors2` worktree; the main checkout's assets and asset selection were not replaced. Historical versions remain intact. The public art pack redacts the five build-machine paths in that manifest's `inputs` and `sources`, so the catalogue now pins the public copy, SHA-256 `157710dc1ae3d1958611cb76b72230b2bd726552d7bf0eb748b06cedabb72e99`; tiles and their hashes are unchanged.
 
 The renderer and opcode interpreter are pinned to rsmv commit `a92b8920b9b9842adde78822646ecad1a6f4fc15`, using inferred compatible schema build 950 and `@resvg/resvg-js` 2.6.2. `CacheCopy` opens copied databases read-only with SQLite query-only enabled. Renderer/helper repository hashes use [Git LF hashing](../../scripts/lib/provenance-hash.mjs); copied evidence, databases, PNGs and manifests use exact bytes. Flat floors/basic walls omit sprites, labels and scenery models. Shared water and void are transparent, with the existing renderer's floor/water limits preserved.
 

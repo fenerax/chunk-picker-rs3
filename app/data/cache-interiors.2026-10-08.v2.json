@@ -7,7 +7,7 @@
   "assets": {
     "directory": "interiors.cache-2026-10-08-v2-reviewed",
     "manifestPath": "interiors.cache-2026-10-08-v2-reviewed/manifest.json",
-    "manifestSha256": "c14358e36c1e8e5499011f03afcebd633ab3b21249ee86f4592ed03385f7d793",
+    "manifestSha256": "157710dc1ae3d1958611cb76b72230b2bd726552d7bf0eb748b06cedabb72e99",
     "tileSize": 256,
     "zoom": 2,
     "iconFree": true,
