@@ -13,6 +13,8 @@ const args = Object.fromEntries(process.argv.slice(2).reduce((pairs, value, inde
   index % 2 ? pairs : [...pairs, [value.replace(/^--/, ''), all[index + 1]]], []));
 const mode = args.mode ?? 'process';
 if (!['process', 'thread'].includes(mode)) throw new TypeError('Use --mode process or --mode thread.');
+const port = Number(args.port ?? 0);
+if (!Number.isInteger(port) || port !== 0 && (port < 8900 || port > 8999)) throw new TypeError('Use port 0 or 8900–8999.');
 process.env.RS3_DATASET = 'open-f2p';
 process.env.RS3_TASK_WORKER_MODE = mode;
 // Lanes must outlive a full-scale Preview (sleep clears prepared results), yet
@@ -101,7 +103,7 @@ let app;
 try {
   const started = performance.now();
   app = await createServer({ dataDir: path.join(directory, 'game'), packsDir: path.join(directory, 'packs'),
-    packSelection: path.join(directory, 'packs', 'selection.json'), port: 0, host: '127.0.0.1', shutdownDeadlineMs: 5000 });
+    packSelection: path.join(directory, 'packs', 'selection.json'), port, host: '127.0.0.1', shutdownDeadlineMs: 5000 });
   await app.listen();
   const origin = `http://127.0.0.1:${app.address().port}`;
   let cookie, state;

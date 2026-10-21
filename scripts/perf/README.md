@@ -1,5 +1,86 @@
 # Picker browser performance harness
 
+## Server-only route and save measurements
+
+Run `server-routes.mjs` through the shared heavy-work wrapper with an explicit
+frozen, scrubbed source under this worktree's ignored `.local/` directory:
+Set `$heavyWrapper` to the shared `.local/claude-tools/with-heavy.ps1` in the
+main checkout before running the command.
+
+```powershell
+powershell -NoProfile -File $heavyWrapper node scripts/perf/server-routes.mjs --source .local/bench-save --entry app/server.mjs --port 8958 --runs 3 --label after
+```
+
+`--entry` also accepts the baseline checkout's server. Alternate baseline and
+candidate invocations using identical arguments and at least three repetitions
+per revision. Reports under `.local/server-routes/` contain numeric measurements,
+fixed route paths, input/source hashes and no response bodies or credentials.
+Excluded source credentials and lock files stay unread and unchanged; each
+disposable copy receives a fresh credential.
+For an independent dataset, pass its existing public receipt with
+`--source-binding PATH`. The observer copies its unchanged bytes to the owned
+scratch store's sibling binding file and verifies the source hash before and
+afterward. The receipt must be under ignored `.local/` and at most 64 KiB;
+the application still validates its dataset identity.
+
+The observer measures listening/readiness and first compact tasks, the same
+store after restart, identity/gzip/Brotli state and task transport, conditional
+requests, history pagination, safe application GET routes and plugin route
+availability. Local reads include map-layer definitions, pool ranking, backlog
+search, XP choices and roll statistics. Five note saves rotate fixed encoding headers and run alongside health
+polls. FileHandle write/sync counters distinguish storage wait from the complete
+save response; health latency and client polling delay are reported separately.
+It also records worker compilation, cache counters, accelerated retirement and
+compact/full wake requests, sampled process-tree RSS, main-isolate CPU and GC,
+and event-loop delay. Wire-body bytes exclude HTTP headers/framing. The observer
+adds overhead equally to both revisions. Idle CPU uses a separate quiet interval
+after retirement, with periodic IPC memory sampling.
+`retirement.wakeResident` describes the foreground lane only. Inspect the
+separate lane diagnostics for prediction/duo/death residency; a successful full
+task request's `worker` flag does not identify which lane handled it.
+
+Shared-save synchronization covers `/api/state` reads and a bounded connection
+to `/api/events`. The SSE probe records only the fixed pathname, response status,
+TTFB, first-chunk time and first-chunk bytes, then immediately closes its owned
+stream. Its deadline is ten seconds. It never accumulates or parses SSE content;
+later revision broadcasts and delivery to another client remain unmeasured.
+Original-picker synchronization is a separate provider-gated POST preview/apply
+workflow with external fetches, deliberately excluded from this observer.
+A 404 from the optional `/api/original-sync/status` GET leaves original-sync
+feature availability unknown. Fixed registered plugin GET paths are measured
+when present; parameterized routes and plugin writes are excluded.
+
+`--prewarm off|on` defaults to off; `--idle-ms` defaults to 60000 and
+`--save-count` to five. These are diagnostic settings, distinct from production's
+ten-minute retirement. Scheduler clocks run normally. Server RSS is sampled
+every 500 ms with a 1450 MiB
+server safety stop; shorter unsampled peaks are possible. Keep the whole observer
+process tree within the job's memory budget as well. GC/CPU counters cover the
+main isolate only. Optional public game/map inputs can be passed explicitly or
+inherited from the shared wrapper; private add-on configuration is cleared.
+
+RSS samples combine the main-process reading with asynchronous host replies;
+they are not simultaneous process-tree peaks. Startup memory checkpoints observe
+main-process phase boundaries, including concurrent initialization and GC. Their
+`childMs` measures the checkpoint time; `fromSpawnMs` includes IPC delivery.
+
+`--heap-mb 768` optionally bounds V8 old space in the server and its inherited
+task hosts. The default leaves V8 unchanged. Match this setting across A/B runs;
+its GC behavior can differ from default-memory operation. The RSS safety stop
+still applies independently to the server tree.
+The startup and idlemem harnesses accept the same bounded limit through
+`RS3_PERF_HEAP_MB`; other harnesses can inherit the matching `NODE_OPTIONS`.
+Both startup and idlemem continue clearing ambient `NODE_OPTIONS` before applying
+this explicit limit and record it in their report.
+
+The existing `warmstart.mjs --idle-ms MS` and `idlemem.mjs --idle-ms MS
+--observe-idle-ms MS` preserve their original defaults but permit shorter,
+explicitly labelled diagnostic windows. Both accept a bounded 8900–8999 port;
+their legacy ports remain supported. `server-memory.mjs --port PORT` selects
+its otherwise ephemeral listener. For browser runs,
+`RS3_SCRATCH_SERVER_PORT` bounds the application listener to 8900–8999 and
+`RS3_SCRATCH_CDP_PORT` separately bounds the owned Chrome debugger.
+
 For restart timings without a browser, run the warmstart harness through the
 shared heavy-work lock:
 

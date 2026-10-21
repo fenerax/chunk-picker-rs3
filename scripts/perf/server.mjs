@@ -6,10 +6,12 @@ if (!process.send || !process.env.RS3_PERF_SCRATCH) throw new Error('Launch thro
 const start = performance.now();
 let application;
 try {
+  const selectedPort = process.env.RS3_SCRATCH_SERVER_PORT;
+  if (selectedPort !== undefined && !/^89\d{2}$/.test(selectedPort)) throw new Error('Use a bounded scratch server port.');
   const { createServer } = await import(process.env.RS3_PERF_SERVER_ENTRY
     ? pathToFileURL(process.env.RS3_PERF_SERVER_ENTRY).href : '../../app/server.mjs');
   application = await createServer({ dataDir: process.env.RS3_PERF_SCRATCH,
-    host: '127.0.0.1', port: 0, loopbackPort: undefined, publicOrigin: undefined,
+    host: '127.0.0.1', port: selectedPort === undefined ? 0 : Number(selectedPort), loopbackPort: undefined, publicOrigin: undefined,
     predictionPrewarm: process.env.RS3_PERF_PREWARM !== 'off' });
   await application.listen();
   if ([8788, 8789, 8790, 8791].includes(application.address().port)) throw new Error('Protected port selected.');

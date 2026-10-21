@@ -25,6 +25,8 @@ const round = value => Math.round(value);
 const runs = Number(option('runs') ?? 5), port = Number(option('port') ?? 8990);
 const pollMs = Number(option('poll-ms') ?? 250), pollTimeoutMs = Number(option('poll-timeout-ms') ?? 1000);
 const root = path.resolve(option('root') ?? '.'), worker = option('worker') ?? 'process';
+const maxOldSpaceMiB = process.env.RS3_PERF_HEAP_MB === undefined ? null : Number(process.env.RS3_PERF_HEAP_MB);
+if (maxOldSpaceMiB !== null && (!Number.isInteger(maxOldSpaceMiB) || maxOldSpaceMiB < 128 || maxOldSpaceMiB > 1024)) throw new TypeError('RS3_PERF_HEAP_MB must be an integer from 128 to 1024.');
 if (!Number.isInteger(runs) || runs < 1) throw new TypeError('--runs must be a positive integer.');
 if (!Number.isInteger(port) || port < 1 || port > 65535) throw new TypeError('--port must be a TCP port.');
 if (!['process', 'thread'].includes(worker)) throw new TypeError('--worker must be process or thread.');
@@ -32,6 +34,7 @@ if (!['process', 'thread'].includes(worker)) throw new TypeError('--worker must 
 function environment(log) {
   const env = { ...process.env, RS3_TASK_WORKER_MODE: worker, RS3_STARTUP_TIMING_LOG: log };
   delete env.NODE_OPTIONS;
+  if (maxOldSpaceMiB !== null) env.NODE_OPTIONS = `--max-old-space-size=${maxOldSpaceMiB}`;
   if (flag('open-f2p')) {
     for (const key of ['RS3_PACKS_DIR', 'RS3_PACK_SELECTION', 'RS3_DATASET_PROFILE', 'RS3_DATASET_PROFILE_SHA256', 'RS3_PRIVATE_ADDON',
       'RS3_PRIVATE_ADDON_SHA256', 'RS3_GAME_DATA_DIR', 'RS3_MAP_ASSETS_DIR']) delete env[key];
@@ -134,7 +137,7 @@ async function main() {
     }
   }
   const totals = results.map(run => run.totalMs), totalMedian = median(totals);
-  const summary = { root, worker, runs, pollMs, pollTimeoutMs, node: process.version, ...stat(totals),
+  const summary = { root: path.basename(root), worker, runs, pollMs, pollTimeoutMs, maxOldSpaceMiB, node: process.version, ...stat(totals),
     polls: { attemptsMedian: median(results.map(run => run.polls.attempts)), answeredMedian: median(results.map(run => run.polls.answered)) },
     segments: [...segments].map(([name, values]) => ({ name, runs: values.length, ...stat(values),
       share: Math.round(median(values) / totalMedian * 1000) / 10 })),

@@ -10,7 +10,9 @@ import { captureIdleScreens } from './idlemem-screens.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const OUTPUT = path.join(ROOT, '.local/idlemem');
-const TIMEOUT = 300000, WORKER_IDLE_MS = 60000, OBSERVE_IDLE_MS = 600000;
+const TIMEOUT = 300000;
+const maxOldSpaceMiB = process.env.RS3_PERF_HEAP_MB === undefined ? null : Number(process.env.RS3_PERF_HEAP_MB);
+if (maxOldSpaceMiB !== null && (!Number.isInteger(maxOldSpaceMiB) || maxOldSpaceMiB < 128 || maxOldSpaceMiB > 1024)) throw new TypeError('RS3_PERF_HEAP_MB must be an integer from 128 to 1024.');
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 const sha256 = bytes => createHash('sha256').update(bytes).digest('hex');
 async function sourceFingerprint(directory) {
@@ -28,14 +30,21 @@ async function sourceFingerprint(directory) {
   await visit(directory); return { sha256: hash.digest('hex'), files };
 }
 const within = (base, target) => { const relative = path.relative(base, target); return relative && relative !== '..' && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative); };
-const options = { port: 9151, source: path.join(ROOT, '.local/duo'), 'post-gc': 'off', screens: 'off' };
-const usage = 'Use --label before|after [--source .local/duo] [--port 9151] [--entry PATH] [--post-gc off|on] [--screens off|on].';
+const options = { port: 9151, source: path.join(ROOT, '.local/duo'), 'post-gc': 'off', screens: 'off', 'idle-ms': 60000, 'observe-idle-ms': 600000 };
+const usage = 'Use --label before|after[-N] [--source PATH] [--port 8900..8999|9151] [--entry PATH] [--post-gc off|on] [--screens off|on] [--idle-ms 60000] [--observe-idle-ms 600000].';
 for (let i = 2; i < process.argv.length; i += 2) {
   const key = process.argv[i], value = process.argv[i + 1];
-  if (!value || !['--label', '--source', '--port', '--entry', '--post-gc', '--screens'].includes(key)) throw new Error(usage);
-  options[key.slice(2)] = key === '--port' ? Number(value) : value;
+  if (!value || !['--label', '--source', '--port', '--entry', '--post-gc', '--screens', '--idle-ms', '--observe-idle-ms'].includes(key)) throw new Error(usage);
+  options[key.slice(2)] = ['--port', '--idle-ms', '--observe-idle-ms'].includes(key) ? Number(value) : value;
 }
-if (!['before', 'after'].includes(options.label) || options.port !== 9151 || !['off', 'on'].includes(options['post-gc']) || !['off', 'on'].includes(options.screens)) throw new Error(usage);
+if (!/^(?:before|after)(?:-[1-9]\d{0,3})?$/.test(options.label ?? '') || !Number.isInteger(options.port)
+  || !(options.port === 9151 || options.port >= 8900 && options.port <= 8999)
+  || !['off', 'on'].includes(options['post-gc']) || !['off', 'on'].includes(options.screens)) throw new Error(usage);
+for (const key of ['idle-ms', 'observe-idle-ms']) {
+  if (!Number.isSafeInteger(options[key]) || options[key] < 1 || options[key] > 2147483647) throw new Error('Idle durations must be positive integers within the timer range.');
+}
+const retirementDeadlineMs = Math.max(TIMEOUT, options['idle-ms'] + 30000);
+const observationalIdlePhase = options['observe-idle-ms'] === 600000 ? 'idle10' : 'idleObserved';
 options.source = path.resolve(options.source);
 if (options.entry) options.entry = path.resolve(options.entry);
 async function assertHeavyOwnership() {
@@ -155,9 +164,11 @@ async function measure(sourceHash, report) {
     await cp(options.source, dataDir, { recursive: true, dereference: false, filter: filename => !['store.lock', 'access-token'].includes(path.basename(filename)) });
     if (sha256(await readFile(path.join(dataDir, 'state.json'))) !== sourceHash || sha256(await readFile(path.join(options.source, 'state.json'))) !== sourceHash) throw new Error('Frozen source changed during copy.');
     await writeFile(path.join(dataDir, 'access-token'), `${token}\n`, { mode: 0o600 });
-    const env = { ...process.env, RS3_IDLEMEM_SCRATCH: dataDir, RS3_DATA_DIR: dataDir, RS3_IDLEMEM_PORT: String(options.port), RS3_WORKER_IDLE_MS: String(WORKER_IDLE_MS) };
+    const env = { ...process.env, RS3_IDLEMEM_SCRATCH: dataDir, RS3_DATA_DIR: dataDir, RS3_IDLEMEM_PORT: String(options.port),
+      RS3_WORKER_IDLE_MS: String(options['idle-ms']), RS3_IDLEMEM_IDLE_MS: String(options['idle-ms']) };
     if (options.entry) env.RS3_IDLEMEM_ENTRY = options.entry; else delete env.RS3_IDLEMEM_ENTRY;
     delete env.RS3_PUBLIC_ORIGIN; delete env.RS3_LOOPBACK_PORT; delete env.NODE_OPTIONS;
+    if (maxOldSpaceMiB !== null) env.NODE_OPTIONS = `--max-old-space-size=${maxOldSpaceMiB}`;
     spawnedAt = performance.now();
     child = fork(path.join(ROOT, 'scripts/perf/idlemem-server.mjs'), [], { cwd: ROOT, env, execArgv: ['--expose-gc'], windowsHide: true, stdio: ['ignore', 'ignore', 'ignore', 'ipc'] });
     const ready = new Promise((resolve, reject) => {
@@ -189,23 +200,27 @@ async function measure(sourceHash, report) {
     report.firstUse = await fullLists();
     report.firstUse.preview = await request(`/api/predict?memberId=${encodeURIComponent(workflow.memberIds[0])}&chunkId=${encodeURIComponent(workflow.chunkId)}`, requestSummary);
     await sample('firstUse', safeDiagnostic(await diagnostic()));
-    const retirementDiagnostic = await poll(sleeping, TIMEOUT);
+    const retirementStarted = performance.now();
+    const retirementDiagnostic = await poll(sleeping, retirementDeadlineMs);
+    report.retirementObservedWaitMs = performance.now() - retirementStarted;
     // Worker 'exit' and allocator cleanup can trail scheduler residency notices.
     await sleep(3000);
     const retired = await sample('retiredPlus3s', retirementDiagnostic);
     if (retired.activeWorkerCount !== 0) throw new Error('Worker retirement incomplete.');
     const idleStarted = performance.now();
-    // No application requests during this exact ten-minute observation window.
-    await sleep(OBSERVE_IDLE_MS);
+    // No application requests during the explicitly configured observation window.
+    await sleep(options['observe-idle-ms']);
     report.observedIdleMs = performance.now() - idleStarted;
-    const idle = await sample('idle10', safeDiagnostic(await diagnostic()));
+    const idle = await sample(observationalIdlePhase, safeDiagnostic(await diagnostic()));
     if (idle.activeWorkerCount !== 0) throw new Error('Unexpected worker activity during idle.');
     report.wake = { afterForcedGc: false };
     report.wake.compactFirst = await request(`/api/tasks?memberId=${encodeURIComponent(workflow.memberIds[0])}&view=play-v1`, requestSummary);
     report.wake.full = await fullLists();
     await sample('wake', safeDiagnostic(await diagnostic()));
     if (options['post-gc'] === 'on') {
-      const secondRetirementDiagnostic = await poll(sleeping, TIMEOUT);
+      const secondRetirementStarted = performance.now();
+      const secondRetirementDiagnostic = await poll(sleeping, retirementDeadlineMs);
+      report.wakeRetirementObservedWaitMs = performance.now() - secondRetirementStarted;
       await sleep(3000);
       const beforeGc = await sample('wakeRetiredPlus3s', secondRetirementDiagnostic);
       if (beforeGc.activeWorkerCount !== 0) throw new Error('Worker retirement incomplete.');
@@ -239,13 +254,14 @@ try {
   await rejectLinks(options.source);
   if (options.entry && (!options.entry.endsWith('.mjs') || !within(ROOT, await realpath(options.entry)) || (await lstat(options.entry)).isSymbolicLink())) throw new Error('Use a local server module.');
   const sourceHash = sha256(await readFile(path.join(options.source, 'state.json')));
-  const report = { schemaVersion: 1, label: options.label, port: options.port, completed: false, sourceStateSha256: sourceHash,
+  const report = { schemaVersion: 1, label: options.label, port: options.port, maxOldSpaceMiB, completed: false, sourceStateSha256: sourceHash,
     applicationSource: await sourceFingerprint(path.dirname(options.entry ?? path.join(ROOT, 'app/server.mjs'))),
-    entrySha256: sha256(await readFile(options.entry ?? path.join(ROOT, 'app/server.mjs'))), workerIdleMs: WORKER_IDLE_MS, productionWorkerIdleMs: 600000,
-    observationalIdleMs: OBSERVE_IDLE_MS, postGc: options['post-gc'] === 'on',
-    idlePolicy: 'Both paired runs use accelerated 60000ms worker retirement, then retirement +3s, then 600000ms additional observational idle.',
+    entrySha256: sha256(await readFile(options.entry ?? path.join(ROOT, 'app/server.mjs'))), workerIdleMs: options['idle-ms'], productionWorkerIdleMs: 600000,
+    acceleratedWorkerRetirement: options['idle-ms'] < 600000, retirementDeadlineMs, retirementSettleMs: 3000,
+    observationalIdleMs: options['observe-idle-ms'], observationalIdlePhase, postGc: options['post-gc'] === 'on',
+    idlePolicy: `Configured worker retirement at ${options['idle-ms']}ms, then retirement +3000ms, then ${options['observe-idle-ms']}ms additional observational idle. Production worker retirement defaults to 600000ms; shorter configured windows are diagnostic evidence.`,
     warmPolicy: 'Startup warmup terminal status and all lane foreground/prewarm/ranking queues settled before first full task lists and Preview.',
-    memoryPolicy: 'Process RSS sampled every 500ms, never summed across threads; per-isolate heap/external/arrayBuffers at milestones. Worker status 0=starting, 1=online; exited workers removed. Main --expose-gc is identical for both paired runs and does not itself force GC. Optional inspector GC runs only after observational idle10, wake measurements and a second worker retirement +3s.',
+    memoryPolicy: 'Process RSS sampled every 500ms, never summed across threads; per-isolate heap/external/arrayBuffers at milestones. Worker status 0=starting, 1=online; exited workers removed. Main --expose-gc is identical for both paired runs and does not itself force GC. Optional inspector GC runs only after the configured observational idle, wake measurements and a second worker retirement +3s.',
     wakePolicy: 'Compact first-wake request precedes repeat full lists for both players, before any optional inspector GC.', samples: {} };
   await measure(sourceHash, report);
   await assertHeavyOwnership();
