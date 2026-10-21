@@ -90,6 +90,7 @@ const COMMAND_KEYS = new Map([
   ['set-runescape-name', new Set(['type', 'memberId', 'name'])],
   ['replace-member', new Set(['type', 'memberId', 'member', 'source'])],
   ['apply-runemetrics', new Set(['type', 'memberId', 'runescapeName', 'fetchedAt', 'skills', 'quests'])],
+  ['apply-game-progress', new Set(['type', 'memberId', 'fetchedAt', 'skills', 'quests'])],
   ['sync-original', new Set(['type', 'capturedAt', 'sourceHash', 'members'])],
   ['set-slayer-lock', new Set(['type', 'memberId', 'lock'])],
   ['set-chunk-colour', new Set(['type', 'memberId', 'chunkId', 'colour'])],
@@ -393,7 +394,7 @@ function validatePresence(side, path, kind) {
   if (kind === 'value' && side.exists && !Object.hasOwn(side, 'value')) fail(`${path} needs a value`);
 }
 
-function validatePatchValue(path, value, tasks) {
+function validatePatchValue(path, value, tasks, memberId) {
   const [field, key, name] = path;
   if (field === 'journal') { journalText(value, 'undo journal'); return; }
   if (field === 'slayerLock') { validateSlayerLock(value); return; }
@@ -402,9 +403,9 @@ function validatePatchValue(path, value, tasks) {
   if (field === 'runeMetricsSync') { validateRuneMetricsProvenance(value); return; }
   if (field === 'originalPickerSync') { validateOriginalPickerSync(value); return; }
   if (field === 'f2pMap') { validateF2PMap(value); return; }
-  if (field === 'skillProgress') { validateSkillProgress(key, value); return; }
+  if (field === 'skillProgress') { validateSkillProgress(key, value, memberId); return; }
   if (field === 'xpChoices') { if (!tasks.has(key)) fail('XP choices reference absent task'); validateSavedXpChoices(value); return; }
-  if (field === 'questProgress') { validateQuestProgress(key, value, tasks); return; }
+  if (field === 'questProgress') { validateQuestProgress(key, value, tasks, memberId); return; }
   if (MEMBER_ARRAY_FIELDS.has(field)) {
     if (field === 'teleports') {
       uniqueRecords(value, 'undo teleports');
@@ -476,7 +477,7 @@ function validateMemberChanges(change, tasks, members, afterTasks = tasks) {
     if (JSON.stringify(patch.before) === JSON.stringify(patch.after)) fail('Undo patch must describe a change');
     if (patch.kind === 'value') for (const name of ['before', 'after']) {
       const side = patch[name];
-      if (side.exists) validatePatchValue(patch.path, side.value, name === 'before' ? tasks : afterTasks);
+      if (side.exists) validatePatchValue(patch.path, side.value, name === 'before' ? tasks : afterTasks, change.id);
     }
     const encoded = JSON.stringify(patch.path);
     if (paths.has(encoded)) fail('Duplicate undo path');
@@ -700,8 +701,8 @@ function validateStateCopy(copy, registry) {
     if (member.primaryOverrides !== undefined) dictionary(member.primaryOverrides, `${path}.primaryOverrides`, (value, skill) => { validateControlSkill(skill); if (typeof value !== 'boolean') fail('Primary override must be boolean'); });
     for (const field of ['passiveLevels', 'maxLevels']) if (member[field] !== undefined) dictionary(member[field], `${path}.${field}`, (value, skill) => { validateControlSkill(skill); validateControlLevel(value); });
     if (member.slayerLock !== undefined) validateSlayerLock(member.slayerLock);
-    if (member.skillProgress !== undefined) dictionary(member.skillProgress, `${path}.skillProgress`, (value, skill) => validateSkillProgress(skill, value));
-    if (member.questProgress !== undefined) dictionary(member.questProgress, `${path}.questProgress`, (value, id) => validateQuestProgress(id, value, taskRows));
+    if (member.skillProgress !== undefined) dictionary(member.skillProgress, `${path}.skillProgress`, (value, skill) => validateSkillProgress(skill, value, member.id));
+    if (member.questProgress !== undefined) dictionary(member.questProgress, `${path}.questProgress`, (value, id) => validateQuestProgress(id, value, taskRows, member.id));
     if (member.xpChoices !== undefined) dictionary(member.xpChoices, `${path}.xpChoices`, (value, id) => { if (!tasks.has(id)) fail('XP choices reference absent task'); validateSavedXpChoices(value); });
     if (member.runeMetricsSync !== undefined) validateRuneMetricsProvenance(member.runeMetricsSync);
     if (member.originalPickerSync !== undefined) validateOriginalPickerSync(member.originalPickerSync);
@@ -1797,36 +1798,41 @@ function applyCommandCopy(next, command, { expectedRevision, world, registry, ra
       payload.name = member.runescapeName;
       break;
     }
+    case 'apply-game-progress':
     case 'apply-runemetrics': {
       const member = findMember(next, payload.memberId);
-      const name = validateRuneScapeName(payload.runescapeName);
-      if (!sameRuneScapeName(name, member.runescapeName)) fail('RuneMetrics name does not match the current member account binding');
-      validateRuneMetricsTimestamp(payload.fetchedAt);
-      if (!Array.isArray(payload.skills) || !Array.isArray(payload.quests)) fail('RuneMetrics skills and quests must be arrays');
+      const plugin = payload.type === 'apply-game-progress', sourceLabel = plugin ? 'Game plugin' : 'RuneMetrics';
+      if (!plugin) {
+        const name = validateRuneScapeName(payload.runescapeName);
+        if (!sameRuneScapeName(name, member.runescapeName)) fail('RuneMetrics name does not match the current member account binding');
+      }
+      validateRuneMetricsTimestamp(payload.fetchedAt, sourceLabel);
+      if (!Array.isArray(payload.skills) || !Array.isArray(payload.quests)) fail(`${sourceLabel} skills and quests must be arrays`);
       const observedSkills = new Set(), observedQuests = new Set();
       for (const skill of payload.skills) {
-        record(skill, 'RuneMetrics skill'); knownKeys(skill, new Set(['skill', 'level', 'xp']), 'RuneMetrics skill');
+        record(skill, `${sourceLabel} skill`); knownKeys(skill, new Set(['skill', 'level', 'xp']), `${sourceLabel} skill`);
         validateObservedSkill(skill.skill, skill);
-        if (observedSkills.has(skill.skill)) fail(`Duplicate RuneMetrics skill: ${skill.skill}`);
+        if (observedSkills.has(skill.skill)) fail(`Duplicate ${sourceLabel} skill: ${skill.skill}`);
         observedSkills.add(skill.skill);
       }
       const taskRows = new Map(next.tasks.map(task => [task.id, task]));
-      const provenance = { source: 'runemetrics', fetchedAt: payload.fetchedAt, runescapeName: member.runescapeName };
+      const provenance = plugin ? { source: 'game-plugin', fetchedAt: payload.fetchedAt, memberId: member.id }
+        : { source: 'runemetrics', fetchedAt: payload.fetchedAt, runescapeName: member.runescapeName };
       for (const quest of payload.quests) {
-        record(quest, 'RuneMetrics quest'); knownKeys(quest, new Set(['taskId', 'title']), 'RuneMetrics quest');
-        propertyKey(quest.taskId, 'RuneMetrics quest taskId');
-        validateQuestProgress(quest.taskId, { title: quest.title, ...provenance }, taskRows);
-        if (observedQuests.has(quest.taskId)) fail(`Duplicate RuneMetrics quest task: ${quest.taskId}`);
+        record(quest, `${sourceLabel} quest`); knownKeys(quest, new Set(['taskId', 'title']), `${sourceLabel} quest`);
+        propertyKey(quest.taskId, `${sourceLabel} quest taskId`);
+        validateQuestProgress(quest.taskId, { title: quest.title, ...provenance }, taskRows, member.id);
+        if (observedQuests.has(quest.taskId)) fail(`Duplicate ${sourceLabel} quest task: ${quest.taskId}`);
         observedQuests.add(quest.taskId);
       }
       // The entire trusted snapshot validates before any personal fact is applied.
-      payload.runescapeName = member.runescapeName;
+      if (!plugin) payload.runescapeName = member.runescapeName;
       if (payload.skills.length) member.skillProgress = { ...(member.skillProgress ?? {}), ...Object.fromEntries(payload.skills.map(({ skill, level, xp }) => [skill, { level, xp, ...provenance }])) };
       if (payload.quests.length) {
         member.questProgress = { ...(member.questProgress ?? {}), ...Object.fromEntries(payload.quests.map(({ taskId, title }) => [taskId, { title, ...provenance }])) };
         member.completedTasks = [...new Set([...member.completedTasks, ...observedQuests])];
       }
-      member.runeMetricsSync = provenance;
+      if (!plugin) member.runeMetricsSync = provenance;
       break;
     }
     case 'set-slayer-lock': {
@@ -2074,7 +2080,7 @@ function applyCommandCopy(next, command, { expectedRevision, world, registry, ra
   // Availability changes are
   // reconciled after calculation, without attaching their cleanup to History.
   const completionCommand = payload.type === 'complete-task' || payload.type === 'set-task-status' && Object.hasOwn(payload, 'challengeCompleted')
-    || ['apply-runemetrics', 'sync-original', 'replace-member', 'clear-challenge-ticks', TICK_ACTIVE_TASKS, 'undo'].includes(payload.type);
+    || ['apply-runemetrics', 'apply-game-progress', 'sync-original', 'replace-member', 'clear-challenge-ticks', TICK_ACTIVE_TASKS, 'undo'].includes(payload.type);
   if (completionCommand && Object.keys(next.taskClaims ?? {}).length) {
     const satisfiedIds = member => new Set([...(member?.completedTasks ?? []),
       ...Object.entries(member?.taskStatus ?? {}).filter(([, status]) => status.challengeCompleted === true).map(([id]) => id)]

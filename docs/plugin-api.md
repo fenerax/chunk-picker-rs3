@@ -1,0 +1,193 @@
+# Game plugin API v1
+
+The picker accepts player reports; it never sends commands to the game. This API
+works for beta and live worlds. A beta world is a separate character copy:
+review its progress carefully before applying it.
+
+Create a key in **Game plugin** in the picker. Players manage their own keys;
+administrators can manage any player's. Viewers cannot manage keys or apply
+progress. Each player can have three active keys. Copy a newly created key once
+and paste it into the plugin. Only SHA-256 hashes are stored in the separate
+key sidecar. Keys can be revoked. Never put them in URLs, logs, or saves.
+
+All three routes require `Authorization: Bearer gpk_…` with a dedicated plugin key.
+Cookies, picker master/invite credentials and overlay keys cannot authorize
+them. A plugin key cannot authorize any other route, even alongside a valid
+picker cookie. An Origin header is optional, including through Funnel. If sent,
+it must satisfy the picker's normal origin check. Cross-site browser requests
+are refused. There is no CORS access.
+
+## POST /api/plugin/v1/report
+
+Use `Content-Type: application/json`. Maximum body: **16,384 bytes**, including
+unknown fields (which are rejected). Four requests per second per key, shared
+with status reads. Errors use `{ "message": "…" }`; rate limits return 429 and
+`Retry-After: 1`. Invalid payloads return 400, credentials 401, stale sequence
+409, oversized bodies 413. Successful reports return status, below.
+
+```json
+{
+  "v": 1,
+  "seq": 1,
+  "sentAt": "2026-10-19T12:00:00.000Z",
+  "world": { "id": 1, "beta": true },
+  "position": { "x": 50, "z": 50, "floor": 0 },
+  "skills": {
+    "ATTACK": { "level": 12, "xp": 1584 },
+    "RUNECRAFTING": { "level": 3, "xp": 174 }
+  },
+  "quests": {
+    "finished": ["Cook's Assistant"],
+    "started": ["THE_BLOOD_PACT"]
+  }
+}
+```
+
+`v`, `seq`, `sentAt`, and `position` are required. `seq` is a nonnegative safe
+integer, increasing per key during a server session. Use Unix milliseconds to
+start a new plugin session without reusing sequence numbers. Retries with an
+old sequence return 409 without changing anything. `sentAt` is a valid ISO UTC
+timestamp with seconds and optional 1–3 fractional digits.
+
+`x`/`z` are **map squares**, integers 0–199, not tile coordinates. `floor` is an
+integer 0–3. Chunk ID is the decimal string `x*256+z`: Lumbridge `(50,50)` is
+`"12850"`; `(53,45)` is `"13613"`. Position expires after ten minutes and never
+enters the save, History, Undo or backups. It never unlocks a chunk.
+
+`world` is optional; when supplied it needs integer `id` 1–10000 and boolean
+`beta`. Send it on each report. `skills` and `quests` are optional; position-only
+updates retain a waiting proposal. Skill fields merge into unapplied progress;
+a supplied quests object replaces the earlier quest lists. Switching between
+beta and live starts a new proposal; ordinary world hops retain progress. Reports
+containing progress replace an earlier review token; review again before apply.
+
+`diagnostics` is optional: an array of at most 80 single-line strings of up to
+160 characters, the plugin's own status lines. The latest set for each key is
+kept in memory only and shown under that key in the Game plugin dialog to the
+key's player and administrators. Never put the key or other secrets in it.
+
+All 29 skill names accept Title Case or uppercase enum spelling. `RUNECRAFT`
+and `RUNECRAFTING` both map to `Runecrafting`; `HITPOINTS` maps to `Constitution`.
+Unknown skills, duplicate aliases and unknown fields are rejected. Level is an
+integer 1–120; XP is a finite number 0–200,000,000 in **actual XP**, not tenths.
+
+Both quest arrays are required when `quests` is supplied, at most 500 names
+each. Names are trimmed strings of 1–160 characters without control characters.
+Matching uses the existing whole-quest mapping, Unicode normalization, case
+folding, punctuation and underscore-to-space normalization, plus the existing
+Vampire/Vampyre alias. Ambiguous or absent matches appear in the review as
+unmatched; the picker never guesses. Started quests are informational and do
+not mark completion. Finished quests and skill observations become an in-memory
+proposal that waits for review. Only the player or an administrator can Apply or Dismiss.
+Apply uses the normal revision-checked command and records `source:"game-plugin"`
+with the matching player ID in History/Undo. A restart discards positions and
+pending proposals; send progress again after reconnecting.
+
+## GET /api/plugin/v1/status
+
+No body or query parameters. Report and status return the same exact shape:
+
+```json
+{
+  "v": 1,
+  "player": { "id": "player1", "name": "Explorer 1" },
+  "chunkId": "12850",
+  "chunkName": "Lumbridge",
+  "state": "unlocked",
+  "activeTaskCount": null,
+  "unlockedChunkCount": 1,
+  "pendingProgress": true,
+  "seenAt": "2026-10-19T12:00:00.000Z",
+  "nearby": [
+    { "chunkId": "12336", "state": "locked" },
+    { "chunkId": "12592", "state": "available" },
+    { "chunkId": "12850", "state": "unlocked", "by": "partner" },
+    "… 25 rows in all …"
+  ],
+  "pickableCount": 3,
+  "pendingRoll": [{ "chunkId": "12593", "chunkName": "Draynor" }],
+  "partners": [{ "name": "Explorer 2", "chunkId": "12850", "chunkName": "Lumbridge", "seenAt": "2026-10-19T12:00:00.000Z" }]
+}
+```
+
+`chunkId`, `chunkName`, `seenAt`, and `nearby` can be null. `state` is `unlocked`, `locked`,
+`available`, or `unknown`. Unlocked respects the saved shared-access rule;
+available means eligible in an already cached roll pool or already offered/selected.
+Unknown means no recent position or no dataset chunk. A chunk known to be
+unlocked still returns unlocked if it lacks dataset metadata.
+`unlockedChunkCount` counts the player's own saved unlocks. `activeTaskCount`
+is the length of the in-game task list (below) once the plugin has read it at
+the current save revision, and null otherwise. Status caches saved ownership
+per revision, reuses an existing roll pool when present, and never runs the
+task engine. `pendingProgress` means a proposal is waiting for
+review, including proposals containing only unmatched/informational quests.
+
+`nearby` lists the 5×5 block of map squares centred on the reported position,
+so the plugin can shade neighbouring chunks. It is null whenever `chunkId` is
+null. Each row has exactly `chunkId` and `state`, with the same rules and cached
+sets as the top-level `state`. Rows run from the south-west corner, x fastest:
+`(x-2, z-2)`, `(x-1, z-2)`, … `(x+2, z+2)`, so row 12 is the current chunk. Map
+squares outside 0–199 are omitted, which leaves fewer than 25 rows at the map
+edge. Match rows by `chunkId`, not by index. When access is shared and the
+group has more than one player, unlocked rows also carry `by`: `me`, `partner`
+or `both`, saying whose saved unlocks contain the chunk.
+
+`pickableCount` is how many chunks the roll pool offers, or null until a pool
+exists. Status never calculates a pool inside its reply: when none exists it
+schedules one calculation after replying, so a later status has it.
+`pendingRoll` lists a roll's choices still waiting for this player to pick
+(empty when none). `partners` has one row per other player with the chunk
+their own plugin last reported; `chunkId`, `chunkName` and `seenAt` are null
+when that report is older than ten minutes. Exact tiles are never shared.
+
+## GET /api/plugin/v1/tasks
+
+No body or query parameters. Returns the player's active tasks for the game
+panel, read from the task list the picker last saved for that player:
+
+```json
+{
+  "v": 1,
+  "ready": true,
+  "stale": false,
+  "stateRevision": 42,
+  "chunkId": "12850",
+  "hereKnown": true,
+  "here": [{ "id": "rs3:Skills:Cut%20a%20tree", "label": "Cut a tree", "category": "Skills", "level": 1 }],
+  "all": ["… up to 100 rows …"],
+  "hereCount": 1,
+  "allCount": 37
+}
+```
+
+Rows use the picker's Active Tasks order: favourites, then category, then
+highest level, then label. They are the player's own default list: blocked,
+hidden, backlogged and completed tasks are left out. `level` is omitted when the
+task has none. Labels have control characters removed and are cut at 120
+characters. `all` holds at most 100 rows and `here` at most 50;
+`allCount` and `hereCount` give the true totals.
+
+`here` lists the tasks whose map locations include `chunkId`, the chunk from
+the player's latest report (null after ten minutes without one). `hereKnown`
+is false when there is no recent position or the saved list has no map
+locations; `here` is then empty.
+
+The route never calculates tasks. The picker saves a player's list whenever
+someone opens that player's tasks in the picker. A tick, unlock or other change
+clears that saved list; the plugin then keeps serving the last list it had,
+with `stale: true`, after applying the current save's completions, backlog and
+favourites. New unlocks appear once the picker saves a new list; an open picker
+page does that on its own. `ready` is
+false, with empty lists, when no list has been saved since the picker started:
+open the picker's task list once.
+
+## Simulator
+
+On a scratch server, set `RS3_PLUGIN_KEY` and run:
+
+```sh
+node scripts/plugin-sim.mjs http://127.0.0.1:8953
+```
+
+It walks four chunks then sends synthetic skills/quests flagged as beta. Set
+`RS3_PLUGIN_PATH` to comma-separated chunk IDs for a different player's path.

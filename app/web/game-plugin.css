@@ -1,0 +1,11 @@
+.game-plugin { min-width: 0; }
+.game-plugin p { max-width: 72ch; }
+.game-plugin h4, .game-plugin h5 { margin-bottom: var(--space-2); }
+.game-plugin ul { margin-top: var(--space-2); padding-inline-start: var(--space-7); }
+.game-plugin-key { padding-block: var(--space-5); border-bottom: var(--border-thin) solid var(--hairline); }
+.game-plugin-key p { margin-block: var(--space-2) var(--space-4); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.game-plugin-secret { padding-block: var(--space-5); }
+.game-plugin-diagnostics summary { cursor: pointer; }
+.game-plugin-diagnostics li { font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.game-plugin input { width: 100%; min-width: 0; box-sizing: border-box; }
+.game-plugin .form-actions { flex-wrap: wrap; }

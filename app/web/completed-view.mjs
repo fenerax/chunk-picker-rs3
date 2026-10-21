@@ -136,6 +136,7 @@ export function createCompletedView(context) {
     for (const owner of activeOwners()) options.push({ value: `ticked:${owner.id}`, label: `Ticked by ${owner.name}` });
     for (const owner of members().filter(owner => selected === 'both' || owner.id !== selected)) options.push({ value: `done:${owner.id}`, label: `Done by ${owner.name}` });
     options.push({ value: 'runemetrics', label: 'Done in-game (RuneMetrics)' }, { value: 'imported', label: 'Imported from original picker' });
+    options.push({ value: 'game-plugin', label: 'Done in-game (Game plugin)' });
     for (const option of options) {
       const chip = button(option.label, () => { attribution = attribution === option.value ? 'all' : option.value; for (const node of chips.children) node.setAttribute('aria-pressed', String(node.dataset.filter === attribution)); renderList(); }, 'completed-chip');
       chip.dataset.filter = option.value; chip.setAttribute('aria-pressed', String(attribution === option.value)); chips.append(chip);
@@ -204,7 +205,7 @@ export function createCompletedView(context) {
     const evidence = el('div', undefined, 'completed-evidence');
     for (const completion of row.completions) {
       const name = completion.name ?? completion.memberName;
-      const how = `Done by ${name} (${completion.kind === 'ticked' ? 'ticked' : completion.source === 'runemetrics' ? 'in-game, RuneMetrics' : 'in-game'})`;
+      const how = `Done by ${name} (${completion.kind === 'ticked' ? 'ticked' : completion.source === 'runemetrics' ? 'in-game, RuneMetrics' : completion.source === 'game-plugin' ? 'in-game, Game plugin' : 'in-game'})`;
       const detail = el('div', undefined, 'completed-attribution');
       detail.append(el('span', how), el('span', `${date(completion.at)}${completion.imported ? ' · Imported from original picker' : ''}`, 'completed-task-meta'));
       evidence.append(detail);

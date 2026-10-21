@@ -137,7 +137,8 @@ test('every dispatched API route and gameplay command has an explicit permission
   for (const [method, section] of [['GET', handler.slice(readStart, writeStart)], ['POST', handler.slice(writeStart, writeEnd)]]) {
     checkRoutes(method, section);
     for (const [route, permission] of Object.entries(routePermissions[method])) {
-      assert.ok(['read', 'admin', 'write', 'saved-tasks', 'usage'].includes(permission), `${method} ${route} has a recognized permission`);
+      assert.ok(['read', 'admin', 'write', 'saved-tasks', 'usage', 'plugin'].includes(permission), `${method} ${route} has a recognized permission`);
+      if (permission === 'plugin') assert.ok(['GET /api/plugin/v1/status', 'GET /api/plugin/v1/tasks', 'POST /api/plugin/v1/report'].includes(`${method} ${route}`), 'plugin authentication has exactly three routes');
       if (permission === 'usage') assert.equal(`${method} ${route}`, 'POST /api/usage', 'viewer telemetry has one exact route');
       assert.equal(apiPermission(method, concrete(route)), permission);
     }
@@ -203,7 +204,7 @@ test('view-only Funnel sessions deny gameplay writes and accept only private usa
   for (const [route, permission] of Object.entries(routePermissions.POST)) {
     if (permission === 'usage') continue;
     const response = await f.viewer(concrete(route), {}, { malformed: true });
-    assert.equal(response.status, 403, `${route} denied before Content-Type / malformed JSON`);
+    assert.equal(response.status, permission === 'plugin' ? 401 : 403, `${route} denied before Content-Type / malformed JSON`);
   }
   for (const type of [...Object.keys(commandPermissions), 'future-command']) {
     assert.equal((await f.viewer('/api/command', { expectedRevision: 0, command: { type } })).status, 403, type);

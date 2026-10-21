@@ -15,6 +15,11 @@ export const adaptiveOptionsFor = (suite, env = process.env) => {
 
 // Reviewed small fixtures and model/controller tests. No running browser or full catalogue.
 export const quickTests = new Set([
+  "game-plugin-state.test.mjs",
+  "game-plugin-status.test.mjs",
+  "game-plugin-tasks.test.mjs",
+  "game-plugin-web.test.mjs",
+  "game-plugin-mapping.test.mjs",
   "ci-cache-inputs-pack.test.mjs",
   "ci-coverage-gate.test.mjs",
   "ci-coverage-inputs.test.mjs",
@@ -255,6 +260,7 @@ const fullOnlyPatterns = [
 
 // Remaining integration/provenance tests are named explicitly to catch unreviewed additions.
 const fullOnlyTests = new Set([
+  "game-plugin-routes.test.mjs",
   "release-lane-status.test.mjs",
   "build-dev-pack.test.mjs",
   "ci-pack-fetch.test.mjs",
@@ -477,6 +483,7 @@ export const openF2PTests = new Set([
   "duo-server.test.mjs",
   "eligibility-reuse.test.mjs",
   "frontdoor-ingress.test.mjs",
+  "game-plugin-mapping.test.mjs",
   "group-goals-server.test.mjs",
   "history-pagination-server.test.mjs",
   "idle-memory-server.test.mjs",

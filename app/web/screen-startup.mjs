@@ -98,6 +98,7 @@ export function createScreenStartup(c) {
       undoButton: c.$('undo'), ownHost: c.$('undo-own'), catchUpHost: c.$('duo-catchup'), liveHost: c.$('duo-live'),
       storage: (() => { try { return localStorage; } catch { return null; } })() });
     void c.duoCoordination.refresh();
+    void c.gamePlugin.refresh();
     c.bindControls();
     c.applyDatasetControls?.();
     c.usage?.start();

@@ -8,7 +8,8 @@ import { buildBiSComparison } from './bis-compare.mjs';
 
 const array = value => Array.isArray(value) ? value : [];
 const timestamp = value => typeof value === 'string' && /^\d{4}-\d{2}-\d{2}T/.test(value) && Number.isFinite(Date.parse(value)) ? value : null;
-const observed = (fact, member) => fact?.source === 'runemetrics' && sameRuneScapeName(fact.runescapeName, member.runescapeName);
+const observed = (fact, member) => fact?.source === 'game-plugin' && fact.memberId === member.id
+  || fact?.source === 'runemetrics' && sameRuneScapeName(fact.runescapeName, member.runescapeName);
 const enabled = value => ![false, 'false', 0].includes(value);
 const combatSkills = ['Attack', 'Strength', 'Defence', 'Constitution', 'Prayer', 'Magic', 'Ranged', 'Summoning', 'Necromancy'];
 const taskSections = ['Quests', 'Skills', 'BiS / gear', 'Diaries / achievements', 'Other'];
@@ -69,7 +70,9 @@ export function buildProfileModel(state, memberId, result, definitions = {}, rol
   const skills = { rows, knownCount, totalCount: rows.length, knownLevelTotal,
     totalLevel: knownCount === rows.length ? knownLevelTotal : null,
     combatLevel: combatSkills.every(skill => levels[skill] !== undefined) ? combatLevelFromSkills(levels) : null,
-    lastSyncAt: observed(sync, member) ? timestamp(sync.fetchedAt) : null, f2p };
+    lastSyncAt: [observed(sync, member) ? timestamp(sync.fetchedAt) : null,
+      ...rows.filter(row => row.level !== null && member.skillProgress?.[row.skill]?.source === 'game-plugin').map(row => row.fetchedAt)]
+      .filter(Boolean).sort((a, b) => Date.parse(b) - Date.parse(a))[0] ?? null, f2p };
 
   const catalogue = new Map();
   const resolve = id => resolveSavedTaskId(state.identityRegistry, id);

@@ -8,7 +8,7 @@ const key = (owner, id) => `${owner}\u0000${id}`;
 const checkSources = new Set(['checkedAllTasks', 'checkedChallenges', 'completedChallenges']);
 
 /** A read-only completion ledger. Dates describe recorded confirmations, never
- * an import time or the time RuneMetrics happened to observe a finished quest. */
+ * an import time or the time a sync observed a finished quest. */
 export function createCompletedModel({ state, result, memberId, registry, now = new Date() }) {
   const selected = memberId === 'both' ? state.members : state.members.filter(owner => owner.id === memberId);
   if (!selected.length) throw new RangeError(`Unknown member: ${memberId}.`);
@@ -93,7 +93,7 @@ export function createCompletedModel({ state, result, memberId, registry, now = 
       for (const owner of command.members ?? []) for (const id of owner.tasks?.complete ?? []) {
         checks.set(key(owner.memberId, resolve(id)), { completed: true, at: null, imported: true });
       }
-    } else if (event.type === 'apply-runemetrics') {
+    } else if (event.type === 'apply-runemetrics' || event.type === 'apply-game-progress') {
       for (const quest of command.quests ?? []) {
         const id = key(command.memberId, resolve(quest.taskId));
         // A refresh of an already completed quest is not a new completion.
@@ -102,7 +102,8 @@ export function createCompletedModel({ state, result, memberId, registry, now = 
     }
   }
   for (const owner of state.members) for (const [id, fact] of Object.entries(owner.questProgress ?? {})) {
-    if (fact.source === 'runemetrics' && timestamp(fact.fetchedAt) && typeof fact.runescapeName === 'string' && fact.runescapeName.trim()) {
+    if (timestamp(fact.fetchedAt) && (fact.source === 'game-plugin' && fact.memberId === owner.id
+      || fact.source === 'runemetrics' && typeof fact.runescapeName === 'string' && fact.runescapeName.trim())) {
       observations.set(key(owner.id, resolve(id)), fact);
     }
   }
@@ -114,7 +115,8 @@ export function createCompletedModel({ state, result, memberId, registry, now = 
       const completion = { memberId: owner.id, name: owner.name ?? owner.id, memberName: owner.name ?? owner.id, kind,
         taskId: id, at: history?.completed ? history.at : null,
         imported: kind === 'ticked' && (history ? history.completed && history.imported : imported.has(reference)),
-        ...(observation ? { source: 'runemetrics', observedAt: observation.fetchedAt, runescapeName: observation.runescapeName } : {}) };
+        ...(observation ? { source: observation.source, observedAt: observation.fetchedAt,
+          ...(observation.source === 'runemetrics' ? { runescapeName: observation.runescapeName } : {}) } : {}) };
       const entries = evidence.get(id) ?? []; entries.push(completion); evidence.set(id, entries);
     };
     for (const [id, status] of Object.entries(owner.taskStatus ?? {})) if (status.challengeCompleted === true) add(id, 'ticked');
@@ -160,6 +162,7 @@ export function filterCompletedRows(rows, { query = '', attribution = 'all', sor
     if (attribution.startsWith('done:')) return completion.memberId === attribution.slice(5);
     if (attribution === 'imported') return completion.imported;
     if (attribution === 'runemetrics') return completion.kind === 'game' && completion.source === 'runemetrics';
+    if (attribution === 'game-plugin') return completion.kind === 'game' && completion.source === 'game-plugin';
     if (attribution === 'ticked' || attribution === 'game') return completion.kind === attribution;
     return completion.memberId === attribution;
   };

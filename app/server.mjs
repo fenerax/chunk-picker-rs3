@@ -28,6 +28,7 @@ import { openInviteStore } from './storage/invites.mjs';
 import { openFeedbackStore } from './storage/feedback.mjs';
 import { openUsageRoute } from './usage-route.mjs';
 import { openOverlays } from './overlays.mjs';
+import { openGamePlugin } from './game-plugin.mjs';
 import { readBackupStatus } from './storage/backup-status.mjs';
 import { transportRouteById } from './data/transport-routes.mjs';
 import { normalizePublicOrigin, requestContext, checkRequestOrigin, createRateLimits } from './security/request.mjs';
@@ -109,7 +110,8 @@ function httpError(status, message) { return Object.assign(new Error(message), {
 // Unknown writes are denied before consuming their body, including future routes.
 export const routePermissions = Object.freeze({
   GET: Object.freeze({
-    '/api/session': 'read', '/api/coordination': 'read', '/api/invites': 'admin', '/api/overlays': 'admin', '/api/feedback': 'admin',
+    '/api/game-plugin': 'read', '/api/game-plugin/review': 'read',
+    '/api/plugin/v1/status': 'plugin', '/api/plugin/v1/tasks': 'plugin', '/api/session': 'read', '/api/coordination': 'read', '/api/invites': 'admin', '/api/overlays': 'admin', '/api/feedback': 'admin',
     '/api/feedback/summary': 'write', '/api/feedback/own': 'write', '/api/usage': 'admin',
     '/api/admin/master-link': 'admin', '/api/icons': 'read', '/api/ids/:id': 'read',
     '/api/state': 'read', '/api/history': 'read', '/api/history/:id': 'read', '/api/roll-stats': 'read', '/api/display-world': 'read', '/api/health': 'read', '/api/art-status': 'read', '/api/dataset-status': 'read', '/api/dataset-runtime': 'read', '/api/dataset-input': 'read',
@@ -124,6 +126,8 @@ export const routePermissions = Object.freeze({
     '/api/backups/:id': 'write', '/api/members-start': 'write', '/api/events': 'read',
   }),
   POST: Object.freeze({
+    '/api/plugin/v1/report': 'plugin', '/api/game-plugin/keys': 'write', '/api/game-plugin/keys/:id/revoke': 'write',
+    '/api/game-plugin/apply': 'write', '/api/game-plugin/dismiss': 'write',
     '/api/action-session': 'write', '/api/sandbox/evaluate': 'write', '/api/prediction-intent': 'write', '/api/pool-ranking-intent': 'write', '/api/feedback': 'write', '/api/feedback/:id/status': 'admin',
     '/api/feedback/seen': 'write', '/api/usage': 'usage',
     '/api/invites': 'admin', '/api/invites/:id/player': 'admin', '/api/invites/:id/revoke': 'admin',
@@ -141,7 +145,7 @@ export const commandPermissions = Object.freeze(Object.fromEntries([
   'set-teleport', 'delete-teleport', 'set-chunk', 'set-note', 'set-journal', 'add-task', 'update-task', 'delete-task', 'clear-challenge-ticks',
   'clear-backlog', 'set-task-status', 'set-task-rule', 'set-preference', 'reset-task-rule',
   'set-task-alternative', 'set-primary-override', 'set-skill-levels', 'set-xp-choices', 'replace-member',
-  'set-runescape-name', 'apply-runemetrics', 'set-slayer-lock', 'set-sticker', 'add-sticker',
+  'set-runescape-name', 'apply-runemetrics', 'apply-game-progress', 'set-slayer-lock', 'set-sticker', 'add-sticker',
   'update-sticker', 'remove-sticker', 'clear-stickers', 'set-chunk-colour', 'rename-chunk-colour', 'set-starting-chunk', 'set-section',
   'set-source-backlog', 'set-area', 'complete-task', 'set-obtained-equipment', 'roll', 'pick-for-me', 'unlock-selection',
   'cancel-roll', 'unlock-both', 'random-start', 'go-members', 'setup-start', 'unpick', 'undo', 'claim-task', 'clear-task-claim', TICK_ACTIVE_TASKS,
@@ -582,6 +586,7 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
   } catch (error) { await store.close(); await taskWorker?.close(); throw error; }
   startupTimingMs.storeMs = performance.now() - storeStarted;
   startupPhase('create:store');
+  const questMapping = createQuestMapping(parsedDefinitions);
   const authStarted = performance.now();
   const token = store.getAccessToken();
   // The first map belongs to the master owner. Feedback aliases her private
@@ -589,7 +594,7 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
   let feedbackOwnerId = store.getCalculationSnapshot().members[0]?.id;
   const feedbackActor = identity => identity.kind === 'master' && feedbackOwnerId
     ? { ...identity.actor, memberId: feedbackOwnerId } : identity.actor;
-  let invites, feedback, overlays, usage;
+  let invites, feedback, overlays, usage, gamePlugin;
   async function openSidecars() {
     invites = await openInviteStore({ dataDir, masterToken: token, masterLabel: dataset.gameDefaults.masterLabel }); feedback = await openFeedbackStore({ dataDir });
     usage = await openUsageRoute({ dataDir, readOnly: liveSwap?.standby === true, members: store.getCalculationSnapshot().members,
@@ -598,10 +603,15 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
     overlays = await openOverlays({ dataDir, store, world: indexedWorld, webRoot, publicOrigin,
       authenticateAdmin: (request, security) => invites.authenticate(request, security), checkRequestOrigin, serializeMutation,
       unauthenticated: key => limits.unauthenticated(key) });
+    gamePlugin = await openGamePlugin({ dataDir, store, world: indexedWorld, registry: ruleRegistry, questMapping, bodyJSON, json,
+      serializeMutation, checkRequestOrigin,
+      // In-game lists read the saved task result only; they never start an evaluation.
+      savedTasks: memberId => { const entry = savedTaskResults.get(memberId); return entry?.playJSON ? { bytes: entry.playJSON, revision: entry.revision } : null; },
+      notify: () => { for (const client of clients) if (!client.write('event: game-plugin\ndata: {}\n\n')) client.end(); } });
   }
   try { await openSidecars(); }
-  catch (error) { await Promise.all([invites?.close(), feedback?.close(), usage?.close(), store.close(), taskWorker?.close()]); throw error; }
-  if (startupSignal?.aborted) { await overlays.close(); await Promise.all([store.close(), taskWorker?.close(), invites.close(), feedback.close(), usage.close()]); startupSignal.throwIfAborted(); }
+  catch (error) { await Promise.all([invites?.close(), feedback?.close(), usage?.close(), overlays?.close(), gamePlugin?.close(), store.close(), taskWorker?.close()]); throw error; }
+  if (startupSignal?.aborted) { await Promise.all([overlays.close(), gamePlugin.close()]); await Promise.all([store.close(), taskWorker?.close(), invites.close(), feedback.close(), usage.close()]); startupSignal.throwIfAborted(); }
   startupTimingMs.authMs = performance.now() - authStarted;
   startupPhase('create:sidecars');
   // Compile the static fingerprint before readiness; subsequent saves hash
@@ -612,7 +622,7 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
     // saved reuse hashes only the changed small fields on the Unlock path.
     void store.getCalculationSnapshot().taskInputKey;
   }
-  const runeMetricsClient = createRuneMetricsClient(runeMetrics), questMapping = createQuestMapping(parsedDefinitions);
+  const runeMetricsClient = createRuneMetricsClient(runeMetrics);
   const runeMetricsPreviews = new Map();
   const originalSyncClient = originalSyncIntegration?.createOriginalSyncClient(originalSync), originalSyncPreviews = new Map();
   const originalSyncNow = () => (originalSync.now?.() ?? new Date()).getTime();
@@ -731,6 +741,7 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
     }
     if (entry.bytes > 32 * 1024 * 1024) return;
     savedTaskResults.set(memberId, entry);
+    gamePlugin?.rememberTasks(memberId, entry.playJSON);
     for (const row of savedTaskResults.values()) {
       if ([...savedTaskResults.values()].reduce((sum, result) => sum + result.bytes, 0) <= 32 * 1024 * 1024) break;
       if (row.duoInspectionJSON) { row.bytes -= row.duoInspectionJSON.length; delete row.duoInspectionJSON; }
@@ -1129,12 +1140,14 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
     }
     response.once('finish', saveFinished); response.once('close', saveFinished);
     try {
-      let identity = invites.authenticate(request, security);
+      let identity;
       const rawPath = (request.url ?? '/').split('?')[0];
       let route;
       try { route = decodeURIComponent(rawPath); } catch { throw httpError(400, 'Invalid URL.'); }
       if (route.includes('\\') || route.includes('\0') || route.split('/').some(part => part === '..' || part === '.')) throw httpError(404, 'Not found.');
+      if (await gamePlugin.handle(request, response, { route, security, closed })) return;
       if (await overlays.handle(request, response, { route, security, closed })) return;
+      identity = invites.authenticate(request, security);
       if (!identity) limits.unauthenticated(security.rateKey);
       if (request.method === 'GET' && route.startsWith('/join/')) {
         if (closed) throw httpError(503, 'Please try again later.');
@@ -1178,6 +1191,12 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
         if (await usage.handle(request, response, { route, security, identity, closed: () => closed, checkRequestOrigin })) return;
         if (route === '/api/chunk-sections' && request.method !== 'GET') throw httpError(405, 'Method not allowed.');
         if (request.method === 'GET' || request.method === 'HEAD') {
+          if (route === '/api/game-plugin') { await json(request, response, 200, gamePlugin.list(identity)); return; }
+          if (route === '/api/game-plugin/review') {
+            const query = new URL(request.url, 'http://localhost').searchParams;
+            if ([...query.keys()].some(key => key !== 'memberId') || query.getAll('memberId').length !== 1) throw httpError(400, 'Choose a player for game progress review.');
+            await json(request, response, 200, gamePlugin.review(identity, query.get('memberId'))); return;
+          }
           if (route === '/api/session') { await json(request, response, 200, { admin: identity.admin, readOnly: identity.readOnly, capabilities: identity.capabilities, label: identity.label, kind: identity.kind, memberId: identity.memberId ?? null, actor: identity.actor }); return; }
           if (route === '/api/pool-ranking') {
             const query = new URL(request.url, 'http://localhost').searchParams;
@@ -1597,12 +1616,12 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
             importingBackup = ownsImport = true;
           }
           const importedFile = isImportRoute(route) ? await readBackupRequest(request) : null;
-          const body = importedFile ? importedFile.body : await bodyJSON(request, route === '/api/sandbox/evaluate' ? 64 * 1024 : route === '/api/worker-restart' || route === '/api/prediction-intent' || route === '/api/pool-ranking-intent' || route.startsWith('/api/runemetrics/') || route.startsWith('/api/invites') ? 8192 : route.startsWith('/api/feedback') ? 16384 : MAX_BODY);
+          const body = importedFile ? importedFile.body : await bodyJSON(request, route === '/api/sandbox/evaluate' ? 64 * 1024 : route === '/api/worker-restart' || route === '/api/prediction-intent' || route === '/api/pool-ranking-intent' || route.startsWith('/api/game-plugin/') || route.startsWith('/api/runemetrics/') || route.startsWith('/api/invites') ? 8192 : route.startsWith('/api/feedback') ? 16384 : MAX_BODY);
           if (importedFile?.uploaded && body.document && route.startsWith('/api/restore')) route = route.replace('/api/restore', '/api/import');
           // Keep slow uploads and reviewed sync-original commands excluded. Only
           // ordinary accepted commands may drain across the freeze boundary.
           if (route === '/api/command' && Object.hasOwn(commandPermissions, body.command?.type)
-            && !['sync-original', 'replace-member', 'apply-runemetrics'].includes(body.command.type)) lease.ordinary();
+            && !['sync-original', 'replace-member', 'apply-runemetrics', 'apply-game-progress'].includes(body.command.type)) lease.ordinary();
           const execute = async () => {
             if (closed) throw httpError(503, 'The picker is stopping. Retry after it restarts.');
             // A session may have been revoked while a slow body was arriving.
@@ -1728,9 +1747,21 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
               endInactiveClients();
               await json(request, response, 200, { invite }); return;
             }
-            if (['/api/command', '/api/restore', '/api/import', '/api/member-restore', '/api/runemetrics/apply'].includes(route)) {
+            if (['/api/command', '/api/restore', '/api/import', '/api/member-restore', '/api/runemetrics/apply', '/api/game-plugin/apply'].includes(route)) {
               savingSocket = request.socket;
               savingConnections.set(savingSocket, (savingConnections.get(savingSocket) ?? 0) + 1);
+            }
+            if (route === '/api/game-plugin/keys') { await json(request, response, 201, await gamePlugin.create(identity, body)); return; }
+            const pluginRevoke = /^\/api\/game-plugin\/keys\/([a-f0-9-]{36})\/revoke$/.exec(route);
+            if (pluginRevoke) { await json(request, response, 200, await gamePlugin.revoke(identity, pluginRevoke[1], body)); return; }
+            if (route === '/api/game-plugin/apply' || route === '/api/game-plugin/dismiss') {
+              const applying = route.endsWith('/apply'), review = gamePlugin.findReview(identity, body, applying);
+              if (applying) {
+                const state = await store.command(review.command, body.expectedRevision, { actor: identity.actor });
+                gamePlugin.finish(review.command.memberId);
+                await json(request, response, 200, viewEnvelope(state, viewFor(request)));
+              } else { gamePlugin.finish(review.command.memberId); await json(request, response, 200, { dismissed: true }); }
+              return;
             }
             if (route === '/api/shutdown') {
               requireAdmin();
@@ -1787,6 +1818,7 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
               if (body.command?.type === 'prune-task-claims') throw httpError(400, 'Task claims are tidied up automatically.');
               if (!Object.hasOwn(commandPermissions, body.command?.type)) throw httpError(400, 'Unknown gameplay command.');
               if (body.command?.type === 'replace-member') throw httpError(400, 'To replace a player’s map, review the backup in Backup & Import first.');
+              if (body.command?.type === 'apply-game-progress') throw httpError(400, 'Review game plugin progress before applying it.');
               if (body.command?.type === 'apply-runemetrics') throw httpError(400, 'Review the RuneMetrics sync preview before saving progress.');
               let command = body.command;
               if (command.type !== 'sync-original') {
@@ -1906,7 +1938,8 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
           };
           // Order revocation with accepted saves. Once revoke returns, a queued
           // request cannot commit using the revoked session or admin capability.
-          const durable = ['/api/action-session', '/api/command', '/api/restore', '/api/import', '/api/member-restore', '/api/runemetrics/apply', '/api/shutdown'].includes(route)
+          const durable = ['/api/action-session', '/api/command', '/api/restore', '/api/import', '/api/member-restore', '/api/runemetrics/apply', '/api/game-plugin/apply', '/api/shutdown'].includes(route)
+            || route === '/api/game-plugin/keys' || /^\/api\/game-plugin\/keys\/[^/]+\/revoke$/.test(route)
             || route === '/api/invites' || /^\/api\/invites\/[^/]+\/(?:revoke|player)$/.test(route);
           await (durable ? serializeMutation(execute) : execute());
           return;
@@ -1931,7 +1964,7 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
         await sendRepresentation(request, response, catalogue.response, { conditional: catalogue.complete && catalogue.manifest.available }); return;
       }
       if (route === '/') file = await containedFile(webRoot, 'index.html');
-      else if (['/overlay-panel.mjs', '/overlay-panel.css'].includes(route)) file = await containedFile(webRoot, route.slice(1));
+      else if (['/overlay-panel.mjs', '/overlay-panel.css', '/game-plugin.mjs', '/game-plugin.css'].includes(route)) file = await containedFile(webRoot, route.slice(1));
       else if (route === '/core/chunk-colours.mjs') file = await containedFile(path.join(ROOT, 'app', 'core'), 'chunk-colours.mjs');
       else if (['/chunk-colour-picker.mjs', '/map-chunk-colours.mjs', '/chunk-colours.css'].includes(route)) file = await containedFile(webRoot, route.slice(1));
       else if (['/lamp-choices.mjs', '/lamp-choices.css'].includes(route)) file = await containedFile(webRoot, route.slice(1));
@@ -2125,7 +2158,7 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
         try {
           await handover.freeze(liveSwap?.freezeDeadlineMs ?? 2000);
           let phaseStarted = performance.now();
-          await Promise.all([invites.close(), feedback.close(), usage.close(), overlays.close()]);
+          await Promise.all([invites.close(), feedback.close(), usage.close(), overlays.close(), gamePlugin.close()]);
           reportActivationTiming(liveSwap?.onActivationTiming, 'app.sidecarsClose', phaseStarted);
           if (closed) throw new Error('Standby activation was cancelled by shutdown.');
           await store.activate(checkpoint);
@@ -2222,7 +2255,7 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
       clearTimeout(rankingLeaseTimer);
       closePromise = (async () => {
         if (activationPending) await activationPending.catch(() => {});
-        const overlaysClosed = overlays.close();
+        const overlaysClosed = Promise.all([overlays.close(), gamePlugin.close()]);
         unsubscribe();
         runeMetricsClient.close(); runeMetricsPreviews.clear();
         originalSyncClient?.close(); originalSyncPreviews.clear();

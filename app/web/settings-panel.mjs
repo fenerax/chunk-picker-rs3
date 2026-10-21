@@ -138,6 +138,11 @@ export function createSettingsPanel(ctx) {
         if (section.id === 'panels' && ctx.streamSafe && (!query || 'stream-safe mode hide private links feedback names browser'.includes(query))) {
           streamSafeRow = ctx.streamSafe.settingsRow(); node.append(streamSafeRow); count++;
         }
+        if (section.id === 'panels' && ctx.gamePlugin && (!query || 'game plugin keys sync levels quests position'.includes(query))) {
+          const row = el('div', undefined, 'rule-row settings-option'), copy = el('div', undefined, 'field-copy');
+          copy.append(el('strong', 'Game plugin'), el('p', 'Manage private plugin keys and review progress sent from the game.', 'field-help'));
+          row.append(copy, button('Game plugin…', ctx.gamePlugin.open)); node.append(row); count++;
+        }
         for (const preferenceId of section.ids) {
           if (ctx.supportsFeature?.('rsCatalogues') === false && ['defaultChunkinfo', 'topButtons', 'allTasks', 'hideAchievements'].includes(preferenceId)) continue;
           const definition = settingDefinitions.find(item => item.id === preferenceId); if (!definition) continue;

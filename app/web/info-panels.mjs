@@ -610,7 +610,7 @@ export function createInfoPanels(context) {
   function skillDetail(skill, result, back) {
     const node = el('div', undefined, 'skill-detail'), observed = snapshots.get(result)?.observedSkills?.[skill.skill];
     const header = el('div', undefined, 'skill-detail-head'), titles = el('div');
-    titles.append(el('h3', skill.skill), paragraph(observed ? `Level ${observed.level} · ${Number(observed.xp).toLocaleString()} XP (RuneMetrics)` : context.canWrite?.() === false ? 'Account level has not been synced yet.' : 'Level not synced yet: enter it below or sync RuneMetrics.', 'status-detail'));
+    titles.append(el('h3', skill.skill), paragraph(observed ? `Level ${observed.level} · ${Number(observed.xp).toLocaleString()} XP (${observed.source === 'game-plugin' ? 'Game plugin' : 'RuneMetrics'})` : context.canWrite?.() === false ? 'Account level has not been synced yet.' : 'Level not synced yet: enter it below or sync RuneMetrics.', 'status-detail'));
     header.append(button('← All skills', back, 'back-button'), skillBadge(skill.skill, 'large'), titles);
     const stats = el('div', undefined, 'skill-stats');
     for (const [value, label] of [[skill.reachableLevel, 'reachable ceiling'], [skill.availableTasks.length, 'methods you can use'], [skill.selectedGoals?.length ?? 0, 'active goals']]) { const stat = el('div', undefined, 'skill-stat'); stat.append(el('strong', String(value)), el('span', label)); stats.append(stat); }
@@ -749,7 +749,11 @@ export function createInfoPanels(context) {
     if (context.openXpChoices) nodes.push(button('XP choices', () => context.openXpChoices(snapshot.memberId)));
     // Sync is occasional, so it sits below the main tabs in its own collapsed section.
     const sync = syncControls ? details('RuneMetrics sync', syncControls) : null;
-    generation = openDialog('Activity Info', ...nodes, content, ...(sync ? [sync] : []), details('Activity coverage', list(view.coverage.limitations))) ?? context.dialogGeneration?.();
+    const plugin = context.gamePlugin ? details('Game plugin', context.gamePlugin.controls({ memberId: snapshot.memberId,
+      isCurrent: () => context.memberId() === snapshot.memberId && context.dialogGeneration?.() === generation && context.isDialogOpen?.() !== false,
+      onApplied: () => activityInfo(initialTab),
+    })) : null;
+    generation = openDialog('Activity Info', ...nodes, content, ...(sync ? [sync] : []), ...(plugin ? [plugin] : []), details('Activity coverage', list(view.coverage.limitations))) ?? context.dialogGeneration?.();
   }
   return { currentBiS, activityInfo, sourceView };
 }

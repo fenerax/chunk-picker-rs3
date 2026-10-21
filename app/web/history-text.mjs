@@ -21,7 +21,7 @@ const changeTypes = new Map([
   ['tasks', ['claim-task', 'clear-task-claim', 'prune-task-claims', 'set-task-status', 'clear-challenge-ticks', 'tick-active-tasks', 'clear-backlog', 'add-task', 'update-task', 'delete-task', 'set-task-alternative', 'set-source-backlog', 'add-finish-line-custom', 'set-finish-line-custom', 'delete-finish-line-custom']],
   ['settings', ['set-task-rule', 'reset-task-rule', 'set-rule', 'set-rule-review', 'set-profile', 'set-preference', 'set-primary-override', 'set-skill-levels', 'set-slayer-lock', 'set-finish-line-item']],
   ['travel', ['set-section', 'set-area', 'set-teleport', 'set-teleport-override', 'delete-teleport', 'set-transport-facts']],
-  ['progress', ['complete-task', 'set-obtained-equipment', 'set-runescape-name', 'apply-runemetrics', 'set-xp-choices']],
+  ['progress', ['complete-task', 'set-obtained-equipment', 'set-runescape-name', 'apply-runemetrics', 'apply-game-progress', 'set-xp-choices']],
   ['notes', ['set-note', 'set-journal', 'add-sticker', 'set-sticker', 'update-sticker', 'remove-sticker', 'clear-stickers', 'set-chunk-colour', 'rename-chunk-colour']],
   ['saves', ['sync-original', 'replace-member', 'go-members', 'undo', 'restore']],
 ].flatMap(([category, types]) => types.map(type => [type, category])));
@@ -133,6 +133,7 @@ export function describeHistoryEvent(event = {}, { memberName = id => id, chunkN
     case 'set-skill-levels': return `Set ${c.skill ? `${c.skill} ` : ''}levels${forWho}`;
     case 'set-runescape-name': return `Set the RuneScape name${forWho}`;
     case 'apply-runemetrics': return `Synced skills and quests from RuneMetrics${forWho}`;
+    case 'apply-game-progress': return `Applied skills and quests from the game plugin${forWho}`;
     case 'set-xp-choices': return `Changed XP choices for ${savedTask()}${forWho}`;
     case 'sync-original': return `Synced from the original picker${(c.members ?? []).length ? ` for ${c.members.map(m => player(m.memberId)).join(' and ')}` : ''}`;
     case 'replace-member': return `Restored ${who || 'a player'}’s map from a backup`;

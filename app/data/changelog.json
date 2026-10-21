@@ -3,6 +3,15 @@
   "entries": [
     {
       "date": "2026-10-21",
+      "title": "Game plugin (beta)",
+      "items": [
+        "A new Game plugin panel makes keys for the in-game plugin, which reports your progress to the picker; you review the progress before it is applied",
+        "The plugin can show nearby chunk states, partners' chunks, who unlocked what and waiting rolls in game",
+        "The plugin can list your active tasks for the chunk you are standing in, or all of them"
+      ]
+    },
+    {
+      "date": "2026-10-21",
       "title": "Chunk task numbers match the map",
       "items": [
         "Chunk Info's Possible Tasks opens on a new On the map view that lists exactly the tasks the map number counts for that chunk",
