@@ -79,4 +79,3 @@ These checks do not substitute for a run of the changed workflow on GitHub.
 
 The release consumer's required-job list lives outside this task's write scope.
 Its owner must add `coverage` to the exact-commit release requirements.
-
