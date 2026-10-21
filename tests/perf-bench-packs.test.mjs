@@ -86,6 +86,25 @@ test('external checkout selection retains server entry containment and fingerpri
   await assert.rejects(fingerprintPerfApplication(checkout), /symlink or junction/);
 });
 
+test('legacy archived server entries infer their complete app while wrappers retain the selected root', async t => {
+  const { root, put } = await fixture(t);
+  await put('app/server.mjs', '// current');
+  const archive = path.join(root, '.local/archive');
+  const entry = await put('.local/archive/app/server.mjs', '// archived server');
+  const dependency = await put('.local/archive/app/tasks/worker.mjs', '// archived worker');
+  const wrapper = await put('.local/archive/server-wrapper.mjs', '// wrapper');
+  const selected = await resolvePerfApplication(root, { serverEntry: entry });
+  assert.equal(selected.applicationRoot, archive);
+  assert.equal(selected.serverEntry, entry);
+  const before = await fingerprintPerfApplication(selected.applicationRoot, selected.serverEntry);
+  assert.deepEqual(before.files.map(row => row.path), ['app/server.mjs', 'app/tasks/worker.mjs']);
+  await writeFile(dependency, '// changed archived worker');
+  assert.notEqual((await fingerprintPerfApplication(selected.applicationRoot, selected.serverEntry)).sha256, before.sha256);
+  assert.equal((await resolvePerfApplication(root, { serverEntry: wrapper })).applicationRoot, root);
+  assert.equal((await resolvePerfApplication(root, { appDir: root, serverEntry: entry })).applicationRoot, root);
+  assert.equal((await resolvePerfApplication(root, { appDir: archive, serverEntry: wrapper })).applicationRoot, archive);
+});
+
 const page = await readFile(new URL('../scripts/perf/page-load.mjs', import.meta.url), 'utf8');
 function parse(args) {
   const context = vm.createContext({ console: { log() {} }, path, args });

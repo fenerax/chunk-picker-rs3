@@ -83,7 +83,12 @@ export async function resolvePerfApplication(root, { appDir, serverEntry } = {})
   if (!within(applicationRoot, entry) || !entry.endsWith('.mjs')) throw new Error('Server entry must be an .mjs file inside the selected worktree.');
   const resolved = await rejectPathLinks(entry);
   if (!within(applicationRoot, resolved) || !(await lstat(resolved)).isFile()) throw new Error('Server entry resolved outside the selected worktree.');
-  return { applicationRoot, serverEntry: resolved };
+  // Legacy --server-entry may select an archived app within the harness
+  // worktree. Validate containment first, then use that app for provenance and
+  // worker instrumentation. An explicit --app-dir keeps owning wrapper entries.
+  const inferredRoot = appDir === undefined && path.basename(resolved) === 'server.mjs' && path.basename(path.dirname(resolved)) === 'app'
+    ? path.dirname(path.dirname(resolved)) : applicationRoot;
+  return { applicationRoot: inferredRoot, serverEntry: resolved };
 }
 
 export async function fingerprintPerfApplication(root, serverEntry = path.join(root, 'app/server.mjs')) {
