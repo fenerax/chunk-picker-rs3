@@ -4,27 +4,37 @@ import path from 'node:path';
 import os from 'node:os';
 import { execFileSync } from 'node:child_process';
 import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
-import { evaluateChecks, treeEntries, verifyExport } from '../scripts/release/pc/quick-build.mjs';
+import { REQUIRED_CHECKS, evaluateChecks, treeEntries, verifyExport } from '../scripts/release/pc/quick-build.mjs';
 
 const run = (name, conclusion, id = 1, status = 'completed') => ({ id, name, status, conclusion, app: { slug: 'github-actions' }, completed_at: '2026-10-21T12:00:00Z' });
+// Every required job green, with `name` replaced (or dropped when `replacement` is absent).
+const greenExcept = (name, replacement) => REQUIRED_CHECKS.flatMap((check, index) =>
+  check !== name ? [run(check, 'success', 100 + index)] : replacement ? [replacement] : []);
+
+test('every GitHub job is required, including the coverage, gallery and rehearsal jobs', () => {
+  assert.deepEqual([...REQUIRED_CHECKS].sort(), ['coverage', 'gallery', 'rehearsal (ubuntu-latest)',
+    'rehearsal (windows-latest)', 'secrets', 'test', 'windows']);
+});
 
 test('GitHub checks pass only when every required job is green', () => {
-  assert.equal(evaluateChecks([run('test', 'success'), run('windows', 'success'), run('secrets', 'success')]).ok, true);
-  const missing = evaluateChecks([run('test', 'success'), run('secrets', 'success')]);
-  assert.deepEqual([missing.ok, missing.missing], [false, ['windows']]);
-  const failing = evaluateChecks([run('test', 'failure'), run('windows', 'success'), run('secrets', 'success')]);
+  assert.equal(evaluateChecks(greenExcept()).ok, true);
+  for (const name of REQUIRED_CHECKS) {
+    const missing = evaluateChecks(greenExcept(name));
+    assert.deepEqual([missing.ok, missing.missing], [false, [name]]);
+  }
+  const failing = evaluateChecks(greenExcept('test', run('test', 'failure')));
   assert.deepEqual([failing.ok, failing.failing], [false, ['test']]);
-  const pending = evaluateChecks([run('test', null, 1, 'in_progress'), run('windows', 'success'), run('secrets', 'success')]);
+  const pending = evaluateChecks(greenExcept('test', run('test', null, 1, 'in_progress')));
   assert.deepEqual([pending.ok, pending.pending], [false, ['test']]);
   // A required job may not be skipped; an extra workflow's job may.
-  assert.equal(evaluateChecks([run('test', 'skipped'), run('windows', 'success'), run('secrets', 'success')]).ok, false);
-  assert.equal(evaluateChecks([run('test', 'success'), run('windows', 'success'), run('secrets', 'success'), run('extra', 'skipped')]).ok, true);
+  assert.equal(evaluateChecks(greenExcept('coverage', run('coverage', 'skipped'))).ok, false);
+  assert.equal(evaluateChecks([...greenExcept(), run('extra', 'skipped')]).ok, true);
   // Other apps' checks are not ours to judge.
-  assert.equal(evaluateChecks([run('test', 'success'), run('windows', 'success'), run('secrets', 'success'), { ...run('lint', 'failure'), app: { slug: 'other' } }]).ok, true);
+  assert.equal(evaluateChecks([...greenExcept(), { ...run('lint', 'failure'), app: { slug: 'other' } }]).ok, true);
 });
 
 test('a rerun replaces its earlier attempt, in either direction', () => {
-  const base = [run('windows', 'success', 5), run('secrets', 'success', 6)];
+  const base = greenExcept('test');
   assert.equal(evaluateChecks([...base, run('test', 'failure', 1), run('test', 'success', 9)]).ok, true);
   assert.equal(evaluateChecks([...base, run('test', 'success', 1), run('test', 'failure', 9)]).ok, false);
 });

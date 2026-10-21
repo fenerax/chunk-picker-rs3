@@ -3,8 +3,11 @@
 GitHub runs every test suite. The release PC only builds, probes and swaps,
 in a few minutes, with no test suite of its own.
 
-1. Push the commit. `test`, `windows` and `secrets` in `test.yml` must all be
-   green on that exact commit; the build checks this through `gh api`.
+1. Push the commit. Every GitHub Actions job on that exact commit must be
+   green, and these must all be among them: `test`, `windows`, `coverage` and
+   `secrets` (`test.yml`), `gallery` (`gallery.yml`), and
+   `rehearsal (ubuntu-latest)` and `rehearsal (windows-latest)`
+   (`release-rehearsal.yml`). The build checks this through `gh api`.
 2. Build: `scripts/release/pc/Quick-Release.ps1 -Release <id> -Commit <sha>`.
    - Exports the commit into a new release folder and proves every file
      equals its blob.

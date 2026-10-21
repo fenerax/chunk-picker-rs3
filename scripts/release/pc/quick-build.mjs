@@ -18,7 +18,10 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { parseArgs } from 'node:util';
 
 export const REPOSITORY = 'fenerax/chunk-picker-rs3';
-export const REQUIRED_CHECKS = Object.freeze(['test', 'windows', 'secrets']);
+// Every job GitHub runs for a commit: tests (test.yml), the coverage gate over
+// both test lanes, the gallery screens and the release rehearsal on each OS.
+export const REQUIRED_CHECKS = Object.freeze(['test', 'windows', 'coverage', 'secrets', 'gallery',
+  'rehearsal (ubuntu-latest)', 'rehearsal (windows-latest)']);
 const sha = bytes => createHash('sha256').update(bytes).digest('hex');
 const json = async file => JSON.parse((await readFile(file, 'utf8')).replace(/^\uFEFF/, ''));
 const encode = value => Buffer.from(JSON.stringify(value, null, 2) + '\n');
