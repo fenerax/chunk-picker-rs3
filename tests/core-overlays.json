@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 1,
+  "files": {
+    "tests/viewer-permissions.test.mjs": {
+      "coreSha256": "da1d3d9101a8f9e81df9db1a831f9986c9379f28984b921aae6a0bac6feb484c",
+      "reason": "Core's copy plus reviewedOverlays: false for the native-calculator worker, matching server.mjs with fixture definitions; core omits it, so the private dataset's retained-task corrections hit fixture definitions. Drop once core passes the option."
+    }
+  }
+}

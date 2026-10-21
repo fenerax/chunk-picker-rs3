@@ -1,0 +1,304 @@
+name: Release checks
+
+on:
+  push:
+    tags: ['release-*']
+  workflow_dispatch:
+    inputs:
+      candidate:
+        description: Exact candidate commit (40 lowercase hexadecimal characters)
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-latest
+            os: linux
+          - runner: windows-latest
+            os: windows
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 120
+    env:
+      CANDIDATE_INPUT: ${{ inputs.candidate || github.sha }}
+      WORKFLOW_SOURCE: ${{ github.sha }}
+      LANE_OS: ${{ matrix.os }}
+      NODE_OPTIONS: --max-old-space-size=2048
+    steps:
+      - name: Validate candidate input
+        shell: pwsh
+        run: |
+          if ($env:CANDIDATE_INPUT -cnotmatch '^[a-f0-9]{40}$') { throw 'An exact candidate commit is required.' }
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ inputs.candidate || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 24.20.0
+      - name: Write hosted check driver
+        shell: bash
+        run: |
+          cat > "$RUNNER_TEMP/release-ci-driver.mjs" <<'NODE'
+          import path from 'node:path';
+          import { mkdir, readFile, writeFile, appendFile } from 'node:fs/promises';
+          import { createHash } from 'node:crypto';
+          import { spawnSync, execFileSync } from 'node:child_process';
+          import { pathToFileURL } from 'node:url';
+          const root = process.cwd(), work = path.join(process.env.RUNNER_TEMP, 'release-ci');
+          const sha = bytes => createHash('sha256').update(bytes).digest('hex');
+          const json = file => readFile(file, 'utf8').then(JSON.parse);
+          const load = name => import(pathToFileURL(path.join(root, name)).href);
+          const git = (...args) => execFileSync('git', args, { cwd: root, encoding: 'utf8', windowsHide: true }).trim();
+          await mkdir(work, { recursive: true });
+          const { discoverTests } = await load('scripts/test-selection.mjs');
+          const files = (await discoverTests(path.join(root, 'tests'), 'full')).map(name => 'tests/' + name).sort();
+          if (!files.length) throw Error('Empty test inventory refused.');
+          const inventorySha256 = sha(JSON.stringify(files));
+          const candidate = { commit: git('rev-parse', 'HEAD'), tree: git('rev-parse', 'HEAD^{tree}'), testInventorySha256: inventorySha256 };
+          if (candidate.commit !== process.env.CANDIDATE_INPUT) throw Error('Candidate checkout differs.');
+          // Capture the committed helper separately before tests execute. The
+          // browser contract refuses the same pathname or a hardlinked alias.
+          const reference = path.join(work, 'public-reference');
+          const helperName = 'tests/browser-screen-harness.mjs';
+          const helper = git('show', candidate.commit + ':' + helperName);
+          const referenceFiles = [helperName, ...[...helper.matchAll(/^import .* from ['"]([^'"]+)['"];?$/gm)]
+            .map(match => match[1]).filter(name => name.startsWith('.'))
+            .map(name => path.posix.normalize(path.posix.join('tests', name)))];
+          for (const name of new Set(referenceFiles)) {
+            if (name.startsWith('../') || path.posix.isAbsolute(name)) throw Error('Public reference escaped.');
+            const target = path.join(reference, name); await mkdir(path.dirname(target), { recursive: true });
+            const bytes = execFileSync('git', ['show', candidate.commit + ':' + name], { cwd: root, windowsHide: true, maxBuffer: 16 * 1024 ** 2 });
+            await writeFile(target, bytes, { flag: 'wx' });
+          }
+          const pinBytes = await readFile(path.join(root, '.github/packs/pack-pin.json'));
+          const { readPin } = await load('.github/packs/fetch-packs.mjs');
+          const pin = readPin(root), packsWork = path.join(work, 'packs'), packs = path.join(packsWork, 'tree');
+          const inputs = { packPinSha256: sha(pinBytes), packs: pin?.assets ?? [], selection: pin?.selection ?? null,
+            savePinSha256: null, saveArchiveSha256: null, saveStateSha256: null };
+          const gates = [];
+          const record = (name, status, reason, extra = {}) => {
+            gates.push({ name, status, ...(reason ? { reason } : {}), ...extra });
+            console.log(`${name}: ${status}${reason ? ' (' + reason + ')' : ''}`);
+          };
+          // Never send command output or raw save diagnostics to the artifact/log.
+          const command = (executable, args, env = process.env, timeout = 600000) => {
+            const result = spawnSync(executable, args, { cwd: root, env, timeout, windowsHide: true, stdio: 'ignore' });
+            if (result.status !== 0 || result.error) throw Error('Hosted command refused.');
+          };
+          for (const dir of ['.local/lane-temp', '.local/lane-home/AppData/Local', '.local/lane-home/AppData/Roaming', '.local/compile-cache'])
+            await mkdir(path.join(work, dir), { recursive: true });
+          const { laneEnvironment } = await load('scripts/private-companion/release-evidence.mjs');
+          const env = await laneEnvironment(work, process.execPath, { RS3_TEST_CONCURRENCY: '2', RS3_TEST_RETRY_ONCE_IN_ISOLATION: '0',
+            RS3_TEST_SCRATCH_ROOT: path.join(work, '.local/lane-temp'),
+            RS3_PUBLIC_BROWSER_SCREEN_HARNESS: path.join(reference, helperName),
+            RS3_GAME_DATA_DIR: path.join(root, '.local/game-data'), RS3_MAP_ASSETS_DIR: path.join(root, '.local/map-assets') });
+          let packsReady = false, packedEnv;
+          try {
+            if (!pin) record('pack-integrity', 'skipped', 'No packs pinned; pack-dependent coverage is unavailable.');
+            else {
+              command(process.execPath, ['.github/packs/fetch-packs.mjs', root, packsWork]);
+              if (!['data', 'rulesText', 'art'].every(kind => pin.selection[kind])) throw Error('Incomplete selection.');
+              const { buildDatasetProfile } = await load('scripts/build-dataset-profile.mjs');
+              const { buildPrivateAddon } = await load('scripts/build-private-addon.mjs');
+              const profile = await buildDatasetProfile({ packsDir: packs, output: path.join(work, 'profile.json'), sourceRoot: root });
+              const addon = await buildPrivateAddon({ sourceRoot: root, output: path.join(work, 'addons') });
+              packedEnv = { ...env, RS3_PACKS_DIR: packs, RS3_PACK_SELECTION: path.join(packs, 'selection.json'),
+                RS3_DATASET_PROFILE: profile.output, RS3_DATASET_PROFILE_SHA256: profile.sha256,
+                RS3_PRIVATE_ADDON: addon.path, RS3_PRIVATE_ADDON_SHA256: addon.sha256 };
+              packsReady = true;
+              record('pack-integrity', 'pass');
+            }
+          } catch { record('pack-integrity', 'fail', 'Pinned pack download, integrity or profile/addon build refused.'); }
+          // The save-copy job owns this optional pin and helper. Missing assets
+          // skip visibly; malformed pins or failed nonempty pins are failures.
+          try {
+            const savePinFile = path.join(root, '.github/packs/save-pin.json');
+            let saveBytes;
+            try { saveBytes = await readFile(savePinFile); } catch (error) { if (error.code !== 'ENOENT') throw error; }
+            if (!saveBytes) record('scrubbed-save-startup', 'skipped', 'No scrubbed save pin; save coverage is unavailable.');
+            else {
+              inputs.savePinSha256 = sha(saveBytes);
+              const savePin = JSON.parse(saveBytes);
+              if (savePin.schema !== 'rs3-ci-save-pin-v1') throw Error('Invalid save pin.');
+              if (savePin.tag === null && savePin.asset === null) record('scrubbed-save-startup', 'skipped', 'No scrubbed save pinned; save coverage is unavailable.');
+              else if (!packsReady) record('scrubbed-save-startup', 'blocked', 'Scrubbed save requires verified packs.');
+              else {
+                const asset = savePin.asset;
+                if (!/^[A-Za-z0-9._-]+$/.test(savePin.tag ?? '') || !asset || !/^[A-Za-z0-9._-]+\.json$/.test(asset.name ?? '')
+                    || !/^[a-f0-9]{64}$/.test(asset.sha256 ?? '') || !Number.isSafeInteger(asset.bytes) || asset.bytes <= 0
+                    || asset.bytes > 128 * 1024 ** 2) throw Error('Invalid save pin.');
+                const downloads = path.join(work, 'save-download'); await mkdir(downloads);
+                command('gh', ['release', 'download', savePin.tag, '--repo', 'fenerax/chunk-picker-rs3', '--pattern', asset.name, '--dir', downloads]);
+                const bytes = await readFile(path.join(downloads, asset.name));
+                if (bytes.length !== asset.bytes || sha(bytes) !== asset.sha256) throw Error('Save asset differs.');
+                inputs.saveArchiveSha256 = asset.sha256;
+                // save-copy produces a scrubbed application backup. Import it
+                // using the actual decoder; never copy a backup wrapper directly
+                // into state.json or install its original storage/access files.
+                const document = JSON.parse(bytes);
+                if (document.format !== 'rs3-chunk-picker' || document.schemaVersion !== 1
+                    || !Array.isArray(document.state?.members)) throw Error('Save format differs.');
+                const stateBytes = Buffer.from(JSON.stringify(document.state) + '\n');
+                inputs.saveStateSha256 = sha(stateBytes);
+                const data = path.join(work, 'scrubbed-save'); await mkdir(data);
+                await writeFile(path.join(data, 'state.json'), stateBytes, { flag: 'wx' });
+                command(process.execPath, ['scripts/save-copy/scrub-save.mjs', '--check', path.join(downloads, asset.name)],
+                  { ...packedEnv, RS3_DATASET: 'duo-legacy' }, 240000);
+                // Only the disposable copy can be opened/migrated by the probe.
+                command(process.execPath, ['scripts/private-companion/release-pack-check.mjs', 'probe', root, data, path.join(work, 'save-probe.json')],
+                  { ...packedEnv, RS3_DATASET: 'duo-legacy', RS3_TASK_WORKER_MODE: 'process' }, 240000);
+                const report = await json(path.join(work, 'save-probe.json'));
+                if (report.tasksServed !== true || report.migrationSummary?.lostRecords !== 0) throw Error('Save startup refused.');
+                record('scrubbed-save-startup', 'pass');
+              }
+            }
+          } catch { record('scrubbed-save-startup', 'fail', 'Pinned scrubbed save download, integrity or startup refused.'); }
+          if (process.env.LANE_OS === 'linux') {
+            try {
+              // Scan every reachable commit as well as the selected tree. No
+              // private corpus or release-PC path is available to this runner.
+              command(process.execPath, ['scripts/secret-scan/scan.mjs', '--without-corpus', '--tree', candidate.commit, '--commits', candidate.commit]);
+              record('secret-scan', 'pass');
+            } catch { record('secret-scan', 'fail', 'Public pattern or commit attribution scan refused.'); }
+          }
+          try {
+            const { runAdaptive } = await load('scripts/adaptive-test-runner.mjs');
+            const controller = new AbortController();
+            let idleSince = Date.now();
+            const result = await runAdaptive({ files, cwd: root, env, minConcurrency: 1, maxConcurrency: 2,
+              signal: controller.signal,
+              onSchedule: async ({ active, pending }) => {
+                if (active || !pending) idleSince = Date.now();
+                else if (Date.now() - idleSince > 120000) controller.abort();
+              },
+              onFile: async item => console.log(`test file ${item.passed ? 'pass' : 'fail'}`) });
+            const counts = value => Object.fromEntries(['tests', 'passed', 'failed', 'cancelled', 'skipped', 'todo'].map(key => [key, value?.[key] ?? 0]));
+            const rows = result.files.map(item => ({ file: item.file.replaceAll('\\', '/'), passed: item.passed === true, counts: counts(item.summary?.counts) }))
+              .sort((a, b) => a.file.localeCompare(b.file));
+            const observed = rows.map(item => item.file).sort();
+            const complete = JSON.stringify(observed) === JSON.stringify(files);
+            record('source-tests', result.passed && complete ? 'pass' : 'fail', undefined,
+              { counts: counts(result.summary?.counts), files: rows, inventorySha256 });
+          } catch { record('source-tests', 'fail', 'Source test execution refused.'); }
+          const summary = { schema: 'rs3-release-ci-lane-v1', candidate, inputs,
+            workflow: { path: '.github/workflows/release-check.yml', sourceCommit: process.env.WORKFLOW_SOURCE,
+              runId: process.env.GITHUB_RUN_ID, attempt: process.env.GITHUB_RUN_ATTEMPT, event: process.env.GITHUB_EVENT_NAME, ref: process.env.GITHUB_REF },
+            lane: { os: process.env.LANE_OS, node: process.version, gates } };
+          await writeFile(path.join(work, 'lane.json'), JSON.stringify(summary, null, 2) + '\n');
+          const lines = gates.map(gate => `| ${gate.name} | ${gate.status} | ${gate.counts?.tests ?? ''} | ${gate.counts?.skipped ?? ''} |`);
+          await appendFile(process.env.GITHUB_STEP_SUMMARY, `### ${process.env.LANE_OS} release checks\n\n| Gate | Result | Tests | Skipped |\n|---|---|---:|---:|\n${lines.join('\n')}\n\nExact kit practice/gallery/install/freeze and live activation are not approved by these checks.\n`);
+          process.exitCode = gates.some(gate => gate.status === 'fail' || gate.status === 'blocked') ? 1 : 0;
+          NODE
+      - name: Run isolated checks
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if ($IsWindows) {
+            # Same default-owner adjustment as windows-slice/run.ps1, in the
+            # process that launches the full inventory. No scheduled tasks.
+            Add-Type -TypeDefinition @'
+          using System;
+          using System.ComponentModel;
+          using System.Runtime.InteropServices;
+          using System.Security.Principal;
+          public static class ReleaseCiOwner {
+            [DllImport("kernel32.dll")] static extern IntPtr GetCurrentProcess();
+            [DllImport("advapi32.dll", SetLastError=true)] static extern bool OpenProcessToken(IntPtr p, uint a, out IntPtr t);
+            [DllImport("advapi32.dll", SetLastError=true)] static extern bool SetTokenInformation(IntPtr t, int c, ref IntPtr i, int l);
+            [DllImport("kernel32.dll")] static extern bool CloseHandle(IntPtr h);
+            public static void Set() {
+              IntPtr t; if (!OpenProcessToken(GetCurrentProcess(), 0x0080, out t)) throw new Win32Exception();
+              SecurityIdentifier user = WindowsIdentity.GetCurrent().User;
+              byte[] b = new byte[user.BinaryLength]; user.GetBinaryForm(b, 0);
+              IntPtr sid = Marshal.AllocHGlobal(b.Length);
+              try { Marshal.Copy(b, 0, sid, b.Length); if (!SetTokenInformation(t, 4, ref sid, IntPtr.Size)) throw new Win32Exception(); }
+              finally { Marshal.FreeHGlobal(sid); CloseHandle(t); }
+            }
+          }
+          '@
+            [ReleaseCiOwner]::Set()
+          }
+          & node (Join-Path $env:RUNNER_TEMP 'release-ci-driver.mjs')
+          exit $LASTEXITCODE
+      - name: Keep lane evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: release-ci-lane-${{ matrix.os }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/release-ci/lane.json
+          retention-days: 14
+          if-no-files-found: error
+
+  evidence:
+    if: always()
+    needs: checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      # The signer/validator comes from the workflow's source, independently of
+      # the manually selected candidate. No candidate commands run in this job.
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 24.20.0
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          pattern: release-ci-lane-*-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/release-ci-lanes
+      - name: Sign off portable evidence
+        shell: bash
+        env:
+          CHECKS_RESULT: ${{ needs.checks.result }}
+        run: |
+          node --input-type=module <<'NODE'
+          import path from 'node:path';
+          import { readFile, writeFile, mkdir, appendFile } from 'node:fs/promises';
+          const root = path.join(process.env.RUNNER_TEMP, 'release-ci-lanes');
+          const rows = await Promise.all(['linux', 'windows'].map(os =>
+            readFile(path.join(root, 'release-ci-lane-' + os + '-' + process.env.GITHUB_RUN_ATTEMPT, 'lane.json'), 'utf8').then(JSON.parse)));
+          const [first, second] = rows;
+          const canonical = value => JSON.stringify(value, (_, item) => item && typeof item === 'object' && !Array.isArray(item)
+            ? Object.fromEntries(Object.keys(item).sort().map(key => [key, item[key]])) : item);
+          if (rows.some(row => row.schema !== 'rs3-release-ci-lane-v1')
+            || ['candidate', 'inputs', 'workflow'].some(key => canonical(first[key]) !== canonical(second[key]))) throw Error('Lane inputs differ.');
+          const evidence = { schema: 'rs3-release-ci-evidence-v1', repository: 'fenerax/chunk-picker-rs3',
+            candidate: first.candidate, workflow: first.workflow, inputs: first.inputs, lanes: rows.map(row => row.lane),
+            blockedGates: ['kit-practice', 'kit-gallery', 'kit-copied-startup', 'kit-install', 'kit-pack-transition', 'kit-text-lane', 'pc-freeze', 'pc-activation'] };
+          await mkdir('release-ci-evidence');
+          await writeFile('release-ci-evidence/release-ci-evidence.json', JSON.stringify(evidence, null, 2) + '\n');
+          // This checks internal completeness. PC expectations must be computed
+          // independently from its approved candidate and pin bytes.
+          const { verifyEvidence } = await import('./scripts/release/verify-ci-evidence.mjs');
+          let portablePassed = false;
+          try {
+            verifyEvidence(evidence, { candidate: evidence.candidate, workflow: evidence.workflow, inputs: evidence.inputs });
+            portablePassed = true;
+          } catch { /* diagnostic evidence is still uploaded, never approved */ }
+          await appendFile(process.env.GITHUB_STEP_SUMMARY,
+            `## Release evidence\n\nPortable checks: ${portablePassed ? 'passed' : 'incomplete or failed'}.\n\nRelease ready: **false**. Exact kit and PC gates remain required.\n`);
+          // Empty pins are a supported bootstrap state: green diagnostics can
+          // still be incomplete. The PC verifier always refuses skipped gates.
+          if (process.env.CHECKS_RESULT !== 'success') process.exitCode = 1;
+          NODE
+      - name: Keep signed-off summary
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: release-ci-evidence-${{ github.run_attempt }}
+          path: release-ci-evidence/release-ci-evidence.json
+          retention-days: 14
+          if-no-files-found: error

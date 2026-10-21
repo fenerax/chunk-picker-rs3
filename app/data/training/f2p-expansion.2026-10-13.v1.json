@@ -1,0 +1,6301 @@
+{
+  "schemaVersion": 1,
+  "version": "f2p-training-2026-10-13-combat-v1",
+  "reviewed": "2026-10-13",
+  "attribution": "RuneScape Wiki contributors, CC BY-NC-SA; facts condensed from identified revisions. https://runescape.wiki/w/RuneScape:Copyrights",
+  "entryRule": {
+    "authored": true,
+    "description": "Reviewer-authored conservative entry tiers use the strongest explicitly F2P variant represented by a generic exact monster selector: combat level 1-9 => target skill 1; 10-24 => 10; 25-39 => 20; 40-59 => 30; 60-79 => 40; 80-99 => 50; 100+ => 60. These are planning recommendations, not game requirements or guaranteed safe/efficient levels. All six skill lanes may use these same simple tiers. Constitution remains passive XP alongside offensive combat. Suitable equipment, supplies, offensive skills and personal access still matter.",
+    "methodNote": "Suggested entry uses conservative combat-level tiers. It is a planning recommendation; gear, supplies and other combat skills still matter."
+  },
+  "provenance": {
+    "reference": {
+      "path": "rs3-chunkpicker-chunkinfo-export.json",
+      "sha256": "9dd835266f381abaa4d14033abcd0b43a001fe96d7df0a7f046fcc8676d66553",
+      "hashScope": "repository-text-lf"
+    },
+    "builder": {
+      "path": "scripts/research/build-training-data.mjs",
+      "sha256": "ebef97143ff983ff8b955458c36c0b7a4952f41faa397fc3d0b5249c30f4c16b",
+      "hashScope": "repository-text-lf"
+    },
+    "baseline": {
+      "revision": "c16a4c2",
+      "path": "app/data/training/methods.f2p.json",
+      "sha256": "2298745cd0717e9da8e9cc884de5d2a1251db8666e8ee8b174cb24d3ed2c2ac0",
+      "hashScope": "historical-repository-text-lf"
+    },
+    "npcExport": {
+      "path": "C:/Users/User/Projects/chunk-picker-rs3/.local/game-data/npcs-2026-10-08-v3/npcs.v1.json",
+      "sha256": "f8644a9f781f26be88c354a0c7047782f8d3e422057828c88bb2e74c777754a2",
+      "hashScope": "external-bytes",
+      "limits": "Read only. Membership and many HP fields are unknown; Wiki supplies F2P and variant facts. No cache XP is inferred."
+    },
+    "wikiSnapshots": [
+      {
+        "path": ".local/training-data-research/combat-wiki-api.json",
+        "sha256": "317fded47d252922bef8321e7aec931642150b9a47207467d7bfd45fc0e9a984",
+        "hashScope": "external-bytes"
+      },
+      {
+        "path": ".local/training-data-research/combat-wiki-extra.json",
+        "sha256": "119e818331d92e0ccc7d4f0f7e1ec44a53d8297b03507e853ca30b3b60141cce",
+        "hashScope": "external-bytes"
+      },
+      {
+        "path": ".local/training-data-research/combat-wiki-local-labels.json",
+        "sha256": "f80a42d9291711612b5e0416c5dbc71923bfda9e4193448264464f6f0f4a430b",
+        "hashScope": "external-bytes"
+      },
+      {
+        "path": ".local/training-data-research/combat-wiki-guides.json",
+        "sha256": "9d357581d6824a39c28d24214efaa9f37d78e8707454866761b0c0c08c109e38",
+        "hashScope": "external-bytes"
+      },
+      {
+        "path": ".local/training-data-noncombat/wiki-pages.json",
+        "sha256": "88a406a8e7311113130a1ac44af8ac8519647ec4b4c518cf373c683891ce388c",
+        "hashScope": "external-bytes"
+      },
+      {
+        "path": ".local/training-data-noncombat/rune-pages.json",
+        "sha256": "7d7c91fc841070e34435f8be5699929556083277d7509c36e7adc36ddf8072c8",
+        "hashScope": "external-bytes"
+      }
+    ],
+    "catalogue": {
+      "path": "app/data/training/methods.f2p.json",
+      "sha256": "e0196fee03e8404059297038a5c4478ce7e22dbacb0ae0ac34585e22bb41b5d9",
+      "hashScope": "repository-text-lf"
+    }
+  },
+  "monsters": [
+    {
+      "id": "troll-brute",
+      "label": "Troll brute",
+      "selector": "Troll brute",
+      "combatLevel": 7,
+      "sourceId": "combat-troll-brute",
+      "existing": true,
+      "beforeLevel": 1,
+      "notes": "",
+      "locations": [
+        {
+          "location": " [[Burthorpe Troll Cave]]",
+          "levels": " 7",
+          "requirements": null
+        }
+      ],
+      "placements": [
+        {
+          "chunk": "8772",
+          "section": "",
+          "nickname": null,
+          "count": 11
+        },
+        {
+          "chunk": "Abandoned Burthorpe mine",
+          "section": "",
+          "nickname": null,
+          "count": 11
+        }
+      ],
+      "variants": [
+        {
+          "version": "Default",
+          "name": "Troll brute",
+          "npcIds": [
+            14980
+          ],
+          "members": false,
+          "memberValue": "No",
+          "combatLevel": 7,
+          "lifePoints": 700
+        }
+      ],
+      "cache": [
+        {
+          "id": 14980,
+          "name": "Troll brute",
+          "combatLevel": 7,
+          "stats": {
+            "maxMeleeHit": 100,
+            "meleeAccuracy": 50,
+            "armour": 150
+          }
+        }
+      ]
+    },
+    {
+      "id": "cow",
+      "label": "Cow",
+      "selector": "Cow",
+      "combatLevel": 2,
+      "sourceId": "combat-cow",
+      "existing": true,
+      "beforeLevel": 1,
+      "notes": "Mixed member/F2P variants; retain existing method and admitted source filtering.",
+      "locations": [
+        {
+          "location": "[[Astram Farm]]",
+          "levels": "2",
+          "requirements": null
+        },
+        {
+          "location": "[[Crafting Guild]]",
+          "levels": "2",
+          "requirements": null
+        },
+        {
+          "location": "[[Falador farm]]",
+          "levels": "2",
+          "requirements": null
+        },
+        {
+          "location": "[[Lumbridge]]",
+          "levels": "2",
+          "requirements": null
+        },
+        {
+          "location": "[[Marigold Farm]]",
+          "levels": "2",
+          "requirements": "{{QuestIcon|Visions of Havenhythe}} (partial)"
+        },
+        {
+          "location": "[[Mill Lane Mill]]",
+          "levels": "2",
+          "requirements": null
+        }
+      ],
+      "placements": [
+        {
+          "chunk": "8037",
+          "section": "",
+          "nickname": null,
+          "count": 4
+        },
+        {
+          "chunk": "8293",
+          "section": "",
+          "nickname": null,
+          "count": 4
+        },
+        {
+          "chunk": "8549",
+          "section": "",
+          "nickname": null,
+          "count": 4
+        },
+        {
+          "chunk": "8805",
+          "section": "",
+          "nickname": null,
+          "count": 4
+        },
+        {
+          "chunk": "9797",
+          "section": "",
+          "nickname": null,
+          "count": 3
+        },
+        {
+          "chunk": "10288",
+          "section": "1",
+          "nickname": "East Yanille",
+          "count": 4
+        },
+        {
+          "chunk": "11571",
+          "section": "1",
+          "nickname": "Crafting Guild",
+          "count": 1
+        },
+        {
+          "chunk": "11827",
+          "section": "",
+          "nickname": "South Falador Camp Site",
+          "count": 2
+        },
+        {
+          "chunk": "12083",
+          "section": "1",
+          "nickname": "Falador Farm",
+          "count": 7
+        },
+        {
+          "chunk": "12595",
+          "section": "",
+          "nickname": "Lumbridge Mill",
+          "count": 4
+        },
+        {
+          "chunk": "12596",
+          "section": "1",
+          "nickname": "Champions' Guild",
+          "count": 8
+        },
+        {
+          "chunk": "12850",
+          "section": "2",
+          "nickname": "Lumbridge",
+          "count": 5
+        },
+        {
+          "chunk": "12851",
+          "section": "1",
+          "nickname": "Groats' Farm",
+          "count": 10
+        },
+        {
+          "chunk": "16947",
+          "section": "",
+          "nickname": "Marigold Farm",
+          "count": 4
+        },
+        {
+          "chunk": "19858",
+          "section": "",
+          "nickname": null,
+          "count": 4
+        },
+        {
+          "chunk": "Zanaris",
+          "section": "",
+          "nickname": null,
+          "count": 3
+        }
+      ],
+      "variants": [
+        {
+          "version": "Standard (1)",
+          "name": "Cow",
+          "npcIds": [
+            81,
+            14997
+          ],
+          "members": false,
+          "memberValue": "No",
+          "combatLevel": 2,
+          "lifePoints": 1000
+        },
+        {
+          "version": "Standard (2)",
+          "name": "Cow",
+          "npcIds": [
+            14998
+          ],
+          "members": false,
+          "memberValue": "No",
+          "combatLevel": 2,
+          "lifePoints": 1000
+        },
+        {
+          "version": "Standard (3)",
+          "name": "Cow",
+          "npcIds": [
+            14999
+          ],
+          "members": false,
+          "memberValue": "No",
+          "combatLevel": 2,
+          "lifePoints": 1000
+        }
+      ],
+      "cache": [
+        {
+          "id": 81,
+          "name": "Cow",
+          "combatLevel": 2,
+          "stats": {
+            "maxMeleeHit": 20,
+            "meleeAccuracy": 20,
+            "armour": 110
+          }
+        },
+        {
+          "id": 14997,
+          "name": "Cow",
+          "combatLevel": 2,
+          "stats": {
+            "maxMeleeHit": 20,
+            "meleeAccuracy": 20,
+            "armour": 110
+          }
+        },
+        {
+          "id": 14998,
+          "name": "Cow",
+          "combatLevel": 2,
+          "stats": {
+            "maxMeleeHit": 20,
+            "meleeAccuracy": 20,
+            "armour": 110
+          }
+        },
+        {
+          "id": 14999,
+          "name": "Cow",
+          "combatLevel": 2,
+          "stats": {
+            "maxMeleeHit": 20,
+            "meleeAccuracy": 20,
+            "armour": 110
+          }
+        }
+      ]
+    },
+    {
+      "id": "chicken",
+      "label": "Chicken",
+      "selector": "Chicken",
+      "combatLevel": 1,
+      "sourceId": "combat-chicken",
+      "existing": false,
+      "notes": "Champions Guild option requires guild access; ordinary Lumbridge/Falador/Taverley sources provide F2P alternatives.",
+      "locations": [
+        {
+          "location": "[[Champions' Guild]]",
+          "levels": "1",
+          "requirements": null
+        },
+        {
+          "location": "[[Falador farm]]",
+          "levels": "1",
+          "requirements": null
+        },
+        {
+          "location": "Farm east of the [[River Lum]] in [[Lumbridge]]",
+          "levels": "1",
+          "requirements": null
+        },
+        {
+          "location": "[[Fred the Farmer|Fred's]] farm in [[Lumbridge]]",
+          "levels": "1",
+          "requirements": null
+        },
+        {
+          "location": "[[Marigold Farm]]",
+          "levels": "1",
+          "requirements": "{{QuestIcon|Visions of Havenhythe}} (partial)"
+        },
+        {
+          "location": "Road between [[Lumbridge]] and [[Varrock]]",
+          "levels": "1",
+          "requirements": null
+        },
+        {
+          "location": "[[Taverley]]",
+          "levels": "1",
+          "requirements": null
+        },
+        {
+          "location": "[[Tutorial Island]]",
+          "levels": "1",
+          "requirements": null
+        },
+        {
+          "location": "[[Sunken Tutorial Island]]",
+          "levels": "1",
+          "requirements": "{{QuestIcon|Beneath Cursed Tides}} (partial)"
+        },
+        {
+          "location": "[[White Knights' Castle]]",
+          "levels": "1",
+          "requirements": null
+        }
+      ],
+      "placements": [
+        {
+          "chunk": "4672",
+          "section": "",
+          "nickname": null,
+          "count": 2
+        },
+        {
+          "chunk": "8753",
+          "section": "3",
+          "nickname": "Tyras Camp",
+          "count": 3
+        },
+        {
+          "chunk": "9797",
+          "section": "",
+          "nickname": null,
+          "count": 2
+        },
+        {
+          "chunk": "10039",
+          "section": "",
+          "nickname": "Barbarian outpost",
+          "count": 3
+        },
+        {
+          "chunk": "10044",
+          "section": "1",
+          "nickname": "Miscellania",
+          "count": 8
+        },
+        {
+          "chunk": "10300",
+          "section": "",
+          "nickname": "Etceteria",
+          "count": 7
+        },
+        {
+          "chunk": "10549",
+          "section": "",
+          "nickname": "Ranging Guild",
+          "count": 4
+        },
+        {
+          "chunk": "10553",
+          "section": "",
+          "nickname": "Rellekka",
+          "count": 4
+        },
+        {
+          "chunk": "10803",
+          "section": "",
+          "nickname": "Witchaven",
+          "count": 4
+        },
+        {
+          "chunk": "11055",
+          "section": "2",
+          "nickname": "South Tai Bwo Wannai",
+          "count": 4
+        },
+        {
+          "chunk": "11316",
+          "section": "",
+          "nickname": "Entrana",
+          "count": 6
+        },
+        {
+          "chunk": "11319",
+          "section": "2",
+          "nickname": "Warrior's Guild",
+          "count": 4
+        },
+        {
+          "chunk": "11574",
+          "section": "",
+          "nickname": "North Taverley",
+          "count": 6
+        },
+        {
+          "chunk": "11828",
+          "section": "",
+          "nickname": "West Falador",
+          "count": 1
+        },
+        {
+          "chunk": "12083",
+          "section": "1",
+          "nickname": "Falador Farm",
+          "count": 9
+        },
+        {
+          "chunk": "12596",
+          "section": "1",
+          "nickname": "Champions' Guild",
+          "count": 5
+        },
+        {
+          "chunk": "12851",
+          "section": "1",
+          "nickname": "Groats' Farm",
+          "count": 10
+        },
+        {
+          "chunk": "12851",
+          "section": "2",
+          "nickname": "Groats' Farm",
+          "count": 8
+        },
+        {
+          "chunk": "16947",
+          "section": "",
+          "nickname": "Marigold Farm",
+          "count": 4
+        },
+        {
+          "chunk": "17716",
+          "section": "",
+          "nickname": "Amberfell",
+          "count": 2
+        },
+        {
+          "chunk": "Zanaris",
+          "section": "",
+          "nickname": null,
+          "count": 2
+        }
+      ],
+      "variants": [
+        {
+          "version": "Brown",
+          "name": "Chicken",
+          "npcIds": [
+            41,
+            1017,
+            1401,
+            1402,
+            2313,
+            2314,
+            2315,
+            15051,
+            15052,
+            15053,
+            15054,
+            20966
+          ],
+          "members": false,
+          "memberValue": "No",
+          "combatLevel": 1,
+          "lifePoints": 250
+        },
+        {
+          "version": "White",
+          "name": "Chicken",
+          "npcIds": [
+            41,
+            1017,
+            1401,
+            1402,
+            2313,
+            2314,
+            2315,
+            15051,
+            15052,
+            15053,
+            15054,
+            20966
+          ],
+          "members": false,
+          "memberValue": "No",
+          "combatLevel": 1,
+          "lifePoints": 250
+        },
+        {
+          "version": "Blooming Burrow",
+          "name": "Chicken",
+          "npcIds": [
+            30868
+          ],
+          "members": false,
+          "memberValue": "No",
+          "combatLevel": 1,
+          "lifePoints": 250
+        }
+      ],
+      "cache": [
+        {
+          "id": 41,
+          "name": "Chicken",
+          "combatLevel": 1,
+          "stats": {
+            "maxMeleeHit": 15,
+            "meleeAccuracy": 10,
+            "armour": 110
+          }
+        },
+        {
+          "id": 1017,
+          "name": "Chicken",
+          "combatLevel": 1,
+          "stats": {
+            "maxMeleeHit": 15,
+            "meleeAccuracy": 10,
+            "armour": 110
+          }
+        },
+        {
+          "id": 1401,
+          "name": "Chicken",
+          "combatLevel": 1,
+          "stats": {
+            "maxMeleeHit": 15,
+            "meleeAccuracy": 10,
+            "armour": 110
+          }
+        },
+        {
+          "id": 1402,
+          "name": "Chicken",
+          "combatLevel": 1,
+          "stats": {
+            "maxMeleeHit": 15,
+            "meleeAccuracy": 10,
+            "armour": 110
+          }
+        },
+        {
+          "id": 2313,
+          "name": "Chicken",
+          "combatLevel": 1,
+          "stats": {
+            "maxMeleeHit": 15,
+            "meleeAccuracy": 10,
+            "armour": 110
+          }
+        },
+        {
+          "id": 2314,
+          "name": "Chicken",
+          "combatLevel": 1,
+          "stats": {
+            "maxMeleeHit": 15,
+            "meleeAccuracy": 10,
+            "armour": 110
+          }
+        },
+        {
+          "id": 2315,
+          "name": "Chicken",
+          "combatLevel": 1,
+          "stats": {
+            "maxMeleeHit": 15,
+            "meleeAccuracy": 10,
+            "armour": 110
+          }
+        },
+        {
+          "id": 15051,
+          "name": "Chicken",
+          "combatLevel": 1,
+          "stats": {
+            "maxMeleeHit": 15,
+            "meleeAccuracy": 10,
+            "armour": 110
+          }
+        },
+        {
+          "id": 15052,
+          "name": "Chicken",
+          "combatLevel": 1,
+          "stats": {
+            "maxMeleeHit": 15,
+            "meleeAccuracy": 10,
+            "armour": 110
+          }
+        },
+        {
+          "id": 15053,
+          "name": "Chicken",
+          "combatLevel": 1,
+          "stats": {
+            "maxMeleeHit": 15,
+            "meleeAccuracy": 10,
+            "armour": 110
+          }
+        },
+        {
+          "id": 15054,
+          "name": "Chicken",
+          "combatLevel": 1,
+          "stats": {
+            "maxMeleeHit": 15,
+            "meleeAccuracy": 10,
+            "armour": 110
+          }
+        },
+        {
+          "id": 20966,
+          "name": "Chicken",
+          "combatLevel": 1,
+          "stats": {
+            "maxMeleeHit": 15,
+            "meleeAccuracy": 10,
+            "armour": 110
+          }
+        },
+        {
+          "id": 30868,
+          "name": "Chicken",
+          "combatLevel": 1,
+          "stats": {
+            "maxMeleeHit": 15,
+            "meleeAccuracy": 10,
+            "armour": 110
+          }
+        }
+      ]
+    },
+    {
+      "id": "giant-rat",
+      "label": "Giant rat",
+      "selector": "Giant rat",
+      "combatLevel": 9,
+      "sourceId": "combat-giant-rat",
+      "existing": false,
+      "notes": "",
+      "locations": [
+        {
+          "location": "[[Bandit Camp (Wilderness)|Bandit Camp]] (level 17 - 24 [[Wilderness]])",
+          "levels": "7",
+          "requirements": null
+        },
+        {
+          "location": "[[Edgeville Dungeon]]",
+          "levels": "7",
+          "requirements": null
+        },
+        {
+          "location": "[[Lumbridge Swamp]]",
+          "levels": "4",
+          "requirements": null
+        },
+        {
+          "location": "North of [[Varrock]] (level 1 - 5 [[Wilderness]])",
+          "levels": "7",
+          "requirements": null
+        },
+        {
+          "location": "South of [[Varrock]]",
+          "levels": "7",
+          "requirements": null
+        },
+        {
+          "location": "South-west of [[Port Sarim]]",
+          "levels": "7",
+          "requirements": null
+        },
+        {
+          "location": "[[Stronghold of Security]]",
+          "levels": "9",
+          "requirements": null
+        },
+        {
+          "location": "[[Varrock Sewers]]",
+          "levels": "7",
+          "requirements": null
+        }
+      ],
+      "placements": [
+        {
+          "chunk": "8017",
+          "section": "",
+          "nickname": null,
+          "count": 10
+        },
+        {
+          "chunk": "9828",
+          "section": "",
+          "nickname": null,
+          "count": 9
+        },
+        {
+          "chunk": "9882",
+          "section": "",
+          "nickname": null,
+          "count": 9
+        },
+        {
+          "chunk": "10033",
+          "section": "1",
+          "nickname": "Tree Gnome Village",
+          "count": 2
+        },
+        {
+          "chunk": "10647",
+          "section": "",
+          "nickname": null,
+          "count": 8
+        },
+        {
+          "chunk": "10831",
+          "section": "",
+          "nickname": null,
+          "count": 2
+        },
+        {
+          "chunk": "11825",
+          "section": "1",
+          "nickname": "Port Sarim Church",
+          "count": 2
+        },
+        {
+          "chunk": "12089",
+          "section": "",
+          "nickname": "Bandit Camp",
+          "count": 2
+        },
+        {
+          "chunk": "12442",
+          "section": "",
+          "nickname": null,
+          "count": 6
+        },
+        {
+          "chunk": "12593",
+          "section": "",
+          "nickname": "West Lumbridge Swamp",
+          "count": 2
+        },
+        {
+          "chunk": "12594",
+          "section": "",
+          "nickname": "Lumbridge Forest",
+          "count": 4
+        },
+        {
+          "chunk": "12849",
+          "section": "",
+          "nickname": "East Lumbridge Swamp",
+          "count": 8
+        },
+        {
+          "chunk": "12855",
+          "section": "",
+          "nickname": "Varrock Ditch",
+          "count": 7
+        },
+        {
+          "chunk": "12954",
+          "section": "",
+          "nickname": null,
+          "count": 4
+        },
+        {
+          "chunk": "13108",
+          "section": "1",
+          "nickname": "Varrock South-East Mine",
+          "count": 13
+        },
+        {
+          "chunk": "13108",
+          "section": "2",
+          "nickname": "Varrock South-East Mine",
+          "count": 2
+        },
+        {
+          "chunk": "13210",
+          "section": "",
+          "nickname": null,
+          "count": 2
+        },
+        {
+          "chunk": "13977",
+          "section": "",
+          "nickname": null,
+          "count": 7
+        },
+        {
+          "chunk": "Stronghold of Security",
+          "section": "",
+          "nickname": null,
+          "count": 10
+        },
+        {
+          "chunk": "Edgeville Dungeon",
+          "section": "",
+          "nickname": null,
+          "count": 12
+        },
+        {
+          "chunk": "Varrock Sewers",
+          "section": "",
+          "nickname": null,
+          "count": 4
+        },
+        {
+          "chunk": "Shadow Dungeon",
+          "section": "",
+          "nickname": null,
+          "count": 2
+        },
+        {
+          "chunk": "Grand Tree Mine",
+          "section": "",
+          "nickname": null,
+          "count": 9
+        },
+        {
+          "chunk": "Eastern Ardougne Sewer",
+          "section": "",
+          "nickname": null,
+          "count": 8
+        },
+        {
+          "chunk": "Hallows Myreque Hideout",
+          "section": "",
+          "nickname": null,
+          "count": 7
+        }
+      ],
+      "variants": [
+        {
+          "version": "Level 4 (grey)",
+          "name": "Giant rat",
+          "npcIds": [
+            20500
+          ],
+          "members": false,
+          "memberValue": "No",
+          "combatLevel": 4,
+          "lifePoints": 1100
+        },
+        {
+          "version": "Level 4 (brown)",
+          "name": "Giant rat",
+          "npcIds": [
+            20501
+          ],
+          "members": false,
+          "memberValue": "No",
+          "combatLevel": 4,
+          "lifePoints": 1100
+        },
+        {
+          "version": "Level 7 (grey)",
+          "name": "Giant rat",
+          "npcIds": [
+            87,
+            446,
+            2091,
+            4922,
+            4924,
+            12349,
+            12350,
+            4927,
+            8829,
+            12351
+          ],
+          "members": false,
+          "memberValue": "No",
+          "combatLevel": 7,
+          "lifePoints": 1450
+        },
+        {
+          "version": "Level 7 (brown)",
+          "name": "Giant rat",
+          "npcIds": [
+            86,
+            4923,
+            4926,
+            8828
+          ],
+          "members": false,
+          "memberValue": "No",
+          "combatLevel": 7,
+          "lifePoints": 1450
+        },
+        {
+          "version": "Level 9 (Stronghold of Security, 1)",
+          "name": "Giant rat",
+          "npcIds": [
+            4395
+          ],
+          "members": false,
+          "memberValue": "No",
+          "combatLevel": 9,
+          "lifePoints": 1650
+        },
+        {
+          "version": "Level 9 (Stronghold of Security, 2)",
+          "name": "Giant rat",
+          "npcIds": [
+            4944
+          ],
+          "members": false,
+          "memberValue": "No",
+          "combatLevel": 9,
+          "lifePoints": 1650
+        },
+        {
+          "version": "Level 9 (Stronghold of Security, 3)",
+          "name": "Giant rat",
+          "npcIds": [
+            4945
+          ],
+          "members": false,
+          "memberValue": "No",
+          "combatLevel": 9,
+          "lifePoints": 1650
+        }
+      ],
+      "cache": [
+        {
+          "id": 86,
+          "name": "Giant rat",
+          "combatLevel": 7,
+          "stats": {
+            "maxMeleeHit": 100,
+            "meleeAccuracy": 50,
+            "armour": 150
+          }
+        },
+        {
+          "id": 87,
+          "name": "Giant rat",
+          "combatLevel": 7,
+          "stats": {
+            "maxMeleeHit": 100,
+            "meleeAccuracy": 50,
+            "armour": 150
+          }
+        },
+        {
+          "id": 446,
+          "name": "Giant rat",
+          "combatLevel": 7,
+          "stats": {
+            "maxMeleeHit": 100,
+            "meleeAccuracy": 50,
+            "armour": 150
+          }
+        },
+        {
+          "id": 2091,
+          "name": "Giant rat",
+          "combatLevel": 7,
+          "stats": {
+            "maxMeleeHit": 100,
+            "meleeAccuracy": 50,
+            "armour": 150
+          }
+        },
+        {
+          "id": 4395,
+          "name": "Giant rat",
+          "combatLevel": 9,
+          "stats": {
+            "maxMeleeHit": 140,
+            "meleeAccuracy": 71,
+            "armour": 171
+          }
+        },
+        {
+          "id": 4922,
+          "name": "Giant rat",
+          "combatLevel": 7,
+          "stats": {
+            "maxMeleeHit": 100,
+            "meleeAccuracy": 50,
+            "armour": 150
+          }
+        },
+        {
+          "id": 4923,
+          "name": "Giant rat",
+          "combatLevel": 7,
+          "stats": {
+            "maxMeleeHit": 100,
+            "meleeAccuracy": 50,
+            "armour": 150
+          }
+        },
+        {
+          "id": 4924,
+          "name": "Giant rat",
+          "combatLevel": 7,
+          "stats": {
+            "maxMeleeHit": 100,
+            "meleeAccuracy": 50,
+            "armour": 150
+          }
+        },
+        {
+          "id": 4926,
+          "name": "Giant rat",
+          "combatLevel": 7,
+          "stats": {
+            "maxMeleeHit": 100,
+            "meleeAccuracy": 50,
+            "armour": 150
+          }
+        },
+        {
+          "id": 4927,
+          "name": "Giant rat",
+          "combatLevel": 7,
+          "stats": {
+            "maxMeleeHit": 100,
+            "meleeAccuracy": 50,
+            "armour": 150
+          }
+        },
+        {
+          "id": 4944,
+          "name": "Giant rat",
+          "combatLevel": 9,
+          "stats": {
+            "maxMeleeHit": 140,
+            "meleeAccuracy": 71,
+            "armour": 171
+          }
+        },
+        {
+          "id": 4945,
+          "name": "Giant rat",
+          "combatLevel": 9,
+          "stats": {
+            "maxMeleeHit": 140,
+            "meleeAccuracy": 71,
+            "armour": 171
+          }
+        },
+        {
+          "id": 8828,
+          "name": "Giant rat",
+          "combatLevel": 7,
+          "stats": {
+            "maxMeleeHit": 100,
+            "meleeAccuracy": 50,
+            "armour": 150
+          }
+        },
+        {
+          "id": 8829,
+          "name": "Giant rat",
+          "combatLevel": 7,
+          "stats": {
+            "maxMeleeHit": 100,
+            "meleeAccuracy": 50,
+            "armour": 150
+          }
+        },
+        {
+          "id": 12349,
+          "name": "Giant rat",
+          "combatLevel": 7,
+          "stats": {
+            "maxMeleeHit": 100,
+            "meleeAccuracy": 50,
+            "armour": 150
+          }
+        },
+        {
+          "id": 12350,
+          "name": "Giant rat",
+          "combatLevel": 7,
+          "stats": {
+            "maxMeleeHit": 100,
+            "meleeAccuracy": 50,
+            "armour": 150
+          }
+        },
+        {
+          "id": 12351,
+          "name": "Giant rat",
+          "combatLevel": 7,
+          "stats": {
+            "maxMeleeHit": 100,
+            "meleeAccuracy": 50,
+            "armour": 150
+          }
+        },
+        {
+          "id": 20500,
+          "name": "Giant rat",
+          "combatLevel": 4,
+          "stats": {
+            "maxMeleeHit": 40,
+            "meleeAccuracy": 40,
+            "armour": 110
+          }
+        },
+        {
+          "id": 20501,
+          "name": "Giant rat",
+          "combatLevel": 4,
+          "stats": {
+            "maxMeleeHit": 40,
+            "meleeAccuracy": 40,
+            "armour": 110
+          }
+        }
+      ]
+    },
+    {
+      "id": "goblin-lumbridge",
+      "label": "Goblin (Lumbridge)",
+      "selector": "Goblin (Lumbridge)",
+      "combatLevel": 2,
+      "sourceId": "combat-goblin-lumbridge",
+      "existing": false,
+      "notes": "Exact Lumbridge selector is level2; source present in12850 section1, unlike generic Goblin.",
+      "locations": [
+        {
+          "location": " [[Draynor Village]]",
+          "levels": " 2",
+          "requirements": null
+        },
+        {
+          "location": " [[Lumbridge forest]]",
+          "levels": " 2",
+          "requirements": null
+        },
+        {
+          "location": " [[Lumbridge]]",
+          "levels": " 2",
+          "requirements": null
+        }
+      ],
+      "placements": [
+        {
+          "chunk": "12594",
+          "section": "",
+          "nickname": "Lumbridge Forest",
+          "count": 10
+        },
+        {
+          "chunk": "12850",
+          "section": "1",
+          "nickname": "Lumbridge",
+          "count": 28
+        },
+        {
+          "chunk": "12851",
+          "section": "1",
+          "nickname": "Groats' Farm",
+          "count": 2
+        },
+        {
+          "chunk": "12851",
+          "section": "2",
+          "nickname": "Groats' Farm",
+          "count": 2
+        }
+      ],
+      "variants": [
+        {
+          "version": "1",
+          "name": "Goblin",
+          "npcIds": [
+            11232
+          ],
+          "members": false,
+          "memberValue": "No",
+          "combatLevel": 2,
+          "lifePoints": 550
+        },
+        {
+          "version": "2",
+          "name": "Goblin",
+          "npcIds": [
+            11234
+          ],
+          "members": false,
+          "memberValue": "No",
+          "combatLevel": 2,
+          "lifePoints": 550
+        },
+        {
+          "version": "3",
+          "name": "Goblin",
+          "npcIds": [
+            11236
+          ],
+          "members": false,
+          "memberValue": "No",
+          "combatLevel": 2,
+          "lifePoints": 550
+        },
+        {
+          "version": "4",
+          "name": "Goblin",
+          "npcIds": [
+            11238
+          ],
+          "members": false,
+          "memberValue": "No",
+          "combatLevel": 2,
+          "lifePoints": 550
+        },
+        {
+          "version": "5",
+          "name": "Goblin",
+          "npcIds": [
+            11240
+          ],
+          "members": false,
+          "memberValue": "No",
+          "combatLevel": 2,
+          "lifePoints": 550
+        },
+        {
+          "version": "6",
+          "name": "Goblin",
+          "npcIds": [
+            12353
+          ],
+          "members": false,
+          "memberValue": "No",
+          "combatLevel": 2,
+          "lifePoints": 550
+        },
+        {
+          "version": "7",
+          "name": "Goblin",
+          "npcIds": [
+            12355
+          ],
+          "members": false,
+          "memberValue": "No",
+          "combatLevel": 2,
+          "lifePoints": 550
+        },
+        {
+          "version": "8",
+          "name": "Goblin",
+          "npcIds": [
+            12357
+          ],
+          "members": false,
+          "memberValue": "No",
+          "combatLevel": 2,
+          "lifePoints": 550
+        }
+      ],
+      "cache": [
+        {
+          "id": 11232,
+          "name": "Goblin",
+          "combatLevel": 2,
+          "stats": {
+            "maxMeleeHit": 40,
+            "meleeAccuracy": 20,
+            "armour": 120
+          }
+        },
+        {
+          "id": 11234,
+          "name": "Goblin",
+          "combatLevel": 2,
+          "stats": {
+            "maxMeleeHit": 40,
+            "meleeAccuracy": 20,
+            "armour": 120
+          }
+        },
+        {
+          "id": 11236,
+          "name": "Goblin",
+          "combatLevel": 2,
+          "stats": {
+            "maxMeleeHit": 40,
+            "meleeAccuracy": 20,
+            "armour": 120
+          }
+        },
+        {
+          "id": 11238,
+          "name": "Goblin",
+          "combatLevel": 2,
+          "stats": {
+            "maxMeleeHit": 40,
+            "meleeAccuracy": 20,
+            "armour": 120
+          }
+        },
+        {
+          "id": 11240,
+          "name": "Goblin",
+          "combatLevel": 2,
+          "stats": {
+            "maxMeleeHit": 40,
+            "meleeAccuracy": 20,
+            "armour": 120
+          }
+        },
+        {
+          "id": 12353,
+          "name": "Goblin",
+          "combatLevel": 2,
+          "stats": {
+            "maxMeleeHit": 40,
+            "meleeAccuracy": 20,
+            "armour": 120
+          }
+        },
+        {
+          "id": 12355,
+          "name": "Goblin",
+          "combatLevel": 2,
+          "stats": {
+            "maxMeleeHit": 40,
+            "meleeAccuracy": 20,
+            "armour": 120
+          }
+        },
+        {
+          "id": 12357,
+          "name": "Goblin",
+          "combatLevel": 2,
+          "stats": {
+            "maxMeleeHit": 40,
+            "meleeAccuracy": 20,
+            "armour": 120
+          }
+        }
+      ]
+    },
+    {
+      "id": "spider",
+      "label": "Spider",
+      "selector": "Spider",
+      "combatLevel": 15,
+      "sourceId": "combat-spider",
+      "existing": false,
+      "notes": "Common F2P level1 and Stronghold level15 variants; conservative generic entry10. Underground Pass and Ape Atoll variants are members.",
+      "locations": [
+        {
+          "location": "[[Al Kharid]]",
+          "levels": "1",
+          "requirements": null
+        },
+        {
+          "location": "[[Draynor Manor#Dungeon|Draynor Manor Dungeon]]",
+          "levels": "1",
+          "requirements": null
+        },
+        {
+          "location": "[[Lumbridge Swamp]]",
+          "levels": "1",
+          "requirements": null
+        },
+        {
+          "location": "[[Lumbridge forest]]",
+          "levels": "1",
+          "requirements": null
+        },
+        {
+          "location": "[[Lumbridge Castle#Cellar|Lumbridge Castle Cellar]]",
+          "levels": "1",
+          "requirements": null
+        },
+        {
+          "location": "North of [[Red Dragon Isle]]",
+          "levels": "1",
+          "requirements": null
+        },
+        {
+          "location": "[[Ruins (west)]] (level 23 Wilderness)",
+          "levels": "1",
+          "requirements": null
+        },
+        {
+          "location": "[[Stronghold of Security]]",
+          "levels": "15",
+          "requirements": null
+        },
+        {
+          "location": "[[Varrock Sewers]]",
+          "levels": "1",
+          "requirements": null
+        }
+      ],
+      "placements": [
+        {
+          "chunk": "5496",
+          "section": "",
+          "nickname": null,
+          "count": 1
+        },
+        {
+          "chunk": "8530",
+          "section": "",
+          "nickname": null,
+          "count": 35
+        },
+        {
+          "chunk": "9370",
+          "section": "",
+          "nickname": null,
+          "count": 50
+        },
+        {
+          "chunk": "9828",
+          "section": "",
+          "nickname": null,
+          "count": 5
+        },
+        {
+          "chunk": "10033",
+          "section": "1",
+          "nickname": "Tree Gnome Village",
+          "count": 9
+        },
+        {
+          "chunk": "10387",
+          "section": "",
+          "nickname": null,
+          "count": 10
+        },
+        {
+          "chunk": "10544",
+          "section": "",
+          "nickname": "Hazelmere's Island",
+          "count": 2
+        },
+        {
+          "chunk": "10795",
+          "section": "1",
+          "nickname": "Marim Entrance",
+          "count": 2
+        },
+        {
+          "chunk": "10894",
+          "section": "",
+          "nickname": null,
+          "count": 14
+        },
+        {
+          "chunk": "11051",
+          "section": "1",
+          "nickname": "Marim",
+          "count": 17
+        },
+        {
+          "chunk": "11150",
+          "section": "",
+          "nickname": null,
+          "count": 15
+        },
+        {
+          "chunk": "11151",
+          "section": "",
+          "nickname": null,
+          "count": 22
+        },
+        {
+          "chunk": "11668",
+          "section": "",
+          "nickname": null,
+          "count": 1
+        },
+        {
+          "chunk": "11670",
+          "section": "",
+          "nickname": null,
+          "count": 3
+        },
+        {
+          "chunk": "11673",
+          "section": "",
+          "nickname": null,
+          "count": 3
+        },
+        {
+          "chunk": "11833",
+          "section": "1",
+          "nickname": "Dareeyak Ruins",
+          "count": 6
+        },
+        {
+          "chunk": "12440",
+          "section": "",
+          "nickname": null,
+          "count": 4
+        },
+        {
+          "chunk": "12593",
+          "section": "",
+          "nickname": "West Lumbridge Swamp",
+          "count": 6
+        },
+        {
+          "chunk": "12594",
+          "section": "",
+          "nickname": "Lumbridge Forest",
+          "count": 7
+        },
+        {
+          "chunk": "12950",
+          "section": "",
+          "nickname": null,
+          "count": 4
+        },
+        {
+          "chunk": "12954",
+          "section": "",
+          "nickname": null,
+          "count": 8
+        },
+        {
+          "chunk": "13105",
+          "section": "",
+          "nickname": "Al Kharid",
+          "count": 3
+        },
+        {
+          "chunk": "Taverley Dungeon",
+          "section": "",
+          "nickname": null,
+          "count": 3
+        },
+        {
+          "chunk": "Stronghold of Security",
+          "section": "",
+          "nickname": null,
+          "count": 35
+        },
+        {
+          "chunk": "Edgeville Dungeon",
+          "section": "",
+          "nickname": null,
+          "count": 8
+        },
+        {
+          "chunk": "Varrock Sewers",
+          "section": "",
+          "nickname": null,
+          "count": 8
+        },
+        {
+          "chunk": "Melzar's Maze",
+          "section": "",
+          "nickname": null,
+          "count": 3
+        },
+        {
+          "chunk": "Draynor Manor basement",
+          "section": "",
+          "nickname": null,
+          "count": 4
+        },
+        {
+          "chunk": "Ogre enclave",
+          "section": "",
+          "nickname": null,
+          "count": 10
+        },
+        {
+          "chunk": "Rashiliyia's tomb",
+          "section": "",
+          "nickname": null,
+          "count": 1
+        },
+        {
+          "chunk": "Underground Pass",
+          "section": "",
+          "nickname": null,
+          "count": 50
+        },
+        {
+          "chunk": "Lumbridge Cellar",
+          "section": "",
+          "nickname": null,
+          "count": 4
+        },
+        {
+          "chunk": "Ape Atoll Dungeon",
+          "section": "",
+          "nickname": null,
+          "count": 29
+        },
+        {
+          "chunk": "Temple of Marimbo Dungeon",
+          "section": "",
+          "nickname": null,
+          "count": 22
+        }
+      ],
+      "variants": [
+        {
+          "version": "Common",
+          "name": "Spider",
+          "npcIds": [
+            61
+          ],
+          "members": false,
+          "memberValue": "No",
+          "combatLevel": 1,
+          "lifePoints": 50
+        },
+        {
+          "version": "Stronghold of Security",
+          "name": "Spider",
+          "npcIds": [
+            4401
+          ],
+          "members": false,
+          "memberValue": "No",
+          "combatLevel": 15,
+          "lifePoints": 1050
+        }
+      ],
+      "cache": [
+        {
+          "id": 61,
+          "name": "Spider",
+          "combatLevel": 1,
+          "stats": {
+            "maxMeleeHit": 4,
+            "maxMagicHit": 0,
+            "meleeAccuracy": 110,
+            "magicAccuracy": 0,
+            "armour": 110
+          }
+        },
+        {
+          "id": 4401,
+          "name": "Spider",
+          "combatLevel": 15,
+          "stats": {
+            "armour": 213
+          }
+        }
+      ]
+    },
+    {
+      "id": "giant-spider",
+      "label": "Giant spider",
+      "selector": "Giant spider",
+      "combatLevel": 33,
+      "sourceId": "combat-giant-spider",
+      "existing": false,
+      "notes": "Includes level2/4 common sources and level29/33 stronger sources. Generic conservative entry20 also covers Lumbridge12850 section1, though that local variant is easier.",
+      "locations": [
+        {
+          "location": " [[Stronghold of Security]] - Floor 3",
+          "levels": " 29",
+          "requirements": null
+        },
+        {
+          "location": " [[Ruins (west)|West Wilderness ruins]] (level 21 - 24 [[Wilderness]])",
+          "levels": " 2",
+          "requirements": null
+        },
+        {
+          "location": " [[Draynor Manor]]",
+          "levels": " 2",
+          "requirements": null
+        },
+        {
+          "location": " [[Edgeville Dungeon]]",
+          "levels": " 2",
+          "requirements": null
+        },
+        {
+          "location": " [[Lumbridge Swamp]]",
+          "levels": " 4",
+          "requirements": null
+        },
+        {
+          "location": " [[Lumbridge]]",
+          "levels": " 4",
+          "requirements": null
+        },
+        {
+          "location": " [[Lumbridge forest]]",
+          "levels": " 4",
+          "requirements": null
+        },
+        {
+          "location": " [[Varrock Sewers]]",
+          "levels": " 2, 33",
+          "requirements": null
+        }
+      ],
+      "placements": [
+        {
+          "chunk": "5496",
+          "section": "",
+          "nickname": null,
+          "count": 2
+        },
+        {
+          "chunk": "8530",
+          "section": "",
+          "nickname": null,
+          "count": 45
+        },
+        {
+          "chunk": "9772",
+          "section": "",
+          "nickname": "South-west Feldip",
+          "count": 6
+        },
+        {
+          "chunk": "9773",
+          "section": "",
+          "nickname": "Jungle Strykewyrms",
+          "count": 13
+        },
+        {
+          "chunk": "9828",
+          "section": "",
+          "nickname": null,
+          "count": 5
+        },
+        {
+          "chunk": "10030",
+          "section": "",
+          "nickname": "West Feldip Hills",
+          "count": 2
+        },
+        {
+          "chunk": "10390",
+          "section": "",
+          "nickname": null,
+          "count": 15
+        },
+        {
+          "chunk": "10648",
+          "section": "",
+          "nickname": null,
+          "count": 2
+        },
+        {
+          "chunk": "11833",
+          "section": "1",
+          "nickname": "Dareeyak Ruins",
+          "count": 5
+        },
+        {
+          "chunk": "12340",
+          "section": "1",
+          "nickname": "Draynor Manor",
+          "count": 5
+        },
+        {
+          "chunk": "12340",
+          "section": "2",
+          "nickname": "Draynor Manor",
+          "count": 1
+        },
+        {
+          "chunk": "12442",
+          "section": "",
+          "nickname": null,
+          "count": 2
+        },
+        {
+          "chunk": "12593",
+          "section": "",
+          "nickname": "West Lumbridge Swamp",
+          "count": 6
+        },
+        {
+          "chunk": "12594",
+          "section": "",
+          "nickname": "Lumbridge Forest",
+          "count": 8
+        },
+        {
+          "chunk": "12850",
+          "section": "1",
+          "nickname": "Lumbridge",
+          "count": 2
+        },
+        {
+          "chunk": "12954",
+          "section": "",
+          "nickname": null,
+          "count": 5
+        },
+        {
+          "chunk": "Edgeville Dungeon",
+          "section": "",
+          "nickname": null,
+          "count": 7
+        },
+        {
+          "chunk": "Varrock Sewers",
+          "section": "",
+          "nickname": null,
+          "count": 5
+        },
+        {
+          "chunk": "Temple of Ikov",
+          "section": "",
+          "nickname": null,
+          "count": 2
+        },
+        {
+          "chunk": "Clock Tower Dungeon",
+          "section": "",
+          "nickname": null,
+          "count": 15
+        }
+      ],
+      "variants": [
+        {
+          "version": "Level 2",
+          "name": "Giant spider",
+          "npcIds": [
+            59,
+            12352
+          ],
+          "members": false,
+          "memberValue": "No",
+          "combatLevel": 2,
+          "lifePoints": 550
+        },
+        {
+          "version": "Level 4",
+          "name": "Giant spider",
+          "npcIds": [
+            20499
+          ],
+          "members": false,
+          "memberValue": "No",
+          "combatLevel": 4,
+          "lifePoints": 1000
+        },
+        {
+          "version": "Level 33",
+          "name": "Giant spider",
+          "npcIds": [
+            60
+          ],
+          "members": false,
+          "memberValue": "No",
+          "combatLevel": 33,
+          "lifePoints": 3900
+        },
+        {
+          "version": "Level 29",
+          "name": "Giant spider",
+          "npcIds": [
+            4400
+          ],
+          "members": false,
+          "memberValue": "No",
+          "combatLevel": 29,
+          "lifePoints": 3150
+        }
+      ],
+      "cache": [
+        {
+          "id": 59,
+          "name": "Giant spider",
+          "combatLevel": 2,
+          "stats": {
+            "maxMeleeHit": 40,
+            "meleeAccuracy": 20,
+            "armour": 120
+          }
+        },
+        {
+          "id": 60,
+          "name": "Giant spider",
+          "combatLevel": 33,
+          "stats": {
+            "maxMeleeHit": 480,
+            "meleeAccuracy": 268,
+            "armour": 368
+          }
+        },
+        {
+          "id": 4400,
+          "name": "Giant spider",
+          "combatLevel": 29,
+          "stats": {
+            "armour": 304
+          }
+        },
+        {
+          "id": 12352,
+          "name": "Giant spider",
+          "combatLevel": 2,
+          "stats": {
+            "maxMeleeHit": 40,
+            "meleeAccuracy": 20,
+            "armour": 120
+          }
+        },
+        {
+          "id": 20499,
+          "name": "Giant spider",
+          "combatLevel": 4,
+          "stats": {
+            "maxMeleeHit": 40,
+            "meleeAccuracy": 30,
+            "armour": 120
+          }
+        }
+      ]
+    },
+    {
+      "id": "al-kharid-warrior",
+      "label": "Al Kharid warrior",
+      "selector": "Al Kharid warrior",
+      "combatLevel": 18,
+      "sourceId": "combat-al-kharid-warrior",
+      "existing": false,
+      "notes": "Palace guards can assist one another when attacked; equipment and food remain necessary. Thieving25 is for pickpocketing, not combat. Exact NPC18/cache combat18.",
+      "locations": [
+        {
+          "location": "[[Al Kharid palace]]",
+          "levels": "18",
+          "requirements": null
+        }
+      ],
+      "placements": [
+        {
+          "chunk": "13105",
+          "section": "",
+          "nickname": "Al Kharid",
+          "count": 9
+        }
+      ],
+      "variants": [
+        {
+          "version": "Default",
+          "name": "Al Kharid warrior",
+          "npcIds": [
+            18
+          ],
+          "members": false,
+          "memberValue": "No",
+          "combatLevel": 18,
+          "lifePoints": 650
+        }
+      ],
+      "cache": [
+        {
+          "id": 18,
+          "name": "Al Kharid warrior",
+          "combatLevel": 18,
+          "stats": {
+            "maxMeleeHit": 52,
+            "meleeAccuracy": 234,
+            "armour": 234
+          }
+        }
+      ]
+    },
+    {
+      "id": "scorpion",
+      "label": "Scorpion",
+      "selector": "Scorpion",
+      "combatLevel": 26,
+      "sourceId": "combat-scorpion",
+      "existing": false,
+      "notes": "Generic selector includes level14 ordinary and level26 Stronghold variants; stronger F2P variant sets conservative entry20. Al Kharid mine is chunk13107, not13105.",
+      "locations": [
+        {
+          "location": "[[Al Kharid mine]]",
+          "levels": "14",
+          "requirements": null
+        },
+        {
+          "location": "[[Dwarven mines]]",
+          "levels": "14",
+          "requirements": null
+        },
+        {
+          "location": "[[Karamja Volcano]]",
+          "levels": "14",
+          "requirements": null
+        },
+        {
+          "location": "[[Stronghold of Security#Pit of Pestilence (3rd level)|Stronghold of Security]] (3rd level)",
+          "levels": "26",
+          "requirements": null
+        },
+        {
+          "location": "[[Varrock Sewers]]",
+          "levels": "14",
+          "requirements": null
+        },
+        {
+          "location": "[[Wilderness]] ([[Scorpion Pit]])",
+          "levels": "14",
+          "requirements": null
+        },
+        {
+          "location": "[[Wilderness]] (south of [[Chaos altar]])",
+          "levels": "14",
+          "requirements": null
+        }
+      ],
+      "placements": [
+        {
+          "chunk": "8530",
+          "section": "",
+          "nickname": null,
+          "count": 8
+        },
+        {
+          "chunk": "10291",
+          "section": "",
+          "nickname": "Ardougne Castle",
+          "count": 3
+        },
+        {
+          "chunk": "10649",
+          "section": "",
+          "nickname": null,
+          "count": 5
+        },
+        {
+          "chunk": "11050",
+          "section": "3",
+          "nickname": "East Ape Atoll",
+          "count": 4
+        },
+        {
+          "chunk": "11051",
+          "section": "1",
+          "nickname": "Marim",
+          "count": 8
+        },
+        {
+          "chunk": "11054",
+          "section": "",
+          "nickname": "Cairn Isle",
+          "count": 5
+        },
+        {
+          "chunk": "11313",
+          "section": "",
+          "nickname": "Karamja volcano",
+          "count": 7
+        },
+        {
+          "chunk": "11562",
+          "section": "",
+          "nickname": "Crash Island",
+          "count": 4
+        },
+        {
+          "chunk": "12087",
+          "section": "1",
+          "nickname": "Black Knights' Fortress",
+          "count": 7
+        },
+        {
+          "chunk": "12184",
+          "section": "",
+          "nickname": null,
+          "count": 10
+        },
+        {
+          "chunk": "12185",
+          "section": "",
+          "nickname": null,
+          "count": 3
+        },
+        {
+          "chunk": "12861",
+          "section": "",
+          "nickname": "Scorpion Pit",
+          "count": 7
+        },
+        {
+          "chunk": "12954",
+          "section": "",
+          "nickname": null,
+          "count": 2
+        },
+        {
+          "chunk": "13107",
+          "section": "1",
+          "nickname": "Al Kharid Mine",
+          "count": 9
+        },
+        {
+          "chunk": "Stronghold of Security",
+          "section": "",
+          "nickname": null,
+          "count": 8
+        },
+        {
+          "chunk": "Dwarven Mine",
+          "section": "",
+          "nickname": null,
+          "count": 13
+        },
+        {
+          "chunk": "Varrock Sewers",
+          "section": "",
+          "nickname": null,
+          "count": 2
+        },
+        {
+          "chunk": "Temple of Ikov",
+          "section": "",
+          "nickname": null,
+          "count": 5
+        }
+      ],
+      "variants": [
+        {
+          "version": "Level 14",
+          "name": "Scorpion",
+          "npcIds": [
+            107
+          ],
+          "members": false,
+          "memberValue": "No",
+          "combatLevel": 14,
+          "lifePoints": 2000
+        },
+        {
+          "version": "Level 26 (Stronghold of Security, 1)",
+          "name": "Scorpion",
+          "npcIds": [
+            4402
+          ],
+          "members": false,
+          "memberValue": "No",
+          "combatLevel": 26,
+          "lifePoints": 3150
+        },
+        {
+          "version": "Level 26 (Stronghold of Security, 2)",
+          "name": "Scorpion",
+          "npcIds": [
+            4403
+          ],
+          "members": false,
+          "memberValue": "No",
+          "combatLevel": 26,
+          "lifePoints": 3150
+        }
+      ],
+      "cache": [
+        {
+          "id": 107,
+          "name": "Scorpion",
+          "combatLevel": 14,
+          "stats": {
+            "maxMeleeHit": 200,
+            "meleeAccuracy": 102,
+            "armour": 202
+          }
+        },
+        {
+          "id": 4402,
+          "name": "Scorpion",
+          "combatLevel": 26,
+          "stats": {
+            "armour": 304
+          }
+        },
+        {
+          "id": 4403,
+          "name": "Scorpion",
+          "combatLevel": 26,
+          "stats": {
+            "armour": 304
+          }
+        }
+      ]
+    },
+    {
+      "id": "minotaur",
+      "label": "Minotaur",
+      "selector": "Minotaur",
+      "combatLevel": 15,
+      "sourceId": "combat-minotaur",
+      "existing": false,
+      "notes": "",
+      "locations": [
+        {
+          "location": "[[Stronghold of Security]]",
+          "levels": "12, 15",
+          "requirements": null
+        }
+      ],
+      "placements": [
+        {
+          "chunk": "7505",
+          "section": "",
+          "nickname": null,
+          "count": 40
+        },
+        {
+          "chunk": "Stronghold of Security",
+          "section": "",
+          "nickname": null,
+          "count": 40
+        }
+      ],
+      "variants": [
+        {
+          "version": "Level 12",
+          "name": "Minotaur",
+          "npcIds": [
+            4404
+          ],
+          "members": false,
+          "memberValue": "No",
+          "combatLevel": 12,
+          "lifePoints": 1750
+        },
+        {
+          "version": "Level 15",
+          "name": "Minotaur",
+          "npcIds": [
+            4406
+          ],
+          "members": false,
+          "memberValue": "No",
+          "combatLevel": 15,
+          "lifePoints": 2000
+        }
+      ],
+      "cache": [
+        {
+          "id": 4404,
+          "name": "Minotaur",
+          "combatLevel": 12,
+          "stats": {
+            "maxMeleeHit": 200,
+            "meleeAccuracy": 102,
+            "armour": 181
+          }
+        },
+        {
+          "id": 4406,
+          "name": "Minotaur",
+          "combatLevel": 15,
+          "stats": {
+            "maxMeleeHit": 240,
+            "meleeAccuracy": 123,
+            "armour": 202
+          }
+        }
+      ]
+    },
+    {
+      "id": "flesh-crawler",
+      "label": "Flesh Crawler",
+      "selector": "Flesh Crawler",
+      "combatLevel": 26,
+      "sourceId": "combat-flesh-crawler",
+      "existing": false,
+      "notes": "",
+      "locations": [
+        {
+          "location": "[[Stronghold of Security]]",
+          "levels": "26",
+          "requirements": null
+        }
+      ],
+      "placements": [
+        {
+          "chunk": "8017",
+          "section": "",
+          "nickname": null,
+          "count": 26
+        },
+        {
+          "chunk": "Stronghold of Security",
+          "section": "",
+          "nickname": null,
+          "count": 26
+        }
+      ],
+      "variants": [
+        {
+          "version": "Default",
+          "name": "Flesh Crawler",
+          "npcIds": [
+            4389,
+            4390,
+            4391
+          ],
+          "members": false,
+          "memberValue": "No",
+          "combatLevel": 26,
+          "lifePoints": 3600
+        }
+      ],
+      "cache": [
+        {
+          "id": 4389,
+          "name": "Flesh Crawler",
+          "combatLevel": 26,
+          "stats": {
+            "armour": 341
+          }
+        },
+        {
+          "id": 4390,
+          "name": "Flesh Crawler",
+          "combatLevel": 26,
+          "stats": {
+            "armour": 341
+          }
+        },
+        {
+          "id": 4391,
+          "name": "Flesh Crawler",
+          "combatLevel": 26,
+          "stats": {
+            "armour": 341
+          }
+        }
+      ]
+    },
+    {
+      "id": "zombie",
+      "label": "Zombie",
+      "selector": "Zombie",
+      "combatLevel": 29,
+      "sourceId": "combat-zombie",
+      "existing": false,
+      "notes": "Generic level12/22/29 variants; combat rate and XP per kill left unknown.",
+      "locations": [
+        {
+          "location": "[[Draynor Sewers]]",
+          "levels": "12, 29",
+          "requirements": null
+        },
+        {
+          "location": "[[Edgeville Dungeon]]",
+          "levels": "22, 29",
+          "requirements": null
+        },
+        {
+          "location": "[[Varrock Sewers]]",
+          "levels": "12, 29",
+          "requirements": null
+        }
+      ],
+      "placements": [
+        {
+          "chunk": "9879",
+          "section": "",
+          "nickname": null,
+          "count": 4
+        },
+        {
+          "chunk": "10133",
+          "section": "",
+          "nickname": null,
+          "count": 3
+        },
+        {
+          "chunk": "10137",
+          "section": "",
+          "nickname": null,
+          "count": 6
+        },
+        {
+          "chunk": "10318",
+          "section": "",
+          "nickname": null,
+          "count": 1
+        },
+        {
+          "chunk": "10388",
+          "section": "",
+          "nickname": null,
+          "count": 8
+        },
+        {
+          "chunk": "10647",
+          "section": "",
+          "nickname": null,
+          "count": 3
+        },
+        {
+          "chunk": "11416",
+          "section": "",
+          "nickname": null,
+          "count": 5
+        },
+        {
+          "chunk": "11670",
+          "section": "",
+          "nickname": null,
+          "count": 2
+        },
+        {
+          "chunk": "12438",
+          "section": "",
+          "nickname": null,
+          "count": 4
+        },
+        {
+          "chunk": "12439",
+          "section": "",
+          "nickname": null,
+          "count": 3
+        },
+        {
+          "chunk": "12442",
+          "section": "",
+          "nickname": null,
+          "count": 4
+        },
+        {
+          "chunk": "12615",
+          "section": "",
+          "nickname": null,
+          "count": 37
+        },
+        {
+          "chunk": "12629",
+          "section": "",
+          "nickname": null,
+          "count": 9
+        },
+        {
+          "chunk": "12698",
+          "section": "",
+          "nickname": null,
+          "count": 10
+        },
+        {
+          "chunk": "12954",
+          "section": "",
+          "nickname": null,
+          "count": 6
+        },
+        {
+          "chunk": "14732",
+          "section": "",
+          "nickname": null,
+          "count": 2
+        },
+        {
+          "chunk": "14733",
+          "section": "",
+          "nickname": null,
+          "count": 1
+        },
+        {
+          "chunk": "14734",
+          "section": "",
+          "nickname": null,
+          "count": 8
+        },
+        {
+          "chunk": "14988",
+          "section": "",
+          "nickname": null,
+          "count": 1
+        },
+        {
+          "chunk": "14989",
+          "section": "",
+          "nickname": null,
+          "count": 35
+        },
+        {
+          "chunk": "14990",
+          "section": "",
+          "nickname": null,
+          "count": 2
+        }
+      ],
+      "variants": [
+        {
+          "version": "Level 12",
+          "name": "Zombie",
+          "npcIds": [
+            73,
+            5293,
+            5294,
+            5295,
+            5296,
+            5297,
+            5298,
+            5300,
+            5303,
+            5304,
+            5305,
+            5306,
+            5307
+          ],
+          "members": false,
+          "memberValue": "No",
+          "combatLevel": 12,
+          "lifePoints": 450
+        },
+        {
+          "version": "Level 22",
+          "name": "Zombie",
+          "npcIds": [
+            74,
+            5308
+          ],
+          "members": false,
+          "memberValue": "No",
+          "combatLevel": 22,
+          "lifePoints": 800
+        },
+        {
+          "version": "Level 29",
+          "name": "Zombie",
+          "npcIds": [],
+          "members": false,
+          "memberValue": "No",
+          "combatLevel": 29,
+          "lifePoints": 1050
+        }
+      ],
+      "cache": [
+        {
+          "id": 73,
+          "name": "Zombie",
+          "combatLevel": 12,
+          "stats": {
+            "maxMeleeHit": 36,
+            "meleeAccuracy": 191,
+            "armour": 191
+          }
+        },
+        {
+          "id": 74,
+          "name": "Zombie",
+          "combatLevel": 22,
+          "stats": {
+            "maxMeleeHit": 64,
+            "meleeAccuracy": 268,
+            "armour": 268
+          }
+        },
+        {
+          "id": 5293,
+          "name": "Zombie",
+          "combatLevel": 12,
+          "stats": {
+            "maxMeleeHit": 36,
+            "meleeAccuracy": 191,
+            "armour": 191
+          }
+        },
+        {
+          "id": 5294,
+          "name": "Zombie",
+          "combatLevel": 12,
+          "stats": {
+            "maxMeleeHit": 36,
+            "meleeAccuracy": 191,
+            "armour": 191
+          }
+        },
+        {
+          "id": 5295,
+          "name": "Zombie",
+          "combatLevel": 12,
+          "stats": {
+            "maxMeleeHit": 36,
+            "meleeAccuracy": 191,
+            "armour": 191
+          }
+        },
+        {
+          "id": 5296,
+          "name": "Zombie",
+          "combatLevel": 12,
+          "stats": {
+            "maxMeleeHit": 36,
+            "meleeAccuracy": 191,
+            "armour": 191
+          }
+        },
+        {
+          "id": 5297,
+          "name": "Zombie",
+          "combatLevel": 12,
+          "stats": {
+            "maxMeleeHit": 36,
+            "meleeAccuracy": 191,
+            "armour": 191
+          }
+        },
+        {
+          "id": 5298,
+          "name": "Zombie",
+          "combatLevel": 12,
+          "stats": {
+            "maxMeleeHit": 36,
+            "meleeAccuracy": 191,
+            "armour": 191
+          }
+        },
+        {
+          "id": 5300,
+          "name": "Zombie",
+          "combatLevel": 12,
+          "stats": {
+            "maxMeleeHit": 36,
+            "meleeAccuracy": 191,
+            "armour": 191
+          }
+        },
+        {
+          "id": 5303,
+          "name": "Zombie",
+          "combatLevel": 12,
+          "stats": {
+            "maxMeleeHit": 36,
+            "meleeAccuracy": 191,
+            "armour": 191
+          }
+        },
+        {
+          "id": 5304,
+          "name": "Zombie",
+          "combatLevel": 12,
+          "stats": {
+            "maxMeleeHit": 36,
+            "meleeAccuracy": 191,
+            "armour": 191
+          }
+        },
+        {
+          "id": 5305,
+          "name": "Zombie",
+          "combatLevel": 12,
+          "stats": {
+            "maxMeleeHit": 36,
+            "meleeAccuracy": 191,
+            "armour": 191
+          }
+        },
+        {
+          "id": 5306,
+          "name": "Zombie",
+          "combatLevel": 12,
+          "stats": {
+            "maxMeleeHit": 36,
+            "meleeAccuracy": 191,
+            "armour": 191
+          }
+        },
+        {
+          "id": 5307,
+          "name": "Zombie",
+          "combatLevel": 12,
+          "stats": {
+            "maxMeleeHit": 36,
+            "meleeAccuracy": 191,
+            "armour": 191
+          }
+        },
+        {
+          "id": 5308,
+          "name": "Zombie",
+          "combatLevel": 22,
+          "stats": {
+            "maxMeleeHit": 64,
+            "meleeAccuracy": 268,
+            "armour": 268
+          }
+        }
+      ]
+    },
+    {
+      "id": "skeleton",
+      "label": "Skeleton",
+      "selector": "Skeleton",
+      "combatLevel": 58,
+      "sourceId": "combat-skeleton",
+      "existing": false,
+      "notes": "Generic level15/16/32/46/51/58 variants. Strongest F2P level58 yields conservative entry30. Crandor requires Dragon Slayer route; ordinary F2P sewers provide alternatives.",
+      "locations": [
+        {
+          "location": "[[Crandor]]",
+          "levels": "32",
+          "requirements": null
+        },
+        {
+          "location": "[[Crandor and Karamja Dungeon]]",
+          "levels": "15, 32, 58",
+          "requirements": null
+        },
+        {
+          "location": "[[Draynor Sewers]]",
+          "levels": "15, 32",
+          "requirements": null
+        },
+        {
+          "location": "[[Edgeville Dungeon]]",
+          "levels": "15, 16, 32, 58",
+          "requirements": null
+        },
+        {
+          "location": "[[Stronghold of Security#Sepulchre of Death (4th level)|Stronghold of Security]] (4th level)",
+          "levels": "46, 51",
+          "requirements": null
+        },
+        {
+          "location": "[[Varrock Sewers]]",
+          "levels": "16, 32",
+          "requirements": null
+        },
+        {
+          "location": "[[Wilderness]] (north of [[Edgeville]])",
+          "levels": "15, 32",
+          "requirements": null
+        },
+        {
+          "location": "[[Wilderness]] ([[Boneyard]])",
+          "levels": "32",
+          "requirements": null
+        },
+        {
+          "location": "[[Wilderness (level 9) south-west mine]]",
+          "levels": "15",
+          "requirements": null
+        },
+        {
+          "location": "[[Wilderness]] ([[The Forgotten Cemetery]])",
+          "levels": "32",
+          "requirements": null
+        },
+        {
+          "location": "[[Wilderness Crater]]",
+          "levels": "51",
+          "requirements": null
+        }
+      ],
+      "placements": [
+        {
+          "chunk": "8543",
+          "section": "",
+          "nickname": null,
+          "count": 10
+        },
+        {
+          "chunk": "9297",
+          "section": "",
+          "nickname": null,
+          "count": 26
+        },
+        {
+          "chunk": "9622",
+          "section": "",
+          "nickname": null,
+          "count": 10
+        },
+        {
+          "chunk": "10137",
+          "section": "",
+          "nickname": null,
+          "count": 6
+        },
+        {
+          "chunk": "10387",
+          "section": "",
+          "nickname": null,
+          "count": 3
+        },
+        {
+          "chunk": "10388",
+          "section": "",
+          "nickname": null,
+          "count": 6
+        },
+        {
+          "chunk": "10394",
+          "section": "",
+          "nickname": null,
+          "count": 3
+        },
+        {
+          "chunk": "10649",
+          "section": "",
+          "nickname": null,
+          "count": 5
+        },
+        {
+          "chunk": "10650",
+          "section": "",
+          "nickname": null,
+          "count": 10
+        },
+        {
+          "chunk": "10894",
+          "section": "",
+          "nickname": null,
+          "count": 17
+        },
+        {
+          "chunk": "11413",
+          "section": "",
+          "nickname": null,
+          "count": 5
+        },
+        {
+          "chunk": "11414",
+          "section": "",
+          "nickname": null,
+          "count": 14
+        },
+        {
+          "chunk": "11673",
+          "section": "",
+          "nickname": null,
+          "count": 7
+        },
+        {
+          "chunk": "11937",
+          "section": "",
+          "nickname": null,
+          "count": 8
+        },
+        {
+          "chunk": "12439",
+          "section": "",
+          "nickname": null,
+          "count": 4
+        },
+        {
+          "chunk": "12442",
+          "section": "",
+          "nickname": null,
+          "count": 13
+        },
+        {
+          "chunk": "12443",
+          "section": "",
+          "nickname": null,
+          "count": 7
+        },
+        {
+          "chunk": "12615",
+          "section": "",
+          "nickname": null,
+          "count": 24
+        },
+        {
+          "chunk": "12629",
+          "section": "",
+          "nickname": null,
+          "count": 21
+        },
+        {
+          "chunk": "12633",
+          "section": "",
+          "nickname": null,
+          "count": 10
+        },
+        {
+          "chunk": "12698",
+          "section": "",
+          "nickname": null,
+          "count": 6
+        },
+        {
+          "chunk": "12909",
+          "section": "",
+          "nickname": null,
+          "count": 6
+        },
+        {
+          "chunk": "12954",
+          "section": "",
+          "nickname": null,
+          "count": 5
+        },
+        {
+          "chunk": "13145",
+          "section": "",
+          "nickname": null,
+          "count": 10
+        },
+        {
+          "chunk": "13165",
+          "section": "",
+          "nickname": null,
+          "count": 8
+        },
+        {
+          "chunk": "13166",
+          "section": "",
+          "nickname": null,
+          "count": 4
+        },
+        {
+          "chunk": "13210",
+          "section": "",
+          "nickname": null,
+          "count": 4
+        },
+        {
+          "chunk": "13718",
+          "section": "",
+          "nickname": null,
+          "count": 2
+        },
+        {
+          "chunk": "14231",
+          "section": "",
+          "nickname": null,
+          "count": 6
+        },
+        {
+          "chunk": "15958",
+          "section": "",
+          "nickname": null,
+          "count": 13
+        }
+      ],
+      "variants": [
+        {
+          "version": "Level 15",
+          "name": "Skeleton",
+          "npcIds": [
+            90,
+            5332,
+            5333,
+            5334
+          ],
+          "members": false,
+          "memberValue": "No",
+          "combatLevel": 15,
+          "lifePoints": 550
+        },
+        {
+          "version": "Level 16",
+          "name": "Skeleton",
+          "npcIds": [
+            91,
+            5335,
+            5336
+          ],
+          "members": false,
+          "memberValue": "No",
+          "combatLevel": 16,
+          "lifePoints": 600
+        },
+        {
+          "version": "Level 32",
+          "name": "Skeleton",
+          "npcIds": [
+            92,
+            5337,
+            5338,
+            5339,
+            5340
+          ],
+          "members": false,
+          "memberValue": "No",
+          "combatLevel": 32,
+          "lifePoints": 1150
+        },
+        {
+          "version": "Level 46",
+          "name": "Skeleton",
+          "npcIds": [
+            4384,
+            4385,
+            5365,
+            5366
+          ],
+          "members": false,
+          "memberValue": "No",
+          "combatLevel": 46,
+          "lifePoints": 5300
+        },
+        {
+          "version": "Level 51",
+          "name": "Skeleton",
+          "npcIds": [
+            4386,
+            5367,
+            5368
+          ],
+          "members": false,
+          "memberValue": "No",
+          "combatLevel": 51,
+          "lifePoints": 5950
+        },
+        {
+          "version": "Level 58",
+          "name": "Skeleton",
+          "npcIds": [
+            93,
+            5341
+          ],
+          "members": false,
+          "memberValue": "No",
+          "combatLevel": 58,
+          "lifePoints": 2100
+        }
+      ],
+      "cache": [
+        {
+          "id": 90,
+          "name": "Skeleton",
+          "combatLevel": 15,
+          "stats": {
+            "maxMeleeHit": 44,
+            "meleeAccuracy": 213,
+            "armour": 213
+          }
+        },
+        {
+          "id": 91,
+          "name": "Skeleton",
+          "combatLevel": 16,
+          "stats": {
+            "maxMeleeHit": 48,
+            "meleeAccuracy": 223,
+            "armour": 223
+          }
+        },
+        {
+          "id": 92,
+          "name": "Skeleton",
+          "combatLevel": 32,
+          "stats": {
+            "maxMeleeHit": 92,
+            "meleeAccuracy": 354,
+            "armour": 354
+          }
+        },
+        {
+          "id": 93,
+          "name": "Skeleton",
+          "combatLevel": 58,
+          "stats": {
+            "maxMeleeHit": 168,
+            "meleeAccuracy": 668,
+            "armour": 668
+          }
+        },
+        {
+          "id": 4384,
+          "name": "Skeleton",
+          "combatLevel": 46,
+          "stats": {
+            "maxMeleeHit": 660,
+            "meleeAccuracy": 402,
+            "armour": 502
+          }
+        },
+        {
+          "id": 4385,
+          "name": "Skeleton",
+          "combatLevel": 46,
+          "stats": {
+            "maxMeleeHit": 660,
+            "meleeAccuracy": 402,
+            "armour": 502
+          }
+        },
+        {
+          "id": 4386,
+          "name": "Skeleton",
+          "combatLevel": 51,
+          "stats": {
+            "maxMeleeHit": 740,
+            "meleeAccuracy": 471,
+            "armour": 571
+          }
+        },
+        {
+          "id": 5332,
+          "name": "Skeleton",
+          "combatLevel": 15,
+          "stats": {
+            "maxMeleeHit": 44,
+            "meleeAccuracy": 213,
+            "armour": 213
+          }
+        },
+        {
+          "id": 5333,
+          "name": "Skeleton",
+          "combatLevel": 15,
+          "stats": {
+            "maxMeleeHit": 44,
+            "meleeAccuracy": 213,
+            "armour": 213
+          }
+        },
+        {
+          "id": 5334,
+          "name": "Skeleton",
+          "combatLevel": 15,
+          "stats": {
+            "maxMeleeHit": 44,
+            "meleeAccuracy": 213,
+            "armour": 213
+          }
+        },
+        {
+          "id": 5335,
+          "name": "Skeleton",
+          "combatLevel": 16,
+          "stats": {
+            "maxMeleeHit": 48,
+            "meleeAccuracy": 223,
+            "armour": 223
+          }
+        },
+        {
+          "id": 5336,
+          "name": "Skeleton",
+          "combatLevel": 16,
+          "stats": {
+            "maxMeleeHit": 48,
+            "meleeAccuracy": 223,
+            "armour": 223
+          }
+        },
+        {
+          "id": 5337,
+          "name": "Skeleton",
+          "combatLevel": 32,
+          "stats": {
+            "maxMeleeHit": 92,
+            "meleeAccuracy": 354,
+            "armour": 354
+          }
+        },
+        {
+          "id": 5338,
+          "name": "Skeleton",
+          "combatLevel": 32,
+          "stats": {
+            "maxMeleeHit": 92,
+            "meleeAccuracy": 354,
+            "armour": 354
+          }
+        },
+        {
+          "id": 5339,
+          "name": "Skeleton",
+          "combatLevel": 32,
+          "stats": {
+            "maxMeleeHit": 92,
+            "meleeAccuracy": 354,
+            "armour": 354
+          }
+        },
+        {
+          "id": 5340,
+          "name": "Skeleton",
+          "combatLevel": 32,
+          "stats": {
+            "maxMeleeHit": 92,
+            "meleeAccuracy": 354,
+            "armour": 354
+          }
+        },
+        {
+          "id": 5341,
+          "name": "Skeleton",
+          "combatLevel": 58,
+          "stats": {
+            "maxMeleeHit": 168,
+            "meleeAccuracy": 668,
+            "armour": 668
+          }
+        },
+        {
+          "id": 5365,
+          "name": "Skeleton",
+          "combatLevel": 46,
+          "stats": {
+            "maxMeleeHit": 660,
+            "meleeAccuracy": 402,
+            "armour": 502
+          }
+        },
+        {
+          "id": 5366,
+          "name": "Skeleton",
+          "combatLevel": 46,
+          "stats": {
+            "maxMeleeHit": 660,
+            "meleeAccuracy": 402,
+            "armour": 502
+          }
+        },
+        {
+          "id": 5367,
+          "name": "Skeleton",
+          "combatLevel": 51,
+          "stats": {
+            "maxMeleeHit": 740,
+            "meleeAccuracy": 471,
+            "armour": 571
+          }
+        },
+        {
+          "id": 5368,
+          "name": "Skeleton",
+          "combatLevel": 51,
+          "stats": {
+            "maxMeleeHit": 740,
+            "meleeAccuracy": 471,
+            "armour": 571
+          }
+        }
+      ]
+    },
+    {
+      "id": "cockroach-worker",
+      "label": "Cockroach worker",
+      "selector": "Cockroach worker",
+      "combatLevel": 30,
+      "sourceId": "combat-cockroach-worker",
+      "existing": false,
+      "notes": "",
+      "locations": [
+        {
+          "location": "[[Stronghold of Player Safety]] lower level",
+          "levels": "30",
+          "requirements": null
+        },
+        {
+          "location": "[[Stronghold of Player Safety]] middle level",
+          "levels": "30",
+          "requirements": null
+        },
+        {
+          "location": "[[Stronghold of Player Safety]] upper level",
+          "levels": "30",
+          "requirements": null
+        }
+      ],
+      "placements": [
+        {
+          "chunk": "12610",
+          "section": "",
+          "nickname": null,
+          "count": 32
+        },
+        {
+          "chunk": "Stronghold of Player Safety",
+          "section": "",
+          "nickname": null,
+          "count": 32
+        }
+      ],
+      "variants": [
+        {
+          "version": "Default",
+          "name": "Cockroach worker",
+          "npcIds": [
+            7159
+          ],
+          "members": false,
+          "memberValue": "No",
+          "combatLevel": 30,
+          "lifePoints": 3600
+        }
+      ],
+      "cache": [
+        {
+          "id": 7159,
+          "name": "Cockroach worker",
+          "combatLevel": 30,
+          "stats": {
+            "maxMeleeHit": 440,
+            "meleeAccuracy": 241,
+            "armour": 341
+          }
+        }
+      ]
+    },
+    {
+      "id": "hill-giant",
+      "label": "Hill giant",
+      "selector": "Hill giant",
+      "combatLevel": 26,
+      "sourceId": "combat-hill-giant",
+      "existing": true,
+      "beforeLevel": 1,
+      "notes": "Update existing six combat method entry levels1 to20 under this authored policy, preserving their existing per-kill XP. Current Wiki37203057 and exact cache IDs agree on combat26; older combat44 assumption is stale. Edgeville resource-dungeon alternative requires Dungeoneering20; ordinary Edgeville Dungeon does not.",
+      "locations": [
+        {
+          "location": "[[Edgeville Dungeon]]",
+          "levels": "26",
+          "requirements": null
+        },
+        {
+          "location": "[[Edgeville Dungeon hill giant resource dungeon|Edgeville Dungeon resource dungeon]]",
+          "levels": "26",
+          "requirements": " {{Skillreq|Dungeoneering|20}}"
+        },
+        {
+          "location": "South-east of the [[Boneyard]]",
+          "levels": "26",
+          "requirements": null
+        },
+        {
+          "location": "[[Hollow Hill]]",
+          "levels": "26",
+          "requirements": null
+        }
+      ],
+      "placements": [
+        {
+          "chunk": "4423",
+          "section": "",
+          "nickname": null,
+          "count": 11
+        },
+        {
+          "chunk": "9525",
+          "section": "2",
+          "nickname": "Brimstail's cave",
+          "count": 6
+        },
+        {
+          "chunk": "9778",
+          "section": "1",
+          "nickname": "Ouriana Altar",
+          "count": 6
+        },
+        {
+          "chunk": "10033",
+          "section": "1",
+          "nickname": "Tree Gnome Village",
+          "count": 3
+        },
+        {
+          "chunk": "11594",
+          "section": "",
+          "nickname": null,
+          "count": 1
+        },
+        {
+          "chunk": "11672",
+          "section": "",
+          "nickname": null,
+          "count": 5
+        },
+        {
+          "chunk": "12193",
+          "section": "",
+          "nickname": null,
+          "count": 6
+        },
+        {
+          "chunk": "12441",
+          "section": "",
+          "nickname": null,
+          "count": 12
+        },
+        {
+          "chunk": "13113",
+          "section": "",
+          "nickname": "Black Salamander Hunting Area",
+          "count": 2
+        },
+        {
+          "chunk": "17205",
+          "section": "1",
+          "nickname": "Hill Giant Camp",
+          "count": 4
+        },
+        {
+          "chunk": "Taverley Dungeon",
+          "section": "",
+          "nickname": null,
+          "count": 5
+        },
+        {
+          "chunk": "Edgeville Dungeon",
+          "section": "",
+          "nickname": null,
+          "count": 12
+        },
+        {
+          "chunk": "Edgeville Dungeon hill giant dungeon",
+          "section": "",
+          "nickname": null,
+          "count": 10
+        }
+      ],
+      "variants": [
+        {
+          "version": "1",
+          "name": "Hill giant",
+          "npcIds": [
+            117
+          ],
+          "members": false,
+          "memberValue": "No",
+          "combatLevel": 26,
+          "lifePoints": 4500
+        },
+        {
+          "version": "2",
+          "name": "Hill giant",
+          "npcIds": [
+            4689
+          ],
+          "members": false,
+          "memberValue": "No",
+          "combatLevel": 26,
+          "lifePoints": 4500
+        },
+        {
+          "version": "3",
+          "name": "Hill giant",
+          "npcIds": [
+            4690
+          ],
+          "members": false,
+          "memberValue": "No",
+          "combatLevel": 26,
+          "lifePoints": 4500
+        },
+        {
+          "version": "4",
+          "name": "Hill giant",
+          "npcIds": [
+            4691
+          ],
+          "members": false,
+          "memberValue": "No",
+          "combatLevel": 26,
+          "lifePoints": 4500
+        },
+        {
+          "version": "5",
+          "name": "Hill giant",
+          "npcIds": [
+            4692
+          ],
+          "members": false,
+          "memberValue": "No",
+          "combatLevel": 26,
+          "lifePoints": 4500
+        },
+        {
+          "version": "6",
+          "name": "Hill giant",
+          "npcIds": [
+            4693
+          ],
+          "members": false,
+          "memberValue": "No",
+          "combatLevel": 26,
+          "lifePoints": 4500
+        }
+      ],
+      "cache": [
+        {
+          "id": 117,
+          "name": "Hill giant",
+          "combatLevel": 26,
+          "stats": {
+            "maxMeleeHit": 450,
+            "meleeAccuracy": 157,
+            "armour": 341
+          }
+        },
+        {
+          "id": 4689,
+          "name": "Hill giant",
+          "combatLevel": 26,
+          "stats": {
+            "maxMeleeHit": 450,
+            "meleeAccuracy": 157,
+            "armour": 341
+          }
+        },
+        {
+          "id": 4690,
+          "name": "Hill giant",
+          "combatLevel": 26,
+          "stats": {
+            "maxMeleeHit": 450,
+            "meleeAccuracy": 157,
+            "armour": 341
+          }
+        },
+        {
+          "id": 4691,
+          "name": "Hill giant",
+          "combatLevel": 26,
+          "stats": {
+            "maxMeleeHit": 450,
+            "meleeAccuracy": 157,
+            "armour": 341
+          }
+        },
+        {
+          "id": 4692,
+          "name": "Hill giant",
+          "combatLevel": 26,
+          "stats": {
+            "maxMeleeHit": 450,
+            "meleeAccuracy": 157,
+            "armour": 341
+          }
+        },
+        {
+          "id": 4693,
+          "name": "Hill giant",
+          "combatLevel": 26,
+          "stats": {
+            "maxMeleeHit": 450,
+            "meleeAccuracy": 157,
+            "armour": 341
+          }
+        }
+      ]
+    },
+    {
+      "id": "moss-giant",
+      "label": "Moss giant",
+      "selector": "Moss giant",
+      "combatLevel": 40,
+      "sourceId": "combat-moss-giant",
+      "existing": false,
+      "notes": "Ordinary F2P Varrock Sewers source is ungated by Dungeoneering. Crandor route requires Dragon Slayer. Pirates Cove variant and Varrock Sewers resource dungeon (Dungeoneering65) are members.",
+      "locations": [
+        {
+          "location": "[[Crandor]]",
+          "levels": "40",
+          "requirements": " {{QuestIcon|Dragon Slayer}}"
+        },
+        {
+          "location": "[[Varrock Sewers]]",
+          "levels": "40",
+          "requirements": null
+        }
+      ],
+      "placements": [
+        {
+          "chunk": "5191",
+          "section": "",
+          "nickname": null,
+          "count": 8
+        },
+        {
+          "chunk": "8763",
+          "section": "",
+          "nickname": "Pirates' Cove",
+          "count": 10
+        },
+        {
+          "chunk": "10037",
+          "section": "1",
+          "nickname": "Glarial's Tomb",
+          "count": 4
+        },
+        {
+          "chunk": "10137",
+          "section": "",
+          "nickname": null,
+          "count": 3
+        },
+        {
+          "chunk": "10644",
+          "section": "",
+          "nickname": null,
+          "count": 6
+        },
+        {
+          "chunk": "10645",
+          "section": "",
+          "nickname": null,
+          "count": 14
+        },
+        {
+          "chunk": "10802",
+          "section": "2",
+          "nickname": "Horseshoe Mine",
+          "count": 5
+        },
+        {
+          "chunk": "11314",
+          "section": "1",
+          "nickname": "South Crandor",
+          "count": 3
+        },
+        {
+          "chunk": "12698",
+          "section": "",
+          "nickname": null,
+          "count": 4
+        },
+        {
+          "chunk": "12885",
+          "section": "",
+          "nickname": null,
+          "count": 7
+        },
+        {
+          "chunk": "12886",
+          "section": "",
+          "nickname": null,
+          "count": 9
+        },
+        {
+          "chunk": "Chaos Tunnels",
+          "section": "",
+          "nickname": null,
+          "count": 16
+        },
+        {
+          "chunk": "Varrock Sewers",
+          "section": "",
+          "nickname": null,
+          "count": 8
+        },
+        {
+          "chunk": "Brimhaven Dungeon",
+          "section": "",
+          "nickname": null,
+          "count": 20
+        },
+        {
+          "chunk": "Varrock Sewers resource dungeon",
+          "section": "",
+          "nickname": null,
+          "count": 10
+        }
+      ],
+      "variants": [
+        {
+          "version": "Variant 1",
+          "name": "Moss giant",
+          "npcIds": [
+            112
+          ],
+          "members": false,
+          "memberValue": "No",
+          "combatLevel": 40,
+          "lifePoints": 6400
+        },
+        {
+          "version": "Variant 2",
+          "name": "Moss giant",
+          "npcIds": [
+            1587
+          ],
+          "members": false,
+          "memberValue": "No",
+          "combatLevel": 40,
+          "lifePoints": 6400
+        },
+        {
+          "version": "Variant 3",
+          "name": "Moss giant",
+          "npcIds": [
+            1588
+          ],
+          "members": false,
+          "memberValue": "No",
+          "combatLevel": 40,
+          "lifePoints": 6400
+        },
+        {
+          "version": "Variant 4",
+          "name": "Moss giant",
+          "npcIds": [
+            4688
+          ],
+          "members": false,
+          "memberValue": "No",
+          "combatLevel": 40,
+          "lifePoints": 6400
+        }
+      ],
+      "cache": [
+        {
+          "id": 112,
+          "name": "Moss giant",
+          "combatLevel": 40,
+          "stats": {
+            "maxMeleeHit": 625,
+            "meleeAccuracy": 281,
+            "armour": 486
+          }
+        },
+        {
+          "id": 1587,
+          "name": "Moss giant",
+          "combatLevel": 40,
+          "stats": {
+            "maxMeleeHit": 625,
+            "meleeAccuracy": 281,
+            "armour": 486
+          }
+        },
+        {
+          "id": 1588,
+          "name": "Moss giant",
+          "combatLevel": 40,
+          "stats": {
+            "maxMeleeHit": 625,
+            "meleeAccuracy": 281,
+            "armour": 486
+          }
+        },
+        {
+          "id": 4688,
+          "name": "Moss giant",
+          "combatLevel": 40,
+          "stats": {
+            "maxMeleeHit": 625,
+            "meleeAccuracy": 281,
+            "armour": 486
+          }
+        }
+      ]
+    },
+    {
+      "id": "ice-warrior",
+      "label": "Ice warrior",
+      "selector": "Ice warrior",
+      "combatLevel": 40,
+      "sourceId": "combat-ice-warrior",
+      "existing": false,
+      "notes": "Asgarnian Ice Dungeon is F2P; Ice Queens lair variant is members. Nearby aggressive monsters and appropriate gear affect practical safety.",
+      "locations": [
+        {
+          "location": "[[Asgarnian Ice Dungeon]]",
+          "levels": "40",
+          "requirements": null
+        }
+      ],
+      "placements": [
+        {
+          "chunk": "11318",
+          "section": "2",
+          "nickname": "White Wolf Mountain",
+          "count": 2
+        },
+        {
+          "chunk": "11418",
+          "section": "",
+          "nickname": null,
+          "count": 5
+        },
+        {
+          "chunk": "11419",
+          "section": "",
+          "nickname": null,
+          "count": 9
+        },
+        {
+          "chunk": "11836",
+          "section": "",
+          "nickname": "Western Obelisk",
+          "count": 9
+        },
+        {
+          "chunk": "12181",
+          "section": "",
+          "nickname": null,
+          "count": 11
+        },
+        {
+          "chunk": "12885",
+          "section": "",
+          "nickname": null,
+          "count": 6
+        },
+        {
+          "chunk": "Chaos Tunnels",
+          "section": "",
+          "nickname": null,
+          "count": 6
+        },
+        {
+          "chunk": "Asgarnian Ice Dungeon",
+          "section": "",
+          "nickname": null,
+          "count": 11
+        },
+        {
+          "chunk": "Ice Queen's lair",
+          "section": "",
+          "nickname": null,
+          "count": 9
+        }
+      ],
+      "variants": [
+        {
+          "version": "Normal",
+          "name": "Ice warrior",
+          "npcIds": [
+            125,
+            3073
+          ],
+          "members": false,
+          "memberValue": "No",
+          "combatLevel": 40,
+          "lifePoints": 4200
+        }
+      ],
+      "cache": [
+        {
+          "id": 125,
+          "name": "Ice warrior",
+          "combatLevel": 40,
+          "stats": {
+            "maxMeleeHit": 640,
+            "meleeAccuracy": 386,
+            "armour": 395
+          }
+        },
+        {
+          "id": 3073,
+          "name": "Ice warrior",
+          "combatLevel": 40,
+          "stats": {
+            "maxMeleeHit": 640,
+            "meleeAccuracy": 386,
+            "armour": 395
+          }
+        }
+      ]
+    },
+    {
+      "id": "ice-giant",
+      "label": "Ice giant",
+      "selector": "Ice giant",
+      "combatLevel": 47,
+      "sourceId": "combat-ice-giant",
+      "existing": false,
+      "notes": "Asgarnian Ice Dungeon F2P source. Chaos Tunnels, White Wolf Mountain and Ice Queens lair locations are members.",
+      "locations": [
+        {
+          "location": "[[Asgarnian Ice Dungeon]]",
+          "levels": "47",
+          "requirements": null
+        }
+      ],
+      "placements": [
+        {
+          "chunk": "11062",
+          "section": "3",
+          "nickname": "Camelot",
+          "count": 2
+        },
+        {
+          "chunk": "11318",
+          "section": "3",
+          "nickname": "White Wolf Mountain",
+          "count": 2
+        },
+        {
+          "chunk": "11675",
+          "section": "",
+          "nickname": null,
+          "count": 7
+        },
+        {
+          "chunk": "11836",
+          "section": "",
+          "nickname": "Western Obelisk",
+          "count": 6
+        },
+        {
+          "chunk": "12181",
+          "section": "",
+          "nickname": null,
+          "count": 3
+        },
+        {
+          "chunk": "12885",
+          "section": "",
+          "nickname": null,
+          "count": 8
+        },
+        {
+          "chunk": "12886",
+          "section": "",
+          "nickname": null,
+          "count": 8
+        },
+        {
+          "chunk": "Chaos Tunnels",
+          "section": "",
+          "nickname": null,
+          "count": 16
+        },
+        {
+          "chunk": "Asgarnian Ice Dungeon",
+          "section": "",
+          "nickname": null,
+          "count": 3
+        },
+        {
+          "chunk": "Ice Queen's lair",
+          "section": "",
+          "nickname": null,
+          "count": 7
+        }
+      ],
+      "variants": [
+        {
+          "version": "1",
+          "name": "Ice giant",
+          "npcIds": [
+            3072,
+            4685
+          ],
+          "members": false,
+          "memberValue": "No",
+          "combatLevel": 47,
+          "lifePoints": 7450
+        },
+        {
+          "version": "2",
+          "name": "Ice giant",
+          "npcIds": [
+            111,
+            4686,
+            4687
+          ],
+          "members": false,
+          "memberValue": "No",
+          "combatLevel": 47,
+          "lifePoints": 7450
+        }
+      ],
+      "cache": [
+        {
+          "id": 111,
+          "name": "Ice giant",
+          "combatLevel": 47,
+          "stats": {
+            "maxMeleeHit": 750,
+            "meleeAccuracy": 354,
+            "armour": 571
+          }
+        },
+        {
+          "id": 3072,
+          "name": "Ice giant",
+          "combatLevel": 47,
+          "stats": {
+            "maxMeleeHit": 750,
+            "meleeAccuracy": 354,
+            "armour": 571
+          }
+        },
+        {
+          "id": 4685,
+          "name": "Ice giant",
+          "combatLevel": 47,
+          "stats": {
+            "maxMeleeHit": 750,
+            "meleeAccuracy": 354,
+            "armour": 571
+          }
+        },
+        {
+          "id": 4686,
+          "name": "Ice giant",
+          "combatLevel": 47,
+          "stats": {
+            "maxMeleeHit": 750,
+            "meleeAccuracy": 354,
+            "armour": 571
+          }
+        },
+        {
+          "id": 4687,
+          "name": "Ice giant",
+          "combatLevel": 47,
+          "stats": {
+            "maxMeleeHit": 750,
+            "meleeAccuracy": 354,
+            "armour": 571
+          }
+        }
+      ]
+    },
+    {
+      "id": "catablepon",
+      "label": "Catablepon",
+      "selector": "Catablepon",
+      "combatLevel": 43,
+      "sourceId": "combat-catablepon",
+      "existing": false,
+      "notes": "",
+      "locations": [
+        {
+          "location": "[[Stronghold of Security]] (3rd level)",
+          "levels": "43",
+          "requirements": null
+        }
+      ],
+      "placements": [
+        {
+          "chunk": "8530",
+          "section": "",
+          "nickname": null,
+          "count": 26
+        },
+        {
+          "chunk": "Stronghold of Security",
+          "section": "",
+          "nickname": null,
+          "count": 26
+        }
+      ],
+      "variants": [
+        {
+          "version": "Default",
+          "name": "Catablepon",
+          "npcIds": [
+            4397,
+            4398,
+            4399
+          ],
+          "members": false,
+          "memberValue": "No",
+          "combatLevel": 43,
+          "lifePoints": 4500
+        }
+      ],
+      "cache": [
+        {
+          "id": 4397,
+          "name": "Catablepon",
+          "combatLevel": 43,
+          "stats": {
+            "maxMeleeHit": 480,
+            "maxMagicHit": 700,
+            "meleeAccuracy": 268,
+            "magicAccuracy": 436,
+            "armour": 424
+          }
+        },
+        {
+          "id": 4398,
+          "name": "Catablepon",
+          "combatLevel": 43,
+          "stats": {
+            "maxMeleeHit": 480,
+            "maxMagicHit": 700,
+            "meleeAccuracy": 268,
+            "magicAccuracy": 436,
+            "armour": 424
+          }
+        },
+        {
+          "id": 4399,
+          "name": "Catablepon",
+          "combatLevel": 43,
+          "stats": {
+            "maxMeleeHit": 480,
+            "maxMagicHit": 700,
+            "meleeAccuracy": 268,
+            "magicAccuracy": 436,
+            "armour": 424
+          }
+        }
+      ]
+    },
+    {
+      "id": "ankou",
+      "label": "Ankou",
+      "selector": "Ankou",
+      "combatLevel": 54,
+      "sourceId": "combat-ankou",
+      "existing": false,
+      "notes": "",
+      "locations": [
+        {
+          "location": "[[Stronghold of Security]] (fourth level)",
+          "levels": "54",
+          "requirements": null
+        },
+        {
+          "location": "[[Wilderness Crater]] (level 28 [[Wilderness]])",
+          "levels": "54",
+          "requirements": null
+        }
+      ],
+      "placements": [
+        {
+          "chunk": "8799",
+          "section": "",
+          "nickname": null,
+          "count": 7
+        },
+        {
+          "chunk": "9297",
+          "section": "",
+          "nickname": null,
+          "count": 32
+        },
+        {
+          "chunk": "12602",
+          "section": "",
+          "nickname": "North-East Wilderness Crater",
+          "count": 7
+        },
+        {
+          "chunk": "Stronghold of Security",
+          "section": "",
+          "nickname": null,
+          "count": 32
+        }
+      ],
+      "variants": [
+        {
+          "version": "Default",
+          "name": "Ankou",
+          "npcIds": [
+            4381,
+            4382,
+            4383,
+            29372
+          ],
+          "members": false,
+          "memberValue": "No",
+          "combatLevel": 54,
+          "lifePoints": 6150
+        }
+      ],
+      "cache": [
+        {
+          "id": 4381,
+          "name": "Ankou",
+          "combatLevel": 54,
+          "stats": {
+            "maxMeleeHit": 800,
+            "meleeAccuracy": 528,
+            "armour": 590
+          }
+        },
+        {
+          "id": 4382,
+          "name": "Ankou",
+          "combatLevel": 54,
+          "stats": {
+            "maxMeleeHit": 800,
+            "meleeAccuracy": 528,
+            "armour": 590
+          }
+        },
+        {
+          "id": 4383,
+          "name": "Ankou",
+          "combatLevel": 54,
+          "stats": {
+            "maxMeleeHit": 800,
+            "meleeAccuracy": 528,
+            "armour": 590
+          }
+        },
+        {
+          "id": 29372,
+          "name": "Ankou",
+          "combatLevel": 54,
+          "stats": {
+            "maxMeleeHit": 800,
+            "meleeAccuracy": 528,
+            "armour": 590
+          }
+        }
+      ]
+    },
+    {
+      "id": "cockroach-soldier",
+      "label": "Cockroach soldier",
+      "selector": "Cockroach soldier",
+      "combatLevel": 70,
+      "sourceId": "combat-cockroach-soldier",
+      "existing": false,
+      "notes": "",
+      "locations": [
+        {
+          "location": "[[Stronghold of Player Safety]] secure sector",
+          "levels": "70",
+          "requirements": null
+        },
+        {
+          "location": "[[Stronghold of Player Safety]] middle level",
+          "levels": "70",
+          "requirements": null
+        },
+        {
+          "location": "[[Stronghold of Player Safety]] lower level ",
+          "levels": "70",
+          "requirements": null
+        },
+        {
+          "location": "[[Stronghold of Player Safety]] upper level",
+          "levels": "70",
+          "requirements": null
+        }
+      ],
+      "placements": [
+        {
+          "chunk": "12610",
+          "section": "",
+          "nickname": null,
+          "count": 22
+        },
+        {
+          "chunk": "Stronghold of Player Safety",
+          "section": "",
+          "nickname": null,
+          "count": 22
+        }
+      ],
+      "variants": [
+        {
+          "version": "Default",
+          "name": "Cockroach soldier",
+          "npcIds": [
+            7160
+          ],
+          "members": false,
+          "memberValue": "No",
+          "combatLevel": 70,
+          "lifePoints": 10500
+        }
+      ],
+      "cache": [
+        {
+          "id": 7160,
+          "name": "Cockroach soldier",
+          "combatLevel": 70,
+          "stats": {
+            "maxMeleeHit": 1000,
+            "meleeAccuracy": 750,
+            "armour": 850
+          }
+        }
+      ]
+    },
+    {
+      "id": "lesser-demon",
+      "label": "Lesser demon",
+      "selector": "Lesser demon",
+      "combatLevel": 70,
+      "sourceId": "combat-lesser-demon",
+      "existing": false,
+      "notes": "Ordinary Crandor and Karamja Dungeon F2P source; Crandor route requires Dragon Slayer. Karamja Volcano resource dungeon alternative requires Dungeoneering25. Wilderness alternatives have separate access/risk.",
+      "locations": [
+        {
+          "location": "[[Karamja Volcano resource dungeon]]",
+          "levels": "70",
+          "requirements": " {{Skillreq|Dungeoneering|25}}"
+        },
+        {
+          "location": "[[Crandor]]",
+          "levels": "70",
+          "requirements": null
+        },
+        {
+          "location": "[[Crandor and Karamja Dungeon]]",
+          "levels": "70",
+          "requirements": null
+        },
+        {
+          "location": "[[Forinthry Dungeon]]",
+          "levels": "70",
+          "requirements": null
+        },
+        {
+          "location": "[[Wilderness Crater]]",
+          "levels": "70",
+          "requirements": null
+        },
+        {
+          "location": "South-east of the [[Demonic Ruins]]",
+          "levels": "70",
+          "requirements": null
+        }
+      ],
+      "placements": [
+        {
+          "chunk": "4679",
+          "section": "",
+          "nickname": null,
+          "count": 14
+        },
+        {
+          "chunk": "8542",
+          "section": "",
+          "nickname": null,
+          "count": 5
+        },
+        {
+          "chunk": "9545",
+          "section": "",
+          "nickname": null,
+          "count": 3
+        },
+        {
+          "chunk": "10650",
+          "section": "",
+          "nickname": null,
+          "count": 3
+        },
+        {
+          "chunk": "11315",
+          "section": "",
+          "nickname": "North Crandor",
+          "count": 2
+        },
+        {
+          "chunk": "11413",
+          "section": "",
+          "nickname": null,
+          "count": 6
+        },
+        {
+          "chunk": "11414",
+          "section": "",
+          "nickname": null,
+          "count": 5
+        },
+        {
+          "chunk": "11670",
+          "section": "",
+          "nickname": null,
+          "count": 1
+        },
+        {
+          "chunk": "11673",
+          "section": "",
+          "nickname": null,
+          "count": 5
+        },
+        {
+          "chunk": "12190",
+          "section": "",
+          "nickname": null,
+          "count": 8
+        },
+        {
+          "chunk": "12345",
+          "section": "",
+          "nickname": "South-West Wilderness Crater",
+          "count": 5
+        },
+        {
+          "chunk": "Taverley Dungeon",
+          "section": "",
+          "nickname": null,
+          "count": 5
+        },
+        {
+          "chunk": "Karamja Volcano Dungeon",
+          "section": "",
+          "nickname": null,
+          "count": 6
+        },
+        {
+          "chunk": "Karamja Volcano resource dungeon",
+          "section": "",
+          "nickname": null,
+          "count": 14
+        },
+        {
+          "chunk": "Melzar's Maze",
+          "section": "",
+          "nickname": null,
+          "count": 1
+        },
+        {
+          "chunk": "Viyeldi Caves",
+          "section": "",
+          "nickname": null,
+          "count": 3
+        },
+        {
+          "chunk": "Temple of Ikov",
+          "section": "",
+          "nickname": null,
+          "count": 3
+        },
+        {
+          "chunk": "Elvarg's Lair",
+          "section": "",
+          "nickname": null,
+          "count": 5
+        },
+        {
+          "chunk": "Forinthry Dungeon",
+          "section": "",
+          "nickname": null,
+          "count": 8
+        }
+      ],
+      "variants": [
+        {
+          "version": "1",
+          "name": "Lesser demon",
+          "npcIds": [
+            82
+          ],
+          "members": false,
+          "memberValue": "No",
+          "combatLevel": 70,
+          "lifePoints": 5000
+        },
+        {
+          "version": "2",
+          "name": "Lesser demon",
+          "npcIds": [
+            4694
+          ],
+          "members": false,
+          "memberValue": "No",
+          "combatLevel": 70,
+          "lifePoints": 5000
+        },
+        {
+          "version": "3",
+          "name": "Lesser demon",
+          "npcIds": [
+            4695
+          ],
+          "members": false,
+          "memberValue": "No",
+          "combatLevel": 70,
+          "lifePoints": 5000
+        },
+        {
+          "version": "4",
+          "name": "Lesser demon",
+          "npcIds": [
+            4696
+          ],
+          "members": false,
+          "memberValue": "No",
+          "combatLevel": 70,
+          "lifePoints": 5000
+        },
+        {
+          "version": "5",
+          "name": "Lesser demon",
+          "npcIds": [
+            4697
+          ],
+          "members": false,
+          "memberValue": "No",
+          "combatLevel": 70,
+          "lifePoints": 5000
+        }
+      ],
+      "cache": [
+        {
+          "id": 82,
+          "name": "Lesser demon",
+          "combatLevel": 70,
+          "stats": {
+            "maxMagicHit": 480,
+            "magicAccuracy": 850,
+            "armour": 850
+          }
+        },
+        {
+          "id": 4694,
+          "name": "Lesser demon",
+          "combatLevel": 70,
+          "stats": {
+            "maxMagicHit": 480,
+            "magicAccuracy": 850,
+            "armour": 850
+          }
+        },
+        {
+          "id": 4695,
+          "name": "Lesser demon",
+          "combatLevel": 70,
+          "stats": {
+            "maxMagicHit": 480,
+            "magicAccuracy": 850,
+            "armour": 850
+          }
+        },
+        {
+          "id": 4696,
+          "name": "Lesser demon",
+          "combatLevel": 70,
+          "stats": {
+            "maxMagicHit": 480,
+            "magicAccuracy": 850,
+            "armour": 850
+          }
+        },
+        {
+          "id": 4697,
+          "name": "Lesser demon",
+          "combatLevel": 70,
+          "stats": {
+            "maxMagicHit": 480,
+            "magicAccuracy": 850,
+            "armour": 850
+          }
+        }
+      ]
+    },
+    {
+      "id": "greater-demon",
+      "label": "Greater demon",
+      "selector": "Greater demon",
+      "combatLevel": 82,
+      "sourceId": "combat-greater-demon",
+      "existing": false,
+      "notes": "F2P sources are Wilderness/Forinthry/Demonic Ruins; membership alone does not establish an admitted safe route. Slayer level1 metadata is not an active assignment gate for ordinary combat XP.",
+      "locations": [
+        {
+          "location": "[[Forinthry Dungeon]] (level 22 [[Wilderness]])",
+          "levels": "82",
+          "requirements": null
+        },
+        {
+          "location": "[[Wilderness Crater]] (level 24 Wilderness)",
+          "levels": "82",
+          "requirements": null
+        },
+        {
+          "location": "[[Demonic Ruins]] (level 47 Wilderness)",
+          "levels": "82",
+          "requirements": null
+        }
+      ],
+      "placements": [
+        {
+          "chunk": "6482",
+          "section": "",
+          "nickname": null,
+          "count": 7
+        },
+        {
+          "chunk": "8798",
+          "section": "",
+          "nickname": null,
+          "count": 5
+        },
+        {
+          "chunk": "10387",
+          "section": "",
+          "nickname": null,
+          "count": 5
+        },
+        {
+          "chunk": "10644",
+          "section": "",
+          "nickname": null,
+          "count": 7
+        },
+        {
+          "chunk": "11416",
+          "section": "",
+          "nickname": null,
+          "count": 2
+        },
+        {
+          "chunk": "12192",
+          "section": "",
+          "nickname": null,
+          "count": 3
+        },
+        {
+          "chunk": "12445",
+          "section": "",
+          "nickname": null,
+          "count": 10
+        },
+        {
+          "chunk": "12601",
+          "section": "",
+          "nickname": "South-East Wilderness Crater",
+          "count": 9
+        },
+        {
+          "chunk": "13116",
+          "section": "",
+          "nickname": "Demonic Ruins of Annakarl",
+          "count": 5
+        },
+        {
+          "chunk": "Entrana Dungeon",
+          "section": "",
+          "nickname": null,
+          "count": 2
+        },
+        {
+          "chunk": "Kuradal's Dungeon",
+          "section": "",
+          "nickname": null,
+          "count": 7
+        },
+        {
+          "chunk": "Brimhaven Dungeon",
+          "section": "",
+          "nickname": null,
+          "count": 7
+        },
+        {
+          "chunk": "Ogre enclave",
+          "section": "",
+          "nickname": null,
+          "count": 5
+        },
+        {
+          "chunk": "Forinthry Dungeon",
+          "section": "",
+          "nickname": null,
+          "count": 10
+        }
+      ],
+      "variants": [
+        {
+          "version": "1",
+          "name": "Greater demon",
+          "npcIds": [
+            83
+          ],
+          "members": false,
+          "memberValue": "No",
+          "combatLevel": 82,
+          "lifePoints": 6000
+        },
+        {
+          "version": "2",
+          "name": "Greater demon",
+          "npcIds": [
+            4698
+          ],
+          "members": false,
+          "memberValue": "No",
+          "combatLevel": 82,
+          "lifePoints": 6000
+        },
+        {
+          "version": "3",
+          "name": "Greater demon",
+          "npcIds": [
+            4699
+          ],
+          "members": false,
+          "memberValue": "No",
+          "combatLevel": 82,
+          "lifePoints": 6000
+        },
+        {
+          "version": "4",
+          "name": "Greater demon",
+          "npcIds": [
+            4700
+          ],
+          "members": false,
+          "memberValue": "No",
+          "combatLevel": 82,
+          "lifePoints": 6000
+        },
+        {
+          "version": "5",
+          "name": "Greater demon",
+          "npcIds": [
+            4701
+          ],
+          "members": false,
+          "memberValue": "No",
+          "combatLevel": 82,
+          "lifePoints": 6000
+        }
+      ],
+      "cache": [
+        {
+          "id": 83,
+          "name": "Greater demon",
+          "combatLevel": 82,
+          "stats": {
+            "maxMagicHit": 566.4,
+            "magicAccuracy": 1101,
+            "armour": 1101
+          }
+        },
+        {
+          "id": 4698,
+          "name": "Greater demon",
+          "combatLevel": 82,
+          "stats": {
+            "maxMagicHit": 566.4,
+            "magicAccuracy": 1101,
+            "armour": 1101
+          }
+        },
+        {
+          "id": 4699,
+          "name": "Greater demon",
+          "combatLevel": 82,
+          "stats": {
+            "maxMagicHit": 566.4,
+            "magicAccuracy": 1101,
+            "armour": 1101
+          }
+        },
+        {
+          "id": 4700,
+          "name": "Greater demon",
+          "combatLevel": 82,
+          "stats": {
+            "maxMagicHit": 566.4,
+            "magicAccuracy": 1101,
+            "armour": 1101
+          }
+        },
+        {
+          "id": 4701,
+          "name": "Greater demon",
+          "combatLevel": 82,
+          "stats": {
+            "maxMagicHit": 566.4,
+            "magicAccuracy": 1101,
+            "armour": 1101
+          }
+        }
+      ]
+    },
+    {
+      "id": "deadly-red-spider",
+      "label": "Deadly red spider",
+      "selector": "Deadly red spider",
+      "combatLevel": 95,
+      "sourceId": "combat-deadly-red-spider",
+      "existing": false,
+      "notes": "F2P Varrock Sewers and Crandor/Karamja Dungeon sources; Edgeville Dungeon Wilderness spider location is listed members, unlike those alternatives. Combat95 does not mean target skill95.",
+      "locations": [
+        {
+          "location": "[[Crandor and Karamja Dungeon]]",
+          "levels": "95",
+          "requirements": null
+        },
+        {
+          "location": "[[Varrock Sewers]]",
+          "levels": "95",
+          "requirements": null
+        },
+        {
+          "location": "[[Ruins (east)|Abandoned Farm]] (level 35-38 [[Wilderness]])",
+          "levels": "95",
+          "requirements": null
+        }
+      ],
+      "placements": [
+        {
+          "chunk": "5496",
+          "section": "",
+          "nickname": null,
+          "count": 1
+        },
+        {
+          "chunk": "9267",
+          "section": "1",
+          "nickname": "Arandar",
+          "count": 7
+        },
+        {
+          "chunk": "11413",
+          "section": "",
+          "nickname": null,
+          "count": 5
+        },
+        {
+          "chunk": "11586",
+          "section": "",
+          "nickname": null,
+          "count": 2
+        },
+        {
+          "chunk": "11587",
+          "section": "",
+          "nickname": null,
+          "count": 4
+        },
+        {
+          "chunk": "11842",
+          "section": "",
+          "nickname": null,
+          "count": 1
+        },
+        {
+          "chunk": "11843",
+          "section": "",
+          "nickname": null,
+          "count": 4
+        },
+        {
+          "chunk": "12443",
+          "section": "",
+          "nickname": null,
+          "count": 9
+        },
+        {
+          "chunk": "12698",
+          "section": "",
+          "nickname": null,
+          "count": 9
+        },
+        {
+          "chunk": "12858",
+          "section": "",
+          "nickname": "Eastern Ruins",
+          "count": 11
+        },
+        {
+          "chunk": "12886",
+          "section": "",
+          "nickname": null,
+          "count": 10
+        },
+        {
+          "chunk": "13977",
+          "section": "",
+          "nickname": null,
+          "count": 2
+        },
+        {
+          "chunk": "Chaos Tunnels",
+          "section": "",
+          "nickname": null,
+          "count": 10
+        },
+        {
+          "chunk": "Edgeville Dungeon",
+          "section": "",
+          "nickname": null,
+          "count": 18
+        },
+        {
+          "chunk": "Karamja Volcano Dungeon",
+          "section": "",
+          "nickname": null,
+          "count": 5
+        },
+        {
+          "chunk": "Spirit Realm Summer's Farm",
+          "section": "",
+          "nickname": null,
+          "count": 11
+        },
+        {
+          "chunk": "Hallows Myreque Hideout",
+          "section": "",
+          "nickname": null,
+          "count": 2
+        }
+      ],
+      "variants": [
+        {
+          "version": "Default",
+          "name": "Deadly red spider",
+          "npcIds": [
+            63
+          ],
+          "members": false,
+          "memberValue": "No",
+          "combatLevel": 95,
+          "lifePoints": 6150
+        }
+      ],
+      "cache": [
+        {
+          "id": 63,
+          "name": "Deadly red spider",
+          "combatLevel": 95,
+          "stats": {
+            "armour": 1409
+          }
+        }
+      ]
+    },
+    {
+      "id": "hellhound",
+      "label": "Hellhound",
+      "selector": "Hellhound",
+      "combatLevel": 105,
+      "sourceId": "combat-hellhound",
+      "existing": false,
+      "notes": "Two F2P variants combat92 and105; generic selector conservatively uses105 and entry60. F2P sources are Wilderness; Taverley Dungeon/resource dungeon are members. Level105 max melee1080 is materially more dangerous than level92 max264.",
+      "locations": [
+        {
+          "location": "[[Wilderness Crater]] (level 23 [[Wilderness]])",
+          "levels": "92",
+          "requirements": null
+        },
+        {
+          "location": "Northwest of the [[Flesh-hatcher Mhekarnahz resource dungeon]] (level 34 [[Wilderness]])",
+          "levels": "105",
+          "requirements": null
+        },
+        {
+          "location": "Northeast of the [[Ruins (east)|Eastern Ruins]] (level 31 [[Wilderness]])",
+          "levels": "105",
+          "requirements": null
+        },
+        {
+          "location": "East of the [[Deserted Keep]] (level 51 Wilderness)",
+          "levels": "105",
+          "requirements": null
+        },
+        {
+          "location": "[[Lava Maze]] (level 43 Wilderness)",
+          "levels": "105",
+          "requirements": null
+        },
+        {
+          "location": "[[Forinthry Dungeon]] (level 31 Wilderness)",
+          "levels": "92",
+          "requirements": null
+        }
+      ],
+      "placements": [
+        {
+          "chunk": "5447",
+          "section": "",
+          "nickname": null,
+          "count": 12
+        },
+        {
+          "chunk": "6482",
+          "section": "",
+          "nickname": null,
+          "count": 7
+        },
+        {
+          "chunk": "8542",
+          "section": "",
+          "nickname": null,
+          "count": 9
+        },
+        {
+          "chunk": "10903",
+          "section": "",
+          "nickname": null,
+          "count": 2
+        },
+        {
+          "chunk": "11347",
+          "section": "",
+          "nickname": null,
+          "count": 1
+        },
+        {
+          "chunk": "11417",
+          "section": "",
+          "nickname": null,
+          "count": 13
+        },
+        {
+          "chunk": "11602",
+          "section": "",
+          "nickname": null,
+          "count": 1
+        },
+        {
+          "chunk": "11603",
+          "section": "",
+          "nickname": null,
+          "count": 3
+        },
+        {
+          "chunk": "12091",
+          "section": "2",
+          "nickname": "Lava Maze Necrite Mine",
+          "count": 2
+        },
+        {
+          "chunk": "12092",
+          "section": "3",
+          "nickname": "West Lava Maze",
+          "count": 9
+        },
+        {
+          "chunk": "12092",
+          "section": "4",
+          "nickname": "West Lava Maze",
+          "count": 2
+        },
+        {
+          "chunk": "12093",
+          "section": "",
+          "nickname": "Pirates' Hideout",
+          "count": 2
+        },
+        {
+          "chunk": "12345",
+          "section": "",
+          "nickname": "South-West Wilderness Crater",
+          "count": 9
+        },
+        {
+          "chunk": "12347",
+          "section": "2",
+          "nickname": "South-East Lava Maze",
+          "count": 2
+        },
+        {
+          "chunk": "12349",
+          "section": "",
+          "nickname": "Mage Arena",
+          "count": 7
+        },
+        {
+          "chunk": "12397",
+          "section": "",
+          "nickname": null,
+          "count": 1
+        },
+        {
+          "chunk": "12398",
+          "section": "",
+          "nickname": null,
+          "count": 1
+        },
+        {
+          "chunk": "12446",
+          "section": "",
+          "nickname": null,
+          "count": 8
+        },
+        {
+          "chunk": "12605",
+          "section": "",
+          "nickname": "Deserted Keep",
+          "count": 5
+        },
+        {
+          "chunk": "12653",
+          "section": "",
+          "nickname": null,
+          "count": 10
+        },
+        {
+          "chunk": "13371",
+          "section": "",
+          "nickname": "East Wilderness Fishing",
+          "count": 12
+        },
+        {
+          "chunk": "Taverley Dungeon",
+          "section": "",
+          "nickname": null,
+          "count": 13
+        },
+        {
+          "chunk": "Taverley hellhound resource dungeon",
+          "section": "",
+          "nickname": null,
+          "count": 12
+        },
+        {
+          "chunk": "Kuradal's Dungeon",
+          "section": "",
+          "nickname": null,
+          "count": 7
+        },
+        {
+          "chunk": "Witchaven Dungeon",
+          "section": "",
+          "nickname": null,
+          "count": 2
+        },
+        {
+          "chunk": "Forinthry Dungeon",
+          "section": "",
+          "nickname": null,
+          "count": 8
+        }
+      ],
+      "variants": [
+        {
+          "version": "Level 92",
+          "name": "Hellhound",
+          "npcIds": [
+            49
+          ],
+          "members": false,
+          "memberValue": "No",
+          "combatLevel": 92,
+          "lifePoints": 3300
+        },
+        {
+          "version": "Level 105",
+          "name": "Hellhound",
+          "npcIds": [
+            29357
+          ],
+          "members": false,
+          "memberValue": "No",
+          "combatLevel": 105,
+          "lifePoints": 9500
+        }
+      ],
+      "cache": [
+        {
+          "id": 49,
+          "name": "Hellhound",
+          "combatLevel": 92,
+          "stats": {
+            "maxMeleeHit": 264,
+            "meleeAccuracy": 1335,
+            "armour": 1335
+          }
+        },
+        {
+          "id": 29357,
+          "name": "Hellhound",
+          "combatLevel": 105,
+          "stats": {
+            "maxMeleeHit": 1080,
+            "meleeAccuracy": 1694,
+            "armour": 1335
+          }
+        }
+      ]
+    }
+  ],
+  "otherMethods": [
+    {
+      "method": {
+        "id": "cooking.herring",
+        "skill": "Cooking",
+        "label": "Cook herring on a range",
+        "matches": [],
+        "level": 5,
+        "maxLevel": 99,
+        "members": false,
+        "xpPerAction": null,
+        "xpPerHour": null,
+        "requirements": [
+          {
+            "kind": "object",
+            "name": "Cooking range[+]"
+          }
+        ],
+        "inputs": [
+          {
+            "item": "Raw herring",
+            "quantity": 1
+          }
+        ],
+        "outputs": [
+          {
+            "item": "Herring",
+            "quantity": null
+          }
+        ],
+        "actionUnit": "cooking attempt",
+        "estimateQuality": "unknown-throughput",
+        "economics": {
+          "gpPerAction": null,
+          "priceDate": null,
+          "sourceIds": [],
+          "notes": "Expected cooked yield and supply opportunity cost are unknown."
+        }
+      },
+      "sourceIds": [
+        "noncombat-herring"
+      ],
+      "assumptions": [
+        "One raw fish is consumed per attempt. A successful attempt produces one cooked fish; burning produces burnt fish. Expected XP and cooked output per attempt are unknown; successful-cook recipe XP is not treated as expected attempt XP.",
+        "Ordinary range no-burn threshold is 41 Cooking. No burn-success curve, hourly rate, bonfire bonus, portable range, gathering or banking time is modelled."
+      ]
+    },
+    {
+      "method": {
+        "id": "cooking.pike",
+        "skill": "Cooking",
+        "label": "Cook pike on a range",
+        "matches": [],
+        "level": 20,
+        "maxLevel": 99,
+        "members": false,
+        "xpPerAction": null,
+        "xpPerHour": null,
+        "requirements": [
+          {
+            "kind": "object",
+            "name": "Cooking range[+]"
+          }
+        ],
+        "inputs": [
+          {
+            "item": "Raw pike",
+            "quantity": 1
+          }
+        ],
+        "outputs": [
+          {
+            "item": "Pike",
+            "quantity": null
+          }
+        ],
+        "actionUnit": "cooking attempt",
+        "estimateQuality": "unknown-throughput",
+        "economics": {
+          "gpPerAction": null,
+          "priceDate": null,
+          "sourceIds": [],
+          "notes": "Expected cooked yield and supply opportunity cost are unknown."
+        }
+      },
+      "sourceIds": [
+        "noncombat-pike"
+      ],
+      "assumptions": [
+        "One raw fish is consumed per attempt. A successful attempt produces one cooked fish; burning produces burnt fish. Expected XP and cooked output per attempt are unknown; successful-cook recipe XP is not treated as expected attempt XP.",
+        "Ordinary range no-burn threshold is 53 Cooking. No burn-success curve, hourly rate, bonfire bonus, portable range, gathering or banking time is modelled."
+      ]
+    },
+    {
+      "method": {
+        "id": "cooking.salmon",
+        "skill": "Cooking",
+        "label": "Cook salmon on a range",
+        "matches": [],
+        "level": 25,
+        "maxLevel": 99,
+        "members": false,
+        "xpPerAction": null,
+        "xpPerHour": null,
+        "requirements": [
+          {
+            "kind": "object",
+            "name": "Cooking range[+]"
+          }
+        ],
+        "inputs": [
+          {
+            "item": "Raw salmon",
+            "quantity": 1
+          }
+        ],
+        "outputs": [
+          {
+            "item": "Salmon",
+            "quantity": null
+          }
+        ],
+        "actionUnit": "cooking attempt",
+        "estimateQuality": "unknown-throughput",
+        "economics": {
+          "gpPerAction": null,
+          "priceDate": null,
+          "sourceIds": [],
+          "notes": "Expected cooked yield and supply opportunity cost are unknown."
+        }
+      },
+      "sourceIds": [
+        "noncombat-salmon"
+      ],
+      "assumptions": [
+        "One raw fish is consumed per attempt. A successful attempt produces one cooked fish; burning produces burnt fish. Expected XP and cooked output per attempt are unknown; successful-cook recipe XP is not treated as expected attempt XP.",
+        "Ordinary range no-burn threshold is 58 Cooking. No burn-success curve, hourly rate, bonfire bonus, portable range, gathering or banking time is modelled."
+      ]
+    },
+    {
+      "method": {
+        "id": "cooking.tuna",
+        "skill": "Cooking",
+        "label": "Cook tuna on a range",
+        "matches": [],
+        "level": 30,
+        "maxLevel": 99,
+        "members": false,
+        "xpPerAction": null,
+        "xpPerHour": null,
+        "requirements": [
+          {
+            "kind": "object",
+            "name": "Cooking range[+]"
+          }
+        ],
+        "inputs": [
+          {
+            "item": "Raw tuna",
+            "quantity": 1
+          }
+        ],
+        "outputs": [
+          {
+            "item": "Tuna",
+            "quantity": null
+          }
+        ],
+        "actionUnit": "cooking attempt",
+        "estimateQuality": "unknown-throughput",
+        "economics": {
+          "gpPerAction": null,
+          "priceDate": null,
+          "sourceIds": [],
+          "notes": "Expected cooked yield and supply opportunity cost are unknown."
+        }
+      },
+      "sourceIds": [
+        "noncombat-tuna"
+      ],
+      "assumptions": [
+        "One raw fish is consumed per attempt. A successful attempt produces one cooked fish; burning produces burnt fish. Expected XP and cooked output per attempt are unknown; successful-cook recipe XP is not treated as expected attempt XP.",
+        "Ordinary range no-burn threshold is 63 Cooking. No burn-success curve, hourly rate, bonfire bonus, portable range, gathering or banking time is modelled."
+      ]
+    },
+    {
+      "method": {
+        "id": "cooking.swordfish",
+        "skill": "Cooking",
+        "label": "Cook swordfish on a range",
+        "matches": [],
+        "level": 45,
+        "maxLevel": 99,
+        "members": false,
+        "xpPerAction": null,
+        "xpPerHour": null,
+        "requirements": [
+          {
+            "kind": "object",
+            "name": "Cooking range[+]"
+          }
+        ],
+        "inputs": [
+          {
+            "item": "Raw swordfish",
+            "quantity": 1
+          }
+        ],
+        "outputs": [
+          {
+            "item": "Swordfish",
+            "quantity": null
+          }
+        ],
+        "actionUnit": "cooking attempt",
+        "estimateQuality": "unknown-throughput",
+        "economics": {
+          "gpPerAction": null,
+          "priceDate": null,
+          "sourceIds": [],
+          "notes": "Expected cooked yield and supply opportunity cost are unknown."
+        }
+      },
+      "sourceIds": [
+        "noncombat-swordfish"
+      ],
+      "assumptions": [
+        "One raw fish is consumed per attempt. A successful attempt produces one cooked fish; burning produces burnt fish. Expected XP and cooked output per attempt are unknown; successful-cook recipe XP is not treated as expected attempt XP.",
+        "Ordinary range no-burn threshold is 86 Cooking. No burn-success curve, hourly rate, bonfire bonus, portable range, gathering or banking time is modelled."
+      ]
+    },
+    {
+      "method": {
+        "id": "runecrafting.mind",
+        "skill": "Runecrafting",
+        "label": "Craft mind runes",
+        "matches": [],
+        "level": 1,
+        "maxLevel": 110,
+        "members": false,
+        "xpPerAction": null,
+        "xpPerHour": null,
+        "requirements": [
+          {
+            "kind": "chunk",
+            "name": "Mind Rune Temple"
+          },
+          {
+            "anyOf": [
+              {
+                "kind": "item",
+                "name": "Mind talisman"
+              },
+              {
+                "kind": "item",
+                "name": "Mind tiara"
+              }
+            ]
+          }
+        ],
+        "inputs": [
+          {
+            "item": "Rune essence",
+            "quantity": 1
+          }
+        ],
+        "outputs": [
+          {
+            "item": "Mind rune",
+            "quantity": null
+          }
+        ],
+        "actionUnit": "essence consumed",
+        "estimateQuality": "unknown-throughput",
+        "economics": {
+          "gpPerAction": null,
+          "priceDate": null,
+          "sourceIds": [],
+          "notes": "Variable rune output, missing reviewed prices and effective XP are unmodelled."
+        }
+      },
+      "sourceIds": [
+        "noncombat-mind-rune",
+        "noncombat-mind-altar"
+      ],
+      "assumptions": [
+        "Ordinary temple method requires accessible temple and reviewed talisman/tiara selectors. Consumes one rune essence; pure essence is also valid in-game but this candidate uses the single existing Rune essence input convention.",
+        "Rune output multiplicity and effective XP per essence are level-dependent and unmodelled. Hourly throughput, walking/banking/gathering time and net opportunity cost remain unknown."
+      ]
+    },
+    {
+      "method": {
+        "id": "runecrafting.earth",
+        "skill": "Runecrafting",
+        "label": "Craft earth runes",
+        "matches": [],
+        "level": 9,
+        "maxLevel": 110,
+        "members": false,
+        "xpPerAction": null,
+        "xpPerHour": null,
+        "requirements": [
+          {
+            "kind": "chunk",
+            "name": "Earth Rune Temple"
+          },
+          {
+            "kind": "item",
+            "name": "EarthTalisman[+]"
+          }
+        ],
+        "inputs": [
+          {
+            "item": "Rune essence",
+            "quantity": 1
+          }
+        ],
+        "outputs": [
+          {
+            "item": "Earth rune",
+            "quantity": null
+          }
+        ],
+        "actionUnit": "essence consumed",
+        "estimateQuality": "unknown-throughput",
+        "economics": {
+          "gpPerAction": null,
+          "priceDate": null,
+          "sourceIds": [],
+          "notes": "Variable rune output, missing reviewed prices and effective XP are unmodelled."
+        }
+      },
+      "sourceIds": [
+        "noncombat-earth-rune",
+        "noncombat-earth-altar"
+      ],
+      "assumptions": [
+        "Ordinary temple method requires accessible temple and reviewed talisman/tiara selectors. Consumes one rune essence; pure essence is also valid in-game but this candidate uses the single existing Rune essence input convention.",
+        "Rune output multiplicity and effective XP per essence are level-dependent and unmodelled. Hourly throughput, walking/banking/gathering time and net opportunity cost remain unknown."
+      ]
+    },
+    {
+      "method": {
+        "id": "runecrafting.fire",
+        "skill": "Runecrafting",
+        "label": "Craft fire runes",
+        "matches": [],
+        "level": 14,
+        "maxLevel": 110,
+        "members": false,
+        "xpPerAction": null,
+        "xpPerHour": null,
+        "requirements": [
+          {
+            "kind": "chunk",
+            "name": "Fire Rune Temple"
+          },
+          {
+            "kind": "item",
+            "name": "FireTalisman[+]"
+          }
+        ],
+        "inputs": [
+          {
+            "item": "Rune essence",
+            "quantity": 1
+          }
+        ],
+        "outputs": [
+          {
+            "item": "Fire rune",
+            "quantity": null
+          }
+        ],
+        "actionUnit": "essence consumed",
+        "estimateQuality": "unknown-throughput",
+        "economics": {
+          "gpPerAction": null,
+          "priceDate": null,
+          "sourceIds": [],
+          "notes": "Variable rune output, missing reviewed prices and effective XP are unmodelled."
+        }
+      },
+      "sourceIds": [
+        "noncombat-fire-rune",
+        "noncombat-fire-altar"
+      ],
+      "assumptions": [
+        "Ordinary temple method requires accessible temple and reviewed talisman/tiara selectors. Consumes one rune essence; pure essence is also valid in-game but this candidate uses the single existing Rune essence input convention.",
+        "Rune output multiplicity and effective XP per essence are level-dependent and unmodelled. Hourly throughput, walking/banking/gathering time and net opportunity cost remain unknown."
+      ]
+    },
+    {
+      "method": {
+        "id": "runecrafting.body",
+        "skill": "Runecrafting",
+        "label": "Craft body runes",
+        "matches": [],
+        "level": 20,
+        "maxLevel": 110,
+        "members": false,
+        "xpPerAction": null,
+        "xpPerHour": null,
+        "requirements": [
+          {
+            "kind": "chunk",
+            "name": "Body Rune Temple"
+          },
+          {
+            "anyOf": [
+              {
+                "kind": "item",
+                "name": "Body talisman"
+              },
+              {
+                "kind": "item",
+                "name": "Body tiara"
+              }
+            ]
+          }
+        ],
+        "inputs": [
+          {
+            "item": "Rune essence",
+            "quantity": 1
+          }
+        ],
+        "outputs": [
+          {
+            "item": "Body rune",
+            "quantity": null
+          }
+        ],
+        "actionUnit": "essence consumed",
+        "estimateQuality": "unknown-throughput",
+        "economics": {
+          "gpPerAction": null,
+          "priceDate": null,
+          "sourceIds": [],
+          "notes": "Variable rune output, missing reviewed prices and effective XP are unmodelled."
+        }
+      },
+      "sourceIds": [
+        "noncombat-body-rune",
+        "noncombat-body-altar"
+      ],
+      "assumptions": [
+        "Ordinary temple method requires accessible temple and reviewed talisman/tiara selectors. Consumes one rune essence; pure essence is also valid in-game but this candidate uses the single existing Rune essence input convention.",
+        "Rune output multiplicity and effective XP per essence are level-dependent and unmodelled. Hourly throughput, walking/banking/gathering time and net opportunity cost remain unknown."
+      ]
+    }
+  ],
+  "sources": [
+    {
+      "id": "combat-troll-brute",
+      "title": "Troll brute",
+      "url": "https://runescape.wiki/w/Troll_brute?oldid=37143575",
+      "revision": 37143575,
+      "canonicalUrl": "https://runescape.wiki/w/Troll_brute",
+      "retrieved": "2026-10-13",
+      "licence": "RuneScape Wiki contributors, CC BY-NC-SA 3.0 (licensing exceptions apply).",
+      "fields": [
+        "F2P eligibility, combat level or recipe entry level, location and supply facts"
+      ],
+      "notes": "Facts condensed from the identified revision. Combat entry recommendations are separately authored; no new XP rates are claimed."
+    },
+    {
+      "id": "combat-cow",
+      "title": "Cow",
+      "url": "https://runescape.wiki/w/Cow?oldid=37142844",
+      "revision": 37142844,
+      "canonicalUrl": "https://runescape.wiki/w/Cow",
+      "retrieved": "2026-10-13",
+      "licence": "RuneScape Wiki contributors, CC BY-NC-SA 3.0 (licensing exceptions apply).",
+      "fields": [
+        "F2P eligibility, combat level or recipe entry level, location and supply facts"
+      ],
+      "notes": "Facts condensed from the identified revision. Combat entry recommendations are separately authored; no new XP rates are claimed."
+    },
+    {
+      "id": "combat-chicken",
+      "title": "Chicken",
+      "url": "https://runescape.wiki/w/Chicken?oldid=37142047",
+      "revision": 37142047,
+      "canonicalUrl": "https://runescape.wiki/w/Chicken",
+      "retrieved": "2026-10-13",
+      "licence": "RuneScape Wiki contributors, CC BY-NC-SA 3.0 (licensing exceptions apply).",
+      "fields": [
+        "F2P eligibility, combat level or recipe entry level, location and supply facts"
+      ],
+      "notes": "Facts condensed from the identified revision. Combat entry recommendations are separately authored; no new XP rates are claimed."
+    },
+    {
+      "id": "combat-giant-rat",
+      "title": "Giant rat",
+      "url": "https://runescape.wiki/w/Giant_rat?oldid=37153107",
+      "revision": 37153107,
+      "canonicalUrl": "https://runescape.wiki/w/Giant_rat",
+      "retrieved": "2026-10-13",
+      "licence": "RuneScape Wiki contributors, CC BY-NC-SA 3.0 (licensing exceptions apply).",
+      "fields": [
+        "F2P eligibility, combat level or recipe entry level, location and supply facts"
+      ],
+      "notes": "Facts condensed from the identified revision. Combat entry recommendations are separately authored; no new XP rates are claimed."
+    },
+    {
+      "id": "combat-goblin-lumbridge",
+      "title": "Goblin (Lumbridge)",
+      "url": "https://runescape.wiki/w/Goblin_(Lumbridge)?oldid=37143270",
+      "revision": 37143270,
+      "canonicalUrl": "https://runescape.wiki/w/Goblin_(Lumbridge)",
+      "retrieved": "2026-10-13",
+      "licence": "RuneScape Wiki contributors, CC BY-NC-SA 3.0 (licensing exceptions apply).",
+      "fields": [
+        "F2P eligibility, combat level or recipe entry level, location and supply facts"
+      ],
+      "notes": "Facts condensed from the identified revision. Combat entry recommendations are separately authored; no new XP rates are claimed."
+    },
+    {
+      "id": "combat-spider",
+      "title": "Spider",
+      "url": "https://runescape.wiki/w/Spider?oldid=37145366",
+      "revision": 37145366,
+      "canonicalUrl": "https://runescape.wiki/w/Spider",
+      "retrieved": "2026-10-13",
+      "licence": "RuneScape Wiki contributors, CC BY-NC-SA 3.0 (licensing exceptions apply).",
+      "fields": [
+        "F2P eligibility, combat level or recipe entry level, location and supply facts"
+      ],
+      "notes": "Facts condensed from the identified revision. Combat entry recommendations are separately authored; no new XP rates are claimed."
+    },
+    {
+      "id": "combat-giant-spider",
+      "title": "Giant spider",
+      "url": "https://runescape.wiki/w/Giant_spider?oldid=37136145",
+      "revision": 37136145,
+      "canonicalUrl": "https://runescape.wiki/w/Giant_spider",
+      "retrieved": "2026-10-13",
+      "licence": "RuneScape Wiki contributors, CC BY-NC-SA 3.0 (licensing exceptions apply).",
+      "fields": [
+        "F2P eligibility, combat level or recipe entry level, location and supply facts"
+      ],
+      "notes": "Facts condensed from the identified revision. Combat entry recommendations are separately authored; no new XP rates are claimed."
+    },
+    {
+      "id": "combat-al-kharid-warrior",
+      "title": "Al Kharid warrior",
+      "url": "https://runescape.wiki/w/Al_Kharid_warrior?oldid=37156862",
+      "revision": 37156862,
+      "canonicalUrl": "https://runescape.wiki/w/Al_Kharid_warrior",
+      "retrieved": "2026-10-13",
+      "licence": "RuneScape Wiki contributors, CC BY-NC-SA 3.0 (licensing exceptions apply).",
+      "fields": [
+        "F2P eligibility, combat level or recipe entry level, location and supply facts"
+      ],
+      "notes": "Facts condensed from the identified revision. Combat entry recommendations are separately authored; no new XP rates are claimed."
+    },
+    {
+      "id": "combat-scorpion",
+      "title": "Scorpion",
+      "url": "https://runescape.wiki/w/Scorpion?oldid=37143891",
+      "revision": 37143891,
+      "canonicalUrl": "https://runescape.wiki/w/Scorpion",
+      "retrieved": "2026-10-13",
+      "licence": "RuneScape Wiki contributors, CC BY-NC-SA 3.0 (licensing exceptions apply).",
+      "fields": [
+        "F2P eligibility, combat level or recipe entry level, location and supply facts"
+      ],
+      "notes": "Facts condensed from the identified revision. Combat entry recommendations are separately authored; no new XP rates are claimed."
+    },
+    {
+      "id": "combat-minotaur",
+      "title": "Minotaur",
+      "url": "https://runescape.wiki/w/Minotaur?oldid=37143683",
+      "revision": 37143683,
+      "canonicalUrl": "https://runescape.wiki/w/Minotaur",
+      "retrieved": "2026-10-13",
+      "licence": "RuneScape Wiki contributors, CC BY-NC-SA 3.0 (licensing exceptions apply).",
+      "fields": [
+        "F2P eligibility, combat level or recipe entry level, location and supply facts"
+      ],
+      "notes": "Facts condensed from the identified revision. Combat entry recommendations are separately authored; no new XP rates are claimed."
+    },
+    {
+      "id": "combat-flesh-crawler",
+      "title": "Flesh Crawler",
+      "url": "https://runescape.wiki/w/Flesh_Crawler?oldid=37153668",
+      "revision": 37153668,
+      "canonicalUrl": "https://runescape.wiki/w/Flesh_Crawler",
+      "retrieved": "2026-10-13",
+      "licence": "RuneScape Wiki contributors, CC BY-NC-SA 3.0 (licensing exceptions apply).",
+      "fields": [
+        "F2P eligibility, combat level or recipe entry level, location and supply facts"
+      ],
+      "notes": "Facts condensed from the identified revision. Combat entry recommendations are separately authored; no new XP rates are claimed."
+    },
+    {
+      "id": "combat-zombie",
+      "title": "Zombie",
+      "url": "https://runescape.wiki/w/Zombie?oldid=37125135",
+      "revision": 37125135,
+      "canonicalUrl": "https://runescape.wiki/w/Zombie",
+      "retrieved": "2026-10-13",
+      "licence": "RuneScape Wiki contributors, CC BY-NC-SA 3.0 (licensing exceptions apply).",
+      "fields": [
+        "F2P eligibility, combat level or recipe entry level, location and supply facts"
+      ],
+      "notes": "Facts condensed from the identified revision. Combat entry recommendations are separately authored; no new XP rates are claimed."
+    },
+    {
+      "id": "combat-skeleton",
+      "title": "Skeleton",
+      "url": "https://runescape.wiki/w/Skeleton?oldid=37188293",
+      "revision": 37188293,
+      "canonicalUrl": "https://runescape.wiki/w/Skeleton",
+      "retrieved": "2026-10-13",
+      "licence": "RuneScape Wiki contributors, CC BY-NC-SA 3.0 (licensing exceptions apply).",
+      "fields": [
+        "F2P eligibility, combat level or recipe entry level, location and supply facts"
+      ],
+      "notes": "Facts condensed from the identified revision. Combat entry recommendations are separately authored; no new XP rates are claimed."
+    },
+    {
+      "id": "combat-cockroach-worker",
+      "title": "Cockroach worker",
+      "url": "https://runescape.wiki/w/Cockroach_worker?oldid=37142088",
+      "revision": 37142088,
+      "canonicalUrl": "https://runescape.wiki/w/Cockroach_worker",
+      "retrieved": "2026-10-13",
+      "licence": "RuneScape Wiki contributors, CC BY-NC-SA 3.0 (licensing exceptions apply).",
+      "fields": [
+        "F2P eligibility, combat level or recipe entry level, location and supply facts"
+      ],
+      "notes": "Facts condensed from the identified revision. Combat entry recommendations are separately authored; no new XP rates are claimed."
+    },
+    {
+      "id": "combat-hill-giant",
+      "title": "Hill giant",
+      "url": "https://runescape.wiki/w/Hill_giant?oldid=37203057",
+      "revision": 37203057,
+      "canonicalUrl": "https://runescape.wiki/w/Hill_giant",
+      "retrieved": "2026-10-13",
+      "licence": "RuneScape Wiki contributors, CC BY-NC-SA 3.0 (licensing exceptions apply).",
+      "fields": [
+        "F2P eligibility, combat level or recipe entry level, location and supply facts"
+      ],
+      "notes": "Facts condensed from the identified revision. Combat entry recommendations are separately authored; no new XP rates are claimed."
+    },
+    {
+      "id": "combat-moss-giant",
+      "title": "Moss giant",
+      "url": "https://runescape.wiki/w/Moss_giant?oldid=37143822",
+      "revision": 37143822,
+      "canonicalUrl": "https://runescape.wiki/w/Moss_giant",
+      "retrieved": "2026-10-13",
+      "licence": "RuneScape Wiki contributors, CC BY-NC-SA 3.0 (licensing exceptions apply).",
+      "fields": [
+        "F2P eligibility, combat level or recipe entry level, location and supply facts"
+      ],
+      "notes": "Facts condensed from the identified revision. Combat entry recommendations are separately authored; no new XP rates are claimed."
+    },
+    {
+      "id": "combat-ice-warrior",
+      "title": "Ice warrior",
+      "url": "https://runescape.wiki/w/Ice_warrior?oldid=37143337",
+      "revision": 37143337,
+      "canonicalUrl": "https://runescape.wiki/w/Ice_warrior",
+      "retrieved": "2026-10-13",
+      "licence": "RuneScape Wiki contributors, CC BY-NC-SA 3.0 (licensing exceptions apply).",
+      "fields": [
+        "F2P eligibility, combat level or recipe entry level, location and supply facts"
+      ],
+      "notes": "Facts condensed from the identified revision. Combat entry recommendations are separately authored; no new XP rates are claimed."
+    },
+    {
+      "id": "combat-ice-giant",
+      "title": "Ice giant",
+      "url": "https://runescape.wiki/w/Ice_giant?oldid=37164944",
+      "revision": 37164944,
+      "canonicalUrl": "https://runescape.wiki/w/Ice_giant",
+      "retrieved": "2026-10-13",
+      "licence": "RuneScape Wiki contributors, CC BY-NC-SA 3.0 (licensing exceptions apply).",
+      "fields": [
+        "F2P eligibility, combat level or recipe entry level, location and supply facts"
+      ],
+      "notes": "Facts condensed from the identified revision. Combat entry recommendations are separately authored; no new XP rates are claimed."
+    },
+    {
+      "id": "combat-catablepon",
+      "title": "Catablepon",
+      "url": "https://runescape.wiki/w/Catablepon?oldid=37142100",
+      "revision": 37142100,
+      "canonicalUrl": "https://runescape.wiki/w/Catablepon",
+      "retrieved": "2026-10-13",
+      "licence": "RuneScape Wiki contributors, CC BY-NC-SA 3.0 (licensing exceptions apply).",
+      "fields": [
+        "F2P eligibility, combat level or recipe entry level, location and supply facts"
+      ],
+      "notes": "Facts condensed from the identified revision. Combat entry recommendations are separately authored; no new XP rates are claimed."
+    },
+    {
+      "id": "combat-ankou",
+      "title": "Ankou",
+      "url": "https://runescape.wiki/w/Ankou?oldid=37131602",
+      "revision": 37131602,
+      "canonicalUrl": "https://runescape.wiki/w/Ankou",
+      "retrieved": "2026-10-13",
+      "licence": "RuneScape Wiki contributors, CC BY-NC-SA 3.0 (licensing exceptions apply).",
+      "fields": [
+        "F2P eligibility, combat level or recipe entry level, location and supply facts"
+      ],
+      "notes": "Facts condensed from the identified revision. Combat entry recommendations are separately authored; no new XP rates are claimed."
+    },
+    {
+      "id": "combat-cockroach-soldier",
+      "title": "Cockroach soldier",
+      "url": "https://runescape.wiki/w/Cockroach_soldier?oldid=37142083",
+      "revision": 37142083,
+      "canonicalUrl": "https://runescape.wiki/w/Cockroach_soldier",
+      "retrieved": "2026-10-13",
+      "licence": "RuneScape Wiki contributors, CC BY-NC-SA 3.0 (licensing exceptions apply).",
+      "fields": [
+        "F2P eligibility, combat level or recipe entry level, location and supply facts"
+      ],
+      "notes": "Facts condensed from the identified revision. Combat entry recommendations are separately authored; no new XP rates are claimed."
+    },
+    {
+      "id": "combat-lesser-demon",
+      "title": "Lesser demon",
+      "url": "https://runescape.wiki/w/Lesser_demon?oldid=37159794",
+      "revision": 37159794,
+      "canonicalUrl": "https://runescape.wiki/w/Lesser_demon",
+      "retrieved": "2026-10-13",
+      "licence": "RuneScape Wiki contributors, CC BY-NC-SA 3.0 (licensing exceptions apply).",
+      "fields": [
+        "F2P eligibility, combat level or recipe entry level, location and supply facts"
+      ],
+      "notes": "Facts condensed from the identified revision. Combat entry recommendations are separately authored; no new XP rates are claimed."
+    },
+    {
+      "id": "combat-greater-demon",
+      "title": "Greater demon",
+      "url": "https://runescape.wiki/w/Greater_demon?oldid=37199607",
+      "revision": 37199607,
+      "canonicalUrl": "https://runescape.wiki/w/Greater_demon",
+      "retrieved": "2026-10-13",
+      "licence": "RuneScape Wiki contributors, CC BY-NC-SA 3.0 (licensing exceptions apply).",
+      "fields": [
+        "F2P eligibility, combat level or recipe entry level, location and supply facts"
+      ],
+      "notes": "Facts condensed from the identified revision. Combat entry recommendations are separately authored; no new XP rates are claimed."
+    },
+    {
+      "id": "combat-deadly-red-spider",
+      "title": "Deadly red spider",
+      "url": "https://runescape.wiki/w/Deadly_red_spider?oldid=37142373",
+      "revision": 37142373,
+      "canonicalUrl": "https://runescape.wiki/w/Deadly_red_spider",
+      "retrieved": "2026-10-13",
+      "licence": "RuneScape Wiki contributors, CC BY-NC-SA 3.0 (licensing exceptions apply).",
+      "fields": [
+        "F2P eligibility, combat level or recipe entry level, location and supply facts"
+      ],
+      "notes": "Facts condensed from the identified revision. Combat entry recommendations are separately authored; no new XP rates are claimed."
+    },
+    {
+      "id": "combat-hellhound",
+      "title": "Hellhound",
+      "url": "https://runescape.wiki/w/Hellhound?oldid=37196163",
+      "revision": 37196163,
+      "canonicalUrl": "https://runescape.wiki/w/Hellhound",
+      "retrieved": "2026-10-13",
+      "licence": "RuneScape Wiki contributors, CC BY-NC-SA 3.0 (licensing exceptions apply).",
+      "fields": [
+        "F2P eligibility, combat level or recipe entry level, location and supply facts"
+      ],
+      "notes": "Facts condensed from the identified revision. Combat entry recommendations are separately authored; no new XP rates are claimed."
+    },
+    {
+      "id": "noncombat-herring",
+      "title": "Herring",
+      "url": "https://runescape.wiki/w/Herring?oldid=36692172",
+      "revision": 36692172,
+      "canonicalUrl": "https://runescape.wiki/w/Herring",
+      "retrieved": "2026-10-13",
+      "licence": "RuneScape Wiki contributors, CC BY-NC-SA 3.0 (licensing exceptions apply).",
+      "fields": [
+        "F2P eligibility, combat level or recipe entry level, location and supply facts"
+      ],
+      "notes": "Facts condensed from the identified revision. Combat entry recommendations are separately authored; no new XP rates are claimed."
+    },
+    {
+      "id": "noncombat-pike",
+      "title": "Pike",
+      "url": "https://runescape.wiki/w/Pike?oldid=36953424",
+      "revision": 36953424,
+      "canonicalUrl": "https://runescape.wiki/w/Pike",
+      "retrieved": "2026-10-13",
+      "licence": "RuneScape Wiki contributors, CC BY-NC-SA 3.0 (licensing exceptions apply).",
+      "fields": [
+        "F2P eligibility, combat level or recipe entry level, location and supply facts"
+      ],
+      "notes": "Facts condensed from the identified revision. Combat entry recommendations are separately authored; no new XP rates are claimed."
+    },
+    {
+      "id": "noncombat-salmon",
+      "title": "Salmon",
+      "url": "https://runescape.wiki/w/Salmon?oldid=36953393",
+      "revision": 36953393,
+      "canonicalUrl": "https://runescape.wiki/w/Salmon",
+      "retrieved": "2026-10-13",
+      "licence": "RuneScape Wiki contributors, CC BY-NC-SA 3.0 (licensing exceptions apply).",
+      "fields": [
+        "F2P eligibility, combat level or recipe entry level, location and supply facts"
+      ],
+      "notes": "Facts condensed from the identified revision. Combat entry recommendations are separately authored; no new XP rates are claimed."
+    },
+    {
+      "id": "noncombat-tuna",
+      "title": "Tuna",
+      "url": "https://runescape.wiki/w/Tuna?oldid=37074041",
+      "revision": 37074041,
+      "canonicalUrl": "https://runescape.wiki/w/Tuna",
+      "retrieved": "2026-10-13",
+      "licence": "RuneScape Wiki contributors, CC BY-NC-SA 3.0 (licensing exceptions apply).",
+      "fields": [
+        "F2P eligibility, combat level or recipe entry level, location and supply facts"
+      ],
+      "notes": "Facts condensed from the identified revision. Combat entry recommendations are separately authored; no new XP rates are claimed."
+    },
+    {
+      "id": "noncombat-swordfish",
+      "title": "Swordfish",
+      "url": "https://runescape.wiki/w/Swordfish?oldid=37190613",
+      "revision": 37190613,
+      "canonicalUrl": "https://runescape.wiki/w/Swordfish",
+      "retrieved": "2026-10-13",
+      "licence": "RuneScape Wiki contributors, CC BY-NC-SA 3.0 (licensing exceptions apply).",
+      "fields": [
+        "F2P eligibility, combat level or recipe entry level, location and supply facts"
+      ],
+      "notes": "Facts condensed from the identified revision. Combat entry recommendations are separately authored; no new XP rates are claimed."
+    },
+    {
+      "id": "noncombat-mind-rune",
+      "title": "Mind rune",
+      "url": "https://runescape.wiki/w/Mind_rune?oldid=37194611",
+      "revision": 37194611,
+      "canonicalUrl": "https://runescape.wiki/w/Mind_rune",
+      "retrieved": "2026-10-13",
+      "licence": "RuneScape Wiki contributors, CC BY-NC-SA 3.0 (licensing exceptions apply).",
+      "fields": [
+        "F2P eligibility, combat level or recipe entry level, location and supply facts"
+      ],
+      "notes": "Facts condensed from the identified revision. Combat entry recommendations are separately authored; no new XP rates are claimed."
+    },
+    {
+      "id": "noncombat-mind-altar",
+      "title": "Mind altar",
+      "url": "https://runescape.wiki/w/Mind_altar?oldid=37128550",
+      "revision": 37128550,
+      "canonicalUrl": "https://runescape.wiki/w/Mind_altar",
+      "retrieved": "2026-10-13",
+      "licence": "RuneScape Wiki contributors, CC BY-NC-SA 3.0 (licensing exceptions apply).",
+      "fields": [
+        "F2P eligibility, combat level or recipe entry level, location and supply facts"
+      ],
+      "notes": "Facts condensed from the identified revision. Combat entry recommendations are separately authored; no new XP rates are claimed."
+    },
+    {
+      "id": "noncombat-earth-rune",
+      "title": "Earth rune",
+      "url": "https://runescape.wiki/w/Earth_rune?oldid=37194617",
+      "revision": 37194617,
+      "canonicalUrl": "https://runescape.wiki/w/Earth_rune",
+      "retrieved": "2026-10-13",
+      "licence": "RuneScape Wiki contributors, CC BY-NC-SA 3.0 (licensing exceptions apply).",
+      "fields": [
+        "F2P eligibility, combat level or recipe entry level, location and supply facts"
+      ],
+      "notes": "Facts condensed from the identified revision. Combat entry recommendations are separately authored; no new XP rates are claimed."
+    },
+    {
+      "id": "noncombat-earth-altar",
+      "title": "Earth altar",
+      "url": "https://runescape.wiki/w/Earth_altar?oldid=37128552",
+      "revision": 37128552,
+      "canonicalUrl": "https://runescape.wiki/w/Earth_altar",
+      "retrieved": "2026-10-13",
+      "licence": "RuneScape Wiki contributors, CC BY-NC-SA 3.0 (licensing exceptions apply).",
+      "fields": [
+        "F2P eligibility, combat level or recipe entry level, location and supply facts"
+      ],
+      "notes": "Facts condensed from the identified revision. Combat entry recommendations are separately authored; no new XP rates are claimed."
+    },
+    {
+      "id": "noncombat-fire-rune",
+      "title": "Fire rune",
+      "url": "https://runescape.wiki/w/Fire_rune?oldid=37194620",
+      "revision": 37194620,
+      "canonicalUrl": "https://runescape.wiki/w/Fire_rune",
+      "retrieved": "2026-10-13",
+      "licence": "RuneScape Wiki contributors, CC BY-NC-SA 3.0 (licensing exceptions apply).",
+      "fields": [
+        "F2P eligibility, combat level or recipe entry level, location and supply facts"
+      ],
+      "notes": "Facts condensed from the identified revision. Combat entry recommendations are separately authored; no new XP rates are claimed."
+    },
+    {
+      "id": "noncombat-fire-altar",
+      "title": "Fire altar",
+      "url": "https://runescape.wiki/w/Fire_altar?oldid=37128553",
+      "revision": 37128553,
+      "canonicalUrl": "https://runescape.wiki/w/Fire_altar",
+      "retrieved": "2026-10-13",
+      "licence": "RuneScape Wiki contributors, CC BY-NC-SA 3.0 (licensing exceptions apply).",
+      "fields": [
+        "F2P eligibility, combat level or recipe entry level, location and supply facts"
+      ],
+      "notes": "Facts condensed from the identified revision. Combat entry recommendations are separately authored; no new XP rates are claimed."
+    },
+    {
+      "id": "noncombat-body-rune",
+      "title": "Body rune",
+      "url": "https://runescape.wiki/w/Body_rune?oldid=37194622",
+      "revision": 37194622,
+      "canonicalUrl": "https://runescape.wiki/w/Body_rune",
+      "retrieved": "2026-10-13",
+      "licence": "RuneScape Wiki contributors, CC BY-NC-SA 3.0 (licensing exceptions apply).",
+      "fields": [
+        "F2P eligibility, combat level or recipe entry level, location and supply facts"
+      ],
+      "notes": "Facts condensed from the identified revision. Combat entry recommendations are separately authored; no new XP rates are claimed."
+    },
+    {
+      "id": "noncombat-body-altar",
+      "title": "Body altar",
+      "url": "https://runescape.wiki/w/Body_altar?oldid=37128555",
+      "revision": 37128555,
+      "canonicalUrl": "https://runescape.wiki/w/Body_altar",
+      "retrieved": "2026-10-13",
+      "licence": "RuneScape Wiki contributors, CC BY-NC-SA 3.0 (licensing exceptions apply).",
+      "fields": [
+        "F2P eligibility, combat level or recipe entry level, location and supply facts"
+      ],
+      "notes": "Facts condensed from the identified revision. Combat entry recommendations are separately authored; no new XP rates are claimed."
+    },
+    {
+      "id": "noncombat-rune-essence",
+      "title": "Rune essence",
+      "url": "https://runescape.wiki/w/Rune_essence?oldid=36925289",
+      "revision": 36925289,
+      "canonicalUrl": "https://runescape.wiki/w/Rune_essence",
+      "retrieved": "2026-10-13",
+      "licence": "RuneScape Wiki contributors, CC BY-NC-SA 3.0 (licensing exceptions apply).",
+      "fields": [
+        "F2P eligibility, combat level or recipe entry level, location and supply facts"
+      ],
+      "notes": "Facts condensed from the identified revision. Combat entry recommendations are separately authored; no new XP rates are claimed."
+    }
+  ],
+  "exclusions": [
+    {
+      "name": "Barbarian",
+      "reason": "Retained selectors use Barbarian#Version 1 and #Version 2; broad name not matched."
+    },
+    {
+      "name": "Dark wizard",
+      "reason": "Retained selectors use qualified variant names; broad name not matched."
+    },
+    {
+      "name": "Goblin (generic)",
+      "reason": "Exact Goblin (Lumbridge) has clear admitted F2P placements; generic selector placement remains unconfirmed."
+    }
+  ],
+  "retainedCombatRates": {
+    "attack.troll-brute": {
+      "xpPerAction": 35,
+      "xpPerHour": null
+    },
+    "attack.cow": {
+      "xpPerAction": 50,
+      "xpPerHour": null
+    },
+    "attack.hill-giant": {
+      "xpPerAction": 225,
+      "xpPerHour": null
+    },
+    "strength.troll-brute": {
+      "xpPerAction": 35,
+      "xpPerHour": null
+    },
+    "strength.cow": {
+      "xpPerAction": 50,
+      "xpPerHour": null
+    },
+    "strength.hill-giant": {
+      "xpPerAction": 225,
+      "xpPerHour": null
+    },
+    "defence.troll-brute": {
+      "xpPerAction": 35,
+      "xpPerHour": null
+    },
+    "defence.cow": {
+      "xpPerAction": 50,
+      "xpPerHour": null
+    },
+    "defence.hill-giant": {
+      "xpPerAction": 225,
+      "xpPerHour": null
+    },
+    "ranged.troll-brute": {
+      "xpPerAction": 35,
+      "xpPerHour": null
+    },
+    "ranged.cow": {
+      "xpPerAction": 50,
+      "xpPerHour": null
+    },
+    "ranged.hill-giant": {
+      "xpPerAction": 225,
+      "xpPerHour": null
+    },
+    "magic.troll-brute": {
+      "xpPerAction": 35,
+      "xpPerHour": null
+    },
+    "magic.cow": {
+      "xpPerAction": 50,
+      "xpPerHour": null
+    },
+    "magic.hill-giant": {
+      "xpPerAction": 225,
+      "xpPerHour": null
+    },
+    "constitution.troll-brute": {
+      "xpPerAction": 11.5,
+      "xpPerHour": null
+    },
+    "constitution.cow": {
+      "xpPerAction": 16.5,
+      "xpPerHour": null
+    },
+    "constitution.hill-giant": {
+      "xpPerAction": 74.2,
+      "xpPerHour": null
+    },
+    "magic.enchant-sapphire-amulet": {
+      "xpPerAction": 17.5,
+      "xpPerHour": 42000
+    },
+    "magic.low-alchemy-rune-platebody": {
+      "xpPerAction": 31,
+      "xpPerHour": 49600
+    },
+    "magic.high-alchemy-rune-platebody": {
+      "xpPerAction": 65,
+      "xpPerHour": 62400
+    }
+  }
+}

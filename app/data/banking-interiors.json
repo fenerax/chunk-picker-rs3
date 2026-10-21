@@ -1,0 +1,235 @@
+{
+  "schemaVersion": 1,
+  "candidates": [
+    {
+      "id": "lumbridge-castle-bank-via-south-stairs",
+      "label": "Lumbridge Castle upstairs bank (south stairs)",
+      "kind": "bank",
+      "members": false,
+      "chunkId": "12850",
+      "x": 3208,
+      "y": 3221,
+      "plane": 2,
+      "mapId": 28,
+      "objectId": 36786,
+      "placementId": "object-2c411b6a0eedfa59d2ac0711@28:2:3208:3221",
+      "entryPoint": {
+        "x": 3204,
+        "y": 3207,
+        "plane": 0,
+        "mapId": 28,
+        "objectId": 36773
+      },
+      "witnessTiles": [
+        [
+          3203,
+          3207
+        ],
+        [
+          3203,
+          3208
+        ],
+        [
+          3206,
+          3207
+        ],
+        [
+          3206,
+          3208
+        ],
+        [
+          3204,
+          3206
+        ],
+        [
+          3205,
+          3206
+        ],
+        [
+          3204,
+          3209
+        ],
+        [
+          3205,
+          3209
+        ]
+      ],
+      "interiorTileSteps": 13,
+      "interiorSeconds": 10.2,
+      "interiorEstimate": {
+        "estimated": true,
+        "accessEffect": "none",
+        "sourceDirectory": "objects-2026-10-08-v3",
+        "sourceHashes": {
+          "objects.placements.v1.json.gz": "3af6bc90e31f30fafb81f88368e4052335d47a45eadaaad0e82f3361476bc137",
+          "objects.transitions.v1.json.gz": "e7bbf79507c32ec2bb1859438dce724bb1cc84f26b218c2b8adf997c02fba867",
+          "objects.definitions.v1.json.gz": "686748ecfe5ccee8a2ec6b513a1c84962521092eccc3c5dcc02cf5e282432bf1"
+        },
+        "bankPlacementId": "object-2c411b6a0eedfa59d2ac0711@28:2:3208:3221",
+        "stairPlacementIds": [
+          "object-421b403c93b51152106e0bba@28:0:3204:3207",
+          "object-0a6c904ea13fc469502fb9bf@28:1:3204:3207",
+          "object-cc2254c9d9ba971dc8c8c2b1@28:2:3204:3207"
+        ],
+        "stairObjectIds": [
+          36773,
+          36774,
+          36775
+        ],
+        "transitionPointers": [
+          "/transitions/5793",
+          "/transitions/5794",
+          "/transitions/5795"
+        ],
+        "sourceRegion": {
+          "major": 5,
+          "minor": 6450,
+          "pasteIndex": 737,
+          "pasteKind": "square",
+          "translation": [
+            0,
+            0,
+            0
+          ]
+        },
+        "wiki": [
+          {
+            "title": "Lumbridge Castle",
+            "revisionId": 37149520,
+            "url": "https://runescape.wiki/w/Lumbridge_Castle?oldid=37149520",
+            "contentSha256": "129760437882876159415b0439dff5dec9a65baeb2b3114d1cb439352a3b3c6e"
+          },
+          {
+            "title": "Bank booth",
+            "revisionId": 37076387,
+            "url": "https://runescape.wiki/w/Bank_booth?oldid=37076387",
+            "contentSha256": "1d357c9c4531473ef20505241d64ef1d4c30defcf1dc946a3841a9313eabe86b"
+          }
+        ],
+        "assumptions": [
+          "Exact 2x2 staircase footprint perimeter supplies candidate surface interaction approaches; graph admission must be checked.",
+          "Upper-floor collision, player landing and exact interaction reach are not verified.",
+          "Upper walking uses the Chebyshev lower bound from the plane-2 staircase footprint to the booth origin; the booth footprint is unknown.",
+          "Walking is assumed to take 0.6 seconds per upper-floor tile; running and Surge savings are not established there.",
+          "Each of two floor transitions is assumed to take 1.2 seconds; this timing has not been measured.",
+          "The members-only, quest-gated cellar chest is excluded."
+        ]
+      }
+    },
+    {
+      "id": "lumbridge-castle-bank-via-north-stairs",
+      "label": "Lumbridge Castle upstairs bank (north stairs)",
+      "kind": "bank",
+      "members": false,
+      "chunkId": "12850",
+      "x": 3208,
+      "y": 3221,
+      "plane": 2,
+      "mapId": 28,
+      "objectId": 36786,
+      "placementId": "object-2c411b6a0eedfa59d2ac0711@28:2:3208:3221",
+      "entryPoint": {
+        "x": 3204,
+        "y": 3229,
+        "plane": 0,
+        "mapId": 28,
+        "objectId": 36776
+      },
+      "witnessTiles": [
+        [
+          3203,
+          3229
+        ],
+        [
+          3203,
+          3230
+        ],
+        [
+          3206,
+          3229
+        ],
+        [
+          3206,
+          3230
+        ],
+        [
+          3204,
+          3228
+        ],
+        [
+          3205,
+          3228
+        ],
+        [
+          3204,
+          3231
+        ],
+        [
+          3205,
+          3231
+        ]
+      ],
+      "interiorTileSteps": 8,
+      "interiorSeconds": 7.199999999999999,
+      "interiorEstimate": {
+        "estimated": true,
+        "accessEffect": "none",
+        "sourceDirectory": "objects-2026-10-08-v3",
+        "sourceHashes": {
+          "objects.placements.v1.json.gz": "3af6bc90e31f30fafb81f88368e4052335d47a45eadaaad0e82f3361476bc137",
+          "objects.transitions.v1.json.gz": "e7bbf79507c32ec2bb1859438dce724bb1cc84f26b218c2b8adf997c02fba867",
+          "objects.definitions.v1.json.gz": "686748ecfe5ccee8a2ec6b513a1c84962521092eccc3c5dcc02cf5e282432bf1"
+        },
+        "bankPlacementId": "object-2c411b6a0eedfa59d2ac0711@28:2:3208:3221",
+        "stairPlacementIds": [
+          "object-9aa2503c98becaafa4977231@28:0:3204:3229",
+          "object-c8c4bea19e2659e3657b6398@28:1:3204:3229",
+          "object-9deebe595c1e7101cb852a9d@28:2:3204:3229"
+        ],
+        "stairObjectIds": [
+          36776,
+          36777,
+          36778
+        ],
+        "transitionPointers": [
+          "/transitions/5796",
+          "/transitions/5797",
+          "/transitions/5798"
+        ],
+        "sourceRegion": {
+          "major": 5,
+          "minor": 6450,
+          "pasteIndex": 737,
+          "pasteKind": "square",
+          "translation": [
+            0,
+            0,
+            0
+          ]
+        },
+        "wiki": [
+          {
+            "title": "Lumbridge Castle",
+            "revisionId": 37149520,
+            "url": "https://runescape.wiki/w/Lumbridge_Castle?oldid=37149520",
+            "contentSha256": "129760437882876159415b0439dff5dec9a65baeb2b3114d1cb439352a3b3c6e"
+          },
+          {
+            "title": "Bank booth",
+            "revisionId": 37076387,
+            "url": "https://runescape.wiki/w/Bank_booth?oldid=37076387",
+            "contentSha256": "1d357c9c4531473ef20505241d64ef1d4c30defcf1dc946a3841a9313eabe86b"
+          }
+        ],
+        "assumptions": [
+          "Exact 2x2 staircase footprint perimeter supplies candidate surface interaction approaches; graph admission must be checked.",
+          "Upper-floor collision, player landing and exact interaction reach are not verified.",
+          "Upper walking uses the Chebyshev lower bound from the plane-2 staircase footprint to the booth origin; the booth footprint is unknown.",
+          "Walking is assumed to take 0.6 seconds per upper-floor tile; running and Surge savings are not established there.",
+          "Each of two floor transitions is assumed to take 1.2 seconds; this timing has not been measured.",
+          "The members-only, quest-gated cellar chest is excluded."
+        ]
+      }
+    }
+  ]
+}

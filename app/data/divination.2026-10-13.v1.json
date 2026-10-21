@@ -1,0 +1,41 @@
+{
+  "schemaVersion": 1,
+  "reviewed": "2026-10-13",
+  "version": "divination-training-2026-10-13-v1",
+  "tiers": [
+    { "name": "Pale", "level": 1, "members": false, "guideStruct": 39888, "revision": 37176223, "enrichedRevision": null, "locations": ["12338-1"] },
+    { "name": "Flickering", "level": 10, "members": true, "guideStruct": 39889, "revision": 37119770, "enrichedRevision": 37176224, "locations": ["11829-1"] },
+    { "name": "Bright", "level": 20, "members": true, "guideStruct": 39890, "revision": 37117262, "enrichedRevision": 37176225, "locations": ["13109-1"] },
+    { "name": "Glowing", "level": 30, "members": true, "guideStruct": 39891, "revision": 37119775, "enrichedRevision": 37176226, "locations": ["10805"] },
+    { "name": "Sparkling", "level": 40, "members": true, "guideStruct": 39892, "revision": 37119788, "enrichedRevision": 37176227, "locations": ["11064-1"] },
+    { "name": "Gleaming", "level": 50, "members": true, "guideStruct": 39893, "revision": 37119790, "enrichedRevision": 37176228, "locations": ["11567-1"] },
+    { "name": "Vibrant", "level": 60, "members": true, "guideStruct": 39894, "revision": 37119792, "enrichedRevision": 37176229, "locations": ["9516"] },
+    { "name": "Lustrous", "level": 70, "members": true, "guideStruct": 39895, "revision": 37176222, "enrichedRevision": 37176230, "locations": ["13879", "15736"] },
+    { "name": "Elder", "level": 75, "members": true, "guideStruct": 28055, "revision": 37198568, "enrichedRevision": 37176231, "locations": ["16994", "16999", "Freneskae#The Elder Halls"], "quest": "Fate of the Gods" },
+    { "name": "Brilliant", "level": 80, "members": true, "guideStruct": 39896, "revision": 37134553, "enrichedRevision": 37176232, "locations": ["13619-1"] },
+    { "name": "Radiant", "level": 85, "members": true, "guideStruct": 39897, "revision": 37119800, "enrichedRevision": 37176233, "locations": ["15159"] },
+    { "name": "Luminous", "level": 90, "members": true, "guideStruct": 39898, "revision": 37176214, "enrichedRevision": 37176234, "locations": ["13097-1"] },
+    { "name": "Incandescent", "level": 95, "members": true, "guideStruct": 39899, "revision": 37119804, "enrichedRevision": 37176235, "locations": ["9007"] }
+  ],
+  "colossi": {
+    "level": 77,
+    "members": true,
+    "guideStruct": 37891,
+    "pickerId": "rs3:task:divination:colossi",
+    "label": "Train ~|Colossi Divination|~",
+    "object": "Colossus remnants",
+    "chunkId": "18485",
+    "quest": "Heralds of Crimson",
+    "questProgress": "partial",
+    "questNote": "Requires partial Heralds of Crimson progress. The exact stage is not tracked; record personal completion of this method once unlocked.",
+    "revision": 37201873,
+    "remnantsRevision": 37192074
+  },
+  "sources": [
+    { "id": "divination-skill", "url": "https://runescape.wiki/w/Divination?oldid=37191076", "revision": 37191076, "retrieved": "2026-10-13" },
+    { "id": "divination-wisps", "url": "https://runescape.wiki/w/Wisps?oldid=37152449", "revision": 37152449, "retrieved": "2026-10-13" },
+    { "id": "divination-colonies", "url": "https://runescape.wiki/w/Template:Divination_rift_locations?oldid=37161450", "revision": 37161450, "retrieved": "2026-10-13" },
+    { "id": "divination-colossi", "url": "https://runescape.wiki/w/Colossi_Divination?oldid=37201873", "revision": 37201873, "retrieved": "2026-10-13" },
+    { "id": "divination-colossus-remnants", "url": "https://runescape.wiki/w/Colossus_remnants?oldid=37192074", "revision": 37192074, "retrieved": "2026-10-13" }
+  ]
+}

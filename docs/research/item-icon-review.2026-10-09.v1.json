@@ -1,0 +1,3812 @@
+{
+  "schemaVersion": 1,
+  "version": "2026-10-09.v1",
+  "source": {
+    "snapshotSha256": "867d47004375f0a03e1127c476758f38d1d5a345f68b67da054da824c3c1b5c9",
+    "referenceSha256": "9dd835266f381abaa4d14033abcd0b43a001fe96d7df0a7f046fcc8676d66553",
+    "scope": "63 retained tier-qualified Necromancy equipment artwork names; no new cache IDs or aliases."
+  },
+  "selections": {
+    "Death guard (tier 10)": {
+      "fileTitle": "File:Death guard (tier 10).png",
+      "identityMethod": "reviewed-tier-page-shared-artwork",
+      "infoboxName": "Death guard",
+      "tier": 10,
+      "itemPage": {
+        "title": "Death guard (tier 10)",
+        "revisionId": 36962221,
+        "timestamp": "2026-03-10T01:27:13Z",
+        "url": "https://runescape.wiki/w/Death_guard_(tier_10)?oldid=36962221"
+      },
+      "variants": [
+        {
+          "suffix": "1",
+          "version": "During Necromancy!",
+          "name": "Death guard",
+          "ids": [
+            55502
+          ],
+          "image": "[[File:Death guard (tier 10).png]]"
+        },
+        {
+          "suffix": "2",
+          "version": "After Necromancy!",
+          "name": "Death guard",
+          "ids": [
+            55502
+          ],
+          "image": "[[File:Death guard (tier 10).png]]"
+        }
+      ],
+      "bonuses": [
+        {
+          "suffix": "",
+          "tier": "10"
+        }
+      ]
+    },
+    "Death guard (tier 20)": {
+      "fileTitle": "File:Death guard (tier 20).png",
+      "identityMethod": "reviewed-tier-page-shared-artwork",
+      "infoboxName": "Death guard",
+      "tier": 20,
+      "itemPage": {
+        "title": "Death guard (tier 20)",
+        "revisionId": 36962222,
+        "timestamp": "2026-03-10T01:28:03Z",
+        "url": "https://runescape.wiki/w/Death_guard_(tier_20)?oldid=36962222"
+      },
+      "variants": [
+        {
+          "suffix": "",
+          "version": "",
+          "name": "Death guard",
+          "ids": [
+            55504
+          ],
+          "image": "[[File:Death guard (tier 20).png]]"
+        }
+      ],
+      "bonuses": [
+        {
+          "suffix": "",
+          "tier": "20"
+        }
+      ]
+    },
+    "Death guard (tier 30)": {
+      "fileTitle": "File:Death guard (tier 30).png",
+      "identityMethod": "reviewed-tier-page-shared-artwork",
+      "infoboxName": "Death guard",
+      "tier": 30,
+      "itemPage": {
+        "title": "Death guard (tier 30)",
+        "revisionId": 36962223,
+        "timestamp": "2026-03-10T01:28:40Z",
+        "url": "https://runescape.wiki/w/Death_guard_(tier_30)?oldid=36962223"
+      },
+      "variants": [
+        {
+          "suffix": "",
+          "version": "",
+          "name": "Death guard",
+          "ids": [
+            55508
+          ],
+          "image": "[[File:Death guard (tier 30).png]]"
+        }
+      ],
+      "bonuses": [
+        {
+          "suffix": "",
+          "tier": "30"
+        }
+      ]
+    },
+    "Death guard (tier 40)": {
+      "fileTitle": "File:Death guard (tier 40).png",
+      "identityMethod": "reviewed-tier-page-shared-artwork",
+      "infoboxName": "Death guard",
+      "tier": 40,
+      "itemPage": {
+        "title": "Death guard (tier 40)",
+        "revisionId": 36962224,
+        "timestamp": "2026-03-10T01:29:22Z",
+        "url": "https://runescape.wiki/w/Death_guard_(tier_40)?oldid=36962224"
+      },
+      "variants": [
+        {
+          "suffix": "",
+          "version": "",
+          "name": "Death guard",
+          "ids": [
+            55512
+          ],
+          "image": "[[File:Death guard (tier 40).png]]"
+        }
+      ],
+      "bonuses": [
+        {
+          "suffix": "",
+          "tier": "40"
+        }
+      ]
+    },
+    "Death guard (tier 50)": {
+      "fileTitle": "File:Death guard (tier 50).png",
+      "identityMethod": "reviewed-tier-page-shared-artwork",
+      "infoboxName": "Death guard",
+      "tier": 50,
+      "itemPage": {
+        "title": "Death guard (tier 50)",
+        "revisionId": 36962225,
+        "timestamp": "2026-03-10T01:30:09Z",
+        "url": "https://runescape.wiki/w/Death_guard_(tier_50)?oldid=36962225"
+      },
+      "variants": [
+        {
+          "suffix": "",
+          "version": "",
+          "name": "Death guard",
+          "ids": [
+            55516
+          ],
+          "image": "[[File:Death guard (tier 50).png]]"
+        }
+      ],
+      "bonuses": [
+        {
+          "suffix": "",
+          "tier": "50"
+        }
+      ]
+    },
+    "Death guard (tier 60)": {
+      "fileTitle": "File:Death guard (tier 60).png",
+      "identityMethod": "reviewed-tier-page-shared-artwork",
+      "infoboxName": "Death guard",
+      "tier": 60,
+      "itemPage": {
+        "title": "Death guard (tier 60)",
+        "revisionId": 36962226,
+        "timestamp": "2026-03-10T01:30:50Z",
+        "url": "https://runescape.wiki/w/Death_guard_(tier_60)?oldid=36962226"
+      },
+      "variants": [
+        {
+          "suffix": "",
+          "version": "",
+          "name": "Death guard",
+          "ids": [
+            55520
+          ],
+          "image": "[[File:Death guard (tier 60).png]]"
+        }
+      ],
+      "bonuses": [
+        {
+          "suffix": "",
+          "tier": "60"
+        }
+      ]
+    },
+    "Death guard (tier 70)": {
+      "fileTitle": "File:Death guard (tier 70).png",
+      "identityMethod": "reviewed-tier-page-shared-artwork",
+      "infoboxName": "Death guard",
+      "tier": 70,
+      "itemPage": {
+        "title": "Death guard (tier 70)",
+        "revisionId": 37010310,
+        "timestamp": "2026-04-14T14:11:39Z",
+        "url": "https://runescape.wiki/w/Death_guard_(tier_70)?oldid=37010310"
+      },
+      "variants": [
+        {
+          "suffix": "",
+          "version": "",
+          "name": "Death guard",
+          "ids": [
+            55524
+          ],
+          "image": "[[File:Death guard (tier 70).png]]"
+        }
+      ],
+      "bonuses": [
+        {
+          "suffix": "",
+          "tier": "70"
+        }
+      ]
+    },
+    "Death guard (tier 80)": {
+      "fileTitle": "File:Death guard (tier 80).png",
+      "identityMethod": "reviewed-tier-page-shared-artwork",
+      "infoboxName": "Death guard",
+      "tier": 80,
+      "itemPage": {
+        "title": "Death guard (tier 80)",
+        "revisionId": 37010288,
+        "timestamp": "2026-04-14T14:00:21Z",
+        "url": "https://runescape.wiki/w/Death_guard_(tier_80)?oldid=37010288"
+      },
+      "variants": [
+        {
+          "suffix": "",
+          "version": "",
+          "name": "Death guard",
+          "ids": [
+            55532
+          ],
+          "image": "[[File:Death guard (tier 80).png]]"
+        }
+      ],
+      "bonuses": [
+        {
+          "suffix": "",
+          "tier": "80"
+        }
+      ]
+    },
+    "Death guard (tier 90)": {
+      "fileTitle": "File:Death guard (tier 90).png",
+      "identityMethod": "reviewed-tier-page-shared-artwork",
+      "infoboxName": "Death guard",
+      "tier": 90,
+      "itemPage": {
+        "title": "Death guard (tier 90)",
+        "revisionId": 37055809,
+        "timestamp": "2026-05-28T14:26:00Z",
+        "url": "https://runescape.wiki/w/Death_guard_(tier_90)?oldid=37055809"
+      },
+      "variants": [
+        {
+          "suffix": "",
+          "version": "",
+          "name": "Death guard",
+          "ids": [
+            55540
+          ],
+          "image": "[[File:Death guard (tier 90).png]]"
+        }
+      ],
+      "bonuses": [
+        {
+          "suffix": "",
+          "tier": "90"
+        }
+      ]
+    },
+    "Deathwarden boots (tier 10)": {
+      "fileTitle": "File:Deathwarden boots (tier 10).png",
+      "identityMethod": "reviewed-tier-page-shared-artwork",
+      "infoboxName": "Deathwarden boots",
+      "tier": 10,
+      "itemPage": {
+        "title": "Deathwarden boots (tier 10)",
+        "revisionId": 36993084,
+        "timestamp": "2026-03-30T00:19:13Z",
+        "url": "https://runescape.wiki/w/Deathwarden_boots_(tier_10)?oldid=36993084"
+      },
+      "variants": [
+        {
+          "suffix": "",
+          "version": "",
+          "name": "Deathwarden boots",
+          "ids": [
+            55345
+          ],
+          "image": "[[File:Deathwarden boots (tier 10).png]]"
+        }
+      ],
+      "bonuses": [
+        {
+          "suffix": "",
+          "tier": "10"
+        }
+      ]
+    },
+    "Deathwarden boots (tier 20)": {
+      "fileTitle": "File:Deathwarden boots (tier 20).png",
+      "identityMethod": "reviewed-tier-page-shared-artwork",
+      "infoboxName": "Deathwarden boots",
+      "tier": 20,
+      "itemPage": {
+        "title": "Deathwarden boots (tier 20)",
+        "revisionId": 36570599,
+        "timestamp": "2024-11-05T16:44:36Z",
+        "url": "https://runescape.wiki/w/Deathwarden_boots_(tier_20)?oldid=36570599"
+      },
+      "variants": [
+        {
+          "suffix": "",
+          "version": "",
+          "name": "Deathwarden boots",
+          "ids": [
+            55354
+          ],
+          "image": "[[File:Deathwarden boots (tier 20).png]]"
+        }
+      ],
+      "bonuses": [
+        {
+          "suffix": "",
+          "tier": "20"
+        }
+      ]
+    },
+    "Deathwarden boots (tier 30)": {
+      "fileTitle": "File:Deathwarden boots (tier 30).png",
+      "identityMethod": "reviewed-tier-page-shared-artwork",
+      "infoboxName": "Deathwarden boots",
+      "tier": 30,
+      "itemPage": {
+        "title": "Deathwarden boots (tier 30)",
+        "revisionId": 36570605,
+        "timestamp": "2024-11-05T16:45:57Z",
+        "url": "https://runescape.wiki/w/Deathwarden_boots_(tier_30)?oldid=36570605"
+      },
+      "variants": [
+        {
+          "suffix": "",
+          "version": "",
+          "name": "Deathwarden boots",
+          "ids": [
+            55364
+          ],
+          "image": "[[File:Deathwarden boots (tier 30).png]]"
+        }
+      ],
+      "bonuses": [
+        {
+          "suffix": "",
+          "tier": "30"
+        }
+      ]
+    },
+    "Deathwarden boots (tier 40)": {
+      "fileTitle": "File:Deathwarden boots (tier 40).png",
+      "identityMethod": "reviewed-tier-page-shared-artwork",
+      "infoboxName": "Deathwarden boots",
+      "tier": 40,
+      "itemPage": {
+        "title": "Deathwarden boots (tier 40)",
+        "revisionId": 36570618,
+        "timestamp": "2024-11-05T16:47:44Z",
+        "url": "https://runescape.wiki/w/Deathwarden_boots_(tier_40)?oldid=36570618"
+      },
+      "variants": [
+        {
+          "suffix": "",
+          "version": "",
+          "name": "Deathwarden boots",
+          "ids": [
+            55374
+          ],
+          "image": "[[File:Deathwarden boots (tier 40).png]]"
+        }
+      ],
+      "bonuses": [
+        {
+          "suffix": "",
+          "tier": "40"
+        }
+      ]
+    },
+    "Deathwarden boots (tier 50)": {
+      "fileTitle": "File:Deathwarden boots (tier 50).png",
+      "identityMethod": "reviewed-tier-page-shared-artwork",
+      "infoboxName": "Deathwarden boots",
+      "tier": 50,
+      "itemPage": {
+        "title": "Deathwarden boots (tier 50)",
+        "revisionId": 36570623,
+        "timestamp": "2024-11-05T16:48:34Z",
+        "url": "https://runescape.wiki/w/Deathwarden_boots_(tier_50)?oldid=36570623"
+      },
+      "variants": [
+        {
+          "suffix": "",
+          "version": "",
+          "name": "Deathwarden boots",
+          "ids": [
+            55384
+          ],
+          "image": "[[File:Deathwarden boots (tier 50).png]]"
+        }
+      ],
+      "bonuses": [
+        {
+          "suffix": "",
+          "tier": "50"
+        }
+      ]
+    },
+    "Deathwarden boots (tier 60)": {
+      "fileTitle": "File:Deathwarden boots (tier 60).png",
+      "identityMethod": "reviewed-tier-page-shared-artwork",
+      "infoboxName": "Deathwarden boots",
+      "tier": 60,
+      "itemPage": {
+        "title": "Deathwarden boots (tier 60)",
+        "revisionId": 36570629,
+        "timestamp": "2024-11-05T16:49:08Z",
+        "url": "https://runescape.wiki/w/Deathwarden_boots_(tier_60)?oldid=36570629"
+      },
+      "variants": [
+        {
+          "suffix": "",
+          "version": "",
+          "name": "Deathwarden boots",
+          "ids": [
+            55394
+          ],
+          "image": "[[File:Deathwarden boots (tier 60).png]]"
+        }
+      ],
+      "bonuses": [
+        {
+          "suffix": "",
+          "tier": "60"
+        }
+      ]
+    },
+    "Deathwarden boots (tier 70)": {
+      "fileTitle": "File:Deathwarden boots (tier 70).png",
+      "identityMethod": "reviewed-tier-page-shared-artwork",
+      "infoboxName": "Deathwarden boots",
+      "tier": 70,
+      "itemPage": {
+        "title": "Deathwarden boots (tier 70)",
+        "revisionId": 37010302,
+        "timestamp": "2026-04-14T14:04:43Z",
+        "url": "https://runescape.wiki/w/Deathwarden_boots_(tier_70)?oldid=37010302"
+      },
+      "variants": [
+        {
+          "suffix": "",
+          "version": "",
+          "name": "Deathwarden boots",
+          "ids": [
+            55404
+          ],
+          "image": "[[File:Deathwarden boots (tier 70).png]]"
+        }
+      ],
+      "bonuses": [
+        {
+          "suffix": "",
+          "tier": "70"
+        }
+      ]
+    },
+    "Deathwarden boots (tier 80)": {
+      "fileTitle": "File:Deathwarden boots (tier 80).png",
+      "identityMethod": "reviewed-tier-page-shared-artwork",
+      "infoboxName": "Deathwarden boots",
+      "tier": 80,
+      "itemPage": {
+        "title": "Deathwarden boots (tier 80)",
+        "revisionId": 37010294,
+        "timestamp": "2026-04-14T14:02:05Z",
+        "url": "https://runescape.wiki/w/Deathwarden_boots_(tier_80)?oldid=37010294"
+      },
+      "variants": [
+        {
+          "suffix": "",
+          "version": "",
+          "name": "Deathwarden boots",
+          "ids": [
+            55418
+          ],
+          "image": "[[File:Deathwarden boots (tier 80).png]]"
+        }
+      ],
+      "bonuses": [
+        {
+          "suffix": "",
+          "tier": "80"
+        }
+      ]
+    },
+    "Deathwarden boots (tier 90)": {
+      "fileTitle": "File:Deathwarden boots (tier 90).png",
+      "identityMethod": "reviewed-tier-page-shared-artwork",
+      "infoboxName": "Deathwarden boots",
+      "tier": 90,
+      "itemPage": {
+        "title": "Deathwarden boots (tier 90)",
+        "revisionId": 37010304,
+        "timestamp": "2026-04-14T14:05:08Z",
+        "url": "https://runescape.wiki/w/Deathwarden_boots_(tier_90)?oldid=37010304"
+      },
+      "variants": [
+        {
+          "suffix": "",
+          "version": "",
+          "name": "Deathwarden boots",
+          "ids": [
+            55432
+          ],
+          "image": "[[File:Deathwarden boots (tier 90).png]]"
+        }
+      ],
+      "bonuses": [
+        {
+          "suffix": "",
+          "tier": "90"
+        }
+      ]
+    },
+    "Deathwarden gloves (tier 10)": {
+      "fileTitle": "File:Deathwarden gloves (tier 10).png",
+      "identityMethod": "reviewed-tier-page-shared-artwork",
+      "infoboxName": "Deathwarden gloves",
+      "tier": 10,
+      "itemPage": {
+        "title": "Deathwarden gloves (tier 10)",
+        "revisionId": 36993086,
+        "timestamp": "2026-03-30T00:19:16Z",
+        "url": "https://runescape.wiki/w/Deathwarden_gloves_(tier_10)?oldid=36993086"
+      },
+      "variants": [
+        {
+          "suffix": "",
+          "version": "",
+          "name": "Deathwarden gloves",
+          "ids": [
+            55344
+          ],
+          "image": "[[File:Deathwarden gloves (tier 10).png]]"
+        }
+      ],
+      "bonuses": [
+        {
+          "suffix": "",
+          "tier": "10"
+        }
+      ]
+    },
+    "Deathwarden gloves (tier 20)": {
+      "fileTitle": "File:Deathwarden gloves (tier 20).png",
+      "identityMethod": "reviewed-tier-page-shared-artwork",
+      "infoboxName": "Deathwarden gloves",
+      "tier": 20,
+      "itemPage": {
+        "title": "Deathwarden gloves (tier 20)",
+        "revisionId": 36570600,
+        "timestamp": "2024-11-05T16:44:54Z",
+        "url": "https://runescape.wiki/w/Deathwarden_gloves_(tier_20)?oldid=36570600"
+      },
+      "variants": [
+        {
+          "suffix": "",
+          "version": "",
+          "name": "Deathwarden gloves",
+          "ids": [
+            55352
+          ],
+          "image": "[[File:Deathwarden gloves (tier 20).png]]"
+        }
+      ],
+      "bonuses": [
+        {
+          "suffix": "",
+          "tier": "20"
+        }
+      ]
+    },
+    "Deathwarden gloves (tier 30)": {
+      "fileTitle": "File:Deathwarden gloves (tier 30).png",
+      "identityMethod": "reviewed-tier-page-shared-artwork",
+      "infoboxName": "Deathwarden gloves",
+      "tier": 30,
+      "itemPage": {
+        "title": "Deathwarden gloves (tier 30)",
+        "revisionId": 36570607,
+        "timestamp": "2024-11-05T16:46:04Z",
+        "url": "https://runescape.wiki/w/Deathwarden_gloves_(tier_30)?oldid=36570607"
+      },
+      "variants": [
+        {
+          "suffix": "",
+          "version": "",
+          "name": "Deathwarden gloves",
+          "ids": [
+            55362
+          ],
+          "image": "[[File:Deathwarden gloves (tier 30).png]]"
+        }
+      ],
+      "bonuses": [
+        {
+          "suffix": "",
+          "tier": "30"
+        }
+      ]
+    },
+    "Deathwarden gloves (tier 40)": {
+      "fileTitle": "File:Deathwarden gloves (tier 40).png",
+      "identityMethod": "reviewed-tier-page-shared-artwork",
+      "infoboxName": "Deathwarden gloves",
+      "tier": 40,
+      "itemPage": {
+        "title": "Deathwarden gloves (tier 40)",
+        "revisionId": 36570617,
+        "timestamp": "2024-11-05T16:47:38Z",
+        "url": "https://runescape.wiki/w/Deathwarden_gloves_(tier_40)?oldid=36570617"
+      },
+      "variants": [
+        {
+          "suffix": "",
+          "version": "",
+          "name": "Deathwarden gloves",
+          "ids": [
+            55372
+          ],
+          "image": "[[File:Deathwarden gloves (tier 40).png]]"
+        }
+      ],
+      "bonuses": [
+        {
+          "suffix": "",
+          "tier": "40"
+        }
+      ]
+    },
+    "Deathwarden gloves (tier 50)": {
+      "fileTitle": "File:Deathwarden gloves (tier 50).png",
+      "identityMethod": "reviewed-tier-page-shared-artwork",
+      "infoboxName": "Deathwarden gloves",
+      "tier": 50,
+      "itemPage": {
+        "title": "Deathwarden gloves (tier 50)",
+        "revisionId": 36570624,
+        "timestamp": "2024-11-05T16:48:37Z",
+        "url": "https://runescape.wiki/w/Deathwarden_gloves_(tier_50)?oldid=36570624"
+      },
+      "variants": [
+        {
+          "suffix": "",
+          "version": "",
+          "name": "Deathwarden gloves",
+          "ids": [
+            55382
+          ],
+          "image": "[[File:Deathwarden gloves (tier 50).png]]"
+        }
+      ],
+      "bonuses": [
+        {
+          "suffix": "",
+          "tier": "50"
+        }
+      ]
+    },
+    "Deathwarden gloves (tier 60)": {
+      "fileTitle": "File:Deathwarden gloves (tier 60).png",
+      "identityMethod": "reviewed-tier-page-shared-artwork",
+      "infoboxName": "Deathwarden gloves",
+      "tier": 60,
+      "itemPage": {
+        "title": "Deathwarden gloves (tier 60)",
+        "revisionId": 36570631,
+        "timestamp": "2024-11-05T16:49:11Z",
+        "url": "https://runescape.wiki/w/Deathwarden_gloves_(tier_60)?oldid=36570631"
+      },
+      "variants": [
+        {
+          "suffix": "",
+          "version": "",
+          "name": "Deathwarden gloves",
+          "ids": [
+            55392
+          ],
+          "image": "[[File:Deathwarden gloves (tier 60).png]]"
+        }
+      ],
+      "bonuses": [
+        {
+          "suffix": "",
+          "tier": "60"
+        }
+      ]
+    },
+    "Deathwarden gloves (tier 70)": {
+      "fileTitle": "File:Deathwarden gloves (tier 70).png",
+      "identityMethod": "reviewed-tier-page-shared-artwork",
+      "infoboxName": "Deathwarden gloves",
+      "tier": 70,
+      "itemPage": {
+        "title": "Deathwarden gloves (tier 70)",
+        "revisionId": 37010293,
+        "timestamp": "2026-04-14T14:01:54Z",
+        "url": "https://runescape.wiki/w/Deathwarden_gloves_(tier_70)?oldid=37010293"
+      },
+      "variants": [
+        {
+          "suffix": "",
+          "version": "",
+          "name": "Deathwarden gloves",
+          "ids": [
+            55402
+          ],
+          "image": "[[File:Deathwarden gloves (tier 70).png]]"
+        }
+      ],
+      "bonuses": [
+        {
+          "suffix": "",
+          "tier": "70"
+        }
+      ]
+    },
+    "Deathwarden gloves (tier 80)": {
+      "fileTitle": "File:Deathwarden gloves (tier 80).png",
+      "identityMethod": "reviewed-tier-page-shared-artwork",
+      "infoboxName": "Deathwarden gloves",
+      "tier": 80,
+      "itemPage": {
+        "title": "Deathwarden gloves (tier 80)",
+        "revisionId": 37010303,
+        "timestamp": "2026-04-14T14:04:54Z",
+        "url": "https://runescape.wiki/w/Deathwarden_gloves_(tier_80)?oldid=37010303"
+      },
+      "variants": [
+        {
+          "suffix": "",
+          "version": "",
+          "name": "Deathwarden gloves",
+          "ids": [
+            55416
+          ],
+          "image": "[[File:Deathwarden gloves (tier 80).png]]"
+        }
+      ],
+      "bonuses": [
+        {
+          "suffix": "",
+          "tier": "80"
+        }
+      ]
+    },
+    "Deathwarden gloves (tier 90)": {
+      "fileTitle": "File:Deathwarden gloves (tier 90).png",
+      "identityMethod": "reviewed-tier-page-shared-artwork",
+      "infoboxName": "Deathwarden gloves",
+      "tier": 90,
+      "itemPage": {
+        "title": "Deathwarden gloves (tier 90)",
+        "revisionId": 37010305,
+        "timestamp": "2026-04-14T14:05:20Z",
+        "url": "https://runescape.wiki/w/Deathwarden_gloves_(tier_90)?oldid=37010305"
+      },
+      "variants": [
+        {
+          "suffix": "",
+          "version": "",
+          "name": "Deathwarden gloves",
+          "ids": [
+            55430
+          ],
+          "image": "[[File:Deathwarden gloves (tier 90).png]]"
+        }
+      ],
+      "bonuses": [
+        {
+          "suffix": "",
+          "tier": "90"
+        }
+      ]
+    },
+    "Deathwarden hood (tier 10)": {
+      "fileTitle": "File:Deathwarden hood (tier 10).png",
+      "identityMethod": "reviewed-tier-page-shared-artwork",
+      "infoboxName": "Deathwarden hood",
+      "tier": 10,
+      "itemPage": {
+        "title": "Deathwarden hood (tier 10)",
+        "revisionId": 36993083,
+        "timestamp": "2026-03-30T00:18:56Z",
+        "url": "https://runescape.wiki/w/Deathwarden_hood_(tier_10)?oldid=36993083"
+      },
+      "variants": [
+        {
+          "suffix": "",
+          "version": "",
+          "name": "Deathwarden hood",
+          "ids": [
+            55341
+          ],
+          "image": "[[File:Deathwarden hood (tier 10).png]]"
+        }
+      ],
+      "bonuses": [
+        {
+          "suffix": "",
+          "tier": "10"
+        }
+      ]
+    },
+    "Deathwarden hood (tier 20)": {
+      "fileTitle": "File:Deathwarden hood (tier 20).png",
+      "identityMethod": "reviewed-tier-page-shared-artwork",
+      "infoboxName": "Deathwarden hood",
+      "tier": 20,
+      "itemPage": {
+        "title": "Deathwarden hood (tier 20)",
+        "revisionId": 36787893,
+        "timestamp": "2025-07-30T01:59:41Z",
+        "url": "https://runescape.wiki/w/Deathwarden_hood_(tier_20)?oldid=36787893"
+      },
+      "variants": [
+        {
+          "suffix": "",
+          "version": "",
+          "name": "Deathwarden hood",
+          "ids": [
+            55346
+          ],
+          "image": "[[File:Deathwarden hood (tier 20).png]]"
+        }
+      ],
+      "bonuses": [
+        {
+          "suffix": "",
+          "tier": "20"
+        }
+      ]
+    },
+    "Deathwarden hood (tier 30)": {
+      "fileTitle": "File:Deathwarden hood (tier 30).png",
+      "identityMethod": "reviewed-tier-page-shared-artwork",
+      "infoboxName": "Deathwarden hood",
+      "tier": 30,
+      "itemPage": {
+        "title": "Deathwarden hood (tier 30)",
+        "revisionId": 36787894,
+        "timestamp": "2025-07-30T01:59:47Z",
+        "url": "https://runescape.wiki/w/Deathwarden_hood_(tier_30)?oldid=36787894"
+      },
+      "variants": [
+        {
+          "suffix": "",
+          "version": "",
+          "name": "Deathwarden hood",
+          "ids": [
+            55356
+          ],
+          "image": "[[File:Deathwarden hood (tier 30).png]]"
+        }
+      ],
+      "bonuses": [
+        {
+          "suffix": "",
+          "tier": "30"
+        }
+      ]
+    },
+    "Deathwarden hood (tier 40)": {
+      "fileTitle": "File:Deathwarden hood (tier 40).png",
+      "identityMethod": "reviewed-tier-page-shared-artwork",
+      "infoboxName": "Deathwarden hood",
+      "tier": 40,
+      "itemPage": {
+        "title": "Deathwarden hood (tier 40)",
+        "revisionId": 36787895,
+        "timestamp": "2025-07-30T01:59:52Z",
+        "url": "https://runescape.wiki/w/Deathwarden_hood_(tier_40)?oldid=36787895"
+      },
+      "variants": [
+        {
+          "suffix": "",
+          "version": "",
+          "name": "Deathwarden hood",
+          "ids": [
+            55366
+          ],
+          "image": "[[File:Deathwarden hood (tier 40).png]]"
+        }
+      ],
+      "bonuses": [
+        {
+          "suffix": "",
+          "tier": "40"
+        }
+      ]
+    },
+    "Deathwarden hood (tier 50)": {
+      "fileTitle": "File:Deathwarden hood (tier 50).png",
+      "identityMethod": "reviewed-tier-page-shared-artwork",
+      "infoboxName": "Deathwarden hood",
+      "tier": 50,
+      "itemPage": {
+        "title": "Deathwarden hood (tier 50)",
+        "revisionId": 36703146,
+        "timestamp": "2025-04-19T14:05:18Z",
+        "url": "https://runescape.wiki/w/Deathwarden_hood_(tier_50)?oldid=36703146"
+      },
+      "variants": [
+        {
+          "suffix": "",
+          "version": "",
+          "name": "Deathwarden hood",
+          "ids": [
+            55376
+          ],
+          "image": "[[File:Deathwarden hood (tier 50).png]]"
+        }
+      ],
+      "bonuses": [
+        {
+          "suffix": "",
+          "tier": "50"
+        }
+      ]
+    },
+    "Deathwarden hood (tier 60)": {
+      "fileTitle": "File:Deathwarden hood (tier 60).png",
+      "identityMethod": "reviewed-tier-page-shared-artwork",
+      "infoboxName": "Deathwarden hood",
+      "tier": 60,
+      "itemPage": {
+        "title": "Deathwarden hood (tier 60)",
+        "revisionId": 36787896,
+        "timestamp": "2025-07-30T01:59:59Z",
+        "url": "https://runescape.wiki/w/Deathwarden_hood_(tier_60)?oldid=36787896"
+      },
+      "variants": [
+        {
+          "suffix": "",
+          "version": "",
+          "name": "Deathwarden hood",
+          "ids": [
+            55386
+          ],
+          "image": "[[File:Deathwarden hood (tier 60).png]]"
+        }
+      ],
+      "bonuses": [
+        {
+          "suffix": "",
+          "tier": "60"
+        }
+      ]
+    },
+    "Deathwarden hood (tier 70)": {
+      "fileTitle": "File:Deathwarden hood (tier 70).png",
+      "identityMethod": "reviewed-tier-page-shared-artwork",
+      "infoboxName": "Deathwarden hood",
+      "tier": 70,
+      "itemPage": {
+        "title": "Deathwarden hood (tier 70)",
+        "revisionId": 37010271,
+        "timestamp": "2026-04-14T13:54:03Z",
+        "url": "https://runescape.wiki/w/Deathwarden_hood_(tier_70)?oldid=37010271"
+      },
+      "variants": [
+        {
+          "suffix": "",
+          "version": "",
+          "name": "Deathwarden hood",
+          "ids": [
+            55396
+          ],
+          "image": "[[File:Deathwarden hood (tier 70).png]]"
+        }
+      ],
+      "bonuses": [
+        {
+          "suffix": "",
+          "tier": "70"
+        }
+      ]
+    },
+    "Deathwarden hood (tier 80)": {
+      "fileTitle": "File:Deathwarden hood (tier 80).png",
+      "identityMethod": "reviewed-tier-page-shared-artwork",
+      "infoboxName": "Deathwarden hood",
+      "tier": 80,
+      "itemPage": {
+        "title": "Deathwarden hood (tier 80)",
+        "revisionId": 37010301,
+        "timestamp": "2026-04-14T14:04:32Z",
+        "url": "https://runescape.wiki/w/Deathwarden_hood_(tier_80)?oldid=37010301"
+      },
+      "variants": [
+        {
+          "suffix": "",
+          "version": "",
+          "name": "Deathwarden hood",
+          "ids": [
+            55410
+          ],
+          "image": "[[File:Deathwarden hood (tier 80).png]]"
+        }
+      ],
+      "bonuses": [
+        {
+          "suffix": "",
+          "tier": "80"
+        }
+      ]
+    },
+    "Deathwarden hood (tier 90)": {
+      "fileTitle": "File:Deathwarden hood (tier 90).png",
+      "identityMethod": "reviewed-tier-page-shared-artwork",
+      "infoboxName": "Deathwarden hood",
+      "tier": 90,
+      "itemPage": {
+        "title": "Deathwarden hood (tier 90)",
+        "revisionId": 36988946,
+        "timestamp": "2026-03-27T13:24:20Z",
+        "url": "https://runescape.wiki/w/Deathwarden_hood_(tier_90)?oldid=36988946"
+      },
+      "variants": [
+        {
+          "suffix": "",
+          "version": "",
+          "name": "Deathwarden hood",
+          "ids": [
+            55424
+          ],
+          "image": "[[File:Deathwarden hood (tier 90).png]]"
+        }
+      ],
+      "bonuses": [
+        {
+          "suffix": "",
+          "tier": "90"
+        }
+      ]
+    },
+    "Deathwarden robe bottom (tier 10)": {
+      "fileTitle": "File:Deathwarden robe bottom (tier 10).png",
+      "identityMethod": "reviewed-tier-page-shared-artwork",
+      "infoboxName": "Deathwarden robe bottom",
+      "tier": 10,
+      "itemPage": {
+        "title": "Deathwarden robe bottom (tier 10)",
+        "revisionId": 36993087,
+        "timestamp": "2026-03-30T00:19:19Z",
+        "url": "https://runescape.wiki/w/Deathwarden_robe_bottom_(tier_10)?oldid=36993087"
+      },
+      "variants": [
+        {
+          "suffix": "",
+          "version": "",
+          "name": "Deathwarden robe bottom",
+          "ids": [
+            55343
+          ],
+          "image": "[[File:Deathwarden robe bottom (tier 10).png]]"
+        }
+      ],
+      "bonuses": [
+        {
+          "suffix": "",
+          "tier": "10"
+        }
+      ]
+    },
+    "Deathwarden robe bottom (tier 20)": {
+      "fileTitle": "File:Deathwarden robe bottom (tier 20).png",
+      "identityMethod": "reviewed-tier-page-shared-artwork",
+      "infoboxName": "Deathwarden robe bottom",
+      "tier": 20,
+      "itemPage": {
+        "title": "Deathwarden robe bottom (tier 20)",
+        "revisionId": 36570601,
+        "timestamp": "2024-11-05T16:45:01Z",
+        "url": "https://runescape.wiki/w/Deathwarden_robe_bottom_(tier_20)?oldid=36570601"
+      },
+      "variants": [
+        {
+          "suffix": "",
+          "version": "",
+          "name": "Deathwarden robe bottom",
+          "ids": [
+            55350
+          ],
+          "image": "[[File:Deathwarden robe bottom (tier 20).png]]"
+        }
+      ],
+      "bonuses": [
+        {
+          "suffix": "",
+          "tier": "20"
+        }
+      ]
+    },
+    "Deathwarden robe bottom (tier 30)": {
+      "fileTitle": "File:Deathwarden robe bottom (tier 30).png",
+      "identityMethod": "reviewed-tier-page-shared-artwork",
+      "infoboxName": "Deathwarden robe bottom",
+      "tier": 30,
+      "itemPage": {
+        "title": "Deathwarden robe bottom (tier 30)",
+        "revisionId": 36570608,
+        "timestamp": "2024-11-05T16:46:08Z",
+        "url": "https://runescape.wiki/w/Deathwarden_robe_bottom_(tier_30)?oldid=36570608"
+      },
+      "variants": [
+        {
+          "suffix": "",
+          "version": "",
+          "name": "Deathwarden robe bottom",
+          "ids": [
+            55360
+          ],
+          "image": "[[File:Deathwarden robe bottom (tier 30).png]]"
+        }
+      ],
+      "bonuses": [
+        {
+          "suffix": "",
+          "tier": "30"
+        }
+      ]
+    },
+    "Deathwarden robe bottom (tier 40)": {
+      "fileTitle": "File:Deathwarden robe bottom (tier 40).png",
+      "identityMethod": "reviewed-tier-page-shared-artwork",
+      "infoboxName": "Deathwarden robe bottom",
+      "tier": 40,
+      "itemPage": {
+        "title": "Deathwarden robe bottom (tier 40)",
+        "revisionId": 36570620,
+        "timestamp": "2024-11-05T16:47:55Z",
+        "url": "https://runescape.wiki/w/Deathwarden_robe_bottom_(tier_40)?oldid=36570620"
+      },
+      "variants": [
+        {
+          "suffix": "",
+          "version": "",
+          "name": "Deathwarden robe bottom",
+          "ids": [
+            55370
+          ],
+          "image": "[[File:Deathwarden robe bottom (tier 40).png]]"
+        }
+      ],
+      "bonuses": [
+        {
+          "suffix": "",
+          "tier": "40"
+        }
+      ]
+    },
+    "Deathwarden robe bottom (tier 50)": {
+      "fileTitle": "File:Deathwarden robe bottom (tier 50).png",
+      "identityMethod": "reviewed-tier-page-shared-artwork",
+      "infoboxName": "Deathwarden robe bottom",
+      "tier": 50,
+      "itemPage": {
+        "title": "Deathwarden robe bottom (tier 50)",
+        "revisionId": 36570625,
+        "timestamp": "2024-11-05T16:48:41Z",
+        "url": "https://runescape.wiki/w/Deathwarden_robe_bottom_(tier_50)?oldid=36570625"
+      },
+      "variants": [
+        {
+          "suffix": "",
+          "version": "",
+          "name": "Deathwarden robe bottom",
+          "ids": [
+            55380
+          ],
+          "image": "[[File:Deathwarden robe bottom (tier 50).png]]"
+        }
+      ],
+      "bonuses": [
+        {
+          "suffix": "",
+          "tier": "50"
+        }
+      ]
+    },
+    "Deathwarden robe bottom (tier 60)": {
+      "fileTitle": "File:Deathwarden robe bottom (tier 60).png",
+      "identityMethod": "reviewed-tier-page-shared-artwork",
+      "infoboxName": "Deathwarden robe bottom",
+      "tier": 60,
+      "itemPage": {
+        "title": "Deathwarden robe bottom (tier 60)",
+        "revisionId": 36570632,
+        "timestamp": "2024-11-05T16:49:15Z",
+        "url": "https://runescape.wiki/w/Deathwarden_robe_bottom_(tier_60)?oldid=36570632"
+      },
+      "variants": [
+        {
+          "suffix": "",
+          "version": "",
+          "name": "Deathwarden robe bottom",
+          "ids": [
+            55390
+          ],
+          "image": "[[File:Deathwarden robe bottom (tier 60).png]]"
+        }
+      ],
+      "bonuses": [
+        {
+          "suffix": "",
+          "tier": "60"
+        }
+      ]
+    },
+    "Deathwarden robe bottom (tier 70)": {
+      "fileTitle": "File:Deathwarden robe bottom (tier 70).png",
+      "identityMethod": "reviewed-tier-page-shared-artwork",
+      "infoboxName": "Deathwarden robe bottom",
+      "tier": 70,
+      "itemPage": {
+        "title": "Deathwarden robe bottom (tier 70)",
+        "revisionId": 37085819,
+        "timestamp": "2026-07-04T17:56:21Z",
+        "url": "https://runescape.wiki/w/Deathwarden_robe_bottom_(tier_70)?oldid=37085819"
+      },
+      "variants": [
+        {
+          "suffix": "",
+          "version": "",
+          "name": "Deathwarden robe bottom",
+          "ids": [
+            55400
+          ],
+          "image": "[[File:Deathwarden robe bottom (tier 70).png]]"
+        }
+      ],
+      "bonuses": [
+        {
+          "suffix": "",
+          "tier": "70"
+        }
+      ]
+    },
+    "Deathwarden robe bottom (tier 80)": {
+      "fileTitle": "File:Deathwarden robe bottom (tier 80).png",
+      "identityMethod": "reviewed-tier-page-shared-artwork",
+      "infoboxName": "Deathwarden robe bottom",
+      "tier": 80,
+      "itemPage": {
+        "title": "Deathwarden robe bottom (tier 80)",
+        "revisionId": 37010297,
+        "timestamp": "2026-04-14T14:03:54Z",
+        "url": "https://runescape.wiki/w/Deathwarden_robe_bottom_(tier_80)?oldid=37010297"
+      },
+      "variants": [
+        {
+          "suffix": "",
+          "version": "",
+          "name": "Deathwarden robe bottom",
+          "ids": [
+            55414
+          ],
+          "image": "[[File:Deathwarden robe bottom (tier 80).png]]"
+        }
+      ],
+      "bonuses": [
+        {
+          "suffix": "",
+          "tier": "80"
+        }
+      ]
+    },
+    "Deathwarden robe bottom (tier 90)": {
+      "fileTitle": "File:Deathwarden robe bottom (tier 90).png",
+      "identityMethod": "reviewed-tier-page-shared-artwork",
+      "infoboxName": "Deathwarden robe bottom",
+      "tier": 90,
+      "itemPage": {
+        "title": "Deathwarden robe bottom (tier 90)",
+        "revisionId": 37010306,
+        "timestamp": "2026-04-14T14:05:32Z",
+        "url": "https://runescape.wiki/w/Deathwarden_robe_bottom_(tier_90)?oldid=37010306"
+      },
+      "variants": [
+        {
+          "suffix": "",
+          "version": "",
+          "name": "Deathwarden robe bottom",
+          "ids": [
+            55428
+          ],
+          "image": "[[File:Deathwarden robe bottom (tier 90).png]]"
+        }
+      ],
+      "bonuses": [
+        {
+          "suffix": "",
+          "tier": "90"
+        }
+      ]
+    },
+    "Deathwarden robe top (tier 10)": {
+      "fileTitle": "File:Deathwarden robe top (tier 10).png",
+      "identityMethod": "reviewed-tier-page-shared-artwork",
+      "infoboxName": "Deathwarden robe top",
+      "tier": 10,
+      "itemPage": {
+        "title": "Deathwarden robe top (tier 10)",
+        "revisionId": 36993088,
+        "timestamp": "2026-03-30T00:19:23Z",
+        "url": "https://runescape.wiki/w/Deathwarden_robe_top_(tier_10)?oldid=36993088"
+      },
+      "variants": [
+        {
+          "suffix": "",
+          "version": "",
+          "name": "Deathwarden robe top",
+          "ids": [
+            55342
+          ],
+          "image": "[[File:Deathwarden robe top (tier 10).png]]"
+        }
+      ],
+      "bonuses": [
+        {
+          "suffix": "",
+          "tier": "10"
+        }
+      ]
+    },
+    "Deathwarden robe top (tier 20)": {
+      "fileTitle": "File:Deathwarden robe top (tier 20).png",
+      "identityMethod": "reviewed-tier-page-shared-artwork",
+      "infoboxName": "Deathwarden robe top",
+      "tier": 20,
+      "itemPage": {
+        "title": "Deathwarden robe top (tier 20)",
+        "revisionId": 36570602,
+        "timestamp": "2024-11-05T16:45:05Z",
+        "url": "https://runescape.wiki/w/Deathwarden_robe_top_(tier_20)?oldid=36570602"
+      },
+      "variants": [
+        {
+          "suffix": "",
+          "version": "",
+          "name": "Deathwarden robe top",
+          "ids": [
+            55348
+          ],
+          "image": "[[File:Deathwarden robe top (tier 20).png]]"
+        }
+      ],
+      "bonuses": [
+        {
+          "suffix": "",
+          "tier": "20"
+        }
+      ]
+    },
+    "Deathwarden robe top (tier 30)": {
+      "fileTitle": "File:Deathwarden robe top (tier 30).png",
+      "identityMethod": "reviewed-tier-page-shared-artwork",
+      "infoboxName": "Deathwarden robe top",
+      "tier": 30,
+      "itemPage": {
+        "title": "Deathwarden robe top (tier 30)",
+        "revisionId": 36596818,
+        "timestamp": "2024-12-05T12:37:20Z",
+        "url": "https://runescape.wiki/w/Deathwarden_robe_top_(tier_30)?oldid=36596818"
+      },
+      "variants": [
+        {
+          "suffix": "",
+          "version": "",
+          "name": "Deathwarden robe top",
+          "ids": [
+            55358
+          ],
+          "image": "[[File:Deathwarden robe top (tier 30).png]]"
+        }
+      ],
+      "bonuses": [
+        {
+          "suffix": "",
+          "tier": "30"
+        }
+      ]
+    },
+    "Deathwarden robe top (tier 40)": {
+      "fileTitle": "File:Deathwarden robe top (tier 40).png",
+      "identityMethod": "reviewed-tier-page-shared-artwork",
+      "infoboxName": "Deathwarden robe top",
+      "tier": 40,
+      "itemPage": {
+        "title": "Deathwarden robe top (tier 40)",
+        "revisionId": 36596815,
+        "timestamp": "2024-12-05T12:36:52Z",
+        "url": "https://runescape.wiki/w/Deathwarden_robe_top_(tier_40)?oldid=36596815"
+      },
+      "variants": [
+        {
+          "suffix": "",
+          "version": "",
+          "name": "Deathwarden robe top",
+          "ids": [
+            55368
+          ],
+          "image": "[[File:Deathwarden robe top (tier 40).png]]"
+        }
+      ],
+      "bonuses": [
+        {
+          "suffix": "",
+          "tier": "40"
+        }
+      ]
+    },
+    "Deathwarden robe top (tier 50)": {
+      "fileTitle": "File:Deathwarden robe top (tier 50).png",
+      "identityMethod": "reviewed-tier-page-shared-artwork",
+      "infoboxName": "Deathwarden robe top",
+      "tier": 50,
+      "itemPage": {
+        "title": "Deathwarden robe top (tier 50)",
+        "revisionId": 36596816,
+        "timestamp": "2024-12-05T12:37:03Z",
+        "url": "https://runescape.wiki/w/Deathwarden_robe_top_(tier_50)?oldid=36596816"
+      },
+      "variants": [
+        {
+          "suffix": "",
+          "version": "",
+          "name": "Deathwarden robe top",
+          "ids": [
+            55378
+          ],
+          "image": "[[File:Deathwarden robe top (tier 50).png]]"
+        }
+      ],
+      "bonuses": [
+        {
+          "suffix": "",
+          "tier": "50"
+        }
+      ]
+    },
+    "Deathwarden robe top (tier 60)": {
+      "fileTitle": "File:Deathwarden robe top (tier 60).png",
+      "identityMethod": "reviewed-tier-page-shared-artwork",
+      "infoboxName": "Deathwarden robe top",
+      "tier": 60,
+      "itemPage": {
+        "title": "Deathwarden robe top (tier 60)",
+        "revisionId": 36596817,
+        "timestamp": "2024-12-05T12:37:13Z",
+        "url": "https://runescape.wiki/w/Deathwarden_robe_top_(tier_60)?oldid=36596817"
+      },
+      "variants": [
+        {
+          "suffix": "",
+          "version": "",
+          "name": "Deathwarden robe top",
+          "ids": [
+            55388
+          ],
+          "image": "[[File:Deathwarden robe top (tier 60).png]]"
+        }
+      ],
+      "bonuses": [
+        {
+          "suffix": "",
+          "tier": "60"
+        }
+      ]
+    },
+    "Deathwarden robe top (tier 70)": {
+      "fileTitle": "File:Deathwarden robe top (tier 70).png",
+      "identityMethod": "reviewed-tier-page-shared-artwork",
+      "infoboxName": "Deathwarden robe top",
+      "tier": 70,
+      "itemPage": {
+        "title": "Deathwarden robe top (tier 70)",
+        "revisionId": 37010296,
+        "timestamp": "2026-04-14T14:03:41Z",
+        "url": "https://runescape.wiki/w/Deathwarden_robe_top_(tier_70)?oldid=37010296"
+      },
+      "variants": [
+        {
+          "suffix": "",
+          "version": "",
+          "name": "Deathwarden robe top",
+          "ids": [
+            55398
+          ],
+          "image": "[[File:Deathwarden robe top (tier 70).png]]"
+        }
+      ],
+      "bonuses": [
+        {
+          "suffix": "",
+          "tier": "70"
+        }
+      ]
+    },
+    "Deathwarden robe top (tier 80)": {
+      "fileTitle": "File:Deathwarden robe top (tier 80).png",
+      "identityMethod": "reviewed-tier-page-shared-artwork",
+      "infoboxName": "Deathwarden robe top",
+      "tier": 80,
+      "itemPage": {
+        "title": "Deathwarden robe top (tier 80)",
+        "revisionId": 37010300,
+        "timestamp": "2026-04-14T14:04:21Z",
+        "url": "https://runescape.wiki/w/Deathwarden_robe_top_(tier_80)?oldid=37010300"
+      },
+      "variants": [
+        {
+          "suffix": "",
+          "version": "",
+          "name": "Deathwarden robe top",
+          "ids": [
+            55412
+          ],
+          "image": "[[File:Deathwarden robe top (tier 80).png]]"
+        }
+      ],
+      "bonuses": [
+        {
+          "suffix": "",
+          "tier": "80"
+        }
+      ]
+    },
+    "Deathwarden robe top (tier 90)": {
+      "fileTitle": "File:Deathwarden robe top (tier 90).png",
+      "identityMethod": "reviewed-tier-page-shared-artwork",
+      "infoboxName": "Deathwarden robe top",
+      "tier": 90,
+      "itemPage": {
+        "title": "Deathwarden robe top (tier 90)",
+        "revisionId": 37010298,
+        "timestamp": "2026-04-14T14:04:06Z",
+        "url": "https://runescape.wiki/w/Deathwarden_robe_top_(tier_90)?oldid=37010298"
+      },
+      "variants": [
+        {
+          "suffix": "",
+          "version": "",
+          "name": "Deathwarden robe top",
+          "ids": [
+            55426
+          ],
+          "image": "[[File:Deathwarden robe top (tier 90).png]]"
+        }
+      ],
+      "bonuses": [
+        {
+          "suffix": "",
+          "tier": "90"
+        }
+      ]
+    },
+    "Skull lantern (tier 10)": {
+      "fileTitle": "File:Skull lantern (tier 10).png",
+      "identityMethod": "reviewed-tier-page-shared-artwork",
+      "infoboxName": "Skull lantern",
+      "tier": 10,
+      "itemPage": {
+        "title": "Skull lantern (tier 10)",
+        "revisionId": 36962233,
+        "timestamp": "2026-03-10T01:39:16Z",
+        "url": "https://runescape.wiki/w/Skull_lantern_(tier_10)?oldid=36962233"
+      },
+      "variants": [
+        {
+          "suffix": "1",
+          "version": "During Necromancy!",
+          "name": "Skull lantern",
+          "ids": [
+            55503
+          ],
+          "image": "[[File:Skull lantern (tier 10).png]]"
+        },
+        {
+          "suffix": "2",
+          "version": "After Necromancy!",
+          "name": "Skull lantern",
+          "ids": [
+            55503
+          ],
+          "image": "[[File:Skull lantern (tier 10).png]]"
+        }
+      ],
+      "bonuses": [
+        {
+          "suffix": "",
+          "tier": "10"
+        }
+      ]
+    },
+    "Skull lantern (tier 20)": {
+      "fileTitle": "File:Skull lantern (tier 20).png",
+      "identityMethod": "reviewed-tier-page-shared-artwork",
+      "infoboxName": "Skull lantern",
+      "tier": 20,
+      "itemPage": {
+        "title": "Skull lantern (tier 20)",
+        "revisionId": 36962234,
+        "timestamp": "2026-03-10T01:40:02Z",
+        "url": "https://runescape.wiki/w/Skull_lantern_(tier_20)?oldid=36962234"
+      },
+      "variants": [
+        {
+          "suffix": "",
+          "version": "",
+          "name": "Skull lantern",
+          "ids": [
+            55506
+          ],
+          "image": "[[File:Skull lantern (tier 20).png]]"
+        }
+      ],
+      "bonuses": [
+        {
+          "suffix": "",
+          "tier": "20"
+        }
+      ]
+    },
+    "Skull lantern (tier 30)": {
+      "fileTitle": "File:Skull lantern (tier 30).png",
+      "identityMethod": "reviewed-tier-page-shared-artwork",
+      "infoboxName": "Skull lantern",
+      "tier": 30,
+      "itemPage": {
+        "title": "Skull lantern (tier 30)",
+        "revisionId": 36962235,
+        "timestamp": "2026-03-10T01:41:50Z",
+        "url": "https://runescape.wiki/w/Skull_lantern_(tier_30)?oldid=36962235"
+      },
+      "variants": [
+        {
+          "suffix": "",
+          "version": "",
+          "name": "Skull lantern",
+          "ids": [
+            55510
+          ],
+          "image": "[[File:Skull lantern (tier 30).png]]"
+        }
+      ],
+      "bonuses": [
+        {
+          "suffix": "",
+          "tier": "30"
+        }
+      ]
+    },
+    "Skull lantern (tier 40)": {
+      "fileTitle": "File:Skull lantern (tier 40).png",
+      "identityMethod": "reviewed-tier-page-shared-artwork",
+      "infoboxName": "Skull lantern",
+      "tier": 40,
+      "itemPage": {
+        "title": "Skull lantern (tier 40)",
+        "revisionId": 36962236,
+        "timestamp": "2026-03-10T01:42:41Z",
+        "url": "https://runescape.wiki/w/Skull_lantern_(tier_40)?oldid=36962236"
+      },
+      "variants": [
+        {
+          "suffix": "",
+          "version": "",
+          "name": "Skull lantern",
+          "ids": [
+            55514
+          ],
+          "image": "[[File:Skull lantern (tier 40).png]]"
+        }
+      ],
+      "bonuses": [
+        {
+          "suffix": "",
+          "tier": "40"
+        }
+      ]
+    },
+    "Skull lantern (tier 50)": {
+      "fileTitle": "File:Skull lantern (tier 50).png",
+      "identityMethod": "reviewed-tier-page-shared-artwork",
+      "infoboxName": "Skull lantern",
+      "tier": 50,
+      "itemPage": {
+        "title": "Skull lantern (tier 50)",
+        "revisionId": 36962237,
+        "timestamp": "2026-03-10T01:43:51Z",
+        "url": "https://runescape.wiki/w/Skull_lantern_(tier_50)?oldid=36962237"
+      },
+      "variants": [
+        {
+          "suffix": "",
+          "version": "",
+          "name": "Skull lantern",
+          "ids": [
+            55518
+          ],
+          "image": "[[File:Skull lantern (tier 50).png]]"
+        }
+      ],
+      "bonuses": [
+        {
+          "suffix": "",
+          "tier": "50"
+        }
+      ]
+    },
+    "Skull lantern (tier 60)": {
+      "fileTitle": "File:Skull lantern (tier 60).png",
+      "identityMethod": "reviewed-tier-page-shared-artwork",
+      "infoboxName": "Skull lantern",
+      "tier": 60,
+      "itemPage": {
+        "title": "Skull lantern (tier 60)",
+        "revisionId": 36962238,
+        "timestamp": "2026-03-10T01:45:46Z",
+        "url": "https://runescape.wiki/w/Skull_lantern_(tier_60)?oldid=36962238"
+      },
+      "variants": [
+        {
+          "suffix": "",
+          "version": "",
+          "name": "Skull lantern",
+          "ids": [
+            55522
+          ],
+          "image": "[[File:Skull lantern (tier 60).png]]"
+        }
+      ],
+      "bonuses": [
+        {
+          "suffix": "",
+          "tier": "60"
+        }
+      ]
+    },
+    "Skull lantern (tier 70)": {
+      "fileTitle": "File:Skull lantern (tier 70).png",
+      "identityMethod": "reviewed-tier-page-shared-artwork",
+      "infoboxName": "Skull lantern",
+      "tier": 70,
+      "itemPage": {
+        "title": "Skull lantern (tier 70)",
+        "revisionId": 37010272,
+        "timestamp": "2026-04-14T13:54:41Z",
+        "url": "https://runescape.wiki/w/Skull_lantern_(tier_70)?oldid=37010272"
+      },
+      "variants": [
+        {
+          "suffix": "",
+          "version": "",
+          "name": "Skull lantern",
+          "ids": [
+            55526
+          ],
+          "image": "[[File:Skull lantern (tier 70).png]]"
+        }
+      ],
+      "bonuses": [
+        {
+          "suffix": "",
+          "tier": "70"
+        }
+      ]
+    },
+    "Skull lantern (tier 80)": {
+      "fileTitle": "File:Skull lantern (tier 80).png",
+      "identityMethod": "reviewed-tier-page-shared-artwork",
+      "infoboxName": "Skull lantern",
+      "tier": 80,
+      "itemPage": {
+        "title": "Skull lantern (tier 80)",
+        "revisionId": 37010274,
+        "timestamp": "2026-04-14T13:55:08Z",
+        "url": "https://runescape.wiki/w/Skull_lantern_(tier_80)?oldid=37010274"
+      },
+      "variants": [
+        {
+          "suffix": "",
+          "version": "",
+          "name": "Skull lantern",
+          "ids": [
+            55534
+          ],
+          "image": "[[File:Skull lantern (tier 80).png]]"
+        }
+      ],
+      "bonuses": [
+        {
+          "suffix": "",
+          "tier": "80"
+        }
+      ]
+    },
+    "Skull lantern (tier 90)": {
+      "fileTitle": "File:Skull lantern (tier 90).png",
+      "identityMethod": "reviewed-tier-page-shared-artwork",
+      "infoboxName": "Skull lantern",
+      "tier": 90,
+      "itemPage": {
+        "title": "Skull lantern (tier 90)",
+        "revisionId": 37055811,
+        "timestamp": "2026-05-28T14:27:03Z",
+        "url": "https://runescape.wiki/w/Skull_lantern_(tier_90)?oldid=37055811"
+      },
+      "variants": [
+        {
+          "suffix": "",
+          "version": "",
+          "name": "Skull lantern",
+          "ids": [
+            55542
+          ],
+          "image": "[[File:Skull lantern (tier 90).png]]"
+        }
+      ],
+      "bonuses": [
+        {
+          "suffix": "",
+          "tier": "90"
+        }
+      ]
+    }
+  },
+  "unmatched": [],
+  "filePages": [
+    {
+      "title": "File:Deathwarden hood (tier 10).png",
+      "pageid": 918353,
+      "revisions": [
+        {
+          "revid": 36159533,
+          "parentid": 36156203,
+          "timestamp": "2023-08-09T17:26:55Z",
+          "slots": {
+            "main": {
+              "contentmodel": "wikitext",
+              "contentformat": "text/x-wiki",
+              "content": "{{Inventory license|Deathwarden hood (tier 10)|id=55341}}"
+            }
+          }
+        }
+      ],
+      "imageinfo": [
+        {
+          "timestamp": "2023-08-08T14:15:15Z",
+          "size": 968,
+          "width": 26,
+          "height": 29,
+          "url": "https://runescape.wiki/images/Deathwarden_hood_%28tier_10%29.png?b3ab9",
+          "descriptionurl": "https://runescape.wiki/w/File:Deathwarden_hood_(tier_10).png",
+          "descriptionshorturl": "https://runescape.wiki/index.php?curid=918353",
+          "sha1": "2bd0e0141ef5cbc09539b5882af123799f3e6249",
+          "mime": "image/png"
+        }
+      ]
+    },
+    {
+      "title": "File:Deathwarden robe bottom (tier 10).png",
+      "pageid": 918355,
+      "revisions": [
+        {
+          "revid": 36159530,
+          "parentid": 36159529,
+          "timestamp": "2023-08-09T17:26:06Z",
+          "slots": {
+            "main": {
+              "contentmodel": "wikitext",
+              "contentformat": "text/x-wiki",
+              "content": "{{Inventory license|Deathwarden robe bottom (tier 10)|id=55343}}"
+            }
+          }
+        }
+      ],
+      "imageinfo": [
+        {
+          "timestamp": "2023-08-09T17:26:06Z",
+          "size": 828,
+          "width": 19,
+          "height": 32,
+          "url": "https://runescape.wiki/images/Deathwarden_robe_bottom_%28tier_10%29.png?00328",
+          "descriptionurl": "https://runescape.wiki/w/File:Deathwarden_robe_bottom_(tier_10).png",
+          "descriptionshorturl": "https://runescape.wiki/index.php?curid=918355",
+          "sha1": "13fcae563bc1696a19cda3d14a4ea9ac87acf706",
+          "mime": "image/png"
+        }
+      ]
+    },
+    {
+      "title": "File:Deathwarden gloves (tier 10).png",
+      "pageid": 918356,
+      "revisions": [
+        {
+          "revid": 36159528,
+          "parentid": 36159527,
+          "timestamp": "2023-08-09T17:25:37Z",
+          "slots": {
+            "main": {
+              "contentmodel": "wikitext",
+              "contentformat": "text/x-wiki",
+              "content": "{{Inventory license|Deathwarden gloves (tier 10)|id=55344}}"
+            }
+          }
+        }
+      ],
+      "imageinfo": [
+        {
+          "timestamp": "2023-08-09T17:25:37Z",
+          "size": 726,
+          "width": 28,
+          "height": 21,
+          "url": "https://runescape.wiki/images/Deathwarden_gloves_%28tier_10%29.png?63d80",
+          "descriptionurl": "https://runescape.wiki/w/File:Deathwarden_gloves_(tier_10).png",
+          "descriptionshorturl": "https://runescape.wiki/index.php?curid=918356",
+          "sha1": "6a7ed880baaab35341f99014eb58ea5fb0fc7343",
+          "mime": "image/png"
+        }
+      ]
+    },
+    {
+      "title": "File:Deathwarden boots (tier 10).png",
+      "pageid": 918360,
+      "revisions": [
+        {
+          "revid": 36159526,
+          "parentid": 36159524,
+          "timestamp": "2023-08-09T17:25:07Z",
+          "slots": {
+            "main": {
+              "contentmodel": "wikitext",
+              "contentformat": "text/x-wiki",
+              "content": "{{Inventory license|Deathwarden boots (tier 10)|id=55345}}"
+            }
+          }
+        }
+      ],
+      "imageinfo": [
+        {
+          "timestamp": "2023-08-09T17:25:07Z",
+          "size": 868,
+          "width": 28,
+          "height": 24,
+          "url": "https://runescape.wiki/images/Deathwarden_boots_%28tier_10%29.png?75c98",
+          "descriptionurl": "https://runescape.wiki/w/File:Deathwarden_boots_(tier_10).png",
+          "descriptionshorturl": "https://runescape.wiki/index.php?curid=918360",
+          "sha1": "34afbbc2ee13d788aebb5edde675ed1e6bd24676",
+          "mime": "image/png"
+        }
+      ]
+    },
+    {
+      "title": "File:Deathwarden hood (tier 20).png",
+      "pageid": 918361,
+      "revisions": [
+        {
+          "revid": 36159544,
+          "parentid": 36159543,
+          "timestamp": "2023-08-09T17:31:00Z",
+          "slots": {
+            "main": {
+              "contentmodel": "wikitext",
+              "contentformat": "text/x-wiki",
+              "content": "{{Inventory license|Deathwarden hood (tier 20)|id=55346}}"
+            }
+          }
+        }
+      ],
+      "imageinfo": [
+        {
+          "timestamp": "2023-08-09T17:31:00Z",
+          "size": 977,
+          "width": 26,
+          "height": 29,
+          "url": "https://runescape.wiki/images/Deathwarden_hood_%28tier_20%29.png?ae5f0",
+          "descriptionurl": "https://runescape.wiki/w/File:Deathwarden_hood_(tier_20).png",
+          "descriptionshorturl": "https://runescape.wiki/index.php?curid=918361",
+          "sha1": "3908b996f053e78eb27e707d5b4b31b4eb06f5cf",
+          "mime": "image/png"
+        }
+      ]
+    },
+    {
+      "title": "File:Deathwarden robe bottom (tier 20).png",
+      "pageid": 918363,
+      "revisions": [
+        {
+          "revid": 36159550,
+          "parentid": 36159548,
+          "timestamp": "2023-08-09T17:31:51Z",
+          "slots": {
+            "main": {
+              "contentmodel": "wikitext",
+              "contentformat": "text/x-wiki",
+              "content": "{{Inventory license|Deathwarden robe bottom (tier 20)|id=55350}}"
+            }
+          }
+        }
+      ],
+      "imageinfo": [
+        {
+          "timestamp": "2023-08-09T17:31:50Z",
+          "size": 815,
+          "width": 19,
+          "height": 32,
+          "url": "https://runescape.wiki/images/Deathwarden_robe_bottom_%28tier_20%29.png?501e0",
+          "descriptionurl": "https://runescape.wiki/w/File:Deathwarden_robe_bottom_(tier_20).png",
+          "descriptionshorturl": "https://runescape.wiki/index.php?curid=918363",
+          "sha1": "710483fb14046d3f11a5f3bd29b2d57caa33df5b",
+          "mime": "image/png"
+        }
+      ]
+    },
+    {
+      "title": "File:Deathwarden gloves (tier 20).png",
+      "pageid": 918364,
+      "revisions": [
+        {
+          "revid": 36159552,
+          "parentid": 36159551,
+          "timestamp": "2023-08-09T17:32:06Z",
+          "slots": {
+            "main": {
+              "contentmodel": "wikitext",
+              "contentformat": "text/x-wiki",
+              "content": "{{Inventory license|Deathwarden gloves (tier 20)|id=55352}}"
+            }
+          }
+        }
+      ],
+      "imageinfo": [
+        {
+          "timestamp": "2023-08-09T17:32:05Z",
+          "size": 704,
+          "width": 28,
+          "height": 21,
+          "url": "https://runescape.wiki/images/Deathwarden_gloves_%28tier_20%29.png?90ae7",
+          "descriptionurl": "https://runescape.wiki/w/File:Deathwarden_gloves_(tier_20).png",
+          "descriptionshorturl": "https://runescape.wiki/index.php?curid=918364",
+          "sha1": "a1c239a55ab194ed9513169bbc9aa1d725c975c5",
+          "mime": "image/png"
+        }
+      ]
+    },
+    {
+      "title": "File:Deathwarden boots (tier 20).png",
+      "pageid": 918365,
+      "revisions": [
+        {
+          "revid": 36159523,
+          "parentid": 36159522,
+          "timestamp": "2023-08-09T17:23:46Z",
+          "slots": {
+            "main": {
+              "contentmodel": "wikitext",
+              "contentformat": "text/x-wiki",
+              "content": "{{Inventory license|Deathwarden boots (tier 20)|id=55354}}"
+            }
+          }
+        }
+      ],
+      "imageinfo": [
+        {
+          "timestamp": "2023-08-09T17:23:45Z",
+          "size": 684,
+          "width": 28,
+          "height": 24,
+          "url": "https://runescape.wiki/images/Deathwarden_boots_%28tier_20%29.png?0d051",
+          "descriptionurl": "https://runescape.wiki/w/File:Deathwarden_boots_(tier_20).png",
+          "descriptionshorturl": "https://runescape.wiki/index.php?curid=918365",
+          "sha1": "fbfd3a7237f3094a6df2f2f36abc1a4c39be1331",
+          "mime": "image/png"
+        }
+      ]
+    },
+    {
+      "title": "File:Deathwarden hood (tier 30).png",
+      "pageid": 918366,
+      "revisions": [
+        {
+          "revid": 36205516,
+          "parentid": 36205515,
+          "timestamp": "2023-10-02T17:55:21Z",
+          "slots": {
+            "main": {
+              "contentmodel": "wikitext",
+              "contentformat": "text/x-wiki",
+              "content": "{{Inventory license|Deathwarden hood (tier 30)|id=55356}}"
+            }
+          }
+        }
+      ],
+      "imageinfo": [
+        {
+          "timestamp": "2023-10-02T17:55:21Z",
+          "size": 1088,
+          "width": 26,
+          "height": 29,
+          "url": "https://runescape.wiki/images/Deathwarden_hood_%28tier_30%29.png?edfb2",
+          "descriptionurl": "https://runescape.wiki/w/File:Deathwarden_hood_(tier_30).png",
+          "descriptionshorturl": "https://runescape.wiki/index.php?curid=918366",
+          "sha1": "16ccbd7a70752903e9d802d6e7533e408618ca10",
+          "mime": "image/png"
+        }
+      ]
+    },
+    {
+      "title": "File:Deathwarden gloves (tier 30).png",
+      "pageid": 918368,
+      "revisions": [
+        {
+          "revid": 36205510,
+          "parentid": 36205509,
+          "timestamp": "2023-10-02T17:53:53Z",
+          "slots": {
+            "main": {
+              "contentmodel": "wikitext",
+              "contentformat": "text/x-wiki",
+              "content": "{{Inventory license|Deathwarden gloves (tier 30)|id=55362}}"
+            }
+          }
+        }
+      ],
+      "imageinfo": [
+        {
+          "timestamp": "2023-10-02T17:53:52Z",
+          "size": 600,
+          "width": 28,
+          "height": 21,
+          "url": "https://runescape.wiki/images/Deathwarden_gloves_%28tier_30%29.png?d1466",
+          "descriptionurl": "https://runescape.wiki/w/File:Deathwarden_gloves_(tier_30).png",
+          "descriptionshorturl": "https://runescape.wiki/index.php?curid=918368",
+          "sha1": "d598989569c34729a490e6fe8369d81102d7adc4",
+          "mime": "image/png"
+        }
+      ]
+    },
+    {
+      "title": "File:Deathwarden boots (tier 30).png",
+      "pageid": 918369,
+      "revisions": [
+        {
+          "revid": 36205507,
+          "parentid": 36205506,
+          "timestamp": "2023-10-02T17:52:31Z",
+          "slots": {
+            "main": {
+              "contentmodel": "wikitext",
+              "contentformat": "text/x-wiki",
+              "content": "{{Inventory license|Deathwarden boots (tier 30)|id=55364}}"
+            }
+          }
+        }
+      ],
+      "imageinfo": [
+        {
+          "timestamp": "2023-10-02T17:52:30Z",
+          "size": 453,
+          "width": 28,
+          "height": 24,
+          "url": "https://runescape.wiki/images/Deathwarden_boots_%28tier_30%29.png?732ae",
+          "descriptionurl": "https://runescape.wiki/w/File:Deathwarden_boots_(tier_30).png",
+          "descriptionshorturl": "https://runescape.wiki/index.php?curid=918369",
+          "sha1": "a63e9c1d12079e87f39395fa6f04ccb0eb859fc6",
+          "mime": "image/png"
+        }
+      ]
+    },
+    {
+      "title": "File:Deathwarden hood (tier 40).png",
+      "pageid": 918370,
+      "revisions": [
+        {
+          "revid": 36160383,
+          "parentid": 36160382,
+          "timestamp": "2023-08-10T02:34:12Z",
+          "slots": {
+            "main": {
+              "contentmodel": "wikitext",
+              "contentformat": "text/x-wiki",
+              "content": "{{Inventory license|Deathwarden hood (tier 40)|id=55366}}"
+            }
+          }
+        }
+      ],
+      "imageinfo": [
+        {
+          "timestamp": "2023-08-10T02:34:12Z",
+          "size": 912,
+          "width": 26,
+          "height": 29,
+          "url": "https://runescape.wiki/images/Deathwarden_hood_%28tier_40%29.png?8cef4",
+          "descriptionurl": "https://runescape.wiki/w/File:Deathwarden_hood_(tier_40).png",
+          "descriptionshorturl": "https://runescape.wiki/index.php?curid=918370",
+          "sha1": "0ffed3f794d02b484bd2ba5a49190cd3e07f0978",
+          "mime": "image/png"
+        }
+      ]
+    },
+    {
+      "title": "File:Deathwarden robe bottom (tier 40).png",
+      "pageid": 918372,
+      "revisions": [
+        {
+          "revid": 36160379,
+          "parentid": 36160378,
+          "timestamp": "2023-08-10T02:32:56Z",
+          "slots": {
+            "main": {
+              "contentmodel": "wikitext",
+              "contentformat": "text/x-wiki",
+              "content": "{{Inventory license|Deathwarden robe bottom (tier 40)|id=55370}}"
+            }
+          }
+        }
+      ],
+      "imageinfo": [
+        {
+          "timestamp": "2023-08-10T02:32:55Z",
+          "size": 456,
+          "width": 19,
+          "height": 32,
+          "url": "https://runescape.wiki/images/Deathwarden_robe_bottom_%28tier_40%29.png?8c169",
+          "descriptionurl": "https://runescape.wiki/w/File:Deathwarden_robe_bottom_(tier_40).png",
+          "descriptionshorturl": "https://runescape.wiki/index.php?curid=918372",
+          "sha1": "7d4e1f5fdfceeecaaaad5107fd8c47798d80c7ee",
+          "mime": "image/png"
+        }
+      ]
+    },
+    {
+      "title": "File:Deathwarden gloves (tier 40).png",
+      "pageid": 918373,
+      "revisions": [
+        {
+          "revid": 36160377,
+          "parentid": 36160376,
+          "timestamp": "2023-08-10T02:32:39Z",
+          "slots": {
+            "main": {
+              "contentmodel": "wikitext",
+              "contentformat": "text/x-wiki",
+              "content": "{{Inventory license|Deathwarden gloves (tier 40)|id=55372}}"
+            }
+          }
+        }
+      ],
+      "imageinfo": [
+        {
+          "timestamp": "2023-08-10T02:32:39Z",
+          "size": 445,
+          "width": 28,
+          "height": 21,
+          "url": "https://runescape.wiki/images/Deathwarden_gloves_%28tier_40%29.png?26632",
+          "descriptionurl": "https://runescape.wiki/w/File:Deathwarden_gloves_(tier_40).png",
+          "descriptionshorturl": "https://runescape.wiki/index.php?curid=918373",
+          "sha1": "6fcd7817eef427860008e6880d663439b886ba0f",
+          "mime": "image/png"
+        }
+      ]
+    },
+    {
+      "title": "File:Deathwarden boots (tier 40).png",
+      "pageid": 918374,
+      "revisions": [
+        {
+          "revid": 36160374,
+          "parentid": 36160373,
+          "timestamp": "2023-08-10T02:32:20Z",
+          "slots": {
+            "main": {
+              "contentmodel": "wikitext",
+              "contentformat": "text/x-wiki",
+              "content": "{{Inventory license|Deathwarden boots (tier 40)|id=55374}}"
+            }
+          }
+        }
+      ],
+      "imageinfo": [
+        {
+          "timestamp": "2023-08-10T02:32:20Z",
+          "size": 572,
+          "width": 28,
+          "height": 24,
+          "url": "https://runescape.wiki/images/Deathwarden_boots_%28tier_40%29.png?48506",
+          "descriptionurl": "https://runescape.wiki/w/File:Deathwarden_boots_(tier_40).png",
+          "descriptionshorturl": "https://runescape.wiki/index.php?curid=918374",
+          "sha1": "d22fe8fa80ebb15f816915a7044a8da10a7c6c14",
+          "mime": "image/png"
+        }
+      ]
+    },
+    {
+      "title": "File:Deathwarden hood (tier 50).png",
+      "pageid": 918376,
+      "revisions": [
+        {
+          "revid": 36205505,
+          "parentid": 36205504,
+          "timestamp": "2023-10-02T17:51:58Z",
+          "slots": {
+            "main": {
+              "contentmodel": "wikitext",
+              "contentformat": "text/x-wiki",
+              "content": "{{Inventory license|Deathwarden hood (tier 50)|id=55376}}"
+            }
+          }
+        }
+      ],
+      "imageinfo": [
+        {
+          "timestamp": "2023-10-02T17:51:58Z",
+          "size": 988,
+          "width": 26,
+          "height": 28,
+          "url": "https://runescape.wiki/images/Deathwarden_hood_%28tier_50%29.png?1e24d",
+          "descriptionurl": "https://runescape.wiki/w/File:Deathwarden_hood_(tier_50).png",
+          "descriptionshorturl": "https://runescape.wiki/index.php?curid=918376",
+          "sha1": "f5671c2737047fe5f6ceb27c470c8bdf1262978a",
+          "mime": "image/png"
+        }
+      ]
+    },
+    {
+      "title": "File:Deathwarden gloves (tier 50).png",
+      "pageid": 918379,
+      "revisions": [
+        {
+          "revid": 36216167,
+          "parentid": 36216166,
+          "timestamp": "2023-10-16T22:18:04Z",
+          "slots": {
+            "main": {
+              "contentmodel": "wikitext",
+              "contentformat": "text/x-wiki",
+              "content": "{{Inventory license|Deathwarden gloves (tier 50)|id=55382}}"
+            }
+          }
+        }
+      ],
+      "imageinfo": [
+        {
+          "timestamp": "2023-10-16T22:18:04Z",
+          "size": 556,
+          "width": 28,
+          "height": 21,
+          "url": "https://runescape.wiki/images/Deathwarden_gloves_%28tier_50%29.png?d7ef7",
+          "descriptionurl": "https://runescape.wiki/w/File:Deathwarden_gloves_(tier_50).png",
+          "descriptionshorturl": "https://runescape.wiki/index.php?curid=918379",
+          "sha1": "c225188c0f514f937e10e9c5eacfb2aa80d7c783",
+          "mime": "image/png"
+        }
+      ]
+    },
+    {
+      "title": "File:Deathwarden boots (tier 50).png",
+      "pageid": 918380,
+      "revisions": [
+        {
+          "revid": 36205497,
+          "parentid": 36205496,
+          "timestamp": "2023-10-02T17:50:13Z",
+          "slots": {
+            "main": {
+              "contentmodel": "wikitext",
+              "contentformat": "text/x-wiki",
+              "content": "{{Inventory license|Deathwarden boots (tier 50)|id=55384}}"
+            }
+          }
+        }
+      ],
+      "imageinfo": [
+        {
+          "timestamp": "2023-10-02T17:50:12Z",
+          "size": 463,
+          "width": 28,
+          "height": 24,
+          "url": "https://runescape.wiki/images/Deathwarden_boots_%28tier_50%29.png?a5633",
+          "descriptionurl": "https://runescape.wiki/w/File:Deathwarden_boots_(tier_50).png",
+          "descriptionshorturl": "https://runescape.wiki/index.php?curid=918380",
+          "sha1": "9fb7b76c6af478dae9cf7ff1e6ff41e7b1eb5ae5",
+          "mime": "image/png"
+        }
+      ]
+    },
+    {
+      "title": "File:Deathwarden hood (tier 60).png",
+      "pageid": 918381,
+      "revisions": [
+        {
+          "revid": 36166330,
+          "parentid": 36166329,
+          "timestamp": "2023-08-14T20:07:47Z",
+          "slots": {
+            "main": {
+              "contentmodel": "wikitext",
+              "contentformat": "text/x-wiki",
+              "content": "{{Inventory license|Deathwarden hood (tier 60)|id=55386}}"
+            }
+          }
+        }
+      ],
+      "imageinfo": [
+        {
+          "timestamp": "2023-08-14T20:07:46Z",
+          "size": 859,
+          "width": 26,
+          "height": 28,
+          "url": "https://runescape.wiki/images/Deathwarden_hood_%28tier_60%29.png?75527",
+          "descriptionurl": "https://runescape.wiki/w/File:Deathwarden_hood_(tier_60).png",
+          "descriptionshorturl": "https://runescape.wiki/index.php?curid=918381",
+          "sha1": "7a0375d7f81d6ea95ca14f2fc9e1ed696d5e7777",
+          "mime": "image/png"
+        }
+      ]
+    },
+    {
+      "title": "File:Deathwarden gloves (tier 60).png",
+      "pageid": 918384,
+      "revisions": [
+        {
+          "revid": 36166336,
+          "parentid": 36166335,
+          "timestamp": "2023-08-14T20:08:36Z",
+          "slots": {
+            "main": {
+              "contentmodel": "wikitext",
+              "contentformat": "text/x-wiki",
+              "content": "{{Inventory license|Deathwarden gloves (tier 60)|id=55392}}"
+            }
+          }
+        }
+      ],
+      "imageinfo": [
+        {
+          "timestamp": "2023-08-14T20:08:35Z",
+          "size": 350,
+          "width": 28,
+          "height": 21,
+          "url": "https://runescape.wiki/images/Deathwarden_gloves_%28tier_60%29.png?bd121",
+          "descriptionurl": "https://runescape.wiki/w/File:Deathwarden_gloves_(tier_60).png",
+          "descriptionshorturl": "https://runescape.wiki/index.php?curid=918384",
+          "sha1": "7db3603a873fe4cab7f7460c3544e04fdca1cdde",
+          "mime": "image/png"
+        }
+      ]
+    },
+    {
+      "title": "File:Deathwarden boots (tier 60).png",
+      "pageid": 918385,
+      "revisions": [
+        {
+          "revid": 36166338,
+          "parentid": 36166337,
+          "timestamp": "2023-08-14T20:08:57Z",
+          "slots": {
+            "main": {
+              "contentmodel": "wikitext",
+              "contentformat": "text/x-wiki",
+              "content": "{{Inventory license|Deathwarden boots (tier 60)|id=55394}}"
+            }
+          }
+        }
+      ],
+      "imageinfo": [
+        {
+          "timestamp": "2023-08-14T20:08:56Z",
+          "size": 689,
+          "width": 28,
+          "height": 24,
+          "url": "https://runescape.wiki/images/Deathwarden_boots_%28tier_60%29.png?ae58a",
+          "descriptionurl": "https://runescape.wiki/w/File:Deathwarden_boots_(tier_60).png",
+          "descriptionshorturl": "https://runescape.wiki/index.php?curid=918385",
+          "sha1": "308541c489e76881a76c45a869e65ea36634c9df",
+          "mime": "image/png"
+        }
+      ]
+    },
+    {
+      "title": "File:Deathwarden hood (tier 70).png",
+      "pageid": 918386,
+      "revisions": [
+        {
+          "revid": 36168279,
+          "parentid": 36168278,
+          "timestamp": "2023-08-16T18:59:42Z",
+          "slots": {
+            "main": {
+              "contentmodel": "wikitext",
+              "contentformat": "text/x-wiki",
+              "content": "{{Inventory license|Deathwarden hood (tier 70)|id=55396}}"
+            }
+          }
+        }
+      ],
+      "imageinfo": [
+        {
+          "timestamp": "2023-08-16T18:59:41Z",
+          "size": 1222,
+          "width": 26,
+          "height": 28,
+          "url": "https://runescape.wiki/images/Deathwarden_hood_%28tier_70%29.png?c944b",
+          "descriptionurl": "https://runescape.wiki/w/File:Deathwarden_hood_(tier_70).png",
+          "descriptionshorturl": "https://runescape.wiki/index.php?curid=918386",
+          "sha1": "dc21a209866b474724a634e699637deae2723346",
+          "mime": "image/png"
+        }
+      ]
+    },
+    {
+      "title": "File:Deathwarden gloves (tier 70).png",
+      "pageid": 918389,
+      "revisions": [
+        {
+          "revid": 36168272,
+          "parentid": 36168271,
+          "timestamp": "2023-08-16T18:58:27Z",
+          "slots": {
+            "main": {
+              "contentmodel": "wikitext",
+              "contentformat": "text/x-wiki",
+              "content": "{{Inventory license|Deathwarden gloves (tier 70)|id=55402}}"
+            }
+          }
+        }
+      ],
+      "imageinfo": [
+        {
+          "timestamp": "2023-08-16T18:58:26Z",
+          "size": 408,
+          "width": 28,
+          "height": 21,
+          "url": "https://runescape.wiki/images/Deathwarden_gloves_%28tier_70%29.png?07893",
+          "descriptionurl": "https://runescape.wiki/w/File:Deathwarden_gloves_(tier_70).png",
+          "descriptionshorturl": "https://runescape.wiki/index.php?curid=918389",
+          "sha1": "3ad983fcdbc970bc01e8235db44ab8eb5f09f189",
+          "mime": "image/png"
+        }
+      ]
+    },
+    {
+      "title": "File:Deathwarden boots (tier 70).png",
+      "pageid": 918390,
+      "revisions": [
+        {
+          "revid": 36168270,
+          "parentid": 36168269,
+          "timestamp": "2023-08-16T18:58:10Z",
+          "slots": {
+            "main": {
+              "contentmodel": "wikitext",
+              "contentformat": "text/x-wiki",
+              "content": "{{Inventory license|Deathwarden boots (tier 70)|id=55404}}"
+            }
+          }
+        }
+      ],
+      "imageinfo": [
+        {
+          "timestamp": "2023-08-16T18:58:10Z",
+          "size": 476,
+          "width": 28,
+          "height": 24,
+          "url": "https://runescape.wiki/images/Deathwarden_boots_%28tier_70%29.png?0f620",
+          "descriptionurl": "https://runescape.wiki/w/File:Deathwarden_boots_(tier_70).png",
+          "descriptionshorturl": "https://runescape.wiki/index.php?curid=918390",
+          "sha1": "b5733c7ac71b2137ff7dac91deab14ae0fa10e98",
+          "mime": "image/png"
+        }
+      ]
+    },
+    {
+      "title": "File:Deathwarden hood (tier 80).png",
+      "pageid": 918395,
+      "revisions": [
+        {
+          "revid": 36166399,
+          "parentid": 36166398,
+          "timestamp": "2023-08-14T20:48:15Z",
+          "slots": {
+            "main": {
+              "contentmodel": "wikitext",
+              "contentformat": "text/x-wiki",
+              "content": "{{Inventory license|Deathwarden hood (tier 80)|id=55410}}"
+            }
+          }
+        }
+      ],
+      "imageinfo": [
+        {
+          "timestamp": "2023-08-14T20:48:08Z",
+          "size": 1150,
+          "width": 26,
+          "height": 29,
+          "url": "https://runescape.wiki/images/Deathwarden_hood_%28tier_80%29.png?4b87a",
+          "descriptionurl": "https://runescape.wiki/w/File:Deathwarden_hood_(tier_80).png",
+          "descriptionshorturl": "https://runescape.wiki/index.php?curid=918395",
+          "sha1": "13584bdbbfdb4d9288f9c213f03fd6e82d06ced6",
+          "mime": "image/png"
+        }
+      ]
+    },
+    {
+      "title": "File:Deathwarden gloves (tier 80).png",
+      "pageid": 918398,
+      "revisions": [
+        {
+          "revid": 36166405,
+          "parentid": 36166404,
+          "timestamp": "2023-08-14T20:49:01Z",
+          "slots": {
+            "main": {
+              "contentmodel": "wikitext",
+              "contentformat": "text/x-wiki",
+              "content": "{{Inventory license|Deathwarden gloves (tier 80)|id=55416}}"
+            }
+          }
+        }
+      ],
+      "imageinfo": [
+        {
+          "timestamp": "2023-08-14T20:48:54Z",
+          "size": 450,
+          "width": 28,
+          "height": 21,
+          "url": "https://runescape.wiki/images/Deathwarden_gloves_%28tier_80%29.png?e0446",
+          "descriptionurl": "https://runescape.wiki/w/File:Deathwarden_gloves_(tier_80).png",
+          "descriptionshorturl": "https://runescape.wiki/index.php?curid=918398",
+          "sha1": "336bd764c0613577224594760922f64b9cabbe9e",
+          "mime": "image/png"
+        }
+      ]
+    },
+    {
+      "title": "File:Deathwarden boots (tier 80).png",
+      "pageid": 918399,
+      "revisions": [
+        {
+          "revid": 36166407,
+          "parentid": 36166406,
+          "timestamp": "2023-08-14T20:49:18Z",
+          "slots": {
+            "main": {
+              "contentmodel": "wikitext",
+              "contentformat": "text/x-wiki",
+              "content": "{{Inventory license|Deathwarden boots (tier 80)|id=55418}}"
+            }
+          }
+        }
+      ],
+      "imageinfo": [
+        {
+          "timestamp": "2023-08-14T20:49:13Z",
+          "size": 323,
+          "width": 28,
+          "height": 24,
+          "url": "https://runescape.wiki/images/Deathwarden_boots_%28tier_80%29.png?10db3",
+          "descriptionurl": "https://runescape.wiki/w/File:Deathwarden_boots_(tier_80).png",
+          "descriptionshorturl": "https://runescape.wiki/index.php?curid=918399",
+          "sha1": "fca53d368a07883a315fe05e2a808c1b37094284",
+          "mime": "image/png"
+        }
+      ]
+    },
+    {
+      "title": "File:Deathwarden hood (tier 90).png",
+      "pageid": 918404,
+      "revisions": [
+        {
+          "revid": 36159880,
+          "parentid": 36159879,
+          "timestamp": "2023-08-09T19:57:15Z",
+          "slots": {
+            "main": {
+              "contentmodel": "wikitext",
+              "contentformat": "text/x-wiki",
+              "content": "{{Inventory license|Deathwarden hood (tier 90)|id=55424}}"
+            }
+          }
+        }
+      ],
+      "imageinfo": [
+        {
+          "timestamp": "2023-08-09T19:57:09Z",
+          "size": 1331,
+          "width": 29,
+          "height": 28,
+          "url": "https://runescape.wiki/images/Deathwarden_hood_%28tier_90%29.png?01560",
+          "descriptionurl": "https://runescape.wiki/w/File:Deathwarden_hood_(tier_90).png",
+          "descriptionshorturl": "https://runescape.wiki/index.php?curid=918404",
+          "sha1": "ca029a2485c624e22dd0ddb07a069aaeb7060358",
+          "mime": "image/png"
+        }
+      ]
+    },
+    {
+      "title": "File:Deathwarden gloves (tier 90).png",
+      "pageid": 918407,
+      "revisions": [
+        {
+          "revid": 36159886,
+          "parentid": 36159885,
+          "timestamp": "2023-08-09T19:57:52Z",
+          "slots": {
+            "main": {
+              "contentmodel": "wikitext",
+              "contentformat": "text/x-wiki",
+              "content": "{{Inventory license|Deathwarden gloves (tier 90)|id=55430}}"
+            }
+          }
+        }
+      ],
+      "imageinfo": [
+        {
+          "timestamp": "2023-08-09T19:57:47Z",
+          "size": 329,
+          "width": 24,
+          "height": 18,
+          "url": "https://runescape.wiki/images/Deathwarden_gloves_%28tier_90%29.png?7a0c1",
+          "descriptionurl": "https://runescape.wiki/w/File:Deathwarden_gloves_(tier_90).png",
+          "descriptionshorturl": "https://runescape.wiki/index.php?curid=918407",
+          "sha1": "60a71b2ebc426f6d0d0eb0196339760618660d86",
+          "mime": "image/png"
+        }
+      ]
+    },
+    {
+      "title": "File:Deathwarden boots (tier 90).png",
+      "pageid": 918408,
+      "revisions": [
+        {
+          "revid": 36159888,
+          "parentid": 36159887,
+          "timestamp": "2023-08-09T19:58:04Z",
+          "slots": {
+            "main": {
+              "contentmodel": "wikitext",
+              "contentformat": "text/x-wiki",
+              "content": "{{Inventory license|Deathwarden boots (tier 90)|id=55432}}"
+            }
+          }
+        }
+      ],
+      "imageinfo": [
+        {
+          "timestamp": "2023-08-09T19:57:59Z",
+          "size": 356,
+          "width": 27,
+          "height": 24,
+          "url": "https://runescape.wiki/images/Deathwarden_boots_%28tier_90%29.png?e4bfb",
+          "descriptionurl": "https://runescape.wiki/w/File:Deathwarden_boots_(tier_90).png",
+          "descriptionshorturl": "https://runescape.wiki/index.php?curid=918408",
+          "sha1": "80d45044b7cb68281345d3d67d2084fd19113e08",
+          "mime": "image/png"
+        }
+      ]
+    },
+    {
+      "title": "File:Death guard (tier 10).png",
+      "pageid": 918456,
+      "revisions": [
+        {
+          "revid": 36155803,
+          "parentid": 36155802,
+          "timestamp": "2023-08-08T09:20:20Z",
+          "slots": {
+            "main": {
+              "contentmodel": "wikitext",
+              "contentformat": "text/x-wiki",
+              "content": "{{Inventory license|Death guard (tier 10)|id=55502}}"
+            }
+          }
+        }
+      ],
+      "imageinfo": [
+        {
+          "timestamp": "2023-08-08T09:20:20Z",
+          "size": 540,
+          "width": 24,
+          "height": 23,
+          "url": "https://runescape.wiki/images/Death_guard_%28tier_10%29.png?a39cc",
+          "descriptionurl": "https://runescape.wiki/w/File:Death_guard_(tier_10).png",
+          "descriptionshorturl": "https://runescape.wiki/index.php?curid=918456",
+          "sha1": "0d16a78646d54d36a25a02a9964e190e04024be6",
+          "mime": "image/png"
+        }
+      ]
+    },
+    {
+      "title": "File:Death guard (tier 20).png",
+      "pageid": 918458,
+      "revisions": [
+        {
+          "revid": 36159422,
+          "parentid": 36159421,
+          "timestamp": "2023-08-09T16:40:07Z",
+          "slots": {
+            "main": {
+              "contentmodel": "wikitext",
+              "contentformat": "text/x-wiki",
+              "content": "{{Inventory license|Death guard (tier 20)|id=55504}}"
+            }
+          }
+        }
+      ],
+      "imageinfo": [
+        {
+          "timestamp": "2023-08-09T16:40:06Z",
+          "size": 560,
+          "width": 24,
+          "height": 23,
+          "url": "https://runescape.wiki/images/Death_guard_%28tier_20%29.png?3b230",
+          "descriptionurl": "https://runescape.wiki/w/File:Death_guard_(tier_20).png",
+          "descriptionshorturl": "https://runescape.wiki/index.php?curid=918458",
+          "sha1": "60a7649c6ed26ce3f6ff1c4f5815712c6c929213",
+          "mime": "image/png"
+        }
+      ]
+    },
+    {
+      "title": "File:Death guard (tier 30).png",
+      "pageid": 918460,
+      "revisions": [
+        {
+          "revid": 36159907,
+          "parentid": 36159906,
+          "timestamp": "2023-08-09T20:04:56Z",
+          "slots": {
+            "main": {
+              "contentmodel": "wikitext",
+              "contentformat": "text/x-wiki",
+              "content": "{{Inventory license|Death guard (tier 30)|id=55508}}"
+            }
+          }
+        }
+      ],
+      "imageinfo": [
+        {
+          "timestamp": "2023-08-09T20:04:55Z",
+          "size": 546,
+          "width": 24,
+          "height": 23,
+          "url": "https://runescape.wiki/images/Death_guard_%28tier_30%29.png?0d49a",
+          "descriptionurl": "https://runescape.wiki/w/File:Death_guard_(tier_30).png",
+          "descriptionshorturl": "https://runescape.wiki/index.php?curid=918460",
+          "sha1": "2469f026f908bfe1b816b7180a9b35655af9a33d",
+          "mime": "image/png"
+        }
+      ]
+    },
+    {
+      "title": "File:Death guard (tier 40).png",
+      "pageid": 918461,
+      "revisions": [
+        {
+          "revid": 36160371,
+          "parentid": 36160370,
+          "timestamp": "2023-08-10T02:31:49Z",
+          "slots": {
+            "main": {
+              "contentmodel": "wikitext",
+              "contentformat": "text/x-wiki",
+              "content": "{{Inventory license|Death guard (tier 40)|id=55512}}"
+            }
+          }
+        }
+      ],
+      "imageinfo": [
+        {
+          "timestamp": "2023-08-10T02:31:48Z",
+          "size": 682,
+          "width": 25,
+          "height": 24,
+          "url": "https://runescape.wiki/images/Death_guard_%28tier_40%29.png?62271",
+          "descriptionurl": "https://runescape.wiki/w/File:Death_guard_(tier_40).png",
+          "descriptionshorturl": "https://runescape.wiki/index.php?curid=918461",
+          "sha1": "c2a1c5276a3fe881e690343592d4368533700bc8",
+          "mime": "image/png"
+        }
+      ]
+    },
+    {
+      "title": "File:Death guard (tier 50).png",
+      "pageid": 918463,
+      "revisions": [
+        {
+          "revid": 36161426,
+          "parentid": 36161425,
+          "timestamp": "2023-08-10T17:46:53Z",
+          "slots": {
+            "main": {
+              "contentmodel": "wikitext",
+              "contentformat": "text/x-wiki",
+              "content": "{{Inventory license|Death guard (tier 50)|id=55516}}"
+            }
+          }
+        }
+      ],
+      "imageinfo": [
+        {
+          "timestamp": "2023-08-10T17:46:53Z",
+          "size": 743,
+          "width": 25,
+          "height": 24,
+          "url": "https://runescape.wiki/images/Death_guard_%28tier_50%29.png?87cc3",
+          "descriptionurl": "https://runescape.wiki/w/File:Death_guard_(tier_50).png",
+          "descriptionshorturl": "https://runescape.wiki/index.php?curid=918463",
+          "sha1": "0ce768593f32ddf164b38938f57a09062a242a3b",
+          "mime": "image/png"
+        }
+      ]
+    },
+    {
+      "title": "File:Death guard (tier 60).png",
+      "pageid": 918464,
+      "revisions": [
+        {
+          "revid": 36166294,
+          "parentid": 36166293,
+          "timestamp": "2023-08-14T19:38:28Z",
+          "slots": {
+            "main": {
+              "contentmodel": "wikitext",
+              "contentformat": "text/x-wiki",
+              "content": "{{Inventory license|Death guard (tier 60)|id=55520}}"
+            }
+          }
+        }
+      ],
+      "imageinfo": [
+        {
+          "timestamp": "2023-08-14T19:38:28Z",
+          "size": 773,
+          "width": 25,
+          "height": 28,
+          "url": "https://runescape.wiki/images/Death_guard_%28tier_60%29.png?0ca98",
+          "descriptionurl": "https://runescape.wiki/w/File:Death_guard_(tier_60).png",
+          "descriptionshorturl": "https://runescape.wiki/index.php?curid=918464",
+          "sha1": "7f21736b1847b2fc104b068d5d5274819ecae8b4",
+          "mime": "image/png"
+        }
+      ]
+    },
+    {
+      "title": "File:Death guard (tier 70).png",
+      "pageid": 918466,
+      "revisions": [
+        {
+          "revid": 36168268,
+          "parentid": 36168267,
+          "timestamp": "2023-08-16T18:57:54Z",
+          "slots": {
+            "main": {
+              "contentmodel": "wikitext",
+              "contentformat": "text/x-wiki",
+              "content": "{{Inventory license|Death guard (tier 70)|id=55524}}"
+            }
+          }
+        }
+      ],
+      "imageinfo": [
+        {
+          "timestamp": "2023-08-16T18:57:53Z",
+          "size": 772,
+          "width": 25,
+          "height": 28,
+          "url": "https://runescape.wiki/images/Death_guard_%28tier_70%29.png?b3a0d",
+          "descriptionurl": "https://runescape.wiki/w/File:Death_guard_(tier_70).png",
+          "descriptionshorturl": "https://runescape.wiki/index.php?curid=918466",
+          "sha1": "86abc94457c23076e5ead57bebcc69895e7e4c01",
+          "mime": "image/png"
+        }
+      ]
+    },
+    {
+      "title": "File:Death guard (tier 80).png",
+      "pageid": 918469,
+      "revisions": [
+        {
+          "revid": 36205404,
+          "parentid": 36205403,
+          "timestamp": "2023-10-02T17:33:59Z",
+          "slots": {
+            "main": {
+              "contentmodel": "wikitext",
+              "contentformat": "text/x-wiki",
+              "content": "{{Inventory license|Death guard (tier 80)|id=55532}}"
+            }
+          }
+        }
+      ],
+      "imageinfo": [
+        {
+          "timestamp": "2023-10-02T17:33:58Z",
+          "size": 759,
+          "width": 25,
+          "height": 29,
+          "url": "https://runescape.wiki/images/Death_guard_%28tier_80%29.png?f9e76",
+          "descriptionurl": "https://runescape.wiki/w/File:Death_guard_(tier_80).png",
+          "descriptionshorturl": "https://runescape.wiki/index.php?curid=918469",
+          "sha1": "17f253d7d7be256538872f3a1c2859fc96b07938",
+          "mime": "image/png"
+        }
+      ]
+    },
+    {
+      "title": "File:Death guard (tier 90).png",
+      "pageid": 918472,
+      "revisions": [
+        {
+          "revid": 36205397,
+          "parentid": 36205396,
+          "timestamp": "2023-10-02T17:32:57Z",
+          "slots": {
+            "main": {
+              "contentmodel": "wikitext",
+              "contentformat": "text/x-wiki",
+              "content": "{{Inventory license|Death guard (tier 90)|id=55540}}"
+            }
+          }
+        }
+      ],
+      "imageinfo": [
+        {
+          "timestamp": "2023-10-02T17:32:56Z",
+          "size": 783,
+          "width": 25,
+          "height": 29,
+          "url": "https://runescape.wiki/images/Death_guard_%28tier_90%29.png?6fda9",
+          "descriptionurl": "https://runescape.wiki/w/File:Death_guard_(tier_90).png",
+          "descriptionshorturl": "https://runescape.wiki/index.php?curid=918472",
+          "sha1": "15a465cdc4c99c9d860a531864284edd8bad62ca",
+          "mime": "image/png"
+        }
+      ]
+    },
+    {
+      "title": "File:Deathwarden robe bottom (tier 30).png",
+      "pageid": 918596,
+      "revisions": [
+        {
+          "revid": 36168282,
+          "parentid": 36168281,
+          "timestamp": "2023-08-16T19:02:55Z",
+          "slots": {
+            "main": {
+              "contentmodel": "wikitext",
+              "contentformat": "text/x-wiki",
+              "content": "{{Inventory license|Deathwarden robe bottom (tier 30)|id=55360}}"
+            }
+          }
+        }
+      ],
+      "imageinfo": [
+        {
+          "timestamp": "2023-08-16T19:02:37Z",
+          "size": 408,
+          "width": 19,
+          "height": 32,
+          "url": "https://runescape.wiki/images/Deathwarden_robe_bottom_%28tier_30%29.png?e66c5",
+          "descriptionurl": "https://runescape.wiki/w/File:Deathwarden_robe_bottom_(tier_30).png",
+          "descriptionshorturl": "https://runescape.wiki/index.php?curid=918596",
+          "sha1": "c3b23dceabaea98dd2273d1b7051f50991ddf2e0",
+          "mime": "image/png"
+        }
+      ]
+    },
+    {
+      "title": "File:Deathwarden robe top (tier 10).png",
+      "pageid": 918354,
+      "revisions": [
+        {
+          "revid": 36159532,
+          "parentid": 36159531,
+          "timestamp": "2023-08-09T17:26:39Z",
+          "slots": {
+            "main": {
+              "contentmodel": "wikitext",
+              "contentformat": "text/x-wiki",
+              "content": "{{Inventory license|Deathwarden robe top (tier 10)|id=55342}}"
+            }
+          }
+        }
+      ],
+      "imageinfo": [
+        {
+          "timestamp": "2023-08-09T17:26:39Z",
+          "size": 840,
+          "width": 29,
+          "height": 26,
+          "url": "https://runescape.wiki/images/Deathwarden_robe_top_%28tier_10%29.png?51a54",
+          "descriptionurl": "https://runescape.wiki/w/File:Deathwarden_robe_top_(tier_10).png",
+          "descriptionshorturl": "https://runescape.wiki/index.php?curid=918354",
+          "sha1": "4035da5a75c847d663121feccad9141ef96dbc23",
+          "mime": "image/png"
+        }
+      ]
+    },
+    {
+      "title": "File:Deathwarden robe top (tier 20).png",
+      "pageid": 918362,
+      "revisions": [
+        {
+          "revid": 36159547,
+          "parentid": 36159546,
+          "timestamp": "2023-08-09T17:31:37Z",
+          "slots": {
+            "main": {
+              "contentmodel": "wikitext",
+              "contentformat": "text/x-wiki",
+              "content": "{{Inventory license|Deathwarden robe top (tier 20)|id=55348}}"
+            }
+          }
+        }
+      ],
+      "imageinfo": [
+        {
+          "timestamp": "2023-08-09T17:31:36Z",
+          "size": 865,
+          "width": 29,
+          "height": 26,
+          "url": "https://runescape.wiki/images/Deathwarden_robe_top_%28tier_20%29.png?0a085",
+          "descriptionurl": "https://runescape.wiki/w/File:Deathwarden_robe_top_(tier_20).png",
+          "descriptionshorturl": "https://runescape.wiki/index.php?curid=918362",
+          "sha1": "9ac148704efed97c1cc45bf3fcea03e951a8c0ca",
+          "mime": "image/png"
+        }
+      ]
+    },
+    {
+      "title": "File:Deathwarden robe top (tier 30).png",
+      "pageid": 918367,
+      "revisions": [
+        {
+          "revid": 36205514,
+          "parentid": 36205513,
+          "timestamp": "2023-10-02T17:55:08Z",
+          "slots": {
+            "main": {
+              "contentmodel": "wikitext",
+              "contentformat": "text/x-wiki",
+              "content": "{{Inventory license|Deathwarden robe top (tier 30)|id=55358}}"
+            }
+          }
+        }
+      ],
+      "imageinfo": [
+        {
+          "timestamp": "2023-10-02T17:55:07Z",
+          "size": 720,
+          "width": 29,
+          "height": 26,
+          "url": "https://runescape.wiki/images/Deathwarden_robe_top_%28tier_30%29.png?0b7f5",
+          "descriptionurl": "https://runescape.wiki/w/File:Deathwarden_robe_top_(tier_30).png",
+          "descriptionshorturl": "https://runescape.wiki/index.php?curid=918367",
+          "sha1": "16fc7df373b33f2612959efe882b9a1dd42f31a9",
+          "mime": "image/png"
+        }
+      ]
+    },
+    {
+      "title": "File:Deathwarden robe top (tier 40).png",
+      "pageid": 918371,
+      "revisions": [
+        {
+          "revid": 36160381,
+          "parentid": 36160380,
+          "timestamp": "2023-08-10T02:33:26Z",
+          "slots": {
+            "main": {
+              "contentmodel": "wikitext",
+              "contentformat": "text/x-wiki",
+              "content": "{{Inventory license|Deathwarden robe top (tier 40)|id=55368}}"
+            }
+          }
+        }
+      ],
+      "imageinfo": [
+        {
+          "timestamp": "2023-08-10T02:33:26Z",
+          "size": 737,
+          "width": 29,
+          "height": 26,
+          "url": "https://runescape.wiki/images/Deathwarden_robe_top_%28tier_40%29.png?40651",
+          "descriptionurl": "https://runescape.wiki/w/File:Deathwarden_robe_top_(tier_40).png",
+          "descriptionshorturl": "https://runescape.wiki/index.php?curid=918371",
+          "sha1": "4b68953d20674037331da8bbcf3849203dfdd6f3",
+          "mime": "image/png"
+        }
+      ]
+    },
+    {
+      "title": "File:Deathwarden robe top (tier 50).png",
+      "pageid": 918377,
+      "revisions": [
+        {
+          "revid": 36205502,
+          "parentid": 36205501,
+          "timestamp": "2023-10-02T17:51:42Z",
+          "slots": {
+            "main": {
+              "contentmodel": "wikitext",
+              "contentformat": "text/x-wiki",
+              "content": "{{Inventory license|Deathwarden robe top (tier 50)|id=55378}}"
+            }
+          }
+        }
+      ],
+      "imageinfo": [
+        {
+          "timestamp": "2023-10-02T17:51:42Z",
+          "size": 972,
+          "width": 29,
+          "height": 27,
+          "url": "https://runescape.wiki/images/Deathwarden_robe_top_%28tier_50%29.png?35d8a",
+          "descriptionurl": "https://runescape.wiki/w/File:Deathwarden_robe_top_(tier_50).png",
+          "descriptionshorturl": "https://runescape.wiki/index.php?curid=918377",
+          "sha1": "f59aadc6236854961f02db4f90c36f2010c54720",
+          "mime": "image/png"
+        }
+      ]
+    },
+    {
+      "title": "File:Deathwarden robe bottom (tier 50).png",
+      "pageid": 918378,
+      "revisions": [
+        {
+          "revid": 36205500,
+          "parentid": 36205499,
+          "timestamp": "2023-10-02T17:51:17Z",
+          "slots": {
+            "main": {
+              "contentmodel": "wikitext",
+              "contentformat": "text/x-wiki",
+              "content": "{{Inventory license|Deathwarden robe bottom (tier 50)|id=55380}}"
+            }
+          }
+        }
+      ],
+      "imageinfo": [
+        {
+          "timestamp": "2023-10-02T17:51:17Z",
+          "size": 651,
+          "width": 19,
+          "height": 32,
+          "url": "https://runescape.wiki/images/Deathwarden_robe_bottom_%28tier_50%29.png?cc3df",
+          "descriptionurl": "https://runescape.wiki/w/File:Deathwarden_robe_bottom_(tier_50).png",
+          "descriptionshorturl": "https://runescape.wiki/index.php?curid=918378",
+          "sha1": "98a441bbf324719a8f74f307fb87dd1e0a68f30b",
+          "mime": "image/png"
+        }
+      ]
+    },
+    {
+      "title": "File:Deathwarden robe top (tier 60).png",
+      "pageid": 918382,
+      "revisions": [
+        {
+          "revid": 36166332,
+          "parentid": 36166331,
+          "timestamp": "2023-08-14T20:08:03Z",
+          "slots": {
+            "main": {
+              "contentmodel": "wikitext",
+              "contentformat": "text/x-wiki",
+              "content": "{{Inventory license|Deathwarden robe top (tier 60)|id=55388}}"
+            }
+          }
+        }
+      ],
+      "imageinfo": [
+        {
+          "timestamp": "2023-08-14T20:08:03Z",
+          "size": 958,
+          "width": 29,
+          "height": 26,
+          "url": "https://runescape.wiki/images/Deathwarden_robe_top_%28tier_60%29.png?31d13",
+          "descriptionurl": "https://runescape.wiki/w/File:Deathwarden_robe_top_(tier_60).png",
+          "descriptionshorturl": "https://runescape.wiki/index.php?curid=918382",
+          "sha1": "22713ac9b6058a30e68e33c66f95ad076d016bda",
+          "mime": "image/png"
+        }
+      ]
+    },
+    {
+      "title": "File:Deathwarden robe bottom (tier 60).png",
+      "pageid": 918383,
+      "revisions": [
+        {
+          "revid": 36166334,
+          "parentid": 36166333,
+          "timestamp": "2023-08-14T20:08:20Z",
+          "slots": {
+            "main": {
+              "contentmodel": "wikitext",
+              "contentformat": "text/x-wiki",
+              "content": "{{Inventory license|Deathwarden robe bottom (tier 60)|id=55390}}"
+            }
+          }
+        }
+      ],
+      "imageinfo": [
+        {
+          "timestamp": "2023-08-14T20:08:19Z",
+          "size": 469,
+          "width": 19,
+          "height": 32,
+          "url": "https://runescape.wiki/images/Deathwarden_robe_bottom_%28tier_60%29.png?22184",
+          "descriptionurl": "https://runescape.wiki/w/File:Deathwarden_robe_bottom_(tier_60).png",
+          "descriptionshorturl": "https://runescape.wiki/index.php?curid=918383",
+          "sha1": "fb9ffa24e2646e2c1093792111cd28d12d6b0b38",
+          "mime": "image/png"
+        }
+      ]
+    },
+    {
+      "title": "File:Deathwarden robe top (tier 70).png",
+      "pageid": 918387,
+      "revisions": [
+        {
+          "revid": 36168276,
+          "parentid": 36168275,
+          "timestamp": "2023-08-16T18:59:26Z",
+          "slots": {
+            "main": {
+              "contentmodel": "wikitext",
+              "contentformat": "text/x-wiki",
+              "content": "{{Inventory license|Deathwarden robe top (tier 70)|id=55398}}"
+            }
+          }
+        }
+      ],
+      "imageinfo": [
+        {
+          "timestamp": "2023-08-16T18:59:25Z",
+          "size": 940,
+          "width": 30,
+          "height": 26,
+          "url": "https://runescape.wiki/images/Deathwarden_robe_top_%28tier_70%29.png?b3569",
+          "descriptionurl": "https://runescape.wiki/w/File:Deathwarden_robe_top_(tier_70).png",
+          "descriptionshorturl": "https://runescape.wiki/index.php?curid=918387",
+          "sha1": "f2e086ec5806264cf27ceffdfa0b8432b218b082",
+          "mime": "image/png"
+        }
+      ]
+    },
+    {
+      "title": "File:Deathwarden robe bottom (tier 70).png",
+      "pageid": 918388,
+      "revisions": [
+        {
+          "revid": 36168274,
+          "parentid": 36168273,
+          "timestamp": "2023-08-16T18:58:55Z",
+          "slots": {
+            "main": {
+              "contentmodel": "wikitext",
+              "contentformat": "text/x-wiki",
+              "content": "{{Inventory license|Deathwarden robe bottom (tier 70)|id=55400}}"
+            }
+          }
+        }
+      ],
+      "imageinfo": [
+        {
+          "timestamp": "2023-08-16T18:58:55Z",
+          "size": 477,
+          "width": 19,
+          "height": 32,
+          "url": "https://runescape.wiki/images/Deathwarden_robe_bottom_%28tier_70%29.png?0d3c4",
+          "descriptionurl": "https://runescape.wiki/w/File:Deathwarden_robe_bottom_(tier_70).png",
+          "descriptionshorturl": "https://runescape.wiki/index.php?curid=918388",
+          "sha1": "b47d396c5d175d3b750e540f659a9b87be73f8cb",
+          "mime": "image/png"
+        }
+      ]
+    },
+    {
+      "title": "File:Deathwarden robe top (tier 80).png",
+      "pageid": 918396,
+      "revisions": [
+        {
+          "revid": 36166401,
+          "parentid": 36166400,
+          "timestamp": "2023-08-14T20:48:27Z",
+          "slots": {
+            "main": {
+              "contentmodel": "wikitext",
+              "contentformat": "text/x-wiki",
+              "content": "{{Inventory license|Deathwarden robe top (tier 80)|id=55412}}"
+            }
+          }
+        }
+      ],
+      "imageinfo": [
+        {
+          "timestamp": "2023-08-14T20:48:22Z",
+          "size": 994,
+          "width": 31,
+          "height": 26,
+          "url": "https://runescape.wiki/images/Deathwarden_robe_top_%28tier_80%29.png?cfbff",
+          "descriptionurl": "https://runescape.wiki/w/File:Deathwarden_robe_top_(tier_80).png",
+          "descriptionshorturl": "https://runescape.wiki/index.php?curid=918396",
+          "sha1": "dfb65d0f663e3d6938a72be28879766c39a70a20",
+          "mime": "image/png"
+        }
+      ]
+    },
+    {
+      "title": "File:Deathwarden robe bottom (tier 80).png",
+      "pageid": 918397,
+      "revisions": [
+        {
+          "revid": 36166403,
+          "parentid": 36166402,
+          "timestamp": "2023-08-14T20:48:46Z",
+          "slots": {
+            "main": {
+              "contentmodel": "wikitext",
+              "contentformat": "text/x-wiki",
+              "content": "{{Inventory license|Deathwarden robe bottom (tier 80)|id=55414}}"
+            }
+          }
+        }
+      ],
+      "imageinfo": [
+        {
+          "timestamp": "2023-08-14T20:48:35Z",
+          "size": 492,
+          "width": 19,
+          "height": 32,
+          "url": "https://runescape.wiki/images/Deathwarden_robe_bottom_%28tier_80%29.png?548de",
+          "descriptionurl": "https://runescape.wiki/w/File:Deathwarden_robe_bottom_(tier_80).png",
+          "descriptionshorturl": "https://runescape.wiki/index.php?curid=918397",
+          "sha1": "fc240f9782b62eaa07917db3a684516365c27e15",
+          "mime": "image/png"
+        }
+      ]
+    },
+    {
+      "title": "File:Deathwarden robe top (tier 90).png",
+      "pageid": 918405,
+      "revisions": [
+        {
+          "revid": 36159882,
+          "parentid": 36159881,
+          "timestamp": "2023-08-09T19:57:27Z",
+          "slots": {
+            "main": {
+              "contentmodel": "wikitext",
+              "contentformat": "text/x-wiki",
+              "content": "{{Inventory license|Deathwarden robe top (tier 90)|id=55426}}"
+            }
+          }
+        }
+      ],
+      "imageinfo": [
+        {
+          "timestamp": "2023-08-09T19:57:22Z",
+          "size": 1004,
+          "width": 30,
+          "height": 26,
+          "url": "https://runescape.wiki/images/Deathwarden_robe_top_%28tier_90%29.png?9773e",
+          "descriptionurl": "https://runescape.wiki/w/File:Deathwarden_robe_top_(tier_90).png",
+          "descriptionshorturl": "https://runescape.wiki/index.php?curid=918405",
+          "sha1": "7a52f504c0bbd58e332a9de2f82f073024c18217",
+          "mime": "image/png"
+        }
+      ]
+    },
+    {
+      "title": "File:Deathwarden robe bottom (tier 90).png",
+      "pageid": 918406,
+      "revisions": [
+        {
+          "revid": 36159884,
+          "parentid": 36159883,
+          "timestamp": "2023-08-09T19:57:40Z",
+          "slots": {
+            "main": {
+              "contentmodel": "wikitext",
+              "contentformat": "text/x-wiki",
+              "content": "{{Inventory license|Deathwarden robe bottom (tier 90)|id=55428}}"
+            }
+          }
+        }
+      ],
+      "imageinfo": [
+        {
+          "timestamp": "2023-08-09T19:57:35Z",
+          "size": 504,
+          "width": 17,
+          "height": 31,
+          "url": "https://runescape.wiki/images/Deathwarden_robe_bottom_%28tier_90%29.png?488a8",
+          "descriptionurl": "https://runescape.wiki/w/File:Deathwarden_robe_bottom_(tier_90).png",
+          "descriptionshorturl": "https://runescape.wiki/index.php?curid=918406",
+          "sha1": "ddb2122c55b86d7aea1f34434c749956a871a787",
+          "mime": "image/png"
+        }
+      ]
+    },
+    {
+      "title": "File:Skull lantern (tier 10).png",
+      "pageid": 918457,
+      "revisions": [
+        {
+          "revid": 36154268,
+          "parentid": 36154064,
+          "timestamp": "2023-08-07T16:31:47Z",
+          "slots": {
+            "main": {
+              "contentmodel": "wikitext",
+              "contentformat": "text/x-wiki",
+              "content": "{{Inventory license|Skull lantern (tier 10)|id=55503}}"
+            }
+          }
+        }
+      ],
+      "imageinfo": [
+        {
+          "timestamp": "2023-08-07T14:52:55Z",
+          "size": 622,
+          "width": 12,
+          "height": 30,
+          "url": "https://runescape.wiki/images/Skull_lantern_%28tier_10%29.png?2b276",
+          "descriptionurl": "https://runescape.wiki/w/File:Skull_lantern_(tier_10).png",
+          "descriptionshorturl": "https://runescape.wiki/index.php?curid=918457",
+          "sha1": "b940f12e0df2ab1b4660bb3066b34374e3b35819",
+          "mime": "image/png"
+        }
+      ]
+    },
+    {
+      "title": "File:Skull lantern (tier 20).png",
+      "pageid": 918459,
+      "revisions": [
+        {
+          "revid": 36153807,
+          "parentid": 36153806,
+          "timestamp": "2023-08-07T14:52:38Z",
+          "slots": {
+            "main": {
+              "contentmodel": "wikitext",
+              "contentformat": "text/x-wiki",
+              "content": "{{Inventory license|Skull lantern (tier 20)|id=55506}}"
+            }
+          }
+        }
+      ],
+      "imageinfo": [
+        {
+          "timestamp": "2023-08-07T14:52:38Z",
+          "size": 555,
+          "width": 13,
+          "height": 30,
+          "url": "https://runescape.wiki/images/Skull_lantern_%28tier_20%29.png?898e9",
+          "descriptionurl": "https://runescape.wiki/w/File:Skull_lantern_(tier_20).png",
+          "descriptionshorturl": "https://runescape.wiki/index.php?curid=918459",
+          "sha1": "621becba851f5b3077d66ec1556cbfd713e1e7d6",
+          "mime": "image/png"
+        }
+      ]
+    },
+    {
+      "title": "File:Skull lantern (tier 40).png",
+      "pageid": 918462,
+      "revisions": [
+        {
+          "revid": 36153805,
+          "parentid": 36153804,
+          "timestamp": "2023-08-07T14:52:22Z",
+          "slots": {
+            "main": {
+              "contentmodel": "wikitext",
+              "contentformat": "text/x-wiki",
+              "content": "{{Inventory license|Skull lantern (tier 40)|id=55514}}"
+            }
+          }
+        }
+      ],
+      "imageinfo": [
+        {
+          "timestamp": "2023-08-07T14:52:21Z",
+          "size": 540,
+          "width": 15,
+          "height": 27,
+          "url": "https://runescape.wiki/images/Skull_lantern_%28tier_40%29.png?b5e7f",
+          "descriptionurl": "https://runescape.wiki/w/File:Skull_lantern_(tier_40).png",
+          "descriptionshorturl": "https://runescape.wiki/index.php?curid=918462",
+          "sha1": "c739f8ae2c4637afcf8f54aa6c22c215786a5eb3",
+          "mime": "image/png"
+        }
+      ]
+    },
+    {
+      "title": "File:Skull lantern (tier 60).png",
+      "pageid": 918465,
+      "revisions": [
+        {
+          "revid": 36153803,
+          "parentid": 36153802,
+          "timestamp": "2023-08-07T14:52:07Z",
+          "slots": {
+            "main": {
+              "contentmodel": "wikitext",
+              "contentformat": "text/x-wiki",
+              "content": "{{Inventory license|Skull lantern (tier 60)|id=55522}}"
+            }
+          }
+        }
+      ],
+      "imageinfo": [
+        {
+          "timestamp": "2023-08-07T14:52:06Z",
+          "size": 685,
+          "width": 17,
+          "height": 28,
+          "url": "https://runescape.wiki/images/Skull_lantern_%28tier_60%29.png?dca6b",
+          "descriptionurl": "https://runescape.wiki/w/File:Skull_lantern_(tier_60).png",
+          "descriptionshorturl": "https://runescape.wiki/index.php?curid=918465",
+          "sha1": "d771530a1e9849de3b510815d8062017bb50d5c3",
+          "mime": "image/png"
+        }
+      ]
+    },
+    {
+      "title": "File:Skull lantern (tier 30).png",
+      "pageid": 918605,
+      "revisions": [
+        {
+          "revid": 36153594,
+          "parentid": 0,
+          "timestamp": "2023-08-07T14:48:31Z",
+          "slots": {
+            "main": {
+              "contentmodel": "wikitext",
+              "contentformat": "text/x-wiki",
+              "content": "{{Inventory license|Skull lantern (tier 30)|id=55510}}"
+            }
+          }
+        }
+      ],
+      "imageinfo": [
+        {
+          "timestamp": "2023-08-07T14:48:31Z",
+          "size": 562,
+          "width": 14,
+          "height": 30,
+          "url": "https://runescape.wiki/images/Skull_lantern_%28tier_30%29.png?8641d",
+          "descriptionurl": "https://runescape.wiki/w/File:Skull_lantern_(tier_30).png",
+          "descriptionshorturl": "https://runescape.wiki/index.php?curid=918605",
+          "sha1": "0cf09f5a1d0cb0e056ca6a058088f9910cb1dac6",
+          "mime": "image/png"
+        }
+      ]
+    },
+    {
+      "title": "File:Skull lantern (tier 50).png",
+      "pageid": 918606,
+      "revisions": [
+        {
+          "revid": 36153791,
+          "parentid": 0,
+          "timestamp": "2023-08-07T14:50:12Z",
+          "slots": {
+            "main": {
+              "contentmodel": "wikitext",
+              "contentformat": "text/x-wiki",
+              "content": "{{Inventory license|Skull lantern (tier 50)|id=55518}}"
+            }
+          }
+        }
+      ],
+      "imageinfo": [
+        {
+          "timestamp": "2023-08-07T14:50:12Z",
+          "size": 568,
+          "width": 15,
+          "height": 28,
+          "url": "https://runescape.wiki/images/Skull_lantern_%28tier_50%29.png?1e1b0",
+          "descriptionurl": "https://runescape.wiki/w/File:Skull_lantern_(tier_50).png",
+          "descriptionshorturl": "https://runescape.wiki/index.php?curid=918606",
+          "sha1": "f92cd967a266dbcb5f5bc1e607cf0940a97e910c",
+          "mime": "image/png"
+        }
+      ]
+    },
+    {
+      "title": "File:Skull lantern (tier 70).png",
+      "pageid": 918607,
+      "revisions": [
+        {
+          "revid": 36153792,
+          "parentid": 0,
+          "timestamp": "2023-08-07T14:50:32Z",
+          "slots": {
+            "main": {
+              "contentmodel": "wikitext",
+              "contentformat": "text/x-wiki",
+              "content": "{{Inventory license|Skull lantern (tier 70)|id=55526}}"
+            }
+          }
+        }
+      ],
+      "imageinfo": [
+        {
+          "timestamp": "2023-08-07T14:50:32Z",
+          "size": 663,
+          "width": 17,
+          "height": 29,
+          "url": "https://runescape.wiki/images/Skull_lantern_%28tier_70%29.png?fe26b",
+          "descriptionurl": "https://runescape.wiki/w/File:Skull_lantern_(tier_70).png",
+          "descriptionshorturl": "https://runescape.wiki/index.php?curid=918607",
+          "sha1": "3098656c7c14a3caef498599a50bc7b2b54b3fe0",
+          "mime": "image/png"
+        }
+      ]
+    },
+    {
+      "title": "File:Skull lantern (tier 80).png",
+      "pageid": 918608,
+      "revisions": [
+        {
+          "revid": 36153794,
+          "parentid": 0,
+          "timestamp": "2023-08-07T14:50:53Z",
+          "slots": {
+            "main": {
+              "contentmodel": "wikitext",
+              "contentformat": "text/x-wiki",
+              "content": "{{Inventory license|Skull lantern (tier 80)|id=55534}}"
+            }
+          }
+        }
+      ],
+      "imageinfo": [
+        {
+          "timestamp": "2023-08-07T14:50:53Z",
+          "size": 708,
+          "width": 17,
+          "height": 32,
+          "url": "https://runescape.wiki/images/Skull_lantern_%28tier_80%29.png?b99d4",
+          "descriptionurl": "https://runescape.wiki/w/File:Skull_lantern_(tier_80).png",
+          "descriptionshorturl": "https://runescape.wiki/index.php?curid=918608",
+          "sha1": "39259c8d8b84b3ca9a88ab76e0d71a5f6a5edc20",
+          "mime": "image/png"
+        }
+      ]
+    },
+    {
+      "title": "File:Skull lantern (tier 90).png",
+      "pageid": 918609,
+      "revisions": [
+        {
+          "revid": 36153797,
+          "parentid": 0,
+          "timestamp": "2023-08-07T14:51:30Z",
+          "slots": {
+            "main": {
+              "contentmodel": "wikitext",
+              "contentformat": "text/x-wiki",
+              "content": "{{Inventory license|Skull lantern (tier 90)|id=55542}}"
+            }
+          }
+        }
+      ],
+      "imageinfo": [
+        {
+          "timestamp": "2023-08-07T14:51:30Z",
+          "size": 728,
+          "width": 17,
+          "height": 32,
+          "url": "https://runescape.wiki/images/Skull_lantern_%28tier_90%29.png?87ebf",
+          "descriptionurl": "https://runescape.wiki/w/File:Skull_lantern_(tier_90).png",
+          "descriptionshorturl": "https://runescape.wiki/index.php?curid=918609",
+          "sha1": "7f43302f1f86b3994591d47b65906df156086c11",
+          "mime": "image/png"
+        }
+      ]
+    }
+  ]
+}

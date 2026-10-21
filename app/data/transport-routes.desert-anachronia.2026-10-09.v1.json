@@ -1,0 +1,3005 @@
+{
+  "schemaVersion": 1,
+  "version": "2026-10-09.v1",
+  "reviewedOn": "2026-10-18",
+  "provenance": {
+    "attribution": "RuneScape Wiki contributors; adapted facts and coordinates from permanent RS3 revisions.",
+    "licence": "https://creativecommons.org/licenses/by-nc-sa/3.0/"
+  },
+  "stations": [
+    {
+      "id": "carpet-shantay-pass",
+      "name": "Shantay Pass rug merchant",
+      "x": 3311,
+      "y": 3109,
+      "plane": 0,
+      "mapId": 28,
+      "chunkId": "13104",
+      "coordinateEvidence": {
+        "kind": "wiki-npc-map",
+        "url": "https://runescape.wiki/w/Rug_merchant?oldid=37130854",
+        "role": "operator-map-anchor-not-landing",
+        "npcId": 2291
+      }
+    },
+    {
+      "id": "carpet-north-pollnivneach",
+      "name": "North Pollnivneach rug merchant",
+      "x": 3350,
+      "y": 3001,
+      "plane": 0,
+      "mapId": 28,
+      "chunkId": "13358",
+      "coordinateEvidence": {
+        "kind": "wiki-npc-map",
+        "url": "https://runescape.wiki/w/Rug_merchant?oldid=37130854",
+        "role": "operator-map-anchor-not-landing",
+        "npcId": 2294
+      }
+    },
+    {
+      "id": "carpet-south-pollnivneach",
+      "name": "South Pollnivneach rug merchant",
+      "x": 3349,
+      "y": 2942,
+      "plane": 0,
+      "mapId": 28,
+      "chunkId": "13357",
+      "coordinateEvidence": {
+        "kind": "wiki-npc-map",
+        "url": "https://runescape.wiki/w/Rug_merchant?oldid=37130854",
+        "role": "operator-map-anchor-not-landing",
+        "npcId": 2293
+      }
+    },
+    {
+      "id": "carpet-menaphos",
+      "name": "Menaphos rug merchant",
+      "x": 3243,
+      "y": 2821,
+      "plane": 0,
+      "mapId": 28,
+      "chunkId": "12844",
+      "coordinateEvidence": {
+        "kind": "wiki-npc-map",
+        "url": "https://runescape.wiki/w/Rug_merchant?oldid=37130854",
+        "role": "operator-map-anchor-not-landing",
+        "npcId": 2300
+      }
+    },
+    {
+      "id": "carpet-sophanem",
+      "name": "Sophanem rug merchant",
+      "x": 3309,
+      "y": 2822,
+      "plane": 0,
+      "mapId": 28,
+      "chunkId": "13100",
+      "coordinateEvidence": {
+        "kind": "wiki-npc-map",
+        "url": "https://runescape.wiki/w/Rug_merchant?oldid=37130854",
+        "role": "operator-map-anchor-not-landing",
+        "npcId": 2298
+      }
+    },
+    {
+      "id": "teleport-anachronia-totem-west",
+      "name": "Anachronia Teleport: West totem",
+      "x": 3749,
+      "y": 4265,
+      "plane": 0,
+      "mapId": 28,
+      "chunkId": "14914",
+      "coordinateEvidence": {
+        "kind": "wiki-teleport-map",
+        "url": "https://runescape.wiki/w/Anachronia_Teleport?oldid=36984774",
+        "role": "wiki-teleport-destination-map"
+      }
+    },
+    {
+      "id": "teleport-anachronia-totem-southeast",
+      "name": "Anachronia Teleport: Southeast totem",
+      "x": 4099,
+      "y": 4154,
+      "plane": 0,
+      "mapId": 28,
+      "chunkId": "16448",
+      "coordinateEvidence": {
+        "kind": "wiki-teleport-map",
+        "url": "https://runescape.wiki/w/Anachronia_Teleport?oldid=36984774",
+        "role": "wiki-teleport-destination-map"
+      }
+    },
+    {
+      "id": "teleport-anachronia-totem-north",
+      "name": "Anachronia Teleport: North totem",
+      "x": 3946,
+      "y": 4494,
+      "plane": 0,
+      "mapId": 28,
+      "chunkId": "15686",
+      "coordinateEvidence": {
+        "kind": "wiki-teleport-map",
+        "url": "https://runescape.wiki/w/Anachronia_Teleport?oldid=36984774",
+        "role": "wiki-teleport-destination-map"
+      }
+    },
+    {
+      "id": "teleport-north-western-anachronia",
+      "name": "North-western Anachronia Teleport",
+      "x": 3780,
+      "y": 4414,
+      "plane": 0,
+      "mapId": 28,
+      "chunkId": "15172",
+      "coordinateEvidence": {
+        "kind": "wiki-teleport-map",
+        "url": "https://runescape.wiki/w/North-western_Anachronia_Teleport?oldid=36984775",
+        "role": "wiki-teleport-destination-map"
+      }
+    },
+    {
+      "id": "teleport-eastern-anachronia",
+      "name": "Eastern Anachronia Teleport",
+      "x": 4064,
+      "y": 4251,
+      "plane": 0,
+      "mapId": 28,
+      "chunkId": "16194",
+      "coordinateEvidence": {
+        "kind": "wiki-teleport-map",
+        "url": "https://runescape.wiki/w/Eastern_Anachronia_Teleport?oldid=36984776",
+        "role": "wiki-teleport-destination-map"
+      }
+    },
+    {
+      "id": "teleport-anachronia-tablet",
+      "name": "Anachronia tablet: Player Lodge",
+      "x": 3900,
+      "y": 4295,
+      "plane": 0,
+      "mapId": 28,
+      "chunkId": "15427",
+      "coordinateEvidence": {
+        "kind": "wiki-teleport-map",
+        "url": "https://runescape.wiki/w/Anachronia_tablet?oldid=37006634",
+        "role": "wiki-teleport-destination-map"
+      }
+    },
+    {
+      "id": "carpet-nardah",
+      "name": "Nardah rug merchant",
+      "x": 3401,
+      "y": 2918,
+      "plane": 0,
+      "mapId": 28,
+      "chunkId": "13613",
+      "locationId": "13613-0",
+      "coordinateEvidence": {
+        "kind": "wiki-transport-map",
+        "url": "https://runescape.wiki/w/Magic_carpet?oldid=37035700",
+        "role": "operator-map-anchor-not-landing"
+      }
+    },
+    {
+      "id": "carpet-bedabin-camp",
+      "name": "Bedabin Camp rug merchant",
+      "x": 3182,
+      "y": 3043,
+      "plane": 0,
+      "mapId": 28,
+      "chunkId": "12591",
+      "locationId": "12591-0",
+      "coordinateEvidence": {
+        "kind": "wiki-transport-map",
+        "url": "https://runescape.wiki/w/Magic_carpet?oldid=37035700",
+        "role": "operator-map-anchor-not-landing"
+      }
+    },
+    {
+      "id": "carpet-uzer",
+      "name": "Uzer rug merchant",
+      "x": 3467,
+      "y": 3110,
+      "plane": 0,
+      "mapId": 28,
+      "chunkId": "13872",
+      "locationId": "13872-0",
+      "coordinateEvidence": {
+        "kind": "wiki-transport-map",
+        "url": "https://runescape.wiki/w/Magic_carpet?oldid=37035700",
+        "role": "operator-map-anchor-not-landing"
+      }
+    },
+    {
+      "id": "carpet-monkey-colony",
+      "name": "Monkey colony rug merchant",
+      "x": 3228,
+      "y": 2988,
+      "plane": 0,
+      "mapId": 28,
+      "chunkId": "12846",
+      "locationId": "12846-2",
+      "coordinateEvidence": {
+        "kind": "wiki-transport-map",
+        "url": "https://runescape.wiki/w/Magic_carpet?oldid=37035700",
+        "role": "operator-map-anchor-not-landing"
+      }
+    },
+    {
+      "id": "shantay-gate-north",
+      "name": "Shantay Pass north side",
+      "chunkId": "13104",
+      "locationId": "13104-2",
+      "x": 3305,
+      "y": 3123,
+      "plane": 0,
+      "mapId": 28,
+      "coordinateEvidence": {
+        "kind": "wiki-location-map",
+        "url": "https://runescape.wiki/w/Shantay_Pass?oldid=37130849",
+        "role": "north-pass-area-anchor"
+      }
+    }
+  ],
+  "routes": [
+    {
+      "id": "spell-anachronia-totem-west",
+      "name": "Anachronia Teleport: West totem",
+      "kind": "teleport",
+      "from": null,
+      "to": "teleport-anachronia-totem-west",
+      "bidirectional": false,
+      "members": true,
+      "f2p": false,
+      "consumable": true,
+      "requirements": {
+        "levels": {
+          "Magic": 72
+        },
+        "quests": [],
+        "items": [
+          {
+            "name": "Earth rune",
+            "quantity": 1,
+            "consumed": true
+          },
+          {
+            "name": "Nature rune",
+            "quantity": 3,
+            "consumed": true
+          },
+          {
+            "name": "Law rune",
+            "quantity": 1,
+            "consumed": true
+          }
+        ],
+        "fare": null,
+        "conditions": [
+          "teleport-origin-permitted",
+          "standard-spellbook"
+        ],
+        "confirmations": [
+          "totem-of-the-abyss-active:west"
+        ]
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Anachronia_Teleport?oldid=36984774",
+          "detail": "Members-only spell; explicit Magic level, rune cost and teleport destination map."
+        },
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Totem_of_the_Abyss?oldid=37181280",
+          "detail": "Totem must be installed at this pedestal. Since April 2026 it remains active until removed; no obsolete weekly charging requirement is imposed."
+        }
+      ],
+      "unknowns": [],
+      "notes": [
+        "Consumable teleport setting must be enabled; rune counts are declared personal supplies and are not deducted by the picker."
+      ]
+    },
+    {
+      "id": "spell-anachronia-totem-southeast",
+      "name": "Anachronia Teleport: Southeast totem",
+      "kind": "teleport",
+      "from": null,
+      "to": "teleport-anachronia-totem-southeast",
+      "bidirectional": false,
+      "members": true,
+      "f2p": false,
+      "consumable": true,
+      "requirements": {
+        "levels": {
+          "Magic": 72
+        },
+        "quests": [],
+        "items": [
+          {
+            "name": "Earth rune",
+            "quantity": 1,
+            "consumed": true
+          },
+          {
+            "name": "Nature rune",
+            "quantity": 3,
+            "consumed": true
+          },
+          {
+            "name": "Law rune",
+            "quantity": 1,
+            "consumed": true
+          }
+        ],
+        "fare": null,
+        "conditions": [
+          "teleport-origin-permitted",
+          "standard-spellbook"
+        ],
+        "confirmations": [
+          "totem-of-the-abyss-active:southeast"
+        ]
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Anachronia_Teleport?oldid=36984774",
+          "detail": "Members-only spell; explicit Magic level, rune cost and teleport destination map."
+        },
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Totem_of_the_Abyss?oldid=37181280",
+          "detail": "Totem must be installed at this pedestal. Since April 2026 it remains active until removed; no obsolete weekly charging requirement is imposed."
+        }
+      ],
+      "unknowns": [],
+      "notes": [
+        "Consumable teleport setting must be enabled; rune counts are declared personal supplies and are not deducted by the picker."
+      ]
+    },
+    {
+      "id": "spell-anachronia-totem-north",
+      "name": "Anachronia Teleport: North totem",
+      "kind": "teleport",
+      "from": null,
+      "to": "teleport-anachronia-totem-north",
+      "bidirectional": false,
+      "members": true,
+      "f2p": false,
+      "consumable": true,
+      "requirements": {
+        "levels": {
+          "Magic": 72
+        },
+        "quests": [],
+        "items": [
+          {
+            "name": "Earth rune",
+            "quantity": 1,
+            "consumed": true
+          },
+          {
+            "name": "Nature rune",
+            "quantity": 3,
+            "consumed": true
+          },
+          {
+            "name": "Law rune",
+            "quantity": 1,
+            "consumed": true
+          }
+        ],
+        "fare": null,
+        "conditions": [
+          "teleport-origin-permitted",
+          "standard-spellbook"
+        ],
+        "confirmations": [
+          "totem-of-the-abyss-active:north"
+        ]
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Anachronia_Teleport?oldid=36984774",
+          "detail": "Members-only spell; explicit Magic level, rune cost and teleport destination map."
+        },
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Totem_of_the_Abyss?oldid=37181280",
+          "detail": "Totem must be installed at this pedestal. Since April 2026 it remains active until removed; no obsolete weekly charging requirement is imposed."
+        }
+      ],
+      "unknowns": [],
+      "notes": [
+        "Consumable teleport setting must be enabled; rune counts are declared personal supplies and are not deducted by the picker."
+      ]
+    },
+    {
+      "id": "spell-north-western-anachronia",
+      "name": "North-western Anachronia Teleport",
+      "kind": "teleport",
+      "from": null,
+      "to": "teleport-north-western-anachronia",
+      "bidirectional": false,
+      "members": true,
+      "f2p": false,
+      "consumable": true,
+      "requirements": {
+        "levels": {
+          "Magic": 75
+        },
+        "quests": [],
+        "items": [
+          {
+            "name": "Nature rune",
+            "quantity": 2,
+            "consumed": true
+          },
+          {
+            "name": "Law rune",
+            "quantity": 1,
+            "consumed": true
+          },
+          {
+            "name": "Time rune",
+            "quantity": 1,
+            "consumed": true
+          }
+        ],
+        "fare": null,
+        "conditions": [
+          "teleport-origin-permitted",
+          "standard-spellbook"
+        ],
+        "confirmations": [
+          "anachronia-base-camp-tutorial-complete"
+        ]
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/North-western_Anachronia_Teleport?oldid=36984775",
+          "detail": "Members-only spell; explicit Magic level, rune cost and teleport destination map."
+        }
+      ],
+      "unknowns": [],
+      "notes": [
+        "Consumable teleport setting must be enabled; rune counts are declared personal supplies and are not deducted by the picker."
+      ]
+    },
+    {
+      "id": "spell-eastern-anachronia",
+      "name": "Eastern Anachronia Teleport",
+      "kind": "teleport",
+      "from": null,
+      "to": "teleport-eastern-anachronia",
+      "bidirectional": false,
+      "members": true,
+      "f2p": false,
+      "consumable": true,
+      "requirements": {
+        "levels": {
+          "Magic": 78
+        },
+        "quests": [],
+        "items": [
+          {
+            "name": "Nature rune",
+            "quantity": 2,
+            "consumed": true
+          },
+          {
+            "name": "Law rune",
+            "quantity": 1,
+            "consumed": true
+          },
+          {
+            "name": "Time rune",
+            "quantity": 1,
+            "consumed": true
+          }
+        ],
+        "fare": null,
+        "conditions": [
+          "teleport-origin-permitted",
+          "standard-spellbook"
+        ],
+        "confirmations": [
+          "anachronia-base-camp-tutorial-complete"
+        ]
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Eastern_Anachronia_Teleport?oldid=36984776",
+          "detail": "Members-only spell; explicit Magic level, rune cost and teleport destination map."
+        }
+      ],
+      "unknowns": [],
+      "notes": [
+        "Consumable teleport setting must be enabled; rune counts are declared personal supplies and are not deducted by the picker."
+      ]
+    },
+    {
+      "id": "item-anachronia-tablet",
+      "name": "Anachronia tablet to Player Lodge",
+      "kind": "teleport",
+      "from": null,
+      "to": "teleport-anachronia-tablet",
+      "bidirectional": false,
+      "members": true,
+      "f2p": false,
+      "consumable": true,
+      "requirements": {
+        "levels": {},
+        "quests": [
+          "Love Story"
+        ],
+        "items": [
+          {
+            "name": "Anachronia tablet",
+            "quantity": 1,
+            "consumed": true
+          }
+        ],
+        "fare": null,
+        "conditions": [
+          "teleport-origin-permitted"
+        ],
+        "confirmations": [
+          "anachronia-player-lodge-tier-2"
+        ]
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Anachronia_tablet?oldid=37006634",
+          "detail": "Members-only tablet; Love Story and tier 2 Player Lodge; explicit destination map. Level 77 Magic is the tablet modification requirement, not a new cast requirement for an already held tablet."
+        }
+      ],
+      "unknowns": [],
+      "notes": [
+        "Teleport targets Player Lodge, not the Totem of the Abyss. Tablet is consumed."
+      ]
+    },
+    {
+      "id": "carpet-menaphos--north-pollnivneach",
+      "name": "Menaphos to North Pollnivneach (magic carpet)",
+      "kind": "carpet",
+      "from": "carpet-menaphos",
+      "to": "carpet-north-pollnivneach",
+      "bidirectional": false,
+      "members": true,
+      "f2p": false,
+      "requirements": {
+        "levels": {},
+        "quests": [],
+        "items": [],
+        "fare": {
+          "currency": "coins",
+          "amount": 1000,
+          "detail": "Undiscounted fare per leg. 500 with Ali the Trader or worn activated ring of charos; 375 with both. Departure from monkey colony is free."
+        },
+        "conditions": [],
+        "confirmations": []
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Magic_carpet?oldid=37035700",
+          "detail": "RuneScape Wiki contributors, CC BY-NC-SA 3.0. Direct regular network; destination quests; 1000 coins per paid leg. From monkey colony only Shantay Pass and South Pollnivneach, free."
+        }
+      ],
+      "notes": [
+        "Directed legs preserve the asymmetric monkey-colony service and fares. Discount variants are not inferred."
+      ],
+      "unknowns": [
+        "Wiki map anchors identify operators, not observed player landing tiles."
+      ]
+    },
+    {
+      "id": "carpet-menaphos--shantay-pass",
+      "name": "Menaphos to Shantay Pass (magic carpet)",
+      "kind": "carpet",
+      "from": "carpet-menaphos",
+      "to": "carpet-shantay-pass",
+      "bidirectional": false,
+      "members": true,
+      "f2p": false,
+      "requirements": {
+        "levels": {},
+        "quests": [],
+        "items": [],
+        "fare": {
+          "currency": "coins",
+          "amount": 1000,
+          "detail": "Undiscounted fare per leg. 500 with Ali the Trader or worn activated ring of charos; 375 with both. Departure from monkey colony is free."
+        },
+        "conditions": [],
+        "confirmations": []
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Magic_carpet?oldid=37035700",
+          "detail": "RuneScape Wiki contributors, CC BY-NC-SA 3.0. Direct regular network; destination quests; 1000 coins per paid leg. From monkey colony only Shantay Pass and South Pollnivneach, free."
+        }
+      ],
+      "notes": [
+        "Directed legs preserve the asymmetric monkey-colony service and fares. Discount variants are not inferred."
+      ],
+      "unknowns": [
+        "Wiki map anchors identify operators, not observed player landing tiles."
+      ]
+    },
+    {
+      "id": "carpet-menaphos--sophanem",
+      "name": "Menaphos to Sophanem (magic carpet)",
+      "kind": "carpet",
+      "from": "carpet-menaphos",
+      "to": "carpet-sophanem",
+      "bidirectional": false,
+      "members": true,
+      "f2p": false,
+      "requirements": {
+        "levels": {},
+        "quests": [
+          "Icthlarin's Little Helper"
+        ],
+        "items": [],
+        "fare": {
+          "currency": "coins",
+          "amount": 1000,
+          "detail": "Undiscounted fare per leg. 500 with Ali the Trader or worn activated ring of charos; 375 with both. Departure from monkey colony is free."
+        },
+        "conditions": [],
+        "confirmations": []
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Magic_carpet?oldid=37035700",
+          "detail": "RuneScape Wiki contributors, CC BY-NC-SA 3.0. Direct regular network; destination quests; 1000 coins per paid leg. From monkey colony only Shantay Pass and South Pollnivneach, free."
+        }
+      ],
+      "notes": [
+        "Directed legs preserve the asymmetric monkey-colony service and fares. Discount variants are not inferred."
+      ],
+      "unknowns": [
+        "Wiki map anchors identify operators, not observed player landing tiles."
+      ]
+    },
+    {
+      "id": "carpet-menaphos--south-pollnivneach",
+      "name": "Menaphos to South Pollnivneach (magic carpet)",
+      "kind": "carpet",
+      "from": "carpet-menaphos",
+      "to": "carpet-south-pollnivneach",
+      "bidirectional": false,
+      "members": true,
+      "f2p": false,
+      "requirements": {
+        "levels": {},
+        "quests": [],
+        "items": [],
+        "fare": {
+          "currency": "coins",
+          "amount": 1000,
+          "detail": "Undiscounted fare per leg. 500 with Ali the Trader or worn activated ring of charos; 375 with both. Departure from monkey colony is free."
+        },
+        "conditions": [],
+        "confirmations": []
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Magic_carpet?oldid=37035700",
+          "detail": "RuneScape Wiki contributors, CC BY-NC-SA 3.0. Direct regular network; destination quests; 1000 coins per paid leg. From monkey colony only Shantay Pass and South Pollnivneach, free."
+        }
+      ],
+      "notes": [
+        "Directed legs preserve the asymmetric monkey-colony service and fares. Discount variants are not inferred."
+      ],
+      "unknowns": [
+        "Wiki map anchors identify operators, not observed player landing tiles."
+      ]
+    },
+    {
+      "id": "carpet-menaphos--nardah",
+      "name": "Menaphos to Nardah (magic carpet)",
+      "kind": "carpet",
+      "from": "carpet-menaphos",
+      "to": "carpet-nardah",
+      "bidirectional": false,
+      "members": true,
+      "f2p": false,
+      "requirements": {
+        "levels": {},
+        "quests": [],
+        "items": [],
+        "fare": {
+          "currency": "coins",
+          "amount": 1000,
+          "detail": "Undiscounted fare per leg. 500 with Ali the Trader or worn activated ring of charos; 375 with both. Departure from monkey colony is free."
+        },
+        "conditions": [],
+        "confirmations": []
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Magic_carpet?oldid=37035700",
+          "detail": "RuneScape Wiki contributors, CC BY-NC-SA 3.0. Direct regular network; destination quests; 1000 coins per paid leg. From monkey colony only Shantay Pass and South Pollnivneach, free."
+        }
+      ],
+      "notes": [
+        "Directed legs preserve the asymmetric monkey-colony service and fares. Discount variants are not inferred."
+      ],
+      "unknowns": [
+        "Wiki map anchors identify operators, not observed player landing tiles."
+      ]
+    },
+    {
+      "id": "carpet-menaphos--bedabin-camp",
+      "name": "Menaphos to Bedabin Camp (magic carpet)",
+      "kind": "carpet",
+      "from": "carpet-menaphos",
+      "to": "carpet-bedabin-camp",
+      "bidirectional": false,
+      "members": true,
+      "f2p": false,
+      "requirements": {
+        "levels": {},
+        "quests": [],
+        "items": [],
+        "fare": {
+          "currency": "coins",
+          "amount": 1000,
+          "detail": "Undiscounted fare per leg. 500 with Ali the Trader or worn activated ring of charos; 375 with both. Departure from monkey colony is free."
+        },
+        "conditions": [],
+        "confirmations": []
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Magic_carpet?oldid=37035700",
+          "detail": "RuneScape Wiki contributors, CC BY-NC-SA 3.0. Direct regular network; destination quests; 1000 coins per paid leg. From monkey colony only Shantay Pass and South Pollnivneach, free."
+        }
+      ],
+      "notes": [
+        "Directed legs preserve the asymmetric monkey-colony service and fares. Discount variants are not inferred."
+      ],
+      "unknowns": [
+        "Wiki map anchors identify operators, not observed player landing tiles."
+      ]
+    },
+    {
+      "id": "carpet-menaphos--uzer",
+      "name": "Menaphos to Uzer (magic carpet)",
+      "kind": "carpet",
+      "from": "carpet-menaphos",
+      "to": "carpet-uzer",
+      "bidirectional": false,
+      "members": true,
+      "f2p": false,
+      "requirements": {
+        "levels": {},
+        "quests": [
+          "The Golem"
+        ],
+        "items": [],
+        "fare": {
+          "currency": "coins",
+          "amount": 1000,
+          "detail": "Undiscounted fare per leg. 500 with Ali the Trader or worn activated ring of charos; 375 with both. Departure from monkey colony is free."
+        },
+        "conditions": [],
+        "confirmations": []
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Magic_carpet?oldid=37035700",
+          "detail": "RuneScape Wiki contributors, CC BY-NC-SA 3.0. Direct regular network; destination quests; 1000 coins per paid leg. From monkey colony only Shantay Pass and South Pollnivneach, free."
+        }
+      ],
+      "notes": [
+        "Directed legs preserve the asymmetric monkey-colony service and fares. Discount variants are not inferred."
+      ],
+      "unknowns": [
+        "Wiki map anchors identify operators, not observed player landing tiles."
+      ]
+    },
+    {
+      "id": "carpet-menaphos--monkey-colony",
+      "name": "Menaphos to Monkey colony (magic carpet)",
+      "kind": "carpet",
+      "from": "carpet-menaphos",
+      "to": "carpet-monkey-colony",
+      "bidirectional": false,
+      "members": true,
+      "f2p": false,
+      "requirements": {
+        "levels": {},
+        "quests": [
+          "Do No Evil"
+        ],
+        "items": [],
+        "fare": {
+          "currency": "coins",
+          "amount": 1000,
+          "detail": "Undiscounted fare per leg. 500 with Ali the Trader or worn activated ring of charos; 375 with both. Departure from monkey colony is free."
+        },
+        "conditions": [],
+        "confirmations": []
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Magic_carpet?oldid=37035700",
+          "detail": "RuneScape Wiki contributors, CC BY-NC-SA 3.0. Direct regular network; destination quests; 1000 coins per paid leg. From monkey colony only Shantay Pass and South Pollnivneach, free."
+        }
+      ],
+      "notes": [
+        "Directed legs preserve the asymmetric monkey-colony service and fares. Discount variants are not inferred."
+      ],
+      "unknowns": [
+        "Wiki map anchors identify operators, not observed player landing tiles."
+      ]
+    },
+    {
+      "id": "carpet-north-pollnivneach--menaphos",
+      "name": "North Pollnivneach to Menaphos (magic carpet)",
+      "kind": "carpet",
+      "from": "carpet-north-pollnivneach",
+      "to": "carpet-menaphos",
+      "bidirectional": false,
+      "members": true,
+      "f2p": false,
+      "requirements": {
+        "levels": {},
+        "quests": [
+          "Icthlarin's Little Helper"
+        ],
+        "items": [],
+        "fare": {
+          "currency": "coins",
+          "amount": 1000,
+          "detail": "Undiscounted fare per leg. 500 with Ali the Trader or worn activated ring of charos; 375 with both. Departure from monkey colony is free."
+        },
+        "conditions": [],
+        "confirmations": []
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Magic_carpet?oldid=37035700",
+          "detail": "RuneScape Wiki contributors, CC BY-NC-SA 3.0. Direct regular network; destination quests; 1000 coins per paid leg. From monkey colony only Shantay Pass and South Pollnivneach, free."
+        }
+      ],
+      "notes": [
+        "Directed legs preserve the asymmetric monkey-colony service and fares. Discount variants are not inferred."
+      ],
+      "unknowns": [
+        "Wiki map anchors identify operators, not observed player landing tiles."
+      ]
+    },
+    {
+      "id": "carpet-north-pollnivneach--shantay-pass",
+      "name": "North Pollnivneach to Shantay Pass (magic carpet)",
+      "kind": "carpet",
+      "from": "carpet-north-pollnivneach",
+      "to": "carpet-shantay-pass",
+      "bidirectional": false,
+      "members": true,
+      "f2p": false,
+      "requirements": {
+        "levels": {},
+        "quests": [],
+        "items": [],
+        "fare": {
+          "currency": "coins",
+          "amount": 1000,
+          "detail": "Undiscounted fare per leg. 500 with Ali the Trader or worn activated ring of charos; 375 with both. Departure from monkey colony is free."
+        },
+        "conditions": [],
+        "confirmations": []
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Magic_carpet?oldid=37035700",
+          "detail": "RuneScape Wiki contributors, CC BY-NC-SA 3.0. Direct regular network; destination quests; 1000 coins per paid leg. From monkey colony only Shantay Pass and South Pollnivneach, free."
+        }
+      ],
+      "notes": [
+        "Directed legs preserve the asymmetric monkey-colony service and fares. Discount variants are not inferred."
+      ],
+      "unknowns": [
+        "Wiki map anchors identify operators, not observed player landing tiles."
+      ]
+    },
+    {
+      "id": "carpet-north-pollnivneach--sophanem",
+      "name": "North Pollnivneach to Sophanem (magic carpet)",
+      "kind": "carpet",
+      "from": "carpet-north-pollnivneach",
+      "to": "carpet-sophanem",
+      "bidirectional": false,
+      "members": true,
+      "f2p": false,
+      "requirements": {
+        "levels": {},
+        "quests": [
+          "Icthlarin's Little Helper"
+        ],
+        "items": [],
+        "fare": {
+          "currency": "coins",
+          "amount": 1000,
+          "detail": "Undiscounted fare per leg. 500 with Ali the Trader or worn activated ring of charos; 375 with both. Departure from monkey colony is free."
+        },
+        "conditions": [],
+        "confirmations": []
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Magic_carpet?oldid=37035700",
+          "detail": "RuneScape Wiki contributors, CC BY-NC-SA 3.0. Direct regular network; destination quests; 1000 coins per paid leg. From monkey colony only Shantay Pass and South Pollnivneach, free."
+        }
+      ],
+      "notes": [
+        "Directed legs preserve the asymmetric monkey-colony service and fares. Discount variants are not inferred."
+      ],
+      "unknowns": [
+        "Wiki map anchors identify operators, not observed player landing tiles."
+      ]
+    },
+    {
+      "id": "carpet-north-pollnivneach--south-pollnivneach",
+      "name": "North Pollnivneach to South Pollnivneach (magic carpet)",
+      "kind": "carpet",
+      "from": "carpet-north-pollnivneach",
+      "to": "carpet-south-pollnivneach",
+      "bidirectional": false,
+      "members": true,
+      "f2p": false,
+      "requirements": {
+        "levels": {},
+        "quests": [],
+        "items": [],
+        "fare": {
+          "currency": "coins",
+          "amount": 1000,
+          "detail": "Undiscounted fare per leg. 500 with Ali the Trader or worn activated ring of charos; 375 with both. Departure from monkey colony is free."
+        },
+        "conditions": [],
+        "confirmations": []
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Magic_carpet?oldid=37035700",
+          "detail": "RuneScape Wiki contributors, CC BY-NC-SA 3.0. Direct regular network; destination quests; 1000 coins per paid leg. From monkey colony only Shantay Pass and South Pollnivneach, free."
+        }
+      ],
+      "notes": [
+        "Directed legs preserve the asymmetric monkey-colony service and fares. Discount variants are not inferred."
+      ],
+      "unknowns": [
+        "Wiki map anchors identify operators, not observed player landing tiles."
+      ]
+    },
+    {
+      "id": "carpet-north-pollnivneach--nardah",
+      "name": "North Pollnivneach to Nardah (magic carpet)",
+      "kind": "carpet",
+      "from": "carpet-north-pollnivneach",
+      "to": "carpet-nardah",
+      "bidirectional": false,
+      "members": true,
+      "f2p": false,
+      "requirements": {
+        "levels": {},
+        "quests": [],
+        "items": [],
+        "fare": {
+          "currency": "coins",
+          "amount": 1000,
+          "detail": "Undiscounted fare per leg. 500 with Ali the Trader or worn activated ring of charos; 375 with both. Departure from monkey colony is free."
+        },
+        "conditions": [],
+        "confirmations": []
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Magic_carpet?oldid=37035700",
+          "detail": "RuneScape Wiki contributors, CC BY-NC-SA 3.0. Direct regular network; destination quests; 1000 coins per paid leg. From monkey colony only Shantay Pass and South Pollnivneach, free."
+        }
+      ],
+      "notes": [
+        "Directed legs preserve the asymmetric monkey-colony service and fares. Discount variants are not inferred."
+      ],
+      "unknowns": [
+        "Wiki map anchors identify operators, not observed player landing tiles."
+      ]
+    },
+    {
+      "id": "carpet-north-pollnivneach--bedabin-camp",
+      "name": "North Pollnivneach to Bedabin Camp (magic carpet)",
+      "kind": "carpet",
+      "from": "carpet-north-pollnivneach",
+      "to": "carpet-bedabin-camp",
+      "bidirectional": false,
+      "members": true,
+      "f2p": false,
+      "requirements": {
+        "levels": {},
+        "quests": [],
+        "items": [],
+        "fare": {
+          "currency": "coins",
+          "amount": 1000,
+          "detail": "Undiscounted fare per leg. 500 with Ali the Trader or worn activated ring of charos; 375 with both. Departure from monkey colony is free."
+        },
+        "conditions": [],
+        "confirmations": []
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Magic_carpet?oldid=37035700",
+          "detail": "RuneScape Wiki contributors, CC BY-NC-SA 3.0. Direct regular network; destination quests; 1000 coins per paid leg. From monkey colony only Shantay Pass and South Pollnivneach, free."
+        }
+      ],
+      "notes": [
+        "Directed legs preserve the asymmetric monkey-colony service and fares. Discount variants are not inferred."
+      ],
+      "unknowns": [
+        "Wiki map anchors identify operators, not observed player landing tiles."
+      ]
+    },
+    {
+      "id": "carpet-north-pollnivneach--uzer",
+      "name": "North Pollnivneach to Uzer (magic carpet)",
+      "kind": "carpet",
+      "from": "carpet-north-pollnivneach",
+      "to": "carpet-uzer",
+      "bidirectional": false,
+      "members": true,
+      "f2p": false,
+      "requirements": {
+        "levels": {},
+        "quests": [
+          "The Golem"
+        ],
+        "items": [],
+        "fare": {
+          "currency": "coins",
+          "amount": 1000,
+          "detail": "Undiscounted fare per leg. 500 with Ali the Trader or worn activated ring of charos; 375 with both. Departure from monkey colony is free."
+        },
+        "conditions": [],
+        "confirmations": []
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Magic_carpet?oldid=37035700",
+          "detail": "RuneScape Wiki contributors, CC BY-NC-SA 3.0. Direct regular network; destination quests; 1000 coins per paid leg. From monkey colony only Shantay Pass and South Pollnivneach, free."
+        }
+      ],
+      "notes": [
+        "Directed legs preserve the asymmetric monkey-colony service and fares. Discount variants are not inferred."
+      ],
+      "unknowns": [
+        "Wiki map anchors identify operators, not observed player landing tiles."
+      ]
+    },
+    {
+      "id": "carpet-north-pollnivneach--monkey-colony",
+      "name": "North Pollnivneach to Monkey colony (magic carpet)",
+      "kind": "carpet",
+      "from": "carpet-north-pollnivneach",
+      "to": "carpet-monkey-colony",
+      "bidirectional": false,
+      "members": true,
+      "f2p": false,
+      "requirements": {
+        "levels": {},
+        "quests": [
+          "Do No Evil"
+        ],
+        "items": [],
+        "fare": {
+          "currency": "coins",
+          "amount": 1000,
+          "detail": "Undiscounted fare per leg. 500 with Ali the Trader or worn activated ring of charos; 375 with both. Departure from monkey colony is free."
+        },
+        "conditions": [],
+        "confirmations": []
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Magic_carpet?oldid=37035700",
+          "detail": "RuneScape Wiki contributors, CC BY-NC-SA 3.0. Direct regular network; destination quests; 1000 coins per paid leg. From monkey colony only Shantay Pass and South Pollnivneach, free."
+        }
+      ],
+      "notes": [
+        "Directed legs preserve the asymmetric monkey-colony service and fares. Discount variants are not inferred."
+      ],
+      "unknowns": [
+        "Wiki map anchors identify operators, not observed player landing tiles."
+      ]
+    },
+    {
+      "id": "carpet-shantay-pass--menaphos",
+      "name": "Shantay Pass to Menaphos (magic carpet)",
+      "kind": "carpet",
+      "from": "carpet-shantay-pass",
+      "to": "carpet-menaphos",
+      "bidirectional": false,
+      "members": true,
+      "f2p": false,
+      "requirements": {
+        "levels": {},
+        "quests": [
+          "Icthlarin's Little Helper"
+        ],
+        "items": [],
+        "fare": {
+          "currency": "coins",
+          "amount": 1000,
+          "detail": "Undiscounted fare per leg. 500 with Ali the Trader or worn activated ring of charos; 375 with both. Departure from monkey colony is free."
+        },
+        "conditions": [],
+        "confirmations": []
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Magic_carpet?oldid=37035700",
+          "detail": "RuneScape Wiki contributors, CC BY-NC-SA 3.0. Direct regular network; destination quests; 1000 coins per paid leg. From monkey colony only Shantay Pass and South Pollnivneach, free."
+        }
+      ],
+      "notes": [
+        "Directed legs preserve the asymmetric monkey-colony service and fares. Discount variants are not inferred."
+      ],
+      "unknowns": [
+        "Wiki map anchors identify operators, not observed player landing tiles."
+      ]
+    },
+    {
+      "id": "carpet-shantay-pass--north-pollnivneach",
+      "name": "Shantay Pass to North Pollnivneach (magic carpet)",
+      "kind": "carpet",
+      "from": "carpet-shantay-pass",
+      "to": "carpet-north-pollnivneach",
+      "bidirectional": false,
+      "members": true,
+      "f2p": false,
+      "requirements": {
+        "levels": {},
+        "quests": [],
+        "items": [],
+        "fare": {
+          "currency": "coins",
+          "amount": 1000,
+          "detail": "Undiscounted fare per leg. 500 with Ali the Trader or worn activated ring of charos; 375 with both. Departure from monkey colony is free."
+        },
+        "conditions": [],
+        "confirmations": []
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Magic_carpet?oldid=37035700",
+          "detail": "RuneScape Wiki contributors, CC BY-NC-SA 3.0. Direct regular network; destination quests; 1000 coins per paid leg. From monkey colony only Shantay Pass and South Pollnivneach, free."
+        }
+      ],
+      "notes": [
+        "Directed legs preserve the asymmetric monkey-colony service and fares. Discount variants are not inferred."
+      ],
+      "unknowns": [
+        "Wiki map anchors identify operators, not observed player landing tiles."
+      ]
+    },
+    {
+      "id": "carpet-shantay-pass--sophanem",
+      "name": "Shantay Pass to Sophanem (magic carpet)",
+      "kind": "carpet",
+      "from": "carpet-shantay-pass",
+      "to": "carpet-sophanem",
+      "bidirectional": false,
+      "members": true,
+      "f2p": false,
+      "requirements": {
+        "levels": {},
+        "quests": [
+          "Icthlarin's Little Helper"
+        ],
+        "items": [],
+        "fare": {
+          "currency": "coins",
+          "amount": 1000,
+          "detail": "Undiscounted fare per leg. 500 with Ali the Trader or worn activated ring of charos; 375 with both. Departure from monkey colony is free."
+        },
+        "conditions": [],
+        "confirmations": []
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Magic_carpet?oldid=37035700",
+          "detail": "RuneScape Wiki contributors, CC BY-NC-SA 3.0. Direct regular network; destination quests; 1000 coins per paid leg. From monkey colony only Shantay Pass and South Pollnivneach, free."
+        }
+      ],
+      "notes": [
+        "Directed legs preserve the asymmetric monkey-colony service and fares. Discount variants are not inferred."
+      ],
+      "unknowns": [
+        "Wiki map anchors identify operators, not observed player landing tiles."
+      ]
+    },
+    {
+      "id": "carpet-shantay-pass--south-pollnivneach",
+      "name": "Shantay Pass to South Pollnivneach (magic carpet)",
+      "kind": "carpet",
+      "from": "carpet-shantay-pass",
+      "to": "carpet-south-pollnivneach",
+      "bidirectional": false,
+      "members": true,
+      "f2p": false,
+      "requirements": {
+        "levels": {},
+        "quests": [],
+        "items": [],
+        "fare": {
+          "currency": "coins",
+          "amount": 1000,
+          "detail": "Undiscounted fare per leg. 500 with Ali the Trader or worn activated ring of charos; 375 with both. Departure from monkey colony is free."
+        },
+        "conditions": [],
+        "confirmations": []
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Magic_carpet?oldid=37035700",
+          "detail": "RuneScape Wiki contributors, CC BY-NC-SA 3.0. Direct regular network; destination quests; 1000 coins per paid leg. From monkey colony only Shantay Pass and South Pollnivneach, free."
+        }
+      ],
+      "notes": [
+        "Directed legs preserve the asymmetric monkey-colony service and fares. Discount variants are not inferred."
+      ],
+      "unknowns": [
+        "Wiki map anchors identify operators, not observed player landing tiles."
+      ]
+    },
+    {
+      "id": "carpet-shantay-pass--nardah",
+      "name": "Shantay Pass to Nardah (magic carpet)",
+      "kind": "carpet",
+      "from": "carpet-shantay-pass",
+      "to": "carpet-nardah",
+      "bidirectional": false,
+      "members": true,
+      "f2p": false,
+      "requirements": {
+        "levels": {},
+        "quests": [],
+        "items": [],
+        "fare": {
+          "currency": "coins",
+          "amount": 1000,
+          "detail": "Undiscounted fare per leg. 500 with Ali the Trader or worn activated ring of charos; 375 with both. Departure from monkey colony is free."
+        },
+        "conditions": [],
+        "confirmations": []
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Magic_carpet?oldid=37035700",
+          "detail": "RuneScape Wiki contributors, CC BY-NC-SA 3.0. Direct regular network; destination quests; 1000 coins per paid leg. From monkey colony only Shantay Pass and South Pollnivneach, free."
+        }
+      ],
+      "notes": [
+        "Directed legs preserve the asymmetric monkey-colony service and fares. Discount variants are not inferred."
+      ],
+      "unknowns": [
+        "Wiki map anchors identify operators, not observed player landing tiles."
+      ]
+    },
+    {
+      "id": "carpet-shantay-pass--bedabin-camp",
+      "name": "Shantay Pass to Bedabin Camp (magic carpet)",
+      "kind": "carpet",
+      "from": "carpet-shantay-pass",
+      "to": "carpet-bedabin-camp",
+      "bidirectional": false,
+      "members": true,
+      "f2p": false,
+      "requirements": {
+        "levels": {},
+        "quests": [],
+        "items": [],
+        "fare": {
+          "currency": "coins",
+          "amount": 1000,
+          "detail": "Undiscounted fare per leg. 500 with Ali the Trader or worn activated ring of charos; 375 with both. Departure from monkey colony is free."
+        },
+        "conditions": [],
+        "confirmations": []
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Magic_carpet?oldid=37035700",
+          "detail": "RuneScape Wiki contributors, CC BY-NC-SA 3.0. Direct regular network; destination quests; 1000 coins per paid leg. From monkey colony only Shantay Pass and South Pollnivneach, free."
+        }
+      ],
+      "notes": [
+        "Directed legs preserve the asymmetric monkey-colony service and fares. Discount variants are not inferred."
+      ],
+      "unknowns": [
+        "Wiki map anchors identify operators, not observed player landing tiles."
+      ]
+    },
+    {
+      "id": "carpet-shantay-pass--uzer",
+      "name": "Shantay Pass to Uzer (magic carpet)",
+      "kind": "carpet",
+      "from": "carpet-shantay-pass",
+      "to": "carpet-uzer",
+      "bidirectional": false,
+      "members": true,
+      "f2p": false,
+      "requirements": {
+        "levels": {},
+        "quests": [
+          "The Golem"
+        ],
+        "items": [],
+        "fare": {
+          "currency": "coins",
+          "amount": 1000,
+          "detail": "Undiscounted fare per leg. 500 with Ali the Trader or worn activated ring of charos; 375 with both. Departure from monkey colony is free."
+        },
+        "conditions": [],
+        "confirmations": []
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Magic_carpet?oldid=37035700",
+          "detail": "RuneScape Wiki contributors, CC BY-NC-SA 3.0. Direct regular network; destination quests; 1000 coins per paid leg. From monkey colony only Shantay Pass and South Pollnivneach, free."
+        }
+      ],
+      "notes": [
+        "Directed legs preserve the asymmetric monkey-colony service and fares. Discount variants are not inferred."
+      ],
+      "unknowns": [
+        "Wiki map anchors identify operators, not observed player landing tiles."
+      ]
+    },
+    {
+      "id": "carpet-shantay-pass--monkey-colony",
+      "name": "Shantay Pass to Monkey colony (magic carpet)",
+      "kind": "carpet",
+      "from": "carpet-shantay-pass",
+      "to": "carpet-monkey-colony",
+      "bidirectional": false,
+      "members": true,
+      "f2p": false,
+      "requirements": {
+        "levels": {},
+        "quests": [
+          "Do No Evil"
+        ],
+        "items": [],
+        "fare": {
+          "currency": "coins",
+          "amount": 1000,
+          "detail": "Undiscounted fare per leg. 500 with Ali the Trader or worn activated ring of charos; 375 with both. Departure from monkey colony is free."
+        },
+        "conditions": [],
+        "confirmations": []
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Magic_carpet?oldid=37035700",
+          "detail": "RuneScape Wiki contributors, CC BY-NC-SA 3.0. Direct regular network; destination quests; 1000 coins per paid leg. From monkey colony only Shantay Pass and South Pollnivneach, free."
+        }
+      ],
+      "notes": [
+        "Directed legs preserve the asymmetric monkey-colony service and fares. Discount variants are not inferred."
+      ],
+      "unknowns": [
+        "Wiki map anchors identify operators, not observed player landing tiles."
+      ]
+    },
+    {
+      "id": "carpet-sophanem--menaphos",
+      "name": "Sophanem to Menaphos (magic carpet)",
+      "kind": "carpet",
+      "from": "carpet-sophanem",
+      "to": "carpet-menaphos",
+      "bidirectional": false,
+      "members": true,
+      "f2p": false,
+      "requirements": {
+        "levels": {},
+        "quests": [
+          "Icthlarin's Little Helper"
+        ],
+        "items": [],
+        "fare": {
+          "currency": "coins",
+          "amount": 1000,
+          "detail": "Undiscounted fare per leg. 500 with Ali the Trader or worn activated ring of charos; 375 with both. Departure from monkey colony is free."
+        },
+        "conditions": [],
+        "confirmations": []
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Magic_carpet?oldid=37035700",
+          "detail": "RuneScape Wiki contributors, CC BY-NC-SA 3.0. Direct regular network; destination quests; 1000 coins per paid leg. From monkey colony only Shantay Pass and South Pollnivneach, free."
+        }
+      ],
+      "notes": [
+        "Directed legs preserve the asymmetric monkey-colony service and fares. Discount variants are not inferred."
+      ],
+      "unknowns": [
+        "Wiki map anchors identify operators, not observed player landing tiles."
+      ]
+    },
+    {
+      "id": "carpet-sophanem--north-pollnivneach",
+      "name": "Sophanem to North Pollnivneach (magic carpet)",
+      "kind": "carpet",
+      "from": "carpet-sophanem",
+      "to": "carpet-north-pollnivneach",
+      "bidirectional": false,
+      "members": true,
+      "f2p": false,
+      "requirements": {
+        "levels": {},
+        "quests": [],
+        "items": [],
+        "fare": {
+          "currency": "coins",
+          "amount": 1000,
+          "detail": "Undiscounted fare per leg. 500 with Ali the Trader or worn activated ring of charos; 375 with both. Departure from monkey colony is free."
+        },
+        "conditions": [],
+        "confirmations": []
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Magic_carpet?oldid=37035700",
+          "detail": "RuneScape Wiki contributors, CC BY-NC-SA 3.0. Direct regular network; destination quests; 1000 coins per paid leg. From monkey colony only Shantay Pass and South Pollnivneach, free."
+        }
+      ],
+      "notes": [
+        "Directed legs preserve the asymmetric monkey-colony service and fares. Discount variants are not inferred."
+      ],
+      "unknowns": [
+        "Wiki map anchors identify operators, not observed player landing tiles."
+      ]
+    },
+    {
+      "id": "carpet-sophanem--shantay-pass",
+      "name": "Sophanem to Shantay Pass (magic carpet)",
+      "kind": "carpet",
+      "from": "carpet-sophanem",
+      "to": "carpet-shantay-pass",
+      "bidirectional": false,
+      "members": true,
+      "f2p": false,
+      "requirements": {
+        "levels": {},
+        "quests": [],
+        "items": [],
+        "fare": {
+          "currency": "coins",
+          "amount": 1000,
+          "detail": "Undiscounted fare per leg. 500 with Ali the Trader or worn activated ring of charos; 375 with both. Departure from monkey colony is free."
+        },
+        "conditions": [],
+        "confirmations": []
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Magic_carpet?oldid=37035700",
+          "detail": "RuneScape Wiki contributors, CC BY-NC-SA 3.0. Direct regular network; destination quests; 1000 coins per paid leg. From monkey colony only Shantay Pass and South Pollnivneach, free."
+        }
+      ],
+      "notes": [
+        "Directed legs preserve the asymmetric monkey-colony service and fares. Discount variants are not inferred."
+      ],
+      "unknowns": [
+        "Wiki map anchors identify operators, not observed player landing tiles."
+      ]
+    },
+    {
+      "id": "carpet-sophanem--south-pollnivneach",
+      "name": "Sophanem to South Pollnivneach (magic carpet)",
+      "kind": "carpet",
+      "from": "carpet-sophanem",
+      "to": "carpet-south-pollnivneach",
+      "bidirectional": false,
+      "members": true,
+      "f2p": false,
+      "requirements": {
+        "levels": {},
+        "quests": [],
+        "items": [],
+        "fare": {
+          "currency": "coins",
+          "amount": 1000,
+          "detail": "Undiscounted fare per leg. 500 with Ali the Trader or worn activated ring of charos; 375 with both. Departure from monkey colony is free."
+        },
+        "conditions": [],
+        "confirmations": []
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Magic_carpet?oldid=37035700",
+          "detail": "RuneScape Wiki contributors, CC BY-NC-SA 3.0. Direct regular network; destination quests; 1000 coins per paid leg. From monkey colony only Shantay Pass and South Pollnivneach, free."
+        }
+      ],
+      "notes": [
+        "Directed legs preserve the asymmetric monkey-colony service and fares. Discount variants are not inferred."
+      ],
+      "unknowns": [
+        "Wiki map anchors identify operators, not observed player landing tiles."
+      ]
+    },
+    {
+      "id": "carpet-sophanem--nardah",
+      "name": "Sophanem to Nardah (magic carpet)",
+      "kind": "carpet",
+      "from": "carpet-sophanem",
+      "to": "carpet-nardah",
+      "bidirectional": false,
+      "members": true,
+      "f2p": false,
+      "requirements": {
+        "levels": {},
+        "quests": [],
+        "items": [],
+        "fare": {
+          "currency": "coins",
+          "amount": 1000,
+          "detail": "Undiscounted fare per leg. 500 with Ali the Trader or worn activated ring of charos; 375 with both. Departure from monkey colony is free."
+        },
+        "conditions": [],
+        "confirmations": []
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Magic_carpet?oldid=37035700",
+          "detail": "RuneScape Wiki contributors, CC BY-NC-SA 3.0. Direct regular network; destination quests; 1000 coins per paid leg. From monkey colony only Shantay Pass and South Pollnivneach, free."
+        }
+      ],
+      "notes": [
+        "Directed legs preserve the asymmetric monkey-colony service and fares. Discount variants are not inferred."
+      ],
+      "unknowns": [
+        "Wiki map anchors identify operators, not observed player landing tiles."
+      ]
+    },
+    {
+      "id": "carpet-sophanem--bedabin-camp",
+      "name": "Sophanem to Bedabin Camp (magic carpet)",
+      "kind": "carpet",
+      "from": "carpet-sophanem",
+      "to": "carpet-bedabin-camp",
+      "bidirectional": false,
+      "members": true,
+      "f2p": false,
+      "requirements": {
+        "levels": {},
+        "quests": [],
+        "items": [],
+        "fare": {
+          "currency": "coins",
+          "amount": 1000,
+          "detail": "Undiscounted fare per leg. 500 with Ali the Trader or worn activated ring of charos; 375 with both. Departure from monkey colony is free."
+        },
+        "conditions": [],
+        "confirmations": []
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Magic_carpet?oldid=37035700",
+          "detail": "RuneScape Wiki contributors, CC BY-NC-SA 3.0. Direct regular network; destination quests; 1000 coins per paid leg. From monkey colony only Shantay Pass and South Pollnivneach, free."
+        }
+      ],
+      "notes": [
+        "Directed legs preserve the asymmetric monkey-colony service and fares. Discount variants are not inferred."
+      ],
+      "unknowns": [
+        "Wiki map anchors identify operators, not observed player landing tiles."
+      ]
+    },
+    {
+      "id": "carpet-sophanem--uzer",
+      "name": "Sophanem to Uzer (magic carpet)",
+      "kind": "carpet",
+      "from": "carpet-sophanem",
+      "to": "carpet-uzer",
+      "bidirectional": false,
+      "members": true,
+      "f2p": false,
+      "requirements": {
+        "levels": {},
+        "quests": [
+          "The Golem"
+        ],
+        "items": [],
+        "fare": {
+          "currency": "coins",
+          "amount": 1000,
+          "detail": "Undiscounted fare per leg. 500 with Ali the Trader or worn activated ring of charos; 375 with both. Departure from monkey colony is free."
+        },
+        "conditions": [],
+        "confirmations": []
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Magic_carpet?oldid=37035700",
+          "detail": "RuneScape Wiki contributors, CC BY-NC-SA 3.0. Direct regular network; destination quests; 1000 coins per paid leg. From monkey colony only Shantay Pass and South Pollnivneach, free."
+        }
+      ],
+      "notes": [
+        "Directed legs preserve the asymmetric monkey-colony service and fares. Discount variants are not inferred."
+      ],
+      "unknowns": [
+        "Wiki map anchors identify operators, not observed player landing tiles."
+      ]
+    },
+    {
+      "id": "carpet-sophanem--monkey-colony",
+      "name": "Sophanem to Monkey colony (magic carpet)",
+      "kind": "carpet",
+      "from": "carpet-sophanem",
+      "to": "carpet-monkey-colony",
+      "bidirectional": false,
+      "members": true,
+      "f2p": false,
+      "requirements": {
+        "levels": {},
+        "quests": [
+          "Do No Evil"
+        ],
+        "items": [],
+        "fare": {
+          "currency": "coins",
+          "amount": 1000,
+          "detail": "Undiscounted fare per leg. 500 with Ali the Trader or worn activated ring of charos; 375 with both. Departure from monkey colony is free."
+        },
+        "conditions": [],
+        "confirmations": []
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Magic_carpet?oldid=37035700",
+          "detail": "RuneScape Wiki contributors, CC BY-NC-SA 3.0. Direct regular network; destination quests; 1000 coins per paid leg. From monkey colony only Shantay Pass and South Pollnivneach, free."
+        }
+      ],
+      "notes": [
+        "Directed legs preserve the asymmetric monkey-colony service and fares. Discount variants are not inferred."
+      ],
+      "unknowns": [
+        "Wiki map anchors identify operators, not observed player landing tiles."
+      ]
+    },
+    {
+      "id": "carpet-south-pollnivneach--menaphos",
+      "name": "South Pollnivneach to Menaphos (magic carpet)",
+      "kind": "carpet",
+      "from": "carpet-south-pollnivneach",
+      "to": "carpet-menaphos",
+      "bidirectional": false,
+      "members": true,
+      "f2p": false,
+      "requirements": {
+        "levels": {},
+        "quests": [
+          "Icthlarin's Little Helper"
+        ],
+        "items": [],
+        "fare": {
+          "currency": "coins",
+          "amount": 1000,
+          "detail": "Undiscounted fare per leg. 500 with Ali the Trader or worn activated ring of charos; 375 with both. Departure from monkey colony is free."
+        },
+        "conditions": [],
+        "confirmations": []
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Magic_carpet?oldid=37035700",
+          "detail": "RuneScape Wiki contributors, CC BY-NC-SA 3.0. Direct regular network; destination quests; 1000 coins per paid leg. From monkey colony only Shantay Pass and South Pollnivneach, free."
+        }
+      ],
+      "notes": [
+        "Directed legs preserve the asymmetric monkey-colony service and fares. Discount variants are not inferred."
+      ],
+      "unknowns": [
+        "Wiki map anchors identify operators, not observed player landing tiles."
+      ]
+    },
+    {
+      "id": "carpet-south-pollnivneach--north-pollnivneach",
+      "name": "South Pollnivneach to North Pollnivneach (magic carpet)",
+      "kind": "carpet",
+      "from": "carpet-south-pollnivneach",
+      "to": "carpet-north-pollnivneach",
+      "bidirectional": false,
+      "members": true,
+      "f2p": false,
+      "requirements": {
+        "levels": {},
+        "quests": [],
+        "items": [],
+        "fare": {
+          "currency": "coins",
+          "amount": 1000,
+          "detail": "Undiscounted fare per leg. 500 with Ali the Trader or worn activated ring of charos; 375 with both. Departure from monkey colony is free."
+        },
+        "conditions": [],
+        "confirmations": []
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Magic_carpet?oldid=37035700",
+          "detail": "RuneScape Wiki contributors, CC BY-NC-SA 3.0. Direct regular network; destination quests; 1000 coins per paid leg. From monkey colony only Shantay Pass and South Pollnivneach, free."
+        }
+      ],
+      "notes": [
+        "Directed legs preserve the asymmetric monkey-colony service and fares. Discount variants are not inferred."
+      ],
+      "unknowns": [
+        "Wiki map anchors identify operators, not observed player landing tiles."
+      ]
+    },
+    {
+      "id": "carpet-south-pollnivneach--shantay-pass",
+      "name": "South Pollnivneach to Shantay Pass (magic carpet)",
+      "kind": "carpet",
+      "from": "carpet-south-pollnivneach",
+      "to": "carpet-shantay-pass",
+      "bidirectional": false,
+      "members": true,
+      "f2p": false,
+      "requirements": {
+        "levels": {},
+        "quests": [],
+        "items": [],
+        "fare": {
+          "currency": "coins",
+          "amount": 1000,
+          "detail": "Undiscounted fare per leg. 500 with Ali the Trader or worn activated ring of charos; 375 with both. Departure from monkey colony is free."
+        },
+        "conditions": [],
+        "confirmations": []
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Magic_carpet?oldid=37035700",
+          "detail": "RuneScape Wiki contributors, CC BY-NC-SA 3.0. Direct regular network; destination quests; 1000 coins per paid leg. From monkey colony only Shantay Pass and South Pollnivneach, free."
+        }
+      ],
+      "notes": [
+        "Directed legs preserve the asymmetric monkey-colony service and fares. Discount variants are not inferred."
+      ],
+      "unknowns": [
+        "Wiki map anchors identify operators, not observed player landing tiles."
+      ]
+    },
+    {
+      "id": "carpet-south-pollnivneach--sophanem",
+      "name": "South Pollnivneach to Sophanem (magic carpet)",
+      "kind": "carpet",
+      "from": "carpet-south-pollnivneach",
+      "to": "carpet-sophanem",
+      "bidirectional": false,
+      "members": true,
+      "f2p": false,
+      "requirements": {
+        "levels": {},
+        "quests": [
+          "Icthlarin's Little Helper"
+        ],
+        "items": [],
+        "fare": {
+          "currency": "coins",
+          "amount": 1000,
+          "detail": "Undiscounted fare per leg. 500 with Ali the Trader or worn activated ring of charos; 375 with both. Departure from monkey colony is free."
+        },
+        "conditions": [],
+        "confirmations": []
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Magic_carpet?oldid=37035700",
+          "detail": "RuneScape Wiki contributors, CC BY-NC-SA 3.0. Direct regular network; destination quests; 1000 coins per paid leg. From monkey colony only Shantay Pass and South Pollnivneach, free."
+        }
+      ],
+      "notes": [
+        "Directed legs preserve the asymmetric monkey-colony service and fares. Discount variants are not inferred."
+      ],
+      "unknowns": [
+        "Wiki map anchors identify operators, not observed player landing tiles."
+      ]
+    },
+    {
+      "id": "carpet-south-pollnivneach--nardah",
+      "name": "South Pollnivneach to Nardah (magic carpet)",
+      "kind": "carpet",
+      "from": "carpet-south-pollnivneach",
+      "to": "carpet-nardah",
+      "bidirectional": false,
+      "members": true,
+      "f2p": false,
+      "requirements": {
+        "levels": {},
+        "quests": [],
+        "items": [],
+        "fare": {
+          "currency": "coins",
+          "amount": 1000,
+          "detail": "Undiscounted fare per leg. 500 with Ali the Trader or worn activated ring of charos; 375 with both. Departure from monkey colony is free."
+        },
+        "conditions": [],
+        "confirmations": []
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Magic_carpet?oldid=37035700",
+          "detail": "RuneScape Wiki contributors, CC BY-NC-SA 3.0. Direct regular network; destination quests; 1000 coins per paid leg. From monkey colony only Shantay Pass and South Pollnivneach, free."
+        }
+      ],
+      "notes": [
+        "Directed legs preserve the asymmetric monkey-colony service and fares. Discount variants are not inferred."
+      ],
+      "unknowns": [
+        "Wiki map anchors identify operators, not observed player landing tiles."
+      ]
+    },
+    {
+      "id": "carpet-south-pollnivneach--bedabin-camp",
+      "name": "South Pollnivneach to Bedabin Camp (magic carpet)",
+      "kind": "carpet",
+      "from": "carpet-south-pollnivneach",
+      "to": "carpet-bedabin-camp",
+      "bidirectional": false,
+      "members": true,
+      "f2p": false,
+      "requirements": {
+        "levels": {},
+        "quests": [],
+        "items": [],
+        "fare": {
+          "currency": "coins",
+          "amount": 1000,
+          "detail": "Undiscounted fare per leg. 500 with Ali the Trader or worn activated ring of charos; 375 with both. Departure from monkey colony is free."
+        },
+        "conditions": [],
+        "confirmations": []
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Magic_carpet?oldid=37035700",
+          "detail": "RuneScape Wiki contributors, CC BY-NC-SA 3.0. Direct regular network; destination quests; 1000 coins per paid leg. From monkey colony only Shantay Pass and South Pollnivneach, free."
+        }
+      ],
+      "notes": [
+        "Directed legs preserve the asymmetric monkey-colony service and fares. Discount variants are not inferred."
+      ],
+      "unknowns": [
+        "Wiki map anchors identify operators, not observed player landing tiles."
+      ]
+    },
+    {
+      "id": "carpet-south-pollnivneach--uzer",
+      "name": "South Pollnivneach to Uzer (magic carpet)",
+      "kind": "carpet",
+      "from": "carpet-south-pollnivneach",
+      "to": "carpet-uzer",
+      "bidirectional": false,
+      "members": true,
+      "f2p": false,
+      "requirements": {
+        "levels": {},
+        "quests": [
+          "The Golem"
+        ],
+        "items": [],
+        "fare": {
+          "currency": "coins",
+          "amount": 1000,
+          "detail": "Undiscounted fare per leg. 500 with Ali the Trader or worn activated ring of charos; 375 with both. Departure from monkey colony is free."
+        },
+        "conditions": [],
+        "confirmations": []
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Magic_carpet?oldid=37035700",
+          "detail": "RuneScape Wiki contributors, CC BY-NC-SA 3.0. Direct regular network; destination quests; 1000 coins per paid leg. From monkey colony only Shantay Pass and South Pollnivneach, free."
+        }
+      ],
+      "notes": [
+        "Directed legs preserve the asymmetric monkey-colony service and fares. Discount variants are not inferred."
+      ],
+      "unknowns": [
+        "Wiki map anchors identify operators, not observed player landing tiles."
+      ]
+    },
+    {
+      "id": "carpet-south-pollnivneach--monkey-colony",
+      "name": "South Pollnivneach to Monkey colony (magic carpet)",
+      "kind": "carpet",
+      "from": "carpet-south-pollnivneach",
+      "to": "carpet-monkey-colony",
+      "bidirectional": false,
+      "members": true,
+      "f2p": false,
+      "requirements": {
+        "levels": {},
+        "quests": [
+          "Do No Evil"
+        ],
+        "items": [],
+        "fare": {
+          "currency": "coins",
+          "amount": 1000,
+          "detail": "Undiscounted fare per leg. 500 with Ali the Trader or worn activated ring of charos; 375 with both. Departure from monkey colony is free."
+        },
+        "conditions": [],
+        "confirmations": []
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Magic_carpet?oldid=37035700",
+          "detail": "RuneScape Wiki contributors, CC BY-NC-SA 3.0. Direct regular network; destination quests; 1000 coins per paid leg. From monkey colony only Shantay Pass and South Pollnivneach, free."
+        }
+      ],
+      "notes": [
+        "Directed legs preserve the asymmetric monkey-colony service and fares. Discount variants are not inferred."
+      ],
+      "unknowns": [
+        "Wiki map anchors identify operators, not observed player landing tiles."
+      ]
+    },
+    {
+      "id": "carpet-nardah--menaphos",
+      "name": "Nardah to Menaphos (magic carpet)",
+      "kind": "carpet",
+      "from": "carpet-nardah",
+      "to": "carpet-menaphos",
+      "bidirectional": false,
+      "members": true,
+      "f2p": false,
+      "requirements": {
+        "levels": {},
+        "quests": [
+          "Icthlarin's Little Helper"
+        ],
+        "items": [],
+        "fare": {
+          "currency": "coins",
+          "amount": 1000,
+          "detail": "Undiscounted fare per leg. 500 with Ali the Trader or worn activated ring of charos; 375 with both. Departure from monkey colony is free."
+        },
+        "conditions": [],
+        "confirmations": []
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Magic_carpet?oldid=37035700",
+          "detail": "RuneScape Wiki contributors, CC BY-NC-SA 3.0. Direct regular network; destination quests; 1000 coins per paid leg. From monkey colony only Shantay Pass and South Pollnivneach, free."
+        }
+      ],
+      "notes": [
+        "Directed legs preserve the asymmetric monkey-colony service and fares. Discount variants are not inferred."
+      ],
+      "unknowns": [
+        "Wiki map anchors identify operators, not observed player landing tiles."
+      ]
+    },
+    {
+      "id": "carpet-nardah--north-pollnivneach",
+      "name": "Nardah to North Pollnivneach (magic carpet)",
+      "kind": "carpet",
+      "from": "carpet-nardah",
+      "to": "carpet-north-pollnivneach",
+      "bidirectional": false,
+      "members": true,
+      "f2p": false,
+      "requirements": {
+        "levels": {},
+        "quests": [],
+        "items": [],
+        "fare": {
+          "currency": "coins",
+          "amount": 1000,
+          "detail": "Undiscounted fare per leg. 500 with Ali the Trader or worn activated ring of charos; 375 with both. Departure from monkey colony is free."
+        },
+        "conditions": [],
+        "confirmations": []
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Magic_carpet?oldid=37035700",
+          "detail": "RuneScape Wiki contributors, CC BY-NC-SA 3.0. Direct regular network; destination quests; 1000 coins per paid leg. From monkey colony only Shantay Pass and South Pollnivneach, free."
+        }
+      ],
+      "notes": [
+        "Directed legs preserve the asymmetric monkey-colony service and fares. Discount variants are not inferred."
+      ],
+      "unknowns": [
+        "Wiki map anchors identify operators, not observed player landing tiles."
+      ]
+    },
+    {
+      "id": "carpet-nardah--shantay-pass",
+      "name": "Nardah to Shantay Pass (magic carpet)",
+      "kind": "carpet",
+      "from": "carpet-nardah",
+      "to": "carpet-shantay-pass",
+      "bidirectional": false,
+      "members": true,
+      "f2p": false,
+      "requirements": {
+        "levels": {},
+        "quests": [],
+        "items": [],
+        "fare": {
+          "currency": "coins",
+          "amount": 1000,
+          "detail": "Undiscounted fare per leg. 500 with Ali the Trader or worn activated ring of charos; 375 with both. Departure from monkey colony is free."
+        },
+        "conditions": [],
+        "confirmations": []
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Magic_carpet?oldid=37035700",
+          "detail": "RuneScape Wiki contributors, CC BY-NC-SA 3.0. Direct regular network; destination quests; 1000 coins per paid leg. From monkey colony only Shantay Pass and South Pollnivneach, free."
+        }
+      ],
+      "notes": [
+        "Directed legs preserve the asymmetric monkey-colony service and fares. Discount variants are not inferred."
+      ],
+      "unknowns": [
+        "Wiki map anchors identify operators, not observed player landing tiles."
+      ]
+    },
+    {
+      "id": "carpet-nardah--sophanem",
+      "name": "Nardah to Sophanem (magic carpet)",
+      "kind": "carpet",
+      "from": "carpet-nardah",
+      "to": "carpet-sophanem",
+      "bidirectional": false,
+      "members": true,
+      "f2p": false,
+      "requirements": {
+        "levels": {},
+        "quests": [
+          "Icthlarin's Little Helper"
+        ],
+        "items": [],
+        "fare": {
+          "currency": "coins",
+          "amount": 1000,
+          "detail": "Undiscounted fare per leg. 500 with Ali the Trader or worn activated ring of charos; 375 with both. Departure from monkey colony is free."
+        },
+        "conditions": [],
+        "confirmations": []
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Magic_carpet?oldid=37035700",
+          "detail": "RuneScape Wiki contributors, CC BY-NC-SA 3.0. Direct regular network; destination quests; 1000 coins per paid leg. From monkey colony only Shantay Pass and South Pollnivneach, free."
+        }
+      ],
+      "notes": [
+        "Directed legs preserve the asymmetric monkey-colony service and fares. Discount variants are not inferred."
+      ],
+      "unknowns": [
+        "Wiki map anchors identify operators, not observed player landing tiles."
+      ]
+    },
+    {
+      "id": "carpet-nardah--south-pollnivneach",
+      "name": "Nardah to South Pollnivneach (magic carpet)",
+      "kind": "carpet",
+      "from": "carpet-nardah",
+      "to": "carpet-south-pollnivneach",
+      "bidirectional": false,
+      "members": true,
+      "f2p": false,
+      "requirements": {
+        "levels": {},
+        "quests": [],
+        "items": [],
+        "fare": {
+          "currency": "coins",
+          "amount": 1000,
+          "detail": "Undiscounted fare per leg. 500 with Ali the Trader or worn activated ring of charos; 375 with both. Departure from monkey colony is free."
+        },
+        "conditions": [],
+        "confirmations": []
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Magic_carpet?oldid=37035700",
+          "detail": "RuneScape Wiki contributors, CC BY-NC-SA 3.0. Direct regular network; destination quests; 1000 coins per paid leg. From monkey colony only Shantay Pass and South Pollnivneach, free."
+        }
+      ],
+      "notes": [
+        "Directed legs preserve the asymmetric monkey-colony service and fares. Discount variants are not inferred."
+      ],
+      "unknowns": [
+        "Wiki map anchors identify operators, not observed player landing tiles."
+      ]
+    },
+    {
+      "id": "carpet-nardah--bedabin-camp",
+      "name": "Nardah to Bedabin Camp (magic carpet)",
+      "kind": "carpet",
+      "from": "carpet-nardah",
+      "to": "carpet-bedabin-camp",
+      "bidirectional": false,
+      "members": true,
+      "f2p": false,
+      "requirements": {
+        "levels": {},
+        "quests": [],
+        "items": [],
+        "fare": {
+          "currency": "coins",
+          "amount": 1000,
+          "detail": "Undiscounted fare per leg. 500 with Ali the Trader or worn activated ring of charos; 375 with both. Departure from monkey colony is free."
+        },
+        "conditions": [],
+        "confirmations": []
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Magic_carpet?oldid=37035700",
+          "detail": "RuneScape Wiki contributors, CC BY-NC-SA 3.0. Direct regular network; destination quests; 1000 coins per paid leg. From monkey colony only Shantay Pass and South Pollnivneach, free."
+        }
+      ],
+      "notes": [
+        "Directed legs preserve the asymmetric monkey-colony service and fares. Discount variants are not inferred."
+      ],
+      "unknowns": [
+        "Wiki map anchors identify operators, not observed player landing tiles."
+      ]
+    },
+    {
+      "id": "carpet-nardah--uzer",
+      "name": "Nardah to Uzer (magic carpet)",
+      "kind": "carpet",
+      "from": "carpet-nardah",
+      "to": "carpet-uzer",
+      "bidirectional": false,
+      "members": true,
+      "f2p": false,
+      "requirements": {
+        "levels": {},
+        "quests": [
+          "The Golem"
+        ],
+        "items": [],
+        "fare": {
+          "currency": "coins",
+          "amount": 1000,
+          "detail": "Undiscounted fare per leg. 500 with Ali the Trader or worn activated ring of charos; 375 with both. Departure from monkey colony is free."
+        },
+        "conditions": [],
+        "confirmations": []
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Magic_carpet?oldid=37035700",
+          "detail": "RuneScape Wiki contributors, CC BY-NC-SA 3.0. Direct regular network; destination quests; 1000 coins per paid leg. From monkey colony only Shantay Pass and South Pollnivneach, free."
+        }
+      ],
+      "notes": [
+        "Directed legs preserve the asymmetric monkey-colony service and fares. Discount variants are not inferred."
+      ],
+      "unknowns": [
+        "Wiki map anchors identify operators, not observed player landing tiles."
+      ]
+    },
+    {
+      "id": "carpet-nardah--monkey-colony",
+      "name": "Nardah to Monkey colony (magic carpet)",
+      "kind": "carpet",
+      "from": "carpet-nardah",
+      "to": "carpet-monkey-colony",
+      "bidirectional": false,
+      "members": true,
+      "f2p": false,
+      "requirements": {
+        "levels": {},
+        "quests": [
+          "Do No Evil"
+        ],
+        "items": [],
+        "fare": {
+          "currency": "coins",
+          "amount": 1000,
+          "detail": "Undiscounted fare per leg. 500 with Ali the Trader or worn activated ring of charos; 375 with both. Departure from monkey colony is free."
+        },
+        "conditions": [],
+        "confirmations": []
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Magic_carpet?oldid=37035700",
+          "detail": "RuneScape Wiki contributors, CC BY-NC-SA 3.0. Direct regular network; destination quests; 1000 coins per paid leg. From monkey colony only Shantay Pass and South Pollnivneach, free."
+        }
+      ],
+      "notes": [
+        "Directed legs preserve the asymmetric monkey-colony service and fares. Discount variants are not inferred."
+      ],
+      "unknowns": [
+        "Wiki map anchors identify operators, not observed player landing tiles."
+      ]
+    },
+    {
+      "id": "carpet-bedabin-camp--menaphos",
+      "name": "Bedabin Camp to Menaphos (magic carpet)",
+      "kind": "carpet",
+      "from": "carpet-bedabin-camp",
+      "to": "carpet-menaphos",
+      "bidirectional": false,
+      "members": true,
+      "f2p": false,
+      "requirements": {
+        "levels": {},
+        "quests": [
+          "Icthlarin's Little Helper"
+        ],
+        "items": [],
+        "fare": {
+          "currency": "coins",
+          "amount": 1000,
+          "detail": "Undiscounted fare per leg. 500 with Ali the Trader or worn activated ring of charos; 375 with both. Departure from monkey colony is free."
+        },
+        "conditions": [],
+        "confirmations": []
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Magic_carpet?oldid=37035700",
+          "detail": "RuneScape Wiki contributors, CC BY-NC-SA 3.0. Direct regular network; destination quests; 1000 coins per paid leg. From monkey colony only Shantay Pass and South Pollnivneach, free."
+        }
+      ],
+      "notes": [
+        "Directed legs preserve the asymmetric monkey-colony service and fares. Discount variants are not inferred."
+      ],
+      "unknowns": [
+        "Wiki map anchors identify operators, not observed player landing tiles."
+      ]
+    },
+    {
+      "id": "carpet-bedabin-camp--north-pollnivneach",
+      "name": "Bedabin Camp to North Pollnivneach (magic carpet)",
+      "kind": "carpet",
+      "from": "carpet-bedabin-camp",
+      "to": "carpet-north-pollnivneach",
+      "bidirectional": false,
+      "members": true,
+      "f2p": false,
+      "requirements": {
+        "levels": {},
+        "quests": [],
+        "items": [],
+        "fare": {
+          "currency": "coins",
+          "amount": 1000,
+          "detail": "Undiscounted fare per leg. 500 with Ali the Trader or worn activated ring of charos; 375 with both. Departure from monkey colony is free."
+        },
+        "conditions": [],
+        "confirmations": []
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Magic_carpet?oldid=37035700",
+          "detail": "RuneScape Wiki contributors, CC BY-NC-SA 3.0. Direct regular network; destination quests; 1000 coins per paid leg. From monkey colony only Shantay Pass and South Pollnivneach, free."
+        }
+      ],
+      "notes": [
+        "Directed legs preserve the asymmetric monkey-colony service and fares. Discount variants are not inferred."
+      ],
+      "unknowns": [
+        "Wiki map anchors identify operators, not observed player landing tiles."
+      ]
+    },
+    {
+      "id": "carpet-bedabin-camp--shantay-pass",
+      "name": "Bedabin Camp to Shantay Pass (magic carpet)",
+      "kind": "carpet",
+      "from": "carpet-bedabin-camp",
+      "to": "carpet-shantay-pass",
+      "bidirectional": false,
+      "members": true,
+      "f2p": false,
+      "requirements": {
+        "levels": {},
+        "quests": [],
+        "items": [],
+        "fare": {
+          "currency": "coins",
+          "amount": 1000,
+          "detail": "Undiscounted fare per leg. 500 with Ali the Trader or worn activated ring of charos; 375 with both. Departure from monkey colony is free."
+        },
+        "conditions": [],
+        "confirmations": []
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Magic_carpet?oldid=37035700",
+          "detail": "RuneScape Wiki contributors, CC BY-NC-SA 3.0. Direct regular network; destination quests; 1000 coins per paid leg. From monkey colony only Shantay Pass and South Pollnivneach, free."
+        }
+      ],
+      "notes": [
+        "Directed legs preserve the asymmetric monkey-colony service and fares. Discount variants are not inferred."
+      ],
+      "unknowns": [
+        "Wiki map anchors identify operators, not observed player landing tiles."
+      ]
+    },
+    {
+      "id": "carpet-bedabin-camp--sophanem",
+      "name": "Bedabin Camp to Sophanem (magic carpet)",
+      "kind": "carpet",
+      "from": "carpet-bedabin-camp",
+      "to": "carpet-sophanem",
+      "bidirectional": false,
+      "members": true,
+      "f2p": false,
+      "requirements": {
+        "levels": {},
+        "quests": [
+          "Icthlarin's Little Helper"
+        ],
+        "items": [],
+        "fare": {
+          "currency": "coins",
+          "amount": 1000,
+          "detail": "Undiscounted fare per leg. 500 with Ali the Trader or worn activated ring of charos; 375 with both. Departure from monkey colony is free."
+        },
+        "conditions": [],
+        "confirmations": []
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Magic_carpet?oldid=37035700",
+          "detail": "RuneScape Wiki contributors, CC BY-NC-SA 3.0. Direct regular network; destination quests; 1000 coins per paid leg. From monkey colony only Shantay Pass and South Pollnivneach, free."
+        }
+      ],
+      "notes": [
+        "Directed legs preserve the asymmetric monkey-colony service and fares. Discount variants are not inferred."
+      ],
+      "unknowns": [
+        "Wiki map anchors identify operators, not observed player landing tiles."
+      ]
+    },
+    {
+      "id": "carpet-bedabin-camp--south-pollnivneach",
+      "name": "Bedabin Camp to South Pollnivneach (magic carpet)",
+      "kind": "carpet",
+      "from": "carpet-bedabin-camp",
+      "to": "carpet-south-pollnivneach",
+      "bidirectional": false,
+      "members": true,
+      "f2p": false,
+      "requirements": {
+        "levels": {},
+        "quests": [],
+        "items": [],
+        "fare": {
+          "currency": "coins",
+          "amount": 1000,
+          "detail": "Undiscounted fare per leg. 500 with Ali the Trader or worn activated ring of charos; 375 with both. Departure from monkey colony is free."
+        },
+        "conditions": [],
+        "confirmations": []
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Magic_carpet?oldid=37035700",
+          "detail": "RuneScape Wiki contributors, CC BY-NC-SA 3.0. Direct regular network; destination quests; 1000 coins per paid leg. From monkey colony only Shantay Pass and South Pollnivneach, free."
+        }
+      ],
+      "notes": [
+        "Directed legs preserve the asymmetric monkey-colony service and fares. Discount variants are not inferred."
+      ],
+      "unknowns": [
+        "Wiki map anchors identify operators, not observed player landing tiles."
+      ]
+    },
+    {
+      "id": "carpet-bedabin-camp--nardah",
+      "name": "Bedabin Camp to Nardah (magic carpet)",
+      "kind": "carpet",
+      "from": "carpet-bedabin-camp",
+      "to": "carpet-nardah",
+      "bidirectional": false,
+      "members": true,
+      "f2p": false,
+      "requirements": {
+        "levels": {},
+        "quests": [],
+        "items": [],
+        "fare": {
+          "currency": "coins",
+          "amount": 1000,
+          "detail": "Undiscounted fare per leg. 500 with Ali the Trader or worn activated ring of charos; 375 with both. Departure from monkey colony is free."
+        },
+        "conditions": [],
+        "confirmations": []
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Magic_carpet?oldid=37035700",
+          "detail": "RuneScape Wiki contributors, CC BY-NC-SA 3.0. Direct regular network; destination quests; 1000 coins per paid leg. From monkey colony only Shantay Pass and South Pollnivneach, free."
+        }
+      ],
+      "notes": [
+        "Directed legs preserve the asymmetric monkey-colony service and fares. Discount variants are not inferred."
+      ],
+      "unknowns": [
+        "Wiki map anchors identify operators, not observed player landing tiles."
+      ]
+    },
+    {
+      "id": "carpet-bedabin-camp--uzer",
+      "name": "Bedabin Camp to Uzer (magic carpet)",
+      "kind": "carpet",
+      "from": "carpet-bedabin-camp",
+      "to": "carpet-uzer",
+      "bidirectional": false,
+      "members": true,
+      "f2p": false,
+      "requirements": {
+        "levels": {},
+        "quests": [
+          "The Golem"
+        ],
+        "items": [],
+        "fare": {
+          "currency": "coins",
+          "amount": 1000,
+          "detail": "Undiscounted fare per leg. 500 with Ali the Trader or worn activated ring of charos; 375 with both. Departure from monkey colony is free."
+        },
+        "conditions": [],
+        "confirmations": []
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Magic_carpet?oldid=37035700",
+          "detail": "RuneScape Wiki contributors, CC BY-NC-SA 3.0. Direct regular network; destination quests; 1000 coins per paid leg. From monkey colony only Shantay Pass and South Pollnivneach, free."
+        }
+      ],
+      "notes": [
+        "Directed legs preserve the asymmetric monkey-colony service and fares. Discount variants are not inferred."
+      ],
+      "unknowns": [
+        "Wiki map anchors identify operators, not observed player landing tiles."
+      ]
+    },
+    {
+      "id": "carpet-bedabin-camp--monkey-colony",
+      "name": "Bedabin Camp to Monkey colony (magic carpet)",
+      "kind": "carpet",
+      "from": "carpet-bedabin-camp",
+      "to": "carpet-monkey-colony",
+      "bidirectional": false,
+      "members": true,
+      "f2p": false,
+      "requirements": {
+        "levels": {},
+        "quests": [
+          "Do No Evil"
+        ],
+        "items": [],
+        "fare": {
+          "currency": "coins",
+          "amount": 1000,
+          "detail": "Undiscounted fare per leg. 500 with Ali the Trader or worn activated ring of charos; 375 with both. Departure from monkey colony is free."
+        },
+        "conditions": [],
+        "confirmations": []
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Magic_carpet?oldid=37035700",
+          "detail": "RuneScape Wiki contributors, CC BY-NC-SA 3.0. Direct regular network; destination quests; 1000 coins per paid leg. From monkey colony only Shantay Pass and South Pollnivneach, free."
+        }
+      ],
+      "notes": [
+        "Directed legs preserve the asymmetric monkey-colony service and fares. Discount variants are not inferred."
+      ],
+      "unknowns": [
+        "Wiki map anchors identify operators, not observed player landing tiles."
+      ]
+    },
+    {
+      "id": "carpet-uzer--menaphos",
+      "name": "Uzer to Menaphos (magic carpet)",
+      "kind": "carpet",
+      "from": "carpet-uzer",
+      "to": "carpet-menaphos",
+      "bidirectional": false,
+      "members": true,
+      "f2p": false,
+      "requirements": {
+        "levels": {},
+        "quests": [
+          "Icthlarin's Little Helper"
+        ],
+        "items": [],
+        "fare": {
+          "currency": "coins",
+          "amount": 1000,
+          "detail": "Undiscounted fare per leg. 500 with Ali the Trader or worn activated ring of charos; 375 with both. Departure from monkey colony is free."
+        },
+        "conditions": [],
+        "confirmations": []
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Magic_carpet?oldid=37035700",
+          "detail": "RuneScape Wiki contributors, CC BY-NC-SA 3.0. Direct regular network; destination quests; 1000 coins per paid leg. From monkey colony only Shantay Pass and South Pollnivneach, free."
+        }
+      ],
+      "notes": [
+        "Directed legs preserve the asymmetric monkey-colony service and fares. Discount variants are not inferred."
+      ],
+      "unknowns": [
+        "Wiki map anchors identify operators, not observed player landing tiles."
+      ]
+    },
+    {
+      "id": "carpet-uzer--north-pollnivneach",
+      "name": "Uzer to North Pollnivneach (magic carpet)",
+      "kind": "carpet",
+      "from": "carpet-uzer",
+      "to": "carpet-north-pollnivneach",
+      "bidirectional": false,
+      "members": true,
+      "f2p": false,
+      "requirements": {
+        "levels": {},
+        "quests": [],
+        "items": [],
+        "fare": {
+          "currency": "coins",
+          "amount": 1000,
+          "detail": "Undiscounted fare per leg. 500 with Ali the Trader or worn activated ring of charos; 375 with both. Departure from monkey colony is free."
+        },
+        "conditions": [],
+        "confirmations": []
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Magic_carpet?oldid=37035700",
+          "detail": "RuneScape Wiki contributors, CC BY-NC-SA 3.0. Direct regular network; destination quests; 1000 coins per paid leg. From monkey colony only Shantay Pass and South Pollnivneach, free."
+        }
+      ],
+      "notes": [
+        "Directed legs preserve the asymmetric monkey-colony service and fares. Discount variants are not inferred."
+      ],
+      "unknowns": [
+        "Wiki map anchors identify operators, not observed player landing tiles."
+      ]
+    },
+    {
+      "id": "carpet-uzer--shantay-pass",
+      "name": "Uzer to Shantay Pass (magic carpet)",
+      "kind": "carpet",
+      "from": "carpet-uzer",
+      "to": "carpet-shantay-pass",
+      "bidirectional": false,
+      "members": true,
+      "f2p": false,
+      "requirements": {
+        "levels": {},
+        "quests": [],
+        "items": [],
+        "fare": {
+          "currency": "coins",
+          "amount": 1000,
+          "detail": "Undiscounted fare per leg. 500 with Ali the Trader or worn activated ring of charos; 375 with both. Departure from monkey colony is free."
+        },
+        "conditions": [],
+        "confirmations": []
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Magic_carpet?oldid=37035700",
+          "detail": "RuneScape Wiki contributors, CC BY-NC-SA 3.0. Direct regular network; destination quests; 1000 coins per paid leg. From monkey colony only Shantay Pass and South Pollnivneach, free."
+        }
+      ],
+      "notes": [
+        "Directed legs preserve the asymmetric monkey-colony service and fares. Discount variants are not inferred."
+      ],
+      "unknowns": [
+        "Wiki map anchors identify operators, not observed player landing tiles."
+      ]
+    },
+    {
+      "id": "carpet-uzer--sophanem",
+      "name": "Uzer to Sophanem (magic carpet)",
+      "kind": "carpet",
+      "from": "carpet-uzer",
+      "to": "carpet-sophanem",
+      "bidirectional": false,
+      "members": true,
+      "f2p": false,
+      "requirements": {
+        "levels": {},
+        "quests": [
+          "Icthlarin's Little Helper"
+        ],
+        "items": [],
+        "fare": {
+          "currency": "coins",
+          "amount": 1000,
+          "detail": "Undiscounted fare per leg. 500 with Ali the Trader or worn activated ring of charos; 375 with both. Departure from monkey colony is free."
+        },
+        "conditions": [],
+        "confirmations": []
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Magic_carpet?oldid=37035700",
+          "detail": "RuneScape Wiki contributors, CC BY-NC-SA 3.0. Direct regular network; destination quests; 1000 coins per paid leg. From monkey colony only Shantay Pass and South Pollnivneach, free."
+        }
+      ],
+      "notes": [
+        "Directed legs preserve the asymmetric monkey-colony service and fares. Discount variants are not inferred."
+      ],
+      "unknowns": [
+        "Wiki map anchors identify operators, not observed player landing tiles."
+      ]
+    },
+    {
+      "id": "carpet-uzer--south-pollnivneach",
+      "name": "Uzer to South Pollnivneach (magic carpet)",
+      "kind": "carpet",
+      "from": "carpet-uzer",
+      "to": "carpet-south-pollnivneach",
+      "bidirectional": false,
+      "members": true,
+      "f2p": false,
+      "requirements": {
+        "levels": {},
+        "quests": [],
+        "items": [],
+        "fare": {
+          "currency": "coins",
+          "amount": 1000,
+          "detail": "Undiscounted fare per leg. 500 with Ali the Trader or worn activated ring of charos; 375 with both. Departure from monkey colony is free."
+        },
+        "conditions": [],
+        "confirmations": []
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Magic_carpet?oldid=37035700",
+          "detail": "RuneScape Wiki contributors, CC BY-NC-SA 3.0. Direct regular network; destination quests; 1000 coins per paid leg. From monkey colony only Shantay Pass and South Pollnivneach, free."
+        }
+      ],
+      "notes": [
+        "Directed legs preserve the asymmetric monkey-colony service and fares. Discount variants are not inferred."
+      ],
+      "unknowns": [
+        "Wiki map anchors identify operators, not observed player landing tiles."
+      ]
+    },
+    {
+      "id": "carpet-uzer--nardah",
+      "name": "Uzer to Nardah (magic carpet)",
+      "kind": "carpet",
+      "from": "carpet-uzer",
+      "to": "carpet-nardah",
+      "bidirectional": false,
+      "members": true,
+      "f2p": false,
+      "requirements": {
+        "levels": {},
+        "quests": [],
+        "items": [],
+        "fare": {
+          "currency": "coins",
+          "amount": 1000,
+          "detail": "Undiscounted fare per leg. 500 with Ali the Trader or worn activated ring of charos; 375 with both. Departure from monkey colony is free."
+        },
+        "conditions": [],
+        "confirmations": []
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Magic_carpet?oldid=37035700",
+          "detail": "RuneScape Wiki contributors, CC BY-NC-SA 3.0. Direct regular network; destination quests; 1000 coins per paid leg. From monkey colony only Shantay Pass and South Pollnivneach, free."
+        }
+      ],
+      "notes": [
+        "Directed legs preserve the asymmetric monkey-colony service and fares. Discount variants are not inferred."
+      ],
+      "unknowns": [
+        "Wiki map anchors identify operators, not observed player landing tiles."
+      ]
+    },
+    {
+      "id": "carpet-uzer--bedabin-camp",
+      "name": "Uzer to Bedabin Camp (magic carpet)",
+      "kind": "carpet",
+      "from": "carpet-uzer",
+      "to": "carpet-bedabin-camp",
+      "bidirectional": false,
+      "members": true,
+      "f2p": false,
+      "requirements": {
+        "levels": {},
+        "quests": [],
+        "items": [],
+        "fare": {
+          "currency": "coins",
+          "amount": 1000,
+          "detail": "Undiscounted fare per leg. 500 with Ali the Trader or worn activated ring of charos; 375 with both. Departure from monkey colony is free."
+        },
+        "conditions": [],
+        "confirmations": []
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Magic_carpet?oldid=37035700",
+          "detail": "RuneScape Wiki contributors, CC BY-NC-SA 3.0. Direct regular network; destination quests; 1000 coins per paid leg. From monkey colony only Shantay Pass and South Pollnivneach, free."
+        }
+      ],
+      "notes": [
+        "Directed legs preserve the asymmetric monkey-colony service and fares. Discount variants are not inferred."
+      ],
+      "unknowns": [
+        "Wiki map anchors identify operators, not observed player landing tiles."
+      ]
+    },
+    {
+      "id": "carpet-uzer--monkey-colony",
+      "name": "Uzer to Monkey colony (magic carpet)",
+      "kind": "carpet",
+      "from": "carpet-uzer",
+      "to": "carpet-monkey-colony",
+      "bidirectional": false,
+      "members": true,
+      "f2p": false,
+      "requirements": {
+        "levels": {},
+        "quests": [
+          "Do No Evil"
+        ],
+        "items": [],
+        "fare": {
+          "currency": "coins",
+          "amount": 1000,
+          "detail": "Undiscounted fare per leg. 500 with Ali the Trader or worn activated ring of charos; 375 with both. Departure from monkey colony is free."
+        },
+        "conditions": [],
+        "confirmations": []
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Magic_carpet?oldid=37035700",
+          "detail": "RuneScape Wiki contributors, CC BY-NC-SA 3.0. Direct regular network; destination quests; 1000 coins per paid leg. From monkey colony only Shantay Pass and South Pollnivneach, free."
+        }
+      ],
+      "notes": [
+        "Directed legs preserve the asymmetric monkey-colony service and fares. Discount variants are not inferred."
+      ],
+      "unknowns": [
+        "Wiki map anchors identify operators, not observed player landing tiles."
+      ]
+    },
+    {
+      "id": "carpet-monkey-colony--shantay-pass",
+      "name": "Monkey colony to Shantay Pass (magic carpet)",
+      "kind": "carpet",
+      "from": "carpet-monkey-colony",
+      "to": "carpet-shantay-pass",
+      "bidirectional": false,
+      "members": true,
+      "f2p": false,
+      "requirements": {
+        "levels": {},
+        "quests": [
+          "Do No Evil"
+        ],
+        "items": [],
+        "fare": {
+          "currency": "coins",
+          "amount": 0,
+          "detail": "Undiscounted fare per leg. 500 with Ali the Trader or worn activated ring of charos; 375 with both. Departure from monkey colony is free."
+        },
+        "conditions": [],
+        "confirmations": []
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Magic_carpet?oldid=37035700",
+          "detail": "RuneScape Wiki contributors, CC BY-NC-SA 3.0. Direct regular network; destination quests; 1000 coins per paid leg. From monkey colony only Shantay Pass and South Pollnivneach, free."
+        }
+      ],
+      "notes": [
+        "Directed legs preserve the asymmetric monkey-colony service and fares. Discount variants are not inferred."
+      ],
+      "unknowns": [
+        "Wiki map anchors identify operators, not observed player landing tiles."
+      ]
+    },
+    {
+      "id": "carpet-monkey-colony--south-pollnivneach",
+      "name": "Monkey colony to South Pollnivneach (magic carpet)",
+      "kind": "carpet",
+      "from": "carpet-monkey-colony",
+      "to": "carpet-south-pollnivneach",
+      "bidirectional": false,
+      "members": true,
+      "f2p": false,
+      "requirements": {
+        "levels": {},
+        "quests": [
+          "Do No Evil"
+        ],
+        "items": [],
+        "fare": {
+          "currency": "coins",
+          "amount": 0,
+          "detail": "Undiscounted fare per leg. 500 with Ali the Trader or worn activated ring of charos; 375 with both. Departure from monkey colony is free."
+        },
+        "conditions": [],
+        "confirmations": []
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Magic_carpet?oldid=37035700",
+          "detail": "RuneScape Wiki contributors, CC BY-NC-SA 3.0. Direct regular network; destination quests; 1000 coins per paid leg. From monkey colony only Shantay Pass and South Pollnivneach, free."
+        }
+      ],
+      "notes": [
+        "Directed legs preserve the asymmetric monkey-colony service and fares. Discount variants are not inferred."
+      ],
+      "unknowns": [
+        "Wiki map anchors identify operators, not observed player landing tiles."
+      ]
+    },
+    {
+      "id": "shantay-pass-gate",
+      "name": "Shantay Pass gate",
+      "kind": "shortcut",
+      "from": "shantay-gate-north",
+      "to": "carpet-shantay-pass",
+      "bidirectional": true,
+      "members": true,
+      "f2p": false,
+      "requirements": {
+        "levels": {},
+        "quests": [],
+        "items": [],
+        "fare": null,
+        "conditions": [],
+        "confirmations": []
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Shantay_Pass?oldid=37130849",
+          "detail": "RuneScape Wiki contributors, CC BY-NC-SA 3.0. Members can walk north or south through the gate. The pass item and toll were removed on 26 September 2012."
+        }
+      ],
+      "notes": [
+        "Connects existing verified north and desert area selectors; no walking-mask changes and no historical item requirement."
+      ],
+      "unknowns": []
+    }
+  ],
+  "networks": [
+    {
+      "id": "reviewed-anachronia-teleports",
+      "detail": "Three conditional Totem destinations, two fixed rune spells and Player Lodge tablet; other island teleport methods are unreviewed."
+    },
+    {
+      "id": "magic-carpet",
+      "name": "Magic carpet",
+      "stations": [
+        "carpet-menaphos",
+        "carpet-north-pollnivneach",
+        "carpet-shantay-pass",
+        "carpet-sophanem",
+        "carpet-south-pollnivneach",
+        "carpet-nardah",
+        "carpet-bedabin-camp",
+        "carpet-uzer",
+        "carpet-monkey-colony"
+      ],
+      "detail": "All regular stops connect directly. The monkey colony returns only to Shantay Pass and south Pollnivneach, for free.",
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Magic_carpet?oldid=37035700",
+          "detail": "RuneScape Wiki contributors, CC BY-NC-SA 3.0. Direct regular network; destination quests; 1000 coins per paid leg. From monkey colony only Shantay Pass and South Pollnivneach, free."
+        }
+      ]
+    }
+  ],
+  "limitations": [
+    "Desert/Anachronia supplement is a bounded audit of requested routes, not an exhaustive teleport or carpet census.",
+    "Totem destination confirmations are independent personal declarations; no totem placement is inferred from owning a chunk.",
+    "No map connection/pin artifacts are rewritten by this supplement.",
+    "Carpet fares use the undiscounted 1,000 coins; Ali the Trader and activated ring of charos discounts are recorded but not inferred. Shantay Pass is free in both directions in current RS3; its pass item and toll were removed in 2012."
+  ]
+}

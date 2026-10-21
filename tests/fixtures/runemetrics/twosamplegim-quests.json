@@ -1,0 +1,1460 @@
+{
+  "quests": [
+    {
+      "title": "A Shadow over Ashdale",
+      "status": "COMPLETED"
+    },
+    {
+      "title": "A Soul's Bane",
+      "status": "COMPLETED"
+    },
+    {
+      "title": "Beneath Cursed Tides",
+      "status": "COMPLETED"
+    },
+    {
+      "title": "Chef's Assistant",
+      "status": "COMPLETED"
+    },
+    {
+      "title": "Cook's Assistant",
+      "status": "COMPLETED"
+    },
+    {
+      "title": "Death Plateau",
+      "status": "COMPLETED"
+    },
+    {
+      "title": "Doric's Task I (miniquest)",
+      "status": "COMPLETED"
+    },
+    {
+      "title": "Doric's Task II (miniquest)",
+      "status": "COMPLETED"
+    },
+    {
+      "title": "Doric's Task III (miniquest)",
+      "status": "COMPLETED"
+    },
+    {
+      "title": "Doric's Task IV (miniquest)",
+      "status": "COMPLETED"
+    },
+    {
+      "title": "Druidic Ritual",
+      "status": "COMPLETED"
+    },
+    {
+      "title": "Duck Quest",
+      "status": "COMPLETED"
+    },
+    {
+      "title": "Ernest the Chicken",
+      "status": "COMPLETED"
+    },
+    {
+      "title": "Goblin Diplomacy",
+      "status": "COMPLETED"
+    },
+    {
+      "title": "Gower Quest",
+      "status": "COMPLETED"
+    },
+    {
+      "title": "Gunnar's Ground",
+      "status": "COMPLETED"
+    },
+    {
+      "title": "Heartstealer",
+      "status": "COMPLETED"
+    },
+    {
+      "title": "Imp Catcher",
+      "status": "COMPLETED"
+    },
+    {
+      "title": "Let Them Eat Pie",
+      "status": "COMPLETED"
+    },
+    {
+      "title": "Myths of the White Lands",
+      "status": "COMPLETED"
+    },
+    {
+      "title": "Necromancy!",
+      "status": "COMPLETED"
+    },
+    {
+      "title": "Pirate's Treasure",
+      "status": "COMPLETED"
+    },
+    {
+      "title": "Rune Mysteries",
+      "status": "COMPLETED"
+    },
+    {
+      "title": "Sheep Shearer (miniquest)",
+      "status": "COMPLETED"
+    },
+    {
+      "title": "Stolen Hearts",
+      "status": "COMPLETED"
+    },
+    {
+      "title": "Swept Away",
+      "status": "COMPLETED"
+    },
+    {
+      "title": "The Blood Pact",
+      "status": "COMPLETED"
+    },
+    {
+      "title": "The Restless Ghost",
+      "status": "COMPLETED"
+    },
+    {
+      "title": "There's No Place Like Home...",
+      "status": "COMPLETED"
+    },
+    {
+      "title": "Unstable Foundations",
+      "status": "COMPLETED"
+    },
+    {
+      "title": "Vampyre Slayer",
+      "status": "COMPLETED"
+    },
+    {
+      "title": "Violet is Blue",
+      "status": "COMPLETED"
+    },
+    {
+      "title": "Violet is Blue Too",
+      "status": "COMPLETED"
+    },
+    {
+      "title": "Visions of Havenhythe",
+      "status": "COMPLETED"
+    },
+    {
+      "title": "What's Mine is Yours",
+      "status": "COMPLETED"
+    },
+    {
+      "title": "Witch's House",
+      "status": "COMPLETED"
+    },
+    {
+      "title": "Wolf Whistle",
+      "status": "COMPLETED"
+    },
+    {
+      "title": "Dragon Slayer",
+      "status": "STARTED"
+    },
+    {
+      "title": "'Phite Club",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "A Christmas Reunion",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "A Clockwork Syringe",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "A Fairy Tale I - Growing Pains",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "A Fairy Tale II - Cure a Queen",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "A Fairy Tale III - Battle at Ork's Rift",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "A Guild of Our Own (miniquest)",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "A Tail of Two Cats",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "A Void Dance",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Aftermath",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "All Fired Up",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Alpha vs Omega",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Ancient Awakening",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Animal Magnetism",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Another Slice of H.A.M.",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "As a First Resort",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Azzanadra's Quest",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Back to my Roots",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Back to the Freezer",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Bar Crawl (miniquest)",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Battle of Forinthry",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Battle of the Monolith",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Beneath Scabaras' Sands",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Benedict's World Tour (miniquest)",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Between a Rock...",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Big Chompy Bird Hunting",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Biohazard",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Birthright of the Dwarves",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Blood Runs Deep",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Boric's Task I (miniquest)",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Boric's Task II (miniquest)",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Boric's Task III (miniquest)",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Bringing Home the Bacon",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Broken Home",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Buyers and Cellars",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Cabin Fever",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Call of the Ancestors",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Carnillean Rising",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Catapult Construction",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Children of Mah",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "City of Senntisten",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Civil War I (miniquest)",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Civil War II (miniquest)",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Civil War III (miniquest)",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Clock Tower",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Cold Front",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Cold War",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Contact!",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Corporate Egg-spionage",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Creature of Fenkenstrain",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Crocodile Tears",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Curse of the Black Stone",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Curse of the Empty Lord (miniquest)",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Damage Control (miniquest)",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Daughter of Chaos",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Dead and Buried",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Deadliest Catch",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Dealing with Scabaras",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Death to the Dorgeshuun",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Defender of Varrock",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Demon Slayer",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Desert Slayer Dungeon (miniquest)",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Desert Treasure",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Desperate Creatures",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Desperate Measures",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Desperate Times",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Devious Minds",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Diamond in the Rough",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Dimension of Disaster",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Dimension of Disaster: Coin of the Realm",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Dimension of Disaster: Curse of Arrav",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Dimension of Disaster: Defender of Varrock",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Dimension of Disaster: Demon Slayer",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Dimension of Disaster: Shield of Arrav",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Dishonour among Thieves",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Do No Evil",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Doric's Task V (miniquest)",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Doric's Task VI (miniquest)",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Doric's Task VII (miniquest)",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Doric's Task VIII (miniquest)",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Dream Mentor",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Dwarf Cannon",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Eadgar's Ruse",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Eagles' Peak",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Eclipse of the Heart",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Elemental Workshop I",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Elemental Workshop II",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Elemental Workshop III",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Elemental Workshop IV",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Enakhra's Lament",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Enlightened Journey",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Enter the Abyss (miniquest)",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Evil Dave's Big Day Out",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Extinction",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Eye for an Eye (miniquest)",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Eye of Het I",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Eye of Het II",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Family Crest",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Fate of the Gods",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Father and Son",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Field of Screams",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Fight Arena",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Final Destination (miniquest)",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Finale",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Fishing Contest",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Flag Fall (miniquest)",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Flashback",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Flesh and Bone",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Foreshadowing",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Forgettable Tale of a Drunken Dwarf",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Forgiveness of a Chaos Dwarf",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Fortunes",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "From Tiny Acorns (miniquest)",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Fur 'n Seek",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Garden of Tranquillity",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Gertrude's Cat",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Ghosts Ahoy",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Ghosts from the Past (miniquest)",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Glorious Memories",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Great Egg-spectations",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Grim Tales",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Guys and Dolls",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Harbinger (miniquest)",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Haunted Mine",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Hazeel Cult",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Head of the Family (miniquest)",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Heart of Stone",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Hearts of Sanguine",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Helping Laniakea",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Heralds of Crimson",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Hermit Permits",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Hermy and Bass",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Hero's Welcome",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Heroes' Quest",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Holy Grail",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Hopespear's Will (miniquest)",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Horror from the Deep",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Housing of Parliament",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Hunt for Red Raktuber",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Icthlarin's Little Helper",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Impressing the Locals",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "In Aid of the Myreque",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "In Memory of the Myreque (miniquest)",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "In Pyre Need",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "In Search of the Myreque",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "It's Snow Bother",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Jed Hunter (miniquest)",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Jungle Potion",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Kennith's Concerns",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Kili Row",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Kindred Spirits",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "King of the Dwarves",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "King's Ransom",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Koschei's Troubles (miniquest)",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Lair of Tarn Razorlor (miniquest)",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Land of the Goblins",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Legacy of Seergaze",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Legends' Quest",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Lost City",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Lost Her Marbles (miniquest)",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Love Story",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Lunar Diplomacy",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Mahjarrat Memories (miniquest)",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Making History",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Meeting History",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Merlin's Crystal",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Missing My Mummy",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Missing, Presumed Death",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Monk's Friend",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Monkey Madness",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Mountain Daughter",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Mourning's End Part I",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Mourning's End Part II",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Murder Mystery",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Murder on the Border",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "My Arm's Big Adventure",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "My One and Only Lute",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Nadir (saga)",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Nature Spirit",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "New Foundations",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Nomad's Elegy",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Nomad's Requiem",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Observatory Quest",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Ode of the Devourer",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Olaf's Quest",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Once Upon a Slime",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Once Upon a Time in Gielinor",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "One Foot in the Grave (miniquest)",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "One of a Kind",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "One Piercing Note",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "One Small Favour",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Osseous Rex",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Our Man in the North",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Perils of Ice Mountain",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Pharaoh's Folly",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Pieces of Hate",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Plague City",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Plague's End",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Priest in Peril",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Princess and the Pauper",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Purple Cat (miniquest)",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Quiet Before the Swarm",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Rag and Bone Man",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Raksha, the Shadow Colossus",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Rat Catchers",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Rebuilding Edgeville (miniquest)",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Recipe for Disaster",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Recipe for Disaster: Another Cook's Quest",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Recipe for Disaster: Defeating the Culinaromancer",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Recipe for Disaster: Freeing Evil Dave",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Recipe for Disaster: Freeing King Awowogei",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Recipe for Disaster: Freeing Pirate Pete",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Recipe for Disaster: Freeing Sir Amik Varze",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Recipe for Disaster: Freeing Skrach Uglogwee",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Recipe for Disaster: Freeing the Goblin Generals",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Recipe for Disaster: Freeing the Lumbridge Sage",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Recipe for Disaster: Freeing the Mountain Dwarf",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Recruitment Drive",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Regicide",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Remains of the Necrolord",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Requiem for a Dragon",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Ritual of the Mahjarrat",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "River of Blood",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Rocking Out",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Roving Elves",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Royal Trouble",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Rum Deal",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Rune Mechanics",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Rune Memories",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Rune Mythos",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Salt in the Wound",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Scorpion Catcher",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Sea Slug",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Secrets of Amberfell",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Shades of Mort'ton",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Shadow of the Storm",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Sheep Herder",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Shield of Arrav",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Shilo Village",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Sins of the Father",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Skelly By Everlight",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Sliske's Endgame",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Smoking Kills",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Some Like It Cold",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Song from the Depths",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Soul Searching",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Spirit of Summer",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Spirits of the Elid",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Spiritual Enlightenment (miniquest)",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Stellar Born",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Succession",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Summer's End",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Swan Song",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Tai Bwo Wannai Trio",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Tales of Nomad (miniquest)",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Tales of the God Wars (miniquest)",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Tears of Guthix",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Temple of Ikov",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "That Old Black Magic",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "The Branches of Darkmeyer",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "The Brink of Extinction",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "The Chosen Commander",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "The Curse of Arrav",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "The Darkness of Hallowvale",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "The Death of Chivalry",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "The Dig Site",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "The Elder Kiln",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "The Eyes of Glouphrie",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "The Feud",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "The Firemaker's Curse",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "The Fremennik Isles",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "The Fremennik Trials",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "The General's Shadow (miniquest)",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "The Giant Dwarf",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "The Golem",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "The Grand Tree",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "The Great Brain Robbery",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "The Hand in the Sand",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "The Hunt for Surok (miniquest)",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "The Jack of Spades",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "The Knight's Sword",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "The Light Within",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "The Lord of Vampyrium",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "The Lost Toys (miniquest)",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "The Lost Tribe",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "The Mighty Fall",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "The Needle Skips",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "The Path of Glouphrie",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "The Prisoner of Glouphrie",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "The Slug Menace",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "The Spirit of War",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "The Tale of the Muspah",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "The Temple at Senntisten",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "The Tourist Trap",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "The Vault of Shadows",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "The Void Stares Back",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "The World Wakes",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Thok It To 'Em (saga)",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Thok Your Block Off (saga)",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Three's Company (saga)",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Throne of Miscellania",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "TokTz-Ket-Dill",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Tomes of the Warlock",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Tortle Combat (miniquest)",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Tower of Life",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Tree Gnome Village",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Tribal Totem",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Troll Romance",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Troll Stronghold",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Tuai Leit's Own (miniquest)",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Twilight of the Gods",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Underground Pass",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Unwelcome Guests",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Vengeance (saga)",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Vessel of the Harbinger",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Wandering Ga'al (miniquest)",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Wanted!",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Watchtower",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Waterfall Quest",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "What Lies Below",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "While Guthix Sleeps",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Witch's Potion (miniquest)",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Within the Light",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Wiz Kid",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "You Are It",
+      "status": "NOT_STARTED"
+    },
+    {
+      "title": "Zogre Flesh Eaters",
+      "status": "NOT_STARTED"
+    }
+  ]
+}

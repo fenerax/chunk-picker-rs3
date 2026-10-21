@@ -1,0 +1,7 @@
+{
+  "schemaVersion": 1, "revision": 0, "rules": {}, "tasks": [], "history": [],
+  "members": [
+    { "id": "player1", "name": "Player 1", "sourceMapId": null, "unlocked": ["12853", "12595"], "selected": [], "pendingRoll": [], "blacklisted": [], "completedTasks": [], "teleports": [], "transportFacts": { "levels": { "Woodcutting": 12 }, "currencies": { "coins": 30 }, "confirmations": { "own-ferry": true } } },
+    { "id": "player2", "name": "Player 2", "sourceMapId": null, "unlocked": ["11569"], "selected": [], "pendingRoll": [], "blacklisted": [], "completedTasks": [], "teleports": [], "transportFacts": {} }
+  ]
+}

@@ -1,0 +1,11 @@
+{
+  "sourceUrl": "https://runescape.wiki/w/Raw%20vile%20fish?oldid=37146803",
+  "oldid": 37146803,
+  "retrieved": "2026-10-12",
+  "timestamp": "2026-08-07T12:06:31Z",
+  "title": "Raw vile fish",
+  "scope": "Complete source snapshot from MediaWiki revisions API",
+  "licence": "RuneScape Wiki contributors, CC BY-NC-SA 3.0; source exceptions apply.",
+  "source": "{{RCFood}}\n{{Infobox Item\n|name = Raw vile fish\n|image = [[File:Raw vile fish.png]]\n|release = [[12 April]] [[2010]]\n|update = Dungeoneering Skill!\n|members = No\n|quest = No\n|tradeable = Yes\n|stacksinbank = No\n|equipable = No\n|stackable = No\n|disassembly = Restricted\n|value = 1\n|alchable = No\n|destroy = Drop\n|kept = reclaimable\n|exchange = No\n|examine = It smells like eating it would kill you.\n|weight = 0.5\n|id = 17374\n|leagueRegion = Wilderness\n}}\n[[File:Raw vile fish detail.png|left|100px]]\n'''Raw vile fish''' is an item attainable in the [[Daemonheim]] dungeons. Players will receive a varied amount of experience for catching one for the first three that they catch. After that, they receive 0 experience. It is used in the [[Dungeoneering/Puzzles#Fishing ferret|fishing ferret puzzle]].\n\n*When caught, the chat box says: \"You catch a fish. By Jove, it smells bad!\"\n*If a player fails to catch one, you will take medium damage and the chat box will say: \"You have a hilarious fishing accident that one day you'll tell your grandchildren about.\" \n*If the aforementioned failure damage happens to kill you, it will instead say \"You have a hilarious fishing accident that you would have told your grandchildren about, had it not killed you.\" \n*If the player fails to cook the fish, the chat box says: \"You burn the fish so spectacularly there is nothing left of it.\"\n\nCooking the fish successfully will yield 1 Cooking experience and a [[vile fish]]. Burning the fish will cause it to disappear. This fish is unique in having no form of burnt fish.\n\n==Update history==\n{{UH|\n* {{UL|type=update|update=Dungeoneering Skill!|date=12 April 2010}}\n** Added to game.\n}}\n\n==Trivia==\n* Cooking raw vile fish used to give 1 Fishing experience.\n\n{{Dungeoneering puzzles}}\n{{Dungeoneering fish}}",
+  "sourceSha256": "fc832cd246428dd4dee8bea3d76340b74dcea1d8eabd97f0fa92c025ce4a0304"
+}

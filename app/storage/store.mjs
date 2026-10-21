@@ -916,7 +916,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
         throw Object.assign(new Error('You can only undo task claims made by your signed-in player.'), { status: 403 });
       }
       const next = applyValidatedCommand(input.state, command, { expectedRevision, world, registry,
-        random: command.type === 'go-members' ? random ?? (() => randomBytes(6).readUIntBE(0, 6) / 2 ** 48) : random,
+        random: ['go-members', 'setup-start'].includes(command.type) ? random ?? (() => randomBytes(6).readUIntBE(0, 6) / 2 ** 48) : random,
         now, taskCatalogue, actor: attribution, membersStartBanks, xpChoiceCatalogue });
       const ready = await prepared(next, 'command');
       if (ready.revision !== next.revision) throw new TypeError('prepareState must preserve the authoritative revision.');

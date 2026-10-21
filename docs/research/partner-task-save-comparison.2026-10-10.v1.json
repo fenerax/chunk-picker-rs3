@@ -1,0 +1,128 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-10-10",
+  "revision": 97,
+  "sourceRevision": "a823c08a5b0adb5da98be8a65ed000fa7f67e537",
+  "copiedStateSha256": "7d160d0f286693fc48be8b0f0db2170554d996bab97a867325bafe3e36cdff47",
+  "clearedHistory": true,
+  "experiment": "Remove only 13882 from Player 2; both copies use identical runtime.",
+  "runtimeSha256": {
+    "app/tasks/access.mjs": "e8c8c2b15e6a588e553968aec4b5aea7eae1b4ec2a306f830a22708aed04aef4",
+    "app/tasks/engine.mjs": "1f28a2306ea9ba2f13a1288e3f72267fe87cf394c8fad5faf98657a15e4423ad",
+    "rs3-chunkpicker-chunkinfo-export.json": "9dd835266f381abaa4d14033abcd0b43a001fe96d7df0a7f046fcc8676d66553"
+  },
+  "checks": [
+    {
+      "variant": "current",
+      "member": "player1",
+      "totalRows": 20640,
+      "availablePersonal": 1650,
+      "activeVisible": 1067,
+      "rowStatusOwnershipSha256": "a7f6b2c20ae683946476c3f2f011c223c19b12ab4eb8a2e462e9c4909b60cfbc"
+    },
+    {
+      "variant": "current",
+      "member": "player2",
+      "totalRows": 20592,
+      "availablePersonal": 1626,
+      "activeVisible": 1044,
+      "rowStatusOwnershipSha256": "6f15fc3b9e92fc6a2bcac4eb4aade9651d9ae092da8c27994dedcaf67a503fad"
+    },
+    {
+      "variant": "removed",
+      "member": "player1",
+      "totalRows": 20640,
+      "availablePersonal": 1650,
+      "activeVisible": 1067,
+      "rowStatusOwnershipSha256": "a7f6b2c20ae683946476c3f2f011c223c19b12ab4eb8a2e462e9c4909b60cfbc"
+    },
+    {
+      "variant": "removed",
+      "member": "player2",
+      "totalRows": 20592,
+      "availablePersonal": 1625,
+      "activeVisible": 1043,
+      "rowStatusOwnershipSha256": "e8ca5267c3e94e628de8de7cb12a6dddc72703b04ba2ebb19bdaa8d716e63101"
+    }
+  ],
+  "changes": [
+    {
+      "member": "player2",
+      "id": "rs3:task:000228",
+      "category": "Archaeology",
+      "label": "Excavate communal space",
+      "statusBefore": "blocked",
+      "statusAfter": "blocked",
+      "personalBefore": true,
+      "personalAfter": false
+    },
+    {
+      "member": "player2",
+      "id": "rs3:task:0002a1",
+      "category": "Archaeology",
+      "label": "Complete the On the Threshold of the Mind research",
+      "statusBefore": "blocked",
+      "statusAfter": "blocked",
+      "personalBefore": true,
+      "personalAfter": false
+    },
+    {
+      "member": "player2",
+      "id": "rs3:task:002875",
+      "category": "Quest",
+      "label": "Remains of the Necrolord 2",
+      "statusBefore": "blocked",
+      "statusAfter": "blocked",
+      "personalBefore": true,
+      "personalAfter": false
+    },
+    {
+      "member": "player2",
+      "id": "rs3:task:0045c9",
+      "category": "Nonskill",
+      "label": "Daemonheim - Depths excavation site",
+      "statusBefore": "blocked",
+      "statusAfter": "blocked",
+      "personalBefore": true,
+      "personalAfter": false
+    },
+    {
+      "member": "player2",
+      "id": "rs3:task:004d53",
+      "category": "Nonskill",
+      "label": "Eastern marmaros Daemonheim mine.",
+      "statusBefore": "blocked",
+      "statusAfter": "blocked",
+      "personalBefore": true,
+      "personalAfter": false
+    },
+    {
+      "member": "player2",
+      "id": "rs3:task:004f79",
+      "category": "Nonskill",
+      "label": "Access the Dungeons of Daemonheim",
+      "statusBefore": "available",
+      "statusAfter": "available",
+      "personalBefore": true,
+      "personalAfter": false
+    }
+  ],
+  "reverseCheck": [
+    {
+      "variant": "current",
+      "member": "player1",
+      "personalFlagsChangedBySharing": 0,
+      "ownAccessIdentical": true,
+      "activeWithSharing": 1176,
+      "activeWithoutSharing": 1172
+    },
+    {
+      "variant": "removed",
+      "member": "player1",
+      "personalFlagsChangedBySharing": 0,
+      "ownAccessIdentical": true,
+      "activeWithSharing": 1176,
+      "activeWithoutSharing": 1172
+    }
+  ]
+}

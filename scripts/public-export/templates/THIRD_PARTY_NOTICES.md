@@ -1,0 +1,18 @@
+# Third-party notices
+
+RuneScape is a trademark of Jagex Limited. This unofficial, non-commercial
+project is not endorsed by or affiliated with Jagex or the RuneScape Wiki.
+The MIT licence covers project-authored code, rules and placeholder drawings;
+it grants no rights to Jagex game artwork or trademarks.
+
+RuneScape Wiki contributors supply the adapted factual dataset in
+`app/datasets/open-f2p/wiki-derived/`. Its NOTICE and per-record page titles,
+revision IDs and source URLs provide attribution and describe changes.
+That folder uses Creative Commons Attribution-NonCommercial-ShareAlike 3.0
+Unported: https://creativecommons.org/licenses/by-nc-sa/3.0/ .
+Keep its attribution, non-commercial and share-alike terms when redistributing
+covered adaptations. This separate data licence is not replaced by MIT.
+
+Placeholder SVGs are hand-written drawings made from simple shapes for this
+project, without tracing or transforming game images. No game images, fonts,
+cache exports or community map tiles are bundled.

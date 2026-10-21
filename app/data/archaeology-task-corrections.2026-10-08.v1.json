@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "enabledByDefault": false,
+  "switch": "RS3_ARCHAEOLOGY_CONTENTS=game-data",
+  "decoderCommit": "a92b8920b9b9842adde78822646ecad1a6f4fc15",
+  "corrections": [
+    {
+      "category": "Archaeology",
+      "label": "Excavate a ~|triskelion|~ material cache",
+      "field": "Level",
+      "before": 58,
+      "after": 52,
+      "expectedObjects": ["Material cache (triskelion)"],
+      "cache": { "major": 2, "minor": 41, "subid": 18297, "tableId": 88, "columnId": 4 },
+      "wiki": { "url": "https://runescape.wiki/w/Material_cache_(triskelion)?oldid=37118968", "revision": 37118968, "field": "archlevel", "value": 52 },
+      "reason": "The typed hotspot row and Wiki level agree. Tool-specific excavation methods are separate requirements."
+    }
+  ]
+}

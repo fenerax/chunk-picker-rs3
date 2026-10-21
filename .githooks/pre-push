@@ -1,0 +1,5 @@
+#!/bin/sh
+# Secret scan before every push: credentials, personal values (with the
+# private-value corpus) and noreply attribution. Enable once per clone:
+#   git config core.hooksPath .githooks
+exec node scripts/secret-scan/pre-push.mjs "$@"

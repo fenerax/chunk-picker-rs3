@@ -1,0 +1,6 @@
+{
+  "chunks": { "12853": { "Object": { "Bench": true } }, "12595": { "Sections": { "1": { "Object": { "Ore": true } }, "2": { "Object": { "Hidden": true } } } }, "11569": { "Object": { "Anvil": true } }, "13108": {} },
+  "sections": { "12853": { "0": [] }, "12595": { "1": [], "2": [] }, "11569": { "0": [] }, "13108": { "0": [] } },
+  "walkableChunks": ["12853", "12595", "11569", "13108"], "walkableChunksF2P": ["12853", "12595", "11569", "13108"],
+  "challenges": { "Extra": { "OreTask": { "Objects": ["Ore"] }, "HiddenTask": { "Objects": ["Hidden"] }, "PartnerTask": { "Objects": ["Anvil"] }, "SuppliedOwn": { "Objects": ["Bench", "Anvil"] } } }, "codeItems": {}
+}

@@ -1,0 +1,25 @@
+{
+  "schema": "rs3-approved-neutral-policy-v1",
+  "id": "private-neutral-lane-v1",
+  "repository": "fenerax/chunk-picker-rs3-private-src",
+  "repositoryId": 1426411428,
+  "workflowId": 390918573,
+  "path": ".github/workflows/private-neutral-lane.yml",
+  "node": "v24.20.0",
+  "requiredSteps": ["Checkout private tree", "Resolve the pair", "Checkout paired core", "Set up Node 24.20.0", "Neutral lane"],
+  "packSteps": ["Restore packs", "Fetch packs", "Save packs"],
+  "actor": "fenerax",
+  "branches": ["main", "neutral/<privateSha>"],
+  "approvedWorkflowSha256": [
+    "66f33cd52b0de0aa17137a13ae83738228d2d231b8a8e16765c8b0caca53777c"
+  ],
+  "runnerBlobs": [
+    { "path": "tools/lib/source-lib.mjs", "sha": "0ef3199fc6e4c863ea00ed52c49c98a200198aa6" },
+    { "path": "tools/lib/real-values.mjs", "sha": "34e59e13a50c970676daa7f3e563be008ab4ca3e" }
+  ],
+  "revokedSHAs": [],
+  "revokedRunIds": [],
+  "revokedBefore": null,
+  "maxRunAgeSeconds": 604800,
+  "receiptTTLSeconds": 300
+}

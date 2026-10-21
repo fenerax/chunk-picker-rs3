@@ -1,0 +1,1060 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-10-08",
+  "catalogue": {
+    "file": "app/data/cache-archaeology.2026-10-08.v1.json",
+    "bytes": 1542830,
+    "sha256": "2b703f6f029d22715d05dd9911d824c6c09dfe58ff7c3303429c2cd162799ad6",
+    "hashScope": "LF-normalized repository text"
+  },
+  "research": {
+    "directory": "C:/Users/User/Projects/rs3-cache-work/archmaps-archaeology/extraction-v6",
+    "extraction": {
+      "file": "archaeology-extraction.2026-10-08.v1.json",
+      "sha256": "b40896d0310e6aa4cc382576ec22b212eb6b832ec368e93437284d3bcbf95e84"
+    },
+    "manifest": {
+      "file": "archaeology-manifest.v1.json",
+      "sha256": "5aa764159cb8544a6e7549f142a82e4795f700713ba3d959e3391951cc533d78"
+    }
+  },
+  "summary": {
+    "sites": 9,
+    "areas": 92,
+    "resourceRows": 149,
+    "excavationHotspots": 104,
+    "materialCaches": 45,
+    "materials": 47,
+    "artefacts": 250,
+    "restorations": 238,
+    "archaeologyProductionCandidates": 265,
+    "linkedArtefactRestorations": 237,
+    "distinctDamagedItemIds": 248,
+    "distinctRestoredItemIds": 249,
+    "unresolvedArtefactItemReferences": 2,
+    "collectors": 14,
+    "collections": 78,
+    "mysteries": 52,
+    "mysteryLevels": 1,
+    "wikiMysteryLevels": 1,
+    "f2pCacheBooleanCandidates": 11,
+    "f2pValidatedResources": 11,
+    "definitions": 270,
+    "resourcesWithDefinitions": 146,
+    "scannedPlacements": 4737814,
+    "allMapPlacements": 716,
+    "surfacePlacements": 87,
+    "witnessedPlacements": 87,
+    "witnessedChunks": 25,
+    "f2pWitnessedPlacements": 14,
+    "reviewPlacements": 633,
+    "retainedTaskRows": 555,
+    "mappedTaskRows": 408,
+    "retainedLevelReviews": 1,
+    "retainedContentRows": 245,
+    "newContentPlacements": 12,
+    "matchedCollections": 75,
+    "matchedMysteries": 52
+  },
+  "decodeReport": {
+    "items": {
+      "decoded": 63798,
+      "errors": []
+    },
+    "structs": {
+      "decoded": 53501,
+      "errors": []
+    },
+    "enums": {
+      "decoded": 16755,
+      "errors": []
+    },
+    "params": {
+      "decoded": 9498,
+      "errors": []
+    },
+    "dbrows": {
+      "decoded": 20297,
+      "errors": []
+    },
+    "dbtables": {
+      "decoded": 391,
+      "errors": []
+    },
+    "achievements": {
+      "decoded": 5098,
+      "errors": []
+    }
+  },
+  "provenance": {
+    "decoder": {
+      "repository": "https://github.com/skillbert/rsmv",
+      "commit": "a92b8920b9b9842adde78822646ecad1a6f4fc15",
+      "buildSchema": 950,
+      "buildStatus": "inferred schema version; not independently verified game client build",
+      "sourceHashes": {
+        "constants": "1436162d7de64725f3b5902d1ae278f40e2dce5ab1f82439e62a2a832d82c66b",
+        "opcode": "5fd7b69a0be0a5d4ec71b5465afcfd5812e8dbcc05f859e021ca8c17d85ed6e4"
+      },
+      "schemaHashes": {
+        "typedef.jsonc": "0d4037507c304ea3bd1e966a161dc1643115c0991e81711bf49d672545dc6858",
+        "cacheindex.json": "b65b2f60dba6168134f6ae5c90d5504dcf26f276477bd2aff213c6734293f793",
+        "mapsquare_tiles.jsonc": "64deb140845bf6605456da65b2de56e7766a66f4747fc90f43e7f3fcc95afbdd",
+        "mapsquare_tiles_nxt.jsonc": "0199a97ae17a56b5a4f05b5962fd80788e86807ceff1256d023a2e650f43be56",
+        "mapsquare_locations.json": "41867d05f7f9456c54f2eedda9a977734b99e33736b89c2cece1eb618a99b308",
+        "locs.jsonc": "fbd5f1d646341a716e1c3c4b41a112727e62922290b44300e69ba8e2aa70c51f",
+        "npcs.jsonc": "1b3b3ffa02e325c0aecafb7d7b22ff7256f11494ab37685115cfd795b0fa4af2",
+        "maplabels.jsonc": "e3bd3e0d827f48ddbb1470e2959c51da23624a4e0fdfc145fa37d62bce780d63",
+        "maplabellocations.jsonc": "5b95af45643e545ca75c9bc4f2d942c033b994a01a00e243d93c36e49372e342",
+        "mapzones_pastes.json": "30f83ad60a5e372e1644627aa234eeca22bbd8e1ece36c44e87a0229f20e40fa",
+        "mapzones.json": "8ba12ea64687bf7376978682ca35688adf1d05a9dca221073dc79f5060f15b29",
+        "mapsquare_overlays.jsonc": "ebf509b0cfeba3288750e40b2049ccd25a210170e54fad7fb387619043954d62",
+        "mapsquare_underlays.jsonc": "2b2f0db789c666d40d85a9764aa4e3ecb9b36bd8f0cacf89e3024180b76b5478",
+        "items.jsonc": "8d0148d6810a56f166a8609f9cebbf19b1c1ffc763bd73053b2e3220aa5d6009",
+        "structs.jsonc": "bf73399b40d9ebffb6f7beb5cab9c7b091724e6bcae0c5f76f61802a081d9870",
+        "enums.json": "860ee65ad6cd215960981695e8148de18564464f4375e27eb6b308fbad6c909d",
+        "params.jsonc": "a8ac70f87c66b79fa5ef3455d41c38434fa0a85cf78ea99b8a736ddc1aecc4dd",
+        "dbrows.jsonc": "3b38ee2d6b1ef17d0e6bf6e70de36ee095c2032623b9dae997854366e69f41c7",
+        "dbtables.jsonc": "4ee3ed60a07d75c6affd4e8febf75d12ab2ea9b813a9f19255e6a8781f2b18a3",
+        "achievements.jsonc": "a2e90768fbe4060b059def9ee5c7dbc7d9a9c0fdc4729f1e2104ee3e50726d0a"
+      },
+      "footerValidation": "bounds and complete consumption required",
+      "executableInterpreterSha256": "ec7fa2cc9ab635bf2ef629f1fa8b77b6f32a97be1aaf4e26970ab2337e58bf16"
+    },
+    "sources": [
+      {
+        "major": 19,
+        "file": "js5-19.jcache",
+        "bytes": 2121728,
+        "sha256": "20b9dcb5254dfd57a9c7444cb25806a6d9c9dc8d2ce165b396e7589522182ab2",
+        "indexTimestamp": 1790927042,
+        "declaredArchives": 251,
+        "presentArchives": 251
+      },
+      {
+        "major": 22,
+        "file": "js5-22.jcache",
+        "bytes": 2392064,
+        "sha256": "47a7b0cae70f7264f5fcf8415ddecfedcc92a0e07fe3aedf9fd53d15b9fffb03",
+        "indexTimestamp": 1790775928,
+        "declaredArchives": 1672,
+        "presentArchives": 1672
+      },
+      {
+        "major": 17,
+        "file": "js5-17.jcache",
+        "bytes": 909312,
+        "sha256": "bf02a85420cedea2d8b61bf607930ab894df60440cbebcc7431730ea8da52404",
+        "indexTimestamp": 1790775927,
+        "declaredArchives": 69,
+        "presentArchives": 69
+      },
+      {
+        "major": 2,
+        "file": "js5-2.jcache",
+        "bytes": 2195456,
+        "sha256": "a549a8c19598964dd3e5479ff6bb40056df6456c9e89a7c23a887eb24cabcb75",
+        "indexTimestamp": 1790931935,
+        "declaredArchives": 39,
+        "presentArchives": 39
+      },
+      {
+        "major": 57,
+        "file": "js5-57.jcache",
+        "bytes": 303104,
+        "sha256": "fa9e1d5fb9c4ea03f67bb760abb00fd08c15f4599a2f6423ed1e94985409f5dd",
+        "indexTimestamp": 1790844900,
+        "declaredArchives": 40,
+        "presentArchives": 40
+      }
+    ],
+    "extraction": {
+      "file": "archaeology-extraction.2026-10-08.v1.json",
+      "sha256": "b40896d0310e6aa4cc382576ec22b212eb6b832ec368e93437284d3bcbf95e84"
+    },
+    "manifest": {
+      "file": "archaeology-manifest.v1.json",
+      "sha256": "5aa764159cb8544a6e7549f142a82e4795f700713ba3d959e3391951cc533d78"
+    },
+    "objectExport": {
+      "manifestSha256": "641043bf628f3d0ef1d9434d9acbe76688a7628015d17e866530ffd435bad99e",
+      "inputs": [
+        {
+          "file": "objects.definitions.v1.json.gz",
+          "sha256": "686748ecfe5ccee8a2ec6b513a1c84962521092eccc3c5dcc02cf5e282432bf1"
+        },
+        {
+          "file": "objects.placements.v1.json.gz",
+          "sha256": "3af6bc90e31f30fafb81f88368e4052335d47a45eadaaad0e82f3361476bc137"
+        },
+        {
+          "file": "objects.layouts.v1.json.gz",
+          "sha256": "84c81c0d47cc6d1d78df5f5c998576a9dc529ac5bd1fa6ef891c3b0fc25ba7ee"
+        }
+      ]
+    },
+    "walkability": {
+      "file": "cache-walkability.2026-10-07.v1.json",
+      "sha256": "2a6acb3b9a2a45eac73cfb543f1d63d2d733310b2e03d5b2bf2f40fa7b41130e",
+      "masks": {
+        "file": "walkability.v1.json.gz",
+        "sha256": "d553ed49ce12254d197e82abe673279f3bb1ede5eb34098cf0376e68bd67fdf6",
+        "manifest": {
+          "file": "manifest.v1.json",
+          "sha256": "0ae32fd4803333be0c0c25e66b1abf5380bc096af7dbe1bb9e0bf34b5833630a"
+        },
+        "membership": {
+          "file": "membership.v1.json",
+          "sha256": "972366f985be500c96c432246e18b79d6d9b56568ea74c7889c2189ab8d65173"
+        },
+        "decoder": {
+          "name": "rsmv opcode interpreter/schemas only",
+          "repository": "https://github.com/skillbert/rsmv",
+          "commit": "a92b8920b9b9842adde78822646ecad1a6f4fc15",
+          "buildSchema": 950,
+          "node": "v24.19.0",
+          "sourceHashes": {
+            "constants": "1436162d7de64725f3b5902d1ae278f40e2dce5ab1f82439e62a2a832d82c66b",
+            "opcode": "5fd7b69a0be0a5d4ec71b5465afcfd5812e8dbcc05f859e021ca8c17d85ed6e4"
+          }
+        },
+        "sources": [
+          {
+            "major": 23,
+            "name": "js5-23.jcache",
+            "bytes": 7774208,
+            "sha256": "fdafdd4bc670081f1f872eb51827ecfa11c6946d5dc6c22a67805ec104df51e3",
+            "indexTimestamp": 1790278391,
+            "indexDate": "2026-09-24T19:33:11.000Z",
+            "archives": 5,
+            "presentArchives": 5
+          },
+          {
+            "major": 5,
+            "name": "js5-5.jcache",
+            "bytes": 58966016,
+            "sha256": "05932552f7af7e4e0797d8716181e3c64f0ab831bdf6f59dee2705a121bfe00a",
+            "indexTimestamp": 1790927042,
+            "indexDate": "2026-10-02T07:44:02.000Z",
+            "archives": 8715,
+            "presentArchives": 8715
+          },
+          {
+            "major": 16,
+            "name": "js5-16.jcache",
+            "bytes": 2359296,
+            "sha256": "16f3f97856a3131e9f71308442db07eef98bc5194f3b5e576f41e22a08b7caa4",
+            "indexTimestamp": 1790939551,
+            "indexDate": "2026-10-02T11:12:31.000Z",
+            "archives": 552,
+            "presentArchives": 552
+          },
+          {
+            "major": 2,
+            "name": "js5-2.jcache",
+            "bytes": 2195456,
+            "sha256": "a549a8c19598964dd3e5479ff6bb40056df6456c9e89a7c23a887eb24cabcb75",
+            "indexTimestamp": 1790931935,
+            "indexDate": "2026-10-02T09:05:35.000Z",
+            "archives": 39,
+            "presentArchives": 39
+          },
+          {
+            "major": 42,
+            "name": "js5-42.jcache",
+            "bytes": 40960,
+            "sha256": "52c8cd3138106387b346b165a33547463c8363771e00485db1e030e95c6523cc",
+            "indexTimestamp": 1790927052,
+            "indexDate": "2026-10-02T07:44:12.000Z",
+            "archives": 142,
+            "presentArchives": 142
+          },
+          {
+            "major": 8,
+            "name": "js5-8.jcache",
+            "bytes": 2366500864,
+            "sha256": "c346a36e3137f1f3e91c00689a61a2549ddda8a569717723e1ff7c783b3ce9e1",
+            "indexTimestamp": 1790786856,
+            "indexDate": "2026-09-30T16:47:36.000Z",
+            "archives": 36536,
+            "presentArchives": 36534
+          }
+        ],
+        "reference": {
+          "file": "rs3-chunkpicker-chunkinfo-export.json",
+          "sha256": "9dd835266f381abaa4d14033abcd0b43a001fe96d7df0a7f046fcc8676d66553"
+        },
+        "method": "Mandatory pinned full component masks; exact anchor tile or rotated cardinal footprint perimeter within placement base chunk; source plane checked using paste translation."
+      }
+    },
+    "referenceSha256": "9dd835266f381abaa4d14033abcd0b43a001fe96d7df0a7f046fcc8676d66553",
+    "builderSha256": "bbb6089e3938d6a50518f81106b0f450f820bebf47f8ef9a069b64c430787768",
+    "extractorSha256": "880d6e4ed983b4f1d63a90ef9556e7dddddee2e3646016e8a9fc2605b431f2fc",
+    "wikiEvidence": [
+      {
+        "page": "Archaeology",
+        "title": "Archaeology",
+        "revision": 37159329,
+        "url": "https://runescape.wiki/w/Archaeology?oldid=37159329",
+        "fields": [
+          "|members = Yes"
+        ],
+        "evidenceStatus": "Current public API revision checked; bounded corroboration, not a Wiki-generated catalogue."
+      },
+      {
+        "page": "Venator remains",
+        "title": "Venator remains",
+        "revision": 37118728,
+        "url": "https://runescape.wiki/w/Venator_remains?oldid=37118728",
+        "fields": [
+          "|name = Venator remains",
+          "|members = No",
+          "|location = [[Kharid-et Dig Site]]",
+          "|id = 117101",
+          "|name = Venator remains",
+          "|materials =Third Age iron,Zarosian insignia",
+          "|artefacts =Venator dagger (damaged),Venator light crossbow (damaged)"
+        ],
+        "evidenceStatus": "Current public API revision checked; bounded corroboration, not a Wiki-generated catalogue."
+      },
+      {
+        "page": "Venator dagger",
+        "title": "Venator dagger",
+        "revision": 36977123,
+        "url": "https://runescape.wiki/w/Venator_dagger?oldid=36977123",
+        "fields": [
+          "|name = Venator dagger",
+          "|members = No",
+          "|id = 49922",
+          "|name = Venator dagger",
+          "|members = No",
+          "|level = 5"
+        ],
+        "evidenceStatus": "Current public API revision checked; bounded corroboration, not a Wiki-generated catalogue."
+      },
+      {
+        "page": "Legionary remains",
+        "title": "Legionary remains",
+        "revision": 37118779,
+        "url": "https://runescape.wiki/w/Legionary_remains?oldid=37118779",
+        "fields": [
+          "|name = Legionary remains",
+          "|members = No",
+          "|location = [[Kharid-et Dig Site]]",
+          "|id = 117103",
+          "|name = Legionary remains",
+          "|materials = Third Age iron,Samite silk,Imperial steel",
+          "|artefacts = Primis Elementis standard (damaged),Legionary gladius (damaged),Legionary square shield (damaged)"
+        ],
+        "evidenceStatus": "Current public API revision checked; bounded corroboration, not a Wiki-generated catalogue."
+      },
+      {
+        "page": "Castra debris",
+        "title": "Castra debris",
+        "revision": 37118780,
+        "url": "https://runescape.wiki/w/Castra_debris?oldid=37118780",
+        "fields": [
+          "|name = Castra debris",
+          "|members = No",
+          "|location = [[Kharid-et Dig Site]]",
+          "|id = 117106",
+          "|name = Castra debris",
+          "|materials = Samite silk,White oak,Third Age iron,Zarosian insignia",
+          "|artefacts = Zaros effigy (damaged),Zarosian training dummy (damaged)"
+        ],
+        "evidenceStatus": "Current public API revision checked; bounded corroboration, not a Wiki-generated catalogue."
+      },
+      {
+        "page": "Centurion remains",
+        "title": "Centurion remains",
+        "revision": 37146280,
+        "url": "https://runescape.wiki/w/Centurion_remains?oldid=37146280",
+        "fields": [
+          "|name = Centurion remains",
+          "|members = No",
+          "|location = [[Archaeology Campus]]",
+          "|id = 116393",
+          "|name = Centurion remains",
+          "|materials = Imperial iron, Purpleheart wood",
+          "|artefacts = Centurion's dress sword (damaged)"
+        ],
+        "evidenceStatus": "Current public API revision checked; bounded corroboration, not a Wiki-generated catalogue."
+      },
+      {
+        "page": "Fort debris",
+        "title": "Fort debris",
+        "revision": 37118726,
+        "url": "https://runescape.wiki/w/Fort_debris?oldid=37118726",
+        "fields": [
+          "|name = Fort debris",
+          "|members = No",
+          "|location = [[Kharid-et Dig Site]]",
+          "|name = Fort debris",
+          "|materials = Third Age iron, Zarosian insignia, Imperial steel, Samite silk",
+          "|artefacts = none"
+        ],
+        "evidenceStatus": "Current public API revision checked; bounded corroboration, not a Wiki-generated catalogue."
+      },
+      {
+        "page": "Mystery remains",
+        "title": "Mystery remains",
+        "revision": 37126106,
+        "url": "https://runescape.wiki/w/Mystery_remains?oldid=37126106",
+        "fields": [
+          "|name = Mystery remains",
+          "|members = No",
+          "|location = [[Harvest Hollow]]",
+          "|id = 131355",
+          "|name = Mystery remains",
+          "|materials = None",
+          "|artefacts = Soiled storybook, Polished horn, Dusty snow globe, Ruined letter, Strange coins"
+        ],
+        "evidenceStatus": "Current public API revision checked; bounded corroboration, not a Wiki-generated catalogue."
+      },
+      {
+        "page": "Material cache (Third Age iron)",
+        "title": "Material cache (Third Age iron)",
+        "revision": 37118965,
+        "url": "https://runescape.wiki/w/Material_cache_(Third_Age_iron)?oldid=37118965",
+        "fields": [
+          "|name = Material cache (Third Age iron)",
+          "|members = No",
+          "|location = See [[#Locations|Locations]]",
+          "|id = 115426",
+          "|name = Material cache (Third Age iron)",
+          "|materials = Third Age iron"
+        ],
+        "evidenceStatus": "Current public API revision checked; bounded corroboration, not a Wiki-generated catalogue."
+      },
+      {
+        "page": "Material cache (Zarosian insignia)",
+        "title": "Material cache (Zarosian insignia)",
+        "revision": 37118895,
+        "url": "https://runescape.wiki/w/Material_cache_(Zarosian_insignia)?oldid=37118895",
+        "fields": [
+          "|name = Material cache (Zarosian insignia)",
+          "|members = No",
+          "|location = See [[#Locations]]",
+          "|name = Material cache (Zarosian insignia)",
+          "|materials = Zarosian insignia"
+        ],
+        "evidenceStatus": "Current public API revision checked; bounded corroboration, not a Wiki-generated catalogue."
+      },
+      {
+        "page": "Material cache (samite silk)",
+        "title": "Material cache (samite silk)",
+        "revision": 37118887,
+        "url": "https://runescape.wiki/w/Material_cache_(samite_silk)?oldid=37118887",
+        "fields": [
+          "|name = Material cache (samite silk)",
+          "|members = No",
+          "|location = See [[#Locations]]",
+          "|name = Material cache (samite silk)",
+          "|materials = Samite silk"
+        ],
+        "evidenceStatus": "Current public API revision checked; bounded corroboration, not a Wiki-generated catalogue."
+      },
+      {
+        "page": "Material cache (imperial steel)",
+        "title": "Material cache (imperial steel)",
+        "revision": 37118886,
+        "url": "https://runescape.wiki/w/Material_cache_(imperial_steel)?oldid=37118886",
+        "fields": [
+          "|name = Material cache (imperial steel)",
+          "|members = No",
+          "|name = Material cache (imperial steel)",
+          "|materials = Imperial steel"
+        ],
+        "evidenceStatus": "Current public API revision checked; bounded corroboration, not a Wiki-generated catalogue."
+      },
+      {
+        "page": "Material cache (white oak)",
+        "title": "Material cache (white oak)",
+        "revision": 37118975,
+        "url": "https://runescape.wiki/w/Material_cache_(white_oak)?oldid=37118975",
+        "fields": [
+          "|name = Material cache (white oak)",
+          "|members = No",
+          "|name = Material cache (white oak)",
+          "|materials = White oak"
+        ],
+        "evidenceStatus": "Current public API revision checked; bounded corroboration, not a Wiki-generated catalogue."
+      },
+      {
+        "page": "Material cache (triskelion)",
+        "title": "Material cache (triskelion)",
+        "revision": 37118968,
+        "url": "https://runescape.wiki/w/Material_cache_(triskelion)?oldid=37118968",
+        "fields": [
+          "|name = Material cache (triskelion)",
+          "|members = Yes",
+          "|location = See [[#Locations]]",
+          "|id = 137387",
+          "|name = Material cache (triskelion)",
+          "|materials = Triskelion"
+        ],
+        "evidenceStatus": "Current public API revision checked; bounded corroboration, not a Wiki-generated catalogue."
+      },
+      {
+        "page": "Zarosian I",
+        "title": "Zarosian I",
+        "revision": 36851412,
+        "url": "https://runescape.wiki/w/Zarosian_I?oldid=36851412",
+        "fields": [
+          "|name = Zarosian I",
+          "|members = Yes",
+          "|artefacts = 9",
+          "|id = 2684"
+        ],
+        "evidenceStatus": "Current public API revision checked; bounded corroboration, not a Wiki-generated catalogue."
+      },
+      {
+        "page": "Breaking the Seal",
+        "title": "Breaking the Seal",
+        "revision": 37152695,
+        "url": "https://runescape.wiki/w/Breaking_the_Seal?oldid=37152695",
+        "fields": [
+          "|id = 2388",
+          "|name = Breaking the Seal",
+          "|members = No",
+          "|name = Breaking the Seal",
+          "|members = No"
+        ],
+        "evidenceStatus": "Current public API revision checked; bounded corroboration, not a Wiki-generated catalogue."
+      },
+      {
+        "page": "Infernal Source Dig Site",
+        "title": "Infernal Source Dig Site",
+        "revision": 37124842,
+        "url": "https://runescape.wiki/w/Infernal_Source_Dig_Site?oldid=37124842",
+        "fields": [
+          "|name = Infernal Source Dig Site",
+          "|location = [[Varrock]]",
+          "|members = Yes",
+          "|name = Infernal Source Dig Site"
+        ],
+        "evidenceStatus": "Current public API revision checked; bounded corroboration, not a Wiki-generated catalogue."
+      },
+      {
+        "page": "Archaeology collections",
+        "title": "Archaeology collections",
+        "revision": 36289612,
+        "url": "https://runescape.wiki/w/Archaeology_collections?oldid=36289612",
+        "fields": [],
+        "evidenceStatus": "Current public API revision checked; bounded corroboration, not a Wiki-generated catalogue."
+      },
+      {
+        "page": "Moonrise Dig Site",
+        "title": "Moonrise Dig Site",
+        "revision": 37130897,
+        "url": "https://runescape.wiki/w/Moonrise_Dig_Site?oldid=37130897",
+        "fields": [
+          "|name = Moonrise Dig Site",
+          "|location = [[Amberfell]]",
+          "|members = Yes",
+          "|name = Moonrise Dig Site",
+          "|name = Moonrise Dig Site"
+        ],
+        "evidenceStatus": "Current public API revision checked; bounded corroboration, not a Wiki-generated catalogue."
+      }
+    ]
+  },
+  "siteSamples": [
+    {
+      "rowId": 2802,
+      "source": {
+        "major": 2,
+        "minor": 41,
+        "subid": 2802
+      },
+      "code": 1,
+      "kindCode": 1,
+      "name": "Kharid-et",
+      "level": 5,
+      "members": false,
+      "qualificationCode": null,
+      "requirementStructId": 30926,
+      "siteManagerNpcId": 26966,
+      "areaRowIds": [
+        3253,
+        3256,
+        3260,
+        3263,
+        3267,
+        3270
+      ],
+      "hotspotRowIds": []
+    },
+    {
+      "rowId": 2803,
+      "source": {
+        "major": 2,
+        "minor": 41,
+        "subid": 2803
+      },
+      "code": 2,
+      "kindCode": 1,
+      "name": "Everlight",
+      "level": 42,
+      "members": true,
+      "qualificationCode": null,
+      "requirementStructId": 30929,
+      "siteManagerNpcId": 26939,
+      "areaRowIds": [
+        3133,
+        3136,
+        3139,
+        3143,
+        3146,
+        3149
+      ],
+      "hotspotRowIds": []
+    },
+    {
+      "rowId": 2804,
+      "source": {
+        "major": 2,
+        "minor": 41,
+        "subid": 2804
+      },
+      "code": 3,
+      "kindCode": 1,
+      "name": "Infernal Source",
+      "level": 20,
+      "members": true,
+      "qualificationCode": null,
+      "requirementStructId": 32054,
+      "siteManagerNpcId": 26952,
+      "areaRowIds": [
+        3189,
+        3192,
+        3196,
+        3197,
+        3198,
+        3202,
+        3203,
+        3204,
+        3208,
+        3209
+      ],
+      "hotspotRowIds": []
+    },
+    {
+      "rowId": 2805,
+      "source": {
+        "major": 2,
+        "minor": 41,
+        "subid": 2805
+      },
+      "code": 4,
+      "kindCode": 1,
+      "name": "Stormguard Citadel",
+      "level": 70,
+      "members": true,
+      "qualificationCode": 2,
+      "requirementStructId": 32515,
+      "siteManagerNpcId": 26985,
+      "areaRowIds": [
+        3306,
+        3308,
+        3309,
+        3310,
+        3313,
+        3314,
+        3315,
+        3316,
+        3321,
+        3322,
+        3325
+      ],
+      "hotspotRowIds": []
+    },
+    {
+      "rowId": 2806,
+      "source": {
+        "major": 2,
+        "minor": 41,
+        "subid": 2806
+      },
+      "code": 5,
+      "kindCode": 1,
+      "name": "Warforge",
+      "level": 76,
+      "members": true,
+      "qualificationCode": 2,
+      "requirementStructId": 32617,
+      "siteManagerNpcId": 26997,
+      "areaRowIds": [
+        3357,
+        3358,
+        3374,
+        3362,
+        3363,
+        3367,
+        3371
+      ],
+      "hotspotRowIds": []
+    },
+    {
+      "rowId": 3703,
+      "source": {
+        "major": 2,
+        "minor": 41,
+        "subid": 3703
+      },
+      "code": 6,
+      "kindCode": 1,
+      "name": "Orthen",
+      "level": 90,
+      "members": true,
+      "qualificationCode": 3,
+      "requirementStructId": 44868,
+      "siteManagerNpcId": 26400,
+      "areaRowIds": [
+        3755,
+        3758,
+        3762,
+        3765,
+        3768
+      ],
+      "hotspotRowIds": []
+    },
+    {
+      "rowId": 4408,
+      "source": {
+        "major": 2,
+        "minor": 41,
+        "subid": 4408
+      },
+      "code": 7,
+      "kindCode": 1,
+      "name": "Senntisten",
+      "level": 60,
+      "members": true,
+      "qualificationCode": null,
+      "requirementStructId": 38940,
+      "siteManagerNpcId": 22441,
+      "areaRowIds": [
+        4449,
+        4452,
+        4455,
+        4457
+      ],
+      "hotspotRowIds": []
+    },
+    {
+      "rowId": 13665,
+      "source": {
+        "major": 2,
+        "minor": 41,
+        "subid": 13665
+      },
+      "code": 8,
+      "kindCode": 1,
+      "name": "Daemonheim",
+      "level": 73,
+      "members": true,
+      "qualificationCode": null,
+      "requirementStructId": 49907,
+      "siteManagerNpcId": 4732,
+      "areaRowIds": [
+        13711,
+        13716
+      ],
+      "hotspotRowIds": []
+    },
+    {
+      "rowId": 18292,
+      "source": {
+        "major": 2,
+        "minor": 41,
+        "subid": 18292
+      },
+      "code": 9,
+      "kindCode": 1,
+      "name": "Moonrise",
+      "level": 52,
+      "members": true,
+      "qualificationCode": null,
+      "requirementStructId": 33875,
+      "siteManagerNpcId": 22505,
+      "areaRowIds": [
+        18323,
+        18328
+      ],
+      "hotspotRowIds": []
+    }
+  ],
+  "reviewCounts": {
+    "outside-reviewed-surface-scope": 561,
+    "conditional-or-untyped-review": 68,
+    "multiple-footprint-components": 4
+  },
+  "comparison": {
+    "levelReviews": [
+      {
+        "label": "Excavate a ~|triskelion|~ material cache",
+        "retained": {
+          "Tasks": {
+            "Complete the ~|Archaeology tutorial|~": "Archaeology"
+          },
+          "Objects": [
+            "Material cache (triskelion)"
+          ],
+          "Level": 58,
+          "Output": "Triskelion cache",
+          "Primary": true,
+          "Priority": 8
+        },
+        "resourceRowIds": [
+          18297
+        ],
+        "restorationItemIds": [],
+        "levelStatus": "disagree",
+        "cacheLevels": [
+          52
+        ],
+        "interpretation": "Exact object/output names; mismatches are review candidates, never automatic task replacement."
+      }
+    ],
+    "collectionGaps": [
+      {
+        "rowId": 3560,
+        "name": "Desperate for Artefacts",
+        "cacheArtefacts": [
+          "Ceremonial dragonkin device",
+          "Ceremonial dragonkin tablet"
+        ],
+        "retainedTasks": [],
+        "status": "no-exact-item-set-and-name-match",
+        "interpretation": "Exact collection names and complete restored item-name sets; raw NPC selectors, gates and restrictions retained separately."
+      },
+      {
+        "rowId": 18285,
+        "name": "Guthixian I",
+        "cacheArtefacts": [
+          "Lunar calendar",
+          "Wolf statuette",
+          "Ivory sickle",
+          "Nakkirian seal",
+          "Royal Game of Ba",
+          "Backstrap loom",
+          "Animal doll",
+          "Initiate's kaunake"
+        ],
+        "retainedTasks": [],
+        "status": "no-exact-item-set-and-name-match",
+        "interpretation": "Exact collection names and complete restored item-name sets; raw NPC selectors, gates and restrictions retained separately."
+      },
+      {
+        "rowId": 18287,
+        "name": "Museum - Guthixian I",
+        "cacheArtefacts": [
+          "Lunar calendar",
+          "Wolf statuette",
+          "Ivory sickle",
+          "Nakkirian seal",
+          "Royal Game of Ba",
+          "Backstrap loom",
+          "Animal doll",
+          "Initiate's kaunake"
+        ],
+        "retainedTasks": [],
+        "status": "no-exact-item-set-and-name-match",
+        "interpretation": "Exact collection names and complete restored item-name sets; raw NPC selectors, gates and restrictions retained separately."
+      }
+    ],
+    "hotspotGaps": [
+      {
+        "rowId": 2873,
+        "name": null,
+        "kind": "excavation-hotspot",
+        "placements": 0
+      },
+      {
+        "rowId": 3361,
+        "name": "Tunnels barricade",
+        "kind": "excavation-hotspot",
+        "placements": 0
+      },
+      {
+        "rowId": 3572,
+        "name": "Dragonkin remains",
+        "kind": "excavation-hotspot",
+        "placements": 0
+      },
+      {
+        "rowId": 3573,
+        "name": "Orthen rubble",
+        "kind": "excavation-hotspot",
+        "placements": 0
+      },
+      {
+        "rowId": 3574,
+        "name": "Dragonkin remains",
+        "kind": "excavation-hotspot",
+        "placements": 0
+      },
+      {
+        "rowId": 3575,
+        "name": "Orthen rubble",
+        "kind": "excavation-hotspot",
+        "placements": 0
+      },
+      {
+        "rowId": 4344,
+        "name": "Forum entrance",
+        "kind": "excavation-hotspot",
+        "placements": 0
+      },
+      {
+        "rowId": 4454,
+        "name": "Inquisitor's remains",
+        "kind": "excavation-hotspot",
+        "placements": 0
+      },
+      {
+        "rowId": 4456,
+        "name": "Gladiator's remains",
+        "kind": "excavation-hotspot",
+        "placements": 0
+      },
+      {
+        "rowId": 13386,
+        "name": "Runic debris",
+        "kind": "excavation-hotspot",
+        "placements": 0
+      },
+      {
+        "rowId": 13387,
+        "name": "Standing stone debris",
+        "kind": "excavation-hotspot",
+        "placements": 0
+      },
+      {
+        "rowId": 13535,
+        "name": "Crystalised rubble",
+        "kind": "excavation-hotspot",
+        "placements": 0
+      },
+      {
+        "rowId": 14166,
+        "name": "Mystery remains",
+        "kind": "excavation-hotspot",
+        "placements": 0
+      },
+      {
+        "rowId": 18330,
+        "name": "Blood altar",
+        "kind": "excavation-hotspot",
+        "placements": 0
+      }
+    ],
+    "newContents": [
+      {
+        "id": "object-14019c292c45251b3cc3eab7@28:0:3006:3497",
+        "chunkId": "11830",
+        "objectId": 116401,
+        "name": "Material cache (white oak)",
+        "witnessed": true
+      },
+      {
+        "id": "object-16785242a9a6f19c01ffffcc@28:0:3778:4176",
+        "chunkId": "15169",
+        "objectId": 118957,
+        "name": "Material cache (orgone)",
+        "witnessed": true
+      },
+      {
+        "id": "object-1b8a634541e20ef105ede2b8@28:0:3761:4143",
+        "chunkId": "14912",
+        "objectId": 118956,
+        "name": "Material cache (felt)",
+        "witnessed": true
+      },
+      {
+        "id": "object-42c03dbdbf54dc0762077309@28:0:3907:4418",
+        "chunkId": "15685",
+        "objectId": 116404,
+        "name": "Material cache (orthenglass)",
+        "witnessed": true
+      },
+      {
+        "id": "object-7e7ed2059d4f6d74aae9fa48@28:0:3774:4179",
+        "chunkId": "14913",
+        "objectId": 118957,
+        "name": "Material cache (orgone)",
+        "witnessed": true
+      },
+      {
+        "id": "object-ac38cf4329b079231ab98ef8@28:0:3911:4421",
+        "chunkId": "15685",
+        "objectId": 116404,
+        "name": "Material cache (orthenglass)",
+        "witnessed": true
+      },
+      {
+        "id": "object-ae8d17c5101e7163fcba4742@28:0:3765:4150",
+        "chunkId": "14912",
+        "objectId": 118956,
+        "name": "Material cache (felt)",
+        "witnessed": true
+      },
+      {
+        "id": "object-b583d4e23bf754e7e496b677@28:0:3764:4146",
+        "chunkId": "14912",
+        "objectId": 118956,
+        "name": "Material cache (felt)",
+        "witnessed": true
+      },
+      {
+        "id": "object-bf00872208996181a05aea44@28:0:3773:4145",
+        "chunkId": "14912",
+        "objectId": 118956,
+        "name": "Material cache (felt)",
+        "witnessed": true
+      },
+      {
+        "id": "object-c14d5e3bff241b8a008b9c5f@28:0:3769:4177",
+        "chunkId": "14913",
+        "objectId": 118957,
+        "name": "Material cache (orgone)",
+        "witnessed": true
+      },
+      {
+        "id": "object-c528873a81da6495a51cab79@28:0:3906:4423",
+        "chunkId": "15685",
+        "objectId": 116404,
+        "name": "Material cache (orthenglass)",
+        "witnessed": true
+      },
+      {
+        "id": "object-e5dca9d2087c626f0f8612d6@28:0:3905:4420",
+        "chunkId": "15685",
+        "objectId": 116404,
+        "name": "Material cache (orthenglass)",
+        "witnessed": true
+      }
+    ]
+  },
+  "fieldConfidence": {
+    "membership": "Independent named current Wiki checks and cap20 for F2P component admission; DB boolean candidates/scenery/item flags alone insufficient.",
+    "restoration": "Typed item/struct requirements and encoded quantities. Grouped alternatives, custom requirement64 and action XP units preserved as unverified.",
+    "mysteries": "52 exact-name achievements; one direct cache level plus one separate Wiki level12. Retained Quest/Diary raw execution requirements preserved.",
+    "collectors": "Activity membership unknown; NPC definition presence does not certify donation/reset eligibility.",
+    "placements": "87 material caches only; zero excavation-hotspot grants. All-map candidate positions retained separately, 68 conditional/untyped surface records not granted."
+  },
+  "verification": {
+    "determinism": "Two final regenerations v6/v7 produced byte-identical runtime catalogue",
+    "tests": "15 focused catalogue/application/preview tests passed; all states synthetic",
+    "personalSavePreviewPerformed": false
+  },
+  "limits": [
+    "Client cache yields retain encoded weights; no gathering rates, server drop probability or player state are inferred.",
+    "Every conditional leaf must be present and share row identity and footprint before surface attachment.",
+    "Full copied placements cover many maps/planes; runtime admits only map28 effective-plane0 in existing reviewed masks.",
+    "Mystery levels are exact-name achievement requirement candidates; missing skill requirements stay unknown.",
+    "Restoration inputs preserve grouped alternatives, flags and raw XP. No generalized XP/action conversion.",
+    "F2P cap20 is skill scope, not access to every level20 dig site. Infernal Source is members-only."
+  ]
+}

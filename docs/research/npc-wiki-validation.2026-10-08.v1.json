@@ -1,0 +1,5631 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-10-08T12:48:56.734Z",
+  "source": {
+    "artifact": "C:/Users/User/Projects/chunk-picker-rs3/.local/game-data/npcs-2026-10-08-v3/npcs.v1.json",
+    "sha256": "f8644a9f781f26be88c354a0c7047782f8d3e422057828c88bb2e74c777754a2",
+    "hashScope": "raw-file-bytes"
+  },
+  "generator": {
+    "path": "scripts/research/npc-metadata-evidence.mjs",
+    "sha256": "69c569dd4aae59108ebfae06371e3ccb3825d08b00ec30b8c635018f0707162c",
+    "hashScope": "repository-text-lf"
+  },
+  "reference": {
+    "path": "rs3-chunkpicker-chunkinfo-export.json",
+    "sha256": "9dd835266f381abaa4d14033abcd0b43a001fe96d7df0a7f046fcc8676d66553",
+    "hashScope": "repository-text-lf"
+  },
+  "wikiSnapshots": [
+    {
+      "path": "C:/Users/User/Projects/rs3-cache-work/npcshops-wiki-2026-10-08.v1.json",
+      "sha256": "2182c43fa4fe4e9a97bcdc6079d2590d40764aa51770c52a70fef32dac6dd72a",
+      "fetchedAt": "2026-10-08T12:41:04.922Z",
+      "completedAt": "2026-10-08T12:41:05.693Z"
+    },
+    {
+      "path": "C:/Users/User/Projects/rs3-cache-work/npcshops-combat-calibration-wiki-2026-10-08.v1.json",
+      "sha256": "3735d58de7cb2a68ab3d83aa60b1998c7b0facc6646b14109c0bd569ccfe6166",
+      "fetchedAt": "2026-10-08T12:43:52.512Z",
+      "completedAt": "2026-10-08T12:43:52.839Z"
+    },
+    {
+      "path": "C:/Users/User/Projects/rs3-cache-work/npcshops-consensus-wiki-2026-10-08.v1.json",
+      "sha256": "9b5ddfb7b3c643d766545163bce984ef786cba7871c9fe33bdc6edf6f7b6aca8",
+      "fetchedAt": "2026-10-08T12:44:32.401Z",
+      "completedAt": "2026-10-08T12:44:32.696Z"
+    }
+  ],
+  "summary": {
+    "cacheRecords": 32905,
+    "sampledNames": 17,
+    "combatLevelCorrections": 7,
+    "membershipCorrections": 0,
+    "byIdCombatMatches": 56,
+    "byIdCombatUnknowns": 6,
+    "byIdCombatMismatches": 0,
+    "genericLabelsWithheld": 10,
+    "sampledMembershipUnknowns": 17,
+    "blockedByCacheVariantLevels": 7,
+    "validatedParamMappings": 5
+  },
+  "records": [
+    {
+      "label": "Chicken",
+      "retained": true,
+      "origins": [
+        "chunks.Monster",
+        "chunks.NPC",
+        "drops"
+      ],
+      "cacheCandidateCount": 44,
+      "cacheLevels": [
+        1,
+        0,
+        3,
+        111
+      ],
+      "cacheCandidates": [
+        {
+          "id": 41,
+          "combatLevel": 1
+        },
+        {
+          "id": 288,
+          "combatLevel": 0
+        },
+        {
+          "id": 951,
+          "combatLevel": 3
+        },
+        {
+          "id": 1017,
+          "combatLevel": 1
+        },
+        {
+          "id": 1401,
+          "combatLevel": 1
+        },
+        {
+          "id": 1402,
+          "combatLevel": 1
+        },
+        {
+          "id": 2313,
+          "combatLevel": 1
+        },
+        {
+          "id": 2314,
+          "combatLevel": 1
+        },
+        {
+          "id": 2315,
+          "combatLevel": 1
+        },
+        {
+          "id": 11256,
+          "combatLevel": 0
+        },
+        {
+          "id": 11257,
+          "combatLevel": 0
+        },
+        {
+          "id": 13825,
+          "combatLevel": 0
+        },
+        {
+          "id": 14217,
+          "combatLevel": 1
+        },
+        {
+          "id": 14218,
+          "combatLevel": 1
+        },
+        {
+          "id": 14219,
+          "combatLevel": 1
+        },
+        {
+          "id": 14376,
+          "combatLevel": 0
+        },
+        {
+          "id": 15051,
+          "combatLevel": 1
+        },
+        {
+          "id": 15052,
+          "combatLevel": 1
+        },
+        {
+          "id": 15053,
+          "combatLevel": 1
+        },
+        {
+          "id": 15054,
+          "combatLevel": 1
+        },
+        {
+          "id": 20966,
+          "combatLevel": 1
+        },
+        {
+          "id": 22101,
+          "combatLevel": 0
+        },
+        {
+          "id": 22102,
+          "combatLevel": 0
+        },
+        {
+          "id": 23237,
+          "combatLevel": 111
+        },
+        {
+          "id": 24178,
+          "combatLevel": 0
+        },
+        {
+          "id": 25283,
+          "combatLevel": 1
+        },
+        {
+          "id": 27032,
+          "combatLevel": 0
+        },
+        {
+          "id": 27833,
+          "combatLevel": 0
+        },
+        {
+          "id": 28481,
+          "combatLevel": 0
+        },
+        {
+          "id": 28482,
+          "combatLevel": 0
+        },
+        {
+          "id": 28483,
+          "combatLevel": 0
+        },
+        {
+          "id": 30867,
+          "combatLevel": 1
+        },
+        {
+          "id": 30868,
+          "combatLevel": 1
+        },
+        {
+          "id": 31750,
+          "combatLevel": 0
+        },
+        {
+          "id": 31751,
+          "combatLevel": 0
+        },
+        {
+          "id": 31752,
+          "combatLevel": 0
+        },
+        {
+          "id": 31753,
+          "combatLevel": 0
+        },
+        {
+          "id": 31754,
+          "combatLevel": 0
+        },
+        {
+          "id": 31755,
+          "combatLevel": 0
+        },
+        {
+          "id": 31756,
+          "combatLevel": 0
+        },
+        {
+          "id": 31757,
+          "combatLevel": 0
+        },
+        {
+          "id": 31758,
+          "combatLevel": 0
+        },
+        {
+          "id": 31759,
+          "combatLevel": 0
+        },
+        {
+          "id": 32401,
+          "combatLevel": 0
+        }
+      ],
+      "wiki": {
+        "url": "https://runescape.wiki/w/Chicken?oldid=37142047",
+        "revisionId": 37142047,
+        "variants": [
+          {
+            "name": "Chicken",
+            "version": "Brown",
+            "ids": [
+              41,
+              1017,
+              1401,
+              1402,
+              2313,
+              2314,
+              2315,
+              15051,
+              15052,
+              15053,
+              15054,
+              20966
+            ],
+            "combatLevel": 1,
+            "members": "No",
+            "fields": {
+              "level": "Infobox Monster.level",
+              "members": "Infobox Monster.members"
+            }
+          },
+          {
+            "name": "Chicken",
+            "version": "White",
+            "ids": [
+              41,
+              1017,
+              1401,
+              1402,
+              2313,
+              2314,
+              2315,
+              15051,
+              15052,
+              15053,
+              15054,
+              20966
+            ],
+            "combatLevel": 1,
+            "members": "No",
+            "fields": {
+              "level": "Infobox Monster.level",
+              "members": "Infobox Monster.members"
+            }
+          },
+          {
+            "name": "Chicken",
+            "version": "Blooming Burrow",
+            "ids": [
+              30868
+            ],
+            "combatLevel": 1,
+            "members": "No",
+            "fields": {
+              "level": "Infobox Monster.level",
+              "members": "Infobox Monster.members"
+            }
+          }
+        ]
+      },
+      "correctionStatus": "cache-name-variant-level-disagreement",
+      "membershipStatus": "unknown-cache-schema-has-no-overall-members-field",
+      "byIdValidation": [
+        {
+          "id": 41,
+          "cacheCombatLevel": 1,
+          "wikiCombatLevel": 1,
+          "combatLevelStatus": "confirmed-by-id",
+          "wikiFields": [
+            "Infobox Monster.level"
+          ],
+          "wikiVersions": [
+            "Brown",
+            "White"
+          ],
+          "actions": {
+            "cacheOptions": [
+              "Attack"
+            ],
+            "wikiOptions": [
+              "Attack"
+            ],
+            "cacheOnly": [],
+            "wikiOnly": [],
+            "examineStatus": "Wiki Examine is implicit client interaction, not an NPC action-slot correction",
+            "mutationAllowed": false
+          }
+        },
+        {
+          "id": 1017,
+          "cacheCombatLevel": 1,
+          "wikiCombatLevel": 1,
+          "combatLevelStatus": "confirmed-by-id",
+          "wikiFields": [
+            "Infobox Monster.level"
+          ],
+          "wikiVersions": [
+            "Brown",
+            "White"
+          ],
+          "actions": {
+            "cacheOptions": [
+              "Attack"
+            ],
+            "wikiOptions": [
+              "Attack"
+            ],
+            "cacheOnly": [],
+            "wikiOnly": [],
+            "examineStatus": "Wiki Examine is implicit client interaction, not an NPC action-slot correction",
+            "mutationAllowed": false
+          }
+        },
+        {
+          "id": 1401,
+          "cacheCombatLevel": 1,
+          "wikiCombatLevel": 1,
+          "combatLevelStatus": "confirmed-by-id",
+          "wikiFields": [
+            "Infobox Monster.level"
+          ],
+          "wikiVersions": [
+            "Brown",
+            "White"
+          ],
+          "actions": {
+            "cacheOptions": [
+              "Attack"
+            ],
+            "wikiOptions": [
+              "Attack"
+            ],
+            "cacheOnly": [],
+            "wikiOnly": [],
+            "examineStatus": "Wiki Examine is implicit client interaction, not an NPC action-slot correction",
+            "mutationAllowed": false
+          }
+        },
+        {
+          "id": 1402,
+          "cacheCombatLevel": 1,
+          "wikiCombatLevel": 1,
+          "combatLevelStatus": "confirmed-by-id",
+          "wikiFields": [
+            "Infobox Monster.level"
+          ],
+          "wikiVersions": [
+            "Brown",
+            "White"
+          ],
+          "actions": {
+            "cacheOptions": [
+              "Attack"
+            ],
+            "wikiOptions": [
+              "Attack"
+            ],
+            "cacheOnly": [],
+            "wikiOnly": [],
+            "examineStatus": "Wiki Examine is implicit client interaction, not an NPC action-slot correction",
+            "mutationAllowed": false
+          }
+        },
+        {
+          "id": 2313,
+          "cacheCombatLevel": 1,
+          "wikiCombatLevel": 1,
+          "combatLevelStatus": "confirmed-by-id",
+          "wikiFields": [
+            "Infobox Monster.level"
+          ],
+          "wikiVersions": [
+            "Brown",
+            "White"
+          ],
+          "actions": {
+            "cacheOptions": [
+              "Attack"
+            ],
+            "wikiOptions": [
+              "Attack"
+            ],
+            "cacheOnly": [],
+            "wikiOnly": [],
+            "examineStatus": "Wiki Examine is implicit client interaction, not an NPC action-slot correction",
+            "mutationAllowed": false
+          }
+        },
+        {
+          "id": 2314,
+          "cacheCombatLevel": 1,
+          "wikiCombatLevel": 1,
+          "combatLevelStatus": "confirmed-by-id",
+          "wikiFields": [
+            "Infobox Monster.level"
+          ],
+          "wikiVersions": [
+            "Brown",
+            "White"
+          ],
+          "actions": {
+            "cacheOptions": [
+              "Attack"
+            ],
+            "wikiOptions": [
+              "Attack"
+            ],
+            "cacheOnly": [],
+            "wikiOnly": [],
+            "examineStatus": "Wiki Examine is implicit client interaction, not an NPC action-slot correction",
+            "mutationAllowed": false
+          }
+        },
+        {
+          "id": 2315,
+          "cacheCombatLevel": 1,
+          "wikiCombatLevel": 1,
+          "combatLevelStatus": "confirmed-by-id",
+          "wikiFields": [
+            "Infobox Monster.level"
+          ],
+          "wikiVersions": [
+            "Brown",
+            "White"
+          ],
+          "actions": {
+            "cacheOptions": [
+              "Attack"
+            ],
+            "wikiOptions": [
+              "Attack"
+            ],
+            "cacheOnly": [],
+            "wikiOnly": [],
+            "examineStatus": "Wiki Examine is implicit client interaction, not an NPC action-slot correction",
+            "mutationAllowed": false
+          }
+        },
+        {
+          "id": 15051,
+          "cacheCombatLevel": 1,
+          "wikiCombatLevel": 1,
+          "combatLevelStatus": "confirmed-by-id",
+          "wikiFields": [
+            "Infobox Monster.level"
+          ],
+          "wikiVersions": [
+            "Brown",
+            "White"
+          ],
+          "actions": {
+            "cacheOptions": [
+              "Attack"
+            ],
+            "wikiOptions": [
+              "Attack"
+            ],
+            "cacheOnly": [],
+            "wikiOnly": [],
+            "examineStatus": "Wiki Examine is implicit client interaction, not an NPC action-slot correction",
+            "mutationAllowed": false
+          }
+        },
+        {
+          "id": 15052,
+          "cacheCombatLevel": 1,
+          "wikiCombatLevel": 1,
+          "combatLevelStatus": "confirmed-by-id",
+          "wikiFields": [
+            "Infobox Monster.level"
+          ],
+          "wikiVersions": [
+            "Brown",
+            "White"
+          ],
+          "actions": {
+            "cacheOptions": [
+              "Attack"
+            ],
+            "wikiOptions": [
+              "Attack"
+            ],
+            "cacheOnly": [],
+            "wikiOnly": [],
+            "examineStatus": "Wiki Examine is implicit client interaction, not an NPC action-slot correction",
+            "mutationAllowed": false
+          }
+        },
+        {
+          "id": 15053,
+          "cacheCombatLevel": 1,
+          "wikiCombatLevel": 1,
+          "combatLevelStatus": "confirmed-by-id",
+          "wikiFields": [
+            "Infobox Monster.level"
+          ],
+          "wikiVersions": [
+            "Brown",
+            "White"
+          ],
+          "actions": {
+            "cacheOptions": [
+              "Attack"
+            ],
+            "wikiOptions": [
+              "Attack"
+            ],
+            "cacheOnly": [],
+            "wikiOnly": [],
+            "examineStatus": "Wiki Examine is implicit client interaction, not an NPC action-slot correction",
+            "mutationAllowed": false
+          }
+        },
+        {
+          "id": 15054,
+          "cacheCombatLevel": 1,
+          "wikiCombatLevel": 1,
+          "combatLevelStatus": "confirmed-by-id",
+          "wikiFields": [
+            "Infobox Monster.level"
+          ],
+          "wikiVersions": [
+            "Brown",
+            "White"
+          ],
+          "actions": {
+            "cacheOptions": [
+              "Attack"
+            ],
+            "wikiOptions": [
+              "Attack"
+            ],
+            "cacheOnly": [],
+            "wikiOnly": [],
+            "examineStatus": "Wiki Examine is implicit client interaction, not an NPC action-slot correction",
+            "mutationAllowed": false
+          }
+        },
+        {
+          "id": 20966,
+          "cacheCombatLevel": 1,
+          "wikiCombatLevel": 1,
+          "combatLevelStatus": "confirmed-by-id",
+          "wikiFields": [
+            "Infobox Monster.level"
+          ],
+          "wikiVersions": [
+            "Brown",
+            "White"
+          ],
+          "actions": {
+            "cacheOptions": [
+              "Attack"
+            ],
+            "wikiOptions": [
+              "Attack"
+            ],
+            "cacheOnly": [],
+            "wikiOnly": [],
+            "examineStatus": "Wiki Examine is implicit client interaction, not an NPC action-slot correction",
+            "mutationAllowed": false
+          }
+        },
+        {
+          "id": 30868,
+          "cacheCombatLevel": 1,
+          "wikiCombatLevel": 1,
+          "combatLevelStatus": "confirmed-by-id",
+          "wikiFields": [
+            "Infobox Monster.level"
+          ],
+          "wikiVersions": [
+            "Blooming Burrow"
+          ],
+          "actions": {
+            "cacheOptions": [
+              "Attack"
+            ],
+            "wikiOptions": [
+              "Attack"
+            ],
+            "cacheOnly": [],
+            "wikiOnly": [],
+            "examineStatus": "Wiki Examine is implicit client interaction, not an NPC action-slot correction",
+            "mutationAllowed": false
+          }
+        }
+      ]
+    },
+    {
+      "label": "Giant spider",
+      "retained": true,
+      "origins": [
+        "chunks.Monster",
+        "drops",
+        "monstersPlus:Spider Souls[+]"
+      ],
+      "cacheCandidateCount": 7,
+      "cacheLevels": [
+        2,
+        33,
+        29,
+        4,
+        0
+      ],
+      "cacheCandidates": [
+        {
+          "id": 59,
+          "combatLevel": 2
+        },
+        {
+          "id": 60,
+          "combatLevel": 33
+        },
+        {
+          "id": 4400,
+          "combatLevel": 29
+        },
+        {
+          "id": 12352,
+          "combatLevel": 2
+        },
+        {
+          "id": 20499,
+          "combatLevel": 4
+        },
+        {
+          "id": 25817,
+          "combatLevel": 0
+        },
+        {
+          "id": 27460,
+          "combatLevel": 0
+        }
+      ],
+      "wiki": {
+        "url": "https://runescape.wiki/w/Giant_spider?oldid=37136145",
+        "revisionId": 37136145,
+        "variants": [
+          {
+            "name": "Giant spider",
+            "version": "Level 2",
+            "ids": [
+              59,
+              12352
+            ],
+            "combatLevel": 2,
+            "members": "No",
+            "fields": {
+              "level": "Infobox Monster.level1",
+              "members": "Infobox Monster.members"
+            }
+          },
+          {
+            "name": "Giant spider",
+            "version": "Level 4",
+            "ids": [
+              20499
+            ],
+            "combatLevel": 4,
+            "members": "No",
+            "fields": {
+              "level": "Infobox Monster.level2",
+              "members": "Infobox Monster.members"
+            }
+          },
+          {
+            "name": "Giant spider",
+            "version": "Level 33",
+            "ids": [
+              60
+            ],
+            "combatLevel": 33,
+            "members": "No",
+            "fields": {
+              "level": "Infobox Monster.level3",
+              "members": "Infobox Monster.members"
+            }
+          },
+          {
+            "name": "Giant spider",
+            "version": "Level 29",
+            "ids": [
+              4400
+            ],
+            "combatLevel": 29,
+            "members": "No",
+            "fields": {
+              "level": "Infobox Monster.level4",
+              "members": "Infobox Monster.members"
+            }
+          }
+        ]
+      },
+      "correctionStatus": "cache-name-variant-level-disagreement",
+      "membershipStatus": "unknown-cache-schema-has-no-overall-members-field",
+      "byIdValidation": [
+        {
+          "id": 59,
+          "cacheCombatLevel": 2,
+          "wikiCombatLevel": 2,
+          "combatLevelStatus": "confirmed-by-id",
+          "wikiFields": [
+            "Infobox Monster.level1"
+          ],
+          "wikiVersions": [
+            "Level 2"
+          ],
+          "actions": {
+            "cacheOptions": [
+              "Attack"
+            ],
+            "wikiOptions": [
+              "Attack"
+            ],
+            "cacheOnly": [],
+            "wikiOnly": [],
+            "examineStatus": "Wiki Examine is implicit client interaction, not an NPC action-slot correction",
+            "mutationAllowed": false
+          }
+        },
+        {
+          "id": 60,
+          "cacheCombatLevel": 33,
+          "wikiCombatLevel": 33,
+          "combatLevelStatus": "confirmed-by-id",
+          "wikiFields": [
+            "Infobox Monster.level3"
+          ],
+          "wikiVersions": [
+            "Level 33"
+          ],
+          "actions": {
+            "cacheOptions": [
+              "Attack"
+            ],
+            "wikiOptions": [
+              "Attack"
+            ],
+            "cacheOnly": [],
+            "wikiOnly": [],
+            "examineStatus": "Wiki Examine is implicit client interaction, not an NPC action-slot correction",
+            "mutationAllowed": false
+          }
+        },
+        {
+          "id": 4400,
+          "cacheCombatLevel": 29,
+          "wikiCombatLevel": 29,
+          "combatLevelStatus": "confirmed-by-id",
+          "wikiFields": [
+            "Infobox Monster.level4"
+          ],
+          "wikiVersions": [
+            "Level 29"
+          ],
+          "actions": {
+            "cacheOptions": [
+              "Attack"
+            ],
+            "wikiOptions": [
+              "Attack"
+            ],
+            "cacheOnly": [],
+            "wikiOnly": [],
+            "examineStatus": "Wiki Examine is implicit client interaction, not an NPC action-slot correction",
+            "mutationAllowed": false
+          }
+        },
+        {
+          "id": 12352,
+          "cacheCombatLevel": 2,
+          "wikiCombatLevel": 2,
+          "combatLevelStatus": "confirmed-by-id",
+          "wikiFields": [
+            "Infobox Monster.level1"
+          ],
+          "wikiVersions": [
+            "Level 2"
+          ],
+          "actions": {
+            "cacheOptions": [
+              "Attack"
+            ],
+            "wikiOptions": [
+              "Attack"
+            ],
+            "cacheOnly": [],
+            "wikiOnly": [],
+            "examineStatus": "Wiki Examine is implicit client interaction, not an NPC action-slot correction",
+            "mutationAllowed": false
+          }
+        },
+        {
+          "id": 20499,
+          "cacheCombatLevel": 4,
+          "wikiCombatLevel": 4,
+          "combatLevelStatus": "confirmed-by-id",
+          "wikiFields": [
+            "Infobox Monster.level2"
+          ],
+          "wikiVersions": [
+            "Level 4"
+          ],
+          "actions": {
+            "cacheOptions": [
+              "Attack"
+            ],
+            "wikiOptions": [
+              "Attack"
+            ],
+            "cacheOnly": [],
+            "wikiOnly": [],
+            "examineStatus": "Wiki Examine is implicit client interaction, not an NPC action-slot correction",
+            "mutationAllowed": false
+          }
+        }
+      ]
+    },
+    {
+      "label": "Cow",
+      "retained": true,
+      "origins": [
+        "chunks.Monster",
+        "drops",
+        "monstersPlus:Cow Souls[+]"
+      ],
+      "cacheCandidateCount": 19,
+      "cacheLevels": [
+        2,
+        0
+      ],
+      "cacheCandidates": [
+        {
+          "id": 81,
+          "combatLevel": 2
+        },
+        {
+          "id": 3309,
+          "combatLevel": 2
+        },
+        {
+          "id": 14997,
+          "combatLevel": 2
+        },
+        {
+          "id": 14998,
+          "combatLevel": 2
+        },
+        {
+          "id": 14999,
+          "combatLevel": 2
+        },
+        {
+          "id": 15645,
+          "combatLevel": 0
+        },
+        {
+          "id": 20934,
+          "combatLevel": 2
+        },
+        {
+          "id": 20967,
+          "combatLevel": 2
+        },
+        {
+          "id": 20968,
+          "combatLevel": 2
+        },
+        {
+          "id": 20969,
+          "combatLevel": 2
+        },
+        {
+          "id": 20970,
+          "combatLevel": 2
+        },
+        {
+          "id": 20971,
+          "combatLevel": 2
+        },
+        {
+          "id": 20974,
+          "combatLevel": 2
+        },
+        {
+          "id": 20975,
+          "combatLevel": 2
+        },
+        {
+          "id": 20980,
+          "combatLevel": 2
+        },
+        {
+          "id": 20981,
+          "combatLevel": 2
+        },
+        {
+          "id": 30871,
+          "combatLevel": 2
+        },
+        {
+          "id": 30872,
+          "combatLevel": 2
+        },
+        {
+          "id": 32644,
+          "combatLevel": 2
+        }
+      ],
+      "wiki": {
+        "url": "https://runescape.wiki/w/Cow?oldid=37142844",
+        "revisionId": 37142844,
+        "variants": [
+          {
+            "name": "Cow",
+            "version": "Standard (1)",
+            "ids": [
+              81,
+              14997
+            ],
+            "combatLevel": 2,
+            "members": "No",
+            "fields": {
+              "level": "Infobox Monster.level",
+              "members": "Infobox Monster.members1"
+            }
+          },
+          {
+            "name": "Cow",
+            "version": "Standard (2)",
+            "ids": [
+              14998
+            ],
+            "combatLevel": 2,
+            "members": "No",
+            "fields": {
+              "level": "Infobox Monster.level",
+              "members": "Infobox Monster.members2"
+            }
+          },
+          {
+            "name": "Cow",
+            "version": "Standard (3)",
+            "ids": [
+              14999
+            ],
+            "combatLevel": 2,
+            "members": "No",
+            "fields": {
+              "level": "Infobox Monster.level",
+              "members": "Infobox Monster.members3"
+            }
+          },
+          {
+            "name": "Cow",
+            "version": "Zanaris",
+            "ids": [
+              3309
+            ],
+            "combatLevel": 2,
+            "members": "Yes",
+            "fields": {
+              "level": "Infobox Monster.level",
+              "members": "Infobox Monster.members4"
+            }
+          }
+        ]
+      },
+      "correctionStatus": "cache-name-variant-level-disagreement",
+      "membershipStatus": "unknown-cache-schema-has-no-overall-members-field",
+      "byIdValidation": [
+        {
+          "id": 81,
+          "cacheCombatLevel": 2,
+          "wikiCombatLevel": 2,
+          "combatLevelStatus": "confirmed-by-id",
+          "wikiFields": [
+            "Infobox Monster.level"
+          ],
+          "wikiVersions": [
+            "Standard (1)"
+          ],
+          "actions": {
+            "cacheOptions": [
+              "Attack"
+            ],
+            "wikiOptions": [
+              "Attack"
+            ],
+            "cacheOnly": [],
+            "wikiOnly": [],
+            "examineStatus": "Wiki Examine is implicit client interaction, not an NPC action-slot correction",
+            "mutationAllowed": false
+          }
+        },
+        {
+          "id": 3309,
+          "cacheCombatLevel": 2,
+          "wikiCombatLevel": 2,
+          "combatLevelStatus": "confirmed-by-id",
+          "wikiFields": [
+            "Infobox Monster.level"
+          ],
+          "wikiVersions": [
+            "Zanaris"
+          ],
+          "actions": {
+            "cacheOptions": [
+              "Talk to",
+              "Attack"
+            ],
+            "wikiOptions": [
+              "Talk to",
+              "Attack"
+            ],
+            "cacheOnly": [],
+            "wikiOnly": [],
+            "examineStatus": "Wiki Examine is implicit client interaction, not an NPC action-slot correction",
+            "mutationAllowed": false
+          }
+        },
+        {
+          "id": 14997,
+          "cacheCombatLevel": 2,
+          "wikiCombatLevel": 2,
+          "combatLevelStatus": "confirmed-by-id",
+          "wikiFields": [
+            "Infobox Monster.level"
+          ],
+          "wikiVersions": [
+            "Standard (1)"
+          ],
+          "actions": {
+            "cacheOptions": [
+              "Attack"
+            ],
+            "wikiOptions": [
+              "Attack"
+            ],
+            "cacheOnly": [],
+            "wikiOnly": [],
+            "examineStatus": "Wiki Examine is implicit client interaction, not an NPC action-slot correction",
+            "mutationAllowed": false
+          }
+        },
+        {
+          "id": 14998,
+          "cacheCombatLevel": 2,
+          "wikiCombatLevel": 2,
+          "combatLevelStatus": "confirmed-by-id",
+          "wikiFields": [
+            "Infobox Monster.level"
+          ],
+          "wikiVersions": [
+            "Standard (2)"
+          ],
+          "actions": {
+            "cacheOptions": [
+              "Attack"
+            ],
+            "wikiOptions": [
+              "Attack"
+            ],
+            "cacheOnly": [],
+            "wikiOnly": [],
+            "examineStatus": "Wiki Examine is implicit client interaction, not an NPC action-slot correction",
+            "mutationAllowed": false
+          }
+        },
+        {
+          "id": 14999,
+          "cacheCombatLevel": 2,
+          "wikiCombatLevel": 2,
+          "combatLevelStatus": "confirmed-by-id",
+          "wikiFields": [
+            "Infobox Monster.level"
+          ],
+          "wikiVersions": [
+            "Standard (3)"
+          ],
+          "actions": {
+            "cacheOptions": [
+              "Attack"
+            ],
+            "wikiOptions": [
+              "Attack"
+            ],
+            "cacheOnly": [],
+            "wikiOnly": [],
+            "examineStatus": "Wiki Examine is implicit client interaction, not an NPC action-slot correction",
+            "mutationAllowed": false
+          }
+        }
+      ]
+    },
+    {
+      "label": "Hill giant",
+      "retained": true,
+      "origins": [
+        "chunks.Monster",
+        "drops"
+      ],
+      "cacheCandidateCount": 21,
+      "cacheLevels": [
+        26,
+        14,
+        21,
+        28,
+        42,
+        49,
+        56,
+        70,
+        84,
+        98,
+        112,
+        126,
+        138
+      ],
+      "cacheCandidates": [
+        {
+          "id": 117,
+          "combatLevel": 26
+        },
+        {
+          "id": 4689,
+          "combatLevel": 26
+        },
+        {
+          "id": 4690,
+          "combatLevel": 26
+        },
+        {
+          "id": 4691,
+          "combatLevel": 26
+        },
+        {
+          "id": 4692,
+          "combatLevel": 26
+        },
+        {
+          "id": 4693,
+          "combatLevel": 26
+        },
+        {
+          "id": 10706,
+          "combatLevel": 14
+        },
+        {
+          "id": 10707,
+          "combatLevel": 21
+        },
+        {
+          "id": 10708,
+          "combatLevel": 28
+        },
+        {
+          "id": 10709,
+          "combatLevel": 42
+        },
+        {
+          "id": 10710,
+          "combatLevel": 49
+        },
+        {
+          "id": 10711,
+          "combatLevel": 56
+        },
+        {
+          "id": 10712,
+          "combatLevel": 70
+        },
+        {
+          "id": 10713,
+          "combatLevel": 84
+        },
+        {
+          "id": 10714,
+          "combatLevel": 98
+        },
+        {
+          "id": 10715,
+          "combatLevel": 112
+        },
+        {
+          "id": 10716,
+          "combatLevel": 126
+        },
+        {
+          "id": 10717,
+          "combatLevel": 138
+        },
+        {
+          "id": 32880,
+          "combatLevel": 26
+        },
+        {
+          "id": 32881,
+          "combatLevel": 26
+        },
+        {
+          "id": 32882,
+          "combatLevel": 26
+        }
+      ],
+      "wiki": {
+        "url": "https://runescape.wiki/w/Hill_giant?oldid=37142826",
+        "revisionId": 37142826,
+        "variants": [
+          {
+            "name": "Hill giant",
+            "version": "1",
+            "ids": [
+              117
+            ],
+            "combatLevel": 26,
+            "members": "No",
+            "fields": {
+              "level": "Infobox Monster.level",
+              "members": "Infobox Monster.members"
+            }
+          },
+          {
+            "name": "Hill giant",
+            "version": "2",
+            "ids": [
+              4689
+            ],
+            "combatLevel": 26,
+            "members": "No",
+            "fields": {
+              "level": "Infobox Monster.level",
+              "members": "Infobox Monster.members"
+            }
+          },
+          {
+            "name": "Hill giant",
+            "version": "3",
+            "ids": [
+              4690
+            ],
+            "combatLevel": 26,
+            "members": "No",
+            "fields": {
+              "level": "Infobox Monster.level",
+              "members": "Infobox Monster.members"
+            }
+          },
+          {
+            "name": "Hill giant",
+            "version": "4",
+            "ids": [
+              4691
+            ],
+            "combatLevel": 26,
+            "members": "No",
+            "fields": {
+              "level": "Infobox Monster.level",
+              "members": "Infobox Monster.members"
+            }
+          },
+          {
+            "name": "Hill giant",
+            "version": "5",
+            "ids": [
+              4692
+            ],
+            "combatLevel": 26,
+            "members": "No",
+            "fields": {
+              "level": "Infobox Monster.level",
+              "members": "Infobox Monster.members"
+            }
+          },
+          {
+            "name": "Hill giant",
+            "version": "6",
+            "ids": [
+              4693
+            ],
+            "combatLevel": 26,
+            "members": "No",
+            "fields": {
+              "level": "Infobox Monster.level",
+              "members": "Infobox Monster.members"
+            }
+          }
+        ]
+      },
+      "correctionStatus": "cache-name-variant-level-disagreement",
+      "membershipStatus": "unknown-cache-schema-has-no-overall-members-field",
+      "byIdValidation": [
+        {
+          "id": 117,
+          "cacheCombatLevel": 26,
+          "wikiCombatLevel": 26,
+          "combatLevelStatus": "confirmed-by-id",
+          "wikiFields": [
+            "Infobox Monster.level"
+          ],
+          "wikiVersions": [
+            "1"
+          ],
+          "actions": {
+            "cacheOptions": [
+              "Attack"
+            ],
+            "wikiOptions": [
+              "Attack"
+            ],
+            "cacheOnly": [],
+            "wikiOnly": [],
+            "examineStatus": "Wiki Examine is implicit client interaction, not an NPC action-slot correction",
+            "mutationAllowed": false
+          }
+        },
+        {
+          "id": 4689,
+          "cacheCombatLevel": 26,
+          "wikiCombatLevel": 26,
+          "combatLevelStatus": "confirmed-by-id",
+          "wikiFields": [
+            "Infobox Monster.level"
+          ],
+          "wikiVersions": [
+            "2"
+          ],
+          "actions": {
+            "cacheOptions": [
+              "Attack"
+            ],
+            "wikiOptions": [
+              "Attack"
+            ],
+            "cacheOnly": [],
+            "wikiOnly": [],
+            "examineStatus": "Wiki Examine is implicit client interaction, not an NPC action-slot correction",
+            "mutationAllowed": false
+          }
+        },
+        {
+          "id": 4690,
+          "cacheCombatLevel": 26,
+          "wikiCombatLevel": 26,
+          "combatLevelStatus": "confirmed-by-id",
+          "wikiFields": [
+            "Infobox Monster.level"
+          ],
+          "wikiVersions": [
+            "3"
+          ],
+          "actions": {
+            "cacheOptions": [
+              "Attack"
+            ],
+            "wikiOptions": [
+              "Attack"
+            ],
+            "cacheOnly": [],
+            "wikiOnly": [],
+            "examineStatus": "Wiki Examine is implicit client interaction, not an NPC action-slot correction",
+            "mutationAllowed": false
+          }
+        },
+        {
+          "id": 4691,
+          "cacheCombatLevel": 26,
+          "wikiCombatLevel": 26,
+          "combatLevelStatus": "confirmed-by-id",
+          "wikiFields": [
+            "Infobox Monster.level"
+          ],
+          "wikiVersions": [
+            "4"
+          ],
+          "actions": {
+            "cacheOptions": [
+              "Attack"
+            ],
+            "wikiOptions": [
+              "Attack"
+            ],
+            "cacheOnly": [],
+            "wikiOnly": [],
+            "examineStatus": "Wiki Examine is implicit client interaction, not an NPC action-slot correction",
+            "mutationAllowed": false
+          }
+        },
+        {
+          "id": 4692,
+          "cacheCombatLevel": 26,
+          "wikiCombatLevel": 26,
+          "combatLevelStatus": "confirmed-by-id",
+          "wikiFields": [
+            "Infobox Monster.level"
+          ],
+          "wikiVersions": [
+            "5"
+          ],
+          "actions": {
+            "cacheOptions": [
+              "Attack"
+            ],
+            "wikiOptions": [
+              "Attack"
+            ],
+            "cacheOnly": [],
+            "wikiOnly": [],
+            "examineStatus": "Wiki Examine is implicit client interaction, not an NPC action-slot correction",
+            "mutationAllowed": false
+          }
+        },
+        {
+          "id": 4693,
+          "cacheCombatLevel": 26,
+          "wikiCombatLevel": 26,
+          "combatLevelStatus": "confirmed-by-id",
+          "wikiFields": [
+            "Infobox Monster.level"
+          ],
+          "wikiVersions": [
+            "6"
+          ],
+          "actions": {
+            "cacheOptions": [
+              "Attack"
+            ],
+            "wikiOptions": [
+              "Attack"
+            ],
+            "cacheOnly": [],
+            "wikiOnly": [],
+            "examineStatus": "Wiki Examine is implicit client interaction, not an NPC action-slot correction",
+            "mutationAllowed": false
+          }
+        }
+      ]
+    },
+    {
+      "label": "Lesser demon",
+      "retained": true,
+      "origins": [
+        "chunks.Monster",
+        "drops",
+        "monstersPlus:AnyDemon[+]"
+      ],
+      "cacheCandidateCount": 26,
+      "cacheLevels": [
+        70,
+        56,
+        105,
+        119,
+        133,
+        84,
+        0,
+        109,
+        60,
+        91
+      ],
+      "cacheCandidates": [
+        {
+          "id": 82,
+          "combatLevel": 70
+        },
+        {
+          "id": 4694,
+          "combatLevel": 70
+        },
+        {
+          "id": 4695,
+          "combatLevel": 70
+        },
+        {
+          "id": 4696,
+          "combatLevel": 70
+        },
+        {
+          "id": 4697,
+          "combatLevel": 70
+        },
+        {
+          "id": 6101,
+          "combatLevel": 56
+        },
+        {
+          "id": 10492,
+          "combatLevel": 70
+        },
+        {
+          "id": 10493,
+          "combatLevel": 105
+        },
+        {
+          "id": 10494,
+          "combatLevel": 119
+        },
+        {
+          "id": 10495,
+          "combatLevel": 133
+        },
+        {
+          "id": 13229,
+          "combatLevel": 70
+        },
+        {
+          "id": 13230,
+          "combatLevel": 70
+        },
+        {
+          "id": 14607,
+          "combatLevel": 84
+        },
+        {
+          "id": 16140,
+          "combatLevel": 0
+        },
+        {
+          "id": 16207,
+          "combatLevel": 70
+        },
+        {
+          "id": 16727,
+          "combatLevel": 109
+        },
+        {
+          "id": 16728,
+          "combatLevel": 109
+        },
+        {
+          "id": 20886,
+          "combatLevel": 60
+        },
+        {
+          "id": 23677,
+          "combatLevel": 0
+        },
+        {
+          "id": 29198,
+          "combatLevel": 70
+        },
+        {
+          "id": 29199,
+          "combatLevel": 70
+        },
+        {
+          "id": 29200,
+          "combatLevel": 70
+        },
+        {
+          "id": 29201,
+          "combatLevel": 70
+        },
+        {
+          "id": 29202,
+          "combatLevel": 70
+        },
+        {
+          "id": 29366,
+          "combatLevel": 70
+        },
+        {
+          "id": 32151,
+          "combatLevel": 91
+        }
+      ],
+      "wiki": {
+        "url": "https://runescape.wiki/w/Lesser_demon?oldid=37159794",
+        "revisionId": 37159794,
+        "variants": [
+          {
+            "name": "Lesser demon",
+            "version": "1",
+            "ids": [
+              82
+            ],
+            "combatLevel": 70,
+            "members": "No",
+            "fields": {
+              "level": "Infobox Monster.level",
+              "members": "Infobox Monster.members"
+            }
+          },
+          {
+            "name": "Lesser demon",
+            "version": "2",
+            "ids": [
+              4694
+            ],
+            "combatLevel": 70,
+            "members": "No",
+            "fields": {
+              "level": "Infobox Monster.level",
+              "members": "Infobox Monster.members"
+            }
+          },
+          {
+            "name": "Lesser demon",
+            "version": "3",
+            "ids": [
+              4695
+            ],
+            "combatLevel": 70,
+            "members": "No",
+            "fields": {
+              "level": "Infobox Monster.level",
+              "members": "Infobox Monster.members"
+            }
+          },
+          {
+            "name": "Lesser demon",
+            "version": "4",
+            "ids": [
+              4696
+            ],
+            "combatLevel": 70,
+            "members": "No",
+            "fields": {
+              "level": "Infobox Monster.level",
+              "members": "Infobox Monster.members"
+            }
+          },
+          {
+            "name": "Lesser demon",
+            "version": "5",
+            "ids": [
+              4697
+            ],
+            "combatLevel": 70,
+            "members": "No",
+            "fields": {
+              "level": "Infobox Monster.level",
+              "members": "Infobox Monster.members"
+            }
+          }
+        ]
+      },
+      "correctionStatus": "cache-name-variant-level-disagreement",
+      "membershipStatus": "unknown-cache-schema-has-no-overall-members-field",
+      "byIdValidation": [
+        {
+          "id": 82,
+          "cacheCombatLevel": 70,
+          "wikiCombatLevel": 70,
+          "combatLevelStatus": "confirmed-by-id",
+          "wikiFields": [
+            "Infobox Monster.level"
+          ],
+          "wikiVersions": [
+            "1"
+          ],
+          "actions": {
+            "cacheOptions": [
+              "Attack"
+            ],
+            "wikiOptions": [
+              "Attack",
+              "Examine"
+            ],
+            "cacheOnly": [],
+            "wikiOnly": [],
+            "examineStatus": "Wiki Examine is implicit client interaction, not an NPC action-slot correction",
+            "mutationAllowed": false
+          }
+        },
+        {
+          "id": 4694,
+          "cacheCombatLevel": 70,
+          "wikiCombatLevel": 70,
+          "combatLevelStatus": "confirmed-by-id",
+          "wikiFields": [
+            "Infobox Monster.level"
+          ],
+          "wikiVersions": [
+            "2"
+          ],
+          "actions": {
+            "cacheOptions": [
+              "Attack"
+            ],
+            "wikiOptions": [
+              "Attack",
+              "Examine"
+            ],
+            "cacheOnly": [],
+            "wikiOnly": [],
+            "examineStatus": "Wiki Examine is implicit client interaction, not an NPC action-slot correction",
+            "mutationAllowed": false
+          }
+        },
+        {
+          "id": 4695,
+          "cacheCombatLevel": 70,
+          "wikiCombatLevel": 70,
+          "combatLevelStatus": "confirmed-by-id",
+          "wikiFields": [
+            "Infobox Monster.level"
+          ],
+          "wikiVersions": [
+            "3"
+          ],
+          "actions": {
+            "cacheOptions": [
+              "Attack"
+            ],
+            "wikiOptions": [
+              "Attack",
+              "Examine"
+            ],
+            "cacheOnly": [],
+            "wikiOnly": [],
+            "examineStatus": "Wiki Examine is implicit client interaction, not an NPC action-slot correction",
+            "mutationAllowed": false
+          }
+        },
+        {
+          "id": 4696,
+          "cacheCombatLevel": 70,
+          "wikiCombatLevel": 70,
+          "combatLevelStatus": "confirmed-by-id",
+          "wikiFields": [
+            "Infobox Monster.level"
+          ],
+          "wikiVersions": [
+            "4"
+          ],
+          "actions": {
+            "cacheOptions": [
+              "Attack"
+            ],
+            "wikiOptions": [
+              "Attack",
+              "Examine"
+            ],
+            "cacheOnly": [],
+            "wikiOnly": [],
+            "examineStatus": "Wiki Examine is implicit client interaction, not an NPC action-slot correction",
+            "mutationAllowed": false
+          }
+        },
+        {
+          "id": 4697,
+          "cacheCombatLevel": 70,
+          "wikiCombatLevel": 70,
+          "combatLevelStatus": "confirmed-by-id",
+          "wikiFields": [
+            "Infobox Monster.level"
+          ],
+          "wikiVersions": [
+            "5"
+          ],
+          "actions": {
+            "cacheOptions": [
+              "Attack"
+            ],
+            "wikiOptions": [
+              "Attack",
+              "Examine"
+            ],
+            "cacheOnly": [],
+            "wikiOnly": [],
+            "examineStatus": "Wiki Examine is implicit client interaction, not an NPC action-slot correction",
+            "mutationAllowed": false
+          }
+        }
+      ]
+    },
+    {
+      "label": "Bob",
+      "retained": true,
+      "origins": [
+        "chunks.NPC"
+      ],
+      "cacheCandidateCount": 12,
+      "cacheLevels": [
+        0
+      ],
+      "cacheCandidates": [
+        {
+          "id": 519,
+          "combatLevel": 0
+        },
+        {
+          "id": 815,
+          "combatLevel": 0
+        },
+        {
+          "id": 2635,
+          "combatLevel": 0
+        },
+        {
+          "id": 2636,
+          "combatLevel": 0
+        },
+        {
+          "id": 5058,
+          "combatLevel": 0
+        },
+        {
+          "id": 13936,
+          "combatLevel": 0
+        },
+        {
+          "id": 14359,
+          "combatLevel": 0
+        },
+        {
+          "id": 14360,
+          "combatLevel": 0
+        },
+        {
+          "id": 16710,
+          "combatLevel": 0
+        },
+        {
+          "id": 17452,
+          "combatLevel": 0
+        },
+        {
+          "id": 27433,
+          "combatLevel": 0
+        },
+        {
+          "id": 29758,
+          "combatLevel": 0
+        }
+      ],
+      "wiki": {
+        "url": "https://runescape.wiki/w/Bob?oldid=37110070",
+        "revisionId": 37110070,
+        "variants": [
+          {
+            "name": "Bob",
+            "version": "",
+            "ids": [
+              519
+            ],
+            "combatLevel": null,
+            "members": "No",
+            "fields": {
+              "level": null,
+              "members": "Infobox NPC.members"
+            }
+          }
+        ]
+      },
+      "correctionStatus": "wiki-name-variant-level-disagreement-or-unknown",
+      "membershipStatus": "unknown-cache-schema-has-no-overall-members-field",
+      "byIdValidation": [
+        {
+          "id": 519,
+          "cacheCombatLevel": 0,
+          "wikiCombatLevel": null,
+          "combatLevelStatus": "missing-or-nonliteral-wiki-field",
+          "wikiFields": [],
+          "wikiVersions": [
+            ""
+          ],
+          "actions": {
+            "cacheOptions": [
+              "Talk to",
+              "Trade",
+              "Repair-all"
+            ],
+            "wikiOptions": [
+              "Talk to",
+              "Trade",
+              "Repair-all"
+            ],
+            "cacheOnly": [],
+            "wikiOnly": [],
+            "examineStatus": "Wiki Examine is implicit client interaction, not an NPC action-slot correction",
+            "mutationAllowed": false
+          }
+        }
+      ]
+    },
+    {
+      "label": "Banker",
+      "retained": true,
+      "origins": [
+        "chunks.NPC"
+      ],
+      "cacheCandidateCount": 69,
+      "cacheLevels": [
+        0
+      ],
+      "cacheCandidates": [
+        {
+          "id": 44,
+          "combatLevel": 0
+        },
+        {
+          "id": 45,
+          "combatLevel": 0
+        },
+        {
+          "id": 494,
+          "combatLevel": 0
+        },
+        {
+          "id": 495,
+          "combatLevel": 0
+        },
+        {
+          "id": 496,
+          "combatLevel": 0
+        },
+        {
+          "id": 497,
+          "combatLevel": 0
+        },
+        {
+          "id": 498,
+          "combatLevel": 0
+        },
+        {
+          "id": 499,
+          "combatLevel": 0
+        },
+        {
+          "id": 553,
+          "combatLevel": 0
+        },
+        {
+          "id": 909,
+          "combatLevel": 0
+        },
+        {
+          "id": 953,
+          "combatLevel": 0
+        },
+        {
+          "id": 1036,
+          "combatLevel": 0
+        },
+        {
+          "id": 1360,
+          "combatLevel": 0
+        },
+        {
+          "id": 2163,
+          "combatLevel": 0
+        },
+        {
+          "id": 2164,
+          "combatLevel": 0
+        },
+        {
+          "id": 2354,
+          "combatLevel": 0
+        },
+        {
+          "id": 2355,
+          "combatLevel": 0
+        },
+        {
+          "id": 2568,
+          "combatLevel": 0
+        },
+        {
+          "id": 2569,
+          "combatLevel": 0
+        },
+        {
+          "id": 2570,
+          "combatLevel": 0
+        },
+        {
+          "id": 2718,
+          "combatLevel": 0
+        },
+        {
+          "id": 2759,
+          "combatLevel": 0
+        },
+        {
+          "id": 3198,
+          "combatLevel": 0
+        },
+        {
+          "id": 3199,
+          "combatLevel": 0
+        },
+        {
+          "id": 3293,
+          "combatLevel": 0
+        },
+        {
+          "id": 3416,
+          "combatLevel": 0
+        },
+        {
+          "id": 3418,
+          "combatLevel": 0
+        },
+        {
+          "id": 4456,
+          "combatLevel": 0
+        },
+        {
+          "id": 4457,
+          "combatLevel": 0
+        },
+        {
+          "id": 4458,
+          "combatLevel": 0
+        },
+        {
+          "id": 4459,
+          "combatLevel": 0
+        },
+        {
+          "id": 4907,
+          "combatLevel": 0
+        },
+        {
+          "id": 5258,
+          "combatLevel": 0
+        },
+        {
+          "id": 5260,
+          "combatLevel": 0
+        },
+        {
+          "id": 5776,
+          "combatLevel": 0
+        },
+        {
+          "id": 5777,
+          "combatLevel": 0
+        },
+        {
+          "id": 6200,
+          "combatLevel": 0
+        },
+        {
+          "id": 7605,
+          "combatLevel": 0
+        },
+        {
+          "id": 10197,
+          "combatLevel": 0
+        },
+        {
+          "id": 14923,
+          "combatLevel": 0
+        },
+        {
+          "id": 14924,
+          "combatLevel": 0
+        },
+        {
+          "id": 14925,
+          "combatLevel": 0
+        },
+        {
+          "id": 15527,
+          "combatLevel": 0
+        },
+        {
+          "id": 15528,
+          "combatLevel": 0
+        },
+        {
+          "id": 15839,
+          "combatLevel": 0
+        },
+        {
+          "id": 15840,
+          "combatLevel": 0
+        },
+        {
+          "id": 15841,
+          "combatLevel": 0
+        },
+        {
+          "id": 15842,
+          "combatLevel": 0
+        },
+        {
+          "id": 19916,
+          "combatLevel": 0
+        },
+        {
+          "id": 19917,
+          "combatLevel": 0
+        },
+        {
+          "id": 19918,
+          "combatLevel": 0
+        },
+        {
+          "id": 22783,
+          "combatLevel": 0
+        },
+        {
+          "id": 22886,
+          "combatLevel": 0
+        },
+        {
+          "id": 23223,
+          "combatLevel": 0
+        },
+        {
+          "id": 23224,
+          "combatLevel": 0
+        },
+        {
+          "id": 24362,
+          "combatLevel": 0
+        },
+        {
+          "id": 24543,
+          "combatLevel": 0
+        },
+        {
+          "id": 24544,
+          "combatLevel": 0
+        },
+        {
+          "id": 24545,
+          "combatLevel": 0
+        },
+        {
+          "id": 24546,
+          "combatLevel": 0
+        },
+        {
+          "id": 24855,
+          "combatLevel": 0
+        },
+        {
+          "id": 24856,
+          "combatLevel": 0
+        },
+        {
+          "id": 25284,
+          "combatLevel": 0
+        },
+        {
+          "id": 26638,
+          "combatLevel": 0
+        },
+        {
+          "id": 29780,
+          "combatLevel": 0
+        },
+        {
+          "id": 31186,
+          "combatLevel": 0
+        },
+        {
+          "id": 31187,
+          "combatLevel": 0
+        },
+        {
+          "id": 31216,
+          "combatLevel": 0
+        },
+        {
+          "id": 31217,
+          "combatLevel": 0
+        }
+      ],
+      "wiki": {
+        "url": "https://runescape.wiki/w/Banker?oldid=37062014",
+        "revisionId": 37062014,
+        "variants": [
+          {
+            "name": "Banker",
+            "version": "Standard",
+            "ids": [],
+            "combatLevel": null,
+            "members": "No",
+            "fields": {
+              "level": null,
+              "members": "Infobox NPC.members1"
+            }
+          },
+          {
+            "name": "Banker",
+            "version": "Succession",
+            "ids": [
+              29780
+            ],
+            "combatLevel": null,
+            "members": "Yes",
+            "fields": {
+              "level": null,
+              "members": "Infobox NPC.members2"
+            }
+          },
+          {
+            "name": "Banker",
+            "version": "Ode of the Devourer (1)",
+            "ids": [
+              31186
+            ],
+            "combatLevel": null,
+            "members": "Yes",
+            "fields": {
+              "level": null,
+              "members": "Infobox NPC.members3"
+            }
+          },
+          {
+            "name": "Banker",
+            "version": "Ode of the Devourer (2)",
+            "ids": [
+              31187
+            ],
+            "combatLevel": null,
+            "members": "Yes",
+            "fields": {
+              "level": null,
+              "members": "Infobox NPC.members4"
+            }
+          },
+          {
+            "name": "Banker",
+            "version": "Ode of the Devourer (3)",
+            "ids": [
+              31216
+            ],
+            "combatLevel": null,
+            "members": "Yes",
+            "fields": {
+              "level": null,
+              "members": "Infobox NPC.members5"
+            }
+          },
+          {
+            "name": "Banker",
+            "version": "Ode of the Devourer (4)",
+            "ids": [
+              31217
+            ],
+            "combatLevel": null,
+            "members": "Yes",
+            "fields": {
+              "level": null,
+              "members": "Infobox NPC.members6"
+            }
+          }
+        ]
+      },
+      "correctionStatus": "wiki-name-variant-level-disagreement-or-unknown",
+      "membershipStatus": "unknown-cache-schema-has-no-overall-members-field",
+      "byIdValidation": [
+        {
+          "id": 29780,
+          "cacheCombatLevel": 0,
+          "wikiCombatLevel": null,
+          "combatLevelStatus": "missing-or-nonliteral-wiki-field",
+          "wikiFields": [],
+          "wikiVersions": [
+            "Succession"
+          ],
+          "actions": {
+            "cacheOptions": [],
+            "wikiOptions": [
+              "Examine"
+            ],
+            "cacheOnly": [],
+            "wikiOnly": [],
+            "examineStatus": "Wiki Examine is implicit client interaction, not an NPC action-slot correction",
+            "mutationAllowed": false
+          }
+        },
+        {
+          "id": 31186,
+          "cacheCombatLevel": 0,
+          "wikiCombatLevel": null,
+          "combatLevelStatus": "missing-or-nonliteral-wiki-field",
+          "wikiFields": [],
+          "wikiVersions": [
+            "Ode of the Devourer (1)"
+          ],
+          "actions": {
+            "cacheOptions": [],
+            "wikiOptions": [
+              "Examine"
+            ],
+            "cacheOnly": [],
+            "wikiOnly": [],
+            "examineStatus": "Wiki Examine is implicit client interaction, not an NPC action-slot correction",
+            "mutationAllowed": false
+          }
+        },
+        {
+          "id": 31187,
+          "cacheCombatLevel": 0,
+          "wikiCombatLevel": null,
+          "combatLevelStatus": "missing-or-nonliteral-wiki-field",
+          "wikiFields": [],
+          "wikiVersions": [
+            "Ode of the Devourer (2)"
+          ],
+          "actions": {
+            "cacheOptions": [],
+            "wikiOptions": [
+              "Examine"
+            ],
+            "cacheOnly": [],
+            "wikiOnly": [],
+            "examineStatus": "Wiki Examine is implicit client interaction, not an NPC action-slot correction",
+            "mutationAllowed": false
+          }
+        },
+        {
+          "id": 31216,
+          "cacheCombatLevel": 0,
+          "wikiCombatLevel": null,
+          "combatLevelStatus": "missing-or-nonliteral-wiki-field",
+          "wikiFields": [],
+          "wikiVersions": [
+            "Ode of the Devourer (3)"
+          ],
+          "actions": {
+            "cacheOptions": [
+              "Talk to"
+            ],
+            "wikiOptions": [
+              "Talk to",
+              "Examine"
+            ],
+            "cacheOnly": [],
+            "wikiOnly": [],
+            "examineStatus": "Wiki Examine is implicit client interaction, not an NPC action-slot correction",
+            "mutationAllowed": false
+          }
+        },
+        {
+          "id": 31217,
+          "cacheCombatLevel": 0,
+          "wikiCombatLevel": null,
+          "combatLevelStatus": "missing-or-nonliteral-wiki-field",
+          "wikiFields": [],
+          "wikiVersions": [
+            "Ode of the Devourer (4)"
+          ],
+          "actions": {
+            "cacheOptions": [
+              "Talk to"
+            ],
+            "wikiOptions": [
+              "Talk to",
+              "Examine"
+            ],
+            "cacheOnly": [],
+            "wikiOnly": [],
+            "examineStatus": "Wiki Examine is implicit client interaction, not an NPC action-slot correction",
+            "mutationAllowed": false
+          }
+        }
+      ]
+    },
+    {
+      "label": "Wizard",
+      "retained": true,
+      "origins": [
+        "chunks.NPC",
+        "chunks.Monster",
+        "drops"
+      ],
+      "cacheCandidateCount": 61,
+      "cacheLevels": [
+        18,
+        0,
+        2,
+        11,
+        21,
+        30,
+        40,
+        50,
+        60,
+        70
+      ],
+      "cacheCandidates": [
+        {
+          "id": 13,
+          "combatLevel": 18
+        },
+        {
+          "id": 5195,
+          "combatLevel": 0
+        },
+        {
+          "id": 5196,
+          "combatLevel": 0
+        },
+        {
+          "id": 5197,
+          "combatLevel": 0
+        },
+        {
+          "id": 8033,
+          "combatLevel": 0
+        },
+        {
+          "id": 8034,
+          "combatLevel": 0
+        },
+        {
+          "id": 8035,
+          "combatLevel": 0
+        },
+        {
+          "id": 8036,
+          "combatLevel": 0
+        },
+        {
+          "id": 8037,
+          "combatLevel": 0
+        },
+        {
+          "id": 8038,
+          "combatLevel": 0
+        },
+        {
+          "id": 8039,
+          "combatLevel": 0
+        },
+        {
+          "id": 8040,
+          "combatLevel": 0
+        },
+        {
+          "id": 12231,
+          "combatLevel": 0
+        },
+        {
+          "id": 12299,
+          "combatLevel": 2
+        },
+        {
+          "id": 12305,
+          "combatLevel": 11
+        },
+        {
+          "id": 12309,
+          "combatLevel": 21
+        },
+        {
+          "id": 12316,
+          "combatLevel": 30
+        },
+        {
+          "id": 12374,
+          "combatLevel": 40
+        },
+        {
+          "id": 12418,
+          "combatLevel": 50
+        },
+        {
+          "id": 12434,
+          "combatLevel": 60
+        },
+        {
+          "id": 12435,
+          "combatLevel": 70
+        },
+        {
+          "id": 13945,
+          "combatLevel": 0
+        },
+        {
+          "id": 14332,
+          "combatLevel": 0
+        },
+        {
+          "id": 14749,
+          "combatLevel": 0
+        },
+        {
+          "id": 15279,
+          "combatLevel": 0
+        },
+        {
+          "id": 15280,
+          "combatLevel": 0
+        },
+        {
+          "id": 15281,
+          "combatLevel": 0
+        },
+        {
+          "id": 15426,
+          "combatLevel": 0
+        },
+        {
+          "id": 15427,
+          "combatLevel": 0
+        },
+        {
+          "id": 15428,
+          "combatLevel": 0
+        },
+        {
+          "id": 15429,
+          "combatLevel": 0
+        },
+        {
+          "id": 15430,
+          "combatLevel": 0
+        },
+        {
+          "id": 15772,
+          "combatLevel": 0
+        },
+        {
+          "id": 15773,
+          "combatLevel": 0
+        },
+        {
+          "id": 15774,
+          "combatLevel": 0
+        },
+        {
+          "id": 15775,
+          "combatLevel": 0
+        },
+        {
+          "id": 16183,
+          "combatLevel": 0
+        },
+        {
+          "id": 16188,
+          "combatLevel": 0
+        },
+        {
+          "id": 16189,
+          "combatLevel": 0
+        },
+        {
+          "id": 16190,
+          "combatLevel": 0
+        },
+        {
+          "id": 16191,
+          "combatLevel": 0
+        },
+        {
+          "id": 16192,
+          "combatLevel": 0
+        },
+        {
+          "id": 16193,
+          "combatLevel": 0
+        },
+        {
+          "id": 16194,
+          "combatLevel": 0
+        },
+        {
+          "id": 16195,
+          "combatLevel": 0
+        },
+        {
+          "id": 16196,
+          "combatLevel": 0
+        },
+        {
+          "id": 16197,
+          "combatLevel": 0
+        },
+        {
+          "id": 16198,
+          "combatLevel": 0
+        },
+        {
+          "id": 16199,
+          "combatLevel": 0
+        },
+        {
+          "id": 16200,
+          "combatLevel": 0
+        },
+        {
+          "id": 16201,
+          "combatLevel": 0
+        },
+        {
+          "id": 16202,
+          "combatLevel": 0
+        },
+        {
+          "id": 16203,
+          "combatLevel": 0
+        },
+        {
+          "id": 16204,
+          "combatLevel": 0
+        },
+        {
+          "id": 16205,
+          "combatLevel": 0
+        },
+        {
+          "id": 16206,
+          "combatLevel": 0
+        },
+        {
+          "id": 31666,
+          "combatLevel": 0
+        },
+        {
+          "id": 32297,
+          "combatLevel": 0
+        },
+        {
+          "id": 32299,
+          "combatLevel": 0
+        },
+        {
+          "id": 32301,
+          "combatLevel": 0
+        },
+        {
+          "id": 32436,
+          "combatLevel": 0
+        }
+      ],
+      "wiki": {
+        "url": "https://runescape.wiki/w/Wizard?oldid=37143178",
+        "revisionId": 37143178,
+        "variants": [
+          {
+            "name": "Wizard",
+            "version": "",
+            "ids": [
+              13
+            ],
+            "combatLevel": 18,
+            "members": "Yes",
+            "fields": {
+              "level": "Infobox Monster.level",
+              "members": "Infobox Monster.members"
+            }
+          }
+        ]
+      },
+      "correctionStatus": "cache-name-variant-level-disagreement",
+      "membershipStatus": "unknown-cache-schema-has-no-overall-members-field",
+      "byIdValidation": [
+        {
+          "id": 13,
+          "cacheCombatLevel": 18,
+          "wikiCombatLevel": 18,
+          "combatLevelStatus": "confirmed-by-id",
+          "wikiFields": [
+            "Infobox Monster.level"
+          ],
+          "wikiVersions": [
+            ""
+          ],
+          "actions": {
+            "cacheOptions": [
+              "Attack"
+            ],
+            "wikiOptions": [
+              "Attack",
+              "Examine"
+            ],
+            "cacheOnly": [],
+            "wikiOnly": [],
+            "examineStatus": "Wiki Examine is implicit client interaction, not an NPC action-slot correction",
+            "mutationAllowed": false
+          }
+        }
+      ]
+    },
+    {
+      "label": "Dark wizard",
+      "retained": false,
+      "origins": [],
+      "cacheCandidateCount": 18,
+      "cacheLevels": [
+        35,
+        21,
+        9,
+        11,
+        12,
+        14,
+        0,
+        95,
+        92,
+        84,
+        86,
+        114
+      ],
+      "cacheCandidates": [
+        {
+          "id": 172,
+          "combatLevel": 35
+        },
+        {
+          "id": 174,
+          "combatLevel": 21
+        },
+        {
+          "id": 3242,
+          "combatLevel": 35
+        },
+        {
+          "id": 3243,
+          "combatLevel": 35
+        },
+        {
+          "id": 3244,
+          "combatLevel": 21
+        },
+        {
+          "id": 3245,
+          "combatLevel": 21
+        },
+        {
+          "id": 8871,
+          "combatLevel": 9
+        },
+        {
+          "id": 8872,
+          "combatLevel": 11
+        },
+        {
+          "id": 8873,
+          "combatLevel": 12
+        },
+        {
+          "id": 8874,
+          "combatLevel": 14
+        },
+        {
+          "id": 16919,
+          "combatLevel": 0
+        },
+        {
+          "id": 16920,
+          "combatLevel": 0
+        },
+        {
+          "id": 17027,
+          "combatLevel": 95
+        },
+        {
+          "id": 17028,
+          "combatLevel": 92
+        },
+        {
+          "id": 17029,
+          "combatLevel": 84
+        },
+        {
+          "id": 17030,
+          "combatLevel": 86
+        },
+        {
+          "id": 29292,
+          "combatLevel": 114
+        },
+        {
+          "id": 31662,
+          "combatLevel": 0
+        }
+      ],
+      "wiki": {
+        "url": "https://runescape.wiki/w/Dark_wizard?oldid=37176644",
+        "revisionId": 37176644,
+        "variants": [
+          {
+            "name": "Dark wizard",
+            "version": "Wilderness (1)",
+            "ids": [
+              172
+            ],
+            "combatLevel": 35,
+            "members": "No",
+            "fields": {
+              "level": "Infobox Monster.level1",
+              "members": "Infobox Monster.members"
+            }
+          },
+          {
+            "name": "Dark wizard",
+            "version": "Wilderness (2)",
+            "ids": [
+              174
+            ],
+            "combatLevel": 21,
+            "members": "No",
+            "fields": {
+              "level": "Infobox Monster.level2",
+              "members": "Infobox Monster.members"
+            }
+          },
+          {
+            "name": "Dark wizard",
+            "version": "Dark Wizards' Tower (3)",
+            "ids": [
+              3242
+            ],
+            "combatLevel": 35,
+            "members": "No",
+            "fields": {
+              "level": "Infobox Monster.level3",
+              "members": "Infobox Monster.members"
+            }
+          },
+          {
+            "name": "Dark wizard",
+            "version": "Dark Wizards' Tower (4)",
+            "ids": [
+              3243
+            ],
+            "combatLevel": 35,
+            "members": "No",
+            "fields": {
+              "level": "Infobox Monster.level4",
+              "members": "Infobox Monster.members"
+            }
+          },
+          {
+            "name": "Dark wizard",
+            "version": "Dark Wizards' Tower (5)",
+            "ids": [
+              3244
+            ],
+            "combatLevel": 21,
+            "members": "No",
+            "fields": {
+              "level": "Infobox Monster.level5",
+              "members": "Infobox Monster.members"
+            }
+          },
+          {
+            "name": "Dark wizard",
+            "version": "Dark Wizards' Tower (6)",
+            "ids": [
+              3245
+            ],
+            "combatLevel": 21,
+            "members": "No",
+            "fields": {
+              "level": "Infobox Monster.level6",
+              "members": "Infobox Monster.members"
+            }
+          },
+          {
+            "name": "Dark wizard",
+            "version": "Varrock stone circle (7)",
+            "ids": [
+              8871
+            ],
+            "combatLevel": 9,
+            "members": "No",
+            "fields": {
+              "level": "Infobox Monster.level7",
+              "members": "Infobox Monster.members"
+            }
+          },
+          {
+            "name": "Dark wizard",
+            "version": "Varrock stone circle (8)",
+            "ids": [
+              8872
+            ],
+            "combatLevel": 11,
+            "members": "No",
+            "fields": {
+              "level": "Infobox Monster.level8",
+              "members": "Infobox Monster.members"
+            }
+          },
+          {
+            "name": "Dark wizard",
+            "version": "Varrock stone circle (9)",
+            "ids": [
+              8873
+            ],
+            "combatLevel": 12,
+            "members": "No",
+            "fields": {
+              "level": "Infobox Monster.level9",
+              "members": "Infobox Monster.members"
+            }
+          },
+          {
+            "name": "Dark wizard",
+            "version": "Varrock stone circle (10)",
+            "ids": [
+              8874
+            ],
+            "combatLevel": 14,
+            "members": "No",
+            "fields": {
+              "level": "Infobox Monster.level10",
+              "members": "Infobox Monster.members"
+            }
+          }
+        ]
+      },
+      "correctionStatus": "not-exact-retained-label",
+      "membershipStatus": "unknown-cache-schema-has-no-overall-members-field",
+      "byIdValidation": [
+        {
+          "id": 172,
+          "cacheCombatLevel": 35,
+          "wikiCombatLevel": 35,
+          "combatLevelStatus": "confirmed-by-id",
+          "wikiFields": [
+            "Infobox Monster.level1"
+          ],
+          "wikiVersions": [
+            "Wilderness (1)"
+          ],
+          "actions": {
+            "cacheOptions": [
+              "Attack"
+            ],
+            "wikiOptions": [
+              "Attack",
+              "Examine"
+            ],
+            "cacheOnly": [],
+            "wikiOnly": [],
+            "examineStatus": "Wiki Examine is implicit client interaction, not an NPC action-slot correction",
+            "mutationAllowed": false
+          }
+        },
+        {
+          "id": 174,
+          "cacheCombatLevel": 21,
+          "wikiCombatLevel": 21,
+          "combatLevelStatus": "confirmed-by-id",
+          "wikiFields": [
+            "Infobox Monster.level2"
+          ],
+          "wikiVersions": [
+            "Wilderness (2)"
+          ],
+          "actions": {
+            "cacheOptions": [
+              "Attack"
+            ],
+            "wikiOptions": [
+              "Attack",
+              "Examine"
+            ],
+            "cacheOnly": [],
+            "wikiOnly": [],
+            "examineStatus": "Wiki Examine is implicit client interaction, not an NPC action-slot correction",
+            "mutationAllowed": false
+          }
+        },
+        {
+          "id": 3242,
+          "cacheCombatLevel": 35,
+          "wikiCombatLevel": 35,
+          "combatLevelStatus": "confirmed-by-id",
+          "wikiFields": [
+            "Infobox Monster.level3"
+          ],
+          "wikiVersions": [
+            "Dark Wizards' Tower (3)"
+          ],
+          "actions": {
+            "cacheOptions": [
+              "Attack"
+            ],
+            "wikiOptions": [
+              "Attack",
+              "Examine"
+            ],
+            "cacheOnly": [],
+            "wikiOnly": [],
+            "examineStatus": "Wiki Examine is implicit client interaction, not an NPC action-slot correction",
+            "mutationAllowed": false
+          }
+        },
+        {
+          "id": 3243,
+          "cacheCombatLevel": 35,
+          "wikiCombatLevel": 35,
+          "combatLevelStatus": "confirmed-by-id",
+          "wikiFields": [
+            "Infobox Monster.level4"
+          ],
+          "wikiVersions": [
+            "Dark Wizards' Tower (4)"
+          ],
+          "actions": {
+            "cacheOptions": [
+              "Attack"
+            ],
+            "wikiOptions": [
+              "Attack",
+              "Examine"
+            ],
+            "cacheOnly": [],
+            "wikiOnly": [],
+            "examineStatus": "Wiki Examine is implicit client interaction, not an NPC action-slot correction",
+            "mutationAllowed": false
+          }
+        },
+        {
+          "id": 3244,
+          "cacheCombatLevel": 21,
+          "wikiCombatLevel": 21,
+          "combatLevelStatus": "confirmed-by-id",
+          "wikiFields": [
+            "Infobox Monster.level5"
+          ],
+          "wikiVersions": [
+            "Dark Wizards' Tower (5)"
+          ],
+          "actions": {
+            "cacheOptions": [
+              "Attack"
+            ],
+            "wikiOptions": [
+              "Attack",
+              "Examine"
+            ],
+            "cacheOnly": [],
+            "wikiOnly": [],
+            "examineStatus": "Wiki Examine is implicit client interaction, not an NPC action-slot correction",
+            "mutationAllowed": false
+          }
+        },
+        {
+          "id": 3245,
+          "cacheCombatLevel": 21,
+          "wikiCombatLevel": 21,
+          "combatLevelStatus": "confirmed-by-id",
+          "wikiFields": [
+            "Infobox Monster.level6"
+          ],
+          "wikiVersions": [
+            "Dark Wizards' Tower (6)"
+          ],
+          "actions": {
+            "cacheOptions": [
+              "Attack"
+            ],
+            "wikiOptions": [
+              "Attack",
+              "Examine"
+            ],
+            "cacheOnly": [],
+            "wikiOnly": [],
+            "examineStatus": "Wiki Examine is implicit client interaction, not an NPC action-slot correction",
+            "mutationAllowed": false
+          }
+        },
+        {
+          "id": 8871,
+          "cacheCombatLevel": 9,
+          "wikiCombatLevel": 9,
+          "combatLevelStatus": "confirmed-by-id",
+          "wikiFields": [
+            "Infobox Monster.level7"
+          ],
+          "wikiVersions": [
+            "Varrock stone circle (7)"
+          ],
+          "actions": {
+            "cacheOptions": [
+              "Attack"
+            ],
+            "wikiOptions": [
+              "Attack",
+              "Examine"
+            ],
+            "cacheOnly": [],
+            "wikiOnly": [],
+            "examineStatus": "Wiki Examine is implicit client interaction, not an NPC action-slot correction",
+            "mutationAllowed": false
+          }
+        },
+        {
+          "id": 8872,
+          "cacheCombatLevel": 11,
+          "wikiCombatLevel": 11,
+          "combatLevelStatus": "confirmed-by-id",
+          "wikiFields": [
+            "Infobox Monster.level8"
+          ],
+          "wikiVersions": [
+            "Varrock stone circle (8)"
+          ],
+          "actions": {
+            "cacheOptions": [
+              "Attack"
+            ],
+            "wikiOptions": [
+              "Attack",
+              "Examine"
+            ],
+            "cacheOnly": [],
+            "wikiOnly": [],
+            "examineStatus": "Wiki Examine is implicit client interaction, not an NPC action-slot correction",
+            "mutationAllowed": false
+          }
+        },
+        {
+          "id": 8873,
+          "cacheCombatLevel": 12,
+          "wikiCombatLevel": 12,
+          "combatLevelStatus": "confirmed-by-id",
+          "wikiFields": [
+            "Infobox Monster.level9"
+          ],
+          "wikiVersions": [
+            "Varrock stone circle (9)"
+          ],
+          "actions": {
+            "cacheOptions": [
+              "Attack"
+            ],
+            "wikiOptions": [
+              "Attack",
+              "Examine"
+            ],
+            "cacheOnly": [],
+            "wikiOnly": [],
+            "examineStatus": "Wiki Examine is implicit client interaction, not an NPC action-slot correction",
+            "mutationAllowed": false
+          }
+        },
+        {
+          "id": 8874,
+          "cacheCombatLevel": 14,
+          "wikiCombatLevel": 14,
+          "combatLevelStatus": "confirmed-by-id",
+          "wikiFields": [
+            "Infobox Monster.level10"
+          ],
+          "wikiVersions": [
+            "Varrock stone circle (10)"
+          ],
+          "actions": {
+            "cacheOptions": [
+              "Attack"
+            ],
+            "wikiOptions": [
+              "Attack",
+              "Examine"
+            ],
+            "cacheOnly": [],
+            "wikiOnly": [],
+            "examineStatus": "Wiki Examine is implicit client interaction, not an NPC action-slot correction",
+            "mutationAllowed": false
+          }
+        }
+      ]
+    },
+    {
+      "label": "Black bear",
+      "retained": true,
+      "origins": [
+        "chunks.Monster",
+        "drops",
+        "monstersPlus:Bear Souls[+]"
+      ],
+      "cacheCandidateCount": 1,
+      "cacheLevels": [
+        23
+      ],
+      "cacheCandidates": [
+        {
+          "id": 106,
+          "combatLevel": 23
+        }
+      ],
+      "wiki": {
+        "url": "https://runescape.wiki/w/Black_bear?oldid=37152329",
+        "revisionId": 37152329,
+        "variants": [
+          {
+            "name": "Black bear",
+            "version": "",
+            "ids": [
+              106
+            ],
+            "combatLevel": 23,
+            "members": "No",
+            "fields": {
+              "level": "Infobox Monster.level",
+              "members": "Infobox Monster.members"
+            }
+          }
+        ]
+      },
+      "correctionStatus": "confirmed",
+      "membershipStatus": "unknown-cache-schema-has-no-overall-members-field",
+      "byIdValidation": [
+        {
+          "id": 106,
+          "cacheCombatLevel": 23,
+          "wikiCombatLevel": 23,
+          "combatLevelStatus": "confirmed-by-id",
+          "wikiFields": [
+            "Infobox Monster.level"
+          ],
+          "wikiVersions": [
+            ""
+          ],
+          "actions": {
+            "cacheOptions": [
+              "Attack"
+            ],
+            "wikiOptions": [
+              "Attack"
+            ],
+            "cacheOnly": [],
+            "wikiOnly": [],
+            "examineStatus": "Wiki Examine is implicit client interaction, not an NPC action-slot correction",
+            "mutationAllowed": false
+          }
+        }
+      ]
+    },
+    {
+      "label": "Air wizard",
+      "retained": true,
+      "origins": [
+        "chunks.Monster",
+        "drops"
+      ],
+      "cacheCandidateCount": 1,
+      "cacheLevels": [
+        16
+      ],
+      "cacheCandidates": [
+        {
+          "id": 2712,
+          "combatLevel": 16
+        }
+      ],
+      "wiki": {
+        "url": "https://runescape.wiki/w/Air_wizard?oldid=37130380",
+        "revisionId": 37130380,
+        "variants": [
+          {
+            "name": "Air wizard",
+            "version": "",
+            "ids": [
+              2712
+            ],
+            "combatLevel": 16,
+            "members": "No",
+            "fields": {
+              "level": "Infobox Monster.level",
+              "members": "Infobox Monster.members"
+            }
+          }
+        ]
+      },
+      "correctionStatus": "confirmed",
+      "membershipStatus": "unknown-cache-schema-has-no-overall-members-field",
+      "byIdValidation": [
+        {
+          "id": 2712,
+          "cacheCombatLevel": 16,
+          "wikiCombatLevel": 16,
+          "combatLevelStatus": "confirmed-by-id",
+          "wikiFields": [
+            "Infobox Monster.level"
+          ],
+          "wikiVersions": [
+            ""
+          ],
+          "actions": {
+            "cacheOptions": [
+              "Attack"
+            ],
+            "wikiOptions": [
+              "Attack"
+            ],
+            "cacheOnly": [],
+            "wikiOnly": [],
+            "examineStatus": "Wiki Examine is implicit client interaction, not an NPC action-slot correction",
+            "mutationAllowed": false
+          }
+        }
+      ]
+    },
+    {
+      "label": "Earth wizard",
+      "retained": true,
+      "origins": [
+        "chunks.Monster",
+        "drops"
+      ],
+      "cacheCandidateCount": 1,
+      "cacheLevels": [
+        22
+      ],
+      "cacheCandidates": [
+        {
+          "id": 2711,
+          "combatLevel": 22
+        }
+      ],
+      "wiki": {
+        "url": "https://runescape.wiki/w/Earth_wizard?oldid=37142624",
+        "revisionId": 37142624,
+        "variants": [
+          {
+            "name": "Earth wizard",
+            "version": "",
+            "ids": [
+              2711
+            ],
+            "combatLevel": 22,
+            "members": "No",
+            "fields": {
+              "level": "Infobox Monster.level",
+              "members": "Infobox Monster.members"
+            }
+          }
+        ]
+      },
+      "correctionStatus": "confirmed",
+      "membershipStatus": "unknown-cache-schema-has-no-overall-members-field",
+      "byIdValidation": [
+        {
+          "id": 2711,
+          "cacheCombatLevel": 22,
+          "wikiCombatLevel": 22,
+          "combatLevelStatus": "confirmed-by-id",
+          "wikiFields": [
+            "Infobox Monster.level"
+          ],
+          "wikiVersions": [
+            ""
+          ],
+          "actions": {
+            "cacheOptions": [
+              "Attack"
+            ],
+            "wikiOptions": [
+              "Attack"
+            ],
+            "cacheOnly": [],
+            "wikiOnly": [],
+            "examineStatus": "Wiki Examine is implicit client interaction, not an NPC action-slot correction",
+            "mutationAllowed": false
+          }
+        }
+      ]
+    },
+    {
+      "label": "Fire wizard",
+      "retained": true,
+      "origins": [
+        "chunks.Monster",
+        "drops"
+      ],
+      "cacheCandidateCount": 1,
+      "cacheLevels": [
+        25
+      ],
+      "cacheCandidates": [
+        {
+          "id": 2709,
+          "combatLevel": 25
+        }
+      ],
+      "wiki": {
+        "url": "https://runescape.wiki/w/Fire_wizard?oldid=37142880",
+        "revisionId": 37142880,
+        "variants": [
+          {
+            "name": "Fire wizard",
+            "version": "",
+            "ids": [
+              2709
+            ],
+            "combatLevel": 25,
+            "members": "No",
+            "fields": {
+              "level": "Infobox Monster.level",
+              "members": "Infobox Monster.members"
+            }
+          }
+        ]
+      },
+      "correctionStatus": "confirmed",
+      "membershipStatus": "unknown-cache-schema-has-no-overall-members-field",
+      "byIdValidation": [
+        {
+          "id": 2709,
+          "cacheCombatLevel": 25,
+          "wikiCombatLevel": 25,
+          "combatLevelStatus": "confirmed-by-id",
+          "wikiFields": [
+            "Infobox Monster.level"
+          ],
+          "wikiVersions": [
+            ""
+          ],
+          "actions": {
+            "cacheOptions": [
+              "Attack"
+            ],
+            "wikiOptions": [
+              "Attack"
+            ],
+            "cacheOnly": [],
+            "wikiOnly": [],
+            "examineStatus": "Wiki Examine is implicit client interaction, not an NPC action-slot correction",
+            "mutationAllowed": false
+          }
+        }
+      ]
+    },
+    {
+      "label": "Water wizard",
+      "retained": true,
+      "origins": [
+        "chunks.Monster",
+        "drops"
+      ],
+      "cacheCandidateCount": 1,
+      "cacheLevels": [
+        19
+      ],
+      "cacheCandidates": [
+        {
+          "id": 2710,
+          "combatLevel": 19
+        }
+      ],
+      "wiki": {
+        "url": "https://runescape.wiki/w/Water_wizard?oldid=37143113",
+        "revisionId": 37143113,
+        "variants": [
+          {
+            "name": "Water wizard",
+            "version": "",
+            "ids": [
+              2710
+            ],
+            "combatLevel": 19,
+            "members": "No",
+            "fields": {
+              "level": "Infobox Monster.level",
+              "members": "Infobox Monster.members"
+            }
+          }
+        ]
+      },
+      "correctionStatus": "confirmed",
+      "membershipStatus": "unknown-cache-schema-has-no-overall-members-field",
+      "byIdValidation": [
+        {
+          "id": 2710,
+          "cacheCombatLevel": 19,
+          "wikiCombatLevel": 19,
+          "combatLevelStatus": "confirmed-by-id",
+          "wikiFields": [
+            "Infobox Monster.level"
+          ],
+          "wikiVersions": [
+            ""
+          ],
+          "actions": {
+            "cacheOptions": [
+              "Attack"
+            ],
+            "wikiOptions": [
+              "Attack"
+            ],
+            "cacheOnly": [],
+            "wikiOnly": [],
+            "examineStatus": "Wiki Examine is implicit client interaction, not an NPC action-slot correction",
+            "mutationAllowed": false
+          }
+        }
+      ]
+    },
+    {
+      "label": "Catablepon",
+      "retained": true,
+      "origins": [
+        "chunks.Monster",
+        "drops"
+      ],
+      "cacheCandidateCount": 3,
+      "cacheLevels": [
+        43
+      ],
+      "cacheCandidates": [
+        {
+          "id": 4397,
+          "combatLevel": 43
+        },
+        {
+          "id": 4398,
+          "combatLevel": 43
+        },
+        {
+          "id": 4399,
+          "combatLevel": 43
+        }
+      ],
+      "wiki": {
+        "url": "https://runescape.wiki/w/Catablepon?oldid=37142100",
+        "revisionId": 37142100,
+        "variants": [
+          {
+            "name": "Catablepon",
+            "version": "",
+            "ids": [
+              4397,
+              4398,
+              4399
+            ],
+            "combatLevel": 43,
+            "members": "No",
+            "fields": {
+              "level": "Infobox Monster.level",
+              "members": "Infobox Monster.members"
+            }
+          }
+        ]
+      },
+      "correctionStatus": "confirmed",
+      "membershipStatus": "unknown-cache-schema-has-no-overall-members-field",
+      "byIdValidation": [
+        {
+          "id": 4397,
+          "cacheCombatLevel": 43,
+          "wikiCombatLevel": 43,
+          "combatLevelStatus": "confirmed-by-id",
+          "wikiFields": [
+            "Infobox Monster.level"
+          ],
+          "wikiVersions": [
+            ""
+          ],
+          "actions": {
+            "cacheOptions": [
+              "Attack"
+            ],
+            "wikiOptions": [
+              "Attack"
+            ],
+            "cacheOnly": [],
+            "wikiOnly": [],
+            "examineStatus": "Wiki Examine is implicit client interaction, not an NPC action-slot correction",
+            "mutationAllowed": false
+          }
+        },
+        {
+          "id": 4398,
+          "cacheCombatLevel": 43,
+          "wikiCombatLevel": 43,
+          "combatLevelStatus": "confirmed-by-id",
+          "wikiFields": [
+            "Infobox Monster.level"
+          ],
+          "wikiVersions": [
+            ""
+          ],
+          "actions": {
+            "cacheOptions": [
+              "Attack"
+            ],
+            "wikiOptions": [
+              "Attack"
+            ],
+            "cacheOnly": [],
+            "wikiOnly": [],
+            "examineStatus": "Wiki Examine is implicit client interaction, not an NPC action-slot correction",
+            "mutationAllowed": false
+          }
+        },
+        {
+          "id": 4399,
+          "cacheCombatLevel": 43,
+          "wikiCombatLevel": 43,
+          "combatLevelStatus": "confirmed-by-id",
+          "wikiFields": [
+            "Infobox Monster.level"
+          ],
+          "wikiVersions": [
+            ""
+          ],
+          "actions": {
+            "cacheOptions": [
+              "Attack"
+            ],
+            "wikiOptions": [
+              "Attack"
+            ],
+            "cacheOnly": [],
+            "wikiOnly": [],
+            "examineStatus": "Wiki Examine is implicit client interaction, not an NPC action-slot correction",
+            "mutationAllowed": false
+          }
+        }
+      ]
+    },
+    {
+      "label": "Calf",
+      "retained": true,
+      "origins": [
+        "chunks.Monster",
+        "drops",
+        "monstersPlus:Cow Souls[+]"
+      ],
+      "cacheCandidateCount": 2,
+      "cacheLevels": [
+        1
+      ],
+      "cacheCandidates": [
+        {
+          "id": 2310,
+          "combatLevel": 1
+        },
+        {
+          "id": 30874,
+          "combatLevel": 1
+        }
+      ],
+      "wiki": {
+        "url": "https://runescape.wiki/w/Calf?oldid=37141921",
+        "revisionId": 37141921,
+        "variants": [
+          {
+            "name": "Calf",
+            "version": "1",
+            "ids": [
+              2310
+            ],
+            "combatLevel": 1,
+            "members": "No",
+            "fields": {
+              "level": "Infobox Monster.level",
+              "members": "Infobox Monster.members"
+            }
+          },
+          {
+            "name": "Calf",
+            "version": "2",
+            "ids": [],
+            "combatLevel": 1,
+            "members": "No",
+            "fields": {
+              "level": "Infobox Monster.level",
+              "members": "Infobox Monster.members"
+            }
+          },
+          {
+            "name": "Calf",
+            "version": "3",
+            "ids": [],
+            "combatLevel": 1,
+            "members": "No",
+            "fields": {
+              "level": "Infobox Monster.level",
+              "members": "Infobox Monster.members"
+            }
+          },
+          {
+            "name": "Calf",
+            "version": "4",
+            "ids": [
+              30874
+            ],
+            "combatLevel": 1,
+            "members": "No",
+            "fields": {
+              "level": "Infobox Monster.level",
+              "members": "Infobox Monster.members"
+            }
+          }
+        ]
+      },
+      "correctionStatus": "confirmed",
+      "membershipStatus": "unknown-cache-schema-has-no-overall-members-field",
+      "byIdValidation": [
+        {
+          "id": 2310,
+          "cacheCombatLevel": 1,
+          "wikiCombatLevel": 1,
+          "combatLevelStatus": "confirmed-by-id",
+          "wikiFields": [
+            "Infobox Monster.level"
+          ],
+          "wikiVersions": [
+            "1"
+          ],
+          "actions": {
+            "cacheOptions": [
+              "Attack"
+            ],
+            "wikiOptions": [
+              "Attack",
+              "Examine"
+            ],
+            "cacheOnly": [],
+            "wikiOnly": [],
+            "examineStatus": "Wiki Examine is implicit client interaction, not an NPC action-slot correction",
+            "mutationAllowed": false
+          }
+        },
+        {
+          "id": 30874,
+          "cacheCombatLevel": 1,
+          "wikiCombatLevel": 1,
+          "combatLevelStatus": "confirmed-by-id",
+          "wikiFields": [
+            "Infobox Monster.level"
+          ],
+          "wikiVersions": [
+            "4"
+          ],
+          "actions": {
+            "cacheOptions": [
+              "Attack"
+            ],
+            "wikiOptions": [
+              "Attack",
+              "Examine"
+            ],
+            "cacheOnly": [],
+            "wikiOnly": [],
+            "examineStatus": "Wiki Examine is implicit client interaction, not an NPC action-slot correction",
+            "mutationAllowed": false
+          }
+        }
+      ]
+    },
+    {
+      "label": "Hollowtoof",
+      "retained": true,
+      "origins": [
+        "chunks.Monster",
+        "drops"
+      ],
+      "cacheCandidateCount": 2,
+      "cacheLevels": [
+        0,
+        77
+      ],
+      "cacheCandidates": [
+        {
+          "id": 15957,
+          "combatLevel": 0
+        },
+        {
+          "id": 15958,
+          "combatLevel": 77
+        }
+      ],
+      "wiki": {
+        "url": "https://runescape.wiki/w/Hollowtoof?oldid=37122173",
+        "revisionId": 37122173,
+        "variants": [
+          {
+            "name": "Hollowtoof",
+            "version": "",
+            "ids": [
+              15958
+            ],
+            "combatLevel": 77,
+            "members": "No",
+            "fields": {
+              "level": "Infobox Monster.level",
+              "members": "Infobox Monster.members"
+            }
+          }
+        ]
+      },
+      "correctionStatus": "cache-name-variant-level-disagreement",
+      "membershipStatus": "unknown-cache-schema-has-no-overall-members-field",
+      "byIdValidation": [
+        {
+          "id": 15958,
+          "cacheCombatLevel": 77,
+          "wikiCombatLevel": 77,
+          "combatLevelStatus": "confirmed-by-id",
+          "wikiFields": [
+            "Infobox Monster.level"
+          ],
+          "wikiVersions": [
+            ""
+          ],
+          "actions": {
+            "cacheOptions": [
+              "Attack"
+            ],
+            "wikiOptions": [
+              "Attack"
+            ],
+            "cacheOnly": [],
+            "wikiOnly": [],
+            "examineStatus": "Wiki Examine is implicit client interaction, not an NPC action-slot correction",
+            "mutationAllowed": false
+          }
+        }
+      ]
+    }
+  ],
+  "calibration": [
+    {
+      "field": "maxMeleeHit",
+      "param": 641,
+      "divisor": 10,
+      "wikiField": "max_melee",
+      "validated": true,
+      "independentNames": [
+        "Chicken",
+        "Cow",
+        "Hill giant",
+        "Giant spider"
+      ],
+      "status": "inferred-and-sample-calibrated",
+      "samples": [
+        {
+          "id": 41,
+          "name": "Chicken",
+          "param": 641,
+          "divisor": 10,
+          "rawValue": 150,
+          "expectedValue": 15,
+          "matches": true,
+          "wiki": {
+            "url": "https://runescape.wiki/w/Chicken?oldid=37142047",
+            "revisionId": 37142047,
+            "field": [
+              "Infobox Monster.max_melee"
+            ],
+            "variants": [
+              "Brown",
+              "White"
+            ]
+          },
+          "cache": {
+            "source": {
+              "major": 18,
+              "minor": 0,
+              "subid": 41,
+              "rawSha256": "a3eb5b3ea784e0bd854b345478d61503c915b34e3eea43fc800dfad7536bf4c5",
+              "rawBytes": 145,
+              "archiveSha256": "45ccd0fd9782eb54477581a052629fa1ce28ecab14219dfc3081ce2eda90a6e5"
+            },
+            "definitionSha256": "f3ab85543eb0b4c8ef80480ac5eb104992f479aa07085af8844492339b2363b9"
+          }
+        },
+        {
+          "id": 81,
+          "name": "Cow",
+          "param": 641,
+          "divisor": 10,
+          "rawValue": 200,
+          "expectedValue": 20,
+          "matches": true,
+          "wiki": {
+            "url": "https://runescape.wiki/w/Cow?oldid=37142844",
+            "revisionId": 37142844,
+            "field": [
+              "Infobox Monster.max_melee"
+            ],
+            "variants": [
+              "Standard (1)"
+            ]
+          },
+          "cache": {
+            "source": {
+              "major": 18,
+              "minor": 0,
+              "subid": 81,
+              "rawSha256": "62f9c99fbf91670709485c98800efbed4e826b232da9bd3011209f16eb1244db",
+              "rawBytes": 123,
+              "archiveSha256": "45ccd0fd9782eb54477581a052629fa1ce28ecab14219dfc3081ce2eda90a6e5"
+            },
+            "definitionSha256": "d0d57dff6a5c7eb5b6d6edd9b0f605f2d9eb00b871561590496c67190c18b141"
+          }
+        },
+        {
+          "id": 117,
+          "name": "Hill giant",
+          "param": 641,
+          "divisor": 10,
+          "rawValue": 4500,
+          "expectedValue": 450,
+          "matches": true,
+          "wiki": {
+            "url": "https://runescape.wiki/w/Hill_giant?oldid=37142826",
+            "revisionId": 37142826,
+            "field": [
+              "Infobox Monster.max_melee"
+            ],
+            "variants": [
+              "1"
+            ]
+          },
+          "cache": {
+            "source": {
+              "major": 18,
+              "minor": 0,
+              "subid": 117,
+              "rawSha256": "0f724d1c521042ae4fe2f5b395eb3c9a2204d5c59d003a5724ed325a26286614",
+              "rawBytes": 167,
+              "archiveSha256": "45ccd0fd9782eb54477581a052629fa1ce28ecab14219dfc3081ce2eda90a6e5"
+            },
+            "definitionSha256": "4b1eb62fc116bf837c830eee6de35727b9a55b0a5dbe2af31477ba9104e60976"
+          }
+        },
+        {
+          "id": 59,
+          "name": "Giant spider",
+          "param": 641,
+          "divisor": 10,
+          "rawValue": 400,
+          "expectedValue": 40,
+          "matches": true,
+          "wiki": {
+            "url": "https://runescape.wiki/w/Giant_spider?oldid=37136145",
+            "revisionId": 37136145,
+            "field": [
+              "Infobox Monster.max_melee1"
+            ],
+            "variants": [
+              "Level 2"
+            ]
+          },
+          "cache": {
+            "source": {
+              "major": 18,
+              "minor": 0,
+              "subid": 59,
+              "rawSha256": "24353a56ddc2964a448d60bf77d3a42164c721fd67a4c7ec163f5b7dc60cccf3",
+              "rawBytes": 162,
+              "archiveSha256": "45ccd0fd9782eb54477581a052629fa1ce28ecab14219dfc3081ce2eda90a6e5"
+            },
+            "definitionSha256": "a28508eca7cff1c1a3b45bb46f6fc8e3c2cb7090501d0517d1f6d349da590692"
+          }
+        }
+      ]
+    },
+    {
+      "field": "maxMagicHit",
+      "param": 965,
+      "divisor": 10,
+      "wikiField": "max_magic",
+      "validated": true,
+      "independentNames": [
+        "Lesser demon",
+        "Wizard",
+        "Dark wizard"
+      ],
+      "status": "inferred-and-sample-calibrated",
+      "samples": [
+        {
+          "id": 82,
+          "name": "Lesser demon",
+          "param": 965,
+          "divisor": 10,
+          "rawValue": 4800,
+          "expectedValue": 480,
+          "matches": true,
+          "wiki": {
+            "url": "https://runescape.wiki/w/Lesser_demon?oldid=37159794",
+            "revisionId": 37159794,
+            "field": [
+              "Infobox Monster.max_magic"
+            ],
+            "variants": [
+              "1"
+            ]
+          },
+          "cache": {
+            "source": {
+              "major": 18,
+              "minor": 0,
+              "subid": 82,
+              "rawSha256": "9fcee63a5b19aa04d3f3c6819ae01efad8a64489b598b021675b9821119dcdfa",
+              "rawBytes": 114,
+              "archiveSha256": "45ccd0fd9782eb54477581a052629fa1ce28ecab14219dfc3081ce2eda90a6e5"
+            },
+            "definitionSha256": "e38178c49da36dc5a9adafb42452e660fb1c8b0990b573395bd45c71f3be1c0f"
+          }
+        },
+        {
+          "id": 13,
+          "name": "Wizard",
+          "param": 965,
+          "divisor": 10,
+          "rawValue": 1040,
+          "expectedValue": 104,
+          "matches": true,
+          "wiki": {
+            "url": "https://runescape.wiki/w/Wizard?oldid=37143178",
+            "revisionId": 37143178,
+            "field": [
+              "Infobox Monster.max_magic"
+            ],
+            "variants": [
+              ""
+            ]
+          },
+          "cache": {
+            "source": {
+              "major": 18,
+              "minor": 0,
+              "subid": 13,
+              "rawSha256": "019dca496922b1554cc00282e55a97cf77c053cde2fbeaaf90a8d884abeb1089",
+              "rawBytes": 152,
+              "archiveSha256": "45ccd0fd9782eb54477581a052629fa1ce28ecab14219dfc3081ce2eda90a6e5"
+            },
+            "definitionSha256": "0382fc0463dd120b26ac071551888a590f3388717786c12622b2375aed090da3"
+          }
+        },
+        {
+          "id": 172,
+          "name": "Dark wizard",
+          "param": 965,
+          "divisor": 10,
+          "rawValue": 5000,
+          "expectedValue": 500,
+          "matches": true,
+          "wiki": {
+            "url": "https://runescape.wiki/w/Dark_wizard?oldid=37176644",
+            "revisionId": 37176644,
+            "field": [
+              "Infobox Monster.max_magic1"
+            ],
+            "variants": [
+              "Wilderness (1)"
+            ]
+          },
+          "cache": {
+            "source": {
+              "major": 18,
+              "minor": 1,
+              "subid": 44,
+              "rawSha256": "df17e4786dea03ebfe8ee3546b94e37f8923bb710b30821f9e865f8a3678ff34",
+              "rawBytes": 201,
+              "archiveSha256": "13427ae03566506267a03d14ee4ef0f6794b0fadc7cb871d80a1c73b3d7ec280"
+            },
+            "definitionSha256": "b81e4237a5f7d47655caaf502c0c8e47553a9d25078ad197ad3bce69b3461d95"
+          }
+        },
+        {
+          "id": 174,
+          "name": "Dark wizard",
+          "param": 965,
+          "divisor": 10,
+          "rawValue": 3000,
+          "expectedValue": 300,
+          "matches": true,
+          "wiki": {
+            "url": "https://runescape.wiki/w/Dark_wizard?oldid=37176644",
+            "revisionId": 37176644,
+            "field": [
+              "Infobox Monster.max_magic2"
+            ],
+            "variants": [
+              "Wilderness (2)"
+            ]
+          },
+          "cache": {
+            "source": {
+              "major": 18,
+              "minor": 1,
+              "subid": 46,
+              "rawSha256": "32c0279bd870d5baacfef68f071f2172cfe29b5eaeeb2f9c582a4cdf24890c43",
+              "rawBytes": 205,
+              "archiveSha256": "13427ae03566506267a03d14ee4ef0f6794b0fadc7cb871d80a1c73b3d7ec280"
+            },
+            "definitionSha256": "812d843c9228a01ccb36f5b6bcdebe7f83375eac413fb1efad7cedbdc1433e8f"
+          }
+        }
+      ]
+    },
+    {
+      "field": "meleeAccuracy",
+      "param": 29,
+      "divisor": 1,
+      "wikiField": "acc_melee",
+      "validated": true,
+      "independentNames": [
+        "Chicken",
+        "Cow",
+        "Hill giant",
+        "Giant spider"
+      ],
+      "status": "inferred-and-sample-calibrated",
+      "samples": [
+        {
+          "id": 41,
+          "name": "Chicken",
+          "param": 29,
+          "divisor": 1,
+          "rawValue": 10,
+          "expectedValue": 10,
+          "matches": true,
+          "wiki": {
+            "url": "https://runescape.wiki/w/Chicken?oldid=37142047",
+            "revisionId": 37142047,
+            "field": [
+              "Infobox Monster.acc_melee"
+            ],
+            "variants": [
+              "Brown",
+              "White"
+            ]
+          },
+          "cache": {
+            "source": {
+              "major": 18,
+              "minor": 0,
+              "subid": 41,
+              "rawSha256": "a3eb5b3ea784e0bd854b345478d61503c915b34e3eea43fc800dfad7536bf4c5",
+              "rawBytes": 145,
+              "archiveSha256": "45ccd0fd9782eb54477581a052629fa1ce28ecab14219dfc3081ce2eda90a6e5"
+            },
+            "definitionSha256": "f3ab85543eb0b4c8ef80480ac5eb104992f479aa07085af8844492339b2363b9"
+          }
+        },
+        {
+          "id": 81,
+          "name": "Cow",
+          "param": 29,
+          "divisor": 1,
+          "rawValue": 20,
+          "expectedValue": 20,
+          "matches": true,
+          "wiki": {
+            "url": "https://runescape.wiki/w/Cow?oldid=37142844",
+            "revisionId": 37142844,
+            "field": [
+              "Infobox Monster.acc_melee"
+            ],
+            "variants": [
+              "Standard (1)"
+            ]
+          },
+          "cache": {
+            "source": {
+              "major": 18,
+              "minor": 0,
+              "subid": 81,
+              "rawSha256": "62f9c99fbf91670709485c98800efbed4e826b232da9bd3011209f16eb1244db",
+              "rawBytes": 123,
+              "archiveSha256": "45ccd0fd9782eb54477581a052629fa1ce28ecab14219dfc3081ce2eda90a6e5"
+            },
+            "definitionSha256": "d0d57dff6a5c7eb5b6d6edd9b0f605f2d9eb00b871561590496c67190c18b141"
+          }
+        },
+        {
+          "id": 117,
+          "name": "Hill giant",
+          "param": 29,
+          "divisor": 1,
+          "rawValue": 157,
+          "expectedValue": 157,
+          "matches": true,
+          "wiki": {
+            "url": "https://runescape.wiki/w/Hill_giant?oldid=37142826",
+            "revisionId": 37142826,
+            "field": [
+              "Infobox Monster.acc_melee"
+            ],
+            "variants": [
+              "1"
+            ]
+          },
+          "cache": {
+            "source": {
+              "major": 18,
+              "minor": 0,
+              "subid": 117,
+              "rawSha256": "0f724d1c521042ae4fe2f5b395eb3c9a2204d5c59d003a5724ed325a26286614",
+              "rawBytes": 167,
+              "archiveSha256": "45ccd0fd9782eb54477581a052629fa1ce28ecab14219dfc3081ce2eda90a6e5"
+            },
+            "definitionSha256": "4b1eb62fc116bf837c830eee6de35727b9a55b0a5dbe2af31477ba9104e60976"
+          }
+        },
+        {
+          "id": 59,
+          "name": "Giant spider",
+          "param": 29,
+          "divisor": 1,
+          "rawValue": 20,
+          "expectedValue": 20,
+          "matches": true,
+          "wiki": {
+            "url": "https://runescape.wiki/w/Giant_spider?oldid=37136145",
+            "revisionId": 37136145,
+            "field": [
+              "Infobox Monster.acc_melee1"
+            ],
+            "variants": [
+              "Level 2"
+            ]
+          },
+          "cache": {
+            "source": {
+              "major": 18,
+              "minor": 0,
+              "subid": 59,
+              "rawSha256": "24353a56ddc2964a448d60bf77d3a42164c721fd67a4c7ec163f5b7dc60cccf3",
+              "rawBytes": 162,
+              "archiveSha256": "45ccd0fd9782eb54477581a052629fa1ce28ecab14219dfc3081ce2eda90a6e5"
+            },
+            "definitionSha256": "a28508eca7cff1c1a3b45bb46f6fc8e3c2cb7090501d0517d1f6d349da590692"
+          }
+        }
+      ]
+    },
+    {
+      "field": "magicAccuracy",
+      "param": 3,
+      "divisor": 1,
+      "wikiField": "acc_magic",
+      "validated": true,
+      "independentNames": [
+        "Lesser demon",
+        "Wizard",
+        "Dark wizard"
+      ],
+      "status": "inferred-and-sample-calibrated",
+      "samples": [
+        {
+          "id": 82,
+          "name": "Lesser demon",
+          "param": 3,
+          "divisor": 1,
+          "rawValue": 850,
+          "expectedValue": 850,
+          "matches": true,
+          "wiki": {
+            "url": "https://runescape.wiki/w/Lesser_demon?oldid=37159794",
+            "revisionId": 37159794,
+            "field": [
+              "Infobox Monster.acc_magic"
+            ],
+            "variants": [
+              "1"
+            ]
+          },
+          "cache": {
+            "source": {
+              "major": 18,
+              "minor": 0,
+              "subid": 82,
+              "rawSha256": "9fcee63a5b19aa04d3f3c6819ae01efad8a64489b598b021675b9821119dcdfa",
+              "rawBytes": 114,
+              "archiveSha256": "45ccd0fd9782eb54477581a052629fa1ce28ecab14219dfc3081ce2eda90a6e5"
+            },
+            "definitionSha256": "e38178c49da36dc5a9adafb42452e660fb1c8b0990b573395bd45c71f3be1c0f"
+          }
+        },
+        {
+          "id": 13,
+          "name": "Wizard",
+          "param": 3,
+          "divisor": 1,
+          "rawValue": 234,
+          "expectedValue": 234,
+          "matches": true,
+          "wiki": {
+            "url": "https://runescape.wiki/w/Wizard?oldid=37143178",
+            "revisionId": 37143178,
+            "field": [
+              "Infobox Monster.acc_magic"
+            ],
+            "variants": [
+              ""
+            ]
+          },
+          "cache": {
+            "source": {
+              "major": 18,
+              "minor": 0,
+              "subid": 13,
+              "rawSha256": "019dca496922b1554cc00282e55a97cf77c053cde2fbeaaf90a8d884abeb1089",
+              "rawBytes": 152,
+              "archiveSha256": "45ccd0fd9782eb54477581a052629fa1ce28ecab14219dfc3081ce2eda90a6e5"
+            },
+            "definitionSha256": "0382fc0463dd120b26ac071551888a590f3388717786c12622b2375aed090da3"
+          }
+        },
+        {
+          "id": 172,
+          "name": "Dark wizard",
+          "param": 3,
+          "divisor": 1,
+          "rawValue": 281,
+          "expectedValue": 281,
+          "matches": true,
+          "wiki": {
+            "url": "https://runescape.wiki/w/Dark_wizard?oldid=37176644",
+            "revisionId": 37176644,
+            "field": [
+              "Infobox Monster.acc_magic1"
+            ],
+            "variants": [
+              "Wilderness (1)"
+            ]
+          },
+          "cache": {
+            "source": {
+              "major": 18,
+              "minor": 1,
+              "subid": 44,
+              "rawSha256": "df17e4786dea03ebfe8ee3546b94e37f8923bb710b30821f9e865f8a3678ff34",
+              "rawBytes": 201,
+              "archiveSha256": "13427ae03566506267a03d14ee4ef0f6794b0fadc7cb871d80a1c73b3d7ec280"
+            },
+            "definitionSha256": "b81e4237a5f7d47655caaf502c0c8e47553a9d25078ad197ad3bce69b3461d95"
+          }
+        },
+        {
+          "id": 174,
+          "name": "Dark wizard",
+          "param": 3,
+          "divisor": 1,
+          "rawValue": 157,
+          "expectedValue": 157,
+          "matches": true,
+          "wiki": {
+            "url": "https://runescape.wiki/w/Dark_wizard?oldid=37176644",
+            "revisionId": 37176644,
+            "field": [
+              "Infobox Monster.acc_magic2"
+            ],
+            "variants": [
+              "Wilderness (2)"
+            ]
+          },
+          "cache": {
+            "source": {
+              "major": 18,
+              "minor": 1,
+              "subid": 46,
+              "rawSha256": "32c0279bd870d5baacfef68f071f2172cfe29b5eaeeb2f9c582a4cdf24890c43",
+              "rawBytes": 205,
+              "archiveSha256": "13427ae03566506267a03d14ee4ef0f6794b0fadc7cb871d80a1c73b3d7ec280"
+            },
+            "definitionSha256": "812d843c9228a01ccb36f5b6bcdebe7f83375eac413fb1efad7cedbdc1433e8f"
+          }
+        }
+      ]
+    },
+    {
+      "field": "armour",
+      "param": 2865,
+      "divisor": 1,
+      "wikiField": "armour",
+      "validated": true,
+      "independentNames": [
+        "Chicken",
+        "Cow",
+        "Hill giant",
+        "Giant spider",
+        "Lesser demon",
+        "Wizard",
+        "Dark wizard"
+      ],
+      "status": "inferred-and-sample-calibrated",
+      "samples": [
+        {
+          "id": 41,
+          "name": "Chicken",
+          "param": 2865,
+          "divisor": 1,
+          "rawValue": 110,
+          "expectedValue": 110,
+          "matches": true,
+          "wiki": {
+            "url": "https://runescape.wiki/w/Chicken?oldid=37142047",
+            "revisionId": 37142047,
+            "field": [
+              "Infobox Monster.armour"
+            ],
+            "variants": [
+              "Brown",
+              "White"
+            ]
+          },
+          "cache": {
+            "source": {
+              "major": 18,
+              "minor": 0,
+              "subid": 41,
+              "rawSha256": "a3eb5b3ea784e0bd854b345478d61503c915b34e3eea43fc800dfad7536bf4c5",
+              "rawBytes": 145,
+              "archiveSha256": "45ccd0fd9782eb54477581a052629fa1ce28ecab14219dfc3081ce2eda90a6e5"
+            },
+            "definitionSha256": "f3ab85543eb0b4c8ef80480ac5eb104992f479aa07085af8844492339b2363b9"
+          }
+        },
+        {
+          "id": 81,
+          "name": "Cow",
+          "param": 2865,
+          "divisor": 1,
+          "rawValue": 110,
+          "expectedValue": 110,
+          "matches": true,
+          "wiki": {
+            "url": "https://runescape.wiki/w/Cow?oldid=37142844",
+            "revisionId": 37142844,
+            "field": [
+              "Infobox Monster.armour"
+            ],
+            "variants": [
+              "Standard (1)"
+            ]
+          },
+          "cache": {
+            "source": {
+              "major": 18,
+              "minor": 0,
+              "subid": 81,
+              "rawSha256": "62f9c99fbf91670709485c98800efbed4e826b232da9bd3011209f16eb1244db",
+              "rawBytes": 123,
+              "archiveSha256": "45ccd0fd9782eb54477581a052629fa1ce28ecab14219dfc3081ce2eda90a6e5"
+            },
+            "definitionSha256": "d0d57dff6a5c7eb5b6d6edd9b0f605f2d9eb00b871561590496c67190c18b141"
+          }
+        },
+        {
+          "id": 117,
+          "name": "Hill giant",
+          "param": 2865,
+          "divisor": 1,
+          "rawValue": 341,
+          "expectedValue": 341,
+          "matches": true,
+          "wiki": {
+            "url": "https://runescape.wiki/w/Hill_giant?oldid=37142826",
+            "revisionId": 37142826,
+            "field": [
+              "Infobox Monster.armour"
+            ],
+            "variants": [
+              "1"
+            ]
+          },
+          "cache": {
+            "source": {
+              "major": 18,
+              "minor": 0,
+              "subid": 117,
+              "rawSha256": "0f724d1c521042ae4fe2f5b395eb3c9a2204d5c59d003a5724ed325a26286614",
+              "rawBytes": 167,
+              "archiveSha256": "45ccd0fd9782eb54477581a052629fa1ce28ecab14219dfc3081ce2eda90a6e5"
+            },
+            "definitionSha256": "4b1eb62fc116bf837c830eee6de35727b9a55b0a5dbe2af31477ba9104e60976"
+          }
+        },
+        {
+          "id": 59,
+          "name": "Giant spider",
+          "param": 2865,
+          "divisor": 1,
+          "rawValue": 120,
+          "expectedValue": 120,
+          "matches": true,
+          "wiki": {
+            "url": "https://runescape.wiki/w/Giant_spider?oldid=37136145",
+            "revisionId": 37136145,
+            "field": [
+              "Infobox Monster.armour1"
+            ],
+            "variants": [
+              "Level 2"
+            ]
+          },
+          "cache": {
+            "source": {
+              "major": 18,
+              "minor": 0,
+              "subid": 59,
+              "rawSha256": "24353a56ddc2964a448d60bf77d3a42164c721fd67a4c7ec163f5b7dc60cccf3",
+              "rawBytes": 162,
+              "archiveSha256": "45ccd0fd9782eb54477581a052629fa1ce28ecab14219dfc3081ce2eda90a6e5"
+            },
+            "definitionSha256": "a28508eca7cff1c1a3b45bb46f6fc8e3c2cb7090501d0517d1f6d349da590692"
+          }
+        },
+        {
+          "id": 82,
+          "name": "Lesser demon",
+          "param": 2865,
+          "divisor": 1,
+          "rawValue": 850,
+          "expectedValue": 850,
+          "matches": true,
+          "wiki": {
+            "url": "https://runescape.wiki/w/Lesser_demon?oldid=37159794",
+            "revisionId": 37159794,
+            "field": [
+              "Infobox Monster.armour"
+            ],
+            "variants": [
+              "1"
+            ]
+          },
+          "cache": {
+            "source": {
+              "major": 18,
+              "minor": 0,
+              "subid": 82,
+              "rawSha256": "9fcee63a5b19aa04d3f3c6819ae01efad8a64489b598b021675b9821119dcdfa",
+              "rawBytes": 114,
+              "archiveSha256": "45ccd0fd9782eb54477581a052629fa1ce28ecab14219dfc3081ce2eda90a6e5"
+            },
+            "definitionSha256": "e38178c49da36dc5a9adafb42452e660fb1c8b0990b573395bd45c71f3be1c0f"
+          }
+        },
+        {
+          "id": 13,
+          "name": "Wizard",
+          "param": 2865,
+          "divisor": 1,
+          "rawValue": 234,
+          "expectedValue": 234,
+          "matches": true,
+          "wiki": {
+            "url": "https://runescape.wiki/w/Wizard?oldid=37143178",
+            "revisionId": 37143178,
+            "field": [
+              "Infobox Monster.armour"
+            ],
+            "variants": [
+              ""
+            ]
+          },
+          "cache": {
+            "source": {
+              "major": 18,
+              "minor": 0,
+              "subid": 13,
+              "rawSha256": "019dca496922b1554cc00282e55a97cf77c053cde2fbeaaf90a8d884abeb1089",
+              "rawBytes": 152,
+              "archiveSha256": "45ccd0fd9782eb54477581a052629fa1ce28ecab14219dfc3081ce2eda90a6e5"
+            },
+            "definitionSha256": "0382fc0463dd120b26ac071551888a590f3388717786c12622b2375aed090da3"
+          }
+        },
+        {
+          "id": 172,
+          "name": "Dark wizard",
+          "param": 2865,
+          "divisor": 1,
+          "rawValue": 381,
+          "expectedValue": 381,
+          "matches": true,
+          "wiki": {
+            "url": "https://runescape.wiki/w/Dark_wizard?oldid=37176644",
+            "revisionId": 37176644,
+            "field": [
+              "Infobox Monster.armour1"
+            ],
+            "variants": [
+              "Wilderness (1)"
+            ]
+          },
+          "cache": {
+            "source": {
+              "major": 18,
+              "minor": 1,
+              "subid": 44,
+              "rawSha256": "df17e4786dea03ebfe8ee3546b94e37f8923bb710b30821f9e865f8a3678ff34",
+              "rawBytes": 201,
+              "archiveSha256": "13427ae03566506267a03d14ee4ef0f6794b0fadc7cb871d80a1c73b3d7ec280"
+            },
+            "definitionSha256": "b81e4237a5f7d47655caaf502c0c8e47553a9d25078ad197ad3bce69b3461d95"
+          }
+        },
+        {
+          "id": 174,
+          "name": "Dark wizard",
+          "param": 2865,
+          "divisor": 1,
+          "rawValue": 257,
+          "expectedValue": 257,
+          "matches": true,
+          "wiki": {
+            "url": "https://runescape.wiki/w/Dark_wizard?oldid=37176644",
+            "revisionId": 37176644,
+            "field": [
+              "Infobox Monster.armour2"
+            ],
+            "variants": [
+              "Wilderness (2)"
+            ]
+          },
+          "cache": {
+            "source": {
+              "major": 18,
+              "minor": 1,
+              "subid": 46,
+              "rawSha256": "32c0279bd870d5baacfef68f071f2172cfe29b5eaeeb2f9c582a4cdf24890c43",
+              "rawBytes": 205,
+              "archiveSha256": "13427ae03566506267a03d14ee4ef0f6794b0fadc7cb871d80a1c73b3d7ec280"
+            },
+            "definitionSha256": "812d843c9228a01ccb36f5b6bcdebe7f83375eac413fb1efad7cedbdc1433e8f"
+          }
+        }
+      ]
+    }
+  ],
+  "mappings": [
+    {
+      "field": "maxMeleeHit",
+      "param": 641,
+      "divisor": 10,
+      "status": "inferred-and-sample-calibrated",
+      "samples": [
+        {
+          "id": 41,
+          "name": "Chicken",
+          "rawValue": 150,
+          "expectedValue": 15,
+          "source": {
+            "url": "https://runescape.wiki/w/Chicken?oldid=37142047",
+            "revid": 37142047,
+            "field": [
+              "Infobox Monster.max_melee"
+            ]
+          },
+          "cache": {
+            "source": {
+              "major": 18,
+              "minor": 0,
+              "subid": 41,
+              "rawSha256": "a3eb5b3ea784e0bd854b345478d61503c915b34e3eea43fc800dfad7536bf4c5",
+              "rawBytes": 145,
+              "archiveSha256": "45ccd0fd9782eb54477581a052629fa1ce28ecab14219dfc3081ce2eda90a6e5"
+            },
+            "definitionSha256": "f3ab85543eb0b4c8ef80480ac5eb104992f479aa07085af8844492339b2363b9"
+          }
+        },
+        {
+          "id": 81,
+          "name": "Cow",
+          "rawValue": 200,
+          "expectedValue": 20,
+          "source": {
+            "url": "https://runescape.wiki/w/Cow?oldid=37142844",
+            "revid": 37142844,
+            "field": [
+              "Infobox Monster.max_melee"
+            ]
+          },
+          "cache": {
+            "source": {
+              "major": 18,
+              "minor": 0,
+              "subid": 81,
+              "rawSha256": "62f9c99fbf91670709485c98800efbed4e826b232da9bd3011209f16eb1244db",
+              "rawBytes": 123,
+              "archiveSha256": "45ccd0fd9782eb54477581a052629fa1ce28ecab14219dfc3081ce2eda90a6e5"
+            },
+            "definitionSha256": "d0d57dff6a5c7eb5b6d6edd9b0f605f2d9eb00b871561590496c67190c18b141"
+          }
+        },
+        {
+          "id": 117,
+          "name": "Hill giant",
+          "rawValue": 4500,
+          "expectedValue": 450,
+          "source": {
+            "url": "https://runescape.wiki/w/Hill_giant?oldid=37142826",
+            "revid": 37142826,
+            "field": [
+              "Infobox Monster.max_melee"
+            ]
+          },
+          "cache": {
+            "source": {
+              "major": 18,
+              "minor": 0,
+              "subid": 117,
+              "rawSha256": "0f724d1c521042ae4fe2f5b395eb3c9a2204d5c59d003a5724ed325a26286614",
+              "rawBytes": 167,
+              "archiveSha256": "45ccd0fd9782eb54477581a052629fa1ce28ecab14219dfc3081ce2eda90a6e5"
+            },
+            "definitionSha256": "4b1eb62fc116bf837c830eee6de35727b9a55b0a5dbe2af31477ba9104e60976"
+          }
+        },
+        {
+          "id": 59,
+          "name": "Giant spider",
+          "rawValue": 400,
+          "expectedValue": 40,
+          "source": {
+            "url": "https://runescape.wiki/w/Giant_spider?oldid=37136145",
+            "revid": 37136145,
+            "field": [
+              "Infobox Monster.max_melee1"
+            ]
+          },
+          "cache": {
+            "source": {
+              "major": 18,
+              "minor": 0,
+              "subid": 59,
+              "rawSha256": "24353a56ddc2964a448d60bf77d3a42164c721fd67a4c7ec163f5b7dc60cccf3",
+              "rawBytes": 162,
+              "archiveSha256": "45ccd0fd9782eb54477581a052629fa1ce28ecab14219dfc3081ce2eda90a6e5"
+            },
+            "definitionSha256": "a28508eca7cff1c1a3b45bb46f6fc8e3c2cb7090501d0517d1f6d349da590692"
+          }
+        }
+      ]
+    },
+    {
+      "field": "maxMagicHit",
+      "param": 965,
+      "divisor": 10,
+      "status": "inferred-and-sample-calibrated",
+      "samples": [
+        {
+          "id": 82,
+          "name": "Lesser demon",
+          "rawValue": 4800,
+          "expectedValue": 480,
+          "source": {
+            "url": "https://runescape.wiki/w/Lesser_demon?oldid=37159794",
+            "revid": 37159794,
+            "field": [
+              "Infobox Monster.max_magic"
+            ]
+          },
+          "cache": {
+            "source": {
+              "major": 18,
+              "minor": 0,
+              "subid": 82,
+              "rawSha256": "9fcee63a5b19aa04d3f3c6819ae01efad8a64489b598b021675b9821119dcdfa",
+              "rawBytes": 114,
+              "archiveSha256": "45ccd0fd9782eb54477581a052629fa1ce28ecab14219dfc3081ce2eda90a6e5"
+            },
+            "definitionSha256": "e38178c49da36dc5a9adafb42452e660fb1c8b0990b573395bd45c71f3be1c0f"
+          }
+        },
+        {
+          "id": 13,
+          "name": "Wizard",
+          "rawValue": 1040,
+          "expectedValue": 104,
+          "source": {
+            "url": "https://runescape.wiki/w/Wizard?oldid=37143178",
+            "revid": 37143178,
+            "field": [
+              "Infobox Monster.max_magic"
+            ]
+          },
+          "cache": {
+            "source": {
+              "major": 18,
+              "minor": 0,
+              "subid": 13,
+              "rawSha256": "019dca496922b1554cc00282e55a97cf77c053cde2fbeaaf90a8d884abeb1089",
+              "rawBytes": 152,
+              "archiveSha256": "45ccd0fd9782eb54477581a052629fa1ce28ecab14219dfc3081ce2eda90a6e5"
+            },
+            "definitionSha256": "0382fc0463dd120b26ac071551888a590f3388717786c12622b2375aed090da3"
+          }
+        },
+        {
+          "id": 172,
+          "name": "Dark wizard",
+          "rawValue": 5000,
+          "expectedValue": 500,
+          "source": {
+            "url": "https://runescape.wiki/w/Dark_wizard?oldid=37176644",
+            "revid": 37176644,
+            "field": [
+              "Infobox Monster.max_magic1"
+            ]
+          },
+          "cache": {
+            "source": {
+              "major": 18,
+              "minor": 1,
+              "subid": 44,
+              "rawSha256": "df17e4786dea03ebfe8ee3546b94e37f8923bb710b30821f9e865f8a3678ff34",
+              "rawBytes": 201,
+              "archiveSha256": "13427ae03566506267a03d14ee4ef0f6794b0fadc7cb871d80a1c73b3d7ec280"
+            },
+            "definitionSha256": "b81e4237a5f7d47655caaf502c0c8e47553a9d25078ad197ad3bce69b3461d95"
+          }
+        },
+        {
+          "id": 174,
+          "name": "Dark wizard",
+          "rawValue": 3000,
+          "expectedValue": 300,
+          "source": {
+            "url": "https://runescape.wiki/w/Dark_wizard?oldid=37176644",
+            "revid": 37176644,
+            "field": [
+              "Infobox Monster.max_magic2"
+            ]
+          },
+          "cache": {
+            "source": {
+              "major": 18,
+              "minor": 1,
+              "subid": 46,
+              "rawSha256": "32c0279bd870d5baacfef68f071f2172cfe29b5eaeeb2f9c582a4cdf24890c43",
+              "rawBytes": 205,
+              "archiveSha256": "13427ae03566506267a03d14ee4ef0f6794b0fadc7cb871d80a1c73b3d7ec280"
+            },
+            "definitionSha256": "812d843c9228a01ccb36f5b6bcdebe7f83375eac413fb1efad7cedbdc1433e8f"
+          }
+        }
+      ]
+    },
+    {
+      "field": "meleeAccuracy",
+      "param": 29,
+      "divisor": 1,
+      "status": "inferred-and-sample-calibrated",
+      "samples": [
+        {
+          "id": 41,
+          "name": "Chicken",
+          "rawValue": 10,
+          "expectedValue": 10,
+          "source": {
+            "url": "https://runescape.wiki/w/Chicken?oldid=37142047",
+            "revid": 37142047,
+            "field": [
+              "Infobox Monster.acc_melee"
+            ]
+          },
+          "cache": {
+            "source": {
+              "major": 18,
+              "minor": 0,
+              "subid": 41,
+              "rawSha256": "a3eb5b3ea784e0bd854b345478d61503c915b34e3eea43fc800dfad7536bf4c5",
+              "rawBytes": 145,
+              "archiveSha256": "45ccd0fd9782eb54477581a052629fa1ce28ecab14219dfc3081ce2eda90a6e5"
+            },
+            "definitionSha256": "f3ab85543eb0b4c8ef80480ac5eb104992f479aa07085af8844492339b2363b9"
+          }
+        },
+        {
+          "id": 81,
+          "name": "Cow",
+          "rawValue": 20,
+          "expectedValue": 20,
+          "source": {
+            "url": "https://runescape.wiki/w/Cow?oldid=37142844",
+            "revid": 37142844,
+            "field": [
+              "Infobox Monster.acc_melee"
+            ]
+          },
+          "cache": {
+            "source": {
+              "major": 18,
+              "minor": 0,
+              "subid": 81,
+              "rawSha256": "62f9c99fbf91670709485c98800efbed4e826b232da9bd3011209f16eb1244db",
+              "rawBytes": 123,
+              "archiveSha256": "45ccd0fd9782eb54477581a052629fa1ce28ecab14219dfc3081ce2eda90a6e5"
+            },
+            "definitionSha256": "d0d57dff6a5c7eb5b6d6edd9b0f605f2d9eb00b871561590496c67190c18b141"
+          }
+        },
+        {
+          "id": 117,
+          "name": "Hill giant",
+          "rawValue": 157,
+          "expectedValue": 157,
+          "source": {
+            "url": "https://runescape.wiki/w/Hill_giant?oldid=37142826",
+            "revid": 37142826,
+            "field": [
+              "Infobox Monster.acc_melee"
+            ]
+          },
+          "cache": {
+            "source": {
+              "major": 18,
+              "minor": 0,
+              "subid": 117,
+              "rawSha256": "0f724d1c521042ae4fe2f5b395eb3c9a2204d5c59d003a5724ed325a26286614",
+              "rawBytes": 167,
+              "archiveSha256": "45ccd0fd9782eb54477581a052629fa1ce28ecab14219dfc3081ce2eda90a6e5"
+            },
+            "definitionSha256": "4b1eb62fc116bf837c830eee6de35727b9a55b0a5dbe2af31477ba9104e60976"
+          }
+        },
+        {
+          "id": 59,
+          "name": "Giant spider",
+          "rawValue": 20,
+          "expectedValue": 20,
+          "source": {
+            "url": "https://runescape.wiki/w/Giant_spider?oldid=37136145",
+            "revid": 37136145,
+            "field": [
+              "Infobox Monster.acc_melee1"
+            ]
+          },
+          "cache": {
+            "source": {
+              "major": 18,
+              "minor": 0,
+              "subid": 59,
+              "rawSha256": "24353a56ddc2964a448d60bf77d3a42164c721fd67a4c7ec163f5b7dc60cccf3",
+              "rawBytes": 162,
+              "archiveSha256": "45ccd0fd9782eb54477581a052629fa1ce28ecab14219dfc3081ce2eda90a6e5"
+            },
+            "definitionSha256": "a28508eca7cff1c1a3b45bb46f6fc8e3c2cb7090501d0517d1f6d349da590692"
+          }
+        }
+      ]
+    },
+    {
+      "field": "magicAccuracy",
+      "param": 3,
+      "divisor": 1,
+      "status": "inferred-and-sample-calibrated",
+      "samples": [
+        {
+          "id": 82,
+          "name": "Lesser demon",
+          "rawValue": 850,
+          "expectedValue": 850,
+          "source": {
+            "url": "https://runescape.wiki/w/Lesser_demon?oldid=37159794",
+            "revid": 37159794,
+            "field": [
+              "Infobox Monster.acc_magic"
+            ]
+          },
+          "cache": {
+            "source": {
+              "major": 18,
+              "minor": 0,
+              "subid": 82,
+              "rawSha256": "9fcee63a5b19aa04d3f3c6819ae01efad8a64489b598b021675b9821119dcdfa",
+              "rawBytes": 114,
+              "archiveSha256": "45ccd0fd9782eb54477581a052629fa1ce28ecab14219dfc3081ce2eda90a6e5"
+            },
+            "definitionSha256": "e38178c49da36dc5a9adafb42452e660fb1c8b0990b573395bd45c71f3be1c0f"
+          }
+        },
+        {
+          "id": 13,
+          "name": "Wizard",
+          "rawValue": 234,
+          "expectedValue": 234,
+          "source": {
+            "url": "https://runescape.wiki/w/Wizard?oldid=37143178",
+            "revid": 37143178,
+            "field": [
+              "Infobox Monster.acc_magic"
+            ]
+          },
+          "cache": {
+            "source": {
+              "major": 18,
+              "minor": 0,
+              "subid": 13,
+              "rawSha256": "019dca496922b1554cc00282e55a97cf77c053cde2fbeaaf90a8d884abeb1089",
+              "rawBytes": 152,
+              "archiveSha256": "45ccd0fd9782eb54477581a052629fa1ce28ecab14219dfc3081ce2eda90a6e5"
+            },
+            "definitionSha256": "0382fc0463dd120b26ac071551888a590f3388717786c12622b2375aed090da3"
+          }
+        },
+        {
+          "id": 172,
+          "name": "Dark wizard",
+          "rawValue": 281,
+          "expectedValue": 281,
+          "source": {
+            "url": "https://runescape.wiki/w/Dark_wizard?oldid=37176644",
+            "revid": 37176644,
+            "field": [
+              "Infobox Monster.acc_magic1"
+            ]
+          },
+          "cache": {
+            "source": {
+              "major": 18,
+              "minor": 1,
+              "subid": 44,
+              "rawSha256": "df17e4786dea03ebfe8ee3546b94e37f8923bb710b30821f9e865f8a3678ff34",
+              "rawBytes": 201,
+              "archiveSha256": "13427ae03566506267a03d14ee4ef0f6794b0fadc7cb871d80a1c73b3d7ec280"
+            },
+            "definitionSha256": "b81e4237a5f7d47655caaf502c0c8e47553a9d25078ad197ad3bce69b3461d95"
+          }
+        },
+        {
+          "id": 174,
+          "name": "Dark wizard",
+          "rawValue": 157,
+          "expectedValue": 157,
+          "source": {
+            "url": "https://runescape.wiki/w/Dark_wizard?oldid=37176644",
+            "revid": 37176644,
+            "field": [
+              "Infobox Monster.acc_magic2"
+            ]
+          },
+          "cache": {
+            "source": {
+              "major": 18,
+              "minor": 1,
+              "subid": 46,
+              "rawSha256": "32c0279bd870d5baacfef68f071f2172cfe29b5eaeeb2f9c582a4cdf24890c43",
+              "rawBytes": 205,
+              "archiveSha256": "13427ae03566506267a03d14ee4ef0f6794b0fadc7cb871d80a1c73b3d7ec280"
+            },
+            "definitionSha256": "812d843c9228a01ccb36f5b6bcdebe7f83375eac413fb1efad7cedbdc1433e8f"
+          }
+        }
+      ]
+    },
+    {
+      "field": "armour",
+      "param": 2865,
+      "divisor": 1,
+      "status": "inferred-and-sample-calibrated",
+      "samples": [
+        {
+          "id": 41,
+          "name": "Chicken",
+          "rawValue": 110,
+          "expectedValue": 110,
+          "source": {
+            "url": "https://runescape.wiki/w/Chicken?oldid=37142047",
+            "revid": 37142047,
+            "field": [
+              "Infobox Monster.armour"
+            ]
+          },
+          "cache": {
+            "source": {
+              "major": 18,
+              "minor": 0,
+              "subid": 41,
+              "rawSha256": "a3eb5b3ea784e0bd854b345478d61503c915b34e3eea43fc800dfad7536bf4c5",
+              "rawBytes": 145,
+              "archiveSha256": "45ccd0fd9782eb54477581a052629fa1ce28ecab14219dfc3081ce2eda90a6e5"
+            },
+            "definitionSha256": "f3ab85543eb0b4c8ef80480ac5eb104992f479aa07085af8844492339b2363b9"
+          }
+        },
+        {
+          "id": 81,
+          "name": "Cow",
+          "rawValue": 110,
+          "expectedValue": 110,
+          "source": {
+            "url": "https://runescape.wiki/w/Cow?oldid=37142844",
+            "revid": 37142844,
+            "field": [
+              "Infobox Monster.armour"
+            ]
+          },
+          "cache": {
+            "source": {
+              "major": 18,
+              "minor": 0,
+              "subid": 81,
+              "rawSha256": "62f9c99fbf91670709485c98800efbed4e826b232da9bd3011209f16eb1244db",
+              "rawBytes": 123,
+              "archiveSha256": "45ccd0fd9782eb54477581a052629fa1ce28ecab14219dfc3081ce2eda90a6e5"
+            },
+            "definitionSha256": "d0d57dff6a5c7eb5b6d6edd9b0f605f2d9eb00b871561590496c67190c18b141"
+          }
+        },
+        {
+          "id": 117,
+          "name": "Hill giant",
+          "rawValue": 341,
+          "expectedValue": 341,
+          "source": {
+            "url": "https://runescape.wiki/w/Hill_giant?oldid=37142826",
+            "revid": 37142826,
+            "field": [
+              "Infobox Monster.armour"
+            ]
+          },
+          "cache": {
+            "source": {
+              "major": 18,
+              "minor": 0,
+              "subid": 117,
+              "rawSha256": "0f724d1c521042ae4fe2f5b395eb3c9a2204d5c59d003a5724ed325a26286614",
+              "rawBytes": 167,
+              "archiveSha256": "45ccd0fd9782eb54477581a052629fa1ce28ecab14219dfc3081ce2eda90a6e5"
+            },
+            "definitionSha256": "4b1eb62fc116bf837c830eee6de35727b9a55b0a5dbe2af31477ba9104e60976"
+          }
+        },
+        {
+          "id": 59,
+          "name": "Giant spider",
+          "rawValue": 120,
+          "expectedValue": 120,
+          "source": {
+            "url": "https://runescape.wiki/w/Giant_spider?oldid=37136145",
+            "revid": 37136145,
+            "field": [
+              "Infobox Monster.armour1"
+            ]
+          },
+          "cache": {
+            "source": {
+              "major": 18,
+              "minor": 0,
+              "subid": 59,
+              "rawSha256": "24353a56ddc2964a448d60bf77d3a42164c721fd67a4c7ec163f5b7dc60cccf3",
+              "rawBytes": 162,
+              "archiveSha256": "45ccd0fd9782eb54477581a052629fa1ce28ecab14219dfc3081ce2eda90a6e5"
+            },
+            "definitionSha256": "a28508eca7cff1c1a3b45bb46f6fc8e3c2cb7090501d0517d1f6d349da590692"
+          }
+        },
+        {
+          "id": 82,
+          "name": "Lesser demon",
+          "rawValue": 850,
+          "expectedValue": 850,
+          "source": {
+            "url": "https://runescape.wiki/w/Lesser_demon?oldid=37159794",
+            "revid": 37159794,
+            "field": [
+              "Infobox Monster.armour"
+            ]
+          },
+          "cache": {
+            "source": {
+              "major": 18,
+              "minor": 0,
+              "subid": 82,
+              "rawSha256": "9fcee63a5b19aa04d3f3c6819ae01efad8a64489b598b021675b9821119dcdfa",
+              "rawBytes": 114,
+              "archiveSha256": "45ccd0fd9782eb54477581a052629fa1ce28ecab14219dfc3081ce2eda90a6e5"
+            },
+            "definitionSha256": "e38178c49da36dc5a9adafb42452e660fb1c8b0990b573395bd45c71f3be1c0f"
+          }
+        },
+        {
+          "id": 13,
+          "name": "Wizard",
+          "rawValue": 234,
+          "expectedValue": 234,
+          "source": {
+            "url": "https://runescape.wiki/w/Wizard?oldid=37143178",
+            "revid": 37143178,
+            "field": [
+              "Infobox Monster.armour"
+            ]
+          },
+          "cache": {
+            "source": {
+              "major": 18,
+              "minor": 0,
+              "subid": 13,
+              "rawSha256": "019dca496922b1554cc00282e55a97cf77c053cde2fbeaaf90a8d884abeb1089",
+              "rawBytes": 152,
+              "archiveSha256": "45ccd0fd9782eb54477581a052629fa1ce28ecab14219dfc3081ce2eda90a6e5"
+            },
+            "definitionSha256": "0382fc0463dd120b26ac071551888a590f3388717786c12622b2375aed090da3"
+          }
+        },
+        {
+          "id": 172,
+          "name": "Dark wizard",
+          "rawValue": 381,
+          "expectedValue": 381,
+          "source": {
+            "url": "https://runescape.wiki/w/Dark_wizard?oldid=37176644",
+            "revid": 37176644,
+            "field": [
+              "Infobox Monster.armour1"
+            ]
+          },
+          "cache": {
+            "source": {
+              "major": 18,
+              "minor": 1,
+              "subid": 44,
+              "rawSha256": "df17e4786dea03ebfe8ee3546b94e37f8923bb710b30821f9e865f8a3678ff34",
+              "rawBytes": 201,
+              "archiveSha256": "13427ae03566506267a03d14ee4ef0f6794b0fadc7cb871d80a1c73b3d7ec280"
+            },
+            "definitionSha256": "b81e4237a5f7d47655caaf502c0c8e47553a9d25078ad197ad3bce69b3461d95"
+          }
+        },
+        {
+          "id": 174,
+          "name": "Dark wizard",
+          "rawValue": 257,
+          "expectedValue": 257,
+          "source": {
+            "url": "https://runescape.wiki/w/Dark_wizard?oldid=37176644",
+            "revid": 37176644,
+            "field": [
+              "Infobox Monster.armour2"
+            ]
+          },
+          "cache": {
+            "source": {
+              "major": 18,
+              "minor": 1,
+              "subid": 46,
+              "rawSha256": "32c0279bd870d5baacfef68f071f2172cfe29b5eaeeb2f9c582a4cdf24890c43",
+              "rawBytes": 205,
+              "archiveSha256": "13427ae03566506267a03d14ee4ef0f6794b0fadc7cb871d80a1c73b3d7ec280"
+            },
+            "definitionSha256": "812d843c9228a01ccb36f5b6bcdebe7f83375eac413fb1efad7cedbdc1433e8f"
+          }
+        }
+      ]
+    }
+  ],
+  "lifePoints": {
+    "status": "unavailable-no-common-parameter-mapping",
+    "candidates": [],
+    "testedDivisors": [
+      1,
+      10,
+      100,
+      1000
+    ],
+    "samples": [
+      {
+        "id": 41,
+        "name": "Chicken",
+        "expectedLifePoints": 250,
+        "numericParams": [
+          {
+            "param": 2849,
+            "value": 90
+          },
+          {
+            "param": 2850,
+            "value": 70
+          },
+          {
+            "param": 2851,
+            "value": 60
+          },
+          {
+            "param": 2852,
+            "value": 50
+          },
+          {
+            "param": 26,
+            "value": 1
+          },
+          {
+            "param": 14,
+            "value": 3
+          },
+          {
+            "param": 641,
+            "value": 150
+          },
+          {
+            "param": 29,
+            "value": 10
+          },
+          {
+            "param": 2865,
+            "value": 110
+          },
+          {
+            "param": 2848,
+            "value": 4
+          },
+          {
+            "param": 50,
+            "value": 5
+          }
+        ]
+      },
+      {
+        "id": 81,
+        "name": "Cow",
+        "expectedLifePoints": 1000,
+        "numericParams": [
+          {
+            "param": 2849,
+            "value": 90
+          },
+          {
+            "param": 2850,
+            "value": 70
+          },
+          {
+            "param": 2851,
+            "value": 60
+          },
+          {
+            "param": 2852,
+            "value": 50
+          },
+          {
+            "param": 26,
+            "value": 1
+          },
+          {
+            "param": 14,
+            "value": 4
+          },
+          {
+            "param": 641,
+            "value": 200
+          },
+          {
+            "param": 29,
+            "value": 20
+          },
+          {
+            "param": 2865,
+            "value": 110
+          },
+          {
+            "param": 2848,
+            "value": 3
+          },
+          {
+            "param": 50,
+            "value": 6
+          }
+        ]
+      },
+      {
+        "id": 117,
+        "name": "Hill giant",
+        "expectedLifePoints": 4500,
+        "numericParams": [
+          {
+            "param": 2849,
+            "value": 90
+          },
+          {
+            "param": 2850,
+            "value": 70
+          },
+          {
+            "param": 2851,
+            "value": 60
+          },
+          {
+            "param": 2852,
+            "value": 50
+          },
+          {
+            "param": 26,
+            "value": 1
+          },
+          {
+            "param": 14,
+            "value": 6
+          },
+          {
+            "param": 641,
+            "value": 4500
+          },
+          {
+            "param": 29,
+            "value": 157
+          },
+          {
+            "param": 2865,
+            "value": 341
+          },
+          {
+            "param": 2848,
+            "value": 1
+          },
+          {
+            "param": 50,
+            "value": 14
+          }
+        ]
+      },
+      {
+        "id": 82,
+        "name": "Lesser demon",
+        "expectedLifePoints": 5000,
+        "numericParams": [
+          {
+            "param": 2865,
+            "value": 850
+          },
+          {
+            "param": 2848,
+            "value": 9
+          },
+          {
+            "param": 14,
+            "value": 4
+          },
+          {
+            "param": 965,
+            "value": 4800
+          },
+          {
+            "param": 3,
+            "value": 850
+          },
+          {
+            "param": 26,
+            "value": 3
+          },
+          {
+            "param": 2836,
+            "value": 1
+          },
+          {
+            "param": 50,
+            "value": 28
+          }
+        ]
+      },
+      {
+        "id": 13,
+        "name": "Wizard",
+        "expectedLifePoints": 650,
+        "numericParams": [
+          {
+            "param": 2865,
+            "value": 234
+          },
+          {
+            "param": 2848,
+            "value": 8
+          },
+          {
+            "param": 14,
+            "value": 4
+          },
+          {
+            "param": 965,
+            "value": 1040
+          },
+          {
+            "param": 3,
+            "value": 234
+          },
+          {
+            "param": 26,
+            "value": 3
+          },
+          {
+            "param": 2955,
+            "value": 2688
+          },
+          {
+            "param": 2918,
+            "value": 18025
+          }
+        ]
+      },
+      {
+        "id": 172,
+        "name": "Dark wizard",
+        "expectedLifePoints": 2000,
+        "numericParams": [
+          {
+            "param": 2849,
+            "value": 90
+          },
+          {
+            "param": 2850,
+            "value": 70
+          },
+          {
+            "param": 2851,
+            "value": 60
+          },
+          {
+            "param": 2852,
+            "value": 50
+          },
+          {
+            "param": 26,
+            "value": 3
+          },
+          {
+            "param": 14,
+            "value": 4
+          },
+          {
+            "param": 965,
+            "value": 5000
+          },
+          {
+            "param": 3,
+            "value": 281
+          },
+          {
+            "param": 2865,
+            "value": 381
+          },
+          {
+            "param": 2848,
+            "value": 8
+          }
+        ]
+      },
+      {
+        "id": 174,
+        "name": "Dark wizard",
+        "expectedLifePoints": 1300,
+        "numericParams": [
+          {
+            "param": 2849,
+            "value": 90
+          },
+          {
+            "param": 2850,
+            "value": 70
+          },
+          {
+            "param": 2851,
+            "value": 60
+          },
+          {
+            "param": 2852,
+            "value": 50
+          },
+          {
+            "param": 26,
+            "value": 3
+          },
+          {
+            "param": 14,
+            "value": 4
+          },
+          {
+            "param": 965,
+            "value": 3000
+          },
+          {
+            "param": 3,
+            "value": 157
+          },
+          {
+            "param": 2865,
+            "value": 257
+          },
+          {
+            "param": 2848,
+            "value": 9
+          }
+        ]
+      }
+    ],
+    "limitation": "This tests common linear scales only. It does not prove no server-side or encoded life-point field exists."
+  },
+  "limits": [
+    "Combat corrections fill only the previously empty NPC metadata namespace for an exact retained label; names, counts, locations, drops and tasks are unchanged.",
+    "Every exact-name cache candidate must have the same explicit combat level; at least one matching explicit Wiki NPC ID must confirm it, and all Wiki variants for that name must agree.",
+    "Membership remains unknown: the pinned NPC schema has no overall members field. Member-only actions cannot establish membership.",
+    "Combat parameter semantics are inferred from independent ID-bound Wiki samples, not documented by the client schema. Unmatched parameters and absent values remain unknown.",
+    "Life points were not identified. A numeric coincidence with maximum-hit parameter 641 is not a life-point mapping.",
+    "Client definitions do not certify server spawns, placement counts, drops, shop stock, prices or respawn times."
+  ]
+}

@@ -1,0 +1,2770 @@
+{
+  "schemaVersion": 1,
+  "scope": "small inspected advisory production summary; full files local",
+  "provenance": {
+    "generatedAt": "2026-10-08T02:18:07.278Z",
+    "decoder": {
+      "repository": "https://github.com/skillbert/rsmv",
+      "commit": "a92b8920b9b9842adde78822646ecad1a6f4fc15",
+      "buildSchema": 950,
+      "buildStatus": "inferred schema version; not independently verified game client build",
+      "sourceHashes": {
+        "constants": "1436162d7de64725f3b5902d1ae278f40e2dce5ab1f82439e62a2a832d82c66b",
+        "opcode": "5fd7b69a0be0a5d4ec71b5465afcfd5812e8dbcc05f859e021ca8c17d85ed6e4"
+      },
+      "schemaHashes": {
+        "typedef.jsonc": "0d4037507c304ea3bd1e966a161dc1643115c0991e81711bf49d672545dc6858",
+        "cacheindex.json": "b65b2f60dba6168134f6ae5c90d5504dcf26f276477bd2aff213c6734293f793",
+        "mapsquare_tiles.jsonc": "64deb140845bf6605456da65b2de56e7766a66f4747fc90f43e7f3fcc95afbdd",
+        "mapsquare_tiles_nxt.jsonc": "0199a97ae17a56b5a4f05b5962fd80788e86807ceff1256d023a2e650f43be56",
+        "mapsquare_locations.json": "41867d05f7f9456c54f2eedda9a977734b99e33736b89c2cece1eb618a99b308",
+        "locs.jsonc": "fbd5f1d646341a716e1c3c4b41a112727e62922290b44300e69ba8e2aa70c51f",
+        "npcs.jsonc": "1b3b3ffa02e325c0aecafb7d7b22ff7256f11494ab37685115cfd795b0fa4af2",
+        "maplabels.jsonc": "e3bd3e0d827f48ddbb1470e2959c51da23624a4e0fdfc145fa37d62bce780d63",
+        "maplabellocations.jsonc": "5b95af45643e545ca75c9bc4f2d942c033b994a01a00e243d93c36e49372e342",
+        "mapzones_pastes.json": "30f83ad60a5e372e1644627aa234eeca22bbd8e1ece36c44e87a0229f20e40fa",
+        "mapzones.json": "8ba12ea64687bf7376978682ca35688adf1d05a9dca221073dc79f5060f15b29",
+        "mapsquare_overlays.jsonc": "ebf509b0cfeba3288750e40b2049ccd25a210170e54fad7fb387619043954d62",
+        "mapsquare_underlays.jsonc": "2b2f0db789c666d40d85a9764aa4e3ecb9b36bd8f0cacf89e3024180b76b5478",
+        "items.jsonc": "8d0148d6810a56f166a8609f9cebbf19b1c1ffc763bd73053b2e3220aa5d6009",
+        "structs.jsonc": "bf73399b40d9ebffb6f7beb5cab9c7b091724e6bcae0c5f76f61802a081d9870",
+        "enums.json": "860ee65ad6cd215960981695e8148de18564464f4375e27eb6b308fbad6c909d",
+        "params.jsonc": "a8ac70f87c66b79fa5ef3455d41c38434fa0a85cf78ea99b8a736ddc1aecc4dd",
+        "interfaces.jsonc": "105f29af0875ee27056bd748fecec8c840d441fa2d439a987cf725ce156a7091",
+        "clientscript.jsonc": "c37732813825bde0caa1823a787912324b1c34e497e689bb5d3ebbd4608079ea",
+        "clientscriptdata.jsonc": "e7eb3e90ac5d7214b0f5c06c6adfd1daa154883e7f8691b5ed290497e9cfedc3"
+      },
+      "footerValidation": "bounds and complete consumption required",
+      "executableInterpreterSha256": "ec7fa2cc9ab635bf2ef629f1fa8b77b6f32a97be1aaf4e26970ab2337e58bf16"
+    },
+    "reference": {
+      "path": "C:/Users/User/Projects/chunk-picker-rs3-wt/cachemine/rs3-chunkpicker-chunkinfo-export.json",
+      "sha256": "9dd835266f381abaa4d14033abcd0b43a001fe96d7df0a7f046fcc8676d66553"
+    },
+    "manifest": "recipes-manifest.v1.json"
+  },
+  "fullFiles": [
+    {
+      "path": "C:/Users/User/Projects/chunk-picker-rs3/.local/game-data/recipes-2026-10-08-v4/recipes.cache-2026-10-08.v1.json",
+      "bytes": 18895556,
+      "sha256": "1cfb331255a8c5bce5c964978654119142cafe14ed6840e12c5b482481763c0a"
+    },
+    {
+      "path": "C:/Users/User/Projects/chunk-picker-rs3/.local/game-data/recipes-2026-10-08-v4/recipes-retained-comparison.2026-10-08.v1.json",
+      "bytes": 3491341,
+      "sha256": "2797c2f0b46cc1b7b7f0a893ad61dd6dc04a3153b0f5cf6289ab7d6efd9ebc5f"
+    },
+    {
+      "path": "C:/Users/User/Projects/chunk-picker-rs3/.local/game-data/recipes-2026-10-08-v4/recipes-clientscript-headers.2026-10-08.v1.json",
+      "bytes": 6409062,
+      "sha256": "0f617b689ed8eb1941803fcb00292f433f92fa1836d408f0a7ef39f2ad841699"
+    }
+  ],
+  "manifest": {
+    "path": "C:/Users/User/Projects/chunk-picker-rs3/.local/game-data/recipes-2026-10-08-v4/recipes-manifest.v1.json",
+    "sha256": "08163e3c22d97198dba499d89022557fa24879b1b0611ee1e8c4b48b91805f79"
+  },
+  "summary": {
+    "candidates": 6848,
+    "namedProducts": 6848,
+    "ingredientPayload": 6835,
+    "missingIngredientPayload": 13,
+    "rawXpPresent": 5870,
+    "normalizedXpValidated": 9,
+    "groupedRequirements": 1320,
+    "fragmentsWithoutPrimarySkill": 338,
+    "ingredientStructFragments": 477,
+    "unmappedRequirementSkillCandidates": 2725,
+    "unresolvedStructReferences": 0,
+    "duplicateParamCandidates": 118,
+    "perSkill": [
+      {
+        "skill": "Attack",
+        "candidates": 0,
+        "productNotMembersMarked": 0,
+        "ingredientPayload": 0,
+        "rawXpPresent": 0,
+        "normalizedXpValidated": 0,
+        "f2pSkillFamily": false
+      },
+      {
+        "skill": "Strength",
+        "candidates": 0,
+        "productNotMembersMarked": 0,
+        "ingredientPayload": 0,
+        "rawXpPresent": 0,
+        "normalizedXpValidated": 0,
+        "f2pSkillFamily": false
+      },
+      {
+        "skill": "Ranged",
+        "candidates": 0,
+        "productNotMembersMarked": 0,
+        "ingredientPayload": 0,
+        "rawXpPresent": 0,
+        "normalizedXpValidated": 0,
+        "f2pSkillFamily": false
+      },
+      {
+        "skill": "Magic",
+        "candidates": 180,
+        "productNotMembersMarked": 13,
+        "ingredientPayload": 180,
+        "rawXpPresent": 174,
+        "normalizedXpValidated": 0,
+        "f2pSkillFamily": true
+      },
+      {
+        "skill": "Defence",
+        "candidates": 0,
+        "productNotMembersMarked": 0,
+        "ingredientPayload": 0,
+        "rawXpPresent": 0,
+        "normalizedXpValidated": 0,
+        "f2pSkillFamily": false
+      },
+      {
+        "skill": "Constitution",
+        "candidates": 23,
+        "productNotMembersMarked": 2,
+        "ingredientPayload": 23,
+        "rawXpPresent": 23,
+        "normalizedXpValidated": 0,
+        "f2pSkillFamily": false
+      },
+      {
+        "skill": "Prayer",
+        "candidates": 9,
+        "productNotMembersMarked": 0,
+        "ingredientPayload": 9,
+        "rawXpPresent": 9,
+        "normalizedXpValidated": 0,
+        "f2pSkillFamily": true
+      },
+      {
+        "skill": "Agility",
+        "candidates": 1,
+        "productNotMembersMarked": 0,
+        "ingredientPayload": 1,
+        "rawXpPresent": 1,
+        "normalizedXpValidated": 0,
+        "f2pSkillFamily": false
+      },
+      {
+        "skill": "Herblore",
+        "candidates": 462,
+        "productNotMembersMarked": 74,
+        "ingredientPayload": 460,
+        "rawXpPresent": 438,
+        "normalizedXpValidated": 0,
+        "f2pSkillFamily": false
+      },
+      {
+        "skill": "Thieving",
+        "candidates": 1,
+        "productNotMembersMarked": 1,
+        "ingredientPayload": 1,
+        "rawXpPresent": 1,
+        "normalizedXpValidated": 0,
+        "f2pSkillFamily": false
+      },
+      {
+        "skill": "Crafting",
+        "candidates": 1247,
+        "productNotMembersMarked": 391,
+        "ingredientPayload": 1241,
+        "rawXpPresent": 1174,
+        "normalizedXpValidated": 1,
+        "f2pSkillFamily": true
+      },
+      {
+        "skill": "Runecrafting",
+        "candidates": 220,
+        "productNotMembersMarked": 75,
+        "ingredientPayload": 220,
+        "rawXpPresent": 185,
+        "normalizedXpValidated": 0,
+        "f2pSkillFamily": true
+      },
+      {
+        "skill": "Mining",
+        "candidates": 1,
+        "productNotMembersMarked": 1,
+        "ingredientPayload": 1,
+        "rawXpPresent": 1,
+        "normalizedXpValidated": 0,
+        "f2pSkillFamily": false
+      },
+      {
+        "skill": "Smithing",
+        "candidates": 1503,
+        "productNotMembersMarked": 838,
+        "ingredientPayload": 1503,
+        "rawXpPresent": 1489,
+        "normalizedXpValidated": 2,
+        "f2pSkillFamily": true
+      },
+      {
+        "skill": "Fishing",
+        "candidates": 1,
+        "productNotMembersMarked": 1,
+        "ingredientPayload": 1,
+        "rawXpPresent": 1,
+        "normalizedXpValidated": 0,
+        "f2pSkillFamily": false
+      },
+      {
+        "skill": "Cooking",
+        "candidates": 424,
+        "productNotMembersMarked": 104,
+        "ingredientPayload": 422,
+        "rawXpPresent": 365,
+        "normalizedXpValidated": 1,
+        "f2pSkillFamily": true
+      },
+      {
+        "skill": "Firemaking",
+        "candidates": 52,
+        "productNotMembersMarked": 14,
+        "ingredientPayload": 52,
+        "rawXpPresent": 51,
+        "normalizedXpValidated": 0,
+        "f2pSkillFamily": true
+      },
+      {
+        "skill": "Woodcutting",
+        "candidates": 5,
+        "productNotMembersMarked": 1,
+        "ingredientPayload": 4,
+        "rawXpPresent": 4,
+        "normalizedXpValidated": 0,
+        "f2pSkillFamily": true
+      },
+      {
+        "skill": "Fletching",
+        "candidates": 449,
+        "productNotMembersMarked": 186,
+        "ingredientPayload": 449,
+        "rawXpPresent": 444,
+        "normalizedXpValidated": 5,
+        "f2pSkillFamily": true
+      },
+      {
+        "skill": "Slayer",
+        "candidates": 18,
+        "productNotMembersMarked": 0,
+        "ingredientPayload": 18,
+        "rawXpPresent": 0,
+        "normalizedXpValidated": 0,
+        "f2pSkillFamily": false
+      },
+      {
+        "skill": "Farming",
+        "candidates": 376,
+        "productNotMembersMarked": 320,
+        "ingredientPayload": 375,
+        "rawXpPresent": 373,
+        "normalizedXpValidated": 0,
+        "f2pSkillFamily": false
+      },
+      {
+        "skill": "Construction",
+        "candidates": 737,
+        "productNotMembersMarked": 180,
+        "ingredientPayload": 737,
+        "rawXpPresent": 99,
+        "normalizedXpValidated": 0,
+        "f2pSkillFamily": false
+      },
+      {
+        "skill": "Hunter",
+        "candidates": 32,
+        "productNotMembersMarked": 1,
+        "ingredientPayload": 32,
+        "rawXpPresent": 3,
+        "normalizedXpValidated": 0,
+        "f2pSkillFamily": false
+      },
+      {
+        "skill": "Summoning",
+        "candidates": 397,
+        "productNotMembersMarked": 5,
+        "ingredientPayload": 397,
+        "rawXpPresent": 304,
+        "normalizedXpValidated": 0,
+        "f2pSkillFamily": false
+      },
+      {
+        "skill": "Dungeoneering",
+        "candidates": 1,
+        "productNotMembersMarked": 1,
+        "ingredientPayload": 1,
+        "rawXpPresent": 1,
+        "normalizedXpValidated": 0,
+        "f2pSkillFamily": false
+      },
+      {
+        "skill": "Divination",
+        "candidates": 263,
+        "productNotMembersMarked": 62,
+        "ingredientPayload": 263,
+        "rawXpPresent": 263,
+        "normalizedXpValidated": 0,
+        "f2pSkillFamily": false
+      },
+      {
+        "skill": "Invention",
+        "candidates": 245,
+        "productNotMembersMarked": 33,
+        "ingredientPayload": 244,
+        "rawXpPresent": 244,
+        "normalizedXpValidated": 0,
+        "f2pSkillFamily": false
+      },
+      {
+        "skill": "Archaeology",
+        "candidates": 265,
+        "productNotMembersMarked": 25,
+        "ingredientPayload": 265,
+        "rawXpPresent": 265,
+        "normalizedXpValidated": 0,
+        "f2pSkillFamily": false
+      },
+      {
+        "skill": "Necromancy",
+        "candidates": 66,
+        "productNotMembersMarked": 19,
+        "ingredientPayload": 65,
+        "rawXpPresent": 66,
+        "normalizedXpValidated": 0,
+        "f2pSkillFamily": false
+      },
+      {
+        "skill": "Quest point",
+        "candidates": 0,
+        "productNotMembersMarked": 0,
+        "ingredientPayload": 0,
+        "rawXpPresent": 0,
+        "normalizedXpValidated": 0,
+        "f2pSkillFamily": false
+      }
+    ],
+    "retained": {
+      "taskCount": 4424,
+      "withOutputSkillMatch": 2417,
+      "matchedLevelAgree": 2259,
+      "matchedLevelDisagree": 153,
+      "matchedLevelMixed": 5,
+      "ambiguousOutputSkillMatches": 119,
+      "matchedWithAllRetainedInputNames": 1991,
+      "matchedWithInputNameGaps": 426
+    }
+  },
+  "inspection": {
+    "tables": {
+      "items": {
+        "decoded": 63798,
+        "errors": []
+      },
+      "structs": {
+        "decoded": 53501,
+        "errors": []
+      },
+      "enums": {
+        "decoded": 16755,
+        "errors": []
+      },
+      "params": {
+        "decoded": 9498,
+        "errors": []
+      }
+    },
+    "interfaces": {
+      "decoded": 104223,
+      "errors": [
+        {
+          "major": 3,
+          "minor": 105,
+          "subid": 225,
+          "id": 6881505,
+          "message": "interface at byte 178/264: no opcode matched"
+        },
+        {
+          "major": 3,
+          "minor": 707,
+          "subid": 15,
+          "id": 46333967,
+          "message": "interface at byte 178/264: no opcode matched"
+        },
+        {
+          "major": 3,
+          "minor": 1438,
+          "subid": 18,
+          "id": 94240786,
+          "message": "interface at byte 251/343: no opcode matched"
+        },
+        {
+          "major": 3,
+          "minor": 1438,
+          "subid": 19,
+          "id": 94240787,
+          "message": "interface at byte 251/338: no opcode matched"
+        }
+      ],
+      "textSearchMatches": 87
+    },
+    "clientscripts": {
+      "declared": 21115,
+      "headersDecoded": 21115,
+      "headerErrors": [],
+      "status": "unavailable",
+      "reason": "clientscript at byte 1/526: clientScriptDeob not set in args"
+    }
+  },
+  "samples": [
+    {
+      "id": "cache:item:50:production",
+      "product": {
+        "id": 50,
+        "name": "Shortbow (unstrung)",
+        "membersMarked": false,
+        "definitionPresent": true
+      },
+      "source": {
+        "major": 19,
+        "minor": 0,
+        "subid": 50
+      },
+      "recordKind": "item production definition candidate",
+      "outputQuantity": 1,
+      "outputQuantityOrigin": "param 2653 default",
+      "requirements": [
+        {
+          "skillId": 19,
+          "skill": "Fletching",
+          "level": 1,
+          "params": [
+            2640,
+            2645
+          ]
+        }
+      ],
+      "tools": [
+        {
+          "id": 946,
+          "name": "Knife",
+          "membersMarked": false,
+          "definitionPresent": true,
+          "param": 2650
+        }
+      ],
+      "directInputs": [
+        {
+          "slot": 0,
+          "item": {
+            "id": 1511,
+            "name": "Logs",
+            "membersMarked": false,
+            "definitionPresent": true
+          },
+          "encodedQuantity": 1,
+          "quantityUnit": "unverified cache requirement quantity; batch scaling is not inferred",
+          "quantityFlag": 1,
+          "params": {
+            "item": 2655,
+            "quantity": 2665,
+            "flag": 2686
+          },
+          "additionalParams": []
+        }
+      ],
+      "requirementGroups": [],
+      "xp": {
+        "value": 5,
+        "unit": "per completed unstrung bow",
+        "raw": 50,
+        "params": [
+          2696,
+          2697
+        ],
+        "skill": "Fletching",
+        "validation": {
+          "source": "RuneScape Wiki current revision",
+          "revision": 37136718,
+          "url": "https://runescape.wiki/w/Shortbow_(unstrung)?oldid=37136718"
+        }
+      },
+      "rawXp": {
+        "value": 50,
+        "skillId": 19,
+        "unit": "raw integer; tenths-of-XP family corroborated in nine samples, action/batch units unverified here"
+      },
+      "members": {
+        "productMarked": false,
+        "activityEligibility": "unverified: product membership alone does not establish recipe, ingredient or facility access"
+      },
+      "rawParams": [
+        {
+          "prop": 2195,
+          "intvalue": 11,
+          "stringvalue": null
+        },
+        {
+          "prop": 537,
+          "intvalue": 4193,
+          "stringvalue": null
+        },
+        {
+          "prop": 1397,
+          "intvalue": 1,
+          "stringvalue": null
+        },
+        {
+          "prop": 2640,
+          "intvalue": 19,
+          "stringvalue": null
+        },
+        {
+          "prop": 2650,
+          "intvalue": 946,
+          "stringvalue": null
+        },
+        {
+          "prop": 2665,
+          "intvalue": 1,
+          "stringvalue": null
+        },
+        {
+          "prop": 2696,
+          "intvalue": 19,
+          "stringvalue": null
+        },
+        {
+          "prop": 1397,
+          "intvalue": 1,
+          "stringvalue": null
+        },
+        {
+          "prop": 2639,
+          "intvalue": 0,
+          "stringvalue": null
+        },
+        {
+          "prop": 2645,
+          "intvalue": 1,
+          "stringvalue": null
+        },
+        {
+          "prop": 2655,
+          "intvalue": 1511,
+          "stringvalue": null
+        },
+        {
+          "prop": 2697,
+          "intvalue": 50,
+          "stringvalue": null
+        }
+      ],
+      "duplicateParams": [
+        1397
+      ],
+      "warnings": [
+        "Duplicate params preserved in raw extra; normalized value uses last encoded entry"
+      ],
+      "missing": [
+        "server recipe execution",
+        "facility/access requirements",
+        "failure probability",
+        "duration/throughput",
+        "player inventory state"
+      ]
+    },
+    {
+      "id": "cache:item:52:production",
+      "product": {
+        "id": 52,
+        "name": "Shaft",
+        "membersMarked": false,
+        "definitionPresent": true
+      },
+      "source": {
+        "major": 19,
+        "minor": 0,
+        "subid": 52
+      },
+      "recordKind": "item production definition candidate",
+      "outputQuantity": 15,
+      "outputQuantityOrigin": "explicit param 2653",
+      "requirements": [
+        {
+          "skillId": 19,
+          "skill": "Fletching",
+          "level": 1,
+          "params": [
+            2640,
+            2645
+          ]
+        }
+      ],
+      "tools": [
+        {
+          "id": 946,
+          "name": "Knife",
+          "membersMarked": false,
+          "definitionPresent": true,
+          "param": 2650
+        }
+      ],
+      "directInputs": [
+        {
+          "slot": 0,
+          "item": {
+            "id": 1511,
+            "name": "Logs",
+            "membersMarked": false,
+            "definitionPresent": true
+          },
+          "encodedQuantity": 1,
+          "quantityUnit": "unverified cache requirement quantity; batch scaling is not inferred",
+          "quantityFlag": 1,
+          "params": {
+            "item": 2655,
+            "quantity": 2665,
+            "flag": 2686
+          },
+          "additionalParams": []
+        }
+      ],
+      "requirementGroups": [],
+      "xp": {
+        "value": 5,
+        "unit": "per normal log cut into 15 shafts",
+        "raw": 50,
+        "params": [
+          2696,
+          2697
+        ],
+        "skill": "Fletching",
+        "validation": {
+          "source": "RuneScape Wiki current revision",
+          "revision": 37171926,
+          "url": "https://runescape.wiki/w/Shaft?oldid=37171926"
+        }
+      },
+      "rawXp": {
+        "value": 50,
+        "skillId": 19,
+        "unit": "raw integer; tenths-of-XP family corroborated in nine samples, action/batch units unverified here"
+      },
+      "members": {
+        "productMarked": false,
+        "activityEligibility": "unverified: product membership alone does not establish recipe, ingredient or facility access"
+      },
+      "rawParams": [
+        {
+          "prop": 2195,
+          "intvalue": 11,
+          "stringvalue": null
+        },
+        {
+          "prop": 537,
+          "intvalue": 4166,
+          "stringvalue": null
+        },
+        {
+          "prop": 1397,
+          "intvalue": 1,
+          "stringvalue": null
+        },
+        {
+          "prop": 2640,
+          "intvalue": 19,
+          "stringvalue": null
+        },
+        {
+          "prop": 2650,
+          "intvalue": 946,
+          "stringvalue": null
+        },
+        {
+          "prop": 2665,
+          "intvalue": 1,
+          "stringvalue": null
+        },
+        {
+          "prop": 2696,
+          "intvalue": 19,
+          "stringvalue": null
+        },
+        {
+          "prop": 1397,
+          "intvalue": 1,
+          "stringvalue": null
+        },
+        {
+          "prop": 2639,
+          "intvalue": 0,
+          "stringvalue": null
+        },
+        {
+          "prop": 2645,
+          "intvalue": 1,
+          "stringvalue": null
+        },
+        {
+          "prop": 2655,
+          "intvalue": 1511,
+          "stringvalue": null
+        },
+        {
+          "prop": 2653,
+          "intvalue": 15,
+          "stringvalue": null
+        },
+        {
+          "prop": 2697,
+          "intvalue": 50,
+          "stringvalue": null
+        }
+      ],
+      "duplicateParams": [
+        1397
+      ],
+      "warnings": [
+        "Duplicate params preserved in raw extra; normalized value uses last encoded entry"
+      ],
+      "missing": [
+        "server recipe execution",
+        "facility/access requirements",
+        "failure probability",
+        "duration/throughput",
+        "player inventory state"
+      ]
+    },
+    {
+      "id": "cache:item:53:production",
+      "product": {
+        "id": 53,
+        "name": "Headless shaft",
+        "membersMarked": false,
+        "definitionPresent": true
+      },
+      "source": {
+        "major": 19,
+        "minor": 0,
+        "subid": 53
+      },
+      "recordKind": "item production definition candidate",
+      "outputQuantity": 15,
+      "outputQuantityOrigin": "explicit param 2653",
+      "requirements": [
+        {
+          "skillId": 19,
+          "skill": "Fletching",
+          "level": 1,
+          "params": [
+            2640,
+            2645
+          ]
+        }
+      ],
+      "tools": [],
+      "directInputs": [
+        {
+          "slot": 0,
+          "item": {
+            "id": 52,
+            "name": "Shaft",
+            "membersMarked": false,
+            "definitionPresent": true
+          },
+          "encodedQuantity": 1,
+          "quantityUnit": "unverified cache requirement quantity; batch scaling is not inferred",
+          "quantityFlag": 0,
+          "params": {
+            "item": 2655,
+            "quantity": 2665,
+            "flag": 2686
+          },
+          "additionalParams": []
+        }
+      ],
+      "requirementGroups": [
+        {
+          "slot": 1,
+          "structId": 14981,
+          "param": 2676,
+          "source": {
+            "major": 22,
+            "minor": 468,
+            "subid": 5
+          },
+          "interpretation": "Grouped requirement alternatives candidate; preserve flags and do not flatten into AND ingredients",
+          "inputs": [
+            {
+              "slot": 0,
+              "item": {
+                "id": 314,
+                "name": "Feather",
+                "membersMarked": false,
+                "definitionPresent": true
+              },
+              "encodedQuantity": 1,
+              "quantityUnit": "unverified cache requirement quantity; batch scaling is not inferred",
+              "quantityFlag": 0,
+              "params": {
+                "item": 2655,
+                "quantity": 2665,
+                "flag": 2686
+              },
+              "additionalParams": []
+            },
+            {
+              "slot": 1,
+              "item": {
+                "id": 10090,
+                "name": "Yellow feather",
+                "membersMarked": false,
+                "definitionPresent": true
+              },
+              "encodedQuantity": 1,
+              "quantityUnit": "unverified cache requirement quantity; batch scaling is not inferred",
+              "quantityFlag": 0,
+              "params": {
+                "item": 2656,
+                "quantity": 2666,
+                "flag": 2687
+              },
+              "additionalParams": []
+            },
+            {
+              "slot": 2,
+              "item": {
+                "id": 10088,
+                "name": "Red feather",
+                "membersMarked": false,
+                "definitionPresent": true
+              },
+              "encodedQuantity": 1,
+              "quantityUnit": "unverified cache requirement quantity; batch scaling is not inferred",
+              "quantityFlag": 0,
+              "params": {
+                "item": 2657,
+                "quantity": 2667,
+                "flag": 2688
+              },
+              "additionalParams": []
+            },
+            {
+              "slot": 3,
+              "item": {
+                "id": 10089,
+                "name": "Blue feather",
+                "membersMarked": false,
+                "definitionPresent": true
+              },
+              "encodedQuantity": 1,
+              "quantityUnit": "unverified cache requirement quantity; batch scaling is not inferred",
+              "quantityFlag": 0,
+              "params": {
+                "item": 2658,
+                "quantity": 2668,
+                "flag": 2689
+              },
+              "additionalParams": []
+            },
+            {
+              "slot": 4,
+              "item": {
+                "id": 10087,
+                "name": "Stripy feather",
+                "membersMarked": true,
+                "definitionPresent": true
+              },
+              "encodedQuantity": 1,
+              "quantityUnit": "unverified cache requirement quantity; batch scaling is not inferred",
+              "quantityFlag": 0,
+              "params": {
+                "item": 2659,
+                "quantity": 2669,
+                "flag": 2690
+              },
+              "additionalParams": []
+            },
+            {
+              "slot": 5,
+              "item": {
+                "id": 10091,
+                "name": "Orange feather",
+                "membersMarked": false,
+                "definitionPresent": true
+              },
+              "encodedQuantity": 1,
+              "quantityUnit": "unverified cache requirement quantity; batch scaling is not inferred",
+              "quantityFlag": 0,
+              "params": {
+                "item": 2660,
+                "quantity": 2670,
+                "flag": 2691
+              },
+              "additionalParams": []
+            },
+            {
+              "slot": 6,
+              "item": {
+                "id": 11525,
+                "name": "Wimpy feather",
+                "membersMarked": true,
+                "definitionPresent": true
+              },
+              "encodedQuantity": 1,
+              "quantityUnit": "unverified cache requirement quantity; batch scaling is not inferred",
+              "quantityFlag": 0,
+              "params": {
+                "item": 2661,
+                "quantity": 2671,
+                "flag": 2692
+              },
+              "additionalParams": []
+            }
+          ],
+          "raw": {
+            "extra": [
+              {
+                "prop": 2655,
+                "intvalue": 314,
+                "stringvalue": null
+              },
+              {
+                "prop": 2665,
+                "intvalue": 1,
+                "stringvalue": null
+              },
+              {
+                "prop": 2686,
+                "intvalue": 0,
+                "stringvalue": null
+              },
+              {
+                "prop": 2656,
+                "intvalue": 10090,
+                "stringvalue": null
+              },
+              {
+                "prop": 2666,
+                "intvalue": 1,
+                "stringvalue": null
+              },
+              {
+                "prop": 2687,
+                "intvalue": 0,
+                "stringvalue": null
+              },
+              {
+                "prop": 2657,
+                "intvalue": 10088,
+                "stringvalue": null
+              },
+              {
+                "prop": 2667,
+                "intvalue": 1,
+                "stringvalue": null
+              },
+              {
+                "prop": 2688,
+                "intvalue": 0,
+                "stringvalue": null
+              },
+              {
+                "prop": 2658,
+                "intvalue": 10089,
+                "stringvalue": null
+              },
+              {
+                "prop": 2668,
+                "intvalue": 1,
+                "stringvalue": null
+              },
+              {
+                "prop": 2689,
+                "intvalue": 0,
+                "stringvalue": null
+              },
+              {
+                "prop": 2659,
+                "intvalue": 10087,
+                "stringvalue": null
+              },
+              {
+                "prop": 2669,
+                "intvalue": 1,
+                "stringvalue": null
+              },
+              {
+                "prop": 2690,
+                "intvalue": 0,
+                "stringvalue": null
+              },
+              {
+                "prop": 2660,
+                "intvalue": 10091,
+                "stringvalue": null
+              },
+              {
+                "prop": 2670,
+                "intvalue": 1,
+                "stringvalue": null
+              },
+              {
+                "prop": 2691,
+                "intvalue": 0,
+                "stringvalue": null
+              },
+              {
+                "prop": 2661,
+                "intvalue": 11525,
+                "stringvalue": null
+              },
+              {
+                "prop": 2671,
+                "intvalue": 1,
+                "stringvalue": null
+              },
+              {
+                "prop": 2692,
+                "intvalue": 0,
+                "stringvalue": null
+              }
+            ]
+          }
+        }
+      ],
+      "xp": {
+        "value": 1,
+        "unit": "per headless shaft; 15 XP per batch of 15",
+        "raw": 10,
+        "params": [
+          2696,
+          2697
+        ],
+        "skill": "Fletching",
+        "validation": {
+          "source": "RuneScape Wiki current revision",
+          "revision": 37171921,
+          "url": "https://runescape.wiki/w/Headless_shaft?oldid=37171921"
+        }
+      },
+      "rawXp": {
+        "value": 10,
+        "skillId": 19,
+        "unit": "raw integer; tenths-of-XP family corroborated in nine samples, action/batch units unverified here"
+      },
+      "members": {
+        "productMarked": false,
+        "activityEligibility": "unverified: product membership alone does not establish recipe, ingredient or facility access"
+      },
+      "rawParams": [
+        {
+          "prop": 2195,
+          "intvalue": 11,
+          "stringvalue": null
+        },
+        {
+          "prop": 537,
+          "intvalue": 4166,
+          "stringvalue": null
+        },
+        {
+          "prop": 2640,
+          "intvalue": 19,
+          "stringvalue": null
+        },
+        {
+          "prop": 5450,
+          "intvalue": 1,
+          "stringvalue": null
+        },
+        {
+          "prop": 2665,
+          "intvalue": 1,
+          "stringvalue": null
+        },
+        {
+          "prop": 2686,
+          "intvalue": 0,
+          "stringvalue": null
+        },
+        {
+          "prop": 2696,
+          "intvalue": 19,
+          "stringvalue": null
+        },
+        {
+          "prop": 3037,
+          "intvalue": 0,
+          "stringvalue": null
+        },
+        {
+          "prop": 1397,
+          "intvalue": 1,
+          "stringvalue": null
+        },
+        {
+          "prop": 2676,
+          "intvalue": 14981,
+          "stringvalue": null
+        },
+        {
+          "prop": 2653,
+          "intvalue": 15,
+          "stringvalue": null
+        },
+        {
+          "prop": 1397,
+          "intvalue": 1,
+          "stringvalue": null
+        },
+        {
+          "prop": 2639,
+          "intvalue": 0,
+          "stringvalue": null
+        },
+        {
+          "prop": 2645,
+          "intvalue": 1,
+          "stringvalue": null
+        },
+        {
+          "prop": 2655,
+          "intvalue": 52,
+          "stringvalue": null
+        },
+        {
+          "prop": 2697,
+          "intvalue": 10,
+          "stringvalue": null
+        }
+      ],
+      "duplicateParams": [
+        1397
+      ],
+      "warnings": [
+        "Duplicate params preserved in raw extra; normalized value uses last encoded entry"
+      ],
+      "missing": [
+        "server recipe execution",
+        "facility/access requirements",
+        "failure probability",
+        "duration/throughput",
+        "player inventory state"
+      ]
+    },
+    {
+      "id": "cache:item:54:production",
+      "product": {
+        "id": 54,
+        "name": "Oak shortbow (unstrung)",
+        "membersMarked": false,
+        "definitionPresent": true
+      },
+      "source": {
+        "major": 19,
+        "minor": 0,
+        "subid": 54
+      },
+      "recordKind": "item production definition candidate",
+      "outputQuantity": 1,
+      "outputQuantityOrigin": "param 2653 default",
+      "requirements": [
+        {
+          "skillId": 19,
+          "skill": "Fletching",
+          "level": 10,
+          "params": [
+            2640,
+            2645
+          ]
+        }
+      ],
+      "tools": [
+        {
+          "id": 946,
+          "name": "Knife",
+          "membersMarked": false,
+          "definitionPresent": true,
+          "param": 2650
+        }
+      ],
+      "directInputs": [
+        {
+          "slot": 0,
+          "item": {
+            "id": 1521,
+            "name": "Oak logs",
+            "membersMarked": false,
+            "definitionPresent": true
+          },
+          "encodedQuantity": 1,
+          "quantityUnit": "unverified cache requirement quantity; batch scaling is not inferred",
+          "quantityFlag": 1,
+          "params": {
+            "item": 2655,
+            "quantity": 2665,
+            "flag": 2686
+          },
+          "additionalParams": []
+        }
+      ],
+      "requirementGroups": [],
+      "xp": {
+        "value": 10,
+        "unit": "per completed unstrung bow",
+        "raw": 100,
+        "params": [
+          2696,
+          2697
+        ],
+        "skill": "Fletching",
+        "validation": {
+          "source": "RuneScape Wiki current revision",
+          "revision": 37151141,
+          "url": "https://runescape.wiki/w/Oak_shortbow_(unstrung)?oldid=37151141"
+        }
+      },
+      "rawXp": {
+        "value": 100,
+        "skillId": 19,
+        "unit": "raw integer; tenths-of-XP family corroborated in nine samples, action/batch units unverified here"
+      },
+      "members": {
+        "productMarked": false,
+        "activityEligibility": "unverified: product membership alone does not establish recipe, ingredient or facility access"
+      },
+      "rawParams": [
+        {
+          "prop": 2195,
+          "intvalue": 11,
+          "stringvalue": null
+        },
+        {
+          "prop": 537,
+          "intvalue": 4193,
+          "stringvalue": null
+        },
+        {
+          "prop": 1397,
+          "intvalue": 1,
+          "stringvalue": null
+        },
+        {
+          "prop": 2640,
+          "intvalue": 19,
+          "stringvalue": null
+        },
+        {
+          "prop": 2650,
+          "intvalue": 946,
+          "stringvalue": null
+        },
+        {
+          "prop": 2665,
+          "intvalue": 1,
+          "stringvalue": null
+        },
+        {
+          "prop": 2696,
+          "intvalue": 19,
+          "stringvalue": null
+        },
+        {
+          "prop": 2639,
+          "intvalue": 0,
+          "stringvalue": null
+        },
+        {
+          "prop": 2645,
+          "intvalue": 10,
+          "stringvalue": null
+        },
+        {
+          "prop": 2655,
+          "intvalue": 1521,
+          "stringvalue": null
+        },
+        {
+          "prop": 2697,
+          "intvalue": 100,
+          "stringvalue": null
+        }
+      ],
+      "duplicateParams": [],
+      "warnings": [],
+      "missing": [
+        "server recipe execution",
+        "facility/access requirements",
+        "failure probability",
+        "duration/throughput",
+        "player inventory state"
+      ]
+    },
+    {
+      "id": "cache:item:315:production",
+      "product": {
+        "id": 315,
+        "name": "Shrimps",
+        "membersMarked": false,
+        "definitionPresent": true
+      },
+      "source": {
+        "major": 19,
+        "minor": 1,
+        "subid": 59
+      },
+      "recordKind": "item production definition candidate",
+      "outputQuantity": 1,
+      "outputQuantityOrigin": "param 2653 default",
+      "requirements": [
+        {
+          "skillId": 16,
+          "skill": "Cooking",
+          "level": 1,
+          "params": [
+            2640,
+            2645
+          ]
+        }
+      ],
+      "tools": [],
+      "directInputs": [
+        {
+          "slot": 0,
+          "item": {
+            "id": 317,
+            "name": "Raw shrimps",
+            "membersMarked": false,
+            "definitionPresent": true
+          },
+          "encodedQuantity": 1,
+          "quantityUnit": "unverified cache requirement quantity; batch scaling is not inferred",
+          "quantityFlag": 1,
+          "params": {
+            "item": 2655,
+            "quantity": 2665,
+            "flag": 2686
+          },
+          "additionalParams": []
+        }
+      ],
+      "requirementGroups": [],
+      "xp": {
+        "value": 30,
+        "unit": "per successfully cooked shrimp",
+        "raw": 300,
+        "params": [
+          2696,
+          2697
+        ],
+        "skill": "Cooking",
+        "validation": {
+          "source": "RuneScape Wiki current revision",
+          "revision": 36950896,
+          "url": "https://runescape.wiki/w/Shrimps?oldid=36950896"
+        }
+      },
+      "rawXp": {
+        "value": 300,
+        "skillId": 16,
+        "unit": "raw integer; tenths-of-XP family corroborated in nine samples, action/batch units unverified here"
+      },
+      "members": {
+        "productMarked": false,
+        "activityEligibility": "unverified: product membership alone does not establish recipe, ingredient or facility access"
+      },
+      "rawParams": [
+        {
+          "prop": 2195,
+          "intvalue": 12,
+          "stringvalue": null
+        },
+        {
+          "prop": 537,
+          "intvalue": 4185,
+          "stringvalue": null
+        },
+        {
+          "prop": 963,
+          "intvalue": 200,
+          "stringvalue": null
+        },
+        {
+          "prop": 2640,
+          "intvalue": 16,
+          "stringvalue": null
+        },
+        {
+          "prop": 2645,
+          "intvalue": 1,
+          "stringvalue": null
+        },
+        {
+          "prop": 2655,
+          "intvalue": 317,
+          "stringvalue": null
+        },
+        {
+          "prop": 2665,
+          "intvalue": 1,
+          "stringvalue": null
+        },
+        {
+          "prop": 2696,
+          "intvalue": 16,
+          "stringvalue": null
+        },
+        {
+          "prop": 2697,
+          "intvalue": 300,
+          "stringvalue": null
+        }
+      ],
+      "duplicateParams": [],
+      "warnings": [],
+      "missing": [
+        "server recipe execution",
+        "facility/access requirements",
+        "failure probability",
+        "duration/throughput",
+        "player inventory state"
+      ]
+    },
+    {
+      "id": "cache:item:841:production",
+      "product": {
+        "id": 841,
+        "name": "Shortbow",
+        "membersMarked": false,
+        "definitionPresent": true
+      },
+      "source": {
+        "major": 19,
+        "minor": 3,
+        "subid": 73
+      },
+      "recordKind": "item production definition candidate",
+      "outputQuantity": 1,
+      "outputQuantityOrigin": "param 2653 default",
+      "requirements": [
+        {
+          "skillId": 19,
+          "skill": "Fletching",
+          "level": 1,
+          "params": [
+            2640,
+            2645
+          ]
+        }
+      ],
+      "tools": [],
+      "directInputs": [
+        {
+          "slot": 0,
+          "item": {
+            "id": 50,
+            "name": "Shortbow (unstrung)",
+            "membersMarked": false,
+            "definitionPresent": true
+          },
+          "encodedQuantity": 1,
+          "quantityUnit": "unverified cache requirement quantity; batch scaling is not inferred",
+          "quantityFlag": 1,
+          "params": {
+            "item": 2655,
+            "quantity": 2665,
+            "flag": 2686
+          },
+          "additionalParams": []
+        }
+      ],
+      "requirementGroups": [
+        {
+          "slot": 1,
+          "structId": 43672,
+          "param": 2676,
+          "source": {
+            "major": 22,
+            "minor": 1364,
+            "subid": 24
+          },
+          "interpretation": "Grouped requirement alternatives candidate; preserve flags and do not flatten into AND ingredients",
+          "inputs": [
+            {
+              "slot": 0,
+              "item": {
+                "id": 1777,
+                "name": "Bowstring",
+                "membersMarked": false,
+                "definitionPresent": true
+              },
+              "encodedQuantity": 1,
+              "quantityUnit": "unverified cache requirement quantity; batch scaling is not inferred",
+              "quantityFlag": 0,
+              "params": {
+                "item": 2655,
+                "quantity": 2665,
+                "flag": 2686
+              },
+              "additionalParams": []
+            },
+            {
+              "slot": 1,
+              "item": {
+                "id": 53088,
+                "name": "Fungal bowstring",
+                "membersMarked": true,
+                "definitionPresent": true
+              },
+              "encodedQuantity": 1,
+              "quantityUnit": "unverified cache requirement quantity; batch scaling is not inferred",
+              "quantityFlag": 0,
+              "params": {
+                "item": 2656,
+                "quantity": 2666,
+                "flag": 2687
+              },
+              "additionalParams": []
+            },
+            {
+              "slot": 2,
+              "item": {
+                "id": 63894,
+                "name": "Chima bowstring",
+                "membersMarked": true,
+                "definitionPresent": true
+              },
+              "encodedQuantity": 1,
+              "quantityUnit": "unverified cache requirement quantity; batch scaling is not inferred",
+              "quantityFlag": 0,
+              "params": {
+                "item": 2657,
+                "quantity": 2667,
+                "flag": 2688
+              },
+              "additionalParams": []
+            }
+          ],
+          "raw": {
+            "extra": [
+              {
+                "prop": 2655,
+                "intvalue": 1777,
+                "stringvalue": null
+              },
+              {
+                "prop": 2665,
+                "intvalue": 1,
+                "stringvalue": null
+              },
+              {
+                "prop": 2686,
+                "intvalue": 0,
+                "stringvalue": null
+              },
+              {
+                "prop": 2656,
+                "intvalue": 53088,
+                "stringvalue": null
+              },
+              {
+                "prop": 2666,
+                "intvalue": 1,
+                "stringvalue": null
+              },
+              {
+                "prop": 2687,
+                "intvalue": 0,
+                "stringvalue": null
+              },
+              {
+                "prop": 2657,
+                "intvalue": 63894,
+                "stringvalue": null
+              },
+              {
+                "prop": 2667,
+                "intvalue": 1,
+                "stringvalue": null
+              },
+              {
+                "prop": 2688,
+                "intvalue": 0,
+                "stringvalue": null
+              }
+            ]
+          }
+        }
+      ],
+      "xp": {
+        "value": 5,
+        "unit": "per completed strung bow",
+        "raw": 50,
+        "params": [
+          2696,
+          2697
+        ],
+        "skill": "Fletching",
+        "validation": {
+          "source": "RuneScape Wiki current revision",
+          "revision": 37198403,
+          "url": "https://runescape.wiki/w/Shortbow?oldid=37198403"
+        }
+      },
+      "rawXp": {
+        "value": 50,
+        "skillId": 19,
+        "unit": "raw integer; tenths-of-XP family corroborated in nine samples, action/batch units unverified here"
+      },
+      "members": {
+        "productMarked": false,
+        "activityEligibility": "unverified: product membership alone does not establish recipe, ingredient or facility access"
+      },
+      "rawParams": [
+        {
+          "prop": 118,
+          "intvalue": 7172,
+          "stringvalue": null
+        },
+        {
+          "prop": 537,
+          "intvalue": 4193,
+          "stringvalue": null
+        },
+        {
+          "prop": 686,
+          "intvalue": 14939,
+          "stringvalue": null
+        },
+        {
+          "prop": 2826,
+          "intvalue": 1,
+          "stringvalue": null
+        },
+        {
+          "prop": 21,
+          "intvalue": 62,
+          "stringvalue": null
+        },
+        {
+          "prop": 2822,
+          "intvalue": 1,
+          "stringvalue": null
+        },
+        {
+          "prop": 13,
+          "intvalue": 7,
+          "stringvalue": null
+        },
+        {
+          "prop": 14,
+          "intvalue": 5,
+          "stringvalue": null
+        },
+        {
+          "prop": 749,
+          "intvalue": 4,
+          "stringvalue": null
+        },
+        {
+          "prop": 644,
+          "intvalue": 2588,
+          "stringvalue": null
+        },
+        {
+          "prop": 2195,
+          "intvalue": 30,
+          "stringvalue": null
+        },
+        {
+          "prop": 2640,
+          "intvalue": 19,
+          "stringvalue": null
+        },
+        {
+          "prop": 2665,
+          "intvalue": 1,
+          "stringvalue": null
+        },
+        {
+          "prop": 2696,
+          "intvalue": 19,
+          "stringvalue": null
+        },
+        {
+          "prop": 2820,
+          "intvalue": 135329,
+          "stringvalue": null
+        },
+        {
+          "prop": 4,
+          "intvalue": 150,
+          "stringvalue": null
+        },
+        {
+          "prop": 643,
+          "intvalue": 439,
+          "stringvalue": null
+        },
+        {
+          "prop": 23,
+          "intvalue": 5,
+          "stringvalue": null
+        },
+        {
+          "prop": 1397,
+          "intvalue": 1,
+          "stringvalue": null
+        },
+        {
+          "prop": 750,
+          "intvalue": 1,
+          "stringvalue": null
+        },
+        {
+          "prop": 2639,
+          "intvalue": 0,
+          "stringvalue": null
+        },
+        {
+          "prop": 2645,
+          "intvalue": 1,
+          "stringvalue": null
+        },
+        {
+          "prop": 2655,
+          "intvalue": 50,
+          "stringvalue": null
+        },
+        {
+          "prop": 2676,
+          "intvalue": 43672,
+          "stringvalue": null
+        },
+        {
+          "prop": 2697,
+          "intvalue": 50,
+          "stringvalue": null
+        }
+      ],
+      "duplicateParams": [],
+      "warnings": [],
+      "missing": [
+        "server recipe execution",
+        "facility/access requirements",
+        "failure probability",
+        "duration/throughput",
+        "player inventory state"
+      ]
+    },
+    {
+      "id": "cache:item:1059:production",
+      "product": {
+        "id": 1059,
+        "name": "Leather gloves",
+        "membersMarked": false,
+        "definitionPresent": true
+      },
+      "source": {
+        "major": 19,
+        "minor": 4,
+        "subid": 35
+      },
+      "recordKind": "item production definition candidate",
+      "outputQuantity": 1,
+      "outputQuantityOrigin": "param 2653 default",
+      "requirements": [
+        {
+          "skillId": 11,
+          "skill": "Crafting",
+          "level": 1,
+          "params": [
+            2640,
+            2645
+          ]
+        }
+      ],
+      "tools": [
+        {
+          "id": 1733,
+          "name": "Needle",
+          "membersMarked": false,
+          "definitionPresent": true,
+          "param": 2650
+        }
+      ],
+      "directInputs": [
+        {
+          "slot": 0,
+          "item": {
+            "id": 1741,
+            "name": "Leather",
+            "membersMarked": false,
+            "definitionPresent": true
+          },
+          "encodedQuantity": 1,
+          "quantityUnit": "unverified cache requirement quantity; batch scaling is not inferred",
+          "quantityFlag": 1,
+          "params": {
+            "item": 2655,
+            "quantity": 2665,
+            "flag": 2686
+          },
+          "additionalParams": []
+        }
+      ],
+      "requirementGroups": [],
+      "xp": {
+        "value": 13.8,
+        "unit": "per completed pair of gloves; displayed rounded XP",
+        "raw": 138,
+        "params": [
+          2696,
+          2697
+        ],
+        "skill": "Crafting",
+        "validation": {
+          "source": "RuneScape Wiki current revision",
+          "revision": 37132088,
+          "url": "https://runescape.wiki/w/Leather_gloves?oldid=37132088"
+        }
+      },
+      "rawXp": {
+        "value": 138,
+        "skillId": 11,
+        "unit": "raw integer; tenths-of-XP family corroborated in nine samples, action/batch units unverified here"
+      },
+      "members": {
+        "productMarked": false,
+        "activityEligibility": "unverified: product membership alone does not establish recipe, ingredient or facility access"
+      },
+      "rawParams": [
+        {
+          "prop": 2195,
+          "intvalue": 19,
+          "stringvalue": null
+        },
+        {
+          "prop": 2822,
+          "intvalue": 1,
+          "stringvalue": null
+        },
+        {
+          "prop": 2868,
+          "intvalue": 50,
+          "stringvalue": null
+        },
+        {
+          "prop": 2866,
+          "intvalue": 70,
+          "stringvalue": null
+        },
+        {
+          "prop": 2867,
+          "intvalue": 60,
+          "stringvalue": null
+        },
+        {
+          "prop": 2870,
+          "intvalue": 55,
+          "stringvalue": null
+        },
+        {
+          "prop": 537,
+          "intvalue": 4191,
+          "stringvalue": null
+        },
+        {
+          "prop": 1397,
+          "intvalue": 1,
+          "stringvalue": null
+        },
+        {
+          "prop": 4196,
+          "intvalue": 1,
+          "stringvalue": null
+        },
+        {
+          "prop": 2640,
+          "intvalue": 11,
+          "stringvalue": null
+        },
+        {
+          "prop": 2645,
+          "intvalue": 1,
+          "stringvalue": null
+        },
+        {
+          "prop": 2650,
+          "intvalue": 1733,
+          "stringvalue": null
+        },
+        {
+          "prop": 2655,
+          "intvalue": 1741,
+          "stringvalue": null
+        },
+        {
+          "prop": 2665,
+          "intvalue": 1,
+          "stringvalue": null
+        },
+        {
+          "prop": 2696,
+          "intvalue": 11,
+          "stringvalue": null
+        },
+        {
+          "prop": 2697,
+          "intvalue": 138,
+          "stringvalue": null
+        }
+      ],
+      "duplicateParams": [],
+      "warnings": [],
+      "missing": [
+        "server recipe execution",
+        "facility/access requirements",
+        "failure probability",
+        "duration/throughput",
+        "player inventory state"
+      ]
+    },
+    {
+      "id": "cache:item:1205:production",
+      "product": {
+        "id": 1205,
+        "name": "Bronze dagger",
+        "membersMarked": false,
+        "definitionPresent": true
+      },
+      "source": {
+        "major": 19,
+        "minor": 4,
+        "subid": 181
+      },
+      "recordKind": "item production definition candidate",
+      "outputQuantity": 1,
+      "outputQuantityOrigin": "param 2653 default",
+      "requirements": [
+        {
+          "skillId": 14,
+          "skill": "Smithing",
+          "level": 1,
+          "params": [
+            2640,
+            2645
+          ]
+        },
+        {
+          "skillId": 62,
+          "skill": null,
+          "level": 187,
+          "params": [
+            2641,
+            2646
+          ]
+        }
+      ],
+      "tools": [
+        {
+          "id": 2347,
+          "name": "Hammer",
+          "membersMarked": false,
+          "definitionPresent": true,
+          "param": 2650
+        }
+      ],
+      "directInputs": [],
+      "requirementGroups": [
+        {
+          "slot": 0,
+          "structId": 43273,
+          "param": 2675,
+          "source": {
+            "major": 22,
+            "minor": 1352,
+            "subid": 9
+          },
+          "interpretation": "Grouped requirement alternatives candidate; preserve flags and do not flatten into AND ingredients",
+          "inputs": [
+            {
+              "slot": 0,
+              "item": {
+                "id": 47066,
+                "name": "Metal bank object",
+                "membersMarked": false,
+                "definitionPresent": true
+              },
+              "encodedQuantity": 2,
+              "quantityUnit": "unverified cache requirement quantity; batch scaling is not inferred",
+              "quantityFlag": 1,
+              "params": {
+                "item": 2655,
+                "quantity": 2665,
+                "flag": 2686
+              },
+              "additionalParams": [
+                {
+                  "prop": 5456,
+                  "intvalue": 18,
+                  "stringvalue": null
+                },
+                {
+                  "prop": 7762,
+                  "intvalue": null,
+                  "stringvalue": "Bronze bar"
+                },
+                {
+                  "prop": 7763,
+                  "intvalue": 2349,
+                  "stringvalue": null
+                }
+              ]
+            },
+            {
+              "slot": 1,
+              "item": {
+                "id": 2349,
+                "name": "Bronze bar",
+                "membersMarked": false,
+                "definitionPresent": true
+              },
+              "encodedQuantity": 2,
+              "quantityUnit": "unverified cache requirement quantity; batch scaling is not inferred",
+              "quantityFlag": 1,
+              "params": {
+                "item": 2656,
+                "quantity": 2666,
+                "flag": 2687
+              },
+              "additionalParams": [
+                {
+                  "prop": 7762,
+                  "intvalue": null,
+                  "stringvalue": "Bronze bar"
+                },
+                {
+                  "prop": 7763,
+                  "intvalue": 2349,
+                  "stringvalue": null
+                }
+              ]
+            }
+          ],
+          "raw": {
+            "extra": [
+              {
+                "prop": 2655,
+                "intvalue": 47066,
+                "stringvalue": null
+              },
+              {
+                "prop": 5456,
+                "intvalue": 18,
+                "stringvalue": null
+              },
+              {
+                "prop": 2665,
+                "intvalue": 2,
+                "stringvalue": null
+              },
+              {
+                "prop": 2656,
+                "intvalue": 2349,
+                "stringvalue": null
+              },
+              {
+                "prop": 2666,
+                "intvalue": 2,
+                "stringvalue": null
+              },
+              {
+                "prop": 7762,
+                "intvalue": null,
+                "stringvalue": "Bronze bar"
+              },
+              {
+                "prop": 7763,
+                "intvalue": 2349,
+                "stringvalue": null
+              }
+            ]
+          }
+        }
+      ],
+      "xp": {
+        "value": 30,
+        "unit": "per completed forged dagger; not per smithing strike",
+        "raw": 300,
+        "params": [
+          2696,
+          2697
+        ],
+        "skill": "Smithing",
+        "validation": {
+          "source": "RuneScape Wiki current revision",
+          "revision": 37131007,
+          "url": "https://runescape.wiki/w/Bronze_dagger?oldid=37131007"
+        }
+      },
+      "rawXp": {
+        "value": 300,
+        "skillId": 14,
+        "unit": "raw integer; tenths-of-XP family corroborated in nine samples, action/batch units unverified here"
+      },
+      "members": {
+        "productMarked": false,
+        "activityEligibility": "unverified: product membership alone does not establish recipe, ingredient or facility access"
+      },
+      "rawParams": [
+        {
+          "prop": 686,
+          "intvalue": 14921,
+          "stringvalue": null
+        },
+        {
+          "prop": 644,
+          "intvalue": 2584,
+          "stringvalue": null
+        },
+        {
+          "prop": 118,
+          "intvalue": 7193,
+          "stringvalue": null
+        },
+        {
+          "prop": 2820,
+          "intvalue": 73525,
+          "stringvalue": null
+        },
+        {
+          "prop": 4454,
+          "intvalue": 1,
+          "stringvalue": null
+        },
+        {
+          "prop": 1397,
+          "intvalue": 1,
+          "stringvalue": null
+        },
+        {
+          "prop": 749,
+          "intvalue": 0,
+          "stringvalue": null
+        },
+        {
+          "prop": 750,
+          "intvalue": 1,
+          "stringvalue": null
+        },
+        {
+          "prop": 2825,
+          "intvalue": 1,
+          "stringvalue": null
+        },
+        {
+          "prop": 641,
+          "intvalue": 480,
+          "stringvalue": null
+        },
+        {
+          "prop": 14,
+          "intvalue": 4,
+          "stringvalue": null
+        },
+        {
+          "prop": 3267,
+          "intvalue": 150,
+          "stringvalue": null
+        },
+        {
+          "prop": 537,
+          "intvalue": 4165,
+          "stringvalue": null
+        },
+        {
+          "prop": 4196,
+          "intvalue": 1,
+          "stringvalue": null
+        },
+        {
+          "prop": 2195,
+          "intvalue": 22,
+          "stringvalue": null
+        },
+        {
+          "prop": 2640,
+          "intvalue": 14,
+          "stringvalue": null
+        },
+        {
+          "prop": 2645,
+          "intvalue": 1,
+          "stringvalue": null
+        },
+        {
+          "prop": 2641,
+          "intvalue": 62,
+          "stringvalue": null
+        },
+        {
+          "prop": 2646,
+          "intvalue": 187,
+          "stringvalue": null
+        },
+        {
+          "prop": 2675,
+          "intvalue": 43273,
+          "stringvalue": null
+        },
+        {
+          "prop": 2696,
+          "intvalue": 14,
+          "stringvalue": null
+        },
+        {
+          "prop": 2697,
+          "intvalue": 300,
+          "stringvalue": null
+        },
+        {
+          "prop": 7801,
+          "intvalue": 200,
+          "stringvalue": null
+        },
+        {
+          "prop": 2650,
+          "intvalue": 2347,
+          "stringvalue": null
+        }
+      ],
+      "duplicateParams": [],
+      "warnings": [
+        "Unmapped requirement skill 62"
+      ],
+      "missing": [
+        "server recipe execution",
+        "facility/access requirements",
+        "failure probability",
+        "duration/throughput",
+        "player inventory state"
+      ]
+    },
+    {
+      "id": "cache:item:2349:production",
+      "product": {
+        "id": 2349,
+        "name": "Bronze bar",
+        "membersMarked": false,
+        "definitionPresent": true
+      },
+      "source": {
+        "major": 19,
+        "minor": 9,
+        "subid": 45
+      },
+      "recordKind": "item production definition candidate",
+      "outputQuantity": 1,
+      "outputQuantityOrigin": "param 2653 default",
+      "requirements": [
+        {
+          "skillId": 14,
+          "skill": "Smithing",
+          "level": 1,
+          "params": [
+            2640,
+            2645
+          ]
+        }
+      ],
+      "tools": [],
+      "directInputs": [],
+      "requirementGroups": [
+        {
+          "slot": 0,
+          "structId": 43233,
+          "param": 2675,
+          "source": {
+            "major": 22,
+            "minor": 1351,
+            "subid": 1
+          },
+          "interpretation": "Grouped requirement alternatives candidate; preserve flags and do not flatten into AND ingredients",
+          "inputs": [
+            {
+              "slot": 0,
+              "item": {
+                "id": 47066,
+                "name": "Metal bank object",
+                "membersMarked": false,
+                "definitionPresent": true
+              },
+              "encodedQuantity": 1,
+              "quantityUnit": "unverified cache requirement quantity; batch scaling is not inferred",
+              "quantityFlag": 1,
+              "params": {
+                "item": 2655,
+                "quantity": 2665,
+                "flag": 2686
+              },
+              "additionalParams": [
+                {
+                  "prop": 5456,
+                  "intvalue": 1,
+                  "stringvalue": null
+                },
+                {
+                  "prop": 7762,
+                  "intvalue": null,
+                  "stringvalue": "Copper ore"
+                },
+                {
+                  "prop": 7763,
+                  "intvalue": 436,
+                  "stringvalue": null
+                }
+              ]
+            },
+            {
+              "slot": 1,
+              "item": {
+                "id": 436,
+                "name": "Copper ore",
+                "membersMarked": false,
+                "definitionPresent": true
+              },
+              "encodedQuantity": 1,
+              "quantityUnit": "unverified cache requirement quantity; batch scaling is not inferred",
+              "quantityFlag": 1,
+              "params": {
+                "item": 2656,
+                "quantity": 2666,
+                "flag": 2687
+              },
+              "additionalParams": [
+                {
+                  "prop": 7762,
+                  "intvalue": null,
+                  "stringvalue": "Copper ore"
+                },
+                {
+                  "prop": 7763,
+                  "intvalue": 436,
+                  "stringvalue": null
+                }
+              ]
+            },
+            {
+              "slot": 2,
+              "item": {
+                "id": 47067,
+                "name": "Ore box object",
+                "membersMarked": false,
+                "definitionPresent": true
+              },
+              "encodedQuantity": 1,
+              "quantityUnit": "unverified cache requirement quantity; batch scaling is not inferred",
+              "quantityFlag": 1,
+              "params": {
+                "item": 2657,
+                "quantity": 2667,
+                "flag": 2688
+              },
+              "additionalParams": [
+                {
+                  "prop": 5458,
+                  "intvalue": 1,
+                  "stringvalue": null
+                },
+                {
+                  "prop": 7762,
+                  "intvalue": null,
+                  "stringvalue": "Copper ore"
+                },
+                {
+                  "prop": 7763,
+                  "intvalue": 436,
+                  "stringvalue": null
+                }
+              ]
+            }
+          ],
+          "raw": {
+            "extra": [
+              {
+                "prop": 2655,
+                "intvalue": 47066,
+                "stringvalue": null
+              },
+              {
+                "prop": 5456,
+                "intvalue": 1,
+                "stringvalue": null
+              },
+              {
+                "prop": 2665,
+                "intvalue": 1,
+                "stringvalue": null
+              },
+              {
+                "prop": 2656,
+                "intvalue": 436,
+                "stringvalue": null
+              },
+              {
+                "prop": 2666,
+                "intvalue": 1,
+                "stringvalue": null
+              },
+              {
+                "prop": 2657,
+                "intvalue": 47067,
+                "stringvalue": null
+              },
+              {
+                "prop": 5458,
+                "intvalue": 1,
+                "stringvalue": null
+              },
+              {
+                "prop": 2667,
+                "intvalue": 1,
+                "stringvalue": null
+              },
+              {
+                "prop": 7762,
+                "intvalue": null,
+                "stringvalue": "Copper ore"
+              },
+              {
+                "prop": 7763,
+                "intvalue": 436,
+                "stringvalue": null
+              }
+            ]
+          }
+        },
+        {
+          "slot": 1,
+          "structId": 43234,
+          "param": 2676,
+          "source": {
+            "major": 22,
+            "minor": 1351,
+            "subid": 2
+          },
+          "interpretation": "Grouped requirement alternatives candidate; preserve flags and do not flatten into AND ingredients",
+          "inputs": [
+            {
+              "slot": 0,
+              "item": {
+                "id": 47066,
+                "name": "Metal bank object",
+                "membersMarked": false,
+                "definitionPresent": true
+              },
+              "encodedQuantity": 1,
+              "quantityUnit": "unverified cache requirement quantity; batch scaling is not inferred",
+              "quantityFlag": 1,
+              "params": {
+                "item": 2655,
+                "quantity": 2665,
+                "flag": 2686
+              },
+              "additionalParams": [
+                {
+                  "prop": 5456,
+                  "intvalue": 2,
+                  "stringvalue": null
+                },
+                {
+                  "prop": 7762,
+                  "intvalue": null,
+                  "stringvalue": "Tin ore"
+                },
+                {
+                  "prop": 7763,
+                  "intvalue": 438,
+                  "stringvalue": null
+                }
+              ]
+            },
+            {
+              "slot": 1,
+              "item": {
+                "id": 438,
+                "name": "Tin ore",
+                "membersMarked": false,
+                "definitionPresent": true
+              },
+              "encodedQuantity": 1,
+              "quantityUnit": "unverified cache requirement quantity; batch scaling is not inferred",
+              "quantityFlag": 1,
+              "params": {
+                "item": 2656,
+                "quantity": 2666,
+                "flag": 2687
+              },
+              "additionalParams": [
+                {
+                  "prop": 7762,
+                  "intvalue": null,
+                  "stringvalue": "Tin ore"
+                },
+                {
+                  "prop": 7763,
+                  "intvalue": 438,
+                  "stringvalue": null
+                }
+              ]
+            },
+            {
+              "slot": 2,
+              "item": {
+                "id": 47067,
+                "name": "Ore box object",
+                "membersMarked": false,
+                "definitionPresent": true
+              },
+              "encodedQuantity": 1,
+              "quantityUnit": "unverified cache requirement quantity; batch scaling is not inferred",
+              "quantityFlag": 1,
+              "params": {
+                "item": 2657,
+                "quantity": 2667,
+                "flag": 2688
+              },
+              "additionalParams": [
+                {
+                  "prop": 5458,
+                  "intvalue": 2,
+                  "stringvalue": null
+                },
+                {
+                  "prop": 7762,
+                  "intvalue": null,
+                  "stringvalue": "Tin ore"
+                },
+                {
+                  "prop": 7763,
+                  "intvalue": 438,
+                  "stringvalue": null
+                }
+              ]
+            }
+          ],
+          "raw": {
+            "extra": [
+              {
+                "prop": 2655,
+                "intvalue": 47066,
+                "stringvalue": null
+              },
+              {
+                "prop": 5456,
+                "intvalue": 2,
+                "stringvalue": null
+              },
+              {
+                "prop": 2665,
+                "intvalue": 1,
+                "stringvalue": null
+              },
+              {
+                "prop": 2656,
+                "intvalue": 438,
+                "stringvalue": null
+              },
+              {
+                "prop": 2666,
+                "intvalue": 1,
+                "stringvalue": null
+              },
+              {
+                "prop": 2657,
+                "intvalue": 47067,
+                "stringvalue": null
+              },
+              {
+                "prop": 5458,
+                "intvalue": 2,
+                "stringvalue": null
+              },
+              {
+                "prop": 2667,
+                "intvalue": 1,
+                "stringvalue": null
+              },
+              {
+                "prop": 7762,
+                "intvalue": null,
+                "stringvalue": "Tin ore"
+              },
+              {
+                "prop": 7763,
+                "intvalue": 438,
+                "stringvalue": null
+              }
+            ]
+          }
+        }
+      ],
+      "xp": {
+        "value": 1,
+        "unit": "per normally smelted bronze bar",
+        "raw": 10,
+        "params": [
+          2696,
+          2697
+        ],
+        "skill": "Smithing",
+        "validation": {
+          "source": "RuneScape Wiki current revision",
+          "revision": 37012046,
+          "url": "https://runescape.wiki/w/Bronze_bar?oldid=37012046"
+        }
+      },
+      "rawXp": {
+        "value": 10,
+        "skillId": 14,
+        "unit": "raw integer; tenths-of-XP family corroborated in nine samples, action/batch units unverified here"
+      },
+      "members": {
+        "productMarked": false,
+        "activityEligibility": "unverified: product membership alone does not establish recipe, ingredient or facility access"
+      },
+      "rawParams": [
+        {
+          "prop": 2195,
+          "intvalue": 25,
+          "stringvalue": null
+        },
+        {
+          "prop": 537,
+          "intvalue": 4165,
+          "stringvalue": null
+        },
+        {
+          "prop": 1397,
+          "intvalue": 1,
+          "stringvalue": null
+        },
+        {
+          "prop": 2675,
+          "intvalue": 43233,
+          "stringvalue": null
+        },
+        {
+          "prop": 2676,
+          "intvalue": 43234,
+          "stringvalue": null
+        },
+        {
+          "prop": 2640,
+          "intvalue": 14,
+          "stringvalue": null
+        },
+        {
+          "prop": 2645,
+          "intvalue": 1,
+          "stringvalue": null
+        },
+        {
+          "prop": 2696,
+          "intvalue": 14,
+          "stringvalue": null
+        },
+        {
+          "prop": 2697,
+          "intvalue": 10,
+          "stringvalue": null
+        },
+        {
+          "prop": 7764,
+          "intvalue": -1,
+          "stringvalue": null
+        },
+        {
+          "prop": 3733,
+          "intvalue": 1,
+          "stringvalue": null
+        }
+      ],
+      "duplicateParams": [],
+      "warnings": [],
+      "missing": [
+        "server recipe execution",
+        "facility/access requirements",
+        "failure probability",
+        "duration/throughput",
+        "player inventory state"
+      ]
+    }
+  ],
+  "retainedF2pComparison": [
+    {
+      "skill": "Crafting",
+      "total": 673,
+      "matched": 473,
+      "allInputsHaveNameOverlap": 439,
+      "inputNameGaps": 34
+    },
+    {
+      "skill": "Fletching",
+      "total": 305,
+      "matched": 282,
+      "allInputsHaveNameOverlap": 247,
+      "inputNameGaps": 35
+    },
+    {
+      "skill": "Smithing",
+      "total": 200,
+      "matched": 149,
+      "allInputsHaveNameOverlap": 111,
+      "inputNameGaps": 38
+    },
+    {
+      "skill": "Cooking",
+      "total": 371,
+      "matched": 258,
+      "allInputsHaveNameOverlap": 232,
+      "inputNameGaps": 26
+    },
+    {
+      "skill": "Runecrafting",
+      "total": 113,
+      "matched": 73,
+      "allInputsHaveNameOverlap": 64,
+      "inputNameGaps": 9
+    },
+    {
+      "skill": "Magic",
+      "total": 141,
+      "matched": 78,
+      "allInputsHaveNameOverlap": 61,
+      "inputNameGaps": 17
+    },
+    {
+      "skill": "Firemaking",
+      "total": 157,
+      "matched": 46,
+      "allInputsHaveNameOverlap": 46,
+      "inputNameGaps": 0
+    },
+    {
+      "skill": "Woodcutting",
+      "total": 10,
+      "matched": 2,
+      "allInputsHaveNameOverlap": 2,
+      "inputNameGaps": 0
+    }
+  ]
+}

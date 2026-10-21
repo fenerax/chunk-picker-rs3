@@ -1,3 +1,4 @@
+import { startupPhase } from './startup-timing.mjs';
 import { projectTeleportRoute } from './teleports-response.mjs';
 import { resolveDataset } from './datasets.mjs';
 import { verifyDatasetBinding } from './dataset-binding.mjs';
@@ -20,6 +21,7 @@ import { Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import { isImportRoute, readBackupRequest, sendGzipBackup, backupPreviewState } from './backup-transfer.mjs';
 import { createTaskScheduler } from './tasks/scheduler.mjs';
+import { sharedJSONBytes, sharedBuffer } from './tasks/shared-bytes.mjs';
 import { createPoolRanking } from './tasks/pool-ranking.mjs';
 import { openStore, prepareStoreProcessIdentity } from './storage/store.mjs';
 import { openInviteStore } from './storage/invites.mjs';
@@ -36,6 +38,7 @@ import { personalTeleportRows } from './core/teleport-returns.mjs';
 import { archaeologyTaskCorrections } from './data/archaeology-task-corrections.mjs';
 import { createGroupState, importBackup, importLegacyMaps, previewRestore, BACKUP_FORMAT, SCHEMA_VERSION } from './core/state.mjs';
 import { groupGoalCommandTypes } from './core/group-goals.mjs';
+import { TICK_ACTIVE_TASKS, tickActiveTasksDenied } from './core/tick-active-tasks.mjs';
 import { builtInRules, createRuleRegistry, evaluateRollPool, partnerConnections } from './core/rules.mjs';
 import { previewRuleProfile } from './core/planning.mjs';
 import { hasGameplayMigration, hasCurrentProgressAliasMigration, hasCurrentJournalMigration, migrateOwnedGameplay, resolveSavedTaskId } from './tasks/migration.mjs';
@@ -68,7 +71,7 @@ import { normalizeAreaCheckRequest } from './tasks/area-check.mjs';
 import { helperDrops } from './helper-drops.mjs';
 import { backlogSearchTasks } from './tasks/backlog-search.mjs';
 import { createProgressQuestPoints } from './helper-progress.mjs';
-import { startEarlyServer } from './startup.mjs';
+import { startEarlyServer, reuseEquivalentDataset } from './startup.mjs';
 import { createStartupWarmup } from './tasks/startup-warmup.mjs';
 import { createIdleMemoryReclaimer } from './idle-memory.mjs';
 import { releaseAutomaticTransportCaches } from './core/automatic-transport.mjs';
@@ -80,6 +83,7 @@ import { artBinding } from './art-bindings.mjs';
 export const frontDoorIngressProtocol = 1;
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+startupPhase('modules-loaded');
 // A fingerprint of the shipped app code; open pages compare it after reconnecting to offer a refresh.
 const APP_VERSION = (() => {
   const hash = createHash('sha256');
@@ -140,7 +144,7 @@ export const commandPermissions = Object.freeze(Object.fromEntries([
   'set-runescape-name', 'apply-runemetrics', 'set-slayer-lock', 'set-sticker', 'add-sticker',
   'update-sticker', 'remove-sticker', 'clear-stickers', 'set-chunk-colour', 'rename-chunk-colour', 'set-starting-chunk', 'set-section',
   'set-source-backlog', 'set-area', 'complete-task', 'set-obtained-equipment', 'roll', 'pick-for-me', 'unlock-selection',
-  'cancel-roll', 'unlock-both', 'random-start', 'go-members', 'unpick', 'undo', 'claim-task', 'clear-task-claim',
+  'cancel-roll', 'unlock-both', 'random-start', 'go-members', 'setup-start', 'unpick', 'undo', 'claim-task', 'clear-task-claim', TICK_ACTIVE_TASKS,
 ].map(type => [type, 'write'])));
 export function apiPermission(method, route) {
   const routes = routePermissions[method === 'HEAD' ? 'GET' : method];
@@ -187,6 +191,8 @@ function actorOwnsEvent(actor, identity) {
   return Boolean(actor.label && actor.label === identity.label);
 }
 
+const personalUndoReasons = new Map([['set-xp-choices', 'You can only undo XP choices for your signed-in player.'],
+  [TICK_ACTIVE_TASKS, 'You can only undo your own ticked tasks.']]);
 // Small committed History metadata only; never hydrate save/undo archives for a notice.
 export function coordinationView(store, identity) {
   const records = store.getRecentHistory(Number.MAX_SAFE_INTEGER);
@@ -196,9 +202,9 @@ export function coordinationView(store, identity) {
     return event;
   };
   const latest = store.getUndoEligibility();
-  const personalXpUndo = view => view?.event?.type === 'set-xp-choices' && !identity.admin
+  const personalXpUndo = view => personalUndoReasons.has(view?.event?.type) && !identity.admin
     && (!identity.memberId || view.event.command?.memberId !== identity.memberId)
-    ? { ...view, canUndo: false, reason: 'You can only undo XP choices for your signed-in player.' } : view;
+    ? { ...view, canUndo: false, reason: personalUndoReasons.get(view.event.type) } : view;
   const latestUndo = personalXpUndo({ ...latest, event: publicEvent(store.getHistoryEvent(latest.undoRevision)) });
   const own = records.findLast(event => event.hasUndo && event.type !== 'undo' && event.undoneRevision === undefined && actorOwnsEvent(event.actor, identity));
   const ownUndo = !own || own.revision === latest.undoRevision ? null : personalXpUndo({ ...store.getUndoEligibility(own.revision), event: publicEvent(own) });
@@ -276,9 +282,7 @@ async function startTaskWorker(definitions, definitionBytes, world, registry, op
   // the already available JSON without cloning the entire definition graph.
   let input = { definitions };
   if (!options?.workerFactory && !options?.deathWorkerFactory && !options?.duoWorkerFactory) {
-    const shared = new SharedArrayBuffer(definitionBytes.byteLength);
-    new Uint8Array(shared).set(definitionBytes);
-    input = { definitionBytes: shared };
+    input = { definitionBytes: sharedBuffer(definitionBytes) };
   }
   return createTaskScheduler({ ...options, workerData: { ...input, datasetSelection: dataset.workerSelection(), datasetDigest: dataset.digest, datasetOptions, preparedDatasetStages: preparedDefinitionStages(definitions), world: { chunks: world.chunks, areas: world.areas, ...(world.surface ? { surface: world.surface } : {}) }, extraRules } });
 }
@@ -361,7 +365,9 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
   liveSwap,
 } = {}) {
   const initializationStarted = performance.now();
-  dataset ??= await resolveDataset({ packsDir, selectionPath: packSelection, mapAssetsDir, gameDataDir });
+  startupPhase('create:start');
+  dataset ??= reuseEquivalentDataset(await resolveDataset({ packsDir, selectionPath: packSelection, mapAssetsDir, gameDataDir }), selectedDataset);
+  startupPhase('create:dataset');
   worldImagesRoot ??= path.join(ROOT, ...(dataset.gameDefaults.compatibility?.worldImagesPath ?? ['.local', 'world-images']));
   adoptLegacyMetadataProvider(dataset);
   const privateAddon = await loadPrivateAddon(privateAddonOptions);
@@ -374,8 +380,10 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
     const binding = await verifyDatasetBinding(dataDir, dataset);
     if (dataset.capabilities?.independent && !binding.bound) throw new Error('Standby requires existing bound storage.');
   } else await prepareGameStorage(dataDir, dataset);
+  startupPhase('create:storage');
   if (initialImport && !datasetFeature(dataset, 'originalSync')) throw httpError(422, 'Restore a starter backup through Backup & Import.');
   const browserDataset = await datasetBrowserPayload(dataset);
+  startupPhase('create:browser-payload');
   const startupTimingMs = { cataloguesMs: 0, workerAndReferencesMs: 0, storeMs: 0, authMs: 0, variantMs: 0, stateResponseMs: 0 };
   publicOrigin = normalizePublicOrigin(publicOrigin);
   const limits = createRateLimits(rateLimits);
@@ -441,14 +449,17 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
     })();
   }
   const originalData = await loadDatasetInputs(dataset, { loadDefinitions: definitions === undefined, loadTaskMap: taskMap === undefined });
+  startupPhase('create:inputs');
   let definitionBytes = definitions === undefined ? originalData.definitionBytes : Buffer.from(JSON.stringify(definitions));
   const taskBytes = taskMap === undefined ? originalData.taskBytes : Buffer.from(JSON.stringify(taskMap));
   const parsedDefinitions = prepareServerDefinitions(JSON.parse(definitionBytes.toString('utf8')), dataset, { reviewedOverlays: definitions === undefined });
-  definitionBytes = Buffer.from(JSON.stringify(parsedDefinitions));
+  definitionBytes = sharedJSONBytes(parsedDefinitions);
   const parsedTaskMap = JSON.parse(taskBytes.toString('utf8'));
+  startupPhase('create:definitions');
   const datasetOptions = { reviewedOverlays: definitions === undefined, ...(definitions === undefined ? {} : { cacheWalking: false }) };
   const indexedWorld = world ?? buildWorld(parsedDefinitions, { dataset, ...datasetOptions });
   startupTimingMs.cataloguesMs = performance.now() - initializationStarted;
+  startupPhase('create:world');
   const workerStarted = performance.now();
   let chunkSectionsPending;
   const loadChunkSections = () => chunkSectionsPending ??= chunkSectionCatalogue
@@ -506,6 +517,7 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
       Promise.resolve(dataset.capabilities.legacyHistory === false ? {} : dataset.json('app/data/legacy-task-history.json')),
       definitionCachePending, taskCachePending, storeProcessPending]);
   } catch (error) { await taskWorkerPending.then(worker => worker?.close()).catch(() => {}); throw error; }
+  startupPhase('create:worker');
   if (startupSignal?.aborted) { await taskWorker?.close(); startupSignal.throwIfAborted(); }
   const abortCalculator = () => { void taskWorker?.close(); };
   startupSignal?.addEventListener('abort', abortCalculator, { once: true });
@@ -549,7 +561,11 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
   let store;
   prepareState = preserveGameIdentity(dataset, prepareState);
   try { store = await openStore({ dataDir, world: indexedWorld, registry: ruleRegistry, initialState, migrateState, prepareState, beforeCommit, now, random, retention, membersStartBanks, xpChoiceCatalogue, progressQuestPoints: createProgressQuestPoints(parsedDefinitions),
-    taskCatalogue: taskWorker ? new Map([...taskWorker.catalogue, ...taskWorker.dynamicCatalogue].map(({ level, ...task }) => [task.id, task])) : undefined,
+    // Only rows carrying a level need a copy without it; generated goal rows are read as they are.
+    taskCatalogue: taskWorker ? new Map([...taskWorker.catalogue, ...taskWorker.dynamicCatalogue].map(row => {
+      if (!Object.hasOwn(row, 'level')) return [row.id, row];
+      const { level, ...task } = row; return [task.id, task];
+    })) : undefined,
     readOnly: liveSwap?.standby === true, liveSwapStrict: liveSwap?.strict === true, expectedCheckpoint: liveSwap?.checkpoint, onActivationTiming: liveSwap?.onActivationTiming }); }
   catch (error) { await taskWorker?.close(); throw error; }
   try {
@@ -565,6 +581,7 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
     startupSignal?.throwIfAborted();
   } catch (error) { await store.close(); await taskWorker?.close(); throw error; }
   startupTimingMs.storeMs = performance.now() - storeStarted;
+  startupPhase('create:store');
   const authStarted = performance.now();
   const token = store.getAccessToken();
   // The first map belongs to the master owner. Feedback aliases her private
@@ -586,6 +603,7 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
   catch (error) { await Promise.all([invites?.close(), feedback?.close(), usage?.close(), store.close(), taskWorker?.close()]); throw error; }
   if (startupSignal?.aborted) { await overlays.close(); await Promise.all([store.close(), taskWorker?.close(), invites.close(), feedback.close(), usage.close()]); startupSignal.throwIfAborted(); }
   startupTimingMs.authMs = performance.now() - authStarted;
+  startupPhase('create:sidecars');
   // Compile the static fingerprint before readiness; subsequent saves hash
   // only changed gameplay fields rather than the large migration archives.
   if (taskWorker) {
@@ -1786,8 +1804,11 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
               if (command?.type === 'set-finish-line-custom' && !identity.admin && (!identity.memberId || command.memberId !== identity.memberId)) {
                 throw httpError(403, 'You can only tick custom finish line items for your signed-in player.');
               }
+              if (command?.type === TICK_ACTIVE_TASKS) { const denied = tickActiveTasksDenied(identity, command); if (denied) throw httpError(403, denied); }
               if (command?.type === 'undo' && !identity.admin) {
                 const target = store.getHistoryEvent(command.undoRevision ?? store.getUndoEligibility().undoRevision);
+                const tickDenied = tickActiveTasksDenied(identity, command, target);
+                if (tickDenied) throw httpError(403, tickDenied);
                 if (target?.type === 'set-finish-line-custom' && (!identity.memberId || target.command?.memberId !== identity.memberId)) {
                   throw httpError(403, 'You can only undo finish line ticks for your signed-in player.');
                 }
@@ -1924,6 +1945,8 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
       else if (route === '/core/woodcutting-settings.mjs') file = await containedFile(path.join(ROOT, 'app', 'core'), 'woodcutting-settings.mjs');
       else if (route === '/core/banking-settings.mjs') file = await containedFile(path.join(ROOT, 'app', 'core'), 'banking-settings.mjs');
       else if (route === '/core/gathering-settings.mjs') file = await containedFile(path.join(ROOT, 'app', 'core'), 'gathering-settings.mjs');
+      else if (route === '/core/top-bar-settings.mjs') file = await containedFile(path.join(ROOT, 'app', 'core'), 'top-bar-settings.mjs');
+      else if (['/top-bar-buttons.mjs', '/top-bar.css'].includes(route)) file = await containedFile(webRoot, route.slice(1));
       else if (['/banking-settings.mjs', '/banking-display.mjs', '/banking.css'].includes(route)) file = await containedFile(webRoot, route.slice(1));
       else if (['/training/mining-rates.mjs', '/training/mining-rules.mjs'].includes(route)) file = await containedFile(path.join(ROOT, 'app', 'training'), route.slice('/training/'.length));
       else if (route === '/dataset-runtime.mjs') file = await containedFile(path.join(ROOT, 'app'), 'dataset-runtime.mjs');
@@ -1974,8 +1997,11 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
       else if (['/completed-view.mjs', '/completed-model.mjs', '/completed-range.mjs', '/completed-range-preference.mjs', '/completed-view.css'].includes(route)) file = await containedFile(webRoot, route.slice(1));
       else if (['/helper.mjs', '/helper.css', '/helper-model.mjs', '/helper-training.mjs', '/helper-goals.mjs', '/helper-drops.mjs', '/helper-charts.mjs', '/helper-utilities.mjs', '/helper-progress.mjs', '/helper-progress-model.mjs'].includes(route)) file = await containedFile(webRoot, route.slice(1));
       else if (['/core/interior-maps.mjs', '/core/archaeology.mjs'].includes(route)) file = await containedFile(path.join(ROOT, 'app', 'core'), route.slice('/core/'.length));
-      else if (['/core/experience.mjs', '/core/combat-level.mjs', '/core/f2p-skill-caps.mjs', '/core/finish-line.mjs', '/core/group-goals.mjs', '/core/group-goal-types.mjs'].includes(route)) file = await containedFile(path.join(ROOT, 'app', 'core'), route.slice('/core/'.length));
+      else if (['/core/experience.mjs', '/core/combat-level.mjs', '/core/f2p-skill-caps.mjs', '/core/finish-line.mjs', '/core/group-goals.mjs', '/core/group-goal-types.mjs', '/core/tick-active-tasks.mjs'].includes(route)) file = await containedFile(path.join(ROOT, 'app', 'core'), route.slice('/core/'.length));
       else if (['/copy-lists.mjs', '/copy-list-control.mjs', '/copy-list-model.mjs', '/copy-lists.css'].includes(route)) file = await containedFile(webRoot, route.slice(1));
+      else if (['/tick-active-tasks.mjs', '/tick-active-tasks-model.mjs', '/tick-active-tasks.css'].includes(route)) file = await containedFile(webRoot, route.slice(1));
+      else if (['/setup-guide.mjs', '/setup-guide.css'].includes(route)) file = await containedFile(webRoot, route.slice(1));
+      else if (route === '/core/setup-guide.mjs') file = await containedFile(path.join(ROOT, 'app', 'core'), 'setup-guide.mjs');
       else if (route === '/original-sync.mjs' && privateAddon?.features.originalSync) {
         const bytes = await privateAddon.read('app/web/original-sync.mjs');
         await sendCached(request, response, createRepresentation(bytes, { type: MIME['.mjs'] })); return;
@@ -2236,13 +2262,18 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
     },
   };
   onRequestHandler?.(requestHandler);
+  startupPhase('create:handler');
   startupSignal?.removeEventListener('abort', abortCalculator);
   return handle;
 }
 
 /** Production startup exposes private health before opening the save. */
 export function startServer(options = {}) {
-  const configured = { dataDir: defaultGameDirectory(ROOT, selectedDataset), ...options };
+  // Module load already resolved and verified this provider from the same
+  // environment defaults createServer would read; it re-verifies bytes on use
+  // and the worker re-resolves against its digest. Do not hash every input twice.
+  const bootstrap = ['dataset', 'packsDir', 'packSelection', 'mapAssetsDir', 'gameDataDir'].every(key => options[key] === undefined);
+  const configured = { dataDir: defaultGameDirectory(ROOT, selectedDataset), ...(bootstrap ? { dataset: selectedDataset } : {}), ...options };
   if (!selectedDataset.capabilities.independent) return startEarlyServer(configured, createServer);
   const storageReady = configured.liveSwap?.standby === true
     ? verifyDatasetBinding(configured.dataDir, selectedDataset).then(binding => {

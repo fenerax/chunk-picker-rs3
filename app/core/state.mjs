@@ -15,12 +15,14 @@ import { taskRuleValueError, taskRuleDiagnostics } from '../data/settings.mjs';
 import { decodeLegacyText, resolveSavedTaskId, migrateTaskIdentities } from '../tasks/migration.mjs';
 import { isPermanentId, legacyTaskId, lookupPermanentId } from '../tasks/identity.mjs';
 import { normalizeMembersStartOptions, membersStartPools, rollMembersStarts } from './members-start.mjs';
+import { SETUP_START, setupStartPools } from './setup-guide.mjs';
 import { validateFinishLine, validateFinishLineItemId, validateFinishLineOverride, validateFinishLineText,
   validateFinishLineChange, restoreFinishLineChange, MAX_FINISH_LINE_CUSTOM_ITEMS, finishLineCommandTypes } from './finish-line.mjs';
 import { groupGoalCommandKeys, groupGoalCommandTypes, applyGroupGoalCommand, validateGroupGoals,
   groupGoalChanges, validateGroupGoalChanges, restoreGroupGoalChanges } from './group-goals.mjs';
 import { validateRuleReviewId, normalizeRuleReviewNote, validateRuleReviews, ruleReviewChange,
   validateRuleReviewChange, restoreRuleReviewChange } from './rule-reviews.mjs';
+import { TICK_ACTIVE_TASKS, tickActiveTasksKeys, applyTickActiveTasks } from './tick-active-tasks.mjs';
 export { MAX_RULE_REVIEW_NOTE_LENGTH } from './rule-reviews.mjs';
 export { preferenceDefinitions, validatePreference } from './preferences.mjs';
 
@@ -68,6 +70,7 @@ const COMMAND_KEYS = new Map([
   ['unlock-both', new Set(['type', 'memberId'])],
   ['random-start', new Set(['type', 'memberId', 'count'])],
   ['go-members', new Set(['type', 'options'])],
+  [SETUP_START, new Set(['type'])],
   ['unpick', new Set(['type', 'memberId'])],
   ['set-note', new Set(['type', 'memberId', 'chunkId', 'note'])],
   ['set-journal', new Set(['type', 'memberId', 'note'])],
@@ -77,6 +80,7 @@ const COMMAND_KEYS = new Map([
   ['set-task-status', new Set(['type', 'memberId', 'taskId', 'backlogged', 'backlogReason', 'favorite', 'note', 'challengeCompleted'])],
   ['clear-backlog', new Set(['type', 'memberId', 'taskIds'])],
   ['clear-challenge-ticks', new Set(['type', 'memberId', 'taskIds', 'reason'])],
+  [TICK_ACTIVE_TASKS, tickActiveTasksKeys],
   ['set-task-rule', new Set(['type', 'memberId', 'ruleId', 'value'])],
   ['reset-task-rule', new Set(['type', 'memberId', 'ruleId'])],
   ['set-task-alternative', new Set(['type', 'memberId', 'category', 'group', 'taskId'])],
@@ -138,7 +142,8 @@ function savedTaskRuleDiagnostics(state) {
 }
 function dictionary(value, path, check) {
   record(value, path);
-  for (const [key, item] of Object.entries(value)) { propertyKey(key, `${path} key`); check(item, key); }
+  const keyPath = `${path} key`;
+  for (const key of Object.keys(value)) { propertyKey(key, keyPath); check(value[key], key); }
 }
 function propertyKey(value, path) {
   string(value, path);
@@ -574,27 +579,30 @@ function restoreTaskChanges(state, changes) {
 // Backups have a JSON boundary. Reject values JSON would silently lose or alter.
 function assertJson(value) {
   const seen = new Set();
-  function visit(item, path, historyList = false, historyEvent = false) {
+  // Keys and indexes of the current branch; its path text is built only for an error.
+  const branch = [];
+  const where = () => `state${branch.map(key => typeof key === 'number' ? `[${key}]` : `.${key}`).join('')}`;
+  function visit(item, historyList = false, historyEvent = false) {
     if (item === null || typeof item === 'string' || typeof item === 'boolean') return;
     if (typeof item === 'number' && Number.isFinite(item)) return;
-    if (typeof item !== 'object') fail(`${path} is not JSON serializable`);
-    if (seen.has(item)) fail(`${path} contains a circular reference`);
+    if (typeof item !== 'object') fail(`${where()} is not JSON serializable`);
+    if (seen.has(item)) fail(`${where()} contains a circular reference`);
     const prototype = Object.getPrototypeOf(item);
-    if (!Array.isArray(item) && prototype !== Object.prototype && prototype !== null) fail(`${path} must contain plain JSON objects`);
-    if (Object.getOwnPropertySymbols(item).length) fail(`${path} contains symbol properties`);
+    if (!Array.isArray(item) && prototype !== Object.prototype && prototype !== null) fail(`${where()} must contain plain JSON objects`);
+    if (Object.getOwnPropertySymbols(item).length) fail(`${where()} contains symbol properties`);
     // Restore and identity-migration provenance also contain preserved History.
     // Check attribution while walking JSON so those archives get the same
     // credential/shape boundary without another traversal of large evidence.
     if (historyEvent && Object.hasOwn(item, 'actor')) validateHistoryActor(item.actor);
     seen.add(item);
     if (Array.isArray(item)) {
-      for (let index = 0; index < item.length; index++) visit(item[index], `${path}[${index}]`, false, historyList);
+      for (let index = 0; index < item.length; index++) { branch.push(index); visit(item[index], false, historyList); branch.pop(); }
     } else {
-      for (const [key, child] of Object.entries(item)) visit(child, `${path}.${key}`, key === 'history' || key === 'incomingHistory' || key === 'previousHistory');
+      for (const key of Object.keys(item)) { branch.push(key); visit(item[key], key === 'history' || key === 'incomingHistory' || key === 'previousHistory'); branch.pop(); }
     }
     seen.delete(item);
   }
-  visit(value, 'state');
+  visit(value);
 }
 
 function jsonClone(value) {
@@ -1680,6 +1688,9 @@ function applyCommandCopy(next, command, { expectedRevision, world, registry, ra
       payload.taskIds = ids; payload.cleared = ids.length;
       break;
     }
+    case 'tick-active-tasks':
+      applyTickActiveTasks(findMember(next, payload.memberId), payload, id => registerCatalogueTask(next, id, taskCatalogue));
+      break;
     case 'clear-backlog': {
       // Restore saved statuses, even for tasks absent from the current calculated catalogue.
       const member = findMember(next, payload.memberId);
@@ -1994,6 +2005,25 @@ function applyCommandCopy(next, command, { expectedRevision, world, registry, ra
       if (payload.options.switchToMembers) next.rules['content.f2p'] = false;
       break;
     }
+    case 'setup-start': {
+      // The setup guide's start for every empty map at once: the reviewed F2P
+      // starting banks, different banks where possible, seeded like go-members.
+      if (!world || !membersStartBanks?.version) fail('Starting banks are unavailable');
+      const pools = setupStartPools(membersStartBanks, next);
+      if (!pools.length) fail('Everyone already has a starting chunk');
+      if (!pools[0].banks.length) fail('There is no starting-bank list');
+      for (const pool of pools) for (const bank of pool.banks) knownDestination(world, bank.chunkId);
+      payload.starts = rollMembersStarts(pools, 'different', random);
+      payload.bankVersion = membersStartBanks.version;
+      for (const start of payload.starts) {
+        const member = findMember(next, start.memberId);
+        for (const field of ['selected', 'blacklisted']) member[field] = member[field].filter(id => id !== start.chunkId);
+        member.unlocked = [start.chunkId];
+        member.preferences = { ...(member.preferences ?? {}), startingChunk: start.chunkId };
+        seedRandomStartSections(member, [start.chunkId], world);
+      }
+      break;
+    }
     case 'random-start': {
       const member = findMember(next, payload.memberId);
       if (member.pendingRoll.length) fail('Resolve or cancel the pending roll before random start');
@@ -2044,7 +2074,7 @@ function applyCommandCopy(next, command, { expectedRevision, world, registry, ra
   // Availability changes are
   // reconciled after calculation, without attaching their cleanup to History.
   const completionCommand = payload.type === 'complete-task' || payload.type === 'set-task-status' && Object.hasOwn(payload, 'challengeCompleted')
-    || ['apply-runemetrics', 'sync-original', 'replace-member', 'clear-challenge-ticks', 'undo'].includes(payload.type);
+    || ['apply-runemetrics', 'sync-original', 'replace-member', 'clear-challenge-ticks', TICK_ACTIVE_TASKS, 'undo'].includes(payload.type);
   if (completionCommand && Object.keys(next.taskClaims ?? {}).length) {
     const satisfiedIds = member => new Set([...(member?.completedTasks ?? []),
       ...Object.entries(member?.taskStatus ?? {}).filter(([, status]) => status.challengeCompleted === true).map(([id]) => id)]

@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
 import { createTaskScheduler, predictionCacheKey } from '../app/tasks/scheduler.mjs';
+import { STATE_SNAPSHOT_LIMIT } from '../app/tasks/state-transfer.mjs';
 
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 async function until(predicate) {
@@ -288,10 +289,11 @@ test('worker errors clear snapshot knowledge before queued capacity changes and 
     assert.ok(workerSnapshots.has(message.snapshotKey), 'Referenced state must remain in the worker cache');
     const body = workerSnapshots.get(message.snapshotKey);
     workerSnapshots.delete(message.snapshotKey); workerSnapshots.set(message.snapshotKey, body);
-    while (workerSnapshots.size > 4) workerSnapshots.delete(workerSnapshots.keys().next().value);
+    while (workerSnapshots.size > STATE_SNAPSHOT_LIMIT) workerSnapshots.delete(workerSnapshots.keys().next().value);
     finishJSON(workers[0], '{}');
   };
-  for (const input of ['A', 'B', 'C', 'D']) {
+  // Fill the shared LRU exactly; B stays referenced and A is the oldest entry.
+  for (const input of ['A', 'B', 'C', 'D'].slice(0, STATE_SNAPSHOT_LIMIT)) {
     const pending = operation(`initial-${input}`, input); complete(); await pending;
   }
   const failed = operation('rejected-B', 'B'), rejected = assert.rejects(failed, TypeError);

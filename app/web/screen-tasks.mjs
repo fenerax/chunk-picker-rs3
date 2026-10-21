@@ -13,6 +13,7 @@ import { createCopyLists } from './copy-lists.mjs';
 import { createBacklogView } from './screen-backlog.mjs';
 import { selectDuoTaskLists } from './duo-task-lists.mjs';
 import { createDuoBacklogView } from './duo-backlog-view.mjs';
+import { createTickActiveTasks } from './tick-active-tasks.mjs';
 
 // Main-screen tasks; shared values and callbacks live in the explicit screen context.
 export function createScreenTasks(c) {
@@ -26,6 +27,7 @@ export function createScreenTasks(c) {
   }
   c.taskClaimClock = createTaskClaimClock({ document });
   if (typeof createCopyLists === 'function') c.copyLists = createCopyLists(c);
+  if (typeof createTickActiveTasks === 'function') c.tickActiveTasks = createTickActiveTasks(c);
   function buildTaskFactsCache(snapshot, activeMemberId, ruleRegistry, sourceResult) {
     return { ...createTaskFactsIndex(snapshot, activeMemberId, ruleRegistry, { tasks: sourceResult?.tasks ?? [], completionGroups: sourceResult?.collectionPlanning?.completionGroups ?? {} }), sourceResult };
   }
@@ -316,7 +318,7 @@ export function createScreenTasks(c) {
     }
     const duo = c.duoSelection;
     const rows = c.activeTaskFilters().select(duo.rows, { state: c.state, memberId: c.memberId, ownerFilter }, { group: true, ownerHidden: duo.counts.union - duo.rows.length, search: filter, externalActive: personalFilter !== 'group' || ownerFilter !== 'all', doableFixed: personalFilter !== 'group' });
-    c.copyActiveTasks = rows.map(entry => entry.task);
+    c.copyActiveTasks = rows.map(entry => entry.task); c.activeDuoRows = rows;
     target.replaceChildren();
     const loadError = inspect && baseReady ? c.duoInspectionError : c.duoLoadError;
     const waiting = loadError === 'waiting';
@@ -408,6 +410,8 @@ export function createScreenTasks(c) {
       completedRows = c.duoListSelection.completed.rows; backlogRows = c.duoListSelection.backlog.rows;
     }
     c.copyLists?.tasks(groupOn ? c.copyActiveTasks : active, completedRows, groupOn, groupOn ? c.duoView().filter() : undefined);
+    c.tickActiveTasks?.update(groupOn ? c.activeDuoRows ?? [] : active, { duo: groupOn, host: c.$('task-count').parentElement,
+      ready: groupOn ? duoReady : view?.memberId === c.memberId && view.stateRevision === c.state.revision && taskDisplayState() === c.state });
     c.taskListRows.set('completed-tasks', completedRows); c.renderCompleted(completedRows, jobs, generation);
     c.taskListRows.set('backlog-tasks', backlogRows);
     if (typeof c.renderBacklog === 'function') c.renderBacklog(backlogRows, jobs, generation);

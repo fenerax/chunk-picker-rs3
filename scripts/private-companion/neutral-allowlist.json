@@ -1,0 +1,525 @@
+{
+  "schema": "rs3-neutral-allowlist-v1",
+  "reviewed": {
+    "by": "Claude (Phase B session) for Player 1",
+    "date": "2026-10-20",
+    "linuxRun": 39487343212,
+    "windowsRun": "PC, same run.mjs under the heavy lock",
+    "key": "5178d33626a9c77fbc65694e4e3788a61093503084ffa23430bb3c3fdb5f7532",
+    "privateSha": "a2f0d402f795a9b1a8304c92f5542539da9fc63c",
+    "coreSha": "d176df80958247f702ee5a02849d4a1c5b54c764",
+    "rule": "Closure has no pack terms (packs not yet on Actions), no platform, script or text terms except those waived by a reviewed ledger entry (exact bytes, terms and lines; witness rule at release); zero skips; passed on Linux and Windows with identical inputs and equal test counts."
+  },
+  "files": [
+    {
+      "file": "achievement-metadata-evidence.test.mjs",
+      "sha256": "364190226e0e5c061a290150afb89b0bc1a5015a2315ac8593c247609331d34b",
+      "qualifiedWith": "no-packs"
+    },
+    {
+      "file": "action-receipts.test.mjs",
+      "sha256": "11f5bc3c9c8d1a3af724fe7bc9169b247b68e0c8eb396ac52acff6baf2cb3496",
+      "qualifiedWith": "no-packs"
+    },
+    {
+      "file": "activity-filters.test.mjs",
+      "sha256": "5acee5a67f0c7918a3eb7fa6a0d96a2e4968f8be0747d99166f6433cebf6bc7f",
+      "qualifiedWith": "no-packs"
+    },
+    {
+      "file": "activity-view.test.mjs",
+      "sha256": "cea59415b2264a7e16e72fc7f1f91d3b5aaf80c4fa9605477c27693b4506cdbe",
+      "qualifiedWith": "no-packs"
+    },
+    {
+      "file": "backlog-tools.test.mjs",
+      "sha256": "f02304acf1ac0d75f9717df8ba27e4e5282a74abaff853d3c65626351043a0cd",
+      "qualifiedWith": "no-packs"
+    },
+    {
+      "file": "backup-transfer.test.mjs",
+      "sha256": "25fd7b26f038636cac2d20aa896888770932c3964dd7d89076e6aeba897bcd89",
+      "qualifiedWith": "no-packs"
+    },
+    {
+      "file": "banking-interiors.private.test.mjs",
+      "sha256": "36a33e9f27be0d4c65f8fa29c358b0a973215b29b3a4129a9149c6adea9e1663",
+      "qualifiedWith": "no-packs"
+    },
+    {
+      "file": "banking-interiors.test.mjs",
+      "sha256": "830f8168548771812b541014c5ca7a5c6a99a25a6c5d38f355f00d79fe60bd41",
+      "qualifiedWith": "no-packs"
+    },
+    {
+      "file": "banking-rates.test.mjs",
+      "sha256": "db43989cb47a5c7bfae3e93552afbd04e1616eebe81d2be68d7a50e781e9d82e",
+      "qualifiedWith": "no-packs"
+    },
+    {
+      "file": "bis-compare.test.mjs",
+      "sha256": "36562c14a23243ea3e500c43eb63dcfb6e494e5755082163afd0e8f4832d723f",
+      "qualifiedWith": "no-packs"
+    },
+    {
+      "file": "bis-controls.test.mjs",
+      "sha256": "fd3f8da6d3bd944e5d8afa33c243dc6e9a6b5098b6b64f5325dcda482f6c76a5",
+      "qualifiedWith": "no-packs"
+    },
+    {
+      "file": "cache-collision.test.mjs",
+      "sha256": "e51c5888af1e3d8c204c96fc43822f6a426f01854785c344269a5401ea52913a",
+      "qualifiedWith": "no-packs"
+    },
+    {
+      "file": "cache-pins.test.mjs",
+      "sha256": "71d253c27d03f816f1efee80868469b092845776fbe1b2dfef920a6243e3db08",
+      "qualifiedWith": "no-packs"
+    },
+    {
+      "file": "cache-reader.test.mjs",
+      "sha256": "5bb3ce39467d0e063ed68c54b7ad7585b0b91d29a1391d75297c57da65829ef7",
+      "qualifiedWith": "no-packs"
+    },
+    {
+      "file": "cache-selector-mapping.test.mjs",
+      "sha256": "b30e7dc439c4133f2447f3045c9b5381b98e1b819a9451dbc19294e069966044",
+      "qualifiedWith": "no-packs"
+    },
+    {
+      "file": "calculation-feedback.test.mjs",
+      "sha256": "f27cd424f2dfa0be21c7861a5d8f7d7192df9c26f9b87006cd598b7cd982c20f",
+      "qualifiedWith": "no-packs"
+    },
+    {
+      "file": "checked-batches.test.mjs",
+      "sha256": "8b653f3815270c184c23e8f8908eba98d130767716f6d7282605aa41186e6709",
+      "qualifiedWith": "no-packs"
+    },
+    {
+      "file": "chunk-quest-filters.test.mjs",
+      "sha256": "5f998025d7f3b5a99e3244c0d90d06a48161c6c2001669cf3c0a580c82c38fed",
+      "qualifiedWith": "no-packs"
+    },
+    {
+      "file": "chunk-sections-ui.test.mjs",
+      "sha256": "7a2a804298464001cc97ed6ebc1832b98f046b33949a6d655470e74e9be7aa7c",
+      "qualifiedWith": "no-packs"
+    },
+    {
+      "file": "combat-level.test.mjs",
+      "sha256": "2b194a33b2a097e8db706f392c0c2b3d042be704ed97f4b0d658627b96e063ef",
+      "qualifiedWith": "no-packs"
+    },
+    {
+      "file": "command-state.test.mjs",
+      "sha256": "bd4b12caaa75211006ae7c5c5cd41ff5ea2a6a96477068c56be476d3260d4016",
+      "qualifiedWith": "no-packs"
+    },
+    {
+      "file": "completed-range-preference.test.mjs",
+      "sha256": "ca3e726dbadb1c3e016238c6cd0aa807db1f93824a91776293e408d20284aa9f",
+      "qualifiedWith": "no-packs"
+    },
+    {
+      "file": "completed-range.test.mjs",
+      "sha256": "23af261a05fa4bbfbc70b5d10adde61c0805694f55ea98fb6efd8d066518be5e",
+      "qualifiedWith": "no-packs"
+    },
+    {
+      "file": "copy-list-control.test.mjs",
+      "sha256": "0312cab3b97b751c795a40201b5e737bde1ed32c04b4012c74daf13b020bfc9f",
+      "qualifiedWith": "no-packs"
+    },
+    {
+      "file": "copy-list-model.test.mjs",
+      "sha256": "329031960b3cf83f398a2f5ff645d6bee0e5ea9642a4c7ee85f9af40ab110c46",
+      "qualifiedWith": "no-packs"
+    },
+    {
+      "file": "copy-lists-view.test.mjs",
+      "sha256": "a5d6e3e0c7e5c3717f08eb9af951ef75c09e4055b20414c877cf837f5048244f",
+      "qualifiedWith": "no-packs"
+    },
+    {
+      "file": "definition-overlays.test.mjs",
+      "sha256": "d1bad3136b516a8ffbc9423ad6e5ef2daeeb5bd1be19954a4535d5b2daf4bbad",
+      "qualifiedWith": "no-packs"
+    },
+    {
+      "file": "design-tokens.test.mjs",
+      "sha256": "003abeed575813b71b01670a9660810cb505934b28953b9b50d11dbb6a600571",
+      "qualifiedWith": "no-packs"
+    },
+    {
+      "file": "equipment-wiki.test.mjs",
+      "sha256": "649356e98bcc11e522bc3dc2f95f2463033adfee0c48dffbb3216a791ddd5a48",
+      "qualifiedWith": "no-packs"
+    },
+    {
+      "file": "feedback-web.test.mjs",
+      "sha256": "2cb39acc794522641da4e091c8498ba82653d3872b37f93d2779343d625872e9",
+      "qualifiedWith": "no-packs"
+    },
+    {
+      "file": "fishing-display.test.mjs",
+      "sha256": "a84f12348b2046bbde4d53b9e5a314763ec803e97d8919590b062d74ab781d51",
+      "qualifiedWith": "no-packs"
+    },
+    {
+      "file": "gameplay-fingerprint.test.mjs",
+      "sha256": "e252da558833dee69bff3c92b2572223aa84dc5f499069a3ecfdde7d9b950d2d",
+      "qualifiedWith": "no-packs"
+    },
+    {
+      "file": "gathering-processing.test.mjs",
+      "sha256": "822baf84ba46dddf622837b7c1b445773b574473a69fd287579d179086e5739e",
+      "qualifiedWith": "no-packs"
+    },
+    {
+      "file": "helper-progress-view.test.mjs",
+      "sha256": "f32d3fceb9df1e2f37a1ca6cffbe4eee8379ba664fbf7bc607b033e731d09738",
+      "qualifiedWith": "no-packs"
+    },
+    {
+      "file": "history-reader.test.mjs",
+      "sha256": "19a759d430d8f805136b32e863402c19521a3df2d2ca87e006af62f50c82fb5d",
+      "qualifiedWith": "no-packs"
+    },
+    {
+      "file": "http-response.test.mjs",
+      "sha256": "6d572b20c6ee1d882af43273f664a1fa3d03c82b475286f67fde3a9da715a321",
+      "qualifiedWith": "no-packs"
+    },
+    {
+      "file": "idle-memory.test.mjs",
+      "sha256": "84863d71da8a562896a815e252f8d63d2c6b0b7f20ee6b452efe9a93e3c1a204",
+      "qualifiedWith": "no-packs"
+    },
+    {
+      "file": "interiors-v2-connections.test.mjs",
+      "sha256": "d6ab839e3c924fdec107c0a5f1d417260254eafb9d130c00999aad528d5df4ba",
+      "qualifiedWith": "no-packs"
+    },
+    {
+      "file": "invites-web.test.mjs",
+      "sha256": "3a171a648d1cbc3809f2daa0e3992d933c3beea7eaf169379134a64ae35b3124",
+      "qualifiedWith": "no-packs"
+    },
+    {
+      "file": "json-stream.test.mjs",
+      "sha256": "c5682d6425f45ce9be7f53a529948090cf680d50d5e0fe0c153239ba91b9fc1f",
+      "qualifiedWith": "no-packs"
+    },
+    {
+      "file": "map-activity-layer-renderer.test.mjs",
+      "sha256": "813836d3edb3307a386d9b3c557b866f3c7afe4a5873134c1469cd288ce08949",
+      "qualifiedWith": "no-packs"
+    },
+    {
+      "file": "map-display-panel.test.mjs",
+      "sha256": "e531c91d1d753173a11f210e7825fba1486eedbb411b0d8bbc2d588598f7403c",
+      "qualifiedWith": "no-packs"
+    },
+    {
+      "file": "map-task-locations.test.mjs",
+      "sha256": "ce61ac05172dc6066e14f3c25c73c597f04a0bffd407983479273cf8f8c0bbb4",
+      "qualifiedWith": "no-packs"
+    },
+    {
+      "file": "members-start-bank-names.test.mjs",
+      "sha256": "19991941463a0537b6b71661e24732ead9085634711c404ee00c54d255b0256e",
+      "qualifiedWith": "no-packs"
+    },
+    {
+      "file": "members-start-pools.test.mjs",
+      "sha256": "86193d95f51198514f31b3831c31d5d2a95ec483563cc0308ee8d5280fb08b8f",
+      "qualifiedWith": "no-packs"
+    },
+    {
+      "file": "members-start-web.test.mjs",
+      "sha256": "924112ed5efc491c2d967ef6d780df326898e4115d9e62243e6d9f1a9a6b7ba6",
+      "qualifiedWith": "no-packs"
+    },
+    {
+      "file": "obligation-cache.test.mjs",
+      "sha256": "38124f3179f7e8630365b3beee3631182c64fc9b371cc44b6bd2822bbff60654",
+      "qualifiedWith": "no-packs"
+    },
+    {
+      "file": "open-f2p-equipment.test.mjs",
+      "sha256": "6feae6ca282057fc002be7502d80426e8ed95e8c37a25987cba5347743f5fb5c",
+      "qualifiedWith": "no-packs"
+    },
+    {
+      "file": "overlay-client.test.mjs",
+      "sha256": "4dc4bc44b86af6563a48dd00446f4fbe119b470b6948fb9be22c285d927d4f15",
+      "qualifiedWith": "no-packs"
+    },
+    {
+      "file": "overlay-panel.test.mjs",
+      "sha256": "e44fb760f948c97911388017c0bee2ecee059316a7f731483c14f5a3112f20bc",
+      "qualifiedWith": "no-packs"
+    },
+    {
+      "file": "perf-probe.test.mjs",
+      "sha256": "4ea83933eead59a596abb74aef448eafff54fa2c4324ecb17385ddc123869420",
+      "qualifiedWith": "no-packs"
+    },
+    {
+      "file": "place-label-data.test.mjs",
+      "sha256": "e3bd645171483c72bc7a51ec0ac9fed7db28dce7522d275fe9655d4ca127b461",
+      "qualifiedWith": "no-packs"
+    },
+    {
+      "file": "placeholder-art.test.mjs",
+      "sha256": "2c326caab6c825360192e617639067af9f684e1c9d79eeb9c8d6553c8140c876",
+      "qualifiedWith": "no-packs"
+    },
+    {
+      "file": "pool-ranking-client.test.mjs",
+      "sha256": "451d930080f6bb9a3118ef92b5f58c8b2b214d55a4c1ad486dafe25fbf7f9e42",
+      "qualifiedWith": "no-packs"
+    },
+    {
+      "file": "pool-ranking.test.mjs",
+      "sha256": "1df35ae7746952cbe01dcc891f20f7a6b9e3262bd5bcdf995303a5ec08c12d79",
+      "qualifiedWith": "no-packs"
+    },
+    {
+      "file": "practice-reuse-retry.test.mjs",
+      "sha256": "0f60f1dff54e8fd7fc0129a1ee81c3c4a7ada97e378e2c026573f25fc9aaa0be",
+      "qualifiedWith": "no-packs"
+    },
+    {
+      "file": "process-worker-transport.test.mjs",
+      "sha256": "df2462749727244476d6b3dc70e68c07eb1276e615084fc7f12400a3d0f98394",
+      "qualifiedWith": "no-packs"
+    },
+    {
+      "file": "provenance-hash.test.mjs",
+      "sha256": "9b3f0da59cc5592c41692a37e9588913a74f50626a96ccaa4f8db251c7bcd750",
+      "qualifiedWith": "no-packs"
+    },
+    {
+      "file": "quest-map-controls.test.mjs",
+      "sha256": "de9ea9d18351e86dc5121f10bf09fbb3e422ef0b18390da66de942efedfbfa19",
+      "qualifiedWith": "no-packs"
+    },
+    {
+      "file": "quest-map-model.test.mjs",
+      "sha256": "a3e5520040126eb5b34fac39796639093795f74c8b91dea7376f5815ec2894fa",
+      "qualifiedWith": "no-packs"
+    },
+    {
+      "file": "quest-metadata-evidence.test.mjs",
+      "sha256": "41b2144165e655538ae294d0e787f0bf94e4a80a16efed1d95502e638dc29683",
+      "qualifiedWith": "no-packs"
+    },
+    {
+      "file": "release-lane-status.test.mjs",
+      "sha256": "faedd60fe2b68a88758110a544be98d00b81cb0fc823785b02fdf6ce2e328f35",
+      "qualifiedWith": "no-packs"
+    },
+    {
+      "file": "reviewed-service-variants.test.mjs",
+      "sha256": "1be04a31c6a6bb9bf5609d05f6ea12fdae67324d8fb7f7faa60c133df0bab31e",
+      "qualifiedWith": "no-packs"
+    },
+    {
+      "file": "rules-review-preview.test.mjs",
+      "sha256": "5ae885ff9fe77d13ed44d8a0769b94b9e94d01bad745d40073bf30d917f96781",
+      "qualifiedWith": "no-packs"
+    },
+    {
+      "file": "search-place-ranking.test.mjs",
+      "sha256": "bbe58b89778e798d61bf32e3043ada5992ec433445389d0ca6549f82fd699f33",
+      "qualifiedWith": "no-packs"
+    },
+    {
+      "file": "server-scale-fixture.test.mjs",
+      "sha256": "00382b5f82e029772ce977ac409c81e792a55006d22c2f5409b0b9ecc0bd23a8",
+      "qualifiedWith": "no-packs"
+    },
+    {
+      "file": "startup-warmup.test.mjs",
+      "sha256": "bde30e8ae8724c0e6124668da8ffbf96843dd44b87992e82f3ddbf5d553cf883",
+      "qualifiedWith": "no-packs"
+    },
+    {
+      "file": "stream-safe.test.mjs",
+      "sha256": "640eac97e4baf75fef9613d69fd2935839cac213b4e39687a6f1d7cc2699ed37",
+      "qualifiedWith": "no-packs"
+    },
+    {
+      "file": "task-claims-web.test.mjs",
+      "sha256": "e1cdf9a64edd6ac9f04275b46c2b1207a6a60c749702eec9ddd8ba924f65c8e2",
+      "qualifiedWith": "no-packs"
+    },
+    {
+      "file": "task-icon-painter.test.mjs",
+      "sha256": "788cff67ad1fb186a694a2ff2a5b74e62f3742a483d04a99291a0476e7457f6e",
+      "qualifiedWith": "no-packs"
+    },
+    {
+      "file": "teleports-web.test.mjs",
+      "sha256": "4599372fe7e83f51824f2d65d3ba8c60b7d2fce48d4efaddc7fc73778a89f42d",
+      "qualifiedWith": "no-packs"
+    }
+  ],
+  "reviewedModules": [
+    {
+      "path": "app/art-bindings.mjs",
+      "sha256": "14b16edf81caf5fd48add7b28d1470f912d471b38b06a199139c22c55fa4e0e3",
+      "terms": [
+        "platform",
+        "windows"
+      ],
+      "lines": [
+        [
+          125,
+          125
+        ]
+      ],
+      "note": "Line 125: when an /assets/ route has no exact binding, Windows also tries a lower-cased lookup, because Windows file names ignore case and old upstream URLs relied on that. Linux only does the exact lookup. Linux does not prove the Windows fallback; it proves every exact-match route. The witness rule keeps a PC file that loads this module running fresh on Windows in the same release, and a neutral file only qualified if it passed with the same test count on both systems, so its assertions do not depend on the fallback."
+    },
+    {
+      "path": "app/art-provider.mjs",
+      "sha256": "4e7d2ac0939c27c78c1c077c9ee6c65e7c08078493aa26a052658eec8f68ce2c",
+      "terms": [
+        "error-codes"
+      ],
+      "lines": [
+        [
+          11,
+          11
+        ]
+      ],
+      "note": "Line 11: a missing or unreadable artwork file returns null instead of throwing. EACCES is one of four error codes in that list. There is no platform branch: the same list applies on both systems, and Linux takes the same path for ENOENT. Windows only makes EACCES more likely (a locked file); the handling is identical, so the Linux result stands for Windows."
+    },
+    {
+      "path": "app/data/original-data.mjs",
+      "sha256": "a54b4d1e7e91c19596d7e372aa406c205f7251b90a1598da09a4803cfd046f84",
+      "terms": [
+        "path-flavour"
+      ],
+      "lines": [
+        [
+          17,
+          17
+        ]
+      ],
+      "note": "Line 17: a containment check, the data path must stay under the repository root (target starts with root plus path.sep). Both sides come from path.resolve, so each system compares its own native separator with itself. The rule is the same on both systems; only the separator character differs. The Linux result proves the check."
+    },
+    {
+      "path": "app/datasets.mjs",
+      "sha256": "797b3eea1edfbf3eeb34bb24ea6c5a0d006273289172a01d9292a9c0a4ace805",
+      "terms": [
+        "platform",
+        "windows",
+        "path-flavour"
+      ],
+      "lines": [
+        [
+          28,
+          28
+        ],
+        [
+          155,
+          155
+        ]
+      ],
+      "note": "Line 28: samePath ignores case on Windows and compares exactly elsewhere. Line 157 uses it to check that realpath of each segment equals the path itself (no links or junctions); Windows realpath can return different letter case for the same folder, hence the fold. Line 155 splits a path.resolve result on path.sep, which is native on each system. Linux runs the exact-compare branch only; the witness rule keeps a PC file that loads this module running fresh on Windows in the same release, and neutral files passed with equal counts on both systems."
+    },
+    {
+      "path": "app/packs.mjs",
+      "sha256": "62350ea02472745e1202c3fec86dc4671ef2b3383c6e1cefddeb33576d24e282",
+      "terms": [
+        "platform",
+        "windows",
+        "path-flavour"
+      ],
+      "lines": [
+        [
+          14,
+          14
+        ],
+        [
+          31,
+          31
+        ],
+        [
+          221,
+          221
+        ]
+      ],
+      "note": "Line 14: equalPath ignores case on Windows and compares exactly elsewhere; line 222 uses it to check that a file maps back to the same pack path. Lines 31 and 221 split native paths on path.sep (from path.resolve and path.relative, so native on each system) and line 221 rejoins with '/'. Linux runs the exact-compare branch only; the witness rule keeps a PC file that loads this module running fresh on Windows in the same release, and neutral files passed with equal counts on both systems."
+    },
+    {
+      "path": "docs/research/dataset-seam-source-2026-10-13/scripts/compare-original-data.mjs",
+      "sha256": "5417566f962125891cf065bb603932b6102b0a7501084a1f5ad7a2702c3d908f",
+      "terms": [
+        "browser",
+        "windows"
+      ],
+      "lines": [
+        [
+          169,
+          169
+        ],
+        [
+          219,
+          219
+        ]
+      ],
+      "note": "Archived research copy of scripts/compare-original-data.mjs. Line 169 is a sentence in the generated Markdown report that contains the words browser and screenshot; no browser runs. Line 219 passes windowsHide: true when it spawns node update-identities.mjs: on Windows that stops a console window from flashing up, Linux ignores it. The child's output, exit code and written files do not depend on it, so the Linux result stands for Windows."
+    },
+    {
+      "path": "scripts/compare-original-data.mjs",
+      "sha256": "4ebc6a838cfb3e8ee545a7c6ea36a115e7b85c0454eb84f4a4fc3fb4c118d32f",
+      "terms": [
+        "browser",
+        "windows"
+      ],
+      "lines": [
+        [
+          170,
+          170
+        ],
+        [
+          220,
+          220
+        ]
+      ],
+      "note": "Line 170 is a sentence in the generated Markdown report that contains the words browser and screenshot; no browser runs. Line 220 passes windowsHide: true when it spawns node update-identities.mjs: on Windows that stops a console window from flashing up, Linux ignores it. The child's output, exit code and written files do not depend on it, so the Linux result stands for Windows."
+    },
+    {
+      "path": "scripts/lib/frozen-original-inputs.mjs",
+      "sha256": "e46dd65b0744971d7e52b9250a552211fee46314a87ed13f25b92867802db22b",
+      "terms": [
+        "path-flavour"
+      ],
+      "lines": [
+        [
+          17,
+          17
+        ]
+      ],
+      "note": "Line 17: the same containment check as app/data/original-data.mjs (stay under the root, using path.sep from path.resolve on both sides) plus a refusal of absolute input paths. Same rule on both systems, only the separator differs. The Linux result proves the check."
+    },
+    {
+      "path": "scripts/lib/original-data-overrides.mjs",
+      "sha256": "ffeef82e654c594727db07bffb9eff73da037f473750459b27a470973d51ad41",
+      "terms": [
+        "release-text"
+      ],
+      "lines": [
+        [
+          24,
+          24
+        ]
+      ],
+      "note": "Line 24: when listing local data files to audit, it skips changelog.json and roadmap.json by name (with other non-override files). Not a platform branch. It never reads their contents, so leaving release text out of the lane key cannot change this module's result."
+    }
+  ]
+}

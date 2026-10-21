@@ -1,0 +1,694 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-10-08",
+  "status": "complete copied-cache guide extraction; four explicit unknowns",
+  "artifacts": [
+    {
+      "path": "C:/Users/User/Projects/chunk-picker-rs3/.local/game-data/skill-guides-2026-10-08-v1/skill-guides.v1.json",
+      "bytes": 28249571,
+      "sha256": "f4f5e995f1137ea49dd5072b4e3264446da635b9dd618af91c42647734a97d6c"
+    },
+    {
+      "path": "C:/Users/User/Projects/chunk-picker-rs3/.local/game-data/skill-guides-2026-10-08-v1/skill-guides-summary.v1.json",
+      "bytes": 5242,
+      "sha256": "3f44c9b21c444bad4d44fcd8354685b0f142c82f7bb6667a4083219a6f861e4c"
+    }
+  ],
+  "manifest": {
+    "path": "C:/Users/User/Projects/chunk-picker-rs3/.local/game-data/skill-guides-2026-10-08-v1/skill-guides-manifest.v1.json",
+    "sha256": "32a1a0408bec0a884a98158972684b0745aa4811c0b59058af0a037a140dfc5a"
+  },
+  "extractor": {
+    "path": "scripts/cache/game-data-skill-guides.mjs",
+    "sha256": "b5b29d662f52f33c157b689953b2bc04a704d7fc8c993df18115feb918e45972",
+    "hashScope": "repository text normalized to LF"
+  },
+  "decoder": {
+    "repository": "https://github.com/skillbert/rsmv",
+    "commit": "a92b8920b9b9842adde78822646ecad1a6f4fc15",
+    "buildSchema": 950,
+    "buildStatus": "inferred schema version; not independently verified game client build",
+    "sourceHashes": {
+      "constants": "1436162d7de64725f3b5902d1ae278f40e2dce5ab1f82439e62a2a832d82c66b",
+      "opcode": "5fd7b69a0be0a5d4ec71b5465afcfd5812e8dbcc05f859e021ca8c17d85ed6e4"
+    },
+    "schemaHashes": {
+      "typedef.jsonc": "0d4037507c304ea3bd1e966a161dc1643115c0991e81711bf49d672545dc6858",
+      "cacheindex.json": "b65b2f60dba6168134f6ae5c90d5504dcf26f276477bd2aff213c6734293f793",
+      "mapsquare_tiles.jsonc": "64deb140845bf6605456da65b2de56e7766a66f4747fc90f43e7f3fcc95afbdd",
+      "mapsquare_tiles_nxt.jsonc": "0199a97ae17a56b5a4f05b5962fd80788e86807ceff1256d023a2e650f43be56",
+      "mapsquare_locations.json": "41867d05f7f9456c54f2eedda9a977734b99e33736b89c2cece1eb618a99b308",
+      "locs.jsonc": "fbd5f1d646341a716e1c3c4b41a112727e62922290b44300e69ba8e2aa70c51f",
+      "npcs.jsonc": "1b3b3ffa02e325c0aecafb7d7b22ff7256f11494ab37685115cfd795b0fa4af2",
+      "maplabels.jsonc": "e3bd3e0d827f48ddbb1470e2959c51da23624a4e0fdfc145fa37d62bce780d63",
+      "maplabellocations.jsonc": "5b95af45643e545ca75c9bc4f2d942c033b994a01a00e243d93c36e49372e342",
+      "mapzones_pastes.json": "30f83ad60a5e372e1644627aa234eeca22bbd8e1ece36c44e87a0229f20e40fa",
+      "mapzones.json": "8ba12ea64687bf7376978682ca35688adf1d05a9dca221073dc79f5060f15b29",
+      "mapsquare_overlays.jsonc": "ebf509b0cfeba3288750e40b2049ccd25a210170e54fad7fb387619043954d62",
+      "mapsquare_underlays.jsonc": "2b2f0db789c666d40d85a9764aa4e3ecb9b36bd8f0cacf89e3024180b76b5478",
+      "enums.json": "860ee65ad6cd215960981695e8148de18564464f4375e27eb6b308fbad6c909d",
+      "structs.jsonc": "bf73399b40d9ebffb6f7beb5cab9c7b091724e6bcae0c5f76f61802a081d9870",
+      "items.jsonc": "8d0148d6810a56f166a8609f9cebbf19b1c1ffc763bd73053b2e3220aa5d6009",
+      "params.jsonc": "a8ac70f87c66b79fa5ef3455d41c38434fa0a85cf78ea99b8a736ddc1aecc4dd",
+      "dbrows.jsonc": "3b38ee2d6b1ef17d0e6bf6e70de36ee095c2032623b9dae997854366e69f41c7",
+      "dbtables.jsonc": "4ee3ed60a07d75c6affd4e8febf75d12ab2ea9b813a9f19255e6a8781f2b18a3",
+      "interfaces.jsonc": "105f29af0875ee27056bd748fecec8c840d441fa2d439a987cf725ce156a7091",
+      "clientscriptdata.jsonc": "e7eb3e90ac5d7214b0f5c06c6adfd1daa154883e7f8691b5ed290497e9cfedc3"
+    },
+    "footerValidation": "bounds and complete consumption required",
+    "executableInterpreterSha256": "ec7fa2cc9ab635bf2ef629f1fa8b77b6f32a97be1aaf4e26970ab2337e58bf16"
+  },
+  "coverage": {
+    "skills": 29,
+    "entries": 6281,
+    "tabs": 248,
+    "excludedEnum108Entries": [
+      {
+        "id": 31,
+        "name": "Quest point",
+        "reason": "No entry/tab pointer in guide roots; enum108 includes the Quest point pseudo-skill"
+      }
+    ],
+    "uiSelectors": [
+      {
+        "componentId": 79822855,
+        "skillId": 18
+      },
+      {
+        "componentId": 79822863,
+        "skillId": 8
+      },
+      {
+        "componentId": 79822871,
+        "skillId": 28
+      },
+      {
+        "componentId": 79822879,
+        "skillId": 1
+      },
+      {
+        "componentId": 79822887,
+        "skillId": 6
+      },
+      {
+        "componentId": 79822895,
+        "skillId": 22
+      },
+      {
+        "componentId": 79822903,
+        "skillId": 16
+      },
+      {
+        "componentId": 79822911,
+        "skillId": 11
+      },
+      {
+        "componentId": 79822919,
+        "skillId": 5
+      },
+      {
+        "componentId": 79822927,
+        "skillId": 26
+      },
+      {
+        "componentId": 79822935,
+        "skillId": 25
+      },
+      {
+        "componentId": 79822943,
+        "skillId": 21
+      },
+      {
+        "componentId": 79822951,
+        "skillId": 17
+      },
+      {
+        "componentId": 79822959,
+        "skillId": 15
+      },
+      {
+        "componentId": 79822967,
+        "skillId": 19
+      },
+      {
+        "componentId": 79822975,
+        "skillId": 9
+      },
+      {
+        "componentId": 79822983,
+        "skillId": 23
+      },
+      {
+        "componentId": 79822991,
+        "skillId": 27
+      },
+      {
+        "componentId": 79823000,
+        "skillId": 4
+      },
+      {
+        "componentId": 79823008,
+        "skillId": 13
+      },
+      {
+        "componentId": 79823016,
+        "skillId": 29
+      },
+      {
+        "componentId": 79823024,
+        "skillId": 7
+      },
+      {
+        "componentId": 79823032,
+        "skillId": 3
+      },
+      {
+        "componentId": 79823040,
+        "skillId": 12
+      },
+      {
+        "componentId": 79823048,
+        "skillId": 20
+      },
+      {
+        "componentId": 79823056,
+        "skillId": 14
+      },
+      {
+        "componentId": 79823064,
+        "skillId": 2
+      },
+      {
+        "componentId": 79823072,
+        "skillId": 24
+      },
+      {
+        "componentId": 79823080,
+        "skillId": 10
+      }
+    ],
+    "unresolvedEntries": 4,
+    "fieldUnknownCounts": {
+      "name": 0,
+      "requirementText": 1,
+      "level": 3,
+      "category": 0,
+      "members": 0,
+      "displayItemId": 0
+    },
+    "counts": [
+      {
+        "skillId": 8,
+        "skill": "Agility",
+        "entries": 221,
+        "tabs": 8,
+        "unresolved": 0
+      },
+      {
+        "skillId": 1,
+        "skill": "Attack",
+        "entries": 131,
+        "tabs": 7,
+        "unresolved": 0
+      },
+      {
+        "skillId": 6,
+        "skill": "Constitution",
+        "entries": 53,
+        "tabs": 4,
+        "unresolved": 1
+      },
+      {
+        "skillId": 22,
+        "skill": "Construction",
+        "entries": 160,
+        "tabs": 16,
+        "unresolved": 0
+      },
+      {
+        "skillId": 16,
+        "skill": "Cooking",
+        "entries": 343,
+        "tabs": 7,
+        "unresolved": 0
+      },
+      {
+        "skillId": 11,
+        "skill": "Crafting",
+        "entries": 609,
+        "tabs": 9,
+        "unresolved": 0
+      },
+      {
+        "skillId": 5,
+        "skill": "Defence",
+        "entries": 302,
+        "tabs": 10,
+        "unresolved": 0
+      },
+      {
+        "skillId": 25,
+        "skill": "Dungeoneering",
+        "entries": 198,
+        "tabs": 6,
+        "unresolved": 0
+      },
+      {
+        "skillId": 21,
+        "skill": "Farming",
+        "entries": 211,
+        "tabs": 13,
+        "unresolved": 0
+      },
+      {
+        "skillId": 17,
+        "skill": "Firemaking",
+        "entries": 145,
+        "tabs": 7,
+        "unresolved": 0
+      },
+      {
+        "skillId": 15,
+        "skill": "Fishing",
+        "entries": 122,
+        "tabs": 9,
+        "unresolved": 0
+      },
+      {
+        "skillId": 19,
+        "skill": "Fletching",
+        "entries": 267,
+        "tabs": 8,
+        "unresolved": 0
+      },
+      {
+        "skillId": 9,
+        "skill": "Herblore",
+        "entries": 309,
+        "tabs": 10,
+        "unresolved": 0
+      },
+      {
+        "skillId": 23,
+        "skill": "Hunter",
+        "entries": 248,
+        "tabs": 9,
+        "unresolved": 0
+      },
+      {
+        "skillId": 4,
+        "skill": "Magic",
+        "entries": 417,
+        "tabs": 11,
+        "unresolved": 0
+      },
+      {
+        "skillId": 13,
+        "skill": "Mining",
+        "entries": 246,
+        "tabs": 7,
+        "unresolved": 0
+      },
+      {
+        "skillId": 7,
+        "skill": "Prayer",
+        "entries": 124,
+        "tabs": 6,
+        "unresolved": 0
+      },
+      {
+        "skillId": 3,
+        "skill": "Ranged",
+        "entries": 264,
+        "tabs": 9,
+        "unresolved": 2
+      },
+      {
+        "skillId": 12,
+        "skill": "Runecrafting",
+        "entries": 209,
+        "tabs": 8,
+        "unresolved": 0
+      },
+      {
+        "skillId": 20,
+        "skill": "Slayer",
+        "entries": 187,
+        "tabs": 6,
+        "unresolved": 0
+      },
+      {
+        "skillId": 14,
+        "skill": "Smithing",
+        "entries": 188,
+        "tabs": 9,
+        "unresolved": 0
+      },
+      {
+        "skillId": 2,
+        "skill": "Strength",
+        "entries": 52,
+        "tabs": 7,
+        "unresolved": 0
+      },
+      {
+        "skillId": 10,
+        "skill": "Thieving",
+        "entries": 190,
+        "tabs": 8,
+        "unresolved": 0
+      },
+      {
+        "skillId": 18,
+        "skill": "Woodcutting",
+        "entries": 135,
+        "tabs": 7,
+        "unresolved": 0
+      },
+      {
+        "skillId": 24,
+        "skill": "Summoning",
+        "entries": 208,
+        "tabs": 7,
+        "unresolved": 0
+      },
+      {
+        "skillId": 26,
+        "skill": "Divination",
+        "entries": 206,
+        "tabs": 9,
+        "unresolved": 0
+      },
+      {
+        "skillId": 27,
+        "skill": "Invention",
+        "entries": 164,
+        "tabs": 7,
+        "unresolved": 0
+      },
+      {
+        "skillId": 28,
+        "skill": "Archaeology",
+        "entries": 212,
+        "tabs": 15,
+        "unresolved": 1
+      },
+      {
+        "skillId": 29,
+        "skill": "Necromancy",
+        "entries": 160,
+        "tabs": 9,
+        "unresolved": 0
+      }
+    ]
+  },
+  "targetReferenceAudit": {
+    "counts": {
+      "item": 4201,
+      "npc": 12,
+      "object": 0,
+      "struct": 72,
+      "dbrow": 566
+    },
+    "errors": []
+  },
+  "graph": {
+    "roots": {
+      "skills": 108,
+      "entries": 5420,
+      "tabs": 5421,
+      "internalSkills": 681,
+      "interface": 1218
+    },
+    "helpers": {
+      "name": 12095,
+      "requirementText": 12096,
+      "level": 12098,
+      "category": 12100,
+      "members": 2553,
+      "displayItemId": 14715
+    },
+    "params": {
+      "name": 2210,
+      "requirementText": 2211,
+      "level": 2212,
+      "item": 2213,
+      "graphic": 2214,
+      "skill": 2215,
+      "levelUpText": 2216,
+      "members": 2217,
+      "milestone": 2218,
+      "flag2219": 2219,
+      "category": 2220,
+      "dbrow": 6569,
+      "ability": 8877,
+      "showIngredients": 5442,
+      "ingredientMode": 5443
+    },
+    "interpretation": "Typed enum roots and fully consumed client helper bytecode; no string matching joins"
+  },
+  "traceFindings": [
+    "Enum 108 enumerates 29 real skills and Quest point 31; typed guide roots 5420 (entries) and 5421 (tabs) omit Quest point.",
+    "All entry-list values are type 73 structs; all tab lists are strings. Interface 1218 has 29 selectors calling helper 5682 with matching guide skill IDs.",
+    "Helpers 12095, 12096, 12098, 12100, 2553 and 14715 derive title, additional text, level, category, membership and display item from item, DB row and ability pointers. All 37 helper bodies match their footer instruction counts; six UI scripts retain routing and renderer evidence.",
+    "Renderer 16268 overrides production levels using item parameter 2645 when parameter 2640 names the selected skill and the product has a single primary skill. Membership follows parameter 2639, the product, its first two ingredients, and its tool. This resolves 269 zero-level helper results.",
+    "Membership parameter 2217=1 is decisive; 2217=0 still allows DB row, ability or item membership fallback.",
+    "Graphic type 23 is a sprite or icon reference; NPC type 32, object type 30 and item type 33 have separate ID namespaces. The 36 typed NPC links resolve to 12 NPC definitions in the copied cache. No object reference is fabricated."
+  ],
+  "examples": [
+    {
+      "id": "cache:struct:46045:skill:18",
+      "skill": "Woodcutting",
+      "name": "Normal tree",
+      "level": 1,
+      "members": false,
+      "category": {
+        "id": 3,
+        "name": "Trees"
+      },
+      "requirementText": "Includes divine tree.",
+      "item": {
+        "id": 1511,
+        "name": "Logs",
+        "membersMarked": false,
+        "definitionPresent": true
+      }
+    },
+    {
+      "id": "cache:struct:46061:skill:18",
+      "skill": "Woodcutting",
+      "name": "Yew tree",
+      "level": 70,
+      "members": false,
+      "category": {
+        "id": 3,
+        "name": "Trees"
+      },
+      "requirementText": "Includes divine yew tree.<br><br>Locations:<br>- 1 at Lumbridge cemetery<br>- 3 at Lumbridge Market<br>- 2 at Port Sarim<br>- 3 at Rimmington<br>- 3 at Falador<br>- 1 at Gower Farm<br>- 3 at Varrock palace<br>- 1 at Varrock chapel<br>- 3 at Jolly Boar Inn<br>- 2 at Edgeville<br>- 3 at Zanaris<br>- 4 at Isafdar<br>- 3 at Daemonheim peninsula resource dungeon<br>- 3 at Legends' Guild<br>- 3 at Seer's Village graveyard<br>- 8 at Seers' Village flax field<br>- 1 at Otto's Grotto<br>- 6 at Tree Gnome Stronghold<br>- 11 at Eagles' Peak<br>- 3 at Piscatoris Hunter area<br>- 5 in Prifddinas, Crwys (after Plague's End)",
+      "item": {
+        "id": 1515,
+        "name": "Yew logs",
+        "membersMarked": false,
+        "definitionPresent": true
+      }
+    },
+    {
+      "id": "cache:struct:53325:skill:18",
+      "skill": "Woodcutting",
+      "name": "Hawthorn's hatchet",
+      "level": 100,
+      "members": true,
+      "category": {
+        "id": 4,
+        "name": "Tools"
+      },
+      "requirementText": "",
+      "item": {
+        "id": 63871,
+        "name": "Hawthorn's hatchet",
+        "membersMarked": true,
+        "definitionPresent": true
+      }
+    },
+    {
+      "id": "cache:struct:33701:skill:16",
+      "skill": "Cooking",
+      "name": "Stop burning shrimp",
+      "level": 34,
+      "members": false,
+      "category": {
+        "id": 5,
+        "name": "Food burning"
+      },
+      "requirementText": "",
+      "item": {
+        "id": 7954,
+        "name": "Burnt shrimp",
+        "membersMarked": false,
+        "definitionPresent": true
+      }
+    },
+    {
+      "id": "cache:struct:33702:skill:16",
+      "skill": "Cooking",
+      "name": "Stop burning crayfish",
+      "level": 34,
+      "members": false,
+      "category": {
+        "id": 5,
+        "name": "Food burning"
+      },
+      "requirementText": "",
+      "item": {
+        "id": 13437,
+        "name": "Burnt crayfish",
+        "membersMarked": false,
+        "definitionPresent": true
+      }
+    },
+    {
+      "id": "cache:struct:33713:skill:16",
+      "skill": "Cooking",
+      "name": "Stop burning trout",
+      "level": 49,
+      "members": false,
+      "category": {
+        "id": 5,
+        "name": "Food burning"
+      },
+      "requirementText": "",
+      "item": {
+        "id": 343,
+        "name": "Burnt fish",
+        "membersMarked": false,
+        "definitionPresent": true
+      }
+    },
+    {
+      "id": "cache:struct:33730:skill:16",
+      "skill": "Cooking",
+      "name": "Stop burning lobster",
+      "level": 74,
+      "members": false,
+      "category": {
+        "id": 5,
+        "name": "Food burning"
+      },
+      "requirementText": "",
+      "item": {
+        "id": 381,
+        "name": "Burnt lobster",
+        "membersMarked": false,
+        "definitionPresent": true
+      }
+    }
+  ],
+  "unknowns": [
+    {
+      "id": "cache:struct:6717:skill:6",
+      "skillId": 6,
+      "structId": 6717,
+      "unknowns": [
+        {
+          "field": "level",
+          "reason": "Guide level helper returns zero; preserve sentinel"
+        }
+      ]
+    },
+    {
+      "id": "cache:struct:4847:skill:3",
+      "skillId": 3,
+      "structId": 4847,
+      "unknowns": [
+        {
+          "field": "level",
+          "reason": "Guide level helper returns zero; preserve sentinel"
+        }
+      ]
+    },
+    {
+      "id": "cache:struct:4848:skill:3",
+      "skillId": 3,
+      "structId": 4848,
+      "unknowns": [
+        {
+          "field": "level",
+          "reason": "Guide level helper returns zero; preserve sentinel"
+        }
+      ]
+    },
+    {
+      "id": "cache:struct:12137:skill:28",
+      "skillId": 28,
+      "structId": 12137,
+      "unknowns": [
+        {
+          "field": "requirementText",
+          "reason": "Player-state-dependent varbit 6955008 in helper 14610"
+        }
+      ]
+    }
+  ],
+  "decodeAudit": {
+    "counts": {
+      "enums": 16755,
+      "structs": 53501,
+      "items": 63798,
+      "params": 9498,
+      "dbrows": 20297,
+      "dbtables": 391,
+      "interfaces": 104223
+    },
+    "errors": {
+      "enums": [],
+      "structs": [],
+      "items": [],
+      "params": [],
+      "dbrows": [],
+      "dbtables": [],
+      "interfaces": [
+        {
+          "major": 3,
+          "minor": 105,
+          "subid": 225,
+          "id": 6881505,
+          "message": "interface at byte 178/264: no opcode matched"
+        },
+        {
+          "major": 3,
+          "minor": 707,
+          "subid": 15,
+          "id": 46333967,
+          "message": "interface at byte 178/264: no opcode matched"
+        },
+        {
+          "major": 3,
+          "minor": 1438,
+          "subid": 18,
+          "id": 94240786,
+          "message": "interface at byte 251/343: no opcode matched"
+        },
+        {
+          "major": 3,
+          "minor": 1438,
+          "subid": 19,
+          "id": 94240787,
+          "message": "interface at byte 251/338: no opcode matched"
+        }
+      ]
+    },
+    "scriptErrors": [],
+    "targetErrors": []
+  },
+  "verification": {
+    "tests": "node --test tests/skill-guides-extraction.test.mjs: 5 passed, 0 failed, 0 skipped",
+    "reproduction": "Fresh extraction-v6 and final publication have identical logical skills, entries and raw used definitions",
+    "logicalGuideSha256": "2d601fb27511c871cb201a502c4a7906d4439546bb7f89b9f41f666ae6f457c8"
+  },
+  "limits": [
+    "Copied snapshot is not guaranteed latest live data.",
+    "Guide display is not authoritative server execution, quest completion, inventory, XP, duration or geographic accessibility.",
+    "Player-state-dependent helper branches and unsupported operations remain explicit unknowns.",
+    "Graphic IDs are icon references, not NPC IDs. Only typed references are linked."
+  ]
+}

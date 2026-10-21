@@ -1,0 +1,143 @@
+Open F2P 0.3.0 input cache manifest
+
+Dataset SHA256: 103db893fd5a190d6892419c26e0a62085eebaf55c6f0f473e4c34042e420c3e
+Provider digest: 91cabb9495d97243ecfe9b9178e856f92da8b1a8f778a7d92e4074bd367b38bf
+
+Copy all 126 files below from this worktree. The generator reads every pin, including review-only evidence.
+Base directory: C:/Users/User/Projects/chunk-picker-rs3-wt/f2pbatch3/.local/wiki-open-f2p/
+
+Filename | Requested title | Resolved title | Revision | Canonical wikitext receipt SHA256
+lumbridge-2899667b6d.json | Lumbridge | Lumbridge | 37148560 | 7c115b3e77a6d2a41aae6bb77f802e979e6138a8adac327e5e0b61f34a834cad
+lumbridge-lodestone-e1a8703cdc.json | Lumbridge lodestone | Lumbridge lodestone | 37110013 | f6596f7b7d1c7623b0b5036a2c487bf2785f802922f12c15ec8a37484f11cef6
+lumbridge-forest-8964d331ab.json | Lumbridge forest | Lumbridge forest | 37110056 | 62a71be95536f16277c85c3286204e7f4045cb332ed34e10bd0664c273152f62
+lumbridge-swamp-d8903abf40.json | Lumbridge Swamp | Lumbridge Swamp | 37148545 | 365d2258308b120b1ee297872d293548fc3713dc47af0b82a1158836b626878a
+draynor-village-3923f37019.json | Draynor Village | Draynor Village | 37146499 | 474311923ae3616523a628c44bd098d029524a1f1247176bb108f9a08c1ed819
+draynor-manor-5d275deb65.json | Draynor Manor | Draynor Manor | 37109852 | 8c7751002983e86ce10dd5966cbc6383dcadf591d8095be94a85b69aefe37417
+port-sarim-cb04357d54.json | Port Sarim | Port Sarim | 37173238 | 731707e1bba34f2ffec5f824bd5a0b6aee9f00537d7d5883ec0e817a7bd4c0a1
+rimmington-99acf5117b.json | Rimmington | Rimmington | 37191938 | 8f75e82fba540bf43d7fc749ad4c92d391c2e8addb459157c4c12f0271e80af7
+rimmington-mine-8f83d27c1a.json | Rimmington mine | Rimmington mine | 37180850 | ef8cf8a6da0e4f5e266a6372cbddcd7a621451e922ae83f735f751fd503cfaac
+varrock-6d1b0652b6.json | Varrock | Varrock | 37147772 | 6dfdabecf786e89d6d84cb957a8fb241ebf2b5c26aafff805217bf292a9fe75e
+varrock-south-east-mine-8803d2786f.json | Varrock south-east mine | Varrock south-east mine | 37180883 | 7a42dd961e7674a7cc40335a6a7a504bea41be63b1aeecfd64af1fa39daac779
+varrock-south-west-mine-fa7d9acdb2.json | Varrock south-west mine | Varrock south-west mine | 37180884 | 672717133324dd87ea4e8d05cec87d444a72d2cac479042c30931f1f1cb601c4
+al-kharid-f2a8473a62.json | Al Kharid | Al Kharid | 37120737 | 8288415224d1edc096e7154ece7304a0f02bbfb19d044f12e268256b055b81d7
+al-kharid-mine-716b3dd4e6.json | Al Kharid mine | Al Kharid mine | 37180731 | c4f6497a4eb1674524106aa8840b6fb186254281db104ca141384302f26513c7
+lumbridge-south-east-mine-677e1d4343.json | Lumbridge south-east mine | Lumbridge south-east mine | 37180817 | 551c925086fd8b279e7490a7dd37117481a8fb4970c4e59ee45f3738dc7dee4c
+lumbridge-south-west-mine-e1d97c27ec.json | Lumbridge south-west mine | Lumbridge south-west mine | 37180822 | e94d7e7fa4e186043cc94bdc004fb49aa65f35f3c38f5f27a3f792229b489a48
+falador-e7e25c2a81.json | Falador | Falador | 37146501 | 227f8c0891980dcbb00544c02993ab4915653f2c5c420fa38a3116da772a6e28
+barbarian-village-f141a3ee48.json | Barbarian Village | Barbarian Village | 37181129 | bab2001338b2bbcbf31ad201ad6a8910a23b625884fbad504edd9fd72d79e671
+edgeville-36c56498f0.json | Edgeville | Edgeville | 37146520 | 2409fd9c6f40f36b063a40e68309dc87f80195aca2de5017c657bf7be4ea67ff
+taverley-1f566bc9d8.json | Taverley | Taverley | 37137964 | 46a8f263b4aa421c62d66c3d37b92d1fe7a44d7cde2a82fe7e9ad62e22572597
+burthorpe-91e05a2dc4.json | Burthorpe | Burthorpe | 37173594 | eb79ffd3599a19f8faf50acde8e3e8b42f5f377262950a17f021bcac6413e932
+oak-cfed998f07.json | Oak | Oak | 37197269 | 65c77aa1aa3e5ae1e8b0406093282e948f0fcc0585cf4629e2c818bf24bb2826
+willow-0a8a36409c.json | Willow | Willow | 37197270 | e972315baf828016679509f3d5670d2edbee9c9b8193b1442da6a12e5f675d3a
+copper-rocks-d6cecc9bd0.json | Copper rocks | Copper rock | 37195298 | 50e64bd60e67ed17c84896c0fc80d7da5d2f5f706e0cc80709df2934e4a126fd
+tin-rocks-24f52b5378.json | Tin rocks | Tin rock | 37178976 | 17f9929581e603b9c014476fdd6dc2a5855ab57eb5747f5a4ba197207f64d3a8
+iron-rocks-0b780625cb.json | Iron rocks | Iron rock | 37195299 | db2b3e334e20b27d1a90f2ff3b32d1112f6540b718ebac9878c39ce88a601cd1
+coal-rocks-1ae5da38fa.json | Coal rocks | Coal rock | 37195300 | af23a2b28b189fa03b4ff03f32e6753bfeccc31d44efe49a198bbbd3d531e693
+mithril-rocks-411b2b98f5.json | Mithril rocks | Mithril rock | 37195302 | 9f10a88fda918b660c610c2880d12ffec6bc5b333ae130ccfd95c569739491f9
+adamantite-rocks-d309486134.json | Adamantite rocks | Adamantite rock | 37178961 | ea1684ddcc9e8683bbe46b61072551e0bab86756dd5fa765ccfcb6bfb7cedcbb
+clay-rocks-9994d5edf6.json | Clay rocks | Clay rock | 37195307 | cb8855fc27449635f55b25eb06b5186431797987c5c0547c5a3ee59105491ad2
+gold-rocks-74f0015fba.json | Gold rocks | Gold rock | 37179006 | 9c44542f07e5e0a266e6d4cd304f4b023f9d315b268f2e86a76e8fe0de3b40c5
+silver-rocks-80527fdfb0.json | Silver rocks | Silver rock | 37195301 | 432790aeb18f2e477892f29724284313142f8ff655e5de6ff42df7e8b23e9611
+limestone-rocks-dad87ac83d.json | Limestone rocks | Limestone rock | 37179098 | c950baec3ee3256f78d2a1cded29a65967a68814e517623956267f879e778c36
+fishing-spot-crayfish-cbbf3f5bd9.json | Fishing spot (crayfish) | Fishing spot (crayfish) | 37196216 | e678a1943ea1e2e1c3ff63a2aae2197675fd4b0e6d352fb4cf58a11e41682d6a
+fishing-spot-lure-bait-ade143e61d.json | Fishing spot (lure, bait) | Fishing spot (lure, bait) | 37196220 | eb9774e5c658f1820d6508a6d0b6e16c1e0c73f3d334d93a7038ceb5f048e42a
+fishing-spot-small-fishing-net-bait-e191673a9f.json | Fishing spot (small fishing net, bait) | Fishing spot (small fishing net, bait) | 37196217 | dd3a38f1abbffcf68c51aa95af87561c9167eac18a43f1cd0c20bd4144209fe6
+runescape-map-4bdbaada3d.json | RuneScape:Map | RuneScape:Map | 36844186 | 9ae690ed771b8cbb8432c7d5cab26bd38aa63ca854468b8ac4efa5c4f7934049
+template-map-doc-6f56d7efe8.json | Template:Map/doc | Template:Map/doc | 36924337 | ba6665040301ac95e3ce3460df3016e6c2c4207d1e3b69928984fa7bd897dea8
+lumbridge-general-store-4da9a92ca4.json | Lumbridge General Store | Lumbridge General Store | 37110026 | 30f7426ac1f693cf1ad3aaa466089d3240c2c16586d14bec4b081ac1d3f11b34
+hank-s-fishing-shop-e0e152bb74.json | Hank's Fishing Shop | Lumbridge Fishing Supplies | 37133722 | 8e8b2d195c27236a2c9e63debb0100457d37219e86d1c601e31f7f4d7a652202
+bob-s-brilliant-axes-a79f94c441.json | Bob's Brilliant Axes | Bob's Brilliant Axes | 37176178 | d894f0e73a008e586ad8967e78fbd2c3f85ff1ce98b778cecff8bb89aaa588f0
+gerrant-s-fishy-business-a9452158ac.json | Gerrant's Fishy Business | Gerrant's Fishy Business | 37123123 | 466558601cf3b1e93ebc0b6070382c2e65bb132a5125820aac270f0f5e8e66b3
+rimmington-general-store-5d280cc5c3.json | Rimmington General Store | Rimmington General Store | 37175723 | 6ff91937e9e65a8995e39b143d41b759d4186e5b93992d9fc4bf36c692616568
+rommik-s-crafty-supplies-43b4b647d8.json | Rommik's Crafty Supplies | Rommik's Crafty Supplies | 37185590 | 680e96c70d393f4db1b584064cc9c49bc03acc8735342bb56a344e7489c01adf
+al-kharid-general-store-e2f061e963.json | Al Kharid General Store | Al Kharid General Store | 37120309 | 7f135dacb2e7f68aa1da8ff34fa59c1ee32ee3ba9f8994bf2b55976ff20b1f33
+dommik-s-crafting-store-c1a8a4f341.json | Dommik's Crafting Store | Dommik's Crafting Store | 37181367 | 6a5a715a6ce064ddd9d7aa63f4e9b6042e9ecf9b2531fa3e437a077647e0935f
+varrock-general-store-3b3fa7aa54.json | Varrock General Store | Varrock General Store | 37108346 | 0592ba4b498584eeff13679986a6bb541ac1d62643114208b6c7a57cff1e2905
+falador-general-store-03b9f4d8f8.json | Falador General Store | Falador General Store | 37122474 | d0777348d2e79b41dd91de9a682162ba15a3f74e21b562f61a1a62907cc0792f
+edgeville-general-store-b735ef49fd.json | Edgeville General Store | Edgeville General Store | 37110224 | 3cc7465e602addffbfb8e10ed07225da2468aadb35264f94b1a819f6317e9041
+nicholas-angle-s-shop-a4bf6719a9.json | Nicholas Angle's Shop | Nicholas Angle's Shop | 37185603 | 56bf64c8f29c3dc4729d8a75541f7a2a2534ff5f7f2da4aa9ff29cfbd4a3c906
+karamja-general-store-d987abab03.json | Karamja General Store | Karamja General Store | 37122538 | 90a794b3edb8040598fffaec7e2a7ec98e18b0f7de9f251a2a82916d70692312
+lumbridge-castle-bank-a346672307.json | Lumbridge Castle bank | Lumbridge Castle bank | 37110015 | 63cf91cc006897b86f5abc235a3fa4d75905ea82f0df127388f53ddcaed2d735
+draynor-bank-ff688f0cd4.json | Draynor bank | Draynor bank | 37110113 | 6c6acc123eba8b4bbb79a163c01acfbbd6394e6fa80d8f6c1fe7f4a3832daf09
+al-kharid-bank-6182d91a3e.json | Al Kharid bank | Al Kharid bank | 37122485 | b1a84547eee00450142d031607e4ef34b280f36e87a1486dec9ed309e1ac86a2
+varrock-east-bank-1a79109225.json | Varrock east bank | Varrock east bank | 37171930 | ffd28d9f822f48ed7f39f9fa3312a8d02e3eb44a0b1bbf584d81470d77faa84b
+varrock-west-bank-eeceb9935f.json | Varrock west bank | Varrock west bank | 37188494 | c907d04683b551076b72e946d6edfcb3ea350ee2c4c67fd3af9bf96b51a10eba
+falador-east-bank-b66260aa41.json | Falador east bank | Falador east bank | 37127275 | c5042b6a73b0269f4038441e5d7a1dbc2871e9714ad9dc38e889dfeb0ea9de3e
+falador-west-bank-9d029016b1.json | Falador west bank | Falador west bank | 37127274 | fa9878f2bb5283f99f275478bc1faa8c61e2f0edc8d2c438fc1bae7db0d3604e
+edgeville-bank-2322d36843.json | Edgeville bank | Edgeville bank | 37110216 | 5d9d6650387008b864a4d101e684efd8075953b7ed72cb99ae417b138078b2b3
+taverley-bank-d61e3a2395.json | Taverley bank | Taverley bank | 37182880 | 69df4354e0c8d986ba2c0b8517e3ceb8eb18ef6516d20524fd4c36076ef339e3
+bronze-hatchet-3aca320aba.json | Bronze hatchet | Bronze hatchet | 37131917 | 32ef4072434d01cbf0c9a226b291859c8c2e2b4bf109513016cff467f53c2e10
+bronze-pickaxe-f3e77d301a.json | Bronze pickaxe | Bronze pickaxe | 37131931 | 83b135bf9a8618b003217c2bb17c5b28626d68475bd487a4ca6a4c0e597cdf0a
+empty-pot-ae54f1c489.json | Empty pot | Empty pot | 37131023 | bd09d3d68e4e98e3696792bb14632d2029be85bdfda71cee98bbf21a7b5eed1f
+jug-79f2528ce5.json | Jug | Jug | 37133482 | eaff1d9a1c72a6f47363c47c9f346eeb6b07f3752f93d85b297f9498ed40d3c9
+shears-36edf34b4b.json | Shears | Shears | 37132989 | cba60ba61082aa70c343cd130e4ee724c1f13c41b5116b623993b2a6cc280e42
+bucket-c83b65791b.json | Bucket | Bucket | 37132082 | 742216a4dbfc99a0c597c06caeb3e36cc6d56bec50c2cd6d911d699722c70e73
+bowl-8816734a6b.json | Bowl | Bowl | 37132004 | ed4b0f2db5f556548dff51fc9016d8a8d46deb690ce848e12fbfbb95479bf291
+cake-tin-8a3e91c979.json | Cake tin | Cake tin | 37133475 | 4b9e924b34a3522a94ff4f75d6706533874819d4250f58631b16bcc855a4773d
+tinderbox-6bfd456a62.json | Tinderbox | Tinderbox | 37130784 | 683f0c71d1a9e6e2a4e1fc653efe7f4a5474424f435efc4c9897cd9633239086
+chisel-9aa7e682cf.json | Chisel | Chisel | 37132134 | 93c8fe693ff1a600453212dcb3f33d4e799dc15f6edc7f5e9e596ae4b2273e39
+hammer-c157cbf647.json | Hammer | Hammer | 37165164 | 6b60a24d35836f978ef5db1b375074e65d9712a786845f3afeeb500ce6f23817
+newcomer-map-a2e9663106.json | Newcomer map | Newcomer map | 37004772 | b1ea423fe14f1ce0d50545052ed72a6bed5f8bf3e1e7ee3f00fa385fc41cd9ad
+security-book-b07ef6535f.json | Security book | Security book | 36247604 | 47f9739d005e9f28e8541e8be1902f2e5f06ac9ba37f78c8d8d79aa0aba70459
+small-fishing-net-4d3a89dab5.json | Small fishing net | Small fishing net | 37132124 | bc102e2aef656657054bf1413b932722fa0140fed34e8cfa8339f8260306c2ef
+crayfish-cage-16a1e35857.json | Crayfish cage | Crayfish cage | 37106126 | 7b26ad81b220dc236f66ace595a37fe6897ff18ce0908662e2a070b3764c3619
+fishing-rod-73793ff449.json | Fishing rod | Fishing rod | 37132113 | 20ca717990307f230dcbb11b0dae39aac310a5b344d8c98ecbd63599966cfc09
+fly-fishing-rod-337441cafe.json | Fly fishing rod | Fly fishing rod | 37106117 | 5fa46809aecad1ce16924b0bcbbb5e06db6af9f35fe7887998c0211950107394
+fishing-bait-69b90951fb.json | Fishing bait | Fishing bait | 37133602 | b50824ba688e2cd1027fcba60296cb80194b522b84531c03d51b7550ad67029b
+feather-b6898405df.json | Feather | Feather | 37112201 | 44ae14374b5801b726429d89b024f200525660f9607a01591bc7751ffa039990
+harpoon-58d9fe00d9.json | Harpoon | Harpoon | 37133716 | 0ba736060f4eecaae93eefa69d7b5685ee6701940e456ca51e533610ab8d8de3
+lobster-pot-778129e087.json | Lobster pot | Lobster pot | 37133480 | 854670f056d001e1d998fc303d9f3fc8741f1f6c2794be63098de507acd0b7ae
+bank-chest-f665644e14.json | Bank chest | Bank chest | 37144823 | 1b651aa622e6d901e8b70da4095f307427f83bfd70a23fa66e1b8e78ba908ff9
+deposit-box-2664acc189.json | Deposit box | Bank deposit box | 37167169 | 284bb6a1dd3d650f2b9bd3935bc36d8df0c701cd9efcffa493082927b0405c90
+captain-tobias-781e503358.json | Captain Tobias | Captain Tobias | 37183451 | 519282b1b53658a5c3c922802dd225bdf9ecb65a43b8013d859fac0d88312045
+customs-officer-57859fc305.json | Customs officer | Customs officer | 37198107 | 18fa1bc81a832f0b3a6c98dc9b52b81bbf732637d9a061baf2d401112359302a
+draynor-lodestone-d3dd330a24.json | Draynor lodestone | Draynor lodestone | 36689044 | dfe25c50d92761a48effd43f1737b4829c3fd347c55d41ffb2247d76be8680cb
+varrock-lodestone-24330c5005.json | Varrock lodestone | Varrock lodestone | 37108403 | 5190f48611a696044b1ffe7cd87725b1d60d0c84232c15ced2553522e4a1f128
+falador-farm-35b631dfde.json | Falador farm | Falador farm | 37133025 | bc4ad59755f4ba28ec125e6bbb3f7a0aa6e9a0d30e7712a4855ad27db2844d8c
+falador-lodestone-c6d5a075d5.json | Falador lodestone | Falador lodestone | 37127183 | 82a28a2be219e7b30d405a1d3561ed0a53bab288e410ca59d2795f85fd1f0788
+wizards-tower-1fecc824a5.json | Wizards' Tower | Wizards' Tower | 37109853 | 82f50a86c9de824f7065635a16cbeb48d86eeb9a9756fab3a914c527202c7eff
+thurgo-s-peninsula-337b100fbd.json | Thurgo's Peninsula | Thurgo's Peninsula | 37127297 | 60eedfda3579feb35c293be9d68e263e41b9ed16e6284e152d39e70631755e7d
+river-lum-3b375e18bb.json | River Lum | River Lum | 37109976 | 6c461cf476e195f0b2aeea1fb83817444106a0bd14984385f453fc86acc63e7a
+mudskipper-point-b472db3bb1.json | Mudskipper Point | Mudskipper Point | 37127296 | 0b381b4a4c24ffc1149803e0e273423551f8328d65144c485bca566101ad2baf
+tree-b85f5fabf9.json | Tree | Tree | 37201228 | 252b95f2f187c87f94ca5fb8ba581d850e15095d25e7617391295f8840fcf233
+dead-tree-dfdff22364.json | Dead tree | Dead tree | 37151953 | 4d8aa65963007d0a334daeab79071ceacff02fa18e64e76bb1e23ec4db1fec23
+evergreen-65bd15367f.json | Evergreen | Evergreen | 37135143 | 5df3921d5a209f3ec15a6de0d06d8643f2de3b0fca29246106a64cbec9f089e5
+maple-tree-6bca7f78e7.json | Maple tree | Maple Tree | 37135152 | f8252182d44b40e6861f5103747a0e1a7239c00236c462f30f8b3cfd4f8bd11b
+yew-ff559d7361.json | Yew | Yew | 37195444 | a8d33228ead602baf8c5b3486a57c57520db4b21ece27cf186a9665bc6a7e40f
+acadia-bee96c0fb5.json | Acadia | Acadia tree | 37166118 | f6ca4c4368be91813a08b2e36c5710519716f8969c7d4d7416b3dd8537ef12ad
+barbarian-village-mine-4d4e9a7465.json | Barbarian Village mine | Gunnarsgrunn mine | 37180784 | 5d4ba277920462003e4957e55851b8ceed5722ab656728497291cd4ccd6ea4b5
+gunnarsgrunn-south-mine-e61721a2fe.json | Gunnarsgrunn south mine | Gunnarsgrunn south mine | 37180785 | 9816734a63957da7b2783e61158189f02526bf31f78a08ddfca43ef24cbef902
+falador-west-mine-03fa1dc74a.json | Falador west mine | Falador west mine | 37180772 | 1d01d745dbd6e9f973589e5a8d8e16fbff7b132f272230638c5d01fd2b0cd572
+draynor-mine-97ee99c1b9.json | Draynor mine | Draynor mine | 37180762 | 9857ba6d579f3de939cf842747fe2f6a197afbbd87aaf57d697d5fc1955a48f4
+silvarea-quarry-d6008fdbae.json | Silvarea quarry | Silvarea quarry | 37180862 | 7f05bb3f8b03df531ce891a0059125a8dc981ad55b5acced26b3ec8b5a9a94fb
+dwarven-mine-2179b4271c.json | Dwarven Mine | Dwarven mines | 37180943 | bc8823580997ee7eb34c0c3e0937b2c0d3125a7c4b0f681b7a868180379890a4
+karamja-north-west-mine-ca521323e0.json | Karamja north-west mine | Karamja north-west mine | 37180803 | 7b910cbdbb4d860343c4513d360112f8333f8a779dd768b47218eb83da56fbda
+fishing-spot-6601bb5b24.json | Fishing spot | Fishing spot | 36994969 | 36b7e18f1f1f8f6e20bbe22b1f8602be87a583b3502e8eddca679db8cb26555c
+fishing-spot-cage-harpoon-732b6ce287.json | Fishing spot (cage, harpoon) | Fishing spot (cage, harpoon) | 37196214 | bba77f4a4749a4797b6615841db36d8a8343d89d7a34476e7490f42408998f24
+fishing-spot-big-fishing-net-harpoon-392dbbd04d.json | Fishing spot (big fishing net, harpoon) | Fishing spot (big fishing net, harpoon) | 37196213 | 92f48908222e0d6d48fc90c793d17d6f16368d0f042bfa07179ae3e6c1550324
+mining-sites-64596db985.json | Mining sites | Mines | 37180900 | bd4200c1396231cc9a12008efe88c7152f68ea72e36823015c302ce2dcfce68e
+template-list-of-standard-fishing-spots-e9067d04df.json | Template:List of standard fishing spots | Template:List of standard fishing spots | 37119720 | 436d4bdbd2050570736a87345f7c3a593ff74b7b6bfaaaf38504b7793fbc8bf0
+mill-lane-mill-257a962e15.json | Mill Lane Mill | Mill Lane Mill | 37109893 | e41cb3e370ab3b981a61ceae216648dc8c67fd5a45de6ed8f2cbaedcddc28637
+lumbridge-watermill-c10300e1d2.json | Lumbridge Watermill | Lumbridge Watermill | 37168645 | 845599299e7cd9fc4a3d259e9ce2806aa29e755010a50c998ee9b5b25b9d799e
+crafting-guild-2d65fa7362.json | Crafting Guild | Crafting Guild | 37145395 | b4ad62f59f4a34d77f1bb0916af5afc625cee567f61d94f832c52377982ab786
+varrock-palace-d41ccd04fd.json | Varrock Palace | Varrock Palace | 37108401 | a1dd1c49c45df07047e01bb9acf15fb83810924104e9102b8e4366ed7455f8f7
+archaeology-guild-6e4bcca465.json | Archaeology Guild | Archaeology Guild | 37109863 | 5f0b5643553ff7ec1945ff58d1cc16ac24cc134f422b76cb62db3f9de074a7e7
+earth-altar-8645d0e91a.json | Earth altar | Earth altar | 37128552 | 312f59cdb7834a3d2cba4a4142fa3f3f0850987f6d15458674868ffa070a8101
+doric-s-hut-d9bae61742.json | Doric's hut | Doric's hut | 37146038 | 951dba351559fd3e687a6119067065b285e692e0d784e00564a643dbfd89e18e
+goblin-village-06cae0df2c.json | Goblin Village | Goblin Village | 37190020 | 3040f83c6a0978e9cd72980c91addbc8ef6817ef1d78ce6ea9d84e68674825a9
+het-s-oasis-7b6b62ad21.json | Het's Oasis | Het's Oasis | 37125101 | ddb7311fbf2834ff8ecde39d41a1acd11ebfd0718c063ea4dc28461b93b6e71e
+silvarea-8783c8a961.json | Silvarea | Silvarea | 37146523 | 295fce41306a4920f2e5b66a83c09f1d6f49cd0588b61cfc02cbc0020b38fc59
+archaeology-campus-ee49d39759.json | Archaeology Campus | Archaeology Campus | 37109977 | 8799b0da808678d670586223bc6acc88d9b0a5dd2dbd1baba4d47f9d34096683
+ice-mountain-653f968a0a.json | Ice Mountain | Ice Mountain | 37130835 | 6bd75d40712275aff6695c3f63c18bad4db495288f33f9c0f8ab063b79e3ad12
+enlightened-amulet-14d6823600.json | Enlightened amulet | Enlightened amulet | 36941145 | a597814bf86ec4a0db038900c8cf27e9068085b0ef68a415e070444017d1518f
+wilderness-ditch-5396127571.json | Wilderness ditch | Wilderness wall | 36668836 | d3ac16f69beb1a9ba0a24bace8ed952ec992d7665c55773f2ace89c1d603f223
+musa-point-f90c050ec3.json | Musa Point | Musa Point | 37189045 | 209d75cebb39ba98a74b37377b36825f74c7099a7447085b14b5c3d109784c29
+
+The pinned API refetch copy in .local/wiki-open-f2p-pinned-refetch/ has the same canonical receipts and also rebuilds the exact committed bytes. Only one complete copy is needed.
+The saved batch-2 cache was read only for copying and was not changed.
+
+Other cache inputs used only by the committed private comparison report (existing tracked files; never gameplay-generator inputs):
+app/data/cache-resources.2026-10-08.v1.json | SHA256 3ba281dffe10ec09fa21c34825987334b85ca4e860654c0b78c0c12bf4bac53b
+app/data/cache-walkability.2026-10-07.v1.json | SHA256 2a6acb3b9a2a45eac73cfb543f1d63d2d733310b2e03d5b2bf2f40fa7b41130e
+These two files are already in the repository. No new private cache copy is needed.

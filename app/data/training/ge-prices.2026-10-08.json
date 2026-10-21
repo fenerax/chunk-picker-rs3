@@ -1,0 +1,698 @@
+{
+  "schemaVersion": 1,
+  "fetchedAt": "2026-10-08",
+  "priceDate": "2026-10-07",
+  "currency": "gp",
+  "provider": "Weird Gloop: Jagex RuneScape GE guide price feed",
+  "url": "https://api.weirdgloop.org/exchange/history/rs/latest?name=Logs%7COak%20logs%7CWillow%20logs%7CTeak%20logs%7CMaple%20logs%7CAcadia%20logs%7CYew%20logs%7CCopper%20ore%7CTin%20ore%7CIron%20ore%7CCoal%7CMithril%20ore%7CAdamantite%20ore%7CLuminite%7CRunite%20ore%7CRaw%20crayfish%7CRaw%20trout%7CRaw%20lobster%7CRaw%20swordfish%7CFeather%7CCrayfish%7CTrout%7CLobster%7CFlax%7CBowstring%7CUncut%20sapphire%7CSapphire%7CGold%20bar%7CSapphire%20necklace%7CUncut%20emerald%7CEmerald%7CEmerald%20necklace%7CUncut%20ruby%7CRuby%7CUncut%20diamond%7CDiamond%7CBronze%20bar%7CBronze%20platebody%7CIron%20bar%7CIron%20platebody%7CSteel%20bar%7CSteel%20platebody%7CRune%20bar%7CRune%20platebody%7CBones%7CBig%20bones%7CClean%20guam%7CGrimy%20guam%7CGuam%20potion%20(unfinished)%7CEye%20of%20newt%7CAttack%20potion%20(3)%7CPlank%7CSteel%20nails%7CCrude%20wooden%20chair%7CWooden%20bookcase%7CSoft%20clay%7CClay%20fireplace%7CAir%20rune%7CWater%20rune%7CRune%20essence%7CPouch%7CSpirit%20shards%7CWolf%20bones%7CRaw%20chicken%7CSpirit%20wolf%20pouch%7CDreadfowl%20pouch%7CWeak%20necroplasm%7CLesser%20necroplasm%7CBasic%20ghostly%20ink%7CEctoplasm%7CBasic%20ritual%20candle%7CRed%20feather%7CRaw%20bird%20meat%7CCowhide%7CRaw%20beef%7CWooden%20incense%20sticks%7CImpious%20ashes%7CImpious%20incense%20sticks%7CMaple%20incense%20sticks%7CAccursed%20ashes%7CAccursed%20maple%20incense%20sticks%7CSapphire%20amulet%7CCosmic%20rune%7CAmulet%20of%20magic%7CNature%20rune%7CFire%20rune%7CMithril%20bar%7CAdamant%20bar%7CShortbow%20(unstrung)%7CLongbow%20(unstrung)%7COak%20shortbow%20(unstrung)%7COak%20longbow%20(unstrung)%7CWillow%20shortbow%20(unstrung)%7CWillow%20longbow%20(unstrung)%7CShaft%7CWooden%20stock%7COak%20stock%7CWillow%20stock",
+  "sourceId": "ge-guide-2026-10-07",
+  "notes": "A dated guide-price reference for opportunity cost, not an assumption that these Group Ironmen buy or sell on the GE. Null prices mean no value was returned; never substituted with zero.",
+  "items": [
+    {
+      "item": "Logs",
+      "id": "1511",
+      "timestamp": "2026-10-07T21:06:38Z",
+      "price": 820,
+      "volume": 104812
+    },
+    {
+      "item": "Oak logs",
+      "id": "1521",
+      "timestamp": "2026-10-07T21:06:38Z",
+      "price": 1013,
+      "volume": 131278
+    },
+    {
+      "item": "Willow logs",
+      "id": "1519",
+      "timestamp": "2026-10-07T21:06:38Z",
+      "price": 1023,
+      "volume": 285880
+    },
+    {
+      "item": "Teak logs",
+      "id": "6333",
+      "timestamp": "2026-10-07T21:06:38Z",
+      "price": 319,
+      "volume": 135955
+    },
+    {
+      "item": "Maple logs",
+      "id": "1517",
+      "timestamp": "2026-10-07T21:06:38Z",
+      "price": 333,
+      "volume": 7316946
+    },
+    {
+      "item": "Acadia logs",
+      "id": "40285",
+      "timestamp": "2026-10-07T21:06:38Z",
+      "price": 1241,
+      "volume": 290242
+    },
+    {
+      "item": "Yew logs",
+      "id": "1515",
+      "timestamp": "2026-10-07T21:06:38Z",
+      "price": 602,
+      "volume": 1257452
+    },
+    {
+      "item": "Copper ore",
+      "id": "436",
+      "timestamp": "2026-10-07T21:06:38Z",
+      "price": 521,
+      "volume": 22080
+    },
+    {
+      "item": "Tin ore",
+      "id": "438",
+      "timestamp": "2026-10-07T21:06:38Z",
+      "price": 492,
+      "volume": 14501
+    },
+    {
+      "item": "Iron ore",
+      "id": "440",
+      "timestamp": "2026-10-07T21:06:38Z",
+      "price": 558,
+      "volume": 856397
+    },
+    {
+      "item": "Coal",
+      "id": "453",
+      "timestamp": "2026-10-07T21:06:38Z",
+      "price": 199,
+      "volume": 4322202
+    },
+    {
+      "item": "Mithril ore",
+      "id": "447",
+      "timestamp": "2026-10-07T21:06:38Z",
+      "price": 633,
+      "volume": 179797
+    },
+    {
+      "item": "Adamantite ore",
+      "id": "449",
+      "timestamp": "2026-10-07T21:06:38Z",
+      "price": 1543,
+      "volume": 130247
+    },
+    {
+      "item": "Luminite",
+      "id": "44820",
+      "timestamp": "2026-10-07T21:06:38Z",
+      "price": 1814,
+      "volume": 1467946
+    },
+    {
+      "item": "Runite ore",
+      "id": "451",
+      "timestamp": "2026-10-07T21:06:38Z",
+      "price": 3059,
+      "volume": 693065
+    },
+    {
+      "item": "Raw crayfish",
+      "id": "13435",
+      "timestamp": "2026-10-07T21:06:38Z",
+      "price": 610,
+      "volume": 14578
+    },
+    {
+      "item": "Raw trout",
+      "id": "335",
+      "timestamp": "2026-10-07T21:06:38Z",
+      "price": 302,
+      "volume": 50896
+    },
+    {
+      "item": "Raw lobster",
+      "id": "377",
+      "timestamp": "2026-10-07T21:06:38Z",
+      "price": 245,
+      "volume": 387496
+    },
+    {
+      "item": "Raw swordfish",
+      "id": "371",
+      "timestamp": "2026-10-07T21:06:38Z",
+      "price": 309,
+      "volume": 614312
+    },
+    {
+      "item": "Feather",
+      "id": "314",
+      "timestamp": "2026-10-07T21:06:38Z",
+      "price": 14,
+      "volume": 85771723
+    },
+    {
+      "item": "Crayfish",
+      "id": "13433",
+      "timestamp": "2026-10-07T21:06:38Z",
+      "price": 106,
+      "volume": 8339
+    },
+    {
+      "item": "Trout",
+      "id": "333",
+      "timestamp": "2026-10-07T21:06:38Z",
+      "price": 93,
+      "volume": 14062
+    },
+    {
+      "item": "Lobster",
+      "id": "379",
+      "timestamp": "2026-10-07T21:06:38Z",
+      "price": 113,
+      "volume": 163694
+    },
+    {
+      "item": "Flax",
+      "id": "1779",
+      "timestamp": "2026-10-07T21:06:38Z",
+      "price": 76,
+      "volume": 901492
+    },
+    {
+      "item": "Bowstring",
+      "id": "1777",
+      "timestamp": "2026-10-07T21:06:38Z",
+      "price": 627,
+      "volume": 778672
+    },
+    {
+      "item": "Uncut sapphire",
+      "id": "1623",
+      "timestamp": "2026-10-07T21:06:38Z",
+      "price": 328,
+      "volume": 149142
+    },
+    {
+      "item": "Sapphire",
+      "id": "1607",
+      "timestamp": "2026-10-07T21:06:38Z",
+      "price": 304,
+      "volume": 60681
+    },
+    {
+      "item": "Gold bar",
+      "id": "2357",
+      "timestamp": "2026-10-07T21:06:38Z",
+      "price": 2263,
+      "volume": 1235207
+    },
+    {
+      "item": "Sapphire necklace",
+      "id": "1656",
+      "timestamp": "2026-10-07T21:06:38Z",
+      "price": 3382,
+      "volume": 13580
+    },
+    {
+      "item": "Uncut emerald",
+      "id": "1621",
+      "timestamp": "2026-10-07T21:06:38Z",
+      "price": 276,
+      "volume": 286354
+    },
+    {
+      "item": "Emerald",
+      "id": "1605",
+      "timestamp": "2026-10-07T21:06:38Z",
+      "price": 335,
+      "volume": 138387
+    },
+    {
+      "item": "Emerald necklace",
+      "id": "1658",
+      "timestamp": "2026-10-07T21:06:38Z",
+      "price": 3890,
+      "volume": 111181
+    },
+    {
+      "item": "Uncut ruby",
+      "id": "1619",
+      "timestamp": "2026-10-07T21:06:38Z",
+      "price": 306,
+      "volume": 1044991
+    },
+    {
+      "item": "Ruby",
+      "id": "1603",
+      "timestamp": "2026-10-07T21:06:38Z",
+      "price": 309,
+      "volume": 282703
+    },
+    {
+      "item": "Uncut diamond",
+      "id": "1617",
+      "timestamp": "2026-10-07T21:06:38Z",
+      "price": 851,
+      "volume": 1605046
+    },
+    {
+      "item": "Diamond",
+      "id": "1601",
+      "timestamp": "2026-10-07T21:06:38Z",
+      "price": 612,
+      "volume": 446202
+    },
+    {
+      "item": "Bronze bar",
+      "id": "2349",
+      "timestamp": "2026-10-07T21:06:38Z",
+      "price": 1564,
+      "volume": 143970
+    },
+    {
+      "item": "Bronze platebody",
+      "id": "1117",
+      "timestamp": "2026-10-07T21:06:38Z",
+      "price": 2690,
+      "volume": 1153
+    },
+    {
+      "item": "Iron bar",
+      "id": "2351",
+      "timestamp": "2026-10-07T21:06:38Z",
+      "price": 1808,
+      "volume": 81492
+    },
+    {
+      "item": "Iron platebody",
+      "id": "1115",
+      "timestamp": "2026-10-07T21:06:38Z",
+      "price": 5245,
+      "volume": 1116
+    },
+    {
+      "item": "Steel bar",
+      "id": "2353",
+      "timestamp": "2026-10-07T21:06:38Z",
+      "price": 1290,
+      "volume": 1918748
+    },
+    {
+      "item": "Steel platebody",
+      "id": "45462",
+      "timestamp": "2026-10-07T21:06:38Z",
+      "price": 6038,
+      "volume": 1562
+    },
+    {
+      "item": "Rune bar",
+      "id": "2363",
+      "timestamp": "2026-10-07T21:06:38Z",
+      "price": 5466,
+      "volume": 851996
+    },
+    {
+      "item": "Rune platebody",
+      "id": "45543",
+      "timestamp": "2026-10-07T21:06:38Z",
+      "price": 29564,
+      "volume": 2247
+    },
+    {
+      "item": "Bones",
+      "id": "526",
+      "timestamp": "2026-10-07T21:06:38Z",
+      "price": 116,
+      "volume": 807724
+    },
+    {
+      "item": "Big bones",
+      "id": "532",
+      "timestamp": "2026-10-07T21:06:38Z",
+      "price": 171,
+      "volume": 181645
+    },
+    {
+      "item": "Clean guam",
+      "id": "249",
+      "timestamp": "2026-10-07T21:06:38Z",
+      "price": 436,
+      "volume": 13296
+    },
+    {
+      "item": "Grimy guam",
+      "id": "199",
+      "timestamp": "2026-10-07T21:06:38Z",
+      "price": 389,
+      "volume": 13764
+    },
+    {
+      "item": "Guam potion (unfinished)",
+      "id": "91",
+      "timestamp": "2026-10-07T21:06:38Z",
+      "price": 738,
+      "volume": 7072
+    },
+    {
+      "item": "Eye of newt",
+      "id": "221",
+      "timestamp": "2026-10-07T21:06:38Z",
+      "price": 14,
+      "volume": 884131
+    },
+    {
+      "item": "Attack potion (3)",
+      "id": "121",
+      "timestamp": "2026-10-07T21:06:38Z",
+      "price": 645,
+      "volume": 4887
+    },
+    {
+      "item": "Plank",
+      "id": "960",
+      "timestamp": "2026-10-07T21:06:38Z",
+      "price": 137,
+      "volume": 84786
+    },
+    {
+      "item": "Steel nails",
+      "id": "1539",
+      "timestamp": "2026-10-07T21:06:38Z",
+      "price": 39,
+      "volume": 386683
+    },
+    {
+      "item": "Crude wooden chair",
+      "id": "61929",
+      "timestamp": "2026-10-07T21:06:38Z",
+      "price": 487,
+      "volume": 190
+    },
+    {
+      "item": "Wooden bookcase",
+      "id": "61951",
+      "timestamp": "2026-10-07T21:06:38Z",
+      "price": 50,
+      "volume": 4
+    },
+    {
+      "item": "Soft clay",
+      "id": "1761",
+      "timestamp": "2026-10-07T21:06:38Z",
+      "price": 1055,
+      "volume": 1017046
+    },
+    {
+      "item": "Clay fireplace",
+      "id": null,
+      "timestamp": null,
+      "price": null,
+      "volume": null
+    },
+    {
+      "item": "Air rune",
+      "id": "556",
+      "timestamp": "2026-10-07T21:06:38Z",
+      "price": 14,
+      "volume": 15778894
+    },
+    {
+      "item": "Water rune",
+      "id": "555",
+      "timestamp": "2026-10-07T21:06:38Z",
+      "price": 22,
+      "volume": 17842224
+    },
+    {
+      "item": "Rune essence",
+      "id": "1436",
+      "timestamp": "2026-10-07T21:06:38Z",
+      "price": 270,
+      "volume": 212264
+    },
+    {
+      "item": "Pouch",
+      "id": "12155",
+      "timestamp": "2026-10-07T21:06:38Z",
+      "price": 12,
+      "volume": 2175023
+    },
+    {
+      "item": "Spirit shards",
+      "id": "12183",
+      "timestamp": "2026-10-07T21:06:38Z",
+      "price": 24,
+      "volume": 261828745
+    },
+    {
+      "item": "Wolf bones",
+      "id": "2859",
+      "timestamp": "2026-10-07T21:06:38Z",
+      "price": 2240,
+      "volume": 13997
+    },
+    {
+      "item": "Raw chicken",
+      "id": "2138",
+      "timestamp": "2026-10-07T21:06:38Z",
+      "price": 2042,
+      "volume": 27169
+    },
+    {
+      "item": "Spirit wolf pouch",
+      "id": "12047",
+      "timestamp": "2026-10-07T21:06:38Z",
+      "price": 411,
+      "volume": 1066
+    },
+    {
+      "item": "Dreadfowl pouch",
+      "id": "12043",
+      "timestamp": "2026-10-07T21:06:38Z",
+      "price": 345,
+      "volume": 1368
+    },
+    {
+      "item": "Weak necroplasm",
+      "id": null,
+      "timestamp": null,
+      "price": null,
+      "volume": null
+    },
+    {
+      "item": "Lesser necroplasm",
+      "id": "55599",
+      "timestamp": "2026-10-07T21:06:38Z",
+      "price": 152,
+      "volume": 3400622
+    },
+    {
+      "item": "Basic ghostly ink",
+      "id": null,
+      "timestamp": null,
+      "price": null,
+      "volume": null
+    },
+    {
+      "item": "Ectoplasm",
+      "id": "55336",
+      "timestamp": "2026-10-07T21:06:38Z",
+      "price": 1601,
+      "volume": 4539050
+    },
+    {
+      "item": "Basic ritual candle",
+      "id": null,
+      "timestamp": null,
+      "price": null,
+      "volume": null
+    },
+    {
+      "item": "Red feather",
+      "id": "10088",
+      "timestamp": "2026-10-07T21:06:38Z",
+      "price": 124,
+      "volume": 6490
+    },
+    {
+      "item": "Raw bird meat",
+      "id": "9978",
+      "timestamp": "2026-10-07T21:06:38Z",
+      "price": 657,
+      "volume": 635187
+    },
+    {
+      "item": "Cowhide",
+      "id": "1739",
+      "timestamp": "2026-10-07T21:06:38Z",
+      "price": 710,
+      "volume": 25188
+    },
+    {
+      "item": "Raw beef",
+      "id": "2132",
+      "timestamp": "2026-10-07T21:06:38Z",
+      "price": 617,
+      "volume": 558455
+    },
+    {
+      "item": "Wooden incense sticks",
+      "id": "47685",
+      "timestamp": "2026-10-07T21:06:38Z",
+      "price": 1655,
+      "volume": 265
+    },
+    {
+      "item": "Impious ashes",
+      "id": "20264",
+      "timestamp": "2026-10-07T21:06:38Z",
+      "price": 1838,
+      "volume": 61006
+    },
+    {
+      "item": "Impious incense sticks",
+      "id": "47692",
+      "timestamp": "2026-10-07T21:06:38Z",
+      "price": 6770,
+      "volume": 734
+    },
+    {
+      "item": "Maple incense sticks",
+      "id": "47688",
+      "timestamp": "2026-10-07T21:06:38Z",
+      "price": 1234,
+      "volume": 2449
+    },
+    {
+      "item": "Accursed ashes",
+      "id": "20266",
+      "timestamp": "2026-10-07T21:06:38Z",
+      "price": 173,
+      "volume": 181484
+    },
+    {
+      "item": "Accursed maple incense sticks",
+      "id": "47695",
+      "timestamp": "2026-10-07T21:06:38Z",
+      "price": 4362,
+      "volume": 6257
+    },
+    {
+      "item": "Sapphire amulet",
+      "id": "1694",
+      "timestamp": "2026-10-07T21:06:38Z",
+      "price": 874,
+      "volume": 41
+    },
+    {
+      "item": "Cosmic rune",
+      "id": "564",
+      "timestamp": "2026-10-07T21:06:38Z",
+      "price": 226,
+      "volume": 2518929
+    },
+    {
+      "item": "Amulet of magic",
+      "id": "1727",
+      "timestamp": "2026-10-07T21:06:38Z",
+      "price": 526,
+      "volume": 454
+    },
+    {
+      "item": "Nature rune",
+      "id": "561",
+      "timestamp": "2026-10-07T21:06:38Z",
+      "price": 390,
+      "volume": 11274052
+    },
+    {
+      "item": "Fire rune",
+      "id": "554",
+      "timestamp": "2026-10-07T21:06:38Z",
+      "price": 38,
+      "volume": 17214193
+    },
+    {
+      "item": "Mithril bar",
+      "id": "2359",
+      "timestamp": "2026-10-07T21:06:38Z",
+      "price": 1654,
+      "volume": 81007
+    },
+    {
+      "item": "Adamant bar",
+      "id": "2361",
+      "timestamp": "2026-10-07T21:06:38Z",
+      "price": 4206,
+      "volume": 54769
+    },
+    {
+      "item": "Shortbow (unstrung)",
+      "id": "50",
+      "timestamp": "2026-10-07T21:06:38Z",
+      "price": 693,
+      "volume": 3383
+    },
+    {
+      "item": "Longbow (unstrung)",
+      "id": "48",
+      "timestamp": "2026-10-07T21:06:38Z",
+      "price": 220,
+      "volume": 1497
+    },
+    {
+      "item": "Oak shortbow (unstrung)",
+      "id": "54",
+      "timestamp": "2026-10-07T21:06:38Z",
+      "price": 341,
+      "volume": 2039
+    },
+    {
+      "item": "Oak longbow (unstrung)",
+      "id": "56",
+      "timestamp": "2026-10-07T21:06:38Z",
+      "price": 422,
+      "volume": 10924
+    },
+    {
+      "item": "Willow shortbow (unstrung)",
+      "id": "60",
+      "timestamp": "2026-10-07T21:06:38Z",
+      "price": 505,
+      "volume": 4176
+    },
+    {
+      "item": "Willow longbow (unstrung)",
+      "id": "58",
+      "timestamp": "2026-10-07T21:06:38Z",
+      "price": 855,
+      "volume": 10549
+    },
+    {
+      "item": "Shaft",
+      "id": "52",
+      "timestamp": "2026-10-07T21:06:38Z",
+      "price": 27,
+      "volume": 20909011
+    },
+    {
+      "item": "Wooden stock",
+      "id": "9440",
+      "timestamp": "2026-10-07T21:06:38Z",
+      "price": 447,
+      "volume": 119
+    },
+    {
+      "item": "Oak stock",
+      "id": "9442",
+      "timestamp": "2026-10-07T21:06:38Z",
+      "price": 270,
+      "volume": 0
+    },
+    {
+      "item": "Willow stock",
+      "id": "9444",
+      "timestamp": "2026-10-07T21:06:38Z",
+      "price": 320,
+      "volume": 2237
+    }
+  ]
+}

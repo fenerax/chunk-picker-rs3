@@ -1,0 +1,271 @@
+{
+  "schemaVersion": 1,
+  "version": "2026-10-09.v1",
+  "source": {
+    "path": "C:/Users/User/Projects/chunk-picker-rs3/.local/game-data/walkability-masks.cache-audit-2026-10-07-v4/walkability.v1.json.gz",
+    "sha256": "d553ed49ce12254d197e82abe673279f3bb1ede5eb34098cf0376e68bd67fdf6"
+  },
+  "runtime": {
+    "path": "app/data/cache-walkability.2026-10-07.v1.json",
+    "sha256": "2a6acb3b9a2a45eac73cfb543f1d63d2d733310b2e03d5b2bf2f40fa7b41130e"
+  },
+  "policy": "Only the exact scenery/station coordinate is sampled. Blocked anchors stay unresolved; no nearest tile, perimeter, bounding box or landing is inferred.",
+  "witnesses": [
+    {
+      "stationId": "carpet-shantay-pass",
+      "componentId": "13104-1000001",
+      "x": 3311,
+      "y": 3109,
+      "plane": 0,
+      "mapId": 28,
+      "maskSha256": "d553ed49ce12254d197e82abe673279f3bb1ede5eb34098cf0376e68bd67fdf6",
+      "runtimeSha256": "2a6acb3b9a2a45eac73cfb543f1d63d2d733310b2e03d5b2bf2f40fa7b41130e",
+      "evidence": {
+        "kind": "exact-decoded-mask-tile",
+        "file": "C:/Users/User/Projects/chunk-picker-rs3/.local/game-data/walkability-masks.cache-audit-2026-10-07-v4/walkability.v1.json.gz",
+        "pointer": "/regions/1126/masks/components",
+        "encoding": "base64-u16le",
+        "order": "x*64+z",
+        "offsetBytes": 6090,
+        "label": 1,
+        "sourcePlane": 0,
+        "sourceShift": 0,
+        "encodedLabelBytes": [
+          1,
+          0
+        ]
+      }
+    },
+    {
+      "stationId": "carpet-north-pollnivneach",
+      "componentId": "13358-1000001",
+      "x": 3350,
+      "y": 3001,
+      "plane": 0,
+      "mapId": 28,
+      "maskSha256": "d553ed49ce12254d197e82abe673279f3bb1ede5eb34098cf0376e68bd67fdf6",
+      "runtimeSha256": "2a6acb3b9a2a45eac73cfb543f1d63d2d733310b2e03d5b2bf2f40fa7b41130e",
+      "evidence": {
+        "kind": "exact-decoded-mask-tile",
+        "file": "C:/Users/User/Projects/chunk-picker-rs3/.local/game-data/walkability-masks.cache-audit-2026-10-07-v4/walkability.v1.json.gz",
+        "pointer": "/regions/1174/masks/components",
+        "encoding": "base64-u16le",
+        "order": "x*64+z",
+        "offsetBytes": 2930,
+        "label": 1,
+        "sourcePlane": 0,
+        "sourceShift": 0,
+        "encodedLabelBytes": [
+          1,
+          0
+        ]
+      }
+    },
+    {
+      "stationId": "carpet-south-pollnivneach",
+      "componentId": "13357-1000002",
+      "x": 3349,
+      "y": 2942,
+      "plane": 0,
+      "mapId": 28,
+      "maskSha256": "d553ed49ce12254d197e82abe673279f3bb1ede5eb34098cf0376e68bd67fdf6",
+      "runtimeSha256": "2a6acb3b9a2a45eac73cfb543f1d63d2d733310b2e03d5b2bf2f40fa7b41130e",
+      "evidence": {
+        "kind": "exact-decoded-mask-tile",
+        "file": "C:/Users/User/Projects/chunk-picker-rs3/.local/game-data/walkability-masks.cache-audit-2026-10-07-v4/walkability.v1.json.gz",
+        "pointer": "/regions/1173/masks/components",
+        "encoding": "base64-u16le",
+        "order": "x*64+z",
+        "offsetBytes": 2812,
+        "label": 2,
+        "sourcePlane": 0,
+        "sourceShift": 0,
+        "encodedLabelBytes": [
+          2,
+          0
+        ]
+      }
+    },
+    {
+      "stationId": "carpet-menaphos",
+      "componentId": "12844-1000001",
+      "x": 3243,
+      "y": 2821,
+      "plane": 0,
+      "mapId": 28,
+      "maskSha256": "d553ed49ce12254d197e82abe673279f3bb1ede5eb34098cf0376e68bd67fdf6",
+      "runtimeSha256": "2a6acb3b9a2a45eac73cfb543f1d63d2d733310b2e03d5b2bf2f40fa7b41130e",
+      "evidence": {
+        "kind": "exact-decoded-mask-tile",
+        "file": "C:/Users/User/Projects/chunk-picker-rs3/.local/game-data/walkability-masks.cache-audit-2026-10-07-v4/walkability.v1.json.gz",
+        "pointer": "/regions/1072/masks/components",
+        "encoding": "base64-u16le",
+        "order": "x*64+z",
+        "offsetBytes": 5514,
+        "label": 1,
+        "sourcePlane": 0,
+        "sourceShift": 0,
+        "encodedLabelBytes": [
+          1,
+          0
+        ]
+      }
+    },
+    {
+      "stationId": "carpet-sophanem",
+      "componentId": "13100-1000001",
+      "x": 3309,
+      "y": 2822,
+      "plane": 0,
+      "mapId": 28,
+      "maskSha256": "d553ed49ce12254d197e82abe673279f3bb1ede5eb34098cf0376e68bd67fdf6",
+      "runtimeSha256": "2a6acb3b9a2a45eac73cfb543f1d63d2d733310b2e03d5b2bf2f40fa7b41130e",
+      "evidence": {
+        "kind": "exact-decoded-mask-tile",
+        "file": "C:/Users/User/Projects/chunk-picker-rs3/.local/game-data/walkability-masks.cache-audit-2026-10-07-v4/walkability.v1.json.gz",
+        "pointer": "/regions/1122/masks/components",
+        "encoding": "base64-u16le",
+        "order": "x*64+z",
+        "offsetBytes": 5772,
+        "label": 1,
+        "sourcePlane": 0,
+        "sourceShift": 0,
+        "encodedLabelBytes": [
+          1,
+          0
+        ]
+      }
+    },
+    {
+      "stationId": "teleport-anachronia-totem-west",
+      "componentId": "14914-1000001",
+      "x": 3749,
+      "y": 4265,
+      "plane": 0,
+      "mapId": 28,
+      "maskSha256": "d553ed49ce12254d197e82abe673279f3bb1ede5eb34098cf0376e68bd67fdf6",
+      "runtimeSha256": "2a6acb3b9a2a45eac73cfb543f1d63d2d733310b2e03d5b2bf2f40fa7b41130e",
+      "evidence": {
+        "kind": "exact-decoded-mask-tile",
+        "file": "C:/Users/User/Projects/chunk-picker-rs3/.local/game-data/walkability-masks.cache-audit-2026-10-07-v4/walkability.v1.json.gz",
+        "pointer": "/regions/1494/masks/components",
+        "encoding": "base64-u16le",
+        "order": "x*64+z",
+        "offsetBytes": 4818,
+        "label": 1,
+        "sourcePlane": 0,
+        "sourceShift": 0,
+        "encodedLabelBytes": [
+          1,
+          0
+        ]
+      }
+    },
+    {
+      "stationId": "teleport-anachronia-totem-southeast",
+      "componentId": "16448-1000002",
+      "x": 4099,
+      "y": 4154,
+      "plane": 0,
+      "mapId": 28,
+      "maskSha256": "d553ed49ce12254d197e82abe673279f3bb1ede5eb34098cf0376e68bd67fdf6",
+      "runtimeSha256": "2a6acb3b9a2a45eac73cfb543f1d63d2d733310b2e03d5b2bf2f40fa7b41130e",
+      "evidence": {
+        "kind": "exact-decoded-mask-tile",
+        "file": "C:/Users/User/Projects/chunk-picker-rs3/.local/game-data/walkability-masks.cache-audit-2026-10-07-v4/walkability.v1.json.gz",
+        "pointer": "/regions/1792/masks/components",
+        "encoding": "base64-u16le",
+        "order": "x*64+z",
+        "offsetBytes": 500,
+        "label": 2,
+        "sourcePlane": 0,
+        "sourceShift": 0,
+        "encodedLabelBytes": [
+          2,
+          0
+        ]
+      }
+    },
+    {
+      "stationId": "teleport-anachronia-totem-north",
+      "componentId": "15686-1000001",
+      "x": 3946,
+      "y": 4494,
+      "plane": 0,
+      "mapId": 28,
+      "maskSha256": "d553ed49ce12254d197e82abe673279f3bb1ede5eb34098cf0376e68bd67fdf6",
+      "runtimeSha256": "2a6acb3b9a2a45eac73cfb543f1d63d2d733310b2e03d5b2bf2f40fa7b41130e",
+      "evidence": {
+        "kind": "exact-decoded-mask-tile",
+        "file": "C:/Users/User/Projects/chunk-picker-rs3/.local/game-data/walkability-masks.cache-audit-2026-10-07-v4/walkability.v1.json.gz",
+        "pointer": "/regions/1648/masks/components",
+        "encoding": "base64-u16le",
+        "order": "x*64+z",
+        "offsetBytes": 5404,
+        "label": 1,
+        "sourcePlane": 0,
+        "sourceShift": 0,
+        "encodedLabelBytes": [
+          1,
+          0
+        ]
+      }
+    },
+    {
+      "stationId": "teleport-north-western-anachronia",
+      "componentId": "15172-1000002",
+      "x": 3780,
+      "y": 4414,
+      "plane": 0,
+      "mapId": 28,
+      "maskSha256": "d553ed49ce12254d197e82abe673279f3bb1ede5eb34098cf0376e68bd67fdf6",
+      "runtimeSha256": "2a6acb3b9a2a45eac73cfb543f1d63d2d733310b2e03d5b2bf2f40fa7b41130e",
+      "evidence": {
+        "kind": "exact-decoded-mask-tile",
+        "file": "C:/Users/User/Projects/chunk-picker-rs3/.local/game-data/walkability-masks.cache-audit-2026-10-07-v4/walkability.v1.json.gz",
+        "pointer": "/regions/1546/masks/components",
+        "encoding": "base64-u16le",
+        "order": "x*64+z",
+        "offsetBytes": 636,
+        "label": 2,
+        "sourcePlane": 0,
+        "sourceShift": 0,
+        "encodedLabelBytes": [
+          2,
+          0
+        ]
+      }
+    },
+    {
+      "stationId": "teleport-eastern-anachronia",
+      "componentId": "16194-1000001",
+      "x": 4064,
+      "y": 4251,
+      "plane": 0,
+      "mapId": 28,
+      "maskSha256": "d553ed49ce12254d197e82abe673279f3bb1ede5eb34098cf0376e68bd67fdf6",
+      "runtimeSha256": "2a6acb3b9a2a45eac73cfb543f1d63d2d733310b2e03d5b2bf2f40fa7b41130e",
+      "evidence": {
+        "kind": "exact-decoded-mask-tile",
+        "file": "C:/Users/User/Projects/chunk-picker-rs3/.local/game-data/walkability-masks.cache-audit-2026-10-07-v4/walkability.v1.json.gz",
+        "pointer": "/regions/1744/masks/components",
+        "encoding": "base64-u16le",
+        "order": "x*64+z",
+        "offsetBytes": 4150,
+        "label": 1,
+        "sourcePlane": 0,
+        "sourceShift": 0,
+        "encodedLabelBytes": [
+          1,
+          0
+        ]
+      }
+    }
+  ],
+  "unresolved": [
+    {
+      "stationId": "teleport-anachronia-tablet",
+      "reason": "exact tile source plane does not match station display plane"
+    }
+  ]
+}

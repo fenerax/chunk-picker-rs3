@@ -1,0 +1,13 @@
+{
+  "stations": [
+    { "id": "home", "name": "Home", "chunkId": "12853", "locationId": "12853-0", "x": 3201, "y": 3393, "plane": 0, "mapId": 28, "coordinateEvidence": "synthetic fixture" },
+    { "id": "owned", "name": "Own landing", "chunkId": "12595", "locationId": "12595-1", "x": 3137, "y": 3265, "plane": 0, "mapId": 28, "coordinateEvidence": "synthetic fixture" },
+    { "id": "island", "name": "Partner landing", "chunkId": "11569", "locationId": "11569-0", "x": 2881, "y": 3137, "plane": 0, "mapId": 28, "coordinateEvidence": "synthetic fixture" },
+    { "id": "locked", "name": "Locked onward landing", "chunkId": "13108", "locationId": "13108-0", "x": 3265, "y": 3329, "plane": 0, "mapId": 28, "coordinateEvidence": "synthetic fixture" }
+  ],
+  "routes": [
+    { "id": "own-ferry", "name": "Own ferry", "kind": "ferry", "from": "home", "to": "owned", "bidirectional": true, "members": false, "f2p": true, "requirements": { "levels": { "Woodcutting": 12 }, "quests": [], "items": [], "fare": null, "conditions": [], "confirmations": ["own-ferry"] }, "provenance": ["synthetic fixture"] },
+    { "id": "partner-ferry", "name": "Partner ferry", "kind": "ferry", "from": "home", "to": "island", "bidirectional": true, "members": false, "f2p": true, "requirements": { "levels": {}, "quests": [], "items": [], "fare": { "currency": "coins", "amount": 30 }, "conditions": [], "confirmations": [] }, "provenance": ["synthetic fixture"] },
+    { "id": "island-extension", "name": "Island extension", "kind": "ferry", "from": "island", "to": "locked", "bidirectional": true, "members": false, "f2p": true, "requirements": { "levels": {}, "quests": [], "items": [], "fare": null, "conditions": [], "confirmations": [] }, "provenance": ["synthetic fixture"] }
+  ]
+}

@@ -32,7 +32,7 @@ const routeFeatures = new Map([
 ]);
 const commandFeatures = new Map([
   ['sync-original', 'originalSync'], ['apply-runemetrics', 'runeMetrics'], ['set-runescape-name', 'externalNames'],
-  ['go-members', 'rsCatalogues'], ['set-obtained-equipment', 'equipment'],
+  ['go-members', 'rsCatalogues'], ['setup-start', 'rsCatalogues'], ['set-obtained-equipment', 'equipment'],
   ['set-skill-levels', 'training'], ['set-slayer-lock', 'rsCatalogues'],
 ]);
 export function unavailableDatasetFeature(dataset, route, commandType) {

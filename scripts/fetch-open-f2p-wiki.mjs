@@ -2,16 +2,20 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
+import { batches, createWikiClient, wikiUserAgent as userAgentFor } from './lib/rs-wiki-client.mjs';
 
 export const wikiCacheRoot = fileURLToPath(new URL('../.local/wiki-open-f2p/', import.meta.url));
-export const wikiUserAgent = 'RS3ChunkPickerIndependentF2P/0.1 (non-commercial local research; API-only; cached page revisions)';
+export const wikiUserAgent = userAgentFor('open-f2p');
 export const pageFilename = title => `${title.replaceAll(/[^a-zA-Z0-9]+/g, '-').replace(/^-|-$/g, '').toLowerCase()}-${createHash('sha256').update(title).digest('hex').slice(0, 10)}.json`;
 
-// A cache hit, including a missing page, makes no network request. Requests are
-// serial, at most 20 titles each, with maxlag and a one-second gap. No images.
+// A cache hit, including a missing page, makes no network request. The shared
+// Wiki client keeps requests serial, a second apart, with maxlag and backoff.
+// At most 20 titles each. No images.
 export async function cacheWikiPages(requests, { cacheDir = wikiCacheRoot, fetchImpl = fetch,
-  wait = milliseconds => new Promise(resolve => setTimeout(resolve, milliseconds)),
+  wait = milliseconds => new Promise(resolve => setTimeout(resolve, milliseconds)), now = Date.now,
   log = message => process.stdout.write(message) } = {}) {
+  // This script keeps its own per-title cache, so the client's revision cache is off.
+  const wiki = createWikiClient({ tool: 'open-f2p', fetchImpl, sleep: wait, now, cacheDir: null, log });
   await mkdir(cacheDir, { recursive: true });
   const missing = [];
   const pins = [...new Map(requests.map(row => [typeof row === 'string' ? row : row.requestedTitle,
@@ -27,18 +31,17 @@ export async function cacheWikiPages(requests, { cacheDir = wikiCacheRoot, fetch
   }
   // Never downgrade a pinned revision to a current-title query when a caller
   // also asks for unpinned pages. Both lanes share the serial request budget.
-  const batches = [];
+  const groups = [];
   for (const rows of [missing.filter(pin => pin.revision != null), missing.filter(pin => pin.revision == null)]) {
-    for (let offset = 0; offset < rows.length; offset += 20) batches.push(rows.slice(offset, offset + 20));
+    groups.push(...batches(rows, 20));
   }
-  for (const [index, batch] of batches.entries()) {
-    if (index) await wait(1000);
+  for (const batch of groups) {
     const url = new URL('https://runescape.wiki/api.php');
     const pinned = batch.every(pin => Number.isSafeInteger(pin.revision));
     for (const [key, value] of Object.entries({ action: 'query', format: 'json', formatversion: '2',
       prop: 'revisions', rvprop: 'ids|content', rvslots: 'main', redirects: '1', maxlag: '5',
       ...(pinned ? { revids: batch.map(pin => pin.revision).join('|') } : { titles: batch.map(pin => pin.requestedTitle).join('|') }) })) url.searchParams.set(key, value);
-    const response = await fetchImpl(url, { headers: { 'User-Agent': wikiUserAgent }, redirect: 'error', signal: AbortSignal.timeout(45000) });
+    const response = await wiki.fetch(url, { redirect: 'error' });
     if (!response.ok) throw new Error(`Wiki API returned ${response.status}.`);
     const result = await response.json();
     if (result.error) throw new Error(`Wiki API: ${result.error.code}. Stop and retry later.`);

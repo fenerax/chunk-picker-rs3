@@ -27,7 +27,7 @@ test('all time preserves order and counts missing and invalid dates', () => {
 test('Today and rolling ranges use inclusive local calendar days and local midnight', () => {
   const previousTZ = process.env.TZ;
   try {
-    process.env.TZ = 'America/Halifax';
+    process.env.TZ = 'Atlantic/Bermuda';
     const input = rows('2026-03-02T03:59:59Z', '2026-03-02T04:00:00Z', '2026-03-08T04:59:59Z', '2026-03-09T03:59:59Z');
     const now = new Date('2026-03-08T16:00:00-03:00');
     assert.deepEqual(selectCompletedRange(input, { range: 'today', now }).rows, [input[2]]);
@@ -72,7 +72,7 @@ test('shared rows use their authoritative latestAt and output order without muta
 test('rolling calendar days survive a daylight saving transition', () => {
   const previousTZ = process.env.TZ;
   try {
-    process.env.TZ = 'America/Halifax';
+    process.env.TZ = 'Atlantic/Bermuda';
     const now = new Date('2026-03-09T12:00:00-03:00');
     const input = rows('2026-03-02T12:00:00-04:00', '2026-03-03T12:00:00-04:00', '2026-03-08T01:30:00-04:00', '2026-03-09T12:00:00-03:00');
     const selected = selectCompletedRange(input, { range: '7', now });

@@ -1,2 +1,53 @@
 * text=auto eol=lf
 *.svg text eol=lf
+
+# Formerly private-source files kept byte for byte (CRLF). Their bytes are pinned by
+# release, kit and dataset provenance; normalise them in a later commit that refreshes those pins.
+app/dataset-inputs.mjs -text
+docs/design-token-inventory.tsv -text
+docs/research/open-f2p-cache-inputs-0.3.0.txt -text
+docs/research/open-f2p-cache-inputs-0.4.0.txt -text
+docs/research/open-f2p-cache-inputs-0.5.0.txt -text
+scripts/Backup-Picker.ps1 -text
+scripts/Picker-Process.ps1 -text
+scripts/private-companion/Cutover-Live.ps1 -text
+scripts/private-companion/Cutover-Process.ps1 -text
+scripts/private-companion/Legacy-Stop.ps1 -text
+scripts/private-companion/live-swap/runtime-backend.mjs -text
+scripts/private-companion/Operator-Common.ps1 -text
+scripts/private-companion/Register-CoreTasks.ps1 -text
+scripts/private-companion/Restore-CoreTasks.ps1 -text
+scripts/private-companion/Rollback-Core.ps1 -text
+scripts/private-companion/Rollback-Live.ps1 -text
+scripts/private-companion/Ship-Core.ps1 -text
+scripts/private-companion/Start-Core.ps1 -text
+scripts/private-companion/Stop-Core.ps1 -text
+scripts/private-companion/Task-Common.ps1 -text
+scripts/private-companion/Watch-Core.ps1 -text
+scripts/private-companion/Watchdog-Common.ps1 -text
+scripts/Register-Backup.ps1 -text
+scripts/Register-Watchdog.ps1 -text
+scripts/Restore-Picker.ps1 -text
+scripts/screens-memory.ps1 -text
+scripts/screens.ps1 -text
+scripts/Start-Picker.ps1 -text
+scripts/Stop-Picker.ps1 -text
+scripts/test-memory.ps1 -text
+scripts/updateTasksMap.js -text
+scripts/validateJSON.sh -text
+scripts/Watch-Picker.ps1 -text
+tests/datasets.test.mjs -text
+tests/fixtures/frontdoor/core-integration.mjs -text
+tests/fixtures/frontdoor/helpers.mjs -text
+tests/fixtures/frontdoor/README.md -text
+tests/lane-test-cleanup.test.mjs -text
+tests/lane-test-evidence.test.mjs -text
+tests/lane-test-fixture.mjs -text
+tests/lane-test-inputs.test.mjs -text
+tests/lane-test-integrity.test.mjs -text
+tests/lane-test-peers.test.mjs -text
+tests/lane-test-tooling.test.mjs -text
+tests/picker-helpers.test.ps1 -text
+tests/private-frontdoor-equivalence.test.mjs -text
+tests/private-frontdoor-http.test.mjs -text
+tests/private-frontdoor-lanes.test.mjs -text

@@ -42,6 +42,11 @@ The RuneScape Wiki contributors' adapted facts, joins and descriptions in
 with per-record source/revision credits. Their licence is separate from MIT.
 The generator can rebuild from explicitly pinned Wiki API responses; run
 `node scripts/fetch-open-f2p-wiki.mjs --batch` then `node scripts/build-open-f2p.mjs`.
+Scripts that read the Wiki go through `scripts/lib/rs-wiki-client.mjs`, which
+follows the Wiki's [API etiquette](https://runescape.wiki/w/Help:APIs): one
+request at a time, a second apart, with maxlag, backoff and an identifying agent.
+A script that calls `fetch` directly runs with
+`node --import ./scripts/lib/rs-wiki-preload.mjs <script>` to get the same client.
 An optional local-cache rebuild test skips when that cache is absent; synthetic
 offline generator checks still run.
 

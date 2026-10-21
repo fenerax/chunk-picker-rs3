@@ -56,7 +56,8 @@ function encode(value, walk) {
     if (buffers.has(buffer)) return buffers.get(buffer);
     const placeholder = {};
     buffers.set(buffer, placeholder);
-    shared.push({ placeholder, bytes: Buffer.from(new Uint8Array(buffer)) });
+    // IPC serializes the view's bytes synchronously; no intermediate copy.
+    shared.push({ placeholder, bytes: Buffer.from(buffer) });
     return placeholder;
   }
   const data = walk(value, entry => {

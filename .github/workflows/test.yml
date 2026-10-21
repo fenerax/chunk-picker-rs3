@@ -18,5 +18,84 @@ jobs:
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 24
+      # Packs come from the release assets that .github/packs/pack-pin.json names.
+      # With no pin, nothing is fetched and the tests that need pack or
+      # game-cache files skip.
+      - name: Restore packs
+        id: packcache
+        uses: actions/cache/restore@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        with:
+          path: ${{ runner.temp }}/packs
+          key: packs-${{ hashFiles('.github/packs/pack-pin.json') }}
+      - name: Fetch and place packs
+        id: packs
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node .github/packs/fetch-packs.mjs . "${{ runner.temp }}/packs"
+      - name: Save packs
+        if: steps.packs.outputs.fetched == 'true' && steps.packcache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        with:
+          path: ${{ runner.temp }}/packs
+          key: packs-${{ hashFiles('.github/packs/pack-pin.json') }}
       - run: npm run test:quick
       - run: npm test
+
+  # The test files that skip Windows and PowerShell cases on Linux, run on
+  # hosted Windows. A signal only; the release still runs them on the release PC.
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 25
+    steps:
+      # .gitattributes pins LF (and keeps the `-text` files as stored), so no
+      # autocrlf setting is needed to match the release PC.
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      # The Node the release config runs.
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 24.20.0
+      # run.ps1 gives new files Windows 11 ownership (the user, not Administrators), then runs run.mjs.
+      - name: Windows-bound tests
+        shell: pwsh
+        run: ./.github/windows-slice/run.ps1 -Checkout . -Work "${{ runner.temp }}/ws"
+      - name: Keep the summary
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: windows-tests
+          path: ${{ runner.temp }}/ws/windows-slice.json
+          retention-days: 14
+          if-no-files-found: ignore
+
+  # Credentials and personal values: every file at the tested commit, plus each
+  # new commit's changes, message and noreply attribution. The private-value
+  # corpus stays on the release PC, whose pre-push hook checks it.
+  secrets:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 24
+      - name: Secret scan
+        env:
+          BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          # A new branch or a rewritten base has no usable "before": scan what the
+          # default branch lacks, or the whole history on the default branch itself.
+          if [ -n "$BASE" ] && ! echo "$BASE" | grep -qE '^0+$' && git cat-file -e "$BASE^{commit}" 2>/dev/null; then
+            RANGE="$BASE..$HEAD_SHA"
+          elif [ "$GITHUB_REF_NAME" != "$DEFAULT_BRANCH" ] && git rev-parse -q --verify "origin/$DEFAULT_BRANCH" >/dev/null; then
+            RANGE="origin/$DEFAULT_BRANCH..$HEAD_SHA"
+          else
+            RANGE="$HEAD_SHA"
+          fi
+          node scripts/secret-scan/scan.mjs --without-corpus --tree "$HEAD_SHA" --commits "$RANGE"

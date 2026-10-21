@@ -1,3 +1,4 @@
+import { startupPhase } from '../startup-timing.mjs';
 import { prepareWorkerDefinitions } from '../dataset-pipeline.mjs';
 import { selectedDataset } from '../dataset-runtime.mjs';
 import { parentPort, workerData } from 'node:worker_threads';
@@ -19,15 +20,24 @@ import { projectDuoSidebarResult } from '../duo-play-view.mjs';
 import { buildChunkPlanningIndex } from './chunk-planning-index.mjs';
 import { projectMapTaskLocations } from './map-task-locations.mjs';
 import { createTaskReuseFingerprint } from './unlock-reuse.mjs';
+import { STATE_SNAPSHOT_LIMIT } from './state-transfer.mjs';
 import { analyzeAreaCheck, normalizeAreaCheckRequest } from './area-check.mjs';
 import { constants as zlibConstants, crc32, gzipSync } from 'node:zlib';
+import { serialize } from 'node:v8';
 
+startupPhase('worker:modules');
 // Definitions compile once in this isolated worker. Evaluation never runs on
 // the HTTP/save event loop and receives a structured-cloned state snapshot.
-const rawDefinitions = workerData.definitionBytes === undefined ? workerData.definitions
-  : JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(workerData.definitionBytes));
 if (workerData.datasetDigest && workerData.datasetDigest !== selectedDataset.digest) throw new Error('Worker dataset digest mismatch.');
-const definitions = prepareWorkerDefinitions(rawDefinitions, selectedDataset, workerData.preparedDatasetStages, workerData.datasetOptions);
+const definitions = prepareWorkerDefinitions(takeDefinitions(), selectedDataset, workerData.preparedDatasetStages, workerData.datasetOptions);
+// Parse once and drop the transfer input. A process worker owns the only other
+// copy of those bytes, which would otherwise stay resident for its lifetime.
+function takeDefinitions() {
+  const raw = workerData.definitionBytes === undefined ? workerData.definitions
+    : JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(workerData.definitionBytes));
+  delete workerData.definitionBytes; delete workerData.definitions;
+  return raw;
+}
 const mapLocationResults = new WeakMap();
 function mapPlayResult(result) {
   let locations = mapLocationResults.get(result);
@@ -133,7 +143,7 @@ function evaluateFull(state, memberId, { includeViews = true, timingMs } = {}) {
 
 // Keep two coherent member/revision results. Each retains a complete graph,
 // including collections and equipment goals; older revisions can be rebuilt.
-// This bound is independent of the four-entry state-transfer protocol below.
+// This bound is independent of the state-transfer LRU below.
 const snapshots = new Map();
 const stateSnapshots = new Map();
 let latestRevision = -1;
@@ -294,7 +304,7 @@ parentPort.on('message', async ({ id, type = 'evaluate', state, memberId, chunkI
       state ??= stateSnapshots.get(snapshotKey);
       if (!state) throw new RangeError('Worker state snapshot is missing; resend its full state.');
       stateSnapshots.delete(snapshotKey); stateSnapshots.set(snapshotKey, state);
-      while (stateSnapshots.size > 4) stateSnapshots.delete(stateSnapshots.keys().next().value);
+      while (stateSnapshots.size > STATE_SNAPSHOT_LIMIT) stateSnapshots.delete(stateSnapshots.keys().next().value);
     }
     latestRevision = Math.max(latestRevision, state.revision);
     let result, unlockReuse, partnerUnlockReuse;
@@ -379,6 +389,12 @@ parentPort.on('message', async ({ id, type = 'evaluate', state, memberId, chunkI
 // callbacks before the scheduler can retire this isolate, even with idleMs=1.
 // Terminating during that fulfillment can abort the host in V8 on Linux.
 const compileMs = performance.now() - compileStarted;
-setImmediate(() => parentPort.postMessage({ type: 'ready', datasetDigest: selectedDataset.digest,
-  catalogue: [...engine.catalogue.filter(row => row.kind !== 'house-storage'), ...equipmentCatalogue],
-  dynamicCatalogue: [...collectionEngine.catalogue, ...houseStorageCatalogue, ...generatedTaskCatalogue], compileMs }));
+startupPhase('worker:compiled');
+// The generated catalogue is large and shares completion families between rows.
+// One structured-clone byte string crosses thread and process boundaries as a
+// copy; a graph would be cloned, walked and cloned again on every hop.
+setImmediate(() => {
+  const dynamicCatalogueBytes = serialize([...collectionEngine.catalogue, ...houseStorageCatalogue, ...generatedTaskCatalogue]);
+  parentPort.postMessage({ type: 'ready', datasetDigest: selectedDataset.digest,
+    catalogue: [...engine.catalogue.filter(row => row.kind !== 'house-storage'), ...equipmentCatalogue], dynamicCatalogueBytes, compileMs });
+});

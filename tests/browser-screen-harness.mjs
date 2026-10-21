@@ -98,9 +98,14 @@ export function runScreenGraph(context, modules) {
   // Area check is covered by its own DOM/controller fixture. Other screen
   // fixtures keep this toolbar collaborator explicit, like their existing mocks.
   context.createScreenAreaCheck ??= () => {};
+  // The setup guide has its own fixture in setup-guide.test.mjs; offering it
+  // here would open a dialog over these fixtures' fresh saves.
+  context.createScreenSetupGuide ??= () => {};
   // The live legend/toolbar DOM is covered by map-control-discovery.test.mjs.
   context.createMapControlDiscovery ??= () => ({ mount() {}, close() {}, isOpen: () => false });
   context.mountMembersStartEntry ??= () => ({ refresh() {} });
+  // The top bar layout and its Settings rows are covered by top-bar-buttons.test.mjs.
+  context.createScreenTopBar ??= () => {};
   const loaded = new Map();
   function load(url) {
     if (loaded.has(url.href)) return loaded.get(url.href);

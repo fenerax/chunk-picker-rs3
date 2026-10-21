@@ -1,0 +1,2058 @@
+{
+  "schemaVersion": 1,
+  "version": "2026-10-17.v1",
+  "authorship": "Independently authored explanations of this picker. Original-picker wording was consulted to identify intended scope, not copied or closely paraphrased.",
+  "credit": "RuneScape Wiki contributors; game facts are supported by per-entry pinned revisions. Engine effects were checked against the authored core and selected private task records.",
+  "licence": "Wiki-derived facts and adaptations: CC BY-NC-SA 3.0. Independently authored interface explanations remain separate from original-picker text.",
+  "licenceUrl": "https://creativecommons.org/licenses/by-nc-sa/3.0/",
+  "coverage": {
+    "normal": 148,
+    "total": 182
+  },
+  "savedRuleIds": [
+    "Additional Money Unlockables",
+    "Boss Level",
+    "Cleaning herbs",
+    "DnD Skilling",
+    "Forestry",
+    "Full Healing",
+    "Jars",
+    "Kili Knowledge",
+    "Partial Products",
+    "PvP Minigame",
+    "Superheat Furnace"
+  ],
+  "entries": {
+    "Skillcape": {
+      "what": "Adds listed skillcape and milestone-cape goals when their sellers, materials and skill requirements are reachable. These can become the highest goal shown for a skill.",
+      "example": "With Hickton reachable and Fletching training available, buying a Fletching cape can become a goal at 99 Fletching.",
+      "grindWarning": "A cape goal can turn a local task list into a level-99 training commitment.",
+      "sources": [
+        {
+          "title": "Fletching cape",
+          "url": "https://runescape.wiki/w/Fletching_cape?oldid=37124918"
+        }
+      ]
+    },
+    "Rare Drop": {
+      "what": "Allows item sources at every recorded drop rate. Turning it off removes sources that fail your rare-drop cutoff; another eligible source can keep the item available.",
+      "example": "An “obtain a goblin champion’s scroll” goal can appear with this on; a restrictive cutoff can remove it when no other eligible source exists.",
+      "grindWarning": "Including very rare sources can create long, chance-based collection or equipment grinds.",
+      "sources": [
+        {
+          "title": "Goblin Champion's scroll",
+          "url": "https://runescape.wiki/w/Goblin_Champion's_scroll?oldid=37014699"
+        }
+      ]
+    },
+    "Pouch": {
+      "what": "This saved switch currently has no task-generation effect. Runecrafting pouch access and requirements do not change when you toggle it.",
+      "example": "No task is added here: switching this on does not create a goal to obtain a medium Runecrafting pouch.",
+      "sources": [
+        {
+          "title": "Runecrafting pouches",
+          "url": "https://runescape.wiki/w/Runecrafting_pouches?oldid=37193050"
+        }
+      ]
+    },
+    "InsidePOH": {
+      "what": "Allows house furniture-workbench tasks above level 1 and the items they produce. Level-1 tasks stay available; the separate workbench-training switch decides whether these methods can justify further Construction training.",
+      "example": "Turning this off removes the eligible clay-fireplace construction task at the furniture workbench, because it is above level 1.",
+      "sources": [
+        {
+          "title": "Furniture workbench",
+          "url": "https://runescape.wiki/w/Furniture_workbench?oldid=37199289"
+        },
+        {
+          "title": "Clay fireplace",
+          "url": "https://runescape.wiki/w/Clay_fireplace?oldid=37123976"
+        }
+      ]
+    },
+    "InsidePOH Primary": {
+      "what": "Lets house furniture-workbench methods count as repeatable Construction training. Turning it off can reduce the levels the picker thinks you can train to, while leaving furniture recipes available.",
+      "example": "Constructing a clay fireplace can establish Construction training with this on; with it off, that recipe no longer supplies a primary training route.",
+      "sources": [
+        {
+          "title": "Furniture workbench",
+          "url": "https://runescape.wiki/w/Furniture_workbench?oldid=37199289"
+        },
+        {
+          "title": "Clay fireplace",
+          "url": "https://runescape.wiki/w/Clay_fireplace?oldid=37123976"
+        }
+      ]
+    },
+    "Construction Milestone": {
+      "what": "Adds the listed Construction milestones, such as changing a house style or building certain rooms. Their own location, quest and level requirements still apply.",
+      "example": "If the estate agent and requirements are reachable, changing your house to the basic stone style can become a goal.",
+      "sources": [
+        {
+          "title": "Player-owned house/House styles",
+          "url": "https://runescape.wiki/w/Player-owned_house%2FHouse_styles?oldid=37125346"
+        }
+      ]
+    },
+    "Boss": {
+      "what": "Lets loot from monsters on the picker’s boss list supply items and collections. It does not independently require boss kills or enable boss kill-count goals.",
+      "example": "If the King Black Dragon is reachable, its Dragon Rider gloves can become an item source with this on.",
+      "grindWarning": "Boss loot can lead to repeated kills; access alone does not establish that you can win the fight.",
+      "sources": [
+        {
+          "title": "Dragon Rider gloves",
+          "url": "https://runescape.wiki/w/Dragon_Rider_gloves?oldid=37135852"
+        }
+      ]
+    },
+    "Slayer Equipment": {
+      "what": "Adds listed goals to equip specialist Slayer gear. A goal still needs a source for the item and the required Slayer and combat levels.",
+      "example": "Wielding a mirror shield can become a goal when the item, 25 Slayer and 20 Defence are within reach.",
+      "sources": [
+        {
+          "title": "Mirror shield",
+          "url": "https://runescape.wiki/w/Mirror_shield?oldid=36654013"
+        }
+      ]
+    },
+    "Normal Farming": {
+      "what": "Lets listed ordinary Farming methods establish repeatable Farming training. Turning this off does not by itself remove every crop recipe or Farming product.",
+      "example": "Growing potatoes can establish a Farming training route with this on; disabling it removes that route’s primary-training status.",
+      "sources": [
+        {
+          "title": "Farming",
+          "url": "https://runescape.wiki/w/Farming?oldid=37206504"
+        }
+      ]
+    },
+    "Raking": {
+      "what": "Allows the recorded patch-raking method to supply weeds and establish Farming training when a suitable patch is reachable.",
+      "example": "Raking weeds from an accessible farming patch can become a Farming method; turning this off blocks that method.",
+      "sources": [
+        {
+          "title": "Farming",
+          "url": "https://runescape.wiki/w/Farming?oldid=37206504"
+        }
+      ]
+    },
+    "Kill X": {
+      "what": "Adds a kill-count goal for each eligible reachable monster, using your chosen count. Boss, Slayer, Skiller and backlog restrictions still apply, and completion needs your checkmark.",
+      "example": "With chickens reachable and the amount set to 25, a “Kill 25 chickens” goal can appear.",
+      "grindWarning": "A large count applies to every eligible monster, so small settings changes can add many kills.",
+      "sources": [
+        {
+          "title": "Chicken",
+          "url": "https://runescape.wiki/w/Chicken?oldid=37142047"
+        }
+      ]
+    },
+    "Kill X Boss": {
+      "what": "Includes monsters on the picker’s boss list in kill-count goals when Kill X is enabled. Their access and Slayer requirements still apply.",
+      "example": "With Kill X on and the King Black Dragon reachable, this can add a kill-count goal for that boss.",
+      "grindWarning": "Your configured count also applies to bosses, which can make the requirement much longer.",
+      "sources": [
+        {
+          "title": "King Black Dragon",
+          "url": "https://runescape.wiki/w/King_Black_Dragon?oldid=37188001"
+        }
+      ]
+    },
+    "Sorceress's Garden": {
+      "what": "Allows the listed herb-or-fruit picking method in Sorceress’s Garden to establish Farming training. Garden access still has to be available.",
+      "example": "Picking herbs or sq’irk fruit in Sorceress’s Garden can count as a Farming method when this is on.",
+      "sources": [
+        {
+          "title": "Sorceress's Garden",
+          "url": "https://runescape.wiki/w/Sorceress's_Garden?oldid=37122155"
+        }
+      ]
+    },
+    "Spells": {
+      "what": "Allows listed spellcasting tasks and their products, including spells used by other skills. Runes, spell unlocks and training requirements still apply.",
+      "example": "Casting Water Strike can become a Magic goal when its rune and equipment requirements are reachable.",
+      "sources": [
+        {
+          "title": "Water Strike",
+          "url": "https://runescape.wiki/w/Water_Strike?oldid=37043965"
+        }
+      ]
+    },
+    "Show Skill Tasks": {
+      "what": "Shows active skill goals when skill tasks are enabled. Hiding them leaves the underlying recipes, sources and reachable-training calculations in place.",
+      "example": "Turning this off removes a displayed oak-chopping goal from the active task list.",
+      "sources": [
+        {
+          "title": "Oak",
+          "url": "https://runescape.wiki/w/Oak?oldid=37197269"
+        }
+      ]
+    },
+    "Show Quest Tasks": {
+      "what": "Shows active quest steps and whole-quest goals when quests are enabled. Hiding them does not remove quest prerequisites from other tasks.",
+      "example": "Turning this off hides an available Cook’s Assistant completion goal. Basic quest requirements still apply elsewhere.",
+      "sources": [
+        {
+          "title": "Cook's Assistant",
+          "url": "https://runescape.wiki/w/Cook's_Assistant?oldid=37201167"
+        }
+      ]
+    },
+    "Show Diary Tasks": {
+      "what": "Enables the listed area-achievement tasks and their rewards. The separate Achievement switch controls whether eligible achievements appear in the active list.",
+      "example": "Turning this off can remove the Easy Lumbridge tier and its achievement-reward route from eligibility.",
+      "sources": [
+        {
+          "title": "Easy Lumbridge achievements",
+          "url": "https://runescape.wiki/w/Easy_Lumbridge_achievements?oldid=37036665"
+        }
+      ]
+    },
+    "Show Best in Slot Tasks": {
+      "what": "Shows goals to obtain the picker’s highest-ranked reachable combat equipment. Comparisons use recorded stats, compatible loadouts and equipment requirements.",
+      "example": "An obtainable bronze full helm can become an armour goal when it wins the comparison among your reachable helmets.",
+      "sources": [
+        {
+          "title": "Bronze full helm",
+          "url": "https://runescape.wiki/w/Bronze_full_helm?oldid=37074323"
+        }
+      ]
+    },
+    "Show Best in Slot Prayer Tasks": {
+      "what": "Adds equipment comparisons by Prayer bonus alongside combat-style comparisons. The main equipment-goal and Prayer-equipment rules must also be enabled.",
+      "example": "An obtainable priest gown top can become a Prayer equipment goal when its Prayer bonus wins that slot.",
+      "sources": [
+        {
+          "title": "Priest gown (top)",
+          "url": "https://runescape.wiki/w/Priest_gown_(top)?oldid=37135889"
+        }
+      ]
+    },
+    "Show Best in Slot Defensive Tasks": {
+      "what": "Adds defensive equipment goals. Ordinary slots rank armour first and life points second; compatible hand combinations rank their total armour plus life points.",
+      "example": "A reachable bronze kiteshield can become part of the selected defensive hand setup when it wins that comparison.",
+      "sources": [
+        {
+          "title": "Bronze kiteshield",
+          "url": "https://runescape.wiki/w/Bronze_kiteshield?oldid=37074326"
+        }
+      ]
+    },
+    "Show Best in Slot Melee Style Tasks": {
+      "what": "Compares melee weapons separately for stab, slash and crush instead of selecting only an overall melee winner. Compatible hand and ammunition rules still apply.",
+      "example": "A bronze scimitar can become the slash weapon goal when it wins the reachable slash comparison.",
+      "sources": [
+        {
+          "title": "Bronze scimitar",
+          "url": "https://runescape.wiki/w/Bronze_scimitar?oldid=37131035"
+        }
+      ]
+    },
+    "Show Best in Slot 1H and 2H": {
+      "what": "Keeps the best two-handed setup and the best alternative hand setup as separate equipment goals. It can therefore require more than the single overall winning weapon setup.",
+      "example": "If the bronze 2h sword wins overall, this can retain an obtainable bronze scimitar setup as the other hand-mode goal.",
+      "sources": [
+        {
+          "title": "Bronze 2h sword",
+          "url": "https://runescape.wiki/w/Bronze_2h_sword?oldid=37075295"
+        },
+        {
+          "title": "Bronze scimitar",
+          "url": "https://runescape.wiki/w/Bronze_scimitar?oldid=37131035"
+        }
+      ]
+    },
+    "Show Best in Slot Shield": {
+      "what": "Keeps a winning shield setup alongside the other selected weapon setups. It applies to compatible combat, Prayer and defensive comparisons.",
+      "example": "An obtainable bronze kiteshield can remain an equipment goal even when a two-handed setup scores better overall.",
+      "sources": [
+        {
+          "title": "Bronze kiteshield",
+          "url": "https://runescape.wiki/w/Bronze_kiteshield?oldid=37074326"
+        },
+        {
+          "title": "Bronze 2h sword",
+          "url": "https://runescape.wiki/w/Bronze_2h_sword?oldid=37075295"
+        }
+      ]
+    },
+    "Consumable Primary BiS": {
+      "what": "Requires consumable equipment, such as arrows, to have a supply that meets your required-training rules before it can win an equipment comparison. Other supplies can leave an item obtainable without making it a required equipment goal.",
+      "example": "A bronze-arrow equipment goal can disappear if its only reachable source fails your primary-supply cutoff.",
+      "sources": [
+        {
+          "title": "Bronze arrow",
+          "url": "https://runescape.wiki/w/Bronze_arrow?oldid=37131010"
+        }
+      ]
+    },
+    "Non-permanent BiS": {
+      "what": "Includes equipment that expires or crumbles after use in recommended gear and wielding goals. Turning it off keeps repairable or rechargeable items and ammunition eligible.",
+      "example": "Turning this off excludes a corrupt dragon scimitar from equipment goals because it crumbles to dust.",
+      "grindWarning": "An expiring winner may need repeated replacements; the picker’s score does not subtract that upkeep.",
+      "sources": [
+        {
+          "title": "Corrupt dragon scimitar",
+          "url": "https://runescape.wiki/w/Corrupt_dragon_scimitar?oldid=37012698"
+        }
+      ]
+    },
+    "Show Quest Tasks Complete": {
+      "what": "Shows whole-quest completion goals instead of individual quest-step goals. A whole quest still needs every required step, item and location to be reachable.",
+      "example": "For Cook’s Assistant, this hides individual preparation steps and keeps the whole-quest completion goal when eligible.",
+      "sources": [
+        {
+          "title": "Cook's Assistant",
+          "url": "https://runescape.wiki/w/Cook's_Assistant?oldid=37201167"
+        }
+      ]
+    },
+    "Show Diary Tasks Complete": {
+      "what": "Restricts active achievement goals to recorded whole-tier completion markers. Individual duties can still carry prerequisites and reward evidence behind the active list.",
+      "example": "An eligible Easy Lumbridge tier remains a goal, while its separate individual duties are hidden.",
+      "sources": [
+        {
+          "title": "Easy Lumbridge achievements",
+          "url": "https://runescape.wiki/w/Easy_Lumbridge_achievements?oldid=37036665"
+        }
+      ]
+    },
+    "Show Diary Tasks Any": {
+      "what": "Lets individual area achievements appear even while an earlier tier remains blocked. Each duty still needs its own requirements; an available tier goal can group several duties.",
+      "example": "“Are Yew As Fired Up As I Am?” can appear while an earlier Lumbridge tier is blocked, if you can burn the required yew log at the gatehouse.",
+      "sources": [
+        {
+          "title": "Easy Lumbridge achievements",
+          "url": "https://runescape.wiki/w/Easy_Lumbridge_achievements?oldid=37036665"
+        },
+        {
+          "title": "Are Yew As Fired Up As I Am?",
+          "url": "https://runescape.wiki/w/Are_Yew_As_Fired_Up_As_I_Am%3F?oldid=36855831"
+        }
+      ]
+    },
+    "Highest Level": {
+      "what": "Allows higher recipes to compete for a consumable ingredient instead of initially limiting it to its lowest eligible recipe. The active skill view still selects its highest available goal; some special task links remain unsupported.",
+      "example": "Crafting an unfired bowl can become the soft-clay processing goal instead of stopping at an unfired pot, when the higher recipe and training are eligible.",
+      "sources": [
+        {
+          "title": "Bowl (unfired)",
+          "url": "https://runescape.wiki/w/Bowl_(unfired)?oldid=36499196"
+        },
+        {
+          "title": "Pot (unfired)",
+          "url": "https://runescape.wiki/w/Pot_(unfired)?oldid=36960419"
+        }
+      ]
+    },
+    "BIS Skilling": {
+      "what": "Shows listed skilling tools and convenience upgrades. Explicit equipment sets use the priorities recorded in the data; the picker does not invent a universal ranking for unrelated tools.",
+      "example": "Obtaining the dwarven army axe can appear as a skilling-equipment goal when its source is reachable.",
+      "sources": [
+        {
+          "title": "Dwarven army axe",
+          "url": "https://runescape.wiki/w/Dwarven_army_axe?oldid=37211005"
+        }
+      ]
+    },
+    "BIS Skilling Consumables": {
+      "what": "Includes the listed expendable skilling supplies among skilling-equipment goals. Their source, level and equipment-set requirements still apply.",
+      "example": "Obtaining a crystal skillchompa can become a skilling-supply goal when the recorded requirements are met.",
+      "grindWarning": "These supplies are consumed in use; obtaining one does not prove a lasting stock.",
+      "sources": [
+        {
+          "title": "Crystal skillchompa",
+          "url": "https://runescape.wiki/w/Crystal_skillchompa?oldid=36916180"
+        }
+      ]
+    },
+    "BIS Skilling Relics": {
+      "what": "Allows listed skilling relic unlock goals and their recorded prerequisites. The picker does not choose a simultaneous relic setup or allocate monolith energy, and some interactions with skilling goals remain incomplete.",
+      "example": "Unlocking Pouch Protector can appear when its required relic item is obtainable.",
+      "sources": [
+        {
+          "title": "Pouch Protector",
+          "url": "https://runescape.wiki/w/Pouch_Protector?oldid=37134391"
+        }
+      ]
+    },
+    "Collection Log": {
+      "what": "Enables the declared collection-log item goals. The matching boss, Slayer, skilling or breeding subrule and each goal’s own requirements still apply.",
+      "example": "With the Slayer log subrule enabled, obtaining goblin mail can become a collection goal.",
+      "grindWarning": "Completing a log can require repeated drops long after useful equipment has been obtained.",
+      "sources": [
+        {
+          "title": "Goblin mail",
+          "url": "https://runescape.wiki/w/Goblin_mail?oldid=37034439"
+        }
+      ]
+    },
+    "Boss Collection Log": {
+      "what": "Includes declared boss-log items when Collection Log is enabled. Item access still follows boss-source and drop-rate rules.",
+      "example": "Obtaining Dragon Rider gloves can become a King Black Dragon log goal when the gloves are obtainable.",
+      "grindWarning": "A boss-log item is a chance-based target, so a fixed number of kills is not guaranteed to finish it.",
+      "sources": [
+        {
+          "title": "Dragon Rider gloves",
+          "url": "https://runescape.wiki/w/Dragon_Rider_gloves?oldid=37135852"
+        }
+      ]
+    },
+    "Slayer Collection Log": {
+      "what": "Includes declared Slayer-log items when Collection Log is enabled. These are item collection goals, not instructions to obtain a Slayer assignment.",
+      "example": "An obtainable goblin mail can become an Asgarnia and Misthalin Slayer-log goal.",
+      "sources": [
+        {
+          "title": "Goblin mail",
+          "url": "https://runescape.wiki/w/Goblin_mail?oldid=37034439"
+        }
+      ]
+    },
+    "Skilling Collection Log": {
+      "what": "Includes the declared skilling-log goals when Collection Log is enabled. The task data supplies the item requirements and log grouping.",
+      "example": "An obtainable warped stone can become a Dungeoneering collection goal.",
+      "sources": [
+        {
+          "title": "Warped stone",
+          "url": "https://runescape.wiki/w/Warped_stone?oldid=37160164"
+        }
+      ]
+    },
+    "Archaeology Collections": {
+      "what": "Adds goals to complete the listed Archaeology collections. The named collector and every required restored artefact must be reachable.",
+      "example": "Completing Art Critic Jacques’s Anarchic Abstraction collection can become a goal once its artefacts and collector are available.",
+      "sources": [
+        {
+          "title": "Anarchic Abstraction",
+          "url": "https://runescape.wiki/w/Anarchic_Abstraction?oldid=36851241"
+        }
+      ]
+    },
+    "Universal Tertiary": {
+      "what": "Allows the recorded universal-tertiary prerequisite to unlock certain special item sources. It changes source eligibility rather than adding a visible goal to collect every tertiary drop.",
+      "example": "Turning this off can remove an “obtain a mimic kill token” goal by blocking its recorded tertiary source, even with unique-item goals enabled.",
+      "sources": [
+        {
+          "title": "Starved ancient effigy",
+          "url": "https://runescape.wiki/w/Starved_ancient_effigy?oldid=37124253"
+        },
+        {
+          "title": "Mimic kill token",
+          "url": "https://runescape.wiki/w/Mimic_kill_token?oldid=37186133"
+        }
+      ]
+    },
+    "Breeding Log": {
+      "what": "Allows the listed animal-breeding collection goals and breeding-log achievement requirements. Other rules and each animal’s recorded access requirements still apply.",
+      "example": "Breeding a common brown rabbit at Manor Farm can become a collection goal when the matching log rules and requirements are enabled.",
+      "grindWarning": "Completing breeding goals can require repeated breeding attempts for missing varieties.",
+      "sources": [
+        {
+          "title": "Animal breeding log",
+          "url": "https://runescape.wiki/w/Animal_breeding_log?oldid=37200474"
+        },
+        {
+          "title": "Common brown rabbit",
+          "url": "https://runescape.wiki/w/Common_brown_rabbit?oldid=37140009"
+        }
+      ]
+    },
+    "Minigame": {
+      "what": "Allows listed minigame tasks and shops to supply methods and items. Turning it off blocks those recorded routes rather than every activity commonly called a minigame.",
+      "example": "A Temple Trekking Agility-tome method can become a training route when this is on and its prerequisites are reachable.",
+      "sources": [
+        {
+          "title": "Temple Trekking",
+          "url": "https://runescape.wiki/w/Temple_Trekking?oldid=37172100"
+        }
+      ]
+    },
+    "Shortcut Task": {
+      "what": "Shows listed shortcut goals above level 1 in the active skill list. The separate shortcut-training switch decides whether crossing them can justify further Agility training.",
+      "example": "Turning this off hides the “cross the crumbling wall in Falador” skill goal; that shortcut remains in the underlying activity catalogue.",
+      "sources": [
+        {
+          "title": "Shortcuts",
+          "url": "https://runescape.wiki/w/Shortcuts?oldid=37200447"
+        },
+        {
+          "title": "Crumbling wall (Falador)",
+          "url": "https://runescape.wiki/w/Crumbling_wall_(Falador)?oldid=36205746"
+        }
+      ]
+    },
+    "Shortcut": {
+      "what": "Lets listed shortcuts establish repeatable Agility training. The separate shortcut-display rule controls whether their skill goals appear.",
+      "example": "Crossing an accessible stile can count as an Agility method with this on; turning it off removes that method’s primary-training status.",
+      "sources": [
+        {
+          "title": "Shortcuts",
+          "url": "https://runescape.wiki/w/Shortcuts?oldid=37200447"
+        }
+      ]
+    },
+    "Wield Crafted Items": {
+      "what": "Lets crafted equipment supply eligible combat training, equipment comparisons and listed skilling-equipment requirements. Without it, a processing recipe alone does not prove a usable equipment source.",
+      "example": "Smithing a bronze sword can supply the equipment for a wielding or combat-training goal with this on.",
+      "sources": [
+        {
+          "title": "Bronze sword",
+          "url": "https://runescape.wiki/w/Bronze_sword?oldid=36739942"
+        }
+      ]
+    },
+    "Wield Crafted Items Override": {
+      "what": "This compatibility switch has no exact implementation here. It does not override the crafted-equipment restriction or add equipment tasks.",
+      "example": "No task is added here: a crafted bronze sword still follows Wield Crafted Items when this override is toggled.",
+      "sources": [
+        {
+          "title": "Bronze sword",
+          "url": "https://runescape.wiki/w/Bronze_sword?oldid=36739942"
+        }
+      ]
+    },
+    "Multi Step Processing": {
+      "what": "Allows eligible recipes to use products of earlier processing steps. Conditional multi-step products do not automatically prove equipment access or Extra collection goals.",
+      "example": "A leather body recipe can use leather made by an earlier tanning step when the processing and training conditions allow it.",
+      "sources": [
+        {
+          "title": "Leather",
+          "url": "https://runescape.wiki/w/Leather?oldid=37171846"
+        },
+        {
+          "title": "Leather body",
+          "url": "https://runescape.wiki/w/Leather_body?oldid=37132394"
+        }
+      ]
+    },
+    "Puro-Puro": {
+      "what": "Lets the picker open the listed Puro-Puro area automatically when you have a valid way in. Turning this off shuts off that area and the impling methods within it.",
+      "example": "Catching a baby impling in Puro-Puro can become a Hunter goal with this on and the area reachable.",
+      "sources": [
+        {
+          "title": "Puro-Puro",
+          "url": "https://runescape.wiki/w/Puro-Puro?oldid=37165794"
+        },
+        {
+          "title": "Baby impling",
+          "url": "https://runescape.wiki/w/Baby_impling?oldid=37166002"
+        }
+      ]
+    },
+    "Extra implings": {
+      "what": "Allows the listed impling catches at additional fixed locations. This is separate from opening Puro-Puro and from wandering-impling rules.",
+      "example": "Catching a young impling in the Al Kharid resource dungeon can become a Hunter goal when that dungeon is reachable.",
+      "sources": [
+        {
+          "title": "Young impling",
+          "url": "https://runescape.wiki/w/Young_impling?oldid=37166003"
+        },
+        {
+          "title": "Al Kharid resource dungeon",
+          "url": "https://runescape.wiki/w/Al_Kharid_resource_dungeon?oldid=37180738"
+        }
+      ]
+    },
+    "Bakami": {
+      "what": "This switch cannot currently activate the recorded bakami catches: those records use an unsupported requirement field. They remain unavailable when the rule is enabled.",
+      "example": "No task is added here: catching an oily bakami remains unsupported even though this is a real Arc creature.",
+      "sources": [
+        {
+          "title": "Oily bakami",
+          "url": "https://runescape.wiki/w/Oily_bakami?oldid=37199456"
+        }
+      ]
+    },
+    "Farming Primary": {
+      "what": "Lets ingredients grown through Farming support required skill training. Turning it off leaves those ingredients obtainable, but they no longer justify required training by themselves.",
+      "example": "If your only white berries come from growing a whiteberry bush, this can let them support a super defence training goal.",
+      "sources": [
+        {
+          "title": "White berries",
+          "url": "https://runescape.wiki/w/White_berries?oldid=37134792"
+        },
+        {
+          "title": "Super defence",
+          "url": "https://runescape.wiki/w/Super_defence?oldid=37021667"
+        }
+      ]
+    },
+    "Secondary Primary": {
+      "what": "Lets methods marked as secondary, such as small reward hand-ins, count as a way to train a skill for required goals. Their ingredients must still come from supplies that meet your training rules.",
+      "example": "A listed Agility City Quest hand-in can establish Agility training with this on and the required hand-in item available.",
+      "sources": [
+        {
+          "title": "City Quest",
+          "url": "https://runescape.wiki/w/City_Quest?oldid=37127262"
+        }
+      ]
+    },
+    "Secondary Primary Amount": {
+      "what": "Sets how common an ingredient drop must be before it can justify required training or consumable equipment goals. Enter a denominator or probability; zero accepts all known rates, and the inclusive switch decides whether equality passes.",
+      "example": "With a 1/16 cutoff, a super defence training goal needs its dropped white berries to pass that probability test; equality follows the inclusive switch.",
+      "sources": [
+        {
+          "title": "Super defence",
+          "url": "https://runescape.wiki/w/Super_defence?oldid=37021667"
+        },
+        {
+          "title": "White berries",
+          "url": "https://runescape.wiki/w/White_berries?oldid=37134792"
+        }
+      ]
+    },
+    "RDT": {
+      "what": "Allows the recorded rare, gem and Wilderness drop-table branches to supply items. Turning it off removes those branches while leaving ordinary monster loot intact.",
+      "example": "If a dragon helm is your winning helmet and is obtainable only through the rare drop table, switching this off removes its obtain goal.",
+      "sources": [
+        {
+          "title": "Rare drop table",
+          "url": "https://runescape.wiki/w/Rare_drop_table?oldid=37126411"
+        },
+        {
+          "title": "Dragon helm",
+          "url": "https://runescape.wiki/w/Dragon_helm?oldid=37183044"
+        }
+      ]
+    },
+    "Crystal chests": {
+      "what": "Allows the listed crystal-chest opening methods and their loot to supply items. The correct chest, key and access requirements must be reachable.",
+      "example": "Opening the Taverley crystal chest with a crystal key can supply an uncut dragonstone with this on.",
+      "sources": [
+        {
+          "title": "Crystal chest",
+          "url": "https://runescape.wiki/w/Crystal_chest?oldid=37129613"
+        }
+      ]
+    },
+    "Untracked Uniques": {
+      "what": "Enables the declared unique-item goals outside the main collection-log groups. A matching subcategory switch and each item’s requirements still apply.",
+      "example": "With its skilling subrule on, obtaining golden leaping trout eggs can become a collection goal.",
+      "grindWarning": "Some unique items are rare rewards; this can add substantial collection work without improving equipment.",
+      "sources": [
+        {
+          "title": "Golden leaping trout eggs",
+          "url": "https://runescape.wiki/w/Golden_leaping_trout_eggs?oldid=37014821"
+        }
+      ]
+    },
+    "Untracked Uniques Skilling": {
+      "what": "Includes the listed unique skilling items when Untracked Uniques is enabled. These goals use the sources recorded for each item.",
+      "example": "Obtaining golden leaping trout eggs for an aquarium can become a collection goal.",
+      "sources": [
+        {
+          "title": "Golden leaping trout eggs",
+          "url": "https://runescape.wiki/w/Golden_leaping_trout_eggs?oldid=37014821"
+        }
+      ]
+    },
+    "Untracked Uniques Combat": {
+      "what": "Includes the listed combat uniques when Untracked Uniques is enabled. Drop-rate and source rules still decide which items are obtainable.",
+      "example": "Obtaining a goblin champion’s scroll can become a combat-unique goal when an eligible drop source is reachable.",
+      "grindWarning": "Champion scrolls can take many thousands of kills; this goal has no guaranteed kill limit.",
+      "sources": [
+        {
+          "title": "Goblin Champion's scroll",
+          "url": "https://runescape.wiki/w/Goblin_Champion's_scroll?oldid=37014699"
+        }
+      ]
+    },
+    "Untracked Uniques Minigames": {
+      "what": "Includes the declared minigame uniques when Untracked Uniques is enabled. Recorded minigame access, shops and reward prerequisites still apply.",
+      "example": "Obtaining the gold dwarf multicannon upgrade can become a collection goal when the Artisans’ Workshop reward is available.",
+      "sources": [
+        {
+          "title": "Gold dwarf multicannon",
+          "url": "https://runescape.wiki/w/Gold_dwarf_multicannon?oldid=37014464"
+        }
+      ]
+    },
+    "Ceremonial Swords": {
+      "what": "Adds the listed individual ceremonial sword and off-hand sword collection goals. Their recorded items and membership requirements still apply.",
+      "example": "Obtaining iron ceremonial sword I can become a goal when the ceremonial sword route is reachable.",
+      "grindWarning": "Keeping a ceremonial sword requires a perfect result from its randomly offered design.",
+      "sources": [
+        {
+          "title": "Iron ceremonial sword I",
+          "url": "https://runescape.wiki/w/Iron_ceremonial_sword_I?oldid=37015794"
+        },
+        {
+          "title": "Ceremonial sword",
+          "url": "https://runescape.wiki/w/Ceremonial_sword?oldid=37001331"
+        }
+      ]
+    },
+    "Untracked Uniques Daemonheim": {
+      "what": "Includes the declared Daemonheim uniques when Untracked Uniques is enabled. These are collection objectives, not proof that a reward can be carried outside a dungeon.",
+      "example": "Obtaining a celestial surgebox inside Daemonheim can become a unique-item goal.",
+      "sources": [
+        {
+          "title": "Celestial surgebox",
+          "url": "https://runescape.wiki/w/Celestial_surgebox?oldid=37058164"
+        }
+      ]
+    },
+    "Untracked Uniques Misc": {
+      "what": "Includes miscellaneous declared uniques when Untracked Uniques is enabled. This covers the recorded goals that do not belong to the other unique-item groups.",
+      "example": "Obtaining fancy boots from the Stronghold of Security can become a collection goal.",
+      "sources": [
+        {
+          "title": "Fancy boots",
+          "url": "https://runescape.wiki/w/Fancy_boots?oldid=37014021"
+        }
+      ]
+    },
+    "Ports Scrolls": {
+      "what": "Adds listed Player-Owned Ports scroll goals and permits related achievement requirements. Scroll goals depend on the recorded port access and other rules.",
+      "example": "Obtaining the reefwalker’s cape scroll can become a goal when Player-Owned Ports is reachable.",
+      "grindWarning": "The complete cape scroll needs four pieces, so one successful scroll voyage does not finish the unlock.",
+      "sources": [
+        {
+          "title": "Reefwalker's cape",
+          "url": "https://runescape.wiki/w/Reefwalker's_cape?oldid=37089581"
+        }
+      ]
+    },
+    "Slayer Souls": {
+      "what": "Allows the listed soul-capture goals. They use the recorded ushabti and monster requirements; the picker cannot verify that an in-game capture succeeded.",
+      "example": "Collecting a goblin soul can become a goal when an empty ushabti and a qualifying goblin are reachable.",
+      "grindWarning": "Soul capture is chance-based, so obtaining the container does not complete the soul collection.",
+      "sources": [
+        {
+          "title": "Ushabti",
+          "url": "https://runescape.wiki/w/Ushabti?oldid=37193461"
+        }
+      ]
+    },
+    "Dungeoneering Journals": {
+      "what": "This saved switch currently has no matching generated journal goals or engine consumer. Toggling it does not add a journal-collection requirement.",
+      "example": "No task is added here: collecting a Daemonheim journal page remains outside this rule’s task generation.",
+      "sources": [
+        {
+          "title": "Dungeoneering journals",
+          "url": "https://runescape.wiki/w/Dungeoneering_journals?oldid=37075363"
+        }
+      ]
+    },
+    "Combat and Teleport Spells": {
+      "what": "Allows the listed combat and teleport spell goals when Spells is enabled. It does not itself grant a destination, spell unlock or rune supply.",
+      "example": "Casting Water Strike can appear as a Magic goal with both spell switches enabled and its requirements reachable.",
+      "sources": [
+        {
+          "title": "Water Strike",
+          "url": "https://runescape.wiki/w/Water_Strike?oldid=37043965"
+        }
+      ]
+    },
+    "Primary Spawns": {
+      "what": "Treats ground-item spawns as a reliable enough ingredient supply to require skill training. It also lets spawned consumable gear compete in equipment goals; turning this off leaves the items obtainable.",
+      "example": "If white berries north of the Tirannwn lodestone are your only berry source, turning this off can remove the super defence training goal.",
+      "sources": [
+        {
+          "title": "White berries",
+          "url": "https://runescape.wiki/w/White_berries?oldid=37134792"
+        },
+        {
+          "title": "Super defence",
+          "url": "https://runescape.wiki/w/Super_defence?oldid=37021667"
+        }
+      ]
+    },
+    "Smithing by Smelting": {
+      "what": "Lets Smithing processing establish training without a reachable anvil. Ore, furnace and recipe requirements still apply.",
+      "example": "Smelting bronze bars can support a Smithing goal even when you have a furnace but no reachable anvil.",
+      "sources": [
+        {
+          "title": "Bronze bar",
+          "url": "https://runescape.wiki/w/Bronze_bar?oldid=37012046"
+        }
+      ]
+    },
+    "Pets": {
+      "what": "Allows listed pet-related goals. Other rules, sources and the pet’s skill requirements still decide which goals appear.",
+      "example": "Obtaining a sneakerpeeper pet can become a goal when its reward source and required skills are reachable.",
+      "grindWarning": "Optional pet goals can add substantial training or chance-based work beyond ordinary equipment upgrades.",
+      "sources": [
+        {
+          "title": "Sneakerpeeper",
+          "url": "https://runescape.wiki/w/Sneakerpeeper?oldid=37165633"
+        }
+      ]
+    },
+    "Kill X Amount": {
+      "what": "Sets the positive whole-number count shown in Kill X goals. Changing it updates the target count without creating a new task identity or recording kills for you.",
+      "example": "Changing the amount from 1 to 25 turns an existing chicken goal into “Kill 25 chickens”.",
+      "sources": [
+        {
+          "title": "Chicken",
+          "url": "https://runescape.wiki/w/Chicken?oldid=37142047"
+        }
+      ]
+    },
+    "Rare Drop Amount": {
+      "what": "Sets the probability cutoff used when Rare Drop is off. A denominator means 1 divided by that number; zero accepts all rates, and Rare Drop Inclusive decides whether equality passes.",
+      "example": "A restrictive cutoff can remove the “obtain a goblin champion’s scroll” goal by excluding its only eligible drop source.",
+      "sources": [
+        {
+          "title": "Goblin Champion's scroll",
+          "url": "https://runescape.wiki/w/Goblin_Champion's_scroll?oldid=37014699"
+        }
+      ]
+    },
+    "Manually Complete Tasks": {
+      "what": "This saved switch currently has no task-generation effect. It does not switch completion into a separate manual mode or mark goals complete.",
+      "example": "No task is added here: an available Cook’s Assistant goal still uses the normal completion controls when this is toggled.",
+      "sources": [
+        {
+          "title": "Cook's Assistant",
+          "url": "https://runescape.wiki/w/Cook's_Assistant?oldid=37201167"
+        }
+      ]
+    },
+    "Every Drop": {
+      "what": "Adds item-collection goals from eligible monsters and listed loot-producing activities. You can choose an alternative source for the same item; source access and rare-drop filters still apply.",
+      "example": "With chickens reachable, collecting a feather can become an item goal. Another eligible feather source can be an alternative.",
+      "grindWarning": "Collecting every eligible item can add rare-drop grinds; a checkmark does not prove you still own the item.",
+      "sources": [
+        {
+          "title": "Chicken",
+          "url": "https://runescape.wiki/w/Chicken?oldid=37142047"
+        },
+        {
+          "title": "Feather",
+          "url": "https://runescape.wiki/w/Feather?oldid=37112201"
+        }
+      ]
+    },
+    "HigherLander": {
+      "what": "This saved switch currently has no engine or presentation effect. Toggling it does not alter task levels, sources or active goals.",
+      "example": "No task is added or removed here: a bronze-sword wielding goal follows the normal equipment and training rules.",
+      "sources": [
+        {
+          "title": "Bronze sword",
+          "url": "https://runescape.wiki/w/Bronze_sword?oldid=36739942"
+        }
+      ]
+    },
+    "Secondary MTA": {
+      "what": "This compatibility switch has no exact Mage Training Arena implementation here. It does not relax the arena task’s rune-source requirements.",
+      "example": "No task is added here: participating in Mage Training Arena still needs the normally eligible rune supplies.",
+      "sources": [
+        {
+          "title": "Mage Training Arena",
+          "url": "https://runescape.wiki/w/Mage_Training_Arena?oldid=37207456"
+        }
+      ]
+    },
+    "Skilling Pets": {
+      "what": "Includes declared skilling-pet collection goals when Pets is enabled. It does not guarantee a pet drop or prove that your training method can award one.",
+      "example": "Obtaining Dojo Mojo can become an Agility-pet goal when its recorded source is eligible.",
+      "grindWarning": "A pet roll is random; reaching the displayed skill goal does not guarantee the pet.",
+      "sources": [
+        {
+          "title": "Dojo Mojo",
+          "url": "https://runescape.wiki/w/Dojo_Mojo?oldid=37148159"
+        }
+      ]
+    },
+    "Permanent Unlockables": {
+      "what": "Adds goals for one-time upgrades that stay unlocked, such as building a rope rack or applying Innate Mastery to a weapon. Turning it off does not remove the separate rope-rack Construction goals.",
+      "example": "Building the Eagles’ Peak rope rack can become an unlock goal when its location and materials are reachable; the parallel Construction task is separate.",
+      "sources": [
+        {
+          "title": "Rope rack",
+          "url": "https://runescape.wiki/w/Rope_rack?oldid=37170463"
+        },
+        {
+          "title": "Shard of Genesis Essence",
+          "url": "https://runescape.wiki/w/Shard_of_Genesis_Essence?oldid=37206030"
+        }
+      ],
+      "grindWarning": "Innate Mastery uses a Shard of Genesis Essence, a hard-mode boss reward; these goals can take much longer than building a rope rack."
+    },
+    "Prayers": {
+      "what": "Allows the specifically listed prayer-use goal when its requirements are reachable. This does not generate a goal for every prayer or replace the separate prayer-unlock rules.",
+      "example": "Using Smite can become a Prayer goal when its level requirement is reachable.",
+      "sources": [
+        {
+          "title": "Smite",
+          "url": "https://runescape.wiki/w/Smite?oldid=36773403"
+        }
+      ]
+    },
+    "All Droptables": {
+      "what": "Adds collection goals for the recorded item quantities in eligible monster and activity loot tables. Quantity ranges remain ranges; missing or cyclic tables do not create goals.",
+      "example": "A recorded chicken feather drop can create a feather-quantity goal rather than only an “obtain a feather” goal.",
+      "grindWarning": "Different quantities can create multiple goals for one item, increasing the collection workload.",
+      "sources": [
+        {
+          "title": "Chicken",
+          "url": "https://runescape.wiki/w/Chicken?oldid=37142047"
+        },
+        {
+          "title": "Feather",
+          "url": "https://runescape.wiki/w/Feather?oldid=37112201"
+        }
+      ]
+    },
+    "All Droptables Nest": {
+      "what": "Would add quantity goals for obtainable nests that have both a loot table and a matching nest-loot task. The current retained data has no matching nest-loot task, so this adds no nest goals.",
+      "example": "No task is added here: a bird’s nest seed-loot collection goal cannot be generated from the current task data.",
+      "sources": [
+        {
+          "title": "Bird's nests",
+          "url": "https://runescape.wiki/w/Bird's_nests?oldid=37055672"
+        }
+      ]
+    },
+    "Every Drop Implings": {
+      "what": "Includes listed eligible impling loot sources when Every Drop is enabled. Catch access, item-source rules and drop-rate filters still apply.",
+      "example": "A reachable baby impling catch can contribute its eligible loot items to Every Drop goals.",
+      "sources": [
+        {
+          "title": "Baby impling",
+          "url": "https://runescape.wiki/w/Baby_impling?oldid=37166002"
+        }
+      ]
+    },
+    "Skiller": {
+      "what": "Excludes monster-drop item sources, kill-count goals and tasks marked unsuitable for skillers. This is partial support; it does not implement every restriction of a combat-free account.",
+      "example": "Turning this on removes chicken kill-count goals and chicken-drop sources such as feathers.",
+      "sources": [
+        {
+          "title": "Chicken",
+          "url": "https://runescape.wiki/w/Chicken?oldid=37142047"
+        },
+        {
+          "title": "Feather",
+          "url": "https://runescape.wiki/w/Feather?oldid=37112201"
+        }
+      ]
+    },
+    "Fill Stash": {
+      "what": "Adds the listed hidey-hole filling goals. Each goal needs its location, construction prerequisite and complete set of emote-clue items to be reachable.",
+      "example": "Filling the Lumbridge Swamp shed hidey-hole can become a goal once its required equipment and build task are available.",
+      "sources": [
+        {
+          "title": "Hidey-holes",
+          "url": "https://runescape.wiki/w/Hidey-holes?oldid=37153562"
+        }
+      ]
+    },
+    "All Shops": {
+      "what": "Adds buy-each-item goals for specific reachable shops and listed shop activities. A completed collection goal does not record current ownership or remaining shop stock.",
+      "example": "Buying a bronze hatchet from Bob’s Brilliant Axes can become a shop-collection goal.",
+      "sources": [
+        {
+          "title": "Bob's Brilliant Axes",
+          "url": "https://runescape.wiki/w/Bob's_Brilliant_Axes?oldid=37176178"
+        },
+        {
+          "title": "Bronze hatchet",
+          "url": "https://runescape.wiki/w/Bronze_hatchet?oldid=37131917"
+        }
+      ]
+    },
+    "Quest Skill Reqs": {
+      "what": "This saved switch currently has no independent effect. Quest skill requirements continue to be checked by the ordinary task engine.",
+      "example": "No task is added here: Dragon Slayer remains a quest-completion goal governed by its ordinary access and requirement checks.",
+      "sources": [
+        {
+          "title": "Dragon Slayer",
+          "url": "https://runescape.wiki/w/Dragon_Slayer?oldid=37182736"
+        }
+      ]
+    },
+    "Boosting": {
+      "what": "Lets supported obtainable skill boosts help meet task requirements and affect which skill goal is shown. The picker handles fixed and percentage boosts, but cannot calculate every boost formula.",
+      "example": "With reachable Herblore 4 and an obtainable Greenman's ale, cleaning tarromin at level 5 can become available.",
+      "sources": [
+        {
+          "title": "Temporary skill boost",
+          "url": "https://runescape.wiki/w/Temporary_skill_boost?oldid=37201683"
+        },
+        {
+          "title": "Clean tarromin",
+          "url": "https://runescape.wiki/w/Clean_tarromin?oldid=37082075"
+        },
+        {
+          "title": "Greenman's ale",
+          "url": "https://runescape.wiki/w/Greenman's_ale?oldid=37179877"
+        }
+      ]
+    },
+    "Token": {
+      "what": "Lets methods with small incidental XP gains count as repeatable training for required goals. This can raise how far the picker thinks you can train that skill.",
+      "example": "Mixing unfinished tarromin potions can count as a Herblore training route when the herbs and vials of water are obtainable.",
+      "sources": [
+        {
+          "title": "Herblore",
+          "url": "https://runescape.wiki/w/Herblore?oldid=37192970"
+        },
+        {
+          "title": "Tarromin potion (unfinished)",
+          "url": "https://runescape.wiki/w/Tarromin_potion_(unfinished)?oldid=37034016"
+        }
+      ],
+      "grindWarning": "A tiny repeatable XP gain can imply training far beyond the level at which you unlock it."
+    },
+    "Master skillcape": {
+      "what": "Allows the listed level-120 master cape goals when their seller and other requirements are reachable. These are separate from ordinary level-99 cape goals.",
+      "example": "Buying the Agility master cape becomes an eligible goal at virtual Agility 120 with access to its seller.",
+      "sources": [
+        {
+          "title": "Agility master cape",
+          "url": "https://runescape.wiki/w/Agility_master_cape?oldid=36961772"
+        }
+      ],
+      "grindWarning": "Virtual level 120 in Agility requires 104,273,167 XP."
+    },
+    "Cleaning Herbs": {
+      "what": "Controls active Herblore goals for cleaning herbs and mixing unfinished potions above level 1. Hidden recipes and their products still help the picker work out what else you can do.",
+      "example": "Turning this off hides the clean-tarromin goal while the engine can still use its clean herb output.",
+      "sources": [
+        {
+          "title": "Herblore",
+          "url": "https://runescape.wiki/w/Herblore?oldid=37192970"
+        },
+        {
+          "title": "Clean tarromin",
+          "url": "https://runescape.wiki/w/Clean_tarromin?oldid=37082075"
+        }
+      ]
+    },
+    "Cleaning Herbs Primary": {
+      "what": "Lets listed herb-cleaning methods establish a required Herblore training route. The separate Cleaning Herbs switch controls whether those goals appear.",
+      "example": "Cleaning obtainable grimy tarromin can establish repeatable Herblore training when this is enabled.",
+      "sources": [
+        {
+          "title": "Herblore",
+          "url": "https://runescape.wiki/w/Herblore?oldid=37192970"
+        },
+        {
+          "title": "Clean tarromin",
+          "url": "https://runescape.wiki/w/Clean_tarromin?oldid=37082075"
+        }
+      ]
+    },
+    "Vinesweeper": {
+      "what": "Allows the listed Farming training method at Vinesweeper when you can reach the activity. Its Hunter method has a separate rule.",
+      "example": "Playing Vinesweeper can become an available Farming method after its location is accessible.",
+      "sources": [
+        {
+          "title": "Vinesweeper",
+          "url": "https://runescape.wiki/w/Vinesweeper?oldid=37146867"
+        }
+      ]
+    },
+    "Ogleroot": {
+      "what": "Allows the listed Hunter training method that feeds rabbits in Vinesweeper. Access to the activity still has to be established.",
+      "example": "Feeding an ogleroot to a Vinesweeper rabbit can become a Hunter training task.",
+      "sources": [
+        {
+          "title": "Vinesweeper",
+          "url": "https://runescape.wiki/w/Vinesweeper?oldid=37146867"
+        }
+      ]
+    },
+    "Gnomeball": {
+      "what": "Allows the listed Gnome Ball methods to establish Agility and Ranged training when its field is reachable.",
+      "example": "Playing Gnome Ball can become a Ranged training method in the Tree Gnome Stronghold.",
+      "sources": [
+        {
+          "title": "Gnome Ball",
+          "url": "https://runescape.wiki/w/Gnome_Ball?oldid=37159060"
+        }
+      ]
+    },
+    "Daemonheim training": {
+      "what": "Allows the listed training routes inside Daemonheim. This can make further skill requirements reachable while keeping dungeon equipment separate from surface supplies.",
+      "example": "Training Attack inside Daemonheim becomes an eligible method when its dungeons are accessible.",
+      "sources": [
+        {
+          "title": "Dungeoneering",
+          "url": "https://runescape.wiki/w/Dungeoneering?oldid=37168496"
+        }
+      ]
+    },
+    "Daemonheim tasks": {
+      "what": "Allows listed skill goals involving activities or equipment inside Daemonheim. The separate training rule controls whether its methods establish repeatable training.",
+      "example": "Wielding an argonite weapon inside Daemonheim can become an Attack goal at level 60.",
+      "sources": [
+        {
+          "title": "Argonite equipment",
+          "url": "https://runescape.wiki/w/Argonite_equipment?oldid=37176352"
+        },
+        {
+          "title": "Dungeoneering",
+          "url": "https://runescape.wiki/w/Dungeoneering?oldid=37168496"
+        }
+      ]
+    },
+    "PortSkills": {
+      "what": "Allows a level-90 adventurer-unlock goal for each of the twelve listed port skills you can train. It does not stop after the first skill that lets you run voyages.",
+      "example": "Unlocking the Tengu through Agility 90 can remain a goal even after another skill already permits port voyages.",
+      "sources": [
+        {
+          "title": "Player-owned port",
+          "url": "https://runescape.wiki/w/Player-owned_port?oldid=37203306"
+        }
+      ],
+      "grindWarning": "This can require several separate skills at 90 rather than a single port-entry skill."
+    },
+    "Titles": {
+      "what": "Allows listed title-unlock goals when their recorded requirements are reachable. Other rules can still exclude titles tied to particular activities.",
+      "example": "Earning Archmage can become a goal with Rune Memories and level 99 in both Magic and Runecrafting within reach.",
+      "sources": [
+        {
+          "title": "Archmage",
+          "url": "https://runescape.wiki/w/Archmage?oldid=36055124"
+        }
+      ],
+      "grindWarning": "Some titles require high levels or repeated activity completions."
+    },
+    "DnD": {
+      "what": "Allows listed Distraction and Diversion tasks and the training or rewards they provide. Their location, timing and other rules still apply.",
+      "example": "Building a God Statue can become an available Construction method when Copernicus Glyph is reachable.",
+      "sources": [
+        {
+          "title": "God Statues",
+          "url": "https://runescape.wiki/w/God_Statues?oldid=37193709"
+        }
+      ]
+    },
+    "DnD Flash Events": {
+      "what": "Allows the listed flash-event access and reward tasks, subject to their other rules. It does not predict when an event will spawn.",
+      "example": "Obtaining normal Demon Flash Mob rewards can become available when the listed location and group-content requirements are met.",
+      "sources": [
+        {
+          "title": "Demon Flash Mob",
+          "url": "https://runescape.wiki/w/Demon_Flash_Mob?oldid=37076317"
+        }
+      ]
+    },
+    "Not Daily DnD": {
+      "what": "This saved option has no implemented task or timing filter here. Changing it does not remove daily activities or add weekly and monthly ones.",
+      "example": "No task is added here; building a monthly God Statue remains controlled by its existing activity and timing rules.",
+      "sources": [
+        {
+          "title": "God Statues",
+          "url": "https://runescape.wiki/w/God_Statues?oldid=37193709"
+        }
+      ]
+    },
+    "Uncharted": {
+      "what": "Allows listed gathering methods on Uncharted Isles when their resources and requirements are reachable. These methods can establish training or supply later recipes.",
+      "example": "Catching an ornate tortle can become a Hunter goal at level 96 when the tortle and trap are obtainable.",
+      "sources": [
+        {
+          "title": "Uncharted Isles",
+          "url": "https://runescape.wiki/w/Uncharted_Isles?oldid=37162651"
+        }
+      ]
+    },
+    "Arc Log": {
+      "what": "Allows listed Arc journal collection goals. Their birds, resources or other entries still need an allowed source.",
+      "example": "Spotting the Cyclosis Cockatiel can become an Arc journal goal when that bird is obtainable in the engine.",
+      "sources": [
+        {
+          "title": "Arc journal",
+          "url": "https://runescape.wiki/w/Arc_journal?oldid=37146086"
+        },
+        {
+          "title": "Cyclosis Cockatiel",
+          "url": "https://runescape.wiki/w/Cyclosis_Cockatiel?oldid=37166995"
+        }
+      ]
+    },
+    "Menaphos Log": {
+      "what": "Allows listed Menaphos journal entries as collection goals. It does not complete the journal automatically.",
+      "example": "Finding a Menaphite honey bee in amber can become a journal goal when the journal and amber entry are obtainable.",
+      "sources": [
+        {
+          "title": "Menaphos journal",
+          "url": "https://runescape.wiki/w/Menaphos_journal?oldid=37146257"
+        },
+        {
+          "title": "Menaphite honey bee in amber",
+          "url": "https://runescape.wiki/w/Menaphite_honey_bee_in_amber?oldid=36772801"
+        }
+      ]
+    },
+    "Costume Room": {
+      "what": "This old option does not generate storage goals here. Current house storage goals use House storage tasks instead.",
+      "example": "No task is added by this saved name; storing the Mask of Dragith Nurn in an armour case is handled by House storage tasks.",
+      "sources": [
+        {
+          "title": "Armour case",
+          "url": "https://runescape.wiki/w/Armour_case?oldid=37208233"
+        }
+      ]
+    },
+    "Achievement": {
+      "what": "Shows eligible achievement goals in the active task list. Hidden achievements can still help the picker work out which requirements you meet and which rewards you can obtain.",
+      "example": "Turning this off removes Agility 5 from the active list without erasing its underlying achievement task.",
+      "sources": [
+        {
+          "title": "Agility 5",
+          "url": "https://runescape.wiki/w/Agility_5?oldid=37080220"
+        }
+      ]
+    },
+    "Multiple Pickpockets": {
+      "what": "This saved option has no implemented task rule here. It does not change the listed multi-loot pickpocket goals.",
+      "example": "No task is added here; a farmer multi-loot pickpocket goal still follows the existing Thieving and Agility rules.",
+      "sources": [
+        {
+          "title": "Thieving",
+          "url": "https://runescape.wiki/w/Thieving?oldid=37182495"
+        },
+        {
+          "title": "Farmer",
+          "url": "https://runescape.wiki/w/Farmer?oldid=37169627"
+        }
+      ]
+    },
+    "Multiple Agility": {
+      "what": "Allows listed Agility goals for the multi-loot bonuses used while pickpocketing. The target and the accompanying Thieving requirement still have to be available.",
+      "example": "Pickpocketing a farmer for quadruple loot can become an Agility goal when its Agility and Thieving requirements are reachable.",
+      "sources": [
+        {
+          "title": "Thieving",
+          "url": "https://runescape.wiki/w/Thieving?oldid=37182495"
+        },
+        {
+          "title": "Farmer",
+          "url": "https://runescape.wiki/w/Farmer?oldid=37169627"
+        }
+      ]
+    },
+    "F2P": {
+      "what": "Applies free-to-play restrictions to both players, including members-only tasks, equipment, training and travel. Turn it off to allow supported members content.",
+      "example": "Turning this on removes the members-only Agility master cape goal, even if its seller and level requirement would otherwise be reachable.",
+      "sources": [
+        {
+          "title": "Agility master cape",
+          "url": "https://runescape.wiki/w/Agility_master_cape?oldid=36961772"
+        }
+      ]
+    },
+    "Hard Mode Bosses": {
+      "what": "Allows listed tasks marked for harder boss modes. Boss drops and kill-count goals still follow their separate rules.",
+      "example": "Defeating Amascut, the Devourer at 500% or higher enrage in under ten minutes can become an Elite speed-kill goal when the other achievement rules allow it.",
+      "sources": [
+        {
+          "title": "Amascut, the Devourer (EM) Elite Speed Killer",
+          "url": "https://runescape.wiki/w/Amascut%2C_the_Devourer_%28EM%29_Elite_Speed_Killer?oldid=36837623"
+        }
+      ]
+    },
+    "Group Content": {
+      "what": "Allows listed activities and goals that need group participation. Their other requirements still apply, and the picker does not assemble a team.",
+      "example": "Participating in a sinkhole can become a Dungeoneering method when Sinkholes and its other activity rules allow it.",
+      "sources": [
+        {
+          "title": "Sinkholes",
+          "url": "https://runescape.wiki/w/Sinkholes?oldid=37207874"
+        }
+      ]
+    },
+    "PVP": {
+      "what": "Allows the listed tasks tagged PVP, rather than enabling every form of player combat. Other differently named PvP options are separate saved names.",
+      "example": "Casting Teleport Block can become a Magic goal when the spell requirements, runes and listed PvP location are reachable.",
+      "sources": [
+        {
+          "title": "Teleport Block",
+          "url": "https://runescape.wiki/w/Teleport_Block?oldid=36951158"
+        }
+      ]
+    },
+    "Hero Items": {
+      "what": "Allows listed hero-item goals that would otherwise be excluded by this rule. It does not make their rare sources more likely.",
+      "example": "Obtaining Guildmaster Tony's mattock can become a skilling equipment goal when its item source and Archaeology requirement are reachable.",
+      "sources": [
+        {
+          "title": "Guildmaster Tony's mattock",
+          "url": "https://runescape.wiki/w/Guildmaster_Tony's_mattock?oldid=37194006"
+        }
+      ],
+      "grindWarning": "A hero-item goal can require an exceptionally rare reward."
+    },
+    "Brawling Gloves": {
+      "what": "Allows listed brawling-glove goals within skilling equipment. The gloves must still have an obtainable source.",
+      "example": "Obtaining Agility brawling gloves can become a skilling equipment goal when their source is available.",
+      "sources": [
+        {
+          "title": "Brawling gloves",
+          "url": "https://runescape.wiki/w/Brawling_gloves?oldid=37109154"
+        }
+      ],
+      "grindWarning": "These gloves have limited charges, so obtaining them does not create a permanent XP bonus."
+    },
+    "Unlock Abilities": {
+      "what": "Allows listed goals to unlock abilities through codices, items or activity rewards. It does not itself grant an ability or confirm that you have learned it.",
+      "example": "Unlocking Ingenuity of the Humans can become a goal when its ability codex is obtainable.",
+      "sources": [
+        {
+          "title": "Ingenuity of the Humans",
+          "url": "https://runescape.wiki/w/Ingenuity_of_the_Humans?oldid=37076130"
+        }
+      ]
+    },
+    "Sigil Abilities": {
+      "what": "Allows the listed former-sigil ability unlock goals alongside Unlock Abilities. Each unlock permanently adds an ability, while its item and skill requirements still apply.",
+      "example": "Unlocking Golden Touch can become a goal when its codex is obtainable and Magic 55 is reachable.",
+      "sources": [
+        {
+          "title": "Golden Touch",
+          "url": "https://runescape.wiki/w/Golden_Touch?oldid=37141927"
+        },
+        {
+          "title": "Golden Touch ability codex",
+          "url": "https://runescape.wiki/w/Golden_Touch_ability_codex?oldid=36906326"
+        },
+        {
+          "title": "Menaphos market guard",
+          "url": "https://runescape.wiki/w/Menaphos_market_guard?oldid=37202160"
+        }
+      ],
+      "grindWarning": "Golden Touch needs 2,000 vital sparks. Collecting them through rare pickpocket rewards can take a long time."
+    },
+    "Unlock Prayers": {
+      "what": "Allows listed prayer-unlock goals when their quest, item and level requirements are reachable. This does not change which prayers you have personally unlocked.",
+      "example": "Unlocking the Knight Waves training ground prayers can become a goal after King's Ransom is within reach.",
+      "sources": [
+        {
+          "title": "Knight Waves training ground",
+          "url": "https://runescape.wiki/w/Knight_Waves_training_ground?oldid=37164602"
+        }
+      ]
+    },
+    "PvM Relics": {
+      "what": "This rule has no matching combat-relic tasks in the current catalogue. It does not select a relic setup or allocate monolith energy.",
+      "example": "No task is added here; unlocking a combat relic at the mysterious monolith would need a supported goal before this switch could govern it.",
+      "sources": [
+        {
+          "title": "Relic powers",
+          "url": "https://runescape.wiki/w/Relic_powers?oldid=37128539"
+        }
+      ]
+    },
+    "KeyItem Bosses": {
+      "what": "This saved option has no implemented boss-item source filter here. It cannot independently permit a boss drop needed by another task.",
+      "example": "No task is added here; obtaining dragon bones from the King Black Dragon still follows the supported boss and drop-source rules.",
+      "sources": [
+        {
+          "title": "King Black Dragon",
+          "url": "https://runescape.wiki/w/King_Black_Dragon?oldid=37188001"
+        },
+        {
+          "title": "Dragon bones",
+          "url": "https://runescape.wiki/w/Dragon_bones?oldid=37134781"
+        }
+      ]
+    },
+    "Shooting Stars": {
+      "what": "Allows the listed crashed-star Mining methods, together with their Distraction and Diversion rule. It does not locate the next star for you.",
+      "example": "Mining a size-1 crashed star can become an available Mining method at level 10.",
+      "sources": [
+        {
+          "title": "Shooting Star",
+          "url": "https://runescape.wiki/w/Shooting_Star?oldid=37171378"
+        }
+      ]
+    },
+    "Combat Mastery achievements": {
+      "what": "Allows listed Combat Mastery goals. Some miscellaneous combat achievements are also marked for this rule, so switching it off excludes those goals too.",
+      "example": "Giant Mole Novice Speed Killer can become an eligible achievement when the mole is reachable and the speed-kill switch is enabled.",
+      "sources": [
+        {
+          "title": "Giant Mole Novice Speed Killer",
+          "url": "https://runescape.wiki/w/Giant_Mole_Novice_Speed_Killer?oldid=36666844"
+        },
+        {
+          "title": "Combat Mastery achievements",
+          "url": "https://runescape.wiki/w/Combat_Mastery_achievements?oldid=37009096"
+        }
+      ],
+      "grindWarning": "Combat tasks may require repeated boss kills, special restrictions or precise execution."
+    },
+    "Speed Killer Achievements": {
+      "what": "Allows the listed timed boss-kill achievements within Combat Mastery. It does not estimate whether your current equipment can meet their timers.",
+      "example": "Defeating the Giant Mole solo in under five minutes can become a Combat Mastery goal.",
+      "sources": [
+        {
+          "title": "Giant Mole Novice Speed Killer",
+          "url": "https://runescape.wiki/w/Giant_Mole_Novice_Speed_Killer?oldid=36666844"
+        }
+      ]
+    },
+    "Combat Master+": {
+      "what": "Allows listed Master and higher Combat Mastery goals when their other requirements are reachable. Lower-tier goals remain under their own rules.",
+      "example": "Barrows: Rise of the Six Master Speed Killer can become a goal when the boss and the other combat and speed-kill rules are available.",
+      "sources": [
+        {
+          "title": "Barrows: Rise of the Six Master Speed Killer",
+          "url": "https://runescape.wiki/w/Barrows%3A_Rise_of_the_Six_Master_Speed_Killer?oldid=36691922"
+        }
+      ],
+      "grindWarning": "These goals can require demanding boss conditions beyond merely reaching the fight."
+    },
+    "Misc Combat Achievements": {
+      "what": "This older capitalised name does not control any supported tasks. Use Misc Combat achievements, with a lower-case achievements, for the listed combat goals.",
+      "example": "No task is added by this spelling; Mole Removal VI still follows Misc Combat achievements and its other rules.",
+      "sources": [
+        {
+          "title": "Mole Removal VI",
+          "url": "https://runescape.wiki/w/Mole_Removal_VI?oldid=37079343"
+        }
+      ]
+    },
+    "Menaphos Events": {
+      "what": "Allows listed Menaphos event training methods. Access to Menaphos and the particular event still has to be available.",
+      "example": "Siphoning a Menaphos soul obelisk for Prayer XP can become a method at Prayer 50.",
+      "sources": [
+        {
+          "title": "Soul obelisk (Menaphos)",
+          "url": "https://runescape.wiki/w/Soul_obelisk_(Menaphos)?oldid=37066206"
+        }
+      ]
+    },
+    "Hunter Marks Slayer": {
+      "what": "This saved option has no implemented link between Hunter-mark rewards and Slayer training here.",
+      "example": "No task is added here; earning Hunter marks on Anachronia remains governed by supported Hunter activities.",
+      "sources": [
+        {
+          "title": "Hunter mark",
+          "url": "https://runescape.wiki/w/Hunter_mark?oldid=37168756"
+        }
+      ]
+    },
+    "Material Blueprints": {
+      "what": "Allows listed Invention goals for discovering material blueprints at an inventor's workbench. Owning a material and knowing its blueprint remain different requirements.",
+      "example": "Discovering refined components can become an Invention goal at level 22 with a reachable inventor's workbench.",
+      "sources": [
+        {
+          "title": "Refined components",
+          "url": "https://runescape.wiki/w/Refined_components?oldid=37123678"
+        }
+      ]
+    },
+    "Wandering implings": {
+      "what": "Allows the listed roaming impling-catching methods. These tasks do not require a listed fixed spawn, so a roaming catch can appear without locating an impling first.",
+      "example": "Catching a wandering baby impling can become a Hunter goal at level 17.",
+      "sources": [
+        {
+          "title": "Baby impling",
+          "url": "https://runescape.wiki/w/Baby_impling?oldid=37166002"
+        }
+      ]
+    },
+    "Comp achievements": {
+      "what": "Allows listed completionist achievement goals. A goal still needs its own skills, locations and prerequisites, and other family switches can further restrict it.",
+      "example": "Upgrading every Fort Forinthry building to tier 3 can become the A Fort Of My Own goal.",
+      "sources": [
+        {
+          "title": "A Fort Of My Own",
+          "url": "https://runescape.wiki/w/A_Fort_Of_My_Own?oldid=37175464"
+        }
+      ],
+      "grindWarning": "Completionist goals can combine many separate upgrades and activities."
+    },
+    "Trim achievements": {
+      "what": "Allows listed trimmed-completionist goals together with Comp achievements. It does not replace the ordinary completionist requirements.",
+      "example": "Buying every upgrade from Sydekix's Shop can become the A Druid's Sidekick goal.",
+      "sources": [
+        {
+          "title": "A Druid's Sidekick",
+          "url": "https://runescape.wiki/w/A_Druid's_Sidekick?oldid=37136456"
+        }
+      ],
+      "grindWarning": "Trimmed requirements can demand long collections, repeated activities or high skill levels."
+    },
+    "MQC achievements": {
+      "what": "Allows listed Master Quest Cape achievement goals. Their individual lore, quest and access requirements still apply.",
+      "example": "Finding and reading the scruffy note in the Scabarite Cavern can become the A bug in the system goal.",
+      "sources": [
+        {
+          "title": "A bug in the system",
+          "url": "https://runescape.wiki/w/A_bug_in_the_system?oldid=36806775"
+        }
+      ]
+    },
+    "Misc achievements": {
+      "what": "Allows listed skill, exploration and activity achievements outside the other named families. Additional rules can still exclude a particular goal.",
+      "example": "Reaching Agility 5 can become an achievement goal when Level Up Achievements is also enabled.",
+      "sources": [
+        {
+          "title": "Agility 5",
+          "url": "https://runescape.wiki/w/Agility_5?oldid=37080220"
+        }
+      ]
+    },
+    "Speedrunning": {
+      "what": "Allows listed timed activity achievements outside the boss speed-kill switch. The activity and any other family rules still have to be available.",
+      "example": "Completing a qualifying solo large frozen dungeon in under 6:15 can become Easy Freezy III.",
+      "sources": [
+        {
+          "title": "Easy Freezy III",
+          "url": "https://runescape.wiki/w/Easy_Freezy_III?oldid=37078843"
+        }
+      ]
+    },
+    "Level Up Achievements": {
+      "what": "Allows listed skill-level achievement goals within Misc achievements. It can add an achievement obligation alongside the skill's normal highest-level task.",
+      "example": "Agility 5 can become a separate achievement goal when its level is reachable.",
+      "sources": [
+        {
+          "title": "Agility 5",
+          "url": "https://runescape.wiki/w/Agility_5?oldid=37080220"
+        }
+      ]
+    },
+    "No RuneScore": {
+      "what": "Allows the listed achievements marked as awarding no RuneScore. It does not automatically find every achievement with a score of zero.",
+      "example": "Reaching virtual Agility 120 can become an achievement goal when the miscellaneous and level-up rules also allow it.",
+      "sources": [
+        {
+          "title": "Agility 120",
+          "url": "https://runescape.wiki/w/Agility_120?oldid=37079740"
+        }
+      ],
+      "grindWarning": "Virtual level-120 achievements can require substantially more XP than level 99."
+    },
+    "Slayer Contracts": {
+      "what": "Allows listed contract methods as Slayer training routes. The issuer, applicable targets and other requirements still need to be reachable.",
+      "example": "Completing a Slayer contract from Markus can become an available Slayer training method.",
+      "sources": [
+        {
+          "title": "Slayer contract",
+          "url": "https://runescape.wiki/w/Slayer_contract?oldid=37196489"
+        }
+      ]
+    },
+    "Hide Partial Products": {
+      "what": "Removes listed unfinished-product skill goals above level 1 from the active view. Their recipes and products remain available to the engine.",
+      "example": "Turning this on hides a listed unfinished-potion skill goal while its ingredients can still be processed for later recipes.",
+      "sources": [
+        {
+          "title": "Herblore",
+          "url": "https://runescape.wiki/w/Herblore?oldid=37192970"
+        }
+      ]
+    },
+    "Timegated": {
+      "what": "Allows listed tasks with daily, weekly, monthly or other time restrictions. The picker checks declared requirements but does not wait out their real-world timers.",
+      "example": "Constructing a monthly God Statue can become a Construction method when its Distraction and Diversion rule and location also allow it.",
+      "sources": [
+        {
+          "title": "God Statues",
+          "url": "https://runescape.wiki/w/God_Statues?oldid=37193709"
+        }
+      ],
+      "grindWarning": "Enabling this can require waiting for an activity reset or limited availability."
+    },
+    "Cosmetics": {
+      "what": "Allows listed cosmetic collection goals inside their parent collections. It does not treat every appearance item as independently obtainable.",
+      "example": "Obtaining Glacor's Adornment can become a boss collection goal when the Arch-Glacor reward source and collection rules allow it.",
+      "sources": [
+        {
+          "title": "Glacor's Adornment",
+          "url": "https://runescape.wiki/w/Glacor's_Adornment?oldid=37183138"
+        }
+      ]
+    },
+    "Secondary Bird Nests": {
+      "what": "Allows the listed nest-looting tasks to produce their declared loot. It governs this supply route rather than every source of nests or every Woodcutting goal.",
+      "example": "Looting an obtainable seed bird's nest can add the listed seed-loot supply route.",
+      "sources": [
+        {
+          "title": "Bird's nests",
+          "url": "https://runescape.wiki/w/Bird's_nests?oldid=37055672"
+        }
+      ]
+    },
+    "House storage tasks": {
+      "what": "Adds supported house storage and display goals when the items, current furniture recipe and housing requirements are reachable. Automatic book retrieval does not generate a fill goal.",
+      "example": "Storing the Mask of Dragith Nurn in an armour case can become a goal when the mask and a compatible case are obtainable.",
+      "sources": [
+        {
+          "title": "Armour case",
+          "url": "https://runescape.wiki/w/Armour_case?oldid=37208233"
+        }
+      ]
+    },
+    "Rare Drop Inclusive": {
+      "what": "Includes sources exactly equal to your rare-drop cutoff when that cutoff is active. It does not change the rate or remove the other source requirements.",
+      "example": "With Rare Drop off and a 1/1 cutoff, the King Black Dragon's always-dropped bones can supply a bury-dragon-bones task when equality is allowed.",
+      "sources": [
+        {
+          "title": "King Black Dragon",
+          "url": "https://runescape.wiki/w/King_Black_Dragon?oldid=37188001"
+        },
+        {
+          "title": "Dragon bones",
+          "url": "https://runescape.wiki/w/Dragon_bones?oldid=37134781"
+        }
+      ]
+    },
+    "Secondary Primary Inclusive": {
+      "what": "Includes item sources exactly equal to the required-training rate cutoff. It affects training and consumable-equipment checks of item sources without changing drop odds.",
+      "example": "At a 1/1 training-source cutoff, an always-dropped dragon-bone source can qualify for the bury-dragon-bones training route.",
+      "sources": [
+        {
+          "title": "King Black Dragon",
+          "url": "https://runescape.wiki/w/King_Black_Dragon?oldid=37188001"
+        },
+        {
+          "title": "Dragon bones",
+          "url": "https://runescape.wiki/w/Dragon_bones?oldid=37134781"
+        }
+      ]
+    },
+    "Every Drop BGH": {
+      "what": "Includes obtainable Big Game Hunter outputs in Every Drop collection goals. The parent Every Drop rule and the hunting method's requirements still apply.",
+      "example": "Collecting dinosaur bones from a reachable Bagrada rex hunt can become an Every Drop goal.",
+      "sources": [
+        {
+          "title": "Bagrada rex",
+          "url": "https://runescape.wiki/w/Bagrada_rex?oldid=37140988"
+        },
+        {
+          "title": "Dinosaur bones",
+          "url": "https://runescape.wiki/w/Dinosaur_bones?oldid=37027152"
+        }
+      ],
+      "grindWarning": "Collecting a particular hunting reward may take repeated hunts."
+    },
+    "Every Drop Thieving": {
+      "what": "Includes supported Thieving outputs in Every Drop collection goals, except outputs marked hidden. The parent rule and source access still apply.",
+      "example": "Collecting a potato seed from an obtainable farmer pickpocket can become an Every Drop goal.",
+      "sources": [
+        {
+          "title": "Farmer",
+          "url": "https://runescape.wiki/w/Farmer?oldid=37169627"
+        },
+        {
+          "title": "Thieving",
+          "url": "https://runescape.wiki/w/Thieving?oldid=37182495"
+        }
+      ]
+    },
+    "Fill Costume Room": {
+      "what": "This old saved name does not generate storage goals here. House storage tasks is the supported switch for current furniture.",
+      "example": "No task is added by this saved name; storing the Mask of Dragith Nurn uses House storage tasks instead.",
+      "sources": [
+        {
+          "title": "Armour case",
+          "url": "https://runescape.wiki/w/Armour_case?oldid=37208233"
+        }
+      ]
+    },
+    "Abilities": {
+      "what": "Allows the small set of listed skill goals for using abilities. It is distinct from Unlock Abilities, which governs the separate unlock collection goals.",
+      "example": "Using Meteor Strike can become an Attack goal at level 90 when its recorded requirements are reachable.",
+      "sources": [
+        {
+          "title": "Meteor Strike",
+          "url": "https://runescape.wiki/w/Meteor_Strike?oldid=37176425"
+        }
+      ]
+    },
+    "Misc Combat achievements": {
+      "what": "Allows listed miscellaneous combat achievements, including boss kill milestones. Some also require Combat Mastery achievements because both rules apply.",
+      "example": "Defeating the Giant Mole 100 times can become the Mole Removal VI goal when both this switch and Combat Mastery achievements allow it.",
+      "sources": [
+        {
+          "title": "Mole Removal VI",
+          "url": "https://runescape.wiki/w/Mole_Removal_VI?oldid=37079343"
+        }
+      ]
+    },
+    "XP Lamps": {
+      "what": "Allows the listed experience-lamp usage goals. This rule alone does not turn every lamp reward into a repeatable training method.",
+      "example": "Using an experience lamp from the Ports Reward Shop on Agility can become a listed goal when its lamp source is obtainable.",
+      "sources": [
+        {
+          "title": "Ports Reward Shop",
+          "url": "https://runescape.wiki/w/Ports_Reward_Shop?oldid=37164509"
+        }
+      ]
+    },
+    "Show Best in Slot Weight Tasks": {
+      "what": "Adds per-slot equipment goals using verified worn weights, choosing the lighter eligible item. Items without usable weight data and combined weapon loadouts are outside this comparison.",
+      "example": "Boots of lightness can become the weight-reducing feet goal when obtainable, wearable and lightest among the supported choices.",
+      "sources": [
+        {
+          "title": "Boots of lightness",
+          "url": "https://runescape.wiki/w/Boots_of_lightness?oldid=37202502"
+        }
+      ]
+    },
+    "Collection Log Bosses": {
+      "what": "This saved collection name has no implemented task rule here. Supported collection families use their own rule names.",
+      "example": "No task is added by this saved name; a boss drop such as Glacor's Adornment still needs the appropriate supported collection rule and source.",
+      "sources": [
+        {
+          "title": "Glacor's Adornment",
+          "url": "https://runescape.wiki/w/Glacor's_Adornment?oldid=37183138"
+        }
+      ]
+    },
+    "Collection Log Raids": {
+      "what": "This saved collection name has no implemented task rule here. Supported collection families use their own rule names.",
+      "example": "No task is added by this saved name; a Mazcab ability codex raid reward still needs the appropriate supported collection rule and source.",
+      "sources": [
+        {
+          "title": "Mazcab ability codex",
+          "url": "https://runescape.wiki/w/Mazcab_ability_codex?oldid=36918914"
+        }
+      ]
+    },
+    "Collection Log Clues": {
+      "what": "This saved collection name has no implemented task rule here. Supported collection families use their own rule names.",
+      "example": "No task is added by this saved name; obtaining a robin hood hat from a clue reward still needs a supported collection goal and source.",
+      "sources": [
+        {
+          "title": "Robin Hood hat",
+          "url": "https://runescape.wiki/w/Robin_Hood_hat?oldid=37057141"
+        }
+      ]
+    },
+    "Collection Log Minigames": {
+      "what": "This saved collection name has no implemented task rule here. Supported collection families use their own rule names.",
+      "example": "No task is added by this saved name; obtaining a fighter torso still needs the supported Barbarian Assault source and collection rules.",
+      "sources": [
+        {
+          "title": "Fighter torso",
+          "url": "https://runescape.wiki/w/Fighter_torso?oldid=37045896"
+        }
+      ]
+    },
+    "Collection Log Other": {
+      "what": "This saved collection name has no implemented task rule here. Supported collection families use their own rule names.",
+      "example": "No task is added by this saved name; spotting the Cyclosis Cockatiel still needs its supported Arc journal goal and access.",
+      "sources": [
+        {
+          "title": "Arc journal",
+          "url": "https://runescape.wiki/w/Arc_journal?oldid=37146086"
+        },
+        {
+          "title": "Cyclosis Cockatiel",
+          "url": "https://runescape.wiki/w/Cyclosis_Cockatiel?oldid=37166995"
+        }
+      ]
+    },
+    "Stuffables": {
+      "what": "This saved option has no implemented stuffed-trophy generator here. It cannot add taxidermy or house-display goals by itself.",
+      "example": "No task is added here; obtaining a stuffed crawling hand would need a supported goal and its own item source.",
+      "sources": [
+        {
+          "title": "Crawling hand (stuffed)",
+          "url": "https://runescape.wiki/w/Crawling_hand_(stuffed)?oldid=37173506"
+        }
+      ]
+    },
+    "Money Unlockables": {
+      "what": "Allows the listed coin-funded unlock goals, together with any other rules on each task. It does not calculate how long earning their coins will take.",
+      "example": "Obtaining the Billionaire title can become a goal when Titles and the listed Deep Sea Fishing location also allow it.",
+      "sources": [
+        {
+          "title": "The Billionaire",
+          "url": "https://runescape.wiki/w/The_Billionaire?oldid=36056331"
+        }
+      ],
+      "grindWarning": "The Billionaire title requires donating a total of 5 billion coins to the Deep Sea Whirlpool."
+    },
+    "Fill POH": {
+      "what": "This saved option has no implemented fill-the-house generator here. Current storage and display goals use House storage tasks.",
+      "example": "No task is added here; storing the Mask of Dragith Nurn still needs the supported house-storage rule and furniture.",
+      "sources": [
+        {
+          "title": "Armour case",
+          "url": "https://runescape.wiki/w/Armour_case?oldid=37208233"
+        }
+      ]
+    },
+    "Primary Spawn": {
+      "what": "This older singular name has no implemented source effect here. Primary Spawns, with a final s, controls whether spawns count toward required training.",
+      "example": "No task is added by this old name; making super defence potions with spawned white berries still follows Primary Spawns and the usual Herblore rules.",
+      "sources": [
+        {
+          "title": "White berries",
+          "url": "https://runescape.wiki/w/White_berries?oldid=37134792"
+        },
+        {
+          "title": "Super defence",
+          "url": "https://runescape.wiki/w/Super_defence?oldid=37021667"
+        }
+      ]
+    },
+    "tasks.cache-skill-guide": {
+      "what": "Enables the reviewed skill-guide additions. The current additions are four Cooking no-burn milestones, so the separate milestone switch must also be on to create goals.",
+      "example": "With both guide switches enabled and shrimps and a cooking facility reachable, the Cooking 34 no-burn-shrimps milestone can be added.",
+      "sources": [
+        {
+          "title": "Shrimps",
+          "url": "https://runescape.wiki/w/Shrimps?oldid=36950896"
+        }
+      ]
+    },
+    "tasks.skill-guide-milestones": {
+      "what": "Allows informational level thresholds from the skill-guide overlay to become personal goals. The main skill-guide switch must also be enabled.",
+      "example": "The standard no-burn-shrimps threshold at Cooking 34 can become a goal rather than remaining information only.",
+      "sources": [
+        {
+          "title": "Shrimps",
+          "url": "https://runescape.wiki/w/Shrimps?oldid=36950896"
+        }
+      ]
+    },
+    "tasks.cache-combat-corrections": {
+      "what": "Applies reviewed level corrections to listed combat tasks. It changes their numeric level requirements without supplying the needed codex, quest completion or equipment.",
+      "example": "The Greater Sonic Wave usage task can be available at Magic 6 instead of the retained level 75 when its other requirements are met.",
+      "sources": [
+        {
+          "title": "Greater Sonic Wave",
+          "url": "https://runescape.wiki/w/Greater_Sonic_Wave?oldid=37076118"
+        }
+      ]
+    },
+    "access.shared": {
+      "what": "Lets your partner’s territory contribute task access and supplies through supported connections. Your required goals and next rolls still follow your own map.",
+      "example": "A partner's reachable source of raw shrimps can help make your own cook-shrimps task possible when shared access connects that source.",
+      "sources": [
+        {
+          "title": "Shrimps",
+          "url": "https://runescape.wiki/w/Shrimps?oldid=36950896"
+        }
+      ]
+    },
+    "travel.automatic": {
+      "what": "Checks travel using your recorded quest completions and skill levels imported by Sync levels. Missing levels can be estimated from training you can reach; runes, fares and route access still matter.",
+      "example": "A synced Magic level meeting Varrock Teleport, with its runes and required spellbook available, can add that destination without manually entering the level again.",
+      "sources": [
+        {
+          "title": "Varrock Teleport",
+          "url": "https://runescape.wiki/w/Varrock_Teleport?oldid=37182128"
+        }
+      ]
+    },
+    "access.transport": {
+      "what": "Uses verified personal transport routes to extend reachable sections and offer their destinations as roll candidates. Route requirements, fares and landing evidence still apply.",
+      "example": "No task is added directly; a verified route into a new area can make its existing cook-shrimps task reachable after that area is unlocked.",
+      "sources": [
+        {
+          "title": "Shrimps",
+          "url": "https://runescape.wiki/w/Shrimps?oldid=36950896"
+        }
+      ]
+    },
+    "roll.selected": {
+      "what": "Includes your manually selected chunks in the next roll pool, subject to the remaining exclusions. This changes candidate selection rather than task rules.",
+      "example": "No task is added directly; selecting a chunk containing a shrimp-cooking facility makes it a roll candidate, not an immediate cook-shrimps obligation.",
+      "sources": [
+        {
+          "title": "Shrimps",
+          "url": "https://runescape.wiki/w/Shrimps?oldid=36950896"
+        }
+      ]
+    },
+    "roll.adjacent": {
+      "what": "Includes adjacent chunks from your own unlocked map when the neighbour mode allows automatic candidates. Reachable mode requires a verified walking connection.",
+      "example": "No task is added directly; a neighbouring shrimp-cooking location can enter the roll pool before its cook-shrimps task becomes an obligation.",
+      "sources": [
+        {
+          "title": "Shrimps",
+          "url": "https://runescape.wiki/w/Shrimps?oldid=36950896"
+        }
+      ]
+    },
+    "roll.neighborMode": {
+      "what": "Chooses manual candidates, neighbouring chunk borders, or verified accessible walking connections. The adjacent-candidate switch must also allow automatic neighbours.",
+      "example": "No task is added directly; accessible mode can exclude a neighbouring cooking location with no verified walking route, leaving cook-shrimps unavailable there.",
+      "sources": [
+        {
+          "title": "Shrimps",
+          "url": "https://runescape.wiki/w/Shrimps?oldid=36950896"
+        }
+      ]
+    },
+    "roll.clearSelected": {
+      "what": "Clears your manually selected candidate list after an unlock when enabled. It does not remove unlocked chunks or completed tasks.",
+      "example": "No task is added or removed; unlocking a selected shrimp-cooking chunk clears remaining selections while its cook-shrimps task follows normal access.",
+      "sources": [
+        {
+          "title": "Shrimps",
+          "url": "https://runescape.wiki/w/Shrimps?oldid=36950896"
+        }
+      ]
+    },
+    "roll.walkable": {
+      "what": "Filters out nearby roll candidates marked as having no walkable ground. Manually selected destinations and verified travel arrivals bypass this check; Accessible mode checks walking connections itself.",
+      "example": "No task is added directly; excluding a non-walkable cooking location keeps its cook-shrimps task from becoming a new obligation through that roll.",
+      "sources": [
+        {
+          "title": "Shrimps",
+          "url": "https://runescape.wiki/w/Shrimps?oldid=36950896"
+        }
+      ]
+    },
+    "roll.teleports": {
+      "what": "Includes destinations of available declared teleports and supported automatically derived global routes. Consumable and owner-scope settings still apply.",
+      "example": "No task is added directly; an available Lumbridge Teleport can add its destination to the roll pool before any local cook-shrimps goal becomes yours.",
+      "sources": [
+        {
+          "title": "Lumbridge Teleport",
+          "url": "https://runescape.wiki/w/Lumbridge_Teleport?oldid=36979025"
+        },
+        {
+          "title": "Shrimps",
+          "url": "https://runescape.wiki/w/Shrimps?oldid=36950896"
+        }
+      ]
+    },
+    "roll.teleportScope": {
+      "what": "Chooses whether teleport candidates come from your own travel records or every group member's. It does not transfer another member's personal unlock evidence to you.",
+      "example": "No task is added directly; group scope can offer a partner's declared Lumbridge Teleport destination while local cook-shrimps obligations still follow your map.",
+      "sources": [
+        {
+          "title": "Lumbridge Teleport",
+          "url": "https://runescape.wiki/w/Lumbridge_Teleport?oldid=36979025"
+        },
+        {
+          "title": "Shrimps",
+          "url": "https://runescape.wiki/w/Shrimps?oldid=36950896"
+        }
+      ]
+    },
+    "roll.consumableTeleports": {
+      "what": "Allows consumable teleport routes to supply roll candidates when their other requirements are met. Non-consumable destinations remain eligible through their own routes.",
+      "example": "No task is added directly; allowing the rune-consuming Varrock Teleport can offer its destination before an existing local task becomes your obligation.",
+      "sources": [
+        {
+          "title": "Varrock Teleport",
+          "url": "https://runescape.wiki/w/Varrock_Teleport?oldid=37182128"
+        }
+      ]
+    },
+    "tasks.completion": {
+      "what": "Sets whether a group challenge is satisfied by any member, every member, or only the current member. It preserves each member's separate personal game-completion evidence.",
+      "example": "If one member completes Imp Catcher, any-member mode can satisfy that challenge for the group; all-member mode keeps it required for the others.",
+      "sources": [
+        {
+          "title": "Imp Catcher",
+          "url": "https://runescape.wiki/w/Imp_Catcher?oldid=37152851"
+        }
+      ]
+    },
+    "Additional Money Unlockables": {
+      "what": "This saved option has no implemented unlock generator here. Supported coin-funded goals use Money Unlockables and each goal's other rules.",
+      "example": "No task is added here; earning the Billionaire title still follows Money Unlockables and its supported source requirements.",
+      "sources": [
+        {
+          "title": "The Billionaire",
+          "url": "https://runescape.wiki/w/The_Billionaire?oldid=36056331"
+        }
+      ]
+    },
+    "Boss Level": {
+      "what": "This saved option does not set a boss level or change combat requirements here. Supported boss tasks retain their recorded access and skill checks.",
+      "example": "No task is added here; a King Black Dragon goal still depends on the supported boss rules and reachable fight.",
+      "sources": [
+        {
+          "title": "King Black Dragon",
+          "url": "https://runescape.wiki/w/King_Black_Dragon?oldid=37188001"
+        }
+      ]
+    },
+    "Cleaning herbs": {
+      "what": "This older spelling has no effect here. Cleaning Herbs controls active cleaning goals, and Cleaning Herbs Primary controls their training role.",
+      "example": "No task is added by this spelling; cleaning tarromin still follows the correctly capitalised cleaning and training switches.",
+      "sources": [
+        {
+          "title": "Clean tarromin",
+          "url": "https://runescape.wiki/w/Clean_tarromin?oldid=37082075"
+        }
+      ]
+    },
+    "DnD Skilling": {
+      "what": "This saved name has no independent activity rule here. Supported skilling diversions follow the Distraction and Diversion switch and their other activity rules.",
+      "example": "No task is added here; building a God Statue still follows Distraction and Diversion and Timegated.",
+      "sources": [
+        {
+          "title": "God Statues",
+          "url": "https://runescape.wiki/w/God_Statues?oldid=37193709"
+        }
+      ]
+    },
+    "Forestry": {
+      "what": "This saved name has no supported RS3 task group or engine behavior here. Changing it does not add Woodcutting methods.",
+      "example": "No task is added here; cutting an oak remains governed by the existing Woodcutting task and access rules.",
+      "sources": [
+        {
+          "title": "Oak",
+          "url": "https://runescape.wiki/w/Oak?oldid=37197269"
+        }
+      ]
+    },
+    "Full Healing": {
+      "what": "This saved option has no implemented healing-task or food-source effect here. It does not change the requirements of supported food tasks.",
+      "example": "No task is added here; cooking a shark still follows its existing Cooking level, ingredient and facility checks.",
+      "sources": [
+        {
+          "title": "Shark",
+          "url": "https://runescape.wiki/w/Shark?oldid=37185866"
+        }
+      ]
+    },
+    "Jars": {
+      "what": "This saved option has no supported jar-collection generator or verified link to tasks here. It does not alter existing Hunter catches.",
+      "example": "No task is added here; catching a baby impling still follows its supported Hunter and source requirements.",
+      "sources": [
+        {
+          "title": "Baby impling",
+          "url": "https://runescape.wiki/w/Baby_impling?oldid=37166002"
+        }
+      ]
+    },
+    "Kili Knowledge": {
+      "what": "This saved option has no implemented Kili-task rule here. Supported Necromancy and quest tasks retain their own requirements.",
+      "example": "No task is added here; completing Kili Row still follows its existing quest and Necromancy requirements.",
+      "sources": [
+        {
+          "title": "Kili Row",
+          "url": "https://runescape.wiki/w/Kili_Row?oldid=37152862"
+        }
+      ]
+    },
+    "Partial Products": {
+      "what": "This saved option has no supported product filter here. Hide Partial Products is the implemented switch for suppressing marked unfinished-product goals.",
+      "example": "No task is added or hidden here; an unfinished-potion goal still follows Hide Partial Products and the usual Herblore checks.",
+      "sources": [
+        {
+          "title": "Herblore",
+          "url": "https://runescape.wiki/w/Herblore?oldid=37192970"
+        }
+      ]
+    },
+    "PvP Minigame": {
+      "what": "This saved option has no implemented PvP-minigame rule here. Supported activities follow their own activity rules and ordinary access checks.",
+      "example": "No task is added here; a Gnome Ball training task still follows its existing activity rule, independent of this saved option.",
+      "sources": [
+        {
+          "title": "Gnome Ball",
+          "url": "https://runescape.wiki/w/Gnome_Ball?oldid=37159060"
+        }
+      ]
+    },
+    "Superheat Furnace": {
+      "what": "This saved option has no implemented furnace, spell or prayer effect here. It cannot create an extra training route by itself.",
+      "example": "No task is added here; using Superheat Form would still require a supported task and that prayer's own unlock and level requirements.",
+      "sources": [
+        {
+          "title": "Superheat Form",
+          "url": "https://runescape.wiki/w/Superheat_Form?oldid=37179718"
+        }
+      ]
+    }
+  }
+}

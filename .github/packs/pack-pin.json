@@ -1,0 +1,38 @@
+{
+  "schema": "rs3-ci-pack-pin-v1",
+  "tag": "packs-public-2026-10-21",
+  "selection": {
+    "data": {
+      "id": "duo-data",
+      "version": "1.0.6-public.3",
+      "sha256": "d50f94a27ef646d17d4411fda5185e147a70bd4d834f68f8d016ab55c996b106"
+    },
+    "rulesText": {
+      "id": "duo-rules-text",
+      "version": "1.0.6",
+      "sha256": "aa48e8025def9fbe330a64719466fc9cb7767e6de9551c113a3de1d67b8dae83"
+    },
+    "art": {
+      "id": "duo-art",
+      "version": "1.0.0-public.1",
+      "sha256": "1c9cd4cb6cb5fc0c55b471394a0af515257a651b044cd39d6b75bd59a6bb7816"
+    }
+  },
+  "assets": [
+    {
+      "name": "duo-data-1.0.6-public.3.tar.gz",
+      "bytes": 16851370,
+      "sha256": "0268013a082fc0f1f777744e356878183d391bb96583a0016567544792688919"
+    },
+    {
+      "name": "duo-rules-text-1.0.6.tar.gz",
+      "bytes": 90047,
+      "sha256": "be3a96787306378fe4e5777b29e45bcace30b06cbed56c4ed15e6d6184fe42a6"
+    },
+    {
+      "name": "duo-art-1.0.0-public.1.tar.gz",
+      "bytes": 98667976,
+      "sha256": "59ad32b167f811c93ad5431d177270f31cb24320acaf968c294ba0589362d43a"
+    }
+  ]
+}

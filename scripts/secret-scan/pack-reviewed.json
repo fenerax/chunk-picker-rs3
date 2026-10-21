@@ -1,0 +1,1089 @@
+{
+  "schemaVersion": 1,
+  "entries": [
+    {
+      "path": "duo-art/map-assets/icons-items.2026-10-08.v1/item-0117a07ef0bb8fc1186931da.png",
+      "category": "machine-path",
+      "sha256": "0117a07ef0bb8fc1186931dad3f84aff73b3241b260aeb39d1c2245b484faf25",
+      "reason": "Reviewed public game artwork. Matches occur in compressed pixel bytes or standard public SVG/XMP schema URIs; parsed readable metadata has no private fingerprint or machine path. Exact payload receipt only."
+    },
+    {
+      "path": "duo-art/map-assets/icons-items.2026-10-08.v1/item-0117a07ef0bb8fc1186931da.png",
+      "category": "network-identifier",
+      "sha256": "0117a07ef0bb8fc1186931dad3f84aff73b3241b260aeb39d1c2245b484faf25",
+      "reason": "Reviewed public game artwork. Matches occur in compressed pixel bytes or standard public SVG/XMP schema URIs; parsed readable metadata has no private fingerprint or machine path. Exact payload receipt only."
+    },
+    {
+      "path": "duo-art/map-assets/icons-items.2026-10-08.v1/item-012e4e96f359a6f74926f589.png",
+      "category": "machine-path",
+      "sha256": "012e4e96f359a6f74926f589a11b72eaa5e4cdfd8782eb3b929bbe99fd32f047",
+      "reason": "Reviewed public game artwork. Matches occur in compressed pixel bytes or standard public SVG/XMP schema URIs; parsed readable metadata has no private fingerprint or machine path. Exact payload receipt only."
+    },
+    {
+      "path": "duo-art/map-assets/icons-items.2026-10-08.v1/item-07bc95d98776a4eae213f07b.png",
+      "category": "private-fingerprint",
+      "sha256": "07bc95d98776a4eae213f07b4384ddc44b60d62d114b2133c4f491b47eab3b42",
+      "reason": "Reviewed public game artwork. Matches occur in compressed pixel bytes or standard public SVG/XMP schema URIs; parsed readable metadata has no private fingerprint or machine path. Exact payload receipt only.",
+      "corpusSha256": "63fad0d76af3c6569139071ea1ca35558af326e15c50a39d177ea09e16337758"
+    },
+    {
+      "path": "duo-art/map-assets/icons-items.2026-10-08.v1/item-07c58467a022a0560229badd.png",
+      "category": "network-identifier",
+      "sha256": "07c58467a022a0560229badd39b41f2ea687b69e670e21569066f603f7270dca",
+      "reason": "Reviewed public game artwork. Matches occur in compressed pixel bytes or standard public SVG/XMP schema URIs; parsed readable metadata has no private fingerprint or machine path. Exact payload receipt only."
+    },
+    {
+      "path": "duo-art/map-assets/icons-items.2026-10-08.v1/item-0930899f8125231e6ad40f30.png",
+      "category": "network-identifier",
+      "sha256": "0930899f8125231e6ad40f3000aae883bbbab11798eda795b7a631c84f6ef87e",
+      "reason": "Reviewed public game artwork. Matches occur in compressed pixel bytes or standard public SVG/XMP schema URIs; parsed readable metadata has no private fingerprint or machine path. Exact payload receipt only."
+    },
+    {
+      "path": "duo-art/map-assets/icons-items.2026-10-08.v1/item-0e33f789fd82b8d2ece934b2.png",
+      "category": "machine-path",
+      "sha256": "0e33f789fd82b8d2ece934b2d84d10ee623ca4c92e1455a4cfedd7c0ef883225",
+      "reason": "Reviewed public game artwork. Matches occur in compressed pixel bytes or standard public SVG/XMP schema URIs; parsed readable metadata has no private fingerprint or machine path. Exact payload receipt only."
+    },
+    {
+      "path": "duo-art/map-assets/icons-items.2026-10-08.v1/item-0e33f789fd82b8d2ece934b2.png",
+      "category": "private-fingerprint",
+      "sha256": "0e33f789fd82b8d2ece934b2d84d10ee623ca4c92e1455a4cfedd7c0ef883225",
+      "reason": "Reviewed public game artwork. Matches occur in compressed pixel bytes or standard public SVG/XMP schema URIs; parsed readable metadata has no private fingerprint or machine path. Exact payload receipt only.",
+      "corpusSha256": "63fad0d76af3c6569139071ea1ca35558af326e15c50a39d177ea09e16337758"
+    },
+    {
+      "path": "duo-art/map-assets/icons-items.2026-10-08.v1/item-0fa74dc15174ea672e369457.png",
+      "category": "network-identifier",
+      "sha256": "0fa74dc15174ea672e36945742d8f8d89ce973fc30eb961cf5520fb0ed8b368c",
+      "reason": "Reviewed public game artwork. Matches occur in compressed pixel bytes or standard public SVG/XMP schema URIs; parsed readable metadata has no private fingerprint or machine path. Exact payload receipt only."
+    },
+    {
+      "path": "duo-art/map-assets/icons-items.2026-10-08.v1/item-110691abb011c1f62f7939a0.png",
+      "category": "network-identifier",
+      "sha256": "110691abb011c1f62f7939a01bbf1928a8f78612043dd85f61cb0f3730acaf92",
+      "reason": "Reviewed public game artwork. Matches occur in compressed pixel bytes or standard public SVG/XMP schema URIs; parsed readable metadata has no private fingerprint or machine path. Exact payload receipt only."
+    },
+    {
+      "path": "duo-art/map-assets/icons-items.2026-10-08.v1/item-12b4e945a0f918f366a5e390.png",
+      "category": "machine-path",
+      "sha256": "12b4e945a0f918f366a5e3901100b5306e30249cc8ab70df91b9e261166f4dba",
+      "reason": "Reviewed public game artwork. Matches occur in compressed pixel bytes or standard public SVG/XMP schema URIs; parsed readable metadata has no private fingerprint or machine path. Exact payload receipt only."
+    },
+    {
+      "path": "duo-art/map-assets/icons-items.2026-10-08.v1/item-139ab3a4836bf2828e25f834.png",
+      "category": "network-identifier",
+      "sha256": "139ab3a4836bf2828e25f834cccb50b8d326afb4af0e838358d00ba2e46c2ca3",
+      "reason": "Reviewed public game artwork. Matches occur in compressed pixel bytes or standard public SVG/XMP schema URIs; parsed readable metadata has no private fingerprint or machine path. Exact payload receipt only."
+    },
+    {
+      "path": "duo-art/map-assets/icons-items.2026-10-08.v1/item-13f99c6beeaf4f21b0f26094.png",
+      "category": "network-identifier",
+      "sha256": "13f99c6beeaf4f21b0f26094d5799b2186707cf724ee0a9cfa105a7e76a43e86",
+      "reason": "Reviewed public game artwork. Matches occur in compressed pixel bytes or standard public SVG/XMP schema URIs; parsed readable metadata has no private fingerprint or machine path. Exact payload receipt only."
+    },
+    {
+      "path": "duo-art/map-assets/icons-items.2026-10-08.v1/item-195f93dbfeb317bccf8fe72b.png",
+      "category": "machine-path",
+      "sha256": "195f93dbfeb317bccf8fe72b684f19c970ca9398cc93a99a775728c43598486b",
+      "reason": "Reviewed public game artwork. Matches occur in compressed pixel bytes or standard public SVG/XMP schema URIs; parsed readable metadata has no private fingerprint or machine path. Exact payload receipt only."
+    },
+    {
+      "path": "duo-art/map-assets/icons-items.2026-10-08.v1/item-1acd6491a67218ff60e18318.png",
+      "category": "network-identifier",
+      "sha256": "1acd6491a67218ff60e183182e1e931917fd5694d0298091cc25037a617856db",
+      "reason": "Reviewed public game artwork. Matches occur in compressed pixel bytes or standard public SVG/XMP schema URIs; parsed readable metadata has no private fingerprint or machine path. Exact payload receipt only."
+    },
+    {
+      "path": "duo-art/map-assets/icons-items.2026-10-08.v1/item-1dfe8b1cebb38eeff73a0976.png",
+      "category": "network-identifier",
+      "sha256": "1dfe8b1cebb38eeff73a0976c6b4a3d315fde2cc73698a77e7c00a7421c76062",
+      "reason": "Reviewed public game artwork. Matches occur in compressed pixel bytes or standard public SVG/XMP schema URIs; parsed readable metadata has no private fingerprint or machine path. Exact payload receipt only."
+    },
+    {
+      "path": "duo-art/map-assets/icons-items.2026-10-08.v1/item-1fc65143133b5e0ad28b8ea1.png",
+      "category": "network-identifier",
+      "sha256": "1fc65143133b5e0ad28b8ea1377ab01b3347f6ed5334b7d8049d7366df58306d",
+      "reason": "Reviewed public game artwork. Matches occur in compressed pixel bytes or standard public SVG/XMP schema URIs; parsed readable metadata has no private fingerprint or machine path. Exact payload receipt only."
+    },
+    {
+      "path": "duo-art/map-assets/icons-items.2026-10-08.v1/item-1fc65143133b5e0ad28b8ea1.png",
+      "category": "private-fingerprint",
+      "sha256": "1fc65143133b5e0ad28b8ea1377ab01b3347f6ed5334b7d8049d7366df58306d",
+      "reason": "Reviewed public game artwork. Matches occur in compressed pixel bytes or standard public SVG/XMP schema URIs; parsed readable metadata has no private fingerprint or machine path. Exact payload receipt only.",
+      "corpusSha256": "63fad0d76af3c6569139071ea1ca35558af326e15c50a39d177ea09e16337758"
+    },
+    {
+      "path": "duo-art/map-assets/icons-items.2026-10-08.v1/item-2036b3c7cd1412c98501f4b4.png",
+      "category": "network-identifier",
+      "sha256": "2036b3c7cd1412c98501f4b4bd22121acb504e4e93eda828fa0f5485cc0f0256",
+      "reason": "Reviewed public game artwork. Matches occur in compressed pixel bytes or standard public SVG/XMP schema URIs; parsed readable metadata has no private fingerprint or machine path. Exact payload receipt only."
+    },
+    {
+      "path": "duo-art/map-assets/icons-items.2026-10-08.v1/item-25d9b311fe31077483159310.png",
+      "category": "private-fingerprint",
+      "sha256": "25d9b311fe310774831593102dc291dec1c0c3fb1355b9a37817e9bc095d6b79",
+      "reason": "Reviewed public game artwork. Matches occur in compressed pixel bytes or standard public SVG/XMP schema URIs; parsed readable metadata has no private fingerprint or machine path. Exact payload receipt only.",
+      "corpusSha256": "63fad0d76af3c6569139071ea1ca35558af326e15c50a39d177ea09e16337758"
+    },
+    {
+      "path": "duo-art/map-assets/icons-items.2026-10-08.v1/item-260a0178a199fae69b26d4a0.png",
+      "category": "network-identifier",
+      "sha256": "260a0178a199fae69b26d4a05dcb4be728a9e73c56117d350b75a949cf31a95a",
+      "reason": "Reviewed public game artwork. Matches occur in compressed pixel bytes or standard public SVG/XMP schema URIs; parsed readable metadata has no private fingerprint or machine path. Exact payload receipt only."
+    },
+    {
+      "path": "duo-art/map-assets/icons-items.2026-10-08.v1/item-2b5f5fe8ababe9e395dfb1c3.png",
+      "category": "machine-path",
+      "sha256": "2b5f5fe8ababe9e395dfb1c315f2ab2cae38295ac31a3cbd7224b4d3bc08dfba",
+      "reason": "Reviewed public game artwork. Matches occur in compressed pixel bytes or standard public SVG/XMP schema URIs; parsed readable metadata has no private fingerprint or machine path. Exact payload receipt only."
+    },
+    {
+      "path": "duo-art/map-assets/icons-items.2026-10-08.v1/item-3450ed90fc86355528ae5b30.png",
+      "category": "network-identifier",
+      "sha256": "3450ed90fc86355528ae5b303f0cf1139ba75429b9e8c88843272a550631c893",
+      "reason": "Reviewed public game artwork. Matches occur in compressed pixel bytes or standard public SVG/XMP schema URIs; parsed readable metadata has no private fingerprint or machine path. Exact payload receipt only."
+    },
+    {
+      "path": "duo-art/map-assets/icons-items.2026-10-08.v1/item-3644c7a384ed73d18f0d598f.png",
+      "category": "network-identifier",
+      "sha256": "3644c7a384ed73d18f0d598f2f3a2114ae7dc1af16b9e7384f17e872f76fdb9f",
+      "reason": "Reviewed public game artwork. Matches occur in compressed pixel bytes or standard public SVG/XMP schema URIs; parsed readable metadata has no private fingerprint or machine path. Exact payload receipt only."
+    },
+    {
+      "path": "duo-art/map-assets/icons-items.2026-10-08.v1/item-3c6523c6d92a1bf247b048e5.png",
+      "category": "machine-path",
+      "sha256": "3c6523c6d92a1bf247b048e5ef8dfa9195473d4c4c761a3e1314d3ceb84b9084",
+      "reason": "Reviewed public game artwork. Matches occur in compressed pixel bytes or standard public SVG/XMP schema URIs; parsed readable metadata has no private fingerprint or machine path. Exact payload receipt only."
+    },
+    {
+      "path": "duo-art/map-assets/icons-items.2026-10-08.v1/item-3cf3beef212aa0811186e46a.png",
+      "category": "machine-path",
+      "sha256": "3cf3beef212aa0811186e46a71ad62d71f66a84cfb94f650790ef2f83ce57bea",
+      "reason": "Reviewed public game artwork. Matches occur in compressed pixel bytes or standard public SVG/XMP schema URIs; parsed readable metadata has no private fingerprint or machine path. Exact payload receipt only."
+    },
+    {
+      "path": "duo-art/map-assets/icons-items.2026-10-08.v1/item-3d196bb58243dc8d554dfb77.png",
+      "category": "network-identifier",
+      "sha256": "3d196bb58243dc8d554dfb770cd27333a70bf8862040ef8897e695609bc05885",
+      "reason": "Reviewed public game artwork. Matches occur in compressed pixel bytes or standard public SVG/XMP schema URIs; parsed readable metadata has no private fingerprint or machine path. Exact payload receipt only."
+    },
+    {
+      "path": "duo-art/map-assets/icons-items.2026-10-08.v1/item-3d928044a9da12a70203f48f.png",
+      "category": "network-identifier",
+      "sha256": "3d928044a9da12a70203f48ffe3603af91047f6b98e6ac35378d2f75f4a6095a",
+      "reason": "Reviewed public game artwork. Matches occur in compressed pixel bytes or standard public SVG/XMP schema URIs; parsed readable metadata has no private fingerprint or machine path. Exact payload receipt only."
+    },
+    {
+      "path": "duo-art/map-assets/icons-items.2026-10-08.v1/item-3e825826d6a707ab2fec733f.png",
+      "category": "machine-path",
+      "sha256": "3e825826d6a707ab2fec733fb587dce398ef46e42cd947e845d0c8fb1e6de1d7",
+      "reason": "Reviewed public game artwork. Matches occur in compressed pixel bytes or standard public SVG/XMP schema URIs; parsed readable metadata has no private fingerprint or machine path. Exact payload receipt only."
+    },
+    {
+      "path": "duo-art/map-assets/icons-items.2026-10-08.v1/item-3f2b04390aa07305676497f4.png",
+      "category": "network-identifier",
+      "sha256": "3f2b04390aa07305676497f4d0cedf5c99b8489abe73adcb43ea6875d4a15158",
+      "reason": "Reviewed public game artwork. Matches occur in compressed pixel bytes or standard public SVG/XMP schema URIs; parsed readable metadata has no private fingerprint or machine path. Exact payload receipt only."
+    },
+    {
+      "path": "duo-art/map-assets/icons-items.2026-10-08.v1/item-3fc0bf3a05af0b5e70aa8a99.png",
+      "category": "network-identifier",
+      "sha256": "3fc0bf3a05af0b5e70aa8a99f4a7e97d276e2963beddf57b72523aab09c72608",
+      "reason": "Reviewed public game artwork. Matches occur in compressed pixel bytes or standard public SVG/XMP schema URIs; parsed readable metadata has no private fingerprint or machine path. Exact payload receipt only."
+    },
+    {
+      "path": "duo-art/map-assets/icons-items.2026-10-08.v1/item-431fa20345b4e30ee829f9af.png",
+      "category": "network-identifier",
+      "sha256": "431fa20345b4e30ee829f9af33991bdf14361b4b66f601741cf324819efdacad",
+      "reason": "Reviewed public game artwork. Matches occur in compressed pixel bytes or standard public SVG/XMP schema URIs; parsed readable metadata has no private fingerprint or machine path. Exact payload receipt only."
+    },
+    {
+      "path": "duo-art/map-assets/icons-items.2026-10-08.v1/item-49505640dd8bfd30d9f1da10.png",
+      "category": "network-identifier",
+      "sha256": "49505640dd8bfd30d9f1da104357cba938e0cf3070291ec3a77b0bd86eb5e2dd",
+      "reason": "Reviewed public game artwork. Matches occur in compressed pixel bytes or standard public SVG/XMP schema URIs; parsed readable metadata has no private fingerprint or machine path. Exact payload receipt only."
+    },
+    {
+      "path": "duo-art/map-assets/icons-items.2026-10-08.v1/item-5083c3caa39714ecffcdf3af.png",
+      "category": "network-identifier",
+      "sha256": "5083c3caa39714ecffcdf3af747ba002d55db65d0ed94f2f05630745f8941091",
+      "reason": "Reviewed public game artwork. Matches occur in compressed pixel bytes or standard public SVG/XMP schema URIs; parsed readable metadata has no private fingerprint or machine path. Exact payload receipt only."
+    },
+    {
+      "path": "duo-art/map-assets/icons-items.2026-10-08.v1/item-53b7c827d37e68717d897c38.png",
+      "category": "network-identifier",
+      "sha256": "53b7c827d37e68717d897c38cc7a856505a83fcccc7caf4a10c197149fa23332",
+      "reason": "Reviewed public game artwork. Matches occur in compressed pixel bytes or standard public SVG/XMP schema URIs; parsed readable metadata has no private fingerprint or machine path. Exact payload receipt only."
+    },
+    {
+      "path": "duo-art/map-assets/icons-items.2026-10-08.v1/item-56ca08cf82626fd7d22823f1.png",
+      "category": "network-identifier",
+      "sha256": "56ca08cf82626fd7d22823f1413c3dd252be268cb0a347c482a54d346be5dd1a",
+      "reason": "Reviewed public game artwork. Matches occur in compressed pixel bytes or standard public SVG/XMP schema URIs; parsed readable metadata has no private fingerprint or machine path. Exact payload receipt only."
+    },
+    {
+      "path": "duo-art/map-assets/icons-items.2026-10-08.v1/item-58eb44156974d718304d60a6.png",
+      "category": "network-identifier",
+      "sha256": "58eb44156974d718304d60a640ece4f145f5eb596274b542b34ca6a0270b699b",
+      "reason": "Reviewed public game artwork. Matches occur in compressed pixel bytes or standard public SVG/XMP schema URIs; parsed readable metadata has no private fingerprint or machine path. Exact payload receipt only."
+    },
+    {
+      "path": "duo-art/map-assets/icons-items.2026-10-08.v1/item-5982ce265305aa61e6f6b58a.png",
+      "category": "network-identifier",
+      "sha256": "5982ce265305aa61e6f6b58a1b509c3d9736ecdbb10a3dbde9c4d62fe795324b",
+      "reason": "Reviewed public game artwork. Matches occur in compressed pixel bytes or standard public SVG/XMP schema URIs; parsed readable metadata has no private fingerprint or machine path. Exact payload receipt only."
+    },
+    {
+      "path": "duo-art/map-assets/icons-items.2026-10-08.v1/item-5af04fb145bc4c76e6ec256d.png",
+      "category": "private-fingerprint",
+      "sha256": "5af04fb145bc4c76e6ec256d776b3a30329a5d7c30b4ebcc42a87dbbcab5cdd9",
+      "reason": "Reviewed public game artwork. Matches occur in compressed pixel bytes or standard public SVG/XMP schema URIs; parsed readable metadata has no private fingerprint or machine path. Exact payload receipt only.",
+      "corpusSha256": "63fad0d76af3c6569139071ea1ca35558af326e15c50a39d177ea09e16337758"
+    },
+    {
+      "path": "duo-art/map-assets/icons-items.2026-10-08.v1/item-5cebe579fafd11a80db3d6a2.png",
+      "category": "network-identifier",
+      "sha256": "5cebe579fafd11a80db3d6a2870bc57f22ec8004b1b34276a06f7a46caa88353",
+      "reason": "Reviewed public game artwork. Matches occur in compressed pixel bytes or standard public SVG/XMP schema URIs; parsed readable metadata has no private fingerprint or machine path. Exact payload receipt only."
+    },
+    {
+      "path": "duo-art/map-assets/icons-items.2026-10-08.v1/item-5dbd6ab1477ba60ab1c07bd0.png",
+      "category": "machine-path",
+      "sha256": "5dbd6ab1477ba60ab1c07bd05cd73fe55c6b1cffff60569f80bcb7b185fe2199",
+      "reason": "Reviewed public game artwork. Matches occur in compressed pixel bytes or standard public SVG/XMP schema URIs; parsed readable metadata has no private fingerprint or machine path. Exact payload receipt only."
+    },
+    {
+      "path": "duo-art/map-assets/icons-items.2026-10-08.v1/item-60a1e82d404f270317d2e44f.png",
+      "category": "network-identifier",
+      "sha256": "60a1e82d404f270317d2e44f8ea3a656f8ae97ec031e7caa9a1202ef67072a18",
+      "reason": "Reviewed public game artwork. Matches occur in compressed pixel bytes or standard public SVG/XMP schema URIs; parsed readable metadata has no private fingerprint or machine path. Exact payload receipt only."
+    },
+    {
+      "path": "duo-art/map-assets/icons-items.2026-10-08.v1/item-63cb19b58640bdc3ca28d86d.png",
+      "category": "network-identifier",
+      "sha256": "63cb19b58640bdc3ca28d86d81d4901b18faf9a8b67a9122f5c6c05e242868eb",
+      "reason": "Reviewed public game artwork. Matches occur in compressed pixel bytes or standard public SVG/XMP schema URIs; parsed readable metadata has no private fingerprint or machine path. Exact payload receipt only."
+    },
+    {
+      "path": "duo-art/map-assets/icons-items.2026-10-08.v1/item-684d46d91654ee9a00049295.png",
+      "category": "private-fingerprint",
+      "sha256": "684d46d91654ee9a00049295b67ecb5b1eb856d026cfcca136db40fa868e366c",
+      "reason": "Reviewed public game artwork. Matches occur in compressed pixel bytes or standard public SVG/XMP schema URIs; parsed readable metadata has no private fingerprint or machine path. Exact payload receipt only.",
+      "corpusSha256": "63fad0d76af3c6569139071ea1ca35558af326e15c50a39d177ea09e16337758"
+    },
+    {
+      "path": "duo-art/map-assets/icons-items.2026-10-08.v1/item-69277385e1c0b64b3f544f65.png",
+      "category": "private-fingerprint",
+      "sha256": "69277385e1c0b64b3f544f659d099647d00f3df08461b1886075ade4d534e403",
+      "reason": "Reviewed public game artwork. Matches occur in compressed pixel bytes or standard public SVG/XMP schema URIs; parsed readable metadata has no private fingerprint or machine path. Exact payload receipt only.",
+      "corpusSha256": "63fad0d76af3c6569139071ea1ca35558af326e15c50a39d177ea09e16337758"
+    },
+    {
+      "path": "duo-art/map-assets/icons-items.2026-10-08.v1/item-7b2444e9b7bd08b7f3b3a77b.png",
+      "category": "network-identifier",
+      "sha256": "7b2444e9b7bd08b7f3b3a77b46e6ed2fe29b1138a2ef9296a9f8001c4c3e545d",
+      "reason": "Reviewed public game artwork. Matches occur in compressed pixel bytes or standard public SVG/XMP schema URIs; parsed readable metadata has no private fingerprint or machine path. Exact payload receipt only."
+    },
+    {
+      "path": "duo-art/map-assets/icons-items.2026-10-08.v1/item-7b37ee7f99ede150da8c34a4.png",
+      "category": "network-identifier",
+      "sha256": "7b37ee7f99ede150da8c34a43d677cb1e543e9063a93f5174091ab3076b6d1e9",
+      "reason": "Reviewed public game artwork. Matches occur in compressed pixel bytes or standard public SVG/XMP schema URIs; parsed readable metadata has no private fingerprint or machine path. Exact payload receipt only."
+    },
+    {
+      "path": "duo-art/map-assets/icons-items.2026-10-08.v1/item-7dd5f0cac966b3f3d82e7e7f.png",
+      "category": "private-fingerprint",
+      "sha256": "7dd5f0cac966b3f3d82e7e7f388f334723f49bbcac145cba66d5e6f7b2699534",
+      "reason": "Reviewed public game artwork. Matches occur in compressed pixel bytes or standard public SVG/XMP schema URIs; parsed readable metadata has no private fingerprint or machine path. Exact payload receipt only.",
+      "corpusSha256": "63fad0d76af3c6569139071ea1ca35558af326e15c50a39d177ea09e16337758"
+    },
+    {
+      "path": "duo-art/map-assets/icons-items.2026-10-08.v1/item-7f06d01f20f88f50d0a48483.png",
+      "category": "private-fingerprint",
+      "sha256": "7f06d01f20f88f50d0a48483b71a0e957c9806248e6228d2a32b85b271a7a275",
+      "reason": "Reviewed public game artwork. Matches occur in compressed pixel bytes or standard public SVG/XMP schema URIs; parsed readable metadata has no private fingerprint or machine path. Exact payload receipt only.",
+      "corpusSha256": "63fad0d76af3c6569139071ea1ca35558af326e15c50a39d177ea09e16337758"
+    },
+    {
+      "path": "duo-art/map-assets/icons-items.2026-10-08.v1/item-7fc351317e5af0931825caac.png",
+      "category": "private-fingerprint",
+      "sha256": "7fc351317e5af0931825caac4099eb3fb1549e072faf2f3a54576e22e1d6fff9",
+      "reason": "Reviewed public game artwork. Matches occur in compressed pixel bytes or standard public SVG/XMP schema URIs; parsed readable metadata has no private fingerprint or machine path. Exact payload receipt only.",
+      "corpusSha256": "63fad0d76af3c6569139071ea1ca35558af326e15c50a39d177ea09e16337758"
+    },
+    {
+      "path": "duo-art/map-assets/icons-items.2026-10-08.v1/item-7fff87af1f0505d1133cd226.png",
+      "category": "network-identifier",
+      "sha256": "7fff87af1f0505d1133cd226005fc698ab9b80170128046b507bb2592292e03e",
+      "reason": "Reviewed public game artwork. Matches occur in compressed pixel bytes or standard public SVG/XMP schema URIs; parsed readable metadata has no private fingerprint or machine path. Exact payload receipt only."
+    },
+    {
+      "path": "duo-art/map-assets/icons-items.2026-10-08.v1/item-80a8fd5bd213ab97e35f31f2.png",
+      "category": "machine-path",
+      "sha256": "80a8fd5bd213ab97e35f31f2ea6d9ca6a389fbdb54fc0c206f51c5685d32c154",
+      "reason": "Reviewed public game artwork. Matches occur in compressed pixel bytes or standard public SVG/XMP schema URIs; parsed readable metadata has no private fingerprint or machine path. Exact payload receipt only."
+    },
+    {
+      "path": "duo-art/map-assets/icons-items.2026-10-08.v1/item-80a8fd5bd213ab97e35f31f2.png",
+      "category": "network-identifier",
+      "sha256": "80a8fd5bd213ab97e35f31f2ea6d9ca6a389fbdb54fc0c206f51c5685d32c154",
+      "reason": "Reviewed public game artwork. Matches occur in compressed pixel bytes or standard public SVG/XMP schema URIs; parsed readable metadata has no private fingerprint or machine path. Exact payload receipt only."
+    },
+    {
+      "path": "duo-art/map-assets/icons-items.2026-10-08.v1/item-82c090745e98916fc30148b8.png",
+      "category": "network-identifier",
+      "sha256": "82c090745e98916fc30148b8e43c886eed199a895b4524f751c58d419e3039ca",
+      "reason": "Reviewed public game artwork. Matches occur in compressed pixel bytes or standard public SVG/XMP schema URIs; parsed readable metadata has no private fingerprint or machine path. Exact payload receipt only."
+    },
+    {
+      "path": "duo-art/map-assets/icons-items.2026-10-08.v1/item-85214f48f31a9c57aa20b887.png",
+      "category": "machine-path",
+      "sha256": "85214f48f31a9c57aa20b887582f63db9abb2b90402f7535f29c5f854c39e2df",
+      "reason": "Reviewed public game artwork. Matches occur in compressed pixel bytes or standard public SVG/XMP schema URIs; parsed readable metadata has no private fingerprint or machine path. Exact payload receipt only."
+    },
+    {
+      "path": "duo-art/map-assets/icons-items.2026-10-08.v1/item-853335cc40ee1dd434965fb9.png",
+      "category": "machine-path",
+      "sha256": "853335cc40ee1dd434965fb9b8668d787dfd92396fc0406b29f62ed273fa2daf",
+      "reason": "Reviewed public game artwork. Matches occur in compressed pixel bytes or standard public SVG/XMP schema URIs; parsed readable metadata has no private fingerprint or machine path. Exact payload receipt only."
+    },
+    {
+      "path": "duo-art/map-assets/icons-items.2026-10-08.v1/item-853335cc40ee1dd434965fb9.png",
+      "category": "network-identifier",
+      "sha256": "853335cc40ee1dd434965fb9b8668d787dfd92396fc0406b29f62ed273fa2daf",
+      "reason": "Reviewed public game artwork. Matches occur in compressed pixel bytes or standard public SVG/XMP schema URIs; parsed readable metadata has no private fingerprint or machine path. Exact payload receipt only."
+    },
+    {
+      "path": "duo-art/map-assets/icons-items.2026-10-08.v1/item-856d9e3ab3001858a69cdde7.png",
+      "category": "network-identifier",
+      "sha256": "856d9e3ab3001858a69cdde765dc410c4e61c5024a17728ce66b90de40d880c8",
+      "reason": "Reviewed public game artwork. Matches occur in compressed pixel bytes or standard public SVG/XMP schema URIs; parsed readable metadata has no private fingerprint or machine path. Exact payload receipt only."
+    },
+    {
+      "path": "duo-art/map-assets/icons-items.2026-10-08.v1/item-8885598ef7454cc68eb2e757.png",
+      "category": "network-identifier",
+      "sha256": "8885598ef7454cc68eb2e757fe2e7554f28b46942800d2c2315a05811a7bb9cb",
+      "reason": "Reviewed public game artwork. Matches occur in compressed pixel bytes or standard public SVG/XMP schema URIs; parsed readable metadata has no private fingerprint or machine path. Exact payload receipt only."
+    },
+    {
+      "path": "duo-art/map-assets/icons-items.2026-10-08.v1/item-89c96152ee77e54bd0079a64.png",
+      "category": "network-identifier",
+      "sha256": "89c96152ee77e54bd0079a649905808945eeca7770fd53bc25c54ab574cf5d27",
+      "reason": "Reviewed public game artwork. Matches occur in compressed pixel bytes or standard public SVG/XMP schema URIs; parsed readable metadata has no private fingerprint or machine path. Exact payload receipt only."
+    },
+    {
+      "path": "duo-art/map-assets/icons-items.2026-10-08.v1/item-8ae3ea2411e58d3e21c99e5e.png",
+      "category": "network-identifier",
+      "sha256": "8ae3ea2411e58d3e21c99e5eca63beacb3506770d3c3c8faa9663a815885a5df",
+      "reason": "Reviewed public game artwork. Matches occur in compressed pixel bytes or standard public SVG/XMP schema URIs; parsed readable metadata has no private fingerprint or machine path. Exact payload receipt only."
+    },
+    {
+      "path": "duo-art/map-assets/icons-items.2026-10-08.v1/item-8f3cbf7574c186bc1dd92718.png",
+      "category": "network-identifier",
+      "sha256": "8f3cbf7574c186bc1dd927182a564b1c791a96aa6095795cb4bf23cfa5486036",
+      "reason": "Reviewed public game artwork. Matches occur in compressed pixel bytes or standard public SVG/XMP schema URIs; parsed readable metadata has no private fingerprint or machine path. Exact payload receipt only."
+    },
+    {
+      "path": "duo-art/map-assets/icons-items.2026-10-08.v1/item-8f9e1372b0de9af4898a000d.png",
+      "category": "machine-path",
+      "sha256": "8f9e1372b0de9af4898a000da417c0f365c1a14e22c92b748e8991010df9adaf",
+      "reason": "Reviewed public game artwork. Matches occur in compressed pixel bytes or standard public SVG/XMP schema URIs; parsed readable metadata has no private fingerprint or machine path. Exact payload receipt only."
+    },
+    {
+      "path": "duo-art/map-assets/icons-items.2026-10-08.v1/item-8f9e1372b0de9af4898a000d.png",
+      "category": "private-fingerprint",
+      "sha256": "8f9e1372b0de9af4898a000da417c0f365c1a14e22c92b748e8991010df9adaf",
+      "reason": "Reviewed public game artwork. Matches occur in compressed pixel bytes or standard public SVG/XMP schema URIs; parsed readable metadata has no private fingerprint or machine path. Exact payload receipt only.",
+      "corpusSha256": "63fad0d76af3c6569139071ea1ca35558af326e15c50a39d177ea09e16337758"
+    },
+    {
+      "path": "duo-art/map-assets/icons-items.2026-10-08.v1/item-93e95f2d8e574d20a5ebca80.png",
+      "category": "machine-path",
+      "sha256": "93e95f2d8e574d20a5ebca80548e40c1a9dbf8147a8893118ade2d26ebe6e159",
+      "reason": "Reviewed public game artwork. Matches occur in compressed pixel bytes or standard public SVG/XMP schema URIs; parsed readable metadata has no private fingerprint or machine path. Exact payload receipt only."
+    },
+    {
+      "path": "duo-art/map-assets/icons-items.2026-10-08.v1/item-94912eefc602c9546d3bbff9.png",
+      "category": "network-identifier",
+      "sha256": "94912eefc602c9546d3bbff90cb9b7b6a280d498e3203dfc5783559ce3141315",
+      "reason": "Reviewed public game artwork. Matches occur in compressed pixel bytes or standard public SVG/XMP schema URIs; parsed readable metadata has no private fingerprint or machine path. Exact payload receipt only."
+    },
+    {
+      "path": "duo-art/map-assets/icons-items.2026-10-08.v1/item-950aea24b02555f49c2ae876.png",
+      "category": "network-identifier",
+      "sha256": "950aea24b02555f49c2ae876a932eaae39308f67936b2acb0fda0ef0592b2dca",
+      "reason": "Reviewed public game artwork. Matches occur in compressed pixel bytes or standard public SVG/XMP schema URIs; parsed readable metadata has no private fingerprint or machine path. Exact payload receipt only."
+    },
+    {
+      "path": "duo-art/map-assets/icons-items.2026-10-08.v1/item-969eefc1dae7d627ec02b401.png",
+      "category": "network-identifier",
+      "sha256": "969eefc1dae7d627ec02b4014ad03da91a8fa0e1e55910a6ebf1b2ec4df2c4ac",
+      "reason": "Reviewed public game artwork. Matches occur in compressed pixel bytes or standard public SVG/XMP schema URIs; parsed readable metadata has no private fingerprint or machine path. Exact payload receipt only."
+    },
+    {
+      "path": "duo-art/map-assets/icons-items.2026-10-08.v1/item-9cbf9bd8d15d9b4d235dea39.png",
+      "category": "machine-path",
+      "sha256": "9cbf9bd8d15d9b4d235dea39fcb5517be607bb523f04000d2a8b52e41e6bbf27",
+      "reason": "Reviewed public game artwork. Matches occur in compressed pixel bytes or standard public SVG/XMP schema URIs; parsed readable metadata has no private fingerprint or machine path. Exact payload receipt only."
+    },
+    {
+      "path": "duo-art/map-assets/icons-items.2026-10-08.v1/item-a09023c63c4415bbed9a6187.png",
+      "category": "machine-path",
+      "sha256": "a09023c63c4415bbed9a61870176be4448a1cffb781ba85196a419b1e42f36f5",
+      "reason": "Reviewed public game artwork. Matches occur in compressed pixel bytes or standard public SVG/XMP schema URIs; parsed readable metadata has no private fingerprint or machine path. Exact payload receipt only."
+    },
+    {
+      "path": "duo-art/map-assets/icons-items.2026-10-08.v1/item-a09023c63c4415bbed9a6187.png",
+      "category": "private-fingerprint",
+      "sha256": "a09023c63c4415bbed9a61870176be4448a1cffb781ba85196a419b1e42f36f5",
+      "reason": "Reviewed public game artwork. Matches occur in compressed pixel bytes or standard public SVG/XMP schema URIs; parsed readable metadata has no private fingerprint or machine path. Exact payload receipt only.",
+      "corpusSha256": "63fad0d76af3c6569139071ea1ca35558af326e15c50a39d177ea09e16337758"
+    },
+    {
+      "path": "duo-art/map-assets/icons-items.2026-10-08.v1/item-a527b5de37ab9dfb9cd94984.png",
+      "category": "network-identifier",
+      "sha256": "a527b5de37ab9dfb9cd949846fb8ffe2e32f8c7a9abe566cf0cfaa63b069e79b",
+      "reason": "Reviewed public game artwork. Matches occur in compressed pixel bytes or standard public SVG/XMP schema URIs; parsed readable metadata has no private fingerprint or machine path. Exact payload receipt only."
+    },
+    {
+      "path": "duo-art/map-assets/icons-items.2026-10-08.v1/item-aadd8aa87d83ac40329c3643.png",
+      "category": "network-identifier",
+      "sha256": "aadd8aa87d83ac40329c3643a3f3d8e247fd5abc6c7fde2471cb1aa68e7a4493",
+      "reason": "Reviewed public game artwork. Matches occur in compressed pixel bytes or standard public SVG/XMP schema URIs; parsed readable metadata has no private fingerprint or machine path. Exact payload receipt only."
+    },
+    {
+      "path": "duo-art/map-assets/icons-items.2026-10-08.v1/item-b43e6eca3d25e07e25c1c740.png",
+      "category": "network-identifier",
+      "sha256": "b43e6eca3d25e07e25c1c7405aedf294e8218091045159b3b6e42adb386eee24",
+      "reason": "Reviewed public game artwork. Matches occur in compressed pixel bytes or standard public SVG/XMP schema URIs; parsed readable metadata has no private fingerprint or machine path. Exact payload receipt only."
+    },
+    {
+      "path": "duo-art/map-assets/icons-items.2026-10-08.v1/item-b6f06694ac6761589c881d2c.png",
+      "category": "network-identifier",
+      "sha256": "b6f06694ac6761589c881d2cc7dfbda7877430b835af898df6bee39f77f742a1",
+      "reason": "Reviewed public game artwork. Matches occur in compressed pixel bytes or standard public SVG/XMP schema URIs; parsed readable metadata has no private fingerprint or machine path. Exact payload receipt only."
+    },
+    {
+      "path": "duo-art/map-assets/icons-items.2026-10-08.v1/item-b72f077d0fe6e120a456d27d.png",
+      "category": "network-identifier",
+      "sha256": "b72f077d0fe6e120a456d27dc9b3f338da44665e71dfebad251b5adafdffb0bb",
+      "reason": "Reviewed public game artwork. Matches occur in compressed pixel bytes or standard public SVG/XMP schema URIs; parsed readable metadata has no private fingerprint or machine path. Exact payload receipt only."
+    },
+    {
+      "path": "duo-art/map-assets/icons-items.2026-10-08.v1/item-b89a844bf25ac80ea5dcb309.png",
+      "category": "network-identifier",
+      "sha256": "b89a844bf25ac80ea5dcb309dc25c38ac1f0c682869340f7067b9948d5477300",
+      "reason": "Reviewed public game artwork. Matches occur in compressed pixel bytes or standard public SVG/XMP schema URIs; parsed readable metadata has no private fingerprint or machine path. Exact payload receipt only."
+    },
+    {
+      "path": "duo-art/map-assets/icons-items.2026-10-08.v1/item-b92b9f0ddc66e0b185fbbe56.png",
+      "category": "network-identifier",
+      "sha256": "b92b9f0ddc66e0b185fbbe562fb8e84857895100a314b4a55985af9a49fcca38",
+      "reason": "Reviewed public game artwork. Matches occur in compressed pixel bytes or standard public SVG/XMP schema URIs; parsed readable metadata has no private fingerprint or machine path. Exact payload receipt only."
+    },
+    {
+      "path": "duo-art/map-assets/icons-items.2026-10-08.v1/item-ba240cc285b41c387bb78b75.png",
+      "category": "network-identifier",
+      "sha256": "ba240cc285b41c387bb78b7599ba4269e80d394b6301a9ed8ef2b0b1f2f59b00",
+      "reason": "Reviewed public game artwork. Matches occur in compressed pixel bytes or standard public SVG/XMP schema URIs; parsed readable metadata has no private fingerprint or machine path. Exact payload receipt only."
+    },
+    {
+      "path": "duo-art/map-assets/icons-items.2026-10-08.v1/item-c6344d5749bbb39492f249c7.png",
+      "category": "network-identifier",
+      "sha256": "c6344d5749bbb39492f249c79f09dd7fe37c2327e36aa3615635d20a66f31990",
+      "reason": "Reviewed public game artwork. Matches occur in compressed pixel bytes or standard public SVG/XMP schema URIs; parsed readable metadata has no private fingerprint or machine path. Exact payload receipt only."
+    },
+    {
+      "path": "duo-art/map-assets/icons-items.2026-10-08.v1/item-c6ac3694c8210aa27501e416.png",
+      "category": "machine-path",
+      "sha256": "c6ac3694c8210aa27501e416490e1a8c04f60897a30ff95d54e7c037b971f0e3",
+      "reason": "Reviewed public game artwork. Matches occur in compressed pixel bytes or standard public SVG/XMP schema URIs; parsed readable metadata has no private fingerprint or machine path. Exact payload receipt only."
+    },
+    {
+      "path": "duo-art/map-assets/icons-items.2026-10-08.v1/item-cc4072c8a5b0be795b1034c0.png",
+      "category": "private-fingerprint",
+      "sha256": "cc4072c8a5b0be795b1034c00c33b460b95b3ec09a6814eb9441b21457f5043f",
+      "reason": "Reviewed public game artwork. Matches occur in compressed pixel bytes or standard public SVG/XMP schema URIs; parsed readable metadata has no private fingerprint or machine path. Exact payload receipt only.",
+      "corpusSha256": "63fad0d76af3c6569139071ea1ca35558af326e15c50a39d177ea09e16337758"
+    },
+    {
+      "path": "duo-art/map-assets/icons-items.2026-10-08.v1/item-cce0d73fada9b5b224a1d6ff.png",
+      "category": "machine-path",
+      "sha256": "cce0d73fada9b5b224a1d6ffeea04c64fd70b16672a059df421368da216d3134",
+      "reason": "Reviewed public game artwork. Matches occur in compressed pixel bytes or standard public SVG/XMP schema URIs; parsed readable metadata has no private fingerprint or machine path. Exact payload receipt only."
+    },
+    {
+      "path": "duo-art/map-assets/icons-items.2026-10-08.v1/item-cec469799705dab1bc8ce79a.png",
+      "category": "network-identifier",
+      "sha256": "cec469799705dab1bc8ce79a6612fa737b306f3ffebd1f7017eb7b95ee681d12",
+      "reason": "Reviewed public game artwork. Matches occur in compressed pixel bytes or standard public SVG/XMP schema URIs; parsed readable metadata has no private fingerprint or machine path. Exact payload receipt only."
+    },
+    {
+      "path": "duo-art/map-assets/icons-items.2026-10-08.v1/item-cf7a7a66749548118f4578f5.png",
+      "category": "private-fingerprint",
+      "sha256": "cf7a7a66749548118f4578f5eda10406a6d03ce76557eaeae89b0d2c05357c2b",
+      "reason": "Reviewed public game artwork. Matches occur in compressed pixel bytes or standard public SVG/XMP schema URIs; parsed readable metadata has no private fingerprint or machine path. Exact payload receipt only.",
+      "corpusSha256": "63fad0d76af3c6569139071ea1ca35558af326e15c50a39d177ea09e16337758"
+    },
+    {
+      "path": "duo-art/map-assets/icons-items.2026-10-08.v1/item-d2e29dc44e997eba21bf7cf7.png",
+      "category": "private-fingerprint",
+      "sha256": "d2e29dc44e997eba21bf7cf7690abedd28452f3489d95f13b53b06a4e109700f",
+      "reason": "Reviewed public game artwork. Matches occur in compressed pixel bytes or standard public SVG/XMP schema URIs; parsed readable metadata has no private fingerprint or machine path. Exact payload receipt only.",
+      "corpusSha256": "63fad0d76af3c6569139071ea1ca35558af326e15c50a39d177ea09e16337758"
+    },
+    {
+      "path": "duo-art/map-assets/icons-items.2026-10-08.v1/item-d33a72504b054cc1f9a3a521.png",
+      "category": "private-fingerprint",
+      "sha256": "d33a72504b054cc1f9a3a5212ed0b988d4e71c301ca10f9724a86da688d83e59",
+      "reason": "Reviewed public game artwork. Matches occur in compressed pixel bytes or standard public SVG/XMP schema URIs; parsed readable metadata has no private fingerprint or machine path. Exact payload receipt only.",
+      "corpusSha256": "63fad0d76af3c6569139071ea1ca35558af326e15c50a39d177ea09e16337758"
+    },
+    {
+      "path": "duo-art/map-assets/icons-items.2026-10-08.v1/item-d485556d745a8c0a15aa0de7.png",
+      "category": "network-identifier",
+      "sha256": "d485556d745a8c0a15aa0de72caba651d72c42faa53a491b17a6c9ef4edcc67b",
+      "reason": "Reviewed public game artwork. Matches occur in compressed pixel bytes or standard public SVG/XMP schema URIs; parsed readable metadata has no private fingerprint or machine path. Exact payload receipt only."
+    },
+    {
+      "path": "duo-art/map-assets/icons-items.2026-10-08.v1/item-e0c9831c1ed9d3c78762d073.png",
+      "category": "network-identifier",
+      "sha256": "e0c9831c1ed9d3c78762d073449b9c118f845945388bda99c618d399baaf9352",
+      "reason": "Reviewed public game artwork. Matches occur in compressed pixel bytes or standard public SVG/XMP schema URIs; parsed readable metadata has no private fingerprint or machine path. Exact payload receipt only."
+    },
+    {
+      "path": "duo-art/map-assets/icons-items.2026-10-08.v1/item-e4088d2c3600faedf78db01f.png",
+      "category": "private-fingerprint",
+      "sha256": "e4088d2c3600faedf78db01faa63e875cc36a5370ed8c37984a2f8ae216381cc",
+      "reason": "Reviewed public game artwork. Matches occur in compressed pixel bytes or standard public SVG/XMP schema URIs; parsed readable metadata has no private fingerprint or machine path. Exact payload receipt only.",
+      "corpusSha256": "63fad0d76af3c6569139071ea1ca35558af326e15c50a39d177ea09e16337758"
+    },
+    {
+      "path": "duo-art/map-assets/icons-items.2026-10-08.v1/item-e6c9e31d711d0d992d136d53.png",
+      "category": "network-identifier",
+      "sha256": "e6c9e31d711d0d992d136d534bfe19e6218fd226c637b7d0cb3261f93ce3832d",
+      "reason": "Reviewed public game artwork. Matches occur in compressed pixel bytes or standard public SVG/XMP schema URIs; parsed readable metadata has no private fingerprint or machine path. Exact payload receipt only."
+    },
+    {
+      "path": "duo-art/map-assets/icons-items.2026-10-08.v1/item-e7ef54c86d215ba1a07f087d.png",
+      "category": "machine-path",
+      "sha256": "e7ef54c86d215ba1a07f087d747da459b9a0d0d3dd1a1260b3b34c817b5a5955",
+      "reason": "Reviewed public game artwork. Matches occur in compressed pixel bytes or standard public SVG/XMP schema URIs; parsed readable metadata has no private fingerprint or machine path. Exact payload receipt only."
+    },
+    {
+      "path": "duo-art/map-assets/icons-items.2026-10-08.v1/item-e7ef54c86d215ba1a07f087d.png",
+      "category": "network-identifier",
+      "sha256": "e7ef54c86d215ba1a07f087d747da459b9a0d0d3dd1a1260b3b34c817b5a5955",
+      "reason": "Reviewed public game artwork. Matches occur in compressed pixel bytes or standard public SVG/XMP schema URIs; parsed readable metadata has no private fingerprint or machine path. Exact payload receipt only."
+    },
+    {
+      "path": "duo-art/map-assets/icons-items.2026-10-08.v1/item-e7ef54c86d215ba1a07f087d.png",
+      "category": "private-fingerprint",
+      "sha256": "e7ef54c86d215ba1a07f087d747da459b9a0d0d3dd1a1260b3b34c817b5a5955",
+      "reason": "Reviewed public game artwork. Matches occur in compressed pixel bytes or standard public SVG/XMP schema URIs; parsed readable metadata has no private fingerprint or machine path. Exact payload receipt only.",
+      "corpusSha256": "63fad0d76af3c6569139071ea1ca35558af326e15c50a39d177ea09e16337758"
+    },
+    {
+      "path": "duo-art/map-assets/icons-items.2026-10-08.v1/item-f1fd4f5002fa7027ef739156.png",
+      "category": "network-identifier",
+      "sha256": "f1fd4f5002fa7027ef73915697873edb4afc7c19f3628d2e02bd126703d6181e",
+      "reason": "Reviewed public game artwork. Matches occur in compressed pixel bytes or standard public SVG/XMP schema URIs; parsed readable metadata has no private fingerprint or machine path. Exact payload receipt only."
+    },
+    {
+      "path": "duo-art/map-assets/icons-items.2026-10-08.v1/item-f25c45bab3b2130617964ba1.png",
+      "category": "network-identifier",
+      "sha256": "f25c45bab3b2130617964ba1a43be57424d3246bcd6364f4834b57d3e9623df8",
+      "reason": "Reviewed public game artwork. Matches occur in compressed pixel bytes or standard public SVG/XMP schema URIs; parsed readable metadata has no private fingerprint or machine path. Exact payload receipt only."
+    },
+    {
+      "path": "duo-art/map-assets/icons-items.2026-10-08.v1/item-f348cd7e207cfb981f5e2b20.png",
+      "category": "machine-path",
+      "sha256": "f348cd7e207cfb981f5e2b20e902d6d8259c093306657c3587387b5e7414dc9f",
+      "reason": "Reviewed public game artwork. Matches occur in compressed pixel bytes or standard public SVG/XMP schema URIs; parsed readable metadata has no private fingerprint or machine path. Exact payload receipt only."
+    },
+    {
+      "path": "duo-art/map-assets/icons-items.2026-10-08.v1/item-f348cd7e207cfb981f5e2b20.png",
+      "category": "network-identifier",
+      "sha256": "f348cd7e207cfb981f5e2b20e902d6d8259c093306657c3587387b5e7414dc9f",
+      "reason": "Reviewed public game artwork. Matches occur in compressed pixel bytes or standard public SVG/XMP schema URIs; parsed readable metadata has no private fingerprint or machine path. Exact payload receipt only."
+    },
+    {
+      "path": "duo-art/map-assets/icons-items.2026-10-08.v1/item-f5686e694ec2aeeb09f3b069.png",
+      "category": "private-fingerprint",
+      "sha256": "f5686e694ec2aeeb09f3b069b35e435caacc892e6142fdc40e738b251c81129c",
+      "reason": "Reviewed public game artwork. Matches occur in compressed pixel bytes or standard public SVG/XMP schema URIs; parsed readable metadata has no private fingerprint or machine path. Exact payload receipt only.",
+      "corpusSha256": "63fad0d76af3c6569139071ea1ca35558af326e15c50a39d177ea09e16337758"
+    },
+    {
+      "path": "duo-art/map-assets/icons-items.2026-10-08.v1/item-f5a73961df906256527a1acf.png",
+      "category": "network-identifier",
+      "sha256": "f5a73961df906256527a1acf59eaabfa02fe3d6a69c69d4cb630aad4c5c49e3a",
+      "reason": "Reviewed public game artwork. Matches occur in compressed pixel bytes or standard public SVG/XMP schema URIs; parsed readable metadata has no private fingerprint or machine path. Exact payload receipt only."
+    },
+    {
+      "path": "duo-art/map-assets/icons-items.2026-10-08.v1/item-f8bd2a7e43c8839d0ada9a72.png",
+      "category": "private-fingerprint",
+      "sha256": "f8bd2a7e43c8839d0ada9a72b831d42f80906625f59993cf6fff2f287dc484a0",
+      "reason": "Reviewed public game artwork. Matches occur in compressed pixel bytes or standard public SVG/XMP schema URIs; parsed readable metadata has no private fingerprint or machine path. Exact payload receipt only.",
+      "corpusSha256": "63fad0d76af3c6569139071ea1ca35558af326e15c50a39d177ea09e16337758"
+    },
+    {
+      "path": "duo-art/map-assets/icons-items.2026-10-08.v1/item-fbbce7a456d4dba812befb60.png",
+      "category": "private-fingerprint",
+      "sha256": "fbbce7a456d4dba812befb60dfe2da2bb77aa6132cefbd2506ca8e8c60c94073",
+      "reason": "Reviewed public game artwork. Matches occur in compressed pixel bytes or standard public SVG/XMP schema URIs; parsed readable metadata has no private fingerprint or machine path. Exact payload receipt only.",
+      "corpusSha256": "63fad0d76af3c6569139071ea1ca35558af326e15c50a39d177ea09e16337758"
+    },
+    {
+      "path": "duo-art/map-assets/icons-items.2026-10-08.v1/item-fcb5cfc7818ff654f9d61d21.png",
+      "category": "network-identifier",
+      "sha256": "fcb5cfc7818ff654f9d61d21f535fa78d751f3a802af7cbee5d2216f1f5bb345",
+      "reason": "Reviewed public game artwork. Matches occur in compressed pixel bytes or standard public SVG/XMP schema URIs; parsed readable metadata has no private fingerprint or machine path. Exact payload receipt only."
+    },
+    {
+      "path": "duo-art/map-assets/icons-items.2026-10-08.v1/item-fdccbbee1198c7a3ff7b2d03.png",
+      "category": "machine-path",
+      "sha256": "fdccbbee1198c7a3ff7b2d0331226e2bdeffe0023bf2057d40d6ad62e9a29c9d",
+      "reason": "Reviewed public game artwork. Matches occur in compressed pixel bytes or standard public SVG/XMP schema URIs; parsed readable metadata has no private fingerprint or machine path. Exact payload receipt only."
+    },
+    {
+      "path": "duo-art/map-assets/icons-items.2026-10-08.v1/item-ff2143ae70d0334b32cb402f.png",
+      "category": "network-identifier",
+      "sha256": "ff2143ae70d0334b32cb402f55564a41c0bf4048ade9cb25956fbb5af67f7d8b",
+      "reason": "Reviewed public game artwork. Matches occur in compressed pixel bytes or standard public SVG/XMP schema URIs; parsed readable metadata has no private fingerprint or machine path. Exact payload receipt only."
+    },
+    {
+      "path": "duo-art/map-assets/icons-items.2026-10-08.v1/manifest.json",
+      "category": "network-identifier",
+      "sha256": "367125a3c08e8b47d6df65a4014b944b6df6f0d2ae40ae9b53932e5705bb1652",
+      "reason": "Read-window URL fragment: complete JSON payload scans clean. This exact public game catalogue is reviewed without changing URL or network patterns."
+    },
+    {
+      "path": "duo-art/map-assets/interiors.cache-2026-10-08-v2-reviewed/275/2/0_45_75.png",
+      "category": "private-fingerprint",
+      "sha256": "859fda050b0a8687d4b35f05d578ef870aeeba1dda80c3c5b6de9db2b086b675",
+      "reason": "Reviewed public game artwork. Matches occur in compressed pixel bytes or standard public SVG/XMP schema URIs; parsed readable metadata has no private fingerprint or machine path. Exact payload receipt only.",
+      "corpusSha256": "63fad0d76af3c6569139071ea1ca35558af326e15c50a39d177ea09e16337758"
+    },
+    {
+      "path": "duo-art/map-assets/interiors.cache-2026-10-08-v2-reviewed/42/2/0_16_10.png",
+      "category": "network-identifier",
+      "sha256": "2bf94030c9825c640fe317c4f3e7e37715ab86f1ab523ea472a099bd36f1e72e",
+      "reason": "Reviewed public game artwork. Matches occur in compressed pixel bytes or standard public SVG/XMP schema URIs; parsed readable metadata has no private fingerprint or machine path. Exact payload receipt only."
+    },
+    {
+      "path": "duo-art/map-assets/interiors.cache-2026-10-08-v2-reviewed/640/2/0_70_66.png",
+      "category": "network-identifier",
+      "sha256": "bf07aa73bcbf46f3e857d951c343734c77104ad1b7e09c0a3ce7d5cd533c5dab",
+      "reason": "Reviewed public game artwork. Matches occur in compressed pixel bytes or standard public SVG/XMP schema URIs; parsed readable metadata has no private fingerprint or machine path. Exact payload receipt only."
+    },
+    {
+      "path": "duo-art/map-assets/manifest.json",
+      "category": "network-identifier",
+      "sha256": "3a249263331600413485f50c84d4e41385c666bd320a9e80029aeebc83a6c5fe",
+      "reason": "Read-window URL fragment: complete JSON payload scans clean. This exact public game catalogue is reviewed without changing URL or network patterns."
+    },
+    {
+      "path": "duo-art/map-assets/pins.normalized.json",
+      "category": "network-identifier",
+      "sha256": "5f230bfe26558520647efed516117d5608af6a04c8c220b4e36f38ceea65a005",
+      "reason": "Read-window URL fragment: complete JSON payload scans clean. This exact public game catalogue is reviewed without changing URL or network patterns."
+    },
+    {
+      "path": "duo-art/map-assets/sprites.cache-2026-10-08-05932552f7af-v1/1286-0.png",
+      "category": "network-identifier",
+      "sha256": "421be2b50d94ca9b24a66ebfbfe6818da751f2ee564e00abf5fb62599b9faeed",
+      "reason": "Reviewed public game artwork. Matches occur in compressed pixel bytes or standard public SVG/XMP schema URIs; parsed readable metadata has no private fingerprint or machine path. Exact payload receipt only."
+    },
+    {
+      "path": "duo-art/map-assets/terrain.cache-mapfix3-transparent-v5/28/2/0_35_57.png",
+      "category": "network-identifier",
+      "sha256": "534d161da63f5501b98a90ccfa13f734b75e0b56b6999f47f218fa4ffaf15c85",
+      "reason": "Reviewed public game artwork. Matches occur in compressed pixel bytes or standard public SVG/XMP schema URIs; parsed readable metadata has no private fingerprint or machine path. Exact payload receipt only."
+    },
+    {
+      "path": "duo-art/map-assets/terrain.cache-mapfix3-transparent-v5/28/2/0_36_60.png",
+      "category": "network-identifier",
+      "sha256": "c3aa23f75bf32dc7fb60cdb350ab24730450731745a2d2f556d6000caa97823b",
+      "reason": "Reviewed public game artwork. Matches occur in compressed pixel bytes or standard public SVG/XMP schema URIs; parsed readable metadata has no private fingerprint or machine path. Exact payload receipt only."
+    },
+    {
+      "path": "duo-art/map-assets/terrain.cache-mapfix3-transparent-v5/28/2/0_39_46.png",
+      "category": "private-fingerprint",
+      "sha256": "fdb0a2195fd2343789afc90922e523e119389d4f73a88d4b94f54c93f8bf8ef1",
+      "reason": "Reviewed public game artwork. Matches occur in compressed pixel bytes or standard public SVG/XMP schema URIs; parsed readable metadata has no private fingerprint or machine path. Exact payload receipt only.",
+      "corpusSha256": "63fad0d76af3c6569139071ea1ca35558af326e15c50a39d177ea09e16337758"
+    },
+    {
+      "path": "duo-art/map-assets/terrain.cache-mapfix3-transparent-v5/28/2/0_40_52.png",
+      "category": "network-identifier",
+      "sha256": "491b36839a73a7360a9abf5df90dbf4ed1c609f86e30399761313f7791a7b070",
+      "reason": "Reviewed public game artwork. Matches occur in compressed pixel bytes or standard public SVG/XMP schema URIs; parsed readable metadata has no private fingerprint or machine path. Exact payload receipt only."
+    },
+    {
+      "path": "duo-art/map-assets/terrain.cache-mapfix3-transparent-v5/28/2/0_51_55.png",
+      "category": "network-identifier",
+      "sha256": "bf265dcb66a48375655b6410ca4c6615ec64733c127033db5218a6800e0544ab",
+      "reason": "Reviewed public game artwork. Matches occur in compressed pixel bytes or standard public SVG/XMP schema URIs; parsed readable metadata has no private fingerprint or machine path. Exact payload receipt only."
+    },
+    {
+      "path": "duo-art/map-assets/terrain.cache-mapfix3-transparent-v5/28/2/0_60_30.png",
+      "category": "network-identifier",
+      "sha256": "ee4625a96a3a3d23310fcf4807e20fe5abae1639ea29e055cbdb16ec249de79c",
+      "reason": "Reviewed public game artwork. Matches occur in compressed pixel bytes or standard public SVG/XMP schema URIs; parsed readable metadata has no private fingerprint or machine path. Exact payload receipt only."
+    },
+    {
+      "path": "duo-art/map-assets/terrain.cache-mapfix3-transparent-v5/28/2/0_71_52.png",
+      "category": "private-fingerprint",
+      "sha256": "e0027e50a574c9a4ab107ef41b7ffef00946d90f480e00bd43a4f564faed39eb",
+      "reason": "Reviewed public game artwork. Matches occur in compressed pixel bytes or standard public SVG/XMP schema URIs; parsed readable metadata has no private fingerprint or machine path. Exact payload receipt only.",
+      "corpusSha256": "63fad0d76af3c6569139071ea1ca35558af326e15c50a39d177ea09e16337758"
+    },
+    {
+      "path": "duo-art/map-assets/terrain.cache-mapfix3-transparent-v5/28/2/0_72_53.png",
+      "category": "network-identifier",
+      "sha256": "c0283a62cac3fb4fdfe5108ee491a67567795c10fa9094b6696ef967d1e964ab",
+      "reason": "Reviewed public game artwork. Matches occur in compressed pixel bytes or standard public SVG/XMP schema URIs; parsed readable metadata has no private fingerprint or machine path. Exact payload receipt only."
+    },
+    {
+      "path": "duo-art/map-assets/terrain.optimized-2026-10-08-38129fc98c5adcd7/native/0_36_56.webp",
+      "category": "network-identifier",
+      "sha256": "40383c365bd7a0274024ad9d550f0e6d40595cfd5484919e36cc92c07f3ca45e",
+      "reason": "Reviewed public game artwork. Matches occur in compressed pixel bytes or standard public SVG/XMP schema URIs; parsed readable metadata has no private fingerprint or machine path. Exact payload receipt only."
+    },
+    {
+      "path": "duo-art/map-assets/terrain.optimized-2026-10-08-38129fc98c5adcd7/native/0_39_45.webp",
+      "category": "private-fingerprint",
+      "sha256": "c6fd5f724499a12af515495a3e606df190a3ef8ab7db71caeb581ac73dc138ff",
+      "reason": "Reviewed public game artwork. Matches occur in compressed pixel bytes or standard public SVG/XMP schema URIs; parsed readable metadata has no private fingerprint or machine path. Exact payload receipt only.",
+      "corpusSha256": "63fad0d76af3c6569139071ea1ca35558af326e15c50a39d177ea09e16337758"
+    },
+    {
+      "path": "duo-art/map-assets/terrain.optimized-2026-10-08-38129fc98c5adcd7/native/0_47_54.webp",
+      "category": "private-fingerprint",
+      "sha256": "63c03c5d09bc2fbb91a9455d2acb505bcc6ac3a3af2d48a9aeb7e765cf1c4d83",
+      "reason": "Reviewed public game artwork. Matches occur in compressed pixel bytes or standard public SVG/XMP schema URIs; parsed readable metadata has no private fingerprint or machine path. Exact payload receipt only.",
+      "corpusSha256": "63fad0d76af3c6569139071ea1ca35558af326e15c50a39d177ea09e16337758"
+    },
+    {
+      "path": "duo-art/map-assets/terrain.optimized-2026-10-08-38129fc98c5adcd7/overview/10_4.webp",
+      "category": "private-fingerprint",
+      "sha256": "48c9a53823347ccedc495fd2d8c15d9989eb4456299ddf2689d2206038a7a0d0",
+      "reason": "Reviewed public game artwork. Matches occur in compressed pixel bytes or standard public SVG/XMP schema URIs; parsed readable metadata has no private fingerprint or machine path. Exact payload receipt only.",
+      "corpusSha256": "63fad0d76af3c6569139071ea1ca35558af326e15c50a39d177ea09e16337758"
+    },
+    {
+      "path": "duo-art/map-assets/terrain.optimized-2026-10-08-38129fc98c5adcd7/overview/9_4.webp",
+      "category": "network-identifier",
+      "sha256": "76e7e7151adb97193d50474ad470cf3c2f28d4cc6003c23bdef2266a0ab1bcba",
+      "reason": "Reviewed public game artwork. Matches occur in compressed pixel bytes or standard public SVG/XMP schema URIs; parsed readable metadata has no private fingerprint or machine path. Exact payload receipt only."
+    },
+    {
+      "path": "duo-art/map-assets/terrain/28/2/0_37_53.png",
+      "category": "network-identifier",
+      "sha256": "85cfc3bc4d9f6b596e945cab998637d46616c087d066396c0412cdb2f3c49329",
+      "reason": "Reviewed public game artwork. Matches occur in compressed pixel bytes or standard public SVG/XMP schema URIs; parsed readable metadata has no private fingerprint or machine path. Exact payload receipt only."
+    },
+    {
+      "path": "duo-art/map-assets/terrain/28/2/0_43_57.png",
+      "category": "private-fingerprint",
+      "sha256": "c96dcbfca9b46a18db4a972dcd2aa58967d3f4369cb853a1f8d081f86eb0f73b",
+      "reason": "Reviewed public game artwork. Matches occur in compressed pixel bytes or standard public SVG/XMP schema URIs; parsed readable metadata has no private fingerprint or machine path. Exact payload receipt only.",
+      "corpusSha256": "63fad0d76af3c6569139071ea1ca35558af326e15c50a39d177ea09e16337758"
+    },
+    {
+      "path": "duo-art/map-assets/terrain/28/2/0_47_61.png",
+      "category": "network-identifier",
+      "sha256": "eb428664f507e91f3dc8317dab9f1b46b58c35364c372c7617cd5580d4d82a39",
+      "reason": "Reviewed public game artwork. Matches occur in compressed pixel bytes or standard public SVG/XMP schema URIs; parsed readable metadata has no private fingerprint or machine path. Exact payload receipt only."
+    },
+    {
+      "path": "duo-art/map-assets/terrain/28/2/0_49_59.png",
+      "category": "network-identifier",
+      "sha256": "299c86c44f3d546e7f044ee38fa188501a4bfcababf33b703e3b0820f078a61a",
+      "reason": "Reviewed public game artwork. Matches occur in compressed pixel bytes or standard public SVG/XMP schema URIs; parsed readable metadata has no private fingerprint or machine path. Exact payload receipt only."
+    },
+    {
+      "path": "duo-art/map-assets/terrain/28/2/0_50_49.png",
+      "category": "network-identifier",
+      "sha256": "6a765275a6ed2de548e09b2503f11101e3fce4ccf34a86745fbb75585bf4abeb",
+      "reason": "Reviewed public game artwork. Matches occur in compressed pixel bytes or standard public SVG/XMP schema URIs; parsed readable metadata has no private fingerprint or machine path. Exact payload receipt only."
+    },
+    {
+      "path": "duo-art/map-assets/terrain/28/2/0_55_55.png",
+      "category": "network-identifier",
+      "sha256": "20da0324f4b7935287698529268275f442d55422a40369283ff19244d5acf838",
+      "reason": "Reviewed public game artwork. Matches occur in compressed pixel bytes or standard public SVG/XMP schema URIs; parsed readable metadata has no private fingerprint or machine path. Exact payload receipt only."
+    },
+    {
+      "path": "duo-art/resources/2h_weapon_slot.png",
+      "category": "network-identifier",
+      "sha256": "671a7b65e5bc18b7b397115fada1d06e1da9f557f48712f6afecec3e71331e67",
+      "reason": "Reviewed public game artwork. Matches occur in compressed pixel bytes or standard public SVG/XMP schema URIs; parsed readable metadata has no private fingerprint or machine path. Exact payload receipt only."
+    },
+    {
+      "path": "duo-art/resources/Ammo_(2h)_slot.png",
+      "category": "network-identifier",
+      "sha256": "3d6c1bff60ba1106b5fe7fdef0ab45614df90dab4efbd8fdb07274f9c6dd8a72",
+      "reason": "Reviewed public game artwork. Matches occur in compressed pixel bytes or standard public SVG/XMP schema URIs; parsed readable metadata has no private fingerprint or machine path. Exact payload receipt only."
+    },
+    {
+      "path": "duo-art/resources/Ammo_slot.png",
+      "category": "network-identifier",
+      "sha256": "3d6c1bff60ba1106b5fe7fdef0ab45614df90dab4efbd8fdb07274f9c6dd8a72",
+      "reason": "Reviewed public game artwork. Matches occur in compressed pixel bytes or standard public SVG/XMP schema URIs; parsed readable metadata has no private fingerprint or machine path. Exact payload receipt only."
+    },
+    {
+      "path": "duo-art/resources/Aura_slot.png",
+      "category": "network-identifier",
+      "sha256": "b1495ac82f2774036925bf3d03d43cbe749ec8c44c18a5ea5761efd7f14c29ee",
+      "reason": "Reviewed public game artwork. Matches occur in compressed pixel bytes or standard public SVG/XMP schema URIs; parsed readable metadata has no private fingerprint or machine path. Exact payload receipt only."
+    },
+    {
+      "path": "duo-art/resources/Back_slot.png",
+      "category": "network-identifier",
+      "sha256": "68304e6bcbf1a4995b9074e4955a2e7b52a5f347ca546fbfc2e9a452aecdc0eb",
+      "reason": "Reviewed public game artwork. Matches occur in compressed pixel bytes or standard public SVG/XMP schema URIs; parsed readable metadata has no private fingerprint or machine path. Exact payload receipt only."
+    },
+    {
+      "path": "duo-art/resources/Feet_slot.png",
+      "category": "network-identifier",
+      "sha256": "513d09edbec44dee1e8332f6d20e2511cbf8c7495f74dbff47b08a7f5e455796",
+      "reason": "Reviewed public game artwork. Matches occur in compressed pixel bytes or standard public SVG/XMP schema URIs; parsed readable metadata has no private fingerprint or machine path. Exact payload receipt only."
+    },
+    {
+      "path": "duo-art/resources/Hands_slot.png",
+      "category": "network-identifier",
+      "sha256": "33f8f6e51b06a987b6a8b591cae192184ca4faae0fd5f85434fc4021bf81eaa9",
+      "reason": "Reviewed public game artwork. Matches occur in compressed pixel bytes or standard public SVG/XMP schema URIs; parsed readable metadata has no private fingerprint or machine path. Exact payload receipt only."
+    },
+    {
+      "path": "duo-art/resources/Head_slot.png",
+      "category": "network-identifier",
+      "sha256": "212a33c809d7895b4767921726c40f5e94c65fd8077a99a6581f6f17544258c8",
+      "reason": "Reviewed public game artwork. Matches occur in compressed pixel bytes or standard public SVG/XMP schema URIs; parsed readable metadata has no private fingerprint or machine path. Exact payload receipt only."
+    },
+    {
+      "path": "duo-art/resources/Legs_slot.png",
+      "category": "network-identifier",
+      "sha256": "3124b96e1024b0f2fd9bcfd91217bb0777cfff03c28735148268ad615a48b29c",
+      "reason": "Reviewed public game artwork. Matches occur in compressed pixel bytes or standard public SVG/XMP schema URIs; parsed readable metadata has no private fingerprint or machine path. Exact payload receipt only."
+    },
+    {
+      "path": "duo-art/resources/Main_hand_weapon_slot.png",
+      "category": "network-identifier",
+      "sha256": "168a4f44e4ed1571cd3412de036a457afb35602f6ae1b32f687fc285ca478d65",
+      "reason": "Reviewed public game artwork. Matches occur in compressed pixel bytes or standard public SVG/XMP schema URIs; parsed readable metadata has no private fingerprint or machine path. Exact payload receipt only."
+    },
+    {
+      "path": "duo-art/resources/Neck_slot.png",
+      "category": "network-identifier",
+      "sha256": "8d0248d4c1d535cc828c0973241ac966b878f323be0100c41090ecd1e743e2a6",
+      "reason": "Reviewed public game artwork. Matches occur in compressed pixel bytes or standard public SVG/XMP schema URIs; parsed readable metadata has no private fingerprint or machine path. Exact payload receipt only."
+    },
+    {
+      "path": "duo-art/resources/Off-hand_slot.png",
+      "category": "network-identifier",
+      "sha256": "44ecfa9a87cd07e62658d877a5e7ea4aa7c05bee1e62c0fa3771085990bab6f4",
+      "reason": "Reviewed public game artwork. Matches occur in compressed pixel bytes or standard public SVG/XMP schema URIs; parsed readable metadata has no private fingerprint or machine path. Exact payload receipt only."
+    },
+    {
+      "path": "duo-art/resources/Off-hand_weapon_slot.png",
+      "category": "network-identifier",
+      "sha256": "dd3d4c68518a3e7efcfb8bf6c50a4d91881c923d848e791b54759f4972dfd23e",
+      "reason": "Reviewed public game artwork. Matches occur in compressed pixel bytes or standard public SVG/XMP schema URIs; parsed readable metadata has no private fingerprint or machine path. Exact payload receipt only."
+    },
+    {
+      "path": "duo-art/resources/Pocket_slot.png",
+      "category": "network-identifier",
+      "sha256": "762a2c3f962ee75fb905031d78531320e312532812d06c32b67ccbcdca954e21",
+      "reason": "Reviewed public game artwork. Matches occur in compressed pixel bytes or standard public SVG/XMP schema URIs; parsed readable metadata has no private fingerprint or machine path. Exact payload receipt only."
+    },
+    {
+      "path": "duo-art/resources/Ring_slot.png",
+      "category": "network-identifier",
+      "sha256": "db168fb71008c8cbc18d0adf2bbb05d7591c3bc2e67249b13bc16f62b3d7d350",
+      "reason": "Reviewed public game artwork. Matches occur in compressed pixel bytes or standard public SVG/XMP schema URIs; parsed readable metadata has no private fingerprint or machine path. Exact payload receipt only."
+    },
+    {
+      "path": "duo-art/resources/Skills_combat.png",
+      "category": "network-identifier",
+      "sha256": "7d8849951611aabbec5cb277f8fee5672f8182690421e9151e183cf0011e0c58",
+      "reason": "Reviewed public game artwork. Matches occur in compressed pixel bytes or standard public SVG/XMP schema URIs; parsed readable metadata has no private fingerprint or machine path. Exact payload receipt only."
+    },
+    {
+      "path": "duo-art/resources/SVG/rs3/minigame-rs3.svg",
+      "category": "network-identifier",
+      "sha256": "583cbc738d63fd5fce3099b02bbc1b825dc904f242320074eaaeecf20ef7eb2b",
+      "reason": "Reviewed public game artwork. Matches occur in compressed pixel bytes or standard public SVG/XMP schema URIs; parsed readable metadata has no private fingerprint or machine path. Exact payload receipt only."
+    },
+    {
+      "path": "duo-art/resources/SVG/rs3/music-rs3.svg",
+      "category": "network-identifier",
+      "sha256": "69aeb102e70b2cbb31430c1beee6ba2d6a974c333801ed7e37b8a420756f4e5c",
+      "reason": "Reviewed public game artwork. Matches occur in compressed pixel bytes or standard public SVG/XMP schema URIs; parsed readable metadata has no private fingerprint or machine path. Exact payload receipt only."
+    },
+    {
+      "path": "duo-art/resources/SVG/rs3/skills-rs3.svg",
+      "category": "network-identifier",
+      "sha256": "b59ba755d6517ed9e2e3e5b9600cf6abd39957acf1e594c029fd067897a5d970",
+      "reason": "Reviewed public game artwork. Matches occur in compressed pixel bytes or standard public SVG/XMP schema URIs; parsed readable metadata has no private fingerprint or machine path. Exact payload receipt only."
+    },
+    {
+      "path": "duo-art/resources/Torso_slot.png",
+      "category": "network-identifier",
+      "sha256": "3169d70c9d6f858776f1ec3e110d46d2b2988bbc0c651cebba656869a90a9c80",
+      "reason": "Reviewed public game artwork. Matches occur in compressed pixel bytes or standard public SVG/XMP schema URIs; parsed readable metadata has no private fingerprint or machine path. Exact payload receipt only."
+    },
+    {
+      "path": "duo-art/world-images/Background-chunk.PNG",
+      "category": "network-identifier",
+      "sha256": "9b9adc6d6a00a44addc4c22746d39d54077c9f85528aea98ebe9758badcf01ea",
+      "reason": "Reviewed public game artwork. Matches occur in compressed pixel bytes or standard public SVG/XMP schema URIs; parsed readable metadata has no private fingerprint or machine path. Exact payload receipt only."
+    },
+    {
+      "path": "duo-art/world-images/Background-chunk.PNG",
+      "category": "private-fingerprint",
+      "sha256": "9b9adc6d6a00a44addc4c22746d39d54077c9f85528aea98ebe9758badcf01ea",
+      "reason": "Reviewed public game artwork. Matches occur in compressed pixel bytes or standard public SVG/XMP schema URIs; parsed readable metadata has no private fingerprint or machine path. Exact payload receipt only.",
+      "corpusSha256": "63fad0d76af3c6569139071ea1ca35558af326e15c50a39d177ea09e16337758"
+    },
+    {
+      "path": "duo-art/world-images/runescape_world_map.png",
+      "category": "network-identifier",
+      "sha256": "ad3fc903233ec3e3eccd4fc2107acc4f2e2ce5138f2811ca9a92b5c49995a789",
+      "reason": "Reviewed public game artwork. Matches occur in compressed pixel bytes or standard public SVG/XMP schema URIs; parsed readable metadata has no private fingerprint or machine path. Exact payload receipt only."
+    },
+    {
+      "path": "duo-art/world-images/runescape_world_map.png",
+      "category": "private-fingerprint",
+      "sha256": "ad3fc903233ec3e3eccd4fc2107acc4f2e2ce5138f2811ca9a92b5c49995a789",
+      "reason": "Reviewed public game artwork. Matches occur in compressed pixel bytes or standard public SVG/XMP schema URIs; parsed readable metadata has no private fingerprint or machine path. Exact payload receipt only.",
+      "corpusSha256": "63fad0d76af3c6569139071ea1ca35558af326e15c50a39d177ea09e16337758"
+    },
+    {
+      "path": "duo-data/app/data/cache-interiors.2026-10-08.v2.json",
+      "category": "network-identifier",
+      "sha256": "f95e0fe930b818ef8092c54dd8e749e54009f4691847ef27fbe4ec7efb43df1d",
+      "reason": "Read-window URL fragment: complete JSON payload scans clean. This exact public game catalogue is reviewed without changing URL or network patterns."
+    },
+    {
+      "path": "duo-data/app/data/cache-interiors.2026-10-08.v2.json",
+      "category": "network-identifier",
+      "sha256": "82bddf92143b5df8c113578737113ed6e985ad8b3f0ade4a8657367c4f3338cb",
+      "reason": "Read-window URL fragment: complete JSON payload scans clean. This exact public game catalogue is reviewed without changing URL or network patterns."
+    },
+    {
+      "path": "duo-data/app/data/equipment-corrections.2026-10-08.v1.json",
+      "category": "network-identifier",
+      "sha256": "afab2de5480c6fcd2a5401d29aaae66a6bdc6c47ad8c91735ccc5f4946b56579",
+      "reason": "Read-window URL fragment: complete JSON payload scans clean. This exact public game catalogue is reviewed without changing URL or network patterns."
+    },
+    {
+      "path": "duo-data/app/data/equipment-permanence.2026-10-08.v1.json",
+      "category": "network-identifier",
+      "sha256": "14235b62a6568e29a5d3543f9c53b4a2b6195800478053332a974cf6ada1754d",
+      "reason": "Read-window URL fragment: complete JSON payload scans clean. This exact public game catalogue is reviewed without changing URL or network patterns."
+    },
+    {
+      "path": "duo-data/app/data/item-icons.2026-10-08.v1.json",
+      "category": "network-identifier",
+      "sha256": "367125a3c08e8b47d6df65a4014b944b6df6f0d2ae40ae9b53932e5705bb1652",
+      "reason": "Read-window URL fragment: complete JSON payload scans clean. This exact public game catalogue is reviewed without changing URL or network patterns."
+    },
+    {
+      "path": "duo-data/app/data/map-connections.2026-10-09.v1.json",
+      "category": "network-identifier",
+      "sha256": "1edf7b6197e8679c0b33f53822b5f8700316324f62bdcf912cd0d7d6f63fa003",
+      "reason": "Read-window URL fragment: complete JSON payload scans clean. This exact public game catalogue is reviewed without changing URL or network patterns."
+    },
+    {
+      "path": "duo-data/app/data/retained-task-corrections.2026-10-09.v1.json",
+      "category": "private-fingerprint",
+      "sha256": "b8cbd3f20ec9abdd44ac74ac1a162cee45d975182057cad26c5646004ab23a78",
+      "reason": "A short private-corpus substring collides with an authored game-fact key, present in the public source catalogue. Exact payload and corpus receipts preserve this review.",
+      "jsonPaths": [
+        "/wiki/0/facts"
+      ],
+      "corpusSha256": "63fad0d76af3c6569139071ea1ca35558af326e15c50a39d177ea09e16337758"
+    },
+    {
+      "path": "duo-data/app/data/retained-task-corrections.2026-10-17.v2.json",
+      "category": "private-fingerprint",
+      "sha256": "6d2de43edcb32b417d907c9a9d1fa5423e15f16612032ad458a71a9d21805a99",
+      "reason": "A short private-corpus substring collides with an authored game-fact key, present in the public source catalogue. Exact payload and corpus receipts preserve this review.",
+      "jsonPaths": [
+        "/wiki/0/facts"
+      ],
+      "corpusSha256": "63fad0d76af3c6569139071ea1ca35558af326e15c50a39d177ea09e16337758"
+    },
+    {
+      "path": "duo-data/app/data/source-membership.2026-10-08.v1.json",
+      "category": "network-identifier",
+      "sha256": "cf5cd9ad39586496e663cc3913dac207f045288b800e10e90f9148d893740cb3",
+      "reason": "Read-window URL fragment: complete JSON payload scans clean. This exact public game catalogue is reviewed without changing URL or network patterns."
+    },
+    {
+      "path": "duo-data/app/data/source-row-membership.2026-10-08.v1.json",
+      "category": "network-identifier",
+      "sha256": "a64c1f364ea417b5e892e28944aaada665f296e4d1ef29d3f18410342bbd1b47",
+      "reason": "Read-window URL fragment: complete JSON payload scans clean. This exact public game catalogue is reviewed without changing URL or network patterns."
+    },
+    {
+      "path": "duo-data/app/data/training/banking-masks.v1.json",
+      "category": "private-fingerprint",
+      "sha256": "08081743a387388ba59d8826e45e27645d4c362ab80232b57a687a60c0c9d335",
+      "reason": "Generated deflate/base64 game collision masks, verified to decode to 12288-byte region grids. Token-shaped runs and short corpus matches are encoding coincidences.",
+      "jsonPaths": [
+        "/regions"
+      ],
+      "corpusSha256": "63fad0d76af3c6569139071ea1ca35558af326e15c50a39d177ea09e16337758"
+    },
+    {
+      "path": "duo-data/app/data/training/banking-masks.v1.json",
+      "category": "token",
+      "sha256": "08081743a387388ba59d8826e45e27645d4c362ab80232b57a687a60c0c9d335",
+      "reason": "Generated deflate/base64 game collision masks, verified to decode to 12288-byte region grids. Token-shaped runs and short corpus matches are encoding coincidences.",
+      "jsonPaths": [
+        "/regions"
+      ]
+    },
+    {
+      "path": "duo-data/local-game/chunk-sections.cache-audit-2026-10-07-v4-v1/sections.v1.json",
+      "category": "token",
+      "sha256": "8bda8f9e3c13495fd60c4d942c1df79df3b9beddf08a194c12d60605831c79d8",
+      "reason": "Generated geographic 64x64 tile masks, verified as canonical base64 with 512 bytes per component. Token-shaped runs are encoding coincidences.",
+      "jsonPaths": [
+        "/components"
+      ]
+    },
+    {
+      "path": "duo-data/local-game/chunk-sections.cache-audit-2026-10-07-v4-v1/sections.v1.json.gz#gzip-transport",
+      "category": "private-fingerprint",
+      "sha256": "f5c200eaa973ebb3394dd1edb5a583de637220be6111d7efb1e4bbe2148f40e8",
+      "reason": "Short corpus collision inside gzip transport bytes. Header has no optional metadata; expanded payload consists of verified game geometry.",
+      "corpusSha256": "63fad0d76af3c6569139071ea1ca35558af326e15c50a39d177ea09e16337758"
+    },
+    {
+      "path": "duo-data/local-map/manifest.json",
+      "category": "network-identifier",
+      "sha256": "3a249263331600413485f50c84d4e41385c666bd320a9e80029aeebc83a6c5fe",
+      "reason": "Read-window URL fragment: complete JSON payload scans clean. This exact public game catalogue is reviewed without changing URL or network patterns."
+    },
+    {
+      "path": "duo-data/local-map/pins.normalized.json",
+      "category": "network-identifier",
+      "sha256": "5f230bfe26558520647efed516117d5608af6a04c8c220b4e36f38ceea65a005",
+      "reason": "Read-window URL fragment: complete JSON payload scans clean. This exact public game catalogue is reviewed without changing URL or network patterns."
+    },
+    {
+      "path": "duo-rules-text/app/data/original-rules-ui.2026-10-08.v1.json",
+      "category": "network-identifier",
+      "sha256": "ae967a0673bd990dacc55408b86f491b2682ebb199ab209acc993b0298d8bb08",
+      "reason": "Public community rules document linked by the captured upstream rules HTML; anonymous HTTP read returned 200 with a chunk-rules title. No personal binding or credential.",
+      "jsonPaths": [
+        "/overview/basicRulesDescriptionHtml"
+      ]
+    }
+  ]
+}

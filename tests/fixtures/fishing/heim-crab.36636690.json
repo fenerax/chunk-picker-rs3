@@ -1,0 +1,11 @@
+{
+  "sourceUrl": "https://runescape.wiki/w/Raw%20heim%20crab?oldid=36636690",
+  "oldid": 36636690,
+  "retrieved": "2026-10-12",
+  "timestamp": "2025-01-18T03:18:02Z",
+  "title": "Raw heim crab",
+  "scope": "Complete source snapshot from MediaWiki revisions API",
+  "licence": "RuneScape Wiki contributors, CC BY-NC-SA 3.0; source exceptions apply.",
+  "source": "{{RCFood}}\n{{Infobox Item\n|name = Raw heim crab\n|image = [[File:Raw heim crab.png]]\n|release = [[12 April]] [[2010]]\n|update = Dungeoneering Skill!\n|members = No\n|quest = No\n|tradeable = Yes\n|equipable = No\n|stackable = Yes\n|disassembly = Restricted\n|options = Drop-X\n|value = 200\n|destroy = Drop\n|kept = reclaimable\n|exchange = No\n|examine = I should try cooking this. (Tier 1)\n|weight = 0\n|id = 17797\n}}\n[[File:Raw heim crab detail.png|100px|left]]\nThe '''raw heim crab''' is a fish caught and used in the [[Dungeoneering]] skill. It is the lowest level fish the can be caught in [[Daemonheim]]. It can be bought from the [[Smuggler]] or fished using a [[fly rod]], which gives 9 [[Fishing]] experience. When cooked, it turns into a [[Heim crab]], granting 22 [[Cooking]] experience, and it heals 20 [[life points]] when eaten. Most mid-high level players only buy these when they don't have enough money for better food.\n\n==Fishing==\n{{Fishing info\n|name = Raw heim crab\n|level = 1\n|xp = 9\n|spot = [[Heim crabs (fishing spot)|Heim crabs]]\n|tool = {{plink|Fly fishing rod (Dungeoneering)|txt=Fly fishing rod}}\n|bait = {{plink|Feather (Dungeoneering)|txt=Feather}}\n}}\n\n==Products==\n{{Uses material list}}\n\n==Item sources==\n{{Drop sources}}\n\n===Shop locations===\n{{Shop locations list}}\n\n==Update history==\n{{UH|\n* {{UL|type=update|update=Dungeoneering Skill!|date=12 April 2010}}\n** Added to game.\n}}\n\n{{Dungeoneering fish}}",
+  "sourceSha256": "0a73ab4420d808ad90453b1b76ea2d29b07fd40d7aaa4c956451113b0e299021"
+}

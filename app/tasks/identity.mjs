@@ -18,11 +18,13 @@ export function isPermanentId(id) {
     || selectedDataset.capabilities.independent === true && (id.startsWith(`${selectedDataset.identityNamespace}:`)
       || id.startsWith(`custom:${selectedDataset.datasetId ?? selectedDataset.id}:`)));
 }
+// Most keys name one ID: it stays a string, and only shared keys collect a Set.
 function addAlias(map, alias, id) {
   if (typeof alias !== 'string' || !alias || typeof id !== 'string' || !id) return;
-  let ids = map.get(alias);
-  if (!ids) { ids = new Set(); map.set(alias, ids); }
-  ids.add(id);
+  const ids = map.get(alias);
+  if (ids === undefined) map.set(alias, id);
+  else if (typeof ids === 'string') { if (ids !== id) map.set(alias, new Set([ids, id])); }
+  else ids.add(id);
 }
 function register(value) {
   const previous = entryMap.get(value.id);
@@ -64,6 +66,10 @@ for (const [id, kind, rawLabel, aliases = [], category = kind === 'equipment' ? 
     aliases: [rawLabel, legacyTaskId(category, rawLabel), ...aliases] });
 }
 for (const [id, names, objectives] of authoredSources) for (const name of names) for (const objective of objectives) addAlias(sourceMap, `${objective}\u0000${normalized(name)}`, id);
+// The authored maps are complete and read-only from here: shared keys keep
+// their IDs, in insertion order, as a frozen array.
+for (const map of [aliasMap, entityMap, sourceMap]) for (const [key, ids] of map) if (typeof ids !== 'string') map.set(key, Object.freeze([...ids]));
+const idsOf = value => typeof value === 'string' ? [value] : value;
 
 /** Explicit PickerId is an authored rename seam. Unregistered custom/fixture
  * definitions retain their old identifier until deliberately registered; they
@@ -72,7 +78,7 @@ for (const [id, names, objectives] of authoredSources) for (const name of names)
 export function permanentTaskId(category, rawLabel, data = {}) {
   if (typeof data?.PickerId === 'string' && (data.PickerId.startsWith('rs3:task:')
     || selectedDataset.capabilities.independent === true && data.PickerId.startsWith(`${selectedDataset.identityNamespace}:activity:`))) return data.PickerId;
-  const ids = [...(aliasMap.get(legacyTaskId(category, rawLabel)) ?? [])];
+  const ids = [...(idsOf(aliasMap.get(legacyTaskId(category, rawLabel))) ?? [])];
   if (ids.length === 1) return ids[0];
   const semantic = semanticCandidates(legacyTaskId(category, rawLabel), category);
   return !ids.length && semantic.length === 1 ? semantic[0] : legacyTaskId(category, rawLabel);
@@ -82,7 +88,7 @@ export function entityId(kind, name, data = {}) {
   if (typeof explicit === 'string' && explicit.startsWith('rs3:entity:')) return explicit;
   const candidates = entityMap.get(`${kind}\u0000${normalized(name)}`)
     ?? entityMap.get(`${kind}\u0000${normalized(name).replaceAll('*', '').replaceAll('[+]', '')}`);
-  return candidates?.size === 1 ? [...candidates][0] : `rs3:unregistered:${encodeURIComponent(kind)}:${encodeURIComponent(normalized(name))}`;
+  return typeof candidates === 'string' ? candidates : `rs3:unregistered:${encodeURIComponent(kind)}:${encodeURIComponent(normalized(name))}`;
 }
 /** Objective kinds are versioned semantics; entity IDs supply identity. Rates,
  * quantities, thresholds and display strings must never be passed here. */
@@ -116,7 +122,7 @@ function semanticEntry(id) {
   return { id, kind: equipment ? 'equipment' : 'collection', objectiveKind, category, label, aliases: [] };
 }
 function entityCandidates(kind, name) {
-  return [...(entityMap.get(`${kind}\u0000${normalized(name)}`) ?? entityMap.get(`${kind}\u0000${normalized(name).replaceAll('*', '').replaceAll('[+]', '')}`) ?? [])];
+  return [...(idsOf(entityMap.get(`${kind}\u0000${normalized(name)}`) ?? entityMap.get(`${kind}\u0000${normalized(name).replaceAll('*', '').replaceAll('[+]', '')}`)) ?? [])];
 }
 /** Decode historical generated display identities by their immutable subjects.
  * Parenthesized display rate/quantity data never participates in the result.
@@ -132,7 +138,7 @@ function semanticCandidates(id, category) {
   const goals = [];
   if ((!cat || cat === 'BiS') && /^Obtain(?: an? | )~\|([^|]+)\|~$/.test(raw)) {
     const name = /^Obtain(?: an? | )~\|([^|]+)\|~$/.exec(raw)[1];
-    for (const item of sourceMap.get(`equipment\u0000${normalized(name)}`) ?? []) goals.push(generatedGoalId('equipment', item));
+    for (const item of idsOf(sourceMap.get(`equipment\u0000${normalized(name)}`)) ?? []) goals.push(generatedGoalId('equipment', item));
   }
   if (cat && cat !== 'Extra') return goals;
   const kill = /^Kill X ~\|([^|]+)\|~$/.exec(raw);
@@ -142,17 +148,17 @@ function semanticCandidates(id, category) {
   const [, sourceLabel, itemLabel, tail] = drop;
   const objective = tail === '' ? 'all-shops' : /^ \([\s\S]*\) \([^()]*\)$/.test(tail) ? 'all-droptables' : /^ \([\s\S]*\)$/.test(tail) ? 'every-drop' : null;
   if (!objective) return goals;
-  for (const sourceId of sourceMap.get(`${objective}\u0000${normalized(sourceLabel)}`) ?? []) for (const itemId of entityCandidates('item', itemLabel)) goals.push(generatedGoalId(objective, sourceId, itemId));
+  for (const sourceId of idsOf(sourceMap.get(`${objective}\u0000${normalized(sourceLabel)}`)) ?? []) for (const itemId of entityCandidates('item', itemLabel)) goals.push(generatedGoalId(objective, sourceId, itemId));
   return goals;
 }
 export function resolveTaskAlias(id, { category } = {}) {
   const entries = { get: candidate => entryMap.get(candidate) ?? semanticEntry(candidate) };
-  return result(id, aliasMap.get(id) ?? semanticCandidates(id, category), entries, category);
+  return result(id, idsOf(aliasMap.get(id)) ?? semanticCandidates(id, category), entries, category);
 }
 /** O(1) static resolution plus a small persisted registry overlay. */
 export function resolveIdentity(id, registry, category) {
   const saved = candidatesOf(registry?.aliases?.[id]);
-  const ids = [...(aliasMap.get(id) ?? semanticCandidates(id, category)), ...saved];
+  const ids = [...(idsOf(aliasMap.get(id)) ?? semanticCandidates(id, category)), ...saved];
   if (record(registry?.entries?.[id])) ids.push(id);
   const entries = { get: candidate => registry?.entries?.[candidate] ?? entryMap.get(candidate) ?? semanticEntry(candidate) };
   return result(id, ids, entries, category);
@@ -164,7 +170,7 @@ export function lookupPermanentId(id) {
 export function authoredIdentityRegistry() {
   return { schemaVersion: identityRegistryVersion,
     entries: Object.fromEntries([...entryMap].map(([id, value]) => [id, { ...value, aliases: [...value.aliases] }])),
-    aliases: Object.fromEntries([...aliasMap].map(([alias, ids]) => [alias, ids.size === 1 ? [...ids][0] : [...ids]])), unresolved: [] };
+    aliases: Object.fromEntries([...aliasMap].map(([alias, ids]) => [alias, typeof ids === 'string' ? ids : [...ids]])), unresolved: [] };
 }
 
 /** Compile aliases once at an import/catalogue boundary. lookup and resolve
@@ -174,14 +180,18 @@ export function buildIdentityIndex(catalogue = [], { savedRegistry, taskMap = {}
   // Potential generated rows are a lookup surface. Snapshot mutable inputs,
   // but defer merged metadata until an objective needs a public entry.
   // Alias candidates remain complete, including unselected competing targets.
-  const layers = new Map(), materialized = new Map(), aliases = new Map(), extraReverse = new Map(), lateEntries = new Set();
-  for (const [alias, ids] of aliasMap) aliases.set(alias, ids.size === 1 ? ids.values().next().value : new Set(ids));
+  const layers = new Map(), materialized = new Map(), extraReverse = new Map(), lateEntries = new Set();
+  // The authored aliases are shared read-only; this index stores only its own
+  // additions over them instead of copying every authored alias per index.
+  const added = new Map();
+  const aliases = { has: alias => added.has(alias) || aliasMap.has(alias), get: alias => added.has(alias) ? added.get(alias) : aliasMap.get(alias) };
   const targets = value => typeof value === 'string' ? [value] : value ?? [];
   const addIndexAlias = (alias, id, reverse = false) => {
     if (typeof alias !== 'string' || !alias || typeof id !== 'string' || !id) return;
     const existing = aliases.get(alias);
-    if (existing === undefined) aliases.set(alias, id);
-    else if (typeof existing === 'string') { if (existing !== id) aliases.set(alias, new Set([existing, id])); }
+    if (existing === undefined) added.set(alias, id);
+    else if (typeof existing === 'string') { if (existing !== id) added.set(alias, new Set([existing, id])); }
+    else if (Array.isArray(existing)) { if (!existing.includes(id)) added.set(alias, new Set([...existing, id])); }
     else existing.add(id);
     if (reverse) {
       let values = extraReverse.get(id);
@@ -240,7 +250,7 @@ export function buildIdentityIndex(catalogue = [], { savedRegistry, taskMap = {}
   };
   const mapRows = value => {
     if (!record(value)) return;
-    for (const [label, oldId] of Object.entries(value)) addMapping(label, oldId);
+    for (const label of Object.keys(value)) addMapping(label, value[label]);
   };
   mapRows(taskMap); mapRows(history?.current); mapRows(history?.historical); mapRows(history?.mappings);
   mapRows(history?.tombstones);
@@ -305,9 +315,12 @@ export function buildIdentityIndex(catalogue = [], { savedRegistry, taskMap = {}
       if (!value) continue;
       rows[id] = value;
       for (const alias of value.aliases) {
-        const retainedTargets = [...targets(aliases.get(alias))].filter(target => retained.has(target));
-        const combined = [...new Set([...candidatesOf(savedAliases[alias]), ...retainedTargets])];
-        if (combined.length) savedAliases[alias] = combined.length === 1 ? combined[0] : combined;
+        // Saved candidates first, then retained known targets, without repeats.
+        const known = aliases.get(alias), saved = savedAliases[alias];
+        if (saved === undefined && typeof known === 'string') { if (retained.has(known)) savedAliases[alias] = known; continue; }
+        const combined = new Set(candidatesOf(saved));
+        for (const target of targets(known)) if (retained.has(target)) combined.add(target);
+        if (combined.size) savedAliases[alias] = combined.size === 1 ? combined.values().next().value : [...combined];
       }
     }
     return { schemaVersion: identityRegistryVersion, entries: rows, aliases: savedAliases, unresolved: [...(savedRegistry?.unresolved ?? [])] };

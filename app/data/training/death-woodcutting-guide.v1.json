@@ -1,0 +1,136 @@
+{
+  "schemaVersion": 1,
+  "version": "death-woodcutting-guide-2026-10-12-v1",
+  "scope": "Retained pre-curve guide profiles for the existing death estimator self-supplied routes. Helper uses woodcutting-rates.v1.json.",
+  "retainedFrom": "db137b7:app/data/training/methods.f2p.json",
+  "methods": [
+    {
+      "id": "woodcutting.normal",
+      "sourceIds": [
+        "logs",
+        "wc-guide"
+      ],
+      "assumptions": [
+        "Uses the sourced F2P guide context profile with the best hatchet for each level; actual accessible gear, tree density, depletion and interaction change throughput.",
+        "Adds an explicitly assumed 2 seconds per log for handling/banking; no inventory stock is assumed.",
+        "The low-level guide rate is held constant for higher levels without a verified rate curve."
+      ],
+      "rateProfiles": [
+        {
+          "minLevel": 1,
+          "xpPerHour": 9700
+        }
+      ],
+      "handlingSeconds": 2
+    },
+    {
+      "id": "woodcutting.oak",
+      "sourceIds": [
+        "oak-logs",
+        "wc-guide"
+      ],
+      "assumptions": [
+        "Uses the sourced F2P guide context profile with the best hatchet for each level; actual accessible gear, tree density, depletion and interaction change throughput.",
+        "Adds an explicitly assumed 2 seconds per log for handling/banking; no inventory stock is assumed.",
+        "The low-level guide rate is held constant for higher levels without a verified rate curve."
+      ],
+      "rateProfiles": [
+        {
+          "minLevel": 10,
+          "xpPerHour": 18000
+        }
+      ],
+      "handlingSeconds": 2
+    },
+    {
+      "id": "woodcutting.willow",
+      "sourceIds": [
+        "willow-logs",
+        "wc-guide"
+      ],
+      "assumptions": [
+        "Uses the sourced F2P guide context profile with the best hatchet for each level; actual accessible gear, tree density, depletion and interaction change throughput.",
+        "Adds an explicitly assumed 2 seconds per log for handling/banking; no inventory stock is assumed."
+      ],
+      "rateProfiles": [
+        {
+          "minLevel": 20,
+          "xpPerHour": 17000
+        },
+        {
+          "minLevel": 30,
+          "xpPerHour": 24000
+        },
+        {
+          "minLevel": 40,
+          "xpPerHour": 34000
+        },
+        {
+          "minLevel": 50,
+          "xpPerHour": 45000
+        },
+        {
+          "minLevel": 60,
+          "xpPerHour": 50000
+        },
+        {
+          "minLevel": 70,
+          "xpPerHour": 54000
+        },
+        {
+          "minLevel": 80,
+          "xpPerHour": 58000
+        },
+        {
+          "minLevel": 90,
+          "xpPerHour": 62500
+        },
+        {
+          "minLevel": 99,
+          "xpPerHour": 65000
+        },
+        {
+          "minLevel": 110,
+          "xpPerHour": 69000
+        }
+      ],
+      "handlingSeconds": 2
+    },
+    {
+      "id": "woodcutting.teak",
+      "sourceIds": [
+        "teak-logs"
+      ],
+      "assumptions": [
+        "F2P sources exist; region membership still depends on the chosen chunk. No post-Grove effective XP/hour has been verified for this tree. The hatchet is a minimum viable tool, not proof of guide-rate equipment."
+      ]
+    },
+    {
+      "id": "woodcutting.maple",
+      "sourceIds": [
+        "maple-logs"
+      ],
+      "assumptions": [
+        "F2P sources exist; region membership still depends on the chosen chunk. No post-Grove effective XP/hour has been verified for this tree. The hatchet is a minimum viable tool, not proof of guide-rate equipment."
+      ]
+    },
+    {
+      "id": "woodcutting.acadia",
+      "sourceIds": [
+        "acadia-logs"
+      ],
+      "assumptions": [
+        "F2P sources exist; region membership still depends on the chosen chunk. No post-Grove effective XP/hour has been verified for this tree. The hatchet is a minimum viable tool, not proof of guide-rate equipment."
+      ]
+    },
+    {
+      "id": "woodcutting.yew",
+      "sourceIds": [
+        "yew-logs"
+      ],
+      "assumptions": [
+        "F2P sources exist; region membership still depends on the chosen chunk. No post-Grove effective XP/hour has been verified for this tree. The hatchet is a minimum viable tool, not proof of guide-rate equipment."
+      ]
+    }
+  ]
+}

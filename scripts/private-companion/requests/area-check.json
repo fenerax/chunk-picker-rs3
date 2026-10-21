@@ -1,0 +1,17 @@
+{
+  "releaseId": "area-check-90bbcb1",
+  "sourceRevision": "8a6a9648b4d18bb55b64f43e09f3939470c4d3b4",
+  "changelog": {
+    "date": "2026-10-16",
+    "title": "Area check shows quests and other tasks",
+    "items": [
+      "Compare newly doable tasks in both scopes",
+      "Expand categories to see task names",
+      "Include task totals in Discord copies"
+    ]
+  },
+  "roadmap": {
+    "id": "C14",
+    "note": "Area check task coverage added; blocked 'almost' items remain omitted."
+  }
+}

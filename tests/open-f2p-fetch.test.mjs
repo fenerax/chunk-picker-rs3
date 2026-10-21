@@ -54,15 +54,16 @@ function fakeApi(events) {
       await Promise.resolve();
       const pages = revisions ? revisions.map(revision => pageFor(pins.find(pin => pin.revision === revision)))
         : titles.map(title => ({ title, missing: true }));
-      return { ok: true, json: async () => ({ query: { pages } }) };
+      return Response.json({ query: { pages } });
     } finally { active = false; }
   };
 }
 
 test('pinned refetch receipts reproduce across different revision request groupings', async t => {
   const directory = await scratch(t), first = path.join(directory, 'first'), second = path.join(directory, 'second');
-  const events = [], options = cacheDir => ({ cacheDir, fetchImpl: fakeApi(events),
-    wait: async milliseconds => { assert.equal(milliseconds, 1000); events.push('gap'); }, log: () => {} });
+  let clock = 0;
+  const events = [], options = cacheDir => ({ cacheDir, fetchImpl: fakeApi(events), now: () => clock,
+    wait: async milliseconds => { assert.equal(milliseconds, 1000); clock += milliseconds; events.push('gap'); }, log: () => {} });
   await cacheWikiPages(pins, options(first));
   assert.deepEqual(events.map(event => typeof event === 'string' ? event : event.revisions.length), [20, 'gap', 3]);
   events.length = 0;
@@ -94,8 +95,9 @@ test('canonical receipts ignore envelope formatting and metadata, and detect sou
 
 test('mixed pinned and unpinned requests use separate revision and title queries with one serial gap', async t => {
   const cacheDir = await scratch(t), events = [];
-  const result = await cacheWikiPages([pins[0], 'Missing', pins[1]], { cacheDir, fetchImpl: fakeApi(events),
-    wait: async milliseconds => { events.push(milliseconds); }, log: () => {} });
+  let clock = 0;
+  const result = await cacheWikiPages([pins[0], 'Missing', pins[1]], { cacheDir, fetchImpl: fakeApi(events), now: () => clock,
+    wait: async milliseconds => { clock += milliseconds; events.push(milliseconds); }, log: () => {} });
   assert.equal(result.fetched, 3);
   assert.deepEqual(events, [{ revisions: [100, 101], titles: undefined }, 1000,
     { revisions: undefined, titles: ['Missing'] }]);
@@ -119,12 +121,13 @@ test('historical envelopes remain compatible and cache mismatch is refused witho
 test('wrong revision/title and Wiki API errors do not produce cache receipts', async t => {
   const cacheDir = await scratch(t), pin = pins[0];
   for (const [response, message] of [
-    [{ ok: false, status: 429 }, /returned 429/],
-    [{ ok: true, json: async () => ({ error: { code: 'maxlag' } }) }, /maxlag/],
-    [{ ok: true, json: async () => ({ query: { pages: [pageFor(pins[1])] } }) }, /No API result/],
-    [{ ok: true, json: async () => ({ query: { pages: [{ ...pageFor(pin), title: 'Wrong title' }] } }) }, /Pinned title differs/]
+    [() => new Response('', { status: 429 }), /HTTP 429/],
+    [() => Response.json({ error: { code: 'maxlag' } }), /maxlag/],
+    [() => Response.json({ error: { code: 'badvalue' } }), /badvalue/],
+    [() => Response.json({ query: { pages: [pageFor(pins[1])] } }), /No API result/],
+    [() => Response.json({ query: { pages: [{ ...pageFor(pin), title: 'Wrong title' }] } }), /Pinned title differs/]
   ]) {
-    await assert.rejects(cacheWikiPages([pin], { cacheDir, fetchImpl: async () => response }), message);
+    await assert.rejects(cacheWikiPages([pin], { cacheDir, fetchImpl: async () => response(), wait: async () => {}, log: () => {} }), message);
     await assert.rejects(readCached(cacheDir, pin), { code: 'ENOENT' });
   }
 });

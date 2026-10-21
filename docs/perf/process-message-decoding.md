@@ -17,8 +17,8 @@ Native Worker message events also deliver an owned cloned graph. Their host now
 uses `encodeReceivedWorkerMessage` to replace shared buffers in that graph,
 avoiding another allocation for every ordinary container. Caller-owned request
 and worker-initialization data still use the unchanged cloning encoder. Shared
-bytes are copied into the envelope as before; source data in the worker isolate
-is untouched. Unchanged properties and Map/Set entries need no write.
+bytes enter the envelope as views and IPC serialization copies them once;
+source data in the worker isolate is untouched. Unchanged properties and Map/Set entries need no write.
 
 The synthetic transport test compares received envelopes produced by V8
 serialization against the unchanged cold decoder. It covers ordinary and shared

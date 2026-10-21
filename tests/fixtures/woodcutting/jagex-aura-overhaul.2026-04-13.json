@@ -1,0 +1,8 @@
+{
+  "sourceUrl": "https://secure.runescape.com/m=news/patch-notes-aura-overhaul",
+  "date": "2026-04-13",
+  "retrieved": "2026-10-12",
+  "title": "Patch Notes: Aura Overhaul",
+  "scope": "Verbatim Lumberjack section from official HTML; remaining page omitted",
+  "source": "<h3 style=\"font-size: 1.5em; color: #e1bb34;\"><strong>Lumberjack</strong></h3>\n<center><a href=\"https://cdn.runescape.com/assets/img/external/news/2026/04/lumberjack.jpg\"><img style=\"border: 3px solid #e1bb34; border-radius: 10px; padding: 2px; width: 80%;\" src=\"https://cdn.runescape.com/assets/img/external/news/2026/04/lumberjack.jpg\"></a></center>\n<p>Lumberjack's aura's effects of increasing chopping chances has been folded directly into your hatchets! Different hatchet tiers will improve your chance of chopping wood:</p>\n<ul><li>Mithril to Rune: +5% </li>\n<li>Orikalkum to Bane: +10%</li>\n<li>Imcando & higher: +15%</li></ul>\n<p>This is further improved by your Woodcutting skill level, meaning that \"over-leveling\" trees will feel more powerful! An example of this would be chopping a yew tree with a Necronium hatchet (both level 70). At level 70, you are now 5% more likely to chop wood, increasing to 6% at level 110. </p>\n"
+}

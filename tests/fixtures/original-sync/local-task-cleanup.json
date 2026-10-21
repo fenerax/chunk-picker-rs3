@@ -1,0 +1,12 @@
+{
+  "description": "Synthetic reproduction of 172 challenge ticks credited to Player 2 and removed from Player 1, followed by one manual untick and one backlog choice.",
+  "transferredTaskCount": 172,
+  "transferredCategory": "Cooking",
+  "originalCheckFields": ["checkedAllTasks", "checkedChallenges", "completedChallenges"],
+  "cleanupReason": "These ticks belong to Player 2",
+  "extraTasks": [
+    { "id": "rs3:task:fff10001", "label": "Catch shrimp", "category": "Fishing", "initiallyChecked": true, "localStatus": { "challengeCompleted": false } },
+    { "id": "rs3:task:fff10002", "label": "Cook shrimp", "category": "Cooking", "initiallyChecked": false, "localStatus": { "backlogged": true, "backlogReason": "Save food for later" } },
+    { "id": "rs3:task:fff10003", "label": "Mine copper", "category": "Mining", "initiallyChecked": false }
+  ]
+}

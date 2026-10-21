@@ -1,0 +1,150 @@
+{
+  "schemaVersion": 1,
+  "kind": "items",
+  "version": "2026-10-12.v1",
+  "assetDirectory": "icons-items.2026-10-12.v1",
+  "source": {
+    "kind": "retained-equipment-inventory",
+    "upstreamCommit": "98a3bdc",
+    "bindingFile": "index.js",
+    "bindingSha256": "8e4d21bbfad09de8fffe263f131e3f5bdb63fca65da27c27f9e3d670623af894",
+    "selectionPolicy": "Reviewed exact equipment key and retained PNG basename. No tier stripping, similarly named robe substitution, or ambiguous Ghost hunter variant."
+  },
+  "icons": {
+    "First tower hat": {
+      "file": "item-60df49f6396b158ef0557a8c.png",
+      "width": 19,
+      "height": 29,
+      "bytes": 752,
+      "sha256": "60df49f6396b158ef0557a8cf7a5eef9b54df86f3eabb61ffbf219a029ddeb54",
+      "aliases": [],
+      "source": {
+        "kind": "retained-equipment-inventory",
+        "sourcePath": "resources/equipment_icons/First_tower_hat.png",
+        "equipmentName": "First tower hat",
+        "referenceRecordSha256": "5407b790faee4a5189af392e46f66e5722d9b23d6276ccf75de7a6232fbd0a63",
+        "binding": "Retained upstream checkEquipmentIcons and BiS rows bind the exact equipment key, replacing spaces with underscores only.",
+        "upstreamCommit": "98a3bdc",
+        "licenceNote": "Retained Jagex game artwork; no new Wiki file or cache identity is asserted."
+      }
+    },
+    "Monk's robe (bottom)": {
+      "file": "item-0f998aad23216d7256173209.png",
+      "width": 18,
+      "height": 31,
+      "bytes": 457,
+      "sha256": "0f998aad23216d72561732091655c29796fd8761a5898070ec8912c11d08e1d0",
+      "aliases": [
+        "Monk’s robe (bottom)",
+        "Monk‘s robe (bottom)"
+      ],
+      "source": {
+        "kind": "retained-equipment-inventory",
+        "sourcePath": "resources/equipment_icons/Monk's_robe_(bottom).png",
+        "equipmentName": "Monk's robe (bottom)",
+        "referenceRecordSha256": "95004e6d790f10021cd038bf8b5f32029b60d90f1a5312f029a7d3f8d0607f88",
+        "binding": "Retained upstream checkEquipmentIcons and BiS rows bind the exact equipment key, replacing spaces with underscores only.",
+        "upstreamCommit": "98a3bdc",
+        "licenceNote": "Retained Jagex game artwork; no new Wiki file or cache identity is asserted."
+      }
+    },
+    "Monk's robe (top)": {
+      "file": "item-8be739885485e96d867340ef.png",
+      "width": 30,
+      "height": 25,
+      "bytes": 724,
+      "sha256": "8be739885485e96d867340ef6fb45c148c3c4166912eb87f1567dd41592dc14e",
+      "aliases": [
+        "Monk’s robe (top)",
+        "Monk‘s robe (top)"
+      ],
+      "source": {
+        "kind": "retained-equipment-inventory",
+        "sourcePath": "resources/equipment_icons/Monk's_robe_(top).png",
+        "equipmentName": "Monk's robe (top)",
+        "referenceRecordSha256": "61142517edd4354e2502e633084379d82569ac7ef5ee1325ba5cef2db6f61616",
+        "binding": "Retained upstream checkEquipmentIcons and BiS rows bind the exact equipment key, replacing spaces with underscores only.",
+        "upstreamCommit": "98a3bdc",
+        "licenceNote": "Retained Jagex game artwork; no new Wiki file or cache identity is asserted."
+      }
+    },
+    "Priest gown (bottom)": {
+      "file": "item-5ae49ccb49f2ccbb1cca51c4.png",
+      "width": 20,
+      "height": 29,
+      "bytes": 130,
+      "sha256": "5ae49ccb49f2ccbb1cca51c4eb2fe0a9eb6bbc14905b91cab566b3abb64f1541",
+      "aliases": [],
+      "source": {
+        "kind": "retained-equipment-inventory",
+        "sourcePath": "resources/equipment_icons/Priest_gown_(bottom).png",
+        "equipmentName": "Priest gown (bottom)",
+        "referenceRecordSha256": "bc102f430ce9098b492109791d88c07afd010c5749bee9dba7893509991396dd",
+        "binding": "Retained upstream checkEquipmentIcons and BiS rows bind the exact equipment key, replacing spaces with underscores only.",
+        "upstreamCommit": "98a3bdc",
+        "licenceNote": "Retained Jagex game artwork; no new Wiki file or cache identity is asserted."
+      }
+    },
+    "Priest gown (top)": {
+      "file": "item-7d5cb4dbbd09205ba8fdda9b.png",
+      "width": 30,
+      "height": 24,
+      "bytes": 150,
+      "sha256": "7d5cb4dbbd09205ba8fdda9bc48bdb592fdb2f6576b9c91fba9d771103cdc9ea",
+      "aliases": [],
+      "source": {
+        "kind": "retained-equipment-inventory",
+        "sourcePath": "resources/equipment_icons/Priest_gown_(top).png",
+        "equipmentName": "Priest gown (top)",
+        "referenceRecordSha256": "5675af7f4fff5f6eefc13f123e558f2d9e8e3ce70d99511a7c55141043ba4970",
+        "binding": "Retained upstream checkEquipmentIcons and BiS rows bind the exact equipment key, replacing spaces with underscores only.",
+        "upstreamCommit": "98a3bdc",
+        "licenceNote": "Retained Jagex game artwork; no new Wiki file or cache identity is asserted."
+      }
+    },
+    "Zamorak robe (top)": {
+      "file": "item-a14fee46c21833172b19ced8.png",
+      "width": 31,
+      "height": 24,
+      "bytes": 665,
+      "sha256": "a14fee46c21833172b19ced8a0ef018e4e762176e66b1a1d7effedd02dbbb7cf",
+      "aliases": [],
+      "source": {
+        "kind": "retained-equipment-inventory",
+        "sourcePath": "resources/equipment_icons/Zamorak_robe_(top).png",
+        "equipmentName": "Zamorak robe (top)",
+        "referenceRecordSha256": "9c743d1e07f293b25ec48756359b62f8b5019a9387157da91e16a6583f3dd024",
+        "binding": "Retained upstream checkEquipmentIcons and BiS rows bind the exact equipment key, replacing spaces with underscores only.",
+        "upstreamCommit": "98a3bdc",
+        "licenceNote": "Retained Jagex game artwork; no new Wiki file or cache identity is asserted."
+      }
+    }
+  },
+  "coverage": {
+    "mappedNames": 6,
+    "uniquePngFiles": 6,
+    "totalBytes": 2878
+  },
+  "unmatched": [
+    {
+      "name": "Zamorak robe (bottom)",
+      "reason": "No exact retained PNG; Zamorak robe legs has a different recorded item ID."
+    },
+    {
+      "name": "Ghost hunter backpack",
+      "reason": "Variant inventory images differ; the bare name does not establish the artwork tier."
+    },
+    {
+      "name": "Ghost hunter body",
+      "reason": "Variant inventory images differ; the bare name does not establish the artwork tier."
+    },
+    {
+      "name": "Ghost hunter goggles",
+      "reason": "Variant inventory images differ; the bare name does not establish the artwork tier."
+    },
+    {
+      "name": "Ghost hunter legs",
+      "reason": "Variant inventory images differ; the bare name does not establish the artwork tier."
+    }
+  ]
+}

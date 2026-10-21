@@ -496,7 +496,11 @@ export function migrateOwnedGameplay(state, { definitions, taskMap, catalogue, d
   const next = state;
   next.tasks ??= [];
   next.members ??= [];
-  const historicalMap = { ...taskMapHistory?.tombstones, ...taskMapHistory?.mappings, ...taskMap };
+  // Without tombstones or task-map rows the merge equals the history's own
+  // mappings, which are only read: skip copying every historical label.
+  const contributes = value => value !== null && value !== undefined && Object.keys(value).length > 0;
+  const historicalMap = !contributes(taskMapHistory?.tombstones) && !contributes(taskMap) && record(taskMapHistory?.mappings)
+    ? taskMapHistory.mappings : { ...taskMapHistory?.tombstones, ...taskMapHistory?.mappings, ...taskMap };
   let reverse;
   const getReverse = () => {
     if (reverse) return reverse;
@@ -682,19 +686,22 @@ function referencedIdentityCatalogue(state, catalogue, taskMap, history, project
   // References can pass through another old code established by an earlier
   // decoder source. Collect the reachable labels regardless of source order;
   // buildIdentityIndex still applies the decoder mappings in their original order.
-  const labelsByOldId = new Map();
-  const addMappingLabel = (label, id) => {
-    if (typeof label !== 'string' || typeof id !== 'string' || !id.startsWith('t_')) return;
-    const labels = labelsByOldId.get(id) ?? [];
-    labels.push(normalized(label)); labelsByOldId.set(id, labels);
-  };
-  for (const mappings of [taskMap, history?.current, history?.historical, history?.mappings, history?.tombstones]) {
-    for (const [label, id] of Object.entries(mappings ?? {})) addMappingLabel(label, id);
-  }
-  for (const conflict of history?.conflicts ?? []) for (const id of conflict.ids ?? []) addMappingLabel(conflict.label, id);
-  const references = [...wanted];
-  for (let position = 0; position < references.length; position++) for (const label of labelsByOldId.get(references[position]) ?? []) {
-    if (!wanted.has(label)) { wanted.add(label); references.push(label); }
+  // Scan the decoder sources for reachable old codes only: indexing every label
+  // of the complete history allocates far more than the few codes a save names.
+  let pending = new Set([...wanted].filter(id => typeof id === 'string' && id.startsWith('t_')));
+  while (pending.size) {
+    const reached = new Set();
+    const addMappingLabel = (label, id) => {
+      if (typeof label !== 'string' || typeof id !== 'string' || !pending.has(id)) return;
+      label = normalized(label);
+      if (!wanted.has(label)) { wanted.add(label); if (label.startsWith('t_')) reached.add(label); }
+    };
+    for (const mappings of [taskMap, history?.current, history?.historical, history?.mappings, history?.tombstones]) {
+      const rows = mappings ?? {};
+      for (const label of Object.keys(rows)) addMappingLabel(label, rows[label]);
+    }
+    for (const conflict of history?.conflicts ?? []) for (const id of conflict.ids ?? []) addMappingLabel(conflict.label, id);
+    pending = reached;
   }
   // A historical generated display ID may have obsolete rate/quantity text.
   // Its semantic subjects still need the current row's complete metadata.

@@ -1,0 +1,11 @@
+{
+  "sourceUrl": "https://runescape.wiki/w/Raw%20red-eye?oldid=36636832",
+  "oldid": 36636832,
+  "retrieved": "2026-10-12",
+  "timestamp": "2025-01-18T03:19:44Z",
+  "title": "Raw red-eye",
+  "scope": "Complete source snapshot from MediaWiki revisions API",
+  "licence": "RuneScape Wiki contributors, CC BY-NC-SA 3.0; source exceptions apply.",
+  "source": "{{RCFood}}\n{{Infobox Item\n|name = Raw red-eye\n|image = [[File:Raw red-eye.png]]\n|release = [[12 April]] [[2010]]\n|update = Dungeoneering Skill!\n|members = No\n|quest = No\n|tradeable = Yes\n|equipable = No\n|stackable = Yes\n|disassembly = Restricted\n|options = Drop-X\n|value = 500\n|destroy = Drop\n|kept = reclaimable\n|exchange = No\n|examine = I should try cooking this. (Tier 2)\n|weight = 0\n|id = 17799\n}}\n[[File:Raw red-eye detail.png|100px|left]]\nA '''raw red-eye''' is a tier 2 fish found while in [[Daemonheim]]. It can be fished from certain [[fishing spots]] using [[feather]]s as bait and can be cooked into a [[red-eye]] to heal up to 200 [[life points]].\n\n==Fishing==\n{{Fishing info\n|name = Raw red-eye\n|level = 10\n|xp = 27\n|spot = [[Red-eye (fishing spot)|Red-eye]]\n|tool = {{plink|Fly fishing rod (Dungeoneering)}}\n|bait = {{plink|Feather (Dungeoneering)}}\n}}\n\n==Products==\n{{Uses material list|Raw red-eye}}\n\n==Item sources==\n{{Drop sources}}\n\n===Shop locations===\n{{Shop locations list|Raw red-eye}}\n\n==Update history==\n{{UH|\n* {{UL|type=update|update=Dungeoneering Skill!|date=12 April 2010}}\n** Added to game.\n}}\n\n{{Dungeoneering fish}}",
+  "sourceSha256": "d96b6d00b2b6275ea946efd913e113985e3f4db17a215ac93873b753ade43df0"
+}

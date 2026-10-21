@@ -1,0 +1,11 @@
+{
+  "sourceUrl": "https://runescape.wiki/w/Raw%20web%20snipper?oldid=36636857",
+  "oldid": 36636857,
+  "retrieved": "2026-10-12",
+  "timestamp": "2025-01-18T03:20:03Z",
+  "title": "Raw web snipper",
+  "scope": "Complete source snapshot from MediaWiki revisions API",
+  "licence": "RuneScape Wiki contributors, CC BY-NC-SA 3.0; source exceptions apply.",
+  "source": "{{RCFood}}\n{{Infobox Item\n|name = Raw web snipper\n|image = [[File:Raw web snipper.png]]\n|release = [[12 April]] [[2010]]\n|update = Dungeoneering Skill!\n|members = No\n|quest = No\n|tradeable = Yes\n|equipable = No\n|stackable = Yes\n|disassembly = Restricted\n|options = Drop-X\n|value = 1500\n|destroy = Drop\n|kept = reclaimable\n|exchange = No\n|examine = I should try cooking this. (Tier 6)\n|weight = 0\n|id = 17807\n}}\n[[File:Raw web snipper detail.png|100px|left]]\n'''Raw web snippers''' are Dungeoneering fish that can be obtained by fishing them, buying them from the [[Smuggler]], or after being dropped from the various monsters found in [[Daemonheim]]. Level 50 [[Fishing]] is required to catch these fish in the various fish pools provided, granting 99 Fishing experience when caught. Level 50 [[Cooking]] is required to cook the fish, granting 124 Cooking experience; once cooked, they may be eaten to restore up to 1250 life points.\n\nSelling a raw web snipper to the smuggler will net you 450 coins. On the other hand, after it's been cooked, it will be worth 540 coins, so cooking these may net you more money over the raw web snippers, provided they aren't burned.\n\n==Fishing==\n{{Fishing info\n|name = Raw web snipper\n|level = 50\n|xp = 99\n|spot = [[Web snippers (fishing spot)|Web snippers]]\n|tool = {{plink|Fly fishing rod (Dungeoneering)|txt=Fly fishing rod}}\n|bait = {{plink|Feather (Dungeoneering)|txt=Feather}}\n}}\n\n==Products==\n{{Uses material list}}\n\n==Item sources==\n{{Drop sources}}\n\n===Shop locations===\n{{Shop locations list}}\n\n==Update history==\n{{UH|\n* {{UL|type=patch|update=Patch Notes (15 January 2018)|date=15 January 2018}}\n** Raw web snippers are once again tradeable and can be sold to the Daemonheim smuggler.\n\n* {{UL|type=update|update=Dungeoneering Skill!|date=12 April 2010}}\n** Added to game.\n}}\n\n{{Dungeoneering fish}}",
+  "sourceSha256": "ce7a3f3e77e061ef50c8e62784a96f4aaf15fa91a181210cce5a0e9118987bfa"
+}

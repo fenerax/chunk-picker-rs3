@@ -6,7 +6,9 @@ import { miningSettingDefinitions } from '../core/mining-settings.mjs';
 import { woodcuttingSettingDefinitions } from '../core/woodcutting-settings.mjs';
 import { gatheringSettingDefinitions, calculatorBankingSettingDefinitions as bankingSettingDefinitions } from '../core/gathering-settings.mjs';
 import { groupGoalCommandTypes } from '../core/group-goal-types.mjs';
-const settingNames = new Map([...settingDefinitions, ...authoredSettingDefinitions, ...deathSettingDefinitions, ...miningSettingDefinitions, ...woodcuttingSettingDefinitions, ...bankingSettingDefinitions, ...gatheringSettingDefinitions].map(row => [row.id, row.label]));
+import { topBarSettingDefinitions } from '../core/top-bar-settings.mjs';
+import { setupGuideSettingDefinitions } from '../core/setup-guide.mjs';
+const settingNames = new Map([...settingDefinitions, ...authoredSettingDefinitions, ...deathSettingDefinitions, ...miningSettingDefinitions, ...woodcuttingSettingDefinitions, ...bankingSettingDefinitions, ...gatheringSettingDefinitions, ...topBarSettingDefinitions, ...setupGuideSettingDefinitions].map(row => [row.id, row.label]));
 const ruleNames = new Map(taskRuleDefinitions.map(row => [row.id, row.label]));
 export const historyChangeTypes = Object.freeze([
   { id: 'map', label: 'Map' }, { id: 'tasks', label: 'Tasks' }, { id: 'settings', label: 'Settings and rules' },
@@ -15,8 +17,8 @@ export const historyChangeTypes = Object.freeze([
 ].map(Object.freeze));
 const changeTypes = new Map([
   ['tasks', groupGoalCommandTypes],
-  ['map', ['set-chunk', 'roll', 'unlock-selection', 'pick-for-me', 'unlock-both', 'cancel-roll', 'random-start', 'unpick', 'set-starting-chunk']],
-  ['tasks', ['claim-task', 'clear-task-claim', 'prune-task-claims', 'set-task-status', 'clear-challenge-ticks', 'clear-backlog', 'add-task', 'update-task', 'delete-task', 'set-task-alternative', 'set-source-backlog', 'add-finish-line-custom', 'set-finish-line-custom', 'delete-finish-line-custom']],
+  ['map', ['set-chunk', 'roll', 'unlock-selection', 'pick-for-me', 'unlock-both', 'cancel-roll', 'random-start', 'unpick', 'set-starting-chunk', 'setup-start']],
+  ['tasks', ['claim-task', 'clear-task-claim', 'prune-task-claims', 'set-task-status', 'clear-challenge-ticks', 'tick-active-tasks', 'clear-backlog', 'add-task', 'update-task', 'delete-task', 'set-task-alternative', 'set-source-backlog', 'add-finish-line-custom', 'set-finish-line-custom', 'delete-finish-line-custom']],
   ['settings', ['set-task-rule', 'reset-task-rule', 'set-rule', 'set-rule-review', 'set-profile', 'set-preference', 'set-primary-override', 'set-skill-levels', 'set-slayer-lock', 'set-finish-line-item']],
   ['travel', ['set-section', 'set-area', 'set-teleport', 'set-teleport-override', 'delete-teleport', 'set-transport-facts']],
   ['progress', ['complete-task', 'set-obtained-equipment', 'set-runescape-name', 'apply-runemetrics', 'set-xp-choices']],
@@ -91,6 +93,7 @@ export function describeHistoryEvent(event = {}, { memberName = id => id, chunkN
     case 'unlock-both': return `Unlocked both rolled chunks${forWho}`;
     case 'cancel-roll': return `Cancelled the roll${forWho}`;
     case 'random-start': return `Chose ${c.count === 2 ? 'two random starting chunks' : 'a random start'}${forWho}`;
+    case 'setup-start': return `Rolled starting banks${c.starts?.length ? `: ${c.starts.map(start => `${player(start.memberId)} at ${start.place || chunk(start.chunkId)}`).join(', ')}` : ''}`;
     case 'go-members': return `Restarted both maps for members${c.starts?.length ? `: ${c.starts.map(start => `${player(start.memberId)} at ${start.place || chunk(start.chunkId)}`).join('; ')}` : ''}`;
     case 'unpick': return `Forfeited ${c.unpicked ? chunk(c.unpicked) : 'an unlocked chunk'} at random${forWho}`;
     case 'set-starting-chunk': return c.chunkId === null ? `Cleared the starting chunk${forWho}` : `Set the starting chunk to ${chunk(c.chunkId)}${forWho}`;
@@ -112,6 +115,7 @@ export function describeHistoryEvent(event = {}, { memberName = id => id, chunkN
       return `${parts.join('; ') || `Changed ${task(c.taskId)}`}${forWho}`;
     }
     case 'clear-challenge-ticks': return `Unticked ${c.cleared ?? c.taskIds?.length ?? 'all checked'} tasks${c.reason ? ` (${c.reason})` : ''}${forWho}`;
+    case 'tick-active-tasks': return `Ticked ${c.ticked ?? c.taskIds?.length ?? 'all'} active tasks${c.skipped ? ` (${c.skipped} left for a choice)` : ''}${forWho}`;
     case 'clear-backlog': return `Restored ${c.taskIds ? '' : 'all '}${c.restored ?? ''} backlogged tasks`.replace('  ', ' ') + forWho;
     case 'complete-task': return `${c.completed ? 'Marked' : 'Unmarked'} ${task(c.taskId)} as done in-game${forWho}`;
     case 'set-obtained-equipment': return c.obtained ? `Recorded ${c.equipmentName || 'equipment'} as obtained${forWho}` : `Removed the hand-added obtain record for ${c.equipmentName || 'equipment'}${forWho}`;

@@ -1,0 +1,1581 @@
+{
+  "schemaVersion": 1,
+  "sourceSnapshot": "cache-audit-2026-10-07-v4",
+  "generatedAt": "2026-10-08T02:13:58.621Z",
+  "provenance": {
+    "sourceDirectory": "C:/Users/User/Projects/rs3-cache-work/outputs/cache-audit-2026-10-07-v4",
+    "cacheDirectory": "C:/Users/User/Projects/rs3-cache-work/cache-copy",
+    "toolDirectory": "C:/Users/User/Projects/rs3-cache-work/rsmv",
+    "rsmvCommit": "a92b8920b9b9842adde78822646ecad1a6f4fc15",
+    "schemaBuild": 950,
+    "walkabilitySha256": "d553ed49ce12254d197e82abe673279f3bb1ede5eb34098cf0376e68bd67fdf6",
+    "decoderSourceHashes": {
+      "constants": "1436162d7de64725f3b5902d1ae278f40e2dce5ab1f82439e62a2a832d82c66b",
+      "opcode": "5fd7b69a0be0a5d4ec71b5465afcfd5812e8dbcc05f859e021ca8c17d85ed6e4"
+    },
+    "schemaSha256": {
+      "mapsquare_tiles_nxt.jsonc": "0199a97ae17a56b5a4f05b5962fd80788e86807ceff1256d023a2e650f43be56",
+      "mapsquare_tiles.jsonc": "64deb140845bf6605456da65b2de56e7766a66f4747fc90f43e7f3fcc95afbdd",
+      "typedef.jsonc": "0d4037507c304ea3bd1e966a161dc1643115c0991e81711bf49d672545dc6858"
+    },
+    "fullAuditSha256": "f2bf31981934dc978760e78a87f88deb1b05819e3f746246b08c785a15710096",
+    "fullAuditPath": ".local/mapfix3/cache-surface-corrections.2026-10-08.v1.json"
+  },
+  "method": "Inspect all1211 decoded map28 plane0 surface regions. Select the same effective source plane as exported collision masks, including paste offsets. An exported walkable tile with allzero underlay,overlay,underlay_under,overlay_under identifiers has no visible floor definition. No size threshold, diagonal guess, name or distance is used.",
+  "limits": [
+    "Read-only copied cache; original cache and shared assets untouched.",
+    "These corrections reject floor-flag-only phantoms; nonzero identifiers alone do not fully verify colours or walking.",
+    "No water-only blanket rejection; NXTwater16 can occur on valid shores."
+  ],
+  "summary": {
+    "decodedRegions": 1211,
+    "invalidRegions": 4,
+    "phantomWalkableTiles": 37080,
+    "entirelyPhantomWalkableTiles": 6594
+  },
+  "invalidRegionIds": [
+    "16184",
+    "19248",
+    "19249",
+    "19250"
+  ],
+  "invalidRegions": [
+    {
+      "region": "16184",
+      "source": {
+        "sourceX": 52,
+        "sourceY": 28,
+        "sourcePlane": 0,
+        "destinationPlane": 0,
+        "mapId": 28,
+        "paste": {
+          "kind": "square",
+          "index": 1196,
+          "original_plane": 0,
+          "n_planes": 4,
+          "original_regionX": 52,
+          "original_regionY": 28,
+          "new_plane": 0,
+          "new_regionX": 63,
+          "new_regionY": 56
+        },
+        "archive": {
+          "major": 5,
+          "minor": 3636,
+          "version": 1773686747,
+          "sha256": "48ee5bd88b4569d787816af04aff68f51c736448ce762726a25ee116bf3961f6",
+          "subfiles": [
+            0,
+            1,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8
+          ]
+        }
+      },
+      "terrainCounts": {
+        "blocked": 64,
+        "water": 64,
+        "void": 0,
+        "unknown": 0,
+        "bridge": 0
+      },
+      "walkableTiles": 4032,
+      "phantomWalkableTiles": 4032,
+      "nonzeroDefinitionWalkableTiles": 0,
+      "effectivePlaneRawFloorTiles": 4096,
+      "effectivePlanePhantomFloorTiles": 4032,
+      "walkableRawHistogram": {
+        "[1,0,0,0,0]": 4032
+      },
+      "components": [
+        {
+          "label": 1,
+          "tiles": 4032,
+          "phantomFloorTiles": 4032,
+          "nonzeroDefinitionTiles": 0
+        }
+      ],
+      "reason": "Every exported walkable tile has a floor flag but zero underlay, overlay and underwater floor definition identifiers.",
+      "disposition": "Exclude the false walkable floor record; retain genuine nonwalkable water/terrain presentation separately."
+    },
+    {
+      "region": "19248",
+      "source": {
+        "sourceX": 64,
+        "sourceY": 20,
+        "sourcePlane": 0,
+        "destinationPlane": 0,
+        "mapId": 28,
+        "paste": {
+          "kind": "square",
+          "index": 550,
+          "original_plane": 0,
+          "n_planes": 4,
+          "original_regionX": 64,
+          "original_regionY": 20,
+          "new_plane": 0,
+          "new_regionX": 75,
+          "new_regionY": 48
+        },
+        "archive": {
+          "major": 5,
+          "minor": 2624,
+          "version": 1790071955,
+          "sha256": "2581aafa0b9d9e2e66c1181440268e55a07dd3feea731ce6065ef809ef98a37c",
+          "subfiles": [
+            0,
+            3,
+            5,
+            6,
+            7,
+            8
+          ]
+        }
+      },
+      "terrainCounts": {
+        "blocked": 0,
+        "water": 0,
+        "void": 3242,
+        "unknown": 0,
+        "bridge": 0
+      },
+      "walkableTiles": 854,
+      "phantomWalkableTiles": 854,
+      "nonzeroDefinitionWalkableTiles": 0,
+      "effectivePlaneRawFloorTiles": 854,
+      "effectivePlanePhantomFloorTiles": 854,
+      "walkableRawHistogram": {
+        "[1,0,0,0,0]": 854
+      },
+      "components": [
+        {
+          "label": 1,
+          "tiles": 854,
+          "phantomFloorTiles": 854,
+          "nonzeroDefinitionTiles": 0
+        }
+      ],
+      "reason": "Every exported walkable tile has a floor flag but zero underlay, overlay and underwater floor definition identifiers.",
+      "disposition": "Exclude the false walkable floor record; retain genuine nonwalkable water/terrain presentation separately."
+    },
+    {
+      "region": "19249",
+      "source": {
+        "sourceX": 64,
+        "sourceY": 21,
+        "sourcePlane": 0,
+        "destinationPlane": 0,
+        "mapId": 28,
+        "paste": {
+          "kind": "square",
+          "index": 551,
+          "original_plane": 0,
+          "n_planes": 4,
+          "original_regionX": 64,
+          "original_regionY": 21,
+          "new_plane": 0,
+          "new_regionX": 75,
+          "new_regionY": 49
+        },
+        "archive": {
+          "major": 5,
+          "minor": 2752,
+          "version": 1790071955,
+          "sha256": "5b742b4f629ad565a16d2156a58cec5900f0e51e949df51143789ab7774f7f81",
+          "subfiles": [
+            0,
+            3,
+            5,
+            6,
+            7,
+            8
+          ]
+        }
+      },
+      "terrainCounts": {
+        "blocked": 0,
+        "water": 0,
+        "void": 3242,
+        "unknown": 0,
+        "bridge": 0
+      },
+      "walkableTiles": 854,
+      "phantomWalkableTiles": 854,
+      "nonzeroDefinitionWalkableTiles": 0,
+      "effectivePlaneRawFloorTiles": 854,
+      "effectivePlanePhantomFloorTiles": 854,
+      "walkableRawHistogram": {
+        "[1,0,0,0,0]": 854
+      },
+      "components": [
+        {
+          "label": 1,
+          "tiles": 854,
+          "phantomFloorTiles": 854,
+          "nonzeroDefinitionTiles": 0
+        }
+      ],
+      "reason": "Every exported walkable tile has a floor flag but zero underlay, overlay and underwater floor definition identifiers.",
+      "disposition": "Exclude the false walkable floor record; retain genuine nonwalkable water/terrain presentation separately."
+    },
+    {
+      "region": "19250",
+      "source": {
+        "sourceX": 64,
+        "sourceY": 22,
+        "sourcePlane": 0,
+        "destinationPlane": 0,
+        "mapId": 28,
+        "paste": {
+          "kind": "square",
+          "index": 552,
+          "original_plane": 0,
+          "n_planes": 4,
+          "original_regionX": 64,
+          "original_regionY": 22,
+          "new_plane": 0,
+          "new_regionX": 75,
+          "new_regionY": 50
+        },
+        "archive": {
+          "major": 5,
+          "minor": 2880,
+          "version": 1790071955,
+          "sha256": "b77b41b8f95e1ad8be771453ad334f6e3dbf7b57413dfa1ac76b3f6145d9fa3b",
+          "subfiles": [
+            0,
+            3,
+            5,
+            6,
+            7,
+            8
+          ]
+        }
+      },
+      "terrainCounts": {
+        "blocked": 0,
+        "water": 0,
+        "void": 3242,
+        "unknown": 0,
+        "bridge": 0
+      },
+      "walkableTiles": 854,
+      "phantomWalkableTiles": 854,
+      "nonzeroDefinitionWalkableTiles": 0,
+      "effectivePlaneRawFloorTiles": 854,
+      "effectivePlanePhantomFloorTiles": 854,
+      "walkableRawHistogram": {
+        "[1,0,0,0,0]": 854
+      },
+      "components": [
+        {
+          "label": 1,
+          "tiles": 854,
+          "phantomFloorTiles": 854,
+          "nonzeroDefinitionTiles": 0
+        }
+      ],
+      "reason": "Every exported walkable tile has a floor flag but zero underlay, overlay and underwater floor definition identifiers.",
+      "disposition": "Exclude the false walkable floor record; retain genuine nonwalkable water/terrain presentation separately."
+    }
+  ],
+  "nonWalkingComponentIds": [
+    "16433:1",
+    "16689:1"
+  ],
+  "nonWalkingComponents": [
+    {
+      "component": "16433:1",
+      "region": "16433",
+      "label": 1,
+      "reason": "targeted-disconnected-ocean-only-component-pair",
+      "walkableTiles": 4096,
+      "waterTiles": 4096,
+      "bounds": [
+        4096,
+        3136,
+        4159,
+        3199
+      ],
+      "membership": {
+        "counts": {
+          "free": 0,
+          "members": 4096,
+          "unknown": 0
+        },
+        "rawMaskHex": "0000000000000000",
+        "source": {
+          "sourceX": 53,
+          "sourceY": 21,
+          "sourcePlane": 0,
+          "destinationPlane": 0,
+          "mapId": 28,
+          "paste": {
+            "kind": "square",
+            "index": 18,
+            "original_plane": 0,
+            "n_planes": 4,
+            "original_regionX": 53,
+            "original_regionY": 21,
+            "new_plane": 0,
+            "new_regionX": 64,
+            "new_regionY": 49
+          },
+          "archive": {
+            "major": 5,
+            "minor": 2741,
+            "version": 1773672960,
+            "sha256": "c456d330140f2cc4ad2735c4e39278acea11998916e52f899a5f7b2e9712c746",
+            "subfiles": [
+              0,
+              1,
+              3,
+              4,
+              5,
+              6,
+              7,
+              8
+            ]
+          }
+        },
+        "sourceArchiveSha256": "c456d330140f2cc4ad2735c4e39278acea11998916e52f899a5f7b2e9712c746",
+        "membershipFileSha256": "972366f985be500c96c432246e18b79d6d9b56568ea74c7889c2189ab8d65173"
+      },
+      "source": {
+        "sourceX": 53,
+        "sourceY": 21,
+        "sourcePlane": 0,
+        "destinationPlane": 0,
+        "mapId": 28,
+        "paste": {
+          "kind": "square",
+          "index": 18,
+          "original_plane": 0,
+          "n_planes": 4,
+          "original_regionX": 53,
+          "original_regionY": 21,
+          "new_plane": 0,
+          "new_regionX": 64,
+          "new_regionY": 49
+        },
+        "archive": {
+          "major": 5,
+          "minor": 2741,
+          "version": 1773672960,
+          "sha256": "c456d330140f2cc4ad2735c4e39278acea11998916e52f899a5f7b2e9712c746",
+          "subfiles": [
+            0,
+            1,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8
+          ]
+        }
+      },
+      "verifiedSourceArchiveSha256": "c456d330140f2cc4ad2735c4e39278acea11998916e52f899a5f7b2e9712c746",
+      "rawFlagsAndFloorHistogram": {
+        "[17,624,0,0,112]": 4096
+      },
+      "rawHistogramConvention": "[flags,underlay,overlay,underlay_under,overlay_under]",
+      "rawPortalSamples": [
+        {
+          "display": {
+            "x": 4159,
+            "y": 3136,
+            "plane": 0
+          },
+          "source": {
+            "x": 3455,
+            "y": 1344,
+            "plane": 0
+          },
+          "raw": {
+            "flags": 17,
+            "height": 70,
+            "rest": {
+              "waterheight": 2,
+              "underlay": 624,
+              "underlaycolor": 31033,
+              "overlay": 0,
+              "overlay_under": 112,
+              "shape": null,
+              "underlay_under": null
+            }
+          }
+        }
+      ],
+      "incidentEdges": [
+        {
+          "from": "16433:1",
+          "to": "16689:1",
+          "direction": "E",
+          "portals": [
+            {
+              "x": 4159,
+              "z": 3136,
+              "toX": 4160,
+              "toZ": 3136
+            }
+          ]
+        }
+      ],
+      "typedRoutes": []
+    },
+    {
+      "component": "16689:1",
+      "region": "16689",
+      "label": 1,
+      "reason": "targeted-disconnected-ocean-only-component-pair",
+      "walkableTiles": 1,
+      "waterTiles": 1,
+      "bounds": [
+        4160,
+        3136,
+        4160,
+        3136
+      ],
+      "membership": {
+        "counts": {
+          "free": 1,
+          "members": 0,
+          "unknown": 0
+        },
+        "rawMaskHex": "ffffffffffffffff",
+        "source": {
+          "sourceX": 54,
+          "sourceY": 21,
+          "sourcePlane": 0,
+          "destinationPlane": 0,
+          "mapId": 28,
+          "paste": {
+            "kind": "square",
+            "index": 73,
+            "original_plane": 0,
+            "n_planes": 4,
+            "original_regionX": 54,
+            "original_regionY": 21,
+            "new_plane": 0,
+            "new_regionX": 65,
+            "new_regionY": 49
+          },
+          "archive": {
+            "major": 5,
+            "minor": 2742,
+            "version": 1790010474,
+            "sha256": "768398b7a1186df6262f31fc9c2186472f3d25103302bdba43b58f42cbd2677e",
+            "subfiles": [
+              0,
+              1,
+              3,
+              4,
+              5,
+              6,
+              7,
+              8
+            ]
+          }
+        },
+        "sourceArchiveSha256": "768398b7a1186df6262f31fc9c2186472f3d25103302bdba43b58f42cbd2677e",
+        "membershipFileSha256": "972366f985be500c96c432246e18b79d6d9b56568ea74c7889c2189ab8d65173"
+      },
+      "source": {
+        "sourceX": 54,
+        "sourceY": 21,
+        "sourcePlane": 0,
+        "destinationPlane": 0,
+        "mapId": 28,
+        "paste": {
+          "kind": "square",
+          "index": 73,
+          "original_plane": 0,
+          "n_planes": 4,
+          "original_regionX": 54,
+          "original_regionY": 21,
+          "new_plane": 0,
+          "new_regionX": 65,
+          "new_regionY": 49
+        },
+        "archive": {
+          "major": 5,
+          "minor": 2742,
+          "version": 1790010474,
+          "sha256": "768398b7a1186df6262f31fc9c2186472f3d25103302bdba43b58f42cbd2677e",
+          "subfiles": [
+            0,
+            1,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8
+          ]
+        }
+      },
+      "verifiedSourceArchiveSha256": "768398b7a1186df6262f31fc9c2186472f3d25103302bdba43b58f42cbd2677e",
+      "rawFlagsAndFloorHistogram": {
+        "[17,511,0,0,112]": 1
+      },
+      "rawHistogramConvention": "[flags,underlay,overlay,underlay_under,overlay_under]",
+      "rawPortalSamples": [
+        {
+          "display": {
+            "x": 4160,
+            "y": 3136,
+            "plane": 0
+          },
+          "source": {
+            "x": 3456,
+            "y": 1344,
+            "plane": 0
+          },
+          "raw": {
+            "flags": 17,
+            "height": 62,
+            "rest": {
+              "waterheight": 2,
+              "underlay": 511,
+              "underlaycolor": 30009,
+              "overlay": 0,
+              "overlay_under": 112,
+              "shape": null,
+              "underlay_under": null
+            }
+          }
+        }
+      ],
+      "incidentEdges": [
+        {
+          "from": "16433:1",
+          "to": "16689:1",
+          "direction": "E",
+          "portals": [
+            {
+              "x": 4159,
+              "z": 3136,
+              "toX": 4160,
+              "toZ": 3136
+            }
+          ]
+        }
+      ],
+      "typedRoutes": []
+    }
+  ],
+  "nonWalkingEvidence": {
+    "policy": "Targeted rejection of exactly this disconnected water-only pair; no blanket rejection of shallow/shore tiles, no area threshold.",
+    "graph": {
+      "components": [
+        "16433:1",
+        "16689:1"
+      ],
+      "incidentEdges": [
+        {
+          "from": "16433:1",
+          "to": "16689:1",
+          "direction": "E",
+          "portals": [
+            {
+              "x": 4159,
+              "z": 3136,
+              "toX": 4160,
+              "toZ": 3136
+            }
+          ]
+        }
+      ],
+      "externalEdges": [],
+      "typedRoutes": []
+    },
+    "remainingMembership": {
+      "16433": {
+        "tiles": 0,
+        "free": 0,
+        "members": 0,
+        "unknown": 0,
+        "walkable": false,
+        "f2p": false
+      },
+      "16689": {
+        "tiles": 1409,
+        "free": 1409,
+        "members": 0,
+        "unknown": 0,
+        "remainingComponents": 12,
+        "walkable": true,
+        "f2p": true
+      }
+    },
+    "limits": "Static cache graph proves the pair is disconnected from mainland; the targeted ocean classification uses the all-water floor references. No live gameplay observation."
+  },
+  "displayOnlyRegions": [
+    {
+      "region": "18488",
+      "displaySquare": [
+        72,
+        56
+      ],
+      "status": "decoded",
+      "source": {
+        "sourceX": 61,
+        "sourceY": 28,
+        "sourcePlane": 0,
+        "destinationPlane": 0,
+        "mapId": 28,
+        "paste": {
+          "kind": "square",
+          "index": 438,
+          "original_plane": 0,
+          "n_planes": 4,
+          "original_regionX": 61,
+          "original_regionY": 28,
+          "new_plane": 0,
+          "new_regionX": 72,
+          "new_regionY": 56
+        },
+        "archive": {
+          "major": 5,
+          "minor": 3645,
+          "version": 1790010475,
+          "sha256": "18d918c18d315328053483602f18dd18e13af5d3a2ded0f5de1d94a07f4dd0ce",
+          "subfiles": [
+            0,
+            3,
+            5,
+            6,
+            7,
+            8
+          ]
+        }
+      },
+      "terrainCounts": {
+        "blocked": 4096,
+        "water": 0,
+        "void": 0,
+        "unknown": 0,
+        "bridge": 0
+      },
+      "reasonHistogram": {
+        "2": 4096
+      },
+      "walkableTiles": 0,
+      "membership": {
+        "rawMaskHex": "0000000000000000",
+        "counts": {
+          "free": 0,
+          "members": 0,
+          "unknown": 0
+        },
+        "classification": "unknown",
+        "components": []
+      },
+      "components": [],
+      "edges": [],
+      "retainedName": null,
+      "displayName": null,
+      "synthesized": true,
+      "inSurface": false,
+      "walkable": false,
+      "f2p": false,
+      "retainedTypedEntries": [],
+      "labels": []
+    },
+    {
+      "region": "18999",
+      "displaySquare": [
+        74,
+        55
+      ],
+      "status": "decoded",
+      "source": {
+        "sourceX": 63,
+        "sourceY": 27,
+        "sourcePlane": 0,
+        "destinationPlane": 0,
+        "mapId": 28,
+        "paste": {
+          "kind": "square",
+          "index": 523,
+          "original_plane": 0,
+          "n_planes": 4,
+          "original_regionX": 63,
+          "original_regionY": 27,
+          "new_plane": 0,
+          "new_regionX": 74,
+          "new_regionY": 55
+        },
+        "archive": {
+          "major": 5,
+          "minor": 3519,
+          "version": 1790010475,
+          "sha256": "f6d9168f7367b35cd44e758f1b56f7c8515e4d38ea6b7f9249c06dec162a50de",
+          "subfiles": [
+            0,
+            3,
+            5,
+            6,
+            7,
+            8
+          ]
+        }
+      },
+      "terrainCounts": {
+        "blocked": 4096,
+        "water": 0,
+        "void": 0,
+        "unknown": 0,
+        "bridge": 0
+      },
+      "reasonHistogram": {
+        "2": 4096
+      },
+      "walkableTiles": 0,
+      "membership": {
+        "rawMaskHex": "0000000000000000",
+        "counts": {
+          "free": 0,
+          "members": 0,
+          "unknown": 0
+        },
+        "classification": "unknown",
+        "components": []
+      },
+      "components": [],
+      "edges": [],
+      "retainedName": null,
+      "displayName": null,
+      "synthesized": true,
+      "inSurface": false,
+      "walkable": false,
+      "f2p": false,
+      "retainedTypedEntries": [],
+      "labels": []
+    }
+  ],
+  "regionLabels": [
+    {
+      "region": "8750",
+      "name": "Soul Wars",
+      "rawText": "Soul Wars",
+      "display": {
+        "x": 2207,
+        "y": 2955,
+        "plane": 0
+      },
+      "elementId": 288,
+      "resolvedElementId": 288,
+      "source": {
+        "kind": "explicit",
+        "identity": [
+          288,
+          30919883,
+          0
+        ],
+        "x": 1887,
+        "y": 3275,
+        "plane": 0,
+        "cache": {
+          "major": 42,
+          "minor": 28,
+          "index": 934
+        },
+        "conditional": false
+      },
+      "transform": {
+        "mapId": 28,
+        "source": {
+          "x": 1880,
+          "y": 3272,
+          "plane": 0
+        },
+        "destination": {
+          "x": 2200,
+          "y": 2952,
+          "plane": 0
+        },
+        "translation": {
+          "x": 320,
+          "y": -320,
+          "plane": 0
+        },
+        "paste": {
+          "kind": "square",
+          "index": 154,
+          "original_plane": 0,
+          "n_planes": 4,
+          "original_regionX": 29,
+          "original_regionY": 51,
+          "new_plane": 0,
+          "new_regionX": 34,
+          "new_regionY": 46
+        }
+      }
+    },
+    {
+      "region": "10557",
+      "name": "Here Be Penguins",
+      "rawText": "Here Be<br>Penguins",
+      "display": {
+        "x": 2624,
+        "y": 3963,
+        "plane": 0
+      },
+      "elementId": 254,
+      "resolvedElementId": 254,
+      "source": {
+        "kind": "explicit",
+        "identity": [
+          254,
+          42995579,
+          0
+        ],
+        "x": 2624,
+        "y": 3963,
+        "plane": 0,
+        "cache": {
+          "major": 42,
+          "minor": 28,
+          "index": 901
+        },
+        "conditional": false
+      },
+      "transform": {
+        "mapId": 28,
+        "source": {
+          "x": 2624,
+          "y": 3960,
+          "plane": 0
+        },
+        "destination": {
+          "x": 2624,
+          "y": 3960,
+          "plane": 0
+        },
+        "translation": {
+          "x": 0,
+          "y": 0,
+          "plane": 0
+        },
+        "paste": {
+          "kind": "square",
+          "index": 513,
+          "original_plane": 0,
+          "n_planes": 4,
+          "original_regionX": 41,
+          "original_regionY": 61,
+          "new_plane": 0,
+          "new_regionX": 41,
+          "new_regionY": 61
+        }
+      }
+    },
+    {
+      "region": "10538",
+      "name": "Shattered Worlds",
+      "rawText": "Shattered<br>Worlds",
+      "display": {
+        "x": 2676,
+        "y": 2693,
+        "plane": 0
+      },
+      "elementId": 5619,
+      "resolvedElementId": 5619,
+      "source": {
+        "kind": "explicit",
+        "identity": [
+          5619,
+          43846277,
+          0
+        ],
+        "x": 2676,
+        "y": 2693,
+        "plane": 0,
+        "cache": {
+          "major": 42,
+          "minor": 28,
+          "index": 918
+        },
+        "conditional": false
+      },
+      "transform": {
+        "mapId": 28,
+        "source": {
+          "x": 2672,
+          "y": 2688,
+          "plane": 0
+        },
+        "destination": {
+          "x": 2672,
+          "y": 2688,
+          "plane": 0
+        },
+        "translation": {
+          "x": 0,
+          "y": 0,
+          "plane": 0
+        },
+        "paste": {
+          "kind": "square",
+          "index": 494,
+          "original_plane": 0,
+          "n_planes": 4,
+          "original_regionX": 41,
+          "original_regionY": 42,
+          "new_plane": 0,
+          "new_regionX": 41,
+          "new_regionY": 42
+        }
+      }
+    },
+    {
+      "region": "14403",
+      "name": "Anachronia Dinosaur Farm",
+      "rawText": "Anachronia<br>Dinosaur Farm",
+      "display": {
+        "x": 3643,
+        "y": 4290,
+        "plane": 0
+      },
+      "elementId": 63,
+      "resolvedElementId": 63,
+      "source": {
+        "kind": "explicit",
+        "identity": [
+          63,
+          84855106,
+          0
+        ],
+        "x": 5179,
+        "y": 2370,
+        "plane": 0,
+        "cache": {
+          "major": 42,
+          "minor": 28,
+          "index": 11
+        },
+        "conditional": false
+      },
+      "transform": {
+        "mapId": 28,
+        "source": {
+          "x": 5176,
+          "y": 2368,
+          "plane": 0
+        },
+        "destination": {
+          "x": 3640,
+          "y": 4288,
+          "plane": 0
+        },
+        "translation": {
+          "x": -1536,
+          "y": 1920,
+          "plane": 0
+        },
+        "paste": {
+          "kind": "square",
+          "index": 894,
+          "original_plane": 0,
+          "n_planes": 4,
+          "original_regionX": 80,
+          "original_regionY": 37,
+          "new_plane": 0,
+          "new_regionX": 56,
+          "new_regionY": 67
+        }
+      }
+    },
+    {
+      "region": "16670",
+      "name": "The Arc",
+      "rawText": "The Arc",
+      "display": {
+        "x": 4199,
+        "y": 1945,
+        "plane": 0
+      },
+      "elementId": 5668,
+      "resolvedElementId": 5668,
+      "source": {
+        "kind": "explicit",
+        "identity": [
+          5668,
+          36302169,
+          0
+        ],
+        "x": 2215,
+        "y": 11609,
+        "plane": 0,
+        "cache": {
+          "major": 42,
+          "minor": 28,
+          "index": 978
+        },
+        "conditional": false
+      },
+      "transform": {
+        "mapId": 28,
+        "source": {
+          "x": 2208,
+          "y": 11608,
+          "plane": 0
+        },
+        "destination": {
+          "x": 4192,
+          "y": 1944,
+          "plane": 0
+        },
+        "translation": {
+          "x": 1984,
+          "y": -9664,
+          "plane": 0
+        },
+        "paste": {
+          "kind": "square",
+          "index": 63,
+          "original_plane": 0,
+          "n_planes": 4,
+          "original_regionX": 34,
+          "original_regionY": 181,
+          "new_plane": 0,
+          "new_regionX": 65,
+          "new_regionY": 30
+        }
+      }
+    },
+    {
+      "region": "17714",
+      "name": "Moonsylvar Wood",
+      "rawText": "Moonsylvar Wood",
+      "display": {
+        "x": 4438,
+        "y": 3247,
+        "plane": 0
+      },
+      "elementId": 5826,
+      "resolvedElementId": 5826,
+      "source": {
+        "kind": "explicit",
+        "identity": [
+          5826,
+          61179311,
+          0
+        ],
+        "x": 3734,
+        "y": 1455,
+        "plane": 0,
+        "cache": {
+          "major": 42,
+          "minor": 28,
+          "index": 977
+        },
+        "conditional": false
+      },
+      "transform": {
+        "mapId": 28,
+        "source": {
+          "x": 3728,
+          "y": 1448,
+          "plane": 0
+        },
+        "destination": {
+          "x": 4432,
+          "y": 3240,
+          "plane": 0
+        },
+        "translation": {
+          "x": 704,
+          "y": 1792,
+          "plane": 0
+        },
+        "paste": {
+          "kind": "square",
+          "index": 277,
+          "original_plane": 0,
+          "n_planes": 4,
+          "original_regionX": 58,
+          "original_regionY": 22,
+          "new_plane": 0,
+          "new_regionX": 69,
+          "new_regionY": 50
+        }
+      }
+    },
+    {
+      "region": "18229",
+      "name": "Exalted Quarry",
+      "rawText": "Exalted<br>Quarry",
+      "display": {
+        "x": 4557,
+        "y": 3419,
+        "plane": 0
+      },
+      "elementId": 5812,
+      "resolvedElementId": 5812,
+      "source": {
+        "kind": "explicit",
+        "identity": [
+          5812,
+          63129179,
+          0
+        ],
+        "x": 3853,
+        "y": 1627,
+        "plane": 0,
+        "cache": {
+          "major": 42,
+          "minor": 28,
+          "index": 39
+        },
+        "conditional": false
+      },
+      "transform": {
+        "mapId": 28,
+        "source": {
+          "x": 3848,
+          "y": 1624,
+          "plane": 0
+        },
+        "destination": {
+          "x": 4552,
+          "y": 3416,
+          "plane": 0
+        },
+        "translation": {
+          "x": 704,
+          "y": 1792,
+          "plane": 0
+        },
+        "paste": {
+          "kind": "square",
+          "index": 383,
+          "original_plane": 0,
+          "n_planes": 4,
+          "original_regionX": 60,
+          "original_regionY": 25,
+          "new_plane": 0,
+          "new_regionX": 71,
+          "new_regionY": 53
+        }
+      }
+    },
+    {
+      "region": "18228",
+      "name": "Berylbrook",
+      "rawText": "Berylbrook",
+      "display": {
+        "x": 4563,
+        "y": 3348,
+        "plane": 0
+      },
+      "elementId": 5820,
+      "resolvedElementId": 5820,
+      "source": {
+        "kind": "explicit",
+        "identity": [
+          5820,
+          63227412,
+          0
+        ],
+        "x": 3859,
+        "y": 1556,
+        "plane": 0,
+        "cache": {
+          "major": 42,
+          "minor": 28,
+          "index": 971
+        },
+        "conditional": false
+      },
+      "transform": {
+        "mapId": 28,
+        "source": {
+          "x": 3856,
+          "y": 1552,
+          "plane": 0
+        },
+        "destination": {
+          "x": 4560,
+          "y": 3344,
+          "plane": 0
+        },
+        "translation": {
+          "x": 704,
+          "y": 1792,
+          "plane": 0
+        },
+        "paste": {
+          "kind": "square",
+          "index": 382,
+          "original_plane": 0,
+          "n_planes": 4,
+          "original_regionX": 60,
+          "original_regionY": 24,
+          "new_plane": 0,
+          "new_regionX": 71,
+          "new_regionY": 52
+        }
+      }
+    },
+    {
+      "region": "18230",
+      "name": "Heathervein",
+      "rawText": "Heathervein",
+      "display": {
+        "x": 4570,
+        "y": 3470,
+        "plane": 0
+      },
+      "elementId": 5821,
+      "resolvedElementId": 5821,
+      "source": {
+        "kind": "explicit",
+        "identity": [
+          5821,
+          63342222,
+          0
+        ],
+        "x": 3866,
+        "y": 1678,
+        "plane": 0,
+        "cache": {
+          "major": 42,
+          "minor": 28,
+          "index": 972
+        },
+        "conditional": false
+      },
+      "transform": {
+        "mapId": 28,
+        "source": {
+          "x": 3864,
+          "y": 1672,
+          "plane": 0
+        },
+        "destination": {
+          "x": 4568,
+          "y": 3464,
+          "plane": 0
+        },
+        "translation": {
+          "x": 704,
+          "y": 1792,
+          "plane": 0
+        },
+        "paste": {
+          "kind": "square",
+          "index": 384,
+          "original_plane": 0,
+          "n_planes": 4,
+          "original_regionX": 60,
+          "original_regionY": 26,
+          "new_plane": 0,
+          "new_regionX": 71,
+          "new_regionY": 54
+        }
+      }
+    },
+    {
+      "region": "18226",
+      "name": "Linbog Village",
+      "rawText": "Linbog Village",
+      "display": {
+        "x": 4599,
+        "y": 3255,
+        "plane": 0
+      },
+      "elementId": 5823,
+      "resolvedElementId": 5823,
+      "source": {
+        "kind": "explicit",
+        "identity": [
+          5823,
+          63817143,
+          0
+        ],
+        "x": 3895,
+        "y": 1463,
+        "plane": 0,
+        "cache": {
+          "major": 42,
+          "minor": 28,
+          "index": 974
+        },
+        "conditional": false
+      },
+      "transform": {
+        "mapId": 28,
+        "source": {
+          "x": 3888,
+          "y": 1456,
+          "plane": 0
+        },
+        "destination": {
+          "x": 4592,
+          "y": 3248,
+          "plane": 0
+        },
+        "translation": {
+          "x": 704,
+          "y": 1792,
+          "plane": 0
+        },
+        "paste": {
+          "kind": "square",
+          "index": 380,
+          "original_plane": 0,
+          "n_planes": 4,
+          "original_regionX": 60,
+          "original_regionY": 22,
+          "new_plane": 0,
+          "new_regionX": 71,
+          "new_regionY": 50
+        }
+      }
+    },
+    {
+      "region": "18482",
+      "name": "Fenmoor",
+      "rawText": "Fenmoor",
+      "display": {
+        "x": 4625,
+        "y": 3221,
+        "plane": 0
+      },
+      "elementId": 5825,
+      "resolvedElementId": 5825,
+      "source": {
+        "kind": "explicit",
+        "identity": [
+          5825,
+          64243093,
+          0
+        ],
+        "x": 3921,
+        "y": 1429,
+        "plane": 0,
+        "cache": {
+          "major": 42,
+          "minor": 28,
+          "index": 976
+        },
+        "conditional": false
+      },
+      "transform": {
+        "mapId": 28,
+        "source": {
+          "x": 3920,
+          "y": 1424,
+          "plane": 0
+        },
+        "destination": {
+          "x": 4624,
+          "y": 3216,
+          "plane": 0
+        },
+        "translation": {
+          "x": 704,
+          "y": 1792,
+          "plane": 0
+        },
+        "paste": {
+          "kind": "square",
+          "index": 432,
+          "original_plane": 0,
+          "n_planes": 4,
+          "original_regionX": 61,
+          "original_regionY": 22,
+          "new_plane": 0,
+          "new_regionX": 72,
+          "new_regionY": 50
+        }
+      }
+    },
+    {
+      "region": "18486",
+      "name": "Divine Fall",
+      "rawText": "Divine<br>Fall",
+      "display": {
+        "x": 4647,
+        "y": 3460,
+        "plane": 0
+      },
+      "elementId": 5813,
+      "resolvedElementId": 5813,
+      "source": {
+        "kind": "explicit",
+        "identity": [
+          5813,
+          64603780,
+          0
+        ],
+        "x": 3943,
+        "y": 1668,
+        "plane": 0,
+        "cache": {
+          "major": 42,
+          "minor": 28,
+          "index": 40
+        },
+        "conditional": false
+      },
+      "transform": {
+        "mapId": 28,
+        "source": {
+          "x": 3936,
+          "y": 1664,
+          "plane": 0
+        },
+        "destination": {
+          "x": 4640,
+          "y": 3456,
+          "plane": 0
+        },
+        "translation": {
+          "x": 704,
+          "y": 1792,
+          "plane": 0
+        },
+        "paste": {
+          "kind": "square",
+          "index": 436,
+          "original_plane": 0,
+          "n_planes": 4,
+          "original_regionX": 61,
+          "original_regionY": 26,
+          "new_plane": 0,
+          "new_regionX": 72,
+          "new_regionY": 54
+        }
+      }
+    },
+    {
+      "region": "18737",
+      "name": "Globin Village",
+      "rawText": "Globin Village",
+      "display": {
+        "x": 4679,
+        "y": 3178,
+        "plane": 0
+      },
+      "elementId": 5824,
+      "resolvedElementId": 5824,
+      "source": {
+        "kind": "explicit",
+        "identity": [
+          5824,
+          65127786,
+          0
+        ],
+        "x": 3975,
+        "y": 1386,
+        "plane": 0,
+        "cache": {
+          "major": 42,
+          "minor": 28,
+          "index": 975
+        },
+        "conditional": false
+      },
+      "transform": {
+        "mapId": 28,
+        "source": {
+          "x": 3968,
+          "y": 1384,
+          "plane": 0
+        },
+        "destination": {
+          "x": 4672,
+          "y": 3176,
+          "plane": 0
+        },
+        "translation": {
+          "x": 704,
+          "y": 1792,
+          "plane": 0
+        },
+        "paste": {
+          "kind": "square",
+          "index": 483,
+          "original_plane": 0,
+          "n_planes": 4,
+          "original_regionX": 62,
+          "original_regionY": 21,
+          "new_plane": 0,
+          "new_regionX": 73,
+          "new_regionY": 49
+        }
+      }
+    },
+    {
+      "region": "18997",
+      "name": "Shuruk-Ba",
+      "rawText": "Shuruk-Ba",
+      "display": {
+        "x": 4747,
+        "y": 3396,
+        "plane": 0
+      },
+      "elementId": 5822,
+      "resolvedElementId": 5822,
+      "source": {
+        "kind": "explicit",
+        "identity": [
+          5822,
+          66242116,
+          0
+        ],
+        "x": 4043,
+        "y": 1604,
+        "plane": 0,
+        "cache": {
+          "major": 42,
+          "minor": 28,
+          "index": 973
+        },
+        "conditional": false
+      },
+      "transform": {
+        "mapId": 28,
+        "source": {
+          "x": 4040,
+          "y": 1600,
+          "plane": 0
+        },
+        "destination": {
+          "x": 4744,
+          "y": 3392,
+          "plane": 0
+        },
+        "translation": {
+          "x": 704,
+          "y": 1792,
+          "plane": 0
+        },
+        "paste": {
+          "kind": "square",
+          "index": 521,
+          "original_plane": 0,
+          "n_planes": 4,
+          "original_regionX": 63,
+          "original_regionY": 25,
+          "new_plane": 0,
+          "new_regionX": 74,
+          "new_regionY": 53
+        }
+      }
+    }
+  ],
+  "regionLabelProvenance": {
+    "sourceFile": "C:/Users/User/Projects/rs3-cache-work/outputs/cache-audit-2026-10-07-v4/pins.cache-v1.json",
+    "sha256": "d2df6baec5107f17385059891d52332850581c3bdc5edd9d6d9d57a3cfaa98a4",
+    "method": "Explicit cache map-element text placements with exact map28 surface paste; replace <br> with one space and remove other formatting tags."
+  }
+}

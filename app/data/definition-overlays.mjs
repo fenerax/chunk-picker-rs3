@@ -15,11 +15,14 @@ function lookup(root, path) {
   }
   return { present: true, value };
 }
-function replace(root, path, present, value) {
+// Copy-on-write: each record on a patched path is copied once per application,
+// then later patches in the same application update that private copy.
+function replace(root, path, present, value, owned) {
   const [head, ...tail] = path;
   if (!plain(root)) fail(`missing parent: ${path.join('/')}`);
-  const copy = { ...root };
-  if (tail.length) copy[head] = replace(root[head], tail, present, value);
+  const copy = owned.has(root) ? root : { ...root };
+  owned.add(copy);
+  if (tail.length) copy[head] = replace(root[head], tail, present, value, owned);
   else if (present) copy[head] = structuredClone(value);
   else delete copy[head];
   return copy;
@@ -30,6 +33,7 @@ function replace(root, path, present, value) {
  * a partly matching or drifted record fails instead of silently skipping it. */
 export function applyDefinitionOverlays(definitions, overlays = []) {
   let result = definitions;
+  const owned = new Set();
   for (const overlay of overlays) {
     if (!plain(overlay) || overlay.schemaVersion !== 1 || typeof overlay.id !== 'string' || !overlay.id
       || typeof overlay.version !== 'string' || !overlay.version || !Array.isArray(overlay.patches)) fail('invalid document');
@@ -46,7 +50,7 @@ export function applyDefinitionOverlays(definitions, overlays = []) {
       const before = current.present === patch.beforePresent && (!current.present || same(current.value, patch.before));
       const after = current.present === patch.afterPresent && (!current.present || same(current.value, patch.after));
       if (!before && !after) fail(`record drift: ${patch.path.join('/')}`);
-      if (!after) result = replace(result, patch.path, patch.afterPresent, patch.after);
+      if (!after) result = replace(result, patch.path, patch.afterPresent, patch.after, owned);
     }
   }
   return result;

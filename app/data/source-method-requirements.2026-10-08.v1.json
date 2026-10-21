@@ -1,0 +1,75 @@
+{
+  "schemaVersion": 1,
+  "verifiedOn": "2026-10-08",
+  "policy": "F2P-only missing supply metadata. This action is intrinsically free; the unrecorded required supply must pass the ordinary F2P item availability policy. Off-mode behavior remains unchanged.",
+  "records": [
+    {
+      "category": "Crafting",
+      "source": "Engrave the onyx amulet after ~|Gunnar's Ground|~",
+      "before": {
+        "ItemsPresent": false,
+        "Level": 90
+      },
+      "requiredItems": [
+        "Onyx amulet"
+      ],
+      "detail": "Onyx engraving is available to free players, but requires an onyx amulet; that supply requires membership.",
+      "wiki": [
+        {
+          "title": "Gunnar's Ground",
+          "revisionId": 37177980,
+          "url": "https://runescape.wiki/w/Special:PermanentLink/37177980",
+          "basis": "Post-quest rewards explicitly allow F2P engraving, including an onyx amulet, while describing the jewellery as obtainable by members."
+        },
+        {
+          "title": "Onyx amulet",
+          "revisionId": 37027868,
+          "url": "https://runescape.wiki/w/Special:PermanentLink/37027868",
+          "basis": "Infobox Item.members=Yes"
+        }
+      ]
+    }
+  ],
+  "provenance": {
+    "reference": {
+      "path": "rs3-chunkpicker-chunkinfo-export.json",
+      "sha256": "9dd835266f381abaa4d14033abcd0b43a001fe96d7df0a7f046fcc8676d66553"
+    },
+    "generators": [
+      {
+        "path": "scripts/review-source-drop-membership.mjs",
+        "sha256": "66567087a8203f6564ed0fea2a537771321fe281443e158a2bb2e2fd4e19776f"
+      },
+      {
+        "path": "scripts/lib/provenance-hash.mjs",
+        "sha256": "fcd93e18c30de245b1856f4b1ace0c25b6f0aa5e6714bd1bc01fab9be39e3e56"
+      }
+    ],
+    "sourceCatalogue": {
+      "path": "app/data/source-membership.2026-10-08.v1.json",
+      "sha256": "8aa15c682ba6bd66eab771ae727770a6f12654bee9e218b4f3b6909247a0c74b"
+    },
+    "snapshotManifest": {
+      "path": ".local/game-data/source-membership-2026-10-08-v1/manifest.json",
+      "sha256": "8b270fc5b7d7af2054f0fd9cd4ff61ef0963e36caf76ef7012ca55cc94ddddb9"
+    },
+    "extraSnapshots": [
+      {
+        "path": ".local/game-data/source-membership-2026-10-08-v1/targeted-drops-methods.json",
+        "sha256": "f24fb0e13ae8b2b4e69798c4d70c23d201701d1cbbebad0c3dd140dc96431a83"
+      },
+      {
+        "path": ".local/game-data/source-membership-2026-10-08-v1/demon-alias-review.json",
+        "sha256": "98ad2570263264edf1406ce897cb9059204ebcdbba710d26e23860ee1da15a4e"
+      },
+      {
+        "path": ".local/game-data/source-membership-2026-10-08-v1/incidental-output-review.json",
+        "sha256": "d734305de9f30c0d79a6405c188756ad761edf7285081101686bd6e28d3885c0"
+      },
+      {
+        "path": ".local/game-data/source-membership-2026-10-08-v1/incidental-output-followup.json",
+        "sha256": "bba0cc2b84278dcce0b74dc506f574b28a81b575d3cc99b488918d20c681bd26"
+      }
+    ]
+  }
+}

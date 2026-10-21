@@ -36,6 +36,7 @@ const sections = [
   { id: 'rolling', label: 'Rolling', ids: ['roll2', 'unpick', 'randomStartAlways', 'rollWarning', 'cinematicRoll', 'newTasks', 'shiftUnlock'] },
   { id: 'tasks', label: 'Tasks', ids: ['chunkTasks', 'taskSidebar', 'taskSearchbar', 'hideChecked', 'completedTaskStrikethrough', 'completedTaskColor', 'numTasksPercent'] },
   { id: 'panels', label: 'Panels', ids: ['info', 'defaultChunkinfo', 'recent', 'topButtons', 'allTasks', 'hideAchievements'] },
+  { id: 'topbar', label: 'Top bar', ids: [] },
   { id: 'time', label: 'Time estimates', ids: [] },
 ];
 const optionLabels = {
@@ -50,7 +51,7 @@ export function createSettingsPanel(ctx) {
   function settings() {
     if (ctx.canWrite?.() === false) return;
     const id = ctx.memberId(), owner = ctx.state().members.find(member => member.id === id);
-    const activeSections = sections.filter(section => section.id !== 'time' || ctx.supportsFeature?.('training') !== false);
+    const activeSections = sections.filter(section => (section.id !== 'time' || ctx.supportsFeature?.('training') !== false) && (section.id !== 'topbar' || ctx.topBar));
     const content = el('div', undefined, 'settings-panel');
     content.dataset.mobileView = 'list';
     const searchBar = el('div', undefined, 'settings-search'), search = input('search');
@@ -144,10 +145,16 @@ export function createSettingsPanel(ctx) {
           if (query && !`${section.label} ${copy.join(' ')} ${preferenceId}`.toLowerCase().includes(query)) continue;
           node.append(preferenceRow(definition)); count++;
         }
+        if (section.id === 'topbar' && ctx.topBar?.matches(query)) { node.append(ctx.topBar.rows(id, { isCurrent: () => renderGeneration === token })); count++; }
         if (section.id === 'map' && (!query || 'map display adjust chunk labels borders marker sizes default sticker colour high visibility show chunk ids roll numbers size chunk ids size sticker and flag size unlocked border colour'.includes(query))) {
           const row = el('div', undefined, 'rule-row settings-option'), text = el('div', undefined, 'field-copy');
           text.append(el('strong', 'Map display'), el('p', 'Adjust chunk labels, borders, marker sizes and sticker colour.', 'field-help'));
           row.append(text, button('Map display\u2026', () => { ctx.closeDialog?.(); ctx.mapDisplay(); })); node.append(row); count++;
+        }
+        if (section.id === 'map' && ctx.setupGuide && (!query || 'setup guide first time walkthrough roll style theme starting bank invite'.includes(query))) {
+          const row = el('div', undefined, 'rule-row settings-option'), text = el('div', undefined, 'field-copy');
+          text.append(el('strong', 'Setup guide'), el('p', 'Go through roll style, theme, your starting bank and the main buttons again.', 'field-help'));
+          row.append(text, button('Setup guide\u2026', () => { if (ctx.canWrite?.() === false) return; ctx.closeDialog?.(); ctx.setupGuide(); })); node.append(row); count++;
         }
         if (section.id === 'map' && ctx.membersStart && (!query || 'ready for members group reset f2p starting bank havenhythe'.includes(query))) {
           const row = el('div', undefined, 'rule-row settings-option'), text = el('div', undefined, 'field-copy');

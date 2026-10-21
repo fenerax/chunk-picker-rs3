@@ -1,0 +1,7 @@
+{
+  "note": "Synthetic error fixtures using known RuneMetrics error strings; no extra live requests were made for these cases.",
+  "private": { "status": 200, "body": { "error": "PROFILE_PRIVATE" } },
+  "unknown": { "status": 200, "body": { "error": "NO_PROFILE" } },
+  "rateLimit": { "status": 429, "body": { "error": "TOO_MANY_REQUESTS" } },
+  "upstream": { "status": 503, "body": { "error": "UNAVAILABLE" } }
+}

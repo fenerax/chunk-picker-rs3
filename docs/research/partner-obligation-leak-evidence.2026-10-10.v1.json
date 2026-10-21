@@ -1,0 +1,243 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-10-10",
+  "scope": "RS3 F2P Daemonheim routes; evidence only, no in-game test",
+  "officialCorroboration": {
+    "verifiedBy": "Opened official Jagex patch notes",
+    "url": "https://secure.runescape.com/m=news/going-home-to-lumbridge--amascut-4k-enrage---this-week-in-runescape",
+    "claim": "Fremennik warrior, shipmaster and longboat in Lumbridge swamp removed",
+    "published": "2025-11-17"
+  },
+  "sources": [
+    {
+      "pinnedApiUrl": "https://runescape.wiki/api.php?action=query&format=json&formatversion=2&prop=revisions&rvprop=ids%7Ctimestamp%7Ccontent&rvslots=main&revids=37170952",
+      "revisionTimestamp": "2026-09-05T01:08:12Z",
+      "url": "https://runescape.wiki/w/Torsteg?oldid=37170952",
+      "snapshotType": "Revision-pinned full wikitext SHA-256; source text retained only in ignored research scratch",
+      "pageid": 168156,
+      "revid": 37170952,
+      "contentSha256": "b881d66f5e827eda419843c752c7f460c3e25ffc91fc52bda993a2f81c82d28a",
+      "title": "Torsteg"
+    },
+    {
+      "pinnedApiUrl": "https://runescape.wiki/api.php?action=query&format=json&formatversion=2&prop=revisions&rvprop=ids%7Ctimestamp%7Ccontent&rvslots=main&revids=37170951",
+      "revisionTimestamp": "2026-09-05T01:08:06Z",
+      "url": "https://runescape.wiki/w/Hilda?oldid=37170951",
+      "snapshotType": "Revision-pinned full wikitext SHA-256; source text retained only in ignored research scratch",
+      "pageid": 168157,
+      "revid": 37170951,
+      "contentSha256": "232acbd3dd57cc10e1068da3d139dfc683517f0d53103a3079aea6e50e45bfb8",
+      "title": "Hilda"
+    },
+    {
+      "pinnedApiUrl": "https://runescape.wiki/api.php?action=query&format=json&formatversion=2&prop=revisions&rvprop=ids%7Ctimestamp%7Ccontent&rvslots=main&revids=37160994",
+      "revisionTimestamp": "2026-08-20T20:16:27Z",
+      "url": "https://runescape.wiki/w/Daemonheim?oldid=37160994",
+      "snapshotType": "Revision-pinned full wikitext SHA-256; source text retained only in ignored research scratch",
+      "pageid": 178189,
+      "revid": 37160994,
+      "contentSha256": "1607e49db7f6072bb3e4baf150390952668671b13bf6fa2cdffb72bfc37f2c7b",
+      "title": "Daemonheim"
+    },
+    {
+      "pinnedApiUrl": "https://runescape.wiki/api.php?action=query&format=json&formatversion=2&prop=revisions&rvprop=ids%7Ctimestamp%7Ccontent&rvslots=main&revids=37146895",
+      "revisionTimestamp": "2026-08-07T12:38:22Z",
+      "url": "https://runescape.wiki/w/Dungeoneering_tutor?oldid=37146895",
+      "snapshotType": "Revision-pinned full wikitext SHA-256; source text retained only in ignored research scratch",
+      "pageid": 178197,
+      "revid": 37146895,
+      "contentSha256": "1aebe48e9c2b162eb907eb2b3ebd04f4af5714eaa3c8101d120cfb9b8c3722da",
+      "title": "Dungeoneering tutor"
+    },
+    {
+      "pinnedApiUrl": "https://runescape.wiki/api.php?action=query&format=json&formatversion=2&prop=revisions&rvprop=ids%7Ctimestamp%7Ccontent&rvslots=main&revids=37155981",
+      "revisionTimestamp": "2026-08-13T19:45:48Z",
+      "url": "https://runescape.wiki/w/Ring_of_kinship?oldid=37155981",
+      "snapshotType": "Revision-pinned full wikitext SHA-256; source text retained only in ignored research scratch",
+      "pageid": 178221,
+      "revid": 37155981,
+      "contentSha256": "e4c195b6960e04a5ed2e3173d7e124023aeb621e4beb58a6f2181361748c1389",
+      "title": "Ring of kinship"
+    },
+    {
+      "pinnedApiUrl": "https://runescape.wiki/api.php?action=query&format=json&formatversion=2&prop=revisions&rvprop=ids%7Ctimestamp%7Ccontent&rvslots=main&revids=37138015",
+      "revisionTimestamp": "2026-08-04T01:33:39Z",
+      "url": "https://runescape.wiki/w/Fremennik_shipmaster?oldid=37138015",
+      "snapshotType": "Revision-pinned full wikitext SHA-256; source text retained only in ignored research scratch",
+      "pageid": 178526,
+      "revid": 37138015,
+      "contentSha256": "abee0e2760d66978a08eddb1522ca4a9ebd25f221e9c0af8751eefdd4d4f014b",
+      "title": "Fremennik shipmaster"
+    },
+    {
+      "pinnedApiUrl": "https://runescape.wiki/api.php?action=query&format=json&formatversion=2&prop=revisions&rvprop=ids%7Ctimestamp%7Ccontent&rvslots=main&revids=37182272",
+      "revisionTimestamp": "2026-09-21T15:22:28Z",
+      "url": "https://runescape.wiki/w/Bryll_Thoksdottir?oldid=37182272",
+      "snapshotType": "Revision-pinned full wikitext SHA-256; source text retained only in ignored research scratch",
+      "pageid": 180985,
+      "revid": 37182272,
+      "contentSha256": "6c419463fedfeab56092082e6c5e5908fa6f6820d05b83bd99755af08302e79c",
+      "title": "Bryll Thoksdottir"
+    },
+    {
+      "pinnedApiUrl": "https://runescape.wiki/api.php?action=query&format=json&formatversion=2&prop=revisions&rvprop=ids%7Ctimestamp%7Ccontent&rvslots=main&revids=37133179",
+      "revisionTimestamp": "2026-07-31T07:25:19Z",
+      "url": "https://runescape.wiki/w/Al_Kharid_jetty?oldid=37133179",
+      "snapshotType": "Revision-pinned full wikitext SHA-256; source text retained only in ignored research scratch",
+      "pageid": 202123,
+      "revid": 37133179,
+      "contentSha256": "24f778e529ae3ee077a2fa1de55ab466a030fc07df5647b50afde58de664e993",
+      "title": "Al Kharid jetty"
+    },
+    {
+      "pinnedApiUrl": "https://runescape.wiki/api.php?action=query&format=json&formatversion=2&prop=revisions&rvprop=ids%7Ctimestamp%7Ccontent&rvslots=main&revids=37199016",
+      "revisionTimestamp": "2026-10-06T11:21:17Z",
+      "url": "https://runescape.wiki/w/Lodestone_Network?oldid=37199016",
+      "snapshotType": "Revision-pinned full wikitext SHA-256; source text retained only in ignored research scratch",
+      "pageid": 355094,
+      "revid": 37199016,
+      "contentSha256": "d572fe0d6482d686573c3844c9b4d3e8c6a0f216a88d1b7b1dcabc2dc07238fd",
+      "title": "Lodestone Network"
+    },
+    {
+      "pinnedApiUrl": "https://runescape.wiki/api.php?action=query&format=json&formatversion=2&prop=revisions&rvprop=ids%7Ctimestamp%7Ccontent&rvslots=main&revids=36689058",
+      "revisionTimestamp": "2025-03-30T08:27:35Z",
+      "url": "https://runescape.wiki/w/Taverley_lodestone?oldid=36689058",
+      "snapshotType": "Revision-pinned full wikitext SHA-256; source text retained only in ignored research scratch",
+      "pageid": 585424,
+      "revid": 36689058,
+      "contentSha256": "9f2076620b34492a067fbc1ff223a619f60870abea1d7874cc796474d93757fc",
+      "title": "Taverley lodestone"
+    },
+    {
+      "pinnedApiUrl": "https://runescape.wiki/api.php?action=query&format=json&formatversion=2&prop=revisions&rvprop=ids%7Ctimestamp%7Ccontent&rvslots=main&revids=37039154",
+      "revisionTimestamp": "2026-05-11T18:31:00Z",
+      "url": "https://runescape.wiki/w/Transcript%3ABryll_Thoksdottir?oldid=37039154",
+      "snapshotType": "Revision-pinned full wikitext SHA-256; source text retained only in ignored research scratch",
+      "pageid": 634223,
+      "revid": 37039154,
+      "contentSha256": "f6eaaf8b079d163d39862c67fead9d786f7b83802a2aebe9f9562ffa85edab9b",
+      "title": "Transcript:Bryll Thoksdottir"
+    },
+    {
+      "pinnedApiUrl": "https://runescape.wiki/api.php?action=query&format=json&formatversion=2&prop=revisions&rvprop=ids%7Ctimestamp%7Ccontent&rvslots=main&revids=37184722",
+      "revisionTimestamp": "2026-09-23T14:43:12Z",
+      "url": "https://runescape.wiki/w/The_Shadow_Reef?oldid=37184722",
+      "snapshotType": "Revision-pinned full wikitext SHA-256; source text retained only in ignored research scratch",
+      "pageid": 681459,
+      "revid": 37184722,
+      "contentSha256": "7a8ba0721b6429398a4b24ec879c7d96896e1807c05318c544ac4977517ebdb3",
+      "title": "The Shadow Reef"
+    },
+    {
+      "pinnedApiUrl": "https://runescape.wiki/api.php?action=query&format=json&formatversion=2&prop=revisions&rvprop=ids%7Ctimestamp%7Ccontent&rvslots=main&revids=36874984",
+      "revisionTimestamp": "2025-11-22T18:40:13Z",
+      "url": "https://runescape.wiki/w/Transcript%3AFremennik_shipmaster?oldid=36874984",
+      "snapshotType": "Revision-pinned full wikitext SHA-256; source text retained only in ignored research scratch",
+      "pageid": 716044,
+      "revid": 36874984,
+      "contentSha256": "66e9a74d373e0aa4a684f101780571db0a2c54ecbdff074c4a9047fea4fc7c18",
+      "title": "Transcript:Fremennik shipmaster"
+    },
+    {
+      "pinnedApiUrl": "https://runescape.wiki/api.php?action=query&format=json&formatversion=2&prop=revisions&rvprop=ids%7Ctimestamp%7Ccontent&rvslots=main&revids=37198053",
+      "revisionTimestamp": "2026-10-04T21:09:08Z",
+      "url": "https://runescape.wiki/w/Boss_portal?oldid=37198053",
+      "snapshotType": "Revision-pinned full wikitext SHA-256; source text retained only in ignored research scratch",
+      "pageid": 747900,
+      "revid": 37198053,
+      "contentSha256": "a27072b2e4383454092b0a7377099c643578135380d8e8fb9350bc5958230251",
+      "title": "Boss portal"
+    },
+    {
+      "pinnedApiUrl": "https://runescape.wiki/api.php?action=query&format=json&formatversion=2&prop=revisions&rvprop=ids%7Ctimestamp%7Ccontent&rvslots=main&revids=37177732",
+      "revisionTimestamp": "2026-09-15T03:32:00Z",
+      "url": "https://runescape.wiki/w/War%27s_Retreat_Teleport?oldid=37177732",
+      "snapshotType": "Revision-pinned full wikitext SHA-256; source text retained only in ignored research scratch",
+      "pageid": 747926,
+      "revid": 37177732,
+      "contentSha256": "8db84eae74279dcf3428731689df2c5f0ab5ae9cbdfd4deae8c11c89329adf0f",
+      "title": "War's Retreat Teleport"
+    },
+    {
+      "pinnedApiUrl": "https://runescape.wiki/api.php?action=query&format=json&formatversion=2&prop=revisions&rvprop=ids%7Ctimestamp%7Ccontent&rvslots=main&revids=36206816",
+      "revisionTimestamp": "2023-10-04T14:08:17Z",
+      "url": "https://runescape.wiki/w/Dungeoneering_portal?oldid=36206816",
+      "snapshotType": "Revision-pinned full wikitext SHA-256; source text retained only in ignored research scratch",
+      "pageid": 833713,
+      "revid": 36206816,
+      "contentSha256": "a09184442e0b8eacfe2a131431848569edc3ad94e61172a5d60fa3a8a7d56f5d",
+      "title": "Dungeoneering portal"
+    },
+    {
+      "pinnedApiUrl": "https://runescape.wiki/api.php?action=query&format=json&formatversion=2&prop=revisions&rvprop=ids%7Ctimestamp%7Ccontent&rvslots=main&revids=36733918",
+      "revisionTimestamp": "2025-05-25T10:29:02Z",
+      "url": "https://runescape.wiki/w/Wilderness_Crater_lodestone?oldid=36733918",
+      "snapshotType": "Revision-pinned full wikitext SHA-256; source text retained only in ignored research scratch",
+      "pageid": 849520,
+      "revid": 36733918,
+      "contentSha256": "302529acef99ce9fbe318c412fab67776691be1742d56a51f1fde2a16e2f0e7d",
+      "title": "Wilderness Crater lodestone"
+    },
+    {
+      "pinnedApiUrl": "https://runescape.wiki/api.php?action=query&format=json&formatversion=2&prop=revisions&rvprop=ids%7Ctimestamp%7Ccontent&rvslots=main&revids=36869807",
+      "revisionTimestamp": "2025-11-17T19:46:38Z",
+      "url": "https://runescape.wiki/w/Fremennik_ship_%28River_Lum%29?oldid=36869807",
+      "snapshotType": "Revision-pinned full wikitext SHA-256; source text retained only in ignored research scratch",
+      "pageid": 934128,
+      "revid": 36869807,
+      "contentSha256": "39047e832b94d0e5133bb96cdfe78061e349ac549785d536805009fce7549671",
+      "title": "Fremennik ship (River Lum)"
+    },
+    {
+      "pinnedApiUrl": "https://runescape.wiki/api.php?action=query&format=json&formatversion=2&prop=revisions&rvprop=ids%7Ctimestamp%7Ccontent&rvslots=main&revids=36653177",
+      "revisionTimestamp": "2025-02-09T14:02:44Z",
+      "url": "https://runescape.wiki/w/Fremennik_ship_%28Taverley%29?oldid=36653177",
+      "snapshotType": "Revision-pinned full wikitext SHA-256; source text retained only in ignored research scratch",
+      "pageid": 934130,
+      "revid": 36653177,
+      "contentSha256": "7e79971bd7e0c58fd1d6900beb8ba5d908374852462c1e4d8ba2e61eb2810738",
+      "title": "Fremennik ship (Taverley)"
+    },
+    {
+      "pinnedApiUrl": "https://runescape.wiki/api.php?action=query&format=json&formatversion=2&prop=revisions&rvprop=ids%7Ctimestamp%7Ccontent&rvslots=main&revids=37130895",
+      "revisionTimestamp": "2026-07-30T03:33:53Z",
+      "url": "https://runescape.wiki/w/Daemonheim_Dig_Site?oldid=37130895",
+      "snapshotType": "Revision-pinned full wikitext SHA-256; source text retained only in ignored research scratch",
+      "pageid": 993097,
+      "revid": 37130895,
+      "contentSha256": "0740515763d4034317f0aff9097491baeeca0750edccd5f8db25b8b716cc042d",
+      "title": "Daemonheim Dig Site"
+    },
+    {
+      "pinnedApiUrl": "https://runescape.wiki/api.php?action=query&format=json&formatversion=2&prop=revisions&rvprop=ids%7Ctimestamp%7Ccontent&rvslots=main&revids=36930104",
+      "revisionTimestamp": "2026-02-05T22:23:22Z",
+      "url": "https://runescape.wiki/w/Update%3AGoing_Home_to_Lumbridge_%26_Amascut_4k_Enrage_-_This_Week_In_RuneScape?oldid=36930104",
+      "snapshotType": "Revision-pinned full wikitext SHA-256; source text retained only in ignored research scratch",
+      "pageid": 1086124,
+      "revid": 36930104,
+      "contentSha256": "6781cb2237d8936ae020cdb4875b982e4264987c7a509555570a53f09e35f50b",
+      "title": "Update:Going Home to Lumbridge & Amascut 4k Enrage - This Week In RuneScape"
+    },
+    {
+      "snapshotType": "Revision-pinned full wikitext SHA-256; source text retained only in ignored research scratch",
+      "pageid": 268295,
+      "revisionTimestamp": "2026-09-01T14:03:17Z",
+      "contentSha256": "e911b7748ea46972a7b2f6a137ae00dec26eb9d03a98190001eb2b718f567681",
+      "revid": 37168496,
+      "title": "Dungeoneering",
+      "url": "https://runescape.wiki/w/Dungeoneering?oldid=37168496",
+      "pinnedApiUrl": "https://runescape.wiki/api.php?action=query&format=json&formatversion=2&prop=revisions&rvprop=ids%7Ctimestamp%7Ccontent&rvslots=main&revids=37168496"
+    },
+    {
+      "snapshotType": "Revision-pinned full wikitext SHA-256; source text retained only in ignored research scratch",
+      "pageid": 1003116,
+      "revisionTimestamp": "2026-05-13T13:40:02Z",
+      "contentSha256": "cdfe002a4978e1ecd28ae1ad3473277bd1e7179955b654a6fa171fc1a0fdf18c",
+      "revid": 37042361,
+      "title": "Dungeon entrance (Daemonheim)",
+      "url": "https://runescape.wiki/w/Dungeon_entrance_%28Daemonheim%29?oldid=37042361",
+      "pinnedApiUrl": "https://runescape.wiki/api.php?action=query&format=json&formatversion=2&prop=revisions&rvprop=ids%7Ctimestamp%7Ccontent&rvslots=main&revids=37042361"
+    }
+  ]
+}

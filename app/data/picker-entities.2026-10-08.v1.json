@@ -1,0 +1,48 @@
+{
+  "schemaVersion": 1,
+  "id": "picker-entities:2026-10-08:v1",
+  "generatedAt": "2026-10-08",
+  "provenance": {
+    "rawSha256": "8ebec729999826ea8ed0119fc228de74bf57c7287e072b8fc092d16cde1bbe59",
+    "evidence": {
+      "file": "incidental-output-review.json",
+      "sha256": "d734305de9f30c0d79a6405c188756ad761edf7285081101686bd6e28d3885c0"
+    }
+  },
+  "policy": "Only exact reviewed virtual entities in the picker mixed selector domain. Currency membership and an explicit independent free acquisition statement must agree. Physical cache token membership remains separate and unchanged.",
+  "entries": [
+    {
+      "name": "Slayer points",
+      "kind": "currency",
+      "members": false,
+      "status": "free",
+      "reason": "pinned-wiki-currency-entity",
+      "wiki": {
+        "title": "Slayer points",
+        "revid": 37162661,
+        "timestamp": "2026-08-24T01:13:04Z",
+        "url": "https://runescape.wiki/w/Slayer_points?oldid=37162661"
+      },
+      "fields": {
+        "name": "Slayer points",
+        "members": "No"
+      },
+      "freeAcquisitionEvidence": "Slayer points can be earned in [[free-to-play]] by completing tasks from [[Jacquelyn]].",
+      "excludedPhysicalItems": [
+        {
+          "id": 50250,
+          "name": "Slayer points",
+          "members": true,
+          "source": {
+            "major": 19,
+            "minor": 196,
+            "subid": 74
+          }
+        }
+      ]
+    }
+  ],
+  "summary": {
+    "currencies": 1
+  }
+}

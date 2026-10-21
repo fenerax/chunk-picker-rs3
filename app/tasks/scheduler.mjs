@@ -1,7 +1,10 @@
 import { Worker } from 'node:worker_threads';
 import { ProcessWorker } from './process-worker.mjs';
 import { createHash } from 'node:crypto';
+import { deserialize } from 'node:v8';
 import { createUnlockResultCache, taskReuseInputKey } from './unlock-reuse.mjs';
+import { STATE_SNAPSHOT_LIMIT } from './state-transfer.mjs';
+import { TASK_WORKER_RESOURCE_LIMITS } from './worker-limits.mjs';
 
 const unavailable = message => Object.assign(new Error(message), { status: 503 });
 const positive = (value, name, minimum = 1) => {
@@ -12,7 +15,7 @@ const superseded = () => Object.assign(new Error('Calculation superseded by a ne
 // Give each native calculator an owned process so retirement releases them.
 const nativeWorker = data => process.env.RS3_TASK_WORKER_MODE === 'thread'
   || process.platform !== 'win32' && process.env.RS3_TASK_WORKER_MODE !== 'process'
-  ? new Worker(new URL('./worker.mjs', import.meta.url), { workerData: data }) : new ProcessWorker(data);
+  ? new Worker(new URL('./worker.mjs', import.meta.url), { workerData: data, resourceLimits: TASK_WORKER_RESOURCE_LIMITS }) : new ProcessWorker(data);
 // Rules are included even for direct callers that omit the gameplay fingerprint.
 const predictionInput = (state, input) => createHash('sha256').update(JSON.stringify([input,
   state.rules, state.taskRules, state.members?.map(member => [member.id, member.taskRules, state.legacy?.maps?.[member.sourceMapId]?.rules])])).digest('hex');
@@ -533,7 +536,7 @@ async function createWorkerLane({ workerData, workerFactory = nativeWorker, onCr
         ...(duoResults && entry.resultView === 'play-v1' ? { duoProjection: true } : {}),
         ...(entry.duoSidebarProjection ? { duoSidebarProjection: true } : {}) }
         : entry.type === 'sandbox' ? { resultTransport: 'json-shared-v1' } : {}) });
-      if (snapshotKey) { sentSnapshots.delete(snapshotKey); sentSnapshots.set(snapshotKey, entry.stateInput ? 'json-shared-v1' : state ? 'object' : sentKind); while (sentSnapshots.size > 4) sentSnapshots.delete(sentSnapshots.keys().next().value); }
+      if (snapshotKey) { sentSnapshots.delete(snapshotKey); sentSnapshots.set(snapshotKey, entry.stateInput ? 'json-shared-v1' : state ? 'object' : sentKind); while (sentSnapshots.size > STATE_SNAPSHOT_LIMIT) sentSnapshots.delete(sentSnapshots.keys().next().value); }
     }
     catch { failure('worker-send'); }
     // The worker now owns its structured clone; do not retain another snapshot.
@@ -924,7 +927,15 @@ async function createWorkerLane({ workerData, workerFactory = nativeWorker, onCr
     const ready = await initial;
     if (workerData?.datasetDigest && ready.datasetDigest !== undefined && ready.datasetDigest !== workerData.datasetDigest) throw new Error('Worker dataset digest mismatch.');
     scheduler.datasetDigest = ready.datasetDigest ?? workerData?.datasetDigest;
-    scheduler.catalogue = ready.catalogue; scheduler.dynamicCatalogue = ready.dynamicCatalogue ?? [];
+    scheduler.catalogue = ready.catalogue;
+    // Background lanes never read the generated catalogue, so they skip decoding it.
+    // The initial promise keeps `ready` reachable for the lane's lifetime, so take
+    // the bytes off it; the getter drops them once decoded and never holds `ready`.
+    let dynamicCatalogueBytes = ready.dynamicCatalogueBytes; delete ready.dynamicCatalogueBytes;
+    let dynamicCatalogue = dynamicCatalogueBytes === undefined ? ready.dynamicCatalogue ?? [] : undefined;
+    Object.defineProperty(scheduler, 'dynamicCatalogue', { enumerable: true, configurable: true,
+      get: () => { dynamicCatalogue ??= deserialize(dynamicCatalogueBytes); dynamicCatalogueBytes = undefined; return dynamicCatalogue; } });
+    if (!onCreated) void scheduler.dynamicCatalogue;
     return scheduler;
   } catch (error) { if (initialAborted || !onCreated) await scheduler.close(); throw error; }
   finally { signal?.removeEventListener('abort', abortInitial); }

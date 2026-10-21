@@ -1,0 +1,34 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import path from 'node:path';
+import os from 'node:os';
+import { mkdir, mkdtemp, writeFile, rm } from 'node:fs/promises';
+import { execFileSync } from 'node:child_process';
+import { checkPrivateDrift } from '../scripts/private-companion/check-private-drift.mjs';
+import { createLivePayloadContext, reopenLivePayloadContext } from '../scripts/private-companion/live-payload-rules.mjs';
+
+const scratch = process.env.RS3_TEST_SCRATCH_ROOT ?? path.join(os.tmpdir(), 'rs3-test-scratch');
+test('drift permits exact old-live overlays only through reopened capability and keeps candidate strict', async t => {
+  assert.ok(path.isAbsolute(scratch ?? ''), 'explicit job scratch required');
+  await mkdir(scratch, { recursive: true });
+  const root = await mkdtemp(path.join(scratch, 'live-drift-'));
+  t.after(async () => { assert.equal(path.dirname(root), path.resolve(scratch)); await rm(root, { recursive: true, force: true }); });
+  const repo = path.join(root, 'repo'), liveCore = path.join(root, 'live-core'), source = path.join(root, 'private');
+  for (const dir of [repo, liveCore, source]) await mkdir(path.join(dir, 'tests'), { recursive: true });
+  for (const dir of [repo, liveCore]) await writeFile(path.join(dir, 'tests/shared.test.mjs'), 'export const original = true;\n');
+  await writeFile(path.join(source, 'tests/shared.test.mjs'), 'export const privateCase = true;\n');
+  const git = (...args) => execFileSync('git', ['--no-optional-locks', '-C', repo, ...args], { windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] }).toString().trim();
+  git('init', '-q'); git('config', 'core.autocrlf', 'false'); git('add', '.');
+  git('-c', 'user.name=Synthetic fixture', '-c', 'user.email=fixture@example.invalid', 'commit', '-qm', 'Synthetic exact live tree');
+  const revision = git('rev-parse', 'HEAD'), options = { core: revision, coreRepo: repo, privateRoot: source };
+  assert.equal((await checkPrivateDrift(options)).findings[0].id, 'overlay-unreviewed');
+  const proof = await createLivePayloadContext({ liveSource: source, liveCore, liveRevision: revision });
+  const capability = await reopenLivePayloadContext(proof);
+  const old = await checkPrivateDrift({ ...options, livePayload: capability });
+  assert.equal(old.passed, true, JSON.stringify(old.findings)); assert.equal(old.tolerated.length, 1);
+  assert.equal((await checkPrivateDrift(options)).passed, false, 'old-live check never weakens ordinary input');
+  assert.equal((await checkPrivateDrift({ ...options, livePayload: proof })).passed, false, 'serializable proof is not a capability');
+  await writeFile(path.join(source, 'tests/shared.test.mjs'), 'export const candidateChange = true;\n');
+  const changed = await checkPrivateDrift({ ...options, livePayload: capability });
+  assert.equal(changed.passed, false); assert.equal(changed.findings[0].id, 'input-invalid');
+});

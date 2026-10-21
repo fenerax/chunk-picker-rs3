@@ -286,7 +286,7 @@ test('native calculator announces readiness after its asynchronous module graph 
     parentPort.postMessage({ type: 'module-evaluated' });`;
   const worker = new Worker(new URL(`data:text/javascript,${encodeURIComponent(entry)}`), { workerData: {
     definitions, datasetSelection: fixtureDataset.workerSelection(), datasetDigest: fixtureDataset.digest,
-    datasetOptions: { cacheWalking: false },
+    datasetOptions: { cacheWalking: false, reviewedOverlays: false },
   } });
   t.after(() => worker.terminate());
   const messages = await new Promise((resolve, reject) => {

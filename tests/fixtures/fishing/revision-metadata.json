@@ -1,0 +1,120 @@
+[
+  {
+    "file": "calculator.37011173.json",
+    "oldid": 37011173,
+    "title": "Module:Fishing chance calculator",
+    "timestamp": "2026-04-15T10:52:36Z",
+    "sourceSha256": "e1f4f5f6fe68885d523010d7df9203cd44809f4e25a9240e17788a77b5fe2def"
+  },
+  {
+    "file": "data.37011174.json",
+    "oldid": 37011174,
+    "title": "Module:Fishing chance calculator/data",
+    "timestamp": "2026-04-15T10:58:30Z",
+    "sourceSha256": "254bcea7692a300383196db10a394e76dae10e46e4fc4fc442d7a7be8685b3bc"
+  },
+  {
+    "file": "dungeoneering.37062380.json",
+    "oldid": 37062380,
+    "title": "Dungeoneering/Fishing",
+    "timestamp": "2026-06-06T11:36:50Z",
+    "sourceSha256": "3233a8def9c85906c407260693de39ad7306266fd7aae73fa06c9b481dddf10e"
+  },
+  {
+    "file": "dusk-eel.36636680.json",
+    "oldid": 36636680,
+    "title": "Raw dusk eel",
+    "timestamp": "2025-01-18T03:17:55Z",
+    "sourceSha256": "f3580397d025a4f4906f0b38c4b2bafe0f2129eb2480278fc71a58dff46cb408"
+  },
+  {
+    "file": "f2p-training.37189069.json",
+    "oldid": 37189069,
+    "title": "Free-to-play Fishing training",
+    "timestamp": "2026-09-28T07:54:30Z",
+    "sourceSha256": "e61426804c48c0442429961f704101384a5522de6acc41e157564e1a4de08f9b"
+  },
+  {
+    "file": "giant-flatfish.37050096.json",
+    "oldid": 37050096,
+    "title": "Raw giant flatfish",
+    "timestamp": "2026-05-21T01:50:18Z",
+    "sourceSha256": "0948ee6e1f8d7b22d44419e10ab05b66e976d984a0d9d7d6f61a07c06ed9dfcc"
+  },
+  {
+    "file": "heim-crab.36636690.json",
+    "oldid": 36636690,
+    "title": "Raw heim crab",
+    "timestamp": "2025-01-18T03:18:02Z",
+    "sourceSha256": "0a73ab4420d808ad90453b1b76ea2d29b07fd40d7aaa4c956451113b0e299021"
+  },
+  {
+    "file": "mechanics.37195568.json",
+    "oldid": 37195568,
+    "title": "Fishing",
+    "timestamp": "2026-10-02T18:29:20Z",
+    "sourceSha256": "a5361f9ed460cff143ed654f3fdfb196b1c0208c4a768418519c97f87125bef5"
+  },
+  {
+    "file": "minnow.36688690.json",
+    "oldid": 36688690,
+    "title": "Raw minnow",
+    "timestamp": "2025-03-29T18:47:49Z",
+    "sourceSha256": "f0e74ccd1d13c79f86357e7248d879112fdfb0e5e842f919f558aeea44e4a00a"
+  },
+  {
+    "file": "oyster.37148562.json",
+    "oldid": 37148562,
+    "title": "Giant Oyster",
+    "timestamp": "2026-08-08T09:32:22Z",
+    "sourceSha256": "f41416cbb40f552493d88ef55111a6886cdd695f861441a8daafa7525e4b86f9"
+  },
+  {
+    "file": "rainbow-fish.37019589.json",
+    "oldid": 37019589,
+    "title": "Raw rainbow fish",
+    "timestamp": "2026-04-17T07:52:18Z",
+    "sourceSha256": "7867f80f7f8c2aeaa069feb51c9aa33a1e64689a150c11489dde59691fd0c631"
+  },
+  {
+    "file": "red-eye.36636832.json",
+    "oldid": 36636832,
+    "title": "Raw red-eye",
+    "timestamp": "2025-01-18T03:19:44Z",
+    "sourceSha256": "d96b6d00b2b6275ea946efd913e113985e3f4db17a215ac93873b753ade43df0"
+  },
+  {
+    "file": "sea-cucumber.37020394.json",
+    "oldid": 37020394,
+    "title": "Sea cucumber",
+    "timestamp": "2026-04-17T08:11:20Z",
+    "sourceSha256": "b5cc4a3064635737ada0e8d464ab290d7a9fb00016da1ef108ff091707f93df2"
+  },
+  {
+    "file": "short-finned-eel.37050097.json",
+    "oldid": 37050097,
+    "title": "Raw short-finned eel",
+    "timestamp": "2026-05-21T01:51:32Z",
+    "sourceSha256": "7e9c01742046c253205bf7d51a542f435b2f31c0c61023b266f015e7c4170637"
+  },
+  {
+    "file": "success.37009675.json",
+    "oldid": 37009675,
+    "title": "Skilling_success_chance",
+    "sourceSha256": "494cfd0f0a937a5beb10b42a8ffdaf4827b8606fae98e10e7776d48cced10085"
+  },
+  {
+    "file": "vile-fish.37146803.json",
+    "oldid": 37146803,
+    "title": "Raw vile fish",
+    "timestamp": "2026-08-07T12:06:31Z",
+    "sourceSha256": "fc832cd246428dd4dee8bea3d76340b74dcea1d8eabd97f0fa92c025ce4a0304"
+  },
+  {
+    "file": "web-snipper.36636857.json",
+    "oldid": 36636857,
+    "title": "Raw web snipper",
+    "timestamp": "2025-01-18T03:20:03Z",
+    "sourceSha256": "ce7a3f3e77e061ef50c8e62784a96f4aaf15fa91a181210cce5a0e9118987bfa"
+  }
+]

@@ -1,0 +1,970 @@
+{
+  "schemaVersion": 1,
+  "reviewedOn": "2026-10-12",
+  "provenance": {
+    "reference": "rs3-chunkpicker-chunkinfo-export.json",
+    "referenceSha256": "9dd835266f381abaa4d14033abcd0b43a001fe96d7df0a7f046fcc8676d66553",
+    "referenceHashMode": "git-lf",
+    "generator": "scripts/research/retained-entry-requirements.mjs",
+    "generatorSha256": "6a32776ba7fa3e05be946c2a46cfa47534c4b38023d830cfc71982569871e542",
+    "method": "Bounded public Wiki API review of Warriors Guild and Mandrith; generated exact-record overlay for both guild mirrors and the Combat Mandrith mirror. No save or source export mutations."
+  },
+  "wiki": [
+    {
+      "title": "Warriors' Guild",
+      "revisionId": 37169629,
+      "timestamp": "2026-09-03T15:53:29Z",
+      "url": "https://runescape.wiki/w/Special:PermanentLink/37169629",
+      "contentSha256": "42960aa230f8433f2b0e323df1a2d498d8505381eceea74ce627be233230ea5e",
+      "facts": {
+        "combinedAttackStrength": 130,
+        "attackOrStrengthMastery": 99,
+        "boostsAllowed": false
+      }
+    },
+    {
+      "title": "Mandrith",
+      "revisionId": 37129615,
+      "timestamp": "2026-07-29T01:53:06Z",
+      "url": "https://runescape.wiki/w/Special:PermanentLink/37129615",
+      "contentSha256": "1f3fcd70b479d09112ebbd1cfae972ab624dc43c5b323d462f17925e90e1f10c",
+      "facts": {
+        "combatLevel": 120,
+        "slayer": 95
+      }
+    }
+  ],
+  "corrections": [
+    {
+      "category": "Attack",
+      "label": "Gain access to the ~|Warriors' Guild|~",
+      "id": "rs3:task:000364",
+      "beforeRecordSha256": "9411b46f943156f5bdfde4a6c95e6655bf511fb2fcf57de628fa67abcdb0636e",
+      "rationale": "The retained 65 in each skill excludes uneven combined-130 and single-skill mastery entry options. Entry cannot be boosted.",
+      "changes": [
+        {
+          "field": "Level",
+          "beforePresent": true,
+          "before": 65,
+          "after": 1
+        },
+        {
+          "field": "Skills",
+          "beforePresent": true,
+          "before": {
+            "Strength": 65
+          },
+          "after": {}
+        },
+        {
+          "field": "RequirementAlternatives",
+          "beforePresent": false,
+          "before": null,
+          "after": [
+            {
+              "Skills": {
+                "Attack": 99
+              }
+            },
+            {
+              "Skills": {
+                "Strength": 99
+              }
+            },
+            {
+              "Skills": {
+                "Attack": 32,
+                "Strength": 98
+              }
+            },
+            {
+              "Skills": {
+                "Attack": 33,
+                "Strength": 97
+              }
+            },
+            {
+              "Skills": {
+                "Attack": 34,
+                "Strength": 96
+              }
+            },
+            {
+              "Skills": {
+                "Attack": 35,
+                "Strength": 95
+              }
+            },
+            {
+              "Skills": {
+                "Attack": 36,
+                "Strength": 94
+              }
+            },
+            {
+              "Skills": {
+                "Attack": 37,
+                "Strength": 93
+              }
+            },
+            {
+              "Skills": {
+                "Attack": 38,
+                "Strength": 92
+              }
+            },
+            {
+              "Skills": {
+                "Attack": 39,
+                "Strength": 91
+              }
+            },
+            {
+              "Skills": {
+                "Attack": 40,
+                "Strength": 90
+              }
+            },
+            {
+              "Skills": {
+                "Attack": 41,
+                "Strength": 89
+              }
+            },
+            {
+              "Skills": {
+                "Attack": 42,
+                "Strength": 88
+              }
+            },
+            {
+              "Skills": {
+                "Attack": 43,
+                "Strength": 87
+              }
+            },
+            {
+              "Skills": {
+                "Attack": 44,
+                "Strength": 86
+              }
+            },
+            {
+              "Skills": {
+                "Attack": 45,
+                "Strength": 85
+              }
+            },
+            {
+              "Skills": {
+                "Attack": 46,
+                "Strength": 84
+              }
+            },
+            {
+              "Skills": {
+                "Attack": 47,
+                "Strength": 83
+              }
+            },
+            {
+              "Skills": {
+                "Attack": 48,
+                "Strength": 82
+              }
+            },
+            {
+              "Skills": {
+                "Attack": 49,
+                "Strength": 81
+              }
+            },
+            {
+              "Skills": {
+                "Attack": 50,
+                "Strength": 80
+              }
+            },
+            {
+              "Skills": {
+                "Attack": 51,
+                "Strength": 79
+              }
+            },
+            {
+              "Skills": {
+                "Attack": 52,
+                "Strength": 78
+              }
+            },
+            {
+              "Skills": {
+                "Attack": 53,
+                "Strength": 77
+              }
+            },
+            {
+              "Skills": {
+                "Attack": 54,
+                "Strength": 76
+              }
+            },
+            {
+              "Skills": {
+                "Attack": 55,
+                "Strength": 75
+              }
+            },
+            {
+              "Skills": {
+                "Attack": 56,
+                "Strength": 74
+              }
+            },
+            {
+              "Skills": {
+                "Attack": 57,
+                "Strength": 73
+              }
+            },
+            {
+              "Skills": {
+                "Attack": 58,
+                "Strength": 72
+              }
+            },
+            {
+              "Skills": {
+                "Attack": 59,
+                "Strength": 71
+              }
+            },
+            {
+              "Skills": {
+                "Attack": 60,
+                "Strength": 70
+              }
+            },
+            {
+              "Skills": {
+                "Attack": 61,
+                "Strength": 69
+              }
+            },
+            {
+              "Skills": {
+                "Attack": 62,
+                "Strength": 68
+              }
+            },
+            {
+              "Skills": {
+                "Attack": 63,
+                "Strength": 67
+              }
+            },
+            {
+              "Skills": {
+                "Attack": 64,
+                "Strength": 66
+              }
+            },
+            {
+              "Skills": {
+                "Attack": 65,
+                "Strength": 65
+              }
+            },
+            {
+              "Skills": {
+                "Attack": 66,
+                "Strength": 64
+              }
+            },
+            {
+              "Skills": {
+                "Attack": 67,
+                "Strength": 63
+              }
+            },
+            {
+              "Skills": {
+                "Attack": 68,
+                "Strength": 62
+              }
+            },
+            {
+              "Skills": {
+                "Attack": 69,
+                "Strength": 61
+              }
+            },
+            {
+              "Skills": {
+                "Attack": 70,
+                "Strength": 60
+              }
+            },
+            {
+              "Skills": {
+                "Attack": 71,
+                "Strength": 59
+              }
+            },
+            {
+              "Skills": {
+                "Attack": 72,
+                "Strength": 58
+              }
+            },
+            {
+              "Skills": {
+                "Attack": 73,
+                "Strength": 57
+              }
+            },
+            {
+              "Skills": {
+                "Attack": 74,
+                "Strength": 56
+              }
+            },
+            {
+              "Skills": {
+                "Attack": 75,
+                "Strength": 55
+              }
+            },
+            {
+              "Skills": {
+                "Attack": 76,
+                "Strength": 54
+              }
+            },
+            {
+              "Skills": {
+                "Attack": 77,
+                "Strength": 53
+              }
+            },
+            {
+              "Skills": {
+                "Attack": 78,
+                "Strength": 52
+              }
+            },
+            {
+              "Skills": {
+                "Attack": 79,
+                "Strength": 51
+              }
+            },
+            {
+              "Skills": {
+                "Attack": 80,
+                "Strength": 50
+              }
+            },
+            {
+              "Skills": {
+                "Attack": 81,
+                "Strength": 49
+              }
+            },
+            {
+              "Skills": {
+                "Attack": 82,
+                "Strength": 48
+              }
+            },
+            {
+              "Skills": {
+                "Attack": 83,
+                "Strength": 47
+              }
+            },
+            {
+              "Skills": {
+                "Attack": 84,
+                "Strength": 46
+              }
+            },
+            {
+              "Skills": {
+                "Attack": 85,
+                "Strength": 45
+              }
+            },
+            {
+              "Skills": {
+                "Attack": 86,
+                "Strength": 44
+              }
+            },
+            {
+              "Skills": {
+                "Attack": 87,
+                "Strength": 43
+              }
+            },
+            {
+              "Skills": {
+                "Attack": 88,
+                "Strength": 42
+              }
+            },
+            {
+              "Skills": {
+                "Attack": 89,
+                "Strength": 41
+              }
+            },
+            {
+              "Skills": {
+                "Attack": 90,
+                "Strength": 40
+              }
+            },
+            {
+              "Skills": {
+                "Attack": 91,
+                "Strength": 39
+              }
+            },
+            {
+              "Skills": {
+                "Attack": 92,
+                "Strength": 38
+              }
+            },
+            {
+              "Skills": {
+                "Attack": 93,
+                "Strength": 37
+              }
+            },
+            {
+              "Skills": {
+                "Attack": 94,
+                "Strength": 36
+              }
+            },
+            {
+              "Skills": {
+                "Attack": 95,
+                "Strength": 35
+              }
+            },
+            {
+              "Skills": {
+                "Attack": 96,
+                "Strength": 34
+              }
+            },
+            {
+              "Skills": {
+                "Attack": 97,
+                "Strength": 33
+              }
+            },
+            {
+              "Skills": {
+                "Attack": 98,
+                "Strength": 32
+              }
+            }
+          ]
+        },
+        {
+          "field": "RequirementAlternativesDescription",
+          "beforePresent": false,
+          "before": null,
+          "after": "Attack + Strength 130, or Attack 99, or Strength 99 (base levels)."
+        },
+        {
+          "field": "Description",
+          "beforePresent": false,
+          "before": null,
+          "after": "Enter the Warriors' Guild with base Attack + Strength of at least 130, or base Attack 99, or base Strength 99. Temporary boosts do not count."
+        }
+      ]
+    },
+    {
+      "category": "Strength",
+      "label": "Gain access to the ~|Warriors' Guild|~",
+      "id": "rs3:task:001c51",
+      "beforeRecordSha256": "3c4db26949952670785ac08a2e4486173b9b3696c5ed51e3b39f53bf4d0d77a4",
+      "rationale": "The retained 65 in each skill excludes uneven combined-130 and single-skill mastery entry options. Entry cannot be boosted.",
+      "changes": [
+        {
+          "field": "Level",
+          "beforePresent": true,
+          "before": 65,
+          "after": 1
+        },
+        {
+          "field": "Skills",
+          "beforePresent": true,
+          "before": {
+            "Attack": 65
+          },
+          "after": {}
+        },
+        {
+          "field": "RequirementAlternatives",
+          "beforePresent": false,
+          "before": null,
+          "after": [
+            {
+              "Skills": {
+                "Attack": 99
+              }
+            },
+            {
+              "Skills": {
+                "Strength": 99
+              }
+            },
+            {
+              "Skills": {
+                "Attack": 32,
+                "Strength": 98
+              }
+            },
+            {
+              "Skills": {
+                "Attack": 33,
+                "Strength": 97
+              }
+            },
+            {
+              "Skills": {
+                "Attack": 34,
+                "Strength": 96
+              }
+            },
+            {
+              "Skills": {
+                "Attack": 35,
+                "Strength": 95
+              }
+            },
+            {
+              "Skills": {
+                "Attack": 36,
+                "Strength": 94
+              }
+            },
+            {
+              "Skills": {
+                "Attack": 37,
+                "Strength": 93
+              }
+            },
+            {
+              "Skills": {
+                "Attack": 38,
+                "Strength": 92
+              }
+            },
+            {
+              "Skills": {
+                "Attack": 39,
+                "Strength": 91
+              }
+            },
+            {
+              "Skills": {
+                "Attack": 40,
+                "Strength": 90
+              }
+            },
+            {
+              "Skills": {
+                "Attack": 41,
+                "Strength": 89
+              }
+            },
+            {
+              "Skills": {
+                "Attack": 42,
+                "Strength": 88
+              }
+            },
+            {
+              "Skills": {
+                "Attack": 43,
+                "Strength": 87
+              }
+            },
+            {
+              "Skills": {
+                "Attack": 44,
+                "Strength": 86
+              }
+            },
+            {
+              "Skills": {
+                "Attack": 45,
+                "Strength": 85
+              }
+            },
+            {
+              "Skills": {
+                "Attack": 46,
+                "Strength": 84
+              }
+            },
+            {
+              "Skills": {
+                "Attack": 47,
+                "Strength": 83
+              }
+            },
+            {
+              "Skills": {
+                "Attack": 48,
+                "Strength": 82
+              }
+            },
+            {
+              "Skills": {
+                "Attack": 49,
+                "Strength": 81
+              }
+            },
+            {
+              "Skills": {
+                "Attack": 50,
+                "Strength": 80
+              }
+            },
+            {
+              "Skills": {
+                "Attack": 51,
+                "Strength": 79
+              }
+            },
+            {
+              "Skills": {
+                "Attack": 52,
+                "Strength": 78
+              }
+            },
+            {
+              "Skills": {
+                "Attack": 53,
+                "Strength": 77
+              }
+            },
+            {
+              "Skills": {
+                "Attack": 54,
+                "Strength": 76
+              }
+            },
+            {
+              "Skills": {
+                "Attack": 55,
+                "Strength": 75
+              }
+            },
+            {
+              "Skills": {
+                "Attack": 56,
+                "Strength": 74
+              }
+            },
+            {
+              "Skills": {
+                "Attack": 57,
+                "Strength": 73
+              }
+            },
+            {
+              "Skills": {
+                "Attack": 58,
+                "Strength": 72
+              }
+            },
+            {
+              "Skills": {
+                "Attack": 59,
+                "Strength": 71
+              }
+            },
+            {
+              "Skills": {
+                "Attack": 60,
+                "Strength": 70
+              }
+            },
+            {
+              "Skills": {
+                "Attack": 61,
+                "Strength": 69
+              }
+            },
+            {
+              "Skills": {
+                "Attack": 62,
+                "Strength": 68
+              }
+            },
+            {
+              "Skills": {
+                "Attack": 63,
+                "Strength": 67
+              }
+            },
+            {
+              "Skills": {
+                "Attack": 64,
+                "Strength": 66
+              }
+            },
+            {
+              "Skills": {
+                "Attack": 65,
+                "Strength": 65
+              }
+            },
+            {
+              "Skills": {
+                "Attack": 66,
+                "Strength": 64
+              }
+            },
+            {
+              "Skills": {
+                "Attack": 67,
+                "Strength": 63
+              }
+            },
+            {
+              "Skills": {
+                "Attack": 68,
+                "Strength": 62
+              }
+            },
+            {
+              "Skills": {
+                "Attack": 69,
+                "Strength": 61
+              }
+            },
+            {
+              "Skills": {
+                "Attack": 70,
+                "Strength": 60
+              }
+            },
+            {
+              "Skills": {
+                "Attack": 71,
+                "Strength": 59
+              }
+            },
+            {
+              "Skills": {
+                "Attack": 72,
+                "Strength": 58
+              }
+            },
+            {
+              "Skills": {
+                "Attack": 73,
+                "Strength": 57
+              }
+            },
+            {
+              "Skills": {
+                "Attack": 74,
+                "Strength": 56
+              }
+            },
+            {
+              "Skills": {
+                "Attack": 75,
+                "Strength": 55
+              }
+            },
+            {
+              "Skills": {
+                "Attack": 76,
+                "Strength": 54
+              }
+            },
+            {
+              "Skills": {
+                "Attack": 77,
+                "Strength": 53
+              }
+            },
+            {
+              "Skills": {
+                "Attack": 78,
+                "Strength": 52
+              }
+            },
+            {
+              "Skills": {
+                "Attack": 79,
+                "Strength": 51
+              }
+            },
+            {
+              "Skills": {
+                "Attack": 80,
+                "Strength": 50
+              }
+            },
+            {
+              "Skills": {
+                "Attack": 81,
+                "Strength": 49
+              }
+            },
+            {
+              "Skills": {
+                "Attack": 82,
+                "Strength": 48
+              }
+            },
+            {
+              "Skills": {
+                "Attack": 83,
+                "Strength": 47
+              }
+            },
+            {
+              "Skills": {
+                "Attack": 84,
+                "Strength": 46
+              }
+            },
+            {
+              "Skills": {
+                "Attack": 85,
+                "Strength": 45
+              }
+            },
+            {
+              "Skills": {
+                "Attack": 86,
+                "Strength": 44
+              }
+            },
+            {
+              "Skills": {
+                "Attack": 87,
+                "Strength": 43
+              }
+            },
+            {
+              "Skills": {
+                "Attack": 88,
+                "Strength": 42
+              }
+            },
+            {
+              "Skills": {
+                "Attack": 89,
+                "Strength": 41
+              }
+            },
+            {
+              "Skills": {
+                "Attack": 90,
+                "Strength": 40
+              }
+            },
+            {
+              "Skills": {
+                "Attack": 91,
+                "Strength": 39
+              }
+            },
+            {
+              "Skills": {
+                "Attack": 92,
+                "Strength": 38
+              }
+            },
+            {
+              "Skills": {
+                "Attack": 93,
+                "Strength": 37
+              }
+            },
+            {
+              "Skills": {
+                "Attack": 94,
+                "Strength": 36
+              }
+            },
+            {
+              "Skills": {
+                "Attack": 95,
+                "Strength": 35
+              }
+            },
+            {
+              "Skills": {
+                "Attack": 96,
+                "Strength": 34
+              }
+            },
+            {
+              "Skills": {
+                "Attack": 97,
+                "Strength": 33
+              }
+            },
+            {
+              "Skills": {
+                "Attack": 98,
+                "Strength": 32
+              }
+            }
+          ]
+        },
+        {
+          "field": "RequirementAlternativesDescription",
+          "beforePresent": false,
+          "before": null,
+          "after": "Attack + Strength 130, or Attack 99, or Strength 99 (base levels)."
+        },
+        {
+          "field": "Description",
+          "beforePresent": false,
+          "before": null,
+          "after": "Enter the Warriors' Guild with base Attack + Strength of at least 130, or base Attack 99, or base Strength 99. Temporary boosts do not count."
+        }
+      ]
+    },
+    {
+      "category": "Combat",
+      "label": "Receive a slayer assignment from ~|Mandrith|~",
+      "id": "rs3:task:0003c3",
+      "beforeRecordSha256": "e117aab922d2662114a11461efb74d26b074fcb5e23e385fa9a018c6091491ae",
+      "rationale": "The Combat mirror must match current Mandrith and the retained Slayer row: Combat 120 and Slayer 95.",
+      "changes": [
+        {
+          "field": "Skills",
+          "beforePresent": true,
+          "before": {
+            "Slayer": 85
+          },
+          "after": {
+            "Slayer": 95
+          }
+        }
+      ]
+    }
+  ],
+  "audit": {
+    "limitation": "Three retained rows only; existing retained-task-requirements evidence remains an immutable historical audit.",
+    "guildAlternativeEncoding": "Attack99 OR Strength99 OR boundary pairs Attack32..98 AND Strength(130−Attack). Existing NoBoost:true applies to every clause."
+  }
+}

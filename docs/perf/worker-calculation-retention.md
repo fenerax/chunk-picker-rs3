@@ -6,15 +6,17 @@ Current-result reuse and advisory upgrade behavior are unchanged. An in-flight
 request retains its own snapshot reference, so eviction cannot invalidate work
 already using that result. Older requests rebuild through ordinary evaluation.
 
-The separate four-entry state-transfer cache is unchanged. Its capacity is part
-of the scheduler's protocol and cannot be reduced independently. Eligibility
-proofs, sandbox results and prediction limits also retain their existing bounds.
+The state-transfer cache now holds two parsed save states, down from four (see
+[server memory](server-memory.md)). Its capacity is part of the scheduler's
+protocol, so the scheduler and worker share `STATE_SNAPSHOT_LIMIT` in
+`app/tasks/state-transfer.mjs` and evict in lockstep. Eligibility proofs,
+sandbox results and prediction limits retain their existing bounds.
 
 The worker regression crosses four revisions, checks that the latest two
 results are reused and that older calculations rebuild, then compares the oldest
 rebuilt complete play bytes with both the original response and a fresh worker.
-Requests omit state bytes on the retained and evicted paths, proving that all
-four transferred states remain available despite calculation eviction.
+Requests for the two newest states omit state bytes; an older state reports a
+missing snapshot until its bytes are sent again, as the scheduler does.
 
 Measurement uses the same pinned source/input selection and interleaved fresh
 servers described in [scenario methodology](picker-scenarios.md). The memory phase changes challenge

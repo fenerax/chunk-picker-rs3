@@ -1,0 +1,381 @@
+{
+  "reviewedAt": "2026-10-13",
+  "sourceRevision": 110,
+  "sourceStateSha256": "a1099ade82a40ab9c4c403a5d14eb3c7258fccad1fb0bfc3f246202ced80df49",
+  "scope": "Copied private save; command-based rule variants; only public task and source deltas retained. Live save untouched.",
+  "wiki": [
+    {
+      "title": "Bowl",
+      "revisionId": 37132004,
+      "timestamp": "2026-07-30T15:19:49Z",
+      "contentSha256": "dd0401f72b06d693e168de7b6c2029da96c503c4cca8dcd3a811491ed5cb36b1",
+      "url": "https://runescape.wiki/w/Special:PermanentLink/37132004"
+    },
+    {
+      "title": "Rune crossbow (unstrung)",
+      "revisionId": 37181834,
+      "timestamp": "2026-09-21T10:30:47Z",
+      "contentSha256": "1d37d0cde3c21c91942c2dc1c093e26b61b1339b52b431e8df125c4d49677095",
+      "url": "https://runescape.wiki/w/Special:PermanentLink/37181834"
+    },
+    {
+      "title": "Bowstring",
+      "revisionId": 37198222,
+      "timestamp": "2026-10-05T04:34:24Z",
+      "contentSha256": "b02b5187308b986d6603c935c9431c557daa7da89ff8431ab0a076302953596d",
+      "url": "https://runescape.wiki/w/Special:PermanentLink/37198222"
+    },
+    {
+      "title": "Leather",
+      "revisionId": 37171846,
+      "timestamp": "2026-09-05T22:01:54Z",
+      "contentSha256": "431d9ea173f4d09e437b74ae69b60ded5a4f1852078affbf8cd964aba6c8a57a",
+      "url": "https://runescape.wiki/w/Special:PermanentLink/37171846"
+    },
+    {
+      "title": "Soft clay",
+      "revisionId": 37179488,
+      "timestamp": "2026-09-18T18:13:50Z",
+      "contentSha256": "8a6a63913a16a478864affa7004359aa5a913befda6a15b3304d3cbf87c3acef",
+      "url": "https://runescape.wiki/w/Special:PermanentLink/37179488"
+    },
+    {
+      "title": "Bowl (unfired)",
+      "revisionId": 36499196,
+      "timestamp": "2024-08-21T07:43:47Z",
+      "contentSha256": "f3f84ae4a0540a2af0c814568a871241257e8df2feb5b867030f123700d0a0e0",
+      "url": "https://runescape.wiki/w/Special:PermanentLink/36499196"
+    },
+    {
+      "title": "Longbow (unstrung)",
+      "revisionId": 37163571,
+      "timestamp": "2026-08-24T16:49:20Z",
+      "contentSha256": "26dc8d95e70768167bb497a17e720a550965490ef7b3c44bef359acc1cc2ce17",
+      "url": "https://runescape.wiki/w/Special:PermanentLink/37163571"
+    },
+    {
+      "title": "Bronze bar",
+      "revisionId": 37012046,
+      "timestamp": "2026-04-15T18:34:31Z",
+      "contentSha256": "cde9388cfbc23fecac5a7584098d9926e2270e4cd8827eee85fde0705ff759bf",
+      "url": "https://runescape.wiki/w/Special:PermanentLink/37012046"
+    },
+    {
+      "title": "Acadia stock",
+      "revisionId": 37180167,
+      "timestamp": "2026-09-19T15:19:51Z",
+      "contentSha256": "8c34f8e33b55b8ad2dbc943dd493665e3fc899fba106ae2e8d0ac6e9cf3242ad",
+      "url": "https://runescape.wiki/w/Special:PermanentLink/37180167"
+    }
+  ],
+  "source": {
+    "app/tasks/engine.mjs": {
+      "before": "92a4a292698fa11cf16d5f7146a381b55bfbb35ecf72ae7d4667442472f65bf8",
+      "after": "659e2f0a6c5393824426c832970b87e6a9feddd2653027b9158b2894ca21aa10"
+    },
+    "app/tasks/processing.mjs": {
+      "before": "18df2f734542bd1c5bcf8f333f16bce74eff968fe1f127d87939dd3deb16b2d7",
+      "after": "e7e392540879b7ee4ab2402ffac655bf68ffd819027c14312f5ad44e581e6d28"
+    }
+  },
+  "scenarios": [
+    {
+      "variant": "saved",
+      "memberId": "player1",
+      "variantRevision": 110,
+      "commands": [],
+      "unsupported": {
+        "before": 34,
+        "after": 16
+      },
+      "activeTaskIdsUnchanged": true,
+      "chainTrainingUnchanged": true,
+      "taskChanges": [],
+      "addedItemNames": [],
+      "changedSourceNames": [],
+      "lostItemNames": []
+    },
+    {
+      "variant": "saved",
+      "memberId": "player2",
+      "variantRevision": 110,
+      "commands": [],
+      "unsupported": {
+        "before": 34,
+        "after": 16
+      },
+      "activeTaskIdsUnchanged": true,
+      "chainTrainingUnchanged": true,
+      "taskChanges": [],
+      "addedItemNames": [],
+      "changedSourceNames": [],
+      "lostItemNames": []
+    },
+    {
+      "variant": "multi",
+      "memberId": "player1",
+      "variantRevision": 112,
+      "commands": [
+        {
+          "type": "set-task-rule",
+          "memberId": "player1",
+          "ruleId": "Multi Step Processing",
+          "value": true
+        },
+        {
+          "type": "set-task-rule",
+          "memberId": "player2",
+          "ruleId": "Multi Step Processing",
+          "value": true
+        }
+      ],
+      "unsupported": {
+        "before": 34,
+        "after": 16
+      },
+      "activeTaskIdsUnchanged": true,
+      "chainTrainingUnchanged": true,
+      "taskChanges": [],
+      "addedItemNames": [],
+      "changedSourceNames": [],
+      "lostItemNames": []
+    },
+    {
+      "variant": "multi",
+      "memberId": "player2",
+      "variantRevision": 112,
+      "commands": [
+        {
+          "type": "set-task-rule",
+          "memberId": "player1",
+          "ruleId": "Multi Step Processing",
+          "value": true
+        },
+        {
+          "type": "set-task-rule",
+          "memberId": "player2",
+          "ruleId": "Multi Step Processing",
+          "value": true
+        }
+      ],
+      "unsupported": {
+        "before": 34,
+        "after": 16
+      },
+      "activeTaskIdsUnchanged": true,
+      "chainTrainingUnchanged": true,
+      "taskChanges": [],
+      "addedItemNames": [],
+      "changedSourceNames": [],
+      "lostItemNames": []
+    },
+    {
+      "variant": "hide-partials",
+      "memberId": "player1",
+      "variantRevision": 112,
+      "commands": [
+        {
+          "type": "set-task-rule",
+          "memberId": "player1",
+          "ruleId": "Hide Partial Products",
+          "value": true
+        },
+        {
+          "type": "set-task-rule",
+          "memberId": "player2",
+          "ruleId": "Hide Partial Products",
+          "value": true
+        }
+      ],
+      "unsupported": {
+        "before": 34,
+        "after": 16
+      },
+      "activeTaskIdsUnchanged": true,
+      "chainTrainingUnchanged": true,
+      "taskChanges": [],
+      "addedItemNames": [],
+      "changedSourceNames": [],
+      "lostItemNames": []
+    },
+    {
+      "variant": "hide-partials",
+      "memberId": "player2",
+      "variantRevision": 112,
+      "commands": [
+        {
+          "type": "set-task-rule",
+          "memberId": "player1",
+          "ruleId": "Hide Partial Products",
+          "value": true
+        },
+        {
+          "type": "set-task-rule",
+          "memberId": "player2",
+          "ruleId": "Hide Partial Products",
+          "value": true
+        }
+      ],
+      "unsupported": {
+        "before": 34,
+        "after": 16
+      },
+      "activeTaskIdsUnchanged": true,
+      "chainTrainingUnchanged": true,
+      "taskChanges": [
+        {
+          "id": "rs3:task:001092",
+          "label": "Fletch an acadia stock",
+          "before": {
+            "id": "rs3:task:001092",
+            "label": "Fletch an acadia stock",
+            "category": "Fletching",
+            "status": "available",
+            "sourceEligible": false,
+            "primaryMethod": false,
+            "personalCompleted": false,
+            "hidden": false,
+            "blockers": []
+          },
+          "after": {
+            "id": "rs3:task:001092",
+            "label": "Fletch an acadia stock",
+            "category": "Fletching",
+            "status": "available",
+            "sourceEligible": true,
+            "primaryMethod": true,
+            "personalCompleted": false,
+            "hidden": false,
+            "blockers": []
+          }
+        },
+        {
+          "id": "rs3:task:001093",
+          "label": "Fletch a rune crossbow (unstrung)",
+          "before": {
+            "id": "rs3:task:001093",
+            "label": "Fletch a rune crossbow (unstrung)",
+            "category": "Fletching",
+            "status": "blocked",
+            "sourceEligible": true,
+            "primaryMethod": false,
+            "personalCompleted": false,
+            "hidden": false,
+            "blockers": [
+              {
+                "kind": "items",
+                "detail": "Items: Acadia stock."
+              }
+            ]
+          },
+          "after": {
+            "id": "rs3:task:001093",
+            "label": "Fletch a rune crossbow (unstrung)",
+            "category": "Fletching",
+            "status": "available",
+            "sourceEligible": true,
+            "primaryMethod": true,
+            "personalCompleted": false,
+            "hidden": false,
+            "blockers": []
+          }
+        },
+        {
+          "id": "rs3:task:001094",
+          "label": "String a rune crossbow",
+          "before": {
+            "id": "rs3:task:001094",
+            "label": "String a rune crossbow",
+            "category": "Fletching",
+            "status": "blocked",
+            "sourceEligible": true,
+            "primaryMethod": false,
+            "personalCompleted": false,
+            "hidden": false,
+            "blockers": [
+              {
+                "kind": "items",
+                "detail": "Items: Rune crossbow (unstrung)."
+              }
+            ]
+          },
+          "after": {
+            "id": "rs3:task:001094",
+            "label": "String a rune crossbow",
+            "category": "Fletching",
+            "status": "available",
+            "sourceEligible": true,
+            "primaryMethod": false,
+            "personalCompleted": false,
+            "hidden": false,
+            "blockers": []
+          }
+        },
+        {
+          "id": "rs3:task:001096",
+          "label": "Fletch an acadia longbow (unstrung)",
+          "before": {
+            "id": "rs3:task:001096",
+            "label": "Fletch an acadia longbow (unstrung)",
+            "category": "Fletching",
+            "status": "available",
+            "sourceEligible": false,
+            "primaryMethod": false,
+            "personalCompleted": false,
+            "hidden": false,
+            "blockers": []
+          },
+          "after": {
+            "id": "rs3:task:001096",
+            "label": "Fletch an acadia longbow (unstrung)",
+            "category": "Fletching",
+            "status": "available",
+            "sourceEligible": true,
+            "primaryMethod": true,
+            "personalCompleted": false,
+            "hidden": false,
+            "blockers": []
+          }
+        },
+        {
+          "id": "rs3:task:001097",
+          "label": "String an acadia longbow",
+          "before": {
+            "id": "rs3:task:001097",
+            "label": "String an acadia longbow",
+            "category": "Fletching",
+            "status": "available",
+            "sourceEligible": false,
+            "primaryMethod": false,
+            "personalCompleted": false,
+            "hidden": false,
+            "blockers": []
+          },
+          "after": {
+            "id": "rs3:task:001097",
+            "label": "String an acadia longbow",
+            "category": "Fletching",
+            "status": "available",
+            "sourceEligible": true,
+            "primaryMethod": false,
+            "personalCompleted": false,
+            "hidden": false,
+            "blockers": []
+          }
+        }
+      ],
+      "addedItemNames": [
+        "Acadia longbow (unstrung)",
+        "Acadia stock",
+        "Rune crossbow (unstrung)"
+      ],
+      "changedSourceNames": [
+        "Acadia longbow",
+        "Off-hand rune crossbow",
+        "Rune 2h crossbow",
+        "Rune crossbow"
+      ],
+      "lostItemNames": []
+    }
+  ]
+}

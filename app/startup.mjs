@@ -3,6 +3,7 @@ import path from 'node:path';
 import { readFile } from 'node:fs/promises';
 import { timingSafeEqual } from 'node:crypto';
 import { normalizePublicOrigin, requestContext } from './security/request.mjs';
+import { startupPhase } from './startup-timing.mjs';
 
 // Bind before store/catalogue initialization. The dispatcher has no save queue:
 // every request except private health is refused until the real handler exists.
@@ -58,6 +59,7 @@ export async function startEarlyServer(options, createApplication) {
     await bind(server, port, host);
     if (loopbackServer) await bind(loopbackServer, loopbackPort, '127.0.0.1');
   } catch (error) { await closeListeners(); throw error; }
+  startupPhase('early-listen');
   const handle = {
     server, address: () => server.address(), loopbackAddress: () => loopbackServer?.address() ?? null,
     get inviteUrl() { return application?.inviteUrl; },
@@ -84,9 +86,19 @@ export async function startEarlyServer(options, createApplication) {
         taskWorkerOptions: { startupDeadlineMs: 300000, ...options.taskWorkerOptions, signal: initialization.signal } });
       if (stopped) { await application.close(); throw new Error('Server is closed.'); }
       await application.listen();
+      startupPhase('listen');
       return application;
     } catch (error) { stopped = true; await closeListeners(); throw error; }
   });
   handle.ready.catch(() => {}); // Callers observe ready; avoid a race with handlers.
   return handle;
+}
+
+// The import-time provider stays reachable from its module's top-level await.
+// Keeping an equivalent second resolution would retain every catalogue twice.
+// Workers rebuild providers from workerSelection(), so it defines equivalence.
+export function reuseEquivalentDataset(resolved, imported) {
+  if (!imported || resolved === imported || resolved?.digest !== imported.digest) return resolved;
+  try { return JSON.stringify(resolved.workerSelection()) === JSON.stringify(imported.workerSelection()) ? imported : resolved; }
+  catch { return resolved; }
 }

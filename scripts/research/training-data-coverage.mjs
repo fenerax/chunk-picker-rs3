@@ -1,0 +1,50 @@
+import fs from 'node:fs';
+import path from 'node:path';
+import { loadOriginalData } from '../../app/data/original-data.mjs';
+import { applyEquipmentCorrections } from '../../app/data/equipment-corrections.mjs';
+import { applyCacheShops } from '../../app/data/cache-shops.mjs';
+import { createTaskEngine } from '../../app/tasks/engine.mjs';
+import { buildWorld } from '../../app/data/world.mjs';
+import { createGroupState } from '../../app/core/state.mjs';
+import { analyzeAreaCheck } from '../../app/tasks/area-check.mjs';
+import { buildTrainingAvailability } from '../../app/tasks/training-availability.mjs';
+import { trainingMethodBlockers } from '../../app/tasks/training-planner.mjs';
+import catalogue from '../../app/data/training/catalogue.mjs';
+
+const { definitionBytes } = await loadOriginalData({ loadTaskMap: false });
+const definitions = applyCacheShops(applyEquipmentCorrections(JSON.parse(definitionBytes)));
+const engine = createTaskEngine(definitions), world = buildWorld(definitions);
+const chunks = definitions.walkableChunksF2P.map(String).filter(id => world.chunks.has(id));
+const state = createGroupState([{ id: 'audit', name: 'Synthetic audit', unlocked: chunks }]);
+const result = engine.evaluate(state, 'audit');
+const availability = buildTrainingAvailability(result, {state,memberId:'audit',definitions});
+availability.skills = Object.fromEntries(Object.entries(result.training).map(([k,v])=>[k,v.level]));
+const spatial = new Set(['membership','object','npc','monster','shop','chunk','area','item','unsupported-selector']);
+const placed = method => !trainingMethodBlockers(method,availability).some(b=>spatial.has(b.kind) || b.kind==='alternatives' && b.alternatives.every(v=>spatial.has(v.kind)));
+const available = method => !trainingMethodBlockers(method,availability).length;
+function coverage(methods,cap) {
+  const levels = [...new Set(methods.map(m=>m.level))].sort((a,b)=>a-b);
+  const stretches = levels.map((from,index)=>({from,to:levels[index+1]??cap,size:(levels[index+1]??cap)-from}));
+  return {count:methods.length,levels,largest:stretches.sort((a,b)=>b.size-a.size||a.from-b.from)[0]??null,bootstrap:levels.length?levels[0]-1:null};
+}
+const merged = analyzeAreaCheck(state,'audit',{chunkIds:[]},{engine,definitions,world});
+const rows = catalogue.skills.map(s=>{
+  const raw = catalogue.methods.filter(m=>m.skill===s.skill && m.members===false && m.level<=s.f2pCap);
+  const row = merged.rows.find(r=>r.skill===s.skill);
+  return {skill:s.skill,cap:s.f2pCap,raw:coverage(raw,s.f2pCap),placeable:coverage(raw.filter(placed),s.f2pCap),available:coverage(raw.filter(available),s.f2pCap),merged:coverage(row.combined.methods,s.f2pCap),mergedAvailable:coverage(row.combined.methods.filter(m=>m.status==='available'),s.f2pCap)};
+});
+const empty = createGroupState([{id:'audit',name:'Synthetic audit',unlocked:[]}]);
+const local = Object.fromEntries(['13105','12850'].map(id=>[id,analyzeAreaCheck(empty,'audit',{chunkIds:[id]},{engine,definitions,world}).rows.flatMap(r=>r.alone.methods.map(m=>({skill:r.skill,...m})))]));
+const seeded = structuredClone(empty);
+seeded.members[0].sectionOverrides = {'12850-1':true};
+const localConfirmedLumbridgeSection = analyzeAreaCheck(seeded,'audit',{chunkIds:['12850']},{engine,definitions,world}).rows.flatMap(r=>r.alone.methods.map(m=>({skill:r.skill,...m})));
+seeded.members[0].sectionOverrides['12850-2'] = true;
+const localConfirmedAllLumbridgeSections = analyzeAreaCheck(seeded,'audit',{chunkIds:['12850']},{engine,definitions,world}).rows.flatMap(r=>r.alone.methods.map(m=>({skill:r.skill,...m})));
+const report = {catalogueVersion:catalogue.version,synthetic:true,f2pChunkCount:chunks.length,metric:'Count reviewed methods; distinct entry levels; largest adjacent entry spacing or final entry-to-F2P-cap tail. No-method largest=null; bootstrap reported separately. Placeable uses Area check spatial blocker kinds, so unsupported assignment selectors are excluded too. Available also requires all personal gates. Merged uses native Area check candidates.',rows,local,localConfirmedLumbridgeSection};
+const output = path.resolve('.local/training-data-audit',process.argv[2]??'current.json');
+report.localConfirmedAllLumbridgeSections = localConfirmedAllLumbridgeSections;
+if (!output.startsWith(path.resolve('.local/training-data-audit')+path.sep)) throw new Error('Audit output outside permitted directory');
+fs.mkdirSync(path.dirname(output), { recursive: true });
+fs.writeFileSync(output,JSON.stringify(report,null,2)+'\n');
+fs.writeFileSync(output.replace(/\.json$/,'.availability.json'),JSON.stringify(availability,null,2)+'\n');
+console.log(JSON.stringify({output,counts:rows.map(r=>({skill:r.skill,raw:r.raw.count,placeable:r.placeable.count,available:r.available.count})),localCounts:Object.fromEntries(Object.entries(local).map(([id,m])=>[id,m.length])),confirmedLumbridgeCount:localConfirmedLumbridgeSection.length},null,2));
