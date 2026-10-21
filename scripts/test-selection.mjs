@@ -71,6 +71,8 @@ export const quickTests = new Set([
   "secret-scan.test.mjs",
   "save-copy.test.mjs",
   "pack-publish.test.mjs",
+  "release-run-ci.test.mjs",
+  "release-run-ci-powershell.test.mjs",
   "public-shadow.test.mjs",
   "dataset-profile.test.mjs",
   "dataset-bootstrap.test.mjs",

@@ -26,6 +26,7 @@ export const windowsFiles = [
   'release-admission-v2.test.mjs',
   'release-pack-upgrade-v2.test.mjs',
   'release-pipeline-v2.test.mjs',
+  'release-run-ci-powershell.test.mjs',
   'release-runtime-v2.test.mjs',
   'restore-picker.private.test.mjs',
   'watchdog-core.test.mjs',
