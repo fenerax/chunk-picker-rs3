@@ -39,9 +39,9 @@ The slice also runs other Windows-gated files whose Ubuntu cases did not skip be
 |---|---:|---|---|
 | `tests/open-f2p.test.mjs` | 1 | Optional pinned Wiki response cache; `t.skip()` when pinned cache files are absent | Setup fetches all 300 exact public revisions through the existing throttled Wiki client |
 | `tests/pack-public-scrub.test.mjs` | 2 | Public packs are fetched, but their test environment variables are absent | Setup names the verified public pack tree and selected versions |
-| `tests/skill-guides-extraction.test.mjs` | 1 | Copied game-cache skill-guide export JSON is absent | Still blocked: pinned data pack contains only chunk-section local-game files, and the public release has no guide export; never allowlisted |
+| `tests/skill-guides-extraction.test.mjs` | 1 | Copied game-cache skill-guide export JSON is absent | Setup selects the guide export and repaired manifest from pinned public `cache-inputs` 1.0.0-public.1; a configured incomplete pack fails setup |
 | `tests/skill-icons.test.mjs` | 1 | Public icon PNGs are fetched, but the test environment variable is absent | Setup selects the actual art component `map-assets/icons-skills.2026-10-08.v1` |
-| `tests/cache-resources-catalogue.test.mjs` | 1 | Pinned copied masks, membership and object provenance are absent; the builder fixes their source root to one PC path | Still blocked: needs authentic public cache artifacts and a configurable source-root change in `scripts/build-resource-catalogue.mjs`, outside this task's write scope; never allowlisted |
+| `tests/cache-resources-catalogue.test.mjs` | 1 | Pinned copied masks, membership and object provenance are absent | Setup selects the full mask bundle and object exports from pinned public `cache-inputs` 1.0.0-public.1 through `RS3_RESOURCE_GAME_DATA_DIR`; all payload and provenance hashes remain mandatory |
 | **B total** | **6** | | |
 
 ## C. Private or paired-source evidence unavailable to hosted CI
@@ -62,14 +62,26 @@ The slice also runs other Windows-gated files whose Ubuntu cases did not skip be
 | C: private or paired-source input | 3 |
 | **Total** | **116** |
 
-Expected Ubuntu skipped count with the current pins: **112**, down from 116.
-Four class-B cases now receive their inputs. The remaining 112 are the 107
-Windows cases, three reviewed class-C cases, and two class-B artifact gaps.
-With an authentic guide export added to the selected data pack, setup will
-automatically configure `RS3_SKILL_GUIDES_EXPORT` and the expected count becomes
-111. Supplying and routing the authentic resource masks would reduce it to 110.
-The `coverage` job remains red for both missing public-input cases; neither is
-an allowlist exception. A fixed PC path alone does not establish private data.
+Expected Ubuntu skipped count with the current pins: **110**, down from 116.
+All six class-B cases now receive their inputs. The remaining 110 are the 107
+Windows cases and three reviewed class-C cases. The two cache tests are never
+allowlist exceptions: configured missing files, malformed manifests or changed
+hashes fail setup. The release asset must be uploaded before GitHub can fetch it;
+local evidence does not establish a green hosted run.
+
+`scripts/ci/build-cache-inputs-pack.mjs <output directory>` reads exactly the ten
+guide, mask and object files consumed by the tests and resource builder. It
+requires the local secret-scan corpus (`SECRET_SCAN_CORPUS` selects it), scrubs
+home paths by kind, repairs affected output receipts, and emits a deterministic
+`cache-inputs-1.0.0-public.1.tar.gz` plus its SHA-256 sidecar. Source folders are
+never written. Cache archive identities and gameplay values are retained.
+
+On the PC, unpack the public archive, set `RS3_RESOURCE_GAME_DATA_DIR` to
+`<unpacked>/cache-inputs/1.0.0-public.1/local-game`, then run
+`node scripts/build-resource-catalogue.mjs`. `RS3_GAME_DATA_DIR` is also supported
+as a fallback; the dedicated variable keeps the app's other data pack separate.
+The public bundle is the single accepted source: the old unredacted mask
+manifest hash is no longer accepted. Outputs must remain inside the worktree.
 
 Local checks used disposable input/report directories, one test file at a time.
 The 300 pinned Wiki revisions fetched successfully; the real-cache rebuild
@@ -77,6 +89,13 @@ passed byte-for-byte. The selected public packs passed both scrubbed-pack tests,
 and the selected public art passed all PNG checks. Synthetic gate artifacts prove
 the CLI rejects an unexecuted public-input test and accepts its passing result.
 These checks do not substitute for a run of the changed workflow on GitHub.
+
+The public cache archive was unpacked into a disposable directory. The guide
+file passed all 5 tests and the resource catalogue file passed all 12 tests,
+each run separately with 0 skips. A full resource rebuild from that same public
+bundle matched both committed catalogues byte-for-byte after excluding their
+provenance objects; updating only those receipts made the files byte-identical
+to the rebuild. No resource, chunk, tile or selector value changed.
 
 The release consumer's required-job list lives outside this task's write scope.
 Its owner must add `coverage` to the exact-commit release requirements.

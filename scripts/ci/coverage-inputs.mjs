@@ -4,11 +4,28 @@ import { appendFileSync, existsSync, readFileSync, lstatSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { isDeepStrictEqual } from 'node:util';
 import { cacheWikiPages, pageFilename } from '../fetch-open-f2p-wiki.mjs';
+import { packRelative } from '../../app/packs.mjs';
+import { readPin } from '../../.github/packs/fetch-packs.mjs';
 
 const hash = bytes => createHash('sha256').update(bytes).digest('hex');
-const relative = value => typeof value === 'string' && /^[A-Za-z0-9_-][A-Za-z0-9._/-]*$/.test(value)
-  && value.split('/').every(part => part !== '' && part !== '.' && part !== '..');
+const relative = value => {
+  try { packRelative(value); return true; }
+  catch { return false; }
+};
+const cacheInputFiles = [
+  'local-game/skill-guides-2026-10-08-v1/skill-guides.v1.json',
+  'local-game/skill-guides-2026-10-08-v1/skill-guides-manifest.v1.json',
+  'local-game/walkability-masks.cache-audit-2026-10-07-v4/walkability.v1.json.gz',
+  'local-game/walkability-masks.cache-audit-2026-10-07-v4/manifest.v1.json',
+  'local-game/walkability-masks.cache-audit-2026-10-07-v4/membership.v1.json',
+  'local-game/objects-2026-10-08-v3/objects.manifest.v1.json',
+  'local-game/objects-2026-10-08-v3/objects.definitions.v1.json.gz',
+  'local-game/objects-2026-10-08-v3/objects.layouts.v1.json.gz',
+  'local-game/objects-2026-10-08-v3/objects.placements.v1.json.gz',
+  'local-game/objects-2026-10-08-v3/objects.retained-comparison.v1.json.gz',
+];
 function inputFile(root, name) {
   if (!relative(name)) throw Error('Coverage input has an invalid relative path.');
   let current = root;
@@ -33,31 +50,38 @@ export function buildCoverageInputs({ checkout, tree }) {
   if (!checkout || !tree) throw Error('Usage: coverage-inputs.mjs <checkout> <packs tree>');
   checkout = path.resolve(checkout); tree = path.resolve(tree);
   const env = {}, missing = [];
+  const pin = existsSync(path.join(checkout, '.github/packs/pack-pin.json')) ? readPin(checkout) : null;
+  const cachePinned = Object.hasOwn(pin?.selection ?? {}, 'cacheInputs');
   // The harness contract compares an authentic private overlay with its paired
   // public reference. A single checkout cannot provide that independent input.
   if (!existsSync(path.join(tree, 'selection.json'))) {
+    if (cachePinned) throw Error('Coverage pinned cacheInputs selection is absent.');
     missing.push('public pack selection is absent; pack-dependent tests remain skipped');
     return { env, missing };
   }
   const selection = JSON.parse(inputFile(tree, 'selection.json'));
   if (selection.schemaVersion !== 1) throw Error('Coverage pack selection is invalid.');
+  if (cachePinned && !isDeepStrictEqual(selection.cacheInputs, pin.selection.cacheInputs)) throw Error('Coverage cacheInputs selection differs from checkout pin.');
   const packs = {};
-  for (const [kind, id] of Object.entries({ data: 'duo-data', rulesText: 'duo-rules-text', art: 'duo-art' })) {
+  for (const [kind, id] of Object.entries({ data: 'duo-data', rulesText: 'duo-rules-text', art: 'duo-art', cacheInputs: 'cache-inputs' })) {
     const choice = selection[kind];
-    if (!choice) { missing.push(`public ${kind} pack is absent`); continue; }
+    if (choice === undefined) { missing.push(`public ${kind} pack is absent`); continue; }
+    if (!choice || typeof choice !== 'object' || Array.isArray(choice)) throw Error('Coverage pack selection is invalid.');
     if (choice.id !== id || !relative(choice.version) || choice.version.includes('/') || !/^[a-f0-9]{64}$/.test(choice.sha256 ?? '')) throw Error('Coverage pack selection is invalid.');
     const prefix = `${choice.id}/${choice.version}`;
     const bytes = inputFile(tree, `${prefix}/pack.json`);
     if (hash(bytes) !== choice.sha256) throw Error(`Coverage ${kind} manifest hash mismatch.`);
     const manifest = JSON.parse(bytes);
-    if (!Array.isArray(manifest.files)) throw Error(`Coverage ${kind} manifest is invalid.`);
+    if (!manifest || !Array.isArray(manifest.files)) throw Error(`Coverage ${kind} manifest is invalid.`);
+    if (kind === 'cacheInputs' && (manifest.schemaVersion !== 1 || manifest.id !== id || manifest.version !== choice.version)) throw Error('Coverage cacheInputs manifest is invalid.');
     const names = new Set();
     for (const record of manifest.files) {
-      if (!relative(record.path) || names.has(record.path) || !Number.isSafeInteger(record.bytes) || record.bytes < 0 || !/^[a-f0-9]{64}$/.test(record.sha256 ?? '')) throw Error(`Coverage ${kind} file record is invalid.`);
+      if (!record || !relative(record.path) || names.has(record.path) || !Number.isSafeInteger(record.bytes) || record.bytes < 0 || !/^[a-f0-9]{64}$/.test(record.sha256 ?? '')) throw Error(`Coverage ${kind} file record is invalid.`);
       names.add(record.path);
       const payload = inputFile(tree, `${prefix}/${record.path}`);
       if (payload.length !== record.bytes || hash(payload) !== record.sha256) throw Error(`Coverage ${kind} payload mismatch.`);
     }
+    if (kind === 'cacheInputs' && cacheInputFiles.some(name => !names.has(name))) throw Error('Coverage cacheInputs manifest is missing a required file record.');
     packs[kind] = { choice, manifest, names, root: path.join(tree, prefix) };
   }
   if (packs.data) {
@@ -66,8 +90,11 @@ export function buildCoverageInputs({ checkout, tree }) {
     else missing.push('public data pack contains no local-game inputs');
     const guides = 'local-game/skill-guides-2026-10-08-v1/skill-guides.v1.json';
     if (packs.data.names.has(guides)) env.RS3_SKILL_GUIDES_EXPORT = path.join(packs.data.root, path.dirname(guides));
-    else missing.push('copied-cache skill guide artifact is absent from public data pack');
-    missing.push('pinned resource masks need an authentic public bundle and a configurable builder source root');
+    else if (!packs.cacheInputs) missing.push('copied-cache skill guide artifact is absent from public data pack');
+  }
+  if (packs.cacheInputs) {
+    env.RS3_RESOURCE_GAME_DATA_DIR = path.join(packs.cacheInputs.root, 'local-game');
+    env.RS3_SKILL_GUIDES_EXPORT = path.join(packs.cacheInputs.root, 'local-game/skill-guides-2026-10-08-v1');
   }
   if (packs.rulesText) env.RS3_PUBLIC_SCRUB_RULES_VERSION = packs.rulesText.choice.version;
   if (packs.art) {

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
-import { readFileSync, writeFileSync, createReadStream } from 'node:fs';
-import { resolve, join, basename, dirname } from 'node:path';
+import { readFileSync, writeFileSync, createReadStream, realpathSync } from 'node:fs';
+import { resolve, join, basename, dirname, relative, isAbsolute } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { gunzipSync, createGunzip } from 'node:zlib';
 import { createHash } from 'node:crypto';
@@ -12,17 +12,22 @@ const repo = fileURLToPath(new URL('../',import.meta.url));
 const hash = bytes => createHash('sha256').update(bytes).digest('hex');
 const parse = bytes => JSON.parse(bytes);
 const read = path => readFileSync(path);
-const permittedRoot = 'C:/Users/User/Projects/chunk-picker-rs3/.local/game-data';
+// Keep the app's placed duo-data root independent from this copied-cache pack.
+const permittedRoot = resolve(process.env.RS3_RESOURCE_GAME_DATA_DIR ?? process.env.RS3_GAME_DATA_DIR ?? 'C:/Users/User/Projects/chunk-picker-rs3/.local/game-data').replaceAll('\\','/');
 export const resourceMaskDefaults = Object.freeze({
   path:`${permittedRoot}/walkability-masks.cache-audit-2026-10-07-v4/walkability.v1.json.gz`,
   walkabilitySha256:'d553ed49ce12254d197e82abe673279f3bb1ede5eb34098cf0376e68bd67fdf6',
   membershipSha256:'972366f985be500c96c432246e18b79d6d9b56568ea74c7889c2189ab8d65173',
-  manifestSha256:'0ae32fd4803333be0c0c25e66b1abf5380bc096af7dbe1bb9e0bf34b5833630a',
+  manifestSha256:'ceade7b9d46e1cff30e5279ff99dfc26c6ff2459930e1502a010a614a1806f0d',
 });
 function assertSource(path) {
-  const normalized=resolve(path).replaceAll('\\','/').toLowerCase();
-  if(!normalized.startsWith(`${permittedRoot.toLowerCase()}/`))throw new Error('Resource source must be inside the authorized .local/game-data directory.');
+  const inside=(root,target)=>{const rel=relative(root,target);return rel!==''&&rel!=='..'&&!rel.startsWith(`..${process.platform==='win32'?'\\':'/'}`)&&!isAbsolute(rel);};
+  const normalized=resolve(path);
+  if(!inside(permittedRoot,normalized))throw new Error('Resource source must be inside the authorized game-data directory.');
+  // Resolve links as well as lexical paths, including links on individual files.
+  if(!inside(realpathSync(permittedRoot),realpathSync(normalized)))throw new Error('Resource source must be inside the authorized game-data directory.');
 }
+const readSource=path=>{assertSource(path);return read(path);};
 /** This bundle is mandatory: failed/missing masks must never downgrade to the
  * narrow selector-evidence anchors. Validate the copied bytes and their cache
  * identities before using any component label. */
@@ -55,7 +60,7 @@ export function validateResourceMaskCoverage(fullWalk,walk,regions) {
 }
 export function loadResourceMasks({path=resourceMaskDefaults.path,objectManifest,walk,evidence,corrections}) {
   const maskPath=resolve(path);assertSource(maskPath);
-  const maskBytes=read(maskPath),maskManifestBytes=read(join(dirname(maskPath),'manifest.v1.json')),membershipBytes=read(join(dirname(maskPath),'membership.v1.json'));
+  const maskBytes=readSource(maskPath),maskManifestBytes=readSource(join(dirname(maskPath),'manifest.v1.json')),membershipBytes=readSource(join(dirname(maskPath),'membership.v1.json'));
   const provenance=verifyResourceMaskManifest({manifestBytes:maskManifestBytes,walkBytes:maskBytes,membershipBytes,objectManifest,walk,evidence,corrections});
   const fullWalk=parse(gunzipSync(maskBytes)),regions=componentMasks(fullWalk,corrections);
   validateResourceMaskCoverage(fullWalk,walk,regions);
@@ -66,6 +71,7 @@ export function loadResourceMasks({path=resourceMaskDefaults.path,objectManifest
  * (which start objectId/source fields). Boundaries are processed in native
  * string searches instead of copying every character of a multi-GB dataset. */
 export async function* readPlacementRows(path) {
+  assertSource(path);
   const stream=createReadStream(path).pipe(createGunzip());stream.setEncoding('utf8');
   yield* readPlacementChunks(stream);
 }
@@ -87,12 +93,12 @@ export async function buildResourceCatalogue(options={}) {
   const output=resolve(options.output??join(repo,'app/data/cache-resources.2026-10-08.v1.json'));
   const selectorsOutput=resolve(options.selectors??join(repo,'app/data/cache-resource-selectors.2026-10-08.v1.json'));
   for(const path of [output,selectorsOutput]) if(!path.replaceAll('\\','/').toLowerCase().startsWith(repo.replaceAll('\\','/').toLowerCase()))throw new Error('Output must remain in this worktree.');
-  const manifestPath=join(input,'objects.manifest.v1.json'),manifestBytes=read(manifestPath),manifest=parse(manifestBytes);
+  const manifestPath=join(input,'objects.manifest.v1.json'),manifestBytes=readSource(manifestPath),manifest=parse(manifestBytes);
   const sourceNames=['objects.definitions.v1.json.gz','objects.layouts.v1.json.gz','objects.placements.v1.json.gz','objects.retained-comparison.v1.json.gz'];
   const inputs=[];
   // Bind the exact compressed input bytes, not merely a source path or summary.
-  for(const name of sourceNames){const path=join(input,name),sha256=hash(read(path)),declared=manifest.outputs.find(row=>basename(row.path)===name);if(!declared||declared.sha256!==sha256)throw new Error(`Manifest hash mismatch: ${name}`);inputs.push({file:name,sha256});}
-  const rawRows=parse(gunzipSync(read(join(input,sourceNames[0])))).definitions;
+  for(const name of sourceNames){const path=join(input,name),sha256=hash(readSource(path)),declared=manifest.outputs.find(row=>basename(row.path)===name);if(!declared||declared.sha256!==sha256)throw new Error(`Manifest hash mismatch: ${name}`);inputs.push({file:name,sha256});}
+  const rawRows=parse(gunzipSync(readSource(join(input,sourceNames[0])))).definitions;
   const rawDefinitions=new Map(rawRows.map(d=>[d.objectId,d.raw]));
   const resolved=new Map(),definitions=[];
   for(const row of rawRows){const r=resolveResourceDefinition(row.objectId,rawDefinitions);if(!r.classKeys.length&&!r.possibleClassKeys?.length)continue;resolved.set(row.objectId,r);definitions.push({objectId:row.objectId,name:row.name,actions:definitionActions(row.raw),memberActions:memberActions(row.raw),classKeys:r.classKeys,possibleClassKeys:r.possibleClassKeys??r.classKeys,conditionalPolicy:r.policy,leafObjectIds:r.leaves,leafNames:[...new Set(r.leaves.map(id=>rawDefinitions.get(id)?.name).filter(Boolean))],footprint:r.footprint,membersFlags:{is_members:row.raw.is_members??null,isMembers:row.raw.isMembers??null},definitionSource:{major:16,minor:Math.floor(row.objectId/256),subfile:row.objectId%256},...(r.branches?{branchReview:{count:r.branches.length,absent:r.branches.filter(b=>b.absentState).length,problems:[...new Set(r.branches.map(b=>b.problem).filter(Boolean))],sha256:hash(Buffer.from(JSON.stringify(r.branches))),source:'objects.definitions.v1.json.gz raw morph selector paths'}}:{})});}
@@ -123,8 +129,8 @@ export async function buildResourceCatalogue(options={}) {
   }
   placements.sort((a,b)=>a[3].localeCompare(b[3],'en')||a[2].localeCompare(b[2],'en')||a[4]-b[4]||a[5]-b[5]||a[1]-b[1]||a[0].localeCompare(b[0],'en'));
   review.sort((a,b)=>a[0].localeCompare(b[0],'en'));
-  const layout=parse(gunzipSync(read(join(input,sourceNames[1]))));
-  const objectCoverage=new Map(parse(gunzipSync(read(join(input,sourceNames[3])))).byChunk.map(row=>[row.chunk,row.coverage]));
+  const layout=parse(gunzipSync(readSource(join(input,sourceNames[1]))));
+  const objectCoverage=new Map(parse(gunzipSync(readSource(join(input,sourceNames[3])))).byChunk.map(row=>[row.chunk,row.coverage]));
   for(const [chunk,status] of walk.regions)if((status==='decoded')!==(objectCoverage.get(chunk)==='decoded-layout-source'))throw new Error(`Object/walking surface coverage disagree: ${chunk}`);
   const title=text=>text.charAt(0).toUpperCase()+text.slice(1);
   const classes=Object.keys(classCounts).sort().map(key=>{const [category,...parts]=key.split(':'),type=parts.join(':'),matching=definitions.filter(d=>d.classKeys.includes(key));let name;

@@ -15,6 +15,7 @@ export const adaptiveOptionsFor = (suite, env = process.env) => {
 
 // Reviewed small fixtures and model/controller tests. No running browser or full catalogue.
 export const quickTests = new Set([
+  "ci-cache-inputs-pack.test.mjs",
   "ci-coverage-gate.test.mjs",
   "ci-coverage-inputs.test.mjs",
   "ci-coverage-reporter.test.mjs",
