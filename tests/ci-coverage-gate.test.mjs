@@ -85,18 +85,18 @@ test('missing, incomplete, failed, empty and malformed reports fail closed', () 
   }
 });
 
-test('CLI checks disposable artifacts against the full inventory and refuses a missing public-input case', async t => {
+test('CLI checks disposable artifacts against the full inventory and refuses missing public-input cases', async t => {
   const directory = await mkdtemp(path.join(tmpdir(), 'coverage-gate-fixture-'));
   t.after(() => rm(directory, { recursive: true, force: true }));
   const allowances = JSON.parse(await readFile(new URL('../.github/coverage-allowlist.json', import.meta.url), 'utf8'));
   const inventory = (await discoverTests(undefined, 'full')).map(file => `tests/${file}`);
-  const guide = 'tests/skill-guides-extraction.test.mjs';
+  const missingInputs = ['tests/skill-guides-extraction.test.mjs', 'tests/cache-resources-catalogue.test.mjs'];
   const make = (lane, expected) => {
     const tests = expected.flatMap(file => {
       const exempt = allowances.tests.filter(row => row.file === file);
-      return (exempt.length ? exempt : [{ file, name: [file === guide ? 'synthetic missing public input' : 'synthetic CLI fixture'], occurrence: 1 }])
+      return (exempt.length ? exempt : [{ file, name: [missingInputs.includes(file) ? 'synthetic missing public input' : 'synthetic CLI fixture'], occurrence: 1 }])
         .map(row => ({ ...row, key: JSON.stringify([row.file, row.name, row.occurrence]), kind: 'test',
-          status: exempt.length || file === guide ? 'skip' : 'pass', reason: 'Synthetic fixture skip' }));
+          status: exempt.length || missingInputs.includes(file) ? 'skip' : 'pass', reason: 'Synthetic fixture skip' }));
     });
     return { schema: 'rs3-test-coverage-v1', lane, passed: true, files: expected, completedFiles: expected, tests,
       fileResults: expected.map(file => {
@@ -114,9 +114,12 @@ test('CLI checks disposable artifacts against the full inventory and refuses a m
   const failed = run();
   assert.equal(failed.status, 1);
   assert.match(failed.stderr, /UNCOVERED tests\/skill-guides-extraction/);
-  ubuntu.tests.find(row => row.file === guide).status = 'pass';
-  const counts = ubuntu.fileResults.find(row => row.file === guide).counts;
-  counts.passed = 1; counts.skipped = 0;
+  assert.match(failed.stderr, /UNCOVERED tests\/cache-resources-catalogue/);
+  for (const file of missingInputs) {
+    ubuntu.tests.find(row => row.file === file).status = 'pass';
+    const counts = ubuntu.fileResults.find(row => row.file === file).counts;
+    counts.passed = 1; counts.skipped = 0;
+  }
   await writeFile(path.join(directory, 'test.json'), JSON.stringify(ubuntu));
   const passed = run();
   assert.equal(passed.status, 0, passed.stderr);

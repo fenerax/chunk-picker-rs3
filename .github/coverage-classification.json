@@ -9,11 +9,11 @@
     },
     {
       "class": "B",
-      "cases": 5
+      "cases": 6
     },
     {
       "class": "C",
-      "cases": 4
+      "cases": 3
     }
   ],
   "unmatched": 0,
@@ -21,8 +21,8 @@
     {
       "test": "mandatory full masks retain pinned manifest, membership and decoder identities",
       "file": "cache-resources-catalogue.test.mjs",
-      "class": "C",
-      "skipReason": "Pinned mask data is under a hard-coded machine-local game-data root and is not shipped in the public pack or checkout."
+      "class": "B",
+      "skipReason": "Pinned game-cache masks and object provenance are absent from public packs; the builder also fixes their source root to one PC path. No private save or values are required."
     },
     {
       "test": "PowerShell backup records success, preserves it after redacted failure and cleans local staging",

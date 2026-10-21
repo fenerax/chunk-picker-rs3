@@ -41,34 +41,35 @@ The slice also runs other Windows-gated files whose Ubuntu cases did not skip be
 | `tests/pack-public-scrub.test.mjs` | 2 | Public packs are fetched, but their test environment variables are absent | Setup names the verified public pack tree and selected versions |
 | `tests/skill-guides-extraction.test.mjs` | 1 | Copied game-cache skill-guide export JSON is absent | Still blocked: pinned data pack contains only chunk-section local-game files, and the public release has no guide export; never allowlisted |
 | `tests/skill-icons.test.mjs` | 1 | Public icon PNGs are fetched, but the test environment variable is absent | Setup selects the actual art component `map-assets/icons-skills.2026-10-08.v1` |
-| **B total** | **5** | | |
+| `tests/cache-resources-catalogue.test.mjs` | 1 | Pinned copied masks, membership and object provenance are absent; the builder fixes their source root to one PC path | Still blocked: needs authentic public cache artifacts and a configurable source-root change in `scripts/build-resource-catalogue.mjs`, outside this task's write scope; never allowlisted |
+| **B total** | **6** | | |
 
 ## C. Private or paired-source evidence unavailable to hosted CI
 
 | Test file and skipped test title | Skipped cases | Reason |
 |---|---:|---|
 | `tests/browser-screen-harness-contract.test.mjs` — “private browser harness supplies every public collaborator” | 1 | The contract requires a separately located public harness with independent file identity. A copied file in the single-repository checkout cannot prove it is independent from the private overlay. |
-| `tests/cache-resources-catalogue.test.mjs` — “mandatory full masks retain pinned manifest, membership and decoder identities” | 1 | Its pinned mask data comes from a hard-coded machine-local game-data root that is not shipped in the public pack or checkout. |
 | `tests/private-drift.test.mjs` — “real first-kit history catches the original-sync stub omission and accepts its committed repair” | 1 | Needs historical private/core Git mirrors, configured through private repository inputs. |
 | `tests/private-drift.test.mjs` — “real accepted rel7 private fcbe7ff and core 6a1ae1e pair passes the source-only drift check” | 1 | Needs historical private/core Git mirrors, configured through private repository inputs. |
-| **C total** | **4** | |
+| **C total** | **3** | |
 
 ## Reconciliation
 
 | Category | Cases |
 |---|---:|
 | A: Windows-only | 107 |
-| B: reproducible public/local input | 5 |
-| C: private or paired-source input | 4 |
+| B: reproducible public/local input | 6 |
+| C: private or paired-source input | 3 |
 | **Total** | **116** |
 
 Expected Ubuntu skipped count with the current pins: **112**, down from 116.
 Four class-B cases now receive their inputs. The remaining 112 are the 107
-Windows cases, four reviewed class-C cases, and the class-B guide export gap.
+Windows cases, three reviewed class-C cases, and two class-B artifact gaps.
 With an authentic guide export added to the selected data pack, setup will
 automatically configure `RS3_SKILL_GUIDES_EXPORT` and the expected count becomes
-111. The `coverage` job remains red for that missing guide case; it is not an
-allowlist exception.
+111. Supplying and routing the authentic resource masks would reduce it to 110.
+The `coverage` job remains red for both missing public-input cases; neither is
+an allowlist exception. A fixed PC path alone does not establish private data.
 
 Local checks used disposable input/report directories, one test file at a time.
 The 300 pinned Wiki revisions fetched successfully; the real-cache rebuild

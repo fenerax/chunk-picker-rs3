@@ -67,6 +67,7 @@ export function buildCoverageInputs({ checkout, tree }) {
     const guides = 'local-game/skill-guides-2026-10-08-v1/skill-guides.v1.json';
     if (packs.data.names.has(guides)) env.RS3_SKILL_GUIDES_EXPORT = path.join(packs.data.root, path.dirname(guides));
     else missing.push('copied-cache skill guide artifact is absent from public data pack');
+    missing.push('pinned resource masks need an authentic public bundle and a configurable builder source root');
   }
   if (packs.rulesText) env.RS3_PUBLIC_SCRUB_RULES_VERSION = packs.rulesText.choice.version;
   if (packs.art) {

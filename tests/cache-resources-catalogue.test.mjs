@@ -71,7 +71,7 @@ test('bridge effective plane is distinct from source/raw floor',()=>{
   assert.equal(effectiveDisplayPlane({plane:0,source:{effectivePlane:1},transform:{translation:{plane:-1}}}),0);
 });
 
-test('mandatory full masks retain pinned manifest, membership and decoder identities',{skip:!existsSync(resourceMaskDefaults.path)&&'Private copied mask bundle is unavailable'},()=>{
+test('mandatory full masks retain pinned manifest, membership and decoder identities',{skip:!existsSync(resourceMaskDefaults.path)&&'Pinned copied resource-mask bundle is unavailable at the builder source root'},()=>{
   const {provenance,regions}=fullMasks();
   assert.equal(provenance.sha256,resourceMaskDefaults.walkabilitySha256);
   assert.equal(provenance.manifest.sha256,resourceMaskDefaults.manifestSha256);

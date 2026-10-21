@@ -8,12 +8,6 @@
       "reason": "Requires an authentic independent private/public harness pair; the single public checkout has no private overlay reference."
     },
     {
-      "file": "tests/cache-resources-catalogue.test.mjs",
-      "name": ["mandatory full masks retain pinned manifest, membership and decoder identities"],
-      "occurrence": 1,
-      "reason": "Reads the pinned copied mask bundle through a fixed machine-local root; that PC input is unavailable in the public checkout and packs."
-    },
-    {
       "file": "tests/private-drift.test.mjs",
       "name": ["real first-kit history catches the original-sync stub omission and accepts its committed repair"],
       "occurrence": 1,

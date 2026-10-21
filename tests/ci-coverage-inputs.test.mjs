@@ -39,7 +39,7 @@ function fixture(t) {
 
 test('coverage inputs use selected public versions, placed game/map roots and the selected art component', t => {
   const f = fixture(t), { env, missing } = buildCoverageInputs(f);
-  assert.deepEqual(missing, []);
+  assert.deepEqual(missing, ['pinned resource masks need an authentic public bundle and a configurable builder source root']);
   assert.equal(env.RS3_GAME_DATA_DIR, path.join(f.checkout, '.local/game-data'));
   assert.equal(env.RS3_MAP_ASSETS_DIR, path.join(f.checkout, '.local/map-assets'));
   assert.equal(env.RS3_PUBLIC_BROWSER_SCREEN_HARNESS, undefined);
