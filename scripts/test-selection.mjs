@@ -15,6 +15,11 @@ export const adaptiveOptionsFor = (suite, env = process.env) => {
 
 // Reviewed small fixtures and model/controller tests. No running browser or full catalogue.
 export const quickTests = new Set([
+  "ci-perf-bench.test.mjs",
+  "perf-bench-metrics.test.mjs",
+  "perf-bench-packs.test.mjs",
+  "perf-bench-worker.test.mjs",
+  "perf-bench-timeline.test.mjs",
   "game-plugin-state.test.mjs",
   "game-plugin-status.test.mjs",
   "game-plugin-tasks.test.mjs",

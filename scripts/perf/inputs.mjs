@@ -1,5 +1,6 @@
-import { readFile, realpath, mkdir, writeFile } from 'node:fs/promises';
+import { readFile, realpath, mkdir, writeFile, lstat, readdir } from 'node:fs/promises';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { gunzipSync } from 'node:zlib';
 import { createHash } from 'node:crypto';
 
@@ -57,3 +58,84 @@ export function seededRandom(seed) {
 }
 
 export const mib = bytes => Math.round(bytes / 1048576 * 10) / 10;
+
+const hash = bytes => createHash('sha256').update(bytes).digest('hex');
+const within = (base, target) => {
+  const relative = path.relative(base, target);
+  return relative === '' || relative !== '..' && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative);
+};
+
+// Check the lexical path before realpath: resolving first would hide an ancestor link.
+export async function rejectPathLinks(filename) {
+  const absolute = path.resolve(filename);
+  let current = path.parse(absolute).root;
+  for (const part of absolute.slice(current.length).split(path.sep).filter(Boolean)) {
+    current = path.join(current, part);
+    if ((await lstat(current)).isSymbolicLink()) throw new Error('Benchmark paths cannot contain a symlink or junction.');
+  }
+  return realpath(absolute);
+}
+
+export async function resolvePerfApplication(root, { appDir, serverEntry } = {}) {
+  const selected = await rejectPathLinks(appDir ?? root);
+  const applicationRoot = path.basename(selected) === 'app' ? path.dirname(selected) : selected;
+  const entry = path.resolve(serverEntry ?? path.join(applicationRoot, 'app/server.mjs'));
+  if (!within(applicationRoot, entry) || !entry.endsWith('.mjs')) throw new Error('Server entry must be an .mjs file inside the selected worktree.');
+  const resolved = await rejectPathLinks(entry);
+  if (!within(applicationRoot, resolved) || !(await lstat(resolved)).isFile()) throw new Error('Server entry resolved outside the selected worktree.');
+  return { applicationRoot, serverEntry: resolved };
+}
+
+export async function fingerprintPerfApplication(root, serverEntry = path.join(root, 'app/server.mjs')) {
+  const files = [];
+  async function visit(directory) {
+    await rejectPathLinks(directory);
+    for (const entry of await readdir(directory, { withFileTypes: true })) {
+      const filename = path.join(directory, entry.name);
+      if (entry.isSymbolicLink()) throw new Error('Measured application source cannot contain a symlink or junction.');
+      if (entry.isDirectory()) await visit(filename);
+      else if (entry.isFile()) files.push({ path: path.relative(root, filename).split(path.sep).join('/'), sha256: hash(await readFile(filename)) });
+    }
+  }
+  await visit(path.join(root, 'app'));
+  for (const name of ['rs3-chunkpicker-chunkinfo-export.json', 'reference/original-picker/tasksMap.json', 'tasksMap.json']) {
+    const filename = path.join(root, name);
+    try { await rejectPathLinks(filename); files.push({ path: name, sha256: hash(await readFile(filename)) }); }
+    catch (error) { if (error.code !== 'ENOENT') throw error; }
+  }
+  if (!files.some(file => file.path === path.relative(root, serverEntry).split(path.sep).join('/'))) {
+    await rejectPathLinks(serverEntry);
+    files.push({ path: path.relative(root, serverEntry).split(path.sep).join('/'), sha256: hash(await readFile(serverEntry)) });
+  }
+  files.sort((a, b) => a.path.localeCompare(b.path, 'en'));
+  return { root, scope: 'app-and-reference-data', files, sha256: hash(JSON.stringify(files)) };
+}
+
+// Use the selected provider for pack inputs, retaining the historical PC loader
+// and correction boundary for tracked-file benchmarks and archived apps.
+export async function loadPerfInputs({ root, legacyInputRoot = root, dataset, applyEquipmentCorrections, applyCacheShops }) {
+  let raw, taskMap, taskMapHistory, definitions, preparedDatasetStages = [];
+  if (dataset?.packed) {
+    const moduleAt = name => import(pathToFileURL(path.join(root, 'app', name)).href);
+    const [{ loadDatasetInputs }, pipeline] = await Promise.all([moduleAt('dataset-bootstrap.mjs'), moduleAt('dataset-pipeline.mjs')]);
+    const inputs = await loadDatasetInputs(dataset);
+    raw = inputs.definitionBytes;
+    taskMap = JSON.parse(inputs.taskBytes);
+    taskMapHistory = await dataset.json('app/data/legacy-task-history.json');
+    definitions = pipeline.prepareServerDefinitions(JSON.parse(raw), dataset);
+    preparedDatasetStages = pipeline.preparedDefinitionStages(definitions);
+  } else {
+    raw = await readFile(path.join(root, 'rs3-chunkpicker-chunkinfo-export.json'));
+    definitions = applyCacheShops(applyEquipmentCorrections(JSON.parse(raw)));
+    taskMap = JSON.parse(await readFile(path.join(legacyInputRoot, 'reference/original-picker/tasksMap.json'), 'utf8').catch(error => {
+      if (error.code !== 'ENOENT') throw error;
+      return readFile(path.join(legacyInputRoot, 'tasksMap.json'), 'utf8');
+    }));
+    taskMapHistory = JSON.parse(await readFile(path.join(legacyInputRoot, 'app/data/legacy-task-history.json'), 'utf8'));
+  }
+  return { raw, definitions, definitionBytes: Buffer.from(JSON.stringify(definitions)), taskMap, taskMapHistory, preparedDatasetStages };
+}
+
+export function perfDatasetMetadata(dataset) {
+  return dataset ? { datasetId: dataset.datasetId, digest: dataset.digest, packed: dataset.packed === true } : null;
+}

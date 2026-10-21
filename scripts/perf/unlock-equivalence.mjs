@@ -8,6 +8,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { gzipSync, gunzipSync } from 'node:zlib';
 import { Worker } from 'node:worker_threads';
 import { deserialize } from 'node:v8';
+import { loadPerfInputs, perfDatasetMetadata } from './inputs.mjs';
 
 // Deliberately no app imports until the shared heavy-work lock is acquired.
 // No server, scheduler, writable store, invitations or original backend.
@@ -153,7 +154,10 @@ async function appFingerprint(root = ROOT) {
   await visit(path.join(root, 'app'));
   await visit(path.join(root, 'archive/data')).catch(error => { if (error.code !== 'ENOENT') throw error; });
   const taskMapFile = await lstat(path.join(root, 'reference/original-picker/tasksMap.json')).then(() => 'reference/original-picker/tasksMap.json').catch(error => { if (error.code !== 'ENOENT') throw error; return 'tasksMap.json'; });
-  for (const name of ['rs3-chunkpicker-chunkinfo-export.json', taskMapFile, ...REFERENCE_HELPERS]) files.push({ file: name, sha256: sha(await readFile(path.join(root, name))) });
+  for (const name of ['rs3-chunkpicker-chunkinfo-export.json', taskMapFile, ...REFERENCE_HELPERS]) {
+    const bytes = await readFile(path.join(root, name)).catch(error => { if (error.code !== 'ENOENT') throw error; return null; });
+    if (bytes) files.push({ file: name, sha256: sha(bytes) });
+  }
   return { sha256: valueHash(files), files };
 }
 
@@ -234,9 +238,10 @@ function scenariosFor(state, candidates) {
   return scenarios.flatMap(scenario => state.members.map(member => ({ ...scenario, evaluatedMemberId: member.id, key: `${scenario.id}--${member.id}` })));
 }
 
-async function startWorker(definitionBytes, world, root = ROOT) {
+async function startWorker(definitionBytes, world, root = ROOT, dataset, preparedDatasetStages = []) {
   const shared = new SharedArrayBuffer(definitionBytes.length); Buffer.from(shared).set(definitionBytes);
-  const worker = new Worker(pathToFileURL(path.join(root, 'app/tasks/worker.mjs')), { workerData: { definitionBytes: shared, world: { chunks: world.chunks, areas: world.areas, surface: world.surface }, extraRules: [] } });
+  const worker = new Worker(pathToFileURL(path.join(root, 'app/tasks/worker.mjs')), { workerData: { definitionBytes: shared, world: { chunks: world.chunks, areas: world.areas, surface: world.surface }, extraRules: [],
+    ...(dataset?.packed ? { datasetSelection: dataset.workerSelection(), datasetDigest: dataset.digest, preparedDatasetStages } : {}) } });
   let resolveReady, rejectReady, sequence = 0, stopping = false;
   const ready = new Promise((resolve, reject) => { resolveReady = resolve; rejectReady = reject; }), pending = new Map();
   const timer = setTimeout(() => rejectReady(new Error('Worker startup exceeded 120s.')), 120000);
@@ -368,9 +373,12 @@ async function run(configuration) {
       assert.equal(dirtyApp, '', 'Reference app/ must have no local edits');
     }
     const environment = Object.fromEntries(['RS3_CACHE_SHOP_CONTENTS', 'RS3_RESOURCE_CONTENTS', 'RS3_ARCHAEOLOGY_CONTENTS', 'RS3_GAME_DATA_DIR', 'RS3_MAP_ASSETS_DIR'].map(key => [key, process.env[key] ?? null]));
+    if (process.env.RS3_PACKS_DIR || process.env.RS3_PACK_SELECTION) {
+      for (const key of ['RS3_DATASET', 'RS3_PACKS_DIR', 'RS3_PACK_SELECTION']) environment[key] = process.env[key] ?? null;
+    }
     for (const key of ['RS3_GAME_DATA_DIR', 'RS3_MAP_ASSETS_DIR']) {
-      if (!environment[key]) throw new Error(`${key} must explicitly point to the read-only main data directory.`);
-      await realpath(environment[key]);
+      if (!environment[key] && !(environment.RS3_PACKS_DIR || environment.RS3_PACK_SELECTION)) throw new Error(`${key} must explicitly point to the read-only main data directory.`);
+      if (environment[key]) await realpath(environment[key]);
     }
     const existing = saved ?? reference;
     if (existing) {
@@ -393,10 +401,12 @@ async function run(configuration) {
     const { selectedDataset } = await moduleAt(calculationRoot, 'app/dataset-runtime.mjs').catch(error => {
       if (error.code === 'ERR_MODULE_NOT_FOUND') return {}; throw error;
     });
+    if (existing?.inputs.dataset) assert.deepEqual(existing.inputs.dataset, perfDatasetMetadata(selectedDataset), 'Selected dataset changed');
     const registry = createRuleRegistry(), loaded = await readCopiedState(locations.source, registry);
-    const raw = await readFile(path.join(calculationRoot, 'rs3-chunkpicker-chunkinfo-export.json'));
-    const definitions = applyCacheShops(applyEquipmentCorrections(JSON.parse(raw))), definitionBytes = Buffer.from(JSON.stringify(definitions)), world = buildWorld(definitions, { dataset: selectedDataset });
-    worker = await startWorker(definitionBytes, world, calculationRoot);
+    const { raw, definitions, definitionBytes, taskMap, taskMapHistory, preparedDatasetStages } = await loadPerfInputs({ root: calculationRoot, legacyInputRoot: inputRoot,
+      dataset: selectedDataset, applyEquipmentCorrections, applyCacheShops });
+    const world = buildWorld(definitions, { dataset: selectedDataset });
+    worker = await startWorker(definitionBytes, world, calculationRoot, selectedDataset, preparedDatasetStages);
     const registered = new Set(loaded.state.tasks.map(row => row.id));
     const migrationReused = worker.ready.catalogue.every(row => registered.has(row.id)) && loaded.state.identityRegistry?.schemaVersion === 1
       && migration.hasCurrentProgressAliasMigration(loaded.state)
@@ -404,13 +414,13 @@ async function run(configuration) {
       && loaded.state.members.every(member => [...member.completedTasks, ...Object.keys(member.taskStatus ?? {})].every(id => migration.resolveSavedTaskId(loaded.state.identityRegistry, id) === id)
         && Object.entries(member.taskAlternatives ?? {}).every(([category, groups]) => Object.values(groups).every(id => id === null || migration.resolveSavedTaskId(loaded.state.identityRegistry, id, category) === id)));
     const state = migrationReused ? loaded.state : migration.migrateOwnedGameplay(loaded.state, { definitions, catalogue: worker.ready.catalogue, dynamicCatalogue: worker.ready.dynamicCatalogue,
-      taskMap: JSON.parse(await readFile(path.join(inputRoot, 'reference/original-picker/tasksMap.json'), 'utf8').catch(error => { if (error.code !== 'ENOENT') throw error; return readFile(path.join(inputRoot, 'tasksMap.json'), 'utf8'); })), taskMapHistory: JSON.parse(await readFile(path.join(inputRoot, 'app/data/legacy-task-history.json'), 'utf8')) }).state;
+      taskMap, taskMapHistory }).state;
     const stateSha256 = valueHash(state), stateSerializedSha256 = sha(serializable(state)), candidates = existing?.candidates ?? state.members.map(member => ({ memberId: member.id, chunks: candidatesFor(state, member, world, registry, evaluateRollPool, configuration.chunks) }));
     const scenarios = existing?.scenarios ?? scenariosFor(state, candidates), fingerprint = createGameplayFingerprint();
     if (existing) assert.equal(existing.inputs.calculationStateSha256, stateSha256, 'Detached calculation/migration state changed');
     const report = saved ?? { format: FORMAT, mode: configuration.mode, createdAt: new Date().toISOString(), baselineHead: BASELINE, node: process.version,
       normalization: NORMALIZATION, chunksPerMember: configuration.chunks, migrationReused, candidates, scenarios,
-      inputs: { source: copiedBefore, sourcePath: relative(locations.source), app: appBefore, head, environment, definitionSha256: sha(raw), effectiveDefinitionSha256: sha(definitionBytes), calculationStateSha256: stateSha256, scriptSha256: sha(await readFile(fileURLToPath(import.meta.url))),
+      inputs: { source: copiedBefore, sourcePath: relative(locations.source), app: appBefore, head, environment, dataset: perfDatasetMetadata(selectedDataset), definitionSha256: sha(raw), effectiveDefinitionSha256: sha(definitionBytes), calculationStateSha256: stateSha256, scriptSha256: sha(await readFile(fileURLToPath(import.meta.url))),
         ...(calculationArchive ? { referenceSources: { calculation: calculationArchive, inputAndProjection: projectionArchive } } : {}),
         ...(reference ? { referenceManifestSha256: referenceBefore } : {}) },
       ...(reference ? { referenceAppSha256: reference.inputs.app.sha256 } : {}), results: {}, complete: false, equivalent: configuration.mode === 'compare' ? true : null };

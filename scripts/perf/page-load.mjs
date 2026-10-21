@@ -10,6 +10,8 @@ import { performance } from 'node:perf_hooks';
 import { openChrome, stopChild, sleep, until } from './cdp.mjs';
 import { probeSource, snapshotExpression } from './probe.mjs';
 import { ASSET_CLASSES, assetClass, category, networkCollector } from './network-collector.mjs';
+import { resolvePerfApplication, fingerprintPerfApplication, rejectPathLinks } from './inputs.mjs';
+import { measureBrowserInteractions, interactionScenarios } from './browser-interactions.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const MAIN = path.dirname(execFileSync('git', ['rev-parse', '--path-format=absolute', '--git-common-dir'],
@@ -19,7 +21,7 @@ const options = { runs: 3, label: 'baseline', timeout: 180000, prewarm: 'on', gr
 const usage = `Usage: npm run perf -- [options]
   --runs N               Independent repetitions (default 3); medians reported
   --label NAME           Output label (default baseline; letters/numbers/-/_)
-  --scenarios LIST       Comma-separated scenarios: cold,reload,switch-player2,switch-player1,unlock,cold-30mbps
+  --scenarios LIST       Comma-separated scenarios: cold,reload,switch-player2,switch-player1,unlock,cold-30mbps,panels,search
   --timeout MS           Deadline for each measurement (default 180000)
   --prewarm on|off        Prediction prewarming (default on); controlled experiment
   --group-view on|off     Group task view (default off); on waits for the complete duo
@@ -35,7 +37,12 @@ const usage = `Usage: npm run perf -- [options]
   --cancellation-check off|on  Post-measurement rapid pan/zoom probe (default off)
   --idle-sample-ms MS     Post-suite RSS/residency and task-settled reload probe (0 off; max 60000)
   --server-entry PATH     Server module inside this worktree (default app/server.mjs)
+  --app-dir PATH          Measured app checkout (or its app directory); no links
   --server-revision REV   Source revision label; verify the selected code before use
+  --packs-dir PATH        Selected read-only packs (or RS3_PACKS_DIR)
+  --pack-selection PATH   Pack selection JSON (or RS3_PACK_SELECTION)
+  --port N               Owned loopback port, 8960 through 8969 (default ephemeral)
+  --output PATH          JSON report inside this worktree .local/perf; Markdown beside it
   --chrome PATH          Chrome executable (or CHROME_PATH)
   --source PATH          Read-only duo directory (default main repo .local/duo)
   --map-assets PATH      Read-only map asset directory (default main .local/map-assets)
@@ -72,6 +79,11 @@ function parse(args) {
     else if (key === '--cancellation-check') options.cancellationCheck = value;
     else if (key === '--idle-sample-ms') options.idleSampleMs = Number(value);
     else if (key === '--server-entry') options.serverEntry = path.resolve(value);
+    else if (key === '--app-dir') options.appDir = path.resolve(value);
+    else if (key === '--packs-dir') options.packsDir = path.resolve(value);
+    else if (key === '--pack-selection') options.packSelection = path.resolve(value);
+    else if (key === '--port') options.port = Number(value);
+    else if (key === '--output') options.output = path.resolve(value);
     else if (key === '--server-revision') options.serverRevision = value;
     else if (key === '--scenarios') options.scenarios = value.split(',');
     else if (key === '--chrome') options.chrome = path.resolve(value);
@@ -102,7 +114,8 @@ function parse(args) {
   if (!['on', 'off'].includes(options.cancellationCheck)) throw new Error('--cancellation-check must be on or off.');
   if (!Number.isInteger(options.idleSampleMs) || options.idleSampleMs < 0 || options.idleSampleMs > 60000) throw new Error('--idle-sample-ms must be an integer from 0 through 60000.');
   if (options.serverRevision && !/^[a-f0-9]{7,40}$/i.test(options.serverRevision)) throw new Error('--server-revision must be a Git revision hash.');
-  if (!options.scenarios.length || options.scenarios.some(s => !['cold', 'reload', 'switch-player2', 'switch-player1', 'unlock', 'cold-30mbps'].includes(s))) throw new Error('Unknown scenario.');
+  if (options.port !== undefined && (!Number.isInteger(options.port) || options.port < 8960 || options.port > 8969)) throw new Error('--port must be an integer from 8960 through 8969.');
+  if (!options.scenarios.length || options.scenarios.some(s => !['cold', 'reload', 'switch-player2', 'switch-player1', 'unlock', 'cold-30mbps', 'panels', 'search'].includes(s))) throw new Error('Unknown scenario.');
   return true;
 }
 function inside(base, target) {
@@ -140,6 +153,7 @@ async function scratchCopy(source) {
 }
 async function chromeExecutable() {
   const candidates = [options.chrome, process.env.CHROME_PATH,
+    '/usr/bin/google-chrome', '/usr/bin/google-chrome-stable', '/usr/bin/chromium', '/usr/bin/chromium-browser',
     'C:/Program Files/Google/Chrome/Application/chrome.exe', 'C:/Program Files (x86)/Google/Chrome/Application/chrome.exe',
     path.join(process.env.LOCALAPPDATA ?? '', 'Google/Chrome/Application/chrome.exe')].filter(Boolean);
   for (const candidate of candidates) try { await access(candidate); return path.resolve(candidate); } catch {}
@@ -148,26 +162,45 @@ async function chromeExecutable() {
 async function startServer(dataDir) {
   const start = performance.now();
   const env = { ...process.env, RS3_PERF: '1', RS3_PERF_SCRATCH: dataDir,
-    RS3_PERF_PREWARM: options.prewarm, RS3_PERF_SERVER_ENTRY: options.serverEntry,
-    RS3_DATA_DIR: dataDir, RS3_MAP_ASSETS_DIR: options.mapAssets, RS3_TERRAIN_ASSETS_DIR: options.terrainAssets, RS3_GAME_DATA_DIR: options.gameData };
+    RS3_PERF_PREWARM: options.prewarm, RS3_PERF_SERVER_ENTRY: options.serverEntry, RS3_PERF_APP_ROOT: options.applicationRoot,
+    RS3_PERF_PORT: String(options.port ?? 0), RS3_DATA_DIR: dataDir };
+  for (const [key, value] of Object.entries({ RS3_MAP_ASSETS_DIR: options.mapAssets, RS3_TERRAIN_ASSETS_DIR: options.terrainAssets,
+    RS3_GAME_DATA_DIR: options.gameData, RS3_PACKS_DIR: options.packsDir, RS3_PACK_SELECTION: options.packSelection })) {
+    if (value) env[key] = value;
+  }
   delete env.RS3_PUBLIC_ORIGIN; delete env.RS3_LOOPBACK_PORT;
-  const child = fork(path.join(ROOT, 'scripts/perf/server.mjs'), [], { cwd: ROOT, env, stdio: ['ignore', 'ignore', 'ignore', 'ipc'], windowsHide: true });
+  const child = fork(path.join(ROOT, 'scripts/perf/server.mjs'), [], { cwd: ROOT, env,
+    execArgv: [...process.execArgv, '--import', new URL('./worker-timeline.mjs', import.meta.url).href],
+    stdio: ['ignore', 'ignore', 'ignore', 'ipc'], windowsHide: true });
   child.on('error', () => {});
+  const calculations = [];
+  child.on('message', message => { if (message.type === 'calculation' && message.perfTimeline) calculations.push(message.perfTimeline); });
   try {
     const ready = await new Promise((resolve, reject) => {
       const timer = setTimeout(() => reject(new Error('Scratch server startup timed out.')), options.timeout);
       child.once('error', () => { clearTimeout(timer); reject(new Error('Scratch server could not start.')); });
       child.once('exit', () => { clearTimeout(timer); reject(new Error('Scratch server exited during startup.')); });
-      child.once('message', message => { clearTimeout(timer); message.type === 'ready' ? resolve(message) : reject(new Error('Scratch server startup failed.')); });
+      const onStartup = message => {
+        if (message.type === 'calculation') return;
+        clearTimeout(timer); child.off('message', onStartup);
+        message.type === 'ready' ? resolve(message) : reject(new Error('Scratch server startup failed.'));
+      };
+      child.on('message', onStartup);
     });
     const origin = new URL(ready.inviteUrl).origin;
     if (new URL(origin).hostname !== '127.0.0.1' || [8788, 8789, 8790, 8791].includes(Number(new URL(origin).port))) throw new Error('Refusing protected picker address.');
-    let requestId = 0;
-    return { child, origin, inviteUrl: ready.inviteUrl, readyMs: performance.now() - start, initializationMs: ready.readyMs,
+    if (options.port !== undefined && Number(new URL(origin).port) !== options.port) throw new Error('Scratch server did not bind the requested owned port.');
+    let requestId = 0, latestMemory = null;
+    return { child, origin, inviteUrl: ready.inviteUrl, calculations, dataset: ready.dataset, readyMs: performance.now() - start, initializationMs: ready.readyMs,
       rssReadyBytes: ready.rssBytes, startupTimingMs: ready.startupTimingMs,
+      get latestMemory() { return latestMemory; },
       rss: () => new Promise((resolve, reject) => {
-        const id = ++requestId, timer = setTimeout(() => { child.off('message', onMessage); reject(new Error('RSS probe timed out.')); }, 10000);
-        const onMessage = message => { if (message.type === 'rss' && message.id === id) { clearTimeout(timer); child.off('message', onMessage); resolve(message.rssBytes); } };
+        const id = ++requestId, timer = setTimeout(() => { child.off('message', onMessage); reject(new Error('RSS probe timed out.')); }, 25000);
+        const onMessage = message => { if (message.type === 'rss' && message.id === id) {
+          clearTimeout(timer); child.off('message', onMessage);
+          latestMemory = Object.fromEntries(['rssBytes', 'workersRssBytes', 'totalRssBytes', 'workerRssSamples', 'workerRssFailures'].map(key => [key, message[key] ?? null]));
+          resolve(message.rssBytes);
+        } };
         child.on('message', onMessage); child.send({ type: 'rss', id });
       }),
       async close() {
@@ -217,23 +250,30 @@ function taskCalculation(cache) {
     evaluationMs: number(cache.evaluationMs), requestMs: number(cache.requestMs),
     timingMs: Object.fromEntries(TASK_TIMING_FIELDS.map(key => [key, number(cache.timingMs?.[key])])) };
 }
-function metrics(snapshot, from, requests, networkIdleMs, navigation) {
+function metrics(snapshot, from, requests, networkIdleMs, navigation, { member, revision } = {}) {
   const events = snapshot.events.filter(event => event.time >= from);
   const first = name => events.find(event => event.name === name);
   const time = event => event ? Math.max(0, event.time - from) : null;
   const saved = snapshot.probe.saved.find(event => event.time >= from && event.text === 'Saved');
-  const tasks = first(taskMilestoneEvent());
+  const eligible = event => (!member || event.memberId === member) && (!revision || event.revision >= revision);
+  const tasks = events.find(event => event.name === taskMilestoneEvent() && eligible(event));
   const personalTasks = events.find(event => event.name === 'tasks-shown' && (!tasks || event.memberId === tasks.memberId && event.revision === tasks.revision));
   const taskResponses = (snapshot.probe.taskResponses ?? []).filter(response => response.endMs >= from)
-    .map(response => ({ ...response, startMs: response.startMs - from, endMs: response.endMs - from,
+    .map(response => ({ ...response, requestStartMs: Number.isFinite(response.requestStartMs) ? response.requestStartMs - from : null, startMs: response.startMs - from, endMs: response.endMs - from,
       jsonReadParseMs: response.endMs - response.startMs, cache: taskCalculation(response.cache) }));
   const selectedResponse = taskResponses.find(response => response.memberId === (personalTasks?.memberId ?? tasks?.memberId)
     && response.revision === (personalTasks?.revision ?? tasks?.revision));
+  const matchingPaint = (name, task) => events.find(event => event.name === name && task
+    && event.memberId === task.memberId && event.revision === task.revision && event.time >= task.time);
+  const duoTasks = events.find(event => event.name === 'duo-tasks-shown' && eligible(event)
+    && (!tasks || event.revision === tasks.revision));
   const terrain = first('terrain-drawn');
   const tiles = events.find(event => event.name === 'visible-tiles-loaded' && event.visible > 0 && !event.failed);
   const measures = { firstPaintMs: navigation ? snapshot.paint.find(p => p.name === 'first-paint')?.time ?? null : null,
     savedMs: time(saved), stateAdoptedMs: time(first('state-adopted')), terrainDrawnMs: time(terrain),
-    tasksShownMs: time(tasks), selectedTasksShownMs: time(personalTasks), duoTasksShownMs: time(first('duo-tasks-shown')),
+    tasksShownMs: time(tasks), selectedTasksShownMs: time(personalTasks), duoTasksShownMs: time(duoTasks),
+    tasksPaintedMs: time(matchingPaint(options.taskMilestone === 'duo' ? 'duo-tasks-painted' : 'tasks-painted', tasks)),
+    selectedTasksPaintedMs: time(matchingPaint('tasks-painted', personalTasks)), duoTasksPaintedMs: time(matchingPaint('duo-tasks-painted', duoTasks)),
     visibleTilesLoadedMs: time(tiles), networkIdleMs: networkIdleMs ?? null,
     visibleTiles: tiles?.visible ?? null, failedVisibleTiles: Math.max(0, ...events.filter(e => e.name === 'visible-tiles-loaded').map(e => e.failed ?? 0)) };
   const groups = Object.fromEntries(['appCode', 'dataJson', 'api', 'mapTiles', 'otherAssets'].map(name => [name, { count: 0, transferBytes: 0, decodedBodyBytes: 0, cachedCount: 0, cachedBodyBytes: 0, failedCount: 0 }]));
@@ -282,7 +322,7 @@ function metrics(snapshot, from, requests, networkIdleMs, navigation) {
   const visiblePaths = viewport ? new Set([...viewport.nativePaths, ...viewport.overviewPaths].map(p => `/assets/map/${p}`)) : null;
   const requestedVisible = visiblePaths ? terrainRequests.filter(r => visiblePaths.has(r.path)) : null;
   const selectedNativePaths = viewport ? new Set(viewport.selectedNativePaths.map(p => `/assets/map/${p}`)) : null;
-  return { milestones: measures, taskMilestoneEvent: taskMilestoneEvent(), taskResponses,
+  return { milestones: measures, taskMilestoneEvent: taskMilestoneEvent(), taskIdentity: tasks ? { memberId: personalTasks?.memberId ?? tasks.memberId, revision: tasks.revision } : null, taskResponses,
     taskCalculation: selectedResponse?.cache ?? taskCalculation(tasks?.cache ?? personalTasks?.cache), terrainDiagnostics: {
     requestCount: terrainRequests.length, nativeRequestCount: nativeRequests.length,
     committedVisibleCount: measures.visibleTiles,
@@ -303,7 +343,7 @@ function loadedViewport(snapshot) {
   const lastTiles = snapshot.events.findLast(event => event.name === 'visible-tiles-loaded');
   return lastTiles?.visible > 0 && !lastTiles.failed && (!lastTerrain || lastTiles.time >= lastTerrain.time) ? lastTiles : null;
 }
-async function measure(browser, name, action, { navigation = false, revision, member, reuseTerrain = false, settlement = options.settlement } = {}) {
+async function measure(browser, name, action, { navigation = false, revision, member, reuseTerrain = false, settlement = options.settlement, calculations = [] } = {}) {
   console.log(`  Measuring ${name}...`);
   const network = networkCollector(browser), wallStart = performance.now();
   let from = navigation ? 0 : await browser.evaluate('performance.now()');
@@ -329,12 +369,14 @@ async function measure(browser, name, action, { navigation = false, revision, me
     if (selectedProfile) {
       await browser.send('Profiler.enable'); await browser.send('Profiler.start'); profileActive = true;
     }
-    await action();
+    const clickedAt = await action();
+    if (!navigation && Number.isFinite(clickedAt)) from = clickedAt;
     await until(async () => {
       snapshot = await browser.evaluate(snapshotExpression);
       if (snapshot.taskError) throw new Error(`Task status failed in ${name}.`);
       const freshTask = snapshot.events.some(event => event.name === taskMilestoneEvent() && event.time >= from && (!member || event.memberId === member) && (!revision || event.revision >= revision));
-      const ready = snapshot.tasksReady && freshTask && (!revision || snapshot.savedRevision >= revision) && (!member || snapshot.member === member);
+      const painted = snapshot.events.some(event => event.name === (options.taskMilestone === 'duo' ? 'duo-tasks-painted' : 'tasks-painted') && event.time >= from && (!member || event.memberId === member) && (!revision || event.revision >= revision));
+      const ready = snapshot.tasksReady && freshTask && painted && (!revision || snapshot.savedRevision >= revision) && (!member || snapshot.member === member);
       const idle = network.idle();
       if (idle && ready) idleAt ??= snapshot.now - from;
       if (ready && (idle || settlement === 'tasks')) {
@@ -345,7 +387,10 @@ async function measure(browser, name, action, { navigation = false, revision, me
     }, options.timeout, 60);
     const groupView = await browser.evaluate("document.getElementById('group-view')?.checked");
     if (groupView !== (options.groupView === 'on')) throw new Error(`Unexpected group view in ${name}; refusing a mismatched benchmark.`);
-    const measured = metrics(snapshot, from, [...network.requests.values()], idleAt, navigation);
+    const measured = metrics(snapshot, from, [...network.requests.values()], idleAt, navigation, { member, revision });
+    measured.serverCalculations = calculations.filter(row => row.startedEpochMs >= snapshot.timeOrigin + from && row.doneEpochMs <= snapshot.timeOrigin + snapshot.now)
+      .map(row => ({ memberId: row.memberId, revision: row.revision,
+        startedMs: row.startedEpochMs - snapshot.timeOrigin - from, doneMs: row.doneEpochMs - snapshot.timeOrigin - from }));
     measured.groupView = groupView;
     measured.settlement = settlement;
     measured.pendingRequestsAtSettlement = [...network.requests.values()].filter(request => !request.excluded && request.end === undefined).length;
@@ -617,7 +662,7 @@ async function suite(executable, run, throttled) {
         const preparation = await prepareUnlockUI(browser, chunk);
         const before = await browser.evaluate(snapshotExpression);
         const beforeDiagnostics = await workerResidency(browser);
-        const unlocked = await measure(browser, 'unlock', () => browser.evaluate(`(() => {[...document.querySelectorAll('#chunk-info button')].find(b=>b.textContent==='Unlock').click();})()`), { revision: before.savedRevision + 1, member, reuseTerrain: true });
+        const unlocked = await measure(browser, 'unlock', () => browser.evaluate(`(() => {const at=performance.now();[...document.querySelectorAll('#chunk-info button')].find(b=>b.textContent==='Unlock').click();return at;})()`), { revision: before.savedRevision + 1, member, reuseTerrain: true, calculations: server.calculations });
         unlocked.unlock = { member, chunkId: chunk, pick: options.unlockPick,
           dwellMs: options.unlockDwellMs, preview: options.unlockPreview === 'on' || options.unlockPick === 'prepared', preparation, beforeDiagnostics,
           afterDiagnostics: await workerResidency(browser) };
@@ -625,18 +670,22 @@ async function suite(executable, run, throttled) {
         if (options.unlockPick === 'unprepared' && unlocked.taskCalculation?.unlockPredictionHit !== false) throw new Error('Unprepared unlock did not record a prediction miss; retained as partial evidence.');
         if (options.unlockPick === 'prepared' && unlocked.taskCalculation?.unlockPredictionHit !== true) throw new Error('Prepared unlock did not record a prediction hit; retained as partial evidence.');
       }
+      results.push(...await measureBrowserInteractions(browser, { timeout: options.timeout, scenarios: options.scenarios.filter(name => ['panels', 'search'].includes(name)) }));
     }
     const diagnostics = await browser.evaluate(`fetch('/api/diagnostics',{cache:'no-store'}).then(r=>r.json()).then(d=>({workerCompileMs:d.worker?.compileMs??null,startupTimingMs:{variantMs:Number.isFinite(d.startupTimingMs?.variantMs)?d.startupTimingMs.variantMs:null,stateResponseMs:Number.isFinite(d.startupTimingMs?.stateResponseMs)?d.startupTimingMs.stateResponseMs:null},taskTimings:d.timingMs,cache:d.cache,counts:d.counts,unlockReuse:d.unlockReuse?Object.fromEntries(['entries','bytes','rawBytes','compressedBytes','limit','byteLimit','hits','admitted','skipped'].map(k=>[k,d.unlockReuse[k]])):undefined,prediction:d.predictionLane?{worker:d.predictionLane.worker,cache:d.predictionLane.cache,prewarm:d.predictionLane.prewarm}:undefined}))`);
     const rssAfterBytes = await server.rss();
+    const memoryAfter = server.latestMemory;
     const idleSample = await sampleIdle(browser, server, options.idleSampleMs
       ? { rssBytes: rssAfterBytes, diagnostics: await workerResidency(browser) } : null);
     const screenshots = await captureViews(browser, run, throttled);
     const cancellationCheck = await checkCancellation(browser);
     return { run, fixtureSha256: scratch.fingerprint, chrome: version.product, mode: throttled ? 'throttled' : 'normal', screenshots, cancellationCheck,
-      server: { coldReadyMs: server.readyMs, initializationMs: server.initializationMs, workerWarmupMs: diagnostics.workerCompileMs,
+      server: { dataset: server.dataset, coldReadyMs: server.readyMs, initializationMs: server.initializationMs, workerWarmupMs: diagnostics.workerCompileMs,
         startupVariantMs: server.startupTimingMs?.variantMs ?? diagnostics.startupTimingMs?.variantMs ?? null,
         startupStateResponseMs: server.startupTimingMs?.stateResponseMs ?? diagnostics.startupTimingMs?.stateResponseMs ?? null,
-        rssReadyBytes: server.rssReadyBytes, rssAfterBytes, diagnostics }, idleSample, results };
+        rssReadyBytes: server.rssReadyBytes, rssAfterBytes, rssAfterTotalBytes: memoryAfter?.totalRssBytes ?? null,
+        workersRssAfterBytes: memoryAfter?.workersRssBytes ?? null, workerRssSamples: memoryAfter?.workerRssSamples ?? null,
+        workerRssFailures: memoryAfter?.workerRssFailures ?? null, diagnostics }, idleSample, results };
   } catch (error) {
     const rssAtFailureBytes = server ? await server.rss().catch(() => null) : null;
     error.partialSuite = { run, fixtureSha256: scratch.fingerprint, chrome: version?.product,
@@ -657,8 +706,10 @@ function median(values) {
   return !all.length ? null : all.length % 2 ? all[Math.floor(all.length / 2)] : (all[all.length / 2 - 1] + all[all.length / 2]) / 2;
 }
 function aggregates(suites) {
-  return options.scenarios.map(name => {
+  const scenarios = [...new Set(options.scenarios.flatMap(name => name === 'panels' ? interactionScenarios(['panels']) : [name]))];
+  return scenarios.map(name => {
     const runs = suites.flatMap(s => s.results).filter(r => r.name === name);
+    if (interactionScenarios([name]).length) return { scenario: name, runs: runs.length, durationMs: median(runs.map(row => row.durationMs)) };
     return { scenario: name, runs: runs.length,
       milestones: Object.fromEntries(Object.keys(runs[0]?.milestones ?? {}).map(key => [key, median(runs.map(r => r.milestones[key]))])),
       networkTotals: Object.fromEntries(['count', 'transferBytes', 'decodedBodyBytes', 'cachedCount', 'cachedBodyBytes'].map(key => [key, median(runs.map(r => r.network.totals[key]))])),
@@ -671,23 +722,29 @@ function aggregates(suites) {
 }
 const number = value => Number.isFinite(value) ? Math.round(value).toLocaleString('en-US') : '—';
 function reportMarkdown(result) {
+  const measurements = result.medians.filter(row => !interactionScenarios([row.scenario]).length);
+  const interactions = result.medians.filter(row => interactionScenarios([row.scenario]).length);
   const lines = [`# Picker performance: ${result.label}`, '', `Captured ${result.capturedAt}; Node ${result.environment.node}; ${result.environment.chrome}.`, '',
     `Group view ${result.options.groupView}; task milestone ${taskMilestoneEvent()}; settlement ${result.options.settlement}.`, '',
     `Unlock player ${result.options.unlockMember}; pick ${result.options.unlockPick}; panel dwell ${result.options.unlockDwellMs} ms; Preview ${result.options.unlockPreview === 'on' || result.options.unlockPick === 'prepared' ? 'on' : 'off'}.`, '',
     'Medians across independent repetitions. Times are milliseconds; transfer/cache sizes are KiB.', '',
     '| Scenario | N | Paint | Saved | Adopted | Terrain | Tasks | Visible tiles | Idle | Requests | KiB | Cached N | Cached KiB | Long N | Long total | Long worst |',
     '| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |'];
-  for (const r of result.medians) {
+  for (const r of measurements) {
     const m = r.milestones, n = r.networkTotals, l = r.longTasks;
     lines.push(`| ${r.scenario} | ${r.runs} | ${[m.firstPaintMs,m.savedMs,m.stateAdoptedMs,m.terrainDrawnMs,m.tasksShownMs,m.visibleTilesLoadedMs,m.networkIdleMs,n.count,n.transferBytes/1024,n.cachedCount,n.cachedBodyBytes/1024,l.count,l.totalMs,l.worstMs].map(number).join(' | ')} |`);
   }
   lines.push('', '| Scenario | State TTFB | Definitions | Rules | Tasks | Map info | Manifest | Pins |', '| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |');
-  for (const r of result.medians) lines.push(`| ${r.scenario} | ${Object.values(r.endpointTtfbMs).map(number).join(' | ')} |`);
-  lines.push('', 'Advisory request duration (included in network idle): ' + result.medians.map(r => `${r.scenario} ${number(r.advisoryMaxMs)} ms`).join('; ') + '.');
+  for (const r of measurements) lines.push(`| ${r.scenario} | ${Object.values(r.endpointTtfbMs).map(number).join(' | ')} |`);
+  lines.push('', 'Advisory request duration (included in network idle): ' + measurements.map(r => `${r.scenario} ${number(r.advisoryMaxMs)} ms`).join('; ') + '.');
   lines.push('', '| Scenario | Category | Requests | Transfer KiB | Decoded KiB | Cached N | Cached body KiB |', '| --- | --- | ---: | ---: | ---: | ---: | ---: |');
-  for (const r of result.medians) for (const [group, n] of Object.entries(r.networkGroups)) lines.push(`| ${r.scenario} | ${group} | ${number(n.count)} | ${number(n.transferBytes/1024)} | ${number(n.decodedBodyBytes/1024)} | ${number(n.cachedCount)} | ${number(n.cachedBodyBytes/1024)} |`);
+  for (const r of measurements) for (const [group, n] of Object.entries(r.networkGroups)) lines.push(`| ${r.scenario} | ${group} | ${number(n.count)} | ${number(n.transferBytes/1024)} | ${number(n.decodedBodyBytes/1024)} | ${number(n.cachedCount)} | ${number(n.cachedBodyBytes/1024)} |`);
   lines.push('', 'Asset classes are an additive breakdown; historical categories above are unchanged. Last completion is the final successful request end relative to scenario start; it can precede visible composition.', '', '| Scenario | Asset class | Requests | Transfer KiB | Decoded KiB | Cached N | Failed N | Last complete ms |', '| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |');
-  for (const r of result.medians) for (const [group, n] of Object.entries(r.assetClasses)) lines.push(`| ${r.scenario} | ${group} | ${number(n.count)} | ${number(n.transferBytes/1024)} | ${number(n.decodedBodyBytes/1024)} | ${number(n.cachedCount)} | ${number(n.failedCount)} | ${number(n.lastCompletionMs)} |`);
+  for (const r of measurements) for (const [group, n] of Object.entries(r.assetClasses)) lines.push(`| ${r.scenario} | ${group} | ${number(n.count)} | ${number(n.transferBytes/1024)} | ${number(n.decodedBodyBytes/1024)} | ${number(n.cachedCount)} | ${number(n.failedCount)} | ${number(n.lastCompletionMs)} |`);
+  if (interactions.length) {
+    lines.push('', '| Interaction | N | Content painted ms |', '| --- | ---: | ---: |');
+    for (const row of interactions) lines.push(`| ${row.scenario} | ${row.runs} | ${number(row.durationMs)} |`);
+  }
   lines.push('', `Server process spawn → localhost ready: ${number(median(result.suites.map(s=>s.server.coldReadyMs)))} ms; foreground worker compilation: ${number(median(result.suites.map(s=>s.server.workerWarmupMs)))} ms.`,
     '', '| Server preparation | Median ms |', '| --- | ---: |',
     `| Saved-rule variant | ${number(median(result.suites.map(s=>s.server.startupVariantMs)))} |`,
@@ -709,51 +766,46 @@ function reportMarkdown(result) {
 }
 
 async function sourceProvenance(serverEntry) {
-  if (path.basename(path.dirname(serverEntry)) !== 'app') {
-    const files = [{ path: path.relative(ROOT, serverEntry).split(path.sep).join('/'), sha256: hash(await readFile(serverEntry)) }];
-    return { root: ROOT, scope: 'server-entry-only', files, sha256: hash(JSON.stringify(files)) };
-  }
-  const sourceRoot = path.dirname(path.dirname(serverEntry)), files = [];
-  const collect = async directory => {
-    for (const entry of await readdir(directory, { withFileTypes: true })) {
-      const filename = path.join(directory, entry.name);
-      if (entry.isSymbolicLink()) throw new Error('Measured application source cannot contain a symlink or junction.');
-      if (entry.isDirectory()) await collect(filename);
-      else if (entry.isFile()) files.push({ path: path.relative(sourceRoot, filename).split(path.sep).join('/'), sha256: hash(await readFile(filename)) });
-    }
-  };
-  await collect(path.join(sourceRoot, 'app'));
-  for (const name of ['rs3-chunkpicker-chunkinfo-export.json', 'reference/original-picker/tasksMap.json', 'tasksMap.json']) {
-    const bytes = await readFile(path.join(sourceRoot, name)).catch(error => { if (error.code === 'ENOENT') return null; throw error; });
-    if (bytes) files.push({ path: name, sha256: hash(bytes) });
-  }
-  files.sort((a, b) => a.path.localeCompare(b.path, 'en'));
-  return { root: sourceRoot, scope: 'app-and-reference-data', files, sha256: hash(JSON.stringify(files)) };
+  return fingerprintPerfApplication(options.applicationRoot ?? ROOT, serverEntry);
 }
 async function main() {
   if (!parse(process.argv.slice(2))) return;
   options.captureStamp = new Date().toISOString().replace(/[:.]/g, '-');
   if (Number(process.versions.node.split('.')[0]) < 24) throw new Error('Node 24 or newer is required.');
-  options.source = await realpath(options.source ?? path.join(MAIN, '.local/duo'));
-  options.mapAssets = await realpath(options.mapAssets ?? path.join(MAIN, '.local/map-assets'));
-  options.terrainAssets = await realpath(options.terrainAssets ?? options.mapAssets);
-  options.gameData = await realpath(options.gameData ?? path.join(MAIN, '.local/game-data'));
+  options.packsDir = options.packsDir ?? process.env.RS3_PACKS_DIR;
+  options.packSelection = options.packSelection ?? process.env.RS3_PACK_SELECTION;
+  if (options.packsDir) options.packsDir = await rejectPathLinks(options.packsDir);
+  if (options.packSelection) options.packSelection = await rejectPathLinks(options.packSelection);
+  else if (options.packsDir) options.packSelection = await rejectPathLinks(path.join(options.packsDir, 'selection.json'));
+  const packsMode = !!(options.packsDir || options.packSelection);
+  options.source = await rejectPathLinks(options.source ?? path.join(MAIN, '.local/duo'));
+  options.mapAssets = options.mapAssets ?? process.env.RS3_MAP_ASSETS_DIR ?? (packsMode ? undefined : path.join(MAIN, '.local/map-assets'));
+  options.terrainAssets = options.terrainAssets ?? process.env.RS3_TERRAIN_ASSETS_DIR ?? options.mapAssets;
+  options.gameData = options.gameData ?? process.env.RS3_GAME_DATA_DIR ?? (packsMode ? undefined : path.join(MAIN, '.local/game-data'));
+  for (const key of ['mapAssets', 'terrainAssets', 'gameData']) if (options[key]) options[key] = await rejectPathLinks(options[key]);
   await noLinks(options.source);
   await mkdir(PERF, { recursive: true });
   const root = await realpath(ROOT), perfRoot = await realpath(PERF);
-  options.serverEntry = path.resolve(options.serverEntry ?? path.join(ROOT, 'app/server.mjs'));
-  if (!inside(root, options.serverEntry) || !options.serverEntry.endsWith('.mjs')) throw new Error('Server entry must be an .mjs file inside this worktree.');
-  let component = root;
-  for (const part of path.relative(root, options.serverEntry).split(path.sep)) {
-    component = path.join(component, part);
-    if ((await lstat(component)).isSymbolicLink()) throw new Error('Server entry path cannot contain a symlink or junction.');
-  }
-  options.serverEntry = await realpath(options.serverEntry);
-  if (!inside(root, options.serverEntry)) throw new Error('Server entry resolved outside this worktree.');
-  options.serverRevision ??= execFileSync('git', ['rev-parse', 'HEAD'], { cwd: ROOT, encoding: 'utf8', windowsHide: true }).trim();
+  Object.assign(options, await resolvePerfApplication(root, options));
+  options.serverRevision ??= execFileSync('git', ['rev-parse', 'HEAD'], { cwd: options.applicationRoot, encoding: 'utf8', windowsHide: true }).trim();
   const serverEntrySha256 = hash(await readFile(options.serverEntry));
   const applicationSource = await sourceProvenance(options.serverEntry);
   if (!inside(root, perfRoot)) throw new Error('Performance output must resolve inside this worktree.');
+  await rejectPathLinks(PERF);
+  if (options.output) {
+    if (!inside(PERF, options.output) || !options.output.endsWith('.json')) throw new Error('--output must be a .json file inside this worktree .local/perf.');
+    // Validate each existing ancestor before creating any missing output directory.
+    let parent = path.dirname(options.output);
+    while (true) {
+      try { await rejectPathLinks(parent); break; }
+      catch (error) { if (error.code !== 'ENOENT') throw error; parent = path.dirname(parent); }
+    }
+    await mkdir(path.dirname(options.output), { recursive: true });
+    for (const target of [options.output, options.output.replace(/\.json$/, '.md'), options.output.replace(/\.json$/, '-partial.json')]) {
+      try { await rejectPathLinks(target); if (!(await lstat(target)).isFile()) throw new Error('Report output must be a regular file.'); }
+      catch (error) { if (error.code !== 'ENOENT') throw error; }
+    }
+  }
   if (inside(options.source, perfRoot) || inside(perfRoot, options.source)) throw new Error('Source and scratch directories must not overlap.');
   const executable = await chromeExecutable(), suites = [];
   try {
@@ -762,7 +814,7 @@ async function main() {
       if (options.scenarios.includes('cold-30mbps')) { console.log(`Run ${run}/${options.runs}: cold 30 Mbps / 40 ms`); suites.push(await suite(executable, run, true)); }
     }
   } catch (error) {
-    const partial = path.join(PERF, `${options.label}-${options.captureStamp}-partial.json`);
+    const partial = options.output?.replace(/\.json$/, '-partial.json') ?? path.join(PERF, `${options.label}-${options.captureStamp}-partial.json`);
     await writeFile(partial, JSON.stringify({ schemaVersion: 1, complete: false, label: options.label,
       capturedAt: new Date().toISOString(), options: { ...options, scenarios: [...options.scenarios] },
       fixture: { sha256: suites[0]?.fixtureSha256 ?? error.partialSuite?.fixtureSha256 ?? null, source: options.source },
@@ -771,18 +823,20 @@ async function main() {
     throw error;
   }
   if (new Set(suites.map(s=>s.fixtureSha256)).size !== 1) throw new Error('Fixture changed across repetitions; no comparable report written.');
+  if (new Set(suites.map(s=>s.server.dataset?.digest ?? null)).size !== 1) throw new Error('Selected dataset changed across repetitions; no comparable report written.');
   if ((await sourceProvenance(options.serverEntry)).sha256 !== applicationSource.sha256) throw new Error('Measured application source changed during the run; no comparable report written.');
   const result = { schemaVersion: 1, label: options.label, capturedAt: new Date().toISOString(),
     options: { runs: options.runs, label: options.label, scenarios: [...options.scenarios], prewarm: options.prewarm, groupView: options.groupView, unlockMember: options.unlockMember, unlockPick: options.unlockPick, unlockChunk: options.unlockChunk ?? null, unlockPreview: options.unlockPreview, unlockDwellMs: options.unlockDwellMs, taskMilestone: options.taskMilestone, settlement: options.settlement, cpuProfile: options.cpuProfile,
       timeoutMs: options.timeout, idleSampleMs: options.idleSampleMs, workerIdleMs: process.env.RS3_WORKER_IDLE_MS ?? null, source: options.source, mapAssets: options.mapAssets, terrainAssets: options.terrainAssets, screenshots: options.screenshots, cancellationCheck: options.cancellationCheck, gameData: options.gameData, chromeExecutable: executable,
-      serverEntry: options.serverEntry, serverRevision: options.serverRevision, serverEntrySha256 },
+      serverEntry: options.serverEntry, serverRevision: options.serverRevision, serverEntrySha256, appDir: options.applicationRoot,
+      packsDir: options.packsDir ?? null, packSelection: options.packSelection ?? null, port: options.port ?? null, output: options.output ?? null },
     environment: { node: process.version, chrome: suites[0]?.chrome, platform: process.platform, viewport: { width:1440,height:900,dpr:1 }, throttle: { mbps:30,latencyMs:40 },
       gitRevision: execFileSync('git', ['rev-parse', 'HEAD'], { cwd: ROOT, encoding: 'utf8', windowsHide: true }).trim(),
       serverRevision: options.serverRevision, serverEntry: options.serverEntry, serverEntrySha256,
       gitDirty: !!execFileSync('git', ['status', '--porcelain', '--untracked-files=normal'], { cwd: ROOT, encoding: 'utf8', windowsHide: true }).trim(),
       cpuModel: cpus()[0]?.model ?? null, logicalCores: cpus().length, hostRamBytes: totalmem(),
-      applicationRoot: ROOT, assetsRoot: options.mapAssets, gameDataRoot: options.gameData },
-    applicationSource, fixture: { sha256: suites[0]?.fixtureSha256, source: options.source }, medians: aggregates(suites), suites,
+      applicationRoot: options.applicationRoot, assetsRoot: options.mapAssets, gameDataRoot: options.gameData },
+    applicationSource, fixture: { sha256: suites[0]?.fixtureSha256, source: options.source, dataset: suites[0]?.server.dataset ?? null }, medians: aggregates(suites), suites,
     notes: [ `Renderer CPU profiling is ${options.cpuProfile}; opt-in profiles cover selected scenarios only and add diagnostic overhead. Keep profiled runs separate from performance medians. Profile frame URLs retain pathname only.`,
       `Unlock player is ${options.unlockMember}; pick is ${options.unlockPick}; locked-panel dwell is ${options.unlockDwellMs} ms outside the measured Unlock. Positive dwell uses any/Preview off and does not assert a prediction hit or miss. Unlock Preview is ${options.unlockPreview === 'on' || options.unlockPick === 'prepared' ? 'on' : 'off'}. When on, preparation waits for the actual Preview UI to finish before the measured Unlock click. Compare only matching workflows; this does not measure an unchecked unlock.`,
       `Settlement policy is ${options.settlement}. Tasks policy ends at refreshed task and visible tile readiness while background advisories remain enabled; network totals are observed only through that boundary, and unobserved network idle remains null. Compare only matching settlement policies.`,
@@ -794,7 +848,7 @@ async function main() {
       'Network transfer is CDP encodedDataLength (including response headers). Cached body bytes are encoded response/resource sizes; 304 counts as revalidation cache use.',
       'Long tasks use the browser PerformanceObserver threshold (50 ms); phase boundaries follow observed milestone ordering.',
       'Headless localhost measurements do not establish real-device, public-network or second-player experience.' ] };
-  const stamp = result.capturedAt.replace(/[:.]/g, '-'), stem = path.join(PERF, `${options.label}-${stamp}`);
+  const stamp = result.capturedAt.replace(/[:.]/g, '-'), stem = options.output?.slice(0, -'.json'.length) ?? path.join(PERF, `${options.label}-${stamp}`);
   const markdown = reportMarkdown(result);
   await writeFile(`${stem}.json`, JSON.stringify(result, null, 2) + '\n'); await writeFile(`${stem}.md`, markdown);
   console.log(markdown); console.log(`JSON: ${stem}.json\nTable: ${stem}.md`);

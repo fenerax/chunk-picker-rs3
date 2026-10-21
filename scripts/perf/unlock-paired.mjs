@@ -17,6 +17,7 @@ import { projectDuoPlayResult, projectDuoSidebarResult } from '../../app/duo-pla
 import { taskReuseInputKey } from '../../app/tasks/unlock-reuse.mjs';
 import { createGameplayFingerprint } from '../../app/storage/gameplay-fingerprint.mjs';
 import { migrateOwnedGameplay } from '../../app/tasks/migration.mjs';
+import { loadPerfInputs, perfDatasetMetadata } from './inputs.mjs';
 import { ROOT, sha, inside, overlap, relative, valueHash, paths, inputFingerprint, appFingerprint,
   instrument, startWorker, currentMigration, chunksFor, selectCases, resultSummary, taskDelta, request, quantiles, aggregate } from './unlock-calc.mjs';
 
@@ -169,9 +170,12 @@ async function main() {
     report.contentFlags = { cacheShops: cacheShopContentsEnabled(), cacheResources: cacheResourceContentsEnabled(), cacheArchaeology: cacheArchaeologyContentsEnabled() };
     rssTimer = setInterval(() => { peakRSS = Math.max(peakRSS, process.memoryUsage.rss()); }, 50); rssTimer.unref();
     const registry = createRuleRegistry(), loaded = await readCopiedState(locations.source, registry);
-    const definitionRaw = await readFile(path.join(ROOT, 'rs3-chunkpicker-chunkinfo-export.json'));
-    const definitions = applyCacheShops(applyEquipmentCorrections(JSON.parse(definitionRaw.toString('utf8'))));
-    const definitionBytes = Buffer.from(JSON.stringify(definitions)), world = buildWorld(definitions, { dataset: selectedDataset });
+    const { raw: definitionRaw, definitions, definitionBytes, taskMap, taskMapHistory, preparedDatasetStages } = await loadPerfInputs({ root: ROOT,
+      dataset: selectedDataset, applyEquipmentCorrections, applyCacheShops });
+    const world = buildWorld(definitions, { dataset: selectedDataset });
+    // Harness-only preparation metadata; startWorker transfers the world fields explicitly.
+    world.preparedDatasetStages = preparedDatasetStages;
+    report.inputs.dataset = perfDatasetMetadata(selectedDataset);
     report.inputs.definitionSha256 = sha(definitionRaw); report.inputs.effectiveDefinitionSha256 = sha(definitionBytes);
     const transformed = { old: await instrument(scratchDirs.old, appDirs.old), new: await instrument(scratchDirs.new, appDirs.new) };
     report.instrumentationSource = Object.fromEntries(['old', 'new'].map(variant => [variant, { ...transformed[variant], workerFile: relative(transformed[variant].workerFile) }]));
@@ -188,7 +192,7 @@ async function main() {
     let state = loaded.state;
     report.migrationReused = currentMigration(state, worker.ready);
     if (!report.migrationReused) state = migrateOwnedGameplay(state, { definitions, catalogue: worker.ready.catalogue, dynamicCatalogue: worker.ready.dynamicCatalogue,
-      taskMap: JSON.parse(await readFile(path.join(ROOT, 'reference/original-picker/tasksMap.json'), 'utf8')), taskMapHistory: JSON.parse(await readFile(path.join(ROOT, 'app/data/legacy-task-history.json'), 'utf8')) }).state;
+      taskMap, taskMapHistory }).state;
     const { history, provenance, ...calculation } = state; calculation.history = [];
     const fingerprint = createGameplayFingerprint(), baseInput = fingerprint(calculation), immutableInput = taskReuseInputKey(calculation);
     report.sourceRevision = state.revision;

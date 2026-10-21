@@ -19,6 +19,7 @@ import { taskReuseInputKey } from '../../app/tasks/unlock-reuse.mjs';
 import { createGameplayFingerprint } from '../../app/storage/gameplay-fingerprint.mjs';
 import { hasGameplayMigration, hasCurrentProgressAliasMigration, migrateOwnedGameplay, resolveSavedTaskId } from '../../app/tasks/migration.mjs';
 import { deserialize } from 'node:v8';
+import { loadPerfInputs, perfDatasetMetadata } from './inputs.mjs';
 
 // One native worker; no HTTP server, scheduler, browser or writable save store.
 // Scratch instrumentation uses original module URLs for every dependency.
@@ -117,7 +118,8 @@ async function appFingerprint(appDir) {
     }
   }
   await visit(appDir);
-  for (const name of ['rs3-chunkpicker-chunkinfo-export.json', 'reference/original-picker/tasksMap.json']) files.push({ file: name, sha256: sha(await readFile(path.join(ROOT, name))) });
+  if (!selectedDataset.packed) for (const name of ['rs3-chunkpicker-chunkinfo-export.json', 'reference/original-picker/tasksMap.json']) files.push({ file: name, sha256: sha(await readFile(path.join(ROOT, name))) });
+  if (selectedDataset.packed) files.push({ file: 'selected-dataset', sha256: selectedDataset.digest });
   return { sha256: sha(JSON.stringify(files)), files };
 }
 
@@ -288,9 +290,10 @@ async function instrument(scratch, appDir) {
   return { workerFile: path.join(scratch, 'worker.mjs'), peerProjection, anchors, workerSha256: sha(worker), engineSha256: sha(engine), runtimeSha256: sha(runtime) };
 }
 
-async function startWorker(filename, definitionBytes, world, heapSamples = false) {
+async function startWorker(filename, definitionBytes, world, heapSamples = false, preparedDatasetStages = world.preparedDatasetStages ?? []) {
   const spawned = performance.now(), worker = new Worker(pathToFileURL(filename), { workerData: {
     definitionBytes: shared(definitionBytes), world: { chunks: world.chunks, areas: world.areas, surface: world.surface }, extraRules: [], probeHeap: heapSamples,
+    ...(selectedDataset.packed ? { datasetSelection: selectedDataset.workerSelection(), datasetDigest: selectedDataset.digest, preparedDatasetStages } : {}),
   } });
   let sequence = 0, stopping = false, resolveReady, rejectReady;
   const pending = new Map(), ready = new Promise((resolve, reject) => { resolveReady = resolve; rejectReady = reject; });
@@ -454,18 +457,19 @@ async function main() {
       'Separate inspector-profile requests are excluded from scenario medians. Node --cpu-prof artifacts are separate from the targeted worker inspector profiles.'],
     baselines: [], scenarios: [], profiles: [] };
     const registry = createRuleRegistry(), loaded = await readCopiedState(locations.source, registry);
-    const definitionRaw = await readFile(path.join(ROOT, 'rs3-chunkpicker-chunkinfo-export.json'));
-    const definitions = applyCacheShops(applyEquipmentCorrections(JSON.parse(definitionRaw.toString('utf8'))));
-    const definitionBytes = Buffer.from(JSON.stringify(definitions)), world = buildWorld(definitions, { dataset: selectedDataset });
+    const { raw: definitionRaw, definitions, definitionBytes, taskMap, taskMapHistory, preparedDatasetStages } = await loadPerfInputs({ root: ROOT,
+      dataset: selectedDataset, applyEquipmentCorrections, applyCacheShops });
+    const world = buildWorld(definitions, { dataset: selectedDataset });
+    report.inputs.dataset = perfDatasetMetadata(selectedDataset);
     report.inputs.definitionSha256 = sha(definitionRaw); report.inputs.effectiveDefinitionSha256 = sha(definitionBytes);
     const transformed = await instrument(locations.scratch, locations.appDir);
     report.instrumentationSource = { ...transformed, workerFile: relative(transformed.workerFile) };
-    worker = await startWorker(transformed.workerFile, definitionBytes, world, configuration.heapSamples === 'on');
+    worker = await startWorker(transformed.workerFile, definitionBytes, world, configuration.heapSamples === 'on', preparedDatasetStages);
     report.startup = { totalMs: worker.startupMs, compileMs: worker.ready.compileMs, instrumentation: worker.ready.probe, rssBytes: process.memoryUsage.rss() };
     let state = loaded.state;
     report.migrationReused = currentMigration(state, worker.ready);
     if (!report.migrationReused) state = migrateOwnedGameplay(state, { definitions, catalogue: worker.ready.catalogue, dynamicCatalogue: worker.ready.dynamicCatalogue,
-      taskMap: JSON.parse(await readFile(path.join(ROOT, 'reference/original-picker/tasksMap.json'), 'utf8')), taskMapHistory: JSON.parse(await readFile(path.join(ROOT, 'app/data/legacy-task-history.json'), 'utf8')) }).state;
+      taskMap, taskMapHistory }).state;
     const { history, provenance, ...calculation } = state; calculation.history = [];
     const fingerprint = createGameplayFingerprint(), baseInput = fingerprint(calculation), immutableInput = taskReuseInputKey(calculation);
     report.sourceRevision = state.revision;

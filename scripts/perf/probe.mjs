@@ -3,6 +3,22 @@ export const probeSource = `(() => {
   window.__rs3Perf = { enabled: true, events: [] };
   window.__perfProbe = {longTasks: [], saved: [], taskStatuses: [], terrain: [], taskResponses: []};
   const p = window.__perfProbe;
+  const taskFetch = new WeakMap(), originalFetch = window.fetch;
+  window.fetch = function(...args) {
+    const url = new URL(args[0] instanceof Request ? args[0].url : args[0], location.href);
+    if (url.pathname !== '/api/tasks') return originalFetch.apply(this,args);
+    const requestStartMs = performance.now();
+    return originalFetch.apply(this,args).then(response => { taskFetch.set(response, {requestStartMs}); return response; });
+  };
+  const events = window.__rs3Perf.events, push = events.push.bind(events);
+  events.push = (...items) => {
+    const size = push(...items);
+    for (const event of items) if (['tasks-shown','duo-tasks-shown'].includes(event.name)) {
+      requestAnimationFrame(() => requestAnimationFrame(() => push({name:event.name.replace('-shown','-painted'),
+        time:performance.now(),memberId:event.memberId,revision:event.revision})));
+    }
+    return size;
+  };
   // Observe the application's one JSON parse, retaining scalar timing/cache
   // metadata only. No second request or retained task/state tree is needed.
   const responseJSON = Response.prototype.json;
@@ -10,7 +26,7 @@ export const probeSource = `(() => {
     const started = performance.now(), value = await responseJSON.apply(this,args);
     if (new URL(this.url,location.href).pathname === '/api/tasks') {
       const cache = value?.cache ?? {}, numeric = value => typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : null;
-      p.taskResponses.push({startMs:started,endMs:performance.now(),revision:numeric(value?.stateRevision),
+      p.taskResponses.push({requestStartMs:taskFetch.get(this)?.requestStartMs??null,startMs:started,endMs:performance.now(),revision:numeric(value?.stateRevision),
         memberId:['player1','player2'].includes(value?.memberId)?value.memberId:null,
         cache:{hit:typeof cache.hit==='boolean'?cache.hit:null,
           unlockPredictionHit:typeof cache.unlockPredictionHit==='boolean'?cache.unlockPredictionHit:null,

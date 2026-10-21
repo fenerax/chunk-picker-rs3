@@ -24,6 +24,7 @@ state.history = [];
 const { createServer } = await import('../../app/server.mjs');
 const app = await createServer({ dataDir: path.join(output, 'server'), initialState: state,
   port: 8966, host: '127.0.0.1', loopbackPort: undefined, publicOrigin: undefined,
+  packsDir: process.env.RS3_PACKS_DIR, packSelection: process.env.RS3_PACK_SELECTION,
   predictionPrewarm: false, random: seededRandom(1729) });
 const rows = [], responses = {};
 let committedAt, targetRevision;
@@ -83,8 +84,10 @@ try {
     return value;
   };
   const { selectedDataset } = await import('../../app/dataset-runtime.mjs');
-  await writeFile(path.join(output, 'results.json'), JSON.stringify({ sha256, datasetDigest: selectedDataset.digest, node: process.version, rows,
+  await writeFile(path.join(output, 'results.json'), JSON.stringify({ sha256, datasetDigest: selectedDataset.digest,
+    dataset: { datasetId: selectedDataset.datasetId, digest: selectedDataset.digest, packed: selectedDataset.packed === true }, node: process.version, rows,
     hashes: Object.fromEntries(Object.entries(responses).map(([key, value]) => [key, value.map(row => createHash('sha256').update(JSON.stringify(normalize(row))).digest('hex'))])) }, null, 2));
+  console.log(JSON.stringify({ report: path.join(output, 'results.json') }));
   // Optional local evidence hook runs after every timed action has finished.
   if (process.env.RS3_PERF_CAPTURE_MODULE) {
     const { capture } = await import(pathToFileURL(process.env.RS3_PERF_CAPTURE_MODULE));

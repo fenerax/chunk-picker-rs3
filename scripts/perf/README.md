@@ -1,5 +1,17 @@
 # Picker browser performance harness
 
+For hosted app A/B runs, see [GitHub benchmarks](../../docs/perf/github-bench.md).
+The paired driver is `scripts/ci/perf-bench.mjs`; its scenario catalogue controls
+the default coverage and estimated runner cost.
+
+Public-pack mode uses `--packs-dir DIR --pack-selection FILE` (the selection
+defaults to `DIR/selection.json`) or `RS3_DATASET=duo-legacy`, `RS3_PACKS_DIR` and
+`RS3_PACK_SELECTION`. Calculation, paired, equivalence and interaction scripts
+accept the same environment. Legacy PC directories remain the default without
+pack selection. `--app-dir CHECKOUT` measures another app with this harness;
+`--output .local/perf/NAME.json` gives a deterministic report name. `panels` adds
+Chunk Info and Possible Tasks, and `search` adds query-result paint timings.
+
 For restart timings without a browser, run the warmstart harness through the
 shared heavy-work lock:
 

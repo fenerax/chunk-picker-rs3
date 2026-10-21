@@ -1,0 +1,93 @@
+# GitHub app A/B benchmarks
+
+The public runner uses one harness checkout to measure two application checkouts.
+It imports the same checksum-verified backup into two fresh data directories, then
+alternates A, B, A, B for the requested repetitions. Each app trial runs Group off
+and Group on in independent server/browser sessions. The default is three trials
+per app/view. Raw harness files and disposable stores stay outside the artifact.
+
+```sh
+node scripts/ci/perf-bench.mjs --a-dir ../base --b-dir ../candidate \
+  --save /tmp/bench-save.json --packs-dir /tmp/packs/tree \
+  --scenarios cold,reload,unlock,cold-30mbps,panels,search --runs 3 \
+  --output-dir .local/perf/gh-report
+```
+
+Node 24 and Chrome are required; no npm install is needed. `CHROME_PATH` or
+`--chrome` selects Chrome. Servers use 8960, Chrome CDP 8961, and import reserves
+8968 without listening. Run local measurements through the shared heavy wrapper.
+`--save-sha256` accepts a different explicitly pinned synthetic fixture. Production
+defaults to the approved scrubbed-v2 SHA256, checked before either import.
+`--dataset open-f2p` is available for a small synthetic smoke; CI uses `duo-legacy`.
+
+`scripts/ci/perf-bench-config.mjs` owns the scenario catalogue, defaults and cost
+estimates. A future `score.mjs --against` adapter can consume `measurementPlan()`
+without changing workflow requests. Optional request settings are `groupViews`,
+`unlockMember`, `unlockPick`, `unlockPreview`, `unlockDwellMs`, `settlement`,
+`timeoutMs` and `screenshots`. Unknown fields fail validation. Screenshots default
+to false; CPU profiling stays off. Default settlement waits for tasks and terrain.
+
+| Scenario | Estimated seconds per app/view | Boundary |
+| --- | ---: | --- |
+| cold | 25 | fresh server, browser and empty HTTP cache to tasks/terrain |
+| reload | 4 | reload to current task paint |
+| unlock | 10 | preparation, then click to current task paint |
+| cold-30mbps | 40 | separate fresh load at 30 Mbps / 40 ms |
+| panels | 8 | Chunk Info and Possible Tasks content plus two frames |
+| search | 3 | public location query to populated results plus two frames |
+| switch-player2 / switch-player1 | 5 each | selected member's current results |
+
+An omitted cold scenario still incurs initial-load conditioning for interactions.
+Default arithmetic is 12 app/view trials × 90 seconds + 180 seconds for provisioning
+and imports: about 21 minutes. These are planning estimates pending hosted runner
+receipts, not measured costs. Larger dwell, extra scenarios and slower revisions
+can exceed the default estimate; the workflow stops after 40 minutes.
+
+The runner writes `perf-report.json`, `perf-report.md` and a short step-summary
+table. Each metric has medians, min–max, sample counts and B−A. Lower is better.
+At least three complete samples and strictly disjoint observed ranges are needed
+for a win/loss. Overlap is noise; absent instrumentation is missing. An n=1 smoke
+cannot establish a speed change. Individual scalar samples remain in JSON.
+
+Unlock records click → task fetch → worker calculation receipt → completion →
+paint, with each interval separately. Worker timestamps come from the same
+harness preload in both apps. Browser/worker epoch clocks align the intervals;
+cross-process clock uncertainty remains. Task paint means the matching DOM event
+plus two animation frames; Group on waits for both lists. Cached calculations may
+have no worker start/done. Those fields stay null. An estimate based on existing
+server timing is labelled separately and never substitutes for an observation.
+RSS includes HTTP-process samples and a separate total adding calculator processes
+once each, outside timing. It excludes Chrome and is not peak memory. Cold does
+not flush OS file caches.
+
+The private workflow and local helper live outside this public checkout in the
+operator's `perf-gh` tools directory. Claude installs `perf-bench.yml` at
+`.github/workflows/perf-bench.yml` on the private repository's orphan `bench/tools`
+commit. That commit needs this complete tools tree, including `.github/packs`,
+`scripts/perf`, `scripts/ci`, `app` and their relative imports. Each run branch is
+that tools commit plus one commit adding `bench/request.json`:
+
+```json
+{"base":"<full SHA>","candidate":"<full SHA>","scenarios":["cold","reload","unlock","cold-30mbps","panels","search"],"runs":3,"options":{}}
+```
+
+The workflow checks out both SHAs from the private repository, fetches the pinned
+public release packs using the existing verified fetcher, and downloads the save
+from the private release using the read-only token. It uploads only the two scalar
+reports as `perf-report` for 14 days. Explicitly requested screenshots use a
+separate artifact. Save bytes, data directories and raw harness reports are never
+artifact paths.
+
+The local helper takes `--repo-dir`, `--base`, `--candidate`, optional comma-separated
+`--scenarios`, `--runs`, `--label`, `--options JSON` and `--wait`. It checks commit
+reachability, author/committer noreply identity and the required private-corpus
+scan before transporting commits. It pushes explicit non-force `bench/cand/*` and
+`bench/run/*` refs to the fixed private HTTPS endpoint. With `--wait`, it watches
+the exact request commit and downloads `perf-report` into `.local/perf/gh/<run id>`.
+Its isolated bare-repository tests perform no GitHub calls.
+
+For direct harness use, `npm run perf -- --source COPY --packs-dir PACKS_TREE`
+selects public packs; the selection defaults to `PACKS_TREE/selection.json`.
+`RS3_DATASET=duo-legacy`, `RS3_PACKS_DIR` and `RS3_PACK_SELECTION` also work for
+the calculation, paired, equivalence and interaction scripts. Existing legacy
+directory defaults remain available when packs are not selected.
