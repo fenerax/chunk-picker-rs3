@@ -263,9 +263,9 @@ export async function rehearse({ repo = checkout, packsDir, summary }) {
     });
     await step('synthetic-save', () => run([runtime, 'seed', configFile]));
     const probeData = path.join(work, 'probe-save'), probeOutput = path.join(work, 'probe.json');
-    await cp(config.dataDir, probeData, { recursive: true, force: false, errorOnExist: true });
-    await cp(config.dataDir + '.dataset.json', probeData + '.dataset.json', { force: false, errorOnExist: true });
     await step('startup-probe', async () => {
+      await cp(config.dataDir, probeData, { recursive: true, force: false, errorOnExist: true });
+      await cp(config.dataDir + '.dataset.json', probeData + '.dataset.json', { force: false, errorOnExist: true });
       await run([path.join(core, 'scripts/private-companion/release-pack-check.mjs'), 'probe', core, probeData, probeOutput]);
       const probe = await json(probeOutput);
       if (probe.tasksServed !== true || !Array.isArray(probe.taskIds) || probe.migrationSummary?.lostRecords !== 0) throw Error('Packed synthetic probe refused.');

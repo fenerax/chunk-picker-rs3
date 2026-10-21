@@ -17,11 +17,16 @@ try {
   } else if (command === 'seed') {
     const config = JSON.parse(await readFile(input, 'utf8'));
     const { createServer } = await load(path.join(config.coreRoot, 'app/server.mjs'));
+    const { bindDatasetStorage } = await load(path.join(config.coreRoot, 'app/dataset-binding.mjs'));
     // The same two-chunk synthetic definitions used by release-early's copied
     // startup. No imported save, fixture member identity, or gameplay is read.
     const app = await createServer({ dataDir: config.dataDir, host: '127.0.0.1', port: config.port,
       loopbackPort: undefined, publicOrigin: undefined, predictionPrewarm: false,
       definitions: { chunks: { 12341: {}, 12342: {} }, challenges: {}, walkableChunks: ['12341', '12342'], walkableChunksF2P: ['12341', '12342'] }, taskMap: {} });
-    await app.close();
+    try {
+      // Fresh legacy storage is permitted to remain unbound. The release
+      // layout and the copied packed probe require this explicit sidecar.
+      await bindDatasetStorage(config.dataDir, app.dataset);
+    } finally { await app.close(); }
   } else throw Error('Runtime command refused.');
 } catch { process.exitCode = 1; }
