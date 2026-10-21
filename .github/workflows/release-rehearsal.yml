@@ -1,0 +1,53 @@
+name: Release rehearsal
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  rehearsal:
+    name: rehearsal (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '24.20.0'
+      # Packs come from the release assets that .github/packs/pack-pin.json names.
+      - name: Restore packs
+        id: packcache
+        uses: actions/cache/restore@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        with:
+          path: ${{ runner.temp }}/packs
+          key: packs-${{ hashFiles('.github/packs/pack-pin.json') }}
+      - name: Fetch and place packs
+        id: packs
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node .github/packs/fetch-packs.mjs . "${{ runner.temp }}/packs"
+      - name: Save packs
+        if: steps.packs.outputs.fetched == 'true' && steps.packcache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        with:
+          path: ${{ runner.temp }}/packs
+          key: packs-${{ hashFiles('.github/packs/pack-pin.json') }}
+      - name: Run release rehearsal
+        run: node scripts/ci/release-rehearsal.mjs --packs-dir "${{ runner.temp }}/packs/tree" --summary "${{ runner.temp }}/release-rehearsal.json"
+      - name: Upload summary
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: release-rehearsal-${{ matrix.os }}
+          path: ${{ runner.temp }}/release-rehearsal.json
+          retention-days: 14
+          if-no-files-found: warn
