@@ -3,6 +3,17 @@
   "entries": [
     {
       "date": "2026-10-21",
+      "title": "Achievements tick themselves",
+      "items": [
+        "The game plugin now sends your completed achievements, Achievement Diaries included, and the picker ticks the matching diary tasks for you",
+        "Ticks only happen for progress from a live world; achievements seen on the beta world, or where the picker can't tell, wait in the Game plugin review list",
+        "When an achievement could match more than one task, it waits in the review list so you can choose",
+        "Every batch of game ticks is one History entry you can Undo, and the Completed view marks those tasks as ticked by the game",
+        "An Undo or manual untick stays put, even after the picker restarts or the game reports new achievements"
+      ]
+    },
+    {
+      "date": "2026-10-21",
       "title": "Game plugin (beta)",
       "items": [
         "A new Game plugin panel makes keys for the in-game plugin, which reports your progress to the picker; you review the progress before it is applied",
