@@ -31,9 +31,9 @@ search, XP choices and roll statistics. Five note saves rotate fixed encoding he
 polls. FileHandle write/sync counters distinguish storage wait from the complete
 save response; health latency and client polling delay are reported separately.
 It also records worker compilation, cache counters, accelerated retirement and
-compact/full wake requests, sampled process-tree RSS, main-isolate CPU and GC,
-and event-loop delay. Wire-body bytes exclude HTTP headers/framing. The observer
-adds overhead equally to both revisions. Idle CPU uses a separate quiet interval
+compact/full wake requests, sampled process-tree RSS, server process CPU and main-isolate GC,
+and event-loop delay. Wire-body bytes exclude HTTP headers/framing. Both
+revisions use the same instrumentation. Idle server process CPU uses a separate quiet interval
 after retirement, with periodic IPC memory sampling.
 `retirement.wakeResident` describes the foreground lane only. Inspect the
 separate lane diagnostics for prediction/duo/death residency; a successful full
@@ -55,9 +55,11 @@ when present; parameterized routes and plugin writes are excluded.
 ten-minute retirement. Scheduler clocks run normally. Server RSS is sampled
 every 500 ms with a 1450 MiB
 server safety stop; shorter unsampled peaks are possible. Keep the whole observer
-process tree within the job's memory budget as well. GC/CPU counters cover the
-main isolate only. Optional public game/map inputs can be passed explicitly or
-inherited from the shared wrapper; private add-on configuration is cleared.
+process tree within the job's memory budget as well. CPU counters cover all server
+process threads (thread pool, background GC and any worker threads), excluding
+forked hosts. GC and event-loop observations cover the main isolate. Optional
+public game/map inputs can be passed explicitly or inherited from the shared
+wrapper; private add-on configuration is cleared.
 
 RSS samples combine the main-process reading with asynchronous host replies;
 they are not simultaneous process-tree peaks. Startup memory checkpoints observe
