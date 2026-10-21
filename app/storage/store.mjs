@@ -381,7 +381,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     }
     const bytes = await gunzipAsync(compressed);
     if (createHash('sha256').update(bytes).digest('hex') !== reference.sha256) throw new TypeError(`Static field checksum mismatch: ${key}`);
-    const result = { value: JSON.parse(bytes.toString('utf8')), bytes: bytes.toString('utf8') };
+    const result = { value: JSON.parse(bytes.toString('utf8')) };
     if (readOnly) {
       if (standbyStaticFields.size >= reusableFields.size) standbyStaticFields.delete(standbyStaticFields.keys().next().value);
       standbyStaticFields.set(cacheKey, result);
