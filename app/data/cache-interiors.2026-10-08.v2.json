@@ -22,7 +22,7 @@
     },
     {
       "file": "archive/data/map-connections.2026-10-08.v2.json",
-      "sha256": "9528e84e4aace9dc9e861085363fe06978721f14027a427a351cae3183d827f5",
+      "sha256": "49d821b4f50ca75f7eec1224efe4438de5beb6cb1d33eadc23d2109c08eaca2a",
       "hashKind": "repository-lf"
     },
     {
@@ -806105,13 +806105,13 @@
         {
           "kind": "catalogue",
           "path": "C:\\Users\\User\\Projects\\chunk-picker-rs3-wt\\interiors2\\app\\data\\cache-interiors.2026-10-08.v1.json",
-          "sha256": "243bdfd03b54b3ec70237c7bc6e8867156b183a537d267f252b8f1c3df084d2a",
+          "sha256": "abb807ead099a12b11a9095ba427a895576d56a044cb0f6c8031ac3c615692f0",
           "hashKind": "repository-lf"
         },
         {
           "kind": "connections",
           "path": "C:\\Users\\User\\Projects\\chunk-picker-rs3-wt\\interiors2\\app\\data\\map-connections.2026-10-08.v2.json",
-          "sha256": "9528e84e4aace9dc9e861085363fe06978721f14027a427a351cae3183d827f5",
+          "sha256": "49d821b4f50ca75f7eec1224efe4438de5beb6cb1d33eadc23d2109c08eaca2a",
           "hashKind": "repository-lf"
         },
         {

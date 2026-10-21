@@ -209104,7 +209104,7 @@
     "identityInputs": [
       {
         "path": "app/data/cache-resources.2026-10-08.v1.json",
-        "sha256": "3ba281dffe10ec09fa21c34825987334b85ca4e860654c0b78c0c12bf4bac53b"
+        "sha256": "1e6a45cfe64af2cdfa20247e6bc28bedb5db77499b705b2d4266f4f12e76bbf0"
       },
       {
         "path": "app/data/cache-npcs.2026-10-08.v1.json",

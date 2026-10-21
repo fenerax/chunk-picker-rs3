@@ -36,7 +36,7 @@
     {
       "kind": "reviewed-pin-details",
       "path": "C:/Users/User/Projects/chunk-picker-rs3-wt/mapinfo/app/data/map-pin-details.2026-10-08.v1.json",
-      "sha256": "e6aad453f02a86df6d6a570168ecdd0f11c7a5420e75b521635a40c72c09dca0"
+      "sha256": "2799834b825835ec07844b993a8cc32f19236ebc9d6f76c84263a2b981759eb6"
     },
     {
       "kind": "generator",
@@ -50,7 +50,7 @@
     },
     {
       "file": "app/data/cache-interiors.2026-10-08.v1.json",
-      "sha256": "243bdfd03b54b3ec70237c7bc6e8867156b183a537d267f252b8f1c3df084d2a",
+      "sha256": "abb807ead099a12b11a9095ba427a895576d56a044cb0f6c8031ac3c615692f0",
       "hashKind": "repository-lf"
     },
     {

@@ -47,7 +47,7 @@
     ],
     "sourceCatalogue": {
       "path": "app/data/source-membership.2026-10-08.v1.json",
-      "sha256": "8aa15c682ba6bd66eab771ae727770a6f12654bee9e218b4f3b6909247a0c74b"
+      "sha256": "8682dcf2ebf77584a233f85650dffa4900be21f16da50d0dd9b7d4420eb3c7cc"
     },
     "snapshotManifest": {
       "path": ".local/game-data/source-membership-2026-10-08-v1/manifest.json",
