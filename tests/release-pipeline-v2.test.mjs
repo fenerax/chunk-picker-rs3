@@ -81,7 +81,7 @@ async function fixture(t) {
   await put(path.join(kit,'checks/private-source/scripts/adaptive-test-runner.mjs'),`export async function runAdaptive({files}){return {passed:true,files:files.map(file=>({file,passed:true,processWallMs:10,fileWallMs:9,bodyMs:2,summary:{}}))};}`);
   await put(path.join(kit,'checks/private-source/tests/fixtures/original-sync/capture.json'),{synthetic:true,records:[{task:'fixture-task',completed:true}]});
   await put(path.join(kit,'checks/private-source/scripts/perf/cdp.mjs'),'export const syntheticBrowserTransport = true;');
-  await put(path.join(kit, 'checks/private-source/scripts/secret-scan/scan.mjs'), 'export function scanEntries(entries) { return {status:"clean",files:entries.length,findings:[]}; }\nexport function loadReviewed() { return {hosts:[],placeholders:new Set(),lines:new Set()}; }');
+  await put(path.join(kit, 'checks/private-source/scripts/secret-scan/scan.mjs'), 'export function scanEntries(entries) { return {status:"clean",files:entries.length,findings:[]}; }\nexport function loadReviewed() { return {hosts:[],placeholders:new Set(),lines:new Set()}; }\nimport { execFileSync } from "node:child_process";\nexport function treeEntries(repo, ref) { return execFileSync("git", ["-C", repo, "ls-tree", "-r", "--name-only", ref]).toString().split("\\n").filter(Boolean).map(path => ({ path, bytes: Buffer.alloc(0) })); }');
   await put(path.join(kit, 'checks/private-source/scripts/secret-scan/fingerprints.mjs'), 'export async function loadCorpus(){ return {}; }');
   await put(path.join(kit, 'checks/private-source/scripts/secret-scan/reviewed.json'), {});
   const packBytes = JSON.stringify({ schemaVersion: 1, files: [] });

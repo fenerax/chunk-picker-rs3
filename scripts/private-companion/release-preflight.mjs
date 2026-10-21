@@ -167,7 +167,7 @@ export async function releasePreflight(options, { progress = () => {}, practiceI
             if (!match || !safeName(match[3])) fail('Non-regular or unsafe committed path.');
             return { oid: match[2], name: match[3] };
           });
-          const batch = execFileSync('git', ['--no-optional-locks', '-C', core, 'cat-file', '--batch'], { input: rows.map(r => r.oid + '\n').join(''), windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'], maxBuffer: 128 * 1024 ** 2 });
+          const batch = execFileSync('git', ['--no-optional-locks', '-C', core, 'cat-file', '--batch'], { input: rows.map(r => r.oid + '\n').join(''), windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'], maxBuffer: 1024 ** 3 });
           let offset = 0;
           const entries = rows.map(row => {
             const end = batch.indexOf(10, offset), match = /^([a-f0-9]{40}) blob (\d+)$/.exec(batch.subarray(offset, end).toString());

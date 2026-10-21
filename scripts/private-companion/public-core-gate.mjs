@@ -7,7 +7,7 @@ const kit = path.resolve(fileURLToPath(new URL('../', import.meta.url)));
 export async function scanPublicCandidate({ repo, revision, base, output, kitRoot = kit }) {
   if (![repo, output, kitRoot].every(path.isAbsolute) || !/^[a-f0-9]{40}$/.test(revision) || !/^[a-f0-9]{40}$/.test(base)) throw new Error('Scan arguments refused.');
   const tooling = path.join(kitRoot, 'checks/private-source/scripts/secret-scan');
-  const { scanEntries, loadReviewed } = await import(pathToFileURL(path.join(tooling, 'scan.mjs')));
+  const { scanEntries, loadReviewed, treeEntries } = await import(pathToFileURL(path.join(tooling, 'scan.mjs')));
   const { loadCorpus } = await import(pathToFileURL(path.join(tooling, 'fingerprints.mjs')));
   const corpus = await loadCorpus(path.join(kitRoot, 'release-gate/corpus'));
   const reviewed = loadReviewed(path.join(tooling, 'reviewed.json'));
@@ -16,18 +16,10 @@ export async function scanPublicCandidate({ repo, revision, base, output, kitRoo
   const commits = git('rev-list', '--reverse', `${base}..${revision}`).toString().trim().split('\n').filter(Boolean);
   const rows = [];
   for (const ref of [...new Set([...commits, revision])]) {
-    const modes = git('ls-tree', '-r', ref).toString().trim().split('\n');
-    if (modes.some(row => !/^100(?:644|755) blob [a-f0-9]+\t/.test(row))) throw new Error('Public tree contains non-regular entries.');
-    const names = git('ls-tree', '-rz', '--name-only', ref).toString().split('\0').filter(Boolean);
-    const batch = execFileSync('git', ['--no-optional-locks', '-C', repo, 'cat-file', '--batch'], { input: names.map(name => `${ref}:${name}\n`).join(''), windowsHide: true, maxBuffer: 64 * 1024 ** 2 });
-    let offset = 0;
-    const entries = names.map(name => {
-      if (/[\r\n]/.test(name)) throw new Error('Public path refused.');
-      const end = batch.indexOf(10, offset), match = /^([a-f0-9]+) blob (\d+)$/.exec(batch.subarray(offset, end).toString());
-      if (!match) throw new Error('Git blob refused.');
-      const size = Number(match[2]); offset = end + 1;
-      const bytes = batch.subarray(offset, offset + size); offset += size + 1; return { path: name, bytes };
-    });
+    // The scanner's own reader: it refuses non-regular entries and holds trees
+    // far larger than a single 64 MiB exec buffer.
+    const entries = treeEntries(repo, ref);
+    if (entries.some(entry => /[\r\n]/.test(entry.path))) throw new Error('Public path refused.');
     rows.push({ revision: ref, ...scanEntries(entries, { corpus, reviewed }) });
   }
   for (const ref of commits) {
