@@ -39,7 +39,7 @@ function fixture(t, { viewer = false } = {}) {
   });
   let preview, keys = [], nextFailure = false;
   const c = {
-    state: { revision: 1, members: [{ id: 'one', name: 'Explorer' }] }, sessionMember: 'one', sandbox: { active: false },
+    state: { revision: 1, members: [{ id: 'one', name: 'Explorer 1' }] }, sessionMember: 'one', sandbox: { active: false },
     canWrite: () => !viewer, queue: Promise.resolve(), $: id => id === 'tool-dialog' ? dialog : null,
     el: (tag, content) => new Node(tag, content),
     button: (label, action) => Object.assign(new Node('button', label), { action }),
@@ -84,6 +84,93 @@ test('viewers can read plugin review but cannot see keys or mutate progress', as
   assert.doesNotMatch(text(root), /Private key label/);
   for (const label of ['Create plugin key', 'Copy key once', 'Revoke key', 'Apply plugin snapshot', 'Dismiss snapshot']) assert.equal(button(root, label), undefined);
   assert.deepEqual(f.posts, []);
+});
+
+test('achievement review sends only chosen matches and retains revision checks', async t => {
+  const f = fixture(t), preview = f.proposal();
+  preview.achievements = [
+    { achievementId: 1, title: 'Ambiguous achievement', reason: 'unclear', candidates: [{ taskId: 'first', label: 'First task' }, { taskId: 'second', label: 'Second task' }] },
+    { achievementId: 2, title: 'Beta achievement', reason: 'beta', candidates: [{ taskId: 'beta', label: 'Beta task' }] },
+  ];
+  f.setPreview(preview); const root = await f.open();
+  const choices = all(root).filter(node => node.tag === 'select');
+  assert.equal(choices.length, 2); assert.ok(choices.every(node => node.value === ''));
+  choices[0].value = 'second'; choices[0].emit('change');
+  await f.client.refresh(); await settle();
+  assert.equal(all(root).find(node => node.tag === 'select').value, 'second');
+  await button(root, 'Apply plugin snapshot').action();
+  assert.deepEqual(f.posts.find(row => row.path.endsWith('/apply')).body, {
+    previewId: preview.previewId, expectedRevision: 1, achievements: [{ achievementId: 1, taskId: 'second' }],
+  });
+});
+
+test('achievement world warnings stay on each row beside live skill review and preserve choices', async t => {
+  const f = fixture(t), preview = f.proposal('mixed-world-review', { id: 1, beta: false });
+  const reports = [
+    { reason: 'unclear', world: 'beta' }, { reason: 'unclear', world: 'unknown' },
+    { reason: 'retry', world: 'beta' }, { reason: 'retry', world: 'unknown' },
+    { reason: 'beta', world: 'beta' }, { reason: 'world-unknown', world: 'unknown' },
+    { reason: 'unclear', world: 'live' },
+  ];
+  preview.achievements = reports.map((report, index) => ({ ...report, achievementId: index + 1, title: `Achievement ${index + 1}`,
+    candidates: [{ taskId: `task-${index + 1}`, label: `Task ${index + 1}` }, { taskId: `alternative-${index + 1}`, label: `Alternative ${index + 1}` }] }));
+  f.setPreview(preview); const root = await f.open();
+  assert.match(text(root), /Review plugin progress for Explorer 1/);
+  assert.match(text(root), /Attack: level 1 → 2/);
+  assert.doesNotMatch(text(root), /This snapshot came from a beta world/);
+  for (const [index, report] of reports.entries()) {
+    const row = all(root).find(node => node.tag === 'strong' && node.textContent === `Achievement ${index + 1}`).parent;
+    const betaNotes = all(row).filter(node => node.textContent === 'Reported from a beta world. Check against your main account.');
+    const unknownNotes = all(row).filter(node => node.textContent === 'World type was not reported. Check before applying.');
+    assert.equal(betaNotes.length, report.world === 'beta' ? 1 : 0);
+    assert.equal(unknownNotes.length, report.world === 'unknown' ? 1 : 0);
+    if (report.reason === 'unclear') assert.match(text(row), /Choose the matching task/);
+    if (report.reason === 'retry') assert.match(text(row), /Automatic ticking could not finish/);
+    const choice = all(row).find(node => node.tag === 'select');
+    assert.equal(choice.disabled, false); assert.equal(choice.value, '');
+    assert.deepEqual(choice.children.map(option => option.value), ['', `task-${index + 1}`, `alternative-${index + 1}`]);
+    choice.value = `task-${index + 1}`; choice.emit('change');
+  }
+  assert.equal(button(root, 'Apply plugin snapshot').disabled, false);
+  assert.ok(button(root, 'Dismiss snapshot'));
+  await button(root, 'Apply plugin snapshot').action();
+  assert.deepEqual(f.posts.find(row => row.path.endsWith('/apply')).body.achievements,
+    reports.map((_, index) => ({ achievementId: index + 1, taskId: `task-${index + 1}` })));
+});
+
+test('achievement review bounds rows and labels and reports assembly counts once per player', async t => {
+  const f = fixture(t), preview = f.proposal();
+  preview.achievements = Array.from({ length: 205 }, (_, index) => ({ achievementId: index, title: `Achievement ${index} ${'x'.repeat(300)}`, reason: 'world-unknown', candidates: [{ taskId: `task-${index}`, label: 'y'.repeat(300) }] }));
+  preview.achievementsMore = 4;
+  f.setPreview(preview);
+  const summary = { snapshot: 'one', received: 2, parts: 3, completeCount: 17, matchedTaskCount: 12, lastTickedCount: 4, lastTickedAt: '2026-10-20T12:00:00Z' };
+  f.setKeys([{ id: 'a', player: 'one', achievements: summary }, { id: 'b', player: 'one', achievements: summary }]);
+  const root = await f.open();
+  assert.equal(all(root).filter(node => node.tag === 'select').length, 200);
+  assert.equal(all(root).filter(node => node.tag === 'option' && node.value).every(node => node.textContent.length <= 160), true);
+  assert.match(text(root), /9 more achievement matches/);
+  assert.equal(text(root).split('Achievement snapshot:').length, 2);
+  assert.match(text(root), /2 of 3 parts received · 17 complete · 12 matched tasks · Last ticked 4 tasks/);
+});
+
+test('viewer achievement review is read only', async t => {
+  const f = fixture(t, { viewer: true }), preview = f.proposal();
+  preview.achievements = [{ achievementId: 1, title: 'Reported', reason: 'retry', candidates: [{ taskId: 'a', label: 'Task' }] }];
+  f.setPreview(preview); const root = await f.open();
+  assert.equal(all(root).find(node => node.tag === 'select').disabled, true);
+  assert.match(text(root), /Automatic ticking could not finish/);
+  assert.deepEqual(f.posts, []);
+});
+
+test('a new achievement preview resets selections and skipped matches are omitted from apply', async t => {
+  const f = fixture(t), preview = f.proposal();
+  preview.achievements = [{ achievementId: 1, title: 'Reported', reason: 'beta', candidates: [{ taskId: 'a', label: 'Task' }] }];
+  f.setPreview(preview); const root = await f.open();
+  const choice = all(root).find(node => node.tag === 'select'); choice.value = 'a'; choice.emit('change');
+  f.setPreview({ ...preview, previewId: 'new-review' }); await f.client.refresh(); await settle();
+  assert.equal(all(root).find(node => node.tag === 'select').value, '');
+  await button(root, 'Apply plugin snapshot').action();
+  assert.deepEqual(f.posts.find(row => row.path.endsWith('/apply')).body, { previewId: 'new-review', expectedRevision: 1 });
 });
 
 test('new keys can be copied once, clear on close and remain revocable', async t => {

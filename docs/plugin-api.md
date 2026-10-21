@@ -2,7 +2,8 @@
 
 The picker accepts player reports; it never sends commands to the game. This API
 works for beta and live worlds. A beta world is a separate character copy:
-review its progress carefully before applying it.
+review its progress carefully before applying it. Unique achievement matches
+tick automatically on live worlds only, with Undo.
 
 Create a key in **Game plugin** in the picker. Players manage their own keys;
 administrators can manage any player's. Viewers cannot manage keys or apply
@@ -83,6 +84,150 @@ Apply uses the normal revision-checked command and records `source:"game-plugin"
 with the matching player ID in History/Undo. A restart discards positions and
 pending proposals; send progress again after reconnecting.
 
+### Completed achievements
+
+Read `accepts` in status before sending optional capability-gated fields. This
+picker advertises `["achievements"]`. Send `achievements` only when it is listed.
+An achievement part has the normal required report fields and optional `world`,
+but no `skills`, `quests` or `diagnostics`:
+
+```json
+{
+  "v": 1,
+  "seq": 2,
+  "sentAt": "2026-10-19T12:00:01.000Z",
+  "world": { "id": 1, "beta": false },
+  "position": { "x": 50, "z": 50, "floor": 0 },
+  "achievements": {
+    "snapshot": "0123456789abcdef",
+    "part": 1,
+    "parts": 2,
+    "complete": [[354, "Second Shrubbery", 3, -1], [1201, "No Time to Lose", 5, 2]]
+  }
+}
+```
+
+`achievements` has exactly `snapshot`, `part`, `parts` and `complete`. `snapshot`
+is 16 lowercase hexadecimal characters identifying the whole set. `parts` is
+an integer 1–8; `part` is an integer 1–`parts`. Each `complete` row has exactly
+`[id, name, category, subCategory]`. IDs are nonnegative safe integers, sorted
+and unique within each part. Names contain 1–120 characters without controls.
+Category and subcategory are safe integers at least -1. Send an empty set as
+one part with `complete: []`. The **16,384-byte** report limit still applies.
+Unknown fields and invalid parts return 400.
+
+Send parts in order, waiting for a 2xx before sending the next. Part 1 starts
+a new assembly for this player, replacing an unfinished one. The next part
+must have the same snapshot and parts count, with `part = received + 1`.
+Repeating a received part does nothing. Other out-of-order parts return 200 and
+are ignored. Use the response's `achievements` to resume or restart. Multiple
+keys for one player share the assembly. The picker remembers the last eight
+completed snapshots per player in memory, including each snapshot's aggregate
+world (`live`, `beta` or `unknown`). Replaying a cached snapshot becomes the
+current assembly with `{snapshot, received: parts, parts}` without matching
+again, except that a cached non-live snapshot is not acknowledged as complete
+when the incoming part explicitly reports `world.beta: false`. Any report with
+`world.beta: false`, including an ordinary position, skills or quests report,
+invalidates a current completed non-live assembly and its cache entry. Status
+then returns `achievements: null` until parts are sent again; the same snapshot
+hash may be resent because it identifies achievement data independently of
+world. A restart forgets assemblies, this replay cache, summaries and review lists.
+Persisted handled achievement IDs prevent later reports, including new snapshots
+and replays after a restart or cache eviction, from reversing Undo or manual unticks.
+A new snapshot can still apply newly completed, unhandled achievements.
+
+Matching uses the quest Unicode, case and punctuation normalization. Only Diary
+tasks with an exact raw label `~|Family#Group|~ Achievement name` participate.
+The retained task identity supplies this raw label when its display label has
+been flattened. Other Diary labels stay unmatched. Unmatched achievements are
+counted and ignored. Already completed tasks stay unchanged.
+
+Exactly one matching task becomes an automatic tick only if **every part**
+explicitly reports `world.beta: false`. Several tasks sharing a name are always
+unclear. Beta-world and missing-world matches also wait for review. A failed
+automatic command leaves its candidates in review. No report failure is caused
+by a failed automatic tick.
+
+Automatic ticks use one revision-checked `apply-game-progress` command per batch,
+with `source: "game-plugin"` in History and the owner in `command.memberId`.
+Each tick stores its achievement title, in-game ID, source, fetched timestamp
+and member ID in `member.achievementProgress`. Completed shows “ticked by the
+game”. Normal Undo reverses the whole batch and removes its provenance.
+
+The existing proposal preview includes an `achievements` array. Each row has
+exactly this shape (no optional fields):
+
+```json
+{
+  "achievementId": 354,
+  "title": "Second Shrubbery",
+  "candidates": [{ "taskId": "diary:example", "label": "Second Shrubbery" }],
+  "reason": "unclear",
+  "world": "beta"
+}
+```
+
+`achievementId` is the nonnegative safe integer from the report; `title` is its
+reported name. `candidates` contains objects with exactly `taskId` and `label`
+(strings). `reason` is `unclear`, `beta`, `world-unknown` or `retry`. `world` is
+`live` only when **every part** explicitly reported `world.beta: false`, `beta`
+when any part reported `world.beta: true`, and `unknown` otherwise. World
+provenance belongs to each row, independently of its reason and the preview's
+outer `world` (which may describe earlier skills or quests). The dialog shows a
+beta or unknown-world warning on each such row, including unclear matches.
+Already handled IDs are omitted. At most **200 rows** are retained for review;
+`achievementsMore` counts additional rows. Choose a candidate task or leave a
+row skipped. Apply accepts optional `achievements: [{achievementId, taskId}]`
+beside `previewId` and `expectedRevision`. Only reviewed candidates are accepted;
+each achievement and task can be chosen once. Only the player or an administrator
+can Apply or Dismiss. Apply records one undoable batch. Applying or dismissing a
+review handles every live-world row shown, including skipped and omitted choices,
+so those choices persist. Beta and unknown-world rows are never handled, even
+when selected and applied; a later live report can offer or tick them again.
+Rows beyond the 200-row review limit are not handled by that review.
+
+### Handled achievement sidecar
+
+`plugin-achievements.json` lives in `dataDir` beside `plugin-keys.json`:
+
+```json
+{ "v": 1, "players": { "player1": { "handled": [354, 1201] } } }
+```
+
+It records achievement IDs the picker has already acted on for each existing
+player. Arrays are sorted, unique nonnegative safe integers, with at most
+**20,000 IDs per player**. Writes retain existing IDs first, then admit new IDs
+in ascending order until full; excess IDs remain unhandled. Deleted players
+are pruned on the next handled write. The file uses serialized, atomic writes
+with the same private file permissions and save-directory lock as plugin keys.
+Missing means empty. A corrupt or wrong-shape file logs one warning at open and
+is treated as empty; reads do not overwrite it. The next successful handled
+write archives the bad file as `plugin-achievements.json.corrupt-<timestamp>`
+(with a numeric suffix if necessary) before replacing it.
+
+Successful automatic batches handle all matched IDs whose tasks were ticked
+(including several IDs that map to the same single task); failed
+automatic commands leave `retry` rows and do not handle their IDs. Unmatched
+IDs and matches whose tasks are already complete are not handled, so later task
+list changes can still use them. This sidecar is **outside the save, Undo and
+save backups**. Undo removes ticks and `achievementProgress`, but keeps handled
+IDs. Deleting the sidecar re-enables automatic ticks for completions the picker
+sees again. Keep it alongside the save when moving the picker to preserve these
+choices.
+
+IDs accepted for handling count as handled in memory while their sidecar write
+is pending, preventing repeats or reoffers. Sidecar writes and retries run in
+the background; a failure does not fail or block status, report, Apply or
+Dismiss. A failure streak is logged once, with opportunistic retries at most
+once per minute and a final retry on close after accepted mutations drain. The
+save and sidecar are separate writes, so termination between them can still
+lose a handled record; a persistence failure that remains after the final retry
+can also leave handled IDs unpersisted at exit.
+
+The Game plugin dialog shows each player's current part count, last complete
+achievement count, matched task count and last automatic batch's count and time.
+These summaries are in memory only and visible with that player's keys.
+
 ## GET /api/plugin/v1/status
 
 No body or query parameters. Report and status return the same exact shape:
@@ -91,6 +236,8 @@ No body or query parameters. Report and status return the same exact shape:
 {
   "v": 1,
   "player": { "id": "player1", "name": "Explorer 1" },
+  "accepts": ["achievements"],
+  "achievements": { "snapshot": "0123456789abcdef", "received": 1, "parts": 2 },
   "chunkId": "12850",
   "chunkName": "Lumbridge",
   "state": "unlocked",
@@ -120,7 +267,14 @@ is the length of the in-game task list (below) once the plugin has read it at
 the current save revision, and null otherwise. Status caches saved ownership
 per revision, reuses an existing roll pool when present, and never runs the
 task engine. `pendingProgress` means a proposal is waiting for
-review, including proposals containing only unmatched/informational quests.
+review, including proposals containing only unmatched/informational quests or
+achievement matches.
+
+`accepts` is exactly `["achievements"]`. `achievements` is null before this
+player starts an assembly; otherwise it has exactly `snapshot`, `received` and
+`parts`. `received` counts accepted parts, from 1 to `parts`, and equals `parts`
+once complete. This field describes assembly only; it contains no task or
+achievement names. Report and status responses use the same fields.
 
 `nearby` lists the 5×5 block of map squares centred on the reported position,
 so the plugin can shade neighbouring chunks. It is null whenever `chunkId` is

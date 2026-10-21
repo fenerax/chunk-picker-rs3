@@ -7,5 +7,6 @@
 .game-plugin-secret { padding-block: var(--space-5); }
 .game-plugin-diagnostics summary { cursor: pointer; }
 .game-plugin-diagnostics li { font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
-.game-plugin input { width: 100%; min-width: 0; box-sizing: border-box; }
+.game-plugin input, .game-plugin select { width: 100%; min-width: 0; box-sizing: border-box; }
+.game-plugin-achievement { padding-block: var(--space-3); overflow-wrap: anywhere; }
 .game-plugin .form-actions { flex-wrap: wrap; }

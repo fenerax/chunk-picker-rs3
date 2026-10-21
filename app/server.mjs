@@ -1758,9 +1758,9 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
               const applying = route.endsWith('/apply'), review = gamePlugin.findReview(identity, body, applying);
               if (applying) {
                 const state = await store.command(review.command, body.expectedRevision, { actor: identity.actor });
-                gamePlugin.finish(review.command.memberId);
+                await gamePlugin.finish(review.command.memberId);
                 await json(request, response, 200, viewEnvelope(state, viewFor(request)));
-              } else { gamePlugin.finish(review.command.memberId); await json(request, response, 200, { dismissed: true }); }
+              } else { await gamePlugin.finish(review.command.memberId); await json(request, response, 200, { dismissed: true }); }
               return;
             }
             if (route === '/api/shutdown') {
@@ -1938,7 +1938,7 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
           };
           // Order revocation with accepted saves. Once revoke returns, a queued
           // request cannot commit using the revoked session or admin capability.
-          const durable = ['/api/action-session', '/api/command', '/api/restore', '/api/import', '/api/member-restore', '/api/runemetrics/apply', '/api/game-plugin/apply', '/api/shutdown'].includes(route)
+          const durable = ['/api/action-session', '/api/command', '/api/restore', '/api/import', '/api/member-restore', '/api/runemetrics/apply', '/api/game-plugin/apply', '/api/game-plugin/dismiss', '/api/shutdown'].includes(route)
             || route === '/api/game-plugin/keys' || /^\/api\/game-plugin\/keys\/[^/]+\/revoke$/.test(route)
             || route === '/api/invites' || /^\/api\/invites\/[^/]+\/(?:revoke|player)$/.test(route);
           await (durable ? serializeMutation(execute) : execute());
@@ -2255,7 +2255,7 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
       clearTimeout(rankingLeaseTimer);
       closePromise = (async () => {
         if (activationPending) await activationPending.catch(() => {});
-        const overlaysClosed = Promise.all([overlays.close(), gamePlugin.close()]);
+        const overlaysClosed = overlays.close();
         unsubscribe();
         runeMetricsClient.close(); runeMetricsPreviews.clear();
         originalSyncClient?.close(); originalSyncPreviews.clear();
@@ -2281,7 +2281,9 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
             for (const socket of connections) if (!savingConnections.has(socket)) socket.destroy();
           }, shutdownDeadlineMs);
         }) : Promise.resolve();
-        const authClosed = mutationQueue.then(() => Promise.all([invites.close(), feedback.close(), usage.close(), overlaysClosed]));
+        // Accepted mutations may still be awaiting a save command. Drain them
+        // before the final handled-ID flush and sidecar close.
+        const authClosed = mutationQueue.then(() => Promise.all([invites.close(), feedback.close(), usage.close(), overlaysClosed, gamePlugin.close()]));
         const storeClosed = store.close({ beforeUnlock: authClosed });
         // A peer can stop reading an accepted save response. Protect its durable
         // transaction first, then bound the remaining network transmission too.

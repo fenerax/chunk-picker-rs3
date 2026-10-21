@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createGroupState } from '../app/core/state.mjs';
 import { createQuestMapping } from '../app/integrations/runemetrics.mjs';
-import { validatePluginReport, pluginProposal } from '../app/integrations/game-plugin.mjs';
+import { validatePluginReport, pluginProposal, matchPluginAchievements } from '../app/integrations/game-plugin.mjs';
 
 const sentAt = '2026-10-19T12:00:00Z';
 const report = extra => ({ v: 1, seq: 0, sentAt, position: { x: 46, z: 49, floor: 0 }, ...extra });
@@ -93,4 +93,49 @@ test('position-only and partial progress reports never manufacture missing skill
   assert.deepEqual(same.preview.skills, []);
   assert.deepEqual(same.command.skills, [{ skill: 'Attack', level: 10, xp: 1154 }]);
   assert.deepEqual(state, before);
+});
+
+test('achievement parts accept the exact optional schema and reject malformed or mixed reports', () => {
+  const achievements = { snapshot: '0123456789abcdef', part: 1, parts: 2, complete: [[0, 'Explorer’s_Task', -1, -1], [354, 'Second Shrubbery', 3, 0]] };
+  assert.deepEqual(validatePluginReport(report({ achievements })).achievements, achievements);
+  assert.doesNotThrow(() => validatePluginReport(report({ achievements: { ...achievements, parts: 1, complete: [] } })));
+  for (const value of [null, [], {}, { ...achievements, extra: true }, { ...achievements, snapshot: '0123456789ABCDEF' },
+    { ...achievements, snapshot: 'abc' }, { ...achievements, part: 0 }, { ...achievements, part: 3 },
+    { ...achievements, part: 1.5 }, { ...achievements, parts: 9 }, { ...achievements, parts: 0 },
+    { ...achievements, complete: null }, ...[
+      [[-1, 'Task', 0, 0]], [[0.5, 'Task', 0, 0]], [[Number.MAX_SAFE_INTEGER + 1, 'Task', 0, 0]],
+      [[1, '', 0, 0]], [[1, 'x'.repeat(121), 0, 0]], [[1, 'Task\n', 0, 0]], [[1, 'Task\u0085', 0, 0]],
+      [[1, 'Task', -2, 0]], [[1, 'Task', 0, 1.2]], [[1, 'Task', 0]], [[1, 'Task', 0, 0, 0]],
+      [[2, 'Task', 0, 0], [1, 'Another', 0, 0]], [[1, 'Task', 0, 0], [1, 'Another', 0, 0]],
+    ].map(complete => ({ ...achievements, complete }))]) {
+    assert.throws(() => validatePluginReport(report({ achievements: value })), { status: 400 }, JSON.stringify(value));
+  }
+  for (const extra of [{ skills: {} }, { quests: { finished: [], started: [] } }, { diagnostics: [] }]) {
+    assert.throws(() => validatePluginReport(report({ achievements, ...extra })), { status: 400 });
+  }
+});
+
+test('achievement names use quest normalization and only exact Diary raw-label patterns', () => {
+  const state = createGroupState([{ id: 'actor1', name: 'Explorer 1' }]);
+  state.tasks = [
+    { id: 'unique', category: 'Diary', label: 'Synthetic Achievements Explorer’s Task' },
+    { id: 'unclear1', category: 'Diary', label: '~|Synthetic Achievements#Easy|~ Shared Task' },
+    { id: 'unclear2', category: 'Diary', label: '~|Other Achievements#Hard|~ Shared Task' },
+    { id: 'done', category: 'Diary', label: '~|Synthetic Achievements#Easy|~ Finished Task' },
+    { id: 'malformed', category: 'Diary', label: 'Bare Task' },
+    { id: 'wrong-category', category: 'Quest', label: '~|Synthetic Achievements#Easy|~ Other Task' },
+  ];
+  state.identityRegistry = { entries: { unique: { rawLabel: '~|Synthetic Achievements#Easy|~ Explorer’s Task' } } };
+  state.members[0].completedTasks = ['done', 'unclear1'];
+  const matches = matchPluginAchievements(state, 'actor1', [[1, 'ＥＸＰＬＯＲＥＲＳ_task', 0, 0], [2, 'Shared Task', 0, 0],
+    [3, 'Finished Task', 0, 0], [4, 'Unknown Task', 0, 0], [5, 'Bare Task', 0, 0], [6, 'Other Task', 0, 0]]);
+  // Punctuation becomes a space, including the possessive apostrophe.
+  assert.equal(matches.candidates.length, 0);
+  const normalized = matchPluginAchievements(state, 'actor1', [[1, 'ＥＸＰＬＯＲＥＲ_Ｓ—task', 0, 0]]);
+  assert.equal(normalized.candidates[0].candidates[0].taskId, 'unique');
+  assert.equal(matches.unclear.length, 1);
+  assert.deepEqual(matches.unclear[0].candidates.map(row => row.taskId), ['unclear1', 'unclear2']);
+  assert.equal(matches.matchedTaskCount, 3);
+  assert.equal(matches.unmatchedCount, 4);
+  assert.equal(matches.completeCount, 6);
 });

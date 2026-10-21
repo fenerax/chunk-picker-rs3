@@ -1,18 +1,25 @@
 import { openPluginKeys } from './plugin-keys.mjs';
-import { fields, validatePluginReport, pluginProposal } from './integrations/game-plugin.mjs';
+import { openPluginAchievements } from './plugin-achievements.mjs';
+import { fields, validatePluginReport, pluginProposal, matchPluginAchievements, ACHIEVEMENT_REVIEW_LIMIT } from './integrations/game-plugin.mjs';
 import { pluginTaskRows, pluginTaskList } from './game-plugin-tasks.mjs';
 
 const fail = (status, message) => Object.assign(new Error(message), { status });
 const LIFETIME = 10 * 60 * 1000;
 // Status also describes the block of map squares centred on the player (2 each way: 5x5).
 const NEARBY_RADIUS = 2;
+const COMPLETED_SNAPSHOT_LIMIT = 8;
+const HANDLED_RETRY_INTERVAL = 60 * 1000;
 const PLUGIN_ROUTES = new Map([['/api/plugin/v1/report', 'POST'], ['/api/plugin/v1/status', 'GET'], ['/api/plugin/v1/tasks', 'GET']]);
 
-/** Positions/proposals are ephemeral. Only reviewed progress can reach store.command. */
+/** Positions, assemblies and proposals are ephemeral. Ticks use store.command. */
 export async function openGamePlugin({ dataDir, store, world, registry, questMapping, bodyJSON, json,
-  serializeMutation, checkRequestOrigin, notify = () => {}, clock = Date.now, savedTasks = () => null }) {
+  serializeMutation, checkRequestOrigin, notify = () => {}, clock = Date.now, savedTasks = () => null, log = console.warn }) {
   const keys = await openPluginKeys({ dataDir, clock });
+  const handled = await openPluginAchievements({ dataDir, members: () => state().members, clock, log });
   const positions = new Map(), pending = new Map(), sequences = new Map(), buckets = new Map(), diagnostics = new Map();
+  const assemblies = new Map(), completedSnapshots = new Map(), achievementSummaries = new Map();
+  const pendingHandled = new Map();
+  let handledFlush, handledRetryAt = 0, handledFailure = false, closePromise;
   let statusRevision = -1; const statuses = new Map(); let closed = false, warming = false;
   // Last saved task list per plugin player. The bytes are the server's own saved
   // play result, so a fresh list costs no extra memory; after a tick clears the
@@ -36,6 +43,106 @@ export async function openGamePlugin({ dataDir, store, world, registry, questMap
     // One bounded proposal per player waits for explicit review. The plugin
     // sends progress only when it changes, so position expiry must not lose it.
     return pending.get(player) ?? null;
+  }
+  function achievementStatus(player) {
+    const assembly = assemblies.get(player);
+    return assembly ? { snapshot: assembly.snapshot, received: assembly.received, parts: assembly.parts } : null;
+  }
+  function isHandled(player, id) { return handled.has(player, id) || pendingHandled.get(player)?.has(id); }
+  function flushHandled(force = false) {
+    if (handledFlush) return handledFlush;
+    if (!pendingHandled.size || !force && (closed || clock() < handledRetryAt)) return Promise.resolve();
+    handledFlush = (async () => {
+      try {
+        for (const [player, waiting] of pendingHandled) {
+          // New reports may add IDs while this write is in flight. Remove only
+          // the attempted IDs; the remaining ones need their own durable write.
+          while (waiting.size) {
+            const ids = [...waiting];
+            await handled.add(player, ids);
+            for (const id of ids) waiting.delete(id);
+          }
+          pendingHandled.delete(player);
+        }
+        handledRetryAt = 0; handledFailure = false;
+      } catch {
+        handledRetryAt = clock() + HANDLED_RETRY_INTERVAL;
+        if (!handledFailure) log('Could not save handled plugin achievement IDs; keeping them in memory and retrying in the background.');
+        handledFailure = true;
+      }
+    })().finally(() => { handledFlush = undefined; });
+    return handledFlush;
+  }
+  function rememberHandled(player, ids) {
+    const waiting = pendingHandled.get(player) ?? new Set();
+    for (const id of ids) waiting.add(id);
+    if (!waiting.size) return;
+    // Pending IDs count as handled even if the sidecar stays unavailable. A late
+    // successful command after close must not reject because storage is closed.
+    pendingHandled.set(player, waiting);
+    void flushHandled();
+  }
+  function achievementReview(player, report, rows) {
+    const prior = liveReview(player)?.report;
+    // Keep other progress waiting for review. Every completed set replaces only
+    // its own achievement section and invalidates the old review token.
+    if (!rows.length && prior?.skills === undefined && prior?.quests === undefined) { pending.delete(player); return; }
+    const hasProgress = prior?.skills !== undefined || prior?.quests !== undefined;
+    pending.set(player, { report: { ...prior, sentAt: report.sentAt, world: hasProgress ? prior.world : report.world,
+      achievementReview: rows.slice(0, ACHIEVEMENT_REVIEW_LIMIT), achievementsMore: Math.max(0, rows.length - ACHIEVEMENT_REVIEW_LIMIT) }, proposal: null });
+  }
+  async function receiveAchievements(player, report) {
+    const part = report.achievements;
+    let assembly = assemblies.get(player);
+    const cachedWorld = completedSnapshots.get(player)?.get(part.snapshot);
+    if (cachedWorld && (cachedWorld === 'live' || report.world?.beta !== false)) {
+      // The plugin resumes from status only when it describes its own snapshot.
+      assemblies.set(player, { snapshot: part.snapshot, received: part.parts, parts: part.parts,
+        live: cachedWorld === 'live', beta: cachedWorld === 'beta' });
+      return;
+    }
+    if (assembly?.snapshot === part.snapshot && assembly.parts === part.parts && part.part <= assembly.received) return;
+    if (part.part === 1) {
+      assembly = { snapshot: part.snapshot, received: 0, parts: part.parts, complete: [], live: true, beta: false };
+      assemblies.set(player, assembly);
+    }
+    if (!assembly || assembly.snapshot !== part.snapshot || assembly.parts !== part.parts || part.part !== assembly.received + 1) return;
+    assembly.complete.push(...part.complete); assembly.received++;
+    assembly.live &&= report.world?.beta === false;
+    if (report.world?.beta === true) assembly.betaWorld = report.world;
+    assembly.beta ||= report.world?.beta === true;
+    if (assembly.received !== assembly.parts) return;
+    const matches = matchPluginAchievements(state(), player, assembly.complete);
+    // Release rows after matching. Durable handled IDs make evicting old
+    // snapshots safe: this small cache only acknowledges recent replays quickly.
+    assembly.complete = [];
+    const previous = achievementSummaries.get(player);
+    const summary = { completeCount: matches.completeCount, matchedTaskCount: matches.matchedTaskCount, unmatchedCount: matches.unmatchedCount,
+      lastTickedCount: previous?.lastTickedCount ?? 0, lastTickedAt: previous?.lastTickedAt ?? null };
+    const world = assembly.live ? 'live' : assembly.beta ? 'beta' : 'unknown';
+    const candidates = matches.candidates.filter(row => !isHandled(player, row.achievementId));
+    const review = matches.unclear.filter(row => !isHandled(player, row.achievementId));
+    let appliedIds = [];
+    if (assembly.live && candidates.length) {
+      const achievements = [...new Map(candidates.map(row => [row.candidates[0].taskId,
+        { taskId: row.candidates[0].taskId, title: row.title, achievementId: row.achievementId }])).values()];
+      try {
+        // Already inside the server's mutation queue. This is the same checked
+        // command path as review Apply, one History/Undo entry for the batch.
+        await store.command({ type: 'apply-game-progress', memberId: player, fetchedAt: report.sentAt, skills: [], quests: [], achievements }, store.getInfo().revision);
+        appliedIds = candidates.map(row => row.achievementId);
+        summary.lastTickedCount = achievements.length; summary.lastTickedAt = new Date(clock()).toISOString();
+      } catch {
+        // A failed write must not reject the report or lose the candidates.
+        review.push(...candidates.map(row => ({ ...row, reason: 'retry' })));
+      }
+    } else review.push(...candidates.map(row => ({ ...row, reason: assembly.beta ? 'beta' : 'world-unknown' })));
+    const seen = completedSnapshots.get(player) ?? new Map(); seen.set(part.snapshot, world);
+    while (seen.size > COMPLETED_SNAPSHOT_LIMIT) seen.delete(seen.keys().next().value);
+    completedSnapshots.set(player, seen);
+    achievementSummaries.set(player, summary);
+    achievementReview(player, { ...report, world: assembly.live ? report.world : assembly.betaWorld }, review.map(row => ({ ...row, world })));
+    if (appliedIds.length) rememberHandled(player, appliedIds);
   }
   function status(player) {
     const owner = member(player), revision = store.getInfo().revision;
@@ -72,7 +179,7 @@ export async function openGamePlugin({ dataDir, store, world, registry, questMap
         nearby.push(row);
       }
     }
-    return { v: 1, player: { id: player, name: owner.name }, chunkId, chunkName: chunk?.name ?? null,
+    return { v: 1, accepts: ['achievements'], achievements: achievementStatus(player), player: { id: player, name: owner.name }, chunkId, chunkName: chunk?.name ?? null,
       state: !position ? 'unknown' : stateOf(chunkId),
       activeTaskCount: taskRows.get(player)?.revision === revision && !taskRows.get(player).stale ? taskRows.get(player).rows.length : null, unlockedChunkCount: cached.count, pendingProgress: !!liveReview(player), seenAt: position?.seenAt ?? null, nearby,
       pickableCount: pool ? pool.eligible.length : null,
@@ -130,9 +237,17 @@ export async function openGamePlugin({ dataDir, store, world, registry, questMap
       const result = await serializeMutation(async () => {
         if (closed || serverClosed) throw fail(503, 'The picker is stopping.');
         keys.authenticate(request); member(credential.player);
+        void flushHandled();
         if (report) {
           if (report.seq <= (sequences.get(credential.id) ?? -1)) throw fail(409, 'The report seq must increase for this key.');
           sequences.set(credential.id, report.seq);
+          const assembly = assemblies.get(credential.player);
+          if (report.world?.beta === false && assembly && assembly.received === assembly.parts && !assembly.live) {
+            // World is absent from the plugin's snapshot hash. Ordinary live
+            // reports must also reset status so its next sync resends the set.
+            assemblies.delete(credential.player);
+            completedSnapshots.get(credential.player)?.delete(assembly.snapshot);
+          }
           positions.set(credential.player, { memberId: credential.player, chunkId: String(report.position.x * 256 + report.position.z),
             position: report.position, seenAt: new Date(clock()).toISOString() });
           if (report.diagnostics) diagnostics.set(credential.id, { lines: [...report.diagnostics], receivedAt: new Date(clock()).toISOString() });
@@ -143,9 +258,10 @@ export async function openGamePlugin({ dataDir, store, world, registry, questMap
             const observations = new Map((previous?.skills ?? []).map(row => [row.skill, row]));
             for (const row of report.skills ?? []) observations.set(row.skill, row);
             const merged = { ...report, skills: [...observations.values()], quests: report.quests ?? previous?.quests,
-              world: report.world ?? previous?.world };
+              world: report.world ?? previous?.world, achievementReview: previous?.achievementReview, achievementsMore: previous?.achievementsMore };
             pending.set(credential.player, { report: merged, proposal: null });
           }
+          if (report.achievements) await receiveAchievements(credential.player, report);
           notify();
         }
         keys.touch(credential.id, report?.world);
@@ -156,7 +272,8 @@ export async function openGamePlugin({ dataDir, store, world, registry, questMap
     list(identity) {
       const latest = [...positions.values()].filter(position => clock() - Date.parse(position.seenAt) < LIFETIME && store.getCalculationSnapshot().members.some(owner => owner.id === position.memberId));
       const visible = identity.readOnly || !identity.admin && !identity.memberId ? [] : keys.list(identity.admin ? undefined : identity.memberId);
-      return { keys: visible.map(record => ({ ...record, diagnostics: diagnostics.get(record.id) ?? null })), positions: latest, active: latest.length > 0 };
+      return { keys: visible.map(record => ({ ...record, diagnostics: diagnostics.get(record.id) ?? null,
+        achievements: assemblies.has(record.player) ? { ...achievementStatus(record.player), completeCount: null, matchedTaskCount: null, lastTickedCount: 0, lastTickedAt: null, ...achievementSummaries.get(record.player) } : null })), positions: latest, active: latest.length > 0 };
     },
     review(identity, player) {
       member(player); const review = liveReview(player);
@@ -175,19 +292,48 @@ export async function openGamePlugin({ dataDir, store, world, registry, questMap
       const result = await keys.revoke(id, identity.admin ? undefined : identity.memberId); notify(); return { record: result };
     },
     findReview(identity, body, apply = false) {
-      fields(body, apply ? ['previewId', 'expectedRevision'] : ['previewId'], 'review');
+      fields(body, apply ? ['previewId', 'expectedRevision', 'achievements'] : ['previewId'], 'review');
       if (typeof body.previewId !== 'string') throw fail(400, 'A reviewed preview ID is required.');
       const review = [...pending.keys()].map(liveReview).find(review => review?.proposal?.preview.previewId === body.previewId);
       if (!review) throw fail(410, 'This game progress review expired or changed. Review it again.');
       authorize(identity, review.proposal.preview.memberId);
       if (apply && (!Number.isSafeInteger(body.expectedRevision) || body.expectedRevision !== review.proposal.preview.stateRevision || body.expectedRevision !== store.getInfo().revision)) throw fail(409, 'The save changed. Review game progress again.');
-      return review.proposal;
+      if (!apply || body.achievements === undefined) return review.proposal;
+      if (!Array.isArray(body.achievements) || body.achievements.length > ACHIEVEMENT_REVIEW_LIMIT) throw fail(400, 'Choose at most 200 achievements.');
+      const ids = new Set(), tasks = new Set();
+      const achievements = body.achievements.map(selection => {
+        fields(selection, ['achievementId', 'taskId'], 'achievement selection');
+        if (!Number.isSafeInteger(selection.achievementId) || selection.achievementId < 0 || typeof selection.taskId !== 'string'
+          || ids.has(selection.achievementId) || tasks.has(selection.taskId)) throw fail(400, 'Choose each achievement and task once.');
+        const row = review.proposal.preview.achievements.find(row => row.achievementId === selection.achievementId && row.candidates.some(task => task.taskId === selection.taskId));
+        if (!row) throw fail(400, 'Choose a task from the reviewed achievement candidates.');
+        ids.add(selection.achievementId); tasks.add(selection.taskId);
+        return { taskId: selection.taskId, achievementId: selection.achievementId, title: row.title };
+      });
+      return { ...review.proposal, command: { ...review.proposal.command, achievements } };
     },
-    finish(memberId) { pending.delete(memberId); notify(); },
+    async finish(memberId) {
+      const review = liveReview(memberId);
+      // Apply and Dismiss both make the player's choice final for every live
+      // row shown, including skipped rows. Beta/unknown copies may report live later.
+      const ids = (review?.proposal?.preview.achievements ?? []).filter(row => row.world === 'live').map(row => row.achievementId);
+      if (ids.length) rememberHandled(memberId, ids);
+      pending.delete(memberId); notify();
+    },
     rememberTasks(memberId, bytes) {
       if (closed || !bytes) return;
       if (hasActiveKey(memberId)) retainedTasks.set(memberId, bytes); else { retainedTasks.delete(memberId); taskRows.delete(memberId); }
     },
-    async close() { closed = true; await keys.close(); positions.clear(); pending.clear(); diagnostics.clear(); retainedTasks.clear(); taskRows.clear(); },
+    close() {
+      if (closePromise) return closePromise;
+      closed = true;
+      closePromise = (async () => {
+        await handledFlush;
+        await flushHandled(true);
+        await Promise.all([keys.close(), handled.close()]);
+        positions.clear(); pending.clear(); diagnostics.clear(); retainedTasks.clear(); taskRows.clear(); assemblies.clear(); completedSnapshots.clear(); achievementSummaries.clear();
+      })();
+      return closePromise;
+    },
   };
 }

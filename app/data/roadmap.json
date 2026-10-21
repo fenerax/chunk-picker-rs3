@@ -88,11 +88,11 @@
         {
           "id": "A11",
           "title": "Game companion plugin",
-          "what": "Once Jagex opens its plugin API (planned for late October), send quests, levels and location to the picker automatically.",
+          "what": "An in-game plugin sends quests, levels, location and completed achievements to the picker, shows your chunk and tasks in game, and ticks diary tasks for you.",
           "why": "Ends manual ticking and fills the gaps RuneMetrics can’t see, like achievements and quest steps.",
           "size": "L",
-          "status": "later",
-          "note": "Check again when the plugin system leaves beta and anyone can build plugins."
+          "status": "working",
+          "note": "Works on the beta world now. Next: a map window in game. The Plugin Hub listing waits for Jagex's review."
         },
         {
           "id": "A12",
