@@ -4,7 +4,7 @@ import path from 'node:path';
 import os from 'node:os';
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { mkdtemp, mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, readFile, readdir, rm, symlink, writeFile } from 'node:fs/promises';
 import { exportHead, copyPacks, writeReleaseMetadata, releaseEnvironment } from '../scripts/ci/release-rehearsal.mjs';
 import { verifyExport } from '../scripts/release/pc/quick-build.mjs';
 import { sanitizeExecutionEnvironment } from '../scripts/private-companion/release-identity.mjs';
@@ -126,6 +126,11 @@ const refusedPacks = [
   }],
   ['truncated payload', async f => { await writeFile(path.join(path.dirname(f.manifestPath('data')), 'nested/payload.bin'), ''); }],
   ['missing payload', async f => { await rm(path.join(path.dirname(f.manifestPath('data')), 'nested/payload.bin')); }],
+  ['unlisted directory link', async f => {
+    const target = path.join(f.root, 'synthetic-link-target');
+    await mkdir(target);
+    await symlink(target, path.join(path.dirname(f.manifestPath('data')), 'unlisted-link'), 'junction');
+  }],
   ...['../outside.bin', '/outside.bin', 'nested\\outside.bin', 'C:/outside.bin'].map(escape => [
     `escaping manifest path ${escape}`, async f => {
       f.manifests.data.files[0].path = escape; await f.repin('data');

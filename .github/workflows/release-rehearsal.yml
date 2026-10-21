@@ -11,7 +11,7 @@ jobs:
   rehearsal:
     name: rehearsal (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 15
+    timeout-minutes: 19
     strategy:
       fail-fast: false
       matrix:

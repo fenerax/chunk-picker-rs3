@@ -5,13 +5,13 @@ import os from 'node:os';
 import net from 'node:net';
 import { spawn, execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { cp, lstat, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { cp, lstat, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { createReadStream } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
 import { treeEntries, verifyExport } from '../release/pc/quick-build.mjs';
 import { sanitizeExecutionEnvironment, digestValue } from '../private-companion/release-identity.mjs';
-import { safeArtFile, PACK_VERSION } from '../../app/packs.mjs';
+import { safeArtFile, packRelative, PACK_VERSION } from '../../app/packs.mjs';
 import { readPin } from '../../.github/packs/fetch-packs.mjs';
 
 const checkout = fileURLToPath(new URL('../../', import.meta.url));
@@ -39,16 +39,36 @@ export async function exportHead({ repo, core }) {
 }
 
 async function verifyPack(root, choice) {
-  const bytes = await readFile(await safeArtFile(root, 'pack.json'));
+  await safeArtFile(root);
+  const regularFiles = new Map();
+  // CI cache and destination are immutable during assembly. Walk their trees
+  // once instead of rechecking every ancestor for each of 15,000+ payloads.
+  // The independent install gate still uses its original safeArtFile checks.
+  async function walk(directory, prefix = '') {
+    for (const entry of await readdir(directory, { withFileTypes: true })) {
+      const relative = prefix + entry.name, file = path.join(directory, entry.name);
+      if (entry.isSymbolicLink()) throw Error('Pack tree contains a link.');
+      if (entry.isDirectory()) await walk(file, relative + '/');
+      else if (entry.isFile()) regularFiles.set(relative, file);
+      else throw Error('Pack tree contains a nonregular file.');
+    }
+  }
+  await walk(root);
+  if (!regularFiles.has('pack.json')) throw Error('Pack manifest missing.');
+  const bytes = await readFile(regularFiles.get('pack.json'));
   if (sha(bytes) !== choice.sha256) throw Error('Pack manifest differs.');
   const manifest = JSON.parse(bytes);
   if (manifest.id !== choice.id || manifest.version !== choice.version || !Array.isArray(manifest.files)) throw Error('Pack manifest invalid.');
   let files = 0;
   for (const record of manifest.files) {
-    const file = await safeArtFile(root, record.path), info = await lstat(file);
-    if (!info.isFile() || info.size !== record.bytes) throw Error('Pack payload size differs.');
+    packRelative(record.path);
+    const file = regularFiles.get(record.path);
+    if (!file) throw Error('Pack payload missing.');
+    const info = await lstat(file);
+    if (!info.isFile() || info.isSymbolicLink() || info.size !== record.bytes) throw Error('Pack payload size differs.');
     const hash = createHash('sha256');
-    for await (const chunk of createReadStream(file)) hash.update(chunk);
+    if (info.size <= 8 * 1024 ** 2) hash.update(await readFile(file));
+    else for await (const chunk of createReadStream(file)) hash.update(chunk);
     if (hash.digest('hex') !== record.sha256) throw Error('Pack payload differs.');
     files++;
   }
