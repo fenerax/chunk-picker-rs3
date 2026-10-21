@@ -2,8 +2,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
 import os from 'node:os';
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
+import { fileURLToPath } from 'node:url';
 import { mkdtemp, mkdir, readFile, readdir, rm, symlink, writeFile } from 'node:fs/promises';
 import { exportHead, copyPacks, writeReleaseMetadata, releaseEnvironment } from '../scripts/ci/release-rehearsal.mjs';
 import { verifyExport } from '../scripts/release/pc/quick-build.mjs';
@@ -236,3 +237,58 @@ test('release environment removes inherited application settings and retains iso
     }
   }
 });
+
+for (const valid of [true, false]) {
+  test(valid ? 'runtime seed binds its packed dataset and closes the synthetic app'
+    : 'runtime seed closes the synthetic app when dataset binding refuses its descriptor', async t => {
+    const root = await scratch(t), coreRoot = path.join(root, 'core'), dataDir = path.join(root, 'runtime/data');
+    await mkdir(path.join(coreRoot, 'app'), { recursive: true });
+    const descriptor = {
+      datasetId: 'synthetic-ci-dataset', datasetContractVersion: 1,
+      digest: valid ? 'c'.repeat(64) : 'invalid-digest', packed: true,
+    };
+    // The server double never opens a listener. Use the real binding module so
+    // omitting the runtime's explicit bind cannot accidentally satisfy this test.
+    await writeFile(path.join(coreRoot, 'app/server.mjs'), `
+import { mkdir, writeFile } from 'node:fs/promises';
+import path from 'node:path';
+export async function createServer(options) {
+  await mkdir(options.dataDir, { recursive: true });
+  await writeFile(path.join(options.dataDir, 'state.json'), JSON.stringify({ synthetic: true }));
+  await writeFile(path.join(options.dataDir, 'seed-options.json'), JSON.stringify({
+    definitions: options.definitions, taskMap: options.taskMap,
+    predictionPrewarm: options.predictionPrewarm,
+  }));
+  return { dataset: ${JSON.stringify(descriptor)},
+    close: () => writeFile(path.join(options.dataDir, 'closed'), 'closed\\n') };
+}
+`);
+    await writeFile(path.join(coreRoot, 'app/dataset-binding.mjs'),
+      `export { bindDatasetStorage } from ${JSON.stringify(new URL('../app/dataset-binding.mjs', import.meta.url).href)};\n`);
+    const configPath = path.join(root, 'config.json');
+    await writeFile(configPath, encode({ coreRoot, dataDir }));
+    const child = spawnSync(process.execPath, [
+      fileURLToPath(new URL('../scripts/ci/release-rehearsal-runtime.mjs', import.meta.url)), 'seed', configPath,
+    ], { cwd: root, env: sanitizeExecutionEnvironment(), windowsHide: true, timeout: 15000, stdio: 'ignore' });
+    assert.equal(child.error, undefined);
+    assert.equal(child.signal, null);
+    assert.equal(child.status, valid ? 0 : 1);
+    assert.equal(await readFile(path.join(dataDir, 'closed'), 'utf8'), 'closed\n');
+    assert.deepEqual(await json(path.join(dataDir, 'state.json')), { synthetic: true });
+    const options = await json(path.join(dataDir, 'seed-options.json'));
+    assert.deepEqual(options.definitions, {
+      chunks: { 12341: {}, 12342: {} }, challenges: {},
+      walkableChunks: ['12341', '12342'], walkableChunksF2P: ['12341', '12342'],
+    });
+    assert.deepEqual(options.taskMap, {});
+    assert.equal(options.predictionPrewarm, false);
+    if (valid) {
+      assert.deepEqual(await json(dataDir + '.dataset.json'), {
+        schemaVersion: 1, datasetId: descriptor.datasetId,
+        datasetContractVersion: descriptor.datasetContractVersion, digest: descriptor.digest, requiresPack: true,
+      });
+    } else {
+      await assert.rejects(readFile(dataDir + '.dataset.json'), { code: 'ENOENT' });
+    }
+  });
+}
