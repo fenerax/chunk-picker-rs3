@@ -38,8 +38,22 @@ jobs:
         with:
           path: ${{ runner.temp }}/packs
           key: packs-${{ hashFiles('.github/packs/pack-pin.json') }}
+      # The pinned Wiki revisions never change for a given batch.json, so fetch
+      # them once and reuse them; the client only asks for pages it lacks.
+      - name: Restore Wiki pages
+        id: wikicache
+        uses: actions/cache/restore@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        with:
+          path: .local/gh-coverage/wiki-open-f2p
+          key: wiki-open-f2p-${{ hashFiles('app/datasets/open-f2p/authored/batch.json') }}
       - name: Configure public test inputs
         run: node scripts/ci/coverage-inputs.mjs . "${{ runner.temp }}/packs/tree"
+      - name: Save Wiki pages
+        if: steps.wikicache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        with:
+          path: .local/gh-coverage/wiki-open-f2p
+          key: wiki-open-f2p-${{ hashFiles('app/datasets/open-f2p/authored/batch.json') }}
       - run: npm run test:quick
       - run: npm test
         env:
