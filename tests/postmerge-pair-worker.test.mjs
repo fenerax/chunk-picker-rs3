@@ -171,14 +171,15 @@ test('exact next release prose is built from pinned previous addon and explicit 
 });
 
 test('configuration and CLI support explicit private demo without idle admission', async t => {
-  const { config } = await fixture(t);
+  const { root, config } = await fixture(t);
+  const configPath = path.join(root, 'config.json');
   assert.deepEqual((await privateConfig(config)).lanes, ['public-full', 'private-full']);
   assert.equal((await privateConfig({ ...config, logsRoot: path.join(config.coreRepo, '.local/logs') })).logsRoot, path.join(config.coreRepo, '.local/logs'));
   await assert.rejects(privateConfig({ ...config, logsRoot: path.join(config.coreRepo, 'app/logs') }), /placement refused/);
-  assert.equal(parsePrivateArguments(['--status', sha('a'), '--config', path.join(scratch, 'config.json')]).mode, '--status');
-  assert.equal(parsePrivateArguments([sha('a'), '--lane', 'private-full']).lane, 'private-full');
-  assert.throws(() => parsePrivateArguments(['--status', sha('a'), '--token', 'bad']), /refused/);
-  assert.throws(() => parsePrivateArguments([sha('a'), '--current', path.join(scratch, 'pointer.json')]), /refused/);
+  assert.equal(parsePrivateArguments(['--status', sha('a'), '--config', configPath]).mode, '--status');
+  assert.equal(parsePrivateArguments([sha('a'), '--config', configPath, '--lane', 'private-full']).lane, 'private-full');
+  assert.throws(() => parsePrivateArguments(['--status', sha('a'), '--config', configPath, '--token', 'bad']), /refused/);
+  assert.throws(() => parsePrivateArguments([sha('a'), '--config', configPath, '--current', path.join(root, 'pointer.json')]), /refused/);
   await assert.rejects(privateConfig({ ...config, request: path.join(scratch, 'request.json') }), /together/);
   const worker = await readFile(new URL('../scripts/private-companion/release-worker.mjs', import.meta.url), 'utf8');
   assert.doesNotMatch(worker, /adapters\.(?:stage|prepare|gates|promote)|import\(['"]\.\/release-v2/);

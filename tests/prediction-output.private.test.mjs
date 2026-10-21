@@ -99,13 +99,20 @@ const fingerprint = value => createHash('sha256').update(JSON.stringify(value, (
 // plus the new empty finiteRewards arrays, restores those exact old hashes.
 // Every task/item/access/prediction value, counter and ordering is unchanged.
 // .local/rel4prep5/golden-diff.json records all 120 changed leaves.
+// Public consolidation 2026-10-21: the historical rel3 core/packs oracle above
+// predates the scrubbed public tree. Its exact private inputs are unavailable,
+// so the individual input differences cannot be audited from this tree. These
+// six fingerprints use the inline synthetic fixture plus committed duo-legacy
+// inputs from a clean git archive of db6ae1b, with no packs, profile, local
+// metadata or RS3_* environment overrides. All six reproduce run 39582931047's
+// Linux output on Windows; only elapsedMs remains excluded from the full JSON.
 const expected = {
-  shared: '711682b7b10cbebb759225d5e7402b2982570ec42fa6210721ec35f218ab115d',
-  unshared: '87005dd8455685e2630abe4a9aa91c25aeb014119cd8ea72e8630ac175cf215c',
-  'member-inclusive': '8a7994127a63b29cd8d8ceb0a60a6df66960e3ea0fcd2fb7d83e7348a2e78a4b',
-  backlogs: 'ea8ea529b7f1cb2a99a65b91dab506b646ec9ee860f16f5f634d927452eb44b7',
-  personal: '83dca37d128b4a6150ba481aa2496736a6e51532bd882da11a015dd6aff2c573',
-  'legacy-all': '9051ba8610a432e9c046e54e0b0c0f8979f9da05190f26f1715ae908fbdbc642',
+  shared: 'ead6b95fe7427a9ea4ff6ea6b8c42958f934977e0f991b2ae7f4aa115cec1944',
+  unshared: '19c89972c58a18b6d594a5cf800ae87fd476e0fdf897bb379c7ce036ad6c0479',
+  'member-inclusive': '5d44ffabb671da82b249a14fe0f67f988c6a0c7dfefb609e2422c24259df95b8',
+  backlogs: '37de1e90f613490cd7f75c0e7e7f760a8083d25bdb659419cfdd4d18e1add23c',
+  personal: '99c732c826bae8947af5ea0613a5c4b151e5312b9c032a1cc531951f99388a86',
+  'legacy-all': '112a473898bae3abb167cf8ca09572291faf34cbf1c949e4a0a46d83280708b8',
 };
 
 for (const [mode, golden] of Object.entries(expected)) test(`full prediction output retains baseline behavior: ${mode}`, () => {

@@ -116,7 +116,7 @@ async function fixture(t) {
   const input = path.join(root, 'request.json'); await put(input, { releaseId: 'fixture', changelog: { date: '2026-01-02', title: 'New entry', items: ['New item'] }, roadmap: { id: 'A1', note: 'New note' } });
   return { root, kit, repo, revision, previous, input, cli: path.join(kit, 'tools/release-v2.mjs'), release: path.join(kit, 'releases/fixture') };
 }
-test('prepare exports exact commit; one inherited owner gates both fixture runners; exact reuse and mutation refusal', { timeout: 240000 }, async t => {
+test('prepare exports exact commit; one inherited owner gates both fixture runners; exact reuse and mutation refusal', { skip: process.platform !== 'win32', timeout: 240000 }, async t => {
   const f = await fixture(t);
   const { prepare,releaseCandidate,inspectFullLaneReuse,parseArgs } = await import(pathToFileURL(f.cli));
   await prepare({kit:f.kit,repo:f.repo,ref:f.revision,base:f.revision,'previous-config':f.previous,input:f.input});
@@ -165,7 +165,7 @@ test('failed preparation never publishes a releasable manifest', { timeout: 1200
   assert.match(failure.cause.message,/Release child exited with code 1/);
   assert.match(result.output,/Release child exited with code 1/);
 });
-test('checked freeze binds retained rollback and runs dry runs once before sealed admission', {timeout:180000},async t=>{
+test('checked freeze binds retained rollback and runs dry runs once before sealed admission', {skip: process.platform !== 'win32', timeout:180000},async t=>{
   const f=await fixture(t);
   // Retained releases need actual private text bytes and their addon pins, so
   // the second preparation can prove retention from the first release.
@@ -219,7 +219,7 @@ test('bounded text assembly retains exact private inputs without copying pack pa
 // This fixture performs several complete input captures for two deployments.
 // The observed busy-PC run took 119 seconds alone (131 s on 2026-10-20) and over
 // 180 s inside the sequential tooling contracts; keep headroom for those captures.
-test('a new kit prepares a changed-pack release with its own packs, bidirectional evidence and fresh full/gallery keys', {timeout:360000}, async t=>{
+test('a new kit prepares a changed-pack release with its own packs, bidirectional evidence and fresh full/gallery keys', {skip: process.platform !== 'win32', timeout:360000}, async t=>{
   const old=await fixture(t),next=await fixture(t);
   // This scenario deliberately installs its own HTTP save/endpoint adapter below.
   // Keep that adapter unchanged and substitute only the unrelated startup CLI
