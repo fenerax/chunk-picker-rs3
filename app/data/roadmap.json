@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updated": "2026-10-16",
+  "updated": "2026-10-20",
   "statuses": {
     "working": "In progress",
     "next": "Up next",
@@ -180,7 +180,7 @@
           "size": "M",
           "status": "done",
           "done": "2026-10-12",
-          "note": "View only links are in Admin → Invite links."
+          "note": "View only links are in More → Invite links."
         },
         {
           "id": "B2",
@@ -411,7 +411,7 @@
           "why": "Settings has grown option by option and is hard to scan.",
           "size": "M",
           "status": "done",
-          "note": "Settings now has sections, a search box and a one-line explanation for each setting. Works on phones too.",
+          "note": "Rules now explain their effects, examples and grind warnings, and show current values and automatic defaults. Hand-added roll pools and Help use clearer names.",
           "done": "2026-10-12"
         },
         {
@@ -540,7 +540,8 @@
           "what": "A walkthrough for roll style, theme and starting chunk.",
           "why": "Only matters for new accounts.",
           "size": "S",
-          "status": "maybe"
+          "status": "maybe",
+          "note": "Shipped with Tick all active tasks (E3) and a customisable top bar (E5)."
         },
         {
           "id": "E5",
@@ -752,7 +753,8 @@
           "what": "A clear message plus the last-seen tasks, read-only.",
           "why": "Player 2 currently sees “Reconnecting…” and save errors.",
           "size": "M",
-          "status": "later"
+          "status": "later",
+          "note": "Saves now ride out a dropped connection: they retry safely and then offer Retry or Discard. The offline screen itself is still to come."
         },
         {
           "id": "G8",
@@ -770,7 +772,8 @@
           "why": "Restarts happen after every update.",
           "size": "M",
           "status": "done",
-          "done": "2026-10-13"
+          "done": "2026-10-13",
+          "note": "Startup now checks the game data once instead of twice, and uses less memory."
         },
         {
           "id": "G10",
@@ -842,7 +845,8 @@
           "why": "The members-content filter is only as good as this data.",
           "size": "M",
           "status": "done",
-          "done": "2026-10-12"
+          "done": "2026-10-12",
+          "note": "Lodestones and other one-way teleports now count only when you have a way back to your own chunks."
         },
         {
           "id": "H4",

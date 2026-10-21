@@ -2,6 +2,88 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "date": "2026-10-20",
+      "title": "Fewer double checks at startup",
+      "items": [
+        "The picker now checks its game data once at startup instead of twice",
+        "The data-update scripts use the RuneScape Wiki more politely: one request at a time, and they wait and back off when the Wiki is busy"
+      ]
+    },
+    {
+      "date": "2026-10-20",
+      "title": "Lighter on memory",
+      "items": [
+        "The picker holds less in memory at once: one copy of its task data instead of two, and task workers let go of data they no longer need",
+        "Task workers use about 75–155 MB less memory at their busiest, with no measurable slowdown",
+        "The help pages now point to the Admin menu for invite links, OBS overlays and usage counts"
+      ]
+    },
+    {
+      "date": "2026-10-19",
+      "title": "A setup guide, Tick all, and your own top bar",
+      "items": [
+        "New groups get a short setup guide: roll style, theme, a starting bank for each empty map, and how to invite the other player. Reopen it any time from the Map settings",
+        "Tick all active tasks: one click in the Active Tasks menu marks your shown tasks done, with one Undo. Tasks that need a 'for whom?' choice, or are blocked, are left alone",
+        "Choose which top bar buttons show in the new Top bar settings. Hidden buttons move into More, so nothing becomes unreachable",
+        "The picker starts a little faster and uses less memory while loading its task data"
+      ]
+    },
+    {
+      "date": "2026-10-19",
+      "title": "Saves survive a bad connection",
+      "items": [
+        "If the reply to a save is lost on a bad connection, the page retries it safely and never applies it twice",
+        "Retries stop after a short while and offer Retry or Discard",
+        "Closed or abandoned tabs no longer use up saving sessions, and a plain permission refusal no longer blocks later saves",
+        "Opening the picker on an address that can't save now explains how to reach one that can"
+      ]
+    },
+    {
+      "date": "2026-10-18",
+      "title": "Teleports need a way home",
+      "items": [
+        "A lodestone or other one-way teleport is offered only once you have a way back to your own chunks, such as a lodestone in your area or a confirmed home teleport. Until then it no longer counts for travel, tasks, rolling or the available list",
+        "Lodestone roll options on the map now show as blue dashed outlines, so they stand apart from chunks you picked by hand"
+      ]
+    },
+    {
+      "date": "2026-10-17",
+      "title": "Wiki supplies, folding phone controls and faster lists",
+      "items": [
+        "Phone map controls fold away with one tap; Roll and Undo stay in reach",
+        "Conditional members starting banks say exactly what their condition is, even before you include them",
+        "Wild onions, potatoes and Nardah bananas count as supplies, plus paid NPC supplies such as Ned's rope and Karim's kebabs",
+        "Ernest the Chicken's rewards count once, not as a renewable source",
+        "Corrected the silk stall level, black candles, Canifis entry, the Genie Cave rope, and Wendlewick's shops and fish deposit",
+        "Group lists, startup, Area checks and Rules previews are faster"
+      ]
+    },
+    {
+      "date": "2026-10-17",
+      "title": "Faster ticks, clearer roll pool and rule explanations",
+      "items": [
+        "Ticking tasks and rolling are much faster",
+        "Add chunks to the roll pool by hand, with clearer names and map controls in Help",
+        "Every rule explains what it does, with examples and grind warnings",
+        "Chunk panels refresh after actions, and rules show their current value and default",
+        "Phone map has a legend button and visible controls; rolls say who they're for",
+        "Blocked tasks say what would open them, and waits say what's updating",
+        "Members fixes for Big Chinchompa and lodestone guidance",
+        "Restore F2P access to Black Knights' Fortress quests"
+      ]
+    },
+    {
+      "date": "2026-10-17",
+      "title": "Review rules together and check more tasks",
+      "items": [
+        "Review rules one at a time with shared ticks, notes and task previews",
+        "See what Automatic means for each rule",
+        "Area check shows quests and other tasks",
+        "Keep ticking tasks while Group view updates",
+        "Long chunk names fit the roll panel"
+      ]
+    },
+    {
       "date": "2026-10-16",
       "title": "The gathering calculator knows about cooking, stairs and lodestones",
       "items": [
