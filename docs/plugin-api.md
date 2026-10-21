@@ -121,11 +121,17 @@ a new assembly for this player, replacing an unfinished one. The next part
 must have the same snapshot and parts count, with `part = received + 1`.
 Repeating a received part does nothing. Other out-of-order parts return 200 and
 are ignored. Use the response's `achievements` to resume or restart. Multiple
-keys for one player share the assembly. A replay of a recently completed snapshot
-becomes the current assembly with `{snapshot, received: parts, parts}`, even if
-another snapshot arrived in between; it is acknowledged without matching again.
-The picker remembers the last eight completed snapshot names per player in memory.
-A restart forgets assemblies, this replay cache, summaries and review lists.
+keys for one player share the assembly. The picker remembers the last eight
+completed snapshots per player in memory, including each snapshot's aggregate
+world (`live`, `beta` or `unknown`). Replaying a cached snapshot becomes the
+current assembly with `{snapshot, received: parts, parts}` without matching
+again, except that a cached non-live snapshot is not acknowledged as complete
+when the incoming part explicitly reports `world.beta: false`. Any report with
+`world.beta: false`, including an ordinary position, skills or quests report,
+invalidates a current completed non-live assembly and its cache entry. Status
+then returns `achievements: null` until parts are sent again; the same snapshot
+hash may be resent because it identifies achievement data independently of
+world. A restart forgets assemblies, this replay cache, summaries and review lists.
 Persisted handled achievement IDs prevent later reports, including new snapshots
 and replays after a restart or cache eviction, from reversing Undo or manual unticks.
 A new snapshot can still apply newly completed, unhandled achievements.
@@ -209,11 +215,14 @@ IDs. Deleting the sidecar re-enables automatic ticks for completions the picker
 sees again. Keep it alongside the save when moving the picker to preserve these
 choices.
 
-If a handled write fails after the save command succeeds, the request reports
-the error. The picker retains those IDs in memory and retries persistence before
-the next status/report acknowledgement or at shutdown, without repeating the
-command. The save and sidecar are separate writes; abrupt termination between
-them can still lose the handled record.
+IDs accepted for handling count as handled in memory while their sidecar write
+is pending, preventing repeats or reoffers. Sidecar writes and retries run in
+the background; a failure does not fail or block status, report, Apply or
+Dismiss. A failure streak is logged once, with opportunistic retries at most
+once per minute and a final retry on close after accepted mutations drain. The
+save and sidecar are separate writes, so termination between them can still
+lose a handled record; a persistence failure that remains after the final retry
+can also leave handled IDs unpersisted at exit.
 
 The Game plugin dialog shows each player's current part count, last complete
 achievement count, matched task count and last automatic batch's count and time.

@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { setTimeout as delay } from 'node:timers/promises';
 import { openGamePlugin } from '../app/game-plugin.mjs';
 import { applyCommand, createGroupState } from '../app/core/state.mjs';
 
@@ -11,9 +12,23 @@ const part = (part = 1, parts = 1, complete = [], id = snapshot) => ({ snapshot:
 const task = (id, title, group = 'Easy') => ({ id, category: 'Diary', label: `~|Synthetic Achievements#${group}|~ ${title}` });
 const identity = { admin: true };
 
+async function eventually(check) {
+  for (let attempt = 0; ; attempt++) {
+    try { return await check(); }
+    catch (error) { if (attempt >= 400) throw error; await delay(5); }
+  }
+}
+async function handledIds(f, ids) {
+  return eventually(async () => {
+    const saved = JSON.parse(await readFile(path.join(f.dataDir, 'plugin-achievements.json'), 'utf8'));
+    assert.deepEqual(saved, { v: 1, players: { a: { handled: ids } } });
+    return saved;
+  });
+}
+
 // No HTTP server or live save. The controller uses a real revision-checked core
 // command against synthetic state. All sidecars stay inside this worktree.
-async function fixture(t, tasks = [task('diary:one', 'First Task'), task('diary:two', 'Second Task')]) {
+async function fixture(t, tasks = [task('diary:one', 'First Task'), task('diary:two', 'Second Task')], questMapping = new Map()) {
   const dataDir = await mkdtemp(fileURLToPath(new URL('../.plugin-achievement-test-', import.meta.url)));
   let at = Date.parse('2026-10-19T12:00:00Z'), input, output, seq = 0, controller, failCommand = false;
   const warnings = [];
@@ -31,7 +46,7 @@ async function fixture(t, tasks = [task('diary:one', 'First Task'), task('diary:
   let queue = Promise.resolve();
   async function start() {
     controller = await openGamePlugin({ dataDir, store, clock: () => at, world: { chunks: new Map() },
-      registry: { resolve: () => ({}) }, questMapping: new Map(),
+      registry: { resolve: () => ({}) }, questMapping,
       serializeMutation: operation => { const next = queue.then(operation); queue = next.catch(() => {}); return next; },
       bodyJSON: async (_request, limit) => { assert.equal(limit, 16384); return input; },
       json: async (_request, _response, status, value) => { assert.equal(status, 200); output = value; }, checkRequestOrigin: () => {}, log: message => warnings.push(message),
@@ -53,6 +68,7 @@ async function fixture(t, tasks = [task('diary:one', 'First Task'), task('diary:
   }
   return { get controller() { return controller; }, get state() { return state; }, store, commands, key, send, status, dataDir, warnings,
     setFailure: value => { failCommand = value; },
+    advance: ms => { at += ms; },
     restart: async () => { await controller.close(); await start(); },
   };
 }
@@ -229,7 +245,7 @@ test('handled ids survive Undo, a service reopen, the same set and a new superse
   assert.equal(f.commands.length, 3, 'Only the initial tick, Undo and new achievement create commands');
   assert.deepEqual(f.commands[2].achievements.map(row => row.achievementId), [2]);
   assert.equal(f.state.members[0].achievementProgress['diary:one'], undefined);
-  const saved = JSON.parse(await readFile(path.join(f.dataDir, 'plugin-achievements.json'), 'utf8'));
+  const saved = await handledIds(f, [1, 2]);
   assert.deepEqual(saved, { v: 1, players: { a: { handled: [1, 2] } } });
 });
 
@@ -302,14 +318,14 @@ test('a corrupt handled file does not break reopening or the report route and lo
   assert.equal(await readFile(file, 'utf8'), '{broken json', 'Reading and empty sets preserve the corrupt original');
   await f.send(part(1, 1, [[1, 'First Task', 0, 0]], secondSnapshot));
   assert.equal(f.warnings.length, 1);
-  assert.deepEqual(JSON.parse(await readFile(file, 'utf8')).players.a.handled, [1]);
+  await handledIds(f, [1]);
 });
 
 test('multiple achievement ids matching one task are all handled by the single automatic tick', async t => {
   const f = await fixture(t), complete = [[1, 'First Task', 0, 0], [2, 'First_Task', 0, 0]];
   await f.send(part(1, 1, complete));
   assert.equal(f.commands.length, 1); assert.equal(f.commands[0].achievements.length, 1);
-  assert.deepEqual(JSON.parse(await readFile(path.join(f.dataDir, 'plugin-achievements.json'), 'utf8')).players.a.handled, [1, 2]);
+  await handledIds(f, [1, 2]);
   await f.store.command({ type: 'undo' }, f.state.revision);
   await f.restart();
   await f.send(part(1, 1, complete, secondSnapshot));
@@ -317,17 +333,137 @@ test('multiple achievement ids matching one task are all handled by the single a
   assert.equal(f.commands.length, 2);
 });
 
-test('failed handled writes retry before acknowledging replay without reapplying a successful tick', async t => {
+test('a persistently broken sidecar never blocks sync or reoffers pending handled IDs, and later recovers', async t => {
+  const f = await fixture(t, [task('diary:one', 'First Task'), task('diary:two', 'Second Task'),
+    task('diary:three', 'Shared Task'), task('diary:four', 'Shared Task', 'Hard'),
+    task('diary:five', 'Other Shared Task'), task('diary:six', 'Other Shared Task', 'Hard'),
+    { id: 'quest:one', category: 'Quest', label: 'Synthetic Quest' }],
+  new Map([['synthetic quest', [{ taskId: 'quest:one', title: 'Synthetic Quest' }]]]));
+  const file = path.join(f.dataDir, 'plugin-achievements.json');
+  await mkdir(file);
+  assert.equal((await f.send(part(1, 1, [[1, 'First Task', 0, 0]]))).achievements.received, 1);
+  await eventually(() => assert.equal(f.warnings.length, 1));
+  assert.match(f.warnings[0], /handled.*memory.*background/);
+  await f.store.command({ type: 'undo' }, f.state.revision);
+  const complete = [[1, 'First Task', 0, 0], [2, 'Second Task', 0, 0], [42, 'Shared Task', 0, 0], [43, 'Other Shared Task', 0, 0]];
+  await f.send(undefined, { position: { x: 51, z: 52, floor: 0 }, skills: { MINING: { level: 5, xp: 500 } },
+    quests: { finished: ['Synthetic Quest'], started: [] } });
+  assert.equal((await f.status()).chunkId, String(51 * 256 + 52), 'Position/status still work with the sidecar broken');
+  f.advance(60001);
+  await f.send(part(1, 1, complete, secondSnapshot));
+  assert.deepEqual(f.commands.at(-1).achievements.map(row => row.achievementId), [2], 'Pending ID 1 cannot reverse Undo in a new set');
+  let preview = f.controller.review(identity, 'a');
+  assert.equal(preview.skills[0].skill, 'Mining');
+  assert.equal(preview.quests[0].title, 'Synthetic Quest');
+  assert.deepEqual(preview.achievements.map(row => row.achievementId), [42, 43]);
+  const body = { previewId: preview.previewId, expectedRevision: preview.stateRevision, achievements: [{ achievementId: 42, taskId: 'diary:four' }] };
+  await f.store.command(f.controller.findReview(identity, body, true).command, body.expectedRevision);
+  await f.controller.finish('a');
+  assert.ok(f.state.members[0].completedTasks.includes('quest:one'));
+  assert.equal(f.state.members[0].skillProgress.Mining.level, 5);
+  assert.deepEqual(f.controller.review(identity, 'a'), { preview: null }, 'Apply succeeds despite persistence failure');
+  await f.store.command({ type: 'undo' }, f.state.revision);
+  await f.store.command({ type: 'complete-task', memberId: 'a', taskId: 'diary:two', completed: false }, f.state.revision);
+  const commands = f.commands.length;
+  for (let i = 3; i <= 6; i++) {
+    f.advance(60001);
+    await f.send(part(1, 1, complete, i.toString(16).padStart(16, '0')));
+    assert.equal(f.commands.length, commands, 'No pending ID re-ticks, even in new sets across retry intervals');
+    assert.deepEqual(f.controller.review(identity, 'a'), { preview: null }, 'Selected and skipped pending IDs never reappear');
+    await f.status();
+  }
+  await f.send(part(1, 1, [[44, 'Shared Task', 0, 0]], '0000000000000007'));
+  preview = f.controller.review(identity, 'a');
+  assert.equal(preview.achievements[0].achievementId, 44, 'New achievement reviews still work');
+  f.controller.findReview(identity, { previewId: preview.previewId });
+  await f.controller.finish('a');
+  await f.send(part(1, 1, [[44, 'Shared Task', 0, 0]], '0000000000000008'));
+  assert.deepEqual(f.controller.review(identity, 'a'), { preview: null }, 'Dismiss succeeds and suppresses pending rows');
+  assert.equal(f.warnings.length, 1, 'One warning for the entire failure streak');
+  await rm(file, { recursive: true });
+  f.advance(60001);
+  await f.status();
+  await handledIds(f, [1, 2, 42, 43, 44]);
+  await f.restart();
+  await f.send(part(1, 1, complete, secondSnapshot));
+  assert.deepEqual(f.state.members[0].completedTasks, []);
+  assert.equal(f.commands.length, commands, 'Recovered durable IDs survive restart');
+});
+
+test('shutdown retries pending handled IDs without waiting for the retry interval', async t => {
   const f = await fixture(t), file = path.join(f.dataDir, 'plugin-achievements.json');
   await mkdir(file);
-  await assert.rejects(f.send(part(1, 1, [[1, 'First Task', 0, 0]])));
-  assert.equal(f.commands.length, 1, 'Save command succeeded before the sidecar replacement failed');
-  await f.store.command({ type: 'undo' }, f.state.revision);
+  await f.send(part(1, 1, [[1, 'First Task', 0, 0]]));
+  await eventually(() => assert.equal(f.warnings.length, 1));
   await rm(file, { recursive: true });
-  assert.deepEqual((await f.send(part(1, 1, [[1, 'First Task', 0, 0]]))).achievements, { snapshot, received: 1, parts: 1 });
-  assert.deepEqual(JSON.parse(await readFile(file, 'utf8')).players.a.handled, [1]);
-  await f.restart();
-  await f.send(part(1, 1, [[1, 'First Task', 0, 0]], secondSnapshot));
-  assert.deepEqual(f.state.members[0].completedTasks, []);
-  assert.equal(f.commands.length, 2, 'Only the tick and Undo ran');
+  await f.controller.close();
+  await handledIds(f, [1]);
+});
+
+test('sidecar warnings reset after recovery and a final failed flush does not reject close', async t => {
+  const f = await fixture(t), file = path.join(f.dataDir, 'plugin-achievements.json');
+  await mkdir(file);
+  await f.send(part(1, 1, [[1, 'First Task', 0, 0]]));
+  await eventually(() => assert.equal(f.warnings.length, 1));
+  await rm(file, { recursive: true });
+  f.advance(60001); await f.status(); await handledIds(f, [1]);
+  await rm(file); await mkdir(file);
+  await f.send(part(1, 1, [[2, 'Second Task', 0, 0]], secondSnapshot));
+  await eventually(() => assert.equal(f.warnings.length, 2));
+  await f.controller.close();
+  assert.equal(f.warnings.length, 2, 'Close retries but does not log again in the same failure streak');
+});
+
+test('a late successful command cannot reject its report because the sidecar has already closed', async t => {
+  const f = await fixture(t), command = f.store.command;
+  const entered = Promise.withResolvers(), release = Promise.withResolvers();
+  f.store.command = async (...args) => {
+    const result = await command(...args);
+    entered.resolve(); await release.promise; return result;
+  };
+  const reporting = f.send(part(1, 1, [[1, 'First Task', 0, 0]]));
+  try {
+    await entered.promise;
+    // The server normally prevents this ordering by draining its mutation queue.
+    await f.controller.close();
+  } finally { release.resolve(); }
+  assert.equal((await reporting).v, 1, 'The successful report still returns 200 after close');
+  assert.equal(f.commands.length, 1);
+  assert.deepEqual(f.state.members[0].completedTasks, ['diary:one']);
+});
+
+test('the same non-live snapshot is resent on live using the plugin status continuation rule', async t => {
+  for (const world of [{ id: 2, beta: true }, undefined]) for (const transition of ['ordinary', 'part', 'cached']) {
+    const f = await fixture(t), rows = [[1, 'First Task', 0, 0]];
+    const received = status => {
+      const held = status.achievements;
+      return held?.snapshot === snapshot && held.parts === 2 && Number.isInteger(held.received)
+        ? Math.max(0, Math.min(held.received, 2)) : 0;
+    };
+    await f.send(part(1, 2, rows), { world });
+    await f.send(part(2, 2), { world });
+    f.controller.review(identity, 'a'); await f.controller.finish('a');
+    assert.equal(received(await f.status()), 2);
+    assert.equal(received(await f.send(part(1, 2, rows), { world })), 2, 'Non-live cached replay is acknowledged');
+    if (transition === 'ordinary') {
+      assert.equal((await f.send(undefined)).achievements, null, 'Ordinary live evidence invalidates the completed non-live status');
+      assert.equal((await f.status()).achievements, null);
+    } else if (transition === 'cached') {
+      await f.send(part(1, 1, [], secondSnapshot), { world });
+      assert.equal(received(await f.status()), 0, 'Another snapshot is not counted by plugin continuation');
+    }
+    let status = transition === 'part' ? await f.send(part(1, 2, rows)) : await f.status();
+    if (transition === 'part') assert.equal(received(status), 1, 'A live part restarts rather than acknowledging the non-live completion');
+    // The plugin restarts from authoritative status once a minute, using zero
+    // received when either the snapshot name or total parts differs.
+    while (received(status) < 2) {
+      const next = received(status) + 1;
+      status = await f.send(part(next, 2, next === 1 ? rows : []));
+    }
+    assert.equal(f.commands.length, 1); assert.deepEqual(f.state.members[0].completedTasks, ['diary:one']);
+    assert.equal(received(await f.status()), 2);
+    await f.send(part(1, 2, rows), { world });
+    assert.equal(received(await f.send(undefined)), 2, 'A live cache entry stays live when replayed on a non-live world');
+    assert.equal(f.commands.length, 1);
+  }
 });

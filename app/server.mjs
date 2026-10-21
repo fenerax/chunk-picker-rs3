@@ -2255,7 +2255,7 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
       clearTimeout(rankingLeaseTimer);
       closePromise = (async () => {
         if (activationPending) await activationPending.catch(() => {});
-        const overlaysClosed = Promise.all([overlays.close(), gamePlugin.close()]);
+        const overlaysClosed = overlays.close();
         unsubscribe();
         runeMetricsClient.close(); runeMetricsPreviews.clear();
         originalSyncClient?.close(); originalSyncPreviews.clear();
@@ -2281,7 +2281,9 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
             for (const socket of connections) if (!savingConnections.has(socket)) socket.destroy();
           }, shutdownDeadlineMs);
         }) : Promise.resolve();
-        const authClosed = mutationQueue.then(() => Promise.all([invites.close(), feedback.close(), usage.close(), overlaysClosed]));
+        // Accepted mutations may still be awaiting a save command. Drain them
+        // before the final handled-ID flush and sidecar close.
+        const authClosed = mutationQueue.then(() => Promise.all([invites.close(), feedback.close(), usage.close(), overlaysClosed, gamePlugin.close()]));
         const storeClosed = store.close({ beforeUnlock: authClosed });
         // A peer can stop reading an accepted save response. Protect its durable
         // transaction first, then bound the remaining network transmission too.

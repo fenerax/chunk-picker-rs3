@@ -8,6 +8,7 @@ const LIFETIME = 10 * 60 * 1000;
 // Status also describes the block of map squares centred on the player (2 each way: 5x5).
 const NEARBY_RADIUS = 2;
 const COMPLETED_SNAPSHOT_LIMIT = 8;
+const HANDLED_RETRY_INTERVAL = 60 * 1000;
 const PLUGIN_ROUTES = new Map([['/api/plugin/v1/report', 'POST'], ['/api/plugin/v1/status', 'GET'], ['/api/plugin/v1/tasks', 'GET']]);
 
 /** Positions, assemblies and proposals are ephemeral. Ticks use store.command. */
@@ -18,6 +19,7 @@ export async function openGamePlugin({ dataDir, store, world, registry, questMap
   const positions = new Map(), pending = new Map(), sequences = new Map(), buckets = new Map(), diagnostics = new Map();
   const assemblies = new Map(), completedSnapshots = new Map(), achievementSummaries = new Map();
   const pendingHandled = new Map();
+  let handledFlush, handledRetryAt = 0, handledFailure = false, closePromise;
   let statusRevision = -1; const statuses = new Map(); let closed = false, warming = false;
   // Last saved task list per plugin player. The bytes are the server's own saved
   // play result, so a fresh list costs no extra memory; after a tick clears the
@@ -46,15 +48,39 @@ export async function openGamePlugin({ dataDir, store, world, registry, questMap
     const assembly = assemblies.get(player);
     return assembly ? { snapshot: assembly.snapshot, received: assembly.received, parts: assembly.parts } : null;
   }
-  async function rememberHandled(player, ids = []) {
+  function isHandled(player, id) { return handled.has(player, id) || pendingHandled.get(player)?.has(id); }
+  function flushHandled(force = false) {
+    if (handledFlush) return handledFlush;
+    if (!pendingHandled.size || !force && (closed || clock() < handledRetryAt)) return Promise.resolve();
+    handledFlush = (async () => {
+      try {
+        for (const [player, waiting] of pendingHandled) {
+          // New reports may add IDs while this write is in flight. Remove only
+          // the attempted IDs; the remaining ones need their own durable write.
+          while (waiting.size) {
+            const ids = [...waiting];
+            await handled.add(player, ids);
+            for (const id of ids) waiting.delete(id);
+          }
+          pendingHandled.delete(player);
+        }
+        handledRetryAt = 0; handledFailure = false;
+      } catch {
+        handledRetryAt = clock() + HANDLED_RETRY_INTERVAL;
+        if (!handledFailure) log('Could not save handled plugin achievement IDs; keeping them in memory and retrying in the background.');
+        handledFailure = true;
+      }
+    })().finally(() => { handledFlush = undefined; });
+    return handledFlush;
+  }
+  function rememberHandled(player, ids) {
     const waiting = pendingHandled.get(player) ?? new Set();
     for (const id of ids) waiting.add(id);
     if (!waiting.size) return;
-    // A save can succeed before the sidecar write fails. Keep its IDs until a
-    // later request (or close) retries persistence, without applying ticks again.
+    // Pending IDs count as handled even if the sidecar stays unavailable. A late
+    // successful command after close must not reject because storage is closed.
     pendingHandled.set(player, waiting);
-    await handled.add(player, [...waiting]);
-    pendingHandled.delete(player);
+    void flushHandled();
   }
   function achievementReview(player, report, rows) {
     const prior = liveReview(player)?.report;
@@ -68,9 +94,11 @@ export async function openGamePlugin({ dataDir, store, world, registry, questMap
   async function receiveAchievements(player, report) {
     const part = report.achievements;
     let assembly = assemblies.get(player);
-    if (completedSnapshots.get(player)?.has(part.snapshot)) {
+    const cachedWorld = completedSnapshots.get(player)?.get(part.snapshot);
+    if (cachedWorld && (cachedWorld === 'live' || report.world?.beta !== false)) {
       // The plugin resumes from status only when it describes its own snapshot.
-      assemblies.set(player, { snapshot: part.snapshot, received: part.parts, parts: part.parts });
+      assemblies.set(player, { snapshot: part.snapshot, received: part.parts, parts: part.parts,
+        live: cachedWorld === 'live', beta: cachedWorld === 'beta' });
       return;
     }
     if (assembly?.snapshot === part.snapshot && assembly.parts === part.parts && part.part <= assembly.received) return;
@@ -92,8 +120,8 @@ export async function openGamePlugin({ dataDir, store, world, registry, questMap
     const summary = { completeCount: matches.completeCount, matchedTaskCount: matches.matchedTaskCount, unmatchedCount: matches.unmatchedCount,
       lastTickedCount: previous?.lastTickedCount ?? 0, lastTickedAt: previous?.lastTickedAt ?? null };
     const world = assembly.live ? 'live' : assembly.beta ? 'beta' : 'unknown';
-    const candidates = matches.candidates.filter(row => !handled.has(player, row.achievementId));
-    const review = matches.unclear.filter(row => !handled.has(player, row.achievementId));
+    const candidates = matches.candidates.filter(row => !isHandled(player, row.achievementId));
+    const review = matches.unclear.filter(row => !isHandled(player, row.achievementId));
     let appliedIds = [];
     if (assembly.live && candidates.length) {
       const achievements = [...new Map(candidates.map(row => [row.candidates[0].taskId,
@@ -109,12 +137,12 @@ export async function openGamePlugin({ dataDir, store, world, registry, questMap
         review.push(...candidates.map(row => ({ ...row, reason: 'retry' })));
       }
     } else review.push(...candidates.map(row => ({ ...row, reason: assembly.beta ? 'beta' : 'world-unknown' })));
-    const seen = completedSnapshots.get(player) ?? new Set(); seen.add(part.snapshot);
-    while (seen.size > COMPLETED_SNAPSHOT_LIMIT) seen.delete(seen.values().next().value);
+    const seen = completedSnapshots.get(player) ?? new Map(); seen.set(part.snapshot, world);
+    while (seen.size > COMPLETED_SNAPSHOT_LIMIT) seen.delete(seen.keys().next().value);
     completedSnapshots.set(player, seen);
     achievementSummaries.set(player, summary);
     achievementReview(player, { ...report, world: assembly.live ? report.world : assembly.betaWorld }, review.map(row => ({ ...row, world })));
-    if (appliedIds.length) await rememberHandled(player, appliedIds);
+    if (appliedIds.length) rememberHandled(player, appliedIds);
   }
   function status(player) {
     const owner = member(player), revision = store.getInfo().revision;
@@ -209,10 +237,17 @@ export async function openGamePlugin({ dataDir, store, world, registry, questMap
       const result = await serializeMutation(async () => {
         if (closed || serverClosed) throw fail(503, 'The picker is stopping.');
         keys.authenticate(request); member(credential.player);
-        await rememberHandled(credential.player);
+        void flushHandled();
         if (report) {
           if (report.seq <= (sequences.get(credential.id) ?? -1)) throw fail(409, 'The report seq must increase for this key.');
           sequences.set(credential.id, report.seq);
+          const assembly = assemblies.get(credential.player);
+          if (report.world?.beta === false && assembly && assembly.received === assembly.parts && !assembly.live) {
+            // World is absent from the plugin's snapshot hash. Ordinary live
+            // reports must also reset status so its next sync resends the set.
+            assemblies.delete(credential.player);
+            completedSnapshots.get(credential.player)?.delete(assembly.snapshot);
+          }
           positions.set(credential.player, { memberId: credential.player, chunkId: String(report.position.x * 256 + report.position.z),
             position: report.position, seenAt: new Date(clock()).toISOString() });
           if (report.diagnostics) diagnostics.set(credential.id, { lines: [...report.diagnostics], receivedAt: new Date(clock()).toISOString() });
@@ -282,18 +317,23 @@ export async function openGamePlugin({ dataDir, store, world, registry, questMap
       // Apply and Dismiss both make the player's choice final for every live
       // row shown, including skipped rows. Beta/unknown copies may report live later.
       const ids = (review?.proposal?.preview.achievements ?? []).filter(row => row.world === 'live').map(row => row.achievementId);
-      if (ids.length) await rememberHandled(memberId, ids);
+      if (ids.length) rememberHandled(memberId, ids);
       pending.delete(memberId); notify();
     },
     rememberTasks(memberId, bytes) {
       if (closed || !bytes) return;
       if (hasActiveKey(memberId)) retainedTasks.set(memberId, bytes); else { retainedTasks.delete(memberId); taskRows.delete(memberId); }
     },
-    async close() {
+    close() {
+      if (closePromise) return closePromise;
       closed = true;
-      try { for (const player of pendingHandled.keys()) await rememberHandled(player); }
-      finally { await Promise.all([keys.close(), handled.close()]); }
-      positions.clear(); pending.clear(); diagnostics.clear(); retainedTasks.clear(); taskRows.clear(); assemblies.clear(); completedSnapshots.clear(); achievementSummaries.clear();
+      closePromise = (async () => {
+        await handledFlush;
+        await flushHandled(true);
+        await Promise.all([keys.close(), handled.close()]);
+        positions.clear(); pending.clear(); diagnostics.clear(); retainedTasks.clear(); taskRows.clear(); assemblies.clear(); completedSnapshots.clear(); achievementSummaries.clear();
+      })();
+      return closePromise;
     },
   };
 }
