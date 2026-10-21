@@ -25,6 +25,9 @@
       "finish"
     ]
   },
+  "app/web/game-plugin.mjs :: 'Game plugin'": {
+    "reason": "Same game plugin controls as the Activity Info samples, plus the key form. Creating a key is a write the gallery denies, and a real key must never appear in a screenshot."
+  },
   "app/web/info-panels.mjs :: 'Activity Info'": {
     "entries": [
       "activity-skills",

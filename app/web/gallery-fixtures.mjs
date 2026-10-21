@@ -21,6 +21,7 @@ export function createGalleryFixtures(deny, { usageEmpty = false } = {}) {
     '/api/roadmap': { groups: [], items: [] },
     '/api/migration': { converted: 6, unmatched: ['Example source with no matching task'] },
     '/api/members-start': { data: data.membersBanks },
+    '/api/game-plugin': { keys: [], positions: [], active: false }, '/api/game-plugin/review': { preview: null },
     '/api/backup-status': { available: false, status: 'missing' },
     '/api/original-sync/status': { available: false },
     '/api/original-sync/preview': { currentRevision: 7, capturedAt: '2026-10-13T12:00:00.000Z', expiresAt: '2026-10-13T12:30:00.000Z', previewId: 'gallery-preview', warnings: ['Built-in sample; no original-picker request was sent.'],

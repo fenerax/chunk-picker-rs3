@@ -75,6 +75,7 @@ const coverage = [
   ['progress', 'set-obtained-equipment', { equipmentName: 'Rune pickaxe', obtained: true }, 'Recorded Rune pickaxe as obtained'],
   ['progress', 'set-runescape-name', {}, 'Set the RuneScape name'],
   ['progress', 'apply-runemetrics', {}, 'Synced skills and quests from RuneMetrics'],
+  ['progress', 'apply-game-progress', {}, 'Applied skills and quests from the game plugin'],
   ['progress', 'set-xp-choices', { taskId: 'quest:lamp', taskLabel: 'A lamp' }, 'Changed XP choices for “A lamp”'],
   ['notes', 'set-note', { chunkId: '12850', note: 'Later' }, 'Edited the note on Lumbridge'],
   ['notes', 'set-journal', { memberId: 'actor1', note: 'Later' }, 'Edited the journal for Player'],
