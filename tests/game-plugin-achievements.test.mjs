@@ -12,10 +12,12 @@ const part = (part = 1, parts = 1, complete = [], id = snapshot) => ({ snapshot:
 const task = (id, title, group = 'Easy') => ({ id, category: 'Diary', label: `~|Synthetic Achievements#${group}|~ ${title}` });
 const identity = { admin: true };
 
+// Poll gently: on Windows a file held open by this read can't be replaced, so
+// tight polling starves the sidecar's atomic rename until its retries run out.
 async function eventually(check) {
   for (let attempt = 0; ; attempt++) {
     try { return await check(); }
-    catch (error) { if (attempt >= 400) throw error; await delay(5); }
+    catch (error) { if (attempt >= 200) throw error; await delay(25); }
   }
 }
 async function handledIds(f, ids) {
