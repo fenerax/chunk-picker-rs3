@@ -36,8 +36,12 @@ async function fixture(t) {
   return { checkout, tree };
 }
 
-test('the committed pack pin is empty, so CI runs without packs', () => {
-  assert.equal(readPin(repository), null);
+test('the committed pack pin names the approved public release and all three packs', () => {
+  const pin = readPin(repository);
+  assert.equal(pin.tag, 'packs-public-2026-10-21');
+  assert.deepEqual(pin.assets.map(asset => asset.name),
+    ['duo-data-1.0.6-public.2.tar.gz', 'duo-rules-text-1.0.6.tar.gz', 'duo-art-1.0.0-public.1.tar.gz']);
+  assert.deepEqual(Object.keys(pin.selection), ['data', 'rulesText', 'art']);
 });
 
 test('pack files land where the app looks, and tracked files always win', async t => {

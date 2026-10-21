@@ -87,3 +87,5 @@ Focused verification:
 node --test --test-timeout=120000 tests/save-copy.test.mjs
 node scripts/secret-scan/scan.mjs --commits BASE..HEAD --corpus-dir /outside/repo/corpus
 ```
+
+Published copy: release `packs-public-2026-10-21`, asset `save-2026-10-21.scrubbed.json`, 54120463 bytes, SHA-256 `54b3484ca0f0ea5d7c7b791225389f438e3e27b8e25fd0bfc6ca6d94866b4da8`. It passed `--check` and the load proof against duo-data 1.0.6-public.2 and duo-rules-text 1.0.6. The CI step above is not wired yet.

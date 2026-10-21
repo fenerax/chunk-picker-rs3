@@ -1,6 +1,38 @@
 {
   "schema": "rs3-ci-pack-pin-v1",
-  "tag": null,
-  "selection": null,
-  "assets": []
+  "tag": "packs-public-2026-10-21",
+  "selection": {
+    "data": {
+      "id": "duo-data",
+      "version": "1.0.6-public.2",
+      "sha256": "6efa3a8251db046169e9e93e65230ad7962e0fde294321d68ff8f70293567c8d"
+    },
+    "rulesText": {
+      "id": "duo-rules-text",
+      "version": "1.0.6",
+      "sha256": "aa48e8025def9fbe330a64719466fc9cb7767e6de9551c113a3de1d67b8dae83"
+    },
+    "art": {
+      "id": "duo-art",
+      "version": "1.0.0-public.1",
+      "sha256": "1c9cd4cb6cb5fc0c55b471394a0af515257a651b044cd39d6b75bd59a6bb7816"
+    }
+  },
+  "assets": [
+    {
+      "name": "duo-data-1.0.6-public.2.tar.gz",
+      "bytes": 16851383,
+      "sha256": "d7cf7c62a9ef17c81d86a8b6ec9dc8c26430ef4d6ab8b3a31c39958f568a578f"
+    },
+    {
+      "name": "duo-rules-text-1.0.6.tar.gz",
+      "bytes": 90047,
+      "sha256": "be3a96787306378fe4e5777b29e45bcace30b06cbed56c4ed15e6d6184fe42a6"
+    },
+    {
+      "name": "duo-art-1.0.0-public.1.tar.gz",
+      "bytes": 98667976,
+      "sha256": "59ad32b167f811c93ad5431d177270f31cb24320acaf968c294ba0589362d43a"
+    }
+  ]
 }
