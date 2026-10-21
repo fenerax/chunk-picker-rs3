@@ -2,6 +2,14 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "date": "2026-10-21",
+      "title": "Updates are checked on GitHub",
+      "items": [
+        "Every update is now tested on GitHub before it ships: the full test suite on Linux and Windows, the component screens, and a practice install that starts the picker and stops it again",
+        "Shipping an update now takes minutes on the host PC instead of hours, so fixes and new features can reach you sooner"
+      ]
+    },
+    {
       "date": "2026-10-20",
       "title": "Fewer double checks at startup",
       "items": [

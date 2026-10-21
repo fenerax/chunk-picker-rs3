@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updated": "2026-10-20",
+  "updated": "2026-10-21",
   "statuses": {
     "working": "In progress",
     "next": "Up next",
@@ -813,6 +813,16 @@
           "size": "S",
           "status": "done",
           "done": "2026-10-16"
+        },
+        {
+          "id": "G14",
+          "title": "Updates in minutes",
+          "what": "Test every update on GitHub, so the host PC only builds, checks and swaps it.",
+          "why": "Updates took hours of tests on Player 1’s computer, which held back fixes.",
+          "note": "Every test, the component screens and a practice install now run on GitHub.",
+          "size": "L",
+          "status": "done",
+          "done": "2026-10-21"
         }
       ]
     },
