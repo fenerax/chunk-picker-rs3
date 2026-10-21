@@ -19,6 +19,7 @@ export const quickTests = new Set([
   "ci-coverage-inputs.test.mjs",
   "ci-coverage-reporter.test.mjs",
   "ci-release-rehearsal.test.mjs",
+  "ci-gallery.test.mjs",
   "cdp-scratch-port.test.mjs",
   "tooling-certificate.test.mjs",
   "tooling-contracts.test.mjs",
