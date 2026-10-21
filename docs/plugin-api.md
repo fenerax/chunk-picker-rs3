@@ -2,7 +2,8 @@
 
 The picker accepts player reports; it never sends commands to the game. This API
 works for beta and live worlds. A beta world is a separate character copy:
-review its progress carefully before applying it.
+review its progress carefully before applying it. Unique achievement matches
+tick automatically on live worlds only, with Undo.
 
 Create a key in **Game plugin** in the picker. Players manage their own keys;
 administrators can manage any player's. Viewers cannot manage keys or apply
@@ -83,6 +84,80 @@ Apply uses the normal revision-checked command and records `source:"game-plugin"
 with the matching player ID in History/Undo. A restart discards positions and
 pending proposals; send progress again after reconnecting.
 
+### Completed achievements
+
+Read `accepts` in status before sending optional capability-gated fields. This
+picker advertises `["achievements"]`. Send `achievements` only when it is listed.
+An achievement part has the normal required report fields and optional `world`,
+but no `skills`, `quests` or `diagnostics`:
+
+```json
+{
+  "v": 1,
+  "seq": 2,
+  "sentAt": "2026-10-19T12:00:01.000Z",
+  "world": { "id": 1, "beta": false },
+  "position": { "x": 50, "z": 50, "floor": 0 },
+  "achievements": {
+    "snapshot": "0123456789abcdef",
+    "part": 1,
+    "parts": 2,
+    "complete": [[354, "Second Shrubbery", 3, -1], [1201, "No Time to Lose", 5, 2]]
+  }
+}
+```
+
+`achievements` has exactly `snapshot`, `part`, `parts` and `complete`. `snapshot`
+is 16 lowercase hexadecimal characters identifying the whole set. `parts` is
+an integer 1–8; `part` is an integer 1–`parts`. Each `complete` row has exactly
+`[id, name, category, subCategory]`. IDs are nonnegative safe integers, sorted
+and unique within each part. Names contain 1–120 characters without controls.
+Category and subcategory are safe integers at least -1. Send an empty set as
+one part with `complete: []`. The **16,384-byte** report limit still applies.
+Unknown fields and invalid parts return 400.
+
+Send parts in order, waiting for a 2xx before sending the next. Part 1 starts
+a new assembly for this player, replacing an unfinished one. The next part
+must have the same snapshot and parts count, with `part = received + 1`.
+Repeating a received part does nothing. Other out-of-order parts return 200 and
+are ignored. Use the response's `achievements` to resume or restart. Multiple
+keys for one player share the assembly. The picker processes a complete set
+once. Repeating a completed snapshot does not tick again, even after Undo.
+A new snapshot can apply new progress. A restart forgets assemblies, processed
+snapshots, summaries and review lists. Only applied ticks and provenance persist.
+
+Matching uses the quest Unicode, case and punctuation normalization. Only Diary
+tasks with an exact raw label `~|Family#Group|~ Achievement name` participate.
+The retained task identity supplies this raw label when its display label has
+been flattened. Other Diary labels stay unmatched. Unmatched achievements are
+counted and ignored. Already completed tasks stay unchanged.
+
+Exactly one matching task becomes an automatic tick only if **every part**
+explicitly reports `world.beta: false`. Several tasks sharing a name are always
+unclear. Beta-world and missing-world matches also wait for review. A failed
+automatic command leaves its candidates in review. No report failure is caused
+by a failed automatic tick.
+
+Automatic ticks use one revision-checked `apply-game-progress` command per batch,
+with `source: "game-plugin"` in History and the owner in `command.memberId`.
+Each tick stores its achievement title, in-game ID, source, fetched timestamp
+and member ID in `member.achievementProgress`. Completed shows “ticked by the
+game”. Normal Undo reverses the whole batch and removes its provenance.
+
+The existing proposal preview includes an `achievements` section with
+`achievementId`, `title`, `candidates` (`taskId`, `label`) and `reason` (`unclear`,
+`beta`, `world-unknown` or `retry`). At most **200 rows** are retained for review;
+`achievementsMore` counts additional rows. Choose a candidate task or leave a
+row skipped. Apply accepts optional `achievements: [{achievementId, taskId}]`
+beside `previewId` and `expectedRevision`. Only reviewed candidates are accepted;
+each achievement and task can be chosen once. Only the player or an administrator
+can Apply or Dismiss. Apply records one undoable batch; skipped and omitted rows
+are discarded with the review. A changed achievement set can create another review.
+
+The Game plugin dialog shows each player's current part count, last complete
+achievement count, matched task count and last automatic batch's count and time.
+These summaries are in memory only and visible with that player's keys.
+
 ## GET /api/plugin/v1/status
 
 No body or query parameters. Report and status return the same exact shape:
@@ -91,6 +166,8 @@ No body or query parameters. Report and status return the same exact shape:
 {
   "v": 1,
   "player": { "id": "player1", "name": "Explorer 1" },
+  "accepts": ["achievements"],
+  "achievements": { "snapshot": "0123456789abcdef", "received": 1, "parts": 2 },
   "chunkId": "12850",
   "chunkName": "Lumbridge",
   "state": "unlocked",
@@ -120,7 +197,14 @@ is the length of the in-game task list (below) once the plugin has read it at
 the current save revision, and null otherwise. Status caches saved ownership
 per revision, reuses an existing roll pool when present, and never runs the
 task engine. `pendingProgress` means a proposal is waiting for
-review, including proposals containing only unmatched/informational quests.
+review, including proposals containing only unmatched/informational quests or
+achievement matches.
+
+`accepts` is exactly `["achievements"]`. `achievements` is null before this
+player starts an assembly; otherwise it has exactly `snapshot`, `received` and
+`parts`. `received` counts accepted parts, from 1 to `parts`, and equals `parts`
+once complete. This field describes assembly only; it contains no task or
+achievement names. Report and status responses use the same fields.
 
 `nearby` lists the 5×5 block of map squares centred on the reported position,
 so the plugin can shade neighbouring chunks. It is null whenever `chunkId` is

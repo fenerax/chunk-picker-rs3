@@ -13,6 +13,21 @@ const model = (saved, result, memberId = 'actor1', now = '2026-10-09T12:00:00Z')
 const statusEvent = (revision, memberId, taskId, challengeCompleted, extra = {}) => ({ id: `revision-${revision}`, revision,
   type: 'set-task-status', at: `2026-10-0${revision}T12:00:00Z`, command: { memberId, taskId, challengeCompleted }, ...extra });
 
+test('achievement provenance marks personal game completions without inventing completion dates', () => {
+  const row = task('achievement', 'Achievement task'), saved = state([row], [member('actor1', 'Player', {
+    completedTasks: ['achievement'],
+    achievementProgress: { achievement: { title: 'Achievement task', achievementId: 42, source: 'game-plugin', memberId: 'actor1', fetchedAt: '2026-10-08T12:00:00Z' } },
+  })], { history: [{ type: 'apply-game-progress', at: '2026-10-08T12:01:00Z', command: { memberId: 'actor1', achievements: [{ taskId: 'achievement', achievementId: 42, title: 'Achievement task' }] } }] });
+  const ledger = model(saved, { tasks: [row] }), completion = ledger.rows[0].completions[0];
+  assert.equal(completion.kind, 'game'); assert.equal(completion.source, 'game-plugin'); assert.equal(completion.achievementId, 42);
+  assert.equal(completion.at, null); assert.equal(ledger.rows[0].facts.actual, true);
+  assert.equal(filterCompletedRows(ledger.rows, { attribution: 'game-plugin' }).length, 1);
+  saved.members[0].achievementProgress.achievement.memberId = 'someone-else';
+  assert.equal(model(saved, { tasks: [row] }).rows[0].completions[0].source, undefined);
+  saved.members[0].completedTasks = [];
+  assert.equal(model(saved, { tasks: [row] }).rows.length, 0);
+});
+
 test('shared completion lists exact who and when without changing either player', () => {
   const row = task('mine', 'Mine ore'), saved = state([row], [member('actor1', 'Player'), member('reed', 'Reed', { taskStatus: { mine: { challengeCompleted: true } } })],
     { history: [statusEvent(8, 'reed', 'mine', true)] });

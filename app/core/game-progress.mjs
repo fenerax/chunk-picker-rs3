@@ -73,3 +73,11 @@ export function validateQuestProgress(taskId, value, tasks, memberId) {
   if (!tasks.has(taskId)) throw new TypeError(`Quest progress references absent task: ${taskId}`);
   if (String(tasks.get(taskId).category).toLowerCase() !== 'quest') throw new TypeError(`${value.source === 'game-plugin' ? 'Game plugin' : 'RuneMetrics'} quest progress requires a quest task: ${taskId}`);
 }
+
+export function validateAchievementProgress(taskId, value, tasks, memberId) {
+  validateGamePluginProvenance(value, memberId, ['title', 'achievementId', 'source', 'fetchedAt', 'memberId'], 'achievement progress');
+  if (typeof value.title !== 'string' || !value.title.trim() || value.title.length > 120 || /[\x00-\x1f\x7f-\x9f]/.test(value.title)) throw new TypeError('Achievement progress title must contain 1 through 120 characters without controls');
+  if (!Number.isSafeInteger(value.achievementId) || value.achievementId < 0) throw new TypeError('Achievement progress achievementId must be a nonnegative safe integer');
+  if (!tasks.has(taskId)) throw new TypeError(`Achievement progress references absent task: ${taskId}`);
+  if (String(tasks.get(taskId).category).toLowerCase() !== 'diary') throw new TypeError(`Game plugin achievement progress requires a Diary task: ${taskId}`);
+}

@@ -133,7 +133,7 @@ export function describeHistoryEvent(event = {}, { memberName = id => id, chunkN
     case 'set-skill-levels': return `Set ${c.skill ? `${c.skill} ` : ''}levels${forWho}`;
     case 'set-runescape-name': return `Set the RuneScape name${forWho}`;
     case 'apply-runemetrics': return `Synced skills and quests from RuneMetrics${forWho}`;
-    case 'apply-game-progress': return `Applied skills and quests from the game plugin${forWho}`;
+    case 'apply-game-progress': return `Applied ${c.achievements?.length ? 'skills, quests and achievements' : 'skills and quests'} from the game plugin${forWho}`;
     case 'set-xp-choices': return `Changed XP choices for ${savedTask()}${forWho}`;
     case 'sync-original': return `Synced from the original picker${(c.members ?? []).length ? ` for ${c.members.map(m => player(m.memberId)).join(' and ')}` : ''}`;
     case 'replace-member': return `Restored ${who || 'a player'}’s map from a backup`;

@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { RUNE_METRICS_SKILLS, normalizeQuestTitle, QUEST_TITLE_ALIASES } from './runemetrics.mjs';
 import { validateRuneMetricsTimestamp, validateObservedSkill } from '../core/game-progress.mjs';
+import { lookupPermanentId } from '../tasks/identity.mjs';
 
 const fail = message => { throw Object.assign(new TypeError(message), { status: 400 }); };
 export function fields(value, allowed, label) {
@@ -13,7 +14,23 @@ skillNames.set('RUNECRAFT', 'Runecrafting');
 skillNames.set('HITPOINTS', 'Constitution');
 
 export function validatePluginReport(body) {
-  fields(body, ['v', 'seq', 'sentAt', 'world', 'position', 'skills', 'quests', 'diagnostics'], 'report');
+  fields(body, ['v', 'seq', 'sentAt', 'world', 'position', 'skills', 'quests', 'diagnostics', 'achievements'], 'report');
+  if (body.achievements !== undefined) {
+    const value = body.achievements;
+    fields(value, ['snapshot', 'part', 'parts', 'complete'], 'achievements');
+    if (['skills', 'quests', 'diagnostics'].some(key => body[key] !== undefined)) fail('Send achievement parts separately from skills, quests and diagnostics.');
+    if (typeof value.snapshot !== 'string' || !/^[a-f0-9]{16}$/.test(value.snapshot)
+      || !Number.isInteger(value.parts) || value.parts < 1 || value.parts > 8
+      || !Number.isInteger(value.part) || value.part < 1 || value.part > value.parts
+      || !Array.isArray(value.complete)) fail('Achievements needs a snapshot, part, parts from 1 to 8 and a complete array.');
+    let previous = -1;
+    for (const row of value.complete) {
+      if (!Array.isArray(row) || row.length !== 4 || !Number.isSafeInteger(row[0]) || row[0] < 0 || row[0] <= previous
+        || typeof row[1] !== 'string' || row[1].length < 1 || row[1].length > 120 || /[\x00-\x1f\x7f-\x9f]/.test(row[1])
+        || !Number.isSafeInteger(row[2]) || row[2] < -1 || !Number.isSafeInteger(row[3]) || row[3] < -1) fail('Achievement rows need sorted unique IDs, a name of 1 to 120 characters without controls, and integer categories at least -1.');
+      previous = row[0];
+    }
+  }
   // Diagnostics are the plugin's own status lines, shown only to this player and admins.
   if (body.diagnostics !== undefined && (!Array.isArray(body.diagnostics) || body.diagnostics.length > 80
     || body.diagnostics.some(line => typeof line !== 'string' || line.length > 160 || /[\x00-\x1f\x7f]/.test(line)))) fail('Diagnostics must be at most 80 single lines of up to 160 characters.');
@@ -54,6 +71,38 @@ export function validatePluginReport(body) {
   return { ...body, skills: body.skills === undefined ? undefined : skills };
 }
 
+// Saved display labels flatten wiki links. Only retained raw labels with the
+// explicit family/group syntax identify an achievement; never guess a suffix.
+export function matchPluginAchievements(state, memberId, rows) {
+  const member = state.members.find(row => row.id === memberId);
+  if (!member) throw new RangeError('Unknown player.');
+  const mapping = new Map(), completed = new Set(member.completedTasks), matched = new Set();
+  for (const task of state.tasks) {
+    if (task.category !== 'Diary') continue;
+    const raw = task.rawLabel ?? state.identityRegistry?.entries?.[task.id]?.rawLabel ?? lookupPermanentId(task.id)?.rawLabel ?? task.label;
+    const match = typeof raw === 'string' && /^~\|([^|#]+)#([^|#]+)\|~ (.+)$/.exec(raw);
+    if (!match) continue;
+    const key = normalizeQuestTitle(match[3]);
+    if (!key) continue;
+    const candidates = mapping.get(key) ?? [];
+    candidates.push({ taskId: task.id, label: task.label }); mapping.set(key, candidates);
+  }
+  const candidates = [], unclear = [], seen = new Set(); let unmatchedCount = 0;
+  for (const [achievementId, title] of rows) {
+    if (seen.has(achievementId)) continue;
+    seen.add(achievementId);
+    const tasks = mapping.get(normalizeQuestTitle(title)) ?? [];
+    for (const task of tasks) matched.add(task.taskId);
+    if (!tasks.length) { unmatchedCount++; continue; }
+    if (tasks.every(task => completed.has(task.taskId))) continue;
+    const row = { achievementId, title, candidates: tasks };
+    if (tasks.length === 1) candidates.push(row); else unclear.push({ ...row, reason: 'unclear' });
+  }
+  return { candidates, unclear, completeCount: seen.size, matchedTaskCount: matched.size, unmatchedCount };
+}
+
+export const ACHIEVEMENT_REVIEW_LIMIT = 200;
+
 export function pluginProposal(state, memberId, report, questMapping) {
   const member = state.members.find(member => member.id === memberId);
   if (!member) throw new RangeError('Unknown player.');
@@ -72,7 +121,9 @@ export function pluginProposal(state, memberId, report, questMapping) {
     observedQuests.push({ taskId: match.taskId, title: match.title });
     if (!member.completedTasks.includes(match.taskId)) quests.push({ ...match });
   }
+  const achievements = (report.achievementReview ?? []).filter(row => row.candidates.some(task => !member.completedTasks.includes(task.taskId)));
   return { preview: { previewId: randomUUID(), stateRevision: state.revision, memberId, fetchedAt: report.sentAt,
-    world: report.world ?? null, skills, quests, unmatched, startedQuests: report.quests?.started ?? [] },
-  command: { type: 'apply-game-progress', memberId, fetchedAt: report.sentAt, skills: report.skills ?? [], quests: observedQuests } };
+    world: report.world ?? null, skills, quests, unmatched, startedQuests: report.quests?.started ?? [],
+    achievements: achievements.slice(0, ACHIEVEMENT_REVIEW_LIMIT), achievementsMore: report.achievementsMore ?? 0 },
+  command: { type: 'apply-game-progress', memberId, fetchedAt: report.sentAt, skills: report.skills ?? [], quests: observedQuests, achievements: [] } };
 }

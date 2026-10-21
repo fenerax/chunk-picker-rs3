@@ -205,3 +205,31 @@ The staged controller owns persistent front-door freeze, exact process identity,
 phase recovery and release pins. Unknown ownership must keep admission frozen
 with `recovery-required`. The bridge release must include both core and browser
 protocols before automatic live promotion can be enabled.
+
+
+## Game plugin achievement provenance
+
+Schema 1 optionally stores `member.achievementProgress`, a dictionary keyed by
+an existing Diary task ID. Each value has exactly `title`, `achievementId`,
+`source: "game-plugin"`, `fetchedAt`, and `memberId`. The title contains 1–120
+characters, is not whitespace-only, and contains no control characters. The
+achievement ID is a nonnegative safe integer; `fetchedAt` is a valid ISO UTC
+timestamp and `memberId` matches the owning player. RuneMetrics provenance is
+not accepted for achievements.
+
+`apply-game-progress` accepts an optional `achievements` array of
+`{taskId, title, achievementId}` entries alongside its `skills` and `quests`
+arrays, which may be empty. Omitting achievements is equivalent to an empty
+array. Unknown fields, duplicate task IDs, absent tasks and non-Diary tasks are
+rejected before any progress applies. New achievement ticks add the task to
+`completedTasks` and record provenance in the same History/Undo batch as skills
+and quests. Each new game plugin History event also records `source: "game-plugin"`,
+with its owner in `command.memberId`; older events may omit the source field.
+Already completed tasks retain their existing provenance, including
+an absent provenance entry for a manual tick. Undo, task deletion, restore
+previews and portable backups include achievement provenance. Manual unticks
+clear the matching provenance, and Undo restores it; a subsequent manual tick
+does not inherit a previous game observation.
+
+The field remains absent until a new achievement tick is applied. Loading or
+round-tripping an older save does not add it or change the schema version.

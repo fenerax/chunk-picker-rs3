@@ -72,6 +72,17 @@ test('completed panel filters tasks and switches player without changing the act
   h.member('reed'); await h.panel.open(); await flush(); assert.equal(h.find('button', 'Reed').attributes['aria-pressed'], 'true');
 });
 
+test('game achievement completions show a small provenance marker', async () => {
+  const row = task('custom:achievement', 'Finished achievement'), h = harness([row]);
+  h.state.members[0].completedTasks = [row.id];
+  h.state.members[0].achievementProgress = { [row.id]: { achievementId: 42, title: row.label, source: 'game-plugin', memberId: 'actor1', fetchedAt: '2026-10-08T12:00:00Z' } };
+  await h.panel.open(); await flush();
+  assert.match(h.rows()[0].textContent, /ticked by the game/);
+  const marker = h.all().find(node => node.textContent === 'ticked by the game'); assert.equal(marker.className, 'completed-task-meta');
+  assert.equal(h.control('Untick Finished achievement for Player'), undefined);
+  await h.click('Done in-game (Game plugin)'); assert.equal(h.rows().length, 1);
+});
+
 test('untick asks inline confirmation and sends the completion owner and source task ID', async () => {
   const own = task('custom:oak', 'Chop oak logs'); const h = harness([own]); h.state.members[1].taskStatus[own.id] = { challengeCompleted: true };
   await h.panel.open(); await flush(); await h.click('Untick Chop oak logs for Reed');

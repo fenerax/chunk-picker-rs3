@@ -95,6 +95,12 @@ const coverage = [
 
 
 
+test('achievement History names the batch and its player', () => {
+  const event = { type: 'apply-game-progress', command: { memberId: 'synthetic', achievements: [{ taskId: 'diary:synthetic', title: 'Synthetic Task', achievementId: 1 }] } };
+  assert.equal(describeHistoryEvent(event, { memberName: () => 'Explorer 1' }), 'Applied skills, quests and achievements from the game plugin for Explorer 1');
+  assert.equal(historyChangeType(event), 'progress');
+});
+
 test('legacy task names remain readable while unresolved technical identifiers stay generic', () => {
   const describe = taskId => describeHistoryEvent({ type: 'claim-task', actor: { label: 'Reed' }, command: { taskId } });
   assert.equal(describe('Dragon Slayer'), 'Reed started “Dragon Slayer”');
