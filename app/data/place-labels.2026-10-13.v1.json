@@ -1,0 +1,8951 @@
+{
+  "schemaVersion": 1,
+  "id": "place-labels:2026-10-13:v1",
+  "generatedAt": "2026-10-13",
+  "provenance": {
+    "sourceSnapshot": "places-2026-10-08-v3",
+    "sourceGeneratedAt": "2026-10-08T02:15:00.214Z",
+    "sourceFiles": [
+      {
+        "file": "places.v1.json",
+        "bytes": 4030098,
+        "sha256": "dc88b9e37f0d638f9b63976bb358b76e7967e64e390d8310a12299abe8ce5312"
+      },
+      {
+        "file": "manifest.v1.json",
+        "bytes": 606162,
+        "sha256": "7490129db3061c2357e4785c7f30940efcb2110964d9061f36d8094aaa1e0d25"
+      }
+    ],
+    "decoder": {
+      "repository": "https://github.com/skillbert/rsmv",
+      "commit": "a92b8920b9b9842adde78822646ecad1a6f4fc15",
+      "buildSchema": 950,
+      "buildStatus": "inferred schema version; not independently verified game client build",
+      "sourceHashes": {
+        "constants": "1436162d7de64725f3b5902d1ae278f40e2dce5ab1f82439e62a2a832d82c66b",
+        "opcode": "5fd7b69a0be0a5d4ec71b5465afcfd5812e8dbcc05f859e021ca8c17d85ed6e4"
+      },
+      "schemaHashes": {
+        "typedef.jsonc": "0d4037507c304ea3bd1e966a161dc1643115c0991e81711bf49d672545dc6858",
+        "cacheindex.json": "b65b2f60dba6168134f6ae5c90d5504dcf26f276477bd2aff213c6734293f793",
+        "mapsquare_tiles.jsonc": "64deb140845bf6605456da65b2de56e7766a66f4747fc90f43e7f3fcc95afbdd",
+        "mapsquare_tiles_nxt.jsonc": "0199a97ae17a56b5a4f05b5962fd80788e86807ceff1256d023a2e650f43be56",
+        "mapsquare_locations.json": "41867d05f7f9456c54f2eedda9a977734b99e33736b89c2cece1eb618a99b308",
+        "locs.jsonc": "fbd5f1d646341a716e1c3c4b41a112727e62922290b44300e69ba8e2aa70c51f",
+        "npcs.jsonc": "1b3b3ffa02e325c0aecafb7d7b22ff7256f11494ab37685115cfd795b0fa4af2",
+        "maplabels.jsonc": "e3bd3e0d827f48ddbb1470e2959c51da23624a4e0fdfc145fa37d62bce780d63",
+        "maplabellocations.jsonc": "5b95af45643e545ca75c9bc4f2d942c033b994a01a00e243d93c36e49372e342",
+        "mapzones_pastes.json": "30f83ad60a5e372e1644627aa234eeca22bbd8e1ece36c44e87a0229f20e40fa",
+        "mapzones.json": "8ba12ea64687bf7376978682ca35688adf1d05a9dca221073dc79f5060f15b29",
+        "mapsquare_overlays.jsonc": "ebf509b0cfeba3288750e40b2049ccd25a210170e54fad7fb387619043954d62",
+        "mapsquare_underlays.jsonc": "2b2f0db789c666d40d85a9764aa4e3ecb9b36bd8f0cacf89e3024180b76b5478",
+        "structs.jsonc": "bf73399b40d9ebffb6f7beb5cab9c7b091724e6bcae0c5f76f61802a081d9870",
+        "enums.json": "860ee65ad6cd215960981695e8148de18564464f4375e27eb6b308fbad6c909d",
+        "params.jsonc": "a8ac70f87c66b79fa5ef3455d41c38434fa0a85cf78ea99b8a736ddc1aecc4dd"
+      },
+      "footerValidation": "bounds and complete consumption required",
+      "executableInterpreterSha256": "ec7fa2cc9ab635bf2ef629f1fa8b77b6f32a97be1aaf4e26970ab2337e58bf16"
+    },
+    "cacheSources": [
+      {
+        "major": 2,
+        "file": "js5-2.jcache",
+        "bytes": 2195456,
+        "sha256": "a549a8c19598964dd3e5479ff6bb40056df6456c9e89a7c23a887eb24cabcb75",
+        "indexTimestamp": 1790931935,
+        "declaredArchives": 39,
+        "presentArchives": 39
+      },
+      {
+        "major": 23,
+        "file": "js5-23.jcache",
+        "bytes": 7774208,
+        "sha256": "fdafdd4bc670081f1f872eb51827ecfa11c6946d5dc6c22a67805ec104df51e3",
+        "indexTimestamp": 1790278391,
+        "declaredArchives": 5,
+        "presentArchives": 5
+      },
+      {
+        "major": 42,
+        "file": "js5-42.jcache",
+        "bytes": 40960,
+        "sha256": "52c8cd3138106387b346b165a33547463c8363771e00485db1e030e95c6523cc",
+        "indexTimestamp": 1790927052,
+        "declaredArchives": 142,
+        "presentArchives": 142
+      }
+    ],
+    "archives": [
+      {
+        "major": 2,
+        "minor": 36,
+        "sha256": "f2a82537fef5ef76c30334bbe850761977901ce65738d92a97ce7694b73e041a",
+        "hashScope": "decompressed archive",
+        "version": 1790010469
+      },
+      {
+        "major": 23,
+        "minor": 0,
+        "sha256": "582cc468aac2f1f82c3e2d7f02a8ddbe6d08440a81589b0c30d8e8efa3d8ae27",
+        "hashScope": "decompressed archive",
+        "version": 1790010912
+      },
+      {
+        "major": 23,
+        "minor": 1,
+        "sha256": "d45eb4770b9f497835999cded527ba9086cfa9e66fbfe07306ff49a7cf2e5082",
+        "hashScope": "decompressed archive",
+        "version": 1790063471
+      },
+      {
+        "major": 42,
+        "minor": 28,
+        "sha256": "3bc7093239eb1096b86e9284e45777c7d11db34d4d094ffc432ec533dedb0ae1",
+        "hashScope": "decompressed archive",
+        "version": 1790927052
+      }
+    ],
+    "exporter": "scripts/export-place-labels.mjs"
+  },
+  "coordinateSystem": {
+    "mapId": 28,
+    "plane": 0,
+    "units": "display tiles",
+    "crop": {
+      "minX": 1856,
+      "maxX": 4864,
+      "minY": 1408,
+      "maxY": 4608
+    },
+    "projection": "gridX=(x-1856)/64; gridY=(4608-y)/64; north is up"
+  },
+  "method": "All nonempty map-28 plane-0 text anchors within the picker crop. Exact cache paste translations and raw resolved text are retained. Cache font sizes 2, 1, 0 become visual region, town, place levels with priorities 300, 200, 100.",
+  "limits": [
+    "Labels are display anchors, not town boundaries, gameplay access, or transport destinations.",
+    "Levels follow cache typography; town also includes some mountains, swamps and regional features.",
+    "Conditional and duplicate label variants remain available; no personal varbit state is inferred.",
+    "Static copied-cache snapshot from October 2026; inferred schema build is not independently verified."
+  ],
+  "summary": {
+    "labels": 312,
+    "regions": 262,
+    "levels": {
+      "region": 28,
+      "town": 58,
+      "place": 226
+    },
+    "conditionalLabels": 8
+  },
+  "labels": [
+    {
+      "id": "cache-label:28:1:3225",
+      "name": "Anachronia",
+      "x": 3997,
+      "y": 4299,
+      "level": "region",
+      "priority": 300,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "15939",
+      "elementId": 3225,
+      "fontSize": 2,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 1,
+        "x": 5533,
+        "y": 2379,
+        "plane": 0
+      },
+      "transform": {
+        "x": -1536,
+        "y": 1920,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:709:3788",
+      "name": "Whale's Maw",
+      "x": 4002,
+      "y": 2143,
+      "level": "region",
+      "priority": 300,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "15905",
+      "elementId": 3788,
+      "fontSize": 2,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 709,
+        "x": 2018,
+        "y": 11807,
+        "plane": 0
+      },
+      "transform": {
+        "x": 1984,
+        "y": -9664,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:710:3789",
+      "name": "Aminishi",
+      "x": 4075,
+      "y": 1648,
+      "level": "region",
+      "priority": 300,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "16153",
+      "elementId": 3789,
+      "fontSize": 2,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 710,
+        "x": 2091,
+        "y": 11312,
+        "plane": 0
+      },
+      "transform": {
+        "x": 1984,
+        "y": -9664,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:711:3790",
+      "name": "Waiko",
+      "x": 3876,
+      "y": 1948,
+      "level": "region",
+      "priority": 300,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "15390",
+      "elementId": 3790,
+      "fontSize": 2,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 711,
+        "x": 1892,
+        "y": 11612,
+        "plane": 0
+      },
+      "transform": {
+        "x": 1984,
+        "y": -9664,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:712:3799",
+      "name": "Tuai Leit",
+      "x": 3796,
+      "y": 2271,
+      "level": "region",
+      "priority": 300,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "15139",
+      "elementId": 3799,
+      "fontSize": 2,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 712,
+        "x": 1812,
+        "y": 11935,
+        "plane": 0
+      },
+      "transform": {
+        "x": 1984,
+        "y": -9664,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:713:3800",
+      "name": "The Islands That Once Were Turtles",
+      "x": 4171,
+      "y": 1796,
+      "level": "region",
+      "priority": 300,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "16668",
+      "elementId": 3800,
+      "fontSize": 2,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 713,
+        "x": 2187,
+        "y": 11460,
+        "plane": 0
+      },
+      "transform": {
+        "x": 1984,
+        "y": -9664,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:714:3801",
+      "name": "Goshima",
+      "x": 4464,
+      "y": 1900,
+      "level": "region",
+      "priority": 300,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "17693",
+      "elementId": 3801,
+      "fontSize": 2,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 714,
+        "x": 2480,
+        "y": 11564,
+        "plane": 0
+      },
+      "transform": {
+        "x": 1984,
+        "y": -9664,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:715:3802",
+      "name": "Cyclosis",
+      "x": 4290,
+      "y": 1566,
+      "level": "region",
+      "priority": 300,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "17176",
+      "elementId": 3802,
+      "fontSize": 2,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 715,
+        "x": 2306,
+        "y": 11230,
+        "plane": 0
+      },
+      "transform": {
+        "x": 1984,
+        "y": -9664,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:718:84",
+      "name": "Kingdom of Misthalin",
+      "x": 3217,
+      "y": 3321,
+      "level": "region",
+      "priority": 300,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "12851",
+      "elementId": 84,
+      "fontSize": 2,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 718,
+        "x": 3217,
+        "y": 3321,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:726:94",
+      "name": "Karamja",
+      "x": 2860,
+      "y": 3059,
+      "level": "region",
+      "priority": 300,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "11311",
+      "elementId": 94,
+      "fontSize": 2,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 726,
+        "x": 2860,
+        "y": 3059,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:727:95",
+      "name": "Crandor",
+      "x": 2839,
+      "y": 3271,
+      "level": "region",
+      "priority": 300,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "11315",
+      "elementId": 95,
+      "fontSize": 2,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 727,
+        "x": 2839,
+        "y": 3271,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:728:96",
+      "name": "Entrana",
+      "x": 2850,
+      "y": 3379,
+      "level": "region",
+      "priority": 300,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "11316",
+      "elementId": 96,
+      "fontSize": 2,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 728,
+        "x": 2850,
+        "y": 3379,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:749:116",
+      "name": "Kingdom of Asgarnia",
+      "x": 2980,
+      "y": 3425,
+      "level": "region",
+      "priority": 300,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "11829",
+      "elementId": 116,
+      "fontSize": 2,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 749,
+        "x": 2980,
+        "y": 3425,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:772:136",
+      "name": "Wilderness",
+      "x": 3144,
+      "y": 3773,
+      "level": "region",
+      "priority": 300,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "12602",
+      "elementId": 136,
+      "fontSize": 2,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 772,
+        "x": 3144,
+        "y": 3773,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:801:163",
+      "name": "Kingdom of Kandarin",
+      "x": 2578,
+      "y": 3443,
+      "level": "region",
+      "priority": 300,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "10293",
+      "elementId": 163,
+      "fontSize": 2,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 801,
+        "x": 2578,
+        "y": 3443,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:823:184",
+      "name": "Feldip Hills",
+      "x": 2566,
+      "y": 2985,
+      "level": "region",
+      "priority": 300,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "10286",
+      "elementId": 184,
+      "fontSize": 2,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 823,
+        "x": 2566,
+        "y": 2985,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:825:186",
+      "name": "Morytania",
+      "x": 3469,
+      "y": 3443,
+      "level": "region",
+      "priority": 300,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "13877",
+      "elementId": 186,
+      "fontSize": 2,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 825,
+        "x": 3469,
+        "y": 3443,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:835:195",
+      "name": "Tirannwn",
+      "x": 2241,
+      "y": 3220,
+      "level": "region",
+      "priority": 300,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "9010",
+      "elementId": 195,
+      "fontSize": 2,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 835,
+        "x": 2241,
+        "y": 3220,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:853:214",
+      "name": "Miscellania",
+      "x": 2545,
+      "y": 3879,
+      "level": "region",
+      "priority": 300,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "10044",
+      "elementId": 214,
+      "fontSize": 2,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 853,
+        "x": 2545,
+        "y": 3879,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:855:216",
+      "name": "Ape Atoll",
+      "x": 2755,
+      "y": 2755,
+      "level": "region",
+      "priority": 300,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "11051",
+      "elementId": 216,
+      "fontSize": 2,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 855,
+        "x": 2755,
+        "y": 2755,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:882:235",
+      "name": "Kharidian Desert",
+      "x": 3263,
+      "y": 2957,
+      "level": "region",
+      "priority": 300,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "12846",
+      "elementId": 235,
+      "fontSize": 2,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 882,
+        "x": 3263,
+        "y": 2957,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:903:256",
+      "name": "Lunar Isle",
+      "x": 2141,
+      "y": 3877,
+      "level": "region",
+      "priority": 300,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "8508",
+      "elementId": 256,
+      "fontSize": 2,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 903,
+        "x": 2141,
+        "y": 3877,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:921:273",
+      "name": "Fremennik Isles",
+      "x": 2367,
+      "y": 3879,
+      "level": "region",
+      "priority": 300,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "9276",
+      "elementId": 273,
+      "fontSize": 2,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 921,
+        "x": 2367,
+        "y": 3879,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:948:664",
+      "name": "Ashdale",
+      "x": 2492,
+      "y": 2684,
+      "level": "region",
+      "priority": 300,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "9769",
+      "elementId": 664,
+      "fontSize": 2,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 948,
+        "x": 2492,
+        "y": 9084,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": -6400,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:966:5385",
+      "name": "Ungael",
+      "x": 2345,
+      "y": 4057,
+      "level": "region",
+      "priority": 300,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "9279",
+      "elementId": 5385,
+      "fontSize": 2,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 966,
+        "x": 2345,
+        "y": 4057,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:968:5667",
+      "name": "Havenhythe",
+      "x": 4337,
+      "y": 3311,
+      "level": "region",
+      "priority": 300,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "17203",
+      "elementId": 5667,
+      "fontSize": 2,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 968,
+        "x": 3633,
+        "y": 1519,
+        "plane": 0
+      },
+      "transform": {
+        "x": 704,
+        "y": 1792,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:978:5668",
+      "name": "The Arc",
+      "x": 4199,
+      "y": 1945,
+      "level": "region",
+      "priority": 300,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "16670",
+      "elementId": 5668,
+      "fontSize": 2,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 978,
+        "x": 2215,
+        "y": 11609,
+        "plane": 0
+      },
+      "transform": {
+        "x": 1984,
+        "y": -9664,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:1073:3985",
+      "name": "The Lost Grove",
+      "x": 1953,
+      "y": 3169,
+      "level": "region",
+      "priority": 300,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "7729",
+      "elementId": 3985,
+      "fontSize": 2,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 1073,
+        "x": 1377,
+        "y": 5665,
+        "plane": 0
+      },
+      "transform": {
+        "x": 576,
+        "y": -2496,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:716:82",
+      "name": "Lumbridge",
+      "x": 3227,
+      "y": 3242,
+      "level": "town",
+      "priority": 200,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "12850",
+      "elementId": 82,
+      "fontSize": 1,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 716,
+        "x": 3227,
+        "y": 3242,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:717:83",
+      "name": "Varrock",
+      "x": 3211,
+      "y": 3450,
+      "level": "town",
+      "priority": 200,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "12853",
+      "elementId": 83,
+      "fontSize": 1,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 717,
+        "x": 3211,
+        "y": 3450,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:719:85",
+      "name": "Al Kharid",
+      "x": 3297,
+      "y": 3150,
+      "level": "town",
+      "priority": 200,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "13105",
+      "elementId": 85,
+      "fontSize": 1,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 719,
+        "x": 3297,
+        "y": 3150,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:720:86",
+      "name": "Het's Oasis",
+      "x": 3361,
+      "y": 3233,
+      "level": "town",
+      "priority": 200,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "13362",
+      "elementId": 86,
+      "fontSize": 1,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 720,
+        "x": 3361,
+        "y": 3233,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:722:90",
+      "name": "Port Sarim",
+      "x": 3047,
+      "y": 3221,
+      "level": "town",
+      "priority": 200,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "12082",
+      "elementId": 90,
+      "fontSize": 1,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 722,
+        "x": 3047,
+        "y": 3221,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:723:91",
+      "name": "Falador",
+      "x": 2989,
+      "y": 3355,
+      "level": "town",
+      "priority": 200,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "11828",
+      "elementId": 91,
+      "fontSize": 1,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 723,
+        "x": 2989,
+        "y": 3355,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:724:92",
+      "name": "Edgeville",
+      "x": 3098,
+      "y": 3488,
+      "level": "town",
+      "priority": 200,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "12342",
+      "elementId": 92,
+      "fontSize": 1,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 724,
+        "x": 3098,
+        "y": 3488,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:725:93",
+      "name": "Brimhaven",
+      "x": 2779,
+      "y": 3174,
+      "level": "town",
+      "priority": 200,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "11057",
+      "elementId": 93,
+      "fontSize": 1,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 725,
+        "x": 2779,
+        "y": 3174,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:729:97",
+      "name": "Draynor Village",
+      "x": 3120,
+      "y": 3267,
+      "level": "town",
+      "priority": 200,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "12339",
+      "elementId": 97,
+      "fontSize": 1,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 729,
+        "x": 3120,
+        "y": 3267,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:732:100",
+      "name": "Draynor Manor",
+      "x": 3108,
+      "y": 3345,
+      "level": "town",
+      "priority": 200,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "12340",
+      "elementId": 100,
+      "fontSize": 1,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 732,
+        "x": 3108,
+        "y": 3345,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:737:5257",
+      "name": "Fort Forinthry",
+      "x": 3304,
+      "y": 3555,
+      "level": "town",
+      "priority": 200,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "13111",
+      "elementId": 5257,
+      "fontSize": 1,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 737,
+        "x": 3304,
+        "y": 3555,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:744:111",
+      "name": "Ice Mountain",
+      "x": 3009,
+      "y": 3487,
+      "level": "town",
+      "priority": 200,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "12086",
+      "elementId": 111,
+      "fontSize": 1,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 744,
+        "x": 3009,
+        "y": 3487,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:760:125",
+      "name": "Shilo Village",
+      "x": 2849,
+      "y": 2986,
+      "level": "town",
+      "priority": 200,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "11310",
+      "elementId": 125,
+      "fontSize": 1,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 760,
+        "x": 2849,
+        "y": 2986,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:786:148",
+      "name": "Taverley",
+      "x": 2907,
+      "y": 3460,
+      "level": "town",
+      "priority": 200,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "11574",
+      "elementId": 148,
+      "fontSize": 1,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 786,
+        "x": 2907,
+        "y": 3460,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:787:149",
+      "name": "White Wolf Mountain",
+      "x": 2830,
+      "y": 3503,
+      "level": "town",
+      "priority": 200,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "11318",
+      "elementId": 149,
+      "fontSize": 1,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 787,
+        "x": 2830,
+        "y": 3503,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:790:152",
+      "name": "Seers' Village",
+      "x": 2692,
+      "y": 3489,
+      "level": "town",
+      "priority": 200,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "10806",
+      "elementId": 152,
+      "fontSize": 1,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 790,
+        "x": 2692,
+        "y": 3489,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:802:164",
+      "name": "East Ardougne",
+      "x": 2597,
+      "y": 3298,
+      "level": "town",
+      "priority": 200,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "10291",
+      "elementId": 164,
+      "fontSize": 1,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 802,
+        "x": 2597,
+        "y": 3298,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:803:165",
+      "name": "West Ardougne",
+      "x": 2524,
+      "y": 3308,
+      "level": "town",
+      "priority": 200,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "10035",
+      "elementId": 165,
+      "fontSize": 1,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 803,
+        "x": 2524,
+        "y": 3308,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:806:168",
+      "name": "Tree Gnome Stronghold",
+      "x": 2441,
+      "y": 3469,
+      "level": "town",
+      "priority": 200,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "9782",
+      "elementId": 168,
+      "fontSize": 1,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 806,
+        "x": 2441,
+        "y": 3469,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:817:178",
+      "name": "Port Khazard",
+      "x": 2659,
+      "y": 3189,
+      "level": "town",
+      "priority": 200,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "10545",
+      "elementId": 178,
+      "fontSize": 1,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 817,
+        "x": 2659,
+        "y": 3189,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:818:179",
+      "name": "Yanille",
+      "x": 2549,
+      "y": 3091,
+      "level": "town",
+      "priority": 200,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "10032",
+      "elementId": 179,
+      "fontSize": 1,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 818,
+        "x": 2549,
+        "y": 3091,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:826:187",
+      "name": "Mort Myre Swamp",
+      "x": 3439,
+      "y": 3383,
+      "level": "town",
+      "priority": 200,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "13620",
+      "elementId": 187,
+      "fontSize": 1,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 826,
+        "x": 3439,
+        "y": 3383,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:827:188",
+      "name": "Canifis",
+      "x": 3491,
+      "y": 3487,
+      "level": "town",
+      "priority": 200,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "13878",
+      "elementId": 188,
+      "fontSize": 1,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 827,
+        "x": 3491,
+        "y": 3487,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:832:193",
+      "name": "Burthorpe",
+      "x": 2923,
+      "y": 3542,
+      "level": "town",
+      "priority": 200,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "11575",
+      "elementId": 193,
+      "fontSize": 1,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 832,
+        "x": 2923,
+        "y": 3542,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:836:196",
+      "name": "Isafdar",
+      "x": 2243,
+      "y": 3186,
+      "level": "town",
+      "priority": 200,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "9009",
+      "elementId": 196,
+      "fontSize": 1,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 836,
+        "x": 2243,
+        "y": 3186,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:837:197",
+      "name": "Arandar",
+      "x": 2340,
+      "y": 3296,
+      "level": "town",
+      "priority": 200,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "9267",
+      "elementId": 197,
+      "fontSize": 1,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 837,
+        "x": 2340,
+        "y": 3296,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:842:203",
+      "name": "Mort'ton",
+      "x": 3491,
+      "y": 3281,
+      "level": "town",
+      "priority": 200,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "13875",
+      "elementId": 203,
+      "fontSize": 1,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 842,
+        "x": 3491,
+        "y": 3281,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:847:208",
+      "name": "Rellekka",
+      "x": 2672,
+      "y": 3681,
+      "level": "town",
+      "priority": 200,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "10553",
+      "elementId": 208,
+      "fontSize": 1,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 847,
+        "x": 2672,
+        "y": 3681,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:850:211",
+      "name": "Fremennik Province",
+      "x": 2679,
+      "y": 3632,
+      "level": "town",
+      "priority": 200,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "10552",
+      "elementId": 211,
+      "fontSize": 1,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 850,
+        "x": 2679,
+        "y": 3632,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:854:215",
+      "name": "Etceteria",
+      "x": 2609,
+      "y": 3874,
+      "level": "town",
+      "priority": 200,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "10300",
+      "elementId": 215,
+      "fontSize": 1,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 854,
+        "x": 2609,
+        "y": 3874,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:865:226",
+      "name": "Pollnivneach",
+      "x": 3356,
+      "y": 2980,
+      "level": "town",
+      "priority": 200,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "13358",
+      "elementId": 226,
+      "fontSize": 1,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 865,
+        "x": 3356,
+        "y": 2980,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:868:228",
+      "name": "Menaphos",
+      "x": 3187,
+      "y": 2783,
+      "level": "town",
+      "priority": 200,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "12587",
+      "elementId": 228,
+      "fontSize": 1,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 868,
+        "x": 3187,
+        "y": 2783,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:877:229",
+      "name": "Sophanem",
+      "x": 3298,
+      "y": 2783,
+      "level": "town",
+      "priority": 200,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "13099",
+      "elementId": 229,
+      "fontSize": 1,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 877,
+        "x": 3298,
+        "y": 2783,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:879:232",
+      "name": "Port Phasmatys",
+      "x": 3673,
+      "y": 3487,
+      "level": "town",
+      "priority": 200,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "14646",
+      "elementId": 232,
+      "fontSize": 1,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 879,
+        "x": 3673,
+        "y": 3487,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:888:241",
+      "name": "Mage Training Arena",
+      "x": 3363,
+      "y": 3303,
+      "level": "town",
+      "priority": 200,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "13363",
+      "elementId": 241,
+      "fontSize": 1,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 888,
+        "x": 3363,
+        "y": 3303,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:892:245",
+      "name": "Burgh de Rott",
+      "x": 3497,
+      "y": 3219,
+      "level": "town",
+      "priority": 200,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "13874",
+      "elementId": 245,
+      "fontSize": 1,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 892,
+        "x": 3497,
+        "y": 3219,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:896:249",
+      "name": "Mos Le'Harmless",
+      "x": 3725,
+      "y": 3028,
+      "level": "town",
+      "priority": 200,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "14895",
+      "elementId": 249,
+      "fontSize": 1,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 896,
+        "x": 3725,
+        "y": 3028,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:908:261",
+      "name": "Sanguinesti Region",
+      "x": 3647,
+      "y": 3339,
+      "level": "town",
+      "priority": 200,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "14388",
+      "elementId": 261,
+      "fontSize": 1,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 908,
+        "x": 3647,
+        "y": 3339,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:909:262",
+      "name": "Meiyerditch",
+      "x": 3619,
+      "y": 3263,
+      "level": "town",
+      "priority": 200,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "14386",
+      "elementId": 262,
+      "fontSize": 1,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 909,
+        "x": 3619,
+        "y": 3263,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:913:266",
+      "name": "Eagles' Peak",
+      "x": 2337,
+      "y": 3486,
+      "level": "town",
+      "priority": 200,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "9270",
+      "elementId": 266,
+      "fontSize": 1,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 913,
+        "x": 2337,
+        "y": 3486,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:916:269",
+      "name": "Iceberg",
+      "x": 2681,
+      "y": 4045,
+      "level": "town",
+      "priority": 200,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "10559",
+      "elementId": 269,
+      "fontSize": 1,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 916,
+        "x": 2681,
+        "y": 4045,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:919:271",
+      "name": "Neitiznot",
+      "x": 2320,
+      "y": 3821,
+      "level": "town",
+      "priority": 200,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "9275",
+      "elementId": 271,
+      "fontSize": 1,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 919,
+        "x": 2320,
+        "y": 3821,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:920:272",
+      "name": "Jatizso",
+      "x": 2392,
+      "y": 3822,
+      "level": "town",
+      "priority": 200,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "9531",
+      "elementId": 272,
+      "fontSize": 1,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 920,
+        "x": 2392,
+        "y": 3822,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:925:276",
+      "name": "Harmony",
+      "x": 3808,
+      "y": 2863,
+      "level": "town",
+      "priority": 200,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "15148",
+      "elementId": 276,
+      "fontSize": 1,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 925,
+        "x": 3808,
+        "y": 2863,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:934:288",
+      "name": "Soul Wars",
+      "x": 2207,
+      "y": 2955,
+      "level": "town",
+      "priority": 200,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "8750",
+      "elementId": 288,
+      "fontSize": 1,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 934,
+        "x": 1887,
+        "y": 3275,
+        "plane": 0
+      },
+      "transform": {
+        "x": 320,
+        "y": -320,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:940:922",
+      "name": "Daemonheim",
+      "x": 3450,
+      "y": 3712,
+      "level": "town",
+      "priority": 200,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "13626",
+      "elementId": 922,
+      "fontSize": 1,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 940,
+        "x": 3450,
+        "y": 3712,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:949:198",
+      "name": "Prifddinas",
+      "x": 2208,
+      "y": 3360,
+      "level": "town",
+      "priority": 200,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "8756",
+      "elementId": 198,
+      "fontSize": 1,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 949,
+        "x": 4576,
+        "y": 2656,
+        "plane": 0
+      },
+      "transform": {
+        "x": -2368,
+        "y": 704,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:957:3337",
+      "name": "Archaeology Campus",
+      "x": 3360,
+      "y": 3374,
+      "level": "town",
+      "priority": 200,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "13364",
+      "elementId": 3337,
+      "fontSize": 1,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 957,
+        "x": 3360,
+        "y": 3374,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:969:5666",
+      "name": "Wendlewick",
+      "x": 4185,
+      "y": 3348,
+      "level": "town",
+      "priority": 200,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "16692",
+      "elementId": 5666,
+      "fontSize": 1,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 969,
+        "x": 3481,
+        "y": 1556,
+        "plane": 0
+      },
+      "transform": {
+        "x": 704,
+        "y": 1792,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:970:5786",
+      "name": "Amberfell",
+      "x": 4433,
+      "y": 3361,
+      "level": "town",
+      "priority": 200,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "17716",
+      "elementId": 5786,
+      "fontSize": 1,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 970,
+        "x": 3729,
+        "y": 1569,
+        "plane": 0
+      },
+      "transform": {
+        "x": 704,
+        "y": 1792,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:971:5820",
+      "name": "Berylbrook",
+      "x": 4563,
+      "y": 3348,
+      "level": "town",
+      "priority": 200,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "18228",
+      "elementId": 5820,
+      "fontSize": 1,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 971,
+        "x": 3859,
+        "y": 1556,
+        "plane": 0
+      },
+      "transform": {
+        "x": 704,
+        "y": 1792,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:972:5821",
+      "name": "Heathervein",
+      "x": 4570,
+      "y": 3470,
+      "level": "town",
+      "priority": 200,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "18230",
+      "elementId": 5821,
+      "fontSize": 1,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 972,
+        "x": 3866,
+        "y": 1678,
+        "plane": 0
+      },
+      "transform": {
+        "x": 704,
+        "y": 1792,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:973:5822",
+      "name": "Shuruk-Ba",
+      "x": 4747,
+      "y": 3396,
+      "level": "town",
+      "priority": 200,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "18997",
+      "elementId": 5822,
+      "fontSize": 1,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 973,
+        "x": 4043,
+        "y": 1604,
+        "plane": 0
+      },
+      "transform": {
+        "x": 704,
+        "y": 1792,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:976:5825",
+      "name": "Fenmoor",
+      "x": 4625,
+      "y": 3221,
+      "level": "town",
+      "priority": 200,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "18482",
+      "elementId": 5825,
+      "fontSize": 1,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 976,
+        "x": 3921,
+        "y": 1429,
+        "plane": 0
+      },
+      "transform": {
+        "x": 704,
+        "y": 1792,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:977:5826",
+      "name": "Moonsylvar Wood",
+      "x": 4438,
+      "y": 3247,
+      "level": "town",
+      "priority": 200,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "17714",
+      "elementId": 5826,
+      "fontSize": 1,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 977,
+        "x": 3734,
+        "y": 1455,
+        "plane": 0
+      },
+      "transform": {
+        "x": 704,
+        "y": 1792,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:1129:1216",
+      "name": "Start of Carnillean Rising",
+      "x": 2568,
+      "y": 3280,
+      "level": "town",
+      "priority": 200,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "10291",
+      "elementId": 1216,
+      "fontSize": 1,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 1129,
+        "x": 2568,
+        "y": 3280,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": [
+        {
+          "kind": "toggle_1_v2",
+          "varbit": 12989,
+          "varp": 65535,
+          "lower": 0,
+          "upper": 5
+        },
+        {
+          "kind": "toggle_2_v2",
+          "varbit": 320,
+          "varp": 65535,
+          "lower": 178,
+          "upper": 178
+        }
+      ]
+    },
+    {
+      "id": "cache-label:28:1452:101",
+      "name": "Barbarian Village",
+      "x": 3060,
+      "y": 3432,
+      "level": "town",
+      "priority": 200,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "12085",
+      "elementId": 101,
+      "fontSize": 1,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 1452,
+        "x": 3060,
+        "y": 3432,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": [
+        {
+          "kind": "toggle_1_v2",
+          "varbit": 9190,
+          "varp": 65535,
+          "lower": 0,
+          "upper": 0
+        }
+      ]
+    },
+    {
+      "id": "cache-label:28:1454:998",
+      "name": "Gunnarsgrunn",
+      "x": 3060,
+      "y": 3432,
+      "level": "town",
+      "priority": 200,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "12085",
+      "elementId": 998,
+      "fontSize": 1,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 1454,
+        "x": 3060,
+        "y": 3432,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": [
+        {
+          "kind": "toggle_1_v2",
+          "varbit": 9190,
+          "varp": 65535,
+          "lower": 1,
+          "upper": 1
+        }
+      ]
+    },
+    {
+      "id": "cache-label:28:2:3230",
+      "name": "Lampenfloras",
+      "x": 4062,
+      "y": 4191,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "16193",
+      "elementId": 3230,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 2,
+        "x": 5598,
+        "y": 2271,
+        "plane": 0
+      },
+      "transform": {
+        "x": -1536,
+        "y": 1920,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:3:3231",
+      "name": "Liverworts",
+      "x": 4059,
+      "y": 4307,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "16195",
+      "elementId": 3231,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 3,
+        "x": 5595,
+        "y": 2387,
+        "plane": 0
+      },
+      "transform": {
+        "x": -1536,
+        "y": 1920,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:4:3232",
+      "name": "Devil's snares",
+      "x": 4068,
+      "y": 4049,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "16191",
+      "elementId": 3232,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 4,
+        "x": 5604,
+        "y": 2129,
+        "plane": 0
+      },
+      "transform": {
+        "x": -1536,
+        "y": 1920,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:5:3233",
+      "name": "Luminous snagglers",
+      "x": 3749,
+      "y": 4306,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "14915",
+      "elementId": 3233,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 5,
+        "x": 5285,
+        "y": 2386,
+        "plane": 0
+      },
+      "transform": {
+        "x": -1536,
+        "y": 1920,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:6:3234",
+      "name": "Feral dinosaurs",
+      "x": 3988,
+      "y": 4436,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "15941",
+      "elementId": 3234,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 6,
+        "x": 5524,
+        "y": 2516,
+        "plane": 0
+      },
+      "transform": {
+        "x": -1536,
+        "y": 1920,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:7:3235",
+      "name": "Venomous dinosaurs",
+      "x": 3886,
+      "y": 4446,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "15429",
+      "elementId": 3235,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 7,
+        "x": 5422,
+        "y": 2526,
+        "plane": 0
+      },
+      "transform": {
+        "x": -1536,
+        "y": 1920,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:8:3236",
+      "name": "Brutish dinosaurs",
+      "x": 3986,
+      "y": 4466,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "15941",
+      "elementId": 3236,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 8,
+        "x": 5522,
+        "y": 2546,
+        "plane": 0
+      },
+      "transform": {
+        "x": -1536,
+        "y": 1920,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:9:3237",
+      "name": "Ripper dinosaurs",
+      "x": 4131,
+      "y": 4113,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "16448",
+      "elementId": 3237,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 9,
+        "x": 5667,
+        "y": 2193,
+        "plane": 0
+      },
+      "transform": {
+        "x": -1536,
+        "y": 1920,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:10:3239",
+      "name": "Spirit grove (Rex Matriarchs)",
+      "x": 4004,
+      "y": 4258,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "15938",
+      "elementId": 3239,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 10,
+        "x": 5540,
+        "y": 2338,
+        "plane": 0
+      },
+      "transform": {
+        "x": -1536,
+        "y": 1920,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:11:63",
+      "name": "Anachronia Dinosaur Farm",
+      "x": 3643,
+      "y": 4290,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "14403",
+      "elementId": 63,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 11,
+        "x": 5179,
+        "y": 2370,
+        "plane": 0
+      },
+      "transform": {
+        "x": -1536,
+        "y": 1920,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:39:5812",
+      "name": "Exalted Quarry",
+      "x": 4557,
+      "y": 3419,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "18229",
+      "elementId": 5812,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 39,
+        "x": 3853,
+        "y": 1627,
+        "plane": 0
+      },
+      "transform": {
+        "x": 704,
+        "y": 1792,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:40:5813",
+      "name": "Divine Fall",
+      "x": 4647,
+      "y": 3460,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "18486",
+      "elementId": 5813,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 40,
+        "x": 3943,
+        "y": 1668,
+        "plane": 0
+      },
+      "transform": {
+        "x": 704,
+        "y": 1792,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:46:1067",
+      "name": "Clan Camp",
+      "x": 3177,
+      "y": 3474,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "12598",
+      "elementId": 1067,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 46,
+        "x": 3177,
+        "y": 3474,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": [
+        {
+          "kind": "legacy-switch",
+          "elementId": 1067,
+          "varbit": 22874,
+          "varp": 65535,
+          "value": 1,
+          "default_ref": 1752,
+          "legacy_ref": 1753
+        }
+      ]
+    },
+    {
+      "id": "cache-label:28:721:87",
+      "name": "Shantay Pass",
+      "x": 3304,
+      "y": 3126,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "13104",
+      "elementId": 87,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 721,
+        "x": 3304,
+        "y": 3126,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:730:98",
+      "name": "Jail",
+      "x": 3126,
+      "y": 3244,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "12338",
+      "elementId": 98,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 730,
+        "x": 3126,
+        "y": 3244,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:731:99",
+      "name": "Market",
+      "x": 3090,
+      "y": 3252,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "12338",
+      "elementId": 99,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 731,
+        "x": 3090,
+        "y": 3252,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:733:102",
+      "name": "Desert Mining Camp",
+      "x": 3291,
+      "y": 3022,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "13103",
+      "elementId": 102,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 733,
+        "x": 3291,
+        "y": 3022,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:734:103",
+      "name": "Bedabin Camp",
+      "x": 3170,
+      "y": 3038,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "12591",
+      "elementId": 103,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 734,
+        "x": 3170,
+        "y": 3038,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:735:104",
+      "name": "Exam Centre",
+      "x": 3361,
+      "y": 3345,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "13364",
+      "elementId": 104,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 735,
+        "x": 3361,
+        "y": 3345,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:736:105",
+      "name": "Varrock Dig Site",
+      "x": 3358,
+      "y": 3428,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "13365",
+      "elementId": 105,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 736,
+        "x": 3358,
+        "y": 3428,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:738:3990",
+      "name": "Silvarea",
+      "x": 3364,
+      "y": 3491,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "13366",
+      "elementId": 3990,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 738,
+        "x": 3364,
+        "y": 3491,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:739:3991",
+      "name": "King's Road",
+      "x": 3331,
+      "y": 3479,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "13366",
+      "elementId": 3991,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 739,
+        "x": 3331,
+        "y": 3479,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:740:107",
+      "name": "Palace",
+      "x": 3213,
+      "y": 3483,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "12854",
+      "elementId": 107,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 740,
+        "x": 3213,
+        "y": 3483,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:741:108",
+      "name": "Cooks' Guild",
+      "x": 3137,
+      "y": 3437,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "12597",
+      "elementId": 108,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 741,
+        "x": 3137,
+        "y": 3437,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:742:1207",
+      "name": "Edgeville Monastery",
+      "x": 3052,
+      "y": 3477,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "12086",
+      "elementId": 1207,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 742,
+        "x": 3052,
+        "y": 3477,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:743:110",
+      "name": "Dwarven Mine",
+      "x": 3016,
+      "y": 3441,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "12085",
+      "elementId": 110,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 743,
+        "x": 3016,
+        "y": 3441,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:745:112",
+      "name": "Black Knights' Fortress",
+      "x": 3018,
+      "y": 3561,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "12087",
+      "elementId": 112,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 745,
+        "x": 3018,
+        "y": 3561,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:746:113",
+      "name": "Goblin Village",
+      "x": 2963,
+      "y": 3502,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "11830",
+      "elementId": 113,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 746,
+        "x": 2963,
+        "y": 3502,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:747:114",
+      "name": "White Knights' Castle",
+      "x": 2961,
+      "y": 3345,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "11828",
+      "elementId": 114,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 747,
+        "x": 2961,
+        "y": 3345,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:748:115",
+      "name": "Park",
+      "x": 3005,
+      "y": 3379,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "11828",
+      "elementId": 115,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 748,
+        "x": 3005,
+        "y": 3379,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:750:117",
+      "name": "Dark Wizards' Tower",
+      "x": 2907,
+      "y": 3336,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "11572",
+      "elementId": 117,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 750,
+        "x": 2907,
+        "y": 3336,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:752:118",
+      "name": "Slayer Tower",
+      "x": 3424,
+      "y": 3536,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "13623",
+      "elementId": 118,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 752,
+        "x": 3424,
+        "y": 3536,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:753:119",
+      "name": "Melzar's Maze",
+      "x": 2935,
+      "y": 3250,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "11570",
+      "elementId": 119,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 753,
+        "x": 2935,
+        "y": 3250,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:754:120",
+      "name": "Rimmington",
+      "x": 2960,
+      "y": 3222,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "11826",
+      "elementId": 120,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 754,
+        "x": 2960,
+        "y": 3222,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:755:4111",
+      "name": "Customs Office",
+      "x": 2966,
+      "y": 3195,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "11825",
+      "elementId": 4111,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 755,
+        "x": 2966,
+        "y": 3195,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:756:121",
+      "name": "Wizards' Tower",
+      "x": 3112,
+      "y": 3153,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "12337",
+      "elementId": 121,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 756,
+        "x": 3112,
+        "y": 3153,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:757:122",
+      "name": "Lumbridge Swamp",
+      "x": 3196,
+      "y": 3178,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "12593",
+      "elementId": 122,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 757,
+        "x": 3196,
+        "y": 3178,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:758:123",
+      "name": "Fishing Platform",
+      "x": 2775,
+      "y": 3287,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "11059",
+      "elementId": 123,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 758,
+        "x": 2775,
+        "y": 3287,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:759:124",
+      "name": "Tai Bwo Wannai",
+      "x": 2794,
+      "y": 3066,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "11055",
+      "elementId": 124,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 759,
+        "x": 2794,
+        "y": 3066,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:761:126",
+      "name": "Shipyard",
+      "x": 2990,
+      "y": 3055,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "11823",
+      "elementId": 126,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 761,
+        "x": 2990,
+        "y": 3055,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:762:127",
+      "name": "Cairn Isle",
+      "x": 2764,
+      "y": 2979,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "11054",
+      "elementId": 127,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 762,
+        "x": 2764,
+        "y": 2979,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:763:128",
+      "name": "Kharazi Jungle",
+      "x": 2844,
+      "y": 2923,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "11309",
+      "elementId": 128,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 763,
+        "x": 2844,
+        "y": 2923,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:764:129",
+      "name": "Captured Temple",
+      "x": 2953,
+      "y": 3476,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "11830",
+      "elementId": 129,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 764,
+        "x": 2953,
+        "y": 3476,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:765:130",
+      "name": "Graveyard of Shadows",
+      "x": 3229,
+      "y": 3685,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "12857",
+      "elementId": 130,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 765,
+        "x": 3229,
+        "y": 3685,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:766:131",
+      "name": "Bandit Camp",
+      "x": 3036,
+      "y": 3689,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "12089",
+      "elementId": 131,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 766,
+        "x": 3036,
+        "y": 3689,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:767:132",
+      "name": "Dark Warriors' Fortress",
+      "x": 3030,
+      "y": 3633,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "12088",
+      "elementId": 132,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 767,
+        "x": 3030,
+        "y": 3633,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:768:133",
+      "name": "Ruins",
+      "x": 2966,
+      "y": 3697,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "11833",
+      "elementId": 133,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 768,
+        "x": 2966,
+        "y": 3697,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:769:133",
+      "name": "Ruins",
+      "x": 3235,
+      "y": 3746,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "12858",
+      "elementId": 133,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 769,
+        "x": 3235,
+        "y": 3746,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:770:134",
+      "name": "The Forgotten Cemetery",
+      "x": 2977,
+      "y": 3753,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "11834",
+      "elementId": 134,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 770,
+        "x": 2977,
+        "y": 3753,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:771:135",
+      "name": "Red Dragon Isle",
+      "x": 3199,
+      "y": 3824,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "12603",
+      "elementId": 135,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 771,
+        "x": 3199,
+        "y": 3824,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:773:137",
+      "name": "Lava Maze",
+      "x": 3079,
+      "y": 3848,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "12348",
+      "elementId": 137,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 773,
+        "x": 3079,
+        "y": 3848,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:774:138",
+      "name": "Frozen Waste Plateau",
+      "x": 2972,
+      "y": 3919,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "11837",
+      "elementId": 138,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 774,
+        "x": 2972,
+        "y": 3919,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:775:139",
+      "name": "Agility Training Area",
+      "x": 3005,
+      "y": 3950,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "11837",
+      "elementId": 139,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 775,
+        "x": 3005,
+        "y": 3950,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:776:140",
+      "name": "Pirates' Hideout",
+      "x": 3043,
+      "y": 3948,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "12093",
+      "elementId": 140,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 776,
+        "x": 3043,
+        "y": 3948,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:777:141",
+      "name": "Mage Arena",
+      "x": 3107,
+      "y": 3933,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "12349",
+      "elementId": 141,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 777,
+        "x": 3107,
+        "y": 3933,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:778:142",
+      "name": "Deserted Keep",
+      "x": 3156,
+      "y": 3937,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "12605",
+      "elementId": 142,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 778,
+        "x": 3156,
+        "y": 3937,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:779:143",
+      "name": "Scorpion Pit",
+      "x": 3236,
+      "y": 3945,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "12861",
+      "elementId": 143,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 779,
+        "x": 3236,
+        "y": 3945,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:780:144",
+      "name": "Rogues' Castle",
+      "x": 3286,
+      "y": 3931,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "13117",
+      "elementId": 144,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 780,
+        "x": 3286,
+        "y": 3931,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:781:145",
+      "name": "Demonic Ruins",
+      "x": 3293,
+      "y": 3884,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "13116",
+      "elementId": 145,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 781,
+        "x": 3293,
+        "y": 3884,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:782:129",
+      "name": "Captured Temple",
+      "x": 2953,
+      "y": 3476,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "11830",
+      "elementId": 129,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 782,
+        "x": 2953,
+        "y": 3476,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:783:146",
+      "name": "Heroes' Guild",
+      "x": 2911,
+      "y": 3517,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "11574",
+      "elementId": 146,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 783,
+        "x": 2911,
+        "y": 3517,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:784:3317",
+      "name": "Ewean's Grove",
+      "x": 2914,
+      "y": 3485,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "11574",
+      "elementId": 3317,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 784,
+        "x": 2914,
+        "y": 3485,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:785:3322",
+      "name": "Astram Farm",
+      "x": 2885,
+      "y": 3485,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "11574",
+      "elementId": 3322,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 785,
+        "x": 2885,
+        "y": 3485,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:788:150",
+      "name": "Catherby",
+      "x": 2811,
+      "y": 3445,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "11061",
+      "elementId": 150,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 788,
+        "x": 2811,
+        "y": 3445,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:789:151",
+      "name": "Camelot Castle",
+      "x": 2763,
+      "y": 3505,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "11062",
+      "elementId": 151,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 789,
+        "x": 2763,
+        "y": 3505,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:791:153",
+      "name": "Sinclair Mansion",
+      "x": 2739,
+      "y": 3551,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "10807",
+      "elementId": 153,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 791,
+        "x": 2739,
+        "y": 3551,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:792:154",
+      "name": "Flax",
+      "x": 2744,
+      "y": 3445,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "10805",
+      "elementId": 154,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 792,
+        "x": 2744,
+        "y": 3445,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:793:155",
+      "name": "Beehives",
+      "x": 2767,
+      "y": 3443,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "11061",
+      "elementId": 155,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 793,
+        "x": 2767,
+        "y": 3443,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:794:156",
+      "name": "Sorcerer's Tower",
+      "x": 2718,
+      "y": 3415,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "10805",
+      "elementId": 156,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 794,
+        "x": 2718,
+        "y": 3415,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:795:157",
+      "name": "Keep Le Faye",
+      "x": 2770,
+      "y": 3399,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "11061",
+      "elementId": 157,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 795,
+        "x": 2770,
+        "y": 3399,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:796:158",
+      "name": "Legends' Guild",
+      "x": 2737,
+      "y": 3374,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "10804",
+      "elementId": 158,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 796,
+        "x": 2737,
+        "y": 3374,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:797:159",
+      "name": "Hemenster",
+      "x": 2626,
+      "y": 3440,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "10549",
+      "elementId": 159,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 797,
+        "x": 2626,
+        "y": 3440,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:798:160",
+      "name": "McGrubor's Wood",
+      "x": 2647,
+      "y": 3480,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "10550",
+      "elementId": 160,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 798,
+        "x": 2647,
+        "y": 3480,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:799:161",
+      "name": "Coal Trucks",
+      "x": 2600,
+      "y": 3491,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "10294",
+      "elementId": 161,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 799,
+        "x": 2600,
+        "y": 3491,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:800:162",
+      "name": "Fishing Guild",
+      "x": 2607,
+      "y": 3403,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "10293",
+      "elementId": 162,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 800,
+        "x": 2607,
+        "y": 3403,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:804:167",
+      "name": "Combat Training Camp",
+      "x": 2519,
+      "y": 3370,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "10036",
+      "elementId": 167,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 804,
+        "x": 2519,
+        "y": 3370,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:805:139",
+      "name": "Agility Training Area",
+      "x": 2481,
+      "y": 3426,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "9781",
+      "elementId": 139,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 805,
+        "x": 2481,
+        "y": 3426,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:807:169",
+      "name": "Grand Tree",
+      "x": 2469,
+      "y": 3504,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "9782",
+      "elementId": 169,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 807,
+        "x": 2469,
+        "y": 3504,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:808:170",
+      "name": "Swamp",
+      "x": 2419,
+      "y": 3513,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "9526",
+      "elementId": 170,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 808,
+        "x": 2419,
+        "y": 3513,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:809:171",
+      "name": "Gnome Ball Field",
+      "x": 2401,
+      "y": 3487,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "9526",
+      "elementId": 171,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 809,
+        "x": 2401,
+        "y": 3487,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:810:139",
+      "name": "Agility Training Area",
+      "x": 2534,
+      "y": 3538,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "10039",
+      "elementId": 139,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 810,
+        "x": 2534,
+        "y": 3538,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:811:172",
+      "name": "Barbarian Outpost",
+      "x": 2558,
+      "y": 3561,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "10039",
+      "elementId": 172,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 811,
+        "x": 2558,
+        "y": 3561,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:812:173",
+      "name": "Underground Pass",
+      "x": 2443,
+      "y": 3315,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "9779",
+      "elementId": 173,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 812,
+        "x": 2443,
+        "y": 3315,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:813:174",
+      "name": "Battlefield",
+      "x": 2522,
+      "y": 3232,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "10034",
+      "elementId": 174,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 813,
+        "x": 2522,
+        "y": 3232,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:814:175",
+      "name": "Baxtorian Falls",
+      "x": 2515,
+      "y": 3462,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "10038",
+      "elementId": 175,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 814,
+        "x": 2515,
+        "y": 3462,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:815:176",
+      "name": "Tree Gnome Village",
+      "x": 2528,
+      "y": 3174,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "10033",
+      "elementId": 176,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 815,
+        "x": 2528,
+        "y": 3174,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:816:177",
+      "name": "Fight Arena",
+      "x": 2594,
+      "y": 3162,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "10289",
+      "elementId": 177,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 816,
+        "x": 2594,
+        "y": 3162,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:819:180",
+      "name": "Wizards' Guild",
+      "x": 2589,
+      "y": 3077,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "10288",
+      "elementId": 180,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 819,
+        "x": 2589,
+        "y": 3077,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:820:181",
+      "name": "Observatory",
+      "x": 2440,
+      "y": 3151,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "9777",
+      "elementId": 181,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 820,
+        "x": 2440,
+        "y": 3151,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:821:182",
+      "name": "Necromancer",
+      "x": 2669,
+      "y": 3243,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "10546",
+      "elementId": 182,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 821,
+        "x": 2669,
+        "y": 3243,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:822:183",
+      "name": "Gu'Tanoth",
+      "x": 2528,
+      "y": 3046,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "10031",
+      "elementId": 183,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 822,
+        "x": 2528,
+        "y": 3046,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:824:185",
+      "name": "Ardougne Zoo",
+      "x": 2614,
+      "y": 3273,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "10291",
+      "elementId": 185,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 824,
+        "x": 2614,
+        "y": 3273,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:828:189",
+      "name": "River Salve",
+      "x": 3410,
+      "y": 3438,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "13621",
+      "elementId": 189,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 828,
+        "x": 3410,
+        "y": 3438,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:829:190",
+      "name": "River Lum",
+      "x": 3167,
+      "y": 3350,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "12596",
+      "elementId": 190,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 829,
+        "x": 3167,
+        "y": 3350,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:830:191",
+      "name": "Temple",
+      "x": 3421,
+      "y": 3489,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "13622",
+      "elementId": 191,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 830,
+        "x": 3421,
+        "y": 3489,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:831:192",
+      "name": "Agility Arena",
+      "x": 2815,
+      "y": 3193,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "11057",
+      "elementId": 192,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 831,
+        "x": 2815,
+        "y": 3193,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:833:710",
+      "name": "Rogues' Den",
+      "x": 2896,
+      "y": 3447,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "11573",
+      "elementId": 710,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 833,
+        "x": 2896,
+        "y": 3447,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:834:194",
+      "name": "Death Plateau",
+      "x": 2865,
+      "y": 3592,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "11320",
+      "elementId": 194,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 834,
+        "x": 2865,
+        "y": 3592,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:838:199",
+      "name": "Tyras Camp",
+      "x": 2180,
+      "y": 3147,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "8753",
+      "elementId": 199,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 838,
+        "x": 2180,
+        "y": 3147,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:839:200",
+      "name": "Elf Camp",
+      "x": 2196,
+      "y": 3256,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "8754",
+      "elementId": 200,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 839,
+        "x": 2196,
+        "y": 3256,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:840:201",
+      "name": "Trollheim",
+      "x": 2892,
+      "y": 3678,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "11577",
+      "elementId": 201,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 840,
+        "x": 2892,
+        "y": 3678,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:841:202",
+      "name": "Troll Stronghold",
+      "x": 2835,
+      "y": 3681,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "11321",
+      "elementId": 202,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 841,
+        "x": 2835,
+        "y": 3681,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:843:204",
+      "name": "The Hollows",
+      "x": 3500,
+      "y": 3384,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "13876",
+      "elementId": 204,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 843,
+        "x": 3500,
+        "y": 3384,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:844:205",
+      "name": "Poison Waste",
+      "x": 2241,
+      "y": 3098,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "9008",
+      "elementId": 205,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 844,
+        "x": 2241,
+        "y": 3098,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:845:206",
+      "name": "Castle Wars",
+      "x": 2432,
+      "y": 3111,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "9776",
+      "elementId": 206,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 845,
+        "x": 2432,
+        "y": 3111,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:846:207",
+      "name": "Champions' Guild",
+      "x": 3201,
+      "y": 3354,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "12852",
+      "elementId": 207,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 846,
+        "x": 3201,
+        "y": 3354,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:848:209",
+      "name": "Golden Apple Tree",
+      "x": 2765,
+      "y": 3608,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "11064",
+      "elementId": 209,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 848,
+        "x": 2765,
+        "y": 3608,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:849:210",
+      "name": "Lighthouse",
+      "x": 2514,
+      "y": 3628,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "10040",
+      "elementId": 210,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 849,
+        "x": 2514,
+        "y": 3628,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:851:212",
+      "name": "Crafting Guild",
+      "x": 2928,
+      "y": 3286,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "11571",
+      "elementId": 212,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 851,
+        "x": 2928,
+        "y": 3286,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:852:213",
+      "name": "Haunted Woods",
+      "x": 3567,
+      "y": 3488,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "14134",
+      "elementId": 213,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 852,
+        "x": 3567,
+        "y": 3488,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:856:217",
+      "name": "Crash Island",
+      "x": 2915,
+      "y": 2723,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "11562",
+      "elementId": 217,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 856,
+        "x": 2915,
+        "y": 2723,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:857:218",
+      "name": "Marim",
+      "x": 2773,
+      "y": 2784,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "11051",
+      "elementId": 218,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 857,
+        "x": 2773,
+        "y": 2784,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:858:219",
+      "name": "Fenkenstrain's Castle",
+      "x": 3551,
+      "y": 3551,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "14135",
+      "elementId": 219,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 858,
+        "x": 3551,
+        "y": 3551,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:859:220",
+      "name": "Mausoleum",
+      "x": 3502,
+      "y": 3572,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "13879",
+      "elementId": 220,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 859,
+        "x": 3502,
+        "y": 3572,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:860:221",
+      "name": "Trollweiss Mountain",
+      "x": 2781,
+      "y": 3864,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "11068",
+      "elementId": 221,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 860,
+        "x": 2781,
+        "y": 3864,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:861:222",
+      "name": "Abandoned Mine",
+      "x": 3444,
+      "y": 3243,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "13618",
+      "elementId": 222,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 861,
+        "x": 3444,
+        "y": 3243,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:862:223",
+      "name": "Ruins of Uzer",
+      "x": 3479,
+      "y": 3098,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "13872",
+      "elementId": 223,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 862,
+        "x": 3479,
+        "y": 3098,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:863:224",
+      "name": "River Elid",
+      "x": 3371,
+      "y": 3068,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "13359",
+      "elementId": 224,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 863,
+        "x": 3371,
+        "y": 3068,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:864:701",
+      "name": "Kalphite Hive",
+      "x": 3226,
+      "y": 3102,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "12848",
+      "elementId": 701,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 864,
+        "x": 3226,
+        "y": 3102,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:866:131",
+      "name": "Bandit Camp",
+      "x": 3175,
+      "y": 2977,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "12590",
+      "elementId": 131,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 866,
+        "x": 3175,
+        "y": 2977,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:867:227",
+      "name": "Pyramid",
+      "x": 3235,
+      "y": 2897,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "12845",
+      "elementId": 227,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 867,
+        "x": 3235,
+        "y": 2897,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:869:3892",
+      "name": "Merchant District",
+      "x": 3234,
+      "y": 2795,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "12843",
+      "elementId": 3892,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 869,
+        "x": 3234,
+        "y": 2795,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:870:3893",
+      "name": "Port District",
+      "x": 3150,
+      "y": 2640,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "12585",
+      "elementId": 3893,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 870,
+        "x": 3150,
+        "y": 2640,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:871:3894",
+      "name": "Imperial District",
+      "x": 3100,
+      "y": 2692,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "12330",
+      "elementId": 3894,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 871,
+        "x": 3100,
+        "y": 2692,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:872:3895",
+      "name": "Workers District",
+      "x": 3160,
+      "y": 2800,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "12587",
+      "elementId": 3895,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 872,
+        "x": 3160,
+        "y": 2800,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:873:3973",
+      "name": "Grand Vizier Ehsan",
+      "x": 3196,
+      "y": 2770,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "12587",
+      "elementId": 3973,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 873,
+        "x": 3196,
+        "y": 2770,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:874:3974",
+      "name": "Admiral Wadud",
+      "x": 3180,
+      "y": 2650,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "12585",
+      "elementId": 3974,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 874,
+        "x": 3180,
+        "y": 2650,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:875:3975",
+      "name": "Commander Akhomet",
+      "x": 3170,
+      "y": 2730,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "12586",
+      "elementId": 3975,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 875,
+        "x": 3170,
+        "y": 2730,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:876:3976",
+      "name": "Batal",
+      "x": 3150,
+      "y": 2790,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "12587",
+      "elementId": 3976,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 876,
+        "x": 3150,
+        "y": 2790,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:878:230",
+      "name": "Agility Pyramid",
+      "x": 3363,
+      "y": 2842,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "13356",
+      "elementId": 230,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 878,
+        "x": 3363,
+        "y": 2842,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:880:233",
+      "name": "Ectofuntus",
+      "x": 3659,
+      "y": 3520,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "14647",
+      "elementId": 233,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 880,
+        "x": 3659,
+        "y": 3520,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:881:234",
+      "name": "Mountain Camp",
+      "x": 2784,
+      "y": 3670,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "11065",
+      "elementId": 234,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 881,
+        "x": 2784,
+        "y": 3670,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:883:236",
+      "name": "Ice Path",
+      "x": 2857,
+      "y": 3809,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "11323",
+      "elementId": 236,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 883,
+        "x": 2857,
+        "y": 3809,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:884:237",
+      "name": "Barrows",
+      "x": 3566,
+      "y": 3291,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "14131",
+      "elementId": 237,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 884,
+        "x": 3566,
+        "y": 3291,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:885:238",
+      "name": "Jiggig",
+      "x": 2464,
+      "y": 3047,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "9775",
+      "elementId": 238,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 885,
+        "x": 2464,
+        "y": 3047,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:886:239",
+      "name": "Mudskipper Point",
+      "x": 2990,
+      "y": 3118,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "11824",
+      "elementId": 239,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 886,
+        "x": 2990,
+        "y": 3118,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:887:240",
+      "name": "Nardah",
+      "x": 3429,
+      "y": 2902,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "13613",
+      "elementId": 240,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 887,
+        "x": 3429,
+        "y": 2902,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:889:242",
+      "name": "Keldagrim Entrance",
+      "x": 2714,
+      "y": 3713,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "10810",
+      "elementId": 242,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 889,
+        "x": 2714,
+        "y": 3713,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:890:243",
+      "name": "Waterbirth Island",
+      "x": 2522,
+      "y": 3756,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "10042",
+      "elementId": 243,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 890,
+        "x": 2522,
+        "y": 3756,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:891:244",
+      "name": "Lletya",
+      "x": 2346,
+      "y": 3180,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "9265",
+      "elementId": 244,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 891,
+        "x": 2346,
+        "y": 3180,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:893:246",
+      "name": "Lizards",
+      "x": 3423,
+      "y": 3040,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "13615",
+      "elementId": 246,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 893,
+        "x": 3423,
+        "y": 3040,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:894:247",
+      "name": "Quarry",
+      "x": 3172,
+      "y": 2904,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "12589",
+      "elementId": 247,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 894,
+        "x": 3172,
+        "y": 2904,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:895:248",
+      "name": "Outpost",
+      "x": 2435,
+      "y": 3355,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "9780",
+      "elementId": 248,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 895,
+        "x": 2435,
+        "y": 3355,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:897:250",
+      "name": "Distilleries",
+      "x": 3786,
+      "y": 2998,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "15150",
+      "elementId": 250,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 897,
+        "x": 3786,
+        "y": 2998,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:898:251",
+      "name": "Ranging Guild",
+      "x": 2664,
+      "y": 3441,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "10549",
+      "elementId": 251,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 898,
+        "x": 2664,
+        "y": 3441,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:899:252",
+      "name": "Dragontooth Island",
+      "x": 3804,
+      "y": 3545,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "15159",
+      "elementId": 252,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 899,
+        "x": 3804,
+        "y": 3545,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:900:253",
+      "name": "Piscatoris Fishing Colony",
+      "x": 2345,
+      "y": 3693,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "9273",
+      "elementId": 253,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 900,
+        "x": 2345,
+        "y": 3693,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:901:254",
+      "name": "Here Be Penguins",
+      "x": 2624,
+      "y": 3963,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "10557",
+      "elementId": 254,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 901,
+        "x": 2624,
+        "y": 3963,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:902:255",
+      "name": "Void Knights' Outpost",
+      "x": 2635,
+      "y": 2680,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "10537",
+      "elementId": 255,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 902,
+        "x": 2635,
+        "y": 2680,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:904:257",
+      "name": "Pirates' Cove",
+      "x": 2206,
+      "y": 3815,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "8763",
+      "elementId": 257,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 904,
+        "x": 2206,
+        "y": 3815,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:905:258",
+      "name": "Vultures",
+      "x": 3347,
+      "y": 2871,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "13356",
+      "elementId": 258,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 905,
+        "x": 3347,
+        "y": 2871,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:906:259",
+      "name": "Port Tyras",
+      "x": 2155,
+      "y": 3122,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "8496",
+      "elementId": 259,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 906,
+        "x": 2155,
+        "y": 3122,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:907:260",
+      "name": "Castle Drakan",
+      "x": 3555,
+      "y": 3359,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "14132",
+      "elementId": 260,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 907,
+        "x": 3555,
+        "y": 3359,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:910:263",
+      "name": "Witchaven",
+      "x": 2710,
+      "y": 3291,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "10803",
+      "elementId": 263,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 910,
+        "x": 2710,
+        "y": 3291,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:911:264",
+      "name": "Warriors' Guild",
+      "x": 2857,
+      "y": 3545,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "11319",
+      "elementId": 264,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 911,
+        "x": 2857,
+        "y": 3545,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:912:265",
+      "name": "Musa Point",
+      "x": 2895,
+      "y": 3164,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "11569",
+      "elementId": 265,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 912,
+        "x": 2895,
+        "y": 3164,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:914:267",
+      "name": "Falconer",
+      "x": 2376,
+      "y": 3607,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "9528",
+      "elementId": 267,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 914,
+        "x": 2376,
+        "y": 3607,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:915:268",
+      "name": "Barbarian Assault",
+      "x": 2519,
+      "y": 3574,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "10039",
+      "elementId": 268,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 915,
+        "x": 2519,
+        "y": 3574,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:917:270",
+      "name": "Pest Control",
+      "x": 2687,
+      "y": 2642,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "10537",
+      "elementId": 270,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 917,
+        "x": 2687,
+        "y": 2642,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:918:5619",
+      "name": "Shattered Worlds",
+      "x": 2676,
+      "y": 2693,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "10538",
+      "elementId": 5619,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 918,
+        "x": 2676,
+        "y": 2693,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:922:274",
+      "name": "Tower of Life",
+      "x": 2650,
+      "y": 3213,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "10546",
+      "elementId": 274,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 922,
+        "x": 2650,
+        "y": 3213,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:923:275",
+      "name": "Clocktower",
+      "x": 2573,
+      "y": 3242,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "10290",
+      "elementId": 275,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 923,
+        "x": 2573,
+        "y": 3242,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:924:1208",
+      "name": "Ardougne Monastery",
+      "x": 2603,
+      "y": 3218,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "10290",
+      "elementId": 1208,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 924,
+        "x": 2603,
+        "y": 3218,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:926:277",
+      "name": "Trawler",
+      "x": 2692,
+      "y": 3168,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "10801",
+      "elementId": 277,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 926,
+        "x": 2692,
+        "y": 3168,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:927:278",
+      "name": "Otto's Grotto",
+      "x": 2502,
+      "y": 3489,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "10038",
+      "elementId": 278,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 927,
+        "x": 2502,
+        "y": 3489,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:928:279",
+      "name": "Party Room",
+      "x": 3046,
+      "y": 3379,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "12084",
+      "elementId": 279,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 928,
+        "x": 3046,
+        "y": 3379,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:929:280",
+      "name": "Courthouse",
+      "x": 2737,
+      "y": 3463,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "10806",
+      "elementId": 280,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 929,
+        "x": 2737,
+        "y": 3463,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:930:281",
+      "name": "God Wars Dungeon",
+      "x": 2919,
+      "y": 3755,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "11578",
+      "elementId": 281,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 930,
+        "x": 2919,
+        "y": 3755,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:931:5008",
+      "name": "Wilderness Crater",
+      "x": 3136,
+      "y": 3737,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "12602",
+      "elementId": 5008,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 931,
+        "x": 3136,
+        "y": 3737,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:932:284",
+      "name": "Grand Exchange",
+      "x": 3165,
+      "y": 3496,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "12598",
+      "elementId": 284,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 932,
+        "x": 3165,
+        "y": 3496,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:933:285",
+      "name": "Oo'glog",
+      "x": 2581,
+      "y": 2849,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "10284",
+      "elementId": 285,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 933,
+        "x": 2581,
+        "y": 2849,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:935:77",
+      "name": "East Graveyard",
+      "x": 2253,
+      "y": 2925,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "9005",
+      "elementId": 77,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 935,
+        "x": 1933,
+        "y": 3245,
+        "plane": 0
+      },
+      "transform": {
+        "x": 320,
+        "y": -320,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:936:78",
+      "name": "West Graveyard",
+      "x": 2163,
+      "y": 2897,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "8493",
+      "elementId": 78,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 936,
+        "x": 1843,
+        "y": 3217,
+        "plane": 0
+      },
+      "transform": {
+        "x": 320,
+        "y": -320,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:937:79",
+      "name": "Soul Obelisk",
+      "x": 2207,
+      "y": 2911,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "8749",
+      "elementId": 79,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 937,
+        "x": 1887,
+        "y": 3231,
+        "plane": 0
+      },
+      "transform": {
+        "x": 320,
+        "y": -320,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:938:465",
+      "name": "Volcano",
+      "x": 3367,
+      "y": 3949,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "13373",
+      "elementId": 465,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 938,
+        "x": 3367,
+        "y": 3949,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:939:702",
+      "name": "South Feldip Hills",
+      "x": 2471,
+      "y": 2852,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "9772",
+      "elementId": 702,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 939,
+        "x": 2471,
+        "y": 2852,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:941:1039",
+      "name": "Gamers' Grotto",
+      "x": 2994,
+      "y": 3417,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "11829",
+      "elementId": 1039,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 941,
+        "x": 2994,
+        "y": 3417,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:942:1038",
+      "name": "Boneyard",
+      "x": 3271,
+      "y": 3678,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "13113",
+      "elementId": 1038,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 942,
+        "x": 3271,
+        "y": 3678,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:943:1052",
+      "name": "Artisans' Workshop",
+      "x": 3048,
+      "y": 3343,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "12084",
+      "elementId": 1052,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 943,
+        "x": 3048,
+        "y": 3343,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:944:1108",
+      "name": "Citharede Abbey",
+      "x": 3422,
+      "y": 3163,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "13617",
+      "elementId": 1108,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 944,
+        "x": 3422,
+        "y": 3163,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:946:1215",
+      "name": "White Knight Camp",
+      "x": 2998,
+      "y": 3240,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "11826",
+      "elementId": 1215,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 946,
+        "x": 2998,
+        "y": 3240,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:947:1292",
+      "name": "Exiled Kalphite Hive",
+      "x": 3240,
+      "y": 2866,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "12844",
+      "elementId": 1292,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 947,
+        "x": 3240,
+        "y": 2866,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:950:3738",
+      "name": "The Heart",
+      "x": 3378,
+      "y": 2882,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "13357",
+      "elementId": 3738,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 950,
+        "x": 3378,
+        "y": 2882,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:951:3843",
+      "name": "Memorial to Guthix & Hall of Memories",
+      "x": 2272,
+      "y": 3562,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "9015",
+      "elementId": 3843,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 951,
+        "x": 2272,
+        "y": 3562,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:954:1224",
+      "name": "Manor Farm",
+      "x": 2654,
+      "y": 3358,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "10548",
+      "elementId": 1224,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 954,
+        "x": 2654,
+        "y": 3358,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:958:3350",
+      "name": "Archaeology Guild",
+      "x": 3324,
+      "y": 3378,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "13108",
+      "elementId": 3350,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 958,
+        "x": 3324,
+        "y": 3378,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:959:3351",
+      "name": "Kharid-et Dig Site",
+      "x": 3359,
+      "y": 3189,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "13361",
+      "elementId": 3351,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 959,
+        "x": 3359,
+        "y": 3189,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:960:3352",
+      "name": "Everlight Dig Site",
+      "x": 3701,
+      "y": 3204,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "14642",
+      "elementId": 3352,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 960,
+        "x": 3701,
+        "y": 3204,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:961:3353",
+      "name": "Infernal Source Dig Site",
+      "x": 3262,
+      "y": 3502,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "12854",
+      "elementId": 3353,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 961,
+        "x": 3262,
+        "y": 3502,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:962:3358",
+      "name": "Stormguard Citadel Dig Site",
+      "x": 2678,
+      "y": 3398,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "10549",
+      "elementId": 3358,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 962,
+        "x": 2678,
+        "y": 3398,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:963:3359",
+      "name": "Warforge Dig Site",
+      "x": 2410,
+      "y": 2841,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "9516",
+      "elementId": 3359,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 963,
+        "x": 2410,
+        "y": 2841,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:964:4798",
+      "name": "Orthen Dig Site",
+      "x": 3921,
+      "y": 4260,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "15682",
+      "elementId": 4798,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 964,
+        "x": 5457,
+        "y": 2340,
+        "plane": 0
+      },
+      "transform": {
+        "x": -1536,
+        "y": 1920,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:965:5202",
+      "name": "Garden of Kharid",
+      "x": 3319,
+      "y": 3301,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "13107",
+      "elementId": 5202,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 965,
+        "x": 3319,
+        "y": 3301,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:967:5506",
+      "name": "Iron Enclave",
+      "x": 2275,
+      "y": 2660,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "9001",
+      "elementId": 5506,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 967,
+        "x": 2275,
+        "y": 2660,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:974:5823",
+      "name": "Linbog Village",
+      "x": 4599,
+      "y": 3255,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "18226",
+      "elementId": 5823,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 974,
+        "x": 3895,
+        "y": 1463,
+        "plane": 0
+      },
+      "transform": {
+        "x": 704,
+        "y": 1792,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:975:5824",
+      "name": "Globin Village",
+      "x": 4679,
+      "y": 3178,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "18737",
+      "elementId": 5824,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 975,
+        "x": 3975,
+        "y": 1386,
+        "plane": 0
+      },
+      "transform": {
+        "x": 704,
+        "y": 1792,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:979:5788",
+      "name": "Moonrise Dig Site",
+      "x": 4446,
+      "y": 3448,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "17717",
+      "elementId": 5788,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 979,
+        "x": 3742,
+        "y": 1656,
+        "plane": 0
+      },
+      "transform": {
+        "x": 704,
+        "y": 1792,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:1068:3669",
+      "name": "Mazcab Portal",
+      "x": 3085,
+      "y": 2872,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "12332",
+      "elementId": 3669,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 1068,
+        "x": 3085,
+        "y": 2872,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:1069:5609",
+      "name": "Goebie Camp",
+      "x": 3111,
+      "y": 2850,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "12332",
+      "elementId": 5609,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 1069,
+        "x": 3111,
+        "y": 2850,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:1074:3988",
+      "name": "Bulbous crawlers",
+      "x": 1956,
+      "y": 3225,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "7730",
+      "elementId": 3988,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 1074,
+        "x": 1380,
+        "y": 5721,
+        "plane": 0
+      },
+      "transform": {
+        "x": 576,
+        "y": -2496,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:1075:3986",
+      "name": "Vinecrawlers",
+      "x": 1889,
+      "y": 3128,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "7472",
+      "elementId": 3986,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 1075,
+        "x": 1313,
+        "y": 5624,
+        "plane": 0
+      },
+      "transform": {
+        "x": 576,
+        "y": -2496,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:1076:3987",
+      "name": "Moss golems",
+      "x": 2004,
+      "y": 3107,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "7984",
+      "elementId": 3987,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 1076,
+        "x": 1428,
+        "y": 5603,
+        "plane": 0
+      },
+      "transform": {
+        "x": 576,
+        "y": -2496,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:1077:3989",
+      "name": "Wisps of the grove",
+      "x": 1968,
+      "y": 3123,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "7728",
+      "elementId": 3989,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 1077,
+        "x": 1392,
+        "y": 5619,
+        "plane": 0
+      },
+      "transform": {
+        "x": 576,
+        "y": -2496,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:1080:80",
+      "name": "Entrance",
+      "x": 2845,
+      "y": 3167,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "11313",
+      "elementId": 80,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 1080,
+        "x": 2845,
+        "y": 3167,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:1378:1233",
+      "name": "Kalphite Nursery",
+      "x": 3215,
+      "y": 3125,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "12848",
+      "elementId": 1233,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 1378,
+        "x": 3215,
+        "y": 3125,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": [
+        {
+          "kind": "toggle_1_v2",
+          "varbit": 9429,
+          "varp": 65535,
+          "lower": 120,
+          "upper": 120
+        }
+      ]
+    },
+    {
+      "id": "cache-label:28:1453:997",
+      "name": "(Barbarian Village)",
+      "x": 3060,
+      "y": 3426,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "12085",
+      "elementId": 997,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 1453,
+        "x": 3060,
+        "y": 3426,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": [
+        {
+          "kind": "toggle_1_v2",
+          "varbit": 9190,
+          "varp": 65535,
+          "lower": 1,
+          "upper": 1
+        }
+      ]
+    },
+    {
+      "id": "cache-label:28:1505:3691",
+      "name": "Mass grave",
+      "x": 3730,
+      "y": 3219,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "14898",
+      "elementId": 3691,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 1505,
+        "x": 3730,
+        "y": 3219,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:1506:3692",
+      "name": "Amphitheatre",
+      "x": 3756,
+      "y": 3287,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "14899",
+      "elementId": 3692,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 1506,
+        "x": 3756,
+        "y": 3287,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:1507:3693",
+      "name": "Dominion Games stadium",
+      "x": 3819,
+      "y": 3175,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "15153",
+      "elementId": 3693,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 1507,
+        "x": 3819,
+        "y": 3175,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:1508:3710",
+      "name": "Oikoi (households)",
+      "x": 3734,
+      "y": 3177,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "14897",
+      "elementId": 3710,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 1508,
+        "x": 3734,
+        "y": 3177,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:1509:3720",
+      "name": "Acropolis",
+      "x": 3755,
+      "y": 3136,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "14897",
+      "elementId": 3720,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 1509,
+        "x": 3755,
+        "y": 3136,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:1514:4810",
+      "name": "Crypt of Varanus",
+      "x": 3792,
+      "y": 4333,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "15171",
+      "elementId": 4810,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 1514,
+        "x": 5328,
+        "y": 2413,
+        "plane": 0
+      },
+      "transform": {
+        "x": -1536,
+        "y": 1920,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:1515:4811",
+      "name": "Observation outpost",
+      "x": 4059,
+      "y": 4450,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "16197",
+      "elementId": 4811,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 1515,
+        "x": 5595,
+        "y": 2530,
+        "plane": 0
+      },
+      "transform": {
+        "x": -1536,
+        "y": 1920,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:1516:4812",
+      "name": "Moksha ritual site",
+      "x": 3983,
+      "y": 4123,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "15936",
+      "elementId": 4812,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 1516,
+        "x": 5519,
+        "y": 2203,
+        "plane": 0
+      },
+      "transform": {
+        "x": -1536,
+        "y": 1920,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": [
+        {
+          "kind": "toggle_1_v2",
+          "varbit": 48162,
+          "varp": 65535,
+          "lower": 12,
+          "upper": 12
+        }
+      ]
+    },
+    {
+      "id": "cache-label:28:1517:4814",
+      "name": "Xolo city",
+      "x": 4140,
+      "y": 4075,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "16447",
+      "elementId": 4814,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 1517,
+        "x": 5676,
+        "y": 2155,
+        "plane": 0
+      },
+      "transform": {
+        "x": -1536,
+        "y": 1920,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": [
+        {
+          "kind": "toggle_1_v2",
+          "varbit": 48164,
+          "varp": 65535,
+          "lower": 3,
+          "upper": 6
+        }
+      ]
+    },
+    {
+      "id": "cache-label:28:1602:3730",
+      "name": "Invention Guild",
+      "x": 2995,
+      "y": 3437,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "11829",
+      "elementId": 3730,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 1602,
+        "x": 2995,
+        "y": 3437,
+        "plane": 0
+      },
+      "transform": {
+        "x": 0,
+        "y": 0,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:1694:5630",
+      "name": "Shrine of Inanna",
+      "x": 4262,
+      "y": 3211,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "16946",
+      "elementId": 5630,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 1694,
+        "x": 3558,
+        "y": 1419,
+        "plane": 0
+      },
+      "transform": {
+        "x": 704,
+        "y": 1792,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:1695:5631",
+      "name": "Blighted Cave",
+      "x": 4353,
+      "y": 3282,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "17459",
+      "elementId": 5631,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 1695,
+        "x": 3649,
+        "y": 1490,
+        "plane": 0
+      },
+      "transform": {
+        "x": 704,
+        "y": 1792,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:1696:5632",
+      "name": "Hollow Hill",
+      "x": 4333,
+      "y": 3443,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "17205",
+      "elementId": 5632,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 1696,
+        "x": 3629,
+        "y": 1651,
+        "plane": 0
+      },
+      "transform": {
+        "x": 704,
+        "y": 1792,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:1697:5633",
+      "name": "Deserted Mine",
+      "x": 4352,
+      "y": 3153,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "17457",
+      "elementId": 5633,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 1697,
+        "x": 3648,
+        "y": 1361,
+        "plane": 0
+      },
+      "transform": {
+        "x": 704,
+        "y": 1792,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:1699:5634",
+      "name": "Marigold Farm",
+      "x": 4256,
+      "y": 3283,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "16947",
+      "elementId": 5634,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 1699,
+        "x": 3552,
+        "y": 1491,
+        "plane": 0
+      },
+      "transform": {
+        "x": 704,
+        "y": 1792,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:1700:5635",
+      "name": "Eastfold Farm",
+      "x": 4323,
+      "y": 3234,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "17202",
+      "elementId": 5635,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 1700,
+        "x": 3619,
+        "y": 1442,
+        "plane": 0
+      },
+      "transform": {
+        "x": 704,
+        "y": 1792,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:1701:5636",
+      "name": "Fish Farm",
+      "x": 4073,
+      "y": 3298,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "16179",
+      "elementId": 5636,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 1701,
+        "x": 3369,
+        "y": 1506,
+        "plane": 0
+      },
+      "transform": {
+        "x": 704,
+        "y": 1792,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:1702:5637",
+      "name": "Highweald Forest",
+      "x": 4226,
+      "y": 3444,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "16949",
+      "elementId": 5637,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 1702,
+        "x": 3522,
+        "y": 1652,
+        "plane": 0
+      },
+      "transform": {
+        "x": 704,
+        "y": 1792,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:1703:5638",
+      "name": "Lighthouse",
+      "x": 4161,
+      "y": 3292,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "16691",
+      "elementId": 5638,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 1703,
+        "x": 3457,
+        "y": 1500,
+        "plane": 0
+      },
+      "transform": {
+        "x": 704,
+        "y": 1792,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    },
+    {
+      "id": "cache-label:28:1704:5639",
+      "name": "Crabs",
+      "x": 4273,
+      "y": 3132,
+      "level": "place",
+      "priority": 100,
+      "mapId": 28,
+      "plane": 0,
+      "chunkId": "16944",
+      "elementId": 5639,
+      "fontSize": 0,
+      "source": {
+        "major": 42,
+        "minor": 28,
+        "index": 1704,
+        "x": 3569,
+        "y": 1340,
+        "plane": 0
+      },
+      "transform": {
+        "x": 704,
+        "y": 1792,
+        "plane": 0
+      },
+      "conditional": false,
+      "conditions": []
+    }
+  ]
+}

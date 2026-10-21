@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+  <title>Combat and Slayer pin: crossed sticks and shield placeholder</title>
+  <g fill="none" stroke="#f4efe4" stroke-width="4.4" stroke-linecap="round" stroke-linejoin="round">
+    <path d="m3 3 18 18 M21 3 3 18" stroke-width="6.6"/>
+    <path d="m3 3 18 18 M21 3 3 18" stroke-width="4.6"/>
+    <path d="m6 8 6-2 6 2-1 8-5 5-5-5Z"/>
+    <path d="m9 12 6 0"/>
+  </g>
+  <g fill="none" stroke="#25313b" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+    <path d="m3 3 18 18 M21 3 3 18" stroke-width="4"/>
+    <path d="m3 3 18 18 M21 3 3 18" stroke="#fff0cc" stroke-width="2"/>
+    <path d="m6 8 6-2 6 2-1 8-5 5-5-5Z" fill="#fff0cc"/>
+    <path d="m9 12 6 0" stroke="#e99768"/>
+  </g>
+</svg>

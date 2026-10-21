@@ -1,0 +1,1 @@
+These inert source snapshots preserve the exact Git bytes referenced by existing dataset provenance receipts before milestone 2 wiring. They are evidence only and are never imported or served. Runtime inputs and their moved values are validated separately by provider and parity checks.

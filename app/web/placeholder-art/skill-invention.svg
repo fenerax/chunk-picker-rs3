@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+  <title>Invention: wonky light bulb placeholder</title>
+  <g fill="none" stroke="#f4efe4" stroke-width="4.4" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M8 16C0 8 6 3 12 3C20 2 23 11 16 16L16 20 8 21Z"/>
+    <path d="m9 17 6 0 M9 21 14 21 M11 16 11 12 8 9 M11 12 15 8"/>
+    <path d="m3 3-1-1 M21 4 22 3"/>
+  </g>
+  <g fill="none" stroke="#25313b" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M8 16C0 8 6 3 12 3C20 2 23 11 16 16L16 20 8 21Z" fill="#fff0cc"/>
+    <path d="m9 17 6 0 M9 21 14 21 M11 16 11 12 8 9 M11 12 15 8" stroke="#e99768"/>
+    <path d="m3 3-1-1 M21 4 22 3"/>
+  </g>
+</svg>

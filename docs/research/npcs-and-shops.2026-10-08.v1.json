@@ -1,0 +1,380 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-10-08T12:58:00.241Z",
+  "metadataOnlyNpcCorrections": 7,
+  "behavioralSwitch": {
+    "name": "RS3_CACHE_SHOP_CONTENTS",
+    "default": false
+  },
+  "endpoint": "/api/npcs-and-shops",
+  "frontendChanges": [],
+  "datasets": [
+    {
+      "directory": "C:/Users/User/Projects/chunk-picker-rs3/.local/game-data/npcs-2026-10-08-v3",
+      "manifest": "npcs.manifest.v1.json",
+      "path": "C:/Users/User/Projects/chunk-picker-rs3/.local/game-data/npcs-2026-10-08-v3/npcs.manifest.v1.json",
+      "sha256": "3292754c2b79d3fe1ada582a080949a52864f3f698c2da626c2e26f422d674b1",
+      "bytes": 244129,
+      "hashScope": "raw artifact bytes",
+      "verifiedOutputs": 5
+    },
+    {
+      "directory": "C:/Users/User/Projects/chunk-picker-rs3/.local/game-data/shops-2026-10-08-v1",
+      "manifest": "shops-manifest.v1.json",
+      "path": "C:/Users/User/Projects/chunk-picker-rs3/.local/game-data/shops-2026-10-08-v1/shops-manifest.v1.json",
+      "sha256": "e32f3be215d8176a711b9bca21b0f312515b4135dcf5ea6ca70c144ac0547a08",
+      "bytes": 5089203,
+      "hashScope": "raw artifact bytes",
+      "verifiedOutputs": 5
+    }
+  ],
+  "repositorySources": [
+    {
+      "path": "rs3-chunkpicker-chunkinfo-export.json",
+      "sha256": "9dd835266f381abaa4d14033abcd0b43a001fe96d7df0a7f046fcc8676d66553",
+      "hashScope": "repository LF text"
+    },
+    {
+      "path": "app/data/cache-npcs.2026-10-08.v1.json",
+      "sha256": "73f8684a300e74fc6a8bba8f02dac4fe063326ab1eca4ef6ed9321e69e66df8c",
+      "hashScope": "repository LF text"
+    },
+    {
+      "path": "app/data/cache-shops.2026-10-08.v1.json",
+      "sha256": "be1514101d29dd2a93b83ef277393740c97e13668a59e483a7bf37771b91d326",
+      "hashScope": "repository LF text"
+    },
+    {
+      "path": "app/data/npc-metadata-corrections.2026-10-08.v1.json",
+      "sha256": "d0b8a7adf597b127211141346cc4731d6b12c1bcff592ddf73467a06e479b47f",
+      "hashScope": "repository LF text"
+    },
+    {
+      "path": "app/data/cache-npcs.mjs",
+      "sha256": "70b8afe073598e76994fd3f97ac44a80e3cd5c29e01b981ed5919a19d0a972ce",
+      "hashScope": "repository LF text"
+    },
+    {
+      "path": "app/data/cache-shops.mjs",
+      "sha256": "861c1461c5f38d07101000e8f209d0fc7fde6ddebc9074ea905e816d59732d7b",
+      "hashScope": "repository LF text"
+    },
+    {
+      "path": "app/server.mjs",
+      "sha256": "ac571edd93fd2ab061745ceb76bfe3c18a5033be466c8996edf8989b36369249",
+      "hashScope": "repository LF text"
+    },
+    {
+      "path": "app/tasks/engine.mjs",
+      "sha256": "c9653e3e6ddbae146179b23c3be34e9e2e63f4734ccb0e9bf3e5137f8200420b",
+      "hashScope": "repository LF text"
+    },
+    {
+      "path": "app/tasks/collection.mjs",
+      "sha256": "2c2666107455069b2678a19320711e9ea073bf4e5fea3e8757728d82320c08c2",
+      "hashScope": "repository LF text"
+    },
+    {
+      "path": "scripts/preview-npcs-and-shops.mjs",
+      "sha256": "0c989fb5c435171ed184076442a9c00a88ac4fa6ad5ec1f16b36928d91a6e36e",
+      "hashScope": "repository LF text"
+    },
+    {
+      "path": "scripts/cache/game-data-npcs.mjs",
+      "sha256": "5774b7606782a407570c8f430210e627f9faf397dd9b5a0c4eea6e579b8b60f8",
+      "hashScope": "repository LF text"
+    },
+    {
+      "path": "scripts/cache/game-data-shops.mjs",
+      "sha256": "bd71fc6588a3d3f6a1ff30c6e145963647693179869121f6117644196fb38bed",
+      "hashScope": "repository LF text"
+    },
+    {
+      "path": "scripts/cache/report-game-data-npcs.mjs",
+      "sha256": "a3f3bc7542a74817e9a5e782587f1316f4a94cc5f523e36082f5aa60a52691e8",
+      "hashScope": "repository LF text"
+    },
+    {
+      "path": "scripts/research/npc-metadata-evidence.mjs",
+      "sha256": "69c569dd4aae59108ebfae06371e3ccb3825d08b00ec30b8c635018f0707162c",
+      "hashScope": "repository LF text"
+    },
+    {
+      "path": "tests/npcs-and-shops-application.test.mjs",
+      "sha256": "aabee50914b77a865058301336cf63986cfe34ef3db15c61394e86e8d624ec76",
+      "hashScope": "repository LF text"
+    },
+    {
+      "path": "tests/fixtures/partner.mjs",
+      "sha256": "1bbf1b1f916c439bcfdfa407669bcd808c3f75c25e63b2f0cd4d4f898a72048b",
+      "hashScope": "repository LF text"
+    },
+    {
+      "path": "docs/research/cache-game-data-npcs.2026-10-08.v1.json",
+      "sha256": "1c02ab1fb5e0bbdf8712446e71335126326a41f91d20bb13f2551a2babe68063",
+      "hashScope": "repository LF text"
+    },
+    {
+      "path": "docs/research/cache-game-data-shops.2026-10-08.v1.json",
+      "sha256": "44b704f2d04a68b186a4a5f9ea7f6aee55ead0d17a66dcac33988feedbcbe774",
+      "hashScope": "repository LF text"
+    },
+    {
+      "path": "docs/research/npc-wiki-validation.2026-10-08.v1.json",
+      "sha256": "8bde440e86e6bac976c8a25a4852b5901c5a578dd266fbe0e8f867a55817bb08",
+      "hashScope": "repository LF text"
+    }
+  ],
+  "fixturePreviews": {
+    "retainedCli": {
+      "changedShops": [],
+      "reviewedNpcMetadataCount": 7,
+      "members": [
+        {
+          "id": "player1",
+          "name": "Player 1",
+          "checkedTaskCount": 20437,
+          "changedTaskCount": 0,
+          "equipmentChangeCount": 0,
+          "availability": {
+            "addedItems": [],
+            "removedItems": [],
+            "addedOwnItems": [],
+            "removedOwnItems": [],
+            "changedItemSources": []
+          }
+        },
+        {
+          "id": "player2",
+          "name": "Player 2",
+          "checkedTaskCount": 20375,
+          "changedTaskCount": 0,
+          "equipmentChangeCount": 0,
+          "availability": {
+            "addedItems": [],
+            "removedItems": [],
+            "addedOwnItems": [],
+            "removedOwnItems": [],
+            "changedItemSources": []
+          }
+        }
+      ],
+      "artifact": {
+        "path": "C:/Users/User/Projects/rs3-cache-work/npcshops-fixtures-2026-10-08-v1/preview-final.json",
+        "sha256": "3cf67b9ac7fa65529b2d855d98c49c910adad8cd84f2f6f95ebd85f92279b141",
+        "bytes": 1144,
+        "hashScope": "raw artifact bytes"
+      },
+      "state": {
+        "path": "C:/Users/User/Projects/rs3-cache-work/npcshops-fixtures-2026-10-08-v1/state.json",
+        "sha256": "e3a66fb8bb9f90ad55e16dde95614f166aaa89ea07db940986d08f933ef71b6e",
+        "bytes": 590,
+        "hashScope": "raw artifact bytes"
+      },
+      "command": "node scripts/preview-npcs-and-shops.mjs --state C:/Users/User/Projects/rs3-cache-work/npcshops-fixtures-2026-10-08-v1/state.json --json"
+    },
+    "syntheticReplacement": {
+      "changedShops": [
+        "Wares"
+      ],
+      "reviewedNpcMetadataCount": 7,
+      "members": [
+        {
+          "id": "player1",
+          "name": "Player 1",
+          "checkedTaskCount": 7,
+          "changedTaskCount": 2,
+          "equipmentChangeCount": 0,
+          "availability": {
+            "addedItems": [
+              "Replacement sword"
+            ],
+            "removedItems": [
+              "Partner sword"
+            ],
+            "addedOwnItems": [],
+            "removedOwnItems": [],
+            "changedItemSources": [
+              {
+                "name": "Partner sword",
+                "beforeSourceCount": 1,
+                "afterSourceCount": 0
+              },
+              {
+                "name": "Replacement sword",
+                "beforeSourceCount": 0,
+                "afterSourceCount": 1
+              }
+            ]
+          }
+        },
+        {
+          "id": "player2",
+          "name": "Player 2",
+          "checkedTaskCount": 9,
+          "changedTaskCount": 5,
+          "equipmentChangeCount": 3,
+          "availability": {
+            "addedItems": [
+              "Replacement sword"
+            ],
+            "removedItems": [
+              "Partner sword"
+            ],
+            "addedOwnItems": [
+              "Replacement sword"
+            ],
+            "removedOwnItems": [
+              "Partner sword"
+            ],
+            "changedItemSources": [
+              {
+                "name": "Partner sword",
+                "beforeSourceCount": 1,
+                "afterSourceCount": 0
+              },
+              {
+                "name": "Replacement sword",
+                "beforeSourceCount": 0,
+                "afterSourceCount": 1
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "syntheticAlternativeSourceLoss": {
+      "changedShops": [
+        "Wares"
+      ],
+      "reviewedNpcMetadataCount": 7,
+      "members": [
+        {
+          "id": "player1",
+          "name": "Player 1",
+          "checkedTaskCount": 6,
+          "changedTaskCount": 0,
+          "equipmentChangeCount": 0,
+          "availability": {
+            "addedItems": [],
+            "removedItems": [],
+            "addedOwnItems": [],
+            "removedOwnItems": [],
+            "changedItemSources": [
+              {
+                "name": "Gem",
+                "beforeSourceCount": 2,
+                "afterSourceCount": 1
+              }
+            ]
+          }
+        },
+        {
+          "id": "player2",
+          "name": "Player 2",
+          "checkedTaskCount": 5,
+          "changedTaskCount": 0,
+          "equipmentChangeCount": 0,
+          "availability": {
+            "addedItems": [],
+            "removedItems": [],
+            "addedOwnItems": [],
+            "removedOwnItems": [],
+            "changedItemSources": [
+              {
+                "name": "Gem",
+                "beforeSourceCount": 2,
+                "afterSourceCount": 1
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "syntheticHiddenDutyLoss": {
+      "changedShops": [
+        "Wares"
+      ],
+      "reviewedNpcMetadataCount": 7,
+      "members": [
+        {
+          "id": "player1",
+          "name": "Player 1",
+          "checkedTaskCount": 6,
+          "changedTaskCount": 1,
+          "equipmentChangeCount": 0,
+          "availability": {
+            "addedItems": [],
+            "removedItems": [
+              "Partner sword"
+            ],
+            "addedOwnItems": [],
+            "removedOwnItems": [],
+            "changedItemSources": [
+              {
+                "name": "Partner sword",
+                "beforeSourceCount": 1,
+                "afterSourceCount": 0
+              }
+            ]
+          }
+        },
+        {
+          "id": "player2",
+          "name": "Player 2",
+          "checkedTaskCount": 6,
+          "changedTaskCount": 2,
+          "equipmentChangeCount": 1,
+          "availability": {
+            "addedItems": [],
+            "removedItems": [
+              "Partner sword"
+            ],
+            "addedOwnItems": [],
+            "removedOwnItems": [
+              "Partner sword"
+            ],
+            "changedItemSources": [
+              {
+                "name": "Partner sword",
+                "beforeSourceCount": 1,
+                "afterSourceCount": 0
+              }
+            ]
+          }
+        }
+      ]
+    }
+  },
+  "verification": {
+    "focused": {
+      "total": 33,
+      "passed": 33,
+      "failed": 0
+    },
+    "fullSuite": {
+      "command": "npm test -- --test-concurrency=1",
+      "total": 1359,
+      "passed": 1358,
+      "failed": 0,
+      "skipped": 1,
+      "log": {
+        "path": "C:/Users/User/Projects/rs3-cache-work/npcshops-npm-test-2026-10-08-v2.log",
+        "sha256": "05fd20474205d206d7dae4f04aa6df772910b83e19d121f6e1190a2d3570486b",
+        "bytes": 138392,
+        "hashScope": "raw artifact bytes"
+      }
+    }
+  },
+  "generator": {
+    "path": "C:\\Users\\User\\Projects\\rs3-cache-work\\npcshops-build-application-review-2026-10-08-v1.mjs",
+    "sha256": "c2f531f410c8f453bc692bf0d7a6353dc709460c19df25c5bfb34a35bf4e6acc",
+    "bytes": 6064,
+    "hashScope": "raw artifact bytes"
+  },
+  "limits": [
+    "All states were synthetic fixtures; no private save or running picker was opened.",
+    "NPC members/life points and server spawn positions are unknown.",
+    "Encoded inventories do not establish universal shop identity, currency, membership, keeper or live remaining stock."
+  ]
+}

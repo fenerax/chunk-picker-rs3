@@ -1,0 +1,18 @@
+# Retained entry and Slayer mirror corrections — 2026-10-12
+
+H6 resolves the two adjacent findings in the [October 9 retained requirement audit](retained-task-requirements-2026-10-09.md). Both Warriors' Guild task mirrors now accept **base Attack + Strength at least 130 OR base Attack 99 OR base Strength 99**. Temporary boosts cannot grant entry. The Combat Mandrith task now requires **Combat 120 AND Slayer 95**, matching the unchanged canonical Slayer task.
+
+| Retained row | Before | Applied decision | Pinned evidence |
+| --- | --- | --- | --- |
+| Attack: Gain access to Warriors' Guild | Attack 65 AND Strength 65 | Neutral Level 1, remove conjunctive Skills, add exact entry alternatives; preserve NoBoost | [Warriors' Guild revision 37169629](https://runescape.wiki/w/Special:PermanentLink/37169629) |
+| Strength: Gain access to Warriors' Guild | Strength 65 AND Attack 65 | Same entry alternatives, same base-level restriction | [Warriors' Guild revision 37169629](https://runescape.wiki/w/Special:PermanentLink/37169629) |
+| Combat: Receive a slayer assignment from Mandrith | Combat 120 AND Slayer 85 | Preserve Combat 120; change Slayer to 95 | [Mandrith revision 37129615](https://runescape.wiki/w/Special:PermanentLink/37129615) |
+| Slayer: Receive a slayer assignment from Mandrith | Slayer 95 AND Combat 120 | Preserve unchanged | [Mandrith revision 37129615](https://runescape.wiki/w/Special:PermanentLink/37129615) |
+
+The generator derives 69 OR clauses from the reviewed guild facts: Attack 99, Strength 99, and 67 boundary pairs Attack 32 through 98 with Strength 130 minus Attack. A pair is conjunctive; either skill may exceed its boundary. The mastery clauses cover omitted endpoints and levels above 99. This exactly represents the summed requirement using the existing engine's supported Skills alternatives. Alternative checks use base levels, and both authored NoBoost flags remain true. The readable description states the three actual entry routes.
+
+The [versioned evidence](../../app/data/retained-entry-corrections.2026-10-12.v2.json) contains three exact-record overlays, two Wiki revision timestamps and wikitext hashes, stable task IDs, and LF-normalized generator/reference hashes. The loader applies the historical War's Retreat bundle followed by H6. Labels, IDs, chunks/NPCs, primary flags, priorities and other fields retain their authored values. Custom records fail the exact-record guard and remain untouched; strict audit reports drift. Prior committed evidence and the original export are immutable.
+
+Reproduce into a **new** path with `node scripts/research/retained-entry-requirements.mjs --output app/data/retained-entry-corrections.YYYY-MM-DD.vN.json`. The bounded generator fetches only Warriors' Guild and Mandrith via the public Wiki API, validates the requirement prose, and refuses existing or out-of-worktree outputs. It never reads private saves.
+
+Run `node --test tests/retained-entry-corrections.test.mjs tests/retained-task-corrections.test.mjs tests/requirement-alternatives.test.mjs`. Focused checks cover provenance, full base-pair truth-table equivalence, uneven 70/60 and 60/70, 99/1 and 1/99, rejected 64/65 and temporary boosts, Mandrith 94/95, exact identity/geography, immutable input, idempotence and drift guards. Evidence remains bounded to these three rows; it does not certify the whole retained catalogue. The generated `RequirementAlternativesDescription` supplies a short blocker: “Requires Attack + Strength 130, or Attack 99, or Strength 99 (base levels).” Existing alternative gates without this optional string retain their generic blocker wording.

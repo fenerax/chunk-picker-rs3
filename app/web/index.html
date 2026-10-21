@@ -1,0 +1,231 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="color-scheme" content="dark light">
+  <meta name="description" content="Private RS3 chunk picker for your group, with personal maps and house rules.">
+  <title>Chunk Picker RS3 · One Chunk Duo</title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <link rel="stylesheet" href="/style.css">
+  <link rel="stylesheet" href="/art-status.css">
+  <link rel="stylesheet" href="/chunk-colours.css">
+  <link rel="stylesheet" href="/task-ui.css">
+  <link rel="stylesheet" href="/task-filters.css">
+  <link rel="stylesheet" href="/group-goals.css">
+  <link rel="stylesheet" href="/activity-filters.css">
+  <link rel="stylesheet" href="/bis-panel.css">
+  <link rel="stylesheet" href="/bis-compare.css">
+  <link rel="stylesheet" href="/profile.css">
+  <link rel="stylesheet" href="/lamp-choices.css">
+  <link rel="stylesheet" href="/finish-line.css">
+  <link rel="stylesheet" href="/partner-supply.css">
+  <link rel="stylesheet" href="/sandbox.css">
+  <link rel="stylesheet" href="/rules-review.css">
+  <link rel="stylesheet" href="/completed-view.css">
+  <link rel="stylesheet" href="/map-display.css">
+  <link rel="stylesheet" href="/map-activity-layers.css">
+  <link rel="stylesheet" href="/members-start.css">
+  <link rel="stylesheet" href="/search.css">
+  <link rel="stylesheet" href="/roll-stats.css">
+  <link rel="stylesheet" href="/area-check.css">
+  <link rel="stylesheet" href="/map-capture.css">
+  <link rel="stylesheet" href="/stream-safe.css">
+  <link rel="stylesheet" href="/overlay-panel.css">
+  <link rel="stylesheet" href="/feedback-badge.css">
+  <link rel="stylesheet" href="/journal.css">
+  <link rel="stylesheet" href="/banking.css">
+  <link rel="stylesheet" href="/top-bar.css">
+  <link rel="stylesheet" href="/phone-layout.css">
+  <link rel="stylesheet" href="/usage.css">
+  <link rel="stylesheet" href="/setup-guide.css">
+  <script type="module" src="/main.mjs"></script>
+</head>
+<body>
+  <button id="screenshot-hint" class="screenshot-hint" type="button" aria-live="polite" hidden>Esc or double-tap to leave</button>
+  <header class="topbar">
+    <h1><span id="dataset-brand">Chunk Picker</span> <span id="dataset-brand-tag" class="brand-tag">RS3</span></h1>
+    <span id="view-only-badge" class="view-only-badge" hidden>View only</span>
+    <span id="stream-safe-indicator" class="stream-safe-indicator" hidden>Stream-safe</span>
+    <div class="player-controls">
+      <div class="member-switch" id="member-switch" role="group" aria-label="Whose map"></div>
+      <label class="member-picker">Map <select id="member"></select></label>
+      <label class="group-toggle"><input id="group-view" type="checkbox" role="switch" autocomplete="off" checked> Group view</label>
+    </div>
+    <nav aria-label="Picker tools">
+      <button id="helper-open">Helper</button>
+      <button id="search-open">Search</button>
+      <details class="more-tools" id="info-tools">
+        <summary>Info</summary>
+        <div class="more-tools-menu">
+          <p id="info-game-heading" class="menu-heading">Game</p>
+          <button id="bis-open">Current BiS</button>
+          <button id="profile-open">Profile</button>
+          <button id="finish-line-open">F2P finish line</button>
+          <button id="activity-open">Activity Info</button>
+          <button id="teleports-open">Teleports</button>
+          <p class="menu-heading">Our run</p>
+          <button id="partner-supply-open">Ask your partner</button>
+          <button id="rules-open">Chunk Rules</button>
+          <button id="completed-open">Completed Tasks</button>
+          <button id="journal-open">Map journal</button>
+          <button id="history-open">History</button>
+        </div>
+      </details>
+      <button id="runemetrics-open" title="Pull real levels and finished quests from RuneMetrics">Sync levels</button>
+      <details class="more-tools" id="admin-tools" hidden>
+        <summary>Admin</summary>
+        <div class="more-tools-menu">
+          <button id="invites-open" hidden>Invite links</button>
+          <button id="overlays-open" hidden>OBS overlays</button>
+          <button id="usage-open" hidden>Usage</button>
+          <a id="gallery-open" href="/gallery" target="_blank" rel="noopener">Component gallery</a>
+        </div>
+      </details>
+      <details class="more-tools" id="more-tools">
+        <summary>More</summary>
+        <div class="more-tools-menu">
+          <button id="help-open">Help</button>
+          <button id="settings-open">Settings</button>
+          <button id="stream-safe-toggle" role="switch" aria-checked="false">Stream-safe mode</button>
+          <button id="map-display-open" aria-expanded="false" aria-controls="map-display-panel">Map display</button>
+          <button id="screenshot-open" type="button" aria-pressed="false" aria-keyshortcuts="Shift+S" title="Hide controls for a screenshot (Shift+S)">Screenshot mode</button>
+          <button id="map-image-open" type="button">Download map image…</button>
+          <button id="feedback-open" class="feedback-open" hidden>Feedback</button>
+          <p class="menu-heading" id="saves-heading">Saves</p>
+          <button id="backup-open">Backup &amp; Import</button>
+          <p id="backup-status-menu" class="backup-status-line backup-status-menu" hidden></p>
+          <p class="menu-heading" id="about-heading">About</p>
+          <button id="whats-new-open">What’s new</button>
+          <button id="roadmap-open">Roadmap</button>
+          <button id="map-sources-open">About / Map sources</button>
+          <div class="theme-switch" role="group" aria-label="Appearance"><span>Appearance</span><div class="theme-switch-options" id="theme-switch"><button type="button" id="theme-dark" data-theme-choice="dark">Dark</button><button type="button" id="theme-gray" data-theme-choice="gray">Gray</button><button type="button" id="theme-light" data-theme-choice="light">Light</button></div></div>
+        </div>
+      </details>
+    </nav>
+    <span id="save-status" role="status">Connecting…</span>
+  </header>
+  <div id="update-banner" class="update-banner" role="status" hidden></div>
+  <div id="notice" role="status" hidden></div>
+  <div id="backup-status-notice" class="backup-status-notice" role="status" aria-live="polite" hidden></div>
+  <section id="duo-live" class="duo-live" role="status" aria-live="polite" hidden></section>
+  <section id="duo-catchup" class="duo-catchup" aria-label="Since you were last here" hidden></section>
+  <section id="sandbox-banner" class="sandbox-banner" aria-label="Sandbox" hidden></section>
+  <main class="workspace">
+    <section id="map-panel" class="map-panel" aria-label="Chunk map">
+      <div id="phone-map-primary" class="phone-map-primary" hidden>
+        <div id="phone-roll-host" class="toolbar-group" role="group" aria-label="Roll"></div>
+        <div class="toolbar-group"><button id="phone-controls-toggle" type="button" aria-expanded="false" aria-controls="map-toolbar phone-map-extras">Controls</button></div>
+      </div>
+      <div class="map-toolbar" id="map-toolbar" aria-label="Map controls">
+        <div class="toolbar-group toolbar-roll" role="group" aria-label="Roll">
+          <button id="pick" class="pick-action">Roll for selected player</button>
+          <button id="roll-two">Roll two choices</button>
+          <button id="pool-ranking-toggle" aria-expanded="false" aria-pressed="false" aria-controls="pool-ranking-panel" title="See how many new tasks each chunk in your roll pool would add">Compare roll pool</button>
+          <button id="unpick" hidden>Forfeit</button>
+        </div>
+        <div class="toolbar-group" role="group" aria-label="View">
+          <button id="center-map">Center on Unlocked</button>
+          <button id="membership-overlay" aria-pressed="false" title="Tint members-only land and outline where it meets free-to-play land">Members-only land</button>
+          <button id="members-start-open" hidden>Ready for members</button>
+          <button id="map-pins-open" aria-expanded="false" aria-controls="map-pins-panel" hidden>Map icons</button>
+        </div>
+        <div class="toolbar-group zoom-group" role="group" aria-label="Zoom"><button id="zoom-in" aria-label="Zoom in">+</button><button id="zoom-out" aria-label="Zoom out">−</button></div>
+        <div class="toolbar-group toolbar-undo" role="group" aria-label="History"><button id="undo">Undo</button><span id="undo-own"></span></div>
+        <div class="toolbar-group toolbar-sandbox" role="group" aria-label="Sandbox"><button id="sandbox-toggle" aria-pressed="false" title="Try locking or unlocking chunks and see the task changes. Nothing is saved.">Sandbox</button></div>
+      </div>
+      <div id="phone-map-actions" class="phone-map-actions" aria-label="Map tools" hidden>
+        <div id="phone-map-extras" class="toolbar-group" hidden>
+          <button id="phone-legend-open" aria-expanded="false" aria-controls="phone-legend-sheet">Legend</button>
+          <button id="phone-map-controls" aria-controls="map-toolbar" title="Scroll through the map toolbar">More controls</button>
+        </div>
+        <div id="phone-undo-host" class="toolbar-group" role="group" aria-label="History"></div>
+      </div>
+      <section id="phone-legend-sheet" class="phone-legend-sheet" aria-labelledby="phone-legend-title" hidden>
+        <header class="map-display-header"><h2 id="phone-legend-title">Map legend</h2><button id="phone-legend-close" type="button">Done</button></header>
+        <div id="phone-legend-content" class="phone-legend-content"></div>
+      </section>
+      <div class="map-stage" id="map-stage">
+        <canvas id="map-base" aria-hidden="true"></canvas>
+        <canvas id="map-state" aria-hidden="true"></canvas>
+        <canvas id="map-pins" aria-hidden="true"></canvas>
+        <canvas id="map-hover" tabindex="0" role="img" aria-label="Interactive world map. Drag to pan, scroll to zoom, click a chunk for details. Use Search for the accessible chunk list."></canvas>
+        <div id="map-tooltip" hidden></div>
+      </div>
+      <div id="map-menu" class="map-menu" role="menu" aria-label="Chunk actions" hidden></div>
+      <section id="map-display-panel" class="map-display-panel" aria-labelledby="map-display-title" hidden>
+        <header class="map-display-header"><h2 id="map-display-title">Map display</h2><button id="map-display-done" type="button">Done</button></header>
+        <div id="map-display-content" class="map-display-content"></div>
+        <footer class="map-display-footer"><button id="map-display-reset" type="button">Reset sizes</button><span>Drag to try a size</span></footer>
+      </section>
+      <div class="map-dock" aria-label="Map information">
+        <div class="map-dock-panels">
+      <section id="pending-panel" class="floating-panel" hidden aria-label="Pending roll choices"></section>
+      <section id="pool-ranking-panel" class="floating-panel pool-ranking-panel" hidden aria-labelledby="pool-ranking-title">
+        <header class="panel-header"><h2 id="pool-ranking-title">Compare roll pool</h2><button id="pool-ranking-close" class="close-button" aria-label="Close roll pool comparison">×</button></header>
+        <p id="pool-ranking-owner" class="pool-ranking-owner"></p>
+        <label class="pool-ranking-sort" for="pool-ranking-sort">Sort by <select id="pool-ranking-sort"><option value="">Total new tasks</option></select></label>
+        <p id="pool-ranking-status" class="pool-ranking-status" role="status" aria-live="polite"></p>
+        <ol id="pool-ranking-rows" class="pool-ranking-rows" aria-label="Roll pool chunks"></ol>
+        <details id="pool-ranking-advanced" class="pool-ranking-advanced" hidden><summary>Details</summary><p id="pool-ranking-advanced-content"></p></details>
+      </section>
+      <section id="chunk-info" class="floating-panel chunk-info" hidden aria-labelledby="chunk-title">
+        <header class="panel-header">
+          <h2 id="chunk-title">Chunk Info</h2>
+          <div class="panel-tools" id="chunk-tools"></div>
+          <button id="chunk-close" class="close-button" aria-label="Close chunk information">×</button>
+        </header>
+        <div id="chunk-content"></div>
+      </section>
+      <section id="map-pins-panel" class="floating-panel map-pins-panel" hidden aria-labelledby="map-pins-title"></section>
+      <details id="recent-panel" class="recent-panel"><summary>Recent Chunks</summary><div id="recent-content"></div></details>
+        </div>
+        <aside class="map-summary" aria-label="Map legend">
+          <div id="map-counts"></div>
+          <details id="legend-details"><summary>Map legend <span class="summary-help">Visible layers</span></summary><div class="legend" id="map-legend"></div></details>
+          <span id="map-hint">Drag to pan · Scroll to zoom · Click for chunk info</span>
+        </aside>
+      </div>
+      <section id="empty-map" class="empty-map" hidden>
+        <h2 id="empty-map-title">Bring your maps into One Chunk Duo</h2>
+        <p id="empty-map-instructions">Import a gameplay export or a full backup. Your two maps retain their owners, hand-added roll pool, notes and progress.</p>
+        <button id="empty-import">Import maps</button>
+        <button id="random-start">Choose a random starting chunk</button>
+      </section>
+    </section>
+    <aside id="phone-task-panel" class="task-sidebar" aria-label="Chunk tasks">
+      <section id="group-goals" class="group-goals" aria-label="Group goals"></section>
+      <div class="task-heading"><h2>Active Tasks</h2><span id="task-count"></span></div>
+      <label class="sr-only" for="task-filter">Search tasks</label>
+      <input id="task-filter" type="search" placeholder="Filter tasks…">
+      <div class="task-options">
+        <label><input id="hide-completed" type="checkbox" autocomplete="off" checked> Hide completed</label>
+        <label><input id="show-blocked" type="checkbox" autocomplete="off"> Show blocked</label>
+        <label><input id="show-all" type="checkbox" autocomplete="off"> All possible tasks</label>
+      </div>
+      <p id="task-inclusion-hint" class="field-help" hidden>Show blocked already includes all possible tasks.</p>
+      <div id="task-engine-status" role="status">Loading tasks…</div>
+      <div id="active-tasks" class="task-list"></div>
+      <details id="backlog-details"><summary>Backlog <span id="backlog-count"></span></summary><div id="backlog-actions" class="backlog-actions"></div><div id="backlog-tasks" class="task-list"></div></details>
+      <details id="completed-details"><summary>Completed Tasks <span id="completed-count"></span><button id="completed-review" type="button">Review all</button></summary><div id="completed-tasks" class="task-list"></div></details>
+      <details data-usage="tasks:accessible-areas"><summary data-usage="tasks:accessible-areas:disclosure">Accessible Areas</summary><div id="accessible-areas"></div></details>
+      <button id="custom-task-open" class="wide-button">Add custom task</button>
+    </aside>
+    <section id="phone-more" class="phone-more" aria-labelledby="phone-more-title" hidden>
+      <h2 id="phone-more-title">More</h2>
+      <div id="phone-tools"></div>
+      <div id="phone-map-summary"></div>
+    </section>
+  </main>
+  <nav id="phone-tabs" role="tablist" aria-label="Picker views" hidden>
+    <button id="phone-tab-map" type="button" role="tab" aria-controls="map-panel" aria-selected="true">Map</button>
+    <button id="phone-tab-tasks" type="button" role="tab" aria-controls="phone-task-panel" aria-selected="false" tabindex="-1">Tasks</button>
+    <button id="phone-tab-more" type="button" role="tab" aria-controls="phone-more" aria-selected="false" tabindex="-1">More</button>
+  </nav>
+  <dialog id="tool-dialog" aria-labelledby="dialog-title">
+    <form method="dialog" class="dialog-header"><h2 id="dialog-title"></h2><button class="close-button" aria-label="Close dialog">×</button></form>
+    <div id="dialog-content"></div>
+  </dialog>
+  <div id="startup-error" hidden class="startup-error" role="alert"></div>
+</body>
+</html>

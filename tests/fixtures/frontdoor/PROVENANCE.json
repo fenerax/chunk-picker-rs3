@@ -1,0 +1,17 @@
+{
+  "coreCommit": "8ae68b1adeffed184f37c6d46f632d5e19a166e9",
+  "files": [
+    {
+      "path": "app/security/request.mjs",
+      "sha256": "6ad6674812b4aa8767c3938eddee4baee2407949dc1ea32db926430fc65eca63"
+    },
+    {
+      "path": "app/storage/invites.mjs",
+      "sha256": "6c6c75b36f61a1a29cd9f6ae5ad230b1e12767bfe590d6f9296b2972892f2aeb"
+    },
+    {
+      "path": "app/game-defaults.mjs",
+      "sha256": "f7feb3287ad8c0b7abd310cc87bdba4859b559c33ce5e12a82aad3b20e231488"
+    }
+  ]
+}

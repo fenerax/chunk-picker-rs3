@@ -1,0 +1,11 @@
+{
+  "sourceUrl": "https://runescape.wiki/w/Raw%20dusk%20eel?oldid=36636680",
+  "oldid": 36636680,
+  "retrieved": "2026-10-12",
+  "timestamp": "2025-01-18T03:17:55Z",
+  "title": "Raw dusk eel",
+  "scope": "Complete source snapshot from MediaWiki revisions API",
+  "licence": "RuneScape Wiki contributors, CC BY-NC-SA 3.0; source exceptions apply.",
+  "source": "{{RCFood}}\n{{Infobox Item\n|name = Raw dusk eel\n|image = [[File:Raw dusk eel.png]]\n|release = [[12 April]] [[2010]]\n|update = Dungeoneering Skill!\n|members = No\n|quest = No\n|tradeable = Yes\n|equipable = No\n|stackable = Yes\n|disassembly = Restricted\n|options = Drop-X\n|value = 700\n|destroy = Drop\n|kept = reclaimable\n|exchange = No\n|examine = I should try cooking this. (Tier 3)\n|weight = 0\n|id = 17801\n}}\n[[File:Raw dusk eel detail.png|100px|left]]\nA '''raw dusk eel''' is the uncooked form of [[dusk eel]]. It requires 20 [[Fishing]] to catch, granting 45 Fishing [[experience]]. At 20 [[Cooking]], you can cook it on either a [[fire]] or a [[range]].\n\n==Fishing==\n{{Fishing info\n|name = Raw dusk eel\n|level = 20\n|xp = 45\n|spot = [[Dusk eels (fishing spot)|Dusk eels]]\n|tool = {{plink|Fly fishing rod (Dungeoneering)|txt=Fly fishing rod}}\n|bait = {{plink|Feather (Dungeoneering)|txt=Feather}}\n}}\n\n==Products==\n{{Uses material list}}\n\n==Item sources==\n{{Drop sources}}\n\n===Shop locations===\n{{Shop locations list}}\n\n==Update history==\n{{UH|\n* {{UL|type=update|update=Dungeoneering Skill!|date=12 April 2010}}\n** Added to game.\n}}\n\n{{Dungeoneering fish}}",
+  "sourceSha256": "f3580397d025a4f4906f0b38c4b2bafe0f2129eb2480278fc71a58dff46cb408"
+}

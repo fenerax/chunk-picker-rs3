@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+  <title>Firemaking: log with a flame placeholder</title>
+  <g fill="none" stroke="#f4efe4" stroke-width="4.4" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M8 15C2 12 8 8 8 5L11 8 14 2C14 8 22 11 16 16Z"/>
+    <path d="m4 17 13-2 3 4-3 3-13-1Z"/>
+    <ellipse cx="5" cy="19" rx="2" ry="2.5"/>
+  </g>
+  <g fill="none" stroke="#25313b" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M8 15C2 12 8 8 8 5L11 8 14 2C14 8 22 11 16 16Z" fill="#e99768"/>
+    <path d="m4 17 13-2 3 4-3 3-13-1Z" fill="#fff0cc"/>
+    <ellipse cx="5" cy="19" rx="2" ry="2.5" fill="#e99768"/>
+  </g>
+</svg>

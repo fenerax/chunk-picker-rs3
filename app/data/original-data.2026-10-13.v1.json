@@ -1,0 +1,482 @@
+{
+  "schemaVersion": 1,
+  "checkedOn": "2026-10-13",
+  "definitions": {
+    "path": "rs3-chunkpicker-chunkinfo-export.json",
+    "sha256": "9dd835266f381abaa4d14033abcd0b43a001fe96d7df0a7f046fcc8676d66553"
+  },
+  "taskMap": {
+    "path": "reference/original-picker/tasksMap.json",
+    "sha256": "721c8a9671566b8bef3b4985bc13a1248c54400b9304cd9ecc88b3184cdd780c"
+  },
+  "hashScope": "SHA-256 of repository text with CRLF normalized to LF; source capture hashes use exact external bytes.",
+  "provenance": {
+    "frozenDefinitions": "rs3-chunkpicker-chunkinfo-export.json",
+    "frozenTaskMap": "reference/original-picker/tasksMap.json",
+    "source": {
+      "schemaVersion": 1,
+      "method": "One unauthenticated GET per known public data file; no retries, redirects, browser, logins or service writes.",
+      "captures": [
+        {
+          "name": "rs3-chunkpicker-chunkinfo-export.json",
+          "url": "https://source-chunk.github.io/chunk-picker-rs3/rs3-chunkpicker-chunkinfo-export.json",
+          "fetchedAt": "2026-10-13T07:29:00.734Z",
+          "bytes": 10176005,
+          "etag": "W/\"6aba98a4-9b4605\"",
+          "lastModified": "Mon, 28 Sep 2026 16:41:08 GMT",
+          "contentType": "application/json; charset=utf-8",
+          "sha256": "9dd835266f381abaa4d14033abcd0b43a001fe96d7df0a7f046fcc8676d66553"
+        },
+        {
+          "name": "tasksMap.json",
+          "url": "https://source-chunk.github.io/chunk-picker-rs3/tasksMap.json",
+          "fetchedAt": "2026-10-13T07:29:02.335Z",
+          "bytes": 6252216,
+          "etag": "W/\"6aba98a4-5f66b8\"",
+          "lastModified": "Mon, 28 Sep 2026 16:41:08 GMT",
+          "contentType": "application/json; charset=utf-8",
+          "sha256": "721c8a9671566b8bef3b4985bc13a1248c54400b9304cd9ecc88b3184cdd780c"
+        }
+      ]
+    },
+    "report": "docs/research/original-data-2026-10-13.v1.json",
+    "generators": [
+      {
+        "path": "scripts/compare-original-data.mjs",
+        "sha256": "5417566f962125891cf065bb603932b6102b0a7501084a1f5ad7a2702c3d908f"
+      },
+      {
+        "path": "scripts/lib/original-data-compare.mjs",
+        "sha256": "846a3ee9896d220d88bf8b5eeb09d7f3b20d1aeb997f075a65190c98cae368d9"
+      },
+      {
+        "path": "scripts/lib/original-data-overrides.mjs",
+        "sha256": "ffeef82e654c594727db07bffb9eff73da037f473750459b27a470973d51ad41"
+      },
+      {
+        "path": "scripts/updateTasksMap.js",
+        "sha256": "10dc89fec5fe6b002bd6cd837f1bb1d3c6b4bfc0602d7a24cbcdd8b10623788f"
+      },
+      {
+        "path": "scripts/update-identities.mjs",
+        "sha256": "163a1f3072e0101f01e92ff40e5a38803b9c8a20047aaecd8933d3072c675c01"
+      }
+    ]
+  },
+  "adoption": {
+    "status": "unchanged",
+    "adopted": 0,
+    "skipped": 0,
+    "reason": "Zero changes apply today. Kept the existing bytes and recorded a dated check instead of duplicating identical data."
+  },
+  "protectedFiles": [
+    {
+      "path": "app/data/access-policy.mjs",
+      "sha256": "a97164f922597d42b04eecedf0c28e47aa9bfdac575ed5b44a5430f12bf644ec"
+    },
+    {
+      "path": "app/data/archaeology-task-corrections.2026-10-08.v1.json",
+      "sha256": "63c8fa1041748999576d23870dc343bb3e709ea3b09aa54daafe9b936b9f05a2"
+    },
+    {
+      "path": "app/data/archaeology-task-corrections.mjs",
+      "sha256": "ba8d0071d3acc79463aaae9c9ec336b1fa694cdf2dd79762f1d6660da28bab14"
+    },
+    {
+      "path": "app/data/cache-archaeology.2026-10-08.v1.json",
+      "sha256": "2b703f6f029d22715d05dd9911d824c6c09dfe58ff7c3303429c2cd162799ad6"
+    },
+    {
+      "path": "app/data/cache-archaeology.mjs",
+      "sha256": "25006e02cbb0b5bde225767bec6849cea25e1cce362029636cf33b9da26a77b0"
+    },
+    {
+      "path": "app/data/cache-component-policy.2026-10-07.v1.json",
+      "sha256": "dac901f0b40ab00db3800ddd893b9235252e66b7edf9554a1dbfd04d3d0f4eaa"
+    },
+    {
+      "path": "app/data/cache-entry-policy.mjs",
+      "sha256": "b78c2044cc924fc863780f41276057c71e1809fe67071c82afa56d7a6baf9da6"
+    },
+    {
+      "path": "app/data/cache-interiors.2026-10-08.v1.json",
+      "sha256": "243bdfd03b54b3ec70237c7bc6e8867156b183a537d267f252b8f1c3df084d2a"
+    },
+    {
+      "path": "app/data/cache-interiors.2026-10-08.v2.json",
+      "sha256": "7bf6f74ef669542b06d62c66e4d38c0486577d190b50b1be26450762bd2dbaa4"
+    },
+    {
+      "path": "app/data/cache-interiors.mjs",
+      "sha256": "8320f4fbf10d86ab4aca41bd91da602d6b2bd01dba49c64b82241d0b6455d5fb"
+    },
+    {
+      "path": "app/data/cache-npcs.2026-10-08.v1.json",
+      "sha256": "73f8684a300e74fc6a8bba8f02dac4fe063326ab1eca4ef6ed9321e69e66df8c"
+    },
+    {
+      "path": "app/data/cache-npcs.mjs",
+      "sha256": "70b8afe073598e76994fd3f97ac44a80e3cd5c29e01b981ed5919a19d0a972ce"
+    },
+    {
+      "path": "app/data/cache-resource-selectors.2026-10-08.v1.json",
+      "sha256": "d97493d42f7efd59e67c39cd8405570c605d396b35e83d31115bc690e0482e2c"
+    },
+    {
+      "path": "app/data/cache-resources.2026-10-08.v1.json",
+      "sha256": "3ba281dffe10ec09fa21c34825987334b85ca4e860654c0b78c0c12bf4bac53b"
+    },
+    {
+      "path": "app/data/cache-resources.mjs",
+      "sha256": "a5ac20946ab6c2f1992ecdcedbd51b5a7431ca4d414825a1d71207e890724a5f"
+    },
+    {
+      "path": "app/data/cache-selector-evidence.2026-10-07.v1.json",
+      "sha256": "ba511c711dfa8a356bcb3960df99483bb633036a56ff8ee607abe9dc07c28b9c"
+    },
+    {
+      "path": "app/data/cache-shops.2026-10-08.v1.json",
+      "sha256": "be1514101d29dd2a93b83ef277393740c97e13668a59e483a7bf37771b91d326"
+    },
+    {
+      "path": "app/data/cache-shops.mjs",
+      "sha256": "861c1461c5f38d07101000e8f209d0fc7fde6ddebc9074ea905e816d59732d7b"
+    },
+    {
+      "path": "app/data/cache-surface-corrections.2026-10-08.v1.json",
+      "sha256": "57cdecbfb94c0bc64596ca8600d81310a2d7e15d62e5df4060d4ad94293ea4e9"
+    },
+    {
+      "path": "app/data/cache-topology.mjs",
+      "sha256": "a870558067fdb8be15d1787af9b30aab7f788441c30e68add082c7de46087543"
+    },
+    {
+      "path": "app/data/cache-walkability.2026-10-07.v1.json",
+      "sha256": "2a6acb3b9a2a45eac73cfb543f1d63d2d733310b2e03d5b2bf2f40fa7b41130e"
+    },
+    {
+      "path": "app/data/combat-level-formula.2026-10-09.v1.json",
+      "sha256": "1b49f64648e2ee786312f39faefc69dbcf150cc371e6b8e9d347e7dbb88ef6cc"
+    },
+    {
+      "path": "app/data/equipment-corrections.2026-10-08.v1.json",
+      "sha256": "afab2de5480c6fcd2a5401d29aaae66a6bdc6c47ad8c91735ccc5f4946b56579"
+    },
+    {
+      "path": "app/data/equipment-corrections.mjs",
+      "sha256": "b7752ae10aee1b107ee6a180745ae128c6a81afb800e9b77a8e78d006d1e6801"
+    },
+    {
+      "path": "app/data/equipment-permanence.2026-10-08.v1.json",
+      "sha256": "14235b62a6568e29a5d3543f9c53b4a2b6195800478053332a974cf6ada1754d"
+    },
+    {
+      "path": "app/data/equipment-permanence.mjs",
+      "sha256": "87f317aa2a7465668647abbdc85976a15b6606eaeed1d8a586f69ba9ef17a6be"
+    },
+    {
+      "path": "app/data/equipment-weights.2026-10-08.v1.json",
+      "sha256": "f99ea151aef844d0265e2ec5da37b731f907fc56b555d5c2631d996dacdcd979"
+    },
+    {
+      "path": "app/data/icons.mjs",
+      "sha256": "798c8e7140343ddc7fd94e02af5088a27701d21b6ef0d3feaca223bb9c43b877"
+    },
+    {
+      "path": "app/data/identity-registry.mjs",
+      "sha256": "21d384c1e65df5ae0e6b50d882c985d6337eaf5084cc05578b21392005b88685"
+    },
+    {
+      "path": "app/data/interior-assets.mjs",
+      "sha256": "96ff0d18dd9422b217a0fb8d46dff77b5478c05b2f29172f66bf367609f2d97e"
+    },
+    {
+      "path": "app/data/item-icons.2026-10-08.v1.json",
+      "sha256": "367125a3c08e8b47d6df65a4014b944b6df6f0d2ae40ae9b53932e5705bb1652"
+    },
+    {
+      "path": "app/data/item-icons.2026-10-09.v1.json",
+      "sha256": "14897ed3532fcc60d1087860995055ede140505037942128b48731751b76ad87"
+    },
+    {
+      "path": "app/data/item-icons.2026-10-12.v1.json",
+      "sha256": "c906eecab2f5e274879d8f28e69f24de95ed3e48df5c74b207fe0c94844d1b9f"
+    },
+    {
+      "path": "app/data/item-membership-aliases.2026-10-08.v1.json",
+      "sha256": "214a40617f8344b1b79f049e739d945f2e9767bc3d6ed70ec1b6ea58271831b7"
+    },
+    {
+      "path": "app/data/item-membership-aliases.mjs",
+      "sha256": "fe10ff6e5c4dd7dc855950a449b3951c686801f502ae6378bc295a3008b4243a"
+    },
+    {
+      "path": "app/data/item-membership-flags.2026-10-08.v1.json",
+      "sha256": "2af6ab5d1e7c6ce0d0dcfcb451c9ec06b63b062a5f1fb971223e80dc73c2386a"
+    },
+    {
+      "path": "app/data/item-membership-flags.mjs",
+      "sha256": "48cf53653e0c6b44c8c42a23fa0c490457c0ecd93e19acda5903b79a9ef04310"
+    },
+    {
+      "path": "app/data/item-membership-index.mjs",
+      "sha256": "f4539ad395b8b0566d05e8cf003a277b675495a5741f349c49697290a9bbb57d"
+    },
+    {
+      "path": "app/data/item-membership-review.2026-10-12.v1.json",
+      "sha256": "06c1f49caa41f7dd9cd6944139d4e184a610234f85ca5f29f292e22e5f840dcf"
+    },
+    {
+      "path": "app/data/item-membership-review.mjs",
+      "sha256": "d24343d327ccc4000efee10224f0cd5e795784029b3c6e101d3e0b0b782ceb8a"
+    },
+    {
+      "path": "app/data/item-membership.2026-10-08.v1.json",
+      "sha256": "56d53a3aca9988f045bf46ba5599c482aeb038b8841589dd0adfb3232d1f021b"
+    },
+    {
+      "path": "app/data/item-membership.mjs",
+      "sha256": "49b5d2b4d90869bfbd596618a30fcf9f881c8cb38112a0b33c8772aaf46ed6a6"
+    },
+    {
+      "path": "app/data/lodestones.mjs",
+      "sha256": "28bf003977dba8af419727169faa0af9fabfedad1afe51fadd6f38de8b00ee49"
+    },
+    {
+      "path": "app/data/map-connections.2026-10-09.v1.json",
+      "sha256": "f3b0a0b521ef92c2b22f22a5d410b00c75ec023c99322073b5a598f0387f78e5"
+    },
+    {
+      "path": "app/data/map-connections.mjs",
+      "sha256": "2c72f0049f183dc4a4dfc12671fadceac6434de108b6603934fa3ce813683c34"
+    },
+    {
+      "path": "app/data/map-corrections.mjs",
+      "sha256": "a04e012ce1ca02434280d6cea7f7f486e4ab95360bba0b0a76113760788bb6ba"
+    },
+    {
+      "path": "app/data/map-pin-categories.mjs",
+      "sha256": "5a69a06848209890aa849e8de58a4c1663090ff07848902e3dfbf5c2f166fe47"
+    },
+    {
+      "path": "app/data/map-pin-details.2026-10-08.v2.json",
+      "sha256": "10b987a38c413a28999ff788ab2e4c0ab6bea45f57884e5b83fa71aa2a55ddf5"
+    },
+    {
+      "path": "app/data/map-pin-details.inputs.2026-10-08.v1.json",
+      "sha256": "94699d23c6b3c091da9c6caa69866e8dd2fb1082939e1648e61eaadfdae597ba"
+    },
+    {
+      "path": "app/data/map-pin-details.mjs",
+      "sha256": "292595947c112902c0b8a65cf4a7f061559b2559229a10bdda60fa8ea5cba65c"
+    },
+    {
+      "path": "app/data/map-pin-details.wiki.2026-10-08.v1.json",
+      "sha256": "457cf05b902e0ffc55ebd06e01770a6c10ca358d0862cccde859425614b8bf0f"
+    },
+    {
+      "path": "app/data/map-pins.mjs",
+      "sha256": "ce45efab11d66c8ae79ab2dbd04a4a6dbf21ca1def928ca493e8080bf61139bb"
+    },
+    {
+      "path": "app/data/members-start-banks.2026-10-12.v1.json",
+      "sha256": "5810c575e5c0bde12aef574a2dfd8ee5c7b7c478ef12732a96145dfca09e8890"
+    },
+    {
+      "path": "app/data/metadata-corrections.2026-10-08.v1.json",
+      "sha256": "9baf7c5db027268453506d19948ec0b6cb9731c885cb97d7b072008d5e79f2ce"
+    },
+    {
+      "path": "app/data/metadata-corrections.mjs",
+      "sha256": "8b588bff9af8c1be735a9f93d78dc334a7536791d7098f1f7d82d769e846e219"
+    },
+    {
+      "path": "app/data/monster-membership-review.2026-10-12.v1.json",
+      "sha256": "6b313ba43771718abe9498dcde43ec3df8aeacdc91422119d36282aa4d177a97"
+    },
+    {
+      "path": "app/data/npc-metadata-corrections.2026-10-08.v1.json",
+      "sha256": "d0b8a7adf597b127211141346cc4731d6b12c1bcff592ddf73467a06e479b47f"
+    },
+    {
+      "path": "app/data/original-rules-ui.2026-10-08.v1.json",
+      "sha256": "1bd957dfd0c43849e2c1115865052c68358c06a44d1b57a53f8c8f214913414a"
+    },
+    {
+      "path": "app/data/picker-entities.2026-10-08.v1.json",
+      "sha256": "9f7c02e5bfffece64551bc69cc437b778ecbf69b2fbebd6d7311939d7a48b5b5"
+    },
+    {
+      "path": "app/data/place-labels.2026-10-13.v1.json",
+      "sha256": "c78ab547830f4aed272aa964b7bfd876a82bf0ef154b5bbbf62c59fd42a96a7c"
+    },
+    {
+      "path": "app/data/poh-storage.2026-10-08.v1.json",
+      "sha256": "46e536ae6d76f43eab830367427d3383814cd9d6ceaffdba56665535bc758ea6"
+    },
+    {
+      "path": "app/data/poh-storage.mjs",
+      "sha256": "cba02e32060b1adaa6e26c5b960487a050998b8d8cd823ad63f696f87b5c7b36"
+    },
+    {
+      "path": "app/data/retained-entry-corrections.2026-10-12.v2.json",
+      "sha256": "74fdafd5cc03590e9332764d5f8694c0fa22a8a62c087ae598ec929d275417a2"
+    },
+    {
+      "path": "app/data/retained-task-corrections.2026-10-09.v1.json",
+      "sha256": "b8cbd3f20ec9abdd44ac74ac1a162cee45d975182057cad26c5646004ab23a78"
+    },
+    {
+      "path": "app/data/retained-task-corrections.mjs",
+      "sha256": "abf56034f7be327c44da30acd2b4b57e65e71a00f905cbefbf56b70a4ec99539"
+    },
+    {
+      "path": "app/data/retained-wording-corrections.2026-10-12.v1.json",
+      "sha256": "ce8194c0e8dbc924a04859b7c4a0ac01e4e0dcbbd01d03bc77540d51556f30fd"
+    },
+    {
+      "path": "app/data/settings.mjs",
+      "sha256": "3d3f88ed3e55ef28fa6668add57723454c4ccfb066f55278a5867a8e823e3d32"
+    },
+    {
+      "path": "app/data/skill-guide-rules.mjs",
+      "sha256": "d4407520593803c25e80d5e47a7d88d4943c22981c31914af2812278ceb02853"
+    },
+    {
+      "path": "app/data/skill-guides.2026-10-08.v1.json",
+      "sha256": "a424f660b0dae609f1de6381508d29b3fd2a52593d879d1b549ed59c2de3d110"
+    },
+    {
+      "path": "app/data/skill-guides.mjs",
+      "sha256": "e47eac95711ccab4a55d48397c8cc0994fb71cd8a838070e05376ac648c4b200"
+    },
+    {
+      "path": "app/data/skill-icons.2026-10-08.v1.json",
+      "sha256": "827c5f8e345134d12c20be7f1ab3f28f9183a3e8b551160b1e5883b7cf09bff3"
+    },
+    {
+      "path": "app/data/skillguide-combat-corrections.2026-10-08.v1.json",
+      "sha256": "1543a7b91d76935b1934d30b27da137bd60c36fb02df2170a36b94ea46c5f9a4"
+    },
+    {
+      "path": "app/data/skillguide-combat-corrections.mjs",
+      "sha256": "6356ef0c47e2bcc9eccb933c913d3848bdfbcd596ee2b090516398cec061ef0b"
+    },
+    {
+      "path": "app/data/source-incidental-outputs.2026-10-08.v1.json",
+      "sha256": "6af9891e022f5d9786be9f17eef608cf58dc63a533b4dd31db752720ad2a0aab"
+    },
+    {
+      "path": "app/data/source-membership.2026-10-08.v1.json",
+      "sha256": "8aa15c682ba6bd66eab771ae727770a6f12654bee9e218b4f3b6909247a0c74b"
+    },
+    {
+      "path": "app/data/source-membership.mjs",
+      "sha256": "3e2502a50657d051f00f6b4abb001632c300a20f39e66672def5503eb33d7947"
+    },
+    {
+      "path": "app/data/source-method-requirements.2026-10-08.v1.json",
+      "sha256": "fd6c4172701869305f3df11206e2f655dacf08599cbb99d64f257f2158884609"
+    },
+    {
+      "path": "app/data/source-row-membership.2026-10-08.v1.json",
+      "sha256": "259b0e5bf3b6e88c49d68c144d4f066c4a84097dd4972d82dffbfaccc7860bae"
+    },
+    {
+      "path": "app/data/surface-grid.mjs",
+      "sha256": "b09824d5fc613eda622283c6ff117df64941e9ea600f465bf287f968aadad223"
+    },
+    {
+      "path": "app/data/terrain-assets.mjs",
+      "sha256": "4fc195cdb70e18067e76c9d3aad353111efd5858111fac97244f8a268496d37e"
+    },
+    {
+      "path": "app/data/training/death-woodcutting-guide.v1.json",
+      "sha256": "b40b873cbc7fd1bde1288444f0cf12e55d4faa17b5ad09cf605d4f1a1c292e77"
+    },
+    {
+      "path": "app/data/training/fishing-rates.v1.json",
+      "sha256": "c76738e6ef699c6adc76121b49fa5fed0239dc1b4931d17ecbc02681f428aec6"
+    },
+    {
+      "path": "app/data/training/ge-prices.2026-10-08.json",
+      "sha256": "d4b3bef59395e947bdbd07f322075ad677ccb2593996130e3b95ae81ef9b4df8"
+    },
+    {
+      "path": "app/data/training/methods.f2p.json",
+      "sha256": "2298745cd0717e9da8e9cc884de5d2a1251db8666e8ee8b174cb24d3ed2c2ac0"
+    },
+    {
+      "path": "app/data/training/mining-rates.v1.json",
+      "sha256": "090d3afe1e2aa8b427099fd3999dca6a606fc7467d95eae75707f7c85973904f"
+    },
+    {
+      "path": "app/data/training/woodcutting-rates.v1.json",
+      "sha256": "7254d9e78277c503c7cc1c7c86f909666c41886c2ad0cf5860a50cccc02f0d6c"
+    },
+    {
+      "path": "app/data/transport-access-anchors.2026-10-08.v1.json",
+      "sha256": "fe66a1fcd91f020ebd6ad113b6bfee1a3b73465a53c31a234cbcc380aefb8069"
+    },
+    {
+      "path": "app/data/transport-components.2026-10-08.v1.json",
+      "sha256": "62eeff6a9669b0c68ef73c126958213b3e53df1b6e9779670cf4378fb473ad12"
+    },
+    {
+      "path": "app/data/transport-components.automatic-teleports.2026-10-09.v1.json",
+      "sha256": "cfea50b85940d5eed9d831ec76de743c8821de0e48b5fa84d4de5c5c137f15f0"
+    },
+    {
+      "path": "app/data/transport-components.desert-anachronia.2026-10-09.v1.json",
+      "sha256": "3f159661d111ccd3757d47c426f1fb70d8a196b1e460de8d57932f1433c431de"
+    },
+    {
+      "path": "app/data/transport-roll-destinations.automatic-teleports.2026-10-09.v1.json",
+      "sha256": "6f72e306dafb0614941c204eeaff2d481c40b06c130640eebc60e09e63f313b8"
+    },
+    {
+      "path": "app/data/transport-routes.2026-10-08.v1.json",
+      "sha256": "5e09d822a4d0f0abda120164115498826673a56a70241f4371cece8173efcfcc"
+    },
+    {
+      "path": "app/data/transport-routes.2026-10-09.v1.json",
+      "sha256": "851d67b3857fb63165a6ec26774da6def4fb970df38df1456ccdd1a9e8d0e524"
+    },
+    {
+      "path": "app/data/transport-routes.2026-10-09.v2.json",
+      "sha256": "51a5fec43443fdc0ec7532419aca40326a25f1d3abf689af999459fec0e1ed32"
+    },
+    {
+      "path": "app/data/transport-routes.automatic-teleports.2026-10-09.v1.json",
+      "sha256": "1f737bfa9a405edc04cf84d78dc65bed9289b0762d63e5724d45d8729b54aed7"
+    },
+    {
+      "path": "app/data/transport-routes.desert-anachronia.2026-10-09.v1.json",
+      "sha256": "5c8172f1c054b0f308a3f366e26ffc0c6afb1107b1e307fba33540909a568463"
+    },
+    {
+      "path": "app/data/transport-routes.f2p.2026-10-08.v1.json",
+      "sha256": "49e401943f3fcf92335643e8ac16e9af8e09927d81358819ec169d562886daa5"
+    },
+    {
+      "path": "app/data/transport-routes.interiors-members.2026-10-08.v1.json",
+      "sha256": "a08194e963d02f0c6773de01becf14492861ba9bc0f55d6be6262e08e38126a9"
+    },
+    {
+      "path": "app/data/transport-routes.mjs",
+      "sha256": "931816e96ed131e22288ceba1e81c984798fb54994ac6352bf635e3c161d5f8a"
+    },
+    {
+      "path": "app/data/transport-routes.ships.2026-10-08.v1.json",
+      "sha256": "c0e44703f6f3b8c716c5b553387ac41e3081fa4772fb19d472257a737904735d"
+    },
+    {
+      "path": "app/data/world-connections.mjs",
+      "sha256": "48ce2c108ef80525758fd19e61fcc3fbd110e272726e82331f5b55f6779e3142"
+    },
+    {
+      "path": "app/data/world.mjs",
+      "sha256": "b6acacb61f24363e3b1d0ffd4eb1ef5a2db3622beb8006a7d2396bd8e51fc730"
+    }
+  ]
+}

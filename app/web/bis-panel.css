@@ -1,0 +1,75 @@
+/* Current BiS keeps the ledger palette and shows a complete hand layout as one
+   comparison. At small widths each table row becomes a readable equipment entry. */
+dialog:has(.bis-panel){width:min(1080px,calc(100vw - 1.5rem))}
+.bis-panel{min-width:0;color:var(--panel-text,var(--text))}
+.bis-panel .form-stack{min-width:0}
+.bis-panel .info-tabs{gap:var(--space-2);margin-bottom:var(--space-6);padding-bottom:var(--space-4)}
+.bis-panel .info-tabs button{margin:0;min-height:36px}
+.bis-filters{display:grid;grid-template-columns:minmax(10rem,1fr) minmax(8rem,auto);align-items:center;gap:var(--space-4)}
+.bis-filters input,.bis-filters select{min-width:0;width:100%;min-height:36px}
+.bis-result-count{grid-column:1/-1;font-size:var(--type-sm);color:var(--panel-muted,var(--muted));font-variant-numeric:tabular-nums}
+.bis-ranking-note{font-size:var(--type-sm);color:var(--panel-muted,var(--muted));max-width:75ch;margin-top:var(--space-4)}
+.bis-style-section{margin-top:var(--space-7);min-width:0}
+.bis-style-heading{font-size:var(--type-heading);padding-bottom:var(--space-4);color:var(--panel-text,var(--text))}
+.bis-gear-table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:var(--type-sm)}
+.bis-gear-table th,.bis-gear-table td{text-align:left;vertical-align:top;padding:var(--space-5) var(--space-4);border-bottom:var(--border-thin) solid var(--hairline);overflow-wrap:anywhere}
+.bis-gear-table thead th{color:var(--panel-muted,var(--muted));font-weight:var(--weight-semibold);font-size:var(--type-xs);border-top:var(--border-thin) solid var(--hairline)}
+.bis-gear-table thead th:nth-child(1){width:15%}
+.bis-gear-table thead th:nth-child(2){width:28%}
+.bis-gear-table thead th:nth-child(3){width:25%}
+.bis-gear-table thead th:nth-child(4){width:32%}
+.bis-slot-cell{font-weight:var(--weight-medium);color:var(--panel-muted,var(--muted))}
+.bis-slot-cell>img{display:block;margin-bottom:var(--space-2)}
+.bis-slot-cell>small{display:block;margin-top:var(--space-2);font-size:var(--type-xs)}
+.bis-slot-icon{object-fit:contain;width:24px;height:24px;flex-shrink:0}
+.bis-item-identity{display:flex;align-items:center;gap:var(--space-4);min-width:0}
+.bis-item-icon{width:32px;height:32px;object-fit:contain;flex-shrink:0;image-rendering:auto}
+.bis-item-name{font-weight:var(--weight-semibold);line-height:var(--leading-body);color:var(--panel-text,var(--text))}
+.bis-item+.bis-item,.bis-item-source+.bis-item-source{margin-top:var(--space-5)}
+.bis-component-role{display:block;margin-bottom:var(--space-2);font-size:var(--type-xs);color:var(--panel-muted,var(--muted))}
+.bis-item-progress,.bis-unused-slot{font-size:var(--type-xs);line-height:var(--leading-copy);color:var(--panel-muted,var(--muted));margin-top:var(--space-2)}
+.bis-stats-cell p,.bis-source-cell p{font-size:var(--type-sm);line-height:var(--leading-copy);color:var(--panel-muted,var(--muted))}
+.bis-stats-cell .bis-score{color:var(--panel-text,var(--text));font-weight:var(--weight-semibold);font-variant-numeric:tabular-nums;margin-bottom:var(--space-2)}
+.bis-declared-stats+.bis-declared-stats{margin-top:var(--space-4)}
+.bis-evidence{margin-top:var(--space-3)}
+.bis-evidence>summary,.bis-item-source>details>summary{font-size:var(--type-sm);color:var(--context-link,var(--link));padding:var(--space-2) 0}
+.bis-evidence[open]{grid-column:1/-1}
+.bis-evidence .info-row{padding:var(--space-4) 0;border-bottom:0}
+.bis-evidence .info-row>.info-meta,.bis-evidence .info-progress{margin-top:var(--space-3)}
+.bis-evidence .info-row>button{min-height:36px;margin:var(--space-4) 0}
+.bis-evidence .info-toolbar,.bis-alternatives .info-toolbar,.bis-specialist .info-toolbar{gap:var(--space-2);margin:var(--space-4) 0}
+.bis-evidence .info-toolbar input,.bis-specialist .info-toolbar input,.bis-alternatives .info-toolbar input{min-height:36px}
+.bis-alternatives:empty{display:none}
+.bis-alternatives>details{margin:var(--space-4) 0;font-size:var(--type-sm)}
+.bis-specialist{border-top:var(--border-thin) solid var(--hairline);padding-top:var(--space-5);margin-top:var(--space-5)}
+.bis-specialist>summary{font-weight:var(--weight-semibold);padding:var(--space-3) 0;color:var(--panel-text,var(--text))}
+.bis-specialist[open]>summary{margin-bottom:var(--space-5)}
+.bis-panel .info-empty{padding:var(--space-5) 0}
+.bis-hide-obtained{display:flex;align-items:center;gap:var(--space-4);margin:var(--space-4) 0;font-size:var(--type-sm);min-height:36px}
+.bis-hide-obtained input{width:auto;min-height:0}
+.bis-recorder{border-bottom:var(--border-thin) solid var(--hairline);padding-bottom:var(--space-6);margin-bottom:var(--space-6)}
+.bis-recorder h3{margin-top:0}
+.bis-recorder p{font-size:var(--type-sm);color:var(--panel-muted,var(--muted));margin:var(--space-2) 0 0}
+.bis-recorder input{width:100%;min-height:40px;font-size:var(--type-base);margin-top:var(--space-4)}
+.bis-equipment-choices{display:flex;flex-wrap:wrap;gap:var(--space-3);margin-top:var(--space-4)}
+.bis-equipment-choice{min-height:40px;margin:0;text-align:left}
+.bis-manual-marker{display:inline-block;font-size:var(--type-xs);color:var(--panel-muted,var(--muted));margin-top:var(--space-3)}
+.bis-record-actions{display:flex;align-items:center;flex-wrap:wrap;gap:var(--space-4)}
+.bis-record-actions button{min-height:40px;margin:var(--space-3) 0}
+@media(max-width:700px){
+  .bis-gear-table,.bis-gear-table tbody{display:block}
+  .bis-gear-table thead{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0)}
+  .bis-gear-row{display:grid;grid-template-columns:6rem minmax(0,1fr);border-top:var(--border-thin) solid var(--hairline);padding:var(--space-5) 0;gap:var(--space-3) var(--space-4)}
+  .bis-gear-table th,.bis-gear-table td{display:block;border:0;padding:0;min-width:0}
+  .bis-slot-cell{grid-column:1;grid-row:1/4;font-size:var(--type-sm)}
+  .bis-equipment-cell,.bis-stats-cell,.bis-source-cell{grid-column:2}
+  .bis-stats-cell,.bis-source-cell{border-top:var(--border-thin) solid var(--hairline)!important;padding-top:var(--space-4)!important}
+  .bis-stats-cell::before,.bis-source-cell::before{content:attr(data-label);display:block;font-size:var(--type-xs);font-weight:var(--weight-semibold);color:var(--panel-muted,var(--muted));margin-bottom:var(--space-2)}
+  .bis-style-section{margin-top:var(--space-6)}
+}
+@media(max-width:420px){
+  dialog:has(.bis-panel){width:calc(100vw - 1rem)}
+  .bis-filters{grid-template-columns:minmax(0,1fr) 7.5rem}
+  .bis-gear-row{grid-template-columns:4.6rem minmax(0,1fr);gap:var(--space-3)}
+  .bis-style-heading{font-size:var(--type-heading)}
+}

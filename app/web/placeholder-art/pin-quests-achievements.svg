@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+  <title>Quests and achievements pin: flag placeholder</title>
+  <g fill="none" stroke="#f4efe4" stroke-width="4.4" stroke-linecap="round" stroke-linejoin="round">
+    <path d="m5 22 0-19 M3 22 8 22" stroke-width="6.6"/>
+    <path d="m5 22 0-19 M3 22 8 22" stroke-width="4.6"/>
+    <path d="m6 4 15-1-4 6 4 5-15 1Z"/>
+    <path d="m10 9 2 2 4-4"/>
+  </g>
+  <g fill="none" stroke="#25313b" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+    <path d="m5 22 0-19 M3 22 8 22" stroke-width="4"/>
+    <path d="m5 22 0-19 M3 22 8 22" stroke="#fff0cc" stroke-width="2"/>
+    <path d="m6 4 15-1-4 6 4 5-15 1Z" fill="#fff0cc"/>
+    <path d="m10 9 2 2 4-4" stroke="#e99768"/>
+  </g>
+</svg>

@@ -1,0 +1,8 @@
+.activity-filter-controls{display:flex;flex-wrap:wrap;align-items:flex-end;gap:var(--space-4) var(--space-5)}
+.activity-filter-controls[hidden]{display:none}
+.activity-filter-group{display:flex;flex-wrap:wrap;align-items:center;gap:var(--space-2)}
+.activity-filter-label{flex-basis:100%;font-size:var(--type-xs);color:var(--panel-muted,var(--muted))}
+.activity-filter-sort{margin:0;min-width:0;display:flex;flex-direction:column;gap:var(--space-2)}
+.activity-filter-sort>.activity-filter-label{font-weight:normal}
+.activity-filter-sort select{padding:var(--space-2) var(--space-3);max-width:100%}
+.activity-filter-help{flex-basis:100%;margin:0;font-size:var(--type-xs);color:var(--panel-muted,var(--muted))}

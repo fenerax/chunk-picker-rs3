@@ -1,0 +1,2928 @@
+{
+  "schemaVersion": 1,
+  "reviewedOn": "2026-10-12",
+  "purpose": "Research candidate pools for a later random starting-bank feature; no player progress or application behavior changed.",
+  "policy": {
+    "optionA": "Fixed bank services made available by membership; ordinary walking or retained F2P transport; all F2P quests completed; no members quest or members-only skill prerequisite. Unknown finishing levels, achievements, payments, builds, roaming banker presence and members transports are separate conditional lists.",
+    "optionB": "Havenhythe full banks usable after F2P preparation. Wendlewick is baseline; Dalia requires confirmation of the F2P Trader Woes achievement. Members-quest banks are inventory only until their gates are satisfied.",
+    "chunkIdMeaning": "Displayed surface chunk containing bank, or explicitly named surface entry parent for a connected interior. Interior source-region IDs and cache map IDs are not interchangeable with these IDs.",
+    "weighting": "Roll unique chunkId values. Multiple services within the same chunk do not add weight unless deliberately chosen.",
+    "personalEligibility": "Check each player independently. F2P completion does not prove maximum skill levels or every achievement."
+  },
+  "optionA": [
+    {
+      "chunkId": "9015",
+      "place": "Memorial to Guthix",
+      "bank": "Bank chest",
+      "requirementsNote": "Walk to the surface chest. No Divination level or quest gate; Hall of Memories requirements apply to different content.",
+      "source": {
+        "local": [
+          "rs3-chunkpicker-chunkinfo-export.json",
+          "app/data/cache-resources.2026-10-08.v1.json"
+        ],
+        "wiki": [
+          "https://runescape.wiki/w/List_of_bank_locations?oldid=37201672",
+          "https://runescape.wiki/w/Memorial_to_Guthix?oldid=37199767"
+        ]
+      }
+    },
+    {
+      "chunkId": "9516",
+      "place": "Warforge surface camp",
+      "bank": "Bank chest",
+      "requirementsNote": "Walk to the surface camp. The 76 Archaeology requirement gates underground excavation, not this bank chest.",
+      "source": {
+        "local": [
+          "rs3-chunkpicker-chunkinfo-export.json",
+          "app/data/cache-resources.2026-10-08.v1.json"
+        ],
+        "wiki": [
+          "https://runescape.wiki/w/List_of_bank_locations?oldid=37201672",
+          "https://runescape.wiki/w/Warforge_Dig_Site?oldid=37125118"
+        ]
+      }
+    },
+    {
+      "chunkId": "9776",
+      "place": "Castle Wars lobby",
+      "bank": "Bank chest",
+      "requirementsNote": "Walk into the lobby. No quest, skill requirement or game participation needed for the chest.",
+      "source": {
+        "local": [
+          "rs3-chunkpicker-chunkinfo-export.json",
+          "app/data/cache-resources.2026-10-08.v1.json"
+        ],
+        "wiki": [
+          "https://runescape.wiki/w/List_of_bank_locations?oldid=37201672",
+          "https://runescape.wiki/w/Castle_Wars?oldid=37159186"
+        ]
+      }
+    },
+    {
+      "chunkId": "9781",
+      "place": "Tree Gnome Stronghold south-west bank",
+      "bank": "Gnome bank booths and bankers",
+      "requirementsNote": "Walk into the Stronghold and upstairs to the bank. No quest or Agility gate.",
+      "source": {
+        "local": [
+          "rs3-chunkpicker-chunkinfo-export.json",
+          "app/data/cache-resources.2026-10-08.v1.json"
+        ],
+        "wiki": [
+          "https://runescape.wiki/w/List_of_bank_locations?oldid=37201672",
+          "https://runescape.wiki/w/Tree_Gnome_Stronghold_bank?oldid=37133091",
+          "https://runescape.wiki/w/Tree_Gnome_Stronghold?oldid=37169573"
+        ]
+      }
+    },
+    {
+      "chunkId": "9782",
+      "place": "Grand Tree",
+      "bank": "Grand Tree banks",
+      "requirementsNote": "Walk to the Grand Tree and climb to its banks. The Grand Tree quest is not required.",
+      "source": {
+        "local": [
+          "rs3-chunkpicker-chunkinfo-export.json",
+          "app/data/cache-resources.2026-10-08.v1.json"
+        ],
+        "wiki": [
+          "https://runescape.wiki/w/List_of_bank_locations?oldid=37201672",
+          "https://runescape.wiki/w/Grand_Tree_bank?oldid=37133103",
+          "https://runescape.wiki/w/Tree_Gnome_Stronghold?oldid=37169573"
+        ]
+      }
+    },
+    {
+      "chunkId": "10039",
+      "place": "Barbarian Outpost",
+      "bank": "Barbarian Assault exterior bank chest",
+      "requirementsNote": "Walk to the exterior chest. Bar Crawl requirements apply to the agility course, not the bank.",
+      "source": {
+        "local": [
+          "rs3-chunkpicker-chunkinfo-export.json",
+          "app/data/cache-resources.2026-10-08.v1.json"
+        ],
+        "wiki": [
+          "https://runescape.wiki/w/List_of_bank_locations?oldid=37201672",
+          "https://runescape.wiki/w/Barbarian_Outpost?oldid=37130576"
+        ]
+      }
+    },
+    {
+      "chunkId": "10288",
+      "place": "Yanille east",
+      "bank": "Yanille bank",
+      "requirementsNote": "Ordinary walking access. No quest, Agility or guild requirement for Yanille bank.",
+      "source": {
+        "local": [
+          "rs3-chunkpicker-chunkinfo-export.json",
+          "app/data/cache-resources.2026-10-08.v1.json"
+        ],
+        "wiki": [
+          "https://runescape.wiki/w/List_of_bank_locations?oldid=37201672",
+          "https://runescape.wiki/w/Yanille?oldid=37122659"
+        ]
+      }
+    },
+    {
+      "chunkId": "10292",
+      "place": "North East Ardougne / Chaos Druid Tower chunk",
+      "bank": "Ardougne north bank",
+      "requirementsNote": "Ordinary walking access. The bank is outside the Chaos Druid Tower; its requirements do not apply.",
+      "source": {
+        "local": [
+          "rs3-chunkpicker-chunkinfo-export.json",
+          "app/data/cache-resources.2026-10-08.v1.json"
+        ],
+        "wiki": [
+          "https://runescape.wiki/w/List_of_bank_locations?oldid=37201672",
+          "https://runescape.wiki/w/East_Ardougne?oldid=37203338"
+        ]
+      }
+    },
+    {
+      "chunkId": "10547",
+      "place": "East Ardougne market",
+      "bank": "Ardougne south bank",
+      "requirementsNote": "Ordinary walking access. No quest requirement for Ardougne south bank.",
+      "source": {
+        "local": [
+          "rs3-chunkpicker-chunkinfo-export.json",
+          "app/data/cache-resources.2026-10-08.v1.json"
+        ],
+        "wiki": [
+          "https://runescape.wiki/w/List_of_bank_locations?oldid=37201672",
+          "https://runescape.wiki/w/East_Ardougne?oldid=37203338"
+        ]
+      }
+    },
+    {
+      "chunkId": "10549",
+      "place": "Temple of Ikov surface / Ranging Guild chunk",
+      "bank": "Stormguard Citadel surface camp bank chest",
+      "requirementsNote": "Walk to Stormguard surface camp. The chest at (2674, 3405) is outside the Ranging Guild and the dig-site interior; neither 40 Ranged nor 70 Archaeology is needed.",
+      "source": {
+        "local": [
+          "rs3-chunkpicker-chunkinfo-export.json",
+          "app/data/cache-resources.2026-10-08.v1.json"
+        ],
+        "wiki": [
+          "https://runescape.wiki/w/List_of_bank_locations?oldid=37201672",
+          "https://runescape.wiki/w/Stormguard_Citadel_Dig_Site?oldid=37164111"
+        ]
+      }
+    },
+    {
+      "chunkId": "10806",
+      "place": "Seers' Village",
+      "bank": "Seers' Village bank",
+      "requirementsNote": "Walk across White Wolf Mountain and through Catherby. No quest requirement.",
+      "source": {
+        "local": [
+          "rs3-chunkpicker-chunkinfo-export.json",
+          "app/data/cache-resources.2026-10-08.v1.json"
+        ],
+        "wiki": [
+          "https://runescape.wiki/w/List_of_bank_locations?oldid=37201672",
+          "https://runescape.wiki/w/Seers%27_Village?oldid=37175737"
+        ]
+      }
+    },
+    {
+      "chunkId": "11061",
+      "place": "Catherby",
+      "bank": "Catherby bank",
+      "requirementsNote": "Walk across White Wolf Mountain. Aggressive wolves are a hazard, not a level or quest gate.",
+      "source": {
+        "local": [
+          "rs3-chunkpicker-chunkinfo-export.json",
+          "app/data/cache-resources.2026-10-08.v1.json"
+        ],
+        "wiki": [
+          "https://runescape.wiki/w/List_of_bank_locations?oldid=37201672",
+          "https://runescape.wiki/w/Catherby?oldid=37146502"
+        ]
+      }
+    },
+    {
+      "chunkId": "11313",
+      "place": "Karamja Volcano surface entrance",
+      "bank": "TzHaar City full bankers",
+      "requirementsNote": "Surface parent of the connected TzHaar City cavern. No members quest or skill gate for ordinary bankers. Internal source-region IDs are not separate surface starts. Reach Karamja using the retained F2P ship route if needed.",
+      "source": {
+        "local": [
+          "rs3-chunkpicker-chunkinfo-export.json",
+          "app/data/cache-resources.2026-10-08.v1.json"
+        ],
+        "wiki": [
+          "https://runescape.wiki/w/TzHaar_City?oldid=37179924"
+        ]
+      }
+    },
+    {
+      "chunkId": "11573",
+      "place": "South Taverley / Pick and Lute",
+      "bank": "Rogues’ Den bank (Emerald Benedict)",
+      "requirementsNote": "Surface parent of Rogues' Den, through the pub trapdoor. No Thieving, Agility or Herblore gate for Emerald Benedict; minigame requirements are separate.",
+      "source": {
+        "local": [
+          "rs3-chunkpicker-chunkinfo-export.json",
+          "app/data/cache-resources.2026-10-08.v1.json"
+        ],
+        "wiki": [
+          "https://runescape.wiki/w/Rogues%27_Den?oldid=37130793"
+        ]
+      }
+    },
+    {
+      "chunkId": "12596",
+      "place": "Champions' Guild",
+      "bank": "Champions' Arena bank chest",
+      "requirementsNote": "Surface parent of Champions' Arena bank. Its 33 quest-point entry requirement is met by all F2P quests. No champion scroll or fight is required merely to use the chest.",
+      "source": {
+        "local": [
+          "rs3-chunkpicker-chunkinfo-export.json",
+          "app/data/cache-resources.2026-10-08.v1.json"
+        ],
+        "wiki": [
+          "https://runescape.wiki/w/Champions%27_Guild?oldid=37146518"
+        ]
+      }
+    },
+    {
+      "chunkId": "13104",
+      "place": "Shantay Pass",
+      "bank": "Shantay chest",
+      "requirementsNote": "Membership enables full bank opening. No quest, skill or item gate. The F2P healing/collection/preset functions do not make it a full F2P bank.",
+      "source": {
+        "local": [
+          "rs3-chunkpicker-chunkinfo-export.json",
+          "app/data/cache-resources.2026-10-08.v1.json"
+        ],
+        "wiki": [
+          "https://runescape.wiki/w/Shantay_chest?oldid=37161113"
+        ]
+      }
+    },
+    {
+      "chunkId": "13111",
+      "place": "Fort Forinthry",
+      "bank": "Unbuilt Workshop bank chest",
+      "requirementsNote": "Membership required; the workshop need not be built. Other Fort bank services have separate quest/build gates.",
+      "source": {
+        "local": [
+          "rs3-chunkpicker-chunkinfo-export.json",
+          "app/data/cache-resources.2026-10-08.v1.json"
+        ],
+        "wiki": [
+          "https://runescape.wiki/w/Bank_chest_(Fort_Forinthry)?oldid=37175502"
+        ]
+      }
+    },
+    {
+      "chunkId": "13365",
+      "place": "Varrock Dig Site / Senntisten entrance",
+      "bank": "Senntisten archaeological camp bank chest",
+      "requirementsNote": "Surface parent of Senntisten, entered through the Ancient door at (3332, 3452). No quest or 60 Archaeology gate for reaching the bank. This chunk also has a F2P campus bank.",
+      "source": {
+        "local": [
+          "rs3-chunkpicker-chunkinfo-export.json",
+          "app/data/cache-resources.2026-10-08.v1.json"
+        ],
+        "wiki": [
+          "https://runescape.wiki/w/Elder_God_Wars_Dungeon?oldid=37166261"
+        ]
+      }
+    },
+    {
+      "chunkId": "13613",
+      "place": "Nardah",
+      "bank": "Nardah bank",
+      "requirementsNote": "Walk through Shantay Pass and across the River Elid. No quest or members transport required. Water and food are sensible desert preparation, not formal bank requirements.",
+      "source": {
+        "local": [
+          "rs3-chunkpicker-chunkinfo-export.json",
+          "app/data/cache-resources.2026-10-08.v1.json"
+        ],
+        "wiki": [
+          "https://runescape.wiki/w/Nardah?oldid=36803187"
+        ]
+      }
+    }
+  ],
+  "optionAConditional": [
+    {
+      "chunkId": "10293",
+      "place": "Fishing Guild",
+      "condition": "Needs 68 Fishing.",
+      "bank": "Fishing Guild bank",
+      "requirementsNote": "68 Fishing, achievable in F2P. Completing F2P quests does not prove this level; check each player before adding.",
+      "source": {
+        "local": [
+          "rs3-chunkpicker-chunkinfo-export.json",
+          "app/data/cache-resources.2026-10-08.v1.json"
+        ],
+        "wiki": [
+          "https://runescape.wiki/w/List_of_bank_locations?oldid=37201672"
+        ]
+      }
+    },
+    {
+      "chunkId": "9778",
+      "place": "Ourania surface entrance",
+      "condition": "Each time you open it, pay 20 runes of one type from your inventory.",
+      "bank": "Eniola bank",
+      "requirementsNote": "Surface parent of Eniola in Ourania Cave. Each bank opening costs 20 held runes of one type. F2P runes can pay; confirm supplies and that this payment is allowed. No members quest or skill gate identified.",
+      "source": {
+        "local": [
+          "rs3-chunkpicker-chunkinfo-export.json",
+          "app/data/cache-resources.2026-10-08.v1.json"
+        ],
+        "wiki": [
+          "https://runescape.wiki/w/Eniola?oldid=37145029"
+        ]
+      }
+    },
+    {
+      "chunkId": "16690",
+      "place": "Dalia's Tree Nursery",
+      "condition": "Needs Trader Woes completed (which needs Visions of Havenhythe and 30 iron nails).",
+      "bank": "Members bank chest",
+      "requirementsNote": "Membership and Trader Woes completed. This F2P achievement requires Visions of Havenhythe and exactly 30 iron nails; it can be prepared before the reset. Confirm its completion separately from F2P quests.",
+      "source": {
+        "local": [
+          "rs3-chunkpicker-chunkinfo-export.json",
+          "app/data/cache-resources.2026-10-08.v1.json"
+        ],
+        "wiki": [
+          "https://runescape.wiki/w/Dalia%27s_Tree_Nursery?oldid=37195435",
+          "https://runescape.wiki/w/Trader_Woes?oldid=37197977"
+        ]
+      }
+    },
+    {
+      "chunkId": "13878",
+      "place": "Canifis",
+      "condition": "Needs Morytania access: defeat the level-33 ghoul at Paterdomus once, or complete Priest in Peril.",
+      "bank": "Canifis bank",
+      "requirementsNote": "Defeat the level-33 Paterdomus ghoul once and cross the holy barrier. Priest in Peril is an alternative, not mandatory. No members skill gate identified; confirm this one-time combat unlock or explicitly allow preparing it.",
+      "source": {
+        "local": [
+          "rs3-chunkpicker-chunkinfo-export.json",
+          "app/data/cache-resources.2026-10-08.v1.json"
+        ],
+        "wiki": [
+          "https://runescape.wiki/w/Canifis?oldid=37124299",
+          "https://runescape.wiki/w/Canifis_bank?oldid=37133011",
+          "https://runescape.wiki/w/Ghoul_(Paterdomus)?oldid=36954949"
+        ]
+      }
+    },
+    {
+      "chunkId": "14642",
+      "place": "Everlight surface camp",
+      "condition": "Needs Morytania access (the Paterdomus ghoul), then a walk via Canifis, the Haunted Woods and the eastern coast.",
+      "bank": "Archaeology bank chest",
+      "requirementsNote": "Defeat the Paterdomus ghoul for Morytania access. Walking via Canifis, Haunted Woods and the eastern coast is supported by Wiki directions; no Nature Spirit gate is needed on that route. The 42 Archaeology level gates excavation/fast travel, with no separate bank gate stated. Confirm the walking route and bank interaction before automatic selection; neither was visited.",
+      "source": {
+        "local": [
+          "rs3-chunkpicker-chunkinfo-export.json",
+          "app/data/cache-resources.2026-10-08.v1.json"
+        ],
+        "wiki": [
+          "https://runescape.wiki/w/Everlight_Dig_Site?oldid=37145898",
+          "https://runescape.wiki/w/Ghoul_(Paterdomus)?oldid=36954949",
+          "https://runescape.wiki/w/Haunted_Woods?oldid=37133150"
+        ]
+      }
+    }
+  ],
+  "optionATransportConditional": [
+    {
+      "chunkId": "10537",
+      "place": "Void Knights' Outpost",
+      "bank": "Normal bank and Shattered Worlds exterior bank",
+      "requirementsNote": "No quest or skill gate, but arrival uses the members-only Squire boat from Port Sarim. Excluded from strict A. The normal bank and Shattered Worlds exterior chest share this chunk.",
+      "source": {
+        "local": [
+          "rs3-chunkpicker-chunkinfo-export.json",
+          "app/data/cache-resources.2026-10-08.v1.json"
+        ],
+        "wiki": [
+          "https://runescape.wiki/w/Void_Knights%27_Outpost?oldid=37127341"
+        ]
+      }
+    },
+    {
+      "chunkId": "8748",
+      "place": "Soul Wars lobby",
+      "bank": "Bank chest",
+      "requirementsNote": "No quest or skill gate, but arrival uses the members-only Soul Wars portal. Excluded from strict A. The current Edgeville entrance supersedes the old retained connection.",
+      "source": {
+        "local": [
+          "rs3-chunkpicker-chunkinfo-export.json",
+          "app/data/cache-resources.2026-10-08.v1.json"
+        ],
+        "wiki": [
+          "https://runescape.wiki/w/Soul_Wars?oldid=37159212"
+        ]
+      }
+    },
+    {
+      "chunkId": "15939",
+      "place": "Anachronia base camp",
+      "bank": "Bank chest upgrade",
+      "requirementsNote": "Members ship journey, then tutorial, tier-1 Town Hall and bank upgrade costing 500 wood and 500 stone. The tutorial gives 250 of each; more resources are needed. Excluded for transport and an unmet bank build.",
+      "source": {
+        "local": [
+          "rs3-chunkpicker-chunkinfo-export.json",
+          "app/data/cache-resources.2026-10-08.v1.json"
+        ],
+        "wiki": [
+          "https://runescape.wiki/w/Bank_chest_(Anachronia_base_camp)?oldid=36984238"
+        ]
+      }
+    },
+    {
+      "chunkId": "12332",
+      "place": "World window surface entrance north-west of Menaphos",
+      "bank": "Mazcab entrance chest and Kanatah/Otot Goebie suppliers",
+      "requirementsNote": "Surface parent of the World window at (3086, 2869), leading to Mazcab. Ordinary entrance and settlement banks have no quest gate, but require members portal travel. Raid suppliers are not included. This is one surface-parent choice, not separate rolls for underground source regions.",
+      "source": {
+        "local": [
+          "rs3-chunkpicker-chunkinfo-export.json",
+          "app/data/cache-resources.2026-10-08.v1.json"
+        ],
+        "wiki": [
+          "https://runescape.wiki/w/World_window?oldid=37176270"
+        ]
+      }
+    },
+    {
+      "chunkId": "10293",
+      "place": "Fishing Guild entrance to Deep Sea Fishing",
+      "bank": "Bank boat and rowboat",
+      "requirementsNote": "68 Fishing and members travel with Goomah to the separate hub. The Fishing Guild bank itself is already a level-conditional entry; boat/rowboat services do not add a separate surface chunk.",
+      "source": {
+        "local": [
+          "rs3-chunkpicker-chunkinfo-export.json",
+          "app/data/cache-resources.2026-10-08.v1.json"
+        ],
+        "wiki": [
+          "https://runescape.wiki/w/Deep_Sea_Fishing?oldid=37165157"
+        ]
+      }
+    },
+    {
+      "chunkId": "14646",
+      "place": "Port Phasmatys",
+      "bank": "Ghost bank",
+      "requirementsNote": "Charter arrival allows quick-banking without Ghosts Ahoy or a ghostspeak amulet, but is members transport. Walking instead requires Morytania access and the pre-Ghosts Ahoy ecto-token/amulet gate. Excluded from strict A.",
+      "source": {
+        "local": [
+          "rs3-chunkpicker-chunkinfo-export.json",
+          "app/data/cache-resources.2026-10-08.v1.json"
+        ],
+        "wiki": [
+          "https://runescape.wiki/w/Port_Phasmatys?oldid=37125095"
+        ]
+      }
+    }
+  ],
+  "optionAMobileConditional": [
+    {
+      "chunkId": "11834",
+      "place": "Forgotten Cemetery",
+      "bank": "Ian (cape merchant)",
+      "requirementsNote": "Membership for banking; no quest or skill gate identified. NPC wanders: Wiki marker establishes this containing chunk, not the entire patrol or permanent presence. Keep conditional until a start-chunk visit confirms banking inside its boundary.",
+      "source": {
+        "local": [
+          "rs3-chunkpicker-chunkinfo-export.json",
+          "app/data/surface-grid.mjs"
+        ],
+        "wiki": [
+          "https://runescape.wiki/w/Ian_(cape_merchant)?oldid=37134539"
+        ]
+      }
+    },
+    {
+      "chunkId": "12856",
+      "place": "Chaos Temple",
+      "bank": "Simon",
+      "requirementsNote": "Membership for banking; no quest or skill gate identified. NPC wanders: Wiki marker establishes this containing chunk, not the entire patrol or permanent presence. Keep conditional until a start-chunk visit confirms banking inside its boundary.",
+      "source": {
+        "local": [
+          "rs3-chunkpicker-chunkinfo-export.json",
+          "app/data/surface-grid.mjs"
+        ],
+        "wiki": [
+          "https://runescape.wiki/w/Simon?oldid=37129637"
+        ]
+      }
+    },
+    {
+      "chunkId": "12089",
+      "place": "Bandit Camp",
+      "bank": "Neil",
+      "requirementsNote": "Membership for banking; no quest or skill gate identified. NPC wanders: Wiki marker establishes this containing chunk, not the entire patrol or permanent presence. Keep conditional until a start-chunk visit confirms banking inside its boundary.",
+      "source": {
+        "local": [
+          "rs3-chunkpicker-chunkinfo-export.json",
+          "app/data/surface-grid.mjs"
+        ],
+        "wiki": [
+          "https://runescape.wiki/w/Neil?oldid=37129635"
+        ]
+      }
+    },
+    {
+      "chunkId": "13372",
+      "place": "Dragonkin Laboratory Entrance",
+      "bank": "Edward",
+      "requirementsNote": "Membership for banking; no quest or skill gate identified. NPC wanders: Wiki marker establishes this containing chunk, not the entire patrol or permanent presence. Keep conditional until a start-chunk visit confirms banking inside its boundary.",
+      "source": {
+        "local": [
+          "rs3-chunkpicker-chunkinfo-export.json",
+          "app/data/surface-grid.mjs"
+        ],
+        "wiki": [
+          "https://runescape.wiki/w/Edward?oldid=37134537"
+        ]
+      }
+    },
+    {
+      "chunkId": "11836",
+      "place": "Western Obelisk",
+      "bank": "Darren",
+      "requirementsNote": "Membership for banking; no quest or skill gate identified. NPC wanders: Wiki marker establishes this containing chunk, not the entire patrol or permanent presence. Keep conditional until a start-chunk visit confirms banking inside its boundary.",
+      "source": {
+        "local": [
+          "rs3-chunkpicker-chunkinfo-export.json",
+          "app/data/surface-grid.mjs"
+        ],
+        "wiki": [
+          "https://runescape.wiki/w/Darren?oldid=37134535"
+        ]
+      }
+    },
+    {
+      "chunkId": "12860",
+      "place": "North-East Red Dragon Isle",
+      "bank": "William",
+      "requirementsNote": "Membership for banking; no quest or skill gate identified. NPC wanders: Wiki marker establishes this containing chunk, not the entire patrol or permanent presence. Keep conditional until a start-chunk visit confirms banking inside its boundary.",
+      "source": {
+        "local": [
+          "rs3-chunkpicker-chunkinfo-export.json",
+          "app/data/surface-grid.mjs"
+        ],
+        "wiki": [
+          "https://runescape.wiki/w/William?oldid=37129630"
+        ]
+      }
+    },
+    {
+      "chunkId": "12088",
+      "place": "Dark Warriors' Fortress",
+      "bank": "Sam (cape merchant)",
+      "requirementsNote": "Membership for banking; no quest or skill gate identified. NPC wanders: Wiki marker establishes this containing chunk, not the entire patrol or permanent presence. Keep conditional until a start-chunk visit confirms banking inside its boundary.",
+      "source": {
+        "local": [
+          "rs3-chunkpicker-chunkinfo-export.json",
+          "app/data/surface-grid.mjs"
+        ],
+        "wiki": [
+          "https://runescape.wiki/w/Sam_(cape_merchant)?oldid=37130023"
+        ]
+      }
+    },
+    {
+      "chunkId": "12347",
+      "place": "South-East Lava Maze",
+      "bank": "Edmond (cape merchant)",
+      "requirementsNote": "Membership for banking; no quest or skill gate identified. NPC wanders: Wiki marker establishes this containing chunk, not the entire patrol or permanent presence. Keep conditional until a start-chunk visit confirms banking inside its boundary.",
+      "source": {
+        "local": [
+          "rs3-chunkpicker-chunkinfo-export.json",
+          "app/data/surface-grid.mjs"
+        ],
+        "wiki": [
+          "https://runescape.wiki/w/Edmond_(cape_merchant)?oldid=37129636"
+        ]
+      }
+    }
+  ],
+  "optionAF2PExtension": [
+    {
+      "chunkId": "11575",
+      "place": "Burthorpe",
+      "bank": "Normal bank and training-camp chest",
+      "requirementsNote": "Ordinary F2P-accessible bank service; included only if A extends to F2P bank chunks. No members quest or skill gate identified.",
+      "source": {
+        "local": [
+          "rs3-chunkpicker-chunkinfo-export.json",
+          "app/data/cache-resources.2026-10-08.v1.json"
+        ],
+        "wiki": [
+          "https://runescape.wiki/w/List_of_bank_locations?oldid=37201672"
+        ]
+      }
+    },
+    {
+      "chunkId": "11573",
+      "place": "Taverley",
+      "bank": "Taverley bank",
+      "requirementsNote": "Ordinary F2P-accessible bank service; included only if A extends to F2P bank chunks. No members quest or skill gate identified.",
+      "source": {
+        "local": [
+          "rs3-chunkpicker-chunkinfo-export.json",
+          "app/data/cache-resources.2026-10-08.v1.json"
+        ],
+        "wiki": [
+          "https://runescape.wiki/w/List_of_bank_locations?oldid=37201672"
+        ]
+      }
+    },
+    {
+      "chunkId": "11826",
+      "place": "Rimmington",
+      "bank": "Surface bank chest",
+      "requirementsNote": "Ordinary F2P-accessible bank service; included only if A extends to F2P bank chunks. No members quest or skill gate identified.",
+      "source": {
+        "local": [
+          "rs3-chunkpicker-chunkinfo-export.json",
+          "app/data/cache-resources.2026-10-08.v1.json"
+        ],
+        "wiki": [
+          "https://runescape.wiki/w/List_of_bank_locations?oldid=37201672"
+        ]
+      }
+    },
+    {
+      "chunkId": "11828",
+      "place": "West Falador",
+      "bank": "West bank",
+      "requirementsNote": "Ordinary F2P-accessible bank service; included only if A extends to F2P bank chunks. No members quest or skill gate identified.",
+      "source": {
+        "local": [
+          "rs3-chunkpicker-chunkinfo-export.json",
+          "app/data/cache-resources.2026-10-08.v1.json"
+        ],
+        "wiki": [
+          "https://runescape.wiki/w/List_of_bank_locations?oldid=37201672"
+        ]
+      }
+    },
+    {
+      "chunkId": "12084",
+      "place": "East Falador",
+      "bank": "East bank and Artisans’ Workshop chest",
+      "requirementsNote": "Ordinary F2P-accessible bank service; included only if A extends to F2P bank chunks. No members quest or skill gate identified.",
+      "source": {
+        "local": [
+          "rs3-chunkpicker-chunkinfo-export.json",
+          "app/data/cache-resources.2026-10-08.v1.json"
+        ],
+        "wiki": [
+          "https://runescape.wiki/w/List_of_bank_locations?oldid=37201672"
+        ]
+      }
+    },
+    {
+      "chunkId": "12338",
+      "place": "Draynor",
+      "bank": "Draynor bank",
+      "requirementsNote": "Ordinary F2P-accessible bank service; included only if A extends to F2P bank chunks. No members quest or skill gate identified.",
+      "source": {
+        "local": [
+          "rs3-chunkpicker-chunkinfo-export.json",
+          "app/data/cache-resources.2026-10-08.v1.json"
+        ],
+        "wiki": [
+          "https://runescape.wiki/w/List_of_bank_locations?oldid=37201672"
+        ]
+      }
+    },
+    {
+      "chunkId": "12342",
+      "place": "Edgeville",
+      "bank": "Edgeville bank",
+      "requirementsNote": "Ordinary F2P-accessible bank service; included only if A extends to F2P bank chunks. No members quest or skill gate identified.",
+      "source": {
+        "local": [
+          "rs3-chunkpicker-chunkinfo-export.json",
+          "app/data/cache-resources.2026-10-08.v1.json"
+        ],
+        "wiki": [
+          "https://runescape.wiki/w/List_of_bank_locations?oldid=37201672"
+        ]
+      }
+    },
+    {
+      "chunkId": "12597",
+      "place": "Varrock west / Cooks' Guild chunk",
+      "bank": "Varrock west bank (not Cooks' Guild bank)",
+      "requirementsNote": "Ordinary F2P-accessible bank service; included only if A extends to F2P bank chunks. No members quest or skill gate identified.",
+      "source": {
+        "local": [
+          "rs3-chunkpicker-chunkinfo-export.json",
+          "app/data/cache-resources.2026-10-08.v1.json"
+        ],
+        "wiki": [
+          "https://runescape.wiki/w/List_of_bank_locations?oldid=37201672"
+        ]
+      }
+    },
+    {
+      "chunkId": "12598",
+      "place": "Grand Exchange",
+      "bank": "Bankers",
+      "requirementsNote": "Ordinary F2P-accessible bank service; included only if A extends to F2P bank chunks. No members quest or skill gate identified.",
+      "source": {
+        "local": [
+          "rs3-chunkpicker-chunkinfo-export.json",
+          "app/data/cache-resources.2026-10-08.v1.json"
+        ],
+        "wiki": [
+          "https://runescape.wiki/w/List_of_bank_locations?oldid=37201672"
+        ]
+      }
+    },
+    {
+      "chunkId": "12850",
+      "place": "Lumbridge",
+      "bank": "Castle upper bank and market chest",
+      "requirementsNote": "Ordinary F2P-accessible bank service; included only if A extends to F2P bank chunks. No members quest or skill gate identified.",
+      "source": {
+        "local": [
+          "rs3-chunkpicker-chunkinfo-export.json",
+          "app/data/cache-resources.2026-10-08.v1.json"
+        ],
+        "wiki": [
+          "https://runescape.wiki/w/List_of_bank_locations?oldid=37201672"
+        ]
+      }
+    },
+    {
+      "chunkId": "12853",
+      "place": "Varrock east",
+      "bank": "East bank",
+      "requirementsNote": "Ordinary F2P-accessible bank service; included only if A extends to F2P bank chunks. No members quest or skill gate identified.",
+      "source": {
+        "local": [
+          "rs3-chunkpicker-chunkinfo-export.json",
+          "app/data/cache-resources.2026-10-08.v1.json"
+        ],
+        "wiki": [
+          "https://runescape.wiki/w/List_of_bank_locations?oldid=37201672"
+        ]
+      }
+    },
+    {
+      "chunkId": "12854",
+      "place": "North Varrock / Infernal Source exterior",
+      "bank": "Surface archaeology bank chest",
+      "requirementsNote": "Ordinary F2P-accessible bank service; included only if A extends to F2P bank chunks. No members quest or skill gate identified.",
+      "source": {
+        "local": [
+          "rs3-chunkpicker-chunkinfo-export.json",
+          "app/data/cache-resources.2026-10-08.v1.json"
+        ],
+        "wiki": [
+          "https://runescape.wiki/w/List_of_bank_locations?oldid=37201672"
+        ]
+      }
+    },
+    {
+      "chunkId": "13105",
+      "place": "Al Kharid",
+      "bank": "Normal bank",
+      "requirementsNote": "Ordinary F2P-accessible bank service; included only if A extends to F2P bank chunks. No members quest or skill gate identified.",
+      "source": {
+        "local": [
+          "rs3-chunkpicker-chunkinfo-export.json",
+          "app/data/cache-resources.2026-10-08.v1.json"
+        ],
+        "wiki": [
+          "https://runescape.wiki/w/List_of_bank_locations?oldid=37201672"
+        ]
+      }
+    },
+    {
+      "chunkId": "13361",
+      "place": "Kharid-et exterior",
+      "bank": "Surface archaeology chest",
+      "requirementsNote": "Ordinary F2P-accessible bank service; included only if A extends to F2P bank chunks. No members quest or skill gate identified.",
+      "source": {
+        "local": [
+          "rs3-chunkpicker-chunkinfo-export.json",
+          "app/data/cache-resources.2026-10-08.v1.json"
+        ],
+        "wiki": [
+          "https://runescape.wiki/w/List_of_bank_locations?oldid=37201672"
+        ]
+      }
+    },
+    {
+      "chunkId": "13363",
+      "place": "Het's Oasis",
+      "bank": "Bank chest",
+      "requirementsNote": "Ordinary F2P-accessible bank service; included only if A extends to F2P bank chunks. No members quest or skill gate identified.",
+      "source": {
+        "local": [
+          "rs3-chunkpicker-chunkinfo-export.json",
+          "app/data/cache-resources.2026-10-08.v1.json"
+        ],
+        "wiki": [
+          "https://runescape.wiki/w/List_of_bank_locations?oldid=37201672"
+        ]
+      }
+    },
+    {
+      "chunkId": "13364",
+      "place": "Exam Centre",
+      "bank": "Bank chest",
+      "requirementsNote": "Ordinary F2P-accessible bank service; included only if A extends to F2P bank chunks. No members quest or skill gate identified.",
+      "source": {
+        "local": [
+          "rs3-chunkpicker-chunkinfo-export.json",
+          "app/data/cache-resources.2026-10-08.v1.json"
+        ],
+        "wiki": [
+          "https://runescape.wiki/w/List_of_bank_locations?oldid=37201672"
+        ]
+      }
+    },
+    {
+      "chunkId": "13365",
+      "place": "Archaeology Campus",
+      "bank": "Bank chest",
+      "requirementsNote": "Ordinary F2P-accessible bank service; included only if A extends to F2P bank chunks. No members quest or skill gate identified.",
+      "source": {
+        "local": [
+          "rs3-chunkpicker-chunkinfo-export.json",
+          "app/data/cache-resources.2026-10-08.v1.json"
+        ],
+        "wiki": [
+          "https://runescape.wiki/w/List_of_bank_locations?oldid=37201672"
+        ]
+      }
+    },
+    {
+      "chunkId": "13626",
+      "place": "Daemonheim west castle",
+      "bank": "Fremennik banker",
+      "requirementsNote": "Ordinary F2P-accessible bank service; included only if A extends to F2P bank chunks. No members quest or skill gate identified.",
+      "source": {
+        "local": [
+          "rs3-chunkpicker-chunkinfo-export.json",
+          "app/data/cache-resources.2026-10-08.v1.json"
+        ],
+        "wiki": [
+          "https://runescape.wiki/w/List_of_bank_locations?oldid=37201672"
+        ]
+      }
+    },
+    {
+      "chunkId": "16692",
+      "place": "Wendlewick",
+      "bank": "Banker Nathan / booth",
+      "requirementsNote": "Visions of Havenhythe completed under the all-F2P-quests baseline. Ordinary bank, no Trader Woes gate.",
+      "source": {
+        "local": [
+          "rs3-chunkpicker-chunkinfo-export.json",
+          "app/data/cache-resources.2026-10-08.v1.json"
+        ],
+        "wiki": [
+          "https://runescape.wiki/w/List_of_bank_locations?oldid=37201672"
+        ]
+      }
+    },
+    {
+      "chunkId": "11829",
+      "place": "Gamers' Grotto surface entry",
+      "bank": "Clan Wars and Cabbage Facepunch lobby chests / Fist of Guthix bank",
+      "requirementsNote": "Surface parent of Gamers' Grotto cave at (2992, 3409); connected lobby banks have no quest or level gate. No minigame participation is assumed.",
+      "source": {
+        "local": [
+          "rs3-chunkpicker-chunkinfo-export.json",
+          "app/data/cache-resources.2026-10-08.v1.json"
+        ],
+        "wiki": [
+          "https://runescape.wiki/w/Cave_entrance_(Gamers%27_Grotto)?oldid=36472793",
+          "https://runescape.wiki/w/Gamers%27_Grotto?oldid=37120467"
+        ]
+      }
+    },
+    {
+      "chunkId": "12339",
+      "place": "Draynor crossroads surface entry",
+      "bank": "Death’s Office bank and City of Um banks",
+      "requirementsNote": "F2P Death's Office bank; City of Um banks additionally require Necromancy!, met by the all-F2P-quests baseline. These connected interiors share this surface parent.",
+      "source": {
+        "local": [
+          "rs3-chunkpicker-chunkinfo-export.json",
+          "app/data/cache-resources.2026-10-08.v1.json"
+        ],
+        "wiki": [
+          "https://runescape.wiki/w/List_of_bank_locations?oldid=37201672"
+        ]
+      }
+    },
+    {
+      "chunkId": "12349",
+      "place": "Mage Arena surface lever",
+      "bank": "Gundai / Mage Arena cave bank",
+      "requirementsNote": "Surface lever parent of Gundai's Mage Arena cave bank. Banking does not require participation in Mage Arena.",
+      "source": {
+        "local": [
+          "rs3-chunkpicker-chunkinfo-export.json",
+          "app/data/cache-resources.2026-10-08.v1.json"
+        ],
+        "wiki": [
+          "https://runescape.wiki/w/List_of_bank_locations?oldid=37201672"
+        ]
+      }
+    },
+    {
+      "chunkId": "11318",
+      "place": "Land of Snow surface entry",
+      "bank": "Yeti Town bank after Violet is Blue",
+      "requirementsNote": "Violet is Blue completed under the all-F2P-quests baseline. Surface parent of Land of Snow / Yeti Town, entered through the portal at (2853, 3461).",
+      "source": {
+        "local": [
+          "rs3-chunkpicker-chunkinfo-export.json",
+          "app/data/cache-resources.2026-10-08.v1.json"
+        ],
+        "wiki": [
+          "https://runescape.wiki/w/Land_of_Snow_portal?oldid=35701312"
+        ]
+      }
+    }
+  ],
+  "optionAF2PConditional": [
+    {
+      "chunkId": "11319",
+      "place": "Warriors' Guild",
+      "bank": "Bank",
+      "requirementsNote": "Base Attack + Strength at least 130, or base Attack 99, or base Strength 99. All are F2P-achievable; confirm each player's finishing levels. Temporary boosts do not grant entry.",
+      "source": {
+        "local": [
+          "rs3-chunkpicker-chunkinfo-export.json",
+          "app/data/cache-resources.2026-10-08.v1.json",
+          "docs/research/retained-entry-requirements-2026-10-12.md"
+        ],
+        "wiki": [
+          "https://runescape.wiki/w/Warriors%27_Guild?oldid=37169629"
+        ]
+      }
+    },
+    {
+      "chunkId": "12339",
+      "place": "War's Retreat via Draynor",
+      "bank": "Two bank chests",
+      "requirementsNote": "60 combat or 1,000 total level. F2P-achievable, but confirm actual finishing levels. Surface entry parent 12339, not interior source-region ID 13214.",
+      "source": {
+        "local": [
+          "rs3-chunkpicker-chunkinfo-export.json",
+          "app/data/cache-resources.2026-10-08.v1.json"
+        ],
+        "wiki": [
+          "https://runescape.wiki/w/War%27s_Retreat?oldid=37178109"
+        ]
+      }
+    },
+    {
+      "chunkId": "12087",
+      "place": "Black Knights' Fortress",
+      "bank": "Upper floor bank chest after The Death of Chivalry",
+      "requirementsNote": "The Death of Chivalry is covered by the all-F2P-quests baseline. Entry still needs permitted armour, such as the quest's captain armour; confirm possession and wear. Upper-floor chest at (3027, 3577) maps to surface chunk 12087.",
+      "source": {
+        "local": [
+          "rs3-chunkpicker-chunkinfo-export.json",
+          "app/data/cache-resources.2026-10-08.v1.json"
+        ],
+        "wiki": [
+          "https://runescape.wiki/w/Black_Knights%27_Fortress?oldid=37168293"
+        ]
+      }
+    }
+  ],
+  "optionB": [
+    {
+      "chunkId": "16692",
+      "place": "Wendlewick",
+      "bank": "Wendlewick bank",
+      "requirementsNote": "Visions of Havenhythe completed under the all-F2P-quests baseline. Full ordinary bank, no Trader Woes requirement.",
+      "source": {
+        "local": [
+          "app/data/cache-resources.2026-10-08.v1.json",
+          "rs3-chunkpicker-chunkinfo-export.json"
+        ],
+        "wiki": [
+          "https://runescape.wiki/w/Wendlewick_bank?oldid=37114602"
+        ]
+      }
+    }
+  ],
+  "optionBConditional": [
+    {
+      "chunkId": "16690",
+      "place": "Dalia's Tree Nursery",
+      "condition": "Needs Trader Woes completed (which needs Visions of Havenhythe and 30 iron nails).",
+      "bank": "Members bank chest",
+      "requirementsNote": "Membership and Trader Woes completed. This F2P achievement requires Visions of Havenhythe and exactly 30 iron nails; it can be prepared before the reset. Confirm its completion separately from F2P quests.",
+      "source": {
+        "local": [
+          "rs3-chunkpicker-chunkinfo-export.json",
+          "app/data/cache-resources.2026-10-08.v1.json"
+        ],
+        "wiki": [
+          "https://runescape.wiki/w/Dalia%27s_Tree_Nursery?oldid=37195435",
+          "https://runescape.wiki/w/Trader_Woes?oldid=37197977"
+        ]
+      }
+    }
+  ],
+  "havenhytheFullBankInventory": [
+    {
+      "chunkId": "16692",
+      "place": "Wendlewick",
+      "bank": "Wendlewick bank",
+      "requirementsNote": "Visions of Havenhythe completed under the all-F2P-quests baseline. Full ordinary bank, no Trader Woes requirement.",
+      "source": {
+        "local": [
+          "app/data/cache-resources.2026-10-08.v1.json",
+          "rs3-chunkpicker-chunkinfo-export.json"
+        ],
+        "wiki": [
+          "https://runescape.wiki/w/Wendlewick_bank?oldid=37114602"
+        ]
+      }
+    },
+    {
+      "chunkId": "16690",
+      "place": "Dalia's Tree Nursery",
+      "bank": "Dalia’s Tree Nursery bank chest",
+      "requirementsNote": "Membership and the F2P Trader Woes achievement completed, using exactly 30 iron nails. No members quest needed for this service.",
+      "source": {
+        "local": [
+          "app/data/cache-resources.2026-10-08.v1.json",
+          "rs3-chunkpicker-chunkinfo-export.json"
+        ],
+        "wiki": [
+          "https://runescape.wiki/w/Bank_chest_(Wendlewick)?oldid=37135424"
+        ]
+      }
+    },
+    {
+      "chunkId": "17716",
+      "place": "Amberfell",
+      "bank": "Amberfell bank",
+      "requirementsNote": "Repair the bridge during Secrets of Amberfell. The quest requires 30 Construction, 35 Herblore, 32 Hunter and 28 Slayer; partial progress reaches the village bank.",
+      "source": {
+        "local": [
+          "app/data/cache-resources.2026-10-08.v1.json",
+          "rs3-chunkpicker-chunkinfo-export.json"
+        ],
+        "wiki": [
+          "https://runescape.wiki/w/Amberfell?oldid=37201972"
+        ]
+      }
+    },
+    {
+      "chunkId": "18230",
+      "place": "Heathervein",
+      "bank": "Heathervein bank (Pallad)",
+      "requirementsNote": "Partial Heralds of Crimson opens Heathervein. No separate Pallad banker gate identified. The quest lists 51 Crafting, 55 Herblore, 65 Mining and 60 Smithing, plus prerequisites.",
+      "source": {
+        "local": [
+          "app/data/cache-resources.2026-10-08.v1.json",
+          "app/data/cache-surface-corrections.2026-10-08.v1.json"
+        ],
+        "wiki": [
+          "https://runescape.wiki/w/Heathervein?oldid=37201982"
+        ]
+      }
+    },
+    {
+      "chunkId": "18482",
+      "place": "Linbog Village / Fenmoor",
+      "bank": "Linbog Village / Fenmoor bank chest",
+      "requirementsNote": "Partial Heralds of Crimson opens the area. Chest at (4612, 3258) maps to Fenmoor chunk 18482, not Linbog label chunk 18226. Full-bank actions are encoded; exact Linbog/Fenmoor naming association is medium confidence and interaction was not visited.",
+      "source": {
+        "local": [
+          "app/data/cache-resources.2026-10-08.v1.json",
+          "app/data/cache-surface-corrections.2026-10-08.v1.json"
+        ],
+        "wiki": [
+          "https://runescape.wiki/w/Linbog_Village?oldid=37203094"
+        ]
+      }
+    }
+  ],
+  "havenhytheDepositOnly": [
+    {
+      "chunkId": "16435",
+      "place": "Wendlewick Fishing Shop deposit box",
+      "bank": "Wendlewick Fishing Shop deposit box",
+      "requirementsNote": "Membership and F2P Trader Woes; deposit-only, no withdrawal or presets.",
+      "source": {
+        "local": [
+          "app/data/cache-resources.2026-10-08.v1.json",
+          "rs3-chunkpicker-chunkinfo-export.json"
+        ],
+        "wiki": [
+          "https://runescape.wiki/w/Deposit_box_(Wendlewick)?oldid=37074157"
+        ]
+      }
+    },
+    {
+      "chunkId": "18229",
+      "place": "Exalted Quarry deposit box",
+      "bank": "Exalted Quarry deposit box",
+      "requirementsNote": "Deposit-only at Exalted Quarry. Heralds quest progress/permission required; exact full-completion boundary for all quarry services remains unsure.",
+      "source": {
+        "local": [
+          "app/data/cache-resources.2026-10-08.v1.json",
+          "rs3-chunkpicker-chunkinfo-export.json"
+        ],
+        "wiki": [
+          "https://runescape.wiki/w/Heralds_of_Crimson?oldid=37204059"
+        ]
+      }
+    }
+  ],
+  "excludedBankGroups": [
+    {
+      "place": "Cooks' Guild bank (12597)",
+      "requirementsNote": "Hard Varrock achievements. The 99 Cooking alternative is an OSRS rule, not an RS3 bank unlock.",
+      "source": [
+        "https://runescape.wiki/w/Cooks%27_Guild_bank?oldid=37108418",
+        "https://runescape.wiki/w/List_of_bank_locations?oldid=37201672"
+      ]
+    },
+    {
+      "place": "Crafting Guild (11571)",
+      "requirementsNote": "Full chest requires hard Falador achievements. Level 40 Crafting and a brown apron allow the deposit service, not the full bank.",
+      "source": [
+        "https://runescape.wiki/w/Crafting_Guild?oldid=37145395",
+        "https://runescape.wiki/w/List_of_bank_locations?oldid=37201672"
+      ]
+    },
+    {
+      "place": "May's Quest Caravan (12852)",
+      "requirementsNote": "Allocate 125 quest points to the Hub track. All F2P quests do not establish that unlock.",
+      "source": [
+        "https://runescape.wiki/w/May%27s_Quest_Caravan?oldid=37188013",
+        "https://runescape.wiki/w/List_of_bank_locations?oldid=37201672"
+      ]
+    },
+    {
+      "place": "Player-owned farm (10548) / Dinosaur Farm (14915)",
+      "requirementsNote": "A 300-bean upgrade is needed for a full bank. Deposit boxes and an unconfirmed upgrade do not qualify.",
+      "source": [
+        "https://runescape.wiki/w/Bank_chest_(player-owned_farm)?oldid=36994564",
+        "https://runescape.wiki/w/List_of_bank_locations?oldid=37201672"
+      ]
+    },
+    {
+      "place": "Anachronia outlying bank-like objects (for example 15427)",
+      "requirementsNote": "Static conditional objects do not prove a built bank. The base-camp build is listed separately.",
+      "source": "https://runescape.wiki/w/List_of_bank_locations?oldid=37201672"
+    },
+    {
+      "place": "Invention Guild (11829)",
+      "requirementsNote": "Requires the Invention unlock, including 80 Divination, beyond the F2P cap, and its tutorial.",
+      "source": [
+        "https://runescape.wiki/w/Invention_Guild?oldid=37124934",
+        "https://runescape.wiki/w/List_of_bank_locations?oldid=37201672"
+      ]
+    },
+    {
+      "place": "Dominion Tower (13360)",
+      "requirementsNote": "The current area page requires 20 specified quest completions for lobby banking; F2P quests alone do not meet that list. Arena banks also depend on an activity.",
+      "source": [
+        "https://runescape.wiki/w/Dominion_Tower?oldid=37199913",
+        "https://runescape.wiki/w/List_of_bank_locations?oldid=37201672"
+      ]
+    },
+    {
+      "place": "War's Retreat",
+      "requirementsNote": "Keep conditional until the 60-combat or 1,000-total-level entry gate is confirmed. Use the Draynor surface parent.",
+      "source": [
+        "https://runescape.wiki/w/War%27s_Retreat?oldid=37178109",
+        "https://runescape.wiki/w/List_of_bank_locations?oldid=37201672"
+      ]
+    },
+    {
+      "place": "Heist / Deathmatch / Sinkholes / Shattered Worlds checkpoints",
+      "requirementsNote": "Activity instances are not independent surface starting chunks. Shattered Worlds exterior banking is recorded under the members-boat alternative.",
+      "source": [
+        "https://runescape.wiki/w/Deathmatch?oldid=37130068",
+        "https://runescape.wiki/w/Shattered_Worlds?oldid=37127348",
+        "https://runescape.wiki/w/List_of_bank_locations?oldid=37201672"
+      ]
+    },
+    {
+      "place": "Keldagrim / Blast Furnace / Barendir",
+      "requirementsNote": "Starting The Giant Dwarf is required for the boat entry to Keldagrim. The Black Guard quartermaster is a quest-only bank during Birthright of the Dwarves.",
+      "source": [
+        "https://runescape.wiki/w/The_Giant_Dwarf?oldid=37182642",
+        "https://runescape.wiki/w/Keldagrim?oldid=37185357",
+        "https://runescape.wiki/w/List_of_bank_locations?oldid=37201672"
+      ]
+    },
+    {
+      "place": "Burgh de Rott / Odovacar",
+      "requirementsNote": "Burgh needs In Aid of the Myreque; Odovacar needs Haunted Mine and 100 coins. Canifis and Everlight are instead conditional through the ghoul route.",
+      "source": [
+        "https://runescape.wiki/w/Canifis?oldid=37124299",
+        "https://runescape.wiki/w/Everlight_Dig_Site?oldid=37145898",
+        "https://runescape.wiki/w/Cornelius?oldid=37139267",
+        "https://runescape.wiki/w/List_of_bank_locations?oldid=37201672"
+      ]
+    },
+    {
+      "place": "Etceteria (10300)",
+      "requirementsNote": "Members boat access requires The Fremennik Trials. Throne of Miscellania is not itself a bank-use requirement.",
+      "source": [
+        "https://runescape.wiki/w/Etceteria?oldid=37122987",
+        "https://runescape.wiki/w/Miscellania?oldid=37123140",
+        "https://runescape.wiki/w/List_of_bank_locations?oldid=37201672"
+      ]
+    },
+    {
+      "place": "Neitiznot (9275) / Jatizso (9531)",
+      "requirementsNote": "Members Fremennik quest and boat access; starting The Fremennik Isles is enough for the stated Jatizso stage, but is still a members quest.",
+      "source": "https://runescape.wiki/w/List_of_bank_locations?oldid=37201672"
+    },
+    {
+      "place": "Oo'glog (10028)",
+      "requirementsNote": "As a First Resort bank unlock.",
+      "source": "https://runescape.wiki/w/List_of_bank_locations?oldid=37201672"
+    },
+    {
+      "place": "Shilo Village (11310)",
+      "requirementsNote": "Shilo Village quest access.",
+      "source": "https://runescape.wiki/w/List_of_bank_locations?oldid=37201672"
+    },
+    {
+      "place": "Piscatoris / Arnold Lydspor",
+      "requirementsNote": "Swan Song. Nearby deposit services are not substitutes for the bank.",
+      "source": [
+        "https://runescape.wiki/w/Arnold_Lydspor?oldid=37122549",
+        "https://runescape.wiki/w/List_of_bank_locations?oldid=37201672"
+      ]
+    },
+    {
+      "place": "Lletya (9265) / Prifddinas / Lunar Isle (8253)",
+      "requirementsNote": "Members elf/lunar quest gates. Related district, Grand Exchange, waterfall and guild banks inherit them.",
+      "source": "https://runescape.wiki/w/List_of_bank_locations?oldid=37201672"
+    },
+    {
+      "place": "Zanaris / Dorgesh-Kaan",
+      "requirementsNote": "Lost City / Death to the Dorgeshuun respectively.",
+      "source": "https://runescape.wiki/w/List_of_bank_locations?oldid=37201672"
+    },
+    {
+      "place": "Legends' Guild (10804)",
+      "requirementsNote": "Legends' Quest.",
+      "source": "https://runescape.wiki/w/List_of_bank_locations?oldid=37201672"
+    },
+    {
+      "place": "Mos Le'Harmless (14638)",
+      "requirementsNote": "Cabin Fever.",
+      "source": "https://runescape.wiki/w/List_of_bank_locations?oldid=37201672"
+    },
+    {
+      "place": "Sophanem (13099)",
+      "requirementsNote": "Contact! bank repair/unlock, plus the relevant desert access.",
+      "source": "https://runescape.wiki/w/List_of_bank_locations?oldid=37201672"
+    },
+    {
+      "place": "Arc: Waiko (15134), Tuai Leit (15139), Cyclosis",
+      "requirementsNote": "Impressing the Locals members miniquest and sea travel. Cyclosis also depends on Ports access.",
+      "source": [
+        "https://runescape.wiki/w/Kotahi?oldid=37139516",
+        "https://runescape.wiki/w/List_of_bank_locations?oldid=37201672"
+      ]
+    },
+    {
+      "place": "Ancient Prison / Ashuelot Reis",
+      "requirementsNote": "God Wars/Frozen Key access and Zarosian kill count or ceremonial outfit are not established by the F2P baseline.",
+      "source": "https://runescape.wiki/w/List_of_bank_locations?oldid=37201672"
+    },
+    {
+      "place": "Darkmeyer / River Noumenon / Dream of Iaia / Ungael / Zolarea",
+      "requirementsNote": "Members quests: The Branches of Darkmeyer / Nomad's Elegy / Extinction / Requiem for a Dragon / partial Stellar Born.",
+      "source": "https://runescape.wiki/w/List_of_bank_locations?oldid=37201672"
+    },
+    {
+      "place": "Other Fort banks / Copperpot",
+      "requirementsNote": "Constructed Town Hall, Chapel, Kitchen or Workroom and their quests. The unbuilt workshop chest is the qualifying exception.",
+      "source": [
+        "https://runescape.wiki/w/Bank_chest_(Fort_Forinthry)?oldid=37175502",
+        "https://runescape.wiki/w/List_of_bank_locations?oldid=37201672"
+      ]
+    },
+    {
+      "place": "Druidess",
+      "requirementsNote": "The bank-capable version is a World Wakes quest NPC. Ordinary Taverley druids are not bankers.",
+      "source": [
+        "https://runescape.wiki/w/Druidess?oldid=37145268",
+        "https://runescape.wiki/w/List_of_bank_locations?oldid=37201672"
+      ]
+    },
+    {
+      "place": "Larry, cape merchant",
+      "requirementsNote": "No Bank action; the broken option was removed in 2017.",
+      "source": [
+        "https://runescape.wiki/w/Larry_(cape_merchant)?oldid=37129202",
+        "https://runescape.wiki/w/List_of_bank_locations?oldid=37201672"
+      ]
+    },
+    {
+      "place": "Deposit-only services",
+      "requirementsNote": "Port Sarim, Port Khazard (10545), guild deposit boxes, Herblore Habitat, Peer the Seer, resource dungeons, Living Rock pulley, Arc boxes, Wizard Myrtle, Mimsy and portable/bait boxes cannot withdraw ordinary items.",
+      "source": [
+        "https://runescape.wiki/w/Port_Khazard?oldid=37122867",
+        "https://runescape.wiki/w/Crafting_Guild?oldid=37145395",
+        "https://runescape.wiki/w/List_of_bank_locations?oldid=37201672"
+      ]
+    },
+    {
+      "place": "Limited storage/noting",
+      "requirementsNote": "Beefy Bill, Stiles, metal banks, tool leprechauns, Croesus reward chest and log piles do not offer general bank withdrawal.",
+      "source": "https://runescape.wiki/w/List_of_bank_locations?oldid=37201672"
+    },
+    {
+      "place": "Clan Citadel / Head Guard / gear crates / Ports bank boxes",
+      "requirementsNote": "Clan, tier or Ports prerequisites and separate interiors; no confirmed account-independent surface starter.",
+      "source": "https://runescape.wiki/w/List_of_bank_locations?oldid=37201672"
+    },
+    {
+      "place": "Temporary, historical and tutorial banks",
+      "requirementsNote": "Seasonal availability, removed objects, instances and an inaccessible completed tutorial do not establish permanent starting banks.",
+      "source": "https://runescape.wiki/w/List_of_bank_locations?oldid=37201672"
+    },
+    {
+      "place": "Havenhythe banks beyond Wendlewick",
+      "requirementsNote": "Dalia is conditional on F2P Trader Woes; Amberfell, Heathervein and Linbog/Fenmoor require members quest progress.",
+      "source": [
+        "https://runescape.wiki/w/Dalia%27s_Tree_Nursery?oldid=37195435",
+        "https://runescape.wiki/w/Trader_Woes?oldid=37197977",
+        "https://runescape.wiki/w/List_of_bank_locations?oldid=37201672"
+      ]
+    },
+    {
+      "place": "Mr Pinsworth / Thieves' Guild",
+      "requirementsNote": "Buyers and Cellars and all three capers for the completed guild bank.",
+      "source": "https://runescape.wiki/w/Mr_Pinsworth?oldid=37148736"
+    },
+    {
+      "place": "Magnus Gram",
+      "requirementsNote": "Jatizso bank in 9531 requires starting The Fremennik Isles.",
+      "source": "https://runescape.wiki/w/Magnus_Gram?oldid=37147972"
+    },
+    {
+      "place": "Cornelius",
+      "requirementsNote": "Repaired Burgh de Rott bank during In Aid of the Myreque.",
+      "source": "https://runescape.wiki/w/Rogue_(Crucible)?oldid=37126404"
+    },
+    {
+      "place": "Jade",
+      "requirementsNote": "Warriors' Guild entry levels; recorded as conditional above, rather than a separate roll.",
+      "source": "https://runescape.wiki/w/Jade_(NPC)?oldid=37148702"
+    },
+    {
+      "place": "Rogue, Crucible banker",
+      "requirementsNote": "Historical/deleted NPC; do not confuse its old banker entry with current rogue monsters.",
+      "source": "https://runescape.wiki/w/Cornelius?oldid=37139267"
+    }
+  ],
+  "localEvidence": {
+    "originalExportSha256": "9dd835266f381abaa4d14033abcd0b43a001fe96d7df0a7f046fcc8676d66553",
+    "resourceCatalogueSha256": "3ba281dffe10ec09fa21c34825987334b85ca4e860654c0b78c0c12bf4bac53b",
+    "surfaceCorrectionsSha256": "57cdecbfb94c0bc64596ca8600d81310a2d7e15d62e5df4060d4ad94293ea4e9",
+    "coverage": "Original Object/NPC declarations recursively through Sections and named interior connections; cache bank/booth/deposit placements; current Wiki List of bank locations and specific requirement overrides.",
+    "havenhytheSurfaceFootprint": [
+      {
+        "chunkId": "16179",
+        "place": "Wendlewick Fish Farm",
+        "source": "rs3-chunkpicker-chunkinfo-export.json"
+      },
+      {
+        "chunkId": "16180",
+        "place": "North of Wendlewick Dock",
+        "source": "rs3-chunkpicker-chunkinfo-export.json"
+      },
+      {
+        "chunkId": "16434",
+        "place": "Western Shore Overlook",
+        "source": "rs3-chunkpicker-chunkinfo-export.json"
+      },
+      {
+        "chunkId": "16435",
+        "place": "Wendlewick Fishing Shop",
+        "source": "rs3-chunkpicker-chunkinfo-export.json"
+      },
+      {
+        "chunkId": "16436",
+        "place": "Wendle's Wicks",
+        "source": "rs3-chunkpicker-chunkinfo-export.json"
+      },
+      {
+        "chunkId": "16437",
+        "place": "Hermit Cave Entrance",
+        "source": "rs3-chunkpicker-chunkinfo-export.json"
+      },
+      {
+        "chunkId": "16438",
+        "place": "Precarious Outhouse",
+        "source": "rs3-chunkpicker-chunkinfo-export.json"
+      },
+      {
+        "chunkId": "16440",
+        "place": "Unnamed square / boundary fragment",
+        "source": "app/data/cache-walkability.2026-10-07.v1.json; app/data/cache-surface-corrections.2026-10-08.v1.json"
+      },
+      {
+        "chunkId": "16689",
+        "place": "South-West Havenhythe Shore",
+        "source": "rs3-chunkpicker-chunkinfo-export.json"
+      },
+      {
+        "chunkId": "16690",
+        "place": "Dalia's Tree Nursery",
+        "source": "rs3-chunkpicker-chunkinfo-export.json"
+      },
+      {
+        "chunkId": "16691",
+        "place": "Burnt Lobster Tavern",
+        "source": "rs3-chunkpicker-chunkinfo-export.json"
+      },
+      {
+        "chunkId": "16692",
+        "place": "Wendlewick",
+        "source": "rs3-chunkpicker-chunkinfo-export.json"
+      },
+      {
+        "chunkId": "16693",
+        "place": "Abandoned Cart",
+        "source": "rs3-chunkpicker-chunkinfo-export.json"
+      },
+      {
+        "chunkId": "16694",
+        "place": "Highweald Mine",
+        "source": "rs3-chunkpicker-chunkinfo-export.json"
+      },
+      {
+        "chunkId": "16695",
+        "place": "Unnamed square / boundary fragment",
+        "source": "app/data/cache-walkability.2026-10-07.v1.json; app/data/cache-surface-corrections.2026-10-08.v1.json"
+      },
+      {
+        "chunkId": "16696",
+        "place": "Unnamed square / boundary fragment",
+        "source": "app/data/cache-walkability.2026-10-07.v1.json; app/data/cache-surface-corrections.2026-10-08.v1.json"
+      },
+      {
+        "chunkId": "16944",
+        "place": "Here Be Crabs",
+        "source": "rs3-chunkpicker-chunkinfo-export.json"
+      },
+      {
+        "chunkId": "16945",
+        "place": "Jackalope Burrows",
+        "source": "rs3-chunkpicker-chunkinfo-export.json"
+      },
+      {
+        "chunkId": "16946",
+        "place": "Shrine of Innana",
+        "source": "rs3-chunkpicker-chunkinfo-export.json"
+      },
+      {
+        "chunkId": "16947",
+        "place": "Marigold Farm",
+        "source": "rs3-chunkpicker-chunkinfo-export.json"
+      },
+      {
+        "chunkId": "16948",
+        "place": "Reuben's Home",
+        "source": "rs3-chunkpicker-chunkinfo-export.json"
+      },
+      {
+        "chunkId": "16949",
+        "place": "Raz's Hut",
+        "source": "rs3-chunkpicker-chunkinfo-export.json"
+      },
+      {
+        "chunkId": "16950",
+        "place": "Highweald Forest Waterfall",
+        "source": "rs3-chunkpicker-chunkinfo-export.json"
+      },
+      {
+        "chunkId": "16951",
+        "place": "Unnamed square / boundary fragment",
+        "source": "app/data/cache-walkability.2026-10-07.v1.json; app/data/cache-surface-corrections.2026-10-08.v1.json"
+      },
+      {
+        "chunkId": "17200",
+        "place": "Felix's Gravestone",
+        "source": "rs3-chunkpicker-chunkinfo-export.json"
+      },
+      {
+        "chunkId": "17201",
+        "place": "Anya's Tent",
+        "source": "rs3-chunkpicker-chunkinfo-export.json"
+      },
+      {
+        "chunkId": "17202",
+        "place": "Eastfold Farm",
+        "source": "rs3-chunkpicker-chunkinfo-export.json"
+      },
+      {
+        "chunkId": "17203",
+        "place": "Sanguine Crawlers",
+        "source": "rs3-chunkpicker-chunkinfo-export.json"
+      },
+      {
+        "chunkId": "17204",
+        "place": "Ruins East of Wendlewick",
+        "source": "rs3-chunkpicker-chunkinfo-export.json"
+      },
+      {
+        "chunkId": "17205",
+        "place": "Hill Giant Camp",
+        "source": "rs3-chunkpicker-chunkinfo-export.json"
+      },
+      {
+        "chunkId": "17206",
+        "place": "Saradominist Watchtower Ruins",
+        "source": "rs3-chunkpicker-chunkinfo-export.json"
+      },
+      {
+        "chunkId": "17207",
+        "place": "Unnamed square / boundary fragment",
+        "source": "app/data/cache-walkability.2026-10-07.v1.json; app/data/cache-surface-corrections.2026-10-08.v1.json"
+      },
+      {
+        "chunkId": "17456",
+        "place": "Harpoon Shore",
+        "source": "rs3-chunkpicker-chunkinfo-export.json"
+      },
+      {
+        "chunkId": "17457",
+        "place": "Deserted Mine",
+        "source": "rs3-chunkpicker-chunkinfo-export.json"
+      },
+      {
+        "chunkId": "17458",
+        "place": "Next Update Overlook",
+        "source": "rs3-chunkpicker-chunkinfo-export.json"
+      },
+      {
+        "chunkId": "17459",
+        "place": "Wolf's Crossing",
+        "source": "rs3-chunkpicker-chunkinfo-export.json"
+      },
+      {
+        "chunkId": "17460",
+        "place": "Bridge to Amberfell",
+        "source": "rs3-chunkpicker-chunkinfo-export.json"
+      },
+      {
+        "chunkId": "17461",
+        "place": "Waterfall Pathway",
+        "source": "rs3-chunkpicker-chunkinfo-export.json"
+      },
+      {
+        "chunkId": "17462",
+        "place": "Loot Under the Waterfall",
+        "source": "rs3-chunkpicker-chunkinfo-export.json"
+      },
+      {
+        "chunkId": "17712",
+        "place": "Unnamed square / boundary fragment",
+        "source": "app/data/cache-walkability.2026-10-07.v1.json; app/data/cache-surface-corrections.2026-10-08.v1.json"
+      },
+      {
+        "chunkId": "17713",
+        "place": "Unnamed square / boundary fragment",
+        "source": "app/data/cache-walkability.2026-10-07.v1.json; app/data/cache-surface-corrections.2026-10-08.v1.json"
+      },
+      {
+        "chunkId": "17714",
+        "place": "Moonsylvar Wood",
+        "source": "app/data/cache-walkability.2026-10-07.v1.json; app/data/cache-surface-corrections.2026-10-08.v1.json"
+      },
+      {
+        "chunkId": "17715",
+        "place": "Lone Pier",
+        "source": "rs3-chunkpicker-chunkinfo-export.json"
+      },
+      {
+        "chunkId": "17716",
+        "place": "Amberfell",
+        "source": "rs3-chunkpicker-chunkinfo-export.json"
+      },
+      {
+        "chunkId": "17717",
+        "place": "Moonrise Cliff",
+        "source": "rs3-chunkpicker-chunkinfo-export.json"
+      },
+      {
+        "chunkId": "17718",
+        "place": "Moorise Temple",
+        "source": "rs3-chunkpicker-chunkinfo-export.json"
+      },
+      {
+        "chunkId": "17968",
+        "place": "Unnamed square / boundary fragment",
+        "source": "app/data/cache-walkability.2026-10-07.v1.json; app/data/cache-surface-corrections.2026-10-08.v1.json"
+      },
+      {
+        "chunkId": "17969",
+        "place": "Unnamed square / boundary fragment",
+        "source": "app/data/cache-walkability.2026-10-07.v1.json; app/data/cache-surface-corrections.2026-10-08.v1.json"
+      },
+      {
+        "chunkId": "17970",
+        "place": "Unnamed square / boundary fragment",
+        "source": "app/data/cache-walkability.2026-10-07.v1.json; app/data/cache-surface-corrections.2026-10-08.v1.json"
+      },
+      {
+        "chunkId": "17971",
+        "place": "Unnamed square / boundary fragment",
+        "source": "app/data/cache-walkability.2026-10-07.v1.json; app/data/cache-surface-corrections.2026-10-08.v1.json"
+      },
+      {
+        "chunkId": "17972",
+        "place": "Unnamed square / boundary fragment",
+        "source": "app/data/cache-walkability.2026-10-07.v1.json; app/data/cache-surface-corrections.2026-10-08.v1.json"
+      },
+      {
+        "chunkId": "17973",
+        "place": "Unnamed square / boundary fragment",
+        "source": "app/data/cache-walkability.2026-10-07.v1.json; app/data/cache-surface-corrections.2026-10-08.v1.json"
+      },
+      {
+        "chunkId": "17974",
+        "place": "Unnamed square / boundary fragment",
+        "source": "app/data/cache-walkability.2026-10-07.v1.json; app/data/cache-surface-corrections.2026-10-08.v1.json"
+      },
+      {
+        "chunkId": "17975",
+        "place": "Unnamed square / boundary fragment",
+        "source": "app/data/cache-walkability.2026-10-07.v1.json; app/data/cache-surface-corrections.2026-10-08.v1.json"
+      },
+      {
+        "chunkId": "18225",
+        "place": "Unnamed square / boundary fragment",
+        "source": "app/data/cache-walkability.2026-10-07.v1.json; app/data/cache-surface-corrections.2026-10-08.v1.json"
+      },
+      {
+        "chunkId": "18226",
+        "place": "Linbog Village",
+        "source": "app/data/cache-walkability.2026-10-07.v1.json; app/data/cache-surface-corrections.2026-10-08.v1.json"
+      },
+      {
+        "chunkId": "18227",
+        "place": "Unnamed square / boundary fragment",
+        "source": "app/data/cache-walkability.2026-10-07.v1.json; app/data/cache-surface-corrections.2026-10-08.v1.json"
+      },
+      {
+        "chunkId": "18228",
+        "place": "Berylbrook",
+        "source": "app/data/cache-walkability.2026-10-07.v1.json; app/data/cache-surface-corrections.2026-10-08.v1.json"
+      },
+      {
+        "chunkId": "18229",
+        "place": "Exalted Quarry",
+        "source": "app/data/cache-walkability.2026-10-07.v1.json; app/data/cache-surface-corrections.2026-10-08.v1.json"
+      },
+      {
+        "chunkId": "18230",
+        "place": "Heathervein",
+        "source": "app/data/cache-walkability.2026-10-07.v1.json; app/data/cache-surface-corrections.2026-10-08.v1.json"
+      },
+      {
+        "chunkId": "18231",
+        "place": "Unnamed square / boundary fragment",
+        "source": "app/data/cache-walkability.2026-10-07.v1.json; app/data/cache-surface-corrections.2026-10-08.v1.json"
+      },
+      {
+        "chunkId": "18481",
+        "place": "Unnamed square / boundary fragment",
+        "source": "app/data/cache-walkability.2026-10-07.v1.json; app/data/cache-surface-corrections.2026-10-08.v1.json"
+      },
+      {
+        "chunkId": "18482",
+        "place": "Fenmoor",
+        "source": "app/data/cache-walkability.2026-10-07.v1.json; app/data/cache-surface-corrections.2026-10-08.v1.json"
+      },
+      {
+        "chunkId": "18483",
+        "place": "Unnamed square / boundary fragment",
+        "source": "app/data/cache-walkability.2026-10-07.v1.json; app/data/cache-surface-corrections.2026-10-08.v1.json"
+      },
+      {
+        "chunkId": "18484",
+        "place": "Unnamed square / boundary fragment",
+        "source": "app/data/cache-walkability.2026-10-07.v1.json; app/data/cache-surface-corrections.2026-10-08.v1.json"
+      },
+      {
+        "chunkId": "18485",
+        "place": "Unnamed square / boundary fragment",
+        "source": "app/data/cache-walkability.2026-10-07.v1.json; app/data/cache-surface-corrections.2026-10-08.v1.json"
+      },
+      {
+        "chunkId": "18486",
+        "place": "Divine Fall",
+        "source": "app/data/cache-walkability.2026-10-07.v1.json; app/data/cache-surface-corrections.2026-10-08.v1.json"
+      },
+      {
+        "chunkId": "18487",
+        "place": "Unnamed square / boundary fragment",
+        "source": "app/data/cache-walkability.2026-10-07.v1.json; app/data/cache-surface-corrections.2026-10-08.v1.json"
+      },
+      {
+        "chunkId": "18737",
+        "place": "Globin Village",
+        "source": "app/data/cache-walkability.2026-10-07.v1.json; app/data/cache-surface-corrections.2026-10-08.v1.json"
+      },
+      {
+        "chunkId": "18738",
+        "place": "Unnamed square / boundary fragment",
+        "source": "app/data/cache-walkability.2026-10-07.v1.json; app/data/cache-surface-corrections.2026-10-08.v1.json"
+      },
+      {
+        "chunkId": "18739",
+        "place": "Unnamed square / boundary fragment",
+        "source": "app/data/cache-walkability.2026-10-07.v1.json; app/data/cache-surface-corrections.2026-10-08.v1.json"
+      },
+      {
+        "chunkId": "18740",
+        "place": "Unnamed square / boundary fragment",
+        "source": "app/data/cache-walkability.2026-10-07.v1.json; app/data/cache-surface-corrections.2026-10-08.v1.json"
+      },
+      {
+        "chunkId": "18741",
+        "place": "Unnamed square / boundary fragment",
+        "source": "app/data/cache-walkability.2026-10-07.v1.json; app/data/cache-surface-corrections.2026-10-08.v1.json"
+      },
+      {
+        "chunkId": "18742",
+        "place": "Unnamed square / boundary fragment",
+        "source": "app/data/cache-walkability.2026-10-07.v1.json; app/data/cache-surface-corrections.2026-10-08.v1.json"
+      },
+      {
+        "chunkId": "18996",
+        "place": "Unnamed square / boundary fragment",
+        "source": "app/data/cache-walkability.2026-10-07.v1.json; app/data/cache-surface-corrections.2026-10-08.v1.json"
+      },
+      {
+        "chunkId": "18997",
+        "place": "Shuruk-Ba",
+        "source": "app/data/cache-walkability.2026-10-07.v1.json; app/data/cache-surface-corrections.2026-10-08.v1.json"
+      },
+      {
+        "chunkId": "18998",
+        "place": "Unnamed square / boundary fragment",
+        "source": "app/data/cache-walkability.2026-10-07.v1.json; app/data/cache-surface-corrections.2026-10-08.v1.json"
+      },
+      {
+        "chunkId": "19254",
+        "place": "Unnamed square / boundary fragment",
+        "source": "app/data/cache-walkability.2026-10-07.v1.json; app/data/cache-surface-corrections.2026-10-08.v1.json"
+      }
+    ],
+    "footprintLimit": "78 boundary-witnessed squares in bounded X63–75/Y48–58 audit crop, not a certified count or geographic enclosure of playable Havenhythe chunks."
+  },
+  "checkedWikiRevisions": [
+    {
+      "title": "Adam",
+      "revisionId": 37203072,
+      "url": "https://runescape.wiki/w/Adam?oldid=37203072"
+    },
+    {
+      "title": "Agility",
+      "revisionId": 37175753,
+      "url": "https://runescape.wiki/w/Agility?oldid=37175753"
+    },
+    {
+      "title": "Altar of Inanna",
+      "revisionId": 37117233,
+      "url": "https://runescape.wiki/w/Altar_of_Inanna?oldid=37117233"
+    },
+    {
+      "title": "Amberfell",
+      "revisionId": 37201972,
+      "url": "https://runescape.wiki/w/Amberfell?oldid=37201972"
+    },
+    {
+      "title": "Anachronia Big Game Hunter",
+      "revisionId": 37183090,
+      "url": "https://runescape.wiki/w/Anachronia_Big_Game_Hunter?oldid=37183090"
+    },
+    {
+      "title": "Antisanguine",
+      "revisionId": 37195780,
+      "url": "https://runescape.wiki/w/Antisanguine?oldid=37195780"
+    },
+    {
+      "title": "Apex hide",
+      "revisionId": 37144015,
+      "url": "https://runescape.wiki/w/Apex_hide?oldid=37144015"
+    },
+    {
+      "title": "Apex leather",
+      "revisionId": 37171838,
+      "url": "https://runescape.wiki/w/Apex_leather?oldid=37171838"
+    },
+    {
+      "title": "Arnold Lydspor",
+      "revisionId": 37122549,
+      "url": "https://runescape.wiki/w/Arnold_Lydspor?oldid=37122549"
+    },
+    {
+      "title": "Bakery Stall",
+      "revisionId": 37118278,
+      "url": "https://runescape.wiki/w/Bakery_Stall?oldid=37118278"
+    },
+    {
+      "title": "Bane bar",
+      "revisionId": 37173249,
+      "url": "https://runescape.wiki/w/Bane_bar?oldid=37173249"
+    },
+    {
+      "title": "Bane equipment",
+      "revisionId": 37173287,
+      "url": "https://runescape.wiki/w/Bane_equipment?oldid=37173287"
+    },
+    {
+      "title": "Bane's Vein Exchange",
+      "revisionId": 37193668,
+      "url": "https://runescape.wiki/w/Bane's_Vein_Exchange?oldid=37193668"
+    },
+    {
+      "title": "Bank",
+      "revisionId": 37193754,
+      "url": "https://runescape.wiki/w/Bank?oldid=37193754"
+    },
+    {
+      "title": "Bank chest",
+      "revisionId": 37144823,
+      "url": "https://runescape.wiki/w/Bank_chest?oldid=37144823"
+    },
+    {
+      "title": "Bank chest (Anachronia base camp)",
+      "revisionId": 36984238,
+      "url": "https://runescape.wiki/w/Bank_chest_(Anachronia_base_camp)?oldid=36984238"
+    },
+    {
+      "title": "Bank chest (Fort Forinthry)",
+      "revisionId": 37175502,
+      "url": "https://runescape.wiki/w/Bank_chest_(Fort_Forinthry)?oldid=37175502"
+    },
+    {
+      "title": "Bank chest (player-owned farm)",
+      "revisionId": 36994564,
+      "url": "https://runescape.wiki/w/Bank_chest_(player-owned_farm)?oldid=36994564"
+    },
+    {
+      "title": "Bank chest (Wendlewick)",
+      "revisionId": 37135424,
+      "url": "https://runescape.wiki/w/Bank_chest_(Wendlewick)?oldid=37135424"
+    },
+    {
+      "title": "Bank deposit box",
+      "revisionId": 37167169,
+      "url": "https://runescape.wiki/w/Bank_deposit_box?oldid=37167169"
+    },
+    {
+      "title": "Barbarian Outpost",
+      "revisionId": 37130576,
+      "url": "https://runescape.wiki/w/Barbarian_Outpost?oldid=37130576"
+    },
+    {
+      "title": "Basil the Butcher",
+      "revisionId": 37117350,
+      "url": "https://runescape.wiki/w/Basil_the_Butcher?oldid=37117350"
+    },
+    {
+      "title": "Birdhouses",
+      "revisionId": 37175446,
+      "url": "https://runescape.wiki/w/Birdhouses?oldid=37175446"
+    },
+    {
+      "title": "Black Knights' Fortress",
+      "revisionId": 37168293,
+      "url": "https://runescape.wiki/w/Black_Knights%27_Fortress?oldid=37168293"
+    },
+    {
+      "title": "Blood altar",
+      "revisionId": 37128563,
+      "url": "https://runescape.wiki/w/Blood_altar?oldid=37128563"
+    },
+    {
+      "title": "Blood altar (excavation hotspot)",
+      "revisionId": 37118798,
+      "url": "https://runescape.wiki/w/Blood_altar_(excavation_hotspot)?oldid=37118798"
+    },
+    {
+      "title": "Blooming Burrow",
+      "revisionId": 37130577,
+      "url": "https://runescape.wiki/w/Blooming_Burrow?oldid=37130577"
+    },
+    {
+      "title": "Blue charm",
+      "revisionId": 37124682,
+      "url": "https://runescape.wiki/w/Blue_charm?oldid=37124682"
+    },
+    {
+      "title": "Bog 'n' Hog stew",
+      "revisionId": 37202772,
+      "url": "https://runescape.wiki/w/Bog_'n'_Hog_stew?oldid=37202772"
+    },
+    {
+      "title": "Bone pile (Hollow Hill)",
+      "revisionId": 37025700,
+      "url": "https://runescape.wiki/w/Bone_pile_(Hollow_Hill)?oldid=37025700"
+    },
+    {
+      "title": "Bridge (Amberfell)",
+      "revisionId": 37117376,
+      "url": "https://runescape.wiki/w/Bridge_(Amberfell)?oldid=37117376"
+    },
+    {
+      "title": "Canifis",
+      "revisionId": 37124299,
+      "url": "https://runescape.wiki/w/Canifis?oldid=37124299"
+    },
+    {
+      "title": "Canifis bank",
+      "revisionId": 37133011,
+      "url": "https://runescape.wiki/w/Canifis_bank?oldid=37133011"
+    },
+    {
+      "title": "Canoe station (Havenhythe)",
+      "revisionId": 37201116,
+      "url": "https://runescape.wiki/w/Canoe_station_(Havenhythe)?oldid=37201116"
+    },
+    {
+      "title": "Carpentry",
+      "revisionId": 37106100,
+      "url": "https://runescape.wiki/w/Carpentry?oldid=37106100"
+    },
+    {
+      "title": "Cashmere",
+      "revisionId": 37138380,
+      "url": "https://runescape.wiki/w/Cashmere?oldid=37138380"
+    },
+    {
+      "title": "Castle Wars",
+      "revisionId": 37159186,
+      "url": "https://runescape.wiki/w/Castle_Wars?oldid=37159186"
+    },
+    {
+      "title": "Catherby",
+      "revisionId": 37146502,
+      "url": "https://runescape.wiki/w/Catherby?oldid=37146502"
+    },
+    {
+      "title": "Cauldron debris",
+      "revisionId": 37118797,
+      "url": "https://runescape.wiki/w/Cauldron_debris?oldid=37118797"
+    },
+    {
+      "title": "Cave entrance (Gamers' Grotto)",
+      "revisionId": 36472793,
+      "url": "https://runescape.wiki/w/Cave_entrance_(Gamers%27_Grotto)?oldid=36472793"
+    },
+    {
+      "title": "Cave ventricle",
+      "revisionId": 37194179,
+      "url": "https://runescape.wiki/w/Cave_ventricle?oldid=37194179"
+    },
+    {
+      "title": "Champions' Guild",
+      "revisionId": 37146518,
+      "url": "https://runescape.wiki/w/Champions%27_Guild?oldid=37146518"
+    },
+    {
+      "title": "Chima bowstring",
+      "revisionId": 37200458,
+      "url": "https://runescape.wiki/w/Chima_bowstring?oldid=37200458"
+    },
+    {
+      "title": "Chima moss (scenery)",
+      "revisionId": 37197123,
+      "url": "https://runescape.wiki/w/Chima_moss_(scenery)?oldid=37197123"
+    },
+    {
+      "title": "Chimera tree",
+      "revisionId": 37201440,
+      "url": "https://runescape.wiki/w/Chimera_tree?oldid=37201440"
+    },
+    {
+      "title": "Claret crab",
+      "revisionId": 37202774,
+      "url": "https://runescape.wiki/w/Claret_crab?oldid=37202774"
+    },
+    {
+      "title": "Colossal bone",
+      "revisionId": 37104184,
+      "url": "https://runescape.wiki/w/Colossal_bone?oldid=37104184"
+    },
+    {
+      "title": "Colossi Divination",
+      "revisionId": 37201873,
+      "url": "https://runescape.wiki/w/Colossi_Divination?oldid=37201873"
+    },
+    {
+      "title": "Construction",
+      "revisionId": 37188490,
+      "url": "https://runescape.wiki/w/Construction?oldid=37188490"
+    },
+    {
+      "title": "Cooks' Guild",
+      "revisionId": 37109970,
+      "url": "https://runescape.wiki/w/Cooks'_Guild?oldid=37109970"
+    },
+    {
+      "title": "Cooks' Guild bank",
+      "revisionId": 37108418,
+      "url": "https://runescape.wiki/w/Cooks%27_Guild_bank?oldid=37108418"
+    },
+    {
+      "title": "Cornelius",
+      "revisionId": 37139267,
+      "url": "https://runescape.wiki/w/Cornelius?oldid=37139267"
+    },
+    {
+      "title": "Crafting",
+      "revisionId": 37165824,
+      "url": "https://runescape.wiki/w/Crafting?oldid=37165824"
+    },
+    {
+      "title": "Crafting Guild",
+      "revisionId": 37145395,
+      "url": "https://runescape.wiki/w/Crafting_Guild?oldid=37145395"
+    },
+    {
+      "title": "Crimson Gate",
+      "revisionId": 37203635,
+      "url": "https://runescape.wiki/w/Crimson_Gate?oldid=37203635"
+    },
+    {
+      "title": "Dalia's Tree Nursery",
+      "revisionId": 37195435,
+      "url": "https://runescape.wiki/w/Dalia%27s_Tree_Nursery?oldid=37195435"
+    },
+    {
+      "title": "Darren",
+      "revisionId": 37134535,
+      "url": "https://runescape.wiki/w/Darren?oldid=37134535"
+    },
+    {
+      "title": "Deathmatch",
+      "revisionId": 37130068,
+      "url": "https://runescape.wiki/w/Deathmatch?oldid=37130068"
+    },
+    {
+      "title": "Deep Sea Fishing",
+      "revisionId": 37165157,
+      "url": "https://runescape.wiki/w/Deep_Sea_Fishing?oldid=37165157"
+    },
+    {
+      "title": "Deposit box (Wendlewick)",
+      "revisionId": 37074157,
+      "url": "https://runescape.wiki/w/Deposit_box_(Wendlewick)?oldid=37074157"
+    },
+    {
+      "title": "Dominion Tower",
+      "revisionId": 37199913,
+      "url": "https://runescape.wiki/w/Dominion_Tower?oldid=37199913"
+    },
+    {
+      "title": "Dreadfowl pouch",
+      "revisionId": 37013521,
+      "url": "https://runescape.wiki/w/Dreadfowl_pouch?oldid=37013521"
+    },
+    {
+      "title": "Druidess",
+      "revisionId": 37145268,
+      "url": "https://runescape.wiki/w/Druidess?oldid=37145268"
+    },
+    {
+      "title": "Dungeoneering",
+      "revisionId": 37168496,
+      "url": "https://runescape.wiki/w/Dungeoneering?oldid=37168496"
+    },
+    {
+      "title": "East Ardougne",
+      "revisionId": 37203338,
+      "url": "https://runescape.wiki/w/East_Ardougne?oldid=37203338"
+    },
+    {
+      "title": "Edmond (cape merchant)",
+      "revisionId": 37129636,
+      "url": "https://runescape.wiki/w/Edmond_(cape_merchant)?oldid=37129636"
+    },
+    {
+      "title": "Edward",
+      "revisionId": 37134537,
+      "url": "https://runescape.wiki/w/Edward?oldid=37134537"
+    },
+    {
+      "title": "Elder God Wars Dungeon",
+      "revisionId": 37166261,
+      "url": "https://runescape.wiki/w/Elder_God_Wars_Dungeon?oldid=37166261"
+    },
+    {
+      "title": "Eniola",
+      "revisionId": 37145029,
+      "url": "https://runescape.wiki/w/Eniola?oldid=37145029"
+    },
+    {
+      "title": "Essence deposit",
+      "revisionId": 37197618,
+      "url": "https://runescape.wiki/w/Essence_deposit?oldid=37197618"
+    },
+    {
+      "title": "Essence lump",
+      "revisionId": 37193682,
+      "url": "https://runescape.wiki/w/Essence_lump?oldid=37193682"
+    },
+    {
+      "title": "Essence vein",
+      "revisionId": 37197616,
+      "url": "https://runescape.wiki/w/Essence_vein?oldid=37197616"
+    },
+    {
+      "title": "Esther",
+      "revisionId": 37203175,
+      "url": "https://runescape.wiki/w/Esther?oldid=37203175"
+    },
+    {
+      "title": "Etceteria",
+      "revisionId": 37122987,
+      "url": "https://runescape.wiki/w/Etceteria?oldid=37122987"
+    },
+    {
+      "title": "Eternal magic tree",
+      "revisionId": 37201337,
+      "url": "https://runescape.wiki/w/Eternal_magic_tree?oldid=37201337"
+    },
+    {
+      "title": "Everlight Dig Site",
+      "revisionId": 37145898,
+      "url": "https://runescape.wiki/w/Everlight_Dig_Site?oldid=37145898"
+    },
+    {
+      "title": "Exalted essence",
+      "revisionId": 37200341,
+      "url": "https://runescape.wiki/w/Exalted_essence?oldid=37200341"
+    },
+    {
+      "title": "Exalted essence lump",
+      "revisionId": 37201323,
+      "url": "https://runescape.wiki/w/Exalted_essence_lump?oldid=37201323"
+    },
+    {
+      "title": "Extreme magic",
+      "revisionId": 37163820,
+      "url": "https://runescape.wiki/w/Extreme_magic?oldid=37163820"
+    },
+    {
+      "title": "Farming",
+      "revisionId": 37203330,
+      "url": "https://runescape.wiki/w/Farming?oldid=37203330"
+    },
+    {
+      "title": "Fellstalk seed",
+      "revisionId": 37014062,
+      "url": "https://runescape.wiki/w/Fellstalk_seed?oldid=37014062"
+    },
+    {
+      "title": "Fenmoor",
+      "revisionId": 37201516,
+      "url": "https://runescape.wiki/w/Fenmoor?oldid=37201516"
+    },
+    {
+      "title": "Fenmoor Totems",
+      "revisionId": 37203293,
+      "url": "https://runescape.wiki/w/Fenmoor_Totems?oldid=37203293"
+    },
+    {
+      "title": "Fenn ivy",
+      "revisionId": 37200913,
+      "url": "https://runescape.wiki/w/Fenn_ivy?oldid=37200913"
+    },
+    {
+      "title": "Fish For Gold",
+      "revisionId": 37202548,
+      "url": "https://runescape.wiki/w/Fish_For_Gold?oldid=37202548"
+    },
+    {
+      "title": "Fish stall",
+      "revisionId": 37167188,
+      "url": "https://runescape.wiki/w/Fish_stall?oldid=37167188"
+    },
+    {
+      "title": "Fossilised bone",
+      "revisionId": 36976917,
+      "url": "https://runescape.wiki/w/Fossilised_bone?oldid=36976917"
+    },
+    {
+      "title": "Free-to-play",
+      "revisionId": 37175453,
+      "url": "https://runescape.wiki/w/Free-to-play?oldid=37175453"
+    },
+    {
+      "title": "Furniture workbench",
+      "revisionId": 37199289,
+      "url": "https://runescape.wiki/w/Furniture_workbench?oldid=37199289"
+    },
+    {
+      "title": "Gamers' Grotto",
+      "revisionId": 37120467,
+      "url": "https://runescape.wiki/w/Gamers%27_Grotto?oldid=37120467"
+    },
+    {
+      "title": "Ghoul (Paterdomus)",
+      "revisionId": 36954949,
+      "url": "https://runescape.wiki/w/Ghoul_(Paterdomus)?oldid=36954949"
+    },
+    {
+      "title": "Giant crayfish",
+      "revisionId": 37170939,
+      "url": "https://runescape.wiki/w/Giant_crayfish?oldid=37170939"
+    },
+    {
+      "title": "Grand Tree bank",
+      "revisionId": 37133103,
+      "url": "https://runescape.wiki/w/Grand_Tree_bank?oldid=37133103"
+    },
+    {
+      "title": "Grimy guam",
+      "revisionId": 37180362,
+      "url": "https://runescape.wiki/w/Grimy_guam?oldid=37180362"
+    },
+    {
+      "title": "Haunted Woods",
+      "revisionId": 37133150,
+      "url": "https://runescape.wiki/w/Haunted_Woods?oldid=37133150"
+    },
+    {
+      "title": "Havenhythe",
+      "revisionId": 37203736,
+      "url": "https://runescape.wiki/w/Havenhythe?oldid=37203736"
+    },
+    {
+      "title": "Havenhythe Big Game Hunter",
+      "revisionId": 37187707,
+      "url": "https://runescape.wiki/w/Havenhythe_Big_Game_Hunter?oldid=37187707"
+    },
+    {
+      "title": "Havenhythe Big Game Hunter/Strategies",
+      "revisionId": 37200531,
+      "url": "https://runescape.wiki/w/Havenhythe_Big_Game_Hunter%2FStrategies?oldid=37200531"
+    },
+    {
+      "title": "Havensilver weapons",
+      "revisionId": 37201352,
+      "url": "https://runescape.wiki/w/Havensilver_weapons?oldid=37201352"
+    },
+    {
+      "title": "Hawk (Havenhythe)",
+      "revisionId": 37183159,
+      "url": "https://runescape.wiki/w/Hawk_(Havenhythe)?oldid=37183159"
+    },
+    {
+      "title": "Head Guard",
+      "revisionId": 37140701,
+      "url": "https://runescape.wiki/w/Head_Guard?oldid=37140701"
+    },
+    {
+      "title": "Heathervein",
+      "revisionId": 37201982,
+      "url": "https://runescape.wiki/w/Heathervein?oldid=37201982"
+    },
+    {
+      "title": "Heedi's eternal magic sapling",
+      "revisionId": 37126306,
+      "url": "https://runescape.wiki/w/Heedi's_eternal_magic_sapling?oldid=37126306"
+    },
+    {
+      "title": "Heralds of Crimson",
+      "revisionId": 37204059,
+      "url": "https://runescape.wiki/w/Heralds_of_Crimson?oldid=37204059"
+    },
+    {
+      "title": "Heralds of Crimson/Quick guide",
+      "revisionId": 37204093,
+      "url": "https://runescape.wiki/w/Heralds_of_Crimson%2FQuick_guide?oldid=37204093"
+    },
+    {
+      "title": "Herblore",
+      "revisionId": 37192970,
+      "url": "https://runescape.wiki/w/Herblore?oldid=37192970"
+    },
+    {
+      "title": "Het's Oasis",
+      "revisionId": 37125101,
+      "url": "https://runescape.wiki/w/Het's_Oasis?oldid=37125101"
+    },
+    {
+      "title": "Hogfish",
+      "revisionId": 37202775,
+      "url": "https://runescape.wiki/w/Hogfish?oldid=37202775"
+    },
+    {
+      "title": "Ian (cape merchant)",
+      "revisionId": 37134539,
+      "url": "https://runescape.wiki/w/Ian_(cape_merchant)?oldid=37134539"
+    },
+    {
+      "title": "Invention",
+      "revisionId": 37167106,
+      "url": "https://runescape.wiki/w/Invention?oldid=37167106"
+    },
+    {
+      "title": "Invention Guild",
+      "revisionId": 37124934,
+      "url": "https://runescape.wiki/w/Invention_Guild?oldid=37124934"
+    },
+    {
+      "title": "Ivar, King of Bones",
+      "revisionId": 37203052,
+      "url": "https://runescape.wiki/w/Ivar%2C_King_of_Bones?oldid=37203052"
+    },
+    {
+      "title": "Ivar, King of Bones/Strategies",
+      "revisionId": 37046554,
+      "url": "https://runescape.wiki/w/Ivar%2C_King_of_Bones%2FStrategies?oldid=37046554"
+    },
+    {
+      "title": "Ivory",
+      "revisionId": 37138379,
+      "url": "https://runescape.wiki/w/Ivory?oldid=37138379"
+    },
+    {
+      "title": "Jackalope (Hunter)",
+      "revisionId": 37194200,
+      "url": "https://runescape.wiki/w/Jackalope_(Hunter)?oldid=37194200"
+    },
+    {
+      "title": "Jade (NPC)",
+      "revisionId": 37148702,
+      "url": "https://runescape.wiki/w/Jade_(NPC)?oldid=37148702"
+    },
+    {
+      "title": "Keldagrim",
+      "revisionId": 37185357,
+      "url": "https://runescape.wiki/w/Keldagrim?oldid=37185357"
+    },
+    {
+      "title": "Kotahi",
+      "revisionId": 37139516,
+      "url": "https://runescape.wiki/w/Kotahi?oldid=37139516"
+    },
+    {
+      "title": "Land of Snow portal",
+      "revisionId": 35701312,
+      "url": "https://runescape.wiki/w/Land_of_Snow_portal?oldid=35701312"
+    },
+    {
+      "title": "Large essence deposit",
+      "revisionId": 37198879,
+      "url": "https://runescape.wiki/w/Large_essence_deposit?oldid=37198879"
+    },
+    {
+      "title": "Larry (cape merchant)",
+      "revisionId": 37129202,
+      "url": "https://runescape.wiki/w/Larry_(cape_merchant)?oldid=37129202"
+    },
+    {
+      "title": "Linbog Village",
+      "revisionId": 37203094,
+      "url": "https://runescape.wiki/w/Linbog_Village?oldid=37203094"
+    },
+    {
+      "title": "List of bank locations",
+      "revisionId": 37201672,
+      "url": "https://runescape.wiki/w/List_of_bank_locations?oldid=37201672"
+    },
+    {
+      "title": "Log balance (Highweald Forest waterfall)",
+      "revisionId": 37136165,
+      "url": "https://runescape.wiki/w/Log_balance_(Highweald_Forest_waterfall)?oldid=37136165"
+    },
+    {
+      "title": "Lunar wheel debris",
+      "revisionId": 37118793,
+      "url": "https://runescape.wiki/w/Lunar_wheel_debris?oldid=37118793"
+    },
+    {
+      "title": "Magnus Gram",
+      "revisionId": 37147972,
+      "url": "https://runescape.wiki/w/Magnus_Gram?oldid=37147972"
+    },
+    {
+      "title": "Marigold Farm",
+      "revisionId": 37199837,
+      "url": "https://runescape.wiki/w/Marigold_Farm?oldid=37199837"
+    },
+    {
+      "title": "Master Farmer David",
+      "revisionId": 37156876,
+      "url": "https://runescape.wiki/w/Master_Farmer_David?oldid=37156876"
+    },
+    {
+      "title": "Master Farmer Lilah",
+      "revisionId": 37156875,
+      "url": "https://runescape.wiki/w/Master_Farmer_Lilah?oldid=37156875"
+    },
+    {
+      "title": "Masterwork magic equipment",
+      "revisionId": 37165818,
+      "url": "https://runescape.wiki/w/Masterwork_magic_equipment?oldid=37165818"
+    },
+    {
+      "title": "Masterwork ranged equipment",
+      "revisionId": 37199874,
+      "url": "https://runescape.wiki/w/Masterwork_ranged_equipment?oldid=37199874"
+    },
+    {
+      "title": "Material cache (cashmere)",
+      "revisionId": 37118941,
+      "url": "https://runescape.wiki/w/Material_cache_(cashmere)?oldid=37118941"
+    },
+    {
+      "title": "Material cache (fossilised bone)",
+      "revisionId": 37118948,
+      "url": "https://runescape.wiki/w/Material_cache_(fossilised_bone)?oldid=37118948"
+    },
+    {
+      "title": "Material cache (ivory)",
+      "revisionId": 37118954,
+      "url": "https://runescape.wiki/w/Material_cache_(ivory)?oldid=37118954"
+    },
+    {
+      "title": "Material cache (triskelion)",
+      "revisionId": 37118968,
+      "url": "https://runescape.wiki/w/Material_cache_(triskelion)?oldid=37118968"
+    },
+    {
+      "title": "Material storage container",
+      "revisionId": 37165834,
+      "url": "https://runescape.wiki/w/Material_storage_container?oldid=37165834"
+    },
+    {
+      "title": "May's Quest Caravan",
+      "revisionId": 37188013,
+      "url": "https://runescape.wiki/w/May%27s_Quest_Caravan?oldid=37188013"
+    },
+    {
+      "title": "Members",
+      "revisionId": 37053419,
+      "url": "https://runescape.wiki/w/Members?oldid=37053419"
+    },
+    {
+      "title": "Memorial to Guthix",
+      "revisionId": 37199767,
+      "url": "https://runescape.wiki/w/Memorial_to_Guthix?oldid=37199767"
+    },
+    {
+      "title": "Metal bank",
+      "revisionId": 37080537,
+      "url": "https://runescape.wiki/w/Metal_bank?oldid=37080537"
+    },
+    {
+      "title": "Miscellania",
+      "revisionId": 37123140,
+      "url": "https://runescape.wiki/w/Miscellania?oldid=37123140"
+    },
+    {
+      "title": "Moonrise Dig Site",
+      "revisionId": 37201265,
+      "url": "https://runescape.wiki/w/Moonrise_Dig_Site?oldid=37201265"
+    },
+    {
+      "title": "Mr Pinsworth",
+      "revisionId": 37148736,
+      "url": "https://runescape.wiki/w/Mr_Pinsworth?oldid=37148736"
+    },
+    {
+      "title": "Naomi",
+      "revisionId": 37184122,
+      "url": "https://runescape.wiki/w/Naomi?oldid=37184122"
+    },
+    {
+      "title": "Nardah",
+      "revisionId": 36803187,
+      "url": "https://runescape.wiki/w/Nardah?oldid=36803187"
+    },
+    {
+      "title": "Neil",
+      "revisionId": 37129635,
+      "url": "https://runescape.wiki/w/Neil?oldid=37129635"
+    },
+    {
+      "title": "Overload",
+      "revisionId": 37136479,
+      "url": "https://runescape.wiki/w/Overload?oldid=37136479"
+    },
+    {
+      "title": "Pallad",
+      "revisionId": 37201892,
+      "url": "https://runescape.wiki/w/Pallad?oldid=37201892"
+    },
+    {
+      "title": "Petrified bark",
+      "revisionId": 37201327,
+      "url": "https://runescape.wiki/w/Petrified_bark?oldid=37201327"
+    },
+    {
+      "title": "Petrified logs",
+      "revisionId": 37201324,
+      "url": "https://runescape.wiki/w/Petrified_logs?oldid=37201324"
+    },
+    {
+      "title": "Petrified roots",
+      "revisionId": 37201328,
+      "url": "https://runescape.wiki/w/Petrified_roots?oldid=37201328"
+    },
+    {
+      "title": "Plank",
+      "revisionId": 37157503,
+      "url": "https://runescape.wiki/w/Plank?oldid=37157503"
+    },
+    {
+      "title": "Port Khazard",
+      "revisionId": 37122867,
+      "url": "https://runescape.wiki/w/Port_Khazard?oldid=37122867"
+    },
+    {
+      "title": "Port Phasmatys",
+      "revisionId": 37125095,
+      "url": "https://runescape.wiki/w/Port_Phasmatys?oldid=37125095"
+    },
+    {
+      "title": "Portable workbench",
+      "revisionId": 37199278,
+      "url": "https://runescape.wiki/w/Portable_workbench?oldid=37199278"
+    },
+    {
+      "title": "Ranger",
+      "revisionId": 37203070,
+      "url": "https://runescape.wiki/w/Ranger?oldid=37203070"
+    },
+    {
+      "title": "Ravenous strigoi",
+      "revisionId": 37203142,
+      "url": "https://runescape.wiki/w/Ravenous_strigoi?oldid=37203142"
+    },
+    {
+      "title": "Raw claret crab",
+      "revisionId": 37195566,
+      "url": "https://runescape.wiki/w/Raw_claret_crab?oldid=37195566"
+    },
+    {
+      "title": "Raw giant crayfish",
+      "revisionId": 37053917,
+      "url": "https://runescape.wiki/w/Raw_giant_crayfish?oldid=37053917"
+    },
+    {
+      "title": "Raw hogfish",
+      "revisionId": 37202103,
+      "url": "https://runescape.wiki/w/Raw_hogfish?oldid=37202103"
+    },
+    {
+      "title": "Rogue (Crucible)",
+      "revisionId": 37126404,
+      "url": "https://runescape.wiki/w/Rogue_(Crucible)?oldid=37126404"
+    },
+    {
+      "title": "Rogues' Den",
+      "revisionId": 37130793,
+      "url": "https://runescape.wiki/w/Rogues%27_Den?oldid=37130793"
+    },
+    {
+      "title": "Runecrafting",
+      "revisionId": 37202789,
+      "url": "https://runescape.wiki/w/Runecrafting?oldid=37202789"
+    },
+    {
+      "title": "Sam (cape merchant)",
+      "revisionId": 37130023,
+      "url": "https://runescape.wiki/w/Sam_(cape_merchant)?oldid=37130023"
+    },
+    {
+      "title": "Sanguine bogolin",
+      "revisionId": 37201274,
+      "url": "https://runescape.wiki/w/Sanguine_bogolin?oldid=37201274"
+    },
+    {
+      "title": "Sanguine crawler",
+      "revisionId": 37196203,
+      "url": "https://runescape.wiki/w/Sanguine_crawler?oldid=37196203"
+    },
+    {
+      "title": "Sanguine offering",
+      "revisionId": 37193878,
+      "url": "https://runescape.wiki/w/Sanguine_offering?oldid=37193878"
+    },
+    {
+      "title": "Secrets of Amberfell",
+      "revisionId": 37198041,
+      "url": "https://runescape.wiki/w/Secrets_of_Amberfell?oldid=37198041"
+    },
+    {
+      "title": "Secrets of Amberfell/Quick guide",
+      "revisionId": 37200672,
+      "url": "https://runescape.wiki/w/Secrets_of_Amberfell%2FQuick_guide?oldid=37200672"
+    },
+    {
+      "title": "Seers' Village",
+      "revisionId": 37175737,
+      "url": "https://runescape.wiki/w/Seers%27_Village?oldid=37175737"
+    },
+    {
+      "title": "Shantay chest",
+      "revisionId": 37161113,
+      "url": "https://runescape.wiki/w/Shantay_chest?oldid=37161113"
+    },
+    {
+      "title": "Shattered Worlds",
+      "revisionId": 37127348,
+      "url": "https://runescape.wiki/w/Shattered_Worlds?oldid=37127348"
+    },
+    {
+      "title": "Shrine debris",
+      "revisionId": 37118796,
+      "url": "https://runescape.wiki/w/Shrine_debris?oldid=37118796"
+    },
+    {
+      "title": "Shrine of Inanna",
+      "revisionId": 37201938,
+      "url": "https://runescape.wiki/w/Shrine_of_Inanna?oldid=37201938"
+    },
+    {
+      "title": "Shuruk-Ba",
+      "revisionId": 37203737,
+      "url": "https://runescape.wiki/w/Shuruk-Ba?oldid=37203737"
+    },
+    {
+      "title": "Silverquill, the Dreadhog",
+      "revisionId": 37203949,
+      "url": "https://runescape.wiki/w/Silverquill%2C_the_Dreadhog?oldid=37203949"
+    },
+    {
+      "title": "Silverquill, the Dreadhog/Strategies",
+      "revisionId": 37198106,
+      "url": "https://runescape.wiki/w/Silverquill%2C_the_Dreadhog%2FStrategies?oldid=37198106"
+    },
+    {
+      "title": "Simon",
+      "revisionId": 37129637,
+      "url": "https://runescape.wiki/w/Simon?oldid=37129637"
+    },
+    {
+      "title": "Slayer",
+      "revisionId": 37197819,
+      "url": "https://runescape.wiki/w/Slayer?oldid=37197819"
+    },
+    {
+      "title": "Soul Wars",
+      "revisionId": 37159212,
+      "url": "https://runescape.wiki/w/Soul_Wars?oldid=37159212"
+    },
+    {
+      "title": "Spirit moths",
+      "revisionId": 37170278,
+      "url": "https://runescape.wiki/w/Spirit_moths?oldid=37170278"
+    },
+    {
+      "title": "Spirit terrorbird pouch",
+      "revisionId": 37021196,
+      "url": "https://runescape.wiki/w/Spirit_terrorbird_pouch?oldid=37021196"
+    },
+    {
+      "title": "Spirit wolf pouch",
+      "revisionId": 37021209,
+      "url": "https://runescape.wiki/w/Spirit_wolf_pouch?oldid=37021209"
+    },
+    {
+      "title": "Starbloom flower seed",
+      "revisionId": 37196892,
+      "url": "https://runescape.wiki/w/Starbloom_flower_seed?oldid=37196892"
+    },
+    {
+      "title": "Steel ingot",
+      "revisionId": 37166153,
+      "url": "https://runescape.wiki/w/Steel_ingot?oldid=37166153"
+    },
+    {
+      "title": "Steel titan pouch",
+      "revisionId": 37021417,
+      "url": "https://runescape.wiki/w/Steel_titan_pouch?oldid=37021417"
+    },
+    {
+      "title": "Stormguard Citadel Dig Site",
+      "revisionId": 37164111,
+      "url": "https://runescape.wiki/w/Stormguard_Citadel_Dig_Site?oldid=37164111"
+    },
+    {
+      "title": "Super antisanguine",
+      "revisionId": 37195781,
+      "url": "https://runescape.wiki/w/Super_antisanguine?oldid=37195781"
+    },
+    {
+      "title": "Super magic potion",
+      "revisionId": 37164783,
+      "url": "https://runescape.wiki/w/Super_magic_potion?oldid=37164783"
+    },
+    {
+      "title": "Tailoring",
+      "revisionId": 36997711,
+      "url": "https://runescape.wiki/w/Tailoring?oldid=36997711"
+    },
+    {
+      "title": "Template:Banks",
+      "revisionId": 37081980,
+      "url": "https://runescape.wiki/w/Template%3ABanks?oldid=37081980"
+    },
+    {
+      "title": "Template:Havenhythe Big Game Hunter creatures",
+      "revisionId": 37187706,
+      "url": "https://runescape.wiki/w/Template%3AHavenhythe_Big_Game_Hunter_creatures?oldid=37187706"
+    },
+    {
+      "title": "The Birds and the Bees",
+      "revisionId": 37129921,
+      "url": "https://runescape.wiki/w/The_Birds_and_the_Bees?oldid=37129921"
+    },
+    {
+      "title": "The Ghrazi Blood Knights",
+      "revisionId": 37204958,
+      "url": "https://runescape.wiki/w/The_Ghrazi_Blood_Knights?oldid=37204958"
+    },
+    {
+      "title": "The Ghrazi Blood Knights/Strategies",
+      "revisionId": 37204940,
+      "url": "https://runescape.wiki/w/The_Ghrazi_Blood_Knights%2FStrategies?oldid=37204940"
+    },
+    {
+      "title": "The Giant Dwarf",
+      "revisionId": 37182642,
+      "url": "https://runescape.wiki/w/The_Giant_Dwarf?oldid=37182642"
+    },
+    {
+      "title": "Thieving",
+      "revisionId": 37182495,
+      "url": "https://runescape.wiki/w/Thieving?oldid=37182495"
+    },
+    {
+      "title": "Toad totem",
+      "revisionId": 37198208,
+      "url": "https://runescape.wiki/w/Toad_totem?oldid=37198208"
+    },
+    {
+      "title": "Trader Woes",
+      "revisionId": 37197977,
+      "url": "https://runescape.wiki/w/Trader_Woes?oldid=37197977"
+    },
+    {
+      "title": "Tree Gnome Stronghold",
+      "revisionId": 37169573,
+      "url": "https://runescape.wiki/w/Tree_Gnome_Stronghold?oldid=37169573"
+    },
+    {
+      "title": "Tree Gnome Stronghold bank",
+      "revisionId": 37133091,
+      "url": "https://runescape.wiki/w/Tree_Gnome_Stronghold_bank?oldid=37133091"
+    },
+    {
+      "title": "Triskelion",
+      "revisionId": 37138383,
+      "url": "https://runescape.wiki/w/Triskelion?oldid=37138383"
+    },
+    {
+      "title": "TzHaar City",
+      "revisionId": 37179924,
+      "url": "https://runescape.wiki/w/TzHaar_City?oldid=37179924"
+    },
+    {
+      "title": "Uncut dragonstone",
+      "revisionId": 37179841,
+      "url": "https://runescape.wiki/w/Uncut_dragonstone?oldid=37179841"
+    },
+    {
+      "title": "Unicorn stallion pouch",
+      "revisionId": 37022326,
+      "url": "https://runescape.wiki/w/Unicorn_stallion_pouch?oldid=37022326"
+    },
+    {
+      "title": "Vial cabinet",
+      "revisionId": 37154655,
+      "url": "https://runescape.wiki/w/Vial_cabinet?oldid=37154655"
+    },
+    {
+      "title": "Villager (Wendlewick)",
+      "revisionId": 37203063,
+      "url": "https://runescape.wiki/w/Villager_(Wendlewick)?oldid=37203063"
+    },
+    {
+      "title": "Visions of Havenhythe",
+      "revisionId": 37193723,
+      "url": "https://runescape.wiki/w/Visions_of_Havenhythe?oldid=37193723"
+    },
+    {
+      "title": "Void Knights' Outpost",
+      "revisionId": 37127341,
+      "url": "https://runescape.wiki/w/Void_Knights%27_Outpost?oldid=37127341"
+    },
+    {
+      "title": "War's Retreat",
+      "revisionId": 37178109,
+      "url": "https://runescape.wiki/w/War%27s_Retreat?oldid=37178109"
+    },
+    {
+      "title": "Warforge Dig Site",
+      "revisionId": 37125118,
+      "url": "https://runescape.wiki/w/Warforge_Dig_Site?oldid=37125118"
+    },
+    {
+      "title": "Warriors' Guild",
+      "revisionId": 37169629,
+      "url": "https://runescape.wiki/w/Warriors%27_Guild?oldid=37169629"
+    },
+    {
+      "title": "Weaver's hut debris",
+      "revisionId": 37118795,
+      "url": "https://runescape.wiki/w/Weaver's_hut_debris?oldid=37118795"
+    },
+    {
+      "title": "Wendlewick",
+      "revisionId": 37194324,
+      "url": "https://runescape.wiki/w/Wendlewick?oldid=37194324"
+    },
+    {
+      "title": "Wendlewick bank",
+      "revisionId": 37114602,
+      "url": "https://runescape.wiki/w/Wendlewick_bank?oldid=37114602"
+    },
+    {
+      "title": "Wendlewick fish farm",
+      "revisionId": 37202124,
+      "url": "https://runescape.wiki/w/Wendlewick_fish_farm?oldid=37202124"
+    },
+    {
+      "title": "Wendlewick giant camp excavation site",
+      "revisionId": 37117455,
+      "url": "https://runescape.wiki/w/Wendlewick_giant_camp_excavation_site?oldid=37117455"
+    },
+    {
+      "title": "Wendlewick watchtower excavation site",
+      "revisionId": 37108513,
+      "url": "https://runescape.wiki/w/Wendlewick_watchtower_excavation_site?oldid=37108513"
+    },
+    {
+      "title": "William",
+      "revisionId": 37129630,
+      "url": "https://runescape.wiki/w/William?oldid=37129630"
+    },
+    {
+      "title": "Wine Stall",
+      "revisionId": 37134192,
+      "url": "https://runescape.wiki/w/Wine_Stall?oldid=37134192"
+    },
+    {
+      "title": "Wolf Wares",
+      "revisionId": 37193608,
+      "url": "https://runescape.wiki/w/Wolf_Wares?oldid=37193608"
+    },
+    {
+      "title": "World window",
+      "revisionId": 37176270,
+      "url": "https://runescape.wiki/w/World_window?oldid=37176270"
+    },
+    {
+      "title": "Yanille",
+      "revisionId": 37122659,
+      "url": "https://runescape.wiki/w/Yanille?oldid=37122659"
+    }
+  ],
+  "limitations": [
+    "No live character visits or bank interaction tests.",
+    "No personal finishing levels, achievements or supplies read.",
+    "New eastern island resource coverage is incomplete; absence is not deletion.",
+    "Interior surface-parent mappings need the later feature to apply its actual connected-interior access policy.",
+    "Roaming bankers are marker-containing chunks, not certified patrol boundaries.",
+    "Ghrazi boss research is a release-day snapshot."
+  ],
+  "sourceLimit": "Checked source links and revisions are recorded for bank decisions and the report. Raw retrieval snapshots remain ignored local research notes; no claim of in-game access verification is made."
+}

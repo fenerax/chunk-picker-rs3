@@ -1,0 +1,963 @@
+{
+  "schemaVersion": 1,
+  "hosts": [
+    {
+      "host": "runescape.wiki",
+      "reason": "RuneScape Wiki pages and API: the data sources."
+    },
+    {
+      "host": "runescape.com",
+      "reason": "Jagex's public game sites."
+    },
+    {
+      "host": "jagex.com",
+      "reason": "Jagex's public legal and company pages."
+    },
+    {
+      "host": "weirdgloop.org",
+      "reason": "The wiki host's public API and policy pages."
+    },
+    {
+      "host": "github.com",
+      "reason": "Public source repositories credited or used."
+    },
+    {
+      "host": "raw.githubusercontent.com",
+      "reason": "Public source files in those repositories."
+    },
+    {
+      "host": "source-chunk.github.io",
+      "reason": "The upstream picker this project derives from."
+    },
+    {
+      "host": "mejrs.github.io",
+      "reason": "Public RuneScape map and cache viewer credited as a source."
+    },
+    {
+      "host": "runeapps.org",
+      "reason": "Public Alt1 toolkit pages."
+    },
+    {
+      "host": "runelite.net",
+      "reason": "Public client project pages."
+    },
+    {
+      "host": "w3.org",
+      "reason": "XML namespace and standards URLs."
+    },
+    {
+      "host": "creativecommons.org",
+      "reason": "Licence texts."
+    },
+    {
+      "host": "mediawiki.org",
+      "reason": "MediaWiki API documentation."
+    },
+    {
+      "host": "tailscale.com",
+      "reason": "Tailscale documentation for the sharing guide."
+    },
+    {
+      "host": "developers.cloudflare.com",
+      "reason": "Public documentation."
+    },
+    {
+      "host": "developer.mozilla.org",
+      "reason": "Public documentation."
+    },
+    {
+      "host": "developer.chrome.com",
+      "reason": "Public documentation."
+    },
+    {
+      "host": "schemas.microsoft.com",
+      "reason": "XML namespace URLs in Windows manifests."
+    },
+    {
+      "host": "reddit.com",
+      "reason": "Public discussion threads cited in the art-policy research."
+    },
+    {
+      "host": "runehq.com",
+      "reason": "Public RuneScape fan-site guides cited in research notes."
+    },
+    {
+      "host": "salmoneus.net",
+      "reason": "Public RuneScape fan-site guides cited in research notes."
+    },
+    {
+      "host": "orbscape.com",
+      "reason": "Public RuneScape fan-site guides cited in research notes."
+    },
+    {
+      "host": "pvme.io",
+      "reason": "Public PvM guide site cited in research notes."
+    },
+    {
+      "host": "twitter.com",
+      "reason": "Public posts linked from RuneScape Wiki page text in fixtures."
+    }
+  ],
+  "placeholders": [
+    {
+      "value": "qxa",
+      "reason": "Anonymised map code used by the tests and legacy defaults."
+    },
+    {
+      "value": "qxb",
+      "reason": "Anonymised map code used by the tests and legacy defaults."
+    },
+    {
+      "value": "old",
+      "reason": "Short fixture value in tests."
+    },
+    {
+      "value": "aaa",
+      "reason": "Short fixture value in tests."
+    },
+    {
+      "value": "bbb",
+      "reason": "Short fixture value in tests."
+    },
+    {
+      "value": "one",
+      "reason": "Short fixture value in tests."
+    },
+    {
+      "value": "two",
+      "reason": "Short fixture value in tests."
+    },
+    {
+      "value": "map",
+      "reason": "Short fixture value in tests."
+    },
+    {
+      "value": "mapa",
+      "reason": "Short fixture value in tests."
+    },
+    {
+      "value": "m",
+      "reason": "Short fixture value in tests."
+    },
+    {
+      "value": "x",
+      "reason": "Short fixture value in tests."
+    },
+    {
+      "value": "original",
+      "reason": "Short fixture value in tests."
+    },
+    {
+      "value": "different-map",
+      "reason": "Short fixture value in tests."
+    },
+    {
+      "value": "account",
+      "reason": "Short fixture value in tests."
+    },
+    {
+      "value": "new account",
+      "reason": "Short fixture value in tests."
+    },
+    {
+      "value": "reed",
+      "reason": "Invented member name in the completed-tasks and supply tests."
+    },
+    {
+      "value": "both players",
+      "reason": "Interface label, not a person."
+    },
+    {
+      "value": "examplegimab",
+      "reason": "Placeholder account name in documentation and RuneMetrics fixtures."
+    },
+    {
+      "value": "twosamplegim",
+      "reason": "Placeholder account name in documentation and RuneMetrics fixtures."
+    },
+    {
+      "value": "name",
+      "reason": "Placeholder account name in documentation and RuneMetrics fixtures."
+    },
+    {
+      "value": "do-not-retain",
+      "reason": "Invented sentinel that the server and perf tests put in credential fields to prove they are dropped."
+    }
+  ],
+  "lines": [
+    {
+      "path": "app/capture-maps.mjs",
+      "category": "network-identifier",
+      "sha256": "f972983e3f2fa21c4292071cd4effb16bd91d0079c614d34c64ee08ea9741792",
+      "reason": "Names the upstream picker's public Firebase database host, which the capture tool reads. No key or credential."
+    },
+    {
+      "path": "app/capture-maps.mjs",
+      "category": "service-binding",
+      "sha256": "f972983e3f2fa21c4292071cd4effb16bd91d0079c614d34c64ee08ea9741792",
+      "reason": "Names the upstream picker's public Firebase database host, which the capture tool reads. No key or credential."
+    },
+    {
+      "path": "app/data/original-rules-ui.2026-10-08.v1.json",
+      "category": "network-identifier",
+      "sha256": "8a17af90294beb7fac044323b1f465075dc9f0297a7e79eb101043ded57b9f6d",
+      "reason": "Rules link copied from the upstream picker's public UI to its public Google document."
+    },
+    {
+      "path": "app/data/retained-task-corrections.2026-10-09.v1.json",
+      "category": "private-fingerprint",
+      "sha256": "adedeea92f809dbb4d948d474d838580d6e39b93af2a5e5fe4c0bd00ea8a633b",
+      "reason": "A corpus fingerprint collides with ordinary game task text on this line; reviewed as a false positive on 2026-10-21."
+    },
+    {
+      "path": "app/data/retained-task-corrections.2026-10-17.v2.json",
+      "category": "private-fingerprint",
+      "sha256": "adedeea92f809dbb4d948d474d838580d6e39b93af2a5e5fe4c0bd00ea8a633b",
+      "reason": "A corpus fingerprint collides with ordinary game task text on this line; reviewed as a false positive on 2026-10-21."
+    },
+    {
+      "path": "app/data/training/banking-masks.v1.json",
+      "category": "private-fingerprint",
+      "sha256": "aa7e088ee11062c990baa1f9308dd63d63a73c5b8f5dbf1cbda0ff0f78e13d01",
+      "reason": "A corpus fingerprint collides with generated hex mask data on this line; reviewed as a false positive on 2026-10-21."
+    },
+    {
+      "path": "app/data/training/banking-masks.v1.json",
+      "category": "token",
+      "sha256": "aa7e088ee11062c990baa1f9308dd63d63a73c5b8f5dbf1cbda0ff0f78e13d01",
+      "reason": "Generated bank-mask data: long hex bitmasks on one line."
+    },
+    {
+      "path": "app/data/training/ge-prices.2026-10-08.json",
+      "category": "network-identifier",
+      "sha256": "6d34cbb7da5978af554d61c0e16f94c608459dead39c5aabfaecd23f721c8d00",
+      "reason": "Public Weird Gloop price API URL; the name query holds item names."
+    },
+    {
+      "path": "app/legacy-game-defaults.mjs",
+      "category": "account-map-binding",
+      "sha256": "7aae35be43282e9b743d658d764968f4bada8885835cdc9444fbdfa4591328f1",
+      "reason": "Comment documenting the legacy save shape with '...' placeholders and a generic map label."
+    },
+    {
+      "path": "app/tasks/activity.mjs",
+      "category": "account-map-binding",
+      "sha256": "a98e3646b35910739b9c1d50a33b09e6e5f8a224ac384296adfc05230049157c",
+      "reason": "Reviewed exact line: generated prerequisite explanation uses the ordinary word account; contains no account or map binding."
+    },
+    {
+      "path": "docs/access-logic.md",
+      "category": "token",
+      "sha256": "a1e0768326438dacde7360c8cfd049f5b623ab2895b55022a4ad1d69ebd4de39",
+      "reason": "RuneScape Wiki page URL with a long encoded page title."
+    },
+    {
+      "path": "docs/research/cache-game-data-shops.2026-10-08.v1.json",
+      "category": "network-identifier",
+      "sha256": "8fc210625a0b5f50c97cb41023da104d5ff5ead2845d4011cfdb5115a3c9c8d9",
+      "reason": "RuneScape Wiki permanent-link URL built from a revision id."
+    },
+    {
+      "path": "docs/research/death-chunk-estimates.md",
+      "category": "network-identifier",
+      "sha256": "ba80600e2b91ad8cce3128a728c490d6eb2207f530155dee5b80a574703c9c55",
+      "reason": "Cites a RuneScape Wiki help page and a wiki editor's public API notes; no project person."
+    },
+    {
+      "path": "docs/research/jagex-art-policy-2026-10-13.md",
+      "category": "network-identifier",
+      "sha256": "e75cbbfa8527eab3218c33cb2e8e9685132c09630da8dfbf1598f69cb097dd9a",
+      "reason": "Jagex's public licence application form and fan content policy links."
+    },
+    {
+      "path": "docs/research/map-pins.md",
+      "category": "network-identifier",
+      "sha256": "f03afc6973a15f21e8046fa2217cde4b239859cbefeb97d3b2416918f139b862",
+      "reason": "Cites a RuneScape Wiki editor's public API notes; no project person."
+    },
+    {
+      "path": "docs/research/partner-obligation-leak-evidence.2026-10-10.v1.json",
+      "category": "token",
+      "sha256": "0573d50de0e0006742935363fc5569e5cbd4f3dc641f9a0425594f3e1e8ef099",
+      "reason": "RuneScape Wiki page URL with a long encoded page title."
+    },
+    {
+      "path": "docs/research/switchover-parity-2026-10-08.md",
+      "category": "network-identifier",
+      "sha256": "ebe4153f98af3a03509ea4f84e2b641d8c2dca46f7f564c03683cd5e73914679",
+      "reason": "Research note citing the upstream picker's public site and its Firebase host. No key or credential."
+    },
+    {
+      "path": "docs/research/switchover-parity-2026-10-08.md",
+      "category": "service-binding",
+      "sha256": "ebe4153f98af3a03509ea4f84e2b641d8c2dca46f7f564c03683cd5e73914679",
+      "reason": "Research note citing the upstream picker's public site and its Firebase host. No key or credential."
+    },
+    {
+      "path": "docs/verification.md",
+      "category": "network-identifier",
+      "sha256": "351f6f890351321f57d1e7b62a9cedfbfd6204718b0ced4b176c8ea8aa3d7422",
+      "reason": "The upstream picker's four-part version string, which looks like an address."
+    },
+    {
+      "path": "docs/wording.md",
+      "category": "account-map-binding",
+      "sha256": "8016746b9ecc3c9cfdf324ff3471dcc65bf55e648740a6965d26d1451e0821a8",
+      "reason": "Wording table showing a template expression, not an account name."
+    },
+    {
+      "path": "scripts/public-export/scan.mjs",
+      "category": "machine-path",
+      "sha256": "9bc56d813596d11a1d29cc95118063a17a2f0218e5a93ca2f1db941ff36159c8",
+      "reason": "Pattern source of the old scanner kept for the release kits, not a value."
+    },
+    {
+      "path": "scripts/public-export/scan.mjs",
+      "category": "service-binding",
+      "sha256": "3b49eaec4e7b9d9c6a00c46022d2419866568fcfb6728000b1150870f04288f1",
+      "reason": "Pattern source of the old scanner kept for the release kits, not a value."
+    },
+    {
+      "path": "scripts/public-export/scan.mjs",
+      "category": "service-binding",
+      "sha256": "9169d627bb83b598f1c5e0a61a6fa56f86ad8cd30c0e80c76275b6e15bc193c3",
+      "reason": "Pattern source of the old scanner kept for the release kits, not a value."
+    },
+    {
+      "path": "scripts/research/original-parity.mjs",
+      "category": "network-identifier",
+      "sha256": "3597adc5190aee7dadd77e096fed1cf639f60d04a73ebff7fd1c480152b29c2a",
+      "reason": "Parity tool code reading a field named local; not a host."
+    },
+    {
+      "path": "scripts/research/original-parity.mjs",
+      "category": "network-identifier",
+      "sha256": "1b5007f917552367054aaf1a271e2821b77da672a50de23ca88c6a5d37424d37",
+      "reason": "Parity tool code reading a field named local; not a host."
+    },
+    {
+      "path": "scripts/research/original-parity.mjs",
+      "category": "network-identifier",
+      "sha256": "47dac7dc7455cb3101761ec1e4d76128ec86f50da2cc2967e8d164aca687b21b",
+      "reason": "Parity tool code reading a field named local; not a host."
+    },
+    {
+      "path": "scripts/research/original-parity.mjs",
+      "category": "service-binding",
+      "sha256": "7b281ad3cbfc564d10ac0f28aecabf3ca16b56c70510f59d499cb218dd6ce488",
+      "reason": "The parity tool recognises the upstream picker's public Firebase domains. No key or credential."
+    },
+    {
+      "path": "scripts/research/original-parity.mjs",
+      "category": "service-binding",
+      "sha256": "f92295038b20abcb87bec78974a29473f072a60c93cd133a719a5ec9ca569bad",
+      "reason": "The parity tool recognises the upstream picker's public Firebase domains. No key or credential."
+    },
+    {
+      "path": "scripts/research/retained-task-requirements.mjs",
+      "category": "private-fingerprint",
+      "sha256": "8fa2bac08d42d57b114125395650e34056231ede0af2e854f118bf087f2e0d03",
+      "reason": "A corpus fingerprint collides with ordinary game task text on this line; reviewed as a false positive on 2026-10-21."
+    },
+    {
+      "path": "scripts/research/validate-skill-guides.mjs",
+      "category": "network-identifier",
+      "sha256": "17b9816b602bc4aa3035ce1a6377bff9bd3841d5d255e00c5c34aeecf61e7179",
+      "reason": "RuneScape Wiki permanent-link URL built from a revision id."
+    },
+    {
+      "path": "scripts/secret-scan/scan.mjs",
+      "category": "machine-path",
+      "sha256": "8c392e87390c94144827b8724eea57da1f5c86963b2239028430e2d48ed90e00",
+      "reason": "Scanner pattern source: the rules and their generic exemptions, not a value."
+    },
+    {
+      "path": "scripts/secret-scan/scan.mjs",
+      "category": "machine-path",
+      "sha256": "2ea2b5667208cfe17a8c475141c140a663cc5bca6f97aee0b96e043bef3249d0",
+      "reason": "Scanner pattern source: the rules and their generic exemptions, not a value."
+    },
+    {
+      "path": "scripts/secret-scan/scan.mjs",
+      "category": "service-binding",
+      "sha256": "3b49eaec4e7b9d9c6a00c46022d2419866568fcfb6728000b1150870f04288f1",
+      "reason": "Scanner pattern source: the rules and their generic exemptions, not a value."
+    },
+    {
+      "path": "scripts/secret-scan/scan.mjs",
+      "category": "token",
+      "sha256": "ad46f7b2756b826aa2929a2cbce7cf5cb06ff8da5d201113987e10cba749fdaa",
+      "reason": "Scanner pattern source: the rules and their generic exemptions, not a value."
+    },
+    {
+      "path": "tests/art-pack.test.mjs",
+      "category": "machine-path",
+      "sha256": "ea13f69c0b72ec2af4bb6bf43f5d15e05a4db366bf872275852e66e5f804e184",
+      "reason": "Invented UNC path the art-pack test expects to be rejected."
+    },
+    {
+      "path": "tests/capture.test.mjs",
+      "category": "network-identifier",
+      "sha256": "7af4a2774fdc0a023de0c49d1d181a33e2fb2c7939158cd148206a944dd41a62",
+      "reason": "Capture test reads a fixture from the upstream picker's public Firebase host. No key or credential."
+    },
+    {
+      "path": "tests/capture.test.mjs",
+      "category": "service-binding",
+      "sha256": "7af4a2774fdc0a023de0c49d1d181a33e2fb2c7939158cd148206a944dd41a62",
+      "reason": "Capture test reads a fixture from the upstream picker's public Firebase host. No key or credential."
+    },
+    {
+      "path": "tests/fixtures/frontdoor/helpers.mjs",
+      "category": "network-identifier",
+      "sha256": "db39b16c2780dfdd1a2a3e7346f6376d9c75c4c4495eec0d0d190155583a20a2",
+      "reason": "Synthetic tailnet-range, loopback, documentation and ULA addresses for front-door tests. None matched any real tailnet address on 2026-10-21."
+    },
+    {
+      "path": "tests/fixtures/frontdoor/helpers.mjs",
+      "category": "network-identifier",
+      "sha256": "68481a20f83765578a4f66eb62482e8a356b8c10e29638ab048eb47b577dddb7",
+      "reason": "Synthetic tailnet-range, loopback, documentation and ULA addresses for front-door tests. None matched any real tailnet address on 2026-10-21."
+    },
+    {
+      "path": "tests/fixtures/frontdoor/helpers.mjs",
+      "category": "network-identifier",
+      "sha256": "cd53848d7087f5c8321260db36e96d7fd96667b68c67be11136d1583c81bed3f",
+      "reason": "Synthetic tailnet-range, loopback, documentation and ULA addresses for front-door tests. None matched any real tailnet address on 2026-10-21."
+    },
+    {
+      "path": "tests/fixtures/frontdoor/helpers.mjs",
+      "category": "network-identifier",
+      "sha256": "8ca5d67e696bfd8404e8838836e9a287f85f48b4e1ee5d767959bf556fd81568",
+      "reason": "Synthetic tailnet-range, loopback, documentation and ULA addresses for front-door tests. None matched any real tailnet address on 2026-10-21."
+    },
+    {
+      "path": "tests/fixtures/original-sync/capture.json",
+      "category": "network-identifier",
+      "sha256": "6b630e482a6c4706fd31a19d57665a3ae3355d23c2f5111ea9b33ed331145923",
+      "reason": "Recorded upstream picker page: its public Firebase host, or its four-part version string, which looks like an address."
+    },
+    {
+      "path": "tests/fixtures/original-sync/capture.json",
+      "category": "network-identifier",
+      "sha256": "2faa989cd77a7a0c113806d15502f26141874eb9eebb554b81915c1f5c188d8e",
+      "reason": "Recorded upstream picker page: its public Firebase host, or its four-part version string, which looks like an address."
+    },
+    {
+      "path": "tests/fixtures/original-sync/capture.json",
+      "category": "service-binding",
+      "sha256": "6b630e482a6c4706fd31a19d57665a3ae3355d23c2f5111ea9b33ed331145923",
+      "reason": "Recorded upstream picker page naming its public Firebase host. No key or credential."
+    },
+    {
+      "path": "tests/fixtures/original-sync/capture.json",
+      "category": "token",
+      "sha256": "7026ac812e958b7ae36088851fec22acbd2865e4aa27d38cf69b36ebf75b9cff",
+      "reason": "Generated database key from the recorded upstream picker page; public upstream data, not a credential."
+    },
+    {
+      "path": "tests/invites-storage.test.mjs",
+      "category": "network-identifier",
+      "sha256": "f1101c83568588d6e4e8b6497d9fbbec5508ac6cbabd7778edd65194c5108089",
+      "reason": "Authored network-boundary/proxy-spoof tests use reserved/example addresses and invented peers; these are not a deployed host binding. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/invites-storage.test.mjs",
+      "category": "network-identifier",
+      "sha256": "ee5e77a0b46dc67929fe1e48fe93f80b6e0dcc223392890b3921e1232f157a60",
+      "reason": "Authored network-boundary/proxy-spoof tests use reserved/example addresses and invented peers; these are not a deployed host binding. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/invites-storage.test.mjs",
+      "category": "network-identifier",
+      "sha256": "9077d5d9d21188f3a92f1285a9166a452683a2bc94cd0cc7d8822e8e17cc3a4d",
+      "reason": "Authored network-boundary/proxy-spoof tests use reserved/example addresses and invented peers; these are not a deployed host binding. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/invites-storage.test.mjs",
+      "category": "network-identifier",
+      "sha256": "693bd11eeea6cb1c0f6c097d8d0727a5e3e44e49f0c075cd23239b6ecf6c7bde",
+      "reason": "Authored network-boundary/proxy-spoof tests use reserved/example addresses and invented peers; these are not a deployed host binding. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/invites-storage.test.mjs",
+      "category": "network-identifier",
+      "sha256": "804b666c653845d9dd7cdb0aa09d1b2662df04b7df45578e3dc56f7f13e4adf6",
+      "reason": "Authored network-boundary/proxy-spoof tests use reserved/example addresses and invented peers; these are not a deployed host binding. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/invites-storage.test.mjs",
+      "category": "network-identifier",
+      "sha256": "97b254ccf4aa062748754d72e0d0f11bef59e4bd2980c5b26a5fa089da1e8538",
+      "reason": "Authored network-boundary/proxy-spoof tests use reserved/example addresses and invented peers; these are not a deployed host binding. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/invites-storage.test.mjs",
+      "category": "network-identifier",
+      "sha256": "4c88eeb71e3cf9664bec54202647ec3e0763435f516cbc577e177f0ea5286707",
+      "reason": "Authored network-boundary/proxy-spoof tests use reserved/example addresses and invented peers; these are not a deployed host binding. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/invites-storage.test.mjs",
+      "category": "network-identifier",
+      "sha256": "cec3c83a0b4867277e7ff9cc123540b418cded5018e129427c60804e06bb7b87",
+      "reason": "Authored network-boundary/proxy-spoof tests use reserved/example addresses and invented peers; these are not a deployed host binding. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/invites-storage.test.mjs",
+      "category": "network-identifier",
+      "sha256": "bba1e18a8b583a6ed1062b1d644cd3c2cc9139a9ec6af6db6f5f8c78dc452f6d",
+      "reason": "Authored network-boundary/proxy-spoof tests use reserved/example addresses and invented peers; these are not a deployed host binding. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/invites-storage.test.mjs",
+      "category": "network-identifier",
+      "sha256": "399932ae774b83a343634e10b6a6e977db74eb3c60388a163d7cf6e9054bd962",
+      "reason": "Authored network-boundary/proxy-spoof tests use reserved/example addresses and invented peers; these are not a deployed host binding. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/invites-storage.test.mjs",
+      "category": "network-identifier",
+      "sha256": "79c9bf5f3521d459b5a4816c6ca22d35e8901cd3a8cacc38a71f900f44137551",
+      "reason": "Authored network-boundary/proxy-spoof tests use reserved/example addresses and invented peers; these are not a deployed host binding. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/live-base-compatibility.test.mjs",
+      "category": "network-identifier",
+      "sha256": "df5bc819ef3bcb4ed49eac1d7a1597aff0a8ff734851528b142cf04a1129f286",
+      "reason": "Synthetic tailnet-range and loopback addresses for a compatibility test. None matched any real tailnet address on 2026-10-21."
+    },
+    {
+      "path": "tests/operator-cutover.test.mjs",
+      "category": "token",
+      "sha256": "a3d13126528d652bc41fff8297366806c2f685396ee74c5a13ed831648183cb6",
+      "reason": "Pattern the test uses to check that invite paths and key fragments are absent."
+    },
+    {
+      "path": "tests/original-parity.test.mjs",
+      "category": "service-binding",
+      "sha256": "d0baf608ef2c4da2de03dbd09307483ef914fd64bb5376b0e8628148e3306d45",
+      "reason": "Parity test inputs: the upstream picker's public Firebase domains and invented look-alikes the tool must reject."
+    },
+    {
+      "path": "tests/original-parity.test.mjs",
+      "category": "service-binding",
+      "sha256": "28899cf53045d1595f99c6590213d2533792af0e8d57be59084b49964234334b",
+      "reason": "Parity test inputs: the upstream picker's public Firebase domains and invented look-alikes the tool must reject."
+    },
+    {
+      "path": "tests/original-parity.test.mjs",
+      "category": "service-binding",
+      "sha256": "fc75fa200f2e64fe88f3127269a72d3ab9fdce9b91f3ee43ed8a389b5d9ec05a",
+      "reason": "Parity test inputs: the upstream picker's public Firebase domains and invented look-alikes the tool must reject."
+    },
+    {
+      "path": "tests/original-parity.test.mjs",
+      "category": "service-binding",
+      "sha256": "acaad735f570f7aee80cb489a41de9e9e75ce252ad5c00818ddb40b52c969ea1",
+      "reason": "Parity test inputs: the upstream picker's public Firebase domains and invented look-alikes the tool must reject."
+    },
+    {
+      "path": "tests/original-parity.test.mjs",
+      "category": "service-binding",
+      "sha256": "583ac3539ed03be6ee00dbf54d0fadf9e95dd0ef70c9cb06352b8fa407e70a73",
+      "reason": "Parity test inputs: the upstream picker's public Firebase domains and invented look-alikes the tool must reject."
+    },
+    {
+      "path": "tests/original-sync.test.mjs",
+      "category": "service-binding",
+      "sha256": "308bdfd8c2ae9fb573d21b00bdedbf3b87a38195199c67f24008bbe306b99bac",
+      "reason": "Pattern for the upstream picker's public Firebase host that the sync test expects. No key or credential."
+    },
+    {
+      "path": "tests/overlay-model.test.mjs",
+      "category": "token",
+      "sha256": "314c0f606310c4f95a225c482033543d7bc5f197b92da3ce9f57deaba8915c6b",
+      "reason": "Deliberately invented credential/link sentinel tests redaction, rejection or non-disclosure; runtime secrets are generated separately. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/perf-probe.test.mjs",
+      "category": "token",
+      "sha256": "2ef570f7dec8f62f7f45d4d3ce51efd6cc014238cfcf161ffbd1e3a5a2c78628",
+      "reason": "Invented sentinel values in the perf-probe fixture."
+    },
+    {
+      "path": "tests/private-frontdoor-equivalence.test.mjs",
+      "category": "network-identifier",
+      "sha256": "5059b23970601f9c5264a80d0db07e98994b7eb239e07b07bcd2abd41e8033f5",
+      "reason": "Synthetic tailnet-range, loopback, mapped and ULA addresses for front-door tests. None matched any real tailnet address on 2026-10-21."
+    },
+    {
+      "path": "tests/private-frontdoor-equivalence.test.mjs",
+      "category": "network-identifier",
+      "sha256": "a6b3c0829fd9525be32c738058b83bdad2fad6218368a23d453309af8d09d9d1",
+      "reason": "Synthetic tailnet-range, loopback, mapped and ULA addresses for front-door tests. None matched any real tailnet address on 2026-10-21."
+    },
+    {
+      "path": "tests/private-frontdoor-lanes.test.mjs",
+      "category": "network-identifier",
+      "sha256": "e67690e623e3af12f09764f03c6198c3b96cb9f604374baddf8749db44749dc4",
+      "reason": "Synthetic tailnet-range, loopback, mapped and ULA addresses for front-door tests. None matched any real tailnet address on 2026-10-21."
+    },
+    {
+      "path": "tests/private-frontdoor-lanes.test.mjs",
+      "category": "network-identifier",
+      "sha256": "ef25f2b5aaf9db78d777ec1bf005069762cd5a82bde0463833db76ded68fec87",
+      "reason": "Synthetic tailnet-range, loopback, mapped and ULA addresses for front-door tests. None matched any real tailnet address on 2026-10-21."
+    },
+    {
+      "path": "tests/private-frontdoor-lanes.test.mjs",
+      "category": "network-identifier",
+      "sha256": "d60c73a6573a86b5ce52e7085808fbb261de7e443e4ed20301643791ac24e74c",
+      "reason": "Synthetic tailnet-range, loopback, mapped and ULA addresses for front-door tests. None matched any real tailnet address on 2026-10-21."
+    },
+    {
+      "path": "tests/public-export-scanner.test.mjs",
+      "category": "machine-path",
+      "sha256": "3809da377808e8356bc9cda7fa36e7379ff453102c3ec6b49eaed44c208d353e",
+      "reason": "Invented blocking or boundary case in the old scanner tests; checked against the corpus like every line."
+    },
+    {
+      "path": "tests/public-export-scanner.test.mjs",
+      "category": "network-identifier",
+      "sha256": "9fa59ecd3e85a7972a8e128438beba062e6d5361c46ff4cd89f588265234e27b",
+      "reason": "Invented blocking or boundary case in the old scanner tests; checked against the corpus like every line."
+    },
+    {
+      "path": "tests/public-export-scanner.test.mjs",
+      "category": "network-identifier",
+      "sha256": "96a7ab9eaa1c340889ed6c6478e891cdce9d46ed3d16c454b2ed4e5fe21d5a5a",
+      "reason": "Invented blocking or boundary case in the old scanner tests; checked against the corpus like every line."
+    },
+    {
+      "path": "tests/public-export-scanner.test.mjs",
+      "category": "network-identifier",
+      "sha256": "3302962096280a321b4434ca58852476869e3e7ac484a3f4b81dd2bbac3c9d6d",
+      "reason": "Invented blocking or boundary case in the old scanner tests; checked against the corpus like every line."
+    },
+    {
+      "path": "tests/public-export-scanner.test.mjs",
+      "category": "network-identifier",
+      "sha256": "0aff84e71a825298aa1b3d770ca39112160b77273dd0c89fa17e21583eac1562",
+      "reason": "Invented blocking or boundary case in the old scanner tests; checked against the corpus like every line."
+    },
+    {
+      "path": "tests/public-export-scanner.test.mjs",
+      "category": "network-identifier",
+      "sha256": "d6c2537033e24ee4869cecd40bd1945345e2ab90306885af0fabd25e1dec017e",
+      "reason": "Invented blocking or boundary case in the old scanner tests; checked against the corpus like every line."
+    },
+    {
+      "path": "tests/public-export-scanner.test.mjs",
+      "category": "network-identifier",
+      "sha256": "951db98122111f5b03e28921f4a31ef9a1273cd1a15ea68d7db59c71b184b452",
+      "reason": "Invented blocking or boundary case in the old scanner tests; checked against the corpus like every line."
+    },
+    {
+      "path": "tests/public-export-scanner.test.mjs",
+      "category": "network-identifier",
+      "sha256": "552cd375f70cdb997f5470f241017567a97b7378a00a3fdf9dd6d2dec4b87f5f",
+      "reason": "Invented blocking or boundary case in the old scanner tests; checked against the corpus like every line."
+    },
+    {
+      "path": "tests/retained-task-corrections.test.mjs",
+      "category": "private-fingerprint",
+      "sha256": "c6b110fa495aa3d5f7ab992325191ac109c4d4383951236cf1ec6bd7959a4fb7",
+      "reason": "A corpus fingerprint collides with ordinary game task text on this line; reviewed as a false positive on 2026-10-21."
+    },
+    {
+      "path": "tests/rs-wiki-client.test.mjs",
+      "category": "network-identifier",
+      "sha256": "e6be9f5cb16a90a449f0b9a6eabb00ebb75ab395ef2ea8bc24515bc2cb4346a1",
+      "reason": "Authored Wiki client tests use public Wiki image/tile URLs, example.com addresses and invented rejected inputs; the local harness intercepts every request. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/secret-scan.test.mjs",
+      "category": "account-map-binding",
+      "sha256": "dca551a54caf33f50c2b74779dc231cff3b642bea37f2cffb7773d66f431f0b9",
+      "reason": "Invented blocking or boundary case in the secret scan tests; checked against the corpus like every line."
+    },
+    {
+      "path": "tests/secret-scan.test.mjs",
+      "category": "account-map-binding",
+      "sha256": "3686ff182362fbbd634f124d6356a0db588033f08a6e79d17975d8b59f1801db",
+      "reason": "Invented blocking or boundary case in the secret scan tests; checked against the corpus like every line."
+    },
+    {
+      "path": "tests/secret-scan.test.mjs",
+      "category": "account-map-binding",
+      "sha256": "d30c668bab82bec9086904481384cca3fd6fb6e22bfef2dbbab66ebc55550377",
+      "reason": "Invented blocking or boundary case in the secret scan tests; checked against the corpus like every line."
+    },
+    {
+      "path": "tests/secret-scan.test.mjs",
+      "category": "account-map-binding",
+      "sha256": "c9d12ce8d852f5e3be7df245d82c2766a3ccdc92785254b86d65fd7f5d49295b",
+      "reason": "Invented blocking or boundary case in the secret scan tests; checked against the corpus like every line."
+    },
+    {
+      "path": "tests/secret-scan.test.mjs",
+      "category": "machine-path",
+      "sha256": "2db62afe71f65a5b0af74fa6a9eca455e53181934387d7ff0b41e073caea0768",
+      "reason": "Invented blocking or boundary case in the secret scan tests; checked against the corpus like every line."
+    },
+    {
+      "path": "tests/secret-scan.test.mjs",
+      "category": "machine-path",
+      "sha256": "b3188e7988e9706b14e6eb60af2d6ee45ada944eff5d3a63bfad4ad88a59b073",
+      "reason": "Invented blocking or boundary case in the secret scan tests; checked against the corpus like every line."
+    },
+    {
+      "path": "tests/secret-scan.test.mjs",
+      "category": "machine-path",
+      "sha256": "db82414539316c54a1091f5f2368edb8dda9d86bfd5b3fdbcd3a5901263bf95c",
+      "reason": "Invented blocking or boundary case in the secret scan tests; checked against the corpus like every line."
+    },
+    {
+      "path": "tests/secret-scan.test.mjs",
+      "category": "network-identifier",
+      "sha256": "d30c668bab82bec9086904481384cca3fd6fb6e22bfef2dbbab66ebc55550377",
+      "reason": "Invented blocking or boundary case in the secret scan tests; checked against the corpus like every line."
+    },
+    {
+      "path": "tests/secret-scan.test.mjs",
+      "category": "network-identifier",
+      "sha256": "f75d21583720ebf0c47f3111fdb445b4a0bde589528c39f2baa9a945a8080826",
+      "reason": "Invented blocking or boundary case in the secret scan tests; checked against the corpus like every line."
+    },
+    {
+      "path": "tests/secret-scan.test.mjs",
+      "category": "network-identifier",
+      "sha256": "9fa59ecd3e85a7972a8e128438beba062e6d5361c46ff4cd89f588265234e27b",
+      "reason": "Invented blocking or boundary case in the secret scan tests; checked against the corpus like every line."
+    },
+    {
+      "path": "tests/secret-scan.test.mjs",
+      "category": "network-identifier",
+      "sha256": "7ef81adea6d560f6669cf9a4935f5bc8b0dfcc4c5525c052dc896c21c8102d9b",
+      "reason": "Invented blocking or boundary case in the secret scan tests; checked against the corpus like every line."
+    },
+    {
+      "path": "tests/secret-scan.test.mjs",
+      "category": "network-identifier",
+      "sha256": "3ca52de9eb83ed7d734a7327e7bcdeab4714bf2d81be5da6e1562bca6381779b",
+      "reason": "Invented blocking or boundary case in the secret scan tests; checked against the corpus like every line."
+    },
+    {
+      "path": "tests/secret-scan.test.mjs",
+      "category": "network-identifier",
+      "sha256": "7ecbab657aeac71d7fb4b95ee7aa1f9096379c6292ee1477ce4071bd69640d3f",
+      "reason": "Invented blocking or boundary case in the secret scan tests; checked against the corpus like every line."
+    },
+    {
+      "path": "tests/secret-scan.test.mjs",
+      "category": "network-identifier",
+      "sha256": "1f57ba809262c81acab3a5ad353d13dbfe568efa9eb5674a96040d73f063e496",
+      "reason": "Invented blocking or boundary case in the secret scan tests; checked against the corpus like every line."
+    },
+    {
+      "path": "tests/secret-scan.test.mjs",
+      "category": "network-identifier",
+      "sha256": "344ee4e3ba8b6576bab26b0f1c99ce4c91e835368d8c396d8e63a3bd8d8c88a0",
+      "reason": "Invented blocking or boundary case in the secret scan tests; checked against the corpus like every line."
+    },
+    {
+      "path": "tests/secret-scan.test.mjs",
+      "category": "network-identifier",
+      "sha256": "202fb454660ff3f3bfe36e1e4342128a9576ad3c3be7f4951297a1da65696d14",
+      "reason": "Invented blocking or boundary case in the secret scan tests; checked against the corpus like every line."
+    },
+    {
+      "path": "tests/secret-scan.test.mjs",
+      "category": "network-identifier",
+      "sha256": "795c8428c8b77c8a33d4104d02bb656b3bafaf8483f57faf36348660a32d2e38",
+      "reason": "Invented blocking or boundary case in the secret scan tests; checked against the corpus like every line."
+    },
+    {
+      "path": "tests/secret-scan.test.mjs",
+      "category": "network-identifier",
+      "sha256": "b29abdc7f7850126f7ea5065fd54cb5e95e457a614745b5fd5d528a2c69cbe37",
+      "reason": "Invented blocking or boundary case in the secret scan tests; checked against the corpus like every line."
+    },
+    {
+      "path": "tests/secret-scan.test.mjs",
+      "category": "network-identifier",
+      "sha256": "42ff72ad6947f9c094a45a5e9479b4c30638599dfac5789173565574b870e5ab",
+      "reason": "Invented blocking or boundary case in the secret scan tests; checked against the corpus like every line."
+    },
+    {
+      "path": "tests/secret-scan.test.mjs",
+      "category": "network-identifier",
+      "sha256": "d7ba408c34ec5524921d5cc70bcecb0c80f4a5bf3f742beb4483bf84a0b96533",
+      "reason": "Invented blocking or boundary case in the secret scan tests; checked against the corpus like every line."
+    },
+    {
+      "path": "tests/secret-scan.test.mjs",
+      "category": "network-identifier",
+      "sha256": "f91eb1c771188bfcb918d6220ca31357bc099025c6a46b44540b29bb462d635e",
+      "reason": "Invented blocking or boundary case in the secret scan tests; checked against the corpus like every line."
+    },
+    {
+      "path": "tests/secret-scan.test.mjs",
+      "category": "network-identifier",
+      "sha256": "951db98122111f5b03e28921f4a31ef9a1273cd1a15ea68d7db59c71b184b452",
+      "reason": "Invented blocking or boundary case in the secret scan tests; checked against the corpus like every line."
+    },
+    {
+      "path": "tests/secret-scan.test.mjs",
+      "category": "network-identifier",
+      "sha256": "19fcb2e332b516587b257341dcd9143d2d936e7c9ff3f2d45c5b97088ec38481",
+      "reason": "Invented blocking or boundary case in the secret scan tests; checked against the corpus like every line."
+    },
+    {
+      "path": "tests/secret-scan.test.mjs",
+      "category": "network-identifier",
+      "sha256": "96a7ab9eaa1c340889ed6c6478e891cdce9d46ed3d16c454b2ed4e5fe21d5a5a",
+      "reason": "Invented blocking or boundary case in the secret scan tests; checked against the corpus like every line."
+    },
+    {
+      "path": "tests/secret-scan.test.mjs",
+      "category": "network-identifier",
+      "sha256": "ae03cbaa5db307bb9b44aceaefff1f856ca20c68260af1256273243acd668930",
+      "reason": "Invented blocking or boundary case in the secret scan tests; checked against the corpus like every line."
+    },
+    {
+      "path": "tests/secret-scan.test.mjs",
+      "category": "network-identifier",
+      "sha256": "552cd375f70cdb997f5470f241017567a97b7378a00a3fdf9dd6d2dec4b87f5f",
+      "reason": "Invented blocking or boundary case in the secret scan tests; checked against the corpus like every line."
+    },
+    {
+      "path": "tests/secret-scan.test.mjs",
+      "category": "network-identifier",
+      "sha256": "f33608022eb082012f2be8d3ffb5381b31b4bc3e83f78a2724ed25431d6423f2",
+      "reason": "Invented blocking or boundary case in the secret scan tests; checked against the corpus like every line."
+    },
+    {
+      "path": "tests/secret-scan.test.mjs",
+      "category": "network-identifier",
+      "sha256": "86b860b9946521fc515df99ee1894400d6b1190cfa14b774838575367b4f7172",
+      "reason": "Invented blocking or boundary case in the secret scan tests; checked against the corpus like every line."
+    },
+    {
+      "path": "tests/secret-scan.test.mjs",
+      "category": "network-identifier",
+      "sha256": "1a63e335416f0c62a9039e5906f179a91c0ac8b7d55e998ca3618fbb45bd7276",
+      "reason": "Invented blocking or boundary case in the secret scan tests; checked against the corpus like every line."
+    },
+    {
+      "path": "tests/secret-scan.test.mjs",
+      "category": "network-identifier",
+      "sha256": "8f267727432ae3b0849b10cc8009afdc2d0ba89e61708fd4dbd59bec79d3c9b8",
+      "reason": "Invented blocking or boundary case in the secret scan tests; checked against the corpus like every line."
+    },
+    {
+      "path": "tests/secret-scan.test.mjs",
+      "category": "network-identifier",
+      "sha256": "6dcbf561f8cab9458f17da165cc02046a68849a55d8a4fad2a38985d8a9af553",
+      "reason": "Invented blocking or boundary case in the secret scan tests; checked against the corpus like every line."
+    },
+    {
+      "path": "tests/secret-scan.test.mjs",
+      "category": "network-identifier",
+      "sha256": "6eecf973efa6114af53b2d45e9fb9e7577374651ef75f9cc514b324819699f66",
+      "reason": "Invented blocking or boundary case in the secret scan tests; checked against the corpus like every line."
+    },
+    {
+      "path": "tests/secret-scan.test.mjs",
+      "category": "personal-default",
+      "sha256": "0193a1d50f1f12be302de8b21e29c81ee5ee303c054271041134600bed0aa812",
+      "reason": "Invented blocking or boundary case in the secret scan tests; checked against the corpus like every line."
+    },
+    {
+      "path": "tests/secret-scan.test.mjs",
+      "category": "personal-default",
+      "sha256": "e22a58d87d6e0d4a5643ccf59da8992c191243bac75b30ac23e34c6ed2cd00dd",
+      "reason": "Invented blocking or boundary case in the secret scan tests; checked against the corpus like every line."
+    },
+    {
+      "path": "tests/secret-scan.test.mjs",
+      "category": "personal-default",
+      "sha256": "c22fa94bfbc0ad6205907ba7d2ef7a6d7f894e0cba24318d5128b370455f5632",
+      "reason": "Invented blocking or boundary case in the secret scan tests; checked against the corpus like every line."
+    },
+    {
+      "path": "tests/secret-scan.test.mjs",
+      "category": "service-binding",
+      "sha256": "f75d21583720ebf0c47f3111fdb445b4a0bde589528c39f2baa9a945a8080826",
+      "reason": "Invented blocking or boundary case in the secret scan tests; checked against the corpus like every line."
+    },
+    {
+      "path": "tests/secret-scan.test.mjs",
+      "category": "token",
+      "sha256": "ea15660d3d99502bc49403c53244dcbeb43e57da3d2326881a22910ea8157780",
+      "reason": "Invented blocking or boundary case in the secret scan tests; checked against the corpus like every line."
+    },
+    {
+      "path": "tests/secret-scan.test.mjs",
+      "category": "token",
+      "sha256": "f91eb1c771188bfcb918d6220ca31357bc099025c6a46b44540b29bb462d635e",
+      "reason": "Invented blocking or boundary case in the secret scan tests; checked against the corpus like every line."
+    },
+    {
+      "path": "tests/server.test.mjs",
+      "category": "network-identifier",
+      "sha256": "014c8951d5c4f2f87c6fcd530962378afdd90f0ba598e5a1bbdaba3c6fe294c5",
+      "reason": "Server test fixture: the upstream picker's public Firebase host and its four-part version string, which looks like an address."
+    },
+    {
+      "path": "tests/server.test.mjs",
+      "category": "network-identifier",
+      "sha256": "f2c981cd0cae816305f3ae6e9982d8c72534127787214d3040d4aa61b494450b",
+      "reason": "Server test fixture: the upstream picker's public Firebase host and its four-part version string, which looks like an address."
+    },
+    {
+      "path": "tests/server.test.mjs",
+      "category": "service-binding",
+      "sha256": "014c8951d5c4f2f87c6fcd530962378afdd90f0ba598e5a1bbdaba3c6fe294c5",
+      "reason": "Server test fixture naming the upstream picker's public Firebase host and its version string. No key or credential."
+    },
+    {
+      "path": "tests/state.test.mjs",
+      "category": "service-binding",
+      "sha256": "ed632cad709d9d3842dcefb241a6fbcb2291c93020c40d7f436a9d4e6003b178",
+      "reason": "Invented secret-value sentinels verify exact credential-key removal from imported synthetic gameplay. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/stream-safe.test.mjs",
+      "category": "token",
+      "sha256": "6370a5abb9d89e345d451c217a452c8cb8f3ae60bc5afbd88584954c8f1aa64d",
+      "reason": "Deliberately invented credential/link sentinel tests redaction, rejection or non-disclosure; runtime secrets are generated separately. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/stream-safe.test.mjs",
+      "category": "token",
+      "sha256": "30ef93cd6969911b5bbee4ae5973691ef795798618a33d90c37567420528f197",
+      "reason": "Deliberately invented credential/link sentinel tests redaction, rejection or non-disclosure; runtime secrets are generated separately. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/training-catalogue.test.mjs",
+      "category": "network-identifier",
+      "sha256": "7c00b7685fa2e1b28bfa1c4c2dc565f0e064a3ce55ce05a7e851cfa544a5c3d0",
+      "reason": "Public Weird Gloop price API URL; the name query holds item names."
+    },
+    {
+      "path": "tests/usage-storage.test.mjs",
+      "category": "token",
+      "sha256": "2268d9dd66617ea307c7c4e285e9e1c0ead3be6aa23628bb5183d4f2b20a82cc",
+      "reason": "Deliberately invented credential/link sentinel tests redaction, rejection or non-disclosure; runtime secrets are generated separately. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/watchdog-script.test.mjs",
+      "category": "network-identifier",
+      "sha256": "2ec5017c762622116d4cdec4034d89ce07f1e5a22b4f3d2c74b9fe2baf5488ca",
+      "reason": "Loopback health-check URL pattern in the watchdog test."
+    },
+    {
+      "path": "tests/watchdog-script.test.mjs",
+      "category": "token",
+      "sha256": "3bd79f95d627f9417cbf9bf0e7467744d2d94800b3933b79e6d9d0e4f8f866da",
+      "reason": "Loopback URL with an invented invite path in the watchdog test."
+    }
+  ]
+}

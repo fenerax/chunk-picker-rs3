@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+  <title>Smithing: hammer over an anvil placeholder</title>
+  <g fill="none" stroke="#f4efe4" stroke-width="4.4" stroke-linecap="round" stroke-linejoin="round">
+    <path d="m10 3 9 1-1 4-9-1Z"/>
+    <path d="m14 7-2 5" stroke-width="6.6"/>
+    <path d="m14 7-2 5" stroke-width="4.6"/>
+    <path d="m3 13 18-1-3 5-4 0 1 4-9 0 1-4-4-1Z"/>
+  </g>
+  <g fill="none" stroke="#25313b" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+    <path d="m10 3 9 1-1 4-9-1Z" fill="#e99768"/>
+    <path d="m14 7-2 5" stroke-width="4"/>
+    <path d="m14 7-2 5" stroke="#fff0cc" stroke-width="2"/>
+    <path d="m3 13 18-1-3 5-4 0 1 4-9 0 1-4-4-1Z" fill="#fff0cc"/>
+  </g>
+</svg>

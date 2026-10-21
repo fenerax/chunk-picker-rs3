@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+  <title>Summoning: creature in a chalk ring placeholder</title>
+  <g fill="none" stroke="#f4efe4" stroke-width="4.4" stroke-linecap="round" stroke-linejoin="round">
+    <ellipse cx="12" cy="19" rx="9" ry="3"/>
+    <path d="m7 17-1-8 3-5 3 4 4-5 3 7-2 8Z"/>
+    <circle cx="10" cy="12" r="1"/>
+    <circle cx="15" cy="12" r="1"/>
+  </g>
+  <g fill="none" stroke="#25313b" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+    <ellipse cx="12" cy="19" rx="9" ry="3" fill="#70b7ae"/>
+    <path d="m7 17-1-8 3-5 3 4 4-5 3 7-2 8Z" fill="#fff0cc"/>
+    <circle cx="10" cy="12" r="1" fill="#70b7ae"/>
+    <circle cx="15" cy="12" r="1" fill="#70b7ae"/>
+  </g>
+</svg>

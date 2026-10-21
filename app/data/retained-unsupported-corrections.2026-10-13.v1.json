@@ -1,0 +1,2612 @@
+{
+  "schemaVersion": 1,
+  "reviewedOn": "2026-10-13",
+  "provenance": {
+    "reference": "rs3-chunkpicker-chunkinfo-export.json",
+    "referenceSha256": "9dd835266f381abaa4d14033abcd0b43a001fe96d7df0a7f046fcc8676d66553",
+    "referenceHashMode": "git-lf",
+    "generator": "scripts/research/retained-unsupported-audit.mjs",
+    "generatorSha256": "ce06198cc96f347e4bc5f1bd14dbc4b276548a91e86aec75081e8a7898d26228",
+    "method": "All 34 compiled retained unsupported rows, bounded public Wiki revisions, exact-record aliases and task corrections; no private gameplay reads or writes."
+  },
+  "wiki": [
+    {
+      "title": "Runecrafter robes",
+      "revisionId": 36256460,
+      "timestamp": "2023-12-11T07:42:23Z",
+      "contentSha256": "d516a23bf6565a18370e880957a4c55837c3985ec035c1489bbf10e43f270142",
+      "url": "https://runescape.wiki/w/Special:PermanentLink/36256460",
+      "facts": {
+        "f2p": true,
+        "ordinaryPieces": [
+          "Runecrafter gloves",
+          "Runecrafter hat",
+          "Runecrafter robe",
+          "Runecrafter skirt"
+        ],
+        "guildEntryRunecrafting": 50
+      }
+    },
+    {
+      "title": "Master runecrafter robes",
+      "revisionId": 36938905,
+      "timestamp": "2026-02-14T20:12:50Z",
+      "contentSha256": "4199ff934dea3c02f4c5858da8acda2a20f287e0c7cd5aaaa9d638c94e3dc954",
+      "url": "https://runescape.wiki/w/Special:PermanentLink/36938905",
+      "facts": {
+        "members": true,
+        "separateOutfit": true
+      }
+    },
+    {
+      "title": "Second-age mage set",
+      "revisionId": 37126897,
+      "timestamp": "2026-07-27T22:03:05Z",
+      "contentSha256": "9b5bf28eb5454b9655ffe889353c6579b226979a590a604537dda352a1edb47e",
+      "url": "https://runescape.wiki/w/Special:PermanentLink/37126897",
+      "facts": {
+        "members": true
+      }
+    },
+    {
+      "title": "Chaotic guard",
+      "revisionId": 37174399,
+      "timestamp": "2026-09-10T03:58:41Z",
+      "contentSha256": "d4c0590dbc3175023c63d62f9db728ca03bf18e6b660dcc02505a74ebdc31cb7",
+      "url": "https://runescape.wiki/w/Special:PermanentLink/37174399",
+      "facts": {
+        "members": true
+      }
+    },
+    {
+      "title": "Chaotic rapier frozen dye kit",
+      "revisionId": 37047060,
+      "timestamp": "2026-05-18T07:19:55Z",
+      "contentSha256": "5a50a94bd2ddcaf27f22acc1c918fd4177d51825632b7787bea8e20a1fc2d93c",
+      "url": "https://runescape.wiki/w/Special:PermanentLink/37047060",
+      "facts": {
+        "members": true
+      }
+    },
+    {
+      "title": "Chaotic rapier warped dye kit",
+      "revisionId": 37047064,
+      "timestamp": "2026-05-18T07:20:56Z",
+      "contentSha256": "6e06ce06b4b62e368f191a0db4bdfdb9b781f8b236f150baf49e8136d9bee2e7",
+      "url": "https://runescape.wiki/w/Special:PermanentLink/37047064",
+      "facts": {
+        "members": true
+      }
+    },
+    {
+      "title": "The Great Orb Project",
+      "revisionId": 37158543,
+      "timestamp": "2026-08-18T14:27:19Z",
+      "contentSha256": "55d437dee79cdcdf3bb69a54ebee75cfe1fda085d99021333f383fdbc4cb994e",
+      "url": "https://runescape.wiki/w/Special:PermanentLink/37158543",
+      "facts": {
+        "f2p": true,
+        "ironmenCanBuyCosmeticRobes": true
+      }
+    },
+    {
+      "title": "Portent of item protection",
+      "revisionId": 37019209,
+      "timestamp": "2026-04-17T07:44:07Z",
+      "contentSha256": "a9760be64f9111d58b3a707cdfd952fafb2b092ceff2112433994af12d0f8752",
+      "url": "https://runescape.wiki/w/Special:PermanentLink/37019209",
+      "facts": {
+        "members": true,
+        "input": "Prayer potion (4)"
+      }
+    },
+    {
+      "title": "Oily bakami",
+      "revisionId": 37199456,
+      "timestamp": "2026-10-06T20:59:07Z",
+      "contentSha256": "6fa17d9e4d3abfc964d669a40e8ccc565886c9a2298c2c0cdaa7e50a68e73cce",
+      "url": "https://runescape.wiki/w/Special:PermanentLink/37199456",
+      "facts": {
+        "members": true,
+        "hunter": 90
+      }
+    },
+    {
+      "title": "Staff of limitless air",
+      "revisionId": 36926566,
+      "timestamp": "2026-01-30T15:18:26Z",
+      "contentSha256": "75848498f1ca119ad4f74c2232f5593580a79d58421a74fc2af8f2db24d80fd0",
+      "url": "https://runescape.wiki/w/Special:PermanentLink/36926566",
+      "facts": {
+        "members": true
+      }
+    },
+    {
+      "title": "Ancient cloak",
+      "revisionId": 37172665,
+      "timestamp": "2026-09-07T07:12:45Z",
+      "contentSha256": "ba3c483013c107f51a62609df3e3d4ef87975e3b7e5ca3777b705ed58958cd6f",
+      "url": "https://runescape.wiki/w/Special:PermanentLink/37172665",
+      "facts": {
+        "members": true
+      }
+    },
+    {
+      "title": "Chaotic essence",
+      "revisionId": 37039096,
+      "timestamp": "2026-05-11T17:56:35Z",
+      "contentSha256": "d84f04fa52759252e8e1e7907491c96c9accac25a5e08baede03e4117415b798",
+      "url": "https://runescape.wiki/w/Special:PermanentLink/37039096",
+      "facts": {
+        "members": true,
+        "meleeWeaponsOnly": true
+      }
+    },
+    {
+      "title": "The Distracted (title)",
+      "revisionId": 36976714,
+      "timestamp": "2026-03-23T05:29:24Z",
+      "contentSha256": "1efd40cc8103dbbf45144b4e24d6c8ef943792372ca2e9a23550117864c617c9",
+      "url": "https://runescape.wiki/w/Special:PermanentLink/36976714",
+      "facts": {
+        "members": true
+      }
+    },
+    {
+      "title": "Demon Flash Mob",
+      "revisionId": 37076317,
+      "timestamp": "2026-06-21T13:26:44Z",
+      "contentSha256": "9cbd7e278b94d3514cba5e57a172568819f7c4317dc5f5340789105b6c94196e",
+      "url": "https://runescape.wiki/w/Special:PermanentLink/37076317",
+      "facts": {
+        "members": true,
+        "retired": false
+      }
+    },
+    {
+      "title": "Varrock achievements",
+      "revisionId": 37049743,
+      "timestamp": "2026-05-20T17:57:26Z",
+      "contentSha256": "d5a7f98fbf3ac1327bd001877a0eeaf202d5406b73dbac03db59175f70b4a61a",
+      "url": "https://runescape.wiki/w/Special:PermanentLink/37049743",
+      "facts": {
+        "completionMembers": true
+      }
+    },
+    {
+      "title": "But It Won't Warp You Anywhere",
+      "revisionId": 36249605,
+      "timestamp": "2023-12-04T15:03:45Z",
+      "contentSha256": "171a2bbf3b62ad223b542cc65267cf22ad9818cb63f05f12bceed9b698f5a374",
+      "url": "https://runescape.wiki/w/Special:PermanentLink/36249605",
+      "facts": {
+        "renamedTo": "Security Isn't a Dirty Word"
+      }
+    },
+    {
+      "title": "Changing Rooms",
+      "revisionId": 37092248,
+      "timestamp": "2026-07-13T16:17:13Z",
+      "contentSha256": "727f2f374b4f4e294f41dcbf6e21b485fac7a06ed8791dd5d1a936f92bbd8d3d",
+      "url": "https://runescape.wiki/w/Special:PermanentLink/37092248",
+      "facts": {
+        "renamedTo": "Make a House a Home"
+      }
+    },
+    {
+      "title": "Security Isn't a Dirty Word",
+      "revisionId": 37176634,
+      "timestamp": "2026-09-13T15:53:19Z",
+      "contentSha256": "6e65fbcce21e24ec77d4ee57a65750292325f7d6810acd3f19ecff364b0b2da7",
+      "url": "https://runescape.wiki/w/Special:PermanentLink/37176634",
+      "facts": {
+        "members": true,
+        "currentObjective": "crevice shortcut"
+      }
+    },
+    {
+      "title": "Make a House a Home",
+      "revisionId": 37098767,
+      "timestamp": "2026-07-14T21:52:08Z",
+      "contentSha256": "6987196dd8a7c9446f0cca3c2f0daee4725a87dc993b6c90235189dde5b7cee0",
+      "url": "https://runescape.wiki/w/Special:PermanentLink/37098767",
+      "facts": {
+        "f2p": true,
+        "currentObjective": "ask estate agent about housing"
+      }
+    },
+    {
+      "title": "Scabaras Would Be Proud",
+      "revisionId": 36862519,
+      "timestamp": "2025-11-12T01:57:54Z",
+      "contentSha256": "863c08d4e9f0fb046205124c524e621de910d744dc6911a694ff3444ab313e8f",
+      "url": "https://runescape.wiki/w/Special:PermanentLink/36862519",
+      "facts": {
+        "correctedName": "Scabaras Would Be Proud"
+      }
+    },
+    {
+      "title": "A Mini Shipment",
+      "revisionId": 37184613,
+      "timestamp": "2026-09-23T14:31:09Z",
+      "contentSha256": "fabe8a5cd34cf1a76527d6dce3e033ae25b4713056304ab5450c78357fe1a37c",
+      "url": "https://runescape.wiki/w/Special:PermanentLink/37184613",
+      "facts": {
+        "correctedName": "A Mini Shipment"
+      }
+    },
+    {
+      "title": "Flippers",
+      "revisionId": 37014241,
+      "timestamp": "2026-04-15T19:38:06Z",
+      "contentSha256": "4895e730db7c5138ec75d29cc0e79f05ed054184403069e6fb675e4ccb3cb61c",
+      "url": "https://runescape.wiki/w/Special:PermanentLink/37014241",
+      "facts": {
+        "correctedName": "Flippers"
+      }
+    },
+    {
+      "title": "It Still Should Have Been Called Aetherium",
+      "revisionId": 36982272,
+      "timestamp": "2026-03-24T16:02:18Z",
+      "contentSha256": "5f6638336a5ec64e20f1f54657fc1de5acc63d97641a8217ee94e51dcb5f8a8e",
+      "url": "https://runescape.wiki/w/Special:PermanentLink/36982272",
+      "facts": {
+        "correctedName": "It Still Should Have Been Called Aetherium"
+      }
+    },
+    {
+      "title": "Imcando at a Tree",
+      "revisionId": 36661155,
+      "timestamp": "2025-02-19T08:44:19Z",
+      "contentSha256": "20aba1f8225ea7bcc6ea73f81ff2f5763cc1f970bf71271003de029e50b67978",
+      "url": "https://runescape.wiki/w/Special:PermanentLink/36661155",
+      "facts": {
+        "correctedName": "Imcando at a Tree"
+      }
+    },
+    {
+      "title": "Tirannwn achievements",
+      "revisionId": 37049734,
+      "timestamp": "2026-05-20T17:56:24Z",
+      "contentSha256": "75b15b74890ebe0ba2bb83d7165dc95030f194ee6ec13aee3127eed65a625401",
+      "url": "https://runescape.wiki/w/Special:PermanentLink/37049734",
+      "facts": {
+        "completionMembers": true
+      }
+    },
+    {
+      "title": "Construction Contracts",
+      "revisionId": 37203479,
+      "timestamp": "2026-10-12T11:53:11Z",
+      "contentSha256": "1cdffc32032231c5c6a9f7d74f83ce917285a530c1592fab1e0b4a7f2f119230",
+      "url": "https://runescape.wiki/w/Special:PermanentLink/37203479",
+      "facts": {
+        "members": true
+      }
+    },
+    {
+      "title": "Creature of Fenkenstrain",
+      "revisionId": 37182723,
+      "timestamp": "2026-09-21T21:49:45Z",
+      "contentSha256": "6f6c3094765abb951a337cc3019d6244f8544d398be810bece4576efcc213100",
+      "url": "https://runescape.wiki/w/Special:PermanentLink/37182723",
+      "facts": {
+        "correctedName": "Creature of Fenkenstrain",
+        "members": true
+      }
+    },
+    {
+      "title": "Greater Death's Swiftness",
+      "revisionId": 37076115,
+      "timestamp": "2026-06-21T10:52:11Z",
+      "contentSha256": "8c127929de41a3cd635e5b8f3dc809a30d6df898c219ea5cf319b4ba4b0c6cae",
+      "url": "https://runescape.wiki/w/Special:PermanentLink/37076115",
+      "facts": {
+        "members": true,
+        "unresolvedRetainedDependency": true
+      }
+    },
+    {
+      "title": "Music Maestro",
+      "revisionId": 37193828,
+      "timestamp": "2026-09-30T19:46:10Z",
+      "contentSha256": "a0f863409d656e6c3cd754b8ee9b47b03918a707e4cb55c8444dedadd12d1d05",
+      "url": "https://runescape.wiki/w/Special:PermanentLink/37193828",
+      "facts": {
+        "members": true,
+        "mysteryCompletionNotEquivalentToMusicUnlock": true
+      }
+    },
+    {
+      "title": "Reaper Crew",
+      "revisionId": 37204952,
+      "timestamp": "2026-10-13T02:28:03Z",
+      "contentSha256": "cabdd436ead97872ceb6502f730e6a4d568eed3c29b876311c2d4e4e60eea1a5",
+      "url": "https://runescape.wiki/w/Special:PermanentLink/37204952",
+      "facts": {
+        "members": true,
+        "missingAllBossesReference": true
+      }
+    },
+    {
+      "title": "Cave bug",
+      "revisionId": 37123987,
+      "timestamp": "2026-07-26T19:39:55Z",
+      "contentSha256": "8354e233aa564094c0fb30038319b7c828fa85099b4ea3e67ac89f4d1c291e77",
+      "url": "https://runescape.wiki/w/Special:PermanentLink/37123987",
+      "facts": {
+        "soulMembers": true,
+        "retainedVariantMappingUnreviewed": true
+      }
+    }
+  ],
+  "corrections": [
+    {
+      "id": "rs3:task:000ba0",
+      "category": "Defence",
+      "label": "Wear a piece of ~|second-age magic armour|~",
+      "beforeRecordSha256": "67eefc742c9ba67e8738c66c36bcca414a38b7ab7fa26597f16e1491100e05c0",
+      "rationale": "Correct the alias spelling to the existing exact SecondAgeMageArmour group; membership stays explicit.",
+      "changes": [
+        {
+          "field": "Items",
+          "beforePresent": true,
+          "before": [
+            "SecondAgeMagicArmour[+]"
+          ],
+          "after": [
+            "SecondAgeMageArmour[+]"
+          ]
+        }
+      ],
+      "aliases": [],
+      "dependencies": [
+        {
+          "group": "itemsPlus",
+          "name": "SecondAgeMageArmour[+]",
+          "sha256": "8e21cf95b1de0cf9a3b29bb108463fce4944e10c44868b1fed82491d728e0fa0"
+        }
+      ]
+    },
+    {
+      "id": "rs3:task:000c84",
+      "category": "Divination",
+      "label": "Create a ~|portent of item protection|~",
+      "beforeRecordSha256": "659b15cda5c60e188773edb410390b6f50997a871e12aa092aca50c939b5086c",
+      "rationale": "Use the documented four-dose prayer potion input; lower doses do not prove this recipe.",
+      "changes": [
+        {
+          "field": "Items",
+          "beforePresent": true,
+          "before": [
+            "Luminous energy*",
+            "Prayer potion[+]*"
+          ],
+          "after": [
+            "Luminous energy*",
+            "Prayer potion (4)*"
+          ]
+        },
+        {
+          "field": "Not F2P",
+          "beforePresent": false,
+          "before": null,
+          "after": true
+        }
+      ],
+      "aliases": [],
+      "dependencies": []
+    },
+    {
+      "id": "rs3:task:000cf1",
+      "category": "Dungeoneering",
+      "label": "Wield a ~|chaotic necromancy weapon|~",
+      "beforeRecordSha256": "ba7073fbf9d89255b1df413265e32aab085f351090882d535fd59b32f5c38926",
+      "rationale": "Correct the exact retained ChaoticNecroWeapon alias; membership stays explicit.",
+      "changes": [
+        {
+          "field": "Items",
+          "beforePresent": true,
+          "before": [
+            "ChaoticNecromancyWeapon[+]"
+          ],
+          "after": [
+            "ChaoticNecroWeapon[+]"
+          ]
+        }
+      ],
+      "aliases": [],
+      "dependencies": [
+        {
+          "group": "itemsPlus",
+          "name": "ChaoticNecroWeapon[+]",
+          "sha256": "d712848d5225eb45907e97f2dd3d46259e8973b1308797d680a95969eb46a454"
+        }
+      ]
+    },
+    {
+      "id": "rs3:task:000cf8",
+      "category": "Dungeoneering",
+      "label": "Use a ~|frozen dye kit|~",
+      "beforeRecordSha256": "0c5ccccf0e749395c52de6e86af7557eb3ab58a8efdd7b767b81ebf5e3938560",
+      "rationale": "Repair the missing alias suffix using the exact retained frozen dye variants.",
+      "changes": [],
+      "aliases": [
+        {
+          "group": "itemsPlus",
+          "name": "Frozen dye kit[+]",
+          "sourceName": "Frozen dye kit",
+          "sourceSha256": "60bc1a6d54a713ab3bbb496e482ea80e4ad31eadf59a438e52b2ec64d1fca520",
+          "values": [
+            "Chaotic rapier frozen dye kit",
+            "Chaotic maul frozen dye kit",
+            "Chaotic crossbow frozen dye kit"
+          ]
+        }
+      ],
+      "dependencies": []
+    },
+    {
+      "id": "rs3:task:000cf9",
+      "category": "Dungeoneering",
+      "label": "Use a ~|warped dye kit|~",
+      "beforeRecordSha256": "cf4462524f75c42b635a6aad117a0ac807e875b9998155f4832b4f76f32ba43b",
+      "rationale": "Repair the missing alias suffix using the exact retained warped dye variants.",
+      "changes": [],
+      "aliases": [
+        {
+          "group": "itemsPlus",
+          "name": "Warped dye kit[+]",
+          "sourceName": "Warped dye kit",
+          "sourceSha256": "78a70171a27efdb1c5d3a15c9aa3827a9cd9169da3e64672f031cb8e5e3c7a22",
+          "values": [
+            "Chaotic rapier warped dye kit",
+            "Chaotic maul warped dye kit",
+            "Chaotic crossbow warped dye kit"
+          ]
+        }
+      ],
+      "dependencies": []
+    },
+    {
+      "id": "rs3:task:0013b6",
+      "category": "Hunter",
+      "label": "Catch an ~|oily bakami|~",
+      "beforeRecordSha256": "b903118d59c8f6d590de74c84dbba52e1fefcfc86439b2f401aa9a50ac95844a",
+      "rationale": "Hunter 90 Arc kami is members-only. Retain unsupported: the Bakami rule category and rare roaming source admission have no exact implementation; no output or training proof is admitted.",
+      "changes": [
+        {
+          "field": "Not F2P",
+          "beforePresent": false,
+          "before": null,
+          "after": true
+        }
+      ],
+      "aliases": [],
+      "dependencies": [
+        {
+          "group": "chunksPlus",
+          "name": "The Arc[+]",
+          "sha256": "c0eac3ccfceaa5f881f7dc580e5782ed79bc92c58c578f5b672d6b0c48a87880"
+        }
+      ]
+    },
+    {
+      "id": "rs3:task:0013b7",
+      "category": "Hunter",
+      "label": "Catch a ~|bundling bakami|~",
+      "beforeRecordSha256": "3c075e8745e063c18553b5d13fddb6b0763d00e286b7f5f4940e12d0f843f408",
+      "rationale": "Hunter 90 Arc kami is members-only. Retain unsupported: the Bakami rule category and rare roaming source admission have no exact implementation; no output or training proof is admitted.",
+      "changes": [
+        {
+          "field": "Not F2P",
+          "beforePresent": false,
+          "before": null,
+          "after": true
+        }
+      ],
+      "aliases": [],
+      "dependencies": [
+        {
+          "group": "chunksPlus",
+          "name": "The Arc[+]",
+          "sha256": "c0eac3ccfceaa5f881f7dc580e5782ed79bc92c58c578f5b672d6b0c48a87880"
+        }
+      ]
+    },
+    {
+      "id": "rs3:task:0013b8",
+      "category": "Hunter",
+      "label": "Catch a ~|salty bakami|~",
+      "beforeRecordSha256": "91dcdcbc005390d2881bbd224d67100cc57b7c6336e5bfaebfecbf397d827df1",
+      "rationale": "Hunter 90 Arc kami is members-only. Retain unsupported: the Bakami rule category and rare roaming source admission have no exact implementation; no output or training proof is admitted.",
+      "changes": [
+        {
+          "field": "Not F2P",
+          "beforePresent": false,
+          "before": null,
+          "after": true
+        }
+      ],
+      "aliases": [],
+      "dependencies": [
+        {
+          "group": "chunksPlus",
+          "name": "The Arc[+]",
+          "sha256": "c0eac3ccfceaa5f881f7dc580e5782ed79bc92c58c578f5b672d6b0c48a87880"
+        }
+      ]
+    },
+    {
+      "id": "rs3:task:0013b9",
+      "category": "Hunter",
+      "label": "Catch a ~|stalking bakami|~",
+      "beforeRecordSha256": "cebda22d8c792fa3937846a7b1c8cd5a4aec419c0952e0516bb44dab41c40ad4",
+      "rationale": "Hunter 90 Arc kami is members-only. Retain unsupported: the Bakami rule category and rare roaming source admission have no exact implementation; no output or training proof is admitted.",
+      "changes": [
+        {
+          "field": "Not F2P",
+          "beforePresent": false,
+          "before": null,
+          "after": true
+        }
+      ],
+      "aliases": [],
+      "dependencies": [
+        {
+          "group": "chunksPlus",
+          "name": "The Arc[+]",
+          "sha256": "c0eac3ccfceaa5f881f7dc580e5782ed79bc92c58c578f5b672d6b0c48a87880"
+        }
+      ]
+    },
+    {
+      "id": "rs3:task:0013ba",
+      "category": "Hunter",
+      "label": "Catch a ~|foraging bakami|~",
+      "beforeRecordSha256": "516518eaf617999c6cdff91cb97b484a94df59b0cf8d06d109e3ef70a605d5a7",
+      "rationale": "Hunter 90 Arc kami is members-only. Retain unsupported: the Bakami rule category and rare roaming source admission have no exact implementation; no output or training proof is admitted.",
+      "changes": [
+        {
+          "field": "Not F2P",
+          "beforePresent": false,
+          "before": null,
+          "after": true
+        }
+      ],
+      "aliases": [],
+      "dependencies": [
+        {
+          "group": "chunksPlus",
+          "name": "The Arc[+]",
+          "sha256": "c0eac3ccfceaa5f881f7dc580e5782ed79bc92c58c578f5b672d6b0c48a87880"
+        }
+      ]
+    },
+    {
+      "id": "rs3:task:0013bb",
+      "category": "Hunter",
+      "label": "Catch an ~|ancestral bakami|~",
+      "beforeRecordSha256": "1717583f968f351d8122fde51e755095213ad59a3d2e4df1709507c7bf6abafd",
+      "rationale": "Hunter 90 Arc kami is members-only. Retain unsupported: the Bakami rule category and rare roaming source admission have no exact implementation; no output or training proof is admitted.",
+      "changes": [
+        {
+          "field": "Not F2P",
+          "beforePresent": false,
+          "before": null,
+          "after": true
+        }
+      ],
+      "aliases": [],
+      "dependencies": [
+        {
+          "group": "chunksPlus",
+          "name": "The Arc[+]",
+          "sha256": "c0eac3ccfceaa5f881f7dc580e5782ed79bc92c58c578f5b672d6b0c48a87880"
+        }
+      ]
+    },
+    {
+      "id": "rs3:task:0013bc",
+      "category": "Hunter",
+      "label": "Catch a ~|murderous bakami|~",
+      "beforeRecordSha256": "af278bf25665a81c5a6cb133adfc54cced4c4452537d62958cf1d36e9a6e3fb6",
+      "rationale": "Hunter 90 Arc kami is members-only. Retain unsupported: the Bakami rule category and rare roaming source admission have no exact implementation; no output or training proof is admitted.",
+      "changes": [
+        {
+          "field": "Not F2P",
+          "beforePresent": false,
+          "before": null,
+          "after": true
+        }
+      ],
+      "aliases": [],
+      "dependencies": [
+        {
+          "group": "chunksPlus",
+          "name": "The Arc[+]",
+          "sha256": "c0eac3ccfceaa5f881f7dc580e5782ed79bc92c58c578f5b672d6b0c48a87880"
+        }
+      ]
+    },
+    {
+      "id": "rs3:task:0013bd",
+      "category": "Hunter",
+      "label": "Catch an ~|fortunate bakami|~",
+      "beforeRecordSha256": "b438a9e53cf905ff372b4f4d42d2939d6bb68f18696c500cbbeb91b5a68480b8",
+      "rationale": "Hunter 90 Arc kami is members-only. Retain unsupported: the Bakami rule category and rare roaming source admission have no exact implementation; no output or training proof is admitted.",
+      "changes": [
+        {
+          "field": "Not F2P",
+          "beforePresent": false,
+          "before": null,
+          "after": true
+        }
+      ],
+      "aliases": [],
+      "dependencies": [
+        {
+          "group": "chunksPlus",
+          "name": "The Arc[+]",
+          "sha256": "c0eac3ccfceaa5f881f7dc580e5782ed79bc92c58c578f5b672d6b0c48a87880"
+        }
+      ]
+    },
+    {
+      "id": "rs3:task:001669",
+      "category": "Magic",
+      "label": "Wield a ~|limitless staff|~",
+      "beforeRecordSha256": "6e9cea4d120a28b6d293bd8ecb6ae5ce6b921b3f31cfe3671762b8590d3b5f39",
+      "rationale": "Repair the alias suffix using exact retained limitless staff variants and explicitly require members.",
+      "changes": [
+        {
+          "field": "Not F2P",
+          "beforePresent": false,
+          "before": null,
+          "after": true
+        }
+      ],
+      "aliases": [
+        {
+          "group": "itemsPlus",
+          "name": "LimitlessStaff[+]",
+          "sourceName": "LimitlessStaff",
+          "sourceSha256": "1f2d636af373951180e2e36714bd325f53e504e25342219b755efd10d901e0da",
+          "values": [
+            "Staff of limitless air",
+            "Staff of limitless earth",
+            "Staff of limitless fire",
+            "Staff of limitless lava",
+            "Staff of limitless mud",
+            "Staff of limitless steam",
+            "Staff of limitless water"
+          ]
+        }
+      ],
+      "dependencies": []
+    },
+    {
+      "id": "rs3:task:0017b9",
+      "category": "Prayer",
+      "label": "Wear a ~|vestment cloak|~",
+      "beforeRecordSha256": "83bcb4fe707e0199a6c6fdb5f1f2b42ceb45f67489c0c6bb0bda8c78a821cc91",
+      "rationale": "Repair the alias suffix using exact retained god-cloak variants and explicitly require members.",
+      "changes": [
+        {
+          "field": "Not F2P",
+          "beforePresent": false,
+          "before": null,
+          "after": true
+        }
+      ],
+      "aliases": [
+        {
+          "group": "itemsPlus",
+          "name": "VestmentCloak[+]",
+          "sourceName": "VestmentCloak",
+          "sourceSha256": "6c83960cff2938f7dc904c6f71ca67db6b7423c107760f74ed619c129ea24a87",
+          "values": [
+            "Ancient cloak",
+            "Armadyl cloak",
+            "Bandos cloak",
+            "Guthix cloak",
+            "Saradomin cloak",
+            "Zamorak cloak"
+          ]
+        }
+      ],
+      "dependencies": []
+    },
+    {
+      "id": "rs3:task:0019c5",
+      "category": "Runecrafting",
+      "label": "Wear ~|runecrafter robes|~",
+      "beforeRecordSha256": "6b96b34ea183f9711fea9e1102f83963d10895e15f65c117bafc013abcc0bfba",
+      "rationale": "Ordinary cosmetic runecrafter robes and Great Orb Project are F2P, including cosmetic purchases by Ironmen. Use all twelve exact retained cosmetic shop variants and exclude members-only Master robe pieces; retain RC50 as the acquisition goal gate.",
+      "changes": [
+        {
+          "field": "Items",
+          "beforePresent": true,
+          "before": [
+            "RunecraftRobe[+]"
+          ],
+          "after": [
+            "OrdinaryRunecrafterRobe[+]"
+          ]
+        },
+        {
+          "field": "Not F2P",
+          "beforePresent": true,
+          "before": true,
+          "after": false
+        }
+      ],
+      "aliases": [
+        {
+          "group": "itemsPlus",
+          "name": "OrdinaryRunecrafterRobe[+]",
+          "sourceName": "RunecrafterRobe[+]",
+          "sourceSha256": "2996cf8b2f56b8ad8cabff1bfb8445213a1330efde1a4a728ed14f179161fe52",
+          "values": [
+            "Runecrafter robe (green)",
+            "Runecrafter robe (yellow)",
+            "Runecrafter robe (blue)",
+            "Runecrafter skirt (green)",
+            "Runecrafter skirt (yellow)",
+            "Runecrafter skirt (blue)",
+            "Runecrafter hat (green, goggles off)",
+            "Runecrafter hat (yellow, goggles off)",
+            "Runecrafter hat (blue, goggles off)",
+            "Runecrafter gloves (green)",
+            "Runecrafter gloves (yellow)",
+            "Runecrafter gloves (blue)"
+          ]
+        }
+      ],
+      "dependencies": []
+    },
+    {
+      "id": "rs3:task:001c0e",
+      "category": "Smithing",
+      "label": "Extract ~|chaotic essence|~ from Chaotic weapons",
+      "beforeRecordSha256": "35fcd1cfbac35ae0bfb8702084891cb24c40cbba4bfc286a2ea119d47517cf0d",
+      "rationale": "Only melee chaotic weapons can be extracted into chaotic essence; ranged, magic and necromancy variants do not prove the output.",
+      "changes": [
+        {
+          "field": "Items",
+          "beforePresent": true,
+          "before": [
+            "ChaoticWeapon[+]*"
+          ],
+          "after": [
+            "ChaoticMeleeWeapon[+]*"
+          ]
+        },
+        {
+          "field": "Not F2P",
+          "beforePresent": false,
+          "before": null,
+          "after": true
+        }
+      ],
+      "aliases": [],
+      "dependencies": [
+        {
+          "group": "itemsPlus",
+          "name": "ChaoticMeleeWeapon[+]",
+          "sha256": "fc7a89fc8cb1fedcfbc7c1ac8ff831ad1c63ff5550b857602943105f00f7bb25"
+        }
+      ]
+    },
+    {
+      "id": "rs3:task:002eff",
+      "category": "Diary",
+      "label": "~|Varrock Achievements#Hard|~ Complete the Hard Achievements",
+      "beforeRecordSha256": "138b0dc440c15b1b7a461546af00aecfcb4f308bc4949c5b0b414977fd5e256f",
+      "rationale": "The complete Hard Varrock set is members-only. Wiki redirects explicitly map But It Won’t Warp You Anywhere to Security Isn’t a Dirty Word and Changing Rooms to Make a House a Home; use those exact existing current objective rows.",
+      "changes": [
+        {
+          "field": "Tasks",
+          "beforePresent": true,
+          "before": {
+            "~|Varrock Achievements#Medium|~ Complete the Medium Achievements": "Diary",
+            "~|Varrock Achievements#Hard|~ Burning Bush": "Diary",
+            "~|Varrock Achievements#Hard|~ But It Won't Warp You Anywhere": "Diary",
+            "~|Varrock Achievements#Hard|~ Lighten Up": "Diary",
+            "~|Varrock Achievements#Hard|~ Put Your Smithing Hat": "Diary",
+            "~|Varrock Achievements#Hard|~ Kudos on the Kudos!": "Diary",
+            "~|Varrock Achievements#Hard|~ Who Ate All the Pie?": "Diary",
+            "~|Varrock Achievements#Hard|~ Battle of the Elements": "Diary",
+            "~|Varrock Achievements#Hard|~ Intersceptre": "Diary",
+            "~|Varrock Achievements#Hard|~ Changing Rooms": "Diary",
+            "~|Varrock Achievements#Hard|~ Keeping Tabs on Varrock": "Diary",
+            "~|Varrock Achievements#Hard|~ Hand-Me-Downs": "Diary",
+            "~|Varrock Achievements#Hard|~ Waka-Waka-aka": "Diary",
+            "~|Varrock Achievements#Hard|~ Living on the Edge": "Diary"
+          },
+          "after": {
+            "~|Varrock Achievements#Medium|~ Complete the Medium Achievements": "Diary",
+            "~|Varrock Achievements#Hard|~ Burning Bush": "Diary",
+            "~|Varrock Achievements#Hard|~ Security Isn't a Dirty Word": "Diary",
+            "~|Varrock Achievements#Hard|~ Lighten Up": "Diary",
+            "~|Varrock Achievements#Hard|~ Put Your Smithing Hat": "Diary",
+            "~|Varrock Achievements#Hard|~ Kudos on the Kudos!": "Diary",
+            "~|Varrock Achievements#Hard|~ Who Ate All the Pie?": "Diary",
+            "~|Varrock Achievements#Hard|~ Battle of the Elements": "Diary",
+            "~|Varrock Achievements#Hard|~ Intersceptre": "Diary",
+            "~|Varrock Achievements#Hard|~ Make a House a Home": "Diary",
+            "~|Varrock Achievements#Hard|~ Keeping Tabs on Varrock": "Diary",
+            "~|Varrock Achievements#Hard|~ Hand-Me-Downs": "Diary",
+            "~|Varrock Achievements#Hard|~ Waka-Waka-aka": "Diary",
+            "~|Varrock Achievements#Hard|~ Living on the Edge": "Diary"
+          }
+        },
+        {
+          "field": "Not F2P",
+          "beforePresent": false,
+          "before": null,
+          "after": true
+        }
+      ],
+      "aliases": [],
+      "dependencies": []
+    },
+    {
+      "id": "rs3:task:003150",
+      "category": "Diary",
+      "label": "~|Combat Mastery achievements#Grandmaster|~ Amascut, the Devourer (unorthodox)",
+      "beforeRecordSha256": "97c3802fdb55e98a740278c259c5195e0c22489581e2cc7f0a17e9940646448d",
+      "rationale": "The exact retained target and current Wiki objective both name Scabaras, not Scarabas.",
+      "changes": [
+        {
+          "field": "Tasks",
+          "beforePresent": true,
+          "before": {
+            "~|Combat Mastery achievements#Elite|~ Scarabas Would Be Proud": "Diary",
+            "~|Combat Mastery achievements#Elite|~ In a While, Crocodile": "Diary",
+            "~|Combat Mastery achievements#Master|~ In the Nick of Time": "Diary",
+            "~|Combat Mastery achievements#Master|~ There Cannot Be Light Without Shadows": "Diary",
+            "~|Combat Mastery achievements#Master|~ This Might Be a Catastrophe": "Diary"
+          },
+          "after": {
+            "~|Combat Mastery achievements#Elite|~ Scabaras Would Be Proud": "Diary",
+            "~|Combat Mastery achievements#Elite|~ In a While, Crocodile": "Diary",
+            "~|Combat Mastery achievements#Master|~ In the Nick of Time": "Diary",
+            "~|Combat Mastery achievements#Master|~ There Cannot Be Light Without Shadows": "Diary",
+            "~|Combat Mastery achievements#Master|~ This Might Be a Catastrophe": "Diary"
+          }
+        }
+      ],
+      "aliases": [],
+      "dependencies": []
+    },
+    {
+      "id": "rs3:task:0032b1",
+      "category": "Diary",
+      "label": "~|Completionist achievements#Master Quest Cape|~ Complete the Master Quest Cape achievements",
+      "beforeRecordSha256": "57e5f73602392dad295eecccbe961761fdef3587bd66c02f173d672dfe5d7cd2",
+      "rationale": "Correct Mini Shopment to the retained Mini Shipment objective (loot Aminishi trunk), and remove the accidental trailing space on Flippers.",
+      "changes": [
+        {
+          "field": "Tasks",
+          "beforePresent": true,
+          "before": {
+            "~|Completionist achievements#Master Quest Cape|~ A bug in the system": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ A Cultist's Journey": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ A Mini Shopment": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ A New Direction": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Advanced Sweeping": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Aereck's Old Bones": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ After the Close": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ After the Flood ": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Aged Journal ": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Ali the Trader": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ All Rise": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Angs Off My Ring": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Animalingual": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Annihilator": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Another One Scabarites The Dust": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Any Odd Chicken": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Ape A'hollow": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Are You Needing Access?": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Are You The Keymaster?": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Arise from the Ash": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Armadylean Expert": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Around the World in Six Ways": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ As Clear as a Crystal Seed": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ As Taxed as a Yak": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Azacorax's Rewards": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Azdaran Birthright": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Bandos's Memories ": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Bandosian Expert": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Bane Tuner": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Banking History": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Behemoth Notes ": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Bill & Ben's Egg/Salon Joint Venture": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Birds of Prey": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Blinded by Ramarno's Teaching": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Bloodstained Treasure": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Bridge over Fremmy Waters": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Brothers Gower": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Brutal Stuffsies": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Bugs in the Walls": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Buy and Sell Some XP": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Buying Up Ancient Artefacts": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Carnillean Riches": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Castaways of the Arc": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Caving into the Gains": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Cecilia, I'm Begging You, Please...": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Centaur of Attention": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Challenge Maria": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Challenging Chat": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Chilling with Arrav": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Chippy Transport": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Chivalry is Dead": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Chivalry is Fed": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Chivalry is Threads": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Circus of Fire": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Claiming Azzanadra's Heart": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Claiming the Knight's Experience": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Claus is Rising": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Clue's in the Monkey Drool": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Collection of Zamorakian Notes ": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ A Complete History of Droalak": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ A Complete Trekky": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Cook's Delights": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Count All Light Fingers": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Cower Behind the Chosen Commander": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Cran Door's Secret": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Culinary Exchange": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Curses!": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Daemonology of Celerity": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Daero Take This Experience?": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Dark Reading Material": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Data Recovery": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Deadlier Catch": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Death to the Mahjarrat": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Deep and Bloody Experience": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Diamonds in the Dung": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Diaries of the Clans": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Diary of Oreb": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Diary of the Gods": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Dishonourable Gains": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Dishonourable Loot": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Distorted Div": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Do a Minion, Take Notes": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Do No Elite": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Don't Fear the Ripper": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Dragon Ink": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Dragonkin Diary": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Dragonkin Expert": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Dragonkin Logs": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Draugr Me to Hela": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Dusting Murial": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Eastern Adventurer: Quin": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Eastern Adventurer: Hyu-Ji": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Eastern Adventurer: Eastern Curiosities": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Eastern Adventurer: Guardians of the World": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ EEEEAGLE!": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Enough of the Crazy Walking": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Epi Logueque Experience": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Experience the Fate of the Gods": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Explore for Nestor": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ An Exploration of Havenhythe": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Family Spirit Tree": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Final Destination Unlocked": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Finding Tali": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Fires are Mostly Harmless": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Flippers ": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Fly You Fool": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Following In The Footsteps": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ For the Love of Mabel": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Forcae's Mettle": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Fred's Shearings": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Free Beer Here": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Friend of the Imcando": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Gift from Sliske": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ God Wars ": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Goebie One with the Wildlife": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Goebie Relics": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Got a Vyre Reputation": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Goulash! Get Your Free Goulash!": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Grave Records": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Grondaban's Legacy": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Gunning for Jewellery": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Guthix and the Chamber of Secrets": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Guthixian Expert": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Haul Comes to Templeton": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Heavy Metal": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Herbi's Flax": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Here Was a Scabaras Mask": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Heroes of the Graveyard": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ History of Bilrach": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Home is Where the God is": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ I Can See For Miles and Miles": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ I Dig This Transportation": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ I Know. I Was There...": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ I Presume These Rewards are Mine, Death?": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ I Want a New Duck": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ I'm Forever Washing Shadows": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ I've Got a Little List (of Miniquests)": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Ice Ice Chimpy": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Icthlarin's Little Chest": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Impressing Char": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Is He Chipped": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ It's Like God Book Illuminations in Here": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Ivan is Flailing": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Jas not Meant for Mortal Hands": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Kaiki's Tusks": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Kal'gerion Notes ": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Keeping Up with the Carnilleans": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Koschei's Cache": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Kudos to You": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Lamp of Luxury": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Last of the Summer Swine": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Learning from Mr Mordaut": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Legal Entitlement": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Let Us Give Ugthanks": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Let's Hope it Doesn't Un-Shrink": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Library of Nex": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Load of Bakulla": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Looting the Demon Throne": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Lovingly Crafted": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Lurgon's Run": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ The Lute of Love": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Madness and Malediction": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Mage Arena ": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Make Them Bleed": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Many Shades of a Cure": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Marmaros and Thok Letters": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Mask of Dragith Nurn ": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Master Bogreman": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Maya Use Your Fish Farm?": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Measure of Old": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Meeting your Idols": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Memoirs of the Devourer": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Memories of Guthix ": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Message from the Abyss": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Met Het Yet?": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Milk of Chocolate, Snape of Grass": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Milky Teeth": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Miniature Monolith Maestro": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Miscellaneous Notes": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Mixing in Ancient Circles": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ My Adze is Bigger Than Yours": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ My Precious!": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Myreque in Memoriam": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Mysteries - Daemonheim": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Mysteries - Everlight": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Mysteries - Guild": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Mysteries - Infernal Source": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Mysteries - Kharid-et": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Mysteries - Moonrise": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Mysteries - Orthen": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Mysteries - Senntisten": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Mysteries - Stormguard Citadel": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Mysteries - Warforge": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Mysteries of the TokHaar": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Nano to Kipple, Come in Kipple": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Naturally Muspah": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ New Varrock Set Tasks - Easy": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ New Varrock Set Tasks - Medium": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ New Varrock Set Tasks - Hard": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ New Varrock Set Tasks - Elite": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ No Secrets Left to Steal": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Now That's What I Call a Dead Parrot": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Ocellus Virius Notus": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Of Kraken Ink": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ On a Mission from...the Gods": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ One Final Ride": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ One Man's Junk...Is Mine": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Ornate Crockery": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Otto the Ancient": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Out into the Ourania": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Out of the Past": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Oyster Mash": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Paint It Red": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Pane in the Glass": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Penny For Your Life": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Potion For a Lady": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Potting Is Such Sweet Sorrow": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Power of Three Spirits": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Pulling on the Threads": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Pure Newbstalgia": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Quest Cape": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Quiet But Deadly Lore": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Red Sky All the Time, Shepherds Confused": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Redistribution of knowledge": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Relight My Fire": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Reliquary of Cithara": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Research - Daemonheim": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Research - Everlight": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Research - Guild": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Research - Infernal Source": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Research - Kharid-et": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Research - Moonrise": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Research - Orthen": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Research - Senntisten": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Research - Stormguard Citadel": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Research - Warforge": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Research Director": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Respect the Balance": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Resting Lich Place": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Roake Kal": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Rogue Down": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Rusty Reward": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Saradominist Expert": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Scabigail": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Scorpvino": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Scribbling in the Depths": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Scribblings of a Dragonkin": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Selene's Lessons": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Sentient Letters": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Seren Memories": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Shadow Hanging Over Me": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Shell-Shocked": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Sing for the Lady": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Skeletal Wishes": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Sliske's New Game Plus": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ A Sliver of Silver Helps the Sanguine Go Down": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Soft Dragon, Warm Dragon": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Some Old Dusty Journals": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Squael for Coins": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Stalker Notes": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Stay Safe": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Stay Secure": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Stealing Sedridor's Stones": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Stone Cold Observers": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Summary Spirits": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Supply and Demand": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Tactless Analysis": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Take it to Sir Tiffy in a Jiffy": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Tasty Bobbles": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ That'll Teach Bill": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ That's a Lot of Books": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ The Book of Elei": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ The Elder Ring": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ The Firemaker's Pet": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ The History of Slayer": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ The Journal of Fell Arnessen ": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ The Many Hands That Write": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ The Worst Witch's Grimoire": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Three's a Kiln": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Through the Eye of the Needle": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ To Dream, Perchance to Keep": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ To Thaw a Frozen Heart": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Tome Raider": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Trader Woes": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Trials of the Heart": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Trickster's Trinkets": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Triple Trouble": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Troublesome Crystals": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Two Rites Don't Make a Wrong": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Ultimate Codex": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Umbral Diplomacy ": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Uncorrupted Ore": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Under Croc and Key": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Unholy Crafting": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Uzer Master": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ What's Mine is Also Doric's": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ White Knight Rises": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Work For Idol Hands": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ You Mistag This Brooch": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ You're Not My Real Mah": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Zamorakian Expert": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Zarosian Expert": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Zarosian Memories": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Argh, it burns!": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ The Tale of Hawthorn": "Diary"
+          },
+          "after": {
+            "~|Completionist achievements#Master Quest Cape|~ A bug in the system": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ A Cultist's Journey": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ A Mini Shipment": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ A New Direction": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Advanced Sweeping": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Aereck's Old Bones": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ After the Close": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ After the Flood ": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Aged Journal ": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Ali the Trader": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ All Rise": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Angs Off My Ring": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Animalingual": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Annihilator": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Another One Scabarites The Dust": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Any Odd Chicken": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Ape A'hollow": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Are You Needing Access?": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Are You The Keymaster?": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Arise from the Ash": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Armadylean Expert": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Around the World in Six Ways": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ As Clear as a Crystal Seed": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ As Taxed as a Yak": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Azacorax's Rewards": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Azdaran Birthright": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Bandos's Memories ": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Bandosian Expert": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Bane Tuner": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Banking History": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Behemoth Notes ": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Bill & Ben's Egg/Salon Joint Venture": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Birds of Prey": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Blinded by Ramarno's Teaching": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Bloodstained Treasure": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Bridge over Fremmy Waters": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Brothers Gower": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Brutal Stuffsies": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Bugs in the Walls": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Buy and Sell Some XP": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Buying Up Ancient Artefacts": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Carnillean Riches": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Castaways of the Arc": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Caving into the Gains": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Cecilia, I'm Begging You, Please...": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Centaur of Attention": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Challenge Maria": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Challenging Chat": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Chilling with Arrav": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Chippy Transport": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Chivalry is Dead": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Chivalry is Fed": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Chivalry is Threads": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Circus of Fire": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Claiming Azzanadra's Heart": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Claiming the Knight's Experience": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Claus is Rising": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Clue's in the Monkey Drool": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Collection of Zamorakian Notes ": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ A Complete History of Droalak": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ A Complete Trekky": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Cook's Delights": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Count All Light Fingers": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Cower Behind the Chosen Commander": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Cran Door's Secret": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Culinary Exchange": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Curses!": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Daemonology of Celerity": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Daero Take This Experience?": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Dark Reading Material": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Data Recovery": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Deadlier Catch": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Death to the Mahjarrat": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Deep and Bloody Experience": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Diamonds in the Dung": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Diaries of the Clans": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Diary of Oreb": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Diary of the Gods": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Dishonourable Gains": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Dishonourable Loot": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Distorted Div": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Do a Minion, Take Notes": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Do No Elite": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Don't Fear the Ripper": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Dragon Ink": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Dragonkin Diary": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Dragonkin Expert": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Dragonkin Logs": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Draugr Me to Hela": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Dusting Murial": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Eastern Adventurer: Quin": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Eastern Adventurer: Hyu-Ji": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Eastern Adventurer: Eastern Curiosities": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Eastern Adventurer: Guardians of the World": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ EEEEAGLE!": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Enough of the Crazy Walking": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Epi Logueque Experience": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Experience the Fate of the Gods": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Explore for Nestor": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ An Exploration of Havenhythe": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Family Spirit Tree": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Final Destination Unlocked": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Finding Tali": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Fires are Mostly Harmless": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Flippers": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Fly You Fool": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Following In The Footsteps": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ For the Love of Mabel": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Forcae's Mettle": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Fred's Shearings": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Free Beer Here": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Friend of the Imcando": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Gift from Sliske": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ God Wars ": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Goebie One with the Wildlife": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Goebie Relics": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Got a Vyre Reputation": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Goulash! Get Your Free Goulash!": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Grave Records": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Grondaban's Legacy": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Gunning for Jewellery": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Guthix and the Chamber of Secrets": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Guthixian Expert": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Haul Comes to Templeton": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Heavy Metal": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Herbi's Flax": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Here Was a Scabaras Mask": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Heroes of the Graveyard": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ History of Bilrach": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Home is Where the God is": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ I Can See For Miles and Miles": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ I Dig This Transportation": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ I Know. I Was There...": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ I Presume These Rewards are Mine, Death?": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ I Want a New Duck": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ I'm Forever Washing Shadows": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ I've Got a Little List (of Miniquests)": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Ice Ice Chimpy": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Icthlarin's Little Chest": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Impressing Char": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Is He Chipped": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ It's Like God Book Illuminations in Here": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Ivan is Flailing": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Jas not Meant for Mortal Hands": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Kaiki's Tusks": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Kal'gerion Notes ": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Keeping Up with the Carnilleans": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Koschei's Cache": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Kudos to You": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Lamp of Luxury": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Last of the Summer Swine": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Learning from Mr Mordaut": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Legal Entitlement": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Let Us Give Ugthanks": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Let's Hope it Doesn't Un-Shrink": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Library of Nex": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Load of Bakulla": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Looting the Demon Throne": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Lovingly Crafted": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Lurgon's Run": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ The Lute of Love": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Madness and Malediction": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Mage Arena ": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Make Them Bleed": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Many Shades of a Cure": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Marmaros and Thok Letters": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Mask of Dragith Nurn ": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Master Bogreman": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Maya Use Your Fish Farm?": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Measure of Old": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Meeting your Idols": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Memoirs of the Devourer": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Memories of Guthix ": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Message from the Abyss": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Met Het Yet?": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Milk of Chocolate, Snape of Grass": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Milky Teeth": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Miniature Monolith Maestro": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Miscellaneous Notes": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Mixing in Ancient Circles": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ My Adze is Bigger Than Yours": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ My Precious!": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Myreque in Memoriam": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Mysteries - Daemonheim": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Mysteries - Everlight": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Mysteries - Guild": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Mysteries - Infernal Source": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Mysteries - Kharid-et": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Mysteries - Moonrise": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Mysteries - Orthen": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Mysteries - Senntisten": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Mysteries - Stormguard Citadel": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Mysteries - Warforge": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Mysteries of the TokHaar": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Nano to Kipple, Come in Kipple": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Naturally Muspah": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ New Varrock Set Tasks - Easy": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ New Varrock Set Tasks - Medium": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ New Varrock Set Tasks - Hard": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ New Varrock Set Tasks - Elite": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ No Secrets Left to Steal": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Now That's What I Call a Dead Parrot": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Ocellus Virius Notus": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Of Kraken Ink": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ On a Mission from...the Gods": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ One Final Ride": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ One Man's Junk...Is Mine": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Ornate Crockery": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Otto the Ancient": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Out into the Ourania": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Out of the Past": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Oyster Mash": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Paint It Red": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Pane in the Glass": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Penny For Your Life": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Potion For a Lady": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Potting Is Such Sweet Sorrow": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Power of Three Spirits": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Pulling on the Threads": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Pure Newbstalgia": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Quest Cape": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Quiet But Deadly Lore": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Red Sky All the Time, Shepherds Confused": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Redistribution of knowledge": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Relight My Fire": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Reliquary of Cithara": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Research - Daemonheim": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Research - Everlight": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Research - Guild": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Research - Infernal Source": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Research - Kharid-et": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Research - Moonrise": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Research - Orthen": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Research - Senntisten": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Research - Stormguard Citadel": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Research - Warforge": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Research Director": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Respect the Balance": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Resting Lich Place": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Roake Kal": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Rogue Down": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Rusty Reward": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Saradominist Expert": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Scabigail": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Scorpvino": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Scribbling in the Depths": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Scribblings of a Dragonkin": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Selene's Lessons": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Sentient Letters": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Seren Memories": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Shadow Hanging Over Me": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Shell-Shocked": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Sing for the Lady": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Skeletal Wishes": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Sliske's New Game Plus": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ A Sliver of Silver Helps the Sanguine Go Down": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Soft Dragon, Warm Dragon": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Some Old Dusty Journals": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Squael for Coins": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Stalker Notes": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Stay Safe": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Stay Secure": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Stealing Sedridor's Stones": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Stone Cold Observers": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Summary Spirits": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Supply and Demand": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Tactless Analysis": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Take it to Sir Tiffy in a Jiffy": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Tasty Bobbles": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ That'll Teach Bill": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ That's a Lot of Books": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ The Book of Elei": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ The Elder Ring": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ The Firemaker's Pet": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ The History of Slayer": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ The Journal of Fell Arnessen ": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ The Many Hands That Write": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ The Worst Witch's Grimoire": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Three's a Kiln": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Through the Eye of the Needle": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ To Dream, Perchance to Keep": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ To Thaw a Frozen Heart": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Tome Raider": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Trader Woes": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Trials of the Heart": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Trickster's Trinkets": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Triple Trouble": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Troublesome Crystals": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Two Rites Don't Make a Wrong": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Ultimate Codex": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Umbral Diplomacy ": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Uncorrupted Ore": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Under Croc and Key": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Unholy Crafting": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Uzer Master": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ What's Mine is Also Doric's": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ White Knight Rises": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Work For Idol Hands": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ You Mistag This Brooch": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ You're Not My Real Mah": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Zamorakian Expert": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Zarosian Expert": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Zarosian Memories": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ Argh, it burns!": "Diary",
+            "~|Completionist achievements#Master Quest Cape|~ The Tale of Hawthorn": "Diary"
+          }
+        }
+      ],
+      "aliases": [],
+      "dependencies": []
+    },
+    {
+      "id": "rs3:task:003318",
+      "category": "Diary",
+      "label": "~|Completionist achievements#Completionist Cape|~ Complete the Completionist Cape achievements",
+      "beforeRecordSha256": "c0f3b2130113d30dc52075dab18200110fe3096fc651e1d98de78a5e72f7531e",
+      "rationale": "Use the exact retained and current Wiki objective name for unlocking masterwork swords through primal +5 armour.",
+      "changes": [
+        {
+          "field": "Tasks",
+          "beforePresent": true,
+          "before": {
+            "~|Completionist achievements#Completionist Cape|~ A Fort of My Own": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ A Place For My Heads": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ A Reptile's Dysfunction": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ Absolute Planker": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ Abyssal Shortcut": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ Almost as Perky as a Prawn": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ An Essential Accessory": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ Ancient Eastern Tortle Portals": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ Annihilator": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ Bag of Herbs": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ Balanced Combat Triangle": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ Bandos's Memories": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ Bane Tuner": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ Bean There, Done That": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ Bean There, Done That, Got the Postcard": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ Big Chinchompa ": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ Bill & Ben's Egg/Salon Joint Venture": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ Bipedal Mask": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ Bridge over Fremmy Waters": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ Claus is Rising": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ Crafting to Your Own Rune": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ Da Vinci Who?": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ Data Recovery": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ Deadlier Catch": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ Diaries of the Clans": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ Dinosaur Hunter": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ Draconic Decoctions": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ Elven Titles": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ Everything Is Oresome": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ Everything Is Still Oresome": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ Everything Is Treemendous": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ Everything Is Still Treemendous": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ Family Spirit Tree": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ Famous": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ Fletch Quest": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ From Ardougne with Love": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ Gaps, Traps and Laps": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ Gross Misconduct": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ Heal, Quickly": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ Here to Slay": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ I'm Forever Washing Shadows": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ I've Got a Little List (of Miniquests)": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ Imping Around": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ In Rituals We Trust": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ Invention Gives Me the Blues": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ It Should Have Been Called Aetherium": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ It Should Have Been Called Ancestral": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ It Should Have Been Called Chinskin": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ It Should Still Have Been Called Aetherium": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ Kiln Fighter": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ Kudos to You": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ Long Live the Queen": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ Lunar Master": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ Make Them Bleed": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ Master Skiller": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ Maximum Poolpulation": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ Memories of Guthix": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ Minor Wisdom": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ Music Maestro": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ My Last Resort": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ Myreque in Memoriam": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ Mystical Moonstone": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ No Need to Pikkenchoose": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ Out into the Ourania": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ Peachy Bones": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ Pious Prayers": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ Port Life": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ Potion For a Lady": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ Potion Mixer Master I": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ Potion Mixer Master II": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ Power Planter II": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ Qualification - Guildmaster": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ Quest Cape": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ Rhian in Gold - The Original": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ Seren Memories": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ Sing for the Lady": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ Slayer Master ": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ Slide To The Left": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ Stacks on Stacks": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ Stay Safe": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ Stay Secure": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ Student Becomes the Master": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ Talented in Necromancy": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ Task Master": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ The Crocodile Hunter": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ The Greatest Gift of All": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ Tiers of Treasure": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ Top Town Hall": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ Towering Over Us All": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ Trip to the East": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ Troublesome Crystals": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ Uncorrupted Ore": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ Undead to Rites": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ Unliving on a Prayer": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ Unlocking Waiko I": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ Untangled": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ Upgrading Waiko I": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ Walking the Reef": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ What's Mine is Also Doric's": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ Whodunnit? I Dunnit!": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ Yaktwee's a Charm": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ Zarosian Memories": "Diary"
+          },
+          "after": {
+            "~|Completionist achievements#Completionist Cape|~ A Fort of My Own": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ A Place For My Heads": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ A Reptile's Dysfunction": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ Absolute Planker": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ Abyssal Shortcut": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ Almost as Perky as a Prawn": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ An Essential Accessory": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ Ancient Eastern Tortle Portals": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ Annihilator": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ Bag of Herbs": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ Balanced Combat Triangle": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ Bandos's Memories": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ Bane Tuner": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ Bean There, Done That": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ Bean There, Done That, Got the Postcard": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ Big Chinchompa ": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ Bill & Ben's Egg/Salon Joint Venture": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ Bipedal Mask": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ Bridge over Fremmy Waters": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ Claus is Rising": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ Crafting to Your Own Rune": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ Da Vinci Who?": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ Data Recovery": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ Deadlier Catch": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ Diaries of the Clans": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ Dinosaur Hunter": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ Draconic Decoctions": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ Elven Titles": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ Everything Is Oresome": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ Everything Is Still Oresome": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ Everything Is Treemendous": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ Everything Is Still Treemendous": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ Family Spirit Tree": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ Famous": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ Fletch Quest": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ From Ardougne with Love": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ Gaps, Traps and Laps": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ Gross Misconduct": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ Heal, Quickly": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ Here to Slay": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ I'm Forever Washing Shadows": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ I've Got a Little List (of Miniquests)": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ Imping Around": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ In Rituals We Trust": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ Invention Gives Me the Blues": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ It Should Have Been Called Aetherium": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ It Should Have Been Called Ancestral": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ It Should Have Been Called Chinskin": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ It Still Should Have Been Called Aetherium": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ Kiln Fighter": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ Kudos to You": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ Long Live the Queen": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ Lunar Master": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ Make Them Bleed": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ Master Skiller": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ Maximum Poolpulation": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ Memories of Guthix": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ Minor Wisdom": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ Music Maestro": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ My Last Resort": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ Myreque in Memoriam": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ Mystical Moonstone": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ No Need to Pikkenchoose": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ Out into the Ourania": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ Peachy Bones": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ Pious Prayers": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ Port Life": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ Potion For a Lady": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ Potion Mixer Master I": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ Potion Mixer Master II": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ Power Planter II": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ Qualification - Guildmaster": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ Quest Cape": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ Rhian in Gold - The Original": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ Seren Memories": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ Sing for the Lady": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ Slayer Master ": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ Slide To The Left": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ Stacks on Stacks": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ Stay Safe": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ Stay Secure": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ Student Becomes the Master": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ Talented in Necromancy": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ Task Master": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ The Crocodile Hunter": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ The Greatest Gift of All": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ Tiers of Treasure": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ Top Town Hall": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ Towering Over Us All": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ Trip to the East": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ Troublesome Crystals": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ Uncorrupted Ore": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ Undead to Rites": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ Unliving on a Prayer": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ Unlocking Waiko I": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ Untangled": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ Upgrading Waiko I": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ Walking the Reef": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ What's Mine is Also Doric's": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ Whodunnit? I Dunnit!": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ Yaktwee's a Charm": "Diary",
+            "~|Completionist achievements#Completionist Cape|~ Zarosian Memories": "Diary"
+          }
+        }
+      ],
+      "aliases": [],
+      "dependencies": []
+    },
+    {
+      "id": "rs3:task:003441",
+      "category": "Diary",
+      "label": "~|Skills achievements#Construction|~ Five Star Review",
+      "beforeRecordSha256": "b9ea5509047280028573efe7897c825b9221f8ed1ce1f051c1f15e9b10d6ddba",
+      "rationale": "Use the existing exact singular Construction Contract alias, preserving all retained contract locations.",
+      "changes": [
+        {
+          "field": "Chunks",
+          "beforePresent": true,
+          "before": [
+            "Construction Contracts[+]"
+          ],
+          "after": [
+            "Construction Contract[+]"
+          ]
+        }
+      ],
+      "aliases": [],
+      "dependencies": [
+        {
+          "group": "itemsPlus",
+          "name": "Nails[+]",
+          "sha256": "22eb6ba846b19095d9b40887f08c0ab159ee46a0ada94a7241d95971fc521785"
+        },
+        {
+          "group": "itemsPlus",
+          "name": "ConstructionMetalBar[+]",
+          "sha256": "980ad3cb51c1f6a93fe508d3580128c42431164237869eb9abb107a38d8f3cf7"
+        },
+        {
+          "group": "chunksPlus",
+          "name": "Construction Contract[+]",
+          "sha256": "6f303aa77a3f21d18f272144ededb229bb87794965a4d614ecdb1485abda0d6b"
+        }
+      ]
+    },
+    {
+      "id": "rs3:task:003442",
+      "category": "Diary",
+      "label": "~|Skills achievements#Construction|~ One Star Review",
+      "beforeRecordSha256": "fb83676791902ffb37682ef38e583d3b759935cc065561d7a25b43a12d933765",
+      "rationale": "Use the existing exact singular Construction Contract alias, preserving all retained contract locations.",
+      "changes": [
+        {
+          "field": "Chunks",
+          "beforePresent": true,
+          "before": [
+            "Construction Contracts[+]"
+          ],
+          "after": [
+            "Construction Contract[+]"
+          ]
+        }
+      ],
+      "aliases": [],
+      "dependencies": [
+        {
+          "group": "itemsPlus",
+          "name": "Nails[+]",
+          "sha256": "22eb6ba846b19095d9b40887f08c0ab159ee46a0ada94a7241d95971fc521785"
+        },
+        {
+          "group": "itemsPlus",
+          "name": "ConstructionMetalBar[+]",
+          "sha256": "980ad3cb51c1f6a93fe508d3580128c42431164237869eb9abb107a38d8f3cf7"
+        },
+        {
+          "group": "chunksPlus",
+          "name": "Construction Contract[+]",
+          "sha256": "6f303aa77a3f21d18f272144ededb229bb87794965a4d614ecdb1485abda0d6b"
+        }
+      ]
+    },
+    {
+      "id": "rs3:task:003480",
+      "category": "Diary",
+      "label": "~|Skills achievements#Farming|~ Gotta Patch 'Em All",
+      "beforeRecordSha256": "4a42cf29b44d5707038557acf7d7489dc617ca322dfba82ed09beba8371a8cff",
+      "rationale": "Correct Medium achievements capitalisation to the exact existing Medium Achievements completion row.",
+      "changes": [
+        {
+          "field": "Tasks",
+          "beforePresent": true,
+          "before": {
+            "~|Back to my Roots|~ Complete the quest": "Quest",
+            "~|The Fremennik Trials|~ Complete the quest": "Quest",
+            "~|The Great Brain Robbery|~ Complete the quest": "Quest",
+            "~|The Jack of Spades|~ 3": "Quest",
+            "~|My Arm's Big Adventure|~ Complete the quest": "Quest",
+            "~|Necromancy!|~ Complete the quest": "Quest",
+            "~|Plague's End|~ Complete the quest": "Quest",
+            "~|The Prisoner of Glouphrie|~ Complete the quest": "Quest",
+            "~|Mourning's End Part I|~ Complete the quest": "Quest",
+            "~|Stellar Born|~ Complete the quest": "Quest",
+            "~|Summer's End|~ Complete the quest": "Quest",
+            "~|Unwelcome Guests|~ Complete the quest": "Quest",
+            "Gain access to Morytania": "Nonskill",
+            "~|Tirannwn Achievements#Medium|~ Complete the Medium achievements": "Diary",
+            "~|The Lute of Love|~ Complete the lore activity": "Quest"
+          },
+          "after": {
+            "~|Back to my Roots|~ Complete the quest": "Quest",
+            "~|The Fremennik Trials|~ Complete the quest": "Quest",
+            "~|The Great Brain Robbery|~ Complete the quest": "Quest",
+            "~|The Jack of Spades|~ 3": "Quest",
+            "~|My Arm's Big Adventure|~ Complete the quest": "Quest",
+            "~|Necromancy!|~ Complete the quest": "Quest",
+            "~|Plague's End|~ Complete the quest": "Quest",
+            "~|The Prisoner of Glouphrie|~ Complete the quest": "Quest",
+            "~|Mourning's End Part I|~ Complete the quest": "Quest",
+            "~|Stellar Born|~ Complete the quest": "Quest",
+            "~|Summer's End|~ Complete the quest": "Quest",
+            "~|Unwelcome Guests|~ Complete the quest": "Quest",
+            "Gain access to Morytania": "Nonskill",
+            "~|Tirannwn Achievements#Medium|~ Complete the Medium Achievements": "Diary",
+            "~|The Lute of Love|~ Complete the lore activity": "Quest"
+          }
+        }
+      ],
+      "aliases": [],
+      "dependencies": [
+        {
+          "group": "itemsPlus",
+          "name": "FruitTreeSeed[+]",
+          "sha256": "2439328bc0006239a0ce890ad54d56cf0642ab07ea22f2404e36f63a5544a6bf"
+        },
+        {
+          "group": "itemsPlus",
+          "name": "HerbSeed[+]",
+          "sha256": "e2aeff28bec9fe2a3d786cebdd1d0a5586dbde6c889ac28aa5a954b390ea1c47"
+        },
+        {
+          "group": "itemsPlus",
+          "name": "TreeSeed[+]",
+          "sha256": "b834fdb9341c4927d1723ff8461356a276397fbd969620584b943bed96da1023"
+        },
+        {
+          "group": "itemsPlus",
+          "name": "CactusSeed[+]",
+          "sha256": "a1c567d4526d111b39bac698f4fa926a15799119fd91acd4b79fd9147e766692"
+        },
+        {
+          "group": "itemsPlus",
+          "name": "MushroomSpore[+]",
+          "sha256": "dea6cbdd22466ad3e41f02d3877b247514b4f4a82f247e8e3bf94d664f67f458"
+        },
+        {
+          "group": "itemsPlus",
+          "name": "HopsSeed[+]",
+          "sha256": "412fe1a560d4561eb2716cf41d04d3be6c01aafd873dce44ec3d8741dba7cdde"
+        },
+        {
+          "group": "itemsPlus",
+          "name": "BushSeed[+]",
+          "sha256": "1fd1119cee210c6315790a760576d92dc2913ed24dc7843acc731304e0989818"
+        }
+      ]
+    },
+    {
+      "id": "rs3:task:003531",
+      "category": "Diary",
+      "label": "~|Skills achievements#Woodcutting|~ Complete the Woodcutting achievements",
+      "beforeRecordSha256": "07af9ecb18928a8d14e6166248ee799e759d0045ce5fe0e2facb0acd227a60de",
+      "rationale": "Correct Imcadno to the exact retained Imcando achievement and Wiki objective, combining the hatchet with Thurgo.",
+      "changes": [
+        {
+          "field": "Tasks",
+          "beforePresent": true,
+          "before": {
+            "~|Skills achievements#Woodcutting|~ Woodcutting 120": "Diary",
+            "~|Skills achievements#Woodcutting|~ A Hidden Gem IV": "Diary",
+            "~|Skills achievements#Woodcutting|~ Hacks": "Diary",
+            "~|Skills achievements#Woodcutting|~ Imcadno at a Tree": "Diary",
+            "~|Skills achievements#Woodcutting|~ A Glade of Ember and Hatchets": "Diary",
+            "~|Skills achievements#Woodcutting|~ A Blight of Bloom and Hatchets": "Diary"
+          },
+          "after": {
+            "~|Skills achievements#Woodcutting|~ Woodcutting 120": "Diary",
+            "~|Skills achievements#Woodcutting|~ A Hidden Gem IV": "Diary",
+            "~|Skills achievements#Woodcutting|~ Hacks": "Diary",
+            "~|Skills achievements#Woodcutting|~ Imcando at a Tree": "Diary",
+            "~|Skills achievements#Woodcutting|~ A Glade of Ember and Hatchets": "Diary",
+            "~|Skills achievements#Woodcutting|~ A Blight of Bloom and Hatchets": "Diary"
+          }
+        }
+      ],
+      "aliases": [],
+      "dependencies": []
+    },
+    {
+      "id": "rs3:task:00423c",
+      "category": "Extra",
+      "label": "Obtain the ~|the Distracted|~ title",
+      "beforeRecordSha256": "5b7c9517dffe92148ac5c2fe4e388f552d429413420a364de159bbc0f90b21d3",
+      "rationale": "Retain unsupported: the Fur ’n Seek wish-list lore completion task is absent. Quest completion is not equivalent to finishing its separate wish list; no substitute is admitted.",
+      "changes": [
+        {
+          "field": "Not F2P",
+          "beforePresent": false,
+          "before": null,
+          "after": true
+        }
+      ],
+      "aliases": [],
+      "dependencies": []
+    },
+    {
+      "id": "rs3:task:004876",
+      "category": "Nonskill",
+      "label": "Demon Flash Mob rewards (normal)*",
+      "beforeRecordSha256": "949227eea31cf0fd8e916fdcd1d3991073f1e63e29d2536be66e05b18465969b",
+      "rationale": "This is live members-only content. Retain unsupported: the corresponding DemonFlashMob chunk alias is missing; no event geography or reward supply is invented.",
+      "changes": [
+        {
+          "field": "Not F2P",
+          "beforePresent": false,
+          "before": null,
+          "after": true
+        }
+      ],
+      "aliases": [],
+      "dependencies": []
+    },
+    {
+      "id": "rs3:task:004877",
+      "category": "Nonskill",
+      "label": "Demon Flash Mob rewards (wilderness)*",
+      "beforeRecordSha256": "25cd4317eb7fef07f15bf9c1e9c7ce174f21a8f9d09c9fba27d75509a2488cc1",
+      "rationale": "This is live members-only content. Retain unsupported: the corresponding DemonFlashMob chunk alias is missing; no event geography or reward supply is invented.",
+      "changes": [
+        {
+          "field": "Not F2P",
+          "beforePresent": false,
+          "before": null,
+          "after": true
+        }
+      ],
+      "aliases": [],
+      "dependencies": []
+    },
+    {
+      "id": "rs3:task:004a13",
+      "category": "Nonskill",
+      "label": "Panic by the mausoleum in Morytania (Mithril plateskirt, Maple longbow, No boots)",
+      "beforeRecordSha256": "615f4500a9a3906df92ee041f301feb3dd167973e09a105410ef96b2700b1888",
+      "rationale": "Correct Fenkentrain to the exact retained Fenkenstrain step 7, preserving the graves step and all other clue gates.",
+      "changes": [
+        {
+          "field": "Tasks",
+          "beforePresent": true,
+          "before": {
+            "~|Creature of Fenkentrain|~ 7": "Quest"
+          },
+          "after": {
+            "~|Creature of Fenkenstrain|~ 7": "Quest"
+          }
+        }
+      ],
+      "aliases": [],
+      "dependencies": []
+    }
+  ],
+  "audit": {
+    "retainedUnsupportedCount": 34,
+    "outputVarRows": 0,
+    "f2pRows": 1,
+    "supportedRows": 18,
+    "keptHiddenRows": 16,
+    "rows": [
+      {
+        "id": "rs3:task:000ba0",
+        "label": "Wear a piece of second-age magic armour",
+        "rawLabel": "Wear a piece of ~|second-age magic armour|~",
+        "skill": "Defence",
+        "skillRequirements": {
+          "Defence": 80
+        },
+        "membership": "members",
+        "retainedNotF2P": true,
+        "retainedUnsupportedReasons": [
+          "Unknown items alias SecondAgeMagicArmour[+]."
+        ],
+        "decision": "support",
+        "reason": "Correct the alias spelling to the existing exact SecondAgeMageArmour group; membership stays explicit.",
+        "wikiTitle": "Second-age mage set",
+        "beforeRecordSha256": "67eefc742c9ba67e8738c66c36bcca414a38b7ab7fa26597f16e1491100e05c0"
+      },
+      {
+        "id": "rs3:task:000c84",
+        "label": "Create a portent of item protection",
+        "rawLabel": "Create a ~|portent of item protection|~",
+        "skill": "Divination",
+        "skillRequirements": {
+          "Divination": 92
+        },
+        "membership": "members",
+        "retainedNotF2P": false,
+        "retainedUnsupportedReasons": [
+          "Unknown items alias Prayer potion[+]*."
+        ],
+        "decision": "support",
+        "reason": "Use the documented four-dose prayer potion input; lower doses do not prove this recipe.",
+        "wikiTitle": "Portent of item protection",
+        "beforeRecordSha256": "659b15cda5c60e188773edb410390b6f50997a871e12aa092aca50c939b5086c"
+      },
+      {
+        "id": "rs3:task:000cf1",
+        "label": "Wield a chaotic necromancy weapon",
+        "rawLabel": "Wield a ~|chaotic necromancy weapon|~",
+        "skill": "Dungeoneering",
+        "skillRequirements": {
+          "Necromancy": 80,
+          "Dungeoneering": 70
+        },
+        "membership": "members",
+        "retainedNotF2P": true,
+        "retainedUnsupportedReasons": [
+          "Unknown items alias ChaoticNecromancyWeapon[+]."
+        ],
+        "decision": "support",
+        "reason": "Correct the exact retained ChaoticNecroWeapon alias; membership stays explicit.",
+        "wikiTitle": "Chaotic guard",
+        "beforeRecordSha256": "ba7073fbf9d89255b1df413265e32aab085f351090882d535fd59b32f5c38926"
+      },
+      {
+        "id": "rs3:task:000cf8",
+        "label": "Use a frozen dye kit",
+        "rawLabel": "Use a ~|frozen dye kit|~",
+        "skill": "Dungeoneering",
+        "skillRequirements": {
+          "Dungeoneering": 80
+        },
+        "membership": "members",
+        "retainedNotF2P": true,
+        "retainedUnsupportedReasons": [
+          "Unknown items alias Frozen dye kit[+]."
+        ],
+        "decision": "support",
+        "reason": "Repair the missing alias suffix using the exact retained frozen dye variants.",
+        "wikiTitle": "Chaotic rapier frozen dye kit",
+        "beforeRecordSha256": "0c5ccccf0e749395c52de6e86af7557eb3ab58a8efdd7b767b81ebf5e3938560"
+      },
+      {
+        "id": "rs3:task:000cf9",
+        "label": "Use a warped dye kit",
+        "rawLabel": "Use a ~|warped dye kit|~",
+        "skill": "Dungeoneering",
+        "skillRequirements": {
+          "Dungeoneering": 80
+        },
+        "membership": "members",
+        "retainedNotF2P": true,
+        "retainedUnsupportedReasons": [
+          "Unknown items alias Warped dye kit[+]."
+        ],
+        "decision": "support",
+        "reason": "Repair the missing alias suffix using the exact retained warped dye variants.",
+        "wikiTitle": "Chaotic rapier warped dye kit",
+        "beforeRecordSha256": "cf4462524f75c42b635a6aad117a0ac807e875b9998155f4832b4f76f32ba43b"
+      },
+      {
+        "id": "rs3:task:0013b6",
+        "label": "Catch an oily bakami",
+        "rawLabel": "Catch an ~|oily bakami|~",
+        "skill": "Hunter",
+        "skillRequirements": {
+          "Hunter": 90
+        },
+        "membership": "members",
+        "retainedNotF2P": false,
+        "retainedUnsupportedReasons": [
+          "Special task-group requirements are not yet supported: Bakami."
+        ],
+        "decision": "keep-hidden-members-only",
+        "reason": "Hunter 90 Arc kami is members-only. Retain unsupported: the Bakami rule category and rare roaming source admission have no exact implementation; no output or training proof is admitted.",
+        "wikiTitle": "Oily bakami",
+        "beforeRecordSha256": "b903118d59c8f6d590de74c84dbba52e1fefcfc86439b2f401aa9a50ac95844a"
+      },
+      {
+        "id": "rs3:task:0013b7",
+        "label": "Catch a bundling bakami",
+        "rawLabel": "Catch a ~|bundling bakami|~",
+        "skill": "Hunter",
+        "skillRequirements": {
+          "Hunter": 90
+        },
+        "membership": "members",
+        "retainedNotF2P": false,
+        "retainedUnsupportedReasons": [
+          "Special task-group requirements are not yet supported: Bakami."
+        ],
+        "decision": "keep-hidden-members-only",
+        "reason": "Hunter 90 Arc kami is members-only. Retain unsupported: the Bakami rule category and rare roaming source admission have no exact implementation; no output or training proof is admitted.",
+        "wikiTitle": "Oily bakami",
+        "beforeRecordSha256": "3c075e8745e063c18553b5d13fddb6b0763d00e286b7f5f4940e12d0f843f408"
+      },
+      {
+        "id": "rs3:task:0013b8",
+        "label": "Catch a salty bakami",
+        "rawLabel": "Catch a ~|salty bakami|~",
+        "skill": "Hunter",
+        "skillRequirements": {
+          "Hunter": 90
+        },
+        "membership": "members",
+        "retainedNotF2P": false,
+        "retainedUnsupportedReasons": [
+          "Special task-group requirements are not yet supported: Bakami."
+        ],
+        "decision": "keep-hidden-members-only",
+        "reason": "Hunter 90 Arc kami is members-only. Retain unsupported: the Bakami rule category and rare roaming source admission have no exact implementation; no output or training proof is admitted.",
+        "wikiTitle": "Oily bakami",
+        "beforeRecordSha256": "91dcdcbc005390d2881bbd224d67100cc57b7c6336e5bfaebfecbf397d827df1"
+      },
+      {
+        "id": "rs3:task:0013b9",
+        "label": "Catch a stalking bakami",
+        "rawLabel": "Catch a ~|stalking bakami|~",
+        "skill": "Hunter",
+        "skillRequirements": {
+          "Hunter": 90
+        },
+        "membership": "members",
+        "retainedNotF2P": false,
+        "retainedUnsupportedReasons": [
+          "Special task-group requirements are not yet supported: Bakami."
+        ],
+        "decision": "keep-hidden-members-only",
+        "reason": "Hunter 90 Arc kami is members-only. Retain unsupported: the Bakami rule category and rare roaming source admission have no exact implementation; no output or training proof is admitted.",
+        "wikiTitle": "Oily bakami",
+        "beforeRecordSha256": "cebda22d8c792fa3937846a7b1c8cd5a4aec419c0952e0516bb44dab41c40ad4"
+      },
+      {
+        "id": "rs3:task:0013ba",
+        "label": "Catch a foraging bakami",
+        "rawLabel": "Catch a ~|foraging bakami|~",
+        "skill": "Hunter",
+        "skillRequirements": {
+          "Hunter": 90
+        },
+        "membership": "members",
+        "retainedNotF2P": false,
+        "retainedUnsupportedReasons": [
+          "Special task-group requirements are not yet supported: Bakami."
+        ],
+        "decision": "keep-hidden-members-only",
+        "reason": "Hunter 90 Arc kami is members-only. Retain unsupported: the Bakami rule category and rare roaming source admission have no exact implementation; no output or training proof is admitted.",
+        "wikiTitle": "Oily bakami",
+        "beforeRecordSha256": "516518eaf617999c6cdff91cb97b484a94df59b0cf8d06d109e3ef70a605d5a7"
+      },
+      {
+        "id": "rs3:task:0013bb",
+        "label": "Catch an ancestral bakami",
+        "rawLabel": "Catch an ~|ancestral bakami|~",
+        "skill": "Hunter",
+        "skillRequirements": {
+          "Hunter": 90
+        },
+        "membership": "members",
+        "retainedNotF2P": false,
+        "retainedUnsupportedReasons": [
+          "Special task-group requirements are not yet supported: Bakami."
+        ],
+        "decision": "keep-hidden-members-only",
+        "reason": "Hunter 90 Arc kami is members-only. Retain unsupported: the Bakami rule category and rare roaming source admission have no exact implementation; no output or training proof is admitted.",
+        "wikiTitle": "Oily bakami",
+        "beforeRecordSha256": "1717583f968f351d8122fde51e755095213ad59a3d2e4df1709507c7bf6abafd"
+      },
+      {
+        "id": "rs3:task:0013bc",
+        "label": "Catch a murderous bakami",
+        "rawLabel": "Catch a ~|murderous bakami|~",
+        "skill": "Hunter",
+        "skillRequirements": {
+          "Hunter": 90
+        },
+        "membership": "members",
+        "retainedNotF2P": false,
+        "retainedUnsupportedReasons": [
+          "Special task-group requirements are not yet supported: Bakami."
+        ],
+        "decision": "keep-hidden-members-only",
+        "reason": "Hunter 90 Arc kami is members-only. Retain unsupported: the Bakami rule category and rare roaming source admission have no exact implementation; no output or training proof is admitted.",
+        "wikiTitle": "Oily bakami",
+        "beforeRecordSha256": "af278bf25665a81c5a6cb133adfc54cced4c4452537d62958cf1d36e9a6e3fb6"
+      },
+      {
+        "id": "rs3:task:0013bd",
+        "label": "Catch an fortunate bakami",
+        "rawLabel": "Catch an ~|fortunate bakami|~",
+        "skill": "Hunter",
+        "skillRequirements": {
+          "Hunter": 90
+        },
+        "membership": "members",
+        "retainedNotF2P": false,
+        "retainedUnsupportedReasons": [
+          "Special task-group requirements are not yet supported: Bakami."
+        ],
+        "decision": "keep-hidden-members-only",
+        "reason": "Hunter 90 Arc kami is members-only. Retain unsupported: the Bakami rule category and rare roaming source admission have no exact implementation; no output or training proof is admitted.",
+        "wikiTitle": "Oily bakami",
+        "beforeRecordSha256": "b438a9e53cf905ff372b4f4d42d2939d6bb68f18696c500cbbeb91b5a68480b8"
+      },
+      {
+        "id": "rs3:task:001669",
+        "label": "Wield a limitless staff",
+        "rawLabel": "Wield a ~|limitless staff|~",
+        "skill": "Magic",
+        "skillRequirements": {
+          "Magic": 82
+        },
+        "membership": "members",
+        "retainedNotF2P": false,
+        "retainedUnsupportedReasons": [
+          "Unknown items alias LimitlessStaff[+]."
+        ],
+        "decision": "support",
+        "reason": "Repair the alias suffix using exact retained limitless staff variants and explicitly require members.",
+        "wikiTitle": "Staff of limitless air",
+        "beforeRecordSha256": "6e9cea4d120a28b6d293bd8ecb6ae5ce6b921b3f31cfe3671762b8590d3b5f39"
+      },
+      {
+        "id": "rs3:task:0017b9",
+        "label": "Wear a vestment cloak",
+        "rawLabel": "Wear a ~|vestment cloak|~",
+        "skill": "Prayer",
+        "skillRequirements": {
+          "Prayer": 40
+        },
+        "membership": "members",
+        "retainedNotF2P": false,
+        "retainedUnsupportedReasons": [
+          "Unknown items alias VestmentCloak[+]."
+        ],
+        "decision": "support",
+        "reason": "Repair the alias suffix using exact retained god-cloak variants and explicitly require members.",
+        "wikiTitle": "Ancient cloak",
+        "beforeRecordSha256": "83bcb4fe707e0199a6c6fdb5f1f2b42ceb45f67489c0c6bb0bda8c78a821cc91"
+      },
+      {
+        "id": "rs3:task:001904",
+        "label": "Use the Greater Death's Swiftness ability",
+        "rawLabel": "Use the ~|Greater Death's Swiftness|~ ability",
+        "skill": "Ranged",
+        "skillRequirements": {
+          "Ranged": 76
+        },
+        "membership": "members",
+        "retainedNotF2P": true,
+        "retainedUnsupportedReasons": [
+          "Unknown task reference Use the ~|greater Death's Swiftness|~ ability (Magic)."
+        ],
+        "decision": "keep-hidden-members-only",
+        "reason": "Retain unsupported: its nonexistent Magic prerequisite is not replaced with a guessed prerequisite. The codex is Ranged; exact personal ability-unlock semantics remain unreviewed.",
+        "wikiTitle": "Greater Death's Swiftness",
+        "beforeRecordSha256": "ecf2c11919dae7025b6671287bf32890c496f40f009cc79ab6dada10b35b9ebf"
+      },
+      {
+        "id": "rs3:task:0019c5",
+        "label": "Wear runecrafter robes",
+        "rawLabel": "Wear ~|runecrafter robes|~",
+        "skill": "Runecrafting",
+        "skillRequirements": {
+          "Runecrafting": 50
+        },
+        "membership": "F2P",
+        "retainedNotF2P": true,
+        "retainedUnsupportedReasons": [
+          "Unknown items alias RunecraftRobe[+]."
+        ],
+        "decision": "support",
+        "reason": "Ordinary cosmetic runecrafter robes and Great Orb Project are F2P, including cosmetic purchases by Ironmen. Use all twelve exact retained cosmetic shop variants and exclude members-only Master robe pieces; retain RC50 as the acquisition goal gate.",
+        "wikiTitle": "Runecrafter robes",
+        "beforeRecordSha256": "6b96b34ea183f9711fea9e1102f83963d10895e15f65c117bafc013abcc0bfba"
+      },
+      {
+        "id": "rs3:task:001c0e",
+        "label": "Extract chaotic essence from Chaotic weapons",
+        "rawLabel": "Extract ~|chaotic essence|~ from Chaotic weapons",
+        "skill": "Smithing",
+        "skillRequirements": {
+          "Smithing": 99
+        },
+        "membership": "members",
+        "retainedNotF2P": false,
+        "retainedUnsupportedReasons": [
+          "Unknown items alias ChaoticWeapon[+]*."
+        ],
+        "decision": "support",
+        "reason": "Only melee chaotic weapons can be extracted into chaotic essence; ranged, magic and necromancy variants do not prove the output.",
+        "wikiTitle": "Chaotic essence",
+        "beforeRecordSha256": "35fcd1cfbac35ae0bfb8702084891cb24c40cbba4bfc286a2ea119d47517cf0d"
+      },
+      {
+        "id": "rs3:task:002eff",
+        "label": "Varrock Achievements Complete the Hard Achievements",
+        "rawLabel": "~|Varrock Achievements#Hard|~ Complete the Hard Achievements",
+        "skill": "Diary",
+        "skillRequirements": {},
+        "membership": "members",
+        "retainedNotF2P": false,
+        "retainedUnsupportedReasons": [
+          "Unknown task reference ~|Varrock Achievements#Hard|~ But It Won't Warp You Anywhere (Diary).",
+          "Unknown task reference ~|Varrock Achievements#Hard|~ Changing Rooms (Diary)."
+        ],
+        "decision": "support",
+        "reason": "The complete Hard Varrock set is members-only. Wiki redirects explicitly map But It Won’t Warp You Anywhere to Security Isn’t a Dirty Word and Changing Rooms to Make a House a Home; use those exact existing current objective rows.",
+        "wikiTitle": "Varrock achievements",
+        "beforeRecordSha256": "138b0dc440c15b1b7a461546af00aecfcb4f308bc4949c5b0b414977fd5e256f"
+      },
+      {
+        "id": "rs3:task:003150",
+        "label": "Combat Mastery achievements Amascut, the Devourer (unorthodox)",
+        "rawLabel": "~|Combat Mastery achievements#Grandmaster|~ Amascut, the Devourer (unorthodox)",
+        "skill": "Diary",
+        "skillRequirements": {},
+        "membership": "members",
+        "retainedNotF2P": true,
+        "retainedUnsupportedReasons": [
+          "Unknown task reference ~|Combat Mastery achievements#Elite|~ Scarabas Would Be Proud (Diary)."
+        ],
+        "decision": "support",
+        "reason": "The exact retained target and current Wiki objective both name Scabaras, not Scarabas.",
+        "wikiTitle": "Scabaras Would Be Proud",
+        "beforeRecordSha256": "97c3802fdb55e98a740278c259c5195e0c22489581e2cc7f0a17e9940646448d"
+      },
+      {
+        "id": "rs3:task:0032b1",
+        "label": "Completionist achievements Complete the Master Quest Cape achievements",
+        "rawLabel": "~|Completionist achievements#Master Quest Cape|~ Complete the Master Quest Cape achievements",
+        "skill": "Diary",
+        "skillRequirements": {},
+        "membership": "members",
+        "retainedNotF2P": true,
+        "retainedUnsupportedReasons": [
+          "Unknown task reference ~|Completionist achievements#Master Quest Cape|~ A Mini Shopment (Diary).",
+          "Unknown task reference ~|Completionist achievements#Master Quest Cape|~ Flippers  (Diary)."
+        ],
+        "decision": "support",
+        "reason": "Correct Mini Shopment to the retained Mini Shipment objective (loot Aminishi trunk), and remove the accidental trailing space on Flippers.",
+        "wikiTitle": "A Mini Shipment",
+        "beforeRecordSha256": "57e5f73602392dad295eecccbe961761fdef3587bd66c02f173d672dfe5d7cd2"
+      },
+      {
+        "id": "rs3:task:0032ec",
+        "label": "Completionist achievements Music Maestro",
+        "rawLabel": "~|Completionist achievements#Completionist Cape|~ Music Maestro",
+        "skill": "Diary",
+        "skillRequirements": {},
+        "membership": "members",
+        "retainedNotF2P": true,
+        "retainedUnsupportedReasons": [
+          "Unknown task reference ~|Completionist achievements#Completionist Cape|~ Mysteries - Stormguard Citadel (Diary).",
+          "Unknown task reference ~|Completionist achievements#Completionist Cape|~ Mysteries - Warforge (Diary).",
+          "Unknown task reference ~|Completionist achievements#Completionist Cape|~ Mysteries - Orthen (Diary).",
+          "Unknown task reference ~|Completionist achievements#Completionist Cape|~ Mysteries - Moonrise (Diary).",
+          "Unknown task reference ~|Completionist achievements#Completionist Cape|~ Mysteries - Daemonheim (Diary).",
+          "Unknown task reference ~|Completionist achievements#Completionist Cape|~ Mysteries - Everlight (Diary).",
+          "Unknown task reference ~|Completionist achievements#Completionist Cape|~ Mysteries - Infernal Source (Diary).",
+          "Unknown task reference ~|Completionist achievements#Completionist Cape|~ Mysteries - Kharid-et (Diary).",
+          "Unknown task reference ~|Completionist achievements#Completionist Cape|~ Mysteries - Senntisten (Diary)."
+        ],
+        "decision": "keep-hidden-members-only",
+        "reason": "Retain unsupported: its nine mysteries references use the wrong achievement category. Full mystery completion is not equivalent to unlocking music, so a category redirect would silently retain unverified extra gates.",
+        "wikiTitle": "Music Maestro",
+        "beforeRecordSha256": "da8558a3cd146d55a31bf9a1efeaf2c623ddc5563feadecd912bf9f9d2da492d"
+      },
+      {
+        "id": "rs3:task:003318",
+        "label": "Completionist achievements Complete the Completionist Cape achievements",
+        "rawLabel": "~|Completionist achievements#Completionist Cape|~ Complete the Completionist Cape achievements",
+        "skill": "Diary",
+        "skillRequirements": {},
+        "membership": "members",
+        "retainedNotF2P": true,
+        "retainedUnsupportedReasons": [
+          "Unknown task reference ~|Completionist achievements#Completionist Cape|~ It Should Still Have Been Called Aetherium (Diary)."
+        ],
+        "decision": "support",
+        "reason": "Use the exact retained and current Wiki objective name for unlocking masterwork swords through primal +5 armour.",
+        "wikiTitle": "It Still Should Have Been Called Aetherium",
+        "beforeRecordSha256": "c0f3b2130113d30dc52075dab18200110fe3096fc651e1d98de78a5e72f7531e"
+      },
+      {
+        "id": "rs3:task:003356",
+        "label": "Completionist achievements Reaper Crew",
+        "rawLabel": "~|Completionist achievements#Trimmed Completionist Cape|~ Reaper Crew",
+        "skill": "Diary",
+        "skillRequirements": {},
+        "membership": "members",
+        "retainedNotF2P": true,
+        "retainedUnsupportedReasons": [
+          "Unknown task reference All Bosses (Nonskill)."
+        ],
+        "decision": "keep-hidden-members-only",
+        "reason": "Retain unsupported: All Bosses is a missing Nonskill aggregate. The current kill list and personal boss completion need a reviewed model; removing this gate would invent completion proof.",
+        "wikiTitle": "Reaper Crew",
+        "beforeRecordSha256": "4d3cd034105c4ef19c24101590e4c979f2c98c80565f1f74c7f3b524aae20146"
+      },
+      {
+        "id": "rs3:task:003441",
+        "label": "Skills achievements Five Star Review",
+        "rawLabel": "~|Skills achievements#Construction|~ Five Star Review",
+        "skill": "Diary",
+        "skillRequirements": {
+          "Construction": 70
+        },
+        "membership": "members",
+        "retainedNotF2P": true,
+        "retainedUnsupportedReasons": [
+          "Unknown chunks alias Construction Contracts[+]."
+        ],
+        "decision": "support",
+        "reason": "Use the existing exact singular Construction Contract alias, preserving all retained contract locations.",
+        "wikiTitle": "Construction Contracts",
+        "beforeRecordSha256": "b9ea5509047280028573efe7897c825b9221f8ed1ce1f051c1f15e9b10d6ddba"
+      },
+      {
+        "id": "rs3:task:003442",
+        "label": "Skills achievements One Star Review",
+        "rawLabel": "~|Skills achievements#Construction|~ One Star Review",
+        "skill": "Diary",
+        "skillRequirements": {
+          "Construction": 40
+        },
+        "membership": "members",
+        "retainedNotF2P": true,
+        "retainedUnsupportedReasons": [
+          "Unknown chunks alias Construction Contracts[+]."
+        ],
+        "decision": "support",
+        "reason": "Use the existing exact singular Construction Contract alias, preserving all retained contract locations.",
+        "wikiTitle": "Construction Contracts",
+        "beforeRecordSha256": "fb83676791902ffb37682ef38e583d3b759935cc065561d7a25b43a12d933765"
+      },
+      {
+        "id": "rs3:task:003480",
+        "label": "Skills achievements Gotta Patch 'Em All",
+        "rawLabel": "~|Skills achievements#Farming|~ Gotta Patch 'Em All",
+        "skill": "Diary",
+        "skillRequirements": {
+          "Agility": 55,
+          "Farming": 114,
+          "Necromancy": 80
+        },
+        "membership": "members",
+        "retainedNotF2P": true,
+        "retainedUnsupportedReasons": [
+          "Unknown task reference ~|Tirannwn Achievements#Medium|~ Complete the Medium achievements (Diary)."
+        ],
+        "decision": "support",
+        "reason": "Correct Medium achievements capitalisation to the exact existing Medium Achievements completion row.",
+        "wikiTitle": "Tirannwn achievements",
+        "beforeRecordSha256": "4a42cf29b44d5707038557acf7d7489dc617ca322dfba82ed09beba8371a8cff"
+      },
+      {
+        "id": "rs3:task:003531",
+        "label": "Skills achievements Complete the Woodcutting achievements",
+        "rawLabel": "~|Skills achievements#Woodcutting|~ Complete the Woodcutting achievements",
+        "skill": "Diary",
+        "skillRequirements": {},
+        "membership": "members",
+        "retainedNotF2P": true,
+        "retainedUnsupportedReasons": [
+          "Unknown task reference ~|Skills achievements#Woodcutting|~ Imcadno at a Tree (Diary)."
+        ],
+        "decision": "support",
+        "reason": "Correct Imcadno to the exact retained Imcando achievement and Wiki objective, combining the hatchet with Thurgo.",
+        "wikiTitle": "Imcando at a Tree",
+        "beforeRecordSha256": "07af9ecb18928a8d14e6166248ee799e759d0045ce5fe0e2facb0acd227a60de"
+      },
+      {
+        "id": "rs3:task:0035da",
+        "label": "Activities achievements The Distracted",
+        "rawLabel": "~|Activities achievements#Distractions & Diversions|~ The Distracted",
+        "skill": "Diary",
+        "skillRequirements": {},
+        "membership": "members",
+        "retainedNotF2P": true,
+        "retainedUnsupportedReasons": [
+          "Unknown task reference ~|Fur 'n' Seek#Wish List|~ Complete the lore activity (Quest)."
+        ],
+        "decision": "keep-hidden-members-only",
+        "reason": "Retain unsupported: the Fur ’n Seek wish-list lore completion task is absent. Quest completion is not equivalent to finishing its separate wish list; no substitute is admitted.",
+        "wikiTitle": "The Distracted (title)",
+        "beforeRecordSha256": "329daf697371dc96943b358ed1c2f75f5f2808970a61f1801d5b4f69478530c1"
+      },
+      {
+        "id": "rs3:task:00423c",
+        "label": "Obtain the the Distracted title",
+        "rawLabel": "Obtain the ~|the Distracted|~ title",
+        "skill": "Extra",
+        "skillRequirements": {},
+        "membership": "members",
+        "retainedNotF2P": false,
+        "retainedUnsupportedReasons": [
+          "Unknown task reference ~|Fur 'n' Seek#Wish List|~ Complete the lore activity (Quest)."
+        ],
+        "decision": "keep-hidden-members-only",
+        "reason": "Retain unsupported: the Fur ’n Seek wish-list lore completion task is absent. Quest completion is not equivalent to finishing its separate wish list; no substitute is admitted.",
+        "wikiTitle": "The Distracted (title)",
+        "beforeRecordSha256": "5b7c9517dffe92148ac5c2fe4e388f552d429413420a364de159bbc0f90b21d3"
+      },
+      {
+        "id": "rs3:task:003fa0",
+        "label": "Collect a cave bug soul",
+        "rawLabel": "Collect a ~|cave bug|~ soul",
+        "skill": "Extra",
+        "skillRequirements": {
+          "Slayer": 7
+        },
+        "membership": "members",
+        "retainedNotF2P": true,
+        "retainedUnsupportedReasons": [
+          "Unknown monster alias CaveBug[+]."
+        ],
+        "decision": "keep-hidden-members-only",
+        "reason": "Retain unsupported: CaveBug alternative group is absent, and current versus retained cave-bug level variants and soul eligibility require a reviewed mapping.",
+        "wikiTitle": "Cave bug",
+        "beforeRecordSha256": "6f01a5bc985750203f94390c63e8795258b668e4edeabb7ff0cb1d108131902e"
+      },
+      {
+        "id": "rs3:task:004876",
+        "label": "Demon Flash Mob rewards (normal)",
+        "rawLabel": "Demon Flash Mob rewards (normal)*",
+        "skill": "Nonskill",
+        "skillRequirements": {},
+        "membership": "members",
+        "retainedNotF2P": false,
+        "retainedUnsupportedReasons": [
+          "Unknown chunks alias DemonFlashMob[+]."
+        ],
+        "decision": "keep-hidden-members-only",
+        "reason": "This is live members-only content. Retain unsupported: the corresponding DemonFlashMob chunk alias is missing; no event geography or reward supply is invented.",
+        "wikiTitle": "Demon Flash Mob",
+        "beforeRecordSha256": "949227eea31cf0fd8e916fdcd1d3991073f1e63e29d2536be66e05b18465969b"
+      },
+      {
+        "id": "rs3:task:004877",
+        "label": "Demon Flash Mob rewards (wilderness)",
+        "rawLabel": "Demon Flash Mob rewards (wilderness)*",
+        "skill": "Nonskill",
+        "skillRequirements": {},
+        "membership": "members",
+        "retainedNotF2P": false,
+        "retainedUnsupportedReasons": [
+          "Unknown chunks alias DemonFlashMobWilderness[+]."
+        ],
+        "decision": "keep-hidden-members-only",
+        "reason": "This is live members-only content. Retain unsupported: the corresponding DemonFlashMob chunk alias is missing; no event geography or reward supply is invented.",
+        "wikiTitle": "Demon Flash Mob",
+        "beforeRecordSha256": "25cd4317eb7fef07f15bf9c1e9c7ce174f21a8f9d09c9fba27d75509a2488cc1"
+      },
+      {
+        "id": "rs3:task:004a13",
+        "label": "Panic by the mausoleum in Morytania (Mithril plateskirt, Maple longbow, No boots)",
+        "rawLabel": "Panic by the mausoleum in Morytania (Mithril plateskirt, Maple longbow, No boots)",
+        "skill": "Nonskill",
+        "skillRequirements": {
+          "Defence": 30,
+          "Ranged": 30
+        },
+        "membership": "members",
+        "retainedNotF2P": true,
+        "retainedUnsupportedReasons": [
+          "Unknown task reference ~|Creature of Fenkentrain|~ 7 (Quest)."
+        ],
+        "decision": "support",
+        "reason": "Correct Fenkentrain to the exact retained Fenkenstrain step 7, preserving the graves step and all other clue gates.",
+        "wikiTitle": "Creature of Fenkenstrain",
+        "beforeRecordSha256": "615f4500a9a3906df92ee041f301feb3dd167973e09a105410ef96b2700b1888"
+      }
+    ]
+  }
+}

@@ -1,0 +1,2771 @@
+{
+  "schemaVersion": 1,
+  "lines": [
+    {
+      "path": ".gitignore",
+      "category": "machine-path",
+      "sha256": "285d5cf81f4a7ed1714559e07391060e1db39c2df3878774d1f5269fc95f6684",
+      "reason": "Ignore developer cache/test output; no local files are exported."
+    },
+    {
+      "path": "app/core/chunk-sections.mjs",
+      "category": "cache-catalogue",
+      "sha256": "04f8ef1b352ff58c65c047746a50b1dd5e5526749c4a7c1cce684a0b66a6f27e",
+      "reason": "Reviewed exact line: inert compatibility catalogue key or route addressed through the selected dataset; this line contains no cache catalogue payload."
+    },
+    {
+      "path": "app/core/chunk-sections.mjs",
+      "category": "cache-catalogue",
+      "sha256": "6f423c6e65103f51c32c46367c32bdc1083089d755973af9c81adb969512377a",
+      "reason": "Reviewed exact line: inert compatibility catalogue key or route addressed through the selected dataset; this line contains no cache catalogue payload."
+    },
+    {
+      "path": "app/core/progress-index.mjs",
+      "category": "legacy-task-id",
+      "sha256": "4108772fed7aa8e4f5c3c6ed0d7c4870b74f04a4f0fe4c0c21da0fc008f7a2f4",
+      "reason": "Reviewed exact line: authored identifier-prefix validation, filtering, or dynamic identifier generation; contains no retained concrete task identity."
+    },
+    {
+      "path": "app/core/roll-stats.mjs",
+      "category": "copied-source",
+      "sha256": "bbd8077c0f9df0dc7c2b3b79a8598bfd98fbbf1bb1f03780e4f6d004fa8bb006",
+      "reason": "Reviewed authored compatibility wording/comment used by the shared private profile; no captured source, personal binding or upstream bytes. Public independent capability disables imports. Exact line only."
+    },
+    {
+      "path": "app/core/rules.mjs",
+      "category": "copied-source",
+      "sha256": "1b3bd11cc9f6ce1783d4c487e110912ee762e120c6f78158a653de43a00eecb2",
+      "reason": "Reviewed exact line: source chunk means the geometric origin cell in an authored algorithm comment; does not identify an upstream source."
+    },
+    {
+      "path": "app/core/state.mjs",
+      "category": "copied-source",
+      "sha256": "0dd934c37f46ee13b0698c749a3b238e048624091183f231066c8e25689088ab",
+      "reason": "Reviewed authored compatibility wording/comment used by the shared private profile; no captured source, personal binding or upstream bytes. Public independent capability disables imports. Exact line only."
+    },
+    {
+      "path": "app/core/state.mjs",
+      "category": "copied-source",
+      "sha256": "175252e420f7c072e72bbe8231a29c97a51682c9c0cbe51de1a8cf6f59424651",
+      "reason": "Reviewed authored compatibility wording/comment used by the shared private profile; no captured source, personal binding or upstream bytes. Public independent capability disables imports. Exact line only."
+    },
+    {
+      "path": "app/core/state.mjs",
+      "category": "copied-source",
+      "sha256": "3b56b769ede99ba97514854488768aa8011ec63447e28060cbf36f07a8264ae3",
+      "reason": "Reviewed authored compatibility wording/comment used by the shared private profile; no captured source, personal binding or upstream bytes. Public independent capability disables imports. Exact line only."
+    },
+    {
+      "path": "app/core/state.mjs",
+      "category": "copied-source",
+      "sha256": "58cb8869904a4259c8b09cda5d0a46339382fd1395efccfea0532bee1c2996a6",
+      "reason": "Reviewed authored compatibility wording/comment used by the shared private profile; no captured source, personal binding or upstream bytes. Public independent capability disables imports. Exact line only."
+    },
+    {
+      "path": "app/core/state.mjs",
+      "category": "copied-source",
+      "sha256": "95e8719a6293e6353728a22ded81fe71de70d0f51bde2e0b7ecdfdc687d883b6",
+      "reason": "Reviewed authored compatibility wording/comment used by the shared private profile; no captured source, personal binding or upstream bytes. Public independent capability disables imports. Exact line only."
+    },
+    {
+      "path": "app/core/state.mjs",
+      "category": "copied-source",
+      "sha256": "d70d87dc206f4b7d1b7857c6f3413c146125d380eeccb7d13b99c0d83bde9ebd",
+      "reason": "Reviewed authored compatibility wording/comment used by the shared private profile; no captured source, personal binding or upstream bytes. Public independent capability disables imports. Exact line only."
+    },
+    {
+      "path": "app/core/state.mjs",
+      "category": "copied-source",
+      "sha256": "dbdeadd77aeba45281188f648dfea77cccf96fbc8b5209a7bde397440e405218",
+      "reason": "Reviewed authored compatibility wording/comment used by the shared private profile; no captured source, personal binding or upstream bytes. Public independent capability disables imports. Exact line only."
+    },
+    {
+      "path": "app/core/state.mjs",
+      "category": "copied-source",
+      "sha256": "f521bd6e084dc5219832fcbe607e57db09f550e004fdf8c36fd6395644f281d0",
+      "reason": "Reviewed authored compatibility wording/comment used by the shared private profile; no captured source, personal binding or upstream bytes. Public independent capability disables imports. Exact line only."
+    },
+    {
+      "path": "app/core/state.mjs",
+      "category": "legacy-task-id",
+      "sha256": "19fdd73a13f89b32ddd3727e114c1e864d14397209492499207552d69d4526ba",
+      "reason": "Reviewed exact line: authored identifier-prefix validation, filtering, or dynamic identifier generation; contains no retained concrete task identity."
+    },
+    {
+      "path": "app/core/state.mjs",
+      "category": "legacy-task-id",
+      "sha256": "4f72dc262ca2dd366166c2525ec5b5a806f18167a98f56287f6cfafd18b031c9",
+      "reason": "Reviewed exact line: authored identifier-prefix validation, filtering, or dynamic identifier generation; contains no retained concrete task identity."
+    },
+    {
+      "path": "app/core/state.mjs",
+      "category": "machine-path",
+      "sha256": "af16de9c9d067f9f0b6708b5c46746ae6a9ca50334ffebaf218e1e8d9c2cca11",
+      "reason": "Reviewed exact line: authored markup-parsing syntax, configurable relative local directory, or generated Windows named-pipe endpoint; contains no user or machine path."
+    },
+    {
+      "path": "app/core/xp-choices.mjs",
+      "category": "machine-path",
+      "sha256": "9bef2f0ff1d4cad6f0bbedabbc31b1d25c4fe59e253a05b94992105e1f604b69",
+      "reason": "Reviewed exact line: authored markup-parsing syntax, configurable relative local directory, or generated Windows named-pipe endpoint; contains no user or machine path."
+    },
+    {
+      "path": "app/data/cache-archaeology.mjs",
+      "category": "cache-catalogue",
+      "sha256": "be0bea8cbde23bd030e9713c8157b7d2f340c251fccf1447dbee66666f4bc17f",
+      "reason": "Reviewed exact line: inert compatibility catalogue key or route addressed through the selected dataset; this line contains no cache catalogue payload."
+    },
+    {
+      "path": "app/data/cache-interiors.mjs",
+      "category": "cache-catalogue",
+      "sha256": "483fb11d7e3a014fa6944af6e822fc4fbca84ceea22b783d35b7237cf7f83482",
+      "reason": "Reviewed exact line: inert compatibility catalogue key or route addressed through the selected dataset; this line contains no cache catalogue payload."
+    },
+    {
+      "path": "app/data/cache-npcs.mjs",
+      "category": "cache-catalogue",
+      "sha256": "8197354458de5a10ed282df9b5c2eac197a09cad018ffe57b7a1c7ffb68e5ef7",
+      "reason": "Reviewed exact line: inert compatibility catalogue key or route addressed through the selected dataset; this line contains no cache catalogue payload."
+    },
+    {
+      "path": "app/data/cache-resources.mjs",
+      "category": "cache-catalogue",
+      "sha256": "bd8fab77035d1d67526e6c7064bf8e354a79e6e608db541af7f8737c3bbcc477",
+      "reason": "Reviewed exact line: inert compatibility catalogue key or route addressed through the selected dataset; this line contains no cache catalogue payload."
+    },
+    {
+      "path": "app/data/cache-resources.mjs",
+      "category": "cache-catalogue",
+      "sha256": "e22fb1acd0d9b9afe8e1363828b56b128f269c7e3111339904c5b27aadf484bd",
+      "reason": "Reviewed exact line: inert compatibility catalogue key or route addressed through the selected dataset; this line contains no cache catalogue payload."
+    },
+    {
+      "path": "app/data/cache-resources.mjs",
+      "category": "cache-catalogue",
+      "sha256": "ef45b5ea95c41e770bc59ddf9c11a5ca08375f8609762a61e6b633f34d2d3f51",
+      "reason": "Reviewed exact line: inert compatibility catalogue key or route addressed through the selected dataset; this line contains no cache catalogue payload."
+    },
+    {
+      "path": "app/data/cache-shops.mjs",
+      "category": "cache-catalogue",
+      "sha256": "d77cd7fd6cd8859eeec0cd64b85f101834a5f190f22b6cc72c9dbd75b7bfe719",
+      "reason": "Reviewed exact line: inert compatibility catalogue key or route addressed through the selected dataset; this line contains no cache catalogue payload."
+    },
+    {
+      "path": "app/data/cache-topology.mjs",
+      "category": "cache-catalogue",
+      "sha256": "4a5219df78c0c1cf50ea6ed2da4f0cc0f41b43d0ad0bbd90ac4eff8cda22ca93",
+      "reason": "Reviewed exact line: inert compatibility catalogue key or route addressed through the selected dataset; this line contains no cache catalogue payload."
+    },
+    {
+      "path": "app/data/cache-topology.mjs",
+      "category": "cache-catalogue",
+      "sha256": "7228506a06eb34dde5c29c559947a2759c3acc2c1f2d16a4b434f3f231ead12e",
+      "reason": "Reviewed exact line: inert compatibility catalogue key or route addressed through the selected dataset; this line contains no cache catalogue payload."
+    },
+    {
+      "path": "app/data/cache-topology.mjs",
+      "category": "cache-catalogue",
+      "sha256": "ff7c3eb4a97169800d983c268101b7728510dfd1f658ffb863e00de1dae3d6bf",
+      "reason": "Reviewed exact line: inert compatibility catalogue key or route addressed through the selected dataset; this line contains no cache catalogue payload."
+    },
+    {
+      "path": "app/data/map-pins.mjs",
+      "category": "network-identifier",
+      "sha256": "81b14a22dc27dda3eef9d61a4f24b5703646a1447560b9758b246449d2ef679a",
+      "reason": "Reviewed public provenance/policy link or configured-account API/URL builder. No embedded account, deployment or credential. Exact line only."
+    },
+    {
+      "path": "app/data/settings.mjs",
+      "category": "copied-source",
+      "sha256": "9cf330ea5fe8f7d1c82fd2253bfdc89ddc086b1ac17a80afcf9baabec4b74bab",
+      "reason": "Reviewed authored compatibility wording/comment used by the shared private profile; no captured source, personal binding or upstream bytes. Public independent capability disables imports. Exact line only."
+    },
+    {
+      "path": "app/data/skill-guides.mjs",
+      "category": "legacy-task-id",
+      "sha256": "0825499216c865648b57564a40dfad309dd206186cb9c4b4bcce08ba0295d811",
+      "reason": "Reviewed exact line: authored identifier-prefix validation, filtering, or dynamic identifier generation; contains no retained concrete task identity."
+    },
+    {
+      "path": "app/dataset-catalogues.mjs",
+      "category": "cache-catalogue",
+      "sha256": "557c160091904812a83029623fd301602ea495fdd0c3672afae036add0541fec",
+      "reason": "Reviewed exact line: inert compatibility catalogue key or route addressed through the selected dataset; this line contains no cache catalogue payload."
+    },
+    {
+      "path": "app/dataset-catalogues.mjs",
+      "category": "cache-catalogue",
+      "sha256": "7bd3ce798f2e317eea50072f168795da6ad62aef6276a42196a3b9b3d2bb3b47",
+      "reason": "Reviewed exact line: inert compatibility catalogue key or route addressed through the selected dataset; this line contains no cache catalogue payload."
+    },
+    {
+      "path": "app/datasets.mjs",
+      "category": "machine-path",
+      "sha256": "119ed30df1db5b4696d382b81f8a54e17a17b1999f74a8f3a86915890a728ea6",
+      "reason": "Reviewed exact line: authored markup-parsing syntax, configurable relative local directory, or generated Windows named-pipe endpoint; contains no user or machine path."
+    },
+    {
+      "path": "app/datasets.mjs",
+      "category": "machine-path",
+      "sha256": "24ae2a3c6e7c08084ce32faae9b167e54c2078b50fa9b59cd096a463afc5c423",
+      "reason": "Reviewed exact line: authored markup-parsing syntax, configurable relative local directory, or generated Windows named-pipe endpoint; contains no user or machine path."
+    },
+    {
+      "path": "app/datasets.mjs",
+      "category": "machine-path",
+      "sha256": "3b9cf5c14e0f961bb162c3fade4f66ff7dc6f99a81ad794d22dd0b3993735344",
+      "reason": "Reviewed exact line: authored markup-parsing syntax, configurable relative local directory, or generated Windows named-pipe endpoint; contains no user or machine path."
+    },
+    {
+      "path": "app/datasets/open-f2p/wiki-derived/baseline-0.4.0.json",
+      "category": "token",
+      "sha256": "26a0e90eb789b0cbfd2d69df8210142702ba152fc1fc888c4323273600d418e6",
+      "reason": "Reviewed exact line: generated Wiki cache filename (page slug plus short content hash); not a credential."
+    },
+    {
+      "path": "app/datasets/open-f2p/wiki-derived/baseline-0.4.0.json",
+      "category": "token",
+      "sha256": "60161583dbf387048d6fc9828f176401fcb61318c2ccff160c6ce4397c936f89",
+      "reason": "Reviewed exact line: generated Wiki cache filename (page slug plus short content hash); not a credential."
+    },
+    {
+      "path": "app/datasets/open-f2p/wiki-derived/baseline-0.4.0.json",
+      "category": "token",
+      "sha256": "9a3f1476c36eec3f32b5ed35a1bd6866918cd3d6eedcf568cb4d33d7f5a08c4e",
+      "reason": "Reviewed exact line: generated Wiki cache filename (page slug plus short content hash); not a credential."
+    },
+    {
+      "path": "app/datasets/open-f2p/wiki-derived/dataset.json",
+      "category": "token",
+      "sha256": "26a0e90eb789b0cbfd2d69df8210142702ba152fc1fc888c4323273600d418e6",
+      "reason": "Reviewed exact line: generated Wiki cache filename (page slug plus short content hash); not a credential."
+    },
+    {
+      "path": "app/datasets/open-f2p/wiki-derived/dataset.json",
+      "category": "token",
+      "sha256": "60161583dbf387048d6fc9828f176401fcb61318c2ccff160c6ce4397c936f89",
+      "reason": "Reviewed exact line: generated Wiki cache filename (page slug plus short content hash); not a credential."
+    },
+    {
+      "path": "app/datasets/open-f2p/wiki-derived/dataset.json",
+      "category": "token",
+      "sha256": "9a3f1476c36eec3f32b5ed35a1bd6866918cd3d6eedcf568cb4d33d7f5a08c4e",
+      "reason": "Reviewed exact line: generated Wiki cache filename (page slug plus short content hash); not a credential."
+    },
+    {
+      "path": "app/datasets/open-f2p/wiki-derived/NOTICE",
+      "category": "network-identifier",
+      "sha256": "61d4c46a8f4644034904b307e423e3c99d493508a201a8a542f90e0b040563d7",
+      "reason": "Reviewed public provenance/policy link or configured-account API/URL builder. No embedded account, deployment or credential. Exact line only."
+    },
+    {
+      "path": "app/duo-play-view.mjs",
+      "category": "legacy-task-id",
+      "sha256": "118d2c82d5dcd7e221f565d63ef83ae0fee852d1f9a016fa3bdc650c1466af5e",
+      "reason": "Reviewed exact line: authored identifier-prefix validation, filtering, or dynamic identifier generation; contains no retained concrete task identity."
+    },
+    {
+      "path": "app/game-profile.mjs",
+      "category": "machine-path",
+      "sha256": "2466989dfada579e9412e44ed014275fc24f3509abec47907377380ac38b3e6b",
+      "reason": "Reviewed exact line: authored markup-parsing syntax, configurable relative local directory, or generated Windows named-pipe endpoint; contains no user or machine path."
+    },
+    {
+      "path": "app/game-profile.mjs",
+      "category": "machine-path",
+      "sha256": "bad2776af6eac59ccfa97d6551527de6100bb93714080cbff6edef3d01487d3d",
+      "reason": "Reviewed exact line: authored markup-parsing syntax, configurable relative local directory, or generated Windows named-pipe endpoint; contains no user or machine path."
+    },
+    {
+      "path": "app/helper-progress.mjs",
+      "category": "machine-path",
+      "sha256": "c0c8901961be133344eb7e02361307652fcfafa8dfd4796c300ce4d85eefbd8e",
+      "reason": "Reviewed exact line: authored markup-parsing syntax, configurable relative local directory, or generated Windows named-pipe endpoint; contains no user or machine path."
+    },
+    {
+      "path": "app/integrations/runemetrics.mjs",
+      "category": "machine-path",
+      "sha256": "c0c8901961be133344eb7e02361307652fcfafa8dfd4796c300ce4d85eefbd8e",
+      "reason": "Reviewed exact line: authored markup-parsing syntax, configurable relative local directory, or generated Windows named-pipe endpoint; contains no user or machine path."
+    },
+    {
+      "path": "app/integrations/runemetrics.mjs",
+      "category": "network-identifier",
+      "sha256": "9adcfa70c3789a46ad5a4dc8121e9722e440cce0c8bad09662f580e3f60cc5c7",
+      "reason": "Reviewed public provenance/policy link or configured-account API/URL builder. No embedded account, deployment or credential. Exact line only."
+    },
+    {
+      "path": "app/integrations/runemetrics.mjs",
+      "category": "network-identifier",
+      "sha256": "b6aeed1e198d825990f48b7bceb30d825f472bced9f9b14edc86a0571b8c45db",
+      "reason": "Reviewed public provenance/policy link or configured-account API/URL builder. No embedded account, deployment or credential. Exact line only."
+    },
+    {
+      "path": "app/open-starter-data.mjs",
+      "category": "cache-catalogue",
+      "sha256": "17af39af91c3fd4aeabe7db8b0c79fb5e61110bd837479a5d23e0daff078a96f",
+      "reason": "Reviewed exact line: inert compatibility catalogue key or route addressed through the selected dataset; this line contains no cache catalogue payload."
+    },
+    {
+      "path": "app/open-starter-data.mjs",
+      "category": "cache-catalogue",
+      "sha256": "2d3a3d548fe507675c398ffd83d289eada14f6151309f593418810b79951ea0c",
+      "reason": "Reviewed exact line: inert compatibility catalogue key or route addressed through the selected dataset; this line contains no cache catalogue payload."
+    },
+    {
+      "path": "app/open-starter-data.mjs",
+      "category": "cache-catalogue",
+      "sha256": "3af16d75c3aa8439175044f32509efcf99dc13650df9a7bdbe3d1b0eec308c18",
+      "reason": "Reviewed exact line: inert compatibility catalogue key or route addressed through the selected dataset; this line contains no cache catalogue payload."
+    },
+    {
+      "path": "app/open-starter-data.mjs",
+      "category": "cache-catalogue",
+      "sha256": "5259c38a7182f20f71dd5c5396773525a44180055e3ae2781aaeb2853e271eb5",
+      "reason": "Reviewed exact line: inert compatibility catalogue key or route addressed through the selected dataset; this line contains no cache catalogue payload."
+    },
+    {
+      "path": "app/open-starter-data.mjs",
+      "category": "cache-catalogue",
+      "sha256": "54a7b2eccef8b877203ab7ec31d08f8346746a6cf0933bcf7f3250f64b31dcdd",
+      "reason": "Reviewed exact line: inert compatibility catalogue key or route addressed through the selected dataset; this line contains no cache catalogue payload."
+    },
+    {
+      "path": "app/open-starter-data.mjs",
+      "category": "cache-catalogue",
+      "sha256": "6ace51fd1caed29eb14c670eb5b7ad83479f0c38b6e8471f2c0d0c7b109ac276",
+      "reason": "Reviewed exact line: inert compatibility catalogue key or route addressed through the selected dataset; this line contains no cache catalogue payload."
+    },
+    {
+      "path": "app/open-starter-data.mjs",
+      "category": "cache-catalogue",
+      "sha256": "84c321a91869347693b783bec60f86e624438265c9f6f56823db11d8bdac6a41",
+      "reason": "Reviewed exact line: inert compatibility catalogue key or route addressed through the selected dataset; this line contains no cache catalogue payload."
+    },
+    {
+      "path": "app/open-starter-data.mjs",
+      "category": "cache-catalogue",
+      "sha256": "8cd6cabaf9b71c63280ef257d226efb88fdb7ba620eb7d955ba92f8ad656e15f",
+      "reason": "Reviewed exact line: inert compatibility catalogue key or route addressed through the selected dataset; this line contains no cache catalogue payload."
+    },
+    {
+      "path": "app/open-starter-data.mjs",
+      "category": "legacy-task-id",
+      "sha256": "8eb312078bf98bd881f98b1de70735782487b1c3425d754c193ca56c98e35b38",
+      "reason": "Reviewed exact line: concrete journal/partner identity belongs to the independently authored invented open-starter dataset, not retained private task data; exact authored namespace exception only."
+    },
+    {
+      "path": "app/open-starter-data.mjs",
+      "category": "legacy-task-id",
+      "sha256": "c8582b4738b66ea0079d56fbb01b727c0e290dc054dc4fff4a542f1ad5baac4d",
+      "reason": "Reviewed exact line: authored identifier-prefix validation, filtering, or dynamic identifier generation; contains no retained concrete task identity."
+    },
+    {
+      "path": "app/open-starter-data.mjs",
+      "category": "legacy-task-id",
+      "sha256": "f705b1e3cd1e25e48d77c45b0267fc385a82717a24d278e5b4c19cf8fbd4e420",
+      "reason": "Reviewed exact line: concrete journal/partner identity belongs to the independently authored invented open-starter dataset, not retained private task data; exact authored namespace exception only."
+    },
+    {
+      "path": "app/overlay-model.mjs",
+      "category": "token",
+      "sha256": "26a1843325f49af07bb84d0117932b855be7a5dc09d83e17fd8e84e25820e080",
+      "reason": "Reviewed exact line: token redaction syntax or runtime-generated overlay link interpolation; contains no literal credential."
+    },
+    {
+      "path": "app/overlays.mjs",
+      "category": "token",
+      "sha256": "55dde8b03ce3f13f28429058182bf0b6d7504fa7e38c72efd1ca202f97a8ce3a",
+      "reason": "Reviewed exact line: token redaction syntax or runtime-generated overlay link interpolation; contains no literal credential."
+    },
+    {
+      "path": "app/packs.mjs",
+      "category": "machine-path",
+      "sha256": "fa9525b1728d050608a62837a785eae843faa1c7e322efe34fe3f790d8cb60e9",
+      "reason": "Reviewed exact line: authored markup-parsing syntax, configurable relative local directory, or generated Windows named-pipe endpoint; contains no user or machine path."
+    },
+    {
+      "path": "app/play-view.mjs",
+      "category": "legacy-task-id",
+      "sha256": "0a17d14cb8e213b5919643eb0cd71d2356a7f2039be6531e8face2097c752f3a",
+      "reason": "Reviewed exact line: authored identifier-prefix validation, filtering, or dynamic identifier generation; contains no retained concrete task identity."
+    },
+    {
+      "path": "app/server.mjs",
+      "category": "cache-catalogue",
+      "sha256": "73c545a6bdb6703c6595a69c41b6572a6c5287a798148e330185f19a72f035fb",
+      "reason": "Reviewed exact line: inert compatibility catalogue key or route addressed through the selected dataset; this line contains no cache catalogue payload."
+    },
+    {
+      "path": "app/server.mjs",
+      "category": "cache-catalogue",
+      "sha256": "7449eb7139b3657498b90620d6c6237c49eee41ccce63019de5ef3670199df75",
+      "reason": "Reviewed exact line: inert compatibility catalogue key or route addressed through the selected dataset; this line contains no cache catalogue payload."
+    },
+    {
+      "path": "app/server.mjs",
+      "category": "cache-catalogue",
+      "sha256": "a6ef31fed33bc445a026c421f834374d21a5368946d9fc678e99050224ea2384",
+      "reason": "Reviewed exact line: inert compatibility catalogue key or route addressed through the selected dataset; this line contains no cache catalogue payload."
+    },
+    {
+      "path": "app/server.mjs",
+      "category": "copied-source",
+      "sha256": "0efc599279e9d8122223277c2c4495d92e48e0597813ebe9c599beba65216aac",
+      "reason": "Reviewed authored compatibility wording/comment used by the shared private profile; no captured source, personal binding or upstream bytes. Public independent capability disables imports. Exact line only."
+    },
+    {
+      "path": "app/server.mjs",
+      "category": "copied-source",
+      "sha256": "151243e21fe63513363ca4cfd55f353307fb5340679cac7a3192eb7d3b8d259d",
+      "reason": "Reviewed authored compatibility wording/comment used by the shared private profile; no captured source, personal binding or upstream bytes. Public independent capability disables imports. Exact line only."
+    },
+    {
+      "path": "app/server.mjs",
+      "category": "copied-source",
+      "sha256": "330a863077ba8b1dd0bbcb33e947778c1833bb36e13882e21560a36c0da9b467",
+      "reason": "Reviewed authored compatibility wording/comment used by the shared private profile; no captured source, personal binding or upstream bytes. Public independent capability disables imports. Exact line only."
+    },
+    {
+      "path": "app/server.mjs",
+      "category": "copied-source",
+      "sha256": "4bf9c048402ce56f098176b415faaa21f999efd2639189816ffa7ec533fc01ba",
+      "reason": "Reviewed authored compatibility wording/comment used by the shared private profile; no captured source, personal binding or upstream bytes. Public independent capability disables imports. Exact line only."
+    },
+    {
+      "path": "app/server.mjs",
+      "category": "copied-source",
+      "sha256": "6222e3200b99f609ddc35311bb8b281a92409970233978357d97075b3ff085b3",
+      "reason": "Reviewed authored compatibility wording/comment used by the shared private profile; no captured source, personal binding or upstream bytes. Public independent capability disables imports. Exact line only."
+    },
+    {
+      "path": "app/server.mjs",
+      "category": "copied-source",
+      "sha256": "dfbe42f8ff116e530785116e06e92a74f0620f4f7a0278c11e15e78af0e9a4b0",
+      "reason": "Reviewed authored compatibility wording/comment used by the shared private profile; no captured source, personal binding or upstream bytes. Public independent capability disables imports. Exact line only."
+    },
+    {
+      "path": "app/server.mjs",
+      "category": "machine-path",
+      "sha256": "2e7aafc5a086e67344e2bb4592cc6616fb57425cbc167455f7bcbf1ffcac41d9",
+      "reason": "Reviewed exact line: authored markup-parsing syntax, configurable relative local directory, or generated Windows named-pipe endpoint; contains no user or machine path."
+    },
+    {
+      "path": "app/server.mjs",
+      "category": "machine-path",
+      "sha256": "6944bca1a182cc8985f5af662e6f3dca9a1dd4a33f2312049766aba46a2c43a2",
+      "reason": "Reviewed exact line: authored markup-parsing syntax, configurable relative local directory, or generated Windows named-pipe endpoint; contains no user or machine path."
+    },
+    {
+      "path": "app/server.mjs",
+      "category": "machine-path",
+      "sha256": "98160d5749b13e73f8389c6011453979426270f2d3c86c2ed52b4759b2dd29a0",
+      "reason": "Reviewed exact line: authored markup-parsing syntax, configurable relative local directory, or generated Windows named-pipe endpoint; contains no user or machine path."
+    },
+    {
+      "path": "app/server.mjs",
+      "category": "machine-path",
+      "sha256": "fa50435fd6e007a6ccf96795f43cc0c961809e4ad0a26638de8a67e7c7248a6f",
+      "reason": "Reviewed exact line: authored markup-parsing syntax, configurable relative local directory, or generated Windows named-pipe endpoint; contains no user or machine path."
+    },
+    {
+      "path": "app/storage/backup-status.mjs",
+      "category": "machine-path",
+      "sha256": "f934075b5c3f3412a5d3918e5a63a46186c87b6fa3011330e5a0f32bc57fd39a",
+      "reason": "Reviewed exact line: authored markup-parsing syntax, configurable relative local directory, or generated Windows named-pipe endpoint; contains no user or machine path."
+    },
+    {
+      "path": "app/storage/store.mjs",
+      "category": "machine-path",
+      "sha256": "093c171f5a4985820811afcb5f6aeeccbd11dffcc713c9bbf322bc8880277a1b",
+      "reason": "Reviewed exact line: authored markup-parsing syntax, configurable relative local directory, or generated Windows named-pipe endpoint; contains no user or machine path."
+    },
+    {
+      "path": "app/storage/store.mjs",
+      "category": "machine-path",
+      "sha256": "9aba069eeaa565f6e4156885a609a665c57c750a8631b29cec5efa5c6d03fdb2",
+      "reason": "Reviewed exact line: authored markup-parsing syntax, configurable relative local directory, or generated Windows named-pipe endpoint; contains no user or machine path."
+    },
+    {
+      "path": "app/tasks/activity-readiness.mjs",
+      "category": "machine-path",
+      "sha256": "068ca509e018dc4566767cecdc32210f6995e45529c44c41fbb48641d14fc832",
+      "reason": "Reviewed exact line: authored markup-parsing syntax, configurable relative local directory, or generated Windows named-pipe endpoint; contains no user or machine path."
+    },
+    {
+      "path": "app/tasks/activity-readiness.mjs",
+      "category": "machine-path",
+      "sha256": "faffdf5d7b96a9f27422e03dd5894fee7a73c37b539c64bf38a7ea109bc0955e",
+      "reason": "Reviewed exact line: authored markup-parsing syntax, configurable relative local directory, or generated Windows named-pipe endpoint; contains no user or machine path."
+    },
+    {
+      "path": "app/tasks/activity.mjs",
+      "category": "account-map-binding",
+      "sha256": "a98e3646b35910739b9c1d50a33b09e6e5f8a224ac384296adfc05230049157c",
+      "reason": "Reviewed exact line: generated prerequisite explanation uses the ordinary word account; contains no account or map binding."
+    },
+    {
+      "path": "app/tasks/activity.mjs",
+      "category": "machine-path",
+      "sha256": "f7137c67cb598534386ecc960653ce0d4aa8f0f6c3707d6e036d59bf7cc9c411",
+      "reason": "Reviewed exact line: authored markup-parsing syntax, configurable relative local directory, or generated Windows named-pipe endpoint; contains no user or machine path."
+    },
+    {
+      "path": "app/tasks/area-check.mjs",
+      "category": "machine-path",
+      "sha256": "9ce39e339fecbf15808b487b8a49775a767c48976fd74d41bbc7c69d99e77d66",
+      "reason": "Reviewed exact line: authored markup-parsing syntax, configurable relative local directory, or generated Windows named-pipe endpoint; contains no user or machine path."
+    },
+    {
+      "path": "app/tasks/collection.mjs",
+      "category": "machine-path",
+      "sha256": "2ede1ba127df48a31fa48d47069e77e7d6b4f40051f7d573e446d5ccf84cba36",
+      "reason": "Reviewed exact line: authored markup-parsing syntax, configurable relative local directory, or generated Windows named-pipe endpoint; contains no user or machine path."
+    },
+    {
+      "path": "app/tasks/collection.mjs",
+      "category": "machine-path",
+      "sha256": "68bf5a00a841100ab226d896ba151000f17194005a62b98d9e90f6310fddd9e3",
+      "reason": "Reviewed exact line: authored markup-parsing syntax, configurable relative local directory, or generated Windows named-pipe endpoint; contains no user or machine path."
+    },
+    {
+      "path": "app/tasks/engine.mjs",
+      "category": "machine-path",
+      "sha256": "2bea6fefaa1d03cd5db76d79d3e5c004d1812e21fae2e08a4d776fd20ad35d7e",
+      "reason": "Reviewed exact line: authored markup-parsing syntax, configurable relative local directory, or generated Windows named-pipe endpoint; contains no user or machine path."
+    },
+    {
+      "path": "app/tasks/engine.mjs",
+      "category": "machine-path",
+      "sha256": "9571eda7f00cb68ab07e0939ed85c52304107400e804dcaee88887618007ac05",
+      "reason": "Reviewed exact line: authored markup-parsing syntax, configurable relative local directory, or generated Windows named-pipe endpoint; contains no user or machine path."
+    },
+    {
+      "path": "app/tasks/engine.mjs",
+      "category": "network-identifier",
+      "sha256": "248b4836b07c559e67effd19ea4a482439188358997fd612d72240477d2f1bef",
+      "reason": "Reviewed public provenance/policy link or configured-account API/URL builder. No embedded account, deployment or credential. Exact line only."
+    },
+    {
+      "path": "app/tasks/equipment.mjs",
+      "category": "copied-source",
+      "sha256": "df5f95f04cc83289760a81d2f082e286f2241e34bf382c99f762e448dde4b739",
+      "reason": "Reviewed authored compatibility wording/comment used by the shared private profile; no captured source, personal binding or upstream bytes. Public independent capability disables imports. Exact line only."
+    },
+    {
+      "path": "app/tasks/equipment.mjs",
+      "category": "network-identifier",
+      "sha256": "611d4ff3a2201060264db2133efea3aceb10caaeb0320f65a5ee243865a96e99",
+      "reason": "Reviewed public provenance/policy link or configured-account API/URL builder. No embedded account, deployment or credential. Exact line only."
+    },
+    {
+      "path": "app/tasks/identity.mjs",
+      "category": "machine-path",
+      "sha256": "01e12627b7b8068c388991ff199330b6f70a21e1671c35fb4a4c721cfeac8142",
+      "reason": "Reviewed exact line: authored markup-parsing syntax, configurable relative local directory, or generated Windows named-pipe endpoint; contains no user or machine path."
+    },
+    {
+      "path": "app/tasks/identity.mjs",
+      "category": "machine-path",
+      "sha256": "07d8766412b74b06580a110759fb7636e03f4a0ba94c6c403f2b30796bd237b0",
+      "reason": "Reviewed exact line: authored markup-parsing syntax, configurable relative local directory, or generated Windows named-pipe endpoint; contains no user or machine path."
+    },
+    {
+      "path": "app/tasks/identity.mjs",
+      "category": "machine-path",
+      "sha256": "3e0f9146db8f43fd13fbc88c3bc927137436db610041cc65cd701de8dd87480c",
+      "reason": "Reviewed exact line: authored markup-parsing syntax, configurable relative local directory, or generated Windows named-pipe endpoint; contains no user or machine path."
+    },
+    {
+      "path": "app/tasks/identity.mjs",
+      "category": "machine-path",
+      "sha256": "4d1a2bcd0a3b6f4571b03818c16b7aa1d47dc28733f4e565e2e0589f023df979",
+      "reason": "Reviewed exact line: authored markup-parsing syntax, configurable relative local directory, or generated Windows named-pipe endpoint; contains no user or machine path."
+    },
+    {
+      "path": "app/tasks/identity.mjs",
+      "category": "machine-path",
+      "sha256": "70de71e4b430543bb42e624c016898cd5892343337556bb281f5c77b5c471125",
+      "reason": "Reviewed exact line: authored markup-parsing syntax, configurable relative local directory, or generated Windows named-pipe endpoint; contains no user or machine path."
+    },
+    {
+      "path": "app/tasks/identity.mjs",
+      "category": "machine-path",
+      "sha256": "dcb98a210879379b7be4ea9c244834a9208ab3c0af1c7fcf9c62abd2dd0e5e44",
+      "reason": "Reviewed exact line: authored markup-parsing syntax, configurable relative local directory, or generated Windows named-pipe endpoint; contains no user or machine path."
+    },
+    {
+      "path": "app/tasks/identity.mjs",
+      "category": "machine-path",
+      "sha256": "eb72ebbafd801ed6e85c283c0daad5117475bc0000669c78a1b94bd9d7ffeb27",
+      "reason": "Reviewed exact line: authored markup-parsing syntax, configurable relative local directory, or generated Windows named-pipe endpoint; contains no user or machine path."
+    },
+    {
+      "path": "app/tasks/map-task-locations.mjs",
+      "category": "legacy-task-id",
+      "sha256": "86604023b9f54810a14104c1e99b706a33ea3dc03b9be5901a23ef91516d63cc",
+      "reason": "Reviewed exact line: authored identifier-prefix validation, filtering, or dynamic identifier generation; contains no retained concrete task identity."
+    },
+    {
+      "path": "app/tasks/membership.mjs",
+      "category": "machine-path",
+      "sha256": "6b51c66eb7e7bc3c23cb50bcf60544fa66ab56059106963300e0935c4d200fe5",
+      "reason": "Reviewed exact line: authored markup-parsing syntax, configurable relative local directory, or generated Windows named-pipe endpoint; contains no user or machine path."
+    },
+    {
+      "path": "app/tasks/migration.mjs",
+      "category": "copied-source",
+      "sha256": "08035209261ee23961c3d8e8dfd79e85a9ab9f0a4203a7ed1186adad4a2ca633",
+      "reason": "Reviewed authored compatibility wording/comment used by the shared private profile; no captured source, personal binding or upstream bytes. Public independent capability disables imports. Exact line only."
+    },
+    {
+      "path": "app/tasks/migration.mjs",
+      "category": "copied-source",
+      "sha256": "0efc599279e9d8122223277c2c4495d92e48e0597813ebe9c599beba65216aac",
+      "reason": "Reviewed authored compatibility wording/comment used by the shared private profile; no captured source, personal binding or upstream bytes. Public independent capability disables imports. Exact line only."
+    },
+    {
+      "path": "app/tasks/migration.mjs",
+      "category": "copied-source",
+      "sha256": "137b7659b152d771e9579dc994c72d22edf88055082ed362cc0cbba3ab1482ac",
+      "reason": "Reviewed authored compatibility wording/comment used by the shared private profile; no captured source, personal binding or upstream bytes. Public independent capability disables imports. Exact line only."
+    },
+    {
+      "path": "app/tasks/migration.mjs",
+      "category": "copied-source",
+      "sha256": "341d85f36a36ba6a9a598215ebbf8e94cb441e36621c2640543ca0c3e7f0d8c4",
+      "reason": "Reviewed authored compatibility wording/comment used by the shared private profile; no captured source, personal binding or upstream bytes. Public independent capability disables imports. Exact line only."
+    },
+    {
+      "path": "app/tasks/migration.mjs",
+      "category": "copied-source",
+      "sha256": "36344754682fdc4c9f2d6f117a5fb21db5dc1a780d6b0f54214132ad3b00bbd7",
+      "reason": "Reviewed authored compatibility wording/comment used by the shared private profile; no captured source, personal binding or upstream bytes. Public independent capability disables imports. Exact line only."
+    },
+    {
+      "path": "app/tasks/migration.mjs",
+      "category": "copied-source",
+      "sha256": "3ecac0f1f05ae21349a406a94f1c224b92abf1badb97dea9e722e8630561870c",
+      "reason": "Reviewed authored compatibility wording/comment used by the shared private profile; no captured source, personal binding or upstream bytes. Public independent capability disables imports. Exact line only."
+    },
+    {
+      "path": "app/tasks/migration.mjs",
+      "category": "copied-source",
+      "sha256": "699b791426b4a59a7257aaf8bf8ccbedbd804d9fc2437a83abc50ecdae7a25b7",
+      "reason": "Reviewed authored compatibility wording/comment used by the shared private profile; no captured source, personal binding or upstream bytes. Public independent capability disables imports. Exact line only."
+    },
+    {
+      "path": "app/tasks/migration.mjs",
+      "category": "copied-source",
+      "sha256": "89e411810f5bdf492718c81d5406f81c7d498cffab312b33d051960fefabacad",
+      "reason": "Reviewed authored compatibility wording/comment used by the shared private profile; no captured source, personal binding or upstream bytes. Public independent capability disables imports. Exact line only."
+    },
+    {
+      "path": "app/tasks/migration.mjs",
+      "category": "copied-source",
+      "sha256": "9a61882514adc9cc57f511a316100b75f74f039be662fb7e13ea87c0e93eaf14",
+      "reason": "Reviewed authored compatibility wording/comment used by the shared private profile; no captured source, personal binding or upstream bytes. Public independent capability disables imports. Exact line only."
+    },
+    {
+      "path": "app/tasks/migration.mjs",
+      "category": "copied-source",
+      "sha256": "9c5f699e32abdf6abb3169a3d47b32f12913fe3323fdb073fd33e1beb8447e50",
+      "reason": "Reviewed authored compatibility wording/comment used by the shared private profile; no captured source, personal binding or upstream bytes. Public independent capability disables imports. Exact line only."
+    },
+    {
+      "path": "app/tasks/migration.mjs",
+      "category": "copied-source",
+      "sha256": "e966eb3d74c2e8d094a5481d5d106f82e30b77c9e519bc25d80a783f77484115",
+      "reason": "Reviewed authored compatibility wording/comment used by the shared private profile; no captured source, personal binding or upstream bytes. Public independent capability disables imports. Exact line only."
+    },
+    {
+      "path": "app/tasks/migration.mjs",
+      "category": "copied-source",
+      "sha256": "eb57d9fbf0fdb04a8344ec66f9283496e593284072b29e3fea38d631fe8c309e",
+      "reason": "Reviewed authored compatibility wording/comment used by the shared private profile; no captured source, personal binding or upstream bytes. Public independent capability disables imports. Exact line only."
+    },
+    {
+      "path": "app/tasks/migration.mjs",
+      "category": "legacy-task-id",
+      "sha256": "1a2b61ff7b40e006ddb04e4d00b2460ec22f883bba7a57691cf28b5822595998",
+      "reason": "Reviewed exact line: authored identifier-prefix validation, filtering, or dynamic identifier generation; contains no retained concrete task identity."
+    },
+    {
+      "path": "app/tasks/migration.mjs",
+      "category": "legacy-task-id",
+      "sha256": "eb038b3031667ffecb527de8908c8fdd83cc9ac23eb7e05562cb6df22b5cf41c",
+      "reason": "Reviewed exact line: authored identifier-prefix validation, filtering, or dynamic identifier generation; contains no retained concrete task identity."
+    },
+    {
+      "path": "app/tasks/migration.mjs",
+      "category": "legacy-task-id",
+      "sha256": "fdc42cd7c10b90497f9fea5f85214fa631d85b5b2fada20d4ac8285ffe8efebc",
+      "reason": "Reviewed exact line: authored identifier-prefix validation, filtering, or dynamic identifier generation; contains no retained concrete task identity."
+    },
+    {
+      "path": "app/tasks/migration.mjs",
+      "category": "machine-path",
+      "sha256": "957b73099808725fb63e540e65ec7d6ab27fdc335339a203d0b9a9d3c518ed4e",
+      "reason": "Reviewed exact line: authored markup-parsing syntax, configurable relative local directory, or generated Windows named-pipe endpoint; contains no user or machine path."
+    },
+    {
+      "path": "app/tasks/presentation.mjs",
+      "category": "network-identifier",
+      "sha256": "2a408e9fc51f7491ddf97011ba58f6c65bdc3b63b589c6d1e59cc699f9347521",
+      "reason": "Reviewed public provenance/policy link or configured-account API/URL builder. No embedded account, deployment or credential. Exact line only."
+    },
+    {
+      "path": "app/tasks/task-icons.mjs",
+      "category": "machine-path",
+      "sha256": "7c312abb4b5c10716c60dec397c37e6a4fc03ba316c2f63d997dac5f48d0bd83",
+      "reason": "Reviewed exact line: authored markup-parsing syntax, configurable relative local directory, or generated Windows named-pipe endpoint; contains no user or machine path."
+    },
+    {
+      "path": "app/tasks/task-icons.mjs",
+      "category": "machine-path",
+      "sha256": "89acbb8bc354aeb9652cbc16f07b147478cfcea867b7606e42b45ce641e6d755",
+      "reason": "Reviewed exact line: authored markup-parsing syntax, configurable relative local directory, or generated Windows named-pipe endpoint; contains no user or machine path."
+    },
+    {
+      "path": "app/web/chunk-quest-filters.mjs",
+      "category": "machine-path",
+      "sha256": "966c121028b196486a7c6f4a8929f5c512d2b3127dc7de09e47cc23ffb095777",
+      "reason": "Reviewed exact line: authored markup-parsing syntax, configurable relative local directory, or generated Windows named-pipe endpoint; contains no user or machine path."
+    },
+    {
+      "path": "app/web/completed-view.mjs",
+      "category": "copied-source",
+      "sha256": "34dd9024df89afac6f2a45d8f1cefcd556bb111e4a4855b7901fdd77485d477a",
+      "reason": "Reviewed authored compatibility wording/comment used by the shared private profile; no captured source, personal binding or upstream bytes. Public independent capability disables imports. Exact line only."
+    },
+    {
+      "path": "app/web/completed-view.mjs",
+      "category": "copied-source",
+      "sha256": "e942237b76a511c4045df83c486cb976fe1ad51ea8d4523a1859d66b9f4a3ec1",
+      "reason": "Reviewed authored compatibility wording/comment used by the shared private profile; no captured source, personal binding or upstream bytes. Public independent capability disables imports. Exact line only."
+    },
+    {
+      "path": "app/web/copy-lists.mjs",
+      "category": "copied-source",
+      "sha256": "5452fa9d0572c3205ae915028d5074423c7787cf2a968911d4baa793da53904a",
+      "reason": "Reviewed authored compatibility wording/comment used by the shared private profile; no captured source, personal binding or upstream bytes. Public independent capability disables imports. Exact line only."
+    },
+    {
+      "path": "app/web/custom-tasks-model.mjs",
+      "category": "legacy-task-id",
+      "sha256": "e8234f49c3f0d1beb37819aed6621bc51bfb2397b09c40eb29d13aac990f9d1a",
+      "reason": "Reviewed exact line: authored identifier-prefix validation, filtering, or dynamic identifier generation; contains no retained concrete task identity."
+    },
+    {
+      "path": "app/web/finish-line-model.mjs",
+      "category": "machine-path",
+      "sha256": "6ea7dc4349e9571961a692f99a62270667333c6fa26544d75d7489d1cf2bd37a",
+      "reason": "Reviewed exact line: authored markup-parsing syntax, configurable relative local directory, or generated Windows named-pipe endpoint; contains no user or machine path."
+    },
+    {
+      "path": "app/web/finish-line-model.mjs",
+      "category": "machine-path",
+      "sha256": "d1d676f038f1d3051a0eaad9249a57f6df02d50c33609b0700f757458f277b4e",
+      "reason": "Reviewed exact line: authored markup-parsing syntax, configurable relative local directory, or generated Windows named-pipe endpoint; contains no user or machine path."
+    },
+    {
+      "path": "app/web/helper-training.mjs",
+      "category": "machine-path",
+      "sha256": "b519c261da538379d49c343a81431362830822e9a41faba1ecd63ed2deca841b",
+      "reason": "Reviewed exact line: authored markup-parsing syntax, configurable relative local directory, or generated Windows named-pipe endpoint; contains no user or machine path."
+    },
+    {
+      "path": "app/web/history-text.mjs",
+      "category": "copied-source",
+      "sha256": "d8024cea4e4f83656a95efb58b49b6105739b3be4d17b38055f31001aaee3104",
+      "reason": "Reviewed authored compatibility wording/comment used by the shared private profile; no captured source, personal binding or upstream bytes. Public independent capability disables imports. Exact line only."
+    },
+    {
+      "path": "app/web/kept-rules.mjs",
+      "category": "copied-source",
+      "sha256": "92c051a4d53640913c7e0f04d7531456e000708f1cbc57aac8caa9974495fca4",
+      "reason": "Reviewed authored compatibility wording/comment used by the shared private profile; no captured source, personal binding or upstream bytes. Public independent capability disables imports. Exact line only."
+    },
+    {
+      "path": "app/web/map-activity-layer-model.mjs",
+      "category": "machine-path",
+      "sha256": "c78cc18cc4e718cac13fa30335a613aa4deb03ef3b9556750d5e619134ff84ac",
+      "reason": "Reviewed exact line: authored markup-parsing syntax, configurable relative local directory, or generated Windows named-pipe endpoint; contains no user or machine path."
+    },
+    {
+      "path": "app/web/map-task-count-renderer.mjs",
+      "category": "copied-source",
+      "sha256": "4f2f15d5600ca07f75bfdac8c98a4813690a0ab5863fbb1f51d6e79158cd9cd3",
+      "reason": "Reviewed exact line: source chunk means the geometric origin cell in an authored algorithm comment; does not identify an upstream source."
+    },
+    {
+      "path": "app/web/map.mjs",
+      "category": "copied-source",
+      "sha256": "4664cdc8526ba97840e2847b71d655e39a95ac2a45f3e3b016b141d0449205ea",
+      "reason": "Reviewed authored compatibility wording/comment used by the shared private profile; no captured source, personal binding or upstream bytes. Public independent capability disables imports. Exact line only."
+    },
+    {
+      "path": "app/web/map.mjs",
+      "category": "copied-source",
+      "sha256": "e0bedc2e92d485fd32721938916f9430b4e529f82a0b8c3577031e9743b8be29",
+      "reason": "Reviewed authored compatibility wording/comment used by the shared private profile; no captured source, personal binding or upstream bytes. Public independent capability disables imports. Exact line only."
+    },
+    {
+      "path": "app/web/original-sync-loader.mjs",
+      "category": "copied-source",
+      "sha256": "5c207814204c3dc679eb6bdb2eafcefd9033ff87ff7bab41fa882ec09bf51ffa",
+      "reason": "Authored private-capability UI label; independent games return before constructing this optional control. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "app/web/profile-model.mjs",
+      "category": "machine-path",
+      "sha256": "13e2460f117b7676393b66b1559b14c2112b4079cfdf6576f3ba9d4636876e6a",
+      "reason": "Reviewed exact line: authored markup-parsing syntax, configurable relative local directory, or generated Windows named-pipe endpoint; contains no user or machine path."
+    },
+    {
+      "path": "app/web/profile-model.mjs",
+      "category": "machine-path",
+      "sha256": "7be0149bdf9d0a9ee83f022570b67decece064ef4aa5f00a90ed57aa0824b037",
+      "reason": "Reviewed exact line: authored markup-parsing syntax, configurable relative local directory, or generated Windows named-pipe endpoint; contains no user or machine path."
+    },
+    {
+      "path": "app/web/quest-map-model.mjs",
+      "category": "machine-path",
+      "sha256": "113449cfe08182892f7cc6900501852c0f5529db18731e344adc431dbf6da523",
+      "reason": "Reviewed exact line: authored markup-parsing syntax, configurable relative local directory, or generated Windows named-pipe endpoint; contains no user or machine path."
+    },
+    {
+      "path": "app/web/quest-map-model.mjs",
+      "category": "machine-path",
+      "sha256": "42fae45cd98a6692a86ddec9851c19b37ccd94c619637633247bdabc651cad48",
+      "reason": "Reviewed exact line: authored markup-parsing syntax, configurable relative local directory, or generated Windows named-pipe endpoint; contains no user or machine path."
+    },
+    {
+      "path": "app/web/rules-model.mjs",
+      "category": "copied-source",
+      "sha256": "652adc3f3c37d62620165548585fbb77f81d851226ad67686fc12428164a708c",
+      "reason": "Reviewed authored compatibility wording/comment used by the shared private profile; no captured source, personal binding or upstream bytes. Public independent capability disables imports. Exact line only."
+    },
+    {
+      "path": "app/web/rules-model.mjs",
+      "category": "personal-default",
+      "sha256": "0374ae3c7bdc802af981798133bc75a694b31bed279b29b3df47ff00f34317fc",
+      "reason": "Generic shared-player presentation label, no person identity."
+    },
+    {
+      "path": "app/web/sandbox-rules.mjs",
+      "category": "copied-source",
+      "sha256": "b1ad663b15c7c9bbe11844e541aa56acc610c5c9891c2ec8ebc1b92d854cacf4",
+      "reason": "Reviewed authored compatibility wording/comment used by the shared private profile; no captured source, personal binding or upstream bytes. Public independent capability disables imports. Exact line only."
+    },
+    {
+      "path": "app/web/screen-backlog.mjs",
+      "category": "machine-path",
+      "sha256": "dd2d998dd7da092ae2924392f9e78d5f7e7ba3ade436bd2d5b94d459b8b27287",
+      "reason": "Reviewed exact line: authored markup-parsing syntax, configurable relative local directory, or generated Windows named-pipe endpoint; contains no user or machine path."
+    },
+    {
+      "path": "app/web/screen-commands.mjs",
+      "category": "copied-source",
+      "sha256": "bc2a297a74970f45bd705171d51c3682e5646f572cd94559fe420bf0952bce0c",
+      "reason": "Reviewed authored compatibility wording/comment used by the shared private profile; no captured source, personal binding or upstream bytes. Public independent capability disables imports. Exact line only."
+    },
+    {
+      "path": "app/web/screen-dialogs.mjs",
+      "category": "network-identifier",
+      "sha256": "0df42c9cf945dfb84ebb5994f6cef01fff3bd8b72541a372d076bce51543aa46",
+      "reason": "Reviewed public provenance/policy link or configured-account API/URL builder. No embedded account, deployment or credential. Exact line only."
+    },
+    {
+      "path": "app/web/screen-dialogs.mjs",
+      "category": "network-identifier",
+      "sha256": "56ee8dc7021ac19f8c3d7f1eacf69093f55a992f2ad4f64bd60ca5cc80e34bbd",
+      "reason": "Reviewed public provenance/policy link or configured-account API/URL builder. No embedded account, deployment or credential. Exact line only."
+    },
+    {
+      "path": "app/web/screen-dialogs.mjs",
+      "category": "network-identifier",
+      "sha256": "8eba37c00516a2c5b0b37174c753b4ffa6ad926eddde3c939379b11c014ae9a4",
+      "reason": "Reviewed public provenance/policy link or configured-account API/URL builder. No embedded account, deployment or credential. Exact line only."
+    },
+    {
+      "path": "app/web/screen-dialogs.mjs",
+      "category": "network-identifier",
+      "sha256": "b21ea9e845ddfbda261073df36e33b61e62346e70d91e7fc281af562636cefcf",
+      "reason": "Reviewed public provenance/policy link or configured-account API/URL builder. No embedded account, deployment or credential. Exact line only."
+    },
+    {
+      "path": "app/web/screen-search-data.mjs",
+      "category": "copied-source",
+      "sha256": "62c81a1ca21571c698dc9bbaa7a0a1c2d479a641e5fb975fa2bf872f7cdc58aa",
+      "reason": "Reviewed authored compatibility wording/comment used by the shared private profile; no captured source, personal binding or upstream bytes. Public independent capability disables imports. Exact line only."
+    },
+    {
+      "path": "app/web/screen-tasks.mjs",
+      "category": "legacy-task-id",
+      "sha256": "06ecccc9cd6233c5325b41b2b8b430904dca71b0d4e54ecec2131da2163d689f",
+      "reason": "Reviewed exact line: authored identifier-prefix validation, filtering, or dynamic identifier generation; contains no retained concrete task identity."
+    },
+    {
+      "path": "app/web/screen-ui.mjs",
+      "category": "machine-path",
+      "sha256": "5159159e58a3b14751b51bb619b3eb7a33b98908b8235ec25b8ffc20a42dbd19",
+      "reason": "Reviewed exact line: authored markup-parsing syntax, configurable relative local directory, or generated Windows named-pipe endpoint; contains no user or machine path."
+    },
+    {
+      "path": "app/web/screen-ui.mjs",
+      "category": "network-identifier",
+      "sha256": "9cecb02be5a92bd4471fef9a3d6c2c3565b014f527abc2b21f61708af143f5d6",
+      "reason": "Reviewed public provenance/policy link or configured-account API/URL builder. No embedded account, deployment or credential. Exact line only."
+    },
+    {
+      "path": "app/web/task-hover.mjs",
+      "category": "machine-path",
+      "sha256": "dd2d998dd7da092ae2924392f9e78d5f7e7ba3ade436bd2d5b94d459b8b27287",
+      "reason": "Reviewed exact line: authored markup-parsing syntax, configurable relative local directory, or generated Windows named-pipe endpoint; contains no user or machine path."
+    },
+    {
+      "path": "app/web/usage-catalogue.mjs",
+      "category": "copied-source",
+      "sha256": "416125af10af242601bdc6737f544f21b03d7beb99228f451f3111914c5d67ed",
+      "reason": "Reviewed authored compatibility wording/comment used by the shared private profile; no captured source, personal binding or upstream bytes. Public independent capability disables imports. Exact line only."
+    },
+    {
+      "path": "app/web/usage-catalogue.mjs",
+      "category": "copied-source",
+      "sha256": "f1558c4ca47be3123d826e1f30630f20b426dec82924cd52f7b2a1922a86e1da",
+      "reason": "Reviewed authored compatibility wording/comment used by the shared private profile; no captured source, personal binding or upstream bytes. Public independent capability disables imports. Exact line only."
+    },
+    {
+      "path": "app/web/usage-client.mjs",
+      "category": "copied-source",
+      "sha256": "9c8608a4a8f62ef323524a15f9cc574241cde6adc6701e73f78339bb7602e69a",
+      "reason": "Reviewed authored compatibility wording/comment used by the shared private profile; no captured source, personal binding or upstream bytes. Public independent capability disables imports. Exact line only."
+    },
+    {
+      "path": "scripts/build-open-f2p.mjs",
+      "category": "machine-path",
+      "sha256": "d86d125fd25a1a72ac8cd4e585011f33f50d35f9a44d4da4f252b41da12c4592",
+      "reason": "Reviewed exact line: authored markup-parsing syntax, configurable relative local directory, or generated Windows named-pipe endpoint; contains no user or machine path."
+    },
+    {
+      "path": "scripts/fetch-open-f2p-wiki.mjs",
+      "category": "machine-path",
+      "sha256": "ca7460f17dff54bc3497e286e610d0a4b6c0bbe8669b40a09cca8eb309e53fb9",
+      "reason": "Reviewed exact line: authored markup-parsing syntax, configurable relative local directory, or generated Windows named-pipe endpoint; contains no user or machine path."
+    },
+    {
+      "path": "scripts/lib/provenance-hash.mjs",
+      "category": "machine-path",
+      "sha256": "9c68680b85202fea3f86efb159a25ac0ee26f434feac0af692d3bb9f9248e1ef",
+      "reason": "Reviewed exact line: authored markup-parsing syntax, configurable relative local directory, or generated Windows named-pipe endpoint; contains no user or machine path."
+    },
+    {
+      "path": "scripts/lib/rs-wiki-client.mjs",
+      "category": "network-identifier",
+      "sha256": "6e52282f9b0bc2f535bf67c1db024147f2b2546ac4786cbe7816c816b09dc04d",
+      "reason": "Public project URL sent as the contact in the RuneScape Wiki user agent, as the Wiki API etiquette asks; the repository is already public. No account credential, deployment or private binding. Exact line only."
+    },
+    {
+      "path": "scripts/lib/rs-wiki-client.mjs",
+      "category": "machine-path",
+      "sha256": "83b2eb6dd4769facf9d3b4ec4a72913fe408f7296b5bc906a8618a271c1e7a91",
+      "reason": "Repo-relative default cache folder under the ignored .local directory; no absolute, user or machine path. Exact line only."
+    },
+    {
+      "path": "scripts/restore-picker.mjs",
+      "category": "machine-path",
+      "sha256": "b0d93e662d007a40b6c1dd2cc6024052dc51fd6bebe7d5209179bb05d110c9d8",
+      "reason": "Authored offline restore defaults to a fresh randomly named relative scratch folder; it refuses existing stores and contains no user path or live save binding. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "scripts/start-independent-game.mjs",
+      "category": "machine-path",
+      "sha256": "7bfc923400050f7a3dd165ca630d62c06485e8d232989d5f88f431ddd10892f9",
+      "reason": "Reviewed exact line: authored markup-parsing syntax, configurable relative local directory, or generated Windows named-pipe endpoint; contains no user or machine path."
+    },
+    {
+      "path": "scripts/test-port-check.mjs",
+      "category": "machine-path",
+      "sha256": "1122e39219243b7f48fd7bd443a382497da9e191cb8901fb663631e42bae0fa5",
+      "reason": "Reviewed exact line: authored markup-parsing syntax, configurable relative local directory, or generated Windows named-pipe endpoint; contains no user or machine path."
+    },
+    {
+      "path": "tests/backup-status.test.mjs",
+      "category": "machine-path",
+      "sha256": "3b8b8ccae7ccae4597e2dafdd6bb097235c79cc67c671f9937d5d096c522a4d5",
+      "reason": "Authored isolated-output, refused storage-binding or invented error-path fixture; no actual user directory, external destination or live save is included. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/backup-status.test.mjs",
+      "category": "machine-path",
+      "sha256": "6addf41c8c47ce0f8f01f236a8e6dfcd17248c750d8f8bdca5638839f4066a5c",
+      "reason": "Authored isolated-output, refused storage-binding or invented error-path fixture; no actual user directory, external destination or live save is included. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/backup-status.test.mjs",
+      "category": "machine-path",
+      "sha256": "867fef770d028840f7148844208171d2598ce1307becd9fe63dd382cd1cdc50e",
+      "reason": "Authored isolated-output, refused storage-binding or invented error-path fixture; no actual user directory, external destination or live save is included. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/backup-status.test.mjs",
+      "category": "machine-path",
+      "sha256": "ade0125f6ef67e1abc5214b42b8f6b91e43911241a1b3565886c7fe6735f3fa1",
+      "reason": "Authored isolated-output, refused storage-binding or invented error-path fixture; no actual user directory, external destination or live save is included. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/backup-status.test.mjs",
+      "category": "token",
+      "sha256": "4b28c11dcd1307be2dce404fd6c05c1e60cd8c87b3b64e661ca8eb3c10b2feee",
+      "reason": "Deliberately invented synthetic credential/link sentinel verifies rejection, viewer redaction or non-disclosure; actual secrets are generated only at runtime. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/backup-watchdog-server.test.mjs",
+      "category": "machine-path",
+      "sha256": "e29a54bfdb1874d42c882a5f9b846b3f6c17fcedddee4b81e3fa13b250fc73b2",
+      "reason": "Reviewed exact authored test line: a repository-relative .local scratch directory created for isolated disposable server fixtures; contains no absolute machine path or exported scratch payload."
+    },
+    {
+      "path": "tests/browser-screen-harness.mjs",
+      "category": "account-map-binding",
+      "sha256": "a66ec4c9a4c76253688092e14c688beea0df11300adfdbb734a735b5a51e2960",
+      "reason": "Authored synthetic ownership/save-map scenario; this line uses invented test aliases rather than a saved account binding. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/calculation-equivalence.test.mjs",
+      "category": "account-map-binding",
+      "sha256": "a8eac91c0efd176ac727d2f883e2c01e2dab1b4baf8049223bfb71c1563eded6",
+      "reason": "Authored synthetic ownership/save-map scenario; this line uses invented test aliases rather than a saved account binding. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/chunk-colours-drawing.test.mjs",
+      "category": "account-map-binding",
+      "sha256": "4939eddc47bb35ddcf717a91bb9f31b7786e5a62c3426ecc5f6a21a2da6dc85b",
+      "reason": "Authored synthetic ownership/save-map scenario; this line uses invented test aliases rather than a saved account binding. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/chunk-colours-drawing.test.mjs",
+      "category": "account-map-binding",
+      "sha256": "8fbdf6868b0b7a443ec506c45fc9ed1b0fde0cdf058db527972b531ae5c19196",
+      "reason": "Authored synthetic ownership/save-map scenario; this line uses invented test aliases rather than a saved account binding. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/chunk-colours-state.test.mjs",
+      "category": "account-map-binding",
+      "sha256": "05114fadaee8205de7140c519052fd78d20e94f24601f348765a9a6a1014f44d",
+      "reason": "Authored synthetic ownership/save-map scenario; this line uses invented test aliases rather than a saved account binding. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/chunk-colours-state.test.mjs",
+      "category": "account-map-binding",
+      "sha256": "b83fcbc670a9a91be7a8212bd60f9149d4b4920f80ea0c86d02d1222253a1d60",
+      "reason": "Authored synthetic ownership/save-map scenario; this line uses invented test aliases rather than a saved account binding. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/chunk-quest-filters.test.mjs",
+      "category": "machine-path",
+      "sha256": "c7fef461bfcda120f8bebef0a7965ba9c95595058f4100deaa21cb9a41f4b128",
+      "reason": "Escaped parser/markup pattern or invented error path in an authored regression fixture; no actual machine path. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/collection.test.mjs",
+      "category": "account-map-binding",
+      "sha256": "c83ceebb824a8877938ab3f4712416d05085aad75eac95ac0000e170a9d9ca34",
+      "reason": "Authored synthetic ownership/save-map scenario; this line uses invented test aliases rather than a saved account binding. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/collection.test.mjs",
+      "category": "account-map-binding",
+      "sha256": "ffcd17b3440014a33e2d20c0c599365f1dd6e47d29c53460b183954450ab09bb",
+      "reason": "Authored synthetic ownership/save-map scenario; this line uses invented test aliases rather than a saved account binding. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/collection.test.mjs",
+      "category": "legacy-task-id",
+      "sha256": "b59d50af8022f6dff479e8de727407642c2f2052799304161d699f7d6f540459",
+      "reason": "Authored synthetic task IDs exercise canonical identity/undo compatibility; no retained catalogue record or actual retained task identity. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/collection.test.mjs",
+      "category": "machine-path",
+      "sha256": "53e24f6e5e415ffaf388add8d99c1049d655cd4690d89a4a01956944c01256bf",
+      "reason": "Escaped parser/markup pattern or invented error path in an authored regression fixture; no actual machine path. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/collection.test.mjs",
+      "category": "machine-path",
+      "sha256": "d2cd0db99c005330f510fa601b42a3697334e1b60ba2c9be5388456ddf57870b",
+      "reason": "Escaped parser/markup pattern or invented error path in an authored regression fixture; no actual machine path. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/completed-model.test.mjs",
+      "category": "legacy-task-id",
+      "sha256": "1ee1d90ddc7a2f29772cbdb063e6bcda73a6a1255d9fa88fd8461f551cb69477",
+      "reason": "Authored synthetic task IDs exercise canonical identity/undo compatibility; no retained catalogue record or actual retained task identity. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/completed-model.test.mjs",
+      "category": "personal-default",
+      "sha256": "32baecc2acecd06f44a6da0cb764e574f64786ba1f729a20c51d1f53639d6ffc",
+      "reason": "Invented display labels in authored renderer assertions, after the named test identity transform. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/completed-view.test.mjs",
+      "category": "copied-source",
+      "sha256": "187b632a9c3f5a9bae4ac974eae80512703ee951f7039c09bafd7073e71d5abf",
+      "reason": "Authored compatibility UI assertion or explicit private-path refusal; no captured upstream content. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/copy-list-model.test.mjs",
+      "category": "machine-path",
+      "sha256": "ee84160e1a502f5f03a08984f337e6e96d5de5c0d0b5ed2cb39cfb3ce8b4afa7",
+      "reason": "Escaped parser/markup pattern or invented error path in an authored regression fixture; no actual machine path. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/custom-tasks-server.test.mjs",
+      "category": "legacy-task-id",
+      "sha256": "1ed8b8447f07481eade1a00c4289dc4a1abd983a1d706dd41dbf35017af168b6",
+      "reason": "Reviewed exact authored synthetic task identifier or constructor record used by this isolated test scenario; no captured catalogue task identity or payload."
+    },
+    {
+      "path": "tests/custom-tasks-server.test.mjs",
+      "category": "legacy-task-id",
+      "sha256": "3ca476bd2389fa0bacd7c3c5c90d5ad45b33d2e4a2ca28f50cc4bd1075a85b84",
+      "reason": "Reviewed exact authored synthetic task identifier or constructor record used by this isolated test scenario; no captured catalogue task identity or payload."
+    },
+    {
+      "path": "tests/custom-tasks-server.test.mjs",
+      "category": "machine-path",
+      "sha256": "4bbae0a59cb05cb25c161a9cd28995653a53f81fbc15a45a4a7155854e95eeeb",
+      "reason": "Reviewed exact authored test line: a repository-relative .local scratch directory created for isolated disposable server fixtures; contains no absolute machine path or exported scratch payload."
+    },
+    {
+      "path": "tests/custom-tasks-state.test.mjs",
+      "category": "legacy-task-id",
+      "sha256": "7efaab2a78fed44f33a16dfde89914b584d0c2e8b2b797c2c36d32ffbfdb2eea",
+      "reason": "Authored synthetic task IDs exercise canonical identity/undo compatibility; no retained catalogue record or actual retained task identity. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/custom-tasks-state.test.mjs",
+      "category": "legacy-task-id",
+      "sha256": "b31cf9f95a5f1c528d1482b5459b6dab2c24b757b8e2d426226403ebcbcea229",
+      "reason": "Authored synthetic task identifiers exercise identity and backup/Undo behavior; no retained catalogue identity or payload. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/custom-tasks-view.test.mjs",
+      "category": "legacy-task-id",
+      "sha256": "b00ecd1c45890d7fc0c9a7e7347b7dd11136ec6fa4af2ade0f81b606c08a47a6",
+      "reason": "Authored synthetic task IDs exercise canonical identity/undo compatibility; no retained catalogue record or actual retained task identity. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/custom-tasks-view.test.mjs",
+      "category": "legacy-task-id",
+      "sha256": "f016fe3dada90300f2be7f7982c54e658e772fc4cfdcb710fed03381beaf741b",
+      "reason": "Authored synthetic task IDs exercise canonical identity/undo compatibility; no retained catalogue record or actual retained task identity. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/dataset-bootstrap.test.mjs",
+      "category": "copied-source",
+      "sha256": "dc6300ff75acefae48ca508549ff3b0f6bc5b3ae7157ed8ef250d2ded8ada6d1",
+      "reason": "Authored compatibility UI assertion or explicit private-path refusal; no captured upstream content. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/duo-server.test.mjs",
+      "category": "legacy-task-id",
+      "sha256": "f656948e462e45e65e944ad6f3ef582f6c5abf0b96a30190a6502a8d2631444f",
+      "reason": "Reviewed exact authored synthetic task identifier or constructor record used by this isolated test scenario; no captured catalogue task identity or payload."
+    },
+    {
+      "path": "tests/duo-server.test.mjs",
+      "category": "machine-path",
+      "sha256": "d48ca2ed9208a5e81e9553b3fa8afd04341997d0a90ca4995e1796f1862c5c67",
+      "reason": "Reviewed exact authored test line: a repository-relative .local scratch directory created for isolated disposable server fixtures; contains no absolute machine path or exported scratch payload."
+    },
+    {
+      "path": "tests/duo-task-lists.test.mjs",
+      "category": "legacy-task-id",
+      "sha256": "2c5cf16c03d3c022b2e3c2798aec17edcee2e98e0baca807dd06483a9d8b3e29",
+      "reason": "Authored synthetic task IDs exercise canonical identity/undo compatibility; no retained catalogue record or actual retained task identity. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/duo-tasks.test.mjs",
+      "category": "legacy-task-id",
+      "sha256": "7e081fe1b5640c19937bac06043bbfc9714c3af9bead3ba97e68559c72c26c84",
+      "reason": "Authored synthetic task IDs exercise canonical identity/undo compatibility; no retained catalogue record or actual retained task identity. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/duo-tasks.test.mjs",
+      "category": "legacy-task-id",
+      "sha256": "e6108239a5f2ca12fbe7ce4a4d99e601e936b6ea49ebf2de4af2191181bd4c84",
+      "reason": "Authored synthetic task IDs exercise canonical identity/undo compatibility; no retained catalogue record or actual retained task identity. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/duo-web.test.mjs",
+      "category": "legacy-task-id",
+      "sha256": "5c9b4ab38fc1cfa0fde2fe2bc7ac74a4e6210a83037ee975f0d19ea5121644b3",
+      "reason": "Reviewed exact authored synthetic task identifier or constructor record used by this isolated test scenario; no captured catalogue task identity or payload."
+    },
+    {
+      "path": "tests/duo-web.test.mjs",
+      "category": "legacy-task-id",
+      "sha256": "904969195e47a593be9ce64ecc4e7e183f49b6a92eb17f54e9a16c24ce9f9206",
+      "reason": "Reviewed exact authored synthetic task identifier or constructor record used by this isolated test scenario; no captured catalogue task identity or payload."
+    },
+    {
+      "path": "tests/engine-hotspots.test.mjs",
+      "category": "legacy-task-id",
+      "sha256": "5e3a21a3b9a4588ba7505bf87523bf7fc7dfd7a258e4558635750a51d8d22f0c",
+      "reason": "Reviewed exact authored synthetic task identifier or constructor record used by this isolated test scenario; no captured catalogue task identity or payload."
+    },
+    {
+      "path": "tests/engine.test.mjs",
+      "category": "legacy-task-id",
+      "sha256": "309d743ef0e4c7b52a0cdb4adbdd32ef1ec79568e46053bef3754344eb0406a6",
+      "reason": "Authored synthetic task IDs exercise canonical identity/undo compatibility; no retained catalogue record or actual retained task identity. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/equipment.test.mjs",
+      "category": "account-map-binding",
+      "sha256": "2ec9701af645fd44d4fcdd7536ad629de1a9db5db5a149183d06ca2acc2a4ad1",
+      "reason": "Authored synthetic ownership/save-map scenario; this line uses invented test aliases rather than a saved account binding. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/equipment.test.mjs",
+      "category": "account-map-binding",
+      "sha256": "34f24ececaf775dfc39f30261174c113cb584cd24d5b78ecafc155c8e41102ff",
+      "reason": "Authored synthetic ownership/save-map scenario; this line uses invented test aliases rather than a saved account binding. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/equipment.test.mjs",
+      "category": "account-map-binding",
+      "sha256": "f0d635c4b9c8dcc21e89f324f2d8f529d94fcecede897e260338f59790ff0ea8",
+      "reason": "Authored synthetic ownership/save-map scenario; this line uses invented test aliases rather than a saved account binding. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/f2p-equipment-membership.test.mjs",
+      "category": "account-map-binding",
+      "sha256": "686757625ae55ef17e65bbd13f50e9d6b39296ad702ea7801e42b9d8fb7c6695",
+      "reason": "Authored synthetic ownership/save-map scenario; this line uses invented test aliases rather than a saved account binding. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/feedback-storage.test.mjs",
+      "category": "machine-path",
+      "sha256": "39d3dad60454cfa0776b90e00fc7b2597137e480da546a7d8188d91922b8229a",
+      "reason": "Relative isolated test-output or historical synthetic-audit path, with no user directory, live save or machine binding. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/feedback-web.test.mjs",
+      "category": "token",
+      "sha256": "2b708a2b7233970b28a0ece475652794829be901364d733068158f1c20124968",
+      "reason": "Deliberately invented credential/link sentinel tests redaction, rejection or non-disclosure; runtime secrets are generated separately. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/feedback-web.test.mjs",
+      "category": "token",
+      "sha256": "2f9312d9faa7c300e9c0b73994d69d6c94b5cb211bea1927b9a684b214acb066",
+      "reason": "Deliberately invented credential/link sentinel tests redaction, rejection or non-disclosure; runtime secrets are generated separately. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/finish-line-model.test.mjs",
+      "category": "legacy-task-id",
+      "sha256": "14534586f4b0097137ad266ddd6dfa4bb810fd59b92e278ceb62e25d16b058d8",
+      "reason": "Authored synthetic task IDs exercise canonical identity/undo compatibility; no retained catalogue record or actual retained task identity. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/finish-line-model.test.mjs",
+      "category": "legacy-task-id",
+      "sha256": "148e3f6221930e6fbbf45891c0b942084f41e1f8d120dfee93860450f25df270",
+      "reason": "Authored synthetic task IDs exercise canonical identity/undo compatibility; no retained catalogue record or actual retained task identity. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/finish-line-model.test.mjs",
+      "category": "legacy-task-id",
+      "sha256": "2905ac1d3a0c4fc84fc014d8249e25f4eb675a40976b1ac5866c80331cc93a0e",
+      "reason": "Authored synthetic task IDs exercise canonical identity/undo compatibility; no retained catalogue record or actual retained task identity. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/finish-line-model.test.mjs",
+      "category": "legacy-task-id",
+      "sha256": "2e46559d5ec4ecf2319418c02af395c017f70c5bd9af84ed03f2c602511b9a61",
+      "reason": "Authored synthetic task IDs exercise canonical identity/undo compatibility; no retained catalogue record or actual retained task identity. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/finish-line-model.test.mjs",
+      "category": "legacy-task-id",
+      "sha256": "45776cffed2c9d376d2cc28ee19029a4a501007790ee6e7277fa4c3c7d1b4787",
+      "reason": "Authored synthetic task IDs exercise canonical identity/undo compatibility; no retained catalogue record or actual retained task identity. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/finish-line-model.test.mjs",
+      "category": "legacy-task-id",
+      "sha256": "55386b548d4e23134b88d2f633e63ffcd6482577ab8bbfbbd8cba62e38780843",
+      "reason": "Authored synthetic task IDs exercise canonical identity/undo compatibility; no retained catalogue record or actual retained task identity. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/finish-line-model.test.mjs",
+      "category": "legacy-task-id",
+      "sha256": "6271bdcb0e09175e74a441c72f8c315fe6db06b0e7d89a38f9becc282a552310",
+      "reason": "Authored synthetic task IDs exercise canonical identity/undo compatibility; no retained catalogue record or actual retained task identity. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/finish-line-model.test.mjs",
+      "category": "legacy-task-id",
+      "sha256": "6b0d4de3c3ec940768c15f4247818e804d40886b32ac30d2ff3892319c65f56e",
+      "reason": "Authored synthetic task IDs exercise canonical identity/undo compatibility; no retained catalogue record or actual retained task identity. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/finish-line-model.test.mjs",
+      "category": "legacy-task-id",
+      "sha256": "7cae18debaf8e3cd14c2370e64ae265cdcdce1f3c398281691581e92729d308e",
+      "reason": "Authored synthetic task IDs exercise canonical identity/undo compatibility; no retained catalogue record or actual retained task identity. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/finish-line-model.test.mjs",
+      "category": "legacy-task-id",
+      "sha256": "a18efc94c18fdb688936266b26d204174283b12d782cb092c0ba7723008dad75",
+      "reason": "Authored synthetic task IDs exercise canonical identity/undo compatibility; no retained catalogue record or actual retained task identity. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/finish-line-model.test.mjs",
+      "category": "legacy-task-id",
+      "sha256": "bab94d6f18959a3955ab2bee2680fb704d94b583b2458b67ae19c8ab14ed847e",
+      "reason": "Authored synthetic task IDs exercise canonical identity/undo compatibility; no retained catalogue record or actual retained task identity. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/finish-line-model.test.mjs",
+      "category": "legacy-task-id",
+      "sha256": "c59bf06cd2d24f4539b6aef243efdea79c4f48971b556e1b9f3c11e2a314eeef",
+      "reason": "Authored synthetic task IDs exercise canonical identity/undo compatibility; no retained catalogue record or actual retained task identity. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/finish-line-model.test.mjs",
+      "category": "legacy-task-id",
+      "sha256": "c7b70d031c02a80c3f98b8a771f91c55f0928deaf9e95d5ffcd121144be0801e",
+      "reason": "Authored synthetic task IDs exercise canonical identity/undo compatibility; no retained catalogue record or actual retained task identity. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/finish-line-model.test.mjs",
+      "category": "legacy-task-id",
+      "sha256": "ca84b34d5b68271a38a95e86cb5abf37f57890e2c71b996271e1db7707cc1b11",
+      "reason": "Authored synthetic task IDs exercise canonical identity/undo compatibility; no retained catalogue record or actual retained task identity. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/finish-line-model.test.mjs",
+      "category": "legacy-task-id",
+      "sha256": "cadb8bc276d55e398a6f8f3a8338b42fd49436b7d48aabb93be2b022283674b8",
+      "reason": "Authored synthetic task IDs exercise canonical identity/undo compatibility; no retained catalogue record or actual retained task identity. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/finish-line-model.test.mjs",
+      "category": "legacy-task-id",
+      "sha256": "f545b8f86669c2fcceb842236a8861a4d4a264bd99601ef5e777587d1e668e77",
+      "reason": "Authored synthetic task IDs exercise canonical identity/undo compatibility; no retained catalogue record or actual retained task identity. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/finish-line-state.test.mjs",
+      "category": "legacy-task-id",
+      "sha256": "3076199d2d95f193dd196f42d5a4eb38dee908f2469b862e64a56ce042e47992",
+      "reason": "Authored synthetic task IDs exercise canonical identity/undo compatibility; no retained catalogue record or actual retained task identity. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/finish-line-state.test.mjs",
+      "category": "legacy-task-id",
+      "sha256": "6d916001a265bd97f679ed1fe4fcd83cada76dbc99aac6c606bd5ffc7582ee36",
+      "reason": "Authored synthetic task IDs exercise canonical identity/undo compatibility; no retained catalogue record or actual retained task identity. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/finish-line-state.test.mjs",
+      "category": "legacy-task-id",
+      "sha256": "c7346fec323550e7b70e7362cc0767e8c5cded6c82326227b01d35e30f06deb2",
+      "reason": "Authored synthetic task IDs exercise canonical identity/undo compatibility; no retained catalogue record or actual retained task identity. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/finish-line-state.test.mjs",
+      "category": "legacy-task-id",
+      "sha256": "f61d19ca4642d43dabd9766c10018ede8ce6e60e79b86d83243eb18b44655ba4",
+      "reason": "Authored synthetic task IDs exercise canonical identity/undo compatibility; no retained catalogue record or actual retained task identity. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/game-profile.test.mjs",
+      "category": "machine-path",
+      "sha256": "57d8a71cfb0c0b4b3a753f3d6fab4b49c373f1e03f5044c51b885983a6bee8cf",
+      "reason": "Authored isolated-output, refused storage-binding or invented error-path fixture; no actual user directory, external destination or live save is included. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/game-profile.test.mjs",
+      "category": "machine-path",
+      "sha256": "a39faa5dd461c39bc3a959861550aa0b518a35a296be3a88ad4ef8c67337db14",
+      "reason": "Authored isolated-output, refused storage-binding or invented error-path fixture; no actual user directory, external destination or live save is included. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/game-profile.test.mjs",
+      "category": "machine-path",
+      "sha256": "dbe40ba4aac39ec946622bd7aca56e53c2a2288ca7c1f3eb6ad70cc1a6dd586c",
+      "reason": "Authored isolated-output, refused storage-binding or invented error-path fixture; no actual user directory, external destination or live save is included. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/group-goals-server.test.mjs",
+      "category": "machine-path",
+      "sha256": "16c418bca84efcaa58a631c2975bd754b16be8e9404f1a617b783b94a3a9bf8b",
+      "reason": "Reviewed exact authored test line: a repository-relative .local scratch directory created for isolated disposable server fixtures; contains no absolute machine path or exported scratch payload."
+    },
+    {
+      "path": "tests/group-goals-view.test.mjs",
+      "category": "legacy-task-id",
+      "sha256": "0bb0d28dc21b0e7faf44d583113a57b2530bd543436e751197fab5d9d7720af5",
+      "reason": "Authored synthetic task IDs exercise canonical identity/undo compatibility; no retained catalogue record or actual retained task identity. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/group-goals-view.test.mjs",
+      "category": "legacy-task-id",
+      "sha256": "18a8ca9a4b4526e0c41cf0f5f90d384ac3ebe11e3e8845b8d647dcd64554ad3d",
+      "reason": "Authored synthetic task IDs exercise canonical identity/undo compatibility; no retained catalogue record or actual retained task identity. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/group-goals-view.test.mjs",
+      "category": "legacy-task-id",
+      "sha256": "706140ac5baa6222fa6aabe3bdb82b6cc8ea2d6c83abbd4982c81ec78045b8d9",
+      "reason": "Authored synthetic task IDs exercise canonical identity/undo compatibility; no retained catalogue record or actual retained task identity. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/group-goals-view.test.mjs",
+      "category": "legacy-task-id",
+      "sha256": "7b8717443039f2ec3f5bf21f2656377842408bf32f6a417d7309d9bbd0c6fa8e",
+      "reason": "Authored synthetic task IDs exercise canonical identity/undo compatibility; no retained catalogue record or actual retained task identity. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/group-goals-view.test.mjs",
+      "category": "legacy-task-id",
+      "sha256": "8a1797f4ceee46f095c313a7c6905184959a78ccdf555c5230e4d651d4b6f6af",
+      "reason": "Authored synthetic task IDs exercise canonical identity/undo compatibility; no retained catalogue record or actual retained task identity. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/helper-training.test.mjs",
+      "category": "account-map-binding",
+      "sha256": "3806f819e732035d719b3d3bdfab4f4d2bead145bb0d29a40b521bcc5cb8e345",
+      "reason": "Authored synthetic ownership/save-map scenario; this line uses invented test aliases rather than a saved account binding. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/helper-training.test.mjs",
+      "category": "account-map-binding",
+      "sha256": "ac0fa1cf723596f6b72f5f61a66940210be897c683b4f384ef441863607a6072",
+      "reason": "Authored synthetic ownership/save-map scenario; this line uses invented test aliases rather than a saved account binding. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/helper-training.test.mjs",
+      "category": "network-identifier",
+      "sha256": "1e97bc633b54749d6241616dd3575af09148aa64423ced0519fcb5141df203e5",
+      "reason": "Public source/API URL labels in an authored provenance fixture; the local harness intercepts requests. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/helper-training.test.mjs",
+      "category": "network-identifier",
+      "sha256": "4a494c816f5d9e6a819fe4193f7a0ffc92e35b9e72bf053136d3db65a7949411",
+      "reason": "Synthetic URL parser base or rejected URL input in an authored local harness; no deployed service binding. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/helper-training.test.mjs",
+      "category": "network-identifier",
+      "sha256": "9176deacc6d8f9ae62bf71b98e55fe29c89400875ec31690049397bd12a47cdc",
+      "reason": "Synthetic URL parser base or rejected URL input in an authored local harness; no deployed service binding. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/helper-training.test.mjs",
+      "category": "network-identifier",
+      "sha256": "c872a5e6b279be47f971db7a9abf627975367d3f894e73dca94384e2aa5fedf9",
+      "reason": "Synthetic URL parser base or rejected URL input in an authored local harness; no deployed service binding. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/history-text.test.mjs",
+      "category": "copied-source",
+      "sha256": "f2ceba15398d592339e4116327284ad2b43da290121b243882d533efb579e2f8",
+      "reason": "Authored compatibility UI assertion or explicit private-path refusal; no captured upstream content. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/history-text.test.mjs",
+      "category": "legacy-task-id",
+      "sha256": "2d8a7e56bc4b77cfe29e8e85ac0d43ad7ef02a2ab7d5a6a22a5aa288394895bb",
+      "reason": "Authored synthetic task IDs exercise canonical identity/undo compatibility; no retained catalogue record or actual retained task identity. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/idle-memory-server.test.mjs",
+      "category": "machine-path",
+      "sha256": "bce0b46bacb98c80d4e3d559db09ad25e70393025e569ac9e1a2092d663511c7",
+      "reason": "Reviewed exact authored test line: a repository-relative .local scratch directory created for isolated disposable server fixtures; contains no absolute machine path or exported scratch payload."
+    },
+    {
+      "path": "tests/invite-attribution.test.mjs",
+      "category": "account-map-binding",
+      "sha256": "6103976b72fed53f3b0f6d02c6c12d61cbc4196c88a52d5bded712631b24d3b2",
+      "reason": "Authored synthetic ownership/save-map scenario; this line uses invented test aliases rather than a saved account binding. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/invites-server.test.mjs",
+      "category": "machine-path",
+      "sha256": "4075db02fad71adb8d49cce28fe60d9eaabff6d74f933e858dee4eff74a73752",
+      "reason": "Relative isolated test-output or historical synthetic-audit path, with no user directory, live save or machine binding. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/invites-server.test.mjs",
+      "category": "network-identifier",
+      "sha256": "1c8a619a6be2f65a9263190f5651d44fdda11f86472c6f4437d2fbc2ff9435a1",
+      "reason": "Authored network-boundary/proxy-spoof tests use reserved/example addresses and invented peers; these are not a deployed host binding. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/invites-server.test.mjs",
+      "category": "network-identifier",
+      "sha256": "20bf6c2d9ae31aef3fe1d6d1dce1a9eefe8bbba9ff229548837a804eef00898d",
+      "reason": "Authored network-boundary/proxy-spoof tests use reserved/example addresses and invented peers; these are not a deployed host binding. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/invites-server.test.mjs",
+      "category": "network-identifier",
+      "sha256": "3a2540096e283bd4b1b5541dc2ff266888645155620d4ea80641dd63f039f46a",
+      "reason": "Authored network-boundary/proxy-spoof tests use reserved/example addresses and invented peers; these are not a deployed host binding. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/invites-server.test.mjs",
+      "category": "network-identifier",
+      "sha256": "46d082fa6313b6821aa7a4a320541e600820700adb473ee55674822be89925ca",
+      "reason": "Authored network-boundary/proxy-spoof tests use reserved/example addresses and invented peers; these are not a deployed host binding. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/invites-server.test.mjs",
+      "category": "network-identifier",
+      "sha256": "56fffbb04d34dbb2cdb311b004488a28c3103c0610bab01593705271dd7f9cee",
+      "reason": "Authored network-boundary/proxy-spoof tests use reserved/example addresses and invented peers; these are not a deployed host binding. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/invites-server.test.mjs",
+      "category": "network-identifier",
+      "sha256": "7cf6159456e4b44b93c8f92e39967e7f04f7d6b5cbdb0e5b10f11255201c80ea",
+      "reason": "Authored network-boundary/proxy-spoof tests use reserved/example addresses and invented peers; these are not a deployed host binding. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/invites-server.test.mjs",
+      "category": "network-identifier",
+      "sha256": "8e9ad1e9a87347c012af2f73c5c10ab57347885748f9ae59f2d8aefbeb341fe0",
+      "reason": "Authored network-boundary/proxy-spoof tests use reserved/example addresses and invented peers; these are not a deployed host binding. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/invites-server.test.mjs",
+      "category": "network-identifier",
+      "sha256": "9b8bb03f5e2c2f33a98d48d87b9e6827f31c0bcece810dc494cf8a290b60df3e",
+      "reason": "Authored network-boundary/proxy-spoof tests use reserved/example addresses and invented peers; these are not a deployed host binding. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/invites-server.test.mjs",
+      "category": "network-identifier",
+      "sha256": "a015433f467fa4435a53bf2ad54509d0952816be8ac273e9c2aff52ec85df603",
+      "reason": "Authored network-boundary/proxy-spoof tests use reserved/example addresses and invented peers; these are not a deployed host binding. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/invites-server.test.mjs",
+      "category": "network-identifier",
+      "sha256": "b5919ce974165e9ea1acac288862d55ab181e53bfcaf4d07f3b4f0607651cd07",
+      "reason": "Authored network-boundary/proxy-spoof tests use reserved/example addresses and invented peers; these are not a deployed host binding. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/invites-server.test.mjs",
+      "category": "network-identifier",
+      "sha256": "c18cfbf0062ee4e764db2bdb94bfb26e0705bd5f25c7464a4462f022e925d17d",
+      "reason": "Authored network-boundary/proxy-spoof tests use reserved/example addresses and invented peers; these are not a deployed host binding. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/invites-server.test.mjs",
+      "category": "network-identifier",
+      "sha256": "e0d10d726e696b1dc625090ab97b0d11fbe23411ff957a84a2086c39d443a679",
+      "reason": "Authored network-boundary/proxy-spoof tests use reserved/example addresses and invented peers; these are not a deployed host binding. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/invites-server.test.mjs",
+      "category": "network-identifier",
+      "sha256": "f9bf7446d0e184664678c4089927f9397ff55ce6019a8a726f775fd63904e923",
+      "reason": "Authored network-boundary/proxy-spoof tests use reserved/example addresses and invented peers; these are not a deployed host binding. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/invites-storage.test.mjs",
+      "category": "machine-path",
+      "sha256": "4075db02fad71adb8d49cce28fe60d9eaabff6d74f933e858dee4eff74a73752",
+      "reason": "Relative isolated test-output or historical synthetic-audit path, with no user directory, live save or machine binding. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/invites-storage.test.mjs",
+      "category": "network-identifier",
+      "sha256": "23696a9d3b109f50870af9f51e462fdb2f221534c154a4128de5be6f5c9f2324",
+      "reason": "Authored network-boundary/proxy-spoof tests use reserved/example addresses and invented peers; these are not a deployed host binding. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/invites-storage.test.mjs",
+      "category": "network-identifier",
+      "sha256": "399932ae774b83a343634e10b6a6e977db74eb3c60388a163d7cf6e9054bd962",
+      "reason": "Authored network-boundary/proxy-spoof tests use reserved/example addresses and invented peers; these are not a deployed host binding. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/invites-storage.test.mjs",
+      "category": "network-identifier",
+      "sha256": "4943771906c474a57f0d32c24a15e42bab4d3262cc21b32d6036ea798a617571",
+      "reason": "Authored network-boundary/proxy-spoof tests use reserved/example addresses and invented peers; these are not a deployed host binding. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/invites-storage.test.mjs",
+      "category": "network-identifier",
+      "sha256": "4c88eeb71e3cf9664bec54202647ec3e0763435f516cbc577e177f0ea5286707",
+      "reason": "Authored network-boundary/proxy-spoof tests use reserved/example addresses and invented peers; these are not a deployed host binding. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/invites-storage.test.mjs",
+      "category": "network-identifier",
+      "sha256": "693bd11eeea6cb1c0f6c097d8d0727a5e3e44e49f0c075cd23239b6ecf6c7bde",
+      "reason": "Authored network-boundary/proxy-spoof tests use reserved/example addresses and invented peers; these are not a deployed host binding. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/invites-storage.test.mjs",
+      "category": "network-identifier",
+      "sha256": "79c9bf5f3521d459b5a4816c6ca22d35e8901cd3a8cacc38a71f900f44137551",
+      "reason": "Authored network-boundary/proxy-spoof tests use reserved/example addresses and invented peers; these are not a deployed host binding. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/invites-storage.test.mjs",
+      "category": "network-identifier",
+      "sha256": "804b666c653845d9dd7cdb0aa09d1b2662df04b7df45578e3dc56f7f13e4adf6",
+      "reason": "Authored network-boundary/proxy-spoof tests use reserved/example addresses and invented peers; these are not a deployed host binding. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/invites-storage.test.mjs",
+      "category": "network-identifier",
+      "sha256": "865d32c75333e5cc52a4a3b30218bceb4bd6e667d5fb830f184c5f5cb7d57362",
+      "reason": "Authored network-boundary/proxy-spoof tests use reserved/example addresses and invented peers; these are not a deployed host binding. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/invites-storage.test.mjs",
+      "category": "network-identifier",
+      "sha256": "8955c32c2ac10cb368d0c8757f153335cf9ca41cb7a12ca408b37bef9fe184a1",
+      "reason": "Authored network-boundary/proxy-spoof tests use reserved/example addresses and invented peers; these are not a deployed host binding. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/invites-storage.test.mjs",
+      "category": "network-identifier",
+      "sha256": "9077d5d9d21188f3a92f1285a9166a452683a2bc94cd0cc7d8822e8e17cc3a4d",
+      "reason": "Authored network-boundary/proxy-spoof tests use reserved/example addresses and invented peers; these are not a deployed host binding. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/invites-storage.test.mjs",
+      "category": "network-identifier",
+      "sha256": "97b254ccf4aa062748754d72e0d0f11bef59e4bd2980c5b26a5fa089da1e8538",
+      "reason": "Authored network-boundary/proxy-spoof tests use reserved/example addresses and invented peers; these are not a deployed host binding. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/invites-storage.test.mjs",
+      "category": "network-identifier",
+      "sha256": "bba1e18a8b583a6ed1062b1d644cd3c2cc9139a9ec6af6db6f5f8c78dc452f6d",
+      "reason": "Authored network-boundary/proxy-spoof tests use reserved/example addresses and invented peers; these are not a deployed host binding. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/invites-storage.test.mjs",
+      "category": "network-identifier",
+      "sha256": "bcb2a62007d48eba6a9218d6096c540676734c6cea4f11d124649df0955f447f",
+      "reason": "Authored network-boundary/proxy-spoof tests use reserved/example addresses and invented peers; these are not a deployed host binding. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/invites-storage.test.mjs",
+      "category": "network-identifier",
+      "sha256": "cec3c83a0b4867277e7ff9cc123540b418cded5018e129427c60804e06bb7b87",
+      "reason": "Authored network-boundary/proxy-spoof tests use reserved/example addresses and invented peers; these are not a deployed host binding. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/invites-storage.test.mjs",
+      "category": "network-identifier",
+      "sha256": "ee5e77a0b46dc67929fe1e48fe93f80b6e0dcc223392890b3921e1232f157a60",
+      "reason": "Authored network-boundary/proxy-spoof tests use reserved/example addresses and invented peers; these are not a deployed host binding. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/invites-storage.test.mjs",
+      "category": "network-identifier",
+      "sha256": "f1101c83568588d6e4e8b6497d9fbbec5508ac6cbabd7778edd65194c5108089",
+      "reason": "Authored network-boundary/proxy-spoof tests use reserved/example addresses and invented peers; these are not a deployed host binding. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/invites-storage.test.mjs",
+      "category": "token",
+      "sha256": "0ba78a9a53403b47f375a3f1b6510d61810fd88c14a1757420e70768d20529e2",
+      "reason": "Deliberately invented credential/link sentinel tests redaction, rejection or non-disclosure; runtime secrets are generated separately. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/invites-storage.test.mjs",
+      "category": "token",
+      "sha256": "aed4fb08075526f7e4f61037aad79874e89962ef164e0145c2d088ce265fe00f",
+      "reason": "Deliberately invented credential/link sentinel tests redaction, rejection or non-disclosure; runtime secrets are generated separately. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/invites-web.test.mjs",
+      "category": "token",
+      "sha256": "3ebabb4b61e7e206e4ef98c5a106bc929959580bcc07b885d75cf5cd16fb97cd",
+      "reason": "Deliberately invented credential/link sentinel tests redaction, rejection or non-disclosure; runtime secrets are generated separately. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/invites-web.test.mjs",
+      "category": "token",
+      "sha256": "57ef14f336070bf3d6181fa6222cb09db5686623af34a340a632ee78df956ac2",
+      "reason": "Deliberately invented credential/link sentinel tests redaction, rejection or non-disclosure; runtime secrets are generated separately. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/invites-web.test.mjs",
+      "category": "token",
+      "sha256": "c1c75d662e1726f96dc471ec3bf3a38c21e1eed486a61e8737847aa8a4558982",
+      "reason": "Deliberately invented credential/link sentinel tests redaction, rejection or non-disclosure; runtime secrets are generated separately. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/invites-web.test.mjs",
+      "category": "token",
+      "sha256": "d9278c6984575b1d30441b6ee6c2f8fca8961f9fd4b86b7c1cefa365313a8509",
+      "reason": "Deliberately invented credential/link sentinel tests redaction, rejection or non-disclosure; runtime secrets are generated separately. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/invites-web.test.mjs",
+      "category": "token",
+      "sha256": "fdcf11c13d8db183863abfa9e0864727d11931ee40d14355cdde4481e08fcbd2",
+      "reason": "Deliberately invented credential/link sentinel tests redaction, rejection or non-disclosure; runtime secrets are generated separately. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/journal-state.test.mjs",
+      "category": "account-map-binding",
+      "sha256": "1da77bb86d44c88767661757638c299ade683d0b16268d5819ad4c82b44cd85c",
+      "reason": "Authored synthetic ownership/save-map scenario; this line uses invented test aliases rather than a saved account binding. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/journal-state.test.mjs",
+      "category": "account-map-binding",
+      "sha256": "bbd428d07b71c03a00afe83530db811173947244e551e6f7ab69da40734183f4",
+      "reason": "Authored synthetic ownership/save-map scenario; this line uses invented test aliases rather than a saved account binding. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/light-facts.test.mjs",
+      "category": "account-map-binding",
+      "sha256": "cbbf274dd233ed5c776c48ad21bbfb3d8eda05a8efaf455ccfe6c4a27cbca790",
+      "reason": "Authored synthetic ownership/save-map scenario; this line uses invented test aliases rather than a saved account binding. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/light-facts.test.mjs",
+      "category": "account-map-binding",
+      "sha256": "e71c61aea3a741db261c4bc2ccc6e31a18b999275811a5a6fb1097d6dc608309",
+      "reason": "Authored synthetic ownership/save-map scenario; this line uses invented test aliases rather than a saved account binding. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/light-facts.test.mjs",
+      "category": "legacy-task-id",
+      "sha256": "03317f6306ee99f47e087b615757a9f595e7dede3d6da906b33cb5be1e879662",
+      "reason": "Authored synthetic task IDs exercise canonical identity/undo compatibility; no retained catalogue record or actual retained task identity. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/light-facts.test.mjs",
+      "category": "legacy-task-id",
+      "sha256": "0cdf34e2db1f9ea721a128c1f1fdde64044d5ee65d04f96571acd0cc3bae2f9a",
+      "reason": "Authored synthetic task IDs exercise canonical identity/undo compatibility; no retained catalogue record or actual retained task identity. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/light-facts.test.mjs",
+      "category": "legacy-task-id",
+      "sha256": "1492016be25dd821fcfec7ffd3edcb9080440a34ae642a7e4367c1b7826f2a85",
+      "reason": "Authored synthetic task IDs exercise canonical identity/undo compatibility; no retained catalogue record or actual retained task identity. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/light-facts.test.mjs",
+      "category": "legacy-task-id",
+      "sha256": "201ca370321b2591078c1c1e7a8bf1528c3ba1404d3352fe4d28583195bf086a",
+      "reason": "Authored synthetic task IDs exercise canonical identity/undo compatibility; no retained catalogue record or actual retained task identity. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/light-facts.test.mjs",
+      "category": "legacy-task-id",
+      "sha256": "3303ac302999ccbfb8be8990d984cbff8ce54c39b921a9b4898f36c2a2e62972",
+      "reason": "Authored synthetic task IDs exercise canonical identity/undo compatibility; no retained catalogue record or actual retained task identity. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/light-facts.test.mjs",
+      "category": "legacy-task-id",
+      "sha256": "34ac671ff285795cac54133e68564b7ecff20b9cce6e7b7ac1601dc84e0a2a87",
+      "reason": "Authored synthetic task IDs exercise canonical identity/undo compatibility; no retained catalogue record or actual retained task identity. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/light-facts.test.mjs",
+      "category": "legacy-task-id",
+      "sha256": "3d2e7bb675dbd6cad3e7aa36947dad92a3c52111efcfe837fe3dbdd2f6839ec5",
+      "reason": "Authored synthetic task IDs exercise canonical identity/undo compatibility; no retained catalogue record or actual retained task identity. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/light-facts.test.mjs",
+      "category": "legacy-task-id",
+      "sha256": "412209a3c655d751758c165842d839db637ee42e6fd57de6d36a2c54deb6a45e",
+      "reason": "Authored synthetic task IDs exercise canonical identity/undo compatibility; no retained catalogue record or actual retained task identity. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/light-facts.test.mjs",
+      "category": "legacy-task-id",
+      "sha256": "4b045efddc5135d836221e883a63afa03fed8c51da26ae88867fb99de31b42b2",
+      "reason": "Authored synthetic task IDs exercise canonical identity/undo compatibility; no retained catalogue record or actual retained task identity. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/light-facts.test.mjs",
+      "category": "legacy-task-id",
+      "sha256": "5726ec587ef141c61edf46b0d06700926bfb14d0aba1fb94e10f9da83de6d0c6",
+      "reason": "Authored synthetic task IDs exercise canonical identity/undo compatibility; no retained catalogue record or actual retained task identity. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/light-facts.test.mjs",
+      "category": "legacy-task-id",
+      "sha256": "7e259d6656bb14a9bcc7ef24eabb0cb6a54e9a266ea2c69e70754790f45634cb",
+      "reason": "Authored synthetic task IDs exercise canonical identity/undo compatibility; no retained catalogue record or actual retained task identity. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/light-facts.test.mjs",
+      "category": "legacy-task-id",
+      "sha256": "7ffdb5f63a0cf0c362808bc5ea5f54a5ed48985f1d3156137faac532c4f0b1d5",
+      "reason": "Authored synthetic task IDs exercise canonical identity/undo compatibility; no retained catalogue record or actual retained task identity. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/light-facts.test.mjs",
+      "category": "legacy-task-id",
+      "sha256": "968a7f1dda229a185433c89adf6051560f08ed661e437d212ce90bdc6058e5db",
+      "reason": "Authored synthetic task IDs exercise canonical identity/undo compatibility; no retained catalogue record or actual retained task identity. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/light-facts.test.mjs",
+      "category": "legacy-task-id",
+      "sha256": "b0b7898e186c0e2ed3db5f6517cd97c328fb644067b05ec1278c885cf4a34a60",
+      "reason": "Authored synthetic task IDs exercise canonical identity/undo compatibility; no retained catalogue record or actual retained task identity. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/light-facts.test.mjs",
+      "category": "legacy-task-id",
+      "sha256": "c8d61be7a6215bd88413c60e775b3c38d0439a0860ce14844d24e8a40b432859",
+      "reason": "Authored synthetic task IDs exercise canonical identity/undo compatibility; no retained catalogue record or actual retained task identity. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/light-facts.test.mjs",
+      "category": "legacy-task-id",
+      "sha256": "d16a5cf4a4ff8f5b2bf64ed1dc464b90286a06c77633b01c6ca21d8e0fc68560",
+      "reason": "Authored synthetic task IDs exercise canonical identity/undo compatibility; no retained catalogue record or actual retained task identity. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/light-facts.test.mjs",
+      "category": "legacy-task-id",
+      "sha256": "d40974589c572b332329d5c480095212cb80627d73e5afc2ef68af673af281ca",
+      "reason": "Authored synthetic task IDs exercise canonical identity/undo compatibility; no retained catalogue record or actual retained task identity. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/light-facts.test.mjs",
+      "category": "legacy-task-id",
+      "sha256": "e5c36d796b7a22a155af04e0619e93b6fce8ecf375196444d7bd5f63128ff210",
+      "reason": "Authored synthetic task IDs exercise canonical identity/undo compatibility; no retained catalogue record or actual retained task identity. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/light-facts.test.mjs",
+      "category": "legacy-task-id",
+      "sha256": "e7edade44dd467e1420a1798633eb62942c439e3de802a7c8946dc5c249dd80b",
+      "reason": "Authored synthetic task IDs exercise canonical identity/undo compatibility; no retained catalogue record or actual retained task identity. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/light-facts.test.mjs",
+      "category": "legacy-task-id",
+      "sha256": "f9236d3cf42152d4c908831167b8093cbe3066eb0e95221b5d2e65d3c0038edd",
+      "reason": "Authored synthetic task IDs exercise canonical identity/undo compatibility; no retained catalogue record or actual retained task identity. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/map-activity-layer-model.test.mjs",
+      "category": "account-map-binding",
+      "sha256": "4db7ae151d137007b91973775991ef8dbbb73c5666a612bbf759effe5c679745",
+      "reason": "Authored synthetic ownership/save-map scenario; this line uses invented test aliases rather than a saved account binding. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/map-activity-layer-model.test.mjs",
+      "category": "account-map-binding",
+      "sha256": "def10600642d3c8b9b443e73ed417dea7739778521b603d41bbe189d1fa3d40f",
+      "reason": "Authored synthetic ownership/save-map scenario; this line uses invented test aliases rather than a saved account binding. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/map-activity-layer-model.test.mjs",
+      "category": "copied-source",
+      "sha256": "41a867e771848920527e1e9d9c219c3a9db2c08e54acff01a71b422203715fc1",
+      "reason": "Authored compatibility UI assertion or explicit private-path refusal; no captured upstream content. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/map-activity-layer-server.test.mjs",
+      "category": "machine-path",
+      "sha256": "ccfa5a9490c6bced21b28231743251370d0537889841cc8d79d9a3eac05e4577",
+      "reason": "Reviewed exact authored test line: a repository-relative .local scratch directory created for isolated disposable server fixtures; contains no absolute machine path or exported scratch payload."
+    },
+    {
+      "path": "tests/map-pin-filters.test.mjs",
+      "category": "network-identifier",
+      "sha256": "f9ac043f9ef2929fc7fece8808378fd2252e972776d39a77646cf6a4c87b36f6",
+      "reason": "Synthetic URL parser base or rejected URL input in an authored local harness; no deployed service binding. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/map-tools.test.mjs",
+      "category": "account-map-binding",
+      "sha256": "b0f5d5fbbb3fad271907bfe5586d18694ca528d77f54347813c0661c7dce6fc4",
+      "reason": "Authored synthetic ownership/save-map scenario; this line uses invented test aliases rather than a saved account binding. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/map-tools.test.mjs",
+      "category": "account-map-binding",
+      "sha256": "c6cb571384765e05ca84f64d6c3aafebe8106b441a18459d209859d92e1d9a9a",
+      "reason": "Invented fixture actor/map aliases in a synthetic grid fixture, after the named test-only identity transform. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/migration-identity.test.mjs",
+      "category": "account-map-binding",
+      "sha256": "fb3ed8df8820e83f167675e001a7747013eaf06d880a0b9d563f21b8c165e28c",
+      "reason": "Authored synthetic ownership/save-map scenario; this line uses invented test aliases rather than a saved account binding. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/migration-identity.test.mjs",
+      "category": "legacy-task-id",
+      "sha256": "8ac0c7df6383cd49abf93af3ac66f0c0ebfbebffa5e92fcd2479c079e4f410fc",
+      "reason": "Authored synthetic task IDs exercise canonical identity/undo compatibility; no retained catalogue record or actual retained task identity. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/migration-identity.test.mjs",
+      "category": "legacy-task-id",
+      "sha256": "b9b761f4824e76999c874d50e46f48391b28ac218f8836f337583e91088081db",
+      "reason": "Authored synthetic task IDs exercise canonical identity/undo compatibility; no retained catalogue record or actual retained task identity. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/migration-identity.test.mjs",
+      "category": "legacy-task-id",
+      "sha256": "f4c96fd86e90456960a094afa69345c91c83a0ad00813587cbc0fecba7934602",
+      "reason": "Authored synthetic task IDs exercise canonical identity/undo compatibility; no retained catalogue record or actual retained task identity. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/migration-scale.test.mjs",
+      "category": "account-map-binding",
+      "sha256": "d56865658228fd965eb24aa53c5bbe168fdb0e98b7d2dd6001ee8e94ef11302b",
+      "reason": "Reviewed exact authored synthetic member/map binding for an isolated model or server fixture; contains no saved account binding or captured map payload."
+    },
+    {
+      "path": "tests/migration-scale.test.mjs",
+      "category": "account-map-binding",
+      "sha256": "fd4e8d1215a499b748c79f06fd5f651960b58f2b70fdaa9bd2abf3917edce18a",
+      "reason": "Reviewed exact authored synthetic member/map binding for an isolated model or server fixture; contains no saved account binding or captured map payload."
+    },
+    {
+      "path": "tests/migration-scale.test.mjs",
+      "category": "legacy-task-id",
+      "sha256": "3540afc599e85c77fdc4d077359ff0d7c597bd51fa604f802d6dc2c095c3603f",
+      "reason": "Reviewed exact authored synthetic task identifier or constructor record used by this isolated test scenario; no captured catalogue task identity or payload."
+    },
+    {
+      "path": "tests/migration-scale.test.mjs",
+      "category": "legacy-task-id",
+      "sha256": "80d4838517b8036a0baa39ccba0960c1fc5d70e9cd8ef28ba3cdb538e1580f4c",
+      "reason": "Reviewed exact authored synthetic task identifier or constructor record used by this isolated test scenario; no captured catalogue task identity or payload."
+    },
+    {
+      "path": "tests/migration-scale.test.mjs",
+      "category": "legacy-task-id",
+      "sha256": "8cbd63b3ee8f86e44ec04a7a5b544ab6d14884a22eade27ef57c9e31c74f9141",
+      "reason": "Reviewed exact authored synthetic task identifier or constructor record used by this isolated test scenario; no captured catalogue task identity or payload."
+    },
+    {
+      "path": "tests/migration-scope.test.mjs",
+      "category": "legacy-task-id",
+      "sha256": "0ae1a161230ddcb37d17f801a1e4593a29897ac9b0a6837fc03bb29dc2ff4803",
+      "reason": "Authored synthetic task IDs exercise canonical identity/undo compatibility; no retained catalogue record or actual retained task identity. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/migration-scope.test.mjs",
+      "category": "legacy-task-id",
+      "sha256": "0bb5a04b45b3841212b9a4c1ea92008c2f8d6a3bb0188c8983c65eb0415c1755",
+      "reason": "Authored synthetic task IDs exercise canonical identity/undo compatibility; no retained catalogue record or actual retained task identity. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/migration-scope.test.mjs",
+      "category": "legacy-task-id",
+      "sha256": "2630ea2e420b9f4fe06fb4129c512533b3a2a30e18b5f7ab1cefd9ae0b9e70aa",
+      "reason": "Authored synthetic task IDs exercise canonical identity/undo compatibility; no retained catalogue record or actual retained task identity. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/migration-scope.test.mjs",
+      "category": "legacy-task-id",
+      "sha256": "84eeb1b6387e205a5338ecd2f9cbeaf28ae90769e016ddcf39c707b1884ca6f9",
+      "reason": "Authored synthetic task IDs exercise canonical identity/undo compatibility; no retained catalogue record or actual retained task identity. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/migration-scope.test.mjs",
+      "category": "legacy-task-id",
+      "sha256": "923bb97a9f96173c9101ad757d9c799fcc3303321ae85f395a52e2bf21ad059a",
+      "reason": "Authored synthetic task IDs exercise canonical identity/undo compatibility; no retained catalogue record or actual retained task identity. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/migration.test.mjs",
+      "category": "account-map-binding",
+      "sha256": "952f3ce24a68f2d2ae066e9bd5c4cb2496547a349642c2d36934936cae9254a9",
+      "reason": "Authored synthetic ownership/save-map scenario; this line uses invented test aliases rather than a saved account binding. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/migration.test.mjs",
+      "category": "legacy-task-id",
+      "sha256": "8477d78b792ddc152073fe6723e1d5817c51e40b70c5a40cf03c8f7971fd89f1",
+      "reason": "Authored synthetic task IDs exercise canonical identity/undo compatibility; no retained catalogue record or actual retained task identity. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/multisticker-state.test.mjs",
+      "category": "account-map-binding",
+      "sha256": "05114fadaee8205de7140c519052fd78d20e94f24601f348765a9a6a1014f44d",
+      "reason": "Authored synthetic ownership/save-map scenario; this line uses invented test aliases rather than a saved account binding. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/multisticker-state.test.mjs",
+      "category": "account-map-binding",
+      "sha256": "8799ff3f890443463c129d4da76ce6b19454fee6a2e8acc2b91f80ae63e12ff3",
+      "reason": "Authored synthetic ownership/save-map scenario; this line uses invented test aliases rather than a saved account binding. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/open-f2p-fetch.test.mjs",
+      "category": "machine-path",
+      "sha256": "92934c16ecf255bef85e46d854be7cfa2291541683f3352b5e0a5bb539168ab7",
+      "reason": "Reviewed exact line: configurable relative local test directory; contains no user or machine path."
+    },
+    {
+      "path": "tests/open-f2p.test.mjs",
+      "category": "copied-source",
+      "sha256": "4bbd9a0c13c19dc9ff626edce7192f2142dd8987637febfea71539f28bcde47f",
+      "reason": "Reviewed exact line: negative filesystem-access probe names forbidden input paths, without reading or embedding those inputs."
+    },
+    {
+      "path": "tests/open-f2p.test.mjs",
+      "category": "copied-source",
+      "sha256": "cf9b4515adf4b146ed6b00a4c88484fa3dcf49ba64e934b2cd2b87659dd20fbf",
+      "reason": "Reviewed exact line: negative filesystem-access probe names forbidden input paths, without reading or embedding those inputs."
+    },
+    {
+      "path": "tests/open-f2p.test.mjs",
+      "category": "copied-source",
+      "sha256": "eef8d6ab3ff0a9d0d41211e41bafa5a230c361a206ec7e1101a9a566af54c001",
+      "reason": "Reviewed exact line: negative content check names forbidden input path patterns, without reading or embedding those inputs."
+    },
+    {
+      "path": "tests/open-f2p.test.mjs",
+      "category": "machine-path",
+      "sha256": "a1673946109a07861b9be2b96125f6f2d349045bc2ac972bf87078651c8a4584",
+      "reason": "Reviewed exact line: authored markup-parsing syntax, configurable relative local directory, or generated Windows named-pipe endpoint; contains no user or machine path."
+    },
+    {
+      "path": "tests/open-f2p.test.mjs",
+      "category": "machine-path",
+      "sha256": "c9a9ac11b2e8e6dbb2af7b577ab6469de36f2050d81e0fec88dd55a489899e93",
+      "reason": "Reviewed exact line: authored markup-parsing syntax, configurable relative local directory, or generated Windows named-pipe endpoint; contains no user or machine path."
+    },
+    {
+      "path": "tests/open-f2p.test.mjs",
+      "category": "machine-path",
+      "sha256": "cf9b4515adf4b146ed6b00a4c88484fa3dcf49ba64e934b2cd2b87659dd20fbf",
+      "reason": "Reviewed exact line: negative filesystem-access probe names forbidden input paths, without reading or embedding those inputs."
+    },
+    {
+      "path": "tests/open-f2p.test.mjs",
+      "category": "network-identifier",
+      "sha256": "50f9f4cae189c88b25f2b1272f792ac2ca96478b6732b30d9a7603114ea7b7d0",
+      "reason": "Reviewed public provenance/policy link or configured-account API/URL builder. No embedded account, deployment or credential. Exact line only."
+    },
+    {
+      "path": "tests/open-starter.test.mjs",
+      "category": "copied-source",
+      "sha256": "25c228f88bc74d5f1faee006799bad979ea177680481b9757443f2b7c73ccce8",
+      "reason": "Authored compatibility UI assertion or explicit private-path refusal; no captured upstream content. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/open-starter.test.mjs",
+      "category": "legacy-task-id",
+      "sha256": "1fc5cf9fe1afaadd08f5f2580ee52b03eeae12031f76094382502fccea3ff7c7",
+      "reason": "Authored synthetic task IDs exercise canonical identity/undo compatibility; no retained catalogue record or actual retained task identity. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/overlay-model.test.mjs",
+      "category": "legacy-task-id",
+      "sha256": "ecc9439bae9ac010a96a09cb8753558f722f4e65bfdab84d204dc714667cbfd3",
+      "reason": "Authored synthetic task IDs exercise canonical identity/undo compatibility; no retained catalogue record or actual retained task identity. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/overlay-model.test.mjs",
+      "category": "token",
+      "sha256": "030db8933b8609db488b718f7418cd5a5b1ed5ff3366470acb1561fe6c03a8e2",
+      "reason": "Deliberately invented credential/link sentinel tests redaction, rejection or non-disclosure; runtime secrets are generated separately. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/overlay-model.test.mjs",
+      "category": "token",
+      "sha256": "314c0f606310c4f95a225c482033543d7bc5f197b92da3ce9f57deaba8915c6b",
+      "reason": "Deliberately invented credential/link sentinel tests redaction, rejection or non-disclosure; runtime secrets are generated separately. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/overlay-model.test.mjs",
+      "category": "token",
+      "sha256": "ae04ddba1b3bc4063a08888f495f8ac24d85667ff0a43c3d02cb7174cc2d0ab0",
+      "reason": "Deliberately invented credential/link sentinel tests redaction, rejection or non-disclosure; runtime secrets are generated separately. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/overlay-panel.test.mjs",
+      "category": "token",
+      "sha256": "8c7ca98467159febac834df130064c944f3c95d4b0ab1d85bf2e5aa9d025fac8",
+      "reason": "Deliberately invented credential/link sentinel tests redaction, rejection or non-disclosure; runtime secrets are generated separately. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/overlay-routes.test.mjs",
+      "category": "machine-path",
+      "sha256": "18c15b014a333b5c79e00b5dffce3535fb95ac7bc84867d2053373cfdf605592",
+      "reason": "Relative isolated test-output or historical synthetic-audit path, with no user directory, live save or machine binding. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/overlay-routes.test.mjs",
+      "category": "token",
+      "sha256": "8a17c336a61865df8bfc7cbe57df8405c5a01e25faef1cb8072278aa58b46ad5",
+      "reason": "Deliberately invented credential/link sentinel tests redaction, rejection or non-disclosure; runtime secrets are generated separately. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/partner-supply-view.test.mjs",
+      "category": "personal-default",
+      "sha256": "b9e3ed26f9a5578fde2b09fa41a03a9ddddc04924507be6ff3f84d89615b7b75",
+      "reason": "Invented display labels in authored renderer assertions, after the named test identity transform. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/play-view.test.mjs",
+      "category": "legacy-task-id",
+      "sha256": "3ed6be7673642aa22e0bbf08960f9ac3062570921a547301bce2065834a54e13",
+      "reason": "Authored synthetic task IDs exercise canonical identity/undo compatibility; no retained catalogue record or actual retained task identity. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/play-view.test.mjs",
+      "category": "legacy-task-id",
+      "sha256": "dba09039976c004f053036c91d64b26f5420493016ea1b841c90b73b516f8a41",
+      "reason": "Authored synthetic task IDs exercise canonical identity/undo compatibility; no retained catalogue record or actual retained task identity. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/pool-ranking-server.test.mjs",
+      "category": "machine-path",
+      "sha256": "690546d62fcbdc6676b88cb3082ea077051ff11ebe167376b850ea5f9aa1084c",
+      "reason": "Reviewed exact authored test line: a repository-relative .local scratch directory created for isolated disposable server fixtures; contains no absolute machine path or exported scratch payload."
+    },
+    {
+      "path": "tests/prediction-cache.test.mjs",
+      "category": "account-map-binding",
+      "sha256": "2b50bf273f09ce9be777c53865b62eb63c2f982b33e353617be2f7ef127c7a94",
+      "reason": "Authored synthetic ownership/save-map scenario; this line uses invented test aliases rather than a saved account binding. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/prediction-output.test.mjs",
+      "category": "account-map-binding",
+      "sha256": "d54b63d54234dd901a4387018a7ab4b6de7ea7e06c5a1e9d0ea01f555fcd244c",
+      "reason": "Authored synthetic ownership/save-map scenario; this line uses invented test aliases rather than a saved account binding. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/prediction-output.test.mjs",
+      "category": "machine-path",
+      "sha256": "480f2d7ed502a66f380c0bf5cb95512b53f693dffb984a0564e52bc2f30bc139",
+      "reason": "Relative isolated test-output or historical synthetic-audit path, with no user directory, live save or machine binding. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/prediction-output.test.mjs",
+      "category": "machine-path",
+      "sha256": "54f4c8f32c45d22bd19ce4cad7a5ea2cee0b5379b3355af871bc660c0460d174",
+      "reason": "Relative isolated test-output or historical synthetic-audit path, with no user directory, live save or machine binding. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/prediction-output.test.mjs",
+      "category": "machine-path",
+      "sha256": "8dbce7ef9205d1fae03e8f7ba7eba603fa5a86694389c8652f99b94bd7bd3fe8",
+      "reason": "Relative isolated test-output or historical synthetic-audit path, with no user directory, live save or machine binding. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/prediction-output.test.mjs",
+      "category": "machine-path",
+      "sha256": "8f33a3976064114fd1e737eb9c2b622c8c70ecde1131ffca482ff5d753ed373d",
+      "reason": "Relative isolated test-output or historical synthetic-audit path, with no user directory, live save or machine binding. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/prediction-server.test.mjs",
+      "category": "machine-path",
+      "sha256": "5b69603ee1c6b0f55b43b213667335fe77a16f058d1d80d02397b9535f5e52b1",
+      "reason": "Reviewed exact authored test line: a repository-relative .local scratch directory created for isolated disposable server fixtures; contains no absolute machine path or exported scratch payload."
+    },
+    {
+      "path": "tests/presentation.test.mjs",
+      "category": "account-map-binding",
+      "sha256": "0b97bb22b3a6e22827e8cbbc284049d7d2541bc8d2dba22ee74afbdf7efea854",
+      "reason": "Authored synthetic ownership/save-map scenario; this line uses invented test aliases rather than a saved account binding. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/presentation.test.mjs",
+      "category": "account-map-binding",
+      "sha256": "41914d705615bc28d76d7a0f3699a27cf172ba18d60263c731713d340841a084",
+      "reason": "Authored synthetic ownership/save-map scenario; this line uses invented test aliases rather than a saved account binding. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/presentation.test.mjs",
+      "category": "account-map-binding",
+      "sha256": "5413065ee125ebcafc55ddf7b3e74cc60347c6c7315e9d82f24ed27a2b90e5ee",
+      "reason": "Authored synthetic ownership/save-map scenario; this line uses invented test aliases rather than a saved account binding. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/presentation.test.mjs",
+      "category": "account-map-binding",
+      "sha256": "8e8029ae909c60204a5676eaf9bda433ff4fc74fb80a00146f9c1d09120854cd",
+      "reason": "Authored synthetic ownership/save-map scenario; this line uses invented test aliases rather than a saved account binding. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/presentation.test.mjs",
+      "category": "account-map-binding",
+      "sha256": "b58b38353297d15fdce575d75b94ccd258562f1a2f8002b399fde6c91d0523ef",
+      "reason": "Authored synthetic ownership/save-map scenario; this line uses invented test aliases rather than a saved account binding. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/presentation.test.mjs",
+      "category": "account-map-binding",
+      "sha256": "dc68a4bce2411df73ac122cdb9abd1c4b8a4f9445de20eaf34f7ba5eb3e47b64",
+      "reason": "Authored synthetic ownership/save-map scenario; this line uses invented test aliases rather than a saved account binding. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/presentation.test.mjs",
+      "category": "legacy-task-id",
+      "sha256": "586831d72beded7dfee0ea83315b37d3c4beb24da025656fdb4cd96a1a1e7d25",
+      "reason": "Authored synthetic task IDs exercise canonical identity/undo compatibility; no retained catalogue record or actual retained task identity. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/progress-timeline.test.mjs",
+      "category": "machine-path",
+      "sha256": "82dd06850b583164d6323775afc797709f8bab9f00efd92b2ed8171bb3e6043b",
+      "reason": "Relative isolated test-output or historical synthetic-audit path, with no user directory, live save or machine binding. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/projection-reuse.test.mjs",
+      "category": "account-map-binding",
+      "sha256": "848c67dd054add822f7f29c2b6a5b81e96ef414ee7b4f1ed2e3e846a44d8ed49",
+      "reason": "Reviewed exact authored synthetic member/map binding for an isolated model or server fixture; contains no saved account binding or captured map payload."
+    },
+    {
+      "path": "tests/restore-picker.test.mjs",
+      "category": "token",
+      "sha256": "e289ac2602881e1e617c7845ae68ff037d008fe517cbd93e60ffdda8a57393de",
+      "reason": "Deliberately invented synthetic credential/link sentinel verifies rejection, viewer redaction or non-disclosure; actual secrets are generated only at runtime. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/roll-stats-dialog.test.mjs",
+      "category": "machine-path",
+      "sha256": "fa84f373303957bd2c94bbbf0a024269d1e9cda5999becec4c9fd45710d0a3b0",
+      "reason": "Escaped parser/markup pattern or invented error path in an authored regression fixture; no actual machine path. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/rs-wiki-client.test.mjs",
+      "category": "machine-path",
+      "sha256": "548d521bd2650fd68b6c8341b21df6fb5b4b11fae0f3d040a71a1599714aad83",
+      "reason": "Repo-relative test scratch folder under .local; no absolute, user or machine path. Exact line only."
+    },
+    {
+      "path": "tests/rs-wiki-client.test.mjs",
+      "category": "network-identifier",
+      "sha256": "bbf34582dac80d46d61c585c35c7a0454d29a654e9ff1788211b54fb21c20c5d",
+      "reason": "Authored Wiki client tests use public Wiki image/tile URLs, example.com addresses and invented rejected inputs; the local harness intercepts every request. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/rs-wiki-client.test.mjs",
+      "category": "network-identifier",
+      "sha256": "5a3a2c95763a3acfbc82dc22a27108bcc459ac038eb7bef7c3bfa0af6f30cf14",
+      "reason": "Authored Wiki client tests use public Wiki image/tile URLs, example.com addresses and invented rejected inputs; the local harness intercepts every request. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/rs-wiki-client.test.mjs",
+      "category": "network-identifier",
+      "sha256": "ef3235d618c387cddc22335d370c5c68401cf0ceb0e12ab5bd329ec708a8ad20",
+      "reason": "Authored Wiki client tests use public Wiki image/tile URLs, example.com addresses and invented rejected inputs; the local harness intercepts every request. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/rs-wiki-client.test.mjs",
+      "category": "network-identifier",
+      "sha256": "1f5fc48c6480e29834110fd5f110bb05f416d9e77b5f17a65d2c1185ae27a8f4",
+      "reason": "Authored Wiki client tests use public Wiki image/tile URLs, example.com addresses and invented rejected inputs; the local harness intercepts every request. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/rs-wiki-client.test.mjs",
+      "category": "network-identifier",
+      "sha256": "52a57684c2e4463c620394fe366a9f82c0705cff90b1dc0e43820ad5c22d0738",
+      "reason": "Authored Wiki client tests use public Wiki image/tile URLs, example.com addresses and invented rejected inputs; the local harness intercepts every request. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/rs-wiki-client.test.mjs",
+      "category": "network-identifier",
+      "sha256": "e6be9f5cb16a90a449f0b9a6eabb00ebb75ab395ef2ea8bc24515bc2cb4346a1",
+      "reason": "Authored Wiki client tests use public Wiki image/tile URLs, example.com addresses and invented rejected inputs; the local harness intercepts every request. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/rs-wiki-client.test.mjs",
+      "category": "network-identifier",
+      "sha256": "a7d06fec156cf0a9e3dc09d2d88a9c432380c4e6a38a789e4504ce689f8cc1bf",
+      "reason": "Authored Wiki client tests use public Wiki image/tile URLs, example.com addresses and invented rejected inputs; the local harness intercepts every request. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/rules.test.mjs",
+      "category": "account-map-binding",
+      "sha256": "12c5c0105939e60846b688c1c0dd6a9d48601e936308234285774b96b7d07bb3",
+      "reason": "Authored synthetic ownership/save-map scenario; this line uses invented test aliases rather than a saved account binding. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/rules.test.mjs",
+      "category": "account-map-binding",
+      "sha256": "84ae507e6515efb07194aec923cb2cad44ab5642bb36765e33bd4ad9d7d5b1b0",
+      "reason": "Authored synthetic ownership/save-map scenario; this line uses invented test aliases rather than a saved account binding. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/rules.test.mjs",
+      "category": "account-map-binding",
+      "sha256": "95c14cfff84ad5f855fa9b534f2d9b6f20eccc01da21bb92724322c907789068",
+      "reason": "Authored synthetic ownership/save-map scenario; this line uses invented test aliases rather than a saved account binding. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/sandbox-server.test.mjs",
+      "category": "machine-path",
+      "sha256": "acfec8e2edebb48ea02d480217a1adb5ae41f24065309417f7ad3b18336e4857",
+      "reason": "Reviewed exact authored test line: a repository-relative .local scratch directory created for isolated disposable server fixtures; contains no absolute machine path or exported scratch payload."
+    },
+    {
+      "path": "tests/scheduling-server.test.mjs",
+      "category": "machine-path",
+      "sha256": "2566e9bd2b7cb4e2449d1d3a071dca3feeb2324c2bdfc0c4c206f0c451352a04",
+      "reason": "Reviewed exact authored test line: a repository-relative .local scratch directory created for isolated disposable server fixtures; contains no absolute machine path or exported scratch payload."
+    },
+    {
+      "path": "tests/server-reliability.test.mjs",
+      "category": "machine-path",
+      "sha256": "4862ffa8be63312a16e88ddf0712b19fad330dacbee1a84b3248b41c8b7664e2",
+      "reason": "Reviewed exact authored test line: a repository-relative .local scratch directory created for isolated disposable server fixtures; contains no absolute machine path or exported scratch payload."
+    },
+    {
+      "path": "tests/state.test.mjs",
+      "category": "account-map-binding",
+      "sha256": "152960719a1072ff47947578c39ac0a09e0463f11fa6ef2857dd4a0e9ff9727d",
+      "reason": "Authored synthetic ownership/save-map scenario; this line uses invented test aliases rather than a saved account binding. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/state.test.mjs",
+      "category": "account-map-binding",
+      "sha256": "1fc7f37cd050c3f85251bb35e56e3c192f66c7213ee54af612aa2176b6319015",
+      "reason": "Authored synthetic ownership/save-map scenario; this line uses invented test aliases rather than a saved account binding. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/state.test.mjs",
+      "category": "account-map-binding",
+      "sha256": "45144524896e1a3636c42e83b21e23b09964fb2c4235d7471b12991d89cbdd8a",
+      "reason": "Authored synthetic ownership/save-map scenario; this line uses invented test aliases rather than a saved account binding. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/state.test.mjs",
+      "category": "account-map-binding",
+      "sha256": "60601a0c5a8c2bd10faab677f5ee0dba6cb94fe276e12be94c1476da7ad4cd3d",
+      "reason": "Authored synthetic ownership/save-map scenario; this line uses invented test aliases rather than a saved account binding. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/state.test.mjs",
+      "category": "account-map-binding",
+      "sha256": "94ca2f8bdcb2beed6f74a076188472c2b8bdbd6cff8ee9b64d08b984e39b0e46",
+      "reason": "Authored synthetic ownership/save-map scenario; this line uses invented test aliases rather than a saved account binding. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/state.test.mjs",
+      "category": "account-map-binding",
+      "sha256": "96583aab06e7c9d38ca0ec382f4beed176840e98a5a0d8885232c76e7a9f614c",
+      "reason": "Authored synthetic ownership/save-map scenario; this line uses invented test aliases rather than a saved account binding. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/state.test.mjs",
+      "category": "account-map-binding",
+      "sha256": "b24f92b62ae0ff4700516752854772222425138cd869973304100f915219c9ba",
+      "reason": "Authored synthetic ownership/save-map scenario; this line uses invented test aliases rather than a saved account binding. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/state.test.mjs",
+      "category": "account-map-binding",
+      "sha256": "c3b641c95071eb97e561616aacb30fea289ca6b373ba4d8a3cc289fd0c51c853",
+      "reason": "Authored synthetic ownership/save-map scenario; this line uses invented test aliases rather than a saved account binding. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/state.test.mjs",
+      "category": "account-map-binding",
+      "sha256": "cc94580be1cde33c53ed530db181b582b684dc6ca28dde47f2a968b359dab68f",
+      "reason": "Authored synthetic ownership/save-map scenario; this line uses invented test aliases rather than a saved account binding. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/state.test.mjs",
+      "category": "account-map-binding",
+      "sha256": "ccb7137c803c7d297dcfc91f9d28dce034c298ff7ec3538c5af42288e6c721f6",
+      "reason": "Authored synthetic ownership/save-map scenario; this line uses invented test aliases rather than a saved account binding. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/state.test.mjs",
+      "category": "legacy-task-id",
+      "sha256": "2b1e4091e0f1cdce31e8d021c034b5f4310eb7648dcaf2bcc4421bda5b244b00",
+      "reason": "Authored synthetic task IDs exercise canonical identity/undo compatibility; no retained catalogue record or actual retained task identity. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/state.test.mjs",
+      "category": "service-binding",
+      "sha256": "ed632cad709d9d3842dcefb241a6fbcb2291c93020c40d7f436a9d4e6003b178",
+      "reason": "Invented secret-value sentinels verify exact credential-key removal from imported synthetic gameplay. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/state.test.mjs",
+      "category": "token",
+      "sha256": "1e034fb9a6fd58784f2d2a0cee682fa41d5039b920e5684876521bcf14fd96a9",
+      "reason": "Deliberately invented credential/link sentinel tests redaction, rejection or non-disclosure; runtime secrets are generated separately. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/state.test.mjs",
+      "category": "token",
+      "sha256": "995fb48dde404b1be3354b0e1db98217aa3faa2dc43bc821e88574d056df00ec",
+      "reason": "Deliberately invented credential/link sentinel tests redaction, rejection or non-disclosure; runtime secrets are generated separately. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/state.test.mjs",
+      "category": "token",
+      "sha256": "cacc06f12f45bbaf64fb7b0569302a13f468d4f31ba107afe865815be02321dc",
+      "reason": "Deliberately invented credential/link sentinel tests redaction, rejection or non-disclosure; runtime secrets are generated separately. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/state.test.mjs",
+      "category": "token",
+      "sha256": "ed632cad709d9d3842dcefb241a6fbcb2291c93020c40d7f436a9d4e6003b178",
+      "reason": "Deliberately invented credential/link sentinel tests redaction, rejection or non-disclosure; runtime secrets are generated separately. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/storage-owned-load.test.mjs",
+      "category": "machine-path",
+      "sha256": "3c542e92ecead9488a31ed8070ef15f72a910b872e461c92960eef1970056850",
+      "reason": "Relative isolated test-output or historical synthetic-audit path, with no user directory, live save or machine binding. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/storage-play.test.mjs",
+      "category": "legacy-task-id",
+      "sha256": "150ba780124d9715c82cb8b89890c12faa75674920a50af04f3a5f2dac6e6d66",
+      "reason": "Authored synthetic task IDs exercise canonical identity/undo compatibility; no retained catalogue record or actual retained task identity. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/storage-play.test.mjs",
+      "category": "legacy-task-id",
+      "sha256": "6bded3d056182a76653790a888f0a9923c6ffdf5535e4c3201b4d3884a687cb3",
+      "reason": "Authored synthetic task IDs exercise canonical identity/undo compatibility; no retained catalogue record or actual retained task identity. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/storage-reliability.test.mjs",
+      "category": "machine-path",
+      "sha256": "01cb2d7cfb78580718a8ed3b70aef6bbb6c2fec71cb73dda0628b0c6d576cde2",
+      "reason": "Authored isolated-output, refused storage-binding or invented error-path fixture; no actual user directory, external destination or live save is included. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/storage-reliability.test.mjs",
+      "category": "machine-path",
+      "sha256": "fa44400789da1db0cfafcf761a7c63ff5454895aa6c48c37487a8390e7d8a623",
+      "reason": "Authored isolated-output, refused storage-binding or invented error-path fixture; no actual user directory, external destination or live save is included. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/storage-static.test.mjs",
+      "category": "legacy-task-id",
+      "sha256": "231c04cf7cfd57afda767b5754144669cdea902d7f5e531e1beadad596697a10",
+      "reason": "Authored synthetic task IDs exercise canonical identity/undo compatibility; no retained catalogue record or actual retained task identity. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/storage-static.test.mjs",
+      "category": "legacy-task-id",
+      "sha256": "abec69458480766dc841138b6670c089d5d5816f431b6f7e103accdbdecb50c9",
+      "reason": "Authored synthetic task IDs exercise canonical identity/undo compatibility; no retained catalogue record or actual retained task identity. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/stream-safe.test.mjs",
+      "category": "token",
+      "sha256": "30ef93cd6969911b5bbee4ae5973691ef795798618a33d90c37567420528f197",
+      "reason": "Deliberately invented credential/link sentinel tests redaction, rejection or non-disclosure; runtime secrets are generated separately. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/stream-safe.test.mjs",
+      "category": "token",
+      "sha256": "61feccbe1b1aca13fc7c867cc4ce3fc046cce63b08f5bc2b36656cafff106f90",
+      "reason": "Deliberately invented credential/link sentinel tests redaction, rejection or non-disclosure; runtime secrets are generated separately. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/stream-safe.test.mjs",
+      "category": "token",
+      "sha256": "6370a5abb9d89e345d451c217a452c8cb8f3ae60bc5afbd88584954c8f1aa64d",
+      "reason": "Deliberately invented credential/link sentinel tests redaction, rejection or non-disclosure; runtime secrets are generated separately. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/stream-safe.test.mjs",
+      "category": "token",
+      "sha256": "852706d7df18f39117a6aea4b27db39cb93b5cf1733ef40ca522dc58b39aa605",
+      "reason": "Deliberately invented credential/link sentinel tests redaction, rejection or non-disclosure; runtime secrets are generated separately. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/stream-safe.test.mjs",
+      "category": "token",
+      "sha256": "b3a565461bc5735e8f2cb833b0a72a3a7c0a5f9fecfd92433cc2b904f95cc42b",
+      "reason": "Deliberately invented credential/link sentinel tests redaction, rejection or non-disclosure; runtime secrets are generated separately. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/stream-safe.test.mjs",
+      "category": "token",
+      "sha256": "ba699d24bbfc2e643a052f32459a5d2a4ec946ce008eba197f8d17031b8906e6",
+      "reason": "Deliberately invented credential/link sentinel tests redaction, rejection or non-disclosure; runtime secrets are generated separately. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/task-claim-server.test.mjs",
+      "category": "legacy-task-id",
+      "sha256": "975e93720071d556a7704898a21a6c942e1e685837f6e78389bee4c64888df16",
+      "reason": "Reviewed exact authored synthetic task identifier or constructor record used by this isolated test scenario; no captured catalogue task identity or payload."
+    },
+    {
+      "path": "tests/task-claim-server.test.mjs",
+      "category": "machine-path",
+      "sha256": "c5c247d7db68ce3df61940580555ef25f221399411c720dcac07ac4aac84cf9b",
+      "reason": "Reviewed exact authored test line: a repository-relative .local scratch directory created for isolated disposable server fixtures; contains no absolute machine path or exported scratch payload."
+    },
+    {
+      "path": "tests/task-claims-web.test.mjs",
+      "category": "legacy-task-id",
+      "sha256": "7ef4c31dcd7fe62922f4f6c491dea3ed01d9f92c596f6fb54abefa64a30a92d1",
+      "reason": "Authored synthetic task IDs exercise canonical identity/undo compatibility; no retained catalogue record or actual retained task identity. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/task-claims-web.test.mjs",
+      "category": "legacy-task-id",
+      "sha256": "ec57734845160669e8c31ee9ce4662434af310755999cdac8c7ad99bb4a7fc7e",
+      "reason": "Authored synthetic task IDs exercise canonical identity/undo compatibility; no retained catalogue record or actual retained task identity. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/task-claims.test.mjs",
+      "category": "machine-path",
+      "sha256": "391fc5f5163080e2b672860ae9a2bf5808f5343e3df23bea384b8f4edbee730f",
+      "reason": "Relative isolated test-output or historical synthetic-audit path, with no user directory, live save or machine binding. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/task-ui-server.test.mjs",
+      "category": "machine-path",
+      "sha256": "5efa9b4728631f8a3687471c31f195404e59876cd581c8d49499b1549431d57d",
+      "reason": "Reviewed exact authored test line: a repository-relative .local scratch directory created for isolated disposable server fixtures; contains no absolute machine path or exported scratch payload."
+    },
+    {
+      "path": "tests/usage-client.test.mjs",
+      "category": "network-identifier",
+      "sha256": "086c937ac2b8e2d5dd3b2e0668ff9b2a0427d2635c5f454540d31368e2059913",
+      "reason": "Invented rejected URL or RFC5737/example proxy input in a local synthetic security fixture; no deployed service binding. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/usage-storage.test.mjs",
+      "category": "network-identifier",
+      "sha256": "b4ac58ffda533c136182b66fa0cd83b5c312422879088bdf8ba240d95efd7a76",
+      "reason": "Synthetic URL parser base or rejected URL input in an authored local harness; no deployed service binding. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/usage-storage.test.mjs",
+      "category": "token",
+      "sha256": "2268d9dd66617ea307c7c4e285e9e1c0ead3be6aa23628bb5183d4f2b20a82cc",
+      "reason": "Deliberately invented credential/link sentinel tests redaction, rejection or non-disclosure; runtime secrets are generated separately. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/viewer-permissions.test.mjs",
+      "category": "legacy-task-id",
+      "sha256": "086126b4c0d0d7aebf91678aa0279ee2019a416455a454b996dfb420cabf1e9d",
+      "reason": "Authored synthetic task identifiers exercise identity and backup/Undo behavior; no retained catalogue identity or payload. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/viewer-permissions.test.mjs",
+      "category": "machine-path",
+      "sha256": "4980acbcf2e13435cd4f3746d6e0ab6bd7353770ee96302e28e90f57e1f0329f",
+      "reason": "Authored isolated-output, refused storage-binding or invented error-path fixture; no actual user directory, external destination or live save is included. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/viewer-permissions.test.mjs",
+      "category": "network-identifier",
+      "sha256": "986e820d00bf7491005a47d4c77d3efa8e30739af7d081a3f073af8448bec594",
+      "reason": "Invented rejected URL or RFC5737/example proxy input in a local synthetic security fixture; no deployed service binding. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/viewer-permissions.test.mjs",
+      "category": "token",
+      "sha256": "02dc2b4c06bd01cf73962c8c011c6b505f1172b018476ebaaf33aad3b0dacccb",
+      "reason": "Deliberately invented synthetic credential/link sentinel verifies rejection, viewer redaction or non-disclosure; actual secrets are generated only at runtime. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/viewer-permissions.test.mjs",
+      "category": "token",
+      "sha256": "29f56af6bebf43699a7b4ee9d05291c4489c835a8d7303695078767671b02d24",
+      "reason": "Deliberately invented synthetic credential/link sentinel verifies rejection, viewer redaction or non-disclosure; actual secrets are generated only at runtime. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/viewer-permissions.test.mjs",
+      "category": "token",
+      "sha256": "3b4c8623050bb8554c845e8a8855afbeb8f500ac88f8264c72d908633189bf66",
+      "reason": "Deliberately invented synthetic credential/link sentinel verifies rejection, viewer redaction or non-disclosure; actual secrets are generated only at runtime. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/viewer-permissions.test.mjs",
+      "category": "token",
+      "sha256": "7401d0dba3ec3ef27a09e45f1b366cd0ae9180e1ff304ae4a5d2bb7be5abd4e5",
+      "reason": "Deliberately invented synthetic credential/link sentinel verifies rejection, viewer redaction or non-disclosure; actual secrets are generated only at runtime. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/viewer-permissions.test.mjs",
+      "category": "token",
+      "sha256": "9ef87faa33ba8ad28935966573ab92e0b0acd71d3997ff99aa62ed3438ac60ce",
+      "reason": "Deliberately invented synthetic credential/link sentinel verifies rejection, viewer redaction or non-disclosure; actual secrets are generated only at runtime. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/viewer-permissions.test.mjs",
+      "category": "token",
+      "sha256": "dde9ef7df05f86a45b51e195148687252022b5f53d98438c1e79c5c0f72b1326",
+      "reason": "Deliberately invented synthetic credential/link sentinel verifies rejection, viewer redaction or non-disclosure; actual secrets are generated only at runtime. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/warmstart-server.test.mjs",
+      "category": "network-identifier",
+      "sha256": "746472574b3c521332a9453e7ce89a7d2418c598459d7ef7f8a7c56c38394f9b",
+      "reason": "Reviewed exact authored negative authentication probe: a public DNS IPv4 literal is sent only as a spoofed X-Forwarded-For header to the local test server to assert rejection; no external request or saved host identity."
+    },
+    {
+      "path": "tests/web-browser.test.mjs",
+      "category": "account-map-binding",
+      "sha256": "e79d06e921b2c25f406fafa3f76f2707c75d297a43c2b93bf8f355097263c503",
+      "reason": "Authored synthetic ownership/save-map scenario; this line uses invented test aliases rather than a saved account binding. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/web-browser.test.mjs",
+      "category": "legacy-task-id",
+      "sha256": "1252a89b87125842f3e6cd454164d4850baa9d4b2966a5309c96369847768ceb",
+      "reason": "Authored synthetic task IDs exercise canonical identity/undo compatibility; no retained catalogue record or actual retained task identity. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/web-browser.test.mjs",
+      "category": "legacy-task-id",
+      "sha256": "13b1df10beceabc07a68b1bbfad38894ee8a508d541dfbcd8f0215a98bbb2d12",
+      "reason": "Authored synthetic task IDs exercise canonical identity/undo compatibility; no retained catalogue record or actual retained task identity. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/web-browser.test.mjs",
+      "category": "legacy-task-id",
+      "sha256": "201f8773b5501d809bfed1f8a679beb05f919da6f8071cafcdf5916cc45033de",
+      "reason": "Authored synthetic task IDs exercise canonical identity/undo compatibility; no retained catalogue record or actual retained task identity. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/web-browser.test.mjs",
+      "category": "legacy-task-id",
+      "sha256": "286d1f4e68630c675d18d1c6f8c2d7156f40f140974685ef53f1edb6f0ecf6f2",
+      "reason": "Authored synthetic task IDs exercise canonical identity/undo compatibility; no retained catalogue record or actual retained task identity. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/web-browser.test.mjs",
+      "category": "legacy-task-id",
+      "sha256": "289bbe4716dbd3dc5d2bd43852f03f27cf070b99a13d3a662fc8dda4742d39b9",
+      "reason": "Authored synthetic task IDs exercise canonical identity/undo compatibility; no retained catalogue record or actual retained task identity. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/web-browser.test.mjs",
+      "category": "legacy-task-id",
+      "sha256": "36d5d4ffee238930a05c6e5fb3869b9f9daa4533efb1108a17f338948bcaeaaa",
+      "reason": "Authored synthetic task IDs exercise canonical identity/undo compatibility; no retained catalogue record or actual retained task identity. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/web-browser.test.mjs",
+      "category": "legacy-task-id",
+      "sha256": "5652baccc8e6e5f2df71817ed3358704c5bfe0471fdbdc453748fe6d2aa51713",
+      "reason": "Authored synthetic task IDs exercise canonical identity/undo compatibility; no retained catalogue record or actual retained task identity. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/web-browser.test.mjs",
+      "category": "legacy-task-id",
+      "sha256": "5ce5dee0cd686febfe6a54ed012cbb12564fa1e523e1abd5b79e622a69e764ae",
+      "reason": "Authored synthetic task IDs exercise canonical identity/undo compatibility; no retained catalogue record or actual retained task identity. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/web-browser.test.mjs",
+      "category": "legacy-task-id",
+      "sha256": "6a857a268bd384f243294b7408acbd84eb0c8c6cb1e3e1d09b82fe499b719526",
+      "reason": "Authored synthetic task IDs exercise canonical identity/undo compatibility; no retained catalogue record or actual retained task identity. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/web-browser.test.mjs",
+      "category": "legacy-task-id",
+      "sha256": "76e9ecc478fb36d38759ab8d73bb7082db4848ab3f684678627dcb198505a1c9",
+      "reason": "Authored synthetic task IDs exercise canonical identity/undo compatibility; no retained catalogue record or actual retained task identity. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/web-browser.test.mjs",
+      "category": "legacy-task-id",
+      "sha256": "92e035e45953e8bbdd7e0c6b4289d4803da55572aa99aebfe4474fc124f36e1c",
+      "reason": "Authored synthetic task IDs exercise canonical identity/undo compatibility; no retained catalogue record or actual retained task identity. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/web-browser.test.mjs",
+      "category": "legacy-task-id",
+      "sha256": "a4830dbadd35ed6c0f931fe6e6081a9499c2d439d4a150d3dcb7ab31ca2f4615",
+      "reason": "Authored synthetic task IDs exercise canonical identity/undo compatibility; no retained catalogue record or actual retained task identity. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/web-browser.test.mjs",
+      "category": "legacy-task-id",
+      "sha256": "cf43dd682af0b2d1c5318b8d7126b72b0e3d28668ba9475cf13921814e5956c2",
+      "reason": "Authored synthetic task IDs exercise canonical identity/undo compatibility; no retained catalogue record or actual retained task identity. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/web-browser.test.mjs",
+      "category": "legacy-task-id",
+      "sha256": "e3a1d4648180cd4096f3d02e337582e37eaaf5a5437ba3f2ccdb6536ccaf552b",
+      "reason": "Authored synthetic task IDs exercise canonical identity/undo compatibility; no retained catalogue record or actual retained task identity. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/xp-choices-model.test.mjs",
+      "category": "account-map-binding",
+      "sha256": "3715659dfda60d3847d8e5abb9167611d87d1fcbb92a363be695b111d09f7a54",
+      "reason": "Reviewed exact authored synthetic member/map binding for an isolated model or server fixture; contains no saved account binding or captured map payload."
+    },
+    {
+      "path": "tests/xp-choices-model.test.mjs",
+      "category": "account-map-binding",
+      "sha256": "5dcfb56883b6213a2e6f936ce8ad12cb63ee34912a16b41590ce01bd9b2f49f4",
+      "reason": "Reviewed exact authored synthetic member/map binding for an isolated model or server fixture; contains no saved account binding or captured map payload."
+    },
+    {
+      "path": "tests/xp-choices-model.test.mjs",
+      "category": "account-map-binding",
+      "sha256": "920f57d16780271537172c9750bc29cdcec5cd4005e985dc2b26b1ee2266344a",
+      "reason": "Reviewed exact authored synthetic member/map binding for an isolated model or server fixture; contains no saved account binding or captured map payload."
+    },
+    {
+      "path": "tests/xp-choices-server.test.mjs",
+      "category": "account-map-binding",
+      "sha256": "89811e968b533eb49ea9e42526b7a15b716c1bc6fbc84a10b86c6eb3d980f71a",
+      "reason": "Reviewed exact authored synthetic member/map binding for an isolated model or server fixture; contains no saved account binding or captured map payload."
+    },
+    {
+      "path": "tests/xp-choices-state.test.mjs",
+      "category": "account-map-binding",
+      "sha256": "d75b2c62d99946d210b455974a5d1e32db5a44e1d4e75c99385fc63bca65b87b",
+      "reason": "Authored synthetic ownership/save-map scenario; this line uses invented test aliases rather than a saved account binding. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/xp-choices-web.test.mjs",
+      "category": "account-map-binding",
+      "sha256": "40ed7c405662fec55687e64710b4f68d3d8f4f1856440cfcee83311bc6fe721f",
+      "reason": "Authored synthetic ownership/save-map scenario; this line uses invented test aliases rather than a saved account binding. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/xp-choices-web.test.mjs",
+      "category": "network-identifier",
+      "sha256": "2e30fef0bea4f51b1f293948497722c9e6eb28cfe3b5a890356f2f228ce1f2c2",
+      "reason": "Synthetic URL parser base or rejected URL input in an authored local harness; no deployed service binding. Exact-line SHA-256 review; no private fingerprint exemption."
+    },
+    {
+      "path": "tests/migration-equivalent-rows.test.mjs",
+      "category": "legacy-task-id",
+      "sha256": "7c1808e8c87bc201e277949450da19a84ee9e29080b0bc1e02c0d8ef13602172",
+      "reason": "Exact authored synthetic ID for equivalent-row History/Undo regression fixtures; no retained dataset identity or save-derived value. Only this byte-identical declaration is reviewed."
+    }
+  ]
+}

@@ -1,0 +1,2660 @@
+file	line (before extraction)	property	value	category
+app/web/activity-filters.css	1	gap	.5rem .8rem	space
+app/web/activity-filters.css	3	gap	.3rem	space
+app/web/activity-filters.css	4	font-size	.78rem	type
+app/web/activity-filters.css	5	margin	0	space
+app/web/activity-filters.css	5	gap	.3rem	space
+app/web/activity-filters.css	6	font-weight	normal	weight
+app/web/activity-filters.css	7	padding	.25rem .4rem	space
+app/web/activity-filters.css	8	margin	0	space
+app/web/activity-filters.css	8	font-size	.78rem	type
+app/web/area-check.css	1	gap	.7rem	space
+app/web/area-check.css	2	gap	.7rem 1.2rem	space
+app/web/area-check.css	5	font-size	.82rem	type
+app/web/area-check.css	5	line-height	1.4	leading
+app/web/area-check.css	6	margin	0 0 .65rem	space
+app/web/area-check.css	7	font-size	.9rem	type
+app/web/area-check.css	7	margin-bottom	.7rem	space
+app/web/area-check.css	8	margin-bottom	.7rem	space
+app/web/area-check.css	9	gap	.35rem 1rem	space
+app/web/area-check.css	9	margin	0 0 .5rem	space
+app/web/area-check.css	9	font-size	.78rem	type
+app/web/area-check.css	10	gap	.35rem	space
+app/web/area-check.css	11	border	1px solid currentColor	border
+app/web/area-check.css	14	gap	.25rem 1rem	space
+app/web/area-check.css	14	padding	.7rem .5rem	space
+app/web/area-check.css	14	border-bottom	1px solid var(--hairline)	border
+app/web/area-check.css	15	gap	.35rem	space
+app/web/area-check.css	15	font-size	.92rem	type
+app/web/area-check.css	15	font-weight	600	weight
+app/web/area-check.css	15	line-height	1.4	leading
+app/web/area-check.css	15	font-family	inherit	colour
+app/web/area-check.css	15	margin	0	space
+app/web/area-check.css	18	gap	.4rem	space
+app/web/area-check.css	18	font-size	.75rem	type
+app/web/area-check.css	18	line-height	1.4	leading
+app/web/area-check.css	18	margin-bottom	.35rem	space
+app/web/area-check.css	19	font-weight	600	weight
+app/web/area-check.css	21	border	1px solid var(--panel-muted,var(--muted))	border
+app/web/area-check.css	21	border-radius	2px	radius
+app/web/area-check.css	24	border-bottom	2px dotted var(--panel-muted,var(--muted))	border
+app/web/area-check.css	26	border-right	2px solid var(--panel-muted,var(--muted))	border
+app/web/area-check.css	27	border-style	dashed	border
+app/web/area-check.css	28	margin-top	.2rem	space
+app/web/area-check.css	28	font-size	.7rem	type
+app/web/area-check.css	28	line-height	1	leading
+app/web/area-check.css	29	margin	.3rem 0 0	space
+app/web/area-check.css	30	font-weight	600	weight
+app/web/area-check.css	30	font-size	.84rem	type
+app/web/area-check.css	30	line-height	1.4	leading
+app/web/area-check.css	30	margin	.3rem 0 0	space
+app/web/area-check.css	31	font-size	.78rem	type
+app/web/area-check.css	31	line-height	1.4	leading
+app/web/area-check.css	31	margin	.2rem 0	space
+app/web/area-check.css	33	font-size	.8rem	type
+app/web/area-check.css	35	padding-left	1rem	space
+app/web/area-check.css	35	font-size	.8rem	type
+app/web/area-check.css	36	margin-top	.6rem	space
+app/web/area-check.css	36	font-size	.84rem	type
+app/web/area-check.css	37	gap	.5rem	space
+app/web/area-check.css	37	margin-top	.7rem	space
+app/web/area-check.css	39	font-size	.85rem	type
+app/web/area-check.css	41	gap	.6rem	space
+app/web/area-check.css	41	padding	.75rem .25rem	space
+app/web/area-check.css	43	font-size	.95rem	type
+app/web/area-check.css	44	font-size	.8rem	type
+app/web/area-check.css	45	font-size	.82rem	type
+app/web/area-check.css	47	gap	.35rem	space
+app/web/area-check.css	48	border	solid currentColor	border
+app/web/area-check.css	48	border-width	0 1px 1px 0	border
+app/web/banking.css	1	gap	1rem	space
+app/web/banking.css	2	margin-block	1rem	space
+app/web/banking.css	3	margin	1rem 0 .4rem	space
+app/web/banking.css	3	font-size	1em	type
+app/web/banking.css	5	margin-block	.35rem	space
+app/web/banking.css	6	margin-top	1rem	space
+app/web/banking.css	7	margin-top	.5rem	space
+app/web/banking.css	8	margin-top	.75rem	space
+app/web/banking.css	9	gap	.65rem	space
+app/web/bis-compare.css	3	border-top	1px solid var(--hairline)	border
+app/web/bis-compare.css	3	padding	.8rem 0	space
+app/web/bis-compare.css	4	font-size	.92rem	type
+app/web/bis-compare.css	4	font-weight	600	weight
+app/web/bis-compare.css	4	margin	0 0 .3rem	space
+app/web/bis-compare.css	5	font-size	.82rem	type
+app/web/bis-compare.css	5	font-weight	600	weight
+app/web/bis-compare.css	5	margin	.2rem 0	space
+app/web/bis-compare.css	6	font-size	.78rem	type
+app/web/bis-compare.css	6	line-height	1.45	leading
+app/web/bis-compare.css	6	margin	.3rem 0 .65rem	space
+app/web/bis-compare.css	7	gap	1rem	space
+app/web/bis-compare.css	8	padding	.5rem .6rem	space
+app/web/bis-compare.css	9	font-size	.87rem	type
+app/web/bis-compare.css	9	font-weight	600	weight
+app/web/bis-compare.css	9	margin	0 0 .6rem	space
+app/web/bis-compare.css	10	outline	1px solid var(--hairline)	border
+app/web/bis-compare.css	11	border-top	1px solid var(--hairline)	border
+app/web/bis-compare.css	11	padding-top	.6rem	space
+app/web/bis-compare.css	11	margin-top	.6rem	space
+app/web/bis-compare.css	12	font-size	.75rem	type
+app/web/bis-compare.css	12	font-weight	600	weight
+app/web/bis-compare.css	12	margin	0 0 .4rem	space
+app/web/bis-compare.css	13	font-size	.75rem	type
+app/web/bis-compare.css	13	line-height	1.45	leading
+app/web/bis-compare.css	13	margin-top	.35rem	space
+app/web/bis-compare.css	14	margin-top	.4rem	space
+app/web/bis-compare.css	15	font-size	.85rem	type
+app/web/bis-compare.css	17	gap	.6rem	space
+app/web/bis-compare.css	18	padding	.5rem	space
+app/web/bis-compare.css	19	border-top	1px solid var(--hairline)	border
+app/web/bis-panel.css	6	gap	.25rem	space
+app/web/bis-panel.css	6	margin-bottom	1rem	space
+app/web/bis-panel.css	6	padding-bottom	.6rem	space
+app/web/bis-panel.css	7	margin	0	space
+app/web/bis-panel.css	8	gap	.5rem	space
+app/web/bis-panel.css	10	font-size	.8rem	type
+app/web/bis-panel.css	11	font-size	.82rem	type
+app/web/bis-panel.css	11	margin-top	.5rem	space
+app/web/bis-panel.css	12	margin-top	1.5rem	space
+app/web/bis-panel.css	13	font-size	1.28rem	type
+app/web/bis-panel.css	13	padding-bottom	.5rem	space
+app/web/bis-panel.css	14	border-collapse	collapse	border
+app/web/bis-panel.css	14	font-size	.87rem	type
+app/web/bis-panel.css	15	padding	.7rem .6rem	space
+app/web/bis-panel.css	15	border-bottom	1px solid var(--hairline)	border
+app/web/bis-panel.css	16	font-weight	600	weight
+app/web/bis-panel.css	16	font-size	.78rem	type
+app/web/bis-panel.css	16	border-top	1px solid var(--hairline)	border
+app/web/bis-panel.css	21	font-weight	500	weight
+app/web/bis-panel.css	22	margin-bottom	.3rem	space
+app/web/bis-panel.css	23	margin-top	.2rem	space
+app/web/bis-panel.css	23	font-size	.75rem	type
+app/web/bis-panel.css	25	gap	.5rem	space
+app/web/bis-panel.css	27	font-weight	600	weight
+app/web/bis-panel.css	27	line-height	1.35	leading
+app/web/bis-panel.css	28	margin-top	.65rem	space
+app/web/bis-panel.css	29	margin-bottom	.2rem	space
+app/web/bis-panel.css	29	font-size	.73rem	type
+app/web/bis-panel.css	30	font-size	.75rem	type
+app/web/bis-panel.css	30	line-height	1.45	leading
+app/web/bis-panel.css	30	margin-top	.3rem	space
+app/web/bis-panel.css	31	font-size	.8rem	type
+app/web/bis-panel.css	31	line-height	1.5	leading
+app/web/bis-panel.css	32	font-weight	600	weight
+app/web/bis-panel.css	32	margin-bottom	.3rem	space
+app/web/bis-panel.css	33	margin-top	.5rem	space
+app/web/bis-panel.css	34	margin-top	.35rem	space
+app/web/bis-panel.css	35	font-size	.8rem	type
+app/web/bis-panel.css	35	padding	.25rem 0	space
+app/web/bis-panel.css	37	padding	.5rem 0	space
+app/web/bis-panel.css	37	border-bottom	0	border
+app/web/bis-panel.css	38	margin-top	.35rem	space
+app/web/bis-panel.css	39	margin	.5rem 0	space
+app/web/bis-panel.css	40	gap	.3rem	space
+app/web/bis-panel.css	40	margin	.5rem 0	space
+app/web/bis-panel.css	43	margin	.6rem 0	space
+app/web/bis-panel.css	43	font-size	.84rem	type
+app/web/bis-panel.css	44	border-top	1px solid var(--hairline)	border
+app/web/bis-panel.css	44	padding-top	.7rem	space
+app/web/bis-panel.css	44	margin-top	.7rem	space
+app/web/bis-panel.css	45	font-weight	600	weight
+app/web/bis-panel.css	45	padding	.35rem 0	space
+app/web/bis-panel.css	46	margin-bottom	.8rem	space
+app/web/bis-panel.css	47	padding	.7rem 0	space
+app/web/bis-panel.css	48	gap	.5rem	space
+app/web/bis-panel.css	48	margin	.6rem 0	space
+app/web/bis-panel.css	48	font-size	.87rem	type
+app/web/bis-panel.css	50	border-bottom	1px solid var(--hairline)	border
+app/web/bis-panel.css	50	padding-bottom	1rem	space
+app/web/bis-panel.css	50	margin-bottom	1rem	space
+app/web/bis-panel.css	51	margin-top	0	space
+app/web/bis-panel.css	52	font-size	.87rem	type
+app/web/bis-panel.css	52	margin	.25rem 0 0	space
+app/web/bis-panel.css	53	font-size	1rem	type
+app/web/bis-panel.css	53	margin-top	.5rem	space
+app/web/bis-panel.css	54	gap	.35rem	space
+app/web/bis-panel.css	54	margin-top	.5rem	space
+app/web/bis-panel.css	55	margin	0	space
+app/web/bis-panel.css	56	font-size	.75rem	type
+app/web/bis-panel.css	56	margin-top	.35rem	space
+app/web/bis-panel.css	57	gap	.6rem	space
+app/web/bis-panel.css	58	margin	.35rem 0	space
+app/web/bis-panel.css	62	border-top	1px solid var(--hairline)	border
+app/web/bis-panel.css	62	padding	.7rem 0	space
+app/web/bis-panel.css	62	gap	.4rem .5rem	space
+app/web/bis-panel.css	63	border	0	border
+app/web/bis-panel.css	63	padding	0	space
+app/web/bis-panel.css	64	font-size	.8rem	type
+app/web/bis-panel.css	66	border-top	1px solid var(--hairline)!important	border
+app/web/bis-panel.css	66	padding-top	.5rem!important	space
+app/web/bis-panel.css	67	font-size	.73rem	type
+app/web/bis-panel.css	67	font-weight	600	weight
+app/web/bis-panel.css	67	margin-bottom	.3rem	space
+app/web/bis-panel.css	68	margin-top	1.2rem	space
+app/web/bis-panel.css	73	gap	.4rem	space
+app/web/bis-panel.css	74	font-size	1.2rem	type
+app/web/chunk-colours.css	1	border	1px solid #1c1a16	border
+app/web/chunk-colours.css	1	border-radius	3px	radius
+app/web/chunk-colours.css	2	--chunk-tint	#e66b73	colour
+app/web/chunk-colours.css	2	--chunk-tint	#e5c35a	colour
+app/web/chunk-colours.css	2	--chunk-tint	#63b88a	colour
+app/web/chunk-colours.css	2	--chunk-tint	#669de0	colour
+app/web/chunk-colours.css	3	--chunk-tint	#ffa500	colour
+app/web/chunk-colours.css	3	--chunk-tint	#ffc0cb	colour
+app/web/chunk-colours.css	3	--chunk-tint	#800080	colour
+app/web/chunk-colours.css	3	--chunk-tint	#000000	colour
+app/web/chunk-colours.css	4	padding	.8rem	space
+app/web/chunk-colours.css	4	gap	.65rem	space
+app/web/chunk-colours.css	4	border	1px solid var(--hairline)	border
+app/web/chunk-colours.css	4	border-radius	var(--radius)	radius
+app/web/chunk-colours.css	4	box-shadow	var(--shadow)	shadow
+app/web/chunk-colours.css	5	gap	.5rem	space
+app/web/chunk-colours.css	6	gap	.4rem	space
+app/web/chunk-colours.css	7	gap	.5rem	space
+app/web/chunk-colours.css	8	border-color	var(--gold)	border
+app/web/chunk-colours.css	8	box-shadow	inset 0 0 0 1px var(--gold)	shadow
+app/web/chunk-colours.css	8	font-weight	600	weight
+app/web/chunk-colours.css	9	font-size	.83rem	type
+app/web/chunk-colours.css	10	border-top	1px solid var(--hairline)	border
+app/web/chunk-colours.css	10	padding-top	.65rem	space
+app/web/chunk-colours.css	10	font-size	.9rem	type
+app/web/chunk-colours.css	11	gap	.4rem	space
+app/web/chunk-colours.css	11	margin-top	.5rem	space
+app/web/chunk-colours.css	11	font-size	16px	type
+app/web/chunk-colours.css	12	font-size	.82rem	type
+app/web/chunk-colours.css	12	padding	.2rem 0	space
+app/web/chunk-colours.css	13	gap	.4rem .8rem	space
+app/web/chunk-colours.css	13	margin	.5rem 0	space
+app/web/chunk-colours.css	13	gap	.35rem	space
+app/web/chunk-colours.css	13	font-size	.83rem	type
+app/web/chunk-colours.css	14	gap	.45rem	space
+app/web/chunk-colours.css	14	gap	.4rem .8rem	space
+app/web/chunk-colours.css	14	font-size	.78rem	type
+app/web/completed-view.css	7	padding	0 0 1rem	space
+app/web/completed-view.css	7	border-bottom	1px solid var(--hairline)	border
+app/web/completed-view.css	8	gap	.4rem 1.4rem	space
+app/web/completed-view.css	8	margin-bottom	.6rem	space
+app/web/completed-view.css	9	font-family	var(--display)	colour
+app/web/completed-view.css	9	font-size	1.5rem	type
+app/web/completed-view.css	9	font-weight	600	weight
+app/web/completed-view.css	11	border	0	border
+app/web/completed-view.css	11	border-radius	2px	radius
+app/web/completed-view.css	15	font-size	.83rem	type
+app/web/completed-view.css	15	line-height	1.5	leading
+app/web/completed-view.css	16	margin-top	.4rem	space
+app/web/completed-view.css	17	margin-top	.55rem	space
+app/web/completed-view.css	18	font-size	.84rem	type
+app/web/completed-view.css	18	padding	.25rem 0	space
+app/web/completed-view.css	19	gap	.3rem 1rem	space
+app/web/completed-view.css	19	margin-top	.7rem	space
+app/web/completed-view.css	20	gap	.35rem	space
+app/web/completed-view.css	20	padding	.15rem 0	space
+app/web/completed-view.css	20	font-size	.82rem	type
+app/web/completed-view.css	21	gap	1rem	space
+app/web/completed-view.css	21	margin	1.15rem 0 .8rem	space
+app/web/completed-view.css	22	gap	.35rem	space
+app/web/completed-view.css	22	margin	0	space
+app/web/completed-view.css	23	font-size	.8rem	type
+app/web/completed-view.css	26	gap	.7rem 1rem	space
+app/web/completed-view.css	26	margin-bottom	.8rem	space
+app/web/completed-view.css	27	gap	.35rem	space
+app/web/completed-view.css	27	margin	0	space
+app/web/completed-view.css	28	font-size	.8rem	type
+app/web/completed-view.css	30	gap	.7rem	space
+app/web/completed-view.css	32	font-size	.83rem	type
+app/web/completed-view.css	33	gap	2px	space
+app/web/completed-view.css	33	padding	3px	space
+app/web/completed-view.css	33	border-radius	var(--radius-sm)	radius
+app/web/completed-view.css	34	font-weight	600	weight
+app/web/completed-view.css	36	gap	.45rem	space
+app/web/completed-view.css	37	font-size	.8rem	type
+app/web/completed-view.css	37	border	1px solid var(--border)	border
+app/web/completed-view.css	37	border-radius	999px	radius
+app/web/completed-view.css	37	padding	.3rem .65rem	space
+app/web/completed-view.css	38	border-color	var(--gold)	border
+app/web/completed-view.css	39	gap	.5rem	space
+app/web/completed-view.css	39	padding	.8rem 0 .4rem	space
+app/web/completed-view.css	40	font-family	inherit	colour
+app/web/completed-view.css	40	font-weight	600	weight
+app/web/completed-view.css	40	margin	0	space
+app/web/completed-view.css	41	font-size	.83rem	type
+app/web/completed-view.css	41	line-height	1.5	leading
+app/web/completed-view.css	41	margin	.2rem 0 .5rem	space
+app/web/completed-view.css	42	margin	.4rem 0 1rem	space
+app/web/completed-view.css	43	gap	.4rem	space
+app/web/completed-view.css	43	font-family	var(--display)	colour
+app/web/completed-view.css	43	font-size	1.15rem	type
+app/web/completed-view.css	43	padding	.6rem 0	space
+app/web/completed-view.css	43	border-bottom	1px solid var(--hairline)	border
+app/web/completed-view.css	44	gap	.5rem	space
+app/web/completed-view.css	45	margin-left	auto	space
+app/web/completed-view.css	45	font	600 .85rem "Segoe UI",sans-serif	colour
+app/web/completed-view.css	46	gap	.8rem 1.1rem	space
+app/web/completed-view.css	46	padding	.8rem 0	space
+app/web/completed-view.css	46	border-bottom	1px solid var(--hairline)	border
+app/web/completed-view.css	47	gap	.6rem	space
+app/web/completed-view.css	48	margin-top	2px	space
+app/web/completed-view.css	49	gap	.15rem	space
+app/web/completed-view.css	50	padding	0	space
+app/web/completed-view.css	50	line-height	1.45	leading
+app/web/completed-view.css	52	gap	.45rem	space
+app/web/completed-view.css	52	font-size	.86rem	type
+app/web/completed-view.css	53	gap	.12rem	space
+app/web/completed-view.css	54	gap	.4rem	space
+app/web/completed-view.css	55	font-size	.8rem	type
+app/web/completed-view.css	56	gap	.6rem	space
+app/web/completed-view.css	56	padding	.75rem	space
+app/web/completed-view.css	56	border-radius	var(--radius-sm)	radius
+app/web/completed-view.css	57	font-size	.88rem	type
+app/web/completed-view.css	58	border-color	var(--danger)	border
+app/web/completed-view.css	59	margin	.65rem auto	space
+app/web/completed-view.css	60	padding	2.5rem 1rem	space
+app/web/completed-view.css	60	gap	.6rem	space
+app/web/completed-view.css	62	gap	1rem	space
+app/web/completed-view.css	62	padding-top	.8rem	space
+app/web/completed-view.css	64	font-size	.8rem	type
+app/web/completed-view.css	65	margin-bottom	1rem	space
+app/web/completed-view.css	66	font-size	.78rem	type
+app/web/completed-view.css	66	margin-left	auto	space
+app/web/completed-view.css	67	gap	.3rem	space
+app/web/completed-view.css	69	gap	.7rem	space
+app/web/completed-view.css	71	gap	.5rem .65rem	space
+app/web/completed-view.css	76	border-radius	8px	radius
+app/web/completed-view.css	77	padding	.75rem .85rem	space
+app/web/completed-view.css	78	padding	.85rem	space
+app/web/completed-view.css	83	gap	.4rem	space
+app/web/completed-view.css	85	gap	.2rem .85rem	space
+app/web/completed-view.css	86	gap	.8rem	space
+app/web/completed-view.css	88	padding	.35rem .5rem	space
+app/web/copy-lists.css	1	gap	.35rem	space
+app/web/copy-lists.css	1	margin-left	.35rem	space
+app/web/copy-lists.css	2	font-size	.8rem	type
+app/web/copy-lists.css	2	padding	.25rem .5rem	space
+app/web/copy-lists.css	3	font-size	.8rem	type
+app/web/copy-lists.css	3	font-weight	400	weight
+app/web/copy-lists.css	6	padding	0	space
+app/web/copy-lists.css	6	border-radius	0	radius
+app/web/copy-lists.css	6	margin-left	auto	space
+app/web/copy-lists.css	7	margin	.55rem 0	space
+app/web/copy-lists.css	7	gap	.4rem	space
+app/web/copy-lists.css	7	font-size	.85rem	type
+app/web/copy-lists.css	9	font	inherit	colour
+app/web/copy-lists.css	10	gap	.4rem	space
+app/web/duo-tasks.css	2	padding	0	space
+app/web/duo-tasks.css	2	border-radius	0	radius
+app/web/duo-tasks.css	2	line-height	1.5	leading
+app/web/duo-tasks.css	3	margin-bottom	.8rem	space
+app/web/duo-tasks.css	6	gap	.4rem	space
+app/web/duo-tasks.css	7	gap	.35rem	space
+app/web/duo-tasks.css	9	padding	.25rem .4rem	space
+app/web/duo-tasks.css	9	font-size	.85rem	type
+app/web/duo-tasks.css	10	padding	.25rem .65rem	space
+app/web/duo-tasks.css	10	border	1px solid var(--hairline)	border
+app/web/duo-tasks.css	10	border-radius	var(--radius-sm)	radius
+app/web/duo-tasks.css	10	font-size	.85rem	type
+app/web/duo-tasks.css	11	border-color	var(--gold)	border
+app/web/duo-tasks.css	12	margin	.5rem 0 0	space
+app/web/duo-tasks.css	12	font-size	.78rem	type
+app/web/duo-tasks.css	12	line-height	1.4	leading
+app/web/duo-tasks.css	13	font-size	.76rem	type
+app/web/duo-tasks.css	13	font-weight	600	weight
+app/web/duo-tasks.css	13	margin-top	.15rem	space
+app/web/duo-tasks.css	15	padding	.25rem .35rem	space
+app/web/duo-tasks.css	15	font-size	.76rem	type
+app/web/duo-tasks.css	16	gap	.4rem	space
+app/web/duo-tasks.css	16	padding	.5rem 0	space
+app/web/duo-tasks.css	18	font-size	.82rem	type
+app/web/duo-tasks.css	19	gap	.4rem	space
+app/web/duo-tasks.css	20	font-size	1rem	type
+app/web/feedback-badge.css	1	margin-left	.5rem	space
+app/web/feedback-badge.css	1	padding	.08rem .4rem	space
+app/web/feedback-badge.css	1	border-radius	999px	radius
+app/web/feedback-badge.css	1	font-size	.75rem	type
+app/web/feedback-badge.css	1	font-weight	700	weight
+app/web/feedback-badge.css	2	margin-left	.5rem	space
+app/web/feedback-badge.css	2	padding	.1rem .4rem	space
+app/web/feedback-badge.css	2	border	1px solid var(--hairline)	border
+app/web/feedback-badge.css	2	border-radius	var(--radius-sm)	radius
+app/web/feedback-badge.css	2	font-size	.75rem	type
+app/web/feedback-badge.css	2	font-weight	600	weight
+app/web/finish-line.css	4	gap	.6rem	space
+app/web/finish-line.css	4	margin-bottom	.7rem	space
+app/web/finish-line.css	6	margin-left	auto	space
+app/web/finish-line.css	7	font-size	.88rem	type
+app/web/finish-line.css	7	padding	.4rem .85rem	space
+app/web/finish-line.css	8	gap	.4rem	space
+app/web/finish-line.css	11	font-size	.9rem	type
+app/web/finish-line.css	11	margin-bottom	.75rem	space
+app/web/finish-line.css	12	gap	1rem	space
+app/web/finish-line.css	12	padding	.7rem 0	space
+app/web/finish-line.css	12	border-block	1px solid var(--hairline)	border
+app/web/finish-line.css	13	gap	.2rem .5rem	space
+app/web/finish-line.css	14	font-size	1rem	type
+app/web/finish-line.css	15	border	0	border
+app/web/finish-line.css	15	border-radius	var(--radius-sm)	radius
+app/web/finish-line.css	19	font-size	.78rem	type
+app/web/finish-line.css	19	line-height	1.4	leading
+app/web/finish-line.css	19	margin	.3rem 0	space
+app/web/finish-line.css	20	margin-top	.75rem	space
+app/web/finish-line.css	20	border-top	1px solid var(--hairline)	border
+app/web/finish-line.css	21	gap	.6rem	space
+app/web/finish-line.css	21	font-weight	600	weight
+app/web/finish-line.css	21	padding	.5rem 0	space
+app/web/finish-line.css	22	margin-right	auto	space
+app/web/finish-line.css	23	font-size	.8rem	type
+app/web/finish-line.css	23	font-weight	400	weight
+app/web/finish-line.css	24	padding	.55rem 0	space
+app/web/finish-line.css	24	border-top	1px solid var(--hairline)	border
+app/web/finish-line.css	25	gap	.6rem	space
+app/web/finish-line.css	26	font-size	.9rem	type
+app/web/finish-line.css	28	margin-left	auto	space
+app/web/finish-line.css	29	font-size	.83rem	type
+app/web/finish-line.css	29	margin	.2rem 0	space
+app/web/finish-line.css	32	gap	.5rem 1rem	space
+app/web/finish-line.css	32	font-size	.83rem	type
+app/web/finish-line.css	32	margin-top	.4rem	space
+app/web/finish-line.css	33	gap	.5rem	space
+app/web/finish-line.css	33	padding-top	1rem	space
+app/web/finish-line.css	33	margin-top	1rem	space
+app/web/finish-line.css	33	border-top	1px solid var(--hairline)	border
+app/web/finish-line.css	37	gap	.5rem	space
+app/web/finish-line.css	38	margin-top	.2rem	space
+app/web/gallery.css	2	padding	16px	space
+app/web/gallery.css	2	border-bottom	1px solid var(--border)	border
+app/web/gallery.css	2	gap	12px	space
+app/web/gallery.css	3	margin	0	space
+app/web/gallery.css	3	font-size	22px	type
+app/web/gallery.css	4	gap	6px	space
+app/web/gallery.css	5	gap	16px	space
+app/web/gallery.css	5	padding	16px	space
+app/web/gallery.css	7	padding	5px 8px	space
+app/web/gallery.css	9	border	1px solid var(--border)	border
+app/web/gallery.css	10	border	0	border
+app/web/gallery.css	12	padding	6px 10px	space
+app/web/gallery.css	12	border	1px solid var(--border)	border
+app/web/gallery.css	12	font-size	12px	type
+app/web/gallery.css	13	margin	16px	space
+app/web/gallery.css	19	padding	24px	space
+app/web/group-goals.css	1	padding	.9rem 1rem	space
+app/web/group-goals.css	1	border-bottom	1px solid var(--hairline)	border
+app/web/group-goals.css	2	gap	.5rem	space
+app/web/group-goals.css	3	font-size	1.2rem	type
+app/web/group-goals.css	3	margin-right	auto	space
+app/web/group-goals.css	4	border-color	transparent	border
+app/web/group-goals.css	4	font-size	.78rem	type
+app/web/group-goals.css	4	padding	.25rem .45rem	space
+app/web/group-goals.css	5	margin-left	.4rem	space
+app/web/group-goals.css	5	border	solid currentColor	border
+app/web/group-goals.css	5	border-width	0 1.5px 1.5px 0	border
+app/web/group-goals.css	8	gap	.1rem .6rem	space
+app/web/group-goals.css	10	margin-top	.5rem	space
+app/web/group-goals.css	10	font-size	.88rem	type
+app/web/group-goals.css	11	padding	0	space
+app/web/group-goals.css	11	margin	.3rem 0 0	space
+app/web/group-goals.css	12	padding	.65rem 0	space
+app/web/group-goals.css	12	border-bottom	1px solid var(--hairline)	border
+app/web/group-goals.css	13	border-bottom	0	border
+app/web/group-goals.css	13	padding-bottom	0	space
+app/web/group-goals.css	14	font-size	.93rem	type
+app/web/group-goals.css	14	line-height	1.4	leading
+app/web/group-goals.css	16	gap	.25rem .9rem	space
+app/web/group-goals.css	16	margin-top	.2rem	space
+app/web/group-goals.css	16	font-size	.8rem	type
+app/web/group-goals.css	16	line-height	1.4	leading
+app/web/group-goals.css	19	font-weight	600	weight
+app/web/group-goals.css	21	gap	.3rem	space
+app/web/group-goals.css	21	margin-top	.2rem	space
+app/web/group-goals.css	22	gap	0	space
+app/web/group-goals.css	22	margin-left	auto	space
+app/web/group-goals.css	23	border-color	transparent	border
+app/web/group-goals.css	23	font-size	.78rem	type
+app/web/group-goals.css	23	padding	.25rem .45rem	space
+app/web/group-goals.css	25	margin-top	.2rem	space
+app/web/group-goals.css	25	padding	.15rem 0	space
+app/web/group-goals.css	25	line-height	1.4	leading
+app/web/group-goals.css	27	gap	.55rem	space
+app/web/group-goals.css	27	margin-top	.7rem	space
+app/web/group-goals.css	27	padding-top	.65rem	space
+app/web/group-goals.css	27	border-top	1px solid var(--hairline)	border
+app/web/group-goals.css	28	margin	0	space
+app/web/group-goals.css	29	font-size	.8rem	type
+app/web/group-goals.css	29	margin-bottom	.2rem	space
+app/web/group-goals.css	30	font-size	.88rem	type
+app/web/group-goals.css	31	font-size	.8rem	type
+app/web/group-goals.css	31	line-height	1.4	leading
+app/web/group-goals.css	32	font-weight	600	weight
+app/web/group-goals.css	32	font-size	.82rem	type
+app/web/group-goals.css	33	gap	.15rem	space
+app/web/group-goals.css	34	line-height	1.4	leading
+app/web/group-goals.css	35	padding	.75rem	space
+app/web/helper.css	1	margin	0 auto	space
+app/web/helper.css	1	padding	2rem clamp(1rem,3vw,2.5rem) 4rem	space
+app/web/helper.css	2	gap	.8rem	space
+app/web/helper.css	8	margin	.2rem 0 1rem	space
+app/web/helper.css	8	font-size	.9rem	type
+app/web/helper.css	8	margin	.4rem 0	space
+app/web/helper.css	9	gap	1rem 2rem	space
+app/web/helper.css	10	border-bottom	1px solid var(--border)	border
+app/web/helper.css	11	font	500 1.2rem/1.3 var(--display)	colour
+app/web/helper.css	11	margin	1.7rem 0 .5rem	space
+app/web/helper.css	12	margin	.8rem 0	space
+app/web/helper.css	13	font-size	22px	type
+app/web/helper.css	15	font-size	24px	type
+app/web/helper.css	16	font-size	.8rem	type
+app/web/helper.css	16	padding	.65rem .35rem	space
+app/web/helper.css	17	gap	1.25rem	space
+app/web/helper.css	17	border-bottom	1px solid var(--border)	border
+app/web/helper.css	17	padding-bottom	1rem	space
+app/web/helper.css	18	font-family	var(--display)	colour
+app/web/helper.css	18	font-size	clamp(1.9rem,4vw,2.8rem)	type
+app/web/helper.css	18	font-weight	500	weight
+app/web/helper.css	18	margin	0 auto 0 0	space
+app/web/helper.css	18	line-height	1.1	leading
+app/web/helper.css	19	gap	.65rem	space
+app/web/helper.css	20	font-size	.9rem	type
+app/web/helper.css	20	margin	.8rem 0 2rem	space
+app/web/helper.css	21	gap	2.5rem	space
+app/web/helper.css	22	gap	.35rem	space
+app/web/helper.css	23	padding	.7rem .8rem	space
+app/web/helper.css	23	border	1px solid transparent	border
+app/web/helper.css	24	border-color	var(--border)	border
+app/web/helper.css	25	font	500 1.8rem/1.15 var(--display)	colour
+app/web/helper.css	25	margin	0 0 .65rem	space
+app/web/helper.css	25	font	500 1.35rem/1.25 var(--display)	colour
+app/web/helper.css	25	margin	2rem 0 .7rem	space
+app/web/helper.css	25	margin	1.2rem 0 .5rem	space
+app/web/helper.css	26	line-height	1.6	leading
+app/web/helper.css	26	margin-bottom	1.7rem	space
+app/web/helper.css	26	font-size	.9rem	type
+app/web/helper.css	26	line-height	1.55	leading
+app/web/helper.css	27	gap	1rem	space
+app/web/helper.css	27	margin	1.5rem 0	space
+app/web/helper.css	28	gap	1.1rem	space
+app/web/helper.css	28	margin	1.5rem 0	space
+app/web/helper.css	28	padding	1.1rem 1.2rem	space
+app/web/helper.css	28	border	1px solid var(--border)	border
+app/web/helper.css	28	border-radius	var(--radius-sm,8px)	radius
+app/web/helper.css	29	gap	.9rem 1rem	space
+app/web/helper.css	31	gap	.15rem	space
+app/web/helper.css	31	padding-bottom	.55rem	space
+app/web/helper.css	32	margin	0	space
+app/web/helper.css	34	gap	.6rem	space
+app/web/helper.css	34	font-size	.93rem	type
+app/web/helper.css	35	margin	0	space
+app/web/helper.css	37	border-top	1px solid var(--border)	border
+app/web/helper.css	37	padding-top	.6rem	space
+app/web/helper.css	37	margin	.25rem 0 .65rem	space
+app/web/helper.css	38	border-top	1px solid var(--border)	border
+app/web/helper.css	38	padding-top	.6rem	space
+app/web/helper.css	38	margin	.25rem 0 .65rem	space
+app/web/helper.css	39	gap	.4rem	space
+app/web/helper.css	39	font-size	.93rem	type
+app/web/helper.css	44	padding-inline	1.2rem	space
+app/web/helper.css	44	font-weight	600	weight
+app/web/helper.css	45	font-size	1.2rem	type
+app/web/helper.css	45	font-family	var(--display)	colour
+app/web/helper.css	45	padding	1rem 0	space
+app/web/helper.css	45	border-bottom	1px solid var(--border)	border
+app/web/helper.css	47	margin	1.5rem 0	space
+app/web/helper.css	47	font-family	inherit	colour
+app/web/helper.css	48	font-size	14px	type
+app/web/helper.css	49	margin	1.5rem 0	space
+app/web/helper.css	49	border-collapse	collapse	border
+app/web/helper.css	49	font-size	.9rem	type
+app/web/helper.css	49	margin-bottom	.6rem	space
+app/web/helper.css	49	padding	.65rem .75rem	space
+app/web/helper.css	49	border-bottom	1px solid var(--border)	border
+app/web/helper.css	49	padding-left	0	space
+app/web/helper.css	49	font-weight	500	weight
+app/web/helper.css	49	font-weight	500	weight
+app/web/helper.css	50	padding	0	space
+app/web/helper.css	50	gap	1rem	space
+app/web/helper.css	50	border-bottom	1px solid var(--border)	border
+app/web/helper.css	50	padding	.9rem 0	space
+app/web/helper.css	50	line-height	1.5	leading
+app/web/helper.css	51	padding	0 0 1.4rem	space
+app/web/helper.css	51	border-bottom	1px solid var(--border)	border
+app/web/helper.css	52	padding	1rem 0	space
+app/web/helper.css	52	border-bottom	1px solid var(--border)	border
+app/web/helper.css	52	margin	.4rem 0	space
+app/web/helper.css	52	gap	1rem	space
+app/web/helper.css	52	padding-left	1.2rem	space
+app/web/helper.css	52	line-height	1.6	leading
+app/web/helper.css	52	padding	.5rem 0	space
+app/web/helper.css	52	margin	1.5rem 0	space
+app/web/helper.css	52	padding	.65rem 0	space
+app/web/helper.css	52	outline	2px solid var(--focus)	border
+app/web/helper.css	52	outline-offset	3px	border
+app/web/helper.css	53	padding-top	1.2rem	space
+app/web/helper.css	53	gap	1.3rem	space
+app/web/helper.css	53	gap	.3rem	space
+app/web/helper.css	53	padding	.6rem .3rem	space
+app/web/helper.css	53	margin-bottom	1rem	space
+app/web/helper.css	53	gap	1rem	space
+app/web/helper.css	53	gap	.5rem	space
+app/web/helper.css	53	font-size	24px	type
+app/web/helper.css	53	gap	.8rem	space
+app/web/helper.css	53	font-size	1.6rem	type
+app/web/helper.css	53	padding-left	1rem	space
+app/web/journal.css	2	gap	1rem	space
+app/web/journal.css	3	border-top	1px solid var(--border)	border
+app/web/journal.css	3	padding-top	.8rem	space
+app/web/journal.css	4	margin	0 0 .5rem	space
+app/web/journal.css	5	line-height	1.45	leading
+app/web/journal.css	5	margin	0	space
+app/web/lamp-choices.css	1	gap	.7rem	space
+app/web/lamp-choices.css	2	margin-bottom	0	space
+app/web/lamp-choices.css	3	gap	.65rem	space
+app/web/lamp-choices.css	4	gap	.3rem	space
+app/web/lamp-choices.css	7	font-size	.9rem	type
+app/web/lamp-choices.css	9	padding	.85rem 0	space
+app/web/lamp-choices.css	9	border-top	1px solid var(--hairline)	border
+app/web/lamp-choices.css	10	font-size	1.05rem	type
+app/web/lamp-choices.css	10	line-height	1.4	leading
+app/web/lamp-choices.css	10	margin	0 0 .55rem	space
+app/web/lamp-choices.css	11	gap	.6rem	space
+app/web/lamp-choices.css	12	gap	.3rem	space
+app/web/lamp-choices.css	12	font-size	.93rem	type
+app/web/lamp-choices.css	14	font-weight	600	weight
+app/web/lamp-choices.css	15	gap	.6rem	space
+app/web/lamp-choices.css	15	margin-top	.6rem	space
+app/web/lamp-choices.css	16	font-size	.9rem	type
+app/web/lamp-choices.css	17	margin	0 0 .6rem	space
+app/web/map-activity-layers.css	2	background	#122027	colour
+app/web/map-activity-layers.css	2	border	2px dashed #71e4ef	border
+app/web/map-activity-layers.css	2	border-radius	0	radius
+app/web/map-activity-layers.css	3	background	#20172b	colour
+app/web/map-activity-layers.css	3	border	2px dotted #d8a3ff	border
+app/web/map-activity-layers.css	3	border-radius	0	radius
+app/web/map-activity-layers.css	4	gap	.4rem	space
+app/web/map-activity-layers.css	5	gap	.45rem	space
+app/web/map-activity-layers.css	6	margin-left	auto	space
+app/web/map-activity-layers.css	7	border-top	1px solid var(--hairline)	border
+app/web/map-activity-layers.css	7	padding-top	.45rem	space
+app/web/map-activity-layers.css	9	font-size	.8rem	type
+app/web/map-capture.css	10	outline	none	border
+app/web/map-capture.css	13	padding	.35rem .65rem	space
+app/web/map-capture.css	13	font-size	.85rem	type
+app/web/map-capture.css	15	border	1px solid var(--hairline)	border
+app/web/map-capture.css	15	border-radius	var(--radius-sm)	radius
+app/web/map-capture.css	20	gap	.5rem	space
+app/web/map-display.css	2	color	#fff	colour
+app/web/map-display.css	2	background	#071017	colour
+app/web/map-display.css	2	border	1px solid #aac8d4	border
+app/web/map-display.css	2	border-radius	3px	radius
+app/web/map-display.css	3	font-weight	700	weight
+app/web/map-display.css	3	font-size	.75rem	type
+app/web/map-display.css	4	color	#fff1c5	colour
+app/web/map-display.css	4	text-shadow	-1px -1px #12100e,1px -1px #12100e,-1px 1px #12100e,1px 1px #12100e	shadow
+app/web/map-display.css	5	font-weight	700	weight
+app/web/map-display.css	5	font-size	.75rem	type
+app/web/map-display.css	6	border-radius	var(--radius)	radius
+app/web/map-display.css	6	box-shadow	var(--shadow)	shadow
+app/web/map-display.css	6	font-size	.9rem	type
+app/web/map-display.css	7	gap	.6rem	space
+app/web/map-display.css	7	padding	.8rem .9rem .6rem	space
+app/web/map-display.css	7	border-bottom	1px solid var(--hairline)	border
+app/web/map-display.css	8	font-size	1.25rem	type
+app/web/map-display.css	9	font-weight	600	weight
+app/web/map-display.css	10	gap	.65rem	space
+app/web/map-display.css	10	padding	.75rem .9rem	space
+app/web/map-display.css	11	gap	.15rem .5rem	space
+app/web/map-display.css	12	font-weight	600	weight
+app/web/map-display.css	13	font-size	.82rem	type
+app/web/map-display.css	14	padding	0	space
+app/web/map-display.css	14	border	0	border
+app/web/map-display.css	15	gap	.5rem	space
+app/web/map-display.css	16	margin-left	auto	space
+app/web/map-display.css	16	padding	2px	space
+app/web/map-display.css	17	gap	.4rem	space
+app/web/map-display.css	17	border-top	1px solid var(--hairline)	border
+app/web/map-display.css	17	padding-top	.65rem	space
+app/web/map-display.css	18	font-size	.78rem	type
+app/web/map-display.css	18	line-height	1.4	leading
+app/web/map-display.css	20	gap	.6rem	space
+app/web/map-display.css	20	border-top	1px solid var(--hairline)	border
+app/web/map-display.css	20	padding	.5rem .9rem .65rem	space
+app/web/map-display.css	21	font-size	.75rem	type
+app/web/map-display.css	23	border-radius	var(--radius) var(--radius) 0 0	radius
+app/web/map-display.css	23	padding-bottom	env(safe-area-inset-bottom,0px)	space
+app/web/map-display.css	24	padding	.45rem .75rem	space
+app/web/map-display.css	25	padding	.5rem .75rem	space
+app/web/map-display.css	25	gap	.45rem	space
+app/web/map-display.css	26	gap	0 .5rem	space
+app/web/map-display.css	28	padding	.35rem .75rem .45rem	space
+app/web/map-pin-groups.css	2	margin-top	.5rem	space
+app/web/map-pin-groups.css	3	border-top	1px solid var(--border)	border
+app/web/map-pin-groups.css	5	margin	0	space
+app/web/map-pin-groups.css	7	padding	.35rem .25rem	space
+app/web/map-pin-groups.css	7	line-height	1.3	leading
+app/web/map-pin-groups.css	9	font-size	.94rem	type
+app/web/map-pin-groups.css	9	font-weight	700	weight
+app/web/map-pin-groups.css	10	font-size	.78rem	type
+app/web/map-pin-groups.css	11	padding-bottom	.5rem	space
+app/web/map-pin-groups.css	13	border-bottom	0	border
+app/web/map-pin-groups.css	18	margin	0	space
+app/web/map-pin-groups.css	18	padding	.65rem .75rem	space
+app/web/map-pin-groups.css	18	border	1px solid var(--hairline)	border
+app/web/map-pin-groups.css	18	border-radius	var(--radius-sm)	radius
+app/web/map-pin-groups.css	19	font-family	var(--display)	colour
+app/web/map-pin-groups.css	19	padding	0 .25rem	space
+app/web/map-pin-groups.css	20	font-weight	600	weight
+app/web/map-pin-groups.css	21	margin	.2rem 0 .5rem	space
+app/web/map-pin-groups.css	22	gap	.35rem .65rem	space
+app/web/map-pin-groups.css	22	font-size	.8rem	type
+app/web/map-pin-groups.css	23	gap	.4rem	space
+app/web/members-start.css	1	gap	1.15rem	space
+app/web/members-start.css	1	line-height	1.45	leading
+app/web/members-start.css	2	margin	0	space
+app/web/members-start.css	3	margin	0 0 .5rem	space
+app/web/members-start.css	3	font-size	1.1rem	type
+app/web/members-start.css	4	margin	.55rem 0	space
+app/web/members-start.css	4	padding-left	1.35rem	space
+app/web/members-start.css	5	padding-bottom	1rem	space
+app/web/members-start.css	5	border-bottom	1px solid var(--hairline)	border
+app/web/members-start.css	6	margin	0	space
+app/web/members-start.css	6	padding	.7rem .9rem .85rem	space
+app/web/members-start.css	6	border	1px solid var(--hairline)	border
+app/web/members-start.css	6	border-radius	6px	radius
+app/web/members-start.css	7	font-weight	700	weight
+app/web/members-start.css	7	padding	0 .3rem	space
+app/web/members-start.css	8	gap	.65rem	space
+app/web/members-start.css	8	padding	.45rem 0	space
+app/web/members-start.css	9	margin-top	.25rem	space
+app/web/members-start.css	11	margin-top	.25rem	space
+app/web/members-start.css	12	margin	0 0 .35rem 1.65rem	space
+app/web/members-start.css	13	padding	.55rem 0	space
+app/web/members-start.css	13	border-bottom	1px solid var(--hairline)	border
+app/web/members-start.css	14	font-weight	600	weight
+app/web/members-start.css	15	gap	.7rem	space
+app/web/members-start.css	16	margin	.15rem 0 0	space
+app/web/members-start.css	17	font-weight	600	weight
+app/web/members-start.css	18	gap	.5rem	space
+app/web/members-start.css	18	font-weight	600	weight
+app/web/members-start.css	21	gap	.7rem	space
+app/web/members-start.css	23	font-weight	600	weight
+app/web/members-start.css	24	padding	.6rem .7rem	space
+app/web/overlay-panel.css	2	gap	1rem	space
+app/web/overlay-panel.css	5	font-family	var(--display)	colour
+app/web/overlay-panel.css	5	font-size	1rem	type
+app/web/overlay-panel.css	5	font-weight	600	weight
+app/web/overlay-panel.css	5	margin	0	space
+app/web/overlay-panel.css	6	border-top	1px solid var(--hairline)	border
+app/web/overlay-panel.css	6	padding-top	1.1rem	space
+app/web/overlay-panel.css	7	gap	.8rem 1rem	space
+app/web/overlay-panel.css	8	gap	.35rem	space
+app/web/overlay-panel.css	10	margin-top	.3rem	space
+app/web/overlay-panel.css	11	margin-bottom	.45rem	space
+app/web/overlay-panel.css	12	padding	.8rem 0	space
+app/web/overlay-panel.css	12	border-bottom	1px solid var(--hairline)	border
+app/web/overlay-panel.css	13	border-bottom	0	border
+app/web/overlay-panel.css	14	gap	1rem	space
+app/web/overlay-panel.css	16	font-size	.87rem	type
+app/web/overlay-panel.css	16	margin-top	.25rem	space
+app/web/overlay-panel.css	18	margin-top	.8rem	space
+app/web/overlay-panel.css	19	gap	.6rem	space
+app/web/overlay-panel.css	20	border-top	1px solid var(--hairline)	border
+app/web/overlay-panel.css	20	padding-top	1rem	space
+app/web/overlay-panel.css	21	font-weight	600	weight
+app/web/overlay-panel.css	22	gap	.6rem	space
+app/web/overlay-panel.css	22	gap	.85rem	space
+app/web/overlay.css	2	font-family	"Segoe UI Variable Text","Segoe UI",system-ui,sans-serif	colour
+app/web/overlay.css	2	font-size	24px	type
+app/web/overlay.css	2	color	#fff7e7	colour
+app/web/overlay.css	4	margin	0	space
+app/web/overlay.css	5	padding	12px	space
+app/web/overlay.css	5	line-height	1.35	leading
+app/web/overlay.css	5	text-shadow	0 2px 4px #000,1px 1px 1px #000,-1px -1px 1px #000,1px -1px 1px #000,-1px 1px 1px #000	shadow
+app/web/overlay.css	6	font-size	18px	type
+app/web/overlay.css	7	font-size	24px	type
+app/web/overlay.css	8	font-size	32px	type
+app/web/overlay.css	9	margin	0	space
+app/web/overlay.css	10	font-family	var(--title)	colour
+app/web/overlay.css	10	font-size	1.2em	type
+app/web/overlay.css	10	font-weight	700	weight
+app/web/overlay.css	10	line-height	1.2	leading
+app/web/overlay.css	10	margin-bottom	.5em	space
+app/web/overlay.css	11	font-size	.83em	type
+app/web/overlay.css	11	font-weight	700	weight
+app/web/overlay.css	11	color	#ffe1a0	colour
+app/web/overlay.css	11	margin-bottom	.25em	space
+app/web/overlay.css	12	margin-top	.65em	space
+app/web/overlay.css	13	margin	0	space
+app/web/overlay.css	13	padding-left	1.1em	space
+app/web/overlay.css	13	line-height	1.45	leading
+app/web/overlay.css	14	gap	.2em .8em	space
+app/web/overlay.css	14	font-size	.75em	type
+app/web/overlay.css	15	gap	.15em	space
+app/web/overlay.css	16	font-weight	650	weight
+app/web/overlay.css	17	font-size	.78em	type
+app/web/overlay.css	18	font-size	1.35em	type
+app/web/overlay.css	18	font-weight	700	weight
+app/web/overlay.css	19	font-size	.8em	type
+app/web/overlay.css	20	margin-top	.5em	space
+app/web/overlay.css	22	padding	8px	space
+app/web/overlay.css	22	line-height	1.2	leading
+app/web/overlay.css	23	font-family	inherit	colour
+app/web/overlay.css	23	font-size	.82em	type
+app/web/overlay.css	23	margin-bottom	.3em	space
+app/web/overlay.css	24	margin-top	.4em	space
+app/web/overlay.css	25	font-size	1em	type
+app/web/overlay.css	26	background	#72531e	colour
+app/web/overlay.css	26	color	#fff7e7	colour
+app/web/partner-supply.css	4	gap	.6rem	space
+app/web/partner-supply.css	4	margin-bottom	.7rem	space
+app/web/partner-supply.css	5	margin-left	auto	space
+app/web/partner-supply.css	6	font-size	.88rem	type
+app/web/partner-supply.css	7	gap	.4rem	space
+app/web/partner-supply.css	10	font-size	.9rem	type
+app/web/partner-supply.css	10	margin	0 0 .8rem	space
+app/web/partner-supply.css	11	margin-top	1rem	space
+app/web/partner-supply.css	11	border-top	1px solid var(--hairline)	border
+app/web/partner-supply.css	11	padding-top	.7rem	space
+app/web/partner-supply.css	12	font-size	1rem	type
+app/web/partner-supply.css	12	margin	0 0 .5rem	space
+app/web/partner-supply.css	13	font-size	.8rem	type
+app/web/partner-supply.css	13	line-height	1.4	leading
+app/web/partner-supply.css	14	margin	1rem 0 0	space
+app/web/partner-supply.css	14	border-top	1px solid var(--hairline)	border
+app/web/partner-supply.css	14	padding-top	.7rem	space
+app/web/partner-supply.css	15	margin	0	space
+app/web/partner-supply.css	15	padding	0	space
+app/web/partner-supply.css	16	padding	.6rem 0	space
+app/web/partner-supply.css	16	border-top	1px solid var(--hairline)	border
+app/web/partner-supply.css	17	border-top	0	border
+app/web/partner-supply.css	17	padding-top	0	space
+app/web/partner-supply.css	18	font-size	.9rem	type
+app/web/partner-supply.css	18	font-weight	600	weight
+app/web/partner-supply.css	19	padding	0	space
+app/web/partner-supply.css	19	margin	.25rem 0	space
+app/web/partner-supply.css	21	padding-left	1.2rem	space
+app/web/partner-supply.css	21	margin	.2rem 0	space
+app/web/phone-layout.css	4	gap	.3rem .6rem	space
+app/web/phone-layout.css	5	gap	.5rem	space
+app/web/phone-layout.css	9	margin	0	space
+app/web/phone-layout.css	11	border-top	0	border
+app/web/phone-layout.css	15	gap	.4rem	space
+app/web/phone-layout.css	15	padding	.35rem .6rem calc(.35rem + env(safe-area-inset-bottom,0px))	space
+app/web/phone-layout.css	15	border-top	1px solid var(--hairline)	border
+app/web/phone-layout.css	16	font-weight	600	weight
+app/web/phone-layout.css	19	padding	1rem .75rem	space
+app/web/phone-layout.css	20	margin-bottom	.8rem	space
+app/web/phone-layout.css	21	gap	.5rem	space
+app/web/phone-layout.css	24	gap	.35rem	space
+app/web/phone-layout.css	25	font-size	1rem	type
+app/web/phone-layout.css	26	margin-top	.35rem	space
+app/web/phone-layout.css	26	box-shadow	none	shadow
+app/web/phone-layout.css	28	gap	.8rem	space
+app/web/phone-layout.css	28	margin-top	1.2rem	space
+app/web/phone-layout.css	29	margin-top	0	space
+app/web/phone-layout.css	29	box-shadow	none	shadow
+app/web/phone-layout.css	30	margin-top	.6rem	space
+app/web/phone-layout.css	30	font-size	.8rem	type
+app/web/phone-layout.css	40	border-color	transparent	border
+app/web/phone-layout.css	41	border	1.5px solid color-mix(in srgb,var(--muted) 75%,transparent)	border
+app/web/phone-layout.css	41	border-radius	4px	radius
+app/web/phone-layout.css	42	border-color	var(--gold)	border
+app/web/phone-layout.css	48	padding-inline	.8rem	space
+app/web/phone-layout.css	49	padding	.4rem .65rem	space
+app/web/phone-layout.css	52	gap	.4rem	space
+app/web/phone-layout.css	54	margin-top	-.65rem	space
+app/web/phone-layout.css	59	gap	.6rem	space
+app/web/phone-layout.css	59	padding	.6rem .9rem	space
+app/web/phone-layout.css	60	font-size	1.3rem	type
+app/web/profile.css	5	gap	.6rem	space
+app/web/profile.css	5	font-size	.85rem	type
+app/web/profile.css	6	padding	.3rem .6rem	space
+app/web/profile.css	6	font-size	.85rem	type
+app/web/profile.css	7	gap	.6rem 1rem	space
+app/web/profile.css	7	padding	0 155px .9rem 0	space
+app/web/profile.css	7	border-bottom	1px solid var(--hairline)	border
+app/web/profile.css	8	font-size	1.35rem	type
+app/web/profile.css	8	margin	0	space
+app/web/profile.css	9	font-size	.85rem	type
+app/web/profile.css	9	margin	0	space
+app/web/profile.css	10	gap	.4rem	space
+app/web/profile.css	10	margin-left	auto	space
+app/web/profile.css	12	margin-left	0	space
+app/web/profile.css	13	gap	1.6rem	space
+app/web/profile.css	13	margin-top	1rem	space
+app/web/profile.css	14	gap	.5rem	space
+app/web/profile.css	14	margin-bottom	.5rem	space
+app/web/profile.css	15	font-size	1.05rem	type
+app/web/profile.css	15	margin	0 0 .35rem	space
+app/web/profile.css	15	font-weight	600	weight
+app/web/profile.css	16	font-size	1.35rem	type
+app/web/profile.css	16	margin	0	space
+app/web/profile.css	17	margin	0	space
+app/web/profile.css	17	margin-right	auto	space
+app/web/profile.css	18	font-size	.87rem	type
+app/web/profile.css	18	font-weight	600	weight
+app/web/profile.css	18	margin	0	space
+app/web/profile.css	19	font-size	.78rem	type
+app/web/profile.css	19	line-height	1.4	leading
+app/web/profile.css	19	margin	.3rem 0 0	space
+app/web/profile.css	20	gap	3px	space
+app/web/profile.css	20	margin	0 0 .5rem	space
+app/web/profile.css	21	column-gap	.3rem	space
+app/web/profile.css	21	padding	.25rem .5rem	space
+app/web/profile.css	21	border-radius	var(--radius-sm)	radius
+app/web/profile.css	22	gap	.35rem	space
+app/web/profile.css	22	font-size	.8rem	type
+app/web/profile.css	24	font-size	.96rem	type
+app/web/profile.css	24	font-weight	600	weight
+app/web/profile.css	24	margin	0	space
+app/web/profile.css	26	font-size	.58rem	type
+app/web/profile.css	26	line-height	1	leading
+app/web/profile.css	27	line-height	1.1	leading
+app/web/profile.css	28	gap	1rem	space
+app/web/profile.css	29	margin	0	space
+app/web/profile.css	29	font-size	.87rem	type
+app/web/profile.css	30	gap	.5rem	space
+app/web/profile.css	30	padding	.25rem 0	space
+app/web/profile.css	30	border-bottom	1px solid var(--hairline)	border
+app/web/profile.css	31	margin	0	space
+app/web/profile.css	31	font-weight	600	weight
+app/web/profile.css	32	font-weight	600	weight
+app/web/profile.css	33	font-size	.97rem	type
+app/web/profile.css	33	font-weight	600	weight
+app/web/profile.css	33	margin	.25rem 0	space
+app/web/profile.css	34	margin-top	1rem	space
+app/web/profile.css	34	padding-top	.8rem	space
+app/web/profile.css	34	border-top	1px solid var(--hairline)	border
+app/web/profile.css	35	font-size	.85rem	type
+app/web/profile.css	35	padding	.3rem .4rem	space
+app/web/profile.css	36	gap	.45rem 1rem	space
+app/web/profile.css	36	margin	.6rem 0 0	space
+app/web/profile.css	37	padding	.15rem 0	space
+app/web/profile.css	38	font-size	.72rem	type
+app/web/profile.css	38	margin-bottom	.1rem	space
+app/web/profile.css	39	margin	0	space
+app/web/profile.css	39	font-size	.8rem	type
+app/web/profile.css	39	line-height	1.3	leading
+app/web/profile.css	40	gap	.4rem	space
+app/web/profile.css	42	outline	2px solid var(--focus)	border
+app/web/profile.css	42	outline-offset	2px	border
+app/web/profile.css	44	margin-bottom	.6rem	space
+app/web/profile.css	45	gap	1rem	space
+app/web/profile.css	46	gap	.8rem	space
+app/web/profile.css	49	gap	.5rem	space
+app/web/profile.css	49	padding-right	0	space
+app/web/profile.css	51	margin-left	0	space
+app/web/profile.css	55	padding	.25rem .3rem	space
+app/web/profile.css	56	font-size	.69rem	type
+app/web/profile.css	56	gap	.2rem	space
+app/web/profile.css	58	font-size	1rem	type
+app/web/profile.css	59	font-size	.8rem	type
+app/web/profile.css	62	gap	.3rem	space
+app/web/quest-map.css	1	gap	.5rem	space
+app/web/quest-map.css	2	margin	0	space
+app/web/quest-map.css	6	padding	.65rem .8rem	space
+app/web/quest-map.css	7	border	1px solid var(--hairline)	border
+app/web/quest-map.css	7	border-radius	var(--radius-sm)	radius
+app/web/quest-map.css	10	gap	.65rem	space
+app/web/quest-map.css	12	margin	.4rem 0 0	space
+app/web/quest-map.css	12	font-size	.85rem	type
+app/web/quest-map.css	13	gap	.4rem .8rem	space
+app/web/quest-map.css	14	margin-right	.35rem	space
+app/web/quest-map.css	14	border	2px solid #f25fe3	border
+app/web/quest-map.css	15	border-color	#e69b36	border
+app/web/quest-map.css	15	border-style	dashed	border
+app/web/quest-map.css	17	margin	.4rem 0 0	space
+app/web/quest-map.css	17	font-size	.85rem	type
+app/web/quest-map.css	18	margin-top	.3rem	space
+app/web/quest-map.css	20	margin	.6rem	space
+app/web/roll-stats.css	1	gap	1rem	space
+app/web/roll-stats.css	2	margin	0	space
+app/web/roll-stats.css	3	gap	.4rem	space
+app/web/roll-stats.css	3	margin	0 0 .5rem	space
+app/web/roll-stats.css	4	font-size	.8rem	type
+app/web/roll-stats.css	4	border	1px solid var(--hairline)	border
+app/web/roll-stats.css	4	border-radius	999px	radius
+app/web/roll-stats.css	4	padding	.3rem .65rem	space
+app/web/roll-stats.css	5	border-color	var(--gold)	border
+app/web/roll-stats.css	7	font-family	inherit	colour
+app/web/roll-stats.css	7	font-size	14px	type
+app/web/roll-stats.css	12	border-color	var(--panel-link,var(--link))	border
+app/web/roll-stats.css	13	border-color	var(--panel-text,var(--text))	border
+app/web/roll-stats.css	14	border-color	var(--panel-muted,var(--muted))	border
+app/web/roll-stats.css	15	border-color	var(--panel-link,var(--link))	border
+app/web/roll-stats.css	16	border-color	var(--panel-text,var(--text))	border
+app/web/roll-stats.css	17	gap	.4rem 1rem	space
+app/web/roll-stats.css	17	padding	0	space
+app/web/roll-stats.css	17	margin	.35rem 0 .6rem	space
+app/web/roll-stats.css	18	gap	.4rem	space
+app/web/roll-stats.css	19	border-top-width	2px	border
+app/web/roll-stats.css	19	border-top-style	solid	border
+app/web/roll-stats.css	20	border-top-style	dashed	border
+app/web/roll-stats.css	21	border-top-style	dotted	border
+app/web/roll-stats.css	22	font-size	.9rem	type
+app/web/roll-stats.css	22	line-height	1.5	leading
+app/web/roll-stats.css	23	border-collapse	collapse	border
+app/web/roll-stats.css	23	font-size	.9rem	type
+app/web/roll-stats.css	24	font-weight	600	weight
+app/web/roll-stats.css	24	padding-bottom	.5rem	space
+app/web/roll-stats.css	25	padding	.5rem .3rem	space
+app/web/roll-stats.css	25	border-bottom	1px solid var(--hairline)	border
+app/web/roll-stats.css	27	font-weight	600	weight
+app/web/roll-stats.css	28	font-weight	400	weight
+app/web/roll-stats.css	29	padding-left	1.2rem	space
+app/web/roll-stats.css	29	margin	0	space
+app/web/roll-stats.css	31	font-size	9px	type
+app/web/roll-stats.css	32	font-size	.85rem	type
+app/web/roll-stats.css	32	padding	.5rem .2rem	space
+app/web/roll-stats.css	32	font-size	.9rem	type
+app/web/sandbox.css	1	gap	.45rem 1rem	space
+app/web/sandbox.css	1	padding	.65rem 1rem	space
+app/web/sandbox.css	1	border-bottom	1px solid color-mix(in srgb,var(--gold) 65%,var(--border))	border
+app/web/sandbox.css	2	font-family	var(--display)	colour
+app/web/sandbox.css	2	font-size	1.07rem	type
+app/web/sandbox.css	2	line-height	1.3	leading
+app/web/sandbox.css	3	font-size	.87rem	type
+app/web/sandbox.css	4	gap	.35rem	space
+app/web/sandbox.css	4	margin-left	auto	space
+app/web/sandbox.css	5	border	1px solid var(--hairline)	border
+app/web/sandbox.css	5	font-size	.86rem	type
+app/web/sandbox.css	6	border-color	var(--gold)	border
+app/web/sandbox.css	7	font-size	.8rem	type
+app/web/sandbox.css	7	line-height	1.45	leading
+app/web/sandbox.css	9	gap	.3rem	space
+app/web/sandbox.css	10	font-size	.75rem	type
+app/web/sandbox.css	10	line-height	1.3	leading
+app/web/sandbox.css	10	border	1px solid color-mix(in srgb,var(--gold) 35%,var(--border))	border
+app/web/sandbox.css	10	border-radius	var(--radius-sm)	radius
+app/web/sandbox.css	10	padding	.15rem .4rem	space
+app/web/sandbox.css	11	font-size	.8rem	type
+app/web/sandbox.css	11	padding	.2rem 0	space
+app/web/sandbox.css	12	gap	.3rem	space
+app/web/sandbox.css	14	font-size	.78rem	type
+app/web/sandbox.css	14	border	1px solid var(--hairline)	border
+app/web/sandbox.css	15	border	1px solid color-mix(in srgb,var(--gold) 60%,var(--border))	border
+app/web/sandbox.css	15	border-radius	var(--radius-sm)	radius
+app/web/sandbox.css	15	font-size	.66rem	type
+app/web/sandbox.css	15	font-weight	600	weight
+app/web/sandbox.css	15	line-height	1.3	leading
+app/web/sandbox.css	15	padding	.05rem .3rem	space
+app/web/sandbox.css	15	margin-left	.35rem	space
+app/web/sandbox.css	16	border	1px solid var(--gold)	border
+app/web/sandbox.css	17	padding	.6rem .75rem	space
+app/web/sandbox.css	17	gap	.4rem .65rem	space
+app/web/sandbox.css	17	margin-left	0	space
+app/web/search.css	1	margin-top	.7rem	space
+app/web/search.css	2	gap	.5rem	space
+app/web/search.css	2	margin-top	.65rem	space
+app/web/search.css	3	margin-top	.25rem	space
+app/web/search.css	5	gap	.4rem	space
+app/web/search.css	7	margin-top	.35rem	space
+app/web/search.css	8	gap	.7rem	space
+app/web/search.css	8	padding	.65rem .3rem	space
+app/web/search.css	9	font-size	.9rem	type
+app/web/search.css	11	margin	auto	space
+app/web/search.css	14	margin	0	space
+app/web/stream-safe.css	1	font-size	.74rem	type
+app/web/stream-safe.css	1	font-weight	600	weight
+app/web/stream-safe.css	1	padding	.22rem .45rem	space
+app/web/stream-safe.css	1	border	1px solid var(--hairline)	border
+app/web/stream-safe.css	1	border-radius	var(--radius-sm)	radius
+app/web/stream-safe.css	3	font-size	.78rem	type
+app/web/stream-safe.css	4	gap	.4rem	space
+app/web/stream-safe.css	6	margin-top	0	space
+app/web/stream-safe.css	7	padding	.3rem 0	space
+app/web/style.css	4	font-family	"Segoe UI Variable Text","Segoe UI",system-ui,-apple-system,sans-serif	colour
+app/web/style.css	4	font-size	15px	type
+app/web/style.css	6	--bg	#141310	colour
+app/web/style.css	6	--panel	#1c1a16	colour
+app/web/style.css	6	--surface	#2b2822	colour
+app/web/style.css	6	--border	#3b372f	colour
+app/web/style.css	6	--text	#ece4d3	colour
+app/web/style.css	6	--muted	#b9af9d	colour
+app/web/style.css	6	--link	#e8bd68	colour
+app/web/style.css	6	--focus	#f5c451	colour
+app/web/style.css	6	--danger	#ff9e94	colour
+app/web/style.css	7	--gold	#d9a441	colour
+app/web/style.css	7	--gold-strong	#e9b955	colour
+app/web/style.css	7	--on-gold	#1d1406	colour
+app/web/style.css	7	--ok	#7fc98f	colour
+app/web/style.css	9	--radius	10px	radius
+app/web/style.css	9	--shadow	0 12px 32px #0000008c	colour
+app/web/style.css	11	--gold	#9a6608	colour
+app/web/style.css	11	--gold-strong	#ad740c	colour
+app/web/style.css	11	--on-gold	#fffaf0	colour
+app/web/style.css	11	--ok	#2f7d48	colour
+app/web/style.css	11	--shadow	0 12px 32px #4a3a1a2e	colour
+app/web/style.css	13	margin	0	space
+app/web/style.css	14	font	inherit	colour
+app/web/style.css	16	border	1px solid transparent	border
+app/web/style.css	16	padding	.34rem .72rem	space
+app/web/style.css	16	border-radius	var(--radius-sm)	radius
+app/web/style.css	16	line-height	1.25	leading
+app/web/style.css	20	border	1px solid var(--border)	border
+app/web/style.css	20	padding	.38rem .5rem	space
+app/web/style.css	20	border-radius	var(--radius-sm)	radius
+app/web/style.css	22	border-color	color-mix(in srgb,var(--border),var(--text) 30%)	border
+app/web/style.css	24	margin	0	space
+app/web/style.css	24	padding	0	space
+app/web/style.css	24	border	1.5px solid color-mix(in srgb,var(--muted) 75%,transparent)	border
+app/web/style.css	24	border-radius	4px	radius
+app/web/style.css	25	border	solid var(--on-gold)	border
+app/web/style.css	25	border-width	0 0 2px 2px	border
+app/web/style.css	26	border-color	var(--gold)	border
+app/web/style.css	30	line-height	1.45	leading
+app/web/style.css	35	outline	2px solid var(--focus)	border
+app/web/style.css	35	outline-offset	2px	border
+app/web/style.css	39	margin	0	space
+app/web/style.css	40	font-family	var(--display)	colour
+app/web/style.css	40	font-weight	600	weight
+app/web/style.css	41	font-size	1.35rem	type
+app/web/style.css	41	line-height	1.2	leading
+app/web/style.css	42	font-size	1.08rem	type
+app/web/style.css	43	line-height	1.5	leading
+app/web/style.css	44	gap	.45rem	space
+app/web/style.css	48	margin	0 .55em .12em .1em	space
+app/web/style.css	48	border	solid currentColor	border
+app/web/style.css	48	border-width	0 1.5px 1.5px 0	border
+app/web/style.css	50	padding	0	space
+app/web/style.css	50	margin	-1px	space
+app/web/style.css	50	border	0	border
+app/web/style.css	51	border-bottom	1px solid var(--hairline)	border
+app/web/style.css	51	padding	.65rem 1rem	space
+app/web/style.css	52	gap	.5rem 1rem	space
+app/web/style.css	55	gap	1rem	space
+app/web/style.css	56	font-size	1.1rem	type
+app/web/style.css	57	margin	.55rem 0	space
+app/web/style.css	57	padding-left	1.2rem	space
+app/web/style.css	57	line-height	1.5	leading
+app/web/style.css	58	gap	.5rem	space
+app/web/style.css	62	gap	.6rem	space
+app/web/style.css	63	font-weight	600	weight
+app/web/style.css	64	margin-top	.4rem	space
+app/web/style.css	64	padding-top	.8rem	space
+app/web/style.css	64	border-top	1px solid var(--hairline)	border
+app/web/style.css	66	padding	.6rem .75rem	space
+app/web/style.css	67	font-family	"Picker Icons"	colour
+app/web/style.css	70	gap	.5rem 1rem	space
+app/web/style.css	70	padding	.45rem 1rem	space
+app/web/style.css	70	border-bottom	1px solid var(--hairline)	border
+app/web/style.css	71	gap	.55rem	space
+app/web/style.css	71	font-size	1.32rem	type
+app/web/style.css	71	font-weight	600	weight
+app/web/style.css	72	border-radius	5px	radius
+app/web/style.css	73	font-family	"Segoe UI Variable Text","Segoe UI",system-ui,sans-serif	colour
+app/web/style.css	73	font-size	.66rem	type
+app/web/style.css	73	font-weight	700	weight
+app/web/style.css	73	padding	.12rem .38rem	space
+app/web/style.css	73	border-radius	4px	radius
+app/web/style.css	73	border	1px solid color-mix(in srgb,var(--gold) 55%,transparent)	border
+app/web/style.css	74	font-size	.74rem	type
+app/web/style.css	74	font-weight	600	weight
+app/web/style.css	74	padding	.22rem .45rem	space
+app/web/style.css	74	border	1px solid var(--hairline)	border
+app/web/style.css	74	border-radius	var(--radius-sm)	radius
+app/web/style.css	75	padding	.55rem .62rem	space
+app/web/style.css	75	font-size	.93rem	type
+app/web/style.css	76	margin-left	auto	space
+app/web/style.css	76	font-size	.75rem	type
+app/web/style.css	79	gap	.9rem	space
+app/web/style.css	79	padding-left	1rem	space
+app/web/style.css	79	border-left	1px solid var(--hairline)	border
+app/web/style.css	80	padding	3px	space
+app/web/style.css	80	gap	2px	space
+app/web/style.css	80	border-radius	999px	radius
+app/web/style.css	80	border	1px solid var(--hairline)	border
+app/web/style.css	81	border-radius	999px	radius
+app/web/style.css	81	padding	.26rem .85rem	space
+app/web/style.css	81	font-weight	600	weight
+app/web/style.css	81	font-size	.92rem	type
+app/web/style.css	86	font-weight	700	weight
+app/web/style.css	87	font-weight	400	weight
+app/web/style.css	87	padding	.28rem .4rem	space
+app/web/style.css	88	font-size	.88rem	type
+app/web/style.css	89	border-radius	999px	radius
+app/web/style.css	89	border	1px solid var(--border)	border
+app/web/style.css	90	border	0	border
+app/web/style.css	90	border-radius	50%	radius
+app/web/style.css	91	border-color	var(--gold)	border
+app/web/style.css	93	gap	.05rem	space
+app/web/style.css	94	padding	.38rem .62rem	space
+app/web/style.css	94	font-size	.93rem	type
+app/web/style.css	94	border-radius	var(--radius-sm)	radius
+app/web/style.css	99	margin	0 0 .18em .5em	space
+app/web/style.css	99	border	solid currentColor	border
+app/web/style.css	99	border-width	0 1.5px 1.5px 0	border
+app/web/style.css	100	gap	1px	space
+app/web/style.css	100	padding	.35rem	space
+app/web/style.css	100	border	1px solid var(--hairline)	border
+app/web/style.css	100	border-radius	var(--radius)	radius
+app/web/style.css	100	box-shadow	var(--shadow)	shadow
+app/web/style.css	103	margin	.3rem 0 0	space
+app/web/style.css	103	padding	.5rem .62rem .15rem	space
+app/web/style.css	103	border-top	1px solid var(--hairline)	border
+app/web/style.css	103	font-size	.72rem	type
+app/web/style.css	103	font-weight	700	weight
+app/web/style.css	104	margin-top	0	space
+app/web/style.css	104	padding-top	.3rem	space
+app/web/style.css	104	border-top	0	border
+app/web/style.css	106	border-radius	50%	radius
+app/web/style.css	107	gap	.4rem	space
+app/web/style.css	107	font-size	.8rem	type
+app/web/style.css	107	padding	.2rem .1rem	space
+app/web/style.css	108	border-radius	50%	radius
+app/web/style.css	109	box-shadow	0 0 0 3px color-mix(in srgb,var(--ok) 22%,transparent)	shadow
+app/web/style.css	113	gap	1rem	space
+app/web/style.css	113	padding	.55rem 1rem	space
+app/web/style.css	113	background	#3d3018	colour
+app/web/style.css	113	color	#ffedbd	colour
+app/web/style.css	113	border-bottom	1px solid #a88a45	border
+app/web/style.css	114	background	#402220	colour
+app/web/style.css	114	color	#ffc3bb	colour
+app/web/style.css	114	border-bottom-color	#ff9e94	border
+app/web/style.css	114	margin	0	space
+app/web/style.css	115	margin-left	auto	space
+app/web/style.css	116	font-size	.85rem	type
+app/web/style.css	116	line-height	1.5	leading
+app/web/style.css	117	padding	0 .72rem .35rem	space
+app/web/style.css	118	gap	.5rem 1rem	space
+app/web/style.css	118	padding	.55rem 1rem	space
+app/web/style.css	118	background	#3d3018	colour
+app/web/style.css	118	color	#ffedbd	colour
+app/web/style.css	118	border-bottom	1px solid #a88a45	border
+app/web/style.css	119	line-height	1.5	leading
+app/web/style.css	120	margin-left	auto	space
+app/web/style.css	121	background	#fbefd0	colour
+app/web/style.css	121	color	#5a4300	colour
+app/web/style.css	121	border-bottom-color	#d9b44a	border
+app/web/style.css	125	background	var(--map-bg,#0f0e0b)	colour
+app/web/style.css	130	gap	.5rem	space
+app/web/style.css	131	gap	1px	space
+app/web/style.css	131	padding	3px	space
+app/web/style.css	131	border	1px solid var(--hairline)	border
+app/web/style.css	131	border-radius	var(--radius)	radius
+app/web/style.css	131	box-shadow	0 4px 16px #0000006b	shadow
+app/web/style.css	133	padding	.38rem .75rem	space
+app/web/style.css	133	border-radius	7px	radius
+app/web/style.css	133	font-size	.92rem	type
+app/web/style.css	135	box-shadow	inset 0 0 0 1px color-mix(in srgb,var(--gold) 60%,transparent)	shadow
+app/web/style.css	137	font-weight	700	weight
+app/web/style.css	140	padding-inline	.5rem	space
+app/web/style.css	140	font-weight	600	weight
+app/web/style.css	140	font-size	1.05rem	type
+app/web/style.css	140	line-height	1	leading
+app/web/style.css	141	gap	.6rem	space
+app/web/style.css	142	gap	.6rem	space
+app/web/style.css	142	border-radius	var(--radius)	radius
+app/web/style.css	142	scroll-padding	.6rem	space
+app/web/style.css	145	margin-top	auto	space
+app/web/style.css	145	border	1px solid var(--hairline)	border
+app/web/style.css	145	border-radius	var(--radius)	radius
+app/web/style.css	145	padding	.7rem .85rem	space
+app/web/style.css	145	box-shadow	0 4px 16px #0000006b	shadow
+app/web/style.css	146	gap	.25rem 1.1rem	space
+app/web/style.css	146	font-size	.84rem	type
+app/web/style.css	147	font-family	var(--display)	colour
+app/web/style.css	147	font-size	1.25rem	type
+app/web/style.css	147	font-weight	600	weight
+app/web/style.css	147	margin-right	.15rem	space
+app/web/style.css	148	gap	.45rem .75rem	space
+app/web/style.css	148	font-size	.8rem	type
+app/web/style.css	148	padding	.6rem 0 .3rem	space
+app/web/style.css	149	gap	.4rem	space
+app/web/style.css	149	line-height	1.3	leading
+app/web/style.css	150	margin-top	.5rem	space
+app/web/style.css	150	border-top	1px solid var(--hairline)	border
+app/web/style.css	151	font-size	.84rem	type
+app/web/style.css	151	font-weight	600	weight
+app/web/style.css	151	padding	.5rem 0 .1rem	space
+app/web/style.css	152	font-size	.76rem	type
+app/web/style.css	152	font-weight	400	weight
+app/web/style.css	152	margin-left	.35rem	space
+app/web/style.css	153	border-radius	2px	radius
+app/web/style.css	154	border	2px solid var(--swatch)	border
+app/web/style.css	154	background	#ffffff1f	colour
+app/web/style.css	155	background	linear-gradient(135deg,var(--swatch) 55%,#ffffff1f 55%)	colour
+app/web/style.css	155	outline	1px solid #0009	border
+app/web/style.css	156	background	#ad95fc	colour
+app/web/style.css	157	background	rgba(100,255,100,.55)	colour
+app/web/style.css	157	border	1px solid #5fe35a	border
+app/web/style.css	158	background	rgba(255,230,90,.6)	colour
+app/web/style.css	158	border	1px solid #ffe55c	border
+app/web/style.css	159	border	2px solid #5cd6ff	border
+app/web/style.css	159	box-shadow	inset 0 0 0 1px #0b1a24b0	shadow
+app/web/style.css	160	background	#69d55b29	colour
+app/web/style.css	160	border	1px dashed #80d966	border
+app/web/style.css	161	color	#ffe3ea	colour
+app/web/style.css	161	background	#1a0914	colour
+app/web/style.css	162	font-family	'Segoe UI Symbol',sans-serif	colour
+app/web/style.css	162	font-size	1rem	type
+app/web/style.css	163	border	1px solid var(--panel-text,var(--text))	border
+app/web/style.css	163	border-radius	50%	radius
+app/web/style.css	164	background	repeating-linear-gradient(135deg,rgba(255,170,50,.8) 0 1px,rgba(255,150,40,.18) 1px 4px)	colour
+app/web/style.css	164	border	1px solid #ffc94a	border
+app/web/style.css	165	border-radius	0	radius
+app/web/style.css	165	border-top	2px dashed #ffc94a	border
+app/web/style.css	166	margin-top	.35rem	space
+app/web/style.css	166	font-size	.74rem	type
+app/web/style.css	167	border	1px solid var(--hairline)	border
+app/web/style.css	167	border-radius	var(--radius-sm)	radius
+app/web/style.css	167	padding	.4rem .6rem	space
+app/web/style.css	167	font-size	.86rem	type
+app/web/style.css	167	line-height	1.4	leading
+app/web/style.css	167	box-shadow	0 6px 18px #00000080	shadow
+app/web/style.css	168	font-weight	700	weight
+app/web/style.css	171	border	1px solid var(--hairline)	border
+app/web/style.css	171	border-radius	var(--radius)	radius
+app/web/style.css	171	padding	.95rem 1rem	space
+app/web/style.css	171	box-shadow	0 6px 22px #00000066	shadow
+app/web/style.css	172	font-size	1.22rem	type
+app/web/style.css	172	line-height	1.3	leading
+app/web/style.css	173	font-size	.8rem	type
+app/web/style.css	174	gap	.6rem	space
+app/web/style.css	174	margin	.5rem 0	space
+app/web/style.css	174	font-size	.85rem	type
+app/web/style.css	176	margin	.4rem 0 0	space
+app/web/style.css	176	padding	0	space
+app/web/style.css	176	scroll-padding	.3rem	space
+app/web/style.css	177	border-top	1px solid var(--hairline)	border
+app/web/style.css	177	padding	.35rem 0	space
+app/web/style.css	178	padding	.4rem .2rem	space
+app/web/style.css	178	font-size	.87rem	type
+app/web/style.css	180	gap	.75rem	space
+app/web/style.css	182	font-weight	700	weight
+app/web/style.css	183	margin-top	.15rem	space
+app/web/style.css	183	font-size	.77rem	type
+app/web/style.css	183	line-height	1.4	leading
+app/web/style.css	185	font-size	.77rem	type
+app/web/style.css	186	padding	.25rem .2rem	space
+app/web/style.css	187	gap	.45rem	space
+app/web/style.css	187	padding	.25rem .2rem .5rem	space
+app/web/style.css	187	line-height	1.4	leading
+app/web/style.css	189	border-top	1px solid var(--hairline)	border
+app/web/style.css	189	padding-top	.5rem	space
+app/web/style.css	189	margin-top	.4rem	space
+app/web/style.css	190	padding-top	.3rem	space
+app/web/style.css	191	gap	.6rem	space
+app/web/style.css	191	margin-bottom	.6rem	space
+app/web/style.css	192	margin	0	space
+app/web/style.css	193	margin	-.3rem -.4rem 0 0	space
+app/web/style.css	194	font-size	1.3rem	type
+app/web/style.css	194	line-height	1	leading
+app/web/style.css	194	border	0	border
+app/web/style.css	194	padding	.2rem .45rem	space
+app/web/style.css	194	border-radius	var(--radius-sm)	radius
+app/web/style.css	199	gap	.5rem	space
+app/web/style.css	199	margin-bottom	.4rem	space
+app/web/style.css	200	padding	0	space
+app/web/style.css	200	margin	0	space
+app/web/style.css	200	font-size	1.2rem	type
+app/web/style.css	201	margin-bottom	.5rem	space
+app/web/style.css	201	font-size	.9rem	type
+app/web/style.css	202	font-weight	600	weight
+app/web/style.css	202	font-size	.88rem	type
+app/web/style.css	202	margin	.7rem 0 .25rem	space
+app/web/style.css	204	gap	.35rem	space
+app/web/style.css	204	margin	.55rem 0 .7rem	space
+app/web/style.css	205	font-size	.85rem	type
+app/web/style.css	205	padding	.3rem .55rem	space
+app/web/style.css	206	font-weight	600	weight
+app/web/style.css	206	font-size	.88rem	type
+app/web/style.css	206	margin-bottom	.4rem	space
+app/web/style.css	207	font-weight	600	weight
+app/web/style.css	207	font-size	.88rem	type
+app/web/style.css	207	padding	.35rem 0	space
+app/web/style.css	208	margin-bottom	.3rem	space
+app/web/style.css	209	margin	0 0 .6rem	space
+app/web/style.css	209	padding	0	space
+app/web/style.css	209	border	0	border
+app/web/style.css	210	font-size	.82rem	type
+app/web/style.css	210	margin-bottom	.25rem	space
+app/web/style.css	211	gap	.55rem	space
+app/web/style.css	211	font-size	.9rem	type
+app/web/style.css	211	padding	.2rem 0	space
+app/web/style.css	211	border-bottom	1px solid var(--hairline)	border
+app/web/style.css	214	border	1.5px solid #071017	border
+app/web/style.css	214	border-radius	50%	radius
+app/web/style.css	214	background	#dde8ed	colour
+app/web/style.css	216	margin-left	auto	space
+app/web/style.css	216	font-size	.8rem	type
+app/web/style.css	217	margin	.4rem 0	space
+app/web/style.css	217	gap	.15rem	space
+app/web/style.css	218	gap	.35rem	space
+app/web/style.css	218	border-bottom	1px solid var(--hairline)	border
+app/web/style.css	218	padding	.2rem 0	space
+app/web/style.css	219	border-color	transparent	border
+app/web/style.css	221	font-size	.78rem	type
+app/web/style.css	221	margin-top	.2rem	space
+app/web/style.css	222	margin	.6rem 0	space
+app/web/style.css	222	line-height	1.4	leading
+app/web/style.css	223	margin	.4rem .25rem .1rem 0	space
+app/web/style.css	224	border-top	1px solid var(--hairline)	border
+app/web/style.css	224	padding-top	.5rem	space
+app/web/style.css	224	font-size	.88rem	type
+app/web/style.css	225	font-weight	600	weight
+app/web/style.css	225	padding	.25rem 0	space
+app/web/style.css	226	margin-top	.6rem	space
+app/web/style.css	227	gap	.4rem	space
+app/web/style.css	227	margin	.75rem 0 .5rem	space
+app/web/style.css	228	border-color	var(--border)	border
+app/web/style.css	228	font-size	.88rem	type
+app/web/style.css	230	border-color	var(--gold)	border
+app/web/style.css	231	font-size	.92rem	type
+app/web/style.css	231	margin	.4rem 0	space
+app/web/style.css	231	line-height	1.45	leading
+app/web/style.css	232	border-block	1px solid var(--hairline)	border
+app/web/style.css	232	padding	.5rem 0	space
+app/web/style.css	232	margin	.65rem 0	space
+app/web/style.css	232	font-size	.9rem	type
+app/web/style.css	233	margin	0 0 .35rem	space
+app/web/style.css	233	font-size	1rem	type
+app/web/style.css	234	font-weight	700	weight
+app/web/style.css	235	padding-left	1.25rem	space
+app/web/style.css	236	margin	.65rem 0	space
+app/web/style.css	236	line-height	1.45	leading
+app/web/style.css	237	margin	.25rem 0	space
+app/web/style.css	238	font-weight	600	weight
+app/web/style.css	238	padding	.25rem 0	space
+app/web/style.css	239	margin-top	.6rem	space
+app/web/style.css	240	margin-bottom	.3rem	space
+app/web/style.css	240	font-weight	600	weight
+app/web/style.css	240	font-size	.9rem	type
+app/web/style.css	241	margin-top	.4rem	space
+app/web/style.css	244	margin-top	.4rem	space
+app/web/style.css	244	font-size	.85rem	type
+app/web/style.css	245	margin-left	.4rem	space
+app/web/style.css	246	margin-top	1rem	space
+app/web/style.css	246	padding-top	.75rem	space
+app/web/style.css	246	border-top	1px solid var(--hairline)	border
+app/web/style.css	247	margin	0 0 .3rem	space
+app/web/style.css	247	font-family	inherit	colour
+app/web/style.css	247	font-size	.9rem	type
+app/web/style.css	247	font-weight	600	weight
+app/web/style.css	247	line-height	1.4	leading
+app/web/style.css	248	margin	0	space
+app/web/style.css	248	line-height	1.45	leading
+app/web/style.css	250	font-size	.87rem	type
+app/web/style.css	250	margin	.3rem 0	space
+app/web/style.css	250	line-height	1.5	leading
+app/web/style.css	251	font-weight	600	weight
+app/web/style.css	251	line-height	1.4	leading
+app/web/style.css	251	margin-bottom	.35rem	space
+app/web/style.css	252	margin	.6rem 0	space
+app/web/style.css	252	font-size	.9rem	type
+app/web/style.css	252	line-height	1.5	leading
+app/web/style.css	253	margin-top	.35rem	space
+app/web/style.css	254	border-top	1px solid var(--hairline)	border
+app/web/style.css	254	margin-top	.55rem	space
+app/web/style.css	254	padding-top	.1rem	space
+app/web/style.css	254	font-size	.92rem	type
+app/web/style.css	255	font-family	var(--display)	colour
+app/web/style.css	255	font-weight	600	weight
+app/web/style.css	255	font-size	1rem	type
+app/web/style.css	255	padding	.55rem 0	space
+app/web/style.css	256	margin-bottom	.15rem	space
+app/web/style.css	257	border	0	border
+app/web/style.css	257	margin	0	space
+app/web/style.css	257	padding	0	space
+app/web/style.css	259	margin-top	0	space
+app/web/style.css	260	border	1px solid var(--hairline)	border
+app/web/style.css	260	border-radius	var(--radius)	radius
+app/web/style.css	260	padding	1.5rem	space
+app/web/style.css	260	box-shadow	var(--shadow)	shadow
+app/web/style.css	261	margin	.8rem 0 1rem	space
+app/web/style.css	262	margin-right	.5rem	space
+app/web/style.css	262	margin-bottom	.5rem	space
+app/web/style.css	263	border-color	color-mix(in srgb,var(--gold) 70%,transparent)	border
+app/web/style.css	263	box-shadow	0 0 0 1px color-mix(in srgb,var(--gold) 35%,transparent),0 6px 22px #00000066	shadow
+app/web/style.css	264	font-size	.88rem	type
+app/web/style.css	264	margin	.4rem 0 .7rem	space
+app/web/style.css	265	gap	.35rem .5rem	space
+app/web/style.css	265	padding	.65rem 0	space
+app/web/style.css	265	border-top	1px solid var(--hairline)	border
+app/web/style.css	266	line-height	1.3	leading
+app/web/style.css	266	font-size	.93rem	type
+app/web/style.css	267	font-size	.8rem	type
+app/web/style.css	267	margin-top	.15rem	space
+app/web/style.css	268	font-size	.82rem	type
+app/web/style.css	268	padding	.2rem 0	space
+app/web/style.css	268	border-color	transparent	border
+app/web/style.css	270	gap	.4rem	space
+app/web/style.css	270	padding-top	.75rem	space
+app/web/style.css	270	border-top	1px solid var(--hairline)	border
+app/web/style.css	271	margin-left	auto	space
+app/web/style.css	272	border-color	var(--gold)	border
+app/web/style.css	272	font-weight	700	weight
+app/web/style.css	274	padding	.7rem 1rem	space
+app/web/style.css	274	border	1px solid var(--hairline)	border
+app/web/style.css	274	border-radius	var(--radius)	radius
+app/web/style.css	274	font-size	.9rem	type
+app/web/style.css	274	box-shadow	0 4px 16px #0000006b	shadow
+app/web/style.css	275	font-family	var(--display)	colour
+app/web/style.css	275	font-weight	600	weight
+app/web/style.css	275	font-size	1rem	type
+app/web/style.css	276	font-size	.9rem	type
+app/web/style.css	276	margin	.5rem 0 .2rem	space
+app/web/style.css	277	font-size	.8rem	type
+app/web/style.css	278	padding	.25rem .45rem	space
+app/web/style.css	278	font-size	.85rem	type
+app/web/style.css	278	margin-top	.2rem	space
+app/web/style.css	278	border-color	var(--hairline)	border
+app/web/style.css	279	padding	1.3rem	space
+app/web/style.css	279	border	1px solid var(--gold)	border
+app/web/style.css	279	border-radius	var(--radius)	radius
+app/web/style.css	279	box-shadow	0 0 0 4px color-mix(in srgb,var(--gold) 18%,transparent),0 12px 44px #000b	shadow
+app/web/style.css	280	font-size	1.5rem	type
+app/web/style.css	281	gap	.65rem	space
+app/web/style.css	281	margin	1rem 0	space
+app/web/style.css	282	gap	.35rem	space
+app/web/style.css	282	border	1px solid var(--hairline)	border
+app/web/style.css	282	border-radius	var(--radius-sm)	radius
+app/web/style.css	282	padding	.95rem	space
+app/web/style.css	283	font-family	var(--display)	colour
+app/web/style.css	283	font-size	1.9rem	type
+app/web/style.css	283	font-weight	600	weight
+app/web/style.css	285	gap	.5rem	space
+app/web/style.css	285	border-bottom	1px solid var(--hairline)	border
+app/web/style.css	285	padding	.32rem 0	space
+app/web/style.css	286	font-size	.76rem	type
+app/web/style.css	286	padding	.14rem .5rem	space
+app/web/style.css	286	border-color	var(--border)	border
+app/web/style.css	290	margin-left	.5rem	space
+app/web/style.css	290	padding	0 .4rem	space
+app/web/style.css	290	border-radius	999px	radius
+app/web/style.css	290	font-size	.7rem	type
+app/web/style.css	290	line-height	1.55	leading
+app/web/style.css	290	border	1px solid var(--border)	border
+app/web/style.css	291	border-color	color-mix(in srgb,var(--ok) 45%,transparent)	border
+app/web/style.css	292	border-style	dashed	border
+app/web/style.css	295	border-left	1px solid var(--hairline)	border
+app/web/style.css	295	padding	1rem .95rem 1.2rem	space
+app/web/style.css	296	gap	.55rem	space
+app/web/style.css	296	margin-bottom	.75rem	space
+app/web/style.css	297	font-size	1.45rem	type
+app/web/style.css	298	font-size	.8rem	type
+app/web/style.css	298	font-weight	600	weight
+app/web/style.css	298	border-radius	999px	radius
+app/web/style.css	298	padding	.06rem .55rem	space
+app/web/style.css	299	border-color	var(--hairline)	border
+app/web/style.css	299	padding	.45rem .65rem	space
+app/web/style.css	300	gap	.35rem	space
+app/web/style.css	300	font-size	.82rem	type
+app/web/style.css	300	margin	.65rem 0 .5rem	space
+app/web/style.css	301	padding	.2rem .65rem	space
+app/web/style.css	301	border-radius	999px	radius
+app/web/style.css	301	border	1px solid var(--hairline)	border
+app/web/style.css	302	border-color	var(--border)	border
+app/web/style.css	304	border-color	color-mix(in srgb,var(--gold) 55%,transparent)	border
+app/web/style.css	305	outline	2px solid var(--focus)	border
+app/web/style.css	305	outline-offset	2px	border
+app/web/style.css	306	gap	.5rem	space
+app/web/style.css	306	font-size	.78rem	type
+app/web/style.css	306	margin	.35rem 0 .9rem	space
+app/web/style.css	307	font-size	.76rem	type
+app/web/style.css	307	padding	.12rem .5rem	space
+app/web/style.css	307	border-color	var(--hairline)	border
+app/web/style.css	308	border-top	1px solid var(--hairline)	border
+app/web/style.css	308	margin	.9rem -.95rem 0	space
+app/web/style.css	309	font-family	var(--display)	colour
+app/web/style.css	309	font-size	1.08rem	type
+app/web/style.css	309	font-weight	600	weight
+app/web/style.css	309	padding	.6rem .95rem	space
+app/web/style.css	311	padding	0 .95rem .5rem	space
+app/web/style.css	312	font-family	"Segoe UI Variable Text","Segoe UI",system-ui,sans-serif	colour
+app/web/style.css	312	font-weight	400	weight
+app/web/style.css	312	font-size	.85rem	type
+app/web/style.css	313	gap	1rem	space
+app/web/style.css	315	gap	.4rem	space
+app/web/style.css	315	padding	0 0 .35rem	space
+app/web/style.css	315	margin	0 0 .15rem	space
+app/web/style.css	315	font-family	"Segoe UI Variable Text","Segoe UI",system-ui,sans-serif	colour
+app/web/style.css	315	font-size	.72rem	type
+app/web/style.css	315	font-weight	700	weight
+app/web/style.css	315	border-bottom	1px solid var(--hairline)	border
+app/web/style.css	316	gap	.6rem	space
+app/web/style.css	316	padding	.45rem .4rem	space
+app/web/style.css	316	margin	0 -.4rem	space
+app/web/style.css	316	font-size	.93rem	type
+app/web/style.css	316	line-height	1.4	leading
+app/web/style.css	316	border-radius	var(--radius-sm)	radius
+app/web/style.css	318	margin-top	.15rem	space
+app/web/style.css	319	border	0	border
+app/web/style.css	319	padding	0	space
+app/web/style.css	319	line-height	1.35	leading
+app/web/style.css	319	font-size	inherit	type
+app/web/style.css	319	border-radius	2px	radius
+app/web/style.css	321	font-weight	700	weight
+app/web/style.css	322	color	var(--completed-colour,#a5d2be)	colour
+app/web/style.css	323	font-size	.78rem	type
+app/web/style.css	323	margin-top	.12rem	space
+app/web/style.css	324	margin-top	.1rem	space
+app/web/style.css	324	padding	.1rem 0	space
+app/web/style.css	324	border	1px solid transparent	border
+app/web/style.css	324	font-size	.76rem	type
+app/web/style.css	327	gap	.15rem .5rem	space
+app/web/style.css	327	margin-top	.25rem	space
+app/web/style.css	327	font-size	.76rem	type
+app/web/style.css	328	font-weight	600	weight
+app/web/style.css	331	padding	.2rem .45rem	space
+app/web/style.css	331	border	1px solid var(--hairline)	border
+app/web/style.css	331	font-size	inherit	type
+app/web/style.css	332	padding	.1rem 0	space
+app/web/style.css	332	border-color	transparent	border
+app/web/style.css	334	border-color	var(--gold)	border
+app/web/style.css	335	gap	.4rem	space
+app/web/style.css	335	padding	.4rem 0	space
+app/web/style.css	337	font-size	inherit	type
+app/web/style.css	339	font-size	.8rem	type
+app/web/style.css	339	padding-top	.15rem	space
+app/web/style.css	340	margin-right	.4rem	space
+app/web/style.css	340	border-radius	50%	radius
+app/web/style.css	340	background	#e69a4c	colour
+app/web/style.css	341	margin	.35rem 0 0	space
+app/web/style.css	341	border	1px dashed var(--hairline)	border
+app/web/style.css	341	font-size	.85rem	type
+app/web/style.css	342	margin-top	1rem	space
+app/web/style.css	343	border	1px dashed var(--border)	border
+app/web/style.css	344	border-color	var(--gold)	border
+app/web/style.css	345	font-size	.9rem	type
+app/web/style.css	345	padding	.5rem 0	space
+app/web/style.css	346	font-size	.9rem	type
+app/web/style.css	346	line-height	1.55	leading
+app/web/style.css	349	border	1px solid var(--hairline)	border
+app/web/style.css	349	border-radius	12px	radius
+app/web/style.css	349	box-shadow	0 22px 60px #000c	shadow
+app/web/style.css	349	padding	0	space
+app/web/style.css	350	background	#0a0806b3	colour
+app/web/style.css	351	padding	.9rem 1.2rem	space
+app/web/style.css	351	border-bottom	1px solid var(--hairline)	border
+app/web/style.css	352	font-size	1.5rem	type
+app/web/style.css	353	padding	1.1rem 1.2rem 1.3rem	space
+app/web/style.css	354	gap	.65rem	space
+app/web/style.css	355	gap	.3rem	space
+app/web/style.css	356	gap	.55rem	space
+app/web/style.css	357	gap	.35rem	space
+app/web/style.css	358	font-weight	600	weight
+app/web/style.css	358	font-size	.93rem	type
+app/web/style.css	360	gap	.6rem	space
+app/web/style.css	360	line-height	1.45	leading
+app/web/style.css	361	font-size	.86rem	type
+app/web/style.css	361	line-height	1.5	leading
+app/web/style.css	361	margin-top	.3rem	space
+app/web/style.css	362	gap	.65rem	space
+app/web/style.css	362	margin-top	1.4rem	space
+app/web/style.css	363	margin-bottom	.15rem	space
+app/web/style.css	363	font-size	1.15rem	type
+app/web/style.css	368	gap	.75rem	space
+app/web/style.css	370	padding-top	1rem	space
+app/web/style.css	370	border-top	1px solid var(--hairline)	border
+app/web/style.css	371	margin	.7rem 0 0	space
+app/web/style.css	371	font-size	1rem	type
+app/web/style.css	371	line-height	1.4	leading
+app/web/style.css	372	margin	.1rem 0	space
+app/web/style.css	372	padding-left	1.3rem	space
+app/web/style.css	372	line-height	1.55	leading
+app/web/style.css	375	gap	.5rem	space
+app/web/style.css	375	margin-top	.9rem	space
+app/web/style.css	376	margin-bottom	.9rem	space
+app/web/style.css	377	margin-top	.7rem	space
+app/web/style.css	378	gap	.7rem	space
+app/web/style.css	378	padding	.55rem .3rem	space
+app/web/style.css	378	border-bottom	1px solid var(--hairline)	border
+app/web/style.css	380	gap	.4rem 1rem	space
+app/web/style.css	380	padding	.75rem 0	space
+app/web/style.css	380	border-bottom	1px solid var(--hairline)	border
+app/web/style.css	381	font-size	.87rem	type
+app/web/style.css	381	margin-top	.2rem	space
+app/web/style.css	384	padding	.65rem 0	space
+app/web/style.css	384	border-bottom	1px solid var(--hairline)	border
+app/web/style.css	385	font-size	.84rem	type
+app/web/style.css	386	padding	.6rem 0	space
+app/web/style.css	386	border-bottom	1px solid var(--hairline)	border
+app/web/style.css	387	border-bottom	0	border
+app/web/style.css	389	gap	.5rem	space
+app/web/style.css	390	margin	0	space
+app/web/style.css	390	font-size	1rem	type
+app/web/style.css	391	font-size	.7rem	type
+app/web/style.css	391	font-weight	700	weight
+app/web/style.css	391	padding	.1rem .5rem	space
+app/web/style.css	391	border-radius	999px	radius
+app/web/style.css	391	border	1px solid var(--hairline)	border
+app/web/style.css	392	color	var(--ok,#7fc77a)	colour
+app/web/style.css	392	border-color	color-mix(in srgb,var(--ok,#7fc77a) 45%,transparent)	border
+app/web/style.css	393	border-color	color-mix(in srgb,var(--gold) 50%,transparent)	border
+app/web/style.css	394	margin	.2rem 0 0	space
+app/web/style.css	394	font-size	.78rem	type
+app/web/style.css	395	margin-left	auto	space
+app/web/style.css	395	font-size	.78rem	type
+app/web/style.css	395	padding	.2rem .6rem	space
+app/web/style.css	395	border	1px solid var(--hairline)	border
+app/web/style.css	396	border-color	var(--danger,#e07a6e)	border
+app/web/style.css	396	color	var(--danger,#e07a6e)	colour
+app/web/style.css	397	padding	.75rem	space
+app/web/style.css	397	border	1px solid color-mix(in srgb,var(--gold) 55%,transparent)	border
+app/web/style.css	397	border-radius	var(--radius-sm)	radius
+app/web/style.css	398	margin	0	space
+app/web/style.css	399	margin-top	.6rem	space
+app/web/style.css	400	margin-top	0	space
+app/web/style.css	401	color	#ffe0aa	colour
+app/web/style.css	401	background	#362a16	colour
+app/web/style.css	401	border-left	3px solid #e0b252	border
+app/web/style.css	401	border-radius	var(--radius-sm)	radius
+app/web/style.css	401	padding	.55rem .75rem	space
+app/web/style.css	401	margin	.5rem 0	space
+app/web/style.css	402	color	#ffc3bb	colour
+app/web/style.css	402	background	#402220	colour
+app/web/style.css	402	border-left	3px solid #ff9e94	border
+app/web/style.css	402	border-radius	var(--radius-sm)	radius
+app/web/style.css	402	padding	.6rem .75rem	space
+app/web/style.css	402	margin	.5rem 0	space
+app/web/style.css	403	font-size	.87rem	type
+app/web/style.css	404	font	13px/1.45 "Cascadia Mono",Consolas,monospace	colour
+app/web/style.css	404	border-radius	var(--radius-sm)	radius
+app/web/style.css	404	padding	.65rem	space
+app/web/style.css	405	gap	.5rem	space
+app/web/style.css	405	padding	.6rem 0	space
+app/web/style.css	405	border-bottom	1px solid var(--hairline)	border
+app/web/style.css	406	border	1px solid var(--danger)	border
+app/web/style.css	406	border-radius	var(--radius)	radius
+app/web/style.css	406	padding	2rem	space
+app/web/style.css	407	font-size	.74rem	type
+app/web/style.css	407	border	1px solid var(--border)	border
+app/web/style.css	407	border-radius	999px	radius
+app/web/style.css	407	padding	.05rem .45rem	space
+app/web/style.css	407	margin-left	.5rem	space
+app/web/style.css	408	gap	.3rem	space
+app/web/style.css	408	border-bottom	1px solid var(--hairline)	border
+app/web/style.css	408	padding-bottom	.7rem	space
+app/web/style.css	408	margin-bottom	.85rem	space
+app/web/style.css	411	font-weight	700	weight
+app/web/style.css	413	gap	.4rem	space
+app/web/style.css	413	margin	.6rem 0	space
+app/web/style.css	414	padding	.7rem 0	space
+app/web/style.css	414	border-bottom	1px solid var(--hairline)	border
+app/web/style.css	415	gap	.4rem	space
+app/web/style.css	416	font-size	.87rem	type
+app/web/style.css	416	margin	.35rem 0	space
+app/web/style.css	417	font-size	.9rem	type
+app/web/style.css	417	margin	.4rem 0	space
+app/web/style.css	418	padding	.7rem 0	space
+app/web/style.css	420	border-collapse	collapse	border
+app/web/style.css	420	font-size	.9rem	type
+app/web/style.css	421	padding	.5rem	space
+app/web/style.css	421	border-bottom	1px solid var(--hairline)	border
+app/web/style.css	422	font-weight	600	weight
+app/web/style.css	423	margin	.45rem 0	space
+app/web/style.css	424	margin	.5rem 0	space
+app/web/style.css	425	margin	.2rem .25rem .2rem 0	space
+app/web/style.css	426	margin	.6rem 0	space
+app/web/style.css	427	font-weight	600	weight
+app/web/style.css	427	padding	.4rem 0	space
+app/web/style.css	438	margin	0 -.5rem	space
+app/web/style.css	438	border-top	1px solid var(--hairline)	border
+app/web/style.css	438	padding-top	.3rem	space
+app/web/style.css	439	margin-right	auto	space
+app/web/style.css	442	font-size	.88rem	type
+app/web/style.css	442	padding	.3rem .5rem	space
+app/web/style.css	446	gap	.45rem .6rem	space
+app/web/style.css	446	padding	.45rem .75rem	space
+app/web/style.css	447	font-size	1.15rem	type
+app/web/style.css	448	padding-left	0	space
+app/web/style.css	448	border-left	0	border
+app/web/style.css	449	gap	.2rem	space
+app/web/style.css	450	font-size	.85rem	type
+app/web/style.css	450	padding	.4rem .45rem	space
+app/web/style.css	451	margin-left	auto	space
+app/web/style.css	459	margin	.6rem	space
+app/web/style.css	461	margin-top	0	space
+app/web/style.css	462	border-left	0	border
+app/web/style.css	462	border-top	1px solid var(--hairline)	border
+app/web/style.css	464	gap	.35rem	space
+app/web/style.css	464	padding-bottom	2px	space
+app/web/style.css	467	font-size	.82rem	type
+app/web/style.css	467	padding	.3rem .5rem	space
+app/web/style.css	475	font-size	.88rem	type
+app/web/style.css	476	font-size	.75rem	type
+app/web/style.css	478	gap	.45rem	space
+app/web/style.css	478	padding	.8rem 0	space
+app/web/style.css	486	padding	.9rem	space
+app/web/style.css	487	padding	.4rem	space
+app/web/style.css	489	padding	.55rem	space
+app/web/style.css	490	font-size	1.35rem	type
+app/web/style.css	496	gap	.75rem	space
+app/web/style.css	499	background	#fbefd0	colour
+app/web/style.css	499	color	#5a4300	colour
+app/web/style.css	499	border-bottom-color	#d9b44a	border
+app/web/style.css	500	background	#fbe5e1	colour
+app/web/style.css	500	color	#8a1c12	colour
+app/web/style.css	500	border-left-color	#d64535	border
+app/web/style.css	501	background	#fbefd0	colour
+app/web/style.css	501	color	#5a4300	colour
+app/web/style.css	501	border-left-color	#d9a21b	border
+app/web/style.css	502	background	#c06a12	colour
+app/web/style.css	503	box-shadow	0 4px 16px #4a3a1a24	shadow
+app/web/style.css	504	box-shadow	0 10px 30px #4a3a1a2e	shadow
+app/web/style.css	505	background	#3a2e1a4d	colour
+app/web/style.css	512	border-color	var(--gold)	border
+app/web/style.css	513	border	0	border
+app/web/style.css	513	border-top	2px solid var(--gold)	border
+app/web/style.css	514	margin-bottom	1rem	space
+app/web/style.css	515	gap	.7rem	space
+app/web/style.css	515	margin-bottom	.8rem	space
+app/web/style.css	516	margin	0	space
+app/web/style.css	517	margin-bottom	1px	space
+app/web/style.css	518	margin	.65rem 0 .2rem	space
+app/web/style.css	518	font-size	.92rem	type
+app/web/style.css	519	font-size	.88rem	type
+app/web/style.css	519	margin	.45rem 0	space
+app/web/style.css	521	gap	1.4rem	space
+app/web/style.css	521	margin-top	1rem	space
+app/web/style.css	522	gap	2px	space
+app/web/style.css	523	gap	.6rem	space
+app/web/style.css	523	font-size	.86rem	type
+app/web/style.css	523	padding	.4rem .5rem	space
+app/web/style.css	523	border-radius	4px	radius
+app/web/style.css	525	font-size	.76rem	type
+app/web/style.css	528	border-top	1px solid var(--hairline)	border
+app/web/style.css	529	gap	.6rem	space
+app/web/style.css	529	padding	.9rem 0	space
+app/web/style.css	529	font-family	var(--display)	colour
+app/web/style.css	529	font-size	1.15rem	type
+app/web/style.css	531	font-family	var(--font-body,"Segoe UI",sans-serif)	colour
+app/web/style.css	531	font-size	.79rem	type
+app/web/style.css	532	padding-bottom	.7rem	space
+app/web/style.css	533	gap	.8rem	space
+app/web/style.css	533	padding	.3rem 0	space
+app/web/style.css	533	font-size	.82rem	type
+app/web/style.css	533	line-height	1.5	leading
+app/web/style.css	533	border-bottom	1px solid var(--hairline)	border
+app/web/style.css	534	border-bottom	0	border
+app/web/style.css	536	column-gap	.85rem	space
+app/web/style.css	536	row-gap	.25rem	space
+app/web/style.css	536	padding	.65rem 0	space
+app/web/style.css	536	border-bottom	1px solid var(--hairline)	border
+app/web/style.css	537	border-bottom	0	border
+app/web/style.css	538	margin-left	calc(1.25rem * var(--rule-depth,1))	space
+app/web/style.css	538	padding-left	.75rem	space
+app/web/style.css	538	border-left	1px solid var(--hairline)	border
+app/web/style.css	540	gap	.65rem	space
+app/web/style.css	540	font-weight	600	weight
+app/web/style.css	540	line-height	1.4	leading
+app/web/style.css	541	margin-top	.15rem	space
+app/web/style.css	543	font-size	.77rem	type
+app/web/style.css	543	line-height	1.45	leading
+app/web/style.css	543	margin-top	.15rem	space
+app/web/style.css	546	margin-top	.4rem	space
+app/web/style.css	546	padding	.1rem .4rem	space
+app/web/style.css	546	border-radius	3px	radius
+app/web/style.css	546	font-size	.72rem	type
+app/web/style.css	546	font-weight	600	weight
+app/web/style.css	547	font-size	.79rem	type
+app/web/style.css	547	line-height	1.45	leading
+app/web/style.css	547	margin-top	.2rem	space
+app/web/style.css	548	margin-top	.3rem	space
+app/web/style.css	548	font-size	.85rem	type
+app/web/style.css	549	font-size	.77rem	type
+app/web/style.css	550	margin	.4rem 0	space
+app/web/style.css	552	padding-top	.4rem	space
+app/web/style.css	552	border-top	1px solid var(--hairline)	border
+app/web/style.css	553	padding	.15rem 0	space
+app/web/style.css	553	font-size	.76rem	type
+app/web/style.css	555	margin	1rem 0	space
+app/web/style.css	555	padding	1rem	space
+app/web/style.css	555	border-radius	var(--radius)	radius
+app/web/style.css	556	font-size	1.2rem	type
+app/web/style.css	556	margin-bottom	.35rem	space
+app/web/style.css	557	padding-left	1.2rem	space
+app/web/style.css	557	margin	.8rem 0	space
+app/web/style.css	557	font-size	.88rem	type
+app/web/style.css	557	line-height	1.65	leading
+app/web/style.css	558	gap	.5rem	space
+app/web/style.css	559	gap	.7rem	space
+app/web/style.css	559	padding	.8rem 0	space
+app/web/style.css	561	gap	1rem	space
+app/web/style.css	561	margin-top	1rem	space
+app/web/style.css	561	padding-top	1rem	space
+app/web/style.css	561	border-top	1px solid var(--hairline)	border
+app/web/style.css	565	border-radius	8px	radius
+app/web/style.css	566	padding	.8rem .9rem	space
+app/web/style.css	567	padding	.8rem .85rem	space
+app/web/style.css	568	gap	.6rem	space
+app/web/style.css	571	margin-top	.6rem	space
+app/web/style.css	572	margin-top	.8rem	space
+app/web/style.css	574	margin-left	calc(.7rem * var(--rule-depth,1))	space
+app/web/style.css	574	padding-left	.6rem	space
+app/web/style.css	575	column-gap	.5rem	space
+app/web/style.css	580	margin-top	.8rem	space
+app/web/style.css	581	font-size	.73rem	type
+app/web/style.css	583	border-color	color-mix(in srgb,var(--gold) 60%,transparent)	border
+app/web/style.css	585	gap	.4rem	space
+app/web/style.css	585	padding	.55rem .6rem .35rem	space
+app/web/style.css	585	border-top	1px solid var(--hairline)	border
+app/web/style.css	585	margin-top	.3rem	space
+app/web/style.css	586	font-size	.72rem	type
+app/web/style.css	586	font-weight	700	weight
+app/web/style.css	587	gap	2px	space
+app/web/style.css	587	padding	3px	space
+app/web/style.css	587	border-radius	999px	radius
+app/web/style.css	587	border	1px solid var(--hairline)	border
+app/web/style.css	588	padding	.26rem .4rem	space
+app/web/style.css	588	font-size	.84rem	type
+app/web/style.css	588	border-radius	999px	radius
+app/web/style.css	590	font-weight	700	weight
+app/web/style.css	597	padding	0	space
+app/web/style.css	597	border-radius	var(--radius-sm)	radius
+app/web/style.css	597	border	1px solid transparent	border
+app/web/style.css	599	gap	2px	space
+app/web/style.css	599	margin-left	auto	space
+app/web/style.css	599	margin-top	-.25rem	space
+app/web/style.css	601	margin-top	-.1rem	space
+app/web/style.css	605	margin-top	.6rem	space
+app/web/style.css	606	gap	2px	space
+app/web/style.css	606	border-bottom	1px solid var(--hairline)	border
+app/web/style.css	606	margin	0 -.2rem .7rem	space
+app/web/style.css	606	padding	0 .2rem	space
+app/web/style.css	607	border	0	border
+app/web/style.css	607	border-bottom	2px solid transparent	border
+app/web/style.css	607	border-radius	0	radius
+app/web/style.css	607	padding	.45rem .5rem .4rem	space
+app/web/style.css	607	font-size	.86rem	type
+app/web/style.css	607	font-weight	600	weight
+app/web/style.css	607	margin-bottom	-1px	space
+app/web/style.css	609	border-bottom-color	var(--gold)	border
+app/web/style.css	610	outline-offset	-2px	border
+app/web/style.css	611	font-size	.92rem	type
+app/web/style.css	613	border-top	0	border
+app/web/style.css	613	margin-top	0	space
+app/web/style.css	613	padding-top	0	space
+app/web/style.css	614	margin-top	.85rem	space
+app/web/style.css	615	font-family	"Segoe UI Variable Text","Segoe UI",system-ui,sans-serif	colour
+app/web/style.css	615	font-size	.7rem	type
+app/web/style.css	615	font-weight	700	weight
+app/web/style.css	615	margin	0 0 .2rem	space
+app/web/style.css	616	margin	0	space
+app/web/style.css	617	font-weight	600	weight
+app/web/style.css	617	padding	.3rem 0	space
+app/web/style.css	618	font-family	var(--display)	colour
+app/web/style.css	618	font-size	1.25rem	type
+app/web/style.css	618	font-weight	600	weight
+app/web/style.css	618	margin-bottom	.4rem	space
+app/web/style.css	619	margin	.15rem 0 .6rem	space
+app/web/style.css	619	padding-left	1.1rem	space
+app/web/style.css	619	line-height	1.5	leading
+app/web/style.css	620	margin-top	.6rem	space
+app/web/style.css	621	border-top	1px solid var(--hairline)	border
+app/web/style.css	621	border-bottom	0	border
+app/web/style.css	621	margin-top	.9rem	space
+app/web/style.css	621	padding-top	.7rem	space
+app/web/style.css	622	font-size	1rem	type
+app/web/style.css	622	margin-top	.9rem	space
+app/web/style.css	622	padding-top	.7rem	space
+app/web/style.css	622	border-top	1px solid var(--hairline)	border
+app/web/style.css	625	padding	.3rem	space
+app/web/style.css	625	gap	1px	space
+app/web/style.css	625	border	1px solid var(--hairline)	border
+app/web/style.css	625	border-radius	var(--radius)	radius
+app/web/style.css	625	box-shadow	var(--shadow)	shadow
+app/web/style.css	626	font-size	.76rem	type
+app/web/style.css	626	font-weight	700	weight
+app/web/style.css	626	padding	.35rem .6rem .3rem	space
+app/web/style.css	626	border-bottom	1px solid var(--hairline)	border
+app/web/style.css	626	margin-bottom	.2rem	space
+app/web/style.css	627	border	0	border
+app/web/style.css	627	border-radius	var(--radius-sm)	radius
+app/web/style.css	627	padding	.42rem .6rem	space
+app/web/style.css	627	font-size	.9rem	type
+app/web/style.css	629	font-weight	700	weight
+app/web/style.css	632	border-top	1px solid var(--hairline)	border
+app/web/style.css	632	margin-top	.2rem	space
+app/web/style.css	632	border-radius	0 0 var(--radius-sm) var(--radius-sm)	radius
+app/web/style.css	635	gap	.75rem	space
+app/web/style.css	635	padding	.65rem .8rem	space
+app/web/style.css	635	border	1px solid var(--hairline)	border
+app/web/style.css	635	border-radius	var(--radius-sm)	radius
+app/web/style.css	636	gap	.35rem	space
+app/web/style.css	636	padding	.1rem	space
+app/web/style.css	637	gap	.3rem	space
+app/web/style.css	637	padding	.5rem .3rem .4rem	space
+app/web/style.css	637	border	1px solid var(--hairline)	border
+app/web/style.css	637	border-radius	var(--radius-sm)	radius
+app/web/style.css	639	border-color	var(--gold)	border
+app/web/style.css	639	box-shadow	inset 0 0 0 1px var(--gold)	shadow
+app/web/style.css	641	font-size	1.15rem	type
+app/web/style.css	641	line-height	1	leading
+app/web/style.css	642	font-size	.72rem	type
+app/web/style.css	642	line-height	1.2	leading
+app/web/style.css	645	gap	.45rem	space
+app/web/style.css	646	gap	.4rem	space
+app/web/style.css	646	padding	.6rem .65rem .55rem	space
+app/web/style.css	646	border	1px solid var(--hairline)	border
+app/web/style.css	646	border-radius	var(--radius-sm)	radius
+app/web/style.css	647	border-color	var(--gold)	border
+app/web/style.css	649	gap	.5rem	space
+app/web/style.css	650	font-weight	600	weight
+app/web/style.css	650	font-size	.9rem	type
+app/web/style.css	651	font-family	var(--display)	colour
+app/web/style.css	651	font-size	1.25rem	type
+app/web/style.css	651	font-weight	600	weight
+app/web/style.css	652	font-size	.74rem	type
+app/web/style.css	653	border-radius	999px	radius
+app/web/style.css	654	border-radius	inherit	radius
+app/web/style.css	655	border-radius	6px	radius
+app/web/style.css	655	font-weight	700	weight
+app/web/style.css	655	font-size	.7rem	type
+app/web/style.css	655	color	#1b1406	colour
+app/web/style.css	656	border-radius	0	radius
+app/web/style.css	658	font-size	1rem	type
+app/web/style.css	658	border-radius	9px	radius
+app/web/style.css	659	background	#e08a7a	colour
+app/web/style.css	659	background	#8fc59a	colour
+app/web/style.css	659	background	#e7bd6a	colour
+app/web/style.css	659	background	#9db4e3	colour
+app/web/style.css	660	gap	1rem	space
+app/web/style.css	661	gap	.8rem	space
+app/web/style.css	662	font-size	1.45rem	type
+app/web/style.css	663	border	1px solid var(--hairline)	border
+app/web/style.css	663	font-size	.85rem	type
+app/web/style.css	663	margin-right	.2rem	space
+app/web/style.css	665	gap	.5rem	space
+app/web/style.css	666	padding	.55rem .7rem	space
+app/web/style.css	666	border	1px solid var(--hairline)	border
+app/web/style.css	666	border-radius	var(--radius-sm)	radius
+app/web/style.css	666	gap	.1rem	space
+app/web/style.css	667	font-family	var(--display)	colour
+app/web/style.css	667	font-size	1.4rem	type
+app/web/style.css	667	font-weight	600	weight
+app/web/style.css	668	font-size	.78rem	type
+app/web/style.css	669	padding	.9rem 1rem 1rem	space
+app/web/style.css	669	border	1px solid var(--hairline)	border
+app/web/style.css	669	border-radius	var(--radius)	radius
+app/web/style.css	670	gap	.6rem	space
+app/web/style.css	670	margin	.4rem 0 .8rem	space
+app/web/style.css	672	gap	.6rem	space
+app/web/style.css	672	margin-top	.5rem	space
+app/web/style.css	673	padding	.75rem .8rem	space
+app/web/style.css	673	border	1px solid var(--hairline)	border
+app/web/style.css	673	border-radius	var(--radius-sm)	radius
+app/web/style.css	673	gap	.35rem	space
+app/web/style.css	674	margin	0	space
+app/web/style.css	674	font-family	var(--display)	colour
+app/web/style.css	674	font-size	1.05rem	type
+app/web/style.css	674	font-weight	600	weight
+app/web/style.css	675	border-top	3px solid #d9a441	border
+app/web/style.css	675	border-top	3px solid #8fb3e3	border
+app/web/style.css	675	border-top	3px solid #7fc98f	border
+app/web/style.css	676	font-size	.76rem	type
+app/web/style.css	676	margin	0	space
+app/web/style.css	677	gap	.5rem	space
+app/web/style.css	677	margin	.15rem 0 .2rem	space
+app/web/style.css	678	font-family	var(--display)	colour
+app/web/style.css	678	font-size	1.3rem	type
+app/web/style.css	678	font-weight	600	weight
+app/web/style.css	679	font-size	.85rem	type
+app/web/style.css	680	margin	0	space
+app/web/style.css	680	padding	0	space
+app/web/style.css	680	gap	.45rem	space
+app/web/style.css	681	gap	.05rem	space
+app/web/style.css	681	padding-top	.45rem	space
+app/web/style.css	681	border-top	1px solid var(--hairline)	border
+app/web/style.css	682	font-size	.72rem	type
+app/web/style.css	682	font-weight	700	weight
+app/web/style.css	683	font-weight	600	weight
+app/web/style.css	683	font-size	.9rem	type
+app/web/style.css	684	font-size	.76rem	type
+app/web/style.css	685	margin-top	.7rem	space
+app/web/style.css	685	padding	.6rem .75rem	space
+app/web/style.css	685	border	1px dashed var(--border)	border
+app/web/style.css	685	border-radius	var(--radius-sm)	radius
+app/web/style.css	686	margin	0 0 .3rem	space
+app/web/style.css	686	font-size	.85rem	type
+app/web/style.css	687	margin	0	space
+app/web/style.css	687	padding-left	1.1rem	space
+app/web/style.css	687	font-size	.84rem	type
+app/web/style.css	687	line-height	1.5	leading
+app/web/style.css	688	font-size	.74rem	type
+app/web/style.css	688	margin-top	.6rem	space
+app/web/style.css	689	margin-top	.3rem	space
+app/web/style.css	690	gap	.5rem	space
+app/web/style.css	690	padding	.3rem 0	space
+app/web/style.css	690	border-bottom	1px solid var(--hairline)	border
+app/web/style.css	691	font-weight	700	weight
+app/web/style.css	692	border	0	border
+app/web/style.css	692	padding	.15rem 0	space
+app/web/style.css	692	font-size	.9rem	type
+app/web/style.css	694	font-size	.72rem	type
+app/web/style.css	696	margin	0 0 .7rem	space
+app/web/style.css	696	padding	.55rem .75rem	space
+app/web/style.css	696	border	1px dashed color-mix(in srgb,var(--gold) 55%,transparent)	border
+app/web/style.css	696	border-radius	var(--radius-sm)	radius
+app/web/style.css	696	font-size	.86rem	type
+app/web/style.css	698	gap	.55rem	space
+app/web/style.css	700	margin-top	-.05rem	space
+app/web/style.css	701	margin-right	.1rem	space
+app/web/style.css	702	margin-right	.4rem	space
+app/web/style.css	704	gap	.55rem	space
+app/web/style.css	704	border	0	border
+app/web/style.css	704	border-bottom	1px solid var(--hairline)	border
+app/web/style.css	704	border-radius	0	radius
+app/web/style.css	704	padding	.45rem .1rem	space
+app/web/style.css	707	font-size	.9rem	type
+app/web/style.css	707	line-height	1.3	leading
+app/web/style.css	708	font-size	.76rem	type
+app/web/style.css	709	border-radius	50%	radius
+app/web/style.css	709	margin-right	.35rem	space
+app/web/style.css	710	border-radius	50%	radius
+app/web/style.css	710	background	#e69a4c	colour
+app/web/style.css	710	margin-right	.35rem	space
+app/web/style.css	711	gap	.25rem	space
+app/web/style.css	713	gap	.3rem	space
+app/web/style.css	713	margin-bottom	.6rem	space
+app/web/style.css	715	font-size	.8rem	type
+app/web/style.css	715	padding	.2rem .55rem	space
+app/web/style.css	715	border	1px solid var(--hairline)	border
+app/web/style.css	715	border-radius	999px	radius
+app/web/style.css	716	border-color	var(--gold)	border
+app/web/style.css	717	margin	.4rem auto	space
+app/web/style.css	717	border-radius	var(--radius-sm)	radius
+app/web/style.css	717	background	#0b0a08	colour
+app/web/style.css	717	border	1px solid var(--hairline)	border
+app/web/style.css	720	gap	.3rem	space
+app/web/style.css	721	font-size	.78rem	type
+app/web/style.css	721	padding	.2rem .6rem	space
+app/web/style.css	721	border-radius	999px	radius
+app/web/style.css	721	border	1px solid var(--hairline)	border
+app/web/style.css	723	border-color	color-mix(in srgb,var(--gold) 55%,transparent)	border
+app/web/style.css	725	padding	.55rem	space
+app/web/style.css	725	gap	.45rem	space
+app/web/style.css	725	border	1px solid var(--hairline)	border
+app/web/style.css	725	border-radius	var(--radius)	radius
+app/web/style.css	725	box-shadow	var(--shadow)	shadow
+app/web/style.css	726	gap	.5rem	space
+app/web/style.css	726	font-size	.86rem	type
+app/web/style.css	728	padding	.35rem .55rem	space
+app/web/style.css	728	font-size	.86rem	type
+app/web/style.css	728	border-color	var(--hairline)	border
+app/web/style.css	729	gap	3px	space
+app/web/style.css	730	font-size	.66rem	type
+app/web/style.css	730	font-weight	700	weight
+app/web/style.css	730	margin	.3rem 0 .1rem	space
+app/web/style.css	731	padding	0	space
+app/web/style.css	731	border	1px solid transparent	border
+app/web/style.css	731	border-radius	var(--radius-sm)	radius
+app/web/style.css	733	border-color	var(--gold)	border
+app/web/style.css	735	border	0	border
+app/web/style.css	735	padding	.1rem 0	space
+app/web/style.css	735	font-size	.8rem	type
+app/web/style.css	737	color	#ff9e94	colour
+app/web/style.css	738	color	#b3261e	colour
+app/web/style.css	739	gap	.35rem	space
+app/web/style.css	740	padding	0	space
+app/web/style.css	740	border-radius	50%	radius
+app/web/style.css	740	border	2px solid var(--border)	border
+app/web/style.css	741	border-color	var(--panel-text,var(--text))	border
+app/web/style.css	741	box-shadow	0 0 0 2px var(--panel)	shadow
+app/web/style.css	742	border-top	1px solid var(--hairline)	border
+app/web/style.css	742	padding-top	.4rem	space
+app/web/style.css	743	gap	.8rem	space
+app/web/style.css	743	padding	.5rem .6rem .5rem .9rem	space
+app/web/style.css	743	font-size	.88rem	type
+app/web/style.css	743	border	1px solid var(--hairline)	border
+app/web/style.css	743	border-radius	999px	radius
+app/web/style.css	743	box-shadow	var(--shadow)	shadow
+app/web/style.css	744	font-size	.82rem	type
+app/web/style.css	744	padding	.2rem .7rem	space
+app/web/style.css	744	border-radius	999px	radius
+app/web/style.css	744	font-weight	700	weight
+app/web/style.css	746	gap	.3rem	space
+app/web/style.css	746	margin-top	.45rem	space
+app/web/style.css	747	font-size	.68rem	type
+app/web/style.css	747	font-weight	700	weight
+app/web/style.css	747	margin-right	.15rem	space
+app/web/style.css	748	font-size	.8rem	type
+app/web/style.css	748	padding	.15rem .55rem	space
+app/web/style.css	748	border-radius	999px	radius
+app/web/style.css	748	border	1px solid var(--hairline)	border
+app/web/style.css	749	border-color	var(--gold)	border
+app/web/style.css	751	gap	.35rem	space
+app/web/style.css	753	border-radius	var(--radius-sm)	radius
+app/web/style.css	754	padding	.25rem	space
+app/web/style.css	754	border	1px solid transparent	border
+app/web/style.css	754	border-radius	var(--radius-sm)	radius
+app/web/style.css	755	border-color	var(--gold)	border
+app/web/style.css	756	padding	.1rem .25rem	space
+app/web/style.css	756	border	0	border
+app/web/style.css	756	font-size	1rem	type
+app/web/style.css	758	margin	0	space
+app/web/style.css	758	font-size	.76rem	type
+app/web/style.css	759	gap	.4rem	space
+app/web/style.css	759	font-size	.76rem	type
+app/web/style.css	760	gap	.35rem	space
+app/web/style.css	761	gap	.6rem	space
+app/web/style.css	762	gap	.6rem	space
+app/web/style.css	762	padding	.4rem	space
+app/web/style.css	762	border	1px solid var(--hairline)	border
+app/web/style.css	762	border-radius	var(--radius-sm)	radius
+app/web/style.css	764	gap	.5rem	space
+app/web/style.css	769	gap	.6rem	space
+app/web/style.css	771	border	1px solid var(--hairline)	border
+app/web/style.css	772	padding	0 .25rem	space
+app/web/style.css	772	background	#15202b	colour
+app/web/style.css	772	color	#fff	colour
+app/web/style.css	772	font-size	.7rem	type
+app/web/style.css	773	margin	0	space
+app/web/style.css	773	font-size	.8rem	type
+app/web/style.css	774	gap	.35rem	space
+app/web/style.css	774	padding	0	space
+app/web/style.css	774	margin	0	space
+app/web/style.css	775	gap	.5rem	space
+app/web/style.css	775	padding	.35rem	space
+app/web/style.css	775	border	1px solid transparent	border
+app/web/style.css	776	border-color	var(--hairline)	border
+app/web/style.css	777	padding	0 .2rem	space
+app/web/style.css	777	border	2px solid var(--section-color)	border
+app/web/style.css	777	background	#15202b	colour
+app/web/style.css	777	color	#fff	colour
+app/web/style.css	777	font-size	.78rem	type
+app/web/style.css	777	font-weight	700	weight
+app/web/style.css	779	font-size	.85rem	type
+app/web/style.css	779	font-weight	700	weight
+app/web/style.css	780	margin	.15rem 0 0	space
+app/web/style.css	780	font-size	.76rem	type
+app/web/style.css	781	gap	.25rem	space
+app/web/style.css	781	margin	0	space
+app/web/style.css	782	font-size	.72rem	type
+app/web/style.css	783	font-size	.82rem	type
+app/web/style.css	783	padding	.25rem .4rem	space
+app/web/style.css	784	font-size	.8rem	type
+app/web/style.css	784	padding	.25rem .5rem	space
+app/web/style.css	785	color	var(--danger,#ff9e94)	colour
+app/web/style.css	786	gap	.45rem	space
+app/web/style.css	786	margin-top	.35rem	space
+app/web/style.css	786	font-size	.78rem	type
+app/web/style.css	787	font-size	.8rem	type
+app/web/style.css	787	padding	.15rem .4rem	space
+app/web/style.css	795	margin-left	-.45rem	space
+app/web/style.css	798	gap	.35rem	space
+app/web/style.css	798	margin-top	.4rem	space
+app/web/style.css	799	margin-top	0	space
+app/web/style.css	800	font-size	.85rem	type
+app/web/style.css	800	padding	.25rem .5rem	space
+app/web/style.css	801	font-size	.82rem	type
+app/web/style.css	801	padding	.25rem .6rem	space
+app/web/style.css	803	gap	.5rem	space
+app/web/style.css	804	margin	0	space
+app/web/style.css	806	padding	.55rem 0	space
+app/web/style.css	807	margin	.15rem 0 0 1.75rem	space
+app/web/style.css	807	font-size	.8rem	type
+app/web/style.css	807	line-height	1.4	leading
+app/web/style.css	808	margin	.1rem 0 0 .35rem	space
+app/web/style.css	808	font-weight	500	weight
+app/web/style.css	809	margin-left	1.75rem	space
+app/web/style.css	810	margin-left	1.75rem	space
+app/web/style.css	811	font-size	.74rem	type
+app/web/style.css	812	margin-top	.2rem	space
+app/web/style.css	812	font-size	.78rem	type
+app/web/style.css	812	padding	.2rem .6rem	space
+app/web/style.css	814	font-size	1.05rem	type
+app/web/style.css	814	font-weight	600	weight
+app/web/style.css	814	line-height	1.45	leading
+app/web/style.css	814	margin	0 0 .2rem	space
+app/web/style.css	816	gap	.5rem	space
+app/web/style.css	816	margin	.4rem .95rem .6rem	space
+app/web/style.css	818	font-size	.82rem	type
+app/web/style.css	818	padding	.35rem .7rem	space
+app/web/style.css	819	gap	.25rem	space
+app/web/style.css	819	font-size	.82rem	type
+app/web/style.css	821	gap	.4rem	space
+app/web/style.css	822	padding	.45rem 0	space
+app/web/style.css	822	border-bottom	1px solid var(--hairline)	border
+app/web/style.css	823	margin	0	space
+app/web/style.css	823	border	0	border
+app/web/style.css	826	padding	.3rem 0	space
+app/web/style.css	826	font-size	.9rem	type
+app/web/style.css	826	font-weight	600	weight
+app/web/style.css	827	font	inherit	colour
+app/web/style.css	828	margin-left	.4rem	space
+app/web/style.css	830	gap	.65rem	space
+app/web/style.css	830	margin	.6rem 0	space
+app/web/style.css	833	gap	.5rem	space
+app/web/style.css	836	font-weight	600	weight
+app/web/style.css	836	line-height	1.4	leading
+app/web/style.css	838	margin	0	space
+app/web/style.css	838	line-height	1.45	leading
+app/web/style.css	840	font-size	.76rem	type
+app/web/style.css	840	margin	.1rem 0 .15rem	space
+app/web/style.css	846	gap	.4rem	space
+app/web/style.css	848	margin-top	1rem	space
+app/web/style.css	848	padding-top	.8rem	space
+app/web/style.css	848	border-top	1px solid var(--hairline)	border
+app/web/style.css	849	margin	0	space
+app/web/style.css	850	gap	.5rem	space
+app/web/style.css	851	padding	.6rem .7rem	space
+app/web/style.css	851	border	1px solid var(--hairline)	border
+app/web/style.css	851	border-left	3px solid var(--gold)	border
+app/web/style.css	851	border-radius	var(--radius-sm)	radius
+app/web/style.css	852	border-left-color	var(--danger,#e07a6e)	border
+app/web/style.css	853	border-left-color	var(--ok,#7fc98f)	border
+app/web/style.css	855	margin	0	space
+app/web/style.css	855	font-size	.76rem	type
+app/web/style.css	856	margin	.25rem 0	space
+app/web/style.css	857	margin	0 0 .3rem	space
+app/web/style.css	857	font-size	.74rem	type
+app/web/style.css	858	font-size	.78rem	type
+app/web/style.css	858	padding	.2rem .6rem	space
+app/web/style.css	860	padding	.35rem .6rem	space
+app/web/style.css	861	margin-top	.4rem	space
+app/web/style.css	861	font-size	.82rem	type
+app/web/style.css	863	margin-top	.3rem	space
+app/web/style.css	865	margin-top	.3rem	space
+app/web/style.css	866	font-size	.72rem	type
+app/web/style.css	866	margin-bottom	.15rem	space
+app/web/style.css	867	gap	.1rem .6rem	space
+app/web/style.css	872	gap	.5rem .8rem	space
+app/web/style.css	872	padding	.55rem 1rem	space
+app/web/style.css	872	border-bottom	1px solid color-mix(in srgb,var(--gold) 45%,var(--hairline))	border
+app/web/style.css	874	font-weight	600	weight
+app/web/style.css	875	font-size	.85rem	type
+app/web/style.css	875	padding	.3rem .8rem	space
+app/web/style.css	876	font-weight	700	weight
+app/web/style.css	878	margin-left	.4rem	space
+app/web/style.css	878	border-radius	50%	radius
+app/web/style.css	879	gap	.9rem	space
+app/web/style.css	880	font-size	.92rem	type
+app/web/style.css	881	padding	.7rem .9rem	space
+app/web/style.css	881	border	1px solid color-mix(in srgb,var(--gold) 45%,var(--hairline))	border
+app/web/style.css	881	border-radius	var(--radius)	radius
+app/web/style.css	882	font-size	.72rem	type
+app/web/style.css	882	font-weight	700	weight
+app/web/style.css	882	margin	.2rem 0 .3rem	space
+app/web/style.css	883	margin	0 0 .4rem	space
+app/web/style.css	883	padding-left	1.1rem	space
+app/web/style.css	884	margin	.15rem 0	space
+app/web/style.css	884	font-size	.93rem	type
+app/web/style.css	885	gap	.35rem	space
+app/web/style.css	886	padding	.3rem .75rem	space
+app/web/style.css	886	border-radius	999px	radius
+app/web/style.css	886	border	1px solid var(--hairline)	border
+app/web/style.css	886	font-size	.86rem	type
+app/web/style.css	887	border-color	var(--gold)	border
+app/web/style.css	887	font-weight	700	weight
+app/web/style.css	888	gap	1.1rem	space
+app/web/style.css	889	font-family	var(--display)	colour
+app/web/style.css	889	font-size	1.15rem	type
+app/web/style.css	889	margin	0	space
+app/web/style.css	890	font-size	.88rem	type
+app/web/style.css	890	margin	.1rem 0 .5rem	space
+app/web/style.css	891	padding	.6rem .1rem .7rem	space
+app/web/style.css	891	border-top	1px solid var(--hairline)	border
+app/web/style.css	892	margin	.25rem 0 0	space
+app/web/style.css	892	font-size	.92rem	type
+app/web/style.css	893	gap	.6rem	space
+app/web/style.css	894	margin	0	space
+app/web/style.css	894	font-size	1rem	type
+app/web/style.css	896	font-size	.8rem	type
+app/web/style.css	898	font-size	.72rem	type
+app/web/style.css	898	font-weight	700	weight
+app/web/style.css	898	padding	.12rem .55rem	space
+app/web/style.css	898	border-radius	999px	radius
+app/web/style.css	898	border	1px solid var(--hairline)	border
+app/web/style.css	899	border-color	var(--gold)	border
+app/web/style.css	900	border-color	var(--gold)	border
+app/web/style.css	902	border-color	color-mix(in srgb,var(--ok) 60%,transparent)	border
+app/web/style.css	903	padding	.4rem 0 .8rem	space
+app/web/style.css	903	border-bottom	1px solid var(--hairline)	border
+app/web/style.css	904	border-bottom	0	border
+app/web/style.css	905	margin	0	space
+app/web/style.css	906	margin	.1rem 0 .4rem	space
+app/web/style.css	906	font-size	.78rem	type
+app/web/style.css	907	margin	0	space
+app/web/style.css	907	padding-left	1.2rem	space
+app/web/style.css	908	margin	.2rem 0	space
+app/web/style.css	908	line-height	1.45	leading
+app/web/style.css	911	gap	.65rem	space
+app/web/style.css	912	font-family	inherit	colour
+app/web/style.css	912	font-size	.78rem	type
+app/web/style.css	912	font-weight	400	weight
+app/web/style.css	912	line-height	1.3	leading
+app/web/style.css	912	padding	.25rem .55rem	space
+app/web/style.css	912	border	1px solid var(--hairline)	border
+app/web/style.css	912	border-radius	999px	radius
+app/web/style.css	914	gap	.6rem	space
+app/web/style.css	914	padding-bottom	1rem	space
+app/web/style.css	914	border-bottom	1px solid var(--hairline)	border
+app/web/style.css	917	font-size	.86rem	type
+app/web/style.css	918	gap	1.5rem	space
+app/web/style.css	918	padding-top	1rem	space
+app/web/style.css	919	border-right	1px solid var(--hairline)	border
+app/web/style.css	919	padding-right	1rem	space
+app/web/style.css	920	gap	.3rem	space
+app/web/style.css	921	padding	.55rem .6rem	space
+app/web/style.css	922	font-weight	700	weight
+app/web/style.css	922	border-color	var(--hairline)	border
+app/web/style.css	923	gap	.5rem	space
+app/web/style.css	923	margin-top	auto	space
+app/web/style.css	923	padding	.8rem .6rem 0	space
+app/web/style.css	923	border-top	1px solid var(--hairline)	border
+app/web/style.css	923	font-size	.88rem	type
+app/web/style.css	926	font-family	var(--display)	colour
+app/web/style.css	926	font-size	1.24rem	type
+app/web/style.css	926	margin	0 0 .5rem	space
+app/web/style.css	927	margin-top	1.5rem	space
+app/web/style.css	928	gap	.6rem 1rem	space
+app/web/style.css	928	padding	.8rem 0	space
+app/web/style.css	929	font-size	.94rem	type
+app/web/style.css	929	line-height	1.4	leading
+app/web/style.css	930	margin	.2rem 0 0	space
+app/web/style.css	930	line-height	1.4	leading
+app/web/style.css	931	margin-right	.15rem	space
+app/web/style.css	936	padding-top	1.1rem	space
+app/web/style.css	936	font-size	.86rem	type
+app/web/style.css	936	line-height	1.5	leading
+app/web/style.css	937	padding	0	space
+app/web/style.css	937	border	0	border
+app/web/style.css	937	border-radius	0	radius
+app/web/style.css	937	font-size	inherit	type
+app/web/style.css	939	gap	0	space
+app/web/style.css	940	font-size	.86rem	type
+app/web/style.css	940	line-height	1.5	leading
+app/web/style.css	940	margin	.4rem 0	space
+app/web/style.css	941	margin-top	1.2rem	space
+app/web/style.css	942	font-size	.96rem	type
+app/web/style.css	942	margin	0	space
+app/web/style.css	944	margin-top	.2rem	space
+app/web/style.css	946	border	0	border
+app/web/style.css	946	border-radius	999px	radius
+app/web/style.css	947	border-radius	999px	radius
+app/web/style.css	948	border-radius	999px	radius
+app/web/style.css	949	border-radius	999px	radius
+app/web/style.css	952	gap	0	space
+app/web/style.css	953	border-right	0	border
+app/web/style.css	953	padding-right	0	space
+app/web/style.css	954	border-bottom	1px solid var(--hairline)	border
+app/web/style.css	954	border-radius	0	radius
+app/web/style.css	954	padding	.8rem .3rem	space
+app/web/style.css	955	font-size	1.4rem	type
+app/web/style.css	955	font-weight	400	weight
+app/web/style.css	956	margin-top	1.2rem	space
+app/web/style.css	956	padding	.8rem .3rem	space
+app/web/style.css	959	margin-bottom	1rem	space
+app/web/style.css	959	border-color	var(--hairline)	border
+app/web/style.css	961	gap	.6rem .8rem	space
+app/web/style.css	965	font-size	.86rem	type
+app/web/style.css	968	font-size	.72rem	type
+app/web/task-filters.css	1	margin	.6rem .95rem	space
+app/web/task-filters.css	1	font-size	.82rem	type
+app/web/task-filters.css	1	gap	.4rem .8rem	space
+app/web/task-filters.css	2	padding	.6rem .7rem	space
+app/web/task-filters.css	2	border	1px solid var(--hairline)	border
+app/web/task-filters.css	2	border-radius	var(--radius-sm)	radius
+app/web/task-filters.css	5	border	1px solid var(--hairline)	border
+app/web/task-filters.css	5	padding	.3rem .75rem	space
+app/web/task-filters.css	5	font-size	.82rem	type
+app/web/task-filters.css	6	border-color	var(--gold)	border
+app/web/task-filters.css	7	border	0	border
+app/web/task-filters.css	7	margin	0	space
+app/web/task-filters.css	7	padding	0	space
+app/web/task-filters.css	8	font-family	inherit	colour
+app/web/task-filters.css	8	font-size	inherit	type
+app/web/task-filters.css	8	font-weight	600	weight
+app/web/task-filters.css	8	padding	0	space
+app/web/task-filters.css	8	border	0	border
+app/web/task-filters.css	10	gap	.6rem .85rem	space
+app/web/task-filters.css	12	gap	.55rem	space
+app/web/task-filters.css	13	padding	.25rem .4rem	space
+app/web/task-filters.css	16	border	1px solid var(--border)	border
+app/web/task-filters.css	16	border-radius	var(--radius-sm)	radius
+app/web/task-filters.css	16	padding	.4rem	space
+app/web/task-filters.css	17	padding	.2rem .35rem	space
+app/web/task-filters.css	17	gap	.5rem	space
+app/web/task-filters.css	18	font-size	.76rem	type
+app/web/task-filters.css	18	line-height	1.4	leading
+app/web/task-filters.css	18	margin	.3rem 0 .4rem	space
+app/web/task-filters.css	19	gap	.1rem	space
+app/web/task-filters.css	19	font-size	.78rem	type
+app/web/task-filters.css	20	padding	.2rem .3rem	space
+app/web/task-filters.css	21	gap	.4rem	space
+app/web/task-filters.css	21	font	inherit	colour
+app/web/task-filters.css	21	padding	.3rem 0	space
+app/web/task-filters.css	22	margin-left	auto	space
+app/web/task-filters.css	22	margin-right	.35rem	space
+app/web/task-filters.css	22	border	solid currentColor	border
+app/web/task-filters.css	22	border-width	0 1.5px 1.5px 0	border
+app/web/task-filters.css	24	margin-left	.4rem	space
+app/web/task-filters.css	25	font-family	"Picker Icons"	colour
+app/web/task-filters.css	25	font-size	.7rem	type
+app/web/task-filters.css	26	margin	.35rem 0 0	space
+app/web/task-filters.css	26	border	1px dashed var(--hairline)	border
+app/web/task-filters.css	26	font-size	.85rem	type
+app/web/task-filters.css	28	padding	.5rem .8rem	space
+app/web/task-ui.css	1	padding	1rem	space
+app/web/task-ui.css	1	box-shadow	var(--shadow)	shadow
+app/web/task-ui.css	1	border-radius	var(--radius)	radius
+app/web/task-ui.css	1	font-size	.9rem	type
+app/web/task-ui.css	1	line-height	1.4	leading
+app/web/task-ui.css	2	gap	.55rem	space
+app/web/task-ui.css	3	gap	.6rem	space
+app/web/task-ui.css	3	font-size	1rem	type
+app/web/task-ui.css	3	line-height	1.3	leading
+app/web/task-ui.css	5	line-height	1.45	leading
+app/web/task-ui.css	6	font-size	.85rem	type
+app/web/task-ui.css	7	font-weight	600	weight
+app/web/task-ui.css	9	margin	0	space
+app/web/task-ui.css	9	padding	.5rem 0 0 1rem	space
+app/web/task-ui.css	9	border-top	1px solid var(--hairline)	border
+app/web/task-ui.css	9	font-size	.85rem	type
+app/web/task-ui.css	9	gap	.3rem	space
+app/web/task-ui.css	10	gap	.8rem	space
+app/web/task-ui.css	10	padding	.9rem 0	space
+app/web/task-ui.css	10	border-block	1px solid var(--hairline)	border
+app/web/task-ui.css	11	gap	.5rem	space
+app/web/task-ui.css	12	gap	.65rem	space
+app/web/task-ui.css	13	font-size	1.12rem	type
+app/web/task-ui.css	14	font-size	.9rem	type
+app/web/task-ui.css	15	gap	.35rem 1rem	space
+app/web/task-ui.css	15	margin	0	space
+app/web/task-ui.css	16	gap	.4rem	space
+app/web/task-ui.css	17	font-size	.85rem	type
+app/web/task-ui.css	18	margin	0	space
+app/web/task-ui.css	18	font-weight	600	weight
+app/web/task-ui.css	19	padding	.5rem 0	space
+app/web/task-ui.css	19	gap	.4rem	space
+app/web/task-ui.css	21	gap	.25rem .7rem	space
+app/web/task-ui.css	21	font-size	.85rem	type
+app/web/task-ui.css	22	font-size	.85rem	type
+app/web/task-ui.css	23	padding	.35rem 0	space
+app/web/task-ui.css	24	padding	.4rem 0	space
+app/web/task-ui.css	25	margin	.25rem 0 .5rem	space
+app/web/task-ui.css	26	gap	.9rem	space
+app/web/task-ui.css	27	gap	.5rem	space
+app/web/task-ui.css	28	font-size	.85rem	type
+app/web/task-ui.css	29	font-size	.8rem	type
+app/web/task-ui.css	29	padding	.3rem .5rem	space
+app/web/task-ui.css	30	gap	.35rem	space
+app/web/task-ui.css	31	font-size	.8rem	type
+app/web/task-ui.css	31	font-weight	600	weight
+app/web/task-ui.css	31	margin	0 0 .2rem	space
+app/web/task-ui.css	32	gap	.25rem	space
+app/web/task-ui.css	32	border-radius	var(--radius-sm)	radius
+app/web/task-ui.css	32	border	1px solid var(--hairline)	border
+app/web/task-ui.css	33	border-color	var(--gold)	border
+app/web/task-ui.css	34	gap	.2rem	space
+app/web/task-ui.css	34	padding	.5rem .65rem	space
+app/web/task-ui.css	35	font-size	.8rem	type
+app/web/task-ui.css	35	line-height	1.35	leading
+app/web/task-ui.css	36	font-size	.76rem	type
+app/web/task-ui.css	36	font-weight	600	weight
+app/web/task-ui.css	37	font-size	.85rem	type
+app/web/task-ui.css	38	font-size	.82rem	type
+app/web/task-ui.css	38	border	1px dashed var(--hairline)	border
+app/web/task-ui.css	39	padding	.75rem	space
+app/web/task-ui.css	39	font-size	.85rem	type
+app/web/task-ui.css	39	gap	.4rem	space
+app/web/task-ui.css	39	gap	.3rem .65rem	space
+app/web/task-ui.css	39	padding	.45rem	space
+app/web/teleports.css	2	gap	1.3rem	space
+app/web/teleports.css	3	font-family	var(--display)	colour
+app/web/teleports.css	3	font-size	1.2rem	type
+app/web/teleports.css	4	font-family	inherit	colour
+app/web/teleports.css	4	font-weight	600	weight
+app/web/teleports.css	4	font-size	1rem	type
+app/web/teleports.css	4	line-height	1.4	leading
+app/web/teleports.css	4	margin	0	space
+app/web/teleports.css	5	line-height	1.55	leading
+app/web/teleports.css	6	padding	.9rem 0	space
+app/web/teleports.css	6	border-block	1px solid var(--hairline)	border
+app/web/teleports.css	6	gap	.55rem	space
+app/web/teleports.css	7	font-weight	600	weight
+app/web/teleports.css	8	font-size	.87rem	type
+app/web/teleports.css	8	line-height	1.5	leading
+app/web/teleports.css	10	font-size	.93rem	type
+app/web/teleports.css	10	line-height	1.5	leading
+app/web/teleports.css	11	color	#a13329	colour
+app/web/teleports.css	13	gap	.6rem	space
+app/web/teleports.css	14	font-size	.85rem	type
+app/web/teleports.css	15	margin-top	-.6rem	space
+app/web/teleports.css	17	margin-bottom	1rem	space
+app/web/teleports.css	18	margin-top	1.5rem	space
+app/web/teleports.css	19	padding-bottom	.5rem	space
+app/web/teleports.css	19	border-bottom	1px solid var(--hairline)	border
+app/web/teleports.css	21	gap	.7rem 1.2rem	space
+app/web/teleports.css	21	padding	.85rem 0	space
+app/web/teleports.css	21	border-bottom	1px solid var(--hairline)	border
+app/web/teleports.css	22	gap	.25rem	space
+app/web/teleports.css	23	gap	.65rem	space
+app/web/teleports.css	24	font-size	.76rem	type
+app/web/teleports.css	24	font-weight	600	weight
+app/web/teleports.css	26	font-size	.9rem	type
+app/web/teleports.css	26	line-height	1.45	leading
+app/web/teleports.css	27	font-size	.77rem	type
+app/web/teleports.css	28	margin-top	.4rem	space
+app/web/teleports.css	29	padding	.6rem 0	space
+app/web/teleports.css	29	font-size	.87rem	type
+app/web/teleports.css	32	gap	.3rem	space
+app/web/teleports.css	33	font-size	.78rem	type
+app/web/teleports.css	34	font-size	.86rem	type
+app/web/teleports.css	35	gap	.5rem	space
+app/web/teleports.css	35	line-height	1.4	leading
+app/web/teleports.css	35	font-size	.9rem	type
+app/web/teleports.css	36	padding-top	1rem	space
+app/web/teleports.css	36	border-top	1px solid var(--hairline)	border
+app/web/teleports.css	36	gap	.55rem	space
+app/web/teleports.css	37	padding	.75rem 0	space
+app/web/teleports.css	37	border-bottom	1px solid var(--hairline)	border
+app/web/teleports.css	38	gap	.6rem 1rem	space
+app/web/teleports.css	38	margin-top	.3rem	space
+app/web/teleports.css	39	margin-left	auto	space
+app/web/teleports.css	39	font-size	.85rem	type
+app/web/teleports.css	40	gap	.6rem	space
+app/web/teleports.css	40	margin-top	.2rem	space
+app/web/teleports.css	41	gap	.75rem	space
+app/web/teleports.css	43	font-weight	600	weight
+app/web/teleports.css	43	margin-top	.25rem	space
+app/web/teleports.css	44	gap	1.15rem	space
+app/web/teleports.css	44	gap	.5rem	space
+app/web/teleports.css	44	gap	.25rem .75rem	space
+app/web/teleports.css	44	margin-left	0	space
+app/web/teleports.css	44	font-size	.8rem	type
+app/web/usage.css	1	gap	.8rem	space
+app/web/usage.css	1	margin-block	1rem	space
+app/web/usage.css	3	margin-block-end	1rem	space
+app/web/usage.css	4	border-collapse	collapse	border
+app/web/usage.css	5	margin-block-end	.5rem	space
+app/web/usage.css	6	padding	.55rem .5rem	space
+app/web/usage.css	6	border-bottom	1px solid var(--border)	border
+app/web/usage.css	8	font-weight	normal	weight
+app/web/usage.css	9	padding-inline-start	1.2rem	space
+app/web/usage.css	10	margin-block-end	.3rem	space
+app/web/map-tools.mjs	7	CSS-in-JS	light: { bg: '#ece5d6', panel: '#faf6ec', surface: '#efe7d5', border: '#d5c9b1', text: '#2a241b', muted: '#5c5243', link: '#80520a', accent: '#efe7d5', focus: '#8f6100', fog: 'rgba(222,213,193,.6)', highvisFog: 'rgba(222,213,193,.38)', mapBg: '#d6ccb6', scheme: 'light' },	theme role, saved colour or calculated geometry
+app/web/map-tools.mjs	8	CSS-in-JS	gray: { bg: '#2b2926', panel: '#35332f', surface: '#46433e', border: '#5a5650', text: '#f1ece2', muted: '#cdc5b8', link: '#f0c770', accent: '#46433e', focus: '#ffd166', fog: 'rgba(86,82,76,.58)', highvisFog: 'rgba(86,82,76,.38)', mapBg: '#23211e', scheme: 'dark' },	theme role, saved colour or calculated geometry
+app/web/map-tools.mjs	9	CSS-in-JS	dark: { bg: '#141310', panel: '#1c1a16', surface: '#2b2822', border: '#3b372f', text: '#ece4d3', muted: '#b9af9d', link: '#e8bd68', accent: '#2b2822', focus: '#f5c451', fog: 'rgba(40,37,32,.62)', highvisFog: 'rgba(40,37,32,.42)', mapBg: '#0f0e0b', scheme: 'dark' },	theme role, saved colour or calculated geometry
+app/web/map-tools.mjs	10	CSS-in-JS	terminal: { bg: '#141414', panel: '#0a0a0a', surface: '#282828', border: '#414141', text: '#00ff00', muted: '#66ff00', link: '#ffb000', accent: '#282828', focus: '#ffcc00', fog: 'rgba(50,50,50,.6)', highvisFog: 'rgba(50,50,50,.4)', scheme: 'dark' },	theme role, saved colour or calculated geometry
+app/web/map-tools.mjs	11	CSS-in-JS	neon: { bg: '#141e3c', panel: '#071637', surface: '#182336', border: '#263449', text: '#f005cd', muted: '#b30ea3', link: '#fbe488', accent: '#182336', focus: '#ffcc00', fog: 'rgba(50,50,50,.6)', highvisFog: 'rgba(50,50,50,.4)', scheme: 'dark' },	theme role, saved colour or calculated geometry
+app/web/map-tools.mjs	12	CSS-in-JS	pumpkin: { bg: '#141414', panel: '#0a0a0a', surface: '#282828', border: '#414141', text: '#e45f06', muted: '#eb6710', link: '#ffb000', accent: '#282828', focus: '#ffcc00', fog: 'rgba(50,50,50,.6)', highvisFog: 'rgba(50,50,50,.4)', scheme: 'dark' },	theme role, saved colour or calculated geometry
+app/web/map-tools.mjs	13	CSS-in-JS	mono: { bg: '#141414', panel: '#0a0a0a', surface: '#282828', border: '#414141', text: '#ffffff', muted: '#dcdcdc', link: '#b9b9b9', accent: '#282828', focus: '#9b9b9b', fog: 'rgba(50,50,50,.6)', highvisFog: 'rgba(50,50,50,.4)', scheme: 'dark' },	theme role, saved colour or calculated geometry
+app/web/map-tools.mjs	14	CSS-in-JS	winter: { bg: '#9bc8f0', panel: '#cbe8ff', surface: '#a5cce7', border: '#abd8ff', text: '#354f5c', muted: '#455f6f', link: '#3cafff', accent: '#a5cce7', focus: '#ffcc00', fog: 'rgba(50,50,50,.6)', highvisFog: 'rgba(50,50,50,.4)', scheme: 'light' },	theme role, saved colour or calculated geometry
+app/web/map-tools.mjs	15	CSS-in-JS	autumn: { bg: '#283618', panel: '#606c38', surface: '#734619', border: '#5f2805', text: '#dda15e', muted: '#e8ab68', link: '#9a0f37', accent: '#734619', focus: '#9b9b9b', fog: 'rgba(50,50,50,.6)', highvisFog: 'rgba(50,50,50,.4)', scheme: 'dark' },	theme role, saved colour or calculated geometry
+app/web/map-tools.mjs	16	CSS-in-JS	voyage: { bg: '#05141a', panel: '#081f36', surface: '#123b5e', border: '#184c76', text: '#a7d9ef', muted: '#87c9e8', link: '#22b6ff', accent: '#123b5e', focus: '#cccc00', fog: 'rgba(19,59,80,.6)', highvisFog: 'rgba(19,59,80,.4)', scheme: 'dark' },	theme role, saved colour or calculated geometry
+app/web/map-tools.mjs	59	CSS-in-JS	root.style.colorScheme = palette.scheme;	theme role, saved colour or calculated geometry
+app/web/map-tools.mjs	60	CSS-in-JS	for (const [key, value] of Object.entries(palette)) if (!['scheme', 'fog', 'highvisFog', 'mapBg'].includes(key)) root.style.setProperty(`--${key}`, value);	theme role, saved colour or calculated geometry
+app/web/map-tools.mjs	61	CSS-in-JS	root.style.setProperty('--map-bg', palette.mapBg ?? '#060b10');	theme role, saved colour or calculated geometry
+app/web/map-tools.mjs	71	CSS-in-JS	for (const [key, value] of Object.entries(derived)) root.style.setProperty(`--${key}`, value);	theme role, saved colour or calculated geometry
+app/web/map-tools.mjs	155	CSS-in-JS	const glyph = el('span', stickerGlyph(id), 'sticker-glyph'); glyph.style.color = tint; glyph.style.fontFamily = stickerFont(id); glyph.style.fontSize = `${size * .75}px`; return glyph;	theme role, saved colour or calculated geometry
+app/web/sticker-picker.mjs	27	CSS-in-JS	glyph.style.color = tint; glyph.style.fontFamily = stickerFont(id); glyph.style.fontSize = `${Math.round(size * .8)}px`;	theme role, saved colour or calculated geometry
+app/web/sticker-picker.mjs	46	CSS-in-JS	popover.style.maxWidth = `${Math.max(0, right - left)}px`;	theme role, saved colour or calculated geometry
+app/web/sticker-picker.mjs	47	CSS-in-JS	popover.style.maxHeight = `${Math.max(0, bottom - top)}px`;	theme role, saved colour or calculated geometry
+app/web/sticker-picker.mjs	58	CSS-in-JS	popover.style.left = `${Math.max(left, Math.min(x, right - width)) - box.left}px`;	theme role, saved colour or calculated geometry
+app/web/sticker-picker.mjs	59	CSS-in-JS	popover.style.top = `${Math.max(top, Math.min(y, bottom - height)) - box.top}px`;	theme role, saved colour or calculated geometry
+app/web/sticker-picker.mjs	137	CSS-in-JS	search.style.fontSize = 'var(--type-input-mobile)';	theme role, saved colour or calculated geometry
+app/web/sticker-picker.mjs	148	CSS-in-JS	dot.style.background = value; dot.disabled = busy;	theme role, saved colour or calculated geometry
+app/web/map-info.mjs	48	CSS-in-JS	swatch.style.setProperty('--travel-colour', type.color); swatch.style.setProperty('--travel-light-colour', type.lightColor);	theme role, saved colour or calculated geometry
+app/web/map-info.mjs	168	CSS-in-JS	const colorFor = segment => style.color ?? (style.scheme === 'light' ? segment.type.lightColor : segment.type.color);	theme role, saved colour or calculated geometry
+app/web/screen-map.mjs	81	CSS-in-JS	const item = (label, kind, color) => { const node = c.el('span', undefined, 'legend-item'); const swatch = c.el('i', undefined, `swatch swatch-${kind}`); if (color) swatch.style.setProperty('--swatch', color); swatch.setAttribute('aria-hidden', 'true'); node.append(swatch, label); return node; };	theme role, saved colour or calculated geometry
+app/web/chunk-sections.mjs	190	CSS-in-JS	const badge = make('span', 'chunk-section-badge', section.displayNumber); badge.style.setProperty('--section-color', section.color); badge.setAttribute('aria-hidden', 'true');	theme role, saved colour or calculated geometry
+app/web/interior-view.mjs	65	CSS-in-JS	if (frame.style) { frame.style.width = `${Math.round(spanX * scale)}px`; frame.style.height = `${Math.round(spanY * scale)}px`; }	theme role, saved colour or calculated geometry
+app/web/interior-view.mjs	70	CSS-in-JS	if (img.style) { img.style.left = `${Math.round((tile.x * 64 - b.minX) * scale)}px`; img.style.top = `${Math.round((b.maxY - (tile.y + 1) * 64) * scale)}px`; }	theme role, saved colour or calculated geometry
+app/web/area-check.mjs	62	CSS-in-JS	node.style.setProperty('--area-start', `${position(from)}%`);	theme role, saved colour or calculated geometry
+app/web/area-check.mjs	63	CSS-in-JS	node.style.setProperty('--area-width', `${position(to) - position(from)}%`);	theme role, saved colour or calculated geometry
+app/web/area-check.mjs	76	CSS-in-JS	tick.style.setProperty('--area-start', `${position(level)}%`);	theme role, saved colour or calculated geometry
+app/web/task-hover.mjs	72	CSS-in-JS	card.style.maxHeight = ''; card.style.width = `${Math.min(320, viewport.innerWidth - 16)}px`;	theme role, saved colour or calculated geometry
+app/web/map.mjs	802	CSS-in-JS	this.tooltip.style.left = `${clamp(this.pointer.x + 16, 6, Math.max(6, this.width - (this.tooltip.offsetWidth || 260) - 6))}px`;	theme role, saved colour or calculated geometry
+app/web/map.mjs	803	CSS-in-JS	this.tooltip.style.top = `${clamp(this.pointer.y + 16, 6, Math.max(6, this.height - (this.tooltip.offsetHeight || 60) - 6))}px`;	theme role, saved colour or calculated geometry
+app/web/screen-chunks.mjs	178	CSS-in-JS	menu.style.left = `${Math.max(8, Math.min(x - box.left, box.width - width - 8))}px`;	theme role, saved colour or calculated geometry
+app/web/screen-chunks.mjs	179	CSS-in-JS	menu.style.top = `${Math.max(8, Math.min(y - box.top, box.height - height - 8))}px`;	theme role, saved colour or calculated geometry
+app/web/screen-controls.mjs	61	CSS-in-JS	const layout = new ResizeObserver(() => document.documentElement.style.setProperty('--topbar-height', `${document.querySelector('.topbar').getBoundingClientRect().height + c.$('notice').getBoundingClientRect().height + c.$('backup-status-notice').getBoundingClientRect().height + c.$('sandbox-banner').getBoundingClientRect().height + c.$('duo-catchup').getBoundingClientRect().height + c.$('duo-live').getBoundingClientRect().height}px`)); layout.observe(document.querySelector('.topbar')); layout.observe(c.$('notice')); layout.observe(c.$('backup-status-notice')); layout.observe(c.$('sandbox-banner')); layout.observe(c.$('duo-catchup')); layout.observe(c.$('duo-live'));	theme role, saved colour or calculated geometry
+app/web/screen-controls.mjs	62	CSS-in-JS	const toolbarLayout = new ResizeObserver(() => c.$('map-panel').style.setProperty('--map-toolbar-height', `${document.querySelector('.map-toolbar').getBoundingClientRect().height}px`)); toolbarLayout.observe(document.querySelector('.map-toolbar'));	theme role, saved colour or calculated geometry

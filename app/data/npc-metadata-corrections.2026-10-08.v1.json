@@ -1,0 +1,373 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-10-08T12:48:56.734Z",
+  "evidence": {
+    "artifact": "docs/research/npc-wiki-validation.2026-10-08.v1.json",
+    "sha256": "8bde440e86e6bac976c8a25a4852b5901c5a578dd266fbe0e8f867a55817bb08",
+    "hashScope": "repository-text-lf"
+  },
+  "corrections": [
+    {
+      "label": "Black bear",
+      "field": "combatLevel",
+      "before": null,
+      "after": 23,
+      "combatLevel": 23,
+      "cacheIds": [
+        106
+      ],
+      "cache": {
+        "artifact": "C:/Users/User/Projects/chunk-picker-rs3/.local/game-data/npcs-2026-10-08-v3/npcs.v1.json",
+        "sha256": "f8644a9f781f26be88c354a0c7047782f8d3e422057828c88bb2e74c777754a2",
+        "hashScope": "raw-file-bytes",
+        "field": "combatLevel; explicit opcode 0x5f",
+        "allCandidateIds": [
+          106
+        ],
+        "candidates": [
+          {
+            "id": 106,
+            "combatLevel": 23,
+            "source": {
+              "major": 18,
+              "minor": 0,
+              "subid": 106,
+              "rawSha256": "56024e29bbdfdcc9eb8bffb10b75bd4ef16201a346da02bff99186b150c35447",
+              "rawBytes": 156,
+              "archiveSha256": "45ccd0fd9782eb54477581a052629fa1ce28ecab14219dfc3081ce2eda90a6e5"
+            },
+            "definitionSha256": "590447ce66a426a0fa5849467be0fcd8011d8503546203e6f0c3b3cc96ede64a"
+          }
+        ]
+      },
+      "wiki": {
+        "url": "https://runescape.wiki/w/Black_bear?oldid=37152329",
+        "revisionId": 37152329,
+        "field": [
+          "Infobox Monster.level"
+        ],
+        "variants": [
+          ""
+        ]
+      }
+    },
+    {
+      "label": "Air wizard",
+      "field": "combatLevel",
+      "before": null,
+      "after": 16,
+      "combatLevel": 16,
+      "cacheIds": [
+        2712
+      ],
+      "cache": {
+        "artifact": "C:/Users/User/Projects/chunk-picker-rs3/.local/game-data/npcs-2026-10-08-v3/npcs.v1.json",
+        "sha256": "f8644a9f781f26be88c354a0c7047782f8d3e422057828c88bb2e74c777754a2",
+        "hashScope": "raw-file-bytes",
+        "field": "combatLevel; explicit opcode 0x5f",
+        "allCandidateIds": [
+          2712
+        ],
+        "candidates": [
+          {
+            "id": 2712,
+            "combatLevel": 16,
+            "source": {
+              "major": 18,
+              "minor": 21,
+              "subid": 24,
+              "rawSha256": "85025ce33dd09b3fcb5511b0a372905694be91b57a7871454fc4db962b116b2b",
+              "rawBytes": 148,
+              "archiveSha256": "e392e3df8eeae3ced81213006ca67f797759b1eecd9ab9a3a27de17006d8a9d2"
+            },
+            "definitionSha256": "80d0b00b9d744fa994e775ac98595d7efb28ebb4acb3b2ed3e54ff8caad5b384"
+          }
+        ]
+      },
+      "wiki": {
+        "url": "https://runescape.wiki/w/Air_wizard?oldid=37130380",
+        "revisionId": 37130380,
+        "field": [
+          "Infobox Monster.level"
+        ],
+        "variants": [
+          ""
+        ]
+      }
+    },
+    {
+      "label": "Earth wizard",
+      "field": "combatLevel",
+      "before": null,
+      "after": 22,
+      "combatLevel": 22,
+      "cacheIds": [
+        2711
+      ],
+      "cache": {
+        "artifact": "C:/Users/User/Projects/chunk-picker-rs3/.local/game-data/npcs-2026-10-08-v3/npcs.v1.json",
+        "sha256": "f8644a9f781f26be88c354a0c7047782f8d3e422057828c88bb2e74c777754a2",
+        "hashScope": "raw-file-bytes",
+        "field": "combatLevel; explicit opcode 0x5f",
+        "allCandidateIds": [
+          2711
+        ],
+        "candidates": [
+          {
+            "id": 2711,
+            "combatLevel": 22,
+            "source": {
+              "major": 18,
+              "minor": 21,
+              "subid": 23,
+              "rawSha256": "a44f70458494d09791c026ee6b4c5025f9f0949c07b04d8f34b197c287f08e6a",
+              "rawBytes": 154,
+              "archiveSha256": "e392e3df8eeae3ced81213006ca67f797759b1eecd9ab9a3a27de17006d8a9d2"
+            },
+            "definitionSha256": "9d70a8f3a2ae633d93e9285f3866747c47c9ffe6e89153fb0d11edb817556b66"
+          }
+        ]
+      },
+      "wiki": {
+        "url": "https://runescape.wiki/w/Earth_wizard?oldid=37142624",
+        "revisionId": 37142624,
+        "field": [
+          "Infobox Monster.level"
+        ],
+        "variants": [
+          ""
+        ]
+      }
+    },
+    {
+      "label": "Fire wizard",
+      "field": "combatLevel",
+      "before": null,
+      "after": 25,
+      "combatLevel": 25,
+      "cacheIds": [
+        2709
+      ],
+      "cache": {
+        "artifact": "C:/Users/User/Projects/chunk-picker-rs3/.local/game-data/npcs-2026-10-08-v3/npcs.v1.json",
+        "sha256": "f8644a9f781f26be88c354a0c7047782f8d3e422057828c88bb2e74c777754a2",
+        "hashScope": "raw-file-bytes",
+        "field": "combatLevel; explicit opcode 0x5f",
+        "allCandidateIds": [
+          2709
+        ],
+        "candidates": [
+          {
+            "id": 2709,
+            "combatLevel": 25,
+            "source": {
+              "major": 18,
+              "minor": 21,
+              "subid": 21,
+              "rawSha256": "98ce9612d9efbf83911bdb11d72f2ed7cb546504ca760925461002e54d3b1465",
+              "rawBytes": 153,
+              "archiveSha256": "e392e3df8eeae3ced81213006ca67f797759b1eecd9ab9a3a27de17006d8a9d2"
+            },
+            "definitionSha256": "900f5129232d9458278fba9cdd435f284ac9da43bb6a62a2b9d8980accab5f60"
+          }
+        ]
+      },
+      "wiki": {
+        "url": "https://runescape.wiki/w/Fire_wizard?oldid=37142880",
+        "revisionId": 37142880,
+        "field": [
+          "Infobox Monster.level"
+        ],
+        "variants": [
+          ""
+        ]
+      }
+    },
+    {
+      "label": "Water wizard",
+      "field": "combatLevel",
+      "before": null,
+      "after": 19,
+      "combatLevel": 19,
+      "cacheIds": [
+        2710
+      ],
+      "cache": {
+        "artifact": "C:/Users/User/Projects/chunk-picker-rs3/.local/game-data/npcs-2026-10-08-v3/npcs.v1.json",
+        "sha256": "f8644a9f781f26be88c354a0c7047782f8d3e422057828c88bb2e74c777754a2",
+        "hashScope": "raw-file-bytes",
+        "field": "combatLevel; explicit opcode 0x5f",
+        "allCandidateIds": [
+          2710
+        ],
+        "candidates": [
+          {
+            "id": 2710,
+            "combatLevel": 19,
+            "source": {
+              "major": 18,
+              "minor": 21,
+              "subid": 22,
+              "rawSha256": "32e01af29545434a29df2950bd3a6416900cf40541b07a79fcea1f8c2cfd9d4c",
+              "rawBytes": 154,
+              "archiveSha256": "e392e3df8eeae3ced81213006ca67f797759b1eecd9ab9a3a27de17006d8a9d2"
+            },
+            "definitionSha256": "a736a10a5f328782bc8b77ccc7877c7779bc792b2201eff69aee06cf8636e65f"
+          }
+        ]
+      },
+      "wiki": {
+        "url": "https://runescape.wiki/w/Water_wizard?oldid=37143113",
+        "revisionId": 37143113,
+        "field": [
+          "Infobox Monster.level"
+        ],
+        "variants": [
+          ""
+        ]
+      }
+    },
+    {
+      "label": "Catablepon",
+      "field": "combatLevel",
+      "before": null,
+      "after": 43,
+      "combatLevel": 43,
+      "cacheIds": [
+        4397,
+        4398,
+        4399
+      ],
+      "cache": {
+        "artifact": "C:/Users/User/Projects/chunk-picker-rs3/.local/game-data/npcs-2026-10-08-v3/npcs.v1.json",
+        "sha256": "f8644a9f781f26be88c354a0c7047782f8d3e422057828c88bb2e74c777754a2",
+        "hashScope": "raw-file-bytes",
+        "field": "combatLevel; explicit opcode 0x5f",
+        "allCandidateIds": [
+          4397,
+          4398,
+          4399
+        ],
+        "candidates": [
+          {
+            "id": 4397,
+            "combatLevel": 43,
+            "source": {
+              "major": 18,
+              "minor": 34,
+              "subid": 45,
+              "rawSha256": "ec0e35303463cd7e271496a6fed12b65b87fd03c2758be28ec37a8f678b28279",
+              "rawBytes": 166,
+              "archiveSha256": "2d76a689bc70cae75b4cf6c31f66e4f70936819bc09e935e326fb6279154fa71"
+            },
+            "definitionSha256": "0efe918eaefec36ae75e12680a18fa871b60aa327071e1574c6515f07dc32986"
+          },
+          {
+            "id": 4398,
+            "combatLevel": 43,
+            "source": {
+              "major": 18,
+              "minor": 34,
+              "subid": 46,
+              "rawSha256": "ec0e35303463cd7e271496a6fed12b65b87fd03c2758be28ec37a8f678b28279",
+              "rawBytes": 166,
+              "archiveSha256": "2d76a689bc70cae75b4cf6c31f66e4f70936819bc09e935e326fb6279154fa71"
+            },
+            "definitionSha256": "0efe918eaefec36ae75e12680a18fa871b60aa327071e1574c6515f07dc32986"
+          },
+          {
+            "id": 4399,
+            "combatLevel": 43,
+            "source": {
+              "major": 18,
+              "minor": 34,
+              "subid": 47,
+              "rawSha256": "ec0e35303463cd7e271496a6fed12b65b87fd03c2758be28ec37a8f678b28279",
+              "rawBytes": 166,
+              "archiveSha256": "2d76a689bc70cae75b4cf6c31f66e4f70936819bc09e935e326fb6279154fa71"
+            },
+            "definitionSha256": "0efe918eaefec36ae75e12680a18fa871b60aa327071e1574c6515f07dc32986"
+          }
+        ]
+      },
+      "wiki": {
+        "url": "https://runescape.wiki/w/Catablepon?oldid=37142100",
+        "revisionId": 37142100,
+        "field": [
+          "Infobox Monster.level"
+        ],
+        "variants": [
+          ""
+        ]
+      }
+    },
+    {
+      "label": "Calf",
+      "field": "combatLevel",
+      "before": null,
+      "after": 1,
+      "combatLevel": 1,
+      "cacheIds": [
+        2310,
+        30874
+      ],
+      "cache": {
+        "artifact": "C:/Users/User/Projects/chunk-picker-rs3/.local/game-data/npcs-2026-10-08-v3/npcs.v1.json",
+        "sha256": "f8644a9f781f26be88c354a0c7047782f8d3e422057828c88bb2e74c777754a2",
+        "hashScope": "raw-file-bytes",
+        "field": "combatLevel; explicit opcode 0x5f",
+        "allCandidateIds": [
+          2310,
+          30874
+        ],
+        "candidates": [
+          {
+            "id": 2310,
+            "combatLevel": 1,
+            "source": {
+              "major": 18,
+              "minor": 18,
+              "subid": 6,
+              "rawSha256": "49bbf400d26d9b7f2eb8e4e1d7e1a1c6754275d1fd32385165716a671124531d",
+              "rawBytes": 122,
+              "archiveSha256": "473b6562de9f82f99fe131461cba52a027eeeef880d51d8bec61d99e6a021cc3"
+            },
+            "definitionSha256": "cc9e323a176760aa52a2510b57fd03e248012ece8deabf5569a51f22cc6a36b7"
+          },
+          {
+            "id": 30874,
+            "combatLevel": 1,
+            "source": {
+              "major": 18,
+              "minor": 241,
+              "subid": 26,
+              "rawSha256": "9653e694c15a9c5eda98ad38a4593efc4bc406ad5d20ce68fe9da76aaaca434e",
+              "rawBytes": 130,
+              "archiveSha256": "36406292e98defd5a320ba6cbf1629153dac76b76112fab1d7ac05d449c3997c"
+            },
+            "definitionSha256": "4017dc22f58ec428e40c5e1fc4689b293dac3e638b61efe3780aa6d22132ca02"
+          }
+        ]
+      },
+      "wiki": {
+        "url": "https://runescape.wiki/w/Calf?oldid=37141921",
+        "revisionId": 37141921,
+        "field": [
+          "Infobox Monster.level"
+        ],
+        "variants": [
+          "1",
+          "4"
+        ]
+      }
+    }
+  ],
+  "limits": [
+    "Combat corrections fill only the previously empty NPC metadata namespace for an exact retained label; names, counts, locations, drops and tasks are unchanged.",
+    "Every exact-name cache candidate must have the same explicit combat level; at least one matching explicit Wiki NPC ID must confirm it, and all Wiki variants for that name must agree.",
+    "Membership remains unknown: the pinned NPC schema has no overall members field. Member-only actions cannot establish membership.",
+    "Combat parameter semantics are inferred from independent ID-bound Wiki samples, not documented by the client schema. Unmatched parameters and absent values remain unknown.",
+    "Life points were not identified. A numeric coincidence with maximum-hit parameter 641 is not a life-point mapping.",
+    "Client definitions do not certify server spawns, placement counts, drops, shop stock, prices or respawn times."
+  ]
+}

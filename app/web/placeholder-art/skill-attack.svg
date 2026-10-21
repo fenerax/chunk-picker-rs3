@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+  <title>Attack: crooked sword placeholder</title>
+  <g fill="none" stroke="#f4efe4" stroke-width="4.4" stroke-linecap="round" stroke-linejoin="round">
+    <path d="m17 2 4 1-1 5-9 9-4-4Z"/>
+    <path d="m5 12 7 7 M8 16 3 21" stroke-width="6.6"/>
+    <path d="m5 12 7 7 M8 16 3 21" stroke-width="4.6"/>
+    <circle cx="3" cy="21" r="1"/>
+  </g>
+  <g fill="none" stroke="#25313b" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+    <path d="m17 2 4 1-1 5-9 9-4-4Z" fill="#fff0cc"/>
+    <path d="m5 12 7 7 M8 16 3 21" stroke-width="4"/>
+    <path d="m5 12 7 7 M8 16 3 21" stroke="#fff0cc" stroke-width="2"/>
+    <circle cx="3" cy="21" r="1" fill="#70b7ae"/>
+  </g>
+</svg>

@@ -1,0 +1,1935 @@
+{
+  "schemaVersion": 1,
+  "values": {
+    "app/data/settings.mjs#originalSettingDescriptions": {
+      "highvis": "Display the chunk map with higher visibility, allowing you to see better into locked chunks, with thinner chunk borders, more see-through chunk coloring, and more",
+      "roll2": "Enable the roll 2 button, allowing you to roll two chunks and pick between the two",
+      "unpick": "Enable the unpick chunk button, allowing you to unpick, and therefore re-lock, a randomly selected unlocked chunk (useful for forfeits). <b>NOTE: This button does not undo a chunk roll</b>",
+      "recent": "<b class='noscroll'>[Recent Chunks]</b> The recent chunks panel shows you the 5 most recently rolled chunks on your map, the dates you rolled them, how long it's been (in days) since your last roll, and more",
+      "info": "<b class='noscroll'>[Chunk Info]</b> The chunk info panel shows you an array of information on every chunk in the game (monsters, npcs, item spawns, shops, and more). Hint: Right-click a chunk to bring up info on that chunk",
+      "chunkTasks": "<b class='noscroll'>[Chunk Tasks]</b> The chunk tasks panel shows you an automatically made list of active tasks you need to do to finish your chunk. This is essential for any Chunker to keep track of what needs to get done",
+      "topButtons": "<b class='noscroll'>[Current BIS & Activity Info]</b> These buttons allow access to many miscellaneous pieces of information and crucial functionality for locking slayer and seeing best-in-slot gear",
+      "completedTaskColor": "Change the color of checked-off chunk tasks",
+      "completedTaskStrikethrough": "Cross-off chunk tasks as you complete them",
+      "randomStartAlways": "Change the 'Pick Chunk' button to always be a 'Random Start' button; every chunk roll picks a random walkable chunk (that isn't already unlocked)",
+      "theme": "Set <b class='noscroll'>Theme</b>",
+      "defaultStickerColor": "Change the default color of chunk stickers",
+      "cinematicRoll": "Enable fancier rolling of chunks",
+      "taskSidebar": "Expand the task panel into a large sidebar, to show more tasks at once",
+      "allTasks": "Generate a list of all intermediate-level skill tasks to be shown in the Activity Info window",
+      "hideChecked": "Automatically hide checked-off tasks from the Active Chunk Tasks panel, with a button at the top of the panel to temporarily show the checked-off tasks",
+      "ids": "Show an overlay of Chunk IDs for each chunk",
+      "startingChunk": "Starting Chunk",
+      "numTasksPercent": "Show Active Task number as a percentage instead of a fraction",
+      "newTasks": "In addition to adding new tasks to the Active Chunk Tasks list, also show new chunk tasks in a popup window after every chunk roll",
+      "shiftUnlock": "Prevent click-to-unlock chunks unless holding down the Shift-key (or long-pressing on mobile)",
+      "rollWarning": "Show a confirmation window after clicking the Pick Chunk or Roll 2 button",
+      "unlockedBorderColor": "Change the color of the border surrounding your unlocked chunks",
+      "defaultChunkinfo": "Select the default tab when first opening the Chunk Info Panel",
+      "taskSearchbar": "Show a searchbar at the top of your Active Tasks to allow filtering. Useful for maps with large task lists that have trouble finding specific tasks",
+      "hideAchievements": "Only show achievements in the Activity Info window that are required according to your ruleset"
+    },
+    "app/data/settings.mjs#originalRuleDescriptions": {
+      "Skillcape": "Must obtain skillcapes<span class='rule-asterisk noscroll'>*</span>",
+      "Rare Drop": "Chunk tasks only use drops more common than 1/X (not inclusive, set to 0 to include all drops)",
+      "Pouch": "Using Runecrafting pouches count as chunk tasks",
+      "InsidePOH": "Constructing furniture on a workbench can count as a chunk task<span class='rule-asterisk noscroll'>*</span>",
+      "InsidePOH Primary": "Constructing furniture on a workbench counts as a primary training method for Construction<span class='rule-asterisk noscroll'>*</span>",
+      "Construction Milestone": "Miscellaneous player-owned house unlocks (e.g. House style, room shapes, etc) can count for chunk tasks",
+      "Boss": "Killing a boss can be used for a chunk task (item on droptable, Slayer level to kill, etc.)",
+      "Slayer Equipment": "Using Slayer equipment can count for chunk tasks",
+      "Normal Farming": "Allow normal farming to count as a primary method for training Farming",
+      "Raking": "Allow raking patches to count as a primary method for training Farming<span class='rule-asterisk noscroll'>*</span>",
+      "Kill X": "Kill X-amount of every new, unique monster you encounter",
+      "Kill X Boss": "Include bosses for these tasks",
+      "Sorceress's Garden": "Allow Sorceress's Garden to count as primary training for training Farming<span class='rule-asterisk noscroll'>*</span>",
+      "Spells": "Spells count as a way to process runes via Magic, and therefore can count as chunk tasks",
+      "Show Skill Tasks": "Show Skill Tasks (e.g. Get 43 Crafting to cut a diamond)",
+      "Show Quest Tasks": "Show Quest Tasks",
+      "Show Diary Tasks": "Show Area Tasks achievements",
+      "Show Best in Slot Tasks": "Show Best in Slot (Accuracy + Strength, or secondarily Defence) Tasks",
+      "Show Best in Slot Prayer Tasks": "Show Best in Slot Tasks for Prayer-boosting gear",
+      "Show Best in Slot Defensive Tasks": "Show Best in Slot Tasks for Tank gear (highest defence-only)",
+      "Show Best in Slot Melee Style Tasks": "Show Best in Slot Tasks for stab/slash/crush instead of overall melee",
+      "Show Best in Slot 1H and 2H": "Show Best in Slot Tasks for both 2-handed and 1-handed/shield, rather than just the better of the two",
+      "Show Best in Slot Shield": "Show Best in Slot Tasks for both off-hand weapons and shields, rather than just the better of the two",
+      "Consumable Primary BiS": "For consumable items (arrows, darts, etc.), only count them as Best in Slot if you have primary access to them",
+      "Show Quest Tasks Complete": "Show Quest Tasks only when the whole quest is completable",
+      "Show Diary Tasks Complete": "Show Area Tasks achievements only when the whole area tasks tier (easy, medium, etc.) is completable",
+      "Show Diary Tasks Any": "Show all Area Tasks achievements possible, regardless of tier<span class='rule-asterisk noscroll'>*</span>",
+      "Highest Level": "Require processing skill tasks to be the highest level of processing, rather than the lowest (e.g. must fletch yew logs into an unstrung longbow rather than arrow shafts)<span class='rule-asterisk noscroll'>*</span>",
+      "BIS Skilling": "Must obtain items that are best-in-slot/add quality-of-life for skilling (e.g. Pickaxe of Life and Death, Elite skilling outfits, Seed bag, etc.)",
+      "BIS Skilling Consumables": "Must also obtain best-in-slot/quality-of-life charged or degrading items for skilling (scrimshaws, skillchompa, etc.)",
+      "BIS Skilling Relics": "Must also obtain best-in-slot/quality-of-life Archaeology relics for skilling",
+      "Brawling Gloves": "Must also obtain every non-combat pair of brawling gloves",
+      "Hero Items": "Must obtain Hero Items as part of chunk tasks<span class='rule-asterisk noscroll'>†</span>",
+      "Collection Log": "Must obtain items from collection logs (Does nothing on its own)",
+      "Boss Collection Log": "Must obtain items from the boss collection log<span class='rule-asterisk noscroll'>*</span>",
+      "Slayer Collection Log": "Must obtain items from the slayer collection log<span class='rule-asterisk noscroll'>*</span>",
+      "Skilling Collection Log": "Must obtain items from the (hidden) skilling collection log<span class='rule-asterisk noscroll'>*</span>",
+      "Archaeology Collections": "Must fill out all Archaeology collections<span class='rule-asterisk noscroll'>*</span>",
+      "Universal Tertiary": "Allow universal tertiary drops (mimic tokens, effigies, spirit gems) to count towards chunk tasks<span class='rule-asterisk noscroll'>†</span>",
+      "Breeding Log": "Must fill out the Player-Owned Farm and Player-Owned Ranch breeding logs<span class='rule-asterisk noscroll'>*</span>",
+      "Minigame": "Allow rewards obtained from and actvities inside minigames to count towards chunk tasks",
+      "DnD": "Allow items obtained from and activities inside Distractions and Diversions to count towards chunk tasks<span class='rule-asterisk noscroll'>*</span>",
+      "Not Daily DnD": "Include Distractions and Diversions that reset less frequently than once a day<span class='rule-asterisk noscroll'>†</span>",
+      "DnD Flash Events": "Include Demon Flash Mobs and Goblin Raids<span class='rule-asterisk noscroll'>*</span>",
+      "Shortcut Task": "Allow Agility shortcuts to count as an Agility skill task",
+      "Shortcut": "Allow Agility shortcuts to count as a primary method for training Agility",
+      "Wield Crafted Items": "Crafted items (e.g. bows, metal armour/weapons, etc.) can be wielded as part of chunks tasks (as BiS gear, wielding requirements, training methods, etc.)<span class='rule-asterisk noscroll'>*</span>",
+      "Wield Crafted Items Override": "Require higher level processing skill tasks if the resulting item would be a BiS (may require longer calculation times)<span class='wieldCraftedItemsOverrideRuleTooltip'></span>",
+      "Multi Step Processing": "Allow higher level processing of resources to enable other processing tasks <span class='rule-asterisk noscroll'>*</span><span class='multiStepProcessingRuleTooltip'></span>",
+      "Puro-Puro": "Allow implings in underground areas (Puro-Puro, City of Um, etc.) & their drops to count towards chunk tasks",
+      "Extra implings": "Include implings that have non-guaranteed spawns as chunk tasks",
+      "Bakami": "Allow bakami and orokami & their drops to count towards chunk tasks",
+      "Wandering implings": "Allow implings that randomly wander the world & their drops to count towards chunk tasks <span class='rule-asterisk noscroll'>†</span>",
+      "Farming Primary": "Farming products (herbs, vegetables, etc.) can count as primary item sources for chunk tasks<span class='rule-asterisk noscroll'>*</span>",
+      "Secondary Primary": "Allow secondary training methods with drops/methods more common than 1/X (not inclusive, set to 0 to include all drops) to count as primary training methods (e.g. allow a 1/50 drop for a bronze bar to be your required way to train Smithing)<span class='rule-asterisk noscroll'>*</span>",
+      "RDT": "Allow items from the Rare Drop Table, the Gem Drop Table and the Wilderness Drop Table to count towards chunk tasks",
+      "Crystal chests": "Allow items from crystal chests, triskelion treasures or columbarium keys to count towards chunk tasks",
+      "Untracked Uniques": "Must obtain extra unique items that are untracked on the collection logs (does nothing by itself)",
+      "Untracked Uniques Skilling": "Must obtain untracked uniques obtained from skilling (e.g. Big shark, Golden fish egg, etc.)<span class='rule-asterisk noscroll'>*</span>",
+      "Untracked Uniques Combat": "Must obtain untracked uniques obtained from combat (e.g. Abomination cape, Champion scrolls, etc.)<span class='rule-asterisk noscroll'>*</span>",
+      "Untracked Uniques Minigames": "Must obtain untracked uniques obtained from minigames and Distractions and Diversions (e.g. Penance armor, Slayer VIP ticket, etc.)<span class='rule-asterisk noscroll'>*</span>",
+      "Ceremonial Swords": "Must obtain every unique type of ceremonial sword from Artisans' Workshop (main and offhand, I-V, every material)<span class='rule-asterisk noscroll'>†</span>",
+      "Untracked Uniques Misc": "Must obtain untracked uniques obtained through other means (e.g. Chompy bird hunting hats, etc.)<span class='rule-asterisk noscroll'>*</span>",
+      "Untracked Uniques Daemonheim": "Must obtain untracked uniques that exist solely in the Dungeons of Daemonheim (e.g. Celestial surgebox, etc.)<span class='rule-asterisk noscroll'>*</span>",
+      "Ports Scrolls": "Must complete every scroll in Player-Owned Port<span class='rule-asterisk noscroll'>*</span>",
+      "Slayer Souls": "Must fill out all available souls in the Slayer Codex<span class='rule-asterisk noscroll'>*</span>",
+      "Combat and Teleport Spells": "Allow all spells to count as possible Magic skill tasks (otherwise only 'utility' spells like High Alchemy or Telegrab will count)",
+      "Primary Spawns": "Item spawns count as primary access to an item, and can be used as a primary way to train a skill if needed",
+      "Smithing by Smelting": "Smelting ores into bars counts as a primary method for training Smithing",
+      "Pets": "Must obtain pets for Collections and Unlocks tasks<span class='rule-asterisk noscroll'>*</span>",
+      "Cosmetics": "Must obtain cosmetic items or overrides for Collections and Unlocks tasks<span class='rule-asterisk noscroll'>*</span>",
+      "Manually Complete Tasks": "<b class='noscroll'>For maps that allow manually choosing new chunks</b>, allow the ability to manually move completed active tasks",
+      "Every Drop": "Must obtain every unique item drop from monsters (items that are dropped by multiple monsters only need to be obtained once)",
+      "Every Drop Implings": "Allow drops from implings to also count towards these tasks",
+      "Every Drop BGH": "Allow drops from Big Game Hunter to also count towards these tasks",
+      "Every Drop Thieving": "Allow drops from Thieving to also count towards these tasks",
+      "HigherLander": "Accessing the intermediate and veteran landers for Pest Control are required tasks (only novice lander is required otherwise)",
+      "Secondary MTA": "Allow MTA to be required with secondary sources of nature/law/cosmic runes",
+      "Skilling Pets": "Require skilling pets be obtained as soon as the relevant skill is trainable<span class='rule-asterisk noscroll'>†</span>",
+      "Permanent Unlockables": "Require permanently unlockable options be unlocked (innate mastery, rope racks, etc.)<span class='rule-asterisk noscroll'>*</span>",
+      "All Droptables": "Must obtain every drop from every unique monster's droptable (duplicates included, all quantities)<span class='rule-asterisk noscroll'>†</span>",
+      "All Droptables Nest": "Must include every drop from bird nests<span class='rule-asterisk noscroll'>†</span>",
+      "Skiller": "Restrict tasks to only those doable on a level 3 skiller",
+      "Fill Stash": "Must build and fill hidey-holes as soon as you're able to",
+      "All Shops": "Must buy every item from every shop within your chunks once <span class='rule-asterisk noscroll'>⁺</span>",
+      "Quest Skill Reqs": "WIP - Must get Quest skill requirements, regardless of if the Quest is startable or not <span class='rule-asterisk noscroll'>⁺</span>",
+      "Boosting": "Allow skill boosts to be considered for skill tasks",
+      "Token": "Allow token xp drops to count as a primary training method<span class='rule-asterisk noscroll'>†</span>",
+      "Master skillcape": "Must obtain master skillcapes for all skills<span class='rule-asterisk noscroll'>†</span>",
+      "Cleaning Herbs": "Cleaning grimy herbs/making unfinished potions can count as chunk tasks",
+      "Cleaning Herbs Primary": "Cleaning herbs counts as a primary training method",
+      "Vinesweeper": "Allow Vinesweeper to count as primary training for training Farming",
+      "Ogleroot": "Allow Vinesweeper to count as primary training for training Hunter",
+      "Gnomeball": "Allow playing gnomeball to count as a primary training method for Agility and Ranged<span class='rule-asterisk noscroll'>*</span>",
+      "Daemonheim training": "Allow training methods in Daemonheim to count as primary training methods<span class='rule-asterisk noscroll'>*</span>",
+      "Daemonheim tasks": "Allows activities and items in Daemonheim, excluding doors and puzzles, to create skilling tasks<span class='rule-asterisk noscroll'>*</span>",
+      "PortSkills": "Require all trainable port skills to be trained up to 90<span class='rule-asterisk noscroll'>*</span>",
+      "Titles": "Must obtain all in-game earnable titles<span class='rule-asterisk noscroll'>*</span>",
+      "Uncharted": "Allow resources only available on uncharted islands to create skilling tasks",
+      "Arc Log": "Require completion of the Arc Journal<span class='rule-asterisk noscroll'>*</span>",
+      "Menaphos Log": "Require completion of the Menaphos Journal<span class='rule-asterisk noscroll'>*</span>",
+      "Fill Costume Room": "WIP - Must fill all slots in the Player-Owned House costume room",
+      "Achievement": "Show Achievement Tasks",
+      "Multiple Agility": "Require the Agility, and the related Skill, levels to get multiple loots from pickpocketing, fishing and hunting<span class='rule-asterisk noscroll'>*</span>",
+      "F2P": "Restrict to F2P skills/items/tasks only (Partially implemented)",
+      "Hard Mode Bosses": "Include Hard mode variants of bosses<span class='rule-asterisk noscroll'>*</span>",
+      "Group Content": "Require content that is intended to be completed in a group",
+      "Unlock Abilities": "Must unlock all reward-locked abilities, including Necromancy incantations",
+      "Sigil Abilities": "Also include Sigil abilities (Aggression, Golden Touch, etc.)<span class='rule-asterisk noscroll'>*</span>",
+      "Abilities": "Include abilities that are unlocked just through leveling<span class='rule-asterisk noscroll'>†</span>",
+      "Unlock Prayers": "Must unlock all reward-locked prayers",
+      "Prayers": "Include prayers that are unlocked just through leveling<span class='rule-asterisk noscroll'>†</span>",
+      "PVP": "Require tasks that can only be completed by engaging in PvP<span class='rule-asterisk noscroll'>†</span>",
+      "PvM Relics": "WIP - Must obtain all best-in-slot/quality-of-life Archaeology Relics for combat",
+      "KeyItem Bosses": "For bosses that require keys to kill, factor in the droprate of the key as part of the droprate of each drop",
+      "Shooting Stars": "Getting the level to mine all tiers of shooting stars counts as a Mining skill task<span class='rule-asterisk noscroll'>*</span>",
+      "Combat Mastery achievements": "Must complete Combat Mastery achievements when possible<span class='rule-asterisk noscroll'>*</span>",
+      "Speed Killer Achievements": "Also include Speed Killer achievements<span class='rule-asterisk noscroll'>†</span>",
+      "Combat Master+": "Must complete the Master and Grandmaster tier<span class='rule-asterisk noscroll'>†</span>",
+      "Misc Combat achievements": "Include Combat achievements that don't award CombatScore<span class='rule-asterisk noscroll'>*</span>",
+      "Menaphos Events": "Allow soul obelisks and corrupted scarabs in Menaphos to count as primary training methods<span class='rule-asterisk noscroll'>*</span>",
+      "Material Blueprints": "Count discovering material blueprints as a skilling task",
+      "Comp achievements": "Must complete Completionist achievements<span class='rule-asterisk noscroll'>*</span>",
+      "Trim achievements": "Also include Trimmed Completionist Cape achievements<span class='rule-asterisk noscroll'>*</span>",
+      "MQC achievements": "Must complete Master Quest Cape achievements<span class='rule-asterisk noscroll'>*</span>",
+      "Misc achievements": "Must complete achievements that are not already part of the above categories<span class='rule-asterisk noscroll'>*</span>",
+      "No RuneScore": "Include achievements that don't award RuneScore<span class='rule-asterisk noscroll'>†</span>",
+      "Level Up Achievements": "Include level-up achievements<span class='rule-asterisk noscroll'>†</span>",
+      "XP Lamps": "Using skills-specific experience lamps counts as a primary training method<span class='rule-asterisk noscroll'>*</span>",
+      "Slayer Contracts": "Completing Slayer contracts off-task counts as a primary training method",
+      "Hide Partial Products": "Exclude partial and unfinished products as a skilling task<span class='partialProductsRuleTooltip'></span>",
+      "Timegated": "Require tasks that demand consistent engagement with a time-gated activity across multiple weeks (Player-Owned Port, Player-Owned Farm, etc.)<span class='rule-asterisk noscroll'>*</span>",
+      "Secondary Bird Nests": "Allow items from bird nests and geodes gotten through secondary methods (e.g. birdhouses, monster drops) to generate chunk tasks",
+      "Speedrunning": "Require tasks that must be completed under a strict time limit (e.g. speedrunning tasks)<span class='rule-asterisk noscroll'>*</span>"
+    },
+    "app/data/settings.mjs#settingLabels": {
+      "highvis": "High visibility map",
+      "roll2": "Roll two chunks",
+      "unpick": "Forfeit a chunk",
+      "recent": "Recent chunks",
+      "info": "Chunk info",
+      "chunkTasks": "Active tasks",
+      "topButtons": "Current BiS and Activity Info buttons",
+      "completedTaskColor": "Completed task colour",
+      "completedTaskStrikethrough": "Cross out completed tasks",
+      "randomStartAlways": "Roll anywhere on walkable terrain",
+      "theme": "Theme",
+      "defaultStickerColor": "Default sticker colour",
+      "cinematicRoll": "Rolling animation",
+      "taskSidebar": "Wide task list",
+      "allTasks": "Show intermediate skill tasks",
+      "hideChecked": "Hide completed tasks",
+      "ids": "Show chunk numbers",
+      "startingChunk": "Starting chunk",
+      "numTasksPercent": "Task progress as a percentage",
+      "newTasks": "Show new tasks after a roll",
+      "shiftUnlock": "Require Shift to unlock",
+      "rollWarning": "Confirm before rolling",
+      "unlockedBorderColor": "Unlocked chunk border colour",
+      "chunkNeighboursOptions": "Neighbour selection after a roll",
+      "defaultChunkinfo": "Open Chunk Info at",
+      "taskSearchbar": "Task search",
+      "hideAchievements": "Hide achievements outside your rules"
+    },
+    "app/data/settings.mjs#settingDefinitions:presentation": [
+      {
+        "id": "highvis",
+        "label": "High visibility map",
+        "description": "Display the chunk map with higher visibility, allowing you to see better into locked chunks, with thinner chunk borders, more see-through chunk coloring, and more"
+      },
+      {
+        "id": "roll2",
+        "label": "Roll two chunks",
+        "description": "Enable the roll 2 button, allowing you to roll two chunks and pick between the two"
+      },
+      {
+        "id": "unpick",
+        "label": "Forfeit a chunk",
+        "description": "Enable the unpick chunk button, allowing you to unpick, and therefore re-lock, a randomly selected unlocked chunk (useful for forfeits). NOTE: This button does not undo a chunk roll"
+      },
+      {
+        "id": "recent",
+        "label": "Recent chunks",
+        "description": "[Recent Chunks] The recent chunks panel shows you the 5 most recently rolled chunks on your map, the dates you rolled them, how long it's been (in days) since your last roll, and more"
+      },
+      {
+        "id": "info",
+        "label": "Chunk info",
+        "description": "[Chunk Info] The chunk info panel shows you an array of information on every chunk in the game (monsters, npcs, item spawns, shops, and more). Hint: Right-click a chunk to bring up info on that chunk"
+      },
+      {
+        "id": "chunkTasks",
+        "label": "Active tasks",
+        "description": "[Chunk Tasks] The chunk tasks panel shows you an automatically made list of active tasks you need to do to finish your chunk. This is essential for any Chunker to keep track of what needs to get done"
+      },
+      {
+        "id": "topButtons",
+        "label": "Current BiS and Activity Info buttons",
+        "description": "[Current BIS & Activity Info] These buttons allow access to many miscellaneous pieces of information and crucial functionality for locking slayer and seeing best-in-slot gear"
+      },
+      {
+        "id": "completedTaskColor",
+        "label": "Completed task colour",
+        "description": "Change the color of checked-off chunk tasks"
+      },
+      {
+        "id": "completedTaskStrikethrough",
+        "label": "Cross out completed tasks",
+        "description": "Cross-off chunk tasks as you complete them"
+      },
+      {
+        "id": "randomStartAlways",
+        "label": "Roll anywhere on walkable terrain",
+        "description": "Change the 'Pick Chunk' button to always be a 'Random Start' button; every chunk roll picks a random walkable chunk (that isn't already unlocked)"
+      },
+      {
+        "id": "theme",
+        "label": "Theme",
+        "description": "Set Theme"
+      },
+      {
+        "id": "defaultStickerColor",
+        "label": "Default sticker colour",
+        "description": "Change the default color of chunk stickers"
+      },
+      {
+        "id": "cinematicRoll",
+        "label": "Rolling animation",
+        "description": "Enable fancier rolling of chunks"
+      },
+      {
+        "id": "taskSidebar",
+        "label": "Wide task list",
+        "description": "Expand the task panel into a large sidebar, to show more tasks at once"
+      },
+      {
+        "id": "allTasks",
+        "label": "Show intermediate skill tasks",
+        "description": "Generate a list of all intermediate-level skill tasks to be shown in the Activity Info window"
+      },
+      {
+        "id": "hideChecked",
+        "label": "Hide completed tasks",
+        "description": "Automatically hide checked-off tasks from the Active Chunk Tasks panel, with a button at the top of the panel to temporarily show the checked-off tasks"
+      },
+      {
+        "id": "ids",
+        "label": "Show chunk numbers",
+        "description": "Show an overlay of Chunk IDs for each chunk"
+      },
+      {
+        "id": "startingChunk",
+        "label": "Starting chunk",
+        "description": "Starting Chunk"
+      },
+      {
+        "id": "numTasksPercent",
+        "label": "Task progress as a percentage",
+        "description": "Show Active Task number as a percentage instead of a fraction"
+      },
+      {
+        "id": "newTasks",
+        "label": "Show new tasks after a roll",
+        "description": "In addition to adding new tasks to the Active Chunk Tasks list, also show new chunk tasks in a popup window after every chunk roll"
+      },
+      {
+        "id": "shiftUnlock",
+        "label": "Require Shift to unlock",
+        "description": "Prevent click-to-unlock chunks unless holding down the Shift-key (or long-pressing on mobile)"
+      },
+      {
+        "id": "rollWarning",
+        "label": "Confirm before rolling",
+        "description": "Show a confirmation window after clicking the Pick Chunk or Roll 2 button"
+      },
+      {
+        "id": "unlockedBorderColor",
+        "label": "Unlocked chunk border colour",
+        "description": "Change the color of the border surrounding your unlocked chunks"
+      },
+      {
+        "id": "chunkNeighboursOptions",
+        "label": "Neighbour selection after a roll",
+        "description": "Choose which neighbouring chunks stay selected after a roll."
+      },
+      {
+        "id": "defaultChunkinfo",
+        "label": "Open Chunk Info at",
+        "description": "Select the default tab when first opening the Chunk Info Panel"
+      },
+      {
+        "id": "taskSearchbar",
+        "label": "Task search",
+        "description": "Show a searchbar at the top of your Active Tasks to allow filtering. Useful for maps with large task lists that have trouble finding specific tasks"
+      },
+      {
+        "id": "hideAchievements",
+        "label": "Hide achievements outside your rules",
+        "description": "Only show achievements in the Activity Info window that are required according to your ruleset"
+      }
+    ],
+    "app/data/settings.mjs#authoredSettingDefinitions:presentation": [
+      {
+        "id": "advanced",
+        "label": "Advanced mode",
+        "description": "Show extra controls, detailed explanations and game-data checks."
+      }
+    ],
+    "app/data/settings.mjs#taskRuleDefinitions:presentation": [
+      {
+        "id": "Skillcape",
+        "label": "Skillcape",
+        "description": "Must obtain skillcapes*"
+      },
+      {
+        "id": "Rare Drop",
+        "label": "Rare Drop",
+        "description": "When enabled, include all drop rates. When disabled, apply Rare Drop Amount and Rare Drop Inclusive; unknown rates remain admitted."
+      },
+      {
+        "id": "Pouch",
+        "label": "Pouch",
+        "description": "Using Runecrafting pouches count as chunk tasks"
+      },
+      {
+        "id": "InsidePOH",
+        "label": "InsidePOH",
+        "description": "Constructing furniture on a workbench can count as a chunk task*"
+      },
+      {
+        "id": "InsidePOH Primary",
+        "label": "InsidePOH Primary",
+        "description": "Constructing furniture on a workbench counts as a primary training method for Construction*"
+      },
+      {
+        "id": "Construction Milestone",
+        "label": "Construction Milestone",
+        "description": "Miscellaneous player-owned house unlocks (e.g. House style, room shapes, etc) can count for chunk tasks"
+      },
+      {
+        "id": "Boss",
+        "label": "Boss",
+        "description": "Boss drops from the picker’s boss list count as item sources; turning it off removes those drops as sources but does not stop killing or training on bosses, Kill X Boss goals or boss collection-log tasks."
+      },
+      {
+        "id": "Slayer Equipment",
+        "label": "Slayer Equipment",
+        "description": "Using Slayer equipment can count for chunk tasks"
+      },
+      {
+        "id": "Normal Farming",
+        "label": "Normal Farming",
+        "description": "Allow normal farming to count as a primary method for training Farming"
+      },
+      {
+        "id": "Raking",
+        "label": "Raking",
+        "description": "Allow raking patches to count as a primary method for training Farming*"
+      },
+      {
+        "id": "Kill X",
+        "label": "Kill X",
+        "description": "Kill X-amount of every new, unique monster you encounter"
+      },
+      {
+        "id": "Kill X Boss",
+        "label": "Kill X Boss",
+        "description": "Include bosses for these tasks"
+      },
+      {
+        "id": "Sorceress's Garden",
+        "label": "Sorceress's Garden",
+        "description": "Allow Sorceress's Garden to count as primary training for training Farming*"
+      },
+      {
+        "id": "Spells",
+        "label": "Spells",
+        "description": "Spells count as a way to process runes via Magic, and therefore can count as chunk tasks"
+      },
+      {
+        "id": "Show Skill Tasks",
+        "label": "Show Skill Tasks",
+        "description": "Show Skill Tasks (e.g. Get 43 Crafting to cut a diamond)"
+      },
+      {
+        "id": "Show Quest Tasks",
+        "label": "Show Quest Tasks",
+        "description": "Show Quest Tasks"
+      },
+      {
+        "id": "Show Diary Tasks",
+        "label": "Show Diary Tasks",
+        "description": "Enable Area Tasks achievements. Other achievement families keep their own rules; Achievement controls their active display."
+      },
+      {
+        "id": "Show Best in Slot Tasks",
+        "label": "Show Best in Slot Tasks",
+        "description": "Show Best in Slot (Accuracy + Strength, or secondarily Defence) Tasks"
+      },
+      {
+        "id": "Show Best in Slot Prayer Tasks",
+        "label": "Show Best in Slot Prayer Tasks",
+        "description": "Show Best in Slot Tasks for Prayer-boosting gear"
+      },
+      {
+        "id": "Show Best in Slot Defensive Tasks",
+        "label": "Show Best in Slot Defensive Tasks",
+        "description": "Show Best in Slot Tasks for Tank gear (highest defence-only)"
+      },
+      {
+        "id": "Show Best in Slot Melee Style Tasks",
+        "label": "Show Best in Slot Melee Style Tasks",
+        "description": "Show Best in Slot Tasks for stab/slash/crush instead of overall melee"
+      },
+      {
+        "id": "Show Best in Slot 1H and 2H",
+        "label": "Show Best in Slot 1H and 2H",
+        "description": "Show Best in Slot Tasks for both 2-handed and 1-handed/shield, rather than just the better of the two"
+      },
+      {
+        "id": "Show Best in Slot Shield",
+        "label": "Show Best in Slot Shield",
+        "description": "Show Best in Slot Tasks for both off-hand weapons and shields, rather than just the better of the two"
+      },
+      {
+        "id": "Consumable Primary BiS",
+        "label": "Consumable Primary BiS",
+        "description": "For consumable items (arrows, darts, etc.), only count them as Best in Slot if you have primary access to them"
+      },
+      {
+        "id": "Non-permanent BiS",
+        "label": "Non-permanent BiS",
+        "description": "Include equipment that degrades to dust, runs out or is temporary in Best in Slot tasks. Repairable or rechargeable equipment and ammunition remain included when disabled."
+      },
+      {
+        "id": "Show Quest Tasks Complete",
+        "label": "Show Quest Tasks Complete",
+        "description": "Show Quest Tasks only when the whole quest is completable"
+      },
+      {
+        "id": "Show Diary Tasks Complete",
+        "label": "Show Diary Tasks Complete",
+        "description": "Show Area Tasks achievements only when the whole area tasks tier (easy, medium, etc.) is completable"
+      },
+      {
+        "id": "Show Diary Tasks Any",
+        "label": "Show Diary Tasks Any",
+        "description": "Allow individual Area Tasks achievements without a completable prerequisite tier. Their own location, item, skill, membership and family requirements still apply."
+      },
+      {
+        "id": "Highest Level",
+        "label": "Highest Level",
+        "description": "Require processing skill tasks to be the highest level of processing, rather than the lowest (e.g. must fletch yew logs into an unstrung longbow rather than arrow shafts)*"
+      },
+      {
+        "id": "BIS Skilling",
+        "label": "BIS Skilling",
+        "description": "Must obtain items that are best-in-slot/add quality-of-life for skilling (e.g. Pickaxe of Life and Death, Elite skilling outfits, Seed bag, etc.)"
+      },
+      {
+        "id": "BIS Skilling Consumables",
+        "label": "BIS Skilling Consumables",
+        "description": "Must also obtain best-in-slot/quality-of-life charged or degrading items for skilling (scrimshaws, skillchompa, etc.)"
+      },
+      {
+        "id": "BIS Skilling Relics",
+        "label": "BIS Skilling Relics",
+        "description": "Must also obtain best-in-slot/quality-of-life Archaeology relics for skilling"
+      },
+      {
+        "id": "Collection Log",
+        "label": "Collection Log",
+        "description": "Must obtain items from collection logs (Does nothing on its own)"
+      },
+      {
+        "id": "Boss Collection Log",
+        "label": "Boss Collection Log",
+        "description": "Must obtain items from the boss collection log*"
+      },
+      {
+        "id": "Slayer Collection Log",
+        "label": "Slayer Collection Log",
+        "description": "Must obtain items from the slayer collection log*"
+      },
+      {
+        "id": "Skilling Collection Log",
+        "label": "Skilling Collection Log",
+        "description": "Must obtain items from the (hidden) skilling collection log*"
+      },
+      {
+        "id": "Archaeology Collections",
+        "label": "Archaeology Collections",
+        "description": "Must fill out all Archaeology collections*"
+      },
+      {
+        "id": "Universal Tertiary",
+        "label": "Universal Tertiary",
+        "description": "Allow universal tertiary drops (mimic tokens, effigies, spirit gems) to count towards chunk tasks†"
+      },
+      {
+        "id": "Breeding Log",
+        "label": "Breeding Log",
+        "description": "Must fill out the Player-Owned Farm and Player-Owned Ranch breeding logs*"
+      },
+      {
+        "id": "Minigame",
+        "label": "Minigame",
+        "description": "Allow rewards obtained from and actvities inside minigames to count towards chunk tasks"
+      },
+      {
+        "id": "Shortcut Task",
+        "label": "Shortcut Task",
+        "description": "Allow Agility shortcuts to count as an Agility skill task"
+      },
+      {
+        "id": "Shortcut",
+        "label": "Shortcut",
+        "description": "Allow Agility shortcuts to count as a primary method for training Agility"
+      },
+      {
+        "id": "Wield Crafted Items",
+        "label": "Wield Crafted Items",
+        "description": "Crafted items (e.g. bows, metal armour/weapons, etc.) can be wielded as part of chunks tasks (as BiS gear, wielding requirements, training methods, etc.)*"
+      },
+      {
+        "id": "Wield Crafted Items Override",
+        "label": "Wield Crafted Items Override",
+        "description": "Require higher level processing skill tasks if the resulting item would be a BiS (may require longer calculation times)"
+      },
+      {
+        "id": "Multi Step Processing",
+        "label": "Multi Step Processing",
+        "description": "Allow higher level processing of resources to enable other processing tasks *"
+      },
+      {
+        "id": "Puro-Puro",
+        "label": "Puro-Puro",
+        "description": "Allow implings in underground areas (Puro-Puro, City of Um, etc.) & their drops to count towards chunk tasks"
+      },
+      {
+        "id": "Extra implings",
+        "label": "Extra implings",
+        "description": "Include implings that have non-guaranteed spawns as chunk tasks"
+      },
+      {
+        "id": "Bakami",
+        "label": "Bakami",
+        "description": "Allow bakami and orokami & their drops to count towards chunk tasks"
+      },
+      {
+        "id": "Farming Primary",
+        "label": "Farming Primary",
+        "description": "Farming products (herbs, vegetables, etc.) can count as primary item sources for chunk tasks*"
+      },
+      {
+        "id": "Secondary Primary",
+        "label": "Secondary Primary",
+        "description": "Allow methods listed as Secondary Primary to create required training tasks when you can obtain the supplies and meet the method’s requirements."
+      },
+      {
+        "id": "Secondary Primary Amount",
+        "label": "Secondary Primary Amount",
+        "description": "A known source rate more common than 1/X can count as primary training. X is a positive denominator, including decimals (0.5 means 1/0.5); 0 includes every known rate. An explicit a/b is a probability. A rate exactly at the cutoff qualifies when Secondary Primary Inclusive is checked (on by default)."
+      },
+      {
+        "id": "RDT",
+        "label": "RDT",
+        "description": "Allow items from the Rare Drop Table, the Gem Drop Table and the Wilderness Drop Table to count towards chunk tasks"
+      },
+      {
+        "id": "Crystal chests",
+        "label": "Crystal chests",
+        "description": "Allow items from crystal chests, triskelion treasures or columbarium keys to count towards chunk tasks"
+      },
+      {
+        "id": "Untracked Uniques",
+        "label": "Untracked Uniques",
+        "description": "Must obtain extra unique items that are untracked on the collection logs (does nothing by itself)"
+      },
+      {
+        "id": "Untracked Uniques Skilling",
+        "label": "Untracked Uniques Skilling",
+        "description": "Must obtain untracked uniques obtained from skilling (e.g. Big shark, Golden fish egg, etc.)*"
+      },
+      {
+        "id": "Untracked Uniques Combat",
+        "label": "Untracked Uniques Combat",
+        "description": "Must obtain untracked uniques obtained from combat (e.g. Abomination cape, Champion scrolls, etc.)*"
+      },
+      {
+        "id": "Untracked Uniques Minigames",
+        "label": "Untracked Uniques Minigames",
+        "description": "Must obtain untracked uniques obtained from minigames and Distractions and Diversions (e.g. Penance armor, Slayer VIP ticket, etc.)*"
+      },
+      {
+        "id": "Ceremonial Swords",
+        "label": "Ceremonial Swords",
+        "description": "Must obtain every unique type of ceremonial sword from Artisans' Workshop (main and offhand, I-V, every material)†"
+      },
+      {
+        "id": "Untracked Uniques Daemonheim",
+        "label": "Untracked Uniques Daemonheim",
+        "description": "Must obtain untracked uniques that exist solely in the Dungeons of Daemonheim (e.g. Celestial surgebox, etc.)*"
+      },
+      {
+        "id": "Untracked Uniques Misc",
+        "label": "Untracked Uniques Misc",
+        "description": "Must obtain untracked uniques obtained through other means (e.g. Chompy bird hunting hats, etc.)*"
+      },
+      {
+        "id": "Ports Scrolls",
+        "label": "Ports Scrolls",
+        "description": "Must complete every scroll in Player-Owned Port*"
+      },
+      {
+        "id": "Slayer Souls",
+        "label": "Slayer Souls",
+        "description": "Must fill out all available souls in the Slayer Codex*"
+      },
+      {
+        "id": "Dungeoneering Journals",
+        "label": "Dungeoneering Journals",
+        "description": ""
+      },
+      {
+        "id": "Combat and Teleport Spells",
+        "label": "Combat and Teleport Spells",
+        "description": "Allow all spells to count as possible Magic skill tasks (otherwise only 'utility' spells like High Alchemy or Telegrab will count)"
+      },
+      {
+        "id": "Primary Spawns",
+        "label": "Primary Spawns",
+        "description": "Item spawns count as primary access to an item, and can be used as a primary way to train a skill if needed"
+      },
+      {
+        "id": "Smithing by Smelting",
+        "label": "Smithing by Smelting",
+        "description": "Smelting ores into bars counts as a primary method for training Smithing"
+      },
+      {
+        "id": "Pets",
+        "label": "Pets",
+        "description": "Must obtain pets for Collections and Unlocks tasks*"
+      },
+      {
+        "id": "Kill X Amount",
+        "label": "Kill X Amount",
+        "description": ""
+      },
+      {
+        "id": "Rare Drop Amount",
+        "label": "Rare Drop Amount",
+        "description": "Use drops more common than 1/X. X is a positive denominator, including decimals (0.5 means 1/0.5); 0 includes everything. An explicit a/b is a probability. A drop exactly at the cutoff counts only when Rare Drop Inclusive is checked."
+      },
+      {
+        "id": "Manually Complete Tasks",
+        "label": "Manually Complete Tasks",
+        "description": "For maps that allow manually choosing new chunks, allow the ability to manually move completed active tasks"
+      },
+      {
+        "id": "Every Drop",
+        "label": "Every Drop",
+        "description": "Must obtain every unique item drop from monsters (items that are dropped by multiple monsters only need to be obtained once)"
+      },
+      {
+        "id": "HigherLander",
+        "label": "HigherLander",
+        "description": "Accessing the intermediate and veteran landers for Pest Control are required tasks (only novice lander is required otherwise)"
+      },
+      {
+        "id": "Secondary MTA",
+        "label": "Secondary MTA",
+        "description": "Allow MTA to be required with secondary sources of nature/law/cosmic runes"
+      },
+      {
+        "id": "Skilling Pets",
+        "label": "Skilling Pets",
+        "description": "Require skilling pets be obtained as soon as the relevant skill is trainable†"
+      },
+      {
+        "id": "Permanent Unlockables",
+        "label": "Permanent Unlockables",
+        "description": "Require permanently unlockable options be unlocked (innate mastery, rope racks, etc.)*"
+      },
+      {
+        "id": "Prayers",
+        "label": "Prayers",
+        "description": "Include prayers that are unlocked just through leveling†"
+      },
+      {
+        "id": "All Droptables",
+        "label": "All Droptables",
+        "description": "Must obtain every drop from every unique monster's droptable (duplicates included, all quantities)†"
+      },
+      {
+        "id": "All Droptables Nest",
+        "label": "All Droptables Nest",
+        "description": "Must include every drop from bird nests†"
+      },
+      {
+        "id": "Every Drop Implings",
+        "label": "Every Drop Implings",
+        "description": "Allow drops from implings to also count towards these tasks"
+      },
+      {
+        "id": "Skiller",
+        "label": "Skiller",
+        "description": "Restrict tasks to only those doable on a level 3 skiller"
+      },
+      {
+        "id": "Fill Stash",
+        "label": "Fill Stash",
+        "description": "Must build and fill hidey-holes as soon as you're able to"
+      },
+      {
+        "id": "All Shops",
+        "label": "All Shops",
+        "description": "Must buy every item from every shop within your chunks once ⁺"
+      },
+      {
+        "id": "Quest Skill Reqs",
+        "label": "Quest Skill Reqs",
+        "description": "WIP - Must get Quest skill requirements, regardless of if the Quest is startable or not ⁺"
+      },
+      {
+        "id": "Boosting",
+        "label": "Boosting",
+        "description": "Allow skill boosts to be considered for skill tasks"
+      },
+      {
+        "id": "Token",
+        "label": "Token",
+        "description": "Allow token xp drops to count as a primary training method†"
+      },
+      {
+        "id": "Master skillcape",
+        "label": "Master skillcape",
+        "description": "Must obtain master skillcapes for all skills†"
+      },
+      {
+        "id": "Cleaning Herbs",
+        "label": "Cleaning Herbs",
+        "description": "Cleaning grimy herbs/making unfinished potions can count as chunk tasks"
+      },
+      {
+        "id": "Cleaning Herbs Primary",
+        "label": "Cleaning Herbs Primary",
+        "description": "Cleaning herbs counts as a primary training method"
+      },
+      {
+        "id": "Vinesweeper",
+        "label": "Vinesweeper",
+        "description": "Allow Vinesweeper to count as primary training for training Farming"
+      },
+      {
+        "id": "Ogleroot",
+        "label": "Ogleroot",
+        "description": "Allow Vinesweeper to count as primary training for training Hunter"
+      },
+      {
+        "id": "Gnomeball",
+        "label": "Gnomeball",
+        "description": "Allow playing gnomeball to count as a primary training method for Agility and Ranged*"
+      },
+      {
+        "id": "Daemonheim training",
+        "label": "Daemonheim training",
+        "description": "Allow training methods in Daemonheim to count as primary training methods*"
+      },
+      {
+        "id": "Daemonheim tasks",
+        "label": "Daemonheim tasks",
+        "description": "Allows activities and items in Daemonheim, excluding doors and puzzles, to create skilling tasks*"
+      },
+      {
+        "id": "PortSkills",
+        "label": "PortSkills",
+        "description": "Require all trainable port skills to be trained up to 90*"
+      },
+      {
+        "id": "Titles",
+        "label": "Titles",
+        "description": "Must obtain all in-game earnable titles*"
+      },
+      {
+        "id": "DnD",
+        "label": "DnD",
+        "description": "Allow items obtained from and activities inside Distractions and Diversions to count towards chunk tasks*"
+      },
+      {
+        "id": "DnD Flash Events",
+        "label": "DnD Flash Events",
+        "description": "Include Demon Flash Mobs and Goblin Raids*"
+      },
+      {
+        "id": "Not Daily DnD",
+        "label": "Not Daily DnD",
+        "description": "Include Distractions and Diversions that reset less frequently than once a day†"
+      },
+      {
+        "id": "Uncharted",
+        "label": "Uncharted",
+        "description": "Allow resources only available on uncharted islands to create skilling tasks"
+      },
+      {
+        "id": "Arc Log",
+        "label": "Arc Log",
+        "description": "Require completion of the Arc Journal*"
+      },
+      {
+        "id": "Menaphos Log",
+        "label": "Menaphos Log",
+        "description": "Require completion of the Menaphos Journal*"
+      },
+      {
+        "id": "Costume Room",
+        "label": "Costume Room",
+        "description": ""
+      },
+      {
+        "id": "Achievement",
+        "label": "Achievement",
+        "description": "Show Achievement Tasks from enabled achievement groups. Hidden achievements can still unlock rewards and count towards other requirements."
+      },
+      {
+        "id": "Multiple Pickpockets",
+        "label": "Multiple Pickpockets",
+        "description": ""
+      },
+      {
+        "id": "Multiple Agility",
+        "label": "Multiple Agility",
+        "description": "Require the Agility, and the related Skill, levels to get multiple loots from pickpocketing, fishing and hunting*"
+      },
+      {
+        "id": "F2P",
+        "label": "F2P",
+        "description": "Restrict to F2P skills/items/tasks only (Partially implemented)"
+      },
+      {
+        "id": "Hard Mode Bosses",
+        "label": "Hard Mode Bosses",
+        "description": "Include Hard mode variants of bosses*"
+      },
+      {
+        "id": "Group Content",
+        "label": "Group Content",
+        "description": "Require content that is intended to be completed in a group"
+      },
+      {
+        "id": "PVP",
+        "label": "PVP",
+        "description": "Require tasks that can only be completed by engaging in PvP†"
+      },
+      {
+        "id": "Hero Items",
+        "label": "Hero Items",
+        "description": "Must obtain Hero Items as part of chunk tasks†"
+      },
+      {
+        "id": "Brawling Gloves",
+        "label": "Brawling Gloves",
+        "description": "Must also obtain every non-combat pair of brawling gloves"
+      },
+      {
+        "id": "Unlock Abilities",
+        "label": "Unlock Abilities",
+        "description": "Must unlock all reward-locked abilities, including Necromancy incantations"
+      },
+      {
+        "id": "Sigil Abilities",
+        "label": "Sigil Abilities",
+        "description": "Also include Sigil abilities (Aggression, Golden Touch, etc.)*"
+      },
+      {
+        "id": "Unlock Prayers",
+        "label": "Unlock Prayers",
+        "description": "Must unlock all reward-locked prayers"
+      },
+      {
+        "id": "PvM Relics",
+        "label": "PvM Relics",
+        "description": "WIP - Must obtain all best-in-slot/quality-of-life Archaeology Relics for combat"
+      },
+      {
+        "id": "KeyItem Bosses",
+        "label": "KeyItem Bosses",
+        "description": "For bosses that require keys to kill, factor in the droprate of the key as part of the droprate of each drop"
+      },
+      {
+        "id": "Shooting Stars",
+        "label": "Shooting Stars",
+        "description": "Getting the level to mine all tiers of shooting stars counts as a Mining skill task*"
+      },
+      {
+        "id": "Combat Mastery achievements",
+        "label": "Combat Mastery achievements",
+        "description": "Must complete Combat Mastery achievements when possible*"
+      },
+      {
+        "id": "Speed Killer Achievements",
+        "label": "Speed Killer Achievements",
+        "description": "Also include Speed Killer achievements†"
+      },
+      {
+        "id": "Combat Master+",
+        "label": "Combat Master+",
+        "description": "Must complete the Master and Grandmaster tier†"
+      },
+      {
+        "id": "Misc Combat Achievements",
+        "label": "Misc Combat Achievements",
+        "description": ""
+      },
+      {
+        "id": "Menaphos Events",
+        "label": "Menaphos Events",
+        "description": "Allow soul obelisks and corrupted scarabs in Menaphos to count as primary training methods*"
+      },
+      {
+        "id": "Hunter Marks Slayer",
+        "label": "Hunter Marks Slayer",
+        "description": ""
+      },
+      {
+        "id": "Material Blueprints",
+        "label": "Material Blueprints",
+        "description": "Count discovering material blueprints as a skilling task"
+      },
+      {
+        "id": "Wandering implings",
+        "label": "Wandering implings",
+        "description": "Allow implings that randomly wander the world & their drops to count towards chunk tasks †"
+      },
+      {
+        "id": "Comp achievements",
+        "label": "Comp achievements",
+        "description": "Must complete Completionist achievements*"
+      },
+      {
+        "id": "Trim achievements",
+        "label": "Trim achievements",
+        "description": "Also include Trimmed Completionist Cape achievements*"
+      },
+      {
+        "id": "MQC achievements",
+        "label": "MQC achievements",
+        "description": "Must complete Master Quest Cape achievements*"
+      },
+      {
+        "id": "Misc achievements",
+        "label": "Misc achievements",
+        "description": "Must complete achievements that are not already part of the above categories*"
+      },
+      {
+        "id": "Speedrunning",
+        "label": "Speedrunning",
+        "description": "Require tasks that must be completed under a strict time limit (e.g. speedrunning tasks)*"
+      },
+      {
+        "id": "Level Up Achievements",
+        "label": "Level Up Achievements",
+        "description": "Include level-up achievements†"
+      },
+      {
+        "id": "No RuneScore",
+        "label": "No RuneScore",
+        "description": "Include achievements that don't award RuneScore†"
+      },
+      {
+        "id": "Slayer Contracts",
+        "label": "Slayer Contracts",
+        "description": "Completing Slayer contracts off-task counts as a primary training method"
+      },
+      {
+        "id": "Hide Partial Products",
+        "label": "Hide Partial Products",
+        "description": "Exclude partial and unfinished products as a skilling task"
+      },
+      {
+        "id": "Timegated",
+        "label": "Timegated",
+        "description": "Require tasks that demand consistent engagement with a time-gated activity across multiple weeks (Player-Owned Port, Player-Owned Farm, etc.)*"
+      },
+      {
+        "id": "Cosmetics",
+        "label": "Cosmetics",
+        "description": "Must obtain cosmetic items or overrides for Collections and Unlocks tasks*"
+      },
+      {
+        "id": "Secondary Bird Nests",
+        "label": "Secondary Bird Nests",
+        "description": "Allow items from bird nests and geodes gotten through secondary methods (e.g. birdhouses, monster drops) to generate chunk tasks"
+      },
+      {
+        "id": "House storage tasks",
+        "label": "House storage tasks",
+        "description": "Add optional house storage and display goals when you can obtain every required item, complete the housing quest and build the furniture. Deposit furniture requires membership; bookcases retrieve books automatically and have no fill tasks."
+      },
+      {
+        "id": "Rare Drop Inclusive",
+        "label": "Rare Drop Inclusive",
+        "description": "Include drops with a rate exactly equal to Rare Drop Amount. Off by default, matching the original picker."
+      },
+      {
+        "id": "Secondary Primary Inclusive",
+        "label": "Secondary Primary Inclusive",
+        "description": "Count a known source exactly at the primary-training cutoff as primary. On by default for the duo’s nothing-below-the-cutoff house rule; unknown rates never qualify."
+      },
+      {
+        "id": "Every Drop BGH",
+        "label": "Every Drop BGH",
+        "description": "Allow drops from Big Game Hunter to also count towards these tasks"
+      },
+      {
+        "id": "Every Drop Thieving",
+        "label": "Every Drop Thieving",
+        "description": "Allow drops from Thieving to also count towards these tasks"
+      },
+      {
+        "id": "Fill Costume Room",
+        "label": "Fill Costume Room",
+        "description": "WIP - Must fill all slots in the Player-Owned House costume room"
+      },
+      {
+        "id": "Abilities",
+        "label": "Abilities",
+        "description": "Include abilities that are unlocked just through leveling†"
+      },
+      {
+        "id": "Misc Combat achievements",
+        "label": "Misc Combat achievements",
+        "description": "Include Combat achievements that don't award CombatScore*"
+      },
+      {
+        "id": "XP Lamps",
+        "label": "XP Lamps",
+        "description": "Using skills-specific experience lamps counts as a primary training method*"
+      },
+      {
+        "id": "Show Best in Slot Weight Tasks",
+        "label": "Show Best in Slot Weight Tasks",
+        "description": ""
+      },
+      {
+        "id": "Collection Log Bosses",
+        "label": "Collection Log Bosses",
+        "description": ""
+      },
+      {
+        "id": "Collection Log Raids",
+        "label": "Collection Log Raids",
+        "description": ""
+      },
+      {
+        "id": "Collection Log Clues",
+        "label": "Collection Log Clues",
+        "description": ""
+      },
+      {
+        "id": "Collection Log Minigames",
+        "label": "Collection Log Minigames",
+        "description": ""
+      },
+      {
+        "id": "Collection Log Other",
+        "label": "Collection Log Other",
+        "description": ""
+      },
+      {
+        "id": "Stuffables",
+        "label": "Stuffables",
+        "description": ""
+      },
+      {
+        "id": "Money Unlockables",
+        "label": "Money Unlockables",
+        "description": ""
+      },
+      {
+        "id": "Fill POH",
+        "label": "Fill POH",
+        "description": ""
+      },
+      {
+        "id": "Primary Spawn",
+        "label": "Primary Spawn",
+        "description": ""
+      }
+    ],
+    "app/data/settings.mjs#neighborSettingDefinitions:presentation": [
+      {
+        "id": "neighbors",
+        "label": "Mark neighboring chunks as rollable"
+      },
+      {
+        "id": "walkableRollable",
+        "label": "Only include chunks with walkable terrain"
+      },
+      {
+        "id": "autoWalkableRollable",
+        "label": "Mark all actually accessible neighboring chunks as rollable"
+      },
+      {
+        "id": "remove",
+        "label": "Remove all rollable markings after rolling"
+      }
+    ],
+    "app/data/settings.mjs#originalRuleReferences": {
+      "F2P": [
+        {
+          "file": "reference/original-picker/index.js",
+          "line": 3073,
+          "referenceCount": 5
+        },
+        {
+          "file": "reference/original-picker/worker.js",
+          "line": 4021,
+          "referenceCount": 4
+        }
+      ],
+      "Rare Drop Amount": [
+        {
+          "file": "reference/original-picker/index.js",
+          "line": 3716,
+          "referenceCount": 5
+        }
+      ],
+      "Secondary Primary Amount": [
+        {
+          "file": "reference/original-picker/index.js",
+          "line": 3740,
+          "referenceCount": 5
+        }
+      ],
+      "Manually Complete Tasks": [
+        {
+          "file": "reference/original-picker/index.js",
+          "line": 5166,
+          "referenceCount": 16
+        }
+      ],
+      "Boosting": [
+        {
+          "file": "reference/original-picker/index.js",
+          "line": 6464,
+          "referenceCount": 4
+        },
+        {
+          "file": "reference/original-picker/worker.js",
+          "line": 1289,
+          "referenceCount": 13
+        }
+      ],
+      "Secondary Primary": [
+        {
+          "file": "reference/original-picker/index.js",
+          "line": 6501,
+          "referenceCount": 1
+        },
+        {
+          "file": "reference/original-picker/worker.js",
+          "line": 701,
+          "referenceCount": 2
+        }
+      ],
+      "Smithing by Smelting": [
+        {
+          "file": "reference/original-picker/index.js",
+          "line": 6502,
+          "referenceCount": 1
+        },
+        {
+          "file": "reference/original-picker/worker.js",
+          "line": 5529,
+          "referenceCount": 2
+        }
+      ],
+      "Wield Crafted Items": [
+        {
+          "file": "reference/original-picker/index.js",
+          "line": 6555,
+          "referenceCount": 8
+        },
+        {
+          "file": "reference/original-picker/worker.js",
+          "line": 1943,
+          "referenceCount": 124
+        }
+      ],
+      "Show Skill Tasks": [
+        {
+          "file": "reference/original-picker/index.js",
+          "line": 6639,
+          "referenceCount": 6
+        }
+      ],
+      "Show Best in Slot Tasks": [
+        {
+          "file": "reference/original-picker/index.js",
+          "line": 6700,
+          "referenceCount": 4
+        }
+      ],
+      "Show Best in Slot 1H and 2H": [
+        {
+          "file": "reference/original-picker/index.js",
+          "line": 6708,
+          "referenceCount": 2
+        },
+        {
+          "file": "reference/original-picker/worker.js",
+          "line": 6729,
+          "referenceCount": 7
+        }
+      ],
+      "Show Quest Tasks": [
+        {
+          "file": "reference/original-picker/index.js",
+          "line": 6748,
+          "referenceCount": 3
+        }
+      ],
+      "Show Quest Tasks Complete": [
+        {
+          "file": "reference/original-picker/index.js",
+          "line": 6769,
+          "referenceCount": 2
+        }
+      ],
+      "Achievement": [
+        {
+          "file": "reference/original-picker/index.js",
+          "line": 6790,
+          "referenceCount": 4
+        }
+      ],
+      "Show Diary Tasks Complete": [
+        {
+          "file": "reference/original-picker/index.js",
+          "line": 6792,
+          "referenceCount": 2
+        }
+      ],
+      "Kill X Amount": [
+        {
+          "file": "reference/original-picker/index.js",
+          "line": 6818,
+          "referenceCount": 6
+        }
+      ],
+      "Show Diary Tasks": [
+        {
+          "file": "reference/original-picker/index.js",
+          "line": 7454,
+          "referenceCount": 1
+        }
+      ],
+      "Combat Mastery achievements": [
+        {
+          "file": "reference/original-picker/index.js",
+          "line": 7454,
+          "referenceCount": 3
+        }
+      ],
+      "Show Best in Slot Prayer Tasks": [
+        {
+          "file": "reference/original-picker/index.js",
+          "line": 9372,
+          "referenceCount": 1
+        },
+        {
+          "file": "reference/original-picker/worker.js",
+          "line": 5656,
+          "referenceCount": 1
+        }
+      ],
+      "Show Best in Slot Defensive Tasks": [
+        {
+          "file": "reference/original-picker/index.js",
+          "line": 9375,
+          "referenceCount": 1
+        },
+        {
+          "file": "reference/original-picker/worker.js",
+          "line": 5659,
+          "referenceCount": 1
+        }
+      ],
+      "Show Best in Slot Weight Tasks": [
+        {
+          "file": "reference/original-picker/index.js",
+          "line": 9383,
+          "referenceCount": 1
+        },
+        {
+          "file": "reference/original-picker/worker.js",
+          "line": 5667,
+          "referenceCount": 1
+        }
+      ],
+      "Show Best in Slot Melee Style Tasks": [
+        {
+          "file": "reference/original-picker/index.js",
+          "line": 9386,
+          "referenceCount": 1
+        },
+        {
+          "file": "reference/original-picker/worker.js",
+          "line": 5670,
+          "referenceCount": 1
+        }
+      ],
+      "Show Best in Slot Shield": [
+        {
+          "file": "reference/original-picker/index.js",
+          "line": 9394,
+          "referenceCount": 1
+        },
+        {
+          "file": "reference/original-picker/worker.js",
+          "line": 6758,
+          "referenceCount": 5
+        }
+      ],
+      "Hide Partial Products": [
+        {
+          "file": "reference/original-picker/index.js",
+          "line": 9528,
+          "referenceCount": 18
+        },
+        {
+          "file": "reference/original-picker/worker.js",
+          "line": 4160,
+          "referenceCount": 1
+        }
+      ],
+      "Comp achievements": [
+        {
+          "file": "reference/original-picker/index.js",
+          "line": 9608,
+          "referenceCount": 1
+        }
+      ],
+      "MQC achievements": [
+        {
+          "file": "reference/original-picker/index.js",
+          "line": 9608,
+          "referenceCount": 1
+        }
+      ],
+      "Misc achievements": [
+        {
+          "file": "reference/original-picker/index.js",
+          "line": 9612,
+          "referenceCount": 1
+        }
+      ],
+      "Misc Combat achievements": [
+        {
+          "file": "reference/original-picker/index.js",
+          "line": 9615,
+          "referenceCount": 1
+        }
+      ],
+      "Wield Crafted Items Override": [
+        {
+          "file": "reference/original-picker/worker.js",
+          "line": 359,
+          "referenceCount": 4
+        }
+      ],
+      "Primary Spawns": [
+        {
+          "file": "reference/original-picker/worker.js",
+          "line": 681,
+          "referenceCount": 6
+        }
+      ],
+      "RDT": [
+        {
+          "file": "reference/original-picker/worker.js",
+          "line": 721,
+          "referenceCount": 18
+        }
+      ],
+      "Rare Drop": [
+        {
+          "file": "reference/original-picker/worker.js",
+          "line": 775,
+          "referenceCount": 34
+        }
+      ],
+      "Boss": [
+        {
+          "file": "reference/original-picker/worker.js",
+          "line": 776,
+          "referenceCount": 29
+        }
+      ],
+      "Minigame": [
+        {
+          "file": "reference/original-picker/worker.js",
+          "line": 895,
+          "referenceCount": 7
+        }
+      ],
+      "Multi Step Processing": [
+        {
+          "file": "reference/original-picker/worker.js",
+          "line": 1240,
+          "referenceCount": 11
+        }
+      ],
+      "Show Diary Tasks Any": [
+        {
+          "file": "reference/original-picker/worker.js",
+          "line": 1482,
+          "referenceCount": 9
+        }
+      ],
+      "Highest Level": [
+        {
+          "file": "reference/original-picker/worker.js",
+          "line": 1654,
+          "referenceCount": 7
+        }
+      ],
+      "Farming Primary": [
+        {
+          "file": "reference/original-picker/worker.js",
+          "line": 1920,
+          "referenceCount": 9
+        }
+      ],
+      "Skilling Pets": [
+        {
+          "file": "reference/original-picker/worker.js",
+          "line": 2974,
+          "referenceCount": 1
+        }
+      ],
+      "Secondary MTA": [
+        {
+          "file": "reference/original-picker/worker.js",
+          "line": 3892,
+          "referenceCount": 1
+        }
+      ],
+      "Skillcape": [
+        {
+          "file": "reference/original-picker/worker.js",
+          "line": 3896,
+          "referenceCount": 1
+        }
+      ],
+      "Master skillcape": [
+        {
+          "file": "reference/original-picker/worker.js",
+          "line": 3916,
+          "referenceCount": 1
+        }
+      ],
+      "Skiller": [
+        {
+          "file": "reference/original-picker/worker.js",
+          "line": 3962,
+          "referenceCount": 49
+        }
+      ],
+      "Cleaning Herbs": [
+        {
+          "file": "reference/original-picker/worker.js",
+          "line": 4163,
+          "referenceCount": 1
+        }
+      ],
+      "Kill X": [
+        {
+          "file": "reference/original-picker/worker.js",
+          "line": 5089,
+          "referenceCount": 1
+        }
+      ],
+      "Kill X Boss": [
+        {
+          "file": "reference/original-picker/worker.js",
+          "line": 5110,
+          "referenceCount": 1
+        }
+      ],
+      "Every Drop": [
+        {
+          "file": "reference/original-picker/worker.js",
+          "line": 5129,
+          "referenceCount": 1
+        }
+      ],
+      "Every Drop Thieving": [
+        {
+          "file": "reference/original-picker/worker.js",
+          "line": 5180,
+          "referenceCount": 1
+        }
+      ],
+      "Every Drop Implings": [
+        {
+          "file": "reference/original-picker/worker.js",
+          "line": 5221,
+          "referenceCount": 1
+        }
+      ],
+      "Every Drop BGH": [
+        {
+          "file": "reference/original-picker/worker.js",
+          "line": 5232,
+          "referenceCount": 1
+        }
+      ],
+      "All Droptables": [
+        {
+          "file": "reference/original-picker/worker.js",
+          "line": 5264,
+          "referenceCount": 1
+        }
+      ],
+      "All Droptables Nest": [
+        {
+          "file": "reference/original-picker/worker.js",
+          "line": 5433,
+          "referenceCount": 1
+        }
+      ],
+      "All Shops": [
+        {
+          "file": "reference/original-picker/worker.js",
+          "line": 5454,
+          "referenceCount": 1
+        }
+      ],
+      "Consumable Primary BiS": [
+        {
+          "file": "reference/original-picker/worker.js",
+          "line": 5747,
+          "referenceCount": 5
+        }
+      ],
+      "Puro-Puro": [
+        {
+          "file": "reference/original-picker/worker.js",
+          "line": 10333,
+          "referenceCount": 2
+        }
+      ],
+      "KeyItem Bosses": [
+        {
+          "file": "reference/original-picker/worker.js",
+          "line": 10552,
+          "referenceCount": 2
+        }
+      ]
+    },
+    "app/data/settings.mjs#taskRuleCategoryCounts": {
+      "Shortcut": 100,
+      "Token": 196,
+      "Gnomeball": 2,
+      "Minigame": 115,
+      "XP Lamps": 14,
+      "Secondary Primary": 12,
+      "Multiple Agility": 90,
+      "PortSkills": 12,
+      "Skillcape": 59,
+      "Master skillcape": 30,
+      "Daemonheim training": 24,
+      "Daemonheim tasks": 53,
+      "Abilities": 6,
+      "InsidePOH Primary": 483,
+      "DnD": 92,
+      "Timegated": 96,
+      "Construction Milestone": 37,
+      "Mutli Step Processing": 3,
+      "Spells": 314,
+      "Multi Step Processing": 14,
+      "Highest Level": 13,
+      "Group Content": 63,
+      "Pets": 195,
+      "Raking": 1,
+      "Normal Farming": 343,
+      "Vinesweeper": 1,
+      "Sorceress's Garden": 1,
+      "Uncharted": 12,
+      "Cleaning Herbs Primary": 28,
+      "Ogleroot": 1,
+      "Wandering implings": 17,
+      "Extra implings": 26,
+      "Material Blueprints": 38,
+      "Shooting Stars": 11,
+      "Combat and Teleport Spells": 121,
+      "PVP": 3,
+      "Titles": 269,
+      "Menaphos Events": 3,
+      "Prayers": 1,
+      "Slayer Contracts": 3,
+      "Slayer Equipment": 18,
+      "Show Diary Tasks": 695,
+      "Combat Mastery achievements": 761,
+      "Speed Killer Achievements": 153,
+      "Hard Mode Bosses": 26,
+      "Combat Master+": 149,
+      "MQC achievements": 308,
+      "Comp achievements": 188,
+      "Ports Scrolls": 30,
+      "Trim achievements": 82,
+      "Breeding Log": 118,
+      "Farming Primary": 2,
+      "Misc achievements": 698,
+      "Level Up Achievements": 56,
+      "No RuneScore": 36,
+      "Speedrunning": 68,
+      "Misc Combat achievements": 168,
+      "Fill Stash": 58,
+      "Arc Log": 32,
+      "Menaphos Log": 47,
+      "Unlock Abilities": 58,
+      "Sigil Abilities": 9,
+      "Unlock Prayers": 12,
+      "Collection Log": 933,
+      "Skilling Collection Log": 59,
+      "Slayer Collection Log": 257,
+      "Cosmetics": 254,
+      "Boss Collection Log": 502,
+      "Skilling Pets": 29,
+      "Untracked Uniques": 952,
+      "Untracked Uniques Skilling": 208,
+      "Hero Items": 4,
+      "Untracked Uniques Combat": 257,
+      "Untracked Uniques Minigames": 359,
+      "Ceremonial Swords": 50,
+      "Untracked Uniques Minigame": 3,
+      "Untracked Uniques Misc": 55,
+      "Untracked Uniques Daemonheim": 70,
+      "Slayer Souls": 173,
+      "Permanent Unlockables": 335,
+      "Money Unlockables": 5,
+      "BIS Skilling": 395,
+      "BIS Skilling Consumables": 18,
+      "Brawling Gloves": 10,
+      "BIS Skilling Relics": 13,
+      "Archaeology Collections": 78,
+      "Universal Tertiary": 1,
+      "PvP": 3,
+      "DnD Flash Events": 3,
+      "Crystal chests": 5,
+      "Secondary Bird Nests": 8
+    },
+    "app/data/settings.mjs#explicitRuleBehavior": {
+      "House storage tasks": "Adds optional house storage and display goals when the required items, housing quest and furniture are within reach. Off by default. Bookcases retrieve books automatically and have no fill tasks.",
+      "Rare Drop": "When off, applies the rare-drop cutoff to item sources. When on, includes all drop rates.",
+      "Rare Drop Amount": "Supplies the shared rare-drop cutoff as 1/X, or an explicit probability; zero includes everything.",
+      "Rare Drop Inclusive": "Controls equality at the rare-drop cutoff in access, collection and task outputs; defaults off.",
+      "Boss": "Allows drops from monsters in the picker’s boss list to count as obtainable items. Killing bosses, combat training, Kill X Boss goals and boss collection logs still follow their own rules.",
+      "Minigame": "Controls whether listed minigame shops and tasks count as available.",
+      "RDT": "Controls whether listed rare, gem and Wilderness drop tables count as item sources.",
+      "Primary Spawns": "Controls whether item spawns can create required training tasks and count as supplies for consumable equipment.",
+      "Farming Primary": "Controls whether Farming products can create required training tasks.",
+      "Secondary Primary": "Allows methods listed as secondary to create required training tasks.",
+      "Normal Farming": "Controls whether listed Farming methods create required training tasks.",
+      "Shortcut": "Controls whether listed shortcuts create required Agility training tasks.",
+      "InsidePOH Primary": "Controls whether listed house workbench methods create required Construction training tasks.",
+      "InsidePOH": "Controls whether house workbench tasks above level 1 count as available, including their products. InsidePOH Primary separately controls whether these methods create required Construction training tasks.",
+      "Token": "Controls whether listed token XP methods create required training tasks.",
+      "Cleaning Herbs Primary": "Controls whether cleaning herbs creates required Herblore training tasks.",
+      "Secondary Primary Amount": "Supplies the shared primary-training cutoff as 1/X, or an explicit probability; zero includes every known rate.",
+      "Secondary Primary Inclusive": "Counts sources exactly at the required-training cutoff in tasks, Activity Info and equipment comparisons. On by default.",
+      "Wield Crafted Items": "Controls whether crafted items can be used for training and equipment comparisons.",
+      "Smithing by Smelting": "Allows Smithing processing without an accessible anvil.",
+      "Puro-Puro": "Blocks automatic access to the declared Puro-Puro area.",
+      "Show Skill Tasks": "Shows or hides active skill tasks.",
+      "Show Quest Tasks": "Shows or hides active quest tasks.",
+      "Show Quest Tasks Complete": "Shows whole-quest completion tasks instead of individual quest steps.",
+      "Achievement": "Shows or hides active achievement tasks. Hidden achievements can still unlock rewards and count towards other requirements.",
+      "Show Diary Tasks": "Enable area achievements and their rewards. Other achievement families keep their own rules; Achievement controls active display.",
+      "Show Diary Tasks Complete": "Show whole-tier achievement completion duties instead of individual duties.",
+      "Show Diary Tasks Any": "Allow individual area achievement duties before earlier tiers are completable. Their own requirements still apply, and a completable tier still groups its duties.",
+      "Highest Level": "Uses the highest available processing method for each consumable ingredient and skill when deciding which products you can make. Some original links between highest-level tasks are still unsupported.",
+      "Hide Partial Products": "Hides listed skill tasks for unfinished products.",
+      "Shortcut Task": "Hides listed shortcut skill tasks.",
+      "Cleaning Herbs": "Hides skill tasks for cleaning herbs and making unfinished potions.",
+      "Show Best in Slot Tasks": "Shows combat equipment goals.",
+      "Show Best in Slot Prayer Tasks": "Includes prayer equipment comparisons.",
+      "Show Best in Slot Melee Style Tasks": "Splits melee weapon comparisons into Stab, Slash and Crush.",
+      "Show Best in Slot 1H and 2H": "Keeps both one-handed and two-handed weapon loadout winners.",
+      "Show Best in Slot Shield": "Keeps a shield loadout winner alongside off-hand weapon winners.",
+      "Show Best in Slot Defensive Tasks": "Ranks ordinary armour by armour then life points and compatible hand loadouts by total armour plus life points; ties and style flags remain explicit.",
+      "Consumable Primary BiS": "Requires consumable equipment to have a source that also qualifies for required training tasks.",
+      "Non-permanent BiS": "Includes temporary equipment and equipment that expires or degrades to dust in equipment comparisons by default. Disable to compare permanent replacements before choosing Best in Slot goals, loadouts, alternatives and upgrade paths. Repairable or rechargeable gear and ammunition remain included.",
+      "Kill X": "Adds kill-count goals for reachable monsters, following your backlog, Skiller, boss and Slayer level rules, including known boosts. You still need to tick off completion.",
+      "Kill X Boss": "Includes listed bosses in Kill X goals when you can reach them and meet their requirements.",
+      "Kill X Amount": "Sets the displayed positive safe-integer kill count while preserving stable X goal IDs.",
+      "Every Drop": "Adds item collection goals from available monsters and other listed sources. You can choose another source for the same item; related tasks share completion where recorded. Drop-rate and access rules still apply.",
+      "Every Drop Implings": "Includes available listed impling catches in Every Drop goals.",
+      "Every Drop Thieving": "Includes available listed Thieving methods in Every Drop goals, except drops marked hidden in the game data.",
+      "Every Drop BGH": "Includes available listed Big Game Hunter methods in Every Drop goals.",
+      "All Droptables": "Adds goals for each item and quantity in available monster and task drop tables. Quantity ranges are preserved. Missing tables or tables that refer back to themselves are excluded.",
+      "All Droptables Nest": "Adds quantity goals for obtainable nests with a listed loot table and nest-loot task. The original game data has no matching nest-loot task.",
+      "All Shops": "Adds buy-each-item goals for items sold by specific reachable shops or listed shop tasks. Ticking a collection goal does not record that you still own the item."
+    },
+    "app/data/settings.mjs#partialRuleBehavior": {
+      "Boosting": "Uses obtainable fixed-level and percentage boosts, banned sources and the Crystal saw. XP-based boost formulas are unsupported. Availability uses reachable levels; displayed requirements adjust for the target level, so they can differ.",
+      "BIS Skilling": "Shows listed best skilling equipment goals, comparing recorded equipment sets and priorities alongside separate convenience upgrades. Hidden goals can still count towards other requirements; some behavior differs from the original picker.",
+      "Skiller": "Excludes monster drops and tasks marked unsuitable for skillers. The full original Skiller restrictions are not yet supported.",
+      "BIS Skilling Relics": "Controls listed relic tasks and shows their recorded requirements. Some interactions with BIS Skilling are still incomplete. The picker does not choose the best relic combination or relic-power allocation.",
+      "PvM Relics": "Shows listed combat relic requirements when present. The original game data has no matching combat relic tasks. The picker does not choose the best relic combination or relic-power allocation.",
+      "Show Best in Slot Weight Tasks": "Ranks verified worn weight by ordinary slot; missing or ambiguous weights remain outside the comparison. Coupled weight loadouts are not ranked.",
+      "F2P": "Legacy flag is overridden by the shared content.f2p rule; this task-rule key cannot independently change F2P."
+    },
+    "app/data/settings.mjs#missingGeneratedBehavior": {
+      "Wield Crafted Items Override": "Saved for compatibility with the original picker; its effect is not yet supported here.",
+      "Secondary MTA": "Saved for compatibility with the original picker; its Mage Training Arena rule for secondary rune sources is not yet supported here."
+    },
+    "app/data/settings.mjs#retainedRuleBehavior": {
+      "Cleaning herbs": "This older spelling is saved for compatibility and has no effect. Use Cleaning Herbs to show or hide cleaning tasks and Cleaning Herbs Primary to control required training."
+    },
+    "app/core/death-settings.mjs#deathSettingDefinitions:presentation": [
+      {
+        "id": "deathThresholdHours",
+        "label": "Death-chunk threshold (active person-hours)",
+        "description": "Flag a roll candidate when its slowest new task would take longer than this many hours of play. Skulls are advice only; they never block a roll."
+      },
+      {
+        "id": "defaultSecondsPerKill",
+        "label": "Default effective seconds per kill (placeholder)",
+        "description": "A starting guess until you time yourself. Count everything: fighting, respawns, travel and banking."
+      },
+      {
+        "id": "monsterSecondsPerKill",
+        "label": "Per-monster effective seconds per kill",
+        "description": "Set your own pace for specific monsters. Use the name exactly as it appears in a task’s sources."
+      },
+      {
+        "id": "showDeathChunks",
+        "label": "Show death-chunk skulls",
+        "description": "Mark death chunks among your roll candidates on the map. Chunk details still show the estimate."
+      }
+    ],
+    "app/core/banking-settings.mjs#bankingSettingDefinitions:presentation": [
+      {
+        "id": "gatheringMode",
+        "label": "Finish each backpack",
+        "description": "Drop gathered resources or bank them to keep them."
+      },
+      {
+        "id": "gatheringOreBox",
+        "label": "Ore box owned",
+        "description": "Choose the ore box you carry. None assumes no ore box."
+      },
+      {
+        "id": "gatheringWoodBox",
+        "label": "Wood box owned",
+        "description": "Choose the wood box you carry. None assumes no wood box. Multiple wood boxes share storage."
+      }
+    ],
+    "app/core/mining-settings.mjs#miningSettingDefinitions:presentation": [
+      {
+        "id": "miningPickaxe",
+        "label": "Mining pickaxe",
+        "description": "Use the best F2P pickaxe for your Mining level, or choose the pickaxe you use."
+      },
+      {
+        "id": "miningAttention",
+        "label": "Mining attention",
+        "description": "Choose how often you click while mining. Rates are at the rock, with no banking."
+      }
+    ],
+    "app/core/woodcutting-settings.mjs#woodcuttingSettingDefinitions:presentation": [
+      {
+        "id": "woodcuttingHatchet",
+        "label": "Woodcutting hatchet",
+        "description": "Use the best F2P hatchet for your Woodcutting level, or choose the hatchet you use."
+      }
+    ],
+    "app/core/rules.mjs#rulePresentation": [
+      {
+        "id": "tasks.cache-skill-guide",
+        "label": "Cache skill-guide tasks",
+        "description": "Add reviewed skill-guide actions from the game files when their locations and requirements are verified. Level-only milestones need the separate optional milestone rule."
+      },
+      {
+        "id": "tasks.skill-guide-milestones",
+        "label": "Optional skill-guide milestones",
+        "description": "With Cache skill-guide tasks enabled, also make informational thresholds such as standard no-burn cooking levels optional goals. These thresholds produce no item and remain in the guide catalogue when disabled."
+      },
+      {
+        "id": "tasks.cache-combat-corrections",
+        "label": "Reviewed skill-guide and combat corrections",
+        "description": "Apply reviewed task membership and numeric level corrections supported by cache and Wiki evidence."
+      },
+      {
+        "id": "access.shared",
+        "label": "Connected partner capabilities",
+        "description": "Use training and resources in your partner’s territory when you can get there and back. Required tasks and places you roll from still come from your own reachable map."
+      },
+      {
+        "id": "travel.automatic",
+        "label": "Automatic teleport and transport availability",
+        "description": "Check your travel options using synced levels and quests, obtainable supplies and lodestones. Without synced levels, the highest level you can train to is an estimate. Destinations stay locked until you unlock them."
+      },
+      {
+        "id": "access.transport",
+        "label": "Admit verified transport routes",
+        "description": "Use verified boats, teleports and other transport to reach areas and add roll candidates. You must meet the personal levels, quests, item and fare requirements. Partner resources require a route back. Travel does not change chunk ownership or walking connections."
+      },
+      {
+        "id": "roll.selected",
+        "label": "Chunks added to the roll pool by hand can be rolled",
+        "description": "Include your hand-added chunks when rolling. Other roll rules still apply."
+      },
+      {
+        "id": "roll.adjacent",
+        "label": "Adjacent chunks",
+        "description": "Include neighbouring chunks you can enter from your own reachable unlocked terrain. Frontier mode includes neighbours on the grid even without a verified walking connection."
+      },
+      {
+        "id": "roll.neighborMode",
+        "label": "Neighbor candidate mode",
+        "description": "Accessible includes neighbours with a recorded walking connection from reachable unlocked terrain and is the default. Manual uses only chunks added to the roll pool by hand. Frontier includes grid neighbours even without a walking connection. Free-to-play rules still apply."
+      },
+      {
+        "id": "roll.clearSelected",
+        "label": "Empty the hand-added roll pool after each roll",
+        "description": "After you unlock a rolled chunk, remove the remaining hand-added chunks from the roll pool. Cancelling a roll keeps them."
+      },
+      {
+        "id": "roll.walkable",
+        "label": "Walkable generated candidates",
+        "description": "In Frontier mode, only add neighbouring chunks marked walkable. Accessible mode checks recorded walking connections instead. Chunks added to the roll pool by hand bypass this filter."
+      },
+      {
+        "id": "roll.teleports",
+        "label": "Usable teleport destinations",
+        "description": "An available teleport adds a destination to the roll pool without unlocking it."
+      },
+      {
+        "id": "roll.teleportScope",
+        "label": "Teleport availability scope",
+        "description": "Personal uses only the rolling member’s usable teleports; group is an optional house rule."
+      },
+      {
+        "id": "roll.consumableTeleports",
+        "label": "Allow consumable teleports",
+        "description": "Include usable teleports that consume runes, tablets or charges."
+      },
+      {
+        "id": "content.f2p",
+        "label": "Free-to-play generated candidates",
+        "description": "Only add free-to-play terrain to the roll pool. Chunks with both free and members areas need a free entry area. Chunks added to the roll pool by hand bypass this filter."
+      },
+      {
+        "id": "tasks.completion",
+        "label": "Task completion scope",
+        "description": "Any member, every member, or the current member may satisfy a task; personal records remain separate."
+      }
+    ],
+    "app/data/settings.mjs#authoredTaskRules:presentation": {
+      "Achievement": {
+        "description": "Show Achievement Tasks from enabled achievement groups. Hidden achievements can still unlock rewards and count towards other requirements."
+      },
+      "Show Diary Tasks": {
+        "description": "Enable Area Tasks achievements. Other achievement families keep their own rules; Achievement controls their active display."
+      },
+      "Show Diary Tasks Any": {
+        "description": "Allow individual Area Tasks achievements without a completable prerequisite tier. Their own location, item, skill, membership and family requirements still apply."
+      },
+      "Non-permanent BiS": {
+        "description": "Include equipment that degrades to dust, runs out or is temporary in Best in Slot tasks. Repairable or rechargeable equipment and ammunition remain included when disabled."
+      },
+      "House storage tasks": {
+        "description": "Add optional house storage and display goals when you can obtain every required item, complete the housing quest and build the furniture. Deposit furniture requires membership; bookcases retrieve books automatically and have no fill tasks."
+      },
+      "Rare Drop": {
+        "description": "When enabled, include all drop rates. When disabled, apply Rare Drop Amount and Rare Drop Inclusive; unknown rates remain admitted."
+      },
+      "Rare Drop Amount": {
+        "description": "Use drops more common than 1/X. X is a positive denominator, including decimals (0.5 means 1/0.5); 0 includes everything. An explicit a/b is a probability. A drop exactly at the cutoff counts only when Rare Drop Inclusive is checked."
+      },
+      "Rare Drop Inclusive": {
+        "description": "Include drops with a rate exactly equal to Rare Drop Amount. Off by default, matching the original picker."
+      },
+      "Secondary Primary": {
+        "description": "Allow methods listed as Secondary Primary to create required training tasks when you can obtain the supplies and meet the method’s requirements."
+      },
+      "Secondary Primary Amount": {
+        "description": "A known source rate more common than 1/X can count as primary training. X is a positive denominator, including decimals (0.5 means 1/0.5); 0 includes every known rate. An explicit a/b is a probability. A rate exactly at the cutoff qualifies when Secondary Primary Inclusive is checked (on by default)."
+      },
+      "Secondary Primary Inclusive": {
+        "description": "Count a known source exactly at the primary-training cutoff as primary. On by default for the duo’s nothing-below-the-cutoff house rule; unknown rates never qualify."
+      },
+      "Boss": {
+        "description": "Boss drops from the picker’s boss list count as item sources; turning it off removes those drops as sources but does not stop killing or training on bosses, Kill X Boss goals or boss collection-log tasks."
+      }
+    }
+  }
+}

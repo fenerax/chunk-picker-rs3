@@ -1,0 +1,4 @@
+var/
+.local/
+node_modules/
+*.log

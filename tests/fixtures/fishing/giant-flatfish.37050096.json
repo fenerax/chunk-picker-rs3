@@ -1,0 +1,11 @@
+{
+  "sourceUrl": "https://runescape.wiki/w/Raw%20giant%20flatfish?oldid=37050096",
+  "oldid": 37050096,
+  "retrieved": "2026-10-12",
+  "timestamp": "2026-05-21T01:50:18Z",
+  "title": "Raw giant flatfish",
+  "scope": "Complete source snapshot from MediaWiki revisions API",
+  "licence": "RuneScape Wiki contributors, CC BY-NC-SA 3.0; source exceptions apply.",
+  "source": "{{RCFood}}\n{{Infobox Item\n|name = Raw giant flatfish\n|image = [[File:Raw giant flatfish.png]]\n|release = [[12 April]] [[2010]]\n|update = Dungeoneering Skill!\n|members = No\n|quest = No\n|tradeable = Yes\n|equipable = No\n|stackable = Yes\n|disassembly = Restricted\n|options = Drop-X\n|value = 1000\n|destroy = Drop\n|kept = reclaimable\n|exchange = No\n|examine = I should try cooking this. (Tier 4)\n|weight = 0\n|id = 17803\n}}\n[[File:Raw giant flatfish detail.png|100px|left]]\nA '''raw giant flatfish''' is a type of fish that can be caught while [[Dungeoneering]] with level 30 [[Fishing]], giving 63 experience. Raw giant flatfish can be cooked with a [[Cooking]] level of 30 or higher. Cooking raw giant flatfish gives 82 experience and yields a [[giant flatfish]]. Players may accidentally [[burn]] giant flatfish while cooking, yielding a [[burnt giant flatfish]], though the chance to burn a giant flatfish is less likely when cooked on higher tier logs or at a [[range]]. Burning a giant flatfish grants no experience. Raw giant flatfish can be bought from the smuggler for 1400 [[coins]] per fish. \n\n==Fishing==\n{{Fishing info\n|name = Raw giant flatfish\n|level = 30\n|xp = 63\n|spot = [[Giant flatfish (fishing spot)|Giant flatfish]]\n|tool = {{plink|Fly fishing rod (Dungeoneering)}}\n|bait = {{plink|Feather (Dungeoneering)}}\n}}\n\n==Products==\n{{Uses material list}}\n\n==Item sources==\n{{Drop sources}}\n\n===Shop locations===\n{{Shop locations list}}\n\n==Update history==\n{{UH|\n* {{UL|type=update|update=Dungeoneering Skill!|date=12 April 2010}}\n** Added to game.\n}}\n\n==Trivia==\n* Just like real-life {{wp|flatfish}}, the giant flatfish are asymmetrical by having both eyes on the same side of their body.\n\n{{Dungeoneering fish}}",
+  "sourceSha256": "0948ee6e1f8d7b22d44419e10ab05b66e976d984a0d9d7d6f61a07c06ed9dfcc"
+}

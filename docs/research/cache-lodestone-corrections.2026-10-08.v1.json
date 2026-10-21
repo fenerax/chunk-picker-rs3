@@ -1,0 +1,3511 @@
+{
+  "schemaVersion": 1,
+  "verifiedOn": "2026-10-08",
+  "generatedAt": "2026-10-08T03:35:43.704Z",
+  "purpose": "Current Wiki verification of every retained surface lodestone and City of Um; one bounded Anachronia base-region correction.",
+  "provenance": {
+    "datasetDirectory": "C:/Users/User/Projects/chunk-picker-rs3/.local/game-data/places-2026-10-08-v3",
+    "manifestSha256": "7490129db3061c2357e4785c7f30940efcb2110964d9061f36d8094aaa1e0d25",
+    "travelSha256": "0c4f90a342dd707bb805c16fab1517a4e39338b350d64606111eda3cbea88458",
+    "decoderCommit": "a92b8920b9b9842adde78822646ecad1a6f4fc15",
+    "inferredSchemaBuild": 950,
+    "sourceDatabases": [
+      {
+        "major": 2,
+        "file": "js5-2.jcache",
+        "bytes": 2195456,
+        "sha256": "a549a8c19598964dd3e5479ff6bb40056df6456c9e89a7c23a887eb24cabcb75",
+        "indexTimestamp": 1790931935,
+        "declaredArchives": 39,
+        "presentArchives": 39
+      },
+      {
+        "major": 22,
+        "file": "js5-22.jcache",
+        "bytes": 2392064,
+        "sha256": "47a7b0cae70f7264f5fcf8415ddecfedcc92a0e07fe3aedf9fd53d15b9fffb03",
+        "indexTimestamp": 1790775928,
+        "declaredArchives": 1672,
+        "presentArchives": 1672
+      },
+      {
+        "major": 17,
+        "file": "js5-17.jcache",
+        "bytes": 909312,
+        "sha256": "bf02a85420cedea2d8b61bf607930ab894df60440cbebcc7431730ea8da52404",
+        "indexTimestamp": 1790775927,
+        "declaredArchives": 69,
+        "presentArchives": 69
+      },
+      {
+        "major": 23,
+        "file": "js5-23.jcache",
+        "bytes": 7774208,
+        "sha256": "fdafdd4bc670081f1f872eb51827ecfa11c6946d5dc6c22a67805ec104df51e3",
+        "indexTimestamp": 1790278391,
+        "declaredArchives": 5,
+        "presentArchives": 5
+      },
+      {
+        "major": 42,
+        "file": "js5-42.jcache",
+        "bytes": 40960,
+        "sha256": "52c8cd3138106387b346b165a33547463c8363771e00485db1e030e95c6523cc",
+        "indexTimestamp": 1790927052,
+        "declaredArchives": 142,
+        "presentArchives": 142
+      }
+    ],
+    "reference": {
+      "path": "C:/Users/User/Projects/chunk-picker-rs3-wt/cachemine/rs3-chunkpicker-chunkinfo-export.json",
+      "sha256": "9dd835266f381abaa4d14033abcd0b43a001fe96d7df0a7f046fcc8676d66553"
+    },
+    "currentWikiApi": {
+      "retrievedAt": "2026-10-08T03:35:43.704Z",
+      "apiUrl": "https://runescape.wiki/api.php?action=query&format=json&formatversion=2&redirects=1&prop=revisions&rvprop=ids%7Ctimestamp%7Ccontent&rvslots=main&titles=Lumbridge+lodestone%7CBurthorpe+lodestone%7CTaverley+lodestone%7CAl+Kharid+lodestone%7CVarrock+lodestone%7CEdgeville+lodestone%7CFalador+lodestone%7CPort+Sarim+lodestone%7CDraynor+lodestone%7CWilderness+lodestone%7CAshdale+lodestone%7CWendlewick+lodestone%7CLunar+Isle+lodestone%7CBandit+Camp+lodestone%7CFort+Forinthry+lodestone%7CArdougne+lodestone%7CCatherby+lodestone%7CYanille+lodestone%7CSeers%27+Village+lodestone%7CEagles%27+Peak+lodestone%7CTirannwn+lodestone%7COo%27glog+lodestone%7CKaramja+lodestone%7CCanifis+lodestone%7CFremennik+Province+lodestone%7CPrifddinas+lodestone%7CMenaphos+lodestone%7CAnachronia+lodestone%7CCity+of+Um+lodestone",
+      "method": "query revisions: latest ids, timestamp, main-slot wikitext; redirects enabled; no oldid in request"
+    },
+    "discovery": {
+      "tool": "Tavily",
+      "query": "site:runescape.wiki Anachronia lodestone Ashdale Prifddinas lodestone coordinates",
+      "date": "2026-10-08",
+      "role": "Discovery only; all recorded coordinates and membership come from current Wiki API revisions."
+    }
+  },
+  "summary": {
+    "retainedSurfaceLodestones": 28,
+    "additionalUndergroundLodestones": 1,
+    "currentWikiPages": 29,
+    "currentWikiCoordinates": 29,
+    "surfaceWikiBaseMatchesBefore": 27,
+    "surfaceWikiBaseMatchesAfter": 28,
+    "cacheStructs": 58,
+    "surfaceCacheProjectionVerified": 26,
+    "correctedRuntimeLocations": 1,
+    "unresolvedSurfaceEncodedPlanes": 2,
+    "undergroundMembershipConflicts": 1,
+    "f2pSurfaceDestinations": 12
+  },
+  "limits": [
+    "Schema build 950 is inferred compatibility, not verified live client build.",
+    "Region verification uses current Wiki scenery anchors; it does not certify exact teleport tile, authored suffix, collision component or personal activation.",
+    "No walking edge, underground entrance, account flag, quest completion or teleport permission is inferred from coordinates.",
+    "Lunar Isle and Fort Forinthry cache destinations differ from the scenery anchor by (4,-2) and (0,-2); their base regions agree.",
+    "Al Kharid ordinary active/inactive variants are F2P; the Ode of the Devourer scenery-only variant is members."
+  ],
+  "lodestones": [
+    {
+      "name": "Lumbridge",
+      "retainedLocation": "12850-1",
+      "runtimeLocation": "12850-1",
+      "wiki": {
+        "title": "Lumbridge lodestone",
+        "revision": 37110013,
+        "revisionTimestamp": "2026-07-20T22:36:47Z",
+        "permalink": "https://runescape.wiki/w/Special:PermanentLink/37110013",
+        "mapWikitext": "{{Object map|objectname=Lumbridge lodestone|x=3232|y=3221}}",
+        "coordinate": {
+          "x": 3232,
+          "y": 3221,
+          "plane": null,
+          "planeStatus": "not specified",
+          "region": "12850"
+        },
+        "f2p": true,
+        "membershipVariants": [
+          {
+            "version": "all",
+            "members": false
+          }
+        ]
+      },
+      "cache": [
+        {
+          "structId": 24278,
+          "membersCandidate": 0,
+          "coordinates": [
+            {
+              "param": 2941,
+              "packed": 52972694,
+              "x": 3233,
+              "y": 3222,
+              "plane": 0,
+              "surface": [
+                {
+                  "x": 3233,
+                  "y": 3222,
+                  "plane": 0,
+                  "mapId": 28,
+                  "region": "12850",
+                  "transform": {
+                    "x": 0,
+                    "y": 0,
+                    "plane": 0
+                  }
+                }
+              ],
+              "mapProjections": [
+                {
+                  "mapId": 28,
+                  "mapName": "RuneScape Surface",
+                  "x": 3233,
+                  "y": 3222,
+                  "plane": 0,
+                  "region": "12850",
+                  "paste": {
+                    "kind": "squares",
+                    "index": 737
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "structId": 37970,
+          "membersCandidate": 0,
+          "coordinates": [
+            {
+              "param": 2941,
+              "packed": 52972694,
+              "x": 3233,
+              "y": 3222,
+              "plane": 0,
+              "surface": [
+                {
+                  "x": 3233,
+                  "y": 3222,
+                  "plane": 0,
+                  "mapId": 28,
+                  "region": "12850",
+                  "transform": {
+                    "x": 0,
+                    "y": 0,
+                    "plane": 0
+                  }
+                }
+              ],
+              "mapProjections": [
+                {
+                  "mapId": 28,
+                  "mapName": "RuneScape Surface",
+                  "x": 3233,
+                  "y": 3222,
+                  "plane": 0,
+                  "region": "12850",
+                  "paste": {
+                    "kind": "squares",
+                    "index": 737
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "status": "coordinate-verified",
+      "validation": {
+        "regionFormula": "(x >> 6) * 256 + (y >> 6)",
+        "wikiRuntimeBaseMatch": true,
+        "surfaceProjectionStatus": "available",
+        "membershipCandidates": [
+          0
+        ],
+        "cacheWikiSurfaceRegionMatch": true
+      },
+      "landingPolicy": "Wiki scenery and cache landing are distinct anchors in the same base region. Existing authored section selector is retained; no new section/component correspondence or personal activation is established."
+    },
+    {
+      "name": "Burthorpe",
+      "retainedLocation": "11575-1",
+      "runtimeLocation": "11575-1",
+      "wiki": {
+        "title": "Burthorpe lodestone",
+        "revision": 36689035,
+        "revisionTimestamp": "2025-03-30T08:20:58Z",
+        "permalink": "https://runescape.wiki/w/Special:PermanentLink/36689035",
+        "mapWikitext": "{{Object map|objectname=Burthorpe lodestone|x=2898|y=3544}}",
+        "coordinate": {
+          "x": 2898,
+          "y": 3544,
+          "plane": null,
+          "planeStatus": "not specified",
+          "region": "11575"
+        },
+        "f2p": true,
+        "membershipVariants": [
+          {
+            "version": "all",
+            "members": false
+          }
+        ]
+      },
+      "cache": [
+        {
+          "structId": 4374,
+          "membersCandidate": 0,
+          "coordinates": [
+            {
+              "param": 2941,
+              "packed": 47500761,
+              "x": 2899,
+              "y": 3545,
+              "plane": 0,
+              "surface": [
+                {
+                  "x": 2899,
+                  "y": 3545,
+                  "plane": 0,
+                  "mapId": 28,
+                  "region": "11575",
+                  "transform": {
+                    "x": 0,
+                    "y": 0,
+                    "plane": 0
+                  }
+                }
+              ],
+              "mapProjections": [
+                {
+                  "mapId": 28,
+                  "mapName": "RuneScape Surface",
+                  "x": 2899,
+                  "y": 3545,
+                  "plane": 0,
+                  "region": "11575",
+                  "paste": {
+                    "kind": "squares",
+                    "index": 622
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "structId": 37771,
+          "membersCandidate": 0,
+          "coordinates": [
+            {
+              "param": 2941,
+              "packed": 47500761,
+              "x": 2899,
+              "y": 3545,
+              "plane": 0,
+              "surface": [
+                {
+                  "x": 2899,
+                  "y": 3545,
+                  "plane": 0,
+                  "mapId": 28,
+                  "region": "11575",
+                  "transform": {
+                    "x": 0,
+                    "y": 0,
+                    "plane": 0
+                  }
+                }
+              ],
+              "mapProjections": [
+                {
+                  "mapId": 28,
+                  "mapName": "RuneScape Surface",
+                  "x": 2899,
+                  "y": 3545,
+                  "plane": 0,
+                  "region": "11575",
+                  "paste": {
+                    "kind": "squares",
+                    "index": 622
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "status": "coordinate-verified",
+      "validation": {
+        "regionFormula": "(x >> 6) * 256 + (y >> 6)",
+        "wikiRuntimeBaseMatch": true,
+        "surfaceProjectionStatus": "available",
+        "membershipCandidates": [
+          0
+        ],
+        "cacheWikiSurfaceRegionMatch": true
+      },
+      "landingPolicy": "Wiki scenery and cache landing are distinct anchors in the same base region. Existing authored section selector is retained; no new section/component correspondence or personal activation is established."
+    },
+    {
+      "name": "Taverley",
+      "retainedLocation": "11317-2",
+      "runtimeLocation": "11317-2",
+      "wiki": {
+        "title": "Taverley lodestone",
+        "revision": 36689058,
+        "revisionTimestamp": "2025-03-30T08:27:35Z",
+        "permalink": "https://runescape.wiki/w/Special:PermanentLink/36689058",
+        "mapWikitext": "{{Object map|objectname=Taverley lodestone|x=2877|y=3442}}",
+        "coordinate": {
+          "x": 2877,
+          "y": 3442,
+          "plane": null,
+          "planeStatus": "not specified",
+          "region": "11317"
+        },
+        "f2p": true,
+        "membershipVariants": [
+          {
+            "version": "all",
+            "members": false
+          }
+        ]
+      },
+      "cache": [
+        {
+          "structId": 24300,
+          "membersCandidate": 0,
+          "coordinates": [
+            {
+              "param": 2941,
+              "packed": 47156595,
+              "x": 2878,
+              "y": 3443,
+              "plane": 0,
+              "surface": [
+                {
+                  "x": 2878,
+                  "y": 3443,
+                  "plane": 0,
+                  "mapId": 28,
+                  "region": "11317",
+                  "transform": {
+                    "x": 0,
+                    "y": 0,
+                    "plane": 0
+                  }
+                }
+              ],
+              "mapProjections": [
+                {
+                  "mapId": 28,
+                  "mapName": "RuneScape Surface",
+                  "x": 2878,
+                  "y": 3443,
+                  "plane": 0,
+                  "region": "11317",
+                  "paste": {
+                    "kind": "squares",
+                    "index": 596
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "structId": 37973,
+          "membersCandidate": 0,
+          "coordinates": [
+            {
+              "param": 2941,
+              "packed": 47156595,
+              "x": 2878,
+              "y": 3443,
+              "plane": 0,
+              "surface": [
+                {
+                  "x": 2878,
+                  "y": 3443,
+                  "plane": 0,
+                  "mapId": 28,
+                  "region": "11317",
+                  "transform": {
+                    "x": 0,
+                    "y": 0,
+                    "plane": 0
+                  }
+                }
+              ],
+              "mapProjections": [
+                {
+                  "mapId": 28,
+                  "mapName": "RuneScape Surface",
+                  "x": 2878,
+                  "y": 3443,
+                  "plane": 0,
+                  "region": "11317",
+                  "paste": {
+                    "kind": "squares",
+                    "index": 596
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "status": "coordinate-verified",
+      "validation": {
+        "regionFormula": "(x >> 6) * 256 + (y >> 6)",
+        "wikiRuntimeBaseMatch": true,
+        "surfaceProjectionStatus": "available",
+        "membershipCandidates": [
+          0
+        ],
+        "cacheWikiSurfaceRegionMatch": true
+      },
+      "landingPolicy": "Wiki scenery and cache landing are distinct anchors in the same base region. Existing authored section selector is retained; no new section/component correspondence or personal activation is established."
+    },
+    {
+      "name": "Al Kharid",
+      "retainedLocation": "13105",
+      "runtimeLocation": "13105",
+      "wiki": {
+        "title": "Al Kharid lodestone",
+        "revision": 36976053,
+        "revisionTimestamp": "2026-03-22T10:41:52Z",
+        "permalink": "https://runescape.wiki/w/Special:PermanentLink/36976053",
+        "mapWikitext": "{{Object map|objectname=Al Kharid lodestone|x=3296|y=3184}}",
+        "coordinate": {
+          "x": 3296,
+          "y": 3184,
+          "plane": null,
+          "planeStatus": "not specified",
+          "region": "13105"
+        },
+        "f2p": true,
+        "membershipVariants": [
+          {
+            "version": "1",
+            "members": false
+          },
+          {
+            "version": "2",
+            "members": false
+          },
+          {
+            "version": "3",
+            "members": true
+          }
+        ]
+      },
+      "cache": [
+        {
+          "structId": 11753,
+          "membersCandidate": 0,
+          "coordinates": [
+            {
+              "param": 2941,
+              "packed": 54021233,
+              "x": 3297,
+              "y": 3185,
+              "plane": 0,
+              "surface": [
+                {
+                  "x": 3297,
+                  "y": 3185,
+                  "plane": 0,
+                  "mapId": 28,
+                  "region": "13105",
+                  "transform": {
+                    "x": 0,
+                    "y": 0,
+                    "plane": 0
+                  }
+                }
+              ],
+              "mapProjections": [
+                {
+                  "mapId": 28,
+                  "mapName": "RuneScape Surface",
+                  "x": 3297,
+                  "y": 3185,
+                  "plane": 0,
+                  "region": "13105",
+                  "paste": {
+                    "kind": "squares",
+                    "index": 760
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "structId": 36548,
+          "membersCandidate": 0,
+          "coordinates": [
+            {
+              "param": 2941,
+              "packed": 54021233,
+              "x": 3297,
+              "y": 3185,
+              "plane": 0,
+              "surface": [
+                {
+                  "x": 3297,
+                  "y": 3185,
+                  "plane": 0,
+                  "mapId": 28,
+                  "region": "13105",
+                  "transform": {
+                    "x": 0,
+                    "y": 0,
+                    "plane": 0
+                  }
+                }
+              ],
+              "mapProjections": [
+                {
+                  "mapId": 28,
+                  "mapName": "RuneScape Surface",
+                  "x": 3297,
+                  "y": 3185,
+                  "plane": 0,
+                  "region": "13105",
+                  "paste": {
+                    "kind": "squares",
+                    "index": 760
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "status": "coordinate-verified",
+      "validation": {
+        "regionFormula": "(x >> 6) * 256 + (y >> 6)",
+        "wikiRuntimeBaseMatch": true,
+        "surfaceProjectionStatus": "available",
+        "membershipCandidates": [
+          0
+        ],
+        "cacheWikiSurfaceRegionMatch": true
+      },
+      "landingPolicy": "Wiki scenery and cache landing are distinct anchors in the same base region. Existing authored section selector is retained; no new section/component correspondence or personal activation is established."
+    },
+    {
+      "name": "Varrock",
+      "retainedLocation": "12852",
+      "runtimeLocation": "12852",
+      "wiki": {
+        "title": "Varrock lodestone",
+        "revision": 37108403,
+        "revisionTimestamp": "2026-07-20T07:18:20Z",
+        "permalink": "https://runescape.wiki/w/Special:PermanentLink/37108403",
+        "mapWikitext": "{{Object map|objectname=Varrock lodestone|x=3213|y=3376}}",
+        "coordinate": {
+          "x": 3213,
+          "y": 3376,
+          "plane": null,
+          "planeStatus": "not specified",
+          "region": "12852"
+        },
+        "f2p": true,
+        "membershipVariants": [
+          {
+            "version": "all",
+            "members": false
+          }
+        ]
+      },
+      "cache": [
+        {
+          "structId": 24302,
+          "membersCandidate": 0,
+          "coordinates": [
+            {
+              "param": 2941,
+              "packed": 52661553,
+              "x": 3214,
+              "y": 3377,
+              "plane": 0,
+              "surface": [
+                {
+                  "x": 3214,
+                  "y": 3377,
+                  "plane": 0,
+                  "mapId": 28,
+                  "region": "12852",
+                  "transform": {
+                    "x": 0,
+                    "y": 0,
+                    "plane": 0
+                  }
+                }
+              ],
+              "mapProjections": [
+                {
+                  "mapId": 28,
+                  "mapName": "RuneScape Surface",
+                  "x": 3214,
+                  "y": 3377,
+                  "plane": 0,
+                  "region": "12852",
+                  "paste": {
+                    "kind": "squares",
+                    "index": 739
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "structId": 37974,
+          "membersCandidate": 0,
+          "coordinates": [
+            {
+              "param": 2941,
+              "packed": 52661553,
+              "x": 3214,
+              "y": 3377,
+              "plane": 0,
+              "surface": [
+                {
+                  "x": 3214,
+                  "y": 3377,
+                  "plane": 0,
+                  "mapId": 28,
+                  "region": "12852",
+                  "transform": {
+                    "x": 0,
+                    "y": 0,
+                    "plane": 0
+                  }
+                }
+              ],
+              "mapProjections": [
+                {
+                  "mapId": 28,
+                  "mapName": "RuneScape Surface",
+                  "x": 3214,
+                  "y": 3377,
+                  "plane": 0,
+                  "region": "12852",
+                  "paste": {
+                    "kind": "squares",
+                    "index": 739
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "status": "coordinate-verified",
+      "validation": {
+        "regionFormula": "(x >> 6) * 256 + (y >> 6)",
+        "wikiRuntimeBaseMatch": true,
+        "surfaceProjectionStatus": "available",
+        "membershipCandidates": [
+          0
+        ],
+        "cacheWikiSurfaceRegionMatch": true
+      },
+      "landingPolicy": "Wiki scenery and cache landing are distinct anchors in the same base region. Existing authored section selector is retained; no new section/component correspondence or personal activation is established."
+    },
+    {
+      "name": "Edgeville",
+      "retainedLocation": "12086",
+      "runtimeLocation": "12086",
+      "wiki": {
+        "title": "Edgeville lodestone",
+        "revision": 37110451,
+        "revisionTimestamp": "2026-07-21T01:17:09Z",
+        "permalink": "https://runescape.wiki/w/Special:PermanentLink/37110451",
+        "mapWikitext": "{{Object map|objectname=Edgeville lodestone|x=3066|y=3505}}",
+        "coordinate": {
+          "x": 3066,
+          "y": 3505,
+          "plane": null,
+          "planeStatus": "not specified",
+          "region": "12086"
+        },
+        "f2p": true,
+        "membershipVariants": [
+          {
+            "version": "all",
+            "members": false
+          }
+        ]
+      },
+      "cache": [
+        {
+          "structId": 24225,
+          "membersCandidate": 0,
+          "coordinates": [
+            {
+              "param": 2941,
+              "packed": 50253234,
+              "x": 3067,
+              "y": 3506,
+              "plane": 0,
+              "surface": [
+                {
+                  "x": 3067,
+                  "y": 3506,
+                  "plane": 0,
+                  "mapId": 28,
+                  "region": "12086",
+                  "transform": {
+                    "x": 0,
+                    "y": 0,
+                    "plane": 0
+                  }
+                }
+              ],
+              "mapProjections": [
+                {
+                  "mapId": 28,
+                  "mapName": "RuneScape Surface",
+                  "x": 3067,
+                  "y": 3506,
+                  "plane": 0,
+                  "region": "12086",
+                  "paste": {
+                    "kind": "squares",
+                    "index": 669
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "structId": 37906,
+          "membersCandidate": 0,
+          "coordinates": [
+            {
+              "param": 2941,
+              "packed": 50253234,
+              "x": 3067,
+              "y": 3506,
+              "plane": 0,
+              "surface": [
+                {
+                  "x": 3067,
+                  "y": 3506,
+                  "plane": 0,
+                  "mapId": 28,
+                  "region": "12086",
+                  "transform": {
+                    "x": 0,
+                    "y": 0,
+                    "plane": 0
+                  }
+                }
+              ],
+              "mapProjections": [
+                {
+                  "mapId": 28,
+                  "mapName": "RuneScape Surface",
+                  "x": 3067,
+                  "y": 3506,
+                  "plane": 0,
+                  "region": "12086",
+                  "paste": {
+                    "kind": "squares",
+                    "index": 669
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "status": "coordinate-verified",
+      "validation": {
+        "regionFormula": "(x >> 6) * 256 + (y >> 6)",
+        "wikiRuntimeBaseMatch": true,
+        "surfaceProjectionStatus": "available",
+        "membershipCandidates": [
+          0
+        ],
+        "cacheWikiSurfaceRegionMatch": true
+      },
+      "landingPolicy": "Wiki scenery and cache landing are distinct anchors in the same base region. Existing authored section selector is retained; no new section/component correspondence or personal activation is established."
+    },
+    {
+      "name": "Falador",
+      "retainedLocation": "11829-1",
+      "runtimeLocation": "11829-1",
+      "wiki": {
+        "title": "Falador lodestone",
+        "revision": 37127183,
+        "revisionTimestamp": "2026-07-28T02:06:38Z",
+        "permalink": "https://runescape.wiki/w/Special:PermanentLink/37127183",
+        "mapWikitext": "{{Object map|objectname=Falador lodestone|x=2966|y=3403}}",
+        "coordinate": {
+          "x": 2966,
+          "y": 3403,
+          "plane": null,
+          "planeStatus": "not specified",
+          "region": "11829"
+        },
+        "f2p": true,
+        "membershipVariants": [
+          {
+            "version": "all",
+            "members": false
+          }
+        ]
+      },
+      "cache": [
+        {
+          "structId": 24274,
+          "membersCandidate": 0,
+          "coordinates": [
+            {
+              "param": 2941,
+              "packed": 48614732,
+              "x": 2967,
+              "y": 3404,
+              "plane": 0,
+              "surface": [
+                {
+                  "x": 2967,
+                  "y": 3404,
+                  "plane": 0,
+                  "mapId": 28,
+                  "region": "11829",
+                  "transform": {
+                    "x": 0,
+                    "y": 0,
+                    "plane": 0
+                  }
+                }
+              ],
+              "mapProjections": [
+                {
+                  "mapId": 28,
+                  "mapName": "RuneScape Surface",
+                  "x": 2967,
+                  "y": 3404,
+                  "plane": 0,
+                  "region": "11829",
+                  "paste": {
+                    "kind": "squares",
+                    "index": 644
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "structId": 37969,
+          "membersCandidate": 0,
+          "coordinates": [
+            {
+              "param": 2941,
+              "packed": 48614732,
+              "x": 2967,
+              "y": 3404,
+              "plane": 0,
+              "surface": [
+                {
+                  "x": 2967,
+                  "y": 3404,
+                  "plane": 0,
+                  "mapId": 28,
+                  "region": "11829",
+                  "transform": {
+                    "x": 0,
+                    "y": 0,
+                    "plane": 0
+                  }
+                }
+              ],
+              "mapProjections": [
+                {
+                  "mapId": 28,
+                  "mapName": "RuneScape Surface",
+                  "x": 2967,
+                  "y": 3404,
+                  "plane": 0,
+                  "region": "11829",
+                  "paste": {
+                    "kind": "squares",
+                    "index": 644
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "status": "coordinate-verified",
+      "validation": {
+        "regionFormula": "(x >> 6) * 256 + (y >> 6)",
+        "wikiRuntimeBaseMatch": true,
+        "surfaceProjectionStatus": "available",
+        "membershipCandidates": [
+          0
+        ],
+        "cacheWikiSurfaceRegionMatch": true
+      },
+      "landingPolicy": "Wiki scenery and cache landing are distinct anchors in the same base region. Existing authored section selector is retained; no new section/component correspondence or personal activation is established."
+    },
+    {
+      "name": "Port Sarim",
+      "retainedLocation": "12082-1",
+      "runtimeLocation": "12082-1",
+      "wiki": {
+        "title": "Port Sarim lodestone",
+        "revision": 37127290,
+        "revisionTimestamp": "2026-07-28T02:37:19Z",
+        "permalink": "https://runescape.wiki/w/Special:PermanentLink/37127290",
+        "mapWikitext": "{{Object map|objectname=Port Sarim lodestone|x=3010|y=3215}}",
+        "coordinate": {
+          "x": 3010,
+          "y": 3215,
+          "plane": null,
+          "planeStatus": "not specified",
+          "region": "12082"
+        },
+        "f2p": true,
+        "membershipVariants": [
+          {
+            "version": "all",
+            "members": false
+          }
+        ]
+      },
+      "cache": [
+        {
+          "structId": 24298,
+          "membersCandidate": 0,
+          "coordinates": [
+            {
+              "param": 2941,
+              "packed": 49335440,
+              "x": 3011,
+              "y": 3216,
+              "plane": 0,
+              "surface": [
+                {
+                  "x": 3011,
+                  "y": 3216,
+                  "plane": 0,
+                  "mapId": 28,
+                  "region": "12082",
+                  "transform": {
+                    "x": 0,
+                    "y": 0,
+                    "plane": 0
+                  }
+                }
+              ],
+              "mapProjections": [
+                {
+                  "mapId": 28,
+                  "mapName": "RuneScape Surface",
+                  "x": 3011,
+                  "y": 3216,
+                  "plane": 0,
+                  "region": "12082",
+                  "paste": {
+                    "kind": "squares",
+                    "index": 665
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "structId": 37971,
+          "membersCandidate": 0,
+          "coordinates": [
+            {
+              "param": 2941,
+              "packed": 49335440,
+              "x": 3011,
+              "y": 3216,
+              "plane": 0,
+              "surface": [
+                {
+                  "x": 3011,
+                  "y": 3216,
+                  "plane": 0,
+                  "mapId": 28,
+                  "region": "12082",
+                  "transform": {
+                    "x": 0,
+                    "y": 0,
+                    "plane": 0
+                  }
+                }
+              ],
+              "mapProjections": [
+                {
+                  "mapId": 28,
+                  "mapName": "RuneScape Surface",
+                  "x": 3011,
+                  "y": 3216,
+                  "plane": 0,
+                  "region": "12082",
+                  "paste": {
+                    "kind": "squares",
+                    "index": 665
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "status": "coordinate-verified",
+      "validation": {
+        "regionFormula": "(x >> 6) * 256 + (y >> 6)",
+        "wikiRuntimeBaseMatch": true,
+        "surfaceProjectionStatus": "available",
+        "membershipCandidates": [
+          0
+        ],
+        "cacheWikiSurfaceRegionMatch": true
+      },
+      "landingPolicy": "Wiki scenery and cache landing are distinct anchors in the same base region. Existing authored section selector is retained; no new section/component correspondence or personal activation is established."
+    },
+    {
+      "name": "Draynor Village",
+      "retainedLocation": "12339",
+      "runtimeLocation": "12339",
+      "wiki": {
+        "title": "Draynor lodestone",
+        "revision": 36689044,
+        "revisionTimestamp": "2025-03-30T08:27:23Z",
+        "permalink": "https://runescape.wiki/w/Special:PermanentLink/36689044",
+        "mapWikitext": "{{Object map|objectname=Draynor lodestone|x=3104|y=3298}}",
+        "coordinate": {
+          "x": 3104,
+          "y": 3298,
+          "plane": null,
+          "planeStatus": "not specified",
+          "region": "12339"
+        },
+        "f2p": true,
+        "membershipVariants": [
+          {
+            "version": "all",
+            "members": false
+          }
+        ]
+      },
+      "cache": [
+        {
+          "structId": 24202,
+          "membersCandidate": 0,
+          "coordinates": [
+            {
+              "param": 2941,
+              "packed": 50875619,
+              "x": 3105,
+              "y": 3299,
+              "plane": 0,
+              "surface": [
+                {
+                  "x": 3105,
+                  "y": 3299,
+                  "plane": 0,
+                  "mapId": 28,
+                  "region": "12339",
+                  "transform": {
+                    "x": 0,
+                    "y": 0,
+                    "plane": 0
+                  }
+                }
+              ],
+              "mapProjections": [
+                {
+                  "mapId": 28,
+                  "mapName": "RuneScape Surface",
+                  "x": 3105,
+                  "y": 3299,
+                  "plane": 0,
+                  "region": "12339",
+                  "paste": {
+                    "kind": "squares",
+                    "index": 690
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "structId": 37905,
+          "membersCandidate": 0,
+          "coordinates": [
+            {
+              "param": 2941,
+              "packed": 50875619,
+              "x": 3105,
+              "y": 3299,
+              "plane": 0,
+              "surface": [
+                {
+                  "x": 3105,
+                  "y": 3299,
+                  "plane": 0,
+                  "mapId": 28,
+                  "region": "12339",
+                  "transform": {
+                    "x": 0,
+                    "y": 0,
+                    "plane": 0
+                  }
+                }
+              ],
+              "mapProjections": [
+                {
+                  "mapId": 28,
+                  "mapName": "RuneScape Surface",
+                  "x": 3105,
+                  "y": 3299,
+                  "plane": 0,
+                  "region": "12339",
+                  "paste": {
+                    "kind": "squares",
+                    "index": 690
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "status": "coordinate-verified",
+      "validation": {
+        "regionFormula": "(x >> 6) * 256 + (y >> 6)",
+        "wikiRuntimeBaseMatch": true,
+        "surfaceProjectionStatus": "available",
+        "membershipCandidates": [
+          0
+        ],
+        "cacheWikiSurfaceRegionMatch": true
+      },
+      "landingPolicy": "Wiki scenery and cache landing are distinct anchors in the same base region. Existing authored section selector is retained; no new section/component correspondence or personal activation is established."
+    },
+    {
+      "name": "Wilderness Crater",
+      "retainedLocation": "12600",
+      "runtimeLocation": "12600",
+      "wiki": {
+        "title": "Wilderness Crater lodestone",
+        "revision": 36733918,
+        "revisionTimestamp": "2025-05-25T10:29:02Z",
+        "permalink": "https://runescape.wiki/w/Special:PermanentLink/36733918",
+        "mapWikitext": "{{Object map|objectname=Wilderness Crater lodestone|x=3142|y=3635}}",
+        "coordinate": {
+          "x": 3142,
+          "y": 3635,
+          "plane": null,
+          "planeStatus": "not specified",
+          "region": "12600"
+        },
+        "f2p": true,
+        "membershipVariants": [
+          {
+            "version": "all",
+            "members": false
+          }
+        ]
+      },
+      "cache": [
+        {
+          "structId": 24317,
+          "membersCandidate": 0,
+          "coordinates": [
+            {
+              "param": 2941,
+              "packed": 51498548,
+              "x": 3143,
+              "y": 3636,
+              "plane": 0,
+              "surface": [
+                {
+                  "x": 3143,
+                  "y": 3636,
+                  "plane": 0,
+                  "mapId": 28,
+                  "region": "12600",
+                  "transform": {
+                    "x": 0,
+                    "y": 0,
+                    "plane": 0
+                  }
+                }
+              ],
+              "mapProjections": [
+                {
+                  "mapId": 28,
+                  "mapName": "RuneScape Surface",
+                  "x": 3143,
+                  "y": 3636,
+                  "plane": 0,
+                  "region": "12600",
+                  "paste": {
+                    "kind": "squares",
+                    "index": 719
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "structId": 38604,
+          "membersCandidate": 0,
+          "coordinates": [
+            {
+              "param": 2941,
+              "packed": 51498548,
+              "x": 3143,
+              "y": 3636,
+              "plane": 0,
+              "surface": [
+                {
+                  "x": 3143,
+                  "y": 3636,
+                  "plane": 0,
+                  "mapId": 28,
+                  "region": "12600",
+                  "transform": {
+                    "x": 0,
+                    "y": 0,
+                    "plane": 0
+                  }
+                }
+              ],
+              "mapProjections": [
+                {
+                  "mapId": 28,
+                  "mapName": "RuneScape Surface",
+                  "x": 3143,
+                  "y": 3636,
+                  "plane": 0,
+                  "region": "12600",
+                  "paste": {
+                    "kind": "squares",
+                    "index": 719
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "status": "coordinate-verified",
+      "validation": {
+        "regionFormula": "(x >> 6) * 256 + (y >> 6)",
+        "wikiRuntimeBaseMatch": true,
+        "surfaceProjectionStatus": "available",
+        "membershipCandidates": [
+          0
+        ],
+        "cacheWikiSurfaceRegionMatch": true
+      },
+      "landingPolicy": "Wiki scenery and cache landing are distinct anchors in the same base region. Existing authored section selector is retained; no new section/component correspondence or personal activation is established."
+    },
+    {
+      "name": "Ashdale",
+      "retainedLocation": "9770",
+      "runtimeLocation": "9770",
+      "wiki": {
+        "title": "Ashdale lodestone",
+        "revision": 36689040,
+        "revisionTimestamp": "2025-03-30T08:27:17Z",
+        "permalink": "https://runescape.wiki/w/Special:PermanentLink/36689040",
+        "mapWikitext": "{{Object map|objectname=Ashdale lodestone|x=2473|y=2708}}",
+        "coordinate": {
+          "x": 2473,
+          "y": 2708,
+          "plane": null,
+          "planeStatus": "not specified",
+          "region": "9770"
+        },
+        "f2p": true,
+        "membershipVariants": [
+          {
+            "version": "all",
+            "members": false
+          }
+        ]
+      },
+      "cache": [
+        {
+          "structId": 24320,
+          "membersCandidate": 0,
+          "coordinates": [
+            {
+              "param": 2941,
+              "packed": 577407637,
+              "x": 2474,
+              "y": 2709,
+              "plane": 2,
+              "surface": [],
+              "mapProjections": []
+            }
+          ]
+        },
+        {
+          "structId": 38605,
+          "membersCandidate": 0,
+          "coordinates": [
+            {
+              "param": 2941,
+              "packed": 577407637,
+              "x": 2474,
+              "y": 2709,
+              "plane": 2,
+              "surface": [],
+              "mapProjections": []
+            }
+          ]
+        }
+      ],
+      "status": "wiki-base-verified-cache-plane-unresolved",
+      "validation": {
+        "regionFormula": "(x >> 6) * 256 + (y >> 6)",
+        "wikiRuntimeBaseMatch": true,
+        "surfaceProjectionStatus": "missing",
+        "membershipCandidates": [
+          0
+        ],
+        "cacheWikiSurfaceRegionMatch": false
+      },
+      "landingPolicy": "Cache encodes plane 2 and has no map-28 plane-0 projection. Wiki scenery confirms the retained base only. Do not force the encoded plane to zero or infer a component."
+    },
+    {
+      "name": "Wendlewick",
+      "retainedLocation": "16691-1",
+      "runtimeLocation": "16691-1",
+      "wiki": {
+        "title": "Wendlewick lodestone",
+        "revision": 37193342,
+        "revisionTimestamp": "2026-09-30T09:53:47Z",
+        "permalink": "https://runescape.wiki/w/Special:PermanentLink/37193342",
+        "mapWikitext": "{{Object map|objectname=Wendlewick lodestone|objectid=136458|4164, 3311}}",
+        "coordinate": {
+          "x": 4164,
+          "y": 3311,
+          "plane": null,
+          "planeStatus": "not specified",
+          "region": "16691"
+        },
+        "f2p": true,
+        "membershipVariants": [
+          {
+            "version": "all",
+            "members": false
+          },
+          {
+            "version": "all",
+            "members": false
+          }
+        ]
+      },
+      "cache": [
+        {
+          "structId": 53005,
+          "membersCandidate": 0,
+          "coordinates": [
+            {
+              "param": 2941,
+              "packed": 56706544,
+              "x": 3461,
+              "y": 1520,
+              "plane": 0,
+              "surface": [
+                {
+                  "x": 4165,
+                  "y": 3312,
+                  "plane": 0,
+                  "mapId": 28,
+                  "region": "16691",
+                  "transform": {
+                    "x": 704,
+                    "y": 1792,
+                    "plane": 0
+                  }
+                }
+              ],
+              "mapProjections": [
+                {
+                  "mapId": 28,
+                  "mapName": "RuneScape Surface",
+                  "x": 4165,
+                  "y": 3312,
+                  "plane": 0,
+                  "region": "16691",
+                  "paste": {
+                    "kind": "squares",
+                    "index": 75
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "structId": 53042,
+          "membersCandidate": 0,
+          "coordinates": [
+            {
+              "param": 2941,
+              "packed": 56706544,
+              "x": 3461,
+              "y": 1520,
+              "plane": 0,
+              "surface": [
+                {
+                  "x": 4165,
+                  "y": 3312,
+                  "plane": 0,
+                  "mapId": 28,
+                  "region": "16691",
+                  "transform": {
+                    "x": 704,
+                    "y": 1792,
+                    "plane": 0
+                  }
+                }
+              ],
+              "mapProjections": [
+                {
+                  "mapId": 28,
+                  "mapName": "RuneScape Surface",
+                  "x": 4165,
+                  "y": 3312,
+                  "plane": 0,
+                  "region": "16691",
+                  "paste": {
+                    "kind": "squares",
+                    "index": 75
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "status": "coordinate-verified",
+      "validation": {
+        "regionFormula": "(x >> 6) * 256 + (y >> 6)",
+        "wikiRuntimeBaseMatch": true,
+        "surfaceProjectionStatus": "available",
+        "membershipCandidates": [
+          0
+        ],
+        "cacheWikiSurfaceRegionMatch": true
+      },
+      "landingPolicy": "Wiki scenery and cache landing are distinct anchors in the same base region. Existing authored section selector is retained; no new section/component correspondence or personal activation is established."
+    },
+    {
+      "name": "Lunar Isle",
+      "retainedLocation": "8253-2",
+      "runtimeLocation": "8253-2",
+      "wiki": {
+        "title": "Lunar Isle lodestone",
+        "revision": 36689036,
+        "revisionTimestamp": "2025-03-30T08:21:11Z",
+        "permalink": "https://runescape.wiki/w/Special:PermanentLink/36689036",
+        "mapWikitext": "{{Object map|objectname=Lunar Isle lodestone|x=2084|y=3914}}",
+        "coordinate": {
+          "x": 2084,
+          "y": 3914,
+          "plane": null,
+          "planeStatus": "not specified",
+          "region": "8253"
+        },
+        "f2p": false,
+        "membershipVariants": [
+          {
+            "version": "all",
+            "members": true
+          }
+        ]
+      },
+      "cache": [
+        {
+          "structId": 24309,
+          "membersCandidate": 1,
+          "coordinates": [
+            {
+              "param": 2941,
+              "packed": 34213704,
+              "x": 2088,
+              "y": 3912,
+              "plane": 0,
+              "surface": [
+                {
+                  "x": 2088,
+                  "y": 3912,
+                  "plane": 0,
+                  "mapId": 28,
+                  "region": "8253",
+                  "transform": {
+                    "x": 0,
+                    "y": 0,
+                    "plane": 0
+                  }
+                }
+              ],
+              "mapProjections": [
+                {
+                  "mapId": 28,
+                  "mapName": "RuneScape Surface",
+                  "x": 2088,
+                  "y": 3912,
+                  "plane": 0,
+                  "region": "8253",
+                  "paste": {
+                    "kind": "squares",
+                    "index": 41
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "structId": 37976,
+          "membersCandidate": 1,
+          "coordinates": [
+            {
+              "param": 2941,
+              "packed": 34213704,
+              "x": 2088,
+              "y": 3912,
+              "plane": 0,
+              "surface": [
+                {
+                  "x": 2088,
+                  "y": 3912,
+                  "plane": 0,
+                  "mapId": 28,
+                  "region": "8253",
+                  "transform": {
+                    "x": 0,
+                    "y": 0,
+                    "plane": 0
+                  }
+                }
+              ],
+              "mapProjections": [
+                {
+                  "mapId": 28,
+                  "mapName": "RuneScape Surface",
+                  "x": 2088,
+                  "y": 3912,
+                  "plane": 0,
+                  "region": "8253",
+                  "paste": {
+                    "kind": "squares",
+                    "index": 41
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "status": "coordinate-verified",
+      "validation": {
+        "regionFormula": "(x >> 6) * 256 + (y >> 6)",
+        "wikiRuntimeBaseMatch": true,
+        "surfaceProjectionStatus": "available",
+        "membershipCandidates": [
+          1
+        ],
+        "cacheWikiSurfaceRegionMatch": true
+      },
+      "landingPolicy": "Wiki scenery and cache landing are distinct anchors in the same base region. Existing authored section selector is retained; no new section/component correspondence or personal activation is established."
+    },
+    {
+      "name": "Bandit Camp",
+      "retainedLocation": "12846-1",
+      "runtimeLocation": "12846-1",
+      "wiki": {
+        "title": "Bandit Camp lodestone",
+        "revision": 37121091,
+        "revisionTimestamp": "2026-07-25T04:16:53Z",
+        "permalink": "https://runescape.wiki/w/Special:PermanentLink/37121091",
+        "mapWikitext": "{{Object map|objectname=Bandit Camp lodestone|x=3213|y=2954}}",
+        "coordinate": {
+          "x": 3213,
+          "y": 2954,
+          "plane": null,
+          "planeStatus": "not specified",
+          "region": "12846"
+        },
+        "f2p": false,
+        "membershipVariants": [
+          {
+            "version": "all",
+            "members": true
+          }
+        ]
+      },
+      "cache": [
+        {
+          "structId": 24310,
+          "membersCandidate": 1,
+          "coordinates": [
+            {
+              "param": 2941,
+              "packed": 52661131,
+              "x": 3214,
+              "y": 2955,
+              "plane": 0,
+              "surface": [
+                {
+                  "x": 3214,
+                  "y": 2955,
+                  "plane": 0,
+                  "mapId": 28,
+                  "region": "12846",
+                  "transform": {
+                    "x": 0,
+                    "y": 0,
+                    "plane": 0
+                  }
+                }
+              ],
+              "mapProjections": [
+                {
+                  "mapId": 28,
+                  "mapName": "RuneScape Surface",
+                  "x": 3214,
+                  "y": 2955,
+                  "plane": 0,
+                  "region": "12846",
+                  "paste": {
+                    "kind": "squares",
+                    "index": 733
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "structId": 37977,
+          "membersCandidate": 1,
+          "coordinates": [
+            {
+              "param": 2941,
+              "packed": 52661131,
+              "x": 3214,
+              "y": 2955,
+              "plane": 0,
+              "surface": [
+                {
+                  "x": 3214,
+                  "y": 2955,
+                  "plane": 0,
+                  "mapId": 28,
+                  "region": "12846",
+                  "transform": {
+                    "x": 0,
+                    "y": 0,
+                    "plane": 0
+                  }
+                }
+              ],
+              "mapProjections": [
+                {
+                  "mapId": 28,
+                  "mapName": "RuneScape Surface",
+                  "x": 3214,
+                  "y": 2955,
+                  "plane": 0,
+                  "region": "12846",
+                  "paste": {
+                    "kind": "squares",
+                    "index": 733
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "status": "coordinate-verified",
+      "validation": {
+        "regionFormula": "(x >> 6) * 256 + (y >> 6)",
+        "wikiRuntimeBaseMatch": true,
+        "surfaceProjectionStatus": "available",
+        "membershipCandidates": [
+          1
+        ],
+        "cacheWikiSurfaceRegionMatch": true
+      },
+      "landingPolicy": "Wiki scenery and cache landing are distinct anchors in the same base region. Existing authored section selector is retained; no new section/component correspondence or personal activation is established."
+    },
+    {
+      "name": "Fort Forinthry",
+      "retainedLocation": "13111",
+      "runtimeLocation": "13111",
+      "wiki": {
+        "title": "Fort Forinthry lodestone",
+        "revision": 37177936,
+        "revisionTimestamp": "2026-09-15T09:06:41Z",
+        "permalink": "https://runescape.wiki/w/Special:PermanentLink/37177936",
+        "mapWikitext": "{{Object map|objectname=Fort Forinthry lodestone|objectid=124994|x=3298|y=3528}}",
+        "coordinate": {
+          "x": 3298,
+          "y": 3528,
+          "plane": null,
+          "planeStatus": "not specified",
+          "region": "13111"
+        },
+        "f2p": false,
+        "membershipVariants": [
+          {
+            "version": "all",
+            "members": true
+          },
+          {
+            "version": "all",
+            "members": true
+          }
+        ]
+      },
+      "cache": [
+        {
+          "structId": 39862,
+          "membersCandidate": 1,
+          "coordinates": [
+            {
+              "param": 2941,
+              "packed": 54037958,
+              "x": 3298,
+              "y": 3526,
+              "plane": 0,
+              "surface": [
+                {
+                  "x": 3298,
+                  "y": 3526,
+                  "plane": 0,
+                  "mapId": 28,
+                  "region": "13111",
+                  "transform": {
+                    "x": 0,
+                    "y": 0,
+                    "plane": 0
+                  }
+                }
+              ],
+              "mapProjections": [
+                {
+                  "mapId": 28,
+                  "mapName": "RuneScape Surface",
+                  "x": 3298,
+                  "y": 3526,
+                  "plane": 0,
+                  "region": "13111",
+                  "paste": {
+                    "kind": "squares",
+                    "index": 766
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "structId": 39863,
+          "membersCandidate": 1,
+          "coordinates": [
+            {
+              "param": 2941,
+              "packed": 54037958,
+              "x": 3298,
+              "y": 3526,
+              "plane": 0,
+              "surface": [
+                {
+                  "x": 3298,
+                  "y": 3526,
+                  "plane": 0,
+                  "mapId": 28,
+                  "region": "13111",
+                  "transform": {
+                    "x": 0,
+                    "y": 0,
+                    "plane": 0
+                  }
+                }
+              ],
+              "mapProjections": [
+                {
+                  "mapId": 28,
+                  "mapName": "RuneScape Surface",
+                  "x": 3298,
+                  "y": 3526,
+                  "plane": 0,
+                  "region": "13111",
+                  "paste": {
+                    "kind": "squares",
+                    "index": 766
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "status": "coordinate-verified",
+      "validation": {
+        "regionFormula": "(x >> 6) * 256 + (y >> 6)",
+        "wikiRuntimeBaseMatch": true,
+        "surfaceProjectionStatus": "available",
+        "membershipCandidates": [
+          1
+        ],
+        "cacheWikiSurfaceRegionMatch": true
+      },
+      "landingPolicy": "Wiki scenery and cache landing are distinct anchors in the same base region. Existing authored section selector is retained; no new section/component correspondence or personal activation is established."
+    },
+    {
+      "name": "Ardougne",
+      "retainedLocation": "10548",
+      "runtimeLocation": "10548",
+      "wiki": {
+        "title": "Ardougne lodestone",
+        "revision": 37122759,
+        "revisionTimestamp": "2026-07-25T23:35:41Z",
+        "permalink": "https://runescape.wiki/w/Special:PermanentLink/37122759",
+        "mapWikitext": "{{Object map|objectname=Ardougne lodestone|x=2633|y=3348}}",
+        "coordinate": {
+          "x": 2633,
+          "y": 3348,
+          "plane": null,
+          "planeStatus": "not specified",
+          "region": "10548"
+        },
+        "f2p": false,
+        "membershipVariants": [
+          {
+            "version": "all",
+            "members": true
+          }
+        ]
+      },
+      "cache": [
+        {
+          "structId": 11780,
+          "membersCandidate": 1,
+          "coordinates": [
+            {
+              "param": 2941,
+              "packed": 43158805,
+              "x": 2634,
+              "y": 3349,
+              "plane": 0,
+              "surface": [
+                {
+                  "x": 2634,
+                  "y": 3349,
+                  "plane": 0,
+                  "mapId": 28,
+                  "region": "10548",
+                  "transform": {
+                    "x": 0,
+                    "y": 0,
+                    "plane": 0
+                  }
+                }
+              ],
+              "mapProjections": [
+                {
+                  "mapId": 28,
+                  "mapName": "RuneScape Surface",
+                  "x": 2634,
+                  "y": 3349,
+                  "plane": 0,
+                  "region": "10548",
+                  "paste": {
+                    "kind": "squares",
+                    "index": 504
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "structId": 36656,
+          "membersCandidate": 1,
+          "coordinates": [
+            {
+              "param": 2941,
+              "packed": 43158805,
+              "x": 2634,
+              "y": 3349,
+              "plane": 0,
+              "surface": [
+                {
+                  "x": 2634,
+                  "y": 3349,
+                  "plane": 0,
+                  "mapId": 28,
+                  "region": "10548",
+                  "transform": {
+                    "x": 0,
+                    "y": 0,
+                    "plane": 0
+                  }
+                }
+              ],
+              "mapProjections": [
+                {
+                  "mapId": 28,
+                  "mapName": "RuneScape Surface",
+                  "x": 2634,
+                  "y": 3349,
+                  "plane": 0,
+                  "region": "10548",
+                  "paste": {
+                    "kind": "squares",
+                    "index": 504
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "status": "coordinate-verified",
+      "validation": {
+        "regionFormula": "(x >> 6) * 256 + (y >> 6)",
+        "wikiRuntimeBaseMatch": true,
+        "surfaceProjectionStatus": "available",
+        "membershipCandidates": [
+          1
+        ],
+        "cacheWikiSurfaceRegionMatch": true
+      },
+      "landingPolicy": "Wiki scenery and cache landing are distinct anchors in the same base region. Existing authored section selector is retained; no new section/component correspondence or personal activation is established."
+    },
+    {
+      "name": "Catherby",
+      "retainedLocation": "11061",
+      "runtimeLocation": "11061",
+      "wiki": {
+        "title": "Catherby lodestone",
+        "revision": 36689042,
+        "revisionTimestamp": "2025-03-30T08:27:20Z",
+        "permalink": "https://runescape.wiki/w/Special:PermanentLink/36689042",
+        "mapWikitext": "{{Object map|objectname=Catherby lodestone|x=2810|y=3449}}",
+        "coordinate": {
+          "x": 2810,
+          "y": 3449,
+          "plane": null,
+          "planeStatus": "not specified",
+          "region": "11061"
+        },
+        "f2p": false,
+        "membershipVariants": [
+          {
+            "version": "all",
+            "members": true
+          }
+        ]
+      },
+      "cache": [
+        {
+          "structId": 14967,
+          "membersCandidate": 1,
+          "coordinates": [
+            {
+              "param": 2941,
+              "packed": 46058874,
+              "x": 2811,
+              "y": 3450,
+              "plane": 0,
+              "surface": [
+                {
+                  "x": 2811,
+                  "y": 3450,
+                  "plane": 0,
+                  "mapId": 28,
+                  "region": "11061",
+                  "transform": {
+                    "x": 0,
+                    "y": 0,
+                    "plane": 0
+                  }
+                }
+              ],
+              "mapProjections": [
+                {
+                  "mapId": 28,
+                  "mapName": "RuneScape Surface",
+                  "x": 2811,
+                  "y": 3450,
+                  "plane": 0,
+                  "region": "11061",
+                  "paste": {
+                    "kind": "squares",
+                    "index": 572
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "structId": 37903,
+          "membersCandidate": 1,
+          "coordinates": [
+            {
+              "param": 2941,
+              "packed": 46058874,
+              "x": 2811,
+              "y": 3450,
+              "plane": 0,
+              "surface": [
+                {
+                  "x": 2811,
+                  "y": 3450,
+                  "plane": 0,
+                  "mapId": 28,
+                  "region": "11061",
+                  "transform": {
+                    "x": 0,
+                    "y": 0,
+                    "plane": 0
+                  }
+                }
+              ],
+              "mapProjections": [
+                {
+                  "mapId": 28,
+                  "mapName": "RuneScape Surface",
+                  "x": 2811,
+                  "y": 3450,
+                  "plane": 0,
+                  "region": "11061",
+                  "paste": {
+                    "kind": "squares",
+                    "index": 572
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "status": "coordinate-verified",
+      "validation": {
+        "regionFormula": "(x >> 6) * 256 + (y >> 6)",
+        "wikiRuntimeBaseMatch": true,
+        "surfaceProjectionStatus": "available",
+        "membershipCandidates": [
+          1
+        ],
+        "cacheWikiSurfaceRegionMatch": true
+      },
+      "landingPolicy": "Wiki scenery and cache landing are distinct anchors in the same base region. Existing authored section selector is retained; no new section/component correspondence or personal activation is established."
+    },
+    {
+      "name": "Yanille",
+      "retainedLocation": "10032-1",
+      "runtimeLocation": "10032-1",
+      "wiki": {
+        "title": "Yanille lodestone",
+        "revision": 37122635,
+        "revisionTimestamp": "2026-07-25T22:58:26Z",
+        "permalink": "https://runescape.wiki/w/Special:PermanentLink/37122635",
+        "mapWikitext": "{{Object map|objectname=Yanille lodestone|x=2528|y=3094}}",
+        "coordinate": {
+          "x": 2528,
+          "y": 3094,
+          "plane": null,
+          "planeStatus": "not specified",
+          "region": "10032"
+        },
+        "f2p": false,
+        "membershipVariants": [
+          {
+            "version": "all",
+            "members": true
+          }
+        ]
+      },
+      "cache": [
+        {
+          "structId": 24308,
+          "membersCandidate": 1,
+          "coordinates": [
+            {
+              "param": 2941,
+              "packed": 41438231,
+              "x": 2529,
+              "y": 3095,
+              "plane": 0,
+              "surface": [
+                {
+                  "x": 2529,
+                  "y": 3095,
+                  "plane": 0,
+                  "mapId": 28,
+                  "region": "10032",
+                  "transform": {
+                    "x": 0,
+                    "y": 0,
+                    "plane": 0
+                  }
+                }
+              ],
+              "mapProjections": [
+                {
+                  "mapId": 28,
+                  "mapName": "RuneScape Surface",
+                  "x": 2529,
+                  "y": 3095,
+                  "plane": 0,
+                  "region": "10032",
+                  "paste": {
+                    "kind": "squares",
+                    "index": 392
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "structId": 37975,
+          "membersCandidate": 1,
+          "coordinates": [
+            {
+              "param": 2941,
+              "packed": 41438231,
+              "x": 2529,
+              "y": 3095,
+              "plane": 0,
+              "surface": [
+                {
+                  "x": 2529,
+                  "y": 3095,
+                  "plane": 0,
+                  "mapId": 28,
+                  "region": "10032",
+                  "transform": {
+                    "x": 0,
+                    "y": 0,
+                    "plane": 0
+                  }
+                }
+              ],
+              "mapProjections": [
+                {
+                  "mapId": 28,
+                  "mapName": "RuneScape Surface",
+                  "x": 2529,
+                  "y": 3095,
+                  "plane": 0,
+                  "region": "10032",
+                  "paste": {
+                    "kind": "squares",
+                    "index": 392
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "status": "coordinate-verified",
+      "validation": {
+        "regionFormula": "(x >> 6) * 256 + (y >> 6)",
+        "wikiRuntimeBaseMatch": true,
+        "surfaceProjectionStatus": "available",
+        "membershipCandidates": [
+          1
+        ],
+        "cacheWikiSurfaceRegionMatch": true
+      },
+      "landingPolicy": "Wiki scenery and cache landing are distinct anchors in the same base region. Existing authored section selector is retained; no new section/component correspondence or personal activation is established."
+    },
+    {
+      "name": "Seers' Village",
+      "retainedLocation": "10806-1",
+      "runtimeLocation": "10806-1",
+      "wiki": {
+        "title": "Seers' Village lodestone",
+        "revision": 37122714,
+        "revisionTimestamp": "2026-07-25T23:18:37Z",
+        "permalink": "https://runescape.wiki/w/Special:PermanentLink/37122714",
+        "mapWikitext": "{{Object map|objectname=Seers' Village lodestone|x=2688|y=3482}}",
+        "coordinate": {
+          "x": 2688,
+          "y": 3482,
+          "plane": null,
+          "planeStatus": "not specified",
+          "region": "10806"
+        },
+        "f2p": false,
+        "membershipVariants": [
+          {
+            "version": "all",
+            "members": true
+          }
+        ]
+      },
+      "cache": [
+        {
+          "structId": 24299,
+          "membersCandidate": 1,
+          "coordinates": [
+            {
+              "param": 2941,
+              "packed": 44060059,
+              "x": 2689,
+              "y": 3483,
+              "plane": 0,
+              "surface": [
+                {
+                  "x": 2689,
+                  "y": 3483,
+                  "plane": 0,
+                  "mapId": 28,
+                  "region": "10806",
+                  "transform": {
+                    "x": 0,
+                    "y": 0,
+                    "plane": 0
+                  }
+                }
+              ],
+              "mapProjections": [
+                {
+                  "mapId": 28,
+                  "mapName": "RuneScape Surface",
+                  "x": 2689,
+                  "y": 3483,
+                  "plane": 0,
+                  "region": "10806",
+                  "paste": {
+                    "kind": "squares",
+                    "index": 540
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "structId": 37972,
+          "membersCandidate": 1,
+          "coordinates": [
+            {
+              "param": 2941,
+              "packed": 44060059,
+              "x": 2689,
+              "y": 3483,
+              "plane": 0,
+              "surface": [
+                {
+                  "x": 2689,
+                  "y": 3483,
+                  "plane": 0,
+                  "mapId": 28,
+                  "region": "10806",
+                  "transform": {
+                    "x": 0,
+                    "y": 0,
+                    "plane": 0
+                  }
+                }
+              ],
+              "mapProjections": [
+                {
+                  "mapId": 28,
+                  "mapName": "RuneScape Surface",
+                  "x": 2689,
+                  "y": 3483,
+                  "plane": 0,
+                  "region": "10806",
+                  "paste": {
+                    "kind": "squares",
+                    "index": 540
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "status": "coordinate-verified",
+      "validation": {
+        "regionFormula": "(x >> 6) * 256 + (y >> 6)",
+        "wikiRuntimeBaseMatch": true,
+        "surfaceProjectionStatus": "available",
+        "membershipCandidates": [
+          1
+        ],
+        "cacheWikiSurfaceRegionMatch": true
+      },
+      "landingPolicy": "Wiki scenery and cache landing are distinct anchors in the same base region. Existing authored section selector is retained; no new section/component correspondence or personal activation is established."
+    },
+    {
+      "name": "Eagles' Peak",
+      "retainedLocation": "9270",
+      "runtimeLocation": "9270",
+      "wiki": {
+        "title": "Eagles' Peak lodestone",
+        "revision": 37122551,
+        "revisionTimestamp": "2026-07-25T22:35:57Z",
+        "permalink": "https://runescape.wiki/w/Special:PermanentLink/37122551",
+        "mapWikitext": "{{Object map|objectname=Eagles' Peak lodestone|x=2365|y=3479}}",
+        "coordinate": {
+          "x": 2365,
+          "y": 3479,
+          "plane": null,
+          "planeStatus": "not specified",
+          "region": "9270"
+        },
+        "f2p": false,
+        "membershipVariants": [
+          {
+            "version": "all",
+            "members": true
+          }
+        ]
+      },
+      "cache": [
+        {
+          "structId": 24312,
+          "membersCandidate": 1,
+          "coordinates": [
+            {
+              "param": 2941,
+              "packed": 38768024,
+              "x": 2366,
+              "y": 3480,
+              "plane": 0,
+              "surface": [
+                {
+                  "x": 2366,
+                  "y": 3480,
+                  "plane": 0,
+                  "mapId": 28,
+                  "region": "9270",
+                  "transform": {
+                    "x": 0,
+                    "y": 0,
+                    "plane": 0
+                  }
+                }
+              ],
+              "mapProjections": [
+                {
+                  "mapId": 28,
+                  "mapName": "RuneScape Surface",
+                  "x": 2366,
+                  "y": 3480,
+                  "plane": 0,
+                  "region": "9270",
+                  "paste": {
+                    "kind": "squares",
+                    "index": 245
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "structId": 38599,
+          "membersCandidate": 1,
+          "coordinates": [
+            {
+              "param": 2941,
+              "packed": 38768024,
+              "x": 2366,
+              "y": 3480,
+              "plane": 0,
+              "surface": [
+                {
+                  "x": 2366,
+                  "y": 3480,
+                  "plane": 0,
+                  "mapId": 28,
+                  "region": "9270",
+                  "transform": {
+                    "x": 0,
+                    "y": 0,
+                    "plane": 0
+                  }
+                }
+              ],
+              "mapProjections": [
+                {
+                  "mapId": 28,
+                  "mapName": "RuneScape Surface",
+                  "x": 2366,
+                  "y": 3480,
+                  "plane": 0,
+                  "region": "9270",
+                  "paste": {
+                    "kind": "squares",
+                    "index": 245
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "status": "coordinate-verified",
+      "validation": {
+        "regionFormula": "(x >> 6) * 256 + (y >> 6)",
+        "wikiRuntimeBaseMatch": true,
+        "surfaceProjectionStatus": "available",
+        "membershipCandidates": [
+          1
+        ],
+        "cacheWikiSurfaceRegionMatch": true
+      },
+      "landingPolicy": "Wiki scenery and cache landing are distinct anchors in the same base region. Existing authored section selector is retained; no new section/component correspondence or personal activation is established."
+    },
+    {
+      "name": "Tirannwn",
+      "retainedLocation": "9009-1",
+      "runtimeLocation": "9009-1",
+      "wiki": {
+        "title": "Tirannwn lodestone",
+        "revision": 36689059,
+        "revisionTimestamp": "2025-03-30T08:27:36Z",
+        "permalink": "https://runescape.wiki/w/Special:PermanentLink/36689059",
+        "mapWikitext": "{{Object map|objectname=Tirannwn lodestone|x=2253|y=3149}}",
+        "coordinate": {
+          "x": 2253,
+          "y": 3149,
+          "plane": null,
+          "planeStatus": "not specified",
+          "region": "9009"
+        },
+        "f2p": false,
+        "membershipVariants": [
+          {
+            "version": "all",
+            "members": true
+          }
+        ]
+      },
+      "cache": [
+        {
+          "structId": 24316,
+          "membersCandidate": 1,
+          "coordinates": [
+            {
+              "param": 2941,
+              "packed": 36932686,
+              "x": 2254,
+              "y": 3150,
+              "plane": 0,
+              "surface": [
+                {
+                  "x": 2254,
+                  "y": 3150,
+                  "plane": 0,
+                  "mapId": 28,
+                  "region": "9009",
+                  "transform": {
+                    "x": 0,
+                    "y": 0,
+                    "plane": 0
+                  }
+                }
+              ],
+              "mapProjections": [
+                {
+                  "mapId": 28,
+                  "mapName": "RuneScape Surface",
+                  "x": 2254,
+                  "y": 3150,
+                  "plane": 0,
+                  "region": "9009",
+                  "paste": {
+                    "kind": "squares",
+                    "index": 200
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "structId": 38603,
+          "membersCandidate": 1,
+          "coordinates": [
+            {
+              "param": 2941,
+              "packed": 36932686,
+              "x": 2254,
+              "y": 3150,
+              "plane": 0,
+              "surface": [
+                {
+                  "x": 2254,
+                  "y": 3150,
+                  "plane": 0,
+                  "mapId": 28,
+                  "region": "9009",
+                  "transform": {
+                    "x": 0,
+                    "y": 0,
+                    "plane": 0
+                  }
+                }
+              ],
+              "mapProjections": [
+                {
+                  "mapId": 28,
+                  "mapName": "RuneScape Surface",
+                  "x": 2254,
+                  "y": 3150,
+                  "plane": 0,
+                  "region": "9009",
+                  "paste": {
+                    "kind": "squares",
+                    "index": 200
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "status": "coordinate-verified",
+      "validation": {
+        "regionFormula": "(x >> 6) * 256 + (y >> 6)",
+        "wikiRuntimeBaseMatch": true,
+        "surfaceProjectionStatus": "available",
+        "membershipCandidates": [
+          1
+        ],
+        "cacheWikiSurfaceRegionMatch": true
+      },
+      "landingPolicy": "Wiki scenery and cache landing are distinct anchors in the same base region. Existing authored section selector is retained; no new section/component correspondence or personal activation is established."
+    },
+    {
+      "name": "Oo'glog",
+      "retainedLocation": "10028",
+      "runtimeLocation": "10028",
+      "wiki": {
+        "title": "Oo'glog lodestone",
+        "revision": 36689054,
+        "revisionTimestamp": "2025-03-30T08:27:32Z",
+        "permalink": "https://runescape.wiki/w/Special:PermanentLink/36689054",
+        "mapWikitext": "{{Object map|objectname=Oo'glog lodestone|x=2531|y=2871}}",
+        "coordinate": {
+          "x": 2531,
+          "y": 2871,
+          "plane": null,
+          "planeStatus": "not specified",
+          "region": "10028"
+        },
+        "f2p": false,
+        "membershipVariants": [
+          {
+            "version": "all",
+            "members": true
+          }
+        ]
+      },
+      "cache": [
+        {
+          "structId": 24315,
+          "membersCandidate": 1,
+          "coordinates": [
+            {
+              "param": 2941,
+              "packed": 41487160,
+              "x": 2532,
+              "y": 2872,
+              "plane": 0,
+              "surface": [
+                {
+                  "x": 2532,
+                  "y": 2872,
+                  "plane": 0,
+                  "mapId": 28,
+                  "region": "10028",
+                  "transform": {
+                    "x": 0,
+                    "y": 0,
+                    "plane": 0
+                  }
+                }
+              ],
+              "mapProjections": [
+                {
+                  "mapId": 28,
+                  "mapName": "RuneScape Surface",
+                  "x": 2532,
+                  "y": 2872,
+                  "plane": 0,
+                  "region": "10028",
+                  "paste": {
+                    "kind": "squares",
+                    "index": 388
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "structId": 38602,
+          "membersCandidate": 1,
+          "coordinates": [
+            {
+              "param": 2941,
+              "packed": 41487160,
+              "x": 2532,
+              "y": 2872,
+              "plane": 0,
+              "surface": [
+                {
+                  "x": 2532,
+                  "y": 2872,
+                  "plane": 0,
+                  "mapId": 28,
+                  "region": "10028",
+                  "transform": {
+                    "x": 0,
+                    "y": 0,
+                    "plane": 0
+                  }
+                }
+              ],
+              "mapProjections": [
+                {
+                  "mapId": 28,
+                  "mapName": "RuneScape Surface",
+                  "x": 2532,
+                  "y": 2872,
+                  "plane": 0,
+                  "region": "10028",
+                  "paste": {
+                    "kind": "squares",
+                    "index": 388
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "status": "coordinate-verified",
+      "validation": {
+        "regionFormula": "(x >> 6) * 256 + (y >> 6)",
+        "wikiRuntimeBaseMatch": true,
+        "surfaceProjectionStatus": "available",
+        "membershipCandidates": [
+          1
+        ],
+        "cacheWikiSurfaceRegionMatch": true
+      },
+      "landingPolicy": "Wiki scenery and cache landing are distinct anchors in the same base region. Existing authored section selector is retained; no new section/component correspondence or personal activation is established."
+    },
+    {
+      "name": "Karamja",
+      "retainedLocation": "11057",
+      "runtimeLocation": "11057",
+      "wiki": {
+        "title": "Karamja lodestone",
+        "revision": 37131535,
+        "revisionTimestamp": "2026-07-30T13:20:56Z",
+        "permalink": "https://runescape.wiki/w/Special:PermanentLink/37131535",
+        "mapWikitext": "{{Object map|objectname=Karamja lodestone|x=2760|y=3147}}",
+        "coordinate": {
+          "x": 2760,
+          "y": 3147,
+          "plane": null,
+          "planeStatus": "not specified",
+          "region": "11057"
+        },
+        "f2p": false,
+        "membershipVariants": [
+          {
+            "version": "all",
+            "members": true
+          }
+        ]
+      },
+      "cache": [
+        {
+          "structId": 24314,
+          "membersCandidate": 1,
+          "coordinates": [
+            {
+              "param": 2941,
+              "packed": 45239372,
+              "x": 2761,
+              "y": 3148,
+              "plane": 0,
+              "surface": [
+                {
+                  "x": 2761,
+                  "y": 3148,
+                  "plane": 0,
+                  "mapId": 28,
+                  "region": "11057",
+                  "transform": {
+                    "x": 0,
+                    "y": 0,
+                    "plane": 0
+                  }
+                }
+              ],
+              "mapProjections": [
+                {
+                  "mapId": 28,
+                  "mapName": "RuneScape Surface",
+                  "x": 2761,
+                  "y": 3148,
+                  "plane": 0,
+                  "region": "11057",
+                  "paste": {
+                    "kind": "squares",
+                    "index": 568
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "structId": 38601,
+          "membersCandidate": 1,
+          "coordinates": [
+            {
+              "param": 2941,
+              "packed": 45239372,
+              "x": 2761,
+              "y": 3148,
+              "plane": 0,
+              "surface": [
+                {
+                  "x": 2761,
+                  "y": 3148,
+                  "plane": 0,
+                  "mapId": 28,
+                  "region": "11057",
+                  "transform": {
+                    "x": 0,
+                    "y": 0,
+                    "plane": 0
+                  }
+                }
+              ],
+              "mapProjections": [
+                {
+                  "mapId": 28,
+                  "mapName": "RuneScape Surface",
+                  "x": 2761,
+                  "y": 3148,
+                  "plane": 0,
+                  "region": "11057",
+                  "paste": {
+                    "kind": "squares",
+                    "index": 568
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "status": "coordinate-verified",
+      "validation": {
+        "regionFormula": "(x >> 6) * 256 + (y >> 6)",
+        "wikiRuntimeBaseMatch": true,
+        "surfaceProjectionStatus": "available",
+        "membershipCandidates": [
+          1
+        ],
+        "cacheWikiSurfaceRegionMatch": true
+      },
+      "landingPolicy": "Wiki scenery and cache landing are distinct anchors in the same base region. Existing authored section selector is retained; no new section/component correspondence or personal activation is established."
+    },
+    {
+      "name": "Canifis",
+      "retainedLocation": "13878-1",
+      "runtimeLocation": "13878-1",
+      "wiki": {
+        "title": "Canifis lodestone",
+        "revision": 37124529,
+        "revisionTimestamp": "2026-07-27T01:50:15Z",
+        "permalink": "https://runescape.wiki/w/Special:PermanentLink/37124529",
+        "mapWikitext": "{{Object map|objectname=Canifis lodestone|x=3516|y=3515}}",
+        "coordinate": {
+          "x": 3516,
+          "y": 3515,
+          "plane": null,
+          "planeStatus": "not specified",
+          "region": "13878"
+        },
+        "f2p": false,
+        "membershipVariants": [
+          {
+            "version": "all",
+            "members": true
+          }
+        ]
+      },
+      "cache": [
+        {
+          "structId": 24311,
+          "membersCandidate": 1,
+          "coordinates": [
+            {
+              "param": 2941,
+              "packed": 57626044,
+              "x": 3517,
+              "y": 3516,
+              "plane": 0,
+              "surface": [
+                {
+                  "x": 3517,
+                  "y": 3516,
+                  "plane": 0,
+                  "mapId": 28,
+                  "region": "13878",
+                  "transform": {
+                    "x": 0,
+                    "y": 0,
+                    "plane": 0
+                  }
+                }
+              ],
+              "mapProjections": [
+                {
+                  "mapId": 28,
+                  "mapName": "RuneScape Surface",
+                  "x": 3517,
+                  "y": 3516,
+                  "plane": 0,
+                  "region": "13878",
+                  "paste": {
+                    "kind": "squares",
+                    "index": 837
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "structId": 38598,
+          "membersCandidate": 1,
+          "coordinates": [
+            {
+              "param": 2941,
+              "packed": 57626044,
+              "x": 3517,
+              "y": 3516,
+              "plane": 0,
+              "surface": [
+                {
+                  "x": 3517,
+                  "y": 3516,
+                  "plane": 0,
+                  "mapId": 28,
+                  "region": "13878",
+                  "transform": {
+                    "x": 0,
+                    "y": 0,
+                    "plane": 0
+                  }
+                }
+              ],
+              "mapProjections": [
+                {
+                  "mapId": 28,
+                  "mapName": "RuneScape Surface",
+                  "x": 3517,
+                  "y": 3516,
+                  "plane": 0,
+                  "region": "13878",
+                  "paste": {
+                    "kind": "squares",
+                    "index": 837
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "status": "coordinate-verified",
+      "validation": {
+        "regionFormula": "(x >> 6) * 256 + (y >> 6)",
+        "wikiRuntimeBaseMatch": true,
+        "surfaceProjectionStatus": "available",
+        "membershipCandidates": [
+          1
+        ],
+        "cacheWikiSurfaceRegionMatch": true
+      },
+      "landingPolicy": "Wiki scenery and cache landing are distinct anchors in the same base region. Existing authored section selector is retained; no new section/component correspondence or personal activation is established."
+    },
+    {
+      "name": "Fremennik Province",
+      "retainedLocation": "10809-1",
+      "runtimeLocation": "10809-1",
+      "wiki": {
+        "title": "Fremennik Province lodestone",
+        "revision": 37122993,
+        "revisionTimestamp": "2026-07-26T01:38:28Z",
+        "permalink": "https://runescape.wiki/w/Special:PermanentLink/37122993",
+        "mapWikitext": "{{Object map|objectname=Fremennik Province lodestone|x=2711|y=3677}}",
+        "coordinate": {
+          "x": 2711,
+          "y": 3677,
+          "plane": null,
+          "planeStatus": "not specified",
+          "region": "10809"
+        },
+        "f2p": false,
+        "membershipVariants": [
+          {
+            "version": "all",
+            "members": true
+          }
+        ]
+      },
+      "cache": [
+        {
+          "structId": 24313,
+          "membersCandidate": 1,
+          "coordinates": [
+            {
+              "param": 2941,
+              "packed": 44437086,
+              "x": 2712,
+              "y": 3678,
+              "plane": 0,
+              "surface": [
+                {
+                  "x": 2712,
+                  "y": 3678,
+                  "plane": 0,
+                  "mapId": 28,
+                  "region": "10809",
+                  "transform": {
+                    "x": 0,
+                    "y": 0,
+                    "plane": 0
+                  }
+                }
+              ],
+              "mapProjections": [
+                {
+                  "mapId": 28,
+                  "mapName": "RuneScape Surface",
+                  "x": 2712,
+                  "y": 3678,
+                  "plane": 0,
+                  "region": "10809",
+                  "paste": {
+                    "kind": "squares",
+                    "index": 543
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "structId": 38600,
+          "membersCandidate": 1,
+          "coordinates": [
+            {
+              "param": 2941,
+              "packed": 44437086,
+              "x": 2712,
+              "y": 3678,
+              "plane": 0,
+              "surface": [
+                {
+                  "x": 2712,
+                  "y": 3678,
+                  "plane": 0,
+                  "mapId": 28,
+                  "region": "10809",
+                  "transform": {
+                    "x": 0,
+                    "y": 0,
+                    "plane": 0
+                  }
+                }
+              ],
+              "mapProjections": [
+                {
+                  "mapId": 28,
+                  "mapName": "RuneScape Surface",
+                  "x": 2712,
+                  "y": 3678,
+                  "plane": 0,
+                  "region": "10809",
+                  "paste": {
+                    "kind": "squares",
+                    "index": 543
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "status": "coordinate-verified",
+      "validation": {
+        "regionFormula": "(x >> 6) * 256 + (y >> 6)",
+        "wikiRuntimeBaseMatch": true,
+        "surfaceProjectionStatus": "available",
+        "membershipCandidates": [
+          1
+        ],
+        "cacheWikiSurfaceRegionMatch": true
+      },
+      "landingPolicy": "Wiki scenery and cache landing are distinct anchors in the same base region. Existing authored section selector is retained; no new section/component correspondence or personal activation is established."
+    },
+    {
+      "name": "Prifddinas",
+      "retainedLocation": "8756-1",
+      "runtimeLocation": "8756-1",
+      "wiki": {
+        "title": "Prifddinas lodestone",
+        "revision": 37129085,
+        "revisionTimestamp": "2026-07-28T21:24:42Z",
+        "permalink": "https://runescape.wiki/w/Special:PermanentLink/37129085",
+        "mapWikitext": "{{Object map|objectname=Prifddinas lodestone|x=2207|y=3360|plane=0}}",
+        "coordinate": {
+          "x": 2207,
+          "y": 3360,
+          "plane": 0,
+          "planeStatus": "explicit",
+          "region": "8756"
+        },
+        "f2p": false,
+        "membershipVariants": [
+          {
+            "version": "all",
+            "members": true
+          }
+        ]
+      },
+      "cache": [
+        {
+          "structId": 24321,
+          "membersCandidate": 1,
+          "coordinates": [
+            {
+              "param": 2941,
+              "packed": 304614689,
+              "x": 2208,
+              "y": 3361,
+              "plane": 1,
+              "surface": [],
+              "mapProjections": []
+            }
+          ]
+        },
+        {
+          "structId": 38606,
+          "membersCandidate": 1,
+          "coordinates": [
+            {
+              "param": 2941,
+              "packed": 304614689,
+              "x": 2208,
+              "y": 3361,
+              "plane": 1,
+              "surface": [],
+              "mapProjections": []
+            }
+          ]
+        }
+      ],
+      "status": "wiki-base-verified-cache-plane-unresolved",
+      "validation": {
+        "regionFormula": "(x >> 6) * 256 + (y >> 6)",
+        "wikiRuntimeBaseMatch": true,
+        "surfaceProjectionStatus": "missing",
+        "membershipCandidates": [
+          1
+        ],
+        "cacheWikiSurfaceRegionMatch": false
+      },
+      "landingPolicy": "Cache encodes plane 1 and has no map-28 plane-0 projection. Wiki scenery confirms the retained base only. Do not force the encoded plane to zero or infer a component."
+    },
+    {
+      "name": "Menaphos",
+      "retainedLocation": "12842",
+      "runtimeLocation": "12842",
+      "wiki": {
+        "title": "Menaphos lodestone",
+        "revision": 36689053,
+        "revisionTimestamp": "2025-03-30T08:27:31Z",
+        "permalink": "https://runescape.wiki/w/Special:PermanentLink/36689053",
+        "mapWikitext": "{{Object map|objectname=Menaphos lodestone|x=3215|y=2716}}",
+        "coordinate": {
+          "x": 3215,
+          "y": 2716,
+          "plane": null,
+          "planeStatus": "not specified",
+          "region": "12842"
+        },
+        "f2p": false,
+        "membershipVariants": [
+          {
+            "version": "all",
+            "members": true
+          }
+        ]
+      },
+      "cache": [
+        {
+          "structId": 24323,
+          "membersCandidate": 1,
+          "coordinates": [
+            {
+              "param": 2941,
+              "packed": 52693661,
+              "x": 3216,
+              "y": 2717,
+              "plane": 0,
+              "surface": [
+                {
+                  "x": 3216,
+                  "y": 2717,
+                  "plane": 0,
+                  "mapId": 28,
+                  "region": "12842",
+                  "transform": {
+                    "x": 0,
+                    "y": 0,
+                    "plane": 0
+                  }
+                }
+              ],
+              "mapProjections": [
+                {
+                  "mapId": 28,
+                  "mapName": "RuneScape Surface",
+                  "x": 3216,
+                  "y": 2717,
+                  "plane": 0,
+                  "region": "12842",
+                  "paste": {
+                    "kind": "squares",
+                    "index": 729
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "structId": 38607,
+          "membersCandidate": 1,
+          "coordinates": [
+            {
+              "param": 2941,
+              "packed": 52693661,
+              "x": 3216,
+              "y": 2717,
+              "plane": 0,
+              "surface": [
+                {
+                  "x": 3216,
+                  "y": 2717,
+                  "plane": 0,
+                  "mapId": 28,
+                  "region": "12842",
+                  "transform": {
+                    "x": 0,
+                    "y": 0,
+                    "plane": 0
+                  }
+                }
+              ],
+              "mapProjections": [
+                {
+                  "mapId": 28,
+                  "mapName": "RuneScape Surface",
+                  "x": 3216,
+                  "y": 2717,
+                  "plane": 0,
+                  "region": "12842",
+                  "paste": {
+                    "kind": "squares",
+                    "index": 729
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "status": "coordinate-verified",
+      "validation": {
+        "regionFormula": "(x >> 6) * 256 + (y >> 6)",
+        "wikiRuntimeBaseMatch": true,
+        "surfaceProjectionStatus": "available",
+        "membershipCandidates": [
+          1
+        ],
+        "cacheWikiSurfaceRegionMatch": true
+      },
+      "landingPolicy": "Wiki scenery and cache landing are distinct anchors in the same base region. Existing authored section selector is retained; no new section/component correspondence or personal activation is established."
+    },
+    {
+      "name": "Anachronia",
+      "retainedLocation": "15683-1",
+      "runtimeLocation": "15426",
+      "wiki": {
+        "title": "Anachronia lodestone",
+        "revision": 37122513,
+        "revisionTimestamp": "2026-07-25T22:19:21Z",
+        "permalink": "https://runescape.wiki/w/Special:PermanentLink/37122513",
+        "mapWikitext": "{{Object map|objectname=Anachronia lodestone|objectid:113742,x:3894,y:4258}}",
+        "coordinate": {
+          "x": 3894,
+          "y": 4258,
+          "plane": null,
+          "planeStatus": "not specified",
+          "region": "15426"
+        },
+        "f2p": false,
+        "membershipVariants": [
+          {
+            "version": "all",
+            "members": true
+          },
+          {
+            "version": "all",
+            "members": true
+          }
+        ]
+      },
+      "cache": [
+        {
+          "structId": 24324,
+          "membersCandidate": 1,
+          "coordinates": [
+            {
+              "param": 2941,
+              "packed": 88983843,
+              "x": 5431,
+              "y": 2339,
+              "plane": 0,
+              "surface": [
+                {
+                  "x": 3895,
+                  "y": 4259,
+                  "plane": 0,
+                  "mapId": 28,
+                  "region": "15426",
+                  "transform": {
+                    "x": -1536,
+                    "y": 1920,
+                    "plane": 0
+                  }
+                }
+              ],
+              "mapProjections": [
+                {
+                  "mapId": 28,
+                  "mapName": "RuneScape Surface",
+                  "x": 3895,
+                  "y": 4259,
+                  "plane": 0,
+                  "region": "15426",
+                  "paste": {
+                    "kind": "squares",
+                    "index": 1050
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "structId": 33446,
+          "membersCandidate": 1,
+          "coordinates": [
+            {
+              "param": 2941,
+              "packed": 88983843,
+              "x": 5431,
+              "y": 2339,
+              "plane": 0,
+              "surface": [
+                {
+                  "x": 3895,
+                  "y": 4259,
+                  "plane": 0,
+                  "mapId": 28,
+                  "region": "15426",
+                  "transform": {
+                    "x": -1536,
+                    "y": 1920,
+                    "plane": 0
+                  }
+                }
+              ],
+              "mapProjections": [
+                {
+                  "mapId": 28,
+                  "mapName": "RuneScape Surface",
+                  "x": 3895,
+                  "y": 4259,
+                  "plane": 0,
+                  "region": "15426",
+                  "paste": {
+                    "kind": "squares",
+                    "index": 1050
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "status": "base-region-corrected",
+      "validation": {
+        "regionFormula": "(x >> 6) * 256 + (y >> 6)",
+        "wikiRuntimeBaseMatch": true,
+        "surfaceProjectionStatus": "available",
+        "membershipCandidates": [
+          1
+        ],
+        "cacheWikiSurfaceRegionMatch": true
+      },
+      "correction": {
+        "oldValue": "15683-1",
+        "newValue": "15426",
+        "reason": "Current Wiki scenery and two exact cache map-28 projections agree on base region 15426.",
+        "retainedTask": {
+          "taskId": "rs3:task:00354e",
+          "category": "Diary",
+          "rawLabel": "~|Exploration achievements#Lodestones|~ Anachronia",
+          "field": "Chunks",
+          "oldValue": "15683-1",
+          "newValue": "15426"
+        }
+      },
+      "landingPolicy": "No authored section suffix or exact walking component is certified. Bare destination remains unresolved in the existing cache landing resolver; coordinate metadata does not grant component reachability."
+    },
+    {
+      "name": "City of Um",
+      "retainedLocation": null,
+      "runtimeLocation": null,
+      "wiki": {
+        "title": "City of Um lodestone",
+        "revision": 36921071,
+        "revisionTimestamp": "2026-01-21T22:18:16Z",
+        "permalink": "https://runescape.wiki/w/Special:PermanentLink/36921071",
+        "mapWikitext": "{{Object map|mapID=-1|plane=1|objectname:City of Um lodestone,objectid:,x:1083,y:1768}}",
+        "coordinate": {
+          "x": 1083,
+          "y": 1768,
+          "plane": 1,
+          "planeStatus": "explicit",
+          "region": "4123"
+        },
+        "f2p": true,
+        "membershipVariants": [
+          {
+            "version": "all",
+            "members": false
+          }
+        ]
+      },
+      "cache": [
+        {
+          "structId": 48292,
+          "membersCandidate": 0,
+          "coordinates": [
+            {
+              "param": 2941,
+              "packed": 286181096,
+              "x": 1083,
+              "y": 1768,
+              "plane": 1,
+              "surface": [],
+              "mapProjections": [
+                {
+                  "mapId": 742,
+                  "mapName": "Underworld",
+                  "x": 1083,
+                  "y": 1768,
+                  "plane": 0,
+                  "region": "4123",
+                  "paste": {
+                    "kind": "squares",
+                    "index": 6
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "structId": 48395,
+          "membersCandidate": 1,
+          "coordinates": [
+            {
+              "param": 2941,
+              "packed": 286181096,
+              "x": 1083,
+              "y": 1768,
+              "plane": 1,
+              "surface": [],
+              "mapProjections": [
+                {
+                  "mapId": 742,
+                  "mapName": "Underworld",
+                  "x": 1083,
+                  "y": 1768,
+                  "plane": 0,
+                  "region": "4123",
+                  "paste": {
+                    "kind": "squares",
+                    "index": 6
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "status": "underground-coordinate-verified-membership-conflict",
+      "validation": {
+        "regionFormula": "(x >> 6) * 256 + (y >> 6)",
+        "wikiRuntimeBaseMatch": null,
+        "surfaceProjectionStatus": "missing",
+        "membershipCandidates": [
+          0,
+          1
+        ],
+        "cacheWikiSurfaceRegionMatch": false
+      },
+      "landingPolicy": "Source coordinate and plane match Wiki exactly. Cache projection is Underworld map 742, display plane 0, not surface map 28. Wiki marks the ordinary lodestone F2P; cache param-2809 variants 0 and 1 are both retained. Activation, quest and underground access policy remain unresolved; excluded from surface travel."
+    }
+  ]
+}

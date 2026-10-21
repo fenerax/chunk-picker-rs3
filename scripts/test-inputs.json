@@ -1,0 +1,52 @@
+{
+  "schema": "rs3-test-inputs-v2",
+  "about": "Reviewed computed-import targets for per-file test evidence (scripts/private-companion/file-test-evidence.mjs). Each model applies only to its exact expression text. Listing targets binds them into the file contract; the run's trace still checks every module actually loaded, so a stale list makes files rerun, never skip.",
+  "volatile": [],
+  "modules": {
+    "app/dataset-runtime.mjs": {
+      "computedImports": {
+        "newURL(`../`${filename}``,import.meta.url)": [
+          "app/data/settings.mjs", "app/data/identity-registry.mjs", "app/data/access-policy.mjs", "app/data/cache-entry-policy.mjs",
+          "app/data/lodestones.mjs", "app/data/map-corrections.mjs", "app/data/map-pin-categories.mjs", "app/data/map-pins.mjs",
+          "app/data/surface-grid.mjs", "app/data/icons.mjs", "app/data/terrain-assets.mjs", "app/data/skill-guide-rules.mjs",
+          "app/data/training/banking-destinations.mjs", "app/tasks/identity.mjs", "app/core/game-progress.mjs", "app/core/f2p-skill-caps.mjs",
+          "app/core/player-controls.mjs", "app/core/death-settings.mjs", "app/core/banking-settings.mjs", "app/core/mining-settings.mjs",
+          "app/core/woodcutting-settings.mjs", "app/training/mining-rules.mjs", "app/training/woodcutting-rules.mjs", "app/training/fishing-rules.mjs",
+          "app/web/finish-line-model.mjs", "app/core/rules.mjs", "app/tasks/engine.mjs", "app/tasks/processing.mjs",
+          "app/tasks/achievements.mjs", "app/web/rules-model.mjs"
+        ]
+      }
+    },
+    "app/dataset-bootstrap.mjs": {
+      "computedImports": {
+        "legacyInputsModule": ["app/data/original-data.mjs"],
+        "originalSyncModule": ["app/integrations/original-sync.mjs"]
+      }
+    },
+    "app/web/original-sync-loader.mjs": {
+      "computedImports": {
+        "originalSyncModule": ["app/web/original-sync.mjs"]
+      }
+    },
+    "app/server.mjs": {
+      "about": "APP_VERSION hashes every .mjs, .css and .html file under app/.",
+      "reads": ["app/"]
+    },
+    "app/datasets.mjs": {
+      "about": "The production catalogue hashes DATASET_INPUTS (data, bound by <data-floor>) and DATASET_SOURCE_INPUTS from app/dataset-inputs.mjs.",
+      "reads": [
+        "docs/research/dataset-seam-source-2026-10-13/app/data/equipment-permanence.mjs",
+        "docs/research/dataset-seam-source-2026-10-13/scripts/update-identities.mjs",
+        "docs/research/dataset-seam-source-2026-10-13/scripts/compare-original-data.mjs",
+        "app/data/settings.mjs", "app/data/identity-registry.mjs", "app/data/access-policy.mjs", "app/data/cache-entry-policy.mjs",
+        "app/data/lodestones.mjs", "app/data/map-corrections.mjs", "app/data/map-pin-categories.mjs", "app/data/map-pins.mjs",
+        "app/data/surface-grid.mjs", "app/data/icons.mjs", "app/data/terrain-assets.mjs", "app/data/skill-guide-rules.mjs",
+        "app/data/training/banking-destinations.mjs", "app/tasks/identity.mjs", "app/core/game-progress.mjs", "app/core/f2p-skill-caps.mjs",
+        "app/core/player-controls.mjs", "app/core/death-settings.mjs", "app/core/banking-settings.mjs", "app/core/mining-settings.mjs",
+        "app/core/woodcutting-settings.mjs", "app/training/mining-rules.mjs", "app/training/woodcutting-rules.mjs", "app/training/fishing-rules.mjs",
+        "app/web/finish-line-model.mjs", "app/core/rules.mjs", "app/tasks/engine.mjs", "app/tasks/processing.mjs",
+        "app/tasks/achievements.mjs", "app/web/rules-model.mjs"
+      ]
+    }
+  }
+}

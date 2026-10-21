@@ -1,0 +1,25 @@
+{
+  "version": "2026-10-13.v1",
+  "reviewed": "2026-10-13",
+  "limits": ["Wiki map markers identify possible fishing positions, not an observed active NPC or complete relocation distribution.", "Routes start at a cardinally adjacent walkable shore or dock tile. Spot movement, switching and re-click time are excluded."],
+  "sources": {
+    "cage-harpoon": "https://runescape.wiki/w/Fishing_spot_(cage,_harpoon)?oldid=37196214",
+    "lure-bait": "https://runescape.wiki/w/Fishing_spot_(lure,_bait)?oldid=37196220",
+    "net-bait": "https://runescape.wiki/w/Fishing_spot_(small_fishing_net,_bait)?oldid=37196217",
+    "crayfish": "https://runescape.wiki/w/Fishing_spot_(crayfish)?oldid=37196216"
+  },
+  "groups": [
+    { "label": "Musa Point docks", "methods": ["lobster", "harpoon"], "source": "cage-harpoon", "points": [[2923,3180],[2925,3181],[2926,3179]] },
+    { "label": "Demonic Ruins coast", "methods": ["lobster", "harpoon"], "source": "cage-harpoon", "points": [[3346,3830],[3350,3817],[3349,3793]] },
+    { "label": "Barbarian Village river", "methods": ["fly-fishing", "pike"], "source": "lure-bait", "points": [[3108,3433],[3104,3424]] },
+    { "label": "Lumbridge river", "methods": ["fly-fishing", "pike"], "source": "lure-bait", "points": [[3238,3252],[3239,3241]] },
+    { "label": "Draynor Village shore", "methods": ["small-net", "sea-bait"], "source": "net-bait", "points": [[3085,3230],[3086,3227]] },
+    { "label": "Al Kharid shore", "methods": ["small-net", "sea-bait"], "source": "net-bait", "points": [[3256,3177],[3255,3163]] },
+    { "label": "Bandit Camp shore", "methods": ["small-net", "sea-bait"], "source": "net-bait", "points": [[3050,3704]] },
+    { "label": "Rimmington coast", "methods": ["small-net", "sea-bait"], "source": "net-bait", "points": [[2986,3176],[2996,3158]] },
+    { "label": "Lumbridge Swamp shore", "methods": ["small-net", "sea-bait"], "source": "net-bait", "points": [[3244,3150]] },
+    { "label": "Musa Point docks", "methods": ["small-net", "sea-bait"], "source": "net-bait", "points": [[2923,3179],[2924,3181],[2926,3180]] },
+    { "label": "Lumbridge crayfish", "methods": ["crayfish"], "source": "crayfish", "points": [[3259,3205],[3259,3204],[3259,3203]] },
+    { "label": "Taverley crayfish", "methods": ["crayfish"], "source": "crayfish", "points": [[2901,3469],[2900,3467],[2912,3463],[2912,3461]] }
+  ]
+}

@@ -1,0 +1,6 @@
+.map-journal textarea{min-height:12rem;max-height:55vh;overflow-wrap:anywhere}
+.journal-partners{display:flex;flex-direction:column;gap:var(--space-6)}
+.journal-partner{border-top:var(--border-thin) solid var(--border);padding-top:var(--space-5)}
+.journal-partner h3{margin:0 0 var(--space-4)}
+.journal-text{white-space:pre-wrap;overflow-wrap:anywhere;line-height:var(--leading-copy);margin:0}
+@media(max-width:600px){.map-journal textarea{min-height:10rem}}

@@ -1,0 +1,20 @@
+.task-heading:has(+ .duo-task-controls:not([hidden])){flex-wrap:wrap}
+.task-heading:has(+ .duo-task-controls:not([hidden])) #task-count{flex-basis:100%;padding:0;background:transparent;border-radius:0;line-height:var(--leading-copy);color:var(--panel-muted,var(--muted))}
+.duo-task-controls{margin-bottom:var(--space-5)}
+.duo-task-controls[hidden]{display:none}
+.task-options label:has(input:disabled),.task-filter-row label:has(input:disabled){opacity:.5;cursor:default}
+.duo-task-control-row{display:flex;flex-wrap:wrap;gap:var(--space-3);align-items:center}
+.duo-task-filters{display:flex;flex-wrap:wrap;gap:var(--space-3)}
+.duo-personal-filter{min-width:0;max-width:100%}
+.duo-personal-filter select{width:auto;max-width:100%;min-height:36px;padding:var(--space-2) var(--space-3);font-size:var(--type-sm)}
+.duo-task-chip{min-height:36px;padding:var(--space-2) var(--space-5);border:var(--border-thin) solid var(--hairline);border-radius:var(--radius-sm);background:transparent;color:var(--panel-text,var(--text));font-size:var(--type-sm)}
+.duo-task-chip[aria-pressed=true]{border-color:var(--gold);background:color-mix(in srgb,var(--gold) 12%,var(--panel));color:var(--panel-link,var(--link))}
+.duo-task-hint{margin:var(--space-4) 0 0;font-size:var(--type-xs);line-height:var(--leading-body);color:var(--panel-muted,var(--muted))}
+.duo-task-owner{display:block;font-size:var(--type-xs);font-weight:var(--weight-semibold);color:var(--panel-link,var(--link));margin-top:var(--space-1)}
+.duo-task-row{grid-template-columns:18px minmax(0,1fr) auto}
+.duo-task-backlog{padding:var(--space-2) var(--space-3);min-height:30px;background:transparent;color:var(--panel-muted,var(--muted));font-size:var(--type-xs)}
+.duo-task-chooser{grid-column:2 / -1;display:flex;flex-wrap:wrap;align-items:center;gap:var(--space-3);padding:var(--space-4) 0}
+.duo-task-chooser select{min-height:36px;width:auto}
+.duo-task-chooser button{min-height:36px;font-size:var(--type-sm)}
+.duo-task-dialog-owners{display:flex;flex-wrap:wrap;gap:var(--space-3);align-items:center}
+@media(max-width:500px){.duo-task-chip{min-height:44px}.duo-personal-filter{flex-basis:100%}.duo-personal-filter select{width:100%;min-height:44px;font-size:var(--type-base)}.duo-task-backlog{min-height:44px}.duo-task-chooser select,.duo-task-chooser button{min-height:44px}}

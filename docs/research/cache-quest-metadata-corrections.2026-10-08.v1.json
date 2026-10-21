@@ -1,0 +1,2396 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-10-08T03:39:12.166Z",
+  "sources": {
+    "reference": {
+      "path": "rs3-chunkpicker-chunkinfo-export.json",
+      "sha256": "9dd835266f381abaa4d14033abcd0b43a001fe96d7df0a7f046fcc8676d66553"
+    },
+    "cache": {
+      "directory": "C:/Users/User/Projects/chunk-picker-rs3/.local/game-data/quests-achievements-2026-10-08-v2",
+      "artifacts": [
+        {
+          "artifact": "quests.v1.json",
+          "sha256": "da00bd1aef99e8d8c21a03b9267529da839796d9702d0e6ba12f1f698e7dfb07"
+        },
+        {
+          "artifact": "achievements.v1.json",
+          "sha256": "dce55f83327e8257902ef259ad43f5784847da6240bc952afa0d023a59a8d31c"
+        },
+        {
+          "artifact": "quests-achievements.comparison.v1.json",
+          "sha256": "f0ac3ad25d77ced76bd0a67eb6327906964ca212e231d06c0251421c0a92e05e"
+        },
+        {
+          "artifact": "quests-achievements.manifest.v1.json",
+          "sha256": "d20f78210c0c15ac870d18bc55848ae61537c33baed899ff07411fef14bf8cf0"
+        }
+      ],
+      "decoder": {
+        "repository": "https://github.com/skillbert/rsmv",
+        "commit": "a92b8920b9b9842adde78822646ecad1a6f4fc15",
+        "buildSchema": 950,
+        "buildStatus": "inferred schema version; not independently verified game client build",
+        "sourceHashes": {
+          "constants": "1436162d7de64725f3b5902d1ae278f40e2dce5ab1f82439e62a2a832d82c66b",
+          "opcode": "5fd7b69a0be0a5d4ec71b5465afcfd5812e8dbcc05f859e021ca8c17d85ed6e4"
+        },
+        "schemaHashes": {
+          "typedef.jsonc": "0d4037507c304ea3bd1e966a161dc1643115c0991e81711bf49d672545dc6858",
+          "cacheindex.json": "b65b2f60dba6168134f6ae5c90d5504dcf26f276477bd2aff213c6734293f793",
+          "mapsquare_tiles.jsonc": "64deb140845bf6605456da65b2de56e7766a66f4747fc90f43e7f3fcc95afbdd",
+          "mapsquare_tiles_nxt.jsonc": "0199a97ae17a56b5a4f05b5962fd80788e86807ceff1256d023a2e650f43be56",
+          "mapsquare_locations.json": "41867d05f7f9456c54f2eedda9a977734b99e33736b89c2cece1eb618a99b308",
+          "locs.jsonc": "fbd5f1d646341a716e1c3c4b41a112727e62922290b44300e69ba8e2aa70c51f",
+          "npcs.jsonc": "1b3b3ffa02e325c0aecafb7d7b22ff7256f11494ab37685115cfd795b0fa4af2",
+          "maplabels.jsonc": "e3bd3e0d827f48ddbb1470e2959c51da23624a4e0fdfc145fa37d62bce780d63",
+          "maplabellocations.jsonc": "5b95af45643e545ca75c9bc4f2d942c033b994a01a00e243d93c36e49372e342",
+          "mapzones_pastes.json": "30f83ad60a5e372e1644627aa234eeca22bbd8e1ece36c44e87a0229f20e40fa",
+          "mapzones.json": "8ba12ea64687bf7376978682ca35688adf1d05a9dca221073dc79f5060f15b29",
+          "mapsquare_overlays.jsonc": "ebf509b0cfeba3288750e40b2049ccd25a210170e54fad7fb387619043954d62",
+          "mapsquare_underlays.jsonc": "2b2f0db789c666d40d85a9764aa4e3ecb9b36bd8f0cacf89e3024180b76b5478",
+          "quests.jsonc": "045f2f579c6cafe4bfe88c23016dd2a8382921eed9d46c6de3ad66144bd78eeb",
+          "achievements.jsonc": "a2e90768fbe4060b059def9ee5c7dbc7d9a9c0fdc4729f1e2104ee3e50726d0a",
+          "enums.json": "860ee65ad6cd215960981695e8148de18564464f4375e27eb6b308fbad6c909d",
+          "structs.jsonc": "bf73399b40d9ebffb6f7beb5cab9c7b091724e6bcae0c5f76f61802a081d9870",
+          "params.jsonc": "a8ac70f87c66b79fa5ef3455d41c38434fa0a85cf78ea99b8a736ddc1aecc4dd"
+        }
+      }
+    },
+    "wiki": {
+      "method": "Tavily discovery first, then direct MediaWiki API current revisions with redirects",
+      "queryUrl": "https://runescape.wiki/api.php?action=query&prop=revisions&rvprop=ids%7Ctimestamp%7Ccontent&rvslots=main&format=json&formatversion=2&redirects=1&titles=Beneath+Scabaras%27+Sands%7CPrincess+and+the+Pauper%7CGertrude%27s+Cat%7CBenedict%27s+World+Tour+%28miniquest%29%7CA+Clockwork+Syringe%7CDevious+Minds%7CDoric%27s+Task+II+%28miniquest%29%7CHunt+for+Red+Raktuber%7CTears+of+Guthix+%28quest%29%7CRecipe+for+Disaster%3A+Freeing+Skrach+Uglogwee%7CCooked+chompy%7CKili%27s+Knowledge%7CKili%27s+Knowledge+VII%7CKili%27s+Knowledge+VII+%28power%29%7CKindred+Spirits%7CKili+Row",
+      "responseSha256": "c061c98bed2816b320bed9a28b5b961b6508952eb976b0d408c1658e6a2b1293",
+      "checkedAt": "2026-10-08T03:39:12.230Z",
+      "revisions": [
+        {
+          "title": "Tears of Guthix (quest)",
+          "revisionId": 37182729,
+          "timestamp": "2026-09-21T21:53:34Z",
+          "url": "https://runescape.wiki/w/Special:PermanentLink/37182729",
+          "contentSha256": "7da5c1f27a16aab30a29eab19343b6337f57074c7ad68e9d2da5278b8fac7096"
+        },
+        {
+          "title": "Gertrude's Cat",
+          "revisionId": 37182697,
+          "timestamp": "2026-09-21T21:31:53Z",
+          "url": "https://runescape.wiki/w/Special:PermanentLink/37182697",
+          "contentSha256": "82732163c7534ce79b914fe32180e200d723b2c7582183b82ae216bfc9b7335c"
+        },
+        {
+          "title": "Devious Minds",
+          "revisionId": 37186856,
+          "timestamp": "2026-09-25T14:50:17Z",
+          "url": "https://runescape.wiki/w/Special:PermanentLink/37186856",
+          "contentSha256": "a028693a98b50faf0088c44516dae9adc42ccc11e757743ad80e59a6bba2a1c7"
+        },
+        {
+          "title": "Cooked chompy",
+          "revisionId": 36953502,
+          "timestamp": "2026-03-03T13:19:34Z",
+          "url": "https://runescape.wiki/w/Special:PermanentLink/36953502",
+          "contentSha256": "2106b719d31cdc6327e98eb26cf4c979087d1279e2ed2bd6070a25df212ed312"
+        },
+        {
+          "title": "Recipe for Disaster: Freeing Skrach Uglogwee",
+          "revisionId": 37154541,
+          "timestamp": "2026-08-12T20:07:24Z",
+          "url": "https://runescape.wiki/w/Special:PermanentLink/37154541",
+          "contentSha256": "8a461f017ebd41d773db62d46d35f46a49c1d769d8d98b31d102c7fa886122ef"
+        },
+        {
+          "title": "Hunt for Red Raktuber",
+          "revisionId": 37167799,
+          "timestamp": "2026-08-31T09:22:57Z",
+          "url": "https://runescape.wiki/w/Special:PermanentLink/37167799",
+          "contentSha256": "67c3b3145d0d5ebc3d1476af65a19c08e36d2833f19916567efeb06f517e46bc"
+        },
+        {
+          "title": "A Clockwork Syringe",
+          "revisionId": 37199963,
+          "timestamp": "2026-10-07T15:47:30Z",
+          "url": "https://runescape.wiki/w/Special:PermanentLink/37199963",
+          "contentSha256": "a4d6df4e21c6ffbeac40cf9a93d2b10a5f4bfb788319a168031f98d16d9057e5"
+        },
+        {
+          "title": "Kindred Spirits",
+          "revisionId": 37161806,
+          "timestamp": "2026-08-22T21:10:55Z",
+          "url": "https://runescape.wiki/w/Special:PermanentLink/37161806",
+          "contentSha256": "a11ee598e51a73fe7a98a3ef9d536c9ba80a48526e49fdfa0de2cde64efcf364"
+        },
+        {
+          "title": "Benedict's World Tour (miniquest)",
+          "revisionId": 37158605,
+          "timestamp": "2026-08-18T16:10:36Z",
+          "url": "https://runescape.wiki/w/Special:PermanentLink/37158605",
+          "contentSha256": "6a5eb0274f35f433c0c100580bd383e683a9f3f49aa55f9102cb830c3b1cb609"
+        },
+        {
+          "title": "Doric's Task II (miniquest)",
+          "revisionId": 37152749,
+          "timestamp": "2026-08-11T00:17:00Z",
+          "url": "https://runescape.wiki/w/Special:PermanentLink/37152749",
+          "contentSha256": "423955fec4d2c46d0bd2d4448960b8f85cd58b5a8d037129482992d58e972f2e"
+        },
+        {
+          "title": "Kili Row",
+          "revisionId": 37152862,
+          "timestamp": "2026-08-11T00:50:55Z",
+          "url": "https://runescape.wiki/w/Special:PermanentLink/37152862",
+          "contentSha256": "2f9fc005ea1b23088bde968cc4c68f2685273a0b42e498ad81bbc60c5b1cc770"
+        },
+        {
+          "title": "Kili's Knowledge VII",
+          "revisionId": 37186409,
+          "timestamp": "2026-09-25T05:15:01Z",
+          "url": "https://runescape.wiki/w/Special:PermanentLink/37186409",
+          "contentSha256": "5f0b01cecc1fc97242e19a00832a7ff1fbccd16787d244441a1ba2a9c601a265"
+        },
+        {
+          "title": "Kili's Knowledge VII (power)",
+          "revisionId": 37083735,
+          "timestamp": "2026-07-02T14:45:34Z",
+          "url": "https://runescape.wiki/w/Special:PermanentLink/37083735",
+          "contentSha256": "7fc356304153cb69a39c5dbf1cc37da18ce935bbd1f0a9e09e1c0777be0058b7"
+        },
+        {
+          "title": "Kili's Knowledge",
+          "revisionId": 37080308,
+          "timestamp": "2026-06-26T15:10:23Z",
+          "url": "https://runescape.wiki/w/Special:PermanentLink/37080308",
+          "contentSha256": "b636c2f295dd56e9da82728f2bcbab239bc8ead3ac71b397b818ccf3ad16c69b"
+        },
+        {
+          "title": "Beneath Scabaras' Sands",
+          "revisionId": 37173764,
+          "timestamp": "2026-09-08T22:55:46Z",
+          "url": "https://runescape.wiki/w/Special:PermanentLink/37173764",
+          "contentSha256": "1e3dcb51f6952a198cf19fb120cc91be177d63d298303484e9232ac02814e91a"
+        },
+        {
+          "title": "Princess and the Pauper",
+          "revisionId": 37181494,
+          "timestamp": "2026-09-21T06:34:44Z",
+          "url": "https://runescape.wiki/w/Special:PermanentLink/37181494",
+          "contentSha256": "872eb507c14dfb12b165b470357e73f2d3996d586c59b4294c19a31e56a81d7a"
+        }
+      ]
+    }
+  },
+  "coverage": {
+    "retainedQuestRows": 3515,
+    "wholeQuestCompletionRows": 428,
+    "uniquelyMatchedQuestRows": 3011,
+    "originalCompletionMetadataDifferences": [
+      {
+        "label": "~|Beneath Scabaras' Sands|~ Complete the quest",
+        "field": "members",
+        "retained": false,
+        "cache": true,
+        "status": "mismatch"
+      },
+      {
+        "label": "~|Benedict's World Tour (miniquest)|~ Complete the miniquest",
+        "field": "members",
+        "retained": true,
+        "cache": false,
+        "status": "mismatch"
+      },
+      {
+        "label": "~|Kili's Knowledge|~ Complete the lore activity",
+        "field": "questPoints",
+        "retained": 0,
+        "cache": 1,
+        "status": "mismatch"
+      },
+      {
+        "label": "~|Princess and the Pauper|~ Complete the quest",
+        "field": "members",
+        "retained": false,
+        "cache": true,
+        "status": "mismatch"
+      }
+    ],
+    "labelIdentityDisagreements": [
+      {
+        "label": "~|Kili's Knowledge|~ Complete the lore activity",
+        "linkedTitle": "Kili's Knowledge",
+        "baseQuest": "Kindred Spirits"
+      }
+    ],
+    "effectiveMembershipDifferences": 43,
+    "rawAliasMembershipReviewCount": 1,
+    "difficultyAndLength": {
+      "scope": "Every key recursively in the complete retained export",
+      "storedFields": [],
+      "changes": 0,
+      "reason": "No stored difficulty/length fields; do not invent metadata fields."
+    },
+    "numericRequirements": {
+      "scope": "Every plain numeric Skills value and QuestPointsNeeded in all 3515 Quest rows, compared only against the same explicit cache requirement",
+      "skillValues": 685,
+      "skillComparable": 595,
+      "achievementSkillComparisons": [
+        {
+          "label": "~|Kili's Knowledge|~ I",
+          "id": 3347,
+          "skill": "Necromancy",
+          "before": 30,
+          "after": 30,
+          "status": "match"
+        },
+        {
+          "label": "~|Kili's Knowledge|~ II",
+          "id": 3348,
+          "skill": "Necromancy",
+          "before": 40,
+          "after": 40,
+          "status": "match"
+        },
+        {
+          "label": "~|Kili's Knowledge|~ III",
+          "id": 3349,
+          "skill": "Necromancy",
+          "before": 50,
+          "after": 50,
+          "status": "match"
+        },
+        {
+          "label": "~|Kili's Knowledge|~ IV",
+          "id": 3350,
+          "skill": "Necromancy",
+          "before": 60,
+          "after": 60,
+          "status": "match"
+        },
+        {
+          "label": "~|Kili's Knowledge|~ V",
+          "id": 3351,
+          "skill": "Necromancy",
+          "before": 70,
+          "after": 70,
+          "status": "match"
+        },
+        {
+          "label": "~|Kili's Knowledge|~ V (power)",
+          "id": 3352,
+          "skill": "Necromancy",
+          "before": 70,
+          "after": 70,
+          "status": "match"
+        },
+        {
+          "label": "~|Kili's Knowledge|~ VI",
+          "id": 3353,
+          "skill": "Necromancy",
+          "before": 80,
+          "after": 80,
+          "status": "match"
+        },
+        {
+          "label": "~|Kili's Knowledge|~ VI (power)",
+          "id": 3354,
+          "skill": "Necromancy",
+          "before": 80,
+          "after": 80,
+          "status": "match"
+        },
+        {
+          "label": "~|Kili's Knowledge|~ VII",
+          "id": 3355,
+          "skill": "Necromancy",
+          "before": 90,
+          "after": 90,
+          "status": "match"
+        },
+        {
+          "label": "~|Kili's Knowledge|~ VII (power)",
+          "id": 3356,
+          "skill": "Necromancy",
+          "before": 90,
+          "after": 90,
+          "status": "match"
+        }
+      ],
+      "uncomparedSkillValues": [
+        {
+          "label": "~|Barbarian Training|~ 2a2",
+          "skill": "Firemaking",
+          "before": 35,
+          "reason": "No unambiguous exact quest or achievement identity"
+        },
+        {
+          "label": "~|Barbarian Training|~ 2a5",
+          "skill": "Crafting",
+          "before": 11,
+          "reason": "No unambiguous exact quest or achievement identity"
+        },
+        {
+          "label": "~|Barbarian Training|~ 2a5",
+          "skill": "Firemaking",
+          "before": 11,
+          "reason": "No unambiguous exact quest or achievement identity"
+        },
+        {
+          "label": "~|Barbarian Training|~ 2b2",
+          "skill": "Fishing",
+          "before": 48,
+          "reason": "No unambiguous exact quest or achievement identity"
+        },
+        {
+          "label": "~|Barbarian Training|~ 2b2",
+          "skill": "Strength",
+          "before": 15,
+          "reason": "No unambiguous exact quest or achievement identity"
+        },
+        {
+          "label": "~|Barbarian Training|~ 2b2",
+          "skill": "Agility",
+          "before": 15,
+          "reason": "No unambiguous exact quest or achievement identity"
+        },
+        {
+          "label": "~|Barbarian Training|~ 2b4a1",
+          "skill": "Fishing",
+          "before": 55,
+          "reason": "No unambiguous exact quest or achievement identity"
+        },
+        {
+          "label": "~|Barbarian Training|~ 2b4a1",
+          "skill": "Strength",
+          "before": 55,
+          "reason": "No unambiguous exact quest or achievement identity"
+        },
+        {
+          "label": "~|Barbarian Training|~ 2b4b2",
+          "skill": "Herblore",
+          "before": 4,
+          "reason": "No unambiguous exact quest or achievement identity"
+        },
+        {
+          "label": "~|Barbarian Training|~ 2b4a4",
+          "skill": "Smithing",
+          "before": 20,
+          "reason": "No unambiguous exact quest or achievement identity"
+        },
+        {
+          "label": "~|Barbarian Training|~ 2b4a6",
+          "skill": "Smithing",
+          "before": 20,
+          "reason": "No unambiguous exact quest or achievement identity"
+        },
+        {
+          "label": "~|Cold War|~ 1",
+          "skill": "Thieving",
+          "before": 15,
+          "reason": "No explicit cache quest requirement for this authored operation skill"
+        },
+        {
+          "label": "~|Dead and Buried|~ 2",
+          "skill": "Construction",
+          "before": 50,
+          "reason": "No explicit cache quest requirement for this authored operation skill"
+        },
+        {
+          "label": "~|Family Crest|~ 10",
+          "skill": "Magic",
+          "before": 59,
+          "reason": "No explicit cache quest requirement for this authored operation skill"
+        },
+        {
+          "label": "~|Garden of Tranquility|~ 1",
+          "skill": "Farming",
+          "before": 25,
+          "reason": "No unambiguous exact quest or achievement identity"
+        },
+        {
+          "label": "~|Kili's Knowledge|~ VI",
+          "skill": "Agility",
+          "before": 70,
+          "reason": "No explicit cache achievement requirement for this skill"
+        },
+        {
+          "label": "~|Kili's Knowledge|~ VI",
+          "skill": "Constitution",
+          "before": 70,
+          "reason": "No explicit cache achievement requirement for this skill"
+        },
+        {
+          "label": "~|Kili's Knowledge|~ VI",
+          "skill": "Ranged",
+          "before": 70,
+          "reason": "No explicit cache achievement requirement for this skill"
+        },
+        {
+          "label": "~|Kili's Knowledge|~ VI",
+          "skill": "Strength",
+          "before": 70,
+          "reason": "No explicit cache achievement requirement for this skill"
+        },
+        {
+          "label": "~|Kili's Knowledge|~ VI (power)",
+          "skill": "Agility",
+          "before": 70,
+          "reason": "No explicit cache achievement requirement for this skill"
+        },
+        {
+          "label": "~|Kili's Knowledge|~ VI (power)",
+          "skill": "Constitution",
+          "before": 70,
+          "reason": "No explicit cache achievement requirement for this skill"
+        },
+        {
+          "label": "~|Kili's Knowledge|~ VI (power)",
+          "skill": "Ranged",
+          "before": 70,
+          "reason": "No explicit cache achievement requirement for this skill"
+        },
+        {
+          "label": "~|Kili's Knowledge|~ VI (power)",
+          "skill": "Strength",
+          "before": 70,
+          "reason": "No explicit cache achievement requirement for this skill"
+        },
+        {
+          "label": "~|Kili's Knowledge|~ VI (power)",
+          "skill": "Summoning",
+          "before": 60,
+          "reason": "No explicit cache achievement requirement for this skill"
+        },
+        {
+          "label": "~|Kili's Knowledge|~ VII",
+          "skill": "Attack",
+          "before": 80,
+          "reason": "No explicit cache achievement requirement for this skill"
+        },
+        {
+          "label": "~|Kili's Knowledge|~ VII",
+          "skill": "Magic",
+          "before": 80,
+          "reason": "No explicit cache achievement requirement for this skill"
+        },
+        {
+          "label": "~|Kili's Knowledge|~ VII",
+          "skill": "Ranged",
+          "before": 80,
+          "reason": "No explicit cache achievement requirement for this skill"
+        },
+        {
+          "label": "~|Kili's Knowledge|~ VII",
+          "skill": "Prayer",
+          "before": 80,
+          "reason": "No explicit cache achievement requirement for this skill"
+        },
+        {
+          "label": "~|Kili's Knowledge|~ VII",
+          "skill": "Runecrafting",
+          "before": 60,
+          "reason": "No explicit cache achievement requirement for this skill"
+        },
+        {
+          "label": "~|Kili's Knowledge|~ VII",
+          "skill": "Archaeology",
+          "before": 20,
+          "reason": "No explicit cache achievement requirement for this skill"
+        },
+        {
+          "label": "~|King's Ransom|~ 6",
+          "skill": "Magic",
+          "before": 45,
+          "reason": "No explicit cache quest requirement for this authored operation skill"
+        },
+        {
+          "label": "~|The Lute of Love|~ 3",
+          "skill": "Fletching",
+          "before": 40,
+          "reason": "No unambiguous exact quest or achievement identity"
+        },
+        {
+          "label": "~|The Lute of Love|~ 3",
+          "skill": "Crafting",
+          "before": 20,
+          "reason": "No unambiguous exact quest or achievement identity"
+        },
+        {
+          "label": "~|Maya Use Your Fish Farm?|~ 4",
+          "skill": "Farming",
+          "before": 25,
+          "reason": "No unambiguous exact quest or achievement identity"
+        },
+        {
+          "label": "~|Maya Use Your Fish Farm?|~ 5",
+          "skill": "Fishing",
+          "before": 45,
+          "reason": "No unambiguous exact quest or achievement identity"
+        },
+        {
+          "label": "~|Restoring Senliten|~ 1",
+          "skill": "Thieving",
+          "before": 25,
+          "reason": "No unambiguous exact quest or achievement identity"
+        },
+        {
+          "label": "~|Restoring Senliten|~ 1",
+          "skill": "Crafting",
+          "before": 45,
+          "reason": "No unambiguous exact quest or achievement identity"
+        },
+        {
+          "label": "~|Restoring Senliten|~ 1",
+          "skill": "Prayer",
+          "before": 45,
+          "reason": "No unambiguous exact quest or achievement identity"
+        },
+        {
+          "label": "~|Restoring Senliten|~ 1",
+          "skill": "Magic",
+          "before": 50,
+          "reason": "No unambiguous exact quest or achievement identity"
+        },
+        {
+          "label": "~|Murder on the Border|~ 2",
+          "skill": "Construction",
+          "before": 25,
+          "reason": "No explicit cache quest requirement for this authored operation skill"
+        },
+        {
+          "label": "~|Nadir (abridged saga)|~ 1",
+          "skill": "Dungeoneering",
+          "before": 35,
+          "reason": "No unambiguous exact quest or achievement identity"
+        },
+        {
+          "label": "~|Nadir (unabridged saga)|~ 1",
+          "skill": "Dungeoneering",
+          "before": 55,
+          "reason": "No unambiguous exact quest or achievement identity"
+        },
+        {
+          "label": "~|Nadir (unabridged saga)|~ 1",
+          "skill": "Attack",
+          "before": 60,
+          "reason": "No unambiguous exact quest or achievement identity"
+        },
+        {
+          "label": "~|Nadir (unabridged saga)|~ 1",
+          "skill": "Thieving",
+          "before": 45,
+          "reason": "No unambiguous exact quest or achievement identity"
+        },
+        {
+          "label": "~|Player-owned farm tutorial|~ Complete the tutorial",
+          "skill": "Construction",
+          "before": 20,
+          "reason": "No unambiguous exact quest or achievement identity"
+        },
+        {
+          "label": "~|Player-owned farm tutorial|~ Complete the tutorial",
+          "skill": "Farming",
+          "before": 17,
+          "reason": "No unambiguous exact quest or achievement identity"
+        },
+        {
+          "label": "~|Shades of Mort'ton|~ 1",
+          "skill": "Firemaking",
+          "before": 6,
+          "reason": "No explicit cache quest requirement for this authored operation skill"
+        },
+        {
+          "label": "~|That Old Black Magic: Skelly By Everlight|~ 2",
+          "skill": "Necromancy",
+          "before": 45,
+          "reason": "No unambiguous exact quest or achievement identity"
+        },
+        {
+          "label": "~|That Old Black Magic: Flesh and Bone|~ 1",
+          "skill": "Necromancy",
+          "before": 50,
+          "reason": "No unambiguous exact quest or achievement identity"
+        },
+        {
+          "label": "~|That Old Black Magic: Hermy and Bass|~ 1",
+          "skill": "Necromancy",
+          "before": 65,
+          "reason": "No unambiguous exact quest or achievement identity"
+        },
+        {
+          "label": "~|Thok It To 'Em (abridged saga)|~ 1",
+          "skill": "Dungeoneering",
+          "before": 59,
+          "reason": "No unambiguous exact quest or achievement identity"
+        },
+        {
+          "label": "~|Thok It To 'Em (unabridged saga)|~ 1",
+          "skill": "Dungeoneering",
+          "before": 59,
+          "reason": "No unambiguous exact quest or achievement identity"
+        },
+        {
+          "label": "~|Thok It To 'Em (unabridged saga)|~ 1",
+          "skill": "Strength",
+          "before": 70,
+          "reason": "No unambiguous exact quest or achievement identity"
+        },
+        {
+          "label": "~|Thok Your Block Off (abridged saga)|~ 1",
+          "skill": "Dungeoneering",
+          "before": 71,
+          "reason": "No unambiguous exact quest or achievement identity"
+        },
+        {
+          "label": "~|Thok Your Block Off (unabridged saga)|~ 1",
+          "skill": "Dungeoneering",
+          "before": 71,
+          "reason": "No unambiguous exact quest or achievement identity"
+        },
+        {
+          "label": "~|Thok Your Block Off (unabridged saga)|~ 1",
+          "skill": "Strength",
+          "before": 75,
+          "reason": "No unambiguous exact quest or achievement identity"
+        },
+        {
+          "label": "~|Three's Company (abridged saga)|~ 1",
+          "skill": "Dungeoneering",
+          "before": 6,
+          "reason": "No unambiguous exact quest or achievement identity"
+        },
+        {
+          "label": "~|Three's Company (unabridged saga)|~ 1",
+          "skill": "Dungeoneering",
+          "before": 6,
+          "reason": "No unambiguous exact quest or achievement identity"
+        },
+        {
+          "label": "~|Three's Company (unabridged saga)|~ 1",
+          "skill": "Attack",
+          "before": 30,
+          "reason": "No unambiguous exact quest or achievement identity"
+        },
+        {
+          "label": "~|Three's Company (unabridged saga)|~ 1",
+          "skill": "Magic",
+          "before": 30,
+          "reason": "No unambiguous exact quest or achievement identity"
+        },
+        {
+          "label": "~|Three's Company (unabridged saga)|~ 1",
+          "skill": "Ranged",
+          "before": 30,
+          "reason": "No unambiguous exact quest or achievement identity"
+        },
+        {
+          "label": "~|Vengeance (abridged saga)|~ 1",
+          "skill": "Dungeoneering",
+          "before": 23,
+          "reason": "No unambiguous exact quest or achievement identity"
+        },
+        {
+          "label": "~|Vengeance (unabridged saga)|~ 1",
+          "skill": "Dungeoneering",
+          "before": 23,
+          "reason": "No unambiguous exact quest or achievement identity"
+        },
+        {
+          "label": "~|Vengeance (unabridged saga)|~ 1",
+          "skill": "Agility",
+          "before": 55,
+          "reason": "No unambiguous exact quest or achievement identity"
+        },
+        {
+          "label": "~|Vengeance (unabridged saga)|~ 1",
+          "skill": "Thieving",
+          "before": 55,
+          "reason": "No unambiguous exact quest or achievement identity"
+        },
+        {
+          "label": "Archaeology Mystery: ~|Eyes in Their Stars|~ 1",
+          "skill": "Archaeology",
+          "before": 24,
+          "reason": "No unambiguous exact quest or achievement identity"
+        },
+        {
+          "label": "Archaeology Mystery: ~|Contract Claws|~ 2i",
+          "skill": "Prayer",
+          "before": 35,
+          "reason": "No unambiguous exact quest or achievement identity"
+        },
+        {
+          "label": "Archaeology Mystery: ~|Wing Out|~ 2",
+          "skill": "Smithing",
+          "before": 40,
+          "reason": "No unambiguous exact quest or achievement identity"
+        },
+        {
+          "label": "Archaeology Mystery: ~|Into the Forge|~ 2c",
+          "skill": "Fishing",
+          "before": 28,
+          "reason": "No unambiguous exact quest or achievement identity"
+        },
+        {
+          "label": "Archaeology Mystery: ~|Into the Forge|~ 2d",
+          "skill": "Dungeoneering",
+          "before": 35,
+          "reason": "No unambiguous exact quest or achievement identity"
+        },
+        {
+          "label": "Archaeology Mystery: ~|Teleport Node On|~ 1",
+          "skill": "Archaeology",
+          "before": 90,
+          "reason": "No unambiguous exact quest or achievement identity"
+        },
+        {
+          "label": "Archaeology Mystery: ~|Teleport Node On|~ 2",
+          "skill": "Runecrafting",
+          "before": 70,
+          "reason": "No unambiguous exact quest or achievement identity"
+        },
+        {
+          "label": "Archaeology Mystery: ~|Teleport Node On|~ 2",
+          "skill": "Archaeology",
+          "before": 90,
+          "reason": "No unambiguous exact quest or achievement identity"
+        },
+        {
+          "label": "Archaeology Mystery: ~|Teleport Node On|~ 3",
+          "skill": "Crafting",
+          "before": 70,
+          "reason": "No unambiguous exact quest or achievement identity"
+        },
+        {
+          "label": "Archaeology Mystery: ~|Teleport Node On|~ 3",
+          "skill": "Archaeology",
+          "before": 90,
+          "reason": "No unambiguous exact quest or achievement identity"
+        },
+        {
+          "label": "Archaeology Mystery: ~|Teleport Node On|~ 4",
+          "skill": "Divination",
+          "before": 70,
+          "reason": "No unambiguous exact quest or achievement identity"
+        },
+        {
+          "label": "Archaeology Mystery: ~|Teleport Node On|~ 4",
+          "skill": "Archaeology",
+          "before": 90,
+          "reason": "No unambiguous exact quest or achievement identity"
+        },
+        {
+          "label": "Archaeology Mystery: ~|You Have Chosen...|~ 1",
+          "skill": "Archaeology",
+          "before": 100,
+          "reason": "No unambiguous exact quest or achievement identity"
+        },
+        {
+          "label": "Archaeology Mystery: ~|Fragmented Memories|~ 3",
+          "skill": "Hunter",
+          "before": 86,
+          "reason": "No unambiguous exact quest or achievement identity"
+        },
+        {
+          "label": "Archaeology Mystery: ~|A New Form|~ 1",
+          "skill": "Dungeoneering",
+          "before": 95,
+          "reason": "No unambiguous exact quest or achievement identity"
+        }
+      ],
+      "qpValues": 8,
+      "qpComparable": 8,
+      "differences": 6,
+      "changes": 5,
+      "withheldOperationDifference": 1
+    },
+    "correctionRows": 41,
+    "correctionFields": 41,
+    "reviewRows": 10
+  },
+  "corrections": [
+    {
+      "category": "Quest",
+      "label": "~|Beneath Scabaras' Sands|~ 1",
+      "rationale": "The quest is members-only in both sources; this row omitted its membership gate.",
+      "changes": [
+        {
+          "field": "Not F2P",
+          "before": null,
+          "after": true,
+          "cache": {
+            "artifact": "quests.v1.json",
+            "id": 517,
+            "field": "members",
+            "value": true
+          },
+          "wiki": {
+            "title": "Beneath Scabaras' Sands",
+            "revisionId": 37173764,
+            "url": "https://runescape.wiki/w/Special:PermanentLink/37173764",
+            "field": "Infobox Quest.members",
+            "value": true,
+            "snippet": "|members = Yes"
+          }
+        }
+      ]
+    },
+    {
+      "category": "Quest",
+      "label": "~|Beneath Scabaras' Sands|~ 2a",
+      "rationale": "The quest is members-only in both sources; this row omitted its membership gate.",
+      "changes": [
+        {
+          "field": "Not F2P",
+          "before": null,
+          "after": true,
+          "cache": {
+            "artifact": "quests.v1.json",
+            "id": 517,
+            "field": "members",
+            "value": true
+          },
+          "wiki": {
+            "title": "Beneath Scabaras' Sands",
+            "revisionId": 37173764,
+            "url": "https://runescape.wiki/w/Special:PermanentLink/37173764",
+            "field": "Infobox Quest.members",
+            "value": true,
+            "snippet": "|members = Yes"
+          }
+        }
+      ]
+    },
+    {
+      "category": "Quest",
+      "label": "~|Beneath Scabaras' Sands|~ 2b",
+      "rationale": "The quest is members-only in both sources; this row omitted its membership gate.",
+      "changes": [
+        {
+          "field": "Not F2P",
+          "before": null,
+          "after": true,
+          "cache": {
+            "artifact": "quests.v1.json",
+            "id": 517,
+            "field": "members",
+            "value": true
+          },
+          "wiki": {
+            "title": "Beneath Scabaras' Sands",
+            "revisionId": 37173764,
+            "url": "https://runescape.wiki/w/Special:PermanentLink/37173764",
+            "field": "Infobox Quest.members",
+            "value": true,
+            "snippet": "|members = Yes"
+          }
+        }
+      ]
+    },
+    {
+      "category": "Quest",
+      "label": "~|Beneath Scabaras' Sands|~ 2c",
+      "rationale": "The quest is members-only in both sources; this row omitted its membership gate.",
+      "changes": [
+        {
+          "field": "Not F2P",
+          "before": null,
+          "after": true,
+          "cache": {
+            "artifact": "quests.v1.json",
+            "id": 517,
+            "field": "members",
+            "value": true
+          },
+          "wiki": {
+            "title": "Beneath Scabaras' Sands",
+            "revisionId": 37173764,
+            "url": "https://runescape.wiki/w/Special:PermanentLink/37173764",
+            "field": "Infobox Quest.members",
+            "value": true,
+            "snippet": "|members = Yes"
+          }
+        }
+      ]
+    },
+    {
+      "category": "Quest",
+      "label": "~|Beneath Scabaras' Sands|~ 2d",
+      "rationale": "The quest is members-only in both sources; this row omitted its membership gate.",
+      "changes": [
+        {
+          "field": "Not F2P",
+          "before": null,
+          "after": true,
+          "cache": {
+            "artifact": "quests.v1.json",
+            "id": 517,
+            "field": "members",
+            "value": true
+          },
+          "wiki": {
+            "title": "Beneath Scabaras' Sands",
+            "revisionId": 37173764,
+            "url": "https://runescape.wiki/w/Special:PermanentLink/37173764",
+            "field": "Infobox Quest.members",
+            "value": true,
+            "snippet": "|members = Yes"
+          }
+        }
+      ]
+    },
+    {
+      "category": "Quest",
+      "label": "~|Beneath Scabaras' Sands|~ 3",
+      "rationale": "The quest is members-only in both sources; this row omitted its membership gate.",
+      "changes": [
+        {
+          "field": "Not F2P",
+          "before": null,
+          "after": true,
+          "cache": {
+            "artifact": "quests.v1.json",
+            "id": 517,
+            "field": "members",
+            "value": true
+          },
+          "wiki": {
+            "title": "Beneath Scabaras' Sands",
+            "revisionId": 37173764,
+            "url": "https://runescape.wiki/w/Special:PermanentLink/37173764",
+            "field": "Infobox Quest.members",
+            "value": true,
+            "snippet": "|members = Yes"
+          }
+        }
+      ]
+    },
+    {
+      "category": "Quest",
+      "label": "~|Beneath Scabaras' Sands|~ 4",
+      "rationale": "The quest is members-only in both sources; this row omitted its membership gate.",
+      "changes": [
+        {
+          "field": "Not F2P",
+          "before": null,
+          "after": true,
+          "cache": {
+            "artifact": "quests.v1.json",
+            "id": 517,
+            "field": "members",
+            "value": true
+          },
+          "wiki": {
+            "title": "Beneath Scabaras' Sands",
+            "revisionId": 37173764,
+            "url": "https://runescape.wiki/w/Special:PermanentLink/37173764",
+            "field": "Infobox Quest.members",
+            "value": true,
+            "snippet": "|members = Yes"
+          }
+        }
+      ]
+    },
+    {
+      "category": "Quest",
+      "label": "~|Beneath Scabaras' Sands|~ 5",
+      "rationale": "The quest is members-only in both sources; this row omitted its membership gate.",
+      "changes": [
+        {
+          "field": "Not F2P",
+          "before": null,
+          "after": true,
+          "cache": {
+            "artifact": "quests.v1.json",
+            "id": 517,
+            "field": "members",
+            "value": true
+          },
+          "wiki": {
+            "title": "Beneath Scabaras' Sands",
+            "revisionId": 37173764,
+            "url": "https://runescape.wiki/w/Special:PermanentLink/37173764",
+            "field": "Infobox Quest.members",
+            "value": true,
+            "snippet": "|members = Yes"
+          }
+        }
+      ]
+    },
+    {
+      "category": "Quest",
+      "label": "~|Beneath Scabaras' Sands|~ 6",
+      "rationale": "The quest is members-only in both sources; this row omitted its membership gate.",
+      "changes": [
+        {
+          "field": "Not F2P",
+          "before": null,
+          "after": true,
+          "cache": {
+            "artifact": "quests.v1.json",
+            "id": 517,
+            "field": "members",
+            "value": true
+          },
+          "wiki": {
+            "title": "Beneath Scabaras' Sands",
+            "revisionId": 37173764,
+            "url": "https://runescape.wiki/w/Special:PermanentLink/37173764",
+            "field": "Infobox Quest.members",
+            "value": true,
+            "snippet": "|members = Yes"
+          }
+        }
+      ]
+    },
+    {
+      "category": "Quest",
+      "label": "~|Beneath Scabaras' Sands|~ 7",
+      "rationale": "The quest is members-only in both sources; this row omitted its membership gate.",
+      "changes": [
+        {
+          "field": "Not F2P",
+          "before": null,
+          "after": true,
+          "cache": {
+            "artifact": "quests.v1.json",
+            "id": 517,
+            "field": "members",
+            "value": true
+          },
+          "wiki": {
+            "title": "Beneath Scabaras' Sands",
+            "revisionId": 37173764,
+            "url": "https://runescape.wiki/w/Special:PermanentLink/37173764",
+            "field": "Infobox Quest.members",
+            "value": true,
+            "snippet": "|members = Yes"
+          }
+        }
+      ]
+    },
+    {
+      "category": "Quest",
+      "label": "~|Beneath Scabaras' Sands|~ 8",
+      "rationale": "The quest is members-only in both sources; this row omitted its membership gate.",
+      "changes": [
+        {
+          "field": "Not F2P",
+          "before": null,
+          "after": true,
+          "cache": {
+            "artifact": "quests.v1.json",
+            "id": 517,
+            "field": "members",
+            "value": true
+          },
+          "wiki": {
+            "title": "Beneath Scabaras' Sands",
+            "revisionId": 37173764,
+            "url": "https://runescape.wiki/w/Special:PermanentLink/37173764",
+            "field": "Infobox Quest.members",
+            "value": true,
+            "snippet": "|members = Yes"
+          }
+        }
+      ]
+    },
+    {
+      "category": "Quest",
+      "label": "~|Beneath Scabaras' Sands|~ 9",
+      "rationale": "The quest is members-only in both sources; this row omitted its membership gate.",
+      "changes": [
+        {
+          "field": "Not F2P",
+          "before": null,
+          "after": true,
+          "cache": {
+            "artifact": "quests.v1.json",
+            "id": 517,
+            "field": "members",
+            "value": true
+          },
+          "wiki": {
+            "title": "Beneath Scabaras' Sands",
+            "revisionId": 37173764,
+            "url": "https://runescape.wiki/w/Special:PermanentLink/37173764",
+            "field": "Infobox Quest.members",
+            "value": true,
+            "snippet": "|members = Yes"
+          }
+        }
+      ]
+    },
+    {
+      "category": "Quest",
+      "label": "~|Beneath Scabaras' Sands|~ 10",
+      "rationale": "The quest is members-only in both sources; this row omitted its membership gate.",
+      "changes": [
+        {
+          "field": "Not F2P",
+          "before": null,
+          "after": true,
+          "cache": {
+            "artifact": "quests.v1.json",
+            "id": 517,
+            "field": "members",
+            "value": true
+          },
+          "wiki": {
+            "title": "Beneath Scabaras' Sands",
+            "revisionId": 37173764,
+            "url": "https://runescape.wiki/w/Special:PermanentLink/37173764",
+            "field": "Infobox Quest.members",
+            "value": true,
+            "snippet": "|members = Yes"
+          }
+        }
+      ]
+    },
+    {
+      "category": "Quest",
+      "label": "~|Beneath Scabaras' Sands|~ Complete the quest",
+      "rationale": "The quest is members-only in both sources; this row omitted its membership gate.",
+      "changes": [
+        {
+          "field": "Not F2P",
+          "before": null,
+          "after": true,
+          "cache": {
+            "artifact": "quests.v1.json",
+            "id": 517,
+            "field": "members",
+            "value": true
+          },
+          "wiki": {
+            "title": "Beneath Scabaras' Sands",
+            "revisionId": 37173764,
+            "url": "https://runescape.wiki/w/Special:PermanentLink/37173764",
+            "field": "Infobox Quest.members",
+            "value": true,
+            "snippet": "|members = Yes"
+          }
+        }
+      ]
+    },
+    {
+      "category": "Quest",
+      "label": "~|Benedict's World Tour (miniquest)|~ 1",
+      "rationale": "Cache marks the miniquest F2P; Wiki separately confirms this exact start/item step is available to F2P.",
+      "changes": [
+        {
+          "field": "Not F2P",
+          "before": true,
+          "after": false,
+          "cache": {
+            "artifact": "quests.v1.json",
+            "id": 436,
+            "field": "members",
+            "value": false
+          },
+          "wiki": {
+            "title": "Benedict's World Tour (miniquest)",
+            "revisionId": 37158605,
+            "url": "https://runescape.wiki/w/Special:PermanentLink/37158605",
+            "field": "Availability",
+            "value": false,
+            "snippet": "It is available to both [[free-to-play]] and [[members]]."
+          }
+        }
+      ]
+    },
+    {
+      "category": "Quest",
+      "label": "~|Benedict's World Tour (miniquest)|~ 2a",
+      "rationale": "Cache marks the miniquest F2P; Wiki separately confirms this exact start/item step is available to F2P.",
+      "changes": [
+        {
+          "field": "Not F2P",
+          "before": true,
+          "after": false,
+          "cache": {
+            "artifact": "quests.v1.json",
+            "id": 436,
+            "field": "members",
+            "value": false
+          },
+          "wiki": {
+            "title": "Benedict's World Tour (miniquest)",
+            "revisionId": 37158605,
+            "url": "https://runescape.wiki/w/Special:PermanentLink/37158605",
+            "field": "Item locations.Free-to-play",
+            "value": false,
+            "snippet": "[[Fox pelt (Benedict's World Tour)|Fox pelt]]"
+          }
+        }
+      ]
+    },
+    {
+      "category": "Quest",
+      "label": "~|Benedict's World Tour (miniquest)|~ 2b",
+      "rationale": "Cache marks the miniquest F2P; Wiki separately confirms this exact start/item step is available to F2P.",
+      "changes": [
+        {
+          "field": "Not F2P",
+          "before": true,
+          "after": false,
+          "cache": {
+            "artifact": "quests.v1.json",
+            "id": 436,
+            "field": "members",
+            "value": false
+          },
+          "wiki": {
+            "title": "Benedict's World Tour (miniquest)",
+            "revisionId": 37158605,
+            "url": "https://runescape.wiki/w/Special:PermanentLink/37158605",
+            "field": "Item locations.Free-to-play",
+            "value": false,
+            "snippet": "[[Toffee apple (Benedict's World Tour)|Toffee apple]]"
+          }
+        }
+      ]
+    },
+    {
+      "category": "Quest",
+      "label": "~|Benedict's World Tour (miniquest)|~ 2c",
+      "rationale": "Cache marks the miniquest F2P; Wiki separately confirms this exact start/item step is available to F2P.",
+      "changes": [
+        {
+          "field": "Not F2P",
+          "before": true,
+          "after": false,
+          "cache": {
+            "artifact": "quests.v1.json",
+            "id": 436,
+            "field": "members",
+            "value": false
+          },
+          "wiki": {
+            "title": "Benedict's World Tour (miniquest)",
+            "revisionId": 37158605,
+            "url": "https://runescape.wiki/w/Special:PermanentLink/37158605",
+            "field": "Item locations.Free-to-play",
+            "value": false,
+            "snippet": "[[Package (Benedict's World Tour)|Package]]"
+          }
+        }
+      ]
+    },
+    {
+      "category": "Quest",
+      "label": "~|Benedict's World Tour (miniquest)|~ 2g",
+      "rationale": "Cache marks the miniquest F2P; Wiki separately confirms this exact start/item step is available to F2P.",
+      "changes": [
+        {
+          "field": "Not F2P",
+          "before": true,
+          "after": false,
+          "cache": {
+            "artifact": "quests.v1.json",
+            "id": 436,
+            "field": "members",
+            "value": false
+          },
+          "wiki": {
+            "title": "Benedict's World Tour (miniquest)",
+            "revisionId": 37158605,
+            "url": "https://runescape.wiki/w/Special:PermanentLink/37158605",
+            "field": "Item locations.Free-to-play",
+            "value": false,
+            "snippet": "[[Crystal (Benedict's World Tour)|Crystal]]"
+          }
+        }
+      ]
+    },
+    {
+      "category": "Quest",
+      "label": "~|Benedict's World Tour (miniquest)|~ 2i",
+      "rationale": "Cache marks the miniquest F2P; Wiki separately confirms this exact start/item step is available to F2P.",
+      "changes": [
+        {
+          "field": "Not F2P",
+          "before": true,
+          "after": false,
+          "cache": {
+            "artifact": "quests.v1.json",
+            "id": 436,
+            "field": "members",
+            "value": false
+          },
+          "wiki": {
+            "title": "Benedict's World Tour (miniquest)",
+            "revisionId": 37158605,
+            "url": "https://runescape.wiki/w/Special:PermanentLink/37158605",
+            "field": "Item locations.Free-to-play",
+            "value": false,
+            "snippet": "[[Toy ship (Benedict's World Tour)|Toy ship]]"
+          }
+        }
+      ]
+    },
+    {
+      "category": "Quest",
+      "label": "~|Benedict's World Tour (miniquest)|~ 2k",
+      "rationale": "Cache marks the miniquest F2P; Wiki separately confirms this exact start/item step is available to F2P.",
+      "changes": [
+        {
+          "field": "Not F2P",
+          "before": true,
+          "after": false,
+          "cache": {
+            "artifact": "quests.v1.json",
+            "id": 436,
+            "field": "members",
+            "value": false
+          },
+          "wiki": {
+            "title": "Benedict's World Tour (miniquest)",
+            "revisionId": 37158605,
+            "url": "https://runescape.wiki/w/Special:PermanentLink/37158605",
+            "field": "Item locations.Free-to-play",
+            "value": false,
+            "snippet": "[[Pipe (Benedict's World Tour)|Pipe]]"
+          }
+        }
+      ]
+    },
+    {
+      "category": "Quest",
+      "label": "~|Benedict's World Tour (miniquest)|~ 2n",
+      "rationale": "Cache marks the miniquest F2P; Wiki separately confirms this exact start/item step is available to F2P.",
+      "changes": [
+        {
+          "field": "Not F2P",
+          "before": true,
+          "after": false,
+          "cache": {
+            "artifact": "quests.v1.json",
+            "id": 436,
+            "field": "members",
+            "value": false
+          },
+          "wiki": {
+            "title": "Benedict's World Tour (miniquest)",
+            "revisionId": 37158605,
+            "url": "https://runescape.wiki/w/Special:PermanentLink/37158605",
+            "field": "Item locations.Free-to-play",
+            "value": false,
+            "snippet": "[[Monocle (Benedict's World Tour)|Monocle]]"
+          }
+        }
+      ]
+    },
+    {
+      "category": "Quest",
+      "label": "~|Benedict's World Tour (miniquest)|~ 2o",
+      "rationale": "Cache marks the miniquest F2P; Wiki separately confirms this exact start/item step is available to F2P.",
+      "changes": [
+        {
+          "field": "Not F2P",
+          "before": true,
+          "after": false,
+          "cache": {
+            "artifact": "quests.v1.json",
+            "id": 436,
+            "field": "members",
+            "value": false
+          },
+          "wiki": {
+            "title": "Benedict's World Tour (miniquest)",
+            "revisionId": 37158605,
+            "url": "https://runescape.wiki/w/Special:PermanentLink/37158605",
+            "field": "Item locations.Free-to-play",
+            "value": false,
+            "snippet": "[[Scarf (Benedict's World Tour)|Scarf]]"
+          }
+        }
+      ]
+    },
+    {
+      "category": "Quest",
+      "label": "~|Benedict's World Tour (miniquest)|~ 2p",
+      "rationale": "Cache marks the miniquest F2P; Wiki separately confirms this exact start/item step is available to F2P.",
+      "changes": [
+        {
+          "field": "Not F2P",
+          "before": true,
+          "after": false,
+          "cache": {
+            "artifact": "quests.v1.json",
+            "id": 436,
+            "field": "members",
+            "value": false
+          },
+          "wiki": {
+            "title": "Benedict's World Tour (miniquest)",
+            "revisionId": 37158605,
+            "url": "https://runescape.wiki/w/Special:PermanentLink/37158605",
+            "field": "Item locations.Free-to-play",
+            "value": false,
+            "snippet": "[[Surgical mask (Benedict's World Tour)|Surgical mask]]"
+          }
+        }
+      ]
+    },
+    {
+      "category": "Quest",
+      "label": "~|Gertrude's Cat|~ 3",
+      "rationale": "Both sources identify Gertrude's Cat as F2P; these two retained steps alone incorrectly carried a membership gate.",
+      "changes": [
+        {
+          "field": "Not F2P",
+          "before": true,
+          "after": false,
+          "cache": {
+            "artifact": "quests.v1.json",
+            "id": 138,
+            "field": "members",
+            "value": false
+          },
+          "wiki": {
+            "title": "Gertrude's Cat",
+            "revisionId": 37182697,
+            "url": "https://runescape.wiki/w/Special:PermanentLink/37182697",
+            "field": "Quest details.members",
+            "value": false,
+            "snippet": "|members = No"
+          }
+        }
+      ]
+    },
+    {
+      "category": "Quest",
+      "label": "~|Gertrude's Cat|~ 4",
+      "rationale": "Both sources identify Gertrude's Cat as F2P; these two retained steps alone incorrectly carried a membership gate.",
+      "changes": [
+        {
+          "field": "Not F2P",
+          "before": true,
+          "after": false,
+          "cache": {
+            "artifact": "quests.v1.json",
+            "id": 138,
+            "field": "members",
+            "value": false
+          },
+          "wiki": {
+            "title": "Gertrude's Cat",
+            "revisionId": 37182697,
+            "url": "https://runescape.wiki/w/Special:PermanentLink/37182697",
+            "field": "Quest details.members",
+            "value": false,
+            "snippet": "|members = No"
+          }
+        }
+      ]
+    },
+    {
+      "category": "Quest",
+      "label": "~|Princess and the Pauper|~ 2",
+      "rationale": "The quest is members-only in both sources; this row omitted its membership gate.",
+      "changes": [
+        {
+          "field": "Not F2P",
+          "before": null,
+          "after": true,
+          "cache": {
+            "artifact": "quests.v1.json",
+            "id": 525,
+            "field": "members",
+            "value": true
+          },
+          "wiki": {
+            "title": "Princess and the Pauper",
+            "revisionId": 37181494,
+            "url": "https://runescape.wiki/w/Special:PermanentLink/37181494",
+            "field": "Infobox Quest.members",
+            "value": true,
+            "snippet": "|members = Yes"
+          }
+        }
+      ]
+    },
+    {
+      "category": "Quest",
+      "label": "~|Princess and the Pauper|~ 3",
+      "rationale": "The quest is members-only in both sources; this row omitted its membership gate.",
+      "changes": [
+        {
+          "field": "Not F2P",
+          "before": null,
+          "after": true,
+          "cache": {
+            "artifact": "quests.v1.json",
+            "id": 525,
+            "field": "members",
+            "value": true
+          },
+          "wiki": {
+            "title": "Princess and the Pauper",
+            "revisionId": 37181494,
+            "url": "https://runescape.wiki/w/Special:PermanentLink/37181494",
+            "field": "Infobox Quest.members",
+            "value": true,
+            "snippet": "|members = Yes"
+          }
+        }
+      ]
+    },
+    {
+      "category": "Quest",
+      "label": "~|Princess and the Pauper|~ 4",
+      "rationale": "The quest is members-only in both sources; this row omitted its membership gate.",
+      "changes": [
+        {
+          "field": "Not F2P",
+          "before": null,
+          "after": true,
+          "cache": {
+            "artifact": "quests.v1.json",
+            "id": 525,
+            "field": "members",
+            "value": true
+          },
+          "wiki": {
+            "title": "Princess and the Pauper",
+            "revisionId": 37181494,
+            "url": "https://runescape.wiki/w/Special:PermanentLink/37181494",
+            "field": "Infobox Quest.members",
+            "value": true,
+            "snippet": "|members = Yes"
+          }
+        }
+      ]
+    },
+    {
+      "category": "Quest",
+      "label": "~|Princess and the Pauper|~ 5a",
+      "rationale": "The quest is members-only in both sources; this row omitted its membership gate.",
+      "changes": [
+        {
+          "field": "Not F2P",
+          "before": null,
+          "after": true,
+          "cache": {
+            "artifact": "quests.v1.json",
+            "id": 525,
+            "field": "members",
+            "value": true
+          },
+          "wiki": {
+            "title": "Princess and the Pauper",
+            "revisionId": 37181494,
+            "url": "https://runescape.wiki/w/Special:PermanentLink/37181494",
+            "field": "Infobox Quest.members",
+            "value": true,
+            "snippet": "|members = Yes"
+          }
+        }
+      ]
+    },
+    {
+      "category": "Quest",
+      "label": "~|Princess and the Pauper|~ 5b",
+      "rationale": "The quest is members-only in both sources; this row omitted its membership gate.",
+      "changes": [
+        {
+          "field": "Not F2P",
+          "before": null,
+          "after": true,
+          "cache": {
+            "artifact": "quests.v1.json",
+            "id": 525,
+            "field": "members",
+            "value": true
+          },
+          "wiki": {
+            "title": "Princess and the Pauper",
+            "revisionId": 37181494,
+            "url": "https://runescape.wiki/w/Special:PermanentLink/37181494",
+            "field": "Infobox Quest.members",
+            "value": true,
+            "snippet": "|members = Yes"
+          }
+        }
+      ]
+    },
+    {
+      "category": "Quest",
+      "label": "~|Princess and the Pauper|~ 6",
+      "rationale": "The quest is members-only in both sources; this row omitted its membership gate.",
+      "changes": [
+        {
+          "field": "Not F2P",
+          "before": null,
+          "after": true,
+          "cache": {
+            "artifact": "quests.v1.json",
+            "id": 525,
+            "field": "members",
+            "value": true
+          },
+          "wiki": {
+            "title": "Princess and the Pauper",
+            "revisionId": 37181494,
+            "url": "https://runescape.wiki/w/Special:PermanentLink/37181494",
+            "field": "Infobox Quest.members",
+            "value": true,
+            "snippet": "|members = Yes"
+          }
+        }
+      ]
+    },
+    {
+      "category": "Quest",
+      "label": "~|Princess and the Pauper|~ 7",
+      "rationale": "The quest is members-only in both sources; this row omitted its membership gate.",
+      "changes": [
+        {
+          "field": "Not F2P",
+          "before": null,
+          "after": true,
+          "cache": {
+            "artifact": "quests.v1.json",
+            "id": 525,
+            "field": "members",
+            "value": true
+          },
+          "wiki": {
+            "title": "Princess and the Pauper",
+            "revisionId": 37181494,
+            "url": "https://runescape.wiki/w/Special:PermanentLink/37181494",
+            "field": "Infobox Quest.members",
+            "value": true,
+            "snippet": "|members = Yes"
+          }
+        }
+      ]
+    },
+    {
+      "category": "Quest",
+      "label": "~|Princess and the Pauper|~ 8",
+      "rationale": "The quest is members-only in both sources; this row omitted its membership gate.",
+      "changes": [
+        {
+          "field": "Not F2P",
+          "before": null,
+          "after": true,
+          "cache": {
+            "artifact": "quests.v1.json",
+            "id": 525,
+            "field": "members",
+            "value": true
+          },
+          "wiki": {
+            "title": "Princess and the Pauper",
+            "revisionId": 37181494,
+            "url": "https://runescape.wiki/w/Special:PermanentLink/37181494",
+            "field": "Infobox Quest.members",
+            "value": true,
+            "snippet": "|members = Yes"
+          }
+        }
+      ]
+    },
+    {
+      "category": "Quest",
+      "label": "~|Princess and the Pauper|~ Complete the quest",
+      "rationale": "The quest is members-only in both sources; this row omitted its membership gate.",
+      "changes": [
+        {
+          "field": "Not F2P",
+          "before": null,
+          "after": true,
+          "cache": {
+            "artifact": "quests.v1.json",
+            "id": 525,
+            "field": "members",
+            "value": true
+          },
+          "wiki": {
+            "title": "Princess and the Pauper",
+            "revisionId": 37181494,
+            "url": "https://runescape.wiki/w/Special:PermanentLink/37181494",
+            "field": "Infobox Quest.members",
+            "value": true,
+            "snippet": "|members = Yes"
+          }
+        }
+      ]
+    },
+    {
+      "category": "Quest",
+      "label": "~|A Clockwork Syringe|~ 1",
+      "rationale": "The start row stores a plain numeric quest requirement; cache and current Wiki explicitly agree on its corrected value.",
+      "changes": [
+        {
+          "field": "Skills.Thieving",
+          "before": 62,
+          "after": 74,
+          "cache": {
+            "artifact": "quests.v1.json",
+            "id": 188,
+            "field": "requirements.skills.Thieving",
+            "value": 74
+          },
+          "wiki": {
+            "title": "A Clockwork Syringe",
+            "revisionId": 37199963,
+            "url": "https://runescape.wiki/w/Special:PermanentLink/37199963",
+            "field": "Quest details.requirements",
+            "value": 74,
+            "snippet": "{{Skillreq|Thieving|74}}"
+          }
+        }
+      ]
+    },
+    {
+      "category": "Quest",
+      "label": "~|Devious Minds|~ 1",
+      "rationale": "The start row stores a plain numeric quest requirement; cache and current Wiki explicitly agree on its corrected value.",
+      "changes": [
+        {
+          "field": "Skills.Smithing",
+          "before": 50,
+          "after": 65,
+          "cache": {
+            "artifact": "quests.v1.json",
+            "id": 123,
+            "field": "requirements.skills.Smithing",
+            "value": 65
+          },
+          "wiki": {
+            "title": "Devious Minds",
+            "revisionId": 37186856,
+            "url": "https://runescape.wiki/w/Special:PermanentLink/37186856",
+            "field": "Quest details.requirements",
+            "value": 65,
+            "snippet": "{{Skillreq|Smithing|65}}"
+          }
+        }
+      ]
+    },
+    {
+      "category": "Quest",
+      "label": "~|Doric's Task II (miniquest)|~ 1",
+      "rationale": "The start row stores a plain numeric quest requirement; cache and current Wiki explicitly agree on its corrected value.",
+      "changes": [
+        {
+          "field": "Skills.Smithing",
+          "before": 10,
+          "after": 20,
+          "cache": {
+            "artifact": "quests.v1.json",
+            "id": 422,
+            "field": "requirements.skills.Smithing",
+            "value": 20
+          },
+          "wiki": {
+            "title": "Doric's Task II (miniquest)",
+            "revisionId": 37152749,
+            "url": "https://runescape.wiki/w/Special:PermanentLink/37152749",
+            "field": "Quest details.requirements",
+            "value": 20,
+            "snippet": "{{Skillreq|Smithing|20}}"
+          }
+        }
+      ]
+    },
+    {
+      "category": "Quest",
+      "label": "~|Hunt for Red Raktuber|~ 1",
+      "rationale": "The start row stores a plain numeric quest requirement; cache and current Wiki explicitly agree on its corrected value.",
+      "changes": [
+        {
+          "field": "Skills.Thieving",
+          "before": 45,
+          "after": 38,
+          "cache": {
+            "artifact": "quests.v1.json",
+            "id": 332,
+            "field": "requirements.skills.Thieving",
+            "value": 38
+          },
+          "wiki": {
+            "title": "Hunt for Red Raktuber",
+            "revisionId": 37167799,
+            "url": "https://runescape.wiki/w/Special:PermanentLink/37167799",
+            "field": "Quest details.requirements",
+            "value": 38,
+            "snippet": "{{Skillreq|Thieving|38}}"
+          }
+        }
+      ]
+    },
+    {
+      "category": "Quest",
+      "label": "~|Tears of Guthix|~ 1",
+      "rationale": "The start row stores a plain numeric quest requirement; cache and current Wiki explicitly agree on its corrected value.",
+      "changes": [
+        {
+          "field": "QuestPointsNeeded",
+          "before": 43,
+          "after": 44,
+          "cache": {
+            "artifact": "quests.v1.json",
+            "id": 81,
+            "field": "requirements.questPoints",
+            "value": 44
+          },
+          "wiki": {
+            "title": "Tears of Guthix (quest)",
+            "revisionId": 37182729,
+            "url": "https://runescape.wiki/w/Special:PermanentLink/37182729",
+            "field": "Quest details.requirements",
+            "value": 44,
+            "snippet": "{{Skillreq|Quest points|44}}"
+          }
+        }
+      ]
+    },
+    {
+      "category": "Quest",
+      "label": "~|Kili's Knowledge|~ Complete the lore activity",
+      "rationale": "The completion label and authored dependencies aggregate the Kili achievement group. Kindred Spirits is an unrelated quest; the cache identities and Wiki group listing establish the correction. No quest prerequisite is inferred from an associated ID.",
+      "changes": [
+        {
+          "field": "BaseQuest",
+          "before": "Kindred Spirits",
+          "after": "Kili's Knowledge",
+          "cache": {
+            "artifact": "achievements.v1.json",
+            "id": 3355,
+            "field": "name",
+            "value": "Kili's Knowledge VII"
+          },
+          "wiki": {
+            "title": "Kili's Knowledge",
+            "revisionId": 37080308,
+            "url": "https://runescape.wiki/w/Special:PermanentLink/37080308",
+            "field": "Achievement group identity",
+            "value": "Kili's Knowledge",
+            "snippet": "|Kili's Knowledge VII"
+          }
+        }
+      ]
+    }
+  ],
+  "review": [
+    {
+      "category": "Quest",
+      "label": "~|Benedict's World Tour (miniquest)|~ 2d",
+      "field": "Not F2P",
+      "before": true,
+      "cache": {
+        "artifact": "quests.v1.json",
+        "id": 436,
+        "field": "members",
+        "value": false
+      },
+      "decision": "preserve",
+      "wiki": {
+        "title": "Benedict's World Tour (miniquest)",
+        "revisionId": 37158605,
+        "url": "https://runescape.wiki/w/Special:PermanentLink/37158605",
+        "field": "Availability split",
+        "value": "nine F2P locations; seven members locations",
+        "snippet": "The first nine locations are available to all players, and the last seven locations are exclusive to members."
+      },
+      "reason": "Quest-level F2P metadata does not remove member-only location gates. Full retained completion requires all sixteen authored branches. Foot/Wizard's Tower branch is outside the current F2P list; no route or wording rewritten."
+    },
+    {
+      "category": "Quest",
+      "label": "~|Benedict's World Tour (miniquest)|~ 2e",
+      "field": "Not F2P",
+      "before": true,
+      "cache": {
+        "artifact": "quests.v1.json",
+        "id": 436,
+        "field": "members",
+        "value": false
+      },
+      "decision": "preserve",
+      "wiki": {
+        "title": "Benedict's World Tour (miniquest)",
+        "revisionId": 37158605,
+        "url": "https://runescape.wiki/w/Special:PermanentLink/37158605",
+        "field": "Availability split",
+        "value": "nine F2P locations; seven members locations",
+        "snippet": "The first nine locations are available to all players, and the last seven locations are exclusive to members."
+      },
+      "reason": "Quest-level F2P metadata does not remove member-only location gates. Full retained completion requires all sixteen authored branches. Foot/Wizard's Tower branch is outside the current F2P list; no route or wording rewritten."
+    },
+    {
+      "category": "Quest",
+      "label": "~|Benedict's World Tour (miniquest)|~ 2f",
+      "field": "Not F2P",
+      "before": true,
+      "cache": {
+        "artifact": "quests.v1.json",
+        "id": 436,
+        "field": "members",
+        "value": false
+      },
+      "decision": "preserve",
+      "wiki": {
+        "title": "Benedict's World Tour (miniquest)",
+        "revisionId": 37158605,
+        "url": "https://runescape.wiki/w/Special:PermanentLink/37158605",
+        "field": "Availability split",
+        "value": "nine F2P locations; seven members locations",
+        "snippet": "The first nine locations are available to all players, and the last seven locations are exclusive to members."
+      },
+      "reason": "Quest-level F2P metadata does not remove member-only location gates. Full retained completion requires all sixteen authored branches. Foot/Wizard's Tower branch is outside the current F2P list; no route or wording rewritten."
+    },
+    {
+      "category": "Quest",
+      "label": "~|Benedict's World Tour (miniquest)|~ 2h",
+      "field": "Not F2P",
+      "before": true,
+      "cache": {
+        "artifact": "quests.v1.json",
+        "id": 436,
+        "field": "members",
+        "value": false
+      },
+      "decision": "preserve",
+      "wiki": {
+        "title": "Benedict's World Tour (miniquest)",
+        "revisionId": 37158605,
+        "url": "https://runescape.wiki/w/Special:PermanentLink/37158605",
+        "field": "Availability split",
+        "value": "nine F2P locations; seven members locations",
+        "snippet": "The first nine locations are available to all players, and the last seven locations are exclusive to members."
+      },
+      "reason": "Quest-level F2P metadata does not remove member-only location gates. Full retained completion requires all sixteen authored branches. Foot/Wizard's Tower branch is outside the current F2P list; no route or wording rewritten."
+    },
+    {
+      "category": "Quest",
+      "label": "~|Benedict's World Tour (miniquest)|~ 2j",
+      "field": "Not F2P",
+      "before": true,
+      "cache": {
+        "artifact": "quests.v1.json",
+        "id": 436,
+        "field": "members",
+        "value": false
+      },
+      "decision": "preserve",
+      "wiki": {
+        "title": "Benedict's World Tour (miniquest)",
+        "revisionId": 37158605,
+        "url": "https://runescape.wiki/w/Special:PermanentLink/37158605",
+        "field": "Availability split",
+        "value": "nine F2P locations; seven members locations",
+        "snippet": "The first nine locations are available to all players, and the last seven locations are exclusive to members."
+      },
+      "reason": "Quest-level F2P metadata does not remove member-only location gates. Full retained completion requires all sixteen authored branches. Foot/Wizard's Tower branch is outside the current F2P list; no route or wording rewritten."
+    },
+    {
+      "category": "Quest",
+      "label": "~|Benedict's World Tour (miniquest)|~ 2l",
+      "field": "Not F2P",
+      "before": true,
+      "cache": {
+        "artifact": "quests.v1.json",
+        "id": 436,
+        "field": "members",
+        "value": false
+      },
+      "decision": "preserve",
+      "wiki": {
+        "title": "Benedict's World Tour (miniquest)",
+        "revisionId": 37158605,
+        "url": "https://runescape.wiki/w/Special:PermanentLink/37158605",
+        "field": "Availability split",
+        "value": "nine F2P locations; seven members locations",
+        "snippet": "The first nine locations are available to all players, and the last seven locations are exclusive to members."
+      },
+      "reason": "Quest-level F2P metadata does not remove member-only location gates. Full retained completion requires all sixteen authored branches. Foot/Wizard's Tower branch is outside the current F2P list; no route or wording rewritten."
+    },
+    {
+      "category": "Quest",
+      "label": "~|Benedict's World Tour (miniquest)|~ 2m",
+      "field": "Not F2P",
+      "before": true,
+      "cache": {
+        "artifact": "quests.v1.json",
+        "id": 436,
+        "field": "members",
+        "value": false
+      },
+      "decision": "preserve",
+      "wiki": {
+        "title": "Benedict's World Tour (miniquest)",
+        "revisionId": 37158605,
+        "url": "https://runescape.wiki/w/Special:PermanentLink/37158605",
+        "field": "Availability split",
+        "value": "nine F2P locations; seven members locations",
+        "snippet": "The first nine locations are available to all players, and the last seven locations are exclusive to members."
+      },
+      "reason": "Quest-level F2P metadata does not remove member-only location gates. Full retained completion requires all sixteen authored branches. Foot/Wizard's Tower branch is outside the current F2P list; no route or wording rewritten."
+    },
+    {
+      "category": "Quest",
+      "label": "~|Benedict's World Tour (miniquest)|~ Complete the miniquest",
+      "field": "Not F2P",
+      "before": true,
+      "cache": {
+        "artifact": "quests.v1.json",
+        "id": 436,
+        "field": "members",
+        "value": false
+      },
+      "decision": "preserve",
+      "wiki": {
+        "title": "Benedict's World Tour (miniquest)",
+        "revisionId": 37158605,
+        "url": "https://runescape.wiki/w/Special:PermanentLink/37158605",
+        "field": "Availability split",
+        "value": "nine F2P locations; seven members locations",
+        "snippet": "The first nine locations are available to all players, and the last seven locations are exclusive to members."
+      },
+      "reason": "Quest-level F2P metadata does not remove member-only location gates. Full retained completion requires all sixteen authored branches. Foot/Wizard's Tower branch is outside the current F2P list; no route or wording rewritten."
+    },
+    {
+      "category": "Quest",
+      "label": "~|Princess and the Pauper|~ 1",
+      "field": "NotF2P",
+      "before": true,
+      "decision": "preserve",
+      "reason": "The engine already normalizes this authored alias to Not F2P; its effective membership agrees. Keep the alias rather than rewriting authored data."
+    },
+    {
+      "category": "Quest",
+      "label": "~|Recipe for Disaster: Freeing Skrach Uglogwee|~ 3",
+      "field": "Skills.Cooking",
+      "before": 30,
+      "cache": {
+        "artifact": "quests.v1.json",
+        "id": 304,
+        "field": "requirements.skills.Cooking",
+        "value": 41
+      },
+      "decision": "preserve",
+      "wiki": {
+        "title": "Cooked chompy",
+        "revisionId": 36953502,
+        "url": "https://runescape.wiki/w/Special:PermanentLink/36953502",
+        "field": "Cooking level",
+        "value": 30,
+        "snippet": "|skill1lvl = 30"
+      },
+      "supportingQuestWiki": {
+        "title": "Recipe for Disaster: Freeing Skrach Uglogwee",
+        "revisionId": 37154541,
+        "url": "https://runescape.wiki/w/Special:PermanentLink/37154541",
+        "field": "Quest Cooking requirement",
+        "value": 41,
+        "snippet": "{{Skillreq|Cooking|41}}"
+      },
+      "reason": "This authored operation cooks a chompy at level30. The quest requires41 for the later jubbly; retained step1 already has41. Global quest requirements are not per-operation requirements."
+    }
+  ],
+  "identityReview": {
+    "group": "Kili's Knowledge",
+    "questListEntries": [],
+    "achievementRecords": [
+      {
+        "id": 3347,
+        "name": "Kili's Knowledge I",
+        "associatedQuestReferences": [],
+        "miniquestQuestReferences": [
+          {
+            "id": 500,
+            "name": "Kili Row",
+            "resolved": true
+          }
+        ],
+        "stateConditions": {
+          "progress_states_v2": [
+            {
+              "unk0": 0,
+              "value": 15,
+              "name": "",
+              "varbits": [
+                53743
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "id": 3348,
+        "name": "Kili's Knowledge II",
+        "associatedQuestReferences": [],
+        "miniquestQuestReferences": [
+          {
+            "id": 500,
+            "name": "Kili Row",
+            "resolved": true
+          }
+        ],
+        "stateConditions": {
+          "progress_states_v2": [
+            {
+              "unk0": 0,
+              "value": 15,
+              "name": "",
+              "varbits": [
+                53744
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "id": 3349,
+        "name": "Kili's Knowledge III",
+        "associatedQuestReferences": [],
+        "miniquestQuestReferences": [
+          {
+            "id": 500,
+            "name": "Kili Row",
+            "resolved": true
+          }
+        ],
+        "stateConditions": {
+          "progress_states_v2": [
+            {
+              "unk0": 0,
+              "value": 15,
+              "name": "",
+              "varbits": [
+                53745
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "id": 3350,
+        "name": "Kili's Knowledge IV",
+        "associatedQuestReferences": [],
+        "miniquestQuestReferences": [
+          {
+            "id": 500,
+            "name": "Kili Row",
+            "resolved": true
+          }
+        ],
+        "stateConditions": {
+          "progress_states_v2": [
+            {
+              "unk0": 0,
+              "value": 15,
+              "name": "",
+              "varbits": [
+                53746
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "id": 3351,
+        "name": "Kili's Knowledge V",
+        "associatedQuestReferences": [],
+        "miniquestQuestReferences": [
+          {
+            "id": 500,
+            "name": "Kili Row",
+            "resolved": true
+          }
+        ],
+        "stateConditions": {
+          "progress_states_v2": [
+            {
+              "unk0": 0,
+              "value": 15,
+              "name": "",
+              "varbits": [
+                53747
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "id": 3352,
+        "name": "Kili's Knowledge V (power)",
+        "associatedQuestReferences": [],
+        "miniquestQuestReferences": [
+          {
+            "id": 500,
+            "name": "Kili Row",
+            "resolved": true
+          }
+        ],
+        "stateConditions": {
+          "progress_states_v2": [
+            {
+              "unk0": 0,
+              "value": 15,
+              "name": "",
+              "varbits": [
+                53748
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "id": 3353,
+        "name": "Kili's Knowledge VI",
+        "associatedQuestReferences": [],
+        "miniquestQuestReferences": [
+          {
+            "id": 500,
+            "name": "Kili Row",
+            "resolved": true
+          }
+        ],
+        "stateConditions": {
+          "progress_states_v2": [
+            {
+              "unk0": 0,
+              "value": 15,
+              "name": "",
+              "varbits": [
+                53749
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "id": 3354,
+        "name": "Kili's Knowledge VI (power)",
+        "associatedQuestReferences": [],
+        "miniquestQuestReferences": [
+          {
+            "id": 500,
+            "name": "Kili Row",
+            "resolved": true
+          }
+        ],
+        "stateConditions": {
+          "progress_states_v2": [
+            {
+              "unk0": 0,
+              "value": 15,
+              "name": "",
+              "varbits": [
+                53750
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "id": 3355,
+        "name": "Kili's Knowledge VII",
+        "associatedQuestReferences": [],
+        "miniquestQuestReferences": [
+          {
+            "id": 500,
+            "name": "Kili Row",
+            "resolved": true
+          }
+        ],
+        "stateConditions": {
+          "progress_states_v2": [
+            {
+              "unk0": 0,
+              "value": 15,
+              "name": "",
+              "varbits": [
+                53751
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "id": 3356,
+        "name": "Kili's Knowledge VII (power)",
+        "associatedQuestReferences": [],
+        "miniquestQuestReferences": [
+          {
+            "id": 500,
+            "name": "Kili Row",
+            "resolved": true
+          }
+        ],
+        "stateConditions": {
+          "progress_states_v2": [
+            {
+              "unk0": 0,
+              "value": 15,
+              "name": "",
+              "varbits": [
+                53752
+              ]
+            }
+          ]
+        }
+      }
+    ],
+    "unrelatedQuest": {
+      "id": 384,
+      "name": "Kindred Spirits",
+      "stateFields": {
+        "varps": [],
+        "varbits": [],
+        "varbitsV2": [
+          {
+            "varbit": 31410,
+            "startvalue": 5,
+            "endvalue": 140
+          }
+        ]
+      }
+    },
+    "wiki": [
+      {
+        "title": "Kindred Spirits",
+        "revisionId": 37161806,
+        "url": "https://runescape.wiki/w/Special:PermanentLink/37161806",
+        "field": "Infobox Quest.id",
+        "value": 384,
+        "snippet": "|id = 384"
+      },
+      {
+        "title": "Kili Row",
+        "revisionId": 37152862,
+        "url": "https://runescape.wiki/w/Special:PermanentLink/37152862",
+        "field": "Infobox Quest.id",
+        "value": 500,
+        "snippet": "|id = 500"
+      },
+      {
+        "title": "Kili's Knowledge VII",
+        "revisionId": 37186409,
+        "url": "https://runescape.wiki/w/Special:PermanentLink/37186409",
+        "field": "Infobox Achievement.id",
+        "value": 3355,
+        "snippet": "|id = 3355"
+      },
+      {
+        "title": "Kili's Knowledge VII (power)",
+        "revisionId": 37083735,
+        "url": "https://runescape.wiki/w/Special:PermanentLink/37083735",
+        "field": "Infobox Achievement.id",
+        "value": 3356,
+        "snippet": "|id = 3356"
+      }
+    ],
+    "conclusion": "All ten Kili achievement records have no associated quest references. Their miniquest prerequisite reference500 identifies Kili Row and remains a prerequisite, not an identity alias. Their distinct state varbits53743–53752 do not match Kindred Spirits state. Preserve0QP, authored dependencies, wording and chunks (including the suspicious14131). RuneMetrics excludes this lore-completion label already; the fix corrects engine/activity grouping."
+  },
+  "limits": [
+    "Quest skill metadata is not an exhaustive server prerequisite list. Missing cache skills and authored operation gates are preserved.",
+    "Benedict F2P metadata covers a partial tier; full completion and member-only branches stay gated.",
+    "No authored descriptions, steps, dependencies, rewards, items, access or state tests replaced."
+  ],
+  "verification": {
+    "beforeValuesMatchReference": true
+  }
+}

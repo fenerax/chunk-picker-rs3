@@ -1,0 +1,61 @@
+/* Exact-value tokens. Prefer the core scales; legacy entries preserve Part A pixels. */
+:root{
+  --font-sans:"Segoe UI Variable Text","Segoe UI",system-ui,sans-serif;
+  --type-legacy-24px:24px;
+  --color-fixed-fff7e7:#fff7e7;
+  --space-legacy-12px:12px;
+  --leading-legacy-1-35:1.35;
+  --shadow-overlay-text:0 2px 4px #000,1px 1px 1px #000,-1px -1px 1px #000,1px -1px 1px #000,-1px 1px 1px #000;
+  --type-legacy-18px:18px;
+  --type-legacy-32px:32px;
+  --type-legacy-1-2em:1.2em;
+  --weight-bold:700;
+  --leading-tight:1.2;
+  --space-legacy-0-5em:.5em;
+  --type-legacy-0-83em:.83em;
+  --color-fixed-ffe1a0:#ffe1a0;
+  --space-legacy-0-25em:.25em;
+  --space-legacy-0-65em:.65em;
+  --space-legacy-1-1em:1.1em;
+  --leading-legacy-1-45:1.45;
+  --space-legacy-0-2em:.2em;
+  --space-legacy-0-8em:.8em;
+  --type-legacy-0-75em:.75em;
+  --space-legacy-0-15em:.15em;
+  --weight-legacy-650:650;
+  --type-legacy-0-78em:.78em;
+  --type-legacy-1-35em:1.35em;
+  --type-legacy-0-8em:.8em;
+  --space-legacy-8px:8px;
+  --type-legacy-0-82em:.82em;
+  --space-legacy-0-3em:.3em;
+  --space-legacy-0-4em:.4em;
+  --type-legacy-1em:1em;
+  --color-fixed-72531e:#72531e;
+}
+/* OBS supplies the scene beneath this page. No painted page or panel surface. */
+:root{font-family:var(--font-sans);font-size:var(--type-legacy-24px);color:var(--color-fixed-fff7e7);background:transparent;--title:"Palatino Linotype","Book Antiqua",Palatino,Georgia,serif}
+*{box-sizing:border-box}
+html,body{margin:0;background:transparent}
+body{padding:var(--space-legacy-12px);line-height:var(--leading-legacy-1-35);overflow-wrap:anywhere;text-shadow:var(--shadow-overlay-text);-webkit-font-smoothing:antialiased}
+body[data-size=small]{font-size:var(--type-legacy-18px)}
+body[data-size=medium]{font-size:var(--type-legacy-24px)}
+body[data-size=large]{font-size:var(--type-legacy-32px)}
+h1,h2,p{margin:0}
+h1{font-family:var(--title);font-size:var(--type-legacy-1-2em);font-weight:var(--weight-bold);line-height:var(--leading-tight);margin-bottom:var(--space-legacy-0-5em)}
+h2{font-size:var(--type-legacy-0-83em);font-weight:var(--weight-bold);color:var(--color-fixed-ffe1a0);margin-bottom:var(--space-legacy-0-25em)}
+.overlay-player+.overlay-player{margin-top:var(--space-legacy-0-65em)}
+.overlay-goals{margin:0;padding-left:var(--space-legacy-1-1em);line-height:var(--leading-legacy-1-45)}
+.overlay-goal-ticks{display:flex;flex-wrap:wrap;gap:var(--space-legacy-0-2em) var(--space-legacy-0-8em);font-size:var(--type-legacy-0-75em)}
+.overlay-roll{display:grid;gap:var(--space-legacy-0-15em)}
+.overlay-roll-name{font-weight:var(--weight-legacy-650)}
+.overlay-chunk-id{font-size:var(--type-legacy-0-78em);font-variant-numeric:tabular-nums}
+.overlay-count{font-size:var(--type-legacy-1-35em);font-weight:var(--weight-bold);font-variant-numeric:tabular-nums}
+.overlay-detail,.overlay-empty,#overlay-status{font-size:var(--type-legacy-0-8em)}
+#overlay-status{margin-top:var(--space-legacy-0-5em)}
+#overlay-status:empty{display:none}
+body[data-variant=compact]{padding:var(--space-legacy-8px);line-height:var(--leading-tight)}
+body[data-variant=compact] h1{font-family:inherit;font-size:var(--type-legacy-0-82em);margin-bottom:var(--space-legacy-0-3em)}
+body[data-variant=compact] .overlay-player+.overlay-player{margin-top:var(--space-legacy-0-4em)}
+body[data-variant=compact] .overlay-count{font-size:var(--type-legacy-1em)}
+::selection{background:var(--color-fixed-72531e);color:var(--color-fixed-fff7e7)}

@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+  <title>Magic: wand and spark placeholder</title>
+  <g fill="none" stroke="#f4efe4" stroke-width="4.4" stroke-linecap="round" stroke-linejoin="round">
+    <path d="m3 21 12-13 3 3-12 12Z"/>
+    <path d="m16 2 1 4 5 1-4 3 0 4-4-3-4 1 2-4-2-3 4 1Z"/>
+    <path d="M4 5 4 9 M2 7 6 7"/>
+  </g>
+  <g fill="none" stroke="#25313b" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+    <path d="m3 21 12-13 3 3-12 12Z" fill="#fff0cc"/>
+    <path d="m16 2 1 4 5 1-4 3 0 4-4-3-4 1 2-4-2-3 4 1Z" fill="#70b7ae"/>
+    <path d="M4 5 4 9 M2 7 6 7"/>
+  </g>
+</svg>

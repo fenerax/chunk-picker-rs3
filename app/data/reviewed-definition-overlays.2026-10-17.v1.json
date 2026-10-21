@@ -1,0 +1,1395 @@
+{
+  "schemaVersion": 1,
+  "id": "wiki-review",
+  "version": "2026-10-17.v1",
+  "reviewedOn": "2026-10-17",
+  "patches": [
+    {
+      "path": [
+        "chunks",
+        "16692",
+        "Shop",
+        "Fishing Shop (Wendlewick)"
+      ],
+      "beforePresent": true,
+      "before": true,
+      "beforeRecordSha256": "b5bea41b6c623f7c09f1bf24dcae58ebab3c0cdd90ad966bc43a45b44867e12b",
+      "afterPresent": false,
+      "evidence": {
+        "title": "Fishing Shop (Wendlewick)",
+        "revision": 37108534,
+        "url": "https://runescape.wiki/w/Fishing_Shop_(Wendlewick)?oldid=37108534"
+      }
+    },
+    {
+      "path": [
+        "challenges",
+        "Quest",
+        "~|Spirits of the Elid|~ 5"
+      ],
+      "beforePresent": true,
+      "before": {
+        "BaseQuest": "Spirits of the Elid",
+        "Description": "Give the genie the mayor's sole",
+        "Chunks": [
+          "Elid Genie Cave"
+        ],
+        "Items": [
+          "Rope"
+        ],
+        "Tasks": {
+          "~|Spirits of the Elid|~ 4": "Quest"
+        },
+        "Not F2P": true
+      },
+      "beforeRecordSha256": "b4acd40417f395a261ecf821094369be17d220e2cd7afc62e3a14b364f4d4bf4",
+      "afterPresent": true,
+      "after": {
+        "BaseQuest": "Spirits of the Elid",
+        "Description": "Give the genie the mayor's sole",
+        "Chunks": [
+          "Elid Genie Cave"
+        ],
+        "Tasks": {
+          "~|Spirits of the Elid|~ 4": "Quest"
+        },
+        "Not F2P": true
+      },
+      "evidence": {
+        "title": "Crevice (Genie's Cave)",
+        "revision": 36341662,
+        "url": "https://runescape.wiki/w/Crevice_(Genie's_Cave)?oldid=36341662"
+      }
+    },
+    {
+      "path": [
+        "taskUnlocks",
+        "Items",
+        "Black candle^"
+      ],
+      "beforePresent": true,
+      "before": [
+        {
+          "~|Merlin's Crystal|~ 3": "Quest"
+        }
+      ],
+      "beforeRecordSha256": "c97c05394e70d57986b162072c8054d9edc601469485b57c006da4b8448fe019",
+      "afterPresent": false,
+      "evidence": [
+        {
+          "title": "Candle Shop",
+          "revision": 37177292,
+          "url": "https://runescape.wiki/w/Candle_Shop?oldid=37177292"
+        },
+        {
+          "title": "Wendle's Wicks",
+          "revision": 37108529,
+          "url": "https://runescape.wiki/w/Wendle's_Wicks?oldid=37108529"
+        }
+      ]
+    },
+    {
+      "path": [
+        "taskUnlocks",
+        "Items",
+        "Black candle^Candle Shop"
+      ],
+      "beforePresent": false,
+      "afterPresent": true,
+      "after": [
+        {
+          "~|Merlin's Crystal|~ 3": "Quest"
+        }
+      ],
+      "evidence": {
+        "title": "Candle Shop",
+        "revision": 37177292,
+        "url": "https://runescape.wiki/w/Candle_Shop?oldid=37177292"
+      }
+    },
+    {
+      "path": [
+        "codeItems",
+        "shopsPlus",
+        "Reviewed fork-handle sellers[+]"
+      ],
+      "beforePresent": false,
+      "afterPresent": true,
+      "after": [
+        "Candle Shop",
+        "Wendle's Wicks",
+        "Survival Shop",
+        "Gunslik's Assorted Items",
+        "Jiminua's Jungle Store",
+        "Obli's General Store"
+      ],
+      "evidence": [
+        {
+          "title": "Handles for Forks",
+          "revision": 36994980,
+          "url": "https://runescape.wiki/w/Handles_for_Forks?oldid=36994980"
+        },
+        {
+          "title": "Candle Shop",
+          "revision": 37177292,
+          "url": "https://runescape.wiki/w/Candle_Shop?oldid=37177292"
+        },
+        {
+          "title": "Wendle's Wicks",
+          "revision": 37108529,
+          "url": "https://runescape.wiki/w/Wendle's_Wicks?oldid=37108529"
+        },
+        {
+          "title": "Fork handle",
+          "revision": 36994982,
+          "url": "https://runescape.wiki/w/Fork_handle?oldid=36994982"
+        },
+        {
+          "title": "Survival Shop",
+          "revision": 37181526,
+          "url": "https://runescape.wiki/w/Survival_Shop?oldid=37181526"
+        },
+        {
+          "title": "Gunslik's Assorted Items",
+          "revision": 37122542,
+          "url": "https://runescape.wiki/w/Gunslik's_Assorted_Items?oldid=37122542"
+        },
+        {
+          "title": "Jiminua's Jungle Store",
+          "revision": 37119860,
+          "url": "https://runescape.wiki/w/Jiminua's_Jungle_Store?oldid=37119860"
+        },
+        {
+          "title": "Obli's General Store",
+          "revision": 37122539,
+          "url": "https://runescape.wiki/w/Obli's_General_Store?oldid=37122539"
+        }
+      ]
+    },
+    {
+      "path": [
+        "challenges",
+        "Diary",
+        "~|Activities achievements#Just For Fun|~ Handles for Forks"
+      ],
+      "beforePresent": true,
+      "before": {
+        "Category": [
+          "Misc achievements"
+        ],
+        "Description": "Attempt to purchase four candles from a candle seller.",
+        "BaseQuest": "Activities achievements",
+        "Chunks": [
+          "Candle seller[+]"
+        ],
+        "RuneScore": 5
+      },
+      "beforeRecordSha256": "1fa5bc3617699d5ffbdc88d2a57e51153e6f98bfa195227ef6e455e22de4b081",
+      "afterPresent": true,
+      "after": {
+        "Category": [
+          "Misc achievements"
+        ],
+        "Description": "Attempt to purchase four candles from a candle seller.",
+        "BaseQuest": "Activities achievements",
+        "RuneScore": 5,
+        "Shops": [
+          "Reviewed fork-handle sellers[+]"
+        ]
+      },
+      "evidence": {
+        "title": "Handles for Forks",
+        "revision": 36994980,
+        "url": "https://runescape.wiki/w/Handles_for_Forks?oldid=36994980"
+      }
+    },
+    {
+      "path": [
+        "challenges",
+        "Nonskill",
+        "Pick a wild onion"
+      ],
+      "beforePresent": false,
+      "afterPresent": true,
+      "after": {
+        "Objects": [
+          "Onion"
+        ],
+        "Chunks": [
+          "12338"
+        ],
+        "Output": "Onion",
+        "SourceLocations": [
+          {
+            "field": "Objects",
+            "name": "Onion",
+            "locations": [
+              "12338-1"
+            ]
+          }
+        ],
+        "Description": "Renewable wild harvest; no cultivation prerequisites or Farming XP.",
+        "PickerId": "rs3:task:wiki-wild-onion"
+      },
+      "evidence": {
+        "title": "Onion (scenery)",
+        "revision": 37147464,
+        "url": "https://runescape.wiki/w/Onion_(scenery)?oldid=37147464"
+      }
+    },
+    {
+      "path": [
+        "challenges",
+        "Nonskill",
+        "Pick a wild potato"
+      ],
+      "beforePresent": false,
+      "afterPresent": true,
+      "after": {
+        "Objects": [
+          "Potato"
+        ],
+        "Output": "Raw potato",
+        "SourceLocations": [
+          {
+            "field": "Objects",
+            "name": "Potato",
+            "locations": [
+              "12595",
+              "13107-1",
+              "13107-3"
+            ]
+          }
+        ],
+        "Description": "Renewable wild harvest; no cultivation prerequisites or Farming XP.",
+        "PickerId": "rs3:task:wiki-wild-potato"
+      },
+      "evidence": {
+        "title": "Potato (scenery)",
+        "revision": 37131971,
+        "url": "https://runescape.wiki/w/Potato_(scenery)?oldid=37131971"
+      }
+    },
+    {
+      "path": [
+        "challenges",
+        "Nonskill",
+        "Search a Nardah banana tree"
+      ],
+      "beforePresent": false,
+      "afterPresent": true,
+      "after": {
+        "Objects": [
+          "Banana Tree"
+        ],
+        "Chunks": [
+          "13613"
+        ],
+        "Output": "Banana",
+        "SourceLocations": [
+          {
+            "field": "Objects",
+            "name": "Banana Tree",
+            "locations": [
+              "13613"
+            ]
+          }
+        ],
+        "Description": "Renewable wild harvest; no cultivation prerequisites or Farming XP.",
+        "PickerId": "rs3:task:wiki-nardah-banana"
+      },
+      "evidence": {
+        "title": "Banana Tree",
+        "revision": 37132072,
+        "url": "https://runescape.wiki/w/Banana_Tree?oldid=37132072"
+      }
+    },
+    {
+      "path": [
+        "challenges",
+        "Nonskill",
+        "Buy or exchange rope from Ned"
+      ],
+      "beforePresent": false,
+      "afterPresent": true,
+      "after": {
+        "NPCs": [
+          "Ned"
+        ],
+        "Chunks": [
+          "12338"
+        ],
+        "Output": "Rope",
+        "DialogueSupply": {
+          "mode": "closure-only",
+          "paymentAlternatives": [
+            {
+              "Coins": 15
+            },
+            {
+              "Ball of wool": 4
+            }
+          ]
+        },
+        "SourceLocations": [
+          {
+            "field": "NPCs",
+            "name": "Ned",
+            "locations": [
+              "12338-1"
+            ]
+          }
+        ],
+        "PickerId": "rs3:task:wiki-ned-rope"
+      },
+      "evidence": {
+        "title": "Ned",
+        "revision": 37127315,
+        "url": "https://runescape.wiki/w/Ned?oldid=37127315"
+      }
+    },
+    {
+      "path": [
+        "challenges",
+        "Nonskill",
+        "Buy a kebab from Karim"
+      ],
+      "beforePresent": false,
+      "afterPresent": true,
+      "after": {
+        "NPCs": [
+          "Karim"
+        ],
+        "Chunks": [
+          "13105"
+        ],
+        "Output": "Kebab",
+        "DialogueSupply": {
+          "mode": "closure-only",
+          "paymentAlternatives": [
+            {
+              "Coins": 1
+            }
+          ]
+        },
+        "SourceLocations": [
+          {
+            "field": "NPCs",
+            "name": "Karim",
+            "locations": [
+              "13105"
+            ]
+          }
+        ],
+        "PickerId": "rs3:task:wiki-karim-kebab"
+      },
+      "evidence": {
+        "title": "Karim",
+        "revision": 37209164,
+        "url": "https://runescape.wiki/w/Karim?oldid=37209164"
+      }
+    },
+    {
+      "path": [
+        "challenges",
+        "Nonskill",
+        "Buy a full waterskin from Malik"
+      ],
+      "beforePresent": false,
+      "afterPresent": true,
+      "after": {
+        "NPCs": [
+          "Malik the Carter"
+        ],
+        "Chunks": [
+          "13613"
+        ],
+        "Output": "Waterskin (4)",
+        "DialogueSupply": {
+          "mode": "closure-only",
+          "paymentAlternatives": [
+            {
+              "Coins": 1000
+            }
+          ]
+        },
+        "SourceLocations": [
+          {
+            "field": "NPCs",
+            "name": "Malik the Carter",
+            "locations": [
+              "13613"
+            ]
+          }
+        ],
+        "PickerId": "rs3:task:wiki-malik-waterskin"
+      },
+      "evidence": {
+        "title": "Malik the Carter",
+        "revision": 37120696,
+        "url": "https://runescape.wiki/w/Malik_the_Carter?oldid=37120696"
+      }
+    },
+    {
+      "path": [
+        "challenges",
+        "Quest",
+        "~|Ernest the Chicken|~ Complete the quest"
+      ],
+      "beforePresent": true,
+      "before": {
+        "Tasks": {
+          "~|Ernest the Chicken|~ 3": "Quest"
+        },
+        "QuestPoints": 4,
+        "BaseQuest": "Ernest the Chicken",
+        "Chunks": [
+          "12340-1"
+        ]
+      },
+      "beforeRecordSha256": "5c362eb1f79b6be2588a131f1da79019a8d2b3aa8cc0347bc092266ea0f345cd",
+      "afterPresent": true,
+      "after": {
+        "Tasks": {
+          "~|Ernest the Chicken|~ 3": "Quest"
+        },
+        "QuestPoints": 4,
+        "BaseQuest": "Ernest the Chicken",
+        "Chunks": [
+          "12340-1"
+        ],
+        "FiniteRewards": [
+          {
+            "item": "Egg",
+            "quantity": 10
+          },
+          {
+            "item": "Feather",
+            "quantity": 300
+          },
+          {
+            "item": "Coins",
+            "quantity": 3000
+          }
+        ]
+      },
+      "evidence": {
+        "title": "Ernest the Chicken",
+        "revision": 37153377,
+        "url": "https://runescape.wiki/w/Ernest_the_Chicken?oldid=37153377"
+      }
+    },
+    {
+      "path": [
+        "challenges",
+        "Nonskill",
+        "Record ghoul and holy barrier entry"
+      ],
+      "beforePresent": false,
+      "afterPresent": true,
+      "after": {
+        "PickerId": "rs3:task:canifis-ghoul-barrier-entry",
+        "ManualChecks": [
+          "Confirm in game that you defeated the Paterdomus ghoul and passed the holy barrier."
+        ],
+        "Description": "Record personal legal entry only after observing both conditions. Owned territory and reachable tasks are insufficient.",
+        "Chunks": [
+          "13878"
+        ]
+      },
+      "evidence": {
+        "title": "Canifis",
+        "revision": 37124299,
+        "url": "https://runescape.wiki/w/Canifis?oldid=37124299"
+      }
+    },
+    {
+      "path": [
+        "challenges",
+        "Nonskill",
+        "Canifis citizen legal entry"
+      ],
+      "beforePresent": false,
+      "afterPresent": true,
+      "after": {
+        "PersonalRequirementAlternatives": [
+          {
+            "quest": "Priest in Peril"
+          },
+          {
+            "completedTask": "rs3:task:canifis-ghoul-barrier-entry"
+          }
+        ],
+        "PickerId": "rs3:task:canifis-citizen-legal-entry"
+      },
+      "evidence": {
+        "title": "Canifis",
+        "revision": 37124299,
+        "url": "https://runescape.wiki/w/Canifis?oldid=37124299"
+      }
+    },
+    {
+      "path": [
+        "taskUnlocks",
+        "Monsters",
+        "Boris",
+        "13878-1"
+      ],
+      "beforePresent": true,
+      "before": [
+        {
+          "~|Priest in Peril|~ Complete the quest": "Quest"
+        }
+      ],
+      "beforeRecordSha256": "534644ddd094da7592b71720436e77d0075b2c3f7c0b2153e5875ca06dbe554d",
+      "afterPresent": true,
+      "after": [
+        {
+          "Canifis citizen legal entry": "Nonskill"
+        }
+      ],
+      "evidence": [
+        {
+          "title": "Boris",
+          "revision": 37139399,
+          "url": "https://runescape.wiki/w/Boris?oldid=37139399"
+        },
+        {
+          "title": "Canifis",
+          "revision": 37124299,
+          "url": "https://runescape.wiki/w/Canifis?oldid=37124299"
+        }
+      ]
+    },
+    {
+      "path": [
+        "taskUnlocks",
+        "Monsters",
+        "Alexis",
+        "13878-1"
+      ],
+      "beforePresent": true,
+      "before": [
+        {
+          "~|Priest in Peril|~ Complete the quest": "Quest"
+        }
+      ],
+      "beforeRecordSha256": "534644ddd094da7592b71720436e77d0075b2c3f7c0b2153e5875ca06dbe554d",
+      "afterPresent": true,
+      "after": [
+        {
+          "Canifis citizen legal entry": "Nonskill"
+        }
+      ],
+      "evidence": [
+        {
+          "title": "Alexis",
+          "revision": 37140981,
+          "url": "https://runescape.wiki/w/Alexis?oldid=37140981"
+        },
+        {
+          "title": "Canifis",
+          "revision": 37124299,
+          "url": "https://runescape.wiki/w/Canifis?oldid=37124299"
+        }
+      ]
+    },
+    {
+      "path": [
+        "taskUnlocks",
+        "Monsters",
+        "Eduard",
+        "13878-1"
+      ],
+      "beforePresent": true,
+      "before": [
+        {
+          "~|Priest in Peril|~ Complete the quest": "Quest"
+        }
+      ],
+      "beforeRecordSha256": "534644ddd094da7592b71720436e77d0075b2c3f7c0b2153e5875ca06dbe554d",
+      "afterPresent": true,
+      "after": [
+        {
+          "Canifis citizen legal entry": "Nonskill"
+        }
+      ],
+      "evidence": [
+        {
+          "title": "Eduard",
+          "revision": 37139401,
+          "url": "https://runescape.wiki/w/Eduard?oldid=37139401"
+        },
+        {
+          "title": "Canifis",
+          "revision": 37124299,
+          "url": "https://runescape.wiki/w/Canifis?oldid=37124299"
+        }
+      ]
+    },
+    {
+      "path": [
+        "taskUnlocks",
+        "Monsters",
+        "Galina",
+        "13878-1"
+      ],
+      "beforePresent": true,
+      "before": [
+        {
+          "~|Priest in Peril|~ Complete the quest": "Quest"
+        }
+      ],
+      "beforeRecordSha256": "534644ddd094da7592b71720436e77d0075b2c3f7c0b2153e5875ca06dbe554d",
+      "afterPresent": true,
+      "after": [
+        {
+          "Canifis citizen legal entry": "Nonskill"
+        }
+      ],
+      "evidence": [
+        {
+          "title": "Galina",
+          "revision": 37139402,
+          "url": "https://runescape.wiki/w/Galina?oldid=37139402"
+        },
+        {
+          "title": "Canifis",
+          "revision": 37124299,
+          "url": "https://runescape.wiki/w/Canifis?oldid=37124299"
+        }
+      ]
+    },
+    {
+      "path": [
+        "taskUnlocks",
+        "Monsters",
+        "Georgy",
+        "13878-1"
+      ],
+      "beforePresent": true,
+      "before": [
+        {
+          "~|Priest in Peril|~ Complete the quest": "Quest"
+        }
+      ],
+      "beforeRecordSha256": "534644ddd094da7592b71720436e77d0075b2c3f7c0b2153e5875ca06dbe554d",
+      "afterPresent": true,
+      "after": [
+        {
+          "Canifis citizen legal entry": "Nonskill"
+        }
+      ],
+      "evidence": [
+        {
+          "title": "Georgy",
+          "revision": 37139381,
+          "url": "https://runescape.wiki/w/Georgy?oldid=37139381"
+        },
+        {
+          "title": "Canifis",
+          "revision": 37124299,
+          "url": "https://runescape.wiki/w/Canifis?oldid=37124299"
+        }
+      ]
+    },
+    {
+      "path": [
+        "taskUnlocks",
+        "Monsters",
+        "Imre",
+        "13878-1"
+      ],
+      "beforePresent": true,
+      "before": [
+        {
+          "~|Priest in Peril|~ Complete the quest": "Quest"
+        }
+      ],
+      "beforeRecordSha256": "534644ddd094da7592b71720436e77d0075b2c3f7c0b2153e5875ca06dbe554d",
+      "afterPresent": true,
+      "after": [
+        {
+          "Canifis citizen legal entry": "Nonskill"
+        }
+      ],
+      "evidence": [
+        {
+          "title": "Imre",
+          "revision": 37139403,
+          "url": "https://runescape.wiki/w/Imre?oldid=37139403"
+        },
+        {
+          "title": "Canifis",
+          "revision": 37124299,
+          "url": "https://runescape.wiki/w/Canifis?oldid=37124299"
+        }
+      ]
+    },
+    {
+      "path": [
+        "taskUnlocks",
+        "Monsters",
+        "Irina",
+        "13878-1"
+      ],
+      "beforePresent": true,
+      "before": [
+        {
+          "~|Priest in Peril|~ Complete the quest": "Quest"
+        }
+      ],
+      "beforeRecordSha256": "534644ddd094da7592b71720436e77d0075b2c3f7c0b2153e5875ca06dbe554d",
+      "afterPresent": true,
+      "after": [
+        {
+          "Canifis citizen legal entry": "Nonskill"
+        }
+      ],
+      "evidence": [
+        {
+          "title": "Irina",
+          "revision": 37139404,
+          "url": "https://runescape.wiki/w/Irina?oldid=37139404"
+        },
+        {
+          "title": "Canifis",
+          "revision": 37124299,
+          "url": "https://runescape.wiki/w/Canifis?oldid=37124299"
+        }
+      ]
+    },
+    {
+      "path": [
+        "taskUnlocks",
+        "Monsters",
+        "Jeroen",
+        "13878-1"
+      ],
+      "beforePresent": true,
+      "before": [
+        {
+          "~|Priest in Peril|~ Complete the quest": "Quest"
+        }
+      ],
+      "beforeRecordSha256": "534644ddd094da7592b71720436e77d0075b2c3f7c0b2153e5875ca06dbe554d",
+      "afterPresent": true,
+      "after": [
+        {
+          "Canifis citizen legal entry": "Nonskill"
+        }
+      ],
+      "evidence": [
+        {
+          "title": "Jeroen",
+          "revision": 37139405,
+          "url": "https://runescape.wiki/w/Jeroen?oldid=37139405"
+        },
+        {
+          "title": "Canifis",
+          "revision": 37124299,
+          "url": "https://runescape.wiki/w/Canifis?oldid=37124299"
+        }
+      ]
+    },
+    {
+      "path": [
+        "taskUnlocks",
+        "Monsters",
+        "Joseph",
+        "13878-1"
+      ],
+      "beforePresent": true,
+      "before": [
+        {
+          "~|Priest in Peril|~ Complete the quest": "Quest"
+        }
+      ],
+      "beforeRecordSha256": "534644ddd094da7592b71720436e77d0075b2c3f7c0b2153e5875ca06dbe554d",
+      "afterPresent": true,
+      "after": [
+        {
+          "Canifis citizen legal entry": "Nonskill"
+        }
+      ],
+      "evidence": [
+        {
+          "title": "Joseph",
+          "revision": 37139406,
+          "url": "https://runescape.wiki/w/Joseph?oldid=37139406"
+        },
+        {
+          "title": "Canifis",
+          "revision": 37124299,
+          "url": "https://runescape.wiki/w/Canifis?oldid=37124299"
+        }
+      ]
+    },
+    {
+      "path": [
+        "taskUnlocks",
+        "Monsters",
+        "Ksenia",
+        "13878-1"
+      ],
+      "beforePresent": true,
+      "before": [
+        {
+          "~|Priest in Peril|~ Complete the quest": "Quest"
+        }
+      ],
+      "beforeRecordSha256": "534644ddd094da7592b71720436e77d0075b2c3f7c0b2153e5875ca06dbe554d",
+      "afterPresent": true,
+      "after": [
+        {
+          "Canifis citizen legal entry": "Nonskill"
+        }
+      ],
+      "evidence": [
+        {
+          "title": "Ksenia",
+          "revision": 37139407,
+          "url": "https://runescape.wiki/w/Ksenia?oldid=37139407"
+        },
+        {
+          "title": "Canifis",
+          "revision": 37124299,
+          "url": "https://runescape.wiki/w/Canifis?oldid=37124299"
+        }
+      ]
+    },
+    {
+      "path": [
+        "taskUnlocks",
+        "Monsters",
+        "Lev",
+        "13878-1"
+      ],
+      "beforePresent": true,
+      "before": [
+        {
+          "~|Priest in Peril|~ Complete the quest": "Quest"
+        }
+      ],
+      "beforeRecordSha256": "534644ddd094da7592b71720436e77d0075b2c3f7c0b2153e5875ca06dbe554d",
+      "afterPresent": true,
+      "after": [
+        {
+          "Canifis citizen legal entry": "Nonskill"
+        }
+      ],
+      "evidence": [
+        {
+          "title": "Lev",
+          "revision": 37139408,
+          "url": "https://runescape.wiki/w/Lev?oldid=37139408"
+        },
+        {
+          "title": "Canifis",
+          "revision": 37124299,
+          "url": "https://runescape.wiki/w/Canifis?oldid=37124299"
+        }
+      ]
+    },
+    {
+      "path": [
+        "taskUnlocks",
+        "Monsters",
+        "Liliya",
+        "13878-1"
+      ],
+      "beforePresent": true,
+      "before": [
+        {
+          "~|Priest in Peril|~ Complete the quest": "Quest"
+        }
+      ],
+      "beforeRecordSha256": "534644ddd094da7592b71720436e77d0075b2c3f7c0b2153e5875ca06dbe554d",
+      "afterPresent": true,
+      "after": [
+        {
+          "Canifis citizen legal entry": "Nonskill"
+        }
+      ],
+      "evidence": [
+        {
+          "title": "Liliya",
+          "revision": 37139410,
+          "url": "https://runescape.wiki/w/Liliya?oldid=37139410"
+        },
+        {
+          "title": "Canifis",
+          "revision": 37124299,
+          "url": "https://runescape.wiki/w/Canifis?oldid=37124299"
+        }
+      ]
+    },
+    {
+      "path": [
+        "taskUnlocks",
+        "Monsters",
+        "Milla",
+        "13878-1"
+      ],
+      "beforePresent": true,
+      "before": [
+        {
+          "~|Priest in Peril|~ Complete the quest": "Quest"
+        }
+      ],
+      "beforeRecordSha256": "534644ddd094da7592b71720436e77d0075b2c3f7c0b2153e5875ca06dbe554d",
+      "afterPresent": true,
+      "after": [
+        {
+          "Canifis citizen legal entry": "Nonskill"
+        }
+      ],
+      "evidence": [
+        {
+          "title": "Milla",
+          "revision": 37139412,
+          "url": "https://runescape.wiki/w/Milla?oldid=37139412"
+        },
+        {
+          "title": "Canifis",
+          "revision": 37124299,
+          "url": "https://runescape.wiki/w/Canifis?oldid=37124299"
+        }
+      ]
+    },
+    {
+      "path": [
+        "taskUnlocks",
+        "Monsters",
+        "Nikita",
+        "13878-1"
+      ],
+      "beforePresent": true,
+      "before": [
+        {
+          "~|Priest in Peril|~ Complete the quest": "Quest"
+        }
+      ],
+      "beforeRecordSha256": "534644ddd094da7592b71720436e77d0075b2c3f7c0b2153e5875ca06dbe554d",
+      "afterPresent": true,
+      "after": [
+        {
+          "Canifis citizen legal entry": "Nonskill"
+        }
+      ],
+      "evidence": [
+        {
+          "title": "Nikita",
+          "revision": 37139413,
+          "url": "https://runescape.wiki/w/Nikita?oldid=37139413"
+        },
+        {
+          "title": "Canifis",
+          "revision": 37124299,
+          "url": "https://runescape.wiki/w/Canifis?oldid=37124299"
+        }
+      ]
+    },
+    {
+      "path": [
+        "taskUnlocks",
+        "Monsters",
+        "Nikolai",
+        "13878-1"
+      ],
+      "beforePresent": true,
+      "before": [
+        {
+          "~|Priest in Peril|~ Complete the quest": "Quest"
+        }
+      ],
+      "beforeRecordSha256": "534644ddd094da7592b71720436e77d0075b2c3f7c0b2153e5875ca06dbe554d",
+      "afterPresent": true,
+      "after": [
+        {
+          "Canifis citizen legal entry": "Nonskill"
+        }
+      ],
+      "evidence": [
+        {
+          "title": "Nikolai",
+          "revision": 37139387,
+          "url": "https://runescape.wiki/w/Nikolai?oldid=37139387"
+        },
+        {
+          "title": "Canifis",
+          "revision": 37124299,
+          "url": "https://runescape.wiki/w/Canifis?oldid=37124299"
+        }
+      ]
+    },
+    {
+      "path": [
+        "taskUnlocks",
+        "Monsters",
+        "Sofiya",
+        "13878-1"
+      ],
+      "beforePresent": true,
+      "before": [
+        {
+          "~|Priest in Peril|~ Complete the quest": "Quest"
+        }
+      ],
+      "beforeRecordSha256": "534644ddd094da7592b71720436e77d0075b2c3f7c0b2153e5875ca06dbe554d",
+      "afterPresent": true,
+      "after": [
+        {
+          "Canifis citizen legal entry": "Nonskill"
+        }
+      ],
+      "evidence": [
+        {
+          "title": "Sofiya",
+          "revision": 37139388,
+          "url": "https://runescape.wiki/w/Sofiya?oldid=37139388"
+        },
+        {
+          "title": "Canifis",
+          "revision": 37124299,
+          "url": "https://runescape.wiki/w/Canifis?oldid=37124299"
+        }
+      ]
+    },
+    {
+      "path": [
+        "taskUnlocks",
+        "Monsters",
+        "Svetlana",
+        "13878-1"
+      ],
+      "beforePresent": true,
+      "before": [
+        {
+          "~|Priest in Peril|~ Complete the quest": "Quest"
+        }
+      ],
+      "beforeRecordSha256": "534644ddd094da7592b71720436e77d0075b2c3f7c0b2153e5875ca06dbe554d",
+      "afterPresent": true,
+      "after": [
+        {
+          "Canifis citizen legal entry": "Nonskill"
+        }
+      ],
+      "evidence": [
+        {
+          "title": "Svetlana",
+          "revision": 37139390,
+          "url": "https://runescape.wiki/w/Svetlana?oldid=37139390"
+        },
+        {
+          "title": "Canifis",
+          "revision": 37124299,
+          "url": "https://runescape.wiki/w/Canifis?oldid=37124299"
+        }
+      ]
+    },
+    {
+      "path": [
+        "taskUnlocks",
+        "Monsters",
+        "Vera",
+        "13878-1"
+      ],
+      "beforePresent": true,
+      "before": [
+        {
+          "~|Priest in Peril|~ Complete the quest": "Quest"
+        }
+      ],
+      "beforeRecordSha256": "534644ddd094da7592b71720436e77d0075b2c3f7c0b2153e5875ca06dbe554d",
+      "afterPresent": true,
+      "after": [
+        {
+          "Canifis citizen legal entry": "Nonskill"
+        }
+      ],
+      "evidence": [
+        {
+          "title": "Vera",
+          "revision": 37139391,
+          "url": "https://runescape.wiki/w/Vera?oldid=37139391"
+        },
+        {
+          "title": "Canifis",
+          "revision": 37124299,
+          "url": "https://runescape.wiki/w/Canifis?oldid=37124299"
+        }
+      ]
+    },
+    {
+      "path": [
+        "taskUnlocks",
+        "Monsters",
+        "Yadviga",
+        "13878-1"
+      ],
+      "beforePresent": true,
+      "before": [
+        {
+          "~|Priest in Peril|~ Complete the quest": "Quest"
+        }
+      ],
+      "beforeRecordSha256": "534644ddd094da7592b71720436e77d0075b2c3f7c0b2153e5875ca06dbe554d",
+      "afterPresent": true,
+      "after": [
+        {
+          "Canifis citizen legal entry": "Nonskill"
+        }
+      ],
+      "evidence": [
+        {
+          "title": "Yadviga",
+          "revision": 37139392,
+          "url": "https://runescape.wiki/w/Yadviga?oldid=37139392"
+        },
+        {
+          "title": "Canifis",
+          "revision": 37124299,
+          "url": "https://runescape.wiki/w/Canifis?oldid=37124299"
+        }
+      ]
+    },
+    {
+      "path": [
+        "taskUnlocks",
+        "Monsters",
+        "Yuri",
+        "13878-1"
+      ],
+      "beforePresent": true,
+      "before": [
+        {
+          "~|Priest in Peril|~ Complete the quest": "Quest"
+        }
+      ],
+      "beforeRecordSha256": "534644ddd094da7592b71720436e77d0075b2c3f7c0b2153e5875ca06dbe554d",
+      "afterPresent": true,
+      "after": [
+        {
+          "Canifis citizen legal entry": "Nonskill"
+        }
+      ],
+      "evidence": [
+        {
+          "title": "Yuri",
+          "revision": 37139393,
+          "url": "https://runescape.wiki/w/Yuri?oldid=37139393"
+        },
+        {
+          "title": "Canifis",
+          "revision": 37124299,
+          "url": "https://runescape.wiki/w/Canifis?oldid=37124299"
+        }
+      ]
+    },
+    {
+      "path": [
+        "taskUnlocks",
+        "Monsters",
+        "Zoja",
+        "13878-1"
+      ],
+      "beforePresent": true,
+      "before": [
+        {
+          "~|Priest in Peril|~ Complete the quest": "Quest"
+        }
+      ],
+      "beforeRecordSha256": "534644ddd094da7592b71720436e77d0075b2c3f7c0b2153e5875ca06dbe554d",
+      "afterPresent": true,
+      "after": [
+        {
+          "Canifis citizen legal entry": "Nonskill"
+        }
+      ],
+      "evidence": [
+        {
+          "title": "Zoja",
+          "revision": 37139394,
+          "url": "https://runescape.wiki/w/Zoja?oldid=37139394"
+        },
+        {
+          "title": "Canifis",
+          "revision": 37124299,
+          "url": "https://runescape.wiki/w/Canifis?oldid=37124299"
+        }
+      ]
+    },
+    {
+      "path": [
+        "challenges",
+        "Nonskill",
+        "Record Wendlewick fish deposit access"
+      ],
+      "beforePresent": false,
+      "afterPresent": true,
+      "after": {
+        "PickerId": "rs3:task:wendlewick-fish-deposit-access",
+        "ManualChecks": [
+          "Confirm in game that your personal Visions of Havenhythe progress permits you to use the Wendlewick fish deposit."
+        ],
+        "Description": "Record observed service access during the quest; owning this chunk or being able to start the quest is insufficient.",
+        "Chunks": [
+          "16435"
+        ]
+      },
+      "evidence": [
+        {
+          "title": "Fishing Shop (Wendlewick)",
+          "revision": 37108534,
+          "url": "https://runescape.wiki/w/Fishing_Shop_(Wendlewick)?oldid=37108534"
+        }
+      ]
+    }
+  ],
+  "guards": [
+    {
+      "path": [
+        "chunks",
+        "16435",
+        "Sections",
+        "1",
+        "Shop",
+        "Fishing Shop (Wendlewick)"
+      ],
+      "sha256": "6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b"
+    },
+    {
+      "path": [
+        "chunks",
+        "12338",
+        "Sections",
+        "1",
+        "Object",
+        "Onion"
+      ],
+      "sha256": "19581e27de7ced00ff1ce50b2047e7a567c76b1cbaebabe5ef03f7c3017bb5b7"
+    },
+    {
+      "path": [
+        "chunks",
+        "12595",
+        "Object",
+        "Potato"
+      ],
+      "sha256": "624b60c58c9d8bfb6ff1886c2fd605d2adeb6ea4da576068201b6c6958ce93f4"
+    },
+    {
+      "path": [
+        "chunks",
+        "13107",
+        "Sections",
+        "1",
+        "Object",
+        "Potato"
+      ],
+      "sha256": "ef2d127de37b942baad06145e54b0c619a1f22327b2ebbcfbec78f5564afe39d"
+    },
+    {
+      "path": [
+        "chunks",
+        "13107",
+        "Sections",
+        "3",
+        "Object",
+        "Potato"
+      ],
+      "sha256": "ef2d127de37b942baad06145e54b0c619a1f22327b2ebbcfbec78f5564afe39d"
+    },
+    {
+      "path": [
+        "chunks",
+        "13613",
+        "Object",
+        "Banana Tree"
+      ],
+      "sha256": "ef2d127de37b942baad06145e54b0c619a1f22327b2ebbcfbec78f5564afe39d"
+    },
+    {
+      "path": [
+        "chunks",
+        "12338",
+        "Sections",
+        "1",
+        "NPC",
+        "Ned"
+      ],
+      "sha256": "6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b"
+    },
+    {
+      "path": [
+        "chunks",
+        "13105",
+        "NPC",
+        "Karim"
+      ],
+      "sha256": "6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b"
+    },
+    {
+      "path": [
+        "chunks",
+        "13613",
+        "NPC",
+        "Malik the Carter"
+      ],
+      "sha256": "6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b"
+    }
+  ],
+  "bankingServices": [
+    {
+      "match": {
+        "id": "object-4a3799bdf2c15762380edc43@28:1:4138:3310",
+        "chunkId": "16435",
+        "objectId": 136465,
+        "classKey": "facility:deposit-box",
+        "x": 4138,
+        "y": 3310,
+        "rawPlane": 1,
+        "effectivePlane": 0,
+        "components": [
+          "16435:1"
+        ],
+        "witnessTiles": [
+          [
+            4138,
+            3309,
+            "16435:1"
+          ],
+          [
+            4139,
+            3310,
+            "16435:1"
+          ]
+        ]
+      },
+      "service": {
+        "label": "Wendlewick fish deposit",
+        "kind": "deposit",
+        "members": false,
+        "depositCapability": "fish-only",
+        "accessPolicy": "Personal completion or explicit observed partial-quest service access; owned chunk and reachable quest tasks do not prove access.",
+        "evidence": [
+          {
+            "title": "Fishing Shop (Wendlewick)",
+            "revision": 37108534,
+            "url": "https://runescape.wiki/w/Fishing_Shop_(Wendlewick)?oldid=37108534"
+          }
+        ],
+        "physicalEvidence": "Private reviewed functional signature, exact placement and interaction witnesses; Wiki does not establish object ID.",
+        "questOrPersonalTask": {
+          "quest": "Visions of Havenhythe",
+          "completedTask": "rs3:task:wendlewick-fish-deposit-access"
+        }
+      }
+    }
+  ],
+  "retainedTaskCorrections": [
+    "app/data/retained-task-corrections.2026-10-17.v2.json"
+  ]
+}

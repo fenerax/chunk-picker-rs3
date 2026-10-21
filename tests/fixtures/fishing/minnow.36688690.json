@@ -1,0 +1,11 @@
+{
+  "sourceUrl": "https://runescape.wiki/w/Raw%20minnow?oldid=36688690",
+  "oldid": 36688690,
+  "retrieved": "2026-10-12",
+  "timestamp": "2025-03-29T18:47:49Z",
+  "title": "Raw minnow",
+  "scope": "Complete source snapshot from MediaWiki revisions API",
+  "licence": "RuneScape Wiki contributors, CC BY-NC-SA 3.0; source exceptions apply.",
+  "source": "{{RCFood}}\n{{Confuse|Magnetic minnow}}\n{{Infobox Item\n|name = Raw minnow\n|image = [[File:Raw minnow.png]]\n|release = [[26 November]] [[2013]]\n|update = Coinshare, World Map and Tutorial\n|members = No\n|quest = No\n|tradeable = Yes\n|equipable = No\n|stackable = No\n|disassembly = Yes\n|value = 5\n|destroy = Drop\n|kept = reclaimable\n|exchange = gemw\n|examine = A small uncooked fish.\n|weight = 0.12\n|id = 30076\n}}\n[[File:Raw minnow detail.png|left|100px]]\nA '''raw minnow''' is a small fish that can be caught in a lake in western [[Ashdale]] or during the [[Davendale Tutorial]] in a [[Minnow (fishing spot)|designated fishing spot]]. Catching it awards 12 Fishing [[experience]]. Cooking it on a [[fire]] or a [[range]] will turn it into a cooked [[minnow]], granting 15 [[Cooking]] experience.\n{{clear|left}}\n\n==Fishing==\n{{Fishing info\n|name = Raw minnow\n|level = 1\n|xp = 12\n|spot = [[Minnow_(fishing_spot)|Fish]]\n|tool = {{plink|Fishing rod}}\n|bait = No\n}}\n\n==Fishing locations==\n{{Get item fishing spot locations}}\n\n==Products==\n{{Uses material list}}\n\n==Drop sources==\n{{Drop sources}}\n\n==Disassembly==\n{{Disassembly\n|level = 1\n|category = food\n}}\n\n==Update history==\n{{UH|\n* {{UL|type=hidden|update=This Week In RuneScape: Azzanadra's Quest|date=22 February 2021}}\n** Minnow and raw minnow are now tradeable and present on the Grand Exchange.\n\n* {{UL|type=update|update=Coinshare, World Map and Tutorial|date=26 November 2013}}\n** Added to game.\n}}\n\n{{Fish}}\n{{Ashdale}}\n[[pt:Vairão cru]]",
+  "sourceSha256": "f0e74ccd1d13c79f86357e7248d879112fdfb0e5e842f919f558aeea44e4a00a"
+}

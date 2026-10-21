@@ -1,0 +1,36 @@
+{
+  "schemaVersion": 1,
+  "reviewed": "2026-10-13",
+  "provenance": {
+    "directory": "C:/Users/User/Projects/chunk-picker-rs3/.local/game-data",
+    "definitions": { "file": "objects-2026-10-08-v3/objects.definitions.v1.json.gz", "sha256": "686748ecfe5ccee8a2ec6b513a1c84962521092eccc3c5dcc02cf5e282432bf1" },
+    "placements": { "file": "objects-2026-10-08-v3/objects.placements.v1.json.gz", "sha256": "3af6bc90e31f30fafb81f88368e4052335d47a45eadaaad0e82f3361476bc137" },
+    "skillGuide": { "file": "skill-guides-2026-10-08-v1/skill-guides.v1.json", "sha256": "f4f5e995f1137ea49dd5072b4e3264446da635b9dd618af91c42647734a97d6c", "structId": 37891, "source": { "major": 22, "minor": 1184, "subfile": 3 } },
+    "walkability": { "file": "C:/Users/User/Projects/rs3-cache-work/outputs/cache-audit-2026-10-07-v4/walkability.v1.json.gz", "sha256": "d553ed49ce12254d197e82abe673279f3bb1ede5eb34098cf0376e68bd67fdf6", "componentMaskSha256": "c16a6827b383893acda6945a79e42d809e5d39b1e4166c8dc51de957cae55f7b" },
+    "wiki": "https://runescape.wiki/w/Colossus_remnants?oldid=37192074",
+    "membership": "Wiki corroborated; the scenery definition has no membership flag.",
+    "method": "Read-only exported cache. Exact rotated footprint perimeter against pinned component masks; no new walking edge or retained location fallback."
+  },
+  "classes": [{ "key": "divination:colossus-remnants", "name": "Colossus remnants", "members": true, "level": 77 }],
+  "coverage": [{ "chunkId": "18485", "status": "decoded" }],
+  "mappings": [{ "name": "Colossus remnants", "classKeys": ["divination:colossus-remnants"], "evidenceObjectIds": [140893] }],
+  "placements": [{
+    "id": "object-24cd6da3f7778e36b4740990@28:0:4638:3448",
+    "objectId": 140893,
+    "classKey": "divination:colossus-remnants",
+    "chunkId": "18485",
+    "x": 4638,
+    "y": 3448,
+    "rawPlane": 0,
+    "effectivePlane": 0,
+    "rotation": 1,
+    "components": ["18485:6"],
+    "witnessMethod": "decoded-footprint-perimeter",
+    "witnessTiles": [[4638,3453,"18485:6"],[4639,3453,"18485:6"],[4640,3447,"18485:6"],[4640,3453,"18485:6"],[4641,3447,"18485:6"],[4641,3453,"18485:6"],[4642,3453,"18485:6"],[4643,3449,"18485:6"],[4637,3452,"18485:6"]],
+    "sourceMinor": 3261,
+    "sourceX": 3934,
+    "sourceY": 1656,
+    "sourcePlane": 0,
+    "sourceType": 11
+  }]
+}

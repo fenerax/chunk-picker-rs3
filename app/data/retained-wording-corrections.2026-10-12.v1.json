@@ -1,0 +1,43 @@
+{
+  "schemaVersion": 1,
+  "reviewedOn": "2026-10-12",
+  "provenance": {
+    "reference": "rs3-chunkpicker-chunkinfo-export.json",
+    "referenceSha256": "9dd835266f381abaa4d14033abcd0b43a001fe96d7df0a7f046fcc8676d66553",
+    "referenceHashMode": "git-lf",
+    "generator": "scripts/research/retained-wording-corrections.mjs",
+    "generatorSha256": "11cd8d2b8dbc696f89ae45be34abd9be7710c8b9047a5e360eb00a0b7044dc52",
+    "method": "Bounded public Wiki API review of Kitchen Aid; generated exact-record Description overlay. No save or source export mutations."
+  },
+  "wiki": [
+    {
+      "title": "Kitchen Aid",
+      "revisionId": 36661590,
+      "timestamp": "2025-02-19T22:57:56Z",
+      "url": "https://runescape.wiki/w/Special:PermanentLink/36661590",
+      "contentSha256": "4cdb7de98ea93ca8fc612b7e14a92b5b57cafd82b99f9b820510d7f8d6bb29d8",
+      "facts": {
+        "f2p": true,
+        "anyPlayerFeedsTeammate": true,
+        "ironmanFamiliarAlternative": true
+      }
+    }
+  ],
+  "corrections": [
+    {
+      "category": "Diary",
+      "label": "~|Daemonheim Achievements#Easy|~ Kitchen Aid",
+      "id": "rs3:task:002cb9",
+      "beforeRecordSha256": "7b69408e23f06d77a13d1936a00a743b82428774a639e75630d0d6b4f46a4bd6",
+      "rationale": "The retained text is only the Ironman variant and reads as members-only Summoning. Every player, Ironmen included, can instead feed a teammate inside a floor.",
+      "changes": [
+        {
+          "field": "Description",
+          "beforePresent": true,
+          "before": "Attempt to feed a Dungeoneering familiar.",
+          "after": "Feed your teammate some food to heal them inside a Dungeoneering floor. (Ironmen may instead try to feed a Dungeoneering familiar, which needs members-only Summoning.)"
+        }
+      ]
+    }
+  ]
+}

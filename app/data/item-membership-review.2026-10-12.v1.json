@@ -1,0 +1,2053 @@
+{
+  "schemaVersion": 1,
+  "id": "membership-item-review:2026-10-12:v1",
+  "reviewedOn": "2026-10-12",
+  "policy": "Exact reviewed identities only. Wiki Item decisions override the five dated cache conflicts and two additional pet-token conflicts without changing raw flags. Literal Item IDs, canonical redirects and recorded cache names distinguish these tokens from NPC/Monster homonyms. Historical membership does not assert current acquisition. Virtual rewards and empty outcomes are typed separately. Custom catalogues never inherit this review.",
+  "provenance": {
+    "catalogue": {
+      "path": "app/data/item-membership.2026-10-08.v1.json",
+      "sha256": "56d53a3aca9988f045bf46ba5599c482aeb038b8841589dd0adfb3232d1f021b"
+    },
+    "reference": {
+      "path": "rs3-chunkpicker-chunkinfo-export.json",
+      "sha256": "9dd835266f381abaa4d14033abcd0b43a001fe96d7df0a7f046fcc8676d66553"
+    },
+    "generator": {
+      "path": "scripts/research/membership-item-review.mjs",
+      "sha256": "3c549fd98d147908e76417e4520110c33c4635a9052b142e0180e93fdf4965bd"
+    },
+    "libraries": [
+      {
+        "path": "scripts/lib/item-membership-alias-evidence.mjs",
+        "sha256": "7cd3436179712c159e9b87f8c9b9f60a2f85e2636067495decc1e8819110fdc4"
+      },
+      {
+        "path": "scripts/lib/provenance-hash.mjs",
+        "sha256": "fcd93e18c30de245b1856f4b1ace0c25b6f0aa5e6714bd1bc01fab9be39e3e56"
+      },
+      {
+        "path": "app/data/item-membership-index.mjs",
+        "sha256": "f4539ad395b8b0566d05e8cf003a277b675495a5741f349c49697290a9bbb57d"
+      }
+    ],
+    "artifacts": [
+      {
+        "file": "items.json",
+        "sha256": "33a779985258a6f6434aa6e813b3b0f63281b2988bd093736d0bf59d3d707e71"
+      },
+      {
+        "file": "item-followup.json",
+        "sha256": "0ae57249219eb8b03e04fc708784ee7bec76cb7705ad33f59dd87e802a79da39"
+      },
+      {
+        "file": "copied-save-items.json",
+        "sha256": "7bac5e175ba7fe0ffdfb251e4ac4d3b2f89f95a12552192f70700c5f81438d65"
+      },
+      {
+        "file": "copied-save-items-followup.json",
+        "sha256": "cd1410377a4b3245f59b2b60450f094857bc92ee8feb2cdfe281f90999ebc0be"
+      },
+      {
+        "file": "copied-save-items-scroll.json",
+        "sha256": "590c4673a797d88874493d3906fa9c5023d3f75594229087a5a378eefaa506e0"
+      }
+    ]
+  },
+  "summary": {
+    "cacheConflicts": 5,
+    "residualLabels": 23,
+    "members": 25,
+    "free": 10,
+    "notApplicable": 2,
+    "additionalCopiedSaveLabels": 7,
+    "additionalCacheDisagreements": 2,
+    "supplementaryPhysicalNames": 2,
+    "memberCreationGoals": 60
+  },
+  "entries": [
+    {
+      "name": "Herbert",
+      "kind": "item",
+      "members": true,
+      "status": "members",
+      "ids": [
+        38095
+      ],
+      "reason": "reviewed-wiki-over-cache-conflict",
+      "wiki": {
+        "title": "Herbert",
+        "revid": 37148329,
+        "timestamp": "2026-08-08T03:13:27Z",
+        "url": "https://runescape.wiki/w/Special:PermanentLink/37148329",
+        "contentSha256": "24412f575422cdffc497c7272f9addd16d3aa00d067116680d9ba201f881a51d"
+      },
+      "cacheEvidence": {
+        "freeIds": [
+          38095,
+          38096
+        ],
+        "memberIds": [],
+        "disagreement": {
+          "members": true,
+          "ids": [
+            38095
+          ],
+          "title": "Herbert",
+          "revid": 37148329,
+          "url": "https://runescape.wiki/w/Herbert?oldid=37148329"
+        }
+      }
+    },
+    {
+      "name": "Medium XP lamp",
+      "kind": "item",
+      "members": false,
+      "status": "free",
+      "ids": [
+        23714
+      ],
+      "reason": "reviewed-wiki-over-cache-conflict",
+      "wiki": {
+        "title": "Medium XP lamp",
+        "revid": 37162136,
+        "timestamp": "2026-08-23T07:48:22Z",
+        "url": "https://runescape.wiki/w/Special:PermanentLink/37162136",
+        "contentSha256": "920f03d7b8e8cdafadda36c02e385633078ffe2894ed5b10136663369770a1d0"
+      },
+      "cacheEvidence": {
+        "freeIds": [
+          28744,
+          28748,
+          28752,
+          30325,
+          30638,
+          34883,
+          35271,
+          36074,
+          41060,
+          43255
+        ],
+        "memberIds": [
+          23714,
+          35273,
+          35449,
+          37832
+        ],
+        "disagreement": {
+          "members": false,
+          "ids": [
+            23714
+          ],
+          "title": "Medium XP lamp",
+          "revid": 37162136,
+          "url": "https://runescape.wiki/w/Medium_XP_lamp?oldid=37162136"
+        }
+      },
+      "availability": "historical-treasure-hunter-source-removed"
+    },
+    {
+      "name": "Sneakerpeeper",
+      "kind": "item",
+      "members": true,
+      "status": "members",
+      "ids": [
+        19895
+      ],
+      "reason": "reviewed-wiki-over-cache-conflict",
+      "wiki": {
+        "title": "Sneakerpeeper",
+        "revid": 37165633,
+        "timestamp": "2026-08-27T15:44:38Z",
+        "url": "https://runescape.wiki/w/Special:PermanentLink/37165633",
+        "contentSha256": "ddec3f18345633a1ab21fe769cb88e77dfd8ef8b611ddca5443c28416187e2fb"
+      },
+      "cacheEvidence": {
+        "freeIds": [
+          19895,
+          51417
+        ],
+        "memberIds": [
+          19891
+        ],
+        "disagreement": {
+          "members": true,
+          "ids": [
+            19895
+          ],
+          "title": "Sneakerpeeper",
+          "revid": 37165633,
+          "url": "https://runescape.wiki/w/Sneakerpeeper?oldid=37165633"
+        }
+      }
+    },
+    {
+      "name": "Wingsuit v1",
+      "kind": "item",
+      "members": true,
+      "status": "members",
+      "ids": [
+        49381,
+        50120
+      ],
+      "reason": "reviewed-wiki-over-cache-conflict",
+      "wiki": {
+        "title": "Wingsuit v1",
+        "revid": 36780941,
+        "timestamp": "2025-07-14T20:30:37Z",
+        "url": "https://runescape.wiki/w/Special:PermanentLink/36780941",
+        "contentSha256": "f5a6c413d6716d9a7672d23660c3df56c3f19af2cb04cbb72834c13b71cf64c9"
+      },
+      "cacheEvidence": {
+        "freeIds": [
+          49381
+        ],
+        "memberIds": [
+          50120
+        ],
+        "disagreement": {
+          "members": true,
+          "ids": [
+            49381,
+            50120
+          ],
+          "title": "Wingsuit v1",
+          "revid": 36780941,
+          "url": "https://runescape.wiki/w/Wingsuit_v1?oldid=36780941"
+        }
+      }
+    },
+    {
+      "name": "Wingsuit v2",
+      "kind": "item",
+      "members": true,
+      "status": "members",
+      "ids": [
+        49382,
+        50121
+      ],
+      "reason": "reviewed-wiki-over-cache-conflict",
+      "wiki": {
+        "title": "Wingsuit v2",
+        "revid": 36862191,
+        "timestamp": "2025-11-11T05:39:05Z",
+        "url": "https://runescape.wiki/w/Special:PermanentLink/36862191",
+        "contentSha256": "65dfb2fa87996588a9a60cc8888405303c629b5d26d82b80134a13ab23d52f68"
+      },
+      "cacheEvidence": {
+        "freeIds": [
+          49382
+        ],
+        "memberIds": [
+          50121
+        ],
+        "disagreement": {
+          "members": true,
+          "ids": [
+            49382,
+            50121
+          ],
+          "title": "Wingsuit v2",
+          "revid": 36862191,
+          "url": "https://runescape.wiki/w/Wingsuit_v2?oldid=36862191"
+        }
+      }
+    },
+    {
+      "name": "Gold amulet(unstrung)",
+      "kind": "item",
+      "members": false,
+      "status": "free",
+      "ids": [
+        1673
+      ],
+      "reason": "reviewed-picker-spelling",
+      "wiki": {
+        "title": "Gold amulet (unstrung)",
+        "revid": 36187844,
+        "timestamp": "2023-09-11T23:30:00Z",
+        "url": "https://runescape.wiki/w/Special:PermanentLink/36187844",
+        "contentSha256": "b9eb664b159c9c360a450b6671a0acb70def6212f9d2a3a681898e4d9a3bc46d"
+      }
+    },
+    {
+      "name": "Racing boots",
+      "kind": "item",
+      "members": false,
+      "status": "free",
+      "ids": [
+        15065
+      ],
+      "reason": "reviewed-historical-item",
+      "wiki": {
+        "title": "Racing boots",
+        "revid": 36321484,
+        "timestamp": "2024-03-15T04:54:08Z",
+        "url": "https://runescape.wiki/w/Special:PermanentLink/36321484",
+        "contentSha256": "9c206d5f1d0284cd0e2b3e31cf063a83cb399cd9807925adf1cc4a9b1f5af631"
+      },
+      "availability": "removed-2014-12-08"
+    },
+    {
+      "name": "Starting horn",
+      "kind": "item",
+      "members": false,
+      "status": "free",
+      "ids": [
+        15067
+      ],
+      "reason": "reviewed-historical-item",
+      "wiki": {
+        "title": "Starting horn",
+        "revid": 36908127,
+        "timestamp": "2025-12-29T00:37:12Z",
+        "url": "https://runescape.wiki/w/Special:PermanentLink/36908127",
+        "contentSha256": "6437feba99c9f3b4f609780703cf9a34ecf6c75ae01d624ba189ad9eee039a48"
+      },
+      "availability": "removed-2014-12-08"
+    },
+    {
+      "name": "Super large egg",
+      "kind": "item",
+      "members": false,
+      "status": "free",
+      "ids": [],
+      "reason": "reviewed-historical-item",
+      "wiki": {
+        "title": "Super large egg",
+        "revid": 37133839,
+        "timestamp": "2026-07-31T18:51:18Z",
+        "url": "https://runescape.wiki/w/Special:PermanentLink/37133839",
+        "contentSha256": "87f6eee121b636723e45b4c763d436ce12d1fc2d013ca9f7a89cb6ce72a2d1f2"
+      },
+      "historicalIds": [
+        15412
+      ],
+      "availability": "removed-2026-02-16"
+    },
+    {
+      "name": "Topiary hedge (bagged)",
+      "kind": "item",
+      "members": true,
+      "status": "members",
+      "ids": [],
+      "reason": "reviewed-historical-item",
+      "wiki": {
+        "title": "Topiary hedge (bagged)",
+        "revid": 37103775,
+        "timestamp": "2026-07-17T01:45:20Z",
+        "url": "https://runescape.wiki/w/Special:PermanentLink/37103775",
+        "contentSha256": "ea40bbf2165ffcea8601fb17fb216a0751bf8a6a359eb7e9ce3282ff2eed7ddd"
+      },
+      "availability": "removed-2026-07-13"
+    },
+    {
+      "name": "Timepiece",
+      "kind": "item-family",
+      "members": false,
+      "status": "free",
+      "ids": [
+        15061,
+        15063,
+        15064
+      ],
+      "reason": "reviewed-free-item-state-family",
+      "wiki": {
+        "title": "Timepiece",
+        "revid": 37002890,
+        "timestamp": "2026-04-07T17:01:16Z",
+        "url": "https://runescape.wiki/w/Special:PermanentLink/37002890",
+        "contentSha256": "4beda0e74858c3f77993ad0aae7dbfb72c75b577a6c1b1cf31b8dce057de0d69"
+      },
+      "variants": [
+        {
+          "name": "Timepiece (stopped)",
+          "kind": "item",
+          "members": false,
+          "status": "free",
+          "ids": [
+            15061
+          ],
+          "reason": "reviewed-item-state",
+          "wiki": {
+            "title": "Timepiece (stopped)",
+            "revid": 36250279,
+            "timestamp": "2023-12-04T20:03:15Z",
+            "url": "https://runescape.wiki/w/Special:PermanentLink/36250279",
+            "contentSha256": "1e1b0becf4fff7e81f709f6a4b3f3df88b6290d51af99f9dd455c8c5fbbc1185"
+          }
+        },
+        {
+          "name": "Timepiece (running)",
+          "kind": "item",
+          "members": false,
+          "status": "free",
+          "ids": [
+            15063
+          ],
+          "reason": "reviewed-item-state",
+          "wiki": {
+            "title": "Timepiece (running)",
+            "revid": 37022009,
+            "timestamp": "2026-04-17T08:49:31Z",
+            "url": "https://runescape.wiki/w/Special:PermanentLink/37022009",
+            "contentSha256": "89beb31cb5b9a232b4b2ff7eb2ab83812c9d7868da813aefdcbb11ca5f34085b"
+          }
+        },
+        {
+          "name": "Timepiece (paused)",
+          "kind": "item",
+          "members": false,
+          "status": "free",
+          "ids": [
+            15064
+          ],
+          "reason": "reviewed-item-state",
+          "wiki": {
+            "title": "Timepiece (paused)",
+            "revid": 37022008,
+            "timestamp": "2026-04-17T08:49:30Z",
+            "url": "https://runescape.wiki/w/Special:PermanentLink/37022008",
+            "contentSha256": "198cea5c56844b808989b9a11a11271bcfbc0ead294a0fca401fbddfed6b0e3d"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Revenant Spirit#Cyclops",
+      "kind": "progress-item",
+      "members": true,
+      "status": "members",
+      "ids": [
+        47660
+      ],
+      "reason": "reviewed-revenant-pet-stage",
+      "wiki": {
+        "title": "Revenant Spirit",
+        "revid": 37010921,
+        "timestamp": "2026-04-15T02:32:54Z",
+        "url": "https://runescape.wiki/w/Special:PermanentLink/37010921",
+        "contentSha256": "ebc1ba68e7d4c5aeb6372f4a090e4ecaef62f3e663f51d9827b60aaf59fb7245"
+      },
+      "stage": "Cyclops",
+      "supportingWiki": {
+        "title": "Revenant Pet",
+        "revid": 37010923,
+        "timestamp": "2026-04-15T02:35:05Z",
+        "url": "https://runescape.wiki/w/Special:PermanentLink/37010923",
+        "contentSha256": "c35fabdca9d940568388b00413b8a1b60bf7020673d218830892c8adb2702f17"
+      }
+    },
+    {
+      "name": "Revenant Spirit#Dark beast",
+      "kind": "progress-item",
+      "members": true,
+      "status": "members",
+      "ids": [
+        47660
+      ],
+      "reason": "reviewed-revenant-pet-stage",
+      "wiki": {
+        "title": "Revenant Spirit",
+        "revid": 37010921,
+        "timestamp": "2026-04-15T02:32:54Z",
+        "url": "https://runescape.wiki/w/Special:PermanentLink/37010921",
+        "contentSha256": "ebc1ba68e7d4c5aeb6372f4a090e4ecaef62f3e663f51d9827b60aaf59fb7245"
+      },
+      "stage": "Dark beast",
+      "supportingWiki": {
+        "title": "Revenant Pet",
+        "revid": 37010923,
+        "timestamp": "2026-04-15T02:35:05Z",
+        "url": "https://runescape.wiki/w/Special:PermanentLink/37010923",
+        "contentSha256": "c35fabdca9d940568388b00413b8a1b60bf7020673d218830892c8adb2702f17"
+      }
+    },
+    {
+      "name": "Revenant Spirit#Demon",
+      "kind": "progress-item",
+      "members": true,
+      "status": "members",
+      "ids": [
+        47660
+      ],
+      "reason": "reviewed-revenant-pet-stage",
+      "wiki": {
+        "title": "Revenant Spirit",
+        "revid": 37010921,
+        "timestamp": "2026-04-15T02:32:54Z",
+        "url": "https://runescape.wiki/w/Special:PermanentLink/37010921",
+        "contentSha256": "ebc1ba68e7d4c5aeb6372f4a090e4ecaef62f3e663f51d9827b60aaf59fb7245"
+      },
+      "stage": "Demon",
+      "supportingWiki": {
+        "title": "Revenant Pet",
+        "revid": 37010923,
+        "timestamp": "2026-04-15T02:35:05Z",
+        "url": "https://runescape.wiki/w/Special:PermanentLink/37010923",
+        "contentSha256": "c35fabdca9d940568388b00413b8a1b60bf7020673d218830892c8adb2702f17"
+      }
+    },
+    {
+      "name": "Revenant Spirit#Dragon",
+      "kind": "progress-item",
+      "members": true,
+      "status": "members",
+      "ids": [
+        47660
+      ],
+      "reason": "reviewed-revenant-pet-stage",
+      "wiki": {
+        "title": "Revenant Spirit",
+        "revid": 37010921,
+        "timestamp": "2026-04-15T02:32:54Z",
+        "url": "https://runescape.wiki/w/Special:PermanentLink/37010921",
+        "contentSha256": "ebc1ba68e7d4c5aeb6372f4a090e4ecaef62f3e663f51d9827b60aaf59fb7245"
+      },
+      "stage": "Dragon",
+      "supportingWiki": {
+        "title": "Revenant Pet",
+        "revid": 37010923,
+        "timestamp": "2026-04-15T02:35:05Z",
+        "url": "https://runescape.wiki/w/Special:PermanentLink/37010923",
+        "contentSha256": "c35fabdca9d940568388b00413b8a1b60bf7020673d218830892c8adb2702f17"
+      }
+    },
+    {
+      "name": "Revenant Spirit#Goblin",
+      "kind": "progress-item",
+      "members": true,
+      "status": "members",
+      "ids": [
+        47660
+      ],
+      "reason": "reviewed-revenant-pet-stage",
+      "wiki": {
+        "title": "Revenant Spirit",
+        "revid": 37010921,
+        "timestamp": "2026-04-15T02:32:54Z",
+        "url": "https://runescape.wiki/w/Special:PermanentLink/37010921",
+        "contentSha256": "ebc1ba68e7d4c5aeb6372f4a090e4ecaef62f3e663f51d9827b60aaf59fb7245"
+      },
+      "stage": "Goblin",
+      "supportingWiki": {
+        "title": "Revenant Pet",
+        "revid": 37010923,
+        "timestamp": "2026-04-15T02:35:05Z",
+        "url": "https://runescape.wiki/w/Special:PermanentLink/37010923",
+        "contentSha256": "c35fabdca9d940568388b00413b8a1b60bf7020673d218830892c8adb2702f17"
+      }
+    },
+    {
+      "name": "Revenant Spirit#Hellhound",
+      "kind": "progress-item",
+      "members": true,
+      "status": "members",
+      "ids": [
+        47660
+      ],
+      "reason": "reviewed-revenant-pet-stage",
+      "wiki": {
+        "title": "Revenant Spirit",
+        "revid": 37010921,
+        "timestamp": "2026-04-15T02:32:54Z",
+        "url": "https://runescape.wiki/w/Special:PermanentLink/37010921",
+        "contentSha256": "ebc1ba68e7d4c5aeb6372f4a090e4ecaef62f3e663f51d9827b60aaf59fb7245"
+      },
+      "stage": "Hellhound",
+      "supportingWiki": {
+        "title": "Revenant Pet",
+        "revid": 37010923,
+        "timestamp": "2026-04-15T02:35:05Z",
+        "url": "https://runescape.wiki/w/Special:PermanentLink/37010923",
+        "contentSha256": "c35fabdca9d940568388b00413b8a1b60bf7020673d218830892c8adb2702f17"
+      }
+    },
+    {
+      "name": "Revenant Spirit#Hobgoblin",
+      "kind": "progress-item",
+      "members": true,
+      "status": "members",
+      "ids": [
+        47660
+      ],
+      "reason": "reviewed-revenant-pet-stage",
+      "wiki": {
+        "title": "Revenant Spirit",
+        "revid": 37010921,
+        "timestamp": "2026-04-15T02:32:54Z",
+        "url": "https://runescape.wiki/w/Special:PermanentLink/37010921",
+        "contentSha256": "ebc1ba68e7d4c5aeb6372f4a090e4ecaef62f3e663f51d9827b60aaf59fb7245"
+      },
+      "stage": "Hobgoblin",
+      "supportingWiki": {
+        "title": "Revenant Pet",
+        "revid": 37010923,
+        "timestamp": "2026-04-15T02:35:05Z",
+        "url": "https://runescape.wiki/w/Special:PermanentLink/37010923",
+        "contentSha256": "c35fabdca9d940568388b00413b8a1b60bf7020673d218830892c8adb2702f17"
+      }
+    },
+    {
+      "name": "Revenant Spirit#Icefiend",
+      "kind": "progress-item",
+      "members": true,
+      "status": "members",
+      "ids": [
+        47660
+      ],
+      "reason": "reviewed-revenant-pet-stage",
+      "wiki": {
+        "title": "Revenant Spirit",
+        "revid": 37010921,
+        "timestamp": "2026-04-15T02:32:54Z",
+        "url": "https://runescape.wiki/w/Special:PermanentLink/37010921",
+        "contentSha256": "ebc1ba68e7d4c5aeb6372f4a090e4ecaef62f3e663f51d9827b60aaf59fb7245"
+      },
+      "stage": "Icefiend",
+      "supportingWiki": {
+        "title": "Revenant Pet",
+        "revid": 37010923,
+        "timestamp": "2026-04-15T02:35:05Z",
+        "url": "https://runescape.wiki/w/Special:PermanentLink/37010923",
+        "contentSha256": "c35fabdca9d940568388b00413b8a1b60bf7020673d218830892c8adb2702f17"
+      }
+    },
+    {
+      "name": "Revenant Spirit#Knight",
+      "kind": "progress-item",
+      "members": true,
+      "status": "members",
+      "ids": [
+        47660
+      ],
+      "reason": "reviewed-revenant-pet-stage",
+      "wiki": {
+        "title": "Revenant Spirit",
+        "revid": 37010921,
+        "timestamp": "2026-04-15T02:32:54Z",
+        "url": "https://runescape.wiki/w/Special:PermanentLink/37010921",
+        "contentSha256": "ebc1ba68e7d4c5aeb6372f4a090e4ecaef62f3e663f51d9827b60aaf59fb7245"
+      },
+      "stage": "Knight",
+      "supportingWiki": {
+        "title": "Revenant Pet",
+        "revid": 37010923,
+        "timestamp": "2026-04-15T02:35:05Z",
+        "url": "https://runescape.wiki/w/Special:PermanentLink/37010923",
+        "contentSha256": "c35fabdca9d940568388b00413b8a1b60bf7020673d218830892c8adb2702f17"
+      }
+    },
+    {
+      "name": "Revenant Spirit#Ork",
+      "kind": "progress-item",
+      "members": true,
+      "status": "members",
+      "ids": [
+        47660
+      ],
+      "reason": "reviewed-revenant-pet-stage",
+      "wiki": {
+        "title": "Revenant Spirit",
+        "revid": 37010921,
+        "timestamp": "2026-04-15T02:32:54Z",
+        "url": "https://runescape.wiki/w/Special:PermanentLink/37010921",
+        "contentSha256": "ebc1ba68e7d4c5aeb6372f4a090e4ecaef62f3e663f51d9827b60aaf59fb7245"
+      },
+      "stage": "Ork",
+      "supportingWiki": {
+        "title": "Revenant Pet",
+        "revid": 37010923,
+        "timestamp": "2026-04-15T02:35:05Z",
+        "url": "https://runescape.wiki/w/Special:PermanentLink/37010923",
+        "contentSha256": "c35fabdca9d940568388b00413b8a1b60bf7020673d218830892c8adb2702f17"
+      }
+    },
+    {
+      "name": "Revenant Spirit#Pyrefiend",
+      "kind": "progress-item",
+      "members": true,
+      "status": "members",
+      "ids": [
+        47660
+      ],
+      "reason": "reviewed-revenant-pet-stage",
+      "wiki": {
+        "title": "Revenant Spirit",
+        "revid": 37010921,
+        "timestamp": "2026-04-15T02:32:54Z",
+        "url": "https://runescape.wiki/w/Special:PermanentLink/37010921",
+        "contentSha256": "ebc1ba68e7d4c5aeb6372f4a090e4ecaef62f3e663f51d9827b60aaf59fb7245"
+      },
+      "stage": "Pyrefiend",
+      "supportingWiki": {
+        "title": "Revenant Pet",
+        "revid": 37010923,
+        "timestamp": "2026-04-15T02:35:05Z",
+        "url": "https://runescape.wiki/w/Special:PermanentLink/37010923",
+        "contentSha256": "c35fabdca9d940568388b00413b8a1b60bf7020673d218830892c8adb2702f17"
+      }
+    },
+    {
+      "name": "Revenant Spirit#Vampyre",
+      "kind": "progress-item",
+      "members": true,
+      "status": "members",
+      "ids": [
+        47660
+      ],
+      "reason": "reviewed-revenant-pet-stage",
+      "wiki": {
+        "title": "Revenant Spirit",
+        "revid": 37010921,
+        "timestamp": "2026-04-15T02:32:54Z",
+        "url": "https://runescape.wiki/w/Special:PermanentLink/37010921",
+        "contentSha256": "ebc1ba68e7d4c5aeb6372f4a090e4ecaef62f3e663f51d9827b60aaf59fb7245"
+      },
+      "stage": "Vampyre",
+      "supportingWiki": {
+        "title": "Revenant Pet",
+        "revid": 37010923,
+        "timestamp": "2026-04-15T02:35:05Z",
+        "url": "https://runescape.wiki/w/Special:PermanentLink/37010923",
+        "contentSha256": "c35fabdca9d940568388b00413b8a1b60bf7020673d218830892c8adb2702f17"
+      }
+    },
+    {
+      "name": "Revenant Spirit#Werewolf",
+      "kind": "progress-item",
+      "members": true,
+      "status": "members",
+      "ids": [
+        47660
+      ],
+      "reason": "reviewed-revenant-pet-stage",
+      "wiki": {
+        "title": "Revenant Spirit",
+        "revid": 37010921,
+        "timestamp": "2026-04-15T02:32:54Z",
+        "url": "https://runescape.wiki/w/Special:PermanentLink/37010921",
+        "contentSha256": "ebc1ba68e7d4c5aeb6372f4a090e4ecaef62f3e663f51d9827b60aaf59fb7245"
+      },
+      "stage": "Werewolf",
+      "supportingWiki": {
+        "title": "Revenant Pet",
+        "revid": 37010923,
+        "timestamp": "2026-04-15T02:35:05Z",
+        "url": "https://runescape.wiki/w/Special:PermanentLink/37010923",
+        "contentSha256": "c35fabdca9d940568388b00413b8a1b60bf7020673d218830892c8adb2702f17"
+      }
+    },
+    {
+      "name": "Nothing",
+      "kind": "empty-outcome",
+      "members": null,
+      "status": "not-applicable",
+      "ids": [],
+      "reason": "reviewed-empty-drop-outcome",
+      "wiki": {
+        "title": "Nothing",
+        "revid": 36851708,
+        "timestamp": "2025-10-23T00:27:33Z",
+        "url": "https://runescape.wiki/w/Special:PermanentLink/36851708",
+        "contentSha256": "2597c38a2d9c3c9686b3679a47010d0345a8b5df1c4470058ed994a2efcc865a"
+      }
+    },
+    {
+      "name": "Ceremonial sword",
+      "kind": "method-capability",
+      "members": null,
+      "status": "not-applicable",
+      "ids": [],
+      "membersToUse": true,
+      "reason": "reviewed-member-sword-creation-capability",
+      "wiki": {
+        "title": "Ceremonial sword",
+        "revid": 37001331,
+        "timestamp": "2026-04-07T16:41:09Z",
+        "url": "https://runescape.wiki/w/Special:PermanentLink/37001331",
+        "contentSha256": "693e5c1ed26eac85bda058d791f17b80a1b70d675d9ab7b5a79079c77d42e99b"
+      },
+      "supportingWiki": [
+        {
+          "title": "Artisans' Workshop Reward Shop",
+          "revid": 37171868,
+          "timestamp": "2026-09-05T22:29:25Z",
+          "url": "https://runescape.wiki/w/Special:PermanentLink/37171868",
+          "contentSha256": "8e9d225e10a7d2b44e9f8ac169977f4365d3ae865efc7101d910a3f691703fb7"
+        },
+        {
+          "title": "Template:Artisans' Workshop Reward Shop stock",
+          "revid": 37032396,
+          "timestamp": "2026-05-02T19:22:28Z",
+          "url": "https://runescape.wiki/w/Special:PermanentLink/37032396",
+          "contentSha256": "8c1722394cf85686cdd7b6211f3f76374f8ab91b5c8caff0e3e48a69ddc463e8"
+        }
+      ],
+      "distinction": "Retained ingredient represents sword creation, not purchasing the free Swordsmith reward upgrade."
+    },
+    {
+      "name": "Runes for Slayer Dart",
+      "kind": "reward-bundle",
+      "members": false,
+      "status": "free",
+      "ids": [],
+      "reason": "reviewed-free-rune-bundle",
+      "wiki": {
+        "title": "Template:Slayer Rewards stock",
+        "revid": 37161265,
+        "timestamp": "2026-08-21T14:05:52Z",
+        "url": "https://runescape.wiki/w/Special:PermanentLink/37161265",
+        "contentSha256": "bba1d1486e2c0c0a356bad51a3ee4b77fc5189df81cb7c246d18c6e0dd9f8876"
+      },
+      "components": [
+        "Air rune",
+        "Death rune"
+      ],
+      "distinction": "A reward bundle, not a spell or a physical item. Spell membership cannot ban its free component runes."
+    },
+    {
+      "name": "Slayer XP",
+      "kind": "experience-reward",
+      "members": false,
+      "status": "free",
+      "ids": [],
+      "reason": "reviewed-trial-skill-experience",
+      "wiki": {
+        "title": "Slayer",
+        "revid": 37197819,
+        "timestamp": "2026-10-04T15:14:40Z",
+        "url": "https://runescape.wiki/w/Special:PermanentLink/37197819",
+        "contentSha256": "433731410fa04cbf5af8b80257b75ae5e107785190c02b51aceaf3cd822be945"
+      },
+      "supportingWiki": [
+        {
+          "title": "Slayer Rewards",
+          "revid": 37121235,
+          "timestamp": "2026-07-25T05:21:12Z",
+          "url": "https://runescape.wiki/w/Special:PermanentLink/37121235",
+          "contentSha256": "f33c991544c2e682bb1e976ff038919502ffe5f3b84fd61eca60feb307d05648"
+        },
+        {
+          "title": "Template:Slayer Rewards stock",
+          "revid": 37161265,
+          "timestamp": "2026-08-21T14:05:52Z",
+          "url": "https://runescape.wiki/w/Special:PermanentLink/37161265",
+          "contentSha256": "bba1d1486e2c0c0a356bad51a3ee4b77fc5189df81cb7c246d18c6e0dd9f8876"
+        }
+      ],
+      "distinction": "Experience is not an inventory item; free Slayer training stops at level 5. Reward-source availability remains a separate source policy."
+    },
+    {
+      "name": "Crassian scuttler pet",
+      "kind": "item",
+      "members": true,
+      "status": "members",
+      "ids": [
+        47540,
+        47541
+      ],
+      "reason": "reviewed-wiki-over-cache-conflict",
+      "wiki": {
+        "title": "Tetch",
+        "revid": 37043852,
+        "timestamp": "2026-05-15T07:25:23Z",
+        "url": "https://runescape.wiki/w/Special:PermanentLink/37043852",
+        "contentSha256": "5189a4470c97c316a96245cb34acae1575cb3ec44cee45f0a9bf72586fc1c8c7"
+      },
+      "cacheEvidence": {
+        "selected": [
+          {
+            "id": 47540,
+            "name": "Tetch",
+            "members": false
+          },
+          {
+            "id": 47541,
+            "name": "Tetch",
+            "members": false
+          }
+        ],
+        "freeIds": [
+          47540,
+          47541
+        ],
+        "memberIds": []
+      },
+      "supportingWiki": [
+        {
+          "title": "Crassian scuttler pet",
+          "revid": 28552632,
+          "timestamp": "2019-05-31T12:08:03Z",
+          "url": "https://runescape.wiki/w/Special:PermanentLink/28552632",
+          "contentSha256": "6edbd81891db5b0d1ce7ea36aac83ffdec78f4c56cfb27e467bd04224c6d3a7d"
+        }
+      ]
+    },
+    {
+      "name": "Dragon trinket",
+      "kind": "item",
+      "members": false,
+      "status": "free",
+      "ids": [
+        34808
+      ],
+      "reason": "reviewed-picker-alias",
+      "wiki": {
+        "title": "Dragon trinkets",
+        "revid": 37186151,
+        "timestamp": "2026-09-24T18:22:06Z",
+        "url": "https://runescape.wiki/w/Special:PermanentLink/37186151",
+        "contentSha256": "f086398cf521ad376bd22f4652ebd50006015e07983611ad0a82d53f484455fb"
+      },
+      "cacheEvidence": {
+        "selected": [
+          {
+            "id": 34808,
+            "name": "Dragon trinkets",
+            "members": false
+          }
+        ],
+        "freeIds": [
+          34808
+        ],
+        "memberIds": []
+      },
+      "supportingWiki": [
+        {
+          "title": "Dragon trinket",
+          "revid": 13587032,
+          "timestamp": "2015-05-15T00:34:00Z",
+          "url": "https://runescape.wiki/w/Special:PermanentLink/13587032",
+          "contentSha256": "b51e4a14fb4e2a32bdb08c59135f66e05193deeb4ebe0dceb4117b06122822b6"
+        }
+      ]
+    },
+    {
+      "name": "Magma golem pet",
+      "kind": "item",
+      "members": true,
+      "status": "members",
+      "ids": [
+        43395,
+        43396
+      ],
+      "reason": "reviewed-wiki-over-cache-conflict",
+      "wiki": {
+        "title": "Micah",
+        "revid": 37043853,
+        "timestamp": "2026-05-15T07:26:03Z",
+        "url": "https://runescape.wiki/w/Special:PermanentLink/37043853",
+        "contentSha256": "e59ddf21cc27770f676d4c1da915449466779ff117e5e41ce7de2a2d44ea44c8"
+      },
+      "cacheEvidence": {
+        "selected": [
+          {
+            "id": 43395,
+            "name": "Micah",
+            "members": false
+          },
+          {
+            "id": 43396,
+            "name": "Micah",
+            "members": false
+          }
+        ],
+        "freeIds": [
+          43395,
+          43396
+        ],
+        "memberIds": []
+      },
+      "supportingWiki": [
+        {
+          "title": "Magma golem pet",
+          "revid": 28849047,
+          "timestamp": "2019-06-25T08:48:44Z",
+          "url": "https://runescape.wiki/w/Special:PermanentLink/28849047",
+          "contentSha256": "11e90882ed95a31d00cc1f3d76094099ba15965eda7ea186f9997a4b5426f63b"
+        }
+      ]
+    },
+    {
+      "name": "Metallic dragon trinket",
+      "kind": "item",
+      "members": false,
+      "status": "free",
+      "ids": [
+        37193
+      ],
+      "reason": "reviewed-picker-alias",
+      "wiki": {
+        "title": "Metallic dragon trinkets",
+        "revid": 37186147,
+        "timestamp": "2026-09-24T18:20:12Z",
+        "url": "https://runescape.wiki/w/Special:PermanentLink/37186147",
+        "contentSha256": "37feb0848fde9482e93f1fa8833a5a5ccbe479ca4a9989f29fdbe7e1c900ff23"
+      },
+      "cacheEvidence": {
+        "selected": [
+          {
+            "id": 37193,
+            "name": "Metallic dragon trinkets",
+            "members": false
+          }
+        ],
+        "freeIds": [
+          37193
+        ],
+        "memberIds": []
+      },
+      "supportingWiki": [
+        {
+          "title": "Metallic dragon trinket",
+          "revid": 16501945,
+          "timestamp": "2016-04-08T19:47:40Z",
+          "url": "https://runescape.wiki/w/Special:PermanentLink/16501945",
+          "contentSha256": "3a5779a8d76a956e4f976173f5081025a3842e9eaed240da4d04cba7703bbedb"
+        }
+      ]
+    },
+    {
+      "name": "Player-Owned Port enhancer",
+      "kind": "item",
+      "members": true,
+      "status": "members",
+      "ids": [
+        32719,
+        34171
+      ],
+      "reason": "reviewed-picker-alias",
+      "wiki": {
+        "title": "Player-owned ports enhancer",
+        "revid": 37115084,
+        "timestamp": "2026-07-22T14:12:37Z",
+        "url": "https://runescape.wiki/w/Special:PermanentLink/37115084",
+        "contentSha256": "b9e829b5ad4430b82275f9edcb7c292116a236db7319c09343f240c5f71b4522"
+      },
+      "cacheEvidence": {
+        "selected": [
+          {
+            "id": 32719,
+            "name": "Player-owned ports enhancer",
+            "members": true
+          },
+          {
+            "id": 34171,
+            "name": "Player-owned ports enhancer",
+            "members": true
+          }
+        ],
+        "freeIds": [],
+        "memberIds": [
+          32719,
+          34171
+        ]
+      },
+      "supportingWiki": [
+        {
+          "title": "Player-owned port enhancer",
+          "revid": 28552783,
+          "timestamp": "2019-05-31T14:33:47Z",
+          "url": "https://runescape.wiki/w/Special:PermanentLink/28552783",
+          "contentSha256": "7798100ddcec2f8e09fb0a3a617291affe1d96f29e2593043c518af284ccdbd4"
+        }
+      ]
+    },
+    {
+      "name": "Scroll of excavating",
+      "kind": "item",
+      "members": true,
+      "status": "members",
+      "ids": [
+        61429
+      ],
+      "reason": "reviewed-picker-alias",
+      "wiki": {
+        "title": "Scroll of restoration",
+        "revid": 37082714,
+        "timestamp": "2026-06-30T20:15:36Z",
+        "url": "https://runescape.wiki/w/Special:PermanentLink/37082714",
+        "contentSha256": "fc04b635098d78ec8931cef80c894e26afff40de0ca1d0932c76af9b5cbc7430"
+      },
+      "cacheEvidence": {
+        "selected": [
+          {
+            "id": 61429,
+            "name": "Scroll of restoration",
+            "members": true
+          }
+        ],
+        "freeIds": [],
+        "memberIds": [
+          61429
+        ]
+      }
+    },
+    {
+      "name": "Split dragontooth nekclace",
+      "kind": "item",
+      "members": true,
+      "status": "members",
+      "ids": [
+        19887
+      ],
+      "reason": "reviewed-picker-alias",
+      "wiki": {
+        "title": "Split dragontooth necklace",
+        "revid": 37054170,
+        "timestamp": "2026-05-26T10:24:02Z",
+        "url": "https://runescape.wiki/w/Special:PermanentLink/37054170",
+        "contentSha256": "b0f01ca72060c592b175fffa5a59e785aa6e23b7f517f23d6fe2424b13c9ad35"
+      },
+      "cacheEvidence": {
+        "selected": [
+          {
+            "id": 19887,
+            "name": "Split dragontooth necklace",
+            "members": true
+          }
+        ],
+        "freeIds": [],
+        "memberIds": [
+          19887
+        ]
+      }
+    },
+    {
+      "name": "Tetch",
+      "kind": "item",
+      "members": true,
+      "status": "members",
+      "ids": [
+        47540,
+        47541
+      ],
+      "reason": "reviewed-wiki-over-cache-conflict",
+      "wiki": {
+        "title": "Tetch",
+        "revid": 37043852,
+        "timestamp": "2026-05-15T07:25:23Z",
+        "url": "https://runescape.wiki/w/Special:PermanentLink/37043852",
+        "contentSha256": "5189a4470c97c316a96245cb34acae1575cb3ec44cee45f0a9bf72586fc1c8c7"
+      },
+      "cacheEvidence": {
+        "selected": [
+          {
+            "id": 47540,
+            "name": "Tetch",
+            "members": false
+          },
+          {
+            "id": 47541,
+            "name": "Tetch",
+            "members": false
+          }
+        ],
+        "freeIds": [
+          47540,
+          47541
+        ],
+        "memberIds": []
+      },
+      "supportingWiki": [
+        {
+          "title": "Crassian scuttler pet",
+          "revid": 28552632,
+          "timestamp": "2019-05-31T12:08:03Z",
+          "url": "https://runescape.wiki/w/Special:PermanentLink/28552632",
+          "contentSha256": "6edbd81891db5b0d1ce7ea36aac83ffdec78f4c56cfb27e467bd04224c6d3a7d"
+        }
+      ],
+      "aliasFor": "Crassian scuttler pet"
+    },
+    {
+      "name": "Micah",
+      "kind": "item",
+      "members": true,
+      "status": "members",
+      "ids": [
+        43395,
+        43396
+      ],
+      "reason": "reviewed-wiki-over-cache-conflict",
+      "wiki": {
+        "title": "Micah",
+        "revid": 37043853,
+        "timestamp": "2026-05-15T07:26:03Z",
+        "url": "https://runescape.wiki/w/Special:PermanentLink/37043853",
+        "contentSha256": "e59ddf21cc27770f676d4c1da915449466779ff117e5e41ce7de2a2d44ea44c8"
+      },
+      "cacheEvidence": {
+        "selected": [
+          {
+            "id": 43395,
+            "name": "Micah",
+            "members": false
+          },
+          {
+            "id": 43396,
+            "name": "Micah",
+            "members": false
+          }
+        ],
+        "freeIds": [
+          43395,
+          43396
+        ],
+        "memberIds": []
+      },
+      "supportingWiki": [
+        {
+          "title": "Magma golem pet",
+          "revid": 28849047,
+          "timestamp": "2019-06-25T08:48:44Z",
+          "url": "https://runescape.wiki/w/Special:PermanentLink/28849047",
+          "contentSha256": "11e90882ed95a31d00cc1f3d76094099ba15965eda7ea186f9997a4b5426f63b"
+        }
+      ],
+      "aliasFor": "Magma golem pet"
+    }
+  ],
+  "sourceRows": [
+    {
+      "kind": "Task",
+      "source": "(Artisans' Workshop) Obtain any ~|iron ceremonial sword|~",
+      "category": "Extra",
+      "members": true,
+      "status": "verified-row",
+      "beforeRecordSha256": "9ffd3877838b36d41914d8d9549c10730dc4812ddb77933d089088b9118c040f",
+      "identity": "exact-retained-sword-creation-goal",
+      "wiki": {
+        "title": "Ceremonial sword",
+        "revisionId": 37001331,
+        "url": "https://runescape.wiki/w/Special:PermanentLink/37001331"
+      }
+    },
+    {
+      "kind": "Task",
+      "source": "(Artisans' Workshop) Obtain any ~|off-hand iron ceremonial sword|~",
+      "category": "Extra",
+      "members": true,
+      "status": "verified-row",
+      "beforeRecordSha256": "9ffd3877838b36d41914d8d9549c10730dc4812ddb77933d089088b9118c040f",
+      "identity": "exact-retained-sword-creation-goal",
+      "wiki": {
+        "title": "Ceremonial sword",
+        "revisionId": 37001331,
+        "url": "https://runescape.wiki/w/Special:PermanentLink/37001331"
+      }
+    },
+    {
+      "kind": "Task",
+      "source": "(Artisans' Workshop) Obtain any ~|steel ceremonial sword|~",
+      "category": "Extra",
+      "members": true,
+      "status": "verified-row",
+      "beforeRecordSha256": "6d8e094becbc45bc04cbc1a456b73fb23faea1e6771a0dc0d7a3bc86e7956eb1",
+      "identity": "exact-retained-sword-creation-goal",
+      "wiki": {
+        "title": "Ceremonial sword",
+        "revisionId": 37001331,
+        "url": "https://runescape.wiki/w/Special:PermanentLink/37001331"
+      }
+    },
+    {
+      "kind": "Task",
+      "source": "(Artisans' Workshop) Obtain any ~|off-hand steel ceremonial sword|~",
+      "category": "Extra",
+      "members": true,
+      "status": "verified-row",
+      "beforeRecordSha256": "6d8e094becbc45bc04cbc1a456b73fb23faea1e6771a0dc0d7a3bc86e7956eb1",
+      "identity": "exact-retained-sword-creation-goal",
+      "wiki": {
+        "title": "Ceremonial sword",
+        "revisionId": 37001331,
+        "url": "https://runescape.wiki/w/Special:PermanentLink/37001331"
+      }
+    },
+    {
+      "kind": "Task",
+      "source": "(Artisans' Workshop) Obtain any ~|mithril ceremonial sword|~",
+      "category": "Extra",
+      "members": true,
+      "status": "verified-row",
+      "beforeRecordSha256": "c9dc58216543d4439c03cb9005de95b257c94a8ff99752c1824404bcef3cd244",
+      "identity": "exact-retained-sword-creation-goal",
+      "wiki": {
+        "title": "Ceremonial sword",
+        "revisionId": 37001331,
+        "url": "https://runescape.wiki/w/Special:PermanentLink/37001331"
+      }
+    },
+    {
+      "kind": "Task",
+      "source": "(Artisans' Workshop) Obtain any ~|off-hand mithril ceremonial sword|~",
+      "category": "Extra",
+      "members": true,
+      "status": "verified-row",
+      "beforeRecordSha256": "c9dc58216543d4439c03cb9005de95b257c94a8ff99752c1824404bcef3cd244",
+      "identity": "exact-retained-sword-creation-goal",
+      "wiki": {
+        "title": "Ceremonial sword",
+        "revisionId": 37001331,
+        "url": "https://runescape.wiki/w/Special:PermanentLink/37001331"
+      }
+    },
+    {
+      "kind": "Task",
+      "source": "(Artisans' Workshop) Obtain any ~|adamant ceremonial sword|~",
+      "category": "Extra",
+      "members": true,
+      "status": "verified-row",
+      "beforeRecordSha256": "29519b0a78890870eb2cddb6b97e8c443be46c91b18aa3396fb4671a9dec72f7",
+      "identity": "exact-retained-sword-creation-goal",
+      "wiki": {
+        "title": "Ceremonial sword",
+        "revisionId": 37001331,
+        "url": "https://runescape.wiki/w/Special:PermanentLink/37001331"
+      }
+    },
+    {
+      "kind": "Task",
+      "source": "(Artisans' Workshop) Obtain any ~|off-hand adamant ceremonial sword|~",
+      "category": "Extra",
+      "members": true,
+      "status": "verified-row",
+      "beforeRecordSha256": "29519b0a78890870eb2cddb6b97e8c443be46c91b18aa3396fb4671a9dec72f7",
+      "identity": "exact-retained-sword-creation-goal",
+      "wiki": {
+        "title": "Ceremonial sword",
+        "revisionId": 37001331,
+        "url": "https://runescape.wiki/w/Special:PermanentLink/37001331"
+      }
+    },
+    {
+      "kind": "Task",
+      "source": "(Artisans' Workshop) Obtain any ~|rune ceremonial sword|~",
+      "category": "Extra",
+      "members": true,
+      "status": "verified-row",
+      "beforeRecordSha256": "7311466a0a31ae35814b034f4b839aabf70cbbbbd1ba1a6474872dacad40fb3e",
+      "identity": "exact-retained-sword-creation-goal",
+      "wiki": {
+        "title": "Ceremonial sword",
+        "revisionId": 37001331,
+        "url": "https://runescape.wiki/w/Special:PermanentLink/37001331"
+      }
+    },
+    {
+      "kind": "Task",
+      "source": "(Artisans' Workshop) Obtain any ~|off-hand rune ceremonial sword|~",
+      "category": "Extra",
+      "members": true,
+      "status": "verified-row",
+      "beforeRecordSha256": "7311466a0a31ae35814b034f4b839aabf70cbbbbd1ba1a6474872dacad40fb3e",
+      "identity": "exact-retained-sword-creation-goal",
+      "wiki": {
+        "title": "Ceremonial sword",
+        "revisionId": 37001331,
+        "url": "https://runescape.wiki/w/Special:PermanentLink/37001331"
+      }
+    },
+    {
+      "kind": "Task",
+      "source": "Obtain an ~|iron ceremonial sword I|~",
+      "category": "Extra",
+      "members": true,
+      "status": "verified-row",
+      "beforeRecordSha256": "86a9bdf7cf03959ee4b4d4743273ccbb3d585bdaf5c9ea182923439b0811e116",
+      "identity": "exact-retained-sword-creation-goal",
+      "wiki": {
+        "title": "Ceremonial sword",
+        "revisionId": 37001331,
+        "url": "https://runescape.wiki/w/Special:PermanentLink/37001331"
+      }
+    },
+    {
+      "kind": "Task",
+      "source": "Obtain an ~|off-hand iron ceremonial sword I|~",
+      "category": "Extra",
+      "members": true,
+      "status": "verified-row",
+      "beforeRecordSha256": "86a9bdf7cf03959ee4b4d4743273ccbb3d585bdaf5c9ea182923439b0811e116",
+      "identity": "exact-retained-sword-creation-goal",
+      "wiki": {
+        "title": "Ceremonial sword",
+        "revisionId": 37001331,
+        "url": "https://runescape.wiki/w/Special:PermanentLink/37001331"
+      }
+    },
+    {
+      "kind": "Task",
+      "source": "Obtain an ~|iron ceremonial sword II|~",
+      "category": "Extra",
+      "members": true,
+      "status": "verified-row",
+      "beforeRecordSha256": "86a9bdf7cf03959ee4b4d4743273ccbb3d585bdaf5c9ea182923439b0811e116",
+      "identity": "exact-retained-sword-creation-goal",
+      "wiki": {
+        "title": "Ceremonial sword",
+        "revisionId": 37001331,
+        "url": "https://runescape.wiki/w/Special:PermanentLink/37001331"
+      }
+    },
+    {
+      "kind": "Task",
+      "source": "Obtain an ~|off-hand iron ceremonial sword II|~",
+      "category": "Extra",
+      "members": true,
+      "status": "verified-row",
+      "beforeRecordSha256": "86a9bdf7cf03959ee4b4d4743273ccbb3d585bdaf5c9ea182923439b0811e116",
+      "identity": "exact-retained-sword-creation-goal",
+      "wiki": {
+        "title": "Ceremonial sword",
+        "revisionId": 37001331,
+        "url": "https://runescape.wiki/w/Special:PermanentLink/37001331"
+      }
+    },
+    {
+      "kind": "Task",
+      "source": "Obtain an ~|iron ceremonial sword III|~",
+      "category": "Extra",
+      "members": true,
+      "status": "verified-row",
+      "beforeRecordSha256": "86a9bdf7cf03959ee4b4d4743273ccbb3d585bdaf5c9ea182923439b0811e116",
+      "identity": "exact-retained-sword-creation-goal",
+      "wiki": {
+        "title": "Ceremonial sword",
+        "revisionId": 37001331,
+        "url": "https://runescape.wiki/w/Special:PermanentLink/37001331"
+      }
+    },
+    {
+      "kind": "Task",
+      "source": "Obtain an ~|off-hand iron ceremonial sword III|~",
+      "category": "Extra",
+      "members": true,
+      "status": "verified-row",
+      "beforeRecordSha256": "86a9bdf7cf03959ee4b4d4743273ccbb3d585bdaf5c9ea182923439b0811e116",
+      "identity": "exact-retained-sword-creation-goal",
+      "wiki": {
+        "title": "Ceremonial sword",
+        "revisionId": 37001331,
+        "url": "https://runescape.wiki/w/Special:PermanentLink/37001331"
+      }
+    },
+    {
+      "kind": "Task",
+      "source": "Obtain an ~|iron ceremonial sword IV|~",
+      "category": "Extra",
+      "members": true,
+      "status": "verified-row",
+      "beforeRecordSha256": "86a9bdf7cf03959ee4b4d4743273ccbb3d585bdaf5c9ea182923439b0811e116",
+      "identity": "exact-retained-sword-creation-goal",
+      "wiki": {
+        "title": "Ceremonial sword",
+        "revisionId": 37001331,
+        "url": "https://runescape.wiki/w/Special:PermanentLink/37001331"
+      }
+    },
+    {
+      "kind": "Task",
+      "source": "Obtain an ~|off-hand iron ceremonial sword IV|~",
+      "category": "Extra",
+      "members": true,
+      "status": "verified-row",
+      "beforeRecordSha256": "86a9bdf7cf03959ee4b4d4743273ccbb3d585bdaf5c9ea182923439b0811e116",
+      "identity": "exact-retained-sword-creation-goal",
+      "wiki": {
+        "title": "Ceremonial sword",
+        "revisionId": 37001331,
+        "url": "https://runescape.wiki/w/Special:PermanentLink/37001331"
+      }
+    },
+    {
+      "kind": "Task",
+      "source": "Obtain an ~|iron ceremonial sword V|~",
+      "category": "Extra",
+      "members": true,
+      "status": "verified-row",
+      "beforeRecordSha256": "86a9bdf7cf03959ee4b4d4743273ccbb3d585bdaf5c9ea182923439b0811e116",
+      "identity": "exact-retained-sword-creation-goal",
+      "wiki": {
+        "title": "Ceremonial sword",
+        "revisionId": 37001331,
+        "url": "https://runescape.wiki/w/Special:PermanentLink/37001331"
+      }
+    },
+    {
+      "kind": "Task",
+      "source": "Obtain an ~|off-hand iron ceremonial sword V|~",
+      "category": "Extra",
+      "members": true,
+      "status": "verified-row",
+      "beforeRecordSha256": "86a9bdf7cf03959ee4b4d4743273ccbb3d585bdaf5c9ea182923439b0811e116",
+      "identity": "exact-retained-sword-creation-goal",
+      "wiki": {
+        "title": "Ceremonial sword",
+        "revisionId": 37001331,
+        "url": "https://runescape.wiki/w/Special:PermanentLink/37001331"
+      }
+    },
+    {
+      "kind": "Task",
+      "source": "Obtain an ~|steel ceremonial sword I|~",
+      "category": "Extra",
+      "members": true,
+      "status": "verified-row",
+      "beforeRecordSha256": "3dba85593979a782479c34b92bd69d8907f2454bd8b1d709b0ba9d1db13ccb47",
+      "identity": "exact-retained-sword-creation-goal",
+      "wiki": {
+        "title": "Ceremonial sword",
+        "revisionId": 37001331,
+        "url": "https://runescape.wiki/w/Special:PermanentLink/37001331"
+      }
+    },
+    {
+      "kind": "Task",
+      "source": "Obtain an ~|off-hand steel ceremonial sword I|~",
+      "category": "Extra",
+      "members": true,
+      "status": "verified-row",
+      "beforeRecordSha256": "3dba85593979a782479c34b92bd69d8907f2454bd8b1d709b0ba9d1db13ccb47",
+      "identity": "exact-retained-sword-creation-goal",
+      "wiki": {
+        "title": "Ceremonial sword",
+        "revisionId": 37001331,
+        "url": "https://runescape.wiki/w/Special:PermanentLink/37001331"
+      }
+    },
+    {
+      "kind": "Task",
+      "source": "Obtain an ~|steel ceremonial sword II|~",
+      "category": "Extra",
+      "members": true,
+      "status": "verified-row",
+      "beforeRecordSha256": "3dba85593979a782479c34b92bd69d8907f2454bd8b1d709b0ba9d1db13ccb47",
+      "identity": "exact-retained-sword-creation-goal",
+      "wiki": {
+        "title": "Ceremonial sword",
+        "revisionId": 37001331,
+        "url": "https://runescape.wiki/w/Special:PermanentLink/37001331"
+      }
+    },
+    {
+      "kind": "Task",
+      "source": "Obtain an ~|off-hand steel ceremonial sword II|~",
+      "category": "Extra",
+      "members": true,
+      "status": "verified-row",
+      "beforeRecordSha256": "3dba85593979a782479c34b92bd69d8907f2454bd8b1d709b0ba9d1db13ccb47",
+      "identity": "exact-retained-sword-creation-goal",
+      "wiki": {
+        "title": "Ceremonial sword",
+        "revisionId": 37001331,
+        "url": "https://runescape.wiki/w/Special:PermanentLink/37001331"
+      }
+    },
+    {
+      "kind": "Task",
+      "source": "Obtain an ~|steel ceremonial sword III|~",
+      "category": "Extra",
+      "members": true,
+      "status": "verified-row",
+      "beforeRecordSha256": "3dba85593979a782479c34b92bd69d8907f2454bd8b1d709b0ba9d1db13ccb47",
+      "identity": "exact-retained-sword-creation-goal",
+      "wiki": {
+        "title": "Ceremonial sword",
+        "revisionId": 37001331,
+        "url": "https://runescape.wiki/w/Special:PermanentLink/37001331"
+      }
+    },
+    {
+      "kind": "Task",
+      "source": "Obtain an ~|off-hand steel ceremonial sword III|~",
+      "category": "Extra",
+      "members": true,
+      "status": "verified-row",
+      "beforeRecordSha256": "3dba85593979a782479c34b92bd69d8907f2454bd8b1d709b0ba9d1db13ccb47",
+      "identity": "exact-retained-sword-creation-goal",
+      "wiki": {
+        "title": "Ceremonial sword",
+        "revisionId": 37001331,
+        "url": "https://runescape.wiki/w/Special:PermanentLink/37001331"
+      }
+    },
+    {
+      "kind": "Task",
+      "source": "Obtain an ~|steel ceremonial sword IV|~",
+      "category": "Extra",
+      "members": true,
+      "status": "verified-row",
+      "beforeRecordSha256": "3dba85593979a782479c34b92bd69d8907f2454bd8b1d709b0ba9d1db13ccb47",
+      "identity": "exact-retained-sword-creation-goal",
+      "wiki": {
+        "title": "Ceremonial sword",
+        "revisionId": 37001331,
+        "url": "https://runescape.wiki/w/Special:PermanentLink/37001331"
+      }
+    },
+    {
+      "kind": "Task",
+      "source": "Obtain an ~|off-hand steel ceremonial sword IV|~",
+      "category": "Extra",
+      "members": true,
+      "status": "verified-row",
+      "beforeRecordSha256": "3dba85593979a782479c34b92bd69d8907f2454bd8b1d709b0ba9d1db13ccb47",
+      "identity": "exact-retained-sword-creation-goal",
+      "wiki": {
+        "title": "Ceremonial sword",
+        "revisionId": 37001331,
+        "url": "https://runescape.wiki/w/Special:PermanentLink/37001331"
+      }
+    },
+    {
+      "kind": "Task",
+      "source": "Obtain an ~|steel ceremonial sword V|~",
+      "category": "Extra",
+      "members": true,
+      "status": "verified-row",
+      "beforeRecordSha256": "3dba85593979a782479c34b92bd69d8907f2454bd8b1d709b0ba9d1db13ccb47",
+      "identity": "exact-retained-sword-creation-goal",
+      "wiki": {
+        "title": "Ceremonial sword",
+        "revisionId": 37001331,
+        "url": "https://runescape.wiki/w/Special:PermanentLink/37001331"
+      }
+    },
+    {
+      "kind": "Task",
+      "source": "Obtain an ~|off-hand steel ceremonial sword V|~",
+      "category": "Extra",
+      "members": true,
+      "status": "verified-row",
+      "beforeRecordSha256": "3dba85593979a782479c34b92bd69d8907f2454bd8b1d709b0ba9d1db13ccb47",
+      "identity": "exact-retained-sword-creation-goal",
+      "wiki": {
+        "title": "Ceremonial sword",
+        "revisionId": 37001331,
+        "url": "https://runescape.wiki/w/Special:PermanentLink/37001331"
+      }
+    },
+    {
+      "kind": "Task",
+      "source": "Obtain an ~|mithril ceremonial sword I|~",
+      "category": "Extra",
+      "members": true,
+      "status": "verified-row",
+      "beforeRecordSha256": "8e40bbeabbb018ae87e64ed645cd52f5374eeed30eb733b51d1e34fd1d0ace75",
+      "identity": "exact-retained-sword-creation-goal",
+      "wiki": {
+        "title": "Ceremonial sword",
+        "revisionId": 37001331,
+        "url": "https://runescape.wiki/w/Special:PermanentLink/37001331"
+      }
+    },
+    {
+      "kind": "Task",
+      "source": "Obtain an ~|off-hand mithril ceremonial sword I|~",
+      "category": "Extra",
+      "members": true,
+      "status": "verified-row",
+      "beforeRecordSha256": "8e40bbeabbb018ae87e64ed645cd52f5374eeed30eb733b51d1e34fd1d0ace75",
+      "identity": "exact-retained-sword-creation-goal",
+      "wiki": {
+        "title": "Ceremonial sword",
+        "revisionId": 37001331,
+        "url": "https://runescape.wiki/w/Special:PermanentLink/37001331"
+      }
+    },
+    {
+      "kind": "Task",
+      "source": "Obtain an ~|mithril ceremonial sword II|~",
+      "category": "Extra",
+      "members": true,
+      "status": "verified-row",
+      "beforeRecordSha256": "8e40bbeabbb018ae87e64ed645cd52f5374eeed30eb733b51d1e34fd1d0ace75",
+      "identity": "exact-retained-sword-creation-goal",
+      "wiki": {
+        "title": "Ceremonial sword",
+        "revisionId": 37001331,
+        "url": "https://runescape.wiki/w/Special:PermanentLink/37001331"
+      }
+    },
+    {
+      "kind": "Task",
+      "source": "Obtain an ~|off-hand mithril ceremonial sword II|~",
+      "category": "Extra",
+      "members": true,
+      "status": "verified-row",
+      "beforeRecordSha256": "8e40bbeabbb018ae87e64ed645cd52f5374eeed30eb733b51d1e34fd1d0ace75",
+      "identity": "exact-retained-sword-creation-goal",
+      "wiki": {
+        "title": "Ceremonial sword",
+        "revisionId": 37001331,
+        "url": "https://runescape.wiki/w/Special:PermanentLink/37001331"
+      }
+    },
+    {
+      "kind": "Task",
+      "source": "Obtain an ~|mithril ceremonial sword III|~",
+      "category": "Extra",
+      "members": true,
+      "status": "verified-row",
+      "beforeRecordSha256": "8e40bbeabbb018ae87e64ed645cd52f5374eeed30eb733b51d1e34fd1d0ace75",
+      "identity": "exact-retained-sword-creation-goal",
+      "wiki": {
+        "title": "Ceremonial sword",
+        "revisionId": 37001331,
+        "url": "https://runescape.wiki/w/Special:PermanentLink/37001331"
+      }
+    },
+    {
+      "kind": "Task",
+      "source": "Obtain an ~|off-hand mithril ceremonial sword III|~",
+      "category": "Extra",
+      "members": true,
+      "status": "verified-row",
+      "beforeRecordSha256": "8e40bbeabbb018ae87e64ed645cd52f5374eeed30eb733b51d1e34fd1d0ace75",
+      "identity": "exact-retained-sword-creation-goal",
+      "wiki": {
+        "title": "Ceremonial sword",
+        "revisionId": 37001331,
+        "url": "https://runescape.wiki/w/Special:PermanentLink/37001331"
+      }
+    },
+    {
+      "kind": "Task",
+      "source": "Obtain an ~|mithril ceremonial sword IV|~",
+      "category": "Extra",
+      "members": true,
+      "status": "verified-row",
+      "beforeRecordSha256": "8e40bbeabbb018ae87e64ed645cd52f5374eeed30eb733b51d1e34fd1d0ace75",
+      "identity": "exact-retained-sword-creation-goal",
+      "wiki": {
+        "title": "Ceremonial sword",
+        "revisionId": 37001331,
+        "url": "https://runescape.wiki/w/Special:PermanentLink/37001331"
+      }
+    },
+    {
+      "kind": "Task",
+      "source": "Obtain an ~|off-hand mithril ceremonial sword IV|~",
+      "category": "Extra",
+      "members": true,
+      "status": "verified-row",
+      "beforeRecordSha256": "8e40bbeabbb018ae87e64ed645cd52f5374eeed30eb733b51d1e34fd1d0ace75",
+      "identity": "exact-retained-sword-creation-goal",
+      "wiki": {
+        "title": "Ceremonial sword",
+        "revisionId": 37001331,
+        "url": "https://runescape.wiki/w/Special:PermanentLink/37001331"
+      }
+    },
+    {
+      "kind": "Task",
+      "source": "Obtain an ~|mithril ceremonial sword V|~",
+      "category": "Extra",
+      "members": true,
+      "status": "verified-row",
+      "beforeRecordSha256": "8e40bbeabbb018ae87e64ed645cd52f5374eeed30eb733b51d1e34fd1d0ace75",
+      "identity": "exact-retained-sword-creation-goal",
+      "wiki": {
+        "title": "Ceremonial sword",
+        "revisionId": 37001331,
+        "url": "https://runescape.wiki/w/Special:PermanentLink/37001331"
+      }
+    },
+    {
+      "kind": "Task",
+      "source": "Obtain an ~|off-hand mithril ceremonial sword V|~",
+      "category": "Extra",
+      "members": true,
+      "status": "verified-row",
+      "beforeRecordSha256": "8e40bbeabbb018ae87e64ed645cd52f5374eeed30eb733b51d1e34fd1d0ace75",
+      "identity": "exact-retained-sword-creation-goal",
+      "wiki": {
+        "title": "Ceremonial sword",
+        "revisionId": 37001331,
+        "url": "https://runescape.wiki/w/Special:PermanentLink/37001331"
+      }
+    },
+    {
+      "kind": "Task",
+      "source": "Obtain an ~|adamant ceremonial sword I|~",
+      "category": "Extra",
+      "members": true,
+      "status": "verified-row",
+      "beforeRecordSha256": "5ed52df5659cb74f7e901758b52fe79510ea4f030e8adec28c16b9e8a7b13714",
+      "identity": "exact-retained-sword-creation-goal",
+      "wiki": {
+        "title": "Ceremonial sword",
+        "revisionId": 37001331,
+        "url": "https://runescape.wiki/w/Special:PermanentLink/37001331"
+      }
+    },
+    {
+      "kind": "Task",
+      "source": "Obtain an ~|off-hand adamant ceremonial sword I|~",
+      "category": "Extra",
+      "members": true,
+      "status": "verified-row",
+      "beforeRecordSha256": "5ed52df5659cb74f7e901758b52fe79510ea4f030e8adec28c16b9e8a7b13714",
+      "identity": "exact-retained-sword-creation-goal",
+      "wiki": {
+        "title": "Ceremonial sword",
+        "revisionId": 37001331,
+        "url": "https://runescape.wiki/w/Special:PermanentLink/37001331"
+      }
+    },
+    {
+      "kind": "Task",
+      "source": "Obtain an ~|adamant ceremonial sword II|~",
+      "category": "Extra",
+      "members": true,
+      "status": "verified-row",
+      "beforeRecordSha256": "5ed52df5659cb74f7e901758b52fe79510ea4f030e8adec28c16b9e8a7b13714",
+      "identity": "exact-retained-sword-creation-goal",
+      "wiki": {
+        "title": "Ceremonial sword",
+        "revisionId": 37001331,
+        "url": "https://runescape.wiki/w/Special:PermanentLink/37001331"
+      }
+    },
+    {
+      "kind": "Task",
+      "source": "Obtain an ~|off-hand adamant ceremonial sword II|~",
+      "category": "Extra",
+      "members": true,
+      "status": "verified-row",
+      "beforeRecordSha256": "5ed52df5659cb74f7e901758b52fe79510ea4f030e8adec28c16b9e8a7b13714",
+      "identity": "exact-retained-sword-creation-goal",
+      "wiki": {
+        "title": "Ceremonial sword",
+        "revisionId": 37001331,
+        "url": "https://runescape.wiki/w/Special:PermanentLink/37001331"
+      }
+    },
+    {
+      "kind": "Task",
+      "source": "Obtain an ~|adamant ceremonial sword III|~",
+      "category": "Extra",
+      "members": true,
+      "status": "verified-row",
+      "beforeRecordSha256": "5ed52df5659cb74f7e901758b52fe79510ea4f030e8adec28c16b9e8a7b13714",
+      "identity": "exact-retained-sword-creation-goal",
+      "wiki": {
+        "title": "Ceremonial sword",
+        "revisionId": 37001331,
+        "url": "https://runescape.wiki/w/Special:PermanentLink/37001331"
+      }
+    },
+    {
+      "kind": "Task",
+      "source": "Obtain an ~|off-hand adamant ceremonial sword III|~",
+      "category": "Extra",
+      "members": true,
+      "status": "verified-row",
+      "beforeRecordSha256": "5ed52df5659cb74f7e901758b52fe79510ea4f030e8adec28c16b9e8a7b13714",
+      "identity": "exact-retained-sword-creation-goal",
+      "wiki": {
+        "title": "Ceremonial sword",
+        "revisionId": 37001331,
+        "url": "https://runescape.wiki/w/Special:PermanentLink/37001331"
+      }
+    },
+    {
+      "kind": "Task",
+      "source": "Obtain an ~|adamant ceremonial sword IV|~",
+      "category": "Extra",
+      "members": true,
+      "status": "verified-row",
+      "beforeRecordSha256": "5ed52df5659cb74f7e901758b52fe79510ea4f030e8adec28c16b9e8a7b13714",
+      "identity": "exact-retained-sword-creation-goal",
+      "wiki": {
+        "title": "Ceremonial sword",
+        "revisionId": 37001331,
+        "url": "https://runescape.wiki/w/Special:PermanentLink/37001331"
+      }
+    },
+    {
+      "kind": "Task",
+      "source": "Obtain an ~|off-hand adamant ceremonial sword IV|~",
+      "category": "Extra",
+      "members": true,
+      "status": "verified-row",
+      "beforeRecordSha256": "5ed52df5659cb74f7e901758b52fe79510ea4f030e8adec28c16b9e8a7b13714",
+      "identity": "exact-retained-sword-creation-goal",
+      "wiki": {
+        "title": "Ceremonial sword",
+        "revisionId": 37001331,
+        "url": "https://runescape.wiki/w/Special:PermanentLink/37001331"
+      }
+    },
+    {
+      "kind": "Task",
+      "source": "Obtain an ~|adamant ceremonial sword V|~",
+      "category": "Extra",
+      "members": true,
+      "status": "verified-row",
+      "beforeRecordSha256": "5ed52df5659cb74f7e901758b52fe79510ea4f030e8adec28c16b9e8a7b13714",
+      "identity": "exact-retained-sword-creation-goal",
+      "wiki": {
+        "title": "Ceremonial sword",
+        "revisionId": 37001331,
+        "url": "https://runescape.wiki/w/Special:PermanentLink/37001331"
+      }
+    },
+    {
+      "kind": "Task",
+      "source": "Obtain an ~|off-hand adamant ceremonial sword V|~",
+      "category": "Extra",
+      "members": true,
+      "status": "verified-row",
+      "beforeRecordSha256": "5ed52df5659cb74f7e901758b52fe79510ea4f030e8adec28c16b9e8a7b13714",
+      "identity": "exact-retained-sword-creation-goal",
+      "wiki": {
+        "title": "Ceremonial sword",
+        "revisionId": 37001331,
+        "url": "https://runescape.wiki/w/Special:PermanentLink/37001331"
+      }
+    },
+    {
+      "kind": "Task",
+      "source": "Obtain an ~|rune ceremonial sword I|~",
+      "category": "Extra",
+      "members": true,
+      "status": "verified-row",
+      "beforeRecordSha256": "ef6d9fd76dfda81add46936e6bc946bbd347e31c10aa70256ed8fae0c8c59577",
+      "identity": "exact-retained-sword-creation-goal",
+      "wiki": {
+        "title": "Ceremonial sword",
+        "revisionId": 37001331,
+        "url": "https://runescape.wiki/w/Special:PermanentLink/37001331"
+      }
+    },
+    {
+      "kind": "Task",
+      "source": "Obtain an ~|off-hand rune ceremonial sword I|~",
+      "category": "Extra",
+      "members": true,
+      "status": "verified-row",
+      "beforeRecordSha256": "ef6d9fd76dfda81add46936e6bc946bbd347e31c10aa70256ed8fae0c8c59577",
+      "identity": "exact-retained-sword-creation-goal",
+      "wiki": {
+        "title": "Ceremonial sword",
+        "revisionId": 37001331,
+        "url": "https://runescape.wiki/w/Special:PermanentLink/37001331"
+      }
+    },
+    {
+      "kind": "Task",
+      "source": "Obtain an ~|rune ceremonial sword II|~",
+      "category": "Extra",
+      "members": true,
+      "status": "verified-row",
+      "beforeRecordSha256": "ef6d9fd76dfda81add46936e6bc946bbd347e31c10aa70256ed8fae0c8c59577",
+      "identity": "exact-retained-sword-creation-goal",
+      "wiki": {
+        "title": "Ceremonial sword",
+        "revisionId": 37001331,
+        "url": "https://runescape.wiki/w/Special:PermanentLink/37001331"
+      }
+    },
+    {
+      "kind": "Task",
+      "source": "Obtain an ~|off-hand rune ceremonial sword II|~",
+      "category": "Extra",
+      "members": true,
+      "status": "verified-row",
+      "beforeRecordSha256": "ef6d9fd76dfda81add46936e6bc946bbd347e31c10aa70256ed8fae0c8c59577",
+      "identity": "exact-retained-sword-creation-goal",
+      "wiki": {
+        "title": "Ceremonial sword",
+        "revisionId": 37001331,
+        "url": "https://runescape.wiki/w/Special:PermanentLink/37001331"
+      }
+    },
+    {
+      "kind": "Task",
+      "source": "Obtain an ~|rune ceremonial sword III|~",
+      "category": "Extra",
+      "members": true,
+      "status": "verified-row",
+      "beforeRecordSha256": "ef6d9fd76dfda81add46936e6bc946bbd347e31c10aa70256ed8fae0c8c59577",
+      "identity": "exact-retained-sword-creation-goal",
+      "wiki": {
+        "title": "Ceremonial sword",
+        "revisionId": 37001331,
+        "url": "https://runescape.wiki/w/Special:PermanentLink/37001331"
+      }
+    },
+    {
+      "kind": "Task",
+      "source": "Obtain an ~|off-hand rune ceremonial sword III|~",
+      "category": "Extra",
+      "members": true,
+      "status": "verified-row",
+      "beforeRecordSha256": "ef6d9fd76dfda81add46936e6bc946bbd347e31c10aa70256ed8fae0c8c59577",
+      "identity": "exact-retained-sword-creation-goal",
+      "wiki": {
+        "title": "Ceremonial sword",
+        "revisionId": 37001331,
+        "url": "https://runescape.wiki/w/Special:PermanentLink/37001331"
+      }
+    },
+    {
+      "kind": "Task",
+      "source": "Obtain an ~|rune ceremonial sword IV|~",
+      "category": "Extra",
+      "members": true,
+      "status": "verified-row",
+      "beforeRecordSha256": "ef6d9fd76dfda81add46936e6bc946bbd347e31c10aa70256ed8fae0c8c59577",
+      "identity": "exact-retained-sword-creation-goal",
+      "wiki": {
+        "title": "Ceremonial sword",
+        "revisionId": 37001331,
+        "url": "https://runescape.wiki/w/Special:PermanentLink/37001331"
+      }
+    },
+    {
+      "kind": "Task",
+      "source": "Obtain an ~|off-hand rune ceremonial sword IV|~",
+      "category": "Extra",
+      "members": true,
+      "status": "verified-row",
+      "beforeRecordSha256": "ef6d9fd76dfda81add46936e6bc946bbd347e31c10aa70256ed8fae0c8c59577",
+      "identity": "exact-retained-sword-creation-goal",
+      "wiki": {
+        "title": "Ceremonial sword",
+        "revisionId": 37001331,
+        "url": "https://runescape.wiki/w/Special:PermanentLink/37001331"
+      }
+    },
+    {
+      "kind": "Task",
+      "source": "Obtain an ~|rune ceremonial sword V|~",
+      "category": "Extra",
+      "members": true,
+      "status": "verified-row",
+      "beforeRecordSha256": "ef6d9fd76dfda81add46936e6bc946bbd347e31c10aa70256ed8fae0c8c59577",
+      "identity": "exact-retained-sword-creation-goal",
+      "wiki": {
+        "title": "Ceremonial sword",
+        "revisionId": 37001331,
+        "url": "https://runescape.wiki/w/Special:PermanentLink/37001331"
+      }
+    },
+    {
+      "kind": "Task",
+      "source": "Obtain an ~|off-hand rune ceremonial sword V|~",
+      "category": "Extra",
+      "members": true,
+      "status": "verified-row",
+      "beforeRecordSha256": "ef6d9fd76dfda81add46936e6bc946bbd347e31c10aa70256ed8fae0c8c59577",
+      "identity": "exact-retained-sword-creation-goal",
+      "wiki": {
+        "title": "Ceremonial sword",
+        "revisionId": 37001331,
+        "url": "https://runescape.wiki/w/Special:PermanentLink/37001331"
+      }
+    }
+  ]
+}

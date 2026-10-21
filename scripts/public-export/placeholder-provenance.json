@@ -1,0 +1,263 @@
+{
+  "schemaVersion": 1,
+  "files": [
+    {
+      "path": "app/web/placeholder-art/item.svg",
+      "bytes": 652,
+      "sha256": "1ca210ffbf82c64484a2e02d25421df50c903280044230cff53a4b9be0678582",
+      "authoring": "Hand-written SVG drawn for this project from plain shapes, without opening game or reference images; MIT."
+    },
+    {
+      "path": "app/web/placeholder-art/pin-combat-slayer.svg",
+      "bytes": 771,
+      "sha256": "fbd44cf05da25a1d6348cf392c5ef7104865d39a8a112b8303e0a756d9892932",
+      "authoring": "Hand-written SVG drawn for this project from plain shapes, without opening game or reference images; MIT."
+    },
+    {
+      "path": "app/web/placeholder-art/pin-general.svg",
+      "bytes": 590,
+      "sha256": "19e6413079989852cc7894399cd7ca8803eb67634281b3d81bff719dc1e42f2c",
+      "authoring": "Hand-written SVG drawn for this project from plain shapes, without opening game or reference images; MIT."
+    },
+    {
+      "path": "app/web/placeholder-art/pin-minigames.svg",
+      "bytes": 683,
+      "sha256": "cc7df8d062279253d45507740b6f6f2c6cd467dd65cb5122bc1011ff4bbf758d",
+      "authoring": "Hand-written SVG drawn for this project from plain shapes, without opening game or reference images; MIT."
+    },
+    {
+      "path": "app/web/placeholder-art/pin-other.svg",
+      "bytes": 705,
+      "sha256": "564f6880ecf45266a1f40567db11e677073e589de27ae36c1d1640ded2971f01",
+      "authoring": "Hand-written SVG drawn for this project from plain shapes, without opening game or reference images; MIT."
+    },
+    {
+      "path": "app/web/placeholder-art/pin-quests-achievements.svg",
+      "bytes": 760,
+      "sha256": "eebd0bdfa3916071011ba5403ace83a6a874a361495bf16c4f068e5e27e01ed3",
+      "authoring": "Hand-written SVG drawn for this project from plain shapes, without opening game or reference images; MIT."
+    },
+    {
+      "path": "app/web/placeholder-art/pin-skilling.svg",
+      "bytes": 761,
+      "sha256": "f04b73a860fad2cbc9086bafb1658eef423cd13eac76eef3e4b0b9051cc1cc85",
+      "authoring": "Hand-written SVG drawn for this project from plain shapes, without opening game or reference images; MIT."
+    },
+    {
+      "path": "app/web/placeholder-art/pin-transport.svg",
+      "bytes": 695,
+      "sha256": "0c6308b15b8c26cbcaa448094db8803464be75bd241fccbd16b758437e09ce17",
+      "authoring": "Hand-written SVG drawn for this project from plain shapes, without opening game or reference images; MIT."
+    },
+    {
+      "path": "app/web/placeholder-art/skill-agility.svg",
+      "bytes": 877,
+      "sha256": "bd272166ea94d2903c347d23142209c1ed665d6a9bc9d13565495be0c6536ba0",
+      "authoring": "Hand-written SVG drawn for this project from plain shapes, without opening game or reference images; MIT."
+    },
+    {
+      "path": "app/web/placeholder-art/skill-archaeology.svg",
+      "bytes": 612,
+      "sha256": "485e76c371d2b6936b17a9dcd57a93a11b595aafa2701dd9c8d4e0115bb74765",
+      "authoring": "Hand-written SVG drawn for this project from plain shapes, without opening game or reference images; MIT."
+    },
+    {
+      "path": "app/web/placeholder-art/skill-attack.svg",
+      "bytes": 750,
+      "sha256": "69ef7099bcf4b104ccd5e425da727a262e93a812970908d1f3b48abe3bfb0238",
+      "authoring": "Hand-written SVG drawn for this project from plain shapes, without opening game or reference images; MIT."
+    },
+    {
+      "path": "app/web/placeholder-art/skill-constitution.svg",
+      "bytes": 576,
+      "sha256": "64b5dac50ae2647a2815a0bf54761b3aa7eedd699247369e18146ed766a09e63",
+      "authoring": "Hand-written SVG drawn for this project from plain shapes, without opening game or reference images; MIT."
+    },
+    {
+      "path": "app/web/placeholder-art/skill-construction.svg",
+      "bytes": 695,
+      "sha256": "f09fe9c74babc309d278ff58423207a2337a75e6f7c497d4b9a1199bdde8b6da",
+      "authoring": "Hand-written SVG drawn for this project from plain shapes, without opening game or reference images; MIT."
+    },
+    {
+      "path": "app/web/placeholder-art/skill-cooking.svg",
+      "bytes": 611,
+      "sha256": "9316eadf30d06495aa7e9fb9cdadb5cd2eeb3ae0ff4747bd9846de66620185b9",
+      "authoring": "Hand-written SVG drawn for this project from plain shapes, without opening game or reference images; MIT."
+    },
+    {
+      "path": "app/web/placeholder-art/skill-crafting.svg",
+      "bytes": 880,
+      "sha256": "23500c9572f24a1ba616adf794a886ac6c06e8cd7f29ae50267ba906ce2fa99f",
+      "authoring": "Hand-written SVG drawn for this project from plain shapes, without opening game or reference images; MIT."
+    },
+    {
+      "path": "app/web/placeholder-art/skill-defence.svg",
+      "bytes": 567,
+      "sha256": "b15eccfcc8708e4cf0d0738e2605e04b8cd13b8c27f57357c7916ef25d0e24f0",
+      "authoring": "Hand-written SVG drawn for this project from plain shapes, without opening game or reference images; MIT."
+    },
+    {
+      "path": "app/web/placeholder-art/skill-divination.svg",
+      "bytes": 594,
+      "sha256": "bba4cd2ee10d68886fc2f337cd3343d973a7eafffbd9012405dd4e810b0a6919",
+      "authoring": "Hand-written SVG drawn for this project from plain shapes, without opening game or reference images; MIT."
+    },
+    {
+      "path": "app/web/placeholder-art/skill-dungeoneering.svg",
+      "bytes": 772,
+      "sha256": "286c13da479aa6fc86c19e17cf468711751bbd1e494e05c72893fc8ad0b329e7",
+      "authoring": "Hand-written SVG drawn for this project from plain shapes, without opening game or reference images; MIT."
+    },
+    {
+      "path": "app/web/placeholder-art/skill-farming.svg",
+      "bytes": 829,
+      "sha256": "2e508eea3e5eb7fd3c509ad3596af5e400888d6a3e9cd5663be5e68275365aa4",
+      "authoring": "Hand-written SVG drawn for this project from plain shapes, without opening game or reference images; MIT."
+    },
+    {
+      "path": "app/web/placeholder-art/skill-firemaking.svg",
+      "bytes": 687,
+      "sha256": "84cb976e19ae8e17b6f92bb00c2f995c8f294438e7ee187b9eaca0868dd5348c",
+      "authoring": "Hand-written SVG drawn for this project from plain shapes, without opening game or reference images; MIT."
+    },
+    {
+      "path": "app/web/placeholder-art/skill-fishing.svg",
+      "bytes": 675,
+      "sha256": "426431a08fbd67b990d54d7297a268ce9d4898ea8e2e0818f998f58fbd4cb752",
+      "authoring": "Hand-written SVG drawn for this project from plain shapes, without opening game or reference images; MIT."
+    },
+    {
+      "path": "app/web/placeholder-art/skill-fletching.svg",
+      "bytes": 862,
+      "sha256": "cc6e7aa0714ffd57f3abbd3ccb8cfdeda957910d1365253309a2066c95535fc0",
+      "authoring": "Hand-written SVG drawn for this project from plain shapes, without opening game or reference images; MIT."
+    },
+    {
+      "path": "app/web/placeholder-art/skill-herblore.svg",
+      "bytes": 729,
+      "sha256": "96c6a59236eb9df719c2fe54e48eb451bd331d7b309490d2a82a8ecffe060d75",
+      "authoring": "Hand-written SVG drawn for this project from plain shapes, without opening game or reference images; MIT."
+    },
+    {
+      "path": "app/web/placeholder-art/skill-hunter.svg",
+      "bytes": 890,
+      "sha256": "2229206b7580b0e5fe49922ca4ebb41cd2899c9608fe22f8a537906e94655f5d",
+      "authoring": "Hand-written SVG drawn for this project from plain shapes, without opening game or reference images; MIT."
+    },
+    {
+      "path": "app/web/placeholder-art/skill-invention.svg",
+      "bytes": 707,
+      "sha256": "5f3b34ba56240ef93696a4e7de2c6cdc449b59ee603983713437bc0ed022df9b",
+      "authoring": "Hand-written SVG drawn for this project from plain shapes, without opening game or reference images; MIT."
+    },
+    {
+      "path": "app/web/placeholder-art/skill-magic.svg",
+      "bytes": 629,
+      "sha256": "78c7dcbc668f44228d0721c7b24f3e912d7404e2f7d085c64febdf9a9b96241f",
+      "authoring": "Hand-written SVG drawn for this project from plain shapes, without opening game or reference images; MIT."
+    },
+    {
+      "path": "app/web/placeholder-art/skill-mining.svg",
+      "bytes": 528,
+      "sha256": "b6d0c3ed657d1ed50159dab1c25229b91904fa1b92d569b630def47cff8f0a8c",
+      "authoring": "Hand-written SVG drawn for this project from plain shapes, without opening game or reference images; MIT."
+    },
+    {
+      "path": "app/web/placeholder-art/skill-necromancy.svg",
+      "bytes": 743,
+      "sha256": "5a28557fbbbae01d29301e7e08504bf8bb4a12cb3b0b60d9e5d29700f0c82853",
+      "authoring": "Hand-written SVG drawn for this project from plain shapes, without opening game or reference images; MIT."
+    },
+    {
+      "path": "app/web/placeholder-art/skill-prayer.svg",
+      "bytes": 610,
+      "sha256": "20ab4a60cc9f8b2bf9c6ca6ee2fd532a2c5ecc602beb0110d02716edf15acb13",
+      "authoring": "Hand-written SVG drawn for this project from plain shapes, without opening game or reference images; MIT."
+    },
+    {
+      "path": "app/web/placeholder-art/skill-ranged.svg",
+      "bytes": 534,
+      "sha256": "30746644efe4690d0297a42fa9df4cfa9ee11cae6d42f4cc0890282120010f37",
+      "authoring": "Hand-written SVG drawn for this project from plain shapes, without opening game or reference images; MIT."
+    },
+    {
+      "path": "app/web/placeholder-art/skill-runecrafting.svg",
+      "bytes": 583,
+      "sha256": "794a8921d78b73c9b196d0d061ee2bddc0c8701c54b2f630bbf47c30e264c02e",
+      "authoring": "Hand-written SVG drawn for this project from plain shapes, without opening game or reference images; MIT."
+    },
+    {
+      "path": "app/web/placeholder-art/skill-slayer.svg",
+      "bytes": 620,
+      "sha256": "804d8b96d9eb49724797d21b655a0c363fa551675b5ab52b38027d59763dbf29",
+      "authoring": "Hand-written SVG drawn for this project from plain shapes, without opening game or reference images; MIT."
+    },
+    {
+      "path": "app/web/placeholder-art/skill-smithing.svg",
+      "bytes": 741,
+      "sha256": "6024941c00b4ad5c9bb61fac60f6cc768e1cd27107259efdb988c111b3dc8a19",
+      "authoring": "Hand-written SVG drawn for this project from plain shapes, without opening game or reference images; MIT."
+    },
+    {
+      "path": "app/web/placeholder-art/skill-strength.svg",
+      "bytes": 578,
+      "sha256": "d763b73463c6aeb888d563d98ce2a9977e83ae6055cf9115d7cec48c5496439d",
+      "authoring": "Hand-written SVG drawn for this project from plain shapes, without opening game or reference images; MIT."
+    },
+    {
+      "path": "app/web/placeholder-art/skill-summoning.svg",
+      "bytes": 737,
+      "sha256": "3ba093f2f879637a4ba7dc98b613b924aefc20d0e51aa3e00d60d775dcfbb264",
+      "authoring": "Hand-written SVG drawn for this project from plain shapes, without opening game or reference images; MIT."
+    },
+    {
+      "path": "app/web/placeholder-art/skill-thieving.svg",
+      "bytes": 620,
+      "sha256": "45b46537c6c40e8ee26c93445cded3203135d8ae82e807a8c7fc4bf0507df58f",
+      "authoring": "Hand-written SVG drawn for this project from plain shapes, without opening game or reference images; MIT."
+    },
+    {
+      "path": "app/web/placeholder-art/skill-woodcutting.svg",
+      "bytes": 815,
+      "sha256": "ab694bde1eea183f5847e3a7ec678a6548415cb3ce996ae032cdc9a9339a88f5",
+      "authoring": "Hand-written SVG drawn for this project from plain shapes, without opening game or reference images; MIT."
+    },
+    {
+      "path": "app/web/placeholder-art/task-achievements.svg",
+      "bytes": 811,
+      "sha256": "d29d5d39b49adf17b96b8751a557421875ac5075716a7576cd1f4d3345b2c935",
+      "authoring": "Hand-written SVG drawn for this project from plain shapes, without opening game or reference images; MIT."
+    },
+    {
+      "path": "app/web/placeholder-art/task-clue.svg",
+      "bytes": 635,
+      "sha256": "4c5917e49b4b9fdce7e08036b0a32cf191c7be6ef140127c535fa96becc51317",
+      "authoring": "Hand-written SVG drawn for this project from plain shapes, without opening game or reference images; MIT."
+    },
+    {
+      "path": "app/web/placeholder-art/task-minigame.svg",
+      "bytes": 694,
+      "sha256": "183a8dfb75358d22504f762c51bcbff71f12b6785fb8bc86a276581c6dd0ce09",
+      "authoring": "Hand-written SVG drawn for this project from plain shapes, without opening game or reference images; MIT."
+    },
+    {
+      "path": "app/web/placeholder-art/task-music.svg",
+      "bytes": 831,
+      "sha256": "4c2bae5aad1931cf85b28916f3b2557aa46cad3bb373b87e53911634751e2cbf",
+      "authoring": "Hand-written SVG drawn for this project from plain shapes, without opening game or reference images; MIT."
+    },
+    {
+      "path": "app/web/placeholder-art/task-quest.svg",
+      "bytes": 600,
+      "sha256": "4f125f6baf7a6e96d33abdeaccabfc32833a4274faa2dbf939e1e27098afc877",
+      "authoring": "Hand-written SVG drawn for this project from plain shapes, without opening game or reference images; MIT."
+    },
+    {
+      "path": "app/web/favicon.svg",
+      "bytes": 292,
+      "sha256": "415521eb3820c5b5df072f02edd552ddf279c1ff94da44c17d45620e1f309c5e",
+      "authoring": "Project-authored 32-pixel coordinate-grid favicon, reviewed as inert rectangles and grid paths; no external images or game artwork; MIT."
+    }
+  ]
+}

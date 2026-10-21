@@ -1,0 +1,844 @@
+{
+  "schemaVersion": 1,
+  "reviewedOn": "2026-10-09",
+  "provenance": {
+    "reference": "rs3-chunkpicker-chunkinfo-export.json",
+    "referenceSha256": "9dd835266f381abaa4d14033abcd0b43a001fe96d7df0a7f046fcc8676d66553",
+    "referenceHashMode": "git-lf",
+    "generator": "scripts/research/retained-task-requirements.mjs",
+    "generatorSha256": "d544fd5c0f1c096d40b1e7847006b5871c8748bf72c026e6de93cdb152a60293",
+    "method": "Retained recommendation-text sweep, every numeric Combat gate, and explicit current public Wiki requirements; no source data, cache or save mutations."
+  },
+  "wiki": [
+    {
+      "title": "War's Retreat",
+      "revisionId": 37178109,
+      "timestamp": "2026-09-15T21:08:24Z",
+      "url": "https://runescape.wiki/w/Special:PermanentLink/37178109",
+      "contentSha256": "423133451f5ccd4b03a83d7f4f6e6ba05a5f551e6696cda082cb31a4f5fb0f76",
+      "facts": {
+        "entryAnyOf": [
+          {
+            "combatLevel": 60
+          },
+          {
+            "totalLevel": 1000
+          }
+        ],
+        "f2p": true
+      }
+    },
+    {
+      "title": "War's Retreat Teleport",
+      "revisionId": 37177732,
+      "timestamp": "2026-09-15T03:32:00Z",
+      "url": "https://runescape.wiki/w/Special:PermanentLink/37177732",
+      "contentSha256": "8db84eae74279dcf3428731689df2c5f0ab5ae9cbdfd4deae8c11c89329adf0f",
+      "facts": {
+        "totalBossKills": 10,
+        "differentBossesRequired": false,
+        "magicLevel": 0,
+        "f2p": true
+      }
+    },
+    {
+      "title": "War's Wares",
+      "revisionId": 37136616,
+      "timestamp": "2026-08-03T02:20:37Z",
+      "url": "https://runescape.wiki/w/Special:PermanentLink/37136616",
+      "contentSha256": "b74d63a3e00ab610a9a47301cadd5a25d9fadd8e88a26c8d69a11c8257bfdc9f",
+      "facts": {
+        "bossKillsConsumed": false
+      }
+    },
+    {
+      "title": "Template:War's Wares stock",
+      "revisionId": 37173876,
+      "timestamp": "2026-09-09T04:44:41Z",
+      "url": "https://runescape.wiki/w/Special:PermanentLink/37173876",
+      "contentSha256": "ae74a4586ca21238c3bd978623835c2f821280d7035b9e92be5c04ec1796cabc",
+      "facts": {
+        "hubTeleportBossKills": 10
+      }
+    },
+    {
+      "title": "On the Warpath",
+      "revisionId": 36637012,
+      "timestamp": "2025-01-18T03:29:10Z",
+      "url": "https://runescape.wiki/w/Special:PermanentLink/36637012",
+      "contentSha256": "53927cae31ab22dbf656670862387c7b93a8d6bcca22a9c17875dc60807b4ea4",
+      "facts": {
+        "achievementCombatLevel": 60,
+        "recommendationIsAchievementTarget": true
+      }
+    },
+    {
+      "title": "Black mask",
+      "revisionId": 37132895,
+      "timestamp": "2026-07-31T01:37:18Z",
+      "url": "https://runescape.wiki/w/Special:PermanentLink/37132895",
+      "contentSha256": "c337c8234e8d24e57c3c4c3b41c324049c33c64bd91803908906bf7d26726eb3",
+      "facts": {
+        "combatLevel": 40,
+        "defence": 10,
+        "strength": 20
+      }
+    },
+    {
+      "title": "Turael",
+      "revisionId": 37133705,
+      "timestamp": "2026-07-31T16:54:05Z",
+      "url": "https://runescape.wiki/w/Special:PermanentLink/37133705",
+      "contentSha256": "463381e897bc5d65e35469553092be2888b9dd0df691faa7cfcc010c03fb5aa3",
+      "facts": {
+        "noCombatUnlockRequirement": true
+      }
+    },
+    {
+      "title": "Jacquelyn",
+      "revisionId": 37152563,
+      "timestamp": "2026-08-10T21:27:14Z",
+      "url": "https://runescape.wiki/w/Special:PermanentLink/37152563",
+      "contentSha256": "316e2c8164028a66a32c7b3344f5009221032ba7c0b2f0b7ea0e689b4c53e60e",
+      "facts": {
+        "minimumAccountCombat": 3,
+        "combatUnlockRequirementNotStated": true
+      }
+    },
+    {
+      "title": "Vannaka",
+      "revisionId": 37148776,
+      "timestamp": "2026-08-08T13:47:56Z",
+      "url": "https://runescape.wiki/w/Special:PermanentLink/37148776",
+      "contentSha256": "56f28a622d6bb775d5923311cc3b77a3dacd415d4183449f4297d94902c64c1e",
+      "facts": {
+        "combatLevel": 30
+      }
+    },
+    {
+      "title": "The Raptor",
+      "revisionId": 37178900,
+      "timestamp": "2026-09-17T15:57:18Z",
+      "url": "https://runescape.wiki/w/Special:PermanentLink/37178900",
+      "contentSha256": "3b0264bde00d5811477d71ce55df473d37ca57926bd80d563be2d06ca99ce259",
+      "facts": {
+        "combatLevel": 35
+      }
+    },
+    {
+      "title": "Mazchna",
+      "revisionId": 37124296,
+      "timestamp": "2026-07-27T00:08:42Z",
+      "url": "https://runescape.wiki/w/Special:PermanentLink/37124296",
+      "contentSha256": "cc55ab73e6e5e3ac7a76aacbd6d79e412f2b45b91260fa74e3967d27ff1f7a03",
+      "facts": {
+        "combatLevel": 50
+      }
+    },
+    {
+      "title": "Chaeldar",
+      "revisionId": 37147904,
+      "timestamp": "2026-08-08T01:28:45Z",
+      "url": "https://runescape.wiki/w/Special:PermanentLink/37147904",
+      "contentSha256": "39398cf795461d50556365819f4ea51bcae7a8f75f19d763ee501dcc16087d44",
+      "facts": {
+        "combatLevel": 75
+      }
+    },
+    {
+      "title": "Sumona",
+      "revisionId": 37133704,
+      "timestamp": "2026-07-31T16:52:43Z",
+      "url": "https://runescape.wiki/w/Special:PermanentLink/37133704",
+      "contentSha256": "21fe4720873c7006d3e12705ad3466d18bdb49acb97b28fc0426ac087bb28cb9",
+      "facts": {
+        "combatLevel": 90,
+        "slayer": 35
+      }
+    },
+    {
+      "title": "Duradel",
+      "revisionId": 37133701,
+      "timestamp": "2026-07-31T16:51:40Z",
+      "url": "https://runescape.wiki/w/Special:PermanentLink/37133701",
+      "contentSha256": "25867ab1cfa31a645b1f0a3703c9db589c8fb7ed1f222067b343e76e72607b03",
+      "facts": {
+        "combatLevel": 100,
+        "slayer": 50
+      }
+    },
+    {
+      "title": "Kuradal",
+      "revisionId": 37127583,
+      "timestamp": "2026-07-28T04:25:30Z",
+      "url": "https://runescape.wiki/w/Special:PermanentLink/37127583",
+      "contentSha256": "a8500502e61727ab253d38217742bc2d5373d3819170dd3823ca6e29488b3fb2",
+      "facts": {
+        "combatLevel": 110,
+        "slayer": 75
+      }
+    },
+    {
+      "title": "Morvran",
+      "revisionId": 37129046,
+      "timestamp": "2026-07-28T21:14:41Z",
+      "url": "https://runescape.wiki/w/Special:PermanentLink/37129046",
+      "contentSha256": "26a0df91991bdc469fa620d3d70355bb460fd9bbc6d330831426f1603f1cd7c6",
+      "facts": {
+        "combatLevel": 120,
+        "slayer": 85
+      }
+    },
+    {
+      "title": "Mandrith",
+      "revisionId": 37129615,
+      "timestamp": "2026-07-29T01:53:06Z",
+      "url": "https://runescape.wiki/w/Special:PermanentLink/37129615",
+      "contentSha256": "1f3fcd70b479d09112ebbd1cfae972ab624dc43c5b323d462f17925e90e1f10c",
+      "facts": {
+        "combatLevel": 120,
+        "slayer": 95,
+        "retainedCombatMirrorSlayerMismatch": 85
+      }
+    },
+    {
+      "title": "Laniakea",
+      "revisionId": 37133699,
+      "timestamp": "2026-07-31T16:50:14Z",
+      "url": "https://runescape.wiki/w/Special:PermanentLink/37133699",
+      "contentSha256": "2c6159fcf3650904255c523442e998f40ac91f28065940aa3fae6f5aff300b13",
+      "facts": {
+        "combatLevel": 120,
+        "slayer": 90
+      }
+    },
+    {
+      "title": "Soul Reaper",
+      "revisionId": 37197815,
+      "timestamp": "2026-10-04T15:08:31Z",
+      "url": "https://runescape.wiki/w/Special:PermanentLink/37197815",
+      "contentSha256": "e85b590cb1bb095f179792b1b4c5d64361cefa0013b8ee02b4385f4d483a08ab",
+      "facts": {
+        "combatLevel": 50,
+        "slayer": 45
+      }
+    },
+    {
+      "title": "Yes, My Master",
+      "revisionId": 36635605,
+      "timestamp": "2025-01-18T02:53:16Z",
+      "url": "https://runescape.wiki/w/Special:PermanentLink/36635605",
+      "contentSha256": "092f572a625706a23e89ee7ea1e5f925114094a6f11d1671073e5c4d6ec9cd2b",
+      "facts": {
+        "combatLevel": 100
+      }
+    },
+    {
+      "title": "Ten in a Row",
+      "revisionId": 36763689,
+      "timestamp": "2025-06-23T18:51:07Z",
+      "url": "https://runescape.wiki/w/Special:PermanentLink/36763689",
+      "contentSha256": "2a633416060ee716e0f52d5a8e9e4e7b170ef174f1a6d83ef9cde7956b581eee",
+      "facts": {
+        "combatLevel": 100
+      }
+    },
+    {
+      "title": "Can I Have Some Morvran?",
+      "revisionId": 36797961,
+      "timestamp": "2025-08-12T02:56:04Z",
+      "url": "https://runescape.wiki/w/Special:PermanentLink/36797961",
+      "contentSha256": "d1da7a53106bea01e5f2e71e07284c712fe697a49adb77ecf18c979934162df3",
+      "facts": {
+        "combatLevel": 120
+      }
+    },
+    {
+      "title": "Challenge Vannaka",
+      "revisionId": 37158577,
+      "timestamp": "2026-08-18T14:47:09Z",
+      "url": "https://runescape.wiki/w/Special:PermanentLink/37158577",
+      "contentSha256": "b4404d2d313dd710637c476b13aba5376eb77531ead817930e3d780c7d52e6bd",
+      "facts": {
+        "combatLevel": 30
+      }
+    },
+    {
+      "title": "I Presume These Rewards Are Mine, Death?",
+      "revisionId": 36856480,
+      "timestamp": "2025-10-31T10:13:43Z",
+      "url": "https://runescape.wiki/w/Special:PermanentLink/36856480",
+      "contentSha256": "0f434dba4c1551e4854e5a371718876c71065a58a2bfad8182e20613a879ccaf",
+      "facts": {
+        "combatLevel": 80
+      }
+    },
+    {
+      "title": "Keeping Up with the Carnilleans",
+      "revisionId": 36821146,
+      "timestamp": "2025-09-16T21:50:37Z",
+      "url": "https://runescape.wiki/w/Special:PermanentLink/36821146",
+      "contentSha256": "433f8c0f1571bc580cc5bec46921ebe60cea18a59bd7f061ac05cd35e759e302",
+      "facts": {
+        "combatLevel": 120
+      }
+    },
+    {
+      "title": "Lamp of Luxury",
+      "revisionId": 37063358,
+      "timestamp": "2026-06-08T16:31:11Z",
+      "url": "https://runescape.wiki/w/Special:PermanentLink/37063358",
+      "contentSha256": "8e39bb46a7bea1f707ac311e1aad7c9aabffe370043b9f791a43811c610c15b8",
+      "facts": {
+        "combatLevel": 80
+      }
+    },
+    {
+      "title": "Supply and Demand",
+      "revisionId": 36810815,
+      "timestamp": "2025-09-02T19:31:23Z",
+      "url": "https://runescape.wiki/w/Special:PermanentLink/36810815",
+      "contentSha256": "d974df3d83e28c1479afe085f0218a0e41fac2c4dc97d7f7ded0ad6fb4723a9d",
+      "facts": {
+        "combatLevel": 18
+      }
+    },
+    {
+      "title": "Order of Slayers",
+      "revisionId": 36822225,
+      "timestamp": "2025-09-18T02:18:27Z",
+      "url": "https://runescape.wiki/w/Special:PermanentLink/36822225",
+      "contentSha256": "2708d8423ca30121c111a1e9c398e17b1ed7deedb688f35d0bdad64ea44794a2",
+      "facts": {
+        "combatLevel": 120
+      }
+    },
+    {
+      "title": "A-Voiding Conflict",
+      "revisionId": 36636529,
+      "timestamp": "2025-01-18T03:16:07Z",
+      "url": "https://runescape.wiki/w/Special:PermanentLink/36636529",
+      "contentSha256": "48c6f48b0ed6311a41811b0e81a05b40c0117fd702761db6d0c39c1399dee0d0",
+      "facts": {
+        "combatLevel": 35
+      }
+    },
+    {
+      "title": "Conquest Adore",
+      "revisionId": 37053666,
+      "timestamp": "2026-05-25T21:18:57Z",
+      "url": "https://runescape.wiki/w/Special:PermanentLink/37053666",
+      "contentSha256": "a65b190a465a2d6cf7c90bad43944a4abbefba52d9cac17ed029b34c496478f2",
+      "facts": {
+        "combatLevel": 55
+      }
+    },
+    {
+      "title": "Warriors' Guild",
+      "revisionId": 37169629,
+      "timestamp": "2026-09-03T15:53:29Z",
+      "url": "https://runescape.wiki/w/Special:PermanentLink/37169629",
+      "contentSha256": "42960aa230f8433f2b0e323df1a2d498d8505381eceea74ce627be233230ea5e",
+      "facts": {
+        "combinedAttackStrength": 130,
+        "attackOrStrengthMastery": 99,
+        "retained65EachOverconstrains": true
+      }
+    }
+  ],
+  "corrections": [
+    {
+      "category": "Combat",
+      "label": "Get access to ~|War's retreat|~",
+      "id": "rs3:task:0003c5",
+      "beforeRecordSha256": "7b36d6fc1c8e36f4e4c3c11d227a40fba243724bd0a901d7de9f33357295fa23",
+      "rationale": "Combat 60 is a genuine entry option, but the retained record omitted the total-level alternative. Boss kills unlock the separate teleport, not entry.",
+      "changes": [
+        {
+          "field": "Level",
+          "beforePresent": true,
+          "before": 60,
+          "after": 1
+        },
+        {
+          "field": "RequirementAlternatives",
+          "beforePresent": false,
+          "before": null,
+          "after": [
+            {
+              "Skills": {
+                "Combat": 60
+              }
+            },
+            {
+              "TotalLevelNeeded": 1000
+            }
+          ]
+        },
+        {
+          "field": "Description",
+          "beforePresent": false,
+          "before": null,
+          "after": "Enter War's Retreat with either Combat level 60 or total skill level 1,000. The separate War's Retreat Teleport unlock requires 10 total boss kills and unlocking it from War's Wares; it does not require five different bosses. Entry does not unlock the teleport."
+        }
+      ]
+    }
+  ],
+  "audit": {
+    "retainedRows": 20375,
+    "numericRequirementFields": 12796,
+    "combatGateRows": 41,
+    "recommendationTextRows": 2,
+    "confirmedRecommendationAsRequirement": [],
+    "combatAudit": [
+      {
+        "category": "Combat",
+        "label": "Equip a ~|black mask|~",
+        "id": "rs3:task:0003b8",
+        "retainedValues": {
+          "Level": 40
+        },
+        "wikiTitle": "Black mask",
+        "decision": "preserve-combat-gate"
+      },
+      {
+        "category": "Combat",
+        "label": "Receive a slayer assignment from ~|Turael|~",
+        "id": "rs3:task:0003b9",
+        "retainedValues": {
+          "Level": 3
+        },
+        "wikiTitle": "Turael",
+        "decision": "preserve-combat-gate"
+      },
+      {
+        "category": "Combat",
+        "label": "Receive a slayer assignment from ~|Jacquelyn|~",
+        "id": "rs3:task:0003ba",
+        "retainedValues": {
+          "Level": 3
+        },
+        "wikiTitle": "Jacquelyn",
+        "decision": "preserve-combat-gate"
+      },
+      {
+        "category": "Combat",
+        "label": "Receive a slayer assignment from ~|Vannaka|~",
+        "id": "rs3:task:0003bb",
+        "retainedValues": {
+          "Level": 30
+        },
+        "wikiTitle": "Vannaka",
+        "decision": "preserve-combat-gate"
+      },
+      {
+        "category": "Combat",
+        "label": "Receive a slayer assignment from ~|The Raptor|~",
+        "id": "rs3:task:0003bc",
+        "retainedValues": {
+          "Level": 35
+        },
+        "wikiTitle": "The Raptor",
+        "decision": "preserve-combat-gate"
+      },
+      {
+        "category": "Combat",
+        "label": "Receive a slayer assignment from ~|Mazchna|~",
+        "id": "rs3:task:0003bd",
+        "retainedValues": {
+          "Level": 50
+        },
+        "wikiTitle": "Mazchna",
+        "decision": "preserve-combat-gate"
+      },
+      {
+        "category": "Combat",
+        "label": "Receive a slayer assignment from ~|Chaeldar|~",
+        "id": "rs3:task:0003be",
+        "retainedValues": {
+          "Level": 75
+        },
+        "wikiTitle": "Chaeldar",
+        "decision": "preserve-combat-gate"
+      },
+      {
+        "category": "Combat",
+        "label": "Receive a slayer assignment from ~|Sumona|~",
+        "id": "rs3:task:0003bf",
+        "retainedValues": {
+          "Level": 90
+        },
+        "wikiTitle": "Sumona",
+        "decision": "preserve-combat-gate"
+      },
+      {
+        "category": "Combat",
+        "label": "Receive a slayer assignment from ~|Duradel|~",
+        "id": "rs3:task:0003c0",
+        "retainedValues": {
+          "Level": 100
+        },
+        "wikiTitle": "Duradel",
+        "decision": "preserve-combat-gate"
+      },
+      {
+        "category": "Combat",
+        "label": "Receive a slayer assignment from ~|Kuradal|~",
+        "id": "rs3:task:0003c1",
+        "retainedValues": {
+          "Level": 110
+        },
+        "wikiTitle": "Kuradal",
+        "decision": "preserve-combat-gate"
+      },
+      {
+        "category": "Combat",
+        "label": "Receive a slayer assignment from ~|Morvran|~",
+        "id": "rs3:task:0003c2",
+        "retainedValues": {
+          "Level": 120
+        },
+        "wikiTitle": "Morvran",
+        "decision": "preserve-combat-gate"
+      },
+      {
+        "category": "Combat",
+        "label": "Receive a slayer assignment from ~|Mandrith|~",
+        "id": "rs3:task:0003c3",
+        "retainedValues": {
+          "Level": 120
+        },
+        "wikiTitle": "Mandrith",
+        "decision": "preserve-combat-gate"
+      },
+      {
+        "category": "Combat",
+        "label": "Receive a slayer assignment from ~|Laniakea|~",
+        "id": "rs3:task:0003c4",
+        "retainedValues": {
+          "Level": 120
+        },
+        "wikiTitle": "Laniakea",
+        "decision": "preserve-combat-gate"
+      },
+      {
+        "category": "Combat",
+        "label": "Get access to ~|War's retreat|~",
+        "id": "rs3:task:0003c5",
+        "retainedValues": {
+          "Level": 60
+        },
+        "wikiTitle": "War's Retreat",
+        "decision": "correct-entry-alternatives"
+      },
+      {
+        "category": "Defence",
+        "label": "Wear a ~|black mask|~",
+        "id": "rs3:task:000ae0",
+        "retainedValues": {
+          "Skills.Combat": 40
+        },
+        "wikiTitle": "Black mask",
+        "decision": "preserve-combat-gate"
+      },
+      {
+        "category": "Slayer",
+        "label": "Receive a slayer assignment from ~|Turael|~",
+        "id": "rs3:task:001a39",
+        "retainedValues": {
+          "Skills.Combat": 3
+        },
+        "wikiTitle": "Turael",
+        "decision": "preserve-combat-gate"
+      },
+      {
+        "category": "Slayer",
+        "label": "Receive a slayer assignment from ~|Jacquelyn|~",
+        "id": "rs3:task:001a3a",
+        "retainedValues": {
+          "Skills.Combat": 3
+        },
+        "wikiTitle": "Jacquelyn",
+        "decision": "preserve-combat-gate"
+      },
+      {
+        "category": "Slayer",
+        "label": "Receive a slayer assignment from ~|Vannaka|~",
+        "id": "rs3:task:001a3b",
+        "retainedValues": {
+          "Skills.Combat": 30
+        },
+        "wikiTitle": "Vannaka",
+        "decision": "preserve-combat-gate"
+      },
+      {
+        "category": "Slayer",
+        "label": "Receive a slayer assignment from ~|The Raptor|~",
+        "id": "rs3:task:001a3c",
+        "retainedValues": {
+          "Skills.Combat": 35
+        },
+        "wikiTitle": "The Raptor",
+        "decision": "preserve-combat-gate"
+      },
+      {
+        "category": "Slayer",
+        "label": "Receive a slayer assignment from ~|Mazchna|~",
+        "id": "rs3:task:001a3d",
+        "retainedValues": {
+          "Skills.Combat": 50
+        },
+        "wikiTitle": "Mazchna",
+        "decision": "preserve-combat-gate"
+      },
+      {
+        "category": "Slayer",
+        "label": "Receive a slayer assignment from ~|Chaeldar|~",
+        "id": "rs3:task:001a3e",
+        "retainedValues": {
+          "Skills.Combat": 75
+        },
+        "wikiTitle": "Chaeldar",
+        "decision": "preserve-combat-gate"
+      },
+      {
+        "category": "Slayer",
+        "label": "Receive a slayer assignment from ~|Sumona|~",
+        "id": "rs3:task:001a3f",
+        "retainedValues": {
+          "Skills.Combat": 90
+        },
+        "wikiTitle": "Sumona",
+        "decision": "preserve-combat-gate"
+      },
+      {
+        "category": "Slayer",
+        "label": "Receive a ~|Reaper assignment|~",
+        "id": "rs3:task:001a40",
+        "retainedValues": {
+          "Skills.Combat": 50
+        },
+        "wikiTitle": "Soul Reaper",
+        "decision": "preserve-combat-gate"
+      },
+      {
+        "category": "Slayer",
+        "label": "Receive a slayer assignment from ~|Duradel|~",
+        "id": "rs3:task:001a41",
+        "retainedValues": {
+          "Skills.Combat": 100
+        },
+        "wikiTitle": "Duradel",
+        "decision": "preserve-combat-gate"
+      },
+      {
+        "category": "Slayer",
+        "label": "Receive a slayer assignment from ~|Kuradal|~",
+        "id": "rs3:task:001a42",
+        "retainedValues": {
+          "Skills.Combat": 110
+        },
+        "wikiTitle": "Kuradal",
+        "decision": "preserve-combat-gate"
+      },
+      {
+        "category": "Slayer",
+        "label": "Receive a slayer assignment from ~|Morvran|~",
+        "id": "rs3:task:001a43",
+        "retainedValues": {
+          "Skills.Combat": 120
+        },
+        "wikiTitle": "Morvran",
+        "decision": "preserve-combat-gate"
+      },
+      {
+        "category": "Slayer",
+        "label": "Receive a slayer assignment from ~|Mandrith|~",
+        "id": "rs3:task:001a44",
+        "retainedValues": {
+          "Skills.Combat": 120
+        },
+        "wikiTitle": "Mandrith",
+        "decision": "preserve-combat-gate"
+      },
+      {
+        "category": "Slayer",
+        "label": "Receive a slayer assignment from ~|Laniakea|~",
+        "id": "rs3:task:001a45",
+        "retainedValues": {
+          "Skills.Combat": 120
+        },
+        "wikiTitle": "Laniakea",
+        "decision": "preserve-combat-gate"
+      },
+      {
+        "category": "Strength",
+        "label": "Equip a ~|black mask|~",
+        "id": "rs3:task:001c36",
+        "retainedValues": {
+          "Skills.Combat": 40
+        },
+        "wikiTitle": "Black mask",
+        "decision": "preserve-combat-gate"
+      },
+      {
+        "category": "Diary",
+        "label": "~|Karamja Achievements#Hard|~ Yes, My Master",
+        "id": "rs3:task:002d9b",
+        "retainedValues": {
+          "Skills.Combat": 100
+        },
+        "wikiTitle": "Yes, My Master",
+        "decision": "preserve-combat-gate"
+      },
+      {
+        "category": "Diary",
+        "label": "~|Karamja Achievements#Elite|~ Ten in a Row",
+        "id": "rs3:task:002da5",
+        "retainedValues": {
+          "Skills.Combat": 100
+        },
+        "wikiTitle": "Ten in a Row",
+        "decision": "preserve-combat-gate"
+      },
+      {
+        "category": "Diary",
+        "label": "~|Tirannwn Achievements#Hard|~ Can I Have Some Morvran",
+        "id": "rs3:task:002e8e",
+        "retainedValues": {
+          "Skills.Combat": 120
+        },
+        "wikiTitle": "Can I Have Some Morvran?",
+        "decision": "preserve-combat-gate"
+      },
+      {
+        "category": "Diary",
+        "label": "~|Varrock Achievements#Medium|~ Challenge Vannaka",
+        "id": "rs3:task:002eea",
+        "retainedValues": {
+          "Skills.Combat": 30
+        },
+        "wikiTitle": "Challenge Vannaka",
+        "decision": "preserve-combat-gate"
+      },
+      {
+        "category": "Diary",
+        "label": "~|Completionist achievements#Master Quest Cape|~ I Presume These Rewards are Mine, Death?",
+        "id": "rs3:task:003207",
+        "retainedValues": {
+          "Skills.Combat": 80
+        },
+        "wikiTitle": "I Presume These Rewards Are Mine, Death?",
+        "decision": "preserve-combat-gate"
+      },
+      {
+        "category": "Diary",
+        "label": "~|Completionist achievements#Master Quest Cape|~ Keeping Up with the Carnilleans",
+        "id": "rs3:task:003214",
+        "retainedValues": {
+          "Skills.Combat": 120
+        },
+        "wikiTitle": "Keeping Up with the Carnilleans",
+        "decision": "preserve-combat-gate"
+      },
+      {
+        "category": "Diary",
+        "label": "~|Completionist achievements#Master Quest Cape|~ Lamp of Luxury",
+        "id": "rs3:task:003217",
+        "retainedValues": {
+          "Skills.Combat": 80
+        },
+        "wikiTitle": "Lamp of Luxury",
+        "decision": "preserve-combat-gate"
+      },
+      {
+        "category": "Diary",
+        "label": "~|Completionist achievements#Master Quest Cape|~ Supply and Demand",
+        "id": "rs3:task:003289",
+        "retainedValues": {
+          "Skills.Combat": 18
+        },
+        "wikiTitle": "Supply and Demand",
+        "decision": "preserve-combat-gate"
+      },
+      {
+        "category": "Diary",
+        "label": "~|Skills achievements#Slayer|~ Order of Slayers",
+        "id": "rs3:task:003500",
+        "retainedValues": {
+          "Skills.Combat": 120
+        },
+        "wikiTitle": "Order of Slayers",
+        "decision": "preserve-combat-gate"
+      },
+      {
+        "category": "Diary",
+        "label": "~|Activities achievements#Minigames|~ A-Voiding Conflict",
+        "id": "rs3:task:003607",
+        "retainedValues": {
+          "Skills.Combat": 35
+        },
+        "wikiTitle": "A-Voiding Conflict",
+        "decision": "preserve-combat-gate"
+      },
+      {
+        "category": "Diary",
+        "label": "~|Activities achievements#Minigames|~ Conquest Adore",
+        "id": "rs3:task:00360b",
+        "retainedValues": {
+          "Skills.Combat": 55
+        },
+        "wikiTitle": "Conquest Adore",
+        "decision": "preserve-combat-gate"
+      },
+      {
+        "category": "Diary",
+        "label": "~|Combat achievements#War's Retreat|~ On the Warpath",
+        "id": "rs3:task:0036c3",
+        "retainedValues": {
+          "Skills.Combat": 60
+        },
+        "wikiTitle": "On the Warpath",
+        "decision": "preserve-combat-gate"
+      }
+    ],
+    "recommendationTextAudit": [
+      {
+        "category": "Diary",
+        "label": "~|Combat achievements#War's Retreat|~ On the Warpath",
+        "id": "rs3:task:0036c3",
+        "decision": "preserve",
+        "reason": "Combat 60 is the actual achievement objective, even though its description calls this the recommended entry route.",
+        "wikiTitle": "On the Warpath"
+      },
+      {
+        "category": "Nonskill",
+        "label": "Dig here if you are not feeling too well after travelling through the desert. Ali heartily recommends it.",
+        "id": "rs3:task:0049a1",
+        "decision": "preserve",
+        "reason": "Recommendation wording belongs to the clue text; this row has no numeric level or skill gate."
+      }
+    ],
+    "adjacentFindings": [
+      {
+        "category": "Attack/Strength",
+        "label": "Gain access to the ~|Warriors' Guild|~",
+        "decision": "document-only",
+        "reason": "65 Attack AND 65 Strength is sufficient but overconstrains the true combined-130 or 99-in-either entry alternatives; not a recommendation-as-requirement issue.",
+        "wikiTitle": "Warriors' Guild"
+      },
+      {
+        "category": "Combat",
+        "label": "Receive a slayer assignment from ~|Mandrith|~",
+        "decision": "document-only",
+        "reason": "Its Combat 120 gate is genuine. This mirror has Slayer 85 while the Slayer row/current master require 95; separate retained mismatch.",
+        "wikiTitle": "Mandrith"
+      }
+    ],
+    "limitations": [
+      "The text scan covers every retained row, but external requirement evidence covers numeric Combat gates and the named Warriors Guild rows. It does not certify every numeric requirement in the whole catalogue.",
+      "Boss kill counts are not modelled as saved personal facts by this correction. Teleport usability still requires separate personal confirmation; an access task never grants it.",
+      "Turael and Jacquelyn Combat 3 are the account minimum, not an additional unlock requirement."
+    ]
+  }
+}

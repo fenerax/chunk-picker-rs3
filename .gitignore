@@ -1,0 +1,27 @@
+var/
+.local/
+node_modules/
+*.log
+/jobs/
+# Formerly private-source ignores
+*.bak-*
+/packs/
+/kits/
+/releases/
+/release-v2/
+/operator/
+/saves/
+/corpus/
+/dist/
+/coverage/
+.env
+.env.*
+credentials
+credentials.*
+access-token
+access-token.*
+release-corpus-keys
+release-corpus-keys.*
+*.tmp
+*.swp
+*~

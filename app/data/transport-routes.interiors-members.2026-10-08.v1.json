@@ -1,0 +1,4668 @@
+{
+  "version": 1,
+  "reviewedOn": "2026-10-08",
+  "stations": [
+    {
+      "id": "draynor-west-surface",
+      "name": "Draynor west trapdoor",
+      "x": 3084,
+      "y": 3272,
+      "plane": 0,
+      "mapId": 28,
+      "chunkId": "12339",
+      "coordinateEvidence": {
+        "kind": "cache-object-placement",
+        "objectId": 6434,
+        "file": "C:/Users/User/Projects/chunk-picker-rs3/.local/game-data/objects-2026-10-08-v3/objects.transitions.v1.json.gz",
+        "pointer": "/transitions/5482",
+        "placementId": "object-e15053e3721f5c9c2fc7dce5@28:0:3084:3272",
+        "actions": [
+          "Open"
+        ],
+        "sourceCoordinate": {
+          "x": 3084,
+          "y": 3272,
+          "plane": 0
+        },
+        "transform": {
+          "translation": {
+            "x": 0,
+            "y": 0,
+            "plane": 0
+          },
+          "pasteKind": "square",
+          "pasteIndex": 690
+        }
+      }
+    },
+    {
+      "id": "draynor-west-interior",
+      "name": "Draynor Sewers exit",
+      "x": 3084,
+      "y": 9672,
+      "plane": 0,
+      "mapId": 542,
+      "chunkId": "12439",
+      "coordinateEvidence": {
+        "kind": "cache-object-placement",
+        "objectId": 32015,
+        "file": "C:/Users/User/Projects/chunk-picker-rs3/.local/game-data/objects-2026-10-08-v3/objects.transitions.v1.json.gz",
+        "pointer": "/transitions/7345",
+        "placementId": "object-9689f558ee2808f8e66e2478@542:0:3084:9672",
+        "actions": [
+          "Climb-up"
+        ],
+        "sourceCoordinate": {
+          "x": 3084,
+          "y": 9672,
+          "plane": 0
+        },
+        "transform": {
+          "translation": {
+            "x": 0,
+            "y": 0,
+            "plane": 0
+          },
+          "pasteKind": "square",
+          "pasteIndex": 1
+        },
+        "mapBoundsEvidence": {
+          "file": "C:/Users/User/Projects/chunk-picker-rs3/.local/game-data/places-2026-10-08-v3/places.v1.json",
+          "pointer": "/mapRecords/542/bounds",
+          "mapId": 542,
+          "mapName": "Sewer",
+          "matchingSourceBounds": [
+            {
+              "plane": 0,
+              "src": {
+                "xstart": 3072,
+                "zstart": 9600,
+                "xend": 3135,
+                "zend": 9727
+              },
+              "dst": {
+                "xstart": 3072,
+                "zstart": 9600,
+                "xend": 3135,
+                "zend": 9727
+              }
+            }
+          ]
+        },
+        "retainedLocationEvidence": {
+          "pointer": "/chunks/12439/Name",
+          "name": "Draynor Sewers"
+        }
+      },
+      "locationId": "12439"
+    },
+    {
+      "id": "draynor-east-surface",
+      "name": "Draynor jail trapdoor",
+      "x": 3118,
+      "y": 3244,
+      "plane": 0,
+      "mapId": 28,
+      "chunkId": "12338",
+      "coordinateEvidence": {
+        "kind": "cache-object-placement",
+        "objectId": 6434,
+        "file": "C:/Users/User/Projects/chunk-picker-rs3/.local/game-data/objects-2026-10-08-v3/objects.transitions.v1.json.gz",
+        "pointer": "/transitions/5460",
+        "placementId": "object-6af07dc1efba572634de19bd@28:0:3118:3244",
+        "actions": [
+          "Open"
+        ],
+        "sourceCoordinate": {
+          "x": 3118,
+          "y": 3244,
+          "plane": 0
+        },
+        "transform": {
+          "translation": {
+            "x": 0,
+            "y": 0,
+            "plane": 0
+          },
+          "pasteKind": "square",
+          "pasteIndex": 689
+        }
+      }
+    },
+    {
+      "id": "draynor-east-interior",
+      "name": "Draynor Sewers exit",
+      "x": 3118,
+      "y": 9643,
+      "plane": 0,
+      "mapId": 542,
+      "chunkId": "12438",
+      "coordinateEvidence": {
+        "kind": "cache-object-placement",
+        "objectId": 26518,
+        "file": "C:/Users/User/Projects/chunk-picker-rs3/.local/game-data/objects-2026-10-08-v3/objects.transitions.v1.json.gz",
+        "pointer": "/transitions/7343",
+        "placementId": "object-16950c0e89db2d209a02a97c@542:0:3118:9643",
+        "actions": [
+          "Climb-up"
+        ],
+        "sourceCoordinate": {
+          "x": 3118,
+          "y": 9643,
+          "plane": 0
+        },
+        "transform": {
+          "translation": {
+            "x": 0,
+            "y": 0,
+            "plane": 0
+          },
+          "pasteKind": "square",
+          "pasteIndex": 0
+        },
+        "mapBoundsEvidence": {
+          "file": "C:/Users/User/Projects/chunk-picker-rs3/.local/game-data/places-2026-10-08-v3/places.v1.json",
+          "pointer": "/mapRecords/542/bounds",
+          "mapId": 542,
+          "mapName": "Sewer",
+          "matchingSourceBounds": [
+            {
+              "plane": 0,
+              "src": {
+                "xstart": 3072,
+                "zstart": 9600,
+                "xend": 3135,
+                "zend": 9727
+              },
+              "dst": {
+                "xstart": 3072,
+                "zstart": 9600,
+                "xend": 3135,
+                "zend": 9727
+              }
+            }
+          ]
+        },
+        "retainedLocationEvidence": {
+          "pointer": "/chunks/12438/Name",
+          "name": "Draynor Sewers"
+        }
+      },
+      "locationId": "12438"
+    },
+    {
+      "id": "varrock-sewers-surface",
+      "name": "Varrock manhole",
+      "x": 3237,
+      "y": 3458,
+      "plane": 0,
+      "mapId": 28,
+      "chunkId": "12854",
+      "coordinateEvidence": {
+        "kind": "cache-object-placement",
+        "objectId": 881,
+        "file": "C:/Users/User/Projects/chunk-picker-rs3/.local/game-data/objects-2026-10-08-v3/objects.transitions.v1.json.gz",
+        "pointer": "/transitions/5998",
+        "placementId": "object-bf521a843f3c45ea4e279322@28:0:3237:3458",
+        "actions": [
+          "Open"
+        ],
+        "sourceCoordinate": {
+          "x": 3237,
+          "y": 3458,
+          "plane": 0
+        },
+        "transform": {
+          "translation": {
+            "x": 0,
+            "y": 0,
+            "plane": 0
+          },
+          "pasteKind": "square",
+          "pasteIndex": 741
+        }
+      }
+    },
+    {
+      "id": "varrock-sewers-interior",
+      "name": "Varrock Sewers exit",
+      "x": 3237,
+      "y": 9866,
+      "plane": 0,
+      "mapId": 592,
+      "chunkId": "12954",
+      "coordinateEvidence": {
+        "kind": "cache-object-placement",
+        "objectId": 128335,
+        "file": "C:/Users/User/Projects/chunk-picker-rs3/.local/game-data/objects-2026-10-08-v3/objects.transitions.v1.json.gz",
+        "pointer": "/transitions/7435",
+        "placementId": "object-d5d7ccd36db2f9469ae682c6@592:0:3237:9866",
+        "actions": [
+          "Climb-up"
+        ],
+        "sourceCoordinate": {
+          "x": 3237,
+          "y": 9866,
+          "plane": 0
+        },
+        "transform": {
+          "translation": {
+            "x": 0,
+            "y": 0,
+            "plane": 0
+          },
+          "pasteKind": "square",
+          "pasteIndex": 4
+        },
+        "mapBoundsEvidence": {
+          "file": "C:/Users/User/Projects/chunk-picker-rs3/.local/game-data/places-2026-10-08-v3/places.v1.json",
+          "pointer": "/mapRecords/592/bounds",
+          "mapId": 592,
+          "mapName": "Edgeville Dungeon",
+          "matchingSourceBounds": [
+            {
+              "plane": 0,
+              "src": {
+                "xstart": 3136,
+                "zstart": 9856,
+                "xend": 3327,
+                "zend": 9919
+              },
+              "dst": {
+                "xstart": 3136,
+                "zstart": 9856,
+                "xend": 3327,
+                "zend": 9919
+              }
+            }
+          ]
+        },
+        "retainedLocationEvidence": {
+          "pointer": "/chunks/12954/Name",
+          "name": "Varrock Sewers"
+        }
+      },
+      "locationId": "12954"
+    },
+    {
+      "id": "edgeville-ruins-surface",
+      "name": "Edgeville ruins trapdoor",
+      "x": 3097,
+      "y": 3468,
+      "plane": 0,
+      "mapId": 28,
+      "chunkId": "12342",
+      "coordinateEvidence": {
+        "kind": "cache-object-placement",
+        "objectId": 26933,
+        "file": "C:/Users/User/Projects/chunk-picker-rs3/.local/game-data/objects-2026-10-08-v3/objects.transitions.v1.json.gz",
+        "pointer": "/transitions/5544",
+        "placementId": "object-86771dbead71d8bf432e2698@28:0:3097:3468",
+        "actions": [
+          "Open"
+        ],
+        "sourceCoordinate": {
+          "x": 3097,
+          "y": 3468,
+          "plane": 0
+        },
+        "transform": {
+          "translation": {
+            "x": 0,
+            "y": 0,
+            "plane": 0
+          },
+          "pasteKind": "square",
+          "pasteIndex": 693
+        }
+      }
+    },
+    {
+      "id": "edgeville-ruins-interior",
+      "name": "Edgeville Dungeon exit",
+      "x": 3097,
+      "y": 9868,
+      "plane": 0,
+      "mapId": 592,
+      "chunkId": "12442",
+      "coordinateEvidence": {
+        "kind": "cache-object-placement",
+        "objectId": 29355,
+        "file": "C:/Users/User/Projects/chunk-picker-rs3/.local/game-data/objects-2026-10-08-v3/objects.transitions.v1.json.gz",
+        "pointer": "/transitions/7337",
+        "placementId": "object-36604bd65f7997a183111514@592:0:3097:9868",
+        "actions": [
+          "Climb-up"
+        ],
+        "sourceCoordinate": {
+          "x": 3097,
+          "y": 9868,
+          "plane": 0
+        },
+        "transform": {
+          "translation": {
+            "x": 0,
+            "y": 0,
+            "plane": 0
+          },
+          "pasteKind": "square",
+          "pasteIndex": 1
+        },
+        "mapBoundsEvidence": {
+          "file": "C:/Users/User/Projects/chunk-picker-rs3/.local/game-data/places-2026-10-08-v3/places.v1.json",
+          "pointer": "/mapRecords/592/bounds",
+          "mapId": 592,
+          "mapName": "Edgeville Dungeon",
+          "matchingSourceBounds": [
+            {
+              "plane": 0,
+              "src": {
+                "xstart": 3072,
+                "zstart": 9792,
+                "xend": 3135,
+                "zend": 9983
+              },
+              "dst": {
+                "xstart": 3072,
+                "zstart": 9792,
+                "xend": 3135,
+                "zend": 9983
+              }
+            }
+          ]
+        },
+        "retainedLocationEvidence": {
+          "pointer": "/chunks/12442/Name",
+          "name": "Edgeville Dungeon"
+        }
+      },
+      "locationId": "12442"
+    },
+    {
+      "id": "edgeville-brass-key-surface",
+      "name": "Hill giant hut ladder",
+      "x": 3116,
+      "y": 3452,
+      "plane": 0,
+      "mapId": 28,
+      "chunkId": "12341",
+      "coordinateEvidence": {
+        "kind": "cache-object-placement",
+        "objectId": 12389,
+        "file": "C:/Users/User/Projects/chunk-picker-rs3/.local/game-data/objects-2026-10-08-v3/objects.transitions.v1.json.gz",
+        "pointer": "/transitions/5535",
+        "placementId": "object-6b784029e8bfbdab7ecc2a62@28:0:3116:3452",
+        "actions": [
+          "Climb-Down"
+        ],
+        "sourceCoordinate": {
+          "x": 3116,
+          "y": 3452,
+          "plane": 0
+        },
+        "transform": {
+          "translation": {
+            "x": 0,
+            "y": 0,
+            "plane": 0
+          },
+          "pasteKind": "square",
+          "pasteIndex": 692
+        }
+      }
+    },
+    {
+      "id": "edgeville-brass-key-interior",
+      "name": "Edgeville Dungeon exit",
+      "x": 3116,
+      "y": 9852,
+      "plane": 0,
+      "mapId": 592,
+      "chunkId": "12441",
+      "coordinateEvidence": {
+        "kind": "cache-object-placement",
+        "objectId": 78993,
+        "file": "C:/Users/User/Projects/chunk-picker-rs3/.local/game-data/objects-2026-10-08-v3/objects.transitions.v1.json.gz",
+        "pointer": "/transitions/7329",
+        "placementId": "object-a6116b0488eed53794cfcd5f@592:0:3116:9852",
+        "actions": [
+          "Climb-up"
+        ],
+        "sourceCoordinate": {
+          "x": 3116,
+          "y": 9852,
+          "plane": 0
+        },
+        "transform": {
+          "translation": {
+            "x": 0,
+            "y": 0,
+            "plane": 0
+          },
+          "pasteKind": "square",
+          "pasteIndex": 0
+        },
+        "mapBoundsEvidence": {
+          "file": "C:/Users/User/Projects/chunk-picker-rs3/.local/game-data/places-2026-10-08-v3/places.v1.json",
+          "pointer": "/mapRecords/592/bounds",
+          "mapId": 592,
+          "mapName": "Edgeville Dungeon",
+          "matchingSourceBounds": [
+            {
+              "plane": 0,
+              "src": {
+                "xstart": 3072,
+                "zstart": 9792,
+                "xend": 3135,
+                "zend": 9983
+              },
+              "dst": {
+                "xstart": 3072,
+                "zstart": 9792,
+                "xend": 3135,
+                "zend": 9983
+              }
+            }
+          ]
+        },
+        "retainedLocationEvidence": {
+          "pointer": "/chunks/12441/Name",
+          "name": "Edgeville Dungeon"
+        }
+      },
+      "locationId": "12441"
+    },
+    {
+      "id": "falador-mine-surface",
+      "name": "Falador mine stairs",
+      "x": 3059,
+      "y": 3376,
+      "plane": 0,
+      "mapId": 28,
+      "chunkId": "12084",
+      "coordinateEvidence": {
+        "kind": "cache-object-placement",
+        "objectId": 30944,
+        "file": "C:/Users/User/Projects/chunk-picker-rs3/.local/game-data/objects-2026-10-08-v3/objects.transitions.v1.json.gz",
+        "pointer": "/transitions/5251",
+        "placementId": "object-7caae4e605f9daf74ac88463@28:0:3059:3376",
+        "actions": [
+          "Climb-down"
+        ],
+        "sourceCoordinate": {
+          "x": 3059,
+          "y": 3376,
+          "plane": 0
+        },
+        "transform": {
+          "translation": {
+            "x": 0,
+            "y": 0,
+            "plane": 0
+          },
+          "pasteKind": "square",
+          "pasteIndex": 667
+        }
+      }
+    },
+    {
+      "id": "falador-mine-interior",
+      "name": "Dwarven Mine exit",
+      "x": 3059,
+      "y": 9776,
+      "plane": 0,
+      "mapId": 590,
+      "chunkId": "12184",
+      "coordinateEvidence": {
+        "kind": "cache-object-placement",
+        "objectId": 30943,
+        "file": "C:/Users/User/Projects/chunk-picker-rs3/.local/game-data/objects-2026-10-08-v3/objects.transitions.v1.json.gz",
+        "pointer": "/transitions/851",
+        "placementId": "object-d5f5f2315af06a6a8ceefea5@590:0:3059:9776",
+        "actions": [
+          "Climb-up"
+        ],
+        "sourceCoordinate": {
+          "x": 3059,
+          "y": 9776,
+          "plane": 0
+        },
+        "transform": {
+          "translation": {
+            "x": 0,
+            "y": 0,
+            "plane": 0
+          },
+          "pasteKind": "square",
+          "pasteIndex": 0
+        },
+        "mapBoundsEvidence": {
+          "file": "C:/Users/User/Projects/chunk-picker-rs3/.local/game-data/places-2026-10-08-v3/places.v1.json",
+          "pointer": "/mapRecords/590/bounds",
+          "mapId": 590,
+          "mapName": "Dwarven Mine",
+          "matchingSourceBounds": [
+            {
+              "plane": 0,
+              "src": {
+                "xstart": 3008,
+                "zstart": 9728,
+                "xend": 3071,
+                "zend": 9855
+              },
+              "dst": {
+                "xstart": 3008,
+                "zstart": 9728,
+                "xend": 3071,
+                "zend": 9855
+              }
+            }
+          ]
+        },
+        "retainedLocationEvidence": {
+          "pointer": "/chunks/12184/Name",
+          "name": "Dwarven Mine"
+        }
+      },
+      "locationId": "12184"
+    },
+    {
+      "id": "ice-mountain-mine-surface",
+      "name": "Ice Mountain mine ladder",
+      "x": 3019,
+      "y": 3450,
+      "plane": 0,
+      "mapId": 28,
+      "chunkId": "12085",
+      "coordinateEvidence": {
+        "kind": "cache-object-placement",
+        "objectId": 30942,
+        "file": "C:/Users/User/Projects/chunk-picker-rs3/.local/game-data/objects-2026-10-08-v3/objects.transitions.v1.json.gz",
+        "pointer": "/transitions/5291",
+        "placementId": "object-3b2ab0d50f3e906aff60cab4@28:0:3019:3450",
+        "actions": [
+          "Climb-down"
+        ],
+        "sourceCoordinate": {
+          "x": 3019,
+          "y": 3450,
+          "plane": 0
+        },
+        "transform": {
+          "translation": {
+            "x": 0,
+            "y": 0,
+            "plane": 0
+          },
+          "pasteKind": "square",
+          "pasteIndex": 668
+        }
+      }
+    },
+    {
+      "id": "ice-mountain-mine-interior",
+      "name": "Dwarven Mine exit",
+      "x": 3019,
+      "y": 9850,
+      "plane": 0,
+      "mapId": 590,
+      "chunkId": "12185",
+      "coordinateEvidence": {
+        "kind": "cache-object-placement",
+        "objectId": 6226,
+        "file": "C:/Users/User/Projects/chunk-picker-rs3/.local/game-data/objects-2026-10-08-v3/objects.transitions.v1.json.gz",
+        "pointer": "/transitions/865",
+        "placementId": "object-cf6b46abeee3e8a52a0b3373@590:0:3019:9850",
+        "actions": [
+          "Climb-up"
+        ],
+        "sourceCoordinate": {
+          "x": 3019,
+          "y": 9850,
+          "plane": 0
+        },
+        "transform": {
+          "translation": {
+            "x": 0,
+            "y": 0,
+            "plane": 0
+          },
+          "pasteKind": "square",
+          "pasteIndex": 1
+        },
+        "mapBoundsEvidence": {
+          "file": "C:/Users/User/Projects/chunk-picker-rs3/.local/game-data/places-2026-10-08-v3/places.v1.json",
+          "pointer": "/mapRecords/590/bounds",
+          "mapId": 590,
+          "mapName": "Dwarven Mine",
+          "matchingSourceBounds": [
+            {
+              "plane": 0,
+              "src": {
+                "xstart": 3008,
+                "zstart": 9728,
+                "xend": 3071,
+                "zend": 9855
+              },
+              "dst": {
+                "xstart": 3008,
+                "zstart": 9728,
+                "xend": 3071,
+                "zend": 9855
+              }
+            }
+          ]
+        },
+        "retainedLocationEvidence": {
+          "pointer": "/chunks/12185/Name",
+          "name": "Dwarven Mine"
+        }
+      },
+      "locationId": "12185"
+    },
+    {
+      "id": "burthorpe-mine-surface",
+      "name": "Burthorpe mine entrance",
+      "x": 2874,
+      "y": 3502,
+      "plane": 0,
+      "mapId": 28,
+      "chunkId": "11318",
+      "coordinateEvidence": {
+        "kind": "cache-object-placement",
+        "objectId": 66876,
+        "file": "C:/Users/User/Projects/chunk-picker-rs3/.local/game-data/objects-2026-10-08-v3/objects.transitions.v1.json.gz",
+        "pointer": "/transitions/4525",
+        "placementId": "object-2c930a1d94004ebc1d4693d7@28:0:2874:3502",
+        "actions": [
+          "Enter"
+        ],
+        "sourceCoordinate": {
+          "x": 2874,
+          "y": 3502,
+          "plane": 0
+        },
+        "transform": {
+          "translation": {
+            "x": 0,
+            "y": 0,
+            "plane": 0
+          },
+          "pasteKind": "square",
+          "pasteIndex": 597
+        }
+      }
+    },
+    {
+      "id": "burthorpe-mine-interior",
+      "name": "Burthorpe Mine exit",
+      "x": 117,
+      "y": 100,
+      "plane": 0,
+      "mapId": 719,
+      "chunkId": "9030",
+      "coordinateEvidence": {
+        "kind": "cache-object-placement",
+        "objectId": 67002,
+        "file": "C:/Users/User/Projects/chunk-picker-rs3/.local/game-data/objects-2026-10-08-v3/objects.transitions.v1.json.gz",
+        "pointer": "/transitions/22267",
+        "placementId": "object-447092caa986468dade876a4@719:0:117:100",
+        "actions": [
+          "Exit to"
+        ],
+        "sourceCoordinate": {
+          "x": 2293,
+          "y": 4516,
+          "plane": 0
+        },
+        "transform": {
+          "translation": {
+            "x": -2176,
+            "y": -4416,
+            "plane": 0
+          },
+          "pasteKind": "square",
+          "pasteIndex": 0
+        },
+        "mapBoundsEvidence": {
+          "file": "C:/Users/User/Projects/chunk-picker-rs3/.local/game-data/places-2026-10-08-v3/places.v1.json",
+          "pointer": "/mapRecords/719/bounds",
+          "mapId": 719,
+          "mapName": "Burthorpe Underground",
+          "matchingSourceBounds": [
+            {
+              "plane": 0,
+              "src": {
+                "xstart": 2240,
+                "zstart": 4480,
+                "xend": 2303,
+                "zend": 4543
+              },
+              "dst": {
+                "xstart": 64,
+                "zstart": 64,
+                "xend": 127,
+                "zend": 127
+              }
+            }
+          ]
+        },
+        "retainedLocationEvidence": {
+          "pointer": "/chunks/9030/Name",
+          "name": "Burthorpe Mine"
+        }
+      },
+      "locationId": "9030"
+    },
+    {
+      "id": "iron-enclave-lumbridge",
+      "name": "Lumbridge Iron Enclave portal",
+      "x": 3223,
+      "y": 3232,
+      "plane": 0,
+      "mapId": 28,
+      "chunkId": "12850",
+      "coordinateEvidence": {
+        "kind": "wiki-object-map",
+        "url": "https://runescape.wiki/w/Iron_Enclave_portal?oldid=36872074",
+        "detail": "Explicit station or arrival-point coordinate; no chunk or area centre inferred.",
+        "objectId": 131451
+      }
+    },
+    {
+      "id": "iron-enclave-island",
+      "name": "Iron Enclave portal",
+      "x": 2260,
+      "y": 2674,
+      "plane": 0,
+      "mapId": 28,
+      "chunkId": "9001",
+      "coordinateEvidence": {
+        "kind": "wiki-object-map",
+        "url": "https://runescape.wiki/w/Iron_Enclave_portal?oldid=36872074",
+        "detail": "Explicit station or arrival-point coordinate; no chunk or area centre inferred.",
+        "objectId": 131450
+      }
+    },
+    {
+      "id": "dwarven-crevice-west",
+      "name": "Dwarven mine west crevice",
+      "x": 3029,
+      "y": 9806,
+      "plane": 0,
+      "mapId": 590,
+      "chunkId": "12185",
+      "coordinateEvidence": {
+        "kind": "cache-object-placement",
+        "objectId": 5906,
+        "file": "C:/Users/User/Projects/chunk-picker-rs3/.local/game-data/objects-2026-10-08-v3/objects.transitions.v1.json.gz",
+        "pointer": "/transitions/859",
+        "placementId": "object-c659946eab95453a91035a06@590:0:3029:9806",
+        "actions": [
+          "Squeeze-through"
+        ],
+        "sourceCoordinate": {
+          "x": 3029,
+          "y": 9806,
+          "plane": 0
+        },
+        "transform": {
+          "translation": {
+            "x": 0,
+            "y": 0,
+            "plane": 0
+          },
+          "pasteKind": "square",
+          "pasteIndex": 1
+        },
+        "mapBoundsEvidence": {
+          "file": "C:/Users/User/Projects/chunk-picker-rs3/.local/game-data/places-2026-10-08-v3/places.v1.json",
+          "pointer": "/mapRecords/590/bounds",
+          "mapId": 590,
+          "mapName": "Dwarven Mine",
+          "matchingSourceBounds": [
+            {
+              "plane": 0,
+              "src": {
+                "xstart": 3008,
+                "zstart": 9728,
+                "xend": 3071,
+                "zend": 9855
+              },
+              "dst": {
+                "xstart": 3008,
+                "zstart": 9728,
+                "xend": 3071,
+                "zend": 9855
+              }
+            }
+          ]
+        },
+        "retainedLocationEvidence": {
+          "pointer": "/chunks/12185/Name",
+          "name": "Dwarven Mine"
+        }
+      },
+      "locationId": "12185"
+    },
+    {
+      "id": "dwarven-crevice-east",
+      "name": "Dwarven mine east crevice",
+      "x": 3034,
+      "y": 9806,
+      "plane": 0,
+      "mapId": 590,
+      "chunkId": "12185",
+      "coordinateEvidence": {
+        "kind": "cache-object-placement",
+        "objectId": 5906,
+        "file": "C:/Users/User/Projects/chunk-picker-rs3/.local/game-data/objects-2026-10-08-v3/objects.transitions.v1.json.gz",
+        "pointer": "/transitions/861",
+        "placementId": "object-09d5d1fe4532a5394ad6ba7d@590:0:3034:9806",
+        "actions": [
+          "Squeeze-through"
+        ],
+        "sourceCoordinate": {
+          "x": 3034,
+          "y": 9806,
+          "plane": 0
+        },
+        "transform": {
+          "translation": {
+            "x": 0,
+            "y": 0,
+            "plane": 0
+          },
+          "pasteKind": "square",
+          "pasteIndex": 1
+        },
+        "mapBoundsEvidence": {
+          "file": "C:/Users/User/Projects/chunk-picker-rs3/.local/game-data/places-2026-10-08-v3/places.v1.json",
+          "pointer": "/mapRecords/590/bounds",
+          "mapId": 590,
+          "mapName": "Dwarven Mine",
+          "matchingSourceBounds": [
+            {
+              "plane": 0,
+              "src": {
+                "xstart": 3008,
+                "zstart": 9728,
+                "xend": 3071,
+                "zend": 9855
+              },
+              "dst": {
+                "xstart": 3008,
+                "zstart": 9728,
+                "xend": 3071,
+                "zend": 9855
+              }
+            }
+          ]
+        },
+        "retainedLocationEvidence": {
+          "pointer": "/chunks/12185/Name",
+          "name": "Dwarven Mine"
+        }
+      },
+      "locationId": "12185"
+    },
+    {
+      "id": "taverley-stones-south",
+      "name": "Taverley south stepping stone",
+      "x": 2883,
+      "y": 3402,
+      "plane": 1,
+      "mapId": 28,
+      "chunkId": "11573",
+      "coordinateEvidence": {
+        "kind": "cache-object-placement",
+        "objectId": 96784,
+        "file": "C:/Users/User/Projects/chunk-picker-rs3/.local/game-data/objects-2026-10-08-v3/objects.transitions.v1.json.gz",
+        "pointer": "/transitions/4760",
+        "placementId": "object-696a6e322d58b5205517969d@28:1:2883:3402",
+        "actions": [
+          "Jump across"
+        ],
+        "sourceCoordinate": {
+          "x": 2883,
+          "y": 3402,
+          "plane": 1
+        },
+        "transform": {
+          "translation": {
+            "x": 0,
+            "y": 0,
+            "plane": 0
+          },
+          "pasteKind": "square",
+          "pasteIndex": 620
+        }
+      }
+    },
+    {
+      "id": "taverley-stones-north",
+      "name": "Taverley north stepping stone",
+      "x": 2883,
+      "y": 3410,
+      "plane": 1,
+      "mapId": 28,
+      "chunkId": "11573",
+      "coordinateEvidence": {
+        "kind": "cache-object-placement",
+        "objectId": 96784,
+        "file": "C:/Users/User/Projects/chunk-picker-rs3/.local/game-data/objects-2026-10-08-v3/objects.transitions.v1.json.gz",
+        "pointer": "/transitions/4761",
+        "placementId": "object-ba0f0a8a8921e9475b8bb4de@28:1:2883:3410",
+        "actions": [
+          "Jump across"
+        ],
+        "sourceCoordinate": {
+          "x": 2883,
+          "y": 3410,
+          "plane": 1
+        },
+        "transform": {
+          "translation": {
+            "x": 0,
+            "y": 0,
+            "plane": 0
+          },
+          "pasteKind": "square",
+          "pasteIndex": 620
+        }
+      }
+    },
+    {
+      "id": "glider-grand-tree",
+      "name": "Grand Tree glider",
+      "x": 2465,
+      "y": 3501,
+      "plane": 3,
+      "mapId": 28,
+      "chunkId": "9782",
+      "coordinateEvidence": {
+        "kind": "wiki-station-coordinate",
+        "url": "https://runescape.wiki/w/Gnome_glider?oldid=36987519",
+        "detail": "Explicit station or arrival-point coordinate; no chunk or area centre inferred."
+      }
+    },
+    {
+      "id": "glider-white-wolf",
+      "name": "White Wolf Mountain glider",
+      "x": 2850,
+      "y": 3494,
+      "plane": 0,
+      "mapId": 28,
+      "chunkId": "11318",
+      "coordinateEvidence": {
+        "kind": "wiki-station-coordinate",
+        "url": "https://runescape.wiki/w/Gnome_glider?oldid=36987519",
+        "detail": "Explicit station or arrival-point coordinate; no chunk or area centre inferred."
+      }
+    },
+    {
+      "id": "glider-digsite",
+      "name": "Digsite crash arrival glider",
+      "x": 3319,
+      "y": 3438,
+      "plane": 0,
+      "mapId": 28,
+      "chunkId": "13109",
+      "coordinateEvidence": {
+        "kind": "wiki-station-coordinate",
+        "url": "https://runescape.wiki/w/Gnome_glider?oldid=36987519",
+        "detail": "Explicit station or arrival-point coordinate; no chunk or area centre inferred."
+      }
+    },
+    {
+      "id": "glider-al-kharid",
+      "name": "Al Kharid glider",
+      "x": 3284,
+      "y": 3211,
+      "plane": 0,
+      "mapId": 28,
+      "chunkId": "13106",
+      "coordinateEvidence": {
+        "kind": "wiki-station-coordinate",
+        "url": "https://runescape.wiki/w/Gnome_glider?oldid=36987519",
+        "detail": "Explicit station or arrival-point coordinate; no chunk or area centre inferred."
+      }
+    },
+    {
+      "id": "glider-karamja",
+      "name": "Karamja Gandius glider",
+      "x": 2971,
+      "y": 2969,
+      "plane": 0,
+      "mapId": 28,
+      "chunkId": "11822",
+      "coordinateEvidence": {
+        "kind": "wiki-station-coordinate",
+        "url": "https://runescape.wiki/w/Gnome_glider?oldid=36987519",
+        "detail": "Explicit station or arrival-point coordinate; no chunk or area centre inferred."
+      }
+    },
+    {
+      "id": "glider-feldip",
+      "name": "Feldip Hills glider",
+      "x": 2549,
+      "y": 2971,
+      "plane": 0,
+      "mapId": 28,
+      "chunkId": "10030",
+      "coordinateEvidence": {
+        "kind": "wiki-station-coordinate",
+        "url": "https://runescape.wiki/w/Gnome_glider?oldid=36987519",
+        "detail": "Explicit station or arrival-point coordinate; no chunk or area centre inferred."
+      }
+    },
+    {
+      "id": "glider-tree-gnome-village",
+      "name": "Tree Gnome Village glider",
+      "x": 2496,
+      "y": 3191,
+      "plane": 0,
+      "mapId": 28,
+      "chunkId": "10033",
+      "coordinateEvidence": {
+        "kind": "wiki-station-coordinate",
+        "url": "https://runescape.wiki/w/Gnome_glider?oldid=36987519",
+        "detail": "Explicit station or arrival-point coordinate; no chunk or area centre inferred."
+      }
+    },
+    {
+      "id": "glider-prifddinas",
+      "name": "Prifddinas Meilyr district glider",
+      "x": 2208,
+      "y": 3445,
+      "plane": 0,
+      "mapId": 28,
+      "chunkId": "8757",
+      "coordinateEvidence": {
+        "kind": "wiki-station-coordinate",
+        "url": "https://runescape.wiki/w/Gnome_glider?oldid=36987519",
+        "detail": "Explicit station or arrival-point coordinate; no chunk or area centre inferred."
+      }
+    },
+    {
+      "id": "glider-tuai-leit",
+      "name": "Tuai Leit gnome colony glider",
+      "x": 3756,
+      "y": 2256,
+      "plane": 0,
+      "mapId": 28,
+      "chunkId": "14883",
+      "coordinateEvidence": {
+        "kind": "wiki-station-coordinate",
+        "url": "https://runescape.wiki/w/Gnome_glider?oldid=36987519",
+        "detail": "Explicit station or arrival-point coordinate; no chunk or area centre inferred."
+      }
+    },
+    {
+      "id": "balloon-entrana",
+      "name": "Entrana balloon",
+      "x": 2808,
+      "y": 3355,
+      "plane": 0,
+      "mapId": 28,
+      "chunkId": "11060",
+      "coordinateEvidence": {
+        "kind": "wiki-station-coordinate",
+        "url": "https://runescape.wiki/w/Balloon_transport_system?oldid=36927642",
+        "detail": "Explicit station or arrival-point coordinate; no chunk or area centre inferred."
+      }
+    },
+    {
+      "id": "balloon-taverley",
+      "name": "Taverley balloon",
+      "x": 2928,
+      "y": 3409,
+      "plane": 0,
+      "mapId": 28,
+      "chunkId": "11573",
+      "coordinateEvidence": {
+        "kind": "wiki-station-coordinate",
+        "url": "https://runescape.wiki/w/Balloon_transport_system?oldid=36927642",
+        "detail": "Explicit station or arrival-point coordinate; no chunk or area centre inferred."
+      }
+    },
+    {
+      "id": "balloon-crafting-guild",
+      "name": "Crafting Guild balloon",
+      "x": 2922,
+      "y": 3301,
+      "plane": 0,
+      "mapId": 28,
+      "chunkId": "11571",
+      "coordinateEvidence": {
+        "kind": "wiki-station-coordinate",
+        "url": "https://runescape.wiki/w/Balloon_transport_system?oldid=36927642",
+        "detail": "Explicit station or arrival-point coordinate; no chunk or area centre inferred."
+      }
+    },
+    {
+      "id": "balloon-varrock",
+      "name": "Varrock balloon",
+      "x": 3296,
+      "y": 3481,
+      "plane": 0,
+      "mapId": 28,
+      "chunkId": "13110",
+      "coordinateEvidence": {
+        "kind": "wiki-station-coordinate",
+        "url": "https://runescape.wiki/w/Balloon_transport_system?oldid=36927642",
+        "detail": "Explicit station or arrival-point coordinate; no chunk or area centre inferred."
+      }
+    },
+    {
+      "id": "balloon-castle-wars",
+      "name": "Castle Wars balloon",
+      "x": 2461,
+      "y": 3108,
+      "plane": 0,
+      "mapId": 28,
+      "chunkId": "9776",
+      "coordinateEvidence": {
+        "kind": "wiki-station-coordinate",
+        "url": "https://runescape.wiki/w/Balloon_transport_system?oldid=36927642",
+        "detail": "Explicit station or arrival-point coordinate; no chunk or area centre inferred."
+      }
+    },
+    {
+      "id": "balloon-grand-tree",
+      "name": "Grand Tree balloon",
+      "x": 2479,
+      "y": 3459,
+      "plane": 0,
+      "mapId": 28,
+      "chunkId": "9782",
+      "coordinateEvidence": {
+        "kind": "wiki-station-coordinate",
+        "url": "https://runescape.wiki/w/Balloon_transport_system?oldid=36927642",
+        "detail": "Explicit station or arrival-point coordinate; no chunk or area centre inferred."
+      }
+    },
+    {
+      "id": "cart-brimhaven",
+      "name": "Hajedy Brimhaven cart",
+      "x": 2779,
+      "y": 3211,
+      "plane": 0,
+      "mapId": 28,
+      "chunkId": "11058",
+      "coordinateEvidence": {
+        "kind": "wiki-npc-map",
+        "url": "https://runescape.wiki/w/Hajedy?oldid=37139602",
+        "detail": "Explicit station or arrival-point coordinate; no chunk or area centre inferred.",
+        "npcId": 510
+      }
+    },
+    {
+      "id": "cart-shilo",
+      "name": "Vigroy Shilo Village cart",
+      "x": 2834,
+      "y": 2954,
+      "plane": 0,
+      "mapId": 28,
+      "chunkId": "11310",
+      "coordinateEvidence": {
+        "kind": "wiki-npc-map",
+        "url": "https://runescape.wiki/w/Vigroy?oldid=37139620",
+        "detail": "Explicit station or arrival-point coordinate; no chunk or area centre inferred.",
+        "npcId": 511
+      }
+    },
+    {
+      "id": "entrana-boat-port-sarim",
+      "name": "Port Sarim Entrana monk",
+      "x": 3045,
+      "y": 3236,
+      "plane": 0,
+      "mapId": 28,
+      "chunkId": "12082",
+      "coordinateEvidence": {
+        "kind": "wiki-npc-map",
+        "url": "https://runescape.wiki/w/Monk_of_Entrana?oldid=37127314",
+        "detail": "Explicit station or arrival-point coordinate; no chunk or area centre inferred.",
+        "npcId": 657
+      }
+    },
+    {
+      "id": "entrana-boat-island",
+      "name": "Entrana returning monk",
+      "x": 2830,
+      "y": 3335,
+      "plane": 0,
+      "mapId": 28,
+      "chunkId": "11316",
+      "coordinateEvidence": {
+        "kind": "wiki-npc-map",
+        "url": "https://runescape.wiki/w/Monk_of_Entrana?oldid=37127314",
+        "detail": "Explicit station or arrival-point coordinate; no chunk or area centre inferred.",
+        "npcId": 658
+      }
+    },
+    {
+      "id": "lumbridge-swamp-surface",
+      "name": "Lumbridge Swamp dark hole",
+      "x": 3163,
+      "y": 3166,
+      "plane": 0,
+      "mapId": 28,
+      "chunkId": "12593",
+      "coordinateEvidence": {
+        "kind": "cache-object-placement",
+        "objectId": 91021,
+        "file": "C:/Users/User/Projects/chunk-picker-rs3/.local/game-data/objects-2026-10-08-v3/objects.transitions.v1.json.gz",
+        "pointer": "/transitions/5617",
+        "placementId": "object-621c1a7fbe63fdb0dd187262@28:0:3163:3166",
+        "actions": [],
+        "sourceCoordinate": {
+          "x": 3163,
+          "y": 3166,
+          "plane": 0
+        },
+        "transform": {
+          "translation": {
+            "x": 0,
+            "y": 0,
+            "plane": 0
+          },
+          "pasteKind": "square",
+          "pasteIndex": 712
+        }
+      }
+    },
+    {
+      "id": "lumbridge-swamp-interior",
+      "name": "Lumbridge Swamp climbing rope",
+      "x": 3169,
+      "y": 9572,
+      "plane": 0,
+      "mapId": 608,
+      "chunkId": "12693",
+      "coordinateEvidence": {
+        "kind": "cache-object-placement",
+        "objectId": 78630,
+        "file": "C:/Users/User/Projects/chunk-picker-rs3/.local/game-data/objects-2026-10-08-v3/objects.transitions.v1.json.gz",
+        "pointer": "/transitions/7387",
+        "placementId": "object-77f2d274c36c77dc8a1f17d4@608:0:3169:9572",
+        "actions": [
+          "Climb"
+        ],
+        "sourceCoordinate": {
+          "x": 3169,
+          "y": 9572,
+          "plane": 0
+        },
+        "transform": {
+          "translation": {
+            "x": 0,
+            "y": 0,
+            "plane": 0
+          },
+          "pasteKind": "square",
+          "pasteIndex": 0
+        },
+        "mapBoundsEvidence": {
+          "file": "C:/Users/User/Projects/chunk-picker-rs3/.local/game-data/places-2026-10-08-v3/places.v1.json",
+          "pointer": "/mapRecords/608/bounds",
+          "mapId": 608,
+          "mapName": "Lumbridge Swamp caves",
+          "matchingSourceBounds": [
+            {
+              "plane": 0,
+              "src": {
+                "xstart": 3136,
+                "zstart": 9536,
+                "xend": 3263,
+                "zend": 9599
+              },
+              "dst": {
+                "xstart": 3136,
+                "zstart": 9536,
+                "xend": 3263,
+                "zend": 9599
+              }
+            }
+          ]
+        },
+        "retainedLocationEvidence": {
+          "pointer": "/chunks/12693/Name",
+          "name": "Lumbridge Swamp Caves"
+        }
+      },
+      "locationId": "12693"
+    },
+    {
+      "id": "burthorpe-slayer-surface",
+      "name": "Taverley Slayer cave entrance",
+      "x": 2915,
+      "y": 3465,
+      "plane": 0,
+      "mapId": 28,
+      "chunkId": "11574",
+      "coordinateEvidence": {
+        "kind": "cache-object-placement",
+        "objectId": 67043,
+        "file": "C:/Users/User/Projects/chunk-picker-rs3/.local/game-data/objects-2026-10-08-v3/objects.transitions.v1.json.gz",
+        "pointer": "/transitions/4765",
+        "placementId": "object-d1d6a20b62571bb42b2e9bdc@28:0:2915:3465",
+        "actions": [
+          "Enter"
+        ],
+        "sourceCoordinate": {
+          "x": 2915,
+          "y": 3465,
+          "plane": 0
+        },
+        "transform": {
+          "translation": {
+            "x": 0,
+            "y": 0,
+            "plane": 0
+          },
+          "pasteKind": "square",
+          "pasteIndex": 621
+        }
+      }
+    },
+    {
+      "id": "burthorpe-slayer-interior",
+      "name": "Burthorpe Slayer cave exit",
+      "x": 236,
+      "y": 51,
+      "plane": 0,
+      "mapId": 719,
+      "chunkId": "8774",
+      "coordinateEvidence": {
+        "kind": "cache-object-placement",
+        "objectId": 67044,
+        "file": "C:/Users/User/Projects/chunk-picker-rs3/.local/game-data/objects-2026-10-08-v3/objects.transitions.v1.json.gz",
+        "pointer": "/transitions/22270",
+        "placementId": "object-3e8481fc767b0c8b5168601b@719:0:236:51",
+        "actions": [
+          "Exit"
+        ],
+        "sourceCoordinate": {
+          "x": 2220,
+          "y": 4531,
+          "plane": 0
+        },
+        "transform": {
+          "translation": {
+            "x": -1984,
+            "y": -4480,
+            "plane": 0
+          },
+          "pasteKind": "square",
+          "pasteIndex": 2
+        },
+        "mapBoundsEvidence": {
+          "file": "C:/Users/User/Projects/chunk-picker-rs3/.local/game-data/places-2026-10-08-v3/places.v1.json",
+          "pointer": "/mapRecords/719/bounds",
+          "mapId": 719,
+          "mapName": "Burthorpe Underground",
+          "matchingSourceBounds": [
+            {
+              "plane": 0,
+              "src": {
+                "xstart": 2176,
+                "zstart": 4480,
+                "xend": 2239,
+                "zend": 4607
+              },
+              "dst": {
+                "xstart": 192,
+                "zstart": 0,
+                "xend": 255,
+                "zend": 127
+              }
+            }
+          ]
+        },
+        "retainedLocationEvidence": {
+          "pointer": "/chunks/8774/Name",
+          "name": "Burthorpe Slayer Cave"
+        }
+      },
+      "locationId": "8774"
+    },
+    {
+      "id": "karamja-volcano-surface",
+      "name": "Karamja Volcano rocks",
+      "x": 2856,
+      "y": 3168,
+      "plane": 0,
+      "mapId": 28,
+      "chunkId": "11313",
+      "coordinateEvidence": {
+        "kind": "cache-object-placement",
+        "objectId": 492,
+        "file": "C:/Users/User/Projects/chunk-picker-rs3/.local/game-data/objects-2026-10-08-v3/objects.transitions.v1.json.gz",
+        "pointer": "/transitions/4496",
+        "placementId": "object-3765d55a83e05b072e5724cd@28:0:2856:3168",
+        "actions": [
+          "Climb-down"
+        ],
+        "sourceCoordinate": {
+          "x": 2856,
+          "y": 3168,
+          "plane": 0
+        },
+        "transform": {
+          "translation": {
+            "x": 0,
+            "y": 0,
+            "plane": 0
+          },
+          "pasteKind": "square",
+          "pasteIndex": 592
+        }
+      }
+    },
+    {
+      "id": "karamja-volcano-interior",
+      "name": "Karamja Volcano climbing rope",
+      "x": 2856,
+      "y": 9569,
+      "plane": 0,
+      "mapId": 554,
+      "chunkId": "11413",
+      "coordinateEvidence": {
+        "kind": "cache-object-placement",
+        "objectId": 1764,
+        "file": "C:/Users/User/Projects/chunk-picker-rs3/.local/game-data/objects-2026-10-08-v3/objects.transitions.v1.json.gz",
+        "pointer": "/transitions/452",
+        "placementId": "object-4a8f1c7998a2f0475acc1422@554:0:2856:9569",
+        "actions": [
+          "Climb"
+        ],
+        "sourceCoordinate": {
+          "x": 2856,
+          "y": 9569,
+          "plane": 0
+        },
+        "transform": {
+          "translation": {
+            "x": 0,
+            "y": 0,
+            "plane": 0
+          },
+          "pasteKind": "chunk",
+          "pasteIndex": 32
+        },
+        "mapBoundsEvidence": {
+          "file": "C:/Users/User/Projects/chunk-picker-rs3/.local/game-data/places-2026-10-08-v3/places.v1.json",
+          "pointer": "/mapRecords/554/bounds",
+          "mapId": 554,
+          "mapName": "Elvarg's Lair",
+          "matchingSourceBounds": [
+            {
+              "plane": 0,
+              "src": {
+                "xstart": 2824,
+                "zstart": 9536,
+                "xend": 2879,
+                "zend": 9599
+              },
+              "dst": {
+                "xstart": 2824,
+                "zstart": 9536,
+                "xend": 2879,
+                "zend": 9599
+              }
+            }
+          ]
+        },
+        "retainedLocationEvidence": {
+          "pointer": "/chunks/11413/Name",
+          "name": "Karamja Volcano Dungeon"
+        }
+      },
+      "locationId": "11413"
+    },
+    {
+      "id": "crandor-dungeon-surface",
+      "name": "Crandor dungeon hole",
+      "x": 2833,
+      "y": 3255,
+      "plane": 0,
+      "mapId": 28,
+      "chunkId": "11314",
+      "coordinateEvidence": {
+        "kind": "cache-object-placement",
+        "objectId": 25154,
+        "file": "C:/Users/User/Projects/chunk-picker-rs3/.local/game-data/objects-2026-10-08-v3/objects.transitions.v1.json.gz",
+        "pointer": "/transitions/4501",
+        "placementId": "object-2a0efbcf11ba937d27665d18@28:0:2833:3255",
+        "actions": [
+          "Enter"
+        ],
+        "sourceCoordinate": {
+          "x": 2833,
+          "y": 3255,
+          "plane": 0
+        },
+        "transform": {
+          "translation": {
+            "x": 0,
+            "y": 0,
+            "plane": 0
+          },
+          "pasteKind": "square",
+          "pasteIndex": 593
+        }
+      }
+    },
+    {
+      "id": "crandor-dungeon-interior",
+      "name": "Crandor dungeon climbing rope",
+      "x": 2833,
+      "y": 9657,
+      "plane": 0,
+      "mapId": 554,
+      "chunkId": "11414",
+      "coordinateEvidence": {
+        "kind": "cache-object-placement",
+        "objectId": 25213,
+        "file": "C:/Users/User/Projects/chunk-picker-rs3/.local/game-data/objects-2026-10-08-v3/objects.transitions.v1.json.gz",
+        "pointer": "/transitions/463",
+        "placementId": "object-55bc07262b955dcd23205dc2@554:0:2833:9657",
+        "actions": [
+          "Climb"
+        ],
+        "sourceCoordinate": {
+          "x": 2833,
+          "y": 9657,
+          "plane": 0
+        },
+        "transform": {
+          "translation": {
+            "x": 0,
+            "y": 0,
+            "plane": 0
+          },
+          "pasteKind": "chunk",
+          "pasteIndex": 106
+        },
+        "mapBoundsEvidence": {
+          "file": "C:/Users/User/Projects/chunk-picker-rs3/.local/game-data/places-2026-10-08-v3/places.v1.json",
+          "pointer": "/mapRecords/554/bounds",
+          "mapId": 554,
+          "mapName": "Elvarg's Lair",
+          "matchingSourceBounds": [
+            {
+              "plane": 0,
+              "src": {
+                "xstart": 2824,
+                "zstart": 9600,
+                "xend": 2879,
+                "zend": 9663
+              },
+              "dst": {
+                "xstart": 2824,
+                "zstart": 9600,
+                "xend": 2879,
+                "zend": 9663
+              }
+            }
+          ]
+        },
+        "retainedLocationEvidence": {
+          "pointer": "/chunks/11414/Name",
+          "name": "Elvarg's Lair"
+        }
+      },
+      "locationId": "11414"
+    },
+    {
+      "id": "asgarnian-ice-surface",
+      "name": "Asgarnian Ice Dungeon trapdoor",
+      "x": 3008,
+      "y": 3150,
+      "plane": 0,
+      "mapId": 28,
+      "chunkId": "12081",
+      "coordinateEvidence": {
+        "kind": "cache-object-placement",
+        "objectId": 9472,
+        "file": "C:/Users/User/Projects/chunk-picker-rs3/.local/game-data/objects-2026-10-08-v3/objects.transitions.v1.json.gz",
+        "pointer": "/transitions/5124",
+        "placementId": "object-79b6a93ee9f7d81dcc38ae74@28:0:3008:3150",
+        "actions": [
+          "Climb-down"
+        ],
+        "sourceCoordinate": {
+          "x": 3008,
+          "y": 3150,
+          "plane": 0
+        },
+        "transform": {
+          "translation": {
+            "x": 0,
+            "y": 0,
+            "plane": 0
+          },
+          "pasteKind": "square",
+          "pasteIndex": 664
+        }
+      }
+    },
+    {
+      "id": "asgarnian-ice-interior",
+      "name": "Asgarnian Ice Dungeon ladder",
+      "x": 3008,
+      "y": 9550,
+      "plane": 0,
+      "mapId": 25,
+      "chunkId": "12181",
+      "coordinateEvidence": {
+        "kind": "cache-object-placement",
+        "objectId": 32015,
+        "file": "C:/Users/User/Projects/chunk-picker-rs3/.local/game-data/objects-2026-10-08-v3/objects.transitions.v1.json.gz",
+        "pointer": "/transitions/1766",
+        "placementId": "object-a4526caf0ca02c353afbbf46@25:0:3008:9550",
+        "actions": [
+          "Climb-up"
+        ],
+        "sourceCoordinate": {
+          "x": 3008,
+          "y": 9550,
+          "plane": 0
+        },
+        "transform": {
+          "translation": {
+            "x": 0,
+            "y": 0,
+            "plane": 0
+          },
+          "pasteKind": "square",
+          "pasteIndex": 1
+        },
+        "mapBoundsEvidence": {
+          "file": "C:/Users/User/Projects/chunk-picker-rs3/.local/game-data/places-2026-10-08-v3/places.v1.json",
+          "pointer": "/mapRecords/25/bounds",
+          "mapId": 25,
+          "mapName": "Asgarnian Ice Dungeon",
+          "matchingSourceBounds": [
+            {
+              "plane": 0,
+              "src": {
+                "xstart": 2944,
+                "zstart": 9536,
+                "xend": 3071,
+                "zend": 9599
+              },
+              "dst": {
+                "xstart": 2944,
+                "zstart": 9536,
+                "xend": 3071,
+                "zend": 9599
+              }
+            }
+          ]
+        },
+        "retainedLocationEvidence": {
+          "pointer": "/chunks/12181/Name",
+          "name": "Asgarnian Ice Dungeon"
+        }
+      },
+      "locationId": "12181"
+    },
+    {
+      "id": "lumbridge-cellar-surface",
+      "name": "Lumbridge Castle kitchen trapdoor",
+      "x": 3209,
+      "y": 3216,
+      "plane": 0,
+      "mapId": 28,
+      "chunkId": "12850",
+      "coordinateEvidence": {
+        "kind": "cache-object-placement",
+        "objectId": 36687,
+        "file": "C:/Users/User/Projects/chunk-picker-rs3/.local/game-data/objects-2026-10-08-v3/objects.transitions.v1.json.gz",
+        "pointer": "/transitions/5784",
+        "placementId": "object-a888301501bbbb1832c103b1@28:0:3209:3216",
+        "actions": [
+          "Climb-down"
+        ],
+        "sourceCoordinate": {
+          "x": 3209,
+          "y": 3216,
+          "plane": 0
+        },
+        "transform": {
+          "translation": {
+            "x": 0,
+            "y": 0,
+            "plane": 0
+          },
+          "pasteKind": "square",
+          "pasteIndex": 737
+        }
+      }
+    },
+    {
+      "id": "lumbridge-cellar-interior",
+      "name": "Lumbridge Castle cellar ladder",
+      "x": 3209,
+      "y": 9616,
+      "plane": 0,
+      "mapId": 31,
+      "chunkId": "12950",
+      "coordinateEvidence": {
+        "kind": "cache-object-placement",
+        "objectId": 29355,
+        "file": "C:/Users/User/Projects/chunk-picker-rs3/.local/game-data/objects-2026-10-08-v3/objects.transitions.v1.json.gz",
+        "pointer": "/transitions/7453",
+        "placementId": "object-ad41d60cf734ba8fd4cb22c2@31:0:3209:9616",
+        "actions": [
+          "Climb-up"
+        ],
+        "sourceCoordinate": {
+          "x": 3209,
+          "y": 9616,
+          "plane": 0
+        },
+        "transform": {
+          "translation": {
+            "x": 0,
+            "y": 0,
+            "plane": 0
+          },
+          "pasteKind": "square",
+          "pasteIndex": 17
+        },
+        "mapBoundsEvidence": {
+          "file": "C:/Users/User/Projects/chunk-picker-rs3/.local/game-data/places-2026-10-08-v3/places.v1.json",
+          "pointer": "/mapRecords/31/bounds",
+          "mapId": 31,
+          "mapName": "Misthalin Underground",
+          "matchingSourceBounds": [
+            {
+              "plane": 0,
+              "src": {
+                "xstart": 3136,
+                "zstart": 9536,
+                "xend": 3263,
+                "zend": 9727
+              },
+              "dst": {
+                "xstart": 3136,
+                "zstart": 9536,
+                "xend": 3263,
+                "zend": 9727
+              }
+            }
+          ]
+        },
+        "retainedLocationEvidence": {
+          "pointer": "/chunks/13207/Name",
+          "name": "Lumbridge Cellar",
+          "mappingDetail": "Named semantic cellar area13207 retained independently of current source-coordinate chunk12950 (retained Dorgesh-Kaan mine). Wiki castle/trapdoor pages establish destination as cellar; entering does not grant mine tunnel access."
+        }
+      },
+      "locationId": "13207"
+    },
+    {
+      "id": "lumbridge-catacombs-surface",
+      "name": "Lumbridge cemetery catacombs",
+      "x": 3247,
+      "y": 3198,
+      "plane": 0,
+      "mapId": 28,
+      "chunkId": "12849",
+      "coordinateEvidence": {
+        "kind": "cache-object-placement",
+        "objectId": 48797,
+        "file": "C:/Users/User/Projects/chunk-picker-rs3/.local/game-data/objects-2026-10-08-v3/objects.transitions.v1.json.gz",
+        "pointer": "/transitions/5773",
+        "placementId": "object-65d45d35b5da688355da9499@28:0:3247:3198",
+        "actions": [
+          "Enter"
+        ],
+        "sourceCoordinate": {
+          "x": 3247,
+          "y": 3198,
+          "plane": 0
+        },
+        "transform": {
+          "translation": {
+            "x": 0,
+            "y": 0,
+            "plane": 0
+          },
+          "pasteKind": "square",
+          "pasteIndex": 736
+        }
+      }
+    },
+    {
+      "id": "lumbridge-catacombs-upper-exit",
+      "name": "Lumbridge Catacombs upper exit",
+      "x": 3877,
+      "y": 5525,
+      "plane": 1,
+      "mapId": 164,
+      "chunkId": "15446",
+      "locationId": "15446",
+      "coordinateEvidence": {
+        "kind": "cache-object-source-placement",
+        "objectId": 48798,
+        "file": "C:/Users/User/Projects/chunk-picker-rs3/.local/game-data/objects-2026-10-08-v3/objects.source-placements.v1.json.gz",
+        "sourceId": "object-da3fa93f5e8e603f85caaf3e",
+        "pointer": "source placement selected by exact id object-da3fa93f5e8e603f85caaf3e",
+        "actions": [
+          "Exit"
+        ],
+        "sourceCoordinate": {
+          "x": 3877,
+          "y": 5525,
+          "plane": 1
+        },
+        "mapBoundsEvidence": {
+          "file": "C:/Users/User/Projects/chunk-picker-rs3/.local/game-data/places-2026-10-08-v3/places.v1.json",
+          "mapId": 164,
+          "mapName": "Lumbridge Catacombs",
+          "internalName": "lumbridge_catacombs_upper",
+          "matchingXYBounds": {
+            "xstart": 3840,
+            "zstart": 5504,
+            "xend": 3903,
+            "zend": 5567
+          },
+          "limitation": "Cache world-map source bounds encode plane0 only; plane1 object layer is directly decoded, Wiki upper-level map explicitly confirms plane1. No surface projection."
+        },
+        "wikiLayerEvidence": {
+          "url": "https://runescape.wiki/w/Map:The_Blood_Pact?oldid=35977504",
+          "detail": "Upper Level plane1; exit icon3877.5,5524.5 corroborates object48798 at3877,5525. Two west stairways link lower level."
+        },
+        "retainedLocationEvidence": {
+          "pointer": "/chunks/15446/Name",
+          "name": "Lumbridge Catacombs"
+        }
+      }
+    },
+    {
+      "id": "lumbridge-catacombs-stairs-south-upper",
+      "name": "Catacombs south upper stairs",
+      "x": 3858,
+      "y": 5533,
+      "plane": 1,
+      "mapId": 164,
+      "chunkId": "15446",
+      "locationId": "15446",
+      "coordinateEvidence": {
+        "kind": "cache-object-source-placement",
+        "objectId": 48678,
+        "file": "C:/Users/User/Projects/chunk-picker-rs3/.local/game-data/objects-2026-10-08-v3/objects.source-placements.v1.json.gz",
+        "sourceId": "object-97c7dc87141a475a63519393",
+        "pointer": "source placement selected by exact id object-97c7dc87141a475a63519393",
+        "actions": [
+          "Climb down"
+        ],
+        "sourceCoordinate": {
+          "x": 3858,
+          "y": 5533,
+          "plane": 1
+        },
+        "mapBoundsEvidence": {
+          "file": "C:/Users/User/Projects/chunk-picker-rs3/.local/game-data/places-2026-10-08-v3/places.v1.json",
+          "mapId": 164,
+          "mapName": "Lumbridge Catacombs",
+          "internalName": "lumbridge_catacombs_upper",
+          "matchingXYBounds": {
+            "xstart": 3840,
+            "zstart": 5504,
+            "xend": 3903,
+            "zend": 5567
+          },
+          "limitation": "Cache world-map source bounds encode plane0 only; plane1 object layer is directly decoded, Wiki upper-level map explicitly confirms plane1. No surface projection."
+        },
+        "wikiLayerEvidence": {
+          "url": "https://runescape.wiki/w/Map:The_Blood_Pact?oldid=35977504",
+          "detail": "Upper Level plane1; exit icon3877.5,5524.5 corroborates object48798 at3877,5525. Two west stairways link lower level."
+        },
+        "retainedLocationEvidence": {
+          "pointer": "/chunks/15446/Name",
+          "name": "Lumbridge Catacombs"
+        }
+      }
+    },
+    {
+      "id": "lumbridge-catacombs-stairs-south-lower",
+      "name": "Catacombs south quest-room stairs",
+      "x": 3858,
+      "y": 5533,
+      "plane": 0,
+      "mapId": 164,
+      "chunkId": "15446",
+      "coordinateEvidence": {
+        "kind": "cache-object-placement",
+        "objectId": 48677,
+        "file": "C:/Users/User/Projects/chunk-picker-rs3/.local/game-data/objects-2026-10-08-v3/objects.transitions.v1.json.gz",
+        "pointer": "/transitions/10192",
+        "placementId": "object-7703fc1b494785f046be5ff6@164:0:3858:5533",
+        "actions": [
+          "Climb up"
+        ],
+        "sourceCoordinate": {
+          "x": 3858,
+          "y": 5533,
+          "plane": 0
+        },
+        "transform": {
+          "translation": {
+            "x": 0,
+            "y": 0,
+            "plane": 0
+          },
+          "pasteKind": "square",
+          "pasteIndex": 0
+        },
+        "retainedLocationEvidence": {
+          "pointer": "/chunks/15446/Name",
+          "name": "Lumbridge Catacombs"
+        },
+        "mapBoundsEvidence": {
+          "file": "C:/Users/User/Projects/chunk-picker-rs3/.local/game-data/places-2026-10-08-v3/places.v1.json",
+          "pointer": "/mapRecords/164/bounds",
+          "mapId": 164,
+          "mapName": "Lumbridge Catacombs",
+          "matchingSourceBounds": [
+            {
+              "plane": 0,
+              "src": {
+                "xstart": 3840,
+                "zstart": 5504,
+                "xend": 3903,
+                "zend": 5567
+              },
+              "dst": {
+                "xstart": 3840,
+                "zstart": 5504,
+                "xend": 3903,
+                "zend": 5567
+              }
+            }
+          ]
+        }
+      },
+      "locationId": "15446"
+    },
+    {
+      "id": "lumbridge-catacombs-stairs-north-upper",
+      "name": "Catacombs north upper stairs",
+      "x": 3858,
+      "y": 5543,
+      "plane": 1,
+      "mapId": 164,
+      "chunkId": "15446",
+      "locationId": "15446",
+      "coordinateEvidence": {
+        "kind": "cache-object-source-placement",
+        "objectId": 48678,
+        "file": "C:/Users/User/Projects/chunk-picker-rs3/.local/game-data/objects-2026-10-08-v3/objects.source-placements.v1.json.gz",
+        "sourceId": "object-2e70b649dec1e792e1937696",
+        "pointer": "source placement selected by exact id object-2e70b649dec1e792e1937696",
+        "actions": [
+          "Climb down"
+        ],
+        "sourceCoordinate": {
+          "x": 3858,
+          "y": 5543,
+          "plane": 1
+        },
+        "mapBoundsEvidence": {
+          "file": "C:/Users/User/Projects/chunk-picker-rs3/.local/game-data/places-2026-10-08-v3/places.v1.json",
+          "mapId": 164,
+          "mapName": "Lumbridge Catacombs",
+          "internalName": "lumbridge_catacombs_upper",
+          "matchingXYBounds": {
+            "xstart": 3840,
+            "zstart": 5504,
+            "xend": 3903,
+            "zend": 5567
+          },
+          "limitation": "Cache world-map source bounds encode plane0 only; plane1 object layer is directly decoded, Wiki upper-level map explicitly confirms plane1. No surface projection."
+        },
+        "wikiLayerEvidence": {
+          "url": "https://runescape.wiki/w/Map:The_Blood_Pact?oldid=35977504",
+          "detail": "Upper Level plane1; exit icon3877.5,5524.5 corroborates object48798 at3877,5525. Two west stairways link lower level."
+        },
+        "retainedLocationEvidence": {
+          "pointer": "/chunks/15446/Name",
+          "name": "Lumbridge Catacombs"
+        }
+      }
+    },
+    {
+      "id": "lumbridge-catacombs-stairs-north-lower",
+      "name": "Catacombs north quest-room stairs",
+      "x": 3858,
+      "y": 5543,
+      "plane": 0,
+      "mapId": 164,
+      "chunkId": "15446",
+      "coordinateEvidence": {
+        "kind": "cache-object-placement",
+        "objectId": 48677,
+        "file": "C:/Users/User/Projects/chunk-picker-rs3/.local/game-data/objects-2026-10-08-v3/objects.transitions.v1.json.gz",
+        "pointer": "/transitions/10193",
+        "placementId": "object-8cf56abbbe56aea84fd6699d@164:0:3858:5543",
+        "actions": [
+          "Climb up"
+        ],
+        "sourceCoordinate": {
+          "x": 3858,
+          "y": 5543,
+          "plane": 0
+        },
+        "transform": {
+          "translation": {
+            "x": 0,
+            "y": 0,
+            "plane": 0
+          },
+          "pasteKind": "square",
+          "pasteIndex": 0
+        },
+        "retainedLocationEvidence": {
+          "pointer": "/chunks/15446/Name",
+          "name": "Lumbridge Catacombs"
+        },
+        "mapBoundsEvidence": {
+          "file": "C:/Users/User/Projects/chunk-picker-rs3/.local/game-data/places-2026-10-08-v3/places.v1.json",
+          "pointer": "/mapRecords/164/bounds",
+          "mapId": 164,
+          "mapName": "Lumbridge Catacombs",
+          "matchingSourceBounds": [
+            {
+              "plane": 0,
+              "src": {
+                "xstart": 3840,
+                "zstart": 5504,
+                "xend": 3903,
+                "zend": 5567
+              },
+              "dst": {
+                "xstart": 3840,
+                "zstart": 5504,
+                "xend": 3903,
+                "zend": 5567
+              }
+            }
+          ]
+        }
+      },
+      "locationId": "15446"
+    },
+    {
+      "id": "lumbridge-catacombs-main-descent",
+      "name": "Lumbridge main catacombs descent",
+      "x": 3865,
+      "y": 5524,
+      "plane": 0,
+      "mapId": 164,
+      "chunkId": "15446",
+      "coordinateEvidence": {
+        "kind": "cache-object-placement",
+        "objectId": 48688,
+        "file": "C:/Users/User/Projects/chunk-picker-rs3/.local/game-data/objects-2026-10-08-v3/objects.transitions.v1.json.gz",
+        "pointer": "/transitions/10195",
+        "placementId": "object-1da91c7409906bcf669d0851@164:0:3865:5524",
+        "actions": [
+          "Climb down"
+        ],
+        "sourceCoordinate": {
+          "x": 3865,
+          "y": 5524,
+          "plane": 0
+        },
+        "transform": {
+          "translation": {
+            "x": 0,
+            "y": 0,
+            "plane": 0
+          },
+          "pasteKind": "square",
+          "pasteIndex": 0
+        },
+        "retainedLocationEvidence": {
+          "pointer": "/chunks/15446/Name",
+          "name": "Lumbridge Catacombs"
+        },
+        "mapBoundsEvidence": {
+          "file": "C:/Users/User/Projects/chunk-picker-rs3/.local/game-data/places-2026-10-08-v3/places.v1.json",
+          "pointer": "/mapRecords/164/bounds",
+          "mapId": 164,
+          "mapName": "Lumbridge Catacombs",
+          "matchingSourceBounds": [
+            {
+              "plane": 0,
+              "src": {
+                "xstart": 3840,
+                "zstart": 5504,
+                "xend": 3903,
+                "zend": 5567
+              },
+              "dst": {
+                "xstart": 3840,
+                "zstart": 5504,
+                "xend": 3903,
+                "zend": 5567
+              }
+            }
+          ]
+        }
+      },
+      "locationId": "15446"
+    },
+    {
+      "id": "lumbridge-catacombs-main-exit",
+      "name": "Lumbridge lower catacombs exit",
+      "x": 3972,
+      "y": 5566,
+      "plane": 0,
+      "mapId": 165,
+      "chunkId": "15958",
+      "coordinateEvidence": {
+        "kind": "cache-object-placement",
+        "objectId": 48683,
+        "file": "C:/Users/User/Projects/chunk-picker-rs3/.local/game-data/objects-2026-10-08-v3/objects.transitions.v1.json.gz",
+        "pointer": "/transitions/10196",
+        "placementId": "object-74e5c133850e16c97a7e0fc7@165:0:3972:5566",
+        "actions": [
+          "Climb-up"
+        ],
+        "sourceCoordinate": {
+          "x": 3972,
+          "y": 5566,
+          "plane": 0
+        },
+        "transform": {
+          "translation": {
+            "x": 0,
+            "y": 0,
+            "plane": 0
+          },
+          "pasteKind": "square",
+          "pasteIndex": 1
+        },
+        "retainedLocationEvidence": {
+          "pointer": "/chunks/15958/Name",
+          "name": "Lumbridge Catacombs"
+        },
+        "mapBoundsEvidence": {
+          "file": "C:/Users/User/Projects/chunk-picker-rs3/.local/game-data/places-2026-10-08-v3/places.v1.json",
+          "pointer": "/mapRecords/165/bounds",
+          "mapId": 165,
+          "mapName": "Lumbridge Catacombs",
+          "matchingSourceBounds": [
+            {
+              "plane": 0,
+              "src": {
+                "xstart": 3968,
+                "zstart": 5440,
+                "xend": 4031,
+                "zend": 5567
+              },
+              "dst": {
+                "xstart": 3968,
+                "zstart": 5440,
+                "xend": 4031,
+                "zend": 5567
+              }
+            }
+          ]
+        }
+      },
+      "locationId": "15958"
+    }
+  ],
+  "routes": [
+    {
+      "id": "interior-draynor-west",
+      "name": "Draynor west trapdoor / Draynor Sewers",
+      "kind": "ladder",
+      "to": "draynor-west-interior",
+      "bidirectional": true,
+      "members": false,
+      "f2p": true,
+      "requirements": {
+        "levels": {},
+        "quests": [],
+        "items": [],
+        "fare": null,
+        "conditions": [],
+        "confirmations": []
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Draynor_Sewers?oldid=37110185",
+          "detail": "Reviewed revision establishes transport, access or exact station coordinate as described in the evidence document."
+        },
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Map:Draynor_Sewers?oldid=35975808",
+          "detail": "Reviewed revision establishes transport, access or exact station coordinate as described in the evidence document."
+        }
+      ],
+      "unknowns": [
+        "Exact landing tile and live player interaction have not been observed."
+      ],
+      "from": "draynor-west-surface"
+    },
+    {
+      "id": "interior-draynor-east",
+      "name": "Draynor jail trapdoor / Draynor Sewers",
+      "kind": "ladder",
+      "to": "draynor-east-interior",
+      "bidirectional": true,
+      "members": false,
+      "f2p": true,
+      "requirements": {
+        "levels": {},
+        "quests": [],
+        "items": [],
+        "fare": null,
+        "conditions": [],
+        "confirmations": []
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Draynor_Sewers?oldid=37110185",
+          "detail": "Reviewed revision establishes transport, access or exact station coordinate as described in the evidence document."
+        },
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Map:Draynor_Sewers?oldid=35975808",
+          "detail": "Reviewed revision establishes transport, access or exact station coordinate as described in the evidence document."
+        }
+      ],
+      "unknowns": [
+        "Exact landing tile and live player interaction have not been observed."
+      ],
+      "from": "draynor-east-surface"
+    },
+    {
+      "id": "interior-varrock-sewers",
+      "name": "Varrock manhole / Varrock Sewers",
+      "kind": "ladder",
+      "to": "varrock-sewers-interior",
+      "bidirectional": true,
+      "members": false,
+      "f2p": true,
+      "requirements": {
+        "levels": {},
+        "quests": [],
+        "items": [],
+        "fare": null,
+        "conditions": [],
+        "confirmations": []
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Varrock_Sewers?oldid=37149521",
+          "detail": "Reviewed revision establishes transport, access or exact station coordinate as described in the evidence document."
+        },
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Manhole?oldid=37142168",
+          "detail": "Reviewed revision establishes transport, access or exact station coordinate as described in the evidence document."
+        },
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Map:Varrock_Sewers?oldid=37162590",
+          "detail": "Reviewed revision establishes transport, access or exact station coordinate as described in the evidence document."
+        }
+      ],
+      "unknowns": [
+        "Exact landing tile and live player interaction have not been observed."
+      ],
+      "from": "varrock-sewers-surface"
+    },
+    {
+      "id": "interior-edgeville-ruins",
+      "name": "Edgeville ruins trapdoor / Edgeville Dungeon",
+      "kind": "ladder",
+      "to": "edgeville-ruins-interior",
+      "bidirectional": true,
+      "members": false,
+      "f2p": true,
+      "requirements": {
+        "levels": {},
+        "quests": [],
+        "items": [],
+        "fare": null,
+        "conditions": [],
+        "confirmations": []
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Edgeville_Dungeon?oldid=37124838",
+          "detail": "Reviewed revision establishes transport, access or exact station coordinate as described in the evidence document."
+        },
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Map:Edgeville_Dungeon?oldid=37024662",
+          "detail": "Reviewed revision establishes transport, access or exact station coordinate as described in the evidence document."
+        }
+      ],
+      "unknowns": [
+        "Exact landing tile and live player interaction have not been observed."
+      ],
+      "from": "edgeville-ruins-surface"
+    },
+    {
+      "id": "interior-edgeville-brass-key",
+      "name": "Hill giant hut ladder / Edgeville Dungeon",
+      "kind": "ladder",
+      "to": "edgeville-brass-key-interior",
+      "bidirectional": true,
+      "members": false,
+      "f2p": true,
+      "requirements": {
+        "levels": {},
+        "quests": [],
+        "items": [
+          {
+            "name": "Brass key",
+            "quantity": 1
+          }
+        ],
+        "fare": null,
+        "conditions": [],
+        "confirmations": [
+          "brass-key-hut-access"
+        ]
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Edgeville_Dungeon?oldid=37124838",
+          "detail": "Reviewed revision establishes transport, access or exact station coordinate as described in the evidence document."
+        },
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Map:Edgeville_Dungeon?oldid=37024662",
+          "detail": "Reviewed revision establishes transport, access or exact station coordinate as described in the evidence document."
+        }
+      ],
+      "unknowns": [
+        "Exact landing tile and live player interaction have not been observed."
+      ],
+      "from": "edgeville-brass-key-surface"
+    },
+    {
+      "id": "interior-falador-mine",
+      "name": "Falador mine stairs / Dwarven Mine",
+      "kind": "stairs",
+      "to": "falador-mine-interior",
+      "bidirectional": true,
+      "members": false,
+      "f2p": true,
+      "requirements": {
+        "levels": {},
+        "quests": [],
+        "items": [],
+        "fare": null,
+        "conditions": [],
+        "confirmations": []
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Dwarven_mines?oldid=37180943",
+          "detail": "Reviewed revision establishes transport, access or exact station coordinate as described in the evidence document."
+        },
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Map:Dwarven_Mine?oldid=35975810",
+          "detail": "Reviewed revision establishes transport, access or exact station coordinate as described in the evidence document."
+        }
+      ],
+      "unknowns": [
+        "Exact landing tile and live player interaction have not been observed."
+      ],
+      "from": "falador-mine-surface"
+    },
+    {
+      "id": "interior-ice-mountain-mine",
+      "name": "Ice Mountain mine ladder / Dwarven Mine",
+      "kind": "ladder",
+      "to": "ice-mountain-mine-interior",
+      "bidirectional": true,
+      "members": false,
+      "f2p": true,
+      "requirements": {
+        "levels": {},
+        "quests": [],
+        "items": [],
+        "fare": null,
+        "conditions": [],
+        "confirmations": []
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Dwarven_mines?oldid=37180943",
+          "detail": "Reviewed revision establishes transport, access or exact station coordinate as described in the evidence document."
+        },
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Map:Dwarven_Mine?oldid=35975810",
+          "detail": "Reviewed revision establishes transport, access or exact station coordinate as described in the evidence document."
+        }
+      ],
+      "unknowns": [
+        "Exact landing tile and live player interaction have not been observed."
+      ],
+      "from": "ice-mountain-mine-surface"
+    },
+    {
+      "id": "interior-burthorpe-mine",
+      "name": "Burthorpe mine entrance / Burthorpe Mine",
+      "kind": "cave",
+      "to": "burthorpe-mine-interior",
+      "bidirectional": true,
+      "members": false,
+      "f2p": true,
+      "requirements": {
+        "levels": {},
+        "quests": [],
+        "items": [],
+        "fare": null,
+        "conditions": [],
+        "confirmations": []
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Burthorpe_mine?oldid=37180751",
+          "detail": "Reviewed revision establishes transport, access or exact station coordinate as described in the evidence document."
+        },
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Map:Burthorpe_mine?oldid=35975718",
+          "detail": "Reviewed revision establishes transport, access or exact station coordinate as described in the evidence document."
+        }
+      ],
+      "unknowns": [
+        "Exact landing tile and live player interaction have not been observed."
+      ],
+      "from": "burthorpe-mine-surface"
+    },
+    {
+      "id": "portal-iron-enclave",
+      "name": "Lumbridge / Iron Enclave",
+      "kind": "portal",
+      "to": "iron-enclave-island",
+      "bidirectional": true,
+      "members": false,
+      "f2p": true,
+      "requirements": {
+        "levels": {},
+        "quests": [],
+        "items": [],
+        "fare": null,
+        "conditions": [
+          "ironman-or-group-ironman-account"
+        ],
+        "confirmations": [
+          "iron-enclave-account-access"
+        ]
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Iron_Enclave_portal?oldid=36872074",
+          "detail": "Reviewed revision establishes transport, access or exact station coordinate as described in the evidence document."
+        },
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Iron_Enclave?oldid=37163617",
+          "detail": "Reviewed revision establishes transport, access or exact station coordinate as described in the evidence document."
+        }
+      ],
+      "unknowns": [
+        "Exact landing tile and live player interaction have not been observed."
+      ],
+      "from": "iron-enclave-lumbridge"
+    },
+    {
+      "id": "shortcut-dwarven-crevice",
+      "name": "Dwarven mine crevice",
+      "kind": "shortcut",
+      "to": "dwarven-crevice-east",
+      "bidirectional": true,
+      "members": true,
+      "f2p": false,
+      "requirements": {
+        "levels": {
+          "Agility": 42
+        },
+        "quests": [],
+        "items": [],
+        "fare": null,
+        "conditions": [],
+        "confirmations": []
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Crevice_(Dwarven_Mine)?oldid=35928255",
+          "detail": "Reviewed revision establishes transport, access or exact station coordinate as described in the evidence document."
+        }
+      ],
+      "unknowns": [
+        "Exact landing tile and live player interaction have not been observed."
+      ],
+      "from": "dwarven-crevice-west"
+    },
+    {
+      "id": "shortcut-taverley-stones",
+      "name": "Taverley stepping stones",
+      "kind": "shortcut",
+      "to": "taverley-stones-north",
+      "bidirectional": true,
+      "members": true,
+      "f2p": false,
+      "requirements": {
+        "levels": {
+          "Agility": 52
+        },
+        "quests": [],
+        "items": [],
+        "fare": null,
+        "conditions": [],
+        "confirmations": []
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Stepping_stone_(Taverley)?oldid=36886073",
+          "detail": "Reviewed revision establishes transport, access or exact station coordinate as described in the evidence document."
+        }
+      ],
+      "unknowns": [
+        "Exact landing tile and live player interaction have not been observed."
+      ],
+      "from": "taverley-stones-south"
+    },
+    {
+      "id": "glider-grand-tree-white-wolf",
+      "name": "Grand Tree / White Wolf Mountain glider",
+      "kind": "glider",
+      "to": "glider-white-wolf",
+      "bidirectional": true,
+      "members": true,
+      "f2p": false,
+      "requirements": {
+        "levels": {},
+        "quests": [
+          "The Grand Tree"
+        ],
+        "items": [],
+        "fare": null,
+        "conditions": [],
+        "confirmations": [
+          "gnome-glider-network-available"
+        ]
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Gnome_glider?oldid=36987519",
+          "detail": "Reviewed revision establishes transport, access or exact station coordinate as described in the evidence document."
+        }
+      ],
+      "unknowns": [
+        "Exact landing tile and live player interaction have not been observed."
+      ],
+      "from": "glider-grand-tree"
+    },
+    {
+      "id": "glider-grand-tree-al-kharid",
+      "name": "Grand Tree / Al Kharid glider",
+      "kind": "glider",
+      "to": "glider-al-kharid",
+      "bidirectional": true,
+      "members": true,
+      "f2p": false,
+      "requirements": {
+        "levels": {},
+        "quests": [
+          "The Grand Tree"
+        ],
+        "items": [],
+        "fare": null,
+        "conditions": [],
+        "confirmations": [
+          "gnome-glider-network-available"
+        ]
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Gnome_glider?oldid=36987519",
+          "detail": "Reviewed revision establishes transport, access or exact station coordinate as described in the evidence document."
+        }
+      ],
+      "unknowns": [
+        "Exact landing tile and live player interaction have not been observed."
+      ],
+      "from": "glider-grand-tree"
+    },
+    {
+      "id": "glider-grand-tree-karamja",
+      "name": "Grand Tree / Karamja Gandius glider",
+      "kind": "glider",
+      "to": "glider-karamja",
+      "bidirectional": true,
+      "members": true,
+      "f2p": false,
+      "requirements": {
+        "levels": {},
+        "quests": [
+          "The Grand Tree"
+        ],
+        "items": [],
+        "fare": null,
+        "conditions": [],
+        "confirmations": [
+          "gnome-glider-network-available"
+        ]
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Gnome_glider?oldid=36987519",
+          "detail": "Reviewed revision establishes transport, access or exact station coordinate as described in the evidence document."
+        }
+      ],
+      "unknowns": [
+        "Exact landing tile and live player interaction have not been observed."
+      ],
+      "from": "glider-grand-tree"
+    },
+    {
+      "id": "glider-grand-tree-feldip",
+      "name": "Grand Tree / Feldip Hills glider",
+      "kind": "glider",
+      "to": "glider-feldip",
+      "bidirectional": true,
+      "members": true,
+      "f2p": false,
+      "requirements": {
+        "levels": {},
+        "quests": [
+          "The Grand Tree"
+        ],
+        "items": [],
+        "fare": null,
+        "conditions": [
+          "one-small-favour-sanfew-glider-stage"
+        ],
+        "confirmations": [
+          "gnome-glider-network-available",
+          "one-small-favour-sanfew-glider-stage"
+        ]
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Gnome_glider?oldid=36987519",
+          "detail": "Reviewed revision establishes transport, access or exact station coordinate as described in the evidence document."
+        }
+      ],
+      "unknowns": [
+        "Exact landing tile and live player interaction have not been observed."
+      ],
+      "from": "glider-grand-tree"
+    },
+    {
+      "id": "glider-grand-tree-tree-gnome-village",
+      "name": "Grand Tree / Tree Gnome Village glider",
+      "kind": "glider",
+      "to": "glider-tree-gnome-village",
+      "bidirectional": true,
+      "members": true,
+      "f2p": false,
+      "requirements": {
+        "levels": {},
+        "quests": [
+          "The Grand Tree",
+          "The Prisoner of Glouphrie"
+        ],
+        "items": [],
+        "fare": null,
+        "conditions": [
+          "the-prisoner-of-glouphrie-completed"
+        ],
+        "confirmations": [
+          "gnome-glider-network-available",
+          "the-prisoner-of-glouphrie-completed"
+        ]
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Gnome_glider?oldid=36987519",
+          "detail": "Reviewed revision establishes transport, access or exact station coordinate as described in the evidence document."
+        }
+      ],
+      "unknowns": [
+        "Exact landing tile and live player interaction have not been observed."
+      ],
+      "from": "glider-grand-tree"
+    },
+    {
+      "id": "glider-grand-tree-prifddinas",
+      "name": "Grand Tree / Prifddinas Meilyr district glider",
+      "kind": "glider",
+      "to": "glider-prifddinas",
+      "bidirectional": true,
+      "members": true,
+      "f2p": false,
+      "requirements": {
+        "levels": {},
+        "quests": [
+          "The Grand Tree",
+          "Plague's End"
+        ],
+        "items": [],
+        "fare": null,
+        "conditions": [
+          "plagues-end-completed-prifddinas-access"
+        ],
+        "confirmations": [
+          "gnome-glider-network-available",
+          "plagues-end-completed-prifddinas-access"
+        ]
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Gnome_glider?oldid=36987519",
+          "detail": "Reviewed revision establishes transport, access or exact station coordinate as described in the evidence document."
+        }
+      ],
+      "unknowns": [
+        "Exact landing tile and live player interaction have not been observed."
+      ],
+      "from": "glider-grand-tree"
+    },
+    {
+      "id": "glider-grand-tree-tuai-leit",
+      "name": "Grand Tree / Tuai Leit gnome colony glider",
+      "kind": "glider",
+      "to": "glider-tuai-leit",
+      "bidirectional": true,
+      "members": true,
+      "f2p": false,
+      "requirements": {
+        "levels": {},
+        "quests": [
+          "The Grand Tree"
+        ],
+        "items": [],
+        "fare": null,
+        "conditions": [
+          "azalea-oakheart-rescued-tuai-leit-access"
+        ],
+        "confirmations": [
+          "gnome-glider-network-available",
+          "azalea-oakheart-rescued-tuai-leit-access"
+        ]
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Gnome_glider?oldid=36987519",
+          "detail": "Reviewed revision establishes transport, access or exact station coordinate as described in the evidence document."
+        }
+      ],
+      "unknowns": [
+        "Exact landing tile and live player interaction have not been observed."
+      ],
+      "from": "glider-grand-tree"
+    },
+    {
+      "id": "glider-grand-tree-digsite",
+      "name": "Grand Tree to Digsite (crash)",
+      "kind": "glider",
+      "to": "glider-digsite",
+      "bidirectional": false,
+      "members": true,
+      "f2p": false,
+      "requirements": {
+        "levels": {},
+        "quests": [
+          "The Grand Tree"
+        ],
+        "items": [],
+        "fare": null,
+        "conditions": [],
+        "confirmations": [
+          "gnome-glider-network-available"
+        ]
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Gnome_glider?oldid=36987519",
+          "detail": "Reviewed revision establishes transport, access or exact station coordinate as described in the evidence document."
+        }
+      ],
+      "unknowns": [
+        "Digsite glider crashes: this edge intentionally has no reverse route.",
+        "Exact landing tile and live player interaction have not been observed."
+      ],
+      "from": "glider-grand-tree"
+    },
+    {
+      "id": "balloon-entrana-to-taverley",
+      "name": "Entrana to Taverley balloon",
+      "kind": "balloon",
+      "to": "balloon-taverley",
+      "bidirectional": false,
+      "members": true,
+      "f2p": false,
+      "requirements": {
+        "levels": {
+          "Firemaking": 20
+        },
+        "quests": [
+          "Enlightened Journey"
+        ],
+        "items": [],
+        "fare": {
+          "currency": "balloon charges",
+          "amount": 1,
+          "detail": "Subsequent flight after destination unlock; stored charges are consumed."
+        },
+        "conditions": [
+          "balloon-origin-entrana-unlocked",
+          "balloon-destination-taverley-unlocked"
+        ],
+        "confirmations": [
+          "balloon-origin-entrana-unlocked",
+          "balloon-destination-taverley-unlocked",
+          "sufficient-stored-balloon-charges"
+        ]
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Balloon_transport_system?oldid=36927642",
+          "detail": "Reviewed revision establishes transport, access or exact station coordinate as described in the evidence document."
+        }
+      ],
+      "unknowns": [
+        "Initial destination-unlock flight is excluded; this route requires an already unlocked destination.",
+        "Exact landing tile and live player interaction have not been observed."
+      ],
+      "from": "balloon-entrana"
+    },
+    {
+      "id": "balloon-entrana-to-crafting-guild",
+      "name": "Entrana to Crafting Guild balloon",
+      "kind": "balloon",
+      "to": "balloon-crafting-guild",
+      "bidirectional": false,
+      "members": true,
+      "f2p": false,
+      "requirements": {
+        "levels": {
+          "Firemaking": 30
+        },
+        "quests": [
+          "Enlightened Journey"
+        ],
+        "items": [],
+        "fare": {
+          "currency": "balloon charges",
+          "amount": 2,
+          "detail": "Subsequent flight after destination unlock; stored charges are consumed."
+        },
+        "conditions": [
+          "balloon-origin-entrana-unlocked",
+          "balloon-destination-crafting-guild-unlocked"
+        ],
+        "confirmations": [
+          "balloon-origin-entrana-unlocked",
+          "balloon-destination-crafting-guild-unlocked",
+          "sufficient-stored-balloon-charges"
+        ]
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Balloon_transport_system?oldid=36927642",
+          "detail": "Reviewed revision establishes transport, access or exact station coordinate as described in the evidence document."
+        }
+      ],
+      "unknowns": [
+        "Initial destination-unlock flight is excluded; this route requires an already unlocked destination.",
+        "Exact landing tile and live player interaction have not been observed."
+      ],
+      "from": "balloon-entrana"
+    },
+    {
+      "id": "balloon-entrana-to-varrock",
+      "name": "Entrana to Varrock balloon",
+      "kind": "balloon",
+      "to": "balloon-varrock",
+      "bidirectional": false,
+      "members": true,
+      "f2p": false,
+      "requirements": {
+        "levels": {
+          "Firemaking": 40
+        },
+        "quests": [
+          "Enlightened Journey"
+        ],
+        "items": [],
+        "fare": {
+          "currency": "balloon charges",
+          "amount": 3,
+          "detail": "Subsequent flight after destination unlock; stored charges are consumed."
+        },
+        "conditions": [
+          "balloon-origin-entrana-unlocked",
+          "balloon-destination-varrock-unlocked"
+        ],
+        "confirmations": [
+          "balloon-origin-entrana-unlocked",
+          "balloon-destination-varrock-unlocked",
+          "sufficient-stored-balloon-charges"
+        ]
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Balloon_transport_system?oldid=36927642",
+          "detail": "Reviewed revision establishes transport, access or exact station coordinate as described in the evidence document."
+        }
+      ],
+      "unknowns": [
+        "Initial destination-unlock flight is excluded; this route requires an already unlocked destination.",
+        "Exact landing tile and live player interaction have not been observed."
+      ],
+      "from": "balloon-entrana"
+    },
+    {
+      "id": "balloon-entrana-to-castle-wars",
+      "name": "Entrana to Castle Wars balloon",
+      "kind": "balloon",
+      "to": "balloon-castle-wars",
+      "bidirectional": false,
+      "members": true,
+      "f2p": false,
+      "requirements": {
+        "levels": {
+          "Firemaking": 50
+        },
+        "quests": [
+          "Enlightened Journey"
+        ],
+        "items": [],
+        "fare": {
+          "currency": "balloon charges",
+          "amount": 4,
+          "detail": "Subsequent flight after destination unlock; stored charges are consumed."
+        },
+        "conditions": [
+          "balloon-origin-entrana-unlocked",
+          "balloon-destination-castle-wars-unlocked"
+        ],
+        "confirmations": [
+          "balloon-origin-entrana-unlocked",
+          "balloon-destination-castle-wars-unlocked",
+          "sufficient-stored-balloon-charges"
+        ]
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Balloon_transport_system?oldid=36927642",
+          "detail": "Reviewed revision establishes transport, access or exact station coordinate as described in the evidence document."
+        }
+      ],
+      "unknowns": [
+        "Initial destination-unlock flight is excluded; this route requires an already unlocked destination.",
+        "Exact landing tile and live player interaction have not been observed."
+      ],
+      "from": "balloon-entrana"
+    },
+    {
+      "id": "balloon-entrana-to-grand-tree",
+      "name": "Entrana to Grand Tree balloon",
+      "kind": "balloon",
+      "to": "balloon-grand-tree",
+      "bidirectional": false,
+      "members": true,
+      "f2p": false,
+      "requirements": {
+        "levels": {
+          "Firemaking": 60
+        },
+        "quests": [
+          "Enlightened Journey"
+        ],
+        "items": [],
+        "fare": {
+          "currency": "balloon charges",
+          "amount": 5,
+          "detail": "Subsequent flight after destination unlock; stored charges are consumed."
+        },
+        "conditions": [
+          "balloon-origin-entrana-unlocked",
+          "balloon-destination-grand-tree-unlocked"
+        ],
+        "confirmations": [
+          "balloon-origin-entrana-unlocked",
+          "balloon-destination-grand-tree-unlocked",
+          "sufficient-stored-balloon-charges"
+        ]
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Balloon_transport_system?oldid=36927642",
+          "detail": "Reviewed revision establishes transport, access or exact station coordinate as described in the evidence document."
+        }
+      ],
+      "unknowns": [
+        "Initial destination-unlock flight is excluded; this route requires an already unlocked destination.",
+        "Exact landing tile and live player interaction have not been observed."
+      ],
+      "from": "balloon-entrana"
+    },
+    {
+      "id": "balloon-taverley-to-entrana",
+      "name": "Taverley to Entrana balloon",
+      "kind": "balloon",
+      "to": "balloon-entrana",
+      "bidirectional": false,
+      "members": true,
+      "f2p": false,
+      "requirements": {
+        "levels": {
+          "Firemaking": 20
+        },
+        "quests": [
+          "Enlightened Journey"
+        ],
+        "items": [],
+        "fare": {
+          "currency": "balloon charges",
+          "amount": 1,
+          "detail": "Subsequent flight after destination unlock; stored charges are consumed."
+        },
+        "conditions": [
+          "balloon-origin-taverley-unlocked",
+          "balloon-destination-entrana-unlocked",
+          "entrana-permitted-inventory-and-equipment"
+        ],
+        "confirmations": [
+          "balloon-origin-taverley-unlocked",
+          "balloon-destination-entrana-unlocked",
+          "entrana-permitted-inventory-and-equipment",
+          "sufficient-stored-balloon-charges"
+        ]
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Balloon_transport_system?oldid=36927642",
+          "detail": "Reviewed revision establishes transport, access or exact station coordinate as described in the evidence document."
+        }
+      ],
+      "unknowns": [
+        "Initial destination-unlock flight is excluded; this route requires an already unlocked destination.",
+        "Exact landing tile and live player interaction have not been observed."
+      ],
+      "from": "balloon-taverley"
+    },
+    {
+      "id": "balloon-taverley-to-crafting-guild",
+      "name": "Taverley to Crafting Guild balloon",
+      "kind": "balloon",
+      "to": "balloon-crafting-guild",
+      "bidirectional": false,
+      "members": true,
+      "f2p": false,
+      "requirements": {
+        "levels": {
+          "Firemaking": 30
+        },
+        "quests": [
+          "Enlightened Journey"
+        ],
+        "items": [],
+        "fare": {
+          "currency": "balloon charges",
+          "amount": 2,
+          "detail": "Subsequent flight after destination unlock; stored charges are consumed."
+        },
+        "conditions": [
+          "balloon-origin-taverley-unlocked",
+          "balloon-destination-crafting-guild-unlocked"
+        ],
+        "confirmations": [
+          "balloon-origin-taverley-unlocked",
+          "balloon-destination-crafting-guild-unlocked",
+          "sufficient-stored-balloon-charges"
+        ]
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Balloon_transport_system?oldid=36927642",
+          "detail": "Reviewed revision establishes transport, access or exact station coordinate as described in the evidence document."
+        }
+      ],
+      "unknowns": [
+        "Initial destination-unlock flight is excluded; this route requires an already unlocked destination.",
+        "Exact landing tile and live player interaction have not been observed."
+      ],
+      "from": "balloon-taverley"
+    },
+    {
+      "id": "balloon-taverley-to-varrock",
+      "name": "Taverley to Varrock balloon",
+      "kind": "balloon",
+      "to": "balloon-varrock",
+      "bidirectional": false,
+      "members": true,
+      "f2p": false,
+      "requirements": {
+        "levels": {
+          "Firemaking": 40
+        },
+        "quests": [
+          "Enlightened Journey"
+        ],
+        "items": [],
+        "fare": {
+          "currency": "balloon charges",
+          "amount": 3,
+          "detail": "Subsequent flight after destination unlock; stored charges are consumed."
+        },
+        "conditions": [
+          "balloon-origin-taverley-unlocked",
+          "balloon-destination-varrock-unlocked"
+        ],
+        "confirmations": [
+          "balloon-origin-taverley-unlocked",
+          "balloon-destination-varrock-unlocked",
+          "sufficient-stored-balloon-charges"
+        ]
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Balloon_transport_system?oldid=36927642",
+          "detail": "Reviewed revision establishes transport, access or exact station coordinate as described in the evidence document."
+        }
+      ],
+      "unknowns": [
+        "Initial destination-unlock flight is excluded; this route requires an already unlocked destination.",
+        "Exact landing tile and live player interaction have not been observed."
+      ],
+      "from": "balloon-taverley"
+    },
+    {
+      "id": "balloon-taverley-to-castle-wars",
+      "name": "Taverley to Castle Wars balloon",
+      "kind": "balloon",
+      "to": "balloon-castle-wars",
+      "bidirectional": false,
+      "members": true,
+      "f2p": false,
+      "requirements": {
+        "levels": {
+          "Firemaking": 50
+        },
+        "quests": [
+          "Enlightened Journey"
+        ],
+        "items": [],
+        "fare": {
+          "currency": "balloon charges",
+          "amount": 4,
+          "detail": "Subsequent flight after destination unlock; stored charges are consumed."
+        },
+        "conditions": [
+          "balloon-origin-taverley-unlocked",
+          "balloon-destination-castle-wars-unlocked"
+        ],
+        "confirmations": [
+          "balloon-origin-taverley-unlocked",
+          "balloon-destination-castle-wars-unlocked",
+          "sufficient-stored-balloon-charges"
+        ]
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Balloon_transport_system?oldid=36927642",
+          "detail": "Reviewed revision establishes transport, access or exact station coordinate as described in the evidence document."
+        }
+      ],
+      "unknowns": [
+        "Initial destination-unlock flight is excluded; this route requires an already unlocked destination.",
+        "Exact landing tile and live player interaction have not been observed."
+      ],
+      "from": "balloon-taverley"
+    },
+    {
+      "id": "balloon-taverley-to-grand-tree",
+      "name": "Taverley to Grand Tree balloon",
+      "kind": "balloon",
+      "to": "balloon-grand-tree",
+      "bidirectional": false,
+      "members": true,
+      "f2p": false,
+      "requirements": {
+        "levels": {
+          "Firemaking": 60
+        },
+        "quests": [
+          "Enlightened Journey"
+        ],
+        "items": [],
+        "fare": {
+          "currency": "balloon charges",
+          "amount": 5,
+          "detail": "Subsequent flight after destination unlock; stored charges are consumed."
+        },
+        "conditions": [
+          "balloon-origin-taverley-unlocked",
+          "balloon-destination-grand-tree-unlocked"
+        ],
+        "confirmations": [
+          "balloon-origin-taverley-unlocked",
+          "balloon-destination-grand-tree-unlocked",
+          "sufficient-stored-balloon-charges"
+        ]
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Balloon_transport_system?oldid=36927642",
+          "detail": "Reviewed revision establishes transport, access or exact station coordinate as described in the evidence document."
+        }
+      ],
+      "unknowns": [
+        "Initial destination-unlock flight is excluded; this route requires an already unlocked destination.",
+        "Exact landing tile and live player interaction have not been observed."
+      ],
+      "from": "balloon-taverley"
+    },
+    {
+      "id": "balloon-crafting-guild-to-entrana",
+      "name": "Crafting Guild to Entrana balloon",
+      "kind": "balloon",
+      "to": "balloon-entrana",
+      "bidirectional": false,
+      "members": true,
+      "f2p": false,
+      "requirements": {
+        "levels": {
+          "Firemaking": 20
+        },
+        "quests": [
+          "Enlightened Journey"
+        ],
+        "items": [],
+        "fare": {
+          "currency": "balloon charges",
+          "amount": 1,
+          "detail": "Subsequent flight after destination unlock; stored charges are consumed."
+        },
+        "conditions": [
+          "balloon-origin-crafting-guild-unlocked",
+          "balloon-destination-entrana-unlocked",
+          "entrana-permitted-inventory-and-equipment"
+        ],
+        "confirmations": [
+          "balloon-origin-crafting-guild-unlocked",
+          "balloon-destination-entrana-unlocked",
+          "entrana-permitted-inventory-and-equipment",
+          "sufficient-stored-balloon-charges"
+        ]
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Balloon_transport_system?oldid=36927642",
+          "detail": "Reviewed revision establishes transport, access or exact station coordinate as described in the evidence document."
+        }
+      ],
+      "unknowns": [
+        "Initial destination-unlock flight is excluded; this route requires an already unlocked destination.",
+        "Exact landing tile and live player interaction have not been observed."
+      ],
+      "from": "balloon-crafting-guild"
+    },
+    {
+      "id": "balloon-crafting-guild-to-taverley",
+      "name": "Crafting Guild to Taverley balloon",
+      "kind": "balloon",
+      "to": "balloon-taverley",
+      "bidirectional": false,
+      "members": true,
+      "f2p": false,
+      "requirements": {
+        "levels": {
+          "Firemaking": 20
+        },
+        "quests": [
+          "Enlightened Journey"
+        ],
+        "items": [],
+        "fare": {
+          "currency": "balloon charges",
+          "amount": 1,
+          "detail": "Subsequent flight after destination unlock; stored charges are consumed."
+        },
+        "conditions": [
+          "balloon-origin-crafting-guild-unlocked",
+          "balloon-destination-taverley-unlocked"
+        ],
+        "confirmations": [
+          "balloon-origin-crafting-guild-unlocked",
+          "balloon-destination-taverley-unlocked",
+          "sufficient-stored-balloon-charges"
+        ]
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Balloon_transport_system?oldid=36927642",
+          "detail": "Reviewed revision establishes transport, access or exact station coordinate as described in the evidence document."
+        }
+      ],
+      "unknowns": [
+        "Initial destination-unlock flight is excluded; this route requires an already unlocked destination.",
+        "Exact landing tile and live player interaction have not been observed."
+      ],
+      "from": "balloon-crafting-guild"
+    },
+    {
+      "id": "balloon-crafting-guild-to-varrock",
+      "name": "Crafting Guild to Varrock balloon",
+      "kind": "balloon",
+      "to": "balloon-varrock",
+      "bidirectional": false,
+      "members": true,
+      "f2p": false,
+      "requirements": {
+        "levels": {
+          "Firemaking": 40
+        },
+        "quests": [
+          "Enlightened Journey"
+        ],
+        "items": [],
+        "fare": {
+          "currency": "balloon charges",
+          "amount": 3,
+          "detail": "Subsequent flight after destination unlock; stored charges are consumed."
+        },
+        "conditions": [
+          "balloon-origin-crafting-guild-unlocked",
+          "balloon-destination-varrock-unlocked"
+        ],
+        "confirmations": [
+          "balloon-origin-crafting-guild-unlocked",
+          "balloon-destination-varrock-unlocked",
+          "sufficient-stored-balloon-charges"
+        ]
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Balloon_transport_system?oldid=36927642",
+          "detail": "Reviewed revision establishes transport, access or exact station coordinate as described in the evidence document."
+        }
+      ],
+      "unknowns": [
+        "Initial destination-unlock flight is excluded; this route requires an already unlocked destination.",
+        "Exact landing tile and live player interaction have not been observed."
+      ],
+      "from": "balloon-crafting-guild"
+    },
+    {
+      "id": "balloon-crafting-guild-to-castle-wars",
+      "name": "Crafting Guild to Castle Wars balloon",
+      "kind": "balloon",
+      "to": "balloon-castle-wars",
+      "bidirectional": false,
+      "members": true,
+      "f2p": false,
+      "requirements": {
+        "levels": {
+          "Firemaking": 50
+        },
+        "quests": [
+          "Enlightened Journey"
+        ],
+        "items": [],
+        "fare": {
+          "currency": "balloon charges",
+          "amount": 4,
+          "detail": "Subsequent flight after destination unlock; stored charges are consumed."
+        },
+        "conditions": [
+          "balloon-origin-crafting-guild-unlocked",
+          "balloon-destination-castle-wars-unlocked"
+        ],
+        "confirmations": [
+          "balloon-origin-crafting-guild-unlocked",
+          "balloon-destination-castle-wars-unlocked",
+          "sufficient-stored-balloon-charges"
+        ]
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Balloon_transport_system?oldid=36927642",
+          "detail": "Reviewed revision establishes transport, access or exact station coordinate as described in the evidence document."
+        }
+      ],
+      "unknowns": [
+        "Initial destination-unlock flight is excluded; this route requires an already unlocked destination.",
+        "Exact landing tile and live player interaction have not been observed."
+      ],
+      "from": "balloon-crafting-guild"
+    },
+    {
+      "id": "balloon-crafting-guild-to-grand-tree",
+      "name": "Crafting Guild to Grand Tree balloon",
+      "kind": "balloon",
+      "to": "balloon-grand-tree",
+      "bidirectional": false,
+      "members": true,
+      "f2p": false,
+      "requirements": {
+        "levels": {
+          "Firemaking": 60
+        },
+        "quests": [
+          "Enlightened Journey"
+        ],
+        "items": [],
+        "fare": {
+          "currency": "balloon charges",
+          "amount": 5,
+          "detail": "Subsequent flight after destination unlock; stored charges are consumed."
+        },
+        "conditions": [
+          "balloon-origin-crafting-guild-unlocked",
+          "balloon-destination-grand-tree-unlocked"
+        ],
+        "confirmations": [
+          "balloon-origin-crafting-guild-unlocked",
+          "balloon-destination-grand-tree-unlocked",
+          "sufficient-stored-balloon-charges"
+        ]
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Balloon_transport_system?oldid=36927642",
+          "detail": "Reviewed revision establishes transport, access or exact station coordinate as described in the evidence document."
+        }
+      ],
+      "unknowns": [
+        "Initial destination-unlock flight is excluded; this route requires an already unlocked destination.",
+        "Exact landing tile and live player interaction have not been observed."
+      ],
+      "from": "balloon-crafting-guild"
+    },
+    {
+      "id": "balloon-varrock-to-entrana",
+      "name": "Varrock to Entrana balloon",
+      "kind": "balloon",
+      "to": "balloon-entrana",
+      "bidirectional": false,
+      "members": true,
+      "f2p": false,
+      "requirements": {
+        "levels": {
+          "Firemaking": 20
+        },
+        "quests": [
+          "Enlightened Journey"
+        ],
+        "items": [],
+        "fare": {
+          "currency": "balloon charges",
+          "amount": 1,
+          "detail": "Subsequent flight after destination unlock; stored charges are consumed."
+        },
+        "conditions": [
+          "balloon-origin-varrock-unlocked",
+          "balloon-destination-entrana-unlocked",
+          "entrana-permitted-inventory-and-equipment"
+        ],
+        "confirmations": [
+          "balloon-origin-varrock-unlocked",
+          "balloon-destination-entrana-unlocked",
+          "entrana-permitted-inventory-and-equipment",
+          "sufficient-stored-balloon-charges"
+        ]
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Balloon_transport_system?oldid=36927642",
+          "detail": "Reviewed revision establishes transport, access or exact station coordinate as described in the evidence document."
+        }
+      ],
+      "unknowns": [
+        "Initial destination-unlock flight is excluded; this route requires an already unlocked destination.",
+        "Exact landing tile and live player interaction have not been observed."
+      ],
+      "from": "balloon-varrock"
+    },
+    {
+      "id": "balloon-varrock-to-taverley",
+      "name": "Varrock to Taverley balloon",
+      "kind": "balloon",
+      "to": "balloon-taverley",
+      "bidirectional": false,
+      "members": true,
+      "f2p": false,
+      "requirements": {
+        "levels": {
+          "Firemaking": 20
+        },
+        "quests": [
+          "Enlightened Journey"
+        ],
+        "items": [],
+        "fare": {
+          "currency": "balloon charges",
+          "amount": 1,
+          "detail": "Subsequent flight after destination unlock; stored charges are consumed."
+        },
+        "conditions": [
+          "balloon-origin-varrock-unlocked",
+          "balloon-destination-taverley-unlocked"
+        ],
+        "confirmations": [
+          "balloon-origin-varrock-unlocked",
+          "balloon-destination-taverley-unlocked",
+          "sufficient-stored-balloon-charges"
+        ]
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Balloon_transport_system?oldid=36927642",
+          "detail": "Reviewed revision establishes transport, access or exact station coordinate as described in the evidence document."
+        }
+      ],
+      "unknowns": [
+        "Initial destination-unlock flight is excluded; this route requires an already unlocked destination.",
+        "Exact landing tile and live player interaction have not been observed."
+      ],
+      "from": "balloon-varrock"
+    },
+    {
+      "id": "balloon-varrock-to-crafting-guild",
+      "name": "Varrock to Crafting Guild balloon",
+      "kind": "balloon",
+      "to": "balloon-crafting-guild",
+      "bidirectional": false,
+      "members": true,
+      "f2p": false,
+      "requirements": {
+        "levels": {
+          "Firemaking": 30
+        },
+        "quests": [
+          "Enlightened Journey"
+        ],
+        "items": [],
+        "fare": {
+          "currency": "balloon charges",
+          "amount": 2,
+          "detail": "Subsequent flight after destination unlock; stored charges are consumed."
+        },
+        "conditions": [
+          "balloon-origin-varrock-unlocked",
+          "balloon-destination-crafting-guild-unlocked"
+        ],
+        "confirmations": [
+          "balloon-origin-varrock-unlocked",
+          "balloon-destination-crafting-guild-unlocked",
+          "sufficient-stored-balloon-charges"
+        ]
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Balloon_transport_system?oldid=36927642",
+          "detail": "Reviewed revision establishes transport, access or exact station coordinate as described in the evidence document."
+        }
+      ],
+      "unknowns": [
+        "Initial destination-unlock flight is excluded; this route requires an already unlocked destination.",
+        "Exact landing tile and live player interaction have not been observed."
+      ],
+      "from": "balloon-varrock"
+    },
+    {
+      "id": "balloon-varrock-to-castle-wars",
+      "name": "Varrock to Castle Wars balloon",
+      "kind": "balloon",
+      "to": "balloon-castle-wars",
+      "bidirectional": false,
+      "members": true,
+      "f2p": false,
+      "requirements": {
+        "levels": {
+          "Firemaking": 50
+        },
+        "quests": [
+          "Enlightened Journey"
+        ],
+        "items": [],
+        "fare": {
+          "currency": "balloon charges",
+          "amount": 4,
+          "detail": "Subsequent flight after destination unlock; stored charges are consumed."
+        },
+        "conditions": [
+          "balloon-origin-varrock-unlocked",
+          "balloon-destination-castle-wars-unlocked"
+        ],
+        "confirmations": [
+          "balloon-origin-varrock-unlocked",
+          "balloon-destination-castle-wars-unlocked",
+          "sufficient-stored-balloon-charges"
+        ]
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Balloon_transport_system?oldid=36927642",
+          "detail": "Reviewed revision establishes transport, access or exact station coordinate as described in the evidence document."
+        }
+      ],
+      "unknowns": [
+        "Initial destination-unlock flight is excluded; this route requires an already unlocked destination.",
+        "Exact landing tile and live player interaction have not been observed."
+      ],
+      "from": "balloon-varrock"
+    },
+    {
+      "id": "balloon-varrock-to-grand-tree",
+      "name": "Varrock to Grand Tree balloon",
+      "kind": "balloon",
+      "to": "balloon-grand-tree",
+      "bidirectional": false,
+      "members": true,
+      "f2p": false,
+      "requirements": {
+        "levels": {
+          "Firemaking": 60
+        },
+        "quests": [
+          "Enlightened Journey"
+        ],
+        "items": [],
+        "fare": {
+          "currency": "balloon charges",
+          "amount": 5,
+          "detail": "Subsequent flight after destination unlock; stored charges are consumed."
+        },
+        "conditions": [
+          "balloon-origin-varrock-unlocked",
+          "balloon-destination-grand-tree-unlocked"
+        ],
+        "confirmations": [
+          "balloon-origin-varrock-unlocked",
+          "balloon-destination-grand-tree-unlocked",
+          "sufficient-stored-balloon-charges"
+        ]
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Balloon_transport_system?oldid=36927642",
+          "detail": "Reviewed revision establishes transport, access or exact station coordinate as described in the evidence document."
+        }
+      ],
+      "unknowns": [
+        "Initial destination-unlock flight is excluded; this route requires an already unlocked destination.",
+        "Exact landing tile and live player interaction have not been observed."
+      ],
+      "from": "balloon-varrock"
+    },
+    {
+      "id": "balloon-castle-wars-to-entrana",
+      "name": "Castle Wars to Entrana balloon",
+      "kind": "balloon",
+      "to": "balloon-entrana",
+      "bidirectional": false,
+      "members": true,
+      "f2p": false,
+      "requirements": {
+        "levels": {
+          "Firemaking": 20
+        },
+        "quests": [
+          "Enlightened Journey"
+        ],
+        "items": [],
+        "fare": {
+          "currency": "balloon charges",
+          "amount": 1,
+          "detail": "Subsequent flight after destination unlock; stored charges are consumed."
+        },
+        "conditions": [
+          "balloon-origin-castle-wars-unlocked",
+          "balloon-destination-entrana-unlocked",
+          "entrana-permitted-inventory-and-equipment"
+        ],
+        "confirmations": [
+          "balloon-origin-castle-wars-unlocked",
+          "balloon-destination-entrana-unlocked",
+          "entrana-permitted-inventory-and-equipment",
+          "sufficient-stored-balloon-charges"
+        ]
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Balloon_transport_system?oldid=36927642",
+          "detail": "Reviewed revision establishes transport, access or exact station coordinate as described in the evidence document."
+        }
+      ],
+      "unknowns": [
+        "Initial destination-unlock flight is excluded; this route requires an already unlocked destination.",
+        "Exact landing tile and live player interaction have not been observed."
+      ],
+      "from": "balloon-castle-wars"
+    },
+    {
+      "id": "balloon-castle-wars-to-taverley",
+      "name": "Castle Wars to Taverley balloon",
+      "kind": "balloon",
+      "to": "balloon-taverley",
+      "bidirectional": false,
+      "members": true,
+      "f2p": false,
+      "requirements": {
+        "levels": {
+          "Firemaking": 20
+        },
+        "quests": [
+          "Enlightened Journey"
+        ],
+        "items": [],
+        "fare": {
+          "currency": "balloon charges",
+          "amount": 1,
+          "detail": "Subsequent flight after destination unlock; stored charges are consumed."
+        },
+        "conditions": [
+          "balloon-origin-castle-wars-unlocked",
+          "balloon-destination-taverley-unlocked"
+        ],
+        "confirmations": [
+          "balloon-origin-castle-wars-unlocked",
+          "balloon-destination-taverley-unlocked",
+          "sufficient-stored-balloon-charges"
+        ]
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Balloon_transport_system?oldid=36927642",
+          "detail": "Reviewed revision establishes transport, access or exact station coordinate as described in the evidence document."
+        }
+      ],
+      "unknowns": [
+        "Initial destination-unlock flight is excluded; this route requires an already unlocked destination.",
+        "Exact landing tile and live player interaction have not been observed."
+      ],
+      "from": "balloon-castle-wars"
+    },
+    {
+      "id": "balloon-castle-wars-to-crafting-guild",
+      "name": "Castle Wars to Crafting Guild balloon",
+      "kind": "balloon",
+      "to": "balloon-crafting-guild",
+      "bidirectional": false,
+      "members": true,
+      "f2p": false,
+      "requirements": {
+        "levels": {
+          "Firemaking": 30
+        },
+        "quests": [
+          "Enlightened Journey"
+        ],
+        "items": [],
+        "fare": {
+          "currency": "balloon charges",
+          "amount": 2,
+          "detail": "Subsequent flight after destination unlock; stored charges are consumed."
+        },
+        "conditions": [
+          "balloon-origin-castle-wars-unlocked",
+          "balloon-destination-crafting-guild-unlocked"
+        ],
+        "confirmations": [
+          "balloon-origin-castle-wars-unlocked",
+          "balloon-destination-crafting-guild-unlocked",
+          "sufficient-stored-balloon-charges"
+        ]
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Balloon_transport_system?oldid=36927642",
+          "detail": "Reviewed revision establishes transport, access or exact station coordinate as described in the evidence document."
+        }
+      ],
+      "unknowns": [
+        "Initial destination-unlock flight is excluded; this route requires an already unlocked destination.",
+        "Exact landing tile and live player interaction have not been observed."
+      ],
+      "from": "balloon-castle-wars"
+    },
+    {
+      "id": "balloon-castle-wars-to-varrock",
+      "name": "Castle Wars to Varrock balloon",
+      "kind": "balloon",
+      "to": "balloon-varrock",
+      "bidirectional": false,
+      "members": true,
+      "f2p": false,
+      "requirements": {
+        "levels": {
+          "Firemaking": 40
+        },
+        "quests": [
+          "Enlightened Journey"
+        ],
+        "items": [],
+        "fare": {
+          "currency": "balloon charges",
+          "amount": 3,
+          "detail": "Subsequent flight after destination unlock; stored charges are consumed."
+        },
+        "conditions": [
+          "balloon-origin-castle-wars-unlocked",
+          "balloon-destination-varrock-unlocked"
+        ],
+        "confirmations": [
+          "balloon-origin-castle-wars-unlocked",
+          "balloon-destination-varrock-unlocked",
+          "sufficient-stored-balloon-charges"
+        ]
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Balloon_transport_system?oldid=36927642",
+          "detail": "Reviewed revision establishes transport, access or exact station coordinate as described in the evidence document."
+        }
+      ],
+      "unknowns": [
+        "Initial destination-unlock flight is excluded; this route requires an already unlocked destination.",
+        "Exact landing tile and live player interaction have not been observed."
+      ],
+      "from": "balloon-castle-wars"
+    },
+    {
+      "id": "balloon-castle-wars-to-grand-tree",
+      "name": "Castle Wars to Grand Tree balloon",
+      "kind": "balloon",
+      "to": "balloon-grand-tree",
+      "bidirectional": false,
+      "members": true,
+      "f2p": false,
+      "requirements": {
+        "levels": {
+          "Firemaking": 60
+        },
+        "quests": [
+          "Enlightened Journey"
+        ],
+        "items": [],
+        "fare": {
+          "currency": "balloon charges",
+          "amount": 5,
+          "detail": "Subsequent flight after destination unlock; stored charges are consumed."
+        },
+        "conditions": [
+          "balloon-origin-castle-wars-unlocked",
+          "balloon-destination-grand-tree-unlocked"
+        ],
+        "confirmations": [
+          "balloon-origin-castle-wars-unlocked",
+          "balloon-destination-grand-tree-unlocked",
+          "sufficient-stored-balloon-charges"
+        ]
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Balloon_transport_system?oldid=36927642",
+          "detail": "Reviewed revision establishes transport, access or exact station coordinate as described in the evidence document."
+        }
+      ],
+      "unknowns": [
+        "Initial destination-unlock flight is excluded; this route requires an already unlocked destination.",
+        "Exact landing tile and live player interaction have not been observed."
+      ],
+      "from": "balloon-castle-wars"
+    },
+    {
+      "id": "balloon-grand-tree-to-entrana",
+      "name": "Grand Tree to Entrana balloon",
+      "kind": "balloon",
+      "to": "balloon-entrana",
+      "bidirectional": false,
+      "members": true,
+      "f2p": false,
+      "requirements": {
+        "levels": {
+          "Firemaking": 20
+        },
+        "quests": [
+          "Enlightened Journey"
+        ],
+        "items": [],
+        "fare": {
+          "currency": "balloon charges",
+          "amount": 1,
+          "detail": "Subsequent flight after destination unlock; stored charges are consumed."
+        },
+        "conditions": [
+          "balloon-origin-grand-tree-unlocked",
+          "balloon-destination-entrana-unlocked",
+          "entrana-permitted-inventory-and-equipment"
+        ],
+        "confirmations": [
+          "balloon-origin-grand-tree-unlocked",
+          "balloon-destination-entrana-unlocked",
+          "entrana-permitted-inventory-and-equipment",
+          "sufficient-stored-balloon-charges"
+        ]
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Balloon_transport_system?oldid=36927642",
+          "detail": "Reviewed revision establishes transport, access or exact station coordinate as described in the evidence document."
+        }
+      ],
+      "unknowns": [
+        "Initial destination-unlock flight is excluded; this route requires an already unlocked destination.",
+        "Exact landing tile and live player interaction have not been observed."
+      ],
+      "from": "balloon-grand-tree"
+    },
+    {
+      "id": "balloon-grand-tree-to-taverley",
+      "name": "Grand Tree to Taverley balloon",
+      "kind": "balloon",
+      "to": "balloon-taverley",
+      "bidirectional": false,
+      "members": true,
+      "f2p": false,
+      "requirements": {
+        "levels": {
+          "Firemaking": 20
+        },
+        "quests": [
+          "Enlightened Journey"
+        ],
+        "items": [],
+        "fare": {
+          "currency": "balloon charges",
+          "amount": 1,
+          "detail": "Subsequent flight after destination unlock; stored charges are consumed."
+        },
+        "conditions": [
+          "balloon-origin-grand-tree-unlocked",
+          "balloon-destination-taverley-unlocked"
+        ],
+        "confirmations": [
+          "balloon-origin-grand-tree-unlocked",
+          "balloon-destination-taverley-unlocked",
+          "sufficient-stored-balloon-charges"
+        ]
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Balloon_transport_system?oldid=36927642",
+          "detail": "Reviewed revision establishes transport, access or exact station coordinate as described in the evidence document."
+        }
+      ],
+      "unknowns": [
+        "Initial destination-unlock flight is excluded; this route requires an already unlocked destination.",
+        "Exact landing tile and live player interaction have not been observed."
+      ],
+      "from": "balloon-grand-tree"
+    },
+    {
+      "id": "balloon-grand-tree-to-crafting-guild",
+      "name": "Grand Tree to Crafting Guild balloon",
+      "kind": "balloon",
+      "to": "balloon-crafting-guild",
+      "bidirectional": false,
+      "members": true,
+      "f2p": false,
+      "requirements": {
+        "levels": {
+          "Firemaking": 30
+        },
+        "quests": [
+          "Enlightened Journey"
+        ],
+        "items": [],
+        "fare": {
+          "currency": "balloon charges",
+          "amount": 2,
+          "detail": "Subsequent flight after destination unlock; stored charges are consumed."
+        },
+        "conditions": [
+          "balloon-origin-grand-tree-unlocked",
+          "balloon-destination-crafting-guild-unlocked"
+        ],
+        "confirmations": [
+          "balloon-origin-grand-tree-unlocked",
+          "balloon-destination-crafting-guild-unlocked",
+          "sufficient-stored-balloon-charges"
+        ]
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Balloon_transport_system?oldid=36927642",
+          "detail": "Reviewed revision establishes transport, access or exact station coordinate as described in the evidence document."
+        }
+      ],
+      "unknowns": [
+        "Initial destination-unlock flight is excluded; this route requires an already unlocked destination.",
+        "Exact landing tile and live player interaction have not been observed."
+      ],
+      "from": "balloon-grand-tree"
+    },
+    {
+      "id": "balloon-grand-tree-to-varrock",
+      "name": "Grand Tree to Varrock balloon",
+      "kind": "balloon",
+      "to": "balloon-varrock",
+      "bidirectional": false,
+      "members": true,
+      "f2p": false,
+      "requirements": {
+        "levels": {
+          "Firemaking": 40
+        },
+        "quests": [
+          "Enlightened Journey"
+        ],
+        "items": [],
+        "fare": {
+          "currency": "balloon charges",
+          "amount": 3,
+          "detail": "Subsequent flight after destination unlock; stored charges are consumed."
+        },
+        "conditions": [
+          "balloon-origin-grand-tree-unlocked",
+          "balloon-destination-varrock-unlocked"
+        ],
+        "confirmations": [
+          "balloon-origin-grand-tree-unlocked",
+          "balloon-destination-varrock-unlocked",
+          "sufficient-stored-balloon-charges"
+        ]
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Balloon_transport_system?oldid=36927642",
+          "detail": "Reviewed revision establishes transport, access or exact station coordinate as described in the evidence document."
+        }
+      ],
+      "unknowns": [
+        "Initial destination-unlock flight is excluded; this route requires an already unlocked destination.",
+        "Exact landing tile and live player interaction have not been observed."
+      ],
+      "from": "balloon-grand-tree"
+    },
+    {
+      "id": "balloon-grand-tree-to-castle-wars",
+      "name": "Grand Tree to Castle Wars balloon",
+      "kind": "balloon",
+      "to": "balloon-castle-wars",
+      "bidirectional": false,
+      "members": true,
+      "f2p": false,
+      "requirements": {
+        "levels": {
+          "Firemaking": 50
+        },
+        "quests": [
+          "Enlightened Journey"
+        ],
+        "items": [],
+        "fare": {
+          "currency": "balloon charges",
+          "amount": 4,
+          "detail": "Subsequent flight after destination unlock; stored charges are consumed."
+        },
+        "conditions": [
+          "balloon-origin-grand-tree-unlocked",
+          "balloon-destination-castle-wars-unlocked"
+        ],
+        "confirmations": [
+          "balloon-origin-grand-tree-unlocked",
+          "balloon-destination-castle-wars-unlocked",
+          "sufficient-stored-balloon-charges"
+        ]
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Balloon_transport_system?oldid=36927642",
+          "detail": "Reviewed revision establishes transport, access or exact station coordinate as described in the evidence document."
+        }
+      ],
+      "unknowns": [
+        "Initial destination-unlock flight is excluded; this route requires an already unlocked destination.",
+        "Exact landing tile and live player interaction have not been observed."
+      ],
+      "from": "balloon-grand-tree"
+    },
+    {
+      "id": "cart-brimhaven-shilo",
+      "name": "Brimhaven / Shilo Village cart",
+      "kind": "cart",
+      "to": "cart-shilo",
+      "bidirectional": true,
+      "members": true,
+      "f2p": false,
+      "requirements": {
+        "levels": {},
+        "quests": [
+          "Shilo Village"
+        ],
+        "items": [],
+        "fare": {
+          "currency": "coins",
+          "amount": 10
+        },
+        "conditions": [],
+        "confirmations": []
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Shilo_Village_cart_system?oldid=36804794",
+          "detail": "Reviewed revision establishes transport, access or exact station coordinate as described in the evidence document."
+        },
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Hajedy?oldid=37139602",
+          "detail": "Reviewed revision establishes transport, access or exact station coordinate as described in the evidence document."
+        },
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Vigroy?oldid=37139620",
+          "detail": "Reviewed revision establishes transport, access or exact station coordinate as described in the evidence document."
+        }
+      ],
+      "unknowns": [
+        "Exact landing tile and live player interaction have not been observed."
+      ],
+      "from": "cart-brimhaven"
+    },
+    {
+      "id": "boat-port-sarim-entrana",
+      "name": "Port Sarim / Entrana boat",
+      "kind": "boat",
+      "to": "entrana-boat-island",
+      "bidirectional": true,
+      "members": true,
+      "f2p": false,
+      "requirements": {
+        "levels": {},
+        "quests": [],
+        "items": [],
+        "fare": null,
+        "conditions": [
+          "entrana-permitted-inventory-and-equipment"
+        ],
+        "confirmations": [
+          "entrana-inventory-check-passed"
+        ]
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Monk_of_Entrana?oldid=37127314",
+          "detail": "Reviewed revision establishes transport, access or exact station coordinate as described in the evidence document."
+        },
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Entrana?oldid=37161918",
+          "detail": "Reviewed revision establishes transport, access or exact station coordinate as described in the evidence document."
+        }
+      ],
+      "unknowns": [
+        "Exact landing tile and live player interaction have not been observed."
+      ],
+      "from": "entrana-boat-port-sarim"
+    },
+    {
+      "id": "interior-lumbridge-swamp",
+      "name": "Lumbridge Swamp Caves entrance",
+      "kind": "cave",
+      "from": "lumbridge-swamp-surface",
+      "to": "lumbridge-swamp-interior",
+      "bidirectional": true,
+      "members": true,
+      "f2p": false,
+      "requirements": {
+        "levels": {},
+        "quests": [],
+        "items": [],
+        "fare": null,
+        "conditions": [
+          "swamp-cave-rope-installed",
+          "swamp-cave-usable-light-source"
+        ],
+        "confirmations": [
+          "swamp-cave-rope-installed",
+          "swamp-cave-usable-light-source"
+        ]
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Dark_hole_under_tree?oldid=36906820",
+          "detail": "Exact object map surface coordinate and rope/light-source access facts."
+        },
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Lumbridge_Swamp_Caves?oldid=37169606",
+          "detail": "Members cave; first descent requires rope; safe light recommended."
+        },
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Map:Lumbridge_Swamp_Caves?oldid=37026506",
+          "detail": "Exit to surface at climbing rope location3169.5,9571.5 corroborates cache rope."
+        }
+      ],
+      "unknowns": [
+        "Rope is needed once. A usable light source is conservatively required; no unsafe dark travel is modelled.",
+        "Surface hole91021 resolves to5947/91020 by varbit4291; personal state is unobserved.",
+        "Exact landing tile and live player interaction have not been observed."
+      ]
+    },
+    {
+      "id": "interior-burthorpe-slayer",
+      "name": "Taverley / Burthorpe Slayer Cave",
+      "kind": "cave",
+      "from": "burthorpe-slayer-surface",
+      "to": "burthorpe-slayer-interior",
+      "bidirectional": true,
+      "members": false,
+      "f2p": true,
+      "requirements": {
+        "levels": {},
+        "quests": [],
+        "items": [],
+        "fare": null,
+        "conditions": [],
+        "confirmations": []
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Cave_entrance_(Burthorpe_Slayer_Cave)?oldid=36472830",
+          "detail": "Exact object67043 coordinate2915,3465; entering leads to cave."
+        },
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Burthorpe_Slayer_Cave?oldid=37131280",
+          "detail": "Free-to-play cave; southern spring provides living water during Druidic Ritual."
+        },
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Map:Burthorpe_Slayer_Cave?oldid=35975722",
+          "detail": "Map exit at236,52 corroborates exact cache exit236,51."
+        }
+      ],
+      "unknowns": [
+        "Exact landing tile and live player interaction have not been observed."
+      ]
+    },
+    {
+      "id": "interior-karamja-volcano",
+      "name": "Karamja Volcano dungeon entrance",
+      "kind": "cave",
+      "from": "karamja-volcano-surface",
+      "to": "karamja-volcano-interior",
+      "bidirectional": true,
+      "members": false,
+      "f2p": true,
+      "requirements": {
+        "levels": {},
+        "quests": [],
+        "items": [],
+        "fare": null,
+        "conditions": [],
+        "confirmations": []
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Elvarg's_lair?oldid=37122213",
+          "detail": "F2P Karamjan dungeon entered through volcano rocks; entrance area pin2856,3167 corroborates exact rocks2856,3168."
+        },
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Map:Elvarg's_lair?oldid=36172871",
+          "detail": "Rope to Karamja identified independently in dungeon map; cache gives exact source-coordinate anchor."
+        }
+      ],
+      "unknowns": [
+        "Exact landing tile and live player interaction have not been observed."
+      ]
+    },
+    {
+      "id": "interior-crandor-dungeon",
+      "name": "Crandor / Elvarg's lair entrance",
+      "kind": "cave",
+      "from": "crandor-dungeon-surface",
+      "to": "crandor-dungeon-interior",
+      "bidirectional": true,
+      "members": false,
+      "f2p": true,
+      "requirements": {
+        "levels": {},
+        "quests": [
+          "Dragon Slayer"
+        ],
+        "items": [],
+        "fare": null,
+        "conditions": [
+          "crandor-dungeon-post-dragon-slayer-access"
+        ],
+        "confirmations": [
+          "crandor-dungeon-post-dragon-slayer-access"
+        ]
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Elvarg's_lair?oldid=37122213",
+          "detail": "Crandorian entrance access established during Dragon Slayer; conservative completed-quest route represented."
+        },
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Map:Elvarg's_lair?oldid=36172871",
+          "detail": "Dungeon rope to Crandor corroborates exact cache counterpart."
+        }
+      ],
+      "unknowns": [
+        "Quest-stage initial Crandor access and unvisited hidden-wall traversal are excluded.",
+        "Exact landing tile and live player interaction have not been observed."
+      ]
+    },
+    {
+      "id": "interior-asgarnian-ice",
+      "name": "Asgarnian Ice Dungeon trapdoor",
+      "kind": "ladder",
+      "from": "asgarnian-ice-surface",
+      "to": "asgarnian-ice-interior",
+      "bidirectional": true,
+      "members": false,
+      "f2p": true,
+      "requirements": {
+        "levels": {},
+        "quests": [],
+        "items": [],
+        "fare": null,
+        "conditions": [],
+        "confirmations": []
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Asgarnian_Ice_Dungeon?oldid=37127295",
+          "detail": "F2P main dungeon accessed by trapdoor3008,3150; descent arrives by bottom of ladder. Members wyvern chambers excluded."
+        }
+      ],
+      "unknowns": [
+        "Exact landing tile and live player interaction have not been observed."
+      ]
+    },
+    {
+      "id": "interior-lumbridge-cellar",
+      "name": "Lumbridge Castle kitchen / cellar",
+      "kind": "ladder",
+      "from": "lumbridge-cellar-surface",
+      "to": "lumbridge-cellar-interior",
+      "bidirectional": true,
+      "members": false,
+      "f2p": true,
+      "requirements": {
+        "levels": {},
+        "quests": [],
+        "items": [],
+        "fare": null,
+        "conditions": [],
+        "confirmations": []
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Trapdoor_(Lumbridge_Castle)?oldid=36789230",
+          "detail": "Exact surface object36687 at3209,3216 leads down to cellar."
+        },
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Lumbridge_Castle?oldid=37149520",
+          "detail": "Cellar exists before Lost Tribe or Recipe for Disaster; mine-tunnel access has separate members/quest gating."
+        }
+      ],
+      "unknowns": [
+        "Exact landing tile and live player interaction have not been observed."
+      ]
+    },
+    {
+      "id": "interior-lumbridge-catacombs",
+      "name": "Lumbridge cemetery / upper Catacombs",
+      "kind": "cave",
+      "from": "lumbridge-catacombs-surface",
+      "to": "lumbridge-catacombs-upper-exit",
+      "bidirectional": true,
+      "members": false,
+      "f2p": true,
+      "requirements": {
+        "levels": {},
+        "quests": [],
+        "items": [],
+        "fare": null,
+        "conditions": [
+          "blood-pact-upper-catacombs-entry"
+        ],
+        "confirmations": [
+          "blood-pact-upper-catacombs-entry"
+        ]
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Lumbridge_Catacombs?oldid=37109974",
+          "detail": "F2P entrance in cemetery; The Blood Pact required for lowest main combat catacombs."
+        },
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Map:The_Blood_Pact?oldid=35977504",
+          "detail": "Explicit upperplane1 and lowerplane0 quest maps; cemetery exit and two west staircases."
+        },
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/The_Blood_Pact?oldid=37153014",
+          "detail": "Quest enters upper catacombs; stairs beyond Caitlin lead to Reese; completed quest grants lower catacombs access."
+        }
+      ],
+      "unknowns": [
+        "Exact landing tile and live player interaction have not been observed.",
+        "Plane1 source objects omitted from cache transition projection; source placements plus Wiki layer evidence retain them on map164 without forcing surfaceplane0."
+      ]
+    },
+    {
+      "id": "stairs-lumbridge-catacombs-south",
+      "name": "Catacombs south stairs",
+      "kind": "stairs",
+      "from": "lumbridge-catacombs-stairs-south-upper",
+      "to": "lumbridge-catacombs-stairs-south-lower",
+      "bidirectional": true,
+      "members": false,
+      "f2p": true,
+      "requirements": {
+        "levels": {},
+        "quests": [],
+        "items": [],
+        "fare": null,
+        "conditions": [
+          "blood-pact-west-staircases-open"
+        ],
+        "confirmations": [
+          "blood-pact-west-staircases-open"
+        ]
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Lumbridge_Catacombs?oldid=37109974",
+          "detail": "F2P entrance in cemetery; The Blood Pact required for lowest main combat catacombs."
+        },
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Map:The_Blood_Pact?oldid=35977504",
+          "detail": "Explicit upperplane1 and lowerplane0 quest maps; cemetery exit and two west staircases."
+        },
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/The_Blood_Pact?oldid=37153014",
+          "detail": "Quest enters upper catacombs; stairs beyond Caitlin lead to Reese; completed quest grants lower catacombs access."
+        }
+      ],
+      "unknowns": [
+        "Exact landing tile and live player interaction have not been observed.",
+        "Plane1 source objects omitted from cache transition projection; source placements plus Wiki layer evidence retain them on map164 without forcing surfaceplane0."
+      ]
+    },
+    {
+      "id": "stairs-lumbridge-catacombs-north",
+      "name": "Catacombs north stairs",
+      "kind": "stairs",
+      "from": "lumbridge-catacombs-stairs-north-upper",
+      "to": "lumbridge-catacombs-stairs-north-lower",
+      "bidirectional": true,
+      "members": false,
+      "f2p": true,
+      "requirements": {
+        "levels": {},
+        "quests": [],
+        "items": [],
+        "fare": null,
+        "conditions": [
+          "blood-pact-west-staircases-open"
+        ],
+        "confirmations": [
+          "blood-pact-west-staircases-open"
+        ]
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Lumbridge_Catacombs?oldid=37109974",
+          "detail": "F2P entrance in cemetery; The Blood Pact required for lowest main combat catacombs."
+        },
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Map:The_Blood_Pact?oldid=35977504",
+          "detail": "Explicit upperplane1 and lowerplane0 quest maps; cemetery exit and two west staircases."
+        },
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/The_Blood_Pact?oldid=37153014",
+          "detail": "Quest enters upper catacombs; stairs beyond Caitlin lead to Reese; completed quest grants lower catacombs access."
+        }
+      ],
+      "unknowns": [
+        "Exact landing tile and live player interaction have not been observed.",
+        "Plane1 source objects omitted from cache transition projection; source placements plus Wiki layer evidence retain them on map164 without forcing surfaceplane0."
+      ]
+    },
+    {
+      "id": "stairs-lumbridge-catacombs-main",
+      "name": "Quest rooms / lower combat catacombs",
+      "kind": "stairs",
+      "from": "lumbridge-catacombs-main-descent",
+      "to": "lumbridge-catacombs-main-exit",
+      "bidirectional": true,
+      "members": false,
+      "f2p": true,
+      "requirements": {
+        "levels": {},
+        "quests": [
+          "The Blood Pact"
+        ],
+        "items": [],
+        "fare": null,
+        "conditions": [],
+        "confirmations": []
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Lumbridge_Catacombs?oldid=37109974",
+          "detail": "F2P entrance in cemetery; The Blood Pact required for lowest main combat catacombs."
+        },
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Map:The_Blood_Pact?oldid=35977504",
+          "detail": "Explicit upperplane1 and lowerplane0 quest maps; cemetery exit and two west staircases."
+        },
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/The_Blood_Pact?oldid=37153014",
+          "detail": "Quest enters upper catacombs; stairs beyond Caitlin lead to Reese; completed quest grants lower catacombs access."
+        }
+      ],
+      "unknowns": [
+        "Exact landing tile and live player interaction have not been observed.",
+        "Plane1 source objects omitted from cache transition projection; source placements plus Wiki layer evidence retain them on map164 without forcing surfaceplane0."
+      ]
+    }
+  ]
+}

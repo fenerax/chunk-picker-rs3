@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "revision": 0,
+  "rules": {},
+  "tasks": [],
+  "history": [],
+  "members": [
+    {
+      "id": "player1", "name": "Synthetic Player 1", "sourceMapId": null,
+      "unlocked": ["12850", "12342"], "selected": [], "pendingRoll": [], "blacklisted": [], "completedTasks": [], "teleports": [],
+      "sectionOverrides": { "12850-1000001": true },
+      "transportFacts": { "levels": { "Woodcutting": 42 }, "currencies": { "coins": 60 }, "confirmations": { "canoe-familiar-state-supported": true } }
+    },
+    {
+      "id": "player2", "name": "Synthetic Player 2", "sourceMapId": null,
+      "unlocked": ["12341"], "selected": [], "pendingRoll": [], "blacklisted": [], "completedTasks": [], "teleports": [],
+      "transportFacts": { "levels": { "Woodcutting": 1 } }
+    }
+  ]
+}

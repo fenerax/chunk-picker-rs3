@@ -1,0 +1,11 @@
+.helper-training-banking-columns { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-6); }
+.helper-training-banking-comparison { margin-block: var(--space-6); max-width: 38rem; }
+.helper-training-banking-comparison h4 { margin: var(--space-6) 0 var(--space-3); font-size: var(--type-legacy-1em); }
+.helper-training-banking-option { min-width: 0; overflow-wrap: anywhere; }
+.helper-training-banking-option p { margin-block: var(--space-3); font-variant-numeric: tabular-nums; }
+.helper-training-processing { margin-block: var(--space-5); }
+.helper-training-processing p { margin-block: var(--space-3); font-variant-numeric: tabular-nums; }
+.helper-training-banking-spot + .helper-training-banking-spot { margin-top: var(--space-6); }
+.helper-training-banking-details { margin-top: var(--space-4); }
+.helper-training-banking-more { margin-top: var(--space-5); }
+@media (max-width: 420px) { .helper-training-banking-columns { gap: var(--space-5); } }

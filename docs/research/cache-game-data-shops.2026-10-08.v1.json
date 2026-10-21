@@ -1,0 +1,1538 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-10-08T12:48:06.186Z",
+  "datasetDirectory": "C:/Users/User/Projects/chunk-picker-rs3/.local/game-data/shops-2026-10-08-v1",
+  "manifestFile": "shops-manifest.v1.json",
+  "manifestSha256": "e32f3be215d8176a711b9bca21b0f312515b4135dcf5ea6ca70c144ac0547a08",
+  "decoder": {
+    "repository": "https://github.com/skillbert/rsmv",
+    "commit": "a92b8920b9b9842adde78822646ecad1a6f4fc15",
+    "buildSchema": 950,
+    "buildStatus": "inferred schema version; not independently verified game client build",
+    "sourceHashes": {
+      "constants": "1436162d7de64725f3b5902d1ae278f40e2dce5ab1f82439e62a2a832d82c66b",
+      "opcode": "5fd7b69a0be0a5d4ec71b5465afcfd5812e8dbcc05f859e021ca8c17d85ed6e4"
+    },
+    "schemaHashes": {
+      "typedef.jsonc": "0d4037507c304ea3bd1e966a161dc1643115c0991e81711bf49d672545dc6858",
+      "cacheindex.json": "b65b2f60dba6168134f6ae5c90d5504dcf26f276477bd2aff213c6734293f793",
+      "mapsquare_tiles.jsonc": "64deb140845bf6605456da65b2de56e7766a66f4747fc90f43e7f3fcc95afbdd",
+      "mapsquare_tiles_nxt.jsonc": "0199a97ae17a56b5a4f05b5962fd80788e86807ceff1256d023a2e650f43be56",
+      "mapsquare_locations.json": "41867d05f7f9456c54f2eedda9a977734b99e33736b89c2cece1eb618a99b308",
+      "locs.jsonc": "fbd5f1d646341a716e1c3c4b41a112727e62922290b44300e69ba8e2aa70c51f",
+      "npcs.jsonc": "1b3b3ffa02e325c0aecafb7d7b22ff7256f11494ab37685115cfd795b0fa4af2",
+      "maplabels.jsonc": "e3bd3e0d827f48ddbb1470e2959c51da23624a4e0fdfc145fa37d62bce780d63",
+      "maplabellocations.jsonc": "5b95af45643e545ca75c9bc4f2d942c033b994a01a00e243d93c36e49372e342",
+      "mapzones_pastes.json": "30f83ad60a5e372e1644627aa234eeca22bbd8e1ece36c44e87a0229f20e40fa",
+      "mapzones.json": "8ba12ea64687bf7376978682ca35688adf1d05a9dca221073dc79f5060f15b29",
+      "mapsquare_overlays.jsonc": "ebf509b0cfeba3288750e40b2049ccd25a210170e54fad7fb387619043954d62",
+      "mapsquare_underlays.jsonc": "2b2f0db789c666d40d85a9764aa4e3ecb9b36bd8f0cacf89e3024180b76b5478",
+      "inventories.jsonc": "679909c893fec2d0ad0ec635b6c2a3bf0cf3f43096936a4681dd8e7c1b8f1687",
+      "items.jsonc": "8d0148d6810a56f166a8609f9cebbf19b1c1ffc763bd73053b2e3220aa5d6009",
+      "params.jsonc": "a8ac70f87c66b79fa5ef3455d41c38434fa0a85cf78ea99b8a736ddc1aecc4dd",
+      "enums.json": "860ee65ad6cd215960981695e8148de18564464f4375e27eb6b308fbad6c909d",
+      "structs.jsonc": "bf73399b40d9ebffb6f7beb5cab9c7b091724e6bcae0c5f76f61802a081d9870",
+      "interfaces.jsonc": "105f29af0875ee27056bd748fecec8c840d441fa2d439a987cf725ce156a7091",
+      "clientscript.jsonc": "c37732813825bde0caa1823a787912324b1c34e497e689bb5d3ebbd4608079ea",
+      "clientscriptdata.jsonc": "e7eb3e90ac5d7214b0f5c06c6adfd1daa154883e7f8691b5ed290497e9cfedc3"
+    },
+    "footerValidation": "bounds and complete consumption required",
+    "executableInterpreterSha256": "ec7fa2cc9ab635bf2ef629f1fa8b77b6f32a97be1aaf4e26970ab2337e58bf16"
+  },
+  "reference": {
+    "path": "C:/Users/User/Projects/chunk-picker-rs3-wt/npcshops/rs3-chunkpicker-chunkinfo-export.json",
+    "sha256": "9dd835266f381abaa4d14033abcd0b43a001fe96d7df0a7f046fcc8676d66553"
+  },
+  "sources": [
+    {
+      "major": 2,
+      "file": "js5-2.jcache",
+      "bytes": 2195456,
+      "sha256": "a549a8c19598964dd3e5479ff6bb40056df6456c9e89a7c23a887eb24cabcb75",
+      "indexTimestamp": 1790931935,
+      "declaredArchives": 39,
+      "presentArchives": 39
+    },
+    {
+      "major": 19,
+      "file": "js5-19.jcache",
+      "bytes": 2121728,
+      "sha256": "20b9dcb5254dfd57a9c7444cb25806a6d9c9dc8d2ce165b396e7589522182ab2",
+      "indexTimestamp": 1790927042,
+      "declaredArchives": 251,
+      "presentArchives": 251
+    },
+    {
+      "major": 17,
+      "file": "js5-17.jcache",
+      "bytes": 909312,
+      "sha256": "bf02a85420cedea2d8b61bf607930ab894df60440cbebcc7431730ea8da52404",
+      "indexTimestamp": 1790775927,
+      "declaredArchives": 69,
+      "presentArchives": 69
+    },
+    {
+      "major": 22,
+      "file": "js5-22.jcache",
+      "bytes": 2392064,
+      "sha256": "47a7b0cae70f7264f5fcf8415ddecfedcc92a0e07fe3aedf9fd53d15b9fffb03",
+      "indexTimestamp": 1790775928,
+      "declaredArchives": 1672,
+      "presentArchives": 1672
+    },
+    {
+      "major": 18,
+      "file": "js5-18.jcache",
+      "bytes": 1167360,
+      "sha256": "0f978658b6ff4526cd5e897e5e7aa5e4f4c01515a45c56ce9c2caa8dc003ab79",
+      "indexTimestamp": 1790928254,
+      "declaredArchives": 258,
+      "presentArchives": 258
+    },
+    {
+      "major": 3,
+      "file": "js5-3.jcache",
+      "bytes": 2371584,
+      "sha256": "3f6bc074ca7194f180dbe3fdbd6046fb15349dc7afc51fea18336de4f82a4bfd",
+      "indexTimestamp": 1790775928,
+      "declaredArchives": 1884,
+      "presentArchives": 1884
+    },
+    {
+      "major": 12,
+      "file": "js5-12.jcache",
+      "bytes": 4993024,
+      "sha256": "ff498237c62d6ae3dc92a2412dca962bdc2f4419d986026b0a69adb6954627a1",
+      "indexTimestamp": 0,
+      "declaredArchives": 21115,
+      "presentArchives": 21115
+    }
+  ],
+  "outputs": [
+    {
+      "path": "C:/Users/User/Projects/chunk-picker-rs3/.local/game-data/shops-2026-10-08-v1/shops.cache-2026-10-08.v1.json",
+      "bytes": 4341677,
+      "sha256": "a250887d4fa7cc3e38ab36abda2177ab1fd3bfde1cd61dea08d7f0e13f65dcce"
+    },
+    {
+      "path": "C:/Users/User/Projects/chunk-picker-rs3/.local/game-data/shops-2026-10-08-v1/shops-retained-comparison.2026-10-08.v1.json",
+      "bytes": 808427,
+      "sha256": "e9cfacf53e07873bdc7d0ff025121afb3f132f9b216921f99e4f287e2b15316e"
+    },
+    {
+      "path": "C:/Users/User/Projects/chunk-picker-rs3/.local/game-data/shops-2026-10-08-v1/shops-clientscript-headers.2026-10-08.v1.json",
+      "bytes": 6409490,
+      "sha256": "9659ada4b0ad0de5fc8cf2b56e9ae66ed754c0ee6c88beabf0cfa337812e523f"
+    },
+    {
+      "path": "C:/Users/User/Projects/chunk-picker-rs3/.local/game-data/shops-2026-10-08-v1/shops-reviewed.2026-10-08.v1.json",
+      "bytes": 34329,
+      "sha256": "be1514101d29dd2a93b83ef277393740c97e13668a59e483a7bf37771b91d326"
+    },
+    {
+      "path": "C:/Users/User/Projects/chunk-picker-rs3/.local/game-data/shops-2026-10-08-v1/shops-wiki-snapshot.2026-10-08.v1.json",
+      "bytes": 31806,
+      "sha256": "2d55b7f8e26c7c4ce1bc7360ffe0c55347d9fdf1240120847f85348964905deb"
+    }
+  ],
+  "summary": {
+    "inventoryDefinitions": 957,
+    "inventoryDecodeErrors": 0,
+    "fieldCounts": {
+      "size": 957,
+      "shopdata": 544
+    },
+    "withShopdata": 544,
+    "withoutShopdata": 413,
+    "emptyShopdata": 0,
+    "stockRows": 6329,
+    "positiveStockRows": 5545,
+    "zeroStockRows": 784,
+    "missingItemDefinitions": 0,
+    "duplicateItemInventories": 0,
+    "encodedShopNames": 0,
+    "encodedCurrencies": 0,
+    "encodedShopMembership": 0,
+    "encodedKeeperLinks": 0,
+    "inventoryTypedParams": 8,
+    "inventoryTypedEnums": 20,
+    "inventoryTypedStructs": 28,
+    "inventoryTypedNpcs": 0,
+    "interfaceTextHits": 102,
+    "interfaceStockTriggerComponents": 1,
+    "scriptHeaders": 21115,
+    "scriptHeaderErrors": 0,
+    "scriptTextHits": 54,
+    "rewardUiFragments": 120,
+    "reviewedCompleteNamedShops": 6,
+    "retained": {
+      "retainedShops": 404,
+      "declarations": 576,
+      "withExactNameSet": 226,
+      "uniqueExactNameSet": 187,
+      "ambiguousExactNameSet": 39,
+      "withoutNameOverlap": 47
+    }
+  },
+  "runtime": {
+    "path": "app/data/cache-shops.2026-10-08.v1.json",
+    "sha256": "be1514101d29dd2a93b83ef277393740c97e13668a59e483a7bf37771b91d326",
+    "hashScope": "repository LF text",
+    "reviewedShops": 6,
+    "stockRows": 184
+  },
+  "wikiSnapshot": {
+    "path": "C:/Users/User/Projects/rs3-cache-work/npcshops-shop-wiki-2026-10-08.v1.json",
+    "sha256": "2d55b7f8e26c7c4ce1bc7360ffe0c55347d9fdf1240120847f85348964905deb",
+    "fetchedAt": "2026-10-08T12:42:17.209Z",
+    "pages": 8
+  },
+  "extractor": {
+    "path": "scripts/cache/game-data-shops.mjs",
+    "sha256": "bd71fc6588a3d3f6a1ff30c6e145963647693179869121f6117644196fb38bed",
+    "hashScope": "repository LF text"
+  },
+  "tables": {
+    "inventories": {
+      "decoded": 957,
+      "archiveCount": 1,
+      "errors": []
+    },
+    "items": {
+      "decoded": 63798,
+      "archiveCount": 251,
+      "errors": []
+    },
+    "params": {
+      "decoded": 9498,
+      "archiveCount": 1,
+      "errors": []
+    },
+    "enums": {
+      "decoded": 16755,
+      "archiveCount": 69,
+      "errors": []
+    },
+    "structs": {
+      "decoded": 53501,
+      "archiveCount": 1672,
+      "errors": []
+    },
+    "npcs": {
+      "decoded": 32905,
+      "archiveCount": 258,
+      "errors": []
+    }
+  },
+  "interfaces": {
+    "decoded": 104223,
+    "errors": [
+      {
+        "major": 3,
+        "minor": 105,
+        "subid": 225,
+        "id": 6881505,
+        "message": "interface at byte 178/264: no opcode matched"
+      },
+      {
+        "major": 3,
+        "minor": 707,
+        "subid": 15,
+        "id": 46333967,
+        "message": "interface at byte 178/264: no opcode matched"
+      },
+      {
+        "major": 3,
+        "minor": 1438,
+        "subid": 18,
+        "id": 94240786,
+        "message": "interface at byte 251/343: no opcode matched"
+      },
+      {
+        "major": 3,
+        "minor": 1438,
+        "subid": 19,
+        "id": 94240787,
+        "message": "interface at byte 251/338: no opcode matched"
+      }
+    ],
+    "textHitComponents": 102,
+    "stockInventoryTriggerComponents": 1,
+    "uiInventoryAssociations": [
+      {
+        "interfaceId": 197,
+        "triggerComponent": 11,
+        "stockInventoryIds": [
+          347
+        ],
+        "sameInterfaceText": [
+          {
+            "component": 13,
+            "hits": [
+              {
+                "path": "scripts.load.5",
+                "value": "Magic Training Area shop"
+              }
+            ]
+          }
+        ],
+        "interpretation": "Same-interface typed inventory trigger and text; candidate association only, script execution and server identity unknown"
+      }
+    ]
+  },
+  "clientscripts": {
+    "declared": 21115,
+    "headersDecoded": 21115,
+    "errors": [],
+    "fullDecodeProbe": {
+      "minor": 0,
+      "status": "unavailable",
+      "reason": "clientscript at byte 1/526: clientScriptDeob not set in args"
+    },
+    "textHitScripts": 54,
+    "examples": [
+      {
+        "minor": 8424,
+        "subid": 0,
+        "hits": [
+          {
+            "offset": 62,
+            "text": "Hank's Fishing Store"
+          },
+          {
+            "offset": 102,
+            "text": "General Store"
+          }
+        ]
+      },
+      {
+        "minor": 11613,
+        "subid": 0,
+        "hits": [
+          {
+            "offset": 28,
+            "text": "Shop data is null."
+          }
+        ]
+      }
+    ]
+  },
+  "typedReferences": {
+    "inventoryParams": [
+      [
+        1096,
+        {
+          "type": {
+            "vartype": 39,
+            "defaultint": -1,
+            "defaultstring": null
+          }
+        }
+      ],
+      [
+        1163,
+        {
+          "type": {
+            "vartype": 39,
+            "defaultint": 585,
+            "defaultstring": null
+          }
+        }
+      ],
+      [
+        3818,
+        {
+          "type": {
+            "vartype": 39,
+            "defaultint": -1,
+            "defaultstring": null
+          }
+        }
+      ],
+      [
+        6319,
+        {
+          "type": {
+            "vartype": 39,
+            "defaultint": -1,
+            "defaultstring": null
+          }
+        }
+      ],
+      [
+        6352,
+        {
+          "type": {
+            "vartype": 39,
+            "defaultint": -1,
+            "defaultstring": null
+          }
+        }
+      ],
+      [
+        7543,
+        {
+          "type": {
+            "vartype": 39,
+            "defaultint": -1,
+            "defaultstring": null
+          }
+        }
+      ],
+      [
+        8092,
+        {
+          "type": {
+            "vartype": 39,
+            "defaultint": 93,
+            "defaultstring": null
+          }
+        }
+      ],
+      [
+        8644,
+        {
+          "type": {
+            "vartype": 39,
+            "defaultint": -1,
+            "defaultstring": null
+          }
+        }
+      ]
+    ],
+    "inventoryEnumIds": [
+      777,
+      880,
+      921,
+      1078,
+      1079,
+      1943,
+      3879,
+      3880,
+      3882,
+      3883,
+      6153,
+      8095,
+      8096,
+      11528,
+      11746,
+      11747,
+      12546,
+      12551,
+      15988,
+      16176
+    ],
+    "inventoryStructIds": [
+      1030,
+      1031,
+      1113,
+      1114,
+      1115,
+      1116,
+      1119,
+      1120,
+      1121,
+      1122,
+      1123,
+      1124,
+      1125,
+      1126,
+      1127,
+      1128,
+      1129,
+      1130,
+      1131,
+      28120,
+      29397,
+      29446,
+      35654,
+      35655,
+      35656,
+      35657,
+      53224,
+      53225
+    ],
+    "inventoryNpcReferences": [],
+    "examples": {
+      "generalStoreCandidateEnum": {
+        "id": 921,
+        "raw": {
+          "key_type2": 39,
+          "value_type2": 0,
+          "intArrayValue1": [
+            [
+              235,
+              1
+            ],
+            [
+              383,
+              1
+            ],
+            [
+              148,
+              1
+            ],
+            [
+              513,
+              1
+            ],
+            [
+              301,
+              1
+            ],
+            [
+              254,
+              1
+            ],
+            [
+              3,
+              1
+            ],
+            [
+              4,
+              1
+            ],
+            [
+              13,
+              1
+            ],
+            [
+              17,
+              1
+            ],
+            [
+              18,
+              1
+            ],
+            [
+              23,
+              1
+            ],
+            [
+              24,
+              1
+            ],
+            [
+              31,
+              1
+            ],
+            [
+              34,
+              1
+            ],
+            [
+              38,
+              1
+            ],
+            [
+              41,
+              1
+            ],
+            [
+              47,
+              1
+            ],
+            [
+              57,
+              1
+            ],
+            [
+              61,
+              1
+            ],
+            [
+              62,
+              1
+            ],
+            [
+              65,
+              1
+            ],
+            [
+              138,
+              1
+            ],
+            [
+              70,
+              1
+            ],
+            [
+              83,
+              1
+            ],
+            [
+              214,
+              1
+            ],
+            [
+              416,
+              1
+            ],
+            [
+              227,
+              1
+            ],
+            [
+              442,
+              1
+            ],
+            [
+              343,
+              1
+            ],
+            [
+              389,
+              1
+            ],
+            [
+              204,
+              1
+            ],
+            [
+              159,
+              1
+            ],
+            [
+              160,
+              1
+            ],
+            [
+              455,
+              1
+            ],
+            [
+              456,
+              1
+            ],
+            [
+              441,
+              1
+            ],
+            [
+              256,
+              1
+            ],
+            [
+              536,
+              1
+            ],
+            [
+              264,
+              1
+            ],
+            [
+              391,
+              1
+            ],
+            [
+              174,
+              1
+            ],
+            [
+              139,
+              1
+            ],
+            [
+              211,
+              1
+            ],
+            [
+              145,
+              1
+            ],
+            [
+              255,
+              1
+            ],
+            [
+              622,
+              1
+            ],
+            [
+              649,
+              1
+            ],
+            [
+              656,
+              1
+            ],
+            [
+              660,
+              1
+            ],
+            [
+              653,
+              1
+            ],
+            [
+              632,
+              1
+            ],
+            [
+              633,
+              1
+            ],
+            [
+              637,
+              1
+            ],
+            [
+              645,
+              1
+            ],
+            [
+              654,
+              1
+            ],
+            [
+              635,
+              1
+            ],
+            [
+              628,
+              1
+            ],
+            [
+              641,
+              1
+            ],
+            [
+              575,
+              1
+            ],
+            [
+              576,
+              1
+            ],
+            [
+              577,
+              1
+            ],
+            [
+              578,
+              1
+            ],
+            [
+              978,
+              1
+            ]
+          ],
+          "intValue": 0
+        },
+        "stockInventoryRefs": [
+          [
+            235,
+            1
+          ],
+          [
+            383,
+            1
+          ],
+          [
+            148,
+            1
+          ],
+          [
+            513,
+            1
+          ],
+          [
+            301,
+            1
+          ],
+          [
+            254,
+            1
+          ],
+          [
+            3,
+            1
+          ],
+          [
+            4,
+            1
+          ],
+          [
+            13,
+            1
+          ],
+          [
+            17,
+            1
+          ],
+          [
+            18,
+            1
+          ],
+          [
+            23,
+            1
+          ],
+          [
+            24,
+            1
+          ],
+          [
+            31,
+            1
+          ],
+          [
+            34,
+            1
+          ],
+          [
+            38,
+            1
+          ],
+          [
+            41,
+            1
+          ],
+          [
+            47,
+            1
+          ],
+          [
+            57,
+            1
+          ],
+          [
+            61,
+            1
+          ],
+          [
+            62,
+            1
+          ],
+          [
+            65,
+            1
+          ],
+          [
+            138,
+            1
+          ],
+          [
+            70,
+            1
+          ],
+          [
+            83,
+            1
+          ],
+          [
+            214,
+            1
+          ],
+          [
+            416,
+            1
+          ],
+          [
+            227,
+            1
+          ],
+          [
+            442,
+            1
+          ],
+          [
+            343,
+            1
+          ],
+          [
+            389,
+            1
+          ],
+          [
+            204,
+            1
+          ],
+          [
+            159,
+            1
+          ],
+          [
+            160,
+            1
+          ],
+          [
+            455,
+            1
+          ],
+          [
+            456,
+            1
+          ],
+          [
+            441,
+            1
+          ],
+          [
+            256,
+            1
+          ],
+          [
+            536,
+            1
+          ],
+          [
+            264,
+            1
+          ],
+          [
+            391,
+            1
+          ],
+          [
+            174,
+            1
+          ],
+          [
+            139,
+            1
+          ],
+          [
+            211,
+            1
+          ],
+          [
+            145,
+            1
+          ],
+          [
+            255,
+            1
+          ],
+          [
+            622,
+            1
+          ],
+          [
+            649,
+            1
+          ],
+          [
+            656,
+            1
+          ],
+          [
+            660,
+            1
+          ],
+          [
+            632,
+            1
+          ],
+          [
+            633,
+            1
+          ],
+          [
+            637,
+            1
+          ],
+          [
+            645,
+            1
+          ],
+          [
+            654,
+            1
+          ],
+          [
+            635,
+            1
+          ],
+          [
+            628,
+            1
+          ],
+          [
+            641,
+            1
+          ],
+          [
+            575,
+            1
+          ],
+          [
+            576,
+            1
+          ],
+          [
+            577,
+            1
+          ],
+          [
+            578,
+            1
+          ],
+          [
+            978,
+            1
+          ]
+        ]
+      },
+      "gearTemplateStruct": {
+        "id": 1030,
+        "name": null,
+        "refs": [
+          {
+            "prop": 1163,
+            "intvalue": 586,
+            "stringvalue": null
+          }
+        ],
+        "stockInventoryRefs": [
+          {
+            "prop": 1163,
+            "intvalue": 586,
+            "stringvalue": null
+          }
+        ],
+        "raw": {
+          "extra": [
+            {
+              "prop": 1160,
+              "intvalue": null,
+              "stringvalue": "Mage 2"
+            },
+            {
+              "prop": 1163,
+              "intvalue": 586,
+              "stringvalue": null
+            },
+            {
+              "prop": 1169,
+              "intvalue": 28135,
+              "stringvalue": null
+            },
+            {
+              "prop": 1175,
+              "intvalue": 28136,
+              "stringvalue": null
+            }
+          ]
+        }
+      }
+    }
+  },
+  "wikiReviews": [
+    {
+      "name": "Zaff's Superior Staves!",
+      "revisionId": null,
+      "url": "https://runescape.wiki/w/Special:PermanentLink/undefined",
+      "status": "no-stock-witness",
+      "inventoryIds": [],
+      "wikiRows": 0,
+      "wikiMembers": null,
+      "wikiOwner": null,
+      "wikiCurrency": null,
+      "mismatches": [],
+      "comparison": null
+    },
+    {
+      "name": "Bob's Brilliant Axes",
+      "revisionId": 37176178,
+      "url": "https://runescape.wiki/w/Special:PermanentLink/37176178",
+      "status": "incomplete-or-disagrees",
+      "inventoryIds": [
+        1,
+        554
+      ],
+      "wikiRows": 30,
+      "wikiMembers": false,
+      "wikiOwner": "Bob",
+      "wikiCurrency": null,
+      "mismatches": [
+        {
+          "name": "Mithril throwing axe",
+          "wikiBaseStock": 4,
+          "cache": [
+            {
+              "inventoryId": 1,
+              "baseStock": 8
+            }
+          ]
+        },
+        {
+          "name": "Off-hand mithril throwing axe",
+          "wikiBaseStock": 4,
+          "cache": [
+            {
+              "inventoryId": 1,
+              "baseStock": 8
+            }
+          ]
+        }
+      ],
+      "comparison": {
+        "addresses": [
+          "12850-1"
+        ],
+        "additions": null,
+        "removals": null,
+        "renames": [],
+        "retainedQuantityComparison": "Unavailable: picker shopItems has item availability flags rather than encoded stock quantities",
+        "locationChanges": "Not established: inventory definitions have no shop keeper or location link"
+      }
+    },
+    {
+      "name": "Lowe's Archery Emporium",
+      "revisionId": 37168047,
+      "url": "https://runescape.wiki/w/Special:PermanentLink/37168047",
+      "status": "reviewed-complete-stock",
+      "inventoryIds": [
+        7,
+        556
+      ],
+      "wikiRows": 52,
+      "wikiMembers": false,
+      "wikiOwner": "Lowe",
+      "wikiCurrency": null,
+      "mismatches": [],
+      "comparison": {
+        "addresses": [
+          "12853-1"
+        ],
+        "additions": [],
+        "removals": [],
+        "renames": [],
+        "retainedQuantityComparison": "Unavailable: picker shopItems has item availability flags rather than encoded stock quantities",
+        "locationChanges": "Not established: inventory definitions have no shop keeper or location link"
+      }
+    },
+    {
+      "name": "Aubury's Rune Shop",
+      "revisionId": 37108360,
+      "url": "https://runescape.wiki/w/Special:PermanentLink/37108360",
+      "status": "reviewed-complete-stock",
+      "inventoryIds": [
+        5,
+        557
+      ],
+      "wikiRows": 10,
+      "wikiMembers": false,
+      "wikiOwner": "Aubury",
+      "wikiCurrency": null,
+      "mismatches": [],
+      "comparison": {
+        "addresses": [
+          "12853-1"
+        ],
+        "additions": [],
+        "removals": [],
+        "renames": [],
+        "retainedQuantityComparison": "Unavailable: picker shopItems has item availability flags rather than encoded stock quantities",
+        "locationChanges": "Not established: inventory definitions have no shop keeper or location link"
+      }
+    },
+    {
+      "name": "Betty's Magic Emporium",
+      "revisionId": 37120859,
+      "url": "https://runescape.wiki/w/Special:PermanentLink/37120859",
+      "status": "reviewed-complete-stock",
+      "inventoryIds": [
+        25
+      ],
+      "wikiRows": 47,
+      "wikiMembers": false,
+      "wikiOwner": "Betty",
+      "wikiCurrency": null,
+      "mismatches": [],
+      "comparison": {
+        "addresses": [
+          "12082-1"
+        ],
+        "additions": [],
+        "removals": [],
+        "renames": [],
+        "retainedQuantityComparison": "Unavailable: picker shopItems has item availability flags rather than encoded stock quantities",
+        "locationChanges": "Not established: inventory definitions have no shop keeper or location link"
+      }
+    },
+    {
+      "name": "Valaine's Shop of Champions",
+      "revisionId": 37123142,
+      "url": "https://runescape.wiki/w/Special:PermanentLink/37123142",
+      "status": "reviewed-complete-stock",
+      "inventoryIds": [
+        18
+      ],
+      "wikiRows": 19,
+      "wikiMembers": false,
+      "wikiOwner": "Valaine",
+      "wikiCurrency": null,
+      "mismatches": [],
+      "comparison": {
+        "addresses": [
+          "12596-1"
+        ],
+        "additions": [],
+        "removals": [],
+        "renames": [],
+        "retainedQuantityComparison": "Unavailable: picker shopItems has item availability flags rather than encoded stock quantities",
+        "locationChanges": "Not established: inventory definitions have no shop keeper or location link"
+      }
+    },
+    {
+      "name": "Beefy Bill's Supplies",
+      "revisionId": 37117521,
+      "url": "https://runescape.wiki/w/Special:PermanentLink/37117521",
+      "status": "reviewed-complete-stock",
+      "inventoryIds": [
+        536
+      ],
+      "wikiRows": 16,
+      "wikiMembers": false,
+      "wikiOwner": "Beefy Bill",
+      "wikiCurrency": null,
+      "mismatches": [],
+      "comparison": {
+        "addresses": [
+          "12595"
+        ],
+        "additions": [],
+        "removals": [],
+        "renames": [],
+        "retainedQuantityComparison": "Unavailable: picker shopItems has item availability flags rather than encoded stock quantities",
+        "locationChanges": "Not established: inventory definitions have no shop keeper or location link"
+      }
+    },
+    {
+      "name": "Zaff's Superior Spellcasting",
+      "revisionId": 37108358,
+      "url": "https://runescape.wiki/w/Special:PermanentLink/37108358",
+      "status": "reviewed-complete-stock",
+      "inventoryIds": [
+        9
+      ],
+      "wikiRows": 40,
+      "wikiMembers": false,
+      "wikiOwner": "Zaff",
+      "wikiCurrency": null,
+      "mismatches": [],
+      "comparison": {
+        "addresses": [
+          "12853-1",
+          "14989"
+        ],
+        "additions": [],
+        "removals": [],
+        "renames": [],
+        "retainedQuantityComparison": "Unavailable: picker shopItems has item availability flags rather than encoded stock quantities",
+        "locationChanges": "Not established: inventory definitions have no shop keeper or location link"
+      }
+    }
+  ],
+  "samples": [
+    {
+      "id": 5,
+      "source": {
+        "major": 2,
+        "minor": 5,
+        "subid": 5
+      },
+      "size": 8,
+      "cacheName": null,
+      "cacheCurrency": null,
+      "cacheMembers": null,
+      "cacheKeeperNpcIds": [],
+      "stock": [
+        {
+          "slot": 0,
+          "itemId": 554,
+          "name": "Fire rune",
+          "baseStock": 2100,
+          "membersMarked": false,
+          "definitionPresent": true
+        },
+        {
+          "slot": 1,
+          "itemId": 555,
+          "name": "Water rune",
+          "baseStock": 2100,
+          "membersMarked": false,
+          "definitionPresent": true
+        },
+        {
+          "slot": 2,
+          "itemId": 556,
+          "name": "Air rune",
+          "baseStock": 2100,
+          "membersMarked": false,
+          "definitionPresent": true
+        },
+        {
+          "slot": 3,
+          "itemId": 557,
+          "name": "Earth rune",
+          "baseStock": 2100,
+          "membersMarked": false,
+          "definitionPresent": true
+        },
+        {
+          "slot": 4,
+          "itemId": 558,
+          "name": "Mind rune",
+          "baseStock": 700,
+          "membersMarked": false,
+          "definitionPresent": true
+        },
+        {
+          "slot": 5,
+          "itemId": 559,
+          "name": "Body rune",
+          "baseStock": 700,
+          "membersMarked": false,
+          "definitionPresent": true
+        },
+        {
+          "slot": 6,
+          "itemId": 562,
+          "name": "Chaos rune",
+          "baseStock": 210,
+          "membersMarked": false,
+          "definitionPresent": true
+        },
+        {
+          "slot": 7,
+          "itemId": 560,
+          "name": "Death rune",
+          "baseStock": 70,
+          "membersMarked": false,
+          "definitionPresent": true
+        }
+      ],
+      "truncated": false
+    },
+    {
+      "id": 536,
+      "source": {
+        "major": 2,
+        "minor": 5,
+        "subid": 536
+      },
+      "size": 16,
+      "cacheName": null,
+      "cacheCurrency": null,
+      "cacheMembers": null,
+      "cacheKeeperNpcIds": [],
+      "stock": [
+        {
+          "slot": 0,
+          "itemId": 1931,
+          "name": "Empty pot",
+          "baseStock": 30,
+          "membersMarked": false,
+          "definitionPresent": true
+        },
+        {
+          "slot": 1,
+          "itemId": 1929,
+          "name": "Bucket of water",
+          "baseStock": 10,
+          "membersMarked": false,
+          "definitionPresent": true
+        },
+        {
+          "slot": 2,
+          "itemId": 1937,
+          "name": "Jug of water",
+          "baseStock": 10,
+          "membersMarked": false,
+          "definitionPresent": true
+        },
+        {
+          "slot": 3,
+          "itemId": 43282,
+          "name": "Jug of water pack",
+          "baseStock": 70,
+          "membersMarked": true,
+          "definitionPresent": true
+        },
+        {
+          "slot": 4,
+          "itemId": 2313,
+          "name": "Pie dish",
+          "baseStock": 10,
+          "membersMarked": false,
+          "definitionPresent": true
+        },
+        {
+          "slot": 5,
+          "itemId": 1887,
+          "name": "Cake tin",
+          "baseStock": 10,
+          "membersMarked": false,
+          "definitionPresent": true
+        },
+        {
+          "slot": 6,
+          "itemId": 590,
+          "name": "Tinderbox",
+          "baseStock": 10,
+          "membersMarked": false,
+          "definitionPresent": true
+        },
+        {
+          "slot": 7,
+          "itemId": 1735,
+          "name": "Shears",
+          "baseStock": 10,
+          "membersMarked": false,
+          "definitionPresent": true
+        },
+        {
+          "slot": 8,
+          "itemId": 1951,
+          "name": "Redberries",
+          "baseStock": 10,
+          "membersMarked": false,
+          "definitionPresent": true
+        },
+        {
+          "slot": 9,
+          "itemId": 1969,
+          "name": "Spinach roll",
+          "baseStock": 10,
+          "membersMarked": false,
+          "definitionPresent": true
+        },
+        {
+          "slot": 10,
+          "itemId": 1949,
+          "name": "Chef's hat",
+          "baseStock": 10,
+          "membersMarked": false,
+          "definitionPresent": true
+        },
+        {
+          "slot": 11,
+          "itemId": 1277,
+          "name": "Bronze sword",
+          "baseStock": 10,
+          "membersMarked": false,
+          "definitionPresent": true
+        },
+        {
+          "slot": 12,
+          "itemId": 25710,
+          "name": "Bronze off hand sword",
+          "baseStock": 10,
+          "membersMarked": false,
+          "definitionPresent": true
+        },
+        {
+          "slot": 13,
+          "itemId": 1173,
+          "name": "Bronze square shield",
+          "baseStock": 10,
+          "membersMarked": false,
+          "definitionPresent": true
+        },
+        {
+          "slot": 14,
+          "itemId": 841,
+          "name": "Shortbow",
+          "baseStock": 10,
+          "membersMarked": false,
+          "definitionPresent": true
+        },
+        {
+          "slot": 15,
+          "itemId": 882,
+          "name": "Bronze arrow",
+          "baseStock": 30,
+          "membersMarked": false,
+          "definitionPresent": true
+        }
+      ],
+      "truncated": false
+    },
+    {
+      "id": 347,
+      "source": {
+        "major": 2,
+        "minor": 5,
+        "subid": 347
+      },
+      "size": 26,
+      "cacheName": null,
+      "cacheCurrency": null,
+      "cacheMembers": null,
+      "cacheKeeperNpcIds": [],
+      "stock": [
+        {
+          "slot": 0,
+          "itemId": 6908,
+          "name": "Beginner wand",
+          "baseStock": 10,
+          "membersMarked": true,
+          "definitionPresent": true
+        },
+        {
+          "slot": 1,
+          "itemId": 6910,
+          "name": "Apprentice wand",
+          "baseStock": 10,
+          "membersMarked": true,
+          "definitionPresent": true
+        },
+        {
+          "slot": 2,
+          "itemId": 6912,
+          "name": "Teacher wand",
+          "baseStock": 10,
+          "membersMarked": true,
+          "definitionPresent": true
+        },
+        {
+          "slot": 3,
+          "itemId": 6914,
+          "name": "Master wand",
+          "baseStock": 10,
+          "membersMarked": true,
+          "definitionPresent": true
+        }
+      ],
+      "truncated": true
+    }
+  ],
+  "findings": [
+    "Config 2:5 opcode 0x15 contains typed item IDs and ushort quantities; blanket shop-stock-unavailable claim is disproven.",
+    "All 957 inventory definitions decoded completely; 544 include 6,329 encoded stock rows, including 784 zero-stock entries.",
+    "Inventory definitions themselves expose no shop name, currency, membership, keeper or location field.",
+    "Six externally witnessed shop inventories match every dated Wiki name/stock row; all six availability name sets already agree with retained shopItems.",
+    "Bob stock candidate disagrees with Wiki for two mithril throwing-axe quantities 8 versus 4 and is excluded from runtime.",
+    "No complete all-live-shop coverage is certified; same-name inventories, split free inventories, reward UIs and unused configs remain possible."
+  ],
+  "comparisonLimits": [
+    "404 retained shops and 576 chunk/section declarations are enumerated exhaustively; 226 have exact cache name-set candidates, 187 unique and 39 ambiguous. These are not identity proof.",
+    "47 retained shops have no item-name overlap. No additions/removals are certified for unreviewed identities.",
+    "No shop location additions/removals or rename pairs are established; retained Zaff label already uses current title.",
+    "Retained shopItems contains availability flags, so it supplies no stock quantities for numerical comparison."
+  ],
+  "limits": [
+    "Copied snapshot freshness and inferred schema build 950 are not independent current-game build validation.",
+    "Base stocks/caps do not establish live remaining stock, price, restock schedule, personal limits or active server inventories.",
+    "Wiki owner/membership are external metadata; NPC definition inventory params are absent and keeper links remain unknown.",
+    "Item membership flags do not certify shop/world access; Beefy Jug of water pack has explicit Wiki members-only row.",
+    "120 reward UI struct fragments retain title/currency text and enum/item references, without base-stock or server execution assertions.",
+    "Interface schema has four explicit failures; obfuscated clientscript instructions remain unavailable. ASCII spans and headers are only search evidence."
+  ],
+  "reproduction": {
+    "command": "node scripts/cache/game-data-shops.mjs --workspace C:/Users/User/Projects/rs3-cache-work --output NEW-directory --wiki C:/Users/User/Projects/rs3-cache-work/npcshops-shop-wiki-2026-10-08.v1.json",
+    "tests": "node --test tests/cache-game-data-shops.test.mjs",
+    "outputsMustBeNew": true
+  },
+  "verification": {
+    "path": "C:/Users/User/Projects/rs3-cache-work/shops-verification-2026-10-08.v1.json",
+    "sha256": "48e328a22a60f3bacff5b3d2533df38a7f6d38d7c4c450a1cf755feff365a4ee",
+    "outputCount": 5,
+    "sourceCount": 7,
+    "extractorHashChecked": true,
+    "runtimeHashChecked": true
+  }
+}

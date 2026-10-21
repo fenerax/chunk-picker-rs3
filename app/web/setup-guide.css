@@ -1,0 +1,25 @@
+.setup-guide{display:flex;flex-direction:column;gap:var(--space-6);min-width:0;line-height:var(--leading-copy)}
+.setup-guide p{margin:0;max-width:65ch}
+.setup-guide h3{margin:0 0 var(--space-4);font-size:var(--type-heading)}
+.setup-guide-progress{font-size:var(--type-sm);color:var(--panel-muted,var(--muted))}
+.setup-guide-body{display:flex;flex-direction:column;gap:var(--space-5);min-width:0}
+.setup-guide-body .section-intro{margin-bottom:0}
+.setup-guide-group{margin:0;padding:var(--space-5) var(--space-6);border:var(--border-thin) solid var(--hairline);border-radius:var(--radius-sm);min-width:0}
+.setup-guide-group legend{font-weight:var(--weight-bold);padding:0 var(--space-2)}
+.setup-guide-choice{display:flex;align-items:flex-start;gap:var(--space-5);padding:var(--space-3) 0;cursor:pointer}
+.setup-guide-choice>input{flex:none;margin-top:var(--space-2)}
+.setup-guide-choice>span{min-width:0}
+.setup-guide-choice .field-help{display:block;margin-top:var(--space-2)}
+.setup-guide-status:empty{display:none}
+.setup-guide-group .setup-guide-status{margin-top:var(--space-3);font-size:var(--type-sm);color:var(--panel-muted,var(--muted))}
+.setup-guide-banks summary{font-weight:var(--weight-semibold);cursor:pointer}
+.setup-guide ul{margin:var(--space-4) 0 0;padding-left:var(--space-7)}
+.setup-guide-starts{font-weight:var(--weight-semibold)}
+.setup-guide-body>button{align-self:flex-start;white-space:normal}
+.setup-guide-tour{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:var(--space-3) var(--space-6);margin:0}
+.setup-guide-tour dt{font-weight:var(--weight-semibold)}
+.setup-guide-tour dd{margin:0;color:var(--panel-muted,var(--muted))}
+.setup-guide-actions{display:flex;align-items:center;justify-content:flex-end;gap:var(--space-5);padding-top:var(--space-5);border-top:var(--border-thin) solid var(--hairline)}
+.setup-guide-actions button{white-space:normal}
+.setup-guide-actions .setup-guide-skip{margin-right:auto}
+@media(max-width:540px){.setup-guide-actions{flex-wrap:wrap}.setup-guide-actions button{flex:1 1 auto}.setup-guide-actions .setup-guide-skip{flex-basis:100%;order:1}.setup-guide-group{padding:var(--space-4) var(--space-5)}.setup-guide-tour{grid-template-columns:minmax(0,1fr);gap:var(--space-1)}.setup-guide-tour dd{margin-bottom:var(--space-3)}.setup-guide-body>button{align-self:stretch}}

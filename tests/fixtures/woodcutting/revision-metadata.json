@@ -1,0 +1,60 @@
+{
+  "sourceUrl": "https://runescape.wiki/api.php?action=query&revids=36706827%7C37170712%7C36640342%7C37183488&prop=revisions&rvprop=ids%7Ctimestamp&format=json",
+  "retrieved": "2026-10-12",
+  "scope": "Complete MediaWiki API revision metadata response",
+  "response": {
+    "batchcomplete": "",
+    "query": {
+      "pages": {
+        "787286": {
+          "pageid": 787286,
+          "ns": 828,
+          "title": "Module:SkillUtils/TreeData",
+          "revisions": [
+            {
+              "revid": 36706827,
+              "parentid": 36706824,
+              "timestamp": "2025-04-26T18:08:42Z"
+            }
+          ]
+        },
+        "787290": {
+          "pageid": 787290,
+          "ns": 828,
+          "title": "Module:Woodcutting chance calculator",
+          "revisions": [
+            {
+              "revid": 37183488,
+              "parentid": 36859721,
+              "timestamp": "2026-09-22T16:24:06Z"
+            }
+          ]
+        },
+        "1033123": {
+          "pageid": 1033123,
+          "ns": 828,
+          "title": "Module:SkillUtils",
+          "revisions": [
+            {
+              "revid": 36640342,
+              "parentid": 36639058,
+              "timestamp": "2025-01-23T08:41:26Z"
+            }
+          ]
+        },
+        "1034128": {
+          "pageid": 1034128,
+          "ns": 828,
+          "title": "Module:SkillUtils/HatchetData",
+          "revisions": [
+            {
+              "revid": 37170712,
+              "parentid": 37009372,
+              "timestamp": "2026-09-04T17:44:20Z"
+            }
+          ]
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "sourceUrl": "https://runescape.wiki/w/Sea%20cucumber?oldid=37020394",
+  "oldid": 37020394,
+  "retrieved": "2026-10-12",
+  "timestamp": "2026-04-17T08:11:20Z",
+  "title": "Sea cucumber",
+  "scope": "Complete source snapshot from MediaWiki revisions API",
+  "licence": "RuneScape Wiki contributors, CC BY-NC-SA 3.0; source exceptions apply.",
+  "source": "{{external|wp}}\n{{Infobox Item\n|name = Sea cucumber\n|image = [[File:Sea cucumber.png]]\n|release = [[14 December]] [[2015]]\n|update = Beneath Cursed Tides Quest - Christmas Quest Pt 3\n|members = No\n|quest = No\n|tradeable = No\n|equipable = No\n|stackable = No\n|actions = Destroy\n|value = 2\n|alchable = No\n|disassembly = Yes\n|destroy = You can get another sea cucumber from the fishing spot on Tutorial Island.\n|kept = never\n|examine = Like a cucumber, except from the sea.\n|weight = 0.001\n|id = 36242\n}}\n[[File:Sea cucumber detail.png|left|100px]]\nA '''sea cucumber''' is an item that can be fished from the [[fishing spot (Tutorial Island)|fishing spot]], just south of the [[Large Jellyfish]], on [[Tutorial Island]]. It is a section of kelp beside the oyster. It is not marked on the map, and it is not the spot where you caught shrimp.\n\nAfter completion of [[Beneath Cursed Tides]] it can be harvested once a month and used to feed the oyster as part of the [[Giant Oyster]] [[Distraction and Diversion]]. When attempting to fish from the Fishing spot the player will gain 6,966 [[Fishing]] experience (at level 99) 30 times before finally catching a sea cucumber.\n\n[[File:Fishing spot (Tutorial Island).png|thumb|right|The Fishing spot.]]\n\n==Sources==\n{{Drop sources}}\n\n==Disassembly==\n{{Disassembly\n|level=1\n|category=default\n}}\n\n==Update history==\n{{UH|\n* {{UL|type=patch|update=Community Consultation Update & One Special Day - This Week In RuneScape|date=2 October 2023}}\n** When gathering the special seaweed or special sea-cucumber as part of the Giant Oyster D&D, if you already have or reach 200m xp, you will gather the relevant item on the next action instead of having to wait for the full 30 actions.\n\n* {{UL|type=update|update=Beneath Cursed Tides Quest - Christmas Quest Pt 3|date=14 December 2015}}\n** Added to game.\n}}\n\n{{Beneath Cursed Tides}}",
+  "sourceSha256": "b5cc4a3064635737ada0e8d464ab290d7a9fb00016da1ef108ff091707f93df2"
+}

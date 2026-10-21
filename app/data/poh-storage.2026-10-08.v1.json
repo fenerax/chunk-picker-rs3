@@ -1,0 +1,3069 @@
+{
+  "schemaVersion": 1,
+  "version": "2026-10-08.v1",
+  "game": "RS3",
+  "researchedAt": "2026-10-08",
+  "coverage": "Representative verified slots: 67 supported storage/display objectives and eight catalogue-only golden Barrows sets requiring personal event entitlement and full repair. Six current storage families, all tiers listed by family pages, five automatic bookcases and three displays. Not exhaustive.",
+  "housing": {
+    "quest": "There's No Place Like Home...",
+    "workbench": "Furniture workbench",
+    "storage": "Furniture storage",
+    "members": false,
+    "source": "Player-owned_house",
+    "historicalCostumeRoomRemoved": "2026-07-13",
+    "bankAccess": "Wiki currently reports bank-interface POH storage disabled; tasks refer to furniture in the house.",
+    "f2p": "POH exists in F2P and Construction is capped at20. Wooden bookcase is F2P level6, automatic retrieval only. All catalogued deposit storage and displays are members-only."
+  },
+  "sources": {
+    "Player-owned_house": {
+      "url": "https://runescape.wiki/w/Player-owned_house",
+      "permalink": "https://runescape.wiki/w/Player-owned_house?oldid=37187278",
+      "retrieved": "2026-10-08",
+      "method": "Tavily advanced extraction; current RS3 Wiki page",
+      "currentness": "Current post-13-July-2026 housing system"
+    },
+    "Armour_case": {
+      "url": "https://runescape.wiki/w/Armour_case",
+      "permalink": "https://runescape.wiki/w/Armour_case?oldid=37188248",
+      "retrieved": "2026-10-08",
+      "method": "Tavily advanced extraction; current RS3 Wiki page",
+      "currentness": "Current post-13-July-2026 housing system"
+    },
+    "Magic_wardrobe": {
+      "url": "https://runescape.wiki/w/Magic_wardrobe",
+      "permalink": "https://runescape.wiki/w/Magic_wardrobe?oldid=37181907",
+      "retrieved": "2026-10-08",
+      "method": "Tavily advanced extraction; current RS3 Wiki page",
+      "currentness": "Current post-13-July-2026 housing system"
+    },
+    "Oak_toy_box": {
+      "url": "https://runescape.wiki/w/Oak_toy_box",
+      "permalink": "https://runescape.wiki/w/Oak_toy_box?oldid=37143125",
+      "retrieved": "2026-10-08",
+      "method": "Tavily advanced extraction; current RS3 Wiki page",
+      "currentness": "Current post-13-July-2026 housing system"
+    },
+    "Oak_armour_case": {
+      "url": "https://runescape.wiki/w/Oak_armour_case",
+      "permalink": "https://runescape.wiki/w/Oak_armour_case?oldid=37167833",
+      "retrieved": "2026-10-08",
+      "method": "Tavily advanced extraction; current RS3 Wiki page",
+      "currentness": "Current post-13-July-2026 housing system"
+    },
+    "Cape_rack": {
+      "url": "https://runescape.wiki/w/Cape_rack",
+      "permalink": "https://runescape.wiki/w/Cape_rack?oldid=37133926",
+      "retrieved": "2026-10-08",
+      "method": "Tavily advanced extraction; current RS3 Wiki page",
+      "currentness": "Current post-13-July-2026 housing system"
+    },
+    "Oak_cape_store": {
+      "url": "https://runescape.wiki/w/Oak_cape_store",
+      "permalink": "https://runescape.wiki/w/Oak_cape_store?oldid=37143094",
+      "retrieved": "2026-10-08",
+      "method": "Tavily advanced extraction; current RS3 Wiki page",
+      "currentness": "Current post-13-July-2026 housing system"
+    },
+    "Oak_magic_wardrobe": {
+      "url": "https://runescape.wiki/w/Oak_magic_wardrobe",
+      "permalink": "https://runescape.wiki/w/Oak_magic_wardrobe?oldid=37143122",
+      "retrieved": "2026-10-08",
+      "method": "Tavily advanced extraction; current RS3 Wiki page",
+      "currentness": "Current post-13-July-2026 housing system"
+    },
+    "Sword_mount": {
+      "url": "https://runescape.wiki/w/Sword_mount",
+      "permalink": "https://runescape.wiki/w/Sword_mount?oldid=undefined",
+      "retrieved": "2026-10-08",
+      "method": "Tavily advanced extraction; current RS3 Wiki page",
+      "currentness": "Current post-13-July-2026 housing system"
+    },
+    "Wooden_bookcase": {
+      "url": "https://runescape.wiki/w/Wooden_bookcase",
+      "permalink": "https://runescape.wiki/w/Wooden_bookcase?oldid=37117814",
+      "retrieved": "2026-10-08",
+      "method": "Tavily advanced extraction; current RS3 Wiki page",
+      "currentness": "Current post-13-July-2026 housing system"
+    },
+    "Toy_box": {
+      "url": "https://runescape.wiki/w/Toy_box",
+      "permalink": "https://runescape.wiki/w/Toy_box?oldid=37118681",
+      "retrieved": "2026-10-08",
+      "method": "Tavily advanced extraction; current RS3 Wiki page",
+      "currentness": "Current post-13-July-2026 housing system"
+    },
+    "Oak_fancy_dress_box": {
+      "url": "https://runescape.wiki/w/Oak_fancy_dress_box",
+      "permalink": "https://runescape.wiki/w/Oak_fancy_dress_box?oldid=37143107",
+      "retrieved": "2026-10-08",
+      "method": "Tavily advanced extraction; current RS3 Wiki page",
+      "currentness": "Current post-13-July-2026 housing system"
+    },
+    "Fancy_dress_box": {
+      "url": "https://runescape.wiki/w/Fancy_dress_box",
+      "permalink": "https://runescape.wiki/w/Fancy_dress_box?oldid=37118679",
+      "retrieved": "2026-10-08",
+      "method": "Tavily advanced extraction; current RS3 Wiki page",
+      "currentness": "Current post-13-July-2026 housing system"
+    },
+    "Oak_treasure_chest": {
+      "url": "https://runescape.wiki/w/Oak_treasure_chest",
+      "permalink": "https://runescape.wiki/w/Oak_treasure_chest?oldid=37167825",
+      "retrieved": "2026-10-08",
+      "method": "Tavily advanced extraction; current RS3 Wiki page",
+      "currentness": "Current post-13-July-2026 housing system"
+    },
+    "Treasure_chest": {
+      "url": "https://runescape.wiki/w/Treasure_chest",
+      "permalink": "https://runescape.wiki/w/Treasure_chest?oldid=37118701",
+      "retrieved": "2026-10-08",
+      "method": "Tavily advanced extraction; current RS3 Wiki page",
+      "currentness": "Current post-13-July-2026 housing system"
+    },
+    "Mahogany_gilded_cape_stand": {
+      "url": "https://runescape.wiki/w/Mahogany_gilded_cape_stand",
+      "permalink": "https://runescape.wiki/w/Mahogany_gilded_cape_stand?oldid=37188731",
+      "retrieved": "2026-10-08",
+      "method": "Tavily advanced extraction; current RS3 Wiki page",
+      "currentness": "Current post-13-July-2026 housing system"
+    },
+    "Silverlight_(furniture)": {
+      "url": "https://runescape.wiki/w/Silverlight_(furniture)",
+      "permalink": "https://runescape.wiki/w/Silverlight_(furniture)?oldid=37131264",
+      "retrieved": "2026-10-08",
+      "method": "Tavily advanced extraction; current RS3 Wiki page",
+      "currentness": "Current post-13-July-2026 housing system"
+    },
+    "Anti-dragon_shield_(furniture)": {
+      "url": "https://runescape.wiki/w/Anti-dragon_shield_(furniture)",
+      "permalink": "https://runescape.wiki/w/Anti-dragon_shield_(furniture)?oldid=37131257",
+      "retrieved": "2026-10-08",
+      "method": "Tavily advanced extraction; current RS3 Wiki page",
+      "currentness": "Current post-13-July-2026 housing system"
+    },
+    "Bookcase": {
+      "url": "https://runescape.wiki/w/Bookcase",
+      "permalink": "https://runescape.wiki/w/Bookcase?oldid=37178070",
+      "retrieved": "2026-10-08",
+      "method": "Tavily advanced extraction; current RS3 Wiki page",
+      "currentness": "Current post-13-July-2026 housing system"
+    },
+    "Furniture_workbench": {
+      "url": "https://runescape.wiki/w/Furniture_workbench",
+      "permalink": "https://runescape.wiki/w/Furniture_workbench?oldid=37199289",
+      "retrieved": "2026-10-08",
+      "method": "Tavily advanced extraction; current RS3 Wiki page",
+      "currentness": "Current post-13-July-2026 housing system"
+    },
+    "Golden_Verac_the_Defiled's_equipment": {
+      "url": "https://runescape.wiki/w/Golden_Verac_the_Defiled's_equipment",
+      "permalink": "https://runescape.wiki/w/Golden_Verac_the_Defiled's_equipment?oldid=37042577",
+      "retrieved": "2026-10-08",
+      "method": "Tavily advanced extraction; golden Barrows components and event availability",
+      "currentness": "Current item source; storage inclusion corroborated by current Armour case list"
+    },
+    "Golden_Karil_the_Tainted's_equipment": {
+      "url": "https://runescape.wiki/w/Golden_Karil_the_Tainted's_equipment",
+      "permalink": "https://runescape.wiki/w/Golden_Karil_the_Tainted's_equipment?oldid=37042590",
+      "retrieved": "2026-10-08",
+      "method": "Tavily advanced extraction; golden Barrows components and event availability",
+      "currentness": "Current item source; storage inclusion corroborated by current Armour case list"
+    },
+    "Golden_Linza_the_Disgraced's_equipment": {
+      "url": "https://runescape.wiki/w/Golden_Linza_the_Disgraced's_equipment",
+      "permalink": "https://runescape.wiki/w/Golden_Linza_the_Disgraced's_equipment?oldid=37042604",
+      "retrieved": "2026-10-08",
+      "method": "Tavily advanced extraction; golden Barrows components and event availability",
+      "currentness": "Current item source; storage inclusion corroborated by current Armour case list"
+    },
+    "Golden_Dharok_the_Wretched's_equipment": {
+      "url": "https://runescape.wiki/w/Golden_Dharok_the_Wretched's_equipment",
+      "permalink": "https://runescape.wiki/w/Golden_Dharok_the_Wretched's_equipment?oldid=37042582",
+      "retrieved": "2026-10-08",
+      "method": "Tavily advanced extraction; golden Barrows components and event availability",
+      "currentness": "Current item source; storage inclusion corroborated by current Armour case list"
+    },
+    "Golden_Ahrim_the_Blighted's_equipment": {
+      "url": "https://runescape.wiki/w/Golden_Ahrim_the_Blighted's_equipment",
+      "permalink": "https://runescape.wiki/w/Golden_Ahrim_the_Blighted's_equipment?oldid=37042570",
+      "retrieved": "2026-10-08",
+      "method": "Tavily advanced extraction; golden Barrows components and event availability",
+      "currentness": "Current item source; storage inclusion corroborated by current Armour case list"
+    },
+    "Golden_Akrisae_the_Doomed's_equipment": {
+      "url": "https://runescape.wiki/w/Golden_Akrisae_the_Doomed's_equipment",
+      "permalink": "https://runescape.wiki/w/Golden_Akrisae_the_Doomed's_equipment?oldid=37042602",
+      "retrieved": "2026-10-08",
+      "method": "Tavily advanced extraction; golden Barrows components and event availability",
+      "currentness": "Current item source; storage inclusion corroborated by current Armour case list"
+    },
+    "Golden_Torag_the_Corrupted's_equipment": {
+      "url": "https://runescape.wiki/w/Golden_Torag_the_Corrupted's_equipment",
+      "permalink": "https://runescape.wiki/w/Golden_Torag_the_Corrupted's_equipment?oldid=37042596",
+      "retrieved": "2026-10-08",
+      "method": "Tavily advanced extraction; golden Barrows components and event availability",
+      "currentness": "Current item source; storage inclusion corroborated by current Armour case list"
+    },
+    "Golden_Guthan_the_Infested's_equipment": {
+      "url": "https://runescape.wiki/w/Golden_Guthan_the_Infested's_equipment",
+      "permalink": "https://runescape.wiki/w/Golden_Guthan_the_Infested's_equipment?oldid=37042586",
+      "retrieved": "2026-10-08",
+      "method": "Tavily advanced extraction; golden Barrows components and event availability",
+      "currentness": "Current item source; storage inclusion corroborated by current Armour case list"
+    }
+  },
+  "families": [
+    {
+      "id": "armour-case",
+      "label": "Armour case",
+      "source": "Armour_case",
+      "historicalNames": [
+        "Costume room armour case"
+      ]
+    },
+    {
+      "id": "cape-store",
+      "label": "Cape store",
+      "source": "Cape_rack",
+      "historicalNames": [
+        "Cape rack"
+      ]
+    },
+    {
+      "id": "magic-wardrobe",
+      "label": "Magic wardrobe",
+      "source": "Magic_wardrobe"
+    },
+    {
+      "id": "toy-box",
+      "label": "Toy box",
+      "source": "Toy_box",
+      "automaticRetrieval": true
+    },
+    {
+      "id": "fancy-dress-box",
+      "label": "Fancy dress box",
+      "source": "Fancy_dress_box"
+    },
+    {
+      "id": "treasure-chest",
+      "label": "Treasure chest",
+      "source": "Treasure_chest"
+    }
+  ],
+  "furniture": [
+    {
+      "id": "oak-armour-case",
+      "name": "Oak armour case",
+      "family": "armour-case",
+      "construction": 46,
+      "members": true,
+      "materials": {
+        "Oak plank": 3
+      },
+      "capacity": 2,
+      "wiki": "https://runescape.wiki/w/Oak_armour_case",
+      "source": "Armour_case",
+      "function": "storage",
+      "active": true
+    },
+    {
+      "id": "teak-armour-case",
+      "name": "Teak armour case",
+      "family": "armour-case",
+      "construction": 64,
+      "members": true,
+      "materials": {
+        "Teak plank": 3
+      },
+      "capacity": 4,
+      "wiki": "https://runescape.wiki/w/Teak_armour_case",
+      "source": "Armour_case",
+      "function": "storage",
+      "active": true
+    },
+    {
+      "id": "mahogany-armour-case",
+      "name": "Mahogany armour case",
+      "family": "armour-case",
+      "construction": 82,
+      "members": true,
+      "materials": {
+        "Mahogany plank": 3
+      },
+      "capacity": null,
+      "wiki": "https://runescape.wiki/w/Mahogany_armour_case",
+      "source": "Armour_case",
+      "function": "storage",
+      "active": true
+    },
+    {
+      "id": "mahogany-gilded-armour-case",
+      "name": "Mahogany gilded armour case",
+      "family": "armour-case",
+      "construction": 87,
+      "members": true,
+      "materials": {
+        "Mahogany plank": 3,
+        "Gold leaf": 1
+      },
+      "capacity": null,
+      "wiki": "https://runescape.wiki/w/Mahogany_gilded_armour_case",
+      "source": "Armour_case",
+      "function": "storage",
+      "active": true
+    },
+    {
+      "id": "eternal-armour-case",
+      "name": "Eternal armour case",
+      "family": "armour-case",
+      "construction": 103,
+      "members": true,
+      "materials": {
+        "Eternal plank": 3
+      },
+      "capacity": null,
+      "wiki": "https://runescape.wiki/w/Eternal_armour_case",
+      "source": "Armour_case",
+      "function": "storage",
+      "active": true
+    },
+    {
+      "id": "eternal-gilded-armour-case",
+      "name": "Eternal gilded armour case",
+      "family": "armour-case",
+      "construction": 110,
+      "members": true,
+      "materials": {
+        "Eternal plank": 3,
+        "Gold leaf": 1
+      },
+      "capacity": null,
+      "wiki": "https://runescape.wiki/w/Eternal_gilded_armour_case",
+      "source": "Armour_case",
+      "function": "storage",
+      "active": true
+    },
+    {
+      "id": "oak-cape-store",
+      "name": "Oak cape store",
+      "family": "cape-store",
+      "construction": 54,
+      "members": true,
+      "materials": {
+        "Oak plank": 4
+      },
+      "capacity": null,
+      "wiki": "https://runescape.wiki/w/Oak_cape_store",
+      "source": "Cape_rack",
+      "function": "storage",
+      "active": true
+    },
+    {
+      "id": "teak-cape-store",
+      "name": "Teak cape store",
+      "family": "cape-store",
+      "construction": 63,
+      "members": true,
+      "materials": {
+        "Teak plank": 4
+      },
+      "capacity": null,
+      "wiki": "https://runescape.wiki/w/Teak_cape_store",
+      "source": "Cape_rack",
+      "function": "storage",
+      "active": true
+    },
+    {
+      "id": "mahogany-cape-store",
+      "name": "Mahogany cape store",
+      "family": "cape-store",
+      "construction": 72,
+      "members": true,
+      "materials": {
+        "Mahogany plank": 4
+      },
+      "capacity": null,
+      "wiki": "https://runescape.wiki/w/Mahogany_cape_store",
+      "source": "Cape_rack",
+      "function": "storage",
+      "active": true
+    },
+    {
+      "id": "mahogany-gilded-cape-store",
+      "name": "Mahogany gilded cape store",
+      "family": "cape-store",
+      "construction": 81,
+      "members": true,
+      "materials": {
+        "Mahogany plank": 4,
+        "Gold leaf": 1
+      },
+      "capacity": null,
+      "wiki": "https://runescape.wiki/w/Mahogany_gilded_cape_store",
+      "source": "Cape_rack",
+      "function": "storage",
+      "active": true
+    },
+    {
+      "id": "marble-cape-store",
+      "name": "Marble cape store",
+      "family": "cape-store",
+      "construction": 90,
+      "members": true,
+      "materials": {
+        "Marble block": 1
+      },
+      "capacity": null,
+      "wiki": "https://runescape.wiki/w/Marble_cape_store",
+      "source": "Cape_rack",
+      "function": "storage",
+      "active": true
+    },
+    {
+      "id": "magical-cape-store",
+      "name": "Magical cape store",
+      "family": "cape-store",
+      "construction": 99,
+      "members": true,
+      "materials": {
+        "Magic stone": 1
+      },
+      "capacity": null,
+      "wiki": "https://runescape.wiki/w/Magical_cape_store",
+      "source": "Cape_rack",
+      "function": "storage",
+      "active": true
+    },
+    {
+      "id": "oak-magic-wardrobe",
+      "name": "Oak magic wardrobe",
+      "family": "magic-wardrobe",
+      "construction": 42,
+      "members": true,
+      "materials": {
+        "Oak plank": 4
+      },
+      "capacity": 1,
+      "wiki": "https://runescape.wiki/w/Oak_magic_wardrobe",
+      "source": "Magic_wardrobe",
+      "function": "storage",
+      "active": true
+    },
+    {
+      "id": "teak-magic-wardrobe",
+      "name": "Teak magic wardrobe",
+      "family": "magic-wardrobe",
+      "construction": 60,
+      "members": true,
+      "materials": {
+        "Teak plank": 4
+      },
+      "capacity": 3,
+      "wiki": "https://runescape.wiki/w/Teak_magic_wardrobe",
+      "source": "Magic_wardrobe",
+      "function": "storage",
+      "active": true
+    },
+    {
+      "id": "mahogany-magic-wardrobe",
+      "name": "Mahogany magic wardrobe",
+      "family": "magic-wardrobe",
+      "construction": 78,
+      "members": true,
+      "materials": {
+        "Mahogany plank": 4
+      },
+      "capacity": 5,
+      "wiki": "https://runescape.wiki/w/Mahogany_magic_wardrobe",
+      "source": "Magic_wardrobe",
+      "function": "storage",
+      "active": true
+    },
+    {
+      "id": "mahogany-gilded-magic-wardrobe",
+      "name": "Mahogany gilded magic wardrobe",
+      "family": "magic-wardrobe",
+      "construction": 87,
+      "members": true,
+      "materials": {
+        "Mahogany plank": 4,
+        "Gold leaf": 1
+      },
+      "capacity": 6,
+      "wiki": "https://runescape.wiki/w/Mahogany_gilded_magic_wardrobe",
+      "source": "Magic_wardrobe",
+      "function": "storage",
+      "active": true
+    },
+    {
+      "id": "marble-magic-wardrobe",
+      "name": "Marble magic wardrobe",
+      "family": "magic-wardrobe",
+      "construction": 96,
+      "members": true,
+      "materials": {
+        "Marble block": 1
+      },
+      "capacity": null,
+      "wiki": "https://runescape.wiki/w/Marble_magic_wardrobe",
+      "source": "Magic_wardrobe",
+      "function": "storage",
+      "active": true
+    },
+    {
+      "id": "eternal-magic-wardrobe",
+      "name": "Eternal magic wardrobe",
+      "family": "magic-wardrobe",
+      "construction": 105,
+      "members": true,
+      "materials": {
+        "Eternal plank": 3
+      },
+      "capacity": null,
+      "wiki": "https://runescape.wiki/w/Eternal_magic_wardrobe",
+      "source": "Magic_wardrobe",
+      "function": "storage",
+      "active": true
+    },
+    {
+      "id": "eternal-gilded-magic-wardrobe",
+      "name": "Eternal gilded magic wardrobe",
+      "family": "magic-wardrobe",
+      "construction": 114,
+      "members": true,
+      "materials": {
+        "Eternal plank": 3,
+        "Gold leaf": 2
+      },
+      "capacity": null,
+      "wiki": "https://runescape.wiki/w/Eternal_gilded_magic_wardrobe",
+      "source": "Magic_wardrobe",
+      "function": "storage",
+      "active": true
+    },
+    {
+      "id": "oak-toy-box",
+      "name": "Oak toy box",
+      "family": "toy-box",
+      "construction": 50,
+      "members": true,
+      "materials": {
+        "Oak plank": 2
+      },
+      "capacity": null,
+      "wiki": "https://runescape.wiki/w/Oak_toy_box",
+      "source": "Toy_box",
+      "function": "storage",
+      "active": true
+    },
+    {
+      "id": "teak-toy-box",
+      "name": "Teak toy box",
+      "family": "toy-box",
+      "construction": 68,
+      "members": true,
+      "materials": {
+        "Teak plank": 2
+      },
+      "capacity": null,
+      "wiki": "https://runescape.wiki/w/Teak_toy_box",
+      "source": "Toy_box",
+      "function": "storage",
+      "active": true
+    },
+    {
+      "id": "mahogany-toy-box",
+      "name": "Mahogany toy box",
+      "family": "toy-box",
+      "construction": 86,
+      "members": true,
+      "materials": {
+        "Mahogany plank": 2
+      },
+      "capacity": null,
+      "wiki": "https://runescape.wiki/w/Mahogany_toy_box",
+      "source": "Toy_box",
+      "function": "storage",
+      "active": true
+    },
+    {
+      "id": "eternal-toy-box",
+      "name": "Eternal toy box",
+      "family": "toy-box",
+      "construction": 101,
+      "members": true,
+      "materials": {
+        "Eternal plank": 2
+      },
+      "capacity": null,
+      "wiki": "https://runescape.wiki/w/Eternal_toy_box",
+      "source": "Toy_box",
+      "function": "storage",
+      "active": true
+    },
+    {
+      "id": "oak-fancy-dress-box",
+      "name": "Oak fancy dress box",
+      "family": "fancy-dress-box",
+      "construction": 44,
+      "members": true,
+      "materials": {
+        "Oak plank": 2
+      },
+      "capacity": 2,
+      "wiki": "https://runescape.wiki/w/Oak_fancy_dress_box",
+      "source": "Fancy_dress_box",
+      "function": "storage",
+      "active": true
+    },
+    {
+      "id": "teak-fancy-dress-box",
+      "name": "Teak fancy dress box",
+      "family": "fancy-dress-box",
+      "construction": 62,
+      "members": true,
+      "materials": {
+        "Teak plank": 2
+      },
+      "capacity": 4,
+      "wiki": "https://runescape.wiki/w/Teak_fancy_dress_box",
+      "source": "Fancy_dress_box",
+      "function": "storage",
+      "active": true
+    },
+    {
+      "id": "mahogany-fancy-dress-box",
+      "name": "Mahogany fancy dress box",
+      "family": "fancy-dress-box",
+      "construction": 80,
+      "members": true,
+      "materials": {
+        "Mahogany plank": 2
+      },
+      "capacity": null,
+      "wiki": "https://runescape.wiki/w/Mahogany_fancy_dress_box",
+      "source": "Fancy_dress_box",
+      "function": "storage",
+      "active": true
+    },
+    {
+      "id": "eternal-fancy-dress-box",
+      "name": "Eternal fancy dress box",
+      "family": "fancy-dress-box",
+      "construction": 102,
+      "members": true,
+      "materials": {
+        "Eternal plank": 2
+      },
+      "capacity": null,
+      "wiki": "https://runescape.wiki/w/Eternal_fancy_dress_box",
+      "source": "Fancy_dress_box",
+      "function": "storage",
+      "active": true
+    },
+    {
+      "id": "oak-treasure-chest",
+      "name": "Oak treasure chest",
+      "family": "treasure-chest",
+      "construction": 48,
+      "members": true,
+      "materials": {
+        "Oak plank": 2
+      },
+      "capacity": null,
+      "rewardTiers": [
+        "easy"
+      ],
+      "wiki": "https://runescape.wiki/w/Oak_treasure_chest",
+      "source": "Treasure_chest",
+      "function": "storage",
+      "active": true
+    },
+    {
+      "id": "teak-treasure-chest",
+      "name": "Teak treasure chest",
+      "family": "treasure-chest",
+      "construction": 66,
+      "members": true,
+      "materials": {
+        "Teak plank": 2
+      },
+      "capacity": null,
+      "rewardTiers": [
+        "easy",
+        "medium",
+        "hard"
+      ],
+      "wiki": "https://runescape.wiki/w/Teak_treasure_chest",
+      "source": "Treasure_chest",
+      "function": "storage",
+      "active": true
+    },
+    {
+      "id": "mahogany-treasure-chest",
+      "name": "Mahogany treasure chest",
+      "family": "treasure-chest",
+      "construction": 84,
+      "members": true,
+      "materials": {
+        "Mahogany plank": 2
+      },
+      "capacity": null,
+      "rewardTiers": [
+        "easy",
+        "medium",
+        "hard",
+        "elite"
+      ],
+      "wiki": "https://runescape.wiki/w/Mahogany_treasure_chest",
+      "source": "Treasure_chest",
+      "function": "storage",
+      "active": true
+    },
+    {
+      "id": "eternal-treasure-chest",
+      "name": "Eternal treasure chest",
+      "family": "treasure-chest",
+      "construction": 101,
+      "members": true,
+      "materials": {
+        "Eternal plank": 2
+      },
+      "capacity": null,
+      "rewardTiers": [
+        "easy",
+        "medium",
+        "hard",
+        "elite",
+        "master"
+      ],
+      "wiki": "https://runescape.wiki/w/Eternal_treasure_chest",
+      "source": "Treasure_chest",
+      "function": "storage",
+      "active": true
+    },
+    {
+      "id": "wooden-bookcase",
+      "name": "Wooden bookcase",
+      "family": "bookcase",
+      "construction": 6,
+      "members": false,
+      "materials": {
+        "Plank": 4,
+        "Steel nails": 4
+      },
+      "wiki": "https://runescape.wiki/w/Wooden_bookcase",
+      "source": "Wooden_bookcase",
+      "function": "automatic-book-retrieval",
+      "active": true,
+      "generateTasks": false
+    },
+    {
+      "id": "oak-bookcase",
+      "name": "Oak bookcase",
+      "family": "bookcase",
+      "construction": 29,
+      "members": true,
+      "materials": {
+        "Oak plank": 3
+      },
+      "wiki": "https://runescape.wiki/w/Oak_bookcase",
+      "source": "Bookcase",
+      "function": "automatic-book-retrieval",
+      "active": true,
+      "generateTasks": false
+    },
+    {
+      "id": "teak-bookcase",
+      "name": "Teak bookcase",
+      "family": "bookcase",
+      "construction": 40,
+      "members": true,
+      "materials": {
+        "Teak plank": 3
+      },
+      "wiki": "https://runescape.wiki/w/Teak_bookcase",
+      "source": "Bookcase",
+      "function": "automatic-book-retrieval",
+      "active": true,
+      "generateTasks": false
+    },
+    {
+      "id": "mahogany-bookcase",
+      "name": "Mahogany bookcase",
+      "family": "bookcase",
+      "construction": 64,
+      "members": true,
+      "materials": {
+        "Mahogany plank": 3
+      },
+      "wiki": "https://runescape.wiki/w/Mahogany_bookcase",
+      "source": "Bookcase",
+      "function": "automatic-book-retrieval",
+      "active": true,
+      "generateTasks": false
+    },
+    {
+      "id": "eternal-bookcase",
+      "name": "Eternal bookcase",
+      "family": "bookcase",
+      "construction": 100,
+      "members": true,
+      "materials": {
+        "Eternal plank": 3
+      },
+      "wiki": "https://runescape.wiki/w/Eternal_bookcase",
+      "source": "Bookcase",
+      "function": "automatic-book-retrieval",
+      "active": true,
+      "generateTasks": false
+    },
+    {
+      "id": "silverlight-display",
+      "name": "Silverlight display",
+      "family": "silverlight-display",
+      "construction": 42,
+      "members": true,
+      "materials": {
+        "Teak plank": 2,
+        "Silverlight": 1
+      },
+      "wiki": "https://runescape.wiki/w/Silverlight_(furniture)",
+      "source": "Silverlight_(furniture)",
+      "function": "display",
+      "active": true
+    },
+    {
+      "id": "anti-dragon-shield-display",
+      "name": "Anti-dragon shield display",
+      "family": "anti-dragon-shield-display",
+      "construction": 47,
+      "members": true,
+      "materials": {
+        "Teak plank": 3,
+        "Anti-dragon shield": 1
+      },
+      "wiki": "https://runescape.wiki/w/Anti-dragon_shield_(furniture)",
+      "source": "Anti-dragon_shield_(furniture)",
+      "function": "display",
+      "active": true
+    },
+    {
+      "id": "cape-display",
+      "name": "Mahogany gilded cape stand",
+      "family": "cape-display",
+      "construction": 85,
+      "members": true,
+      "materials": {
+        "Mahogany plank": 2,
+        "Gold leaf": 1
+      },
+      "wiki": "https://runescape.wiki/w/Mahogany_gilded_cape_stand",
+      "source": "Mahogany_gilded_cape_stand",
+      "function": "display",
+      "active": true
+    }
+  ],
+  "items": [
+    {
+      "name": "Helmet of trials",
+      "members": true,
+      "wiki": "https://runescape.wiki/w/Helmet_of_trials",
+      "permalink": "https://runescape.wiki/w/Helmet_of_trials?oldid=37172621",
+      "retrieved": "2026-10-08"
+    },
+    {
+      "name": "Saradomin cape",
+      "members": true,
+      "wiki": "https://runescape.wiki/w/Saradomin_cape",
+      "permalink": "https://runescape.wiki/w/Saradomin_cape?oldid=37172740",
+      "retrieved": "2026-10-08"
+    },
+    {
+      "name": "Obsidian boots",
+      "members": true,
+      "wiki": "https://runescape.wiki/w/Obsidian_boots",
+      "permalink": "https://runescape.wiki/w/Obsidian_boots?oldid=37018442",
+      "retrieved": "2026-10-08"
+    },
+    {
+      "name": "Obsidian platebody",
+      "members": true,
+      "wiki": "https://runescape.wiki/w/Obsidian_platebody",
+      "permalink": "https://runescape.wiki/w/Obsidian_platebody?oldid=37168710",
+      "retrieved": "2026-10-08"
+    },
+    {
+      "name": "Void knight mage helm",
+      "members": true,
+      "wiki": "https://runescape.wiki/w/Void_knight_mage_helm",
+      "permalink": "https://runescape.wiki/w/Void_knight_mage_helm?oldid=37057216",
+      "retrieved": "2026-10-08"
+    },
+    {
+      "name": "Obsidian plateskirt",
+      "members": true,
+      "wiki": "https://runescape.wiki/w/Obsidian_plateskirt",
+      "permalink": "https://runescape.wiki/w/Obsidian_plateskirt?oldid=37018459",
+      "retrieved": "2026-10-08"
+    },
+    {
+      "name": "Obsidian ranger helm",
+      "members": true,
+      "wiki": "https://runescape.wiki/w/Obsidian_ranger_helm",
+      "permalink": "https://runescape.wiki/w/Obsidian_ranger_helm?oldid=37036067",
+      "retrieved": "2026-10-08"
+    },
+    {
+      "name": "Obsidian kiteshield",
+      "members": true,
+      "wiki": "https://runescape.wiki/w/Obsidian_kiteshield",
+      "permalink": "https://runescape.wiki/w/Obsidian_kiteshield?oldid=37018452",
+      "retrieved": "2026-10-08"
+    },
+    {
+      "name": "Mask of Dragith Nurn",
+      "members": false,
+      "wiki": "https://runescape.wiki/w/Mask_of_Dragith_Nurn",
+      "permalink": "https://runescape.wiki/w/Mask_of_Dragith_Nurn?oldid=37017695",
+      "retrieved": "2026-10-08"
+    },
+    {
+      "name": "Obsidian platelegs",
+      "members": true,
+      "wiki": "https://runescape.wiki/w/Obsidian_platelegs",
+      "permalink": "https://runescape.wiki/w/Obsidian_platelegs?oldid=37168709",
+      "retrieved": "2026-10-08"
+    },
+    {
+      "name": "Zamorak cape",
+      "members": true,
+      "wiki": "https://runescape.wiki/w/Zamorak_cape",
+      "permalink": "https://runescape.wiki/w/Zamorak_cape?oldid=37178964",
+      "retrieved": "2026-10-08"
+    },
+    {
+      "name": "Obsidian gloves",
+      "members": true,
+      "wiki": "https://runescape.wiki/w/Obsidian_gloves",
+      "permalink": "https://runescape.wiki/w/Obsidian_gloves?oldid=37018444",
+      "retrieved": "2026-10-08"
+    },
+    {
+      "name": "Void knight melee helm",
+      "members": true,
+      "wiki": "https://runescape.wiki/w/Void_knight_melee_helm",
+      "permalink": "https://runescape.wiki/w/Void_knight_melee_helm?oldid=37057213",
+      "retrieved": "2026-10-08"
+    },
+    {
+      "name": "Obsidian mage helm",
+      "members": true,
+      "wiki": "https://runescape.wiki/w/Obsidian_mage_helm",
+      "permalink": "https://runescape.wiki/w/Obsidian_mage_helm?oldid=37036069",
+      "retrieved": "2026-10-08"
+    },
+    {
+      "name": "Fire cape",
+      "members": true,
+      "wiki": "https://runescape.wiki/w/Fire_cape",
+      "permalink": "https://runescape.wiki/w/Fire_cape?oldid=37199733",
+      "retrieved": "2026-10-08"
+    },
+    {
+      "name": "Guthix cape",
+      "members": true,
+      "wiki": "https://runescape.wiki/w/Guthix_cape",
+      "permalink": "https://runescape.wiki/w/Guthix_cape?oldid=37178963",
+      "retrieved": "2026-10-08"
+    },
+    {
+      "name": "Void knight ranger helm",
+      "members": true,
+      "wiki": "https://runescape.wiki/w/Void_knight_ranger_helm",
+      "permalink": "https://runescape.wiki/w/Void_knight_ranger_helm?oldid=37085486",
+      "retrieved": "2026-10-08"
+    },
+    {
+      "name": "Cape of legends",
+      "members": true,
+      "wiki": "https://runescape.wiki/w/Cape_of_legends",
+      "permalink": "https://runescape.wiki/w/Cape_of_legends?oldid=37172734",
+      "retrieved": "2026-10-08"
+    },
+    {
+      "name": "Obsidian warrior helm",
+      "members": true,
+      "wiki": "https://runescape.wiki/w/Obsidian_warrior_helm",
+      "permalink": "https://runescape.wiki/w/Obsidian_warrior_helm?oldid=37036066",
+      "retrieved": "2026-10-08"
+    },
+    {
+      "name": "Obsidian cape",
+      "members": true,
+      "wiki": "https://runescape.wiki/w/Obsidian_cape",
+      "permalink": "https://runescape.wiki/w/Obsidian_cape?oldid=37172737",
+      "retrieved": "2026-10-08"
+    },
+    {
+      "name": "Ghostly robe (bottom)",
+      "members": true,
+      "wiki": "https://runescape.wiki/w/Ghostly_robe_(bottom)",
+      "permalink": "https://runescape.wiki/w/Ghostly_robe_(bottom)?oldid=37172430",
+      "retrieved": "2026-10-08"
+    },
+    {
+      "name": "Snow globe",
+      "members": false,
+      "wiki": "https://runescape.wiki/w/Snow_globe",
+      "permalink": "https://runescape.wiki/w/Snow_globe?oldid=37020988",
+      "retrieved": "2026-10-08"
+    },
+    {
+      "name": "Ava's accumulator",
+      "members": true,
+      "wiki": "https://runescape.wiki/w/Ava's_accumulator",
+      "permalink": "https://runescape.wiki/w/Ava's_accumulator?oldid=37157947",
+      "retrieved": "2026-10-08"
+    },
+    {
+      "name": "Ghostly hood",
+      "members": true,
+      "wiki": "https://runescape.wiki/w/Ghostly_hood",
+      "permalink": "https://runescape.wiki/w/Ghostly_hood?oldid=37172433",
+      "retrieved": "2026-10-08"
+    },
+    {
+      "name": "Ghostly robe (top)",
+      "members": true,
+      "wiki": "https://runescape.wiki/w/Ghostly_robe_(top)",
+      "permalink": "https://runescape.wiki/w/Ghostly_robe_(top)?oldid=37172434",
+      "retrieved": "2026-10-08"
+    },
+    {
+      "name": "Spotted cape",
+      "members": true,
+      "wiki": "https://runescape.wiki/w/Spotted_cape",
+      "permalink": "https://runescape.wiki/w/Spotted_cape?oldid=37170749",
+      "retrieved": "2026-10-08"
+    },
+    {
+      "name": "Ava's alerter",
+      "members": true,
+      "wiki": "https://runescape.wiki/w/Ava's_alerter",
+      "permalink": "https://runescape.wiki/w/Ava's_alerter?oldid=37170609",
+      "retrieved": "2026-10-08"
+    },
+    {
+      "name": "Bunny ears",
+      "members": false,
+      "wiki": "https://runescape.wiki/w/Bunny_ears",
+      "permalink": "https://runescape.wiki/w/Bunny_ears?oldid=37012043",
+      "retrieved": "2026-10-08"
+    },
+    {
+      "name": "Yo-yo",
+      "members": false,
+      "wiki": "https://runescape.wiki/w/Yo-yo",
+      "permalink": "https://runescape.wiki/w/Yo-yo?oldid=37022884",
+      "retrieved": "2026-10-08"
+    },
+    {
+      "name": "Spirit cape",
+      "members": true,
+      "wiki": "https://runescape.wiki/w/Spirit_cape",
+      "permalink": "https://runescape.wiki/w/Spirit_cape?oldid=37198962",
+      "retrieved": "2026-10-08"
+    },
+    {
+      "name": "Ring of egg",
+      "members": false,
+      "wiki": "https://runescape.wiki/w/Ring_of_egg",
+      "permalink": "https://runescape.wiki/w/Ring_of_egg?oldid=37013666",
+      "retrieved": "2026-10-08"
+    },
+    {
+      "name": "Ava's attractor",
+      "members": true,
+      "wiki": "https://runescape.wiki/w/Ava's_attractor",
+      "permalink": "https://runescape.wiki/w/Ava's_attractor?oldid=37124937",
+      "retrieved": "2026-10-08"
+    },
+    {
+      "name": "Reindeer hat",
+      "members": false,
+      "wiki": "https://runescape.wiki/w/Reindeer_hat",
+      "permalink": "https://runescape.wiki/w/Reindeer_hat?oldid=37019728",
+      "retrieved": "2026-10-08"
+    },
+    {
+      "name": "Cornucopia",
+      "members": false,
+      "wiki": "https://runescape.wiki/w/Cornucopia",
+      "permalink": "https://runescape.wiki/w/Cornucopia?oldid=37168144",
+      "retrieved": "2026-10-08"
+    },
+    {
+      "name": "Rubber chicken",
+      "members": false,
+      "wiki": "https://runescape.wiki/w/Rubber_chicken",
+      "permalink": "https://runescape.wiki/w/Rubber_chicken?oldid=37159240",
+      "retrieved": "2026-10-08"
+    },
+    {
+      "name": "Scythe",
+      "members": false,
+      "wiki": "https://runescape.wiki/w/Scythe",
+      "permalink": "https://runescape.wiki/w/Scythe?oldid=37020390",
+      "retrieved": "2026-10-08"
+    },
+    {
+      "name": "Ardougne cloak 4",
+      "members": true,
+      "wiki": "https://runescape.wiki/w/Ardougne_cloak_4",
+      "permalink": "https://runescape.wiki/w/Ardougne_cloak_4?oldid=37006921",
+      "retrieved": "2026-10-08"
+    },
+    {
+      "name": "Spottier cape",
+      "members": true,
+      "wiki": "https://runescape.wiki/w/Spottier_cape",
+      "permalink": "https://runescape.wiki/w/Spottier_cape?oldid=37171314",
+      "retrieved": "2026-10-08"
+    },
+    {
+      "name": "Ghostly gloves",
+      "members": true,
+      "wiki": "https://runescape.wiki/w/Ghostly_gloves",
+      "permalink": "https://runescape.wiki/w/Ghostly_gloves?oldid=37172435",
+      "retrieved": "2026-10-08"
+    },
+    {
+      "name": "Zombie head",
+      "members": false,
+      "wiki": "https://runescape.wiki/w/Zombie_head",
+      "permalink": "https://runescape.wiki/w/Zombie_head?oldid=37170136",
+      "retrieved": "2026-10-08"
+    },
+    {
+      "name": "Mime legs",
+      "members": false,
+      "wiki": "https://runescape.wiki/w/Mime_legs",
+      "permalink": "https://runescape.wiki/w/Mime_legs?oldid=37172503",
+      "retrieved": "2026-10-08"
+    },
+    {
+      "name": "Lederhosen shorts",
+      "members": false,
+      "wiki": "https://runescape.wiki/w/Lederhosen_shorts",
+      "permalink": "https://runescape.wiki/w/Lederhosen_shorts?oldid=36843036",
+      "retrieved": "2026-10-08"
+    },
+    {
+      "name": "Mime boots",
+      "members": false,
+      "wiki": "https://runescape.wiki/w/Mime_boots",
+      "permalink": "https://runescape.wiki/w/Mime_boots?oldid=37172426",
+      "retrieved": "2026-10-08"
+    },
+    {
+      "name": "Ghostly cloak",
+      "members": true,
+      "wiki": "https://runescape.wiki/w/Ghostly_cloak",
+      "permalink": "https://runescape.wiki/w/Ghostly_cloak?oldid=37172437",
+      "retrieved": "2026-10-08"
+    },
+    {
+      "name": "Zombie shirt",
+      "members": false,
+      "wiki": "https://runescape.wiki/w/Zombie_shirt",
+      "permalink": "https://runescape.wiki/w/Zombie_shirt?oldid=36260327",
+      "retrieved": "2026-10-08"
+    },
+    {
+      "name": "Dagon'hai hat",
+      "members": true,
+      "wiki": "https://runescape.wiki/w/Dagon'hai_hat",
+      "permalink": "https://runescape.wiki/w/Dagon'hai_hat?oldid=37173177",
+      "retrieved": "2026-10-08"
+    },
+    {
+      "name": "Dagon'hai robe bottom",
+      "members": true,
+      "wiki": "https://runescape.wiki/w/Dagon'hai_robe_bottom",
+      "permalink": "https://runescape.wiki/w/Dagon'hai_robe_bottom?oldid=37173179",
+      "retrieved": "2026-10-08"
+    },
+    {
+      "name": "Lederhosen top",
+      "members": false,
+      "wiki": "https://runescape.wiki/w/Lederhosen_top",
+      "permalink": "https://runescape.wiki/w/Lederhosen_top?oldid=36843032",
+      "retrieved": "2026-10-08"
+    },
+    {
+      "name": "Lederhosen hat",
+      "members": false,
+      "wiki": "https://runescape.wiki/w/Lederhosen_hat",
+      "permalink": "https://runescape.wiki/w/Lederhosen_hat?oldid=37033573",
+      "retrieved": "2026-10-08"
+    },
+    {
+      "name": "Zombie mask",
+      "members": false,
+      "wiki": "https://runescape.wiki/w/Zombie_mask",
+      "permalink": "https://runescape.wiki/w/Zombie_mask?oldid=36578558",
+      "retrieved": "2026-10-08"
+    },
+    {
+      "name": "Zombie trousers",
+      "members": false,
+      "wiki": "https://runescape.wiki/w/Zombie_trousers",
+      "permalink": "https://runescape.wiki/w/Zombie_trousers?oldid=36248204",
+      "retrieved": "2026-10-08"
+    },
+    {
+      "name": "Mime mask",
+      "members": false,
+      "wiki": "https://runescape.wiki/w/Mime_mask",
+      "permalink": "https://runescape.wiki/w/Mime_mask?oldid=37172429",
+      "retrieved": "2026-10-08"
+    },
+    {
+      "name": "Zombie gloves",
+      "members": false,
+      "wiki": "https://runescape.wiki/w/Zombie_gloves",
+      "permalink": "https://runescape.wiki/w/Zombie_gloves?oldid=36948261",
+      "retrieved": "2026-10-08"
+    },
+    {
+      "name": "Studded body (g)",
+      "members": false,
+      "wiki": "https://runescape.wiki/w/Studded_body_(g)",
+      "permalink": "https://runescape.wiki/w/Studded_body_(g)?oldid=37172497",
+      "retrieved": "2026-10-08"
+    },
+    {
+      "name": "Mime gloves",
+      "members": false,
+      "wiki": "https://runescape.wiki/w/Mime_gloves",
+      "permalink": "https://runescape.wiki/w/Mime_gloves?oldid=37172428",
+      "retrieved": "2026-10-08"
+    },
+    {
+      "name": "Lightbulb hat",
+      "members": true,
+      "wiki": "https://runescape.wiki/w/Lightbulb_hat",
+      "permalink": "https://runescape.wiki/w/Lightbulb_hat?oldid=37016315",
+      "retrieved": "2026-10-08"
+    },
+    {
+      "name": "Mime top",
+      "members": false,
+      "wiki": "https://runescape.wiki/w/Mime_top",
+      "permalink": "https://runescape.wiki/w/Mime_top?oldid=37172427",
+      "retrieved": "2026-10-08"
+    },
+    {
+      "name": "Dagon'hai robe top",
+      "members": true,
+      "wiki": "https://runescape.wiki/w/Dagon'hai_robe_top",
+      "permalink": "https://runescape.wiki/w/Dagon'hai_robe_top?oldid=37173178",
+      "retrieved": "2026-10-08"
+    },
+    {
+      "name": "Ghostly boots",
+      "members": true,
+      "wiki": "https://runescape.wiki/w/Ghostly_boots",
+      "permalink": "https://runescape.wiki/w/Ghostly_boots?oldid=37172436",
+      "retrieved": "2026-10-08"
+    },
+    {
+      "name": "Zombie boots",
+      "members": false,
+      "wiki": "https://runescape.wiki/w/Zombie_boots",
+      "permalink": "https://runescape.wiki/w/Zombie_boots?oldid=36248154",
+      "retrieved": "2026-10-08"
+    },
+    {
+      "name": "Bob shirt (blue)",
+      "members": false,
+      "wiki": "https://runescape.wiki/w/Bob_shirt_(blue)",
+      "permalink": "https://runescape.wiki/w/Bob_shirt_(blue)?oldid=37011610",
+      "retrieved": "2026-10-08"
+    },
+    {
+      "name": "Bob shirt (red)",
+      "members": false,
+      "wiki": "https://runescape.wiki/w/Bob_shirt_(red)",
+      "permalink": "https://runescape.wiki/w/Bob_shirt_(red)?oldid=37011613",
+      "retrieved": "2026-10-08"
+    },
+    {
+      "name": "Flared trousers",
+      "members": false,
+      "wiki": "https://runescape.wiki/w/Flared_trousers",
+      "permalink": "https://runescape.wiki/w/Flared_trousers?oldid=37172510",
+      "retrieved": "2026-10-08"
+    },
+    {
+      "name": "Wizard robe top (t)",
+      "members": false,
+      "wiki": "https://runescape.wiki/w/Wizard_robe_top_(t)",
+      "permalink": "https://runescape.wiki/w/Wizard_robe_top_(t)?oldid=37172460",
+      "retrieved": "2026-10-08"
+    },
+    {
+      "name": "Black beret",
+      "members": false,
+      "wiki": "https://runescape.wiki/w/Black_beret",
+      "permalink": "https://runescape.wiki/w/Black_beret?oldid=37172419",
+      "retrieved": "2026-10-08"
+    },
+    {
+      "name": "Amulet of magic (t)",
+      "members": false,
+      "wiki": "https://runescape.wiki/w/Amulet_of_magic_(t)",
+      "permalink": "https://runescape.wiki/w/Amulet_of_magic_(t)?oldid=37006623",
+      "retrieved": "2026-10-08"
+    },
+    {
+      "name": "Highwayman mask",
+      "members": false,
+      "wiki": "https://runescape.wiki/w/Highwayman_mask",
+      "permalink": "https://runescape.wiki/w/Highwayman_mask?oldid=37172417",
+      "retrieved": "2026-10-08"
+    },
+    {
+      "name": "Studded body (t)",
+      "members": false,
+      "wiki": "https://runescape.wiki/w/Studded_body_(t)",
+      "permalink": "https://runescape.wiki/w/Studded_body_(t)?oldid=37172504",
+      "retrieved": "2026-10-08"
+    },
+    {
+      "name": "Wizard hat (t)",
+      "members": false,
+      "wiki": "https://runescape.wiki/w/Wizard_hat_(t)",
+      "permalink": "https://runescape.wiki/w/Wizard_hat_(t)?oldid=37172459",
+      "retrieved": "2026-10-08"
+    },
+    {
+      "name": "Wizard hat (g)",
+      "members": false,
+      "wiki": "https://runescape.wiki/w/Wizard_hat_(g)",
+      "permalink": "https://runescape.wiki/w/Wizard_hat_(g)?oldid=37022727",
+      "retrieved": "2026-10-08"
+    },
+    {
+      "name": "Blue beret",
+      "members": false,
+      "wiki": "https://runescape.wiki/w/Blue_beret",
+      "permalink": "https://runescape.wiki/w/Blue_beret?oldid=37172420",
+      "retrieved": "2026-10-08"
+    },
+    {
+      "name": "Studded chaps (t)",
+      "members": false,
+      "wiki": "https://runescape.wiki/w/Studded_chaps_(t)",
+      "permalink": "https://runescape.wiki/w/Studded_chaps_(t)?oldid=37172505",
+      "retrieved": "2026-10-08"
+    },
+    {
+      "name": "Powdered wig",
+      "members": false,
+      "wiki": "https://runescape.wiki/w/Powdered_wig",
+      "permalink": "https://runescape.wiki/w/Powdered_wig?oldid=37019262",
+      "retrieved": "2026-10-08"
+    },
+    {
+      "name": "Studded chaps (g)",
+      "members": false,
+      "wiki": "https://runescape.wiki/w/Studded_chaps_(g)",
+      "permalink": "https://runescape.wiki/w/Studded_chaps_(g)?oldid=37172496",
+      "retrieved": "2026-10-08"
+    },
+    {
+      "name": "Wizard robe top (g)",
+      "members": false,
+      "wiki": "https://runescape.wiki/w/Wizard_robe_top_(g)",
+      "permalink": "https://runescape.wiki/w/Wizard_robe_top_(g)?oldid=37022731",
+      "retrieved": "2026-10-08"
+    },
+    {
+      "name": "White beret",
+      "members": false,
+      "wiki": "https://runescape.wiki/w/White_beret",
+      "permalink": "https://runescape.wiki/w/White_beret?oldid=37172418",
+      "retrieved": "2026-10-08"
+    },
+    {
+      "name": "Wizard robe skirt (t)",
+      "members": false,
+      "wiki": "https://runescape.wiki/w/Wizard_robe_skirt_(t)",
+      "permalink": "https://runescape.wiki/w/Wizard_robe_skirt_(t)?oldid=37172458",
+      "retrieved": "2026-10-08"
+    },
+    {
+      "name": "Sleeping cap",
+      "members": false,
+      "wiki": "https://runescape.wiki/w/Sleeping_cap",
+      "permalink": "https://runescape.wiki/w/Sleeping_cap?oldid=37020776",
+      "retrieved": "2026-10-08"
+    },
+    {
+      "name": "Wizard robe skirt (g)",
+      "members": false,
+      "wiki": "https://runescape.wiki/w/Wizard_robe_skirt_(g)",
+      "permalink": "https://runescape.wiki/w/Wizard_robe_skirt_(g)?oldid=37022729",
+      "retrieved": "2026-10-08"
+    },
+    {
+      "name": "Pantaloons",
+      "members": false,
+      "wiki": "https://runescape.wiki/w/Pantaloons",
+      "permalink": "https://runescape.wiki/w/Pantaloons?oldid=37172738",
+      "retrieved": "2026-10-08"
+    },
+    {
+      "name": "Bob shirt (green)",
+      "members": false,
+      "wiki": "https://runescape.wiki/w/Bob_shirt_(green)",
+      "permalink": "https://runescape.wiki/w/Bob_shirt_(green)?oldid=37011611",
+      "retrieved": "2026-10-08"
+    },
+    {
+      "name": "Anti-dragon shield",
+      "members": false,
+      "wiki": "https://runescape.wiki/w/Anti-dragon_shield",
+      "permalink": "https://runescape.wiki/w/Anti-dragon_shield?oldid=37006751",
+      "retrieved": "2026-10-08"
+    },
+    {
+      "name": "Silverlight",
+      "members": false,
+      "wiki": "https://runescape.wiki/w/Silverlight",
+      "permalink": "https://runescape.wiki/w/Silverlight?oldid=37197741",
+      "retrieved": "2026-10-08"
+    },
+    {
+      "name": "Bob shirt (purple)",
+      "members": false,
+      "wiki": "https://runescape.wiki/w/Bob_shirt_(purple)",
+      "permalink": "https://runescape.wiki/w/Bob_shirt_(purple)?oldid=37011612",
+      "retrieved": "2026-10-08"
+    },
+    {
+      "name": "Bob shirt (black)",
+      "members": false,
+      "wiki": "https://runescape.wiki/w/Bob_shirt_(black)",
+      "permalink": "https://runescape.wiki/w/Bob_shirt_(black)?oldid=37011609",
+      "retrieved": "2026-10-08"
+    },
+    {
+      "name": "Amulet of fury (or)",
+      "members": true,
+      "wiki": "https://runescape.wiki/w/Amulet_of_fury_(or)",
+      "permalink": "https://runescape.wiki/w/Amulet_of_fury_(or)?oldid=37006618",
+      "retrieved": "2026-10-08"
+    },
+    {
+      "name": "Amulet of fury (t)",
+      "members": true,
+      "wiki": "https://runescape.wiki/w/Amulet_of_fury_(t)",
+      "permalink": "https://runescape.wiki/w/Amulet_of_fury_(t)?oldid=37006619",
+      "retrieved": "2026-10-08"
+    },
+    {
+      "name": "Strength amulet (t)",
+      "members": false,
+      "wiki": "https://runescape.wiki/w/Strength_amulet_(t)",
+      "permalink": "https://runescape.wiki/w/Strength_amulet_(t)?oldid=37021517",
+      "retrieved": "2026-10-08"
+    },
+    {
+      "name": "Amulet of glory (t)",
+      "members": true,
+      "wiki": "https://runescape.wiki/w/Amulet_of_glory_(t)",
+      "permalink": "https://runescape.wiki/w/Amulet_of_glory_(t)?oldid=37172461",
+      "retrieved": "2026-10-08"
+    },
+    {
+      "name": "Golden Karil's crossbow",
+      "members": true,
+      "wiki": "https://runescape.wiki/w/Golden_Karil's_crossbow",
+      "permalink": "https://runescape.wiki/w/Golden_Karil's_crossbow?oldid=36896389",
+      "retrieved": "2026-10-08"
+    },
+    {
+      "name": "Golden Verac's plateskirt",
+      "members": true,
+      "wiki": "https://runescape.wiki/w/Golden_Verac's_plateskirt",
+      "permalink": "https://runescape.wiki/w/Golden_Verac's_plateskirt?oldid=37014891",
+      "retrieved": "2026-10-08"
+    },
+    {
+      "name": "Golden Linza's cuirass",
+      "members": true,
+      "wiki": "https://runescape.wiki/w/Golden_Linza's_cuirass",
+      "permalink": "https://runescape.wiki/w/Golden_Linza's_cuirass?oldid=37043938",
+      "retrieved": "2026-10-08"
+    },
+    {
+      "name": "Golden Verac's flail",
+      "members": true,
+      "wiki": "https://runescape.wiki/w/Golden_Verac's_flail",
+      "permalink": "https://runescape.wiki/w/Golden_Verac's_flail?oldid=36906522",
+      "retrieved": "2026-10-08"
+    },
+    {
+      "name": "Golden Verac's brassard",
+      "members": true,
+      "wiki": "https://runescape.wiki/w/Golden_Verac's_brassard",
+      "permalink": "https://runescape.wiki/w/Golden_Verac's_brassard?oldid=37014889",
+      "retrieved": "2026-10-08"
+    },
+    {
+      "name": "Golden Ahrim's robe top",
+      "members": true,
+      "wiki": "https://runescape.wiki/w/Golden_Ahrim's_robe_top",
+      "permalink": "https://runescape.wiki/w/Golden_Ahrim's_robe_top?oldid=37014777",
+      "retrieved": "2026-10-08"
+    },
+    {
+      "name": "Golden Dharok's platebody",
+      "members": true,
+      "wiki": "https://runescape.wiki/w/Golden_Dharok's_platebody",
+      "permalink": "https://runescape.wiki/w/Golden_Dharok's_platebody?oldid=37014798",
+      "retrieved": "2026-10-08"
+    },
+    {
+      "name": "Golden Verac's helm",
+      "members": true,
+      "wiki": "https://runescape.wiki/w/Golden_Verac's_helm",
+      "permalink": "https://runescape.wiki/w/Golden_Verac's_helm?oldid=37014890",
+      "retrieved": "2026-10-08"
+    },
+    {
+      "name": "Golden Dharok's platelegs",
+      "members": true,
+      "wiki": "https://runescape.wiki/w/Golden_Dharok's_platelegs",
+      "permalink": "https://runescape.wiki/w/Golden_Dharok's_platelegs?oldid=37014799",
+      "retrieved": "2026-10-08"
+    },
+    {
+      "name": "Golden Ahrim's hood",
+      "members": true,
+      "wiki": "https://runescape.wiki/w/Golden_Ahrim's_hood",
+      "permalink": "https://runescape.wiki/w/Golden_Ahrim's_hood?oldid=37042569",
+      "retrieved": "2026-10-08"
+    },
+    {
+      "name": "Golden Karil's top",
+      "members": true,
+      "wiki": "https://runescape.wiki/w/Golden_Karil's_top",
+      "permalink": "https://runescape.wiki/w/Golden_Karil's_top?oldid=36896391",
+      "retrieved": "2026-10-08"
+    },
+    {
+      "name": "Golden Linza's helmet",
+      "members": true,
+      "wiki": "https://runescape.wiki/w/Golden_Linza's_helmet",
+      "permalink": "https://runescape.wiki/w/Golden_Linza's_helmet?oldid=37043939",
+      "retrieved": "2026-10-08"
+    },
+    {
+      "name": "Golden Dharok's greataxe",
+      "members": true,
+      "wiki": "https://runescape.wiki/w/Golden_Dharok's_greataxe",
+      "permalink": "https://runescape.wiki/w/Golden_Dharok's_greataxe?oldid=36898354",
+      "retrieved": "2026-10-08"
+    },
+    {
+      "name": "Golden Ahrim's robe skirt",
+      "members": true,
+      "wiki": "https://runescape.wiki/w/Golden_Ahrim's_robe_skirt",
+      "permalink": "https://runescape.wiki/w/Golden_Ahrim's_robe_skirt?oldid=37014776",
+      "retrieved": "2026-10-08"
+    },
+    {
+      "name": "Golden Dharok's helm",
+      "members": true,
+      "wiki": "https://runescape.wiki/w/Golden_Dharok's_helm",
+      "permalink": "https://runescape.wiki/w/Golden_Dharok's_helm?oldid=37014797",
+      "retrieved": "2026-10-08"
+    },
+    {
+      "name": "Golden Linza's shield",
+      "members": true,
+      "wiki": "https://runescape.wiki/w/Golden_Linza's_shield",
+      "permalink": "https://runescape.wiki/w/Golden_Linza's_shield?oldid=37043934",
+      "retrieved": "2026-10-08"
+    },
+    {
+      "name": "Golden Linza's greaves",
+      "members": true,
+      "wiki": "https://runescape.wiki/w/Golden_Linza's_greaves",
+      "permalink": "https://runescape.wiki/w/Golden_Linza's_greaves?oldid=37043937",
+      "retrieved": "2026-10-08"
+    },
+    {
+      "name": "Golden Karil's coif",
+      "members": true,
+      "wiki": "https://runescape.wiki/w/Golden_Karil's_coif",
+      "permalink": "https://runescape.wiki/w/Golden_Karil's_coif?oldid=36896392",
+      "retrieved": "2026-10-08"
+    },
+    {
+      "name": "Golden Karil's skirt",
+      "members": true,
+      "wiki": "https://runescape.wiki/w/Golden_Karil's_skirt",
+      "permalink": "https://runescape.wiki/w/Golden_Karil's_skirt?oldid=36965660",
+      "retrieved": "2026-10-08"
+    },
+    {
+      "name": "Golden Linza's hammer",
+      "members": true,
+      "wiki": "https://runescape.wiki/w/Golden_Linza's_hammer",
+      "permalink": "https://runescape.wiki/w/Golden_Linza's_hammer?oldid=37043936",
+      "retrieved": "2026-10-08"
+    },
+    {
+      "name": "Golden Akrisae's hood",
+      "members": true,
+      "wiki": "https://runescape.wiki/w/Golden_Akrisae's_hood",
+      "permalink": "https://runescape.wiki/w/Golden_Akrisae's_hood?oldid=37043943",
+      "retrieved": "2026-10-08"
+    },
+    {
+      "name": "Golden Torag's platebody",
+      "members": true,
+      "wiki": "https://runescape.wiki/w/Golden_Torag's_platebody",
+      "permalink": "https://runescape.wiki/w/Golden_Torag's_platebody?oldid=37014884",
+      "retrieved": "2026-10-08"
+    },
+    {
+      "name": "Golden Torag's hammer",
+      "members": true,
+      "wiki": "https://runescape.wiki/w/Golden_Torag's_hammer",
+      "permalink": "https://runescape.wiki/w/Golden_Torag's_hammer?oldid=36901060",
+      "retrieved": "2026-10-08"
+    },
+    {
+      "name": "Golden Guthan's warspear",
+      "members": true,
+      "wiki": "https://runescape.wiki/w/Golden_Guthan's_warspear",
+      "permalink": "https://runescape.wiki/w/Golden_Guthan's_warspear?oldid=36898323",
+      "retrieved": "2026-10-08"
+    },
+    {
+      "name": "Golden Guthan's chainskirt",
+      "members": true,
+      "wiki": "https://runescape.wiki/w/Golden_Guthan's_chainskirt",
+      "permalink": "https://runescape.wiki/w/Golden_Guthan's_chainskirt?oldid=37014808",
+      "retrieved": "2026-10-08"
+    },
+    {
+      "name": "Golden Akrisae's robe top",
+      "members": true,
+      "wiki": "https://runescape.wiki/w/Golden_Akrisae's_robe_top",
+      "permalink": "https://runescape.wiki/w/Golden_Akrisae's_robe_top?oldid=37043942",
+      "retrieved": "2026-10-08"
+    },
+    {
+      "name": "Golden Akrisae's war mace",
+      "members": true,
+      "wiki": "https://runescape.wiki/w/Golden_Akrisae's_war_mace",
+      "permalink": "https://runescape.wiki/w/Golden_Akrisae's_war_mace?oldid=37043940",
+      "retrieved": "2026-10-08"
+    },
+    {
+      "name": "Golden Guthan's helm",
+      "members": true,
+      "wiki": "https://runescape.wiki/w/Golden_Guthan's_helm",
+      "permalink": "https://runescape.wiki/w/Golden_Guthan's_helm?oldid=37014809",
+      "retrieved": "2026-10-08"
+    },
+    {
+      "name": "Golden Ahrim's staff",
+      "members": true,
+      "wiki": "https://runescape.wiki/w/Golden_Ahrim's_staff",
+      "permalink": "https://runescape.wiki/w/Golden_Ahrim's_staff?oldid=36828961",
+      "retrieved": "2026-10-08"
+    },
+    {
+      "name": "Golden Guthan's platebody",
+      "members": true,
+      "wiki": "https://runescape.wiki/w/Golden_Guthan's_platebody",
+      "permalink": "https://runescape.wiki/w/Golden_Guthan's_platebody?oldid=37014810",
+      "retrieved": "2026-10-08"
+    },
+    {
+      "name": "Golden Torag's helm",
+      "members": true,
+      "wiki": "https://runescape.wiki/w/Golden_Torag's_helm",
+      "permalink": "https://runescape.wiki/w/Golden_Torag's_helm?oldid=37042461",
+      "retrieved": "2026-10-08"
+    },
+    {
+      "name": "Golden Torag's platelegs",
+      "members": true,
+      "wiki": "https://runescape.wiki/w/Golden_Torag's_platelegs",
+      "permalink": "https://runescape.wiki/w/Golden_Torag's_platelegs?oldid=37014885",
+      "retrieved": "2026-10-08"
+    },
+    {
+      "name": "Golden Akrisae's robe skirt",
+      "members": true,
+      "wiki": "https://runescape.wiki/w/Golden_Akrisae's_robe_skirt",
+      "permalink": "https://runescape.wiki/w/Golden_Akrisae's_robe_skirt?oldid=37043941",
+      "retrieved": "2026-10-08"
+    }
+  ],
+  "slots": [
+    {
+      "id": "mask-of-dragith-nurn",
+      "label": "Mask of Dragith Nurn",
+      "family": "armour-case",
+      "parts": [
+        [
+          "Mask of Dragith Nurn"
+        ]
+      ],
+      "members": false,
+      "source": "Armour_case",
+      "storageMembers": true,
+      "wiki": "https://runescape.wiki/w/Mask_of_Dragith_Nurn",
+      "permalink": "https://runescape.wiki/w/Armour_case?oldid=37188248"
+    },
+    {
+      "id": "helmet-of-trials",
+      "label": "Helmet of trials",
+      "family": "armour-case",
+      "parts": [
+        [
+          "Helmet of trials"
+        ]
+      ],
+      "members": true,
+      "source": "Armour_case",
+      "storageMembers": true,
+      "wiki": "https://runescape.wiki/w/Helmet_of_trials",
+      "permalink": "https://runescape.wiki/w/Armour_case?oldid=37188248"
+    },
+    {
+      "id": "void-knight-melee-helm",
+      "label": "Void knight melee helm",
+      "family": "armour-case",
+      "parts": [
+        [
+          "Void knight melee helm"
+        ]
+      ],
+      "members": true,
+      "source": "Armour_case",
+      "storageMembers": true,
+      "wiki": "https://runescape.wiki/w/Void_knight_melee_helm",
+      "permalink": "https://runescape.wiki/w/Armour_case?oldid=37188248"
+    },
+    {
+      "id": "void-knight-ranger-helm",
+      "label": "Void knight ranger helm",
+      "family": "armour-case",
+      "parts": [
+        [
+          "Void knight ranger helm"
+        ]
+      ],
+      "members": true,
+      "source": "Armour_case",
+      "storageMembers": true,
+      "wiki": "https://runescape.wiki/w/Void_knight_ranger_helm",
+      "permalink": "https://runescape.wiki/w/Armour_case?oldid=37188248"
+    },
+    {
+      "id": "void-knight-mage-helm",
+      "label": "Void knight mage helm",
+      "family": "armour-case",
+      "parts": [
+        [
+          "Void knight mage helm"
+        ]
+      ],
+      "members": true,
+      "source": "Armour_case",
+      "storageMembers": true,
+      "wiki": "https://runescape.wiki/w/Void_knight_mage_helm",
+      "permalink": "https://runescape.wiki/w/Armour_case?oldid=37188248"
+    },
+    {
+      "id": "obsidian-gloves",
+      "label": "Obsidian gloves",
+      "family": "armour-case",
+      "parts": [
+        [
+          "Obsidian gloves"
+        ]
+      ],
+      "members": true,
+      "source": "Armour_case",
+      "storageMembers": true,
+      "wiki": "https://runescape.wiki/w/Obsidian_gloves",
+      "permalink": "https://runescape.wiki/w/Armour_case?oldid=37188248"
+    },
+    {
+      "id": "obsidian-boots",
+      "label": "Obsidian boots",
+      "family": "armour-case",
+      "parts": [
+        [
+          "Obsidian boots"
+        ]
+      ],
+      "members": true,
+      "source": "Armour_case",
+      "storageMembers": true,
+      "wiki": "https://runescape.wiki/w/Obsidian_boots",
+      "permalink": "https://runescape.wiki/w/Armour_case?oldid=37188248"
+    },
+    {
+      "id": "obsidian-platebody",
+      "label": "Obsidian platebody",
+      "family": "armour-case",
+      "parts": [
+        [
+          "Obsidian platebody"
+        ]
+      ],
+      "members": true,
+      "source": "Armour_case",
+      "storageMembers": true,
+      "wiki": "https://runescape.wiki/w/Obsidian_platebody",
+      "permalink": "https://runescape.wiki/w/Armour_case?oldid=37188248"
+    },
+    {
+      "id": "obsidian-platelegs",
+      "label": "Obsidian platelegs",
+      "family": "armour-case",
+      "parts": [
+        [
+          "Obsidian platelegs"
+        ]
+      ],
+      "members": true,
+      "source": "Armour_case",
+      "storageMembers": true,
+      "wiki": "https://runescape.wiki/w/Obsidian_platelegs",
+      "permalink": "https://runescape.wiki/w/Armour_case?oldid=37188248"
+    },
+    {
+      "id": "obsidian-plateskirt",
+      "label": "Obsidian plateskirt",
+      "family": "armour-case",
+      "parts": [
+        [
+          "Obsidian plateskirt"
+        ]
+      ],
+      "members": true,
+      "source": "Armour_case",
+      "storageMembers": true,
+      "wiki": "https://runescape.wiki/w/Obsidian_plateskirt",
+      "permalink": "https://runescape.wiki/w/Armour_case?oldid=37188248"
+    },
+    {
+      "id": "obsidian-warrior-helm",
+      "label": "Obsidian warrior helm",
+      "family": "armour-case",
+      "parts": [
+        [
+          "Obsidian warrior helm"
+        ]
+      ],
+      "members": true,
+      "source": "Armour_case",
+      "storageMembers": true,
+      "wiki": "https://runescape.wiki/w/Obsidian_warrior_helm",
+      "permalink": "https://runescape.wiki/w/Armour_case?oldid=37188248"
+    },
+    {
+      "id": "obsidian-ranger-helm",
+      "label": "Obsidian ranger helm",
+      "family": "armour-case",
+      "parts": [
+        [
+          "Obsidian ranger helm"
+        ]
+      ],
+      "members": true,
+      "source": "Armour_case",
+      "storageMembers": true,
+      "wiki": "https://runescape.wiki/w/Obsidian_ranger_helm",
+      "permalink": "https://runescape.wiki/w/Armour_case?oldid=37188248"
+    },
+    {
+      "id": "obsidian-mage-helm",
+      "label": "Obsidian mage helm",
+      "family": "armour-case",
+      "parts": [
+        [
+          "Obsidian mage helm"
+        ]
+      ],
+      "members": true,
+      "source": "Armour_case",
+      "storageMembers": true,
+      "wiki": "https://runescape.wiki/w/Obsidian_mage_helm",
+      "permalink": "https://runescape.wiki/w/Armour_case?oldid=37188248"
+    },
+    {
+      "id": "obsidian-kiteshield",
+      "label": "Obsidian kiteshield",
+      "family": "armour-case",
+      "parts": [
+        [
+          "Obsidian kiteshield"
+        ]
+      ],
+      "members": true,
+      "source": "Armour_case",
+      "storageMembers": true,
+      "wiki": "https://runescape.wiki/w/Obsidian_kiteshield",
+      "permalink": "https://runescape.wiki/w/Armour_case?oldid=37188248"
+    },
+    {
+      "id": "cape-of-legends",
+      "label": "Cape of legends",
+      "family": "cape-store",
+      "parts": [
+        [
+          "Cape of legends"
+        ]
+      ],
+      "members": true,
+      "source": "Cape_rack",
+      "storageMembers": true,
+      "wiki": "https://runescape.wiki/w/Cape_of_legends",
+      "permalink": "https://runescape.wiki/w/Cape_rack?oldid=37133926"
+    },
+    {
+      "id": "obsidian-cape",
+      "label": "Obsidian cape",
+      "family": "cape-store",
+      "parts": [
+        [
+          "Obsidian cape"
+        ]
+      ],
+      "members": true,
+      "source": "Cape_rack",
+      "storageMembers": true,
+      "wiki": "https://runescape.wiki/w/Obsidian_cape",
+      "permalink": "https://runescape.wiki/w/Cape_rack?oldid=37133926"
+    },
+    {
+      "id": "fire-cape",
+      "label": "Fire cape",
+      "family": "cape-store",
+      "parts": [
+        [
+          "Fire cape"
+        ]
+      ],
+      "members": true,
+      "source": "Cape_rack",
+      "storageMembers": true,
+      "wiki": "https://runescape.wiki/w/Fire_cape",
+      "permalink": "https://runescape.wiki/w/Cape_rack?oldid=37133926"
+    },
+    {
+      "id": "saradomin-cape",
+      "label": "Saradomin cape",
+      "family": "cape-store",
+      "parts": [
+        [
+          "Saradomin cape"
+        ]
+      ],
+      "members": true,
+      "source": "Cape_rack",
+      "storageMembers": true,
+      "wiki": "https://runescape.wiki/w/Saradomin_cape",
+      "permalink": "https://runescape.wiki/w/Cape_rack?oldid=37133926"
+    },
+    {
+      "id": "guthix-cape",
+      "label": "Guthix cape",
+      "family": "cape-store",
+      "parts": [
+        [
+          "Guthix cape"
+        ]
+      ],
+      "members": true,
+      "source": "Cape_rack",
+      "storageMembers": true,
+      "wiki": "https://runescape.wiki/w/Guthix_cape",
+      "permalink": "https://runescape.wiki/w/Cape_rack?oldid=37133926"
+    },
+    {
+      "id": "zamorak-cape",
+      "label": "Zamorak cape",
+      "family": "cape-store",
+      "parts": [
+        [
+          "Zamorak cape"
+        ]
+      ],
+      "members": true,
+      "source": "Cape_rack",
+      "storageMembers": true,
+      "wiki": "https://runescape.wiki/w/Zamorak_cape",
+      "permalink": "https://runescape.wiki/w/Cape_rack?oldid=37133926"
+    },
+    {
+      "id": "spotted-cape",
+      "label": "Spotted cape",
+      "family": "cape-store",
+      "parts": [
+        [
+          "Spotted cape"
+        ]
+      ],
+      "members": true,
+      "source": "Cape_rack",
+      "storageMembers": true,
+      "wiki": "https://runescape.wiki/w/Spotted_cape",
+      "permalink": "https://runescape.wiki/w/Cape_rack?oldid=37133926"
+    },
+    {
+      "id": "spottier-cape",
+      "label": "Spottier cape",
+      "family": "cape-store",
+      "parts": [
+        [
+          "Spottier cape"
+        ]
+      ],
+      "members": true,
+      "source": "Cape_rack",
+      "storageMembers": true,
+      "wiki": "https://runescape.wiki/w/Spottier_cape",
+      "permalink": "https://runescape.wiki/w/Cape_rack?oldid=37133926"
+    },
+    {
+      "id": "spirit-cape",
+      "label": "Spirit cape",
+      "family": "cape-store",
+      "parts": [
+        [
+          "Spirit cape"
+        ]
+      ],
+      "members": true,
+      "source": "Cape_rack",
+      "storageMembers": true,
+      "wiki": "https://runescape.wiki/w/Spirit_cape",
+      "permalink": "https://runescape.wiki/w/Cape_rack?oldid=37133926"
+    },
+    {
+      "id": "ava-s-attractor",
+      "label": "Ava's attractor",
+      "family": "cape-store",
+      "parts": [
+        [
+          "Ava's attractor"
+        ]
+      ],
+      "members": true,
+      "source": "Cape_rack",
+      "storageMembers": true,
+      "wiki": "https://runescape.wiki/w/Ava's_attractor",
+      "permalink": "https://runescape.wiki/w/Cape_rack?oldid=37133926"
+    },
+    {
+      "id": "ava-s-accumulator",
+      "label": "Ava's accumulator",
+      "family": "cape-store",
+      "parts": [
+        [
+          "Ava's accumulator"
+        ]
+      ],
+      "members": true,
+      "source": "Cape_rack",
+      "storageMembers": true,
+      "wiki": "https://runescape.wiki/w/Ava's_accumulator",
+      "permalink": "https://runescape.wiki/w/Cape_rack?oldid=37133926"
+    },
+    {
+      "id": "ava-s-alerter",
+      "label": "Ava's alerter",
+      "family": "cape-store",
+      "parts": [
+        [
+          "Ava's alerter"
+        ]
+      ],
+      "members": true,
+      "source": "Cape_rack",
+      "storageMembers": true,
+      "wiki": "https://runescape.wiki/w/Ava's_alerter",
+      "permalink": "https://runescape.wiki/w/Cape_rack?oldid=37133926"
+    },
+    {
+      "id": "ardougne-cloak-4",
+      "label": "Ardougne cloak 4",
+      "family": "cape-store",
+      "parts": [
+        [
+          "Ardougne cloak 4"
+        ]
+      ],
+      "members": true,
+      "source": "Cape_rack",
+      "storageMembers": true,
+      "wiki": "https://runescape.wiki/w/Ardougne_cloak_4",
+      "permalink": "https://runescape.wiki/w/Cape_rack?oldid=37133926"
+    },
+    {
+      "id": "cornucopia",
+      "label": "Cornucopia",
+      "family": "toy-box",
+      "parts": [
+        [
+          "Cornucopia"
+        ]
+      ],
+      "automaticRetrieval": true,
+      "members": false,
+      "source": "Toy_box",
+      "storageMembers": true,
+      "wiki": "https://runescape.wiki/w/Cornucopia",
+      "permalink": "https://runescape.wiki/w/Toy_box?oldid=37118681"
+    },
+    {
+      "id": "snow-globe",
+      "label": "Snow globe",
+      "family": "toy-box",
+      "parts": [
+        [
+          "Snow globe"
+        ]
+      ],
+      "automaticRetrieval": true,
+      "members": false,
+      "source": "Toy_box",
+      "storageMembers": true,
+      "wiki": "https://runescape.wiki/w/Snow_globe",
+      "permalink": "https://runescape.wiki/w/Toy_box?oldid=37118681"
+    },
+    {
+      "id": "rubber-chicken",
+      "label": "Rubber chicken",
+      "family": "toy-box",
+      "parts": [
+        [
+          "Rubber chicken"
+        ]
+      ],
+      "automaticRetrieval": true,
+      "members": false,
+      "source": "Toy_box",
+      "storageMembers": true,
+      "wiki": "https://runescape.wiki/w/Rubber_chicken",
+      "permalink": "https://runescape.wiki/w/Toy_box?oldid=37118681"
+    },
+    {
+      "id": "scythe",
+      "label": "Scythe",
+      "family": "toy-box",
+      "parts": [
+        [
+          "Scythe"
+        ]
+      ],
+      "automaticRetrieval": true,
+      "members": false,
+      "source": "Toy_box",
+      "storageMembers": true,
+      "wiki": "https://runescape.wiki/w/Scythe",
+      "permalink": "https://runescape.wiki/w/Toy_box?oldid=37118681"
+    },
+    {
+      "id": "bunny-ears",
+      "label": "Bunny ears",
+      "family": "toy-box",
+      "parts": [
+        [
+          "Bunny ears"
+        ]
+      ],
+      "automaticRetrieval": true,
+      "members": false,
+      "source": "Toy_box",
+      "storageMembers": true,
+      "wiki": "https://runescape.wiki/w/Bunny_ears",
+      "permalink": "https://runescape.wiki/w/Toy_box?oldid=37118681"
+    },
+    {
+      "id": "yo-yo",
+      "label": "Yo-yo",
+      "family": "toy-box",
+      "parts": [
+        [
+          "Yo-yo"
+        ]
+      ],
+      "automaticRetrieval": true,
+      "members": false,
+      "source": "Toy_box",
+      "storageMembers": true,
+      "wiki": "https://runescape.wiki/w/Yo-yo",
+      "permalink": "https://runescape.wiki/w/Toy_box?oldid=37118681"
+    },
+    {
+      "id": "zombie-head",
+      "label": "Zombie head",
+      "family": "toy-box",
+      "parts": [
+        [
+          "Zombie head"
+        ]
+      ],
+      "automaticRetrieval": true,
+      "members": false,
+      "source": "Toy_box",
+      "storageMembers": true,
+      "wiki": "https://runescape.wiki/w/Zombie_head",
+      "permalink": "https://runescape.wiki/w/Toy_box?oldid=37118681"
+    },
+    {
+      "id": "reindeer-hat",
+      "label": "Reindeer hat",
+      "family": "toy-box",
+      "parts": [
+        [
+          "Reindeer hat"
+        ]
+      ],
+      "automaticRetrieval": true,
+      "members": false,
+      "source": "Toy_box",
+      "storageMembers": true,
+      "wiki": "https://runescape.wiki/w/Reindeer_hat",
+      "permalink": "https://runescape.wiki/w/Toy_box?oldid=37118681"
+    },
+    {
+      "id": "ring-of-egg",
+      "label": "Ring of egg",
+      "family": "toy-box",
+      "parts": [
+        [
+          "Ring of egg"
+        ]
+      ],
+      "automaticRetrieval": true,
+      "members": false,
+      "source": "Toy_box",
+      "storageMembers": true,
+      "wiki": "https://runescape.wiki/w/Ring_of_egg",
+      "permalink": "https://runescape.wiki/w/Toy_box?oldid=37118681"
+    },
+    {
+      "id": "ghostly-robes",
+      "label": "Ghostly robes",
+      "family": "magic-wardrobe",
+      "parts": [
+        [
+          "Ghostly hood"
+        ],
+        [
+          "Ghostly robe (top)"
+        ],
+        [
+          "Ghostly robe (bottom)"
+        ],
+        [
+          "Ghostly gloves"
+        ],
+        [
+          "Ghostly boots"
+        ],
+        [
+          "Ghostly cloak"
+        ]
+      ],
+      "members": true,
+      "source": "Magic_wardrobe",
+      "storageMembers": true,
+      "wiki": "https://runescape.wiki/w/Ghostly_hood",
+      "permalink": "https://runescape.wiki/w/Magic_wardrobe?oldid=37181907"
+    },
+    {
+      "id": "dagon-hai-robes",
+      "label": "Dagon'hai robes",
+      "family": "magic-wardrobe",
+      "parts": [
+        [
+          "Dagon'hai hat"
+        ],
+        [
+          "Dagon'hai robe top"
+        ],
+        [
+          "Dagon'hai robe bottom"
+        ]
+      ],
+      "members": true,
+      "source": "Magic_wardrobe",
+      "storageMembers": true,
+      "wiki": "https://runescape.wiki/w/Dagon'hai_hat",
+      "permalink": "https://runescape.wiki/w/Magic_wardrobe?oldid=37181907"
+    },
+    {
+      "id": "lightbulb-hat",
+      "label": "Lightbulb hat",
+      "family": "magic-wardrobe",
+      "parts": [
+        [
+          "Lightbulb hat"
+        ]
+      ],
+      "members": true,
+      "source": "Magic_wardrobe",
+      "storageMembers": true,
+      "wiki": "https://runescape.wiki/w/Lightbulb_hat",
+      "permalink": "https://runescape.wiki/w/Magic_wardrobe?oldid=37181907"
+    },
+    {
+      "id": "mime-outfit",
+      "label": "Mime outfit",
+      "family": "fancy-dress-box",
+      "parts": [
+        [
+          "Mime mask"
+        ],
+        [
+          "Mime top"
+        ],
+        [
+          "Mime legs"
+        ],
+        [
+          "Mime gloves"
+        ],
+        [
+          "Mime boots"
+        ]
+      ],
+      "members": false,
+      "source": "Fancy_dress_box",
+      "storageMembers": true,
+      "wiki": "https://runescape.wiki/w/Mime_mask",
+      "permalink": "https://runescape.wiki/w/Fancy_dress_box?oldid=37118679"
+    },
+    {
+      "id": "zombie-outfit",
+      "label": "Zombie outfit",
+      "family": "fancy-dress-box",
+      "parts": [
+        [
+          "Zombie mask"
+        ],
+        [
+          "Zombie shirt"
+        ],
+        [
+          "Zombie trousers"
+        ],
+        [
+          "Zombie gloves"
+        ],
+        [
+          "Zombie boots"
+        ]
+      ],
+      "members": false,
+      "source": "Fancy_dress_box",
+      "storageMembers": true,
+      "wiki": "https://runescape.wiki/w/Zombie_mask",
+      "permalink": "https://runescape.wiki/w/Fancy_dress_box?oldid=37118679"
+    },
+    {
+      "id": "lederhosen-outfit",
+      "label": "Lederhosen outfit",
+      "family": "fancy-dress-box",
+      "parts": [
+        [
+          "Lederhosen hat"
+        ],
+        [
+          "Lederhosen top"
+        ],
+        [
+          "Lederhosen shorts"
+        ]
+      ],
+      "members": false,
+      "source": "Fancy_dress_box",
+      "storageMembers": true,
+      "wiki": "https://runescape.wiki/w/Lederhosen_hat",
+      "permalink": "https://runescape.wiki/w/Fancy_dress_box?oldid=37118679"
+    },
+    {
+      "id": "studded-body-g-studded-chaps-g-",
+      "label": "Gold-trimmed studded leather",
+      "family": "treasure-chest",
+      "parts": [
+        [
+          "Studded body (g)"
+        ],
+        [
+          "Studded chaps (g)"
+        ]
+      ],
+      "rewardTier": "easy",
+      "members": false,
+      "source": "Treasure_chest",
+      "storageMembers": true,
+      "wiki": "https://runescape.wiki/w/Studded_body_(g)",
+      "permalink": "https://runescape.wiki/w/Treasure_chest?oldid=37118701"
+    },
+    {
+      "id": "studded-body-t-studded-chaps-t-",
+      "label": "Fur-trimmed studded leather",
+      "family": "treasure-chest",
+      "parts": [
+        [
+          "Studded body (t)"
+        ],
+        [
+          "Studded chaps (t)"
+        ]
+      ],
+      "rewardTier": "easy",
+      "members": false,
+      "source": "Treasure_chest",
+      "storageMembers": true,
+      "wiki": "https://runescape.wiki/w/Studded_body_(t)",
+      "permalink": "https://runescape.wiki/w/Treasure_chest?oldid=37118701"
+    },
+    {
+      "id": "wizard-hat-g-wizard-robe-top-g-wizard-robe-skirt-g-",
+      "label": "Gold-trimmed wizard's robes",
+      "family": "treasure-chest",
+      "parts": [
+        [
+          "Wizard hat (g)"
+        ],
+        [
+          "Wizard robe top (g)"
+        ],
+        [
+          "Wizard robe skirt (g)"
+        ]
+      ],
+      "rewardTier": "easy",
+      "members": false,
+      "source": "Treasure_chest",
+      "storageMembers": true,
+      "wiki": "https://runescape.wiki/w/Wizard_hat_(g)",
+      "permalink": "https://runescape.wiki/w/Treasure_chest?oldid=37118701"
+    },
+    {
+      "id": "wizard-hat-t-wizard-robe-top-t-wizard-robe-skirt-t-",
+      "label": "Trimmed wizard's robes",
+      "family": "treasure-chest",
+      "parts": [
+        [
+          "Wizard hat (t)"
+        ],
+        [
+          "Wizard robe top (t)"
+        ],
+        [
+          "Wizard robe skirt (t)"
+        ]
+      ],
+      "rewardTier": "easy",
+      "members": false,
+      "source": "Treasure_chest",
+      "storageMembers": true,
+      "wiki": "https://runescape.wiki/w/Wizard_hat_(t)",
+      "permalink": "https://runescape.wiki/w/Treasure_chest?oldid=37118701"
+    },
+    {
+      "id": "highwayman-mask",
+      "label": "Highwayman mask",
+      "family": "treasure-chest",
+      "parts": [
+        [
+          "Highwayman mask"
+        ]
+      ],
+      "rewardTier": "easy",
+      "members": false,
+      "source": "Treasure_chest",
+      "storageMembers": true,
+      "wiki": "https://runescape.wiki/w/Highwayman_mask",
+      "permalink": "https://runescape.wiki/w/Treasure_chest?oldid=37118701"
+    },
+    {
+      "id": "blue-beret",
+      "label": "Blue beret",
+      "family": "treasure-chest",
+      "parts": [
+        [
+          "Blue beret"
+        ]
+      ],
+      "rewardTier": "easy",
+      "members": false,
+      "source": "Treasure_chest",
+      "storageMembers": true,
+      "wiki": "https://runescape.wiki/w/Blue_beret",
+      "permalink": "https://runescape.wiki/w/Treasure_chest?oldid=37118701"
+    },
+    {
+      "id": "black-beret",
+      "label": "Black beret",
+      "family": "treasure-chest",
+      "parts": [
+        [
+          "Black beret"
+        ]
+      ],
+      "rewardTier": "easy",
+      "members": false,
+      "source": "Treasure_chest",
+      "storageMembers": true,
+      "wiki": "https://runescape.wiki/w/Black_beret",
+      "permalink": "https://runescape.wiki/w/Treasure_chest?oldid=37118701"
+    },
+    {
+      "id": "white-beret",
+      "label": "White beret",
+      "family": "treasure-chest",
+      "parts": [
+        [
+          "White beret"
+        ]
+      ],
+      "rewardTier": "easy",
+      "members": false,
+      "source": "Treasure_chest",
+      "storageMembers": true,
+      "wiki": "https://runescape.wiki/w/White_beret",
+      "permalink": "https://runescape.wiki/w/Treasure_chest?oldid=37118701"
+    },
+    {
+      "id": "amulet-of-magic-t-",
+      "label": "Trimmed amulet of magic",
+      "family": "treasure-chest",
+      "parts": [
+        [
+          "Amulet of magic (t)"
+        ]
+      ],
+      "rewardTier": "easy",
+      "members": false,
+      "source": "Treasure_chest",
+      "storageMembers": true,
+      "wiki": "https://runescape.wiki/w/Amulet_of_magic_(t)",
+      "permalink": "https://runescape.wiki/w/Treasure_chest?oldid=37118701"
+    },
+    {
+      "id": "pantaloons",
+      "label": "Pantaloons",
+      "family": "treasure-chest",
+      "parts": [
+        [
+          "Pantaloons"
+        ]
+      ],
+      "rewardTier": "easy",
+      "members": false,
+      "source": "Treasure_chest",
+      "storageMembers": true,
+      "wiki": "https://runescape.wiki/w/Pantaloons",
+      "permalink": "https://runescape.wiki/w/Treasure_chest?oldid=37118701"
+    },
+    {
+      "id": "powdered-wig",
+      "label": "Powdered wig",
+      "family": "treasure-chest",
+      "parts": [
+        [
+          "Powdered wig"
+        ]
+      ],
+      "rewardTier": "easy",
+      "members": false,
+      "source": "Treasure_chest",
+      "storageMembers": true,
+      "wiki": "https://runescape.wiki/w/Powdered_wig",
+      "permalink": "https://runescape.wiki/w/Treasure_chest?oldid=37118701"
+    },
+    {
+      "id": "flared-trousers",
+      "label": "Flared trousers",
+      "family": "treasure-chest",
+      "parts": [
+        [
+          "Flared trousers"
+        ]
+      ],
+      "rewardTier": "easy",
+      "members": false,
+      "source": "Treasure_chest",
+      "storageMembers": true,
+      "wiki": "https://runescape.wiki/w/Flared_trousers",
+      "permalink": "https://runescape.wiki/w/Treasure_chest?oldid=37118701"
+    },
+    {
+      "id": "sleeping-cap",
+      "label": "Sleeping cap",
+      "family": "treasure-chest",
+      "parts": [
+        [
+          "Sleeping cap"
+        ]
+      ],
+      "rewardTier": "easy",
+      "members": false,
+      "source": "Treasure_chest",
+      "storageMembers": true,
+      "wiki": "https://runescape.wiki/w/Sleeping_cap",
+      "permalink": "https://runescape.wiki/w/Treasure_chest?oldid=37118701"
+    },
+    {
+      "id": "bob-shirt-red-",
+      "label": "Bob shirt (red)",
+      "family": "treasure-chest",
+      "parts": [
+        [
+          "Bob shirt (red)"
+        ]
+      ],
+      "rewardTier": "easy",
+      "members": false,
+      "source": "Treasure_chest",
+      "storageMembers": true,
+      "wiki": "https://runescape.wiki/w/Bob_shirt_(red)",
+      "permalink": "https://runescape.wiki/w/Treasure_chest?oldid=37118701"
+    },
+    {
+      "id": "bob-shirt-blue-",
+      "label": "Bob shirt (blue)",
+      "family": "treasure-chest",
+      "parts": [
+        [
+          "Bob shirt (blue)"
+        ]
+      ],
+      "rewardTier": "easy",
+      "members": false,
+      "source": "Treasure_chest",
+      "storageMembers": true,
+      "wiki": "https://runescape.wiki/w/Bob_shirt_(blue)",
+      "permalink": "https://runescape.wiki/w/Treasure_chest?oldid=37118701"
+    },
+    {
+      "id": "bob-shirt-green-",
+      "label": "Bob shirt (green)",
+      "family": "treasure-chest",
+      "parts": [
+        [
+          "Bob shirt (green)"
+        ]
+      ],
+      "rewardTier": "easy",
+      "members": false,
+      "source": "Treasure_chest",
+      "storageMembers": true,
+      "wiki": "https://runescape.wiki/w/Bob_shirt_(green)",
+      "permalink": "https://runescape.wiki/w/Treasure_chest?oldid=37118701"
+    },
+    {
+      "id": "bob-shirt-black-",
+      "label": "Bob shirt (black)",
+      "family": "treasure-chest",
+      "parts": [
+        [
+          "Bob shirt (black)"
+        ]
+      ],
+      "rewardTier": "easy",
+      "members": false,
+      "source": "Treasure_chest",
+      "storageMembers": true,
+      "wiki": "https://runescape.wiki/w/Bob_shirt_(black)",
+      "permalink": "https://runescape.wiki/w/Treasure_chest?oldid=37118701"
+    },
+    {
+      "id": "bob-shirt-purple-",
+      "label": "Bob shirt (purple)",
+      "family": "treasure-chest",
+      "parts": [
+        [
+          "Bob shirt (purple)"
+        ]
+      ],
+      "rewardTier": "easy",
+      "members": false,
+      "source": "Treasure_chest",
+      "storageMembers": true,
+      "wiki": "https://runescape.wiki/w/Bob_shirt_(purple)",
+      "permalink": "https://runescape.wiki/w/Treasure_chest?oldid=37118701"
+    },
+    {
+      "id": "silverlight-display",
+      "label": "Silverlight",
+      "family": "silverlight-display",
+      "parts": [
+        [
+          "Silverlight"
+        ]
+      ],
+      "members": false,
+      "storageMembers": true,
+      "source": "Silverlight_(furniture)",
+      "wiki": "https://runescape.wiki/w/Silverlight_(furniture)",
+      "permalink": "https://runescape.wiki/w/Silverlight_(furniture)?oldid=37131264",
+      "display": true
+    },
+    {
+      "id": "anti-dragon-shield-display",
+      "label": "Anti-dragon shield",
+      "family": "anti-dragon-shield-display",
+      "parts": [
+        [
+          "Anti-dragon shield"
+        ]
+      ],
+      "members": false,
+      "storageMembers": true,
+      "source": "Anti-dragon_shield_(furniture)",
+      "wiki": "https://runescape.wiki/w/Anti-dragon_shield_(furniture)",
+      "permalink": "https://runescape.wiki/w/Anti-dragon_shield_(furniture)?oldid=37131257",
+      "display": true
+    },
+    {
+      "id": "fire-cape-display",
+      "label": "Fire cape display",
+      "family": "cape-display",
+      "parts": [
+        [
+          "Fire cape"
+        ]
+      ],
+      "members": true,
+      "storageMembers": true,
+      "source": "Mahogany_gilded_cape_stand",
+      "wiki": "https://runescape.wiki/w/Mahogany_gilded_cape_stand",
+      "permalink": "https://runescape.wiki/w/Mahogany_gilded_cape_stand?oldid=37188731",
+      "display": true
+    },
+    {
+      "id": "strength-amulet-t-",
+      "label": "Strength amulet (t)",
+      "family": "treasure-chest",
+      "parts": [
+        [
+          "Strength amulet (t)"
+        ]
+      ],
+      "members": false,
+      "storageMembers": true,
+      "source": "Treasure_chest",
+      "wiki": "https://runescape.wiki/w/Strength_amulet_(t)",
+      "permalink": "https://runescape.wiki/w/Treasure_chest?oldid=37118701",
+      "rewardTier": "medium"
+    },
+    {
+      "id": "amulet-of-glory-t-",
+      "label": "Amulet of glory (t)",
+      "family": "treasure-chest",
+      "parts": [
+        [
+          "Amulet of glory (t)"
+        ]
+      ],
+      "members": true,
+      "storageMembers": true,
+      "source": "Treasure_chest",
+      "wiki": "https://runescape.wiki/w/Amulet_of_glory_(t)",
+      "permalink": "https://runescape.wiki/w/Treasure_chest?oldid=37118701",
+      "rewardTier": "hard"
+    },
+    {
+      "id": "amulet-of-fury-t-",
+      "label": "Amulet of fury (t)",
+      "family": "treasure-chest",
+      "parts": [
+        [
+          "Amulet of fury (t)"
+        ]
+      ],
+      "members": true,
+      "storageMembers": true,
+      "source": "Treasure_chest",
+      "wiki": "https://runescape.wiki/w/Amulet_of_fury_(t)",
+      "permalink": "https://runescape.wiki/w/Treasure_chest?oldid=37118701",
+      "rewardTier": "hard"
+    },
+    {
+      "id": "amulet-of-fury-or-",
+      "label": "Amulet of fury (or)",
+      "family": "treasure-chest",
+      "parts": [
+        [
+          "Amulet of fury (or)"
+        ]
+      ],
+      "members": true,
+      "storageMembers": true,
+      "source": "Treasure_chest",
+      "wiki": "https://runescape.wiki/w/Amulet_of_fury_(or)",
+      "permalink": "https://runescape.wiki/w/Treasure_chest?oldid=37118701",
+      "rewardTier": "elite"
+    },
+    {
+      "id": "golden-verac-the-defiled-s-equipment",
+      "label": "Golden Verac the Defiled's equipment",
+      "family": "armour-case",
+      "parts": [
+        [
+          "Golden Verac's helm"
+        ],
+        [
+          "Golden Verac's brassard"
+        ],
+        [
+          "Golden Verac's plateskirt"
+        ],
+        [
+          "Golden Verac's flail"
+        ]
+      ],
+      "members": true,
+      "storageMembers": true,
+      "source": "Armour_case",
+      "componentSource": "Golden_Verac_the_Defiled's_equipment",
+      "wiki": "https://runescape.wiki/w/Golden_Verac_the_Defiled's_equipment",
+      "permalink": "https://runescape.wiki/w/Armour_case?oldid=37188248",
+      "generateTasks": false,
+      "requiresFullRepair": true,
+      "requiresPersonalEventEntitlement": true,
+      "exclusionReason": "Golden Barrows is storable only for eligible event recipients with the full set repaired. The chunk item-source model cannot prove personal raffle entitlement or repair state; catalogue reference only."
+    },
+    {
+      "id": "golden-karil-the-tainted-s-equipment",
+      "label": "Golden Karil the Tainted's equipment",
+      "family": "armour-case",
+      "parts": [
+        [
+          "Golden Karil's coif"
+        ],
+        [
+          "Golden Karil's top"
+        ],
+        [
+          "Golden Karil's skirt"
+        ],
+        [
+          "Golden Karil's crossbow"
+        ]
+      ],
+      "members": true,
+      "storageMembers": true,
+      "source": "Armour_case",
+      "componentSource": "Golden_Karil_the_Tainted's_equipment",
+      "wiki": "https://runescape.wiki/w/Golden_Karil_the_Tainted's_equipment",
+      "permalink": "https://runescape.wiki/w/Armour_case?oldid=37188248",
+      "generateTasks": false,
+      "requiresFullRepair": true,
+      "requiresPersonalEventEntitlement": true,
+      "exclusionReason": "Golden Barrows is storable only for eligible event recipients with the full set repaired. The chunk item-source model cannot prove personal raffle entitlement or repair state; catalogue reference only."
+    },
+    {
+      "id": "golden-linza-the-disgraced-s-equipment",
+      "label": "Golden Linza the Disgraced's equipment",
+      "family": "armour-case",
+      "parts": [
+        [
+          "Golden Linza's helmet"
+        ],
+        [
+          "Golden Linza's cuirass"
+        ],
+        [
+          "Golden Linza's shield"
+        ],
+        [
+          "Golden Linza's greaves"
+        ],
+        [
+          "Golden Linza's hammer"
+        ]
+      ],
+      "members": true,
+      "storageMembers": true,
+      "source": "Armour_case",
+      "componentSource": "Golden_Linza_the_Disgraced's_equipment",
+      "wiki": "https://runescape.wiki/w/Golden_Linza_the_Disgraced's_equipment",
+      "permalink": "https://runescape.wiki/w/Armour_case?oldid=37188248",
+      "generateTasks": false,
+      "requiresFullRepair": true,
+      "requiresPersonalEventEntitlement": true,
+      "exclusionReason": "Golden Barrows is storable only for eligible event recipients with the full set repaired. The chunk item-source model cannot prove personal raffle entitlement or repair state; catalogue reference only."
+    },
+    {
+      "id": "golden-dharok-the-wretched-s-equipment",
+      "label": "Golden Dharok the Wretched's equipment",
+      "family": "armour-case",
+      "parts": [
+        [
+          "Golden Dharok's helm"
+        ],
+        [
+          "Golden Dharok's platebody"
+        ],
+        [
+          "Golden Dharok's platelegs"
+        ],
+        [
+          "Golden Dharok's greataxe"
+        ]
+      ],
+      "members": true,
+      "storageMembers": true,
+      "source": "Armour_case",
+      "componentSource": "Golden_Dharok_the_Wretched's_equipment",
+      "wiki": "https://runescape.wiki/w/Golden_Dharok_the_Wretched's_equipment",
+      "permalink": "https://runescape.wiki/w/Armour_case?oldid=37188248",
+      "generateTasks": false,
+      "requiresFullRepair": true,
+      "requiresPersonalEventEntitlement": true,
+      "exclusionReason": "Golden Barrows is storable only for eligible event recipients with the full set repaired. The chunk item-source model cannot prove personal raffle entitlement or repair state; catalogue reference only."
+    },
+    {
+      "id": "golden-ahrim-the-blighted-s-equipment",
+      "label": "Golden Ahrim the Blighted's equipment",
+      "family": "armour-case",
+      "parts": [
+        [
+          "Golden Ahrim's hood"
+        ],
+        [
+          "Golden Ahrim's robe top"
+        ],
+        [
+          "Golden Ahrim's robe skirt"
+        ],
+        [
+          "Golden Ahrim's staff"
+        ]
+      ],
+      "members": true,
+      "storageMembers": true,
+      "source": "Armour_case",
+      "componentSource": "Golden_Ahrim_the_Blighted's_equipment",
+      "wiki": "https://runescape.wiki/w/Golden_Ahrim_the_Blighted's_equipment",
+      "permalink": "https://runescape.wiki/w/Armour_case?oldid=37188248",
+      "generateTasks": false,
+      "requiresFullRepair": true,
+      "requiresPersonalEventEntitlement": true,
+      "exclusionReason": "Golden Barrows is storable only for eligible event recipients with the full set repaired. The chunk item-source model cannot prove personal raffle entitlement or repair state; catalogue reference only."
+    },
+    {
+      "id": "golden-akrisae-the-doomed-s-equipment",
+      "label": "Golden Akrisae the Doomed's equipment",
+      "family": "armour-case",
+      "parts": [
+        [
+          "Golden Akrisae's hood"
+        ],
+        [
+          "Golden Akrisae's robe top"
+        ],
+        [
+          "Golden Akrisae's robe skirt"
+        ],
+        [
+          "Golden Akrisae's war mace"
+        ]
+      ],
+      "members": true,
+      "storageMembers": true,
+      "source": "Armour_case",
+      "componentSource": "Golden_Akrisae_the_Doomed's_equipment",
+      "wiki": "https://runescape.wiki/w/Golden_Akrisae_the_Doomed's_equipment",
+      "permalink": "https://runescape.wiki/w/Armour_case?oldid=37188248",
+      "generateTasks": false,
+      "requiresFullRepair": true,
+      "requiresPersonalEventEntitlement": true,
+      "exclusionReason": "Golden Barrows is storable only for eligible event recipients with the full set repaired. The chunk item-source model cannot prove personal raffle entitlement or repair state; catalogue reference only."
+    },
+    {
+      "id": "golden-torag-the-corrupted-s-equipment",
+      "label": "Golden Torag the Corrupted's equipment",
+      "family": "armour-case",
+      "parts": [
+        [
+          "Golden Torag's helm"
+        ],
+        [
+          "Golden Torag's platebody"
+        ],
+        [
+          "Golden Torag's platelegs"
+        ],
+        [
+          "Golden Torag's hammer"
+        ]
+      ],
+      "members": true,
+      "storageMembers": true,
+      "source": "Armour_case",
+      "componentSource": "Golden_Torag_the_Corrupted's_equipment",
+      "wiki": "https://runescape.wiki/w/Golden_Torag_the_Corrupted's_equipment",
+      "permalink": "https://runescape.wiki/w/Armour_case?oldid=37188248",
+      "generateTasks": false,
+      "requiresFullRepair": true,
+      "requiresPersonalEventEntitlement": true,
+      "exclusionReason": "Golden Barrows is storable only for eligible event recipients with the full set repaired. The chunk item-source model cannot prove personal raffle entitlement or repair state; catalogue reference only."
+    },
+    {
+      "id": "golden-guthan-the-infested-s-equipment",
+      "label": "Golden Guthan the Infested's equipment",
+      "family": "armour-case",
+      "parts": [
+        [
+          "Golden Guthan's helm"
+        ],
+        [
+          "Golden Guthan's platebody"
+        ],
+        [
+          "Golden Guthan's chainskirt"
+        ],
+        [
+          "Golden Guthan's warspear"
+        ]
+      ],
+      "members": true,
+      "storageMembers": true,
+      "source": "Armour_case",
+      "componentSource": "Golden_Guthan_the_Infested's_equipment",
+      "wiki": "https://runescape.wiki/w/Golden_Guthan_the_Infested's_equipment",
+      "permalink": "https://runescape.wiki/w/Armour_case?oldid=37188248",
+      "generateTasks": false,
+      "requiresFullRepair": true,
+      "requiresPersonalEventEntitlement": true,
+      "exclusionReason": "Golden Barrows is storable only for eligible event recipients with the full set repaired. The chunk item-source model cannot prove personal raffle entitlement or repair state; catalogue reference only."
+    }
+  ]
+}

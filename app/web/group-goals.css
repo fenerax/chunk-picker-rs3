@@ -1,0 +1,36 @@
+#group-goals{padding:var(--space-6) var(--space-6);border-bottom:var(--border-thin) solid var(--hairline);color:var(--panel-text,var(--text));min-width:0}
+.group-goals-heading{display:flex;align-items:center;justify-content:space-between;gap:var(--space-4)}
+@media(max-width:720px),(pointer:coarse){.group-goals-heading{flex-wrap:wrap}.group-goals-heading h2{min-width:0;overflow-wrap:anywhere}}
+.group-goals-heading h2{font-size:var(--type-heading);margin-right:auto}
+.group-goals-fold{background:transparent;border-color:transparent;color:var(--panel-muted,var(--muted));font-size:var(--type-xs);min-height:30px;padding:var(--space-2) var(--space-3)}
+.group-goals-fold::after{content:'';display:inline-block;width:.38rem;height:.38rem;margin-left:var(--space-3);border:solid currentColor;border-width:0 var(--border-check) var(--border-check) 0;transform:translateY(-.15rem) rotate(45deg)}
+.group-goals-fold[aria-expanded=false]::after{transform:rotate(-45deg)}
+button.group-goals-fold:hover{background:var(--surface);color:var(--surface-text,var(--text));filter:none}
+.group-goal-footer{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:var(--space-1) var(--space-4)}
+.group-goals-heading button{flex-shrink:0}
+.group-goals-empty{margin-top:var(--space-4);color:var(--panel-muted,var(--muted));font-size:var(--type-sm)}
+.group-goals-list{list-style:none;padding:0;margin:var(--space-2) 0 0}
+.group-goal{padding:var(--space-5) 0;border-bottom:var(--border-thin) solid var(--hairline);min-width:0}
+.group-goal:last-child{border-bottom:0;padding-bottom:0}
+.group-goal-text{font-size:var(--type-body);line-height:var(--leading-body);overflow-wrap:anywhere}
+.group-goal-done .group-goal-text{color:var(--panel-muted,var(--muted))}
+.group-goal-progress{display:flex;flex-wrap:wrap;gap:var(--space-2) var(--space-6);align-items:center;margin-top:var(--space-2);font-size:var(--type-sm);line-height:var(--leading-body)}
+.group-goal-tick{min-height:30px;min-width:0;overflow-wrap:anywhere;cursor:pointer}
+.group-goal-tick span{min-width:0}
+.group-goal-status{font-weight:var(--weight-semibold)}
+.group-goal-progress>span{color:var(--panel-muted,var(--muted));overflow-wrap:anywhere}
+.group-goal-actions,.group-goal-editor-actions{display:flex;flex-wrap:wrap;gap:var(--space-2);margin-top:var(--space-2)}
+.group-goal-actions{gap:0;margin-left:auto}
+.group-goal-action,.group-goal-link{background:transparent;border-color:transparent;color:var(--panel-link,var(--link));font-size:var(--type-xs);min-height:30px;padding:var(--space-2) var(--space-3)}
+button.group-goal-action:hover,button.group-goal-link:hover{background:var(--surface);color:var(--surface-text,var(--text));filter:none}
+.group-goal-link{display:block;text-align:left;margin-top:var(--space-2);padding:var(--space-1) 0;overflow-wrap:anywhere;max-width:100%;line-height:var(--leading-body)}
+span.group-goal-link{color:var(--panel-muted,var(--muted));min-height:0}
+.group-goal-editor{display:grid;gap:var(--space-4);margin-top:var(--space-5);padding-top:var(--space-5);border-top:var(--border-thin) solid var(--hairline);min-width:0}
+.group-goal-editor .form-field{margin:0;min-width:0}
+.group-goal-editor .form-field>label{display:block;font-size:var(--type-sm);margin-bottom:var(--space-2)}
+.group-goal-editor :is(input[type=text],input[type=search],select){width:100%;max-width:100%;min-width:0;font-size:var(--type-sm)}
+.group-goal-note{font-size:var(--type-sm);color:var(--panel-muted,var(--muted));line-height:var(--leading-body);overflow-wrap:anywhere}
+.group-goal-save{background:var(--gold);color:var(--on-gold);font-weight:var(--weight-semibold);font-size:var(--type-sm);min-height:32px}
+.group-goal-matches{display:grid;gap:var(--space-1);max-height:15rem;overflow:auto;scrollbar-color:var(--border) var(--panel);scrollbar-width:thin}
+.group-goal-matches button{text-align:left;overflow-wrap:anywhere;min-width:0;line-height:var(--leading-body)}
+@media(max-width:600px){#group-goals{padding:var(--space-5)}.group-goal-actions button,.group-goals-heading button,.group-goal-editor-actions button{min-height:34px}}

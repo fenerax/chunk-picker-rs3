@@ -1,0 +1,2191 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-10-08T02:52:15.661Z",
+  "datasetDirectory": "C:/Users/User/Projects/chunk-picker-rs3/.local/game-data/objects-2026-10-08-v3",
+  "manifestFile": "objects.manifest.v1.json",
+  "manifestSha256": "641043bf628f3d0ef1d9434d9acbe76688a7628015d17e866530ffd435bad99e",
+  "decoder": {
+    "repository": "https://github.com/skillbert/rsmv",
+    "commit": "a92b8920b9b9842adde78822646ecad1a6f4fc15",
+    "buildSchema": 950,
+    "buildStatus": "inferred schema version; not independently verified game client build",
+    "sourceHashes": {
+      "constants": "1436162d7de64725f3b5902d1ae278f40e2dce5ab1f82439e62a2a832d82c66b",
+      "opcode": "5fd7b69a0be0a5d4ec71b5465afcfd5812e8dbcc05f859e021ca8c17d85ed6e4"
+    },
+    "schemaHashes": {
+      "typedef.jsonc": "0d4037507c304ea3bd1e966a161dc1643115c0991e81711bf49d672545dc6858",
+      "cacheindex.json": "b65b2f60dba6168134f6ae5c90d5504dcf26f276477bd2aff213c6734293f793",
+      "mapsquare_tiles.jsonc": "64deb140845bf6605456da65b2de56e7766a66f4747fc90f43e7f3fcc95afbdd",
+      "mapsquare_tiles_nxt.jsonc": "0199a97ae17a56b5a4f05b5962fd80788e86807ceff1256d023a2e650f43be56",
+      "mapsquare_locations.json": "41867d05f7f9456c54f2eedda9a977734b99e33736b89c2cece1eb618a99b308",
+      "locs.jsonc": "fbd5f1d646341a716e1c3c4b41a112727e62922290b44300e69ba8e2aa70c51f",
+      "npcs.jsonc": "1b3b3ffa02e325c0aecafb7d7b22ff7256f11494ab37685115cfd795b0fa4af2",
+      "maplabels.jsonc": "e3bd3e0d827f48ddbb1470e2959c51da23624a4e0fdfc145fa37d62bce780d63",
+      "maplabellocations.jsonc": "5b95af45643e545ca75c9bc4f2d942c033b994a01a00e243d93c36e49372e342",
+      "mapzones_pastes.json": "30f83ad60a5e372e1644627aa234eeca22bbd8e1ece36c44e87a0229f20e40fa",
+      "mapzones.json": "8ba12ea64687bf7376978682ca35688adf1d05a9dca221073dc79f5060f15b29",
+      "mapsquare_overlays.jsonc": "ebf509b0cfeba3288750e40b2049ccd25a210170e54fad7fb387619043954d62",
+      "mapsquare_underlays.jsonc": "2b2f0db789c666d40d85a9764aa4e3ecb9b36bd8f0cacf89e3024180b76b5478",
+      "params.jsonc": "a8ac70f87c66b79fa5ef3455d41c38434fa0a85cf78ea99b8a736ddc1aecc4dd",
+      "structs.jsonc": "bf73399b40d9ebffb6f7beb5cab9c7b091724e6bcae0c5f76f61802a081d9870"
+    },
+    "footerValidation": "bounds and complete consumption required",
+    "executableInterpreterSha256": "ec7fa2cc9ab635bf2ef629f1fa8b77b6f32a97be1aaf4e26970ab2337e58bf16"
+  },
+  "reference": {
+    "path": "C:/Users/User/Projects/chunk-picker-rs3-wt/cachemine/rs3-chunkpicker-chunkinfo-export.json",
+    "sha256": "9dd835266f381abaa4d14033abcd0b43a001fe96d7df0a7f046fcc8676d66553"
+  },
+  "sources": [
+    {
+      "major": 2,
+      "file": "js5-2.jcache",
+      "bytes": 2195456,
+      "sha256": "a549a8c19598964dd3e5479ff6bb40056df6456c9e89a7c23a887eb24cabcb75",
+      "indexTimestamp": 1790931935,
+      "declaredArchives": 39,
+      "presentArchives": 39
+    },
+    {
+      "major": 22,
+      "file": "js5-22.jcache",
+      "bytes": 2392064,
+      "sha256": "47a7b0cae70f7264f5fcf8415ddecfedcc92a0e07fe3aedf9fd53d15b9fffb03",
+      "indexTimestamp": 1790775928,
+      "declaredArchives": 1672,
+      "presentArchives": 1672
+    },
+    {
+      "major": 5,
+      "file": "js5-5.jcache",
+      "bytes": 58966016,
+      "sha256": "05932552f7af7e4e0797d8716181e3c64f0ab831bdf6f59dee2705a121bfe00a",
+      "indexTimestamp": 1790927042,
+      "declaredArchives": 8715,
+      "presentArchives": 8715
+    },
+    {
+      "major": 16,
+      "file": "js5-16.jcache",
+      "bytes": 2359296,
+      "sha256": "16f3f97856a3131e9f71308442db07eef98bc5194f3b5e576f41e22a08b7caa4",
+      "indexTimestamp": 1790939551,
+      "declaredArchives": 552,
+      "presentArchives": 552
+    },
+    {
+      "major": 23,
+      "file": "js5-23.jcache",
+      "bytes": 7774208,
+      "sha256": "fdafdd4bc670081f1f872eb51827ecfa11c6946d5dc6c22a67805ec104df51e3",
+      "indexTimestamp": 1790278391,
+      "declaredArchives": 5,
+      "presentArchives": 5
+    }
+  ],
+  "archiveHashCount": 4058,
+  "outputs": [
+    {
+      "path": "C:/Users/User/Projects/chunk-picker-rs3/.local/game-data/objects-2026-10-08-v3/objects.source-placements.v1.json.gz",
+      "bytes": 152107832,
+      "sha256": "5c008448e8dfb6b4916a958c206ef5c136ddfb47ba1aa4068e18241378b2d069"
+    },
+    {
+      "path": "C:/Users/User/Projects/chunk-picker-rs3/.local/game-data/objects-2026-10-08-v3/objects.placements.v1.json.gz",
+      "bytes": 172790301,
+      "sha256": "3af6bc90e31f30fafb81f88368e4052335d47a45eadaaad0e82f3361476bc137"
+    },
+    {
+      "path": "C:/Users/User/Projects/chunk-picker-rs3/.local/game-data/objects-2026-10-08-v3/objects.definitions.v1.json.gz",
+      "bytes": 3335252,
+      "sha256": "686748ecfe5ccee8a2ec6b513a1c84962521092eccc3c5dcc02cf5e282432bf1"
+    },
+    {
+      "path": "C:/Users/User/Projects/chunk-picker-rs3/.local/game-data/objects-2026-10-08-v3/objects.layouts.v1.json.gz",
+      "bytes": 204555,
+      "sha256": "84c81c0d47cc6d1d78df5f5c998576a9dc529ac5bd1fa6ef891c3b0fc25ba7ee"
+    },
+    {
+      "path": "C:/Users/User/Projects/chunk-picker-rs3/.local/game-data/objects-2026-10-08-v3/objects.transitions.v1.json.gz",
+      "bytes": 1239009,
+      "sha256": "e7bbf79507c32ec2bb1859438dce724bb1cc84f26b218c2b8adf997c02fba867"
+    },
+    {
+      "path": "C:/Users/User/Projects/chunk-picker-rs3/.local/game-data/objects-2026-10-08-v3/objects.retained-comparison.v1.json.gz",
+      "bytes": 327330,
+      "sha256": "3a885aa672a37ae6662ee7ce56c8a7b4ad5406b323b1371fd8aab8fb1aaf7d82"
+    },
+    {
+      "path": "C:/Users/User/Projects/chunk-picker-rs3/.local/game-data/objects-2026-10-08-v3/objects.door-review.v1.json.gz",
+      "bytes": 62162,
+      "sha256": "e92d604f65e9c55cab242fd0eabf8d163eec8815ea9c806726f46f382db79b0f"
+    },
+    {
+      "path": "C:/Users/User/Projects/chunk-picker-rs3/.local/game-data/objects-2026-10-08-v3/objects.encoded-param-hints.v1.json",
+      "bytes": 21942,
+      "sha256": "5ccee4bb1d68c3537cb86e5cfb61f6bfbb57fec25e4184f55c57aff58826fd50"
+    },
+    {
+      "path": "C:/Users/User/Projects/chunk-picker-rs3/.local/game-data/objects-2026-10-08-v3/objects.wiki-validation.v1.json",
+      "bytes": 18080,
+      "sha256": "a62d09a16580866ae50bc09f6d9d1d3369759c9cd007f295a6992850eba4c42e"
+    },
+    {
+      "path": "C:/Users/User/Projects/chunk-picker-rs3/.local/game-data/objects-2026-10-08-v3/objects.summary.v1.json",
+      "bytes": 25077,
+      "sha256": "8cebbfd793f232d4927d6322344a14b41ec830c2261cb8d5df2397f1cc54ba60"
+    }
+  ],
+  "summary": {
+    "definitions": 141240,
+    "definitionErrors": 0,
+    "maps": 771,
+    "layouts": 789,
+    "layoutSourceRegions": 3492,
+    "sourceRegions": 3496,
+    "decodedRegions": 3496,
+    "errors": 0,
+    "sourcePlacements": 5899459,
+    "mappedPlacements": 4737814,
+    "surfaceRawPlane0": 625367,
+    "surfaceEffectivePlane0": 629291,
+    "conditionalPlacements": 15881,
+    "classCounts": {
+      "tree": 11852,
+      "mining-resource": 2652,
+      "facility-candidate": 6058,
+      "transition-candidate": 22659
+    },
+    "classificationCounts": {
+      "treeTypes": {
+        "unknown-generic": 9637,
+        "oak": 1519,
+        "yew": 94,
+        "bamboo": 30,
+        "magic": 43,
+        "willow": 279,
+        "maple": 116,
+        "bloodwood": 12,
+        "elder": 11,
+        "teak": 38,
+        "eucalyptus": 74,
+        "mahogany": 16,
+        "acadia": 17,
+        "blisterwood": 1,
+        "crystal": 1
+      },
+      "oreTypes": {
+        "gold": 225,
+        "unknown-generic": 1280,
+        "silver": 95,
+        "coal": 159,
+        "mithril": 105,
+        "adamantite": 41,
+        "runite": 55,
+        "rune essence": 6,
+        "gem": 59,
+        "iron": 64,
+        "luminite": 64,
+        "orichalcite": 23,
+        "copper": 39,
+        "tin": 39,
+        "limestone": 21,
+        "drakolith": 68,
+        "light animica": 15,
+        "clay": 37,
+        "banite": 36,
+        "red sandstone": 2,
+        "necrite": 37,
+        "phasmatite": 39,
+        "sandstone": 19,
+        "granite": 15,
+        "zephyrium": 9,
+        "kratonium": 3,
+        "novite": 8,
+        "argonite": 10,
+        "katagon": 10,
+        "fractite": 16,
+        "promethium": 13,
+        "bathus": 14,
+        "gorgonite": 10,
+        "marmaros": 8,
+        "dark animica": 8,
+        "crystal-flecked sandstone": 1
+      },
+      "facilityTypes": {
+        "cooking-range": 163,
+        "cooking-fire": 191,
+        "water-source": 704,
+        "workbench": 165,
+        "obelisk": 718,
+        "furnace": 305,
+        "bank": 820,
+        "altar": 308,
+        "pottery": 464,
+        "forge": 98,
+        "anvil": 641,
+        "farming-patch": 912,
+        "spinning-wheel": 212,
+        "loom": 323,
+        "hunter-spot": 12,
+        "tanning": 26,
+        "sawmill": 2
+      },
+      "membersFlagged": 1873528
+    },
+    "encodedParamHints": {
+      "objectDefinitionsWithHints": 63,
+      "directCoordinateHints": 56,
+      "structReferences": 13,
+      "referencedStructCoordinateHints": 0,
+      "transitionDefinitionsWithHints": 0,
+      "certifiedDestinations": 0
+    },
+    "encodedDestinations": 0,
+    "comparison": {
+      "same-name-present": 2402,
+      "cache-only-candidate": 11192,
+      "retained-only-candidate": 964,
+      "unknown-coverage": 6468
+    },
+    "doors": {
+      "diagnostics": 1415,
+      "matched": 1415,
+      "uniquelyMatched": 1415,
+      "destination-or-server-rule-review": 124,
+      "open-close-action-needs-passability-evidence": 1282,
+      "conditional-state-review": 9,
+      "certifiedOpenable": 0
+    },
+    "coveredChunks": 1211
+  },
+  "verification": {
+    "checkpoint": {
+      "script": "C:/Users/User/Projects/rs3-cache-work/objects-validate-checkpoints.mjs",
+      "scriptSha256": "22fde6444109e2596aa3d14357edcf71700293fed401c844dbf1a685913b8b4b",
+      "path": "C:/Users/User/Projects/rs3-cache-work/outputs/objects-checkpoint-validation-2026-10-08-v1/validation.v1.json",
+      "sha256": "d2fe7ffab0e084fdc40d437ebaf9ed01d9a86133283ad504097878f9d24efb3e",
+      "manifestPath": "C:/Users/User/Projects/rs3-cache-work/outputs/objects-checkpoint-validation-2026-10-08-v1/manifest.v1.json",
+      "manifestSha256": "2e84a642613961f97aca893f6266fd6b2cc51ec73a4b297ee6e9f205db83654f",
+      "passed": true,
+      "definitions": 141240,
+      "zoneCount": 771,
+      "pasteCount": 771,
+      "method": "Every reused raw definition, zone and paste record independently redecode-compared byte-for-byte JSON against the pinned current copied cache; no terrain repeated.",
+      "sourceChecks": [
+        {
+          "major": 16,
+          "sha256": "16f3f97856a3131e9f71308442db07eef98bc5194f3b5e576f41e22a08b7caa4",
+          "equalFinalManifest": true
+        },
+        {
+          "major": 23,
+          "sha256": "fdafdd4bc670081f1f872eb51827ecfa11c6946d5dc6c22a67805ec104df51e3",
+          "equalFinalManifest": true
+        }
+      ]
+    },
+    "focusedTests": {
+      "file": "tests/cache-game-data-objects.test.mjs",
+      "passed": 10,
+      "failed": 0
+    },
+    "summaryMatchesManifest": true
+  },
+  "coverage": {
+    "cropAddresses": 2350,
+    "decodedCropChunks": 1211,
+    "unknownCropChunks": 1139,
+    "comparisonAddresses": 3981,
+    "definitionErrors": 0,
+    "regionErrors": 0,
+    "layoutErrors": 0,
+    "sourceRegionCoverage": {
+      "decoded": 3496
+    },
+    "representativeMaps": [
+      {
+        "mapId": 28,
+        "name": "RuneScape Surface",
+        "planes": [
+          0,
+          1,
+          2,
+          3
+        ],
+        "status": "decoded",
+        "layoutCount": 4,
+        "pasteCounts": {
+          "squares": 1231,
+          "chunks": 0
+        },
+        "firstSquarePastes": [
+          {
+            "original_plane": 0,
+            "n_planes": 4,
+            "original_regionX": 33,
+            "original_regionY": 172,
+            "new_plane": 0,
+            "new_regionX": 64,
+            "new_regionY": 21
+          },
+          {
+            "original_plane": 0,
+            "n_planes": 4,
+            "original_regionX": 33,
+            "original_regionY": 173,
+            "new_plane": 0,
+            "new_regionX": 64,
+            "new_regionY": 22
+          }
+        ]
+      },
+      {
+        "mapId": 31,
+        "name": "Misthalin Underground",
+        "planes": [
+          0,
+          1,
+          2,
+          3
+        ],
+        "status": "decoded",
+        "layoutCount": 4,
+        "pasteCounts": {
+          "squares": 20,
+          "chunks": 92
+        },
+        "firstSquarePastes": [
+          {
+            "original_plane": 0,
+            "n_planes": 1,
+            "original_regionX": 48,
+            "original_regionY": 152,
+            "new_plane": 0,
+            "new_regionX": 48,
+            "new_regionY": 152
+          },
+          {
+            "original_plane": 0,
+            "n_planes": 1,
+            "original_regionX": 48,
+            "original_regionY": 153,
+            "new_plane": 0,
+            "new_regionX": 48,
+            "new_regionY": 153
+          }
+        ]
+      },
+      {
+        "mapId": 719,
+        "name": "Burthorpe Underground",
+        "planes": [
+          0
+        ],
+        "status": "decoded",
+        "layoutCount": 1,
+        "pasteCounts": {
+          "squares": 5,
+          "chunks": 0
+        },
+        "firstSquarePastes": [
+          {
+            "original_plane": 0,
+            "n_planes": 1,
+            "original_regionX": 35,
+            "original_regionY": 70,
+            "new_plane": 0,
+            "new_regionX": 1,
+            "new_regionY": 1
+          },
+          {
+            "original_plane": 0,
+            "n_planes": 1,
+            "original_regionX": 34,
+            "original_regionY": 68,
+            "new_plane": 0,
+            "new_regionX": 2,
+            "new_regionY": 4
+          }
+        ]
+      }
+    ],
+    "comparisonAddressScope": "All 2350 picker crop addresses plus retained addresses outside the crop and interior/nonnumeric keys. The 6468 unknown retained groups are not all missing crop coverage."
+  },
+  "comparison": {
+    "counts": {
+      "same-name-present": 2402,
+      "cache-only-candidate": 11192,
+      "retained-only-candidate": 964,
+      "unknown-coverage": 6468
+    },
+    "normalization": "Strip client HTML, retained Wiki wrappers and asterisks; collapse whitespace and lowercase. Numeric IDs and tile positions unavailable in old reference.",
+    "nonComparable": {
+      "Spawn": 599,
+      "Shop": 576
+    },
+    "renameCandidates": [],
+    "renameLimit": "No old numeric object IDs or tile positions: no defensible rename pairing. Count differences are advisory.",
+    "samples": {
+      "same-name-present": [
+        {
+          "chunk": "7729",
+          "name": "offering cradle",
+          "coverage": "decoded-layout-source",
+          "retainedCount": 1,
+          "currentPossiblePlacements": 1,
+          "objectIds": [
+            109803
+          ],
+          "conditional": false,
+          "locations": [
+            "7729-1"
+          ],
+          "classification": "same-name-present",
+          "verifiedAddition": false,
+          "verifiedRemoval": false
+        },
+        {
+          "chunk": "7729",
+          "name": "magical mushrooms",
+          "coverage": "decoded-layout-source",
+          "retainedCount": 1,
+          "currentPossiblePlacements": 1,
+          "objectIds": [
+            111371
+          ],
+          "conditional": false,
+          "locations": [
+            "7729-2"
+          ],
+          "classification": "same-name-present",
+          "verifiedAddition": false,
+          "verifiedRemoval": false
+        },
+        {
+          "chunk": "7985",
+          "name": "ruins",
+          "coverage": "decoded-layout-source",
+          "retainedCount": 1,
+          "currentPossiblePlacements": 1,
+          "objectIds": [
+            109875
+          ],
+          "conditional": false,
+          "locations": [
+            "7985"
+          ],
+          "classification": "same-name-present",
+          "verifiedAddition": false,
+          "verifiedRemoval": false
+        }
+      ],
+      "cache-only-candidate": [
+        {
+          "chunk": "7728",
+          "name": "purple toadstool",
+          "coverage": "decoded-layout-source",
+          "retainedCount": 0,
+          "currentPossiblePlacements": 5,
+          "objectIds": [
+            109914,
+            109915,
+            109916,
+            109917,
+            109918
+          ],
+          "conditional": true,
+          "locations": [],
+          "classification": "cache-only-candidate",
+          "verifiedAddition": false,
+          "verifiedRemoval": false
+        },
+        {
+          "chunk": "7728",
+          "name": "yellow toadstool",
+          "coverage": "decoded-layout-source",
+          "retainedCount": 0,
+          "currentPossiblePlacements": 5,
+          "objectIds": [
+            109914,
+            109915,
+            109916,
+            109917,
+            109918
+          ],
+          "conditional": true,
+          "locations": [],
+          "classification": "cache-only-candidate",
+          "verifiedAddition": false,
+          "verifiedRemoval": false
+        },
+        {
+          "chunk": "7728",
+          "name": "red toadstool",
+          "coverage": "decoded-layout-source",
+          "retainedCount": 0,
+          "currentPossiblePlacements": 5,
+          "objectIds": [
+            109914,
+            109915,
+            109916,
+            109917,
+            109918
+          ],
+          "conditional": true,
+          "locations": [],
+          "classification": "cache-only-candidate",
+          "verifiedAddition": false,
+          "verifiedRemoval": false
+        }
+      ],
+      "retained-only-candidate": [
+        {
+          "chunk": "7472",
+          "name": "crashed star",
+          "coverage": "decoded-layout-source",
+          "retainedCount": 1,
+          "currentPossiblePlacements": 0,
+          "objectIds": [],
+          "conditional": false,
+          "locations": [
+            "7472"
+          ],
+          "classification": "retained-only-candidate",
+          "verifiedAddition": false,
+          "verifiedRemoval": false
+        },
+        {
+          "chunk": "7730",
+          "name": "crashed star",
+          "coverage": "decoded-layout-source",
+          "retainedCount": 1,
+          "currentPossiblePlacements": 0,
+          "objectIds": [],
+          "conditional": false,
+          "locations": [
+            "7730"
+          ],
+          "classification": "retained-only-candidate",
+          "verifiedAddition": false,
+          "verifiedRemoval": false
+        },
+        {
+          "chunk": "7984",
+          "name": "crashed star",
+          "coverage": "decoded-layout-source",
+          "retainedCount": 1,
+          "currentPossiblePlacements": 0,
+          "objectIds": [],
+          "conditional": false,
+          "locations": [
+            "7984"
+          ],
+          "classification": "retained-only-candidate",
+          "verifiedAddition": false,
+          "verifiedRemoval": false
+        }
+      ],
+      "unknown-coverage": [
+        {
+          "chunk": "30",
+          "name": "path",
+          "coverage": "not-covered",
+          "retainedCount": 20,
+          "currentPossiblePlacements": 0,
+          "objectIds": [],
+          "conditional": false,
+          "locations": [
+            "30"
+          ],
+          "classification": "unknown-coverage",
+          "verifiedAddition": false,
+          "verifiedRemoval": false
+        },
+        {
+          "chunk": "30",
+          "name": "rotting branch",
+          "coverage": "not-covered",
+          "retainedCount": 52,
+          "currentPossiblePlacements": 0,
+          "objectIds": [],
+          "conditional": false,
+          "locations": [
+            "30"
+          ],
+          "classification": "unknown-coverage",
+          "verifiedAddition": false,
+          "verifiedRemoval": false
+        },
+        {
+          "chunk": "30",
+          "name": "rotting log",
+          "coverage": "not-covered",
+          "retainedCount": 46,
+          "currentPossiblePlacements": 0,
+          "objectIds": [],
+          "conditional": false,
+          "locations": [
+            "30"
+          ],
+          "classification": "unknown-coverage",
+          "verifiedAddition": false,
+          "verifiedRemoval": false
+        }
+      ]
+    },
+    "replacementEstimate": {
+      "unit": "retained normalized name/chunk groups, not individual objects or migration-ready entries",
+      "sameNameGroups": 2402,
+      "coveredRetainedGroups": 3366,
+      "allRetainedGroups": 9834,
+      "coveredCorrespondencePercent": 71.36066547831254,
+      "allCorrespondencePercent": 24.42546268049624,
+      "safeAutomaticReplacements": 0
+    }
+  },
+  "doorReview": {
+    "counts": {
+      "diagnostics": 1415,
+      "matched": 1415,
+      "uniquelyMatched": 1415,
+      "destination-or-server-rule-review": 124,
+      "open-close-action-needs-passability-evidence": 1282,
+      "conditional-state-review": 9,
+      "certifiedOpenable": 0
+    },
+    "apply": false,
+    "proposal": "Join succeeds without granting access. Inspect branch clipping and server/quest constraints; obtain independent passability evidence before any openable-evidence input.",
+    "cohortActions": {
+      "open-close-action-needs-passability-evidence": "Inspect open/closed branch clipping and independently verify server/quest/member access before granting passage.",
+      "conditional-state-review": "Resolve player-specific selector state and independently verify passability; keep all raw branches.",
+      "destination-or-server-rule-review": "Identify destination and server requirements independently; action text is insufficient."
+    },
+    "samples": [
+      {
+        "diagnostic": {
+          "locId": 119066,
+          "x": 4141,
+          "z": 4077,
+          "plane": 0,
+          "type": 10,
+          "rotation": 1,
+          "sourceX": 5677,
+          "sourceZ": 2157,
+          "effectiveSourcePlane": 0,
+          "displayAnchors": [
+            {
+              "x": 4141,
+              "z": 4077,
+              "regionId": "16447"
+            }
+          ],
+          "coordinateSpace": "display",
+          "name": "Door",
+          "actions": [
+            "Enter"
+          ],
+          "affectedRegions": [],
+          "classification": "conditional-unverified",
+          "evidence": null,
+          "conditions": [],
+          "morph": null,
+          "conditionHints": {
+            "quests": [],
+            "members": false
+          }
+        },
+        "matches": [
+          "object-46e76c34e81762d7a01a9b81"
+        ],
+        "name": "Door",
+        "actions": [
+          "Enter"
+        ],
+        "alternatives": [],
+        "resolution": "destination-or-server-rule-review",
+        "passableWhenOpen": null,
+        "destination": null,
+        "requirements": null,
+        "apply": false
+      },
+      {
+        "diagnostic": {
+          "locId": 16776,
+          "x": 2079,
+          "z": 3898,
+          "plane": 0,
+          "type": 0,
+          "rotation": 3,
+          "sourceX": 2079,
+          "sourceZ": 3898,
+          "effectiveSourcePlane": 0,
+          "displayAnchors": [
+            {
+              "x": 2079,
+              "z": 3898,
+              "regionId": "8252"
+            }
+          ],
+          "coordinateSpace": "display",
+          "name": "Door",
+          "actions": [
+            "Open"
+          ],
+          "affectedRegions": [],
+          "classification": "conditional-unverified",
+          "evidence": null,
+          "conditions": [],
+          "morph": null,
+          "conditionHints": {
+            "quests": [],
+            "members": false
+          }
+        },
+        "matches": [
+          "object-916ea2e46ece36638db43952"
+        ],
+        "name": "Door",
+        "actions": [
+          "Open"
+        ],
+        "alternatives": [],
+        "resolution": "open-close-action-needs-passability-evidence",
+        "passableWhenOpen": null,
+        "destination": null,
+        "requirements": null,
+        "apply": false
+      },
+      {
+        "diagnostic": {
+          "locId": 95350,
+          "x": 2840,
+          "z": 3862,
+          "plane": 0,
+          "type": 10,
+          "rotation": 0,
+          "sourceX": 2840,
+          "sourceZ": 3862,
+          "effectiveSourcePlane": 0,
+          "displayAnchors": [
+            {
+              "x": 2840,
+              "z": 3862,
+              "regionId": "11324"
+            }
+          ],
+          "coordinateSpace": "display",
+          "name": null,
+          "actions": [
+            "Open"
+          ],
+          "affectedRegions": [],
+          "classification": "conditional-unverified",
+          "evidence": null,
+          "conditions": [],
+          "morph": {
+            "varbit": 27080,
+            "varp": 65535,
+            "defaultId": 44103,
+            "options": [
+              44103,
+              95352,
+              95353
+            ]
+          },
+          "conditionHints": {
+            "quests": [
+              370
+            ],
+            "members": false
+          }
+        },
+        "matches": [
+          "object-a4972258594dd6a81180b736"
+        ],
+        "name": "",
+        "actions": [
+          "Open"
+        ],
+        "alternatives": [
+          {
+            "objectId": 44103,
+            "name": "Barrel",
+            "actions": [],
+            "memberActions": [],
+            "classes": [],
+            "classification": {
+              "evidence": "decoded definition name/actions; semantic review categories",
+              "name": "Barrel",
+              "tree": {
+                "candidate": false,
+                "type": null,
+                "typeStatus": "not-classified"
+              },
+              "ore": {
+                "candidate": false,
+                "type": null,
+                "typeStatus": "not-classified"
+              },
+              "facilityTypes": [],
+              "facilityStatus": "not-classified",
+              "membership": {
+                "classification": "unknown-without-geographic-and-server-evidence",
+                "is_members": null,
+                "isMembers": null
+              },
+              "requirements": null
+            },
+            "path": [
+              {
+                "objectId": 95350,
+                "kind": "morphs_1",
+                "varbit": 27080,
+                "varp": 65535,
+                "option": 0,
+                "selectedObjectId": 44103
+              }
+            ]
+          },
+          {
+            "objectId": 95352,
+            "name": "Chest",
+            "actions": [
+              "Open"
+            ],
+            "memberActions": [],
+            "classes": [
+              "transition-candidate"
+            ],
+            "classification": {
+              "evidence": "decoded definition name/actions; semantic review categories",
+              "name": "Chest",
+              "tree": {
+                "candidate": false,
+                "type": null,
+                "typeStatus": "not-classified"
+              },
+              "ore": {
+                "candidate": false,
+                "type": null,
+                "typeStatus": "not-classified"
+              },
+              "facilityTypes": [],
+              "facilityStatus": "not-classified",
+              "membership": {
+                "classification": "unknown-without-geographic-and-server-evidence",
+                "is_members": null,
+                "isMembers": null
+              },
+              "requirements": null
+            },
+            "path": [
+              {
+                "objectId": 95350,
+                "kind": "morphs_1",
+                "varbit": 27080,
+                "varp": 65535,
+                "option": 1,
+                "selectedObjectId": 95352
+              }
+            ]
+          },
+          {
+            "objectId": 95353,
+            "name": "Chest",
+            "actions": [
+              "Search"
+            ],
+            "memberActions": [],
+            "classes": [],
+            "classification": {
+              "evidence": "decoded definition name/actions; semantic review categories",
+              "name": "Chest",
+              "tree": {
+                "candidate": false,
+                "type": null,
+                "typeStatus": "not-classified"
+              },
+              "ore": {
+                "candidate": false,
+                "type": null,
+                "typeStatus": "not-classified"
+              },
+              "facilityTypes": [],
+              "facilityStatus": "not-classified",
+              "membership": {
+                "classification": "unknown-without-geographic-and-server-evidence",
+                "is_members": null,
+                "isMembers": null
+              },
+              "requirements": null
+            },
+            "path": [
+              {
+                "objectId": 95350,
+                "kind": "morphs_1",
+                "varbit": 27080,
+                "varp": 65535,
+                "option": 2,
+                "selectedObjectId": 95353
+              }
+            ]
+          },
+          {
+            "objectId": 95353,
+            "name": "Chest",
+            "actions": [
+              "Search"
+            ],
+            "memberActions": [],
+            "classes": [],
+            "classification": {
+              "evidence": "decoded definition name/actions; semantic review categories",
+              "name": "Chest",
+              "tree": {
+                "candidate": false,
+                "type": null,
+                "typeStatus": "not-classified"
+              },
+              "ore": {
+                "candidate": false,
+                "type": null,
+                "typeStatus": "not-classified"
+              },
+              "facilityTypes": [],
+              "facilityStatus": "not-classified",
+              "membership": {
+                "classification": "unknown-without-geographic-and-server-evidence",
+                "is_members": null,
+                "isMembers": null
+              },
+              "requirements": null
+            },
+            "path": [
+              {
+                "objectId": 95350,
+                "kind": "morphs_1",
+                "varbit": 27080,
+                "varp": 65535,
+                "option": "encoded-tail",
+                "selectedObjectId": 95353
+              }
+            ]
+          }
+        ],
+        "resolution": "conditional-state-review",
+        "passableWhenOpen": null,
+        "destination": null,
+        "requirements": null,
+        "apply": false
+      }
+    ]
+  },
+  "encodedParamHints": {
+    "params": 9498,
+    "counts": {
+      "objectDefinitionsWithHints": 63,
+      "directCoordinateHints": 56,
+      "structReferences": 13,
+      "referencedStructCoordinateHints": 0,
+      "transitionDefinitionsWithHints": 0,
+      "certifiedDestinations": 0
+    },
+    "samples": [
+      {
+        "objectId": 28194,
+        "name": "Viewing orb",
+        "transitionDefinition": false,
+        "coordinateHints": [],
+        "structReferences": [
+          {
+            "param": 580,
+            "structId": 343,
+            "present": true,
+            "coordinateHints": [],
+            "rawParams": [
+              {
+                "prop": 581,
+                "intvalue": 30261,
+                "stringvalue": null
+              }
+            ],
+            "meaning": "typed struct reference; semantics unknown"
+          }
+        ]
+      },
+      {
+        "objectId": 95910,
+        "name": "",
+        "transitionDefinition": false,
+        "coordinateHints": [
+          {
+            "param": 4869,
+            "packed": 330081116,
+            "x": 3762,
+            "y": 9052,
+            "plane": 1,
+            "meaning": "typed coordgrid; not proven destination"
+          }
+        ],
+        "structReferences": []
+      }
+    ],
+    "meaning": "Typed coordgrid and struct values are hints, not proven destinations; none occur on definitions classified as transitions."
+  },
+  "wiki": {
+    "sampleCoordinates": 20,
+    "matchedCoordinates": 19,
+    "unmatched": [
+      {
+        "page": "Furnace",
+        "revisionUrl": "https://runescape.wiki/w/Special:Redirect/revision/37196083",
+        "objectId": 88261,
+        "x": 2514,
+        "y": 2692,
+        "mapId": 28,
+        "plane": 0,
+        "cacheMatches": [],
+        "status": "unresolved; not a verified removal"
+      }
+    ],
+    "inputHashes": [
+      {
+        "path": "C:\\Users\\User\\Projects\\rs3-cache-work\\objects-wiki-2026-10-08.json",
+        "sha256": "5e126f9b1b1e1e1c0068780e1d122b7bf93554601dd0cd790094178795e6c3fc"
+      },
+      {
+        "path": "C:\\Users\\User\\Projects\\rs3-cache-work\\objects-wiki-door-2026-10-08.json",
+        "sha256": "30dcf2a85fd0f950de133def8b31c56e34d5baa26cbf1c0a8d8d94843e504bc9"
+      }
+    ],
+    "method": "Direct RS3 MediaWiki API revision content. Limited template parser selects up to six parseable explicit coordinate entries per page; nested templates can reduce this sample. No OSRS source used.",
+    "pages": [
+      {
+        "title": "Champions' Guild",
+        "url": "https://runescape.wiki/w/Champions'_Guild",
+        "revision": 37146518,
+        "revisionTimestamp": "2026-08-07T05:22:11Z",
+        "revisionUrl": "https://runescape.wiki/w/Special:Redirect/revision/37146518",
+        "fields": {
+          "name": "Champions' Guild",
+          "members": "No"
+        },
+        "definitions": [],
+        "coordinates": [],
+        "checks": {
+          "sampleCoordinates": 0,
+          "matchedCoordinates": 0
+        },
+        "limits": [
+          "Wiki membership describes versions/locations. Missing cache flags do not prove free geographical access.",
+          "Examine is often an implicit client menu action absent from cache actions. No server destination added from label matching."
+        ]
+      },
+      {
+        "title": "Furnace",
+        "url": "https://runescape.wiki/w/Furnace",
+        "revision": 37196083,
+        "revisionTimestamp": "2026-10-03T04:13:10Z",
+        "revisionUrl": "https://runescape.wiki/w/Special:Redirect/revision/37196083",
+        "fields": {
+          "name": "Furnace",
+          "members1": "No",
+          "members2": "No",
+          "members3": "Yes",
+          "members4": "No",
+          "members5": "Yes",
+          "members6": "Yes",
+          "members7": "Yes",
+          "members8": "Yes",
+          "members9": "Yes",
+          "members10": "No",
+          "members11": "No",
+          "members12": "Yes",
+          "members13": "No",
+          "members14": "Yes",
+          "members15": "Yes",
+          "members16": "No",
+          "options1": "Smelt, Deposit-all (into metal bank), Withdraw-all (from metal bank), Examine",
+          "options2": "Smelt, Deposit-All (Into Metal Bank), Withdraw-All (From Metal Bank), Examine",
+          "options3": "Smelt, Deposit-All (Into Metal Bank), Withdraw-All (From Metal Bank), Examine",
+          "options4": "Smelt, Deposit-All (Into Metal Bank), Withdraw-All (From Metal Bank), Examine",
+          "options5": "Smelt, Deposit-all (into metal bank), Withdraw-all (from metal bank), Examine",
+          "options6": "Smelt, Deposit-All (Into Metal Bank), Withdraw-All (From Metal Bank), Examine",
+          "options7": "Smelt, Deposit-All (Into Metal Bank), Withdraw-All (From Metal Bank), Examine",
+          "options8": "Smelt, Deposit-All (Into Metal Bank), Withdraw-All (From Metal Bank), Examine",
+          "options9": "Smelt, Deposit-All (Into Metal Bank), Withdraw-All (From Metal Bank), Examine",
+          "options10": "Smelt, Deposit-All (Into Metal Bank), Withdraw-All (From Metal Bank), Examine",
+          "options11": "Smelt, Deposit-All (Into Metal Bank), Withdraw-All (From Metal Bank), Examine",
+          "options12": "Smelt, Deposit-all (into metal bank), Withdraw-all (from metal bank), Examine",
+          "options13": "Smelt, Deposit-All (Into Metal Bank), Withdraw-All (From Metal Bank), Examine",
+          "options14": "Smelt, Deposit-All (Into Metal Bank), Withdraw-All (From Metal Bank), Examine",
+          "options15": "Smelt, Deposit-all (into metal bank), Withdraw-all (from metal bank), Examine",
+          "options16": "Smelt, Deposit-all (into metal bank), Withdraw-all (from metal bank), Examine",
+          "id1": "113261",
+          "id2": "76293",
+          "id3": "52574",
+          "id4": "110954",
+          "id5": "113265",
+          "id6": "11010",
+          "id7": "12809",
+          "id8": "22721",
+          "id9": "61330",
+          "id10": "67465, 67467",
+          "id11": "88492",
+          "id12": "112701",
+          "id13": "103642",
+          "id14": "107726, 107727",
+          "id15": "125137",
+          "id16": "127312"
+        },
+        "definitions": [
+          {
+            "objectId": 113261,
+            "present": true,
+            "name": "Furnace",
+            "actions": [
+              "Smelt",
+              "Deposit-all (into metal bank)",
+              "Withdraw-all (from metal bank)"
+            ],
+            "memberActions": [],
+            "membersFlags": {
+              "is_members": null,
+              "isMembers": null
+            }
+          },
+          {
+            "objectId": 76293,
+            "present": true,
+            "name": "Furnace",
+            "actions": [
+              "Smelt",
+              "Deposit-All (Into Metal Bank)",
+              "Withdraw-All (From Metal Bank)"
+            ],
+            "memberActions": [],
+            "membersFlags": {
+              "is_members": null,
+              "isMembers": null
+            }
+          },
+          {
+            "objectId": 52574,
+            "present": true,
+            "name": "Furnace",
+            "actions": [
+              "Smelt",
+              "Deposit-All (Into Metal Bank)",
+              "Withdraw-All (From Metal Bank)"
+            ],
+            "memberActions": [],
+            "membersFlags": {
+              "is_members": null,
+              "isMembers": null
+            }
+          },
+          {
+            "objectId": 110954,
+            "present": true,
+            "name": "Furnace",
+            "actions": [
+              "Smelt",
+              "Deposit-All (Into Metal Bank)",
+              "Withdraw-All (From Metal Bank)"
+            ],
+            "memberActions": [],
+            "membersFlags": {
+              "is_members": null,
+              "isMembers": null
+            }
+          },
+          {
+            "objectId": 113265,
+            "present": true,
+            "name": "Furnace",
+            "actions": [
+              "Smelt",
+              "Deposit-all (into metal bank)",
+              "Withdraw-all (from metal bank)"
+            ],
+            "memberActions": [],
+            "membersFlags": {
+              "is_members": null,
+              "isMembers": null
+            }
+          },
+          {
+            "objectId": 11010,
+            "present": true,
+            "name": "Furnace",
+            "actions": [
+              "Smelt",
+              "Deposit-All (Into Metal Bank)",
+              "Withdraw-All (From Metal Bank)"
+            ],
+            "memberActions": [],
+            "membersFlags": {
+              "is_members": null,
+              "isMembers": null
+            }
+          },
+          {
+            "objectId": 12809,
+            "present": true,
+            "name": "Furnace",
+            "actions": [
+              "Smelt",
+              "Deposit-All (Into Metal Bank)",
+              "Withdraw-All (From Metal Bank)"
+            ],
+            "memberActions": [],
+            "membersFlags": {
+              "is_members": null,
+              "isMembers": null
+            }
+          },
+          {
+            "objectId": 22721,
+            "present": true,
+            "name": "Furnace",
+            "actions": [],
+            "memberActions": [
+              "Smelt",
+              "Deposit-All (Into Metal Bank)",
+              "Withdraw-All (From Metal Bank)"
+            ],
+            "membersFlags": {
+              "is_members": null,
+              "isMembers": null
+            }
+          },
+          {
+            "objectId": 61330,
+            "present": true,
+            "name": "Furnace",
+            "actions": [
+              "Smelt",
+              "Deposit-All (Into Metal Bank)",
+              "Withdraw-All (From Metal Bank)"
+            ],
+            "memberActions": [],
+            "membersFlags": {
+              "is_members": null,
+              "isMembers": null
+            }
+          },
+          {
+            "objectId": 67465,
+            "present": true,
+            "name": "Furnace",
+            "actions": [
+              "Smelt",
+              "Deposit-All (Into Metal Bank)",
+              "Withdraw-All (From Metal Bank)"
+            ],
+            "memberActions": [],
+            "membersFlags": {
+              "is_members": null,
+              "isMembers": null
+            }
+          },
+          {
+            "objectId": 67467,
+            "present": true,
+            "name": "Furnace",
+            "actions": [
+              "Smelt",
+              "Deposit-All (Into Metal Bank)",
+              "Withdraw-All (From Metal Bank)"
+            ],
+            "memberActions": [],
+            "membersFlags": {
+              "is_members": null,
+              "isMembers": null
+            }
+          },
+          {
+            "objectId": 88492,
+            "present": true,
+            "name": "Furnace",
+            "actions": [
+              "Smelt",
+              "Deposit-All (Into Metal Bank)",
+              "Withdraw-All (From Metal Bank)"
+            ],
+            "memberActions": [],
+            "membersFlags": {
+              "is_members": null,
+              "isMembers": null
+            }
+          },
+          {
+            "objectId": 112701,
+            "present": true,
+            "name": "Furnace",
+            "actions": [
+              "Smelt",
+              "Deposit-all (into metal bank)",
+              "Withdraw-all (from metal bank)"
+            ],
+            "memberActions": [],
+            "membersFlags": {
+              "is_members": null,
+              "isMembers": null
+            }
+          },
+          {
+            "objectId": 103642,
+            "present": true,
+            "name": "Furnace",
+            "actions": [
+              "Smelt",
+              "Deposit-All (Into Metal Bank)",
+              "Withdraw-All (From Metal Bank)"
+            ],
+            "memberActions": [],
+            "membersFlags": {
+              "is_members": true,
+              "isMembers": null
+            }
+          },
+          {
+            "objectId": 107726,
+            "present": true,
+            "name": "Furnace",
+            "actions": [],
+            "memberActions": [
+              "Smelt",
+              "Deposit-All (Into Metal Bank)",
+              "Withdraw-All (From Metal Bank)"
+            ],
+            "membersFlags": {
+              "is_members": null,
+              "isMembers": null
+            }
+          },
+          {
+            "objectId": 107727,
+            "present": true,
+            "name": "Furnace",
+            "actions": [],
+            "memberActions": [
+              "Smelt",
+              "Deposit-All (Into Metal Bank)",
+              "Withdraw-All (From Metal Bank)"
+            ],
+            "membersFlags": {
+              "is_members": null,
+              "isMembers": null
+            }
+          },
+          {
+            "objectId": 125137,
+            "present": true,
+            "name": "Furnace",
+            "actions": [
+              "Smelt",
+              "Deposit-all (into metal bank)",
+              "Withdraw-all (from metal bank)"
+            ],
+            "memberActions": [],
+            "membersFlags": {
+              "is_members": null,
+              "isMembers": true
+            }
+          },
+          {
+            "objectId": 127312,
+            "present": true,
+            "name": "Furnace",
+            "actions": [
+              "Smelt",
+              "Deposit-all (into metal bank)",
+              "Withdraw-all (from metal bank)"
+            ],
+            "memberActions": [],
+            "membersFlags": {
+              "is_members": null,
+              "isMembers": null
+            }
+          }
+        ],
+        "coordinates": [
+          {
+            "objectId": 88261,
+            "x": 2514,
+            "y": 2692,
+            "mapId": 28,
+            "plane": 0,
+            "cacheMatches": []
+          },
+          {
+            "objectId": 113261,
+            "x": 2601,
+            "y": 3309,
+            "mapId": 28,
+            "plane": 0,
+            "cacheMatches": [
+              "object-a8a3609d455dee33f5e119fd@28:0:2601:3309"
+            ]
+          },
+          {
+            "objectId": 113261,
+            "x": 2834,
+            "y": 3351,
+            "mapId": 28,
+            "plane": 0,
+            "cacheMatches": [
+              "object-069b09b6c59bdc7d21a11e8f@28:0:2834:3351"
+            ]
+          },
+          {
+            "objectId": 67465,
+            "x": 2885,
+            "y": 3507,
+            "mapId": 28,
+            "plane": 0,
+            "cacheMatches": [
+              "object-8e3deade6dd2f22dfc09aa90@28:0:2885:3507"
+            ]
+          },
+          {
+            "objectId": 67467,
+            "x": 2882,
+            "y": 3507,
+            "mapId": 28,
+            "plane": 0,
+            "cacheMatches": [
+              "object-327ff5c450f0b33b8dd1b2f0@28:0:2882:3507"
+            ]
+          },
+          {
+            "objectId": 113261,
+            "x": 2921,
+            "y": 4289,
+            "mapId": 429,
+            "plane": 0,
+            "cacheMatches": [
+              "object-74ab31bbcd945825b68983dc@429:0:2921:4289"
+            ]
+          }
+        ],
+        "checks": {
+          "sampleCoordinates": 6,
+          "matchedCoordinates": 5
+        },
+        "limits": [
+          "Wiki membership describes versions/locations. Missing cache flags do not prove free geographical access.",
+          "Examine is often an implicit client menu action absent from cache actions. No server destination added from label matching."
+        ]
+      },
+      {
+        "title": "Acadia tree",
+        "url": "https://runescape.wiki/w/Acadia_tree",
+        "revision": 37166118,
+        "revisionTimestamp": "2026-08-28T22:50:34Z",
+        "revisionUrl": "https://runescape.wiki/w/Special:Redirect/revision/37166118",
+        "fields": {
+          "name": "Acadia tree",
+          "members": "Yes",
+          "options": "Cut down, Examine",
+          "id1": "109001",
+          "id2": "109003",
+          "id3": "109005",
+          "id4": "109007"
+        },
+        "definitions": [
+          {
+            "objectId": 109001,
+            "present": true,
+            "name": "Acadia tree",
+            "actions": [
+              "Cut down"
+            ],
+            "memberActions": [],
+            "membersFlags": {
+              "is_members": null,
+              "isMembers": null
+            }
+          },
+          {
+            "objectId": 109003,
+            "present": true,
+            "name": "Acadia tree",
+            "actions": [
+              "Cut down"
+            ],
+            "memberActions": [],
+            "membersFlags": {
+              "is_members": null,
+              "isMembers": null
+            }
+          },
+          {
+            "objectId": 109005,
+            "present": true,
+            "name": "Acadia tree",
+            "actions": [
+              "Cut down"
+            ],
+            "memberActions": [],
+            "membersFlags": {
+              "is_members": null,
+              "isMembers": null
+            }
+          },
+          {
+            "objectId": 109007,
+            "present": true,
+            "name": "Acadia tree",
+            "actions": [
+              "Cut down"
+            ],
+            "memberActions": [],
+            "membersFlags": {
+              "is_members": null,
+              "isMembers": null
+            }
+          }
+        ],
+        "coordinates": [
+          {
+            "objectId": 109001,
+            "x": 3309,
+            "y": 3247,
+            "mapId": 28,
+            "plane": 0,
+            "cacheMatches": [
+              "object-1101447e6dc3ce4c7589639c@28:0:3309:3247"
+            ]
+          },
+          {
+            "objectId": 109003,
+            "x": 3304,
+            "y": 3246,
+            "mapId": 28,
+            "plane": 0,
+            "cacheMatches": [
+              "object-be6507e112cc5ed5dad6ca9e@28:0:3304:3246"
+            ]
+          },
+          {
+            "objectId": 109005,
+            "x": 3310,
+            "y": 3243,
+            "mapId": 28,
+            "plane": 0,
+            "cacheMatches": [
+              "object-72511e6098459e7179fd5e0c@28:0:3310:3243"
+            ]
+          },
+          {
+            "objectId": 109001,
+            "x": 3463,
+            "y": 3129,
+            "mapId": 28,
+            "plane": 0,
+            "cacheMatches": [
+              "object-ec931cab1adbf3447c46e0ff@28:0:3463:3129"
+            ]
+          },
+          {
+            "objectId": 109003,
+            "x": 3471,
+            "y": 3126,
+            "mapId": 28,
+            "plane": 0,
+            "cacheMatches": [
+              "object-4dd88b9fb9676bf91abeb468@28:0:3471:3126"
+            ]
+          }
+        ],
+        "checks": {
+          "sampleCoordinates": 5,
+          "matchedCoordinates": 5
+        },
+        "limits": [
+          "Wiki membership describes versions/locations. Missing cache flags do not prove free geographical access.",
+          "Examine is often an implicit client menu action absent from cache actions. No server destination added from label matching."
+        ]
+      },
+      {
+        "title": "Iron rock",
+        "url": "https://runescape.wiki/w/Iron_rock",
+        "revision": 37195299,
+        "revisionTimestamp": "2026-10-02T11:27:56Z",
+        "revisionUrl": "https://runescape.wiki/w/Special:Redirect/revision/37195299",
+        "fields": {
+          "name": "Iron rock",
+          "members": "No",
+          "options": "Mine, Prospect, Examine",
+          "id1": "113038",
+          "id2": "113039",
+          "id3": "113040",
+          "id4": "113098",
+          "id5": "113099",
+          "id6": "113100",
+          "id7": "113158",
+          "id8": "113159",
+          "id9": "113160"
+        },
+        "definitions": [
+          {
+            "objectId": 113038,
+            "present": true,
+            "name": "Iron rock",
+            "actions": [
+              "Mine",
+              "Prospect"
+            ],
+            "memberActions": [],
+            "membersFlags": {
+              "is_members": null,
+              "isMembers": null
+            }
+          },
+          {
+            "objectId": 113039,
+            "present": true,
+            "name": "Iron rock",
+            "actions": [
+              "Mine",
+              "Prospect"
+            ],
+            "memberActions": [],
+            "membersFlags": {
+              "is_members": null,
+              "isMembers": null
+            }
+          },
+          {
+            "objectId": 113040,
+            "present": true,
+            "name": "Iron rock",
+            "actions": [
+              "Mine",
+              "Prospect"
+            ],
+            "memberActions": [],
+            "membersFlags": {
+              "is_members": null,
+              "isMembers": null
+            }
+          },
+          {
+            "objectId": 113098,
+            "present": true,
+            "name": "Iron rock",
+            "actions": [
+              "Mine",
+              "Prospect"
+            ],
+            "memberActions": [],
+            "membersFlags": {
+              "is_members": null,
+              "isMembers": null
+            }
+          },
+          {
+            "objectId": 113099,
+            "present": true,
+            "name": "Iron rock",
+            "actions": [
+              "Mine",
+              "Prospect"
+            ],
+            "memberActions": [],
+            "membersFlags": {
+              "is_members": null,
+              "isMembers": null
+            }
+          },
+          {
+            "objectId": 113100,
+            "present": true,
+            "name": "Iron rock",
+            "actions": [
+              "Mine",
+              "Prospect"
+            ],
+            "memberActions": [],
+            "membersFlags": {
+              "is_members": null,
+              "isMembers": null
+            }
+          },
+          {
+            "objectId": 113158,
+            "present": true,
+            "name": "Iron rock",
+            "actions": [
+              "Mine",
+              "Prospect"
+            ],
+            "memberActions": [],
+            "membersFlags": {
+              "is_members": null,
+              "isMembers": null
+            }
+          },
+          {
+            "objectId": 113159,
+            "present": true,
+            "name": "Iron rock",
+            "actions": [
+              "Mine",
+              "Prospect"
+            ],
+            "memberActions": [],
+            "membersFlags": {
+              "is_members": null,
+              "isMembers": null
+            }
+          },
+          {
+            "objectId": 113160,
+            "present": true,
+            "name": "Iron rock",
+            "actions": [
+              "Mine",
+              "Prospect"
+            ],
+            "memberActions": [],
+            "membersFlags": {
+              "is_members": null,
+              "isMembers": null
+            }
+          }
+        ],
+        "coordinates": [
+          {
+            "objectId": 113038,
+            "x": 94,
+            "y": 84,
+            "mapId": 719,
+            "plane": 0,
+            "cacheMatches": [
+              "object-2c6c66878bd8e5e0d3fc93ba@719:0:94:84"
+            ]
+          },
+          {
+            "objectId": 113038,
+            "x": 100,
+            "y": 82,
+            "mapId": 719,
+            "plane": 0,
+            "cacheMatches": [
+              "object-a89a02dd361d6a38cecd2248@719:0:100:82"
+            ]
+          },
+          {
+            "objectId": 113038,
+            "x": 106,
+            "y": 84,
+            "mapId": 719,
+            "plane": 0,
+            "cacheMatches": [
+              "object-a19afeb8653fd3373e9bce17@719:0:106:84"
+            ]
+          },
+          {
+            "objectId": 113039,
+            "x": 91,
+            "y": 88,
+            "mapId": 719,
+            "plane": 0,
+            "cacheMatches": [
+              "object-3cf5d503b70498664bdbb206@719:0:91:88"
+            ]
+          },
+          {
+            "objectId": 113039,
+            "x": 95,
+            "y": 87,
+            "mapId": 719,
+            "plane": 0,
+            "cacheMatches": [
+              "object-e92e58d7a9bf185903e10579@719:0:95:87"
+            ]
+          },
+          {
+            "objectId": 113040,
+            "x": 93,
+            "y": 87,
+            "mapId": 719,
+            "plane": 0,
+            "cacheMatches": [
+              "object-9147e68de2bcd24e414cc9e9@719:0:93:87"
+            ]
+          }
+        ],
+        "checks": {
+          "sampleCoordinates": 6,
+          "matchedCoordinates": 6
+        },
+        "limits": [
+          "Wiki membership describes versions/locations. Missing cache flags do not prove free geographical access.",
+          "Examine is often an implicit client menu action absent from cache actions. No server destination added from label matching."
+        ]
+      },
+      {
+        "title": "Trapdoor (Lumbridge Castle)",
+        "url": "https://runescape.wiki/w/Trapdoor_(Lumbridge_Castle)",
+        "revision": 36789230,
+        "revisionTimestamp": "2025-08-01T16:33:25Z",
+        "revisionUrl": "https://runescape.wiki/w/Special:Redirect/revision/36789230",
+        "fields": {
+          "name": "Trapdoor",
+          "members": "No",
+          "actions": "Climb-down, Examine",
+          "id": "36687"
+        },
+        "definitions": [
+          {
+            "objectId": 36687,
+            "present": true,
+            "name": "Trapdoor",
+            "actions": [
+              "Climb-down"
+            ],
+            "memberActions": [],
+            "membersFlags": {
+              "is_members": null,
+              "isMembers": null
+            }
+          }
+        ],
+        "coordinates": [
+          {
+            "objectId": 36687,
+            "x": 3209,
+            "y": 3216,
+            "mapId": 28,
+            "plane": 0,
+            "cacheMatches": [
+              "object-a888301501bbbb1832c103b1@28:0:3209:3216"
+            ]
+          }
+        ],
+        "checks": {
+          "sampleCoordinates": 1,
+          "matchedCoordinates": 1
+        },
+        "limits": [
+          "Wiki membership describes versions/locations. Missing cache flags do not prove free geographical access.",
+          "Examine is often an implicit client menu action absent from cache actions. No server destination added from label matching."
+        ]
+      },
+      {
+        "title": "Door (Champions' Guild)",
+        "url": "https://runescape.wiki/w/Door_(Champions'_Guild)",
+        "revision": 37065708,
+        "revisionTimestamp": "2026-06-09T14:46:58Z",
+        "revisionUrl": "https://runescape.wiki/w/Special:Redirect/revision/37065708",
+        "fields": {
+          "name": "Door",
+          "members": "No",
+          "options1": "Open, Examine",
+          "options2": "Open, Examine",
+          "options3": "Close, Examine",
+          "id1": "1805",
+          "id2": "134267",
+          "id3": "134268"
+        },
+        "definitions": [
+          {
+            "objectId": 1805,
+            "present": true,
+            "name": "Door",
+            "actions": [
+              "Open"
+            ],
+            "memberActions": [],
+            "membersFlags": {
+              "is_members": null,
+              "isMembers": null
+            }
+          },
+          {
+            "objectId": 134267,
+            "present": true,
+            "name": "Door",
+            "actions": [
+              "Open"
+            ],
+            "memberActions": [],
+            "membersFlags": {
+              "is_members": null,
+              "isMembers": null
+            }
+          },
+          {
+            "objectId": 134268,
+            "present": true,
+            "name": "Door",
+            "actions": [
+              "Close"
+            ],
+            "memberActions": [],
+            "membersFlags": {
+              "is_members": null,
+              "isMembers": null
+            }
+          }
+        ],
+        "coordinates": [
+          {
+            "objectId": 1805,
+            "x": 3191,
+            "y": 3363,
+            "mapId": 28,
+            "plane": 0,
+            "cacheMatches": [
+              "object-a37b10af25775da87241fd7d@28:0:3191:3363"
+            ]
+          },
+          {
+            "objectId": 134267,
+            "x": 3195,
+            "y": 3357,
+            "mapId": 28,
+            "plane": 0,
+            "cacheMatches": [
+              "object-643a58cc37921e1926047e5e@28:0:3195:3357"
+            ]
+          }
+        ],
+        "checks": {
+          "sampleCoordinates": 2,
+          "matchedCoordinates": 2
+        },
+        "limits": [
+          "Wiki membership describes versions/locations. Missing cache flags do not prove free geographical access.",
+          "Examine is often an implicit client menu action absent from cache actions. No server destination added from label matching."
+        ]
+      }
+    ]
+  },
+  "placementSamples": [
+    {
+      "id": "object-138b5a21ef61ecf997622769@28:0:2725:3695",
+      "sourceId": "object-138b5a21ef61ecf997622769",
+      "objectId": 113038,
+      "name": "Iron rock",
+      "actions": [
+        "Mine",
+        "Prospect"
+      ],
+      "memberActions": [],
+      "membersFlags": {
+        "is_members": null,
+        "isMembers": null
+      },
+      "classes": [
+        "mining-resource"
+      ],
+      "classification": {
+        "evidence": "decoded definition name/actions; semantic review categories",
+        "name": "Iron rock",
+        "tree": {
+          "candidate": false,
+          "type": null,
+          "typeStatus": "not-classified"
+        },
+        "ore": {
+          "candidate": true,
+          "type": "iron",
+          "typeStatus": "named-type"
+        },
+        "facilityTypes": [],
+        "facilityStatus": "not-classified",
+        "membership": {
+          "classification": "unknown-without-geographic-and-server-evidence",
+          "is_members": null,
+          "isMembers": null
+        },
+        "requirements": null
+      },
+      "alternatives": [],
+      "activeState": "unknown",
+      "x": 2725,
+      "y": 3695,
+      "plane": 0,
+      "mapId": 28,
+      "chunkId": "10809",
+      "type": 11,
+      "rotation": 1,
+      "source": {
+        "x": 2725,
+        "y": 3695,
+        "plane": 0,
+        "effectivePlane": 0,
+        "bridgeFlag": false,
+        "major": 5,
+        "minor": 7338,
+        "subid": 0
+      },
+      "transform": {
+        "translation": {
+          "x": 0,
+          "y": 0,
+          "plane": 0
+        },
+        "pasteKind": "square",
+        "pasteIndex": 543
+      },
+      "destination": null,
+      "requirements": null
+    },
+    {
+      "id": "object-f733c2b703477fb28b2b221e@28:0:2727:3691",
+      "sourceId": "object-f733c2b703477fb28b2b221e",
+      "objectId": 113038,
+      "name": "Iron rock",
+      "actions": [
+        "Mine",
+        "Prospect"
+      ],
+      "memberActions": [],
+      "membersFlags": {
+        "is_members": null,
+        "isMembers": null
+      },
+      "classes": [
+        "mining-resource"
+      ],
+      "classification": {
+        "evidence": "decoded definition name/actions; semantic review categories",
+        "name": "Iron rock",
+        "tree": {
+          "candidate": false,
+          "type": null,
+          "typeStatus": "not-classified"
+        },
+        "ore": {
+          "candidate": true,
+          "type": "iron",
+          "typeStatus": "named-type"
+        },
+        "facilityTypes": [],
+        "facilityStatus": "not-classified",
+        "membership": {
+          "classification": "unknown-without-geographic-and-server-evidence",
+          "is_members": null,
+          "isMembers": null
+        },
+        "requirements": null
+      },
+      "alternatives": [],
+      "activeState": "unknown",
+      "x": 2727,
+      "y": 3691,
+      "plane": 0,
+      "mapId": 28,
+      "chunkId": "10809",
+      "type": 11,
+      "rotation": 3,
+      "source": {
+        "x": 2727,
+        "y": 3691,
+        "plane": 0,
+        "effectivePlane": 0,
+        "bridgeFlag": false,
+        "major": 5,
+        "minor": 7338,
+        "subid": 0
+      },
+      "transform": {
+        "translation": {
+          "x": 0,
+          "y": 0,
+          "plane": 0
+        },
+        "pasteKind": "square",
+        "pasteIndex": 543
+      },
+      "destination": null,
+      "requirements": null
+    },
+    {
+      "id": "object-9d462cb4d11f570ee8e88dc2@28:0:3179:2736",
+      "sourceId": "object-9d462cb4d11f570ee8e88dc2",
+      "objectId": 109001,
+      "name": "Acadia tree",
+      "actions": [
+        "Cut down"
+      ],
+      "memberActions": [],
+      "membersFlags": {
+        "is_members": null,
+        "isMembers": null
+      },
+      "classes": [
+        "tree"
+      ],
+      "classification": {
+        "evidence": "decoded definition name/actions; semantic review categories",
+        "name": "Acadia tree",
+        "tree": {
+          "candidate": true,
+          "type": "acadia",
+          "typeStatus": "named-type"
+        },
+        "ore": {
+          "candidate": false,
+          "type": null,
+          "typeStatus": "not-classified"
+        },
+        "facilityTypes": [],
+        "facilityStatus": "not-classified",
+        "membership": {
+          "classification": "unknown-without-geographic-and-server-evidence",
+          "is_members": null,
+          "isMembers": null
+        },
+        "requirements": null
+      },
+      "alternatives": [],
+      "activeState": "unknown",
+      "x": 3179,
+      "y": 2736,
+      "plane": 0,
+      "mapId": 28,
+      "chunkId": "12586",
+      "type": 10,
+      "rotation": 1,
+      "source": {
+        "x": 3179,
+        "y": 2736,
+        "plane": 0,
+        "effectivePlane": 0,
+        "bridgeFlag": false,
+        "major": 5,
+        "minor": 5425,
+        "subid": 0
+      },
+      "transform": {
+        "translation": {
+          "x": 0,
+          "y": 0,
+          "plane": 0
+        },
+        "pasteKind": "square",
+        "pasteIndex": 705
+      },
+      "destination": null,
+      "requirements": null
+    }
+  ],
+  "limits": [
+    "Copied snapshot is not guaranteed latest live data.",
+    "Client definitions do not certify server scripts, player state, spawns, drops, shop stock or XP rates."
+  ],
+  "extractionHistory": {
+    "v1": "Raw definitions/layout checkpoints completed; source serialization failed at V8 single-string limit. These raw checkpoints independently passed all-record redecoding.",
+    "v2": "Partial streaming attempt preserved; stopped after verified own importer process inspection to replace millions of small gzip writes with bounded buffering.",
+    "v3": "Complete buffered streaming export; raw definition/layout checkpoints reused, source placement/terrain archives scanned afresh. Output hashes and source/archive/schema hashes recorded."
+  }
+}

@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+  <title>Farming: little sprout in soil placeholder</title>
+  <g fill="none" stroke="#f4efe4" stroke-width="4.4" stroke-linecap="round" stroke-linejoin="round">
+    <path d="m3 19 17-1 1 4-18-1Z"/>
+    <path d="M12 18 11 9" stroke-width="6.6"/>
+    <path d="M12 18 11 9" stroke-width="4.6"/>
+    <path d="M11 12C3 13 3 6 4 5C9 4 12 8 11 12Z M11 9C12 3 17 2 21 4C20 9 15 11 11 9Z"/>
+  </g>
+  <g fill="none" stroke="#25313b" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+    <path d="m3 19 17-1 1 4-18-1Z" fill="#fff0cc"/>
+    <path d="M12 18 11 9" stroke-width="4"/>
+    <path d="M12 18 11 9" stroke="#fff0cc" stroke-width="2"/>
+    <path d="M11 12C3 13 3 6 4 5C9 4 12 8 11 12Z M11 9C12 3 17 2 21 4C20 9 15 11 11 9Z" fill="#70b7ae"/>
+  </g>
+</svg>

@@ -1,0 +1,339 @@
+{
+  "schemaVersion": 1,
+  "reviewedAt": "2026-10-08",
+  "samples": [
+    {
+      "title": "Yew",
+      "revisionId": 37195444,
+      "timestamp": "2026-10-02T16:22:18Z",
+      "url": "https://runescape.wiki/w/Special:PermanentLink/37195444",
+      "sourceContentSha256": "30646680c497a031656d8f0de5ba8c0e5b14b3b5e9b92ced066807e19efd2134",
+      "facts": {
+        "skill": "Woodcutting",
+        "level": 70,
+        "members": false,
+        "template": "Woodcutting info",
+        "levelField": "level"
+      },
+      "checks": [
+        {
+          "field": "level",
+          "entryId": "cache:struct:46061:skill:18",
+          "cache": 70,
+          "wiki": 70,
+          "status": "matches"
+        },
+        {
+          "field": "members",
+          "entryId": "cache:struct:46061:skill:18",
+          "cache": false,
+          "wiki": false,
+          "status": "matches"
+        }
+      ]
+    },
+    {
+      "title": "Willow",
+      "revisionId": 37197270,
+      "timestamp": "2026-10-04T02:10:15Z",
+      "url": "https://runescape.wiki/w/Special:PermanentLink/37197270",
+      "sourceContentSha256": "028d132b435b249479b0ec8b68f97dfd238c8ff84663a12e3a98d8ee656017c2",
+      "facts": {
+        "skill": "Woodcutting",
+        "level": 20,
+        "members": false,
+        "template": "Woodcutting info",
+        "levelField": "level"
+      },
+      "checks": [
+        {
+          "field": "level",
+          "entryId": "cache:struct:46050:skill:18",
+          "cache": 20,
+          "wiki": 20,
+          "status": "matches"
+        },
+        {
+          "field": "members",
+          "entryId": "cache:struct:46050:skill:18",
+          "cache": false,
+          "wiki": false,
+          "status": "matches"
+        }
+      ]
+    },
+    {
+      "title": "Acadia tree",
+      "revisionId": 37166118,
+      "timestamp": "2026-08-28T22:50:34Z",
+      "url": "https://runescape.wiki/w/Special:PermanentLink/37166118",
+      "sourceContentSha256": "077bc4d48d812fe9a5cc5f7003237c73ceaa0b2d5bc1b3263bbbc0e188588dbb",
+      "facts": {
+        "skill": "Woodcutting",
+        "level": 50,
+        "members": false,
+        "template": "Woodcutting info",
+        "levelField": "level"
+      },
+      "checks": [
+        {
+          "field": "level",
+          "entryId": "cache:struct:46073:skill:18",
+          "cache": 50,
+          "wiki": 50,
+          "status": "matches"
+        },
+        {
+          "field": "members",
+          "entryId": "cache:struct:46073:skill:18",
+          "cache": false,
+          "wiki": false,
+          "status": "matches"
+        }
+      ]
+    },
+    {
+      "title": "Air rune",
+      "revisionId": 37194605,
+      "timestamp": "2026-10-01T18:55:03Z",
+      "url": "https://runescape.wiki/w/Special:PermanentLink/37194605",
+      "sourceContentSha256": "7671d4fe8b7b35c8eba575fa580bc9dd75fce24fa24872de84ad8496163ae5df",
+      "facts": {
+        "skill": "Runecrafting",
+        "level": 1,
+        "members": false,
+        "template": "Infobox Recipe",
+        "levelField": "skill1lvl"
+      },
+      "checks": [
+        {
+          "field": "level",
+          "entryId": "cache:struct:51220:skill:12",
+          "cache": 1,
+          "wiki": 1,
+          "status": "matches"
+        },
+        {
+          "field": "members",
+          "entryId": "cache:struct:51220:skill:12",
+          "cache": false,
+          "wiki": false,
+          "status": "matches"
+        }
+      ]
+    },
+    {
+      "title": "Shrimps",
+      "revisionId": 36950896,
+      "timestamp": "2026-03-02T13:38:54Z",
+      "url": "https://runescape.wiki/w/Special:PermanentLink/36950896",
+      "sourceContentSha256": "99fac6d6b402602ef76c3b8677be7c97d0a6348e94266e6678d4c412674ac604",
+      "facts": {
+        "skill": "Cooking",
+        "level": 1,
+        "members": false,
+        "noBurnLevel": 34,
+        "template": "Infobox Recipe",
+        "levelField": "skill1lvl",
+        "noBurnScope": "standard fire/range without cooking gauntlets or special cookmatic thresholds"
+      },
+      "checks": [
+        {
+          "field": "level",
+          "entryId": "cache:struct:5002:skill:16",
+          "cache": 1,
+          "wiki": 1,
+          "status": "matches"
+        },
+        {
+          "field": "members",
+          "entryId": "cache:struct:5002:skill:16",
+          "cache": false,
+          "wiki": false,
+          "status": "matches"
+        },
+        {
+          "field": "noBurnLevel",
+          "entryId": "cache:struct:33701:skill:16",
+          "cache": 34,
+          "wiki": 34,
+          "status": "matches"
+        }
+      ]
+    },
+    {
+      "title": "Crayfish",
+      "revisionId": 36950894,
+      "timestamp": "2026-03-02T13:38:42Z",
+      "url": "https://runescape.wiki/w/Special:PermanentLink/36950894",
+      "sourceContentSha256": "a458601c25ee6366a4b9d36e5728979d62d45d8f5bb4f22674bc169bb3f778b8",
+      "facts": {
+        "skill": "Cooking",
+        "level": 1,
+        "members": false,
+        "noBurnLevel": 34,
+        "template": "Infobox Recipe",
+        "levelField": "skill1lvl",
+        "noBurnScope": "standard fire/range without cooking gauntlets or special cookmatic thresholds"
+      },
+      "checks": [
+        {
+          "field": "level",
+          "entryId": "cache:struct:5003:skill:16",
+          "cache": 1,
+          "wiki": 1,
+          "status": "matches"
+        },
+        {
+          "field": "members",
+          "entryId": "cache:struct:5003:skill:16",
+          "cache": false,
+          "wiki": false,
+          "status": "matches"
+        },
+        {
+          "field": "noBurnLevel",
+          "entryId": "cache:struct:33702:skill:16",
+          "cache": 34,
+          "wiki": 34,
+          "status": "matches"
+        }
+      ]
+    },
+    {
+      "title": "Trout",
+      "revisionId": 36953398,
+      "timestamp": "2026-03-03T12:42:56Z",
+      "url": "https://runescape.wiki/w/Special:PermanentLink/36953398",
+      "sourceContentSha256": "712b5a17a40f49d92089dc388a0154322143b867ea6b406b21b92e4f8c229ca9",
+      "facts": {
+        "skill": "Cooking",
+        "level": 15,
+        "members": false,
+        "noBurnLevel": 49,
+        "template": "Infobox Recipe",
+        "levelField": "skill1lvl",
+        "noBurnScope": "standard fire/range without cooking gauntlets or special cookmatic thresholds"
+      },
+      "checks": [
+        {
+          "field": "level",
+          "entryId": "cache:struct:5015:skill:16",
+          "cache": 15,
+          "wiki": 15,
+          "status": "matches"
+        },
+        {
+          "field": "members",
+          "entryId": "cache:struct:5015:skill:16",
+          "cache": false,
+          "wiki": false,
+          "status": "matches"
+        },
+        {
+          "field": "noBurnLevel",
+          "entryId": "cache:struct:33713:skill:16",
+          "cache": 49,
+          "wiki": 49,
+          "status": "matches"
+        }
+      ]
+    },
+    {
+      "title": "Lobster",
+      "revisionId": 36953382,
+      "timestamp": "2026-03-03T12:33:55Z",
+      "url": "https://runescape.wiki/w/Special:PermanentLink/36953382",
+      "sourceContentSha256": "68b57af458aa07bdf4a844de2d50c5f4c9a550a0f70e4902ded1b1414303cb01",
+      "facts": {
+        "skill": "Cooking",
+        "level": 40,
+        "members": false,
+        "noBurnLevel": 74,
+        "template": "Infobox Recipe",
+        "levelField": "skill1lvl",
+        "noBurnScope": "standard fire/range without cooking gauntlets or special cookmatic thresholds"
+      },
+      "checks": [
+        {
+          "field": "level",
+          "entryId": "cache:struct:5031:skill:16",
+          "cache": 40,
+          "wiki": 40,
+          "status": "matches"
+        },
+        {
+          "field": "members",
+          "entryId": "cache:struct:5031:skill:16",
+          "cache": false,
+          "wiki": false,
+          "status": "matches"
+        },
+        {
+          "field": "noBurnLevel",
+          "entryId": "cache:struct:33730:skill:16",
+          "cache": 74,
+          "wiki": 74,
+          "status": "matches"
+        }
+      ]
+    },
+    {
+      "title": "Bronze arrow",
+      "revisionId": 37131010,
+      "timestamp": "2026-07-30T05:14:04Z",
+      "url": "https://runescape.wiki/w/Special:PermanentLink/37131010",
+      "sourceContentSha256": "5fe9be8ace4a266f8717b9cfbcd77d9a7dfc7d2e031c5385e7e1ed06bbe22ad4",
+      "facts": {
+        "skill": "Fletching",
+        "level": 1,
+        "members": false,
+        "template": "Infobox Recipe",
+        "levelField": "skill1lvl"
+      },
+      "checks": [
+        {
+          "field": "level",
+          "entryId": "cache:struct:4634:skill:19",
+          "cache": 1,
+          "wiki": 1,
+          "status": "matches"
+        },
+        {
+          "field": "members",
+          "entryId": "cache:struct:4634:skill:19",
+          "cache": false,
+          "wiki": false,
+          "status": "matches"
+        }
+      ]
+    }
+  ],
+  "summary": {
+    "pages": 9,
+    "checks": 22,
+    "matches": 22,
+    "differs": 0,
+    "unavailable": 0,
+    "unmatchedSamples": 0
+  },
+  "limitations": [
+    "Bounded named samples, not a claim that every guide field is current.",
+    "Wiki activity membership is checked for the specific sampled activity; UI icons and global flags do not grant map access.",
+    "No-burn milestones use the standard threshold; lower special-equipment thresholds remain separate."
+  ],
+  "provenance": {
+    "guide": {
+      "path": "C:/Users/User/Projects/chunk-picker-rs3/.local/game-data/skill-guides-2026-10-08-v1/skill-guides.v1.json",
+      "sha256": "f4f5e995f1137ea49dd5072b4e3264446da635b9dd618af91c42647734a97d6c"
+    },
+    "wikiSnapshot": {
+      "path": "C:/Users/User/Projects/rs3-cache-work/skillguide-wiki-samples.2026-10-08.v1.json",
+      "sha256": "5dc067df847aea6faacf6c347cae56e33bbed08841a92ad840b8bba0333613ce"
+    },
+    "validator": {
+      "path": "scripts/research/validate-skill-guides.mjs",
+      "sha256": "1b259048621fccf6e3f5639cbd9e6518a6026ca5b2aeb2df9a602e444f75fa2b"
+    }
+  }
+}

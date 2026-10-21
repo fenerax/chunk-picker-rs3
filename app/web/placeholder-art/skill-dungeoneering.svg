@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+  <title>Dungeoneering: door and descending steps placeholder</title>
+  <g fill="none" stroke="#f4efe4" stroke-width="4.4" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M3 16 3 4 13 3 14 15"/>
+    <path d="m6 15 0-8 5 0 0 8"/>
+    <path d="m3 16 11 0 0 3 4 0 0 3 4 0" stroke-width="6.4"/>
+    <path d="m3 16 11 0 0 3 4 0 0 3 4 0"/>
+  </g>
+  <g fill="none" stroke="#25313b" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M3 16 3 4 13 3 14 15" fill="#fff0cc"/>
+    <path d="m6 15 0-8 5 0 0 8" fill="#70b7ae"/>
+    <path d="m3 16 11 0 0 3 4 0 0 3 4 0" stroke-width="3.8"/>
+    <path d="m3 16 11 0 0 3 4 0 0 3 4 0" stroke="#fff0cc" stroke-width="1.8"/>
+  </g>
+</svg>

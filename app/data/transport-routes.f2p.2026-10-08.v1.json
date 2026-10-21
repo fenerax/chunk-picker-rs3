@@ -1,0 +1,4394 @@
+{
+  "version": 1,
+  "reviewedOn": "2026-10-08",
+  "stations": [
+    {
+      "id": "canoe-lumbridge",
+      "name": "Lumbridge canoe station",
+      "x": 3233,
+      "y": 3250,
+      "plane": 0,
+      "mapId": 28,
+      "chunkId": "12850",
+      "coordinateEvidence": {
+        "kind": "wiki-object-map",
+        "url": "https://runescape.wiki/w/Canoe_station?oldid=37176646",
+        "objectId": 12163,
+        "role": "canoe-station-object-anchor",
+        "corroboration": {
+          "kind": "cache-object-placement",
+          "file": ".local/game-data/objects-2026-10-08-v3/objects.placements.v1.json.gz",
+          "pointer": "objectId=12163,mapId=28,x=3233,y=3250,plane=0"
+        }
+      }
+    },
+    {
+      "id": "canoe-champions-guild",
+      "name": "Champions' Guild canoe station",
+      "x": 3200,
+      "y": 3341,
+      "plane": 0,
+      "mapId": 28,
+      "chunkId": "12852",
+      "coordinateEvidence": {
+        "kind": "wiki-object-map",
+        "url": "https://runescape.wiki/w/Canoe_station?oldid=37176646",
+        "objectId": 12164,
+        "role": "canoe-station-object-anchor",
+        "corroboration": {
+          "kind": "cache-object-placement",
+          "file": ".local/game-data/objects-2026-10-08-v3/objects.placements.v1.json.gz",
+          "pointer": "objectId=12164,mapId=28,x=3200,y=3341,plane=0"
+        }
+      }
+    },
+    {
+      "id": "canoe-barbarian-village",
+      "name": "Barbarian Village canoe station",
+      "x": 3110,
+      "y": 3409,
+      "plane": 0,
+      "mapId": 28,
+      "chunkId": "12341",
+      "coordinateEvidence": {
+        "kind": "wiki-object-map",
+        "url": "https://runescape.wiki/w/Canoe_station?oldid=37176646",
+        "objectId": 12165,
+        "role": "canoe-station-object-anchor",
+        "corroboration": {
+          "kind": "cache-object-placement",
+          "file": ".local/game-data/objects-2026-10-08-v3/objects.placements.v1.json.gz",
+          "pointer": "objectId=12165,mapId=28,x=3110,y=3409,plane=0"
+        }
+      }
+    },
+    {
+      "id": "canoe-edgeville",
+      "name": "Edgeville canoe station",
+      "x": 3130,
+      "y": 3508,
+      "plane": 0,
+      "mapId": 28,
+      "chunkId": "12342",
+      "coordinateEvidence": {
+        "kind": "wiki-object-map",
+        "url": "https://runescape.wiki/w/Canoe_station?oldid=37176646",
+        "objectId": 12166,
+        "role": "canoe-station-object-anchor",
+        "corroboration": {
+          "kind": "cache-object-placement",
+          "file": ".local/game-data/objects-2026-10-08-v3/objects.placements.v1.json.gz",
+          "pointer": "objectId=12166,mapId=28,x=3130,y=3508,plane=0"
+        }
+      }
+    },
+    {
+      "id": "ship-port-sarim-karamja",
+      "name": "Captain Tobias (Port Sarim)",
+      "x": 3028,
+      "y": 3216,
+      "plane": 0,
+      "mapId": 28,
+      "chunkId": "12082",
+      "coordinateEvidence": {
+        "kind": "wiki-npc-map",
+        "url": "https://runescape.wiki/w/Captain_Tobias?oldid=37183451",
+        "npcId": 376,
+        "role": "boarding-npc-anchor-not-landing"
+      }
+    },
+    {
+      "id": "ship-musa-point",
+      "name": "Musa Point customs officer",
+      "x": 2953,
+      "y": 3147,
+      "plane": 0,
+      "mapId": 28,
+      "chunkId": "11825",
+      "coordinateEvidence": {
+        "kind": "wiki-npc-map",
+        "url": "https://runescape.wiki/w/Customs_officer?oldid=37198107",
+        "npcId": 380,
+        "role": "boarding-npc-anchor-not-landing"
+      }
+    },
+    {
+      "id": "ship-port-sarim-havenhythe",
+      "name": "Captain Lorris (Port Sarim)",
+      "x": 3028,
+      "y": 3221,
+      "plane": 0,
+      "mapId": 28,
+      "chunkId": "12082",
+      "coordinateEvidence": {
+        "kind": "wiki-npc-map",
+        "url": "https://runescape.wiki/w/Captain_Lorris?oldid=37179590",
+        "npcId": 32664,
+        "role": "boarding-npc-anchor-not-landing"
+      }
+    },
+    {
+      "id": "ship-havenhythe-port",
+      "name": "Captain Lorris (Havenhythe)",
+      "x": 4091,
+      "y": 3322,
+      "plane": 0,
+      "mapId": 28,
+      "chunkId": "16179",
+      "coordinateEvidence": {
+        "kind": "wiki-npc-map",
+        "url": "https://runescape.wiki/w/Captain_Lorris?oldid=37179590",
+        "npcId": 26620,
+        "role": "boarding-npc-anchor-not-landing"
+      }
+    },
+    {
+      "id": "ship-taverley-daemonheim",
+      "name": "Bryll Thoksdottir (Taverley pier)",
+      "x": 2858,
+      "y": 3406,
+      "plane": 0,
+      "mapId": 28,
+      "chunkId": "11317",
+      "coordinateEvidence": {
+        "kind": "wiki-npc-map",
+        "url": "https://runescape.wiki/w/Bryll_Thoksdottir?oldid=37182272",
+        "npcId": 14889,
+        "role": "boarding-npc-anchor-not-landing"
+      }
+    },
+    {
+      "id": "ship-daemonheim-coast",
+      "name": "Fremennik shipmaster (Daemonheim coast)",
+      "x": 3513,
+      "y": 3694,
+      "plane": 0,
+      "mapId": 28,
+      "chunkId": "13881",
+      "coordinateEvidence": {
+        "kind": "wiki-npc-map",
+        "url": "https://runescape.wiki/w/Fremennik_shipmaster?oldid=37138015",
+        "npcId": 9707,
+        "role": "boarding-npc-anchor-not-landing"
+      }
+    },
+    {
+      "id": "lever-edgeville",
+      "name": "Edgeville Wilderness lever",
+      "x": 3090,
+      "y": 3474,
+      "plane": 0,
+      "mapId": 28,
+      "chunkId": "12342",
+      "coordinateEvidence": {
+        "kind": "wiki-object-map",
+        "url": "https://runescape.wiki/w/Lever?oldid=37110243",
+        "objectId": 1814,
+        "role": "lever-object-anchor"
+      }
+    },
+    {
+      "id": "lever-deserted-keep",
+      "name": "Deserted Keep lever",
+      "x": 3153,
+      "y": 3923,
+      "plane": 0,
+      "mapId": 28,
+      "chunkId": "12605",
+      "coordinateEvidence": {
+        "kind": "wiki-object-map",
+        "url": "https://runescape.wiki/w/Lever?oldid=37110243",
+        "objectId": 1815,
+        "role": "lever-object-anchor"
+      }
+    },
+    {
+      "id": "lodestone-al-kharid",
+      "name": "Al Kharid lodestone",
+      "x": 3297,
+      "y": 3185,
+      "plane": 0,
+      "mapId": 28,
+      "chunkId": "13105",
+      "coordinateEvidence": {
+        "kind": "cache-typed-coordinate",
+        "file": ".local/game-data/places-2026-10-08-v3/travel.v1.json",
+        "pointer": "lodestones[structId=11753].coordinates[param=2941].mapProjections[mapId=28]",
+        "structId": 11753,
+        "param": 2941,
+        "rawCoordinate": {
+          "x": 3297,
+          "y": 3185,
+          "plane": 0
+        },
+        "role": "exact-teleport-destination",
+        "url": "https://runescape.wiki/w/Al_Kharid_lodestone?oldid=36976053"
+      }
+    },
+    {
+      "id": "lodestone-anachronia",
+      "name": "Anachronia lodestone",
+      "x": 3895,
+      "y": 4259,
+      "plane": 0,
+      "mapId": 28,
+      "chunkId": "15426",
+      "coordinateEvidence": {
+        "kind": "cache-typed-coordinate",
+        "file": ".local/game-data/places-2026-10-08-v3/travel.v1.json",
+        "pointer": "lodestones[structId=24324].coordinates[param=2941].mapProjections[mapId=28]",
+        "structId": 24324,
+        "param": 2941,
+        "rawCoordinate": {
+          "x": 5431,
+          "y": 2339,
+          "plane": 0
+        },
+        "role": "exact-teleport-destination",
+        "url": "https://runescape.wiki/w/Anachronia_lodestone?oldid=37122513"
+      }
+    },
+    {
+      "id": "lodestone-ardougne",
+      "name": "Ardougne lodestone",
+      "x": 2634,
+      "y": 3349,
+      "plane": 0,
+      "mapId": 28,
+      "chunkId": "10548",
+      "coordinateEvidence": {
+        "kind": "cache-typed-coordinate",
+        "file": ".local/game-data/places-2026-10-08-v3/travel.v1.json",
+        "pointer": "lodestones[structId=11780].coordinates[param=2941].mapProjections[mapId=28]",
+        "structId": 11780,
+        "param": 2941,
+        "rawCoordinate": {
+          "x": 2634,
+          "y": 3349,
+          "plane": 0
+        },
+        "role": "exact-teleport-destination",
+        "url": "https://runescape.wiki/w/Ardougne_lodestone?oldid=37122759"
+      }
+    },
+    {
+      "id": "lodestone-bandit-camp",
+      "name": "Bandit Camp lodestone",
+      "x": 3214,
+      "y": 2955,
+      "plane": 0,
+      "mapId": 28,
+      "chunkId": "12846",
+      "coordinateEvidence": {
+        "kind": "cache-typed-coordinate",
+        "file": ".local/game-data/places-2026-10-08-v3/travel.v1.json",
+        "pointer": "lodestones[structId=24310].coordinates[param=2941].mapProjections[mapId=28]",
+        "structId": 24310,
+        "param": 2941,
+        "rawCoordinate": {
+          "x": 3214,
+          "y": 2955,
+          "plane": 0
+        },
+        "role": "exact-teleport-destination",
+        "url": "https://runescape.wiki/w/Bandit_Camp_lodestone?oldid=37121091"
+      }
+    },
+    {
+      "id": "lodestone-burthorpe",
+      "name": "Burthorpe lodestone",
+      "x": 2899,
+      "y": 3545,
+      "plane": 0,
+      "mapId": 28,
+      "chunkId": "11575",
+      "coordinateEvidence": {
+        "kind": "cache-typed-coordinate",
+        "file": ".local/game-data/places-2026-10-08-v3/travel.v1.json",
+        "pointer": "lodestones[structId=4374].coordinates[param=2941].mapProjections[mapId=28]",
+        "structId": 4374,
+        "param": 2941,
+        "rawCoordinate": {
+          "x": 2899,
+          "y": 3545,
+          "plane": 0
+        },
+        "role": "exact-teleport-destination",
+        "url": "https://runescape.wiki/w/Burthorpe_lodestone?oldid=36689035"
+      }
+    },
+    {
+      "id": "lodestone-canifis",
+      "name": "Canifis lodestone",
+      "x": 3517,
+      "y": 3516,
+      "plane": 0,
+      "mapId": 28,
+      "chunkId": "13878",
+      "coordinateEvidence": {
+        "kind": "cache-typed-coordinate",
+        "file": ".local/game-data/places-2026-10-08-v3/travel.v1.json",
+        "pointer": "lodestones[structId=24311].coordinates[param=2941].mapProjections[mapId=28]",
+        "structId": 24311,
+        "param": 2941,
+        "rawCoordinate": {
+          "x": 3517,
+          "y": 3516,
+          "plane": 0
+        },
+        "role": "exact-teleport-destination",
+        "url": "https://runescape.wiki/w/Canifis_lodestone?oldid=37124529"
+      }
+    },
+    {
+      "id": "lodestone-catherby",
+      "name": "Catherby lodestone",
+      "x": 2811,
+      "y": 3450,
+      "plane": 0,
+      "mapId": 28,
+      "chunkId": "11061",
+      "coordinateEvidence": {
+        "kind": "cache-typed-coordinate",
+        "file": ".local/game-data/places-2026-10-08-v3/travel.v1.json",
+        "pointer": "lodestones[structId=14967].coordinates[param=2941].mapProjections[mapId=28]",
+        "structId": 14967,
+        "param": 2941,
+        "rawCoordinate": {
+          "x": 2811,
+          "y": 3450,
+          "plane": 0
+        },
+        "role": "exact-teleport-destination",
+        "url": "https://runescape.wiki/w/Catherby_lodestone?oldid=36689042"
+      }
+    },
+    {
+      "id": "lodestone-city-of-um",
+      "name": "City of Um lodestone",
+      "x": 1083,
+      "y": 1768,
+      "plane": 0,
+      "mapId": 742,
+      "chunkId": "4123",
+      "coordinateEvidence": {
+        "kind": "cache-typed-coordinate",
+        "file": ".local/game-data/places-2026-10-08-v3/travel.v1.json",
+        "pointer": "lodestones[structId=48292].coordinates[param=2941].mapProjections[mapId=742]",
+        "structId": 48292,
+        "param": 2941,
+        "rawCoordinate": {
+          "x": 1083,
+          "y": 1768,
+          "plane": 1
+        },
+        "role": "exact-teleport-destination",
+        "url": "https://runescape.wiki/w/City_of_Um_lodestone?oldid=36921071"
+      }
+    },
+    {
+      "id": "lodestone-draynor",
+      "name": "Draynor lodestone",
+      "x": 3105,
+      "y": 3299,
+      "plane": 0,
+      "mapId": 28,
+      "chunkId": "12339",
+      "coordinateEvidence": {
+        "kind": "cache-typed-coordinate",
+        "file": ".local/game-data/places-2026-10-08-v3/travel.v1.json",
+        "pointer": "lodestones[structId=24202].coordinates[param=2941].mapProjections[mapId=28]",
+        "structId": 24202,
+        "param": 2941,
+        "rawCoordinate": {
+          "x": 3105,
+          "y": 3299,
+          "plane": 0
+        },
+        "role": "exact-teleport-destination",
+        "url": "https://runescape.wiki/w/Draynor_lodestone?oldid=36689044"
+      }
+    },
+    {
+      "id": "lodestone-edgeville",
+      "name": "Edgeville lodestone",
+      "x": 3067,
+      "y": 3506,
+      "plane": 0,
+      "mapId": 28,
+      "chunkId": "12086",
+      "coordinateEvidence": {
+        "kind": "cache-typed-coordinate",
+        "file": ".local/game-data/places-2026-10-08-v3/travel.v1.json",
+        "pointer": "lodestones[structId=24225].coordinates[param=2941].mapProjections[mapId=28]",
+        "structId": 24225,
+        "param": 2941,
+        "rawCoordinate": {
+          "x": 3067,
+          "y": 3506,
+          "plane": 0
+        },
+        "role": "exact-teleport-destination",
+        "url": "https://runescape.wiki/w/Edgeville_lodestone?oldid=37110451"
+      }
+    },
+    {
+      "id": "lodestone-falador",
+      "name": "Falador lodestone",
+      "x": 2967,
+      "y": 3404,
+      "plane": 0,
+      "mapId": 28,
+      "chunkId": "11829",
+      "coordinateEvidence": {
+        "kind": "cache-typed-coordinate",
+        "file": ".local/game-data/places-2026-10-08-v3/travel.v1.json",
+        "pointer": "lodestones[structId=24274].coordinates[param=2941].mapProjections[mapId=28]",
+        "structId": 24274,
+        "param": 2941,
+        "rawCoordinate": {
+          "x": 2967,
+          "y": 3404,
+          "plane": 0
+        },
+        "role": "exact-teleport-destination",
+        "url": "https://runescape.wiki/w/Falador_lodestone?oldid=37127183"
+      }
+    },
+    {
+      "id": "lodestone-fort-forinthry",
+      "name": "Fort Forinthry lodestone",
+      "x": 3298,
+      "y": 3526,
+      "plane": 0,
+      "mapId": 28,
+      "chunkId": "13111",
+      "coordinateEvidence": {
+        "kind": "cache-typed-coordinate",
+        "file": ".local/game-data/places-2026-10-08-v3/travel.v1.json",
+        "pointer": "lodestones[structId=39862].coordinates[param=2941].mapProjections[mapId=28]",
+        "structId": 39862,
+        "param": 2941,
+        "rawCoordinate": {
+          "x": 3298,
+          "y": 3526,
+          "plane": 0
+        },
+        "role": "exact-teleport-destination",
+        "url": "https://runescape.wiki/w/Fort_Forinthry_lodestone?oldid=37177936"
+      }
+    },
+    {
+      "id": "lodestone-karamja",
+      "name": "Karamja lodestone",
+      "x": 2761,
+      "y": 3148,
+      "plane": 0,
+      "mapId": 28,
+      "chunkId": "11057",
+      "coordinateEvidence": {
+        "kind": "cache-typed-coordinate",
+        "file": ".local/game-data/places-2026-10-08-v3/travel.v1.json",
+        "pointer": "lodestones[structId=24314].coordinates[param=2941].mapProjections[mapId=28]",
+        "structId": 24314,
+        "param": 2941,
+        "rawCoordinate": {
+          "x": 2761,
+          "y": 3148,
+          "plane": 0
+        },
+        "role": "exact-teleport-destination",
+        "url": "https://runescape.wiki/w/Karamja_lodestone?oldid=37131535"
+      }
+    },
+    {
+      "id": "lodestone-lumbridge",
+      "name": "Lumbridge lodestone",
+      "x": 3233,
+      "y": 3222,
+      "plane": 0,
+      "mapId": 28,
+      "chunkId": "12850",
+      "coordinateEvidence": {
+        "kind": "cache-typed-coordinate",
+        "file": ".local/game-data/places-2026-10-08-v3/travel.v1.json",
+        "pointer": "lodestones[structId=24278].coordinates[param=2941].mapProjections[mapId=28]",
+        "structId": 24278,
+        "param": 2941,
+        "rawCoordinate": {
+          "x": 3233,
+          "y": 3222,
+          "plane": 0
+        },
+        "role": "exact-teleport-destination",
+        "url": "https://runescape.wiki/w/Lumbridge_lodestone?oldid=37110013"
+      }
+    },
+    {
+      "id": "lodestone-lunar-isle",
+      "name": "Lunar Isle lodestone",
+      "x": 2088,
+      "y": 3912,
+      "plane": 0,
+      "mapId": 28,
+      "chunkId": "8253",
+      "coordinateEvidence": {
+        "kind": "cache-typed-coordinate",
+        "file": ".local/game-data/places-2026-10-08-v3/travel.v1.json",
+        "pointer": "lodestones[structId=24309].coordinates[param=2941].mapProjections[mapId=28]",
+        "structId": 24309,
+        "param": 2941,
+        "rawCoordinate": {
+          "x": 2088,
+          "y": 3912,
+          "plane": 0
+        },
+        "role": "exact-teleport-destination",
+        "url": "https://runescape.wiki/w/Lunar_Isle_lodestone?oldid=36689036"
+      }
+    },
+    {
+      "id": "lodestone-menaphos",
+      "name": "Menaphos lodestone",
+      "x": 3216,
+      "y": 2717,
+      "plane": 0,
+      "mapId": 28,
+      "chunkId": "12842",
+      "coordinateEvidence": {
+        "kind": "cache-typed-coordinate",
+        "file": ".local/game-data/places-2026-10-08-v3/travel.v1.json",
+        "pointer": "lodestones[structId=24323].coordinates[param=2941].mapProjections[mapId=28]",
+        "structId": 24323,
+        "param": 2941,
+        "rawCoordinate": {
+          "x": 3216,
+          "y": 2717,
+          "plane": 0
+        },
+        "role": "exact-teleport-destination",
+        "url": "https://runescape.wiki/w/Menaphos_lodestone?oldid=36689053"
+      }
+    },
+    {
+      "id": "lodestone-ooglog",
+      "name": "Oo'glog lodestone",
+      "x": 2532,
+      "y": 2872,
+      "plane": 0,
+      "mapId": 28,
+      "chunkId": "10028",
+      "coordinateEvidence": {
+        "kind": "cache-typed-coordinate",
+        "file": ".local/game-data/places-2026-10-08-v3/travel.v1.json",
+        "pointer": "lodestones[structId=24315].coordinates[param=2941].mapProjections[mapId=28]",
+        "structId": 24315,
+        "param": 2941,
+        "rawCoordinate": {
+          "x": 2532,
+          "y": 2872,
+          "plane": 0
+        },
+        "role": "exact-teleport-destination",
+        "url": "https://runescape.wiki/w/Oo'glog_lodestone?oldid=36689054"
+      }
+    },
+    {
+      "id": "lodestone-port-sarim",
+      "name": "Port Sarim lodestone",
+      "x": 3011,
+      "y": 3216,
+      "plane": 0,
+      "mapId": 28,
+      "chunkId": "12082",
+      "coordinateEvidence": {
+        "kind": "cache-typed-coordinate",
+        "file": ".local/game-data/places-2026-10-08-v3/travel.v1.json",
+        "pointer": "lodestones[structId=24298].coordinates[param=2941].mapProjections[mapId=28]",
+        "structId": 24298,
+        "param": 2941,
+        "rawCoordinate": {
+          "x": 3011,
+          "y": 3216,
+          "plane": 0
+        },
+        "role": "exact-teleport-destination",
+        "url": "https://runescape.wiki/w/Port_Sarim_lodestone?oldid=37127290"
+      }
+    },
+    {
+      "id": "lodestone-seers-village",
+      "name": "Seers' Village lodestone",
+      "x": 2689,
+      "y": 3483,
+      "plane": 0,
+      "mapId": 28,
+      "chunkId": "10806",
+      "coordinateEvidence": {
+        "kind": "cache-typed-coordinate",
+        "file": ".local/game-data/places-2026-10-08-v3/travel.v1.json",
+        "pointer": "lodestones[structId=24299].coordinates[param=2941].mapProjections[mapId=28]",
+        "structId": 24299,
+        "param": 2941,
+        "rawCoordinate": {
+          "x": 2689,
+          "y": 3483,
+          "plane": 0
+        },
+        "role": "exact-teleport-destination",
+        "url": "https://runescape.wiki/w/Seers'_Village_lodestone?oldid=37122714"
+      }
+    },
+    {
+      "id": "lodestone-taverley",
+      "name": "Taverley lodestone",
+      "x": 2878,
+      "y": 3443,
+      "plane": 0,
+      "mapId": 28,
+      "chunkId": "11317",
+      "coordinateEvidence": {
+        "kind": "cache-typed-coordinate",
+        "file": ".local/game-data/places-2026-10-08-v3/travel.v1.json",
+        "pointer": "lodestones[structId=24300].coordinates[param=2941].mapProjections[mapId=28]",
+        "structId": 24300,
+        "param": 2941,
+        "rawCoordinate": {
+          "x": 2878,
+          "y": 3443,
+          "plane": 0
+        },
+        "role": "exact-teleport-destination",
+        "url": "https://runescape.wiki/w/Taverley_lodestone?oldid=36689058"
+      }
+    },
+    {
+      "id": "lodestone-tirannwn",
+      "name": "Tirannwn lodestone",
+      "x": 2254,
+      "y": 3150,
+      "plane": 0,
+      "mapId": 28,
+      "chunkId": "9009",
+      "coordinateEvidence": {
+        "kind": "cache-typed-coordinate",
+        "file": ".local/game-data/places-2026-10-08-v3/travel.v1.json",
+        "pointer": "lodestones[structId=24316].coordinates[param=2941].mapProjections[mapId=28]",
+        "structId": 24316,
+        "param": 2941,
+        "rawCoordinate": {
+          "x": 2254,
+          "y": 3150,
+          "plane": 0
+        },
+        "role": "exact-teleport-destination",
+        "url": "https://runescape.wiki/w/Tirannwn_lodestone?oldid=36689059"
+      }
+    },
+    {
+      "id": "lodestone-varrock",
+      "name": "Varrock lodestone",
+      "x": 3214,
+      "y": 3377,
+      "plane": 0,
+      "mapId": 28,
+      "chunkId": "12852",
+      "coordinateEvidence": {
+        "kind": "cache-typed-coordinate",
+        "file": ".local/game-data/places-2026-10-08-v3/travel.v1.json",
+        "pointer": "lodestones[structId=24302].coordinates[param=2941].mapProjections[mapId=28]",
+        "structId": 24302,
+        "param": 2941,
+        "rawCoordinate": {
+          "x": 3214,
+          "y": 3377,
+          "plane": 0
+        },
+        "role": "exact-teleport-destination",
+        "url": "https://runescape.wiki/w/Varrock_lodestone?oldid=37108403"
+      }
+    },
+    {
+      "id": "lodestone-wendlewick",
+      "name": "Wendlewick lodestone",
+      "x": 4165,
+      "y": 3312,
+      "plane": 0,
+      "mapId": 28,
+      "chunkId": "16691",
+      "coordinateEvidence": {
+        "kind": "cache-typed-coordinate",
+        "file": ".local/game-data/places-2026-10-08-v3/travel.v1.json",
+        "pointer": "lodestones[structId=53005].coordinates[param=2941].mapProjections[mapId=28]",
+        "structId": 53005,
+        "param": 2941,
+        "rawCoordinate": {
+          "x": 3461,
+          "y": 1520,
+          "plane": 0
+        },
+        "role": "exact-teleport-destination",
+        "url": "https://runescape.wiki/w/Wendlewick_lodestone?oldid=37193342"
+      }
+    },
+    {
+      "id": "lodestone-wilderness-crater",
+      "name": "Wilderness Crater lodestone",
+      "x": 3143,
+      "y": 3636,
+      "plane": 0,
+      "mapId": 28,
+      "chunkId": "12600",
+      "coordinateEvidence": {
+        "kind": "cache-typed-coordinate",
+        "file": ".local/game-data/places-2026-10-08-v3/travel.v1.json",
+        "pointer": "lodestones[structId=24317].coordinates[param=2941].mapProjections[mapId=28]",
+        "structId": 24317,
+        "param": 2941,
+        "rawCoordinate": {
+          "x": 3143,
+          "y": 3636,
+          "plane": 0
+        },
+        "role": "exact-teleport-destination",
+        "url": "https://runescape.wiki/w/Wilderness_Crater_lodestone?oldid=36733918"
+      }
+    },
+    {
+      "id": "lodestone-yanille",
+      "name": "Yanille lodestone",
+      "x": 2529,
+      "y": 3095,
+      "plane": 0,
+      "mapId": 28,
+      "chunkId": "10032",
+      "coordinateEvidence": {
+        "kind": "cache-typed-coordinate",
+        "file": ".local/game-data/places-2026-10-08-v3/travel.v1.json",
+        "pointer": "lodestones[structId=24308].coordinates[param=2941].mapProjections[mapId=28]",
+        "structId": 24308,
+        "param": 2941,
+        "rawCoordinate": {
+          "x": 2529,
+          "y": 3095,
+          "plane": 0
+        },
+        "role": "exact-teleport-destination",
+        "url": "https://runescape.wiki/w/Yanille_lodestone?oldid=37122635"
+      }
+    },
+    {
+      "id": "lodestone-fremennik-province",
+      "name": "Fremennik Province lodestone",
+      "x": 2712,
+      "y": 3678,
+      "plane": 0,
+      "mapId": 28,
+      "chunkId": "10809",
+      "coordinateEvidence": {
+        "kind": "cache-typed-coordinate",
+        "file": ".local/game-data/places-2026-10-08-v3/travel.v1.json",
+        "pointer": "lodestones[structId=24313].coordinates[param=2941].mapProjections[mapId=28]",
+        "structId": 24313,
+        "param": 2941,
+        "rawCoordinate": {
+          "x": 2712,
+          "y": 3678,
+          "plane": 0
+        },
+        "role": "exact-teleport-destination",
+        "url": "https://runescape.wiki/w/Fremennik_Province_lodestone?oldid=37122993"
+      }
+    },
+    {
+      "id": "lodestone-eagles-peak",
+      "name": "Eagles' Peak lodestone",
+      "x": 2366,
+      "y": 3480,
+      "plane": 0,
+      "mapId": 28,
+      "chunkId": "9270",
+      "coordinateEvidence": {
+        "kind": "cache-typed-coordinate",
+        "file": ".local/game-data/places-2026-10-08-v3/travel.v1.json",
+        "pointer": "lodestones[structId=24312].coordinates[param=2941].mapProjections[mapId=28]",
+        "structId": 24312,
+        "param": 2941,
+        "rawCoordinate": {
+          "x": 2366,
+          "y": 3480,
+          "plane": 0
+        },
+        "role": "exact-teleport-destination",
+        "url": "https://runescape.wiki/w/Eagles'_Peak_lodestone?oldid=37122551"
+      }
+    },
+    {
+      "id": "teleport-varrock",
+      "name": "Varrock Teleport destination",
+      "x": 3212,
+      "y": 3434,
+      "plane": 0,
+      "mapId": 28,
+      "chunkId": "12853",
+      "coordinateEvidence": {
+        "kind": "cache-typed-coordinate",
+        "file": ".local/game-data/places-2026-10-08-v3/travel.v1.json",
+        "pointer": "travelStructs[id=14753].coordinates[param=2941]",
+        "structId": 14753,
+        "param": 2941,
+        "url": "https://runescape.wiki/w/Varrock_Teleport?oldid=37182128",
+        "role": "exact-teleport-destination"
+      }
+    },
+    {
+      "id": "teleport-lumbridge",
+      "name": "Lumbridge Teleport destination",
+      "x": 3219,
+      "y": 3248,
+      "plane": 0,
+      "mapId": 28,
+      "chunkId": "12850",
+      "coordinateEvidence": {
+        "kind": "cache-typed-coordinate",
+        "file": ".local/game-data/places-2026-10-08-v3/travel.v1.json",
+        "pointer": "travelStructs[id=14756].coordinates[param=2941]",
+        "structId": 14756,
+        "param": 2941,
+        "url": "https://runescape.wiki/w/Lumbridge_Teleport?oldid=36979025",
+        "role": "exact-teleport-destination"
+      }
+    },
+    {
+      "id": "teleport-falador",
+      "name": "Falador Teleport destination",
+      "x": 2965,
+      "y": 3378,
+      "plane": 0,
+      "mapId": 28,
+      "chunkId": "11828",
+      "coordinateEvidence": {
+        "kind": "cache-typed-coordinate",
+        "file": ".local/game-data/places-2026-10-08-v3/travel.v1.json",
+        "pointer": "travelStructs[id=14759].coordinates[param=2941]",
+        "structId": 14759,
+        "param": 2941,
+        "url": "https://runescape.wiki/w/Falador_Teleport?oldid=37090986",
+        "role": "exact-teleport-destination"
+      }
+    },
+    {
+      "id": "teleport-daemonheim-kinship",
+      "name": "Ring of kinship Daemonheim destination",
+      "x": 3442,
+      "y": 3694,
+      "plane": 0,
+      "mapId": 28,
+      "chunkId": "13625",
+      "coordinateEvidence": {
+        "kind": "wiki-teleport-map",
+        "url": "https://runescape.wiki/w/Ring_of_kinship?oldid=37155981",
+        "role": "teleport-destination-marker"
+      }
+    },
+    {
+      "id": "teleport-skull-outside",
+      "name": "Skull sceptre: Outside Stronghold of Security",
+      "x": 3081,
+      "y": 3421,
+      "plane": 0,
+      "mapId": 28,
+      "chunkId": "12341",
+      "coordinateEvidence": {
+        "kind": "wiki-teleport-map",
+        "url": "https://runescape.wiki/w/Skull_sceptre?oldid=36951245",
+        "role": "teleport-destination-marker"
+      }
+    },
+    {
+      "id": "teleport-skull-war",
+      "name": "Skull sceptre: Vault of War",
+      "x": 1862,
+      "y": 5242,
+      "plane": 0,
+      "mapId": 169,
+      "chunkId": "7505",
+      "coordinateEvidence": {
+        "kind": "wiki-teleport-map",
+        "url": "https://runescape.wiki/w/Skull_sceptre?oldid=36951245",
+        "role": "teleport-destination-marker"
+      }
+    },
+    {
+      "id": "teleport-skull-famine",
+      "name": "Skull sceptre: Catacomb of Famine",
+      "x": 2044,
+      "y": 5245,
+      "plane": 0,
+      "mapId": 170,
+      "chunkId": "8017",
+      "coordinateEvidence": {
+        "kind": "wiki-teleport-map",
+        "url": "https://runescape.wiki/w/Skull_sceptre?oldid=36951245",
+        "role": "teleport-destination-marker"
+      }
+    },
+    {
+      "id": "teleport-skull-pestilence",
+      "name": "Skull sceptre: Pit of Pestilence",
+      "x": 2125,
+      "y": 5253,
+      "plane": 0,
+      "mapId": 171,
+      "chunkId": "8530",
+      "coordinateEvidence": {
+        "kind": "wiki-teleport-map",
+        "url": "https://runescape.wiki/w/Skull_sceptre?oldid=36951245",
+        "role": "teleport-destination-marker"
+      }
+    },
+    {
+      "id": "teleport-skull-death",
+      "name": "Skull sceptre: Sepulchre of Death",
+      "x": 2360,
+      "y": 5213,
+      "plane": 0,
+      "mapId": 172,
+      "chunkId": "9297",
+      "coordinateEvidence": {
+        "kind": "wiki-teleport-map",
+        "url": "https://runescape.wiki/w/Skull_sceptre?oldid=36951245",
+        "role": "teleport-destination-marker"
+      }
+    },
+    {
+      "id": "teleport-cabbage-port",
+      "name": "Explorer's ring cabbage-port destination",
+      "x": 3053,
+      "y": 3291,
+      "plane": 0,
+      "mapId": 28,
+      "chunkId": "12083",
+      "coordinateEvidence": {
+        "kind": "wiki-teleport-map",
+        "url": "https://runescape.wiki/w/Explorer's_ring_3?oldid=37013938",
+        "role": "teleport-destination-marker"
+      }
+    },
+    {
+      "id": "falador-crumbling-wall",
+      "name": "Falador crumbling wall",
+      "x": 2935,
+      "y": 3355,
+      "plane": 0,
+      "mapId": 28,
+      "chunkId": "11572",
+      "coordinateEvidence": {
+        "kind": "cache-object-placement",
+        "file": ".local/game-data/objects-2026-10-08-v3/objects.transitions.v1.json.gz",
+        "pointer": "transitions[id=object-757e68043b713aa26589833a@28:0:2935:3355]",
+        "objectId": 11844,
+        "role": "obstacle-anchor-not-landing",
+        "sourcePlane": 0,
+        "effectivePlane": 0,
+        "url": "https://runescape.wiki/w/Crumbling_wall_(Falador)?oldid=36205746"
+      }
+    },
+    {
+      "id": "falador-farm-stile-3043-3305",
+      "name": "Falador farm stile",
+      "x": 3043,
+      "y": 3305,
+      "plane": 0,
+      "mapId": 28,
+      "chunkId": "12083",
+      "coordinateEvidence": {
+        "kind": "cache-object-placement",
+        "file": ".local/game-data/objects-2026-10-08-v3/objects.transitions.v1.json.gz",
+        "pointer": "transitions[id=object-4955d78702d5475ab2ce49ad@28:0:3043:3305]",
+        "objectId": 85080,
+        "role": "obstacle-anchor-not-landing",
+        "sourcePlane": 0,
+        "effectivePlane": 0,
+        "url": "https://runescape.wiki/w/Stile_(Falador_farm)?oldid=36476079"
+      }
+    },
+    {
+      "id": "falador-farm-stile-3063-3282",
+      "name": "Falador farm stile",
+      "x": 3063,
+      "y": 3282,
+      "plane": 0,
+      "mapId": 28,
+      "chunkId": "12083",
+      "coordinateEvidence": {
+        "kind": "cache-object-placement",
+        "file": ".local/game-data/objects-2026-10-08-v3/objects.transitions.v1.json.gz",
+        "pointer": "transitions[id=object-284cfd3e94ed6b957b2b7a53@28:0:3063:3282]",
+        "objectId": 85080,
+        "role": "obstacle-anchor-not-landing",
+        "sourcePlane": 0,
+        "effectivePlane": 0,
+        "url": "https://runescape.wiki/w/Stile_(Falador_farm)?oldid=36476079"
+      }
+    },
+    {
+      "id": "north-volcano-north-ledge",
+      "name": "North Volcano north ledge",
+      "x": 3370,
+      "y": 3958,
+      "plane": 0,
+      "mapId": 28,
+      "chunkId": "13373",
+      "coordinateEvidence": {
+        "kind": "cache-object-placement",
+        "file": ".local/game-data/objects-2026-10-08-v3/objects.transitions.v1.json.gz",
+        "pointer": "transitions[id=object-5f629121b3f224157c09ad4b@28:1:3370:3958]",
+        "objectId": 124615,
+        "role": "obstacle-anchor-not-landing",
+        "sourcePlane": 1,
+        "effectivePlane": 0,
+        "url": "https://runescape.wiki/w/Ledge_(Wilderness_North_Volcano)?oldid=35935716"
+      },
+      "pinIds": [
+        "cache-de711da6f69c43d7630b81a7"
+      ]
+    },
+    {
+      "id": "north-volcano-east-up",
+      "name": "North Volcano east upward ledge",
+      "x": 3386,
+      "y": 3929,
+      "plane": 0,
+      "mapId": 28,
+      "chunkId": "13373",
+      "coordinateEvidence": {
+        "kind": "cache-object-placement",
+        "file": ".local/game-data/objects-2026-10-08-v3/objects.transitions.v1.json.gz",
+        "pointer": "transitions[id=object-836c51d0192d45a442560e94@28:1:3386:3929]",
+        "objectId": 124616,
+        "role": "obstacle-anchor-not-landing",
+        "sourcePlane": 1,
+        "effectivePlane": 0,
+        "url": "https://runescape.wiki/w/Ledge_(Wilderness_North_Volcano)?oldid=35935716"
+      },
+      "pinIds": [
+        "cache-dadb743014d7482ac033fc2e"
+      ]
+    },
+    {
+      "id": "north-volcano-east-down",
+      "name": "North Volcano east downward ledge",
+      "x": 3386,
+      "y": 3929,
+      "plane": 2,
+      "mapId": 28,
+      "chunkId": "13373",
+      "coordinateEvidence": {
+        "kind": "cache-object-placement",
+        "file": ".local/game-data/objects-2026-10-08-v3/objects.transitions.v1.json.gz",
+        "pointer": "transitions[id=object-2633652c866b50a551c5d2ee@28:3:3386:3929]",
+        "objectId": 124617,
+        "role": "obstacle-anchor-not-landing",
+        "sourcePlane": 3,
+        "effectivePlane": 2,
+        "url": "https://runescape.wiki/w/Ledge_(Wilderness_North_Volcano)?oldid=35935716"
+      }
+    },
+    {
+      "id": "north-volcano-top-ledge",
+      "name": "North Volcano top ledge",
+      "x": 3364,
+      "y": 3946,
+      "plane": 2,
+      "mapId": 28,
+      "chunkId": "13373",
+      "coordinateEvidence": {
+        "kind": "cache-object-placement",
+        "file": ".local/game-data/objects-2026-10-08-v3/objects.transitions.v1.json.gz",
+        "pointer": "transitions[id=object-a38887398f2190ba95d15113@28:2:3364:3946]",
+        "objectId": 124618,
+        "role": "obstacle-anchor-not-landing",
+        "sourcePlane": 2,
+        "effectivePlane": 2,
+        "url": "https://runescape.wiki/w/Ledge_(Wilderness_North_Volcano)?oldid=35935716"
+      }
+    },
+    {
+      "id": "north-volcano-stepping-stone",
+      "name": "North Volcano stepping stone",
+      "x": 3365,
+      "y": 3971,
+      "plane": 0,
+      "mapId": 28,
+      "chunkId": "13374",
+      "coordinateEvidence": {
+        "kind": "cache-object-placement",
+        "file": ".local/game-data/objects-2026-10-08-v3/objects.transitions.v1.json.gz",
+        "pointer": "transitions[id=object-9f22a5385dec2b3343834b72@28:0:3365:3971]",
+        "objectId": 124614,
+        "role": "obstacle-anchor-not-landing",
+        "sourcePlane": 0,
+        "effectivePlane": 0,
+        "url": "https://runescape.wiki/w/Stepping_stone_(Wilderness_North_Volcano)?oldid=36416075"
+      },
+      "pinIds": [
+        "cache-dc16bc384ad7ffe32969db55"
+      ]
+    },
+    {
+      "id": "fred-farm-stile",
+      "name": "Fred's farm stile",
+      "x": 3199,
+      "y": 3286,
+      "plane": 0,
+      "mapId": 28,
+      "chunkId": "12595",
+      "coordinateEvidence": {
+        "kind": "wiki-object-map",
+        "url": "https://runescape.wiki/w/Stile_(Fred's_farm)?oldid=36476077",
+        "objectId": 45205,
+        "role": "obstacle-anchor-not-landing"
+      }
+    },
+    {
+      "id": "lumbridge-strong-tree",
+      "name": "Lumbridge strong tree",
+      "x": 3246,
+      "y": 3180,
+      "plane": 0,
+      "mapId": 28,
+      "chunkId": "12849",
+      "coordinateEvidence": {
+        "kind": "wiki-object-map",
+        "url": "https://runescape.wiki/w/Strong_tree_(Lumbridge%2FAl_Kharid)?oldid=36919990",
+        "objectId": 241,
+        "role": "grapple-object-anchor-not-landing"
+      }
+    },
+    {
+      "id": "al-kharid-strong-tree",
+      "name": "Al Kharid strong tree",
+      "x": 3256,
+      "y": 3180,
+      "plane": 0,
+      "mapId": 28,
+      "chunkId": "12849",
+      "coordinateEvidence": {
+        "kind": "wiki-object-map",
+        "url": "https://runescape.wiki/w/Strong_tree_(Lumbridge%2FAl_Kharid)?oldid=36919990",
+        "objectId": 244,
+        "role": "grapple-object-anchor-not-landing"
+      }
+    }
+  ],
+  "routes": [
+    {
+      "id": "canoe-lumbridge--canoe-champions-guild",
+      "name": "Lumbridge canoe station ↔ Champions' Guild canoe station",
+      "kind": "canoe",
+      "from": "canoe-lumbridge",
+      "to": "canoe-champions-guild",
+      "bidirectional": true,
+      "members": false,
+      "f2p": true,
+      "requirements": {
+        "levels": {
+          "Woodcutting": 12
+        },
+        "quests": [],
+        "items": [],
+        "fare": null,
+        "conditions": [],
+        "confirmations": [
+          "canoe-familiar-state-supported"
+        ]
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Canoe?oldid=37174554",
+          "detail": "RS3 F2P canoe travel: log one stop at 12 Woodcutting; dugout two stops at 27; stable dugout all four ordinary stations at 42; Waka every station at 57. Wilderness has no return canoe tree."
+        },
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Canoe_station?oldid=37176646",
+          "detail": "Four current station object maps and NPC-loaned/tool-belt hatchet support."
+        }
+      ],
+      "unknowns": [
+        "Canoe page says a familiar prevents travel, but its 2009 update history says follower restrictions were removed; familiar state needs a current in-game check."
+      ],
+      "networkId": "river-lum-canoes",
+      "minimumCanoeType": "log",
+      "variants": [
+        {
+          "canoeType": "log",
+          "levels": {
+            "Woodcutting": 12
+          }
+        },
+        {
+          "canoeType": "dugout",
+          "levels": {
+            "Woodcutting": 27
+          }
+        },
+        {
+          "canoeType": "stable-dugout",
+          "levels": {
+            "Woodcutting": 42
+          }
+        },
+        {
+          "canoeType": "waka",
+          "levels": {
+            "Woodcutting": 57
+          }
+        }
+      ],
+      "notes": [
+        "Chop, shape and float a canoe at the departure station; use a carried/tool-belt hatchet or borrow one from the instructor."
+      ]
+    },
+    {
+      "id": "canoe-lumbridge--canoe-barbarian-village",
+      "name": "Lumbridge canoe station ↔ Barbarian Village canoe station",
+      "kind": "canoe",
+      "from": "canoe-lumbridge",
+      "to": "canoe-barbarian-village",
+      "bidirectional": true,
+      "members": false,
+      "f2p": true,
+      "requirements": {
+        "levels": {
+          "Woodcutting": 27
+        },
+        "quests": [],
+        "items": [],
+        "fare": null,
+        "conditions": [],
+        "confirmations": [
+          "canoe-familiar-state-supported"
+        ]
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Canoe?oldid=37174554",
+          "detail": "RS3 F2P canoe travel: log one stop at 12 Woodcutting; dugout two stops at 27; stable dugout all four ordinary stations at 42; Waka every station at 57. Wilderness has no return canoe tree."
+        },
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Canoe_station?oldid=37176646",
+          "detail": "Four current station object maps and NPC-loaned/tool-belt hatchet support."
+        }
+      ],
+      "unknowns": [
+        "Canoe page says a familiar prevents travel, but its 2009 update history says follower restrictions were removed; familiar state needs a current in-game check."
+      ],
+      "networkId": "river-lum-canoes",
+      "minimumCanoeType": "dugout",
+      "variants": [
+        {
+          "canoeType": "dugout",
+          "levels": {
+            "Woodcutting": 27
+          }
+        },
+        {
+          "canoeType": "stable-dugout",
+          "levels": {
+            "Woodcutting": 42
+          }
+        },
+        {
+          "canoeType": "waka",
+          "levels": {
+            "Woodcutting": 57
+          }
+        }
+      ],
+      "notes": [
+        "Chop, shape and float a canoe at the departure station; use a carried/tool-belt hatchet or borrow one from the instructor."
+      ]
+    },
+    {
+      "id": "canoe-lumbridge--canoe-edgeville",
+      "name": "Lumbridge canoe station ↔ Edgeville canoe station",
+      "kind": "canoe",
+      "from": "canoe-lumbridge",
+      "to": "canoe-edgeville",
+      "bidirectional": true,
+      "members": false,
+      "f2p": true,
+      "requirements": {
+        "levels": {
+          "Woodcutting": 42
+        },
+        "quests": [],
+        "items": [],
+        "fare": null,
+        "conditions": [],
+        "confirmations": [
+          "canoe-familiar-state-supported"
+        ]
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Canoe?oldid=37174554",
+          "detail": "RS3 F2P canoe travel: log one stop at 12 Woodcutting; dugout two stops at 27; stable dugout all four ordinary stations at 42; Waka every station at 57. Wilderness has no return canoe tree."
+        },
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Canoe_station?oldid=37176646",
+          "detail": "Four current station object maps and NPC-loaned/tool-belt hatchet support."
+        }
+      ],
+      "unknowns": [
+        "Canoe page says a familiar prevents travel, but its 2009 update history says follower restrictions were removed; familiar state needs a current in-game check."
+      ],
+      "networkId": "river-lum-canoes",
+      "minimumCanoeType": "stable-dugout",
+      "variants": [
+        {
+          "canoeType": "stable-dugout",
+          "levels": {
+            "Woodcutting": 42
+          }
+        },
+        {
+          "canoeType": "waka",
+          "levels": {
+            "Woodcutting": 57
+          }
+        }
+      ],
+      "notes": [
+        "Chop, shape and float a canoe at the departure station; use a carried/tool-belt hatchet or borrow one from the instructor."
+      ]
+    },
+    {
+      "id": "canoe-champions-guild--canoe-barbarian-village",
+      "name": "Champions' Guild canoe station ↔ Barbarian Village canoe station",
+      "kind": "canoe",
+      "from": "canoe-champions-guild",
+      "to": "canoe-barbarian-village",
+      "bidirectional": true,
+      "members": false,
+      "f2p": true,
+      "requirements": {
+        "levels": {
+          "Woodcutting": 12
+        },
+        "quests": [],
+        "items": [],
+        "fare": null,
+        "conditions": [],
+        "confirmations": [
+          "canoe-familiar-state-supported"
+        ]
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Canoe?oldid=37174554",
+          "detail": "RS3 F2P canoe travel: log one stop at 12 Woodcutting; dugout two stops at 27; stable dugout all four ordinary stations at 42; Waka every station at 57. Wilderness has no return canoe tree."
+        },
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Canoe_station?oldid=37176646",
+          "detail": "Four current station object maps and NPC-loaned/tool-belt hatchet support."
+        }
+      ],
+      "unknowns": [
+        "Canoe page says a familiar prevents travel, but its 2009 update history says follower restrictions were removed; familiar state needs a current in-game check."
+      ],
+      "networkId": "river-lum-canoes",
+      "minimumCanoeType": "log",
+      "variants": [
+        {
+          "canoeType": "log",
+          "levels": {
+            "Woodcutting": 12
+          }
+        },
+        {
+          "canoeType": "dugout",
+          "levels": {
+            "Woodcutting": 27
+          }
+        },
+        {
+          "canoeType": "stable-dugout",
+          "levels": {
+            "Woodcutting": 42
+          }
+        },
+        {
+          "canoeType": "waka",
+          "levels": {
+            "Woodcutting": 57
+          }
+        }
+      ],
+      "notes": [
+        "Chop, shape and float a canoe at the departure station; use a carried/tool-belt hatchet or borrow one from the instructor."
+      ]
+    },
+    {
+      "id": "canoe-champions-guild--canoe-edgeville",
+      "name": "Champions' Guild canoe station ↔ Edgeville canoe station",
+      "kind": "canoe",
+      "from": "canoe-champions-guild",
+      "to": "canoe-edgeville",
+      "bidirectional": true,
+      "members": false,
+      "f2p": true,
+      "requirements": {
+        "levels": {
+          "Woodcutting": 27
+        },
+        "quests": [],
+        "items": [],
+        "fare": null,
+        "conditions": [],
+        "confirmations": [
+          "canoe-familiar-state-supported"
+        ]
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Canoe?oldid=37174554",
+          "detail": "RS3 F2P canoe travel: log one stop at 12 Woodcutting; dugout two stops at 27; stable dugout all four ordinary stations at 42; Waka every station at 57. Wilderness has no return canoe tree."
+        },
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Canoe_station?oldid=37176646",
+          "detail": "Four current station object maps and NPC-loaned/tool-belt hatchet support."
+        }
+      ],
+      "unknowns": [
+        "Canoe page says a familiar prevents travel, but its 2009 update history says follower restrictions were removed; familiar state needs a current in-game check."
+      ],
+      "networkId": "river-lum-canoes",
+      "minimumCanoeType": "dugout",
+      "variants": [
+        {
+          "canoeType": "dugout",
+          "levels": {
+            "Woodcutting": 27
+          }
+        },
+        {
+          "canoeType": "stable-dugout",
+          "levels": {
+            "Woodcutting": 42
+          }
+        },
+        {
+          "canoeType": "waka",
+          "levels": {
+            "Woodcutting": 57
+          }
+        }
+      ],
+      "notes": [
+        "Chop, shape and float a canoe at the departure station; use a carried/tool-belt hatchet or borrow one from the instructor."
+      ]
+    },
+    {
+      "id": "canoe-barbarian-village--canoe-edgeville",
+      "name": "Barbarian Village canoe station ↔ Edgeville canoe station",
+      "kind": "canoe",
+      "from": "canoe-barbarian-village",
+      "to": "canoe-edgeville",
+      "bidirectional": true,
+      "members": false,
+      "f2p": true,
+      "requirements": {
+        "levels": {
+          "Woodcutting": 12
+        },
+        "quests": [],
+        "items": [],
+        "fare": null,
+        "conditions": [],
+        "confirmations": [
+          "canoe-familiar-state-supported"
+        ]
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Canoe?oldid=37174554",
+          "detail": "RS3 F2P canoe travel: log one stop at 12 Woodcutting; dugout two stops at 27; stable dugout all four ordinary stations at 42; Waka every station at 57. Wilderness has no return canoe tree."
+        },
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Canoe_station?oldid=37176646",
+          "detail": "Four current station object maps and NPC-loaned/tool-belt hatchet support."
+        }
+      ],
+      "unknowns": [
+        "Canoe page says a familiar prevents travel, but its 2009 update history says follower restrictions were removed; familiar state needs a current in-game check."
+      ],
+      "networkId": "river-lum-canoes",
+      "minimumCanoeType": "log",
+      "variants": [
+        {
+          "canoeType": "log",
+          "levels": {
+            "Woodcutting": 12
+          }
+        },
+        {
+          "canoeType": "dugout",
+          "levels": {
+            "Woodcutting": 27
+          }
+        },
+        {
+          "canoeType": "stable-dugout",
+          "levels": {
+            "Woodcutting": 42
+          }
+        },
+        {
+          "canoeType": "waka",
+          "levels": {
+            "Woodcutting": 57
+          }
+        }
+      ],
+      "notes": [
+        "Chop, shape and float a canoe at the departure station; use a carried/tool-belt hatchet or borrow one from the instructor."
+      ]
+    },
+    {
+      "id": "port-sarim--musa-point",
+      "name": "Port Sarim ↔ Musa Point",
+      "kind": "boat",
+      "from": "ship-port-sarim-karamja",
+      "to": "ship-musa-point",
+      "bidirectional": true,
+      "members": false,
+      "f2p": true,
+      "requirements": {
+        "levels": {},
+        "quests": [],
+        "items": [],
+        "fare": {
+          "currency": "coins",
+          "amount": 30
+        },
+        "conditions": [],
+        "confirmations": []
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Captain_Tobias?oldid=37183451",
+          "detail": "F2P passage to Musa Point costs 30 coins."
+        },
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Customs_officer?oldid=37198107",
+          "detail": "F2P return costs 30 coins and includes inspection; easy Karamja achievements lower the fare to 15 coins."
+        }
+      ],
+      "unknowns": [],
+      "fareVariants": [
+        {
+          "amount": 15,
+          "currency": "coins",
+          "condition": "Easy Karamja achievements completed."
+        },
+        {
+          "amount": 0,
+          "currency": "coins",
+          "members": true,
+          "condition": "Wear a ring of charos (a)."
+        }
+      ],
+      "notes": [
+        "Return customs inspection confiscates Karamjan rum."
+      ]
+    },
+    {
+      "id": "port-sarim--havenhythe",
+      "name": "Port Sarim ↔ Havenhythe",
+      "kind": "boat",
+      "from": "ship-port-sarim-havenhythe",
+      "to": "ship-havenhythe-port",
+      "bidirectional": true,
+      "members": false,
+      "f2p": true,
+      "requirements": {
+        "levels": {},
+        "quests": [
+          "Visions of Havenhythe"
+        ],
+        "items": [],
+        "fare": {
+          "currency": "coins",
+          "amount": 30
+        },
+        "conditions": [],
+        "confirmations": []
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Captain_Lorris?oldid=37179590",
+          "detail": "Current F2P travel NPC and exact Port Sarim/Havenhythe maps."
+        },
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Transcript%3ACaptain_Lorris?oldid=37199372",
+          "detail": "Post-quest travel costs 30 coins in either direction; during-quest passage is a separate progression-dependent option."
+        }
+      ],
+      "unknowns": [],
+      "notes": []
+    },
+    {
+      "id": "taverley--daemonheim",
+      "name": "Taverley ↔ Daemonheim coast",
+      "kind": "boat",
+      "from": "ship-taverley-daemonheim",
+      "to": "ship-daemonheim-coast",
+      "bidirectional": true,
+      "members": false,
+      "f2p": true,
+      "requirements": {
+        "levels": {},
+        "quests": [],
+        "items": [],
+        "fare": null,
+        "conditions": [],
+        "confirmations": []
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Bryll_Thoksdottir?oldid=37182272",
+          "detail": "F2P Taverley Sail NPC and exact map."
+        },
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Transcript%3ABryll_Thoksdottir?oldid=37039154",
+          "detail": "Taverley dialogue transports to the Daemonheim peninsula without payment or level checks."
+        },
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Fremennik_shipmaster?oldid=37138015",
+          "detail": "Daemonheim shipmaster returns to Taverley."
+        },
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Transcript%3AFremennik_shipmaster?oldid=36874984",
+          "detail": "Taverley destination offered without payment; Shadow Reef alone explicitly rejected in F2P."
+        }
+      ],
+      "unknowns": [],
+      "notes": []
+    },
+    {
+      "id": "edgeville--deserted-keep-f2p",
+      "name": "Edgeville ↔ Deserted Keep (F2P worlds)",
+      "kind": "portal",
+      "from": "lever-edgeville",
+      "to": "lever-deserted-keep",
+      "bidirectional": true,
+      "members": false,
+      "f2p": true,
+      "requirements": {
+        "levels": {},
+        "quests": [],
+        "items": [],
+        "fare": null,
+        "conditions": [
+          "free-to-play-world"
+        ],
+        "confirmations": [
+          "wilderness-pvp-warning-accepted"
+        ]
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Lever?oldid=37110243",
+          "detail": "Both levers are F2P; F2P return goes to Edgeville. PvP opted-in entry prompts a warning."
+        }
+      ],
+      "unknowns": [],
+      "mechanism": "lever",
+      "notes": [
+        "Use on a free-to-play world; the Deserted Keep return on members worlds instead leads to Ardougne.",
+        "A tool-belt knife or sharp weapon is useful to cut the web when leaving the keep."
+      ]
+    },
+    {
+      "id": "home-teleport--lodestone-al-kharid",
+      "name": "Home Teleport to Al Kharid",
+      "kind": "lodestone",
+      "from": null,
+      "to": "lodestone-al-kharid",
+      "bidirectional": false,
+      "members": false,
+      "f2p": true,
+      "requirements": {
+        "levels": {},
+        "quests": [],
+        "items": [],
+        "fare": null,
+        "conditions": [
+          "teleport-origin-permitted"
+        ],
+        "confirmations": [
+          "lodestone-al-kharid-activated"
+        ]
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Al_Kharid_lodestone?oldid=36976053",
+          "detail": "Specific lodestone page verifies membership and activation/build requirement."
+        },
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Home_Teleport?oldid=37178861",
+          "detail": "No rune/level requirement; activated destinations are available from the Home Teleport interface. Cast may be interrupted by attack; PvP opt-in restricts use above level 20 Wilderness."
+        }
+      ],
+      "unknowns": [],
+      "notes": [
+        "Destination must already be activated/built.",
+        "Teleport must be permitted at the current origin; PvP opt-in limits normal teleporting above level 20 Wilderness."
+      ]
+    },
+    {
+      "id": "home-teleport--lodestone-anachronia",
+      "name": "Home Teleport to Anachronia",
+      "kind": "lodestone",
+      "from": null,
+      "to": "lodestone-anachronia",
+      "bidirectional": false,
+      "members": true,
+      "f2p": false,
+      "requirements": {
+        "levels": {},
+        "quests": [],
+        "items": [],
+        "fare": null,
+        "conditions": [
+          "teleport-origin-permitted"
+        ],
+        "confirmations": [
+          "lodestone-anachronia-activated"
+        ]
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Anachronia_lodestone?oldid=37122513",
+          "detail": "Specific lodestone page verifies membership and activation/build requirement."
+        },
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Home_Teleport?oldid=37178861",
+          "detail": "No rune/level requirement; activated destinations are available from the Home Teleport interface. Cast may be interrupted by attack; PvP opt-in restricts use above level 20 Wilderness."
+        }
+      ],
+      "unknowns": [],
+      "notes": [
+        "Destination must already be activated/built.",
+        "Teleport must be permitted at the current origin; PvP opt-in limits normal teleporting above level 20 Wilderness.",
+        "Build after tier 1 Town Hall, using 150 stone and 150 clay."
+      ]
+    },
+    {
+      "id": "home-teleport--lodestone-ardougne",
+      "name": "Home Teleport to Ardougne",
+      "kind": "lodestone",
+      "from": null,
+      "to": "lodestone-ardougne",
+      "bidirectional": false,
+      "members": true,
+      "f2p": false,
+      "requirements": {
+        "levels": {},
+        "quests": [],
+        "items": [],
+        "fare": null,
+        "conditions": [
+          "teleport-origin-permitted"
+        ],
+        "confirmations": [
+          "lodestone-ardougne-activated"
+        ]
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Ardougne_lodestone?oldid=37122759",
+          "detail": "Specific lodestone page verifies membership and activation/build requirement."
+        },
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Home_Teleport?oldid=37178861",
+          "detail": "No rune/level requirement; activated destinations are available from the Home Teleport interface. Cast may be interrupted by attack; PvP opt-in restricts use above level 20 Wilderness."
+        }
+      ],
+      "unknowns": [],
+      "notes": [
+        "Destination must already be activated/built.",
+        "Teleport must be permitted at the current origin; PvP opt-in limits normal teleporting above level 20 Wilderness."
+      ]
+    },
+    {
+      "id": "home-teleport--lodestone-bandit-camp",
+      "name": "Home Teleport to Bandit Camp",
+      "kind": "lodestone",
+      "from": null,
+      "to": "lodestone-bandit-camp",
+      "bidirectional": false,
+      "members": true,
+      "f2p": false,
+      "requirements": {
+        "levels": {},
+        "quests": [
+          "Desert Treasure"
+        ],
+        "items": [],
+        "fare": null,
+        "conditions": [
+          "teleport-origin-permitted"
+        ],
+        "confirmations": [
+          "lodestone-bandit-camp-activated"
+        ]
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Bandit_Camp_lodestone?oldid=37121091",
+          "detail": "Specific lodestone page verifies membership and activation/build requirement."
+        },
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Home_Teleport?oldid=37178861",
+          "detail": "No rune/level requirement; activated destinations are available from the Home Teleport interface. Cast may be interrupted by attack; PvP opt-in restricts use above level 20 Wilderness."
+        }
+      ],
+      "unknowns": [],
+      "notes": [
+        "Destination must already be activated/built.",
+        "Teleport must be permitted at the current origin; PvP opt-in limits normal teleporting above level 20 Wilderness."
+      ]
+    },
+    {
+      "id": "home-teleport--lodestone-burthorpe",
+      "name": "Home Teleport to Burthorpe",
+      "kind": "lodestone",
+      "from": null,
+      "to": "lodestone-burthorpe",
+      "bidirectional": false,
+      "members": false,
+      "f2p": true,
+      "requirements": {
+        "levels": {},
+        "quests": [],
+        "items": [],
+        "fare": null,
+        "conditions": [
+          "teleport-origin-permitted"
+        ],
+        "confirmations": [
+          "lodestone-burthorpe-activated"
+        ]
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Burthorpe_lodestone?oldid=36689035",
+          "detail": "Specific lodestone page verifies membership and activation/build requirement."
+        },
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Home_Teleport?oldid=37178861",
+          "detail": "No rune/level requirement; activated destinations are available from the Home Teleport interface. Cast may be interrupted by attack; PvP opt-in restricts use above level 20 Wilderness."
+        }
+      ],
+      "unknowns": [],
+      "notes": [
+        "Destination must already be activated/built.",
+        "Teleport must be permitted at the current origin; PvP opt-in limits normal teleporting above level 20 Wilderness."
+      ]
+    },
+    {
+      "id": "home-teleport--lodestone-canifis",
+      "name": "Home Teleport to Canifis",
+      "kind": "lodestone",
+      "from": null,
+      "to": "lodestone-canifis",
+      "bidirectional": false,
+      "members": true,
+      "f2p": false,
+      "requirements": {
+        "levels": {},
+        "quests": [],
+        "items": [],
+        "fare": null,
+        "conditions": [
+          "teleport-origin-permitted"
+        ],
+        "confirmations": [
+          "lodestone-canifis-activated"
+        ]
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Canifis_lodestone?oldid=37124529",
+          "detail": "Specific lodestone page verifies membership and activation/build requirement."
+        },
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Home_Teleport?oldid=37178861",
+          "detail": "No rune/level requirement; activated destinations are available from the Home Teleport interface. Cast may be interrupted by attack; PvP opt-in restricts use above level 20 Wilderness."
+        }
+      ],
+      "unknowns": [],
+      "notes": [
+        "Destination must already be activated/built.",
+        "Teleport must be permitted at the current origin; PvP opt-in limits normal teleporting above level 20 Wilderness."
+      ]
+    },
+    {
+      "id": "home-teleport--lodestone-catherby",
+      "name": "Home Teleport to Catherby",
+      "kind": "lodestone",
+      "from": null,
+      "to": "lodestone-catherby",
+      "bidirectional": false,
+      "members": true,
+      "f2p": false,
+      "requirements": {
+        "levels": {},
+        "quests": [],
+        "items": [],
+        "fare": null,
+        "conditions": [
+          "teleport-origin-permitted"
+        ],
+        "confirmations": [
+          "lodestone-catherby-activated"
+        ]
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Catherby_lodestone?oldid=36689042",
+          "detail": "Specific lodestone page verifies membership and activation/build requirement."
+        },
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Home_Teleport?oldid=37178861",
+          "detail": "No rune/level requirement; activated destinations are available from the Home Teleport interface. Cast may be interrupted by attack; PvP opt-in restricts use above level 20 Wilderness."
+        }
+      ],
+      "unknowns": [],
+      "notes": [
+        "Destination must already be activated/built.",
+        "Teleport must be permitted at the current origin; PvP opt-in limits normal teleporting above level 20 Wilderness."
+      ]
+    },
+    {
+      "id": "home-teleport--lodestone-city-of-um",
+      "name": "Home Teleport to City of Um",
+      "kind": "lodestone",
+      "from": null,
+      "to": "lodestone-city-of-um",
+      "bidirectional": false,
+      "members": false,
+      "f2p": true,
+      "requirements": {
+        "levels": {},
+        "quests": [
+          "Necromancy!"
+        ],
+        "items": [],
+        "fare": null,
+        "conditions": [
+          "teleport-origin-permitted"
+        ],
+        "confirmations": [
+          "lodestone-city-of-um-activated"
+        ]
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/City_of_Um_lodestone?oldid=36921071",
+          "detail": "Specific lodestone page verifies membership and activation/build requirement."
+        },
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Home_Teleport?oldid=37178861",
+          "detail": "No rune/level requirement; activated destinations are available from the Home Teleport interface. Cast may be interrupted by attack; PvP opt-in restricts use above level 20 Wilderness."
+        }
+      ],
+      "unknowns": [],
+      "notes": [
+        "Destination must already be activated/built.",
+        "Teleport must be permitted at the current origin; PvP opt-in limits normal teleporting above level 20 Wilderness."
+      ]
+    },
+    {
+      "id": "home-teleport--lodestone-draynor",
+      "name": "Home Teleport to Draynor",
+      "kind": "lodestone",
+      "from": null,
+      "to": "lodestone-draynor",
+      "bidirectional": false,
+      "members": false,
+      "f2p": true,
+      "requirements": {
+        "levels": {},
+        "quests": [],
+        "items": [],
+        "fare": null,
+        "conditions": [
+          "teleport-origin-permitted"
+        ],
+        "confirmations": [
+          "lodestone-draynor-activated"
+        ]
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Draynor_lodestone?oldid=36689044",
+          "detail": "Specific lodestone page verifies membership and activation/build requirement."
+        },
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Home_Teleport?oldid=37178861",
+          "detail": "No rune/level requirement; activated destinations are available from the Home Teleport interface. Cast may be interrupted by attack; PvP opt-in restricts use above level 20 Wilderness."
+        }
+      ],
+      "unknowns": [],
+      "notes": [
+        "Destination must already be activated/built.",
+        "Teleport must be permitted at the current origin; PvP opt-in limits normal teleporting above level 20 Wilderness."
+      ]
+    },
+    {
+      "id": "home-teleport--lodestone-edgeville",
+      "name": "Home Teleport to Edgeville",
+      "kind": "lodestone",
+      "from": null,
+      "to": "lodestone-edgeville",
+      "bidirectional": false,
+      "members": false,
+      "f2p": true,
+      "requirements": {
+        "levels": {},
+        "quests": [],
+        "items": [],
+        "fare": null,
+        "conditions": [
+          "teleport-origin-permitted"
+        ],
+        "confirmations": [
+          "lodestone-edgeville-activated"
+        ]
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Edgeville_lodestone?oldid=37110451",
+          "detail": "Specific lodestone page verifies membership and activation/build requirement."
+        },
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Home_Teleport?oldid=37178861",
+          "detail": "No rune/level requirement; activated destinations are available from the Home Teleport interface. Cast may be interrupted by attack; PvP opt-in restricts use above level 20 Wilderness."
+        }
+      ],
+      "unknowns": [],
+      "notes": [
+        "Destination must already be activated/built.",
+        "Teleport must be permitted at the current origin; PvP opt-in limits normal teleporting above level 20 Wilderness."
+      ]
+    },
+    {
+      "id": "home-teleport--lodestone-falador",
+      "name": "Home Teleport to Falador",
+      "kind": "lodestone",
+      "from": null,
+      "to": "lodestone-falador",
+      "bidirectional": false,
+      "members": false,
+      "f2p": true,
+      "requirements": {
+        "levels": {},
+        "quests": [],
+        "items": [],
+        "fare": null,
+        "conditions": [
+          "teleport-origin-permitted"
+        ],
+        "confirmations": [
+          "lodestone-falador-activated"
+        ]
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Falador_lodestone?oldid=37127183",
+          "detail": "Specific lodestone page verifies membership and activation/build requirement."
+        },
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Home_Teleport?oldid=37178861",
+          "detail": "No rune/level requirement; activated destinations are available from the Home Teleport interface. Cast may be interrupted by attack; PvP opt-in restricts use above level 20 Wilderness."
+        }
+      ],
+      "unknowns": [],
+      "notes": [
+        "Destination must already be activated/built.",
+        "Teleport must be permitted at the current origin; PvP opt-in limits normal teleporting above level 20 Wilderness."
+      ]
+    },
+    {
+      "id": "home-teleport--lodestone-fort-forinthry",
+      "name": "Home Teleport to Fort Forinthry",
+      "kind": "lodestone",
+      "from": null,
+      "to": "lodestone-fort-forinthry",
+      "bidirectional": false,
+      "members": true,
+      "f2p": false,
+      "requirements": {
+        "levels": {
+          "Construction": 1
+        },
+        "quests": [
+          "New Foundations"
+        ],
+        "items": [],
+        "fare": null,
+        "conditions": [
+          "teleport-origin-permitted"
+        ],
+        "confirmations": [
+          "lodestone-fort-forinthry-activated"
+        ]
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Fort_Forinthry_lodestone?oldid=37177936",
+          "detail": "Specific lodestone page verifies membership and activation/build requirement."
+        },
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Home_Teleport?oldid=37178861",
+          "detail": "No rune/level requirement; activated destinations are available from the Home Teleport interface. Cast may be interrupted by attack; PvP opt-in restricts use above level 20 Wilderness."
+        }
+      ],
+      "unknowns": [],
+      "notes": [
+        "Destination must already be activated/built.",
+        "Teleport must be permitted at the current origin; PvP opt-in limits normal teleporting above level 20 Wilderness.",
+        "Build at Fort blueprints after New Foundations, using 10 limestone bricks; this lodestone is members-only despite its F2P geography."
+      ]
+    },
+    {
+      "id": "home-teleport--lodestone-karamja",
+      "name": "Home Teleport to Karamja",
+      "kind": "lodestone",
+      "from": null,
+      "to": "lodestone-karamja",
+      "bidirectional": false,
+      "members": true,
+      "f2p": false,
+      "requirements": {
+        "levels": {},
+        "quests": [],
+        "items": [],
+        "fare": null,
+        "conditions": [
+          "teleport-origin-permitted"
+        ],
+        "confirmations": [
+          "lodestone-karamja-activated"
+        ]
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Karamja_lodestone?oldid=37131535",
+          "detail": "Specific lodestone page verifies membership and activation/build requirement."
+        },
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Home_Teleport?oldid=37178861",
+          "detail": "No rune/level requirement; activated destinations are available from the Home Teleport interface. Cast may be interrupted by attack; PvP opt-in restricts use above level 20 Wilderness."
+        }
+      ],
+      "unknowns": [],
+      "notes": [
+        "Destination must already be activated/built.",
+        "Teleport must be permitted at the current origin; PvP opt-in limits normal teleporting above level 20 Wilderness."
+      ]
+    },
+    {
+      "id": "home-teleport--lodestone-lumbridge",
+      "name": "Home Teleport to Lumbridge",
+      "kind": "lodestone",
+      "from": null,
+      "to": "lodestone-lumbridge",
+      "bidirectional": false,
+      "members": false,
+      "f2p": true,
+      "requirements": {
+        "levels": {},
+        "quests": [],
+        "items": [],
+        "fare": null,
+        "conditions": [
+          "teleport-origin-permitted"
+        ],
+        "confirmations": [
+          "lodestone-lumbridge-activated"
+        ]
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Lumbridge_lodestone?oldid=37110013",
+          "detail": "Specific lodestone page verifies membership and activation/build requirement."
+        },
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Home_Teleport?oldid=37178861",
+          "detail": "No rune/level requirement; activated destinations are available from the Home Teleport interface. Cast may be interrupted by attack; PvP opt-in restricts use above level 20 Wilderness."
+        }
+      ],
+      "unknowns": [],
+      "notes": [
+        "Destination must already be activated/built.",
+        "Teleport must be permitted at the current origin; PvP opt-in limits normal teleporting above level 20 Wilderness."
+      ]
+    },
+    {
+      "id": "home-teleport--lodestone-lunar-isle",
+      "name": "Home Teleport to Lunar Isle",
+      "kind": "lodestone",
+      "from": null,
+      "to": "lodestone-lunar-isle",
+      "bidirectional": false,
+      "members": true,
+      "f2p": false,
+      "requirements": {
+        "levels": {},
+        "quests": [
+          "Lunar Diplomacy"
+        ],
+        "items": [],
+        "fare": null,
+        "conditions": [
+          "teleport-origin-permitted"
+        ],
+        "confirmations": [
+          "lodestone-lunar-isle-activated"
+        ]
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Lunar_Isle_lodestone?oldid=36689036",
+          "detail": "Specific lodestone page verifies membership and activation/build requirement."
+        },
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Home_Teleport?oldid=37178861",
+          "detail": "No rune/level requirement; activated destinations are available from the Home Teleport interface. Cast may be interrupted by attack; PvP opt-in restricts use above level 20 Wilderness."
+        }
+      ],
+      "unknowns": [],
+      "notes": [
+        "Destination must already be activated/built.",
+        "Teleport must be permitted at the current origin; PvP opt-in limits normal teleporting above level 20 Wilderness."
+      ]
+    },
+    {
+      "id": "home-teleport--lodestone-menaphos",
+      "name": "Home Teleport to Menaphos",
+      "kind": "lodestone",
+      "from": null,
+      "to": "lodestone-menaphos",
+      "bidirectional": false,
+      "members": true,
+      "f2p": false,
+      "requirements": {
+        "levels": {},
+        "quests": [],
+        "items": [],
+        "fare": null,
+        "conditions": [
+          "teleport-origin-permitted"
+        ],
+        "confirmations": [
+          "lodestone-menaphos-activated"
+        ]
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Menaphos_lodestone?oldid=36689053",
+          "detail": "Specific lodestone page verifies membership and activation/build requirement."
+        },
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Home_Teleport?oldid=37178861",
+          "detail": "No rune/level requirement; activated destinations are available from the Home Teleport interface. Cast may be interrupted by attack; PvP opt-in restricts use above level 20 Wilderness."
+        }
+      ],
+      "unknowns": [],
+      "notes": [
+        "Destination must already be activated/built.",
+        "Teleport must be permitted at the current origin; PvP opt-in limits normal teleporting above level 20 Wilderness."
+      ]
+    },
+    {
+      "id": "home-teleport--lodestone-ooglog",
+      "name": "Home Teleport to Oo'glog",
+      "kind": "lodestone",
+      "from": null,
+      "to": "lodestone-ooglog",
+      "bidirectional": false,
+      "members": true,
+      "f2p": false,
+      "requirements": {
+        "levels": {},
+        "quests": [],
+        "items": [],
+        "fare": null,
+        "conditions": [
+          "teleport-origin-permitted"
+        ],
+        "confirmations": [
+          "lodestone-ooglog-activated"
+        ]
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Oo'glog_lodestone?oldid=36689054",
+          "detail": "Specific lodestone page verifies membership and activation/build requirement."
+        },
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Home_Teleport?oldid=37178861",
+          "detail": "No rune/level requirement; activated destinations are available from the Home Teleport interface. Cast may be interrupted by attack; PvP opt-in restricts use above level 20 Wilderness."
+        }
+      ],
+      "unknowns": [],
+      "notes": [
+        "Destination must already be activated/built.",
+        "Teleport must be permitted at the current origin; PvP opt-in limits normal teleporting above level 20 Wilderness."
+      ]
+    },
+    {
+      "id": "home-teleport--lodestone-port-sarim",
+      "name": "Home Teleport to Port Sarim",
+      "kind": "lodestone",
+      "from": null,
+      "to": "lodestone-port-sarim",
+      "bidirectional": false,
+      "members": false,
+      "f2p": true,
+      "requirements": {
+        "levels": {},
+        "quests": [],
+        "items": [],
+        "fare": null,
+        "conditions": [
+          "teleport-origin-permitted"
+        ],
+        "confirmations": [
+          "lodestone-port-sarim-activated"
+        ]
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Port_Sarim_lodestone?oldid=37127290",
+          "detail": "Specific lodestone page verifies membership and activation/build requirement."
+        },
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Home_Teleport?oldid=37178861",
+          "detail": "No rune/level requirement; activated destinations are available from the Home Teleport interface. Cast may be interrupted by attack; PvP opt-in restricts use above level 20 Wilderness."
+        }
+      ],
+      "unknowns": [],
+      "notes": [
+        "Destination must already be activated/built.",
+        "Teleport must be permitted at the current origin; PvP opt-in limits normal teleporting above level 20 Wilderness."
+      ]
+    },
+    {
+      "id": "home-teleport--lodestone-seers-village",
+      "name": "Home Teleport to Seers' Village",
+      "kind": "lodestone",
+      "from": null,
+      "to": "lodestone-seers-village",
+      "bidirectional": false,
+      "members": true,
+      "f2p": false,
+      "requirements": {
+        "levels": {},
+        "quests": [],
+        "items": [],
+        "fare": null,
+        "conditions": [
+          "teleport-origin-permitted"
+        ],
+        "confirmations": [
+          "lodestone-seers-village-activated"
+        ]
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Seers'_Village_lodestone?oldid=37122714",
+          "detail": "Specific lodestone page verifies membership and activation/build requirement."
+        },
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Home_Teleport?oldid=37178861",
+          "detail": "No rune/level requirement; activated destinations are available from the Home Teleport interface. Cast may be interrupted by attack; PvP opt-in restricts use above level 20 Wilderness."
+        }
+      ],
+      "unknowns": [],
+      "notes": [
+        "Destination must already be activated/built.",
+        "Teleport must be permitted at the current origin; PvP opt-in limits normal teleporting above level 20 Wilderness."
+      ]
+    },
+    {
+      "id": "home-teleport--lodestone-taverley",
+      "name": "Home Teleport to Taverley",
+      "kind": "lodestone",
+      "from": null,
+      "to": "lodestone-taverley",
+      "bidirectional": false,
+      "members": false,
+      "f2p": true,
+      "requirements": {
+        "levels": {},
+        "quests": [],
+        "items": [],
+        "fare": null,
+        "conditions": [
+          "teleport-origin-permitted"
+        ],
+        "confirmations": [
+          "lodestone-taverley-activated"
+        ]
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Taverley_lodestone?oldid=36689058",
+          "detail": "Specific lodestone page verifies membership and activation/build requirement."
+        },
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Home_Teleport?oldid=37178861",
+          "detail": "No rune/level requirement; activated destinations are available from the Home Teleport interface. Cast may be interrupted by attack; PvP opt-in restricts use above level 20 Wilderness."
+        }
+      ],
+      "unknowns": [],
+      "notes": [
+        "Destination must already be activated/built.",
+        "Teleport must be permitted at the current origin; PvP opt-in limits normal teleporting above level 20 Wilderness."
+      ]
+    },
+    {
+      "id": "home-teleport--lodestone-tirannwn",
+      "name": "Home Teleport to Tirannwn",
+      "kind": "lodestone",
+      "from": null,
+      "to": "lodestone-tirannwn",
+      "bidirectional": false,
+      "members": true,
+      "f2p": false,
+      "requirements": {
+        "levels": {},
+        "quests": [],
+        "items": [],
+        "fare": null,
+        "conditions": [
+          "teleport-origin-permitted"
+        ],
+        "confirmations": [
+          "lodestone-tirannwn-activated"
+        ]
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Tirannwn_lodestone?oldid=36689059",
+          "detail": "Specific lodestone page verifies membership and activation/build requirement."
+        },
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Home_Teleport?oldid=37178861",
+          "detail": "No rune/level requirement; activated destinations are available from the Home Teleport interface. Cast may be interrupted by attack; PvP opt-in restricts use above level 20 Wilderness."
+        }
+      ],
+      "unknowns": [],
+      "notes": [
+        "Destination must already be activated/built.",
+        "Teleport must be permitted at the current origin; PvP opt-in limits normal teleporting above level 20 Wilderness."
+      ]
+    },
+    {
+      "id": "home-teleport--lodestone-varrock",
+      "name": "Home Teleport to Varrock",
+      "kind": "lodestone",
+      "from": null,
+      "to": "lodestone-varrock",
+      "bidirectional": false,
+      "members": false,
+      "f2p": true,
+      "requirements": {
+        "levels": {},
+        "quests": [],
+        "items": [],
+        "fare": null,
+        "conditions": [
+          "teleport-origin-permitted"
+        ],
+        "confirmations": [
+          "lodestone-varrock-activated"
+        ]
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Varrock_lodestone?oldid=37108403",
+          "detail": "Specific lodestone page verifies membership and activation/build requirement."
+        },
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Home_Teleport?oldid=37178861",
+          "detail": "No rune/level requirement; activated destinations are available from the Home Teleport interface. Cast may be interrupted by attack; PvP opt-in restricts use above level 20 Wilderness."
+        }
+      ],
+      "unknowns": [],
+      "notes": [
+        "Destination must already be activated/built.",
+        "Teleport must be permitted at the current origin; PvP opt-in limits normal teleporting above level 20 Wilderness."
+      ]
+    },
+    {
+      "id": "home-teleport--lodestone-wendlewick",
+      "name": "Home Teleport to Wendlewick",
+      "kind": "lodestone",
+      "from": null,
+      "to": "lodestone-wendlewick",
+      "bidirectional": false,
+      "members": false,
+      "f2p": true,
+      "requirements": {
+        "levels": {},
+        "quests": [
+          "Visions of Havenhythe"
+        ],
+        "items": [],
+        "fare": null,
+        "conditions": [
+          "teleport-origin-permitted"
+        ],
+        "confirmations": [
+          "lodestone-wendlewick-activated"
+        ]
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Wendlewick_lodestone?oldid=37193342",
+          "detail": "Specific lodestone page verifies membership and activation/build requirement."
+        },
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Home_Teleport?oldid=37178861",
+          "detail": "No rune/level requirement; activated destinations are available from the Home Teleport interface. Cast may be interrupted by attack; PvP opt-in restricts use above level 20 Wilderness."
+        }
+      ],
+      "unknowns": [],
+      "notes": [
+        "Destination must already be activated/built.",
+        "Teleport must be permitted at the current origin; PvP opt-in limits normal teleporting above level 20 Wilderness.",
+        "Build during Visions of Havenhythe using 10 limestone bricks; activation is at quest completion."
+      ]
+    },
+    {
+      "id": "home-teleport--lodestone-wilderness-crater",
+      "name": "Home Teleport to Wilderness Crater",
+      "kind": "lodestone",
+      "from": null,
+      "to": "lodestone-wilderness-crater",
+      "bidirectional": false,
+      "members": false,
+      "f2p": true,
+      "requirements": {
+        "levels": {},
+        "quests": [],
+        "items": [],
+        "fare": null,
+        "conditions": [
+          "teleport-origin-permitted"
+        ],
+        "confirmations": [
+          "lodestone-wilderness-crater-activated"
+        ]
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Wilderness_Crater_lodestone?oldid=36733918",
+          "detail": "Specific lodestone page verifies membership and activation/build requirement."
+        },
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Home_Teleport?oldid=37178861",
+          "detail": "No rune/level requirement; activated destinations are available from the Home Teleport interface. Cast may be interrupted by attack; PvP opt-in restricts use above level 20 Wilderness."
+        }
+      ],
+      "unknowns": [],
+      "notes": [
+        "Destination must already be activated/built.",
+        "Teleport must be permitted at the current origin; PvP opt-in limits normal teleporting above level 20 Wilderness."
+      ]
+    },
+    {
+      "id": "home-teleport--lodestone-yanille",
+      "name": "Home Teleport to Yanille",
+      "kind": "lodestone",
+      "from": null,
+      "to": "lodestone-yanille",
+      "bidirectional": false,
+      "members": true,
+      "f2p": false,
+      "requirements": {
+        "levels": {},
+        "quests": [],
+        "items": [],
+        "fare": null,
+        "conditions": [
+          "teleport-origin-permitted"
+        ],
+        "confirmations": [
+          "lodestone-yanille-activated"
+        ]
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Yanille_lodestone?oldid=37122635",
+          "detail": "Specific lodestone page verifies membership and activation/build requirement."
+        },
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Home_Teleport?oldid=37178861",
+          "detail": "No rune/level requirement; activated destinations are available from the Home Teleport interface. Cast may be interrupted by attack; PvP opt-in restricts use above level 20 Wilderness."
+        }
+      ],
+      "unknowns": [],
+      "notes": [
+        "Destination must already be activated/built.",
+        "Teleport must be permitted at the current origin; PvP opt-in limits normal teleporting above level 20 Wilderness."
+      ]
+    },
+    {
+      "id": "home-teleport--lodestone-fremennik-province",
+      "name": "Home Teleport to Fremennik Province",
+      "kind": "lodestone",
+      "from": null,
+      "to": "lodestone-fremennik-province",
+      "bidirectional": false,
+      "members": true,
+      "f2p": false,
+      "requirements": {
+        "levels": {},
+        "quests": [],
+        "items": [],
+        "fare": null,
+        "conditions": [
+          "teleport-origin-permitted"
+        ],
+        "confirmations": [
+          "lodestone-fremennik-province-activated"
+        ]
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Fremennik_Province_lodestone?oldid=37122993",
+          "detail": "Specific lodestone page verifies membership and activation/build requirement."
+        },
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Home_Teleport?oldid=37178861",
+          "detail": "No rune/level requirement; activated destinations are available from the Home Teleport interface. Cast may be interrupted by attack; PvP opt-in restricts use above level 20 Wilderness."
+        }
+      ],
+      "unknowns": [],
+      "notes": [
+        "Destination must already be activated/built.",
+        "Teleport must be permitted at the current origin; PvP opt-in limits normal teleporting above level 20 Wilderness."
+      ]
+    },
+    {
+      "id": "home-teleport--lodestone-eagles-peak",
+      "name": "Home Teleport to Eagles' Peak",
+      "kind": "lodestone",
+      "from": null,
+      "to": "lodestone-eagles-peak",
+      "bidirectional": false,
+      "members": true,
+      "f2p": false,
+      "requirements": {
+        "levels": {},
+        "quests": [],
+        "items": [],
+        "fare": null,
+        "conditions": [
+          "teleport-origin-permitted"
+        ],
+        "confirmations": [
+          "lodestone-eagles-peak-activated"
+        ]
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Eagles'_Peak_lodestone?oldid=37122551",
+          "detail": "Specific lodestone page verifies membership and activation/build requirement."
+        },
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Home_Teleport?oldid=37178861",
+          "detail": "No rune/level requirement; activated destinations are available from the Home Teleport interface. Cast may be interrupted by attack; PvP opt-in restricts use above level 20 Wilderness."
+        }
+      ],
+      "unknowns": [],
+      "notes": [
+        "Destination must already be activated/built.",
+        "Teleport must be permitted at the current origin; PvP opt-in limits normal teleporting above level 20 Wilderness."
+      ]
+    },
+    {
+      "id": "spell--varrock",
+      "name": "Varrock Teleport",
+      "kind": "teleport",
+      "from": null,
+      "to": "teleport-varrock",
+      "bidirectional": false,
+      "members": false,
+      "f2p": true,
+      "requirements": {
+        "levels": {
+          "Magic": 25
+        },
+        "quests": [],
+        "items": [
+          {
+            "name": "Air rune",
+            "quantity": 3,
+            "alternatives": [
+              "Valid elemental rune substitution"
+            ]
+          },
+          {
+            "name": "Fire rune",
+            "quantity": 1,
+            "alternatives": [
+              "Valid elemental rune substitution"
+            ]
+          },
+          {
+            "name": "Law rune",
+            "quantity": 1
+          }
+        ],
+        "fare": null,
+        "conditions": [
+          "teleport-origin-permitted",
+          "standard-spellbook-active"
+        ],
+        "confirmations": [
+          "teleport-runes-or-valid-substitution-available"
+        ]
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Varrock_Teleport?oldid=37182128",
+          "detail": "F2P standard teleport with level 25 Magic and 3 air, 1 fire rune, 1 law rune."
+        }
+      ],
+      "unknowns": [
+        "Wiki destination marker differs by one tile from the copied-cache typed destination; use the exact typed destination rather than averaging them."
+      ],
+      "consumable": true,
+      "notes": [
+        "Standard spellbook; elemental staff/other valid rune substitution may supply elemental runes.",
+        "Origin must permit normal teleportation."
+      ]
+    },
+    {
+      "id": "spell--lumbridge",
+      "name": "Lumbridge Teleport",
+      "kind": "teleport",
+      "from": null,
+      "to": "teleport-lumbridge",
+      "bidirectional": false,
+      "members": false,
+      "f2p": true,
+      "requirements": {
+        "levels": {
+          "Magic": 31
+        },
+        "quests": [],
+        "items": [
+          {
+            "name": "Air rune",
+            "quantity": 3,
+            "alternatives": [
+              "Valid elemental rune substitution"
+            ]
+          },
+          {
+            "name": "Earth rune",
+            "quantity": 1,
+            "alternatives": [
+              "Valid elemental rune substitution"
+            ]
+          },
+          {
+            "name": "Law rune",
+            "quantity": 1
+          }
+        ],
+        "fare": null,
+        "conditions": [
+          "teleport-origin-permitted",
+          "standard-spellbook-active"
+        ],
+        "confirmations": [
+          "teleport-runes-or-valid-substitution-available"
+        ]
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Lumbridge_Teleport?oldid=36979025",
+          "detail": "F2P standard teleport with level 31 Magic and 3 air, 1 earth rune, 1 law rune."
+        }
+      ],
+      "unknowns": [],
+      "consumable": true,
+      "notes": [
+        "Standard spellbook; elemental staff/other valid rune substitution may supply elemental runes.",
+        "Origin must permit normal teleportation."
+      ]
+    },
+    {
+      "id": "spell--falador",
+      "name": "Falador Teleport",
+      "kind": "teleport",
+      "from": null,
+      "to": "teleport-falador",
+      "bidirectional": false,
+      "members": false,
+      "f2p": true,
+      "requirements": {
+        "levels": {
+          "Magic": 37
+        },
+        "quests": [],
+        "items": [
+          {
+            "name": "Air rune",
+            "quantity": 3,
+            "alternatives": [
+              "Valid elemental rune substitution"
+            ]
+          },
+          {
+            "name": "Water rune",
+            "quantity": 1,
+            "alternatives": [
+              "Valid elemental rune substitution"
+            ]
+          },
+          {
+            "name": "Law rune",
+            "quantity": 1
+          }
+        ],
+        "fare": null,
+        "conditions": [
+          "teleport-origin-permitted",
+          "standard-spellbook-active"
+        ],
+        "confirmations": [
+          "teleport-runes-or-valid-substitution-available"
+        ]
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Falador_Teleport?oldid=37090986",
+          "detail": "F2P standard teleport with level 37 Magic and 3 air, 1 water rune, 1 law rune."
+        }
+      ],
+      "unknowns": [
+        "Wiki destination marker differs by one tile from the copied-cache typed destination; use the exact typed destination rather than averaging them."
+      ],
+      "consumable": true,
+      "notes": [
+        "Standard spellbook; elemental staff/other valid rune substitution may supply elemental runes.",
+        "Origin must permit normal teleportation."
+      ]
+    },
+    {
+      "id": "ring-kinship--daemonheim",
+      "name": "Ring of kinship to Daemonheim",
+      "kind": "teleport",
+      "from": null,
+      "to": "teleport-daemonheim-kinship",
+      "bidirectional": false,
+      "members": false,
+      "f2p": true,
+      "requirements": {
+        "levels": {},
+        "quests": [],
+        "items": [
+          {
+            "name": "Ring of kinship",
+            "quantity": 1
+          }
+        ],
+        "fare": null,
+        "conditions": [
+          "teleport-origin-permitted"
+        ],
+        "confirmations": []
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Ring_of_kinship?oldid=37155981",
+          "detail": "F2P item, unlimited Daemonheim teleport, exact teleport map."
+        }
+      ],
+      "unknowns": [],
+      "notes": [
+        "Ring in backpack or equipped; unlimited teleports.",
+        "Cannot use above level 20 Wilderness when opted into PvP."
+      ]
+    },
+    {
+      "id": "skull-sceptre--outside",
+      "name": "Skull sceptre to Outside Stronghold of Security",
+      "kind": "teleport",
+      "from": null,
+      "to": "teleport-skull-outside",
+      "bidirectional": false,
+      "members": false,
+      "f2p": true,
+      "requirements": {
+        "levels": {},
+        "quests": [],
+        "items": [
+          {
+            "name": "Skull sceptre",
+            "quantity": 1
+          }
+        ],
+        "fare": null,
+        "conditions": [
+          "teleport-origin-permitted"
+        ],
+        "confirmations": []
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Skull_sceptre?oldid=36951245",
+          "detail": "F2P sceptre has unlimited outside and four floor teleports; a floor reward must be claimed to unlock its destination. Exact teleport maps supply each endpoint."
+        }
+      ],
+      "unknowns": [],
+      "notes": []
+    },
+    {
+      "id": "skull-sceptre--war",
+      "name": "Skull sceptre to Vault of War",
+      "kind": "teleport",
+      "from": null,
+      "to": "teleport-skull-war",
+      "bidirectional": false,
+      "members": false,
+      "f2p": true,
+      "requirements": {
+        "levels": {},
+        "quests": [],
+        "items": [
+          {
+            "name": "Skull sceptre",
+            "quantity": 1
+          }
+        ],
+        "fare": null,
+        "conditions": [
+          "teleport-origin-permitted"
+        ],
+        "confirmations": [
+          "skull-sceptre-war-destination-unlocked"
+        ]
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Skull_sceptre?oldid=36951245",
+          "detail": "F2P sceptre has unlimited outside and four floor teleports; a floor reward must be claimed to unlock its destination. Exact teleport maps supply each endpoint."
+        }
+      ],
+      "unknowns": [],
+      "notes": [
+        "Claim Gift of Peace to unlock this floor teleport."
+      ]
+    },
+    {
+      "id": "skull-sceptre--famine",
+      "name": "Skull sceptre to Catacomb of Famine",
+      "kind": "teleport",
+      "from": null,
+      "to": "teleport-skull-famine",
+      "bidirectional": false,
+      "members": false,
+      "f2p": true,
+      "requirements": {
+        "levels": {},
+        "quests": [],
+        "items": [
+          {
+            "name": "Skull sceptre",
+            "quantity": 1
+          }
+        ],
+        "fare": null,
+        "conditions": [
+          "teleport-origin-permitted"
+        ],
+        "confirmations": [
+          "skull-sceptre-famine-destination-unlocked"
+        ]
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Skull_sceptre?oldid=36951245",
+          "detail": "F2P sceptre has unlimited outside and four floor teleports; a floor reward must be claimed to unlock its destination. Exact teleport maps supply each endpoint."
+        }
+      ],
+      "unknowns": [],
+      "notes": [
+        "Claim Grain of Plenty to unlock this floor teleport."
+      ]
+    },
+    {
+      "id": "skull-sceptre--pestilence",
+      "name": "Skull sceptre to Pit of Pestilence",
+      "kind": "teleport",
+      "from": null,
+      "to": "teleport-skull-pestilence",
+      "bidirectional": false,
+      "members": false,
+      "f2p": true,
+      "requirements": {
+        "levels": {},
+        "quests": [],
+        "items": [
+          {
+            "name": "Skull sceptre",
+            "quantity": 1
+          }
+        ],
+        "fare": null,
+        "conditions": [
+          "teleport-origin-permitted"
+        ],
+        "confirmations": [
+          "skull-sceptre-pestilence-destination-unlocked"
+        ]
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Skull_sceptre?oldid=36951245",
+          "detail": "F2P sceptre has unlimited outside and four floor teleports; a floor reward must be claimed to unlock its destination. Exact teleport maps supply each endpoint."
+        }
+      ],
+      "unknowns": [],
+      "notes": [
+        "Claim Box of Health to unlock this floor teleport."
+      ]
+    },
+    {
+      "id": "skull-sceptre--death",
+      "name": "Skull sceptre to Sepulchre of Death",
+      "kind": "teleport",
+      "from": null,
+      "to": "teleport-skull-death",
+      "bidirectional": false,
+      "members": false,
+      "f2p": true,
+      "requirements": {
+        "levels": {},
+        "quests": [],
+        "items": [
+          {
+            "name": "Skull sceptre",
+            "quantity": 1
+          }
+        ],
+        "fare": null,
+        "conditions": [
+          "teleport-origin-permitted"
+        ],
+        "confirmations": [
+          "skull-sceptre-death-destination-unlocked"
+        ]
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Skull_sceptre?oldid=36951245",
+          "detail": "F2P sceptre has unlimited outside and four floor teleports; a floor reward must be claimed to unlock its destination. Exact teleport maps supply each endpoint."
+        }
+      ],
+      "unknowns": [],
+      "notes": [
+        "Claim Cradle of Life to unlock this floor teleport."
+      ]
+    },
+    {
+      "id": "explorer-ring--cabbage-port",
+      "name": "Explorer's ring cabbage-port",
+      "kind": "teleport",
+      "from": null,
+      "to": "teleport-cabbage-port",
+      "bidirectional": false,
+      "members": false,
+      "f2p": true,
+      "requirements": {
+        "levels": {},
+        "quests": [],
+        "items": [],
+        "fare": null,
+        "conditions": [
+          "teleport-origin-permitted"
+        ],
+        "confirmations": [
+          "explorer-ring-3-or-4-available"
+        ]
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Explorer's_ring_3?oldid=37013938",
+          "detail": "F2P ring obtained through medium Lumbridge achievements, exact cabbage-port map."
+        },
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Explorer's_ring_4?oldid=37084766",
+          "detail": "F2P upgraded ring provides unlimited same-destination cabbage-port."
+        }
+      ],
+      "unknowns": [],
+      "itemVariants": [
+        {
+          "items": [
+            {
+              "name": "Explorer's ring 3",
+              "quantity": 1
+            }
+          ]
+        },
+        {
+          "items": [
+            {
+              "name": "Explorer's ring 4",
+              "quantity": 1
+            }
+          ]
+        }
+      ],
+      "notes": [
+        "Use explorer's ring 3 or explorer's ring 4, carried or equipped."
+      ]
+    },
+    {
+      "id": "north-volcano-ascent",
+      "name": "Wilderness North Volcano ascent (object anchors)",
+      "kind": "shortcut",
+      "from": "north-volcano-stepping-stone",
+      "to": "north-volcano-top-ledge",
+      "bidirectional": false,
+      "members": false,
+      "f2p": true,
+      "requirements": {
+        "levels": {},
+        "quests": [],
+        "items": [],
+        "fare": null,
+        "conditions": [],
+        "confirmations": [
+          "north-volcano-obstacle-chain-and-effective-planes-reviewed"
+        ]
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Wilderness_North_Volcano?oldid=37133086",
+          "detail": "F2P location can be climbed starting at the stepping stone and then ledges."
+        },
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Stepping_stone_(Wilderness_North_Volcano)?oldid=36416075",
+          "detail": "F2P stepping stone exact marker."
+        },
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Ledge_(Wilderness_North_Volcano)?oldid=35935716",
+          "detail": "F2P ledges exact object maps; one additional ledge reaches a dead end."
+        }
+      ],
+      "unknowns": [
+        "The route is a reviewed obstacle-chain candidate, not a claim of exact landing tiles or independently tested traversal order.",
+        "Cache bridge planes differ from Wiki object-map plane labels; manual effective-plane and chain verification is required.",
+        "Specific pages supply no numeric Agility requirement; absence of a published level is not an in-game test."
+      ],
+      "via": [
+        "north-volcano-north-ledge",
+        "north-volcano-east-up",
+        "north-volcano-east-down"
+      ],
+      "notes": [
+        "Traversal includes the stepping stone and ledges; endpoints are exact obstacle anchors rather than landing tiles."
+      ]
+    },
+    {
+      "id": "lumbridge--al-kharid-grapple",
+      "name": "Lumbridge ↔ Al Kharid strong-tree grapple",
+      "kind": "shortcut",
+      "from": "lumbridge-strong-tree",
+      "to": "al-kharid-strong-tree",
+      "bidirectional": true,
+      "members": true,
+      "f2p": false,
+      "requirements": {
+        "levels": {
+          "Agility": 8,
+          "Ranged": 37,
+          "Strength": 19
+        },
+        "quests": [],
+        "items": [],
+        "fare": null,
+        "conditions": [],
+        "confirmations": [
+          "valid-grapple-equipment-available"
+        ]
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Strong_tree_(Lumbridge%2FAl_Kharid)?oldid=36919990",
+          "detail": "Members-only bidirectional River Lum grapple; both exact scenery anchors, skills and equipment alternatives."
+        }
+      ],
+      "unknowns": [],
+      "notes": [
+        "Have enhanced grappling hook, or equipped mithril grapple/crossbow, or a built hidey-hole."
+      ]
+    }
+  ],
+  "networks": [
+    {
+      "id": "river-lum-canoes",
+      "stations": [
+        "canoe-lumbridge",
+        "canoe-champions-guild",
+        "canoe-barbarian-village",
+        "canoe-edgeville"
+      ],
+      "stationOrder": [
+        "canoe-lumbridge",
+        "canoe-champions-guild",
+        "canoe-barbarian-village",
+        "canoe-edgeville"
+      ],
+      "canoeTypes": [
+        {
+          "id": "log",
+          "name": "Log",
+          "woodcutting": 12,
+          "maxStops": 1,
+          "wilderness": false
+        },
+        {
+          "id": "dugout",
+          "name": "Dugout",
+          "woodcutting": 27,
+          "maxStops": 2,
+          "wilderness": false
+        },
+        {
+          "id": "stable-dugout",
+          "name": "Stable dugout",
+          "woodcutting": 42,
+          "maxStops": 3,
+          "wilderness": false
+        },
+        {
+          "id": "waka",
+          "name": "Waka",
+          "woodcutting": 57,
+          "maxStops": null,
+          "wilderness": true
+        }
+      ],
+      "unresolvedDestinations": [
+        {
+          "id": "canoe-wilderness-pond",
+          "name": "Wilderness pond canoe destination",
+          "members": false,
+          "f2p": true,
+          "oneWayArrival": true,
+          "coordinate": null,
+          "reason": "No exact current Wiki object map or copied-cache canoe destination marker was found. A regional map centre or nearby monster marker is not evidence of the station.",
+          "provenance": [
+            {
+              "kind": "wiki",
+              "url": "https://runescape.wiki/w/Canoe?oldid=37174554",
+              "detail": "Level 35 Wilderness pond is an arrival-only Waka destination."
+            },
+            {
+              "kind": "wiki",
+              "url": "https://runescape.wiki/w/Wet_and_Wildy?oldid=36635891",
+              "detail": "The Waka-to-Wilderness achievement is F2P and requires 57 Woodcutting."
+            }
+          ]
+        }
+      ],
+      "pendingRoutes": [
+        {
+          "id": "canoe-lumbridge--canoe-wilderness-pond",
+          "name": "Lumbridge canoe station → Wilderness pond",
+          "kind": "canoe",
+          "from": "canoe-lumbridge",
+          "to": "canoe-wilderness-pond",
+          "bidirectional": false,
+          "members": false,
+          "f2p": true,
+          "requirements": {
+            "levels": {
+              "Woodcutting": 57
+            },
+            "quests": [],
+            "items": [],
+            "fare": null,
+            "conditions": [],
+            "confirmations": [
+              "canoe-familiar-state-supported"
+            ]
+          },
+          "provenance": [
+            {
+              "kind": "wiki",
+              "url": "https://runescape.wiki/w/Canoe?oldid=37174554",
+              "detail": "RS3 F2P canoe travel: log one stop at 12 Woodcutting; dugout two stops at 27; stable dugout all four ordinary stations at 42; Waka every station at 57. Wilderness has no return canoe tree."
+            },
+            {
+              "kind": "wiki",
+              "url": "https://runescape.wiki/w/Canoe_station?oldid=37176646",
+              "detail": "Four current station object maps and NPC-loaned/tool-belt hatchet support."
+            }
+          ],
+          "unknowns": [
+            "Exact RS3 Wilderness canoe arrival/station coordinate has not been verified; not admitted as a drawable route."
+          ],
+          "notes": [
+            "Waka is the only qualifying canoe; the Wilderness destination has no canoe tree and offers no return journey.",
+            "A carried/tool-belt hatchet or instructor loan can be used."
+          ]
+        },
+        {
+          "id": "canoe-champions-guild--canoe-wilderness-pond",
+          "name": "Champions' Guild canoe station → Wilderness pond",
+          "kind": "canoe",
+          "from": "canoe-champions-guild",
+          "to": "canoe-wilderness-pond",
+          "bidirectional": false,
+          "members": false,
+          "f2p": true,
+          "requirements": {
+            "levels": {
+              "Woodcutting": 57
+            },
+            "quests": [],
+            "items": [],
+            "fare": null,
+            "conditions": [],
+            "confirmations": [
+              "canoe-familiar-state-supported"
+            ]
+          },
+          "provenance": [
+            {
+              "kind": "wiki",
+              "url": "https://runescape.wiki/w/Canoe?oldid=37174554",
+              "detail": "RS3 F2P canoe travel: log one stop at 12 Woodcutting; dugout two stops at 27; stable dugout all four ordinary stations at 42; Waka every station at 57. Wilderness has no return canoe tree."
+            },
+            {
+              "kind": "wiki",
+              "url": "https://runescape.wiki/w/Canoe_station?oldid=37176646",
+              "detail": "Four current station object maps and NPC-loaned/tool-belt hatchet support."
+            }
+          ],
+          "unknowns": [
+            "Exact RS3 Wilderness canoe arrival/station coordinate has not been verified; not admitted as a drawable route."
+          ],
+          "notes": [
+            "Waka is the only qualifying canoe; the Wilderness destination has no canoe tree and offers no return journey.",
+            "A carried/tool-belt hatchet or instructor loan can be used."
+          ]
+        },
+        {
+          "id": "canoe-barbarian-village--canoe-wilderness-pond",
+          "name": "Barbarian Village canoe station → Wilderness pond",
+          "kind": "canoe",
+          "from": "canoe-barbarian-village",
+          "to": "canoe-wilderness-pond",
+          "bidirectional": false,
+          "members": false,
+          "f2p": true,
+          "requirements": {
+            "levels": {
+              "Woodcutting": 57
+            },
+            "quests": [],
+            "items": [],
+            "fare": null,
+            "conditions": [],
+            "confirmations": [
+              "canoe-familiar-state-supported"
+            ]
+          },
+          "provenance": [
+            {
+              "kind": "wiki",
+              "url": "https://runescape.wiki/w/Canoe?oldid=37174554",
+              "detail": "RS3 F2P canoe travel: log one stop at 12 Woodcutting; dugout two stops at 27; stable dugout all four ordinary stations at 42; Waka every station at 57. Wilderness has no return canoe tree."
+            },
+            {
+              "kind": "wiki",
+              "url": "https://runescape.wiki/w/Canoe_station?oldid=37176646",
+              "detail": "Four current station object maps and NPC-loaned/tool-belt hatchet support."
+            }
+          ],
+          "unknowns": [
+            "Exact RS3 Wilderness canoe arrival/station coordinate has not been verified; not admitted as a drawable route."
+          ],
+          "notes": [
+            "Waka is the only qualifying canoe; the Wilderness destination has no canoe tree and offers no return journey.",
+            "A carried/tool-belt hatchet or instructor loan can be used."
+          ]
+        },
+        {
+          "id": "canoe-edgeville--canoe-wilderness-pond",
+          "name": "Edgeville canoe station → Wilderness pond",
+          "kind": "canoe",
+          "from": "canoe-edgeville",
+          "to": "canoe-wilderness-pond",
+          "bidirectional": false,
+          "members": false,
+          "f2p": true,
+          "requirements": {
+            "levels": {
+              "Woodcutting": 57
+            },
+            "quests": [],
+            "items": [],
+            "fare": null,
+            "conditions": [],
+            "confirmations": [
+              "canoe-familiar-state-supported"
+            ]
+          },
+          "provenance": [
+            {
+              "kind": "wiki",
+              "url": "https://runescape.wiki/w/Canoe?oldid=37174554",
+              "detail": "RS3 F2P canoe travel: log one stop at 12 Woodcutting; dugout two stops at 27; stable dugout all four ordinary stations at 42; Waka every station at 57. Wilderness has no return canoe tree."
+            },
+            {
+              "kind": "wiki",
+              "url": "https://runescape.wiki/w/Canoe_station?oldid=37176646",
+              "detail": "Four current station object maps and NPC-loaned/tool-belt hatchet support."
+            }
+          ],
+          "unknowns": [
+            "Exact RS3 Wilderness canoe arrival/station coordinate has not been verified; not admitted as a drawable route."
+          ],
+          "notes": [
+            "Waka is the only qualifying canoe; the Wilderness destination has no canoe tree and offers no return journey.",
+            "A carried/tool-belt hatchet or instructor loan can be used."
+          ]
+        }
+      ],
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Canoe?oldid=37174554",
+          "detail": "RS3 F2P canoe travel: log one stop at 12 Woodcutting; dugout two stops at 27; stable dugout all four ordinary stations at 42; Waka every station at 57. Wilderness has no return canoe tree."
+        },
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Canoe_station?oldid=37176646",
+          "detail": "Four current station object maps and NPC-loaned/tool-belt hatchet support."
+        }
+      ]
+    },
+    {
+      "id": "lodestones",
+      "stations": [
+        "lodestone-al-kharid",
+        "lodestone-anachronia",
+        "lodestone-ardougne",
+        "lodestone-bandit-camp",
+        "lodestone-burthorpe",
+        "lodestone-canifis",
+        "lodestone-catherby",
+        "lodestone-city-of-um",
+        "lodestone-draynor",
+        "lodestone-edgeville",
+        "lodestone-falador",
+        "lodestone-fort-forinthry",
+        "lodestone-karamja",
+        "lodestone-lumbridge",
+        "lodestone-lunar-isle",
+        "lodestone-menaphos",
+        "lodestone-ooglog",
+        "lodestone-port-sarim",
+        "lodestone-seers-village",
+        "lodestone-taverley",
+        "lodestone-tirannwn",
+        "lodestone-varrock",
+        "lodestone-wendlewick",
+        "lodestone-wilderness-crater",
+        "lodestone-yanille",
+        "lodestone-fremennik-province",
+        "lodestone-eagles-peak"
+      ],
+      "unresolvedDestinations": [
+        {
+          "id": "lodestone-ashdale",
+          "name": "Ashdale lodestone",
+          "rawCoordinate": {
+            "x": 2474,
+            "y": 2709,
+            "plane": 2
+          },
+          "structId": 24320,
+          "coordinateEvidence": {
+            "kind": "cache-typed-coordinate",
+            "file": ".local/game-data/places-2026-10-08-v3/travel.v1.json",
+            "pointer": "lodestones[structId=24320].coordinates[param=2941]"
+          }
+        },
+        {
+          "id": "lodestone-prifddinas",
+          "name": "Prifddinas lodestone",
+          "rawCoordinate": {
+            "x": 2208,
+            "y": 3361,
+            "plane": 1
+          },
+          "structId": 24321,
+          "coordinateEvidence": {
+            "kind": "cache-typed-coordinate",
+            "file": ".local/game-data/places-2026-10-08-v3/travel.v1.json",
+            "pointer": "lodestones[structId=24321].coordinates[param=2941]"
+          }
+        }
+      ],
+      "pendingRoutes": [
+        {
+          "id": "home-teleport--lodestone-ashdale",
+          "name": "Home Teleport to Ashdale",
+          "kind": "lodestone",
+          "from": null,
+          "to": "lodestone-ashdale",
+          "bidirectional": false,
+          "members": false,
+          "f2p": true,
+          "requirements": {
+            "levels": {},
+            "quests": [],
+            "items": [],
+            "fare": null,
+            "conditions": [
+              "teleport-origin-permitted"
+            ],
+            "confirmations": [
+              "lodestone-ashdale-activated"
+            ]
+          },
+          "provenance": [
+            {
+              "kind": "wiki",
+              "url": "https://runescape.wiki/w/Ashdale_lodestone?oldid=36689040",
+              "detail": "Specific lodestone page verifies membership and activation/build requirement."
+            },
+            {
+              "kind": "wiki",
+              "url": "https://runescape.wiki/w/Home_Teleport?oldid=37178861",
+              "detail": "No rune/level requirement; activated destinations are available from the Home Teleport interface. Cast may be interrupted by attack; PvP opt-in restricts use above level 20 Wilderness."
+            }
+          ],
+          "unknowns": [
+            "Exact raw destination is available, but a matching current cache map projection is absent. Do not assign a guessed map ID or display plane."
+          ],
+          "notes": [
+            "Destination must already be activated/built.",
+            "Teleport must be permitted at the current origin; PvP opt-in limits normal teleporting above level 20 Wilderness."
+          ]
+        },
+        {
+          "id": "home-teleport--lodestone-prifddinas",
+          "name": "Home Teleport to Prifddinas",
+          "kind": "lodestone",
+          "from": null,
+          "to": "lodestone-prifddinas",
+          "bidirectional": false,
+          "members": true,
+          "f2p": false,
+          "requirements": {
+            "levels": {},
+            "quests": [
+              "Plague's End"
+            ],
+            "items": [],
+            "fare": null,
+            "conditions": [
+              "teleport-origin-permitted"
+            ],
+            "confirmations": [
+              "lodestone-prifddinas-activated"
+            ]
+          },
+          "provenance": [
+            {
+              "kind": "wiki",
+              "url": "https://runescape.wiki/w/Prifddinas_lodestone?oldid=37129085",
+              "detail": "Specific lodestone page verifies membership and activation/build requirement."
+            },
+            {
+              "kind": "wiki",
+              "url": "https://runescape.wiki/w/Home_Teleport?oldid=37178861",
+              "detail": "No rune/level requirement; activated destinations are available from the Home Teleport interface. Cast may be interrupted by attack; PvP opt-in restricts use above level 20 Wilderness."
+            }
+          ],
+          "unknowns": [
+            "Exact raw destination is available, but a matching current cache map projection is absent. Do not assign a guessed map ID or display plane."
+          ],
+          "notes": [
+            "Destination must already be activated/built.",
+            "Teleport must be permitted at the current origin; PvP opt-in limits normal teleporting above level 20 Wilderness."
+          ]
+        }
+      ],
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Lodestone_Network?oldid=37199016",
+          "detail": "General network page lists 12 F2P destinations; its list omits the current F2P Wendlewick lodestone, so specific pages take precedence."
+        }
+      ],
+      "unknowns": [
+        "Ashdale and Prifddinas raw destination planes need map projection review before admission.",
+        "Cache includes both membersCandidate=0 and 1 City of Um structs; specific Wiki page confirms F2P availability, and the F2P struct is used."
+      ]
+    },
+    {
+      "id": "f2p-shortcut-obstacles",
+      "stations": [
+        "falador-crumbling-wall",
+        "falador-farm-stile-3043-3305",
+        "falador-farm-stile-3063-3282",
+        "north-volcano-north-ledge",
+        "north-volcano-east-up",
+        "north-volcano-east-down",
+        "north-volcano-top-ledge",
+        "north-volcano-stepping-stone",
+        "fred-farm-stile"
+      ],
+      "obstacles": [
+        {
+          "station": "falador-crumbling-wall",
+          "objectId": 11844,
+          "members": false,
+          "f2p": true,
+          "levels": {
+            "Agility": 5
+          },
+          "requirementStatus": "Verified numeric level",
+          "provenance": [
+            {
+              "kind": "wiki",
+              "url": "https://runescape.wiki/w/Crumbling_wall_(Falador)?oldid=36205746",
+              "detail": "Specific F2P scenery and exact marker; opposite-side landing tiles are not documented."
+            }
+          ],
+          "unknowns": []
+        },
+        {
+          "station": "falador-farm-stile-3043-3305",
+          "objectId": 85080,
+          "members": false,
+          "f2p": true,
+          "levels": {
+            "Agility": 1
+          },
+          "requirementStatus": "Verified numeric level",
+          "provenance": [
+            {
+              "kind": "wiki",
+              "url": "https://runescape.wiki/w/Stile_(Falador_farm)?oldid=36476079",
+              "detail": "Specific F2P scenery and exact marker; opposite-side landing tiles are not documented."
+            }
+          ],
+          "unknowns": []
+        },
+        {
+          "station": "falador-farm-stile-3063-3282",
+          "objectId": 85080,
+          "members": false,
+          "f2p": true,
+          "levels": {
+            "Agility": 1
+          },
+          "requirementStatus": "Verified numeric level",
+          "provenance": [
+            {
+              "kind": "wiki",
+              "url": "https://runescape.wiki/w/Stile_(Falador_farm)?oldid=36476079",
+              "detail": "Specific F2P scenery and exact marker; opposite-side landing tiles are not documented."
+            }
+          ],
+          "unknowns": []
+        },
+        {
+          "station": "north-volcano-north-ledge",
+          "objectId": 124615,
+          "members": false,
+          "f2p": true,
+          "levels": {},
+          "requirementStatus": "No numeric Agility requirement stated on specific Wiki page; not independently tested.",
+          "provenance": [
+            {
+              "kind": "wiki",
+              "url": "https://runescape.wiki/w/Ledge_(Wilderness_North_Volcano)?oldid=35935716",
+              "detail": "Specific F2P scenery and exact marker; opposite-side landing tiles are not documented."
+            }
+          ],
+          "unknowns": [
+            "Cache raw and effective bridge planes differ; route use requires plane mapping review."
+          ]
+        },
+        {
+          "station": "north-volcano-east-up",
+          "objectId": 124616,
+          "members": false,
+          "f2p": true,
+          "levels": {},
+          "requirementStatus": "No numeric Agility requirement stated on specific Wiki page; not independently tested.",
+          "provenance": [
+            {
+              "kind": "wiki",
+              "url": "https://runescape.wiki/w/Ledge_(Wilderness_North_Volcano)?oldid=35935716",
+              "detail": "Specific F2P scenery and exact marker; opposite-side landing tiles are not documented."
+            }
+          ],
+          "unknowns": [
+            "Cache raw and effective bridge planes differ; route use requires plane mapping review."
+          ]
+        },
+        {
+          "station": "north-volcano-east-down",
+          "objectId": 124617,
+          "members": false,
+          "f2p": true,
+          "levels": {},
+          "requirementStatus": "No numeric Agility requirement stated on specific Wiki page; not independently tested.",
+          "provenance": [
+            {
+              "kind": "wiki",
+              "url": "https://runescape.wiki/w/Ledge_(Wilderness_North_Volcano)?oldid=35935716",
+              "detail": "Specific F2P scenery and exact marker; opposite-side landing tiles are not documented."
+            }
+          ],
+          "unknowns": [
+            "Cache raw and effective bridge planes differ; route use requires plane mapping review."
+          ]
+        },
+        {
+          "station": "north-volcano-top-ledge",
+          "objectId": 124618,
+          "members": false,
+          "f2p": true,
+          "levels": {},
+          "requirementStatus": "No numeric Agility requirement stated on specific Wiki page; not independently tested.",
+          "provenance": [
+            {
+              "kind": "wiki",
+              "url": "https://runescape.wiki/w/Ledge_(Wilderness_North_Volcano)?oldid=35935716",
+              "detail": "Specific F2P scenery and exact marker; opposite-side landing tiles are not documented."
+            }
+          ],
+          "unknowns": []
+        },
+        {
+          "station": "north-volcano-stepping-stone",
+          "objectId": 124614,
+          "members": false,
+          "f2p": true,
+          "levels": {},
+          "requirementStatus": "No numeric Agility requirement stated on specific Wiki page; not independently tested.",
+          "provenance": [
+            {
+              "kind": "wiki",
+              "url": "https://runescape.wiki/w/Stepping_stone_(Wilderness_North_Volcano)?oldid=36416075",
+              "detail": "Specific F2P scenery and exact marker; opposite-side landing tiles are not documented."
+            }
+          ],
+          "unknowns": []
+        },
+        {
+          "station": "fred-farm-stile",
+          "objectId": 45205,
+          "members": false,
+          "f2p": true,
+          "levels": {
+            "Agility": 1
+          },
+          "provenance": [
+            {
+              "kind": "wiki",
+              "url": "https://runescape.wiki/w/Stile_(Fred's_farm)?oldid=36476077",
+              "detail": "F2P level-1 shortcut exact Wiki scenery map."
+            }
+          ],
+          "unknowns": [
+            "Copied current cache object 45205 was found elsewhere, not at this Wiki coordinate; Fred's current scenery identity needs a fresh cache/page comparison."
+          ]
+        }
+      ],
+      "unknowns": [
+        "Single-scenery Falador wall/stiles have exact anchors but no verified opposite-side selectors/landing tiles. No invented side endpoints are admitted.",
+        "North Volcano route remains gated by manual plane/sequence review; anchors and cached effective planes are retained for that review."
+      ]
+    }
+  ],
+  "pendingRoutes": [
+    {
+      "id": "canoe-lumbridge--canoe-wilderness-pond",
+      "name": "Lumbridge canoe station → Wilderness pond",
+      "kind": "canoe",
+      "from": "canoe-lumbridge",
+      "to": "canoe-wilderness-pond",
+      "bidirectional": false,
+      "members": false,
+      "f2p": true,
+      "requirements": {
+        "levels": {
+          "Woodcutting": 57
+        },
+        "quests": [],
+        "items": [],
+        "fare": null,
+        "conditions": [],
+        "confirmations": [
+          "canoe-familiar-state-supported"
+        ]
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Canoe?oldid=37174554",
+          "detail": "RS3 F2P canoe travel: log one stop at 12 Woodcutting; dugout two stops at 27; stable dugout all four ordinary stations at 42; Waka every station at 57. Wilderness has no return canoe tree."
+        },
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Canoe_station?oldid=37176646",
+          "detail": "Four current station object maps and NPC-loaned/tool-belt hatchet support."
+        }
+      ],
+      "unknowns": [
+        "Exact RS3 Wilderness canoe arrival/station coordinate has not been verified; not admitted as a drawable route."
+      ],
+      "notes": [
+        "Waka is the only qualifying canoe; the Wilderness destination has no canoe tree and offers no return journey.",
+        "A carried/tool-belt hatchet or instructor loan can be used."
+      ]
+    },
+    {
+      "id": "canoe-champions-guild--canoe-wilderness-pond",
+      "name": "Champions' Guild canoe station → Wilderness pond",
+      "kind": "canoe",
+      "from": "canoe-champions-guild",
+      "to": "canoe-wilderness-pond",
+      "bidirectional": false,
+      "members": false,
+      "f2p": true,
+      "requirements": {
+        "levels": {
+          "Woodcutting": 57
+        },
+        "quests": [],
+        "items": [],
+        "fare": null,
+        "conditions": [],
+        "confirmations": [
+          "canoe-familiar-state-supported"
+        ]
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Canoe?oldid=37174554",
+          "detail": "RS3 F2P canoe travel: log one stop at 12 Woodcutting; dugout two stops at 27; stable dugout all four ordinary stations at 42; Waka every station at 57. Wilderness has no return canoe tree."
+        },
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Canoe_station?oldid=37176646",
+          "detail": "Four current station object maps and NPC-loaned/tool-belt hatchet support."
+        }
+      ],
+      "unknowns": [
+        "Exact RS3 Wilderness canoe arrival/station coordinate has not been verified; not admitted as a drawable route."
+      ],
+      "notes": [
+        "Waka is the only qualifying canoe; the Wilderness destination has no canoe tree and offers no return journey.",
+        "A carried/tool-belt hatchet or instructor loan can be used."
+      ]
+    },
+    {
+      "id": "canoe-barbarian-village--canoe-wilderness-pond",
+      "name": "Barbarian Village canoe station → Wilderness pond",
+      "kind": "canoe",
+      "from": "canoe-barbarian-village",
+      "to": "canoe-wilderness-pond",
+      "bidirectional": false,
+      "members": false,
+      "f2p": true,
+      "requirements": {
+        "levels": {
+          "Woodcutting": 57
+        },
+        "quests": [],
+        "items": [],
+        "fare": null,
+        "conditions": [],
+        "confirmations": [
+          "canoe-familiar-state-supported"
+        ]
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Canoe?oldid=37174554",
+          "detail": "RS3 F2P canoe travel: log one stop at 12 Woodcutting; dugout two stops at 27; stable dugout all four ordinary stations at 42; Waka every station at 57. Wilderness has no return canoe tree."
+        },
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Canoe_station?oldid=37176646",
+          "detail": "Four current station object maps and NPC-loaned/tool-belt hatchet support."
+        }
+      ],
+      "unknowns": [
+        "Exact RS3 Wilderness canoe arrival/station coordinate has not been verified; not admitted as a drawable route."
+      ],
+      "notes": [
+        "Waka is the only qualifying canoe; the Wilderness destination has no canoe tree and offers no return journey.",
+        "A carried/tool-belt hatchet or instructor loan can be used."
+      ]
+    },
+    {
+      "id": "canoe-edgeville--canoe-wilderness-pond",
+      "name": "Edgeville canoe station → Wilderness pond",
+      "kind": "canoe",
+      "from": "canoe-edgeville",
+      "to": "canoe-wilderness-pond",
+      "bidirectional": false,
+      "members": false,
+      "f2p": true,
+      "requirements": {
+        "levels": {
+          "Woodcutting": 57
+        },
+        "quests": [],
+        "items": [],
+        "fare": null,
+        "conditions": [],
+        "confirmations": [
+          "canoe-familiar-state-supported"
+        ]
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Canoe?oldid=37174554",
+          "detail": "RS3 F2P canoe travel: log one stop at 12 Woodcutting; dugout two stops at 27; stable dugout all four ordinary stations at 42; Waka every station at 57. Wilderness has no return canoe tree."
+        },
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Canoe_station?oldid=37176646",
+          "detail": "Four current station object maps and NPC-loaned/tool-belt hatchet support."
+        }
+      ],
+      "unknowns": [
+        "Exact RS3 Wilderness canoe arrival/station coordinate has not been verified; not admitted as a drawable route."
+      ],
+      "notes": [
+        "Waka is the only qualifying canoe; the Wilderness destination has no canoe tree and offers no return journey.",
+        "A carried/tool-belt hatchet or instructor loan can be used."
+      ]
+    },
+    {
+      "id": "home-teleport--lodestone-ashdale",
+      "name": "Home Teleport to Ashdale",
+      "kind": "lodestone",
+      "from": null,
+      "to": "lodestone-ashdale",
+      "bidirectional": false,
+      "members": false,
+      "f2p": true,
+      "requirements": {
+        "levels": {},
+        "quests": [],
+        "items": [],
+        "fare": null,
+        "conditions": [
+          "teleport-origin-permitted"
+        ],
+        "confirmations": [
+          "lodestone-ashdale-activated"
+        ]
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Ashdale_lodestone?oldid=36689040",
+          "detail": "Specific lodestone page verifies membership and activation/build requirement."
+        },
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Home_Teleport?oldid=37178861",
+          "detail": "No rune/level requirement; activated destinations are available from the Home Teleport interface. Cast may be interrupted by attack; PvP opt-in restricts use above level 20 Wilderness."
+        }
+      ],
+      "unknowns": [
+        "Exact raw destination is available, but a matching current cache map projection is absent. Do not assign a guessed map ID or display plane."
+      ],
+      "notes": [
+        "Destination must already be activated/built.",
+        "Teleport must be permitted at the current origin; PvP opt-in limits normal teleporting above level 20 Wilderness."
+      ]
+    },
+    {
+      "id": "home-teleport--lodestone-prifddinas",
+      "name": "Home Teleport to Prifddinas",
+      "kind": "lodestone",
+      "from": null,
+      "to": "lodestone-prifddinas",
+      "bidirectional": false,
+      "members": true,
+      "f2p": false,
+      "requirements": {
+        "levels": {},
+        "quests": [
+          "Plague's End"
+        ],
+        "items": [],
+        "fare": null,
+        "conditions": [
+          "teleport-origin-permitted"
+        ],
+        "confirmations": [
+          "lodestone-prifddinas-activated"
+        ]
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Prifddinas_lodestone?oldid=37129085",
+          "detail": "Specific lodestone page verifies membership and activation/build requirement."
+        },
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Home_Teleport?oldid=37178861",
+          "detail": "No rune/level requirement; activated destinations are available from the Home Teleport interface. Cast may be interrupted by attack; PvP opt-in restricts use above level 20 Wilderness."
+        }
+      ],
+      "unknowns": [
+        "Exact raw destination is available, but a matching current cache map projection is absent. Do not assign a guessed map ID or display plane."
+      ],
+      "notes": [
+        "Destination must already be activated/built.",
+        "Teleport must be permitted at the current origin; PvP opt-in limits normal teleporting above level 20 Wilderness."
+      ]
+    }
+  ],
+  "unresolvedDestinations": [
+    {
+      "id": "canoe-wilderness-pond",
+      "name": "Wilderness pond canoe destination",
+      "members": false,
+      "f2p": true,
+      "oneWayArrival": true,
+      "coordinate": null,
+      "reason": "No exact current Wiki object map or copied-cache canoe destination marker was found. A regional map centre or nearby monster marker is not evidence of the station.",
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Canoe?oldid=37174554",
+          "detail": "Level 35 Wilderness pond is an arrival-only Waka destination."
+        },
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Wet_and_Wildy?oldid=36635891",
+          "detail": "The Waka-to-Wilderness achievement is F2P and requires 57 Woodcutting."
+        }
+      ]
+    },
+    {
+      "id": "lodestone-ashdale",
+      "name": "Ashdale lodestone",
+      "rawCoordinate": {
+        "x": 2474,
+        "y": 2709,
+        "plane": 2
+      },
+      "structId": 24320,
+      "coordinateEvidence": {
+        "kind": "cache-typed-coordinate",
+        "file": ".local/game-data/places-2026-10-08-v3/travel.v1.json",
+        "pointer": "lodestones[structId=24320].coordinates[param=2941]"
+      }
+    },
+    {
+      "id": "lodestone-prifddinas",
+      "name": "Prifddinas lodestone",
+      "rawCoordinate": {
+        "x": 2208,
+        "y": 3361,
+        "plane": 1
+      },
+      "structId": 24321,
+      "coordinateEvidence": {
+        "kind": "cache-typed-coordinate",
+        "file": ".local/game-data/places-2026-10-08-v3/travel.v1.json",
+        "pointer": "lodestones[structId=24321].coordinates[param=2941]"
+      }
+    }
+  ],
+  "obstacles": [
+    {
+      "station": "falador-crumbling-wall",
+      "objectId": 11844,
+      "members": false,
+      "f2p": true,
+      "levels": {
+        "Agility": 5
+      },
+      "requirementStatus": "Verified numeric level",
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Crumbling_wall_(Falador)?oldid=36205746",
+          "detail": "Specific F2P scenery and exact marker; opposite-side landing tiles are not documented."
+        }
+      ],
+      "unknowns": []
+    },
+    {
+      "station": "falador-farm-stile-3043-3305",
+      "objectId": 85080,
+      "members": false,
+      "f2p": true,
+      "levels": {
+        "Agility": 1
+      },
+      "requirementStatus": "Verified numeric level",
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Stile_(Falador_farm)?oldid=36476079",
+          "detail": "Specific F2P scenery and exact marker; opposite-side landing tiles are not documented."
+        }
+      ],
+      "unknowns": []
+    },
+    {
+      "station": "falador-farm-stile-3063-3282",
+      "objectId": 85080,
+      "members": false,
+      "f2p": true,
+      "levels": {
+        "Agility": 1
+      },
+      "requirementStatus": "Verified numeric level",
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Stile_(Falador_farm)?oldid=36476079",
+          "detail": "Specific F2P scenery and exact marker; opposite-side landing tiles are not documented."
+        }
+      ],
+      "unknowns": []
+    },
+    {
+      "station": "north-volcano-north-ledge",
+      "objectId": 124615,
+      "members": false,
+      "f2p": true,
+      "levels": {},
+      "requirementStatus": "No numeric Agility requirement stated on specific Wiki page; not independently tested.",
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Ledge_(Wilderness_North_Volcano)?oldid=35935716",
+          "detail": "Specific F2P scenery and exact marker; opposite-side landing tiles are not documented."
+        }
+      ],
+      "unknowns": [
+        "Cache raw and effective bridge planes differ; route use requires plane mapping review."
+      ]
+    },
+    {
+      "station": "north-volcano-east-up",
+      "objectId": 124616,
+      "members": false,
+      "f2p": true,
+      "levels": {},
+      "requirementStatus": "No numeric Agility requirement stated on specific Wiki page; not independently tested.",
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Ledge_(Wilderness_North_Volcano)?oldid=35935716",
+          "detail": "Specific F2P scenery and exact marker; opposite-side landing tiles are not documented."
+        }
+      ],
+      "unknowns": [
+        "Cache raw and effective bridge planes differ; route use requires plane mapping review."
+      ]
+    },
+    {
+      "station": "north-volcano-east-down",
+      "objectId": 124617,
+      "members": false,
+      "f2p": true,
+      "levels": {},
+      "requirementStatus": "No numeric Agility requirement stated on specific Wiki page; not independently tested.",
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Ledge_(Wilderness_North_Volcano)?oldid=35935716",
+          "detail": "Specific F2P scenery and exact marker; opposite-side landing tiles are not documented."
+        }
+      ],
+      "unknowns": [
+        "Cache raw and effective bridge planes differ; route use requires plane mapping review."
+      ]
+    },
+    {
+      "station": "north-volcano-top-ledge",
+      "objectId": 124618,
+      "members": false,
+      "f2p": true,
+      "levels": {},
+      "requirementStatus": "No numeric Agility requirement stated on specific Wiki page; not independently tested.",
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Ledge_(Wilderness_North_Volcano)?oldid=35935716",
+          "detail": "Specific F2P scenery and exact marker; opposite-side landing tiles are not documented."
+        }
+      ],
+      "unknowns": []
+    },
+    {
+      "station": "north-volcano-stepping-stone",
+      "objectId": 124614,
+      "members": false,
+      "f2p": true,
+      "levels": {},
+      "requirementStatus": "No numeric Agility requirement stated on specific Wiki page; not independently tested.",
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Stepping_stone_(Wilderness_North_Volcano)?oldid=36416075",
+          "detail": "Specific F2P scenery and exact marker; opposite-side landing tiles are not documented."
+        }
+      ],
+      "unknowns": []
+    },
+    {
+      "station": "fred-farm-stile",
+      "objectId": 45205,
+      "members": false,
+      "f2p": true,
+      "levels": {
+        "Agility": 1
+      },
+      "provenance": [
+        {
+          "kind": "wiki",
+          "url": "https://runescape.wiki/w/Stile_(Fred's_farm)?oldid=36476077",
+          "detail": "F2P level-1 shortcut exact Wiki scenery map."
+        }
+      ],
+      "unknowns": [
+        "Copied current cache object 45205 was found elsewhere, not at this Wiki coordinate; Fred's current scenery identity needs a fresh cache/page comparison."
+      ]
+    }
+  ]
+}

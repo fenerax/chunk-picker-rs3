@@ -1,0 +1,1266 @@
+{
+  "schemaVersion": 1,
+  "provenance": {
+    "generatedAt": "2026-10-08T02:14:12.337Z",
+    "decoder": {
+      "repository": "https://github.com/skillbert/rsmv",
+      "commit": "a92b8920b9b9842adde78822646ecad1a6f4fc15",
+      "buildSchema": 950,
+      "buildStatus": "inferred schema version; not independently verified game client build",
+      "sourceHashes": {
+        "constants": "1436162d7de64725f3b5902d1ae278f40e2dce5ab1f82439e62a2a832d82c66b",
+        "opcode": "5fd7b69a0be0a5d4ec71b5465afcfd5812e8dbcc05f859e021ca8c17d85ed6e4"
+      },
+      "schemaHashes": {
+        "typedef.jsonc": "0d4037507c304ea3bd1e966a161dc1643115c0991e81711bf49d672545dc6858",
+        "cacheindex.json": "b65b2f60dba6168134f6ae5c90d5504dcf26f276477bd2aff213c6734293f793",
+        "mapsquare_tiles.jsonc": "64deb140845bf6605456da65b2de56e7766a66f4747fc90f43e7f3fcc95afbdd",
+        "mapsquare_tiles_nxt.jsonc": "0199a97ae17a56b5a4f05b5962fd80788e86807ceff1256d023a2e650f43be56",
+        "mapsquare_locations.json": "41867d05f7f9456c54f2eedda9a977734b99e33736b89c2cece1eb618a99b308",
+        "locs.jsonc": "fbd5f1d646341a716e1c3c4b41a112727e62922290b44300e69ba8e2aa70c51f",
+        "npcs.jsonc": "1b3b3ffa02e325c0aecafb7d7b22ff7256f11494ab37685115cfd795b0fa4af2",
+        "maplabels.jsonc": "e3bd3e0d827f48ddbb1470e2959c51da23624a4e0fdfc145fa37d62bce780d63",
+        "maplabellocations.jsonc": "5b95af45643e545ca75c9bc4f2d942c033b994a01a00e243d93c36e49372e342",
+        "mapzones_pastes.json": "30f83ad60a5e372e1644627aa234eeca22bbd8e1ece36c44e87a0229f20e40fa",
+        "mapzones.json": "8ba12ea64687bf7376978682ca35688adf1d05a9dca221073dc79f5060f15b29",
+        "mapsquare_overlays.jsonc": "ebf509b0cfeba3288750e40b2049ccd25a210170e54fad7fb387619043954d62",
+        "mapsquare_underlays.jsonc": "2b2f0db789c666d40d85a9764aa4e3ecb9b36bd8f0cacf89e3024180b76b5478",
+        "quests.jsonc": "045f2f579c6cafe4bfe88c23016dd2a8382921eed9d46c6de3ad66144bd78eeb",
+        "achievements.jsonc": "a2e90768fbe4060b059def9ee5c7dbc7d9a9c0fdc4729f1e2104ee3e50726d0a",
+        "enums.json": "860ee65ad6cd215960981695e8148de18564464f4375e27eb6b308fbad6c909d",
+        "structs.jsonc": "bf73399b40d9ebffb6f7beb5cab9c7b091724e6bcae0c5f76f61802a081d9870",
+        "params.jsonc": "a8ac70f87c66b79fa5ef3455d41c38434fa0a85cf78ea99b8a736ddc1aecc4dd"
+      }
+    },
+    "reference": {
+      "path": "C:/Users/User/Projects/chunk-picker-rs3-wt/cachemine/rs3-chunkpicker-chunkinfo-export.json",
+      "sha256": "9dd835266f381abaa4d14033abcd0b43a001fe96d7df0a7f046fcc8676d66553"
+    },
+    "manifest": "quests-achievements.manifest.v1.json",
+    "status": "advisory; no runtime integration"
+  },
+  "counts": {
+    "questConfigs": 534,
+    "namedQuestListEntries": 365,
+    "questListEntriesWithoutDiscontinuedFlag": 356,
+    "achievements": 5098,
+    "removedAchievements": 94,
+    "enums": 16755,
+    "structs": 53501,
+    "params": 9498,
+    "decodeErrors": 0,
+    "questsWithSkills": 226,
+    "questsWithQuestRequirements": 234,
+    "questsWithLengthParam": 364,
+    "achievementsWithSkillArrays": 1486,
+    "achievementsWithStateConditions": 4208
+  },
+  "comparison": {
+    "retainedQuestNames": 431,
+    "questNames": {
+      "unique-quest": 337,
+      "achievement-only-name": 58,
+      "unmatched": 35,
+      "ambiguous-achievement-only-name": 1
+    },
+    "questTaskRows": 3515,
+    "wholeQuestCompletionRows": 428,
+    "questRows": {
+      "unique-name": 3011,
+      "unmatched": 504
+    },
+    "questMetadata": {
+      "questPoints": {
+        "match": 337,
+        "mismatch": 1
+      },
+      "members": {
+        "match": 335,
+        "mismatch": 3
+      }
+    },
+    "achievementTaskRows": 2650,
+    "achievementRows": {
+      "unique-name": 2446,
+      "unmatched": 188,
+      "ambiguous-name": 16
+    },
+    "achievementMetadata": {
+      "runescore": {
+        "match": 2181,
+        "mismatch": 162
+      },
+      "description": {
+        "match": 1706,
+        "mismatch": 740
+      }
+    },
+    "replacementEstimates": {
+      "wholeQuestNameMembersPointsCandidates": 338,
+      "achievementNameDescriptionScoreCandidates": 2446,
+      "completeQuestStepReplacement": 0,
+      "completeAchievementTaskReplacement": 0
+    }
+  },
+  "lengthEvidence": {
+    "schemaField": "quest extra param7855",
+    "paramDefinition": {
+      "type": {
+        "vartype": 0,
+        "defaultint": 4,
+        "defaultstring": null
+      }
+    },
+    "enumId": 13354,
+    "enumDefinition": {
+      "key_type2": 0,
+      "value_type2": 36,
+      "stringArrayValue2": {
+        "max": 10,
+        "values": [
+          [
+            0,
+            "Seasonal"
+          ],
+          [
+            1,
+            "Very Short"
+          ],
+          [
+            2,
+            "Short"
+          ],
+          [
+            3,
+            "Short to Medium"
+          ],
+          [
+            4,
+            "Medium"
+          ],
+          [
+            5,
+            "Medium to Long"
+          ],
+          [
+            6,
+            "Long"
+          ],
+          [
+            7,
+            "Long to Very Long"
+          ],
+          [
+            8,
+            "Very Long"
+          ],
+          [
+            9,
+            "Very, Very Long"
+          ]
+        ]
+      },
+      "stringValue": ""
+    },
+    "script": {
+      "major": 12,
+      "minor": 4011,
+      "containsLengthLabel": true,
+      "enumPosition": 5552,
+      "paramPosition": 5565,
+      "adjacentConstantBytesHex": "34000000342a05c30000000003340000001eaf050b00036e",
+      "limitation": "Byte adjacency is supporting evidence; obfuscated client opcodes were not executed or fully decompiled."
+    }
+  },
+  "wikiEvidence": [
+    {
+      "title": "Cook's Assistant",
+      "pageId": 195,
+      "revisionId": 37199440,
+      "revisionTimestamp": "2026-10-06T20:22:14Z",
+      "revisionUrl": "https://runescape.wiki/w/Special:PermanentLink/37199440",
+      "responsePageSha256": "0fafb8c328dc7bee6d3638d56a04c9e5a48fd3f23fadc4df0a04b2b0d5a215b9",
+      "evidenceLines": [
+        "|members = No",
+        "|difficulty = Novice",
+        "|id = 257",
+        "|difficulty = Novice",
+        "|length = Short",
+        "|members = No",
+        "|qp = 1"
+      ],
+      "fields": [
+        {
+          "field": "id",
+          "wiki": 257,
+          "cache": 257,
+          "status": "match"
+        },
+        {
+          "field": "members",
+          "wiki": false,
+          "cache": false,
+          "status": "match"
+        },
+        {
+          "field": "difficulty",
+          "wiki": "Novice",
+          "cache": "Novice",
+          "status": "match"
+        },
+        {
+          "field": "length",
+          "wiki": "Short",
+          "cache": "Short",
+          "status": "match"
+        },
+        {
+          "field": "questPoints",
+          "wiki": 1,
+          "cache": 1,
+          "status": "match"
+        }
+      ],
+      "status": "match",
+      "interpretation": "Fields parsed from this exact Wiki revision; requirements limited to the named sample fields, no whole-catalog validation claim."
+    },
+    {
+      "title": "Dragon Slayer",
+      "pageId": 2059,
+      "revisionId": 37182736,
+      "revisionTimestamp": "2026-09-21T21:58:01Z",
+      "revisionUrl": "https://runescape.wiki/w/Special:PermanentLink/37182736",
+      "responsePageSha256": "2676d808858d862ccf84ab50ea85022294003ed9356c955f57c4ac2bcc29a342",
+      "evidenceLines": [
+        "|members = No",
+        "|difficulty = Experienced",
+        "|id = 66",
+        "|difficulty = Experienced",
+        "|length = Long",
+        "|members = No",
+        "* {{Skillreq|Quest points|33}}",
+        "|qp = 2"
+      ],
+      "fields": [
+        {
+          "field": "id",
+          "wiki": 66,
+          "cache": 66,
+          "status": "match"
+        },
+        {
+          "field": "members",
+          "wiki": false,
+          "cache": false,
+          "status": "match"
+        },
+        {
+          "field": "difficulty",
+          "wiki": "Experienced",
+          "cache": "Experienced",
+          "status": "match"
+        },
+        {
+          "field": "length",
+          "wiki": "Long",
+          "cache": "Long",
+          "status": "match"
+        },
+        {
+          "field": "questPoints",
+          "wiki": 2,
+          "cache": 2,
+          "status": "match"
+        },
+        {
+          "field": "questPointRequirement",
+          "wiki": 33,
+          "cache": 33,
+          "status": "match"
+        }
+      ],
+      "status": "match",
+      "interpretation": "Fields parsed from this exact Wiki revision; requirements limited to the named sample fields, no whole-catalog validation claim."
+    },
+    {
+      "title": "Gunnar's Ground",
+      "pageId": 215930,
+      "revisionId": 37177980,
+      "revisionTimestamp": "2026-09-15T13:41:55Z",
+      "revisionUrl": "https://runescape.wiki/w/Special:PermanentLink/37177980",
+      "responsePageSha256": "3a777be9395961131507b8291913e8fcc90df3f4dc24ef050db93918d2f20d4d",
+      "evidenceLines": [
+        "|members = No",
+        "|difficulty = Novice",
+        "|id = 341",
+        "|difficulty = Novice",
+        "|length = Short to Medium",
+        "|members = No",
+        "* {{Skillreq|Crafting|5}}",
+        "|qp = 5"
+      ],
+      "fields": [
+        {
+          "field": "id",
+          "wiki": 341,
+          "cache": 341,
+          "status": "match"
+        },
+        {
+          "field": "members",
+          "wiki": false,
+          "cache": false,
+          "status": "match"
+        },
+        {
+          "field": "difficulty",
+          "wiki": "Novice",
+          "cache": "Novice",
+          "status": "match"
+        },
+        {
+          "field": "length",
+          "wiki": "Short to Medium",
+          "cache": "Short to Medium",
+          "status": "match"
+        },
+        {
+          "field": "questPoints",
+          "wiki": 5,
+          "cache": 5,
+          "status": "match"
+        },
+        {
+          "field": "skills",
+          "wiki": [
+            {
+              "skill": 12,
+              "level": 5
+            }
+          ],
+          "cache": [
+            {
+              "skill": 12,
+              "level": 5
+            }
+          ],
+          "status": "match"
+        }
+      ],
+      "status": "match",
+      "interpretation": "Fields parsed from this exact Wiki revision; requirements limited to the named sample fields, no whole-catalog validation claim."
+    },
+    {
+      "title": "Yoink!",
+      "pageId": 272461,
+      "revisionId": 36635092,
+      "revisionTimestamp": "2025-01-18T02:46:51Z",
+      "revisionUrl": "https://runescape.wiki/w/Special:PermanentLink/36635092",
+      "responsePageSha256": "8271c9512ee1dded0fc6db0ac171300caa071a3abcd80b019aeb67db5f162459",
+      "evidenceLines": [
+        "|id = 448",
+        "|members = Yes",
+        "|score = 5",
+        "* {{Skillreq|Thieving|5}}"
+      ],
+      "fields": [
+        {
+          "field": "id",
+          "wiki": 448,
+          "cache": 448,
+          "status": "match"
+        },
+        {
+          "field": "f2pFlag",
+          "wiki": false,
+          "cache": false,
+          "status": "match"
+        },
+        {
+          "field": "runescore",
+          "wiki": 5,
+          "cache": 5,
+          "status": "match"
+        },
+        {
+          "field": "skills",
+          "wiki": [
+            {
+              "skill": 17,
+              "level": 5
+            }
+          ],
+          "cache": [
+            {
+              "skill": 17,
+              "level": 5
+            }
+          ],
+          "status": "match"
+        }
+      ],
+      "status": "match",
+      "interpretation": "Fields parsed from this exact Wiki revision; requirements limited to the named sample fields, no whole-catalog validation claim."
+    },
+    {
+      "title": "Lumbridge Strikes Back",
+      "pageId": 606473,
+      "revisionId": 37179728,
+      "revisionTimestamp": "2026-09-18T22:18:22Z",
+      "revisionUrl": "https://runescape.wiki/w/Special:PermanentLink/37179728",
+      "responsePageSha256": "1fc330d06db321f59add07dcea143bfef9a3a9eafd5c8dcc36e84057121386ab",
+      "evidenceLines": [
+        "|id = 1248",
+        "|members = Yes",
+        "|score = 25"
+      ],
+      "fields": [
+        {
+          "field": "id",
+          "wiki": 1248,
+          "cache": 1248,
+          "status": "match"
+        },
+        {
+          "field": "f2pFlag",
+          "wiki": false,
+          "cache": false,
+          "status": "match"
+        },
+        {
+          "field": "runescore",
+          "wiki": 25,
+          "cache": 25,
+          "status": "match"
+        }
+      ],
+      "status": "match",
+      "interpretation": "Fields parsed from this exact Wiki revision; requirements limited to the named sample fields, no whole-catalog validation claim."
+    }
+  ],
+  "samples": {
+    "quests": [
+      {
+        "id": 66,
+        "source": {
+          "major": 2,
+          "minor": 35,
+          "subid": 66
+        },
+        "name": "Dragon Slayer",
+        "questListName": "Dragon Slayer",
+        "listEntry": true,
+        "discontinuedStatus": null,
+        "members": false,
+        "questPoints": 2,
+        "difficulty": {
+          "code": 2,
+          "label": "Experienced",
+          "enumId": 2251,
+          "evidence": "Named quest_difficulty schema field; enum labels corroborated by Wiki samples."
+        },
+        "length": {
+          "code": 6,
+          "label": "Long",
+          "paramId": 7855,
+          "enumId": 13354,
+          "interpretation": "inferred: quest UI script4011 contains adjacent enum13354 and param7855; three Wiki revision samples agree",
+          "missingPolicy": "No default is substituted when the quest omits this param."
+        },
+        "requirements": {
+          "skills": [],
+          "quests": [],
+          "questPoints": 33
+        },
+        "subquestOf": null,
+        "stateFields": {
+          "varps": [
+            {
+              "varp": 2268,
+              "startvalue": 1,
+              "endvalue": 10
+            }
+          ],
+          "varbits": [],
+          "varbitsV2": []
+        },
+        "startLocationPath": [
+          52284706
+        ],
+        "alternateQuestStart": null,
+        "raw": {
+          "quest_list_name": "Dragon Slayer",
+          "quest_point_req": 33,
+          "quest_difficulty": 2,
+          "quest_item_sprite": 33638,
+          "quest_points": 2,
+          "name": "Dragon Slayer",
+          "varps": [
+            {
+              "varp": 2268,
+              "startvalue": 1,
+              "endvalue": 10
+            }
+          ],
+          "start_location_path": [
+            52284706
+          ],
+          "extra": [
+            {
+              "prop": 1345,
+              "intvalue": 4,
+              "stringvalue": null
+            },
+            {
+              "prop": 7158,
+              "intvalue": 17,
+              "stringvalue": null
+            },
+            {
+              "prop": 7219,
+              "intvalue": null,
+              "stringvalue": "D"
+            },
+            {
+              "prop": 7855,
+              "intvalue": 6,
+              "stringvalue": null
+            },
+            {
+              "prop": 7815,
+              "intvalue": null,
+              "stringvalue": "An unfired bowl, a wizard's mind bomb, a crayfish cage or lobster pot, a piece of silk, 2,000-12,000 coins (less if you bring Telekinetic Grab runes and a non-melee weapon), 3 regular planks and 90 steel nails."
+            },
+            {
+              "prop": 7816,
+              "intvalue": null,
+              "stringvalue": "You will need to defeat a level 63 dragon, a level 56 demon, a level 39 mage, and various lesser foes. 50+ in combat skills and 37+ Prayer are recommended."
+            },
+            {
+              "prop": 857,
+              "intvalue": 12,
+              "stringvalue": null
+            },
+            {
+              "prop": 9393,
+              "intvalue": 11,
+              "stringvalue": null
+            },
+            {
+              "prop": 7814,
+              "intvalue": null,
+              "stringvalue": "Talk to the Guildmaster inside the Champions' Guild, south of Varrock."
+            },
+            {
+              "prop": 5968,
+              "intvalue": null,
+              "stringvalue": "Prove yourself a true hero. Kill the mighty dragon Elvarg of Crandor to join the Champions' Guild."
+            },
+            {
+              "prop": 7829,
+              "intvalue": 4428,
+              "stringvalue": null
+            },
+            {
+              "prop": 7834,
+              "intvalue": 2001,
+              "stringvalue": null
+            },
+            {
+              "prop": 7835,
+              "intvalue": 20,
+              "stringvalue": null
+            },
+            {
+              "prop": 7831,
+              "intvalue": 1,
+              "stringvalue": null
+            },
+            {
+              "prop": 7159,
+              "intvalue": 3,
+              "stringvalue": null
+            },
+            {
+              "prop": 7160,
+              "intvalue": 1,
+              "stringvalue": null
+            },
+            {
+              "prop": 7818,
+              "intvalue": null,
+              "stringvalue": "18,650 Strength XP lamp"
+            },
+            {
+              "prop": 7819,
+              "intvalue": null,
+              "stringvalue": "18,650 Defence XP lamp"
+            },
+            {
+              "prop": 7823,
+              "intvalue": null,
+              "stringvalue": "A rune platebody<br>Anti-dragon shield<br>Access to Crandor, Melzar's Maze and the dragon crest on herald capes"
+            }
+          ]
+        }
+      },
+      {
+        "id": 257,
+        "source": {
+          "major": 2,
+          "minor": 35,
+          "subid": 257
+        },
+        "name": "Cook's Assistant",
+        "questListName": "Cook's Assistant",
+        "listEntry": true,
+        "discontinuedStatus": null,
+        "members": false,
+        "questPoints": 1,
+        "difficulty": {
+          "code": 0,
+          "label": "Novice",
+          "enumId": 2251,
+          "evidence": "Named quest_difficulty schema field; enum labels corroborated by Wiki samples."
+        },
+        "length": {
+          "code": 2,
+          "label": "Short",
+          "paramId": 7855,
+          "enumId": 13354,
+          "interpretation": "inferred: quest UI script4011 contains adjacent enum13354 and param7855; three Wiki revision samples agree",
+          "missingPolicy": "No default is substituted when the quest omits this param."
+        },
+        "requirements": {
+          "skills": [],
+          "quests": [],
+          "questPoints": null
+        },
+        "subquestOf": null,
+        "stateFields": {
+          "varps": [
+            {
+              "varp": 2492,
+              "startvalue": 1,
+              "endvalue": 2
+            }
+          ],
+          "varbits": [],
+          "varbitsV2": []
+        },
+        "startLocationPath": [
+          52579471
+        ],
+        "alternateQuestStart": null,
+        "raw": {
+          "quest_list_name": "Cook's Assistant",
+          "quest_difficulty": 0,
+          "quest_item_sprite": 26110,
+          "quest_points": 1,
+          "name": "Cook's Assistant",
+          "varps": [
+            {
+              "varp": 2492,
+              "startvalue": 1,
+              "endvalue": 2
+            }
+          ],
+          "start_location_path": [
+            52579471
+          ],
+          "extra": [
+            {
+              "prop": 1345,
+              "intvalue": 1,
+              "stringvalue": null
+            },
+            {
+              "prop": 7158,
+              "intvalue": 2,
+              "stringvalue": null
+            },
+            {
+              "prop": 7219,
+              "intvalue": null,
+              "stringvalue": "C"
+            },
+            {
+              "prop": 7855,
+              "intvalue": 2,
+              "stringvalue": null
+            },
+            {
+              "prop": 887,
+              "intvalue": 1931,
+              "stringvalue": null
+            },
+            {
+              "prop": 3822,
+              "intvalue": null,
+              "stringvalue": "(can be found in flour mill)"
+            },
+            {
+              "prop": 888,
+              "intvalue": 1925,
+              "stringvalue": null
+            },
+            {
+              "prop": 4061,
+              "intvalue": null,
+              "stringvalue": "(can be found near dairy cow)"
+            },
+            {
+              "prop": 9393,
+              "intvalue": 4,
+              "stringvalue": null
+            },
+            {
+              "prop": 7814,
+              "intvalue": null,
+              "stringvalue": "Talk to the cook in the kitchen of Lumbridge Castle."
+            },
+            {
+              "prop": 5968,
+              "intvalue": null,
+              "stringvalue": "The Lumbridge Castle cook needs ingredients to bake Duke Horacio's birthday cake."
+            },
+            {
+              "prop": 7829,
+              "intvalue": 2379,
+              "stringvalue": null
+            },
+            {
+              "prop": 7834,
+              "intvalue": 2001,
+              "stringvalue": null
+            },
+            {
+              "prop": 7835,
+              "intvalue": 1,
+              "stringvalue": null
+            },
+            {
+              "prop": 7831,
+              "intvalue": 1,
+              "stringvalue": null
+            },
+            {
+              "prop": 7159,
+              "intvalue": 1,
+              "stringvalue": null
+            },
+            {
+              "prop": 7160,
+              "intvalue": 1,
+              "stringvalue": null
+            },
+            {
+              "prop": 7818,
+              "intvalue": null,
+              "stringvalue": "300 Cooking XP"
+            },
+            {
+              "prop": 6864,
+              "intvalue": 500,
+              "stringvalue": null
+            },
+            {
+              "prop": 6852,
+              "intvalue": 995,
+              "stringvalue": null
+            },
+            {
+              "prop": 7705,
+              "intvalue": 3,
+              "stringvalue": null
+            },
+            {
+              "prop": 6853,
+              "intvalue": 326,
+              "stringvalue": null
+            },
+            {
+              "prop": 7876,
+              "intvalue": null,
+              "stringvalue": "(noted)"
+            },
+            {
+              "prop": 7823,
+              "intvalue": null,
+              "stringvalue": "Access to the cook's range"
+            }
+          ]
+        }
+      },
+      {
+        "id": 341,
+        "source": {
+          "major": 2,
+          "minor": 35,
+          "subid": 341
+        },
+        "name": "Gunnar's Ground",
+        "questListName": "Gunnar's Ground",
+        "listEntry": true,
+        "discontinuedStatus": null,
+        "members": false,
+        "questPoints": 5,
+        "difficulty": {
+          "code": 0,
+          "label": "Novice",
+          "enumId": 2251,
+          "evidence": "Named quest_difficulty schema field; enum labels corroborated by Wiki samples."
+        },
+        "length": {
+          "code": 3,
+          "label": "Short to Medium",
+          "paramId": 7855,
+          "enumId": 13354,
+          "interpretation": "inferred: quest UI script4011 contains adjacent enum13354 and param7855; three Wiki revision samples agree",
+          "missingPolicy": "No default is substituted when the quest omits this param."
+        },
+        "requirements": {
+          "skills": [
+            {
+              "skill": 12,
+              "level": 5,
+              "skillName": "Crafting"
+            }
+          ],
+          "quests": [],
+          "questPoints": null
+        },
+        "subquestOf": null,
+        "stateFields": {
+          "varps": [],
+          "varbits": [],
+          "varbitsV2": [
+            {
+              "varbit": 9188,
+              "startvalue": 5,
+              "endvalue": 100
+            }
+          ]
+        },
+        "startLocationPath": [
+          50777438
+        ],
+        "alternateQuestStart": null,
+        "raw": {
+          "quest_list_name": "Gunnar's Ground",
+          "quest_difficulty": 0,
+          "quest_item_sprite": 26126,
+          "quest_points": 5,
+          "name": "Gunnar's Ground",
+          "varbits_v2": [
+            {
+              "varbit": 9188,
+              "startvalue": 5,
+              "endvalue": 100
+            }
+          ],
+          "start_location_path": [
+            50777438
+          ],
+          "skill_requirements": [
+            {
+              "skill": 12,
+              "level": 5
+            }
+          ],
+          "extra": [
+            {
+              "prop": 1345,
+              "intvalue": 17,
+              "stringvalue": null
+            },
+            {
+              "prop": 7158,
+              "intvalue": 181,
+              "stringvalue": null
+            },
+            {
+              "prop": 7219,
+              "intvalue": null,
+              "stringvalue": "G"
+            },
+            {
+              "prop": 7855,
+              "intvalue": 3,
+              "stringvalue": null
+            },
+            {
+              "prop": 9393,
+              "intvalue": 23,
+              "stringvalue": null
+            },
+            {
+              "prop": 7814,
+              "intvalue": null,
+              "stringvalue": "Talk to Dororan outside the barbarian village."
+            },
+            {
+              "prop": 5968,
+              "intvalue": null,
+              "stringvalue": "Help a love-sick dwarf pursue the unlikely object of his affections!"
+            },
+            {
+              "prop": 7829,
+              "intvalue": 3797,
+              "stringvalue": null
+            },
+            {
+              "prop": 7888,
+              "intvalue": null,
+              "stringvalue": "This is a 2010 rework of 2001's 'Romeo and Juliet'."
+            },
+            {
+              "prop": 7834,
+              "intvalue": 2010,
+              "stringvalue": null
+            },
+            {
+              "prop": 7835,
+              "intvalue": 14,
+              "stringvalue": null
+            },
+            {
+              "prop": 7831,
+              "intvalue": 2,
+              "stringvalue": null
+            },
+            {
+              "prop": 7818,
+              "intvalue": null,
+              "stringvalue": "300 Crafting XP<br>Antique lamp"
+            },
+            {
+              "prop": 7823,
+              "intvalue": null,
+              "stringvalue": "Swanky boots<br>Talk to Dororan for more Crafting tasks"
+            }
+          ]
+        }
+      }
+    ],
+    "achievements": [
+      {
+        "id": 448,
+        "source": {
+          "major": 57,
+          "minor": 3,
+          "subid": 64
+        },
+        "name": "Yoink!",
+        "description": {
+          "textvariants": 1,
+          "unk0": 0,
+          "descr": "Attempt to steal from any stall in Ardougne Market, or from any guard.",
+          "unk1": null,
+          "descr_ironman": null,
+          "gimcount2": null,
+          "descr_gim2": null,
+          "gimcount3": null,
+          "descr_gim3": null,
+          "gimcount4": null,
+          "descr_gim4": null,
+          "gimcount5": null,
+          "descr_gim5": null
+        },
+        "category": 4766,
+        "subcategory": 4767,
+        "runescore": 5,
+        "f2pFlag": false,
+        "removed": false,
+        "hiddenCode": null,
+        "encodedRequirements": {
+          "skills": [
+            {
+              "ironman": 0,
+              "level": 5,
+              "text": "Skill: 5 Thieving",
+              "unk_0": 1,
+              "unk_1": 0,
+              "skill": 17,
+              "skillName": "Thieving"
+            }
+          ],
+          "skills2": [],
+          "previousAchievements": [],
+          "subAchievements": [],
+          "miniquestQuestReferences": [],
+          "associatedQuestReferences": []
+        },
+        "stateConditions": {
+          "progress_states_v2": [
+            {
+              "unk0": 0,
+              "value": 1,
+              "name": "",
+              "varbits": [
+                15819
+              ]
+            }
+          ]
+        },
+        "raw": {
+          "category": 4766,
+          "subcategory": 4767,
+          "runescore": 5,
+          "name": "Yoink!",
+          "description": {
+            "textvariants": 1,
+            "unk0": 0,
+            "descr": "Attempt to steal from any stall in Ardougne Market, or from any guard.",
+            "unk1": null,
+            "descr_ironman": null,
+            "gimcount2": null,
+            "descr_gim2": null,
+            "gimcount3": null,
+            "descr_gim3": null,
+            "gimcount4": null,
+            "descr_gim4": null,
+            "gimcount5": null,
+            "descr_gim5": null
+          },
+          "spriteId": 4395,
+          "skill_req_count": [
+            1
+          ],
+          "subach_skills": [
+            {
+              "ironman": 0,
+              "level": 5,
+              "text": "Skill: 5 Thieving",
+              "unk_0": 1,
+              "unk_1": 0,
+              "skill": 17
+            }
+          ],
+          "subreq_count": [
+            1
+          ],
+          "progress_states_v2": [
+            {
+              "unk0": 0,
+              "value": 1,
+              "name": "",
+              "varbits": [
+                15819
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "id": 1248,
+        "source": {
+          "major": 57,
+          "minor": 9,
+          "subid": 96
+        },
+        "name": "Lumbridge Strikes Back",
+        "description": {
+          "textvariants": 1,
+          "unk0": 0,
+          "descr": "Defeat Araxxor and Araxxi whilst wearing bronze armour on your head, torso and legs, and a bronze weapon in your main hand. Can only be completed in solo mode.",
+          "unk1": null,
+          "descr_ironman": null,
+          "gimcount2": null,
+          "descr_gim2": null,
+          "gimcount3": null,
+          "descr_gim3": null,
+          "gimcount4": null,
+          "descr_gim4": null,
+          "gimcount5": null,
+          "descr_gim5": null
+        },
+        "category": 4817,
+        "subcategory": 4822,
+        "runescore": 25,
+        "f2pFlag": false,
+        "removed": false,
+        "hiddenCode": null,
+        "encodedRequirements": {
+          "skills": [],
+          "skills2": [],
+          "previousAchievements": [],
+          "subAchievements": [],
+          "miniquestQuestReferences": [],
+          "associatedQuestReferences": []
+        },
+        "stateConditions": {
+          "progress_states_v2": [
+            {
+              "unk0": 0,
+              "value": 1,
+              "name": "",
+              "varbits": [
+                37122
+              ]
+            }
+          ]
+        },
+        "raw": {
+          "category": 4817,
+          "subcategory": 4822,
+          "runescore": 25,
+          "dbrow": 14313,
+          "name": "Lumbridge Strikes Back",
+          "description": {
+            "textvariants": 1,
+            "unk0": 0,
+            "descr": "Defeat Araxxor and Araxxi whilst wearing bronze armour on your head, torso and legs, and a bronze weapon in your main hand. Can only be completed in solo mode.",
+            "unk1": null,
+            "descr_ironman": null,
+            "gimcount2": null,
+            "descr_gim2": null,
+            "gimcount3": null,
+            "descr_gim3": null,
+            "gimcount4": null,
+            "descr_gim4": null,
+            "gimcount5": null,
+            "descr_gim5": null
+          },
+          "spriteId": 34766,
+          "subreq_count": [
+            1
+          ],
+          "progress_states_v2": [
+            {
+              "unk0": 0,
+              "value": 1,
+              "name": "",
+              "varbits": [
+                37122
+              ]
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "limits": [
+    "Quest list entries include subquests and discontinued seasonal entries; counts are not a live-game quest total.",
+    "Associated quest IDs, child achievement IDs, previous achievement IDs, skill arrays and varbit tests retain distinct schema meanings.",
+    "Unknown selectors/type/ironman fields remain encoded. State tests do not certify server gates or current completion.",
+    "Structs/enums/params are retained as typed support tables; an integer or typed reference alone is not classified as a requirement.",
+    "No internal filename database exists in this local cache snapshot; semantic names for extra params could not be read.",
+    "Authored quest steps, chunk geography, exact item gates, XP/reward parsing and account conditions remain necessary."
+  ],
+  "localOutput": "C:/Users/User/Projects/chunk-picker-rs3/.local/game-data/quests-achievements-2026-10-08-v2/",
+  "outputs": [
+    {
+      "path": "C:/Users/User/Projects/chunk-picker-rs3/.local/game-data/quests-achievements-2026-10-08-v2/quests.v1.json",
+      "bytes": 1110026,
+      "sha256": "da00bd1aef99e8d8c21a03b9267529da839796d9702d0e6ba12f1f698e7dfb07"
+    },
+    {
+      "path": "C:/Users/User/Projects/chunk-picker-rs3/.local/game-data/quests-achievements-2026-10-08-v2/achievements.v1.json",
+      "bytes": 7918511,
+      "sha256": "dce55f83327e8257902ef259ad43f5784847da6240bc952afa0d023a59a8d31c"
+    },
+    {
+      "path": "C:/Users/User/Projects/chunk-picker-rs3/.local/game-data/quests-achievements-2026-10-08-v2/quests-achievements.support.v1.json",
+      "bytes": 20011960,
+      "sha256": "15dec03658daed449137c2758682270f2583d1785ae1387f8e2356579a9af860"
+    },
+    {
+      "path": "C:/Users/User/Projects/chunk-picker-rs3/.local/game-data/quests-achievements-2026-10-08-v2/quests-achievements.comparison.v1.json",
+      "bytes": 2753206,
+      "sha256": "f0ac3ad25d77ced76bd0a67eb6327906964ca212e231d06c0251421c0a92e05e"
+    },
+    {
+      "path": "C:/Users/User/Projects/chunk-picker-rs3/.local/game-data/quests-achievements-2026-10-08-v2/quests-achievements.summary.v1.json",
+      "bytes": 19478,
+      "sha256": "2026c65f013de899d016bd85f3f7eab8fa39653c799982016aa001287e5fd8e8"
+    }
+  ],
+  "manifestSha256": "d20f78210c0c15ac870d18bc55848ae61537c33baed899ff07411fef14bf8cf0",
+  "questMetadataDisagreements": [
+    {
+      "label": "~|Beneath Scabaras' Sands|~ Complete the quest",
+      "name": "Beneath Scabaras' Sands",
+      "questIds": [
+        517
+      ],
+      "metadata": [
+        {
+          "field": "questPoints",
+          "retained": 2,
+          "cache": 2,
+          "status": "match"
+        },
+        {
+          "field": "members",
+          "retained": false,
+          "cache": true,
+          "status": "mismatch"
+        }
+      ]
+    },
+    {
+      "label": "~|Benedict's World Tour (miniquest)|~ Complete the miniquest",
+      "name": "Benedict's World Tour (miniquest)",
+      "questIds": [
+        436
+      ],
+      "metadata": [
+        {
+          "field": "questPoints",
+          "retained": 0,
+          "cache": 0,
+          "status": "match"
+        },
+        {
+          "field": "members",
+          "retained": true,
+          "cache": false,
+          "status": "mismatch"
+        }
+      ]
+    },
+    {
+      "label": "~|Kili's Knowledge|~ Complete the lore activity",
+      "name": "Kindred Spirits",
+      "questIds": [
+        384
+      ],
+      "metadata": [
+        {
+          "field": "questPoints",
+          "retained": 0,
+          "cache": 1,
+          "status": "mismatch"
+        },
+        {
+          "field": "members",
+          "retained": true,
+          "cache": true,
+          "status": "match"
+        }
+      ]
+    },
+    {
+      "label": "~|Princess and the Pauper|~ Complete the quest",
+      "name": "Princess and the Pauper",
+      "questIds": [
+        525
+      ],
+      "metadata": [
+        {
+          "field": "questPoints",
+          "retained": 1,
+          "cache": 1,
+          "status": "match"
+        },
+        {
+          "field": "members",
+          "retained": false,
+          "cache": true,
+          "status": "mismatch"
+        }
+      ]
+    }
+  ]
+}

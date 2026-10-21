@@ -1,0 +1,959 @@
+{
+  "schemaVersion": 1,
+  "entries": [
+    {
+      "date": "2026-10-16",
+      "title": "The gathering calculator knows about cooking, stairs and lodestones",
+      "items": [
+        "Compare cooking or fletching before dropping, including extra XP.",
+        "Include Lumbridge stairs, confirmed lodestones and optional Surge in bank trips.",
+        "Keep uncertain estimates and missing routes visible."
+      ]
+    },
+    {
+      "date": "2026-10-16",
+      "title": "Steadier calculator startup",
+      "items": [
+        "Prevent a rare Linux calculator crash.",
+        "Check startup order and wait until viewer results are ready."
+      ]
+    },
+    {
+      "date": "2026-10-16",
+      "title": "The picker fits more phones",
+      "items": [
+        "Phone tabs stay reachable in landscape and with larger text.",
+        "Pinch zoom works on wider touch screens.",
+        "Touch controls and fields are easier to use."
+      ]
+    },
+    {
+      "date": "2026-10-16",
+      "title": "Fold or unfold every skill at once",
+      "items": [
+        "Collapse or expand every shown skill group.",
+        "Remember folds across visits.",
+        "Works with player filters and phone controls."
+      ]
+    },
+    {
+      "date": "2026-10-15",
+      "title": "Tests run faster",
+      "items": [
+        "The full check that runs before each update now takes about 8 minutes on a quiet PC instead of about 12, so updates reach you sooner.",
+        "Every check still runs; the speed comes from reusing test setup instead of repeating it.",
+        "The public GitHub copy now tests itself automatically on GitHub, not on this PC."
+      ]
+    },
+    {
+      "date": "2026-10-15",
+      "title": "Ready to switch to the public core",
+      "items": [
+        "The original-picker sync, the development gallery, What's new and Roadmap now work on top of the public code through a locked private add-on.",
+        "A full trial on a copy of your save matched the current picker exactly: 61 comparisons, zero differences.",
+        "Checked start, stop and roll-back tools are ready but have not been used. Nothing about the live picker has changed yet."
+      ]
+    },
+    {
+      "date": "2026-10-15",
+      "title": "The F2P game gets equipment and drops",
+      "items": [
+        "The separate free-to-play game now has equipment goals: getting and wielding reviewed free weapons, armour and tools, with their real requirements.",
+        "Shops, monster drops and simple smithing or crafting recipes count as ways to get an item, and the task says which one.",
+        "Combat and what you are carrying are still checked by hand. Your own duo game is unchanged."
+      ]
+    },
+    {
+      "date": "2026-10-15",
+      "title": "The public core runs your game in a trial",
+      "items": [
+        "In a throwaway copy of your save, the public version of the picker plus your private game data ran your duo game with zero differences across 48 checks: tasks, rolls, Undo, History, backups, pictures and every kind of invite link.",
+        "Your live picker has not switched. The switch-over plan is written down, with a way back, and comes next."
+      ]
+    },
+    {
+      "date": "2026-10-15",
+      "title": "The F2P game gets quests and achievements",
+      "items": [
+        "The separate free-to-play game now lists 53 free quests and 15 area achievements from the RuneScape Wiki, each with its real requirements.",
+        "Where the picker cannot be sure (seasonal events, a castle kitchen it has not mapped, ingredients you might have to gather), the task says what to check by hand instead of guessing.",
+        "Your own duo game is unchanged."
+      ]
+    },
+    {
+      "date": "2026-10-14",
+      "title": "The public copy is ready to publish",
+      "items": [
+        "The public version leaves out the sync from the original picker completely. Your private picker keeps it in the same menu spot.",
+        "About 2,300 of the picker's tests now run in the public copy too (up from 39), covering tasks, saves, the map and security.",
+        "The leak scanner caught two new F2P tests that named your original map IDs, and those were made generic. Nothing is uploaded yet."
+      ]
+    },
+    {
+      "date": "2026-10-14",
+      "title": "The F2P game gets more trees, mines and paths",
+      "items": [
+        "The separate free-to-play game now has a level-1 Woodcutting start (dead trees around Lumbridge), plus maple, yew and the free Acadia trees west of Het's Oasis.",
+        "More mines and the Musa Point fishing spots are in, and walking paths now reach 40 of its original 47 areas. The rest stay hand-picked, each with a written reason.",
+        "Everything still comes from the RuneScape Wiki with credit. Your own duo game is unchanged."
+      ]
+    },
+    {
+      "date": "2026-10-14",
+      "title": "The F2P game gets shops, banks and travel",
+      "items": [
+        "The separate free-to-play game now knows 13 shops, 11 banks, deposit boxes and the Port Sarim ferry, all taken from the RuneScape Wiki with credit.",
+        "Fishing and other gathering tasks there now ask for the right tool and bait, and a shop in your area counts as a place to get them.",
+        "Walking routes between neighbouring towns now link 24 of its 47 areas. Your own duo game is unchanged."
+      ]
+    },
+    {
+      "date": "2026-10-14",
+      "title": "A clean public copy can be built",
+      "items": [
+        "One command builds a separate public version of the picker with fresh history, the free-to-play game as its default, and simple placeholder pictures.",
+        "A scanner stops the build if anything private gets through: names, links, local paths, game artwork or the original picker's data.",
+        "Nothing is uploaded yet. The sync-from-original-picker window now says \"the linked original maps\" instead of naming you both."
+      ]
+    },
+    {
+      "date": "2026-10-14",
+      "title": "Old archive cleared out",
+      "items": [
+        "The 3.8 GB folder of old work from before the rebuild is in the Recycle Bin. The one file a document still points to is kept."
+      ]
+    },
+    {
+      "date": "2026-10-13",
+      "title": "Map icons stay put while you pan",
+      "items": [
+        "When zoomed partway out, the map shows one icon per small area to avoid clutter. Those areas used to move with the screen, so panning swapped which icons appeared. They now stay fixed to the map."
+      ]
+    },
+    {
+      "date": "2026-10-13",
+      "title": "The starter game gets real F2P areas",
+      "items": [
+        "A separate free-to-play gathering game now covers 47 real areas around Lumbridge, Draynor, Port Sarim and Rimmington, with 92 woodcutting, fishing and mining tasks.",
+        "Every area and task comes from the RuneScape Wiki and credits the page it came from.",
+        "Inside that separate game, Settings → Advanced lists how many areas and tasks it has so far and what is still missing. Your duo picker only shows its data version there.",
+        "Your duo picker is unchanged."
+      ]
+    },
+    {
+      "date": "2026-10-13",
+      "title": "A separate starter game runs without private data",
+      "items": [
+        "A small starter game on a plain grid, with its own tasks and goals, can run on its own port with its own saves. This is the third step towards a public version.",
+        "It never opens your and Player 2's save, and refuses to start against it.",
+        "Your picker is unchanged: the same tasks, rules, names and links."
+      ]
+    },
+    {
+      "date": "2026-10-13",
+      "title": "Easier-to-read place names",
+      "items": [
+        "Place names are bolder, with a firmer dark edge so they stand out from the map.",
+        "Names are coloured by size: regions in gold, towns in white and smaller places in parchment.",
+        "Gallery samples load again after today's game data change."
+      ]
+    },
+    {
+      "date": "2026-10-13",
+      "title": "Game data can come from a local pack",
+      "items": [
+        "Game data and rule wording can load from checked local packs, the second step towards a public version of the picker.",
+        "A selected pack is checked before the save opens; a missing or damaged pack stops startup without touching the save.",
+        "Settings → Advanced shows which game data is in use and whether it is healthy.",
+        "Nothing changes in play: the same tasks, rules and history as before."
+      ]
+    },
+    {
+      "date": "2026-10-13",
+      "title": "Place names stay put",
+      "items": [
+        "Names no longer slide out of the way of the hover box; the box simply covers them while it is open.",
+        "Barbarian Village shows once, without the alternate \"(Barbarian Village)\" name the game uses for a switched setting."
+      ]
+    },
+    {
+      "date": "2026-10-13",
+      "title": "Gallery previews load again",
+      "items": [
+        "Every gallery preview showed a refused-to-connect error; they all load in their frame again.",
+        "Only the gallery preview may be framed, and only by the picker itself. Every other page still refuses."
+      ]
+    },
+    {
+      "date": "2026-10-13",
+      "title": "Admin menu",
+      "items": [
+        "Admin tools (invite links, OBS overlays, usage) now sit together in one Admin menu in the top bar.",
+        "The Component gallery opens from the Admin menu in a new tab.",
+        "Only admin sessions see the Admin menu, on desktop and on phones."
+      ]
+    },
+    {
+      "date": "2026-10-13",
+      "title": "Place names stop popping in and out",
+      "items": [
+        "The map used to show at most 32 place names at once, so names swapped in and out as you hovered or panned. Every name that fits now shows."
+      ]
+    },
+    {
+      "date": "2026-10-13",
+      "title": "Calmer, more consistent look",
+      "items": [
+        "Text sizes, spacing and corners now follow one shared scale, so headings, labels, buttons and chips look the same everywhere.",
+        "Task rows are tighter: Claim, Take over and Edit task sit on one line instead of stacking.",
+        "Greyed-out buttons such as Undo stay readable in every theme.",
+        "Settings > Map no longer has a large empty area, and the phone toolbar has a little more room.",
+        "Fewer competing accent colours and borders."
+      ]
+    },
+    {
+      "date": "2026-10-13",
+      "title": "Artwork can come from a local pack",
+      "items": [
+        "The picker can now load its pictures from a separate art folder on the host PC. This is the first step toward a shareable public version.",
+        "If pictures are missing, it shows simple placeholder icons, the item names and a plain map grid instead of broken images.",
+        "Settings > Advanced shows which art pack is in use and whether it is healthy."
+      ]
+    },
+    {
+      "date": "2026-10-13",
+      "title": "Picker UI review tools",
+      "items": [
+        "A gallery page for the administrator shows every panel and dialog with made-up sample data, in each theme and at phone, tablet and desktop widths.",
+        "A screenshot check captures all of them and highlights what changed between versions, to support the coming colour and layout tidy-up.",
+        "The gallery never saves anything."
+      ]
+    },
+    {
+      "date": "2026-10-13",
+      "title": "Area check follows your equipment rules",
+      "items": [
+        "Targets now follow the same rules as your task list, so non-permanent gear like corrupt dragon weapons no longer sets a target.",
+        "Backlogged, completed and blocked tasks no longer add grind targets.",
+        "In Al Kharid the Attack target is now 55 (gravite) instead of 60."
+      ]
+    },
+    {
+      "date": "2026-10-13",
+      "title": "Private usage counts",
+      "items": [
+        "The picker now counts which windows and controls get opened, so the layout can be planned from real use.",
+        "Counts stay on this picker; only the administrator can see them, under More then Usage.",
+        "Each person can switch counting off in Settings. View-only links and unlinked invites are counted separately."
+      ]
+    },
+    {
+      "date": "2026-10-13",
+      "title": "More training methods, especially combat",
+      "items": [
+        "Area check knows 141 more free-to-play training methods, including 22 combat monsters such as Al Kharid warriors, scorpions and spiders, each with a sensible starting level.",
+        "Hill giants now start at level 20 instead of 1, so combat ladders show real steps instead of one long cow grind.",
+        "Extra Cooking and Runecrafting options, with every source credited to its RuneScape Wiki page."
+      ]
+    },
+    {
+      "date": "2026-10-13",
+      "title": "Area check gaps stop at what tasks need",
+      "items": [
+        "A gap now only runs up to the highest level a task actually asks for, like wielding a weapon or a quest requirement. No more 1 → 120 just because nothing asks.",
+        "Skills that no task needs say so plainly instead of showing a gap.",
+        "Equipment, wield and quest requirements all count as targets."
+      ]
+    },
+    {
+      "date": "2026-10-13",
+      "title": "Area check level ladders",
+      "items": [
+        "Each skill now has a level bar: ticks show where training methods start, and striped stretches show long grinds with nothing newer.",
+        "Skills with gaps come first. The rest are folded under \"Show skills without gaps\".",
+        "A short line at the top names the biggest gaps in the area.",
+        "On phones, the Alone and With current bars stack at full width."
+      ]
+    },
+    {
+      "date": "2026-10-13",
+      "title": "Clearer map place names",
+      "items": [
+        "Place names no longer sit under the side panels or on top of chunk markers, numbers and borders.",
+        "In crowded spots, bigger regions get the space and small names step aside instead of overlapping.",
+        "Names are a little softer and easier to read in every theme."
+      ]
+    },
+    {
+      "date": "2026-10-13",
+      "title": "Area check gaps mean long grinds",
+      "items": [
+        "Gaps now show long stretches (15+ levels) where an area has nothing newer to train with, and name the old method you'd be stuck grinding.",
+        "Each gap runs up to the highest level something in that area asks for, or to the skill cap if nothing does.",
+        "\"Can't start\" is now its own line: nothing in the area trains you up to its first method."
+      ]
+    },
+    {
+      "date": "2026-10-13",
+      "title": "Clue and Slayer map layers",
+      "items": [
+        "Map display and the map legend have two new layers, both off until you turn them on.",
+        "Locked Slayer task outlines the chunks where your locked monster can be found.",
+        "Clue steps outline clue locations by tier. Clue scrolls are members-only in RS3, so this stays empty in F2P.",
+        "Layer choices are saved on this browser only and don't change your save."
+      ]
+    },
+    {
+      "date": "2026-10-13",
+      "title": "Group goals on stream",
+      "items": [
+        "The Active goals overlay can now show your personal pins, your shared group goals, or both.",
+        "Per-player goals show a tick for each of you; finished goals drop off.",
+        "It updates on its own when you change a goal. Older overlay links keep showing pins only."
+      ]
+    },
+    {
+      "date": "2026-10-13",
+      "title": "Keyboard and touch friendly",
+      "items": [
+        "Closing a dialog, menu or form puts you back where you were, and Escape closes just the top one.",
+        "Chunk info tabs and the top menus work with the arrow keys; row buttons show on touch screens too.",
+        "Bigger tap targets on phones and clearer text in the light and dark themes."
+      ]
+    },
+    {
+      "date": "2026-10-13",
+      "title": "F2P XP choices",
+      "items": [
+        "In F2P, XP choices only list lamps and quest rewards you can earn without membership, so members diaries like Ardougne or Morytania no longer appear.",
+        "Choices you saved earlier for members rewards are kept and come back if you switch to members."
+      ]
+    },
+    {
+      "date": "2026-10-13",
+      "title": "Chunk colours",
+      "items": [
+        "Tint any chunk in one of four colours from its chunk menu, and give the colours your own names, like Next or Avoid.",
+        "Each player has their own colours; Group view shows both, and the map legend lists them.",
+        "Changes show in History with Undo. Colours painted in the original picker show up too."
+      ]
+    },
+    {
+      "date": "2026-10-13",
+      "title": "OBS overlays",
+      "items": [
+        "More → OBS overlays makes small see-through pages for a stream scene: pinned goals, the last roll, or the chunk count.",
+        "Pick one player or both, a full or compact layout, and a text size.",
+        "Each overlay has its own private link that can only show that overlay. Revoke it any time."
+      ]
+    },
+    {
+      "date": "2026-10-13",
+      "title": "Shared group goals",
+      "items": [
+        "Group goals sit above Active Tasks: write the duo's plan, like Both get a rune pickaxe.",
+        "Link a goal to a task or item, and tick it off per player or once for the group.",
+        "Edit, reorder or remove goals with History and Undo. Fold the list away when you don't need it."
+      ]
+    },
+    {
+      "date": "2026-10-13",
+      "title": "Lamp and quest XP choices",
+      "items": [
+        "Profile → Levels and Activity Info now have XP choices: pick which skill each lamp or quest reward goes to, or leave it unchosen.",
+        "Choices imported from the original picker show up already filled in.",
+        "Changing a choice updates which tasks are possible, and it shows in History with Undo."
+      ]
+    },
+    {
+      "date": "2026-10-13",
+      "title": "Ask your partner for supplies",
+      "items": [
+        "Info now has an Ask your partner list: items your tasks need that only your partner's chunks can supply.",
+        "Each request names the task it is for, with amounts when the task records them.",
+        "Quest steps that are hidden behind a whole-quest row still count their supplies."
+      ]
+    },
+    {
+      "date": "2026-10-13",
+      "title": "Banking in the grind planner",
+      "items": [
+        "Mining, Woodcutting and Fishing can now plan with banking: choose Drop or Bank under Gathering.",
+        "Each spot shows drop and bank rates side by side, with the nearest bank in your chunks and the walk there and back.",
+        "Ore and wood boxes you own count, and so does Stiles, who notes fish for free on Karamja.",
+        "If no bank is reachable in your chunks, it says so."
+      ]
+    },
+    {
+      "date": "2026-10-13",
+      "title": "Tasks the picker couldn't read, and crafting chains",
+      "items": [
+        "18 of the 34 tasks the picker couldn't read now work, including the F2P runecrafter robes goal. The other 16 are members-only and stay hidden, with the reason written down.",
+        "Multi-step crafting (like logs to unstrung bow to strung bow) no longer opens a later step before an earlier one is really possible.",
+        "Hiding in-between crafting goals no longer hides the materials later steps need."
+      ]
+    },
+    {
+      "date": "2026-10-13",
+      "title": "Divination training data",
+      "items": [
+        "The picker now knows every wisp tier, enriched wisps and springs, and the Colossi at level 77.",
+        "Area check now shows the real Divination gap for a members start: stuck at 5 until the Colossi at 77, after the quest that opens them.",
+        "F2P is still capped at the trial level of 5."
+      ]
+    },
+    {
+      "date": "2026-10-13",
+      "title": "Less memory while idle",
+      "items": [
+        "When nobody has used the picker for ten minutes, it now gives back most of its memory: about 0.6 GB instead of 3.5 GB.",
+        "Task lists you already loaded open straight away after a quiet spell, instead of taking several seconds."
+      ]
+    },
+    {
+      "date": "2026-10-13",
+      "title": "F2P finish line",
+      "items": [
+        "New in Info: F2P finish line, a draft list of what \"done with F2P\" could mean: all F2P quests and miniquests, skill targets, the best F2P gear for each combat style and a few notable achievements.",
+        "Shows each player's progress and the duo's, with each item marked done or showing how far along you are.",
+        "Edit draft lets either of you switch goals off, change level targets or add your own goals with a tick for each player. Changes show in History and can be undone.",
+        "Copy for Discord shares a short summary. View-only links can see the list but not change it."
+      ]
+    },
+    {
+      "date": "2026-10-13",
+      "title": "Phone layout",
+      "items": [
+        "On phones, the picker now has Map, Tasks and More tabs at the bottom instead of one long scroll. It remembers the tab you last used.",
+        "Buttons, tick boxes and menus on phones are now big enough to tap with a thumb.",
+        "Tap a chunk for its info; press and hold to unlock it, like the original picker. Panning or pinch-zooming never unlocks anything, and view-only links can't unlock.",
+        "Desktop and tablet look exactly as before."
+      ]
+    },
+    {
+      "date": "2026-10-13",
+      "title": "Quicker start after an update",
+      "items": [
+        "After a restart, the picker answers its health check within about 2 seconds instead of 10 to 13, so a busy PC no longer makes it look dead to the watchdog.",
+        "Both players' task lists and the chunk preview now get ready in the background. Open the picker a minute after an update and your tasks load in about 2 seconds instead of 8.",
+        "Saves are refused for the first few seconds while it starts, so nothing can be lost or saved twice."
+      ]
+    },
+    {
+      "date": "2026-10-13",
+      "title": "Large backups import again",
+      "items": [
+        "Full backups had grown past the 32 MB import limit, so Backup & Import couldn't load them. Imports now work up to 256 MB.",
+        "Full backups now download compressed: today's went from 38 MB to under 6 MB.",
+        "Damaged or too-large files get a clear message instead of a vague error."
+      ]
+    },
+    {
+      "date": "2026-10-13",
+      "title": "Backup restore practised",
+      "items": [
+        "Restored today's OneDrive backup into a spare copy: it took under two minutes, and both maps, completions, History and Undo all matched.",
+        "A new restore helper puts a daily or labelled backup into a new folder. It never overwrites an existing save.",
+        "A one-page \"If the desktop dies\" guide explains where the backups are and how to get the picker running on a new PC."
+      ]
+    },
+    {
+      "date": "2026-10-13",
+      "title": "Checking the original picker for data updates",
+      "items": [
+        "Checked the original picker's public data on 13 October: it is unchanged since 28 September, so there was nothing new to bring in.",
+        "There is now a repeatable check that only reads the original's public files and writes a dated report of anything new, removed or changed.",
+        "When updates do appear, they come in as a new dated version, and our own corrections, icons and guides are kept. Anything that clashes stops the update and is listed for review instead of being guessed."
+      ]
+    },
+    {
+      "date": "2026-10-13",
+      "title": "Place names on the map",
+      "items": [
+        "Regions, towns and smaller places now show on the map, with more detail as you zoom in.",
+        "Names step aside for rolls, task counts and stickers instead of covering them.",
+        "Turn them off in Map display if you prefer a clean map; this works on view-only links too."
+      ]
+    },
+    {
+      "date": "2026-10-13",
+      "title": "Area check: training gaps",
+      "items": [
+        "New Area check map tool: drag over any chunks (or tap two corners on a phone) to see where each skill can be trained there.",
+        "Compares the area on its own with the area plus your current chunks, and points out the biggest gaps.",
+        "Tick As members to check members areas like Havenhythe now, switch players, and copy the result for Discord."
+      ]
+    },
+    {
+      "date": "2026-10-13",
+      "title": "Player profile",
+      "items": [
+        "Info → Profile shows your levels, total and combat level, completed tasks, quests, achievements and best recorded gear.",
+        "Switch between players, including on view-only links.",
+        "Copy a short summary for Discord."
+      ]
+    },
+    {
+      "date": "2026-10-13",
+      "title": "Ready for members",
+      "items": [
+        "Settings → Ready for members restarts both maps on a bank, keeping your tasks, skills, notes and gear.",
+        "Pick the bank pool, flip for different banks or roll each player freely, and preview both new starts first.",
+        "Your F2P map is kept for reference, a backup is saved first, and one Undo in History puts everything back."
+      ]
+    },
+    {
+      "date": "2026-10-13",
+      "title": "Group view task filters",
+      "items": [
+        "Show blocked and All possible tasks now work in Group view, with each player's reason when a task is blocked.",
+        "New Group view choices: tasks not done by you, and tasks only you can do right now.",
+        "Blocked reasons from your rules now say so plainly, for example \"Turned off in Rules: Multiple Agility\"."
+      ]
+    },
+    {
+      "date": "2026-10-13",
+      "title": "Task counts on the map",
+      "items": [
+        "Unlocked chunks show a small dark badge with how many active tasks are there.",
+        "In Group view, tasks you share are counted once.",
+        "You can hide the badges or change their size under Map display, and the map legend explains them.",
+        "Tasks without a place on the map (and Sandbox) have no badge."
+      ]
+    },
+    {
+      "date": "2026-10-13",
+      "title": "Task pictures",
+      "items": [
+        "Almost every task now shows a picture: tasks without their own item picture use one for their category (skill, quest, diary and so on).",
+        "This works in the task lists, Search and the Activity info.",
+        "Six item pictures that went missing are back.",
+        "Only 5 tasks per player still have no picture (the Ghost hunter set and the Zamorak robe bottom, where the right picture is unclear)."
+      ]
+    },
+    {
+      "date": "2026-10-12",
+      "title": "Completed Tasks: date ranges and copy",
+      "items": [
+        "Review all has a Date range: All time, Today, Last 7 days, Last 30 days or your own From/To dates.",
+        "The count and Copy follow exactly what you see, with a header naming the player and the range.",
+        "Completions with no date are counted in a short note and only show under All time.",
+        "The picker remembers your range choice in this browser."
+      ]
+    },
+    {
+      "date": "2026-10-12",
+      "title": "Current BiS: record gear by hand and compare",
+      "items": [
+        "Record gear you got from a drop, a trade or before the picker in Current BiS → Recorded obtained. It counts like a ticked Obtain task, shows in History, and Undo works.",
+        "Hand-added gear is marked \"Added by hand\" and has a Remove button.",
+        "\"Hide gear I already have\" on the Obtainable tab shows only what you still need.",
+        "\"Compare with your partner\" lines up both players' gear slot by slot and says who has the better item."
+      ]
+    },
+    {
+      "date": "2026-10-12",
+      "title": "Roll stats: last 30 days",
+      "items": [
+        "Roll stats has an All time / Last 30 days switch above the chart.",
+        "The 30-day view starts each line at your count on that day, so recent rolls are easy to see."
+      ]
+    },
+    {
+      "date": "2026-10-12",
+      "title": "Group view: both Backlogs and Completed lists",
+      "items": [
+        "With Group view on, Backlog and Completed Tasks show both of your tasks, each marked with whose it is.",
+        "The All / Player 1 / Player 2 / Both filter and the counts apply to these lists too.",
+        "Restore buttons name the player they restore for, so one click never restores only half a group. Undo works as usual.",
+        "Review all and Copy follow the filter you have picked."
+      ]
+    },
+    {
+      "date": "2026-10-12",
+      "title": "Quest chunks on the map",
+      "items": [
+        "Quest details and Activity Info → Quests have a Show on map button that highlights every chunk the quest needs.",
+        "Chunks neither of you has unlocked get a dashed orange outline. A short line counts them, and Clear removes the highlight.",
+        "Places with no map square, like caves and buildings, are listed by name instead of guessed."
+      ]
+    },
+    {
+      "date": "2026-10-12",
+      "title": "Map journals",
+      "items": [
+        "Info has a new Map journal: one note for your whole map, up to 10,000 characters.",
+        "You can read each other’s journal. If you both edit at once, nothing is overwritten silently.",
+        "Journal edits show in History, can be undone, and are kept in backups."
+      ]
+    },
+    {
+      "date": "2026-10-12",
+      "title": "Roll stats",
+      "items": [
+        "History has a new Roll stats view: a chart of chunks unlocked over time for both of you and the duo.",
+        "See the average and longest gap between unlocks, and how many chunks came in the last 7 days.",
+        "Dates come from your rolls here and from the original picker. Chunks with no date are counted but not guessed."
+      ]
+    },
+    {
+      "date": "2026-10-12",
+      "title": "Clearer Kitchen Aid achievement",
+      "items": [
+        "Kitchen Aid now says what free players do: feed your teammate some food inside a Dungeoneering floor.",
+        "The old text only described the Ironman familiar option, which needs members-only Summoning."
+      ]
+    },
+    {
+      "date": "2026-10-12",
+      "title": "Backlog tools",
+      "items": [
+        "Search the Backlog by task name, skill or chunk.",
+        "Tasks fold into groups by the reason you gave, and Restore these brings back one group at a time.",
+        "Restoring more than 10 tasks asks first, and one Undo puts the whole group back."
+      ]
+    },
+    {
+      "date": "2026-10-12",
+      "title": "Stream-safe mode and feedback updates",
+      "items": [
+        "Stream-safe mode in More hides invite links and feedback names while you stream.",
+        "Unread feedback shows a count, remembered across devices.",
+        "Whoever sent a note can see when it was handled."
+      ]
+    },
+    {
+      "date": "2026-10-12",
+      "title": "Screenshot mode and map downloads",
+      "items": [
+        "Screenshot mode hides every control for a clean map capture. Press Esc or double-tap to leave.",
+        "Download the whole map or the visible area as a PNG, with your current overlays.",
+        "Both work on view-only links without changing the save."
+      ]
+    },
+    {
+      "date": "2026-10-12",
+      "title": "Copy lists for Discord",
+      "items": [
+        "Copy your chunk list, roll pool or filtered task list as plain text.",
+        "Copies include the player, a count and the date, and say when items were left out."
+      ]
+    },
+    {
+      "date": "2026-10-12",
+      "title": "Stronger Search",
+      "items": [
+        "Matching chunks light up pink on the map while Search is open.",
+        "Search finds both players’ chunk notes and shows who wrote them.",
+        "Page through every result instead of stopping at 120.",
+        "Quests mode searches quests with the same progress filters as Activity Info."
+      ]
+    },
+    {
+      "date": "2026-10-12",
+      "title": "Fishing estimates in Helper",
+      "items": [
+        "Helper now plans Fishing: XP and fish per hour at your level, for every free-to-play spot type.",
+        "Mixed catches like trout and salmon show both fish, plus the bait or feathers you need.",
+        "Methods you can use now are listed fastest first."
+      ]
+    },
+    {
+      "date": "2026-10-12",
+      "title": "Better custom tasks",
+      "items": [
+        "Edit or delete your own tasks. Both show in History and can be undone.",
+        "Give a task a skill and level, and assign it to Player 1, Player 2 or both.",
+        "Tasks with a level join the skill filters and Helper goals."
+      ]
+    },
+    {
+      "date": "2026-10-12",
+      "title": "Searchable History",
+      "items": [
+        "Filter History by player or type of change, and search it.",
+        "Load older changes past the first 150.",
+        "Previous saves in Backup & Import now say what changed and who changed it, instead of a revision number."
+      ]
+    },
+    {
+      "date": "2026-10-12",
+      "title": "Tidier Chunk Rules",
+      "items": [
+        "Rules that do nothing in this picker are hidden from Chunk Rules. Their saved values stay in your save, and sync with the original picker still keeps them.",
+        "With Settings → Advanced on, they appear in one folded group at the bottom, read-only.",
+        "The old Task rules panel is gone, since Chunk Rules replaced it."
+      ]
+    },
+    {
+      "date": "2026-10-12",
+      "title": "See each other’s chunk notes",
+      "items": [
+        "A chunk’s Note tab now shows your partner’s note under your own, with their name on it.",
+        "Their note updates live while you type, and your unsaved draft stays put.",
+        "Long notes have an Expand button. View-only links can read both notes."
+      ]
+    },
+    {
+      "date": "2026-10-12",
+      "title": "Members-only checks finished",
+      "items": [
+        "Every item and monster the picker was unsure about is now checked against the wiki as free-to-play or members.",
+        "Warriors’ Guild entry no longer counts as proof of 65 Attack and 65 Strength, so Player 2 sees Wield a gravite melee weapon again.",
+        "Mandrith’s Slayer requirement is corrected to 95."
+      ]
+    },
+    {
+      "date": "2026-10-12",
+      "title": "Safer sync from the original picker",
+      "items": [
+        "Sync from original picker no longer offers to lock chunks you unlocked here.",
+        "Tasks you unticked or backlogged here stay that way, including the ticks moved from Player 1 to Player 2.",
+        "The preview lists these under Kept from this picker."
+      ]
+    },
+    {
+      "date": "2026-10-12",
+      "title": "Filter quests and activities",
+      "items": [
+        "Activity Info, Search and chunk panels can show quests by Not started, In progress, Done or Can do now.",
+        "Every Activity Info tab can show only Done, Doable or Blocked entries, and sort by level.",
+        "Your browser remembers these choices."
+      ]
+    },
+    {
+      "date": "2026-10-12",
+      "title": "Woodcutting estimates follow your level and hatchet",
+      "items": [
+        "Helper now estimates Woodcutting XP and logs per hour. Time to your target improves as you gain levels.",
+        "Choose your hatchet in Helper or Settings → Time estimates. Each player keeps their own choice, with History and Undo.",
+        "Rates include tree respawn waits, with no banking. Advanced shows the assumptions and wiki revisions."
+      ]
+    },
+    {
+      "date": "2026-10-12",
+      "title": "Mining estimates follow your levels and pickaxe",
+      "items": [
+        "Helper now estimates both Mining XP and ore per hour. Time to your target improves as you gain levels.",
+        "Choose your pickaxe and Active, Occasional or AFK mining in Helper or Settings → Time estimates. Each player keeps their own choices, with History and Undo.",
+        "Rates are at the rock, with no banking or rockertunities. Advanced shows the assumptions and wiki revisions."
+      ]
+    },
+    {
+      "date": "2026-10-12",
+      "title": "Compare every chunk in your roll pool",
+      "items": [
+        "Compare pool sits beside Pick Chunk and Roll 2. It shows how many new tasks each chunk would add, with examples, skill counts and notable unlocks.",
+        "Sort by total new tasks or a skill. Click a chunk to centre the map.",
+        "Saved checks appear right away. Missing checks run after your task lists and chunk previews. Close the comparison to stop them.",
+        "Checked and Still checking show which counts are ready. View-only links can see saved checks. This replaces the Sandbox’s eight-chunk sample."
+      ]
+    },
+    {
+      "date": "2026-10-12",
+      "title": "Faster unlocks",
+      "items": [
+        "Unlocking a chunk the picker has already prepared, like your roll or a chunk whose panel you opened, now shows your full task list in about a third of a second. This works for both players and in Group view.",
+        "Other unlocks are about a second faster than before.",
+        "Your task lists are exactly the same as before; only the waiting got shorter."
+      ]
+    },
+    {
+      "date": "2026-10-12",
+      "title": "Find settings more easily",
+      "items": [
+        "Settings now has Map, Rolling, Tasks, Panels and Time estimates sections, with a search box. On phones, tap a section to open it. A label at the top shows whose settings you are changing.",
+        "Theme stays in sync with More. Starting flag uses its existing editor, and Map display holds map labels, sizes and colours.",
+        "Advanced is off by default for each player. Turn it on for calculation details, raw History changes, import reports and other game-data checks.",
+        "Settings, History, errors and task explanations use plain wording. Existing saves, commands and Undo still work."
+      ]
+    },
+    {
+      "date": "2026-10-12",
+      "title": "Try map sizes live",
+      "items": [
+        "Open Map display from More or Settings and adjust roll numbers, chunk IDs, stickers and starting flags while you can still pan and zoom the map.",
+        "Sizes stay on this browser, including on view-only links. Reset sizes returns them to 100%.",
+        "At large sizes, starting flags move up above the chunk ID and roll numbers stay above it, so all three stay readable.",
+        "Chunk IDs, high visibility, unlocked border colour and the starting marker now live in Map display. Your saved choices and Undo still work."
+      ]
+    },
+    {
+      "date": "2026-10-12",
+      "title": "Call dibs on a task",
+      "items": [
+        "Choose I’m doing this on a task so your partner can see who is working on it and when they started.",
+        "Stop your own task or confirm a takeover. History names both players when a task is taken over, and Undo only reverses your own claims.",
+        "Finishing a task clears its claim, including when Undo brings a finished task back.",
+        "If your partner claims a task just as you save something, the picker tries again for you instead of showing an error.",
+        "Filter out tasks your partner is doing, or show only the tasks you claimed."
+      ]
+    },
+    {
+      "date": "2026-10-12",
+      "title": "See what is planned",
+      "items": [
+        "Open More → Roadmap to see everything planned for the picker, grouped by theme.",
+        "In progress and Up next show what is being worked on right now. Statuses update as work happens.",
+        "Filter by status, or pick Done to see what has already arrived.",
+        "Chunk ID numbers no longer sit under a starting flag; they move to the left of it."
+      ]
+    },
+    {
+      "date": "2026-10-12",
+      "title": "A tidier top bar",
+      "items": [
+        "The top bar now has five buttons: Helper, Search, Info, Sync levels and More.",
+        "Info holds Current BiS, Activity Info, Teleports, Chunk Rules, Completed Tasks and History.",
+        "More holds Settings, Feedback, backups, invite links, What’s new and Appearance. A gold dot on More means there is news to read.",
+        "The Sandbox button next to Undo can be clicked again. It lets you try locking or unlocking chunks and see the task changes without saving anything."
+      ]
+    },
+    {
+      "date": "2026-10-12",
+      "title": "Share a view-only link",
+      "items": [
+        "Create a View only link in More → Invite links for someone who wants to watch both maps, tasks, notes and History.",
+        "Viewers see live changes but cannot roll, tick tasks or change the save. Their theme and map choice stay in their browser.",
+        "Revoke a viewer link whenever you want to close access."
+      ]
+    },
+    {
+      "date": "2026-10-12",
+      "title": "Your progress, week by week",
+      "items": [
+        "See both players’ and the duo’s chunks, finished tasks, quest points and levels in Helper → Progress.",
+        "Follow saved progress in graphs and tables, with a short weekly recap to share.",
+        "Small daily counts now travel with your backup, keeping more of your story as History fills up."
+      ]
+    },
+    {
+      "date": "2026-10-12",
+      "title": "See which chunk you have open",
+      "items": [
+        "The chunk whose info panel is open now has cyan corner brackets on the map, so it stays easy to find after you move the mouse away.",
+        "The Map legend lists the new outline."
+      ]
+    },
+    {
+      "date": "2026-10-11",
+      "title": "Keep backups in sight",
+      "items": [
+        "Admins can see the last backup in More and Backup & Import, with a notice when automatic backups need attention.",
+        "The desktop can restart a stuck task calculator first, keeping the picker and saved maps running.",
+        "Sleeping task calculators stay asleep during backup and health checks."
+      ]
+    },
+    {
+      "date": "2026-10-11",
+      "title": "A RuneScape Helper beside your map",
+      "items": [
+        "Plan F2P Ironman grinds from your saved levels and reachable chunks, with supplies and time estimates.",
+        "See the skill levels your active tasks need, and compare drop chances using either player’s kills or both together.",
+        "Look up XP and combat levels without changing your save."
+      ]
+    },
+    {
+      "date": "2026-10-10",
+      "title": "Tasks rest when you do",
+      "items": [
+        "The task calculator closes after ten quiet minutes to free memory, then wakes when you need it.",
+        "Unlocking a chunk can use its already checked task list straight away.",
+        "Group view shows your refreshed tasks while your partner's list catches up."
+      ]
+    },
+    {
+      "date": "2026-10-10",
+      "title": "Find your next task",
+      "items": [
+        "Filter Active Tasks by skill, Doable now or Pinned only, in your own list or Group view.",
+        "Sort by level, skill or name, and fold skill headings. Your browser remembers these choices.",
+        "Pinned tasks now show a small star. The hidden-task count and Clear button help you bring everything back."
+      ]
+    },
+    {
+      "date": "2026-10-10",
+      "title": "Keep up with each other",
+      "items": [
+        "Player invite links open your own map, and this browser remembers your choice.",
+        "Undo names the change and who made it. Undoing your partner’s change asks first; you can undo your own earlier change when it is safe.",
+        "See your partner’s changes as they arrive, plus a short catch-up list when you return."
+      ]
+    },
+    {
+      "date": "2026-10-10",
+      "title": "Group view: one task list for both of you",
+      "items": [
+        "Group view now combines both players' Active Tasks. Each task names Player 1, Player 2 or Both.",
+        "Filter the list by player and see who has already done each task.",
+        "Task details, ticks and backlogs follow the player named on the row. For a task that belongs to Both, choose whose tick or backlog to change."
+      ]
+    },
+    {
+      "date": "2026-10-10",
+      "title": "Teleports window",
+      "items": [
+        "New Teleports window (More > Teleports): see which lodestones, spells and boats each of you can use, with the reason in plain English.",
+        "Automatic availability is off for now. Turning it on lets usable teleports add their destination to your roll options; nothing is unlocked by it.",
+        "Use the dropdown on any route to say you can or can't use it. Members-only routes are folded away."
+      ]
+    },
+    {
+      "date": "2026-10-10",
+      "title": "BiS weapons prefer the 2h on a tie",
+      "items": [
+        "When a 2h weapon and a main-hand + off-hand pair score exactly the same, Best in Slot now asks for the 2h: one item to get instead of two. Gravite 2h sword, chargebow and staff replace the longsword, knife and wand pairs, matching the original picker.",
+        "Tip: Settings > Show chunk IDs puts each chunk's number on the map, like the original."
+      ]
+    },
+    {
+      "date": "2026-10-10",
+      "title": "Completed Tasks review and tick clean-up",
+      "items": [
+        "Completed Tasks has a full review window: search, filter by who did it, group by skill or newest first, untick or backlog in place. Open it with Review all next to Completed Tasks, or from More.",
+        "Cleaned up 172 of Player 1's ticks that were really Player 2's (both had them ticked); they now read Done by Player 2. One Undo reverses it.",
+        "Player 2's East Daemonheim Castle unlock was brought over from the original picker."
+      ]
+    },
+    {
+      "date": "2026-10-09",
+      "title": "Sync levels, a calmer search, and tidier map icons",
+      "items": [
+        "New Sync levels button in the top bar: pull your real levels and finished quests from RuneMetrics, review them, then apply.",
+        "Search no longer shrinks to nothing while you type.",
+        "Map icons: Travel lines is a single tick box; its colour key moved into the Map legend.",
+        "This What's new list, and a banner when the picker has been updated."
+      ]
+    },
+    {
+      "date": "2026-10-09",
+      "title": "Sandbox and achievement rules",
+      "items": [
+        "Sandbox mode: try unlocking several chunks without saving and see how your tasks change.",
+        "Show chunks that would add the most tasks, inside the sandbox.",
+        "Show Achievement Tasks, Show Diary Tasks and Show Diary Tasks Any now work like the original picker."
+      ]
+    },
+    {
+      "date": "2026-10-09",
+      "title": "Feedback, faster popups, better BiS",
+      "items": [
+        "Feedback button for bugs and ideas; Player 1 sees them in the same window.",
+        "Task popups open instantly and fill in sources and stats as they load.",
+        "Hover a task for a quick summary; equipment tasks show stats and what they beat.",
+        "Current BiS redesigned as a clean table per combat style.",
+        "Item icons now load for most tasks."
+      ]
+    },
+    {
+      "date": "2026-10-08",
+      "title": "Switching over from the original picker",
+      "items": [
+        "Task fixes so your lists match the original picker, plus members-only content removed for free-to-play.",
+        "Chunk Rules rebuilt to mirror the original's sections, descriptions and presets.",
+        "Backlog button with a reason on every task, and Restore all.",
+        "Nightly backups to OneDrive."
+      ]
+    }
+  ]
+}

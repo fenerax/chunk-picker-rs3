@@ -1,0 +1,11 @@
+{
+  "description": "Synthetic local unlocks after an original sync; the old original still offers those chunks as a candidate and a pending roll.",
+  "baselineUnlocked": ["12850", "12855"],
+  "originalUnlocked": ["12850"],
+  "originalSelected": ["12851", "12853"],
+  "originalPending": ["12852", "12854"],
+  "localCommands": [
+    { "type": "set-chunk", "memberId": "player1", "chunkId": "12851", "status": "unlocked" },
+    { "type": "set-chunk", "memberId": "player1", "chunkId": "12852", "status": "unlocked" }
+  ]
+}

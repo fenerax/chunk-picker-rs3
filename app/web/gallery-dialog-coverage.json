@@ -1,0 +1,302 @@
+{
+  "app/web/screen-controls.mjs :: 'Help'": { "entries": ["summary"] },
+  "app/web/area-check.mjs :: 'Area check'": {
+    "entries": [
+      "area"
+    ]
+  },
+  "app/web/completed-view.mjs :: 'Completed Tasks'": {
+    "entries": [
+      "completed"
+    ]
+  },
+  "app/web/duo-coordination.mjs :: `Undo ${author}’s change?`": {
+    "entries": [
+      "partner-undo"
+    ]
+  },
+  "app/web/feedback.mjs :: 'Feedback'": {
+    "entries": [
+      "feedback"
+    ]
+  },
+  "app/web/finish-line-view.mjs :: 'F2P finish line'": {
+    "entries": [
+      "finish"
+    ]
+  },
+  "app/web/info-panels.mjs :: 'Activity Info'": {
+    "entries": [
+      "activity-skills",
+      "activity-quests",
+      "activity-achievements",
+      "activity-activities",
+      "activity-slayer",
+      "activity-clues",
+      "bis-0",
+      "bis-1",
+      "bis-2",
+      "unavailable"
+    ]
+  },
+  "app/web/info-panels.mjs :: 'Current BiS'": {
+    "entries": [
+      "activity-skills",
+      "activity-quests",
+      "activity-achievements",
+      "activity-activities",
+      "activity-slayer",
+      "activity-clues",
+      "bis-0",
+      "bis-1",
+      "bis-2",
+      "unavailable"
+    ]
+  },
+  "app/web/info-panels.mjs :: 'Task unavailable'": {
+    "entries": [
+      "activity-skills",
+      "activity-quests",
+      "activity-achievements",
+      "activity-activities",
+      "activity-slayer",
+      "activity-clues",
+      "bis-0",
+      "bis-1",
+      "bis-2",
+      "unavailable"
+    ]
+  },
+  "app/web/invites.mjs :: 'Invite links'": {
+    "entries": [
+      "invites"
+    ]
+  },
+  "app/web/lamp-choices.mjs :: 'XP choices'": {
+    "entries": [
+      "xp"
+    ]
+  },
+  "app/web/map-tools.mjs :: `${member.name}’s starting chunk`": {
+    "entries": [
+      "recent",
+      "stickers",
+      "starting-marker"
+    ]
+  },
+  "app/web/map-tools.mjs :: `${member.name}’s stickers · ${chunkName(chunkId)}`": {
+    "entries": [
+      "recent",
+      "stickers",
+      "starting-marker"
+    ]
+  },
+  "app/web/members-start.mjs :: 'Confirm members start'": {
+    "entries": [
+      "members",
+      "members-confirm"
+    ]
+  },
+  "app/web/members-start.mjs :: 'Members starts'": {
+    "reason": "Post-save success response requires go-members to commit. Gallery denies commands and covers both pre-save review stages."
+  },
+  "app/web/members-start.mjs :: 'Ready for members'": {
+    "entries": [
+      "members",
+      "members-confirm"
+    ]
+  },
+  "app/web/original-sync.mjs :: 'Sync from original picker'": {
+    "entries": [
+      "original-sync"
+    ]
+  },
+  "app/web/overlay-panel.mjs :: 'OBS overlays'": {
+    "entries": [
+      "overlays"
+    ]
+  },
+  "app/web/partner-supply-view.mjs :: 'Ask your partner'": {
+    "entries": [
+      "partner"
+    ]
+  },
+  "app/web/profile-view.mjs :: 'Profile'": {
+    "entries": [
+      "profile"
+    ]
+  },
+  "app/web/profile-view.mjs :: task.label": {
+    "entries": [
+      "profile"
+    ]
+  },
+  "app/web/rules-panel.mjs :: 'Apply rule profile'": {
+    "entries": [
+      "rules",
+      "rules-profile"
+    ]
+  },
+  "app/web/rules-panel.mjs :: 'Chunk Rules'": {
+    "entries": [
+      "rules",
+      "rules-profile"
+    ]
+  },
+  "app/web/sandbox-rules.mjs :: 'Sandbox task rules'": {
+    "entries": [
+      "sandbox-rules"
+    ]
+  },
+  "app/web/screen-capture.mjs :: 'Download map image'": {
+    "entries": [
+      "download-map"
+    ]
+  },
+  "app/web/screen-custom-tasks.mjs :: 'Delete custom task'": {
+    "entries": [
+      "custom-task",
+      "custom-edit",
+      "custom-delete"
+    ]
+  },
+  "app/web/screen-custom-tasks.mjs :: saved ? 'Edit custom task' : 'Add custom task'": {
+    "entries": [
+      "custom-task",
+      "custom-edit",
+      "custom-delete"
+    ]
+  },
+  "app/web/screen-dialogs.mjs :: 'About / Map sources'": {
+    "entries": [
+      "backup",
+      "migration",
+      "about",
+      "calculation"
+    ]
+  },
+  "app/web/screen-dialogs.mjs :: 'Backup & Import'": {
+    "entries": [
+      "backup",
+      "migration",
+      "about",
+      "calculation"
+    ]
+  },
+  "app/web/screen-dialogs.mjs :: 'Migration report'": {
+    "entries": [
+      "backup",
+      "migration",
+      "about",
+      "calculation"
+    ]
+  },
+  "app/web/screen-dialogs.mjs :: 'Task calculation'": {
+    "entries": [
+      "backup",
+      "migration",
+      "about",
+      "calculation"
+    ]
+  },
+  "app/web/screen-history.mjs :: 'History'": {
+    "entries": [
+      "history"
+    ]
+  },
+  "app/web/screen-journal.mjs :: 'Map journal'": {
+    "entries": [
+      "journal"
+    ]
+  },
+  "app/web/screen-roll-stats.mjs :: 'Roll stats'": {
+    "entries": [
+      "roll-stats"
+    ]
+  },
+  "app/web/screen-roll.mjs :: 'Confirm chunk roll'": {
+    "entries": [
+      "roll-confirm",
+      "roll-new",
+      "roll-forfeit"
+    ]
+  },
+  "app/web/screen-roll.mjs :: 'Forfeit a chunk'": {
+    "entries": [
+      "roll-confirm",
+      "roll-new",
+      "roll-forfeit"
+    ]
+  },
+  "app/web/screen-roll.mjs :: 'New chunk tasks'": {
+    "entries": [
+      "roll-confirm",
+      "roll-new",
+      "roll-forfeit"
+    ]
+  },
+  "app/web/screen-search.mjs :: 'Search'": {
+    "entries": [
+      "search"
+    ]
+  },
+  "app/web/screen-startup.mjs :: `Sync ${owner.name} from RuneMetrics`": {
+    "entries": [
+      "runemetrics"
+    ]
+  },
+  "app/web/screen-task-dialogs.mjs :: item.name": {
+    "entries": [
+      "task-detail",
+      "item-detail"
+    ]
+  },
+  "app/web/screen-task-dialogs.mjs :: task.label": {
+    "entries": [
+      "task-detail",
+      "item-detail"
+    ]
+  },
+  "app/web/screen-usage.mjs :: 'Settings'": {
+    "entries": ["usage-settings-on", "usage-settings-off", "usage-settings-viewer"]
+  },
+  "app/web/screen-usage.mjs :: 'Usage'": {
+    "entries": ["usage-counts", "usage-empty", "usage-person"]
+  },
+  "app/web/settings-panel.mjs :: 'Settings'": {
+    "entries": [
+      "settings-map",
+      "settings-rolling",
+      "settings-tasks",
+      "settings-panels",
+      "settings-time"
+    ]
+  },
+  "app/web/setup-guide.mjs :: 'Setup guide'": {
+    "entries": [
+      "setup-guide"
+    ]
+  },
+  "app/web/teleports.mjs :: `${owner().name}’s Teleports`": {
+    "entries": [
+      "teleports"
+    ]
+  },
+  "app/web/tick-active-tasks.mjs :: 'Tick all active tasks'": {
+    "entries": [
+      "tick-active"
+    ]
+  },
+  "app/web/updates.mjs :: 'Roadmap'": {
+    "entries": [
+      "news",
+      "roadmap"
+    ]
+  },
+  "app/web/updates.mjs :: 'What’s new'": {
+    "entries": [
+      "news",
+      "roadmap"
+    ]
+  }
+}

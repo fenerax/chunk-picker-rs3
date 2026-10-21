@@ -1,0 +1,20 @@
+/* Read-only comparison uses the incumbent ledger typography and palette. */
+.bis-comparison{min-width:0;color:var(--panel-text,var(--text))}
+.bis-compare-row{border-top:var(--border-thin) solid var(--hairline);padding:var(--space-5) 0;min-width:0}
+.bis-compare-slot{font-size:var(--type-body);font-weight:var(--weight-semibold);margin:0 0 var(--space-2)}
+.bis-compare-status{font-size:var(--type-sm);font-weight:var(--weight-semibold);margin:var(--space-2) 0}
+.bis-compare-reason{font-size:var(--type-xs);line-height:var(--leading-copy);color:var(--panel-muted,var(--muted));max-width:75ch;margin:var(--space-2) 0 var(--space-5)}
+.bis-compare-players{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--space-6);min-width:0}
+.bis-compare-player{min-width:0;padding:var(--space-4) var(--space-4);overflow-wrap:anywhere}
+.bis-compare-player-name{font-size:var(--type-sm);font-weight:var(--weight-semibold);margin:0 0 var(--space-4)}
+.bis-compare-higher{background:var(--panel-raised,var(--panel));outline:var(--border-thin) solid var(--hairline)}
+.bis-compare-gear+.bis-compare-gear{border-top:var(--border-thin) solid var(--hairline);padding-top:var(--space-4);margin-top:var(--space-4)}
+.bis-compare-kind{font-size:var(--type-xs);font-weight:var(--weight-semibold);color:var(--panel-muted,var(--muted));margin:0 0 var(--space-3)}
+.bis-compare-unknown,.bis-compare-loadout{display:block;font-size:var(--type-xs);line-height:var(--leading-copy);color:var(--panel-muted,var(--muted));margin-top:var(--space-3)}
+.bis-compare-gear .bis-item-identity+.bis-item-identity{margin-top:var(--space-3)}
+.bis-compare-gear .bis-item-name{font-size:var(--type-sm)}
+@media(max-width:600px){
+  .bis-compare-players{grid-template-columns:minmax(0,1fr);gap:var(--space-4)}
+  .bis-compare-player{padding:var(--space-4)}
+  .bis-compare-player+.bis-compare-player{border-top:var(--border-thin) solid var(--hairline)}
+}

@@ -1,0 +1,11 @@
+{
+  "sourceUrl": "https://runescape.wiki/w/Raw%20short-finned%20eel?oldid=37050097",
+  "oldid": 37050097,
+  "retrieved": "2026-10-12",
+  "timestamp": "2026-05-21T01:51:32Z",
+  "title": "Raw short-finned eel",
+  "scope": "Complete source snapshot from MediaWiki revisions API",
+  "licence": "RuneScape Wiki contributors, CC BY-NC-SA 3.0; source exceptions apply.",
+  "source": "{{RCFood}}\n{{Infobox Item\n|name = Raw short-finned eel\n|image = [[File:Raw short-finned eel.png]]\n|release = [[12 April]] [[2010]]\n|update = Dungeoneering Skill!\n|members = No\n|quest = No\n|tradeable = Yes\n|equipable = No\n|stackable = Yes\n|disassembly = Restricted\n|options = Drop-X\n|value = 1200\n|destroy = Drop\n|kept = reclaimable\n|exchange = No\n|examine = I should try cooking this. (Tier 5)\n|weight = 0\n|id = 17805\n}}\n[[File:Raw short-finned eel detail.png|100px|left]]\nThe '''raw short-finned eel''' is a Tier 5 raw fish found while training [[Dungeoneering]].\n\nRaw short-finned eels can be caught with a [[Fly fishing rod (Dungeoneering)|fly fishing rod]] and [[Feather (Dungeoneering)|feathers]], giving 81 [[Fishing]] experience each at level 40 Fishing. Raw short-finned eels can also be bought from the [[Smuggler]].\n\n==Fishing==\n{{Fishing info\n|name = Raw short-finned eel\n|level = 40\n|xp = 81\n|spot = [[Short-finned eels (fishing spot)|Short-finned eels]]\n|tool = {{plink|Fly fishing rod (Dungeoneering)|txt=Fly fishing rod}}\n|bait = {{plink|Feather (Dungeoneering)|txt=Feather}}\n}}\n\n==Products==\n{{Uses material list}}\n\n==Item sources==\n{{Drop sources}}\n\n===Shop locations===\n{{Shop locations list}}\n\n==Update history==\n{{UH|\n* {{UL|type=update|update=Dungeoneering Skill!|date=12 April 2010}}\n** Added to game.\n}}\n\n{{Dungeoneering fish}}",
+  "sourceSha256": "7e9c01742046c253205bf7d51a542f435b2f31c0c61023b266f015e7c4170637"
+}

@@ -1,0 +1,136 @@
+{
+  "schemaVersion": 1,
+  "reviewedOn": "2026-10-09",
+  "module": "app/core/combat-level.mjs",
+  "moduleSha256": "12a978df4f36177d88af21d60c9989daf7fa1eb7b6711b48fcec2e493bd8c906",
+  "hashMode": "git-lf",
+  "wiki": [
+    {
+      "title": "Combat level",
+      "revisionId": 37182070,
+      "timestamp": "2026-09-21T13:56:02Z",
+      "url": "https://runescape.wiki/w/Special:PermanentLink/37182070",
+      "contentSha256": "9de535da573911618c910416c1e453d13645ff5a0e17e51fb61141df7ba3fd80"
+    },
+    {
+      "title": "Module:Calculator/Combat level",
+      "revisionId": 37009630,
+      "timestamp": "2026-04-13T23:01:55Z",
+      "url": "https://runescape.wiki/w/Special:PermanentLink/37009630",
+      "contentSha256": "b7a6fb0072750a32d80185661ab53f160260b43e59fbc71c28a4ad06ca8075f5"
+    },
+    {
+      "title": "Calculator:Combat level",
+      "revisionId": 36950979,
+      "timestamp": "2026-03-02T14:20:48Z",
+      "url": "https://runescape.wiki/w/Special:PermanentLink/36950979",
+      "contentSha256": "c9154608d76f5e5422b46ed7bfc26aa1e48c586e2a1d3fa424e2cb7c169a2df4"
+    }
+  ],
+  "formula": "floor((13*max(Attack+Strength,2*Magic,2*Ranged,2*Necromancy)+10*(Defence+Constitution+floor(Prayer/2)+floor(Summoning/2)))/40)",
+  "realCaps": {
+    "Attack": 120,
+    "Strength": 120,
+    "Ranged": 120,
+    "Magic": 120,
+    "Necromancy": 120,
+    "Defence": 99,
+    "Constitution": 99,
+    "Prayer": 99,
+    "Summoning": 99
+  },
+  "inputPolicy": {
+    "missingOrInvalidSkillLevel": 1,
+    "missingConstitution": 1,
+    "virtualLevels": "clamp to real caps",
+    "temporaryBoosts": "caller passes base levels only"
+  },
+  "f2p": {
+    "summoningConstant": 2,
+    "necromancyCap": 20,
+    "sourceRevisionId": 37009630
+  },
+  "sourceConflict": {
+    "proseRevisionId": 37182070,
+    "proseSummoningConstant": 1,
+    "calculatorRevisionId": 37009630,
+    "calculatorSummoningConstant": 2,
+    "resolution": "Use the current calculator implementation, which explicitly records the experimentally observed F2P constant and matches the stated F2P maximum of 140. The prose constant would yield 139 at current real maxima."
+  },
+  "examples": [
+    {
+      "name": "Starting account",
+      "levels": {
+        "Constitution": 10
+      },
+      "expected": 3
+    },
+    {
+      "name": "Incomplete observations",
+      "levels": {},
+      "expected": 1
+    },
+    {
+      "name": "Observed melee meets War entry with no training source",
+      "levels": {
+        "Attack": 50,
+        "Strength": 50,
+        "Defence": 55,
+        "Constitution": 55
+      },
+      "expected": 60
+    },
+    {
+      "name": "Members current melee maximum",
+      "levels": {
+        "Attack": 120,
+        "Strength": 120,
+        "Defence": 99,
+        "Constitution": 99,
+        "Prayer": 99,
+        "Summoning": 99
+      },
+      "expected": 152
+    },
+    {
+      "name": "Members Necromancy maximum",
+      "levels": {
+        "Necromancy": 120,
+        "Defence": 99,
+        "Constitution": 99,
+        "Prayer": 99,
+        "Summoning": 99
+      },
+      "expected": 152
+    },
+    {
+      "name": "F2P current maximum",
+      "levels": {
+        "Magic": 120,
+        "Defence": 99,
+        "Constitution": 99,
+        "Prayer": 99,
+        "Summoning": 99
+      },
+      "options": {
+        "f2p": true
+      },
+      "expected": 140
+    },
+    {
+      "name": "F2P Necromancy remains trial-capped",
+      "levels": {
+        "Necromancy": 120
+      },
+      "options": {
+        "f2p": true
+      },
+      "expected": 13
+    }
+  ],
+  "limitations": [
+    "This calculates player base Combat level, not monster Combat or Wilderness pouch display.",
+    "Missing Constitution deliberately defaults to 1, unlike the Wiki calculator normal account minimum of 10.",
+    "Caller must supply F2P mode and already reviewed passive/observed levels; this function adds no personal observations, completion facts, primary methods, or teleports."
+  ]
+}

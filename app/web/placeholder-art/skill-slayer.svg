@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+  <title>Slayer: monster head placeholder</title>
+  <g fill="none" stroke="#f4efe4" stroke-width="4.4" stroke-linecap="round" stroke-linejoin="round">
+    <path d="m5 9-2-6 7 3 5-1 6-3-1 9 1 6-7 5-9-4Z"/>
+    <path d="m7 11 3 1 M15 12 18 10"/>
+    <path d="m8 16 8 0-2 3-4 0Z"/>
+  </g>
+  <g fill="none" stroke="#25313b" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+    <path d="m5 9-2-6 7 3 5-1 6-3-1 9 1 6-7 5-9-4Z" fill="#e99768"/>
+    <path d="m7 11 3 1 M15 12 18 10"/>
+    <path d="m8 16 8 0-2 3-4 0Z" fill="#fff0cc"/>
+  </g>
+</svg>

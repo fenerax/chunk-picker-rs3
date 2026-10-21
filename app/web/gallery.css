@@ -1,0 +1,21 @@
+.gallery-page { overflow: auto; height: auto; }
+.gallery-controls { padding: var(--space-legacy-16px); border-bottom: var(--border-thin) solid var(--border); display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-legacy-12px); }
+.gallery-controls h1 { margin: 0; font-size: var(--type-legacy-22px); }
+.gallery-controls label { display: flex; gap: var(--space-legacy-6px); align-items: center; }
+.gallery-layout { display: grid; grid-template-columns: 230px minmax(0, 1fr); gap: var(--space-legacy-16px); padding: var(--space-legacy-16px); }
+#gallery-index { max-height: 85vh; overflow: auto; }
+#gallery-index a { display: block; padding: var(--space-legacy-5px) var(--space-legacy-8px); }
+#gallery-index a[aria-current="true"] { background: var(--surface); }
+.gallery-frame-wrap { overflow: auto; border: var(--border-thin) solid var(--border); }
+#gallery-preview { display: block; border: 0; max-width: none; }
+#gallery-source, #gallery-note { color: var(--muted); }
+.gallery-safety-note { position: fixed; bottom: 8px; left: 8px; z-index: 10000; padding: var(--space-legacy-6px) var(--space-legacy-10px); background: var(--panel); border: var(--border-thin) solid var(--border); color: var(--text); font-size: var(--type-legacy-12px); }
+.gallery-preview .sample-region { position: static; max-width: none; max-height: none; margin: var(--space-legacy-16px); width: auto; overflow: visible; }
+.gallery-preview body:has(> .sample-region) { height: auto; overflow: auto; }
+.gallery-preview .sample-region[hidden] { display: none; }
+.gallery-preview .sample-region.task-sidebar { display: block; height: auto; }
+.gallery-preview .sample-region.map-toolbar { display: flex; }
+.gallery-preview .sample-region.topbar { display: flex; }
+.gallery-preview .gallery-state-host { padding: var(--space-legacy-24px); }
+html[data-gallery-capture="true"] *, html[data-gallery-capture="true"] *::before, html[data-gallery-capture="true"] *::after { animation: none !important; transition: none !important; }
+@media (max-width: 720px) { .gallery-layout { grid-template-columns: 1fr; } #gallery-index { max-height: 220px; } }

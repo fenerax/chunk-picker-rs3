@@ -1,0 +1,1890 @@
+{
+  "schemaVersion": 1,
+  "kind": "skills",
+  "version": "2026-10-08.v1",
+  "assetDirectory": "icons-skills.2026-10-08.v1",
+  "generatedAt": "2026-10-08T06:46:51.498Z",
+  "source": {
+    "cacheBuild": 950,
+    "cacheBuildStatus": "inferred schema version; not independently verified game client build",
+    "rsmvCommit": "a92b8920b9b9842adde78822646ecad1a6f4fc15",
+    "decoder": {
+      "repository": "https://github.com/skillbert/rsmv",
+      "commit": "a92b8920b9b9842adde78822646ecad1a6f4fc15",
+      "buildSchema": 950,
+      "buildStatus": "inferred schema version; not independently verified game client build",
+      "sourceHashes": {
+        "constants": "1436162d7de64725f3b5902d1ae278f40e2dce5ab1f82439e62a2a832d82c66b",
+        "opcode": "5fd7b69a0be0a5d4ec71b5465afcfd5812e8dbcc05f859e021ca8c17d85ed6e4"
+      },
+      "schemaHashes": {
+        "typedef.jsonc": "0d4037507c304ea3bd1e966a161dc1643115c0991e81711bf49d672545dc6858",
+        "cacheindex.json": "b65b2f60dba6168134f6ae5c90d5504dcf26f276477bd2aff213c6734293f793",
+        "mapsquare_tiles.jsonc": "64deb140845bf6605456da65b2de56e7766a66f4747fc90f43e7f3fcc95afbdd",
+        "mapsquare_tiles_nxt.jsonc": "0199a97ae17a56b5a4f05b5962fd80788e86807ceff1256d023a2e650f43be56",
+        "mapsquare_locations.json": "41867d05f7f9456c54f2eedda9a977734b99e33736b89c2cece1eb618a99b308",
+        "locs.jsonc": "fbd5f1d646341a716e1c3c4b41a112727e62922290b44300e69ba8e2aa70c51f",
+        "npcs.jsonc": "1b3b3ffa02e325c0aecafb7d7b22ff7256f11494ab37685115cfd795b0fa4af2",
+        "maplabels.jsonc": "e3bd3e0d827f48ddbb1470e2959c51da23624a4e0fdfc145fa37d62bce780d63",
+        "maplabellocations.jsonc": "5b95af45643e545ca75c9bc4f2d942c033b994a01a00e243d93c36e49372e342",
+        "mapzones_pastes.json": "30f83ad60a5e372e1644627aa234eeca22bbd8e1ece36c44e87a0229f20e40fa",
+        "mapzones.json": "8ba12ea64687bf7376978682ca35688adf1d05a9dca221073dc79f5060f15b29",
+        "mapsquare_overlays.jsonc": "ebf509b0cfeba3288750e40b2049ccd25a210170e54fad7fb387619043954d62",
+        "mapsquare_underlays.jsonc": "2b2f0db789c666d40d85a9764aa4e3ecb9b36bd8f0cacf89e3024180b76b5478",
+        "enums.json": "860ee65ad6cd215960981695e8148de18564464f4375e27eb6b308fbad6c909d",
+        "interfaces.jsonc": "105f29af0875ee27056bd748fecec8c840d441fa2d439a987cf725ce156a7091"
+      },
+      "footerValidation": "bounds and complete consumption required",
+      "executableInterpreterSha256": "ec7fa2cc9ab635bf2ef629f1fa8b77b6f32a97be1aaf4e26970ab2337e58bf16"
+    },
+    "copiedFiles": [
+      {
+        "archiveId": 3,
+        "file": "js5-3.jcache",
+        "bytes": 2371584,
+        "sha256": "3f6bc074ca7194f180dbe3fdbd6046fb15349dc7afc51fea18336de4f82a4bfd"
+      },
+      {
+        "archiveId": 8,
+        "file": "js5-8.jcache",
+        "bytes": 2366500864,
+        "sha256": "c346a36e3137f1f3e91c00689a61a2549ddda8a569717723e1ff7c783b3ce9e1"
+      },
+      {
+        "archiveId": 17,
+        "file": "js5-17.jcache",
+        "bytes": 909312,
+        "sha256": "bf02a85420cedea2d8b61bf607930ab894df60440cbebcc7431730ea8da52404"
+      }
+    ],
+    "enumEvidence": {
+      "108": {
+        "archiveId": 17,
+        "groupId": 0,
+        "subfileId": 108,
+        "sha256": "f3ea8e95bf61514d3cd2b2356d8342c62fc5d3a2380df4e44777e4ce0ff842c1",
+        "groupSha256": "2ee54ffd9ba70f0957dbc8b685b1fadd5ff0e2f55e7f424cce3d379098d3904e"
+      },
+      "371": {
+        "archiveId": 17,
+        "groupId": 1,
+        "subfileId": 115,
+        "sha256": "8a5a91db19a6adf57612670c9e84b22e5a3b2cb9a82a295965c68b4f314d2b5e",
+        "groupSha256": "ca2fa774e70989de6e71184c17ab4d32ca57e8c5e8201a30def9b1ec7fe4d670"
+      },
+      "745": {
+        "archiveId": 17,
+        "groupId": 2,
+        "subfileId": 233,
+        "sha256": "44563fd011f2b73640489e3fac6057c26811b37bd1cdf6a54d8a0f25174795b7",
+        "groupSha256": "614069b9837517725b0a65a97e8c29c74455bd2ee6257f3968d791dda25d834d"
+      }
+    },
+    "interfaceEvidence": {
+      "archiveId": 3,
+      "groupId": 1213,
+      "groupSha256": "5a134148425f444d712f63a661a9fb9972dd737a5e4a16d0e4f871d4667706ff"
+    },
+    "hashScopes": {
+      "archiveSha256": "raw stored compressed JS5 container",
+      "groupSha256": "decompressed sprite group bytes"
+    },
+    "bzip2": {
+      "backend": "Python stdlib bz2",
+      "pythonVersion": "Python 3.13.15"
+    }
+  },
+  "icons": {
+    "Attack": {
+      "file": "attack.png",
+      "width": 25,
+      "height": 25,
+      "bytes": 668,
+      "sha256": "99c8116fe95aad789702290ca0a433c408a529f6cd989018b93768130eb78987",
+      "source": {
+        "kind": "cache-sprite",
+        "archiveId": 8,
+        "groupId": 197,
+        "frameId": 0,
+        "archiveSha256": "69ef959560803723c226e15d9f9938360386bfb7c3eb4e89ebd4c0a0b99467b0",
+        "groupSha256": "384998d582cc6416318fef4b90e220550610ca6bc8ca7cc9dfe8a57f45644bb0",
+        "compression": "js5-2",
+        "enumId": 371,
+        "enumKey": 1,
+        "nameEnumId": 108,
+        "anchor": {
+          "x": 0,
+          "y": 0,
+          "fullwidth": 25,
+          "fullheight": 25
+        }
+      },
+      "aliases": [],
+      "mappingEvidence": {
+        "interfaceId": 1213,
+        "componentId": 37,
+        "spriteId": 197,
+        "width": 25,
+        "height": 25,
+        "sha256": "e362b5124db5f13415d9c8b8f6cb066724c642d86e2db8c2516de289b684d84d",
+        "triggerScriptId": 5682,
+        "triggerSkillKey": 1
+      },
+      "large": {
+        "file": "attack-large.png",
+        "width": 52,
+        "height": 52,
+        "bytes": 2519,
+        "sha256": "912eb1f956e7cb5eb462edc7fa190362787680b532176cff7cad8716116cafdb",
+        "source": {
+          "kind": "cache-sprite",
+          "archiveId": 8,
+          "groupId": 1478,
+          "frameId": 0,
+          "archiveSha256": "d08c2cbcac6b5cd04610f6cdc70665b88163595a56fb6875a4e848818850fa17",
+          "groupSha256": "d6b4b81b4eeef183ec9113ff55b9c16958ab1a5fca618afcdc830f0ec609b3ec",
+          "compression": "js5-2",
+          "enumId": 745,
+          "enumKey": 1,
+          "nameEnumId": 108,
+          "anchor": {
+            "x": 0,
+            "y": 0,
+            "fullwidth": 52,
+            "fullheight": 52
+          }
+        }
+      }
+    },
+    "Strength": {
+      "file": "strength.png",
+      "width": 25,
+      "height": 25,
+      "bytes": 1036,
+      "sha256": "8328ef3aa32d167f6d3a32700a11cf23490f1998a20971e1cc7af43ea642f732",
+      "source": {
+        "kind": "cache-sprite",
+        "archiveId": 8,
+        "groupId": 198,
+        "frameId": 0,
+        "archiveSha256": "8f6b48695d833a97358fab04c90896573baec8e450601a3fd6bf435cfcdda2d6",
+        "groupSha256": "c869a73ce4fc2375c549959dc5c5f080b64916f201eb728bca9b316e9140ba22",
+        "compression": "js5-2",
+        "enumId": 371,
+        "enumKey": 2,
+        "nameEnumId": 108,
+        "anchor": {
+          "x": 0,
+          "y": 0,
+          "fullwidth": 25,
+          "fullheight": 25
+        }
+      },
+      "aliases": [],
+      "mappingEvidence": {
+        "interfaceId": 1213,
+        "componentId": 38,
+        "spriteId": 198,
+        "width": 25,
+        "height": 25,
+        "sha256": "403f627032de147a2feb77ce1d1b58e2c75dfa02868663a137665c6033303f02",
+        "triggerScriptId": 5682,
+        "triggerSkillKey": 2
+      },
+      "large": {
+        "file": "strength-large.png",
+        "width": 52,
+        "height": 52,
+        "bytes": 3679,
+        "sha256": "81d11714447ff6a90387ca2e819b314b200f2e2149c30d3bf574441a42242989",
+        "source": {
+          "kind": "cache-sprite",
+          "archiveId": 8,
+          "groupId": 1479,
+          "frameId": 0,
+          "archiveSha256": "b1e0760f13bda407d5689e9db11cef97f609e8671dc9305535a066fc5684573d",
+          "groupSha256": "e4c9a45c3f72d541c97b4e1af298cc19d1e15090633276e9b128263caf28947c",
+          "compression": "js5-2",
+          "enumId": 745,
+          "enumKey": 2,
+          "nameEnumId": 108,
+          "anchor": {
+            "x": 0,
+            "y": 0,
+            "fullwidth": 52,
+            "fullheight": 52
+          }
+        }
+      }
+    },
+    "Ranged": {
+      "file": "ranged.png",
+      "width": 25,
+      "height": 25,
+      "bytes": 923,
+      "sha256": "81991bc154d586b4728e9faaa73204363877268d0b9759284825ffa07c922a7a",
+      "source": {
+        "kind": "cache-sprite",
+        "archiveId": 8,
+        "groupId": 200,
+        "frameId": 0,
+        "archiveSha256": "e6dcd93eb92897cff677c7392b88824adfc94ac7e3715e41a6a98da5b41af7d2",
+        "groupSha256": "e4b04d4aeeac79dc2049a0cc42e23a58ec4eed7c6d478749c6352211f7bea938",
+        "compression": "js5-2",
+        "enumId": 371,
+        "enumKey": 3,
+        "nameEnumId": 108,
+        "anchor": {
+          "x": 0,
+          "y": 0,
+          "fullwidth": 25,
+          "fullheight": 25
+        }
+      },
+      "aliases": [],
+      "mappingEvidence": {
+        "interfaceId": 1213,
+        "componentId": 40,
+        "spriteId": 200,
+        "width": 25,
+        "height": 25,
+        "sha256": "53da83ecdf6dd1c1d86d743eabe7605d50c50e7b9336ebb12428a6b5945f8e3c",
+        "triggerScriptId": 5682,
+        "triggerSkillKey": 3
+      },
+      "large": {
+        "file": "ranged-large.png",
+        "width": 52,
+        "height": 52,
+        "bytes": 4481,
+        "sha256": "a6aa4c82967facf57b83536e9afc5453ee96adadff5b890c45e45f5d767baf11",
+        "source": {
+          "kind": "cache-sprite",
+          "archiveId": 8,
+          "groupId": 1481,
+          "frameId": 0,
+          "archiveSha256": "0818a7865a6307aee4c447e8e8f94eb2422b3b1f9eb4576a655a492c2058e123",
+          "groupSha256": "9602a6a60d250d769b6d12d797000aa673482a0e61dff8df9015bdf1f5ce112e",
+          "compression": "js5-2",
+          "enumId": 745,
+          "enumKey": 3,
+          "nameEnumId": 108,
+          "anchor": {
+            "x": 0,
+            "y": 0,
+            "fullwidth": 52,
+            "fullheight": 52
+          }
+        }
+      }
+    },
+    "Magic": {
+      "file": "magic.png",
+      "width": 25,
+      "height": 25,
+      "bytes": 930,
+      "sha256": "8124ddc85bd33a36b596151076d604b788fb812bc82ede46d7fbb76f071eaa7b",
+      "source": {
+        "kind": "cache-sprite",
+        "archiveId": 8,
+        "groupId": 202,
+        "frameId": 0,
+        "archiveSha256": "140618a1909830bebcc5e761868f1c6c7e7e5fcccf1dd6c18aade63e230a7ea5",
+        "groupSha256": "d51aa7e9dcf4e0ea1a716eaed700c5d1e4070357811fec2c81a46d8af6249f7c",
+        "compression": "js5-2",
+        "enumId": 371,
+        "enumKey": 4,
+        "nameEnumId": 108,
+        "anchor": {
+          "x": 0,
+          "y": 0,
+          "fullwidth": 25,
+          "fullheight": 25
+        }
+      },
+      "aliases": [],
+      "mappingEvidence": {
+        "interfaceId": 1213,
+        "componentId": 42,
+        "spriteId": 202,
+        "width": 25,
+        "height": 25,
+        "sha256": "d0395cd306e659a0dc6515a5fb9a6631cd6407e8a7c0783c907930ddc88b518e",
+        "triggerScriptId": 5682,
+        "triggerSkillKey": 4
+      },
+      "large": {
+        "file": "magic-large.png",
+        "width": 52,
+        "height": 52,
+        "bytes": 3403,
+        "sha256": "9708d5f2b1d9b6a890b43b1f3b418c968c5df09afad623c6f7afd3f6e2c3a173",
+        "source": {
+          "kind": "cache-sprite",
+          "archiveId": 8,
+          "groupId": 1483,
+          "frameId": 0,
+          "archiveSha256": "5f1e05798a706f62723bd7a4d3ab50b99fa5e777a66525ef676acd4dfa553972",
+          "groupSha256": "d3f9ce2559bef4cb00f4ca562e60b60d16f862bb1bea3bb95f7a692791b7b90d",
+          "compression": "js5-2",
+          "enumId": 745,
+          "enumKey": 4,
+          "nameEnumId": 108,
+          "anchor": {
+            "x": 0,
+            "y": 0,
+            "fullwidth": 52,
+            "fullheight": 52
+          }
+        }
+      }
+    },
+    "Defence": {
+      "file": "defence.png",
+      "width": 25,
+      "height": 25,
+      "bytes": 1052,
+      "sha256": "41dab894d1f692db7b532e373587f59dd77d17189d00fa7fd7cdb1e7f2f5b1a6",
+      "source": {
+        "kind": "cache-sprite",
+        "archiveId": 8,
+        "groupId": 199,
+        "frameId": 0,
+        "archiveSha256": "e6456f970ec888267a55fc2089c6bc0f20a8c7c455f3d90e2bb98eb3a7587e03",
+        "groupSha256": "ac5a030b73dc72c1395478a9711f791bba5a250b07941386755134abd72b5f71",
+        "compression": "js5-2",
+        "enumId": 371,
+        "enumKey": 5,
+        "nameEnumId": 108,
+        "anchor": {
+          "x": 0,
+          "y": 0,
+          "fullwidth": 25,
+          "fullheight": 25
+        }
+      },
+      "aliases": [
+        "Defense"
+      ],
+      "mappingEvidence": {
+        "interfaceId": 1213,
+        "componentId": 39,
+        "spriteId": 199,
+        "width": 25,
+        "height": 25,
+        "sha256": "c79e0d8e6783932292e3310a50b3252b63ed94056e208370d29bf200f3d371a6",
+        "triggerScriptId": 5682,
+        "triggerSkillKey": 5
+      },
+      "large": {
+        "file": "defence-large.png",
+        "width": 52,
+        "height": 52,
+        "bytes": 3720,
+        "sha256": "ec8f141d8c80500b3400c363ad6efd5e2c3c5cebba899a8940a2c0b5dfb8e068",
+        "source": {
+          "kind": "cache-sprite",
+          "archiveId": 8,
+          "groupId": 1480,
+          "frameId": 0,
+          "archiveSha256": "43308b5988f9813769f237d3ce360d4f18ab985e2f247ea3da0a4dd4f333ddb9",
+          "groupSha256": "6bdba24089766d8388d942c896ddd19f0a220271f4f6da8cf07416b61d72111a",
+          "compression": "js5-2",
+          "enumId": 745,
+          "enumKey": 5,
+          "nameEnumId": 108,
+          "anchor": {
+            "x": 0,
+            "y": 0,
+            "fullwidth": 52,
+            "fullheight": 52
+          }
+        }
+      }
+    },
+    "Constitution": {
+      "file": "constitution.png",
+      "width": 25,
+      "height": 25,
+      "bytes": 945,
+      "sha256": "33aabae7cfe3ff7318af049ba851444e606b74e6ccedb1973f41a1c15923cde0",
+      "source": {
+        "kind": "cache-sprite",
+        "archiveId": 8,
+        "groupId": 203,
+        "frameId": 0,
+        "archiveSha256": "cae33b9cb130babd5e0c6d6799bcb8ecccc39973212df07a2108e8a37c9383d6",
+        "groupSha256": "ca0a9bb1bf1e88dc581d04d2640c63242de5c5027777005846406293d52b4cab",
+        "compression": "js5-2",
+        "enumId": 371,
+        "enumKey": 6,
+        "nameEnumId": 108,
+        "anchor": {
+          "x": 0,
+          "y": 0,
+          "fullwidth": 25,
+          "fullheight": 25
+        }
+      },
+      "aliases": [
+        "Hitpoints",
+        "Hit points"
+      ],
+      "mappingEvidence": {
+        "interfaceId": 1213,
+        "componentId": 43,
+        "spriteId": 203,
+        "width": 25,
+        "height": 25,
+        "sha256": "e30d1e934cb606141d4c8c0904c0d91b491fe3c93a89a09bdd2f391944f64048",
+        "triggerScriptId": 5682,
+        "triggerSkillKey": 6
+      },
+      "large": {
+        "file": "constitution-large.png",
+        "width": 52,
+        "height": 52,
+        "bytes": 3585,
+        "sha256": "1f77ae75d31b43434eb85e549f7748d0cb422f52f1d8611a39a421b94d0b083b",
+        "source": {
+          "kind": "cache-sprite",
+          "archiveId": 8,
+          "groupId": 1484,
+          "frameId": 0,
+          "archiveSha256": "f452e322301ac9b1bbf3c8740b353dc95e109e0b7b2b5953c5000d8bd49091d8",
+          "groupSha256": "fcb9e65462e5c0cb0e7c46ae1e9cd51bf4b2c0553fd9fa58a73f5cce7128ba98",
+          "compression": "js5-2",
+          "enumId": 745,
+          "enumKey": 6,
+          "nameEnumId": 108,
+          "anchor": {
+            "x": 0,
+            "y": 0,
+            "fullwidth": 52,
+            "fullheight": 52
+          }
+        }
+      }
+    },
+    "Prayer": {
+      "file": "prayer.png",
+      "width": 25,
+      "height": 25,
+      "bytes": 978,
+      "sha256": "4a07bc1fb4d4b7437fee9a1af141814591885a6b6f7a523f2dcfeca3f34b4533",
+      "source": {
+        "kind": "cache-sprite",
+        "archiveId": 8,
+        "groupId": 201,
+        "frameId": 0,
+        "archiveSha256": "7073dd7a65a09fbadd42ccc93fc4049c997e59b471bddff5dc5297643bbad3ab",
+        "groupSha256": "12ee8139f3f8f8c37255ba516ff0ce0bb3af6e96e7631ed892f185180fb5ede4",
+        "compression": "js5-2",
+        "enumId": 371,
+        "enumKey": 7,
+        "nameEnumId": 108,
+        "anchor": {
+          "x": 0,
+          "y": 0,
+          "fullwidth": 25,
+          "fullheight": 25
+        }
+      },
+      "aliases": [],
+      "mappingEvidence": {
+        "interfaceId": 1213,
+        "componentId": 41,
+        "spriteId": 201,
+        "width": 25,
+        "height": 25,
+        "sha256": "2f60cb0f6f663db565912a5d217456355b73a3b24b8439b2a2c75c49fdaf2972",
+        "triggerScriptId": 5682,
+        "triggerSkillKey": 7
+      },
+      "large": {
+        "file": "prayer-large.png",
+        "width": 52,
+        "height": 52,
+        "bytes": 4823,
+        "sha256": "3a1c2e21357f5edcdf07f6947f6ed95fa75605232e686df74e57a5ee051ceb4d",
+        "source": {
+          "kind": "cache-sprite",
+          "archiveId": 8,
+          "groupId": 1482,
+          "frameId": 0,
+          "archiveSha256": "42564d232ecae9817c86da8ebefb4f2b21960dc44deae16251717954b60044e0",
+          "groupSha256": "b28c649cb95dd720ea0d8ab716f253f9c541d34e98ab1fc70fd82c0713bef7f7",
+          "compression": "bzip2",
+          "enumId": 745,
+          "enumKey": 7,
+          "nameEnumId": 108,
+          "anchor": {
+            "x": 0,
+            "y": 0,
+            "fullwidth": 52,
+            "fullheight": 52
+          }
+        }
+      }
+    },
+    "Agility": {
+      "file": "agility.png",
+      "width": 25,
+      "height": 25,
+      "bytes": 1124,
+      "sha256": "a1389ea912662ba55e013f70bfbf196e5b7b8f124766657ff85d0baa73855968",
+      "source": {
+        "kind": "cache-sprite",
+        "archiveId": 8,
+        "groupId": 204,
+        "frameId": 0,
+        "archiveSha256": "96c2544f642af75999577aa5eefb407d656acb4d5b8106c0ba0b4ae62a05b4ab",
+        "groupSha256": "1d26738177417cec540d1c2fe1d5b0df720584a739e89e1d77ec8fc7370e3ddf",
+        "compression": "js5-2",
+        "enumId": 371,
+        "enumKey": 8,
+        "nameEnumId": 108,
+        "anchor": {
+          "x": 0,
+          "y": 0,
+          "fullwidth": 25,
+          "fullheight": 25
+        }
+      },
+      "aliases": [],
+      "mappingEvidence": {
+        "interfaceId": 1213,
+        "componentId": 44,
+        "spriteId": 204,
+        "width": 25,
+        "height": 25,
+        "sha256": "668867f939a550c0d826be2688f091cb62ae7a7d951e085f7f2fdfab109366a4",
+        "triggerScriptId": 5682,
+        "triggerSkillKey": 8
+      },
+      "large": {
+        "file": "agility-large.png",
+        "width": 52,
+        "height": 52,
+        "bytes": 3269,
+        "sha256": "d5a5697441754927ffb2f5d3b934e2785cc1a61fbd021e22ba674448b0ea984a",
+        "source": {
+          "kind": "cache-sprite",
+          "archiveId": 8,
+          "groupId": 1485,
+          "frameId": 0,
+          "archiveSha256": "6629b62b96628c340cee715cfbd14ed74a2b307ac5e24cdc1f9f8357a6533c46",
+          "groupSha256": "fb9e45294308b88e2f0d8d267c4d8b0518b60d50f71a732c66cf019a137ef56a",
+          "compression": "js5-2",
+          "enumId": 745,
+          "enumKey": 8,
+          "nameEnumId": 108,
+          "anchor": {
+            "x": 0,
+            "y": 0,
+            "fullwidth": 52,
+            "fullheight": 52
+          }
+        }
+      }
+    },
+    "Herblore": {
+      "file": "herblore.png",
+      "width": 25,
+      "height": 25,
+      "bytes": 1018,
+      "sha256": "94dac0a68074a6ecbc710873ebbfcf61fc36546205a537f2b0507f3f54fe3378",
+      "source": {
+        "kind": "cache-sprite",
+        "archiveId": 8,
+        "groupId": 205,
+        "frameId": 0,
+        "archiveSha256": "71a70c740687f0a46bb76c081cab00588bb521ebffc8d7a1dac73dbc7f70c30c",
+        "groupSha256": "41941d9071a6583ba35432ae4e0b1355e9dd8c20354fd09a69ed47bdd2964a7c",
+        "compression": "js5-2",
+        "enumId": 371,
+        "enumKey": 9,
+        "nameEnumId": 108,
+        "anchor": {
+          "x": 0,
+          "y": 0,
+          "fullwidth": 25,
+          "fullheight": 25
+        }
+      },
+      "aliases": [],
+      "mappingEvidence": {
+        "interfaceId": 1213,
+        "componentId": 45,
+        "spriteId": 205,
+        "width": 25,
+        "height": 25,
+        "sha256": "bf671b9f925a46c816d0016e286e028d3d1808207765cafb6591ba2a8a78281c",
+        "triggerScriptId": 5682,
+        "triggerSkillKey": 9
+      },
+      "large": {
+        "file": "herblore-large.png",
+        "width": 52,
+        "height": 52,
+        "bytes": 3668,
+        "sha256": "58980e438f4c5b569a381b7c8498cf6ceb0c98d12c131236f6b4c7c057bd6777",
+        "source": {
+          "kind": "cache-sprite",
+          "archiveId": 8,
+          "groupId": 1486,
+          "frameId": 0,
+          "archiveSha256": "8fcacb3469807e19caef3a05ceada119d021ebda9c45fd785e06c7c8fbb47390",
+          "groupSha256": "01830006d2967eb101f2ed7c478436b744a9f4f2b19c81d1d87f80cdfd6c3c35",
+          "compression": "js5-2",
+          "enumId": 745,
+          "enumKey": 9,
+          "nameEnumId": 108,
+          "anchor": {
+            "x": 0,
+            "y": 0,
+            "fullwidth": 52,
+            "fullheight": 52
+          }
+        }
+      }
+    },
+    "Thieving": {
+      "file": "thieving.png",
+      "width": 25,
+      "height": 25,
+      "bytes": 806,
+      "sha256": "42a881c14bfac6ef1c6c7c933a061f1d8e155f310069d317db94eba302cf8c77",
+      "source": {
+        "kind": "cache-sprite",
+        "archiveId": 8,
+        "groupId": 206,
+        "frameId": 0,
+        "archiveSha256": "7d59ca41d23f174118d651c98a8ee490dd9d450c8aa2c19cf8f3c2b46fe72aee",
+        "groupSha256": "2e21ab47ba8a8cea2eb0688e3bf7b304b5d2eb7964b7317f161f022941836518",
+        "compression": "js5-2",
+        "enumId": 371,
+        "enumKey": 10,
+        "nameEnumId": 108,
+        "anchor": {
+          "x": 0,
+          "y": 0,
+          "fullwidth": 25,
+          "fullheight": 25
+        }
+      },
+      "aliases": [],
+      "mappingEvidence": {
+        "interfaceId": 1213,
+        "componentId": 46,
+        "spriteId": 206,
+        "width": 25,
+        "height": 25,
+        "sha256": "13a19f7224ca07a47f94e1f0c052a6b49b6890786d53ba03c3beec7d6769c200",
+        "triggerScriptId": 5682,
+        "triggerSkillKey": 10
+      },
+      "large": {
+        "file": "thieving-large.png",
+        "width": 52,
+        "height": 52,
+        "bytes": 2930,
+        "sha256": "dbd474e00cbb338961dbb28e21706ed2e19b11f80f2d20a9d7e13edb0b65a620",
+        "source": {
+          "kind": "cache-sprite",
+          "archiveId": 8,
+          "groupId": 1487,
+          "frameId": 0,
+          "archiveSha256": "3ceb527b00fdf9555674a2a50fe914fdb91b1f7d15ec9cb60ed58f3de841cdd2",
+          "groupSha256": "77b4cba3fc3a942bd79b347c7d2866a67e434f849671ab26e748b9d1ccbb8d05",
+          "compression": "js5-2",
+          "enumId": 745,
+          "enumKey": 10,
+          "nameEnumId": 108,
+          "anchor": {
+            "x": 0,
+            "y": 0,
+            "fullwidth": 52,
+            "fullheight": 52
+          }
+        }
+      }
+    },
+    "Crafting": {
+      "file": "crafting.png",
+      "width": 25,
+      "height": 25,
+      "bytes": 1006,
+      "sha256": "db40fa37949e4016c34bec48cd3a6fb975a9c21887e9ebf9db5027e555fa4bc2",
+      "source": {
+        "kind": "cache-sprite",
+        "archiveId": 8,
+        "groupId": 207,
+        "frameId": 0,
+        "archiveSha256": "8b905e98a3448952b9cf55d714cfab2da7d50036e0607859b3a3aa8dd3bcad62",
+        "groupSha256": "bbb762c4b61a3beb9939b4e8ce5b25de118eded74b02abe7b4072403ca493ff6",
+        "compression": "js5-2",
+        "enumId": 371,
+        "enumKey": 11,
+        "nameEnumId": 108,
+        "anchor": {
+          "x": 0,
+          "y": 0,
+          "fullwidth": 25,
+          "fullheight": 25
+        }
+      },
+      "aliases": [],
+      "mappingEvidence": {
+        "interfaceId": 1213,
+        "componentId": 47,
+        "spriteId": 207,
+        "width": 25,
+        "height": 25,
+        "sha256": "85f90f9eb28ab8f9d8183e2fc510b04bd853bf0aa5aea0774dd8ab980c347f3d",
+        "triggerScriptId": 5682,
+        "triggerSkillKey": 11
+      },
+      "large": {
+        "file": "crafting-large.png",
+        "width": 52,
+        "height": 52,
+        "bytes": 3473,
+        "sha256": "655a4f9db4df66843acd0ceebb04d0d52f08409895f0b4c126017f36fa1b1dba",
+        "source": {
+          "kind": "cache-sprite",
+          "archiveId": 8,
+          "groupId": 1488,
+          "frameId": 0,
+          "archiveSha256": "973c7bfecef316e6aa204e30d342101652773282d0ecfcd6bb217806acc83fb6",
+          "groupSha256": "92f1e704ad952befdce472242f08da262de6043d36c152c02fcde0f74a6a9cd2",
+          "compression": "js5-2",
+          "enumId": 745,
+          "enumKey": 11,
+          "nameEnumId": 108,
+          "anchor": {
+            "x": 0,
+            "y": 0,
+            "fullwidth": 52,
+            "fullheight": 52
+          }
+        }
+      }
+    },
+    "Runecrafting": {
+      "file": "runecrafting.png",
+      "width": 25,
+      "height": 25,
+      "bytes": 1145,
+      "sha256": "f4e7ddc943ddaca96e931c0e1e44d900593fec03d1e4bab18cbdaea23b8eeed8",
+      "source": {
+        "kind": "cache-sprite",
+        "archiveId": 8,
+        "groupId": 215,
+        "frameId": 0,
+        "archiveSha256": "c6367425fb8982f2a4ea95dac81c812514f3236c01ee205bf99ff51347fa78ac",
+        "groupSha256": "4c3664dbad49b753351d02714d9ffd3ca0b1f06334dcdc0ec3087012b4f646b8",
+        "compression": "js5-2",
+        "enumId": 371,
+        "enumKey": 12,
+        "nameEnumId": 108,
+        "anchor": {
+          "x": 0,
+          "y": 0,
+          "fullwidth": 25,
+          "fullheight": 25
+        }
+      },
+      "aliases": [
+        "Runecraft"
+      ],
+      "mappingEvidence": {
+        "interfaceId": 1213,
+        "componentId": 55,
+        "spriteId": 215,
+        "width": 25,
+        "height": 25,
+        "sha256": "173f270d36ae25be4705b081f5f931f34b40bc5db47571f69851a94edc940db9",
+        "triggerScriptId": 5682,
+        "triggerSkillKey": 12
+      },
+      "large": {
+        "file": "runecrafting-large.png",
+        "width": 52,
+        "height": 52,
+        "bytes": 3148,
+        "sha256": "ebe2356a6219aa3e1b0303626e08ab60c91f0c86b82890b3920174b5665a08f4",
+        "source": {
+          "kind": "cache-sprite",
+          "archiveId": 8,
+          "groupId": 1496,
+          "frameId": 0,
+          "archiveSha256": "3085a8ae1388ac9493007752227e56e4b1c70e3ba39cb9979168052e21cb3e59",
+          "groupSha256": "9bf740752e2e16a726eb95ab9f0a4d635bfbe6e05940c00a7596b0f097f8d472",
+          "compression": "js5-2",
+          "enumId": 745,
+          "enumKey": 12,
+          "nameEnumId": 108,
+          "anchor": {
+            "x": 0,
+            "y": 0,
+            "fullwidth": 52,
+            "fullheight": 52
+          }
+        }
+      }
+    },
+    "Mining": {
+      "file": "mining.png",
+      "width": 25,
+      "height": 25,
+      "bytes": 802,
+      "sha256": "7d029f7f6983d51f2f4d6e71c60e0cc6fa7cae8217fa1f0607e9a2b80f41b6e4",
+      "source": {
+        "kind": "cache-sprite",
+        "archiveId": 8,
+        "groupId": 209,
+        "frameId": 0,
+        "archiveSha256": "feac4c446b65781a426461339b49fcbba99e8b427bb9137deff6903a2b04a682",
+        "groupSha256": "b98399229a5e3d14df17ba2114bb4c04c9cd0e67c0f2b8511d745097d9cb3ff2",
+        "compression": "js5-2",
+        "enumId": 371,
+        "enumKey": 13,
+        "nameEnumId": 108,
+        "anchor": {
+          "x": 0,
+          "y": 0,
+          "fullwidth": 25,
+          "fullheight": 25
+        }
+      },
+      "aliases": [],
+      "mappingEvidence": {
+        "interfaceId": 1213,
+        "componentId": 49,
+        "spriteId": 209,
+        "width": 25,
+        "height": 25,
+        "sha256": "ddceed32c6a6bbc85f916aebbb1b4a97e7bc87301c734a3cc6ef4f907f6f2ec8",
+        "triggerScriptId": 5682,
+        "triggerSkillKey": 13
+      },
+      "large": {
+        "file": "mining-large.png",
+        "width": 52,
+        "height": 52,
+        "bytes": 3329,
+        "sha256": "6a85ed033a6526d45e072beca54025fd76455b7a0fe2b02a4f03724bf9277f85",
+        "source": {
+          "kind": "cache-sprite",
+          "archiveId": 8,
+          "groupId": 1490,
+          "frameId": 0,
+          "archiveSha256": "18acce1a0e7dc47ffab3f63d14a9826a9ef855be08e77609be8c154cf9f9d2c0",
+          "groupSha256": "b100f44631c62f25ecafb94276099ca97f216439a1f6ae17cda8b2a517aee130",
+          "compression": "js5-2",
+          "enumId": 745,
+          "enumKey": 13,
+          "nameEnumId": 108,
+          "anchor": {
+            "x": 0,
+            "y": 0,
+            "fullwidth": 52,
+            "fullheight": 52
+          }
+        }
+      }
+    },
+    "Smithing": {
+      "file": "smithing.png",
+      "width": 25,
+      "height": 25,
+      "bytes": 820,
+      "sha256": "34bf9b91da2ed6050a57feb55f8ccf7622b90c844f88a900b83f305f0aadfae0",
+      "source": {
+        "kind": "cache-sprite",
+        "archiveId": 8,
+        "groupId": 210,
+        "frameId": 0,
+        "archiveSha256": "6a49ae38a20d7ddf53dbb27bbb0ac79daf99e0e497eabdc1e0bb3538d9c2c41e",
+        "groupSha256": "0ac63fa3b3ddbb36ef01ff7204c19a16014be55a0b73cc3e6d41a720b794bac7",
+        "compression": "js5-2",
+        "enumId": 371,
+        "enumKey": 14,
+        "nameEnumId": 108,
+        "anchor": {
+          "x": 0,
+          "y": 0,
+          "fullwidth": 25,
+          "fullheight": 25
+        }
+      },
+      "aliases": [],
+      "mappingEvidence": {
+        "interfaceId": 1213,
+        "componentId": 50,
+        "spriteId": 210,
+        "width": 25,
+        "height": 25,
+        "sha256": "f4c7dd7ff6376d13044844b38612ac4a8991f85764c7b6625a42c883f0e052bc",
+        "triggerScriptId": 5682,
+        "triggerSkillKey": 14
+      },
+      "large": {
+        "file": "smithing-large.png",
+        "width": 52,
+        "height": 52,
+        "bytes": 3358,
+        "sha256": "f54509aaf622d84c2f92ede33c69a3a384739bd7053ab6efb2c5a5b442b2050f",
+        "source": {
+          "kind": "cache-sprite",
+          "archiveId": 8,
+          "groupId": 1491,
+          "frameId": 0,
+          "archiveSha256": "122b445651b3fcc636da1c0baf4bc97ffc5950d16a645a10b0f47b0be3f0ade6",
+          "groupSha256": "2794051985374f3171b933cc6c398bbcfddac41a7e15fcaf6f636caab4c234c3",
+          "compression": "js5-2",
+          "enumId": 745,
+          "enumKey": 14,
+          "nameEnumId": 108,
+          "anchor": {
+            "x": 0,
+            "y": 0,
+            "fullwidth": 52,
+            "fullheight": 52
+          }
+        }
+      }
+    },
+    "Fishing": {
+      "file": "fishing.png",
+      "width": 25,
+      "height": 25,
+      "bytes": 1170,
+      "sha256": "22f35a6f95b90b4aba7777096f37eaae858ef11f40f59a64a0c6b46fe492b9cf",
+      "source": {
+        "kind": "cache-sprite",
+        "archiveId": 8,
+        "groupId": 211,
+        "frameId": 0,
+        "archiveSha256": "d61aac34dee9c687ebd20ce87142335fef9ba3c2ed93e029572f3bb4d930be9a",
+        "groupSha256": "4f4fb8c6772bcf732d836a05f5b20060f54b3f92d84c5ceb5ed5324cbe32017f",
+        "compression": "js5-2",
+        "enumId": 371,
+        "enumKey": 15,
+        "nameEnumId": 108,
+        "anchor": {
+          "x": 0,
+          "y": 0,
+          "fullwidth": 25,
+          "fullheight": 25
+        }
+      },
+      "aliases": [],
+      "mappingEvidence": {
+        "interfaceId": 1213,
+        "componentId": 51,
+        "spriteId": 211,
+        "width": 25,
+        "height": 25,
+        "sha256": "daccd948c5208af577afbc08a48057cd2f71b665e8e449524b7db451dc1e5c07",
+        "triggerScriptId": 5682,
+        "triggerSkillKey": 15
+      },
+      "large": {
+        "file": "fishing-large.png",
+        "width": 52,
+        "height": 52,
+        "bytes": 4149,
+        "sha256": "2260b7ae8a5a281e8e3ef2c17190614328bd7bab20c16a552efdfe4dcd545c5a",
+        "source": {
+          "kind": "cache-sprite",
+          "archiveId": 8,
+          "groupId": 1492,
+          "frameId": 0,
+          "archiveSha256": "9da34875905a1ba1dfb3c016c412b457be5efaf78d37a03d8660aac7b49167f6",
+          "groupSha256": "018a1be6f6fdbd2927178608616d8034d944faa26011aa5b08841aedd7cfdb60",
+          "compression": "js5-2",
+          "enumId": 745,
+          "enumKey": 15,
+          "nameEnumId": 108,
+          "anchor": {
+            "x": 0,
+            "y": 0,
+            "fullwidth": 52,
+            "fullheight": 52
+          }
+        }
+      }
+    },
+    "Cooking": {
+      "file": "cooking.png",
+      "width": 25,
+      "height": 25,
+      "bytes": 1203,
+      "sha256": "5ce474d0863d2ba89528a49f4a98b04937a350a7206fc27a1c01f2f769788ebb",
+      "source": {
+        "kind": "cache-sprite",
+        "archiveId": 8,
+        "groupId": 212,
+        "frameId": 0,
+        "archiveSha256": "ab0618573bca56fe1b56180de2c3c0eada9b58140d1fb11e71804c4e632bc141",
+        "groupSha256": "35e8f768a912562da947211e28f1ff7118edd73811ad6f0cb1565e3f87c1c259",
+        "compression": "js5-2",
+        "enumId": 371,
+        "enumKey": 16,
+        "nameEnumId": 108,
+        "anchor": {
+          "x": 0,
+          "y": 0,
+          "fullwidth": 25,
+          "fullheight": 25
+        }
+      },
+      "aliases": [],
+      "mappingEvidence": {
+        "interfaceId": 1213,
+        "componentId": 52,
+        "spriteId": 212,
+        "width": 25,
+        "height": 25,
+        "sha256": "857f3d1c7e046de81ed1814428778e51ad477f1a40e12a165e243b4366308bf2",
+        "triggerScriptId": 5682,
+        "triggerSkillKey": 16
+      },
+      "large": {
+        "file": "cooking-large.png",
+        "width": 52,
+        "height": 52,
+        "bytes": 4015,
+        "sha256": "d3aac6bc511d904022e2b6ef750b66ffc196382a2ac30f3d7b313817bea09393",
+        "source": {
+          "kind": "cache-sprite",
+          "archiveId": 8,
+          "groupId": 1493,
+          "frameId": 0,
+          "archiveSha256": "228842006ffdbac7f24af503a9463a742d62d0c5ac9aeb6adcc1521d731a4ed7",
+          "groupSha256": "c208e5e7fdf2d7990e4bcd9370e60e8c086dc31e01cee38da3142e42c051343c",
+          "compression": "js5-2",
+          "enumId": 745,
+          "enumKey": 16,
+          "nameEnumId": 108,
+          "anchor": {
+            "x": 0,
+            "y": 0,
+            "fullwidth": 52,
+            "fullheight": 52
+          }
+        }
+      }
+    },
+    "Firemaking": {
+      "file": "firemaking.png",
+      "width": 25,
+      "height": 25,
+      "bytes": 1267,
+      "sha256": "e9566182dde290bb9f98b9b07079c9288ccddc2dabbfb3eb04e92ab45431faea",
+      "source": {
+        "kind": "cache-sprite",
+        "archiveId": 8,
+        "groupId": 213,
+        "frameId": 0,
+        "archiveSha256": "6b40da177a29e6a68aab034d664b15115dd31921de1f186f818c58c3dd54a94f",
+        "groupSha256": "27b7f04a98aaf8b574d4789df0b982b465ab6214c03d673b3959414eeead30a5",
+        "compression": "js5-2",
+        "enumId": 371,
+        "enumKey": 17,
+        "nameEnumId": 108,
+        "anchor": {
+          "x": 0,
+          "y": 0,
+          "fullwidth": 25,
+          "fullheight": 25
+        }
+      },
+      "aliases": [],
+      "mappingEvidence": {
+        "interfaceId": 1213,
+        "componentId": 53,
+        "spriteId": 213,
+        "width": 25,
+        "height": 25,
+        "sha256": "20cb83623aa095b46a782c6e4943202cb2839d2c7da4366c2f9ac08d4c8a151f",
+        "triggerScriptId": 5682,
+        "triggerSkillKey": 17
+      },
+      "large": {
+        "file": "firemaking-large.png",
+        "width": 52,
+        "height": 52,
+        "bytes": 5169,
+        "sha256": "49a063a260a24110cb50e45444534032d17fdc676d1e50096ff4e2e1ed1b6681",
+        "source": {
+          "kind": "cache-sprite",
+          "archiveId": 8,
+          "groupId": 1494,
+          "frameId": 0,
+          "archiveSha256": "a89dd16305bc7071a36b0b29c5a98c78e7f9f17cb1655bc2d8ae6dd96bdeeae6",
+          "groupSha256": "763d8c29d12c7ad19b587b0b2b0d39d05ee083168e6d0a3e58537e77f91c85f8",
+          "compression": "js5-2",
+          "enumId": 745,
+          "enumKey": 17,
+          "nameEnumId": 108,
+          "anchor": {
+            "x": 0,
+            "y": 0,
+            "fullwidth": 52,
+            "fullheight": 52
+          }
+        }
+      }
+    },
+    "Woodcutting": {
+      "file": "woodcutting.png",
+      "width": 25,
+      "height": 25,
+      "bytes": 1142,
+      "sha256": "728414ef674ab8afa235ef6b8e6363afcb912ece98c5f073f11560c728cda9a6",
+      "source": {
+        "kind": "cache-sprite",
+        "archiveId": 8,
+        "groupId": 214,
+        "frameId": 0,
+        "archiveSha256": "8aeec88e9e849543b376a4505d2822ba49e0b0e09c50fae4ae96e1fc3d39f686",
+        "groupSha256": "41f1b04b1e8d3043af55698ec7442188646f1ab743c3e1b64c3cf251cc342ee0",
+        "compression": "js5-2",
+        "enumId": 371,
+        "enumKey": 18,
+        "nameEnumId": 108,
+        "anchor": {
+          "x": 0,
+          "y": 0,
+          "fullwidth": 25,
+          "fullheight": 25
+        }
+      },
+      "aliases": [],
+      "mappingEvidence": {
+        "interfaceId": 1213,
+        "componentId": 54,
+        "spriteId": 214,
+        "width": 25,
+        "height": 25,
+        "sha256": "3cce621a0973b866f34e0b0950f68fafe33d15d4848ea17272eb80c70a2d286f",
+        "triggerScriptId": 5682,
+        "triggerSkillKey": 18
+      },
+      "large": {
+        "file": "woodcutting-large.png",
+        "width": 52,
+        "height": 52,
+        "bytes": 4594,
+        "sha256": "b7911385c07a7c672773a2e41b30faadba3645cdce8830928b03e89c4c96f690",
+        "source": {
+          "kind": "cache-sprite",
+          "archiveId": 8,
+          "groupId": 1495,
+          "frameId": 0,
+          "archiveSha256": "be33f60bf9e93a81931688014e693cd3b24d89ada26548bf4ad7d3b7cdd8ad61",
+          "groupSha256": "83a2056a7a61bc47c10dcbc748e545261123bbe5ce8597b155e07c6e554f8ab7",
+          "compression": "js5-2",
+          "enumId": 745,
+          "enumKey": 18,
+          "nameEnumId": 108,
+          "anchor": {
+            "x": 0,
+            "y": 0,
+            "fullwidth": 52,
+            "fullheight": 52
+          }
+        }
+      }
+    },
+    "Fletching": {
+      "file": "fletching.png",
+      "width": 25,
+      "height": 25,
+      "bytes": 809,
+      "sha256": "84750c1266af080ac6e22d020d112e2b7fcf97bae0b2074026f44103ed50b529",
+      "source": {
+        "kind": "cache-sprite",
+        "archiveId": 8,
+        "groupId": 208,
+        "frameId": 0,
+        "archiveSha256": "e8fde554e389728d10867c2986d16c46523c0e018d34d6d6c0e47b9f47f84ce0",
+        "groupSha256": "a39468c455c136a49522cfd93b8d8553d59fa099d6cd84861a6f815382fbb1fa",
+        "compression": "js5-2",
+        "enumId": 371,
+        "enumKey": 19,
+        "nameEnumId": 108,
+        "anchor": {
+          "x": 0,
+          "y": 0,
+          "fullwidth": 25,
+          "fullheight": 25
+        }
+      },
+      "aliases": [],
+      "mappingEvidence": {
+        "interfaceId": 1213,
+        "componentId": 48,
+        "spriteId": 208,
+        "width": 25,
+        "height": 25,
+        "sha256": "1b79332f2a92d0e3d5b33a85801cd2e3b68df4bc4960682a33eee91fd17ef220",
+        "triggerScriptId": 5682,
+        "triggerSkillKey": 19
+      },
+      "large": {
+        "file": "fletching-large.png",
+        "width": 52,
+        "height": 52,
+        "bytes": 3010,
+        "sha256": "64800fb6f985d0b3adeeaacbdd9e18566c65aab11e1aed5721c4f447a601c4cb",
+        "source": {
+          "kind": "cache-sprite",
+          "archiveId": 8,
+          "groupId": 1489,
+          "frameId": 0,
+          "archiveSha256": "1b9f04b07435d5ac969ee9a24bf1a47b8f401c7b9446cb818d365a6f92d53379",
+          "groupSha256": "d725014658513ed192d4c9aeedbc215c57c4ddb95dd5b9eec4cf36d0ddad59ca",
+          "compression": "js5-2",
+          "enumId": 745,
+          "enumKey": 19,
+          "nameEnumId": 108,
+          "anchor": {
+            "x": 0,
+            "y": 0,
+            "fullwidth": 52,
+            "fullheight": 52
+          }
+        }
+      }
+    },
+    "Slayer": {
+      "file": "slayer.png",
+      "width": 25,
+      "height": 25,
+      "bytes": 1105,
+      "sha256": "79530f277ad052f78165a9340d377d2c15be561ce7d048ee319db8e9692e3cb0",
+      "source": {
+        "kind": "cache-sprite",
+        "archiveId": 8,
+        "groupId": 216,
+        "frameId": 0,
+        "archiveSha256": "02821dbb39a327a3b10f30f5a507d5632bdf76da2f77775203081da678bf1199",
+        "groupSha256": "1be58616d40d4df2d0b3c2649c0e71f769dad696fbde145e7d3071566c587a5b",
+        "compression": "js5-2",
+        "enumId": 371,
+        "enumKey": 20,
+        "nameEnumId": 108,
+        "anchor": {
+          "x": 0,
+          "y": 0,
+          "fullwidth": 25,
+          "fullheight": 25
+        }
+      },
+      "aliases": [],
+      "mappingEvidence": {
+        "interfaceId": 1213,
+        "componentId": 56,
+        "spriteId": 216,
+        "width": 25,
+        "height": 25,
+        "sha256": "97ca1bfa79b23299b0104f5110f4ecbbf30c1397ceb430181eea32d577769bcd",
+        "triggerScriptId": 5682,
+        "triggerSkillKey": 20
+      },
+      "large": {
+        "file": "slayer-large.png",
+        "width": 52,
+        "height": 52,
+        "bytes": 3136,
+        "sha256": "7d8cf36f4b0558a8b002be1c5ecab36e1e4a090e3d1d948660e30815106484d9",
+        "source": {
+          "kind": "cache-sprite",
+          "archiveId": 8,
+          "groupId": 1497,
+          "frameId": 0,
+          "archiveSha256": "de82eab0460169f646a08638a82bab06f4579fbd0446febdfec0c5c8b333a9ba",
+          "groupSha256": "2371c51449c7b475b4be301fc32a0c2c237db7c2b90721bde484d96d6806fbd9",
+          "compression": "js5-2",
+          "enumId": 745,
+          "enumKey": 20,
+          "nameEnumId": 108,
+          "anchor": {
+            "x": 0,
+            "y": 0,
+            "fullwidth": 52,
+            "fullheight": 52
+          }
+        }
+      }
+    },
+    "Farming": {
+      "file": "farming.png",
+      "width": 25,
+      "height": 25,
+      "bytes": 1135,
+      "sha256": "15c9332df10cced37c59d1dedd1e1c943ca7192e45b225bc775387494255be7d",
+      "source": {
+        "kind": "cache-sprite",
+        "archiveId": 8,
+        "groupId": 217,
+        "frameId": 0,
+        "archiveSha256": "0d7c76f2e788f300eb721ea28692f1a0355e4a71c14539739cef5afc0c374430",
+        "groupSha256": "9eb5e54d7fa8d1f937952613da6a2c0e3d113ca22cdb1c4f0f4bfe2465eaf79b",
+        "compression": "js5-2",
+        "enumId": 371,
+        "enumKey": 21,
+        "nameEnumId": 108,
+        "anchor": {
+          "x": 0,
+          "y": 0,
+          "fullwidth": 25,
+          "fullheight": 25
+        }
+      },
+      "aliases": [],
+      "mappingEvidence": {
+        "interfaceId": 1213,
+        "componentId": 57,
+        "spriteId": 217,
+        "width": 25,
+        "height": 25,
+        "sha256": "862f493ce5a37a88f5c0d3aed444f0b3197fbba090d25623e223d3b2d1be58b0",
+        "triggerScriptId": 5682,
+        "triggerSkillKey": 21
+      },
+      "large": {
+        "file": "farming-large.png",
+        "width": 52,
+        "height": 52,
+        "bytes": 2639,
+        "sha256": "f4acbbe19db492c473225b95b01e3c5e56b3ca364d70719ec544a1ec50af52d8",
+        "source": {
+          "kind": "cache-sprite",
+          "archiveId": 8,
+          "groupId": 1498,
+          "frameId": 0,
+          "archiveSha256": "3a693f5251f3fd2f3abb6e275d9d53ec4a73c12256cf1a8365e493e6dd283d8f",
+          "groupSha256": "3d9976ae493291564119760256f4404fcc290c4ce7f07b45d99fcee8b30b2b0e",
+          "compression": "js5-2",
+          "enumId": 745,
+          "enumKey": 21,
+          "nameEnumId": 108,
+          "anchor": {
+            "x": 0,
+            "y": 0,
+            "fullwidth": 52,
+            "fullheight": 52
+          }
+        }
+      }
+    },
+    "Construction": {
+      "file": "construction.png",
+      "width": 25,
+      "height": 25,
+      "bytes": 1278,
+      "sha256": "c649c4bbb59c098b87ff465af19488bac3b654fd2d4e6cf617f49a1d8ba58fda",
+      "source": {
+        "kind": "cache-sprite",
+        "archiveId": 8,
+        "groupId": 221,
+        "frameId": 0,
+        "archiveSha256": "e0d6c55c67e122712d2830b9fb2b3e6dcca1d61eb4c6fa9226f57f657cd5e63a",
+        "groupSha256": "b44cb3a0016d0742792b61040a3f92b392759b9d1d12a68ed0ad5f1a269da175",
+        "compression": "js5-2",
+        "enumId": 371,
+        "enumKey": 22,
+        "nameEnumId": 108,
+        "anchor": {
+          "x": 0,
+          "y": 0,
+          "fullwidth": 25,
+          "fullheight": 25
+        }
+      },
+      "aliases": [],
+      "mappingEvidence": {
+        "interfaceId": 1213,
+        "componentId": 59,
+        "spriteId": 221,
+        "width": 25,
+        "height": 25,
+        "sha256": "79e035d7128c668954d7b557f84a557734dd1c1b6c901f1e66da8730700d8219",
+        "triggerScriptId": 5682,
+        "triggerSkillKey": 22
+      },
+      "large": {
+        "file": "construction-large.png",
+        "width": 52,
+        "height": 52,
+        "bytes": 3507,
+        "sha256": "dd57ec35ae46965b38b08e2117c5c60054005ad718e4b34b65d4f75eefd70ef7",
+        "source": {
+          "kind": "cache-sprite",
+          "archiveId": 8,
+          "groupId": 1502,
+          "frameId": 0,
+          "archiveSha256": "b2c0c02a5d4a56b7d5cfcddd5373c2de63387d3e1128dd3ea9a12a3fa76ebd6b",
+          "groupSha256": "4b54215ecb07c0439d5069b8fdf38c100f8dd2cf68a32d077788a8f107b1899e",
+          "compression": "js5-2",
+          "enumId": 745,
+          "enumKey": 22,
+          "nameEnumId": 108,
+          "anchor": {
+            "x": 0,
+            "y": 0,
+            "fullwidth": 52,
+            "fullheight": 52
+          }
+        }
+      }
+    },
+    "Hunter": {
+      "file": "hunter.png",
+      "width": 25,
+      "height": 25,
+      "bytes": 1247,
+      "sha256": "d6c303137ee7c74423f3dd83ec25607ca078b1aeb6b48af9ec420f19ea83527b",
+      "source": {
+        "kind": "cache-sprite",
+        "archiveId": 8,
+        "groupId": 220,
+        "frameId": 0,
+        "archiveSha256": "74bb4ed2e606756ac209f4d6cd3f55e713fc9fe61afae197272a87b022c2daf5",
+        "groupSha256": "422975c13a248f975019113d1606cbcc0d1b639228a846e81fee0550e1b990b1",
+        "compression": "js5-2",
+        "enumId": 371,
+        "enumKey": 23,
+        "nameEnumId": 108,
+        "anchor": {
+          "x": 0,
+          "y": 0,
+          "fullwidth": 25,
+          "fullheight": 25
+        }
+      },
+      "aliases": [],
+      "mappingEvidence": {
+        "interfaceId": 1213,
+        "componentId": 58,
+        "spriteId": 220,
+        "width": 25,
+        "height": 25,
+        "sha256": "a04a9f4e833962d4dfacc0dabd55e812e4901bd109ffe12c034b099ba80d5a0f",
+        "triggerScriptId": 5682,
+        "triggerSkillKey": 23
+      },
+      "large": {
+        "file": "hunter-large.png",
+        "width": 52,
+        "height": 52,
+        "bytes": 3521,
+        "sha256": "0353ede5afd364a28612a3533622b6615d9bc2270ac9c34dd808b73b963ba970",
+        "source": {
+          "kind": "cache-sprite",
+          "archiveId": 8,
+          "groupId": 1501,
+          "frameId": 0,
+          "archiveSha256": "dd72f6257729e196a4743a12d4e189bef371b69acfae548dd2274e4e290d259a",
+          "groupSha256": "d6159b41277c4a591783b86a9f3da1f7df122114681f67c873a4343198f418b5",
+          "compression": "js5-2",
+          "enumId": 745,
+          "enumKey": 23,
+          "nameEnumId": 108,
+          "anchor": {
+            "x": 0,
+            "y": 0,
+            "fullwidth": 52,
+            "fullheight": 52
+          }
+        }
+      }
+    },
+    "Summoning": {
+      "file": "summoning.png",
+      "width": 25,
+      "height": 25,
+      "bytes": 1051,
+      "sha256": "ae20e48b1c45d150d4912e84c5055856c606db158da9f356a1b5a229df9554d0",
+      "source": {
+        "kind": "cache-sprite",
+        "archiveId": 8,
+        "groupId": 222,
+        "frameId": 0,
+        "archiveSha256": "67e26bcb16ede2a250e0df627204aca1916acf17ed3bdcdeaa8d25d2514bce24",
+        "groupSha256": "e653a38391e8841f289007966226ee0cfa3e9d5acb0cc07d3eb122bd090d97d4",
+        "compression": "js5-2",
+        "enumId": 371,
+        "enumKey": 24,
+        "nameEnumId": 108,
+        "anchor": {
+          "x": 0,
+          "y": 0,
+          "fullwidth": 25,
+          "fullheight": 25
+        }
+      },
+      "aliases": [],
+      "mappingEvidence": {
+        "interfaceId": 1213,
+        "componentId": 60,
+        "spriteId": 222,
+        "width": 25,
+        "height": 25,
+        "sha256": "68e67c4afd3e5d0f959116f3c41c081da7157bd950b6ec124457f91784d024a8",
+        "triggerScriptId": 5682,
+        "triggerSkillKey": 24
+      },
+      "large": {
+        "file": "summoning-large.png",
+        "width": 52,
+        "height": 52,
+        "bytes": 3238,
+        "sha256": "15ab08e7b064bb280488d808ab87e95d6f50a116aa028035b4e8db761a1d19ff",
+        "source": {
+          "kind": "cache-sprite",
+          "archiveId": 8,
+          "groupId": 1503,
+          "frameId": 0,
+          "archiveSha256": "7341eb98fc45951b0b8e9e6ff53b4cde3c0386d1345d1f447a50f5b9927c445b",
+          "groupSha256": "53bcdfb07758e06461be3deae894fecbe0a17bd720d092a14d642f7d1e44e634",
+          "compression": "js5-2",
+          "enumId": 745,
+          "enumKey": 24,
+          "nameEnumId": 108,
+          "anchor": {
+            "x": 0,
+            "y": 0,
+            "fullwidth": 52,
+            "fullheight": 52
+          }
+        }
+      }
+    },
+    "Dungeoneering": {
+      "file": "dungeoneering.png",
+      "width": 25,
+      "height": 25,
+      "bytes": 1516,
+      "sha256": "8d64dd9fbe5e89f253dc536fac10d4a100b03bd17203ad6dbaa7c62480131397",
+      "source": {
+        "kind": "cache-sprite",
+        "archiveId": 8,
+        "groupId": 3028,
+        "frameId": 0,
+        "archiveSha256": "7dfacf07c0631d2dd23ddaca2166d29a322e2b3000e8838338027946a2cd2e9d",
+        "groupSha256": "fe662f4d43bc14e1ba813f607ef45233a1d6058e7582a323c38bedc17213793b",
+        "compression": "js5-2",
+        "enumId": 371,
+        "enumKey": 25,
+        "nameEnumId": 108,
+        "anchor": {
+          "x": 0,
+          "y": 0,
+          "fullwidth": 25,
+          "fullheight": 25
+        }
+      },
+      "aliases": [],
+      "mappingEvidence": {
+        "interfaceId": 1213,
+        "componentId": 61,
+        "spriteId": 3028,
+        "width": 25,
+        "height": 25,
+        "sha256": "f79db3ceb593767eea8d714f8601753e07a2070a1442b383c5b617b30e2ed266",
+        "triggerScriptId": 5682,
+        "triggerSkillKey": 25
+      },
+      "large": {
+        "file": "dungeoneering-large.png",
+        "width": 52,
+        "height": 52,
+        "bytes": 3774,
+        "sha256": "bd9f654cc77135588253a1d56736a772c01057acd7d49c25e768ad776bf4307d",
+        "source": {
+          "kind": "cache-sprite",
+          "archiveId": 8,
+          "groupId": 3032,
+          "frameId": 0,
+          "archiveSha256": "d7352ea6492bba43f0d1e5a172ba5446d332215428a51ff6edf114a544a91f41",
+          "groupSha256": "a196d1546ce4ad851842ef3117f86e57907b0191c36ee319594acdb59524740e",
+          "compression": "js5-2",
+          "enumId": 745,
+          "enumKey": 25,
+          "nameEnumId": 108,
+          "anchor": {
+            "x": 0,
+            "y": 0,
+            "fullwidth": 52,
+            "fullheight": 52
+          }
+        }
+      }
+    },
+    "Divination": {
+      "file": "divination.png",
+      "width": 25,
+      "height": 25,
+      "bytes": 977,
+      "sha256": "7c54bd2b48be66598e88549f4218ff73953eb8adb3c4d6282b4e9b855a58e0e2",
+      "source": {
+        "kind": "cache-sprite",
+        "archiveId": 8,
+        "groupId": 9170,
+        "frameId": 0,
+        "archiveSha256": "d976e647189bbd1230538f1820e56119fcf5a8cf0827fbd2d9d8d6753b843d89",
+        "groupSha256": "d9622c475d4c0e3848d2a0e3fc8dfe15c3c37ebb729d2b50bcaa988d4745c54e",
+        "compression": "js5-2",
+        "enumId": 371,
+        "enumKey": 26,
+        "nameEnumId": 108,
+        "anchor": {
+          "x": 0,
+          "y": 0,
+          "fullwidth": 25,
+          "fullheight": 25
+        }
+      },
+      "aliases": [],
+      "mappingEvidence": {
+        "interfaceId": 1213,
+        "componentId": 62,
+        "spriteId": 9170,
+        "width": 25,
+        "height": 25,
+        "sha256": "2710f5c2cfb9a632773cdce6a558aceecd50653b710bfe843b9ac4adce2acbdf",
+        "triggerScriptId": 5682,
+        "triggerSkillKey": 26
+      },
+      "large": {
+        "file": "divination-large.png",
+        "width": 52,
+        "height": 52,
+        "bytes": 2983,
+        "sha256": "4b6414424326d6dd52d9341694ee9e5ffca43f0beb8bdd3b9ec2cb11fd1f559e",
+        "source": {
+          "kind": "cache-sprite",
+          "archiveId": 8,
+          "groupId": 9204,
+          "frameId": 0,
+          "archiveSha256": "4c1a4cd2367721ddcdb589d233eaed69f44c1ad06e1cb9351c1159bc03feccc2",
+          "groupSha256": "b77ec4e368ae79fea82f540fcb80573a0b4df1114885738fa94ab1981fd3745d",
+          "compression": "js5-2",
+          "enumId": 745,
+          "enumKey": 26,
+          "nameEnumId": 108,
+          "anchor": {
+            "x": 0,
+            "y": 0,
+            "fullwidth": 52,
+            "fullheight": 52
+          }
+        }
+      }
+    },
+    "Invention": {
+      "file": "invention.png",
+      "width": 25,
+      "height": 25,
+      "bytes": 1118,
+      "sha256": "bf78da2eed08ef4bfc2b8e69b560dc54a45782f58fa18516f325b3f0a14c4169",
+      "source": {
+        "kind": "cache-sprite",
+        "archiveId": 8,
+        "groupId": 26541,
+        "frameId": 0,
+        "archiveSha256": "cd82b8b278e8b0c6d4b341595cb730227f701e25c172afad0d81c39ac5c972f3",
+        "groupSha256": "d53ec78e101116bab715510d3f892a4d7e9fdbad13e35aed0f41b3d0d4a59ccb",
+        "compression": "js5-2",
+        "enumId": 371,
+        "enumKey": 27,
+        "nameEnumId": 108,
+        "anchor": {
+          "x": 0,
+          "y": 0,
+          "fullwidth": 25,
+          "fullheight": 25
+        }
+      },
+      "aliases": [],
+      "mappingEvidence": {
+        "interfaceId": 1213,
+        "componentId": 63,
+        "spriteId": 26541,
+        "width": 25,
+        "height": 25,
+        "sha256": "6bd72d29f329e500b005667aa160652de642db54dde4ef740be66f07647c0dff",
+        "triggerScriptId": 5682,
+        "triggerSkillKey": 27
+      },
+      "large": {
+        "file": "invention-large.png",
+        "width": 52,
+        "height": 52,
+        "bytes": 2994,
+        "sha256": "52bbc0d95e039d4348c6bf5eb7ad393e4496b6bcc5386279ccc054056c8b1022",
+        "source": {
+          "kind": "cache-sprite",
+          "archiveId": 8,
+          "groupId": 26544,
+          "frameId": 0,
+          "archiveSha256": "bfd4c5e3c1b146387a66bd8b15eeef4f6bbf0e9a190747d049637de6c991f34e",
+          "groupSha256": "b0d65fb1b1e3fca4f69ea424ebafc38f631a81e6e93b4eb891ac9175209b2256",
+          "compression": "js5-2",
+          "enumId": 745,
+          "enumKey": 27,
+          "nameEnumId": 108,
+          "anchor": {
+            "x": 0,
+            "y": 0,
+            "fullwidth": 52,
+            "fullheight": 52
+          }
+        }
+      }
+    },
+    "Archaeology": {
+      "file": "archaeology.png",
+      "width": 25,
+      "height": 25,
+      "bytes": 1266,
+      "sha256": "b4e154a45e5910b9ac5789f62952082488786954abe23b7e4c81e884a41e0d38",
+      "source": {
+        "kind": "cache-sprite",
+        "archiveId": 8,
+        "groupId": 10782,
+        "frameId": 0,
+        "archiveSha256": "1af0dbbe4d9a39c87200ba93c05c5eab59ea654cf2ba985fc4b2c3dd322bb201",
+        "groupSha256": "30fc2737d588c91736668a7051edf60912d539dc901ad2f554ea78d51dd1648e",
+        "compression": "js5-2",
+        "enumId": 371,
+        "enumKey": 28,
+        "nameEnumId": 108,
+        "anchor": {
+          "x": 0,
+          "y": 0,
+          "fullwidth": 25,
+          "fullheight": 25
+        }
+      },
+      "aliases": [],
+      "mappingEvidence": {
+        "interfaceId": 1213,
+        "componentId": 64,
+        "spriteId": 10782,
+        "width": 25,
+        "height": 25,
+        "sha256": "44fe90ac3aa0f9d9d7826940cee3646d6e643d9d0bb6b9a56acc84e198c5ef84",
+        "triggerScriptId": 5682,
+        "triggerSkillKey": 28
+      },
+      "large": {
+        "file": "archaeology-large.png",
+        "width": 52,
+        "height": 52,
+        "bytes": 3363,
+        "sha256": "bd81c89d0a8090f06ec258e7edaebba844bd863bac81458e2eaa14a25c8099da",
+        "source": {
+          "kind": "cache-sprite",
+          "archiveId": 8,
+          "groupId": 10785,
+          "frameId": 0,
+          "archiveSha256": "7e1a813d6c9dedf759029cc715c0acedf572efb9bdfc37789d1dcccd24483049",
+          "groupSha256": "471d3f931a3b332ef000321e4717102bfb97ecfa2b1dc9dc1f7bad1dfd653a93",
+          "compression": "js5-2",
+          "enumId": 745,
+          "enumKey": 28,
+          "nameEnumId": 108,
+          "anchor": {
+            "x": 0,
+            "y": 0,
+            "fullwidth": 52,
+            "fullheight": 52
+          }
+        }
+      }
+    },
+    "Necromancy": {
+      "file": "necromancy.png",
+      "width": 25,
+      "height": 25,
+      "bytes": 1169,
+      "sha256": "6128bc76bdfb0d154424e7fcb27c12c9b7ea2ff3e022648e69a00606e08f5f7c",
+      "source": {
+        "kind": "cache-sprite",
+        "archiveId": 8,
+        "groupId": 30934,
+        "frameId": 0,
+        "archiveSha256": "985e745d387f99e9ab772ba85a804b25e359b75dbd74f549ed5f40101c90ee58",
+        "groupSha256": "ad02ec89e4124ebd14f0c02a75ba2b64bb25a9beabcbb3b727477fde2d113e18",
+        "compression": "js5-2",
+        "enumId": 371,
+        "enumKey": 29,
+        "nameEnumId": 108,
+        "anchor": {
+          "x": 0,
+          "y": 0,
+          "fullwidth": 25,
+          "fullheight": 25
+        }
+      },
+      "aliases": [],
+      "mappingEvidence": {
+        "interfaceId": 1213,
+        "componentId": 65,
+        "spriteId": 30934,
+        "width": 25,
+        "height": 25,
+        "sha256": "e49398204dda8f8a517db7699b1c8d7c34462ea3ff96dd8dcec1decfc42af5c0",
+        "triggerScriptId": 5682,
+        "triggerSkillKey": 29
+      },
+      "large": {
+        "file": "necromancy-large.png",
+        "width": 52,
+        "height": 52,
+        "bytes": 3130,
+        "sha256": "9cb98cac23c5b2c400bb2472464e50baa92e3e04b7e619e799e6bcbb3a9e3009",
+        "source": {
+          "kind": "cache-sprite",
+          "archiveId": 8,
+          "groupId": 30937,
+          "frameId": 0,
+          "archiveSha256": "2111ed30c3b8eb4b41d5cad60b2ed579dee2ad485d5cc5723007b09a5d75d3bf",
+          "groupSha256": "c6223e69f962ff1025732bd4ef204c8ad6c4a5e240b63a6caa81bc7023ac763a",
+          "compression": "js5-2",
+          "enumId": 745,
+          "enumKey": 29,
+          "nameEnumId": 108,
+          "anchor": {
+            "x": 0,
+            "y": 0,
+            "fullwidth": 52,
+            "fullheight": 52
+          }
+        }
+      }
+    }
+  },
+  "unmatched": [],
+  "unavailableLarge": [],
+  "coverage": {
+    "requested": 29,
+    "mapped": 29,
+    "bySource": {
+      "cache-sprite": 29
+    }
+  },
+  "totalBytes": 133313,
+  "limits": [
+    "Copied snapshot may differ from live game data.",
+    "PNG files preserve native dimensions and alpha; no resampling or recoloring.",
+    "Skill names and sprite correspondence come from cache enums 108/371/745, corroborated by skill-selection interface 1213."
+  ]
+}

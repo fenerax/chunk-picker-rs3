@@ -1,0 +1,24 @@
+{
+  "schema": "rs3-approved-hosted-policy-v1",
+  "id": "public-full-linux-windows-node24-v1",
+  "repository": "fenerax/chunk-picker-rs3",
+  "repositoryId": 1420195470,
+  "workflowId": 385300184,
+  "path": ".github/workflows/test.yml",
+  "approvedWorkflowSha256": ["fb4e2ff306ce17b55f030c7650455a11a427316cbaf743ae74bec11ef47d8646"],
+  "nodeMajor": 24,
+  "requiredOS": ["ubuntu-latest", "windows-latest"],
+  "requiredSteps": ["Checkout exact SHA", "Set up Node 24", "Verify public checkout identity", "Public quick", "Public full"],
+  "runnerBlobs": [
+    {"path":"package.json","sha":"33563b63707d5c089a519806cd14c0176090a932"},
+    {"path":"scripts/test.mjs","sha":"2eb2d8ea36b9b0098c6ecdc911bba1f5a3b7bc50"},
+    {"path":"scripts/test-selection.mjs","sha":"b9ceb30d6c29b5ef6e1c91775750eb7cd14721a5"},
+    {"path":"scripts/test-run-environment.mjs","sha":"58264caf7aed20b954f1b778c81e8c63b6ac8fd7"},
+    {"path":"scripts/test-port-check.mjs","sha":"c55e85e998f35a43d8cc80372573f0ec8e5867a2"}
+  ],
+  "maxRunAgeSeconds": 604800,
+  "receiptTTLSeconds": 300,
+  "revokedBefore": null,
+  "revokedRunIds": [],
+  "revokedSHAs": []
+}

@@ -1,0 +1,21 @@
+.quest-map-controls { display:flex; flex-wrap:wrap; align-items:center; gap:var(--space-4); }
+.quest-map-controls p { margin:0; flex:1 1 180px; }
+.quest-map-status {
+  position:absolute; right:.75rem; bottom:.75rem; z-index:4; width:320px;
+  max-width:calc(100% - 1.5rem); max-height:35%; overflow:auto;
+  padding:var(--space-5) var(--space-5); background:var(--panel); color:var(--panel-text,var(--text));
+  border:var(--border-thin) solid var(--hairline); border-radius:var(--radius-sm);
+}
+.quest-map-status[hidden] { display:none; }
+.quest-map-header { display:flex; align-items:center; justify-content:space-between; gap:var(--space-5); }
+.quest-map-header strong { overflow-wrap:anywhere; }
+.quest-map-status p { margin:var(--space-3) 0 0; font-size:var(--type-sm); }
+.quest-map-key { display:flex; flex-wrap:wrap; gap:var(--space-3) var(--space-5); }
+.quest-map-key span::before { content:''; display:inline-block; width:.65rem; height:.65rem; margin-right:var(--space-3); border:var(--border-focus) solid var(--color-fixed-f25fe3); }
+.quest-map-key .quest-map-locked::before { border-color:var(--color-fixed-e69b36); border-style:dashed; }
+.quest-map-notes { overflow-wrap:anywhere; }
+.quest-map-notes p, .quest-map-notes details { margin:var(--space-3) 0 0; font-size:var(--type-sm); }
+.quest-map-notes details p { margin-top:var(--space-2); }
+@media (max-width:720px) {
+  .quest-map-status { position:relative; inset:auto; width:auto; max-width:none; max-height:none; margin:var(--space-4); }
+}

@@ -1,0 +1,35 @@
+RuneScape Wiki-derived facts and adaptations — open-f2p 0.6.0
+
+The facts, coordinates, location joins and generated descriptions in dataset.json
+and baseline-0.1.0.json / baseline-0.2.0.json / baseline-0.3.0.json /
+baseline-0.4.0.json / baseline-0.5.0.json
+are adapted from the RuneScape Wiki, https://runescape.wiki/, by its contributors.
+They are distributed under Creative Commons Attribution-NonCommercial-ShareAlike
+3.0 Unported (CC BY-NC-SA 3.0):
+https://creativecommons.org/licenses/by-nc-sa/3.0/
+
+Every cell, source, task, shop, stock row, bank, deposit box, route, walking
+connection, quest, achievement, equipment item, monster, drop, facility,
+recipe, acquisition, ordinary harvest, dialogue supply and reviewed exclusion records its source page title,
+revision ID and revision URL. buildInputs records the pinned API cache receipts.
+Changes: select an explicitly limited F2P surface slice; derive 64-tile region keys
+from Wiki tile coordinates; aggregate placements by resource and region; write
+new task descriptions; curate named walking paths, banking services, positive
+F2P shop stock and a conditional boat route; expand reviewed trees, surface mines,
+fishing and walking approaches; adapt quests, achievements and their gates;
+select exact free equipment variants, monster locations, drop quantities/rates
+and material/tool/facility requirements for reviewed production recipes;
+add three ordinary crop harvests, Ned's and Karim's dialogue payments and
+Ernest the Chicken's finite reward quantities. Finite rewards never supply
+renewable items or imply held inventory.
+The original 0.1.0 through 0.5.0 gameplay rows are retained in their respective
+baseline files for identity checks.
+The 0.5.0 archive omits local receipt filenames for portability; its page titles,
+revisions, receipt hashes, gameplay facts and identities remain identical.
+
+This folder's licence scope is separate from the project's MIT-authored code,
+rules, generator and placeholder pictures. The MIT licence does not replace the
+Wiki terms. No Wiki/Game images or game-client/cache files are included.
+
+RuneScape is a trademark of Jagex Ltd. This non-commercial project is unofficial
+and is not affiliated with Jagex or the RuneScape Wiki.
