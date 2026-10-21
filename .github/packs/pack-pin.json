@@ -16,6 +16,11 @@
       "id": "duo-art",
       "version": "1.0.0-public.1",
       "sha256": "1c9cd4cb6cb5fc0c55b471394a0af515257a651b044cd39d6b75bd59a6bb7816"
+    },
+    "cacheInputs": {
+      "id": "cache-inputs",
+      "version": "1.0.0-public.1",
+      "sha256": "84e3c2fbc60ac9613f2bcf892be0f4801eec84eca13fd3881044803f6f2a51cd"
     }
   },
   "assets": [
@@ -33,6 +38,11 @@
       "name": "duo-art-1.0.0-public.1.tar.gz",
       "bytes": 98667976,
       "sha256": "59ad32b167f811c93ad5431d177270f31cb24320acaf968c294ba0589362d43a"
+    },
+    {
+      "name": "cache-inputs-1.0.0-public.1.tar.gz",
+      "bytes": 152245698,
+      "sha256": "e0198d84ee0a20ab163b08ddc3faa347a8be2e63f484157a90aff6e0a97edfa5"
     }
   ]
 }

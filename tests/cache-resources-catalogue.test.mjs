@@ -71,7 +71,7 @@ test('bridge effective plane is distinct from source/raw floor',()=>{
   assert.equal(effectiveDisplayPlane({plane:0,source:{effectivePlane:1},transform:{translation:{plane:-1}}}),0);
 });
 
-test('mandatory full masks retain pinned manifest, membership and decoder identities',{skip:!existsSync(resourceMaskDefaults.path)&&'Pinned copied resource-mask bundle is unavailable at the builder source root'},()=>{
+test('mandatory full masks retain pinned manifest, membership and decoder identities',{skip:!process.env.RS3_RESOURCE_GAME_DATA_DIR&&!process.env.RS3_GAME_DATA_DIR&&!existsSync(resourceMaskDefaults.path)&&'Pinned copied resource-mask bundle is unavailable at the builder source root'},()=>{
   const {provenance,regions}=fullMasks();
   assert.equal(provenance.sha256,resourceMaskDefaults.walkabilitySha256);
   assert.equal(provenance.manifest.sha256,resourceMaskDefaults.manifestSha256);
@@ -161,7 +161,7 @@ test('committed catalogue retains provenance, tuple schema and exact witness ide
   const selectors=JSON.parse(readFileSync(new URL('../app/data/cache-resource-selectors.2026-10-08.v1.json',import.meta.url)));
   assert.deepEqual(data.schema.placementColumns,placementColumns);
   assert.equal(selectors.provenance.catalogueSha256,sha256RepositoryText(bytes));
-  assert.equal(data.provenance.manifest.sha256,'641043bf628f3d0ef1d9434d9acbe76688a7628015d17e866530ffd435bad99e');
+  assert.equal(data.provenance.manifest.sha256,'f07efbc8eb452e53f01242d097906ea3209622e92dddedd0fbd30ed93824564d');
   assert.equal(data.provenance.decoder.commit,'a92b8920b9b9842adde78822646ecad1a6f4fc15');
   assert.equal(data.provenance.decoder.buildSchema,950);
   assert.equal(data.provenance.walkability.masks.sha256,resourceMaskDefaults.walkabilitySha256);
