@@ -5,7 +5,7 @@ import os from 'node:os';
 import net from 'node:net';
 import { spawn, execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { cp, lstat, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
+import { cp, lstat, mkdir, mkdtemp, readFile, readdir, realpath, rm, writeFile } from 'node:fs/promises';
 import { createReadStream } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
@@ -235,7 +235,9 @@ export async function rehearse({ repo = checkout, packsDir, summary }) {
   };
   try {
     if (process.version !== 'v24.20.0') throw Error('Release Node version required.');
-    work = await mkdtemp(path.join(os.tmpdir(), 'rs3-ci-rehearsal-'));
+    // GitHub's Windows temp dir is an 8.3 short path (RUNNER~1); the pack
+    // checks require every path to equal its realpath, so canonicalize once.
+    work = await realpath(await mkdtemp(path.join(os.tmpdir(), 'rs3-ci-rehearsal-')));
     const releaseDir = path.join(work, 'release'), core = path.join(releaseDir, 'core');
     await mkdir(releaseDir);
     const exported = await step('export', () => exportHead({ repo, core }));

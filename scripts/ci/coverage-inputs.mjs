@@ -5,10 +5,12 @@ import { createHash } from 'node:crypto';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { cacheWikiPages, pageFilename } from '../fetch-open-f2p-wiki.mjs';
+import { packRelative } from '../../app/packs.mjs';
 
 const hash = bytes => createHash('sha256').update(bytes).digest('hex');
-const relative = value => typeof value === 'string' && /^[A-Za-z0-9_-][A-Za-z0-9._/-]*$/.test(value)
-  && value.split('/').every(part => part !== '' && part !== '.' && part !== '..');
+// The app's own pack path rule, so names such as `Ammo_(2h)_slot.png` pass here
+// exactly when the app would read them.
+const relative = value => { try { packRelative(value); return true; } catch { return false; } };
 function inputFile(root, name) {
   if (!relative(name)) throw Error('Coverage input has an invalid relative path.');
   let current = root;
