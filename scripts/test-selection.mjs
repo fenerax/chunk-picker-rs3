@@ -15,6 +15,7 @@ export const adaptiveOptionsFor = (suite, env = process.env) => {
 
 // Reviewed small fixtures and model/controller tests. No running browser or full catalogue.
 export const quickTests = new Set([
+  "ci-gallery.test.mjs",
   "cdp-scratch-port.test.mjs",
   "tooling-certificate.test.mjs",
   "tooling-contracts.test.mjs",
