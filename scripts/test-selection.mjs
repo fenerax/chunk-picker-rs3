@@ -482,6 +482,7 @@ export const openF2PTests = new Set([
   "duo-server.test.mjs",
   "eligibility-reuse.test.mjs",
   "frontdoor-ingress.test.mjs",
+  "game-plugin-mapping.test.mjs",
   "group-goals-server.test.mjs",
   "history-pagination-server.test.mjs",
   "idle-memory-server.test.mjs",
