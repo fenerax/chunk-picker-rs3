@@ -1,4 +1,5 @@
 import { openPluginKeys } from './plugin-keys.mjs';
+import { openPluginAchievements } from './plugin-achievements.mjs';
 import { fields, validatePluginReport, pluginProposal, matchPluginAchievements, ACHIEVEMENT_REVIEW_LIMIT } from './integrations/game-plugin.mjs';
 import { pluginTaskRows, pluginTaskList } from './game-plugin-tasks.mjs';
 
@@ -6,14 +7,17 @@ const fail = (status, message) => Object.assign(new Error(message), { status });
 const LIFETIME = 10 * 60 * 1000;
 // Status also describes the block of map squares centred on the player (2 each way: 5x5).
 const NEARBY_RADIUS = 2;
+const COMPLETED_SNAPSHOT_LIMIT = 8;
 const PLUGIN_ROUTES = new Map([['/api/plugin/v1/report', 'POST'], ['/api/plugin/v1/status', 'GET'], ['/api/plugin/v1/tasks', 'GET']]);
 
 /** Positions, assemblies and proposals are ephemeral. Ticks use store.command. */
 export async function openGamePlugin({ dataDir, store, world, registry, questMapping, bodyJSON, json,
-  serializeMutation, checkRequestOrigin, notify = () => {}, clock = Date.now, savedTasks = () => null }) {
+  serializeMutation, checkRequestOrigin, notify = () => {}, clock = Date.now, savedTasks = () => null, log = console.warn }) {
   const keys = await openPluginKeys({ dataDir, clock });
+  const handled = await openPluginAchievements({ dataDir, members: () => state().members, clock, log });
   const positions = new Map(), pending = new Map(), sequences = new Map(), buckets = new Map(), diagnostics = new Map();
   const assemblies = new Map(), completedSnapshots = new Map(), achievementSummaries = new Map();
+  const pendingHandled = new Map();
   let statusRevision = -1; const statuses = new Map(); let closed = false, warming = false;
   // Last saved task list per plugin player. The bytes are the server's own saved
   // play result, so a fresh list costs no extra memory; after a tick clears the
@@ -42,6 +46,16 @@ export async function openGamePlugin({ dataDir, store, world, registry, questMap
     const assembly = assemblies.get(player);
     return assembly ? { snapshot: assembly.snapshot, received: assembly.received, parts: assembly.parts } : null;
   }
+  async function rememberHandled(player, ids = []) {
+    const waiting = pendingHandled.get(player) ?? new Set();
+    for (const id of ids) waiting.add(id);
+    if (!waiting.size) return;
+    // A save can succeed before the sidecar write fails. Keep its IDs until a
+    // later request (or close) retries persistence, without applying ticks again.
+    pendingHandled.set(player, waiting);
+    await handled.add(player, [...waiting]);
+    pendingHandled.delete(player);
+  }
   function achievementReview(player, report, rows) {
     const prior = liveReview(player)?.report;
     // Keep other progress waiting for review. Every completed set replaces only
@@ -54,7 +68,11 @@ export async function openGamePlugin({ dataDir, store, world, registry, questMap
   async function receiveAchievements(player, report) {
     const part = report.achievements;
     let assembly = assemblies.get(player);
-    if (completedSnapshots.get(player)?.has(part.snapshot)) return;
+    if (completedSnapshots.get(player)?.has(part.snapshot)) {
+      // The plugin resumes from status only when it describes its own snapshot.
+      assemblies.set(player, { snapshot: part.snapshot, received: part.parts, parts: part.parts });
+      return;
+    }
     if (assembly?.snapshot === part.snapshot && assembly.parts === part.parts && part.part <= assembly.received) return;
     if (part.part === 1) {
       assembly = { snapshot: part.snapshot, received: 0, parts: part.parts, complete: [], live: true, beta: false };
@@ -66,30 +84,37 @@ export async function openGamePlugin({ dataDir, store, world, registry, questMap
     if (report.world?.beta === true) assembly.betaWorld = report.world;
     assembly.beta ||= report.world?.beta === true;
     if (assembly.received !== assembly.parts) return;
-    const seen = completedSnapshots.get(player) ?? new Set(); seen.add(part.snapshot); completedSnapshots.set(player, seen);
     const matches = matchPluginAchievements(state(), player, assembly.complete);
-    // Release the rows once processed. A completed snapshot is acknowledged for
-    // the rest of this picker session, including after Undo or another snapshot.
+    // Release rows after matching. Durable handled IDs make evicting old
+    // snapshots safe: this small cache only acknowledges recent replays quickly.
     assembly.complete = [];
     const previous = achievementSummaries.get(player);
     const summary = { completeCount: matches.completeCount, matchedTaskCount: matches.matchedTaskCount, unmatchedCount: matches.unmatchedCount,
       lastTickedCount: previous?.lastTickedCount ?? 0, lastTickedAt: previous?.lastTickedAt ?? null };
-    const review = [...matches.unclear];
-    if (assembly.live && matches.candidates.length) {
-      const achievements = [...new Map(matches.candidates.map(row => [row.candidates[0].taskId,
+    const world = assembly.live ? 'live' : assembly.beta ? 'beta' : 'unknown';
+    const candidates = matches.candidates.filter(row => !handled.has(player, row.achievementId));
+    const review = matches.unclear.filter(row => !handled.has(player, row.achievementId));
+    let appliedIds = [];
+    if (assembly.live && candidates.length) {
+      const achievements = [...new Map(candidates.map(row => [row.candidates[0].taskId,
         { taskId: row.candidates[0].taskId, title: row.title, achievementId: row.achievementId }])).values()];
       try {
         // Already inside the server's mutation queue. This is the same checked
         // command path as review Apply, one History/Undo entry for the batch.
         await store.command({ type: 'apply-game-progress', memberId: player, fetchedAt: report.sentAt, skills: [], quests: [], achievements }, store.getInfo().revision);
+        appliedIds = candidates.map(row => row.achievementId);
         summary.lastTickedCount = achievements.length; summary.lastTickedAt = new Date(clock()).toISOString();
       } catch {
         // A failed write must not reject the report or lose the candidates.
-        review.push(...matches.candidates.map(row => ({ ...row, reason: 'retry' })));
+        review.push(...candidates.map(row => ({ ...row, reason: 'retry' })));
       }
-    } else review.push(...matches.candidates.map(row => ({ ...row, reason: assembly.beta ? 'beta' : 'world-unknown' })));
+    } else review.push(...candidates.map(row => ({ ...row, reason: assembly.beta ? 'beta' : 'world-unknown' })));
+    const seen = completedSnapshots.get(player) ?? new Set(); seen.add(part.snapshot);
+    while (seen.size > COMPLETED_SNAPSHOT_LIMIT) seen.delete(seen.values().next().value);
+    completedSnapshots.set(player, seen);
     achievementSummaries.set(player, summary);
-    achievementReview(player, { ...report, world: assembly.live ? report.world : assembly.betaWorld }, review);
+    achievementReview(player, { ...report, world: assembly.live ? report.world : assembly.betaWorld }, review.map(row => ({ ...row, world })));
+    if (appliedIds.length) await rememberHandled(player, appliedIds);
   }
   function status(player) {
     const owner = member(player), revision = store.getInfo().revision;
@@ -184,6 +209,7 @@ export async function openGamePlugin({ dataDir, store, world, registry, questMap
       const result = await serializeMutation(async () => {
         if (closed || serverClosed) throw fail(503, 'The picker is stopping.');
         keys.authenticate(request); member(credential.player);
+        await rememberHandled(credential.player);
         if (report) {
           if (report.seq <= (sequences.get(credential.id) ?? -1)) throw fail(409, 'The report seq must increase for this key.');
           sequences.set(credential.id, report.seq);
@@ -251,11 +277,23 @@ export async function openGamePlugin({ dataDir, store, world, registry, questMap
       });
       return { ...review.proposal, command: { ...review.proposal.command, achievements } };
     },
-    finish(memberId) { pending.delete(memberId); notify(); },
+    async finish(memberId) {
+      const review = liveReview(memberId);
+      // Apply and Dismiss both make the player's choice final for every live
+      // row shown, including skipped rows. Beta/unknown copies may report live later.
+      const ids = (review?.proposal?.preview.achievements ?? []).filter(row => row.world === 'live').map(row => row.achievementId);
+      if (ids.length) await rememberHandled(memberId, ids);
+      pending.delete(memberId); notify();
+    },
     rememberTasks(memberId, bytes) {
       if (closed || !bytes) return;
       if (hasActiveKey(memberId)) retainedTasks.set(memberId, bytes); else { retainedTasks.delete(memberId); taskRows.delete(memberId); }
     },
-    async close() { closed = true; await keys.close(); positions.clear(); pending.clear(); diagnostics.clear(); retainedTasks.clear(); taskRows.clear(); assemblies.clear(); completedSnapshots.clear(); achievementSummaries.clear(); },
+    async close() {
+      closed = true;
+      try { for (const player of pendingHandled.keys()) await rememberHandled(player); }
+      finally { await Promise.all([keys.close(), handled.close()]); }
+      positions.clear(); pending.clear(); diagnostics.clear(); retainedTasks.clear(); taskRows.clear(); assemblies.clear(); completedSnapshots.clear(); achievementSummaries.clear();
+    },
   };
 }

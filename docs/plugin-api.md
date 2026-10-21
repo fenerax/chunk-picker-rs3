@@ -121,10 +121,14 @@ a new assembly for this player, replacing an unfinished one. The next part
 must have the same snapshot and parts count, with `part = received + 1`.
 Repeating a received part does nothing. Other out-of-order parts return 200 and
 are ignored. Use the response's `achievements` to resume or restart. Multiple
-keys for one player share the assembly. The picker processes a complete set
-once. Repeating a completed snapshot does not tick again, even after Undo.
-A new snapshot can apply new progress. A restart forgets assemblies, processed
-snapshots, summaries and review lists. Only applied ticks and provenance persist.
+keys for one player share the assembly. A replay of a recently completed snapshot
+becomes the current assembly with `{snapshot, received: parts, parts}`, even if
+another snapshot arrived in between; it is acknowledged without matching again.
+The picker remembers the last eight completed snapshot names per player in memory.
+A restart forgets assemblies, this replay cache, summaries and review lists.
+Persisted handled achievement IDs prevent later reports, including new snapshots
+and replays after a restart or cache eviction, from reversing Undo or manual unticks.
+A new snapshot can still apply newly completed, unhandled achievements.
 
 Matching uses the quest Unicode, case and punctuation normalization. Only Diary
 tasks with an exact raw label `~|Family#Group|~ Achievement name` participate.
@@ -144,15 +148,72 @@ Each tick stores its achievement title, in-game ID, source, fetched timestamp
 and member ID in `member.achievementProgress`. Completed shows “ticked by the
 game”. Normal Undo reverses the whole batch and removes its provenance.
 
-The existing proposal preview includes an `achievements` section with
-`achievementId`, `title`, `candidates` (`taskId`, `label`) and `reason` (`unclear`,
-`beta`, `world-unknown` or `retry`). At most **200 rows** are retained for review;
+The existing proposal preview includes an `achievements` array. Each row has
+exactly this shape (no optional fields):
+
+```json
+{
+  "achievementId": 354,
+  "title": "Second Shrubbery",
+  "candidates": [{ "taskId": "diary:example", "label": "Second Shrubbery" }],
+  "reason": "unclear",
+  "world": "beta"
+}
+```
+
+`achievementId` is the nonnegative safe integer from the report; `title` is its
+reported name. `candidates` contains objects with exactly `taskId` and `label`
+(strings). `reason` is `unclear`, `beta`, `world-unknown` or `retry`. `world` is
+`live` only when **every part** explicitly reported `world.beta: false`, `beta`
+when any part reported `world.beta: true`, and `unknown` otherwise. World
+provenance belongs to each row, independently of its reason and the preview's
+outer `world` (which may describe earlier skills or quests). The dialog shows a
+beta or unknown-world warning on each such row, including unclear matches.
+Already handled IDs are omitted. At most **200 rows** are retained for review;
 `achievementsMore` counts additional rows. Choose a candidate task or leave a
 row skipped. Apply accepts optional `achievements: [{achievementId, taskId}]`
 beside `previewId` and `expectedRevision`. Only reviewed candidates are accepted;
 each achievement and task can be chosen once. Only the player or an administrator
-can Apply or Dismiss. Apply records one undoable batch; skipped and omitted rows
-are discarded with the review. A changed achievement set can create another review.
+can Apply or Dismiss. Apply records one undoable batch. Applying or dismissing a
+review handles every live-world row shown, including skipped and omitted choices,
+so those choices persist. Beta and unknown-world rows are never handled, even
+when selected and applied; a later live report can offer or tick them again.
+Rows beyond the 200-row review limit are not handled by that review.
+
+### Handled achievement sidecar
+
+`plugin-achievements.json` lives in `dataDir` beside `plugin-keys.json`:
+
+```json
+{ "v": 1, "players": { "player1": { "handled": [354, 1201] } } }
+```
+
+It records achievement IDs the picker has already acted on for each existing
+player. Arrays are sorted, unique nonnegative safe integers, with at most
+**20,000 IDs per player**. Writes retain existing IDs first, then admit new IDs
+in ascending order until full; excess IDs remain unhandled. Deleted players
+are pruned on the next handled write. The file uses serialized, atomic writes
+with the same private file permissions and save-directory lock as plugin keys.
+Missing means empty. A corrupt or wrong-shape file logs one warning at open and
+is treated as empty; reads do not overwrite it. The next successful handled
+write archives the bad file as `plugin-achievements.json.corrupt-<timestamp>`
+(with a numeric suffix if necessary) before replacing it.
+
+Successful automatic batches handle all matched IDs whose tasks were ticked
+(including several IDs that map to the same single task); failed
+automatic commands leave `retry` rows and do not handle their IDs. Unmatched
+IDs and matches whose tasks are already complete are not handled, so later task
+list changes can still use them. This sidecar is **outside the save, Undo and
+save backups**. Undo removes ticks and `achievementProgress`, but keeps handled
+IDs. Deleting the sidecar re-enables automatic ticks for completions the picker
+sees again. Keep it alongside the save when moving the picker to preserve these
+choices.
+
+If a handled write fails after the save command succeeds, the request reports
+the error. The picker retains those IDs in memory and retries persistence before
+the next status/report acknowledgement or at shutdown, without repeating the
+command. The save and sidecar are separate writes; abrupt termination between
+them can still lose the handled record.
 
 The Game plugin dialog shows each player's current part count, last complete
 achievement count, matched task count and last automatic batch's count and time.

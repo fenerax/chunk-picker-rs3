@@ -39,7 +39,7 @@ function fixture(t, { viewer = false } = {}) {
   });
   let preview, keys = [], nextFailure = false;
   const c = {
-    state: { revision: 1, members: [{ id: 'one', name: 'Explorer' }] }, sessionMember: 'one', sandbox: { active: false },
+    state: { revision: 1, members: [{ id: 'one', name: 'Explorer 1' }] }, sessionMember: 'one', sandbox: { active: false },
     canWrite: () => !viewer, queue: Promise.resolve(), $: id => id === 'tool-dialog' ? dialog : null,
     el: (tag, content) => new Node(tag, content),
     button: (label, action) => Object.assign(new Node('button', label), { action }),
@@ -102,6 +102,40 @@ test('achievement review sends only chosen matches and retains revision checks',
   assert.deepEqual(f.posts.find(row => row.path.endsWith('/apply')).body, {
     previewId: preview.previewId, expectedRevision: 1, achievements: [{ achievementId: 1, taskId: 'second' }],
   });
+});
+
+test('achievement world warnings stay on each row beside live skill review and preserve choices', async t => {
+  const f = fixture(t), preview = f.proposal('mixed-world-review', { id: 1, beta: false });
+  const reports = [
+    { reason: 'unclear', world: 'beta' }, { reason: 'unclear', world: 'unknown' },
+    { reason: 'retry', world: 'beta' }, { reason: 'retry', world: 'unknown' },
+    { reason: 'beta', world: 'beta' }, { reason: 'world-unknown', world: 'unknown' },
+    { reason: 'unclear', world: 'live' },
+  ];
+  preview.achievements = reports.map((report, index) => ({ ...report, achievementId: index + 1, title: `Achievement ${index + 1}`,
+    candidates: [{ taskId: `task-${index + 1}`, label: `Task ${index + 1}` }, { taskId: `alternative-${index + 1}`, label: `Alternative ${index + 1}` }] }));
+  f.setPreview(preview); const root = await f.open();
+  assert.match(text(root), /Review plugin progress for Explorer 1/);
+  assert.match(text(root), /Attack: level 1 → 2/);
+  assert.doesNotMatch(text(root), /This snapshot came from a beta world/);
+  for (const [index, report] of reports.entries()) {
+    const row = all(root).find(node => node.tag === 'strong' && node.textContent === `Achievement ${index + 1}`).parent;
+    const betaNotes = all(row).filter(node => node.textContent === 'Reported from a beta world. Check against your main account.');
+    const unknownNotes = all(row).filter(node => node.textContent === 'World type was not reported. Check before applying.');
+    assert.equal(betaNotes.length, report.world === 'beta' ? 1 : 0);
+    assert.equal(unknownNotes.length, report.world === 'unknown' ? 1 : 0);
+    if (report.reason === 'unclear') assert.match(text(row), /Choose the matching task/);
+    if (report.reason === 'retry') assert.match(text(row), /Automatic ticking could not finish/);
+    const choice = all(row).find(node => node.tag === 'select');
+    assert.equal(choice.disabled, false); assert.equal(choice.value, '');
+    assert.deepEqual(choice.children.map(option => option.value), ['', `task-${index + 1}`, `alternative-${index + 1}`]);
+    choice.value = `task-${index + 1}`; choice.emit('change');
+  }
+  assert.equal(button(root, 'Apply plugin snapshot').disabled, false);
+  assert.ok(button(root, 'Dismiss snapshot'));
+  await button(root, 'Apply plugin snapshot').action();
+  assert.deepEqual(f.posts.find(row => row.path.endsWith('/apply')).body.achievements,
+    reports.map((_, index) => ({ achievementId: index + 1, taskId: `task-${index + 1}` })));
 });
 
 test('achievement review bounds rows and labels and reports assembly counts once per player', async t => {

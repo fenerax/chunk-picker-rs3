@@ -149,7 +149,10 @@ export function createGamePlugin(c) {
         section.append(el('h5', `Achievement matches to review (${achievements.length})`), el('p', 'Choose a task for each achievement you want to tick. Leave it skipped to make no change.', 'field-help'));
         for (const achievement of achievements) {
           const row = el('div', undefined, 'game-plugin-achievement form-stack'), title = reviewText(achievement.title);
-          row.append(el('strong', title), el('p', achievement.candidates?.length ? achievementReasons[achievement.reason] ?? achievementReasons.unclear : 'No matching task was found. This achievement stays skipped.', 'info-meta'));
+          const reason = achievement.candidates?.length ? achievementReasons[achievement.reason] ?? achievementReasons.unclear : 'No matching task was found. This achievement stays skipped.';
+          const worldNote = achievement.world === 'beta' ? achievementReasons.beta : achievement.world === 'unknown' ? achievementReasons['world-unknown'] : null;
+          row.append(el('strong', title), el('p', reason, worldNote === reason ? 'warning' : 'info-meta'));
+          if (worldNote && worldNote !== reason) row.append(el('p', worldNote, 'warning'));
           const choice = el('select'), skip = el('option', 'Skip this achievement'); skip.value = ''; choice.append(skip);
           for (const candidate of achievement.candidates ?? []) {
             const option = el('option', reviewText(c.plain(candidate.label))); option.value = candidate.taskId; choice.append(option);

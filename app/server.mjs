@@ -1758,9 +1758,9 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
               const applying = route.endsWith('/apply'), review = gamePlugin.findReview(identity, body, applying);
               if (applying) {
                 const state = await store.command(review.command, body.expectedRevision, { actor: identity.actor });
-                gamePlugin.finish(review.command.memberId);
+                await gamePlugin.finish(review.command.memberId);
                 await json(request, response, 200, viewEnvelope(state, viewFor(request)));
-              } else { gamePlugin.finish(review.command.memberId); await json(request, response, 200, { dismissed: true }); }
+              } else { await gamePlugin.finish(review.command.memberId); await json(request, response, 200, { dismissed: true }); }
               return;
             }
             if (route === '/api/shutdown') {
@@ -1938,7 +1938,7 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
           };
           // Order revocation with accepted saves. Once revoke returns, a queued
           // request cannot commit using the revoked session or admin capability.
-          const durable = ['/api/action-session', '/api/command', '/api/restore', '/api/import', '/api/member-restore', '/api/runemetrics/apply', '/api/game-plugin/apply', '/api/shutdown'].includes(route)
+          const durable = ['/api/action-session', '/api/command', '/api/restore', '/api/import', '/api/member-restore', '/api/runemetrics/apply', '/api/game-plugin/apply', '/api/game-plugin/dismiss', '/api/shutdown'].includes(route)
             || route === '/api/game-plugin/keys' || /^\/api\/game-plugin\/keys\/[^/]+\/revoke$/.test(route)
             || route === '/api/invites' || /^\/api\/invites\/[^/]+\/(?:revoke|player)$/.test(route);
           await (durable ? serializeMutation(execute) : execute());
