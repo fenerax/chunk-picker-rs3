@@ -13,11 +13,13 @@ param(
     [Parameter(Mandatory, ParameterSetName = 'GoLive')][switch]$GoLive,
     [Parameter(Mandatory, ParameterSetName = 'GoLive')][string]$ReleaseDir,
     [Parameter(Mandatory, ParameterSetName = 'GoLive')][string]$ExpectLive,
-    [string]$Config = (Join-Path $PSScriptRoot '../../../.local/quick-release.json'),
+    [string]$Config,
     [ValidateRange(10, 300)][int]$TimeoutSeconds = 120
 )
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version 3.0
+# Windows PowerShell leaves $PSScriptRoot empty in parameter defaults.
+if (-not $Config) { $Config = Join-Path $PSScriptRoot '../../../.local/quick-release.json' }
 
 $settings = Get-Content -LiteralPath $Config -Raw | ConvertFrom-Json
 foreach ($name in 'Repo', 'Current', 'Releases', 'Operator', 'WatchdogLog') {
