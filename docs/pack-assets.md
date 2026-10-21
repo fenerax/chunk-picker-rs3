@@ -8,7 +8,7 @@ Use Node 24 with no installed dependencies. Supply all three packs explicitly:
 
 ```powershell
 node scripts/packs/publish-assets.mjs --tag packs-public-2026-10-21 `
-  --data-pack ../public-packs/duo-data/1.0.6-public.1 `
+  --data-pack ../public-packs/duo-data/1.0.6-public.2 `
   --rules-text-pack ../public-packs/duo-rules-text/1.0.6 `
   --art-pack ../public-packs/duo-art/1.0.0 `
   --corpus-dir ../local-corpus `
@@ -50,7 +50,19 @@ that cannot be loaded refuses. When none exists, the tool reports pattern-only
 coverage. Use the local corpus for a publication review. A finding blocks all
 outputs and commands. Reports contain category counts and input-file ordinals,
 with matched values and source paths withheld. Overlapping windows can count
-the same finding more than once. No exception or scan bypass option is provided.
+the same finding more than once. No scan bypass option is provided.
+
+`scripts/secret-scan/pack-reviewed.json` contains reviewed false positives for
+exact pack-relative paths, categories and complete payload SHA-256 receipts.
+The publisher applies a review only after hashing the entire payload. Changed
+bytes lose the review, even when the filename and JSON field stay the same.
+Private-fingerprint collision reviews also require the exact SHA-256 of the
+reviewed local `corpus.json`; changing the corpus requires another review.
+Optional JSON pointers document the reviewed fields. Gzip transport and expanded
+JSON have separate receipts. Filename, archive-header, outer archive transport,
+tag and optional-save findings remain blocking. Accepted review counts are
+reported separately from blocking findings. These reviews do not change the
+repository scanner's hosts, patterns, placeholders or line exceptions.
 
 After a clean scan, every manifest receipt must match its file's SHA-256 and
 size; extra and missing files refuse. Data and rules text must have the same
@@ -67,12 +79,12 @@ The proposed pin matches `.github/packs/fetch-packs.mjs`:
   "schema": "rs3-ci-pack-pin-v1",
   "tag": "packs-public-2026-10-21",
   "selection": {
-    "data": { "id": "duo-data", "version": "1.0.6-public.1", "sha256": "<manifest sha256>" },
+    "data": { "id": "duo-data", "version": "1.0.6-public.2", "sha256": "<manifest sha256>" },
     "rulesText": { "id": "duo-rules-text", "version": "1.0.6", "sha256": "<manifest sha256>" },
     "art": { "id": "duo-art", "version": "1.0.0", "sha256": "<manifest sha256>" }
   },
   "assets": [
-    { "name": "duo-data-1.0.6-public.1.tar.gz", "sha256": "<archive sha256>", "bytes": 123 }
+    { "name": "duo-data-1.0.6-public.2.tar.gz", "sha256": "<archive sha256>", "bytes": 123 }
   ]
 }
 ```
@@ -100,3 +112,43 @@ Focused verification:
 ```powershell
 node --test --test-timeout=120000 tests/pack-publish.test.mjs tests/ci-pack-fetch.test.mjs
 ```
+
+Create a separate public data pack before publishing:
+
+```powershell
+node scripts/packs/scrub-public-pack.mjs `
+  --input C:/pack-work/private/duo-data/1.0.6 `
+  --output C:/pack-work/public/duo-data/1.0.6-public.2 `
+  --rules-text-pack C:/pack-work/public/duo-rules-text/1.0.6 `
+  --version 1.0.6-public.2 --report C:/pack-work/scrub-report.json
+```
+
+All paths are explicit; the script never finds a save or installed private pack.
+It verifies source receipts and rejects unlisted files, links, protected input
+locations, existing outputs and input/output overlap. It processes files
+sequentially and preserves unchanged payload bytes. It removes the account-name
+defaults at `/values/app~1core~1game-progress.mjs#defaultRuneScapeNames` in both
+the authored legacy values file and `indexes/values.json`. An empty binding is
+already supported by the starter dataset. Gameplay names, IDs, geometry and
+encoded masks retain their meaning. It recalculates file receipts and the
+dataset digest while preserving the rules contract. The legacy distribution
+marker remains `private-local`, which the current runtime requires.
+
+The report records file names and replacement counts, never old account names
+or IDs. This bounded scrub policy does not certify arbitrary private content;
+the publisher's corpus and pattern gate must still pass. Never edit an existing
+pack in place or commit pack payloads, a corpus, or a save derivative.
+
+To verify a local cleaned data/rules pair with the current picker, set
+`RS3_PUBLIC_SCRUB_PACKS_DIR`, `RS3_PUBLIC_SCRUB_DATA_VERSION` and
+`RS3_PUBLIC_SCRUB_RULES_VERSION`, then run:
+
+```powershell
+node --max-old-space-size=768 --test --test-concurrency=1 --test-timeout=120000 tests/pack-public-scrub.test.mjs
+```
+
+Clear inherited `RS3_*` settings before supplying these three test settings.
+The conditional test verifies all runtime pack receipts, generated/authored
+equality, rules contract and dataset digest, then loads the picker's inputs.
+Without these settings it skips only the actual-pack check; synthetic safety
+and policy tests still run. No server or gameplay storage is opened.

@@ -1,7 +1,7 @@
 // Default: prepare a reviewed plan locally. GitHub mutations need an exact-tag
 // environment approval as well as --apply. Never discovers a save by itself.
 import { createReadStream, existsSync } from 'node:fs';
-import { lstat, realpath, readdir, mkdir, open, rm } from 'node:fs/promises';
+import { lstat, realpath, readdir, mkdir, open, rm, readFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { createGunzip } from 'node:zlib';
 import { Readable } from 'node:stream';
@@ -12,6 +12,7 @@ import { fileURLToPath } from 'node:url';
 import { StringDecoder } from 'node:string_decoder';
 import { scanEntries, loadReviewed } from '../secret-scan/scan.mjs';
 import { defaultCorpusDir, loadCorpus } from '../secret-scan/fingerprints.mjs';
+import { loadPackReviewed, reviewedPackCategories } from '../secret-scan/pack-reviewed.mjs';
 import { fail, relativeName, visitArchive, writeArchive } from './publish-archive.mjs';
 
 const repository = 'fenerax/chunk-picker-rs3';
@@ -57,9 +58,10 @@ async function* directoryFiles(root, relative = '') {
 
 // Bound memory even for the art pack's large diagnostic JSON. Overlap covers
 // encoded corpus values (up to 4096 chars), token rules and multiline defaults.
-function scanner(corpus) {
+function scanner(corpus, corpusSha256) {
   const reviewed = loadReviewed(), overlap = Math.max(65536, (corpus?.maxLength ?? 0) * 12);
-  const state = { files: 0, bytes: 0, findings: 0, categories: {}, locations: [] };
+  const packReviewed = loadPackReviewed();
+  const state = { files: 0, bytes: 0, findings: 0, categories: {}, locations: [], reviewed: 0, reviewedCategories: {} };
   const add = result => {
     for (const finding of result.findings) {
       state.findings++;
@@ -69,9 +71,25 @@ function scanner(corpus) {
       if (state.locations.length < 30) state.locations.push({ category: finding.category, file: state.files });
     }
   };
-  const inspect = (name, bytes) => add(scanEntries([{ path: name, bytes }], { corpus, reviewed }));
+  const inspect = (name, bytes, pending) => {
+    const result = scanEntries([{ path: name, bytes }], { corpus, reviewed });
+    if (pending) {
+      for (const finding of result.findings) pending.set(finding.category, (pending.get(finding.category) ?? 0) + 1);
+    } else add(result);
+  };
+  const finish = (name, digest, pending) => {
+    const allowed = reviewedPackCategories(name, digest, packReviewed, corpusSha256);
+    for (const [category, count] of pending) if (allowed.has(category)) {
+      state.reviewed += count;
+      state.reviewedCategories[category] = (state.reviewedCategories[category] ?? 0) + count;
+    } else {
+      // Store counts only. Review applies after the entire payload is hashed;
+      // a partial window can never borrow an exception from another payload.
+      for (let index = 0; index < count; index++) add({ findings: [{ category }] });
+    }
+  };
   async function content(name, chunks, { expanded = false, capture = false } = {}) {
-    let tail = Buffer.alloc(0), textTail = '', size = 0; const hash = createHash('sha256'), captured = [];
+    let tail = Buffer.alloc(0), textTail = '', size = 0; const hash = createHash('sha256'), captured = [], pending = new Map();
     const decoder = /\.(?:json|jsonl|[cm]?js|ts|txt|md|svg|csv|xml)$/i.test(name) ? new StringDecoder('utf8') : null;
     for await (const bytes of chunks) {
       size += bytes.length;
@@ -85,13 +103,15 @@ function scanner(corpus) {
       const window = decoder ? Buffer.from(text.replace(/\0/g, '\n')) : Buffer.concat([tail, bytes]);
       // Repeated overlap findings are intentionally still blocking. Reported
       // counts are scan hits, not a count of distinct private values.
-      inspect(name, window);
+      inspect(name, window, pending);
       if (decoder) textTail = text.slice(-overlap);
       else tail = Buffer.from(window.subarray(Math.max(0, window.length - overlap)));
     }
-    if (decoder) inspect(name, Buffer.from((textTail + decoder.end()).replace(/\0/g, '\n')));
+    if (decoder) inspect(name, Buffer.from((textTail + decoder.end()).replace(/\0/g, '\n')), pending);
     if (!expanded) state.bytes += size;
-    return { bytes: size, sha256: hash.digest('hex'), ...(capture ? { manifestBytes: Buffer.concat(captured) } : {}) };
+    const digest = hash.digest('hex');
+    finish(name, digest, pending);
+    return { bytes: size, sha256: digest, ...(capture ? { manifestBytes: Buffer.concat(captured) } : {}) };
   }
   async function file(name, chunks, capture = false) {
     state.files++; inspect(name);
@@ -102,18 +122,19 @@ function scanner(corpus) {
       async function* tapped() {
         // content consumes the same stream through a generator, retaining only
         // a scan window. No second full-size copy of a compressed file.
-        let tail = Buffer.alloc(0), textTail = '', size = 0;
+        let tail = Buffer.alloc(0), textTail = '', size = 0; const pending = new Map();
         const hash = createHash('sha256'), decoder = new StringDecoder('utf8');
         for await (const bytes of chunks) {
           size += bytes.length; if (size > 512 * 1024 ** 2) throw fail('file-limit');
-          hash.update(bytes); const window = Buffer.concat([tail, bytes]); inspect(name, window);
+          hash.update(bytes); const window = Buffer.concat([tail, bytes]); inspect(name, window, pending);
           tail = Buffer.from(window.subarray(Math.max(0, window.length - overlap)));
           const text = textTail + decoder.write(bytes);
-          inspect(name, Buffer.from(text.replace(/\0/g, '\n'))); textTail = text.slice(-overlap);
+          inspect(name, Buffer.from(text.replace(/\0/g, '\n')), pending); textTail = text.slice(-overlap);
           yield bytes;
         }
-        inspect(name, Buffer.from((textTail + decoder.end()).replace(/\0/g, '\n')));
+        inspect(name, Buffer.from((textTail + decoder.end()).replace(/\0/g, '\n')), pending);
         state.bytes += size; receipt = { bytes: size, sha256: hash.digest('hex') };
+        finish(`${name}#gzip-transport`, receipt.sha256, pending);
       }
       const source = Readable.from(tapped()); source.on('error', error => unzip.destroy(error)); source.pipe(unzip);
       try { await content(name.replace(/\.gz$/i, ''), unzip, { expanded: true }); }
@@ -207,8 +228,14 @@ export async function publishAssets(options, { log = console.log } = {}) {
   if (!simple(options.tag) || !options.outputDir || !options.pinOut || kinds.some(([, , key]) => !options[key])) throw fail('usage');
   const output = path.resolve(options.outputDir), pinOut = path.resolve(options.pinOut);
   const corpusDir = options.corpusDir || process.env.SECRET_SCAN_CORPUS || defaultCorpusDir;
-  const corpus = options.corpusDir || process.env.SECRET_SCAN_CORPUS || existsSync(corpusDir) ? await loadCorpus(corpusDir) : null;
-  const scan = scanner(corpus);
+  let corpus = null, corpusSha256;
+  if (options.corpusDir || process.env.SECRET_SCAN_CORPUS || existsSync(corpusDir)) {
+    const receipt = async () => createHash('sha256').update(await readFile(path.join(corpusDir, 'corpus.json'))).digest('hex');
+    corpusSha256 = await receipt();
+    corpus = await loadCorpus(corpusDir);
+    if (corpusSha256 !== await receipt()) throw fail('corpus-changed');
+  }
+  const scan = scanner(corpus, corpusSha256);
   scan.inspect('release-tag', Buffer.from(options.tag));
   const packs = [];
   // Nothing is created, hashed for publication or sent to gh until all upload
@@ -225,6 +252,7 @@ export async function publishAssets(options, { log = console.log } = {}) {
     save = { source, ...await scan.file('scrubbed-save.json', createReadStream(source), true) };
   }
   log(`Secret scan: ${corpus ? 'local corpus and patterns' : 'patterns only; no local corpus found'}; ${scan.state.files} files, ${scan.state.bytes} input bytes, ${scan.state.findings} hits.`);
+  if (scan.state.reviewed) log(`Exact-payload reviews: ${scan.state.reviewed} false-positive hits; ${JSON.stringify(scan.state.reviewedCategories)}.`);
   if (scan.state.findings) {
     log(`Scan categories: ${JSON.stringify(scan.state.categories)}`);
     log(`Scan locations (input file ordinals; values withheld): ${JSON.stringify(scan.state.locations)}`);
