@@ -37,7 +37,7 @@ export const toolingEntryPoints = Object.freeze([
   'checks/private-source/scripts/build-private-addon.mjs', 'checks/private-source/scripts/build-dataset-profile.mjs',
   'checks/private-source/scripts/perf/cdp.mjs',
   'checks/private-source/scripts/private-companion/release-identity.mjs',
-  'checks/private-source/scripts/public-export/scan.mjs', 'checks/private-source/scripts/public-export/fingerprints.mjs'
+  'checks/private-source/scripts/secret-scan/scan.mjs', 'checks/private-source/scripts/secret-scan/fingerprints.mjs'
 ]);
 // This required floor is executable policy and always remains in the capability
 // hash. Additional literal assertion registrations are current-run inputs.
@@ -127,8 +127,7 @@ export async function executableToolingClosure(kit, { entries = toolingEntryPoin
     }
   };
   await walk(path.join(kit, 'operator'), 'operator');
-  for (const name of ['checks/private-source/scripts/public-export/placeholder-provenance.json',
-    'checks/private-source/scripts/public-export/reviewed-exceptions.json', 'tools/approved-workflows.json', 'tools/approved-neutral-workflow.json']) {
+  for (const name of ['checks/private-source/scripts/secret-scan/reviewed.json', 'tools/approved-workflows.json', 'tools/approved-neutral-workflow.json']) {
     if (await optional(path.join(kit, name))) files.set(name, { path: name, sha256: sha(await regularInput(path.join(kit, name))) });
   }
   return [...files.values()].sort((a, b) => a.path.localeCompare(b.path));

@@ -65,7 +65,7 @@ test('staging accepts an isolated pack build and hashes every copied payload int
 async function fixture(t) {
   const root = await mkdtemp(path.join(os.tmpdir(), 'release-pipeline-fixture-')); t.after(() => rm(root, { recursive: true, force: true }));
   const kit = path.join(root, 'kit'), repo = path.join(root, 'repo');
-  for (const name of ['tools', 'operator', 'packs', 'release-gate/corpus', 'checks/private-source/scripts/public-export', 'releases']) await mkdir(path.join(kit, name), { recursive: true });
+  for (const name of ['tools', 'operator', 'packs', 'release-gate/corpus', 'checks/private-source/scripts/secret-scan', 'releases']) await mkdir(path.join(kit, name), { recursive: true });
   await mkdir(repo);
   for (const name of ['release-v2.mjs', 'frozen-release.mjs', 'release-pack-check.mjs', 'release-identity.mjs', 'release-text.mjs', 'release-legacy-rollback.mjs', 'public-core-gate.mjs', 'release-idle.mjs', 'release-evidence.mjs', 'retry-policy.mjs', 'file-test-evidence.mjs', 'module-scan.mjs', 'file-test-lane.mjs', 'lane-test-evidence.mjs', 'release-lane-status.mjs', 'retry-failed-files.mjs', 'release-early.mjs']) await cp(path.join(scripts, name), path.join(kit, 'tools', name));
   // This lifecycle fixture already supplies synthetic scanner/suite/gallery producers.
@@ -81,9 +81,9 @@ async function fixture(t) {
   await put(path.join(kit,'checks/private-source/scripts/adaptive-test-runner.mjs'),`export async function runAdaptive({files}){return {passed:true,files:files.map(file=>({file,passed:true,processWallMs:10,fileWallMs:9,bodyMs:2,summary:{}}))};}`);
   await put(path.join(kit,'checks/private-source/tests/fixtures/original-sync/capture.json'),{synthetic:true,records:[{task:'fixture-task',completed:true}]});
   await put(path.join(kit,'checks/private-source/scripts/perf/cdp.mjs'),'export const syntheticBrowserTransport = true;');
-  await put(path.join(kit, 'checks/private-source/scripts/public-export/scan.mjs'), 'export function scanEntries(entries) { return {status:"clean",files:entries.length,findings:[]}; }');
-  await put(path.join(kit, 'checks/private-source/scripts/public-export/fingerprints.mjs'), 'export async function loadCorpus(){ return {}; }');
-  for (const name of ['placeholder-provenance.json', 'reviewed-exceptions.json']) await put(path.join(kit, 'checks/private-source/scripts/public-export', name), {});
+  await put(path.join(kit, 'checks/private-source/scripts/secret-scan/scan.mjs'), 'export function scanEntries(entries) { return {status:"clean",files:entries.length,findings:[]}; }\nexport function loadReviewed() { return {hosts:[],placeholders:new Set(),lines:new Set()}; }');
+  await put(path.join(kit, 'checks/private-source/scripts/secret-scan/fingerprints.mjs'), 'export async function loadCorpus(){ return {}; }');
+  await put(path.join(kit, 'checks/private-source/scripts/secret-scan/reviewed.json'), {});
   const packBytes = JSON.stringify({ schemaVersion: 1, files: [] });
   await put(path.join(kit,'packs/fixture/1.0.0/pack.json'),packBytes);
   const choice = { id: 'fixture', version: '1.0.0', sha256: hash(packBytes) }, selection = { schemaVersion: 1, data: choice, rulesText: choice, art: choice };
@@ -211,7 +211,7 @@ test('bounded text assembly retains exact private inputs without copying pack pa
   const output=path.join(f.kit,'.local/text-assembly');
   const result=await invoke(checker,['--core',f.repo,'--receipt',receipt,'--lane','prepare-text','--output',output]);
   assert.equal(result.code,0,result.output);
-  assert.equal(await readFile(path.join(output,'scripts/public-export/scan.mjs'),'utf8'),await readFile(path.join(f.kit,'checks/private-source/scripts/public-export/scan.mjs'),'utf8'));
+  assert.equal(await readFile(path.join(output,'scripts/secret-scan/scan.mjs'),'utf8'),await readFile(path.join(f.kit,'checks/private-source/scripts/secret-scan/scan.mjs'),'utf8'));
   assert.ok(!(await readdir(output)).includes('packs'));
   assert.ok(!(await readdir(output)).includes('.local'));
 });

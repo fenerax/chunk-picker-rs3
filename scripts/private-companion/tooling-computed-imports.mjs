@@ -19,14 +19,14 @@ export function computedToolingTargets(owner, expression) {
       "pathToFileURL(path.join(scratch,'scripts',lane==='addon'?'build-private-addon.mjs':'build-dataset-profile.mjs'))": ['checks/private-source/scripts/build-private-addon.mjs', 'checks/private-source/scripts/build-dataset-profile.mjs'],
     },
     'tools/public-core-gate.mjs': {
-      "pathToFileURL(path.join(tooling,'scan.mjs'))": ['checks/private-source/scripts/public-export/scan.mjs'],
-      "pathToFileURL(path.join(tooling,'fingerprints.mjs'))": ['checks/private-source/scripts/public-export/fingerprints.mjs'],
+      "pathToFileURL(path.join(tooling,'scan.mjs'))": ['checks/private-source/scripts/secret-scan/scan.mjs'],
+      "pathToFileURL(path.join(tooling,'fingerprints.mjs'))": ['checks/private-source/scripts/secret-scan/fingerprints.mjs'],
     },
     'tools/release-preflight.mjs': {
       'prefix+key': [], // Object-only candidate module loader, independently checked by candidate preflight.
       "pathToFileURL(awaitregular(path.join(source,'scripts/private-companion/release-identity.mjs')))": ['checks/private-source/scripts/private-companion/release-identity.mjs'],
-      "pathToFileURL(awaitregular(path.join(tooling,'scan.mjs')))": ['checks/private-source/scripts/public-export/scan.mjs'],
-      "pathToFileURL(awaitregular(path.join(tooling,'fingerprints.mjs')))": ['checks/private-source/scripts/public-export/fingerprints.mjs'],
+      "pathToFileURL(awaitregular(path.join(tooling,'scan.mjs')))": ['checks/private-source/scripts/secret-scan/scan.mjs'],
+      "pathToFileURL(awaitregular(path.join(tooling,'fingerprints.mjs')))": ['checks/private-source/scripts/secret-scan/fingerprints.mjs'],
     },
     'tools/gallery-check.mjs': {
       'pathToFileURL(path.join(scratch,catalogueName)).href': [],

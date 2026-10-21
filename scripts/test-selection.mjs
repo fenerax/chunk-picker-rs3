@@ -71,7 +71,6 @@ export const quickTests = new Set([
   "secret-scan.test.mjs",
   "public-shadow.test.mjs",
   "dataset-profile.test.mjs",
-  "public-export-scanner.test.mjs",
   "dataset-bootstrap.test.mjs",
   "dataset-json-check.test.mjs",
   "dataset-packs.test.mjs",

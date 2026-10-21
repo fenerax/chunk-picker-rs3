@@ -89,9 +89,12 @@ branch it is what the default branch lacks.
 
 ## What is left of the old exporter
 
-`scripts/public-export` keeps only what the release pipeline on the release PC
-still loads: `scan.mjs`, `fingerprints.mjs` and `common.mjs`, the reviewed
-exception and provenance files, and `allowlist.json` with its `templates`, which
-`scripts/build-private-companion.mjs` and the private drift check read. The
-release kits run their own frozen copy of that scanner. Moving the pipeline onto
-`scripts/secret-scan` is a separate change.
+The release pipeline scans with `scripts/secret-scan` too: the public-core
+gate, the preflight history check, the scanner hash in the release record and
+the tooling certificate all load it from the kit's `checks/private-source`.
+Kits staged before this change keep their own frozen copy of the old scanner.
+
+`scripts/public-export` keeps only `allowlist.json` with its `templates` and
+`common.mjs`, which `scripts/build-private-companion.mjs` and the private drift
+check use to split the private companion from shared files. They hold no scan
+rules.

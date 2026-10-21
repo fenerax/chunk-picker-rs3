@@ -6,12 +6,11 @@ import { pathToFileURL, fileURLToPath } from 'node:url';
 const kit = path.resolve(fileURLToPath(new URL('../', import.meta.url)));
 export async function scanPublicCandidate({ repo, revision, base, output, kitRoot = kit }) {
   if (![repo, output, kitRoot].every(path.isAbsolute) || !/^[a-f0-9]{40}$/.test(revision) || !/^[a-f0-9]{40}$/.test(base)) throw new Error('Scan arguments refused.');
-  const tooling = path.join(kitRoot, 'checks/private-source/scripts/public-export');
-  const { scanEntries } = await import(pathToFileURL(path.join(tooling, 'scan.mjs')));
+  const tooling = path.join(kitRoot, 'checks/private-source/scripts/secret-scan');
+  const { scanEntries, loadReviewed } = await import(pathToFileURL(path.join(tooling, 'scan.mjs')));
   const { loadCorpus } = await import(pathToFileURL(path.join(tooling, 'fingerprints.mjs')));
   const corpus = await loadCorpus(path.join(kitRoot, 'release-gate/corpus'));
-  const provenance = JSON.parse(await readFile(path.join(tooling, 'placeholder-provenance.json')));
-  const reviewedExceptions = JSON.parse(await readFile(path.join(tooling, 'reviewed-exceptions.json')));
+  const reviewed = loadReviewed(path.join(tooling, 'reviewed.json'));
   const git = (...args) => execFileSync('git', ['--no-optional-locks', '-C', repo, ...args], { windowsHide: true, maxBuffer: 64 * 1024 ** 2 });
   git('merge-base', '--is-ancestor', base, revision);
   const commits = git('rev-list', '--reverse', `${base}..${revision}`).toString().trim().split('\n').filter(Boolean);
@@ -29,7 +28,7 @@ export async function scanPublicCandidate({ repo, revision, base, output, kitRoo
       const size = Number(match[2]); offset = end + 1;
       const bytes = batch.subarray(offset, offset + size); offset += size + 1; return { path: name, bytes };
     });
-    rows.push({ revision: ref, ...scanEntries(entries, { corpus, provenance, reviewedExceptions }) });
+    rows.push({ revision: ref, ...scanEntries(entries, { corpus, reviewed }) });
   }
   for (const ref of commits) {
     const [author, committer] = git('show', '-s', '--format=%ae%n%ce', ref).toString().trim().split('\n');

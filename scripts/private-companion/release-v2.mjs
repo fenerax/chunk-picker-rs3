@@ -334,7 +334,7 @@ export async function stableSpecs(kit,release,manifest,retained=null,options={})
   };
   const heavy=retained?'retained-heavy':await lockScript(kit,'heavy'),light=retained?'retained-light':await lockScript(kit,'light');
   const runtime={...common,packs:component(manifest,'packs'),releasePacks:component(manifest,'releasePacks'),profile:component(manifest,'profile'),addon:component(manifest,'addon')};
-  const scanner=(await hashTree(path.join(kit,'checks/private-source/scripts/public-export'))).digest;
+  const scanner=(await hashTree(path.join(kit,'checks/private-source/scripts/secret-scan'))).digest;
   const result={node,env};
   result.history=await spec('public-scan',{...common,base:manifest.base,scanner,corpus:component(manifest,'corpus')},path.join(kit,'tools/public-core-gate.mjs'),node,['public-history',manifest.base,manifest.revision]);
   result.public=await spec('public-full',common,heavy,node,['scripts/test.mjs','full'],{RS3_DATASET:'open-f2p'});

@@ -70,7 +70,7 @@ export async function buildPrivateCompanion({ publicRoot, packsDir, output, sour
   const addons = await buildPrivateAddon({ sourceRoot, output: path.join(output, 'addons') });
   await mkdir(path.join(output, 'release-gate'), { recursive: true });
   // Fail closed if the private leak corpus has not been seeded for this release.
-  const { loadCorpus } = await import('./public-export/fingerprints.mjs');
+  const { loadCorpus } = await import('./secret-scan/fingerprints.mjs');
   await loadCorpus(corpusDir);
   await mkdir(path.join(output, 'release-gate/corpus'));
   for (const filename of ['key', 'corpus.json']) await writeFile(path.join(output, 'release-gate/corpus', filename),

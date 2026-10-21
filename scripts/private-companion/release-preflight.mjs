@@ -154,12 +154,11 @@ export async function releasePreflight(options, { progress = () => {}, practiceI
     });
     await check('history', async () => {
       if (!commits || !corpusDir) fail('History requires a valid commit range and an explicit corpus or kit.');
-      const tooling = path.join(source, 'scripts/public-export');
-      const { scanEntries } = await import(pathToFileURL(await regular(path.join(tooling, 'scan.mjs'))));
+      const tooling = path.join(source, 'scripts/secret-scan');
+      const { scanEntries, loadReviewed } = await import(pathToFileURL(await regular(path.join(tooling, 'scan.mjs'))));
       const { loadCorpus } = await import(pathToFileURL(await regular(path.join(tooling, 'fingerprints.mjs'))));
       const corpus = await loadCorpus(corpusDir);
-      const provenance = json(await bytes(path.join(tooling, 'placeholder-provenance.json')));
-      const reviewedExceptions = json(await bytes(path.join(tooling, 'reviewed-exceptions.json')));
+      const reviewed = loadReviewed(await regular(path.join(tooling, 'reviewed.json')));
       const trees = [], scannedEntries = new Map();
       for (const ref of new Set([...commits, revision])) {
         try {
@@ -180,7 +179,7 @@ export async function releasePreflight(options, { progress = () => {}, practiceI
           });
           const results = entries.map((entry, index) => {
             const key = entry.path + '\0' + rows[index].oid;
-            if (!scannedEntries.has(key)) scannedEntries.set(key, scanEntries([entry], { corpus, provenance, reviewedExceptions }));
+            if (!scannedEntries.has(key)) scannedEntries.set(key, scanEntries([entry], { corpus, reviewed }));
             return scannedEntries.get(key);
           });
           const unique = new Map(results.flatMap(r => r.findings).map(f => [JSON.stringify([f.category, f.path, f.line]), f]));
