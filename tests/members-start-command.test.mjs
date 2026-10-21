@@ -14,14 +14,15 @@ const command = (extra = {}) => ({ type: 'go-members', options: { pool: 'optionA
 function fixture() {
   const state = createGroupState([{ id: 'player1', name: 'Player 1' }, { id: 'player2', name: 'Player 2' }]);
   state.rules = { 'content.f2p': true, 'roll.adjacent': false };
-  state.tasks = [{ id: 'quest:retained', label: 'Retained quest', category: 'quest' }];
+  state.tasks = [{ id: 'quest:retained', label: 'Retained quest', category: 'quest' },
+    { id: 'diary:retained', label: 'Retained diary task', category: 'diary' }];
   for (const [index, member] of state.members.entries()) {
     const base = index ? '200' : '100';
     const runescapeName = index ? 'twosamplegim' : 'exampleGIMab';
     const provenance = { source: 'runemetrics', fetchedAt: now(), runescapeName };
     Object.assign(member, { unlocked: [base], selected: [index ? '201' : '101'], pendingRoll: [index ? '202' : '102'],
       sourceMapId: index ? 'qxb' : 'qxa',
-      blacklisted: ['300'], completedTasks: ['quest:retained'], obtainedEquipment: ['Bronze sword'], notes: { [base]: 'Keep this note' },
+      blacklisted: ['300'], completedTasks: ['quest:retained', 'diary:retained'], obtainedEquipment: ['Bronze sword'], notes: { [base]: 'Keep this note' },
       journal: 'Keep journal', taskRules: { Skills: true }, taskStatus: { 'quest:retained': { favorite: true, challengeCompleted: true } },
       sectionOverrides: { [`${base}-1`]: false }, preferences: { theme: 'dark', startingChunk: base },
       primaryOverrides: { Mining: false }, passiveLevels: { Mining: 10 }, maxLevels: { Mining: 40 },
@@ -33,6 +34,7 @@ function fixture() {
       chunkColours: { [base]: 'blue' }, chunkColourNames: { blue: 'Later' },
       skillProgress: { Mining: { ...provenance, level: 40, xp: 40000 } },
       questProgress: { 'quest:retained': { ...provenance, title: 'Retained quest' } }, runeMetricsSync: provenance,
+      achievementProgress: { 'diary:retained': { title: 'Retained diary task', achievementId: 7, source: 'game-plugin', fetchedAt: now(), memberId: member.id } },
       originalPickerSync: { sourceMapId: index ? 'qxb' : 'qxa', capturedAt: now(), appliedAt: now(), sourceHash: `sha256:${'a'.repeat(64)}`, groups: ['chunks', 'tasks'] },
       transportFacts: { levels: { Woodcutting: 12 }, currencies: { coins: 60 }, confirmations: { 'own-ferry': true } } });
     assert.deepEqual(new Set(Object.keys(member)), new Set([...MEMBER_KEYS].filter(key => key !== 'f2pMap')),
