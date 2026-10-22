@@ -69,7 +69,7 @@ export function createScreenPanels(c) {
 
   c.$('map-sources-open')?.addEventListener('click', c.mapSourcesDialog);
 
-  c.deathChunks = c.supportsFeature?.('training') === false ? { refresh() {}, panel: () => c.el('span') } : createDeathChunks({ ...c.panelContext, api: c.advisoryApi, map: () => c.map, pool: () => c.pool, isForegroundReady: () => c.canWrite() && c.foregroundSettled(), onMarkersChanged: () => { if (c.sandbox.active) c.map?.setDeathMarkers?.(new Map()); c.renderLegend(); }, setTimeout, clearTimeout });
+  c.deathChunks = c.supportsFeature?.('training') === false ? { refresh() {}, panel: () => c.el('span') } : createDeathChunks({ ...c.panelContext, api: c.advisoryApi, map: () => c.map, pool: () => c.pool, isForegroundReady: () => c.canWrite() && c.foregroundSettled(), canonicalTaskRevision: revision => c.canonicalTaskRevision?.(revision) ?? revision, compatibleTaskRevision: revision => !!c.compatibleTaskRevision?.(revision), onMarkersChanged: () => { if (c.sandbox.active) c.map?.setDeathMarkers?.(new Map()); c.renderLegend(); }, setTimeout, clearTimeout });
 
   c.sandbox = createSandbox({ document, api: c.api, el: c.el, button: c.button, openDialog: c.openDialog, showError: c.showError, notice: c.notice, chunkName: id => c.plain(c.world?.chunks.get(id)?.name ?? ''),
     getSnapshot: () => ({ state: c.state, statePools: c.statePools, result: c.result, fullResult: c.fullResult, shownResult: c.shownResult, memberId: c.memberId }),

@@ -1,14 +1,14 @@
 import { resolveDeathSettings } from '../core/death-settings.mjs';
 
 /** Only the active member's current candidates can receive advisory skulls. */
-export function deathMarkersFor({ state, memberId, candidateIds = [], estimates = [] }) {
+export function deathMarkersFor({ state, memberId, candidateIds = [], estimates = [], compatibleRevision = revision => revision === state?.revision }) {
   const owner = state?.members?.find(member => member.id === memberId);
   if (!owner || !resolveDeathSettings(owner).showDeathChunks) return new Map();
   const { deathThresholdHours } = resolveDeathSettings(owner);
   const excluded = new Set([...owner.unlocked, ...owner.blacklisted, ...owner.pendingRoll]);
   const candidates = new Set(candidateIds.map(String));
   return new Map(estimates.filter(estimate => candidates.has(String(estimate.chunkId)) && !excluded.has(String(estimate.chunkId))
-    && estimate.memberId === memberId && estimate.stateRevision === state.revision
+    && estimate.memberId === memberId && compatibleRevision(estimate.stateRevision)
     && estimate.death === true && Number.isFinite(estimate.hours) && estimate.hours > deathThresholdHours)
     .map(estimate => [String(estimate.chunkId), { ...estimate, thresholdHours: deathThresholdHours }]));
 }
@@ -71,19 +71,29 @@ export function createDeathChunks(ctx) {
   const cancel = ctx.clearTimeout ?? globalThis.clearTimeout;
   let key, timer, controller, generation = 0, batch, batchScheduled = false;
   const cache = new Map(), pending = new Map();
-  const scope = () => ({ revision: ctx.state()?.revision, memberId: ctx.memberId() });
-  const scopeKey = value => `${value.revision}:${value.memberId}`;
-  const current = value => scopeKey(scope()) === scopeKey(value);
   const localCandidates = () => [...new Set([...(ctx.pool()?.eligible ?? []).map(row => typeof row === 'string' ? row : row.id),
     ...(ctx.state()?.members.find(member => member.id === ctx.memberId())?.selected ?? [])])];
+  // Display saves such as chunk notes keep the task epoch. Estimates read the
+  // same inputs, so they key on that epoch plus what the estimate shows: the
+  // candidates and death settings. A burst of notes then sends no new batches.
+  const scope = () => {
+    const revision = ctx.state()?.revision, memberId = ctx.memberId(), owner = ctx.state()?.members.find(member => member.id === memberId);
+    return { revision, memberId, epoch: JSON.stringify([ctx.canonicalTaskRevision?.(revision) ?? revision, memberId,
+      localCandidates(), owner ? resolveDeathSettings(owner) : null]) };
+  };
+  const scopeKey = value => value.epoch;
+  const current = value => scopeKey(scope()) === scopeKey(value);
+  const compatible = (revision, requested) => revision === requested.revision || !!ctx.compatibleTaskRevision?.(revision);
   const applyMarkers = () => {
     const candidates = new Set(localCandidates());
     const ids = batch?.candidateIds?.filter(id => candidates.has(id)) ?? [];
-    ctx.map()?.setDeathMarkers?.(deathMarkersFor({ state: ctx.state(), memberId: ctx.memberId(), candidateIds: ids, estimates: batch?.estimates }));
+    const state = ctx.state();
+    ctx.map()?.setDeathMarkers?.(deathMarkersFor({ state, memberId: ctx.memberId(), candidateIds: ids, estimates: batch?.estimates,
+      compatibleRevision: revision => revision === state?.revision || !!ctx.compatibleTaskRevision?.(revision) }));
     ctx.onMarkersChanged?.();
   };
   const accept = (value, requested) => {
-    if (!current(requested) || value.memberId !== requested.memberId || value.stateRevision !== requested.revision) return false;
+    if (!current(requested) || value.memberId !== requested.memberId || !compatible(value.stateRevision, requested)) return false;
     for (const estimate of value.estimates ?? []) cache.set(String(estimate.chunkId), estimate);
     return true;
   };

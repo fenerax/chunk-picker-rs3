@@ -61,6 +61,31 @@ test('background estimates are scheduled once per revision/member and candidate 
   h.controller.dispose();
 });
 
+test('display-only saves keep background estimates while gameplay and settings changes refresh them', async () => {
+  let unchanged;
+  const h = controllerFixture({
+    canonicalTaskRevision: revision => unchanged?.to === revision ? unchanged.from : revision,
+    compatibleTaskRevision: revision => revision === h.view.state.revision || (unchanged?.to === h.view.state.revision && revision >= unchanged.from && revision <= unchanged.to),
+  });
+  h.controller.refresh(); h.runTimer();
+  h.requests[0].resolve(h.response([estimate('candidate', 2000)])); await flush();
+  assert.deepEqual([...h.map.markers.keys()], ['candidate']);
+  for (let save = 1; save <= 3; save++) {
+    h.view.state = structuredClone(h.view.state); h.view.state.revision++; unchanged = { from: 0, to: h.view.state.revision };
+    h.controller.refresh();
+    assert.equal(h.timers.size, 0); assert.equal(h.calls.length, 1); assert.deepEqual([...h.map.markers.keys()], ['candidate']);
+  }
+  assert.equal((await h.controller.estimateChunk('candidate')).hours, 2000); assert.equal(h.calls.length, 1);
+  h.view.state = structuredClone(h.view.state); h.view.state.members[0].preferences = { deathThresholdHours: 3000 };
+  h.controller.refresh(); assert.equal(h.timers.size, 1); assert.equal(h.map.markers.size, 0);
+  h.runTimer(); assert.equal(h.calls.length, 2);
+  h.view.state = structuredClone(h.view.state); h.view.state.revision++; unchanged = undefined;
+  h.controller.refresh(); assert.equal(h.timers.size, 1); assert.equal(h.map.markers.size, 0);
+  h.requests[1].resolve(h.response([estimate('candidate', 4000, { stateRevision: 3 })])); await flush();
+  assert.equal(h.map.markers.size, 0, 'a reply for the replaced epoch is ignored');
+  h.controller.dispose();
+});
+
 test('background estimates wait for foreground readiness and disabled skulls skip the batch', () => {
   let ready = false;
   const h = controllerFixture({ isForegroundReady: () => ready });
