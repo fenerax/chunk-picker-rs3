@@ -1,10 +1,12 @@
 // These probes operate only on the scratch browser supplied by page-load.mjs.
 // Only fixed scenario labels and numeric timings leave the renderer.
-export const INTERACTION_SCENARIOS = ['chunk-info', 'possible-tasks', 'search', 'group-view-on', 'group-view-off'];
+export const PERSONAL_FILTER_SCENARIOS = ['personal-filter-not-done', 'personal-filter-only-player', 'personal-filter-group'];
+export const INTERACTION_SCENARIOS = ['chunk-info', 'possible-tasks', 'search', 'group-view-on', 'group-view-off', ...PERSONAL_FILTER_SCENARIOS];
 
 export function interactionScenarios(scenarios = ['panels', 'search', 'group-view']) {
   return [...new Set(scenarios.flatMap(name => name === 'panels' ? ['chunk-info', 'possible-tasks']
-    : name === 'group-view' ? ['group-view-on', 'group-view-off'] : INTERACTION_SCENARIOS.includes(name) ? [name] : []))];
+    : name === 'group-view' ? ['group-view-on', 'group-view-off'] : name === 'personal-filter' ? PERSONAL_FILTER_SCENARIOS
+      : INTERACTION_SCENARIOS.includes(name) ? [name] : []))];
 }
 
 // Kept self-contained so CDP evaluates the same code tested with DOM fixtures.
@@ -45,6 +47,12 @@ export async function browserInteraction(name, timeout) {
     if (panel?.querySelector('.error')) throw new Error('Scratch chunk tasks failed.');
     return !!panel?.querySelector('.task-filter-bar');
   };
+  const groupReady = () => {
+    const status = byId('task-engine-status')?.textContent ?? '';
+    if (/failed|unavailable|restart required/i.test(status)) throw new Error('Scratch group tasks failed.');
+    return /[0-9,]+ possible tasks/.test(status) && !/updating/i.test(byId('task-count')?.textContent ?? '');
+  };
+  const duoShownSince = time => window.__rs3Perf?.events.some(e => e.name === 'duo-tasks-shown' && e.time >= time);
   let target, ready, action;
   closeDialog();
   if (name === 'search') {
@@ -66,18 +74,29 @@ export async function browserInteraction(name, timeout) {
     };
   } else if (name === 'group-view-on' || name === 'group-view-off') {
     const checkbox = required(byId('group-view')), wanted = name === 'group-view-on';
-    const groupReady = () => {
-      const status = byId('task-engine-status')?.textContent ?? '';
-      if (/failed|unavailable|restart required/i.test(status)) throw new Error('Scratch group tasks failed.');
-      return /[0-9,]+ possible tasks/.test(status) && !/updating/i.test(byId('task-count')?.textContent ?? '');
-    };
     if (checkbox.checked === wanted) {
       const before = performance.now(); checkbox.click();
-      await wait(() => groupReady() && (!checkbox.checked || window.__rs3Perf?.events.some(e => e.name === 'duo-tasks-shown' && e.time >= before)));
+      await wait(() => groupReady() && (!checkbox.checked || duoShownSince(before)));
     }
     target = required(byId('phone-task-panel'));
-    ready = () => groupReady() && (!wanted || window.__rs3Perf?.events.some(e => e.name === 'duo-tasks-shown' && e.time >= started));
+    ready = () => groupReady() && (!wanted || duoShownSince(started));
     action = () => checkbox.click();
+  } else if (['personal-filter-not-done', 'personal-filter-only-player', 'personal-filter-group'].includes(name)) {
+    // Group view's per-viewer duo filter in the Active Tasks sidebar. The app
+    // marks duo-tasks-shown only after rows for the current filter are painted,
+    // including any inspection projection a non-group filter needs.
+    if (!required(byId('group-view')).checked) throw new Error('Scratch personal filter needs Group view.');
+    const select = required(byId('duo-personal-filter')), wanted = name.slice('personal-filter-'.length);
+    const previous = { 'not-done': 'group', 'only-player': 'not-done', group: 'only-player' }[wanted];
+    const choose = value => { select.value = value; select.dispatchEvent(new Event('change', { bubbles: true })); };
+    await wait(groupReady);
+    if (select.value !== previous) {
+      const before = performance.now(); choose(previous);
+      await wait(() => groupReady() && select.value === previous && duoShownSince(before));
+    }
+    target = required(byId('phone-task-panel'));
+    ready = () => groupReady() && select.value === wanted && duoShownSince(started);
+    action = () => choose(wanted);
   } else throw new Error('Unknown scratch interaction.');
 
   let changed = true;
@@ -162,4 +181,23 @@ export function unlockTimeline(result = {}) {
       ? requestSentMs + estimatedServerOverheadMs : null,
     estimateBasis: estimatedServerOverheadMs === null ? null : 'server-request-minus-evaluation; includes queue, projection and transport uncertainty',
   };
+}
+
+// Note save/clear on the page-load scenario clock (the Save click is zero).
+// Acknowledgement is the end of the one successful command response; a retry
+// or a second command leaves it unassigned rather than guessing.
+export function commandTimeline(result = {}) {
+  const commands = (result.network?.requests ?? []).filter(request => request.path === '/api/command' && !request.failed && !request.cancelled
+    && Number.isFinite(request.startMs) && numeric(request.endMs) !== null && request.status >= 200 && request.status < 300);
+  const command = commands.length === 1 ? commands[0] : null;
+  const acknowledgedMs = numeric(command?.endMs), painted = numeric(result.milestones?.tasksPaintedMs);
+  const calculations = (result.serverCalculations ?? []).filter(calculation => numeric(calculation.startedMs) !== null
+    && numeric(calculation.doneMs) !== null && calculation.doneMs >= calculation.startedMs);
+  const cache = result.taskCalculation ?? {};
+  return { clickMs: 0, commandMatch: command ? 'single-command' : commands.length ? 'ambiguous' : null,
+    commandAcknowledgedMs: acknowledgedMs, resultsShownMs: numeric(result.milestones?.tasksShownMs), resultsPaintedMs: painted,
+    acknowledgedToPaintMs: difference(painted, acknowledgedMs),
+    // Same harness-only worker receipts as Unlock, limited to the click → settlement window.
+    workerCalculations: calculations.length, calculationObserved: calculations.length > 0,
+    cacheHit: typeof cache.hit === 'boolean' ? cache.hit : null };
 }

@@ -10,6 +10,10 @@ export const SCENARIOS = Object.freeze({
   search: { seconds: 3, description: 'query through populated search results plus two frames' },
   'switch-player2': { seconds: 5, description: 'switch to second member' },
   'switch-player1': { seconds: 5, description: 'switch back to first member' },
+  // Opt-in only. Each synthetic save/clear can recalculate like an unlock; the
+  // personal filter's first non-group view loads both inspection projections.
+  'note-save': { seconds: 20, description: 'synthetic chunk note save and clear, click through command acknowledgement and current task paint' },
+  'personal-filter': { seconds: 25, description: 'Group duo personal filter changes through painted rows plus two frames; null with Group off' },
 });
 export const DEFAULT_SCENARIOS = Object.freeze(['cold', 'reload', 'unlock', 'cold-30mbps', 'panels', 'search']);
 const object = value => value !== null && typeof value === 'object' && !Array.isArray(value);

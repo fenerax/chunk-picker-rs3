@@ -6,7 +6,7 @@ import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { EventEmitter } from 'node:events';
 import { openChrome } from '../scripts/perf/cdp.mjs';
-import { normalizeRequest, measurementPlan, estimatedSeconds } from '../scripts/ci/perf-bench-config.mjs';
+import { normalizeRequest, measurementPlan, estimatedSeconds, SCENARIOS, DEFAULT_SCENARIOS } from '../scripts/ci/perf-bench-config.mjs';
 import { distribution, compareSamples, extractMetrics, extractObservations, reportMarkdown, failureReadiness } from '../scripts/ci/perf-bench-report.mjs';
 import { verifySave, runBenchmark, parseArguments } from '../scripts/ci/perf-bench.mjs';
 import { prepareImport } from '../scripts/ci/perf-bench-import.mjs';
@@ -116,6 +116,39 @@ test('one scenario catalogue controls bounded requests and alternating plans', (
     { options: { unlockPick: 'prepared', unlockDwellMs: 3 } }, { base: 'HEAD' }]) assert.throws(() => normalizeRequest(invalid));
   assert.throws(() => normalizeRequest({}, { requireRevisions: true }));
   assert.throws(() => parseArguments(['--runs','1','--runs','2']));
+});
+
+test('note save and personal filter are catalogued opt-in scenarios', () => {
+  assert.ok(!DEFAULT_SCENARIOS.includes('note-save') && !DEFAULT_SCENARIOS.includes('personal-filter'));
+  assert.deepEqual(normalizeRequest({}).scenarios, [...DEFAULT_SCENARIOS]);
+  const request = normalizeRequest({ runs: 1, scenarios: ['note-save', 'personal-filter'], options: { groupViews: ['on'] } });
+  assert.deepEqual(request.scenarios, ['note-save', 'personal-filter']);
+  assert.ok(SCENARIOS['note-save'].seconds > 0 && SCENARIOS['personal-filter'].seconds > 0);
+  // The prerequisite cold visit is added once for interaction-only requests.
+  assert.equal(estimatedSeconds(request), 180 + 2 * (SCENARIOS.cold.seconds + SCENARIOS['note-save'].seconds + SCENARIOS['personal-filter'].seconds));
+  assert.throws(() => normalizeRequest({ scenarios: ['note-save', 'note-save'] }));
+  assert.throws(() => normalizeRequest({ scenarios: ['note-clear'] }));
+});
+
+test('note and personal filter metrics are scalar; Group off filter rows are missing', () => {
+  const note = (name, endMs) => ({ name, note: { edit: name === 'note-save' ? 'save' : 'clear', syntheticLength: 24 },
+    milestones: { tasksShownMs: 700, tasksPaintedMs: 750 }, taskCalculation: { hit: false },
+    network: { totals: { transferBytes: 1024 }, requests: [{ path: '/api/command', status: 200, startMs: 1, endMs }] },
+    taskIdentity: { memberId: 'player1', revision: 5 }, serverCalculations: [{ memberId: 'player1', revision: 5, startedMs: 20, doneMs: 600 }] });
+  const report = { suites: [{ mode: 'normal', results: [note('note-save', 100), note('note-clear', 90),
+    { name: 'personal-filter-not-done', durationMs: null, completion: 'inapplicable-group-view-off' }] }] };
+  const metrics = extractMetrics(report);
+  assert.equal(metrics['note-save.commandAcknowledged.ms'], 100);
+  assert.equal(metrics['note-save.acknowledgedToPaint.ms'], 650);
+  assert.equal(metrics['note-save.tasksPainted.ms'], 750);
+  assert.equal(metrics['note-clear.commandAcknowledged.ms'], 90);
+  assert.equal(metrics['personal-filter-not-done.paint.ms'], null);
+  const observations = extractObservations(report);
+  assert.deepEqual(observations.noteEdits.map(row => [row.edit, row.calculationObserved, row.workerCalculations, row.commandMatch, row.cacheHit]),
+    [['save', true, 1, 'single-command', false], ['clear', true, 1, 'single-command', false]]);
+  assert.doesNotMatch(JSON.stringify({ metrics, observations }), /player1|memberId|revision|syntheticLength|Benchmark/);
+  const samples = ['A', 'B'].flatMap(arm => [1, 2, 3].map(() => ({ arm, groupView: 'off', metrics })));
+  assert.equal(compareSamples(samples, 3).find(row => row.metric === 'personal-filter-not-done.paint.ms').verdict, 'missing');
 });
 
 test('non-overlapping ranges need three complete observations; absent is never zero', () => {

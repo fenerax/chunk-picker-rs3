@@ -260,6 +260,25 @@ test('interaction medians expand panels and render durations without assuming ne
   assert.match(rendered, /\| possible-tasks \| 2 \| 30 \|/);
 });
 
+test('medians expand note save/clear and the three personal filter rows', () => {
+  const start = page.indexOf('function median('), end = page.indexOf('\nasync function sourceProvenance(', start);
+  const context = vm.createContext({ options: { scenarios: ['note-save', 'personal-filter'] }, interactionScenarios, ASSET_CLASSES: [], taskMilestoneEvent: () => 'duo-tasks-shown' });
+  vm.runInContext(page.slice(start, end) + '\nglobalThis.aggregate = aggregates; globalThis.render = reportMarkdown;', context);
+  const groups = Object.fromEntries(['appCode', 'dataJson', 'api', 'mapTiles', 'otherAssets'].map(name => [name, {}]));
+  const edit = (name, tasksPaintedMs) => ({ name, milestones: { tasksPaintedMs }, longTasks: {}, advisoryMaxMs: 0,
+    network: { totals: {}, groups, assetClasses: {}, endpointTtfbMs: { state: [], definitions: [], rules: [], tasks: [], mapInfo: [], manifest: [], pins: [] } } });
+  const suites = [{ server: {}, results: [edit('note-save', 700), edit('note-clear', 650),
+    { name: 'personal-filter-not-done', durationMs: 900 }, { name: 'personal-filter-only-player', durationMs: 300 }, { name: 'personal-filter-group', durationMs: null }] }];
+  const medians = context.aggregate(suites);
+  assert.deepEqual(Array.from(medians, row => row.scenario), ['note-save', 'note-clear', 'personal-filter-not-done', 'personal-filter-only-player', 'personal-filter-group']);
+  assert.equal(medians[0].milestones.tasksPaintedMs, 700);
+  assert.equal(medians[1].milestones.tasksPaintedMs, 650);
+  assert.deepEqual(Array.from(medians.slice(2), row => row.durationMs), [900, 300, null]);
+  const rendered = context.render({ label: 'synthetic', capturedAt: 'fixture', environment: {}, options: {}, suites, medians, notes: [] });
+  assert.match(rendered, /\| personal-filter-group \| 1 \| — \|/);
+  assert.match(rendered, /\| note-clear \| 1 \|/);
+});
+
 test('all calculation harnesses use provider inputs and pass a pinned pack selection to workers', async () => {
   for (const name of ['unlock-calc', 'unlock-paired', 'unlock-equivalence']) {
     const source = await readFile(new URL(`../scripts/perf/${name}.mjs`, import.meta.url), 'utf8');

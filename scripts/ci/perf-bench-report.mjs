@@ -1,17 +1,27 @@
-import { unlockTimeline } from '../perf/browser-interactions.mjs';
+import { unlockTimeline, commandTimeline } from '../perf/browser-interactions.mjs';
 import { sanitizeMemoryTelemetry } from '../perf/diagnostics.mjs';
 
 const numeric = value => typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : null;
+const NOTE_EDITS = ['note-save', 'note-clear'];
+const workerEvents = result => (result.serverCalculations ?? []).slice(0, 8).map(event => ({
+  startedMs: numeric(event.startedMs), doneMs: numeric(event.doneMs),
+  selectedMember: event.memberId === result.taskIdentity?.memberId,
+  matchingRevision: event.revision === result.taskIdentity?.revision }));
 export function extractObservations(report) {
-  return { unlock: (report.suites ?? []).flatMap(suite => (suite.results ?? []).filter(result => result.name === 'unlock').map(result => {
+  const results = name => (report.suites ?? []).flatMap(suite => (suite.results ?? []).filter(result => name(result.name)));
+  return { unlock: results(name => name === 'unlock').map(result => {
     const timeline = unlockTimeline(result);
     return { cacheHit: timeline.cacheHit, calculationObserved: timeline.calculationStartMs !== null && timeline.calculationDoneMs !== null,
       requestMatch: ['observed-task-fetch', 'single-timing-match', 'single-task-request'].includes(timeline.requestMatch) ? timeline.requestMatch : null,
-      workerEvents: (result.serverCalculations ?? []).slice(0, 8).map(event => ({
-        startedMs: numeric(event.startedMs), doneMs: numeric(event.doneMs),
-        selectedMember: event.memberId === result.taskIdentity?.memberId,
-        matchingRevision: event.revision === result.taskIdentity?.revision })) };
-  })) };
+      workerEvents: workerEvents(result) };
+  }), noteEdits: results(name => NOTE_EDITS.includes(name)).map(result => {
+    // Fixed edit labels only: never the synthetic text, chunk or member.
+    const timeline = commandTimeline(result);
+    return { edit: result.name === 'note-save' ? 'save' : 'clear', cacheHit: timeline.cacheHit,
+      calculationObserved: timeline.calculationObserved, workerCalculations: timeline.workerCalculations,
+      commandMatch: ['single-command', 'ambiguous'].includes(timeline.commandMatch) ? timeline.commandMatch : null,
+      workerEvents: workerEvents(result) };
+  }) };
 }
 export function failureReadiness(report) {
   const measurement = report?.failedSuite?.failedMeasurement;
@@ -55,6 +65,11 @@ export function extractMetrics(report) {
       if (name === 'unlock') for (const [field, value] of Object.entries(unlockTimeline(result))) {
         if (field.endsWith('Ms')) put(`unlock.${field.replace(/Ms$/, '')}.ms`, value, field === 'requestToCalculationStartMs');
       }
+      if (NOTE_EDITS.includes(name)) {
+        const timeline = commandTimeline(result);
+        put(`${name}.commandAcknowledged.ms`, timeline.commandAcknowledgedMs);
+        put(`${name}.acknowledgedToPaint.ms`, timeline.acknowledgedToPaintMs);
+      }
     }
   }
   return metrics;
@@ -94,7 +109,7 @@ export function markdownTable(summary) {
 }
 
 export function reportMarkdown(report, { short = false } = {}) {
-  const headline = /^(unlock\.(clickToRequest|requestToCalculationStart|calculation|doneToPaint|clickToPaint)|cold\.tasksPainted|reload\.tasksPainted|cold-30mbps\.tasksPainted|chunk-info\.paint|possible-tasks\.paint|search\.paint|server\.rss-(?:total-)?after)\./;
+  const headline = /^(unlock\.(clickToRequest|requestToCalculationStart|calculation|doneToPaint|clickToPaint)|cold\.tasksPainted|reload\.tasksPainted|cold-30mbps\.tasksPainted|chunk-info\.paint|possible-tasks\.paint|search\.paint|note-(?:save|clear)\.(?:commandAcknowledged|tasksPainted)|personal-filter-[a-z-]+\.paint|server\.rss-(?:total-)?after)\./;
   const rows = short ? report.summary.filter(row => headline.test(row.metric)) : report.summary;
   return ['# App performance A/B', '', `A: \`${report.base}\`; B: \`${report.candidate}\`.`,
     `Completed: ${report.complete}. ${report.samples.length} measured app/view trials; ${report.request.runs} repetitions per arm/view.`, '',
@@ -106,6 +121,7 @@ export function reportMarkdown(report, { short = false } = {}) {
       `Diagnostic: ${JSON.stringify(report.diagnostic)}.`, ''] : []),
     markdownTable(rows), '', ...(short ? [] : [
     'Unlock starts at the browser click handler. Request sent is the observed task fetch call. Calculation start/done are worker receipt/completion timestamps from the same harness preload on both apps, aligned by epoch clocks. They exclude process relay/queue time before worker receipt. Cache reuse can omit worker events; missing start/done stays missing. Results painted means the matching task DOM event plus two animation frames. Group on waits for both lists.', '',
+      'Note save/clear start at the Save chunk note click with fixed synthetic text on a note-free unlocked scratch chunk; clear restores the copied save. Command acknowledged is the end of the one successful command response (missing if a retry makes it ambiguous). Tasks painted is the current task paint at the new revision, as for Unlock. Personal filter rows are Group view only: the select change through the next duo task mark plus two stable frames; Group off records them as missing.', '',
       'Server RSS at ready/after covers the HTTP process and native threads. The separate total-after sample adds calculator process RSS once per process; a failed calculator sample makes the total unavailable. Server sampled peaks use one-second numeric samples and can miss transients; calculators and Chrome are excluded from those peaks. Cold clears browser/server caches but does not flush OS file caches. Profiling is off.', '',
       'The report retains scalar timings, hashes and public tool versions only. Save contents, paths, request bodies, cookies and raw harness reports are excluded.',
       ...(report.failure ? ['', `Failure: ${report.failure}`] : []),

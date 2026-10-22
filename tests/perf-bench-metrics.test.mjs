@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import vm from 'node:vm';
-import { browserInteraction, interactionScenarios, measureBrowserInteractions, unlockTimeline } from '../scripts/perf/browser-interactions.mjs';
+import { browserInteraction, interactionScenarios, measureBrowserInteractions, unlockTimeline, commandTimeline } from '../scripts/perf/browser-interactions.mjs';
 
 test('Possible Tasks opens its collapsed section and ignores offscreen lazy icons', async () => {
   let now = 0, loaded = false, opened = 0;
@@ -34,6 +34,73 @@ test('interaction aliases select only fixed UI scenarios without duplicates', ()
   assert.deepEqual(interactionScenarios(['cold', 'panels', 'search', 'possible-tasks', 'group-view']),
     ['chunk-info', 'possible-tasks', 'search', 'group-view-on', 'group-view-off']);
   assert.deepEqual(interactionScenarios([]), []);
+  assert.deepEqual(interactionScenarios(['personal-filter', 'personal-filter-group']),
+    ['personal-filter-not-done', 'personal-filter-only-player', 'personal-filter-group']);
+  assert.ok(!interactionScenarios().some(name => name.startsWith('personal-filter')));
+});
+
+function personalFilterContext({ initial = 'group', groupView = true } = {}) {
+  let now = 0, pendingFrames = null;
+  const changes = [], events = [];
+  const select = { value: initial, dispatchEvent(event) {
+    assert.equal(event.type, 'change'); changes.push(select.value); pendingFrames = 3;
+  } };
+  const byId = { 'tool-dialog': { open: false }, 'group-view': { checked: groupView }, 'duo-personal-filter': select,
+    'task-engine-status': { textContent: '1,234 possible tasks' }, 'task-count': { textContent: 'Duo tasks 3' },
+    'phone-task-panel': { querySelectorAll: () => [] } };
+  const context = vm.createContext({ document: { getElementById: id => byId[id] }, window: { __rs3Perf: { events } },
+    innerHeight: 900, innerWidth: 1440, performance: { now: () => now }, Event: class { constructor(type) { this.type = type; } },
+    requestAnimationFrame: callback => {
+      now += 16;
+      // The app marks duo-tasks-shown once rows for the new filter are painted.
+      if (pendingFrames !== null && --pendingFrames === 0) { pendingFrames = null; events.push({ name: 'duo-tasks-shown', time: now }); }
+      callback();
+    }, MutationObserver: class { observe() {} disconnect() {} } });
+  return { context, changes, events, run: name => vm.runInContext(`(${browserInteraction.toString()})(${JSON.stringify(name)},1000)`, context) };
+}
+
+test('personal filter waits for the duo mark after its own change plus two stable frames', async () => {
+  const fixture = personalFilterContext();
+  const result = await fixture.run('personal-filter-not-done');
+  assert.deepEqual(fixture.changes, ['not-done']);
+  assert.equal(result.name, 'personal-filter-not-done');
+  // Ready at the third frame's duo mark; the fourth completes two stable frames.
+  assert.equal(result.durationMs, 64);
+  assert.equal(result.completion, 'content-plus-two-animation-frames');
+});
+
+test('personal filter steps start from their predecessor and require Group view', async () => {
+  const fixture = personalFilterContext({ initial: 'only-player' });
+  await fixture.run('personal-filter-not-done');
+  assert.deepEqual(fixture.changes, ['group', 'not-done']);
+  await fixture.run('personal-filter-only-player');
+  await fixture.run('personal-filter-group');
+  assert.deepEqual(fixture.changes, ['group', 'not-done', 'only-player', 'group']);
+  await assert.rejects(personalFilterContext({ groupView: false }).run('personal-filter-group'), /needs Group view/);
+});
+
+test('note command timeline uses one acknowledged command and counts worker receipts', () => {
+  const result = { milestones: { tasksShownMs: 900, tasksPaintedMs: 940 }, taskCalculation: { hit: false },
+    network: { requests: [{ path: '/api/command', status: 200, startMs: -0.2, endMs: 120 },
+      { path: '/api/tasks', status: 200, startMs: 130, endMs: 880 }, { path: '/api/action-session', status: 200, startMs: 1, endMs: 5 }] },
+    serverCalculations: [{ memberId: 'player1', revision: 4, startedMs: 140, doneMs: 860 }] };
+  const timeline = commandTimeline(result);
+  assert.equal(timeline.commandMatch, 'single-command');
+  assert.equal(timeline.commandAcknowledgedMs, 120);
+  assert.equal(timeline.resultsPaintedMs, 940);
+  assert.equal(timeline.acknowledgedToPaintMs, 820);
+  assert.equal(timeline.workerCalculations, 1);
+  assert.equal(timeline.calculationObserved, true);
+  assert.equal(timeline.cacheHit, false);
+  assert.ok(Object.values(timeline).every(value => value === null || ['string', 'number', 'boolean'].includes(typeof value)));
+  result.network.requests.push({ path: '/api/command', status: 200, startMs: 200, endMs: 300 });
+  result.serverCalculations = [{ startedMs: 50, doneMs: 10 }];
+  const ambiguous = commandTimeline(result);
+  assert.equal(ambiguous.commandMatch, 'ambiguous');
+  assert.equal(ambiguous.commandAcknowledgedMs, null);
+  assert.equal(ambiguous.acknowledgedToPaintMs, null);
+  assert.equal(ambiguous.calculationObserved, false);
+  assert.equal(commandTimeline().commandMatch, null);
 });
 
 test('UI measurements run sequentially through the existing browser and return scalar rows', async () => {

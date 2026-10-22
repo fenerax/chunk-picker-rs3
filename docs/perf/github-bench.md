@@ -53,6 +53,8 @@ is explicit. Direct PC harness defaults remain unchanged.
 | panels | 8 | Chunk Info and Possible Tasks content plus two frames |
 | search | 3 | public location query to populated results plus two frames |
 | switch-player2 / switch-player1 | 5 each | selected member's current results |
+| note-save (opt-in) | 20 | synthetic note on a note-free unlocked chunk: Save click to command acknowledgement and to current task paint at the new revision, worker receipts recorded; then the clear is measured the same way as `note-clear` and must restore the copied save |
+| personal-filter (opt-in) | 25 | Group view only: duo personal filter group → not-done → only-player → group, each change to the next duo task mark plus two stable frames; Group off rows are null (missing) |
 
 An omitted cold scenario still incurs initial-load conditioning for interactions.
 Default arithmetic is 12 app/view trials × 90 seconds + 180 seconds for provisioning

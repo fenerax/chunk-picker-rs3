@@ -27,7 +27,7 @@ const options = { runs: 3, label: 'baseline', timeout: 180000, prewarm: 'on', gr
 const usage = `Usage: npm run perf -- [options]
   --runs N               Independent repetitions (default 3); medians reported
   --label NAME           Output label (default baseline; letters/numbers/-/_)
-  --scenarios LIST       Comma-separated scenarios: cold,reload,switch-player2,switch-player1,unlock,cold-30mbps,panels,search
+  --scenarios LIST       Comma-separated scenarios: cold,reload,switch-player2,switch-player1,unlock,cold-30mbps,panels,search,note-save,personal-filter
   --timeout MS           Deadline for each measurement (default 180000)
   --prewarm on|off        Prediction prewarming (default on); controlled experiment
   --group-view on|off     Group task view (default off); on waits for the complete duo
@@ -63,6 +63,7 @@ credentials/locks, and launches its own localhost server and headless Chrome pro
 Cold first visits authenticate without navigating the app, then clear browser cache.
 Reload retains HTTP cache; 30 Mbps uses 40 ms CDP latency, 30 Mbps in both directions.
 Unlock changes only the scratch save through the existing Search and Unlock UI.
+Note save writes, then clears, a fixed synthetic note on an unlocked scratch chunk.
 `;
 function parse(args) {
   for (let i = 0; i < args.length; i++) {
@@ -124,7 +125,7 @@ function parse(args) {
   if (options.serverRevision && !/^[a-f0-9]{7,40}$/i.test(options.serverRevision)) throw new Error('--server-revision must be a Git revision hash.');
   if (options.port !== undefined && (!Number.isInteger(options.port) || options.port < 8960 || options.port > 8969)) throw new Error('--port must be an integer from 8960 through 8969.');
   if (options.serverHeapMiB !== undefined && (!Number.isInteger(options.serverHeapMiB) || options.serverHeapMiB < 512 || options.serverHeapMiB > 4096)) throw new Error('--server-heap-mib must be an integer from 512 through 4096.');
-  if (!options.scenarios.length || options.scenarios.some(s => !['cold', 'reload', 'switch-player2', 'switch-player1', 'unlock', 'cold-30mbps', 'panels', 'search'].includes(s))) throw new Error('Unknown scenario.');
+  if (!options.scenarios.length || options.scenarios.some(s => !['cold', 'reload', 'switch-player2', 'switch-player1', 'unlock', 'cold-30mbps', 'panels', 'search', 'note-save', 'personal-filter'].includes(s))) throw new Error('Unknown scenario.');
   return true;
 }
 function inside(base, target) {
@@ -493,6 +494,43 @@ async function prepareUnlockUI(browser, chunk) {
   return { dwellRequestedMs: options.unlockDwellMs, dwellElapsedMs, pendingRequestPaths: [...network.requests.values()].filter(request => !request.excluded && request.end === undefined).map(request => request.route) };
   } finally { network.close(); }
 }
+// Fixed synthetic text. The scratch save's own notes are never read back,
+// printed or recorded; the chosen chunk ID stays in this process only.
+const SYNTHETIC_NOTE = 'Benchmark synthetic note';
+const noteEditorReady = value => `(() => {const e=document.querySelector('#chunk-content .chunk-own-note'),t=e?.querySelector('textarea');
+  return !document.getElementById('chunk-info').hidden&&!!t&&!t.readOnly&&t.value===${JSON.stringify(value)}&&[...e.querySelectorAll('button')].some(b=>b.textContent==='Save chunk note'&&!b.disabled);})()`;
+async function settleNoteUI(browser, started, value) {
+  const network = networkCollector(browser);
+  try {
+    await until(async () => {
+      if (!await browser.evaluate(noteEditorReady(value))) return false;
+      const viewport = loadedViewport(await browser.evaluate(snapshotExpression));
+      return (options.settlement === 'tasks' || network.idle()) && viewport && viewport.time >= started;
+    }, options.timeout, 60);
+  } finally { network.close(); }
+}
+async function prepareNoteUI(browser, chunk) {
+  const started = await browser.evaluate('performance.now()');
+  // Close earlier panels first so a stale chunk's Note tab cannot be used.
+  await browser.evaluate(`(() => {if(document.getElementById('tool-dialog')?.open)document.querySelector('#tool-dialog .dialog-header button')?.click();
+    if(!document.getElementById('chunk-info').hidden)document.getElementById('chunk-close')?.click();
+    const b=document.getElementById('search-open');if(!b)throw Error('Search missing');b.click();})()`);
+  await until(() => browser.evaluate(`!!document.querySelector('#tool-dialog input[type="search"]')&&document.getElementById('chunk-info').hidden`));
+  await browser.evaluate(`(() => {const s=document.querySelector('#tool-dialog input[type="search"]');s.value=${JSON.stringify(chunk)};s.dispatchEvent(new Event('input',{bubbles:true}));})()`);
+  await until(() => browser.evaluate(`(() => {const r=[...document.querySelectorAll('#tool-dialog .search-result')].find(r=>r.querySelector('span')?.textContent.startsWith(${JSON.stringify(chunk + ' ·')}));if(!r)return false;r.querySelector('button').click();return true;})()`));
+  await until(() => browser.evaluate(`(() => {const t=document.querySelector('#chunk-content [data-tab="note"]');if(document.getElementById('chunk-info').hidden||!t)return false;t.click();return true;})()`));
+  await settleNoteUI(browser, started, '');
+}
+async function measureNoteEdit(browser, server, name, text, member) {
+  const before = await browser.evaluate(snapshotExpression);
+  // Edit and click in one synchronous evaluation: a task-driven chunk panel
+  // re-render cannot replace the editor between typing and Save.
+  const result = await measure(browser, name, () => browser.evaluate(`(() => {const e=document.querySelector('#chunk-content .chunk-own-note'),t=e?.querySelector('textarea'),b=e&&[...e.querySelectorAll('button')].find(b=>b.textContent==='Save chunk note');
+    if(!t||!b||b.disabled)throw Error('Note editor missing');t.value=${JSON.stringify(text)};t.dispatchEvent(new Event('input',{bubbles:true}));const at=performance.now();b.click();return at;})()`),
+  { revision: before.savedRevision + 1, member, reuseTerrain: true, calculations: server.calculations });
+  result.note = { edit: text ? 'save' : 'clear', syntheticLength: text.length };
+  return result;
+}
 async function captureViews(browser, run, throttled) {
   if (options.screenshots === 'off') return [];
   const directory = path.join(PERF, `${options.label}-screenshots-${options.captureStamp}`);
@@ -719,6 +757,33 @@ async function suite(executable, run, throttled) {
       }
       results.push(...await measureBrowserInteractions(browser, { timeout: options.timeout, scenarios: options.scenarios.filter(name => ['panels', 'search'].includes(name)),
         onScenario: scenario => { diagnosticContext = { stage: 'interactions', scenario }; } }));
+      if (options.scenarios.includes('note-save')) {
+        diagnosticContext = { stage: 'prepare-note', scenario: 'note-save' };
+        const member = await browser.evaluate(`document.getElementById('member').value`);
+        // A note-free unlocked surface chunk, so clearing restores the copied save.
+        // Only the ID returns from the renderer; no note text leaves it.
+        const chunk = await browser.evaluate(`Promise.all([fetch('/api/state',{cache:'no-store'}).then(r=>r.json()),fetch('/api/display-world').then(r=>r.json())]).then(([{state},world])=>{
+          const owner=state.members.find(m=>m.id===${JSON.stringify(member)}),surface=new Set(world.surface.map(String));
+          return owner.unlocked.map(String).filter(id=>/^\\d+$/.test(id)&&surface.has(id)&&state.members.every(m=>!m.notes?.[id])).sort((a,b)=>Number(a)-Number(b))[0]??null;
+        })`);
+        if (!chunk) throw new Error('No note-free unlocked chunk available for the scratch note save.');
+        await prepareNoteUI(browser, chunk);
+        results.push(await measureNoteEdit(browser, server, 'note-save', SYNTHETIC_NOTE, member));
+        diagnosticContext = { stage: 'prepare-note', scenario: 'note-clear' };
+        await settleNoteUI(browser, await browser.evaluate('performance.now()'), SYNTHETIC_NOTE);
+        const cleared = await measureNoteEdit(browser, server, 'note-clear', '', member);
+        const restored = await browser.evaluate(`fetch('/api/state',{cache:'no-store'}).then(r=>r.json()).then(({state})=>state.members.every(m=>!m.notes?.[${JSON.stringify(chunk)}]))`);
+        if (restored !== true) throw new Error('Scratch note clear did not restore the copied save.');
+        cleared.note.restored = true;
+        results.push(cleared);
+        await browser.evaluate(`(() => {document.querySelector('#chunk-content [data-tab="contents"]')?.click();document.getElementById('chunk-close')?.click();})()`);
+      }
+      if (options.scenarios.includes('personal-filter')) {
+        // Duo-only, like Group metrics: Group off keeps the rows as null observations.
+        if (options.groupView !== 'on') results.push(...interactionScenarios(['personal-filter']).map(name => ({ name, durationMs: null, completion: 'inapplicable-group-view-off' })));
+        else results.push(...await measureBrowserInteractions(browser, { timeout: options.timeout, scenarios: ['personal-filter'],
+          onScenario: scenario => { diagnosticContext = { stage: 'interactions', scenario }; } }));
+      }
     }
     diagnosticContext = { stage: 'diagnostics' };
     const diagnostics = await browser.evaluate(`fetch('/api/diagnostics',{cache:'no-store'}).then(r=>r.json()).then(d=>({workerCompileMs:d.worker?.compileMs??null,startupTimingMs:{variantMs:Number.isFinite(d.startupTimingMs?.variantMs)?d.startupTimingMs.variantMs:null,stateResponseMs:Number.isFinite(d.startupTimingMs?.stateResponseMs)?d.startupTimingMs.stateResponseMs:null},taskTimings:d.timingMs,cache:d.cache,counts:d.counts,unlockReuse:d.unlockReuse?Object.fromEntries(['entries','bytes','rawBytes','compressedBytes','limit','byteLimit','hits','admitted','skipped'].map(k=>[k,d.unlockReuse[k]])):undefined,prediction:d.predictionLane?{worker:d.predictionLane.worker,cache:d.predictionLane.cache,prewarm:d.predictionLane.prewarm}:undefined}))`);
@@ -761,7 +826,8 @@ function median(values) {
   return !all.length ? null : all.length % 2 ? all[Math.floor(all.length / 2)] : (all[all.length / 2 - 1] + all[all.length / 2]) / 2;
 }
 function aggregates(suites) {
-  const scenarios = [...new Set(options.scenarios.flatMap(name => name === 'panels' ? interactionScenarios(['panels']) : [name]))];
+  const scenarios = [...new Set(options.scenarios.flatMap(name => ['panels', 'personal-filter'].includes(name) ? interactionScenarios([name])
+    : name === 'note-save' ? ['note-save', 'note-clear'] : [name]))];
   return scenarios.map(name => {
     const runs = suites.flatMap(s => s.results).filter(r => r.name === name);
     if (interactionScenarios([name]).length) return { scenario: name, runs: runs.length, durationMs: median(runs.map(row => row.durationMs)) };
