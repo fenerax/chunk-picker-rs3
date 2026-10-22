@@ -17,7 +17,31 @@ function Assert-CoreWatchUnoccupied($Context) {
     foreach ($port in @($Context.config.port, $Context.config.loopbackPort) | Where-Object { $null -ne $_ }) {
         if (@(Get-NetTCPConnection -State Listen -LocalPort $port -ErrorAction SilentlyContinue).Count) { throw 'An unowned listener prevents startup.' }
     }
+    Move-CoreWatchRestartLock $Context
     Assert-OperatorStoreReleased $Context
+}
+
+function Move-CoreWatchRestartLock($Context) {
+    # A storage lock written before the last boot belongs to a server that the
+    # restart ended. Only that exact, local, fully recorded case moves aside to
+    # a review copy; anything else stays for Assert-OperatorStoreReleased to refuse.
+    $dataDir = $Context.config.dataDir
+    $lock = Join-Path $dataDir 'store.lock'
+    if (-not (Test-Path -LiteralPath $lock -PathType Leaf) -or (Test-Path -LiteralPath "$lock.recovery")) { return }
+    $pattern = '(?i)(?:^|\s)--data-dir\s+"?' + [regex]::Escape($dataDir) + '"?(?:\s|$)'
+    if (@(Get-CimInstance Win32_Process -Filter "Name = 'node.exe'" | Where-Object { $_.CommandLine -match $pattern }).Count) { return }
+    $text = [IO.File]::ReadAllText($lock)
+    try {
+        $owner = $text | ConvertFrom-Json
+        foreach ($name in 'pid', 'host', 'startVerified', 'startedAt', 'createdAt') { if (-not $owner.PSObject.Properties[$name]) { return } }
+        if (-not ($owner.pid -is [int] -or $owner.pid -is [long]) -or $owner.pid -lt 1 -or $owner.startVerified -isnot [bool] -or -not $owner.startVerified) { return }
+        if ($owner.host -isnot [string] -or $owner.host -ine [Net.Dns]::GetHostName()) { return }
+        if (-not (Test-OperatorBeforeBoot $owner.startedAt) -or -not (Test-OperatorBeforeBoot $owner.createdAt)) { return }
+    } catch { return }
+    $review = Join-Path $dataDir ('store.lock.restart-' + [DateTime]::UtcNow.ToString('yyyyMMddTHHmmssZ'))
+    [IO.File]::Move($lock, $review)
+    if ([IO.File]::ReadAllText($review) -cne $text) { [IO.File]::Move($review, $lock); throw 'Storage lock changed while it moved.' }
+    Write-CoreWatchLog $Context 'Moved a storage lock left from before the last restart to a review copy.'
 }
 
 function Assert-CoreWatchOwnership($Context, $Record) {

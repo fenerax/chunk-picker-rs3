@@ -130,6 +130,71 @@ if (-not (Test-Path -LiteralPath (Join-Path $context.localDir 'picker-paused')))
   });
 });
 
+// Boot is pinned at 2026-06-01; "before" times predate it, "after" times follow it.
+const bootStub = writer => `
+function Get-CimInstance {
+    param([Parameter(Position = 0)]$ClassName, $Filter)
+    if ($ClassName -eq 'Win32_OperatingSystem') { return [pscustomobject]@{ LastBootUpTime = [DateTimeOffset]::Parse('2026-06-01T00:00:00Z').LocalDateTime } }
+    if ($Filter -like '*node.exe*') { return @(${writer ? "[pscustomobject]@{ CommandLine = 'node app/server.mjs --data-dir \"' + $global:dataDir + '\"' }" : ''}) }
+    return [pscustomobject]@{ ExecutablePath = 'C:\\other.exe'; CommandLine = 'reused'; CreationDate = [DateTime]::Now }
+}`;
+test('watchdog moves aside only a complete local storage lock from before the last boot', { skip: !available }, async () => {
+  const before = '2026-05-01T00:00:00.000Z', after = '2026-07-01T00:00:00.000Z';
+  const lock = (fields = {}) => JSON.stringify({ pid: 4242, startedAt: before, startVerified: true, host: '__HOST__', nonce: 'n', createdAt: before, ...fields });
+  const cases = [
+    ['pre-boot', lock(), true],
+    ['started after boot', lock({ startedAt: after, createdAt: after }), false],
+    ['created after boot', lock({ createdAt: after }), false],
+    ['foreign host', lock({ host: 'another-computer' }), false],
+    ['unverified start', lock({ startVerified: false }), false],
+    ['no zone', lock({ startedAt: '2026-05-01T00:00:00', createdAt: '2026-05-01T00:00:00' }), false],
+    ['missing host', JSON.stringify({ pid: 4242, startedAt: before, startVerified: true, createdAt: before }), false],
+    ['unreadable', '{not json', false],
+    ['recovery marker', lock(), false, { recovery: true }],
+    ['live writer', lock(), false, { writer: true }],
+  ];
+  for (const [name, contents, moved, { recovery = false, writer = false } = {}] of cases) {
+    await fixture(async dir => {
+      const data = join(dir, 'data'); await mkdir(data);
+      const result = await execute(dir, `
+$global:dataDir = ${ps(data)}
+$context = [pscustomobject]@{ localDir = ${ps(dir)}; config = [pscustomobject]@{ dataDir = $global:dataDir; port = 19888; loopbackPort = 19889 } }
+${bootStub(writer)}
+function Get-NetTCPConnection { return @() }
+[IO.File]::WriteAllText((Join-Path $global:dataDir 'store.lock'), ${ps(contents)}.Replace('__HOST__', [Net.Dns]::GetHostName()))
+if (${recovery ? '$true' : '$false'}) { Set-Content -LiteralPath (Join-Path $global:dataDir 'store.lock.recovery') -Value '{}' }
+try { Assert-CoreWatchUnoccupied $context; 'started' } catch { 'refused' }
+@(Get-ChildItem -LiteralPath $global:dataDir -Name) -join ','
+`);
+      const [outcome, files] = result.stdout.trim().split(/\r?\n/);
+      const log = await readFile(join(dir, 'watchdog.log'), 'utf8').catch(() => '');
+      if (moved) {
+        assert.equal(outcome, 'started', name);
+        assert.match(files, /^store\.lock\.restart-\d{8}T\d{6}Z$/, name);
+        assert.match(log, /Moved a storage lock left from before the last restart/, name);
+      } else {
+        assert.equal(outcome, 'refused', name);
+        assert.match(files, /(^|,)store\.lock(,|$)/, name);
+        assert.doesNotMatch(files, /restart-/, name);
+        assert.equal(log, '', name);
+      }
+    });
+  }
+});
+test('a runtime record from before the last boot no longer owns its reused PID', { skip: !available }, async () => {
+  await fixture(async dir => {
+    const result = await execute(dir, `
+$context = [pscustomobject]@{ configHash = 'h'; config = [pscustomobject]@{ coreRoot = 'C:\\core'; dataDir = 'C:\\data'; host = '127.0.0.1'; port = 19888; nodePath = 'C:\\node.exe' } }
+${bootStub(false)}
+$old = Get-OperatorOwnedProcess $context ([pscustomobject]@{ pid = 4242; processStartedAt = '2026-05-01T00:00:00.0000000Z'; configHash = 'h' })
+"old:$($null -eq $old)"
+try { $null = Get-OperatorOwnedProcess $context ([pscustomobject]@{ pid = 4242; processStartedAt = '2026-07-01T00:00:00.0000000Z'; configHash = 'h' }); 'new:accepted' } catch { 'new:refused' }
+try { $null = Get-OperatorOwnedProcess $context ([pscustomobject]@{ pid = 4242; processStartedAt = '2026-05-01T00:00:00'; configHash = 'h' }); 'nozone:accepted' } catch { 'nozone:refused' }
+`);
+    assert.deepEqual(result.stdout.trim().split(/\r?\n/), ['old:True', 'new:refused', 'nozone:refused']);
+  });
+});
+
 const taskXml = (name, backup = false) => `<?xml version="1.0" encoding="utf-8"?>\n<Task version="1.3" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">\n <RegistrationInfo><URI>\\${name}</URI></RegistrationInfo>\n <Principals><Principal id="Author"><UserId>synthetic-user</UserId><LogonType>InteractiveToken</LogonType></Principal></Principals>\n <Settings><MultipleInstancesPolicy>IgnoreNew</MultipleInstancesPolicy><ExecutionTimeLimit>PT3M</ExecutionTimeLimit></Settings>\n <Triggers><TimeTrigger><StartBoundary>2026-10-15T01:00:00</StartBoundary><Repetition><Interval>PT${backup ? '60' : '5'}M</Interval></Repetition></TimeTrigger></Triggers>\n <Actions Context="Author"><Exec><Command>conhost.exe</Command><Arguments>--headless powershell.exe -NoProfile -File C:\\synthetic\\${backup ? 'Backup' : 'Watch'}-Picker.ps1</Arguments><WorkingDirectory>C:\\synthetic</WorkingDirectory></Exec></Actions>\n</Task>\n`;
 async function tasks(run) {
   return fixture(async dir => {

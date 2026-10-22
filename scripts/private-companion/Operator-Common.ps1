@@ -251,10 +251,30 @@ function Assert-OperatorStoreReleased($Context) {
     if ($writers.Count) { throw 'A process still names this data directory. No writer was started.' }
 }
 
+function ConvertTo-OperatorUtc($Value) {
+    # Windows PowerShell keeps ISO text; PowerShell 7 may already have parsed it.
+    if ($Value -is [DateTime]) {
+        if ($Value.Kind -eq [DateTimeKind]::Unspecified) { throw 'Recorded time has no zone.' }
+        return $Value.ToUniversalTime()
+    }
+    if ($Value -isnot [string] -or $Value -notmatch '(?:Z|[+-]\d\d:\d\d)$') { throw 'Recorded time has no zone.' }
+    return [DateTimeOffset]::Parse($Value, [Globalization.CultureInfo]::InvariantCulture).UtcDateTime
+}
+
+function Test-OperatorBeforeBoot($Value) {
+    # Nothing that started before this computer last booted can still run.
+    $boot = ([DateTime](Get-CimInstance Win32_OperatingSystem -ErrorAction Stop).LastBootUpTime).ToUniversalTime()
+    if ($boot -gt [DateTime]::UtcNow) { throw 'Boot time is in the future.' }
+    return (ConvertTo-OperatorUtc $Value) -lt $boot
+}
+
 function Get-OperatorOwnedProcess($Context, $Record) {
     if (-not $Record -or $Record.pid -isnot [int] -or $Record.pid -lt 1 -or -not $Record.processStartedAt -or $Record.configHash -cne $Context.configHash) { throw 'Missing or mismatched exact process ownership record.' }
     $process = Get-CimInstance Win32_Process -Filter "ProcessId = $($Record.pid)"
     if (-not $process) { return $null }
+    # Windows reuses PIDs after a restart; a record from before the last boot
+    # names a process that the restart ended, whatever now holds its PID.
+    if (Test-OperatorBeforeBoot $Record.processStartedAt) { return $null }
     $c = $Context.config
     $serverPattern = '(?i)(?:^|\s)"?' + [regex]::Escape((Join-Path $c.coreRoot 'app/server.mjs')) + '"?(?:\s|$)'
     $dataPattern = '(?i)(?:^|\s)--data-dir\s+"?' + [regex]::Escape($c.dataDir) + '"?(?:\s|$)'

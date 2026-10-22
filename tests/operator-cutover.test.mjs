@@ -125,7 +125,7 @@ $ErrorActionPreference='Stop'
 $context=[pscustomobject]@{configHash='synthetic';config=[pscustomobject]@{coreRoot='C:\\synthetic\\core';dataDir='C:\\synthetic\\data';nodePath='C:\\synthetic\\node.exe';host='127.0.0.1';port=18788;loopbackPort=18789}}
 $record=[pscustomobject]@{pid=12345;processStartedAt='2026-01-01T00:00:00.0000000Z';configHash='synthetic'}
 $script:fake=[pscustomobject]@{ProcessId=12345;CreationDate=[DateTime]::Parse('2026-01-01T00:00:00.0000000Z');ExecutablePath='C:\\synthetic\\node.exe';CommandLine='"C:\\synthetic\\node.exe" --expose-gc "C:\\synthetic\\core\\app\\server.mjs" --data-dir "C:\\synthetic\\data" --host 127.0.0.1 --port 18788'}
-function Get-CimInstance { param($ClassName,$Filter) return $script:fake }
+function Get-CimInstance { param($ClassName,$Filter) if($ClassName -eq 'Win32_OperatingSystem'){return [pscustomobject]@{LastBootUpTime=[DateTime]'2025-01-01'}}; return $script:fake }
 $script:owner=12345;$script:listening=$true;$script:socketQueries=0
 function Get-NetTCPConnection { param($State,$LocalPort,$ErrorAction) $script:socketQueries++; if($script:listening){return [pscustomobject]@{LocalAddress='127.0.0.1';LocalPort=$LocalPort;OwningProcess=$script:owner}} }
 $null=Get-OperatorOwnedProcess $context $record
@@ -212,7 +212,7 @@ $previous=Read-OperatorConfig ${literal(previousPath)} -ForStop
 $record=Read-OperatorJson ${literal(path.join(f.local, 'server-runtime.json'))}
 $c=$previous.config
 $script:fake=[pscustomobject]@{ProcessId=$record.pid;CreationDate=[DateTime]::Parse($record.processStartedAt);ExecutablePath=$c.nodePath;CommandLine=(@(('"'+$c.nodePath+'"'),'--expose-gc',('"'+(Join-Path $c.coreRoot 'app/server.mjs')+'"'),'--data-dir',('"'+$c.dataDir+'"'),'--host',$c.host,'--port',[string]$c.port)-join ' ')}
-function Get-CimInstance {param($ClassName,$Filter) return $script:fake}
+function Get-CimInstance {param($ClassName,$Filter) if($ClassName -eq 'Win32_OperatingSystem'){return [pscustomobject]@{LastBootUpTime=[DateTime]'2025-01-01'}}; return $script:fake}
 $null=Get-OperatorOwnedProcess $previous $record
 $rejected=$false;try{$null=Get-OperatorOwnedProcess $candidate $record}catch{$rejected=$true};if(-not $rejected){exit 2}
 Assert-ReleaseContextsUnchanged $candidate $previous ${literal(f.configPath)} ${literal(previousPath)} ${literal(f.core)} ${literal(f.companion)}
