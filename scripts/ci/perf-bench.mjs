@@ -5,13 +5,14 @@ import { mkdir, mkdtemp, readFile, writeFile, appendFile, rm, realpath, readdir,
 import { createHash } from 'node:crypto';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { cpus, totalmem, freemem } from 'node:os';
 import { normalizeRequest, measurementPlan, SAVE_SHA256, estimatedSeconds } from './perf-bench-config.mjs';
 import { compareSamples, extractMetrics, extractObservations, reportMarkdown, failureReadiness } from './perf-bench-report.mjs';
 import { requireHeavyLock, rejectPathLinks } from '../perf/inputs.mjs';
 import { safeDiagnostic, safeStderrTail } from '../perf/diagnostics.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
-const CI_POLICY = Object.freeze({ workerMode: 'process', serverHeapMiB: 1536 });
+const CI_POLICY = Object.freeze({ workerMode: 'process', serverHeapMiB: 3072, calculatorHeapMiB: 1536 });
 async function harnessHash() {
   const hash = createHash('sha256');
   for (const folder of ['scripts/perf', 'scripts/ci']) for (const filename of (await readdir(path.join(ROOT, folder))).sort()) {
@@ -90,7 +91,8 @@ export async function runBenchmark(values, dependencies = {}) {
   const label = path.basename(scratch);
   const env = { ...Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.toUpperCase().startsWith('RS3_'))),
     RS3_DATASET: dataset, RS3_PACKS_DIR: packs, RS3_PACK_SELECTION: selection,
-    RS3_SCRATCH_CDP_PORT: '8961', RS3_TASK_WORKER_MODE: CI_POLICY.workerMode };
+    RS3_SCRATCH_CDP_PORT: '8961', RS3_TASK_WORKER_MODE: CI_POLICY.workerMode,
+    RS3_PERF_CALCULATOR_HEAP_MIB: String(CI_POLICY.calculatorHeapMiB) };
   // A clean pack environment: operator profiles or locally installed sidecars must
   // never silently influence a public-pack run.
   // Match the Windows app topology and contain calculator failures in owned
@@ -100,9 +102,11 @@ export async function runBenchmark(values, dependencies = {}) {
   const report = { schemaVersion: 1, complete: false, base: revisions.A, candidate: revisions.B,
     capturedAt: new Date().toISOString(), saveSha256: expectedSave, harnessSha256: await harnessHash(), request, estimatedSeconds: estimatedSeconds(request),
     executionPolicy: CI_POLICY,
+    runner: { totalMemoryMiB: Math.round(totalmem() / 1048576), freeMemoryMiB: Math.round(freemem() / 1048576), cpuCount: cpus().length },
     method: 'Alternating A,B app trials, same harness; each view starts a fresh scratch server/browser. Lower is better; strict non-overlapping min–max at n>=3.',
     samples, summary: [] };
   const started = performance.now();
+  console.log(`Runner resources: ${JSON.stringify(report.runner)}`);
   let failed, stage = { operation: 'import', arm: 'A' };
   try {
     for (const arm of ['A', 'B']) {
@@ -147,7 +151,8 @@ export async function runBenchmark(values, dependencies = {}) {
       samples.push({ run: trial.run, arm: trial.arm, groupView: trial.groupView,
         applicationSha256: sourceHash, fixtureSha256: fixtureHash, datasetDigest: rawReport.suites?.[0]?.server?.dataset?.digest ?? null,
         environment: { node: rawReport.environment?.node, chrome: rawReport.environment?.chrome, platform: rawReport.environment?.platform,
-          serverHeapMiB: rawReport.environment?.serverHeapMiB === 1536 ? 1536 : null,
+          serverHeapMiB: rawReport.environment?.serverHeapMiB === CI_POLICY.serverHeapMiB ? CI_POLICY.serverHeapMiB : null,
+          calculatorHeapMiB: rawReport.environment?.calculatorHeapMiB === CI_POLICY.calculatorHeapMiB ? CI_POLICY.calculatorHeapMiB : null,
           workerMode: ['process', 'thread', 'platform-default'].includes(rawReport.environment?.workerMode) ? rawReport.environment.workerMode : null,
           chromeExtraArgs: (rawReport.environment?.chromeExtraArgs ?? []).filter(flag => ['--no-sandbox', '--disable-dev-shm-usage'].includes(flag)) },
         observations: extractObservations(rawReport), metrics: extractMetrics(rawReport) });

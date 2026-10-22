@@ -3,18 +3,34 @@ import { performance } from 'node:perf_hooks';
 import { pathToFileURL, fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { Worker } from 'node:worker_threads';
-import { safeDiagnostic } from './diagnostics.mjs';
+import { getHeapStatistics } from 'node:v8';
+import { safeDiagnostic, serverMemorySample, recordServerMemory, SERVER_MEMORY_SAMPLE_INTERVAL_MS } from './diagnostics.mjs';
+import { installCalculatorHeapPolicy } from './calculator-policy.mjs';
 
 if (!process.send || !process.env.RS3_PERF_SCRATCH) throw new Error('Launch through npm run perf.');
 const start = performance.now();
 let application;
 const workers = new Set();
+let memoryTelemetry;
+const sampleMemory = () => {
+  memoryTelemetry = recordServerMemory(memoryTelemetry,
+    serverMemorySample(process.memoryUsage(), getHeapStatistics().heap_size_limit, Date.now()));
+  return memoryTelemetry;
+};
+const publishMemory = () => {
+  if (process.connected === false) return;
+  process.send({ type: 'memory', memoryTelemetry: sampleMemory() }, () => {});
+};
+publishMemory();
+const memoryTimer = setInterval(publishMemory, SERVER_MEMORY_SAMPLE_INTERVAL_MS);
+memoryTimer.unref();
 try {
   const port = Number(process.env.RS3_PERF_PORT ?? 0);
   if (port !== 0 && (!Number.isInteger(port) || port < 8960 || port > 8969)) throw new Error('Invalid owned benchmark port.');
   const serverEntry = process.env.RS3_PERF_SERVER_ENTRY
     ? pathToFileURL(process.env.RS3_PERF_SERVER_ENTRY).href : new URL('../../app/server.mjs', import.meta.url).href;
   const appRoot = process.env.RS3_PERF_APP_ROOT ?? path.dirname(path.dirname(fileURLToPath(serverEntry)));
+  installCalculatorHeapPolicy(appRoot, process.env.RS3_PERF_CALCULATOR_HEAP_MIB);
   // Only this harness preload may be injected into the measured process lane.
   process.env.RS3_WORKER_MEMORY_PROBE_IMPORT = new URL('./worker-timeline.mjs', import.meta.url).href;
   // Linux normally uses native threads, which inherit the server's --import.
@@ -52,7 +68,7 @@ try {
   });
   process.send({ type: 'ready', inviteUrl: application.inviteUrl,
     dataset: selectedDataset ? { datasetId: selectedDataset.datasetId, digest: selectedDataset.digest, packed: selectedDataset.packed === true } : null,
-    readyMs: performance.now() - start, rssBytes: process.memoryUsage().rss,
+    readyMs: performance.now() - start, rssBytes: process.memoryUsage().rss, memoryTelemetry: sampleMemory(),
     startupTimingMs: { variantMs: numeric(startup?.variantMs), stateResponseMs: numeric(startup?.stateResponseMs) } });
   process.on('message', async message => {
     if (message.type === 'rss') {
@@ -67,14 +83,16 @@ try {
       }
       const rssBytes = process.memoryUsage().rss;
       process.send({ type: 'rss', id: message.id, rssBytes, workersRssBytes: workerRssFailures ? null : workersRssBytes,
-        totalRssBytes: workerRssFailures ? null : rssBytes + workersRssBytes, workerRssSamples, workerRssFailures });
+        totalRssBytes: workerRssFailures ? null : rssBytes + workersRssBytes, workerRssSamples, workerRssFailures,
+        memoryTelemetry: sampleMemory() });
     }
-    if (message.type === 'stop') { await application.close(); process.exit(0); }
+    if (message.type === 'stop') { clearInterval(memoryTimer); await application.close(); process.exit(0); }
   });
-  process.once('disconnect', async () => { await application.close(); process.exit(0); });
+  process.once('disconnect', async () => { clearInterval(memoryTimer); await application.close(); process.exit(0); });
 } catch (error) {
+  clearInterval(memoryTimer);
   // Never forward errors containing state, request URLs or credentials.
-  process.send({ type: 'error', message: 'Scratch server startup failed.', diagnostic: safeDiagnostic(error, { stage: 'server-start' }) });
+  process.send({ type: 'error', message: 'Scratch server startup failed.', diagnostic: safeDiagnostic(error, { stage: 'server-start' }), memoryTelemetry: sampleMemory() });
   await application?.close();
   process.exit(1);
 }

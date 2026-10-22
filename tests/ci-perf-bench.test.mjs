@@ -11,6 +11,19 @@ import { distribution, compareSamples, extractMetrics, extractObservations, repo
 import { verifySave, runBenchmark, parseArguments } from '../scripts/ci/perf-bench.mjs';
 import { prepareImport } from '../scripts/ci/perf-bench-import.mjs';
 import { safeDiagnostic, safeStderrTail, DIAGNOSTIC_PREFIX, chromeStartupMessage } from '../scripts/perf/diagnostics.mjs';
+import { calculatorForkOptions } from '../scripts/perf/calculator-policy.mjs';
+
+test('calculator cap replaces the inherited heap only for the owned calculator host', () => {
+  const root = path.resolve('fixture-app');
+  const options = { execArgv: ['--max-old-space-size=3072', '--import', 'fixture-probe'], serialization: 'advanced' };
+  const host = path.join(root, 'app/tasks/process-worker-host.mjs');
+  assert.deepEqual(calculatorForkOptions(host, options, root, '1536'), {
+    ...options, execArgv: ['--import', 'fixture-probe', '--max-old-space-size=1536'] });
+  assert.equal(calculatorForkOptions(path.join(root, 'other.mjs'), options, root, '1536'), options);
+  assert.equal(calculatorForkOptions(host, options, root, undefined), options);
+  assert.deepEqual(options.execArgv, ['--max-old-space-size=3072', '--import', 'fixture-probe']);
+  for (const limit of ['fixture-private', '0', '4097']) assert.throws(() => calculatorForkOptions(host, options, root, limit), /Invalid calculator heap/);
+});
 
 test('failure diagnostics allow harness messages and locations but never arbitrary save or stderr text', () => {
   const error = new TypeError('fixture-private-save-value');
@@ -62,6 +75,13 @@ test('failed trial readiness retains booleans and fixed endpoint statuses only',
   assert.deepEqual(readiness.failedEndpoints, [{ path: '/api/tasks', status: 500 }]);
   assert.equal(readiness.milestones.length, 1);
   assert.doesNotMatch(JSON.stringify(readiness), /fixture-private|member|body/);
+  const startup = failureReadiness({ failedSuite: { serverMemoryTelemetry: { samples: 2,
+    last: { sampledAtEpochMs: 100, rssBytes: 2097152, heapUsedBytes: 1048576, heapSizeLimitBytes: 3221225472, secret: 'fixture-private' },
+    peak: { rssBytes: 3145728, heapUsedBytes: 2097152, secret: 'fixture-private' } } } });
+  assert.equal(startup.wallMs, null);
+  assert.equal(startup.serverMemoryTelemetry.last.heapSizeLimitBytes, 3221225472);
+  assert.equal(startup.serverMemoryTelemetry.peak.rssBytes, 3145728);
+  assert.doesNotMatch(JSON.stringify(startup), /fixture-private|secret/);
 });
 
 test('starter smoke uses its backup importer; legacy production import remains file-based', async () => {
@@ -112,11 +132,14 @@ test('non-overlapping ranges need three complete observations; absent is never z
 });
 
 test('metric extraction excludes raw save, URL, cache text and fixture paths', () => {
-  const metrics = extractMetrics({ secret: 'fixture-private', suites: [{ mode: 'normal', server: { rssReadyBytes: 1048576 },
+  const metrics = extractMetrics({ secret: 'fixture-private', suites: [{ mode: 'normal', server: { rssReadyBytes: 1048576,
+    memoryTelemetry: { peak: { rssBytes: 2097152, heapUsedBytes: 1048576 } } },
     results: [{ name: 'search', durationMs: 15, text: 'fixture-private' }, { name: 'cold',
       milestones: { tasksPaintedMs: 10, secret: 'fixture-private' }, network: { totals: { transferBytes: 2048 } } }] }] });
   assert.equal(metrics['search.paint.ms'], 15);
   assert.equal(metrics['server.rss-ready.MiB'], 1);
+  assert.equal(metrics['server.rss-sampled-peak.MiB'], 2);
+  assert.equal(metrics['server.heap-sampled-peak.MiB'], 1);
   assert.equal(metrics['cold.wire.KiB'], 2);
   assert.doesNotMatch(JSON.stringify(metrics), /fixture-private|secret/);
   const observations = extractObservations({ suites: [{ results: [{ name: 'unlock', taskCalculation: { hit: true, note: 'fixture-private' },
@@ -156,10 +179,11 @@ test('paired orchestration imports twice, alternates, writes safe reports and cl
     execute: async (script, args, { env }) => {
       assert.equal(env.RS3_TASK_WORKER_MODE, 'process');
       if (script.endsWith('perf-bench-import.mjs')) { imported.push(args[2]); await mkdir(args[2]); return; }
-      assert.equal(args[args.indexOf('--server-heap-mib') + 1], '1536');
+      assert.equal(args[args.indexOf('--server-heap-mib') + 1], '3072');
+      assert.equal(env.RS3_PERF_CALCULATOR_HEAP_MIB, '1536');
       calls.push(args[args.indexOf('--label') + 1].match(/-([AB])-([0-9]+)-off$/).slice(1).join(''));
       await writeFile(args[args.indexOf('--output') + 1], JSON.stringify({ applicationSource: { sha256: 'b'.repeat(64) },
-        fixture: { sha256: 'c'.repeat(64), source: 'fixture-private' }, environment: { node: 'v24.0.0', chrome: 'Chrome/1', platform: 'linux', workerMode: 'process', serverHeapMiB: 1536 },
+        fixture: { sha256: 'c'.repeat(64), source: 'fixture-private' }, environment: { node: 'v24.0.0', chrome: 'Chrome/1', platform: 'linux', workerMode: 'process', serverHeapMiB: 3072, calculatorHeapMiB: 1536 },
         suites: [{ mode: 'normal', server: { rssReadyBytes: 1048576, rssAfterBytes: 2097152 },
           results: [{ name: 'cold', milestones: { tasksPaintedMs: 20 }, network: { totals: {} } }] }] }));
     },
@@ -168,8 +192,9 @@ test('paired orchestration imports twice, alternates, writes safe reports and cl
   assert.deepEqual(calls, ['A1','B1','A2','B2','A3','B3']);
   assert.equal(report.complete, true);
   assert.equal(report.samples.length, 6);
-  assert.deepEqual(report.executionPolicy, { workerMode: 'process', serverHeapMiB: 1536 });
-  assert.ok(report.samples.every(sample => sample.environment.workerMode === 'process' && sample.environment.serverHeapMiB === 1536));
+  assert.deepEqual(report.executionPolicy, { workerMode: 'process', serverHeapMiB: 3072, calculatorHeapMiB: 1536 });
+  assert.ok(report.runner.totalMemoryMiB > 0 && report.runner.cpuCount > 0);
+  assert.ok(report.samples.every(sample => sample.environment.workerMode === 'process' && sample.environment.serverHeapMiB === 3072 && sample.environment.calculatorHeapMiB === 1536));
   assert.doesNotMatch(await readFile(path.join(output, 'perf-report.json'), 'utf8'), /fixture-private|scratch-/);
   assert.match(await readFile(path.join(output, 'perf-report.md'), 'utf8'), /non-overlapping/);
   assert.match(await readFile(path.join(output, 'perf-report.md'), 'utf8'), /process calculator workers/);
@@ -206,7 +231,7 @@ test('failed imports retain only a scalar failure report and discard ambient ope
   }), /benchmark child or integrity check failed/);
   const json = await readFile(path.join(output, 'perf-report.json'), 'utf8'), report = JSON.parse(json);
   assert.equal(report.complete, false);
-  assert.deepEqual(report.executionPolicy, { workerMode: 'process', serverHeapMiB: 1536 });
+  assert.deepEqual(report.executionPolicy, { workerMode: 'process', serverHeapMiB: 3072, calculatorHeapMiB: 1536 });
   assert.deepEqual(report.failureContext, { operation: 'import', arm: 'A' });
   assert.equal(report.diagnostic.errorClass, 'Error');
   assert.match(report.diagnostic.stderrTail[0], /Runtime.evaluate timed out/);

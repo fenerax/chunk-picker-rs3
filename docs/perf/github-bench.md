@@ -22,9 +22,11 @@ The CI driver sets `RS3_TASK_WORKER_MODE=process` for imports and measurements,
 matching the Windows production topology. Each calculator runs in an owned child
 process; reports record the worker policy. Direct `npm run perf` retains the
 platform default. Compare samples with the same worker topology.
-The CI driver pins the server and calculator old-generation heaps to 1536 MiB
-to leave memory for concurrent lanes, Chrome and native buffers on a standard
-runner. This is an old-generation limit, not an RSS cap. Reports record it;
+The CI driver pins the server old-generation heap to 3072 MiB and each calculator
+process to 1536 MiB. Imports and app/view trials run sequentially: the previous
+server and its calculators exit before another arm starts. This leaves room for
+Chrome, calculator heaps and native buffers on the hosted runner. These are
+old-generation limits, not RSS caps. Reports record them;
 compare runs with the same heap policy. Direct `npm run perf` keeps Node's
 default unless `--server-heap-mib N` is supplied.
 `--save-sha256` accepts a different explicitly pinned synthetic fixture. Production
@@ -70,9 +72,14 @@ The stderr tail accepts only known harness diagnostics. Unrecognized messages,
 JSON bodies, request payloads and arbitrary app/Chrome output are withheld.
 Chrome startup failures distinguish sandbox and debugger-port errors. Unknown
 failures still retain source locations without publishing the exception text.
+The driver prints total/free runner memory and CPU count once, without host names.
+The server samples numeric RSS, heap, external and array-buffer usage every second
+and at readiness/shutdown, including its actual V8 heap limit. Reports retain the
+last sample and independent sampled maxima; a busy event loop can delay sampling.
 An exited server fails the next browser probe immediately. Failure reports retain
 its exit code/signal and the host Linux OOM-kill counter delta when available;
 the counter describes the runner, so a signal alone does not prove an OOM kill.
+V8 heap-limit/out-of-memory stderr is reduced to a fixed diagnostic phrase.
 
 Unlock records click → task fetch → worker calculation receipt → completion →
 paint, with each interval separately. Worker timestamps come from the same
@@ -87,7 +94,8 @@ than discarding the worker event. The four parts still sum to click-to-paint.
 An HTTP cache hit can serve the result of fresh post-click calculation; the
 sample's scalar observations retain both facts.
 RSS includes HTTP-process samples and a separate total adding calculator processes
-once each, outside timing. It excludes Chrome and is not peak memory. Cold does
+once each, outside timing. Sampled HTTP-process peaks exclude calculator processes
+and Chrome; total-after RSS is a snapshot, not peak memory. Cold does
 not flush OS file caches.
 
 ## Hosted verification receipts

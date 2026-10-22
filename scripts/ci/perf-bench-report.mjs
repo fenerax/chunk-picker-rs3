@@ -1,4 +1,5 @@
 import { unlockTimeline } from '../perf/browser-interactions.mjs';
+import { sanitizeMemoryTelemetry } from '../perf/diagnostics.mjs';
 
 const numeric = value => typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : null;
 export function extractObservations(report) {
@@ -14,12 +15,13 @@ export function extractObservations(report) {
 }
 export function failureReadiness(report) {
   const measurement = report?.failedSuite?.failedMeasurement;
-  if (!measurement) return null;
-  const snapshot = measurement.lastSnapshot;
+  if (!report?.failedSuite) return null;
+  const snapshot = measurement?.lastSnapshot;
   const events = new Set(['state-adopted', 'tasks-shown', 'duo-tasks-shown', 'visible-tiles-loaded']);
   const endpoints = new Set(['/api/state', '/api/definitions', '/api/rules', '/api/tasks', '/api/map-info', '/api/display-world']);
-  const requests = Array.isArray(measurement.requests) ? measurement.requests : [];
-  return { wallMs: numeric(measurement.wallMs), hostOomKillDelta: numeric(report.failedSuite?.hostOomKillDelta),
+  const requests = Array.isArray(measurement?.requests) ? measurement.requests : [];
+  return { wallMs: numeric(measurement?.wallMs), hostOomKillDelta: numeric(report.failedSuite?.hostOomKillDelta),
+    serverMemoryTelemetry: sanitizeMemoryTelemetry(report.failedSuite?.serverMemoryTelemetry),
     serverExit: { code: Number.isInteger(report.failedSuite?.serverExit?.code) ? report.failedSuite.serverExit.code : null,
       signal: /^SIG(?:KILL|ABRT|SEGV|TERM|INT|TRAP)$/.test(report.failedSuite?.serverExit?.signal ?? '') ? report.failedSuite.serverExit.signal : null },
     tasksReady: typeof snapshot?.tasksReady === 'boolean' ? snapshot.tasksReady : null,
@@ -40,6 +42,8 @@ export function extractMetrics(report) {
     put(`${prefix}.rss-after.MiB`, numeric(suite.server?.rssAfterBytes) === null ? null : suite.server.rssAfterBytes / 1048576);
     put(`${prefix}.rss-total-after.MiB`, numeric(suite.server?.rssAfterTotalBytes) === null ? null : suite.server.rssAfterTotalBytes / 1048576);
     put(`${prefix}.rss-calculators-after.MiB`, numeric(suite.server?.workersRssAfterBytes) === null ? null : suite.server.workersRssAfterBytes / 1048576);
+    put(`${prefix}.rss-sampled-peak.MiB`, numeric(suite.server?.memoryTelemetry?.peak?.rssBytes) === null ? null : suite.server.memoryTelemetry.peak.rssBytes / 1048576);
+    put(`${prefix}.heap-sampled-peak.MiB`, numeric(suite.server?.memoryTelemetry?.peak?.heapUsedBytes) === null ? null : suite.server.memoryTelemetry.peak.heapUsedBytes / 1048576);
     for (const result of suite.results ?? []) {
       if (result.durationMs !== undefined) { put(`${result.name}.paint.ms`, result.durationMs); continue; }
       const name = result.name;
@@ -94,14 +98,15 @@ export function reportMarkdown(report, { short = false } = {}) {
   const rows = short ? report.summary.filter(row => headline.test(row.metric)) : report.summary;
   return ['# App performance A/B', '', `A: \`${report.base}\`; B: \`${report.candidate}\`.`,
     `Completed: ${report.complete}. ${report.samples.length} measured app/view trials; ${report.request.runs} repetitions per arm/view.`, '',
-    ...(report.executionPolicy ? [`Execution policy: ${report.executionPolicy.workerMode === 'process' ? 'process' : 'unspecified'} calculator workers; server/calculator old-generation heap ${report.executionPolicy.serverHeapMiB === 1536 ? '1536 MiB' : 'unspecified'}. Keep different worker/heap policies separate.`, ''] : []),
+    ...(report.executionPolicy ? [`Execution policy: ${report.executionPolicy.workerMode === 'process' ? 'process' : 'unspecified'} calculator workers; server old-generation heap ${number(numeric(report.executionPolicy.serverHeapMiB))} MiB; calculator old-generation heap ${number(numeric(report.executionPolicy.calculatorHeapMiB))} MiB. Keep different worker/heap policies separate.`, ''] : []),
+    ...(report.runner ? [`Runner: ${number(numeric(report.runner.totalMemoryMiB))} MiB RAM, ${number(numeric(report.runner.freeMemoryMiB))} MiB free at start, ${number(numeric(report.runner.cpuCount))} CPUs.`, ''] : []),
     'Lower is better. A win/loss requires at least three complete samples per arm and strictly non-overlapping observed min–max ranges. Overlap is noise; absent observations are missing. This is a conservative descriptive rule, not a confidence interval.', '',
     'Request → calculation start is signed: a negative value means Unlock handling started the worker before the browser task fetch. The other breakdown parts are durations; their sum still equals click → paint. An HTTP cache hit can follow fresh post-click worker calculation.', '',
     ...(report.diagnostic ? [`Failure context: ${JSON.stringify(report.failureContext)}.`,
       `Diagnostic: ${JSON.stringify(report.diagnostic)}.`, ''] : []),
     markdownTable(rows), '', ...(short ? [] : [
     'Unlock starts at the browser click handler. Request sent is the observed task fetch call. Calculation start/done are worker receipt/completion timestamps from the same harness preload on both apps, aligned by epoch clocks. They exclude process relay/queue time before worker receipt. Cache reuse can omit worker events; missing start/done stays missing. Results painted means the matching task DOM event plus two animation frames. Group on waits for both lists.', '',
-      'Server RSS at ready/after covers the HTTP process and native threads. The separate total-after sample adds calculator process RSS once per process; a failed calculator sample makes the total unavailable. Chrome is excluded. These are snapshots, not peak RSS. Cold clears browser/server caches but does not flush OS file caches. Profiling is off.', '',
+      'Server RSS at ready/after covers the HTTP process and native threads. The separate total-after sample adds calculator process RSS once per process; a failed calculator sample makes the total unavailable. Server sampled peaks use one-second numeric samples and can miss transients; calculators and Chrome are excluded from those peaks. Cold clears browser/server caches but does not flush OS file caches. Profiling is off.', '',
       'The report retains scalar timings, hashes and public tool versions only. Save contents, paths, request bodies, cookies and raw harness reports are excluded.',
       ...(report.failure ? ['', `Failure: ${report.failure}`] : []),
     ])].join('\n') + '\n';

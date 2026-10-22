@@ -17,6 +17,7 @@ export const adaptiveOptionsFor = (suite, env = process.env) => {
 export const quickTests = new Set([
   "ci-perf-bench.test.mjs",
   "perf-bench-metrics.test.mjs",
+  "perf-bench-memory.test.mjs",
   "perf-bench-packs.test.mjs",
   "perf-bench-worker.test.mjs",
   "perf-bench-timeline.test.mjs",

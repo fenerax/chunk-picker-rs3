@@ -32,6 +32,33 @@ const patterns = [
   /^No locked player[12] chunk available for scratch unlock \((?:any|prepared|unprepared)\)\.$/,
 ];
 export const DIAGNOSTIC_PREFIX = 'PERF_DIAGNOSTIC ';
+export const SERVER_MEMORY_SAMPLE_INTERVAL_MS = 1000;
+const memoryKeys = ['rssBytes', 'heapUsedBytes', 'heapTotalBytes', 'externalBytes', 'arrayBuffersBytes'];
+const numericMemory = value => typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : null;
+export function serverMemorySample(usage, heapSizeLimitBytes, sampledAtEpochMs) {
+  return { sampledAtEpochMs: numericMemory(sampledAtEpochMs),
+    rssBytes: numericMemory(usage?.rss), heapUsedBytes: numericMemory(usage?.heapUsed),
+    heapTotalBytes: numericMemory(usage?.heapTotal), externalBytes: numericMemory(usage?.external),
+    arrayBuffersBytes: numericMemory(usage?.arrayBuffers), heapSizeLimitBytes: numericMemory(heapSizeLimitBytes) };
+}
+export function sanitizeMemoryTelemetry(value) {
+  if (!value?.last || numericMemory(value.last.sampledAtEpochMs) === null) return null;
+  return { sampleIntervalMs: SERVER_MEMORY_SAMPLE_INTERVAL_MS,
+    samples: Number.isSafeInteger(value.samples) && value.samples > 0 ? value.samples : null,
+    last: Object.fromEntries(['sampledAtEpochMs', ...memoryKeys, 'heapSizeLimitBytes'].map(key => [key, numericMemory(value.last[key])])),
+    peak: Object.fromEntries(memoryKeys.map(key => [key, numericMemory(value.peak?.[key])])) };
+}
+export function recordServerMemory(previous, sample) {
+  const last = sanitizeMemoryTelemetry({ last: sample })?.last;
+  if (!last) return sanitizeMemoryTelemetry(previous);
+  const retained = sanitizeMemoryTelemetry(previous);
+  return { sampleIntervalMs: SERVER_MEMORY_SAMPLE_INTERVAL_MS, samples: (retained?.samples ?? 0) + 1, last,
+    // Independent sampled maxima, not a simultaneous snapshot or true allocation peak.
+    peak: Object.fromEntries(memoryKeys.map(key => {
+      const values = [last[key], retained?.peak[key]].filter(value => value !== null && value !== undefined);
+      return [key, values.length ? Math.max(...values) : null];
+    })) };
+}
 const classNames = new Set(['Error', 'TypeError', 'RangeError', 'SyntaxError', 'ReferenceError', 'URIError', 'AggregateError']);
 const errorCodes = new Set(['ENOENT', 'EACCES', 'EPERM', 'EADDRINUSE', 'ENOMEM', 'ENOSPC', 'EIO',
   'EMFILE', 'ENFILE', 'ECONNREFUSED', 'ECONNRESET', 'ETIMEDOUT', 'EPIPE',
@@ -64,7 +91,7 @@ export function safeDiagnostic(error, context = {}) {
 }
 export function safeStderrTail(value) {
   return String(value).split(/\r?\n/).flatMap(line => {
-    if (/FATAL ERROR: (?:Reached heap limit|Ineffective mark-compacts near heap limit)/.test(line)) return ['Node heap limit reached.'];
+    if (/FATAL ERROR: (?:Reached heap limit|Ineffective mark-compacts near heap limit|.*(?:JavaScript heap out of memory|Allocation failed - process out of memory))/.test(line)) return ['Node heap limit reached.'];
     if (line.startsWith(DIAGNOSTIC_PREFIX)) {
       try {
         const input = JSON.parse(line.slice(DIAGNOSTIC_PREFIX.length));

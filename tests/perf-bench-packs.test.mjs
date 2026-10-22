@@ -142,12 +142,15 @@ test('scratch server forwards only owned port/pack inputs and isolates timeline 
   const filename = new URL('../scripts/perf/server.mjs', import.meta.url);
   const source = (await readFile(filename, 'utf8')).replace(/^import[^\n]*\n/gm, '')
     .replaceAll('import.meta.url', JSON.stringify(filename.href)).replaceAll('import(', 'loadModule(');
-  const launchSource = new Function('process', 'performance', 'pathToFileURL', 'fileURLToPath', 'path', 'loadModule', 'Worker', 'safeDiagnostic', `return (async()=>{${source}})();`);
-  const { safeDiagnostic } = await import('../scripts/perf/diagnostics.mjs');
-  const launch = (...args) => launchSource(...args, safeDiagnostic);
+  const launchSource = new Function('process', 'performance', 'pathToFileURL', 'fileURLToPath', 'path', 'loadModule', 'Worker', 'safeDiagnostic',
+    'serverMemorySample', 'recordServerMemory', 'SERVER_MEMORY_SAMPLE_INTERVAL_MS', 'getHeapStatistics', 'installCalculatorHeapPolicy', 'setInterval', 'clearInterval', `return (async()=>{${source}})();`);
+  const { safeDiagnostic, serverMemorySample, recordServerMemory, SERVER_MEMORY_SAMPLE_INTERVAL_MS } = await import('../scripts/perf/diagnostics.mjs');
+  const policies = [];
+  const launch = (...args) => launchSource(...args, safeDiagnostic, serverMemorySample, recordServerMemory, SERVER_MEMORY_SAMPLE_INTERVAL_MS,
+    () => ({ heap_size_limit: 1610612736 }), (...values) => policies.push(values), () => ({ unref() {} }), () => {});
   const env = { RS3_PERF_SCRATCH: path.resolve('scratch'), RS3_PERF_APP_ROOT: path.resolve('external'),
     RS3_PERF_SERVER_ENTRY: path.resolve('external/custom-entry.mjs'), RS3_PERF_PORT: '8964',
-    RS3_PACKS_DIR: path.resolve('packs'), RS3_PACK_SELECTION: path.resolve('packs/selection.json'), RS3_WORKER_MEMORY_PROBE_IMPORT: 'untrusted-ambient-preload' };
+    RS3_PACKS_DIR: path.resolve('packs'), RS3_PACK_SELECTION: path.resolve('packs/selection.json'), RS3_WORKER_MEMORY_PROBE_IMPORT: 'untrusted-ambient-preload', RS3_PERF_CALCULATOR_HEAP_MIB: '1536' };
   const messages = [], entries = [], handlers = {};
   let requested, exitCode;
   class ProcessWorker { emit() { return true; } on() { return this; } }
@@ -163,6 +166,7 @@ test('scratch server forwards only owned port/pack inputs and isolates timeline 
   };
   await launch(process, performance, pathToFileURL, fileURLToPath, path, loadModule, Worker);
   assert.equal(exitCode, undefined);
+  assert.deepEqual(policies, [[env.RS3_PERF_APP_ROOT, '1536']]);
   assert.equal(requested.host, '127.0.0.1');
   assert.equal(requested.port, 8964);
   assert.equal(requested.packsDir, env.RS3_PACKS_DIR);
@@ -172,7 +176,9 @@ test('scratch server forwards only owned port/pack inputs and isolates timeline 
   assert.ok(entries.includes(pathToFileURL(path.resolve('external/app/tasks/process-worker.mjs')).href));
   assert.ok(entries.includes(pathToFileURL(path.resolve('external/app/dataset-runtime.mjs')).href));
   assert.equal(env.RS3_WORKER_MEMORY_PROBE_IMPORT, new URL('../scripts/perf/worker-timeline.mjs', import.meta.url).href);
+  assert.equal(messages.shift().type, 'memory');
   assert.deepEqual(messages[0].dataset, { datasetId: 'duo-legacy', digest: 'a'.repeat(64), packed: true });
+  assert.equal(messages[0].memoryTelemetry.last.heapSizeLimitBytes, 1610612736);
   const timeline = { startedEpochMs: 10, doneEpochMs: 20, memberId: 'player1', revision: 1 };
   new ProcessWorker().emit('message', { perfTimeline: timeline, privatePayload: 'must-not-cross-IPC' });
   assert.deepEqual(messages[1], { type: 'calculation', perfTimeline: timeline });
@@ -183,7 +189,9 @@ test('scratch server forwards only owned port/pack inputs and isolates timeline 
   unavailable.getMemoryUsage = async () => { throw new Error('retired'); };
   calculator.on('message', () => {}); unavailable.on('message', () => {});
   await handlers.message({ type: 'rss', id: 7 });
-  assert.deepEqual(messages[3], { type: 'rss', id: 7, rssBytes: 123, workersRssBytes: null, totalRssBytes: null, workerRssSamples: 1, workerRssFailures: 1 });
+  const { memoryTelemetry, ...rssMessage } = messages[3];
+  assert.deepEqual(rssMessage, { type: 'rss', id: 7, rssBytes: 123, workersRssBytes: null, totalRssBytes: null, workerRssSamples: 1, workerRssFailures: 1 });
+  assert.equal(memoryTelemetry.last.rssBytes, 123);
   unavailable.emit('exit', 0);
   await handlers.message({ type: 'rss', id: 8 });
   assert.equal(messages[4].totalRssBytes, 623);
@@ -196,6 +204,7 @@ test('scratch server forwards only owned port/pack inputs and isolates timeline 
   await launch(process, performance, pathToFileURL, fileURLToPath, path, loadModule, Worker);
   assert.equal(exitCode, 1);
   assert.equal(entries.length, 0);
+  assert.equal(messages.shift().type, 'memory');
   assert.equal(messages.length, 1);
   assert.equal(messages[0].type, 'error');
   assert.equal(messages[0].message, 'Scratch server startup failed.');
@@ -210,10 +219,10 @@ test('parent server RSS remains numeric while exposing sampled process totals', 
   child.send = request => queueMicrotask(() => child.emit('message', { type: 'rss', id: request.id, rssBytes: 123,
     workersRssBytes: 500, totalRssBytes: 623, workerRssSamples: 1, workerRssFailures: 0 }));
   let forkOptions;
-  const { safeDiagnostic, safeStderrTail, DIAGNOSTIC_PREFIX } = await import('../scripts/perf/diagnostics.mjs');
+  const { safeDiagnostic, safeStderrTail, sanitizeMemoryTelemetry, recordServerMemory, serverMemorySample, DIAGNOSTIC_PREFIX } = await import('../scripts/perf/diagnostics.mjs');
   const diagnostics = [];
   const context = vm.createContext({ path, performance, process: { env: { RS3_TASK_WORKER_MODE: 'process' }, execArgv: [] }, ROOT: path.resolve('harness'), setTimeout, clearTimeout, URL,
-    safeDiagnostic, safeStderrTail, DIAGNOSTIC_PREFIX, diagnosticContext: { stage: 'measure', scenario: 'unlock' }, console: { error: value => diagnostics.push(value) },
+    safeDiagnostic, safeStderrTail, sanitizeMemoryTelemetry, DIAGNOSTIC_PREFIX, diagnosticContext: { stage: 'measure', scenario: 'unlock' }, console: { error: value => diagnostics.push(value) },
     options: { timeout: 1000, port: 8964, serverHeapMiB: 1536, applicationRoot: path.resolve('external') },
     fork: (script, args, config) => { forkOptions = config; queueMicrotask(() => child.emit('message', { type: 'ready', inviteUrl: 'http://127.0.0.1:8964/join/synthetic', readyMs: 5, rssBytes: 123 })); return child; },
     stopChild: async () => {}, sleep: async () => {} });
@@ -225,9 +234,14 @@ test('parent server RSS remains numeric while exposing sampled process totals', 
   assert.equal(server.latestMemory.workersRssBytes, 500);
   assert.deepEqual(Array.from(forkOptions.execArgv), ['--max-old-space-size=1536', '--import', new URL('../scripts/perf/worker-timeline.mjs', import.meta.url).href]);
   assert.equal(forkOptions.env.RS3_TASK_WORKER_MODE, 'process');
+  const memoryTelemetry = recordServerMemory(null, serverMemorySample({ rss: 400, heapUsed: 300 }, 1600, 100));
+  child.emit('message', { type: 'memory', memoryTelemetry: { ...memoryTelemetry, secret: 'fixture-private' } });
+  assert.equal(server.memoryTelemetry.last.heapUsedBytes, 300);
   child.exitCode = null; child.signalCode = 'SIGKILL'; child.emit('exit', null, 'SIGKILL');
   await assert.rejects(server.rss(), /Scratch server exited unexpectedly \(SIGKILL\)/);
   assert.match(diagnostics[0], /SIGKILL/);
+  assert.equal(server.memoryTelemetry.peak.rssBytes, 400);
+  assert.doesNotMatch(JSON.stringify(server.memoryTelemetry), /secret|fixture-private/);
 });
 
 test('interaction medians expand panels and render durations without assuming network records', () => {

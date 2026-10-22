@@ -12,7 +12,7 @@ import { probeSource, snapshotExpression, initialViewSource } from './probe.mjs'
 import { ASSET_CLASSES, assetClass, category, networkCollector } from './network-collector.mjs';
 import { resolvePerfApplication, fingerprintPerfApplication, rejectPathLinks } from './inputs.mjs';
 import { measureBrowserInteractions, interactionScenarios } from './browser-interactions.mjs';
-import { safeDiagnostic, safeStderrTail, DIAGNOSTIC_PREFIX } from './diagnostics.mjs';
+import { safeDiagnostic, safeStderrTail, sanitizeMemoryTelemetry, DIAGNOSTIC_PREFIX } from './diagnostics.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const MAIN = path.dirname(execFileSync('git', ['rev-parse', '--path-format=absolute', '--git-common-dir'],
@@ -181,7 +181,7 @@ async function startServer(dataDir) {
   const child = fork(path.join(ROOT, 'scripts/perf/server.mjs'), [], { cwd: ROOT, env,
     execArgv: [...process.execArgv, ...(options.serverHeapMiB ? [`--max-old-space-size=${options.serverHeapMiB}`] : []), '--import', new URL('./worker-timeline.mjs', import.meta.url).href],
     stdio: ['ignore', 'ignore', 'pipe', 'ipc'], windowsHide: true });
-  let stderr = '', stopping = false;
+  let stderr = '', stopping = false, memoryTelemetry = null;
   child.stderr?.setEncoding('utf8');
   child.stderr?.on('data', chunk => { stderr = (stderr + chunk).slice(-16384); });
   const exitError = () => new Error(`Scratch server exited unexpectedly (${child.signalCode ?? child.exitCode}).`);
@@ -193,14 +193,18 @@ async function startServer(dataDir) {
   });
   child.on('error', () => {});
   const calculations = [];
-  child.on('message', message => { if (message.type === 'calculation' && message.perfTimeline) calculations.push(message.perfTimeline); });
+  child.on('message', message => {
+    if (message.type === 'calculation' && message.perfTimeline) calculations.push(message.perfTimeline);
+    const sample = sanitizeMemoryTelemetry(message.memoryTelemetry);
+    if (sample) memoryTelemetry = sample;
+  });
   try {
     const ready = await new Promise((resolve, reject) => {
       const timer = setTimeout(() => reject(new Error('Scratch server startup timed out.')), options.timeout);
       child.once('error', () => { clearTimeout(timer); reject(new Error('Scratch server could not start.')); });
       child.once('exit', () => { clearTimeout(timer); reject(new Error('Scratch server exited during startup.')); });
       const onStartup = message => {
-        if (message.type === 'calculation') return;
+        if (message.type === 'calculation' || message.type === 'memory') return;
         clearTimeout(timer); child.off('message', onStartup);
         if (message.type === 'ready') resolve(message);
         else {
@@ -217,6 +221,7 @@ async function startServer(dataDir) {
     return { child, assertAlive, origin, inviteUrl: ready.inviteUrl, calculations, dataset: ready.dataset, readyMs: performance.now() - start, initializationMs: ready.readyMs,
       rssReadyBytes: ready.rssBytes, startupTimingMs: ready.startupTimingMs,
       get latestMemory() { return latestMemory; },
+      get memoryTelemetry() { return memoryTelemetry; },
       rss: () => new Promise((resolve, reject) => {
         assertAlive();
         const id = ++requestId, timer = setTimeout(() => { child.off('message', onMessage); reject(new Error('RSS probe timed out.')); }, 25000);
@@ -235,7 +240,13 @@ async function startServer(dataDir) {
         }
         await stopChild(child);
       } };
-  } catch (error) { stopping = true; await stopChild(child); throw error; }
+  } catch (error) {
+    stopping = true;
+    await stopChild(child);
+    error.serverMemoryTelemetry = memoryTelemetry;
+    error.serverExit = { code: child.exitCode, signal: child.signalCode };
+    throw error;
+  }
 }
 async function authenticate(browser, server) {
   // Follow no redirect: this obtains a scratch session without loading/warming the app.
@@ -724,7 +735,7 @@ async function suite(executable, run, throttled) {
         startupStateResponseMs: server.startupTimingMs?.stateResponseMs ?? diagnostics.startupTimingMs?.stateResponseMs ?? null,
         rssReadyBytes: server.rssReadyBytes, rssAfterBytes, rssAfterTotalBytes: memoryAfter?.totalRssBytes ?? null,
         workersRssAfterBytes: memoryAfter?.workersRssBytes ?? null, workerRssSamples: memoryAfter?.workerRssSamples ?? null,
-        workerRssFailures: memoryAfter?.workerRssFailures ?? null, diagnostics }, idleSample, results };
+        workerRssFailures: memoryAfter?.workerRssFailures ?? null, memoryTelemetry: server.memoryTelemetry, diagnostics }, idleSample, results };
   } catch (error) {
     console.error(DIAGNOSTIC_PREFIX + JSON.stringify(safeDiagnostic(error, diagnosticContext)));
     const oomAfter = await oomCount();
@@ -732,7 +743,8 @@ async function suite(executable, run, throttled) {
     error.partialSuite = { run, fixtureSha256: scratch.fingerprint, chrome: version?.product,
       mode: throttled ? 'throttled' : 'normal', complete: false, prerequisiteCold,
       hostOomKillDelta: oomBefore !== null && oomAfter !== null ? Math.max(0, oomAfter - oomBefore) : null,
-      serverExit: server ? { code: server.child.exitCode, signal: server.child.signalCode } : null,
+      serverExit: server ? { code: server.child.exitCode, signal: server.child.signalCode } : error.serverExit ?? null,
+      serverMemoryTelemetry: server?.memoryTelemetry ?? error.serverMemoryTelemetry ?? null,
       server: server ? { rssReadyBytes: server.rssReadyBytes, rssAtFailureBytes,
         coldReadyMs: server.readyMs, initializationMs: server.initializationMs } : null,
       failedMeasurement: error.partialMeasurement ?? null, results };
@@ -874,6 +886,7 @@ async function main() {
       serverEntry: options.serverEntry, serverRevision: options.serverRevision, serverEntrySha256, appDir: options.applicationRoot,
       packsDir: options.packsDir ?? null, packSelection: options.packSelection ?? null, port: options.port ?? null, output: options.output ?? null },
     environment: { node: process.version, chrome: suites[0]?.chrome, chromeExtraArgs, serverHeapMiB: options.serverHeapMiB ?? null,
+      calculatorHeapMiB: /^\d+$/.test(process.env.RS3_PERF_CALCULATOR_HEAP_MIB ?? '') && Number(process.env.RS3_PERF_CALCULATOR_HEAP_MIB) >= 512 && Number(process.env.RS3_PERF_CALCULATOR_HEAP_MIB) <= 4096 ? Number(process.env.RS3_PERF_CALCULATOR_HEAP_MIB) : null,
       workerMode: ['process', 'thread'].includes(process.env.RS3_TASK_WORKER_MODE) ? process.env.RS3_TASK_WORKER_MODE : 'platform-default',
       platform: process.platform, viewport: { width:1440,height:900,dpr:1 }, throttle: { mbps:30,latencyMs:40 },
       gitRevision: execFileSync('git', ['rev-parse', 'HEAD'], { cwd: ROOT, encoding: 'utf8', windowsHide: true }).trim(),
