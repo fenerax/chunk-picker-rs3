@@ -454,7 +454,14 @@ async function measure(browser, name, action, { navigation = false, revision, me
     measured.advisoryRequests = measured.network.requests.filter(r => ['/api/death-estimates', '/api/predict'].includes(r.path))
       .map(r => ({ path: r.path, durationMs: r.durationMs, cancelled: r.cancelled }));
     measured.advisoryMaxMs = Math.max(0, ...measured.advisoryRequests.map(r => r.durationMs ?? 0));
-    const failures = measured.network.requests.filter(r => r.failed || r.status >= 400)
+    // A save that lands while an advisory (or, in a burst, a task read) is
+    // computing answers it 409 "saved map changed" by design; the client asks
+    // again. Count those rather than refuse the run, so a candidate that
+    // supersedes more work still shows it.
+    const superseded = r => r.status === 409 && (['/api/death-estimates', '/api/predict', '/api/chunk-planning'].includes(r.path)
+      || name === 'save-burst' && r.path === '/api/tasks');
+    measured.supersededRequests = measured.network.requests.filter(superseded).length;
+    const failures = measured.network.requests.filter(r => (r.failed || r.status >= 400) && !superseded(r))
       .map(r => ({ path: r.path, status: r.status, failed: !!r.failed }));
     if (measured.milestones.failedVisibleTiles || failures.length) {
       await writeFile(path.join(PERF, `${options.label}-failed.json`), JSON.stringify({ scenario: name,

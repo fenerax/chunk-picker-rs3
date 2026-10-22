@@ -145,7 +145,7 @@ test('save burst is an opt-in scenario with scalar catch-up metrics and fixed ob
   const request = normalizeRequest({ runs: 1, scenarios: ['save-burst'], options: { groupViews: ['off'] } });
   assert.equal(estimatedSeconds(request), 180 + 2 * (SCENARIOS.cold.seconds + SCENARIOS['save-burst'].seconds));
   const burst = paint => ({ name: 'save-burst', burst: { commands: 20, target: 'partner', restored: true },
-    milestones: { lastCommittedMs: 420, caughtUpMs: 980, tasksPaintedMs: paint }, longTasks: { worstMs: 70 },
+    milestones: { lastCommittedMs: 420, caughtUpMs: 980, tasksPaintedMs: paint }, longTasks: { worstMs: 70 }, supersededRequests: 2,
     network: { totals: { transferBytes: 2048 }, requests: [{ path: '/api/state', status: 200 }, { path: '/api/state', status: 200 }, { path: '/api/state', cancelled: true }, { path: '/api/tasks', status: 200 }] },
     taskIdentity: { memberId: 'player2', revision: 25 } });
   const report = { suites: [{ mode: 'normal', results: [burst(null)] }] };
@@ -155,6 +155,8 @@ test('save burst is an opt-in scenario with scalar catch-up metrics and fixed ob
   assert.equal(metrics['save-burst.tasksPainted.ms'], null);
   assert.equal(metrics['save-burst.stateFetches.count'], 3);
   assert.equal(metrics['save-burst.long-task-worst.ms'], 70);
+  assert.equal(metrics['save-burst.superseded.count'], 2);
+  assert.equal(extractMetrics({ suites: [{ mode: 'normal', results: [{ ...burst(null), supersededRequests: undefined }] }] })['save-burst.superseded.count'], undefined);
   const observations = extractObservations(report);
   assert.deepEqual(observations.saveBursts, [{ commands: 20, stateFetches: 3, stateFetchesFailed: 1, tasksPaintObserved: false, restored: true }]);
   assert.doesNotMatch(JSON.stringify({ metrics, observations }), /player2|memberId|revision|partner|Benchmark/);

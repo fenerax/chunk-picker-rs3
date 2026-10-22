@@ -67,6 +67,8 @@ export function extractMetrics(report) {
       }
       put(`${name}.wire.KiB`, numeric(result.network?.totals?.transferBytes) === null ? null : result.network.totals.transferBytes / 1024);
       put(`${name}.long-task-worst.ms`, result.longTasks?.worstMs);
+      // Older harness reports lack the field and stay missing, not zero.
+      if (result.supersededRequests !== undefined) put(`${name}.superseded.count`, result.supersededRequests);
       if (name === 'unlock') for (const [field, value] of Object.entries(unlockTimeline(result))) {
         if (field.endsWith('Ms')) put(`unlock.${field.replace(/Ms$/, '')}.ms`, value, field === 'requestToCalculationStartMs');
       }
