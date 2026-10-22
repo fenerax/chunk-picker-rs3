@@ -12,11 +12,17 @@ import { probeSource, snapshotExpression } from './probe.mjs';
 import { ASSET_CLASSES, assetClass, category, networkCollector } from './network-collector.mjs';
 import { resolvePerfApplication, fingerprintPerfApplication, rejectPathLinks } from './inputs.mjs';
 import { measureBrowserInteractions, interactionScenarios } from './browser-interactions.mjs';
+import { safeDiagnostic, DIAGNOSTIC_PREFIX } from './diagnostics.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const MAIN = path.dirname(execFileSync('git', ['rev-parse', '--path-format=absolute', '--git-common-dir'],
   { cwd: ROOT, encoding: 'utf8', windowsHide: true }).trim());
 const PERF = path.join(ROOT, '.local/perf');
+// Match the existing hosted gallery lane. Linux runner sandbox namespaces and
+// /dev/shm are constrained; local desktop launches retain their normal flags.
+const chromeExtraArgs = process.platform === 'linux' && process.env.GITHUB_ACTIONS === 'true'
+  ? ['--no-sandbox', '--disable-dev-shm-usage'] : [];
+let diagnosticContext = {};
 const options = { runs: 3, label: 'baseline', timeout: 180000, prewarm: 'on', groupView: 'off', unlockMember: 'player1', unlockPick: 'any', unlockPreview: 'off', unlockDwellMs: 0, settlement: 'idle', cpuProfile: 'off', screenshots: 'off', cancellationCheck: 'off', idleSampleMs: 0, scenarios: ['cold', 'reload', 'switch-player2', 'switch-player1', 'unlock', 'cold-30mbps'] };
 const usage = `Usage: npm run perf -- [options]
   --runs N               Independent repetitions (default 3); medians reported
@@ -183,7 +189,11 @@ async function startServer(dataDir) {
       const onStartup = message => {
         if (message.type === 'calculation') return;
         clearTimeout(timer); child.off('message', onStartup);
-        message.type === 'ready' ? resolve(message) : reject(new Error('Scratch server startup failed.'));
+        if (message.type === 'ready') resolve(message);
+        else {
+          if (message.diagnostic) console.error(DIAGNOSTIC_PREFIX + JSON.stringify(message.diagnostic));
+          reject(new Error('Scratch server startup failed.'));
+        }
       };
       child.on('message', onStartup);
     });
@@ -344,6 +354,7 @@ function loadedViewport(snapshot) {
   return lastTiles?.visible > 0 && !lastTiles.failed && (!lastTerrain || lastTiles.time >= lastTerrain.time) ? lastTiles : null;
 }
 async function measure(browser, name, action, { navigation = false, revision, member, reuseTerrain = false, settlement = options.settlement, calculations = [] } = {}) {
+  diagnosticContext = { stage: 'measure', scenario: name };
   console.log(`  Measuring ${name}...`);
   const network = networkCollector(browser), wallStart = performance.now();
   let from = navigation ? 0 : await browser.evaluate('performance.now()');
@@ -614,12 +625,16 @@ async function checkCancellation(browser) {
   } finally { network.close(); }
 }
 async function suite(executable, run, throttled) {
+  diagnosticContext = { stage: 'copy' };
   const scratch = await scratchCopy(options.source);
   let server, browser, version, prerequisiteCold;
   const results = [];
   try {
+    diagnosticContext = { stage: 'server-start' };
     server = await startServer(scratch.dataDir);
-    browser = await openChrome(executable, path.join(scratch.target, 'chrome'));
+    diagnosticContext = { stage: 'chrome-start' };
+    browser = await openChrome(executable, path.join(scratch.target, 'chrome'), { extraArgs: chromeExtraArgs });
+    diagnosticContext = { stage: 'authenticate' };
     await authenticate(browser, server);
     if (throttled) await browser.send('Network.emulateNetworkConditions', { offline: false, latency: 40, downloadThroughput: 30 * 125000, uploadThroughput: 30 * 125000 });
     version = await browser.send('Browser.getVersion');
@@ -635,6 +650,7 @@ async function suite(executable, run, throttled) {
         else if (name === 'switch-player1' && await browser.evaluate(`document.getElementById('member').value`) !== 'player1') await measure(browser, name, () => switchMember(browser, member), { member });
       }
       if (options.scenarios.includes('unlock')) {
+        diagnosticContext = { stage: 'prepare-unlock', scenario: 'unlock' };
         const member = options.unlockMember;
         if (await browser.evaluate(`document.getElementById('member').value`) !== member) {
           await measure(browser, `prepare-${member}`, () => switchMember(browser, member), { member });
@@ -670,9 +686,12 @@ async function suite(executable, run, throttled) {
         if (options.unlockPick === 'unprepared' && unlocked.taskCalculation?.unlockPredictionHit !== false) throw new Error('Unprepared unlock did not record a prediction miss; retained as partial evidence.');
         if (options.unlockPick === 'prepared' && unlocked.taskCalculation?.unlockPredictionHit !== true) throw new Error('Prepared unlock did not record a prediction hit; retained as partial evidence.');
       }
-      results.push(...await measureBrowserInteractions(browser, { timeout: options.timeout, scenarios: options.scenarios.filter(name => ['panels', 'search'].includes(name)) }));
+      results.push(...await measureBrowserInteractions(browser, { timeout: options.timeout, scenarios: options.scenarios.filter(name => ['panels', 'search'].includes(name)),
+        onScenario: scenario => { diagnosticContext = { stage: 'interactions', scenario }; } }));
     }
+    diagnosticContext = { stage: 'diagnostics' };
     const diagnostics = await browser.evaluate(`fetch('/api/diagnostics',{cache:'no-store'}).then(r=>r.json()).then(d=>({workerCompileMs:d.worker?.compileMs??null,startupTimingMs:{variantMs:Number.isFinite(d.startupTimingMs?.variantMs)?d.startupTimingMs.variantMs:null,stateResponseMs:Number.isFinite(d.startupTimingMs?.stateResponseMs)?d.startupTimingMs.stateResponseMs:null},taskTimings:d.timingMs,cache:d.cache,counts:d.counts,unlockReuse:d.unlockReuse?Object.fromEntries(['entries','bytes','rawBytes','compressedBytes','limit','byteLimit','hits','admitted','skipped'].map(k=>[k,d.unlockReuse[k]])):undefined,prediction:d.predictionLane?{worker:d.predictionLane.worker,cache:d.predictionLane.cache,prewarm:d.predictionLane.prewarm}:undefined}))`);
+    diagnosticContext = { stage: 'rss' };
     const rssAfterBytes = await server.rss();
     const memoryAfter = server.latestMemory;
     const idleSample = await sampleIdle(browser, server, options.idleSampleMs
@@ -687,6 +706,7 @@ async function suite(executable, run, throttled) {
         workersRssAfterBytes: memoryAfter?.workersRssBytes ?? null, workerRssSamples: memoryAfter?.workerRssSamples ?? null,
         workerRssFailures: memoryAfter?.workerRssFailures ?? null, diagnostics }, idleSample, results };
   } catch (error) {
+    console.error(DIAGNOSTIC_PREFIX + JSON.stringify(safeDiagnostic(error, diagnosticContext)));
     const rssAtFailureBytes = server ? await server.rss().catch(() => null) : null;
     error.partialSuite = { run, fixtureSha256: scratch.fingerprint, chrome: version?.product,
       mode: throttled ? 'throttled' : 'normal', complete: false, prerequisiteCold,
@@ -830,7 +850,7 @@ async function main() {
       timeoutMs: options.timeout, idleSampleMs: options.idleSampleMs, workerIdleMs: process.env.RS3_WORKER_IDLE_MS ?? null, source: options.source, mapAssets: options.mapAssets, terrainAssets: options.terrainAssets, screenshots: options.screenshots, cancellationCheck: options.cancellationCheck, gameData: options.gameData, chromeExecutable: executable,
       serverEntry: options.serverEntry, serverRevision: options.serverRevision, serverEntrySha256, appDir: options.applicationRoot,
       packsDir: options.packsDir ?? null, packSelection: options.packSelection ?? null, port: options.port ?? null, output: options.output ?? null },
-    environment: { node: process.version, chrome: suites[0]?.chrome, platform: process.platform, viewport: { width:1440,height:900,dpr:1 }, throttle: { mbps:30,latencyMs:40 },
+    environment: { node: process.version, chrome: suites[0]?.chrome, chromeExtraArgs, platform: process.platform, viewport: { width:1440,height:900,dpr:1 }, throttle: { mbps:30,latencyMs:40 },
       gitRevision: execFileSync('git', ['rev-parse', 'HEAD'], { cwd: ROOT, encoding: 'utf8', windowsHide: true }).trim(),
       serverRevision: options.serverRevision, serverEntry: options.serverEntry, serverEntrySha256,
       gitDirty: !!execFileSync('git', ['status', '--porcelain', '--untracked-files=normal'], { cwd: ROOT, encoding: 'utf8', windowsHide: true }).trim(),
@@ -853,4 +873,4 @@ async function main() {
   await writeFile(`${stem}.json`, JSON.stringify(result, null, 2) + '\n'); await writeFile(`${stem}.md`, markdown);
   console.log(markdown); console.log(`JSON: ${stem}.json\nTable: ${stem}.md`);
 }
-main().catch(error => { console.error(`Performance benchmark failed: ${error.message}`); process.exitCode = 1; });
+main().catch(error => { console.error(DIAGNOSTIC_PREFIX + JSON.stringify(safeDiagnostic(error, diagnosticContext))); process.exitCode = 1; });

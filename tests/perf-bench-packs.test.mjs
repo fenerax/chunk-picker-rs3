@@ -139,7 +139,9 @@ test('scratch server forwards only owned port/pack inputs and isolates timeline 
   const filename = new URL('../scripts/perf/server.mjs', import.meta.url);
   const source = (await readFile(filename, 'utf8')).replace(/^import[^\n]*\n/gm, '')
     .replaceAll('import.meta.url', JSON.stringify(filename.href)).replaceAll('import(', 'loadModule(');
-  const launch = new Function('process', 'performance', 'pathToFileURL', 'fileURLToPath', 'path', 'loadModule', 'Worker', `return (async()=>{${source}})();`);
+  const launchSource = new Function('process', 'performance', 'pathToFileURL', 'fileURLToPath', 'path', 'loadModule', 'Worker', 'safeDiagnostic', `return (async()=>{${source}})();`);
+  const { safeDiagnostic } = await import('../scripts/perf/diagnostics.mjs');
+  const launch = (...args) => launchSource(...args, safeDiagnostic);
   const env = { RS3_PERF_SCRATCH: path.resolve('scratch'), RS3_PERF_APP_ROOT: path.resolve('external'),
     RS3_PERF_SERVER_ENTRY: path.resolve('external/custom-entry.mjs'), RS3_PERF_PORT: '8964',
     RS3_PACKS_DIR: path.resolve('packs'), RS3_PACK_SELECTION: path.resolve('packs/selection.json'), RS3_WORKER_MEMORY_PROBE_IMPORT: 'untrusted-ambient-preload' };
@@ -191,7 +193,12 @@ test('scratch server forwards only owned port/pack inputs and isolates timeline 
   await launch(process, performance, pathToFileURL, fileURLToPath, path, loadModule, Worker);
   assert.equal(exitCode, 1);
   assert.equal(entries.length, 0);
-  assert.deepEqual(messages, [{ type: 'error', message: 'Scratch server startup failed.' }]);
+  assert.equal(messages.length, 1);
+  assert.equal(messages[0].type, 'error');
+  assert.equal(messages[0].message, 'Scratch server startup failed.');
+  assert.equal(messages[0].diagnostic.stage, 'server-start');
+  assert.equal(messages[0].diagnostic.errorClass, 'Error');
+  assert.doesNotMatch(JSON.stringify(messages), /privatePayload|synthetic-token/);
 });
 
 test('parent server RSS remains numeric while exposing sampled process totals', async () => {

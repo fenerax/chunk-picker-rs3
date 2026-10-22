@@ -3,6 +3,7 @@ import { performance } from 'node:perf_hooks';
 import { pathToFileURL, fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { Worker } from 'node:worker_threads';
+import { safeDiagnostic } from './diagnostics.mjs';
 
 if (!process.send || !process.env.RS3_PERF_SCRATCH) throw new Error('Launch through npm run perf.');
 const start = performance.now();
@@ -71,9 +72,9 @@ try {
     if (message.type === 'stop') { await application.close(); process.exit(0); }
   });
   process.once('disconnect', async () => { await application.close(); process.exit(0); });
-} catch {
+} catch (error) {
   // Never forward errors containing state, request URLs or credentials.
-  process.send({ type: 'error', message: 'Scratch server startup failed.' });
+  process.send({ type: 'error', message: 'Scratch server startup failed.', diagnostic: safeDiagnostic(error, { stage: 'server-start' }) });
   await application?.close();
   process.exit(1);
 }

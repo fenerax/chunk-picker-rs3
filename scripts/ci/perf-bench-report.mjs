@@ -65,6 +65,8 @@ export function reportMarkdown(report, { short = false } = {}) {
   return ['# App performance A/B', '', `A: \`${report.base}\`; B: \`${report.candidate}\`.`,
     `Completed: ${report.complete}. ${report.samples.length} measured app/view trials; ${report.request.runs} repetitions per arm/view.`, '',
     'Lower is better. A win/loss requires at least three complete samples per arm and strictly non-overlapping observed min–max ranges. Overlap is noise; absent observations are missing. This is a conservative descriptive rule, not a confidence interval.', '',
+    ...(report.diagnostic ? [`Failure context: ${JSON.stringify(report.failureContext)}.`,
+      `Diagnostic: ${JSON.stringify(report.diagnostic)}.`, ''] : []),
     markdownTable(rows), '', ...(short ? [] : [
     'Unlock starts at the browser click handler. Request sent is the observed task fetch call. Calculation start/done are worker receipt/completion timestamps from the same harness preload on both apps, aligned by epoch clocks. They exclude process relay/queue time before worker receipt. Cache reuse can omit worker events; missing start/done stays missing. Results painted means the matching task DOM event plus two animation frames. Group on waits for both lists.', '',
       'Server RSS at ready/after covers the HTTP process and native threads. The separate total-after sample adds calculator process RSS once per process; a failed calculator sample makes the total unavailable. Chrome is excluded. These are snapshots, not peak RSS. Cold clears browser/server caches but does not flush OS file caches. Profiling is off.', '',

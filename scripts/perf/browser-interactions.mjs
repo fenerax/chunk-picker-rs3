@@ -102,10 +102,11 @@ export async function browserInteraction(name, timeout) {
   } finally { observer.disconnect(); }
 }
 
-export async function measureBrowserInteractions(browser, { timeout = 180000, scenarios } = {}) {
+export async function measureBrowserInteractions(browser, { timeout = 180000, scenarios, onScenario = () => {} } = {}) {
   if (!Number.isFinite(timeout) || timeout < 1) throw new Error('Invalid interaction timeout.');
   const rows = [];
   for (const name of interactionScenarios(scenarios)) {
+    onScenario(name);
     rows.push(await browser.evaluate(`(${browserInteraction.toString()})(${JSON.stringify(name)},${timeout})`));
   }
   return rows;

@@ -8,6 +8,23 @@ import { normalizeRequest, measurementPlan, estimatedSeconds } from '../scripts/
 import { distribution, compareSamples, extractMetrics, reportMarkdown } from '../scripts/ci/perf-bench-report.mjs';
 import { verifySave, runBenchmark, parseArguments } from '../scripts/ci/perf-bench.mjs';
 import { prepareImport } from '../scripts/ci/perf-bench-import.mjs';
+import { safeDiagnostic, safeStderrTail, DIAGNOSTIC_PREFIX, chromeStartupMessage } from '../scripts/perf/diagnostics.mjs';
+
+test('failure diagnostics allow harness messages and locations but never arbitrary save or stderr text', () => {
+  const error = new TypeError('fixture-private-save-value');
+  error.stack = 'TypeError: fixture-private-save-value\n at action (/tmp/private-fixture/scripts/perf/page-load.mjs:10:20)';
+  const diagnostic = safeDiagnostic(error, { stage: 'measure', scenario: 'cold', body: 'fixture-private' });
+  assert.equal(diagnostic.errorClass, 'TypeError');
+  assert.equal(diagnostic.message, 'Unrecognized error message withheld.');
+  assert.deepEqual(diagnostic.frames, ['page-load.mjs:10:20']);
+  assert.equal(diagnostic.scenario, 'cold');
+  const tail = safeStderrTail('fixture-private-save-value\n{"state":"fixture-private"}\nPerformance benchmark failed: CDP Runtime.evaluate timed out.\n'
+    + DIAGNOSTIC_PREFIX + JSON.stringify({ ...diagnostic, frames: [...diagnostic.frames, '/tmp/private-fixture/save.json'], body: 'fixture-private' }));
+  assert.equal(tail.length, 2);
+  assert.doesNotMatch(JSON.stringify({ diagnostic, tail }), /fixture-private|state|body|save.json/);
+  assert.match(tail[0], /Runtime.evaluate timed out/);
+  assert.equal(chromeStartupMessage('[pid] No usable sandbox! private-fixture'), 'Chrome sandbox initialization failed.');
+});
 
 test('starter smoke uses its backup importer; legacy production import remains file-based', async () => {
   const state = { revision: 1 }, input = { format: 'rs3-chunk-picker', state };
@@ -119,12 +136,16 @@ test('failed imports retain only a scalar failure report and discard ambient ope
       assert.equal(env.GH_TOKEN, undefined); assert.equal(env.GITHUB_TOKEN, undefined);
       assert.equal(env.RS3_DATASET, 'duo-legacy');
       imported = args[2]; await mkdir(imported);
-      throw Error('fixture-private-save-value');
+      const error = Error('fixture-private-save-value');
+      error.stderrTail = ['fixture-private-save-value', DIAGNOSTIC_PREFIX + JSON.stringify({ errorClass: 'Error', message: 'CDP Runtime.evaluate timed out.', stage: 'measure', scenario: 'cold' })];
+      throw error;
     },
   }), /benchmark child or integrity check failed/);
   const json = await readFile(path.join(output, 'perf-report.json'), 'utf8'), report = JSON.parse(json);
   assert.equal(report.complete, false);
   assert.deepEqual(report.failureContext, { operation: 'import', arm: 'A' });
+  assert.equal(report.diagnostic.errorClass, 'Error');
+  assert.match(report.diagnostic.stderrTail[0], /Runtime.evaluate timed out/);
   assert.doesNotMatch(json, /fixture-private/);
   await assert.rejects(readFile(path.join(imported, 'state.json')), { code: 'ENOENT' });
 });

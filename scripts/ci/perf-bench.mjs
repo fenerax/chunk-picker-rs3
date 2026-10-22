@@ -8,6 +8,7 @@ import { fileURLToPath } from 'node:url';
 import { normalizeRequest, measurementPlan, SAVE_SHA256, estimatedSeconds } from './perf-bench-config.mjs';
 import { compareSamples, extractMetrics, reportMarkdown } from './perf-bench-report.mjs';
 import { requireHeavyLock, rejectPathLinks } from '../perf/inputs.mjs';
+import { safeDiagnostic, safeStderrTail } from '../perf/diagnostics.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 async function harnessHash() {
@@ -41,9 +42,16 @@ export function parseArguments(args) {
 function execute(script, args, { env, cwd = ROOT } = {}) {
   return new Promise((resolve, reject) => {
     // App output is intentionally not inherited: an app error may contain save data.
-    const child = spawn(process.execPath, [script, ...args], { env, cwd, stdio: 'ignore', windowsHide: true });
+    const child = spawn(process.execPath, [script, ...args], { env, cwd, stdio: ['ignore', 'ignore', 'pipe'], windowsHide: true });
+    let tail = '';
+    child.stderr.setEncoding('utf8');
+    child.stderr.on('data', chunk => { tail = (tail + chunk).slice(-32768); });
     child.once('error', () => reject(Error('Benchmark child could not start.')));
-    child.once('exit', (code, signal) => code === 0 ? resolve() : reject(Error(`Benchmark child failed (${signal ?? code}).`)));
+    child.once('close', (code, signal) => {
+      if (code === 0) return resolve();
+      const error = Error(`Benchmark child failed (${signal ?? code}).`);
+      error.stderrTail = safeStderrTail(tail); reject(error);
+    });
   });
 }
 
@@ -90,6 +98,7 @@ export async function runBenchmark(values, dependencies = {}) {
     capturedAt: new Date().toISOString(), saveSha256: expectedSave, harnessSha256: await harnessHash(), request, estimatedSeconds: estimatedSeconds(request),
     method: 'Alternating A,B app trials, same harness; each view starts a fresh scratch server/browser. Lower is better; strict non-overlapping min–max at n>=3.',
     samples, summary: [] };
+  const started = performance.now();
   let failed, stage = { operation: 'import', arm: 'A' };
   try {
     for (const arm of ['A', 'B']) {
@@ -132,16 +141,21 @@ export async function runBenchmark(values, dependencies = {}) {
         || prior && (sourceHash !== prior.applicationSha256 || fixtureHash !== prior.fixtureSha256)) throw Error('App or imported fixture changed between repetitions.');
       samples.push({ run: trial.run, arm: trial.arm, groupView: trial.groupView,
         applicationSha256: sourceHash, fixtureSha256: fixtureHash, datasetDigest: rawReport.suites?.[0]?.server?.dataset?.digest ?? null,
-        environment: { node: rawReport.environment?.node, chrome: rawReport.environment?.chrome, platform: rawReport.environment?.platform },
+        environment: { node: rawReport.environment?.node, chrome: rawReport.environment?.chrome, platform: rawReport.environment?.platform,
+          chromeExtraArgs: (rawReport.environment?.chromeExtraArgs ?? []).filter(flag => ['--no-sandbox', '--disable-dev-shm-usage'].includes(flag)) },
         metrics: extractMetrics(rawReport) });
     }
     if (await harnessHash() !== report.harnessSha256) throw Error('Harness changed during paired measurement.');
     report.complete = true;
-  } catch {
+  } catch (error) {
     report.failure = 'A benchmark child or integrity check failed. Completed scalar samples are retained; no app logs are published.';
     report.failureContext = stage;
+    report.diagnostic = safeDiagnostic(error, { stage: stage.operation });
+    report.diagnostic.stderrTail = safeStderrTail((error.stderrTail ?? []).join('\n'));
+    console.error(`Benchmark failure: ${JSON.stringify({ ...stage, ...report.diagnostic })}`);
     failed = Error(report.failure);
   } finally {
+    report.wallSeconds = (performance.now() - started) / 1000;
     report.summary = compareSamples(samples, request.runs);
     await writeFile(path.join(output, 'perf-report.json'), JSON.stringify(report, null, 2) + '\n');
     await writeFile(path.join(output, 'perf-report.md'), reportMarkdown(report));

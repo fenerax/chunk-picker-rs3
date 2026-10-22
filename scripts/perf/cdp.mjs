@@ -1,6 +1,7 @@
 import { execFile, spawn } from 'node:child_process';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
+import { chromeStartupMessage } from './diagnostics.mjs';
 
 export const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 export async function until(action, timeoutMs = 30000, interval = 50) {
@@ -45,17 +46,24 @@ export function chromeLaunchConfiguration(profile, { extraArgs = [], port, env =
 export async function openChrome(executable, profile, options = {}, dependencies = {}) {
   const { port: requestedPort, args } = chromeLaunchConfiguration(profile, { ...options, env: process.env });
   const { spawn: launch = spawn, readFile: read = readFile, fetch: request = globalThis.fetch, WebSocket: Socket = globalThis.WebSocket } = dependencies;
-  const child = launch(executable, args, { stdio: 'ignore', windowsHide: true });
-  child.on('error', () => {});
+  const child = launch(executable, args, { stdio: ['ignore', 'ignore', 'pipe'], windowsHide: true });
+  let stderr = '', launchError;
+  child.stderr?.setEncoding('utf8');
+  child.stderr?.on('data', chunk => { stderr = (stderr + chunk).slice(-16384); });
+  child.on('error', error => { launchError = error; });
+  const checkStartup = () => {
+    if (launchError) { const error = new Error('Chrome could not start.'); error.code = launchError.code; throw error; }
+    if (child.exitCode !== null || child.signalCode != null) throw new Error(chromeStartupMessage(stderr));
+  };
   let socket;
   try {
     const port = requestedPort || await until(async () => {
-      if (child.exitCode !== null) throw new Error('Chrome exited during startup.');
+      checkStartup();
       try { return Number((await read(path.join(profile, 'DevToolsActivePort'), 'utf8')).split('\n')[0]); } catch { return false; }
     });
     if (!Number.isInteger(port) || port < 1024 || port > 65535 || [8788, 8789, 8790, 8791].includes(port)) throw new Error('Unsafe Chrome port.');
     const target = await until(async () => {
-      if (child.exitCode !== null) throw new Error('Chrome exited during startup.');
+      checkStartup();
       try { return (await (await request(`http://127.0.0.1:${port}/json`)).json()).find(item => item.type === 'page'); } catch { return false; }
     });
     const endpoint = new URL(target.webSocketDebuggerUrl);
