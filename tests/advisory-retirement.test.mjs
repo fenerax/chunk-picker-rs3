@@ -155,6 +155,8 @@ test('a note edit retires only an unrequested warm prediction', async t => {
   const dispatched = async index => { for (let i = 0; i < 100 && !prediction.workers[index]?.requests().length; i++) await new Promise(resolve => setTimeout(resolve, 5)); };
   assert.equal(scheduler.prewarm(before, 'input', [{ memberId: 'actor1', chunkIds: ['12342'] }]).queued, 1); await dispatched(0);
   assert.equal(prediction.workers[0].requests().at(-1)?.type, 'predict');
+  // A foreground request cancels the warm-up first; the process still runs it.
+  scheduler.cancelPrewarm({ keepTasks: true });
   assert.equal(scheduler.retireWarmPrediction(), true); await flush();
   assert.equal(prediction.workers[0].terminated, true);
   assert.equal(scheduler.getDiagnostics().predictionLane.prewarm.pending, 0);

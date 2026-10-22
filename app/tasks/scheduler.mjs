@@ -806,10 +806,12 @@ async function createWorkerLane({ workerData, workerFactory = nativeWorker, onCr
       return retire();
     },
     // Display-only saves keep task inputs, so nothing is obsolete. While
-    // someone edits notes, an unrequested warm-up still yields its process
-    // as a gameplay save would; requested work and an idle worker stay.
+    // someone edits notes, an unrequested calculation still yields its process
+    // as a gameplay save would; requested work and an idle worker stay. A
+    // cancelled warm-up no longer counts as warm but runs on: a process
+    // worker reads its cancel message only after the synchronous work.
     retireWarm() {
-      if (closed || status !== 'ready' || !active?.warm || active.waiters.size || active.reuseWaiters?.size) return false;
+      if (closed || status !== 'ready' || !active || active.waiters.size || active.reuseWaiters?.size) return false;
       for (const entry of [...pending.values()]) if (entry.warm && !entry.waiters.size) {
         entry.warm = false; warmCounts.cancelled++; cancel(entry, unavailable('Background prediction cancelled.'));
       }
