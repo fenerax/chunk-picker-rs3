@@ -256,12 +256,12 @@ test('serialized input retries resend rejected snapshots and worker recovery cle
 test('mixed object and serialized snapshots share keys without skipping the first serialized body', async t => {
   const { workers, scheduler } = await fixture(t, { shareSnapshots: true });
   const state = { schemaVersion: 1, revision: 0, members: [{ id: 'actor1', taskRules: {} }], tasks: [], history: [], rules: {}, taskRules: {} };
-  const objectInput = 'object-input', serializedInput = JSON.parse(predictionCacheKey(state, 'actor1', '12342', objectInput))[3];
+  const objectInput = 'object-input';
   const metadata = { revision: 0, members: [{ id: 'actor1' }] }, stateJSON = sharedBytes(JSON.stringify(state));
   const object = key => scheduler.evaluate(state, 'actor1', 'evaluate', undefined, key, objectInput);
   const serialized = key => scheduler.evaluate(metadata, 'actor1', 'evaluate', undefined, key, serializedInput, undefined, [], 'play-v1', { stateJSON, inputKey: serializedInput });
   const first = object('object-first');
-  const snapshotKey = workers[0].messages.at(-1).snapshotKey;
+  const snapshotKey = workers[0].messages.at(-1).snapshotKey, serializedInput = JSON.parse(snapshotKey)[1];
   assert.equal(workers[0].messages.at(-1).state, state);
   finishJSON(workers[0], '{}'); await first;
   const second = serialized('serialized-first');
@@ -277,6 +277,41 @@ test('mixed object and serialized snapshots share keys without skipping the firs
   finishPlay(workers[0]); await fourth;
 });
 
+test('display-only revisions reference the sent task input while changed inputs and area checks resend state', async t => {
+  const { workers, scheduler } = await fixture(t);
+  const operation = async (revision, input, type = 'evaluate', suffix = '') => {
+    const metadata = { revision, members: [{ id: 'actor1' }] }, before = workers.map(worker => worker.messages.length);
+    const stateJSON = sharedBytes(JSON.stringify({ schemaVersion: 1, ...metadata, notes: revision, tasks: [], history: [] }));
+    const pending = scheduler.evaluate(metadata, 'actor1', type, type === 'evaluate' ? undefined : { chunkIds: ['12342'] },
+      `${type}-${revision}${suffix}`, input, undefined, [], 'full', { stateJSON, inputKey: input });
+    // Drafts and area checks use the advisory lane's own worker.
+    const sent = () => workers.map((worker, index) => [worker, worker.messages.slice(before[index] ?? 0).find(message => message.type === type)]).find(([, message]) => message);
+    await until(sent);
+    const [worker, message] = sent();
+    return { stateJSON, message, done: () => { if (type === 'evaluate') finishJSON(worker, '{}'); else worker.finish(undefined, message.id); return pending; } };
+  };
+  const first = await operation(0, 'gameplay');
+  assert.equal(first.message.stateJSON, first.stateJSON); await first.done();
+  scheduler.supersedeDisplay(1, 'gameplay');
+  const display = await operation(1, 'gameplay');
+  assert.equal(display.message.state, undefined); assert.equal(display.message.stateJSON, undefined);
+  assert.equal(display.message.stateRevision, 1); assert.equal(display.message.snapshotKey, JSON.stringify([1, 'gameplay']));
+  await display.done();
+  const changed = await operation(2, 'changed');
+  assert.equal(changed.message.stateJSON, changed.stateJSON); await changed.done();
+  const draft = await operation(2, 'changed', 'sandbox');
+  assert.equal(draft.message.stateJSON, draft.stateJSON); await draft.done();
+  scheduler.supersedeDisplay(3, 'changed');
+  const draftDisplay = await operation(3, 'changed', 'sandbox');
+  assert.equal(draftDisplay.message.stateJSON, undefined); assert.equal(draftDisplay.message.snapshotKey, JSON.stringify([3, 'changed']));
+  await draftDisplay.done();
+  // Area checks read member preferences, so they reference only bytes parsed
+  // from their own captured revision.
+  const area = await operation(3, 'changed', 'area-check');
+  assert.equal(area.message.stateJSON, area.stateJSON); await area.done();
+  const areaRepeat = await operation(3, 'changed', 'area-check', '-repeat');
+  assert.equal(areaRepeat.message.stateJSON, undefined); await areaRepeat.done();
+});
 test('worker errors clear snapshot knowledge before queued capacity changes and revisits', async t => {
   const { workers, scheduler } = await fixture(t);
   const metadata = { revision: 0, members: [{ id: 'actor1' }] };

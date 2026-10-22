@@ -983,6 +983,10 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
   });
   async function evaluatedTasks(state, memberId, type = 'evaluate', chunkId, signal, chunkIds = [], resultView = 'full', stateInput, evaluationLane = 'foreground', duoSidebarProjection = false, retainFull = false, afterRemembered) {
     const side = type === 'chunk-planning' || type === 'death-estimates' || type === 'evaluate' && resultView === 'full' && nativeForegroundState && requiredTaskMembers.size > 0;
+    // Share the task-input boundary with unlock predictions. Pool selections,
+    // pending offers and blacklists cannot change these calculation results.
+    // Read it with the caller's state: workers reuse baselines by this input.
+    const input = stateInput?.inputKey ?? calculationState().input;
     if (side) await waitForList(state.revision, signal);
     // Explicit Preview needs the same quiet window as the current task list:
     // queued bulk predictions must not start between its answer and Unlock.
@@ -1002,10 +1006,7 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
       automaticDeathActive++;
       schedulingClock.clearTimeout(prewarmTimer); taskWorker.cancelPrewarm();
     }
-    // Share the task-input boundary with unlock predictions. Pool selections,
-    // pending offers and blacklists cannot change these calculation results.
     let completed = false;
-    const input = stateInput?.inputKey ?? calculationState().input;
     try {
       if (type === 'evaluate') chunkId = undefined;
       const key = JSON.stringify([type === 'evaluate' ? input : state.revision, memberId, type, chunkId, type === 'death-estimates' ? chunkIds : undefined]);

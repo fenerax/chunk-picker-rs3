@@ -14,6 +14,7 @@ import { evaluateEquipment, buildCurrentBiS } from './equipment.mjs';
 import { buildActivityInfo } from './activity.mjs';
 import { createCollectionEngine, selectCollectionGoals } from './collection.mjs';
 import { estimateChunk } from './time-estimates.mjs';
+import { resolveDeathSettings } from '../core/death-settings.mjs';
 import { decodeLegacyText, hasGameplayMigration } from './migration.mjs';
 import { projectPlayResult, projectPlayTask } from '../play-view.mjs';
 import { projectDuoSidebarResult } from '../duo-play-view.mjs';
@@ -141,17 +142,19 @@ function evaluateFull(state, memberId, { includeViews = true, timingMs } = {}) {
   return result;
 }
 
-// Keep two coherent member/revision results. Each retains a complete graph,
+// Keep two coherent member/input results. Each retains a complete graph,
 // including collections and equipment goals; older revisions can be rebuilt.
 // This bound is independent of the state-transfer LRU below.
 const snapshots = new Map();
 const stateSnapshots = new Map();
 let latestRevision = -1;
+// The scheduler supplies the conservative task input fingerprint, which already
+// excludes the revision: a display-only save keeps its baseline. Callers without
+// one key the revision, and rules still separate states at an unchanged revision.
+const calculationKey = (state, memberId, input) => [typeof input === 'string' ? null : state.revision, memberId, input ?? null, state.rules, state.taskRules,
+  state.members.map(owner => [owner.id, owner.taskRules, state.legacy?.maps?.[owner.sourceMapId]?.rules])];
 function snapshotFor(state, memberId, timingMs, input, includeViews = true) {
-  // The scheduler supplies the conservative input fingerprint. Direct worker
-  // callers still distinguish effective rules at an unchanged revision.
-  const key = JSON.stringify([state.revision, memberId, input ?? null, state.rules, state.taskRules,
-    state.members.map(owner => [owner.id, owner.taskRules, state.legacy?.maps?.[owner.sourceMapId]?.rules])]);
+  const key = JSON.stringify(calculationKey(state, memberId, input));
   let snapshot = snapshots.get(key), hit = !!snapshot;
   if (!snapshot) {
     // Release the oldest graph before allocating its replacement.
@@ -192,8 +195,7 @@ function sandboxFor(state, memberId, draft, timingMs, input) {
   // Hypothetical inputs never enter the saved member/revision snapshot cache.
   const empty = !normalized.changes.unlockChunks.length && !normalized.changes.lockChunks.length
     && !normalized.changes.doneTasks.length && !normalized.changes.taskRules;
-  const key = JSON.stringify([state.revision, memberId, input, state.rules, state.taskRules,
-    state.members.map(owner => [owner.id, owner.taskRules, state.legacy?.maps?.[owner.sourceMapId]?.rules]), normalized.changes]);
+  const key = JSON.stringify([...calculationKey(state, memberId, input), normalized.changes]);
   let draftSnapshot = empty ? snapshot : sandboxSnapshots.get(key);
   const hypotheticalHit = !!draftSnapshot;
   if (!draftSnapshot) {
@@ -205,8 +207,9 @@ function sandboxFor(state, memberId, draft, timingMs, input) {
     while (sandboxSnapshots.size > 2) sandboxSnapshots.delete(sandboxSnapshots.keys().next().value);
   }
   const hypothetical = empty ? state : draftSnapshot.state, result = draftSnapshot.baseline;
+  // Cached projections outlive display-only revisions; stamp the caller's.
   const output = { format: SANDBOX_FORMAT, memberId, stateRevision: state.revision, changes: normalized.changes,
-    result: draftSnapshot.playResult ??= timed(timingMs, 'sandboxProjectionMs', () => ({ ...mapPlayResult(result), memberId, stateRevision: state.revision })), possibleCount: result.metrics.availableCount,
+    result: { ...draftSnapshot.playResult ??= timed(timingMs, 'sandboxProjectionMs', () => ({ ...mapPlayResult(result), memberId })), stateRevision: state.revision }, possibleCount: result.metrics.availableCount,
     delta: draftSnapshot.sandboxDelta ??= timed(timingMs, 'sandboxDeltaMs', () => sandboxDelta(snapshot.baseline, result,
       { beforeState: state, afterState: hypothetical, memberId, registry })), cache: { baselineHit: hit, hypotheticalHit } };
   if (normalized.previewChunkId !== undefined) output.prediction = compactSandboxPrediction(
@@ -223,18 +226,21 @@ async function deathEstimates(state, memberId, chunkIds, timingMs, request, inpu
   await yieldToRequests();
   const estimates = [];
   let estimateHits = 0, estimatedCount = 0;
+  // Death settings are member preferences, which task inputs exclude.
+  const settings = JSON.stringify(resolveDeathSettings(state.members.find(owner => owner.id === memberId)));
   for (const chunkId of chunkIds) {
     if (request.cancelled || state.revision < latestRevision) break;
-    if (snapshot.estimates.has(chunkId)) estimateHits++;
+    const key = JSON.stringify([settings, chunkId]);
+    if (snapshot.estimates.has(key)) estimateHits++;
     else {
       const prediction = predictionFor(state, memberId, chunkId, snapshot, timingMs);
-      snapshot.estimates.set(chunkId, timed(timingMs, 'deathMs', () => estimateChunk(state, memberId, chunkId, { prediction, baseline: snapshot.baseline })));
+      snapshot.estimates.set(key, timed(timingMs, 'deathMs', () => estimateChunk(state, memberId, chunkId, { prediction, baseline: snapshot.baseline })));
       estimatedCount++;
     }
-    const estimate = snapshot.estimates.get(chunkId);
-    snapshot.estimates.delete(chunkId); snapshot.estimates.set(chunkId, estimate);
+    const estimate = snapshot.estimates.get(key);
+    snapshot.estimates.delete(key); snapshot.estimates.set(key, estimate);
     while (snapshot.estimates.size > 256) snapshot.estimates.delete(snapshot.estimates.keys().next().value);
-    estimates.push(estimate);
+    estimates.push({ ...estimate, stateRevision: state.revision });
     // A large candidate pool must not delay a newer task/info request until the
     // entire batch finishes. New revisions cancel the remaining old candidates.
     await yieldToRequests();
@@ -269,17 +275,22 @@ function serializedState({ stateJSON, stateJSONBytes, stateRevision, stateMember
     || !Number.isSafeInteger(stateJSONBytes) || stateJSONBytes < 1
     || !Array.isArray(stateMemberIds) || stateMemberIds.length < 1 || !stateMemberIds.every(id => typeof id === 'string' && id.length > 0)
     || new Set(stateMemberIds).size !== stateMemberIds.length) throw new TypeError('Worker serialized state metadata is invalid.');
-  let state;
+  let state, rebound = false;
   if (stateJSON !== undefined) {
     if (!(stateJSON instanceof SharedArrayBuffer) || stateJSON.byteLength !== stateJSONBytes) throw new TypeError('Worker serialized state bytes are invalid.');
     try { state = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(stateJSON)); }
     catch { throw new TypeError('Worker state JSON is invalid.'); }
-  } else state = stateSnapshots.get(snapshotKey);
+  } else {
+    // A display-only save changes the bytes but not the task input, so only an
+    // unchanged revision can still prove the referenced bytes are identical.
+    state = stateSnapshots.get(input);
+    if (state && state.revision !== stateRevision) { state = { ...state, revision: stateRevision }; rebound = true; }
+  }
   if (!state) throw new RangeError('Worker state snapshot is missing; resend its full state.');
   if (state.schemaVersion !== 1 || state.revision !== stateRevision || !Array.isArray(state.tasks) || !Array.isArray(state.history)
     || !Array.isArray(state.members) || state.members.length !== stateMemberIds.length
     || state.members.some((member, index) => !member || member.id !== stateMemberIds[index])) throw new TypeError('Worker serialized state does not match its metadata.');
-  if (stateJSON === undefined && serializedStateSizes.get(state) !== stateJSONBytes) throw new TypeError('Worker serialized state bytes are invalid.');
+  if (stateJSON === undefined && !rebound && serializedStateSizes.get(state) !== stateJSONBytes) throw new TypeError('Worker serialized state bytes are invalid.');
   serializedStateSizes.set(state, stateJSONBytes);
   return state;
 }
@@ -301,9 +312,16 @@ parentPort.on('message', async ({ id, type = 'evaluate', state, memberId, chunkI
     }
     if (snapshotKey !== undefined) {
       if (typeof snapshotKey !== 'string') throw new TypeError('Worker snapshotKey must be a string.');
-      state ??= stateSnapshots.get(snapshotKey);
+      // Scheduler keys are [captured revision, task input]: the LRU keys only the
+      // input, and a reference rebinds the equivalent state to that revision.
+      // Any other key stays opaque and matches exactly.
+      let parsed;
+      try { parsed = JSON.parse(snapshotKey); } catch {}
+      const scheduled = Array.isArray(parsed) && parsed.length === 2 && Number.isSafeInteger(parsed[0]) && parsed[0] >= 0 && typeof parsed[1] === 'string';
+      const snapshotInput = scheduled ? parsed[1] : snapshotKey, cached = state ? undefined : stateSnapshots.get(snapshotInput);
+      state ??= cached && (!scheduled || cached.revision === parsed[0] ? cached : { ...cached, revision: parsed[0] });
       if (!state) throw new RangeError('Worker state snapshot is missing; resend its full state.');
-      stateSnapshots.delete(snapshotKey); stateSnapshots.set(snapshotKey, state);
+      stateSnapshots.delete(snapshotInput); stateSnapshots.set(snapshotInput, state);
       while (stateSnapshots.size > STATE_SNAPSHOT_LIMIT) stateSnapshots.delete(stateSnapshots.keys().next().value);
     }
     latestRevision = Math.max(latestRevision, state.revision);

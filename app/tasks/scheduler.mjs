@@ -521,14 +521,24 @@ async function createWorkerLane({ workerData, workerFactory = nativeWorker, onCr
     }
     if (!entry.timer) deadline(entry);
     // Coalesced display revisions can update entry.revision while the captured
-    // bytes retain their original revision. Key the actual captured snapshot.
-    const snapshotKey = entry.type === 'prepare-rules' ? undefined : entry.stateInput ? JSON.stringify([entry.state.revision, entry.stateInput.inputKey])
-      : shareSnapshots ? JSON.stringify([entry.state.revision, predictionInput(entry.state, entry.input)]) : undefined;
-    const sentKind = sentSnapshots.get(snapshotKey);
-    const state = entry.stateInput || sentKind ? undefined : entry.state;
+    // bytes retain their original revision, so the key names that revision.
+    // Both LRUs key only its task input: after a display-only save the worker
+    // rebinds its equivalent state instead of receiving it again. Predictions
+    // read roll bookkeeping for reuse priority, and without a fingerprint only
+    // the revision proves equivalence.
+    const snapshotInput = entry.type === 'prepare-rules' ? undefined : entry.stateInput ? entry.stateInput.inputKey
+      : !shareSnapshots ? undefined : entry.input === undefined ? JSON.stringify([entry.state.revision, predictionInput(entry.state)])
+      : predictionInput(entry.state, [entry.input, entry.state.members?.map(member => [member.selected, member.pendingRoll])]);
+    const snapshotKey = snapshotInput === undefined ? undefined : JSON.stringify([entry.state.revision, snapshotInput]);
+    // Area checks read member preferences, which task inputs exclude, so they
+    // reference only a state parsed from their own captured revision.
+    const sent = sentSnapshots.get(snapshotInput);
+    const sentKind = entry.type === 'area-check' && sent?.revision !== entry.state.revision ? undefined : sent?.kind;
+    const fresh = entry.stateInput ? sentKind !== 'json-shared-v1' : !sentKind;
+    const state = entry.stateInput || !fresh ? undefined : entry.state;
     const serialized = entry.stateInput ? { stateTransport: 'json-shared-v1', stateRevision: entry.state.revision,
       stateMemberIds: entry.state.members.map(member => member.id), stateJSONBytes: entry.stateInput.stateJSON.byteLength,
-      ...(sentKind === 'json-shared-v1' ? {} : { stateJSON: entry.stateInput.stateJSON }) } : {};
+      ...(fresh ? { stateJSON: entry.stateInput.stateJSON } : {}) } : {};
     entry.snapshotKey = snapshotKey;
     try { worker.postMessage({ id: entry.id, type: entry.type, reportProgress: true, state, snapshotKey, input: entry.input, memberId: entry.memberId, chunkId: entry.chunkId, chunkIds: entry.chunkIds, cancellation: entry.cancellation,
       ...(entry.type === 'predict' ? { predictionProgress: true } : {}), ...serialized,
@@ -536,7 +546,7 @@ async function createWorkerLane({ workerData, workerFactory = nativeWorker, onCr
         ...(duoResults && entry.resultView === 'play-v1' ? { duoProjection: true } : {}),
         ...(entry.duoSidebarProjection ? { duoSidebarProjection: true } : {}) }
         : entry.type === 'sandbox' ? { resultTransport: 'json-shared-v1' } : {}) });
-      if (snapshotKey) { sentSnapshots.delete(snapshotKey); sentSnapshots.set(snapshotKey, entry.stateInput ? 'json-shared-v1' : state ? 'object' : sentKind); while (sentSnapshots.size > STATE_SNAPSHOT_LIMIT) sentSnapshots.delete(sentSnapshots.keys().next().value); }
+      if (snapshotKey) { sentSnapshots.delete(snapshotInput); sentSnapshots.set(snapshotInput, fresh ? { kind: entry.stateInput ? 'json-shared-v1' : 'object', revision: entry.state.revision } : sent); while (sentSnapshots.size > STATE_SNAPSHOT_LIMIT) sentSnapshots.delete(sentSnapshots.keys().next().value); }
     }
     catch { failure('worker-send'); }
     // The worker now owns its structured clone; do not retain another snapshot.

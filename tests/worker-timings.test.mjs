@@ -211,6 +211,32 @@ test('upgrading an advisory baseline preserves cached death estimates and full b
   for (const key of stageNames.filter(key => key !== 'totalMs')) assert.equal(warm.timingMs[key], 0, key);
 });
 
+test('display-only revisions rebind the retained input snapshot, baseline and estimates while changed inputs rebuild', async t => {
+  const { state, send } = await fixture(t, definitions, true);
+  const display = revision => ({ ...state, revision, members: state.members.map(member => ({ ...member, notes: { '12341': `display ${revision}` } })) });
+  const first = await send({ type: 'evaluate', ...serializedRequest(state, 'gameplay') });
+  assert.equal(first.error, undefined); assert.ok(first.timingMs.engineMs > 0);
+  const reference = await send({ type: 'evaluate', ...serializedRequest(display(1), 'gameplay'), stateJSON: undefined });
+  assert.equal(reference.error, undefined); assert.equal(reference.stateParses, 1, 'the display-only state is not resent');
+  assert.equal(reference.timingMs.engineMs, 0);
+  assert.equal(Buffer.from(reference.playJSON).toString(), Buffer.from(first.playJSON).toString());
+  const sandbox = await send({ type: 'sandbox', ...serializedRequest(display(2), 'gameplay'), stateJSON: undefined,
+    chunkId: { changes: { unlockChunks: [], lockChunks: [], doneTasks: [] } } });
+  assert.equal(sandbox.error, undefined); assert.equal(sandbox.stateParses, 1); assert.equal(sandbox.resultCache.baselineHit, true);
+  const sandboxResult = JSON.parse(Buffer.from(sandbox.sandboxJSON).toString());
+  assert.equal(sandboxResult.stateRevision, 2); assert.equal(sandboxResult.result.stateRevision, 2);
+  const cold = await send({ type: 'death-estimates', state: display(3), input: 'gameplay', chunkIds: ['12342'] });
+  assert.equal(cold.result.cache.baselineHit, true); assert.equal(cold.result.cache.estimatedCount, 1);
+  const warm = await send({ type: 'death-estimates', state: display(4), input: 'gameplay', chunkIds: ['12342'] });
+  assert.equal(warm.result.cache.estimateHits, 1); assert.equal(warm.result.cancelled, false);
+  assert.equal(warm.result.stateRevision, 4); assert.equal(warm.result.estimates[0].stateRevision, 4);
+  const changed = { ...display(5), members: state.members.map(member => ({ ...member, unlocked: ['12341', '12342'] })) };
+  const rebuilt = await send({ type: 'evaluate', ...serializedRequest(changed, 'changed') });
+  assert.equal(rebuilt.error, undefined); assert.equal(rebuilt.stateParses, warm.stateParses + 1);
+  assert.ok(rebuilt.timingMs.engineMs > 0);
+  assert.notEqual(Buffer.from(rebuilt.playJSON).toString(), Buffer.from(first.playJSON).toString());
+});
+
 test('failed calculations retain stage durations without returning state in timings', async t => {
   const { send } = await fixture(t);
   const response = await send({ type: 'evaluate', memberId: 'missing' });

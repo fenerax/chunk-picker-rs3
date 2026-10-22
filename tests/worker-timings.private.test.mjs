@@ -101,3 +101,15 @@ test('native rule preparation leaves evaluation and advisory baselines untouched
   checkTimings(full);
 });
 
+test('death estimates keep the input baseline but recalculate when display-only death settings change', async t => {
+  const { state, send } = await fixture(t);
+  const at = (revision, preferences = {}) => ({ ...state, revision, members: state.members.map(member => ({ ...member, preferences })) });
+  const first = await send({ type: 'death-estimates', state: at(0), input: 'gameplay', chunkIds: ['12342'] });
+  assert.equal(first.error, undefined); assert.equal(first.result.cache.estimatedCount, 1);
+  const slower = await send({ type: 'death-estimates', state: at(1, { defaultSecondsPerKill: 120 }), input: 'gameplay', chunkIds: ['12342'] });
+  assert.equal(slower.result.cache.baselineHit, true);
+  assert.equal(slower.result.cache.estimatedCount, 1, 'changed death settings are never served from the old estimate');
+  assert.equal(slower.result.estimates[0].stateRevision, 1);
+  const repeat = await send({ type: 'death-estimates', state: at(2, { defaultSecondsPerKill: 120 }), input: 'gameplay', chunkIds: ['12342'] });
+  assert.equal(repeat.result.cache.estimateHits, 1); assert.equal(repeat.result.estimates[0].stateRevision, 2);
+});
