@@ -871,6 +871,8 @@ async function suite(executable, run, throttled) {
     diagnosticContext = { stage: 'rss' };
     const rssAfterBytes = await server.rss();
     const memoryAfter = server.latestMemory;
+    // Which lanes still hold a process at the RSS sample, by name only.
+    const residencyAfter = await workerResidency(browser).catch(() => null);
     const idleSample = await sampleIdle(browser, server, options.idleSampleMs
       ? { rssBytes: rssAfterBytes, diagnostics: await workerResidency(browser) } : null);
     const screenshots = await captureViews(browser, run, throttled);
@@ -881,7 +883,7 @@ async function suite(executable, run, throttled) {
         startupStateResponseMs: server.startupTimingMs?.stateResponseMs ?? diagnostics.startupTimingMs?.stateResponseMs ?? null,
         rssReadyBytes: server.rssReadyBytes, rssAfterBytes, rssAfterTotalBytes: memoryAfter?.totalRssBytes ?? null,
         workersRssAfterBytes: memoryAfter?.workersRssBytes ?? null, workerRssSamples: memoryAfter?.workerRssSamples ?? null,
-        workerRssFailures: memoryAfter?.workerRssFailures ?? null, memoryTelemetry: server.memoryTelemetry, diagnostics }, idleSample, results };
+        workerRssFailures: memoryAfter?.workerRssFailures ?? null, memoryTelemetry: server.memoryTelemetry, diagnostics, residencyAfter }, idleSample, results };
   } catch (error) {
     console.error(DIAGNOSTIC_PREFIX + JSON.stringify(safeDiagnostic(error, diagnosticContext)));
     const oomAfter = await oomCount();
