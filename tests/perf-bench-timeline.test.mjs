@@ -3,7 +3,25 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import vm from 'node:vm';
 import { unlockTimeline } from '../scripts/perf/browser-interactions.mjs';
-import { probeSource } from '../scripts/perf/probe.mjs';
+import { probeSource, initialViewSource } from '../scripts/perf/probe.mjs';
+import { bindTaskViewPreferences } from '../app/web/task-view-preferences.mjs';
+
+test('document-start view survives application preference restoration before calculations', () => {
+  for (const view of ['off', 'on']) {
+    const stored = new Map(), storage = { getItem: key => stored.get(key), setItem: (key, value) => stored.set(key, value) };
+    const controls = Object.fromEntries(['group-view', 'show-all', 'show-blocked'].map(id => [id, { checked: true, addEventListener() {} }]));
+    let callback, parsed = false;
+    const context = { localStorage: storage, document: { getElementById: id => parsed ? controls[id] : null },
+      MutationObserver: class { constructor(fn) { callback = fn; } observe() {} disconnect() {} } };
+    vm.runInNewContext(initialViewSource(view), context);
+    parsed = true; callback();
+    assert.equal(controls['group-view'].checked, view === 'on');
+    // The app used to undo the checkbox-only probe here, before its first fetch.
+    bindTaskViewPreferences(id => controls[id], () => storage);
+    assert.equal(controls['group-view'].checked, view === 'on');
+    assert.equal(controls['show-all'].checked, false);
+  }
+});
 
 test('document probe observes the actual task fetch once and waits two frames for paint', async () => {
   let clock = 0, fetches = 0;

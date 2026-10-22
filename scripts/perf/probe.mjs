@@ -1,3 +1,21 @@
+// Seed both preference restoration and the parsed checkbox before app startup.
+// The checkbox observer also supports older apps without stored group mode.
+export function initialViewSource(groupView) {
+  if (!['on', 'off'].includes(groupView)) throw new Error('Invalid initial benchmark group view.');
+  return `(() => {
+    try { localStorage.setItem('rs3:task-view', JSON.stringify({showBlocked:false,showAll:false,groupView:${groupView === 'on'}})); } catch {}
+    const observer = new MutationObserver(setInitialView);
+    function setInitialView() {
+      const input = document.getElementById('group-view');
+      if (!input) return;
+      input.checked = ${groupView === 'on'};
+      observer.disconnect();
+    }
+    observer.observe(document, { subtree: true, childList: true });
+    setInitialView();
+  })();`;
+}
+
 // Document-start probes are active only in the isolated benchmark browser.
 export const probeSource = `(() => {
   window.__rs3Perf = { enabled: true, events: [] };

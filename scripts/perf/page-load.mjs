@@ -8,7 +8,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { performance } from 'node:perf_hooks';
 import { openChrome, stopChild, sleep, until } from './cdp.mjs';
-import { probeSource, snapshotExpression } from './probe.mjs';
+import { probeSource, snapshotExpression, initialViewSource } from './probe.mjs';
 import { ASSET_CLASSES, assetClass, category, networkCollector } from './network-collector.mjs';
 import { resolvePerfApplication, fingerprintPerfApplication, rejectPathLinks } from './inputs.mjs';
 import { measureBrowserInteractions, interactionScenarios } from './browser-interactions.mjs';
@@ -234,17 +234,7 @@ async function authenticate(browser, server) {
   await browser.send('Page.addScriptToEvaluateOnNewDocument', { source: probeSource });
   // Set the initial checkbox as the parser creates it, before deferred app modules
   // run. Toggling after startup would already have admitted a partner calculation.
-  await browser.send('Page.addScriptToEvaluateOnNewDocument', { source: `(() => {
-    const observer = new MutationObserver(setInitialView);
-    function setInitialView() {
-      const input = document.getElementById('group-view');
-      if (!input) return;
-      input.checked = ${options.groupView === 'on'};
-      observer.disconnect();
-    }
-    observer.observe(document, { subtree: true, childList: true });
-    setInitialView();
-  })();` });
+  await browser.send('Page.addScriptToEvaluateOnNewDocument', { source: initialViewSource(options.groupView) });
 }
 const taskMilestoneEvent = () => options.taskMilestone === 'duo' ? 'duo-tasks-shown' : 'tasks-shown';
 function longTaskSummary(tasks, from, to) {
