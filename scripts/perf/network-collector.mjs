@@ -19,17 +19,22 @@ export function assetClass(route) {
 }
 export function networkCollector(browser) {
   const requests = new Map(), pendingStatuses = new Map(); let changed = performance.now(), startTimestamp;
+  let navigationLoaderId, navigationCommittedAt;
+  const navigationRequests = () => [...requests.values()].filter(item => navigationLoaderId && item.loaderId === navigationLoaderId);
   const wireStatus = (item, status) => {
     item.wireStatus = status; item.status = status;
     if (status === 304) { item.cached = true; item.revalidated = true; }
   };
   const onEvent = ({ method, params: p }) => {
+    if (method === 'Page.frameNavigated' && !p.frame.parentId) {
+      navigationLoaderId = p.frame.loaderId; navigationCommittedAt = performance.now(); return;
+    }
     if (method === 'Network.responseReceivedExtraInfo') {
       // Chrome can expose the cached 200 response in responseReceived while
       // ExtraInfo carries the actual 304. Either event can arrive first.
       if (!Number.isInteger(p.statusCode)) return;
       const item = requests.get(p.requestId);
-      if (item) { wireStatus(item, p.statusCode); if (!item.excluded) changed = performance.now(); }
+      if (item) { wireStatus(item, p.statusCode); if (!item.excluded) changed = item.changedAt = performance.now(); }
       else pendingStatuses.set(p.requestId, p.statusCode);
       return;
     }
@@ -40,7 +45,7 @@ export function networkCollector(browser) {
       // Persist path only; neither cookies, request bodies nor invitation URLs are retained.
       if (route.startsWith('/join/')) return;
       startTimestamp ??= p.timestamp;
-      const item = { route, category: category(route), assetClass: assetClass(route), type: p.type, start: p.timestamp, wallStart: p.wallTime, excluded: p.type === 'EventSource' || route === '/api/events', cached: false, revalidated: false };
+      const item = { route, category: category(route), assetClass: assetClass(route), type: p.type, loaderId: p.loaderId, changedAt: performance.now(), start: p.timestamp, wallStart: p.wallTime, excluded: p.type === 'EventSource' || route === '/api/events', cached: false, revalidated: false };
       if (pendingStatuses.has(p.requestId)) { wireStatus(item, pendingStatuses.get(p.requestId)); pendingStatuses.delete(p.requestId); }
       requests.set(p.requestId, item);
       changed = performance.now();
@@ -58,10 +63,14 @@ export function networkCollector(browser) {
       if (method === 'Network.loadingFinished') { item.end = p.timestamp; item.transferBytes = p.encodedDataLength; }
       if (method === 'Network.dataReceived') item.decodedBodyBytes = (item.decodedBodyBytes ?? 0) + p.dataLength;
       if (method === 'Network.loadingFailed') { item.end = p.timestamp; item.failed = !p.canceled; item.cancelled = !!p.canceled; }
-      if (!item.excluded) changed = performance.now();
+      if (!item.excluded) changed = item.changedAt = performance.now();
     }
   };
   browser.listeners.add(onEvent);
-  return { requests, idle: () => [...requests.values()].every(item => item.excluded || item.end !== undefined) && performance.now() - changed >= 750,
+  return { requests, navigationRequests, idle: ({ navigation = false } = {}) => {
+    const rows = navigation ? navigationRequests() : [...requests.values()];
+    const lastChange = navigation ? Math.max(navigationCommittedAt ?? performance.now(), ...rows.filter(item => !item.excluded).map(item => item.changedAt)) : changed;
+    return (!navigation || !!navigationLoaderId) && rows.every(item => item.excluded || item.end !== undefined) && performance.now() - lastChange >= 750;
+  },
     close: () => browser.listeners.delete(onEvent), start: () => startTimestamp };
 }

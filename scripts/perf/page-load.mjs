@@ -367,7 +367,7 @@ async function measure(browser, name, action, { navigation = false, revision, me
     return filename;
   };
   try {
-    if (navigation) previousTimeOrigin = await browser.evaluate('performance.timeOrigin');
+    previousTimeOrigin = await browser.evaluate('performance.timeOrigin');
     if (selectedProfile) {
       await browser.send('Profiler.enable'); await browser.send('Profiler.start'); profileActive = true;
     }
@@ -381,11 +381,12 @@ async function measure(browser, name, action, { navigation = false, revision, me
         throw error;
       }
       if (navigation && (!Number.isFinite(snapshot.timeOrigin) || snapshot.timeOrigin === previousTimeOrigin)) return false;
+      if (!navigation && snapshot.timeOrigin !== previousTimeOrigin) throw new Error('Scratch document changed during interaction.');
       if (snapshot.taskError) throw new Error(`Task status failed in ${name}.`);
       const freshTask = snapshot.events.some(event => event.name === taskMilestoneEvent() && event.time >= from && (!member || event.memberId === member) && (!revision || event.revision >= revision));
       const painted = snapshot.events.some(event => event.name === (options.taskMilestone === 'duo' ? 'duo-tasks-painted' : 'tasks-painted') && event.time >= from && (!member || event.memberId === member) && (!revision || event.revision >= revision));
       const ready = snapshot.tasksReady && freshTask && painted && (!revision || snapshot.savedRevision >= revision) && (!member || snapshot.member === member);
-      const idle = network.idle();
+      const idle = network.idle({ navigation });
       if (idle && ready) idleAt ??= snapshot.now - from;
       if (ready && (idle || settlement === 'tasks')) {
         // Settled frames include composition/decode after the final request.
@@ -395,7 +396,7 @@ async function measure(browser, name, action, { navigation = false, revision, me
     }, options.timeout, 60);
     const groupView = await browser.evaluate("document.getElementById('group-view')?.checked");
     if (groupView !== (options.groupView === 'on')) throw new Error(`Unexpected group view in ${name}; refusing a mismatched benchmark.`);
-    const measured = metrics(snapshot, from, [...network.requests.values()], idleAt, navigation, { member, revision });
+    const measured = metrics(snapshot, from, navigation ? network.navigationRequests() : [...network.requests.values()], idleAt, navigation, { member, revision });
     measured.serverCalculations = calculations.filter(row => row.startedEpochMs >= snapshot.timeOrigin + from && row.doneEpochMs <= snapshot.timeOrigin + snapshot.now)
       .map(row => ({ memberId: row.memberId, revision: row.revision,
         startedMs: row.startedEpochMs - snapshot.timeOrigin - from, doneMs: row.doneEpochMs - snapshot.timeOrigin - from }));

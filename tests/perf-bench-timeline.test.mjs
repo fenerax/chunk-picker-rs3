@@ -5,6 +5,7 @@ import vm from 'node:vm';
 import { unlockTimeline } from '../scripts/perf/browser-interactions.mjs';
 import { probeSource, initialViewSource } from '../scripts/perf/probe.mjs';
 import { bindTaskViewPreferences } from '../app/web/task-view-preferences.mjs';
+import { networkCollector } from '../scripts/perf/network-collector.mjs';
 
 test('document-start view survives application preference restoration before calculations', () => {
   for (const view of ['off', 'on']) {
@@ -32,7 +33,7 @@ test('reload waits for a new document instead of accepting old cold milestones',
   let snapshots = 0, action = false, closed = false;
   const context = vm.createContext({ performance, console: { log() {} }, options: { scenarios: [], cpuProfile: 'off', settlement: 'tasks', timeout: 1000, groupView: 'off', taskMilestone: 'tasks' },
     diagnosticContext: {}, snapshotExpression: 'snapshot', taskMilestoneEvent: () => 'tasks-shown', number: String,
-    networkCollector: () => ({ requests: new Map(), idle: () => false, close: () => { closed = true; } }),
+    networkCollector: () => ({ requests: new Map(), navigationRequests: () => [], idle: () => false, close: () => { closed = true; } }),
     until: async predicate => { for (let index = 0; index < 5; index++) if (await predicate()) return; throw Error('Fixture did not settle'); },
     metrics: snapshot => ({ observedOrigin: snapshot.timeOrigin, milestones: {}, network: { requests: [], totals: { count: 0 } } }) });
   vm.runInContext(source.slice(source.indexOf('async function measure('), source.indexOf('\nasync function switchMember(')) + '\nglobalThis.measure = measure;', context);
@@ -42,12 +43,47 @@ test('reload waits for a new document instead of accepting old cold milestones',
     snapshots++;
     if (snapshots === 1) return old;
     if (snapshots === 2) throw Error('CDP Runtime.evaluate failed.');
-    return fresh;
+    return snapshots === 3 ? { ...fresh, tasksReady: false } : fresh;
   } };
   const result = await context.measure(browser, 'reload', async () => { action = true; }, { navigation: true, member: 'player1' });
-  assert.equal(snapshots, 3);
+  assert.equal(snapshots, 4);
   assert.equal(result.observedOrigin, 2000);
   assert.equal(closed, true);
+});
+
+test('navigation attribution retains early new-loader requests and excludes late old-loader requests', () => {
+  const browser = { listeners: new Set() }, collector = networkCollector(browser);
+  const emit = (method, params) => { for (const listener of browser.listeners) listener({ method, params }); };
+  const request = (id, loader) => emit('Network.requestWillBeSent', { requestId: id, loaderId: loader, type: 'Fetch',
+    request: { url: 'http://127.0.0.1/api/tasks' }, timestamp: 1, wallTime: 1 });
+  request('early-new', 'new'); request('late-old', 'old');
+  emit('Page.frameNavigated', { frame: { id: 'main', loaderId: 'new' } });
+  emit('Page.frameNavigated', { frame: { id: 'child', parentId: 'main', loaderId: 'child' } });
+  assert.equal(collector.requests.size, 2);
+  assert.deepEqual(collector.navigationRequests().map(item => item.loaderId), ['new']);
+  collector.close(); assert.equal(browser.listeners.size, 0);
+});
+
+test('interactions reject a changed document and navigation cannot reuse an unchanged one', async () => {
+  const source = await readFile(new URL('../scripts/perf/page-load.mjs', import.meta.url), 'utf8');
+  for (const navigation of [false, true]) {
+    let snapshots = 0, closed = false;
+    const context = vm.createContext({ performance, console: { log() {} }, options: { scenarios: [], cpuProfile: 'off', settlement: 'tasks', timeout: 1000, groupView: 'off', taskMilestone: 'tasks' },
+      diagnosticContext: {}, snapshotExpression: 'snapshot', taskMilestoneEvent: () => 'tasks-shown',
+      networkCollector: () => ({ requests: new Map(), navigationRequests: () => [], close: () => { closed = true; } }),
+      until: async predicate => { for (let index = 0; index < 5; index++) if (await predicate()) return; throw Error('Fixture did not settle'); } });
+    vm.runInContext(source.slice(source.indexOf('async function measure('), source.indexOf('\nasync function switchMember(')) + '\nglobalThis.measure = measure;', context);
+    const browser = { evaluate: async expression => {
+      if (expression === 'performance.now()') return 10;
+      if (expression === 'performance.timeOrigin') return 1000;
+      snapshots++;
+      return { timeOrigin: navigation ? 1000 : 2000, now: 50, events: [], tasksReady: true, taskError: false };
+    } };
+    await assert.rejects(context.measure(browser, navigation ? 'reload' : 'unlock', async () => {}, { navigation }),
+      navigation ? /Fixture did not settle/ : /Scratch document changed during interaction/);
+    assert.equal(snapshots, navigation ? 5 : 1);
+    assert.equal(closed, true);
+  }
 });
 
 test('document probe observes the actual task fetch once and waits two frames for paint', async () => {

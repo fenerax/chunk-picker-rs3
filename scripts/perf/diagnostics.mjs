@@ -10,6 +10,7 @@ const fixed = new Set([
   'Scratch server startup timed out.', 'Scratch server could not start.',
   'Scratch server exited during startup.', 'Scratch server startup failed.',
   'Scratch authentication failed.', 'RSS probe timed out.',
+  'Scratch document changed during interaction.',
   'Child process did not exit; scratch retained.',
   'Shutdown failed; benchmark scratch retained for recovery.',
   'Benchmark save import failed.', 'Benchmark child could not start.',
