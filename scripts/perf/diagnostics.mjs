@@ -28,6 +28,7 @@ const patterns = [
   new RegExp(`^Unexpected group view in ${scenario}; refusing a mismatched benchmark\\.$`),
   /^CDP (?:Runtime\.evaluate|Page\.(?:enable|navigate|reload|addScriptToEvaluateOnNewDocument)|Network\.(?:enable|setCookie|clearBrowserCache|emulateNetworkConditions)|Browser\.(?:getVersion|close)|Emulation\.setDeviceMetricsOverride) (?:failed|timed out)\.$/,
   /^Benchmark child failed \((?:\d+|SIG[A-Z]+)\)\.$/,
+  /^Scratch server exited unexpectedly \((?:\d+|SIG[A-Z]+)\)\.$/,
   /^No locked player[12] chunk available for scratch unlock \((?:any|prepared|unprepared)\)\.$/,
 ];
 export const DIAGNOSTIC_PREFIX = 'PERF_DIAGNOSTIC ';

@@ -116,6 +116,7 @@ test('page options expose pack selection, external app, owned port and predictab
   assert.equal(defaults.port, undefined);
   assert.equal(defaults.packsDir, undefined);
   assert.equal(defaults.appDir, undefined);
+  assert.equal(defaults.serverHeapMiB, undefined);
   const selected = parse(['--packs-dir', 'packs', '--pack-selection', 'selection.json', '--app-dir', 'checkout', '--port', '8963', '--output', '.local/perf/fixed.json']);
   assert.equal(selected.packsDir, path.resolve('packs'));
   assert.equal(selected.packSelection, path.resolve('selection.json'));
@@ -123,6 +124,8 @@ test('page options expose pack selection, external app, owned port and predictab
   assert.equal(selected.output, path.resolve('.local/perf/fixed.json'));
   assert.equal(selected.port, 8963);
   for (const value of ['0', '8788', '8959', '8970', '8960.5', 'NaN']) assert.throws(() => parse(['--port', value]), /8960 through 8969/);
+  assert.equal(parse(['--server-heap-mib', '1536']).serverHeapMiB, 1536);
+  for (const value of ['0', '511', '4097', '1.5', 'NaN']) assert.throws(() => parse(['--server-heap-mib', value]), /512 through 4096/);
 });
 
 test('Chrome discovery honors CHROME_PATH then checks conventional Linux executables', async () => {
@@ -207,8 +210,11 @@ test('parent server RSS remains numeric while exposing sampled process totals', 
   child.send = request => queueMicrotask(() => child.emit('message', { type: 'rss', id: request.id, rssBytes: 123,
     workersRssBytes: 500, totalRssBytes: 623, workerRssSamples: 1, workerRssFailures: 0 }));
   let forkOptions;
+  const { safeDiagnostic, safeStderrTail, DIAGNOSTIC_PREFIX } = await import('../scripts/perf/diagnostics.mjs');
+  const diagnostics = [];
   const context = vm.createContext({ path, performance, process: { env: {}, execArgv: [] }, ROOT: path.resolve('harness'), setTimeout, clearTimeout, URL,
-    options: { timeout: 1000, port: 8964, applicationRoot: path.resolve('external') },
+    safeDiagnostic, safeStderrTail, DIAGNOSTIC_PREFIX, diagnosticContext: { stage: 'measure', scenario: 'unlock' }, console: { error: value => diagnostics.push(value) },
+    options: { timeout: 1000, port: 8964, serverHeapMiB: 1536, applicationRoot: path.resolve('external') },
     fork: (script, args, config) => { forkOptions = config; queueMicrotask(() => child.emit('message', { type: 'ready', inviteUrl: 'http://127.0.0.1:8964/join/synthetic', readyMs: 5, rssBytes: 123 })); return child; },
     stopChild: async () => {}, sleep: async () => {} });
   vm.runInContext(page.slice(start, end).replaceAll('import.meta.url', JSON.stringify(new URL('../scripts/perf/page-load.mjs', import.meta.url).href)) + '\nglobalThis.start = startServer;', context);
@@ -217,7 +223,10 @@ test('parent server RSS remains numeric while exposing sampled process totals', 
   assert.equal(await server.rss(), 123);
   assert.equal(server.latestMemory.totalRssBytes, 623);
   assert.equal(server.latestMemory.workersRssBytes, 500);
-  assert.deepEqual(Array.from(forkOptions.execArgv), ['--import', new URL('../scripts/perf/worker-timeline.mjs', import.meta.url).href]);
+  assert.deepEqual(Array.from(forkOptions.execArgv), ['--max-old-space-size=1536', '--import', new URL('../scripts/perf/worker-timeline.mjs', import.meta.url).href]);
+  child.exitCode = null; child.signalCode = 'SIGKILL'; child.emit('exit', null, 'SIGKILL');
+  await assert.rejects(server.rss(), /Scratch server exited unexpectedly \(SIGKILL\)/);
+  assert.match(diagnostics[0], /SIGKILL/);
 });
 
 test('interaction medians expand panels and render durations without assuming network records', () => {

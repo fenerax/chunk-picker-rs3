@@ -19,7 +19,9 @@ export function failureReadiness(report) {
   const events = new Set(['state-adopted', 'tasks-shown', 'duo-tasks-shown', 'visible-tiles-loaded']);
   const endpoints = new Set(['/api/state', '/api/definitions', '/api/rules', '/api/tasks', '/api/map-info', '/api/display-world']);
   const requests = Array.isArray(measurement.requests) ? measurement.requests : [];
-  return { wallMs: numeric(measurement.wallMs),
+  return { wallMs: numeric(measurement.wallMs), hostOomKillDelta: numeric(report.failedSuite?.hostOomKillDelta),
+    serverExit: { code: Number.isInteger(report.failedSuite?.serverExit?.code) ? report.failedSuite.serverExit.code : null,
+      signal: /^SIG(?:KILL|ABRT|SEGV|TERM|INT|TRAP)$/.test(report.failedSuite?.serverExit?.signal ?? '') ? report.failedSuite.serverExit.signal : null },
     tasksReady: typeof snapshot?.tasksReady === 'boolean' ? snapshot.tasksReady : null,
     taskError: typeof snapshot?.taskError === 'boolean' ? snapshot.taskError : null,
     milestones: (Array.isArray(snapshot?.milestones) ? snapshot.milestones : []).filter(event => events.has(event.name))

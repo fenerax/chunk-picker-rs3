@@ -12,7 +12,7 @@ import { probeSource, snapshotExpression, initialViewSource } from './probe.mjs'
 import { ASSET_CLASSES, assetClass, category, networkCollector } from './network-collector.mjs';
 import { resolvePerfApplication, fingerprintPerfApplication, rejectPathLinks } from './inputs.mjs';
 import { measureBrowserInteractions, interactionScenarios } from './browser-interactions.mjs';
-import { safeDiagnostic, DIAGNOSTIC_PREFIX } from './diagnostics.mjs';
+import { safeDiagnostic, safeStderrTail, DIAGNOSTIC_PREFIX } from './diagnostics.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const MAIN = path.dirname(execFileSync('git', ['rev-parse', '--path-format=absolute', '--git-common-dir'],
@@ -48,6 +48,7 @@ const usage = `Usage: npm run perf -- [options]
   --packs-dir PATH        Selected read-only packs (or RS3_PACKS_DIR)
   --pack-selection PATH   Pack selection JSON (or RS3_PACK_SELECTION)
   --port N               Owned loopback port, 8960 through 8969 (default ephemeral)
+  --server-heap-mib N    Explicit server/worker old-generation heap limit (512–4096; default Node policy)
   --output PATH          JSON report inside this worktree .local/perf; Markdown beside it
   --chrome PATH          Chrome executable (or CHROME_PATH)
   --source PATH          Read-only duo directory (default main repo .local/duo)
@@ -89,6 +90,7 @@ function parse(args) {
     else if (key === '--packs-dir') options.packsDir = path.resolve(value);
     else if (key === '--pack-selection') options.packSelection = path.resolve(value);
     else if (key === '--port') options.port = Number(value);
+    else if (key === '--server-heap-mib') options.serverHeapMiB = Number(value);
     else if (key === '--output') options.output = path.resolve(value);
     else if (key === '--server-revision') options.serverRevision = value;
     else if (key === '--scenarios') options.scenarios = value.split(',');
@@ -121,6 +123,7 @@ function parse(args) {
   if (!Number.isInteger(options.idleSampleMs) || options.idleSampleMs < 0 || options.idleSampleMs > 60000) throw new Error('--idle-sample-ms must be an integer from 0 through 60000.');
   if (options.serverRevision && !/^[a-f0-9]{7,40}$/i.test(options.serverRevision)) throw new Error('--server-revision must be a Git revision hash.');
   if (options.port !== undefined && (!Number.isInteger(options.port) || options.port < 8960 || options.port > 8969)) throw new Error('--port must be an integer from 8960 through 8969.');
+  if (options.serverHeapMiB !== undefined && (!Number.isInteger(options.serverHeapMiB) || options.serverHeapMiB < 512 || options.serverHeapMiB > 4096)) throw new Error('--server-heap-mib must be an integer from 512 through 4096.');
   if (!options.scenarios.length || options.scenarios.some(s => !['cold', 'reload', 'switch-player2', 'switch-player1', 'unlock', 'cold-30mbps', 'panels', 'search'].includes(s))) throw new Error('Unknown scenario.');
   return true;
 }
@@ -176,8 +179,18 @@ async function startServer(dataDir) {
   }
   delete env.RS3_PUBLIC_ORIGIN; delete env.RS3_LOOPBACK_PORT;
   const child = fork(path.join(ROOT, 'scripts/perf/server.mjs'), [], { cwd: ROOT, env,
-    execArgv: [...process.execArgv, '--import', new URL('./worker-timeline.mjs', import.meta.url).href],
-    stdio: ['ignore', 'ignore', 'ignore', 'ipc'], windowsHide: true });
+    execArgv: [...process.execArgv, ...(options.serverHeapMiB ? [`--max-old-space-size=${options.serverHeapMiB}`] : []), '--import', new URL('./worker-timeline.mjs', import.meta.url).href],
+    stdio: ['ignore', 'ignore', 'pipe', 'ipc'], windowsHide: true });
+  let stderr = '', stopping = false;
+  child.stderr?.setEncoding('utf8');
+  child.stderr?.on('data', chunk => { stderr = (stderr + chunk).slice(-16384); });
+  const exitError = () => new Error(`Scratch server exited unexpectedly (${child.signalCode ?? child.exitCode}).`);
+  const assertAlive = () => { if (child.exitCode != null || child.signalCode != null) throw exitError(); };
+  child.on('exit', () => {
+    if (stopping) return;
+    for (const line of safeStderrTail(stderr)) console.error(line);
+    console.error(DIAGNOSTIC_PREFIX + JSON.stringify(safeDiagnostic(exitError(), diagnosticContext)));
+  });
   child.on('error', () => {});
   const calculations = [];
   child.on('message', message => { if (message.type === 'calculation' && message.perfTimeline) calculations.push(message.perfTimeline); });
@@ -201,10 +214,11 @@ async function startServer(dataDir) {
     if (new URL(origin).hostname !== '127.0.0.1' || [8788, 8789, 8790, 8791].includes(Number(new URL(origin).port))) throw new Error('Refusing protected picker address.');
     if (options.port !== undefined && Number(new URL(origin).port) !== options.port) throw new Error('Scratch server did not bind the requested owned port.');
     let requestId = 0, latestMemory = null;
-    return { child, origin, inviteUrl: ready.inviteUrl, calculations, dataset: ready.dataset, readyMs: performance.now() - start, initializationMs: ready.readyMs,
+    return { child, assertAlive, origin, inviteUrl: ready.inviteUrl, calculations, dataset: ready.dataset, readyMs: performance.now() - start, initializationMs: ready.readyMs,
       rssReadyBytes: ready.rssBytes, startupTimingMs: ready.startupTimingMs,
       get latestMemory() { return latestMemory; },
       rss: () => new Promise((resolve, reject) => {
+        assertAlive();
         const id = ++requestId, timer = setTimeout(() => { child.off('message', onMessage); reject(new Error('RSS probe timed out.')); }, 25000);
         const onMessage = message => { if (message.type === 'rss' && message.id === id) {
           clearTimeout(timer); child.off('message', onMessage);
@@ -214,13 +228,14 @@ async function startServer(dataDir) {
         child.on('message', onMessage); child.send({ type: 'rss', id });
       }),
       async close() {
+        stopping = true;
         if (child.exitCode === null && child.signalCode === null) {
           const exited = new Promise(resolve => child.once('exit', resolve)); child.send({ type: 'stop' });
           await Promise.race([exited, sleep(15000)]);
         }
         await stopChild(child);
       } };
-  } catch (error) { await stopChild(child); throw error; }
+  } catch (error) { stopping = true; await stopChild(child); throw error; }
 }
 async function authenticate(browser, server) {
   // Follow no redirect: this obtains a scratch session without loading/warming the app.
@@ -627,11 +642,18 @@ async function suite(executable, run, throttled) {
   const scratch = await scratchCopy(options.source);
   let server, browser, version, prerequisiteCold;
   const results = [];
+  const oomCount = async () => {
+    if (process.platform !== 'linux') return null;
+    try { const match = (await readFile('/proc/vmstat', 'utf8')).match(/^oom_kill (\d+)$/m); return match ? Number(match[1]) : null; } catch { return null; }
+  };
+  const oomBefore = await oomCount();
   try {
     diagnosticContext = { stage: 'server-start' };
     server = await startServer(scratch.dataDir);
     diagnosticContext = { stage: 'chrome-start' };
     browser = await openChrome(executable, path.join(scratch.target, 'chrome'), { extraArgs: chromeExtraArgs });
+    const evaluate = browser.evaluate.bind(browser);
+    browser.evaluate = (...args) => { server.assertAlive(); return evaluate(...args); };
     diagnosticContext = { stage: 'authenticate' };
     await authenticate(browser, server);
     if (throttled) await browser.send('Network.emulateNetworkConditions', { offline: false, latency: 40, downloadThroughput: 30 * 125000, uploadThroughput: 30 * 125000 });
@@ -705,9 +727,12 @@ async function suite(executable, run, throttled) {
         workerRssFailures: memoryAfter?.workerRssFailures ?? null, diagnostics }, idleSample, results };
   } catch (error) {
     console.error(DIAGNOSTIC_PREFIX + JSON.stringify(safeDiagnostic(error, diagnosticContext)));
+    const oomAfter = await oomCount();
     const rssAtFailureBytes = server ? await server.rss().catch(() => null) : null;
     error.partialSuite = { run, fixtureSha256: scratch.fingerprint, chrome: version?.product,
       mode: throttled ? 'throttled' : 'normal', complete: false, prerequisiteCold,
+      hostOomKillDelta: oomBefore !== null && oomAfter !== null ? Math.max(0, oomAfter - oomBefore) : null,
+      serverExit: server ? { code: server.child.exitCode, signal: server.child.signalCode } : null,
       server: server ? { rssReadyBytes: server.rssReadyBytes, rssAtFailureBytes,
         coldReadyMs: server.readyMs, initializationMs: server.initializationMs } : null,
       failedMeasurement: error.partialMeasurement ?? null, results };
@@ -848,7 +873,7 @@ async function main() {
       timeoutMs: options.timeout, idleSampleMs: options.idleSampleMs, workerIdleMs: process.env.RS3_WORKER_IDLE_MS ?? null, source: options.source, mapAssets: options.mapAssets, terrainAssets: options.terrainAssets, screenshots: options.screenshots, cancellationCheck: options.cancellationCheck, gameData: options.gameData, chromeExecutable: executable,
       serverEntry: options.serverEntry, serverRevision: options.serverRevision, serverEntrySha256, appDir: options.applicationRoot,
       packsDir: options.packsDir ?? null, packSelection: options.packSelection ?? null, port: options.port ?? null, output: options.output ?? null },
-    environment: { node: process.version, chrome: suites[0]?.chrome, chromeExtraArgs, platform: process.platform, viewport: { width:1440,height:900,dpr:1 }, throttle: { mbps:30,latencyMs:40 },
+    environment: { node: process.version, chrome: suites[0]?.chrome, chromeExtraArgs, serverHeapMiB: options.serverHeapMiB ?? null, platform: process.platform, viewport: { width:1440,height:900,dpr:1 }, throttle: { mbps:30,latencyMs:40 },
       gitRevision: execFileSync('git', ['rev-parse', 'HEAD'], { cwd: ROOT, encoding: 'utf8', windowsHide: true }).trim(),
       serverRevision: options.serverRevision, serverEntry: options.serverEntry, serverEntrySha256,
       gitDirty: !!execFileSync('git', ['status', '--porcelain', '--untracked-files=normal'], { cwd: ROOT, encoding: 'utf8', windowsHide: true }).trim(),

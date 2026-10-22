@@ -117,6 +117,7 @@ export async function runBenchmark(values, dependencies = {}) {
         '--source', path.join(scratch, trial.arm), '--packs-dir', packs, '--pack-selection', selection,
         '--runs', '1', '--output', raw, '--label', `${label}-${trial.arm}-${trial.run}-${trial.groupView}`,
         '--scenarios', trial.scenarios.join(','), '--group-view', trial.groupView, '--port', '8960',
+        '--server-heap-mib', '1536',
         '--settlement', request.options.settlement, '--timeout', String(request.options.timeoutMs),
         '--unlock-member', request.options.unlockMember, '--unlock-pick', request.options.unlockPick,
         '--unlock-preview', request.options.unlockPreview, '--unlock-dwell-ms', String(request.options.unlockDwellMs),
@@ -142,6 +143,7 @@ export async function runBenchmark(values, dependencies = {}) {
       samples.push({ run: trial.run, arm: trial.arm, groupView: trial.groupView,
         applicationSha256: sourceHash, fixtureSha256: fixtureHash, datasetDigest: rawReport.suites?.[0]?.server?.dataset?.digest ?? null,
         environment: { node: rawReport.environment?.node, chrome: rawReport.environment?.chrome, platform: rawReport.environment?.platform,
+          serverHeapMiB: rawReport.environment?.serverHeapMiB === 1536 ? 1536 : null,
           chromeExtraArgs: (rawReport.environment?.chromeExtraArgs ?? []).filter(flag => ['--no-sandbox', '--disable-dev-shm-usage'].includes(flag)) },
         observations: extractObservations(rawReport), metrics: extractMetrics(rawReport) });
     }
