@@ -1968,6 +1968,20 @@ test('focused planning rejects changed scope and refreshes a new revision', asyn
   assert.ok(h.find('span', '0 possible tasks'), 'The foreground load won by the planning view still reports current completed tasks');
 });
 
+test('focused planning loading across a note save keeps its answer', async () => {
+  const h = harness(), focused = deferred(); h.context.compact = { ...taskResult(7), format: 'play-v1' };
+  h.run("result = compact; chunkId = '12341'; document.getElementById('chunk-info').hidden = false");
+  h.route(() => focused.promise);
+  const loading = h.run("ensurePlanningResult('12341')"); await flush();
+  // A note save: the server says tasks are unchanged, then the page adopts revision 8.
+  const noted = h.snapshot(); noted.revision++; h.run('rememberUnchangedTaskRevisions(7, 8)'); h.context.noted = noted; h.run('adopt(noted,{},result,false)');
+  focused.resolve(planningResult(7)); assert.equal((await loading).stateRevision, 7);
+  assert.equal((await h.run("ensurePlanningResult('12341')")).stateRevision, 7);
+  assert.equal(h.calls.filter(call => call.path.startsWith('/api/chunk-planning?')).length, 1, 'the kept answer is reused, not fetched again');
+  const played = h.snapshot(); played.revision++; h.adopt(played);
+  assert.equal(h.run('planningResults.size'), 0, 'a gameplay save still drops it');
+});
+
 test('default Tasks tab refreshes through focused planning and task details stay explicit', async () => {
   const h = harness({ realPlanning: true });
   h.context.compact = { ...taskResult(7), format: 'play-v1', tasks: planningResult().rows.map(row => row.task) };

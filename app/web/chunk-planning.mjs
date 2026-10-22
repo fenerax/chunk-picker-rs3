@@ -52,7 +52,9 @@ export function createChunkPlanning(context) {
   }
   function render(chunkId) {
     const snapshot = { memberId: context.memberId(), revision: context.state().revision, chunkId: String(chunkId) }, container = el('div', undefined, 'chunk-content-list');
-    const current = () => context.memberId() === snapshot.memberId && context.state().revision === snapshot.revision
+    // Note and colour saves keep task inputs, so they leave this panel's tasks current.
+    const sameTasks = revision => revision === context.state().revision || !!context.compatibleTaskRevision?.(revision);
+    const current = () => context.memberId() === snapshot.memberId && sameTasks(snapshot.revision)
       && context.state().members.some(member => member.id === snapshot.memberId) && String(context.selectedChunkId()) === snapshot.chunkId
       && context.isChunkOpen?.() !== false;
     const assertCurrent = () => { if (!current()) throw new Error('The player, save or viewed chunk changed. Reopen Chunk Info before viewing this task.'); };
@@ -90,7 +92,7 @@ export function createChunkPlanning(context) {
         try {
           const result = await (context.ensurePlanningResult ? context.ensurePlanningResult(snapshot.chunkId) : ensureResult());
           if (!current() || section.isConnected === false) return;
-          if (result.stateRevision != null && result.stateRevision !== snapshot.revision) throw new Error('Your task list changed. Reopen Chunk Info to refresh this location.');
+          if (result.stateRevision != null && result.stateRevision !== snapshot.revision && !sameTasks(result.stateRevision)) throw new Error('Your task list changed. Reopen Chunk Info to refresh this location.');
           const index = result.format === 'chunk-planning-v1'
             ? { canonical: String, byLocation: new Map([[snapshot.chunkId, new Map(result.rows.map(row => [row.task.id, row]))]]),
               clueLocations: new Map([[snapshot.chunkId, result.clueLocations]]) }

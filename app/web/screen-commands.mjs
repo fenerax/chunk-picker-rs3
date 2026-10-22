@@ -266,7 +266,7 @@ export function createScreenCommands(c) {
     const previousMember = c.memberId; c.state = next; c.taskFactsCache = undefined; c.statePools = pools ?? {};
     c.duoLoadError = undefined; c.duoDetails.clear();
     for (const value of reusedDuo) c.duoResultCache.remember({ ...value, stateRevision: next.revision });
-    c.planningResults.clear();
+    if (!c.compatibleTaskRevision(previousRevision)) c.planningResults.clear();
     if (!c.state.members.some(item => item.id === c.memberId)) c.memberId = c.state.members[0]?.id;
     if (previousMember !== c.memberId) { c.result = undefined; c.shownResult = undefined; c.closeDialog(); }
     if (reuseResult?.memberId === c.memberId) {

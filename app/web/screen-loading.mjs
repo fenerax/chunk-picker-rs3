@@ -247,8 +247,9 @@ export function createScreenLoading(c) {
   async function ensurePlanningResult(id) {
     if (c.sandbox.active) return c.sandbox.ensurePlanningResult(id);
     const requestedMember = c.memberId, revision = c.state.revision, requestedChunk = String(id), sandboxScope = c.sandbox.signature();
-    const current = () => c.sandbox.signature() === sandboxScope && c.memberId === requestedMember && c.state.revision === revision && String(c.chunkId) === requestedChunk && !c.$('chunk-info').hidden;
-    const key = JSON.stringify([requestedMember, revision, requestedChunk]);
+    // Keyed by task inputs: a note save while this loads keeps the answer.
+    const current = () => c.sandbox.signature() === sandboxScope && c.memberId === requestedMember && compatibleTaskRevision(revision) && String(c.chunkId) === requestedChunk && !c.$('chunk-info').hidden;
+    const key = JSON.stringify([requestedMember, canonicalTaskRevision(revision), requestedChunk]);
     if (!current()) throw new Error('The viewed chunk or saved state changed. Reopen Chunk Info.');
     if (c.planningResults.has(key)) return c.planningResults.get(key);
     if (!c.planningRequests.has(key)) {
@@ -261,7 +262,7 @@ export function createScreenLoading(c) {
       request.finally(() => { if (c.planningRequests.get(key) === request) c.planningRequests.delete(key); }).catch(() => {});
     }
     const value = await c.planningRequests.get(key);
-    if (!current() || value.format !== 'chunk-planning-v1' || value.memberId !== requestedMember || value.stateRevision !== revision || String(value.chunkId) !== requestedChunk) {
+    if (!current() || value.format !== 'chunk-planning-v1' || value.memberId !== requestedMember || !compatibleTaskRevision(value.stateRevision) || String(value.chunkId) !== requestedChunk) {
       throw new Error('The viewed chunk or saved state changed while loading location evidence. Reopen Chunk Info.');
     }
     if (c.planningResults.size >= 32) c.planningResults.delete(c.planningResults.keys().next().value);
