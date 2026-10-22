@@ -11,6 +11,7 @@ import { requireHeavyLock, rejectPathLinks } from '../perf/inputs.mjs';
 import { safeDiagnostic, safeStderrTail } from '../perf/diagnostics.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
+const CI_POLICY = Object.freeze({ workerMode: 'process', serverHeapMiB: 1536 });
 async function harnessHash() {
   const hash = createHash('sha256');
   for (const folder of ['scripts/perf', 'scripts/ci']) for (const filename of (await readdir(path.join(ROOT, folder))).sort()) {
@@ -89,13 +90,16 @@ export async function runBenchmark(values, dependencies = {}) {
   const label = path.basename(scratch);
   const env = { ...Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.toUpperCase().startsWith('RS3_'))),
     RS3_DATASET: dataset, RS3_PACKS_DIR: packs, RS3_PACK_SELECTION: selection,
-    RS3_SCRATCH_CDP_PORT: '8961' };
+    RS3_SCRATCH_CDP_PORT: '8961', RS3_TASK_WORKER_MODE: CI_POLICY.workerMode };
   // A clean pack environment: operator profiles or locally installed sidecars must
   // never silently influence a public-pack run.
+  // Match the Windows app topology and contain calculator failures in owned
+  // children instead of sharing the HTTP process's native-worker failure domain.
   for (const key of ['NODE_OPTIONS', 'GH_TOKEN', 'GITHUB_TOKEN']) delete env[key];
   const samples = [], rawFiles = [];
   const report = { schemaVersion: 1, complete: false, base: revisions.A, candidate: revisions.B,
     capturedAt: new Date().toISOString(), saveSha256: expectedSave, harnessSha256: await harnessHash(), request, estimatedSeconds: estimatedSeconds(request),
+    executionPolicy: CI_POLICY,
     method: 'Alternating A,B app trials, same harness; each view starts a fresh scratch server/browser. Lower is better; strict non-overlapping min–max at n>=3.',
     samples, summary: [] };
   const started = performance.now();
@@ -117,7 +121,7 @@ export async function runBenchmark(values, dependencies = {}) {
         '--source', path.join(scratch, trial.arm), '--packs-dir', packs, '--pack-selection', selection,
         '--runs', '1', '--output', raw, '--label', `${label}-${trial.arm}-${trial.run}-${trial.groupView}`,
         '--scenarios', trial.scenarios.join(','), '--group-view', trial.groupView, '--port', '8960',
-        '--server-heap-mib', '1536',
+        '--server-heap-mib', String(CI_POLICY.serverHeapMiB),
         '--settlement', request.options.settlement, '--timeout', String(request.options.timeoutMs),
         '--unlock-member', request.options.unlockMember, '--unlock-pick', request.options.unlockPick,
         '--unlock-preview', request.options.unlockPreview, '--unlock-dwell-ms', String(request.options.unlockDwellMs),
@@ -144,6 +148,7 @@ export async function runBenchmark(values, dependencies = {}) {
         applicationSha256: sourceHash, fixtureSha256: fixtureHash, datasetDigest: rawReport.suites?.[0]?.server?.dataset?.digest ?? null,
         environment: { node: rawReport.environment?.node, chrome: rawReport.environment?.chrome, platform: rawReport.environment?.platform,
           serverHeapMiB: rawReport.environment?.serverHeapMiB === 1536 ? 1536 : null,
+          workerMode: ['process', 'thread', 'platform-default'].includes(rawReport.environment?.workerMode) ? rawReport.environment.workerMode : null,
           chromeExtraArgs: (rawReport.environment?.chromeExtraArgs ?? []).filter(flag => ['--no-sandbox', '--disable-dev-shm-usage'].includes(flag)) },
         observations: extractObservations(rawReport), metrics: extractMetrics(rawReport) });
     }

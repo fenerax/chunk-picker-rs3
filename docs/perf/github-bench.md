@@ -18,6 +18,10 @@ Node 24 and Chrome are required; no npm install is needed. `CHROME_PATH` or
 8968 without listening. Run local measurements through the shared heavy wrapper.
 Hosted Linux uses `--no-sandbox --disable-dev-shm-usage`, matching the existing
 gallery CI lane; each scalar sample records these effective extra flags.
+The CI driver sets `RS3_TASK_WORKER_MODE=process` for imports and measurements,
+matching the Windows production topology. Each calculator runs in an owned child
+process; reports record the worker policy. Direct `npm run perf` retains the
+platform default. Compare samples with the same worker topology.
 The CI driver pins the server and calculator old-generation heaps to 1536 MiB
 to leave memory for concurrent lanes, Chrome and native buffers on a standard
 runner. This is an old-generation limit, not an RSS cap. Reports record it;
@@ -50,9 +54,10 @@ is explicit. Direct PC harness defaults remain unchanged.
 
 An omitted cold scenario still incurs initial-load conditioning for interactions.
 Default arithmetic is 12 app/view trials × 90 seconds + 180 seconds for provisioning
-and imports: about 21 minutes. These are planning estimates pending hosted runner
-receipts, not measured costs. Larger dwell, extra scenarios and slower revisions
-can exceed the default estimate; the workflow stops after 40 minutes.
+and imports: about 21 minutes. Default cost validation remains pending; the short
+hosted receipts below do not measure a complete default run. Larger dwell, extra
+scenarios and slower revisions can exceed the default estimate; the workflow
+stops after 40 minutes.
 
 The runner writes `perf-report.json`, `perf-report.md` and a short step-summary
 table. Each metric has medians, min–max, sample counts and B−A. Lower is better.
@@ -84,6 +89,48 @@ sample's scalar observations retain both facts.
 RSS includes HTTP-process samples and a separate total adding calculator processes
 once each, outside timing. It excludes Chrome and is not peak memory. Cold does
 not flush OS file caches.
+
+## Hosted verification receipts
+
+These Linux runs used the same app in both arms, `a0ec3ea`, with native-thread
+calculators. They remain separate from the current process-worker policy, which
+has not been verified on a hosted runner.
+
+Run `39704315859`, using tools `edbe1b5`, completed one unprepared Unlock per arm,
+Group off, with the 1536 MiB heap policy. Driver time was 177.259 seconds; the job
+took 3m34s. Worker intervals below are derived from retained matching worker
+receipt/completion observations. Both task HTTP responses were cache hits while
+fresh post-click worker calculations were observed.
+
+| Unlock observation | A (n=1) | B (n=1) |
+| --- | ---: | ---: |
+| Click → task fetch (ms) | 280.800 | 365.600 |
+| Worker receipt from click (ms) | 264.333 | 356.008 |
+| Worker completion from click (ms) | 5209.201 | 5216.403 |
+| Task fetch → worker receipt (ms, signed) | −16.467 | −9.592 |
+| Worker calculation (ms) | 4944.868 | 4860.396 |
+| Worker completion → paint (ms) | 1228.299 | 1368.097 |
+| Click → paint (ms) | 6437.500 | 6584.500 |
+| Total server RSS after (MiB) | 2244.35 | 2236.73 |
+
+Reload-only run `39703358815` also completed, with Group off and n=1 per arm,
+using Node's default heap policy. Task paint was 4528.0 / 5212.3 ms for A / B;
+driver time was 147.782 seconds. Neither short run establishes a speed change or
+an A/A noise floor.
+
+The final full request, run `39705763652`, requested three repetitions and both
+views with unprepared Unlock. It failed during A1/Group-off Unlock after cold and
+reload, with server `SIGTRAP` and host OOM-kill counter delta `0`. Driver time was
+195.122 seconds; the job took 4m10s. It produced zero complete app/view trials.
+The cause of the fatal trap is unresolved; the process-worker policy is an
+isolation change, not a demonstrated cure.
+
+The original request plus seven new requests exhausted the eight-request budget.
+The full A/A noise floor remains unavailable. Hosted verification is still needed
+for the process-mode cold → reload → unprepared Unlock sequence, both group
+views, panels/search, cold at 30 Mbps, total memory, and complete default cost.
+
+## Private workflow
 
 The private workflow and local helper live outside this public checkout in the
 operator's `perf-gh` tools directory. Claude installs `perf-bench.yml` at

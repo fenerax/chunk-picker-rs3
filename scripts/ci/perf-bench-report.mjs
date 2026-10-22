@@ -94,6 +94,7 @@ export function reportMarkdown(report, { short = false } = {}) {
   const rows = short ? report.summary.filter(row => headline.test(row.metric)) : report.summary;
   return ['# App performance A/B', '', `A: \`${report.base}\`; B: \`${report.candidate}\`.`,
     `Completed: ${report.complete}. ${report.samples.length} measured app/view trials; ${report.request.runs} repetitions per arm/view.`, '',
+    ...(report.executionPolicy ? [`Execution policy: ${report.executionPolicy.workerMode === 'process' ? 'process' : 'unspecified'} calculator workers; server/calculator old-generation heap ${report.executionPolicy.serverHeapMiB === 1536 ? '1536 MiB' : 'unspecified'}. Keep different worker/heap policies separate.`, ''] : []),
     'Lower is better. A win/loss requires at least three complete samples per arm and strictly non-overlapping observed min–max ranges. Overlap is noise; absent observations are missing. This is a conservative descriptive rule, not a confidence interval.', '',
     'Request → calculation start is signed: a negative value means Unlock handling started the worker before the browser task fetch. The other breakdown parts are durations; their sum still equals click → paint. An HTTP cache hit can follow fresh post-click worker calculation.', '',
     ...(report.diagnostic ? [`Failure context: ${JSON.stringify(report.failureContext)}.`,

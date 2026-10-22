@@ -153,12 +153,13 @@ test('paired orchestration imports twice, alternates, writes safe reports and cl
   const report = await runBenchmark({ 'a-dir': root, 'b-dir': root, save, 'save-sha256': saveHash,
     'packs-dir': root, 'output-dir': output, runs: '3', scenarios: 'cold', options: '{"groupViews":["off"]}' }, {
     revision: async () => revision,
-    execute: async (script, args) => {
+    execute: async (script, args, { env }) => {
+      assert.equal(env.RS3_TASK_WORKER_MODE, 'process');
       if (script.endsWith('perf-bench-import.mjs')) { imported.push(args[2]); await mkdir(args[2]); return; }
       assert.equal(args[args.indexOf('--server-heap-mib') + 1], '1536');
       calls.push(args[args.indexOf('--label') + 1].match(/-([AB])-([0-9]+)-off$/).slice(1).join(''));
       await writeFile(args[args.indexOf('--output') + 1], JSON.stringify({ applicationSource: { sha256: 'b'.repeat(64) },
-        fixture: { sha256: 'c'.repeat(64), source: 'fixture-private' }, environment: { node: 'v24.0.0', chrome: 'Chrome/1', platform: 'linux' },
+        fixture: { sha256: 'c'.repeat(64), source: 'fixture-private' }, environment: { node: 'v24.0.0', chrome: 'Chrome/1', platform: 'linux', workerMode: 'process', serverHeapMiB: 1536 },
         suites: [{ mode: 'normal', server: { rssReadyBytes: 1048576, rssAfterBytes: 2097152 },
           results: [{ name: 'cold', milestones: { tasksPaintedMs: 20 }, network: { totals: {} } }] }] }));
     },
@@ -167,8 +168,11 @@ test('paired orchestration imports twice, alternates, writes safe reports and cl
   assert.deepEqual(calls, ['A1','B1','A2','B2','A3','B3']);
   assert.equal(report.complete, true);
   assert.equal(report.samples.length, 6);
+  assert.deepEqual(report.executionPolicy, { workerMode: 'process', serverHeapMiB: 1536 });
+  assert.ok(report.samples.every(sample => sample.environment.workerMode === 'process' && sample.environment.serverHeapMiB === 1536));
   assert.doesNotMatch(await readFile(path.join(output, 'perf-report.json'), 'utf8'), /fixture-private|scratch-/);
   assert.match(await readFile(path.join(output, 'perf-report.md'), 'utf8'), /non-overlapping/);
+  assert.match(await readFile(path.join(output, 'perf-report.md'), 'utf8'), /process calculator workers/);
   for (const directory of imported) await assert.rejects(readFile(path.join(directory, 'state.json')), { code: 'ENOENT' });
   assert.match(reportMarkdown(report, { short: true }), /cold.tasksPainted.ms/);
 });
@@ -179,8 +183,11 @@ test('failed imports retain only a scalar failure report and discard ambient ope
   const save = path.join(root, 'save.json'); await writeFile(save, '{}');
   await writeFile(path.join(root, 'selection.json'), '{}');
   const previous = process.env.RS3_ICON_ASSETS_DIR;
+  const previousMode = process.env.RS3_TASK_WORKER_MODE;
   process.env.RS3_ICON_ASSETS_DIR = 'fixture-private-icons';
+  process.env.RS3_TASK_WORKER_MODE = 'thread';
   t.after(() => { if (previous === undefined) delete process.env.RS3_ICON_ASSETS_DIR; else process.env.RS3_ICON_ASSETS_DIR = previous; });
+  t.after(() => { if (previousMode === undefined) delete process.env.RS3_TASK_WORKER_MODE; else process.env.RS3_TASK_WORKER_MODE = previousMode; });
   let imported;
   const output = path.join(root, 'report');
   await assert.rejects(runBenchmark({ 'a-dir': root, 'b-dir': root, save, 'packs-dir': root, 'output-dir': output,
@@ -190,6 +197,7 @@ test('failed imports retain only a scalar failure report and discard ambient ope
       assert.equal(env.RS3_ICON_ASSETS_DIR, undefined);
       assert.equal(env.GH_TOKEN, undefined); assert.equal(env.GITHUB_TOKEN, undefined);
       assert.equal(env.RS3_DATASET, 'duo-legacy');
+      assert.equal(env.RS3_TASK_WORKER_MODE, 'process');
       imported = args[2]; await mkdir(imported);
       const error = Error('fixture-private-save-value');
       error.stderrTail = ['fixture-private-save-value', DIAGNOSTIC_PREFIX + JSON.stringify({ errorClass: 'Error', message: 'CDP Runtime.evaluate timed out.', stage: 'measure', scenario: 'cold' })];
@@ -198,6 +206,7 @@ test('failed imports retain only a scalar failure report and discard ambient ope
   }), /benchmark child or integrity check failed/);
   const json = await readFile(path.join(output, 'perf-report.json'), 'utf8'), report = JSON.parse(json);
   assert.equal(report.complete, false);
+  assert.deepEqual(report.executionPolicy, { workerMode: 'process', serverHeapMiB: 1536 });
   assert.deepEqual(report.failureContext, { operation: 'import', arm: 'A' });
   assert.equal(report.diagnostic.errorClass, 'Error');
   assert.match(report.diagnostic.stderrTail[0], /Runtime.evaluate timed out/);

@@ -212,7 +212,7 @@ test('parent server RSS remains numeric while exposing sampled process totals', 
   let forkOptions;
   const { safeDiagnostic, safeStderrTail, DIAGNOSTIC_PREFIX } = await import('../scripts/perf/diagnostics.mjs');
   const diagnostics = [];
-  const context = vm.createContext({ path, performance, process: { env: {}, execArgv: [] }, ROOT: path.resolve('harness'), setTimeout, clearTimeout, URL,
+  const context = vm.createContext({ path, performance, process: { env: { RS3_TASK_WORKER_MODE: 'process' }, execArgv: [] }, ROOT: path.resolve('harness'), setTimeout, clearTimeout, URL,
     safeDiagnostic, safeStderrTail, DIAGNOSTIC_PREFIX, diagnosticContext: { stage: 'measure', scenario: 'unlock' }, console: { error: value => diagnostics.push(value) },
     options: { timeout: 1000, port: 8964, serverHeapMiB: 1536, applicationRoot: path.resolve('external') },
     fork: (script, args, config) => { forkOptions = config; queueMicrotask(() => child.emit('message', { type: 'ready', inviteUrl: 'http://127.0.0.1:8964/join/synthetic', readyMs: 5, rssBytes: 123 })); return child; },
@@ -224,6 +224,7 @@ test('parent server RSS remains numeric while exposing sampled process totals', 
   assert.equal(server.latestMemory.totalRssBytes, 623);
   assert.equal(server.latestMemory.workersRssBytes, 500);
   assert.deepEqual(Array.from(forkOptions.execArgv), ['--max-old-space-size=1536', '--import', new URL('../scripts/perf/worker-timeline.mjs', import.meta.url).href]);
+  assert.equal(forkOptions.env.RS3_TASK_WORKER_MODE, 'process');
   child.exitCode = null; child.signalCode = 'SIGKILL'; child.emit('exit', null, 'SIGKILL');
   await assert.rejects(server.rss(), /Scratch server exited unexpectedly \(SIGKILL\)/);
   assert.match(diagnostics[0], /SIGKILL/);
