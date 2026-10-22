@@ -16,6 +16,8 @@ node scripts/ci/perf-bench.mjs --a-dir ../base --b-dir ../candidate \
 Node 24 and Chrome are required; no npm install is needed. `CHROME_PATH` or
 `--chrome` selects Chrome. Servers use 8960, Chrome CDP 8961, and import reserves
 8968 without listening. Run local measurements through the shared heavy wrapper.
+Hosted Linux uses `--no-sandbox --disable-dev-shm-usage`, matching the existing
+gallery CI lane; each scalar sample records these effective extra flags.
 `--save-sha256` accepts a different explicitly pinned synthetic fixture. Production
 defaults to the approved scrubbed-v2 SHA256, checked before either import.
 `--dataset open-f2p` is available for a small synthetic smoke; CI uses `duo-legacy`.
@@ -48,6 +50,12 @@ table. Each metric has medians, min–max, sample counts and B−A. Lower is bet
 At least three complete samples and strictly disjoint observed ranges are needed
 for a win/loss. Overlap is noise; absent instrumentation is missing. An n=1 smoke
 cannot establish a speed change. Individual scalar samples remain in JSON.
+Failure reports include the app/run/view, child exit status, failing stage and
+scenario, error class, allowlisted message and source basenames/line numbers.
+The stderr tail accepts only known harness diagnostics. Unrecognized messages,
+JSON bodies, request payloads and arbitrary app/Chrome output are withheld.
+Chrome startup failures distinguish sandbox and debugger-port errors. Unknown
+failures still retain source locations without publishing the exception text.
 
 Unlock records click → task fetch → worker calculation receipt → completion →
 paint, with each interval separately. Worker timestamps come from the same
@@ -65,7 +73,7 @@ operator's `perf-gh` tools directory. Claude installs `perf-bench.yml` at
 `.github/workflows/perf-bench.yml` on the private repository's orphan `bench/tools`
 commit. That commit needs this complete tools tree, including `.github/packs`,
 `scripts/perf`, `scripts/ci`, `app` and their relative imports. Each run branch is
-that tools commit plus one commit adding `bench/request.json`:
+that tools commit plus one request commit adding `bench/request.json`:
 
 ```json
 {"base":"<full SHA>","candidate":"<full SHA>","scenarios":["cold","reload","unlock","cold-30mbps","panels","search"],"runs":3,"options":{}}
@@ -79,12 +87,21 @@ separate artifact. Save bytes, data directories and raw harness reports are neve
 artifact paths.
 
 The local helper takes `--repo-dir`, `--base`, `--candidate`, optional comma-separated
-`--scenarios`, `--runs`, `--label`, `--options JSON` and `--wait`. It checks commit
+`--scenarios`, `--runs`, `--label`, `--options JSON`, `--tools-from SHA` and `--wait`. It checks commit
 reachability, author/committer noreply identity and the required private-corpus
-scan before transporting commits. It pushes explicit non-force `bench/cand/*` and
-`bench/run/*` refs to the fixed private HTTPS endpoint. With `--wait`, it watches
+scan before transporting commits. Code uses non-branch `refs/bench/cand/*` refs,
+so transporting it cannot start unrelated push-triggered workflows. Only the
+request uses `refs/heads/bench/run/*`. All pushes use explicit non-force refspecs
+to the fixed private HTTPS endpoint. With `--wait`, it watches
 the exact request commit and downloads `perf-report` into `.local/perf/gh/<run id>`.
 Its isolated bare-repository tests perform no GitHub calls.
+
+`--tools-from` updates runner code without changing `bench/tools`: the helper
+checks the source commit's reachability, attribution and corpus scan using the
+same rules as the candidate. It takes that source tree, removes every workflow,
+and restores only `perf-bench.yml` from the fetched orphan `bench/tools`. The
+request commit still has `bench/tools` as its sole parent. This lets short debug
+requests exercise a committed runner fix before the next full noise-floor run.
 
 For direct harness use, `npm run perf -- --source COPY --packs-dir PACKS_TREE`
 selects public packs; the selection defaults to `PACKS_TREE/selection.json`.

@@ -5,6 +5,7 @@ const fixed = new Set([
   'Chrome executable not found; use --chrome PATH.', 'Unsafe Chrome port.',
   'Chrome sandbox initialization failed.', 'Chrome could not start.',
   'Chrome debugger port is already in use.',
+  'Node heap limit reached.',
   'CDP connection failed.', 'CDP closed.', 'Benchmark browser probe failed.',
   'Scratch server startup timed out.', 'Scratch server could not start.',
   'Scratch server exited during startup.', 'Scratch server startup failed.',
@@ -30,13 +31,16 @@ const patterns = [
 ];
 export const DIAGNOSTIC_PREFIX = 'PERF_DIAGNOSTIC ';
 const classNames = new Set(['Error', 'TypeError', 'RangeError', 'SyntaxError', 'ReferenceError', 'URIError', 'AggregateError']);
+const errorCodes = new Set(['ENOENT', 'EACCES', 'EPERM', 'EADDRINUSE', 'ENOMEM', 'ENOSPC', 'EIO',
+  'EMFILE', 'ENFILE', 'ECONNREFUSED', 'ECONNRESET', 'ETIMEDOUT', 'EPIPE',
+  'ERR_MODULE_NOT_FOUND', 'ERR_PACKAGE_PATH_NOT_EXPORTED', 'ERR_DLOPEN_FAILED', 'ERR_WORKER_OUT_OF_MEMORY']);
 export function safeMessage(value) {
   const message = typeof value === 'string' ? value : '';
   return fixed.has(message) || patterns.some(pattern => pattern.test(message)) ? message : 'Unrecognized error message withheld.';
 }
 export function safeDiagnostic(error, context = {}) {
   const result = { errorClass: classNames.has(error?.name) ? error.name : 'Error', message: safeMessage(error?.message) };
-  if (/^(?:E[A-Z0-9_]+|ERR_[A-Z0-9_]+)$/.test(error?.code ?? '')) result.code = error.code;
+  if (errorCodes.has(error?.code)) result.code = error.code;
   if (['import', 'copy', 'server-start', 'chrome-start', 'authenticate', 'measure', 'prepare-unlock', 'interactions', 'diagnostics', 'rss', 'screenshots', 'cleanup', 'integrity'].includes(context.stage)) result.stage = context.stage;
   if (new RegExp(`^${scenario}$`).test(context.scenario ?? '')) result.scenario = context.scenario;
   // Basenames and line numbers are enough to locate unknown failures; no stack
@@ -47,6 +51,7 @@ export function safeDiagnostic(error, context = {}) {
 }
 export function safeStderrTail(value) {
   return String(value).split(/\r?\n/).flatMap(line => {
+    if (/FATAL ERROR: (?:Reached heap limit|Ineffective mark-compacts near heap limit)/.test(line)) return ['Node heap limit reached.'];
     if (line.startsWith(DIAGNOSTIC_PREFIX)) {
       try {
         const input = JSON.parse(line.slice(DIAGNOSTIC_PREFIX.length));

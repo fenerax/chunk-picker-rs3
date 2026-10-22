@@ -26,6 +26,9 @@ test('failure diagnostics allow harness messages and locations but never arbitra
   assert.doesNotMatch(JSON.stringify({ diagnostic, tail }), /fixture-private|state|body|save.json/);
   assert.match(tail[0], /Runtime.evaluate timed out/);
   assert.equal(chromeStartupMessage('[pid] No usable sandbox! private-fixture'), 'Chrome sandbox initialization failed.');
+  assert.deepEqual(safeStderrTail('FATAL ERROR: Reached heap limit Allocation failed - fixture-private'), ['Node heap limit reached.']);
+  assert.equal(safeDiagnostic({ code: 'ERR_PRIVATE_FIXTURE' }).code, undefined);
+  assert.equal(safeDiagnostic({ code: 'ENOMEM' }).code, 'ENOMEM');
 });
 
 test('signal-terminated Chrome fails immediately with an allowlisted startup cause', async () => {
