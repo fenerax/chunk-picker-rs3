@@ -770,7 +770,9 @@ async function suite(executable, run, throttled) {
         await prepareNoteUI(browser, chunk);
         results.push(await measureNoteEdit(browser, server, 'note-save', SYNTHETIC_NOTE, member));
         diagnosticContext = { stage: 'prepare-note', scenario: 'note-clear' };
-        await settleNoteUI(browser, await browser.evaluate('performance.now()'), SYNTHETIC_NOTE);
+        // A note save moves no map, so no fresh tile mark follows it; the
+        // viewport loaded before the save still counts.
+        await settleNoteUI(browser, 0, SYNTHETIC_NOTE);
         const cleared = await measureNoteEdit(browser, server, 'note-clear', '', member);
         const restored = await browser.evaluate(`fetch('/api/state',{cache:'no-store'}).then(r=>r.json()).then(({state})=>state.members.every(m=>!m.notes?.[${JSON.stringify(chunk)}]))`);
         if (restored !== true) throw new Error('Scratch note clear did not restore the copied save.');
