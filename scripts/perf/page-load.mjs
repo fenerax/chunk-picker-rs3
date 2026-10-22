@@ -24,10 +24,12 @@ const chromeExtraArgs = process.platform === 'linux' && process.env.GITHUB_ACTIO
   ? ['--no-sandbox', '--disable-dev-shm-usage'] : [];
 let diagnosticContext = {};
 const options = { runs: 3, label: 'baseline', timeout: 180000, prewarm: 'on', groupView: 'off', unlockMember: 'player1', unlockPick: 'any', unlockPreview: 'off', unlockDwellMs: 0, settlement: 'idle', cpuProfile: 'off', screenshots: 'off', cancellationCheck: 'off', idleSampleMs: 0, scenarios: ['cold', 'reload', 'switch-player2', 'switch-player1', 'unlock', 'cold-30mbps'] };
+// Even, so the alternating save/clear burst ends with the copied save's notes.
+const SAVE_BURST_COMMANDS = 20;
 const usage = `Usage: npm run perf -- [options]
   --runs N               Independent repetitions (default 3); medians reported
   --label NAME           Output label (default baseline; letters/numbers/-/_)
-  --scenarios LIST       Comma-separated scenarios: cold,reload,switch-player2,switch-player1,unlock,cold-30mbps,panels,search,note-save,personal-filter
+  --scenarios LIST       Comma-separated scenarios: cold,reload,switch-player2,switch-player1,unlock,cold-30mbps,panels,search,note-save,personal-filter,save-burst
   --timeout MS           Deadline for each measurement (default 180000)
   --prewarm on|off        Prediction prewarming (default on); controlled experiment
   --group-view on|off     Group task view (default off); on waits for the complete duo
@@ -64,6 +66,7 @@ Cold first visits authenticate without navigating the app, then clear browser ca
 Reload retains HTTP cache; 30 Mbps uses 40 ms CDP latency, 30 Mbps in both directions.
 Unlock changes only the scratch save through the existing Search and Unlock UI.
 Note save writes, then clears, a fixed synthetic note on an unlocked scratch chunk.
+Save burst commits ${SAVE_BURST_COMMANDS} alternating note saves/clears from a second scratch session.
 `;
 function parse(args) {
   for (let i = 0; i < args.length; i++) {
@@ -125,7 +128,7 @@ function parse(args) {
   if (options.serverRevision && !/^[a-f0-9]{7,40}$/i.test(options.serverRevision)) throw new Error('--server-revision must be a Git revision hash.');
   if (options.port !== undefined && (!Number.isInteger(options.port) || options.port < 8960 || options.port > 8969)) throw new Error('--port must be an integer from 8960 through 8969.');
   if (options.serverHeapMiB !== undefined && (!Number.isInteger(options.serverHeapMiB) || options.serverHeapMiB < 512 || options.serverHeapMiB > 4096)) throw new Error('--server-heap-mib must be an integer from 512 through 4096.');
-  if (!options.scenarios.length || options.scenarios.some(s => !['cold', 'reload', 'switch-player2', 'switch-player1', 'unlock', 'cold-30mbps', 'panels', 'search', 'note-save', 'personal-filter'].includes(s))) throw new Error('Unknown scenario.');
+  if (!options.scenarios.length || options.scenarios.some(s => !['cold', 'reload', 'switch-player2', 'switch-player1', 'unlock', 'cold-30mbps', 'panels', 'search', 'note-save', 'personal-filter', 'save-burst'].includes(s))) throw new Error('Unknown scenario.');
   return true;
 }
 function inside(base, target) {
@@ -249,12 +252,17 @@ async function startServer(dataDir) {
     throw error;
   }
 }
-async function authenticate(browser, server) {
-  // Follow no redirect: this obtains a scratch session without loading/warming the app.
+// Follow no redirect: this obtains a scratch session without loading/warming the app.
+// Each call joins a separate session through the scratch server's reusable link.
+async function scratchSession(server) {
   const response = await fetch(server.inviteUrl, { redirect: 'manual' });
   const setCookie = response.headers.get('set-cookie');
+  await response.body?.cancel();
   if (![302, 303].includes(response.status) || !setCookie) throw new Error('Scratch authentication failed.');
-  const [pair] = setCookie.split(';'); const split = pair.indexOf('=');
+  return setCookie.split(';')[0];
+}
+async function authenticate(browser, server) {
+  const pair = await scratchSession(server), split = pair.indexOf('=');
   await browser.send('Network.setCookie', { name: pair.slice(0, split), value: pair.slice(split + 1), url: server.origin,
     path: '/', httpOnly: true, sameSite: 'Lax' });
   await browser.send('Network.clearBrowserCache');
@@ -370,7 +378,7 @@ function loadedViewport(snapshot) {
   const lastTiles = snapshot.events.findLast(event => event.name === 'visible-tiles-loaded');
   return lastTiles?.visible > 0 && !lastTiles.failed && (!lastTerrain || lastTiles.time >= lastTerrain.time) ? lastTiles : null;
 }
-async function measure(browser, name, action, { navigation = false, revision, member, reuseTerrain = false, settlement = options.settlement, calculations = [] } = {}) {
+async function measure(browser, name, action, { navigation = false, revision, member, reuseTerrain = false, settlement = options.settlement, calculations = [], settle } = {}) {
   diagnosticContext = { stage: 'measure', scenario: name };
   console.log(`  Measuring ${name}...`);
   const network = networkCollector(browser), wallStart = performance.now();
@@ -410,6 +418,12 @@ async function measure(browser, name, action, { navigation = false, revision, me
       if (navigation && (!Number.isFinite(snapshot.timeOrigin) || snapshot.timeOrigin === previousTimeOrigin)) return false;
       if (!navigation && snapshot.timeOrigin !== previousTimeOrigin) throw new Error('Scratch document changed during interaction.');
       if (snapshot.taskError) throw new Error(`Task status failed in ${name}.`);
+      if (settle) {
+        // Remote catch-up need not repaint tasks or move the map; the scenario says when it is done.
+        const ready = settle(snapshot, from, network), idle = network.idle();
+        if (idle && ready) idleAt ??= snapshot.now - from;
+        return ready && (idle || settlement === 'tasks');
+      }
       const freshTask = snapshot.events.some(event => event.name === taskMilestoneEvent() && event.time >= from && (!member || event.memberId === member) && (!revision || event.revision >= revision));
       const painted = snapshot.events.some(event => event.name === (options.taskMilestone === 'duo' ? 'duo-tasks-painted' : 'tasks-painted') && event.time >= from && (!member || event.memberId === member) && (!revision || event.revision >= revision));
       const ready = snapshot.tasksReady && freshTask && painted && (!revision || snapshot.savedRevision >= revision) && (!member || snapshot.member === member);
@@ -529,6 +543,44 @@ async function measureNoteEdit(browser, server, name, text, member) {
     if(!t||!b||b.disabled)throw Error('Note editor missing');t.value=${JSON.stringify(text)};t.dispatchEvent(new Event('input',{bubbles:true}));const at=performance.now();b.click();return at;})()`),
   { revision: before.savedRevision + 1, member, reuseTerrain: true, calculations: server.calculations });
   result.note = { edit: text ? 'save' : 'clear', syntheticLength: text.length };
+  return result;
+}
+// A duo partner's quick edits, sent from a second scratch session outside Chrome:
+// the measured page hears of them only through its own live channel. Sequential
+// and each on the revision the last one produced, as one hurried client would.
+async function saveBurst(server, cookie, { member, chunk, revision }) {
+  for (let index = 0; index < SAVE_BURST_COMMANDS; index++) {
+    const response = await fetch(`${server.origin}/api/command?view=play-v1`, { method: 'POST',
+      headers: { 'Content-Type': 'application/json', Cookie: cookie, Origin: server.origin },
+      body: JSON.stringify({ expectedRevision: revision + index,
+        command: { type: 'set-note', memberId: member, chunkId: chunk, note: index % 2 ? '' : SYNTHETIC_NOTE } }) });
+    const value = await response.json().catch(() => null);
+    // Command number and status only: a refusal body can quote the save.
+    if (!response.ok || value?.state?.revision !== revision + index + 1) throw new Error(`Save burst command ${index + 1} failed (${response.status}).`);
+  }
+}
+async function measureSaveBurst(browser, server, target, member) {
+  const final = target.revision + SAVE_BURST_COMMANDS, cookie = await scratchSession(server);
+  const sync = request => !request.excluded && ['/api/state', '/api/tasks'].includes(request.route);
+  let lastCommittedMs, caughtUpMs = null;
+  const result = await measure(browser, 'save-burst', async () => {
+    // Page clock read just before the first send; the CDP round trip bounds the offset.
+    const at = await browser.evaluate('performance.now()'), started = performance.now();
+    await saveBurst(server, cookie, target);
+    lastCommittedMs = performance.now() - started;
+    return at;
+  }, { member, revision: final, reuseTerrain: true, calculations: server.calculations, settle: (snapshot, from, network) => {
+    // First badge confirmation at the final revision; an old client may confirm
+    // each step, a draining one may skip straight there.
+    const caughtUp = snapshot.probe.saved.find(event => event.time >= from && event.revision >= final);
+    if (caughtUp) caughtUpMs ??= caughtUp.time - from;
+    const rows = [...network.requests.values()].filter(sync);
+    // Catch-up reads quiet for 750 ms, so a trailing task fetch and paint at the
+    // final revision lands in the window. Notes move no map: no tile mark is required.
+    return caughtUpMs !== null && snapshot.savedRevision >= final && snapshot.tasksReady && rows.every(row => row.end !== undefined)
+      && performance.now() - Math.max(0, ...rows.map(row => row.changedAt)) >= 750 && snapshot.now - from - caughtUpMs >= 750;
+  } });
+  Object.assign(result.milestones, { lastCommittedMs, caughtUpMs });
   return result;
 }
 async function captureViews(browser, run, throttled) {
@@ -786,6 +838,26 @@ async function suite(executable, run, throttled) {
         else results.push(...await measureBrowserInteractions(browser, { timeout: options.timeout, scenarios: ['personal-filter'],
           onScenario: scenario => { diagnosticContext = { stage: 'interactions', scenario }; } }));
       }
+      if (options.scenarios.includes('save-burst')) {
+        diagnosticContext = { stage: 'prepare-burst', scenario: 'save-burst' };
+        const member = await browser.evaluate(`document.getElementById('member').value`);
+        // The other member's note-free unlocked surface chunk (the selected one if solo),
+        // so an even burst restores the copied save. Only IDs and the revision leave the renderer.
+        const target = await browser.evaluate(`Promise.all([fetch('/api/state',{cache:'no-store'}).then(r=>r.json()),fetch('/api/display-world').then(r=>r.json())]).then(([{state},world])=>{
+          const owner=state.members.find(m=>m.id!==${JSON.stringify(member)})??state.members.find(m=>m.id===${JSON.stringify(member)}),surface=new Set(world.surface.map(String));
+          const chunk=owner.unlocked.map(String).filter(id=>/^\\d+$/.test(id)&&surface.has(id)&&state.members.every(m=>!m.notes?.[id])).sort((a,b)=>Number(a)-Number(b))[0]??null;
+          return {member:owner.id,partner:owner.id!==${JSON.stringify(member)},chunk,revision:state.revision};
+        })`);
+        if (!target.chunk) throw new Error('No note-free unlocked chunk available for the scratch save burst.');
+        // Start from a page that already shows the server's revision.
+        await until(() => browser.evaluate(`Number(document.getElementById('save-status')?.title.match(/revision (\\d+)/)?.[1])===${target.revision}&&/[0-9,]+ possible tasks/.test(document.getElementById('task-engine-status')?.textContent??'')`), options.timeout, 60);
+        const burst = await measureSaveBurst(browser, server, target, member);
+        const restored = await browser.evaluate(`fetch('/api/state',{cache:'no-store'}).then(r=>r.json()).then(({state})=>state.revision===${target.revision + SAVE_BURST_COMMANDS}&&state.members.every(m=>!m.notes?.[${JSON.stringify(target.chunk)}]))`);
+        if (restored !== true) throw new Error('Scratch save burst did not restore the copied save.');
+        // Fixed labels only: no chunk, member or note text.
+        burst.burst = { commands: SAVE_BURST_COMMANDS, target: target.partner ? 'partner' : 'selected', restored: true };
+        results.push(burst);
+      }
     }
     diagnosticContext = { stage: 'diagnostics' };
     const diagnostics = await browser.evaluate(`fetch('/api/diagnostics',{cache:'no-store'}).then(r=>r.json()).then(d=>({workerCompileMs:d.worker?.compileMs??null,startupTimingMs:{variantMs:Number.isFinite(d.startupTimingMs?.variantMs)?d.startupTimingMs.variantMs:null,stateResponseMs:Number.isFinite(d.startupTimingMs?.stateResponseMs)?d.startupTimingMs.stateResponseMs:null},taskTimings:d.timingMs,cache:d.cache,counts:d.counts,unlockReuse:d.unlockReuse?Object.fromEntries(['entries','bytes','rawBytes','compressedBytes','limit','byteLimit','hits','admitted','skipped'].map(k=>[k,d.unlockReuse[k]])):undefined,prediction:d.predictionLane?{worker:d.predictionLane.worker,cache:d.predictionLane.cache,prewarm:d.predictionLane.prewarm}:undefined}))`);
@@ -840,7 +912,9 @@ function aggregates(suites) {
       assetClasses: Object.fromEntries(ASSET_CLASSES.map(group => [group, Object.fromEntries(['count', 'transferBytes', 'decodedBodyBytes', 'cachedCount', 'cachedBodyBytes', 'failedCount', 'lastCompletionMs'].map(key => [key, median(runs.map(r => r.network.assetClasses[group][key]))]))])),
       endpointTtfbMs: Object.fromEntries(['state', 'definitions', 'rules', 'tasks', 'mapInfo', 'manifest', 'pins'].map(key => [key, median(runs.flatMap(r => r.network.endpointTtfbMs[key]))])),
       advisoryMaxMs: median(runs.map(r => r.advisoryMaxMs)),
-      longTasks: Object.fromEntries(['count', 'totalMs', 'worstMs'].map(key => [key, median(runs.map(r => r.longTasks[key]))])) };
+      longTasks: Object.fromEntries(['count', 'totalMs', 'worstMs'].map(key => [key, median(runs.map(r => r.longTasks[key]))])),
+      // Catch-up reads: one per event on the old client, fewer when a drain coalesces.
+      ...(name === 'save-burst' ? { stateFetches: median(runs.map(r => r.network.requests.filter(q => q.path === '/api/state').length)) } : {}) };
   });
 }
 const number = value => Number.isFinite(value) ? Math.round(value).toLocaleString('en-US') : '—';
@@ -864,6 +938,9 @@ function reportMarkdown(result) {
   for (const r of measurements) for (const [group, n] of Object.entries(r.networkGroups)) lines.push(`| ${r.scenario} | ${group} | ${number(n.count)} | ${number(n.transferBytes/1024)} | ${number(n.decodedBodyBytes/1024)} | ${number(n.cachedCount)} | ${number(n.cachedBodyBytes/1024)} |`);
   lines.push('', 'Asset classes are an additive breakdown; historical categories above are unchanged. Last completion is the final successful request end relative to scenario start; it can precede visible composition.', '', '| Scenario | Asset class | Requests | Transfer KiB | Decoded KiB | Cached N | Failed N | Last complete ms |', '| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |');
   for (const r of measurements) for (const [group, n] of Object.entries(r.assetClasses)) lines.push(`| ${r.scenario} | ${group} | ${number(n.count)} | ${number(n.transferBytes/1024)} | ${number(n.decodedBodyBytes/1024)} | ${number(n.cachedCount)} | ${number(n.failedCount)} | ${number(n.lastCompletionMs)} |`);
+  for (const r of measurements.filter(row => row.scenario === 'save-burst')) {
+    lines.push('', `Save burst (partner commands from a second session): last committed ${number(r.milestones.lastCommittedMs)} ms, page caught up ${number(r.milestones.caughtUpMs)} ms, tasks painted ${number(r.milestones.tasksPaintedMs)} ms, ${number(r.stateFetches)} state reads, worst long task ${number(r.longTasks.worstMs)} ms.`);
+  }
   if (interactions.length) {
     lines.push('', '| Interaction | N | Content painted ms |', '| --- | ---: | ---: |');
     for (const row of interactions) lines.push(`| ${row.scenario} | ${row.runs} | ${number(row.durationMs)} |`);

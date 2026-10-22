@@ -14,6 +14,8 @@ export const SCENARIOS = Object.freeze({
   // personal filter's first non-group view loads both inspection projections.
   'note-save': { seconds: 20, description: 'synthetic chunk note save and clear, click through command acknowledgement and current task paint' },
   'personal-filter': { seconds: 25, description: 'Group duo personal filter changes through painted rows plus two frames; null with Group off' },
+  // A per-event client has needed ~18 s to absorb 20 remote saves; budget for that tail.
+  'save-burst': { seconds: 35, description: '20 alternating partner note saves/clears from a second session, first send through the page confirming the final revision' },
 });
 export const DEFAULT_SCENARIOS = Object.freeze(['cold', 'reload', 'unlock', 'cold-30mbps', 'panels', 'search']);
 const object = value => value !== null && typeof value === 'object' && !Array.isArray(value);

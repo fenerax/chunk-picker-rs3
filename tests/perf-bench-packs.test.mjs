@@ -279,6 +279,21 @@ test('medians expand note save/clear and the three personal filter rows', () => 
   assert.match(rendered, /\| note-clear \| 1 \|/);
 });
 
+test('save-burst medians carry catch-up milestones and the page state-read count', () => {
+  const start = page.indexOf('function median('), end = page.indexOf('\nasync function sourceProvenance(', start);
+  const context = vm.createContext({ options: { scenarios: ['save-burst'] }, interactionScenarios, ASSET_CLASSES: [], taskMilestoneEvent: () => 'tasks-shown' });
+  vm.runInContext(page.slice(start, end) + '\nglobalThis.aggregate = aggregates; globalThis.render = reportMarkdown;', context);
+  const groups = Object.fromEntries(['appCode', 'dataJson', 'api', 'mapTiles', 'otherAssets'].map(name => [name, {}]));
+  const burst = (caughtUpMs, reads) => ({ name: 'save-burst', milestones: { lastCommittedMs: 400, caughtUpMs, tasksPaintedMs: null }, longTasks: { worstMs: 60 }, advisoryMaxMs: 0,
+    network: { totals: {}, groups, assetClasses: {}, requests: Array.from({ length: reads }, () => ({ path: '/api/state' })).concat({ path: '/api/tasks' }),
+      endpointTtfbMs: { state: [], definitions: [], rules: [], tasks: [], mapInfo: [], manifest: [], pins: [] } } });
+  const suites = [{ server: {}, results: [burst(900, 20)] }, { server: {}, results: [burst(1100, 4)] }];
+  const [row] = context.aggregate(suites);
+  assert.deepEqual([row.scenario, row.runs, row.milestones.caughtUpMs, row.milestones.lastCommittedMs, row.milestones.tasksPaintedMs, row.stateFetches], ['save-burst', 2, 1000, 400, null, 12]);
+  const rendered = context.render({ label: 'synthetic', capturedAt: 'fixture', environment: {}, options: {}, suites, medians: [row], notes: [] });
+  assert.match(rendered, /Save burst .*last committed 400 ms, page caught up 1,000 ms, tasks painted — ms, 12 state reads, worst long task 60 ms\./);
+});
+
 test('all calculation harnesses use provider inputs and pass a pinned pack selection to workers', async () => {
   for (const name of ['unlock-calc', 'unlock-paired', 'unlock-equivalence']) {
     const source = await readFile(new URL(`../scripts/perf/${name}.mjs`, import.meta.url), 'utf8');

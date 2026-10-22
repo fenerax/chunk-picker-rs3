@@ -1,4 +1,4 @@
-import { unlockTimeline, commandTimeline } from '../perf/browser-interactions.mjs';
+import { unlockTimeline, commandTimeline, saveBurstTimeline } from '../perf/browser-interactions.mjs';
 import { sanitizeMemoryTelemetry } from '../perf/diagnostics.mjs';
 
 const numeric = value => typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : null;
@@ -21,6 +21,11 @@ export function extractObservations(report) {
       calculationObserved: timeline.calculationObserved, workerCalculations: timeline.workerCalculations,
       commandMatch: ['single-command', 'ambiguous'].includes(timeline.commandMatch) ? timeline.commandMatch : null,
       workerEvents: workerEvents(result) };
+  }), saveBursts: results(name => name === 'save-burst').map(result => {
+    // Counts and flags only; the burst's chunk, member and text never reach the report.
+    const timeline = saveBurstTimeline(result);
+    return { commands: timeline.commands, stateFetches: timeline.stateFetches, stateFetchesFailed: timeline.stateFetchesFailed,
+      tasksPaintObserved: timeline.tasksPaintObserved, restored: timeline.restored };
   }) };
 }
 export function failureReadiness(report) {
@@ -70,6 +75,8 @@ export function extractMetrics(report) {
         put(`${name}.commandAcknowledged.ms`, timeline.commandAcknowledgedMs);
         put(`${name}.acknowledgedToPaint.ms`, timeline.acknowledgedToPaintMs);
       }
+      // Milestones above already give lastCommitted, caughtUp and tasksPainted.
+      if (name === 'save-burst') put('save-burst.stateFetches.count', saveBurstTimeline(result).stateFetches);
     }
   }
   return metrics;
@@ -109,7 +116,7 @@ export function markdownTable(summary) {
 }
 
 export function reportMarkdown(report, { short = false } = {}) {
-  const headline = /^(unlock\.(clickToRequest|requestToCalculationStart|calculation|doneToPaint|clickToPaint)|cold\.tasksPainted|reload\.tasksPainted|cold-30mbps\.tasksPainted|chunk-info\.paint|possible-tasks\.paint|search\.paint|note-(?:save|clear)\.(?:commandAcknowledged|tasksPainted)|personal-filter-[a-z-]+\.paint|server\.rss-(?:total-)?after)\./;
+  const headline = /^(unlock\.(clickToRequest|requestToCalculationStart|calculation|doneToPaint|clickToPaint)|cold\.tasksPainted|reload\.tasksPainted|cold-30mbps\.tasksPainted|chunk-info\.paint|possible-tasks\.paint|search\.paint|note-(?:save|clear)\.(?:commandAcknowledged|tasksPainted)|personal-filter-[a-z-]+\.paint|save-burst\.(?:lastCommitted|caughtUp|tasksPainted|stateFetches)|server\.rss-(?:total-)?after)\./;
   const rows = short ? report.summary.filter(row => headline.test(row.metric)) : report.summary;
   return ['# App performance A/B', '', `A: \`${report.base}\`; B: \`${report.candidate}\`.`,
     `Completed: ${report.complete}. ${report.samples.length} measured app/view trials; ${report.request.runs} repetitions per arm/view.`, '',
@@ -122,6 +129,7 @@ export function reportMarkdown(report, { short = false } = {}) {
     markdownTable(rows), '', ...(short ? [] : [
     'Unlock starts at the browser click handler. Request sent is the observed task fetch call. Calculation start/done are worker receipt/completion timestamps from the same harness preload on both apps, aligned by epoch clocks. They exclude process relay/queue time before worker receipt. Cache reuse can omit worker events; missing start/done stays missing. Results painted means the matching task DOM event plus two animation frames. Group on waits for both lists.', '',
       'Note save/clear start at the Save chunk note click with fixed synthetic text on a note-free unlocked scratch chunk; clear restores the copied save. Command acknowledged is the end of the one successful command response (missing if a retry makes it ambiguous). Tasks painted is the current task paint at the new revision, as for Unlock. Personal filter rows are Group view only: the select change through the next duo task mark plus two stable frames; Group off records them as missing.', '',
+      'Save burst sends 20 sequential partner note saves/clears from a second scratch session outside the browser (even, so the copied save is restored); zero is the page clock just before the first send. Last committed is the final command response; caught up is the first save-status confirmation of the final revision. Tasks painted is the selected member\'s task paint at that revision and stays missing when the page reuses unchanged results without one. State reads count the page\'s /api/state requests in the window; a per-event client and a draining client differ there by design.', '',
       'Server RSS at ready/after covers the HTTP process and native threads. The separate total-after sample adds calculator process RSS once per process; a failed calculator sample makes the total unavailable. Server sampled peaks use one-second numeric samples and can miss transients; calculators and Chrome are excluded from those peaks. Cold clears browser/server caches but does not flush OS file caches. Profiling is off.', '',
       'The report retains scalar timings, hashes and public tool versions only. Save contents, paths, request bodies, cookies and raw harness reports are excluded.',
       ...(report.failure ? ['', `Failure: ${report.failure}`] : []),

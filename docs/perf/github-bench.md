@@ -55,6 +55,7 @@ is explicit. Direct PC harness defaults remain unchanged.
 | switch-player2 / switch-player1 | 5 each | selected member's current results |
 | note-save (opt-in) | 20 | synthetic note on a note-free unlocked chunk: Save click to command acknowledgement and to current task paint at the new revision, worker receipts recorded; then the clear is measured the same way as `note-clear` and must restore the copied save |
 | personal-filter (opt-in) | 25 | Group view only: duo personal filter group → not-done → only-player → group, each change to the next duo task mark plus two stable frames; Group off rows are null (missing) |
+| save-burst (opt-in) | 35 | a partner's quick edits: 20 sequential note saves/clears on the other member's note-free unlocked chunk (the selected one if solo), sent from a second scratch session outside the browser. From the first send to the last commit, to the page confirming the final revision and to its task paint there (missing when unchanged results are reused); also the page's `/api/state` read count and worst long task. The copied save must be restored |
 
 An omitted cold scenario still incurs initial-load conditioning for interactions.
 Default arithmetic is 12 app/view trials × 90 seconds + 180 seconds for provisioning

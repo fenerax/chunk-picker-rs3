@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import vm from 'node:vm';
-import { browserInteraction, interactionScenarios, measureBrowserInteractions, unlockTimeline, commandTimeline } from '../scripts/perf/browser-interactions.mjs';
+import { browserInteraction, interactionScenarios, measureBrowserInteractions, unlockTimeline, commandTimeline, saveBurstTimeline } from '../scripts/perf/browser-interactions.mjs';
 
 test('Possible Tasks opens its collapsed section and ignores offscreen lazy icons', async () => {
   let now = 0, loaded = false, opened = 0;
@@ -101,6 +101,21 @@ test('note command timeline uses one acknowledged command and counts worker rece
   assert.equal(ambiguous.acknowledgedToPaintMs, null);
   assert.equal(ambiguous.calculationObserved, false);
   assert.equal(commandTimeline().commandMatch, null);
+});
+
+test('save burst timeline counts only the page state reads and leaves an unobserved paint missing', () => {
+  const result = { burst: { commands: 20, target: 'partner', restored: true },
+    milestones: { lastCommittedMs: 410, caughtUpMs: 1200, tasksPaintedMs: null },
+    network: { requests: [{ path: '/api/state', status: 200 }, { path: '/api/state', status: 503 }, { path: '/api/state', cancelled: true },
+      { path: '/api/tasks', status: 200 }, { path: '/api/definitions', status: 200 }] } };
+  const timeline = saveBurstTimeline(result);
+  assert.deepEqual({ ...timeline }, { commands: 20, lastCommittedMs: 410, caughtUpMs: 1200, tasksPaintedMs: null, tasksPaintObserved: false,
+    stateFetches: 3, stateFetchesFailed: 2, restored: true });
+  result.milestones.tasksPaintedMs = 1300;
+  assert.equal(saveBurstTimeline(result).tasksPaintObserved, true);
+  // No network record is unknown, not zero reads.
+  assert.deepEqual([saveBurstTimeline({}).stateFetches, saveBurstTimeline({}).commands, saveBurstTimeline({}).restored], [null, null, false]);
+  assert.equal(saveBurstTimeline({ milestones: { caughtUpMs: -1 } }).caughtUpMs, null);
 });
 
 test('UI measurements run sequentially through the existing browser and return scalar rows', async () => {

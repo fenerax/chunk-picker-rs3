@@ -201,3 +201,19 @@ export function commandTimeline(result = {}) {
     workerCalculations: calculations.length, calculationObserved: calculations.length > 0,
     cacheHit: typeof cache.hit === 'boolean' ? cache.hit : null };
 }
+
+// Partner save burst on the page-load clock: zero is the page clock read just
+// before the first command. Commands come from a second scratch session outside
+// the browser, so the page's own network log holds only its catch-up reads.
+export function saveBurstTimeline(result = {}) {
+  const milestones = result.milestones ?? {}, network = result.network;
+  const reads = (network?.requests ?? []).filter(request => request.path === '/api/state');
+  const painted = numeric(milestones.tasksPaintedMs);
+  return { commands: Number.isInteger(result.burst?.commands) && result.burst.commands > 0 ? result.burst.commands : null,
+    lastCommittedMs: numeric(milestones.lastCommittedMs), caughtUpMs: numeric(milestones.caughtUpMs),
+    // Absent when the page reused results at the final revision without a task paint.
+    tasksPaintedMs: painted, tasksPaintObserved: painted !== null,
+    stateFetches: network ? reads.length : null,
+    stateFetchesFailed: network ? reads.filter(request => request.failed || request.cancelled || request.status >= 400).length : null,
+    restored: result.burst?.restored === true };
+}
