@@ -2,6 +2,15 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "date": "2026-10-22",
+      "title": "Chunk notes save faster",
+      "items": [
+        "Saving or clearing a chunk note no longer recalculates your tasks: the task list stays on screen and is up to date about a second after you click Save, instead of 3 to 5 seconds on a large save",
+        "Death-chunk estimates and unlock previews already worked out stay valid after a note edit instead of starting over",
+        "Chunk Info's Possible Tasks keeps loading when you save a note, instead of asking you to reopen Chunk Info"
+      ]
+    },
+    {
       "date": "2026-10-21",
       "title": "Faster backups",
       "items": [
