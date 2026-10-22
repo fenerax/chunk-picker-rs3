@@ -6,7 +6,7 @@ import { createHash } from 'node:crypto';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { normalizeRequest, measurementPlan, SAVE_SHA256, estimatedSeconds } from './perf-bench-config.mjs';
-import { compareSamples, extractMetrics, reportMarkdown, failureReadiness } from './perf-bench-report.mjs';
+import { compareSamples, extractMetrics, extractObservations, reportMarkdown, failureReadiness } from './perf-bench-report.mjs';
 import { requireHeavyLock, rejectPathLinks } from '../perf/inputs.mjs';
 import { safeDiagnostic, safeStderrTail } from '../perf/diagnostics.mjs';
 
@@ -143,7 +143,7 @@ export async function runBenchmark(values, dependencies = {}) {
         applicationSha256: sourceHash, fixtureSha256: fixtureHash, datasetDigest: rawReport.suites?.[0]?.server?.dataset?.digest ?? null,
         environment: { node: rawReport.environment?.node, chrome: rawReport.environment?.chrome, platform: rawReport.environment?.platform,
           chromeExtraArgs: (rawReport.environment?.chromeExtraArgs ?? []).filter(flag => ['--no-sandbox', '--disable-dev-shm-usage'].includes(flag)) },
-        metrics: extractMetrics(rawReport) });
+        observations: extractObservations(rawReport), metrics: extractMetrics(rawReport) });
     }
     if (await harnessHash() !== report.harnessSha256) throw Error('Harness changed during paired measurement.');
     report.complete = true;

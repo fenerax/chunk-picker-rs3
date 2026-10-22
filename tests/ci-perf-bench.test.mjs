@@ -7,7 +7,7 @@ import { createHash } from 'node:crypto';
 import { EventEmitter } from 'node:events';
 import { openChrome } from '../scripts/perf/cdp.mjs';
 import { normalizeRequest, measurementPlan, estimatedSeconds } from '../scripts/ci/perf-bench-config.mjs';
-import { distribution, compareSamples, extractMetrics, reportMarkdown, failureReadiness } from '../scripts/ci/perf-bench-report.mjs';
+import { distribution, compareSamples, extractMetrics, extractObservations, reportMarkdown, failureReadiness } from '../scripts/ci/perf-bench-report.mjs';
 import { verifySave, runBenchmark, parseArguments } from '../scripts/ci/perf-bench.mjs';
 import { prepareImport } from '../scripts/ci/perf-bench-import.mjs';
 import { safeDiagnostic, safeStderrTail, DIAGNOSTIC_PREFIX, chromeStartupMessage } from '../scripts/perf/diagnostics.mjs';
@@ -111,6 +111,12 @@ test('metric extraction excludes raw save, URL, cache text and fixture paths', (
   assert.equal(metrics['server.rss-ready.MiB'], 1);
   assert.equal(metrics['cold.wire.KiB'], 2);
   assert.doesNotMatch(JSON.stringify(metrics), /fixture-private|secret/);
+  const observations = extractObservations({ suites: [{ results: [{ name: 'unlock', taskCalculation: { hit: true, note: 'fixture-private' },
+    taskIdentity: { memberId: 'fixture-private', revision: 2 }, serverCalculations: [
+      { memberId: 'fixture-private', revision: 2, startedMs: 10, doneMs: 20, state: 'fixture-private' }] }] }] });
+  assert.equal(observations.unlock[0].cacheHit, true);
+  assert.equal(observations.unlock[0].workerEvents[0].selectedMember, true);
+  assert.doesNotMatch(JSON.stringify(observations), /fixture-private|state|memberId|revision/);
 });
 
 test('checksum mismatch refuses before importing either app', async t => {

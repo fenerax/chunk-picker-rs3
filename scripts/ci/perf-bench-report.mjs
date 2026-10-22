@@ -1,6 +1,17 @@
 import { unlockTimeline } from '../perf/browser-interactions.mjs';
 
 const numeric = value => typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : null;
+export function extractObservations(report) {
+  return { unlock: (report.suites ?? []).flatMap(suite => (suite.results ?? []).filter(result => result.name === 'unlock').map(result => {
+    const timeline = unlockTimeline(result);
+    return { cacheHit: timeline.cacheHit, calculationObserved: timeline.calculationStartMs !== null && timeline.calculationDoneMs !== null,
+      requestMatch: ['observed-task-fetch', 'single-timing-match', 'single-task-request'].includes(timeline.requestMatch) ? timeline.requestMatch : null,
+      workerEvents: (result.serverCalculations ?? []).slice(0, 8).map(event => ({
+        startedMs: numeric(event.startedMs), doneMs: numeric(event.doneMs),
+        selectedMember: event.memberId === result.taskIdentity?.memberId,
+        matchingRevision: event.revision === result.taskIdentity?.revision })) };
+  })) };
+}
 export function failureReadiness(report) {
   const measurement = report?.failedSuite?.failedMeasurement;
   if (!measurement) return null;
