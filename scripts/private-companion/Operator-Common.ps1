@@ -435,8 +435,11 @@ function Stop-OperatorCore($Context, [int]$TimeoutSeconds, [switch]$PreservePaus
                 if (-not $process) { break }
                 if (Test-OperatorListeners $Context $record) {
                     $token = Get-OperatorToken $Context
-                    if (-not (Test-OperatorListeners $Context $record)) { throw 'Listener ownership changed before graceful shutdown.' }
-                    try { $null = Invoke-RestMethod -Method Post -Uri "http://$($Context.config.host):$($Context.config.port)/api/shutdown" -Headers @{ Authorization = "Bearer $token" } -ContentType 'application/json' -Body '{}' -TimeoutSec 1 } catch { }
+                    # A picker that took the shutdown closes its listeners while it drains saves,
+                    # so unproven ownership here sends nothing and the loop waits for the exit.
+                    if (Test-OperatorListeners $Context $record) {
+                        try { $null = Invoke-RestMethod -Method Post -Uri "http://$($Context.config.host):$($Context.config.port)/api/shutdown" -Headers @{ Authorization = "Bearer $token" } -ContentType 'application/json' -Body '{}' -TimeoutSec 1 } catch { }
+                    }
                 }
                 Start-Sleep -Milliseconds 250
             } while ([DateTime]::UtcNow -lt $until)

@@ -89,9 +89,13 @@ try {
                 Set-ReleaseV2Pointer $now $previous ([ref]$null)
             } elseif (Test-Path -LiteralPath $live.context.runtimeFile) {
                 $runtime = Read-OperatorJson $live.context.runtimeFile
-                if (-not (Get-OperatorOwnedProcess $live.context $runtime)) { Stop-OperatorCore $live.context $TimeoutSeconds -PreservePause -LockOwner $owner }
+                # Only a picker still serving under a running record is kept as it is.
+                # One that is draining, gone or marked stopping is waited out and started fresh.
+                if ($runtime.state -cne 'running' -or -not (Test-OperatorListeners $live.context $runtime)) { Stop-OperatorCore $live.context $TimeoutSeconds -PreservePause -LockOwner $owner }
             }
             Start-OperatorCore $live.context $TimeoutSeconds -PreservePause -LockOwner $owner
+            $runtime = Read-OperatorJson $live.context.runtimeFile
+            if ($runtime.state -cne 'running' -or -not (Test-OperatorListeners $live.context $runtime)) { throw 'Previous release did not come back with its listeners.' }
             Remove-Item -LiteralPath $pause -ErrorAction SilentlyContinue
             $restored = $true
         } catch { $cause += ' / swap back failed: ' + $_.Exception.Message }

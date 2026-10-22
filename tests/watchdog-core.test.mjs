@@ -129,6 +129,27 @@ if (-not (Test-Path -LiteralPath (Join-Path $context.localDir 'picker-paused')))
     assert.match(await readFile(join(scripts, 'Operator-Common.ps1'), 'utf8'), /if \(-not \$PreservePause\) \{ Remove-Item/);
   });
 });
+test('managed Stop waits out a draining writer whose listeners close mid-round', { skip: !available }, async () => {
+  await fixture(async dir => {
+    await execute(dir, `
+$context = [pscustomobject]@{ localDir = ${ps(dir)}; runtimeFile = ${ps(join(dir, 'server-runtime.json'))}; config = [pscustomobject]@{ host = '127.0.0.1'; port = 19888 } }
+Set-Content -LiteralPath $context.runtimeFile -Value '{"state":"running"}'
+function Enter-OperatorLock { return [IO.MemoryStream]::new() }
+function Write-OperatorRuntime { }
+function Assert-OperatorStoreReleased { }
+function Get-OperatorToken { return ('a' * 43) }
+# Round one posts the shutdown; in round two the writer closes its listeners between the checks.
+$global:owned = 4; $global:listeners = @($true, $true, $true, $false); $global:checks = 0; $global:posts = 0
+function Get-OperatorOwnedProcess { if ($global:owned-- -gt 0) { return [pscustomobject]@{ ProcessId = 123 } }; return $null }
+function Test-OperatorListeners { $index = $global:checks++; return ($index -lt $global:listeners.Length -and $global:listeners[$index]) }
+function Invoke-RestMethod { $global:posts++; return @{} }
+$output = Stop-OperatorCore $context 5 -PreservePause
+if ($global:posts -ne 1) { throw "Expected one shutdown post, saw $global:posts" }
+if (Test-Path -LiteralPath $context.runtimeFile) { throw 'Runtime record retained' }
+if ("$output" -notmatch 'Verified writer stopped') { throw "Unexpected output: $output" }
+`);
+  });
+});
 
 // Boot is pinned at 2026-06-01; "before" times predate it, "after" times follow it.
 const bootStub = writer => `
