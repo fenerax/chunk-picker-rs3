@@ -140,7 +140,8 @@ export function createScreenCommands(c) {
       if (reviewCurrent && !reviewCurrent()) throw Object.assign(new Error(reviewedNote !== undefined ? 'The note editor was closed or the selected player changed. Reopen the note before saving.' : 'The original-picker review was closed. Fetch and review again.'), { reviewAbandoned: true });
       const priorRevision = c.state.revision;
       const undoTarget = payload.type === 'undo' ? [...c.state.history].reverse().find(event => event.undo && !event.undoneRevision && (payload.undoRevision === undefined || event.revision === payload.undoRevision)) : null;
-      const displayCommands = [...groupGoalCommandTypes, 'set-preference', 'set-chunk-colour', 'rename-chunk-colour', 'claim-task', 'clear-task-claim', 'prune-task-claims', 'set-rule-review', 'set-finish-line-item', 'add-finish-line-custom', 'set-finish-line-custom', 'delete-finish-line-custom'];
+      // Chunk notes are outside task inputs, so the saving page keeps its list as for colours.
+      const displayCommands = [...groupGoalCommandTypes, 'set-preference', 'set-chunk-colour', 'rename-chunk-colour', 'set-note', 'claim-task', 'clear-task-claim', 'prune-task-claims', 'set-rule-review', 'set-finish-line-item', 'add-finish-line-custom', 'set-finish-line-custom', 'delete-finish-line-custom'];
       const displayOnly = displayCommands.includes(payload.type) || displayCommands.includes(undoTarget?.type);
       const displayResult = displayOnly && c.result?.memberId === c.memberId && c.result.stateRevision === priorRevision ? c.result : null;
       const requestCommand = JSON.parse(JSON.stringify(payload));

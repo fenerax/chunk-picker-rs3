@@ -1362,7 +1362,8 @@ test('an older peer conflict during provisional reads cannot adopt state or rest
   h.run("document.getElementById('group-view').checked = true; renderTasks(); connectEvents()"); await flush();
   assert.equal(h.calls.filter(call => call.requestPath.includes('revision=7')).length, 1);
   h.route(path => path === '/api/command' ? ack.promise : path.includes('reed') ? peer.promise : own.promise);
-  const saving = h.run("command({type:'set-note',memberId:'actor1',chunkId:'12341',note:'Saved note'})"); await flush();
+  // A gameplay save: note saves keep the list and so skip this attempt guard.
+  const saving = h.run(`command({type:'set-task-status',memberId:'actor1',taskId:${JSON.stringify(f.own.id)},challengeCompleted:true})`); await flush();
   const notification = h.eventSources[0].emit('revision', { data: JSON.stringify({ revision: 8 }) }); await flush();
   oldPeer.resolve({ ok: false, status: 409, value: { state: next, pools: {}, format: 'play-v1', message: 'Your saved map changed.' } }); await flush(); await flush();
   assert.equal(h.run('state.revision'), 7); assert.equal(h.run('state.tasks'), baselineTasks); assert.equal(h.run('stateIsPlayView'), false);
