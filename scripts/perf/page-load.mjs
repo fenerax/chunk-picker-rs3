@@ -348,7 +348,7 @@ async function measure(browser, name, action, { navigation = false, revision, me
   console.log(`  Measuring ${name}...`);
   const network = networkCollector(browser), wallStart = performance.now();
   let from = navigation ? 0 : await browser.evaluate('performance.now()');
-  let snapshot, idleAt;
+  let snapshot, idleAt, previousTimeOrigin;
   let profileActive = false;
   const selectedProfile = options.cpuProfile === 'on' && options.scenarios.includes(name);
   const finishProfile = async () => {
@@ -367,13 +367,20 @@ async function measure(browser, name, action, { navigation = false, revision, me
     return filename;
   };
   try {
+    if (navigation) previousTimeOrigin = await browser.evaluate('performance.timeOrigin');
     if (selectedProfile) {
       await browser.send('Profiler.enable'); await browser.send('Profiler.start'); profileActive = true;
     }
     const clickedAt = await action();
     if (!navigation && Number.isFinite(clickedAt)) from = clickedAt;
     await until(async () => {
-      snapshot = await browser.evaluate(snapshotExpression);
+      try { snapshot = await browser.evaluate(snapshotExpression); }
+      catch (error) {
+        // CDP can acknowledge reload before replacing the execution context.
+        if (navigation && error.message === 'CDP Runtime.evaluate failed.') return false;
+        throw error;
+      }
+      if (navigation && (!Number.isFinite(snapshot.timeOrigin) || snapshot.timeOrigin === previousTimeOrigin)) return false;
       if (snapshot.taskError) throw new Error(`Task status failed in ${name}.`);
       const freshTask = snapshot.events.some(event => event.name === taskMilestoneEvent() && event.time >= from && (!member || event.memberId === member) && (!revision || event.revision >= revision));
       const painted = snapshot.events.some(event => event.name === (options.taskMilestone === 'duo' ? 'duo-tasks-painted' : 'tasks-painted') && event.time >= from && (!member || event.memberId === member) && (!revision || event.revision >= revision));

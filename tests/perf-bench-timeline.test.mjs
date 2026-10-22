@@ -23,6 +23,33 @@ test('document-start view survives application preference restoration before cal
   }
 });
 
+test('reload waits for a new document instead of accepting old cold milestones', async () => {
+  const source = await readFile(new URL('../scripts/perf/page-load.mjs', import.meta.url), 'utf8');
+  const events = [{ name: 'tasks-shown', time: 20, memberId: 'player1', revision: 1 },
+    { name: 'tasks-painted', time: 30, memberId: 'player1', revision: 1 }, { name: 'visible-tiles-loaded', time: 25, visible: 1 }];
+  const old = { timeOrigin: 1000, now: 100, events, tasksReady: true, taskError: true, member: 'player1', savedRevision: 1 };
+  const fresh = { ...old, timeOrigin: 2000, taskError: false };
+  let snapshots = 0, action = false, closed = false;
+  const context = vm.createContext({ performance, console: { log() {} }, options: { scenarios: [], cpuProfile: 'off', settlement: 'tasks', timeout: 1000, groupView: 'off', taskMilestone: 'tasks' },
+    diagnosticContext: {}, snapshotExpression: 'snapshot', taskMilestoneEvent: () => 'tasks-shown', number: String,
+    networkCollector: () => ({ requests: new Map(), idle: () => false, close: () => { closed = true; } }),
+    until: async predicate => { for (let index = 0; index < 5; index++) if (await predicate()) return; throw Error('Fixture did not settle'); },
+    metrics: snapshot => ({ observedOrigin: snapshot.timeOrigin, milestones: {}, network: { requests: [], totals: { count: 0 } } }) });
+  vm.runInContext(source.slice(source.indexOf('async function measure('), source.indexOf('\nasync function switchMember(')) + '\nglobalThis.measure = measure;', context);
+  const browser = { evaluate: async expression => {
+    if (expression === 'performance.timeOrigin') { assert.equal(action, false); return 1000; }
+    if (expression !== 'snapshot') return false;
+    snapshots++;
+    if (snapshots === 1) return old;
+    if (snapshots === 2) throw Error('CDP Runtime.evaluate failed.');
+    return fresh;
+  } };
+  const result = await context.measure(browser, 'reload', async () => { action = true; }, { navigation: true, member: 'player1' });
+  assert.equal(snapshots, 3);
+  assert.equal(result.observedOrigin, 2000);
+  assert.equal(closed, true);
+});
+
 test('document probe observes the actual task fetch once and waits two frames for paint', async () => {
   let clock = 0, fetches = 0;
   const frames = [];
