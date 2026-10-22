@@ -7,7 +7,7 @@ import { createHash } from 'node:crypto';
 import { EventEmitter } from 'node:events';
 import { openChrome } from '../scripts/perf/cdp.mjs';
 import { normalizeRequest, measurementPlan, estimatedSeconds } from '../scripts/ci/perf-bench-config.mjs';
-import { distribution, compareSamples, extractMetrics, reportMarkdown } from '../scripts/ci/perf-bench-report.mjs';
+import { distribution, compareSamples, extractMetrics, reportMarkdown, failureReadiness } from '../scripts/ci/perf-bench-report.mjs';
 import { verifySave, runBenchmark, parseArguments } from '../scripts/ci/perf-bench.mjs';
 import { prepareImport } from '../scripts/ci/perf-bench-import.mjs';
 import { safeDiagnostic, safeStderrTail, DIAGNOSTIC_PREFIX, chromeStartupMessage } from '../scripts/perf/diagnostics.mjs';
@@ -41,6 +41,19 @@ test('signal-terminated Chrome fails immediately with an allowlisted startup cau
     fetch: async () => { requested = true; },
   }), /Chrome exited during startup/);
   assert.equal(requested, false);
+});
+
+test('failed trial readiness retains booleans and fixed endpoint statuses only', () => {
+  const readiness = failureReadiness({ failedSuite: { failedMeasurement: { wallMs: 10,
+    lastSnapshot: { tasksReady: false, taskError: false, member: 'fixture-private', milestones: [
+      { name: 'state-adopted', timeMs: 2, memberId: 'fixture-private' }, { name: 'fixture-private', timeMs: 3 } ] },
+    requests: [{ path: '/api/tasks', status: 500, pending: false, body: 'fixture-private' },
+      { path: '/api/fixture-private', status: 404, pending: true }] } } });
+  assert.equal(readiness.tasksReady, false);
+  assert.equal(readiness.pendingCount, 1);
+  assert.deepEqual(readiness.failedEndpoints, [{ path: '/api/tasks', status: 500 }]);
+  assert.equal(readiness.milestones.length, 1);
+  assert.doesNotMatch(JSON.stringify(readiness), /fixture-private|member|body/);
 });
 
 test('starter smoke uses its backup importer; legacy production import remains file-based', async () => {

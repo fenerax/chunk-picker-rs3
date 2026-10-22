@@ -6,7 +6,7 @@ import { createHash } from 'node:crypto';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { normalizeRequest, measurementPlan, SAVE_SHA256, estimatedSeconds } from './perf-bench-config.mjs';
-import { compareSamples, extractMetrics, reportMarkdown } from './perf-bench-report.mjs';
+import { compareSamples, extractMetrics, reportMarkdown, failureReadiness } from './perf-bench-report.mjs';
 import { requireHeavyLock, rejectPathLinks } from '../perf/inputs.mjs';
 import { safeDiagnostic, safeStderrTail } from '../perf/diagnostics.mjs';
 
@@ -152,6 +152,13 @@ export async function runBenchmark(values, dependencies = {}) {
     report.failureContext = stage;
     report.diagnostic = safeDiagnostic(error, { stage: stage.operation });
     report.diagnostic.stderrTail = safeStderrTail((error.stderrTail ?? []).join('\n'));
+    // A failed browser trial may still have numeric readiness observations.
+    // Read only our own partial file and project it through a strict allowlist.
+    const partial = rawFiles.filter(filename => filename.endsWith('-partial.json')).at(-1);
+    if (partial) {
+      try { report.diagnostic.readiness = failureReadiness(JSON.parse(await readFile(partial, 'utf8'))); }
+      catch { /* The child can fail before its partial report exists. */ }
+    }
     console.error(`Benchmark failure: ${JSON.stringify({ ...stage, ...report.diagnostic })}`);
     failed = Error(report.failure);
   } finally {
@@ -182,6 +189,6 @@ async function main() {
   await runBenchmark(values);
   console.log('Performance reports written.');
 }
-if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) main().catch(() => {
-  console.error('Performance run failed; inspect the scalar report if present.'); process.exitCode = 1;
+if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) main().catch(error => {
+  console.error(`Performance run failed: ${JSON.stringify(safeDiagnostic(error))}; inspect the scalar report if present.`); process.exitCode = 1;
 });

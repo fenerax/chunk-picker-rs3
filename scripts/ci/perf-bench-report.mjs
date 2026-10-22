@@ -1,6 +1,22 @@
 import { unlockTimeline } from '../perf/browser-interactions.mjs';
 
 const numeric = value => typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : null;
+export function failureReadiness(report) {
+  const measurement = report?.failedSuite?.failedMeasurement;
+  if (!measurement) return null;
+  const snapshot = measurement.lastSnapshot;
+  const events = new Set(['state-adopted', 'tasks-shown', 'duo-tasks-shown', 'visible-tiles-loaded']);
+  const endpoints = new Set(['/api/state', '/api/definitions', '/api/rules', '/api/tasks', '/api/map-info', '/api/display-world']);
+  const requests = Array.isArray(measurement.requests) ? measurement.requests : [];
+  return { wallMs: numeric(measurement.wallMs),
+    tasksReady: typeof snapshot?.tasksReady === 'boolean' ? snapshot.tasksReady : null,
+    taskError: typeof snapshot?.taskError === 'boolean' ? snapshot.taskError : null,
+    milestones: (Array.isArray(snapshot?.milestones) ? snapshot.milestones : []).filter(event => events.has(event.name))
+      .map(event => ({ name: event.name, timeMs: numeric(event.timeMs), visible: numeric(event.visible), failed: numeric(event.failed) })),
+    requestCount: requests.length, pendingCount: requests.filter(request => request.pending === true).length,
+    failedEndpoints: requests.filter(request => endpoints.has(request.path) && (request.failed === true || request.status >= 400))
+      .map(request => ({ path: request.path, status: Number.isInteger(request.status) && request.status >= 100 && request.status < 600 ? request.status : null })) };
+}
 export function extractMetrics(report) {
   const metrics = {};
   const put = (key, value) => { metrics[key] = numeric(value); };
