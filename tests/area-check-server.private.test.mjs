@@ -91,7 +91,7 @@ test('a concurrent save supersedes Area check and stale revisions are rejected',
   const pending = check('&chunks=12342');
   for (let index = 0; index < 100 && !workers[1]?.messages.some(row => row.type === 'area-check'); index++) await new Promise(resolve => setTimeout(resolve, 10));
   assert.ok(workers[1]?.messages.some(row => row.type === 'area-check'));
-  const saved = await post('/api/command', { expectedRevision: 0, command: { type: 'set-note', memberId: 'one', chunkId: '12341', note: 'Updated' } });
+  const saved = await post('/api/command', { expectedRevision: 0, command: { type: 'set-rule', ruleId: 'access.shared', value: false } });
   assert.equal(saved.status, 200); assert.equal((await pending).status, 409);
   assert.equal(app.store.getInfo().revision, 1);
   assert.equal((await request('/api/area-check?memberId=one&revision=0&chunks=12342')).status, 409);

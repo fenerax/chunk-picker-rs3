@@ -171,9 +171,9 @@ test('sandbox calculations stay on the advisory lane and a concurrent save super
   assert.equal(workers.length, 2);
   assert.ok(workers[1].messages.some(row => row.type === 'sandbox'));
   assert.ok(!workers[0].messages.some(row => row.type === 'sandbox'));
-  const saved = await post({ expectedRevision: 0, command: { type: 'set-note', memberId: 'one', chunkId: chunkId(0), note: 'Concurrent save' } }, '/api/command');
+  const saved = await post({ expectedRevision: 0, command: { type: 'set-rule', ruleId: 'access.shared', value: false } }, '/api/command');
   assert.equal(saved.status, 200); assert.equal((await pending).status, 409);
-  assert.equal(app.store.getState().members[0].notes[chunkId(0)], 'Concurrent save');
+  assert.equal(app.store.getState().rules['access.shared'], false);
 });
 
 test('sandbox shared inputs resend one captured saved snapshot and keep normalized drafts independent', async t => {
