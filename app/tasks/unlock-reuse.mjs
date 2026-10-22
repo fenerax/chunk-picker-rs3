@@ -16,7 +16,8 @@ export function createTaskReuseFingerprint() {
     for (const key of Object.keys(state).sort()) {
       if (['revision', 'history', 'provenance', 'taskClaims', 'progressSnapshots', 'finishLine', 'groupGoals', 'ruleReviews'].includes(key)) continue;
       let value = state[key];
-      if (key === 'members') value = value.map(({ selected, pendingRoll, blacklisted, preferences, journal, chunkColours, chunkColourNames, ...member }) => member);
+      // Chunk notes are text for people; no task or access rule reads them.
+      if (key === 'members') value = value.map(({ selected, pendingRoll, blacklisted, preferences, journal, notes, chunkColours, chunkColourNames, ...member }) => member);
       const reusable = staticFields.has(key) && value && typeof value === 'object';
       let fingerprint = reusable ? staticDigests.get(value) : undefined;
       if (!fingerprint) {

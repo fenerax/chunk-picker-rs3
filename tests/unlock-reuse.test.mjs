@@ -37,7 +37,7 @@ test('unlock reuse ignores save and roll bookkeeping while retaining every task 
   copy.progressSnapshots = { days: [[1, 2, 3]] };
   copy.taskClaims = { quest: { memberId: 'actor1', at: '2026-10-12T12:00:00Z' } };
   copy.members[0].preferences = { startingChunk: '12342', mapShowTaskCounts: false };
-  copy.members[0].journal = 'Plans'; copy.groupGoals = { changed: true }; copy.ruleReviews = { changed: true };
+  copy.members[0].journal = 'Plans'; copy.members[1].notes = { '12341': 'Bank first' }; copy.groupGoals = { changed: true }; copy.ruleReviews = { changed: true };
   copy.members[0].selected = []; copy.members[0].pendingRoll = ['12344']; copy.members[0].blacklisted = ['12345'];
   assert.equal(taskReuseInputKey(copy), input);
   const changes = [
@@ -63,6 +63,25 @@ test('unlock reuse ignores save and roll bookkeeping while retaining every task 
   assert.equal(fingerprint({ ...original, revision: 5 }), input);
   original.tasks = [{ id: 'custom:new' }];
   assert.notEqual(fingerprint(original), input, 'Immutable catalogue replacement invalidates its cached digest');
+});
+
+test('chunk notes do not invalidate task reuse, while nested notes and unknown gameplay still do', () => {
+  const original = state(), expected = taskReuseInputKey(original), fingerprint = createTaskReuseFingerprint();
+  for (const memberIndex of [0, 1]) for (const notes of [{}, { '12341': 'Plan\n<literal>' }, { '12342': 'Changed plan' }]) {
+    const changed = structuredClone(original); changed.revision++;
+    changed.members[memberIndex].notes = notes;
+    assert.equal(fingerprint(changed), expected);
+    assert.deepEqual(changed.members[memberIndex].notes, notes, 'Fingerprinting must not remove saved notes');
+  }
+  for (const mutate of [
+    value => { value.members[0].taskStatus = { quest: { notes: 'task evidence' } }; },
+    value => { value.members[1].unknownGameplay = { notes: 'unknown evidence' }; },
+    value => { value.legacy = { notes: 'legacy evidence' }; },
+    value => { value.members[0].name = 'Changed owner'; },
+  ]) {
+    const changed = structuredClone(original); mutate(changed);
+    assert.notEqual(fingerprint(changed), expected);
+  }
 });
 
 test('unlock cache bounds bytes and entries, preserves likely choices and expires stale revisions', () => {

@@ -142,6 +142,33 @@ test('roll bookkeeping rebinds both task lists while refreshing pools and preser
   assert.ok(messages.length > count, 'Ownership still invalidates tasks');
 });
 
+test('a chunk note during task loading reuses the active result and keeps revision and permission guards', async t => {
+  let release;
+  const gate = new Promise(resolve => { release = resolve; });
+  t.after(() => release());
+  const { app, messages, request, command, invite } = await fixture(t, { prewarm: true, evaluationGate: gate });
+  const loading = request('/api/tasks?memberId=actor1&view=play-v1&projection=duo-sidebar-v1&revision=0');
+  await until(() => messages.some(message => message.type === 'evaluate'), 'task loading started');
+  const before = messages.filter(message => message.type === 'evaluate').length;
+  await command({ type: 'set-note', memberId: 'reed', chunkId: '12341', note: 'Partner plan' });
+  release();
+  const response = await loading; assert.equal(response.status, 200);
+  const result = await response.json();
+  assert.equal(result.stateRevision, 0, 'An in-flight response retains its captured revision'); assert.equal(result.memberId, 'actor1');
+  const current = await request('/api/tasks?memberId=actor1&view=play-v1&projection=duo-sidebar-v1&revision=1');
+  assert.equal(current.status, 200);
+  const rebound = await current.json();
+  assert.equal(rebound.stateRevision, 1); assert.equal(rebound.memberId, 'actor1'); assert.equal(rebound.cache.hit, true);
+  assert.equal(messages.filter(message => message.type === 'evaluate').length, before);
+  assert.equal((await request('/api/tasks?memberId=actor1&view=play-v1&projection=duo-sidebar-v1&revision=0')).status, 409);
+  const viewer = await invite(undefined, true), assigned = await invite('reed');
+  const payload = { expectedRevision: app.store.getInfo().revision, command: { type: 'set-note', memberId: 'actor1', chunkId: '12341', note: 'Shared writer plan' } };
+  assert.equal((await viewer('/api/command', payload)).status, 403);
+  assert.equal(app.store.getState().members[0].notes?.['12341'], undefined);
+  assert.equal((await assigned('/api/command', payload)).status, 200, 'Existing shared writer note permission is preserved');
+  assert.equal(app.store.getState().members[0].notes['12341'], 'Shared writer plan');
+});
+
 test('natural lists remove inactive claims in a separate revision without changing unrelated Undo', async t => {
   const { app, command, lists } = await fixture(t);
   await lists();

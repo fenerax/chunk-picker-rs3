@@ -506,6 +506,39 @@ test('display preference saves reuse task facts at the new revision while person
   assert.equal(other.tasks.find(task => task.id === id).personalCompleted, false);
 });
 
+test('chunk note edits, clears and undo reuse real task results for both members at the saved revision', async t => {
+  const initialState = createGroupState([{ id: 'player1', name: 'Player 1' }, { id: 'player2', name: 'Player 2' }]);
+  initialState.members[0].unlocked = ['12341']; initialState.members[1].unlocked = ['12342'];
+  const { api } = await fixture(t, { definitions: taskDefinitions, initialState });
+  const first = {};
+  for (const memberId of ['player1', 'player2']) first[memberId] = await (await api(`/api/tasks?memberId=${memberId}`)).json();
+  let revision = 0;
+  for (const edit of [
+    { type: 'set-note', memberId: 'player1', chunkId: '12341', note: 'Plan\n<literal>' },
+    { type: 'set-note', memberId: 'player2', chunkId: '12342', note: 'Partner plan' },
+    { type: 'set-note', memberId: 'player1', chunkId: '12341', note: '' },
+    { type: 'undo' },
+  ]) {
+    const saved = await api('/api/command', { expectedRevision: revision, command: edit });
+    assert.equal(saved.status, 200); revision++;
+    const state = (await saved.json()).state;
+    if (edit.type === 'set-note') assert.equal(state.members.find(member => member.id === edit.memberId).notes[edit.chunkId], edit.note || undefined);
+    else assert.equal(state.members[0].notes['12341'], 'Plan\n<literal>');
+    for (const memberId of ['player1', 'player2']) {
+      const current = await (await api(`/api/tasks?memberId=${memberId}`)).json();
+      assert.equal(current.stateRevision, revision); assert.equal(current.memberId, memberId);
+      assert.equal(current.cache.hit, true);
+      // Whole evidence graph, including task order, ownership and explanations.
+      assert.deepEqual({ ...current, cache: undefined, stateRevision: 0 }, { ...first[memberId], cache: undefined, stateRevision: 0 });
+    }
+  }
+  const id = first.player1.tasks.find(task => task.label === 'Example quest').id;
+  assert.equal((await api('/api/command', { expectedRevision: revision, command: { type: 'complete-task', memberId: 'player1', taskId: id, completed: true } })).status, 200);
+  const changed = await (await api('/api/tasks?memberId=player1')).json();
+  assert.equal(changed.cache.hit, false); assert.equal(changed.stateRevision, revision + 1);
+  assert.equal(changed.tasks.find(task => task.id === id).personalCompleted, true);
+});
+
 test('migrated legacy challenge checks stay distinct from personal completion and diagnostics remain readable', async t => {
   const { api } = await fixture(t, { definitions: taskDefinitions });
   const document = { maps: { qxa: { chunks: { unlocked: { '12341': '12341' }, selected: {} },
