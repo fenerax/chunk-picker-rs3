@@ -35,7 +35,7 @@ const usage = `Usage: npm run perf -- [options]
   --group-view on|off     Group task view (default off); on waits for the complete duo
   --unlock-preview on|off Wait for the chunk's Preview before Unlock (default off; separate workflow)
   --unlock-dwell-ms MS   Wait in the locked panel before timing Unlock (0 off; max 60000; any only)
-  --note-dwell-ms MS     Pause before note-clear and save-burst, outside timing (0 off; max 60000)
+  --note-dwell-ms MS     Pause before note-clear, save-burst and the after-suite sample (0 off; max 60000)
   --unlock-member player1|player2  Player whose scratch chunk is unlocked (default player1)
   --unlock-pick any|prepared|unprepared  Existing choice, Preview, or outside the warm pool (default any)
   --unlock-chunk ID       Explicit locked surface chunk; unprepared must be outside the warm pool
@@ -872,6 +872,8 @@ async function suite(executable, run, throttled) {
         results.push(burst);
       }
     }
+    // The same pause before the after-suite sample: lanes a save stopped may restart.
+    if (options.noteDwellMs && options.scenarios.some(name => ['note-save', 'save-burst'].includes(name))) await sleep(options.noteDwellMs);
     diagnosticContext = { stage: 'diagnostics' };
     const diagnostics = await browser.evaluate(`fetch('/api/diagnostics',{cache:'no-store'}).then(r=>r.json()).then(d=>({workerCompileMs:d.worker?.compileMs??null,startupTimingMs:{variantMs:Number.isFinite(d.startupTimingMs?.variantMs)?d.startupTimingMs.variantMs:null,stateResponseMs:Number.isFinite(d.startupTimingMs?.stateResponseMs)?d.startupTimingMs.stateResponseMs:null},taskTimings:d.timingMs,cache:d.cache,counts:d.counts,unlockReuse:d.unlockReuse?Object.fromEntries(['entries','bytes','rawBytes','compressedBytes','limit','byteLimit','hits','admitted','skipped'].map(k=>[k,d.unlockReuse[k]])):undefined,prediction:d.predictionLane?{worker:d.predictionLane.worker,cache:d.predictionLane.cache,prewarm:d.predictionLane.prewarm}:undefined}))`);
     diagnosticContext = { stage: 'rss' };
