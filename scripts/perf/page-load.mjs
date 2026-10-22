@@ -23,7 +23,7 @@ const PERF = path.join(ROOT, '.local/perf');
 const chromeExtraArgs = process.platform === 'linux' && process.env.GITHUB_ACTIONS === 'true'
   ? ['--no-sandbox', '--disable-dev-shm-usage'] : [];
 let diagnosticContext = {};
-const options = { runs: 3, label: 'baseline', timeout: 180000, prewarm: 'on', groupView: 'off', unlockMember: 'player1', unlockPick: 'any', unlockPreview: 'off', unlockDwellMs: 0, settlement: 'idle', cpuProfile: 'off', screenshots: 'off', cancellationCheck: 'off', idleSampleMs: 0, scenarios: ['cold', 'reload', 'switch-player2', 'switch-player1', 'unlock', 'cold-30mbps'] };
+const options = { runs: 3, label: 'baseline', timeout: 180000, prewarm: 'on', groupView: 'off', unlockMember: 'player1', unlockPick: 'any', unlockPreview: 'off', unlockDwellMs: 0, noteDwellMs: 0, settlement: 'idle', cpuProfile: 'off', screenshots: 'off', cancellationCheck: 'off', idleSampleMs: 0, scenarios: ['cold', 'reload', 'switch-player2', 'switch-player1', 'unlock', 'cold-30mbps'] };
 // Even, so the alternating save/clear burst ends with the copied save's notes.
 const SAVE_BURST_COMMANDS = 20;
 const usage = `Usage: npm run perf -- [options]
@@ -35,6 +35,7 @@ const usage = `Usage: npm run perf -- [options]
   --group-view on|off     Group task view (default off); on waits for the complete duo
   --unlock-preview on|off Wait for the chunk's Preview before Unlock (default off; separate workflow)
   --unlock-dwell-ms MS   Wait in the locked panel before timing Unlock (0 off; max 60000; any only)
+  --note-dwell-ms MS     Pause before note-clear and save-burst, outside timing (0 off; max 60000)
   --unlock-member player1|player2  Player whose scratch chunk is unlocked (default player1)
   --unlock-pick any|prepared|unprepared  Existing choice, Preview, or outside the warm pool (default any)
   --unlock-chunk ID       Explicit locked surface chunk; unprepared must be outside the warm pool
@@ -80,6 +81,7 @@ function parse(args) {
     else if (key === '--group-view') options.groupView = value;
     else if (key === '--unlock-preview') options.unlockPreview = value;
     else if (key === '--unlock-dwell-ms') options.unlockDwellMs = Number(value);
+    else if (key === '--note-dwell-ms') options.noteDwellMs = Number(value);
     else if (key === '--unlock-member') options.unlockMember = value;
     else if (key === '--unlock-pick') options.unlockPick = value;
     else if (key === '--unlock-chunk') options.unlockChunk = value;
@@ -116,6 +118,7 @@ function parse(args) {
   if (options.unlockChunk !== undefined && !/^[1-9]\d*$/.test(options.unlockChunk)) throw new Error('--unlock-chunk must be a numeric surface chunk ID.');
   if (options.unlockPick === 'unprepared' && options.unlockPreview === 'on') throw new Error('--unlock-pick unprepared requires --unlock-preview off.');
   if (!Number.isInteger(options.unlockDwellMs) || options.unlockDwellMs < 0 || options.unlockDwellMs > 60000) throw new Error('--unlock-dwell-ms must be an integer from 0 through 60000.');
+  if (!Number.isInteger(options.noteDwellMs) || options.noteDwellMs < 0 || options.noteDwellMs > 60000) throw new Error('--note-dwell-ms must be an integer from 0 through 60000.');
   if (options.unlockDwellMs && (options.unlockPick !== 'any' || options.unlockPreview !== 'off')) throw new Error('--unlock-dwell-ms requires --unlock-pick any and --unlock-preview off.');
   options.taskMilestone ??= options.groupView === 'on' ? 'duo' : 'tasks';
   if (!['tasks', 'duo'].includes(options.taskMilestone)) throw new Error('--task-milestone must be tasks or duo.');
@@ -832,6 +835,8 @@ async function suite(executable, run, throttled) {
         // A note save moves no map, so no fresh tile mark follows it; the
         // viewport loaded before the save still counts.
         await settleNoteUI(browser, 0, SYNTHETIC_NOTE);
+        // Someone pausing between edits: late page-load work lands outside both timings.
+        if (options.noteDwellMs) await sleep(options.noteDwellMs);
         const cleared = await measureNoteEdit(browser, server, 'note-clear', '', member);
         const restored = await browser.evaluate(`fetch('/api/state',{cache:'no-store'}).then(r=>r.json()).then(({state})=>state.members.every(m=>!m.notes?.[${JSON.stringify(chunk)}]))`);
         if (restored !== true) throw new Error('Scratch note clear did not restore the copied save.');
@@ -847,6 +852,7 @@ async function suite(executable, run, throttled) {
       }
       if (options.scenarios.includes('save-burst')) {
         diagnosticContext = { stage: 'prepare-burst', scenario: 'save-burst' };
+        if (options.noteDwellMs) await sleep(options.noteDwellMs);
         const member = await browser.evaluate(`document.getElementById('member').value`);
         // The other member's note-free unlocked surface chunk (the selected one if solo),
         // so an even burst restores the copied save. Only IDs and the revision leave the renderer.
@@ -1035,7 +1041,7 @@ async function main() {
   if (new Set(suites.map(s=>s.server.dataset?.digest ?? null)).size !== 1) throw new Error('Selected dataset changed across repetitions; no comparable report written.');
   if ((await sourceProvenance(options.serverEntry)).sha256 !== applicationSource.sha256) throw new Error('Measured application source changed during the run; no comparable report written.');
   const result = { schemaVersion: 1, label: options.label, capturedAt: new Date().toISOString(),
-    options: { runs: options.runs, label: options.label, scenarios: [...options.scenarios], prewarm: options.prewarm, groupView: options.groupView, unlockMember: options.unlockMember, unlockPick: options.unlockPick, unlockChunk: options.unlockChunk ?? null, unlockPreview: options.unlockPreview, unlockDwellMs: options.unlockDwellMs, taskMilestone: options.taskMilestone, settlement: options.settlement, cpuProfile: options.cpuProfile,
+    options: { runs: options.runs, label: options.label, scenarios: [...options.scenarios], prewarm: options.prewarm, groupView: options.groupView, unlockMember: options.unlockMember, unlockPick: options.unlockPick, unlockChunk: options.unlockChunk ?? null, unlockPreview: options.unlockPreview, unlockDwellMs: options.unlockDwellMs, noteDwellMs: options.noteDwellMs, taskMilestone: options.taskMilestone, settlement: options.settlement, cpuProfile: options.cpuProfile,
       timeoutMs: options.timeout, idleSampleMs: options.idleSampleMs, workerIdleMs: process.env.RS3_WORKER_IDLE_MS ?? null, source: options.source, mapAssets: options.mapAssets, terrainAssets: options.terrainAssets, screenshots: options.screenshots, cancellationCheck: options.cancellationCheck, gameData: options.gameData, chromeExecutable: executable,
       serverEntry: options.serverEntry, serverRevision: options.serverRevision, serverEntrySha256, appDir: options.applicationRoot,
       packsDir: options.packsDir ?? null, packSelection: options.packSelection ?? null, port: options.port ?? null, output: options.output ?? null },

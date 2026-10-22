@@ -33,7 +33,7 @@ export function normalizeRequest(request = {}, { requireRevisions = false } = {}
   const scenarios = request.scenarios ?? [...DEFAULT_SCENARIOS];
   if (!Array.isArray(scenarios) || !scenarios.length || new Set(scenarios).size !== scenarios.length || scenarios.some(name => !Object.hasOwn(SCENARIOS, name))) throw Error('Invalid scenarios.');
   const options = request.options ?? {};
-  keys(options, ['groupViews', 'unlockMember', 'unlockPick', 'unlockPreview', 'unlockDwellMs', 'settlement', 'timeoutMs', 'screenshots']);
+  keys(options, ['groupViews', 'unlockMember', 'unlockPick', 'unlockPreview', 'unlockDwellMs', 'noteDwellMs', 'settlement', 'timeoutMs', 'screenshots']);
   const groupViews = options.groupViews ?? ['off', 'on'];
   if (!Array.isArray(groupViews) || !groupViews.length || new Set(groupViews).size !== groupViews.length || groupViews.some(view => !['off', 'on'].includes(view))) throw Error('Invalid groupViews.');
   const normalized = { groupViews,
@@ -41,6 +41,7 @@ export function normalizeRequest(request = {}, { requireRevisions = false } = {}
     unlockPick: choice(options.unlockPick ?? (options.unlockDwellMs > 0 || options.unlockPreview === 'on' ? 'any' : 'unprepared'), ['any', 'prepared', 'unprepared'], 'unlockPick'),
     unlockPreview: choice(options.unlockPreview ?? 'off', ['off', 'on'], 'unlockPreview'),
     unlockDwellMs: integer(options.unlockDwellMs ?? 0, 0, 60000, 'unlockDwellMs'),
+    noteDwellMs: integer(options.noteDwellMs ?? 0, 0, 60000, 'noteDwellMs'),
     settlement: choice(options.settlement ?? 'tasks', ['tasks', 'idle'], 'settlement'),
     timeoutMs: integer(options.timeoutMs ?? 120000, 1000, 180000, 'timeoutMs'),
     screenshots: options.screenshots ?? false };
