@@ -18,6 +18,11 @@ Node 24 and Chrome are required; no npm install is needed. `CHROME_PATH` or
 8968 without listening. Run local measurements through the shared heavy wrapper.
 Hosted Linux uses `--no-sandbox --disable-dev-shm-usage`, matching the existing
 gallery CI lane; each scalar sample records these effective extra flags.
+The CI driver pins the server and calculator old-generation heaps to 1536 MiB
+to leave memory for concurrent lanes, Chrome and native buffers on a standard
+runner. This is an old-generation limit, not an RSS cap. Reports record it;
+compare runs with the same heap policy. Direct `npm run perf` keeps Node's
+default unless `--server-heap-mib N` is supplied.
 `--save-sha256` accepts a different explicitly pinned synthetic fixture. Production
 defaults to the approved scrubbed-v2 SHA256, checked before either import.
 `--dataset open-f2p` is available for a small synthetic smoke; CI uses `duo-legacy`.
@@ -56,6 +61,9 @@ The stderr tail accepts only known harness diagnostics. Unrecognized messages,
 JSON bodies, request payloads and arbitrary app/Chrome output are withheld.
 Chrome startup failures distinguish sandbox and debugger-port errors. Unknown
 failures still retain source locations without publishing the exception text.
+An exited server fails the next browser probe immediately. Failure reports retain
+its exit code/signal and the host Linux OOM-kill counter delta when available;
+the counter describes the runner, so a signal alone does not prove an OOM kill.
 
 Unlock records click → task fetch → worker calculation receipt → completion →
 paint, with each interval separately. Worker timestamps come from the same

@@ -50,12 +50,14 @@ test('signal-terminated Chrome fails immediately with an allowlisted startup cau
 });
 
 test('failed trial readiness retains booleans and fixed endpoint statuses only', () => {
-  const readiness = failureReadiness({ failedSuite: { failedMeasurement: { wallMs: 10,
+  const readiness = failureReadiness({ failedSuite: { hostOomKillDelta: 1, serverExit: { code: null, signal: 'SIGKILL' }, failedMeasurement: { wallMs: 10,
     lastSnapshot: { tasksReady: false, taskError: false, member: 'fixture-private', milestones: [
       { name: 'state-adopted', timeMs: 2, memberId: 'fixture-private' }, { name: 'fixture-private', timeMs: 3 } ] },
     requests: [{ path: '/api/tasks', status: 500, pending: false, body: 'fixture-private' },
       { path: '/api/fixture-private', status: 404, pending: true }] } } });
   assert.equal(readiness.tasksReady, false);
+  assert.equal(readiness.hostOomKillDelta, 1);
+  assert.equal(readiness.serverExit.signal, 'SIGKILL');
   assert.equal(readiness.pendingCount, 1);
   assert.deepEqual(readiness.failedEndpoints, [{ path: '/api/tasks', status: 500 }]);
   assert.equal(readiness.milestones.length, 1);
@@ -143,6 +145,7 @@ test('paired orchestration imports twice, alternates, writes safe reports and cl
     revision: async () => revision,
     execute: async (script, args) => {
       if (script.endsWith('perf-bench-import.mjs')) { imported.push(args[2]); await mkdir(args[2]); return; }
+      assert.equal(args[args.indexOf('--server-heap-mib') + 1], '1536');
       calls.push(args[args.indexOf('--label') + 1].match(/-([AB])-([0-9]+)-off$/).slice(1).join(''));
       await writeFile(args[args.indexOf('--output') + 1], JSON.stringify({ applicationSource: { sha256: 'b'.repeat(64) },
         fixture: { sha256: 'c'.repeat(64), source: 'fixture-private' }, environment: { node: 'v24.0.0', chrome: 'Chrome/1', platform: 'linux' },
