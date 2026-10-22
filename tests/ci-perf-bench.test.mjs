@@ -25,6 +25,16 @@ test('calculator cap replaces the inherited heap only for the owned calculator h
   for (const limit of ['fixture-private', '0', '4097']) assert.throws(() => calculatorForkOptions(host, options, root, limit), /Invalid calculator heap/);
 });
 
+test('note and burst failures keep API routes and statuses but withhold asset paths', () => {
+  const message = text => safeDiagnostic(new Error(text)).message;
+  for (const text of ['Asset/API failure in note-clear: /api/command (409); refusing a misleading benchmark.',
+    'Asset/API failure in save-burst: /api/state (no status), /api/tasks (503); refusing a misleading benchmark.',
+    'Save burst command 7 failed (409).', 'Scratch note clear did not restore the copied save.']) assert.equal(message(text), text);
+  for (const text of ['Asset/API failure in note-clear: /tiles/12345.png (404); refusing a misleading benchmark.',
+    'Asset/API failure in fixture-private: /api/command (409); refusing a misleading benchmark.'])
+    assert.equal(message(text), 'Unrecognized error message withheld.');
+});
+
 test('failure diagnostics allow harness messages and locations but never arbitrary save or stderr text', () => {
   const error = new TypeError('fixture-private-save-value');
   error.stack = 'TypeError: fixture-private-save-value\n at action (/tmp/private-fixture/scripts/perf/page-load.mjs:10:20)';

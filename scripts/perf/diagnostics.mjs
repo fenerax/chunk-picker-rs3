@@ -21,8 +21,12 @@ const fixed = new Set([
   'Scratch chunk tasks failed.', 'Scratch group tasks failed.',
   'Source and scratch directories must not overlap.',
   'Source state changed during copy. Retry with a stable snapshot.',
+  'No note-free unlocked chunk available for the scratch note save.', 'Scratch note clear did not restore the copied save.',
+  'No note-free unlocked chunk available for the scratch save burst.', 'Scratch save burst did not restore the copied save.',
 ]);
-const scenario = '(?:cold|reload|unlock|cold-30mbps|switch-player[12]|prepare-player[12]|chunk-info|possible-tasks|search)';
+const scenario = '(?:cold|reload|unlock|cold-30mbps|switch-player[12]|prepare-player[12]|chunk-info|possible-tasks|search|note-save|note-clear|save-burst|personal-filter-(?:not-done|only-player|group))';
+// API routes and statuses only: asset paths can name chunks, so any other path withholds the message.
+const apiFailure = '/api/[a-z-]+ \\((?:\\d{3}|no status)\\)';
 const patterns = [
   new RegExp(`^Task status failed in ${scenario}\\.$`),
   new RegExp(`^Unexpected group view in ${scenario}; refusing a mismatched benchmark\\.$`),
@@ -30,6 +34,8 @@ const patterns = [
   /^Benchmark child failed \((?:\d+|SIG[A-Z]+)\)\.$/,
   /^Scratch server exited unexpectedly \((?:\d+|SIG[A-Z]+)\)\.$/,
   /^No locked player[12] chunk available for scratch unlock \((?:any|prepared|unprepared)\)\.$/,
+  new RegExp(`^Asset/API failure in ${scenario}: (?:${apiFailure}(?:, ${apiFailure})*|visible tiles); refusing a misleading benchmark\\.$`),
+  /^Save burst command \d+ failed \(\d{3}\)\.$/,
 ];
 export const DIAGNOSTIC_PREFIX = 'PERF_DIAGNOSTIC ';
 export const SERVER_MEMORY_SAMPLE_INTERVAL_MS = 1000;
