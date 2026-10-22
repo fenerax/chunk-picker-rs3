@@ -551,7 +551,20 @@ async function measureNoteEdit(browser, server, name, text, member) {
   // re-render cannot replace the editor between typing and Save.
   const result = await measure(browser, name, () => browser.evaluate(`(() => {const e=document.querySelector('#chunk-content .chunk-own-note'),t=e?.querySelector('textarea'),b=e&&[...e.querySelectorAll('button')].find(b=>b.textContent==='Save chunk note');
     if(!t||!b||b.disabled)throw Error('Note editor missing');t.value=${JSON.stringify(text)};t.dispatchEvent(new Event('input',{bubbles:true}));const at=performance.now();b.click();return at;})()`),
-  { revision: before.savedRevision + 1, member, reuseTerrain: true, calculations: server.calculations });
+  { revision: before.savedRevision + 1, member, reuseTerrain: true, calculations: server.calculations, settle: (snapshot, from, network) => {
+    const revision = before.savedRevision + 1;
+    if (!snapshot.tasksReady || snapshot.savedRevision < revision || snapshot.member !== member || !loadedViewport(snapshot)) return false;
+    if ([...network.requests.values()].some(row => !row.excluded && row.route === '/api/tasks')) {
+      return snapshot.events.some(event => event.name === (options.taskMilestone === 'duo' ? 'duo-tasks-painted' : 'tasks-painted')
+        && event.time >= from && event.memberId === member && event.revision >= revision);
+    }
+    // A page that keeps its unchanged list fetches no tasks: done once adoption stays quiet.
+    const adopted = snapshot.events.find(event => event.name === 'state-adopted' && event.time >= from && event.revision >= revision);
+    return !!adopted && snapshot.now - adopted.time >= 750;
+  } });
+  // When the list is current: its repaint, or adoption when the page kept the unchanged list.
+  const fetchedTasks = result.network.requests.some(row => row.path === '/api/tasks');
+  result.milestones.tasksCurrentMs = result.milestones.tasksPaintedMs ?? (fetchedTasks ? null : result.milestones.stateAdoptedMs ?? null);
   result.note = { edit: text ? 'save' : 'clear', syntheticLength: text.length };
   return result;
 }
