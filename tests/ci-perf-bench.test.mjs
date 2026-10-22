@@ -4,6 +4,8 @@ import { mkdtemp, mkdir, writeFile, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
+import { EventEmitter } from 'node:events';
+import { openChrome } from '../scripts/perf/cdp.mjs';
 import { normalizeRequest, measurementPlan, estimatedSeconds } from '../scripts/ci/perf-bench-config.mjs';
 import { distribution, compareSamples, extractMetrics, reportMarkdown } from '../scripts/ci/perf-bench-report.mjs';
 import { verifySave, runBenchmark, parseArguments } from '../scripts/ci/perf-bench.mjs';
@@ -24,6 +26,18 @@ test('failure diagnostics allow harness messages and locations but never arbitra
   assert.doesNotMatch(JSON.stringify({ diagnostic, tail }), /fixture-private|state|body|save.json/);
   assert.match(tail[0], /Runtime.evaluate timed out/);
   assert.equal(chromeStartupMessage('[pid] No usable sandbox! private-fixture'), 'Chrome sandbox initialization failed.');
+});
+
+test('signal-terminated Chrome fails immediately with an allowlisted startup cause', async () => {
+  const child = new EventEmitter();
+  child.exitCode = null; child.signalCode = 'SIGTRAP';
+  child.stderr = new EventEmitter(); child.stderr.setEncoding = () => {};
+  let requested = false;
+  await assert.rejects(openChrome('synthetic-chrome', 'synthetic-profile', { port: 8961 }, {
+    spawn: () => { queueMicrotask(() => child.stderr.emit('data', '[pid] No usable sandbox! fixture-private\n')); return child; },
+    fetch: async () => { requested = true; },
+  }), /Chrome exited during startup/);
+  assert.equal(requested, false);
 });
 
 test('starter smoke uses its backup importer; legacy production import remains file-based', async () => {
