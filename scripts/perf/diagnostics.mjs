@@ -34,6 +34,14 @@ const classNames = new Set(['Error', 'TypeError', 'RangeError', 'SyntaxError', '
 const errorCodes = new Set(['ENOENT', 'EACCES', 'EPERM', 'EADDRINUSE', 'ENOMEM', 'ENOSPC', 'EIO',
   'EMFILE', 'ENFILE', 'ECONNREFUSED', 'ECONNRESET', 'ETIMEDOUT', 'EPIPE',
   'ERR_MODULE_NOT_FOUND', 'ERR_PACKAGE_PATH_NOT_EXPORTED', 'ERR_DLOPEN_FAILED', 'ERR_WORKER_OUT_OF_MEMORY']);
+const frameNames = new Set(['page-load.mjs', 'cdp.mjs', 'probe.mjs', 'inputs.mjs', 'server.mjs',
+  'worker.mjs', 'worker-timeline.mjs', 'browser-interactions.mjs', 'network-collector.mjs',
+  'diagnostics.mjs', 'perf-bench.mjs', 'perf-bench-import.mjs', 'perf-bench-report.mjs',
+  'perf-bench-config.mjs', 'perf-bench-packs.mjs']);
+const safeFrame = value => {
+  const match = typeof value === 'string' && /^([a-z][a-z0-9-]*\.mjs):\d+:\d+$/.exec(value);
+  return !!match && frameNames.has(match[1]);
+};
 export function safeMessage(value) {
   const message = typeof value === 'string' ? value : '';
   return fixed.has(message) || patterns.some(pattern => pattern.test(message)) ? message : 'Unrecognized error message withheld.';
@@ -45,8 +53,11 @@ export function safeDiagnostic(error, context = {}) {
   if (new RegExp(`^${scenario}$`).test(context.scenario ?? '')) result.scenario = context.scenario;
   // Basenames and line numbers are enough to locate unknown failures; no stack
   // arguments, absolute paths, exception source snippets or app messages escape.
-  result.frames = [...String(error?.stack ?? '').matchAll(/(?:[/\\])([a-z][a-z0-9-]*\.mjs):(\d+):(\d+)/g)]
-    .slice(0, 6).map(match => `${match[1]}:${match[2]}:${match[3]}`);
+  const stack = String(error?.stack ?? ''), heading = `${error?.name}: ${error?.message}`;
+  const frames = stack.startsWith(heading) ? stack.slice(heading.length) : stack.slice(stack.indexOf('\n') + 1);
+  result.frames = frames.split(/\r?\n/).filter(line => /^\s+at /.test(line))
+    .flatMap(line => [...line.matchAll(/(?:[/\\])([a-z][a-z0-9-]*\.mjs):(\d+):(\d+)/g)]
+      .map(match => `${match[1]}:${match[2]}:${match[3]}`)).filter(safeFrame).slice(0, 6);
   return result;
 }
 export function safeStderrTail(value) {
@@ -56,7 +67,7 @@ export function safeStderrTail(value) {
       try {
         const input = JSON.parse(line.slice(DIAGNOSTIC_PREFIX.length));
         const diagnostic = safeDiagnostic({ name: input.errorClass, message: input.message, code: input.code }, input);
-        diagnostic.frames = (Array.isArray(input.frames) ? input.frames : []).filter(frame => /^[a-z][a-z0-9-]*\.mjs:\d+:\d+$/.test(frame)).slice(0, 6);
+        diagnostic.frames = (Array.isArray(input.frames) ? input.frames : []).filter(safeFrame).slice(0, 6);
         return [DIAGNOSTIC_PREFIX + JSON.stringify(diagnostic)];
       } catch { return []; }
     }

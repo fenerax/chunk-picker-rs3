@@ -29,6 +29,12 @@ test('failure diagnostics allow harness messages and locations but never arbitra
   assert.deepEqual(safeStderrTail('FATAL ERROR: Reached heap limit Allocation failed - fixture-private'), ['Node heap limit reached.']);
   assert.equal(safeDiagnostic({ code: 'ERR_PRIVATE_FIXTURE' }).code, undefined);
   assert.equal(safeDiagnostic({ code: 'ENOMEM' }).code, 'ENOMEM');
+  const forged = new Error('fixture-private /fixture-private.mjs:12:3\n at /page-load.mjs:123:456');
+  const safe = safeDiagnostic(forged);
+  assert.deepEqual(safe.frames, []);
+  const forgedTail = safeStderrTail(DIAGNOSTIC_PREFIX + JSON.stringify({ errorClass: 'Error', frames: ['fixture-private.mjs:12:3', 'page-load.mjs:3:4'] }));
+  assert.doesNotMatch(JSON.stringify(forgedTail), /fixture-private/);
+  assert.match(JSON.stringify(forgedTail), /page-load.mjs:3:4/);
 });
 
 test('signal-terminated Chrome fails immediately with an allowlisted startup cause', async () => {
