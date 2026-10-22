@@ -1044,7 +1044,7 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
     }
   }
   let lastUnchangedTaskRevision, refreshMemberId;
-  const unsubscribe = store.subscribe(({ revision, ownershipChanged }) => {
+  const unsubscribe = store.subscribe(({ revision, ownershipChanged, noteEdit }) => {
     const gameplay = taskFingerprint(), taskResultsUnchanged = gameplay === savedTaskFingerprint;
     lastUnchangedTaskRevision = taskResultsUnchanged ? revision : undefined;
     if (taskResultsUnchanged) {
@@ -1081,6 +1081,12 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
       taskWorker?.supersedeDisplay(revision, gameplay);
       // A pending warm-up reads the latest state when it fires.
       // Claim-only saves must preserve the quiet window scheduled by the task response.
+      if (noteEdit && taskWorker) {
+        // Someone is typing notes. Their tasks stay valid, but queued warm-up
+        // yields to the next save; epoch-keyed entries requeue after the quiet.
+        foregroundLastActivity = schedulingClock.now();
+        schedulingClock.clearTimeout(prewarmTimer); taskWorker.cancelPrewarm({ keepTasks: true }); schedulePredictions();
+      }
     }
     notifyForeground();
     endInactiveClients();

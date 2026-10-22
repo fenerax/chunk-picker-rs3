@@ -138,7 +138,7 @@ test('state loading and active foreground work defer warming; stale completions 
   await until(async () => ({ messages: workers[0].messages.filter(message => message.type === 'evaluate') }), value => value.messages.length === 1);
   await clock.advance(1100); assert.equal(workers.length, 1, 'Active foreground calculation blocks warming');
   const saved = await fetch(origin + '/api/command', { method: 'POST', headers: { ...headers, Origin: origin, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ expectedRevision: 0, command: { type: 'set-note', memberId: 'one', chunkId: '12341', note: 'Revision one' } }) });
+    body: JSON.stringify({ expectedRevision: 0, command: { type: 'set-rule', ruleId: 'access.shared', value: false } }) });
   assert.equal(saved.status, 200); await saved.json();
   assert.equal((await pending).status, 409); workers[0].finish();
   await clock.advance(1100); assert.equal(workers.length, 1, 'Old completion must preserve the newer save gate');

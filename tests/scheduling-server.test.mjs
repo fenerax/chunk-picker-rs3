@@ -141,7 +141,7 @@ test('a save cancels an intent waiting for an older Group revision without dispa
   await until(() => f.foreground.calls.length === 1); f.foreground.finish(); await selected;
   const intent = f.api('/api/prediction-intent', { memberId: 'actor1', chunkId: '12342', revision: f.revision });
   await delay(40); assert.equal(f.side.calls.length, 0);
-  const saved = await f.api('/api/command', { expectedRevision: f.revision, command: { type: 'set-note', memberId: 'actor1', chunkId: '12341', note: 'New revision' } });
+  const saved = await f.api('/api/command', { expectedRevision: f.revision, command: { type: 'set-rule', ruleId: 'access.shared', value: false } });
   assert.equal(saved.status, 200); await saved.arrayBuffer();
   const stale = await intent; assert.equal(stale.status, 409); assert.ok(!(await stale.json()).prepared);
   assert.equal(f.side.calls.length, 0); assert.equal(f.application.store.getInfo().revision, f.revision + 1);

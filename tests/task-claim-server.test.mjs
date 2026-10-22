@@ -258,6 +258,18 @@ test('[regression] a claim preserves prediction warm-up already scheduled by tas
   await until(() => messages.some(message => message.type === 'predict'), 'pending prediction warm-up survived the claim save');
 });
 
+test('a note save keeps task lists and restarts the prediction quiet window', async t => {
+  const { messages, command, lists, clock } = await fixture(t, { prewarm: true });
+  await lists(); const evaluations = messages.filter(message => message.type === 'evaluate').length;
+  await clock.advance(600);
+  await command({ type: 'set-note', memberId: 'actor1', chunkId: '12341', note: 'Bank here' });
+  await clock.advance(600);
+  assert.equal(messages.some(message => message.type === 'predict'), false, 'warm-up waits a full second after the note save');
+  await clock.advance(400);
+  await until(() => messages.some(message => message.type === 'predict'), 'warm-up resumes after the quiet window');
+  assert.equal(messages.filter(message => message.type === 'evaluate').length, evaluations, 'note saves reuse the task lists');
+});
+
 test('[regression] a claim during list loading settles the equivalent revision before prediction warm-up', async t => {
   let release;
   const evaluationGate = new Promise(resolve => { release = resolve; });

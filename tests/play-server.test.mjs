@@ -222,7 +222,7 @@ test('two authenticated clients receive each play commit over SSE and merge cohe
   const readRevision = async (reader, revision) => {
     let text = ''; const deadline = setTimeout(() => { for (const client of clients) client.controller.abort(); }, 5000);
     try {
-      while (!text.includes(`data: {"revision":${revision}}`)) {
+      while (!new RegExp(`data: \\{"revision":${revision}[,}]`).test(text)) {
         const chunk = await reader.read(); assert.equal(chunk.done, false); text += new TextDecoder().decode(chunk.value);
         assert.ok(text.length < 65536);
       }
