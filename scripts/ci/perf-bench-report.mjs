@@ -94,6 +94,13 @@ export function extractMetrics(report) {
         put(`${name}.taskFetches.count`, timeline.taskFetches);
         // Other reads in the edit window, by public route name only.
         for (const [route, count] of Object.entries(otherApiRoutes(result))) put(`${name}.api${route.slice(4).replaceAll('/', '.')}.count`, count);
+        for (const [lane, value] of Object.entries(result.residencyBefore?.lanes ?? {})) {
+          put(`${name}.before.${lane}-resident.count`, typeof value?.worker?.resident === 'boolean' ? Number(value.worker.resident) : null);
+          put(`${name}.before.${lane}-starting.count`, typeof value?.worker?.status === 'string' ? Number(['starting', 'waking', 'restarting'].includes(value.worker.status)) : null);
+          put(`${name}.before.${lane}-busy.count`, numeric(value?.queue?.active));
+          put(`${name}.before.${lane}-queued.count`, numeric(value?.queue?.depth));
+          put(`${name}.before.${lane}-warm-pending.count`, numeric(value?.prewarm?.pending));
+        }
         put(`${name}.commandAcknowledged.ms`, timeline.commandAcknowledgedMs);
         put(`${name}.acknowledgedToPaint.ms`, timeline.acknowledgedToPaintMs);
       }

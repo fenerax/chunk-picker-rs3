@@ -843,14 +843,20 @@ async function suite(executable, run, throttled) {
         })`);
         if (!chunk) throw new Error('No note-free unlocked chunk available for the scratch note save.');
         await prepareNoteUI(browser, chunk);
-        results.push(await measureNoteEdit(browser, server, 'note-save', SYNTHETIC_NOTE, member));
+        // Calculator lanes just before each click: what the server was busy with.
+        const beforeSave = await workerResidency(browser).catch(() => null);
+        const saved = await measureNoteEdit(browser, server, 'note-save', SYNTHETIC_NOTE, member);
+        saved.residencyBefore = beforeSave;
+        results.push(saved);
         diagnosticContext = { stage: 'prepare-note', scenario: 'note-clear' };
         // A note save moves no map, so no fresh tile mark follows it; the
         // viewport loaded before the save still counts.
         await settleNoteUI(browser, 0, SYNTHETIC_NOTE);
         // Someone pausing between edits: late page-load work lands outside both timings.
         if (options.noteDwellMs) await sleep(options.noteDwellMs);
+        const beforeClear = await workerResidency(browser).catch(() => null);
         const cleared = await measureNoteEdit(browser, server, 'note-clear', '', member);
+        cleared.residencyBefore = beforeClear;
         const restored = await browser.evaluate(`fetch('/api/state',{cache:'no-store'}).then(r=>r.json()).then(({state})=>state.members.every(m=>!m.notes?.[${JSON.stringify(chunk)}]))`);
         if (restored !== true) throw new Error('Scratch note clear did not restore the copied save.');
         cleared.note.restored = true;
