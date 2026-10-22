@@ -57,6 +57,8 @@ export function extractMetrics(report) {
     put(`${prefix}.rss-after.MiB`, numeric(suite.server?.rssAfterBytes) === null ? null : suite.server.rssAfterBytes / 1048576);
     put(`${prefix}.rss-total-after.MiB`, numeric(suite.server?.rssAfterTotalBytes) === null ? null : suite.server.rssAfterTotalBytes / 1048576);
     put(`${prefix}.rss-calculators-after.MiB`, numeric(suite.server?.workersRssAfterBytes) === null ? null : suite.server.workersRssAfterBytes / 1048576);
+    // Live calculator processes at that sample: a retired lane lowers RSS without any saving.
+    put(`${prefix}.calculators-after.count`, suite.server?.workerRssSamples);
     put(`${prefix}.rss-sampled-peak.MiB`, numeric(suite.server?.memoryTelemetry?.peak?.rssBytes) === null ? null : suite.server.memoryTelemetry.peak.rssBytes / 1048576);
     put(`${prefix}.heap-sampled-peak.MiB`, numeric(suite.server?.memoryTelemetry?.peak?.heapUsedBytes) === null ? null : suite.server.memoryTelemetry.peak.heapUsedBytes / 1048576);
     for (const result of suite.results ?? []) {
