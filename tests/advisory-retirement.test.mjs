@@ -146,3 +146,21 @@ test('a retired advisory lane wakes normally and later idle sleep clears its ret
   assert.equal(scheduler.getHealth().prediction.status, 'sleeping'); assert.equal(scheduler.getDiagnostics().unlockReuse.entries, 0);
   assert.equal(scheduler.getHealth().prediction.restarts, 0);
 });
+
+test('a note edit retires only an unrequested warm prediction', async t => {
+  const foreground = factory(), prediction = factory();
+  const scheduler = await createTaskScheduler({ workerFactory: foreground.create, predictionWorkerFactory: prediction.create });
+  t.after(() => scheduler.close());
+  const { before } = states();
+  const dispatched = async index => { for (let i = 0; i < 100 && !prediction.workers[index]?.requests().length; i++) await new Promise(resolve => setTimeout(resolve, 5)); };
+  assert.equal(scheduler.prewarm(before, 'input', [{ memberId: 'actor1', chunkIds: ['12342'] }]).queued, 1); await dispatched(0);
+  assert.equal(prediction.workers[0].requests().at(-1)?.type, 'predict');
+  assert.equal(scheduler.retireWarmPrediction(), true); await flush();
+  assert.equal(prediction.workers[0].terminated, true);
+  assert.equal(scheduler.getDiagnostics().predictionLane.prewarm.pending, 0);
+  const requested = scheduler.evaluate(before, 'actor1', 'predict', '12342', 'preview', 'input'); requested.catch(() => {});
+  await dispatched(1);
+  assert.equal(prediction.workers[1].requests().at(-1)?.type, 'predict');
+  assert.equal(scheduler.retireWarmPrediction(), false, 'a requested preview keeps its process');
+  assert.equal(prediction.workers[1].terminated, false);
+});

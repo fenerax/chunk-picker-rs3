@@ -101,6 +101,8 @@ const APP_VERSION = (() => {
   return hash.digest('hex').slice(0, 12);
 })();
 const MAX_BODY = 32 * 1024 * 1024;
+// About one task recalculation plus the usual quiet window on the real save.
+const NOTE_PREWARM_QUIET_MS = 5000;
 const MIME = { '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8', '.mjs': 'text/javascript; charset=utf-8',
   '.json': 'application/json; charset=utf-8', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp', '.svg': 'image/svg+xml', '.woff2': 'font/woff2' };
 
@@ -864,7 +866,8 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
   let startupWarmup;
   let trainingSourceIndex, bankingRouteProvider;
   let prewarmTimer;
-  let foregroundActive = 0, foregroundLastActivity = schedulingClock.now(), foregroundCompletedRevision = -1, foregroundAwaitedRevision = -1, awaitingForeground;
+  let noteQuietUntil = -Infinity;
+  let foregroundActive = 0, foregroundLastActivity = schedulingClock.now(),foregroundCompletedRevision = -1, foregroundAwaitedRevision = -1, awaitingForeground;
   let automaticDeathActive = 0;
   let requiredTaskMembers = new Set(), settledTaskMembers = new Set();
   const activeTaskMembers = new Map();
@@ -937,7 +940,7 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
       if (requiredTaskMembers.size && [...requiredTaskMembers].some(id => !settledTaskMembers.has(id))) { schedulePredictions(); return; }
       if (awaitingForeground && time < awaitingForeground.until) { schedulePredictions(Math.min(1000, awaitingForeground.until - time)); return; }
       awaitingForeground = undefined;
-      const quietRemaining = 1000 - (time - foregroundLastActivity);
+      const quietRemaining = Math.max(1000 - (time - foregroundLastActivity), noteQuietUntil - time);
       if (quietRemaining > 0) { schedulePredictions(quietRemaining); return; }
       const { state, input } = calculationState();
       const valid = ids => [...new Set(ids)].filter(id => /^[1-9]\d*$/.test(id)
@@ -1085,7 +1088,10 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
       if (noteEdit && taskWorker) {
         // Someone is typing notes. Their tasks stay valid, but queued warm-up
         // yields to the next save; epoch-keyed entries requeue after the quiet.
-        foregroundLastActivity = schedulingClock.now();
+        // Its process yields as a gameplay save's would, and warm-up restarts no
+        // sooner than after a recalculation: an edit and a correction often follow.
+        foregroundLastActivity = schedulingClock.now(); noteQuietUntil = foregroundLastActivity + NOTE_PREWARM_QUIET_MS;
+        taskWorker.retireWarmPrediction?.();
         schedulingClock.clearTimeout(prewarmTimer); taskWorker.cancelPrewarm({ keepTasks: true }); schedulePredictions();
       }
     }

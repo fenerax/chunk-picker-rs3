@@ -304,6 +304,7 @@ export async function createTaskScheduler({ maxDeathQueue = 2, deathDeadlineMs =
       return (usePrediction ? predictionLane() : foreground).prewarmTasks(state, input, memberIds, resultView, stateInput);
     },
     cancelPrewarm(options) { if (!options?.keepTasks) foreground.cancelPrewarm(); prediction?.cancelPrewarm(options); },
+    retireWarmPrediction() { return prediction?.retireWarm() ?? false; },
     resumePrewarm() { prediction?.noteInteractiveUse(); },
     getHealth() {
       const health = foreground.getHealth(), lanes = { death: death?.getHealth() ?? { status: 'idle', ready: false },
@@ -468,6 +469,20 @@ async function createWorkerLane({ workerData, workerFactory = nativeWorker, onCr
       try { worker.postMessage({ id: entry.id, type: 'cancel' }); } catch { failure('worker-send'); }
     }
     settle(entry, error);
+  }
+  function retire() {
+    if (active) {
+      clearTimeout(active.timer); active.reuseRevision = undefined;
+      cancel(active, superseded()); active = undefined;
+    }
+    clearTimeout(startupTimer); clearTimeout(restartTimer); restartTimer = undefined;
+    idleClock.clearTimeout(sleepTimer); sleepTimer = undefined;
+    clearImmediate(idleTimer); idleTimer = undefined;
+    const old = worker; worker = undefined; generation++;
+    status = 'sleeping'; counts.retired++; sentSnapshots.clear();
+    // Idle sleep clears caches; retirement deliberately does not call onSleep.
+    // wake() already waits for termination before allocating a replacement.
+    terminate(old); announce(); return true;
   }
   function failure(kind) {
     if (closed || status === 'restarting' || status === 'restart-required') return;
@@ -788,18 +803,17 @@ async function createWorkerLane({ workerData, workerFactory = nativeWorker, onCr
       for (const entry of [...pending.values()]) if (entry.revision < revision) {
         counts.superseded++; cancel(entry, superseded());
       }
-      if (active) {
-        clearTimeout(active.timer); active.reuseRevision = undefined;
-        cancel(active, superseded()); active = undefined;
+      return retire();
+    },
+    // Display-only saves keep task inputs, so nothing is obsolete. While
+    // someone edits notes, an unrequested warm-up still yields its process
+    // as a gameplay save would; requested work and an idle worker stay.
+    retireWarm() {
+      if (closed || status !== 'ready' || !active?.warm || active.waiters.size || active.reuseWaiters?.size) return false;
+      for (const entry of [...pending.values()]) if (entry.warm && !entry.waiters.size) {
+        entry.warm = false; warmCounts.cancelled++; cancel(entry, unavailable('Background prediction cancelled.'));
       }
-      clearTimeout(startupTimer); clearTimeout(restartTimer); restartTimer = undefined;
-      idleClock.clearTimeout(sleepTimer); sleepTimer = undefined;
-      clearImmediate(idleTimer); idleTimer = undefined;
-      const old = worker; worker = undefined; generation++;
-      status = 'sleeping'; counts.retired++; sentSnapshots.clear();
-      // Idle sleep clears caches; retirement deliberately does not call onSleep.
-      // wake() already waits for termination before allocating a replacement.
-      terminate(old); announce(); return true;
+      return retire();
     },
     canPrewarm() {
       return !closed && ['starting', 'ready'].includes(status) && idleClock.now() - lastRequestAt < idleMs;

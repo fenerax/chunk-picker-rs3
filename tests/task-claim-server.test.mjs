@@ -263,8 +263,8 @@ test('a note save keeps task lists and restarts the prediction quiet window', as
   await lists(); const evaluations = messages.filter(message => message.type === 'evaluate').length;
   await clock.advance(600);
   await command({ type: 'set-note', memberId: 'actor1', chunkId: '12341', note: 'Bank here' });
-  await clock.advance(600);
-  assert.equal(messages.some(message => message.type === 'predict'), false, 'warm-up waits a full second after the note save');
+  await clock.advance(4600);
+  assert.equal(messages.some(message => message.type === 'predict'), false, 'warm-up waits out the note quiet window');
   await clock.advance(400);
   await until(() => messages.some(message => message.type === 'predict'), 'warm-up resumes after the quiet window');
   assert.equal(messages.filter(message => message.type === 'evaluate').length, evaluations, 'note saves reuse the task lists');
