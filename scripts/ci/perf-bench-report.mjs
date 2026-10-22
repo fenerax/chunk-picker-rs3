@@ -3,6 +3,10 @@ import { sanitizeMemoryTelemetry } from '../perf/diagnostics.mjs';
 
 const numeric = value => typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : null;
 const NOTE_EDITS = ['note-save', 'note-clear'];
+const otherApiRoutes = result => (result.network?.requests ?? []).reduce((routes, request) => {
+  if (/^\/api\/[a-z-]+(?:\/[a-z-]+)?$/.test(request.path ?? '') && !['/api/command', '/api/tasks', '/api/events'].includes(request.path)) routes[request.path] = (routes[request.path] ?? 0) + 1;
+  return routes;
+}, {});
 const workerEvents = result => (result.serverCalculations ?? []).slice(0, 8).map(event => ({
   startedMs: numeric(event.startedMs), doneMs: numeric(event.doneMs),
   selectedMember: event.memberId === result.taskIdentity?.memberId,
@@ -88,6 +92,8 @@ export function extractMetrics(report) {
         put(`${name}.commandSent.ms`, timeline.commandSentMs);
         put(`${name}.commandRoundTrip.ms`, timeline.commandRoundTripMs);
         put(`${name}.taskFetches.count`, timeline.taskFetches);
+        // Other reads in the edit window, by public route name only.
+        for (const [route, count] of Object.entries(otherApiRoutes(result))) put(`${name}.api${route.slice(4).replaceAll('/', '.')}.count`, count);
         put(`${name}.commandAcknowledged.ms`, timeline.commandAcknowledgedMs);
         put(`${name}.acknowledgedToPaint.ms`, timeline.acknowledgedToPaintMs);
       }

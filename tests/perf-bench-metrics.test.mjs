@@ -92,6 +92,8 @@ test('note command timeline uses one acknowledged command and counts worker rece
   assert.equal(timeline.workerCalculations, 1);
   assert.equal(timeline.calculationObserved, true);
   assert.equal(timeline.cacheHit, false);
+  assert.equal(timeline.commandSentMs, null, 'a start before the click is not a send time');
+  assert.equal(timeline.taskFetches, 1);
   assert.ok(Object.values(timeline).every(value => value === null || ['string', 'number', 'boolean'].includes(typeof value)));
   result.network.requests.push({ path: '/api/command', status: 200, startMs: 200, endMs: 300 });
   result.serverCalculations = [{ startedMs: 50, doneMs: 10 }];
