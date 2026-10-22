@@ -545,6 +545,12 @@ async function prepareNoteUI(browser, chunk) {
   await until(() => browser.evaluate(`(() => {const t=document.querySelector('#chunk-content [data-tab="note"]');if(document.getElementById('chunk-info').hidden||!t)return false;t.click();return true;})()`));
   await settleNoteUI(browser, started, '');
 }
+// Chunk Info calculator reads seen since the panel opened, by count and status only.
+const panelReads = network => Object.fromEntries(['/api/chunk-planning', '/api/death-estimates'].map(route => {
+  const rows = [...network.requests.values()].filter(row => row.route === route);
+  return [route.slice(5), { pending: rows.filter(row => row.end === undefined).length, ok: rows.filter(row => row.status === 200).length,
+    superseded: rows.filter(row => row.status === 409).length }];
+}));
 async function measureNoteEdit(browser, server, name, text, member) {
   const before = await browser.evaluate(snapshotExpression);
   // Edit and click in one synchronous evaluation: a task-driven chunk panel
@@ -842,25 +848,31 @@ async function suite(executable, run, throttled) {
           return owner.unlocked.map(String).filter(id=>/^\\d+$/.test(id)&&surface.has(id)&&state.members.every(m=>!m.notes?.[id])).sort((a,b)=>Number(a)-Number(b))[0]??null;
         })`);
         if (!chunk) throw new Error('No note-free unlocked chunk available for the scratch note save.');
-        await prepareNoteUI(browser, chunk);
-        // Calculator lanes just before each click: what the server was busy with.
-        const beforeSave = await workerResidency(browser).catch(() => null);
-        const saved = await measureNoteEdit(browser, server, 'note-save', SYNTHETIC_NOTE, member);
-        saved.residencyBefore = beforeSave;
-        results.push(saved);
-        diagnosticContext = { stage: 'prepare-note', scenario: 'note-clear' };
-        // A note save moves no map, so no fresh tile mark follows it; the
-        // viewport loaded before the save still counts.
-        await settleNoteUI(browser, 0, SYNTHETIC_NOTE);
-        // Someone pausing between edits: late page-load work lands outside both timings.
-        if (options.noteDwellMs) await sleep(options.noteDwellMs);
-        const beforeClear = await workerResidency(browser).catch(() => null);
-        const cleared = await measureNoteEdit(browser, server, 'note-clear', '', member);
-        cleared.residencyBefore = beforeClear;
-        const restored = await browser.evaluate(`fetch('/api/state',{cache:'no-store'}).then(r=>r.json()).then(({state})=>state.members.every(m=>!m.notes?.[${JSON.stringify(chunk)}]))`);
-        if (restored !== true) throw new Error('Scratch note clear did not restore the copied save.');
-        cleared.note.restored = true;
-        results.push(cleared);
+        // Opened before the panel: its own reads can outlast the settle checks below.
+        const planning = networkCollector(browser);
+        try {
+          await prepareNoteUI(browser, chunk);
+          // Calculator lanes just before each click: what the server was busy with.
+          const beforeSave = await workerResidency(browser).catch(() => null);
+          const plannedBeforeSave = panelReads(planning);
+          const saved = await measureNoteEdit(browser, server, 'note-save', SYNTHETIC_NOTE, member);
+          saved.residencyBefore = beforeSave; saved.planningBefore = plannedBeforeSave;
+          results.push(saved);
+          diagnosticContext = { stage: 'prepare-note', scenario: 'note-clear' };
+          // A note save moves no map, so no fresh tile mark follows it; the
+          // viewport loaded before the save still counts.
+          await settleNoteUI(browser, 0, SYNTHETIC_NOTE);
+          // Someone pausing between edits: late page-load work lands outside both timings.
+          if (options.noteDwellMs) await sleep(options.noteDwellMs);
+          const beforeClear = await workerResidency(browser).catch(() => null);
+          const plannedBeforeClear = panelReads(planning);
+          const cleared = await measureNoteEdit(browser, server, 'note-clear', '', member);
+          cleared.residencyBefore = beforeClear; cleared.planningBefore = plannedBeforeClear;
+          const restored = await browser.evaluate(`fetch('/api/state',{cache:'no-store'}).then(r=>r.json()).then(({state})=>state.members.every(m=>!m.notes?.[${JSON.stringify(chunk)}]))`);
+          if (restored !== true) throw new Error('Scratch note clear did not restore the copied save.');
+          cleared.note.restored = true;
+          results.push(cleared);
+        } finally { planning.close(); }
         await browser.evaluate(`(() => {document.querySelector('#chunk-content [data-tab="contents"]')?.click();document.getElementById('chunk-close')?.click();})()`);
       }
       if (options.scenarios.includes('personal-filter')) {

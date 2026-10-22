@@ -101,6 +101,9 @@ export function extractMetrics(report) {
           put(`${name}.before.${lane}-queued.count`, numeric(value?.queue?.depth));
           put(`${name}.before.${lane}-warm-pending.count`, numeric(value?.prewarm?.pending));
         }
+        for (const [route, reads] of Object.entries(result.planningBefore ?? {})) {
+          for (const state of ['pending', 'ok', 'superseded']) put(`${name}.before.${route}-${state}.count`, numeric(reads?.[state]));
+        }
         put(`${name}.commandAcknowledged.ms`, timeline.commandAcknowledgedMs);
         put(`${name}.acknowledgedToPaint.ms`, timeline.acknowledgedToPaintMs);
       }
