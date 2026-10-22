@@ -65,7 +65,21 @@ test('native detached launch releases redirected foreground pipes while syntheti
     const output = await run(root, `
 $child=Start-OperatorDetached -Executable ${quote(process.execPath)} -Arguments ${quote(`"${server}" "${pidFile}"`)} -WorkingDirectory ${quote(root)} -StandardOutput ${quote(path.join(root, 'stdout.log'))} -StandardError ${quote(path.join(root, 'stderr.log'))}
 $until=[DateTime]::UtcNow.AddSeconds(3); while (-not (Test-Path -LiteralPath ${quote(pidFile)}) -and [DateTime]::UtcNow -lt $until) { Start-Sleep -Milliseconds 25 }
-if ($child.HasExited) { throw 'Synthetic detached child exited early' }; Write-Output $child.Id; $child.Dispose()
+if ($child.HasExited) { throw 'Synthetic detached child exited early' }
+Add-Type -TypeDefinition @'
+using System; using System.Runtime.InteropServices;
+public static class FixtureJob {
+ [StructLayout(LayoutKind.Sequential)] struct Basic { public long a,b; public uint flags; public UIntPtr c,d; public uint e; public UIntPtr f; public uint g,h; }
+ [StructLayout(LayoutKind.Sequential)] struct Extended { public Basic basic; public ulong i1,i2,i3,i4,i5,i6; public UIntPtr p,j,pp,jp; }
+ [DllImport("kernel32.dll")] static extern bool IsProcessInJob(IntPtr process, IntPtr job, out bool result);
+ [DllImport("kernel32.dll")] static extern bool QueryInformationJobObject(IntPtr job, int kind, out Extended info, int size, IntPtr returned);
+ public static bool InJob(IntPtr process) { bool result; IsProcessInJob(process, IntPtr.Zero, out result); return result; }
+ public static bool CallerMayBreakAway() { Extended info; return InJob(System.Diagnostics.Process.GetCurrentProcess().Handle) && QueryInformationJobObject(IntPtr.Zero, 9, out info, Marshal.SizeOf(typeof(Extended)), IntPtr.Zero) && (info.basic.flags & 0x800) != 0; }
+}
+'@
+# A job that permits breakaway (as the desktop app's does) must not keep the picker.
+if ([FixtureJob]::CallerMayBreakAway() -and [FixtureJob]::InJob($child.Handle)) { throw 'Detached child stayed in the caller job' }
+Write-Output $child.Id; $child.Dispose()
 `, 12000);
     childPid = Number(output.trim());
     assert.ok(Date.now() - start < 10000, 'foreground pipes must close before the child lifetime');

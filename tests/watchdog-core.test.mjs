@@ -202,6 +202,56 @@ try { Assert-CoreWatchUnoccupied $context; 'started' } catch { 'refused' }
     });
   }
 });
+test('watchdog moves aside the lock of an exited recorded writer only on an exact PID and start match', { skip: !available }, async () => {
+  // All times follow the pinned boot, so only the dead-record rule can move the lock.
+  const started = '2026-07-01T00:00:00.123Z', record = '2026-07-01T00:00:00.1234567Z';
+  const lock = (fields = {}) => JSON.stringify({ pid: 4242, startedAt: started, startVerified: true, host: '__HOST__', nonce: 'n', createdAt: '2026-07-01T00:00:15.000Z', ...fields });
+  const cases = [
+    ['exited writer', lock(), true],
+    ['reused PID', lock(), false, { alive: true }],
+    ['other PID', lock({ pid: 4343 }), false],
+    ['other start', lock({ startedAt: '2026-07-01T00:00:02.123Z' }), false],
+    ['lock before start', lock({ createdAt: '2026-06-30T23:59:59.000Z' }), false],
+    ['foreign host', lock({ host: 'another-computer' }), false],
+    ['unverified start', lock({ startVerified: false }), false],
+    ['no runtime record', lock(), false, { noRecord: true }],
+    ['recovery marker', lock(), false, { recovery: true }],
+    ['live writer', lock(), false, { writer: true }],
+  ];
+  for (const [name, contents, moved, { alive = false, noRecord = false, recovery = false, writer = false } = {}] of cases) {
+    await fixture(async dir => {
+      const data = join(dir, 'data'); await mkdir(data);
+      const result = await execute(dir, `
+$global:dataDir = ${ps(data)}
+$context = [pscustomobject]@{ localDir = ${ps(dir)}; config = [pscustomobject]@{ dataDir = $global:dataDir; port = 19888; loopbackPort = 19889 } }
+function Get-CimInstance {
+    param([Parameter(Position = 0)]$ClassName, $Filter)
+    if ($ClassName -eq 'Win32_OperatingSystem') { return [pscustomobject]@{ LastBootUpTime = [DateTimeOffset]::Parse('2026-06-01T00:00:00Z').LocalDateTime } }
+    if ($Filter -like '*node.exe*') { return @(${writer ? "[pscustomobject]@{ CommandLine = 'node app/server.mjs --data-dir \"' + $global:dataDir + '\"' }" : ''}) }
+    return @(${alive ? "[pscustomobject]@{ ExecutablePath = 'C:\\other.exe'; CommandLine = 'reused'; CreationDate = [DateTime]::Now }" : ''})
+}
+function Get-NetTCPConnection { return @() }
+[IO.File]::WriteAllText((Join-Path $global:dataDir 'store.lock'), ${ps(contents)}.Replace('__HOST__', [Net.Dns]::GetHostName()))
+if (${recovery ? '$true' : '$false'}) { Set-Content -LiteralPath (Join-Path $global:dataDir 'store.lock.recovery') -Value '{}' }
+$record = ${noRecord ? '$null' : `[pscustomobject]@{ pid = 4242; processStartedAt = ${ps(record)}; configHash = 'h'; state = 'running' }`}
+try { Assert-CoreWatchUnoccupied $context $record; 'started' } catch { 'refused' }
+@(Get-ChildItem -LiteralPath $global:dataDir -Name) -join ','
+`);
+      const [outcome, files] = result.stdout.trim().split(/\r?\n/);
+      const log = await readFile(join(dir, 'watchdog.log'), 'utf8').catch(() => '');
+      if (moved) {
+        assert.equal(outcome, 'started', name);
+        assert.match(files, /^store\.lock\.dead-\d{8}T\d{6}Z$/, name);
+        assert.match(log, /recorded writer, which has exited/, name);
+      } else {
+        assert.equal(outcome, 'refused', name);
+        assert.match(files, /(^|,)store\.lock(,|$)/, name);
+        assert.doesNotMatch(files, /dead-|restart-/, name);
+        assert.equal(log, '', name);
+      }
+    });
+  }
+});
 test('a runtime record from before the last boot no longer owns its reused PID', { skip: !available }, async () => {
   await fixture(async dir => {
     const result = await execute(dir, `

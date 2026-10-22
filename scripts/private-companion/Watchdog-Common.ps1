@@ -13,35 +13,65 @@ function Write-CoreWatchLog($Context, [string]$Message) {
 
 function Test-CoreWatchPaused($Context) { return Test-Path -LiteralPath (Join-Path $Context.localDir 'picker-paused') }
 
-function Assert-CoreWatchUnoccupied($Context) {
+function Assert-CoreWatchUnoccupied($Context, $DeadRecord = $null) {
     foreach ($port in @($Context.config.port, $Context.config.loopbackPort) | Where-Object { $null -ne $_ }) {
         if (@(Get-NetTCPConnection -State Listen -LocalPort $port -ErrorAction SilentlyContinue).Count) { throw 'An unowned listener prevents startup.' }
     }
     Move-CoreWatchRestartLock $Context
+    if ($null -ne $DeadRecord) { Move-CoreWatchDeadRecordLock $Context $DeadRecord }
     Assert-OperatorStoreReleased $Context
+}
+
+function Read-CoreWatchLocalLock($Context) {
+    # The storage lock text and owner when it is complete, local and the only
+    # trace of a writer: no recovery marker and no process naming the data dir.
+    $dataDir = $Context.config.dataDir
+    $lock = Join-Path $dataDir 'store.lock'
+    if (-not (Test-Path -LiteralPath $lock -PathType Leaf) -or (Test-Path -LiteralPath "$lock.recovery")) { return $null }
+    $pattern = '(?i)(?:^|\s)--data-dir\s+"?' + [regex]::Escape($dataDir) + '"?(?:\s|$)'
+    if (@(Get-CimInstance Win32_Process -Filter "Name = 'node.exe'" | Where-Object { $_.CommandLine -match $pattern }).Count) { return $null }
+    $text = [IO.File]::ReadAllText($lock)
+    try {
+        $owner = $text | ConvertFrom-Json
+        foreach ($name in 'pid', 'host', 'startVerified', 'startedAt', 'createdAt') { if (-not $owner.PSObject.Properties[$name]) { return $null } }
+        if (-not ($owner.pid -is [int] -or $owner.pid -is [long]) -or $owner.pid -lt 1 -or $owner.startVerified -isnot [bool] -or -not $owner.startVerified) { return $null }
+        if ($owner.host -isnot [string] -or $owner.host -ine [Net.Dns]::GetHostName()) { return $null }
+    } catch { return $null }
+    return [pscustomobject]@{ path = $lock; text = $text; owner = $owner }
+}
+
+function Move-CoreWatchLockAside($Context, $Lock, [string]$Kind, [string]$Message) {
+    $review = Join-Path $Context.config.dataDir ("store.lock.$Kind-" + [DateTime]::UtcNow.ToString('yyyyMMddTHHmmssZ'))
+    [IO.File]::Move($Lock.path, $review)
+    if ([IO.File]::ReadAllText($review) -cne $Lock.text) { [IO.File]::Move($review, $Lock.path); throw 'Storage lock changed while it moved.' }
+    Write-CoreWatchLog $Context $Message
 }
 
 function Move-CoreWatchRestartLock($Context) {
     # A storage lock written before the last boot belongs to a server that the
     # restart ended. Only that exact, local, fully recorded case moves aside to
     # a review copy; anything else stays for Assert-OperatorStoreReleased to refuse.
-    $dataDir = $Context.config.dataDir
-    $lock = Join-Path $dataDir 'store.lock'
-    if (-not (Test-Path -LiteralPath $lock -PathType Leaf) -or (Test-Path -LiteralPath "$lock.recovery")) { return }
-    $pattern = '(?i)(?:^|\s)--data-dir\s+"?' + [regex]::Escape($dataDir) + '"?(?:\s|$)'
-    if (@(Get-CimInstance Win32_Process -Filter "Name = 'node.exe'" | Where-Object { $_.CommandLine -match $pattern }).Count) { return }
-    $text = [IO.File]::ReadAllText($lock)
+    $lock = Read-CoreWatchLocalLock $Context
+    if ($null -eq $lock) { return }
+    try { if (-not (Test-OperatorBeforeBoot $lock.owner.startedAt) -or -not (Test-OperatorBeforeBoot $lock.owner.createdAt)) { return } } catch { return }
+    Move-CoreWatchLockAside $Context $lock 'restart' 'Moved a storage lock left from before the last restart to a review copy.'
+}
+
+function Move-CoreWatchDeadRecordLock($Context, $Record) {
+    # A writer killed without a restart (for example with the session that
+    # launched it) leaves its lock behind. It moves aside only when the lock
+    # names the runtime record's own PID and start time and no process holds
+    # that PID any more; a reused PID still waits for manual review.
+    $lock = Read-CoreWatchLocalLock $Context
+    if ($null -eq $lock) { return }
     try {
-        $owner = $text | ConvertFrom-Json
-        foreach ($name in 'pid', 'host', 'startVerified', 'startedAt', 'createdAt') { if (-not $owner.PSObject.Properties[$name]) { return } }
-        if (-not ($owner.pid -is [int] -or $owner.pid -is [long]) -or $owner.pid -lt 1 -or $owner.startVerified -isnot [bool] -or -not $owner.startVerified) { return }
-        if ($owner.host -isnot [string] -or $owner.host -ine [Net.Dns]::GetHostName()) { return }
-        if (-not (Test-OperatorBeforeBoot $owner.startedAt) -or -not (Test-OperatorBeforeBoot $owner.createdAt)) { return }
+        if ($lock.owner.pid -ne $Record.pid) { return }
+        $started = (ConvertTo-OperatorUtc $Record.processStartedAt).Ticks
+        if ([Math]::Abs((ConvertTo-OperatorUtc $lock.owner.startedAt).Ticks - $started) -ge [TimeSpan]::TicksPerMillisecond) { return }
+        if ((ConvertTo-OperatorUtc $lock.owner.createdAt).Ticks -lt $started) { return }
     } catch { return }
-    $review = Join-Path $dataDir ('store.lock.restart-' + [DateTime]::UtcNow.ToString('yyyyMMddTHHmmssZ'))
-    [IO.File]::Move($lock, $review)
-    if ([IO.File]::ReadAllText($review) -cne $text) { [IO.File]::Move($review, $lock); throw 'Storage lock changed while it moved.' }
-    Write-CoreWatchLog $Context 'Moved a storage lock left from before the last restart to a review copy.'
+    if (@(Get-CimInstance Win32_Process -Filter "ProcessId = $($Record.pid)").Count) { return }
+    Move-CoreWatchLockAside $Context $lock 'dead' 'Moved the storage lock of the recorded writer, which has exited, to a review copy.'
 }
 
 function Assert-CoreWatchOwnership($Context, $Record) {
@@ -129,7 +159,7 @@ function Invoke-CoreWatchTick([string]$Config, [string]$ConfigSha256,
         if ($record.state -notin @('running', 'starting')) { throw 'Runtime is stopping or unknown.' }
         $process = Get-OperatorOwnedProcess $context $record
         if (-not $process) {
-            Assert-CoreWatchUnoccupied $context
+            Assert-CoreWatchUnoccupied $context $record
             Invoke-CoreWatchHelper $context 'Stop' $Config $ConfigSha256
             if (-not (Test-CoreWatchPaused $context)) { Invoke-CoreWatchHelper $context 'Start' $Config $ConfigSha256 }
             return

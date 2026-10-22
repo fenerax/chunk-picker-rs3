@@ -226,7 +226,12 @@ namespace ReleaseV2 {
     handles=Marshal.AllocHGlobal(IntPtr.Size*3); Marshal.Copy(new IntPtr[]{input,stdout,stderr},0,handles,3);
     Check(UpdateProcThreadAttribute(list,0,new IntPtr(0x20002),handles,new IntPtr(IntPtr.Size*3),IntPtr.Zero,IntPtr.Zero));
     SX sx=new SX(); sx.si.cb=Marshal.SizeOf(typeof(SX)); sx.si.flags=0x100; sx.si.input=input; sx.si.output=stdout; sx.si.error=stderr; sx.attributes=list;
-    Check(CreateProcess(exe,new StringBuilder("\""+exe+"\" "+args),IntPtr.Zero,IntPtr.Zero,true,0x08080000,IntPtr.Zero,directory,ref sx,out info));
+    // Leave the caller's job, so closing the app or session that ran a helper does not end the
+    // picker. A job that forbids breakaway refuses with access denied; start inside it as before.
+    if(!CreateProcess(exe,new StringBuilder("\""+exe+"\" "+args),IntPtr.Zero,IntPtr.Zero,true,0x09080000,IntPtr.Zero,directory,ref sx,out info)) {
+     int failure=Marshal.GetLastWin32Error(); if(failure!=5) throw new Win32Exception(failure);
+     Check(CreateProcess(exe,new StringBuilder("\""+exe+"\" "+args),IntPtr.Zero,IntPtr.Zero,true,0x08080000,IntPtr.Zero,directory,ref sx,out info));
+    }
     Process child=Process.GetProcessById(info.pid); IntPtr retained=child.Handle; return child;
    } finally {
     if(info.thread!=IntPtr.Zero) CloseHandle(info.thread); if(info.process!=IntPtr.Zero) CloseHandle(info.process);
