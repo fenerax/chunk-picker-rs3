@@ -63,22 +63,40 @@ test('native detached launch releases redirected foreground pipes while syntheti
   try {
     const start = Date.now();
     const output = await run(root, `
-$child=Start-OperatorDetached -Executable ${quote(process.execPath)} -Arguments ${quote(`"${server}" "${pidFile}"`)} -WorkingDirectory ${quote(root)} -StandardOutput ${quote(path.join(root, 'stdout.log'))} -StandardError ${quote(path.join(root, 'stderr.log'))}
-$until=[DateTime]::UtcNow.AddSeconds(3); while (-not (Test-Path -LiteralPath ${quote(pidFile)}) -and [DateTime]::UtcNow -lt $until) { Start-Sleep -Milliseconds 25 }
-if ($child.HasExited) { throw 'Synthetic detached child exited early' }
 Add-Type -TypeDefinition @'
-using System; using System.Runtime.InteropServices;
+using System; using System.Text; using System.Runtime.InteropServices;
 public static class FixtureJob {
  [StructLayout(LayoutKind.Sequential)] struct Basic { public long a,b; public uint flags; public UIntPtr c,d; public uint e; public UIntPtr f; public uint g,h; }
  [StructLayout(LayoutKind.Sequential)] struct Extended { public Basic basic; public ulong i1,i2,i3,i4,i5,i6; public UIntPtr p,j,pp,jp; }
+ [StructLayout(LayoutKind.Sequential,CharSet=CharSet.Unicode)] struct Startup { public int cb; public string r,d,t; public int x,y,w,h,cx,cy,fill,flags; public short show,r2; public IntPtr r3,i,o,e; }
+ [StructLayout(LayoutKind.Sequential)] struct Info { public IntPtr process,thread; public int pid,tid; }
  [DllImport("kernel32.dll")] static extern bool IsProcessInJob(IntPtr process, IntPtr job, out bool result);
- [DllImport("kernel32.dll")] static extern bool QueryInformationJobObject(IntPtr job, int kind, out Extended info, int size, IntPtr returned);
- public static bool InJob(IntPtr process) { bool result; IsProcessInJob(process, IntPtr.Zero, out result); return result; }
- public static bool CallerMayBreakAway() { Extended info; return InJob(System.Diagnostics.Process.GetCurrentProcess().Handle) && QueryInformationJobObject(IntPtr.Zero, 9, out info, Marshal.SizeOf(typeof(Extended)), IntPtr.Zero) && (info.basic.flags & 0x800) != 0; }
+ [DllImport("kernel32.dll")] static extern IntPtr CreateJobObject(IntPtr attributes, string name);
+ [DllImport("kernel32.dll")] static extern bool SetInformationJobObject(IntPtr job, int kind, ref Extended info, int size);
+ [DllImport("kernel32.dll")] static extern bool AssignProcessToJobObject(IntPtr job, IntPtr process);
+ [DllImport("kernel32.dll")] static extern bool CloseHandle(IntPtr handle);
+ [DllImport("kernel32.dll",CharSet=CharSet.Unicode)] static extern bool CreateProcess(string exe, StringBuilder line, IntPtr pa, IntPtr ta, bool inherit, uint flags, IntPtr env, string dir, ref Startup si, out Info pi);
+ // Joins a fresh job that permits breakaway, as the desktop app's does; Zero where nesting is refused.
+ public static IntPtr Enter() {
+  IntPtr job=CreateJobObject(IntPtr.Zero,null); Extended info=new Extended(); info.basic.flags=0x800;
+  if(job==IntPtr.Zero || !SetInformationJobObject(job,9,ref info,Marshal.SizeOf(typeof(Extended))) || !AssignProcessToJobObject(job,System.Diagnostics.Process.GetCurrentProcess().Handle)) return IntPtr.Zero;
+  return job;
+ }
+ // Outer jobs (a CI runner's) may still forbid breakaway, where the launcher rightly stays inside.
+ public static bool MayBreakAway() {
+  Startup si=new Startup(); si.cb=Marshal.SizeOf(typeof(Startup)); Info pi; string cmd=Environment.GetEnvironmentVariable("ComSpec");
+  if(!CreateProcess(cmd,new StringBuilder("\\""+cmd+"\\" /c exit"),IntPtr.Zero,IntPtr.Zero,false,0x09000000,IntPtr.Zero,null,ref si,out pi)) return false;
+  CloseHandle(pi.thread); CloseHandle(pi.process); return true;
+ }
+ public static bool InJob(IntPtr process, IntPtr job) { bool result; IsProcessInJob(process, job, out result); return result; }
 }
 '@
-# A job that permits breakaway (as the desktop app's does) must not keep the picker.
-if ([FixtureJob]::CallerMayBreakAway() -and [FixtureJob]::InJob($child.Handle)) { throw 'Detached child stayed in the caller job' }
+$job=[FixtureJob]::Enter()
+$child=Start-OperatorDetached -Executable ${quote(process.execPath)} -Arguments ${quote(`"${server}" "${pidFile}"`)} -WorkingDirectory ${quote(root)} -StandardOutput ${quote(path.join(root, 'stdout.log'))} -StandardError ${quote(path.join(root, 'stderr.log'))}
+$until=[DateTime]::UtcNow.AddSeconds(3); while (-not (Test-Path -LiteralPath ${quote(pidFile)}) -and [DateTime]::UtcNow -lt $until) { Start-Sleep -Milliseconds 25 }
+if ($child.HasExited) { throw 'Synthetic detached child exited early' }
+# A job that permits breakaway must not keep the picker.
+if ($job -ne [IntPtr]::Zero -and [FixtureJob]::MayBreakAway() -and [FixtureJob]::InJob($child.Handle, $job)) { throw 'Detached child stayed in the caller job' }
 Write-Output $child.Id; $child.Dispose()
 `, 12000);
     childPid = Number(output.trim());
