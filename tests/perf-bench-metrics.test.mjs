@@ -82,6 +82,18 @@ test('unlock timeline separates observed calculation timestamps from the overhea
   assert.ok(Object.values(timeline).every(value => value === null || ['string', 'number', 'boolean'].includes(typeof value)));
 });
 
+test('post-click worker calculation may precede the task fetch and later serve a cache hit', () => {
+  const result = fixture();
+  result.serverCalculations[0].startedMs = 40;
+  result.taskResponses[0].cache = { hit: true, evaluationMs: 410, requestMs: 0.5 };
+  const timeline = unlockTimeline(result);
+  assert.equal(timeline.cacheHit, true);
+  assert.equal(timeline.calculationStartMs, 40);
+  assert.equal(timeline.requestToCalculationStartMs, -10);
+  assert.equal(timeline.calculationMs, 410);
+  assert.equal(timeline.clickToRequestMs + timeline.requestToCalculationStartMs + timeline.calculationMs + timeline.doneToPaintMs, timeline.clickToPaintMs);
+});
+
 test('missing worker timestamps never turn a request-minus-evaluation estimate into an observation', () => {
   const result = fixture(); delete result.serverCalculations; delete result.milestones.tasksPaintedMs;
   const timeline = unlockTimeline(result);

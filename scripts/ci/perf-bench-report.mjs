@@ -32,7 +32,7 @@ export function failureReadiness(report) {
 }
 export function extractMetrics(report) {
   const metrics = {};
-  const put = (key, value) => { metrics[key] = numeric(value); };
+  const put = (key, value, signed = false) => { metrics[key] = signed && typeof value === 'number' && Number.isFinite(value) ? value : numeric(value); };
   for (const suite of report.suites ?? []) {
     const prefix = suite.mode === 'throttled' ? 'cold-30mbps' : 'server';
     put(`${prefix}.ready.ms`, suite.server?.coldReadyMs);
@@ -49,15 +49,15 @@ export function extractMetrics(report) {
       put(`${name}.wire.KiB`, numeric(result.network?.totals?.transferBytes) === null ? null : result.network.totals.transferBytes / 1024);
       put(`${name}.long-task-worst.ms`, result.longTasks?.worstMs);
       if (name === 'unlock') for (const [field, value] of Object.entries(unlockTimeline(result))) {
-        if (field.endsWith('Ms')) put(`unlock.${field.replace(/Ms$/, '')}.ms`, value);
+        if (field.endsWith('Ms')) put(`unlock.${field.replace(/Ms$/, '')}.ms`, value, field === 'requestToCalculationStartMs');
       }
     }
   }
   return metrics;
 }
 
-export function distribution(values) {
-  const sorted = values.filter(value => numeric(value) !== null).sort((a, b) => a - b);
+export function distribution(values, { signed = false } = {}) {
+  const sorted = values.filter(value => signed ? typeof value === 'number' && Number.isFinite(value) : numeric(value) !== null).sort((a, b) => a - b);
   const n = sorted.length, middle = Math.floor(n / 2);
   return { n, median: n ? n % 2 ? sorted[middle] : (sorted[middle - 1] + sorted[middle]) / 2 : null,
     min: n ? sorted[0] : null, max: n ? sorted.at(-1) : null };
@@ -70,8 +70,9 @@ export function compareSamples(samples, runs) {
     const rows = samples.filter(sample => sample.groupView === groupView);
     const names = [...new Set(rows.flatMap(row => Object.keys(row.metrics)))].sort();
     for (const metric of names) {
-      const a = distribution(rows.filter(row => row.arm === 'A').map(row => row.metrics[metric]));
-      const b = distribution(rows.filter(row => row.arm === 'B').map(row => row.metrics[metric]));
+      const signed = metric === 'unlock.requestToCalculationStart.ms';
+      const a = distribution(rows.filter(row => row.arm === 'A').map(row => row.metrics[metric]), { signed });
+      const b = distribution(rows.filter(row => row.arm === 'B').map(row => row.metrics[metric]), { signed });
       const complete = a.n === runs && b.n === runs;
       const verdict = !complete ? 'missing' : runs < 3 ? 'noise' : b.max < a.min ? 'win' : b.min > a.max ? 'loss' : 'noise';
       summary.push({ groupView, metric, a, b, delta: a.median === null || b.median === null ? null : b.median - a.median,
@@ -94,6 +95,7 @@ export function reportMarkdown(report, { short = false } = {}) {
   return ['# App performance A/B', '', `A: \`${report.base}\`; B: \`${report.candidate}\`.`,
     `Completed: ${report.complete}. ${report.samples.length} measured app/view trials; ${report.request.runs} repetitions per arm/view.`, '',
     'Lower is better. A win/loss requires at least three complete samples per arm and strictly non-overlapping observed min–max ranges. Overlap is noise; absent observations are missing. This is a conservative descriptive rule, not a confidence interval.', '',
+    'Request → calculation start is signed: a negative value means Unlock handling started the worker before the browser task fetch. The other breakdown parts are durations; their sum still equals click → paint. An HTTP cache hit can follow fresh post-click worker calculation.', '',
     ...(report.diagnostic ? [`Failure context: ${JSON.stringify(report.failureContext)}.`,
       `Diagnostic: ${JSON.stringify(report.diagnostic)}.`, ''] : []),
     markdownTable(rows), '', ...(short ? [] : [

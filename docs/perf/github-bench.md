@@ -33,6 +33,10 @@ without changing workflow requests. Optional request settings are `groupViews`,
 `unlockMember`, `unlockPick`, `unlockPreview`, `unlockDwellMs`, `settlement`,
 `timeoutMs` and `screenshots`. Unknown fields fail validation. Screenshots default
 to false; CPU profiling stays off. Default settlement waits for tasks and terrain.
+The CI default Unlock choice is `unprepared`, outside the warm pool, so the
+headline includes fresh calculation. Use `unlockPick: "any"` for the ordinary
+roll-pool path. Preview and positive dwell requests retain `any` unless a pick
+is explicit. Direct PC harness defaults remain unchanged.
 
 | Scenario | Estimated seconds per app/view | Boundary |
 | --- | ---: | --- |
@@ -72,6 +76,11 @@ cross-process clock uncertainty remains. Task paint means the matching DOM event
 plus two animation frames; Group on waits for both lists. Cached calculations may
 have no worker start/done. Those fields stay null. An estimate based on existing
 server timing is labelled separately and never substitutes for an observation.
+The request-to-start offset is signed: Unlock handling can start calculation
+before the browser fetches tasks. A negative value records that overlap rather
+than discarding the worker event. The four parts still sum to click-to-paint.
+An HTTP cache hit can serve the result of fresh post-click calculation; the
+sample's scalar observations retain both facts.
 RSS includes HTTP-process samples and a separate total adding calculator processes
 once each, outside timing. It excludes Chrome and is not peak memory. Cold does
 not flush OS file caches.

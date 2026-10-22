@@ -134,7 +134,6 @@ export function unlockTimeline(result = {}) {
     && numeric(calculation.doneMs) !== null && calculation.doneMs >= calculation.startedMs
     && (!member || calculation.memberId === member)
     && (selected?.revision == null || calculation.revision === selected.revision)
-    && (requestSentMs === null || calculation.startedMs >= requestSentMs - 1)
     && (selected ? calculation.doneMs <= selected.endMs + 1 : shown !== null && calculation.doneMs <= shown + 1));
   const calculation = calculationCandidates.length === 1 ? calculationCandidates[0] : null;
   const cache = selected?.cache ?? result.taskCalculation ?? {};
@@ -151,7 +150,9 @@ export function unlockTimeline(result = {}) {
     selectedResultsPaintedMs: selectedPaint, groupResultsPaintedMs: groupPaint, resultsPaintedMs: painted,
     cacheHit: typeof cache.hit === 'boolean' ? cache.hit : null,
     clickToRequestMs: requestSentMs,
-    requestToCalculationStartMs: difference(calculationStartMs, requestSentMs),
+    // Unlock command handling can start the worker before the UI fetches tasks.
+    // Keep that signed offset; a later cache hit does not erase observed work.
+    requestToCalculationStartMs: calculationStartMs !== null && requestSentMs !== null ? calculationStartMs - requestSentMs : null,
     calculationMs: difference(calculationDoneMs, calculationStartMs),
     calculationDoneToPaintMs: difference(painted, calculationDoneMs),
     doneToPaintMs: difference(painted, calculationDoneMs), clickToPaintMs: painted,

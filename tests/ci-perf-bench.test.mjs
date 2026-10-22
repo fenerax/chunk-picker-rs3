@@ -84,6 +84,9 @@ test('starter smoke uses its backup importer; legacy production import remains f
 });
 
 test('one scenario catalogue controls bounded requests and alternating plans', () => {
+  assert.equal(normalizeRequest({}).options.unlockPick, 'unprepared');
+  assert.equal(normalizeRequest({ options: { unlockPreview: 'on' } }).options.unlockPick, 'any');
+  assert.equal(normalizeRequest({ options: { unlockDwellMs: 3 } }).options.unlockPick, 'any');
   const request = normalizeRequest({ runs: 3, scenarios: ['unlock', 'panels'] });
   assert.deepEqual(measurementPlan(request).map(row => `${row.arm}${row.run}/${row.groupView}`),
     ['A1/off','B1/off','A1/on','B1/on','A2/off','B2/off','A2/on','B2/on','A3/off','B3/off','A3/on','B3/on']);
@@ -103,6 +106,9 @@ test('non-overlapping ranges need three complete observations; absent is never z
   assert.equal(compareSamples(samples([10,11,12],[13,14,15]),3)[0].verdict, 'loss');
   assert.equal(compareSamples(samples([10],[1]),1)[0].verdict, 'noise');
   assert.equal(compareSamples(samples([10,11,12],[1,null,2]),3)[0].verdict, 'missing');
+  const signed = ['A', 'B'].flatMap(arm => [-12, -10, -8].map(value => ({ arm, groupView: 'off', metrics: { 'unlock.requestToCalculationStart.ms': value } })));
+  const result = compareSamples(signed, 3)[0];
+  assert.equal(result.a.n, 3); assert.equal(result.a.median, -10); assert.equal(result.verdict, 'noise');
 });
 
 test('metric extraction excludes raw save, URL, cache text and fixture paths', () => {
@@ -119,6 +125,10 @@ test('metric extraction excludes raw save, URL, cache text and fixture paths', (
   assert.equal(observations.unlock[0].cacheHit, true);
   assert.equal(observations.unlock[0].workerEvents[0].selectedMember, true);
   assert.doesNotMatch(JSON.stringify(observations), /fixture-private|state|memberId|revision/);
+  const offset = extractMetrics({ suites: [{ results: [{ name: 'unlock', taskIdentity: { memberId: 'player1', revision: 2 },
+    milestones: { tasksShownMs: 100, tasksPaintedMs: 110 }, taskResponses: [{ memberId: 'player1', revision: 2, requestStartMs: 20, startMs: 30, endMs: 90 }],
+    serverCalculations: [{ memberId: 'player1', revision: 2, startedMs: 10, doneMs: 80 }] }] }] });
+  assert.equal(offset['unlock.requestToCalculationStart.ms'], -10);
 });
 
 test('checksum mismatch refuses before importing either app', async t => {

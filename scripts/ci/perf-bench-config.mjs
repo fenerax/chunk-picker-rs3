@@ -32,7 +32,7 @@ export function normalizeRequest(request = {}, { requireRevisions = false } = {}
   if (!Array.isArray(groupViews) || !groupViews.length || new Set(groupViews).size !== groupViews.length || groupViews.some(view => !['off', 'on'].includes(view))) throw Error('Invalid groupViews.');
   const normalized = { groupViews,
     unlockMember: choice(options.unlockMember ?? 'player1', ['player1', 'player2'], 'unlockMember'),
-    unlockPick: choice(options.unlockPick ?? 'any', ['any', 'prepared', 'unprepared'], 'unlockPick'),
+    unlockPick: choice(options.unlockPick ?? (options.unlockDwellMs > 0 || options.unlockPreview === 'on' ? 'any' : 'unprepared'), ['any', 'prepared', 'unprepared'], 'unlockPick'),
     unlockPreview: choice(options.unlockPreview ?? 'off', ['off', 'on'], 'unlockPreview'),
     unlockDwellMs: integer(options.unlockDwellMs ?? 0, 0, 60000, 'unlockDwellMs'),
     settlement: choice(options.settlement ?? 'tasks', ['tasks', 'idle'], 'settlement'),
