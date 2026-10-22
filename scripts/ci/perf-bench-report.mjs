@@ -85,6 +85,9 @@ export function extractMetrics(report) {
       }
       if (NOTE_EDITS.includes(name)) {
         const timeline = commandTimeline(result);
+        put(`${name}.commandSent.ms`, timeline.commandSentMs);
+        put(`${name}.commandRoundTrip.ms`, timeline.commandRoundTripMs);
+        put(`${name}.taskFetches.count`, timeline.taskFetches);
         put(`${name}.commandAcknowledged.ms`, timeline.commandAcknowledgedMs);
         put(`${name}.acknowledgedToPaint.ms`, timeline.acknowledgedToPaintMs);
       }

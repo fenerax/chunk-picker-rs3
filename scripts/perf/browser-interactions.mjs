@@ -194,7 +194,11 @@ export function commandTimeline(result = {}) {
   const calculations = (result.serverCalculations ?? []).filter(calculation => numeric(calculation.startedMs) !== null
     && numeric(calculation.doneMs) !== null && calculation.doneMs >= calculation.startedMs);
   const cache = result.taskCalculation ?? {};
+  const sentMs = numeric(command?.startMs);
   return { clickMs: 0, commandMatch: command ? 'single-command' : commands.length ? 'ambiguous' : null,
+    // Sent splits page delay before the request from the server round trip.
+    commandSentMs: sentMs, commandRoundTripMs: difference(acknowledgedMs, sentMs),
+    taskFetches: result.network ? result.network.requests.filter(request => request.path === '/api/tasks').length : null,
     commandAcknowledgedMs: acknowledgedMs, resultsShownMs: numeric(result.milestones?.tasksShownMs), resultsPaintedMs: painted,
     acknowledgedToPaintMs: difference(painted, acknowledgedMs),
     // Same harness-only worker receipts as Unlock, limited to the click → settlement window.
