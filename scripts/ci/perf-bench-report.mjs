@@ -63,6 +63,11 @@ export function extractMetrics(report) {
       const resident = suite.server?.residencyAfter?.lanes?.[lane]?.worker?.resident;
       put(`${prefix}.${lane}-resident-after.count`, typeof resident === 'boolean' ? Number(resident) : null);
     }
+    // Why a prediction calculator is still alive: busy, or idle after finished warm-ups.
+    const prediction = suite.server?.residencyAfter?.lanes?.prediction;
+    put(`${prefix}.prediction-busy-after.count`, numeric(prediction?.queue?.active));
+    put(`${prefix}.prediction-warm-completed-after.count`, numeric(prediction?.prewarm?.completed));
+    put(`${prefix}.prediction-warm-cancelled-after.count`, numeric(prediction?.prewarm?.cancelled));
     put(`${prefix}.rss-sampled-peak.MiB`, numeric(suite.server?.memoryTelemetry?.peak?.rssBytes) === null ? null : suite.server.memoryTelemetry.peak.rssBytes / 1048576);
     put(`${prefix}.heap-sampled-peak.MiB`, numeric(suite.server?.memoryTelemetry?.peak?.heapUsedBytes) === null ? null : suite.server.memoryTelemetry.peak.heapUsedBytes / 1048576);
     for (const result of suite.results ?? []) {
