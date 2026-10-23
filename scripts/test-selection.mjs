@@ -239,6 +239,8 @@ export const quickTests = new Set([
   "task-filters.test.mjs",
   "task-hover.test.mjs",
   "task-icon-painter.test.mjs",
+  "task-provenance.test.mjs",
+  "task-why.test.mjs",
   "terrain-viewport.test.mjs",
   "test-selection.test.mjs",
   "test-run-policy.test.mjs",
