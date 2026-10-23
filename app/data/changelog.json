@@ -3,6 +3,13 @@
   "entries": [
     {
       "date": "2026-10-22",
+      "title": "The page reconnects by itself after an update",
+      "items": [
+        "After an update, \"Reconnecting…\" now actually reconnects, so you see the other player's changes again without reloading"
+      ]
+    },
+    {
+      "date": "2026-10-22",
       "title": "The roll choice you pass on stays locked",
       "items": [
         "After a roll of two, the chunk you didn't pick no longer turns green on the map as if it were unlocked",
