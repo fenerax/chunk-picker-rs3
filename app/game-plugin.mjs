@@ -1,7 +1,7 @@
 import { openPluginKeys } from './plugin-keys.mjs';
 import { openPluginAchievements } from './plugin-achievements.mjs';
 import { openPluginItems } from './plugin-items.mjs';
-import { GAME_ITEMS, GAME_WORN_TASKS, matchGameItems } from './integrations/game-items.mjs';
+import { GAME_ITEMS, GAME_WORN_TASKS, ITEM_REVIEW_LIMIT, matchGameItems } from './integrations/game-items.mjs';
 import { fields, validatePluginReport, pluginProposal, matchPluginAchievements, ACHIEVEMENT_REVIEW_LIMIT } from './integrations/game-plugin.mjs';
 import { pluginTaskRows, pluginTaskList } from './game-plugin-tasks.mjs';
 
@@ -19,14 +19,15 @@ function selectItems(preview, selections) {
     const row = preview.items.find(row => row.taskId === selection.taskId);
     if (!row || tasks.has(row.taskId)) throw fail(400, 'Choose each reviewed item task once.');
     tasks.add(row.taskId);
-    return { taskId: row.taskId, title: row.gameName, gameItemId: row.gameItemId, evidence: row.evidence };
+    return itemCommand(row);
   });
 }
+const itemCommand = row => ({ taskId: row.taskId, title: row.gameName, gameItemId: row.gameItemId, evidence: row.evidence, seen: row.seen });
 const PLUGIN_ROUTES = new Map([['/api/plugin/v1/report', 'POST'], ['/api/plugin/v1/status', 'GET'], ['/api/plugin/v1/tasks', 'GET']]);
 
 /** Positions, assemblies and proposals are ephemeral. Ticks use store.command. */
 export async function openGamePlugin({ dataDir, store, world, registry, questMapping, bodyJSON, json,
-  serializeMutation, checkRequestOrigin, notify = () => {}, clock = Date.now, savedTasks = () => null, taskCatalogue = () => [], log = console.warn }) {
+  serializeMutation, checkRequestOrigin, notify = () => {}, clock = Date.now, savedTasks = () => null, taskCatalogue = () => [], itemsBetaAsLive = false, log = console.warn }) {
   const keys = await openPluginKeys({ dataDir, clock });
   const handled = await openPluginAchievements({ dataDir, members: () => state().members, clock, log });
   const itemStore = await openPluginItems({ dataDir, members: () => state().members, clock, log });
@@ -178,7 +179,8 @@ export async function openGamePlugin({ dataDir, store, world, registry, questMap
   }
   async function receiveItems(player, report) {
     const value = report.items, now = new Date(clock()).toISOString();
-    const world = report.world?.beta === false ? 'live' : report.world?.beta === true ? 'beta' : 'unknown';
+    // itemsBetaAsLive is for a synthetic scratch save only: beta items then tick it as live ones would.
+    const world = report.world?.beta === false || itemsBetaAsLive && report.world?.beta === true ? 'live' : report.world?.beta === true ? 'beta' : 'unknown';
     const memory = itemMemory.get(player);
     const saved = world === 'live' ? itemStore.get(player) : memory?.world === world ? structuredClone(memory.record) : null;
     const ack = { snapshot: value.snapshot, journal: itemAcks.get(player)?.journal ?? null };
@@ -209,8 +211,22 @@ export async function openGamePlugin({ dataDir, store, world, registry, questMap
     itemAcks.set(player, { snapshot: value.snapshot, journal: record.journal });
     const owner = member(player), dismissed = itemHandled.get(player);
     const evidence = new Map(Object.entries(record.items).map(([id, fact]) => [Number(id), fact]));
-    itemReview(player, report, matchGameItems({ evidence, task: itemTask, completed: new Set(owner.completedTasks), world,
-      handled: id => record.handled.includes(id) || !!dismissed?.has(id), unmapped: [...unmapped].map(([gameItemId, name]) => ({ gameItemId, name })) }));
+    const result = matchGameItems({ evidence, task: itemTask, completed: new Set(owner.completedTasks), world, autoTick: world === 'live',
+      handled: id => record.handled.includes(id) || !!dismissed?.has(id), unmapped: [...unmapped].map(([gameItemId, name]) => ({ gameItemId, name })) });
+    if (result.ticks.length) {
+      try {
+        // Live owned items tick their BiS goals. Already inside the server's mutation queue: the
+        // same checked command as review Apply, one History/Undo entry for the batch.
+        await store.command({ type: 'apply-game-progress', memberId: player, fetchedAt: report.sentAt, skills: [], quests: [], achievements: [],
+          items: result.ticks.map(itemCommand) }, store.getInfo().revision);
+        // Handled, so a later Undo or untick isn't ticked again by the next report.
+        await rememberItemsHandled(player, result.ticks);
+      } catch {
+        // A failed write must not reject the report or lose the matches.
+        result.rows = [...result.ticks, ...result.rows].slice(0, ITEM_REVIEW_LIMIT);
+      }
+    }
+    itemReview(player, report, result);
   }
   async function rememberItemsHandled(player, rows) {
     const dismissed = itemHandled.get(player) ?? new Set();

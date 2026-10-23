@@ -73,7 +73,7 @@ export function createCompletedModel({ state, result, memberId, registry, now = 
   const familyOf = task => families.get(root(resolve(task.id))) ?? [resolve(task.id)];
   const indices = selected.map(owner => createTaskFactsIndex(projectedState, owner.id, registry, { tasks, completionGroups }));
 
-  const checks = new Map(), actual = new Map(), imported = new Set(), observations = new Map(), achievementObservations = new Map();
+  const checks = new Map(), actual = new Map(), imported = new Set(), observations = new Map(), achievementObservations = new Map(), itemObservations = new Map();
   for (const entry of state.legacy?.gameplayMigration?.taskStatusProvenance ?? []) {
     if (entry.sources?.some(source => checkSources.has(source))) imported.add(key(entry.memberId, resolve(entry.taskId)));
   }
@@ -105,7 +105,7 @@ export function createCompletedModel({ state, result, memberId, registry, now = 
     if (timestamp(fact.fetchedAt) && fact.source === 'game-plugin' && fact.memberId === owner.id) achievementObservations.set(key(owner.id, resolve(id)), fact);
   }
   for (const owner of state.members) for (const [id, fact] of Object.entries(owner.itemProgress ?? {})) {
-    if (timestamp(fact.fetchedAt) && fact.source === 'game-plugin' && fact.memberId === owner.id) observations.set(key(owner.id, resolve(id)), fact);
+    if (timestamp(fact.fetchedAt) && fact.source === 'game-plugin' && fact.memberId === owner.id) itemObservations.set(key(owner.id, resolve(id)), fact);
   }
   for (const owner of state.members) for (const [id, fact] of Object.entries(owner.questProgress ?? {})) {
     if (timestamp(fact.fetchedAt) && (fact.source === 'game-plugin' && fact.memberId === owner.id
@@ -117,13 +117,14 @@ export function createCompletedModel({ state, result, memberId, registry, now = 
   for (const owner of projectedState.members) {
     const add = (id, kind) => {
       const reference = key(owner.id, id), history = (kind === 'ticked' ? checks : actual).get(reference);
-      const achievement = achievementObservations.get(reference);
-      const observation = kind === 'game' ? achievement ?? observations.get(reference) : undefined;
+      const achievement = achievementObservations.get(reference), item = itemObservations.get(reference);
+      const observation = kind === 'game' ? achievement ?? item ?? observations.get(reference) : undefined;
       const completion = { memberId: owner.id, name: owner.name ?? owner.id, memberName: owner.name ?? owner.id, kind,
         taskId: id, at: history?.completed ? history.at : null,
         imported: kind === 'ticked' && (history ? history.completed && history.imported : imported.has(reference)),
         ...(observation ? { source: observation.source, observedAt: observation.fetchedAt,
           ...(achievement ? { achievementId: achievement.achievementId } : {}),
+          ...(item && !achievement ? { gameItemId: item.gameItemId, itemSeen: item.seen } : {}),
           ...(observation.source === 'runemetrics' ? { runescapeName: observation.runescapeName } : {}) } : {}) };
       const entries = evidence.get(id) ?? []; entries.push(completion); evidence.set(id, entries);
     };

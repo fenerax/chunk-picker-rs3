@@ -83,6 +83,16 @@ test('game achievement completions show a small provenance marker', async () => 
   await h.click('Done in-game (Game plugin)'); assert.equal(h.rows().length, 1);
 });
 
+test('game item completions show the item and how it was seen', async () => {
+  const row = task('custom:item', 'Obtain an item'), h = harness([row]);
+  h.state.members[0].completedTasks = [row.id];
+  h.state.members[0].itemProgress = { [row.id]: { title: 'Item', gameItemId: 857, evidence: 'owned', seen: 'owned when first seen; source unknown',
+    source: 'game-plugin', memberId: 'actor1', fetchedAt: '2026-10-08T12:00:00Z' } };
+  await h.panel.open(); await flush();
+  assert.match(h.rows()[0].textContent, /in-game, Game plugin/);
+  const marker = h.all().find(node => node.textContent === 'game item 857 · owned when first seen; source unknown'); assert.equal(marker.className, 'completed-task-meta');
+});
+
 test('untick asks inline confirmation and sends the completion owner and source task ID', async () => {
   const own = task('custom:oak', 'Chop oak logs'); const h = harness([own]); h.state.members[1].taskStatus[own.id] = { challengeCompleted: true };
   await h.panel.open(); await flush(); await h.click('Untick Chop oak logs for Reed');

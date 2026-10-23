@@ -239,12 +239,14 @@ round-tripping an older save does not add it or change the schema version.
 Schema 1 optionally stores `member.itemProgress`, a dictionary keyed by an
 existing task ID. Each value has exactly `title` (the game item name, 1–80
 characters without controls), `gameItemId` (a nonnegative safe integer),
-`evidence` (`owned` or `worn`), `source: "game-plugin"`, `fetchedAt` and
+`evidence` (`owned` or `worn`), `seen` (the review label, such as "owned when
+first seen; source unknown", "new since <time>" or "worn <time>"; 1–80
+characters without controls), `source: "game-plugin"`, `fetchedAt` and
 `memberId` matching the owner. It records what the game plugin saw, not where
 the item came from.
 
 `apply-game-progress` accepts an optional `items` array of
-`{taskId, title, gameItemId, evidence}`. A generated Obtain goal absent from
+`{taskId, title, gameItemId, evidence, seen}`. A generated Obtain goal absent from
 `tasks` is registered from the trusted server catalogue, as `complete-task`
 does; payloads cannot supply task metadata. New item ticks join
 `completedTasks` in the same History/Undo batch. Manual unticks, Undo, task

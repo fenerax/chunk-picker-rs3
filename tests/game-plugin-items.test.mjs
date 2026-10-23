@@ -22,14 +22,15 @@ const catalogue = [
 ];
 const items = ({ snapshot = '0123456789abcdef', worn = [], backpack = [], events = [], id = journalId } = {}) => ({ snapshot, worn, backpack, journal: { id, events } });
 
-async function fixture(t) {
+async function fixture(t, { betaAsLive = false } = {}) {
   const dataDir = await mkdtemp(fileURLToPath(new URL('../.plugin-items-test-', import.meta.url)));
   let at = Date.parse('2026-10-22T12:00:00Z'), input, output, seq = 0, controller;
-  const warnings = [], commands = [], taskCatalogue = new Map(catalogue.map(row => [row.id, row]));
+  const warnings = [], commands = [], taskCatalogue = new Map(catalogue.map(row => [row.id, row])), failing = { command: false };
   let state = createGroupState([{ id: 'a', name: 'Explorer 1' }, { id: 'b', name: 'Explorer 2' }]);
   const store = {
     getInfo: () => ({ revision: state.revision }), getCalculationSnapshot: () => ({ state, members: state.members }), peekRollPool: () => null,
     command: async (command, expectedRevision) => {
+      if (failing.command) throw new Error('Synthetic write failure');
       state = applyCommand(state, command, { expectedRevision, now: () => new Date(at).toISOString(), taskCatalogue });
       commands.push(structuredClone(command)); return state;
     },
@@ -39,7 +40,7 @@ async function fixture(t) {
     controller = await openGamePlugin({ dataDir, store, clock: () => at, world: { chunks: new Map() }, registry: { resolve: () => ({}) }, questMapping: new Map(),
       serializeMutation: operation => { const next = queue.then(operation); queue = next.catch(() => {}); return next; },
       bodyJSON: async () => input, json: async (_request, _response, status, value) => { assert.equal(status, 200); output = value; },
-      checkRequestOrigin: () => {}, taskCatalogue: () => catalogue, log: message => warnings.push(message) });
+      checkRequestOrigin: () => {}, taskCatalogue: () => catalogue, itemsBetaAsLive: betaAsLive, log: message => warnings.push(message) });
   }
   await start();
   const { key } = await controller.create(identity, { memberId: 'a', label: 'Synthetic plugin' });
@@ -55,7 +56,7 @@ async function fixture(t) {
     await store.command(review.command, preview.stateRevision); await controller.finish('a');
     return review.command;
   }
-  return { get controller() { return controller; }, get state() { return state; }, commands, send, apply, dataDir, warnings,
+  return { get controller() { return controller; }, get state() { return state; }, commands, send, apply, dataDir, warnings, failing,
     review: () => controller.review(identity, 'a'), restart: async () => { await controller.close(); await start(); } };
 }
 
@@ -77,7 +78,7 @@ test('item reports are bounded, separate and keep unreadable containers as null'
   ]) assert.throws(() => validatePluginReport(bad), error => error.status === 400);
 });
 
-test('the reviewed table only maps checked IDs; possession proposes Obtain goals and wearing proposes Wear tasks', () => {
+test('the reviewed table only maps checked IDs; possession matches Obtain goals and wearing matches Wear tasks', () => {
   assert.equal(GAME_ITEMS.get(CHAINBODY).goalId, goal('000597'));
   assert.equal(GAME_ITEMS.get(CHAINBODY_NOTED).noted, true);
   assert.equal(GAME_ITEMS.has(UNKNOWN), false);
@@ -89,43 +90,74 @@ test('the reviewed table only maps checked IDs; possession proposes Obtain goals
   const worn = matchGameItems({ evidence, task, completed: new Set([goal('000597')]), world: 'live' });
   assert.deepEqual(worn.rows.map(row => [row.taskId, row.evidence]), [[WEAR_TASK, 'worn']]);
   assert.equal(matchGameItems({ evidence, task: () => null, completed: new Set(), world: 'live' }).rows.length, 0, 'Tasks absent from the catalogue are never proposed');
+  const ticking = matchGameItems({ evidence, task, completed: new Set(), world: 'live', autoTick: true });
+  assert.deepEqual([ticking.ticks.map(row => row.taskId), ticking.rows.map(row => row.taskId)], [[goal('000597')], [WEAR_TASK]], 'Only owned goals tick');
 });
 
-test('a live first snapshot becomes labelled review rows, never ticks, and is acknowledged after saving', async t => {
+test('the eight BiS goals from the in-game test map to their checked IDs, noted copies included', () => {
+  for (const [suffix, wearable, noted] of [['00080a', 10150, 10151], ['0009f0', 46845, 46846], ['0009f8', 1359, 1360], ['000a6e', 46885, 46886],
+    ['000a80', 46865, 46866], ['000b61', 3385, 3386], ['000be4', 45465, 1194], ['000cb2', 4405, 4406]]) {
+    assert.equal(GAME_ITEMS.get(wearable).goalId, goal(suffix)); assert.equal(GAME_ITEMS.get(wearable).noted, false);
+    assert.equal(GAME_ITEMS.get(noted).goalId, goal(suffix)); assert.equal(GAME_ITEMS.get(noted).noted, true);
+  }
+});
+
+test('live owned items tick their BiS goals with labels and provenance; Wear tasks stay in review', async t => {
   const f = await fixture(t);
   const value = items({ worn: [[4, CHAINBODY, 1, 'Gud raider chainbody']], backpack: [[0, YEW_SHORTBOW, 1, 'Yew shortbow'], [1, UNKNOWN, 3, 'Mystery item']] });
   const status = await f.send(value);
   assert.deepEqual(status.items, { snapshot: value.snapshot, journal: { id: journalId, event: 0 } });
-  assert.equal(status.pendingProgress, true);
-  assert.equal(f.commands.length, 0, 'Item evidence never ticks by itself');
-  const preview = f.review();
-  assert.deepEqual(preview.items.map(row => [row.taskId, row.evidence, row.gameItemId, row.seen, row.world]), [
-    [goal('000dc1'), 'owned', YEW_SHORTBOW, 'owned when first seen; source unknown', 'live'],
-    [goal('000597'), 'owned', CHAINBODY, 'owned when first seen; source unknown', 'live'],
-    [WEAR_TASK, 'worn', CHAINBODY, 'worn 2026-10-22T12:00:01.001Z', 'live'],
+  assert.equal(f.commands.length, 1, 'One History entry for the batch');
+  assert.deepEqual(f.commands[0].items.map(row => [row.taskId, row.evidence, row.gameItemId, row.seen]), [
+    [goal('000dc1'), 'owned', YEW_SHORTBOW, 'owned when first seen; source unknown'],
+    [goal('000597'), 'owned', CHAINBODY, 'owned when first seen; source unknown'],
   ]);
+  const member = f.state.members[0];
+  assert.deepEqual([...member.completedTasks].sort(), [goal('000dc1'), goal('000597')].sort());
+  assert.deepEqual(member.itemProgress[goal('000597')], { title: 'Gud raider chainbody', gameItemId: CHAINBODY, evidence: 'owned',
+    seen: 'owned when first seen; source unknown', source: 'game-plugin', fetchedAt: '2026-10-22T12:00:01.001Z', memberId: 'a' });
+  assert.ok(f.state.tasks.some(task => task.id === goal('000597')), 'Generated goal registered from the trusted catalogue');
+  assert.doesNotThrow(() => validateState(f.state));
+  const preview = f.review();
+  assert.deepEqual(preview.items.map(row => [row.taskId, row.evidence, row.seen, row.world]), [[WEAR_TASK, 'worn', 'worn 2026-10-22T12:00:01.001Z', 'live']]);
   assert.deepEqual(preview.unmappedItems, [{ gameItemId: UNKNOWN, name: 'Mystery item' }]);
   const saved = JSON.parse(await readFile(path.join(f.dataDir, 'plugin-items.json'), 'utf8'));
   assert.deepEqual(Object.keys(saved.players.a.items).sort(), [String(YEW_SHORTBOW), String(CHAINBODY)].sort(), 'Only reviewed IDs are stored');
   assert.equal(saved.players.a.items[CHAINBODY].first, true);
+  assert.deepEqual(saved.players.a.handled, [goal('000dc1'), goal('000597')].sort());
 
-  // Later gains are labelled new; the earlier rows keep their first-seen label.
+  // Later gains tick as new; a repeat of the same report ticks nothing.
   await f.send(items({ snapshot: '1123456789abcdef', worn: [[4, CHAINBODY, 1, 'Gud raider chainbody']], backpack: [[0, BRONZE_DAGGER, 1, 'Bronze dagger']] }));
-  const later = f.review().items.find(row => row.taskId === goal('0002ae'));
-  assert.equal(later.seen, 'new since 2026-10-22T12:00:02.002Z');
-  assert.equal(f.review().items.find(row => row.taskId === goal('000dc1')).seen, 'owned when first seen; source unknown', 'Ever-owned evidence stays after the item leaves');
+  assert.equal(f.commands.length, 2);
+  assert.deepEqual(f.commands[1].items.map(row => [row.taskId, row.seen]), [[goal('0002ae'), 'new since 2026-10-22T12:00:02.002Z']]);
+  await f.send(items({ snapshot: '1123456789abcdef', worn: [[4, CHAINBODY, 1, 'Gud raider chainbody']], backpack: [[0, BRONZE_DAGGER, 1, 'Bronze dagger']] }));
+  assert.equal(f.commands.length, 2);
 });
 
-test('Apply ticks only chosen rows with item provenance; shown live rows stay handled across restart; Undo removes the evidence', async t => {
+test('an undone item tick is not ticked again, and a failed tick waits in review', async t => {
+  const f = await fixture(t);
+  f.failing.command = true;
+  await f.send(items({ backpack: [[0, YEW_SHORTBOW, 1, 'Yew shortbow']] }));
+  assert.deepEqual(f.review().items.map(row => [row.taskId, row.evidence]), [[goal('000dc1'), 'owned']], 'Kept for review when the write fails');
+  f.failing.command = false;
+  await f.send(items({ snapshot: '1123456789abcdef', backpack: [[0, YEW_SHORTBOW, 1, 'Yew shortbow']] }));
+  assert.ok(f.state.members[0].completedTasks.includes(goal('000dc1')), 'The next report ticks it');
+  const undone = applyCommand(f.state, { type: 'undo' }, { expectedRevision: f.state.revision, now: () => '2026-10-22T13:00:00.000Z' });
+  assert.equal(undone.members[0].completedTasks.includes(goal('000dc1')), false);
+  assert.equal(undone.members[0].itemProgress?.[goal('000dc1')], undefined, 'Undo removes the evidence');
+  await f.restart();
+  await f.send(items({ snapshot: '2223456789abcdef', backpack: [[0, YEW_SHORTBOW, 1, 'Yew shortbow']] }));
+  assert.equal(f.commands.length, 1, 'Handled across restart');
+});
+
+test('Apply ticks only chosen review rows; shown live rows stay handled across restart', async t => {
   const f = await fixture(t);
   await f.send(items({ worn: [[4, CHAINBODY, 1, 'Gud raider chainbody']], backpack: [[0, YEW_SHORTBOW, 1, 'Yew shortbow']] }));
-  const command = await f.apply([WEAR_TASK, goal('000597')]);
-  assert.deepEqual(command.items.map(row => [row.taskId, row.evidence]).sort(), [[goal('000597'), 'owned'], [WEAR_TASK, 'worn']].sort());
+  const command = await f.apply([WEAR_TASK]);
+  assert.deepEqual(command.items.map(row => [row.taskId, row.evidence, row.seen]), [[WEAR_TASK, 'worn', 'worn 2026-10-22T12:00:01.001Z']]);
   const member = f.state.members[0];
-  assert.deepEqual([...member.completedTasks].sort(), [WEAR_TASK, goal('000597')].sort());
-  assert.ok(!member.completedTasks.includes(goal('000dc1')), 'Skipped rows stay unticked');
-  assert.deepEqual(member.itemProgress[WEAR_TASK], { title: 'Gud raider chainbody', gameItemId: CHAINBODY, evidence: 'worn', source: 'game-plugin', fetchedAt: '2026-10-22T12:00:01.001Z', memberId: 'a' });
-  assert.ok(f.state.tasks.some(task => task.id === goal('000597')), 'Generated goal registered from the trusted catalogue');
+  assert.deepEqual(member.itemProgress[WEAR_TASK], { title: 'Gud raider chainbody', gameItemId: CHAINBODY, evidence: 'worn',
+    seen: 'worn 2026-10-22T12:00:01.001Z', source: 'game-plugin', fetchedAt: '2026-10-22T12:00:01.001Z', memberId: 'a' });
   assert.doesNotThrow(() => validateState(f.state));
   const saved = JSON.parse(await readFile(path.join(f.dataDir, 'plugin-items.json'), 'utf8'));
   assert.deepEqual(saved.players.a.handled, [WEAR_TASK, goal('000597'), goal('000dc1')].sort());
@@ -133,16 +165,22 @@ test('Apply ticks only chosen rows with item provenance; shown live rows stay ha
   await f.restart();
   await f.send(items({ snapshot: '2223456789abcdef', worn: [[4, CHAINBODY, 1, 'Gud raider chainbody']], backpack: [[0, YEW_SHORTBOW, 1, 'Yew shortbow']] }));
   assert.equal(f.review().preview, null, 'Handled and completed rows do not return after a restart');
-
-  const undone = applyCommand(f.state, { type: 'undo' }, { expectedRevision: f.state.revision, now: () => '2026-10-22T13:00:00.000Z' });
-  assert.equal(undone.members[0].completedTasks.includes(WEAR_TASK), false);
-  assert.equal(undone.members[0].itemProgress?.[WEAR_TASK], undefined);
 });
 
-test('beta snapshots stay in memory and are labelled; journal events count once per journal', async t => {
+test('a Wear row left unticked stays handled and is not offered again', async t => {
+  const f = await fixture(t);
+  await f.send(items({ worn: [[4, CHAINBODY, 1, 'Gud raider chainbody']] }));
+  await f.apply([]);
+  assert.equal(f.state.members[0].completedTasks.includes(WEAR_TASK), false, 'Skipped rows stay unticked');
+  await f.send(items({ snapshot: '2223456789abcdef', worn: [[4, CHAINBODY, 1, 'Gud raider chainbody']] }));
+  assert.equal(f.review().preview, null);
+});
+
+test('beta snapshots never tick, stay in memory and are labelled; journal events count once per journal', async t => {
   const f = await fixture(t);
   const status = await f.send(items({ backpack: [[0, BRONZE_DAGGER, 1, 'Bronze dagger']], events: [[1, CHAINBODY, 'Gud raider chainbody'], [2, CHAINBODY_NOTED, 'Gud raider chainbody']] }), true);
   assert.deepEqual(status.items.journal, { id: journalId, event: 2 });
+  assert.equal(f.commands.length, 0, 'Beta items never tick');
   const rows = f.review().items;
   assert.ok(rows.every(row => row.world === 'beta'));
   assert.ok(rows.some(row => row.taskId === WEAR_TASK), 'A worn journal event is worn evidence');
@@ -150,6 +188,14 @@ test('beta snapshots stay in memory and are labelled; journal events count once 
   await f.controller.finish('a');
   await f.send(items({ snapshot: '3323456789abcdef', backpack: [[0, BRONZE_DAGGER, 1, 'Bronze dagger']], events: [[1, CHAINBODY, 'Gud raider chainbody']] }), true);
   assert.equal(f.review().preview, null, 'Dismissed beta rows stay hidden for this run');
+});
+
+test('a scratch picker can let beta items tick as live ones would', async t => {
+  const f = await fixture(t, { betaAsLive: true });
+  await f.send(items({ worn: [[4, CHAINBODY, 1, 'Gud raider chainbody']], backpack: [[0, BRONZE_DAGGER, 1, 'Bronze dagger']] }), true);
+  assert.deepEqual(f.commands[0].items.map(row => row.taskId), [goal('0002ae'), goal('000597')]);
+  assert.deepEqual(f.review().items.map(row => [row.taskId, row.world]), [[WEAR_TASK, 'live']]);
+  assert.ok(JSON.parse(await readFile(path.join(f.dataDir, 'plugin-items.json'), 'utf8')).players.a.items[CHAINBODY]);
 });
 
 test('a first look with an unreadable container records nothing and keeps the journal unacknowledged', async t => {
@@ -163,11 +209,13 @@ test('saved item progress validates provenance, evidence kind and task reference
   let state = createGroupState([{ id: 'a', name: 'Explorer 1' }]);
   const taskCatalogue = new Map(catalogue.map(row => [row.id, row]));
   const base = { type: 'apply-game-progress', memberId: 'a', fetchedAt: '2026-10-22T12:00:00.000Z', skills: [], quests: [] };
-  for (const bad of [[{ taskId: goal('000597'), title: 'X', gameItemId: 1, evidence: 'gift' }], [{ taskId: 'rs3:goal:equipment:ffffff', title: 'X', gameItemId: 1, evidence: 'owned' }],
-    [{ taskId: goal('000597'), title: 'X', gameItemId: -1, evidence: 'owned' }], [{ taskId: goal('000597'), title: 'X', gameItemId: 1, evidence: 'owned', source: 'other' }]]) {
+  const seen = 'owned when first seen; source unknown';
+  for (const bad of [[{ taskId: goal('000597'), title: 'X', gameItemId: 1, evidence: 'gift', seen }], [{ taskId: 'rs3:goal:equipment:ffffff', title: 'X', gameItemId: 1, evidence: 'owned', seen }],
+    [{ taskId: goal('000597'), title: 'X', gameItemId: -1, evidence: 'owned', seen }], [{ taskId: goal('000597'), title: 'X', gameItemId: 1, evidence: 'owned', seen, source: 'other' }],
+    [{ taskId: goal('000597'), title: 'X', gameItemId: 1, evidence: 'owned' }], [{ taskId: goal('000597'), title: 'X', gameItemId: 1, evidence: 'owned', seen: 'bad\nlabel' }]]) {
     assert.throws(() => applyCommand(state, { ...base, items: bad }, { expectedRevision: state.revision, taskCatalogue }));
   }
-  state = applyCommand(state, { ...base, items: [{ taskId: goal('000597'), title: 'Gud raider chainbody', gameItemId: CHAINBODY, evidence: 'owned' }] }, { expectedRevision: state.revision, taskCatalogue });
+  state = applyCommand(state, { ...base, items: [{ taskId: goal('000597'), title: 'Gud raider chainbody', gameItemId: CHAINBODY, evidence: 'owned', seen }] }, { expectedRevision: state.revision, taskCatalogue });
   const unticked = applyCommand(state, { type: 'complete-task', memberId: 'a', taskId: goal('000597'), completed: false }, { expectedRevision: state.revision, taskCatalogue });
   assert.equal(Object.hasOwn(unticked.members[0].itemProgress, goal('000597')), false, 'Unticking clears the item evidence');
   const bad = structuredClone(state); bad.members[0].itemProgress[goal('000597')].memberId = 'b';

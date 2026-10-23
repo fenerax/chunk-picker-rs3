@@ -84,9 +84,11 @@ export function validateAchievementProgress(taskId, value, tasks, memberId) {
 
 // Item evidence never names where an item came from: only that the game plugin saw it owned or worn.
 export function validateItemProgress(taskId, value, tasks, memberId) {
-  validateGamePluginProvenance(value, memberId, ['title', 'gameItemId', 'evidence', 'source', 'fetchedAt', 'memberId'], 'item progress');
+  validateGamePluginProvenance(value, memberId, ['title', 'gameItemId', 'evidence', 'seen', 'source', 'fetchedAt', 'memberId'], 'item progress');
   if (typeof value.title !== 'string' || !value.title.trim() || value.title.length > 80 || /[\x00-\x1f\x7f-\x9f]/.test(value.title)) throw new TypeError('Item progress title must contain 1 through 80 characters without controls');
   if (!Number.isSafeInteger(value.gameItemId) || value.gameItemId < 0) throw new TypeError('Item progress gameItemId must be a nonnegative safe integer');
   if (value.evidence !== 'owned' && value.evidence !== 'worn') throw new TypeError('Item progress evidence must be owned or worn');
+  // The review label: "owned when first seen; source unknown", "new since …" or "worn …".
+  if (typeof value.seen !== 'string' || !value.seen.trim() || value.seen.length > 80 || /[\x00-\x1f\x7f-\x9f]/.test(value.seen)) throw new TypeError('Item progress seen must contain 1 through 80 characters without controls');
   if (!tasks.has(taskId)) throw new TypeError(`Item progress references absent task: ${taskId}`);
 }

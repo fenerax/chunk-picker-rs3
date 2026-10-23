@@ -31,6 +31,14 @@ const ROWS = [
   ['00058b', 'Green dragonhide vambraces', 'hands', [1065], [1066], 37057149],
   ['000b51', 'Spiked gauntlets', 'hands', [23035], [], 36471462],
   ['0002ae', 'Bronze dagger', 'main hand weapon', [1205], [1206], 37131007],
+  ['00080a', 'Noose wand', '2h weapon', [10150], [10151], 36256305],
+  ['0009f0', 'Rune full helm + 3', 'head', [46845], [46846], 36992348],
+  ['0009f8', 'Rune hatchet', 'main hand weapon', [1359], [1360], 37020035],
+  ['000a6e', 'Rune platebody + 3', 'torso', [46885], [46886], 37058332],
+  ['000a80', 'Rune platelegs + 3', 'legs', [46865], [46866], 36992397],
+  ['000b61', 'Splitbark helm', 'head', [3385], [3386], 37191937],
+  ['000be4', 'Steel kiteshield', 'off-hand', [45465], [1194], 36970590],
+  ['000cb2', 'Team-46 cape', 'back', [4405], [4406], 36961340],
 ];
 
 // Tasks proved only by wearing one of the listed items. The Gud raider set is
@@ -49,12 +57,13 @@ export const ITEM_REVIEW_LIMIT = 100;
 const UNMAPPED_LIMIT = 30;
 
 /**
- * Review rows from item evidence. Possession proposes the source-neutral BiS
- * "Obtain" goal; Wear tasks need worn evidence. Source-specific tasks are never
- * in the table, so they never match.
+ * Rows from item evidence. Possession matches the source-neutral BiS "Obtain"
+ * goal; Wear tasks need worn evidence. Source-specific tasks are never in the
+ * table, so they never match. With autoTick, owned goals come back as ticks
+ * (all of them) and only the rest go to review.
  * evidence: Map(gameItemId -> { name, ownedAt, wornAt, first }).
  */
-export function matchGameItems({ evidence, task, completed, handled = () => false, unmapped = [], world }) {
+export function matchGameItems({ evidence, task, completed, handled = () => false, unmapped = [], world, autoTick = false }) {
   const rows = new Map();
   const propose = (taskId, gameItemId, kind, fact) => {
     const row = task(taskId);
@@ -71,7 +80,8 @@ export function matchGameItems({ evidence, task, completed, handled = () => fals
       for (const [taskId, ids] of GAME_WORN_TASKS) if (ids.has(gameItemId)) propose(taskId, gameItemId, 'worn', fact);
     }
   }
-  const all = [...rows.values()];
-  return { rows: all.slice(0, ITEM_REVIEW_LIMIT), more: Math.max(0, all.length - ITEM_REVIEW_LIMIT),
+  const ticks = [], all = [];
+  for (const row of rows.values()) (autoTick && row.evidence === 'owned' ? ticks : all).push(row);
+  return { ticks, rows: all.slice(0, ITEM_REVIEW_LIMIT), more: Math.max(0, all.length - ITEM_REVIEW_LIMIT),
     unmapped: unmapped.slice(0, UNMAPPED_LIMIT), unmappedMore: Math.max(0, unmapped.length - UNMAPPED_LIMIT) };
 }

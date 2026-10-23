@@ -1855,11 +1855,11 @@ function applyCommandCopy(next, command, { expectedRevision, world, registry, ra
         observedAchievements.add(achievement.taskId);
       }
       for (const item of items) {
-        record(item, 'Game plugin item'); knownKeys(item, new Set(['taskId', 'title', 'gameItemId', 'evidence']), 'Game plugin item');
+        record(item, 'Game plugin item'); knownKeys(item, new Set(['taskId', 'title', 'gameItemId', 'evidence', 'seen']), 'Game plugin item');
         propertyKey(item.taskId, 'Game plugin item taskId');
         // Obtain goals are generated rows: only the trusted catalogue may add one.
         if (!taskRows.has(item.taskId)) { registerCatalogueTask(next, item.taskId, taskCatalogue); taskRows.set(item.taskId, next.tasks.find(task => task.id === item.taskId)); }
-        validateItemProgress(item.taskId, { title: item.title, gameItemId: item.gameItemId, evidence: item.evidence, ...provenance }, taskRows, member.id);
+        validateItemProgress(item.taskId, { title: item.title, gameItemId: item.gameItemId, evidence: item.evidence, seen: item.seen, ...provenance }, taskRows, member.id);
         if (observedItems.has(item.taskId) || observedAchievements.has(item.taskId)) fail(`Duplicate Game plugin item task: ${item.taskId}`);
         observedItems.add(item.taskId);
       }
@@ -1877,7 +1877,7 @@ function applyCommandCopy(next, command, { expectedRevision, world, registry, ra
       }
       const newItems = items.filter(({ taskId }) => !member.completedTasks.includes(taskId));
       if (newItems.length) {
-        member.itemProgress = { ...(member.itemProgress ?? {}), ...Object.fromEntries(newItems.map(({ taskId, title, gameItemId, evidence }) => [taskId, { title, gameItemId, evidence, ...provenance }])) };
+        member.itemProgress = { ...(member.itemProgress ?? {}), ...Object.fromEntries(newItems.map(({ taskId, title, gameItemId, evidence, seen }) => [taskId, { title, gameItemId, evidence, seen, ...provenance }])) };
         member.completedTasks = [...member.completedTasks, ...newItems.map(({ taskId }) => taskId)];
       }
       if (!plugin) member.runeMetricsSync = provenance;

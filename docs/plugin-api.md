@@ -266,12 +266,21 @@ need worn evidence, from `worn` or the journal; noted IDs are never worn
 evidence. Source-specific tasks (collection rows such as "(Asgarnia &
 Misthalin) Obtain …", drops, crafts) are not in the table and never match.
 
-**Nothing ticks from items.** Every match becomes a review row with `taskId`,
-`label`, `gameItemId`, `gameName`, `evidence` (`owned` or `worn`),
-`seen` and `world`. `seen` is "owned when first seen; source unknown" for
-items present in the player's first readable snapshot (both containers read),
-"new since <time>" for later gains and "worn <time>" for Wear rows. Beta and
-unknown-world rows are labelled. The proposal preview carries `items`,
+**Live owned items tick their BiS goals.** On a live world
+(`world.beta === false`), an owned match for an open BiS "Obtain" goal is
+applied at once through `apply-game-progress` `items`, in one History/Undo
+entry, and the goal is marked handled so Undo or an untick is not re-ticked by
+the next report. If that write fails, the matches fall back to review. Wear
+tasks, and every match from a beta or unknown world, still never tick: each
+becomes a review row with `taskId`, `label`, `gameItemId`, `gameName`,
+`evidence` (`owned` or `worn`), `seen` and `world`. `seen` is "owned when
+first seen; source unknown" for items present in the player's first readable
+snapshot (both containers read), "new since <time>" for later gains and "worn
+<time>" for Wear rows; ticks keep the same label in `itemProgress`. Beta and
+unknown-world rows are labelled. A synthetic scratch save may start the server
+with the in-process option `pluginItemsBetaAsLive: true`, which treats beta
+items as live; there is no environment variable for it, and live pickers never
+set it. The proposal preview carries `items`,
 `itemsMore`, `unmappedItems` and `unmappedItemsMore`. Apply accepts optional
 `items: [{taskId}]` chosen from the preview; omitted rows stay unticked. The
 command records `member.itemProgress` (see the save schema). Apply and

@@ -369,6 +369,8 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
   httpServer, httpLoopbackServer, startupConnections, onRequestHandler, startupSignal,
   // Operator capability only: no HTTP endpoint can acquire writer ownership.
   liveSwap,
+  // Synthetic scratch saves only: game plugin items from beta worlds tick like live ones.
+  pluginItemsBetaAsLive = false,
 } = {}) {
   const initializationStarted = performance.now();
   startupPhase('create:start');
@@ -609,6 +611,7 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
       serializeMutation, checkRequestOrigin,
       // In-game lists read the saved task result only; they never start an evaluation.
       savedTasks: memberId => { const entry = savedTaskResults.get(memberId); return entry?.playJSON ? { bytes: entry.playJSON, revision: entry.revision } : null; },
+      itemsBetaAsLive: pluginItemsBetaAsLive,
       // Item evidence may propose generated Obtain goals, which live in the catalogue until ticked.
       taskCatalogue: () => [...(taskWorker?.catalogue ?? []), ...(taskWorker?.dynamicCatalogue ?? [])],
       notify: () => { for (const client of clients) if (!client.write('event: game-plugin\ndata: {}\n\n')) client.end(); } });
