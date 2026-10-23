@@ -3,6 +3,14 @@
   "entries": [
     {
       "date": "2026-10-22",
+      "title": "No more black flash when you tick a task",
+      "items": [
+        "Ticking a task, or any save that takes a moment, no longer blanks the map for a split second",
+        "The \"Saving…\" and \"Updating tasks…\" message now floats under the top bar instead of pushing the page down"
+      ]
+    },
+    {
+      "date": "2026-10-22",
       "title": "Why is this task here?",
       "items": [
         "Each task row has a ? button that explains why the task is in your list: the rule that adds it and where to find that rule, what its category covers, which similar task it was picked over, what it leads to, and where it can come from",
