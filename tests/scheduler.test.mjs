@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
-import { createTaskScheduler, predictionCacheKey } from '../app/tasks/scheduler.mjs';
+import { createTaskScheduler, nativeWorkerInput, predictionCacheKey } from '../app/tasks/scheduler.mjs';
 import { STATE_SNAPSHOT_LIMIT } from '../app/tasks/state-transfer.mjs';
 
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
@@ -720,4 +720,12 @@ test('chunk planning and full side hydration never occupy the saved-list lane', 
   const fullRejected = assert.rejects(full, { status: 409 });
   assert.equal(workers[0].messages.at(-1).input, 'next');
   finishPlay(workers[0]); await compact; await fullRejected; prediction.workers[0].finish();
+});
+
+test('native worker input always sets the ready-catalogue flag without changing the caller data', () => {
+  const workerData = { datasetDigest: 'a'.repeat(64), omitReadyCatalogue: true };
+  assert.deepEqual(nativeWorkerInput(workerData, true), { datasetDigest: 'a'.repeat(64), omitReadyCatalogue: false });
+  assert.deepEqual(nativeWorkerInput(workerData, false), { datasetDigest: 'a'.repeat(64), omitReadyCatalogue: true });
+  assert.deepEqual(nativeWorkerInput(undefined, false), { omitReadyCatalogue: true });
+  assert.equal(workerData.omitReadyCatalogue, true);
 });
