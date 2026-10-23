@@ -24,6 +24,6 @@ test('Helper resources and chunk drops use the existing invitation and never sav
   const progress = await (await fetch(`${origin}/api/helper-progress`, { headers })).json();
   assert.equal(progress.stateRevision, before.revision);
   assert.equal(progress.current.members[0].metrics.unlockedChunks, 1);
-  for (const route of ['helper.mjs', 'helper.css', 'helper-model.mjs', 'helper-training.mjs', 'helper-goals.mjs', 'helper-drops.mjs', 'helper-charts.mjs', 'helper-utilities.mjs', 'helper-progress.mjs', 'helper-progress-model.mjs', 'core/experience.mjs', 'core/combat-level.mjs']) assert.equal((await fetch(`${origin}/${route}`, { headers })).status, 200, route);
+  for (const route of ['helper.mjs', 'helper.css', 'helper-model.mjs', 'helper-training.mjs', 'helper-goals.mjs', 'helper-drops.mjs', 'helper-charts.mjs', 'helper-utilities.mjs', 'helper-progress.mjs', 'helper-progress-model.mjs', 'amount-input.mjs', 'core/experience.mjs', 'core/combat-level.mjs']) assert.equal((await fetch(`${origin}/${route}`, { headers })).status, 200, route);
   assert.deepEqual(application.store.getState(), before);
 });

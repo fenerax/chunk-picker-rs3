@@ -1,3 +1,5 @@
+import { amountInput, parseAmount } from './amount-input.mjs';
+
 const groups = [['lodestones', 'Lodestones'], ['spells', 'Spells'], ['items', 'Items'], ['transport', 'Transport']];
 const overrideChoices = [{ value: 'auto', label: 'Automatic' }, { value: 'true', label: 'I can use it' }, { value: 'false', label: 'I can’t use it' }];
 const unresolvedEndpointReasons = new Set([
@@ -179,23 +181,23 @@ export function openTeleportsDialog(ctx, { uuid = () => globalThis.crypto.random
       el('p', 'RuneMetrics sync supplies levels and quests, but not lodestone activations or bank contents. For each lodestone you have activated, choose “I can use it” in its Override dropdown below. Do this separately for each player. Changes can be undone in History.', 'teleports-help'),
       el('p', 'The old F2P map does not confirm activated lodestones after a members restart. Teleports need a way back to your chunks. Activate a lodestone in your own area or confirm another teleport home.', 'teleports-help'));
     const coinsForm = el('form', undefined, 'teleports-coins');
-    const coins = input('number');
-    coins.min = '0'; coins.max = '1000000000000'; coins.step = '1'; coins.inputMode = 'numeric';
-    coins.id = 'transport-coins'; coins.setAttribute('autocomplete', 'off');
-    coins.value = personal.transportFacts?.currencies?.coins ?? '';
+    const coins = input('text');
+    coins.id = 'transport-coins';
+    coins.value = String(personal.transportFacts?.currencies?.coins ?? '');
+    amountInput(coins, { min: 0, max: 1e12, whole: true });
     const coinsField = field('Coins on hand', coins);
     const coinsLabel = coinsField.children[0]; coinsLabel?.setAttribute('for', coins.id);
     const canEditCoins = ctx.canWriteMember?.(requestedMember) ?? ctx.canWrite?.() ?? true;
     coins.disabled = !canEditCoins;
     if (canEditCoins) remember(coins);
     coins.setAttribute('aria-describedby', 'transport-coins-help');
-    const coinsHelp = el('p', 'At least this many coins. Renewable coins still count if higher. Fares are checked, not spent. Clear the field to remove your declaration.', 'teleports-help');
+    const coinsHelp = el('p', 'At least this many coins. 10k, 2.5m and 1b work too. Renewable coins still count if higher. Fares are checked, not spent. Clear the field to remove your declaration.', 'teleports-help');
     coinsHelp.id = 'transport-coins-help';
     async function saveCoins() {
       if (!canEditCoins) return;
-      const value = coins.value.trim(), amount = Number(value);
-      if (coins.validity?.badInput || value && (!Number.isSafeInteger(amount) || amount < 0 || amount > 1e12)) {
-        report('Enter a whole number from 0 to 1,000,000,000,000, or clear the field.'); return;
+      const value = coins.value.trim(), amount = parseAmount(value);
+      if (value && (!Number.isSafeInteger(amount) || amount < 0 || amount > 1e12)) {
+        report('Enter a whole number from 0 to 1,000,000,000,000 (or 1t), or clear the field.'); return;
       }
       const facts = structuredClone(personal.transportFacts ?? {});
       if (value) facts.currencies = { ...facts.currencies, coins: amount };

@@ -246,7 +246,7 @@ test('coins edits and clearing preserve other personal facts and use the reviewe
   h.inputFor('Coins on hand').value = '2000';
   await h.click('Save coins');
   assert.deepEqual(h.ui.commands[0], { command: { type: 'set-transport-facts', memberId: 'a', facts: { ...other, currencies: { tokens: 3, coins: 2000 } } }, revision: 7 });
-  assert.equal(h.inputFor('Coins on hand').value, 2000);
+  assert.equal(h.inputFor('Coins on hand').value, '2000');
   h.inputFor('Coins on hand').value = '';
   await h.click('Save coins');
   assert.deepEqual(h.state.members[0].transportFacts, other);

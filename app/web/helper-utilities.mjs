@@ -1,14 +1,15 @@
 import { helperSkills, helperTrialCaps, personalSkillProgress, xpLookup, combatProjection } from './helper-model.mjs';
 import { dataTable } from './helper-charts.mjs';
+import { amountInput, parseAmount } from './amount-input.mjs';
 import { xpForLevel } from '../core/experience.mjs';
 export function renderUtilities(host, { document, member, draft }) {
   const el = (tag, text, cls) => { const n = document.createElement(tag); if (text !== undefined) n.textContent = text; if (cls) n.className = cls; return n; };
   const field = (label, input) => { const n = el('label', label); n.append(input); return n; };
   host.append(el('h2', 'XP & combat'), el('p', 'Look up a level, or try different combat levels without changing your saved progress.', 'helper-intro'));
   const section = el('section', undefined, 'helper-utility'), form = el('form', undefined, 'helper-form'), xp = el('input'), output = el('div');
-  xp.type = 'number'; xp.min = 0; xp.max = 200000000; xp.step = 0.1; xp.value = draft?.xp ?? '0'; xp.required = true; output.setAttribute('aria-live', 'polite');
+  xp.value = draft?.xp ?? '0'; xp.required = true; amountInput(xp, { min: 0, max: 200000000 }); output.setAttribute('aria-live', 'polite');
   const button = el('button', 'Look up XP'); button.type = 'submit'; form.append(field('Experience points', xp), button);
-  function lookup(event) { event?.preventDefault(); if (!form.checkValidity()) { if (event) form.reportValidity(); return; } try { const value = xpLookup(Number(xp.value)); output.replaceChildren(el('p', `Level ${value.level} · ${value.xpToNext === null ? 'Standard curve ends at 120' : `${value.xpToNext.toLocaleString()} XP to level ${value.nextLevel}`}`, 'helper-answer')); } catch (error) { output.textContent = error.message; } }
+  function lookup(event) { event?.preventDefault(); if (!form.checkValidity()) { if (event) form.reportValidity(); return; } try { const value = xpLookup(parseAmount(xp.value)); output.replaceChildren(el('p', `Level ${value.level} · ${value.xpToNext === null ? 'Standard curve ends at 120' : `${value.xpToNext.toLocaleString()} XP to level ${value.nextLevel}`}`, 'helper-answer')); } catch (error) { output.textContent = error.message; } }
   form.addEventListener('submit', lookup); section.append(el('h3', 'XP to level'), el('p', 'Standard skill XP, up to level 120. Invention uses a different curve. F2P and trial caps still apply.'), form, output); host.append(section); lookup();
   const levelsSection = el('section', undefined, 'helper-utility'), levelsForm = el('form', undefined, 'helper-form'), level = el('input'), levelOutput = el('div');
   levelOutput.setAttribute('aria-live', 'polite');

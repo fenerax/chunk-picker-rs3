@@ -3,6 +3,13 @@
   "entries": [
     {
       "date": "2026-10-22",
+      "title": "Type 10k, 2.5m or 1b in number fields",
+      "items": [
+        "Coins on hand, drop rates, kill counts and XP now take k, m, b and t, like 10k or 2.5m"
+      ]
+    },
+    {
+      "date": "2026-10-22",
       "title": "A shorter game plugin review",
       "items": [
         "The beta warning shows once, and skill levels and quests each get their own section you can apply or skip",
