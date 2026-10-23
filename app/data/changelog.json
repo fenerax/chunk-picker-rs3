@@ -3,6 +3,16 @@
   "entries": [
     {
       "date": "2026-10-22",
+      "title": "Why is this task here?",
+      "items": [
+        "Each task row has a ? button that explains why the task is in your list: the rule that adds it and where to find that rule, what its category covers, which similar task it was picked over, what it leads to, and where it can come from",
+        "The explanation loads only when you open it, so the task list is no slower",
+        "Hovering an Extra task now names the group that added it, for example Extra · BIS Skilling",
+        "Drop locations in task hover cards show the place name instead of a chunk number"
+      ]
+    },
+    {
+      "date": "2026-10-22",
       "title": "Chunk notes save faster",
       "items": [
         "Saving or clearing a chunk note no longer recalculates your tasks: the task list stays on screen and is up to date about a second after you click Save, instead of 3 to 5 seconds on a large save",
