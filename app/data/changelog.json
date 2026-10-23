@@ -3,6 +3,14 @@
   "entries": [
     {
       "date": "2026-10-22",
+      "title": "The roll choice you pass on stays locked",
+      "items": [
+        "After a roll of two, the chunk you didn't pick no longer turns green on the map as if it were unlocked",
+        "It can still come up in later rolls when it's next to your chunks. Chunks you added to the roll pool by hand stay there"
+      ]
+    },
+    {
+      "date": "2026-10-22",
       "title": "No more black flash when you tick a task",
       "items": [
         "Ticking a task, or any save that takes a moment, no longer blanks the map for a split second",
