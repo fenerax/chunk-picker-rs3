@@ -59,6 +59,20 @@ test('title punctuation, NFC and explicit Vampire spelling alias match without g
   assert.deepEqual(preview.unmatched.quests.map(row=>row.title),['Prince Ali Rescue','Doric\u2019s Quest']);
 });
 
+test('recorded quest list: renamed quests match the picker and the rest are known gaps', () => {
+  const titles = player1Quests.quests.map(row => row.title);
+  const renamed = ['Garden of Tranquillity', 'Curse of the Empty Lord (miniquest)', 'Father and Son', 'Helping Laniakea',
+    'Foreshadowing', 'Flashback', 'Fortunes', 'Finale', 'My One and Only Lute', 'Skelly By Everlight', 'Flesh and Bone', 'Hermy and Bass'];
+  const {preview} = previewRuneMetrics(group(), 'player1', snapshot(player1Profile, {quests: titles.map(title => ({title, status: 'COMPLETED'}))}), questMapping);
+  for (const title of renamed) assert.ok(preview.quests.some(row => row.title === title), title);
+  // Tutorial, seasonal, sagas, the Recipe for Disaster parent and Heralds of Crimson (after the source capture).
+  assert.deepEqual(preview.unmatched.quests.map(row => row.title).sort(), ['A Christmas Reunion', 'Cold Front', 'Corporate Egg-spionage',
+    'Field of Screams', 'Great Egg-spectations', 'Guys and Dolls', 'Heralds of Crimson', "It's Snow Bother", 'Nadir (saga)', 'Recipe for Disaster',
+    "Thok It To 'Em (saga)", 'Thok Your Block Off (saga)', "Three's Company (saga)", 'Unstable Foundations', 'Vengeance (saga)']);
+  assert.match(preview.unmatched.quests.find(row => row.title === 'Unstable Foundations').reason, /^Tutorial quest/);
+  assert.match(preview.unmatched.quests.find(row => row.title === 'Cold Front').reason, /^No whole-quest/);
+});
+
 test('ambiguous whole titles and absent catalogue identities remain unmatched', () => {
   const mapping=createQuestMapping({challenges:{Quest:{'Quest!':{QuestPoints:1},'Quest':{QuestPoints:1},'Missing':{QuestPoints:1}}}});
   const state=group(mapping); state.tasks=state.tasks.filter(row=>row.label!=='Missing');
