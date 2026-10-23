@@ -1,7 +1,7 @@
 import { projectTeleportRoute } from '../app/teleports-response.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { openTeleportsDialog } from '../app/web/teleports.mjs';
+import { openTeleportsDialog, travelIntoChunk } from '../app/web/teleports.mjs';
 
 const deferred = () => { let resolve, reject; const promise = new Promise((yes, no) => { resolve = yes; reject = no; }); return { promise, resolve, reject }; };
 const route = (id, group, extra = {}) => ({ id, group, name: `${id} route`, available: false, destination: '123', destinationName: 'Lumbridge', reason: 'Need personal progress', reasons: ['Need personal progress'], estimated: true, override: null, ...extra });
@@ -246,7 +246,7 @@ test('coins edits and clearing preserve other personal facts and use the reviewe
   h.inputFor('Coins on hand').value = '2000';
   await h.click('Save coins');
   assert.deepEqual(h.ui.commands[0], { command: { type: 'set-transport-facts', memberId: 'a', facts: { ...other, currencies: { tokens: 3, coins: 2000 } } }, revision: 7 });
-  assert.equal(h.inputFor('Coins on hand').value, 2000);
+  assert.equal(h.inputFor('Coins on hand').value, '2000');
   h.inputFor('Coins on hand').value = '';
   await h.click('Save coins');
   assert.deepEqual(h.state.members[0].transportFacts, other);
@@ -290,4 +290,21 @@ test('API serialization keeps coin requirement evidence for the Teleports refusa
   row.unmet.push({ requirement: 'quests', key: 'A quest' });
   h.routes[3] = JSON.parse(JSON.stringify(projectTeleportRoute(row, { chunks: new Map() })));
   await h.open().ready; assert.doesNotMatch(h.text(), /Enter your coins on hand above/);
+});
+
+test('a chunk lists only the routes that land in it, grouped by what each still needs', () => {
+  const quest = { kind: 'carpet', destination: '9001', reason: 'Needs quest The Golem; personal completion unknown.', reasons: ['Needs quest The Golem; personal completion unknown.'] };
+  const rows = [
+    route('nardah-carpet', 'transport', quest),
+    route('coin-carpet', 'transport', { kind: 'carpet', destination: '9001', cost: { 'currencies:coins': 1000 }, unmet: [{ requirement: 'return-coins', key: 'coins' }], reason: 'x', reasons: ['x'] }),
+    route('menaphos-carpet', 'transport', quest),
+    route('open-carpet', 'transport', { destination: '9001', available: true, reason: 'ok', reasons: ['ok'] }),
+    route('elsewhere', 'transport', { destination: '9002' }),
+  ];
+  assert.deepEqual(travelIntoChunk(rows, '9001').map(group => [group.names, group.available, group.reasons]), [
+    [['nardah-carpet route', 'menaphos-carpet route'], false, ['Needs quest The Golem; personal completion unknown.']],
+    [['coin-carpet route'], false, ['Needs 1,000 coins for this carpet leg and enough for the way home. Enter your coins on hand in Teleports if you have them.']],
+    [['open-carpet route'], true, ['You meet its requirements. It adds this chunk once you can reach where it leaves from.']],
+  ]);
+  assert.deepEqual(travelIntoChunk(rows, '1'), []);
 });

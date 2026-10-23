@@ -262,8 +262,8 @@ details[open]>summary::before{transform:rotate(45deg)}
 
 /* Top bar: brand, whose map, tools, save state. */
 .topbar{min-height:54px;display:flex;align-items:center;gap:var(--space-4) var(--space-6);padding:var(--space-3) var(--space-6);background:var(--panel);color:var(--panel-text,var(--text));border-bottom:var(--border-thin) solid var(--hairline);flex-wrap:nowrap;position:relative;z-index:10}
-.topbar:has(#calculation-status:not([hidden])){flex-wrap:wrap}
-.topbar #calculation-status{order:6;flex-basis:100%;margin:0;overflow-wrap:anywhere}
+/* Floats below the bar: taking a row would resize the map on every save. */
+.topbar #calculation-status{position:absolute;top:calc(100% + var(--space-2));left:var(--space-6);max-width:calc(100% - 2 * var(--space-6));margin:0;padding:var(--space-2) var(--space-4);background:var(--panel);border:var(--border-thin) solid var(--hairline);border-radius:var(--radius-sm);box-shadow:var(--shadow-tooltip);overflow-wrap:anywhere;pointer-events:none}
 .topbar h1{display:flex;align-items:center;gap:var(--space-4);font-size:var(--type-heading);font-weight:var(--weight-semibold);white-space:nowrap}
 .topbar h1::before{content:"";width:1.55rem;height:1.55rem;border-radius:var(--radius-sm);background:url(/favicon.svg) center/contain no-repeat;flex-shrink:0}
 .brand-tag{font-family:var(--font-sans);font-size:var(--type-xs);font-weight:var(--weight-bold);letter-spacing:.12em;padding:var(--space-1) var(--space-3);border-radius:var(--radius-check);color:var(--gold);border:var(--border-thin) solid color-mix(in srgb,var(--gold) var(--border-legacy-55),transparent);align-self:center}

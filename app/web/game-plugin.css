@@ -7,6 +7,59 @@
 .game-plugin-secret { padding-block: var(--space-5); }
 .game-plugin-diagnostics summary { cursor: pointer; }
 .game-plugin-diagnostics li { font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
-.game-plugin input, .game-plugin select { width: 100%; min-width: 0; box-sizing: border-box; }
-.game-plugin-achievement { padding-block: var(--space-3); overflow-wrap: anywhere; }
+.game-plugin input:not([type=checkbox]), .game-plugin select { width: 100%; min-width: 0; box-sizing: border-box; }
 .game-plugin .form-actions { flex-wrap: wrap; }
+
+/* Review: one card per kind of progress, compact achievement rows, sticky apply bar. */
+.game-plugin-review h5 { margin: 0; font-size: var(--type-body); }
+.game-plugin-review h6 { margin: var(--space-4) 0 var(--space-2); font-size: var(--type-sm); color: var(--panel-muted, var(--muted)); }
+.game-plugin-part { padding: var(--space-5); border: var(--border-thin) solid var(--hairline); border-radius: var(--radius-sm); min-width: 0; }
+.game-plugin-part > p, .game-plugin-part > ul { margin-block: var(--space-3) 0; }
+.game-plugin-part.is-skipped > :not(.game-plugin-part-head):not(.game-plugin-skip-note) { opacity: .45; }
+.game-plugin-part-head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); flex-wrap: wrap; }
+.game-plugin-choice { display: inline-flex; padding: var(--space-legacy-2px); gap: var(--space-legacy-2px); border-radius: var(--radius-pill); background: var(--bg); border: var(--border-thin) solid var(--hairline); }
+.game-plugin-choice button { border-radius: var(--radius-pill); background: transparent; color: var(--panel-muted, var(--muted)); padding: var(--space-1) var(--space-5); font-size: var(--type-sm); min-height: 0; }
+.game-plugin-choice button:hover { color: var(--panel-text, var(--text)); filter: none; }
+.game-plugin-choice button[aria-pressed=true] { background: var(--gold); color: var(--on-gold); font-weight: var(--weight-bold); }
+.game-plugin-skip-note:empty { display: none; }
+.game-plugin-table { width: 100%; margin-top: var(--space-3); border-collapse: collapse; font-size: var(--type-sm); font-variant-numeric: tabular-nums; }
+.game-plugin-table th, .game-plugin-table td { padding: var(--space-2) var(--space-3); text-align: left; border-bottom: var(--border-thin) solid var(--hairline); }
+.game-plugin-table thead th { color: var(--panel-muted, var(--muted)); font-weight: var(--weight-semibold); font-size: var(--type-xs); text-transform: uppercase; letter-spacing: .06em; }
+.game-plugin-table tbody th { font-weight: var(--weight-semibold); }
+.game-plugin-table td:last-child, .game-plugin-table th:last-child { text-align: right; }
+.game-plugin-table tbody tr:last-child > * { border-bottom: 0; }
+.game-plugin-table .is-up { color: var(--gold-strong, var(--gold)); font-weight: var(--weight-semibold); }
+.game-plugin-unmatched { margin-top: var(--space-4) !important; }
+.game-plugin-bulk { margin-top: var(--space-4); gap: var(--space-3); }
+.game-plugin-matches { display: flex; flex-direction: column; }
+.game-plugin-match { display: flex; align-items: center; gap: var(--space-4); padding: var(--space-3) var(--space-2); border-bottom: var(--border-thin) solid var(--hairline); min-width: 0; }
+.game-plugin-match:last-child { border-bottom: 0; }
+label.game-plugin-match { cursor: pointer; }
+.game-plugin-match > input[type=checkbox] { flex: none; margin: 0; }
+.game-plugin-match-text > .icon-button { width: 24px; height: 24px; align-self: center; margin-inline-start: calc(-1 * var(--space-2)); }
+label.game-plugin-match:hover { background: color-mix(in srgb, var(--gold) 6%, transparent); }
+.game-plugin-match-text { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-1) var(--space-3); flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.game-plugin-match-text strong { font-weight: var(--weight-semibold); }
+.game-plugin-task { color: var(--panel-muted, var(--muted)); font-size: var(--type-sm); }
+.game-plugin-task::before { content: "→ "; }
+.game-plugin-tag { font-size: var(--type-xs); padding: 0 var(--space-3); border-radius: var(--radius-pill); border: var(--border-thin) solid var(--color-warning-border); color: var(--color-warning-text); background: var(--color-warning-bg); }
+.game-plugin-match select { width: min(50%, 22rem); flex-shrink: 0; }
+.game-plugin-match.is-chosen select { border-color: var(--gold); }
+.game-plugin-singles { margin-top: var(--space-4); }
+.game-plugin-singles > summary { padding: var(--space-3) 0; font-weight: var(--weight-semibold); font-size: var(--type-sm); }
+/* The review scrolls inside the dialog body, so the Apply bar can stay in view. */
+dialog:has(.game-plugin-apply) { display: flex; flex-direction: column; overflow: clip; }
+dialog:has(.game-plugin-apply):not([open]) { display: none; }
+dialog:has(.game-plugin-apply) .dialog-header { flex: none; }
+dialog:has(.game-plugin-apply) #dialog-content { min-height: 0; padding-bottom: 0; }
+.game-plugin-apply { position: sticky; bottom: 0; z-index: 1; display: flex; align-items: center; justify-content: space-between; gap: var(--space-3) var(--space-5); flex-wrap: wrap; margin-inline: calc(-1 * var(--space-2)); padding: var(--space-4) var(--space-2); background: var(--panel); border-top: var(--border-thin) solid var(--hairline); }
+.game-plugin-apply .form-actions { margin: 0; }
+.game-plugin-summary { margin: 0; font-weight: var(--weight-semibold); }
+@media (max-width: 560px) {
+  .game-plugin-part { padding: var(--space-4); }
+  .game-plugin-match:has(select) { flex-direction: column; align-items: stretch; gap: var(--space-2); }
+  .game-plugin-match select { width: 100%; }
+  /* Phones keep the 44px touch target; the negative margin stops it stretching the row. */
+  .game-plugin-match-text > .icon-button { margin-block: calc(-1 * var(--space-4)); }
+  .game-plugin-apply .form-actions, .game-plugin-apply .form-actions button { flex: 1; }
+}

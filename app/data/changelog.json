@@ -2,6 +2,52 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "date": "2026-10-23",
+      "title": "See why a carpet or teleport stop isn't rollable",
+      "items": [
+        "Chunks a travel line lands in get a \"Travel into this chunk\" section. Open it to see what each route still needs, like a quest, coins or a way home"
+      ]
+    },
+    {
+      "date": "2026-10-22",
+      "title": "Type 10k, 2.5m or 1b in number fields",
+      "items": [
+        "Coins on hand, drop rates, kill counts and XP now take k, m, b and t, like 10k or 2.5m"
+      ]
+    },
+    {
+      "date": "2026-10-22",
+      "title": "A shorter game plugin review",
+      "items": [
+        "The beta warning shows once, and skill levels and quests each get their own section you can apply or skip",
+        "Achievements with one matching task start ticked in a short list, and each has a wiki link that says what it asks for",
+        "Achievements with several possible tasks start on Skip until you choose one. Nothing is saved until you press Apply"
+      ]
+    },
+    {
+      "date": "2026-10-22",
+      "title": "The page reconnects by itself after an update",
+      "items": [
+        "After an update, \"Reconnecting…\" now actually reconnects, so you see the other player's changes again without reloading"
+      ]
+    },
+    {
+      "date": "2026-10-22",
+      "title": "The roll choice you pass on stays locked",
+      "items": [
+        "After a roll of two, the chunk you didn't pick no longer turns green on the map as if it were unlocked",
+        "It can still come up in later rolls when it's next to your chunks. Chunks you added to the roll pool by hand stay there"
+      ]
+    },
+    {
+      "date": "2026-10-22",
+      "title": "No more black flash when you tick a task",
+      "items": [
+        "Ticking a task, or any save that takes a moment, no longer blanks the map for a split second",
+        "The \"Saving…\" and \"Updating tasks…\" message now floats under the top bar instead of pushing the page down"
+      ]
+    },
+    {
       "date": "2026-10-22",
       "title": "Why is this task here?",
       "items": [
