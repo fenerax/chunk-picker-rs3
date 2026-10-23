@@ -88,7 +88,7 @@ export function createScreenDialogs(c) {
   // The button comes first so the surrounding field label names it.
   function filePicker(file) {
     const wrap = c.el('span', undefined, 'file-picker'), name = c.el('span', 'No file chosen', 'file-picker-name');
-    file.classList.add('file-picker-input'); file.tabIndex = -1;
+    file.className = 'file-picker-input'; file.tabIndex = -1;
     file.addEventListener('change', () => { name.textContent = file.files?.[0]?.name ?? 'No file chosen'; });
     wrap.append(c.button('Choose file…', () => file.click()), name, file);
     return wrap;
