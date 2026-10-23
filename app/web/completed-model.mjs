@@ -104,6 +104,9 @@ export function createCompletedModel({ state, result, memberId, registry, now = 
   for (const owner of state.members) for (const [id, fact] of Object.entries(owner.achievementProgress ?? {})) {
     if (timestamp(fact.fetchedAt) && fact.source === 'game-plugin' && fact.memberId === owner.id) achievementObservations.set(key(owner.id, resolve(id)), fact);
   }
+  for (const owner of state.members) for (const [id, fact] of Object.entries(owner.itemProgress ?? {})) {
+    if (timestamp(fact.fetchedAt) && fact.source === 'game-plugin' && fact.memberId === owner.id) observations.set(key(owner.id, resolve(id)), fact);
+  }
   for (const owner of state.members) for (const [id, fact] of Object.entries(owner.questProgress ?? {})) {
     if (timestamp(fact.fetchedAt) && (fact.source === 'game-plugin' && fact.memberId === owner.id
       || fact.source === 'runemetrics' && typeof fact.runescapeName === 'string' && fact.runescapeName.trim())) {

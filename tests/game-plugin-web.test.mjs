@@ -104,6 +104,34 @@ test('achievement review sends only chosen matches and retains revision checks',
   });
 });
 
+test('item evidence is labelled and only ticked item tasks are applied', async t => {
+  const f = fixture(t), preview = f.proposal();
+  preview.items = [
+    { taskId: 'goal', label: 'Obtain a Yew shortbow', gameItemId: 857, gameName: 'Yew shortbow', evidence: 'owned', seen: 'owned when first seen; source unknown', world: 'beta' },
+    { taskId: 'wear', label: 'Wear a Gud raider item', gameItemId: 34830, gameName: 'Gud raider chainbody', evidence: 'worn', seen: 'worn 2026-10-19T12:00:00Z', world: 'beta' },
+  ];
+  preview.unmappedItems = [{ gameItemId: 99999, name: 'Mystery item' }];
+  f.setPreview(preview); const root = await f.open();
+  assert.match(text(root), /Item evidence to review \(2\)/);
+  assert.match(text(root), /Having an item does not show where it came from/);
+  assert.match(text(root), /Owned: Yew shortbow \(game item 857\) · owned when first seen; source unknown/);
+  assert.match(text(root), /Worn: Gud raider chainbody \(game item 34830\)/);
+  assert.match(text(root), /Items without a reviewed ID \(1\)/); assert.match(text(root), /Mystery item · game item 99999/);
+  const boxes = all(root).filter(node => node.tag === 'input' && node.type === 'checkbox');
+  assert.equal(boxes.length, 2); assert.ok(boxes.every(box => !box.checked));
+  boxes[1].checked = true; boxes[1].emit('change');
+  await button(root, 'Apply plugin snapshot').action();
+  assert.deepEqual(f.posts.find(row => row.path.endsWith('/apply')).body, { previewId: preview.previewId, expectedRevision: 1, items: [{ taskId: 'wear' }] });
+});
+
+test('item review sends no items when none are ticked', async t => {
+  const f = fixture(t), preview = f.proposal();
+  preview.items = [{ taskId: 'goal', label: 'Obtain a Yew shortbow', gameItemId: 857, gameName: 'Yew shortbow', evidence: 'owned', seen: 'new since 2026-10-19T12:00:00Z', world: 'live' }];
+  f.setPreview(preview); const root = await f.open();
+  await button(root, 'Apply plugin snapshot').action();
+  assert.deepEqual(f.posts.find(row => row.path.endsWith('/apply')).body, { previewId: preview.previewId, expectedRevision: 1 });
+});
+
 test('achievement world warnings stay on each row beside live skill review and preserve choices', async t => {
   const f = fixture(t), preview = f.proposal('mixed-world-review', { id: 1, beta: false });
   const reports = [

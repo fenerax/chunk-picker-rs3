@@ -87,7 +87,8 @@ pending proposals; send progress again after reconnecting.
 ### Completed achievements
 
 Read `accepts` in status before sending optional capability-gated fields. This
-picker advertises `["achievements"]`. Send `achievements` only when it is listed.
+picker advertises `["achievements", "items"]`. Send `achievements` or `items` only
+when it is listed.
 An achievement part has the normal required report fields and optional `world`,
 but no `skills`, `quests` or `diagnostics`:
 
@@ -228,6 +229,69 @@ The Game plugin dialog shows each player's current part count, last complete
 achievement count, matched task count and last automatic batch's count and time.
 These summaries are in memory only and visible with that player's keys.
 
+### Worn and backpack items
+
+Send `items` only when status `accepts` lists `"items"`, in a report without
+`skills`, `quests`, `diagnostics` or `achievements`:
+
+```json
+"items": {
+  "snapshot": "0123456789abcdef",
+  "worn": [[4, 34830, 1, "Gud raider chainbody"]],
+  "backpack": [[0, 857, 1, "Yew shortbow"]],
+  "journal": { "id": "aaaaaaaaaaaaaaaa", "events": [[1, 34830, "Gud raider chainbody"]] }
+}
+```
+
+`snapshot` is 16 lowercase hex characters naming the plugin's current reading.
+`worn` and `backpack` are each `null` when the container could not be read
+(never `[]` for "unknown") or at most 64 rows of `[slot, itemId, count, name]`:
+a unique slot from 0 to 63, a game item ID from 0 to 1,000,000, a count of at
+least 1 and the game's item name, 1–80 characters without controls. The
+`journal` holds up to 32 worn observations the plugin made while the picker
+may not have been listening: `[eventId, itemId, name]` with strictly
+increasing positive event IDs. `journal.id` is 16 hex characters chosen when
+the plugin starts a journal; a new ID restarts event counting.
+
+The picker matches **numeric IDs only**, through a reviewed table in
+`app/integrations/game-items.mjs`. Each row was checked against the wiki
+infobox ID, the decoded game cache name and slot, and the picker entity. Names
+are shown, never matched. Unmapped IDs are listed in review (first 30) and
+otherwise ignored.
+
+Evidence stays separate: owned now (this snapshot), ever observed owned, and
+ever observed worn. Possession proposes the item's source-neutral BiS
+"Obtain" goal (any tier or noted copy counts; a transfer counts). Wear tasks
+need worn evidence, from `worn` or the journal; noted IDs are never worn
+evidence. Source-specific tasks (collection rows such as "(Asgarnia &
+Misthalin) Obtain …", drops, crafts) are not in the table and never match.
+
+**Nothing ticks from items.** Every match becomes a review row with `taskId`,
+`label`, `gameItemId`, `gameName`, `evidence` (`owned` or `worn`),
+`seen` and `world`. `seen` is "owned when first seen; source unknown" for
+items present in the player's first readable snapshot (both containers read),
+"new since <time>" for later gains and "worn <time>" for Wear rows. Beta and
+unknown-world rows are labelled. The proposal preview carries `items`,
+`itemsMore`, `unmappedItems` and `unmappedItemsMore`. Apply accepts optional
+`items: [{taskId}]` chosen from the preview; omitted rows stay unticked. The
+command records `member.itemProgress` (see the save schema). Apply and
+Dismiss mark every shown row handled so it is not offered again.
+
+Live-world evidence (`world.beta === false`) is saved in `plugin-items.json`
+beside `plugin-achievements.json`, with the same atomic writes and corrupt-file
+archive. Per player it keeps `baselineAt`, reviewed `items` facts
+(`name`, `ownedAt`, `wornAt`, `first`), sorted `handled` task IDs (at most
+2,000) and the last acknowledged `journal` `{id, event}`. Beta and
+unknown-world evidence stays in memory only and never mixes with live evidence.
+The sidecar is outside the save, Undo and backups.
+
+Status `items` is null until the first items report, then exactly
+`{snapshot, journal}`: the last snapshot processed and the newest journal event
+stored (`null` before the first readable look). The plugin resends when its
+snapshot differs and drops journal events at or below the acknowledged event
+for the same journal ID. A live acknowledgement is sent only after the sidecar
+write succeeds.
+
 ## GET /api/plugin/v1/status
 
 No body or query parameters. Report and status return the same exact shape:
@@ -236,7 +300,7 @@ No body or query parameters. Report and status return the same exact shape:
 {
   "v": 1,
   "player": { "id": "player1", "name": "Explorer 1" },
-  "accepts": ["achievements"],
+  "accepts": ["achievements", "items"],
   "achievements": { "snapshot": "0123456789abcdef", "received": 1, "parts": 2 },
   "chunkId": "12850",
   "chunkName": "Lumbridge",
@@ -270,7 +334,8 @@ task engine. `pendingProgress` means a proposal is waiting for
 review, including proposals containing only unmatched/informational quests or
 achievement matches.
 
-`accepts` is exactly `["achievements"]`. `achievements` is null before this
+`accepts` is exactly `["achievements", "items"]`. `items` is described under
+"Worn and backpack items". `achievements` is null before this
 player starts an assembly; otherwise it has exactly `snapshot`, `received` and
 `parts`. `received` counts accepted parts, from 1 to `parts`, and equals `parts`
 once complete. This field describes assembly only; it contains no task or

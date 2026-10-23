@@ -81,3 +81,12 @@ export function validateAchievementProgress(taskId, value, tasks, memberId) {
   if (!tasks.has(taskId)) throw new TypeError(`Achievement progress references absent task: ${taskId}`);
   if (String(tasks.get(taskId).category).toLowerCase() !== 'diary') throw new TypeError(`Game plugin achievement progress requires a Diary task: ${taskId}`);
 }
+
+// Item evidence never names where an item came from: only that the game plugin saw it owned or worn.
+export function validateItemProgress(taskId, value, tasks, memberId) {
+  validateGamePluginProvenance(value, memberId, ['title', 'gameItemId', 'evidence', 'source', 'fetchedAt', 'memberId'], 'item progress');
+  if (typeof value.title !== 'string' || !value.title.trim() || value.title.length > 80 || /[\x00-\x1f\x7f-\x9f]/.test(value.title)) throw new TypeError('Item progress title must contain 1 through 80 characters without controls');
+  if (!Number.isSafeInteger(value.gameItemId) || value.gameItemId < 0) throw new TypeError('Item progress gameItemId must be a nonnegative safe integer');
+  if (value.evidence !== 'owned' && value.evidence !== 'worn') throw new TypeError('Item progress evidence must be owned or worn');
+  if (!tasks.has(taskId)) throw new TypeError(`Item progress references absent task: ${taskId}`);
+}

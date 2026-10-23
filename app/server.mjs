@@ -609,6 +609,8 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
       serializeMutation, checkRequestOrigin,
       // In-game lists read the saved task result only; they never start an evaluation.
       savedTasks: memberId => { const entry = savedTaskResults.get(memberId); return entry?.playJSON ? { bytes: entry.playJSON, revision: entry.revision } : null; },
+      // Item evidence may propose generated Obtain goals, which live in the catalogue until ticked.
+      taskCatalogue: () => [...(taskWorker?.catalogue ?? []), ...(taskWorker?.dynamicCatalogue ?? [])],
       notify: () => { for (const client of clients) if (!client.write('event: game-plugin\ndata: {}\n\n')) client.end(); } });
   }
   try { await openSidecars(); }
