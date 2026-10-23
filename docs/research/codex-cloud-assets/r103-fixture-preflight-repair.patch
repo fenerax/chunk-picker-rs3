@@ -1,0 +1,84 @@
+diff --git a/scripts/perf/r81/full-public-index-gate.mjs b/scripts/perf/r81/full-public-index-gate.mjs
+--- a/scripts/perf/r81/full-public-index-gate.mjs
++++ b/scripts/perf/r81/full-public-index-gate.mjs
+@@ -3,31 +3,59 @@
+ import assert from 'node:assert/strict';
+ import { readFile,writeFile } from 'node:fs/promises';
+ import { createHash } from 'node:crypto';
++import { deserialize } from 'node:v8';
+ import { sha256,summary } from './driver-lib.mjs';
+ if(!process.argv.includes('--authorized-full-public'))throw new Error('Authorization required');
+ const profile=process.argv.includes('--profile');
+-const [runtime,bootstrap,pipeline,worldModule,stateModule,threads,index,reference,view,projection]=await Promise.all([
+- import('../../../app/dataset-runtime.mjs'),import('../../../app/dataset-bootstrap.mjs'),import('../../../app/dataset-pipeline.mjs'),import('../../../app/data/world.mjs'),import('../../../app/core/state.mjs'),import('node:worker_threads'),import('../../../app/tasks/chunk-planning-index.mjs'),import('../r91/original-index-6f22.mjs'),import('../../../app/play-view.mjs'),import('../../../app/tasks/idle-foreground-planning.mjs')]);
++const [runtime,bootstrap,pipeline,worldModule,stateModule,threads,index,reference,view,projection,migrationModule]=await Promise.all([
++ import('../../../app/dataset-runtime.mjs'),import('../../../app/dataset-bootstrap.mjs'),import('../../../app/dataset-pipeline.mjs'),import('../../../app/data/world.mjs'),import('../../../app/core/state.mjs'),import('node:worker_threads'),import('../../../app/tasks/chunk-planning-index.mjs'),import('../r91/original-index-6f22.mjs'),import('../../../app/play-view.mjs'),import('../../../app/tasks/idle-foreground-planning.mjs'),import('../../../app/tasks/migration.mjs')]);
+ const fixtureBytes=await readFile(new URL('../../../fixtures/r91/public-fixture.json',import.meta.url)),fixture=JSON.parse(fixtureBytes);
+ const defaultsBytes=await readFile(isolation.defaults);
++assert.equal(fixtureBytes.byteLength,822,'frozen fixture bytes');assert.equal(sha256(fixtureBytes),'afc4dd775a78452a1e8d87efc579269f9f3dfa477674243f6e482a5503445584','frozen fixture SHA256');
++assert.equal(defaultsBytes.byteLength,145,'frozen defaults bytes');assert.equal(sha256(defaultsBytes),'9e67a7976c240c5c0f687b9fd4a6f9ceead717c3741ff47006550665dc0ad615','frozen defaults SHA256');
+ const inputs=await bootstrap.loadDatasetInputs(runtime.selectedDataset);
+-const definitions=pipeline.prepareWorkerDefinitions(JSON.parse(inputs.definitionBytes.toString()),runtime.selectedDataset);
+-const world=worldModule.buildWorld(definitions);
++// Match the ordinary public server boundary before worker compilation/migration.
++// These setup operations are outside every index interval.
++const setupStarted=performance.now(),dataset=runtime.selectedDataset,datasetOptions={reviewedOverlays:true};
++let serverDefinitions=pipeline.prepareServerDefinitions(JSON.parse(inputs.definitionBytes.toString('utf8')),dataset,datasetOptions);
++const preparedDatasetStages=pipeline.preparedDefinitionStages(serverDefinitions);
++const definitions=pipeline.prepareWorkerDefinitions(structuredClone(serverDefinitions),dataset,preparedDatasetStages,datasetOptions);
++const world=worldModule.buildWorld(serverDefinitions,{dataset,...datasetOptions});
+ const imported=stateModule.importLegacyMaps(fixture.document,{members:fixture.members,capturedAt:'2026-01-01T00:00:00.000Z'});
+-const state=imported.state;Object.assign(state.rules,fixture.rules);
+-const preflight={savedTasks:state.tasks.length,aliases:Object.keys(state.identityRegistry.aliases).length,worldChunks:world.chunks.size,migration:state.legacy?.gameplayMigration?.schemaVersion??null,owners:state.members.map(m=>[m.id,m.sourceMapId,m.unlocked]),revision:state.revision,datasetDigest:runtime.selectedDataset.digest,providerFiles:runtime.selectedDataset.files.length};
+-assert.equal(preflight.savedTasks,23935);assert.equal(preflight.aliases,91471);assert.equal(preflight.worldChunks,2594);assert.equal(state.members.length,2);assert.equal(state.revision,0);assert.ok(preflight.datasetDigest.startsWith('3cbb'));assert.equal(preflight.providerFiles,94);
+-assert.deepEqual(state.members.map(m=>[m.id,m.sourceMapId,m.unlocked]),[['alpha','r38-alpha',['12849','12850']],['beta','r38-beta',['12341','12342']]]);
+-// Fixed migration contract must be observed; its exact public field is recorded.
+-assert.equal(preflight.migration,2,'fixed public migration schema');
+-const worker=new threads.Worker(new URL('../../../app/tasks/worker.mjs',import.meta.url),{resourceLimits:{maxOldGenerationSizeMb:768,maxYoungGenerationSizeMb:32},workerData:{definitions:JSON.parse(inputs.definitionBytes.toString()),datasetSelection:runtime.selectedDataset.workerSelection(),datasetDigest:runtime.selectedDataset.digest,world:{chunks:world.chunks,areas:world.areas,surface:world.surface}}});
++let state=imported.state;Object.assign(state.rules,fixture.rules);
++const rawImport={savedTasks:state.tasks.length,identityRegistryPresent:state.identityRegistry!==undefined,migration:state.legacy?.gameplayMigration?.schemaVersion??null};
++const taskMapSHA256=sha256(inputs.taskBytes),historyPath='app/data/legacy-task-history.json';
++let historyBytes=dataset.capabilities.legacyHistory===false?Buffer.from('{}'):await dataset.bytes(historyPath);
++const historySHA256=sha256(historyBytes);
++let preflight,baseline;
++const worker=new threads.Worker(new URL('../../../app/tasks/worker.mjs',import.meta.url),{resourceLimits:{maxOldGenerationSizeMb:768,maxYoungGenerationSizeMb:32},workerData:{definitions:serverDefinitions,preparedDatasetStages,datasetOptions,datasetSelection:dataset.workerSelection(),datasetDigest:dataset.digest,world:{chunks:world.chunks,areas:world.areas,surface:world.surface}}});
+ const wait=predicate=>new Promise((resolve,reject)=>{const timer=setTimeout(()=>fail(new Error('Baseline worker wait timeout')),60000);const cleanup=()=>{clearTimeout(timer);worker.off('message',message);worker.off('error',fail);worker.off('exit',exit);};const fail=e=>{cleanup();reject(e);};const exit=code=>fail(new Error(`Baseline worker exited ${code}`));const message=m=>{if(predicate(m)){cleanup();resolve(m);}};worker.on('message',message);worker.on('error',fail);worker.on('exit',exit);});
+-let baseline;
+-try{await wait(m=>m.type==='ready');const response=wait(m=>m.id===1&&m.type!=='progress');worker.postMessage({id:1,type:'evaluate',state,memberId:'alpha',resultTransport:'json-shared-v1',resultView:'full'});const m=await response;if(m.error)throw new Error(m.error.message);baseline=JSON.parse(Buffer.from(m.resultJSON).toString());}finally{await worker.terminate();}
++try{
++ // Scheduler decodes this exact V8 readiness payload; do not derive a substitute catalogue.
++ const ready=await wait(m=>m.type==='ready');
++ assert.equal(ready.datasetDigest,dataset.digest,'baseline worker public dataset');
++ assert.ok(Array.isArray(ready.catalogue),'ordinary readiness catalogue required');
++ let dynamicCatalogueBytes=ready.dynamicCatalogueBytes;delete ready.dynamicCatalogueBytes;
++ let dynamicCatalogue=dynamicCatalogueBytes===undefined?ready.dynamicCatalogue??[]:deserialize(dynamicCatalogueBytes);
++ dynamicCatalogueBytes=undefined;delete ready.dynamicCatalogue;
++ assert.ok(Array.isArray(dynamicCatalogue),'dynamic readiness catalogue required');
++ const migrated=migrationModule.migrateOwnedGameplay(state,{definitions:serverDefinitions,taskMap:JSON.parse(inputs.taskBytes.toString('utf8')),taskMapHistory:JSON.parse(Buffer.from(historyBytes).toString('utf8')),catalogue:ready.catalogue,dynamicCatalogue});
++ if(migrated.state.legacy?.gameplayMigration){migrated.state.legacy.gameplayMigration.warnings=migrated.warnings;migrated.state.legacy.gameplayMigration.report=migrated.report;}
++ state=stateModule.validateOwnedState(migrated.state);
++ dynamicCatalogue=undefined;delete ready.catalogue;historyBytes=undefined;serverDefinitions=undefined;
++ preflight={savedTasks:state.tasks.length,identityRegistrySchema:state.identityRegistry?.schemaVersion??null,aliases:state.identityRegistry?.aliases?Object.keys(state.identityRegistry.aliases).length:null,worldChunks:world.chunks.size,migration:state.legacy?.gameplayMigration?.schemaVersion??null,owners:state.members.map(m=>[m.id,m.sourceMapId,m.unlocked]),revision:state.revision,datasetDigest:dataset.digest,providerFiles:dataset.files.length};
++ // Preserve observed dimensions even if a strict frozen assertion fails.
++ await writeFile(new URL(`../../../review/index-${profile?'profile':'timing'}-preflight.json`,import.meta.url),JSON.stringify({rawImport,preflight,fixtureSHA256:sha256(fixtureBytes),defaultsSHA256:sha256(defaultsBytes),taskMapSHA256,historySHA256,datasetOptions,preparedDatasetStages},null,2)+'\n');
++ assert.equal(preflight.identityRegistrySchema,1);assert.equal(preflight.savedTasks,23935);assert.equal(preflight.aliases,91471);assert.equal(preflight.worldChunks,2594);assert.equal(state.members.length,2);assert.equal(state.revision,0);assert.equal(preflight.datasetDigest,'3cbb39538d6d5c50cc04308a709771af2fbf23bd0da56499e076645b2be9a5c9');assert.equal(preflight.providerFiles,94);
++ assert.deepEqual(state.members.map(m=>[m.id,m.sourceMapId,m.unlocked]),[['alpha','r38-alpha',['12849','12850']],['beta','r38-beta',['12341','12342']]]);
++ assert.equal(preflight.migration,2,'fixed public migration schema');
++ const response=wait(m=>m.id===1&&m.type!=='progress');worker.postMessage({id:1,type:'evaluate',state,memberId:'alpha',resultTransport:'json-shared-v1',resultView:'full'});const m=await response;if(m.error)throw new Error(m.error.message);baseline=JSON.parse(Buffer.from(m.resultJSON).toString());
++}finally{await worker.terminate();}
++const setupMs=performance.now()-setupStarted,stateSHA256=sha256(JSON.stringify(state));
+ const expected=reference.buildChunkPlanningIndex(definitions,baseline,world);
+ const expectedPlanning=projection.planningResult({baseline,planningIndex:expected},'12849',view.projectPlayTask);
+ assert.equal(expectedPlanning.rows.length,772,'fixed alpha/12849 logical context');
+-const fixtureHash=sha256(Buffer.concat([fixtureBytes,defaultsBytes,Buffer.from(inputs.selection.definitions.sha256),Buffer.from(JSON.stringify({dataset:runtime.selectedDataset.digest,options:runtime.selectedDataset.environment,owner:'alpha',chunk:'12849'}))]));
++const fixtureHash=sha256(Buffer.concat([fixtureBytes,defaultsBytes,Buffer.from(inputs.selection.definitions.sha256),Buffer.from(JSON.stringify({dataset:runtime.selectedDataset.digest,options:runtime.selectedDataset.environment,datasetOptions,preparedDatasetStages,taskMapSHA256,historySHA256,owner:'alpha',chunk:'12849'}))]));
+ function equalAndHash(actual){
+  assert.deepEqual([...actual.byLocation.keys()],[...expected.byLocation.keys()]);assert.deepEqual([...actual.clueLocations.keys()],[...expected.clueLocations.keys()]);
+  const hash=createHash('sha256');const emit=x=>hash.update(JSON.stringify(x)+'\n');
+@@ -49,5 +77,5 @@
+  const outputSHA256=equalAndHash(built);runs.push({run,totalMs,declarationMs,stepMs:profile?summary(steps):null,batch128Ms:profile?summary(batches):null,rawNextMs:profile?steps:undefined,heapBefore,heapAfter,outputSHA256});
+ }
+ assert.equal(new Set(runs.map(r=>r.outputSHA256)).size,1);
+-const result={fixtureHash,preflight,logicalPlanningRows:772,mode:profile?'profile-only':'timing',referenceEquality:true,runs,designGatePass:!profile&&runs.every(r=>r.totalMs<=1500),limits:['cooperative operations are not hard 8ms bounds','no HTTP/residency/SLO claim','heap and RSS approximate; whole tree in guard ledger']};
++const result={fixtureHash,stateSHA256,rawImport,preflight,setupMs,migrationInputs:{taskMapSHA256,historySHA256,datasetOptions,preparedDatasetStages},logicalPlanningRows:772,mode:profile?'profile-only':'timing',referenceEquality:true,runs,designGatePass:!profile&&runs.every(r=>r.totalMs<=1500),limits:['cooperative operations are not hard 8ms bounds','no HTTP/residency/SLO claim','heap and RSS approximate; whole tree in guard ledger']};
+ await writeFile(new URL(`../../../review/index-${profile?'profile':'timing'}.json`,import.meta.url),JSON.stringify(result,null,2)+'\n');console.log(JSON.stringify({fixtureHash,referenceEquality:true,totalMs:runs.map(r=>r.totalMs),designGatePass:result.designGatePass}));

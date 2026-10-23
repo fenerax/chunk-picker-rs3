@@ -1,0 +1,30 @@
+{
+  "schemaVersion": 2,
+  "purpose": "Exact public/synthetic source transport for isolated cloud performance experiments.",
+  "baseCommit": "6f22fefa782747790e2eaefa01e4e5ea7b557323",
+  "readiness": "Source only. No main-branch change, production integration, runtime acceptance or release.",
+  "sessionScope": "R37/R46 source requires current-source adaptation: two synthetic players, one overlay, 8 active / 12 idle / 10 resumed minutes.",
+  "guardScope": "Original e97 guard remains fail-closed. Per-trial ownership/resource/cleanup evidence is required.",
+  "assets": [
+    {
+      "path": "docs/research/codex-cloud-assets/r83-existing-sources-deflate9.zip",
+      "bytes": 100907,
+      "sha256": "bffa23117390d6deb1a7f8cd287dbf008e8b4f29722574ce4b10dbd4fdb9eb02"
+    },
+    {
+      "path": "docs/research/codex-cloud-assets/runtime-sdk-e97.zip",
+      "bytes": 10924,
+      "sha256": "12303e1de575a3404ab49de26f1f503ef70b600eec0c0c6bbfb0ec191d94db92"
+    },
+    {
+      "path": "docs/research/codex-cloud-assets/r103-fixture-preflight-repair.patch",
+      "bytes": 12303,
+      "sha256": "9b56dd904f3c940f897d5c34e3595474485c2405bd98b162e7b8033b12bb2f57"
+    }
+  ],
+  "fixtureRepair": {
+    "scope": "Test driver only: normal server definitions/world and actual worker-ready catalogue migration before frozen assertions. Execution remains unrun.",
+    "originalDriverSha256": "b0370bed4c378e827d02dd6646c21af93a356b30b88ff6ab074b9a8d2a1366ea",
+    "preparedDriverSha256": "b907f15e8bb8c84510770c0343d6515cb964f6223517476f16c5a5ff9eee3ad5"
+  }
+}
