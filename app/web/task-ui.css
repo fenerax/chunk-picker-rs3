@@ -36,4 +36,11 @@
 .task-method-active{font-size:var(--type-xs);font-weight:var(--weight-semibold);color:var(--panel-link,var(--link))}
 .task-methods-error{color:var(--danger);font-size:var(--type-sm)}
 .task-methods-more{font-size:var(--type-sm);background:var(--surface);color:var(--surface-text,var(--text));border:var(--border-thin) solid transparent;min-height:36px}
+.icon-why{--icon:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='9'/%3E%3Cpath d='M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .9-1 1.6v.6'/%3E%3Cpath d='M12 17h.01'/%3E%3C/svg%3E")}
+.task-row>.task-why[aria-expanded=true]{opacity:1}
+.task-row>.task-why-panel{grid-column:2 / -1;order:3}
+.task-why-content{display:grid;gap:var(--space-2);padding:var(--space-4) var(--space-5);border:var(--border-thin) solid var(--hairline);border-radius:var(--radius-sm);font-size:var(--type-sm);line-height:var(--leading-body)}
+.task-why-content p{margin:0}
+.task-why-term{color:var(--panel-muted,var(--muted))}
+.task-why-loading{margin:0;font-size:var(--type-sm);color:var(--panel-muted,var(--muted))}
 @media(max-width:500px){.task-hover{padding:var(--space-5);font-size:var(--type-sm)}.task-hover-content{gap:var(--space-3)}.task-equipment-stats{gap:var(--space-2) var(--space-5)}.task-method-details{padding:var(--space-3)}.task-method-choice{min-height:44px}}

@@ -122,7 +122,7 @@ test('task names omit markup, viewers cannot write, and backlog dismissal return
   };
   runInContext(taskSource + '\ncreateScreenTasks(c);', createContext({
     c, document: h.document, createTaskClaimClock: () => ({}),
-    createTaskIconPainter: () => ({ append() {} }), appendTaskPin() {},
+    createTaskIconPainter: () => ({ append() {} }), appendTaskPin() {}, appendTaskWhy() {}, isCustomTask: () => false,
   }));
   c.taskFacts = () => ({ personal: false, group: false }); c.hoverTasks = () => ({ attach() {} });
   const row = c.taskRow({ id: 'one', label: '<b>Mine copper</b>', status: 'blocked' }), checkbox = row.children[0];

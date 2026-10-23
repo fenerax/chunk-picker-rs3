@@ -134,3 +134,11 @@ test('generated equipment alternatives do not display their synthetic goal level
   const h = harness(); const methods = createTaskMethods({ document: h.document, tasks: [{ ...task, category: 'BiS', generated: true, level: 1 }], activeId: task.id, canChoose: false, open() {} });
   assert(!text(methods).includes('Level 1')); assert(text(methods).includes('Doable now'));
 });
+
+test('Extra tasks name the group that added them; other categories do not', () => {
+  const h = harness();
+  const extra = renderTaskHover({ id: 'x:lantern', label: 'Obtain a lantern', category: 'Extra', status: 'available', record: { Label: 'Gear Goals' } }, { document: h.document });
+  assert(text(extra).includes('Extra · Gear Goals'));
+  const quest = renderTaskHover({ id: 'q:1', label: 'Fixture quest', category: 'Quest', status: 'available', record: { Label: 'Fixture series' } }, { document: h.document });
+  assert(!text(quest).includes('Fixture series'));
+});

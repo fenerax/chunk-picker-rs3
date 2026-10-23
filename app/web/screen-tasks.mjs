@@ -14,6 +14,7 @@ import { createBacklogView } from './screen-backlog.mjs';
 import { selectDuoTaskLists } from './duo-task-lists.mjs';
 import { createDuoBacklogView } from './duo-backlog-view.mjs';
 import { createTickActiveTasks } from './tick-active-tasks.mjs';
+import { appendTaskWhy, catalogued, createRuleDescriber } from './task-why.mjs';
 
 // Main-screen tasks; shared values and callbacks live in the explicit screen context.
 export function createScreenTasks(c) {
@@ -86,6 +87,7 @@ export function createScreenTasks(c) {
     const body = c.el('div', undefined, 'task-body'); c.taskIconPainter.append(body, task);
     body.append(content);
     row.append(checkbox, body);
+    appendWhy(row, task);
     // One hop to the Wiki instead of opening the task first.
     if (task.wiki) row.append(c.iconLink(task.wiki, `Open ${c.plain(task.label)} on the RuneScape Wiki`, 'wiki'));
     const backlogAction = taskState.backlogged
@@ -232,6 +234,22 @@ export function createScreenTasks(c) {
     }
   }
 
+  // Sources name chunk sections as "<chunk>-<section>"; those take their chunk's name.
+  function placeName(id) {
+    const place = key => c.world?.chunks.get(key) ?? c.world?.areas.get(key);
+    return c.plain((place(String(id)) ?? place(String(id).replace(/-\d+$/, '')))?.name ?? '');
+  }
+
+  // The explanation reads the full result only when a player opens it.
+  function appendWhy(row, task, ownerId = c.memberId) {
+    if (isCustomTask(task)) return;
+    appendTaskWhy(row, task, { document, button: c.button, icon: c.icon, load: async value => {
+      const result = await c.ensureDuoDetails(ownerId, false, false);
+      const describeRule = catalogued(await createRuleDescriber(taskDisplayState(), ownerId));
+      return { task: result.tasks.find(item => item.id === value.id) ?? value, result, describeRule, locationName: placeName };
+    } });
+  }
+
   async function ensureDuoDetails(ownerId, guardDialog = true, requireDuo = true) {
     if (ownerId === c.memberId) return c.ensureFullResult(guardDialog);
     const selected = c.memberId, revision = c.state.revision, generation = c.dialogGeneration;
@@ -251,7 +269,7 @@ export function createScreenTasks(c) {
       document, viewport: globalThis, setTimeout, clearTimeout,
       getScope: () => `${c.duoEnabled()}:${c.memberId}:${c.state.revision}:${c.sandbox.signature()}`,
       getContext: () => ({ result: c.duoDetails.get(`${c.state.revision}:${ownerId}`) ?? c.duoResults().results().get(ownerId), equipment: c.definitions.equipment,
-        locationName: id => c.plain((c.world.chunks.get(String(id)) ?? c.world.areas.get(String(id)))?.name ?? id) }),
+        locationName: id => placeName(id) || id }),
       // A checkbox can retain focus during refresh. Its tooltip must not start
       // an expensive full-detail calculation for rows being replaced.
       getDetails: async value => !c.duoRowsReady || value.record || isCustomTask(value) ? value : (await c.ensureDuoDetails(ownerId, false)).tasks.find(item => item.id === value.id) ?? value,
@@ -264,7 +282,7 @@ export function createScreenTasks(c) {
       c.duoTaskView = createDuoTaskView({ document, getState: () => c.state, getSelectedMember: () => c.memberId,
         getStorage: () => globalThis.localStorage, getViewerId: () => c.sessionMember ?? (c.canWrite() ? 'admin' : 'viewer'),
         getClaimMember: () => c.sessionMember ?? c.memberId, actingForMember: () => !c.sessionMember,
-        command: c.command, backlog: c.backlogForm, showTask: c.showTask, attachHover: c.attachDuoHover, appendIcon: (body, task) => c.taskIconPainter.append(body, task),
+        command: c.command, backlog: c.backlogForm, showTask: c.showTask, attachHover: c.attachDuoHover, appendWhy, appendIcon: (body, task) => c.taskIconPainter.append(body, task),
         canComplete: () => c.canWrite() && !c.sandbox.active && c.duoEnabled(),
         canEdit: () => c.canWrite() && !c.sandbox.active && c.duoEnabled() && c.duoRowsReady, canInspect: () => !c.sandbox.active && (c.duoRowsReady || !c.canWrite() && c.result?.stateRevision === c.state.revision && c.result.memberId === c.memberId), showError: c.showError, onFilter: c.renderTasks,
         appendPin: (content, entry) => appendTaskPin(document, content, c.duoPins(entry)),
@@ -445,7 +463,7 @@ export function createScreenTasks(c) {
   c.hoverTasks = () => c.taskHover ??= createTaskHover({
     document, viewport: globalThis, setTimeout, clearTimeout,
     getScope: () => `${c.memberId}:${c.state?.revision}:${c.sandbox.signature()}`,
-    getContext: () => ({ result: c.fullResult?.memberId === c.memberId && c.fullResult.stateRevision === c.state?.revision ? c.fullResult : c.result, equipment: c.definitions?.equipment, locationName: id => c.plain((c.world?.chunks.get(String(id)) ?? c.world?.areas.get(String(id)))?.name ?? id) }),
+    getContext: () => ({ result: c.fullResult?.memberId === c.memberId && c.fullResult.stateRevision === c.state?.revision ? c.fullResult : c.result, equipment: c.definitions?.equipment, locationName: id => placeName(id) || id }),
     getDetails: async task => {
       if (task.record || task.id.startsWith('custom:') || task.id.startsWith('rs3:task:custom:')) return task;
       const value = await c.ensureFullResult(false);
