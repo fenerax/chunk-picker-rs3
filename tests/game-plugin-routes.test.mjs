@@ -165,6 +165,23 @@ test('position stays ephemeral, optional progress deltas wait for explicit revie
   assert.equal(f.app.store.getState().members[0].skillProgress.Attack.xp, 4470.5);
 });
 
+test('review apply can skip skill levels or quests, and refuses an apply that selects nothing', async t => {
+  const f = await fixture(t), created = await f.create();
+  assert.equal((await f.plugin('/api/plugin/v1/report', created.key, report(0, { skills: { ATTACK: { level: 20, xp: 4470.5 } } }))).status, 200);
+  const preview = await (await f.admin('/api/game-plugin/review?memberId=actor1')).json(), apply = body => f.admin('/api/game-plugin/apply', { previewId: preview.previewId, expectedRevision: preview.stateRevision, ...body });
+  for (const body of [{ skills: true }, { quests: 'no' }, { skills: [] }]) assert.equal((await apply(body)).status, 400);
+  const nothing = await apply({ skills: false, quests: false });
+  assert.equal(nothing.status, 400); assert.match(await nothing.text(), /Nothing is selected/);
+  assert.equal((await apply({ skills: false, quests: false, achievements: [] })).status, 400);
+  assert.equal(f.app.store.getInfo().revision, 0);
+  assert.equal((await apply({ skills: false })).status, 200);
+  assert.equal(f.app.store.getState().members[0].skillProgress?.Attack, undefined);
+  assert.equal((await f.plugin('/api/plugin/v1/report', created.key, report(1, { skills: { ATTACK: { level: 21, xp: 5018 } } }))).status, 200);
+  const next = await (await f.admin('/api/game-plugin/review?memberId=actor1')).json();
+  assert.equal((await f.admin('/api/game-plugin/apply', { previewId: next.previewId, expectedRevision: next.stateRevision, quests: false })).status, 200);
+  assert.equal(f.app.store.getState().members[0].skillProgress.Attack.level, 21);
+});
+
 test('plugin sequence ordering is per key and stale reports do not overwrite the observed position', async t => {
   const f = await fixture(t), first = await f.create(), second = await f.create();
   assert.equal((await f.plugin('/api/plugin/v1/report', first.key, report(5))).status, 200);
