@@ -7,7 +7,6 @@ export const galleryEntries = [
   entry('topbar-more', 'More menu and appearance', 'index.html', 'menu', ['dom:theme-switch', 'dom:more-tools'], { menu: 'more-tools' }),
   entry('badges', 'View only and Stream-safe badges', 'index.html', 'badges', ['dom:view-only-badge', 'dom:stream-safe-indicator']),
   entry('toolbar', 'Map toolbar', 'index.html', 'region', ['region:map-toolbar'], { selector: '.map-toolbar' }),
-  entry('map-corner', 'Map zoom and Center', 'index.html', 'region', [], { selector: '.map-corner' }),
   entry('summary', 'Map summary and legend', 'screen-map.mjs', 'region', ['dom:map-summary', 'region:map-summary', 'dom:map-counts', 'dom:legend-details', 'dom:map-legend', 'dom:map-hint'], { selector: '.map-summary' }),
   entry('recent', 'Recent Chunks', 'map-tools.mjs', 'region', ['dom:recent-panel'], { selector: '#recent-panel' }),
   entry('pending', 'Pending roll choices', 'screen-map.mjs', 'region', ['dom:pending-panel'], { selector: '#pending-panel' }),
