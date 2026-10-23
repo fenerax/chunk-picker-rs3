@@ -11,22 +11,32 @@ in a few minutes, with no test suite of its own.
 2. Build: `scripts/release/pc/Quick-Release.ps1 -Release <id> -Commit <sha>`.
    - Exports the commit into a new release folder and proves every file
      equals its blob.
-   - Copies the live packs. A pack change refuses, because pack upgrades need
-     a transition plan.
+   - Builds the game data from that export: the data and rules-text packs come
+     from the commit, so a data fix ships like any code fix. Only the art pack
+     is copied from live, plus the six local map and game caches the public
+     repository lacks, each checked against its live hash.
    - Builds the profile and addon from the commit. The member defaults come
      from the live profile on the PC, because public source has placeholders.
-   - Runs three startup probes on disposable copies of the live save: the live
+   - Runs startup probes on disposable copies of the live save: the live
      code, then the new code on that result, then the live code again on the
      new result. Every saved record, task identity and history event must
      survive both directions. The live save is only read.
-   - Writes `quick-build.json` with the commit, the GitHub checks, the probe
-     counts and the time each step took.
+   - When the data differs from live, the save's dataset binding has to change
+     with the release. The probes then give the new side the new binding and
+     add a fourth step, the new code reopening the swapped-back save, and the
+     build writes `pack-transition.json` with both bindings.
+   - Writes `quick-build.json` with the commit, the GitHub checks, whether the
+     data changed, the probe counts and the time each step took.
 3. Go live, after the owner's OK for that release:
    `Quick-Release.ps1 -GoLive -ReleaseDir <folder> -ExpectLive <live id>`.
-   It rechecks the folder against its commit and pins, holds the watchdog
-   and operator locks, stops the live picker, swaps the pointer and starts the
-   new release. If the start fails it points back and restarts the previous
-   release. A swap back later is the same call with the previous folder.
+   It rechecks the folder against its commit and pins. When the data differs,
+   it runs the probes again on the latest save before anything stops. Then it
+   holds the watchdog and operator locks, stops the live picker, switches the
+   save's binding if the data differs, swaps the pointer and starts the new
+   release. If the start fails it puts the pointer and binding back and
+   restarts the previous release. A swap back later is the same call with the
+   previous folder; it uses the newer release's `pack-transition.json` and
+   first checks that the previous release opens the latest save.
 
 Paths live in `.local/quick-release.json`, which is never committed: `Repo`,
 `Current`, `Releases`, `Operator` and `WatchdogLog`. The swap uses the
