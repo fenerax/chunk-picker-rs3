@@ -568,7 +568,8 @@ dialog::backdrop{background:var(--color-fixed-0a0806b3);backdrop-filter:blur(3px
 .checkbox-field>input{order:-1}
 .form-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:var(--space-5)}
 .monster-override-row{align-items:end}
-.runemetrics-controls{padding-top:var(--space-6);border-top:var(--border-thin) solid var(--hairline)}
+/* The dialog title or the RuneMetrics sync fold names and separates it. */
+.runemetrics-controls:first-child{margin-top:0}
 .runemetrics-preview h4,.runemetrics-preview h5{margin:var(--space-5) 0 0;font-size:var(--type-base);line-height:var(--leading-body)}
 .runemetrics-preview ul{margin:var(--space-1) 0;padding-left:var(--space-7);line-height:var(--leading-legacy-1-55)}
 .form-field input:not([type=checkbox]):not([type=color]),.form-field select{max-width:100%}
