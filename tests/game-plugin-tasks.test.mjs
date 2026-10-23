@@ -4,7 +4,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { openGamePlugin } from '../app/game-plugin.mjs';
-import { pluginTaskRows, pluginTaskList, PLUGIN_TASK_LIMITS } from '../app/game-plugin-tasks.mjs';
+import { pluginTaskRows, pluginTaskList, pluginTaskFrom, PLUGIN_TASK_LIMITS } from '../app/game-plugin-tasks.mjs';
 
 const registry = { resolve: rules => ({ 'tasks.completion': 'any', 'access.shared': false, ...rules }) };
 const task = (id, extra = {}) => ({ id, label: id, category: 'Skills', status: 'available', ...extra });
@@ -31,14 +31,26 @@ test('the response caps both lists, keeps true counts and never sends chunk list
   const state = makeState(), many = Array.from({ length: 130 }, (_, index) => task(`t${String(index).padStart(3, '0')}`, { label: `Task\n${index}\u0007${'x'.repeat(200)}` }));
   const locations = Object.fromEntries(many.map((row, index) => [row.id, index % 2 ? ['12850'] : ['13106']]));
   const body = pluginTaskList({ rows: pluginTaskRows({ state, result: result(many, locations), registry, memberId: 'a' }), chunkId: '12850', stateRevision: 3, stale: false });
-  assert.equal(body.allCount, 130); assert.equal(body.all.length, PLUGIN_TASK_LIMITS.all);
+  assert.equal(body.allCount, 130); assert.equal(body.all.length, PLUGIN_TASK_LIMITS.all); assert.equal(body.allFrom, 0);
   assert.equal(body.hereCount, 65); assert.equal(body.here.length, PLUGIN_TASK_LIMITS.here);
   assert.ok(body.here.every(row => !('chunks' in row)) && body.all.every(row => !('chunks' in row)));
   assert.ok(body.all.every(row => row.label.length <= PLUGIN_TASK_LIMITS.label && !/[\x00-\x1f\x7f]/.test(row.label)));
   const unknown = pluginTaskList({ rows: pluginTaskRows({ state, result: result(many, undefined), registry, memberId: 'a' }), chunkId: '12850', stateRevision: 3, stale: false });
   assert.equal(unknown.hereKnown, false); assert.deepEqual(unknown.here, []); assert.equal(unknown.allCount, 130);
   assert.deepEqual(pluginTaskList({ rows: null, chunkId: null, stateRevision: 3, stale: false }),
-    { v: 1, ready: false, stale: false, stateRevision: 3, chunkId: null, here: [], all: [], hereCount: 0, allCount: 0, hereKnown: false });
+    { v: 1, ready: false, stale: false, stateRevision: 3, chunkId: null, here: [], all: [], allFrom: 0, hereCount: 0, allCount: 0, hereKnown: false });
+});
+
+test('from pages through the whole active list and refuses anything else in the query', () => {
+  const state = makeState(), many = Array.from({ length: 130 }, (_, index) => task(`t${String(index).padStart(3, '0')}`));
+  const rows = pluginTaskRows({ state, result: result(many, {}), registry, memberId: 'a' });
+  const page = from => pluginTaskList({ rows, chunkId: null, stateRevision: 3, stale: false, from });
+  const second = page(100);
+  assert.deepEqual([second.allFrom, second.allCount, second.all.length, second.all[0].id, second.all.at(-1).id], [100, 130, 30, 't100', 't129']);
+  assert.deepEqual(page(30).all.map(row => row.id), many.slice(30, 130).map(row => row.id));
+  assert.deepEqual([page(500).all, page(500).allCount], [[], 130], 'Past the end is an empty page, not an error');
+  assert.equal(pluginTaskFrom(''), 0); assert.equal(pluginTaskFrom('?from=100'), 100); assert.equal(pluginTaskFrom('?from=0'), 0);
+  for (const bad of ['?chunk=1', '?from=-1', '?from=1.5', '?from=', '?from=1e3', '?from=1234567', '?from=1&from=2', '?from=1&x=2']) assert.equal(pluginTaskFrom(bad), null, bad);
 });
 
 test('the tasks route reads the saved list only, keeps the last list after a tick and needs a plugin key', async t => {
@@ -85,7 +97,11 @@ test('the tasks route reads the saved list only, keeps the last list after a tic
   controller.rememberTasks('a', later);
   assert.deepEqual((await tasks()).all.map(row => row.id), ['new']);
   controller.rememberTasks('b', later);
+  const page = await call('GET', '/api/plugin/v1/tasks?from=1');
+  assert.deepEqual([page.allFrom, page.all, page.allCount], [1, [], 1], 'The route passes from through');
   await assert.rejects(call('GET', '/api/plugin/v1/tasks?chunk=1'), { status: 400 });
+  await assert.rejects(call('GET', '/api/plugin/v1/tasks?from=-1'), { status: 400 });
+  await assert.rejects(call('GET', '/api/plugin/v1/status?from=1'), { status: 400 });
   await assert.rejects(controller.handle({ method: 'GET', url: '/api/plugin/v1/tasks', headers: {} }, {}, { route: '/api/plugin/v1/tasks', security: {} }), { status: 401 });
   await assert.rejects(controller.handle({ method: 'GET', url: '/api/plugin/v1/tasks', headers: { authorization: `Bearer ${key}`, 'content-length': '2' } }, {}, { route: '/api/plugin/v1/tasks', security: {} }), { status: 400 });
 });
