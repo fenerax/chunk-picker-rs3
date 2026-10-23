@@ -223,13 +223,15 @@ export function createGamePlugin(c) {
             button('Skip all achievements', () => { achievementChoices.clear(); refreshChoices(); }));
           box.append(bulk);
         }
+        // Area labels alone don't say what an achievement asks for, so each row links its wiki page.
+        const wiki = title => c.iconLink && c.supportsFeature?.('rsCatalogues') !== false ? [c.iconLink(c.wikiSearch(title), `Open ${title} on the RuneScape Wiki`, 'wiki')] : [];
         const tags = row => [...(mixed && worldTags[row.world] ? [el('span', worldTags[row.world], 'game-plugin-tag')] : []),
           ...(row.reason === 'retry' ? [el('span', 'Auto-tick failed', 'game-plugin-tag')] : [])];
         if (several.length) {
           const list = el('div', undefined, 'game-plugin-matches');
           for (const row of several) {
             const line = el('div', undefined, 'game-plugin-match'), title = reviewText(row.title), text = el('div', undefined, 'game-plugin-match-text');
-            text.append(el('strong', title), ...tags(row));
+            text.append(el('strong', title), ...wiki(title), ...tags(row));
             const choice = el('select'), skip = el('option', row.candidates?.length ? 'Skip' : 'No matching task'); skip.value = ''; choice.append(skip);
             for (const candidate of row.candidates ?? []) { const option = el('option', taskText(row.title, c.plain(candidate.label))); option.value = candidate.taskId; choice.append(option); }
             choice.setAttribute('aria-label', `Task for ${title}`); choice.disabled = !canWrite || !row.candidates?.length;
@@ -251,7 +253,7 @@ export function createGamePlugin(c) {
             const [task] = row.candidates, title = reviewText(row.title);
             const line = el('label', undefined, 'game-plugin-match'), tick = el('input'), text = el('span', undefined, 'game-plugin-match-text');
             tick.type = 'checkbox'; tick.disabled = !canWrite;
-            text.append(el('strong', title), el('span', taskText(row.title, c.plain(task.label)), 'game-plugin-task'), ...tags(row));
+            text.append(el('strong', title), ...wiki(title), el('span', taskText(row.title, c.plain(task.label)), 'game-plugin-task'), ...tags(row));
             tick.addEventListener('change', () => {
               if (tick.checked && taken(row, task.taskId)) { tick.checked = false; report('That task is already chosen for another achievement.', true); return; }
               if (tick.checked) achievementChoices.set(row.achievementId, task.taskId); else achievementChoices.delete(row.achievementId);

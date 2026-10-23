@@ -46,6 +46,8 @@ function fixture(t, { viewer = false } = {}) {
     field: (label, control) => { const node = new Node('label', label); node.append(control); return node; },
     list: values => { const node = new Node('ul'); node.append(...values.map(value => new Node('li', value))); return node; },
     plain: value => value, adopt: state => { c.state = state; },
+    wikiSearch: name => `https://runescape.wiki/w/Special:Search?search=${encodeURIComponent(name)}`,
+    iconLink: (href, label) => Object.assign(new Node('a'), { href, className: 'icon-button', attributes: { 'aria-label': label } }),
     api: async (path, body) => {
       if (body) posts.push({ path, body });
       if (path === '/api/game-plugin') return { keys: structuredClone(keys), positions: [], active: false };
@@ -100,6 +102,10 @@ test('single matches start selected, several start skipped, and apply sends only
   f.setPreview(preview); const root = await f.open();
   const choice = all(root).find(node => node.tag === 'select');
   assert.equal(choice.value, ''); assert.equal(choice.attributes['aria-label'], 'Task for Ambiguous achievement');
+  assert.deepEqual(all(root).filter(node => node.tag === 'a' && node.className === 'icon-button').map(node => [node.href, node.attributes['aria-label']]), [
+    ['https://runescape.wiki/w/Special:Search?search=Ambiguous%20achievement', 'Open Ambiguous achievement on the RuneScape Wiki'],
+    ['https://runescape.wiki/w/Special:Search?search=Beta%20achievement', 'Open Beta achievement on the RuneScape Wiki'],
+    ['https://runescape.wiki/w/Special:Search?search=Other%20achievement', 'Open Other achievement on the RuneScape Wiki']]);
   assert.deepEqual(ticks(root).map(node => node.checked), [true, true]);
   assert.match(text(root), /One matching task \(2\) · 2 selected/);
   assert.equal(summaryText(root), 'Apply saves 1 skill level, 1 quest and 2 achievement ticks.');
