@@ -63,7 +63,8 @@ dialog:has(.completed-view) #dialog-content{min-height:0;overflow:auto;scrollbar
 .completed-footer span{max-width:70ch}
 .completed-footer button{white-space:nowrap;font-size:var(--type-sm);min-height:36px}
 .completed-return{margin-bottom:var(--space-6)}
-#completed-review{font-size:var(--type-xs);min-height:30px;margin-left:auto;white-space:nowrap}
+#completed-review{margin-left:auto;white-space:nowrap;font-family:var(--font-body-system);font-weight:var(--weight-normal);letter-spacing:normal;text-transform:none}
+#completed-details>summary>.list-copy-control{margin-left:0}
 #completed-details>summary{display:flex;align-items:center;gap:var(--space-2);flex-wrap:wrap}
 @media(max-width:720px){
   .completed-controls{grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:var(--space-5)}

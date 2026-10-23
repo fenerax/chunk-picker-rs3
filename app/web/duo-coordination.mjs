@@ -70,11 +70,12 @@ export function createDuoCoordination({ canWrite = () => true, api, viewer, getS
   }
   function render() {
     const latest = snapshot?.latestUndo;
-    undoButton.textContent = metadataFailed && !current() ? 'Retry Undo' : undoLabel(latest?.event);
+    const retry = metadataFailed && !current();
+    undoButton.textContent = retry ? 'Retry Undo' : 'Undo';
     undoButton.hidden = !canWrite();
     undoButton.disabled = !canWrite() || getState().sandboxActive || (!current() ? !metadataFailed : !latest?.canUndo);
-    // One line in the toolbar; the full sentence is in the tooltip and the confirmation.
-    undoButton.title = latest?.reason ? undoReason(latest.reason) : undoButton.textContent;
+    // A short word in the toolbar; what it would undo is in the tooltip and the confirmation.
+    undoButton.title = latest?.reason ? undoReason(latest.reason) : retry ? 'Retry Undo' : undoLabel(latest?.event);
     ownHost?.replaceChildren();
     const own = snapshot?.ownUndo, revision = snapshot?.stateRevision;
     if (canWrite() && current() && own?.canUndo && !getState().sandboxActive) ownHost?.append(button('Undo my last change', () => undo(own, revision), 'undo-own-action'));

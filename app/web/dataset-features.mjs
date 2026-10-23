@@ -7,7 +7,7 @@ export const datasetFeatureControls = Object.freeze({
   originalSync: ['original-sync-open'], runeMetrics: ['runemetrics-open'],
   training: ['helper-open', 'area-check-toggle'], bis: ['bis-open'],
   equipment: ['partner-supply-open'],
-  rsCatalogues: ['profile-open', 'finish-line-open', 'activity-open', 'teleports-open', 'members-start-open', 'membership-overlay'],
+  rsCatalogues: ['profile-open', 'finish-line-open', 'activity-open', 'teleports-open', 'membership-overlay'],
   mapMetadata: ['map-pins-open'],
   gallery: ['gallery-open'], projectUpdates: ['whats-new-open', 'roadmap-open'],
 });

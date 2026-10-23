@@ -17,8 +17,8 @@ export function createScreenHistory(c) {
     const player = c.select([{ value: '', label: 'All players' }, ...c.state.members.map(member => ({ value: member.id, label: member.name }))], '');
     const type = c.select([{ value: '', label: 'All changes' }, ...historyChangeTypes.map(item => ({ value: item.id, label: item.label }))], '');
     const rows = c.el('div', undefined, 'history-entries'), status = c.el('p', '', 'status-detail'), footer = c.el('div', undefined, 'history-actions');
-    status.setAttribute('role', 'status'); search.placeholder = 'Search changes, names or notes…'; search.maxLength = 200;
-    filters.append(c.field('Search History', search), c.field('Player', player), c.field('Type of change', type));
+    status.setAttribute('role', 'status'); search.placeholder = 'Find a change, name or note…'; search.maxLength = 200;
+    filters.append(c.field('Find a change', search), c.field('Player', player), c.field('Type of change', type));
     content.append(actions, filters, status, rows, footer);
     const generation = c.openDialog('History', content);
     actions.append(c.button('Roll stats', () => c.rollStatsDialog()));

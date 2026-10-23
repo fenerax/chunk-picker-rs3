@@ -104,6 +104,7 @@ export const quickTests = new Set([
   "rs-wiki-client.test.mjs",
   "admin-menu.test.mjs",
   "design-tokens.test.mjs",
+  "docs-menu-paths.test.mjs",
   "placeholder-art.test.mjs",
   "art-fallbacks.test.mjs",
   "usage-client.test.mjs",

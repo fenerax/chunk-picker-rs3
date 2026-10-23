@@ -1,6 +1,6 @@
 /* Active Tasks overflow: a quiet "⋯" after the count and Copy, never a header button.
    The sidebar's section disclosures style every details; this one opts out. */
-.task-sidebar .task-list-menu{position:relative;order:1;margin:0 0 0 var(--space-2);border-top:0;align-self:center}
+.task-sidebar .task-list-menu{position:relative;margin:0;border-top:0;align-self:center}
 .task-sidebar .task-list-menu>summary{list-style:none;cursor:pointer;display:flex;align-items:center;justify-content:center;min-width:1.9rem;min-height:1.9rem;padding:0 var(--space-3);border-radius:var(--radius-sm);font-family:inherit;font-size:var(--type-body);font-weight:var(--weight-semibold);line-height:1;color:var(--panel-muted,var(--muted))}
 .task-sidebar .task-list-menu>summary::-webkit-details-marker{display:none}
 .task-sidebar .task-list-menu>summary::before,.task-sidebar .task-list-menu>summary::after{display:none}

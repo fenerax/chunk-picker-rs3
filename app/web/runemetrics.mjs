@@ -111,7 +111,9 @@ export function createRuneMetricsControls(context, { memberId, isCurrent, onAppl
   help.id = `runemetrics-help-${memberId}`; account.setAttribute('aria-describedby', help.id);
   const accountField = field('RuneScape account name', account); accountField.className = 'form-field';
   const actions = el('div', undefined, 'form-actions'); actions.append(saveName, fetchPreview);
-  root.append(el('h3', 'RuneMetrics sync'),
+  root.setAttribute('aria-label', 'RuneMetrics sync');
+  // The dialog title or the Activity Info section already names it.
+  root.append(
     el('p', `${owner.name} · Last applied snapshot: ${time(owner.runeMetricsSync?.fetchedAt)}${owner.runeMetricsSync?.runescapeName ? ` · ${owner.runeMetricsSync.runescapeName}` : ''}`, 'info-meta'),
     help, accountField, actions, status, review);
   return root;
