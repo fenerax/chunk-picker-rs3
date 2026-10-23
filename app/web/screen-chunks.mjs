@@ -6,6 +6,7 @@ import { createChunkSections } from './chunk-sections.mjs';
 import { CACHE_SECTION_OFFSET } from './data/surface-grid.mjs';
 import { itemIcon } from './icons.mjs';
 import { createChunkQuestList } from './chunk-quest-filters.mjs';
+import { travelIntoChunk } from './teleports.mjs';
 
 // Main-screen chunks; shared values and callbacks live in the explicit screen context.
 export function createScreenChunks(c) {
@@ -123,6 +124,7 @@ export function createScreenChunks(c) {
       const reasons = c.el('div', undefined, 'form-stack'); entry.reasons.forEach(reason => reasons.append(c.el('p', reason.ruleId === 'roll.selected' ? 'Added to the roll pool by hand.' : reason.ruleId === 'state.blacklisted' ? 'Set to never roll for this player.' : reason.detail, 'eligibility-reason')));
       facts.append(c.details('Why this roll status?', reasons));
     }
+    if (!area && !mine && !c.member().pendingRoll.includes(id) && !c.pool.eligible.some(item => item.id === id)) facts.append(travelHere(id));
     // Places this chunk leads into that have no spot on the surface map (interiors, instances, other maps).
     // One chip per name; same-named records (floors of one dungeon) open together in Inside.
     const leadsTo = [...new Map(interiorCandidates(id, record, c.world).filter(place => place !== id).map(place => [c.plain((c.world.areas.get(place) ?? c.world.chunks.get(place))?.name ?? place), place])).values()];
@@ -141,6 +143,30 @@ export function createScreenChunks(c) {
     if (actions.children.length) content.append(actions);
     if (leadsRow) leadsRow.hidden = c.chunkTab === 'interior';
     return content;
+  }
+
+  // Carpets and teleports that land in a chunk outside the pool, and what each still needs.
+  // Shown only where a travel line touches the chunk; the route check runs when opened.
+  function travelHere(id) {
+    if (c.supportsFeature?.('rsCatalogues') === false || c.sandbox?.active
+      || !c.map?.connectionsForChunk?.(id)?.some(edge => edge.kind && edge.kind !== 'walking')) return '';
+    const box = c.el('div', undefined, 'form-stack'), node = c.details('Travel into this chunk', box);
+    box.append(c.el('p', 'Open to see which routes land here and what each still needs.', 'status-detail'));
+    node.addEventListener('toggle', () => {
+      if (!node.open || node.dataset.loaded) return;
+      node.dataset.loaded = 'true';
+      const memberId = c.memberId, revision = c.state.revision;
+      box.replaceChildren(c.el('p', 'Checking your routes…', 'status-detail'));
+      c.api(`/api/teleports?member=${encodeURIComponent(memberId)}`).then(value => {
+        if (value.memberId !== memberId || value.stateRevision !== revision) throw new Error('The saved map changed. Close and reopen this section.');
+        const routes = travelIntoChunk(value.rows ?? [], id);
+        box.replaceChildren(...routes.flatMap(group => [c.el('p', `${group.available ? 'Usable' : 'Not usable'}: ${group.reasons.join(' ')}`, 'eligibility-reason'),
+          c.el('p', group.names.map(name => c.plain(name)).join(' · '), 'status-detail')]));
+        if (!routes.length) box.append(c.el('p', 'None of your travel routes lands in this chunk. The lines show routes from the chunks around it.', 'status-detail'));
+        box.append(c.button('Open Teleports', () => c.teleportsDialog()));
+      }).catch(error => { delete node.dataset.loaded; box.replaceChildren(c.el('p', error.message || String(error), 'error')); });
+    });
+    return node;
   }
 
   function refreshChunkSummary() {

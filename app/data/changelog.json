@@ -2,6 +2,13 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "date": "2026-10-23",
+      "title": "See why a carpet or teleport stop isn't rollable",
+      "items": [
+        "Chunks a travel line lands in get a \"Travel into this chunk\" section. Open it to see what each route still needs, like a quest, coins or a way home"
+      ]
+    },
+    {
       "date": "2026-10-22",
       "title": "Type 10k, 2.5m or 1b in number fields",
       "items": [

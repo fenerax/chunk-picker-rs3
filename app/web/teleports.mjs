@@ -26,6 +26,34 @@ function displayReason(value) {
   return value;
 }
 
+/** Plain reasons a route is or is not usable. `where` points at the coins field. */
+export function routeReasons(row, where) {
+  const failures = [...(row.unmet ?? []), ...(row.unknown ?? [])];
+  const coinsOnly = !row.available && failures.length && failures.every(value =>
+    value.requirement === 'currencies' && value.key === 'coins' || value.requirement === 'return-coins');
+  const enter = `Enter your coins on hand ${where} if you have them.`;
+  if (coinsOnly) return [row.kind === 'carpet' && row.cost?.['currencies:coins'] > 0
+    ? `Needs ${row.cost['currencies:coins'].toLocaleString('en-GB')} coins for this carpet leg and enough for the way home. ${enter}`
+    : `Needs coins for this journey. ${enter}`];
+  const rawReasons = [row.reason, ...(row.reasons ?? [])].filter(Boolean);
+  return [...new Set(rawReasons.filter(value => row.group !== 'lodestones' || !row.rollOnly || !unresolvedEndpointReasons.has(value)).map(displayReason))];
+}
+
+/** Routes that land in a chunk, grouped by what they still need: every carpet
+ * stop into one destination usually shares the same reason. */
+export function travelIntoChunk(rows, chunkId) {
+  const groups = new Map();
+  for (const row of rows.filter(value => String(value.destination ?? '') === chunkId)) {
+    const reasons = row.available && row.group === 'transport'
+      ? ['You meet its requirements. It adds this chunk once you can reach where it leaves from.']
+      : routeReasons(row, 'in Teleports');
+    const key = JSON.stringify([!!row.available, reasons]);
+    if (!groups.has(key)) groups.set(key, { available: !!row.available, reasons, names: [] });
+    groups.get(key).names.push(row.name);
+  }
+  return [...groups.values()];
+}
+
 // Keep the surface's styling isolated without adding another global CSS dependency.
 if (globalThis.document?.head && !document.querySelector('link[data-teleports-style]')) {
   const sheet = document.createElement('link');
@@ -85,13 +113,7 @@ export function openTeleportsDialog(ctx, { uuid = () => globalThis.crypto.random
     const destination = String(row.destination ?? '');
     body.append(el('p', destinationLabel(row.destinationName, destination), 'teleports-destination'));
     const rawReasons = [row.reason, ...(row.reasons ?? [])].filter(Boolean);
-    const failures = [...(row.unmet ?? []), ...(row.unknown ?? [])];
-    const coinsOnly = !row.available && failures.length && failures.every(value =>
-      value.requirement === 'currencies' && value.key === 'coins' || value.requirement === 'return-coins');
-    const coinReason = row.kind === 'carpet' && row.cost?.['currencies:coins'] > 0
-      ? `Needs ${row.cost['currencies:coins'].toLocaleString('en-GB')} coins for this carpet leg and enough for the way home. Enter your coins on hand above if you have them.`
-      : 'Needs coins for this journey. Enter your coins on hand above if you have them.';
-    const reasons = coinsOnly ? [coinReason] : [...new Set(rawReasons.filter(value => row.group !== 'lodestones' || !row.rollOnly || !unresolvedEndpointReasons.has(value)).map(displayReason))];
+    const reasons = routeReasons(row, 'above');
     body.append(el('p', reasons.join(' · ') || 'No availability details returned.', 'teleports-reason'));
     if (rawReasons.includes('Members only.') && ctx.rulesDialog) {
       body.append(button('Review members rule', () => { if (current()) return ctx.rulesDialog({ ruleId: 'content.f2p', memberId: requestedMember }); }));

@@ -32,7 +32,7 @@ import { renderTaskEquipment } from '../app/web/task-equipment.mjs';
 import { taskItemIcon, taskIcon, taskCategoryIcon } from '../app/tasks/task-icons.mjs';
 import { createSandbox } from '../app/web/sandbox.mjs';
 import { openSandboxRules } from '../app/web/sandbox-rules.mjs';
-import { openTeleportsDialog } from '../app/web/teleports.mjs';
+import { openTeleportsDialog, travelIntoChunk } from '../app/web/teleports.mjs';
 import { createTaskIconPainter } from '../app/web/task-icon-painter.mjs';
 import { createDuoResultCache, selectDuoTasks } from '../app/web/duo-tasks.mjs';
 import { createDuoTaskView } from '../app/web/duo-task-view.mjs';
@@ -1476,7 +1476,7 @@ function harness({ realPlanning = false, localStorage } = {}) {
     observeScreenBars: doc => observeScreenBars(doc, context.ResizeObserver),
     artStatusText, datasetStatusText, loadArtStatus: async () => null, installPictureFallbacks() {}, observeArtStatus: listener => listener(null),
     createActivityFilterControls: (collaborators, options) => createActivityFilterControls({ ...collaborators, storage: localStorage }, options), selectActivityRows,
-    createChunkQuestList: (collaborators, entries) => { collaborators.storage = localStorage; return createChunkQuestList(collaborators, entries); },
+    travelIntoChunk, createChunkQuestList: (collaborators, entries) => { collaborators.storage = localStorage; return createChunkQuestList(collaborators, entries); },
     createMapDisplay: () => ({ sizes: { rollNumberScale: 1, chunkIdScale: 1, stickerScale: 1 }, open() {}, close() {}, refresh() {}, isOpen: () => false }), createHelperView: () => ({}), createBackupStatus: () => ({ start() {}, refresh: async () => {}, line: () => null }), createSandbox, openSandboxRules, createTaskHover, createTaskMethods, renderTaskEquipment, resolveTaskAlternatives, createDuoResultCache, selectDuoTasks, createDuoTaskView, createTaskFilters, appendTaskPin, appendTaskWhy, catalogued, createRuleDescriber, isTaskPinned, createTaskPinChecker, createCompletedView, createDuoCoordination, openTeleportsDialog,
     selectDuoTaskLists, createDuoBacklogView, buildWorld, createRuleRegistry, originalSettings, settingDefinitions, createRulesPanel,
     taskItemIcon, taskIcon, taskCategoryIcon, createTaskIconPainter, skillIcon: () => null, itemIcon: () => null, loadIcons: async () => false, interiorCandidates: () => [], interiorPanel: () => ({}), describeHistoryEvent: event => event.type, createFeedback: () => ({ open() {}, setSession() {}, start() {}, stop() {} }), createUpdates: () => ({ seen() {}, openList() {} }), createRuneMetricsControls: () => ({}), createGamePlugin: () => ({ refresh: async () => {}, render() {}, open() {}, controls: () => ({}) }), createStickerPicker: () => ({ open() {}, close() {}, isOpen: () => false, element: { contains: () => false } }), createInfoPanels, createNoteEditor, reviewedNoteRevision, createMapTools, applyTheme, createTaskFactsIndex, goalProgress, createDeathSettings, createMiningSettings, createWoodcuttingSettings, createBankingSettings, mergeCommandState, projectChunkState, projectTaskState, createOriginalSync,
@@ -1507,6 +1507,32 @@ test('chunk contents defer full planning sections until a planning tab is select
   await h.click('Tasks'); assert.deepEqual(h.planningRenders, ['12341']);
   await h.click('Clues'); assert.deepEqual(h.planningRenders, ['12341'], 'Both planning tabs reuse their view after explicit selection');
   h.run("chunkTab = 'contents'; showChunk('12342')"); assert.deepEqual(h.planningRenders, ['12341']);
+});
+
+test('a chunk a travel line lands in explains its routes only when that section is opened', async () => {
+  const h = harness();
+  h.run("map.connectionsForChunk = id => id === '12341' ? [{ kind: 'carpet' }] : []");
+  h.route(path => {
+    if (!path.startsWith('/api/teleports')) return taskResult(h.run('state.revision'));
+    assert.equal(path, '/api/teleports?member=actor1');
+    return { memberId: 'actor1', stateRevision: h.run('state.revision'), rows: [
+      { id: 'a', name: 'Nardah to Uzer (magic carpet)', group: 'transport', destination: '12341', available: false, reason: 'Needs quest The Golem; personal completion unknown.' },
+      { id: 'b', name: 'Shantay Pass to Uzer (magic carpet)', group: 'transport', destination: '12341', available: false, reason: 'Needs quest The Golem; personal completion unknown.' },
+      { id: 'c', name: 'Elsewhere', group: 'transport', destination: '99999', available: false, reason: 'x' }] };
+  });
+  h.run("showChunk('12342')");
+  assert.equal(h.find('summary', 'Travel into this chunk'), undefined, 'no travel line, no section');
+  h.run("showChunk('12341')"); await flush();
+  const summary = h.find('summary', 'Travel into this chunk'), section = h.all().find(node => node.children.includes(summary));
+  const checks = () => h.calls.filter(call => (call.path ?? call.requestPath).startsWith('/api/teleports')).length;
+  assert.ok(section); assert.equal(checks(), 0, 'opening the chunk does not check routes');
+  section.open = true; await section.emit('toggle'); await flush();
+  assert.equal(checks(), 1);
+  assert.ok(h.find('p', 'Not usable: Needs quest The Golem; personal completion unknown.'));
+  assert.ok(h.find('p', 'Nardah to Uzer (magic carpet) · Shantay Pass to Uzer (magic carpet)'));
+  assert.equal(h.all().some(node => node.textContent === 'Elsewhere'), false);
+  section.open = false; await section.emit('toggle'); section.open = true; await section.emit('toggle'); await flush();
+  assert.equal(checks(), 1, 'reopening keeps the loaded answer');
 });
 
 const planningResult = (revision = 7, chunkId = '12341', memberId = 'actor1') => ({ format: 'chunk-planning-v1', stateRevision: revision, memberId, chunkId,
