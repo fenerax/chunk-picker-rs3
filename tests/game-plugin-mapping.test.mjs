@@ -79,6 +79,20 @@ test('quest mapping accepts explicit aliases and whole completions while retaini
   assert.equal(preview.world, null);
 });
 
+test('the tutorial quest stays out with a reason and renamed quests match the picker title', () => {
+  const mapping = createQuestMapping({ challenges: { Quest: {
+    '~|Garden of Tranquility|~ Complete the quest': { QuestPoints: 2, BaseQuest: 'Garden of Tranquility' },
+    '~|Once Upon a Time in Gielinor: Finale|~ Complete the subquest': { QuestPoints: 0, BaseQuest: 'Once Upon a Time in Gielinor: Finale' },
+  } } });
+  const state = createGroupState([{ id: 'actor1', name: 'Player' }]);
+  state.tasks = [...mapping.values()].flat().map(row => ({ id: row.taskId, label: row.label, category: 'Quest' }));
+  const validated = validatePluginReport(report({ quests: { finished: ['Learning the Ropes', 'Garden of Tranquillity', 'Finale'], started: [] } }));
+  const { preview, command } = pluginProposal(state, 'actor1', validated, mapping);
+  assert.deepEqual(command.quests.map(row => row.title), ['Garden of Tranquility', 'Once Upon a Time in Gielinor: Finale']);
+  assert.deepEqual(preview.unmatched.quests.map(row => row.title), ['Learning the Ropes']);
+  assert.match(preview.unmatched.quests[0].reason, /^Tutorial quest\. It runs off the chunk map/);
+});
+
 test('position-only and partial progress reports never manufacture missing skill or quest changes', () => {
   const state = createGroupState([{ id: 'actor1', name: 'Player' }]);
   state.members[0].skillProgress = { Attack: { level: 10, xp: 1154, source: 'game-plugin', memberId: 'actor1', fetchedAt: sentAt } };
