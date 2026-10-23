@@ -3,6 +3,14 @@
   "entries": [
     {
       "date": "2026-10-22",
+      "title": "More quests match from the game",
+      "items": [
+        "Twelve quests the game names differently now match the picker's quest: Garden of Tranquillity, Curse of the Empty Lord, Father and Son, Helping Laniakea, the four Once Upon a Time in Gielinor parts and the four That Old Black Magic parts",
+        "Learning the Ropes, the new Tutorial Island quest, stays out of the picker: the review list now says it is a tutorial off the chunk map that every account finishes, instead of calling it unknown"
+      ]
+    },
+    {
+      "date": "2026-10-22",
       "title": "Why is this task here?",
       "items": [
         "Each task row has a ? button that explains why the task is in your list: the rule that adds it and where to find that rule, what its category covers, which similar task it was picked over, what it leads to, and where it can come from",
