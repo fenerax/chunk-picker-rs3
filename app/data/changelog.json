@@ -3,6 +3,15 @@
   "entries": [
     {
       "date": "2026-10-22",
+      "title": "A shorter game plugin review",
+      "items": [
+        "The beta warning shows once, and skill levels and quests each get their own section you can apply or skip",
+        "Achievements with one matching task start ticked in a short list, and each has a wiki link that says what it asks for",
+        "Achievements with several possible tasks start on Skip until you choose one. Nothing is saved until you press Apply"
+      ]
+    },
+    {
+      "date": "2026-10-22",
       "title": "The page reconnects by itself after an update",
       "items": [
         "After an update, \"Reconnecting…\" now actually reconnects, so you see the other player's changes again without reloading"
