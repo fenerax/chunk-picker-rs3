@@ -6,7 +6,7 @@ import { validateProgressSnapshots } from './progress-snapshots.mjs';
 import { preferenceDefinitions, validatePreference } from './preferences.mjs';
 import { validateControlSkill, validateControlLevel, validateSlayerLock } from './player-controls.mjs';
 import { defaultRuneScapeNames, validateRuneScapeName, sameRuneScapeName, validateRuneMetricsTimestamp,
-  validateObservedSkill, validateSkillProgress, validateQuestProgress, validateAchievementProgress, validateRuneMetricsProvenance } from './game-progress.mjs';
+  validateObservedSkill, validateSkillProgress, validateQuestProgress, validateAchievementProgress, validateItemProgress, validateRuneMetricsProvenance } from './game-progress.mjs';
 import { applyChunkColourCommand, validateChunkColour, validateChunkColourName } from './chunk-colours.mjs';
 import { validateSticker, validateStickerId, validateSavedStickers, normalizeStickerList, resolveMemberStickers, MAX_STICKERS_PER_CHUNK } from './map-markers.mjs';
 import { validateTransportFacts } from './transport-access.mjs';
@@ -35,11 +35,11 @@ const GAMEPLAY_KEYS = new Set(['rules', 'chunkOrder', 'settings', 'chunkinfo', '
   'activeSubTabs', 'topbarSelection', 'manualPrimary', 'recentFancyRollTime',
   'recent', 'recentTime', 'randomLoot', 'chunkNotes', 'userTasks', 'friends', 'friendsAlt']);
 const STATE_KEYS = new Set(['schemaVersion', 'revision', 'rules', 'members', 'tasks', 'history', 'legacy', 'provenance', 'identityRegistry', 'taskClaims', 'progressSnapshots', 'finishLine', 'groupGoals', 'ruleReviews']);
-export const MEMBER_KEYS = new Set(['id', 'name', 'sourceMapId', 'unlocked', 'selected', 'pendingRoll', 'blacklisted', 'completedTasks', 'obtainedEquipment', 'teleports', 'teleportOverrides', 'notes', 'journal', 'taskStatus', 'taskRules', 'sectionOverrides', 'sourceBacklogs', 'areaOverrides', 'preferences', 'primaryOverrides', 'passiveLevels', 'maxLevels', 'slayerLock', 'stickers', 'chunkColours', 'chunkColourNames', 'taskAlternatives', 'runescapeName', 'skillProgress', 'questProgress', 'achievementProgress', 'runeMetricsSync', 'originalPickerSync', 'transportFacts', 'f2pMap', 'xpChoices']);
+export const MEMBER_KEYS = new Set(['id', 'name', 'sourceMapId', 'unlocked', 'selected', 'pendingRoll', 'blacklisted', 'completedTasks', 'obtainedEquipment', 'teleports', 'teleportOverrides', 'notes', 'journal', 'taskStatus', 'taskRules', 'sectionOverrides', 'sourceBacklogs', 'areaOverrides', 'preferences', 'primaryOverrides', 'passiveLevels', 'maxLevels', 'slayerLock', 'stickers', 'chunkColours', 'chunkColourNames', 'taskAlternatives', 'runescapeName', 'skillProgress', 'questProgress', 'achievementProgress', 'itemProgress', 'runeMetricsSync', 'originalPickerSync', 'transportFacts', 'f2pMap', 'xpChoices']);
 const SOURCE_KINDS = new Set(['objects', 'npcs', 'monsters', 'shops', 'spawns', 'items']);
 const MEMBER_ARRAY_FIELDS = new Set(['unlocked', 'selected', 'pendingRoll', 'blacklisted', 'completedTasks', 'obtainedEquipment', 'teleports']);
 const MEMBER_PROGRESSION_FIELDS = new Set(['unlocked', 'selected', 'pendingRoll']);
-const MEMBER_DICTIONARY_FIELDS = new Set(['notes', 'taskStatus', 'taskRules', 'sectionOverrides', 'sourceBacklogs', 'areaOverrides', 'preferences', 'primaryOverrides', 'passiveLevels', 'maxLevels', 'stickers', 'chunkColours', 'chunkColourNames', 'taskAlternatives', 'skillProgress', 'questProgress', 'achievementProgress', 'teleportOverrides', 'xpChoices']);
+const MEMBER_DICTIONARY_FIELDS = new Set(['notes', 'taskStatus', 'taskRules', 'sectionOverrides', 'sourceBacklogs', 'areaOverrides', 'preferences', 'primaryOverrides', 'passiveLevels', 'maxLevels', 'stickers', 'chunkColours', 'chunkColourNames', 'taskAlternatives', 'skillProgress', 'questProgress', 'achievementProgress', 'itemProgress', 'teleportOverrides', 'xpChoices']);
 const MEMBER_NESTED_DICTIONARY_FIELDS = new Set(['sourceBacklogs', 'taskAlternatives']);
 const MEMBER_VALUE_FIELDS = new Set(['journal', 'slayerLock', 'runescapeName', 'runeMetricsSync', 'originalPickerSync', 'transportFacts', 'f2pMap']);
 const ORIGINAL_SYNC_FIELDS = new Map([['chunks', 'unlocked'], ['selections', 'selected'], ['blacklist', 'blacklisted'], ['pendingRoll', 'pendingRoll'], ['rules', 'taskRules'], ['tasks', 'tasks']]);
@@ -90,7 +90,7 @@ const COMMAND_KEYS = new Map([
   ['set-runescape-name', new Set(['type', 'memberId', 'name'])],
   ['replace-member', new Set(['type', 'memberId', 'member', 'source'])],
   ['apply-runemetrics', new Set(['type', 'memberId', 'runescapeName', 'fetchedAt', 'skills', 'quests'])],
-  ['apply-game-progress', new Set(['type', 'memberId', 'fetchedAt', 'skills', 'quests', 'achievements'])],
+  ['apply-game-progress', new Set(['type', 'memberId', 'fetchedAt', 'skills', 'quests', 'achievements', 'items'])],
   ['sync-original', new Set(['type', 'capturedAt', 'sourceHash', 'members'])],
   ['set-slayer-lock', new Set(['type', 'memberId', 'lock'])],
   ['set-chunk-colour', new Set(['type', 'memberId', 'chunkId', 'colour'])],
@@ -385,8 +385,8 @@ function validateTaskAlternative(category, group, value, tasks) {
   if (typeof tasks.get === 'function' && tasks.get(value).category !== category) fail('Alternative task category does not match the selected category');
 }
 function clearAchievementProvenance(member, taskId, identityRegistry) {
-  for (const id of Object.keys(member.achievementProgress ?? {})) {
-    if (resolveSavedTaskId(identityRegistry, id) === taskId) delete member.achievementProgress[id];
+  for (const field of ['achievementProgress', 'itemProgress']) for (const id of Object.keys(member[field] ?? {})) {
+    if (resolveSavedTaskId(identityRegistry, id) === taskId) delete member[field][id];
   }
 }
 function alternativeTaskIds(member) {
@@ -416,6 +416,7 @@ function validatePatchValue(path, value, tasks, memberId) {
   if (field === 'xpChoices') { if (!tasks.has(key)) fail('XP choices reference absent task'); validateSavedXpChoices(value); return; }
   if (field === 'questProgress') { validateQuestProgress(key, value, tasks, memberId); return; }
   if (field === 'achievementProgress') { validateAchievementProgress(key, value, tasks, memberId); return; }
+  if (field === 'itemProgress') { validateItemProgress(key, value, tasks, memberId); return; }
   if (MEMBER_ARRAY_FIELDS.has(field)) {
     if (field === 'teleports') {
       uniqueRecords(value, 'undo teleports');
@@ -475,7 +476,7 @@ function validateMemberChanges(change, tasks, members, afterTasks = tasks) {
       if (field === 'sourceBacklogs' && !SOURCE_KINDS.has(key)) fail('Unknown undo source kind');
       if (field === 'notes') chunk(key, 'undo note chunk');
       if (field === 'sectionOverrides') section(key, 'undo section');
-      if ((field === 'taskStatus' || field === 'questProgress' || field === 'achievementProgress') && !tasks.has(key)) fail(`History undo references absent task: ${key}`);
+      if ((field === 'taskStatus' || field === 'questProgress' || field === 'achievementProgress' || field === 'itemProgress') && !tasks.has(key)) fail(`History undo references absent task: ${key}`);
       if (field === 'preferences' && !preferenceDefinitions.some(definition => definition.id === key)) fail(`Unknown undo preference: ${key}`);
       if (field === 'stickers') chunk(key, 'undo sticker chunk');
       if (field === 'chunkColours') chunk(key, 'undo colour chunk');
@@ -715,6 +716,7 @@ function validateStateCopy(copy, registry) {
     if (member.skillProgress !== undefined) dictionary(member.skillProgress, `${path}.skillProgress`, (value, skill) => validateSkillProgress(skill, value, member.id));
     if (member.questProgress !== undefined) dictionary(member.questProgress, `${path}.questProgress`, (value, id) => validateQuestProgress(id, value, taskRows, member.id));
     if (member.achievementProgress !== undefined) dictionary(member.achievementProgress, `${path}.achievementProgress`, (value, id) => validateAchievementProgress(id, value, taskRows, member.id));
+    if (member.itemProgress !== undefined) dictionary(member.itemProgress, `${path}.itemProgress`, (value, id) => validateItemProgress(id, value, taskRows, member.id));
     if (member.xpChoices !== undefined) dictionary(member.xpChoices, `${path}.xpChoices`, (value, id) => { if (!tasks.has(id)) fail('XP choices reference absent task'); validateSavedXpChoices(value); });
     if (member.runeMetricsSync !== undefined) validateRuneMetricsProvenance(member.runeMetricsSync);
     if (member.originalPickerSync !== undefined) validateOriginalPickerSync(member.originalPickerSync);
@@ -824,7 +826,7 @@ function validateStateCopy(copy, registry) {
       for (const member of snapshotMembers) {
         uniqueStrings(member.completedTasks, `history undo member ${member.id}.completedTasks`);
         if (member.taskStatus !== undefined) record(member.taskStatus, `history undo member ${member.id}.taskStatus`);
-        for (const id of [...member.completedTasks, ...Object.keys(member.taskStatus ?? {}), ...Object.keys(member.questProgress ?? {}), ...Object.keys(member.achievementProgress ?? {}), ...alternativeTaskIds(member)]) references.add(id);
+        for (const id of [...member.completedTasks, ...Object.keys(member.taskStatus ?? {}), ...Object.keys(member.questProgress ?? {}), ...Object.keys(member.achievementProgress ?? {}), ...Object.keys(member.itemProgress ?? {}), ...alternativeTaskIds(member)]) references.add(id);
       }
       const referencedTasks = event.undo.tasks ?? [...references].map(id => {
         if (!historicalTasks.has(id)) fail(`History undo references absent task: ${id}`);
@@ -881,7 +883,7 @@ function validateStateCopy(copy, registry) {
       for (const id of Object.keys(replay.taskClaims ?? {})) if (!replayTaskIds.has(id) && !claimTaskRow(copy, id)) fail(`Sparse undo task claim references absent task at its historical revision: ${id}`);
       const checkMembers = event.undo.taskChanges ? replay.members
         : (event.undo.memberChanges ?? []).map(change => replay.members.find(member => member.id === change.id));
-      for (const member of checkMembers) for (const id of [...member.completedTasks, ...Object.keys(member.taskStatus ?? {}), ...Object.keys(member.questProgress ?? {}), ...Object.keys(member.achievementProgress ?? {}), ...alternativeTaskIds(member)]) {
+      for (const member of checkMembers) for (const id of [...member.completedTasks, ...Object.keys(member.taskStatus ?? {}), ...Object.keys(member.questProgress ?? {}), ...Object.keys(member.achievementProgress ?? {}), ...Object.keys(member.itemProgress ?? {}), ...alternativeTaskIds(member)]) {
         if (!replayTaskIds.has(id)) fail(`Sparse undo references absent task at its historical revision: ${id}`);
       }
     }
@@ -987,6 +989,7 @@ export function previewRestore(current, incoming, registry) {
       skillProgress: dictionaryChanges(oldMember?.skillProgress, newMember?.skillProgress),
       questProgress: dictionaryChanges(oldMember?.questProgress, newMember?.questProgress),
       achievementProgress: dictionaryChanges(oldMember?.achievementProgress, newMember?.achievementProgress),
+      itemProgress: dictionaryChanges(oldMember?.itemProgress, newMember?.itemProgress),
       runeMetricsSync: { before: oldMember?.runeMetricsSync ?? null, after: newMember?.runeMetricsSync ?? null, changed: JSON.stringify(oldMember?.runeMetricsSync) !== JSON.stringify(newMember?.runeMetricsSync) },
       stickers: dictionaryChanges(oldMember?.stickers, newMember?.stickers),
       chunkColours: dictionaryChanges(oldMember?.chunkColours, newMember?.chunkColours),
@@ -1029,8 +1032,8 @@ export function previewRestore(current, incoming, registry) {
     if (member.teleports.removed.length || member.teleports.changed.length) warnings.push(`Restore removes or changes saved teleports for ${member.identity.name.before ?? member.name}.`);
     if (member.transportFacts.changed) warnings.push(`Restore changes confirmed travel requirements for ${member.identity.name.before ?? member.name}.`);
     if (member.teleportOverrides.changed) warnings.push(`Restore changes personal teleport availability choices for ${member.identity.name.before ?? member.name}.`);
-    for (const field of ['notes', 'taskStatus', 'taskRules', 'sectionOverrides', 'areaOverrides', 'sourceBacklogs', 'preferences', 'primaryOverrides', 'passiveLevels', 'maxLevels', 'stickers', 'chunkColours', 'chunkColourNames', 'taskAlternatives', 'skillProgress', 'questProgress', 'achievementProgress', 'xpChoices']) {
-      if (member[field].removed.length || member[field].changed.length) warnings.push(`Restore removes or changes ${({ notes: 'notes', taskStatus: 'task checks and backlog choices', taskRules: 'task rules', sectionOverrides: 'section access choices', areaOverrides: 'area access choices', sourceBacklogs: 'backlogged item sources', preferences: 'settings', primaryOverrides: 'main training method assumptions', passiveLevels: 'levels possible without a main training method', maxLevels: 'training level limits', stickers: 'map stickers', chunkColours: 'chunk colours', chunkColourNames: 'chunk colour names', taskAlternatives: 'chosen task methods', skillProgress: 'personal levels and XP', questProgress: 'personal quest progress', achievementProgress: 'personal achievement progress', xpChoices: 'XP reward choices' })[field]} for ${member.identity.name.before ?? member.name}.`);
+    for (const field of ['notes', 'taskStatus', 'taskRules', 'sectionOverrides', 'areaOverrides', 'sourceBacklogs', 'preferences', 'primaryOverrides', 'passiveLevels', 'maxLevels', 'stickers', 'chunkColours', 'chunkColourNames', 'taskAlternatives', 'skillProgress', 'questProgress', 'achievementProgress', 'itemProgress', 'xpChoices']) {
+      if (member[field].removed.length || member[field].changed.length) warnings.push(`Restore removes or changes ${({ notes: 'notes', taskStatus: 'task checks and backlog choices', taskRules: 'task rules', sectionOverrides: 'section access choices', areaOverrides: 'area access choices', sourceBacklogs: 'backlogged item sources', preferences: 'settings', primaryOverrides: 'main training method assumptions', passiveLevels: 'levels possible without a main training method', maxLevels: 'training level limits', stickers: 'map stickers', chunkColours: 'chunk colours', chunkColourNames: 'chunk colour names', taskAlternatives: 'chosen task methods', skillProgress: 'personal levels and XP', questProgress: 'personal quest progress', achievementProgress: 'personal achievement progress', itemProgress: 'personal item evidence', xpChoices: 'XP reward choices' })[field]} for ${member.identity.name.before ?? member.name}.`);
     }
     if (member.slayerLock.changed) warnings.push(`Restore changes the Slayer lock for ${member.identity.name.before ?? member.name}.`);
     if (member.runeMetricsSync.changed) warnings.push(`Restore changes the last RuneMetrics sync for ${member.identity.name.before ?? member.name}.`);
@@ -1295,7 +1298,7 @@ function prepareUndo(state, undoRevision, registry) {
   const rows = indexedTaskRows(restored.tasks), referenced = new Map();
   for (const change of target.undo.taskChanges ?? []) if (change.before.exists) referenced.set(change.id, rows.get(change.id));
   for (const member of restored.members) for (const id of [...member.completedTasks, ...Object.keys(member.taskStatus ?? {}),
-    ...Object.keys(member.questProgress ?? {}), ...Object.keys(member.achievementProgress ?? {}), ...alternativeTaskIds(member)]) {
+    ...Object.keys(member.questProgress ?? {}), ...Object.keys(member.achievementProgress ?? {}), ...Object.keys(member.itemProgress ?? {}), ...alternativeTaskIds(member)]) {
     const task = rows.get(id);
     if (!task) fail(`Undo references absent task: ${id}`);
     referenced.set(id, task);
@@ -1353,7 +1356,7 @@ function validateCommandGameplay(state, baseline, registry) {
   if (state.groupGoals !== undefined) validateGroupGoals(state.groupGoals, new Set(state.members.map(member => member.id)));
   const rows = indexedTaskRows(state.tasks), oldRows = indexedTaskRows(baseline.tasks), referenced = new Map();
   for (const member of state.members) for (const id of [...member.completedTasks, ...Object.keys(member.taskStatus ?? {}),
-    ...Object.keys(member.questProgress ?? {}), ...Object.keys(member.achievementProgress ?? {}), ...alternativeTaskIds(member)]) {
+    ...Object.keys(member.questProgress ?? {}), ...Object.keys(member.achievementProgress ?? {}), ...Object.keys(member.itemProgress ?? {}), ...alternativeTaskIds(member)]) {
     const task = rows.get(id);
     if (!task) fail(`Command references absent task: ${id}`);
     referenced.set(id, task);
@@ -1375,7 +1378,7 @@ function validateCommandGameplay(state, baseline, registry) {
   // Removed rows remain available only to validate the inverse's historical
   // references. They never mask a dangling reference in current gameplay.
   for (const member of baseline.members) for (const id of [...member.completedTasks, ...Object.keys(member.taskStatus ?? {}),
-    ...Object.keys(member.questProgress ?? {}), ...Object.keys(member.achievementProgress ?? {}), ...alternativeTaskIds(member)]) if (!referenced.has(id)) referenced.set(id, oldRows.get(id));
+    ...Object.keys(member.questProgress ?? {}), ...Object.keys(member.achievementProgress ?? {}), ...Object.keys(member.itemProgress ?? {}), ...alternativeTaskIds(member)]) if (!referenced.has(id)) referenced.set(id, oldRows.get(id));
   for (const id of Object.keys(baseline.taskClaims ?? {})) if (!referenced.has(id)) referenced.set(id, oldRows.get(id) ?? claimTaskRow(baseline, id));
   return referenced;
 }
@@ -1686,6 +1689,7 @@ function applyCommandCopy(next, command, { expectedRevision, world, registry, ra
         if (member.taskStatus) delete member.taskStatus[old.id];
         if (member.questProgress) delete member.questProgress[old.id];
         if (member.achievementProgress) delete member.achievementProgress[old.id];
+        if (member.itemProgress) delete member.itemProgress[old.id];
       }
       clearCustomTaskAlternatives(next, old.id);
       if (next.taskClaims?.[old.id]) { next.taskClaims = { ...next.taskClaims }; delete next.taskClaims[old.id]; }
@@ -1824,7 +1828,9 @@ function applyCommandCopy(next, command, { expectedRevision, world, registry, ra
       if (!Array.isArray(payload.skills) || !Array.isArray(payload.quests)) fail(`${sourceLabel} skills and quests must be arrays`);
       const achievements = plugin && payload.achievements !== undefined ? payload.achievements : [];
       if (!Array.isArray(achievements)) fail('Game plugin achievements must be an array');
-      const observedSkills = new Set(), observedQuests = new Set(), observedAchievements = new Set();
+      const items = plugin && payload.items !== undefined ? payload.items : [];
+      if (!Array.isArray(items)) fail('Game plugin items must be an array');
+      const observedSkills = new Set(), observedQuests = new Set(), observedAchievements = new Set(), observedItems = new Set();
       for (const skill of payload.skills) {
         record(skill, `${sourceLabel} skill`); knownKeys(skill, new Set(['skill', 'level', 'xp']), `${sourceLabel} skill`);
         validateObservedSkill(skill.skill, skill);
@@ -1848,6 +1854,15 @@ function applyCommandCopy(next, command, { expectedRevision, world, registry, ra
         if (observedAchievements.has(achievement.taskId)) fail(`Duplicate Game plugin achievement task: ${achievement.taskId}`);
         observedAchievements.add(achievement.taskId);
       }
+      for (const item of items) {
+        record(item, 'Game plugin item'); knownKeys(item, new Set(['taskId', 'title', 'gameItemId', 'evidence', 'seen']), 'Game plugin item');
+        propertyKey(item.taskId, 'Game plugin item taskId');
+        // Obtain goals are generated rows: only the trusted catalogue may add one.
+        if (!taskRows.has(item.taskId)) { registerCatalogueTask(next, item.taskId, taskCatalogue); taskRows.set(item.taskId, next.tasks.find(task => task.id === item.taskId)); }
+        validateItemProgress(item.taskId, { title: item.title, gameItemId: item.gameItemId, evidence: item.evidence, seen: item.seen, ...provenance }, taskRows, member.id);
+        if (observedItems.has(item.taskId) || observedAchievements.has(item.taskId)) fail(`Duplicate Game plugin item task: ${item.taskId}`);
+        observedItems.add(item.taskId);
+      }
       // The entire trusted snapshot validates before any personal fact is applied.
       if (!plugin) payload.runescapeName = member.runescapeName;
       if (payload.skills.length) member.skillProgress = { ...(member.skillProgress ?? {}), ...Object.fromEntries(payload.skills.map(({ skill, level, xp }) => [skill, { level, xp, ...provenance }])) };
@@ -1859,6 +1874,11 @@ function applyCommandCopy(next, command, { expectedRevision, world, registry, ra
       if (newAchievements.length) {
         member.achievementProgress = { ...(member.achievementProgress ?? {}), ...Object.fromEntries(newAchievements.map(({ taskId, title, achievementId }) => [taskId, { title, achievementId, ...provenance }])) };
         member.completedTasks = [...member.completedTasks, ...newAchievements.map(({ taskId }) => taskId)];
+      }
+      const newItems = items.filter(({ taskId }) => !member.completedTasks.includes(taskId));
+      if (newItems.length) {
+        member.itemProgress = { ...(member.itemProgress ?? {}), ...Object.fromEntries(newItems.map(({ taskId, title, gameItemId, evidence, seen }) => [taskId, { title, gameItemId, evidence, seen, ...provenance }])) };
+        member.completedTasks = [...member.completedTasks, ...newItems.map(({ taskId }) => taskId)];
       }
       if (!plugin) member.runeMetricsSync = provenance;
       break;

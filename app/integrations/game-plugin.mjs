@@ -14,7 +14,8 @@ skillNames.set('RUNECRAFT', 'Runecrafting');
 skillNames.set('HITPOINTS', 'Constitution');
 
 export function validatePluginReport(body) {
-  fields(body, ['v', 'seq', 'sentAt', 'world', 'position', 'skills', 'quests', 'diagnostics', 'achievements'], 'report');
+  fields(body, ['v', 'seq', 'sentAt', 'world', 'position', 'skills', 'quests', 'diagnostics', 'achievements', 'items'], 'report');
+  if (body.items !== undefined) validatePluginItems(body);
   if (body.achievements !== undefined) {
     const value = body.achievements;
     fields(value, ['snapshot', 'part', 'parts', 'complete'], 'achievements');
@@ -71,6 +72,40 @@ export function validatePluginReport(body) {
   return { ...body, skills: body.skills === undefined ? undefined : skills };
 }
 
+const itemName = name => typeof name === 'string' && name.length >= 1 && name.length <= 80 && !/[\x00-\x1f\x7f-\x9f]/.test(name);
+const itemId = id => Number.isSafeInteger(id) && id >= 0 && id <= 1000000;
+// A container the plugin could not read is null, never an empty list.
+function validateItemRows(rows, label) {
+  if (rows === null) return;
+  if (!Array.isArray(rows) || rows.length > 64) fail(`Items ${label} must be null or at most 64 rows.`);
+  const slots = new Set();
+  for (const row of rows) {
+    if (!Array.isArray(row) || row.length !== 4 || !Number.isInteger(row[0]) || row[0] < 0 || row[0] > 63 || slots.has(row[0])
+      || !itemId(row[1]) || !Number.isSafeInteger(row[2]) || row[2] < 1 || row[2] > 2147483647 || !itemName(row[3])) {
+      fail(`Item rows need a unique slot from 0 to 63, an item ID, a positive count and a name of 1 to 80 characters without controls.`);
+    }
+    slots.add(row[0]);
+  }
+}
+function validatePluginItems(body) {
+  const value = body.items;
+  fields(value, ['snapshot', 'worn', 'backpack', 'journal'], 'items');
+  if (['skills', 'quests', 'diagnostics', 'achievements'].some(key => body[key] !== undefined)) fail('Send items separately from skills, quests, diagnostics and achievements.');
+  if (typeof value.snapshot !== 'string' || !/^[a-f0-9]{16}$/.test(value.snapshot)) fail('Items needs a 16-character snapshot.');
+  validateItemRows(value.worn, 'worn'); validateItemRows(value.backpack, 'backpack');
+  fields(value.journal, ['id', 'events'], 'item journal');
+  if (typeof value.journal.id !== 'string' || !/^[a-f0-9]{16}$/.test(value.journal.id) || !Array.isArray(value.journal.events) || value.journal.events.length > 32) {
+    fail('The item journal needs a 16-character id and at most 32 events.');
+  }
+  let previous = 0;
+  for (const event of value.journal.events) {
+    if (!Array.isArray(event) || event.length !== 3 || !Number.isSafeInteger(event[0]) || event[0] <= previous || !itemId(event[1]) || !itemName(event[2])) {
+      fail('Item journal events need increasing positive IDs, an item ID and a name.');
+    }
+    previous = event[0];
+  }
+}
+
 // Saved display labels flatten wiki links. Only retained raw labels with the
 // explicit family/group syntax identify an achievement; never guess a suffix.
 export function matchPluginAchievements(state, memberId, rows) {
@@ -124,6 +159,8 @@ export function pluginProposal(state, memberId, report, questMapping) {
   const achievements = (report.achievementReview ?? []).filter(row => row.candidates.some(task => !member.completedTasks.includes(task.taskId)));
   return { preview: { previewId: randomUUID(), stateRevision: state.revision, memberId, fetchedAt: report.sentAt,
     world: report.world ?? null, skills, quests, unmatched, startedQuests: report.quests?.started ?? [],
-    achievements: achievements.slice(0, ACHIEVEMENT_REVIEW_LIMIT), achievementsMore: report.achievementsMore ?? 0 },
+    achievements: achievements.slice(0, ACHIEVEMENT_REVIEW_LIMIT), achievementsMore: report.achievementsMore ?? 0,
+    items: (report.itemReview ?? []).filter(row => !member.completedTasks.includes(row.taskId)), itemsMore: report.itemsMore ?? 0,
+    unmappedItems: report.unmappedItems ?? [], unmappedItemsMore: report.unmappedItemsMore ?? 0 },
   command: { type: 'apply-game-progress', memberId, fetchedAt: report.sentAt, skills: report.skills ?? [], quests: observedQuests, achievements: [] } };
 }

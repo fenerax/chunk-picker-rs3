@@ -35,6 +35,7 @@ function fixture() {
       skillProgress: { Mining: { ...provenance, level: 40, xp: 40000 } },
       questProgress: { 'quest:retained': { ...provenance, title: 'Retained quest' } }, runeMetricsSync: provenance,
       achievementProgress: { 'diary:retained': { title: 'Retained diary task', achievementId: 7, source: 'game-plugin', fetchedAt: now(), memberId: member.id } },
+      itemProgress: { 'diary:retained': { title: 'Retained item', gameItemId: 1205, evidence: 'owned', seen: 'owned when first seen; source unknown', source: 'game-plugin', fetchedAt: now(), memberId: member.id } },
       originalPickerSync: { sourceMapId: index ? 'qxb' : 'qxa', capturedAt: now(), appliedAt: now(), sourceHash: `sha256:${'a'.repeat(64)}`, groups: ['chunks', 'tasks'] },
       transportFacts: { levels: { Woodcutting: 12 }, currencies: { coins: 60 }, confirmations: { 'own-ferry': true } } });
     assert.deepEqual(new Set(Object.keys(member)), new Set([...MEMBER_KEYS].filter(key => key !== 'f2pMap')),

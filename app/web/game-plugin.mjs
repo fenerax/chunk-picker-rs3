@@ -69,7 +69,7 @@ export function createGamePlugin(c) {
     let busy = false, disposed = false, reviewRequest = 0, renderedSignature, draftLabel = '', secret = '', secretInput, secretHost;
     const openDiagnostics = new Set();
     let selectedPreview;
-    const achievementChoices = new Map();
+    const achievementChoices = new Map(), itemChoices = new Set();
     const report = (message, failed = false) => { status.textContent = message; status.className = failed ? 'warning' : 'info-meta'; };
     const clearSecret = () => { secret = ''; if (secretInput) secretInput.value = ''; secretHost?.remove(); secretInput = secretHost = undefined; };
     const unsubscribeSafe = c.streamSafe?.subscribe(() => { clearSecret(); renderedSignature = undefined; void update(); });
@@ -137,7 +137,7 @@ export function createGamePlugin(c) {
       return section;
     }
     function review(value) {
-      if (selectedPreview !== value.previewId) { selectedPreview = value.previewId; achievementChoices.clear(); }
+      if (selectedPreview !== value.previewId) { selectedPreview = value.previewId; achievementChoices.clear(); itemChoices.clear(); }
       const section = el('section', undefined, 'game-plugin-review form-stack');
       section.append(el('h4', `Review plugin progress for ${owner.name}`), el('p', `Received ${date(value.fetchedAt)}${value.world ? ` · World ${value.world.id}` : ''}`, 'info-meta'));
       if (value.world?.beta) section.append(el('p', 'This snapshot came from a beta world. Beta progress may differ from your main account. Check every change before applying.', 'warning'));
@@ -165,7 +165,23 @@ export function createGamePlugin(c) {
       }
       const more = (value.achievementsMore ?? 0) + Math.max(0, (value.achievements?.length ?? 0) - achievements.length);
       if (more > 0) section.append(el('p', `${more} more achievement matches are not shown. Only the first 200 can be reviewed in this snapshot.`, 'info-meta'));
-      section.append(el('p', 'Apply saves the listed levels, XP, personal quest completions and selected achievement ticks. Unmatched quests are skipped. Skipped achievements stay unchanged. Your position does not unlock chunks or complete tasks.', 'field-help'));
+      const items = value.items ?? [], unmappedItems = value.unmappedItems ?? [];
+      if (items.length) {
+        section.append(el('h5', `Item evidence to review (${items.length})`), el('p', 'Tick a task only if the evidence fits it. Having an item does not show where it came from.', 'field-help'));
+        for (const item of items) {
+          const row = el('div', undefined, 'game-plugin-item form-stack'), label = reviewText(c.plain(item.label));
+          const box = el('input'); box.type = 'checkbox'; box.checked = itemChoices.has(item.taskId); box.disabled = !writable(memberId);
+          box.addEventListener('change', () => { if (box.checked) itemChoices.add(item.taskId); else itemChoices.delete(item.taskId); });
+          row.append(field(label, box), el('p', `${item.evidence === 'worn' ? 'Worn' : 'Owned'}: ${reviewText(item.gameName)} (game item ${item.gameItemId}) · ${item.seen}`, 'info-meta'));
+          if (item.world === 'beta') row.append(el('p', achievementReasons.beta, 'warning'));
+          else if (item.world === 'unknown') row.append(el('p', achievementReasons['world-unknown'], 'warning'));
+          section.append(row);
+        }
+        if (value.itemsMore > 0) section.append(el('p', `${value.itemsMore} more item matches are not shown.`, 'info-meta'));
+      }
+      if (unmappedItems.length) section.append(el('h5', `Items without a reviewed ID (${unmappedItems.length + (value.unmappedItemsMore ?? 0)})`),
+        c.list(unmappedItems.map(row => `${reviewText(row.name)} · game item ${row.gameItemId}`)), el('p', 'These items are not matched to tasks yet.', 'info-meta'));
+      section.append(el('p', 'Apply saves the listed levels, XP, personal quest completions, selected achievement ticks and ticked item tasks. Unmatched quests are skipped. Skipped achievements stay unchanged. Your position does not unlock chunks or complete tasks.', 'field-help'));
       if (!writable(memberId)) { section.append(el('p', 'View only. This player or an admin can apply or dismiss this snapshot.', 'info-meta')); return section; }
       const actions = el('div', undefined, 'form-actions');
       const apply = button('Apply plugin snapshot', () => mutate('apply'));
@@ -178,10 +194,11 @@ export function createGamePlugin(c) {
         if (action === 'apply' && c.state.revision !== value.stateRevision) { apply.disabled = true; report('The saved map changed. Refresh the review before applying.', true); return; }
         const selectedAchievements = achievements.filter(row => row.candidates?.some(candidate => candidate.taskId === achievementChoices.get(row.achievementId)))
           .map(row => ({ achievementId: row.achievementId, taskId: achievementChoices.get(row.achievementId) }));
+        const selectedItems = items.filter(row => itemChoices.has(row.taskId)).map(row => ({ taskId: row.taskId }));
         busy = true; apply.disabled = dismiss.disabled = true;
         try {
           const task = c.queue.then(async () => {
-            await c.api(`/api/game-plugin/${action}`, { previewId: value.previewId, ...(action === 'apply' ? { expectedRevision: value.stateRevision, ...(selectedAchievements.length ? { achievements: selectedAchievements } : {}) } : {}) });
+            await c.api(`/api/game-plugin/${action}`, { previewId: value.previewId, ...(action === 'apply' ? { expectedRevision: value.stateRevision, ...(selectedAchievements.length ? { achievements: selectedAchievements } : {}), ...(selectedItems.length ? { items: selectedItems } : {}) } : {}) });
             if (action === 'apply') { const loaded = await c.api('/api/state'); c.adopt(loaded.state, loaded.pools); }
           });
           c.queue = task.catch(() => {}); await task;
