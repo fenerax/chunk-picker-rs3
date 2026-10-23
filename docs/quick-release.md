@@ -27,6 +27,11 @@ in a few minutes, with no test suite of its own.
      build writes `pack-transition.json` with both bindings.
    - Writes `quick-build.json` with the commit, the GitHub checks, whether the
      data changed, the probe counts and the time each step took.
+   - While it runs, `release-build-active.json` in the live local folder names
+     the build's PID and process start. The watchdog then leaves a picker that
+     fails health checks but still holds both listeners running, instead of
+     restarting it. The mark is removed when the build ends; a dead or reused
+     PID, or a mark over an hour old, does not hold anything.
 3. Go live, after the owner's OK for that release:
    `Quick-Release.ps1 -GoLive -ReleaseDir <folder> -ExpectLive <live id>`.
    It rechecks the folder against its commit and pins. When the data differs,
@@ -43,4 +48,5 @@ Paths live in `.local/quick-release.json`, which is never committed: `Repo`,
 installed operator scripts (`Operator-Common.ps1`, `ReleaseV2-Common.ps1`) and
 does not change them or the watchdog task.
 
-Focused check: `node --test tests/quick-release.test.mjs`.
+Focused checks: `node --test tests/quick-release.test.mjs` and, for the build
+mark, `node --test tests/watchdog-core.test.mjs`.

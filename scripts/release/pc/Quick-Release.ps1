@@ -31,17 +31,30 @@ $node = (Get-Command node -ErrorAction Stop).Source
 $builder = Join-Path $PSScriptRoot 'quick-build.mjs'
 $clock = [Diagnostics.Stopwatch]::StartNew()
 
+. (Join-Path $settings.Operator 'Operator-Common.ps1')
+. (Join-Path $settings.Operator 'ReleaseV2-Common.ps1')
+
 if (-not $GoLive) {
-    & $node $builder build --repo $settings.Repo --commit $Commit --current $settings.Current --releases $settings.Releases --release $Release
-    if ($LASTEXITCODE) { throw 'Build refused; nothing live changed.' }
+    # While this exact process builds, the watchdog leaves a slow but still
+    # listening live picker running instead of restarting it.
+    $live = Read-ReleaseV2Pointer $settings.Current -ForStop
+    $mark = Join-Path $live.context.localDir 'release-build-active.json'
+    $self = Get-CimInstance Win32_Process -Filter "ProcessId = $PID"
+    $text = [pscustomobject]@{ pid = $PID; processStartedAt = ([DateTime]$self.CreationDate).ToUniversalTime().ToString('o'); startedAt = [DateTime]::UtcNow.ToString('o'); release = $Release } | ConvertTo-Json -Compress
+    [IO.File]::WriteAllText($mark, $text, [Text.UTF8Encoding]::new($false))
+    try {
+        & $node $builder build --repo $settings.Repo --commit $Commit --current $settings.Current --releases $settings.Releases --release $Release
+        if ($LASTEXITCODE) { throw 'Build refused; nothing live changed.' }
+    } finally {
+        # Leave a newer build's mark alone.
+        if ((Test-Path -LiteralPath $mark) -and [IO.File]::ReadAllText($mark) -ceq $text) { Remove-Item -LiteralPath $mark }
+    }
     $receipt = Get-Content -LiteralPath (Join-Path (Join-Path $settings.Releases $Release) 'quick-build.json') -Raw | ConvertFrom-Json
     if ($receipt.transition) { 'DATA CHANGES: the go-live also switches the save to the new data, after checking the latest save again.' }
     "READY FOR GO-LIVE: $Release ($([int]$clock.Elapsed.TotalSeconds)s). Go live with -GoLive -ReleaseDir $(Join-Path $settings.Releases $Release) -ExpectLive <live id> after approval."
     return
 }
 
-. (Join-Path $settings.Operator 'Operator-Common.ps1')
-. (Join-Path $settings.Operator 'ReleaseV2-Common.ps1')
 $dir = Assert-OperatorPath $ReleaseDir -Directory
 if (Test-Path -LiteralPath (Join-Path $dir 'quick-build.json')) {
     & $node $builder verify --repo $settings.Repo --release-dir $dir | Out-Null

@@ -13,6 +13,23 @@ function Write-CoreWatchLog($Context, [string]$Message) {
 
 function Test-CoreWatchPaused($Context) { return Test-Path -LiteralPath (Join-Path $Context.localDir 'picker-paused') }
 
+function Test-CoreWatchReleaseBuild($Context) {
+    # Quick-Release marks a candidate build, whose heavy work can starve health
+    # checks. The mark holds only while that exact build process (PID and
+    # creation time) still runs, and for at most an hour; anything else is unproven.
+    $path = Join-Path $Context.localDir 'release-build-active.json'
+    if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { return $false }
+    try {
+        $marker = [IO.File]::ReadAllText($path) | ConvertFrom-Json
+        if (-not ($marker.pid -is [int] -or $marker.pid -is [long]) -or $marker.pid -lt 1) { return $false }
+        $age = [DateTime]::UtcNow - (ConvertTo-OperatorUtc $marker.startedAt)
+        if ($age -lt [TimeSpan]::FromMinutes(-1) -or $age -gt [TimeSpan]::FromMinutes(60)) { return $false }
+        $process = Get-CimInstance Win32_Process -Filter "ProcessId = $([int]$marker.pid)"
+        if (-not $process) { return $false }
+        return ([DateTime]$process.CreationDate).ToUniversalTime().Ticks -eq (ConvertTo-OperatorUtc $marker.processStartedAt).Ticks
+    } catch { return $false }
+}
+
 function Assert-CoreWatchUnoccupied($Context, $DeadRecord = $null) {
     foreach ($port in @($Context.config.port, $Context.config.loopbackPort) | Where-Object { $null -ne $_ }) {
         if (@(Get-NetTCPConnection -State Listen -LocalPort $port -ErrorAction SilentlyContinue).Count) { throw 'An unowned listener prevents startup.' }
@@ -116,6 +133,12 @@ function Restart-CoreWatchWriter($Context, $Record, [string]$Config, [string]$Co
     $current = Read-OperatorJson $Context.runtimeFile
     if ($current.state -notin @('running', 'starting') -or $current.pid -ne $Record.pid -or $current.processStartedAt -cne $Record.processStartedAt) { throw 'Managed runtime changed during recovery.' }
     $null = Get-OperatorOwnedProcess $Context $current
+    # A slow picker that still holds both listeners is left serving while a
+    # release candidate builds; a writer without them recovers as before.
+    if ((Test-CoreWatchReleaseBuild $Context) -and (Test-OperatorListeners $Context $current)) {
+        Write-CoreWatchLog $Context 'Health check failed during a release build; the serving picker was left running.'
+        return
+    }
     Write-CoreWatchLog $Context 'Restarting the verified writer through managed Stop and Start.'
     Invoke-CoreWatchHelper $Context 'Stop' $Config $ConfigSha256
     if (Test-CoreWatchPaused $Context) { return }
