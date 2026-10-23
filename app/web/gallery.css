@@ -15,6 +15,7 @@
 .gallery-preview .sample-region[hidden] { display: none; }
 .gallery-preview .sample-region.task-sidebar { display: block; height: auto; }
 .gallery-preview .sample-region.map-toolbar { display: flex; }
+.gallery-preview .sample-region.map-corner { align-items: flex-start; }
 .gallery-preview .sample-region.topbar { display: flex; }
 .gallery-preview .gallery-state-host { padding: var(--space-legacy-24px); }
 html[data-gallery-capture="true"] *, html[data-gallery-capture="true"] *::before, html[data-gallery-capture="true"] *::after { animation: none !important; transition: none !important; }
