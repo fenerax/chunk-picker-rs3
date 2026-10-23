@@ -51,6 +51,18 @@ test('the explanation names the rule, category, set and rare drop in plain lines
   ]);
 });
 
+test('with a rule opener the panel links to the rule instead of naming its section', async () => {
+  const describeRule = catalogued(await createRuleDescriber(state, 'fixture', rulesModule));
+  const { explainTask } = await import('../app/tasks/task-provenance.mjs');
+  const opened = [];
+  const card = renderTaskWhy(explainTask(task, { result: { tasks: [task] }, describeRule }), { document, openRule: id => opened.push(id) });
+  assert.equal(text(card.children[1]), 'Rule: Gear Goals, on (your setting)');
+  const link = all(card).find(node => node.className === 'task-why-link');
+  assert.equal(link.textContent, 'Change in Rules → Visible Tasks');
+  await link.click();
+  assert.deepEqual(opened, ['Gear Goals']);
+});
+
 test('the ? button loads once opened, toggles, and reports a load failure inline', async () => {
   const row = new Node('div'); let loads = 0;
   const describeRule = catalogued(await createRuleDescriber(state, 'fixture', rulesModule));

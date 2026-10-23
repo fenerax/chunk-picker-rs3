@@ -42,5 +42,7 @@
 .task-why-content{display:grid;gap:var(--space-2);padding:var(--space-4) var(--space-5);border:var(--border-thin) solid var(--hairline);border-radius:var(--radius-sm);font-size:var(--type-sm);line-height:var(--leading-body)}
 .task-why-content p{margin:0}
 .task-why-term{color:var(--panel-muted,var(--muted))}
+.task-why-actions{display:flex;flex-wrap:wrap;gap:var(--space-1) var(--space-4)}
+.task-why-link{padding:0;border:0;background:none;color:var(--panel-link,var(--link));font:inherit;text-align:left;text-decoration:underline;text-underline-offset:2px;cursor:pointer}
 .task-why-loading{margin:0;font-size:var(--type-sm);color:var(--panel-muted,var(--muted))}
 @media(max-width:500px){.task-hover{padding:var(--space-5);font-size:var(--type-sm)}.task-hover-content{gap:var(--space-3)}.task-equipment-stats{gap:var(--space-2) var(--space-5)}.task-method-details{padding:var(--space-3)}.task-method-choice{min-height:44px}}

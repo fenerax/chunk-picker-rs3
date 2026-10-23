@@ -243,7 +243,8 @@ export function createScreenTasks(c) {
   // The explanation reads the full result only when a player opens it.
   function appendWhy(row, task, ownerId = c.memberId) {
     if (isCustomTask(task)) return;
-    appendTaskWhy(row, task, { document, button: c.button, icon: c.icon, load: async value => {
+    const openRule = ruleId => Promise.resolve(c.rulesDialog({ ruleId, memberId: ownerId })).catch(c.showError);
+    appendTaskWhy(row, task, { document, button: c.button, icon: c.icon, openRule, load: async value => {
       const result = await c.ensureDuoDetails(ownerId, false, false);
       const describeRule = catalogued(await createRuleDescriber(taskDisplayState(), ownerId));
       return { task: result.tasks.find(item => item.id === value.id) ?? value, result, describeRule, locationName: placeName };
