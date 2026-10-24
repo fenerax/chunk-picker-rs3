@@ -55,7 +55,11 @@
     "r134FailureCellOrdinal",
     "r134ObservedTimedSamples",
     "r134ObservedVerifiedSamples",
-    "r134CompletedProcesses"
+    "r134CompletedProcesses",
+    "focusNativeExitObserved",
+    "focusNativeSummaryObserved",
+    "focusNativeDiagnosticObserved",
+    "focusNativeOutputComplete"
   ],
   "hashKeys": [
     "calculatorBytesSha256",
@@ -390,7 +394,9 @@
       "r131-native-failed",
       "r134-screen-complete",
       "reference-section-ready-timeout",
-      "opening-section-ready-timeout"
+      "opening-section-ready-timeout",
+      "cleanup-incomplete",
+      "scratch-cleanup-incomplete"
     ],
     "strictR79Code": [
       "all-arm-blocked",
@@ -1812,7 +1818,22 @@
       "journey",
       "finalization",
       "cleanup",
-      "unknown"
+      "unknown",
+      "server-parse-args",
+      "server-environment",
+      "server-fixture",
+      "server-provider-import",
+      "server-provider-admit",
+      "server-module-import",
+      "server-state-import",
+      "server-fixture-state",
+      "server-start-handle",
+      "server-ready",
+      "server-address",
+      "server-snapshot",
+      "server-metrics",
+      "server-restart",
+      "server-close"
     ],
     "r111ErrorName": [
       "Error",
@@ -1894,6 +1915,123 @@
       "child-exit-failed",
       "screen-deadline",
       "unknown-code"
+    ],
+    "r111SourceModule": [
+      "app/core/state.mjs",
+      "app/server.mjs",
+      "app/datasets.mjs",
+      "app/dataset-runtime.mjs",
+      "app/storage/store.mjs",
+      "app/game-defaults.mjs",
+      "app/legacy-game-defaults.mjs",
+      "docs/research/codex-cloud-assets/r111/candidate/harness/server.mjs"
+    ],
+    "focusNativeSignal": [
+      "none",
+      "SIGTERM",
+      "SIGKILL",
+      "SIGABRT",
+      "SIGSEGV",
+      "SIGINT",
+      "SIGHUP",
+      "SIGPIPE",
+      "SIGBUS",
+      "SIGILL",
+      "unknown"
+    ],
+    "focusNativeFailureKind": [
+      "failure",
+      "fixture-failure"
+    ],
+    "focusNativeFailureOperation": [
+      "test-start",
+      "test-end",
+      "setup",
+      "environment",
+      "playwright-import",
+      "scratch-create",
+      "fixture-fork",
+      "fixture-ready",
+      "browser-launch",
+      "browser-context",
+      "browser-routes",
+      "navigation",
+      "helper-gate",
+      "member-select",
+      "group-select",
+      "initial-render",
+      "show-more",
+      "key-observer",
+      "pending",
+      "tab",
+      "cached-render",
+      "body-delivery",
+      "fresh-witness",
+      "focus-check",
+      "space",
+      "save",
+      "readback",
+      "history",
+      "cancellation-intent",
+      "cleanup",
+      "browser-close",
+      "fixture-drain",
+      "scratch-remove",
+      "fixture-environment",
+      "fixture-app-import",
+      "fixture-state-import",
+      "fixture-dataset-import",
+      "fixture-dataset-identity",
+      "fixture-state-build",
+      "fixture-server-create",
+      "fixture-server-listen",
+      "fixture-ready-send",
+      "unknown"
+    ],
+    "focusNativeFailureName": [
+      "Error",
+      "TypeError",
+      "SyntaxError",
+      "RangeError",
+      "ReferenceError",
+      "AggregateError",
+      "AssertionError",
+      "TimeoutError",
+      "unknown"
+    ],
+    "focusNativeFailureCode": [
+      "ERR_ASSERTION",
+      "ERR_TEST_FAILURE",
+      "ERR_MODULE_NOT_FOUND",
+      "ERR_UNKNOWN_FILE_EXTENSION",
+      "ERR_INVALID_ARG_TYPE",
+      "ERR_INVALID_ARG_VALUE",
+      "ERR_IPC_CHANNEL_CLOSED",
+      "ERR_IPC_DISCONNECTED",
+      "ENOENT",
+      "EACCES",
+      "EPERM",
+      "EEXIST",
+      "ENOSPC",
+      "ENOMEM",
+      "EIO",
+      "unknown"
+    ],
+    "focusNativeFailureModule": [
+      "tests/task-focus-native-v4.test.mjs",
+      "tests/task-focus-native-v4.fixture.mjs",
+      "tests/task-focus-native.lifecycle.mjs",
+      "tests/task-focus-native.observers.mjs",
+      "tests/task-focus-native.diagnostic.mjs",
+      "app/server.mjs",
+      "app/datasets.mjs",
+      "app/dataset-runtime.mjs",
+      "app/dataset-pipeline.mjs",
+      "app/core/state.mjs",
+      "app/tasks/scheduler.mjs",
+      "app/tasks/process-worker.mjs",
+      "app/storage/store.mjs",
+      "unknown"
     ]
   },
   "metricKeys": [
@@ -2134,7 +2272,26 @@
     "r131ObservedEpisodeCount",
     "r131PassedEpisodeCount",
     "r111ChildStdoutBytes",
-    "r111ChildStderrBytes"
+    "r111ChildStderrBytes",
+    "r111SourceLine",
+    "r111SourceColumn",
+    "focusNativeExitCode",
+    "focusNativeOutputBytes",
+    "focusNativeTestCount",
+    "focusNativePassCount",
+    "focusNativeFailCount",
+    "focusNativeCancelledCount",
+    "focusNativeSkippedCount",
+    "focusNativeCaseStartCount",
+    "focusNativeCaseEndCount",
+    "focusNativeDiagnosticCount",
+    "focusNativeMalformedDiagnosticCount",
+    "focusNativeWitnessCount",
+    "focusNativeCommandProofCount",
+    "focusNativeFixtureDrainCount",
+    "focusNativeFailureLine",
+    "focusNativeFailureColumn",
+    "focusNativeOperationCount"
   ],
   "scope": {
     "memberId": [
@@ -2205,7 +2362,7 @@
     "test_accept_r130_requires_both_backend_statuses",
     "test_accept_r131_requires_all_ten_intents_both_modes_and_real_proof_counts",
     "test_accept_wrong_schema_rejected",
-    "test_actual_published_entry_and_complete_manifest_closure",
+    "test_all_five_actual_full_runtime_maps_and_member_bytes",
     "test_all_seven_gates_stay_open",
     "test_allowed_cpu_list",
     "test_bad_cpu_range",
@@ -2216,7 +2373,7 @@
     "test_case_budget_rejects_oversize_serialized_result",
     "test_case_source_fixture_harness_and_node_hash_identity",
     "test_changed_browser_native_and_maximum_soak_diagnostics_are_retained",
-    "test_changed_byte_hash_and_missing_runtime_member_fail_closed",
+    "test_changed_byte_and_rehashed_manifest_missing_member_fail_closed",
     "test_child_oom_docker_flag_does_not_replace_memory_control_proof",
     "test_cidfile_recovers_malformed_create_stdout",
     "test_cleanup_refuses_partial_id",
@@ -2236,6 +2393,7 @@
     "test_duration_and_soak_boundaries",
     "test_duration_boundary_values_are_inclusive",
     "test_duration_outside_ranges_and_nonfinite_booleans_rejected",
+    "test_each_full_map_rejects_missing_entry_manifest_and_duplicate_asset",
     "test_each_resource_rejected",
     "test_entrypoint_traversal",
     "test_exact_45000_gap_allowed_but_60000_gap_rejected",
@@ -2246,21 +2404,23 @@
     "test_existing_schema_fallback_drops_vectors_without_changing_scalars",
     "test_extra_bind_rejected",
     "test_first_sample_at_15000_is_within_start_boundary",
+    "test_five_case_recovery_retains_controls_and_disables_other_cases",
     "test_image_content_mismatch_rejected",
     "test_js_to_python_exact_parity_empty_complete_and_maximum",
     "test_known_admission",
-    "test_manifest_entry_disagreement_fails_even_with_rehashed_manifest",
+    "test_main_actual_frozen_592crlf_workflow_with_real15_r131_assets",
+    "test_main_failure_phase_job_and_ordinal_never_echo_paths",
+    "test_main_raw_lf_and_crlf_all_five_exact_public_asset_closures",
     "test_missing_and_malformed_envelope_returns_false",
     "test_missing_duplicate_wrong_kind_and_wrong_actor_journeys",
-    "test_missing_entry_manifest_and_duplicate_assets_are_rejected",
     "test_missing_init_command_omits_init_and_changes_no_other_cap",
     "test_missing_init_negative_is_only_init",
     "test_near_maximum_actual_case_and_envelope_fit",
     "test_never_started_negative_skips_wait",
     "test_numeric_type_range_and_null_count_rejections",
+    "test_observed_wrong_prefix_and_same_basename_are_rejected",
     "test_old_schema_projection_ignores_new_vectors_and_private_objects",
     "test_old_two_endpoint_evidence_rejected",
-    "test_original_observed_wrong_prefix_and_same_basename_are_rejected",
     "test_outer_inner_and_case_cleanup_are_required",
     "test_outer_projection_rejects_raw_metric_payload",
     "test_performance_wave_uses_exact_cli_budgets_and_host_acceptance",
@@ -2289,6 +2449,9 @@
     "test_r135_first_failure_operation_counts_and_hash_survive_closed_projection",
     "test_r135_optional_warm_and_partial_failure_counts_are_retained",
     "test_raw_failed_report_is_never_valid",
+    "test_recovery_r111_public_frame_and_r125_native_failure_observations",
+    "test_recovery_r116_close_receipts_are_closed_nullable_diagnostics",
+    "test_recovery_r135_preserves_exact_zero_change94record_provider_evidence",
     "test_scope_exact_seven_fields_and_types",
     "test_setup_diagnostic_cli_errors_do_not_echo_paths_or_arguments",
     "test_setup_diagnostic_docker_classes_are_fixed",
@@ -2303,7 +2466,6 @@
     "test_stop_timeout_forces_exact_owned_kill",
     "test_strict_timestamps_unique_buckets_and_endpoint_coverage",
     "test_strict_vector_schema_null_counts_and_private_fields",
-    "test_targeted_r131_wave_retains_controls_and_disables_other_cases",
     "test_timestamp_and_latency_nonfinite_or_boolean_values_rejected",
     "test_unexpected_environment_rejected",
     "test_unexpected_keys_labels_and_secrets_are_omitted_from_both",
@@ -2809,6 +2971,322 @@
             "type": "nonnegative-safe-integer-or-null"
           }
         }
+      },
+      "referenceCloseDiagnostic": {
+        "type": "closed-object",
+        "optional": true,
+        "fields": {
+          "attemptStatus": {
+            "enum": [
+              "not-started",
+              "started",
+              "complete",
+              "failed"
+            ]
+          },
+          "stopRpcStatus": {
+            "enum": [
+              "not-attempted",
+              "acknowledged",
+              "rejected"
+            ]
+          },
+          "stopErrorCode": {
+            "enum": [
+              "none",
+              "unknown",
+              "CHILD_RPC_FAILED",
+              "CHILD_RPC_TIMEOUT",
+              "CHILD_IPC_SEND_FAILED",
+              "CHILD_EXITED",
+              "CHILD_CLOSE_TIMEOUT",
+              "CHILD_KILL_TIMEOUT",
+              "IPC_DISCONNECTED",
+              "STORE_OWNER_LOCK_REMAINS_AFTER_CLOSE",
+              "APP_NOT_READY_OR_CLOSING",
+              "EACCES",
+              "EPERM",
+              "ENOENT",
+              "EIO",
+              "ENOSPC",
+              "ERR_IPC_CHANNEL_CLOSED",
+              "ERR_IPC_DISCONNECTED"
+            ]
+          },
+          "exitWaitStatus": {
+            "enum": [
+              "not-attempted",
+              "already-exited",
+              "normal-exit",
+              "timed-out-kill-attempted",
+              "kill-timeout"
+            ]
+          },
+          "exitWaitErrorCode": {
+            "enum": [
+              "none",
+              "unknown",
+              "CHILD_RPC_FAILED",
+              "CHILD_RPC_TIMEOUT",
+              "CHILD_IPC_SEND_FAILED",
+              "CHILD_EXITED",
+              "CHILD_CLOSE_TIMEOUT",
+              "CHILD_KILL_TIMEOUT",
+              "IPC_DISCONNECTED",
+              "STORE_OWNER_LOCK_REMAINS_AFTER_CLOSE",
+              "APP_NOT_READY_OR_CLOSING",
+              "EACCES",
+              "EPERM",
+              "ENOENT",
+              "EIO",
+              "ENOSPC",
+              "ERR_IPC_CHANNEL_CLOSED",
+              "ERR_IPC_DISCONNECTED"
+            ]
+          },
+          "witnessCode": {
+            "enum": [
+              "not-checked",
+              "closed-witness-verified",
+              "close-receipt-incomplete",
+              "store-commit-or-capture-error-at-close",
+              "finalized-witness-invalid",
+              "input-changed-during-close"
+            ]
+          },
+          "receiptStatus": {
+            "enum": [
+              "missing",
+              "present"
+            ]
+          },
+          "elapsedMs": {
+            "type": "nonnegative-safe-integer-or-null"
+          },
+          "exitCode": {
+            "type": "nonnegative-safe-integer-or-null"
+          },
+          "exitSignal": {
+            "enum": [
+              "none",
+              "SIGKILL",
+              "SIGTERM",
+              "SIGABRT",
+              "SIGTRAP",
+              "other",
+              "unknown"
+            ]
+          },
+          "stoppedMessageCount": {
+            "type": "nonnegative-safe-integer-or-null"
+          },
+          "pendingRpcCount": {
+            "type": "nonnegative-safe-integer-or-null"
+          },
+          "closeCompleted": {
+            "enum": [
+              "yes",
+              "no",
+              "unobserved"
+            ]
+          },
+          "ownershipStable": {
+            "enum": [
+              "yes",
+              "no",
+              "unobserved"
+            ]
+          },
+          "ownerLockPresent": {
+            "enum": [
+              "yes",
+              "no",
+              "unobserved"
+            ]
+          },
+          "journalCount": {
+            "type": "nonnegative-safe-integer-or-null"
+          },
+          "captureErrorCount": {
+            "type": "nonnegative-safe-integer-or-null"
+          },
+          "witnessCount": {
+            "type": "nonnegative-safe-integer-or-null"
+          },
+          "validWitnessCount": {
+            "type": "nonnegative-safe-integer-or-null"
+          },
+          "driverStage": {
+            "enum": [
+              "unobserved",
+              "ownership-before",
+              "application-close",
+              "startup-drain",
+              "witness-finalize",
+              "ownership-after",
+              "closed-state-read",
+              "complete"
+            ]
+          }
+        }
+      },
+      "measuredCloseDiagnostic": {
+        "type": "closed-object",
+        "optional": true,
+        "fields": {
+          "attemptStatus": {
+            "enum": [
+              "not-started",
+              "started",
+              "complete",
+              "failed"
+            ]
+          },
+          "stopRpcStatus": {
+            "enum": [
+              "not-attempted",
+              "acknowledged",
+              "rejected"
+            ]
+          },
+          "stopErrorCode": {
+            "enum": [
+              "none",
+              "unknown",
+              "CHILD_RPC_FAILED",
+              "CHILD_RPC_TIMEOUT",
+              "CHILD_IPC_SEND_FAILED",
+              "CHILD_EXITED",
+              "CHILD_CLOSE_TIMEOUT",
+              "CHILD_KILL_TIMEOUT",
+              "IPC_DISCONNECTED",
+              "STORE_OWNER_LOCK_REMAINS_AFTER_CLOSE",
+              "APP_NOT_READY_OR_CLOSING",
+              "EACCES",
+              "EPERM",
+              "ENOENT",
+              "EIO",
+              "ENOSPC",
+              "ERR_IPC_CHANNEL_CLOSED",
+              "ERR_IPC_DISCONNECTED"
+            ]
+          },
+          "exitWaitStatus": {
+            "enum": [
+              "not-attempted",
+              "already-exited",
+              "normal-exit",
+              "timed-out-kill-attempted",
+              "kill-timeout"
+            ]
+          },
+          "exitWaitErrorCode": {
+            "enum": [
+              "none",
+              "unknown",
+              "CHILD_RPC_FAILED",
+              "CHILD_RPC_TIMEOUT",
+              "CHILD_IPC_SEND_FAILED",
+              "CHILD_EXITED",
+              "CHILD_CLOSE_TIMEOUT",
+              "CHILD_KILL_TIMEOUT",
+              "IPC_DISCONNECTED",
+              "STORE_OWNER_LOCK_REMAINS_AFTER_CLOSE",
+              "APP_NOT_READY_OR_CLOSING",
+              "EACCES",
+              "EPERM",
+              "ENOENT",
+              "EIO",
+              "ENOSPC",
+              "ERR_IPC_CHANNEL_CLOSED",
+              "ERR_IPC_DISCONNECTED"
+            ]
+          },
+          "witnessCode": {
+            "enum": [
+              "not-checked",
+              "closed-witness-verified",
+              "close-receipt-incomplete",
+              "store-commit-or-capture-error-at-close",
+              "finalized-witness-invalid",
+              "input-changed-during-close"
+            ]
+          },
+          "receiptStatus": {
+            "enum": [
+              "missing",
+              "present"
+            ]
+          },
+          "elapsedMs": {
+            "type": "nonnegative-safe-integer-or-null"
+          },
+          "exitCode": {
+            "type": "nonnegative-safe-integer-or-null"
+          },
+          "exitSignal": {
+            "enum": [
+              "none",
+              "SIGKILL",
+              "SIGTERM",
+              "SIGABRT",
+              "SIGTRAP",
+              "other",
+              "unknown"
+            ]
+          },
+          "stoppedMessageCount": {
+            "type": "nonnegative-safe-integer-or-null"
+          },
+          "pendingRpcCount": {
+            "type": "nonnegative-safe-integer-or-null"
+          },
+          "closeCompleted": {
+            "enum": [
+              "yes",
+              "no",
+              "unobserved"
+            ]
+          },
+          "ownershipStable": {
+            "enum": [
+              "yes",
+              "no",
+              "unobserved"
+            ]
+          },
+          "ownerLockPresent": {
+            "enum": [
+              "yes",
+              "no",
+              "unobserved"
+            ]
+          },
+          "journalCount": {
+            "type": "nonnegative-safe-integer-or-null"
+          },
+          "captureErrorCount": {
+            "type": "nonnegative-safe-integer-or-null"
+          },
+          "witnessCount": {
+            "type": "nonnegative-safe-integer-or-null"
+          },
+          "validWitnessCount": {
+            "type": "nonnegative-safe-integer-or-null"
+          },
+          "driverStage": {
+            "enum": [
+              "unobserved",
+              "ownership-before",
+              "application-close",
+              "startup-drain",
+              "witness-finalize",
+              "ownership-after",
+              "closed-state-read",
+              "complete"
+            ]
+          }
+        }
       }
     },
     "r135-http-component-v1": {
@@ -2925,6 +3403,33 @@
       },
       "completedCellCount": {
         "type": "nonnegative-safe-integer-or-null"
+      },
+      "providerChangedRecordCount": {
+        "type": "nonnegative-safe-integer-or-null"
+      },
+      "providerExpectedChangedRecordCount": {
+        "type": "nonnegative-safe-integer-or-null"
+      },
+      "providerActualRecordCount": {
+        "type": "nonnegative-safe-integer-or-null"
+      },
+      "providerActualInputCount": {
+        "type": "nonnegative-safe-integer-or-null"
+      },
+      "providerActualEvidenceCount": {
+        "type": "nonnegative-safe-integer-or-null"
+      },
+      "providerExpectedDigest": {
+        "type": "sha256-or-null"
+      },
+      "providerActualDigest": {
+        "type": "sha256-or-null"
+      },
+      "providerExpectedRecordsSha256": {
+        "type": "sha256-or-null"
+      },
+      "providerActualRecordsSha256": {
+        "type": "sha256-or-null"
       }
     }
   }

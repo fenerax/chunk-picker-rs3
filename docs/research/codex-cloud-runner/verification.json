@@ -1,415 +1,167 @@
 {
-  "schema": "container-runner-preparation-verification-v1",
-  "date": "2026-10-23",
-  "readiness": "R131_ENTRY_CLOSURE_TARGETED_RETRY_UNRUN",
-  "assetBaseCommit": "7ad315acd39223df3b4d2304e295ef5c017dfe17",
+  "schema": "container-runner-verification-v1",
+  "readiness": "FIVE_CASE_RECOVERY_AUTHORIZED_UNRUN",
+  "publicationBaseCommit": "6e5d3f28cf4c0186b4fffc783c6b1a6f7bd77c5f",
+  "publicationBaseManifestSha256": "b9d5759739bca5c80a6e840f36c75989e119a8ea56affef97740333b77ab3ca9",
   "pureTests": {
-    "pythonPassed": 121,
-    "nodePassedReusedUnchanged": 10,
-    "passed": 131,
+    "pythonPassed": 126,
+    "nodePassed": 11,
+    "passed": 137,
     "failed": 0,
-    "newClosureControls": 5
-  },
-  "subsequentPublishedTrial": {
-    "commit": "ecdda6af916d56f533c9517ef7d221a984f47295",
-    "runId": 40044649892,
-    "setupAndImagePullPassed": true,
-    "failedStage": "pure-controls",
-    "stderrRetained": false,
-    "dockerControlsSkipped": true,
-    "sourceDiagnosis": "published-layout-workflow-path-reproduced-locally",
-    "directRemoteStackObserved": false,
-    "preserved": true
-  },
-  "localConfigOnlyReproduction": {
-    "evidence": "npm-config-repro-evidence.json",
-    "sameEmptyConfigFailed": true,
-    "distinctEmptyConfigsPassed": true,
-    "nodeVersion": "v24.20.0",
-    "npmVersion": "11.19.0",
-    "installsOrNetwork": false
-  },
-  "originalPublishedTrial": {
-    "commit": "7c4afaa439f8b94618aec57c4674c43942ead241",
-    "runId": 40043874952,
-    "stage": "dependency-setup",
-    "failedBeforeImagePullOrDockerControls": true,
-    "stderrRetained": false,
-    "exactCause": "UNPROVEN",
-    "preserved": true
-  },
-  "syntax": {
-    "nodeCheckInside": true,
-    "pythonAstParsed": true,
-    "jsonParsed": true,
-    "workflowYamlParsed": true
-  },
-  "workflowStaticGates": {
-    "exactPublicAssetBranchOnly": true,
-    "contentsReadOnly": true,
-    "measurementJobDisabled": false,
-    "noCachesOrArtifactUploads": true,
-    "noSecretOrTokenContexts": true,
-    "r127ComponentDisabled": true,
-    "exactlyTwoMeasuredJobsEnabled": false,
-    "exactlyThreeNextWaveJobsEnabled": false,
-    "sixSetupRecipesChecked": true,
-    "exactlyFourNextWaveJobsEnabled": true,
-    "eightSetupRecipesChecked": true
-  },
-  "independentCodeReview": {
-    "remainingConcreteBlockingCodeBugFound": false,
-    "scope": "argument/admission/result-read/projection/cleanup/watchdog/source-lock ordering; pure checks only"
-  },
-  "notExecutedScope": "local preparation by this worker; remote setup/image pull is recorded separately",
-  "notExecuted": [
-    "Docker client or daemon",
-    "image pull/build/run",
-    "package install",
-    "app or provider",
-    "browser",
-    "benchmark",
-    "GitHub mutation or dispatch"
-  ],
-  "openRemoteGates": [
-    "per-measurement-run resource/ownership/cleanup revalidation",
-    "nonroot Chromium151 browser launch",
-    "independent reference and measured frozen-input witness",
-    "initial-opening and All output/native DOM/frame proof",
-    "40 plus/minus 2ms measured-total RTT",
-    "R127 actual 24-cell oracle and measurement evidence",
-    "later thirty-minute workload"
-  ],
-  "priorEvidence": {
-    "e97GuardFailuresWaived": false,
-    "r100AbortedBrowserTrialAccepted": false,
-    "r100Pid1ZombiesReclassifiedAsClean": false
-  },
-  "allProductAcceptanceGates": "OPEN",
-  "publishedLayoutPureControls": {
-    "canonicalWorkflowPositive": "42/42 passed",
-    "missingWorkflowNegative": "failed with exactly two fixed test IDs and input-missing class",
-    "diagnosisEvidence": "control-run-40044649892-diagnosis.json"
-  },
-  "priorManifestSha256": "d52e8f2f48c427221438a863e6ee84eff346d91169a46a860f1b36c693b90046",
-  "runnerRevision": "docker-pinned-image-env-v3",
-  "latestPublishedTrial": {
-    "commit": "0cd14471af591e40d339aa86b39e1a7da3bd5337",
-    "runId": 40045294439,
-    "setupPassed": true,
-    "pureTestsPassed": 42,
-    "control": "positive",
-    "reasonCode": "docker-command-failed",
-    "stderrRetained": false,
-    "ownedContainerIdRecorded": false,
-    "cleanupClaimed": false,
-    "runtimeAcceptance": "OPEN",
-    "sourceProvenInvalidNamespaceModes": true
-  },
-  "imageConfigVerification": {
-    "sha256": "fee853fafa59550d162cef52bca02d907694b44ebf6ef9fb075bcc0c65d8dedb",
-    "bytes": 6709,
-    "fullPublicEnvDefaults": 4,
-    "exactMergedAdmission": true,
-    "hostEnvForwarding": false
-  },
-  "envAdmissionTrial": {
-    "runId": 40045835891,
-    "commit": "37d08456ccf2bebc9a99d3f3257d8df00f00b1e0",
-    "creationSucceeded": true,
-    "failedChecks": [
-      "explicit-environment"
-    ],
-    "allOtherHostConfigChecksPassed": true,
-    "exactOwnedContainerRemoved": true,
-    "cleanupPassed": true,
-    "innerStarted": false
-  },
-  "r127PolicyMerge": {
-    "additionsSha256": "dfbfcb4402d66eab4491941ce92618f382a9c9c1dbcd84381bc0615d02941059",
-    "modeEnumsAdded": 1,
-    "hashKeysAdded": 3,
-    "numericMetricKeysAdded": 25,
-    "sharedCurrentPolicyPreserved": true,
-    "projectionControlsPassed": true,
-    "jobDisabled": true
-  },
-  "activationHistory": [
-    {
-      "authorizedBy": "root",
-      "enabledJobs": [
-        "one-case",
-        "r127-component"
-      ],
-      "needsControlsRetained": true,
-      "actualControlsRunId": 40046487079,
-      "actualControlsCommit": "6b8d38ee4c2ceeed6f69954cbf2431994d3d6c10",
-      "actualControlsEvidence": "public-harness-delivery/validated-resource-controls-40046487079.json",
-      "actualControlCountPassed": 4,
-      "allFourExactOwnedContainersRemoved": true,
-      "r116Measurement": "UNRUN",
-      "r127Measurement": "UNRUN",
-      "measurementAcceptanceGates": "OPEN",
-      "prior52PureTestsReused": true,
-      "nextRunRechecksPureAndResourceControls": true,
-      "frozenPublicCommit": "d138ad31eddce2b7ce858013f2341b3de116abb9",
-      "publicRunId": 40046815149,
-      "outcomesRecordedHere": false,
-      "notCancelled": true
-    },
-    {
-      "authorizedBy": "root",
-      "enabledJobs": [
-        "r124-engine",
-        "r125-focus",
-        "r130-codec"
-      ],
-      "disabledInNextRevision": [
-        "one-case",
-        "r127-component"
-      ],
-      "needsControlsRetained": true,
-      "validatedResourceControlRuns": [
-        40046487079,
-        40046815149
-      ],
-      "newCases": "UNRUN",
-      "caseAcceptance": "OPEN",
-      "previousFrozenWaveNotCancelled": true,
-      "newRunRechecksPureAndFourResourceControls": true,
-      "perCommitConcurrency": true,
-      "cancelInProgress": false,
-      "longJobAdded": false,
-      "exactCliChecks": [
-        {
-          "job": "r124-engine",
-          "sha256": "98dfc96f4dddcd6ff6cb5612729e99b4a8f522203292676cc2d08e37e15d6ded",
-          "seconds": 300,
-          "mode": "component",
-          "entrypoint": "docs/research/codex-cloud-assets/r124/entry.mjs"
-        },
-        {
-          "job": "r125-focus",
-          "sha256": "e7872c26799c41f39d1c25b1bef26290a594ace7b9d52a0d575fd1156d08f094",
-          "seconds": 215,
-          "mode": "browser",
-          "entrypoint": "docs/research/codex-cloud-assets/r125/case-entry.mjs"
-        },
-        {
-          "job": "r130-codec",
-          "sha256": "566df64a1ca131254586deead19a322950eb9c2c604d1abc6b01b2134542ff98",
-          "seconds": 120,
-          "mode": "native",
-          "entrypoint": "docs/research/codex-cloud-assets/r130/entry.mjs"
-        }
-      ],
-      "frozenPublicRevision": "76a-publication",
-      "outcomesReportedByRoot": {
-        "r124": "8+8-full-api-vectors-correct-61-data-inputs-identical",
-        "r130": "both-backends-correct-6-generations-per-cell",
-        "r125": "admission-failed-before-ui"
-      },
-      "failedHistoryPreserved": true
-    }
-  ],
-  "nextWavePolicyMerge": {
-    "schema": "next-wave-policy-merge-v1",
-    "previousManifestSha256": "ab64ca23397fed6d976916de9d14ab0046541a8146e4ac99814d5215a28041a5",
-    "additions": [
-      {
-        "case": "r124",
-        "sha256": "ad4a9b0f51cdc4afbcbcea5b1a0d5cd89c8506adcbe36a30a3484eff7c6a2d16",
-        "bytes": 420
-      },
-      {
-        "case": "r125",
-        "sha256": "b0b18ca7b93cc089d63584308924cfafc3baf39cebee387a44a3b02fb63d33bf",
-        "bytes": 1184
-      },
-      {
-        "case": "r130",
-        "sha256": "3b99fe60165dc51a1eaab7e4ec3a91b38229f1c34889d6201bf5efa74ebaaf7d",
-        "bytes": 349
-      }
-    ],
-    "preservedExistingValues": true,
-    "pureTestCount": 55,
-    "runtime": "UNRUN"
-  },
-  "newPolicyProjectionCounterexamplesPassed": true,
-  "hostAcceptance": {
-    "r124": "outer passed+cleanup, exact schema/correct/passed and both completed counts8",
-    "r130": "outer passed+cleanup, exact schema/correct/passed and both backend statuses correct",
-    "r125": "existing packet focusAccepted host predicate retained",
-    "newPureControls": 7,
-    "prior55ControlsReused": true,
-    "resourceCoreUnchanged": true,
-    "failedCaseEvidencePreserved": true
+    "pythonCommand": "python -B -m unittest -q test_accept_case test_docker_envelope test_projection_integration test_r111_vector_policy test_scoped_session test_performance_projection test_case_closure",
+    "nodeCommand": "node --max-old-space-size=128 --test test_accept_performance.mjs",
+    "canonicalPublicLayout": true,
+    "rawActualCLIAndMain": true
   },
   "activation": {
     "authorizedBy": "root",
     "enabledJobs": [
-      "r131-native"
-    ],
-    "disabledFutureJobs": [
       "one-case",
       "r125-focus",
+      "r131-native",
       "r111-scoped-soak",
-      "r134-engine-performance",
-      "r135-codec-http",
+      "r135-codec-http"
+    ],
+    "disabledFutureJobs": [
+      "r127-component",
       "r124-engine",
       "r130-codec",
-      "r127-component"
+      "r134-engine-performance"
     ],
     "needsControlsRetained": true,
-    "cases": "UNRUN",
+    "runtime": "UNRUN",
     "perCommitConcurrency": true,
-    "cancelInProgress": false
-  },
-  "strictBothSanitizers": {
-    "r111VectorsAtomic": true,
-    "exactCopiedModules": true,
-    "jsToPythonParity": true,
-    "caseBytes": 30716,
-    "envelopeBytes": 30949,
-    "actualEnvelopeWithCaseExitBytes": 30966,
-    "frameCapBytes": 32768,
-    "oldSchemaBehaviorPreserved": true,
-    "closedDiagnosticsNoRawErrors": true
-  },
-  "nextFourPolicyMerge": {
-    "schema": "next-four-policy-integration-v1",
-    "publicationBaseManifestSha256": "f4cd6e21cb86312a403413f2088dadfd00cbb51ff44a6a9e19386a4782a9303a",
-    "proposals": [
+    "cancelInProgress": false,
+    "exactCliReceipts": [
       {
-        "source": "../r111-long-session-ready/result-policy-proposal.json",
-        "bytes": 4623,
-        "sha256": "619a9f15d9914848d9435e47bfcf7afaaafafe76553b52e96d7b483fb1995c8c"
-      },
-      {
-        "source": "../r116-docker-diagnostic-v2/diagnostic-policy-additions.json",
-        "bytes": 13932,
-        "sha256": "4c973ddc8c6c37e0acf563dfdfb2308bd173c1eed896b078bcfbcd839a3abb07"
-      },
-      {
-        "source": "../r125-focus-diagnostic-v2/derived/result-policy-diagnostic-additions.json",
-        "bytes": 3540,
-        "sha256": "284ef936e0e721d545f462988b5dbe2d41b3d5b027cf8534134d22ae81cc5b31"
-      },
-      {
-        "source": "../r131-borrow-declaration-ready/runtime-result-policy.additions.proposal.json",
-        "bytes": 385,
-        "sha256": "82b3f5b06f2a9749de4de02c38d08fce7a46ce76119dc55b73f87d2cf5aee2d2"
-      }
-    ],
-    "exactR111CopiesReceipt": "r111-projector-source-receipt.json",
-    "caseFrames": {
-      "sourceCaseBytes": 30716,
-      "sourceEnvelopeBytes": 30949,
-      "insideEnvelopeWithExitCodeBytes": 30966,
-      "limitBytes": 32768
-    },
-    "r111ObservationQuality": {
-      "minimumDistinct15sBuckets": 110,
-      "maxGapMs": 45000,
-      "minimumLastMs": 1800000,
-      "maximumFirstMs": 15000,
-      "journeys": 54,
-      "fullAcceptance": false,
-      "nullableValuesPreserved": true
-    },
-    "jobs": [
-      {
-        "job": "one-case",
+        "entrypoint": "docs/research/codex-cloud-capture/run-frozen-browser.mjs",
         "mode": "browser",
         "seconds": 540,
-        "entrypoint": "docs/research/codex-cloud-capture/run-frozen-browser.mjs",
         "commandSha256": "b163b5af67d87d6858f05471595ffa95ce54e26c20c434d9ab728cde684c8613"
       },
       {
-        "job": "r125-focus",
+        "entrypoint": "docs/research/codex-cloud-assets/r127/container-entry.mjs",
+        "mode": "component",
+        "seconds": 240,
+        "commandSha256": "a8e478699ccd74c4f5a9867a212dc2e2e782792bfc1fe4ab9723a556ac10a0b2"
+      },
+      {
+        "entrypoint": "docs/research/codex-cloud-assets/r124/entry.mjs",
+        "mode": "component",
+        "seconds": 300,
+        "commandSha256": "98dfc96f4dddcd6ff6cb5612729e99b4a8f522203292676cc2d08e37e15d6ded"
+      },
+      {
+        "entrypoint": "docs/research/codex-cloud-assets/r125/case-entry.mjs",
         "mode": "browser",
         "seconds": 215,
-        "entrypoint": "docs/research/codex-cloud-assets/r125/case-entry.mjs",
         "commandSha256": "ca4a2288759712230abcc8107dd1947a1e1c9c94c5fbe747c11ca16ec0ece211"
       },
       {
-        "job": "r131-native",
+        "entrypoint": "docs/research/codex-cloud-assets/r130/entry.mjs",
         "mode": "native",
-        "seconds": 180,
-        "entrypoint": "docs/research/codex-cloud-assets/r131/entry.mjs",
-        "commandSha256": "aea5f106905c48eaff60e445540a5eca7a401febac72a01eb9ad8faa07f9a10d"
+        "seconds": 120,
+        "commandSha256": "566df64a1ca131254586deead19a322950eb9c2c604d1abc6b01b2134542ff98"
       },
       {
-        "job": "r111-scoped-soak",
+        "entrypoint": "docs/research/codex-cloud-assets/r131/entry.mjs",
+        "mode": "native",
+        "seconds": 180,
+        "commandSha256": "82bb0bff48cc1e94db3c47f4ddc12c0b702651592968c59a5fac9d8ec2d4a113"
+      },
+      {
+        "entrypoint": "docs/research/codex-cloud-assets/r111/candidate/harness/run-container-session.mjs",
         "mode": "soak",
         "seconds": 2000,
-        "entrypoint": "docs/research/codex-cloud-assets/r111/candidate/harness/run-container-session.mjs",
-        "commandSha256": "71d18047036f8a0ecaa55f3b6138a42d63dc5398d4e4ffbc0be4de3c0a0118be"
+        "commandSha256": "31a693a894f805a77a4fd76c677cab82d35344a31fa2ad5de80446582e44b8d5"
+      },
+      {
+        "entrypoint": "docs/research/codex-cloud-assets/r134/entry.mjs",
+        "mode": "component",
+        "seconds": 900,
+        "commandSha256": "48dcbabfa377092ad59c1a4e090c9215310a752488c98afca8a5bbc8e7c05738"
+      },
+      {
+        "entrypoint": "docs/research/codex-cloud-assets/r135/entry.mjs",
+        "mode": "native",
+        "seconds": 1200,
+        "commandSha256": "e36ca27682a0a871c87b48c75142c60412a141795cf1ff75dc0ad49b88d907f5"
       }
-    ],
-    "newRuntime": "UNRUN"
+    ]
   },
-  "priorFourCaseTrial": {
-    "head": "55a1cf65402458531dbb9dde02c60ff368cd3a18",
-    "run": 40051110527,
-    "reportedBy": "root",
-    "resourceControls": "PASS",
-    "caseOutcomes": {
-      "r116": "FAILED",
-      "r125": "FAILED",
-      "r131": "FAILED",
-      "r111": "FAILED"
+  "closure": {
+    "sourceReceipt": "recovery-source-receipt.json",
+    "fullFiles": 79,
+    "fullBytes": 811006,
+    "allExactMappedBytes": "PASS",
+    "allExactManifestMemberClosures": "PASS",
+    "allFiveRawLFCli": "PASS",
+    "allFiveRawCRLFCli": "PASS",
+    "actualPublished592CRLFAndReal15R131Files": "PASS",
+    "missingDuplicateWrongPrefixChangedBytesAndMemberCounterexamples": "PASS",
+    "closedFailureFields": [
+      "failurePhase",
+      "job",
+      "memberOrdinal"
+    ]
+  },
+  "previousFailuresPreserved": [
+    {
+      "run": 40052220177,
+      "headPrefix": "670aa",
+      "case": "r131",
+      "stage": "outer-entry-admission",
+      "reasonCode": "case-entrypoint-missing",
+      "nativeRan": false
     },
-    "failedHistoryPreserved": true
+    {
+      "run": 40052951046,
+      "head": "6e5d3f28cf4c0186b4fffc783c6b1a6f7bd77c5f",
+      "stage": "host-closure",
+      "reasonCode": "case-runtime-closure-failed",
+      "sourceProvenCause": "LF-only-job-marker-on-raw-CRLF-workflow",
+      "nativeRan": false
+    }
+  ],
+  "sourceChanges": {
+    "r111": "fixture tasks array preserved; closed public source frame diagnostics",
+    "r116": "canonical idempotent close receipt and closed close diagnostics; initiating earlier close error remains unknown",
+    "r125": "closed native observations before unchanged strict parsing",
+    "r131": "CRLF/LF parser and actual raw CLI closure only; no native semantic change",
+    "r135": "strict same94records and exact fingerprint because both R49 targets excluded from catalogue"
   },
-  "sixCaseIntegration": {
-    "sourceReceipt": "performance-source-receipt.json",
-    "publicationBaseManifestSha256": "80fadbe29659a835ccaeeaa703014dee2085ef01877b0e180104a400bdbba6e4",
-    "runtime": "UNRUN",
-    "yamlJobs": 10,
-    "enabledCases": 6,
-    "setupRecipes": 10,
-    "resourceCoreAndPinsUnchanged": true,
-    "r111NumericProjectorsExactAndUnchanged": true,
-    "r111ScopedAcceptanceCriteriaUnchanged": true,
-    "r116HarnessIdentity": "87ef6ee01fa4bfdbfd0ada62b4b3e55541ac67071b967c4181a8ff3e5b01f46f",
-    "r131HarnessIdentity": "fc3f39f0bb4765ec7074907fc69e8d25401d844e69d6377803cc74a0a342e8c4",
-    "r111HarnessIdentity": "510aa8034635626b1c16e61a2108ef3a9f9dc056e3dc30913f92f842135dca37",
-    "r134Metrics": 126,
-    "r134RawTimings": 84,
-    "r134RecomputedDerivedMetrics": 42,
-    "r134RecomputedClassifications": 7,
-    "r134ValidCompletedScreens": [
-      "promising",
-      "inconclusive",
-      "parked"
-    ],
-    "r135RequiredMetrics": 16,
-    "r135OptionalWarmMetrics": 8,
-    "outerResourceVerdictSeparateFromCaseAcceptance": true,
-    "closedFirstFailureDiagnosticsBothSanitizers": true,
-    "newPrivacyAndPublicationPreflight": "ROOT_PENDING",
-    "productSLOGates": "OPEN"
+  "identityPins": {
+    "one-case": "e47f0130064f361d242a1b3d7724e103e57835eb530883246ebe78a738b6c91e",
+    "r111-scoped-soak": "2d6bbb25cac1673b296e03535b33cfd62e71187814974347e14b9cc561a2cc34",
+    "r135-codec-http": "b3dab5ef2078c7a756def2498755e5fb214bc28691f2e3ae99f1c6c35c2fb829",
+    "r125-focus": "b2e0c039e35980d6f20ef9fd833f0dfffc2368c1fddbacecbb5c3f55e3260b14",
+    "r131-native": "fc3f39f0bb4765ec7074907fc69e8d25401d844e69d6377803cc74a0a342e8c4"
   },
-  "entryClosureCorrection": {
-    "schema": "r131-entry-closure-correction-v1",
-    "publicationBaseCommit": "670aa961442db44b6212bd1dd7cc700f3b59fda3",
-    "priorTrialRun": 40052220177,
-    "observedOuterReasonCode": "case-entrypoint-missing",
-    "innerExecutionObserved": false,
-    "wrongEntry": "docs/research/codex-cloud-assets/r131-diagnostic-v2/entry.mjs",
-    "correctEntry": "docs/research/codex-cloud-assets/r131/entry.mjs",
-    "runtimeManifestSha256": "fc3f39f0bb4765ec7074907fc69e8d25401d844e69d6377803cc74a0a342e8c4",
-    "actualAssetMapSha256": "7d11791275549e35b2a86811aece1993e69528b7e288ce883861416a0a9bec5d",
-    "mappedR131Files": 15,
-    "actualAllMappedBytesAndCompleteManifestEntryClosure": "PASS",
-    "immutableFrozenWrongWorkflow": "REJECTED",
-    "missingEntryManifestMemberDuplicateAndChangedBytesControls": "PASS",
-    "controlsBeforeDocker": "verify_case_closure.py against exact exported public harness bytes",
-    "oldFrozenD52ePreserved": true,
-    "resourceAndNativeCriteriaUnchanged": true,
-    "otherCasesNotRetried": true,
-    "runtime": "UNRUN"
-  }
+  "r134PreviousMeasurement": {
+    "reportedBy": "root",
+    "correctObservations": 48,
+    "screenStatus": "parked",
+    "rerunEnabled": false,
+    "productSLOAcceptance": false
+  },
+  "unchanged": {
+    "resourceCore": true,
+    "pins": true,
+    "r111NumericVectorProjectors": true,
+    "r11154Journeys110Buckets45sMaxGap30min": true,
+    "r111FullAcceptance": false,
+    "nativeAndBodyCorrectnessCriteria": true
+  },
+  "notExecuted": [
+    "Docker",
+    "container",
+    "application",
+    "provider",
+    "browser",
+    "benchmark",
+    "GitHub-write",
+    "CI-dispatch"
+  ],
+  "rootPrivacyPublicationPreflight": "PENDING",
+  "allProductAcceptanceGates": "OPEN"
 }

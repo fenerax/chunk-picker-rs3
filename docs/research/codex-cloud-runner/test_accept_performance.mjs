@@ -19,7 +19,7 @@ function fixture134(gains=[10,10,10],regressionMode=null){
 }
 function fixture135(warm=0){
  const metrics={};for(let i=0;i<8;i++){metrics[`r135Cell${i}ReadyMs`]=100;metrics[`r135Cell${i}FirstBodyMs`]=200;if(i<warm)metrics[`r135Cell${i}WarmBodyMs`]=50;}
- return envelope({schema:'r135-http-component-v1',status:'correct',passed:true,cleanupPassed:true,count:8,completedCellCount:8,caseExitCode:0,sourceCommit:PIN,elapsedMs:5000,metrics},'native');
+ return envelope({schema:'r135-http-component-v1',status:'correct',passed:true,cleanupPassed:true,count:8,completedCellCount:8,caseExitCode:0,sourceCommit:PIN,elapsedMs:5000,providerChangedRecordCount:0,providerExpectedChangedRecordCount:0,providerActualRecordCount:94,providerActualInputCount:61,providerActualEvidenceCount:33,providerExpectedDigest:'3cbb39538d6d5c50cc04308a709771af2fbf23bd0da56499e076645b2be9a5c9',providerActualDigest:'3cbb39538d6d5c50cc04308a709771af2fbf23bd0da56499e076645b2be9a5c9',providerExpectedRecordsSha256:'3149f86d99755116b57e1a5e4dbdb1437c4763ecf602a8a741454988441e51c4',providerActualRecordsSha256:'3149f86d99755116b57e1a5e4dbdb1437c4763ecf602a8a741454988441e51c4',metrics},'native');
 }
 
 test('all three complete R134 screen outcomes are accepted without a speed gate',()=>{
@@ -69,4 +69,7 @@ test('completion counters and retained first failure cannot be promoted into a g
  for(const key of ['r134ObservedTimedSamples','r134ObservedVerifiedSamples','r134CompletedProcesses']){const v=fixture134();v.result.caseResult[key]=1;assert.equal(accepted(v,'r134'),false);}
  const a=fixture134();a.result.caseResult.r134FailureOperation='arm-exit';assert.equal(accepted(a,'r134'),false);
  const b=fixture135();b.result.caseResult.operationCode='r135-child-wait';assert.equal(accepted(b,'r135'),false);
+});
+test('R135 requires the exact unchanged94record provider vector including all61inputs and33evidence',()=>{
+ for(const key of ['providerChangedRecordCount','providerExpectedChangedRecordCount','providerActualRecordCount','providerActualInputCount','providerActualEvidenceCount','providerExpectedDigest','providerActualDigest','providerExpectedRecordsSha256','providerActualRecordsSha256']){const v=fixture135();v.result.caseResult[key]=typeof v.result.caseResult[key]==='number'?2:'a'.repeat(64);assert.equal(accepted(v,'r135'),false,key);}
 });

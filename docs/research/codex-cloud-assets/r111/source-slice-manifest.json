@@ -1,7 +1,7 @@
 {
-  "schema": "r111-runtime-source-slice-v2",
+  "schema": "r111-runtime-source-slice-v3",
   "sourcePin": "6f22fefa782747790e2eaefa01e4e5ea7b557323",
-  "purpose": "Runtime-only diagnostic derivative; immutable originals preserved; no raw runtime errors or recovered chat context.",
+  "purpose": "Runtime-only bootstrap correction and closed original-source error evidence; acceptance unchanged.",
   "files": [
     {
       "path": "candidate/harness/container-bridge.mjs",
@@ -25,8 +25,8 @@
     },
     {
       "path": "candidate/harness/diagnostic.mjs",
-      "bytes": 2776,
-      "sha256": "934703547f42e0de300d63f87e682d497a8753aa017ed065d044a3853f844743"
+      "bytes": 4993,
+      "sha256": "2a89e8e779523507e132684fdd5d365120e213b27b6ba645104a4b96fd04a55f"
     },
     {
       "path": "candidate/harness/evidence-vectors.mjs",
@@ -60,13 +60,13 @@
     },
     {
       "path": "candidate/harness/run-container-session.mjs",
-      "bytes": 6900,
-      "sha256": "8883615729d14366e5c6aedb38701cae4eae0759bd28616b1ef63b0a9cae017f"
+      "bytes": 7062,
+      "sha256": "62e225f580781374967897038c1c15da8104b0e6693a21bd295fe54fec2c30ac"
     },
     {
       "path": "candidate/harness/server.mjs",
-      "bytes": 2955,
-      "sha256": "9524650cc2835c8ae4fdf6b601cdf80f7c3c6c72c46a08745500ae2eae0cd43a"
+      "bytes": 4776,
+      "sha256": "ac99e65abd1e3206badb87322890887b617f56a252ff07eaa24ca835d0b06954"
     },
     {
       "path": "candidate/harness/session-protocol.mjs",
@@ -75,8 +75,8 @@
     },
     {
       "path": "candidate/harness/session.mjs",
-      "bytes": 28027,
-      "sha256": "081fed2a83cf4e2db0bbc7dd939c6541430f5b1386dd4b636ff58d3c9b4818e8"
+      "bytes": 28170,
+      "sha256": "f4bc60dd3f23deb60681204e34bcc9b421a9308dbc0ef77e2b376110de4a4ee0"
     },
     {
       "path": "sources/network-ledger-overlay/ledger.mjs",

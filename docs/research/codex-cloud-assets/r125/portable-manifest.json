@@ -1,7 +1,7 @@
 {
-  "schema": "r125-compatible-source-manifest-v3",
+  "schema": "r125-compatible-source-manifest-v4",
   "protocol": "docker-hard-2cpu-6g-v1",
-  "runtime": "V3_UNRUN_V2_BRANDING_CAUSE_CONFIRMED",
+  "runtime": "V4_UNRUN_V3_NATIVE_FAILED",
   "originalZipSHA256": "045d88acfb2d1a4e9b93ef33394af7b9b9fe5d520083bfeb465048e6f7c48590",
   "originalBundleManifestSHA256": "f1d3cefe9cf0eaec850f3fd41e4ef6432555f153deaf80e478e7fb88d432b198",
   "sourcePin": "6f22fefa782747790e2eaefa01e4e5ea7b557323",
@@ -16,12 +16,12 @@
       "sha256": "bfee0ae71080ca0e09abc2900874695f45422e7e98d059c29acc0d6bec0d19b0"
     },
     "focus-controller.mjs": {
-      "bytes": 13166,
-      "sha256": "a6525d997705825cd31f2497816d1efa03cc0c84f7989172a4c95e54c559c91b"
+      "bytes": 14203,
+      "sha256": "8aebc1a10ba6c6bfa6afb576ad0d46a9fcfb882c47da4218807a20f1c553c6a7"
     },
     "focus-core.mjs": {
-      "bytes": 17025,
-      "sha256": "73134d59250149b90199a481e0b7e95dd9e33f1e58b3578178dc75f5c1006062"
+      "bytes": 17225,
+      "sha256": "890e1b349e640f2c9af77f6b46fbf7149685eff3700cdc4ee3b9a2ef071c7049"
     },
     "focus-diagnostics.mjs": {
       "bytes": 5552,
@@ -42,6 +42,26 @@
     "focus-browser-identity.mjs": {
       "bytes": 1033,
       "sha256": "641cb6e8f4cee35ae500d06b57ffb55bc838f90e784468c5920dc5e4260f6d21"
+    },
+    "focus-native-evidence.mjs": {
+      "bytes": 4781,
+      "sha256": "616ac954ed4908171ecc706929a95584b58a98e3ff6f217eb0885ad7edb7739d"
+    },
+    "tests/task-focus-native-v4.fixture.mjs": {
+      "bytes": 7433,
+      "sha256": "53d887b5b6145d64c17c05bca4ca84a07989ac0cf3eb2d784711fbf46258d0d5"
+    },
+    "tests/task-focus-native-v4.test.mjs": {
+      "bytes": 16564,
+      "sha256": "ccde9e384b8c43391b28a7c1dac64e3556195268cb8d26bb84cde806043cb4c8"
+    },
+    "tests/task-focus-native.diagnostic.mjs": {
+      "bytes": 4468,
+      "sha256": "e2ce03f5c7c757e948aee6b36d8ba98047da75c554342b1773bfc663a77880db"
+    },
+    "result-policy-native-additions.json": {
+      "bytes": 3459,
+      "sha256": "a233d80e5788ba77daed67c490d2ed27eda35b989a130c8fe36922897bf4aa3f"
     }
   },
   "unchangedOriginalPayload": {
@@ -102,6 +122,7 @@
   },
   "remainingGates": [
     "root-publication-preflight",
+    "sparse-native-policy-union",
     "changed-first-case-runtime",
     "independent-container-removal",
     "all-other-native-cases",
@@ -133,16 +154,20 @@
       "sha256": "641cb6e8f4cee35ae500d06b57ffb55bc838f90e784468c5920dc5e4260f6d21"
     },
     "focus-controller.mjs": {
-      "bytes": 13166,
-      "sha256": "a6525d997705825cd31f2497816d1efa03cc0c84f7989172a4c95e54c559c91b"
+      "bytes": 14203,
+      "sha256": "8aebc1a10ba6c6bfa6afb576ad0d46a9fcfb882c47da4218807a20f1c553c6a7"
     },
     "focus-core.mjs": {
-      "bytes": 17025,
-      "sha256": "73134d59250149b90199a481e0b7e95dd9e33f1e58b3578178dc75f5c1006062"
+      "bytes": 17225,
+      "sha256": "890e1b349e640f2c9af77f6b46fbf7149685eff3700cdc4ee3b9a2ef071c7049"
     },
     "focus-diagnostics.mjs": {
       "bytes": 5552,
       "sha256": "4cf52528cdd031344d756a9ec7620ca75bef90e2adb88099e2ed8dedc24fbb70"
+    },
+    "focus-native-evidence.mjs": {
+      "bytes": 4781,
+      "sha256": "616ac954ed4908171ecc706929a95584b58a98e3ff6f217eb0885ad7edb7739d"
     },
     "pending-command.sh": {
       "bytes": 1818,
@@ -159,6 +184,22 @@
     "result-policy-diagnostic-additions.json": {
       "bytes": 3540,
       "sha256": "284ef936e0e721d545f462988b5dbe2d41b3d5b027cf8534134d22ae81cc5b31"
+    },
+    "result-policy-native-additions.json": {
+      "bytes": 3459,
+      "sha256": "a233d80e5788ba77daed67c490d2ed27eda35b989a130c8fe36922897bf4aa3f"
+    },
+    "tests/task-focus-native-v4.fixture.mjs": {
+      "bytes": 7433,
+      "sha256": "53d887b5b6145d64c17c05bca4ca84a07989ac0cf3eb2d784711fbf46258d0d5"
+    },
+    "tests/task-focus-native-v4.test.mjs": {
+      "bytes": 16564,
+      "sha256": "ccde9e384b8c43391b28a7c1dac64e3556195268cb8d26bb84cde806043cb4c8"
+    },
+    "tests/task-focus-native.diagnostic.mjs": {
+      "bytes": 4468,
+      "sha256": "e2ce03f5c7c757e948aee6b36d8ba98047da75c554342b1773bfc663a77880db"
     },
     "tests/task-focus-native.fixture.mjs": {
       "bytes": 6813,
@@ -185,25 +226,28 @@
       "sha256": "5bf5d8cbe244ebcce6bf1ed2ecddd25d5e29de91519f5fa8567cf2aa797bb147"
     }
   },
-  "diagnosticOnly": false,
+  "diagnosticOnly": true,
   "originalPortableManifestSHA256": "356561a389e1b09286b40b485e8a001861235032021c6f97c8c37c7f3a43473b",
   "previousRun": {
-    "runId": 40051110527,
-    "jobId": 120744032538,
-    "assetHeadPrefix": "55a1cf",
-    "caseCode": "r125-admission-failed",
-    "operation": "browser-version-admit",
-    "errorCode": "chromium-executable",
-    "brand": "google-chrome-for-testing",
-    "pinnedVersionMatched": true,
-    "browserExitPassed": true,
+    "runId": 40052220177,
+    "jobId": 120747486241,
+    "assetHeadPrefix": "670aa",
+    "caseCode": "r125-native-failed",
+    "operation": "native-evidence",
+    "errorCode": "native-exit-or-output",
     "sourceAndLockFiles": 1928,
-    "nativeReached": false
+    "portableRuntimeAdmitted": true,
+    "browserAndEnvironmentAdmitted": true,
+    "patchedFiles": 4,
+    "originalSourceUnchanged": true,
+    "controllerDrainPassed": true,
+    "originalNativeFailureDetail": "UNAVAILABLE_IN_CLOSED_RESULT",
+    "uiOrProductFailureEstablished": false
   },
-  "sourceCause": "CONFIRMED branding-only admission mismatch: exact pinned image emits Google Chrome for Testing 151.0.7922.34 with trailing space then LF",
+  "sourceCause": "UNKNOWN native child failure; V3 strict exit guard discarded original detail. V4 records only closed observations before the unchanged strict guard.",
   "sourceAdmissionUnchanged": true,
   "nativeOracleUnchanged": true,
-  "previousPortableManifestSHA256": "b6d79f70351cb81c5a26e5b6258363ee34fcd3754a30b6fb0713b6752665577f",
+  "previousPortableManifestSHA256": "b6594f315de3e9d559b102f5e1b863e989ed483200d50dfdafeea372a2992f0a",
   "browserAdmission": {
     "image": "mcr.microsoft.com/playwright:v1.62.1-noble@sha256:c091b21d9fae78c76e85cd4356431e9b018402f172a214fc7d7a5e9a7e29d8ac",
     "executable": "/ms-playwright/chromium-1234/chrome-linux64/chrome",
@@ -215,5 +259,29 @@
     "signal": null,
     "trimOrAlternateBrands": false
   },
-  "policyDeltaRequired": false
+  "policyDeltaRequired": true,
+  "nativeDiagnosticFiles": {
+    "tests/task-focus-native-v4.fixture.mjs": {
+      "bytes": 7433,
+      "sha256": "53d887b5b6145d64c17c05bca4ca84a07989ac0cf3eb2d784711fbf46258d0d5"
+    },
+    "tests/task-focus-native-v4.test.mjs": {
+      "bytes": 16564,
+      "sha256": "ccde9e384b8c43391b28a7c1dac64e3556195268cb8d26bb84cde806043cb4c8"
+    },
+    "tests/task-focus-native.diagnostic.mjs": {
+      "bytes": 4468,
+      "sha256": "e2ce03f5c7c757e948aee6b36d8ba98047da75c554342b1773bfc663a77880db"
+    }
+  },
+  "nativeFailureCapture": {
+    "transport": "tagged stdout; fixture diagnostics stay on fixture-local IPC",
+    "reporter": "spec unchanged",
+    "originalR109SourcesUnchanged": true,
+    "overlaysReversibleToOriginalSource": true,
+    "errorFields": "closed operation/name/code/public-module plus bounded line/column; no messages/stacks/DOM/env",
+    "caseStartEnd": "test callback entry/finally only, not UI or teardown proof",
+    "exitAndSummary": "observations only, never correctness proof"
+  },
+  "policyDelta": "result-policy-native-additions.json"
 }

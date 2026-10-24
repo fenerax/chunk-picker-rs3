@@ -36,6 +36,9 @@ function check134(actual){
 function check135(actual){
  assert.equal(actual.schema,'r135-http-component-v1');assert.equal(actual.sourceCommit,PIN);assert.equal(actual.cleanupPassed,true);assert.equal(actual.count,8);assert.equal(actual.completedCellCount,8);assert.ok(positive(actual.elapsedMs)&&actual.elapsedMs<=1200000);
  assert.ok(['operationCode','cellOrdinal','errorName','errorCode','errorStackSha256'].every(key=>!Object.hasOwn(actual,key)));
+ for(const [key,value]of Object.entries({providerChangedRecordCount:0,providerExpectedChangedRecordCount:0,providerActualRecordCount:94,providerActualInputCount:61,providerActualEvidenceCount:33}))assert.equal(actual[key],value);
+ for(const key of ['providerExpectedDigest','providerActualDigest'])assert.equal(actual[key],'3cbb39538d6d5c50cc04308a709771af2fbf23bd0da56499e076645b2be9a5c9');
+ for(const key of ['providerExpectedRecordsSha256','providerActualRecordsSha256'])assert.equal(actual[key],'3149f86d99755116b57e1a5e4dbdb1437c4763ecf602a8a741454988441e51c4');
  const metrics=actual.metrics;assert.ok(metrics&&typeof metrics==='object'&&!Array.isArray(metrics));
  const required=Array.from({length:8},(_,i)=>[`r135Cell${i}ReadyMs`,`r135Cell${i}FirstBodyMs`]).flat();
  const allowed=new Set([...required,...Array.from({length:8},(_,i)=>`r135Cell${i}WarmBodyMs`)]);

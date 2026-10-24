@@ -19,7 +19,7 @@ def accepted(value, case):
     if not isinstance(actual, dict) or actual.get("schema") != SCHEMAS[case] or actual.get("status") != "correct":
         return False
     if case == "r116":
-        return ("passed" not in actual or actual["passed"] is True) and actual.get("harnessManifestSha256") == "87ef6ee01fa4bfdbfd0ada62b4b3e55541ac67071b967c4181a8ff3e5b01f46f" and actual.get("mode") == "r116-frozen-input-v1" and actual.get("openingStatus") == "correct" and actual.get("frozenStatus") == "correct" and actual.get("rttStatus") == "within-band" and actual.get("cleanupStatus") == "complete" and type(actual.get("caseExitCode")) is int and actual["caseExitCode"] == 0
+        return ("passed" not in actual or actual["passed"] is True) and actual.get("harnessManifestSha256") == "e47f0130064f361d242a1b3d7724e103e57835eb530883246ebe78a738b6c91e" and actual.get("mode") == "r116-frozen-input-v1" and actual.get("openingStatus") == "correct" and actual.get("frozenStatus") == "correct" and actual.get("rttStatus") == "within-band" and actual.get("cleanupStatus") == "complete" and type(actual.get("caseExitCode")) is int and actual["caseExitCode"] == 0
     if actual.get("passed") is not True:
         return False
     if case == "r131":

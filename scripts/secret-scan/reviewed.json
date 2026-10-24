@@ -186,6 +186,12 @@
   ],
   "lines": [
     {
+      "path": "docs/research/codex-cloud-runner/r131-crlf-workflow.fixture.yml",
+      "category": "network-identifier",
+      "sha256": "db5bc542d94caa5495e71bf267b2f819916ce6c9ed1c364904779ae8972a9f86",
+      "reason": "Exact public npm registry setup command retained in the authored CRLF workflow parser regression fixture; no account, credential or deployment binding."
+    },
+    {
       "path": "docs/research/codex-cloud-runner/result-policy.json",
       "category": "token",
       "sha256": "e0bb6bc7097bfa5be21a874150029cb72601c1be9bf30f2ebe4af085871ddf12",

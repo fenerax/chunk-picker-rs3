@@ -10,8 +10,8 @@
     },
     {
       "path": "entry.mjs",
-      "bytes": 9246,
-      "sha256": "46392e44577644e1ec40c70e808c632b0dac90958b68415ebd0acb7c425425e6"
+      "bytes": 9315,
+      "sha256": "2a8f291f3f220afe85ee5e26a6208d04f5619ddc59cd995eb14a491a5cd89880"
     },
     {
       "path": "fixture.json",
@@ -25,13 +25,18 @@
     },
     {
       "path": "http-child.mjs",
-      "bytes": 11667,
-      "sha256": "7c4085f857c6b125be81224072cb52790d038fdde3f24cab88d1387860a6428a"
+      "bytes": 11694,
+      "sha256": "e5317b6576503c2e34c5342177836e74f9830876b5ebf4aad6e733fae968ab0c"
     },
     {
       "path": "protocol.mjs",
-      "bytes": 1255,
-      "sha256": "d6d412ff87cc176a71c6a6a421589b7e6a6a91e27e716182918e10bdbc082743"
+      "bytes": 2775,
+      "sha256": "3e6784384ca65c53c21155338d2f3900da2fb55f145159c322964419a085f108"
+    },
+    {
+      "path": "provider-identity.json",
+      "bytes": 20888,
+      "sha256": "be4e4fc1a5f8b8ea8ff75444a0367a9a57b2f9c482454cebc507d947210c734d"
     },
     {
       "path": "r49-production-v2.patch",
@@ -61,5 +66,6 @@
     "bytes": 145,
     "sha256": "9e67a7976c240c5c0f687b9fd4a6f9ceead717c3741ff47006550665dc0ad615"
   },
-  "diagnosticVersion": 2
+  "diagnosticVersion": 2,
+  "providerIdentityVersion": 3
 }

@@ -1,0 +1,88 @@
+{
+  "schema": "five-case-recovery-source-receipt-v1",
+  "publicationBaseCommit": "6e5d3f28cf4c0186b4fffc783c6b1a6f7bd77c5f",
+  "publicationBaseManifestSha256": "b9d5759739bca5c80a6e840f36c75989e119a8ea56affef97740333b77ab3ca9",
+  "cases": [
+    {
+      "job": "one-case",
+      "sourceManifest": "../../r116-reference-close-v4/runtime-publication-manifest.json",
+      "sourceManifestSha256": "6d4ac4719c4ba38ae57153f0b948c33e2812a6450035be87d62a4b7ca6ac04f7",
+      "fullMappedFiles": 12,
+      "runtimeBytes": 162329,
+      "innerManifestSha256": "e47f0130064f361d242a1b3d7724e103e57835eb530883246ebe78a738b6c91e"
+    },
+    {
+      "job": "r111-scoped-soak",
+      "sourceManifest": "../../r111-server-bootstrap-v3/runtime-publication-manifest.json",
+      "sourceManifestSha256": "425ccb31bc84264ef2cd454283b27d172a513a7a755e98e47dc458a301baf868",
+      "fullMappedFiles": 17,
+      "runtimeBytes": 120849,
+      "innerManifestSha256": "2d6bbb25cac1673b296e03535b33cfd62e71187814974347e14b9cc561a2cc34"
+    },
+    {
+      "job": "r135-codec-http",
+      "sourceManifest": "../../r135-provider-identity-v3/publication-manifest.json",
+      "sourceManifestSha256": "4f8fb10159d8ab6c6613d242db6532ad12efd1cc05dd1f1f1bbd9cb27f20b095",
+      "fullMappedFiles": 11,
+      "runtimeBytes": 58694,
+      "innerManifestSha256": "b3dab5ef2078c7a756def2498755e5fb214bc28691f2e3ae99f1c6c35c2fb829"
+    },
+    {
+      "job": "r125-focus",
+      "sourceManifest": "../../r125-native-evidence-v4/runtime-publication-map.json",
+      "sourceManifestSha256": "88c7fc2ea33e4f7ea53ca758e197effda1b0cdf93f6e6d75acb86d373cd024d1",
+      "fullMappedFiles": 24,
+      "runtimeBytes": 179668,
+      "innerManifestSha256": "b2e0c039e35980d6f20ef9fd833f0dfffc2368c1fddbacecbb5c3f55e3260b14"
+    },
+    {
+      "job": "r131-native",
+      "sourceManifest": "../../public-harness-delivery/next-six-all-case-assets.json",
+      "sourceManifestSha256": "7d11791275549e35b2a86811aece1993e69528b7e288ce883861416a0a9bec5d",
+      "fullMappedFiles": 15,
+      "runtimeBytes": 289466,
+      "innerManifestSha256": "fc3f39f0bb4765ec7074907fc69e8d25401d844e69d6377803cc74a0a342e8c4"
+    }
+  ],
+  "allMappedBytesVerified": true,
+  "originalFailedRunsPreserved": true,
+  "resourceCoreAndScientificCriteriaUnchanged": true,
+  "runtime": "UNRUN",
+  "proposals": [
+    {
+      "case": "r111-v3",
+      "source": "../../r111-server-bootstrap-v3/result-policy-bootstrap-proposal.json",
+      "bytes": 1085,
+      "sha256": "ab09eb15616953bd1c33c084dc5c0e2b58c2d72cab54f7ae81f1e881bc6ef01c"
+    },
+    {
+      "case": "r116-v4",
+      "source": "../../r116-reference-close-v4/result-policy-additions.proposal.json",
+      "bytes": 8260,
+      "sha256": "e4430216a58ed8f92f6077c82b1d9ad318df4b2004103ae4aadbf5e224d220d9"
+    },
+    {
+      "case": "r125-v4",
+      "source": "../../r125-native-evidence-v4/derived/result-policy-native-additions.json",
+      "bytes": 3459,
+      "sha256": "a233d80e5788ba77daed67c490d2ed27eda35b989a130c8fe36922897bf4aa3f"
+    },
+    {
+      "case": "r135-v3",
+      "source": "../../r135-provider-identity-v3/result-policy.additions.json",
+      "bytes": 916,
+      "sha256": "89303adfd044cc45787ebe6905b61ee5ff04a2dbbe835e18ffd9cb39763e75e8"
+    }
+  ],
+  "closureRegression": {
+    "actualFrozenWorkflowSha256": "3d1706814dcd5af3d99f3a1105a8d5b6589b2d3311961db1219398d18fc78b6c",
+    "actualFrozenCRLFCount": 592,
+    "rawMainIOAllFiveLFAndCRLF": "PASS",
+    "rawMainIOActualFrozenCRLFAnd15R131Assets": "PASS",
+    "canonicalPublicLayoutNoSiblingWorkflow": true,
+    "boundedBinaryReadsPreserveBytes": true,
+    "closedFailurePhaseJobMemberOrdinal": true,
+    "fullMapsFiles": 79,
+    "fileBytes": 811006
+  }
+}

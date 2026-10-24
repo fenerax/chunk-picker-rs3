@@ -7,6 +7,7 @@ import { ensure, PROTOCOL, PIN, IMAGE, fileSha, sha, sourceTree, verifyTree, ver
   nativeEnvironment, nativeArguments, parseNativeEvidence, procIdentity, ancestors, waitDrained } from './focus-core.mjs';
 import { failureDiagnostic, browserVersionDiagnostic } from './focus-diagnostics.mjs';
 import { pinnedBrowserIdentity } from './focus-browser-identity.mjs';
+import { nativeExecutionDiagnostic } from './focus-native-evidence.mjs';
 const started = performance.now(), deadline = started + 180000;
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 let active, stopRequested = false, escalation, phase = 'admission', result = { passed: false, status: 'failed', cleanupPassed: false };
@@ -15,7 +16,10 @@ const admission = { metrics: {} };
 const at = value => { operation = value; };
 function diagnose(error) {
   // Capture the first failure before teardown; later checks cannot erase its operation.
-  if (!result.focusOperation) Object.assign(result, failureDiagnostic(error, operation, admission));
+  if (!result.focusOperation) {
+    const failure = failureDiagnostic(error, operation, admission), metrics = { ...result.metrics, ...failure.metrics };
+    Object.assign(result, failure, { metrics });
+  }
 }
 const emit = stage => new Promise((resolve, reject) => {
   if (!process.connected) return reject(new Error('controller-ipc-disconnected'));
@@ -154,6 +158,13 @@ try {
   for (const [name, expected] of Object.entries(manifest.candidateApplicationFiles)) ensure(fileSha(path.join(candidate, name)) === expected, 'candidate-production-hash');
   at('r109-install');
   for (const name of manifest.r109InstalledFiles) { const target = path.join(candidate, name); fs.mkdirSync(path.dirname(target), { recursive: true }); fs.copyFileSync(path.join(HERE, name), target); }
+  const diagnosticFiles = portable.nativeDiagnosticFiles;
+  ensure(JSON.stringify(Object.keys(diagnosticFiles ?? {}).sort()) === JSON.stringify([
+    'tests/task-focus-native-v4.fixture.mjs', 'tests/task-focus-native-v4.test.mjs', 'tests/task-focus-native.diagnostic.mjs'].sort()), 'packet-payload-hash');
+  for (const [name, row] of Object.entries(diagnosticFiles)) {
+    ensure(fileSha(path.join(HERE, name)) === row.sha256, 'packet-payload-hash');
+    fs.copyFileSync(path.join(HERE, name), path.join(candidate, name));
+  }
   at('native-environment');
   const env = nativeEnvironment(process.env, workspace); admission.focusNativeEnvironmentAdmitted = true; await emit('overlay-ready');
   at('native-budget');
@@ -163,7 +174,11 @@ try {
   at('native-execution');
   const natural = await execute('/runtime/node', nativeArguments(), { cwd: candidate, env, milliseconds: remaining, log: path.join(workspace, 'native-private.log') });
   at('native-evidence');
-  result = parseNativeEvidence(natural.raw, natural.code, natural.signal);
+  // Preserve the unsuccessful child's closed observations before the strict exit gate.
+  const nativeDiagnostic = nativeExecutionDiagnostic(natural.raw, natural.code, natural.signal);
+  Object.assign(result, nativeDiagnostic);
+  const parsed = parseNativeEvidence(natural.raw, natural.code, natural.signal);
+  result = { ...result, ...parsed, metrics: { ...nativeDiagnostic.metrics, ...parsed.metrics } };
   phase = 'drain'; await emit('episode-end'); await emit('cleanup-start');
   at('native-drain'); await waitDrained(ownAncestors, 2000);
   result.cleanupPassed = true; result.code = 'r125-focus-correct';

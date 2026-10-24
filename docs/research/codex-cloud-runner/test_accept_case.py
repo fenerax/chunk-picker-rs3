@@ -41,7 +41,7 @@ class HostAcceptanceControls(unittest.TestCase):
                 row = valid("r130"); row["result"]["caseResult"][key] = bad
                 self.assertFalse(accepted(row, "r130"))
     def test_accept_r116_requires_both_projections_calibration_and_cleanup(self):
-        case={"schema":"r116-frozen-browser-v1","mode":"r116-frozen-input-v1","status":"correct","openingStatus":"correct","frozenStatus":"correct","rttStatus":"within-band","cleanupStatus":"complete","caseExitCode":0,"harnessManifestSha256":"87ef6ee01fa4bfdbfd0ada62b4b3e55541ac67071b967c4181a8ff3e5b01f46f"}
+        case={"schema":"r116-frozen-browser-v1","mode":"r116-frozen-input-v1","status":"correct","openingStatus":"correct","frozenStatus":"correct","rttStatus":"within-band","cleanupStatus":"complete","caseExitCode":0,"harnessManifestSha256":"e47f0130064f361d242a1b3d7724e103e57835eb530883246ebe78a738b6c91e"}
         final={"passed":True,"cleanupPassed":True,"result":{"caseResult":case}}
         self.assertTrue(accepted(final,"r116"))
         for key,bad in (("harnessManifestSha256","0"*64),("openingStatus","blocked"),("frozenStatus","incorrect"),("rttStatus","outside-band"),("cleanupStatus","incomplete"),("caseExitCode",False),("status","failed"),("passed",False)):

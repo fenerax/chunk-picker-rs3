@@ -1,0 +1,624 @@
+{
+  "schema": "r135-provider-identity-v3",
+  "sourcePin": "6f22fefa782747790e2eaefa01e4e5ea7b557323",
+  "expectedChangedRecordCount": 0,
+  "datasetDigest": "3cbb39538d6d5c50cc04308a709771af2fbf23bd0da56499e076645b2be9a5c9",
+  "contract": {
+    "datasetId": "duo-legacy",
+    "datasetContractVersion": 1,
+    "identityNamespace": "rs3",
+    "coordinateSystem": "surface-grid-v1",
+    "corePackApi": 1
+  },
+  "capabilities": {
+    "cacheWalking": true,
+    "cacheResources": true,
+    "cacheArchaeology": false,
+    "cacheShops": false,
+    "mapCorrections": true,
+    "divinationTraining": true,
+    "retainedTaskCorrections": true,
+    "retainedUnsupportedCorrections": true,
+    "metadataCorrections": true,
+    "equipmentCorrections": true
+  },
+  "overlayOrder": {
+    "server": [
+      "equipment",
+      "shops"
+    ],
+    "worker": [
+      "equipment-if-unprepared",
+      "retained"
+    ],
+    "tasks": [
+      "divination",
+      "retained",
+      "unsupported",
+      "metadata",
+      "equipment",
+      "shops",
+      "archaeology"
+    ],
+    "world": [
+      "map",
+      "topology",
+      "resources",
+      "archaeology"
+    ],
+    "skillGuides": "opt-in-after-task-baseline"
+  },
+  "definitionOverlays": [
+    "app/data/reviewed-definition-overlays.2026-10-17.v1.json"
+  ],
+  "records": [
+    {
+      "path": "app/data/reviewed-definition-overlays.2026-10-17.v1.json",
+      "bytes": 34481,
+      "sha256": "400d71c8fa039f603af20f08503c3f5ac1e54c0106c283d86aed84d937c27681",
+      "kind": "input"
+    },
+    {
+      "path": "app/data/retained-task-corrections.2026-10-17.v2.json",
+      "bytes": 27729,
+      "sha256": "6d2de43edcb32b417d907c9a9d1fa5423e15f16612032ad458a71a9d21805a99",
+      "kind": "input"
+    },
+    {
+      "path": "app/data/archaeology-task-corrections.2026-10-08.v1.json",
+      "bytes": 781,
+      "sha256": "63c8fa1041748999576d23870dc343bb3e709ea3b09aa54daafe9b936b9f05a2",
+      "kind": "input"
+    },
+    {
+      "path": "app/data/cache-archaeology.2026-10-08.v1.json",
+      "bytes": 1542830,
+      "sha256": "2b703f6f029d22715d05dd9911d824c6c09dfe58ff7c3303429c2cd162799ad6",
+      "kind": "input"
+    },
+    {
+      "path": "app/data/cache-component-policy.2026-10-07.v1.json",
+      "bytes": 3037532,
+      "sha256": "dac901f0b40ab00db3800ddd893b9235252e66b7edf9554a1dbfd04d3d0f4eaa",
+      "kind": "input"
+    },
+    {
+      "path": "app/data/cache-divination.2026-10-13.v1.json",
+      "bytes": 2325,
+      "sha256": "6d0c2d5aa105a0c379335e8c445c4cf647af5c5c43e8fdf4964217d7f9982abc",
+      "kind": "input"
+    },
+    {
+      "path": "app/data/cache-interiors.2026-10-08.v2.json",
+      "bytes": 27261974,
+      "sha256": "d92d4ed129efa3e68a638e4287c507fdcf6d8e1e5b203bf9a0bebfeee50de0ef",
+      "kind": "input"
+    },
+    {
+      "path": "app/data/cache-npcs.2026-10-08.v1.json",
+      "bytes": 4935197,
+      "sha256": "73f8684a300e74fc6a8bba8f02dac4fe063326ab1eca4ef6ed9321e69e66df8c",
+      "kind": "input"
+    },
+    {
+      "path": "app/data/cache-resource-selectors.2026-10-08.v1.json",
+      "bytes": 497115,
+      "sha256": "632d7f7796d423ab0acaca0e0d329108ce2fec60ad2f8709f573785ca1fd16ef",
+      "kind": "input"
+    },
+    {
+      "path": "app/data/cache-resources.2026-10-08.v1.json",
+      "bytes": 4846325,
+      "sha256": "1e6a45cfe64af2cdfa20247e6bc28bedb5db77499b705b2d4266f4f12e76bbf0",
+      "kind": "input"
+    },
+    {
+      "path": "app/data/cache-shops.2026-10-08.v1.json",
+      "bytes": 34329,
+      "sha256": "be1514101d29dd2a93b83ef277393740c97e13668a59e483a7bf37771b91d326",
+      "kind": "input"
+    },
+    {
+      "path": "app/data/cache-surface-corrections.2026-10-08.v1.json",
+      "bytes": 37468,
+      "sha256": "57cdecbfb94c0bc64596ca8600d81310a2d7e15d62e5df4060d4ad94293ea4e9",
+      "kind": "input"
+    },
+    {
+      "path": "app/data/cache-walkability.2026-10-07.v1.json",
+      "bytes": 310565,
+      "sha256": "2a6acb3b9a2a45eac73cfb543f1d63d2d733310b2e03d5b2bf2f40fa7b41130e",
+      "kind": "input"
+    },
+    {
+      "path": "app/data/divination.2026-10-13.v1.json",
+      "bytes": 3534,
+      "sha256": "50005007963690921c58277f9c9583e32e12fc4b89c6a8d0e064d17a80936a1a",
+      "kind": "input"
+    },
+    {
+      "path": "app/data/equipment-corrections.2026-10-08.v1.json",
+      "bytes": 5848197,
+      "sha256": "afab2de5480c6fcd2a5401d29aaae66a6bdc6c47ad8c91735ccc5f4946b56579",
+      "kind": "input"
+    },
+    {
+      "path": "app/data/equipment-permanence.2026-10-08.v1.json",
+      "bytes": 2837061,
+      "sha256": "14235b62a6568e29a5d3543f9c53b4a2b6195800478053332a974cf6ada1754d",
+      "kind": "input"
+    },
+    {
+      "path": "app/data/equipment-weights.2026-10-08.v1.json",
+      "bytes": 4400804,
+      "sha256": "f99ea151aef844d0265e2ec5da37b731f907fc56b555d5c2631d996dacdcd979",
+      "kind": "input"
+    },
+    {
+      "path": "app/data/item-icons.2026-10-08.v1.json",
+      "bytes": 13296275,
+      "sha256": "367125a3c08e8b47d6df65a4014b944b6df6f0d2ae40ae9b53932e5705bb1652",
+      "kind": "input"
+    },
+    {
+      "path": "app/data/item-icons.2026-10-09.v1.json",
+      "bytes": 123504,
+      "sha256": "14897ed3532fcc60d1087860995055ede140505037942128b48731751b76ad87",
+      "kind": "input"
+    },
+    {
+      "path": "app/data/item-icons.2026-10-12.v1.json",
+      "bytes": 6497,
+      "sha256": "c906eecab2f5e274879d8f28e69f24de95ed3e48df5c74b207fe0c94844d1b9f",
+      "kind": "input"
+    },
+    {
+      "path": "app/data/item-membership-aliases.2026-10-08.v1.json",
+      "bytes": 267988,
+      "sha256": "214a40617f8344b1b79f049e739d945f2e9767bc3d6ed70ec1b6ea58271831b7",
+      "kind": "input"
+    },
+    {
+      "path": "app/data/item-membership-flags.2026-10-08.v1.json",
+      "bytes": 1297545,
+      "sha256": "2af6ab5d1e7c6ce0d0dcfcb451c9ec06b63b062a5f1fb971223e80dc73c2386a",
+      "kind": "input"
+    },
+    {
+      "path": "app/data/item-membership-review.2026-10-12.v1.json",
+      "bytes": 67341,
+      "sha256": "06c1f49caa41f7dd9cd6944139d4e184a610234f85ca5f29f292e22e5f840dcf",
+      "kind": "input"
+    },
+    {
+      "path": "app/data/item-membership.2026-10-08.v1.json",
+      "bytes": 8240630,
+      "sha256": "56d53a3aca9988f045bf46ba5599c482aeb038b8841589dd0adfb3232d1f021b",
+      "kind": "input"
+    },
+    {
+      "path": "app/data/legacy-task-history.json",
+      "bytes": 6437574,
+      "sha256": "4e0381d20bcc78a14e6f2868fae73b51d55fa15654a74cf91613ce6848e15422",
+      "kind": "input"
+    },
+    {
+      "path": "app/data/map-connections.2026-10-09.v1.json",
+      "bytes": 10138580,
+      "sha256": "60263a57602926f5cc319132d772d69e286a9281956205ce203a193007eb2d0a",
+      "kind": "input"
+    },
+    {
+      "path": "app/data/map-pin-details.2026-10-08.v2.json",
+      "bytes": 3260472,
+      "sha256": "0011a30de1342da43f738da4e7445877744cc32e8b70686a0bbb69d3c8a92017",
+      "kind": "input"
+    },
+    {
+      "path": "app/data/members-start-banks.2026-10-12.v1.json",
+      "bytes": 35311,
+      "sha256": "d90d41a4043f7c0d988a74f1fe21ba49642ef7dd649ffb113f4d51b7d19b47a4",
+      "kind": "input"
+    },
+    {
+      "path": "app/data/metadata-corrections.2026-10-08.v1.json",
+      "bytes": 574436,
+      "sha256": "69b50fb70a684c2b78f27472fdccc2ca6d64b98c7083841d118cb896dad35f98",
+      "kind": "input"
+    },
+    {
+      "path": "app/data/monster-membership-review.2026-10-12.v1.json",
+      "bytes": 965418,
+      "sha256": "b9158ed69848fd0e6996e9f088fe18b1df850d95f11d3afafb689a53b8dbe341",
+      "kind": "input"
+    },
+    {
+      "path": "app/data/npc-metadata-corrections.2026-10-08.v1.json",
+      "bytes": 12298,
+      "sha256": "d0b8a7adf597b127211141346cc4731d6b12c1bcff592ddf73467a06e479b47f",
+      "kind": "input"
+    },
+    {
+      "path": "app/data/original-data.2026-10-13.v1.json",
+      "bytes": 18738,
+      "sha256": "1c3cf9366900357034f7fb8dffd34af6c0de5cb552403cb201120a98839133b4",
+      "kind": "input"
+    },
+    {
+      "path": "app/data/original-rules-ui.2026-10-08.v1.json",
+      "bytes": 396363,
+      "sha256": "ae967a0673bd990dacc55408b86f491b2682ebb199ab209acc993b0298d8bb08",
+      "kind": "input"
+    },
+    {
+      "path": "app/data/rule-explanations.2026-10-17.v1.json",
+      "bytes": 101403,
+      "sha256": "fc96290c52d3fe9ca36079ca8c208db65c2bd96fe47342d5cfe1619ecc591e47",
+      "kind": "input"
+    },
+    {
+      "path": "app/data/picker-entities.2026-10-08.v1.json",
+      "bytes": 1488,
+      "sha256": "9f7c02e5bfffece64551bc69cc437b778ecbf69b2fbebd6d7311939d7a48b5b5",
+      "kind": "input"
+    },
+    {
+      "path": "app/data/place-labels.2026-10-13.v1.json",
+      "bytes": 179533,
+      "sha256": "c78ab547830f4aed272aa964b7bfd876a82bf0ef154b5bbbf62c59fd42a96a7c",
+      "kind": "input"
+    },
+    {
+      "path": "app/data/poh-storage.2026-10-08.v1.json",
+      "bytes": 95310,
+      "sha256": "46e536ae6d76f43eab830367427d3383814cd9d6ceaffdba56665535bc758ea6",
+      "kind": "input"
+    },
+    {
+      "path": "app/data/retained-entry-corrections.2026-10-12.v2.json",
+      "bytes": 23123,
+      "sha256": "74fdafd5cc03590e9332764d5f8694c0fa22a8a62c087ae598ec929d275417a2",
+      "kind": "input"
+    },
+    {
+      "path": "app/data/retained-task-corrections.2026-10-09.v1.json",
+      "bytes": 27204,
+      "sha256": "b8cbd3f20ec9abdd44ac74ac1a162cee45d975182057cad26c5646004ab23a78",
+      "kind": "input"
+    },
+    {
+      "path": "app/data/retained-unsupported-corrections.2026-10-13.v1.json",
+      "bytes": 148321,
+      "sha256": "59668cbb04f53177d368cedee3ac787d539c9b89cb15ba5f78ab91e41ac81332",
+      "kind": "input"
+    },
+    {
+      "path": "app/data/retained-wording-corrections.2026-10-12.v1.json",
+      "bytes": 1792,
+      "sha256": "ce8194c0e8dbc924a04859b7c4a0ac01e4e0dcbbd01d03bc77540d51556f30fd",
+      "kind": "input"
+    },
+    {
+      "path": "app/data/skill-guides.2026-10-08.v1.json",
+      "bytes": 5917604,
+      "sha256": "381693714abd6fd80cbec3c26e62d9fd28f25eca9416435a38859e8696a4a88c",
+      "kind": "input"
+    },
+    {
+      "path": "app/data/skill-icons.2026-10-08.v1.json",
+      "bytes": 58772,
+      "sha256": "827c5f8e345134d12c20be7f1ab3f28f9183a3e8b551160b1e5883b7cf09bff3",
+      "kind": "input"
+    },
+    {
+      "path": "app/data/skillguide-combat-corrections.2026-10-08.v1.json",
+      "bytes": 427294,
+      "sha256": "1543a7b91d76935b1934d30b27da137bd60c36fb02df2170a36b94ea46c5f9a4",
+      "kind": "input"
+    },
+    {
+      "path": "app/data/source-incidental-outputs.2026-10-08.v1.json",
+      "bytes": 4160,
+      "sha256": "23a07311702ad38b249a83e621229dd3a8f85599e4a287f76fafc254b8488446",
+      "kind": "input"
+    },
+    {
+      "path": "app/data/source-membership.2026-10-08.v1.json",
+      "bytes": 5946362,
+      "sha256": "8682dcf2ebf77584a233f85650dffa4900be21f16da50d0dd9b7d4420eb3c7cc",
+      "kind": "input"
+    },
+    {
+      "path": "app/data/source-method-requirements.2026-10-08.v1.json",
+      "bytes": 2935,
+      "sha256": "f116f750ab86ad05e4b2f0f0b24098f4cfa1786ce0ca9c2a87a00ccbf2651d78",
+      "kind": "input"
+    },
+    {
+      "path": "app/data/source-row-membership.2026-10-08.v1.json",
+      "bytes": 207385,
+      "sha256": "c3497676db3cb8ce4c1c0e08197bdee93cd83f00e39ba5db3f33b83c3c500aae",
+      "kind": "input"
+    },
+    {
+      "path": "app/data/training/banking-fishing-spots.v1.json",
+      "bytes": 2371,
+      "sha256": "76bd680871a37df102ca1f3313464093b94f641b25838c051e3510daef6f2cb3",
+      "kind": "input"
+    },
+    {
+      "path": "app/data/training/banking-masks.v1.json",
+      "bytes": 988194,
+      "sha256": "08081743a387388ba59d8826e45e27645d4c362ab80232b57a687a60c0c9d335",
+      "kind": "input"
+    },
+    {
+      "path": "app/data/training/death-woodcutting-guide.v1.json",
+      "bytes": 4273,
+      "sha256": "b40b873cbc7fd1bde1288444f0cf12e55d4faa17b5ad09cf605d4f1a1c292e77",
+      "kind": "input"
+    },
+    {
+      "path": "app/data/training/fishing-rates.v1.json",
+      "bytes": 13501,
+      "sha256": "c76738e6ef699c6adc76121b49fa5fed0239dc1b4931d17ecbc02681f428aec6",
+      "kind": "input"
+    },
+    {
+      "path": "app/data/training/methods.f2p.json",
+      "bytes": 495968,
+      "sha256": "e0196fee03e8404059297038a5c4478ce7e22dbacb0ae0ac34585e22bb41b5d9",
+      "kind": "input"
+    },
+    {
+      "path": "app/data/training/mining-rates.v1.json",
+      "bytes": 3077840,
+      "sha256": "090d3afe1e2aa8b427099fd3999dca6a606fc7467d95eae75707f7c85973904f",
+      "kind": "input"
+    },
+    {
+      "path": "app/data/training/woodcutting-rates.v1.json",
+      "bytes": 36047,
+      "sha256": "7254d9e78277c503c7cc1c7c86f909666c41886c2ad0cf5860a50cccc02f0d6c",
+      "kind": "input"
+    },
+    {
+      "path": "app/data/transport-routes.2026-10-09.v2.json",
+      "bytes": 596760,
+      "sha256": "c9a9297c512672b11d4aeb8a965461407e7e7c40380ed471ca8f4ef037027d1e",
+      "kind": "input"
+    },
+    {
+      "path": "reference/original-picker/tasksMap.json",
+      "bytes": 6252216,
+      "sha256": "721c8a9671566b8bef3b4985bc13a1248c54400b9304cd9ecc88b3184cdd780c",
+      "kind": "input"
+    },
+    {
+      "path": "rs3-chunkpicker-chunkinfo-export.json",
+      "bytes": 10176005,
+      "sha256": "9dd835266f381abaa4d14033abcd0b43a001fe96d7df0a7f046fcc8676d66553",
+      "kind": "input"
+    },
+    {
+      "path": "app/data/legacy-dataset-values.2026-10-13.v1.json",
+      "bytes": 5487241,
+      "sha256": "4db2873cd8d18013cf09bce5a754786217b8ae193e8d057e1c5f521816c403b1",
+      "kind": "input"
+    },
+    {
+      "path": "app/data/legacy-rules-text-values.2026-10-13.v1.json",
+      "bytes": 90823,
+      "sha256": "1447262d979d9218edf0a084b036f6511bd4576f62ae423a3c90cbf321ce8e1f",
+      "kind": "input"
+    },
+    {
+      "path": "app/web/gallery-fixture-data.json",
+      "bytes": 120109,
+      "sha256": "1b717d4829695abc87e2b605a6443a2be2c33cbe2382332ea8d5a321c60de2c2",
+      "kind": "input"
+    },
+    {
+      "path": "docs/research/dataset-seam-source-2026-10-13/app/data/equipment-permanence.mjs",
+      "bytes": 838,
+      "sha256": "87f317aa2a7465668647abbdc85976a15b6606eaeed1d8a586f69ba9ef17a6be",
+      "kind": "evidence"
+    },
+    {
+      "path": "docs/research/dataset-seam-source-2026-10-13/scripts/update-identities.mjs",
+      "bytes": 8390,
+      "sha256": "163a1f3072e0101f01e92ff40e5a38803b9c8a20047aaecd8933d3072c675c01",
+      "kind": "evidence"
+    },
+    {
+      "path": "docs/research/dataset-seam-source-2026-10-13/scripts/compare-original-data.mjs",
+      "bytes": 25520,
+      "sha256": "5417566f962125891cf065bb603932b6102b0a7501084a1f5ad7a2702c3d908f",
+      "kind": "evidence"
+    },
+    {
+      "path": "app/data/settings.mjs",
+      "bytes": 7338,
+      "sha256": "8634f37a0101d09fe6ca364da1428c562f3e847dd5704c4da9c131820fc77ea9",
+      "kind": "evidence"
+    },
+    {
+      "path": "app/data/identity-registry.mjs",
+      "bytes": 701,
+      "sha256": "70941744469b337258133dc832b716b07b5d30c73b84e4300f2163fb391cdebb",
+      "kind": "evidence"
+    },
+    {
+      "path": "app/data/access-policy.mjs",
+      "bytes": 1042,
+      "sha256": "402feecb540e08e8b88bb240b461d1fd31298758998b63e3913d9623ef6b781f",
+      "kind": "evidence"
+    },
+    {
+      "path": "app/data/cache-entry-policy.mjs",
+      "bytes": 1511,
+      "sha256": "b3ea8c62cd8afd79893e5da2d022fc02a6c89b83f7254072b74874741393eb52",
+      "kind": "evidence"
+    },
+    {
+      "path": "app/data/lodestones.mjs",
+      "bytes": 669,
+      "sha256": "d147957333276ebc48c54771064921b0f703e0ed869104082b0cd3362af346d7",
+      "kind": "evidence"
+    },
+    {
+      "path": "app/data/map-corrections.mjs",
+      "bytes": 3190,
+      "sha256": "5c45f9a81a4cf9d8bab96f7c384d1568b0b2de03c02c21d9cebccdcb5a5dabf5",
+      "kind": "evidence"
+    },
+    {
+      "path": "app/data/map-pin-categories.mjs",
+      "bytes": 1865,
+      "sha256": "c2091a4833014518c035fe6ba192829bfe53d044b8672bfb64a204dc3c3359d8",
+      "kind": "evidence"
+    },
+    {
+      "path": "app/data/map-pins.mjs",
+      "bytes": 11476,
+      "sha256": "a6e0fa29af2ebe540f93966e451e870f7f782bfb412074cc977b85a32a425717",
+      "kind": "evidence"
+    },
+    {
+      "path": "app/data/surface-grid.mjs",
+      "bytes": 753,
+      "sha256": "6a361b97dfa110259621cc3a2caa613dc1dd9fea82514a3f8dc83e878c839b43",
+      "kind": "evidence"
+    },
+    {
+      "path": "app/data/icons.mjs",
+      "bytes": 3377,
+      "sha256": "e99f90e877024a78aba86a5d2ad8c4911d0a7330ff3ca1f74626e37c15e79901",
+      "kind": "evidence"
+    },
+    {
+      "path": "app/data/terrain-assets.mjs",
+      "bytes": 4458,
+      "sha256": "23778b4f3b7891189c6154df0c6660b7b258e0a3ef8d7cd2d6938bbcafc92db7",
+      "kind": "evidence"
+    },
+    {
+      "path": "app/data/skill-guide-rules.mjs",
+      "bytes": 484,
+      "sha256": "1a4492323fb0e58269b7e8e20e36c0a10725380a65d53b0017efad981fb0f49d",
+      "kind": "evidence"
+    },
+    {
+      "path": "app/data/training/banking-destinations.mjs",
+      "bytes": 2706,
+      "sha256": "bba73b061b670d4977c34786e0e729a5259c63c62e50f48e63ef7bff8bc329dc",
+      "kind": "evidence"
+    },
+    {
+      "path": "app/tasks/identity.mjs",
+      "bytes": 20913,
+      "sha256": "538b2e90ac1af4b4e6883221cae041d9ae71919d81e9a84479f4428dcde1bb5c",
+      "kind": "evidence"
+    },
+    {
+      "path": "app/core/game-progress.mjs",
+      "bytes": 5531,
+      "sha256": "14ca97e332fc1e74b5fd14f063b5edab7b2c302c3800c2a0e51c26f34fc5d355",
+      "kind": "evidence"
+    },
+    {
+      "path": "app/core/f2p-skill-caps.mjs",
+      "bytes": 229,
+      "sha256": "9988298b7b805f3a220e70eaa990ee61d8fc1a4fe416b0df534109d8ca5b5b82",
+      "kind": "evidence"
+    },
+    {
+      "path": "app/core/player-controls.mjs",
+      "bytes": 2886,
+      "sha256": "366f72ca97dcf43a44296b8d806d3f016a3267ae5c60b62ec84dc4fc6b33276b",
+      "kind": "evidence"
+    },
+    {
+      "path": "app/core/death-settings.mjs",
+      "bytes": 2587,
+      "sha256": "aab8664bfd6f40c0e03fa71d65cc71fee99869432d1e939676a15cf91b8117a1",
+      "kind": "evidence"
+    },
+    {
+      "path": "app/core/banking-settings.mjs",
+      "bytes": 287,
+      "sha256": "470e17446d4b3d01823bfb19eca99484177e70c515944426d7532900e590190e",
+      "kind": "evidence"
+    },
+    {
+      "path": "app/core/mining-settings.mjs",
+      "bytes": 439,
+      "sha256": "9358d2a0b5b98c2961f1e5465098de3963600e5579d54f7a3d71da2958defa74",
+      "kind": "evidence"
+    },
+    {
+      "path": "app/core/woodcutting-settings.mjs",
+      "bytes": 349,
+      "sha256": "a79b1caf5a327cd27213ca6d140cdb3cea83aa4541deed09132b3417c3dbde19",
+      "kind": "evidence"
+    },
+    {
+      "path": "app/training/mining-rules.mjs",
+      "bytes": 953,
+      "sha256": "01227032f9a04912e8509644c31ce044f911e875fbf5eb616864b8d0ea324f94",
+      "kind": "evidence"
+    },
+    {
+      "path": "app/training/woodcutting-rules.mjs",
+      "bytes": 1025,
+      "sha256": "bd4c98b42d4d5242185ddf669693e5517589167d8b12acb3237ce1a61fa73dde",
+      "kind": "evidence"
+    },
+    {
+      "path": "app/training/fishing-rules.mjs",
+      "bytes": 864,
+      "sha256": "359d5855cfc8bf8cf67d2b56bef4346d2aba00d2e2c05a174906d15846ab7406",
+      "kind": "evidence"
+    },
+    {
+      "path": "app/web/finish-line-model.mjs",
+      "bytes": 11968,
+      "sha256": "a6184525c0c82c10710012a6c41f3bf2065704a698547ffc5e6ec887037c4db7",
+      "kind": "evidence"
+    },
+    {
+      "path": "app/core/rules.mjs",
+      "bytes": 32150,
+      "sha256": "402f9120e69342a39a315dc2c578db7b800d40e67af7e57015d089cf29e7dd7d",
+      "kind": "evidence"
+    },
+    {
+      "path": "app/tasks/engine.mjs",
+      "bytes": 114095,
+      "sha256": "3d6e7e1d177b1bfa35c102911f119d1fe6af7d7e01dab758af41840a8a544a20",
+      "kind": "evidence"
+    },
+    {
+      "path": "app/tasks/processing.mjs",
+      "bytes": 10843,
+      "sha256": "1d509601d158348d8d526d6d8fd89bad15b1a90a6a50b7230a8c5cab47f4f073",
+      "kind": "evidence"
+    },
+    {
+      "path": "app/tasks/achievements.mjs",
+      "bytes": 1950,
+      "sha256": "80fd45af34b6684cd6b8b5e4c53c4b6a72b85a94a505db651cfd5f08d300ce2e",
+      "kind": "evidence"
+    },
+    {
+      "path": "app/web/rules-model.mjs",
+      "bytes": 12070,
+      "sha256": "34ff528cf8a7e1beeb9bfa23f8819ccb567032b4c6f5f6b32fbb8abc8be6e0c5",
+      "kind": "evidence"
+    }
+  ],
+  "excludedPatchTargets": [
+    "app/server.mjs",
+    "app/tasks/worker.mjs"
+  ]
+}

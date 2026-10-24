@@ -225,22 +225,24 @@ class Controls(unittest.TestCase):
         self.assertEqual(workflow.count('--stage public-image-pull'), 10)
         self.assertNotIn('cat "$RUNNER_TEMP/npm-setup.log"', workflow)
         self.assertNotIn('tail "$RUNNER_TEMP/image-pull.log"', workflow)
-    def test_targeted_r131_wave_retains_controls_and_disables_other_cases(self):
+    def test_five_case_recovery_retains_controls_and_disables_other_cases(self):
         workflow=workflow_path().read_text()
         jobtext=workflow.split('jobs:\n',1)[1]
         markers=list(re.finditer(r'^  ([a-z0-9-]+):\n',jobtext,re.M))
         blocks={match.group(1):jobtext[match.start():(markers[i+1].start() if i+1<len(markers) else len(jobtext))] for i,match in enumerate(markers)}
         self.assertEqual(len(blocks),10)
         self.assertIn("github.event.repository.private == false",blocks['controls'])
-        for key in ('r127-component','r124-engine','r130-codec','one-case','r125-focus','r111-scoped-soak','r134-engine-performance','r135-codec-http'):
+        for key in ('r127-component','r124-engine','r130-codec','r134-engine-performance'):
             self.assertIn('if: ${{ false }}',blocks[key])
-        for key in ('r131-native',):
+        for key in ('one-case','r125-focus','r111-scoped-soak','r135-codec-http','r131-native'):
             self.assertIn('needs: controls',blocks[key]);self.assertIn('if: ${{ success() }}',blocks[key])
         self.assertIn('--entrypoint docs/research/codex-cloud-assets/r131/entry.mjs --mode native --seconds 180 --arg=--expected-harness-manifest-sha --arg=fc3f39f0bb4765ec7074907fc69e8d25401d844e69d6377803cc74a0a342e8c4',blocks['r131-native'])
-        self.assertIn('--arg=--expected-harness-manifest-sha256 --arg=510aa8034635626b1c16e61a2108ef3a9f9dc056e3dc30913f92f842135dca37',blocks['r111-scoped-soak'])
+        self.assertIn('--arg=--expected-harness-manifest-sha256 --arg=2d6bbb25cac1673b296e03535b33cfd62e71187814974347e14b9cc561a2cc34',blocks['r111-scoped-soak'])
         self.assertIn('--entrypoint docs/research/codex-cloud-capture/run-frozen-browser.mjs',blocks['one-case'])
         self.assertIn('group: public-docker-envelope-${{ github.sha }}',workflow)
         self.assertIn('cancel-in-progress: false',workflow)
+        self.assertIn('test_case_closure.py',blocks['controls'])
+        self.assertLess(blocks['controls'].index('verify_case_closure.py'),blocks['controls'].index('for control in positive cpu memory missing-init; do'))
     def test_performance_wave_uses_exact_cli_budgets_and_host_acceptance(self):
         workflow=workflow_path().read_text()
         r134=workflow.split('  r134-engine-performance:\n',1)[1].split('  r135-codec-http:\n',1)[0]

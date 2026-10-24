@@ -77,7 +77,7 @@ try {
   const dataset = await resolveDataset({ root, datasetId: 'duo-legacy', packsDir: path.join(absent, 'packs'),
     selection: { schemaVersion: 1, data: null }, mapAssetsDir: path.join(absent, 'map'), gameDataDir: path.join(absent, 'game'),
     legacyMetadataFiles: {}, legacyMetadataMapAssetsDir: null });
-  if (root.endsWith('/A')) assert.equal(dataset.digest,'3cbb39538d6d5c50cc04308a709771af2fbf23bd0da56499e076645b2be9a5c9');
+  assert.equal(dataset.digest,'3cbb39538d6d5c50cc04308a709771af2fbf23bd0da56499e076645b2be9a5c9','A and exact R49 C preserve all94 provider records');
   assert.equal(dataset.files.length, 94, 'public manifest input count');
   report.provider = { status: dataset.status(), capabilities: dataset.capabilities, files: dataset.files };
   await milestone('public-provider-verified');

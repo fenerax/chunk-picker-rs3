@@ -8,7 +8,7 @@ import unittest
 from accept_scoped_session import scoped_observed
 
 SOURCE = '6f22fefa782747790e2eaefa01e4e5ea7b557323'
-HARNESS = '510aa8034635626b1c16e61a2108ef3a9f9dc056e3dc30913f92f842135dca37'
+HARNESS = '2d6bbb25cac1673b296e03535b33cfd62e71187814974347e14b9cc561a2cc34'
 FIXTURE = 'a672a1f9b5de6a699a18c26c5fad6fe477a5e37d05c75f115f425a8a3f789b09'
 NODE = 'b'*64
 GATES = ['fault-recovery','latest-generation','physical-paint','independent-engine-correctness',

@@ -252,20 +252,30 @@ export async function runDriver(argv = process.argv.slice(2)) {
     criticalFiles: actualCriticalFiles, criticalVerification: 'child-read-and-sha256',
     completeManifestVerification: 'controller-owned-read-only-source-mount' };
   let early, app, witness, closePending, starting, readyOwner, closing = false, stopReceiptSent = false;
+  // Fixed progress vocabulary only; a disconnected parent cannot prevent cleanup.
+  const closeProgress = phase => { void send({ type: 'close-progress', phase }).catch(() => {}); };
   const stop = () => closePending ??= (async () => {
     closing = true;
+    closeProgress('ownership-before');
     const ownershipBeforeClose = app ? await readOwner(storeDirectory) : null;
     const ownershipStable = Boolean(app && ownershipBeforeClose.sameProcess
       && ownershipBeforeClose.ownerRecordSha256 === readyOwner?.ownerRecordSha256);
     // Early.close owns cancellation if app has not become ready; normal app.close
     // is used when ready and waits for the normal store and sidecar lifecycle.
+    closeProgress('application-close');
     if (app) await app.close(); else if (early) await early.close();
+    closeProgress('startup-drain');
     await starting?.catch(() => {});
+    closeProgress('witness-finalize');
     const frozen = witness?.finalize() ?? null;
+    closeProgress('ownership-after');
     const ownershipAfterClose = await readOwner(storeDirectory);
     if (ownershipAfterClose.present) fail('STORE_OWNER_LOCK_REMAINS_AFTER_CLOSE');
+    closeProgress('closed-state-read');
+    const stateFile = digestBytes(await readFile(path.join(storeDirectory, 'state.json')));
+    closeProgress('complete');
     return { closeCompleted: true, ownershipStable, ownershipBeforeClose, ownershipAfterClose, ...frozen,
-      closedStore: { path: storeDirectory, stateFile: digestBytes(await readFile(path.join(storeDirectory, 'state.json'))) } };
+      closedStore: { path: storeDirectory, stateFile } };
   })();
   let commands = Promise.resolve();
   const execute = async message => {

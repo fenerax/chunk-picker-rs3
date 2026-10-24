@@ -1,19 +1,38 @@
 // Closed error evidence only. Import-safe; no app/provider/browser imports.
 import crypto from 'node:crypto';
-export const OPERATIONS=Object.freeze(['entry-start','runtime-identity','source-lock','harness-lock','policy','dependencies','browser-path','session-start','read-result','read-evidence','session-setup','server-launch','rtt-direct','rtt-proxy','invites','initial-catalogue','overlay-create','browser-launch','browser-version','browser-contexts','network-setup','page-navigation','overlay-ready','visible-catalogue','initial-state','rtt-browser','initial-validation','controller-start','sample','journey','finalization','cleanup','unknown']);
+export const OPERATIONS=Object.freeze(['entry-start','runtime-identity','source-lock','harness-lock','policy','dependencies','browser-path','session-start','read-result','read-evidence','session-setup','server-launch','rtt-direct','rtt-proxy','invites','initial-catalogue','overlay-create','browser-launch','browser-version','browser-contexts','network-setup','page-navigation','overlay-ready','visible-catalogue','initial-state','rtt-browser','initial-validation','controller-start','sample','journey','finalization','cleanup','server-parse-args','server-environment','server-fixture','server-provider-import','server-provider-admit','server-module-import','server-state-import','server-fixture-state','server-start-handle','server-ready','server-address','server-snapshot','server-metrics','server-restart','server-close','unknown']);
 export const ERROR_NAMES=Object.freeze(['Error','AssertionError','TypeError','RangeError','SyntaxError','TimeoutError','unknown']);
 export const ERROR_CODES=Object.freeze(['none','other','ERR_ASSERTION','ENOENT','EACCES','EPERM','EPIPE','ECONNRESET','ECONNREFUSED','ERR_MODULE_NOT_FOUND','ERR_IPC_CHANNEL_CLOSED','ETIMEDOUT','ENOTFOUND']);
 const digest=x=>crypto.createHash('sha256').update(x).digest('hex');
+
+export const PUBLIC_SOURCE_LIMITS=Object.freeze({"app/core/state.mjs":2258,"app/server.mjs":2360,"app/datasets.mjs":410,"app/dataset-runtime.mjs":119,"app/storage/store.mjs":1302,"app/game-defaults.mjs":10,"app/legacy-game-defaults.mjs":61,"docs/research/codex-cloud-assets/r111/candidate/harness/server.mjs":58});
+export function publicSourceFrame(stack){
+ if(typeof stack!=='string')return{};
+ for(const line of stack.slice(0,65536).split('\n').slice(1,33)){
+  const match=line.match(/^\s+at (?:[^()\r\n]{1,160} \()?(?:file:\/\/)?\/(source|harness)\/([A-Za-z0-9_./-]+\.mjs):(\d{1,6}):(\d{1,6})\)?$/);
+  if(!match)continue;const module=match[2],lineNumber=Number(match[3]),column=Number(match[4]);
+  if(!Object.hasOwn(PUBLIC_SOURCE_LIMITS,module)||lineNumber<1||lineNumber>PUBLIC_SOURCE_LIMITS[module]||column<1||column>100000)continue;
+  if(match[1]==='source'&&!module.startsWith('app/'))continue;
+  if(match[1]==='harness'&&!module.startsWith('docs/research/codex-cloud-assets/r111/'))continue;
+  return{r111SourceModule:module,r111SourceLine:lineNumber,r111SourceColumn:column};
+ }return{};
+}
+export function forwardedDiagnostic(error,operation){
+ const original=projectDiagnostic(error?.r111BootstrapDiagnostic);
+ return ['r111Operation','r111ErrorName','r111ErrorCode'].every(key=>Object.hasOwn(original,key))?original:captureDiagnostic(error,operation);
+}
+
 export function captureDiagnostic(error,operation){
  let name,code,stack;try{name=error?.name;code=error?.code;stack=error?.stack;}catch{}
  const value={r111Operation:OPERATIONS.includes(operation)?operation:'unknown',r111ErrorName:ERROR_NAMES.includes(name)?name:'unknown',r111ErrorCode:code==null?'none':ERROR_CODES.includes(code)?code:'other'};
  if(typeof stack==='string')value.r111ErrorStackSha256=digest(stack.slice(0,65536));
- return value;
+ return{...value,...publicSourceFrame(stack)};
 }
 export function projectDiagnostic(value){
  if(!value||typeof value!=='object'||Array.isArray(value))return{};
  const out={};for(const [key,values]of [['r111Operation',OPERATIONS],['r111ErrorName',ERROR_NAMES],['r111ErrorCode',ERROR_CODES]])if(values.includes(value[key]))out[key]=value[key];
  if(typeof value.r111ErrorStackSha256==='string'&&/^[a-f0-9]{64}$/.test(value.r111ErrorStackSha256))out.r111ErrorStackSha256=value.r111ErrorStackSha256;
+ if(Object.hasOwn(PUBLIC_SOURCE_LIMITS,value.r111SourceModule)&&Number.isSafeInteger(value.r111SourceLine)&&value.r111SourceLine>=1&&value.r111SourceLine<=PUBLIC_SOURCE_LIMITS[value.r111SourceModule]&&Number.isSafeInteger(value.r111SourceColumn)&&value.r111SourceColumn>=1&&value.r111SourceColumn<=100000){out.r111SourceModule=value.r111SourceModule;out.r111SourceLine=value.r111SourceLine;out.r111SourceColumn=value.r111SourceColumn;}
  return out;
 }
 export function evidenceFailureCode(outcome,error){
@@ -22,6 +41,6 @@ export function evidenceFailureCode(outcome,error){
  return 'r111-result-malformed';
 }
 export function verifyDiagnosticPolicy(policy){
- const expected={r111Operation:OPERATIONS,r111ErrorName:ERROR_NAMES,r111ErrorCode:ERROR_CODES};
- if(!Object.entries(expected).every(([key,values])=>values.every(value=>policy?.enums?.[key]?.includes(value)))||!['r111ErrorStackSha256','r111ChildStdoutSha256','r111ChildStderrSha256'].every(key=>policy.hashKeys?.includes(key))||!['r111ChildStdoutBytes','r111ChildStderrBytes'].every(key=>policy.metricKeys?.includes(key)))throw Error('r111-runtime-identity');
+ const expected={r111Operation:OPERATIONS,r111ErrorName:ERROR_NAMES,r111ErrorCode:ERROR_CODES,r111SourceModule:Object.keys(PUBLIC_SOURCE_LIMITS)};
+ if(!Object.entries(expected).every(([key,values])=>values.every(value=>policy?.enums?.[key]?.includes(value)))||!['r111ErrorStackSha256','r111ChildStdoutSha256','r111ChildStderrSha256'].every(key=>policy.hashKeys?.includes(key))||!['r111ChildStdoutBytes','r111ChildStderrBytes','r111SourceLine','r111SourceColumn'].every(key=>policy.metricKeys?.includes(key)))throw Error('r111-runtime-identity');
 }

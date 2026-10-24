@@ -40,7 +40,7 @@ async function one(cell){
  }
  operationCode='r135-child-report-read';const raw=JSON.parse(await readFile(output+'/report.json','utf8'));assert.equal(raw.status,'FEASIBLE-HTTP-ONLY');
  assert.ok(raw.milestones.some(x=>x.name==='normal-close-complete'));
- operationCode='r135-provider-validation';checkProvider(raw.provider.files,reference?.provider.files,cell.arm);
+ operationCode='r135-provider-validation';checkProvider(raw.provider.files,reference?.provider.files,cell.arm,raw.provider.status.digest,evidence=>Object.assign(summary,evidence));
  if(!reference)reference=raw;
  operationCode='r135-first-body-read';const body=JSON.parse(await readFile(output+'/first-planning.json','utf8')),rows=JSON.stringify(body.rows);
  operationCode='r135-row-validation';

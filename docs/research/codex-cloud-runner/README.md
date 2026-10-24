@@ -1,6 +1,16 @@
 # Prepared public Docker measurement envelope
 
-## Next six independent cases
+## Five-case recovery from published6e5
+
+This separate derivative enables only changed R111 bootstrap V3, R116 close V4, R125 native-evidence V4, R131 after the closure-parser fix, and R135 provider-identity V3. R134 completed48 correct observations and its screen was PARKED; it is disabled, as are R124/R130/R127. No unchanged case is retried. All five recovery variants remain runtime UNRUN and all product gates stay OPEN.
+
+The previous R131-only run40052951046 failed the host closure check before any native case ran: raw CRLF workflow bytes produced no job markers in the LF-only parser. Marker parsing now accepts LF and CRLF. Bounded binary reads preserve exact bytes on Windows source controls as well as Linux runners. Controls invoke the actual CLI using the immutable592-CRLF published workflow and all15 real R131 assets, plus LF/CRLF CLI checks over all five full runtime closures. The canonical public checkout layout is used, with no sibling-workflow shortcut. Failure output retains only fixed phase, known job and numeric member ordinal.
+
+Each active case has an explicit public package prefix and authenticated full runtime map: R11117, R11612, R12524, R13115 and R13511 files. The preflight verifies all79 file byte counts/hashes, the exact inner manifest and every declared member before Docker controls. R111's source-slice manifest and ledger are correctly covered outside the nested entry directory. Delta-only asset lists are not treated as full dependency closure.
+
+R111's source-proven fixture error replaced the valid tasks array with an absent defaults field; the corrected fixture preserves the original acceptance criteria. R135 now requires the exact same94 provider records and fingerprint in both arms because both R49 changed source files are outside that record catalogue; no differing fingerprint is normalized. R116 preserves a canonical first close promise/receipt and retains closed close diagnostics; the initiating earlier close failure remains unknown. R125 adds closed native failure observations before the unchanged strict parse. Existing source, body, native, cleanup, cadence and timing criteria remain intact. The outer limits remain2000/540/215/180/1200 seconds respectively, with2 CPU/6GiB, no swap and all existing isolation controls.
+
+## Prior six-case source preparation (published670aa)
 
 The next workflow enables `r134-engine-performance`, `r135-codec-http`, and the changed R116 V3, R125 V3, R131 diagnostic V2 and R111 diagnostic V2 cases. Each runs on its own VM after all four resource controls repeat. R124, R130 and R127 stay disabled. The prior four-case run40051110527 at55a1cf65402458531dbb9dde02c60ff368cd3a18 passed controls and all four cases failed, as reported by root; those failures remain separate evidence. The four changed derivatives preserve their existing correctness and measurement criteria. R111 still requires all 54 journeys, at least 110 distinct 15s observation buckets, a 45s maximum gap and the full 30min duration; full acceptance remains false and all product gates remain OPEN.
 

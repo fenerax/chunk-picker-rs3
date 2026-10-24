@@ -4,6 +4,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { pickWitness } from './tests/task-focus-native.observers.mjs';
 import { projectDiagnostic } from './focus-diagnostics.mjs';
+import { projectNativeDiagnostic } from './focus-native-evidence.mjs';
 export const PROTOCOL = 'docker-hard-2cpu-6g-v1';
 export const PIN = '6f22fefa782747790e2eaefa01e4e5ea7b557323';
 export const IMAGE = 'mcr.microsoft.com/playwright:v1.62.1-noble@sha256:c091b21d9fae78c76e85cd4356431e9b018402f172a214fc7d7a5e9a7e29d8ac';
@@ -108,7 +109,7 @@ export function nativeEnvironment(env, workspace) {
     RS3_DATASET: 'duo-legacy', RS3_TASK_WORKER_MODE: 'process', NODE_DISABLE_COLORS: '1' };
 }
 export function nativeArguments() {
-  return ['--max-old-space-size=768', '--test-reporter=spec', '--test-name-pattern=^' + CASE + '$', 'tests/task-focus-native.test.mjs'];
+  return ['--max-old-space-size=768', '--test-reporter=spec', '--test-name-pattern=^' + CASE + '$', 'tests/task-focus-native-v4.test.mjs'];
 }
 
 export function parseNativeEvidence(raw, code, signal = null) {
@@ -190,7 +191,8 @@ export function publicResult(value) {
   for (const name of booleans) out[name] = value[name] === true;
   for (const name of ['finalProofSha256', 'observedBodySha256']) if (/^[a-f0-9]{64}$/.test(value[name] ?? '')) out[name] = value[name];
   const diagnostic = projectDiagnostic(value); Object.assign(out, diagnostic);
-  out.metrics = { ...diagnostic.metrics, ...Object.fromEntries(['focusNamedPassCount', 'focusCommandCount', 'focusHistoryCount'].filter(name => Number.isSafeInteger(value.metrics?.[name]) && value.metrics[name] >= 0 && value.metrics[name] <= 2).map(name => [name, value.metrics[name]])) };
+  const nativeDiagnostic = projectNativeDiagnostic(value); Object.assign(out, nativeDiagnostic);
+  out.metrics = { ...diagnostic.metrics, ...nativeDiagnostic.metrics, ...Object.fromEntries(['focusNamedPassCount', 'focusCommandCount', 'focusHistoryCount'].filter(name => Number.isSafeInteger(value.metrics?.[name]) && value.metrics[name] >= 0 && value.metrics[name] <= 2).map(name => [name, value.metrics[name]])) };
   if (!booleans.every(name => out[name]) || out.status !== 'correct' || out.code !== 'r125-focus-correct'
     || out.metrics.focusNamedPassCount !== 1 || out.metrics.focusCommandCount !== 2 || out.metrics.focusHistoryCount !== 2
     || !/^[a-f0-9]{64}$/.test(out.finalProofSha256 ?? '') || !/^[a-f0-9]{64}$/.test(out.observedBodySha256 ?? '')) { out.passed = false; out.status = 'failed'; }

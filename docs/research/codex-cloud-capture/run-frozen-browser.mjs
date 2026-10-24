@@ -14,6 +14,7 @@ import {auditFrozenPlanning,OPEN_GATES} from './frozen-oracle.mjs';
 import {initialExpectations,auditOpeningProjection} from './opening-oracle.mjs';
 import {createFailureTracker} from './failure-diagnostics.mjs';
 import {selectedTasksSectionReady} from './tasks-section-readiness.mjs';
+import {createChildCloser,CLOSE_DRIVER_STAGES,applyCleanupFailure} from './child-close-diagnostics.mjs';
 
 const HERE=path.dirname(fileURLToPath(import.meta.url));
 const now=()=>performance.now();
@@ -145,7 +146,7 @@ function childHandle(args,onCheckpoint){
   const child=fork(path.join(HERE,'server-driver.mjs'),args,{stdio:['ignore','ignore','pipe','ipc'],
     env:environment,execArgv:['--max-old-space-size=2048']});
   child.stderr.resume();
-  const pending=new Map();let nextId=0,ready,joinUrl,origin,exit,stopped,failure;
+  const pending=new Map();let nextId=0,ready,joinUrl,origin,exit,stopped,failure,stoppedCount=0,closeStage='unobserved';
   child.on('message',message=>{
     if(message.type==='checkpoint')onCheckpoint(message.phase??message.stage);
     if(message.type==='commit')onCheckpoint('store-commit-observed',{revision:message.entry?.revision??null,
@@ -153,23 +154,23 @@ function childHandle(args,onCheckpoint){
     if(message.type==='early')origin=message.origin;
     if(message.type==='ready'){ready=message;origin=message.origin??origin;}
     if(message.type==='private-invite')joinUrl=message.joinUrl;
+    if(message.type==='close-progress'&&CLOSE_DRIVER_STAGES.includes(message.phase))closeStage=message.phase;
     if(message.type==='reply'||message.type==='stopped'){
       const item=pending.get(message.id);if(item){pending.delete(message.id);message.ok===false?item.reject(Error(message.error?.code??message.code??'CHILD_RPC_FAILED')):item.resolve(message.result??message);}
     }
     if(['error','startup-failed','driver-failed','command-failed'].includes(message.type)){failure=message.error?.code??message.code??'CHILD_FAILED';for(const item of pending.values())item.reject(Error(failure));pending.clear();}
-    if(message.type==='stopped')stopped=message;
+    if(message.type==='stopped'){stopped=message;stoppedCount++;}
   });
   const exitPromise=new Promise(resolve=>child.once('exit',(code,signal)=>{exit={code,signal};for(const item of pending.values())item.reject(Error('CHILD_EXITED'));pending.clear();resolve(exit);}));
   child.once('error',()=>{exit={code:null,signal:null,error:'spawn-failed'};});
-  return {child,get ready(){return ready;},get origin(){return origin;},get joinUrl(){return joinUrl;},get exit(){return exit;},get stopped(){return stopped;},
+  let handle;
+  const closer=createChildCloser({getExit:()=>exit,getStopped:()=>stopped,getStoppedCount:()=>stoppedCount,getPendingCount:()=>pending.size,
+    getDriverStage:()=>closeStage,stop:()=>handle.rpc('stop',{},15000),waitExit:exitPromise,kill:signal=>child.kill(signal)});
+  return handle={child,get ready(){return ready;},get origin(){return origin;},get joinUrl(){return joinUrl;},get exit(){return exit;},get stopped(){return stopped;},
+    closeDiagnostic:()=>closer.diagnostic(),recordCloseWitness:code=>closer.witness(code),
     async waitReady(){await until(()=>{if(failure)throw Error(failure);if(exit)throw Error('CHILD_STARTUP_EXIT');return ready&&joinUrl&&origin;},90000,'CHILD_READY_TIMEOUT');return ready;},
     rpc(command,extra={},ms=15000){const id=++nextId;return bounded(new Promise((resolve,reject)=>{pending.set(id,{resolve,reject});child.send({id,command,...extra},error=>{if(error){pending.delete(id);reject(Error('CHILD_IPC_SEND_FAILED'));}});}),ms,'CHILD_RPC_TIMEOUT');},
-    async close(){
-      let result=null,graceful=true;
-      if(!exit){try{result=await this.rpc('stop',{},15000);}catch{graceful=false;}}
-      if(!exit){try{await bounded(exitPromise,2000,'CHILD_CLOSE_TIMEOUT');}catch{graceful=false;child.kill('SIGKILL');await bounded(exitPromise,3000,'CHILD_KILL_TIMEOUT');}}
-      return {graceful,exit,final:result??stopped};
-    }};
+    close:()=>closer.close()};
 }
 function datasetFrom(ready){const value=ready.identity?.dataset??ready.dataset??ready.identity??{};return {id:value.datasetId??value.id??'duo-legacy',digest:value.digest??ready.identity?.datasetDigest??ready.datasetDigest};}
 function snapshotFrom(reply){return reply.snapshot??reply;}
@@ -333,6 +334,7 @@ export async function main(argv=process.argv.slice(2),tracker=createFailureTrack
     emit('reference-result',{referenceBodySha256:reference.bodySha256,calculatorBytesSha256:identity.calculatorBytesSha256,totalRows:refBody.rows.length});
     referenceClosed=await at('reference-child-close',()=>referenceChild.close());check();
     const referenceClosure=validateClosedWitness(referenceClosed.final,referenceToken,reference.calculatorBytesSha256,fullStateHash(referenceBefore));
+    referenceChild.recordCloseWitness(referenceClosure.code);result.referenceCloseDiagnostic=referenceChild.closeDiagnostic();
     await at('reference-child-close',()=>{if(!referenceClosed.graceful||referenceClosed.exit?.code!==0||!referenceClosure.valid)throw Error('REFERENCE_CLOSE_INCOMPLETE');});
     referenceChild=null;
     emit('reference-close');
@@ -485,28 +487,31 @@ export async function main(argv=process.argv.slice(2),tracker=createFailureTrack
   }
   finally{
     emit('cleanup-start');let clean=true;
-    const cleanupFailed=error=>{clean=false;if(!result.failureOperation)Object.assign(result,tracker.diagnostic(error));};
+    const cleanupFailed=error=>{clean=false;if(!result.failureOperation){Object.assign(result,tracker.diagnostic(error));result.code=codeOf(error);}};
     try{await tracker.at('controller-cleanup',async()=>{if(referenceLaunching&&!referenceBrowser)referenceBrowser=await bounded(referenceLaunching,35000,'REFERENCE_BROWSER_LAUNCH_DRAIN_TIMEOUT');
       await bounded(referenceBrowser?.close()??Promise.resolve(),15000,'REFERENCE_BROWSER_CLOSE_TIMEOUT');});}catch(error){cleanupFailed(error);}
     try{await tracker.at('controller-cleanup',async()=>{if(launching&&!browser)browser=await bounded(launching,35000,'BROWSER_LAUNCH_DRAIN_TIMEOUT');await bounded(browser?.close()??Promise.resolve(),15000,'BROWSER_CLOSE_TIMEOUT');});}catch(error){cleanupFailed(error);}
     try{await tracker.at('controller-cleanup',()=>relay?.close());}catch(error){cleanupFailed(error);}
     try{await tracker.at('controller-cleanup',async()=>{if(referenceChild){referenceClosed=await referenceChild.close();if(!referenceClosed.graceful||referenceClosed.exit?.code!==0||referenceClosed.final?.closeCompleted!==true)clean=false;}});}catch(error){cleanupFailed(error);}
     try{await tracker.at('controller-cleanup',async()=>{if(measuredChild){measuredClosed=await measuredChild.close();if(!measuredClosed.graceful||measuredClosed.exit?.code!==0||measuredClosed.final?.closeCompleted!==true)clean=false;}});}catch(error){cleanupFailed(error);}
+    if(referenceChild)result.referenceCloseDiagnostic=referenceChild.closeDiagnostic();
+    if(measuredChild)result.measuredCloseDiagnostic=measuredChild.closeDiagnostic();
     // Stop/drain is part of the witness: a delayed store commit cannot be ignored.
     if(inputWitness){
       const closure=validateClosedWitness(measuredClosed?.final,measuredToken,inputWitness.calculatorBytesSha256,inputWitness.snapshots[0].fullStateSha256);
-      if(!closure.valid){result.status='blocked';result.code=closure.code;result.frozenStatus='blocked';result.frozenCode=closure.code;
+      measuredChild?.recordCloseWitness(closure.code);if(measuredChild)result.measuredCloseDiagnostic=measuredChild.closeDiagnostic();
+      if(!closure.valid){result.status='blocked';if(!result.failureOperation)result.code=closure.code;result.frozenStatus='blocked';result.frozenCode=closure.code;
         if(result.openingStatus!=='unrun'){result.openingStatus='blocked';result.openingCode=closure.code;}}
     }
     result.cleanupStatus=clean?'complete':'incomplete';
-    if(!clean){result.status='failed';result.code='cleanup-incomplete';}
+    if(!clean)applyCleanupFailure(result);
     const finalProof={schema:'r116-final-input-proof-v1',sourceManifestSha256:result.sourceManifestSha256,fixtureSha256:result.fixtureSha256,
       datasetDigest:result.datasetDigest,calculatorBytesSha256:result.calculatorBytesSha256,
       reference:publicCloseProof(referenceClosed),measured:publicCloseProof(measuredClosed)};
     const finalProofText=JSON.stringify(finalProof,null,2)+'\n';result.finalProofSha256=sha(finalProofText);
     await tracker.at('final-proof-write',()=>fs.writeFile(path.join(options.scratch,'r116-final-proof.json'),finalProofText));
     // Never publish or retain authored stores, invite/cookie material or private keys.
-    if(clean){try{await tracker.at('scratch-cleanup',async()=>{ownedPath(options.scratch,owned);await fs.rm(owned,{recursive:true,force:true});});}catch(error){if(!result.failureOperation)Object.assign(result,tracker.diagnostic(error));result.cleanupStatus='incomplete';result.status='failed';result.code='scratch-cleanup-incomplete';}}
+    if(clean){try{await tracker.at('scratch-cleanup',async()=>{ownedPath(options.scratch,owned);await fs.rm(owned,{recursive:true,force:true});});}catch(error){if(!result.failureOperation){Object.assign(result,tracker.diagnostic(error));result.code='scratch-cleanup-incomplete';}result.cleanupStatus='incomplete';result.status='failed';}}
     clearTimeout(deadlineTimer);process.removeListener('SIGTERM',signal);process.removeListener('SIGINT',signal);
     emit('cleanup-end',{cleanupStatus:result.cleanupStatus});await tracker.at('result-write',()=>fs.writeFile(options.out,JSON.stringify(result,null,2)+'\n'));
     emit('result',{status:result.status,code:result.code});emit.close();

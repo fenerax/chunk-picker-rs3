@@ -80,7 +80,7 @@ jobs:
             python3 -B setup_diagnostics.py --stage pure-controls --exit-code "$pure_status" --log "$RUNNER_TEMP/performance-pure-controls.log"
             exit "$pure_status"
           fi
-          printf '{"stage":"pure-controls","passed":true,"count":131}\n'
+          printf '{"stage":"pure-controls","passed":true,"count":137}\n'
       - name: Positive, CPU, memory, and missing-init remote controls
         shell: bash
         run: |
@@ -96,7 +96,7 @@ jobs:
     needs: controls
     # Root-authorized next wave; runs only after all four remote Docker controls PASS.
     # Publish the reviewed packet and shared result-policy union before this workflow.
-    if: ${{ false }}
+    if: ${{ success() }}
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
@@ -262,7 +262,7 @@ jobs:
     needs: controls
     # Root-authorized next wave; runs only after all four remote Docker controls PASS.
     # Publish the reviewed packet and shared result-policy union before this workflow.
-    if: ${{ false }}
+    if: ${{ success() }}
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
@@ -427,7 +427,7 @@ jobs:
     needs: controls
     # Root-authorized next wave; runs only after all four remote Docker controls PASS.
     # Publish the reviewed packet and shared result-policy union before this workflow.
-    if: ${{ false }}
+    if: ${{ success() }}
     runs-on: ubuntu-24.04
     timeout-minutes: 40
     steps:
@@ -475,7 +475,7 @@ jobs:
         run: |
           set -euo pipefail
           tool="$GITHUB_WORKSPACE/inputs/assets/docs/research/codex-cloud-runner"
-          python3 -B "$tool/docker_envelope.py" --execute --remote-only-ack remote-disposable-public --source "$RUNNER_TEMP/public-source" --harness "$RUNNER_TEMP/public-harness" --harness-commit "$GITHUB_SHA" --deps "$RUNNER_TEMP/deps" --node "$RUNNER_TEMP/runtime/node" --output "$RUNNER_TEMP/r111-scoped-soak" --entrypoint docs/research/codex-cloud-assets/r111/candidate/harness/run-container-session.mjs --mode soak --seconds 2000 --arg=--go --arg=R111-container-v3 --arg=--source-lock --arg=/scratch/source-lock.json --arg=--expected-harness-manifest-sha256 --arg=510aa8034635626b1c16e61a2108ef3a9f9dc056e3dc30913f92f842135dca37 --arg=--expected-node-sha256 --arg=bc17c508ffeed0ec622934f9b7fa72f8e78da65350e63c3eceb56fa688aa5e12 --arg=--outer-seconds --arg=2000 --arg=--expected-chromium --arg=151.0.7922.34
+          python3 -B "$tool/docker_envelope.py" --execute --remote-only-ack remote-disposable-public --source "$RUNNER_TEMP/public-source" --harness "$RUNNER_TEMP/public-harness" --harness-commit "$GITHUB_SHA" --deps "$RUNNER_TEMP/deps" --node "$RUNNER_TEMP/runtime/node" --output "$RUNNER_TEMP/r111-scoped-soak" --entrypoint docs/research/codex-cloud-assets/r111/candidate/harness/run-container-session.mjs --mode soak --seconds 2000 --arg=--go --arg=R111-container-v3 --arg=--source-lock --arg=/scratch/source-lock.json --arg=--expected-harness-manifest-sha256 --arg=2d6bbb25cac1673b296e03535b33cfd62e71187814974347e14b9cc561a2cc34 --arg=--expected-node-sha256 --arg=bc17c508ffeed0ec622934f9b7fa72f8e78da65350e63c3eceb56fa688aa5e12 --arg=--outer-seconds --arg=2000 --arg=--expected-chromium --arg=151.0.7922.34
           python3 -B "$tool/accept_scoped_session.py" --final "$RUNNER_TEMP/r111-scoped-soak/final.json" --source-lock "$RUNNER_TEMP/r111-scoped-soak/scratch/source-lock.json"
 
   r134-engine-performance:
@@ -538,7 +538,7 @@ jobs:
     needs: controls
     # Root-authorized next wave; runs only after all four remote Docker controls PASS.
     # Publish the reviewed packet and shared result-policy union before this workflow.
-    if: ${{ false }}
+    if: ${{ success() }}
     runs-on: ubuntu-24.04
     timeout-minutes: 25
     steps:
