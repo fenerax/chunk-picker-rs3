@@ -11,6 +11,24 @@ function Write-CoreWatchLog($Context, [string]$Message) {
     Add-Content -LiteralPath $path -Value "$([DateTime]::Now.ToString('s')) $Message"
 }
 
+function Get-CoreWatchRefusalReason($ErrorRecord) {
+    # Name a refusal only by a fixed `throw '...'` sentence from the operator's
+    # own scripts. Any other exception text can carry paths, URLs or tokens.
+    $message = $ErrorRecord.Exception.Message
+    if ($message) {
+        foreach ($name in 'Operator-Common.ps1', 'ReleaseV2-Common.ps1', 'Watchdog-Common.ps1') {
+            $path = Join-Path $PSScriptRoot $name
+            if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { continue }
+            $ast = [Management.Automation.Language.Parser]::ParseFile($path, [ref]$null, [ref]$null)
+            foreach ($node in $ast.FindAll({ param($n) $n -is [Management.Automation.Language.ThrowStatementAst] }, $true)) {
+                $value = if ($null -ne $node.Pipeline) { $node.Pipeline.GetPureExpression() } else { $null }
+                if ($value -is [Management.Automation.Language.StringConstantExpressionAst] -and $value.Value -ceq $message) { return "Reason: $message" }
+            }
+        }
+    }
+    return 'Reason: an unexpected error (details withheld).'
+}
+
 function Test-CoreWatchPaused($Context) { return Test-Path -LiteralPath (Join-Path $Context.localDir 'picker-paused') }
 
 function Test-CoreWatchReleaseBuild($Context) {
@@ -160,6 +178,7 @@ function Invoke-CoreWatchTick([string]$Config, [string]$ConfigSha256,
     # waits for any in-flight health/recovery operation to finish.
     try { $tickLock = [IO.File]::Open((Join-Path $context.localDir 'watchdog-tick.lock'), [IO.FileMode]::OpenOrCreate, [IO.FileAccess]::ReadWrite, [IO.FileShare]::None) }
     catch { return }
+    $step = 'checking the live release'
     try {
         if ($null -ne $reference) {
             # Resolve again under the same lock used for the entire managed
@@ -178,15 +197,26 @@ function Invoke-CoreWatchTick([string]$Config, [string]$ConfigSha256,
             Invoke-CoreWatchHelper $context 'Start' $Config $ConfigSha256
             return
         }
+        $step = 'reading the runtime record'
         $record = Read-OperatorJson $context.runtimeFile
-        if ($record.state -notin @('running', 'starting')) { throw 'Runtime is stopping or unknown.' }
+        if ($record.state -notin @('running', 'starting', 'stopping')) { throw 'Runtime record state is unknown.' }
+        $step = 'checking the recorded writer'
+        # Throws on a reused PID, a changed start time or command; null only when
+        # no process holds the PID or the record predates the last boot.
         $process = Get-OperatorOwnedProcess $context $record
+        # A Stop that timed out leaves its record at stopping. The writer can
+        # still take the shutdown later and exit; until it has, nothing moves.
+        if ($record.state -eq 'stopping' -and $process) { throw 'The recorded writer is still stopping.' }
         if (-not $process) {
+            $step = 'replacing the exited writer'
             Assert-CoreWatchUnoccupied $context $record
+            if ($record.state -eq 'stopping') { Write-CoreWatchLog $context 'The recorded writer exited after a Stop that did not finish; clearing its stopping record through managed Stop and starting the picker.' }
+            else { Write-CoreWatchLog $context 'The recorded writer exited; clearing its record through managed Stop and starting the picker.' }
             Invoke-CoreWatchHelper $context 'Stop' $Config $ConfigSha256
             if (-not (Test-CoreWatchPaused $context)) { Invoke-CoreWatchHelper $context 'Start' $Config $ConfigSha256 }
             return
         }
+        $step = 'checking health'
         $health = $null
         for ($attempt = 1; $attempt -le 3; $attempt++) {
             if (Test-CoreWatchPaused $context) { return }
@@ -201,11 +231,13 @@ function Invoke-CoreWatchTick([string]$Config, [string]$ConfigSha256,
         if (-not $health) {
             # New managed launches retain the previous five-minute startup grace.
             if ($record.state -eq 'starting' -and ([DateTime]::UtcNow - [DateTime]::Parse($record.processStartedAt).ToUniversalTime()).TotalSeconds -lt 300) { return }
+            $step = 'restarting the unhealthy writer'
             Restart-CoreWatchWriter $context $record $Config $ConfigSha256
             return
         }
         if (-not $health.worker.stuck -and -not $health.worker.restartRequired) { return }
         if (Test-CoreWatchPaused $context) { return }
+        $step = 'recovering the task worker'
         Write-CoreWatchLog $context 'Task worker needs recovery; requesting worker replacement.'
         try { $null = Invoke-CoreWatchRequest $context $record 'worker-restart' 'Post' }
         catch { Assert-CoreWatchOwnership $context $record; Write-CoreWatchLog $context 'Worker replacement request was unavailable; checking health before fallback.' }
@@ -220,7 +252,8 @@ function Invoke-CoreWatchTick([string]$Config, [string]$ConfigSha256,
             if ($recovered) { Write-CoreWatchLog $context 'Task worker recovered; picker and saves remained running.'; return }
             Start-Sleep -Milliseconds 500
         } while ([DateTime]::UtcNow -lt $until)
+        $step = 'restarting the writer after worker recovery'
         Restart-CoreWatchWriter $context $record $Config $ConfigSha256
-    } catch { Write-CoreWatchLog $context 'Watchdog refused recovery; inspect exact runtime ownership, listeners and pinned inputs.' }
+    } catch { Write-CoreWatchLog $context ("Watchdog refused recovery while $step. " + (Get-CoreWatchRefusalReason $_) + ' Inspect exact runtime ownership, listeners and pinned inputs.') }
     finally { $tickLock.Dispose() }
 }
