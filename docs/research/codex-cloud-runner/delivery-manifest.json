@@ -2,10 +2,10 @@
   "schema": "container-runner-delivery-v1",
   "envelope": "docker-hard-2cpu-6g-v1",
   "runnerRevision": "docker-pinned-image-env-v3",
-  "readiness": "PREPARED_ONLY",
+  "readiness": "CONTROLS_VALIDATED_TWO_CASES_AUTHORIZED_UNRUN",
   "sourceCommit": "6f22fefa782747790e2eaefa01e4e5ea7b557323",
   "assetBaseCommit": "7ad315acd39223df3b4d2304e295ef5c017dfe17",
-  "previousManifestSha256": "7ba3e4643eea29c5abb6917a97b7e4761031c03e0ae37c745818dba57506fafc",
+  "previousManifestSha256": "bdd9441c088c9a3476bf9cebf0dd2387fdcce8f219730ec2a759055822df6678",
   "files": [
     {
       "path": "control-run-40044649892-diagnosis.json",
@@ -54,8 +54,8 @@
     },
     {
       "path": "public-container-envelope.yml",
-      "bytes": 13202,
-      "sha256": "7ad4c4a64e73dc8ac2f334ecf283f753f896bb6e9ab5aac52d610675b8bafb23"
+      "bytes": 13206,
+      "sha256": "47be36427ff58e075616fba720e5141f034a16a669384991829b17ecd8440ca6"
     },
     {
       "path": "public-metadata-evidence.json",
@@ -89,8 +89,17 @@
     },
     {
       "path": "verification.json",
-      "bytes": 4792,
-      "sha256": "65c23c79396d3cf1fef10b5e51bb6fe355f7508131e9f44b5b513b567740afb5"
+      "bytes": 5280,
+      "sha256": "d384052b54a0c544f0cf43a712c7cccca0ce69829b01272c15c73c0fbe80ac9b"
     }
-  ]
+  ],
+  "activation": {
+    "jobs": [
+      "one-case",
+      "r127-component"
+    ],
+    "controlsRunId": 40046487079,
+    "measurements": "UNRUN",
+    "acceptance": "OPEN"
+  }
 }

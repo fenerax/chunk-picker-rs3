@@ -84,9 +84,9 @@ jobs:
 
   one-case:
     needs: controls
-    # Prepared for root review. Flip this only after the remote controls and exact capture
-    # source have been reviewed and the root authorizes the measured one-case run.
-    if: ${{ false }}
+    # Root authorized this exact case after all four actual resource controls passed.
+    # This run rechecks controls before measurement; correctness gates remain open.
+    if: ${{ success() }}
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
@@ -142,7 +142,7 @@ jobs:
     needs: controls
     # Keep disabled until all four remote Docker controls PASS and root authorizes R127.
     # Merge the reviewed R127 result-policy additions before enabling this job.
-    if: ${{ false }}
+    if: ${{ success() }}
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:

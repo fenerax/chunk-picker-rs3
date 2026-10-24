@@ -1,7 +1,7 @@
 {
   "schema": "container-runner-preparation-verification-v1",
   "date": "2026-10-23",
-  "readiness": "PREPARED_ONLY",
+  "readiness": "CONTROLS_VALIDATED_TWO_CASES_AUTHORIZED_UNRUN",
   "assetBaseCommit": "7ad315acd39223df3b4d2304e295ef5c017dfe17",
   "pureTests": {
     "command": "python -B -m unittest -q test_docker_envelope.py",
@@ -45,10 +45,11 @@
   "workflowStaticGates": {
     "exactPublicAssetBranchOnly": true,
     "contentsReadOnly": true,
-    "measurementJobDisabled": true,
+    "measurementJobDisabled": false,
     "noCachesOrArtifactUploads": true,
     "noSecretOrTokenContexts": true,
-    "r127ComponentDisabled": true
+    "r127ComponentDisabled": false,
+    "exactlyTwoMeasuredJobsEnabled": true
   },
   "independentCodeReview": {
     "remainingConcreteBlockingCodeBugFound": false,
@@ -65,19 +66,13 @@
     "GitHub mutation or dispatch"
   ],
   "openRemoteGates": [
-    "supported public Ubuntu24.04 Docker daemon",
-    "HostConfig and actual cgroupv2 enforcement",
-    "positive control",
-    "tiny CPU enforcement control",
-    "tiny memory OOM enforcement control",
-    "missing-init admission negative",
-    "actual init orphan reaping and exact-container cleanup",
-    "pinned image/Node compatibility",
-    "nonroot Chromium151 launch with authorized existing no-sandbox configuration",
-    "separate independent reference and measured frozen input witness",
-    "complete output/native DOM/frame proof",
+    "per-measurement-run resource/ownership/cleanup revalidation",
+    "nonroot Chromium151 browser launch",
+    "independent reference and measured frozen-input witness",
+    "initial-opening and All output/native DOM/frame proof",
     "40 plus/minus 2ms measured-total RTT",
-    "later thirty-minute job"
+    "R127 actual 24-cell oracle and measurement evidence",
+    "later thirty-minute workload"
   ],
   "priorEvidence": {
     "e97GuardFailuresWaived": false,
@@ -90,7 +85,7 @@
     "missingWorkflowNegative": "failed with exactly two fixed test IDs and input-missing class",
     "diagnosisEvidence": "control-run-40044649892-diagnosis.json"
   },
-  "priorManifestSha256": "7ba3e4643eea29c5abb6917a97b7e4761031c03e0ae37c745818dba57506fafc",
+  "priorManifestSha256": "bdd9441c088c9a3476bf9cebf0dd2387fdcce8f219730ec2a759055822df6678",
   "runnerRevision": "docker-pinned-image-env-v3",
   "latestPublishedTrial": {
     "commit": "0cd14471af591e40d339aa86b39e1a7da3bd5337",
@@ -131,6 +126,24 @@
     "numericMetricKeysAdded": 25,
     "sharedCurrentPolicyPreserved": true,
     "projectionControlsPassed": true,
-    "jobDisabled": true
+    "jobDisabled": false
+  },
+  "activation": {
+    "authorizedBy": "root",
+    "enabledJobs": [
+      "one-case",
+      "r127-component"
+    ],
+    "needsControlsRetained": true,
+    "actualControlsRunId": 40046487079,
+    "actualControlsCommit": "6b8d38ee4c2ceeed6f69954cbf2431994d3d6c10",
+    "actualControlsEvidence": "public-harness-delivery/validated-resource-controls-40046487079.json",
+    "actualControlCountPassed": 4,
+    "allFourExactOwnedContainersRemoved": true,
+    "r116Measurement": "UNRUN",
+    "r127Measurement": "UNRUN",
+    "measurementAcceptanceGates": "OPEN",
+    "prior52PureTestsReused": true,
+    "nextRunRechecksPureAndResourceControls": true
   }
 }
