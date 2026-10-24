@@ -3,6 +3,12 @@ import { appendTaskClaim } from './task-claims.mjs';
 import { isCustomTask, customTaskAssignedTo } from './custom-tasks-model.mjs';
 import { readDuoPersonalFilter, writeDuoPersonalFilter, normalizeDuoPersonalFilter } from './duo-task-preferences.mjs';
 
+// The command identity a row's controls act on; task-focus.mjs matches it across redraws.
+export function duoTaskFocusKey(entry) {
+  const owners = entry.personalCompletion ? entry.filterMemberIds : entry.memberIds;
+  return JSON.stringify(['group', owners?.join(','), entry.id ?? entry.task.id, entry.personalCompletion ? 'personal' : 'group']);
+}
+
 /** Duo rows keep their task owner separate from the selected map. */
 export function createDuoTaskView({ document, getState, getSelectedMember, command, backlog, showTask, attachHover,
   getClaimMember = getSelectedMember, appendWhy = () => {}, getViewerId = () => 'viewer', getStorage = () => globalThis.localStorage, actingForMember = () => false, appendIcon = () => {}, appendPin = () => {}, appendEdit = () => {}, showError, canEdit = () => true, canComplete = canEdit, canInspect = canEdit, onFilter = () => {} }) {
@@ -63,7 +69,8 @@ export function createDuoTaskView({ document, getState, getSelectedMember, comma
     const task = entry.task, commandTaskId = entry.id ?? task.id, facts = entry.facts, node = el('div', undefined, 'task-row duo-task-row');
     const checked = entry.personalCompletion ? facts.personal : facts.group;
     node.dataset.completed = String(checked); node.dataset.taskId = task.id; node.dataset.owners = entry.memberIds.join(',');
-    const checkbox = el('input'); checkbox.type = 'checkbox'; checkbox.checked = checked;
+    node.dataset.focusTask = duoTaskFocusKey(entry);
+    const checkbox = el('input'); checkbox.type = 'checkbox'; checkbox.checked = checked; checkbox.dataset.taskControl = 'complete';
     checkbox.disabled = !canComplete(); checkbox.setAttribute('aria-label', `Counts for our chunk challenge: ${task.label} · ${entry.label}`);
     checkbox.title = 'Records challenge completion. Open task details to record personal in-game completion.';
     checkbox.addEventListener('change', async () => {
@@ -76,7 +83,7 @@ export function createDuoTaskView({ document, getState, getSelectedMember, comma
     const target = duoCommandTarget(entry, getSelectedMember());
     const ownerId = entry.displayMemberIds ? entry.memberId : target.preferredMemberId ?? target.memberId;
     const label = button(task.label, () => showTask(entry.tasksByMember?.[ownerId] ?? task, false, { memberId: ownerId, duoEntry: entry }), 'task-label-button');
-    label.disabled = !canInspect();
+    label.disabled = !canInspect(); label.dataset.taskControl = 'open';
     content.append(label, el('span', entry.label, 'duo-task-owner'));
     appendPin(label, entry);
     if (task.level && !(task.record?.RequirementAlternatives && task.level === 1) && !(task.generated && task.category === 'BiS')) content.append(el('span', `Level ${task.level}`, 'task-meta'));
@@ -97,12 +104,12 @@ export function createDuoTaskView({ document, getState, getSelectedMember, comma
       ? command({ type: 'clear-backlog', memberId: owner, taskIds: [commandTaskId] }, entry.stateRevision)
       : backlog(node, { ...(entry.tasksByMember?.[owner] ?? task), id: commandTaskId }, undefined, owner), backlogged ? 'Restore' : 'Backlog…'), 'duo-task-backlog');
     appendWhy(node, entry.tasksByMember?.[ownerId] ?? task, ownerId);
-    defer.hidden = defer.disabled = !canEdit(); node.append(defer);
+    defer.hidden = defer.disabled = !canEdit(); defer.dataset.taskControl = 'backlog'; node.append(defer);
     attachHover?.(node, label, entry.tasksByMember?.[ownerId] ?? task, ownerId);
     return node;
   }
   return { controls: () => controlsNode, filter: () => ownerFilter, personalFilter: () => personalFilter,
-    selectionNeedsInspection: () => personalFilter !== 'group', refresh, row,
+    selectionNeedsInspection: () => personalFilter !== 'group', refresh, row, focusKey: duoTaskFocusKey,
     clearFilter() { ownerFilter = 'all'; personalFilter = 'group'; writeDuoPersonalFilter(storage, personalFilter, viewerId); refresh(); },
     setEnabled(on) { enabled = on; controlsNode.hidden = !enabled; refresh(); },
   };

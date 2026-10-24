@@ -759,6 +759,201 @@ test('Group checkbox focus cannot start full-detail work while rows refresh', as
   assert.equal((await hovers[0].getDetails(f.own)).record.detail, 'Loaded');
 });
 
+// Issue 2: keyboard focus stays on the task the player Tabbed to while saves redraw the list.
+async function focusFixture(h, { count = 8, group = false, memberId = 'actor1' } = {}) {
+  const pad = index => String(index).padStart(3, '0');
+  const tasks = Object.fromEntries(['actor1', 'reed'].map(owner => [owner, Array.from({ length: count }, (_, i) =>
+    ({ id: `rs3:task:${owner}-${pad(i + 1)}`, label: `${owner} goal ${pad(i + 1)}`, category: 'Mining', status: 'available', obligation: true }))]));
+  const resultFor = (owner, revision = 7, omit = []) => {
+    const rows = tasks[owner].filter(task => !omit.includes(task.id));
+    return { ...taskResult(revision), memberId: owner, format: 'play-v1', tasks: rows, presentation: { tasks: rows.map(({ id }) => ({ id })) } };
+  };
+  h.context.focusResult = resultFor(memberId);
+  h.route(path => resultFor(path.includes('memberId=reed') ? 'reed' : 'actor1'));
+  h.run(`state.tasks = []; memberId = '${memberId}'; result = focusResult; renderTasks()`);
+  if (group) { await enableDuo(h); assert.equal(h.run('duoRowsReady'), true); }
+  return { tasks, resultFor, partner: memberId === 'actor1' ? 'reed' : 'actor1' };
+}
+const nodesIn = node => [node, ...node.children.filter(child => typeof child === 'object').flatMap(nodesIn)];
+const focusRow = (h, id, list = 'active-tasks') => nodesIn(h.nodes.get(list)).find(node => node.dataset.taskId === id && node.dataset.focusTask);
+const focusControl = (h, id, role = 'complete', list) => { const row = focusRow(h, id, list); return row && nodesIn(row).find(node => node.dataset.taskControl === role); };
+const focused = h => h.context.document.activeElement;
+const taskCommands = h => h.calls.filter(call => call.body?.command).map(({ body: { command } }) => [command.memberId, command.taskId, command.challengeCompleted]);
+const checkedState = (h, owner, id, revision) => { const state = h.snapshot(); state.revision = revision; (state.members.find(member => member.id === owner).taskStatus ??= {})[id] = { challengeCompleted: true }; return { state, pools: {} }; };
+// Answers each later save as the server would, so the final check is the stored one.
+const storeCommands = h => (path, body) => {
+  if (path !== '/api/command') return deferred().promise;
+  const state = h.snapshot(), { memberId, taskId, challengeCompleted } = body.command; state.revision++;
+  const owner = state.members.find(member => member.id === memberId); owner.taskStatus ??= {}; owner.taskStatus[taskId] = { ...owner.taskStatus[taskId], challengeCompleted };
+  return { state, pools: {} };
+};
+// Returns the save boxed: awaiting a returned promise would wait for the save itself.
+async function tickFocused(h) { const box = focused(h); box.checked = !box.checked; const saving = box.emit('change'); await flush(); return { saving }; }
+async function pressSpace(h) { h.user('keydown', { key: ' ' }); await (await tickFocused(h)).saving; await flush(); }
+// Row painting yields after each 8 ms slice; frames run only when the test pumps them.
+function slowPaint(h) {
+  const frames = []; let clock = 0;
+  h.context.performance = { now: () => clock += 5, mark() {} };
+  h.context.requestAnimationFrame = action => { frames.push(action); return frames.length; };
+  return async () => { while (frames.length) { frames.shift()(); await flush(); } };
+}
+// Check A, Tab to B, then release A's acknowledgement.
+async function tabDuringSave(h, a, b, ackRevision = 8, owner = h.run('memberId'), role = 'complete') {
+  const ack = deferred(); h.route(path => path === '/api/command' ? ack.promise : deferred().promise);
+  focusControl(h, a).focus(); const { saving } = await tickFocused(h);
+  h.user('keydown', { key: 'Tab' }); const tabbed = focusControl(h, b, role); assert.equal(tabbed.disabled, false); tabbed.focus();
+  ack.resolve(checkedState(h, owner, a, ackRevision)); await saving; await flush();
+  return tabbed;
+}
+
+for (const group of [false, true]) for (const memberId of ['actor1', 'reed']) test(`issue 2: ${group ? 'Group' : 'personal'} view for ${memberId} keeps the Tabbed task focused through another task's save`, async () => {
+  const h = harness({ documentEvents: true }), f = await focusFixture(h, { group, memberId });
+  // In Group the Tabbed task belongs to the partner, so the next Space must keep that owner.
+  const owner = group ? f.partner : memberId, a = f.tasks[memberId][0].id, b = f.tasks[owner][1].id;
+  const tabbed = await tabDuringSave(h, a, b);
+  const box = focused(h);
+  assert.notEqual(box, tabbed, 'the acknowledgement replaced the row');
+  assert.equal(box, focusControl(h, b)); assert.equal(box.isConnected, true); assert.equal(box.checked, false);
+  h.route(storeCommands(h)); await pressSpace(h);
+  assert.deepEqual(taskCommands(h), [[memberId, a, true], [owner, b, true]]);
+  assert.equal(h.snapshot().members.find(member => member.id === owner).taskStatus[b].challengeCompleted, true);
+  assert.equal(h.snapshot().members.find(member => member.id !== owner).taskStatus?.[b], undefined);
+});
+
+for (const group of [false, true]) test(`issue 2: ${group ? 'Group' : 'personal'} focus follows the same task through cached and fresh redraws`, async () => {
+  const h = harness({ documentEvents: true }), f = await focusFixture(h, { group });
+  const a = f.tasks.actor1[0].id, b = f.tasks[group ? 'reed' : 'actor1'][2].id;
+  await tabDuringSave(h, a, b);
+  if (group) assert.equal(h.run('duoRowsReady'), false, 'the acknowledgement shows the previous rows');
+  let previous = focused(h); assert.equal(previous, focusControl(h, b));
+  h.route(path => path === '/api/command' ? deferred().promise : f.resultFor(path.includes('memberId=reed') ? 'reed' : 'actor1', 8));
+  h.context.fresh = f.resultFor('actor1', 8); h.run('result = fresh; renderTasks()');
+  assert.notEqual(focused(h), previous); assert.equal(focused(h), focusControl(h, b)); previous = focused(h);
+  if (group) {
+    await h.run('duoLoading?.promise'); await flush();
+    assert.equal(h.run('duoRowsReady'), true, 'the partner result redraws the list again');
+    assert.notEqual(focused(h), previous); assert.equal(focused(h), focusControl(h, b));
+  }
+  await h.run('taskRenderDone'); h.run('renderTasks()');
+  assert.equal(focused(h), focusControl(h, b), 'a restored control is captured again by the next redraw');
+});
+
+for (const group of [false, true]) test(`issue 2: ${group ? 'Group' : 'personal'} focus waits for a row painted after the first 8 ms slice`, async () => {
+  const h = harness({ documentEvents: true }), f = await focusFixture(h, { group }), pump = slowPaint(h);
+  h.run('renderTasks()'); await pump();
+  const a = f.tasks.actor1[0].id, b = f.tasks[group ? 'reed' : 'actor1'][6].id;
+  const ack = deferred(); h.route(path => path === '/api/command' ? ack.promise : deferred().promise);
+  focusControl(h, a).focus(); const { saving } = await tickFocused(h); await pump();
+  h.user('keydown', { key: 'Tab' }); focusControl(h, b).focus();
+  ack.resolve(checkedState(h, 'actor1', a, 8)); await saving; await flush();
+  assert.equal(focusControl(h, b), undefined, 'the row is not painted yet');
+  assert.equal(focused(h).isConnected, false);
+  await pump();
+  assert.equal(focused(h), focusControl(h, b));
+});
+
+for (const [move, act] of [
+  ['a Tab to the task search', h => { h.user('keydown', { key: 'Tab' }); h.nodes.get('task-filter').focus(); }],
+  ['a click on the map', h => h.user('pointerdown', { target: h.context.document.getElementById('map-hover') })],
+  ['an opened dialog', h => h.run("openDialog('Elsewhere')")],
+]) for (const group of [false, true]) test(`issue 2: ${group ? 'Group' : 'personal'} focus is not returned after ${move} during the slice gap`, async () => {
+  const h = harness({ documentEvents: true }), f = await focusFixture(h, { group }), pump = slowPaint(h);
+  h.run('renderTasks()'); await pump();
+  const a = f.tasks.actor1[0].id, b = f.tasks[group ? 'reed' : 'actor1'][6].id;
+  const ack = deferred(); h.route(path => path === '/api/command' ? ack.promise : deferred().promise);
+  focusControl(h, a).focus(); const { saving } = await tickFocused(h); await pump();
+  h.user('keydown', { key: 'Tab' }); focusControl(h, b).focus();
+  ack.resolve(checkedState(h, 'actor1', a, 8)); await saving; await flush();
+  const before = focused(h); act(h); const chosen = focused(h);
+  await pump();
+  assert.ok(focusControl(h, b), 'the row was painted'); assert.equal(focused(h), chosen);
+  if (chosen === before) assert.equal(chosen.isConnected, false, 'nothing in the list took focus');
+  h.run('renderTasks()'); await pump();
+  assert.notEqual(focused(h), focusControl(h, b), 'a later redraw does not revive the cancelled restore');
+});
+
+for (const group of [false, true]) test(`issue 2: ${group ? 'Group' : 'personal'} keeps a focused row after Show more when the list is redrawn`, async () => {
+  const h = harness({ documentEvents: true }), f = await focusFixture(h, { count: 75, group });
+  // Personal: the 73rd Mining task. Group sorts both players' tasks together, so Reed's third is the 78th.
+  const owner = group ? 'reed' : 'actor1', a = f.tasks.actor1[0].id, b = f.tasks[owner][group ? 2 : 72].id;
+  assert.equal(focusRow(h, b), undefined, 'only the first 70 rows are painted');
+  const more = h.all().find(node => node.isConnected && node.tagName === 'BUTTON' && /^Show more Mining tasks/.test(node.textContent));
+  await more.emit('click'); await flush(); assert.ok(focusRow(h, b));
+  const tabbed = await tabDuringSave(h, a, b);
+  assert.notEqual(focused(h), tabbed); assert.equal(focused(h), focusControl(h, b));
+  h.route(storeCommands(h)); await pressSpace(h);
+  assert.deepEqual(taskCommands(h), [['actor1', a, true], [owner, b, true]]);
+  assert.equal(h.snapshot().members.find(member => member.id === owner).taskStatus[b].challengeCompleted, true);
+  // B is done and hidden now; the next task is still beyond the first 70 rows.
+  const later = f.tasks[owner][group ? 3 : 73].id, elsewhere = h.context.document.getElementById('map-hover');
+  h.user('pointerdown', { target: elsewhere }); elsewhere.focus(); h.run('renderTasks()'); await h.run('taskRenderDone');
+  assert.ok(focusRow(h, later), 'Show more stays open across redraws as view state');
+  h.run(`document.getElementById('group-view').checked = ${!group}; renderTasks()`);
+  h.run(`document.getElementById('group-view').checked = ${group}; renderTasks()`); await h.run('taskRenderDone');
+  assert.equal(focusRow(h, later), undefined, 'switching views starts each category at its first 70 rows');
+});
+
+test('issue 2: personal focus reaches a row that new tasks pushed past the opened Show more depth', async () => {
+  const h = harness({ documentEvents: true }), f = await focusFixture(h, { count: 75 });
+  const a = f.tasks.actor1[0].id, b = f.tasks.actor1[72].id, last = f.tasks.actor1[74].id;
+  const more = h.all().find(node => node.isConnected && node.tagName === 'BUTTON' && /^Show more Mining tasks/.test(node.textContent));
+  await more.emit('click'); await flush(); assert.ok(focusRow(h, last), 'all 75 rows are open');
+  await tabDuringSave(h, a, b); assert.equal(focused(h), focusControl(h, b));
+  // Five new tasks sort above B, so B is now past the 75 rows the player opened.
+  const added = [...'abcde'].map(letter => ({ id: `rs3:task:actor1-000${letter}`, label: `actor1 goal 000${letter}`, category: 'Mining', status: 'available', obligation: true }));
+  const grown = f.resultFor('actor1', 8); grown.tasks = [...added, ...grown.tasks]; grown.presentation = { tasks: grown.tasks.map(({ id }) => ({ id })) };
+  h.context.grown = grown; h.run('result = grown; renderTasks()'); await h.run('taskRenderDone');
+  assert.equal(focused(h), focusControl(h, b));
+  assert.equal(focusRow(h, last), undefined, 'the list opens only as far as the focused row');
+});
+
+for (const group of [false, true]) test(`issue 2: ${group ? 'Group' : 'personal'} focus never moves to another task when the target is removed`, async () => {
+  const h = harness({ documentEvents: true }), f = await focusFixture(h, { group });
+  const a = f.tasks.actor1[0].id, b = f.tasks.actor1[2].id;
+  await tabDuringSave(h, a, b); assert.equal(focused(h), focusControl(h, b));
+  h.context.removed = f.resultFor('actor1', 8, [b]); h.run('result = removed; renderTasks()'); await h.run('taskRenderDone');
+  assert.equal(focusRow(h, b), undefined); assert.equal(focused(h).isConnected, false, 'no other task control is focused');
+  h.context.restored = f.resultFor('actor1', 8); h.run('result = restored; renderTasks()'); await h.run('taskRenderDone');
+  assert.ok(focusRow(h, b)); assert.equal(focused(h).isConnected, false, 'a target that left the list is not refocused later');
+  assert.deepEqual(taskCommands(h), [['actor1', a, true]]);
+});
+
+for (const group of [false, true]) test(`issue 2: ${group ? 'Group' : 'personal'} focus is not restored to a filtered target or its row in another list`, async () => {
+  const h = harness({ documentEvents: true }), f = await focusFixture(h, { group });
+  h.run("document.getElementById('completed-details').open = true; document.getElementById('hide-completed').checked = true");
+  const a = f.tasks.actor1[0].id, b = f.tasks.actor1[2].id;
+  const ack = deferred(); h.route(path => path === '/api/command' ? ack.promise : deferred().promise);
+  focusControl(h, a).focus(); const { saving } = await tickFocused(h);
+  h.user('keydown', { key: 'Tab' }); focusControl(h, b).focus();
+  // Another device checked B in the same save, so Hide completed filters it out.
+  const next = checkedState(h, 'actor1', a, 8); next.state.members[0].taskStatus[b] = { challengeCompleted: true };
+  ack.resolve(next); await saving; await flush(); await h.run('taskRenderDone');
+  assert.equal(focusRow(h, b), undefined);
+  assert.ok(focusControl(h, b, 'complete', 'completed-tasks'), 'the task now shows under Completed');
+  assert.equal(focused(h).isConnected, false, 'neither the Completed row nor another task takes focus');
+});
+
+for (const interrupted of [false, true]) test(`issue 2: Group ${interrupted ? 'drops' : 'keeps'} a disabled target ${interrupted ? 'after a key press' : 'until a redraw enables it'}`, async () => {
+  const h = harness({ documentEvents: true }), f = await focusFixture(h, { group: true });
+  const a = f.tasks.actor1[0].id, b = f.tasks.reed[1].id, ack = deferred();
+  h.route(path => path === '/api/command' ? ack.promise : deferred().promise);
+  focusControl(h, b, 'open').focus();
+  // A save that started elsewhere redraws the list while B's details button is focused.
+  const saving = h.run(`command({type:'set-task-status',memberId:'actor1',taskId:${JSON.stringify(a)},challengeCompleted:true})`); await flush();
+  assert.equal(focusControl(h, b, 'open').disabled, true, 'task details wait for both players’ rows');
+  assert.equal(focused(h).isConnected, false, 'a disabled control is not focused or enabled');
+  ack.resolve(checkedState(h, 'actor1', a, 8)); await saving; await flush();
+  assert.equal(focusControl(h, b, 'open').disabled, true); assert.equal(focused(h).isConnected, false);
+  if (interrupted) h.user('keydown', { key: 'ArrowDown' });
+  h.route(path => path === '/api/command' ? deferred().promise : f.resultFor(path.includes('memberId=reed') ? 'reed' : 'actor1', 8));
+  h.context.fresh = f.resultFor('actor1', 8); h.run('result = fresh; renderTasks()');
+  await h.run('duoLoading?.promise'); await flush();
+  assert.equal(h.run('duoRowsReady'), true); assert.equal(focusControl(h, b, 'open').disabled, false);
+  if (interrupted) assert.equal(focused(h).isConnected, false);
+  else assert.equal(focused(h), focusControl(h, b, 'open'));
+  assert.deepEqual(taskCommands(h), [['actor1', a, true]], 'focus never activates the control');
+});
+
 for (const group of [false, true]) test(`${group ? 'Group' : 'solo'} keeps a rapid tick then untick optimistic until both acknowledgements`, async () => {
   const h = harness(), f = duoFixture(h);
   if (group) { h.route(() => f.reed); await enableDuo(h); }
@@ -1422,7 +1617,7 @@ test('a newer SSE invalidates a fulfilled handoff before its continuation can re
   remote.resolve({ state: { ...f.next, revision: 9 }, pools: {} }); await newer; assert.equal(h.run('state.revision'), 9);
 });
 
-function harness({ realPlanning = false, localStorage } = {}) {
+function harness({ realPlanning = false, localStorage, documentEvents = false } = {}) {
   class Node {
     constructor(tag = 'div', text = '') { Object.assign(this, { tagName: tag.toUpperCase(), textContent: text, children: [], events: {}, attributes: {}, dataset: {}, value: '', style: { setProperty() {} } }); }
     append(...nodes) { for (const node of nodes) { if (typeof node === 'object') { node.remove?.(); node.parent = this; } this.children.push(node); } }
@@ -1443,13 +1638,16 @@ function harness({ realPlanning = false, localStorage } = {}) {
     emit(key, event = {}) { return Promise.all((this.events[key] ?? []).map(action => action(event))); }
     contains(node) { return this === node || this.children.some(child => typeof child === 'object' && child.contains?.(node)); }
     get isConnected() { return !!this.connected || !!this.parent?.isConnected; }
-    focus() { document.activeElement = this; }
+    focus() { document.activeElement = this; for (const action of documentListeners.focusin ?? []) action({ target: this }); }
     showModal() { this.open = true; }
     close() { this.open = false; }
   }
+  // Opt-in: most fixtures predate document listeners and must not gain them.
+  const documentListeners = {};
   const nodes = new Map(), timers = new Map(), deathTimers = new Map(), calls = [], intentCalls = [], deathCalls = [], renders = [], eventSources = [], planningPrimes = [], planningRenders = [];
   const document = { getElementById: id => { if (!nodes.has(id)) { const node = new Node(); node.connected = true; nodes.set(id, node); } return nodes.get(id); }, createElement: tag => new Node(tag), createTextNode: value => new Node('text', value), querySelector: selector => document.getElementById(selector), documentElement: new Node(), activeElement: undefined };
   document.head = document.getElementById('test-head'); document.body = document.getElementById('test-body');
+  if (documentEvents) document.addEventListener = (key, action) => (documentListeners[key] ??= []).push(action);
   document.getElementById('pool-ranking-panel').hidden = true;
   document.getElementById('test-task-header').append(document.getElementById('task-count'));
   document.body.append(document.getElementById('test-task-header'));
@@ -1497,7 +1695,9 @@ function harness({ realPlanning = false, localStorage } = {}) {
   const click = text => { const node = find('button', text); assert.ok(node, text); return node.emit('click'); };
   const adopt = next => { context.next = next; run('adopt(next, {});'); };
   const snapshot = () => structuredClone(run('state'));
-  return { run, context, nodes, calls, intentCalls, deathCalls, deathTimers, renders, timers, eventSources, planningPrimes, planningRenders, map, find, all, click, adopt, snapshot, route: action => { route = action; } };
+  // A trusted user event as the document's capture listeners see it.
+  const user = (key, event = {}) => { for (const action of documentListeners[key] ?? []) action({ target: document.activeElement, ...event }); };
+  return { run, context, nodes, calls, intentCalls, deathCalls, deathTimers, renders, timers, eventSources, planningPrimes, planningRenders, map, find, all, click, adopt, snapshot, user, route: action => { route = action; } };
 }
 
 test('chunk contents defer full planning sections until a planning tab is selected', async () => {

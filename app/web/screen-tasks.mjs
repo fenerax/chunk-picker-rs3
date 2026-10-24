@@ -15,6 +15,7 @@ import { selectDuoTaskLists } from './duo-task-lists.mjs';
 import { createDuoBacklogView } from './duo-backlog-view.mjs';
 import { createTickActiveTasks } from './tick-active-tasks.mjs';
 import { appendTaskWhy, catalogued, createRuleDescriber } from './task-why.mjs';
+import { createTaskFocus } from './task-focus.mjs';
 
 // Main-screen tasks; shared values and callbacks live in the explicit screen context.
 export function createScreenTasks(c) {
@@ -66,11 +67,14 @@ export function createScreenTasks(c) {
     host.append(form); reason.focus?.();
   }
 
+  // The command identity a row's controls act on; task-focus.mjs matches it across redraws.
+  const soloTaskFocusKey = task => JSON.stringify(['solo', c.memberId, task.id, 'challenge']);
+
   function taskRow(task) {
     const facts = c.taskFacts(task), row = c.el('div', undefined, 'task-row'); row.dataset.completed = facts.group;
-    row.dataset.taskId = task.id;
-    const checkbox = c.input('checkbox'); checkbox.checked = facts.personal; checkbox.disabled = !c.canWrite(); checkbox.setAttribute('aria-label', `Mark ${c.plain(task.label)} done for ${c.member().name}`); checkbox.title = 'Counts for our chunk challenge. Record personal in-game completion in task details.'; checkbox.addEventListener('change', async () => { if (!c.canWrite()) { checkbox.checked = c.taskFacts(task).personal; return; } checkbox.disabled = true; try { await c.command({ type: 'set-task-status', memberId: c.memberId, taskId: task.id, challengeCompleted: checkbox.checked }); } catch (error) { checkbox.checked = c.taskFacts(task).personal; c.showError(error); } finally { checkbox.disabled = !c.canWrite(); } });
-    const content = c.el('div'), label = c.button(task.label, () => c.showTask(task), 'task-label-button'); content.append(label);
+    row.dataset.taskId = task.id; row.dataset.focusTask = soloTaskFocusKey(task);
+    const checkbox = c.input('checkbox'); checkbox.dataset.taskControl = 'complete'; checkbox.checked = facts.personal; checkbox.disabled = !c.canWrite(); checkbox.setAttribute('aria-label', `Mark ${c.plain(task.label)} done for ${c.member().name}`); checkbox.title = 'Counts for our chunk challenge. Record personal in-game completion in task details.'; checkbox.addEventListener('change', async () => { if (!c.canWrite()) { checkbox.checked = c.taskFacts(task).personal; return; } checkbox.disabled = true; try { await c.command({ type: 'set-task-status', memberId: c.memberId, taskId: task.id, challengeCompleted: checkbox.checked }); } catch (error) { checkbox.checked = c.taskFacts(task).personal; c.showError(error); } finally { checkbox.disabled = !c.canWrite(); } });
+    const content = c.el('div'), label = c.button(task.label, () => c.showTask(task), 'task-label-button'); label.dataset.taskControl = 'open'; content.append(label);
     appendTaskPin(document, label, c.taskPins ? c.taskPins(task) : isTaskPinned(task, { state: c.state, memberId: c.memberId }));
     if (c.sandbox.isNewTask(task.id)) content.append(c.el('span', 'new', 'sandbox-new'));
     if (task.level && !(task.record?.RequirementAlternatives && task.level === 1) && !(task.generated && task.category === 'BiS')) content.append(c.el('span', `Level ${task.level}${task.primary ? ' · Primary method' : ''}`, 'task-meta'));
@@ -93,7 +97,7 @@ export function createScreenTasks(c) {
     const backlogAction = taskState.backlogged
       ? c.iconButton(`Restore ${c.plain(task.label)} from the backlog`, 'restore', () => c.command({ type: 'set-task-status', memberId: c.memberId, taskId: task.id, backlogged: false }).catch(c.showError))
       : c.iconButton(`Backlog ${c.plain(task.label)}…`, 'backlog', () => c.backlogForm(row, task));
-    backlogAction.classList?.add('task-backlog'); row.append(backlogAction);
+    backlogAction.classList?.add('task-backlog'); backlogAction.dataset.taskControl = 'backlog'; row.append(backlogAction);
     backlogAction.hidden = !c.canWrite(); backlogAction.disabled = !c.canWrite() || c.sandbox.active;
     c.hoverTasks().attach(row, label, task);
     return row;
@@ -117,15 +121,30 @@ export function createScreenTasks(c) {
     return nextSlice(0);
   }
 
-  function grouped(target, tasks, jobs = [], generation = c.taskRenderGeneration, fold = false, row = c.taskRow) {
+  // Show more is view state: a redraw keeps each category as deep as the player
+  // opened it, and deep enough for a row whose control is waiting for focus.
+  function categoryDepth(target, category, rows, keyOf) {
+    return Math.max(70, c.taskListDepths?.get(target)?.get(category) ?? 0, c.taskFocus?.depth(target, rows, keyOf) ?? 0);
+  }
+
+  function rememberDepth(target, category, shown) {
+    c.taskListDepths ??= new WeakMap();
+    if (!c.taskListDepths.has(target)) c.taskListDepths.set(target, new Map());
+    c.taskListDepths.get(target).set(category, shown);
+  }
+
+  function appendTaskRow(body, node) { body.append(node); c.taskFocus?.offer(node); }
+
+  function grouped(target, tasks, jobs = [], generation = c.taskRenderGeneration, fold = false, row = c.taskRow, keyOf = soloTaskFocusKey) {
     target.replaceChildren(); if (!tasks.length) { target.append(c.el('p', 'No tasks in this view.', 'empty-list')); return; }
     const groups = new Map(); for (const task of tasks) { if (!groups.has(task.category)) groups.set(task.category, []); groups.get(task.category).push(task); }
     for (const [category, rows] of groups) {
       const heading = c.el('h3', `${category} (${rows.length})`, 'category-heading'); c.categoryIconPainter.append(heading, category);
-      const section = c.el('section'), body = fold ? c.el('div', undefined, 'task-category-body') : section; section.append(heading); if (fold) section.append(body); let shown = 0;
+      const section = c.el('section'), body = fold ? c.el('div', undefined, 'task-category-body') : section; section.append(heading); if (fold) section.append(body);
+      let shown = 0, limit = categoryDepth(target, category, rows, keyOf);
       const appendMore = () => { if (shown < rows.length) { more.textContent = `Show more ${category} tasks (${rows.length - shown})`; body.append(more); } };
-      const rowJobs = () => { const slice = rows.slice(shown, shown + 70); shown += slice.length; return [...slice.map(task => () => body.append(row(task))), appendMore]; };
-      const renderMore = async () => { more.disabled = true; more.remove(); try { await c.paintTaskJobs(rowJobs(), generation); } finally { more.disabled = false; } };
+      const rowJobs = () => { const slice = rows.slice(shown, shown + limit); limit = 70; shown += slice.length; return [...slice.map(task => () => appendTaskRow(body, row(task))), appendMore]; };
+      const renderMore = async () => { more.disabled = true; more.remove(); try { const next = rowJobs(); rememberDepth(target, category, shown); await c.paintTaskJobs(next, generation); } finally { more.disabled = false; } };
       const more = c.button('Show more', renderMore, 'wide-button');
       if (!fold || c.activeTaskFilters().category(heading, category, body, () => c.paintTaskJobs(rowJobs(), generation))) jobs.push(...rowJobs());
       target.append(section);
@@ -163,7 +182,7 @@ export function createScreenTasks(c) {
 
   function renderCompleted(tasks, jobs = [], generation = c.taskRenderGeneration) {
     if (!c.$('completed-details').open) { c.$('completed-tasks').replaceChildren(); return; }
-    if (c.duoEnabled()) c.grouped(c.$('completed-tasks'), tasks.map(entry => ({ ...entry, category: entry.task.category })), jobs, generation, false, entry => c.duoView().row(entry));
+    if (c.duoEnabled()) c.grouped(c.$('completed-tasks'), tasks.map(entry => ({ ...entry, category: entry.task.category })), jobs, generation, false, entry => c.duoView().row(entry), entry => c.duoView().focusKey(entry));
     else c.grouped(c.$('completed-tasks'), tasks, jobs, generation);
   }
 
@@ -350,9 +369,9 @@ export function createScreenTasks(c) {
     for (const entry of rows) { if (!groups.has(entry.task.category)) groups.set(entry.task.category, []); groups.get(entry.task.category).push(entry); }
     for (const [category, rows] of groups) {
       const section = c.el('section'), body = c.el('div', undefined, 'task-category-body'), heading = c.el('h3', `${category} (${rows.length})`, 'category-heading'); c.categoryIconPainter.append(heading, category); section.append(heading, body); target.append(section);
-      let shown = 0;
-      const rowJobs = () => { const slice = rows.slice(shown, shown + 70); shown += slice.length; return [...slice.map(entry => () => body.append(c.duoView().row(entry))), () => { if (shown < rows.length) { more.textContent = `Show more ${category} tasks (${rows.length - shown})`; body.append(more); } }]; };
-      const more = c.button('Show more', async () => { more.remove(); await c.paintTaskJobs(rowJobs(), generation); }, 'wide-button');
+      let shown = 0, limit = categoryDepth(target, category, rows, entry => c.duoView().focusKey(entry));
+      const rowJobs = () => { const slice = rows.slice(shown, shown + limit); limit = 70; shown += slice.length; return [...slice.map(entry => () => appendTaskRow(body, c.duoView().row(entry))), () => { if (shown < rows.length) { more.textContent = `Show more ${category} tasks (${rows.length - shown})`; body.append(more); } }]; };
+      const more = c.button('Show more', async () => { more.remove(); const next = rowJobs(); rememberDepth(target, category, shown); await c.paintTaskJobs(next, generation); }, 'wide-button');
       if (c.activeTaskFilters().category(heading, category, body, () => c.paintTaskJobs(rowJobs(), generation))) jobs.push(...rowJobs());
     }
     const count = { union: rows.length, byMember: Object.fromEntries(c.state.members.map(owner => [owner.id, rows.filter(row => (row.displayMemberIds ?? row.memberIds).includes(owner.id)).length])), shared: rows.filter(row => (row.displayMemberIds ?? row.memberIds).length > 1).length };
@@ -362,12 +381,15 @@ export function createScreenTasks(c) {
   }
 
   function renderTasks() {
+    c.taskFocus?.capture();
     c.groupGoals?.render();
     if (typeof c.reconcileForegroundMode === 'function') c.reconcileForegroundMode();
     c.taskHover?.hide();
     for (const hover of c.duoHovers.values()) hover.hide();
     if (!c.state || !c.member()) return;
     const generation = ++c.taskRenderGeneration, jobs = [];
+    const depthScope = `${c.duoEnabled()}:${c.memberId}:${c.sandbox.signature()}`;
+    if (c.taskListDepthScope !== depthScope) { c.taskListDepthScope = depthScope; c.taskListDepths = undefined; }
     if (c.result?.memberId === c.memberId) c.shownResult = c.result;
     const view = c.result ?? (typeof c.shownResult !== 'undefined' && c.shownResult?.memberId === c.memberId ? c.shownResult : undefined);
     const countLine = c.$('task-engine-status').firstChild;
@@ -441,6 +463,7 @@ export function createScreenTasks(c) {
     const areaList = c.$('accessible-areas');
     if (!areaList.parentElement || areaList.parentElement.open) areaList.replaceChildren(c.list(view?.access.areas ?? []));
     c.taskRenderDone = c.paintTaskJobs(jobs, generation).then(async painted => {
+      if (painted && generation === c.taskRenderGeneration) c.taskFocus?.finish();
       if (painted && typeof requestAnimationFrame === 'function') await new Promise(resolve => requestAnimationFrame(resolve));
       if (painted && duoReady && generation === c.taskRenderGeneration && c.duoEnabled()) c.perfMark('duo-tasks-shown', { revision: c.state.revision, memberId: c.memberId });
       if (painted && generation === c.taskRenderGeneration && c.foregroundSettled?.()) { c.deathChunks?.refresh(); c.syncPredictionIntents?.(); }
@@ -452,6 +475,11 @@ export function createScreenTasks(c) {
   const viewerTaskWait = () => `Tasks will appear here when ${c.state.members.map(owner => owner.name).join(' or ')} opens the picker. This page updates by itself.`;
 
   Object.assign(c, { viewerTaskWait, buildTaskFactsCache, taskFacts, backlogForm, taskRow, paintTaskJobs, grouped, activeTaskFilters, bindTaskSearch, renderBacklog, renderCompleted, duoEnabled, duoResults, startDuoTaskLoad, duoInspectionResults, startDuoInspectionLoad, refreshDuoInspection, ensureDuoDetails, attachDuoHover, duoView, renderDuoTasks, renderTasks });
+
+  if (typeof createTaskFocus === 'function') c.taskFocus = createTaskFocus({ document, host: () => c.$('active-tasks'),
+    scope: () => JSON.stringify([c.duoEnabled(), c.memberId, c.sandbox.signature(), c.dialogGeneration, !!c.$('tool-dialog').open, c.duoTaskView?.filter(), c.duoTaskView?.personalFilter()]),
+    // Restoring focus is not a new visit to the row; keep its tooltip closed.
+    onRestore: () => { c.taskHover?.hide(); for (const hover of c.duoHovers?.values() ?? []) hover.hide(); } });
 
   c.taskIconPainter = createTaskIconPainter({
     resolveIcon: task => taskIcon(task, { itemIcon, skillIcon }), createImage: () => c.el('img'), refreshOnSettle: true,
