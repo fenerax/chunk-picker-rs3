@@ -3,6 +3,17 @@
   "entries": [
     {
       "date": "2026-10-23",
+      "title": "A less cluttered map and More menu",
+      "items": [
+        "The map tools fit on one row. Zoom and Center on Unlocked sit in the bottom right corner of the map",
+        "Ready for members is no longer in the map toolbar. It stays in Settings → Map",
+        "More is split into Picker and Map sections, and Stream-safe mode says whether it's On or Off",
+        "In the task list, the ⋯ menu sits beside Copy, Collapse all looks like a button, and Review all matches Copy",
+        "Current BiS opens right away and shows Loading… while it works. Backup & Import has a normal Choose file button"
+      ]
+    },
+    {
+      "date": "2026-10-23",
       "title": "See why a carpet or teleport stop isn't rollable",
       "items": [
         "Chunks a travel line lands in get a \"Travel into this chunk\" section. Open it to see what each route still needs, like a quest, coins or a way home"

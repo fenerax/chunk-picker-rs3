@@ -510,8 +510,15 @@ export function createInfoPanels(context) {
   }
 
   async function currentBiS(initialTab = 'Obtainable') {
-    const request = beginRequest(), result = await requestedResult(request), view = result?.currentBiS;
-    if (!requestCurrent(request)) return;
+    // The calculation can take a few seconds, so the dialog opens first, as Profile does.
+    const memberId = context.memberId(), loading = openDialog('Current BiS', paragraph('Loading…', 'status-detail'));
+    const request = { memberId, generation: loading ?? context.dialogGeneration?.(), wasOpen: true };
+    const result = await requestedResult(request), view = result?.currentBiS;
+    if (!requestCurrent(request)) {
+      // Don't leave our own Loading… behind when the selected player changed underneath it.
+      if (context.dialogGeneration?.() === request.generation && context.isDialogOpen?.() !== false) openDialog('Current BiS', empty('The selected player changed. Open Current BiS again.'));
+      return;
+    }
     if (!view) { openDialog('Current BiS', empty('Equipment information is unavailable. Retry after the task calculation finishes.')); return; }
     const snapshot = capture(result, request);
     const intro = paragraph(`${snapshot.memberName} · ${view.accessPolicy === 'shared' ? 'Shared unlocked access' : 'Personal unlocked access'} · ${view.completionScope === 'any' ? 'Either member may satisfy a challenge' : view.completionScope === 'all' ? 'Every member must satisfy a challenge' : 'Personal challenge completion'}`, 'section-intro');

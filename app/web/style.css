@@ -328,15 +328,17 @@ details[open]>summary::before{transform:rotate(45deg)}
 .map-toolbar{position:absolute;top:.75rem;left:.75rem;right:.75rem;z-index:2;display:flex;gap:var(--space-4);flex-wrap:wrap;align-items:flex-start;pointer-events:none}
 .toolbar-group{display:inline-flex;align-items:stretch;gap:var(--space-legacy-1px);padding:var(--space-legacy-3px);pointer-events:auto;background:var(--panel);border:var(--border-thin) solid transparent;border-radius:var(--radius);box-shadow:var(--shadow-toolbar)}
 .toolbar-group:not(:has(>button:not([hidden]))){display:none}
-.map-toolbar button{background:transparent;color:var(--panel-text,var(--text));padding:var(--space-3) var(--space-5);border-radius:var(--radius-sm);font-size:var(--type-body)}
-.map-toolbar button:hover{background:var(--surface);filter:none}
+.map-toolbar button,.map-corner button{background:transparent;color:var(--panel-text,var(--text));padding:var(--space-3) var(--space-5);border-radius:var(--radius-sm);font-size:var(--type-body)}
+.map-toolbar button:hover,.map-corner button:hover{background:var(--surface);filter:none}
 .map-toolbar button:disabled{opacity:1;color:var(--panel-muted,var(--muted));background:transparent;filter:none}
 .map-toolbar [aria-pressed=true]{background:color-mix(in srgb,var(--gold) 20%,transparent);color:var(--gold-strong);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--gold) 60%,transparent)}
 :root[data-scheme=light] .map-toolbar [aria-pressed=true]{color:var(--panel-link,var(--link))}
 .map-toolbar .pick-action{background:var(--gold);color:var(--on-gold);font-weight:var(--weight-bold);letter-spacing:.01em}
 .map-toolbar .pick-action:hover{background:var(--gold-strong)}
 .zoom-group{display:inline-flex}
-.map-toolbar .zoom-group button{min-width:2.2rem;padding-inline:var(--space-4);font-weight:var(--weight-semibold);font-size:var(--type-base);line-height:var(--leading-legacy-1)}
+.map-corner{position:absolute;right:.75rem;bottom:.75rem;z-index:3;display:flex;flex-direction:column;align-items:flex-end;gap:var(--space-3);pointer-events:none}
+.map-corner .zoom-group{flex-direction:column}
+.map-corner button{display:grid;place-items:center;min-width:2.2rem;min-height:2.2rem;padding:var(--space-2);font-weight:var(--weight-semibold);font-size:var(--type-base);line-height:var(--leading-legacy-1)}
 .map-dock{position:absolute;top:calc(var(--map-toolbar-height,48px) + 1.35rem);bottom:.75rem;left:.75rem;width:370px;max-width:calc(100% - 1.5rem);z-index:4;display:flex;flex-direction:column;gap:var(--space-4);pointer-events:none}
 .map-dock-panels{display:flex;flex-direction:column;gap:var(--space-4);min-height:0;overflow:auto;scrollbar-width:thin;scrollbar-color:var(--border) transparent;pointer-events:auto;border-radius:var(--radius);scroll-padding:var(--space-4)}
 .map-dock-panels:has(>.floating-panel:not([hidden])){scrollbar-gutter:stable}
@@ -566,7 +568,8 @@ dialog::backdrop{background:var(--color-fixed-0a0806b3);backdrop-filter:blur(3px
 .checkbox-field>input{order:-1}
 .form-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:var(--space-5)}
 .monster-override-row{align-items:end}
-.runemetrics-controls{padding-top:var(--space-6);border-top:var(--border-thin) solid var(--hairline)}
+/* The dialog title or the RuneMetrics sync fold names and separates it. */
+.runemetrics-controls:first-child{margin-top:0}
 .runemetrics-preview h4,.runemetrics-preview h5{margin:var(--space-5) 0 0;font-size:var(--type-base);line-height:var(--leading-body)}
 .runemetrics-preview ul{margin:var(--space-1) 0;padding-left:var(--space-7);line-height:var(--leading-legacy-1-55)}
 .form-field input:not([type=checkbox]):not([type=color]),.form-field select{max-width:100%}
@@ -667,7 +670,6 @@ dialog::backdrop{background:var(--color-fixed-0a0806b3);backdrop-filter:blur(3px
   button,select,input:not([type=checkbox]):not([type=color]){min-height:36px}
   .group-toggle input{min-height:0}
   .checkbox-field,.task-options label{min-height:32px}
-  .map-toolbar .zoom-group button{min-width:1.9rem}
   .pin-category{min-height:36px}
   .pin-result button,.pin-controls button{min-height:36px}
   .pin-results{max-height:28dvh}
@@ -1042,7 +1044,6 @@ img.skill-badge{border-radius:0;object-fit:contain;image-rendering:auto}
 /* The tick box already says "Travel lines"; keep the legend for screen readers only. */
 .travel-lines-control>legend{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
 /* Feedback */
-.topbar nav .feedback-open{color:var(--panel-link,var(--link))}
 .feedback-kinds{display:flex;gap:var(--space-3);flex-wrap:wrap}
 .feedback-text{width:100%;min-height:7rem;resize:vertical}
 .feedback-received{margin-top:var(--space-6);padding-top:var(--space-5);border-top:var(--border-thin) solid var(--hairline)}
@@ -1175,3 +1176,7 @@ progress.skill-meter::-moz-progress-bar{background:var(--gold);border-radius:var
 .rules-depth-3{--rule-depth:3}
 .rules-depth-4{--rule-depth:4}
 .time-settings .form-field>span{overflow-wrap:anywhere}
+/* Backup & Import file choice */
+.file-picker{display:flex;align-items:center;gap:var(--space-4);flex-wrap:wrap;min-width:0}
+.file-picker-name{min-width:0;overflow-wrap:anywhere;font-size:var(--type-sm);color:var(--panel-muted,var(--muted))}
+.file-picker-input{display:none}

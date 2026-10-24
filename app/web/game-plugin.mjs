@@ -78,7 +78,8 @@ export function createGamePlugin(c) {
     root.setAttribute('aria-label', `Game plugin for ${owner?.name ?? 'player'}`);
     const status = el('p', 'Loading game plugin…', 'info-meta'), content = el('div', undefined, 'form-stack');
     status.setAttribute('role', 'status'); status.setAttribute('aria-live', 'polite');
-    root.append(el('h3', 'Game plugin'), el('p', 'Send levels, completed quests, achievements and your recent position from the game. Uniquely matched achievements from live worlds tick tasks automatically; Undo can restore them. Review levels, quests and other achievement matches here.', 'field-help'), status, content);
+    // The dialog title or the Activity Info section already names it.
+    root.append(el('p', 'Send levels, completed quests, achievements and your recent position from the game. Uniquely matched achievements from live worlds tick tasks automatically; Undo can restore them. Review levels, quests and other achievement matches here.', 'field-help'), status, content);
     const current = () => isCurrent() && root.isConnected && c.state.members.some(item => item.id === memberId);
     let busy = false, disposed = false, reviewRequest = 0, renderedSignature, draftLabel = '', secret = '', secretInput, secretHost;
     const openDiagnostics = new Set();

@@ -100,18 +100,3 @@ export function createMapControlDiscovery(c, { document = globalThis.document, m
   }
   return { mount, open, close, isOpen: () => !sheet.hidden };
 }
-
-// Use the same optional capability and guarded review as Settings → Map.
-export function mountMembersStartEntry(c) {
-  const entry = c.$('members-start-open');
-  function refresh() {
-    entry.hidden = !c.canWrite() || !c.panelContext.membersStart;
-    entry.disabled = entry.hidden || c.panelContext.membersStartAvailable?.() === false;
-  }
-  entry.addEventListener('click', () => {
-    refresh();
-    if (!entry.disabled) Promise.resolve().then(() => c.panelContext.membersStart()).catch(c.showError);
-  });
-  refresh();
-  return { refresh };
-}
