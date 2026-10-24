@@ -49,7 +49,7 @@ An orphan fixture always runs before the measured entrypoint: a parent exits, it
 
 ## Controls and workflow gate
 
-`python -B -m unittest -v test_docker_envelope.py` is pure:32 tests, no Docker/process/app/network/stress execution. `node --check inside.mjs` and Python AST parsing passed. These verify argument/admission/cleanup/projection logic, not actual kernel enforcement.
+`python -B -m unittest -v test_docker_envelope.py` is pure:40 tests, no Docker/process/app/network/stress execution. `node --check inside.mjs` and Python AST parsing passed. These verify argument/admission/cleanup/projection logic, not actual kernel enforcement.
 
 Remote controls are separate experiments and cannot produce workload measurements:
 
@@ -61,6 +61,10 @@ Remote controls are separate experiments and cannot produce workload measurement
 | missing-init | Normal caps with init intentionally omitted; host admission must reject only init before start. Exact owned container removed. |
 
 The prepared workflow triggers only on pushes to the isolated asset branch with relevant file changes. It uses public standard Ubuntu24.04, contents:read, existing exact checkout/setup-node SHAs, Node24.19.0, no caches, no artifact uploads, no pack fetching or new tokens. Setup logs are redirected; public result logs are closed JSON projections only. The measured job is explicitly disabled until root reviews remote control results and authorizes its exact capture. A later thirty-minute run uses the same CLI and envelope but needs a longer CI job timeout and a separate source-reviewed entrypoint; no soak is scheduled here.
+
+The original published controls source `7c4afaa439f8b94618aec57c4674c43942ead241`, [run40043874952](https://github.com/fenerax/chunk-picker-rs3/actions/runs/40043874952), stopped at dependency setup before image pull or any Docker control. Its stderr was not retained, so its exact failure cause remains unproven. A tiny local `npm config get registry` control on Node24.20.0/npm11.19.0 reproduced `double-loading config` when user/global config selected the same empty task file; distinct empty files returned the public registry successfully. No install, network request, app or Docker command ran in that reproduction. `npm-config-repro-evidence.json` retains only versions, booleans, exit codes, output byte counts and hashes. The published original and failed trial remain preserved.
+
+Both setup recipes now create separate fresh empty user/global `.npmrc` files. npm receives a clean environment, explicit public registry, isolated home/cache and disabled update notifier. On npm or public image-pull failure, `setup_diagnostics.py` emits the stage, exit code, full small-log SHA256/byte count, fixed error class and at most eight fixed normalized tail templates. It never prints original lines, matched substrings, URLs, paths, environment values, tokens or stores. It reads at most16MiB with no-follow/nonblocking regular-file checks and retains only a64KiB tail for classification; unsafe/oversized/unreadable logs produce a fixed diagnostic-unavailable result. Raw setup/npm debug logs remain only on the ephemeral runner and are never uploaded. The next remote controls run must verify setup and actual enforcement; this local reproduction closes neither gate.
 
 [GitHub's runner specification](https://docs.github.com/en/actions/reference/runners/github-hosted-runners) documents public standard Ubuntu24.04 as4CPU/16GB. [GitHub billing](https://docs.github.com/en/billing/concepts/product-billing/github-actions) documents standard public-repository runners as free. This uses no paid larger runner, private compute or API key. Main is unchanged.
 

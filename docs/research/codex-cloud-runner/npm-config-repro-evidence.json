@@ -1,0 +1,28 @@
+{
+  "schema": "npm-config-isolation-repro-v1",
+  "method": "local config get registry only; no installs/network/app/Docker",
+  "nodeVersion": "v24.20.0",
+  "npmVersion": "11.19.0",
+  "controls": [
+    {
+      "control": "same-empty-config",
+      "exitCode": 1,
+      "outputBytes": 285,
+      "outputSha256": "370c7fbb08d376efb96c70e48fb6926c3552e7a9c1e881e60f888d06e6d25c38",
+      "duplicateConfigObserved": true,
+      "expectedPublicRegistryObserved": false
+    },
+    {
+      "control": "distinct-empty-configs",
+      "exitCode": 0,
+      "outputBytes": 28,
+      "outputSha256": "be14e0e356d799ad7fda0c391f9a6601ec5ca1dfaead2f7ceb678a7c81122878",
+      "duplicateConfigObserved": false,
+      "expectedPublicRegistryObserved": true
+    }
+  ],
+  "confirmedLocalHypothesis": true,
+  "remoteOriginalFailureCause": "UNPROVEN_STDERR_NOT_RETAINED",
+  "originalPublishedCommit": "7c4afaa439f8b94618aec57c4674c43942ead241",
+  "originalWorkflowRun": 40043874952
+}

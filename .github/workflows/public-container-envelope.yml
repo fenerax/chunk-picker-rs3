@@ -41,19 +41,31 @@ jobs:
           export PYTHONDONTWRITEBYTECODE=1
           python3 -B "$tool/prepare_public.py" --checkout "$GITHUB_WORKSPACE/inputs/source" --commit 6f22fefa782747790e2eaefa01e4e5ea7b557323 --output "$RUNNER_TEMP/public-source"
           python3 -B "$tool/prepare_public.py" --checkout "$GITHUB_WORKSPACE/inputs/assets" --commit "$GITHUB_SHA" --output "$RUNNER_TEMP/public-harness"
-          mkdir -m 700 "$RUNNER_TEMP/deps" "$RUNNER_TEMP/npm-home" "$RUNNER_TEMP/runtime" "$RUNNER_TEMP/pull-config"
+          mkdir -m 700 "$RUNNER_TEMP/deps" "$RUNNER_TEMP/npm-home" "$RUNNER_TEMP/npm-config" "$RUNNER_TEMP/runtime" "$RUNNER_TEMP/pull-config"
           cp "$tool/package.json" "$tool/package-lock.json" "$RUNNER_TEMP/deps/"
           cp "$(command -v node)" "$RUNNER_TEMP/runtime/node"
-          env -i PATH="$PATH" HOME="$RUNNER_TEMP/npm-home" npm_config_userconfig=/dev/null npm_config_globalconfig=/dev/null npm ci --prefix "$RUNNER_TEMP/deps" --ignore-scripts --omit=optional --no-audit --no-fund > "$RUNNER_TEMP/npm-setup.log" 2>&1 || { printf '{"stage":"dependency-setup","passed":false}\n'; exit 1; }
+          : > "$RUNNER_TEMP/npm-config/empty-user.npmrc"
+          : > "$RUNNER_TEMP/npm-config/empty-global.npmrc"
+          setup_status=0
+          env -i PATH="$PATH" HOME="$RUNNER_TEMP/npm-home" npm_config_userconfig="$RUNNER_TEMP/npm-config/empty-user.npmrc" npm_config_globalconfig="$RUNNER_TEMP/npm-config/empty-global.npmrc" npm_config_cache="$RUNNER_TEMP/npm-home/cache" npm_config_registry=https://registry.npmjs.org/ npm_config_update_notifier=false npm ci --prefix "$RUNNER_TEMP/deps" --ignore-scripts --omit=optional --no-audit --no-fund > "$RUNNER_TEMP/npm-setup.log" 2>&1 || setup_status=$?
+          if [ "$setup_status" -ne 0 ]; then
+            python3 -B "$tool/setup_diagnostics.py" --stage dependency-setup --exit-code "$setup_status" --log "$RUNNER_TEMP/npm-setup.log"
+            exit "$setup_status"
+          fi
           image=$(python3 -B -c 'import json,sys; print(json.load(open(sys.argv[1]))["image"])' "$tool/pins.json")
-          docker --host unix:///var/run/docker.sock --config "$RUNNER_TEMP/pull-config" pull --platform linux/amd64 "$image" > "$RUNNER_TEMP/image-pull.log" 2>&1 || { printf '{"stage":"public-image-pull","passed":false}\n'; exit 1; }
+          setup_status=0
+          docker --host unix:///var/run/docker.sock --config "$RUNNER_TEMP/pull-config" pull --platform linux/amd64 "$image" > "$RUNNER_TEMP/image-pull.log" 2>&1 || setup_status=$?
+          if [ "$setup_status" -ne 0 ]; then
+            python3 -B "$tool/setup_diagnostics.py" --stage public-image-pull --exit-code "$setup_status" --log "$RUNNER_TEMP/image-pull.log"
+            exit "$setup_status"
+          fi
           printf '{"stage":"public-setup","passed":true}\n'
       - name: Pure safety controls
         working-directory: inputs/assets/docs/research/codex-cloud-runner
         shell: bash
         run: |
           python3 -B -m unittest -q test_docker_envelope.py > "$RUNNER_TEMP/pure-controls.log" 2>&1 || { printf '{"stage":"pure-controls","passed":false}\n'; exit 1; }
-          printf '{"stage":"pure-controls","passed":true,"count":32}\n'
+          printf '{"stage":"pure-controls","passed":true,"count":40}\n'
       - name: Positive, CPU, memory, and missing-init remote controls
         shell: bash
         run: |
@@ -93,12 +105,24 @@ jobs:
           export PYTHONDONTWRITEBYTECODE=1
           python3 -B "$tool/prepare_public.py" --checkout "$GITHUB_WORKSPACE/inputs/source" --commit 6f22fefa782747790e2eaefa01e4e5ea7b557323 --output "$RUNNER_TEMP/public-source"
           python3 -B "$tool/prepare_public.py" --checkout "$GITHUB_WORKSPACE/inputs/assets" --commit "$GITHUB_SHA" --output "$RUNNER_TEMP/public-harness"
-          mkdir -m 700 "$RUNNER_TEMP/deps" "$RUNNER_TEMP/npm-home" "$RUNNER_TEMP/runtime" "$RUNNER_TEMP/pull-config"
+          mkdir -m 700 "$RUNNER_TEMP/deps" "$RUNNER_TEMP/npm-home" "$RUNNER_TEMP/npm-config" "$RUNNER_TEMP/runtime" "$RUNNER_TEMP/pull-config"
           cp "$tool/package.json" "$tool/package-lock.json" "$RUNNER_TEMP/deps/"
           cp "$(command -v node)" "$RUNNER_TEMP/runtime/node"
-          env -i PATH="$PATH" HOME="$RUNNER_TEMP/npm-home" npm_config_userconfig=/dev/null npm_config_globalconfig=/dev/null npm ci --prefix "$RUNNER_TEMP/deps" --ignore-scripts --omit=optional --no-audit --no-fund > "$RUNNER_TEMP/npm-setup.log" 2>&1 || { printf '{"stage":"dependency-setup","passed":false}\n'; exit 1; }
+          : > "$RUNNER_TEMP/npm-config/empty-user.npmrc"
+          : > "$RUNNER_TEMP/npm-config/empty-global.npmrc"
+          setup_status=0
+          env -i PATH="$PATH" HOME="$RUNNER_TEMP/npm-home" npm_config_userconfig="$RUNNER_TEMP/npm-config/empty-user.npmrc" npm_config_globalconfig="$RUNNER_TEMP/npm-config/empty-global.npmrc" npm_config_cache="$RUNNER_TEMP/npm-home/cache" npm_config_registry=https://registry.npmjs.org/ npm_config_update_notifier=false npm ci --prefix "$RUNNER_TEMP/deps" --ignore-scripts --omit=optional --no-audit --no-fund > "$RUNNER_TEMP/npm-setup.log" 2>&1 || setup_status=$?
+          if [ "$setup_status" -ne 0 ]; then
+            python3 -B "$tool/setup_diagnostics.py" --stage dependency-setup --exit-code "$setup_status" --log "$RUNNER_TEMP/npm-setup.log"
+            exit "$setup_status"
+          fi
           image=$(python3 -B -c 'import json,sys; print(json.load(open(sys.argv[1]))["image"])' "$tool/pins.json")
-          docker --host unix:///var/run/docker.sock --config "$RUNNER_TEMP/pull-config" pull --platform linux/amd64 "$image" > "$RUNNER_TEMP/image-pull.log" 2>&1 || { printf '{"stage":"public-image-pull","passed":false}\n'; exit 1; }
+          setup_status=0
+          docker --host unix:///var/run/docker.sock --config "$RUNNER_TEMP/pull-config" pull --platform linux/amd64 "$image" > "$RUNNER_TEMP/image-pull.log" 2>&1 || setup_status=$?
+          if [ "$setup_status" -ne 0 ]; then
+            python3 -B "$tool/setup_diagnostics.py" --stage public-image-pull --exit-code "$setup_status" --log "$RUNNER_TEMP/image-pull.log"
+            exit "$setup_status"
+          fi
           printf '{"stage":"public-setup","passed":true}\n'
       - name: One independent reference and one measured frozen browser case
         shell: bash

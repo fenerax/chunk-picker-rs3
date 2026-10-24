@@ -1,0 +1,94 @@
+{
+  "schemaVersion": 1,
+  "mode": "r116-frozen-input-v1",
+  "sourceCommit": "6f22fefa782747790e2eaefa01e4e5ea7b557323",
+  "entrypoint": "run-frozen-browser.mjs",
+  "runtimeStatus": "UNRUN",
+  "files": [
+    {
+      "path": "browser-adapter.mjs",
+      "bytes": 36442,
+      "sha256": "2a53212a693323839df2d2472e72bf94bdfc4d088ce65ab25380a4fd0fa97c32"
+    },
+    {
+      "path": "browser-adapter.test.mjs",
+      "bytes": 15725,
+      "sha256": "69449702f489308f587e5f3bdce27e713da556feb1cc782eca0e458975996f4a"
+    },
+    {
+      "path": "controller.test.mjs",
+      "bytes": 6985,
+      "sha256": "131965a84419da24267918905a6736fde2b3537f47acbe0d19c0613a7e3d9a83"
+    },
+    {
+      "path": "fixture.json",
+      "bytes": 1927,
+      "sha256": "380ffb698ea594ccb1d375321708a4369f50da82fdc796fd91a4a8c8038b8022"
+    },
+    {
+      "path": "frozen-oracle.mjs",
+      "bytes": 8477,
+      "sha256": "7751c4ea4ffc07c03ab042a1f4975fe1dc0de7bbcfda9450949e8b6b432ef485"
+    },
+    {
+      "path": "frozen-oracle.test.mjs",
+      "bytes": 7127,
+      "sha256": "7017ba31f6ac8e44174de7c0a20e4236b01d4ffb2a82c8799799faa51c1204fe"
+    },
+    {
+      "path": "harness-utils.mjs",
+      "bytes": 7452,
+      "sha256": "fd273b2b99e29fc3ee04fdf7937ccae5844be1572311abb772c8dcc92a6adb73"
+    },
+    {
+      "path": "opening-oracle.mjs",
+      "bytes": 5164,
+      "sha256": "2fccb5e0a90e062b356ce912abd0d2acde39b89fe89c6322f01c9a68ce8ef63b"
+    },
+    {
+      "path": "opening-oracle.test.mjs",
+      "bytes": 4573,
+      "sha256": "2c0e3d7bda88aa0ef88003c3068f4c07fe687fc1f8fd3aa4acfe8a0a2a1377ba"
+    },
+    {
+      "path": "pending-command.sh",
+      "bytes": 421,
+      "sha256": "c7116f4e382c841fbf089d4487ecd8305198a629661fe5513ebcaf89b4f47052"
+    },
+    {
+      "path": "pure-tests.log",
+      "bytes": 4712,
+      "sha256": "5a9797d7a0a66e6996d9f04075b20587807155561e9372009655bb3f24735472"
+    },
+    {
+      "path": "README.md",
+      "bytes": 10272,
+      "sha256": "212db5da0f8a830a8f562ed18309cbf2dd8db687a956b15aabc1010ee01bef12"
+    },
+    {
+      "path": "run-frozen-browser.mjs",
+      "bytes": 39465,
+      "sha256": "447f269e8405ac71b3655f2361b1688f1315d6bff6a913c40e9e093bbaf5cfb0"
+    },
+    {
+      "path": "server-driver-protocol.md",
+      "bytes": 9388,
+      "sha256": "711891969c0cea74fbb7ee416db260221dd06d0e648ff9d7b5912bb3651c1bdd"
+    },
+    {
+      "path": "server-driver.mjs",
+      "bytes": 24511,
+      "sha256": "89700cc8e33d1807dd67ac3c77edeaa24384accf48d5eecc708b94bb2f3800aa"
+    },
+    {
+      "path": "strict-oracle.mjs",
+      "bytes": 7674,
+      "sha256": "29f28c1d5705b681be5bbb3aa6408e01bb8d049f27b1c1428f4737f5c42c789d"
+    },
+    {
+      "path": "verification.json",
+      "bytes": 1222,
+      "sha256": "5bf112db47706225d1eb7607217a6dd8f0da5d24a435357ca51ccb2091f84e39"
+    }
+  ]
+}

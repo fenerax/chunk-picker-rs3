@@ -1,0 +1,84 @@
+{
+  "schemaVersion": 1,
+  "id": "R79-public-lumbridge-four-v1",
+  "sourceCommit": "6f22fefa782747790e2eaefa01e4e5ea7b557323",
+  "provenance": "New authored public fixture; retained R44 fixture unavailable here; no equivalence claim.",
+  "dataset": "duo-legacy",
+  "expectedDatasetDigestPrefix": "3cbb",
+  "expectedPriorCompiledDimensions": {
+    "nativeTasks": 23935,
+    "aliases": 91471,
+    "worldChunks": 2594
+  },
+  "dimensionStatus": "Expectations supplied by delegation; runtime counts must be independently observed, not inferred from raw source or saved registry.",
+  "rawFrozenDefinitionsChunks": 2556,
+  "publicChunks": [
+    {
+      "id": "12850",
+      "name": "Lumbridge"
+    },
+    {
+      "id": "12594",
+      "name": "Lumbridge Forest"
+    },
+    {
+      "id": "12849",
+      "name": "East Lumbridge Swamp"
+    },
+    {
+      "id": "12593",
+      "name": "West Lumbridge Swamp"
+    }
+  ],
+  "members": [
+    {
+      "id": "explorer-1",
+      "name": "R79 Explorer 1",
+      "unlocked": [
+        "12850",
+        "12594",
+        "12849",
+        "12593"
+      ],
+      "completedTasks": []
+    },
+    {
+      "id": "explorer-2",
+      "name": "R79 Explorer 2",
+      "unlocked": [
+        "12850",
+        "12594",
+        "12849",
+        "12593"
+      ],
+      "completedTasks": [
+        "custom:r79:overlay"
+      ]
+    }
+  ],
+  "rules": {
+    "access.shared": false,
+    "tasks.completion": "personal"
+  },
+  "tasks": [
+    {
+      "id": "custom:r79:overlay",
+      "label": "R79 authored overlay task",
+      "category": "Extra",
+      "memberIds": [
+        "explorer-1",
+        "explorer-2"
+      ]
+    }
+  ],
+  "planningChunkId": "12850",
+  "groupModes": [
+    false,
+    true
+  ],
+  "controls": [
+    "cold-immediate",
+    "natural-warmup-ready"
+  ],
+  "overlayMeaning": "One authored custom task, plus one real shipping count-overlay browser page opened by the driver; no live/private overlay."
+}

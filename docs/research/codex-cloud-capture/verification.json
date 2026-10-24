@@ -1,0 +1,45 @@
+{
+  "schema": "r116-authoring-verification-v1",
+  "preparedAtUTC": "2026-10-24T00:13:00.319Z",
+  "authoringRuntime": {
+    "nodeVersion": "v24.20.0",
+    "platform": "win32",
+    "execution": "pure-node-controls-only"
+  },
+  "syntax": {
+    "files": 11,
+    "passed": true,
+    "execution": "node --check; no imports or startup"
+  },
+  "namedTests": {
+    "total": 71,
+    "passed": 71,
+    "failed": 0,
+    "files": [
+      "browser-adapter.test.mjs",
+      "controller.test.mjs",
+      "frozen-oracle.test.mjs",
+      "opening-oracle.test.mjs"
+    ],
+    "log": "pure-tests.log"
+  },
+  "runtime": {
+    "application": 0,
+    "provider": 0,
+    "worker": 0,
+    "browser": 0,
+    "reference": 0,
+    "measured": 0,
+    "status": "UNRUN"
+  },
+  "targetRuntime": {
+    "nodeVersion": "v24.19.0",
+    "playwrightVersion": "1.62.1",
+    "chromiumVersion": "151.0.7922.34",
+    "platform": "linux",
+    "resourceProfile": "docker-hard-2cpu-6g-v1"
+  },
+  "scope": "In-memory DOM/store protocol models and data-only oracles; no real application, browser or performance evidence.",
+  "sourcePin": "6f22fefa782747790e2eaefa01e4e5ea7b557323",
+  "fixtureSha256": "380ffb698ea594ccb1d375321708a4369f50da82fdc796fd91a4a8c8038b8022"
+}

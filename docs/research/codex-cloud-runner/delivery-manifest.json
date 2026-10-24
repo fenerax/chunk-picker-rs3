@@ -16,6 +16,11 @@
       "sha256": "f0f030e68f28ba93b81bd01b7a543c867be5f06014ddd98be7f88df578eece4f"
     },
     {
+      "path": "npm-config-repro-evidence.json",
+      "bytes": 991,
+      "sha256": "eb0753ae0b2ba6c390a06f361d24f78a4192930aace05efc43b18eb1c7450277"
+    },
+    {
       "path": "package-lock.json",
       "bytes": 1810,
       "sha256": "a364b1a3f5f6984e0ca91fc9f2cac8327867ba4e1365ac547761e3327da42f91"
@@ -37,8 +42,8 @@
     },
     {
       "path": "public-container-envelope.yml",
-      "bytes": 7278,
-      "sha256": "a509dd2fc1a8a9585e747c71da638409ca60b7bbc3e258858de64e84a3eb61d0"
+      "bytes": 8772,
+      "sha256": "d8b71bd5fb7fda7940f4e0177df9874c59149080abbd1c79b7fd6f023d881ca4"
     },
     {
       "path": "public-metadata-evidence.json",
@@ -47,23 +52,28 @@
     },
     {
       "path": "README.md",
-      "bytes": 14346,
-      "sha256": "313328bd9111a1fb1ad10e1e07693d662b854c178821bc26f28cbc1de19d6dd5"
+      "bytes": 16019,
+      "sha256": "5debe4ed571e515f43c0afa4ed74cab6c241509c8d5c7352f2986e2fcb50c898"
     },
     {
       "path": "result-policy.json",
-      "bytes": 48843,
-      "sha256": "15fe8c0c37e379d15aa9ac20572dc209bc635701b096478c73d4fd4549726fbc"
+      "bytes": 48868,
+      "sha256": "d1dd957547392088f4293df0afd8198ba6ea0c71bd7dab9fd3eb09f751eace9d"
+    },
+    {
+      "path": "setup_diagnostics.py",
+      "bytes": 4918,
+      "sha256": "20055a8c767f66cee88b4235141867342deea1d0a5ee8ca3ce1e511b493abf1f"
     },
     {
       "path": "test_docker_envelope.py",
-      "bytes": 12768,
-      "sha256": "c4f91750e32378ea66c0c52dc26287394e06f4d60b9bbbd2f98017e14e0a2b26"
+      "bytes": 17029,
+      "sha256": "44e582378dc915c48f803cc8ee1afc3a4b6c86ef101f082eae1d60444719d713"
     },
     {
       "path": "verification.json",
-      "bytes": 1713,
-      "sha256": "7f478e667cc4cd044a5929ff9a5ca6acd1a03d8d239ecbeca59c5f4ebdfe6bc1"
+      "bytes": 2193,
+      "sha256": "7b6a77241e5046c2280a1d9554ebbb7a46f218caf26c617bc2132280266ca7b1"
     }
   ]
 }

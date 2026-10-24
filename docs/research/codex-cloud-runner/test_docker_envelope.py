@@ -1,12 +1,16 @@
 """Pure controls: no Docker, processes, apps, network or fixture stress is run."""
 import copy
+import hashlib
+import io
 import json
 import os
 from pathlib import Path
 from types import SimpleNamespace
 import unittest
+import re
 from unittest.mock import patch
 import docker_envelope as e
+import setup_diagnostics as diagnostics
 
 CID = 'a' * 64
 OWNER = 'b' * 32
@@ -119,12 +123,13 @@ class Controls(unittest.TestCase):
         self.assertTrue(fake.removed)
     def test_public_projection_discards_auth_url_and_store(self):
         got = e.sanitized_result({'schema':'r116-frozen-browser-v1', 'status':'blocked', 'sourcePin':'a'*40,
-          'fixtureSha256':'b'*64, 'token':'SYNTHETIC_SECRET', 'url':'http://localhost/?token=SYNTHETIC_SECRET',
+          'fixtureSha256':'b'*64, 'finalProofSha256':'d'*64, 'token':'SYNTHETIC_SECRET', 'url':'http://localhost/?token=SYNTHETIC_SECRET',
           'store': {'private':'SYNTHETIC_SECRET'}, 'metrics': {'allDomMs': 12.5, 'token': 22},
           'scope': {'memberId':'explorer-1', 'chunkId':'12850', 'group':False, 'token':'SYNTHETIC_SECRET'}})
         text = json.dumps(got)
         self.assertNotIn('SYNTHETIC_SECRET', text); self.assertNotIn('localhost', text)
         self.assertEqual(got['sourcePin'], 'a'*40); self.assertEqual(got['metrics']['allDomMs'], 12.5)
+        self.assertEqual(got['finalProofSha256'], 'd'*64)
     def test_public_projection_rejects_arbitrary_status_and_nonhex(self):
         got = e.sanitized_result({'status': {'private':'SYNTHETIC_SECRET'}, 'sourcePin':'not-a-hash', 'nodeVersion':'v999', 'scope': {'group':0}})
         self.assertNotIn('status', got); self.assertNotIn('sourcePin', got); self.assertEqual(got['scope'], {})
@@ -177,5 +182,53 @@ class Controls(unittest.TestCase):
         command = e.create_args(a, OWNER, [2, 3], 1001, 1001)
         self.assertNotIn('--init', command)
         self.assertEqual(command[command.index('--memory')+1], str(6 * 1024**3))
+    def test_both_workflow_recipes_use_distinct_empty_npm_configs(self):
+        workflow = Path('public-container-envelope.yml').read_text()
+        pairs = re.findall(r'npm_config_userconfig="([^"]+)"\s+npm_config_globalconfig="([^"]+)"', workflow)
+        self.assertEqual(len(pairs), 2)
+        for user, global_config in pairs:
+            self.assertNotEqual(user, global_config)
+            self.assertNotEqual(user, '/dev/null'); self.assertNotEqual(global_config, '/dev/null')
+            self.assertIn(': > "' + user + '"', workflow)
+            self.assertIn(': > "' + global_config + '"', workflow)
+    def test_both_setup_failures_use_closed_diagnostics(self):
+        workflow = Path('public-container-envelope.yml').read_text()
+        self.assertEqual(workflow.count('--stage dependency-setup'), 2)
+        self.assertEqual(workflow.count('--stage public-image-pull'), 2)
+        self.assertNotIn('cat "$RUNNER_TEMP/npm-setup.log"', workflow)
+        self.assertNotIn('tail "$RUNNER_TEMP/image-pull.log"', workflow)
+    def test_setup_diagnostic_never_echoes_original_tail(self):
+        raw = b'npm error double-loading config /private/SYNTHETIC_SECRET\nAuthorization: Bearer SYNTHETIC_TOKEN\nhttps://registry.example/?token=SYNTHETIC_TOKEN\n{"store":"SYNTHETIC_STATE"}'
+        primary, tail = diagnostics.summarize_tail(raw, 'dependency-setup')
+        result = json.dumps({'errorClass':primary, 'normalizedTail':tail})
+        self.assertEqual(primary, 'npm-config-source-duplicate')
+        for secret in ('SYNTHETIC', '/private/', 'https:', 'Authorization', 'store'):
+            self.assertNotIn(secret, result)
+    def test_setup_diagnostic_docker_classes_are_fixed(self):
+        self.assertEqual(diagnostics.line_class('unauthorized https://private/?token=secret', 'public-image-pull'), 'image-auth-denied')
+        self.assertEqual(diagnostics.line_class('no matching manifest for linux/amd64 with private label', 'public-image-pull'), 'platform-unavailable')
+        self.assertEqual(diagnostics.line_class('Cannot connect to the Docker daemon at a private path', 'public-image-pull'), 'docker-daemon-unavailable')
+    def test_setup_diagnostic_only_uses_bounded_tail(self):
+        raw = b'double-loading config\n' + b'x' * (diagnostics.TAIL_BYTES + 1)
+        primary, tail = diagnostics.summarize_tail(raw, 'dependency-setup')
+        self.assertEqual(primary, 'unknown-setup-error')
+        self.assertEqual(tail, ['unclassified-output-omitted'])
+        self.assertLessEqual(len(tail), 8)
+    def test_setup_diagnostic_hashes_complete_small_log(self):
+        raw = b'npm error double-loading config SYNTHETIC_SECRET\n'
+        with patch.object(diagnostics.os, 'open', return_value=90), patch.object(diagnostics.os, 'fstat', return_value=SimpleNamespace(st_mode=0o100600, st_size=len(raw))), patch.object(diagnostics.os, 'read', side_effect=[raw,b'']), patch.object(diagnostics.os, 'close'):
+            result = diagnostics.diagnose('dependency-setup', 1, '/owned/log')
+        self.assertEqual(result['logSha256'], hashlib.sha256(raw).hexdigest())
+        self.assertEqual(result['logBytes'], len(raw))
+        self.assertNotIn('SYNTHETIC_SECRET', json.dumps(result))
+    def test_setup_diagnostic_rejects_fifo_before_read(self):
+        with patch.object(diagnostics.os, 'open', return_value=90), patch.object(diagnostics.os, 'fstat', return_value=SimpleNamespace(st_mode=0o010000, st_size=0)), patch.object(diagnostics.os, 'read', side_effect=AssertionError('read FIFO')), patch.object(diagnostics.os, 'close'):
+            with self.assertRaises(ValueError): diagnostics.diagnose('dependency-setup',1,'/owned/fifo')
+    def test_setup_diagnostic_cli_errors_do_not_echo_paths_or_arguments(self):
+        output = io.StringIO()
+        with patch('sys.stdout', output):
+            self.assertEqual(diagnostics.main(['--stage','SYNTHETIC_SECRET','--log','/private/SYNTHETIC_SECRET','--exit-code','1']),0)
+        self.assertNotIn('SYNTHETIC_SECRET', output.getvalue())
+        self.assertEqual(json.loads(output.getvalue())['errorClass'],'diagnostic-unavailable')
 
 if __name__ == '__main__': unittest.main()

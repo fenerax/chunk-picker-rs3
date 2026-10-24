@@ -37,6 +37,7 @@
   "hashKeys": [
     "calculatorBytesSha256",
     "datasetDigest",
+    "finalProofSha256",
     "fixtureSha256",
     "harnessManifestSha256",
     "observedBodySha256",
