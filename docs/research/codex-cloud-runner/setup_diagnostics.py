@@ -4,15 +4,25 @@ import argparse
 import hashlib
 import json
 import os
+from pathlib import Path
 import stat
 import sys
 
-STAGES = {"dependency-setup", "public-image-pull"}
+STAGES = {"dependency-setup", "public-image-pull", "pure-controls"}
 MAX_LOG = 16 * 1024**2
 TAIL_BYTES = 64 * 1024
 
 def line_class(line, stage):
     s = line.lower()
+    if stage == "pure-controls":
+        if "filenotfounderror" in s:
+            return "pure-controls-input-missing"
+        if "modulenotfounderror" in s or "importerror" in s:
+            return "pure-controls-import-failed"
+        if "assertionerror" in s:
+            return "pure-controls-assertion-failed"
+        if "syntaxerror" in s:
+            return "pure-controls-syntax-failed"
     if "double-loading config" in s:
         return "npm-config-source-duplicate"
     if "eintegrity" in s or "integrity checksum failed" in s:
@@ -58,10 +68,20 @@ def summarize_tail(data, stage):
     primary = next((x for x in classes if x != "unclassified-output-omitted"), "unknown-setup-error")
     return primary, classes[-8:]
 
+def pure_test_ids(data):
+    # Emit only complete IDs from the reviewed static source policy, never regex captures.
+    try:
+        policy = json.loads(Path(__file__).with_name("result-policy.json").read_text())
+        known = policy["pureTestIds"]
+        lines = data[-TAIL_BYTES:].decode("utf-8", "replace").splitlines()[-64:]
+        return [item for item in known if isinstance(item, str) and item.startswith("test_") and any(line.startswith("ERROR: " + item + " (") or line.startswith("FAIL: " + item + " (") for line in lines)][:8]
+    except (OSError, ValueError, KeyError, TypeError):
+        return []
+
 def diagnose(stage, exit_code, filename):
     if stage not in STAGES or type(exit_code) is not int or not 0 <= exit_code <= 255:
         raise ValueError()
-    fd = os.open(filename, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0))
+    fd = os.open(filename, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0) | getattr(os, "O_BINARY", 0))
     try:
         info = os.fstat(fd)
         if not stat.S_ISREG(info.st_mode) or info.st_size > MAX_LOG:
@@ -79,10 +99,13 @@ def diagnose(stage, exit_code, filename):
     finally:
         os.close(fd)
     primary, normalized = summarize_tail(tail, stage)
-    return {"schema": "public-setup-diagnostic-v1", "stage": stage, "passed": False,
+    result = {"schema": "public-setup-diagnostic-v1", "stage": stage, "passed": False,
             "exitCode": exit_code, "errorClass": primary, "logBytes": total,
             "logSha256": digest.hexdigest(), "normalizedTail": normalized,
             "tailTruncated": total > TAIL_BYTES}
+    if stage == "pure-controls":
+        result["failedTestIds"] = pure_test_ids(tail)
+    return result
 
 class Parser(argparse.ArgumentParser):
     def error(self, _message):

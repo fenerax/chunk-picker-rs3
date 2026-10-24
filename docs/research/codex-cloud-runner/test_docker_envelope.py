@@ -16,6 +16,15 @@ CID = 'a' * 64
 OWNER = 'b' * 32
 SOURCES = {name: '/owned' + name for name in ('/source', '/harness', '/deps', '/runtime/node', '/runner', '/scratch')}
 
+def workflow_path(base=None):
+    base = Path(__file__).resolve().parent if base is None else base
+    # Delivery bundle keeps the reviewed file adjacent; public checkout uses its canonical path.
+    candidates = [base / 'public-container-envelope.yml', base.parents[2] / '.github/workflows/public-container-envelope.yml']
+    for candidate in candidates:
+        if candidate.is_file():
+            return candidate
+    raise FileNotFoundError('public-control-workflow-not-found')
+
 def admitted_doc():
     return {'Id': CID, 'Image': e.PINS['imageConfigDigest'],
         'Config': {'Image': e.PINS['image'], 'Labels': {e.LABEL: OWNER}, 'User': '1001:1001', 'Env': [f'{k}={v}' for k,v in e.fixed_env().items()]},
@@ -183,7 +192,7 @@ class Controls(unittest.TestCase):
         self.assertNotIn('--init', command)
         self.assertEqual(command[command.index('--memory')+1], str(6 * 1024**3))
     def test_both_workflow_recipes_use_distinct_empty_npm_configs(self):
-        workflow = Path('public-container-envelope.yml').read_text()
+        workflow = workflow_path().read_text()
         pairs = re.findall(r'npm_config_userconfig="([^"]+)"\s+npm_config_globalconfig="([^"]+)"', workflow)
         self.assertEqual(len(pairs), 2)
         for user, global_config in pairs:
@@ -192,11 +201,18 @@ class Controls(unittest.TestCase):
             self.assertIn(': > "' + user + '"', workflow)
             self.assertIn(': > "' + global_config + '"', workflow)
     def test_both_setup_failures_use_closed_diagnostics(self):
-        workflow = Path('public-container-envelope.yml').read_text()
+        workflow = workflow_path().read_text()
         self.assertEqual(workflow.count('--stage dependency-setup'), 2)
         self.assertEqual(workflow.count('--stage public-image-pull'), 2)
         self.assertNotIn('cat "$RUNNER_TEMP/npm-setup.log"', workflow)
         self.assertNotIn('tail "$RUNNER_TEMP/image-pull.log"', workflow)
+    def test_workflow_path_supports_canonical_public_layout(self):
+        base = Path('/public/docs/research/codex-cloud-runner')
+        with patch.object(Path, 'is_file', side_effect=[False, True]):
+            self.assertEqual(workflow_path(base), base.parents[2] / '.github/workflows/public-container-envelope.yml')
+    def test_workflow_path_missing_both_locations_fails_closed(self):
+        with patch.object(Path, 'is_file', return_value=False):
+            with self.assertRaises(FileNotFoundError): workflow_path(Path('/public/docs/research/codex-cloud-runner'))
     def test_setup_diagnostic_never_echoes_original_tail(self):
         raw = b'npm error double-loading config /private/SYNTHETIC_SECRET\nAuthorization: Bearer SYNTHETIC_TOKEN\nhttps://registry.example/?token=SYNTHETIC_TOKEN\n{"store":"SYNTHETIC_STATE"}'
         primary, tail = diagnostics.summarize_tail(raw, 'dependency-setup')
@@ -208,6 +224,9 @@ class Controls(unittest.TestCase):
         self.assertEqual(diagnostics.line_class('unauthorized https://private/?token=secret', 'public-image-pull'), 'image-auth-denied')
         self.assertEqual(diagnostics.line_class('no matching manifest for linux/amd64 with private label', 'public-image-pull'), 'platform-unavailable')
         self.assertEqual(diagnostics.line_class('Cannot connect to the Docker daemon at a private path', 'public-image-pull'), 'docker-daemon-unavailable')
+        self.assertEqual(diagnostics.line_class('FileNotFoundError: /private/SYNTHETIC_SECRET', 'pure-controls'), 'pure-controls-input-missing')
+        raw = b'ERROR: test_both_workflow_recipes_use_distinct_empty_npm_configs (Controls)\nERROR: test_SYNTHETIC_SECRET (private.unknown)\n'
+        self.assertEqual(diagnostics.pure_test_ids(raw), ['test_both_workflow_recipes_use_distinct_empty_npm_configs'])
     def test_setup_diagnostic_only_uses_bounded_tail(self):
         raw = b'double-loading config\n' + b'x' * (diagnostics.TAIL_BYTES + 1)
         primary, tail = diagnostics.summarize_tail(raw, 'dependency-setup')
@@ -216,8 +235,9 @@ class Controls(unittest.TestCase):
         self.assertLessEqual(len(tail), 8)
     def test_setup_diagnostic_hashes_complete_small_log(self):
         raw = b'npm error double-loading config SYNTHETIC_SECRET\n'
-        with patch.object(diagnostics.os, 'open', return_value=90), patch.object(diagnostics.os, 'fstat', return_value=SimpleNamespace(st_mode=0o100600, st_size=len(raw))), patch.object(diagnostics.os, 'read', side_effect=[raw,b'']), patch.object(diagnostics.os, 'close'):
+        with patch.object(diagnostics.os, 'open', return_value=90) as opened, patch.object(diagnostics.os, 'fstat', return_value=SimpleNamespace(st_mode=0o100600, st_size=len(raw))), patch.object(diagnostics.os, 'read', side_effect=[raw,b'']), patch.object(diagnostics.os, 'close'):
             result = diagnostics.diagnose('dependency-setup', 1, '/owned/log')
+        self.assertEqual(opened.call_args.args[1] & getattr(os, 'O_BINARY', 0), getattr(os, 'O_BINARY', 0))
         self.assertEqual(result['logSha256'], hashlib.sha256(raw).hexdigest())
         self.assertEqual(result['logBytes'], len(raw))
         self.assertNotIn('SYNTHETIC_SECRET', json.dumps(result))

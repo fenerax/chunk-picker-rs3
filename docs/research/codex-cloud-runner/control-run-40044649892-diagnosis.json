@@ -1,0 +1,63 @@
+{
+  "schema": "public-control-run-diagnosis-v1",
+  "remoteRunId": 40044649892,
+  "remoteCommit": "ecdda6af916d56f533c9517ef7d221a984f47295",
+  "observedRemoteStage": "pure-controls",
+  "remoteSetupPassed": true,
+  "dockerControlsSkipped": true,
+  "remoteUnitStderrRetained": false,
+  "publicLayout": {
+    "runnerPath": "docs/research/codex-cloud-runner",
+    "workflowPath": ".github/workflows/public-container-envelope.yml",
+    "workflowAdjacentToRunner": false
+  },
+  "beforeFixPublishedLayoutPureControl": {
+    "exitCode": 1,
+    "fileNotFoundObserved": true,
+    "missingWorkflowFilenameObserved": true,
+    "failingTestsObserved": [
+      "test_both_workflow_recipes_use_distinct_empty_npm_configs",
+      "test_both_setup_failures_use_closed_diagnostics"
+    ],
+    "rawOutputBytes": 3203,
+    "rawOutputSha256": "2d9635ef274b03fda0367575d629bf168f483e844b824f62a56eb637212b94c5"
+  },
+  "scope": "Source/layout failure before any Docker control; not a hard-resource enforcement result",
+  "afterFixPublishedLayoutPureControls": [
+    {
+      "control": "missing-workflow-negative",
+      "workflowPresent": false,
+      "exitCode": 1,
+      "testsReported42": true,
+      "rawOutputBytes": 2289,
+      "rawOutputSha256": "68d8df2a6c14b1ba9a5f9ffc4c0865df697f812f31b4aba73324f12da88f9a5b",
+      "safeDiagnostic": {
+        "schema": "public-setup-diagnostic-v1",
+        "stage": "pure-controls",
+        "passed": false,
+        "exitCode": 1,
+        "errorClass": "pure-controls-input-missing",
+        "logBytes": 2289,
+        "logSha256": "68d8df2a6c14b1ba9a5f9ffc4c0865df697f812f31b4aba73324f12da88f9a5b",
+        "normalizedTail": [
+          "unclassified-output-omitted",
+          "pure-controls-input-missing"
+        ],
+        "tailTruncated": false,
+        "failedTestIds": [
+          "test_both_setup_failures_use_closed_diagnostics",
+          "test_both_workflow_recipes_use_distinct_empty_npm_configs"
+        ]
+      }
+    },
+    {
+      "control": "canonical-workflow-positive",
+      "workflowPresent": true,
+      "exitCode": 0,
+      "testsReported42": true,
+      "rawOutputBytes": 102,
+      "rawOutputSha256": "be301964945f06d0137389f1a053e4f5f3e5e5293b5b706d005bcecb1df06222"
+    }
+  ],
+  "fixedWorkflowRemainsMeasurementDisabled": true
+}

@@ -3,14 +3,91 @@
   "date": "2026-10-23",
   "readiness": "PREPARED_ONLY",
   "assetBaseCommit": "7ad315acd39223df3b4d2304e295ef5c017dfe17",
-  "pureTests": {"command": "python -B -m unittest -q test_docker_envelope.py", "passed": 40, "failed": 0},
-  "localConfigOnlyReproduction": {"evidence": "npm-config-repro-evidence.json", "sameEmptyConfigFailed": true, "distinctEmptyConfigsPassed": true, "nodeVersion": "v24.20.0", "npmVersion": "11.19.0", "installsOrNetwork": false},
-  "originalPublishedTrial": {"commit": "7c4afaa439f8b94618aec57c4674c43942ead241", "runId": 40043874952, "stage": "dependency-setup", "failedBeforeImagePullOrDockerControls": true, "stderrRetained": false, "exactCause": "UNPROVEN", "preserved": true},
-  "syntax": {"nodeCheckInside": true, "pythonAstParsed": true, "jsonParsed": true, "workflowYamlParsed": true},
-  "workflowStaticGates": {"exactPublicAssetBranchOnly": true, "contentsReadOnly": true, "measurementJobDisabled": true, "noCachesOrArtifactUploads": true, "noSecretOrTokenContexts": true},
-  "independentCodeReview": {"remainingConcreteBlockingCodeBugFound": false, "scope": "argument/admission/result-read/projection/cleanup/watchdog/source-lock ordering; pure checks only"},
-  "notExecuted": ["Docker client or daemon", "image pull/build/run", "package install", "app or provider", "browser", "benchmark", "GitHub mutation or dispatch"],
-  "openRemoteGates": ["supported public Ubuntu24.04 Docker daemon", "HostConfig and actual cgroupv2 enforcement", "positive control", "tiny CPU enforcement control", "tiny memory OOM enforcement control", "missing-init admission negative", "actual init orphan reaping and exact-container cleanup", "pinned image/Node compatibility", "nonroot Chromium151 launch with authorized existing no-sandbox configuration", "separate independent reference and measured frozen input witness", "complete output/native DOM/frame proof", "40 plus/minus 2ms measured-total RTT", "later thirty-minute job"],
-  "priorEvidence": {"e97GuardFailuresWaived": false, "r100AbortedBrowserTrialAccepted": false, "r100Pid1ZombiesReclassifiedAsClean": false},
-  "allProductAcceptanceGates": "OPEN"
+  "pureTests": {
+    "command": "python -B -m unittest -q test_docker_envelope.py",
+    "passed": 42,
+    "failed": 0
+  },
+  "subsequentPublishedTrial": {
+    "commit": "ecdda6af916d56f533c9517ef7d221a984f47295",
+    "runId": 40044649892,
+    "setupAndImagePullPassed": true,
+    "failedStage": "pure-controls",
+    "stderrRetained": false,
+    "dockerControlsSkipped": true,
+    "sourceDiagnosis": "published-layout-workflow-path-reproduced-locally",
+    "directRemoteStackObserved": false,
+    "preserved": true
+  },
+  "localConfigOnlyReproduction": {
+    "evidence": "npm-config-repro-evidence.json",
+    "sameEmptyConfigFailed": true,
+    "distinctEmptyConfigsPassed": true,
+    "nodeVersion": "v24.20.0",
+    "npmVersion": "11.19.0",
+    "installsOrNetwork": false
+  },
+  "originalPublishedTrial": {
+    "commit": "7c4afaa439f8b94618aec57c4674c43942ead241",
+    "runId": 40043874952,
+    "stage": "dependency-setup",
+    "failedBeforeImagePullOrDockerControls": true,
+    "stderrRetained": false,
+    "exactCause": "UNPROVEN",
+    "preserved": true
+  },
+  "syntax": {
+    "nodeCheckInside": true,
+    "pythonAstParsed": true,
+    "jsonParsed": true,
+    "workflowYamlParsed": true
+  },
+  "workflowStaticGates": {
+    "exactPublicAssetBranchOnly": true,
+    "contentsReadOnly": true,
+    "measurementJobDisabled": true,
+    "noCachesOrArtifactUploads": true,
+    "noSecretOrTokenContexts": true
+  },
+  "independentCodeReview": {
+    "remainingConcreteBlockingCodeBugFound": false,
+    "scope": "argument/admission/result-read/projection/cleanup/watchdog/source-lock ordering; pure checks only"
+  },
+  "notExecutedScope": "local preparation by this worker; remote setup/image pull is recorded separately",
+  "notExecuted": [
+    "Docker client or daemon",
+    "image pull/build/run",
+    "package install",
+    "app or provider",
+    "browser",
+    "benchmark",
+    "GitHub mutation or dispatch"
+  ],
+  "openRemoteGates": [
+    "supported public Ubuntu24.04 Docker daemon",
+    "HostConfig and actual cgroupv2 enforcement",
+    "positive control",
+    "tiny CPU enforcement control",
+    "tiny memory OOM enforcement control",
+    "missing-init admission negative",
+    "actual init orphan reaping and exact-container cleanup",
+    "pinned image/Node compatibility",
+    "nonroot Chromium151 launch with authorized existing no-sandbox configuration",
+    "separate independent reference and measured frozen input witness",
+    "complete output/native DOM/frame proof",
+    "40 plus/minus 2ms measured-total RTT",
+    "later thirty-minute job"
+  ],
+  "priorEvidence": {
+    "e97GuardFailuresWaived": false,
+    "r100AbortedBrowserTrialAccepted": false,
+    "r100Pid1ZombiesReclassifiedAsClean": false
+  },
+  "allProductAcceptanceGates": "OPEN",
+  "publishedLayoutPureControls": {
+    "canonicalWorkflowPositive": "42/42 passed",
+    "missingWorkflowNegative": "failed with exactly two fixed test IDs and input-missing class",
+    "diagnosisEvidence": "control-run-40044649892-diagnosis.json"
+  },
+  "priorManifestSha256": "0b4e9dbb5a3c0055599f5b3909c9f653409ff381d4b6323c2df11cbc7edd377b"
 }
