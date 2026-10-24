@@ -1,0 +1,6 @@
+{
+  "name": "rs3-public-container-experiment",
+  "version": "1.0.0",
+  "private": true,
+  "dependencies": { "@playwright/test": "1.62.1" }
+}

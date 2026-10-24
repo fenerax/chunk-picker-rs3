@@ -1,0 +1,18 @@
+{
+  "envelope": "docker-hard-2cpu-6g-v1",
+  "sourceCommit": "6f22fefa782747790e2eaefa01e4e5ea7b557323",
+  "assetBranch": "codex/perf-harness-assets-20261023",
+  "assetBaseCommit": "7ad315acd39223df3b4d2304e295ef5c017dfe17",
+  "node": "v24.19.0",
+  "image": "mcr.microsoft.com/playwright:v1.62.1-noble@sha256:c091b21d9fae78c76e85cd4356431e9b018402f172a214fc7d7a5e9a7e29d8ac",
+  "imageIndexDigest": "sha256:dcc5531e97840b9b5e794f2814476b21571c5124a3fca2267d73041f56e7580e",
+  "imageConfigDigest": "sha256:fee853fafa59550d162cef52bca02d907694b44ebf6ef9fb075bcc0c65d8dedb",
+  "platform": "linux/amd64",
+  "playwright": "1.62.1",
+  "chromium": "151.0.7922.34",
+  "chromiumRevision": "1234",
+  "memoryBytes": 6442450944,
+  "pids": 512,
+  "maxSeconds": 2000,
+  "readiness": "PREPARED_ONLY_REMOTE_CONTROLS_AND_WORKLOAD_UNRUN"
+}

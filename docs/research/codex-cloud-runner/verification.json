@@ -1,0 +1,14 @@
+{
+  "schema": "container-runner-preparation-verification-v1",
+  "date": "2026-10-23",
+  "readiness": "PREPARED_ONLY",
+  "assetBaseCommit": "7ad315acd39223df3b4d2304e295ef5c017dfe17",
+  "pureTests": {"command": "python -B -m unittest -q test_docker_envelope.py", "passed": 32, "failed": 0},
+  "syntax": {"nodeCheckInside": true, "pythonAstParsed": true, "jsonParsed": true, "workflowYamlParsed": true},
+  "workflowStaticGates": {"exactPublicAssetBranchOnly": true, "contentsReadOnly": true, "measurementJobDisabled": true, "noCachesOrArtifactUploads": true, "noSecretOrTokenContexts": true},
+  "independentCodeReview": {"remainingConcreteBlockingCodeBugFound": false, "scope": "argument/admission/result-read/projection/cleanup/watchdog/source-lock ordering; pure checks only"},
+  "notExecuted": ["Docker client or daemon", "image pull/build/run", "package install", "app or provider", "browser", "benchmark", "GitHub mutation or dispatch"],
+  "openRemoteGates": ["supported public Ubuntu24.04 Docker daemon", "HostConfig and actual cgroupv2 enforcement", "positive control", "tiny CPU enforcement control", "tiny memory OOM enforcement control", "missing-init admission negative", "actual init orphan reaping and exact-container cleanup", "pinned image/Node compatibility", "nonroot Chromium151 launch with authorized existing no-sandbox configuration", "separate independent reference and measured frozen input witness", "complete output/native DOM/frame proof", "40 plus/minus 2ms measured-total RTT", "later thirty-minute job"],
+  "priorEvidence": {"e97GuardFailuresWaived": false, "r100AbortedBrowserTrialAccepted": false, "r100Pid1ZombiesReclassifiedAsClean": false},
+  "allProductAcceptanceGates": "OPEN"
+}

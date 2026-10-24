@@ -1,0 +1,33 @@
+{
+  "schema": "public-runtime-metadata-v1",
+  "verifiedDate": "2026-10-23",
+  "method": "Read-only HTTPS primary metadata, no Docker/image/tarball execution or installation",
+  "mcr": {
+    "tagUrl": "https://mcr.microsoft.com/v2/playwright/manifests/v1.62.1-noble",
+    "indexDockerContentDigest": "sha256:dcc5531e97840b9b5e794f2814476b21571c5124a3fca2267d73041f56e7580e",
+    "amd64ManifestUrl": "https://mcr.microsoft.com/v2/playwright/manifests/sha256:c091b21d9fae78c76e85cd4356431e9b018402f172a214fc7d7a5e9a7e29d8ac",
+    "amd64DockerContentDigest": "sha256:c091b21d9fae78c76e85cd4356431e9b018402f172a214fc7d7a5e9a7e29d8ac",
+    "configUrl": "https://mcr.microsoft.com/v2/playwright/blobs/sha256:fee853fafa59550d162cef52bca02d907694b44ebf6ef9fb075bcc0c65d8dedb",
+    "configDigest": "sha256:fee853fafa59550d162cef52bca02d907694b44ebf6ef9fb075bcc0c65d8dedb",
+    "config": {"os": "linux", "architecture": "amd64", "created": "2026-07-30T17:32:20.775419212Z", "Env": ["PLAYWRIGHT_BROWSERS_PATH=/ms-playwright"], "org.opencontainers.image.version": "24.04"}
+  },
+  "browsers": {
+    "source": "https://raw.githubusercontent.com/microsoft/playwright/v1.62.1/packages/playwright-core/browsers.json",
+    "chromiumVersion": "151.0.7922.34", "revision": "1234", "priorChromium154Comparison": "NOT_EQUIVALENT_NEW_BASELINE"
+  },
+  "npmMetadata": [
+    "https://registry.npmjs.org/@playwright%2ftest/1.62.1",
+    "https://registry.npmjs.org/playwright/1.62.1",
+    "https://registry.npmjs.org/playwright-core/1.62.1",
+    "https://registry.npmjs.org/fsevents/2.3.2"
+  ],
+  "officialRuntimeDocumentation": [
+    "https://playwright.dev/docs/docker",
+    "https://docs.docker.com/engine/containers/resource_constraints/",
+    "https://docs.docker.com/reference/cli/docker/container/run/",
+    "https://docs.docker.com/engine/network/drivers/none/",
+    "https://docs.kernel.org/admin-guide/cgroup-v2.html"
+  ],
+  "observedKernelEnforcement": false,
+  "observedBrowserLaunch": false
+}

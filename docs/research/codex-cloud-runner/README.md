@@ -1,0 +1,77 @@
+# Prepared public Docker measurement envelope
+
+This is source prepared for remote review, not an observed benchmark or accepted runtime. Nothing here launched Docker, an app, browser, benchmark, or GitHub job locally. All product acceptance gates stay OPEN. Claude owns main integration and releases. Keep all files out of main; proposed public branch placement is `docs/research/codex-cloud-runner/` on `codex/perf-harness-assets-20261023`. Place the workflow at `.github/workflows/public-container-envelope.yml` on that branch only.
+
+`docker-hard-2cpu-6g-v1` is a different resource argument from the e97 sampled-process guard. It does not waive e97's unreadable-pidfd, leader-Z/live-thread, RSS or cleanup failures, and does not validate the aborted R100 browser trial or its seven PID1 zombies. Docker/cgroup enforcement covers the whole owned container, including live threads and descendants, independently of readable leader RSS/PSS. Sampled process memory is diagnostic and may remain unknown.
+
+## Exact public baseline
+
+- App source: `6f22fefa782747790e2eaefa01e4e5ea7b557323`.
+- Asset branch base: `7ad315acd39223df3b4d2304e295ef5c017dfe17`; later harness commit must be recorded separately.
+- Node: `v24.19.0`, copied from Actions setup-node and mounted read-only. Its SHA256 is recorded; the inner probe checks the running version and architecture.
+- Image: `mcr.microsoft.com/playwright:v1.62.1-noble@sha256:c091b21d9fae78c76e85cd4356431e9b018402f172a214fc7d7a5e9a7e29d8ac`, Linux AMD64 child manifest. MCR index is `sha256:dcc5531e97840b9b5e794f2814476b21571c5124a3fca2267d73041f56e7580e`.
+- npm `@playwright/test`, `playwright`, and `playwright-core` exactly `1.62.1`, registry integrity pinned in `package-lock.json`. No install scripts run. Optional Darwin fsevents is omitted on Linux.
+- Chromium `151.0.7922.34`, revision1234, is a **new browser baseline**. It does not reproduce the prior R100 Chromium154 runtime. The capture must check the actual launched browser version.
+
+Public primary metadata verified on 2026-10-23: [MCR index](https://mcr.microsoft.com/v2/playwright/manifests/v1.62.1-noble), [AMD64 manifest](https://mcr.microsoft.com/v2/playwright/manifests/sha256:c091b21d9fae78c76e85cd4356431e9b018402f172a214fc7d7a5e9a7e29d8ac), [image config](https://mcr.microsoft.com/v2/playwright/blobs/sha256:fee853fafa59550d162cef52bca02d907694b44ebf6ef9fb075bcc0c65d8dedb), [versioned browsers.json](https://raw.githubusercontent.com/microsoft/playwright/v1.62.1/packages/playwright-core/browsers.json), [npm test](https://registry.npmjs.org/@playwright%2ftest/1.62.1), [npm playwright](https://registry.npmjs.org/playwright/1.62.1), [npm core](https://registry.npmjs.org/playwright-core/1.62.1). Metadata verification did not pull images or download/install tarballs.
+
+## Execution and evidence
+
+The host wrapper imports without starting anything. Its default invocation emits a plan and does not open input trees, contact Docker, create an output directory, or run any program. Execution requires all of `--execute`, `--remote-only-ack remote-disposable-public`, Linux AMD64, a nonroot host user, two allowed CPUs and an available default local Docker daemon. The acknowledgement is an operator declaration, not cryptographic attestation of the host. Never execute these controls on Maëlle's computer. R113's denied native daemon is not an execution path; do not retry, elevate, install or bypass its denial.
+
+For one component, native, browser or eventual thirty-minute job, use:
+
+```sh
+python3 -B docker_envelope.py \
+  --source /owned/public-source --harness /owned/public-harness \
+  --harness-commit EXACT_PUBLIC_HARNESS_SHA40 \
+  --deps /owned/deps --node /owned/runtime/node --output /owned/fresh-result \
+  --entrypoint docs/research/codex-cloud-capture/run-frozen-browser.mjs \
+  --mode browser --seconds 540 \
+  --arg=--source --arg=/source --arg=--source-lock --arg=/scratch/source-lock.json \
+  --arg=--scratch --arg=/scratch \
+  --arg=--deps --arg=/deps --arg=--member --arg=explorer-1 \
+  --arg=--group --arg=false --arg=--chunk --arg=12850 \
+  --arg=--startup --arg=immediate --arg=--out --arg=/scratch/case-result.json
+```
+
+The command above plans only; add the two execution flags only on the authorized disposable remote runner. `--mode soak --seconds 2000` permits the 8 active / 12 idle / 10 resumed minute workload plus preparation, within the maximum 2000-second measured-container budget. A soak shorter than1800s is rejected. Execution budgets reserve15s for stop/kill and must be at least25s; the independent image-provided `/usr/bin/timeout --signal=TERM --kill-after=3s` expires20s before the requested ceiling. An additional Node timer records a deadline when its event loop remains responsive. Missing/unsupported timeout fails the remote positive control. Post-exit inspect/wait/remove confirmation has a separately bounded tail; job cancellation or daemon failure can still prevent confirmation and must leave cleanup unaccepted.
+
+`prepare_public.py` exports tracked files from an exact public Git commit into a fresh owned tree and writes a sibling receipt. It rejects links, special files and traversal. The runner verifies every file against that receipt and rejects extra/missing/changed files and credential-bearing input names. Git checkout credentials and `.git` are never mounted. Preparation and dependency setup happen before container start, with only public network reads. App execution has `--network none`; only loopback is available inside the container.
+
+Docker create uses `--cpus=2`, the first two actual host-allowed CPUs, `--memory=6442450944 --memory-swap=6442450944`, `--pids-limit=512 --init`, private PID/IPC/UTS/cgroup namespaces, `--cap-drop ALL`, `no-new-privileges`, read-only root, no devices, no published ports, and an explicit nonroot UID/GID. It uses no privileged flag, added capabilities, security profile bypass, Docker socket mount or host namespace. The existing R79/standard Playwright test configuration disables Chromium's sandbox with `--no-sandbox` inside this isolated local-only public test container; root explicitly authorized retaining that configuration. This profile makes no Chromium sandbox claim. Chromium compatibility remains an open remote gate; do not change privilege, seccomp or sandbox policy after a failure. Native R113's Docker denial remains final and is never retried here.
+
+Source, harness, dependencies, wrapper and Node are separate read-only mounts. `/scratch` is the sole writable bind and is fresh with an owner marker. It contains synthetic app state, temp files, reference and measured captures, and wrapper evidence. **The bind has no separate disk quota.** This profile proves CPU/memory/PID enforcement, not disk-cap enforcement; use it only with the reviewed public harness on a disposable hosted runner, and retain disk scope as a limitation. Shared memory is private256MiB and is charged within the memory cgroup. All child environment values are explicit; no host `--env NAME`, env files, credential caches, Git tokens or secret contexts enter the container. The public image's defaults remain part of the pinned baseline.
+
+Before the case, the host inspects exact HostConfig caps, security flags, labels, mounts and bind sources. The inner probe requires cgroupv2 private root, the exact `cpu.max` ratio, selected two-CPU cpuset/actual affinity, `memory.max`, `memory.swap.max=0`, `pids.max=512`, known PID1 init, and loopback-only interfaces. Unsupported/unreadable fields fail closed. It records memory.current/peak/events, swap.current, cpu.stat, pids.current/events and sampled process RSS/PSS every second and at transitions. Memory.current/peak covers all charged container memory; RSS sums may double-count shared pages. PSS is only the readable subset. Missing, inaccessible, racing or leader-Z readings are explicit counts, never silently zeroed or substituted for cgroup accounting. Sampling is not continuous per-process peak proof.
+
+An orphan fixture always runs before the measured entrypoint: a parent exits, its short-lived grandchild becomes init-owned, and `/proc/PID` must disappear. Host cleanup only addresses the exact full64hex ID from create/cidfile, after checking that ID and the random owner label. It stops, falls back to an exact-ID kill if needed, confirms `Running=false`/`Pid=0`, waits for actual exited containers, removes only that ID, and confirms absence. It never cleans by names, prefixes, process groups, global prune, `--all` or volumes. A never-started missing-init negative is removed without waiting for a nonexistent exit.
+
+## Controls and workflow gate
+
+`python -B -m unittest -v test_docker_envelope.py` is pure:32 tests, no Docker/process/app/network/stress execution. `node --check inside.mjs` and Python AST parsing passed. These verify argument/admission/cleanup/projection logic, not actual kernel enforcement.
+
+Remote controls are separate experiments and cannot produce workload measurements:
+
+| Control | Actual configuration and required evidence |
+|---|---|
+| positive | Normal2CPU/6GiB profile;16MiB/200ms child exits, orphan reaped, clean memory/PID events and whole-container cleanup. |
+| cpu | Explicit control profile0.25CPU/two allowed CPUs/6GiB;3s busy child; actual quota and increasing nr_throttled/throttled_usec required. |
+| memory | Explicit control profile2CPU/128MiB/no swap;256MiB child allocation only after actual hard-cap admission; child SIGKILL plus increased cgroup oom_kill required. Docker State.OOMKilled is retained as metadata and may be either value when init/supervisor survives the child OOM. It cannot replace the child signal, actual cap and cgroup event proof. A wrapper/init kill or missing final report fails the control. Never run this outside remote Docker. |
+| missing-init | Normal caps with init intentionally omitted; host admission must reject only init before start. Exact owned container removed. |
+
+The prepared workflow triggers only on pushes to the isolated asset branch with relevant file changes. It uses public standard Ubuntu24.04, contents:read, existing exact checkout/setup-node SHAs, Node24.19.0, no caches, no artifact uploads, no pack fetching or new tokens. Setup logs are redirected; public result logs are closed JSON projections only. The measured job is explicitly disabled until root reviews remote control results and authorizes its exact capture. A later thirty-minute run uses the same CLI and envelope but needs a longer CI job timeout and a separate source-reviewed entrypoint; no soak is scheduled here.
+
+[GitHub's runner specification](https://docs.github.com/en/actions/reference/runners/github-hosted-runners) documents public standard Ubuntu24.04 as4CPU/16GB. [GitHub billing](https://docs.github.com/en/billing/concepts/product-billing/github-actions) documents standard public-repository runners as free. This uses no paid larger runner, private compute or API key. Main is unchanged.
+
+## Child protocol and public result boundary
+
+The controller receives `PERF_SOURCE_ROOT=/source`, `PERF_HARNESS_ROOT=/harness`, `PERF_OUTPUT_ROOT=/scratch`, `PERF_CASE_RESULT=/scratch/case-result.json`, `PERF_PLAYWRIGHT_MODULE=file:///deps/node_modules/playwright/index.mjs` and `PERF_STAGE_FD=3`. Bare ESM package imports do not use NODE_PATH; dynamically import the explicit Playwright module path. All ordinary CLI arguments are forwarded exactly with repeatable `--arg=...`.
+
+Write one `{"stage":"ENUM"}` per line to controller FD3. Exact enums live in `result-policy.json`: start, reference-start, reference-ready, reference-result, reference-close, measured-start, measured-ready, browser-ready, overlay-ready, episode-start, episode-end, calibration-start, calibration-end, cleanup-start, cleanup-end, result, error. Clear PERF_STAGE_FD from app fork environments because Node fork often owns FD3 for IPC. The controller can forward app lifecycle IPC as those stages. No other values from stage messages are logged. Child stdout/stderr are drained and represented by byte counts and SHA256 only; raw output is not saved or published.
+
+Write a small case-result.json with `r116-frozen-browser-v1` and mode `r116-frozen-input-v1` (or the component-control schema), allowed status/code enums, exact SHA40/SHA64 fields, fixed explorer-1/chunk12850/Group-off/immediate scope and named numeric metrics. Policy rejects arbitrary strings, URLs, query tokens, stores, raw response bodies and unknown keys. The host repeats the same projection and validates all envelope result field types. Child-created result links/FIFOs/devices are rejected with no-follow, nonblocking regular-file reads. A recorded blocked/incorrect case can exit0, and a fully recorded failed case can exit1; its case status and caseExitCode stay separate from the envelope's passed flag. Envelope success means the resource, ownership and cleanup obligations completed, not correctness acceptance. projectionStatus/projectionCode retain the initial content verdict independently of later closure/calibration blockers.
+
+For the source-lock CLI seam, the inner wrapper hashes the complete already host-verified read-only public archive using the capture verifier's JavaScript localeCompare('en') file order and `{path,bytes,sha256}` records. It writes `/scratch/source-lock.json` with schemaVersion1, sourceCommit, manifestSha256, criticalFiles and complete files. The capture receives that path explicitly and recomputes the manifest before it starts the baseline. This does not mount `.git`, run a product instance, derive the expected output from the measured instance, or replace the separate reference/measurement identities.
+
+host-stages.jsonl is fsynced after each event, and the container writes/fsyncs envelope.jsonl in the mounted scratch from startup. Forced termination can therefore retain early stages and resource samples even without a final child result. final.json carries only the bounded safe projection. These files remain on the ephemeral runner; no upload is configured. Remaining gates: real supported Docker HostConfig/cgroup translation, all four remote controls, the pinned Node/image and nonroot Chromium launch, exact independent reference and frozen witness/DOM proof,40±2ms measured RTT, complete cleanup, and separate later thirty-minute evidence. None is closed by these prepared files.
