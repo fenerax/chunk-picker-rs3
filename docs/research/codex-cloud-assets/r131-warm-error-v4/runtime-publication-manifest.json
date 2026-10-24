@@ -1,0 +1,78 @@
+{
+  "schema": "r131-required-runtime-assets-v1",
+  "sourceCommit": "6f22fefa782747790e2eaefa01e4e5ea7b557323",
+  "entry": "entry.mjs",
+  "native": "UNRUN",
+  "files": [
+    {
+      "path": "candidate/manifest-v4.json",
+      "bytes": 2273,
+      "sha256": "c2d5971da371289f1c3ace1852b70f5c658bf24d1fd9a197ccbed605ab09eed5"
+    },
+    {
+      "path": "candidate/production-v4.patch",
+      "bytes": 218295,
+      "sha256": "f338823b045747b9e0a052bcb04d4db632b83eb5400a370a9b7ff3637a8c4ee1"
+    },
+    {
+      "path": "case-result-adapter.mjs",
+      "bytes": 4220,
+      "sha256": "cce12bfd14b9d50a69f5762a954c1d0d8cfb13eaf69bb7953962ae866ca4e2ce"
+    },
+    {
+      "path": "copied-library/focus-core.mjs",
+      "bytes": 16855,
+      "sha256": "9d51b6758283fd61f5d5abf47bcdd21c33393a773bfe3599080ff3ec3ce121b8"
+    },
+    {
+      "path": "copied-library/tests/task-focus-native.observers.mjs",
+      "bytes": 16350,
+      "sha256": "b326cb1d264622ba5a5e4e4b2802e1c12cd301099d96454e1d34b8ee09ddc0b3"
+    },
+    {
+      "path": "diagnostics.mjs",
+      "bytes": 8399,
+      "sha256": "99f50710d33fc2d77223c5475f9a122ff6558d508d6af1c3c5fefdcaa684e61b"
+    },
+    {
+      "path": "driver-lib.mjs",
+      "bytes": 1907,
+      "sha256": "a12a06ee4ad4e608fccf9f351c04f826358e2a02d09b5345048c5d07aaa17326"
+    },
+    {
+      "path": "entry.mjs",
+      "bytes": 4334,
+      "sha256": "8ee19d37cc0637d79dd2a8350f1eec9f1791c19c09d45378e6dad7a8ca80b423"
+    },
+    {
+      "path": "install-v4.mjs",
+      "bytes": 1827,
+      "sha256": "e3671c6b3d3d69db998f7c4e27b28e191756a222f12cc4e3c152bd53bf0ef230"
+    },
+    {
+      "path": "native-cell-v3.mjs",
+      "bytes": 7320,
+      "sha256": "8db8127ef5659cb0df6451dbe0ddb7e33419625d065df33b67be17491b9a4f4e"
+    },
+    {
+      "path": "native-phase-preload-v3.mjs",
+      "bytes": 1500,
+      "sha256": "5b330ae4e8c74c2f5527017b6ddfb6ea0a09b981ab88dad14d950bc1917de4b4"
+    },
+    {
+      "path": "protocol.mjs",
+      "bytes": 2408,
+      "sha256": "ca6030043c6b629e34f200707d8a19b699ee78bc703db8ddff17fc32adc43702"
+    },
+    {
+      "path": "runtime-integrity.mjs",
+      "bytes": 2760,
+      "sha256": "71a5282079f7cf33c30a3ac94d5022dc03a149893dd1f8b8fc3a7e4df21eded8"
+    },
+    {
+      "path": "scheduler-fixture-v3.mjs",
+      "bytes": 5835,
+      "sha256": "45475f2b3d930c345f7afc22e93ad61d8585bbe53b7f0f099a46933329d9768e"
+    }
+  ]
+}

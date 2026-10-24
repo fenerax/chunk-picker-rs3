@@ -1,25 +1,25 @@
 {
   "schema": "container-runner-verification-v1",
-  "readiness": "TWO_OBSERVATION_CASES_AUTHORIZED_UNRUN",
-  "publicationBaseCommit": "33c2f2fd8f38f692956be6de7ae720a5cb3415be",
-  "publicationBaseManifestSha256": "234711325a948d5b0dae93b833f852fd4690914eb931c4c182ec331425c1071b",
+  "readiness": "TWO_NATIVE_CASES_AUTHORIZED_UNRUN",
+  "publicationBaseCommit": "7df822824274ef26684ca121f609bcd5f79a4c76",
+  "publicationBaseManifestSha256": "a8fd754e262b5f704f253ebb5fc8dd04aa1b41e1278f540034d3674ea3885f5d",
   "activation": {
     "authorizedBy": "root",
     "enabledJobs": [
-      "r116-close-diagnostic",
-      "r139-body-lifecycle"
+      "r125-focus",
+      "r131-native"
     ],
     "disabledFutureJobs": [
       "one-case",
       "r127-component",
       "r124-engine",
-      "r125-focus",
       "r130-codec",
-      "r131-native",
       "r111-scoped-soak",
       "r134-engine-performance",
       "r135-codec-http",
-      "r138-advisory"
+      "r138-advisory",
+      "r116-close-diagnostic",
+      "r139-body-lifecycle"
     ],
     "needsControlsRetained": true,
     "runtime": "UNRUN",
@@ -27,103 +27,82 @@
     "cancelInProgress": false
   },
   "pureTests": {
-    "pythonPassed": 143,
+    "pythonPassed": 154,
     "nodePassed": 27,
-    "passed": 170,
+    "passed": 181,
     "failed": 0,
     "canonicalPublicLayout": true,
-    "pythonCommand": "python -B -m unittest -q test_accept_case test_docker_envelope test_projection_integration test_r111_vector_policy test_scoped_session test_performance_projection test_case_closure test_r111_rtt_projection test_r139_projection test_r116_close_projection",
+    "pythonCommand": "python -B -m unittest -q test_accept_case test_docker_envelope test_projection_integration test_r111_vector_policy test_scoped_session test_performance_projection test_case_closure test_r111_rtt_projection test_r139_projection test_r116_close_projection test_native_binding_projection",
     "nodeCommand": "node --max-old-space-size=128 --test test_accept_performance.mjs test_r138_acceptance.mjs test_r139_observation.mjs test_r116_close_observation.mjs"
   },
   "runtimeClosure": {
-    "fullFiles": 22,
-    "fullBytes": 258027,
+    "fullFiles": 43,
+    "fullBytes": 509014,
     "allMappedBytesAndManifestMembers": "PASS",
     "rawActualCLITwoCases": "PASS",
     "rawLFAndCRLFTwoCases": "PASS",
-    "actualPrior592CRLFAndOld15R131Files": "PASS"
+    "actualPrior592CRLFAndOld15R131Files": "PASS",
+    "wrongNamespaceMissingMemberCorruptHashAndRehashedWrongPostimageControls": "PASS"
   },
   "identityPins": {
-    "r116-close-diagnostic": "df34c38e28cae4bcdd6eb52c2f89c5059dd8a7621d52afff67a583fb8f2c4bd2",
-    "r139-body-lifecycle": "38b6213e5657a31a024fffc3618b2629c368e28e8a6154bf9545cdb62495a408"
+    "r125-focus": "4404b0cbbd60d98a79136206349b4513410c94b7921f4ba081218826ea10e709",
+    "r131-native": "ab7dad55b8896826c8ca1502c9ac30de8c924dc0b24d0cddff7e0f1bc36be1b5"
   },
-  "r116CloseObservation": {
-    "schema": "r116-app-close-diagnostic-v1",
-    "mode": "r116-close-phases-observation-v1",
-    "passed": false,
-    "acceptance": false,
-    "normalStatus": "blocked",
-    "normalCode": "r116-close-observation-complete",
-    "hostPredicate": "accept_r116_close.mjs --final saved/final.json; actual sibling scratch/source-lock.json",
-    "sourceFileCount": 1928,
-    "derivedModuleCount": 2,
-    "originalAndObservedSourceManifestRecomputed": true,
-    "originalAndObservedServerStoreHashesExact": true,
-    "boundedMarkerEvents": 128,
-    "markerDroppedRequired": 0,
-    "closeReceiptWitnessAndTerminalPhasesRequired": true,
-    "pendingRejectedOrIncompleteCloseFailsJob": true,
-    "oldFunctionalPredicateRejectsSchema": true,
-    "openingAllRttAcceptanceInferred": false,
-    "instrumentedTimingPoolEligible": false,
-    "outerSeconds": 540,
-    "controllerSeconds": 480
+  "r125PagerV6": {
+    "candidatePatchSha256": "49440dd5dfda225db24a10ff6bceffd2da34a829fefac3c2161f068bd9f0982e",
+    "candidateRendererSha256": "1be07125a5f64bfdeb123d2883288f17f912b85c799072ecf4e14e40052bf492",
+    "changedPostimagesFromV5": [
+      "app/web/screen-tasks.mjs"
+    ],
+    "otherThreePatchSectionsUnchanged": true,
+    "originalR109SourcesAndPatchPreserved": true,
+    "ownerHostPredicateUnchanged": true,
+    "newPolicyRequired": false,
+    "nativeActionsEightMsOwnerHistoryAckBodyCleanupGatesUnchanged": true,
+    "outerSeconds": 215,
+    "nativeAfterFix": "UNRUN"
   },
-  "r139Observation": {
-    "schema": "r139-body-lifecycle-v1",
-    "mode": "r139-five-case-component-v1",
-    "acceptance": false,
-    "pureObservationContract": "unchanged mapped observationComplete()",
-    "sourceClientHashesExact": true,
-    "fullCaseCount": 5,
-    "controlPayloadBytes": 13,
-    "normalResponseBytes": 17,
-    "singleAcceptanceRequired": true,
-    "networkWindowMs": 5000,
-    "wireAndLedgerReceiptTimestampSame": true,
-    "bodySurveyTiming": "after-cutoff",
-    "bodyUsedUnknownRemainsNull": true,
-    "observerReadsOrRetainsResponses": false,
-    "forcedOldChromium154Outcome": false,
-    "allPendingZeroRequired": false,
-    "ignoreFinishedOrUnobservedAllowed": true,
-    "cancelFinishedOrCanceledAllowed": true,
-    "pythonNodeRecursiveProjectionParity": "PASS",
-    "typeAndValueCounterexamples": "PASS",
-    "maxProjectedCaseBytes": 6212,
-    "maxInnerFrameBytes": 6435,
-    "frameCapBytes": 32768,
-    "outerSeconds": 120,
-    "entrySeconds": 90,
-    "leakSpeedSoakProductAcceptance": false
+  "r131WarmErrorV4": {
+    "publicPrefix": "docs/research/codex-cloud-assets/r131-warm-error-v4/",
+    "expectedDistinctModuleProofCount": 2,
+    "parentCheckedProofsPerMode": 2,
+    "expectedNativeCellSha256": "8db8127ef5659cb0df6451dbe0ddb7e33419625d065df33b67be17491b9a4f4e",
+    "expectedFixtureModuleSha256": "45475f2b3d930c345f7afc22e93ad61d8585bbe53b7f0f099a46933329d9768e",
+    "exactExpectedContainerModuleUrlHashes": true,
+    "relativeModuleNamesAndRootMatchedRequired": true,
+    "existingStrict10Intent2Mode2Declaration2Task8FallbackCriteriaUnchanged": true,
+    "candidatePatchSha256": "f338823b045747b9e0a052bcb04d4db632b83eb5400a370a9b7ff3637a8c4ee1",
+    "sourceProofReceipt": "r131-native-proof-binding-receipt.json",
+    "outerSeconds": 180,
+    "runtime": "UNRUN"
   },
   "resourceSourceIntegrity": {
-    "dockerAndInsideBytesUnchangedFromPublicationBase": true,
-    "existingProjectorTypesOnly": true,
+    "dockerInsideAndExistingProjectorBytesUnchangedFromPublicationBase": true,
+    "existingTypesOnly": true,
     "pinsUnchanged": true,
-    "r111StrictRttAndNumericProjectorsUnchanged": true,
     "resourceAdmissionAndCleanupUnchanged": true
   },
-  "priorCurrentRun": {
-    "head": "33c2f2fd8f38f692956be6de7ae720a5cb3415be",
-    "run": 40055341048,
+  "priorPublishedRun": {
+    "head": "7df822824274ef26684ca121f609bcd5f79a4c76",
+    "run": 40056203912,
     "reportedBy": "root",
-    "futureWorkflowDoesNotRepeatItsFourCases": true,
-    "perShaRunsContinueIndependently": true
+    "r139Observation": "PASS_ACCEPTANCE_FALSE",
+    "r116Diagnostic": "FAILED_STORE_WRITES_PENDING",
+    "failedHistoryPreserved": true,
+    "neitherCaseRepeated": true
   },
   "notExecuted": [
     "application",
     "browser",
     "server",
+    "native-case",
     "Docker",
     "container",
     "provider",
-    "native-case",
     "benchmark",
     "GitHub-write",
     "CI-dispatch"
   ],
-  "r137BlockedGitCleanup": "UNTOUCHED_EXCLUDED",
   "rootPrivacyPublicationPreflight": "PENDING",
   "allProductAcceptanceGates": "OPEN"
 }

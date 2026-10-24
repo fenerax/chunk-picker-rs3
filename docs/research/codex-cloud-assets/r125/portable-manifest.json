@@ -1,7 +1,7 @@
 {
-  "schema": "r125-compatible-source-manifest-v5",
+  "schema": "r125-compatible-source-manifest-v6",
   "protocol": "docker-hard-2cpu-6g-v1",
-  "runtime": "V5_UNRUN_V4_POST_TAB_LOCATOR_FAILED",
+  "runtime": "V6_UNRUN_V5_PAGER_INIT_DEFECT_CONFIRMED",
   "originalZipSHA256": "045d88acfb2d1a4e9b93ef33394af7b9b9fe5d520083bfeb465048e6f7c48590",
   "originalBundleManifestSHA256": "f1d3cefe9cf0eaec850f3fd41e4ef6432555f153deaf80e478e7fb88d432b198",
   "sourcePin": "6f22fefa782747790e2eaefa01e4e5ea7b557323",
@@ -16,8 +16,8 @@
       "sha256": "bfee0ae71080ca0e09abc2900874695f45422e7e98d059c29acc0d6bec0d19b0"
     },
     "focus-controller.mjs": {
-      "bytes": 14458,
-      "sha256": "6e5bedf0ebf9b69080061bf2c33a966cff9799074662015c8453f9f710fca133"
+      "bytes": 15138,
+      "sha256": "cd20b821e8bb257962c7757b942da361526abadaa2e87c6a289da99122024b82"
     },
     "focus-core.mjs": {
       "bytes": 17404,
@@ -53,7 +53,7 @@
     },
     "tests/task-focus-native-v4.test.mjs": {
       "bytes": 17425,
-      "sha256": "978e86317ced227870847d93724e400cebd05c543e2f170c2515f36a76963bff"
+      "sha256": "39ce8c911e7a570cd93725201cbc36d1a5e96e231880db8314042b3de5210b0a"
     },
     "tests/task-focus-native.diagnostic.mjs": {
       "bytes": 4468,
@@ -74,6 +74,10 @@
     "result-policy-tab-additions.json": {
       "bytes": 1473,
       "sha256": "8dceb9ff553c5c198dff35cadfcce105a0a95c9b7b189397bcc0c7c630df6325"
+    },
+    "candidate/production-init-order.patch": {
+      "bytes": 16958,
+      "sha256": "49440dd5dfda225db24a10ff6bceffd2da34a829fefac3c2161f068bd9f0982e"
     }
   },
   "unchangedOriginalPayload": {
@@ -134,8 +138,7 @@
   },
   "remainingGates": [
     "root-publication-preflight",
-    "sparse-tab-policy-union",
-    "changed-first-case-runtime",
+    "changed-first-case-after-fix-runtime",
     "independent-container-removal",
     "all-other-native-cases",
     "all-SLOs"
@@ -148,6 +151,10 @@
     "bundle-manifest.json": {
       "bytes": 4119,
       "sha256": "f1d3cefe9cf0eaec850f3fd41e4ef6432555f153deaf80e478e7fb88d432b198"
+    },
+    "candidate/production-init-order.patch": {
+      "bytes": 16958,
+      "sha256": "49440dd5dfda225db24a10ff6bceffd2da34a829fefac3c2161f068bd9f0982e"
     },
     "candidate/production.patch": {
       "bytes": 17065,
@@ -166,8 +173,8 @@
       "sha256": "641cb6e8f4cee35ae500d06b57ffb55bc838f90e784468c5920dc5e4260f6d21"
     },
     "focus-controller.mjs": {
-      "bytes": 14458,
-      "sha256": "6e5bedf0ebf9b69080061bf2c33a966cff9799074662015c8453f9f710fca133"
+      "bytes": 15138,
+      "sha256": "cd20b821e8bb257962c7757b942da361526abadaa2e87c6a289da99122024b82"
     },
     "focus-core.mjs": {
       "bytes": 17404,
@@ -215,7 +222,7 @@
     },
     "tests/task-focus-native-v4.test.mjs": {
       "bytes": 17425,
-      "sha256": "978e86317ced227870847d93724e400cebd05c543e2f170c2515f36a76963bff"
+      "sha256": "39ce8c911e7a570cd93725201cbc36d1a5e96e231880db8314042b3de5210b0a"
     },
     "tests/task-focus-native.diagnostic.mjs": {
       "bytes": 4468,
@@ -250,33 +257,28 @@
       "sha256": "5bf5d8cbe244ebcce6bf1ed2ecddd25d5e29de91519f5fa8567cf2aa797bb147"
     }
   },
-  "diagnosticOnly": true,
+  "diagnosticOnly": false,
   "originalPortableManifestSHA256": "356561a389e1b09286b40b485e8a001861235032021c6f97c8c37c7f3a43473b",
   "previousRun": {
-    "runId": 40053904477,
-    "jobId": 120752740430,
-    "assetHeadPrefix": "f533",
+    "runId": 40055341048,
+    "jobId": 120757229156,
+    "assetHead": "33c2f2fd8f38f692956be6de7ae720a5cb3415be",
     "caseCode": "r125-native-failed",
-    "failureOperation": "tab",
-    "failureName": "TimeoutError",
-    "publicModule": "tests/task-focus-native-v4.test.mjs",
-    "line": 179,
-    "column": 35,
-    "exactAction": "post-Tab B locator.evaluate",
-    "caseStartEnd": 1,
-    "nativeFailCount": 1,
-    "nativeExitCode": 1,
-    "nativeSignal": "none",
-    "witnessCount": 0,
-    "commandProofCount": 0,
-    "fixtureDrainRecordCount": 1,
+    "exactAction": "post-Tab locate-b",
+    "index": 1,
+    "beforeBCount": 1,
+    "afterPendingBCount": 0,
+    "activeCheckboxes": 70,
+    "moreCount": 1,
+    "liveScopeSame": true,
+    "ownerMatches": true,
     "qualifying8msEstablished": false,
-    "productBugEstablished": false
+    "nativeAfterFix": "UNRUN"
   },
-  "sourceCause": "AMBIGUOUS live B/page/scope state before post-Tab locator check. Initial B selector and fixture match; no guaranteed selector/bootstrap mismatch found.",
+  "sourceCause": "Source-proven experimental candidate initialization-order defect: task filter preferences created after first helper scope capture; next render clears expanded page to70. Isolated one-call initialization-before-begin fix only.",
   "sourceAdmissionUnchanged": true,
   "nativeOracleUnchanged": true,
-  "previousPortableManifestSHA256": "b2e0c039e35980d6f20ef9fd833f0dfffc2368c1fddbacecbb5c3f55e3260b14",
+  "previousPortableManifestSHA256": "0aa70cfd49b3fbdc55836aec2080f06f06e07eb4530932911b8f56f9b991d3d6",
   "browserAdmission": {
     "image": "mcr.microsoft.com/playwright:v1.62.1-noble@sha256:c091b21d9fae78c76e85cd4356431e9b018402f172a214fc7d7a5e9a7e29d8ac",
     "executable": "/ms-playwright/chromium-1234/chrome-linux64/chrome",
@@ -288,7 +290,7 @@
     "signal": null,
     "trimOrAlternateBrands": false
   },
-  "policyDeltaRequired": true,
+  "policyDeltaRequired": false,
   "nativeDiagnosticFiles": {
     "tests/task-focus-native-v4.fixture.mjs": {
       "bytes": 7433,
@@ -296,7 +298,7 @@
     },
     "tests/task-focus-native-v4.test.mjs": {
       "bytes": 17425,
-      "sha256": "978e86317ced227870847d93724e400cebd05c543e2f170c2515f36a76963bff"
+      "sha256": "39ce8c911e7a570cd93725201cbc36d1a5e96e231880db8314042b3de5210b0a"
     },
     "tests/task-focus-native.diagnostic.mjs": {
       "bytes": 4468,
@@ -316,7 +318,7 @@
     "caseStartEnd": "test callback entry/finally only, not UI or teardown proof",
     "exitAndSummary": "observations only, never correctness proof"
   },
-  "policyDelta": "result-policy-tab-additions.json",
+  "policyDelta": null,
   "tabObservation": {
     "phases": [
       "before-command",
@@ -330,5 +332,32 @@
     "singleSnapshotCapMs": 1000,
     "unavailableFields": "omitted; only fixed phase/action/index retained",
     "doesNotQualifyNativeProof": true
+  },
+  "candidatePatch": {
+    "path": "candidate/production-init-order.patch",
+    "bytes": 16958,
+    "sha256": "49440dd5dfda225db24a10ff6bceffd2da34a829fefac3c2161f068bd9f0982e"
+  },
+  "candidateApplicationFiles": {
+    "app/web/screen-loading.mjs": "aac839576ef212bd22af38420f08befcc3dc483f4f9db132fa947b6c9534b1cf",
+    "app/web/screen-tasks.mjs": "1be07125a5f64bfdeb123d2883288f17f912b85c799072ecf4e14e40052bf492",
+    "app/web/screen-task-focus.mjs": "48f2dcc35a6812ee478d4655dc9c69c2e0c8c1b00d2b4e1242229279012b96ad",
+    "app/web/duo-task-view.mjs": "47fa0707e6f099613078b1e4a5229dccd4270eb42c4d998c737258029193ab3b",
+    "app/server.mjs": "934fe6bb5c3d8058cfdd9ba924bd926eddf3f03b7f042fe324f6808391153bd3"
+  },
+  "preservedOriginalR109Patch": {
+    "path": "candidate/production.patch",
+    "bytes": 17065,
+    "sha256": "a9f23f6a67af9d5f8cc6bf7a1873b5f3781d492db35a27f5d1e7d724701b8c8f"
+  },
+  "candidateChange": {
+    "paths": 4,
+    "changedPostimagesFromV5": [
+      "app/web/screen-tasks.mjs"
+    ],
+    "originalOtherThreeDiffBlocksUnchanged": true,
+    "originalSixR109SourcesUnchanged": true,
+    "nativeTestChange": "expected exact renderer SHA only; actions/oracles unchanged",
+    "integrationApproval": false
   }
 }

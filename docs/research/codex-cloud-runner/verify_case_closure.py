@@ -83,7 +83,9 @@ def verify(workflow,closure,reader):
             require(manifest.get('schema')=='r135-http-runtime-manifest-v1' and manifest.get('sourcePin')==PIN)
             require(entry==prefix+'entry.mjs');rows=manifest['files']
         elif kind=='r125':
-            require(manifest.get('schema')=='r125-compatible-source-manifest-v5' and manifest.get('sourcePin')==PIN and manifest.get('entrypoint')==entry)
+            require(manifest.get('schema')=='r125-compatible-source-manifest-v6' and manifest.get('sourcePin')==PIN and manifest.get('entrypoint')==entry)
+            require(manifest.get('candidatePatch')=={'path':'candidate/production-init-order.patch','bytes':16958,'sha256':'49440dd5dfda225db24a10ff6bceffd2da34a829fefac3c2161f068bd9f0982e'})
+            require(manifest.get('candidateApplicationFiles')=={'app/web/screen-loading.mjs':'aac839576ef212bd22af38420f08befcc3dc483f4f9db132fa947b6c9534b1cf','app/web/screen-tasks.mjs':'1be07125a5f64bfdeb123d2883288f17f912b85c799072ecf4e14e40052bf492','app/web/screen-task-focus.mjs':'48f2dcc35a6812ee478d4655dc9c69c2e0c8c1b00d2b4e1242229279012b96ad','app/web/duo-task-view.mjs':'47fa0707e6f099613078b1e4a5229dccd4270eb42c4d998c737258029193ab3b','app/server.mjs':'934fe6bb5c3d8058cfdd9ba924bd926eddf3f03b7f042fe324f6808391153bd3'})
             members={}
             for group in ('runtimeFiles','unchangedOriginalPayload'):
                 require(type(manifest.get(group)) is dict)

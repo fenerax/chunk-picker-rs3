@@ -1,0 +1,13 @@
+{
+  "schema": "native-policy-integration-v1",
+  "publicationBaseCommit": "7df822824274ef26684ca121f609bcd5f79a4c76",
+  "publicationBaseManifestSha256": "a8fd754e262b5f704f253ebb5fc8dd04aa1b41e1278f540034d3674ea3885f5d",
+  "r125NewPolicyRequired": false,
+  "proposal": {
+    "source": "../../r131-warm-error-v4/result-policy.additions.proposal.json",
+    "bytes": 1481,
+    "sha256": "51b25616b68b06cab4cf7492b39e5d98be842c231b3302ad6d7fb10f6afc3bbf"
+  },
+  "existingTypesOnly": true,
+  "runtime": "UNRUN"
+}

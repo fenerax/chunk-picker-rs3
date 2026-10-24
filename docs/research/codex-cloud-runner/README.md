@@ -1,6 +1,16 @@
 # Prepared public Docker measurement envelope
 
-## Two observation-only cases from published33c2
+## Native pager and warm-module wave from published7df
+
+Only R125 pager V6 and R131 warm-error V4 are enabled. All ten other case jobs remain disabled. Both native cases are runtime UNRUN and all product gates remain OPEN. The prior R139 observation passed without product acceptance; R116's diagnostic close failed with storeWrites pending and remains separate evidence.
+
+R125 retains the V5 native actions, real8ms witness, owner/history/readback, generation/body/ACK joins and cleanup gates. The exact composed patch49440dd5... preserves the three other R109 diff sections and changes only the renderer postimage to1be07125.... The closure preflight binds the exact patch and all five application postimages. The controller applies it only in disposable scratch to the unchanged public6f source. The original a9f23 patch and original R109 files remain verified; the owner host predicate is byte-identical. No new R125 policy is added. Browser outer215s is unchanged.
+
+R131 uses the explicit new `r131-warm-error-v4/` prefix and ab7dad... manifest. Each execution mode must prove the actual native cell and fixture module bytes against that manifest before success. The host additionally pins both code hashes, both exact expected container-module URL hashes, known relative module names, matched root and two distinct module proofs. The existing10-intent/two-mode/declaration/task/fallback predicates remain intact. New failure captures expose only closed public-module/operator/type enums, numeric line/column/scalar fields and hashes. Candidate f338 and the index/fixture/action semantics are unchanged. Native outer180s is unchanged.
+
+Full43-file closure is verified through actual raw LF/CRLF CLI reads. A wrong namespace, missing member, mismatched module or renderer/patch identity fails before native acceptance. Shared wrapper/inside/resource/projector implementation files remain byte-identical to the publication base; only the reviewed policy union and host bindings change. No app, browser, native fixture, server, Docker or benchmark ran locally.
+
+## Prior observation-only cases (published7df)
 
 Only new `r116-close-diagnostic` and `r139-body-lifecycle` jobs are enabled. All ten earlier case jobs are disabled on this future revision; their frozen runs continue independently. Both cases remain runtime UNRUN and all product acceptance gates remain OPEN. No R137 blocked Git cleanup is part of this packet.
 

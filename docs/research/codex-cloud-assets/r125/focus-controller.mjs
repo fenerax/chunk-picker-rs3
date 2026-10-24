@@ -146,17 +146,25 @@ try {
   at('scratch-copy');
   const workspace = fs.mkdtempSync('/scratch/r125-'), candidate = path.join(workspace, 'source');
   fs.cpSync('/source', candidate, { recursive: true, errorOnExist: true, force: false, filter: name => !path.relative('/source', name).split(path.sep).includes('.git') });
+  // Only the reviewed renderer postimage differs from the preserved R109 candidate.
+  const candidateApplicationFiles = { ...manifest.candidateApplicationFiles,
+    'app/web/screen-tasks.mjs': '1be07125a5f64bfdeb123d2883288f17f912b85c799072ecf4e14e40052bf492' };
+  ensure(JSON.stringify(portable.candidateApplicationFiles) === JSON.stringify(candidateApplicationFiles), 'candidate-production-hash');
+  const candidatePatch = 'candidate/production-init-order.patch';
+  ensure(portable.candidatePatch?.path === candidatePatch
+    && portable.candidatePatch.sha256 === portable.runtimeFiles[candidatePatch]?.sha256
+    && fileSha(path.join(HERE, candidatePatch)) === portable.candidatePatch.sha256, 'packet-payload-hash');
   at('candidate-inputs');
   const inputs = new Map();
-  for (const name of Object.keys(manifest.candidateApplicationFiles)) if (fs.existsSync(path.join(candidate, name))) inputs.set(name, fs.readFileSync(path.join(candidate, name)));
+  for (const name of Object.keys(candidateApplicationFiles)) if (fs.existsSync(path.join(candidate, name))) inputs.set(name, fs.readFileSync(path.join(candidate, name)));
   at('production-patch');
-  const outputs = applyUnifiedPatch(fs.readFileSync(path.join(HERE, 'candidate/production.patch'), 'utf8'), inputs, manifest.candidateApplicationFiles);
+  const outputs = applyUnifiedPatch(fs.readFileSync(path.join(HERE, candidatePatch), 'utf8'), inputs, candidateApplicationFiles);
   admission.metrics.focusPatchedFileCount = outputs.size;
   ensure(outputs.size === 4, 'four-production-files-only');
   at('production-write');
   for (const [name, bytes] of outputs) { const target = path.join(candidate, name); fs.mkdirSync(path.dirname(target), { recursive: true }); fs.writeFileSync(target, bytes); }
   at('production-hashes');
-  for (const [name, expected] of Object.entries(manifest.candidateApplicationFiles)) ensure(fileSha(path.join(candidate, name)) === expected, 'candidate-production-hash');
+  for (const [name, expected] of Object.entries(candidateApplicationFiles)) ensure(fileSha(path.join(candidate, name)) === expected, 'candidate-production-hash');
   at('r109-install');
   for (const name of manifest.r109InstalledFiles) { const target = path.join(candidate, name); fs.mkdirSync(path.dirname(target), { recursive: true }); fs.copyFileSync(path.join(HERE, name), target); }
   const diagnosticFiles = portable.nativeDiagnosticFiles;

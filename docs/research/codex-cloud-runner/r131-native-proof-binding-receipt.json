@@ -1,0 +1,168 @@
+{
+  "schema": "r131-native-proof-binding-receipt-v1",
+  "sourceOnly": true,
+  "native": "UNRUN",
+  "sourceCommit": "6f22fefa782747790e2eaefa01e4e5ea7b557323",
+  "entrypoint": "docs/research/codex-cloud-assets/r131-warm-error-v4/entry.mjs",
+  "publicPrefix": "docs/research/codex-cloud-assets/r131-warm-error-v4/",
+  "innerManifestSha256": "ab7dad55b8896826c8ca1502c9ac30de8c924dc0b24d0cddff7e0f1bc36be1b5",
+  "ownerPublicationMapSha256": "9370e57c31bd5316073e938ff13740dd02ea4e62dddf468635062445c0919f8e",
+  "fullRuntime": {
+    "fileCount": 15,
+    "bytes": 296664,
+    "files": [
+      {
+        "publicPath": "docs/research/codex-cloud-assets/r131-warm-error-v4/candidate/manifest-v4.json",
+        "bytes": 2273,
+        "sha256": "c2d5971da371289f1c3ace1852b70f5c658bf24d1fd9a197ccbed605ab09eed5"
+      },
+      {
+        "publicPath": "docs/research/codex-cloud-assets/r131-warm-error-v4/candidate/production-v4.patch",
+        "bytes": 218295,
+        "sha256": "f338823b045747b9e0a052bcb04d4db632b83eb5400a370a9b7ff3637a8c4ee1"
+      },
+      {
+        "publicPath": "docs/research/codex-cloud-assets/r131-warm-error-v4/case-result-adapter.mjs",
+        "bytes": 4220,
+        "sha256": "cce12bfd14b9d50a69f5762a954c1d0d8cfb13eaf69bb7953962ae866ca4e2ce"
+      },
+      {
+        "publicPath": "docs/research/codex-cloud-assets/r131-warm-error-v4/copied-library/focus-core.mjs",
+        "bytes": 16855,
+        "sha256": "9d51b6758283fd61f5d5abf47bcdd21c33393a773bfe3599080ff3ec3ce121b8"
+      },
+      {
+        "publicPath": "docs/research/codex-cloud-assets/r131-warm-error-v4/copied-library/tests/task-focus-native.observers.mjs",
+        "bytes": 16350,
+        "sha256": "b326cb1d264622ba5a5e4e4b2802e1c12cd301099d96454e1d34b8ee09ddc0b3"
+      },
+      {
+        "publicPath": "docs/research/codex-cloud-assets/r131-warm-error-v4/diagnostics.mjs",
+        "bytes": 8399,
+        "sha256": "99f50710d33fc2d77223c5475f9a122ff6558d508d6af1c3c5fefdcaa684e61b"
+      },
+      {
+        "publicPath": "docs/research/codex-cloud-assets/r131-warm-error-v4/driver-lib.mjs",
+        "bytes": 1907,
+        "sha256": "a12a06ee4ad4e608fccf9f351c04f826358e2a02d09b5345048c5d07aaa17326"
+      },
+      {
+        "publicPath": "docs/research/codex-cloud-assets/r131-warm-error-v4/entry.mjs",
+        "bytes": 4334,
+        "sha256": "8ee19d37cc0637d79dd2a8350f1eec9f1791c19c09d45378e6dad7a8ca80b423"
+      },
+      {
+        "publicPath": "docs/research/codex-cloud-assets/r131-warm-error-v4/install-v4.mjs",
+        "bytes": 1827,
+        "sha256": "e3671c6b3d3d69db998f7c4e27b28e191756a222f12cc4e3c152bd53bf0ef230"
+      },
+      {
+        "publicPath": "docs/research/codex-cloud-assets/r131-warm-error-v4/native-cell-v3.mjs",
+        "bytes": 7320,
+        "sha256": "8db8127ef5659cb0df6451dbe0ddb7e33419625d065df33b67be17491b9a4f4e"
+      },
+      {
+        "publicPath": "docs/research/codex-cloud-assets/r131-warm-error-v4/native-phase-preload-v3.mjs",
+        "bytes": 1500,
+        "sha256": "5b330ae4e8c74c2f5527017b6ddfb6ea0a09b981ab88dad14d950bc1917de4b4"
+      },
+      {
+        "publicPath": "docs/research/codex-cloud-assets/r131-warm-error-v4/protocol.mjs",
+        "bytes": 2408,
+        "sha256": "ca6030043c6b629e34f200707d8a19b699ee78bc703db8ddff17fc32adc43702"
+      },
+      {
+        "publicPath": "docs/research/codex-cloud-assets/r131-warm-error-v4/runtime-integrity.mjs",
+        "bytes": 2760,
+        "sha256": "71a5282079f7cf33c30a3ac94d5022dc03a149893dd1f8b8fc3a7e4df21eded8"
+      },
+      {
+        "publicPath": "docs/research/codex-cloud-assets/r131-warm-error-v4/scheduler-fixture-v3.mjs",
+        "bytes": 5835,
+        "sha256": "45475f2b3d930c345f7afc22e93ad61d8585bbe53b7f0f099a46933329d9768e"
+      },
+      {
+        "publicPath": "docs/research/codex-cloud-assets/r131-warm-error-v4/runtime-publication-manifest.json",
+        "bytes": 2381,
+        "sha256": "ab7dad55b8896826c8ca1502c9ac30de8c924dc0b24d0cddff7e0f1bc36be1b5"
+      }
+    ]
+  },
+  "hostRequiredBinding": {
+    "r131RuntimeManifestSha256": "ab7dad55b8896826c8ca1502c9ac30de8c924dc0b24d0cddff7e0f1bc36be1b5",
+    "r131NativeCellSha256": "8db8127ef5659cb0df6451dbe0ddb7e33419625d065df33b67be17491b9a4f4e",
+    "r131NativeCellUrlSha256": "9377ac871d388c3c15322cdba0781779f79fb6194dfc86d2e4abe398939b104b",
+    "r131FixtureModuleSha256": "45475f2b3d930c345f7afc22e93ad61d8585bbe53b7f0f099a46933329d9768e",
+    "r131FixtureModuleUrlSha256": "8843aae1765843b07b47d1084d00f2e45a10baf4fa25ab9cc1fb8da963af4555",
+    "r131NativeCellRelativeModule": "native-cell-v3.mjs",
+    "r131FixtureRelativeModule": "scheduler-fixture-v3.mjs",
+    "r131ModuleRootStatus": "matched"
+  },
+  "hostRequiredMetrics": {
+    "r131CompletedIntentCount": 10,
+    "r131ModeCount": 2,
+    "r131DeclarationProofCount": 2,
+    "r131TaskProofCount": 2,
+    "r131IndependentFallbackCount": 8,
+    "r131NativeModuleProofCount": 2
+  },
+  "urlHashRecipe": {
+    "encoding": "UTF-8",
+    "algorithm": "SHA256",
+    "serialization": "file:///harness/ + publicPrefix + exact relative module",
+    "values": [
+      {
+        "relativeModule": "native-cell-v3.mjs",
+        "url": "file:///harness/docs/research/codex-cloud-assets/r131-warm-error-v4/native-cell-v3.mjs",
+        "sha256": "9377ac871d388c3c15322cdba0781779f79fb6194dfc86d2e4abe398939b104b"
+      },
+      {
+        "relativeModule": "scheduler-fixture-v3.mjs",
+        "url": "file:///harness/docs/research/codex-cloud-assets/r131-warm-error-v4/scheduler-fixture-v3.mjs",
+        "sha256": "8843aae1765843b07b47d1084d00f2e45a10baf4fa25ab9cc1fb8da963af4555"
+      }
+    ]
+  },
+  "sourceReviewedSemantics": {
+    "moduleProducer": "Each actual module calls moduleProof(import.meta.url, exact relative module) at import; helper requires URL equal to its same-directory URL and hashes actual file bytes and exact URL text.",
+    "parentValidation": "Parent checks module byte SHA against the pinned runtime manifest, rejects duplicate module proofs per mode and requires two distinct proofs plus correct receipt and successful exit per mode.",
+    "publicProjection": "Adapter emits both exact relative module names, byte and URL hashes, matched root status and count of distinct modules. Count two represents two modules; parent receives four proof events across two modes.",
+    "urlBindingLimit": "URL hashes here are deterministic expected strings for the fixed public mount and entrypoint. They are not observed runtime evidence; module runtimeRootMatch itself checks same-directory import identity rather than a separate filesystem-root measurement.",
+    "hostStrengthening": "Host additionally requires exact deterministic public-mount URL hashes, exact pinned module bytes and manifest, known relative names, matched root and integer proof count two.",
+    "unchangedCriteria": "Existing candidate SHA and ten-intent/two-mode/two-declaration/two-task/eight-independent-fallback success and cleanup criteria remain required."
+  },
+  "projectionContract": {
+    "newTypes": false,
+    "runtimeProjectorChanges": false,
+    "enums": "Exact declared finite sets; unknown operator/module/root/relative strings omitted.",
+    "metrics": "Existing finite numeric projection, magnitude strictly below 1e15; booleans and strings omitted. Producer uses bounded finite assertion scalars and -1 sentinel. Host successful counts require exact integers.",
+    "hashes": "Existing global 40-or-64 lowercase hexadecimal projection is unchanged. Host requires exact 64-character pinned module, URL and manifest hashes for success.",
+    "maxFrameBytes": 32768
+  },
+  "ownedFiles": [
+    {
+      "path": "accept_case.py",
+      "bytes": 4349,
+      "sha256": "26da1f7198a55be953c89eea80a01ceb0f8a7f7133e1a2127b80192ce8daff5e"
+    },
+    {
+      "path": "test_accept_case.py",
+      "bytes": 7143,
+      "sha256": "a2017543e83bbe77f40a3ad883884942eae8cb32f30fd4d5e4a8dae0497b62fb"
+    },
+    {
+      "path": "test_native_binding_projection.py",
+      "bytes": 7507,
+      "sha256": "4efc49d6e27a2a3a63f2779d7ca27f47965a07de1368f12c7a2966bfbb3f9977"
+    }
+  ],
+  "controls": {
+    "targetedHostTests": 13,
+    "targetedActualProjectionGroups": 6,
+    "pythonSyntaxFiles": 3,
+    "allRuntimeMappedBytesVerified": true,
+    "passed": true,
+    "runtimeExecuted": false,
+    "resourceCoreChanged": false
+  }
+}

@@ -2,31 +2,31 @@
   "schema": "container-runner-delivery-v1",
   "envelope": "docker-hard-2cpu-6g-v1",
   "runnerRevision": "docker-pinned-image-env-v3",
-  "readiness": "TWO_OBSERVATION_CASES_AUTHORIZED_UNRUN",
+  "readiness": "TWO_NATIVE_CASES_AUTHORIZED_UNRUN",
   "sourceCommit": "6f22fefa782747790e2eaefa01e4e5ea7b557323",
   "assetBaseCommit": "7ad315acd39223df3b4d2304e295ef5c017dfe17",
-  "publicationBaseCommit": "33c2f2fd8f38f692956be6de7ae720a5cb3415be",
-  "publicationBaseManifestSha256": "234711325a948d5b0dae93b833f852fd4690914eb931c4c182ec331425c1071b",
-  "previousManifestSha256": "234711325a948d5b0dae93b833f852fd4690914eb931c4c182ec331425c1071b",
-  "derivative": "r116-r139-observation-v1",
+  "publicationBaseCommit": "7df822824274ef26684ca121f609bcd5f79a4c76",
+  "publicationBaseManifestSha256": "a8fd754e262b5f704f253ebb5fc8dd04aa1b41e1278f540034d3674ea3885f5d",
+  "previousManifestSha256": "a8fd754e262b5f704f253ebb5fc8dd04aa1b41e1278f540034d3674ea3885f5d",
+  "derivative": "native-pager-and-warm-v1",
   "authorizedWaveCases": 2,
   "activation": {
     "authorizedBy": "root",
     "enabledJobs": [
-      "r116-close-diagnostic",
-      "r139-body-lifecycle"
+      "r125-focus",
+      "r131-native"
     ],
     "disabledFutureJobs": [
       "one-case",
       "r127-component",
       "r124-engine",
-      "r125-focus",
       "r130-codec",
-      "r131-native",
       "r111-scoped-soak",
       "r134-engine-performance",
       "r135-codec-http",
-      "r138-advisory"
+      "r138-advisory",
+      "r116-close-diagnostic",
+      "r139-body-lifecycle"
     ],
     "needsControlsRetained": true,
     "runtime": "UNRUN",
@@ -34,59 +34,58 @@
     "cancelInProgress": false
   },
   "pureControls": {
-    "pythonPassed": 143,
+    "pythonPassed": 154,
     "nodePassed": 27,
-    "passed": 170,
+    "passed": 181,
     "failed": 0,
     "canonicalPublicLayout": true,
-    "pythonCommand": "python -B -m unittest -q test_accept_case test_docker_envelope test_projection_integration test_r111_vector_policy test_scoped_session test_performance_projection test_case_closure test_r111_rtt_projection test_r139_projection test_r116_close_projection",
+    "pythonCommand": "python -B -m unittest -q test_accept_case test_docker_envelope test_projection_integration test_r111_vector_policy test_scoped_session test_performance_projection test_case_closure test_r111_rtt_projection test_r139_projection test_r116_close_projection test_native_binding_projection",
     "nodeCommand": "node --max-old-space-size=128 --test test_accept_performance.mjs test_r138_acceptance.mjs test_r139_observation.mjs test_r116_close_observation.mjs"
   },
   "runtimeClosures": [
     {
-      "job": "r116-close-diagnostic",
-      "sourceManifest": "../../r116-app-close-v5/runtime-publication-manifest.json",
-      "sourceManifestSha256": "5bdca9c411a2f22d4cd21cac9eb3b5ba3c5f1cfc53f543016133a3433f52686f",
-      "fullMappedFiles": 13,
-      "runtimeBytes": 173702,
-      "innerManifestSha256": "df34c38e28cae4bcdd6eb52c2f89c5059dd8a7621d52afff67a583fb8f2c4bd2"
+      "job": "r125-focus",
+      "sourceManifest": "../../r125-pager-init-v6/native/runtime-publication-map.json",
+      "sourceManifestSha256": "3a9376e0f6117efe544ea231ddeaaa94049a91ed1274aedc940990f23a8643c2",
+      "fullMappedFiles": 28,
+      "runtimeBytes": 212350,
+      "innerManifestSha256": "4404b0cbbd60d98a79136206349b4513410c94b7921f4ba081218826ea10e709"
     },
     {
-      "job": "r139-body-lifecycle",
-      "sourceManifest": "../../r139-body-lifecycle-ready/runtime-publication-map.json",
-      "sourceManifestSha256": "81fa567d23f2eb958a6cd479867e33e21ed1ac50e9a28951cd9d667258ea76f8",
-      "fullMappedFiles": 9,
-      "runtimeBytes": 84325,
-      "innerManifestSha256": "38b6213e5657a31a024fffc3618b2629c368e28e8a6154bf9545cdb62495a408"
+      "job": "r131-native",
+      "sourceManifest": "../../r131-warm-error-v4/runtime-publication-map.json",
+      "sourceManifestSha256": "9370e57c31bd5316073e938ff13740dd02ea4e62dddf468635062445c0919f8e",
+      "fullMappedFiles": 15,
+      "runtimeBytes": 296664,
+      "innerManifestSha256": "ab7dad55b8896826c8ca1502c9ac30de8c924dc0b24d0cddff7e0f1bc36be1b5"
     }
   ],
+  "r125ComposedPatchSha256": "49440dd5dfda225db24a10ff6bceffd2da34a829fefac3c2161f068bd9f0982e",
+  "r125RendererSha256": "1be07125a5f64bfdeb123d2883288f17f912b85c799072ecf4e14e40052bf492",
+  "r131StrictDistinctModuleProofCount": 2,
   "resourceAndProjectionImplementationBytesUnchanged": true,
-  "r116PassedAndAcceptanceFalse": true,
-  "r139AcceptanceFalse": true,
   "allProductAcceptanceGates": "OPEN",
   "changedFiles": [
-    "accept_r116_close.mjs",
-    "accept_r139.mjs",
+    "accept_case.py",
     "case-runtime-closure.json",
-    "observation-policy-receipt.json",
-    "observation-runtime-receipt.json",
+    "native-policy-receipt.json",
+    "native-runtime-receipt.json",
     "public-container-envelope.yml",
+    "r131-native-proof-binding-receipt.json",
     "README.md",
     "result-policy.json",
+    "test_accept_case.py",
     "test_case_closure.py",
     "test_docker_envelope.py",
-    "test_r116_close_observation.mjs",
-    "test_r116_close_projection.py",
-    "test_r139_observation.mjs",
-    "test_r139_projection.py",
+    "test_native_binding_projection.py",
     "verification.json",
     "verify_case_closure.py"
   ],
   "files": [
     {
       "path": "accept_case.py",
-      "bytes": 3688,
-      "sha256": "a6ad5a1289d4df6f43db3b073644c25416e804570c9635265444f5db53fde883"
+      "bytes": 4349,
+      "sha256": "26da1f7198a55be953c89eea80a01ceb0f8a7f7133e1a2127b80192ce8daff5e"
     },
     {
       "path": "accept_performance.mjs",
@@ -110,8 +109,8 @@
     },
     {
       "path": "case-runtime-closure.json",
-      "bytes": 5804,
-      "sha256": "ef011ca5c3dd04a08083eb7bb6ad34ee957776d7de3ffb786cef295324f907e5"
+      "bytes": 11013,
+      "sha256": "bd8eba88e6cb6e3aaadcb55ac922c82a6cf53d0ebaef5b7f05012a5f44747315"
     },
     {
       "path": "control-run-40044649892-diagnosis.json",
@@ -132,6 +131,16 @@
       "path": "inside.mjs",
       "bytes": 16906,
       "sha256": "cbcb14a787ab7b40a0d970ba3a15781b0875df1bf3e0653066eba2fb4bb58377"
+    },
+    {
+      "path": "native-policy-receipt.json",
+      "bytes": 520,
+      "sha256": "677618d739b9aa54ea2fdda198813fe44cb19839d580acb3459db1c1d8745604"
+    },
+    {
+      "path": "native-runtime-receipt.json",
+      "bytes": 1230,
+      "sha256": "a029e4bcfa1e1d4bd1a2eff3c8a712d810be92e6f48516bdf99a4f111646b1e5"
     },
     {
       "path": "next-four-policy-merge.json",
@@ -200,8 +209,8 @@
     },
     {
       "path": "public-container-envelope.yml",
-      "bytes": 55421,
-      "sha256": "f08734504c218a2e21cdaf166640676af4c924976b361ead5555b119b068a3fc"
+      "bytes": 55459,
+      "sha256": "0a19be5cc58f238e765b2e018566e36dbaf8a93e4035f59f5a160f704783e287"
     },
     {
       "path": "public-metadata-evidence.json",
@@ -254,14 +263,19 @@
       "sha256": "3d1706814dcd5af3d99f3a1105a8d5b6589b2d3311961db1219398d18fc78b6c"
     },
     {
+      "path": "r131-native-proof-binding-receipt.json",
+      "bytes": 8490,
+      "sha256": "ed628d9d0ee5011f123a92801782bbecf4b81a631a6eafd97254b141138e7e26"
+    },
+    {
       "path": "r134_screen_core.mjs",
       "bytes": 4786,
       "sha256": "f33a7435e90d251d781358fc0d09a7afca9fe48fa7cbc1363425087ba6211287"
     },
     {
       "path": "README.md",
-      "bytes": 34926,
-      "sha256": "d0d35b49690857f8e5c010cbd27ae5acb0223dd75ea31382237c0f048bb35303"
+      "bytes": 36998,
+      "sha256": "2b6c1a9c5eea538f9944a7c2a73cd7941c6632a5e673e90409a41fdd4eb78579"
     },
     {
       "path": "recovery-source-receipt.json",
@@ -270,8 +284,8 @@
     },
     {
       "path": "result-policy.json",
-      "bytes": 176810,
-      "sha256": "d7ceea36ff6b834317c86ac03c54a39c625c37038825db7297eaebdb44b5c3e6"
+      "bytes": 179125,
+      "sha256": "84816fc3beeb6a375c886f7f284ed7249ea9b440a4f6591d89304f50cdc90394"
     },
     {
       "path": "setup_diagnostics.py",
@@ -280,8 +294,8 @@
     },
     {
       "path": "test_accept_case.py",
-      "bytes": 4481,
-      "sha256": "5df3bcdc6f4e24ee9acfff9d482adcbe5400a8aad7bd94a2709034f38f68e205"
+      "bytes": 7143,
+      "sha256": "a2017543e83bbe77f40a3ad883884942eae8cb32f30fd4d5e4a8dae0497b62fb"
     },
     {
       "path": "test_accept_performance.mjs",
@@ -290,13 +304,18 @@
     },
     {
       "path": "test_case_closure.py",
-      "bytes": 5641,
-      "sha256": "9c38a1beb59db220504c5675b8b37d499e7be65ed775c1906d4d8cb4f978c873"
+      "bytes": 6646,
+      "sha256": "20e8a2adcbcadb138221a38cfd5bb7c29196e364a01d3d28433ff1ad4167fb2c"
     },
     {
       "path": "test_docker_envelope.py",
-      "bytes": 32409,
-      "sha256": "4c1c1ef7392226e64cacb135d27639b078351a301a7a82ba4f83e7d7f2f1044a"
+      "bytes": 32808,
+      "sha256": "6893a780fd9afc88f2a3f32e65c0212f2fe75084f68eb33307e81afa80319728"
+    },
+    {
+      "path": "test_native_binding_projection.py",
+      "bytes": 7507,
+      "sha256": "4efc49d6e27a2a3a63f2779d7ca27f47965a07de1368f12c7a2966bfbb3f9977"
     },
     {
       "path": "test_performance_projection.py",
@@ -350,13 +369,13 @@
     },
     {
       "path": "verification.json",
-      "bytes": 4747,
-      "sha256": "530d6fad3321c48d41159ebe0ba76e5f52a3dbf4b8ed25bf37c1403541bfdc6e"
+      "bytes": 4242,
+      "sha256": "110962c6df6d951717fc0bcf325007429a95a2931de67a5b7ec50cc2d3e7c75c"
     },
     {
       "path": "verify_case_closure.py",
-      "bytes": 8334,
-      "sha256": "fe7dca6b2d1cf7ede33c442b0cb13ad3c4453e6636629d0f7301a6afc4c542eb"
+      "bytes": 9060,
+      "sha256": "add1a2a29509b1d14d8c990da342207808ea2b08e2794c009271ac8b7ca6f5bb"
     }
   ]
 }

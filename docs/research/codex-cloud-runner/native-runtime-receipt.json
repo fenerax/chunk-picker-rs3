@@ -1,0 +1,29 @@
+{
+  "schema": "native-pager-warm-runtime-receipt-v1",
+  "publicationBaseCommit": "7df822824274ef26684ca121f609bcd5f79a4c76",
+  "publicationBaseManifestSha256": "a8fd754e262b5f704f253ebb5fc8dd04aa1b41e1278f540034d3674ea3885f5d",
+  "cases": [
+    {
+      "job": "r125-focus",
+      "sourceManifest": "../../r125-pager-init-v6/native/runtime-publication-map.json",
+      "sourceManifestSha256": "3a9376e0f6117efe544ea231ddeaaa94049a91ed1274aedc940990f23a8643c2",
+      "fullMappedFiles": 28,
+      "runtimeBytes": 212350,
+      "innerManifestSha256": "4404b0cbbd60d98a79136206349b4513410c94b7921f4ba081218826ea10e709"
+    },
+    {
+      "job": "r131-native",
+      "sourceManifest": "../../r131-warm-error-v4/runtime-publication-map.json",
+      "sourceManifestSha256": "9370e57c31bd5316073e938ff13740dd02ea4e62dddf468635062445c0919f8e",
+      "fullMappedFiles": 15,
+      "runtimeBytes": 296664,
+      "innerManifestSha256": "ab7dad55b8896826c8ca1502c9ac30de8c924dc0b24d0cddff7e0f1bc36be1b5"
+    }
+  ],
+  "allMappedBytesVerified": true,
+  "fullMappedFiles": 43,
+  "fullMappedBytes": 509014,
+  "r125OwnerHostPredicateUnchanged": true,
+  "r125SourcePostimagesFixedInClosure": true,
+  "runtime": "UNRUN"
+}

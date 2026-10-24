@@ -14,7 +14,7 @@ import { instrumentLoading, instrumentTasks, browserInitSource } from './task-fo
 import { deadline, fixtureEnvironment, watchFixture, drainFixture } from './task-focus-native.lifecycle.mjs';
 const enabled = process.env.R78_NATIVE === '1';
 const sourceHashes = { 'screen-loading.mjs': 'aac839576ef212bd22af38420f08befcc3dc483f4f9db132fa947b6c9534b1cf',
-  'screen-tasks.mjs': '572b08f701847bb9ea24d41023a2af972492ff8fe95730b159259995c7ff79e1' };
+  'screen-tasks.mjs': '1be07125a5f64bfdeb123d2883288f17f912b85c799072ecf4e14e40052bf492' };
 const deferred = () => { let resolve; return { promise: new Promise(r => { resolve = r; }), resolve: value => resolve(value) }; };
 
 for (const group of [false, true]) for (const owner of ['alpha', 'beta']) {

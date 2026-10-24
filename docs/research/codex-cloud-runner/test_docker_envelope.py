@@ -225,24 +225,27 @@ class Controls(unittest.TestCase):
         self.assertEqual(workflow.count('--stage public-image-pull'), 13)
         self.assertNotIn('cat "$RUNNER_TEMP/npm-setup.log"', workflow)
         self.assertNotIn('tail "$RUNNER_TEMP/image-pull.log"', workflow)
-    def test_two_observation_jobs_retain_controls_and_disable_all_previous_cases(self):
+    def test_native_pager_and_warm_jobs_retain_controls_and_disable_other_cases(self):
         workflow=workflow_path().read_text()
         jobtext=workflow.split('jobs:\n',1)[1]
         markers=list(re.finditer(r'^  ([a-z0-9-]+):\n',jobtext,re.M))
         blocks={match.group(1):jobtext[match.start():(markers[i+1].start() if i+1<len(markers) else len(jobtext))] for i,match in enumerate(markers)}
         self.assertEqual(len(blocks),13)
         self.assertIn("github.event.repository.private == false",blocks['controls'])
-        for key in ('one-case','r127-component','r124-engine','r130-codec','r134-engine-performance','r135-codec-http','r138-advisory','r125-focus','r111-scoped-soak','r131-native'):
+        for key in ('one-case','r127-component','r124-engine','r130-codec','r134-engine-performance','r135-codec-http','r138-advisory','r111-scoped-soak','r116-close-diagnostic','r139-body-lifecycle'):
             self.assertIn('if: ${{ false }}',blocks[key])
-        for key in ('r116-close-diagnostic','r139-body-lifecycle'):
+        for key in ('r125-focus','r131-native'):
             self.assertIn('needs: controls',blocks[key]);self.assertIn('if: ${{ success() }}',blocks[key])
-        self.assertIn('--entrypoint docs/research/codex-cloud-assets/r131-fixture-warm-v3/entry.mjs --mode native --seconds 180 --arg=--expected-harness-manifest-sha --arg=d70a4b35ba631b863c10b98b7b2b9faa2871aa2eaee914f694c90d71807d2a70',blocks['r131-native'])
+        self.assertIn('--entrypoint docs/research/codex-cloud-assets/r131-warm-error-v4/entry.mjs --mode native --seconds 180 --arg=--expected-harness-manifest-sha --arg=ab7dad55b8896826c8ca1502c9ac30de8c924dc0b24d0cddff7e0f1bc36be1b5',blocks['r131-native'])
         self.assertIn('--arg=--expected-harness-manifest-sha256 --arg=2184488130d8fef82cee0d5951f071ad55f16233b408e87ec5dafa842d6df396',blocks['r111-scoped-soak'])
         self.assertIn('--entrypoint docs/research/codex-cloud-capture/run-frozen-browser.mjs',blocks['one-case'])
         self.assertIn('group: public-docker-envelope-${{ github.sha }}',workflow)
         self.assertIn('cancel-in-progress: false',workflow)
         self.assertIn('test_case_closure.py',blocks['controls'])
         self.assertIn('test_r111_rtt_projection.py',blocks['controls'])
+        self.assertIn('test_native_binding_projection.py',blocks['controls'])
+        self.assertIn('--entrypoint docs/research/codex-cloud-assets/r125/case-entry.mjs --mode browser --seconds 215',blocks['r125-focus'])
+        self.assertIn('node "$RUNNER_TEMP/public-harness/docs/research/codex-cloud-assets/r125/accept-focus-result.mjs" "$RUNNER_TEMP/r125-focus-v2/final.json"',blocks['r125-focus'])
         for filename in ('test_r139_projection.py','test_r116_close_projection.py','test_r139_observation.mjs','test_r116_close_observation.mjs'):
             self.assertIn(filename,blocks['controls'])
         self.assertIn('--mode browser --seconds 540 --entrypoint docs/research/codex-cloud-capture/run-frozen-browser.mjs',blocks['r116-close-diagnostic'])

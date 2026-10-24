@@ -1,0 +1,68 @@
+{
+  "schema": "r131-candidate-v4",
+  "sourceCommit": "6f22fefa782747790e2eaefa01e4e5ea7b557323",
+  "exports": [
+    {
+      "schema": "r132",
+      "bytes": 29308,
+      "sha256": "b6f92f99ddcd704089cea337462dcaf697c6c06e3420af9a97ee3f586d7a2aad",
+      "files": [
+        {
+          "bytes": 70694,
+          "path": "app/tasks/scheduler.mjs",
+          "sha256": "5be385414fbf81043f9d4cf84028a81cd1e3fdaa8a98d58b2295736552c4f16c"
+        },
+        {
+          "bytes": 30916,
+          "path": "app/tasks/worker.mjs",
+          "sha256": "85de8f0f01f3c9e6e1b35f0c29d10a68026adf666798628b93265bd83bca9e9e"
+        },
+        {
+          "bytes": 7816,
+          "path": "app/tasks/chunk-planning-index.mjs",
+          "sha256": "f5d058741cd19b926bba2636d37c6cc2d3f30420497874f741d7b2841e622c1a"
+        }
+      ]
+    },
+    {
+      "schema": "r133",
+      "bytes": 2035,
+      "sha256": "09c2d7d3912d73402cac7dab51e5cef8cc73c64725014d37c608c47d4b7622c9",
+      "files": [
+        {
+          "bytes": 3421,
+          "path": "app/tasks/idle-foreground-planning.mjs",
+          "sha256": "33f83d0278f2b48892ac02b658ee6bed724e1dd9158bd5b4f45f5241f4ef4e08"
+        }
+      ]
+    }
+  ],
+  "files": [
+    {
+      "path": "app/tasks/scheduler.mjs",
+      "baselineSHA256": "1e2e309cee05f64c8886cf1e08fd10d7d8d7631f63c4bb0d93bd1eb5d828b81b",
+      "bytes": 70694,
+      "sha256": "5be385414fbf81043f9d4cf84028a81cd1e3fdaa8a98d58b2295736552c4f16c"
+    },
+    {
+      "path": "app/tasks/worker.mjs",
+      "baselineSHA256": "f0deaa35cb61e864a4e162afa00b8afa7926911b471ea463383bf315e186170e",
+      "bytes": 30916,
+      "sha256": "85de8f0f01f3c9e6e1b35f0c29d10a68026adf666798628b93265bd83bca9e9e"
+    },
+    {
+      "path": "app/tasks/chunk-planning-index.mjs",
+      "baselineSHA256": "9e388742608443a4affb493120b2045edcc02004a7f412f2c6bd2dc962f356df",
+      "bytes": 8009,
+      "sha256": "b5f9ad2750b0a42a637784d16c09ebbf42fb5aa54ca3dd1d866d0f7041e0711d"
+    },
+    {
+      "path": "app/tasks/idle-foreground-planning.mjs",
+      "baselineSHA256": null,
+      "bytes": 3421,
+      "sha256": "33f83d0278f2b48892ac02b658ee6bed724e1dd9158bd5b4f45f5241f4ef4e08"
+    }
+  ],
+  "native": "UNRUN",
+  "patchSHA256": "f338823b045747b9e0a052bcb04d4db632b83eb5400a370a9b7ff3637a8c4ee1"
+}

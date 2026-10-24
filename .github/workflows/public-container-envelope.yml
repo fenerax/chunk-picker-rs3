@@ -69,7 +69,7 @@ jobs:
         shell: bash
         run: |
           pure_status=0
-          python3 -B -m unittest -q test_accept_case.py test_docker_envelope.py test_projection_integration.py test_r111_vector_policy.py test_scoped_session.py test_performance_projection.py test_case_closure.py test_r111_rtt_projection.py test_r139_projection.py test_r116_close_projection.py > "$RUNNER_TEMP/pure-controls.log" 2>&1 || pure_status=$?
+          python3 -B -m unittest -q test_accept_case.py test_docker_envelope.py test_projection_integration.py test_r111_vector_policy.py test_scoped_session.py test_performance_projection.py test_case_closure.py test_r111_rtt_projection.py test_r139_projection.py test_r116_close_projection.py test_native_binding_projection.py > "$RUNNER_TEMP/pure-controls.log" 2>&1 || pure_status=$?
           if [ "$pure_status" -ne 0 ]; then
             python3 -B setup_diagnostics.py --stage pure-controls --exit-code "$pure_status" --log "$RUNNER_TEMP/pure-controls.log"
             exit "$pure_status"
@@ -80,7 +80,7 @@ jobs:
             python3 -B setup_diagnostics.py --stage pure-controls --exit-code "$pure_status" --log "$RUNNER_TEMP/performance-pure-controls.log"
             exit "$pure_status"
           fi
-          printf '{"stage":"pure-controls","passed":true,"count":170}\n'
+          printf '{"stage":"pure-controls","passed":true,"count":181}\n'
       - name: Positive, CPU, memory, and missing-init remote controls
         shell: bash
         run: |
@@ -262,7 +262,7 @@ jobs:
     needs: controls
     # Root-authorized next wave; runs only after all four remote Docker controls PASS.
     # Publish the reviewed packet and shared result-policy union before this workflow.
-    if: ${{ false }}
+    if: ${{ success() }}
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
@@ -305,7 +305,7 @@ jobs:
             exit "$setup_status"
           fi
           printf '{"stage":"public-setup","passed":true}\n'
-      - name: R125 exact browser brand v3 native focus case
+      - name: R125 pager initialization v6 native focus case
         shell: bash
         run: |
           set -euo pipefail
@@ -372,7 +372,7 @@ jobs:
     needs: controls
     # Root-authorized next wave; runs only after all four remote Docker controls PASS.
     # Publish the reviewed packet and shared result-policy union before this workflow.
-    if: ${{ false }}
+    if: ${{ success() }}
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
@@ -415,12 +415,12 @@ jobs:
             exit "$setup_status"
           fi
           printf '{"stage":"public-setup","passed":true}\n'
-      - name: R131 two-mode native borrow and cancellation
+      - name: R131 warm-error v4 native borrow and cancellation
         shell: bash
         run: |
           set -euo pipefail
           tool="$GITHUB_WORKSPACE/inputs/assets/docs/research/codex-cloud-runner"
-          python3 -B "$tool/docker_envelope.py" --execute --remote-only-ack remote-disposable-public --source "$RUNNER_TEMP/public-source" --harness "$RUNNER_TEMP/public-harness" --harness-commit "$GITHUB_SHA" --deps "$RUNNER_TEMP/deps" --node "$RUNNER_TEMP/runtime/node" --output "$RUNNER_TEMP/r131-native" --entrypoint docs/research/codex-cloud-assets/r131-fixture-warm-v3/entry.mjs --mode native --seconds 180 --arg=--expected-harness-manifest-sha --arg=d70a4b35ba631b863c10b98b7b2b9faa2871aa2eaee914f694c90d71807d2a70
+          python3 -B "$tool/docker_envelope.py" --execute --remote-only-ack remote-disposable-public --source "$RUNNER_TEMP/public-source" --harness "$RUNNER_TEMP/public-harness" --harness-commit "$GITHUB_SHA" --deps "$RUNNER_TEMP/deps" --node "$RUNNER_TEMP/runtime/node" --output "$RUNNER_TEMP/r131-native" --entrypoint docs/research/codex-cloud-assets/r131-warm-error-v4/entry.mjs --mode native --seconds 180 --arg=--expected-harness-manifest-sha --arg=ab7dad55b8896826c8ca1502c9ac30de8c924dc0b24d0cddff7e0f1bc36be1b5
           python3 -B "$tool/accept_case.py" --case r131 --final "$RUNNER_TEMP/r131-native/final.json"
 
   r111-scoped-soak:
@@ -650,7 +650,7 @@ jobs:
     needs: controls
     # Root-authorized next wave; runs only after all four remote Docker controls PASS.
     # Publish the reviewed packet and shared result-policy union before this workflow.
-    if: ${{ success() }}
+    if: ${{ false }}
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
@@ -705,7 +705,7 @@ jobs:
     needs: controls
     # Root-authorized next wave; runs only after all four remote Docker controls PASS.
     # Publish the reviewed packet and shared result-policy union before this workflow.
-    if: ${{ success() }}
+    if: ${{ false }}
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:

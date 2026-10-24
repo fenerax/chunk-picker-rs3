@@ -16,7 +16,7 @@ WORKFLOW_PATH=workflow_path(HERE)
 RAW=WORKFLOW_PATH.read_bytes()
 WORKFLOW=RAW.decode('utf8')
 CLOSURE=json.loads((HERE/'case-runtime-closure.json').read_text())
-EXPECTED={'r116-close-diagnostic':13,'r139-body-lifecycle':9}
+EXPECTED={'r125-focus':28,'r131-native':15}
 
 class CaseClosureControls(unittest.TestCase):
     def cli(self,workflow,mapping,harness):
@@ -49,7 +49,7 @@ class CaseClosureControls(unittest.TestCase):
             self.assertEqual(status,0);self.assertTrue(result['passed']);self.assertEqual(result['enabledCases'],1)
 
     def test_observed_wrong_prefix_and_same_basename_are_rejected(self):
-        wrong=WORKFLOW.replace('--entrypoint docs/research/codex-cloud-assets/r139/entry.mjs','--entrypoint docs/research/codex-cloud-assets/r139-other/entry.mjs')
+        wrong=WORKFLOW.replace('--entrypoint docs/research/codex-cloud-assets/r131-warm-error-v4/entry.mjs','--entrypoint docs/research/codex-cloud-assets/r131-fixture-warm-v3/entry.mjs')
         with self.assertRaises(ValueError):definition(wrong,CLOSURE)
         for change in (WORKFLOW.replace('    if: ${{ success() }}',''),WORKFLOW.replace('    needs: controls','')):
             with self.assertRaises(ValueError):definition(change,CLOSURE)
@@ -81,7 +81,19 @@ class CaseClosureControls(unittest.TestCase):
             root=Path(name).resolve();self.assertIn(HERE,root.parents)
             status,result=self.cli(WORKFLOW_PATH,HERE/'case-runtime-closure.json',root)
             self.assertEqual(status,1);self.assertEqual(result['failurePhase'],'member-read')
-            self.assertEqual(result['job'],'r116-close-diagnostic');self.assertEqual(result['memberOrdinal'],0)
+            self.assertEqual(result['job'],'r125-focus');self.assertEqual(result['memberOrdinal'],0)
             self.assertNotIn(str(root),json.dumps(result));self.assertEqual(result['reasonCode'],'case-runtime-closure-failed')
+
+    def test_native_pager_manifest_binds_composed_patch_and_exact_renderer_postimage(self):
+        data={r['path']:(PUBLIC_ROOT/r['path']).read_bytes() for c in CLOSURE['cases'].values() for r in c['assets']}
+        for field in ('renderer','patch'):
+            value=copy.deepcopy(CLOSURE);case=value['cases']['r125-focus'];manifest=json.loads(data[case['manifest']])
+            if field=='renderer':manifest['candidateApplicationFiles']['app/web/screen-tasks.mjs']='a'*64
+            else:manifest['candidatePatch']['sha256']='a9f23f6a67af9d5f8cc6bf7a1873b5f3781d492db35a27f5d1e7d724701b8c8f'
+            raw=json.dumps(manifest).encode();digest=hashlib.sha256(raw).hexdigest();case['manifestSha256']=digest
+            for row in case['assets']:
+                if row['path']==case['manifest']:row.update(bytes=len(raw),sha256=digest)
+            modified=dict(data);modified[case['manifest']]=raw
+            with self.assertRaises(ValueError):verify(WORKFLOW,value,modified.__getitem__)
 
 if __name__=='__main__':unittest.main()

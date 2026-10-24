@@ -121,7 +121,11 @@
     "r139BaselineClientSha256",
     "r139CandidateClientSha256",
     "r139LedgerSha256",
-    "r139ErrorStackSha256"
+    "r139ErrorStackSha256",
+    "r131NativeCellSha256",
+    "r131NativeCellUrlSha256",
+    "r131FixtureModuleSha256",
+    "r131FixtureModuleUrlSha256"
   ],
   "enums": {
     "schema": [
@@ -2193,6 +2197,65 @@
       "http-close",
       "r139-deadline",
       "unknown"
+    ],
+    "r131ErrorModule": [
+      "none",
+      "unrecognized",
+      "native-cell-v3.mjs",
+      "scheduler-fixture-v3.mjs",
+      "diagnostics.mjs",
+      "protocol.mjs",
+      "app/tasks/scheduler.mjs",
+      "app/tasks/worker.mjs",
+      "app/tasks/idle-foreground-planning.mjs",
+      "app/tasks/chunk-planning-index.mjs"
+    ],
+    "r131AssertOperator": [
+      "none",
+      "other",
+      "strictEqual",
+      "notStrictEqual",
+      "deepStrictEqual",
+      "notDeepStrictEqual",
+      "==",
+      "===",
+      "!=",
+      "!==",
+      ">",
+      ">=",
+      "<",
+      "<=",
+      "ok"
+    ],
+    "r131AssertActualType": [
+      "none",
+      "undefined",
+      "null",
+      "boolean",
+      "number",
+      "string",
+      "object",
+      "other"
+    ],
+    "r131AssertExpectedType": [
+      "none",
+      "undefined",
+      "null",
+      "boolean",
+      "number",
+      "string",
+      "object",
+      "other"
+    ],
+    "r131NativeCellRelativeModule": [
+      "native-cell-v3.mjs"
+    ],
+    "r131FixtureRelativeModule": [
+      "scheduler-fixture-v3.mjs"
+    ],
+    "r131ModuleRootStatus": [
+      "matched",
+      "unobserved"
     ]
   },
   "metricKeys": [
@@ -2528,7 +2591,12 @@
     "r139DetachedSessions",
     "r139BrowserCloseCompleted",
     "r139ServerCloseCompleted",
-    "r139OpenFixtureSockets"
+    "r139OpenFixtureSockets",
+    "r131ErrorLine",
+    "r131ErrorColumn",
+    "r131AssertActual",
+    "r131AssertExpected",
+    "r131NativeModuleProofCount"
   ],
   "scope": {
     "memberId": [
@@ -2597,13 +2665,18 @@
     "test_accept_r116_requires_both_projections_calibration_and_cleanup",
     "test_accept_r124_requires_both_exact_eight_counts",
     "test_accept_r130_requires_both_backend_statuses",
+    "test_accept_r131_proof_count_is_two_distinct_modules_not_four_ipc_events",
+    "test_accept_r131_rejects_old_manifest_or_failed_case_with_proofs",
     "test_accept_r131_requires_all_ten_intents_both_modes_and_real_proof_counts",
+    "test_accept_r131_requires_both_exact_module_bytes_and_mapped_url_hashes",
+    "test_accept_r131_requires_known_relative_modules_and_matched_root",
     "test_accept_wrong_schema_rejected",
     "test_all_seven_gates_stay_open",
     "test_allowed_cpu_list",
     "test_bad_cpu_range",
     "test_bad_security_rejected",
     "test_booleans_fractions_range_and_strings_are_not_admitted_as_integer_facts",
+    "test_both_actual_projectors_preserve_successful_binding_and_finite_assertion_values",
     "test_both_observation_actual_full_runtime_maps_and_member_bytes",
     "test_both_setup_failures_use_closed_diagnostics",
     "test_both_workflow_recipes_use_distinct_empty_npm_configs",
@@ -2623,6 +2696,7 @@
     "test_complete_legacy_broad_scope_is_not_a_new_canonical40plusminus2_gate",
     "test_complete_observation_requires_schedule_and_span",
     "test_control_caps_are_distinct_versioned_experiments",
+    "test_corrupt_or_missing_module_proofs_never_become_accepted_after_projection",
     "test_corrupted_public_image_env_value_rejected",
     "test_created_command_has_independent_watchdog_and_explicit_env",
     "test_default_pid_uts_encoding_is_exact",
@@ -2647,6 +2721,7 @@
     "test_extra_bind_rejected",
     "test_failed_partial_evidence_is_preserved_without_zero_substitution_or_promotion",
     "test_first_sample_at_15000_is_within_start_boundary",
+    "test_fixed_enums_drop_arbitrary_operators_modules_paths_and_strings",
     "test_fixed_nested_maximum_shape_fits_case_and_inner_frame_caps",
     "test_healthy_five_case_projected_contract_and_nulls_have_exact_python_js_parity",
     "test_image_content_mismatch_rejected",
@@ -2661,9 +2736,13 @@
     "test_missing_init_command_omits_init_and_changes_no_other_cap",
     "test_missing_init_negative_is_only_init",
     "test_missing_required_rtt_fails_atomically_and_other_schema_stays_unchanged",
+    "test_native_pager_and_warm_jobs_retain_controls_and_disable_other_cases",
+    "test_native_pager_manifest_binds_composed_patch_and_exact_renderer_postimage",
     "test_near_maximum_actual_case_and_envelope_fit",
     "test_never_started_negative_skips_wait",
+    "test_nonfinite_numbers_drop_in_both_extracted_real_bodies",
     "test_nullable_body_used_is_never_false_or_zero_substituted",
+    "test_numeric_diagnostics_use_existing_finite_metric_projection",
     "test_numeric_type_range_and_null_count_rejections",
     "test_observation_schema_preserves_false_identity_nulls_and_nested_phases_both",
     "test_observed_wrong_prefix_and_same_basename_are_rejected",
@@ -2672,6 +2751,7 @@
     "test_outer_inner_and_case_cleanup_are_required",
     "test_outer_projection_rejects_raw_metric_payload",
     "test_performance_wave_uses_exact_cli_budgets_and_host_acceptance",
+    "test_pinned_manifest_and_all_fifteen_mapped_source_bytes",
     "test_plan_never_opens_inputs_or_docker",
     "test_points_journeys_schemas_and_shapes_rejected_by_both",
     "test_private_keys_cannot_enter_any_structured_surface",
@@ -2719,7 +2799,6 @@
     "test_strict_timestamps_unique_buckets_and_endpoint_coverage",
     "test_strict_vector_schema_null_counts_and_private_fields",
     "test_timestamp_and_latency_nonfinite_or_boolean_values_rejected",
-    "test_two_observation_jobs_retain_controls_and_disable_all_previous_cases",
     "test_unexpected_environment_rejected",
     "test_unexpected_keys_labels_and_secrets_are_omitted_from_both",
     "test_unknown_docker_verb_is_fixed",
