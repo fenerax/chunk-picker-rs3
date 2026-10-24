@@ -1,8 +1,8 @@
 .quest-map-controls { display:flex; flex-wrap:wrap; align-items:center; gap:var(--space-4); }
 .quest-map-controls p { margin:0; flex:1 1 180px; }
 .quest-map-status {
-  position:absolute; right:.75rem; bottom:.75rem; z-index:4; width:320px;
-  max-width:calc(100% - 1.5rem); max-height:35%; overflow:auto;
+  position:absolute; right:3.75rem; bottom:.75rem; z-index:4; width:320px;
+  max-width:calc(100% - 4.5rem); max-height:35%; overflow:auto;
   padding:var(--space-5) var(--space-5); background:var(--panel); color:var(--panel-text,var(--text));
   border:var(--border-thin) solid var(--hairline); border-radius:var(--radius-sm);
 }

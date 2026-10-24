@@ -524,6 +524,9 @@ export class ChunkMap {
     // Keep the unlocked area framed while layout settles, until the user moves the map.
     if (this.autoFit && this.model) this.centerOnUnlocked();
     this.invalidate(true, true, true);
+    // Setting a canvas size wipes it. Resize callbacks run before the browser paints,
+    // so draw now rather than next frame, or the map shows one empty (black) frame.
+    if (this.model && !this.painting) this.paint();
   }
 
   /** Replace topology-only preview with the worker's gated travel evidence. */
@@ -835,6 +838,15 @@ export class ChunkMap {
     if (this.disposed || this.frame !== null) return;
     this.frame = requestAnimationFrame(() => {
       this.frame = null;
+      this.paint();
+    });
+  }
+
+  paint() {
+    if (this.disposed) return;
+    if (this.frame !== null) { cancelAnimationFrame(this.frame); this.frame = null; }
+    this.painting = true;
+    try {
       if (Math.max(1, window.devicePixelRatio || 1) !== (this.deviceDpr ?? this.dpr)) this.resize();
       this.applyPointer();
       if (this.dirty.base) this.terrain?.setView(this.visibleBounds(), this.zoom, this.dpr);
@@ -862,7 +874,7 @@ export class ChunkMap {
       }
       if (this.dirty.hover) this.drawHover();
       this.dirty.base = this.dirty.state = this.dirty.pins = this.dirty.hover = false;
-    });
+    } finally { this.painting = false; }
   }
 
   clear(context) {

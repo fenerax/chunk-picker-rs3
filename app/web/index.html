@@ -86,14 +86,16 @@
       <details class="more-tools" id="more-tools">
         <summary>More</summary>
         <div class="more-tools-menu">
+          <p class="menu-heading" id="picker-heading">Picker</p>
           <button id="help-open">Help</button>
           <button id="settings-open">Settings</button>
           <button id="game-plugin-open">Game plugin</button>
-          <button id="stream-safe-toggle" role="switch" aria-checked="false">Stream-safe mode</button>
+          <button id="feedback-open" class="feedback-open" hidden>Feedback</button>
+          <p class="menu-heading" id="map-heading">Map</p>
           <button id="map-display-open" aria-expanded="false" aria-controls="map-display-panel">Map display</button>
           <button id="screenshot-open" type="button" aria-pressed="false" aria-keyshortcuts="Shift+S" title="Hide controls for a screenshot (Shift+S)">Screenshot mode</button>
           <button id="map-image-open" type="button">Download map image…</button>
-          <button id="feedback-open" class="feedback-open" hidden>Feedback</button>
+          <button id="stream-safe-toggle" role="switch" aria-checked="false">Stream-safe mode</button>
           <p class="menu-heading" id="saves-heading">Saves</p>
           <button id="backup-open">Backup &amp; Import</button>
           <p id="backup-status-menu" class="backup-status-line backup-status-menu" hidden></p>
@@ -127,12 +129,9 @@
           <button id="unpick" hidden>Forfeit</button>
         </div>
         <div class="toolbar-group" role="group" aria-label="View">
-          <button id="center-map">Center on Unlocked</button>
           <button id="membership-overlay" aria-pressed="false" title="Tint members-only land and outline where it meets free-to-play land">Members-only land</button>
-          <button id="members-start-open" hidden>Ready for members</button>
           <button id="map-pins-open" aria-expanded="false" aria-controls="map-pins-panel" hidden>Map icons</button>
         </div>
-        <div class="toolbar-group zoom-group" role="group" aria-label="Zoom"><button id="zoom-in" aria-label="Zoom in">+</button><button id="zoom-out" aria-label="Zoom out">−</button></div>
         <div class="toolbar-group toolbar-undo" role="group" aria-label="History"><button id="undo">Undo</button><span id="undo-own"></span></div>
         <div class="toolbar-group toolbar-sandbox" role="group" aria-label="Sandbox"><button id="sandbox-toggle" aria-pressed="false" title="Try locking or unlocking chunks and see the task changes. Nothing is saved.">Sandbox</button></div>
       </div>
@@ -153,6 +152,10 @@
         <canvas id="map-pins" aria-hidden="true"></canvas>
         <canvas id="map-hover" tabindex="0" role="img" aria-label="Interactive world map. Drag to pan, scroll to zoom, click a chunk for details. Use Search for the accessible chunk list."></canvas>
         <div id="map-tooltip" hidden></div>
+        <div class="map-corner" role="group" aria-label="Map view">
+          <div class="toolbar-group zoom-group" role="group" aria-label="Zoom"><button id="zoom-in" aria-label="Zoom in" title="Zoom in">+</button><button id="zoom-out" aria-label="Zoom out" title="Zoom out">−</button></div>
+          <div class="toolbar-group"><button id="center-map" aria-label="Center on Unlocked" title="Center on Unlocked"><svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" focusable="false"><circle cx="8" cy="8" r="4.5" fill="none" stroke="currentColor" stroke-width="1.5"/><circle cx="8" cy="8" r="1.5" fill="currentColor"/><path d="M8 0.75v2.5M8 12.75v2.5M0.75 8h2.5M12.75 8h2.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button></div>
+        </div>
       </div>
       <div id="map-menu" class="map-menu" role="menu" aria-label="Chunk actions" hidden></div>
       <section id="map-display-panel" class="map-display-panel" aria-labelledby="map-display-title" hidden>
@@ -209,7 +212,7 @@
       <div id="task-engine-status" role="status">Loading tasks…</div>
       <div id="active-tasks" class="task-list"></div>
       <details id="backlog-details"><summary>Backlog <span id="backlog-count"></span></summary><div id="backlog-actions" class="backlog-actions"></div><div id="backlog-tasks" class="task-list"></div></details>
-      <details id="completed-details"><summary>Completed Tasks <span id="completed-count"></span><button id="completed-review" type="button">Review all</button></summary><div id="completed-tasks" class="task-list"></div></details>
+      <details id="completed-details"><summary>Completed Tasks <span id="completed-count"></span><button id="completed-review" class="list-copy-button" type="button">Review all</button></summary><div id="completed-tasks" class="task-list"></div></details>
       <details data-usage="tasks:accessible-areas"><summary data-usage="tasks:accessible-areas:disclosure">Accessible Areas</summary><div id="accessible-areas"></div></details>
       <button id="custom-task-open" class="wide-button">Add custom task</button>
     </aside>

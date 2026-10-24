@@ -180,7 +180,7 @@
           "size": "M",
           "status": "done",
           "done": "2026-10-12",
-          "note": "View only links are in More → Invite links."
+          "note": "View only links are in Admin → Invite links."
         },
         {
           "id": "B2",
@@ -422,6 +422,16 @@
           "size": "S",
           "status": "done",
           "done": "2026-10-13"
+        },
+        {
+          "id": "L6",
+          "title": "Less cluttered map and menus",
+          "what": "One row of map tools, zoom and Center in the map corner, More menu split into Picker and Map, and a tidier task header.",
+          "why": "The toolbar wrapped onto two rows and several menus and dialogs repeated themselves.",
+          "size": "M",
+          "status": "done",
+          "note": "The phone More tab and Controls strip come later.",
+          "done": "2026-10-23"
         }
       ]
     },

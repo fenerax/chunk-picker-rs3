@@ -931,3 +931,27 @@ test('insecure page load explains the address once and chunk failure never claim
   assert.equal(outbox.getItem(commandOutboxKey), null); assert.equal(requests, 0);
   assert.equal(statuses.at(-1), 'This address cannot save');
 });
+
+test('a live stream the browser closed after an update reopens with growing waits', async () => {
+  const source = await readFile(new URL('../app/web/screen-live.mjs', import.meta.url), 'utf8'), streams = [], timers = [], statuses = [];
+  const scope = { Math: { min: Math.min, floor: Math.floor, random: () => 0 }, setTimeout: (action, delay) => timers.push({ action, delay }),
+    EventSource: class { constructor() { this.readyState = 0; this.listeners = new Map(); streams.push(this); } addEventListener(name, handler) { this.listeners.set(name, handler); } } };
+  runInNewContext(source.replace('export function createScreenLive', 'function createScreenLive') + '\nglobalThis.install = createScreenLive;', scope);
+  const c = { queue: Promise.resolve(), state: { revision: 7 }, hasPendingCommand: () => false, recoverPendingCommand: async () => {}, saved: text => statuses.push(text), showError() {} };
+  scope.install(c); c.connectEvents(); await c.queue;
+  // A dropped connection is the browser's own retry; nothing extra is scheduled.
+  streams[0].listeners.get('error')();
+  assert.deepEqual(timers, []);
+  assert.equal(statuses.at(-1), 'Reconnecting…');
+  // An error response during the restart closes the stream for good.
+  for (const delay of [1000, 2000]) {
+    streams.at(-1).readyState = 2; streams.at(-1).listeners.get('error')();
+    assert.equal(timers.at(-1).delay, delay);
+    timers.at(-1).action();
+  }
+  assert.equal(streams.length, 3);
+  streams[2].listeners.get('open')();
+  assert.equal(statuses.at(-1), 'Syncing…');
+  streams[2].readyState = 2; streams[2].listeners.get('error')();
+  assert.equal(timers.at(-1).delay, 1000);
+});

@@ -1007,6 +1007,47 @@ test('clearSelected clears only the rolling owner after actual unlock and cancel
   assert.deepEqual(applyCommand(manual, { type: 'roll', memberId: 'actor1', count: 1 }, options).members[0].selected, []);
 });
 
+test('unpicked roll choices return to selected only when hand-added or in manual mode', () => {
+  // Frontier mode computes the pool from grid neighbours without walking data.
+  const original = state(); original.rules['roll.neighborMode'] = 'frontier';
+  const map = world();
+  const options = { world: map, random: () => 0, now: clock };
+  const pending = applyCommand(original, { type: 'roll', memberId: 'actor1', count: 2 }, options);
+  assert.deepEqual(pending.members[0].pendingRoll.toSorted(), ['101', '102']);
+  assert.deepEqual(pending.history.at(-1).command.handSelected, []);
+  for (const command of [
+    { type: 'unlock-selection', memberId: 'actor1', chunkId: '101' },
+    { type: 'pick-for-me', memberId: 'actor1' },
+    { type: 'cancel-roll', memberId: 'actor1' },
+  ]) {
+    const after = applyCommand(pending, command, options);
+    assert.deepEqual(after.members[0].selected, [], command.type);
+    assert.deepEqual(applyCommand(importBackup(exportBackup(after)), { type: 'undo' }, options).members, pending.members);
+  }
+  // The passed-on chunk is still adjacent, so the computed pool offers it again.
+  const unlocked = applyCommand(pending, { type: 'unlock-selection', memberId: 'actor1', chunkId: '101' }, options);
+  assert.ok(evaluateRollPool(map, unlocked, 'actor1').eligible.some(candidate => candidate.id === '102'));
+
+  const handAdded = structuredClone(original); handAdded.members[0].selected = ['102'];
+  const handPending = applyCommand(handAdded, { type: 'roll', memberId: 'actor1', count: 2 }, options);
+  assert.deepEqual(handPending.history.at(-1).command.handSelected, ['102']);
+  assert.deepEqual(applyCommand(handPending, { type: 'unlock-selection', memberId: 'actor1', chunkId: '101' }, options).members[0].selected, ['102']);
+  assert.deepEqual(applyCommand(handPending, { type: 'cancel-roll', memberId: 'actor1' }, options).members[0].selected, ['102']);
+
+  const randomPending = applyCommand(original, { type: 'random-start', memberId: 'actor1', count: 2 }, options);
+  const [kept, passed] = randomPending.members[0].pendingRoll;
+  assert.deepEqual(applyCommand(randomPending, { type: 'unlock-selection', memberId: 'actor1', chunkId: kept }, options).members[0].selected, []);
+  assert.ok(passed);
+
+  const manual = state(); manual.rules['roll.neighborMode'] = 'manual'; manual.members[0].selected = ['101', '102'];
+  const manualPending = applyCommand(manual, { type: 'roll', memberId: 'actor1', count: 2 }, options);
+  assert.deepEqual(applyCommand(manualPending, { type: 'unlock-selection', memberId: 'actor1', chunkId: '101' }, options).members[0].selected, ['102']);
+
+  // Offers saved before handSelected was recorded keep the old behaviour.
+  const legacy = structuredClone(pending); delete legacy.history.at(-1).command.handSelected;
+  assert.deepEqual(applyCommand(legacy, { type: 'unlock-selection', memberId: 'actor1', chunkId: '101' }, options).members[0].selected, ['102']);
+});
+
 
 test('player-control commands and restores reject unknown skills, invalid levels and untyped Slayer fields atomically', () => {
   const original = state(); const quiet = { now: () => { throw Error('Must not timestamp'); } };
