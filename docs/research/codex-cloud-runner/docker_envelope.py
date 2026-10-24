@@ -63,6 +63,11 @@ def fixed_env():
             "PERF_SOURCE_ROOT": "/source", "PERF_HARNESS_ROOT": "/harness", "PERF_OUTPUT_ROOT": "/scratch",
             "PERF_CASE_RESULT": "/scratch/case-result.json", "PERF_STAGE_FD": "3"}
 
+def expected_config_env():
+    # Exact defaults from the digest-verified public OCI image config; no host environment read.
+    inherited = dict(item.split("=", 1) for item in PINS["imageEnv"])
+    return {**inherited, **fixed_env()}
+
 def create_args(args, owner, cpus, uid, gid):
     p = profile(args.control)
     mounts = [(args.source, "/source", True), (args.harness, "/harness", True),
@@ -102,6 +107,7 @@ def mount_sources(args):
 
 def hostconfig_errors(doc, owner, cpus, p, uid, sources):
     h, c = doc.get("HostConfig", {}), doc.get("Config", {})
+    actual_env, expected_env = c.get("Env"), expected_config_env()
     checks = {
         "owner-label": c.get("Labels", {}).get(LABEL) == owner,
         "image-pin": c.get("Image") == PINS["image"],
@@ -116,7 +122,7 @@ def hostconfig_errors(doc, owner, cpus, p, uid, sources):
         "readonly-root": h.get("ReadonlyRootfs") is True,
         "no-privilege": h.get("Privileged") is False and not h.get("CapAdd") and "ALL" in h.get("CapDrop", []),
         "no-new-privileges": h.get("SecurityOpt") == ["no-new-privileges"],
-        "explicit-environment": set(c.get("Env", [])) == {f"{k}={v}" for k, v in fixed_env().items()},
+        "explicit-environment": isinstance(actual_env, list) and all(isinstance(x, str) for x in actual_env) and len(actual_env) == len(expected_env) and set(actual_env) == {f"{k}={v}" for k, v in expected_env.items()},
         # Docker's exact supported default encoding for private PID and UTS is empty, not "private".
         "private-namespaces": h.get("PidMode") == "" and h.get("IpcMode") == "private" and h.get("UTSMode") == "" and h.get("CgroupnsMode") == "private",
         "nonroot": c.get("User", "").split(":")[0] == str(uid) and uid != 0,

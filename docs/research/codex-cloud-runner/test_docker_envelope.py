@@ -27,7 +27,7 @@ def workflow_path(base=None):
 
 def admitted_doc():
     return {'Id': CID, 'Image': e.PINS['imageConfigDigest'],
-        'Config': {'Image': e.PINS['image'], 'Labels': {e.LABEL: OWNER}, 'User': '1001:1001', 'Env': [f'{k}={v}' for k,v in e.fixed_env().items()]},
+        'Config': {'Image': e.PINS['image'], 'Labels': {e.LABEL: OWNER}, 'User': '1001:1001', 'Env': [f'{k}={v}' for k,v in e.expected_config_env().items()]},
         'HostConfig': {'NanoCpus': 2_000_000_000, 'CpusetCpus': '2,3', 'Memory': 6 * 1024**3,
           'MemorySwap': 6 * 1024**3, 'PidsLimit': 512, 'Init': True, 'NetworkMode': 'none',
           'ReadonlyRootfs': True, 'Privileged': False, 'CapAdd': [], 'CapDrop': ['ALL'],
@@ -87,6 +87,16 @@ class Controls(unittest.TestCase):
     def test_unexpected_environment_rejected(self):
         doc = admitted_doc(); doc['Config']['Env'].append('TOKEN=synthetic-secret')
         self.assertIn('explicit-environment', e.hostconfig_errors(doc, OWNER, [2, 3], e.profile('none'), 1001, SOURCES))
+    def test_verified_public_image_env_union_is_exact(self):
+        expected = e.expected_config_env()
+        self.assertEqual(expected['LANG'],'C.UTF-8'); self.assertEqual(expected['LC_ALL'],'C.UTF-8')
+        self.assertEqual(expected['PATH'],e.fixed_env()['PATH'])
+        self.assertEqual(expected['PLAYWRIGHT_BROWSERS_PATH'],'/ms-playwright')
+        self.assertEqual(e.hostconfig_errors(admitted_doc(),OWNER,[2,3],e.profile('none'),1001,SOURCES),[])
+    def test_corrupted_public_image_env_value_rejected(self):
+        for key in ('LANG','LC_ALL'):
+            doc=admitted_doc();doc['Config']['Env']=[key+'=corrupted' if value.startswith(key+'=') else value for value in doc['Config']['Env']]
+            with self.subTest(key=key):self.assertIn('explicit-environment',e.hostconfig_errors(doc,OWNER,[2,3],e.profile('none'),1001,SOURCES))
     def test_image_content_mismatch_rejected(self):
         doc = admitted_doc(); doc['Image'] = 'sha256:' + 'c' * 64
         self.assertIn('image-content', e.hostconfig_errors(doc, OWNER, [2, 3], e.profile('none'), 1001, SOURCES))
@@ -203,7 +213,7 @@ class Controls(unittest.TestCase):
     def test_both_workflow_recipes_use_distinct_empty_npm_configs(self):
         workflow = workflow_path().read_text()
         pairs = re.findall(r'npm_config_userconfig="([^"]+)"\s+npm_config_globalconfig="([^"]+)"', workflow)
-        self.assertEqual(len(pairs), 2)
+        self.assertEqual(len(pairs), 3)
         for user, global_config in pairs:
             self.assertNotEqual(user, global_config)
             self.assertNotEqual(user, '/dev/null'); self.assertNotEqual(global_config, '/dev/null')
@@ -211,8 +221,8 @@ class Controls(unittest.TestCase):
             self.assertIn(': > "' + global_config + '"', workflow)
     def test_both_setup_failures_use_closed_diagnostics(self):
         workflow = workflow_path().read_text()
-        self.assertEqual(workflow.count('--stage dependency-setup'), 2)
-        self.assertEqual(workflow.count('--stage public-image-pull'), 2)
+        self.assertEqual(workflow.count('--stage dependency-setup'), 3)
+        self.assertEqual(workflow.count('--stage public-image-pull'), 3)
         self.assertNotIn('cat "$RUNNER_TEMP/npm-setup.log"', workflow)
         self.assertNotIn('tail "$RUNNER_TEMP/image-pull.log"', workflow)
     def test_workflow_path_supports_canonical_public_layout(self):
@@ -295,5 +305,17 @@ class Controls(unittest.TestCase):
         obj.emit=failed_emit
         obj.record_failure(['stop',CID],1,b'',b'unknown')
         self.assertEqual(obj.diagnostics[0]['commandStage'],'docker-stop')
+    def test_r127_all_fixed_metrics_and_hashes_survive_projection(self):
+        keys=[f'r127{mode}{thermal}Rep{rep}Ms' for mode in ('OriginalSync','PrototypeSync','OldCooperative','NewBudgeted') for thermal in ('Cold','Warm') for rep in range(3)]+['r127SetupMs']
+        metrics={key:i+.5 for i,key in enumerate(keys)}
+        value={'schema':'container-component-control-v1','mode':'r127-four-mode-docker-v1','passed':True,'componentStateSha256':'a'*64,'componentRowsSha256':'b'*64,'componentIndexSha256':'c'*64,'metrics':metrics}
+        got=e.sanitized_result(value)
+        self.assertEqual(got['mode'],value['mode']);self.assertEqual(got['schema'],value['schema'])
+        self.assertEqual(got['metrics'],metrics);self.assertEqual(len(got['metrics']),25)
+        for key in ('componentStateSha256','componentRowsSha256','componentIndexSha256'):self.assertEqual(got[key],value[key])
+    def test_r127_unexpected_fields_secret_values_and_nonfinite_metrics_rejected(self):
+        got=e.sanitized_result({'mode':'r127-four-mode-docker-v1','private':'SYNTHETIC_SECRET','componentStateSha256':'SYNTHETIC_SECRET','metrics':{'r127SetupMs':float('nan'),'r127OriginalSyncColdRep0Ms':float('inf'),'unexpected':123,'r127NewBudgetedWarmRep2Ms':'SYNTHETIC_SECRET'}})
+        self.assertEqual(got['metrics'],{});self.assertNotIn('componentStateSha256',got)
+        self.assertNotIn('SYNTHETIC',json.dumps(got));self.assertNotIn('unexpected',json.dumps(got))
 
 if __name__ == '__main__': unittest.main()

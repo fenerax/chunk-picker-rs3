@@ -1,0 +1,39 @@
+{
+  "enums": {
+    "mode": [
+      "r127-four-mode-docker-v1"
+    ]
+  },
+  "hashKeys": [
+    "componentStateSha256",
+    "componentRowsSha256",
+    "componentIndexSha256"
+  ],
+  "metricKeys": [
+    "r127OriginalSyncColdRep0Ms",
+    "r127OriginalSyncColdRep1Ms",
+    "r127OriginalSyncColdRep2Ms",
+    "r127OriginalSyncWarmRep0Ms",
+    "r127OriginalSyncWarmRep1Ms",
+    "r127OriginalSyncWarmRep2Ms",
+    "r127PrototypeSyncColdRep0Ms",
+    "r127PrototypeSyncColdRep1Ms",
+    "r127PrototypeSyncColdRep2Ms",
+    "r127PrototypeSyncWarmRep0Ms",
+    "r127PrototypeSyncWarmRep1Ms",
+    "r127PrototypeSyncWarmRep2Ms",
+    "r127OldCooperativeColdRep0Ms",
+    "r127OldCooperativeColdRep1Ms",
+    "r127OldCooperativeColdRep2Ms",
+    "r127OldCooperativeWarmRep0Ms",
+    "r127OldCooperativeWarmRep1Ms",
+    "r127OldCooperativeWarmRep2Ms",
+    "r127NewBudgetedColdRep0Ms",
+    "r127NewBudgetedColdRep1Ms",
+    "r127NewBudgetedColdRep2Ms",
+    "r127NewBudgetedWarmRep0Ms",
+    "r127NewBudgetedWarmRep1Ms",
+    "r127NewBudgetedWarmRep2Ms",
+    "r127SetupMs"
+  ]
+}

@@ -186,6 +186,30 @@
   ],
   "lines": [
     {
+      "path": "docs/research/codex-cloud-assets/r127/fixtures/defaults.json",
+      "category": "account-map-binding",
+      "sha256": "2d72ee2671ffd3cb0a615535707198f2e970aaedffeb6a832cadc641a6d6adf0",
+      "reason": "Exact authored historical frozen R38/R91 test fixture with synthetic alpha and beta map identifiers; pinned fixture bytes, no real account or map."
+    },
+    {
+      "path": "docs/research/codex-cloud-assets/r127/fixtures/defaults.json",
+      "category": "personal-default",
+      "sha256": "2d72ee2671ffd3cb0a615535707198f2e970aaedffeb6a832cadc641a6d6adf0",
+      "reason": "Exact authored historical frozen R38/R91 defaults fixture with its synthetic administrator label; pinned fixture bytes, no person."
+    },
+    {
+      "path": "docs/research/codex-cloud-assets/r127/fixtures/public-fixture.json",
+      "category": "account-map-binding",
+      "sha256": "92991cf52854c92c2fc3444f688d8528ad8f5c4499e9e4d46816ae43843ff888",
+      "reason": "Exact authored historical frozen R38/R91 test fixture with synthetic alpha and beta map identifiers; pinned fixture bytes, no real account or map."
+    },
+    {
+      "path": "docs/research/codex-cloud-runner/r127-job-snippet.yml",
+      "category": "network-identifier",
+      "sha256": "db5bc542d94caa5495e71bf267b2f819916ce6c9ed1c364904779ae8972a9f86",
+      "reason": "Exact public npm registry setup command duplicated in the prepared R127 job snippet; no account, credential or deployment binding."
+    },
+    {
       "path": ".github/workflows/public-container-envelope.yml",
       "category": "network-identifier",
       "sha256": "db5bc542d94caa5495e71bf267b2f819916ce6c9ed1c364904779ae8972a9f86",

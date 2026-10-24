@@ -9,11 +9,26 @@
     "amd64DockerContentDigest": "sha256:c091b21d9fae78c76e85cd4356431e9b018402f172a214fc7d7a5e9a7e29d8ac",
     "configUrl": "https://mcr.microsoft.com/v2/playwright/blobs/sha256:fee853fafa59550d162cef52bca02d907694b44ebf6ef9fb075bcc0c65d8dedb",
     "configDigest": "sha256:fee853fafa59550d162cef52bca02d907694b44ebf6ef9fb075bcc0c65d8dedb",
-    "config": {"os": "linux", "architecture": "amd64", "created": "2026-07-30T17:32:20.775419212Z", "Env": ["PLAYWRIGHT_BROWSERS_PATH=/ms-playwright"], "org.opencontainers.image.version": "24.04"}
+    "config": {
+      "os": "linux",
+      "architecture": "amd64",
+      "created": "2026-07-30T17:32:20.775419212Z",
+      "Env": [
+        "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+        "LANG=C.UTF-8",
+        "LC_ALL=C.UTF-8",
+        "PLAYWRIGHT_BROWSERS_PATH=/ms-playwright"
+      ],
+      "org.opencontainers.image.version": "24.04"
+    },
+    "configBlobBytes": 6709,
+    "configBlobSha256Verified": "fee853fafa59550d162cef52bca02d907694b44ebf6ef9fb075bcc0c65d8dedb"
   },
   "browsers": {
     "source": "https://raw.githubusercontent.com/microsoft/playwright/v1.62.1/packages/playwright-core/browsers.json",
-    "chromiumVersion": "151.0.7922.34", "revision": "1234", "priorChromium154Comparison": "NOT_EQUIVALENT_NEW_BASELINE"
+    "chromiumVersion": "151.0.7922.34",
+    "revision": "1234",
+    "priorChromium154Comparison": "NOT_EQUIVALENT_NEW_BASELINE"
   },
   "npmMetadata": [
     "https://registry.npmjs.org/@playwright%2ftest/1.62.1",

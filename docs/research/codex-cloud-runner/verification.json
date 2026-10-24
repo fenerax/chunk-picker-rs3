@@ -5,7 +5,7 @@
   "assetBaseCommit": "7ad315acd39223df3b4d2304e295ef5c017dfe17",
   "pureTests": {
     "command": "python -B -m unittest -q test_docker_envelope.py",
-    "passed": 48,
+    "passed": 52,
     "failed": 0
   },
   "subsequentPublishedTrial": {
@@ -47,7 +47,8 @@
     "contentsReadOnly": true,
     "measurementJobDisabled": true,
     "noCachesOrArtifactUploads": true,
-    "noSecretOrTokenContexts": true
+    "noSecretOrTokenContexts": true,
+    "r127ComponentDisabled": true
   },
   "independentCodeReview": {
     "remainingConcreteBlockingCodeBugFound": false,
@@ -89,8 +90,8 @@
     "missingWorkflowNegative": "failed with exactly two fixed test IDs and input-missing class",
     "diagnosisEvidence": "control-run-40044649892-diagnosis.json"
   },
-  "priorManifestSha256": "d67a8dfe0aea74aa27ce1812a7161cd9e140ad7f123bfafe0183add3db785d59",
-  "runnerRevision": "docker-private-defaults-v2",
+  "priorManifestSha256": "7ba3e4643eea29c5abb6917a97b7e4761031c03e0ae37c745818dba57506fafc",
+  "runnerRevision": "docker-pinned-image-env-v3",
   "latestPublishedTrial": {
     "commit": "0cd14471af591e40d339aa86b39e1a7da3bd5337",
     "runId": 40045294439,
@@ -103,5 +104,33 @@
     "cleanupClaimed": false,
     "runtimeAcceptance": "OPEN",
     "sourceProvenInvalidNamespaceModes": true
+  },
+  "imageConfigVerification": {
+    "sha256": "fee853fafa59550d162cef52bca02d907694b44ebf6ef9fb075bcc0c65d8dedb",
+    "bytes": 6709,
+    "fullPublicEnvDefaults": 4,
+    "exactMergedAdmission": true,
+    "hostEnvForwarding": false
+  },
+  "envAdmissionTrial": {
+    "runId": 40045835891,
+    "commit": "37d08456ccf2bebc9a99d3f3257d8df00f00b1e0",
+    "creationSucceeded": true,
+    "failedChecks": [
+      "explicit-environment"
+    ],
+    "allOtherHostConfigChecksPassed": true,
+    "exactOwnedContainerRemoved": true,
+    "cleanupPassed": true,
+    "innerStarted": false
+  },
+  "r127PolicyMerge": {
+    "additionsSha256": "dfbfcb4402d66eab4491941ce92618f382a9c9c1dbcd84381bc0615d02941059",
+    "modeEnumsAdded": 1,
+    "hashKeysAdded": 3,
+    "numericMetricKeysAdded": 25,
+    "sharedCurrentPolicyPreserved": true,
+    "projectionControlsPassed": true,
+    "jobDisabled": true
   }
 }

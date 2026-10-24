@@ -1,0 +1,69 @@
+{
+  "schema": "r127-required-files-v1",
+  "runtimeStatus": "UNRUN",
+  "protocolBaseline": "r127-four-mode-docker-v1",
+  "native04ExecutedCells": 0,
+  "sourceCommit": "6f22fefa782747790e2eaefa01e4e5ea7b557323",
+  "publicPrefix": "docs/research/codex-cloud-assets/r127/",
+  "entrypoint": "docs/research/codex-cloud-assets/r127/container-entry.mjs",
+  "files": {
+    "container-entry.mjs": {
+      "bytes": 1561,
+      "sha256": "211b226a9b7ef253dbc9da55ad519cf875e0ee38358da20e7f3e1adede23e249"
+    },
+    "full-public-component.r127.mjs": {
+      "bytes": 17611,
+      "sha256": "1624e544e837826dc0d85908119f968e04811be09fe105ef36f287d975c28917"
+    },
+    "portable-context.mjs": {
+      "bytes": 2062,
+      "sha256": "5c5a53b30e0f5ab5497df2208ab2796d020c734584f2ae930c00ca57993ca219"
+    },
+    "component-protocol.mjs": {
+      "bytes": 3641,
+      "sha256": "5874292f197edd4928d916346ae756b282ae02a6be937859123be21b022182e7"
+    },
+    "planning-projection.mjs": {
+      "bytes": 533,
+      "sha256": "c7a9fb3005ab51a3d9794f9203ea2cac3280c96fe1e5ffdfe60d2a55e6692e18"
+    },
+    "r119-original-index.mjs": {
+      "bytes": 6739,
+      "sha256": "9e388742608443a4affb493120b2045edcc02004a7f412f2c6bd2dc962f356df"
+    },
+    "r119-prototype-index.mjs": {
+      "bytes": 7816,
+      "sha256": "f5d058741cd19b926bba2636d37c6cc2d3f30420497874f741d7b2841e622c1a"
+    },
+    "r119-budgeted-index.mjs": {
+      "bytes": 8009,
+      "sha256": "b5f9ad2750b0a42a637784d16c09ebbf42fb5aa54ca3dd1d866d0f7041e0711d"
+    },
+    "reference-original-index-6f22.mjs": {
+      "bytes": 6739,
+      "sha256": "9e388742608443a4affb493120b2045edcc02004a7f412f2c6bd2dc962f356df"
+    },
+    "fixtures/public-fixture.json": {
+      "bytes": 822,
+      "sha256": "afc4dd775a78452a1e8d87efc579269f9f3dfa477674243f6e482a5503445584"
+    },
+    "fixtures/defaults.json": {
+      "bytes": 145,
+      "sha256": "9e67a7976c240c5c0f687b9fd4a6f9ceead717c3741ff47006550665dc0ad615"
+    }
+  },
+  "requiredPolicyMerge": {
+    "bytes": 1085,
+    "sha256": "dfbfcb4402d66eab4491941ce92618f382a9c9c1dbcd84381bc0615d02941059"
+  },
+  "limits": {
+    "containerSeconds": 240,
+    "driverSeconds": 200,
+    "controllerSeconds": 208,
+    "cpus": 2,
+    "memoryBytes": 6442450944,
+    "nodeOldSpaceMiB": 4096
+  },
+  "scientificCells": 24,
+  "goldensBeforeTiming": true
+}
