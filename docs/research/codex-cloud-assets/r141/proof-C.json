@@ -1,0 +1,46 @@
+{
+  "schema": "r141-instrumented-source-proof-v1",
+  "arm": "C",
+  "sourcePin": "6f22fefa782747790e2eaefa01e4e5ea7b557323",
+  "candidateCommit": "157e16614bcd248df96070a4c3482e0691b18594",
+  "observerSha": "7b3e77167c58ca90059f5c9d671cf7314d12dc9a278aaa2adcb98b00a09c6052",
+  "contractSha": "bab1a17cdde79c810c38d9e281a1c64b9fc3c973b0f82af49804e3f3714403c5",
+  "modules": {
+    "server": {
+      "path": "app/server.mjs",
+      "originalSha256": "5edc544473fe98ba1bdf42deaf8cceccbea9db5fa9f42d51daa111f3eb9ceb25",
+      "productSha256": "5edc544473fe98ba1bdf42deaf8cceccbea9db5fa9f42d51daa111f3eb9ceb25",
+      "sha256": "14a2fb11b0ef5cfdace2d77610a2c8cb6eed32fe98a079eaf3b5f2550e9a62e7",
+      "bytes": 188203
+    },
+    "scheduler": {
+      "path": "app/tasks/scheduler.mjs",
+      "originalSha256": "1e2e309cee05f64c8886cf1e08fd10d7d8d7631f63c4bb0d93bd1eb5d828b81b",
+      "productSha256": "4d2b8c206387f43eda1ebfbeed1f9c856bc71881c11152c725a6c2123ac03b24",
+      "sha256": "33f274958d1db125ed1a83b08ef02b0a45c5833e40c28fc951f69de70743eff3",
+      "bytes": 65707
+    },
+    "worker": {
+      "path": "app/tasks/worker.mjs",
+      "originalSha256": "f0deaa35cb61e864a4e162afa00b8afa7926911b471ea463383bf315e186170e",
+      "productSha256": "cea6fe56154e7c8e1e90aa3b977968e991e8002afd16696bd3e62078eb9c3e69",
+      "sha256": "e1b88af0ca66230dfc423077b8372dad2e00e10eaeaecc254df8545a0072c715",
+      "bytes": 33059
+    },
+    "process-worker": {
+      "path": "app/tasks/process-worker.mjs",
+      "originalSha256": "eda5b9f499a879072eef69b0c0d71eabc6b1e5384c1ebf0d90c71e0058d11a7a",
+      "productSha256": "eda5b9f499a879072eef69b0c0d71eabc6b1e5384c1ebf0d90c71e0058d11a7a",
+      "sha256": "e75fabbcd2fc686b467ace97d6838de9afdf41d73f83879a65abaf84d0e73264",
+      "bytes": 5338
+    },
+    "process-worker-host": {
+      "path": "app/tasks/process-worker-host.mjs",
+      "originalSha256": "9e5abde6c15efe0650147ffb88cd9209ca7714789a98220b3f2375d36a833a72",
+      "productSha256": "9e5abde6c15efe0650147ffb88cd9209ca7714789a98220b3f2375d36a833a72",
+      "sha256": "fd92864cd73179a500f28e35ef616b270a8cb41a3e52fea11e188120b35ff887",
+      "bytes": 5270
+    }
+  },
+  "providerChangedRecordCount": 0
+}

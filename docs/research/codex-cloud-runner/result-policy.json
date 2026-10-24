@@ -75,7 +75,13 @@
     "focusTabOwnerMatches",
     "focusTabScopeSame",
     "focusTabLiveObserved",
-    "focusTabAfterPendingScopeSame"
+    "focusTabAfterPendingScopeSame",
+    "diagnosticOnly",
+    "performanceAcceptance",
+    "productAcceptance",
+    "sourcePostflightPassed",
+    "r141AReadyOmissionObserved",
+    "r141CReadyOmissionObserved"
   ],
   "hashKeys": [
     "calculatorBytesSha256",
@@ -125,7 +131,11 @@
     "r131NativeCellSha256",
     "r131NativeCellUrlSha256",
     "r131FixtureModuleSha256",
-    "r131FixtureModuleUrlSha256"
+    "r131FixtureModuleUrlSha256",
+    "r140ErrorStackSha256",
+    "r140ChildStdoutSha256",
+    "r140ChildStderrSha256",
+    "r140HealthVersionSha256"
   ],
   "enums": {
     "schema": [
@@ -140,7 +150,9 @@
       "r135-http-component-v1",
       "r138-http-component-v1",
       "r116-app-close-diagnostic-v1",
-      "r139-body-lifecycle-v1"
+      "r139-body-lifecycle-v1",
+      "r140-unshaped-session-v1",
+      "r141-planning-stage-diagnostic-v1"
     ],
     "mode": [
       "r116-frozen-input-v1",
@@ -150,7 +162,8 @@
       "r111-public-duo-session-v2",
       "r134-owner-evaluate-screen-v1",
       "r116-close-phases-observation-v1",
-      "r139-five-case-component-v1"
+      "r139-five-case-component-v1",
+      "r140-public-duo-unshaped-v1"
     ],
     "status": [
       "correct",
@@ -430,7 +443,25 @@
       "r138-screen-complete",
       "r116-close-observation-complete",
       "r139-observation-complete",
-      "r139-operation-failed"
+      "r139-operation-failed",
+      "r140-unshaped-source-slice-observed",
+      "r140-runtime-identity",
+      "r140-source-lock",
+      "r140-harness-lock",
+      "r140-budget-insufficient",
+      "r140-child-nonzero",
+      "r140-child-signal",
+      "r140-child-deadline",
+      "r140-child-ipc",
+      "r140-result-missing",
+      "r140-result-malformed",
+      "r140-result-partial",
+      "r140-network-undrained",
+      "r140-close-incomplete",
+      "r140-evidence-incomplete",
+      "r140-runtime-error",
+      "r140-health-evidence-incomplete",
+      "r141-diagnostic-complete"
     ],
     "strictR79Code": [
       "all-arm-blocked",
@@ -2256,6 +2287,113 @@
     "r131ModuleRootStatus": [
       "matched",
       "unobserved"
+    ],
+    "profile": [
+      "UNSHAPED_0_ADDED_LATENCY"
+    ],
+    "observerMode": [
+      "CURRENT_SYNC_CHECKPOINTS"
+    ],
+    "allFinalGates": [
+      "OPEN"
+    ],
+    "r140Operation": [
+      "entry-start",
+      "runtime-identity",
+      "source-lock",
+      "harness-lock",
+      "policy",
+      "dependencies",
+      "browser-path",
+      "session-start",
+      "read-result",
+      "read-evidence",
+      "session-setup",
+      "server-launch",
+      "rtt-direct",
+      "rtt-proxy",
+      "invites",
+      "initial-catalogue",
+      "overlay-create",
+      "browser-launch",
+      "browser-version",
+      "browser-contexts",
+      "network-setup",
+      "page-navigation",
+      "overlay-ready",
+      "visible-catalogue",
+      "initial-state",
+      "rtt-browser",
+      "initial-validation",
+      "controller-start",
+      "sample",
+      "journey",
+      "finalization",
+      "cleanup",
+      "rtt-proxy-assert",
+      "rtt-browser-fetch",
+      "rtt-browser-save",
+      "rtt-browser-assert",
+      "server-parse-args",
+      "server-environment",
+      "server-fixture",
+      "server-provider-import",
+      "server-provider-admit",
+      "server-module-import",
+      "server-state-import",
+      "server-fixture-state",
+      "server-start-handle",
+      "server-ready",
+      "server-address",
+      "server-snapshot",
+      "server-metrics",
+      "server-restart",
+      "server-close",
+      "unknown"
+    ],
+    "r140ErrorName": [
+      "Error",
+      "AssertionError",
+      "TypeError",
+      "RangeError",
+      "SyntaxError",
+      "TimeoutError",
+      "unknown"
+    ],
+    "r140ErrorCode": [
+      "none",
+      "other",
+      "ERR_ASSERTION",
+      "ENOENT",
+      "EACCES",
+      "EPERM",
+      "EPIPE",
+      "ECONNRESET",
+      "ECONNREFUSED",
+      "ERR_MODULE_NOT_FOUND",
+      "ERR_IPC_CHANNEL_CLOSED",
+      "ETIMEDOUT",
+      "ENOTFOUND"
+    ],
+    "r140SourceModule": [
+      "app/core/state.mjs",
+      "app/server.mjs",
+      "app/datasets.mjs",
+      "app/dataset-runtime.mjs",
+      "app/storage/store.mjs",
+      "app/game-defaults.mjs",
+      "app/legacy-game-defaults.mjs",
+      "docs/research/codex-cloud-assets/r140/candidate/harness/server.mjs"
+    ],
+    "r140HealthStatus": [
+      "unobserved",
+      "partial",
+      "complete",
+      "http-status",
+      "schema-invalid",
+      "not-ready",
+      "version-change",
+      "invalid-observation"
     ]
   },
   "metricKeys": [
@@ -2596,7 +2734,145 @@
     "r131ErrorColumn",
     "r131AssertActual",
     "r131AssertExpected",
-    "r131NativeModuleProofCount"
+    "r131NativeModuleProofCount",
+    "artificialDelayMs",
+    "r140ChildStdoutBytes",
+    "r140ChildStderrBytes",
+    "r140SourceLine",
+    "r140SourceColumn",
+    "r140HealthInitialCount",
+    "r140HealthInitialValid",
+    "r140HealthFinalCount",
+    "r140HealthFinalValid",
+    "r140HealthFailureStatus",
+    "r141AAppCreateToReadyMs",
+    "r141ADispatchCacheEntries",
+    "r141ADispatchForegroundReady",
+    "r141ADispatchForegroundResident",
+    "r141ADispatchForegroundRetiring",
+    "r141ADispatchGeneration",
+    "r141ADispatchPredictionReady",
+    "r141ADispatchPredictionResident",
+    "r141ADispatchPredictionRetiring",
+    "r141ADispatchQueueDepth",
+    "r141ADispatchResident",
+    "r141ADispatchRetiring",
+    "r141ADispatchWarmDepth",
+    "r141AForegroundCataloguePresent",
+    "r141AForegroundCatalogueRows",
+    "r141AForegroundDynamicBytes",
+    "r141AForegroundDynamicPresent",
+    "r141AHttpFirstBodyMs",
+    "r141AObserverExplicitSpanClockReads",
+    "r141AObserverModuleProofMs",
+    "r141AObserverRecords",
+    "r141AObserverWriterClockReads",
+    "r141AObserverWriterCompletedPrefixMs",
+    "r141AParentForkToFirstNativeMs",
+    "r141AParentForkToReadyMs",
+    "r141AParentForkToSpawnMs",
+    "r141APredictionCataloguePresent",
+    "r141APredictionCatalogueRows",
+    "r141APredictionDynamicBytes",
+    "r141APredictionDynamicPresent",
+    "r141ARelayLaunchToWorkerReadyMs",
+    "r141ARelayPlanningSendCallbackMs",
+    "r141ARelayReadySendCallbackMs",
+    "r141ASchedulerPostReturnMs",
+    "r141ASchedulerQueueMs",
+    "r141AServerEvaluationAwaitMs",
+    "r141AServerJsonSendMs",
+    "r141AServerListGateMs",
+    "r141AServerRouteEnclosingMs",
+    "r141ATransportFresh",
+    "r141ATransportReferenceOnly",
+    "r141ATransportSerialized",
+    "r141ATransportSharedBody",
+    "r141ATransportStateObject",
+    "r141AWorkerBaselineHit",
+    "r141AWorkerBaselineSnapshotCount",
+    "r141AWorkerDefinitionsMs",
+    "r141AWorkerEngineAndCataloguesMs",
+    "r141AWorkerEvaluateFullMs",
+    "r141AWorkerIndexHit",
+    "r141AWorkerIndexLookupOrBuildMs",
+    "r141AWorkerIndexPresentAtBaselineLookup",
+    "r141AWorkerInputMaterializationMs",
+    "r141AWorkerLocalCollectionRows",
+    "r141AWorkerLocalEngineRows",
+    "r141AWorkerLocalEquipmentRows",
+    "r141AWorkerLocalGeneratedRows",
+    "r141AWorkerLocalHouseRows",
+    "r141AWorkerPostReturnMs",
+    "r141AWorkerProjectedRows",
+    "r141AWorkerReadyBuildMs",
+    "r141AWorkerReadySerializationMs",
+    "r141AWorkerRequestEnclosingMs",
+    "r141AWorkerRowProjectionMs",
+    "r141CAppCreateToReadyMs",
+    "r141CDispatchCacheEntries",
+    "r141CDispatchForegroundReady",
+    "r141CDispatchForegroundResident",
+    "r141CDispatchForegroundRetiring",
+    "r141CDispatchGeneration",
+    "r141CDispatchPredictionReady",
+    "r141CDispatchPredictionResident",
+    "r141CDispatchPredictionRetiring",
+    "r141CDispatchQueueDepth",
+    "r141CDispatchResident",
+    "r141CDispatchRetiring",
+    "r141CDispatchWarmDepth",
+    "r141CForegroundCataloguePresent",
+    "r141CForegroundCatalogueRows",
+    "r141CForegroundDynamicBytes",
+    "r141CForegroundDynamicPresent",
+    "r141CHttpFirstBodyMs",
+    "r141CObserverExplicitSpanClockReads",
+    "r141CObserverModuleProofMs",
+    "r141CObserverRecords",
+    "r141CObserverWriterClockReads",
+    "r141CObserverWriterCompletedPrefixMs",
+    "r141CParentForkToFirstNativeMs",
+    "r141CParentForkToReadyMs",
+    "r141CParentForkToSpawnMs",
+    "r141CPredictionCataloguePresent",
+    "r141CPredictionCatalogueRows",
+    "r141CPredictionDynamicBytes",
+    "r141CPredictionDynamicPresent",
+    "r141CRelayLaunchToWorkerReadyMs",
+    "r141CRelayPlanningSendCallbackMs",
+    "r141CRelayReadySendCallbackMs",
+    "r141CSchedulerPostReturnMs",
+    "r141CSchedulerQueueMs",
+    "r141CServerEvaluationAwaitMs",
+    "r141CServerJsonSendMs",
+    "r141CServerListGateMs",
+    "r141CServerRouteEnclosingMs",
+    "r141CTransportFresh",
+    "r141CTransportReferenceOnly",
+    "r141CTransportSerialized",
+    "r141CTransportSharedBody",
+    "r141CTransportStateObject",
+    "r141CWorkerBaselineHit",
+    "r141CWorkerBaselineSnapshotCount",
+    "r141CWorkerDefinitionsMs",
+    "r141CWorkerEngineAndCataloguesMs",
+    "r141CWorkerEvaluateFullMs",
+    "r141CWorkerIndexHit",
+    "r141CWorkerIndexLookupOrBuildMs",
+    "r141CWorkerIndexPresentAtBaselineLookup",
+    "r141CWorkerInputMaterializationMs",
+    "r141CWorkerLocalCollectionRows",
+    "r141CWorkerLocalEngineRows",
+    "r141CWorkerLocalEquipmentRows",
+    "r141CWorkerLocalGeneratedRows",
+    "r141CWorkerLocalHouseRows",
+    "r141CWorkerPostReturnMs",
+    "r141CWorkerProjectedRows",
+    "r141CWorkerReadyBuildMs",
+    "r141CWorkerReadySerializationMs",
+    "r141CWorkerRequestEnclosingMs",
+    "r141CWorkerRowProjectionMs"
   ],
   "scope": {
     "memberId": [
@@ -2671,6 +2947,9 @@
     "test_accept_r131_requires_both_exact_module_bytes_and_mapped_url_hashes",
     "test_accept_r131_requires_known_relative_modules_and_matched_root",
     "test_accept_wrong_schema_rejected",
+    "test_all_128_fixed_metrics_seven_boolean_scalars_and_closed_facts_survive",
+    "test_all_fifty_health_responses_and_hash_are_required_without_failure_status",
+    "test_all_forty_nonnull_rtt_values_required_but_partial_failure_evidence_is_not_success",
     "test_all_seven_gates_stay_open",
     "test_allowed_cpu_list",
     "test_bad_cpu_range",
@@ -2690,16 +2969,20 @@
     "test_cleanup_refuses_partial_id",
     "test_cleanup_refuses_wrong_owner",
     "test_cleanup_removes_before_log_failure",
+    "test_closed_enums_hashes_and_nullable_integer_diagnostics_do_not_leak_raw_values",
     "test_closed_nested_types_drop_private_unknown_and_bool_numbers",
     "test_compaction_and_malformed_json_lines_preserve_unknown",
     "test_complete_empty_partial_and_null_values_have_exact_js_python_parity",
     "test_complete_legacy_broad_scope_is_not_a_new_canonical40plusminus2_gate",
     "test_complete_observation_requires_schedule_and_span",
+    "test_complete_scoped_observation_remains_blocked_with_all_acceptance_open",
+    "test_complete_vectors_and_all_rtt_values_survive_both_actual_branches",
     "test_control_caps_are_distinct_versioned_experiments",
     "test_corrupt_or_missing_module_proofs_never_become_accepted_after_projection",
     "test_corrupted_public_image_env_value_rejected",
     "test_created_command_has_independent_watchdog_and_explicit_env",
     "test_default_pid_uts_encoding_is_exact",
+    "test_diagnostic_fields_remain_schema_scoped_and_all_scalar_secret_strings_drop",
     "test_docker_call_failure_is_classified_without_running_docker",
     "test_docker_call_timeout_preserves_partial_output_hashes",
     "test_docker_diagnostic_never_emits_actual_argv_or_output",
@@ -2711,13 +2994,19 @@
     "test_each_full_map_rejects_missing_entry_manifest_and_duplicate_asset",
     "test_each_resource_rejected",
     "test_entrypoint_traversal",
+    "test_every_metric_rejects_boolean_string_null_and_object_payloads",
     "test_exact_45000_gap_allowed_but_60000_gap_rejected",
     "test_exact_cleanup_for_exited_container",
     "test_exact_container_exit_removal_and_no_oom",
     "test_exact_count_metrics_and_no_partial_network_drain",
+    "test_exact_host_copies_and_removal_of_only_new_blocks_reconstructs_entire_base",
+    "test_exact_new_policy_markers_are_required_in_both_bodies",
     "test_exact_public_js_exports_and_python_api",
     "test_exact_source_copies_and_resource_remainder_hashes",
+    "test_existing_cadence_journey_duration_source_and_cleanup_checks_remain_required",
+    "test_existing_r111_branch_remains_independent_and_other_schemas_drop_r140_vectors",
     "test_existing_schema_fallback_drops_vectors_without_changing_scalars",
+    "test_expected_harness_is_external_and_cli_failure_is_closed",
     "test_extra_bind_rejected",
     "test_failed_partial_evidence_is_preserved_without_zero_substitution_or_promotion",
     "test_first_sample_at_15000_is_within_start_boundary",
@@ -2725,18 +3014,20 @@
     "test_fixed_nested_maximum_shape_fits_case_and_inner_frame_caps",
     "test_healthy_five_case_projected_contract_and_nulls_have_exact_python_js_parity",
     "test_image_content_mismatch_rejected",
+    "test_independent_schema_profile_observer_and_acceptance_are_required",
     "test_js_to_python_exact_parity_empty_complete_and_maximum",
     "test_known_admission",
     "test_main_actual_frozen_592crlf_workflow_with_real15_r131_assets",
     "test_main_failure_phase_job_and_ordinal_never_echo_paths",
     "test_main_raw_lf_and_crlf_both_observation_exact_public_asset_closures",
     "test_malformed_evidence_rejected_by_helpers_and_both_actual_sanitizers",
+    "test_maximum_closed_metric_shape_fits_actual_case_and_inner_frame",
     "test_missing_and_malformed_envelope_returns_false",
     "test_missing_duplicate_wrong_kind_and_wrong_actor_journeys",
     "test_missing_init_command_omits_init_and_changes_no_other_cap",
     "test_missing_init_negative_is_only_init",
+    "test_missing_malformed_private_or_overlong_structures_fail_atomically",
     "test_missing_required_rtt_fails_atomically_and_other_schema_stays_unchanged",
-    "test_native_pager_and_warm_jobs_retain_controls_and_disable_other_cases",
     "test_native_pager_manifest_binds_composed_patch_and_exact_renderer_postimage",
     "test_near_maximum_actual_case_and_envelope_fit",
     "test_never_started_negative_skips_wait",
@@ -2748,6 +3039,7 @@
     "test_observed_wrong_prefix_and_same_basename_are_rejected",
     "test_old_schema_projection_ignores_new_vectors_and_private_objects",
     "test_old_two_endpoint_evidence_rejected",
+    "test_optional_metrics_preserve_absence_and_do_not_conflate_null_or_zero",
     "test_outer_inner_and_case_cleanup_are_required",
     "test_outer_projection_rejects_raw_metric_payload",
     "test_performance_wave_uses_exact_cli_budgets_and_host_acceptance",
@@ -2755,6 +3047,7 @@
     "test_plan_never_opens_inputs_or_docker",
     "test_points_journeys_schemas_and_shapes_rejected_by_both",
     "test_private_keys_cannot_enter_any_structured_surface",
+    "test_profile_mode_acceptance_and_raw_budget_invariants_fail_before_projection",
     "test_public_projection_discards_auth_url_and_store",
     "test_public_projection_rejects_arbitrary_status_and_nonhex",
     "test_python_projection_returns_independent_structures",
@@ -2793,6 +3086,7 @@
     "test_source_lock_identity_manifest_and_nonempty_files",
     "test_source_receipt_and_copies_are_exact",
     "test_source_worst_case31763_and_final_exit_frame32013_remain_below_cap",
+    "test_source_worst_case_and_actual_exit_zero_frame_have_345_bytes_spare",
     "test_status_code_schema_mode_and_all_acceptance_flags",
     "test_stop_kill_race_uses_fresh_exited_state",
     "test_stop_timeout_forces_exact_owned_kill",
@@ -2803,9 +3097,11 @@
     "test_unexpected_keys_labels_and_secrets_are_omitted_from_both",
     "test_unknown_docker_verb_is_fixed",
     "test_unknown_fields_wrong_nested_types_and_labels_are_dropped",
+    "test_unshaped_session_and_planning_stage_jobs_retain_controls_and_disable_prior_cases",
     "test_valid_blocked_observation_with_121_points_and_null_latencies",
     "test_valid_cid_never_reads_cidfile",
     "test_valid_minimum_110_points_without_long_gaps",
+    "test_valid_partial_failed_arrays_nulls_unknowns_and_drop_counts_are_preserved",
     "test_verified_public_image_env_union_is_exact",
     "test_workflow_path_missing_both_locations_fails_closed",
     "test_workflow_path_supports_canonical_public_layout",
@@ -5653,9 +5949,264 @@
           }
         }
       }
+    },
+    "r141-planning-stage-diagnostic-v1": {
+      "operationCode": {
+        "enum": [
+          "r141-entry-admission",
+          "r141-harness-read",
+          "r141-harness-verify",
+          "r141-source-verify",
+          "r141-scratch-create",
+          "r141-source-copy",
+          "r141-patch-read",
+          "r141-patch-apply",
+          "r141-candidate-verify",
+          "r141-dependency-link",
+          "r141-child-start",
+          "r141-child-wait",
+          "r141-resource-validation",
+          "r141-descendant-drain",
+          "r141-child-report-read",
+          "r141-provider-validation",
+          "r141-first-body-read",
+          "r141-row-validation",
+          "r141-warm-body-read",
+          "r141-metric-record",
+          "r141-source-postflight",
+          "r141-trace-read",
+          "r141-trace-reduce",
+          "r141-instrument-read",
+          "r141-instrument-apply",
+          "r141-observer-install",
+          "r141-source-proof",
+          "r141-controller-deadline",
+          "r141-output-create",
+          "r141-child-admission",
+          "r141-child-harness-verify",
+          "r141-provider-load",
+          "r141-fixture-import",
+          "r141-server-create",
+          "r141-server-ready",
+          "r141-auth-request",
+          "r141-first-request",
+          "r141-http-body-validation",
+          "r141-warm-readiness",
+          "r141-warm-request",
+          "r141-app-close",
+          "r141-child-deadline",
+          "r141-child-signal",
+          "r141-cleanup",
+          "r141-report-write",
+          "r141-result-write"
+        ]
+      },
+      "cellOrdinal": {
+        "type": "nonnegative-safe-integer-or-null"
+      },
+      "errorName": {
+        "enum": [
+          "error",
+          "assertion-error",
+          "type-error",
+          "range-error",
+          "syntax-error",
+          "reference-error",
+          "aggregate-error",
+          "abort-error",
+          "timeout-error",
+          "unknown-error"
+        ]
+      },
+      "errorCode": {
+        "enum": [
+          "EACCES",
+          "EADDRINUSE",
+          "EADDRNOTAVAIL",
+          "EAGAIN",
+          "EBADF",
+          "ECONNABORTED",
+          "ECONNREFUSED",
+          "ECONNRESET",
+          "EEXIST",
+          "EINVAL",
+          "EIO",
+          "EISDIR",
+          "EMFILE",
+          "ENOENT",
+          "ENOMEM",
+          "ENOSPC",
+          "ENOTDIR",
+          "ENOTEMPTY",
+          "ENOTFOUND",
+          "EPERM",
+          "EPIPE",
+          "EROFS",
+          "ESRCH",
+          "ETIMEDOUT",
+          "ABORT_ERR",
+          "ERR_ABORTED",
+          "ERR_ASSERTION",
+          "ERR_INVALID_ARG_TYPE",
+          "ERR_INVALID_ARG_VALUE",
+          "ERR_IPC_CHANNEL_CLOSED",
+          "ERR_MODULE_NOT_FOUND",
+          "ERR_OUT_OF_RANGE",
+          "ERR_SERVER_ALREADY_LISTEN",
+          "ERR_SERVER_NOT_RUNNING",
+          "ERR_STREAM_PREMATURE_CLOSE",
+          "ERR_UNKNOWN_FILE_EXTENSION",
+          "ERR_UNSUPPORTED_DIR_IMPORT",
+          "UND_ERR_ABORTED",
+          "UND_ERR_BODY_TIMEOUT",
+          "UND_ERR_CONNECT_TIMEOUT",
+          "UND_ERR_HEADERS_TIMEOUT",
+          "UND_ERR_SOCKET",
+          "unknown"
+        ]
+      },
+      "errorStackSha256": {
+        "type": "sha256-or-null"
+      },
+      "completedCellCount": {
+        "type": "nonnegative-safe-integer-or-null"
+      },
+      "providerChangedRecordCount": {
+        "type": "nonnegative-safe-integer-or-null"
+      },
+      "providerExpectedChangedRecordCount": {
+        "type": "nonnegative-safe-integer-or-null"
+      },
+      "providerActualRecordCount": {
+        "type": "nonnegative-safe-integer-or-null"
+      },
+      "providerActualInputCount": {
+        "type": "nonnegative-safe-integer-or-null"
+      },
+      "providerActualEvidenceCount": {
+        "type": "nonnegative-safe-integer-or-null"
+      },
+      "providerExpectedDigest": {
+        "type": "sha256-or-null"
+      },
+      "providerActualDigest": {
+        "type": "sha256-or-null"
+      },
+      "providerExpectedRecordsSha256": {
+        "type": "sha256-or-null"
+      },
+      "providerActualRecordsSha256": {
+        "type": "sha256-or-null"
+      },
+      "r141PacketManifestSha256": {
+        "type": "sha256-or-null"
+      },
+      "r141AInstrumentedProofSha256": {
+        "type": "sha256-or-null"
+      },
+      "r141AObservedModuleProofSha256": {
+        "type": "sha256-or-null"
+      },
+      "r141ATraceSha256": {
+        "type": "sha256-or-null"
+      },
+      "r141ATransport": {
+        "enum": [
+          "json-full",
+          "json-reference",
+          "object",
+          "snapshot-reference"
+        ]
+      },
+      "r141ABaselineState": {
+        "enum": [
+          "hit",
+          "miss"
+        ]
+      },
+      "r141AIndexState": {
+        "enum": [
+          "hit",
+          "miss"
+        ]
+      },
+      "r141CInstrumentedProofSha256": {
+        "type": "sha256-or-null"
+      },
+      "r141CObservedModuleProofSha256": {
+        "type": "sha256-or-null"
+      },
+      "r141CTraceSha256": {
+        "type": "sha256-or-null"
+      },
+      "r141CTransport": {
+        "enum": [
+          "json-full",
+          "json-reference",
+          "object",
+          "snapshot-reference"
+        ]
+      },
+      "r141CBaselineState": {
+        "enum": [
+          "hit",
+          "miss"
+        ]
+      },
+      "r141CIndexState": {
+        "enum": [
+          "hit",
+          "miss"
+        ]
+      }
     }
   },
   "r111RttEvidence": {
+    "schema": 1,
+    "maxCounts": [
+      10,
+      20,
+      10
+    ],
+    "maxLatencyUs": 90000000
+  },
+  "r140NumericVectors": {
+    "schema": "r140-numeric-vectors-v1",
+    "maxPoints": 128,
+    "maxJourneys": 54,
+    "surfacePages": [
+      0,
+      1,
+      2
+    ],
+    "surfaceMaxima": [
+      6291456,
+      1000000,
+      10000,
+      1000000,
+      512,
+      8192,
+      100000,
+      64
+    ],
+    "globalMaxima": [
+      999999999,
+      6291456,
+      6291456,
+      6291456
+    ],
+    "journeyMaxima": [
+      53,
+      5,
+      1,
+      1815000000,
+      1980000000,
+      1980000000,
+      1980000000
+    ],
+    "maxSerializedCaseBytes": 32768
+  },
+  "r140RttEvidence": {
     "schema": 1,
     "maxCounts": [
       10,

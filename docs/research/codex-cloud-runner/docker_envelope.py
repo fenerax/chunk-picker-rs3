@@ -138,6 +138,13 @@ def hostconfig_errors(doc, owner, cpus, p, uid, sources):
 
 def sanitized_result(value):
     require(isinstance(value, dict), "case-result-not-object")
+    if value.get("schema") == "r140-unshaped-session-v1":
+        require(len((json.dumps(value, separators=(",", ":"), allow_nan=False) + "\n").encode()) <= 32768, "r140-case-output-cap")
+        require(value.get("mode") == "r140-public-duo-unshaped-v1" and value.get("profile") == "UNSHAPED_0_ADDED_LATENCY" and value.get("observerMode") == "CURRENT_SYNC_CHECKPOINTS" and value.get("allFinalGates") == "OPEN" and value.get("passed") is False and value.get("acceptance") is False and value.get("status") in ("blocked", "failed"), "r140-case-invariants")
+        require(type(value.get("metrics")) is dict and type(value["metrics"].get("artificialDelayMs")) is int and value["metrics"]["artificialDelayMs"] == 0, "r140-profile-invariants")
+        numeric_marker = {"schema":"r140-numeric-vectors-v1","maxPoints":128,"maxJourneys":54,"surfacePages":[0,1,2],"surfaceMaxima":[6291456,1000000,10000,1000000,512,8192,100000,64],"globalMaxima":[999999999,6291456,6291456,6291456],"journeyMaxima":[53,5,1,1815000000,1980000000,1980000000,1980000000],"maxSerializedCaseBytes":32768}
+        rtt_marker = {"schema":1,"maxCounts":[10,20,10],"maxLatencyUs":90000000}
+        require(all(key in POLICY.get("structuredKeys", []) for key in ("sampleVectors", "journeyLatencies", "rttEvidence")) and json.dumps(POLICY.get("r140NumericVectors"), sort_keys=True) == json.dumps(numeric_marker, sort_keys=True) and json.dumps(POLICY.get("r140RttEvidence"), sort_keys=True) == json.dumps(rtt_marker, sort_keys=True), "r140-projection-policy")
     if value.get("schema") == "r111-long-session-v2":
         require(len((json.dumps(value, separators=(",", ":"), allow_nan=False) + "\n").encode()) <= 32768, "r111-case-output-cap")
         require(value.get("mode") == "r111-public-duo-session-v2" and value.get("passed") is False and value.get("acceptance") is False and value.get("status") in ("blocked", "failed"), "r111-case-invariants")
@@ -189,6 +196,10 @@ def sanitized_result(value):
         out.update(project_numeric_evidence(value.get("sampleVectors"), value.get("journeyLatencies")))
         out["rttEvidence"] = project_rtt_evidence(value.get("rttEvidence"))
         require(len((json.dumps(out, separators=(",", ":"), allow_nan=False) + "\n").encode()) <= 32768, "r111-case-output-cap")
+    if value.get("schema") == "r140-unshaped-session-v1":
+        out.update(project_numeric_evidence(value.get("sampleVectors"), value.get("journeyLatencies")))
+        out["rttEvidence"] = project_rtt_evidence(value.get("rttEvidence"))
+        require(len((json.dumps(out, separators=(",", ":"), allow_nan=False) + "\n").encode()) <= 32768, "r140-case-output-cap")
     return out
 
 def bounded_bytes(path, limit=32768):

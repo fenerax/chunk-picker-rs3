@@ -213,7 +213,7 @@ class Controls(unittest.TestCase):
     def test_both_workflow_recipes_use_distinct_empty_npm_configs(self):
         workflow = workflow_path().read_text()
         pairs = re.findall(r'npm_config_userconfig="([^"]+)"\s+npm_config_globalconfig="([^"]+)"', workflow)
-        self.assertEqual(len(pairs), 13)
+        self.assertEqual(len(pairs), 15)
         for user, global_config in pairs:
             self.assertNotEqual(user, global_config)
             self.assertNotEqual(user, '/dev/null'); self.assertNotEqual(global_config, '/dev/null')
@@ -221,20 +221,20 @@ class Controls(unittest.TestCase):
             self.assertIn(': > "' + global_config + '"', workflow)
     def test_both_setup_failures_use_closed_diagnostics(self):
         workflow = workflow_path().read_text()
-        self.assertEqual(workflow.count('--stage dependency-setup'), 13)
-        self.assertEqual(workflow.count('--stage public-image-pull'), 13)
+        self.assertEqual(workflow.count('--stage dependency-setup'), 15)
+        self.assertEqual(workflow.count('--stage public-image-pull'), 15)
         self.assertNotIn('cat "$RUNNER_TEMP/npm-setup.log"', workflow)
         self.assertNotIn('tail "$RUNNER_TEMP/image-pull.log"', workflow)
-    def test_native_pager_and_warm_jobs_retain_controls_and_disable_other_cases(self):
+    def test_unshaped_session_and_planning_stage_jobs_retain_controls_and_disable_prior_cases(self):
         workflow=workflow_path().read_text()
         jobtext=workflow.split('jobs:\n',1)[1]
         markers=list(re.finditer(r'^  ([a-z0-9-]+):\n',jobtext,re.M))
         blocks={match.group(1):jobtext[match.start():(markers[i+1].start() if i+1<len(markers) else len(jobtext))] for i,match in enumerate(markers)}
-        self.assertEqual(len(blocks),13)
+        self.assertEqual(len(blocks),15)
         self.assertIn("github.event.repository.private == false",blocks['controls'])
-        for key in ('one-case','r127-component','r124-engine','r130-codec','r134-engine-performance','r135-codec-http','r138-advisory','r111-scoped-soak','r116-close-diagnostic','r139-body-lifecycle'):
+        for key in ('one-case','r127-component','r124-engine','r130-codec','r134-engine-performance','r135-codec-http','r138-advisory','r111-scoped-soak','r116-close-diagnostic','r139-body-lifecycle','r125-focus','r131-native'):
             self.assertIn('if: ${{ false }}',blocks[key])
-        for key in ('r125-focus','r131-native'):
+        for key in ('r140-unshaped-baseline','r141-planning-stages'):
             self.assertIn('needs: controls',blocks[key]);self.assertIn('if: ${{ success() }}',blocks[key])
         self.assertIn('--entrypoint docs/research/codex-cloud-assets/r131-warm-error-v4/entry.mjs --mode native --seconds 180 --arg=--expected-harness-manifest-sha --arg=ab7dad55b8896826c8ca1502c9ac30de8c924dc0b24d0cddff7e0f1bc36be1b5',blocks['r131-native'])
         self.assertIn('--arg=--expected-harness-manifest-sha256 --arg=2184488130d8fef82cee0d5951f071ad55f16233b408e87ec5dafa842d6df396',blocks['r111-scoped-soak'])
@@ -244,6 +244,16 @@ class Controls(unittest.TestCase):
         self.assertIn('test_case_closure.py',blocks['controls'])
         self.assertIn('test_r111_rtt_projection.py',blocks['controls'])
         self.assertIn('test_native_binding_projection.py',blocks['controls'])
+        for filename in ('test_r140_projection.py','test_r140_host.py','test_r141_projection.py','test_r141_acceptance.mjs'):
+            self.assertIn(filename,blocks['controls'])
+        self.assertIn('timeout-minutes: 40',blocks['r140-unshaped-baseline'])
+        self.assertIn('--entrypoint docs/research/codex-cloud-assets/r140/candidate/harness/run-container-session.mjs --mode soak --seconds 2000 --arg=--go --arg=R140-container-unshaped-v1',blocks['r140-unshaped-baseline'])
+        self.assertIn('--arg=--latency-profile --arg=UNSHAPED_0_ADDED_LATENCY',blocks['r140-unshaped-baseline'])
+        self.assertIn('--arg=--expected-harness-manifest-sha256 --arg=33f7343825a6dd67a077e1ed8fe94a1c4e4ccd7ceab54116fb204b19c3965584',blocks['r140-unshaped-baseline'])
+        self.assertIn('python3 -B "$tool/accept_unshaped_session.py" --final "$RUNNER_TEMP/r140-unshaped-baseline/final.json" --source-lock "$RUNNER_TEMP/r140-unshaped-baseline/scratch/source-lock.json" --expected-harness-sha 33f7343825a6dd67a077e1ed8fe94a1c4e4ccd7ceab54116fb204b19c3965584',blocks['r140-unshaped-baseline'])
+        self.assertIn('--entrypoint docs/research/codex-cloud-assets/r141/entry.mjs --mode native --control none --seconds 360',blocks['r141-planning-stages'])
+        self.assertNotIn('--arg=',blocks['r141-planning-stages'])
+        self.assertIn('node "$RUNNER_TEMP/public-harness/docs/research/codex-cloud-assets/r141/accept-result.mjs" "$RUNNER_TEMP/r141-planning-stages/final.json" 94975a1dd77befd33995bbdc00fbc3303a6fb0ef5df5b30518fe681b4096e9c6',blocks['r141-planning-stages'])
         self.assertIn('--entrypoint docs/research/codex-cloud-assets/r125/case-entry.mjs --mode browser --seconds 215',blocks['r125-focus'])
         self.assertIn('node "$RUNNER_TEMP/public-harness/docs/research/codex-cloud-assets/r125/accept-focus-result.mjs" "$RUNNER_TEMP/r125-focus-v2/final.json"',blocks['r125-focus'])
         for filename in ('test_r139_projection.py','test_r116_close_projection.py','test_r139_observation.mjs','test_r116_close_observation.mjs'):

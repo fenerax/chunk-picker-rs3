@@ -78,6 +78,15 @@ async function orphanFixture() {
   write('orphan-reaped', { pid, parentExitCode: end.code, absentAfterExit: true });
 }
 function sanitized(value) {
+  if (value?.schema === 'r140-unshaped-session-v1') {
+    assertCaseBudget(value);
+    ensure(value.mode === 'r140-public-duo-unshaped-v1' && value.profile === 'UNSHAPED_0_ADDED_LATENCY' && value.observerMode === 'CURRENT_SYNC_CHECKPOINTS' && value.allFinalGates === 'OPEN' && value.passed === false && value.acceptance === false && ['blocked','failed'].includes(value.status), 'r140-case-invariants');
+    ensure(value.metrics && typeof value.metrics === 'object' && !Array.isArray(value.metrics) && value.metrics.artificialDelayMs === 0, 'r140-profile-invariants');
+    const numericMarker = {schema:'r140-numeric-vectors-v1',maxPoints:128,maxJourneys:54,surfacePages:[0,1,2],surfaceMaxima:[6291456,1000000,10000,1000000,512,8192,100000,64],globalMaxima:[999999999,6291456,6291456,6291456],journeyMaxima:[53,5,1,1815000000,1980000000,1980000000,1980000000],maxSerializedCaseBytes:32768};
+    const rttMarker = {schema:1,maxCounts:[10,20,10],maxLatencyUs:90000000};
+    const exactMarker = (actual, expected) => actual && typeof actual === 'object' && !Array.isArray(actual) && Object.keys(actual).length === Object.keys(expected).length && Object.entries(expected).every(([key,item]) => JSON.stringify(actual[key]) === JSON.stringify(item));
+    ensure(['sampleVectors','journeyLatencies','rttEvidence'].every(key => publicPolicy.structuredKeys?.includes(key)) && exactMarker(publicPolicy.r140NumericVectors,numericMarker) && exactMarker(publicPolicy.r140RttEvidence,rttMarker), 'r140-projection-policy');
+  }
   if (value?.schema === 'r111-long-session-v2') {
     assertCaseBudget(value);
     ensure(value.mode === 'r111-public-duo-session-v2' && value.passed === false && value.acceptance === false && ['blocked','failed'].includes(value.status), 'r111-case-invariants');
@@ -110,6 +119,11 @@ function sanitized(value) {
     if (selected !== undefined) out[key] = selected;
   }
   if (value?.schema === 'r111-long-session-v2') {
+    Object.assign(out, projectNumericEvidence(value.sampleVectors, value.journeyLatencies));
+    out.rttEvidence = projectRttEvidence(value.rttEvidence);
+    assertCaseBudget(out);
+  }
+  if (value?.schema === 'r140-unshaped-session-v1') {
     Object.assign(out, projectNumericEvidence(value.sampleVectors, value.journeyLatencies));
     out.rttEvidence = projectRttEvidence(value.rttEvidence);
     assertCaseBudget(out);

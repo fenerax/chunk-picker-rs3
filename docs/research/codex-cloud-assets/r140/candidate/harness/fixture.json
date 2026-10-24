@@ -1,0 +1,42 @@
+{
+  "members": [
+    {
+      "id": "aster",
+      "name": "Aster",
+      "unlocked": [
+        "12850"
+      ],
+      "selected": [],
+      "taskStatus": {}
+    },
+    {
+      "id": "reed",
+      "name": "Reed",
+      "unlocked": [
+        "12850"
+      ],
+      "selected": [],
+      "taskStatus": {}
+    }
+  ],
+  "tasks": [],
+  "rules": {},
+  "groupGoals": [
+    {
+      "id": "group-goal:supplies",
+      "text": "Gather shared supplies",
+      "completion": "players",
+      "completedBy": [],
+      "done": false
+    },
+    {
+      "id": "group-goal:tools",
+      "text": "Prepare bronze tools",
+      "completion": "players",
+      "completedBy": [
+        "reed"
+      ],
+      "done": false
+    }
+  ]
+}

@@ -1,0 +1,130 @@
+{
+  "schema": "r140-projection-source-receipt-v1",
+  "sourceOnly": true,
+  "runtime": "UNRUN",
+  "basePublicCommit": "4f4fd01204a0d54ce2bd4dbdeff29fdce18ceaf8",
+  "innerHarnessManifestSha256": "33f7343825a6dd67a077e1ed8fe94a1c4e4ccd7ceab54116fb204b19c3965584",
+  "profile": "UNSHAPED_0_ADDED_LATENCY",
+  "observerMode": "CURRENT_SYNC_CHECKPOINTS",
+  "allFinalGates": "OPEN",
+  "passed": false,
+  "acceptance": false,
+  "sourcePolicyProposalSha256": "ddf911a59671be5cdcbca525a53c005043067c0631427979454a9076255afba3",
+  "sourceHostProposalSha256": "9c615db2d8cba955f6223938b0903b0e21edfb8fb93954119a346329037bf303",
+  "exactHostCopies": [
+    {
+      "path": "accept_unshaped_session.py",
+      "bytes": 6396,
+      "sourceSha256": "72a002f6bb424dc05b9039f1d0dc269540fc6e437ad8fe58f3b092a4ea7519c3",
+      "copySha256": "72a002f6bb424dc05b9039f1d0dc269540fc6e437ad8fe58f3b092a4ea7519c3"
+    },
+    {
+      "path": "r140_rtt_policy.py",
+      "bytes": 1548,
+      "sourceSha256": "cf2532e5183d5a9572965c7993e3ffe2a4a3fb0399e333bcf651448fd67f1777",
+      "copySha256": "cf2532e5183d5a9572965c7993e3ffe2a4a3fb0399e333bcf651448fd67f1777"
+    }
+  ],
+  "adapterByteProof": [
+    {
+      "path": "docker_envelope.py",
+      "baseWholeFileBytes": 34605,
+      "baseWholeFileSha256": "ad8e23f239631b4f8ed10ba1482783bfe966e224b83b2b8c27b253e6a293d145",
+      "newWholeFileBytes": 36497,
+      "newWholeFileSha256": "b0270357a0e441f3567a7b4945e092ef2b34597055481945ed5e3fdb77f3134b",
+      "reconstructedBaseSha256": "ad8e23f239631b4f8ed10ba1482783bfe966e224b83b2b8c27b253e6a293d145",
+      "oldSanitizerSha256": "31310b75aee32e6818db78a7371f7a7fbf2b1549dc3532090e065e6c342dc761",
+      "resourceRemainderBytes": 31169,
+      "resourceRemainderSha256": "ce5a8ff450c1e924f549a0bbb2aeb187db4f50f23c0cf7aa611d4d23710aba6d",
+      "insertions": [
+        {
+          "bytes": 1525,
+          "sha256": "061280a85ee22a584f3450b97da38f47b59453531d3709d5212fceb448ccdde1"
+        },
+        {
+          "bytes": 367,
+          "sha256": "4281a8a40d362362387afcd069113b1eb15184ac7caeec42683939c39789c2c0"
+        }
+      ],
+      "everyOldBytePreserved": true
+    },
+    {
+      "path": "inside.mjs",
+      "baseWholeFileBytes": 16906,
+      "baseWholeFileSha256": "cbcb14a787ab7b40a0d970ba3a15781b0875df1bf3e0653066eba2fb4bb58377",
+      "newWholeFileBytes": 18657,
+      "newWholeFileSha256": "a16c625c4c4719d0944b0abe7126ca2fc09f5822e119b920ef8f34ac97b5e5e5",
+      "reconstructedBaseSha256": "cbcb14a787ab7b40a0d970ba3a15781b0875df1bf3e0653066eba2fb4bb58377",
+      "oldSanitizerSha256": "75a752aecd3b8156517d1f2e96c439b7d25a1732c671c86c5d037d870605f0c8",
+      "resourceRemainderBytes": 14304,
+      "resourceRemainderSha256": "4c1cefd8a8ec612810eaa3b4d807d33965f9e1abefc7285bafdb98669fd87421",
+      "insertions": [
+        {
+          "bytes": 1512,
+          "sha256": "60b38fda50fc00371e3d45193fbfff5ddcf9a7b38dc1198a40a7a5cb37abafb8"
+        },
+        {
+          "bytes": 239,
+          "sha256": "99e46415b1f9ee816c8cc7a4c340fedb7cc1a3c077e404bb5dd9ef2d4eb45319"
+        }
+      ],
+      "everyOldBytePreserved": true
+    }
+  ],
+  "algorithmReuse": {
+    "numeric": "Existing strict r111_vector_policy.py and r111_vectors.mjs; format and hard-coded limits unchanged.",
+    "rtt": "Both sanitizers reuse existing strict RTT helper; exact copied host helper differs only in r140 error labels.",
+    "oldR111": "Removing only the two new R140 blocks reconstructs every original byte of each entire file, including all resource, admission, cleanup and R111 projection code.",
+    "newSchema": "Requires exact R140 markers, explicit independent schema/mode/profile/observer/OPEN, false acceptance flags and integer zero artificial delay. Valid partial failed arrays, nulls and dropped counts remain present; malformed structures fail atomically.",
+    "noRuntimeChange": "No bridge, transport, observer, existing RTT band or old schema code was edited."
+  },
+  "budget": {
+    "sourceWorstCaseBytes": 32173,
+    "innerEnvelopeBeforeCaseExitBytes": 32406,
+    "actualFinalFrameExitZeroBytes": 32423,
+    "maximumBytes": 32768,
+    "headroomBytes": 345
+  },
+  "controls": {
+    "status": "PASS",
+    "newProjectionGroups": 8,
+    "newHostGroups": 6,
+    "inheritedR111ProjectionAndHostGroups": 40,
+    "pythonSyntaxFiles": 5,
+    "nodeSyntaxFiles": 1,
+    "runtimeExecutions": 0,
+    "scope": "Pure Python/Node checks and source-byte comparisons only."
+  },
+  "ownedFiles": [
+    {
+      "path": "docker_envelope.py",
+      "bytes": 36497,
+      "sha256": "b0270357a0e441f3567a7b4945e092ef2b34597055481945ed5e3fdb77f3134b"
+    },
+    {
+      "path": "inside.mjs",
+      "bytes": 18657,
+      "sha256": "a16c625c4c4719d0944b0abe7126ca2fc09f5822e119b920ef8f34ac97b5e5e5"
+    },
+    {
+      "path": "accept_unshaped_session.py",
+      "bytes": 6396,
+      "sha256": "72a002f6bb424dc05b9039f1d0dc269540fc6e437ad8fe58f3b092a4ea7519c3"
+    },
+    {
+      "path": "r140_rtt_policy.py",
+      "bytes": 1548,
+      "sha256": "cf2532e5183d5a9572965c7993e3ffe2a4a3fb0399e333bcf651448fd67f1777"
+    },
+    {
+      "path": "test_r140_projection.py",
+      "bytes": 10221,
+      "sha256": "4eec3a35c818f27edd212866ef88b6b5699c3d26247207bbf9b61862856b17af"
+    },
+    {
+      "path": "test_r140_host.py",
+      "bytes": 5569,
+      "sha256": "3e846379e07386198e9e7aaf2c715e04daea4678e5a345564e1d112719c73255"
+    }
+  ]
+}

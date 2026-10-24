@@ -1,0 +1,23 @@
+{
+  "schema": "session-stages-policy-integration-v1",
+  "publicationBaseCommit": "4f4fd01204a0d54ce2bd4dbdeff29fdce18ceaf8",
+  "publicationBaseManifestSha256": "bc81002b98a249ee9db3ef46a031dde02387c1c0808e80108687778ecb16aba7",
+  "proposals": [
+    {
+      "case": "r140-unshaped",
+      "source": "../../r140-unshaped-lifecycle-ready/result-policy-proposal.json",
+      "bytes": 6331,
+      "sha256": "ddf911a59671be5cdcbca525a53c005043067c0631427979454a9076255afba3"
+    },
+    {
+      "case": "r141-stages",
+      "source": "../../r141-planning-stages-ready/result-policy.additions.json",
+      "bytes": 10368,
+      "sha256": "3ec829b9dad8795de1e86d4104a615830f2bf14f261709db719182c1808a53db"
+    }
+  ],
+  "r111ShapedPolicyPreserved": true,
+  "r140Profile": "UNSHAPED_0_ADDED_LATENCY",
+  "allFinalGates": "OPEN",
+  "runtime": "UNRUN"
+}

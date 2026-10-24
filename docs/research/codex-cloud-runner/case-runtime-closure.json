@@ -1,240 +1,225 @@
 {
   "schema": "public-case-runtime-closure-v1",
   "publicationMapHashes": {
-    "r125-focus": "3a9376e0f6117efe544ea231ddeaaa94049a91ed1274aedc940990f23a8643c2",
-    "r131-native": "9370e57c31bd5316073e938ff13740dd02ea4e62dddf468635062445c0919f8e"
+    "r140-unshaped-baseline": "85bd24a945379d7cb94884d7531cd9fa13008d33d750aa3d89ad5724f4d7aaac",
+    "r141-planning-stages": "0d772bca45b836b95d2dab5a343140d2765dd2f834869938a9324a95bc8b9a83"
   },
   "cases": {
-    "r125-focus": {
-      "manifestKind": "r125",
-      "prefix": "docs/research/codex-cloud-assets/r125",
-      "entrypoint": "docs/research/codex-cloud-assets/r125/case-entry.mjs",
-      "manifest": "docs/research/codex-cloud-assets/r125/portable-manifest.json",
-      "manifestSha256": "4404b0cbbd60d98a79136206349b4513410c94b7921f4ba081218826ea10e709",
+    "r140-unshaped-baseline": {
+      "manifestKind": "r140",
+      "prefix": "docs/research/codex-cloud-assets/r140",
+      "entrypoint": "docs/research/codex-cloud-assets/r140/candidate/harness/run-container-session.mjs",
+      "manifest": "docs/research/codex-cloud-assets/r140/source-slice-manifest.json",
+      "manifestSha256": "33f7343825a6dd67a077e1ed8fe94a1c4e4ccd7ceab54116fb204b19c3965584",
       "assets": [
         {
-          "path": "docs/research/codex-cloud-assets/r125/accept-focus-result.mjs",
-          "bytes": 1001,
-          "sha256": "5c12ac4c566ee13fbca3afdf8e2587a9328c5ab0e839b9f3eeabf962110dd3fd"
+          "path": "docs/research/codex-cloud-assets/r140/candidate/harness/container-bridge.mjs",
+          "bytes": 16254,
+          "sha256": "03b706edb2583d09638aaa85e8a18a06ba42ebe36b54dd65a4743e1a6ef7ee6d"
         },
         {
-          "path": "docs/research/codex-cloud-assets/r125/bundle-manifest.json",
-          "bytes": 4119,
-          "sha256": "f1d3cefe9cf0eaec850f3fd41e4ef6432555f153deaf80e478e7fb88d432b198"
+          "path": "docs/research/codex-cloud-assets/r140/candidate/harness/container-result.mjs",
+          "bytes": 5171,
+          "sha256": "ed0f2312a653980a8b2eb5d70defa00c56df51a2773932df388411c8a96fc44d"
         },
         {
-          "path": "docs/research/codex-cloud-assets/r125/candidate/production-init-order.patch",
-          "bytes": 16958,
-          "sha256": "49440dd5dfda225db24a10ff6bceffd2da34a829fefac3c2161f068bd9f0982e"
+          "path": "docs/research/codex-cloud-assets/r140/candidate/harness/contract.mjs",
+          "bytes": 1435,
+          "sha256": "fe746691818f77078a3a46e446e53941ec8704cda7244a7e1be663194475561c"
         },
         {
-          "path": "docs/research/codex-cloud-assets/r125/candidate/production.patch",
-          "bytes": 17065,
-          "sha256": "a9f23f6a67af9d5f8cc6bf7a1873b5f3781d492db35a27f5d1e7d724701b8c8f"
+          "path": "docs/research/codex-cloud-assets/r140/candidate/harness/delay.mjs",
+          "bytes": 1370,
+          "sha256": "24aeb421c2ca1f48294dd01d91eb0fa82af9a4982e7979d0e599254044b073e1"
         },
         {
-          "path": "docs/research/codex-cloud-assets/r125/case-entry.mjs",
-          "bytes": 3600,
-          "sha256": "bfee0ae71080ca0e09abc2900874695f45422e7e98d059c29acc0d6bec0d19b0"
+          "path": "docs/research/codex-cloud-assets/r140/candidate/harness/diagnostic.mjs",
+          "bytes": 5072,
+          "sha256": "7d84e92f232da6ec260fb893da706996dde1edcd93325e9cb297c8a127471508"
         },
         {
-          "path": "docs/research/codex-cloud-assets/r125/docker-hard-entry.py",
-          "bytes": 9440,
-          "sha256": "416df8a0682f5ba3f62dc918b3bd5fb1d12b51769e659207e5308d54a324b513"
+          "path": "docs/research/codex-cloud-assets/r140/candidate/harness/evidence-vectors.mjs",
+          "bytes": 5415,
+          "sha256": "ae9033c68cb7a33f3af7e132496ca0849c974589643746803f8273100e071c15"
         },
         {
-          "path": "docs/research/codex-cloud-assets/r125/focus-browser-identity.mjs",
-          "bytes": 1033,
-          "sha256": "641cb6e8f4cee35ae500d06b57ffb55bc838f90e784468c5920dc5e4260f6d21"
+          "path": "docs/research/codex-cloud-assets/r140/candidate/harness/fixture.json",
+          "bytes": 711,
+          "sha256": "a672a1f9b5de6a699a18c26c5fad6fe477a5e37d05c75f115f425a8a3f789b09"
         },
         {
-          "path": "docs/research/codex-cloud-assets/r125/focus-controller.mjs",
-          "bytes": 15138,
-          "sha256": "cd20b821e8bb257962c7757b942da361526abadaa2e87c6a289da99122024b82"
+          "path": "docs/research/codex-cloud-assets/r140/candidate/harness/health-admission.mjs",
+          "bytes": 3889,
+          "sha256": "adc6e4403bc38fe956c146affb80683437ddbd03b0fd87b5bfc3a169a15688ba"
         },
         {
-          "path": "docs/research/codex-cloud-assets/r125/focus-core.mjs",
-          "bytes": 17404,
-          "sha256": "a0db45f1418fef7d1f7467ffffb865fc420c949f1d7f10a5a3d629984abf84be"
+          "path": "docs/research/codex-cloud-assets/r140/candidate/harness/metrics.mjs",
+          "bytes": 1733,
+          "sha256": "324a3834fc44d9b0263ac1d1df8502557eadae12069d0f4b46d8d71fd3d465cd"
         },
         {
-          "path": "docs/research/codex-cloud-assets/r125/focus-diagnostics.mjs",
-          "bytes": 5552,
-          "sha256": "4cf52528cdd031344d756a9ec7620ca75bef90e2adb88099e2ed8dedc24fbb70"
+          "path": "docs/research/codex-cloud-assets/r140/candidate/harness/navigation-epochs.mjs",
+          "bytes": 6007,
+          "sha256": "611425f0cf1ab2ab79f2c0e051f22be070cd211c7bb3c5ef90d2bbd202c3645c"
         },
         {
-          "path": "docs/research/codex-cloud-assets/r125/focus-native-evidence.mjs",
-          "bytes": 4781,
-          "sha256": "616ac954ed4908171ecc706929a95584b58a98e3ff6f217eb0885ad7edb7739d"
+          "path": "docs/research/codex-cloud-assets/r140/candidate/harness/network.mjs",
+          "bytes": 13932,
+          "sha256": "3907cfffecf13afcd0b4929961232e064f8b08ad582139fca6900fadb801595d"
         },
         {
-          "path": "docs/research/codex-cloud-assets/r125/focus-tab-evidence.mjs",
-          "bytes": 3756,
-          "sha256": "7a057018b21236522fde4007fd991eed463e66f475fac6a057524438d95e01fb"
+          "path": "docs/research/codex-cloud-assets/r140/candidate/harness/probe.mjs",
+          "bytes": 2644,
+          "sha256": "fe3b11d1bf76439ab17d08fd4b92c6bc555fad2f2668b1bbf521777913b3b63a"
         },
         {
-          "path": "docs/research/codex-cloud-assets/r125/pending-command.sh",
-          "bytes": 1818,
-          "sha256": "e0121cce03bf752886339d8b04d41bb562d619e9cb56987f316b52d322c03f7b"
+          "path": "docs/research/codex-cloud-assets/r140/candidate/harness/rtt-evidence.mjs",
+          "bytes": 1990,
+          "sha256": "579b4ebf5185d59dba4a69a55dbdd9f7ef0c0bc33fda85385184e6f029b8b40d"
         },
         {
-          "path": "docs/research/codex-cloud-assets/r125/portable-manifest.json",
-          "bytes": 14211,
-          "sha256": "4404b0cbbd60d98a79136206349b4513410c94b7921f4ba081218826ea10e709"
+          "path": "docs/research/codex-cloud-assets/r140/candidate/harness/run-container-session.mjs",
+          "bytes": 8523,
+          "sha256": "aaf26e821728cf4d56c70e47db434fa836cfcccb8ecbbc81195fc74284a6466f"
         },
         {
-          "path": "docs/research/codex-cloud-assets/r125/result-policy-additions.json",
-          "bytes": 1184,
-          "sha256": "b0b18ca7b93cc089d63584308924cfafc3baf39cebee387a44a3b02fb63d33bf"
+          "path": "docs/research/codex-cloud-assets/r140/candidate/harness/server.mjs",
+          "bytes": 4786,
+          "sha256": "104c76ec6f9914cfe6d583665c68d0bd0b804c960249f6b40b8bf0dcf12579e1"
         },
         {
-          "path": "docs/research/codex-cloud-assets/r125/result-policy-diagnostic-additions.json",
-          "bytes": 3540,
-          "sha256": "284ef936e0e721d545f462988b5dbe2d41b3d5b027cf8534134d22ae81cc5b31"
+          "path": "docs/research/codex-cloud-assets/r140/candidate/harness/session-protocol.mjs",
+          "bytes": 3835,
+          "sha256": "52f8691fd7f0e02df09d75699e3b2e8fb71fd833971b85cacefa8de9766d2bd3"
         },
         {
-          "path": "docs/research/codex-cloud-assets/r125/result-policy-native-additions.json",
-          "bytes": 3459,
-          "sha256": "a233d80e5788ba77daed67c490d2ed27eda35b989a130c8fe36922897bf4aa3f"
+          "path": "docs/research/codex-cloud-assets/r140/candidate/harness/session.mjs",
+          "bytes": 29588,
+          "sha256": "5e0030af5ae688d1d7ed866c399ca9eb555ce1103462109185023e655ae8a270"
         },
         {
-          "path": "docs/research/codex-cloud-assets/r125/result-policy-tab-additions.json",
-          "bytes": 1473,
-          "sha256": "8dceb9ff553c5c198dff35cadfcce105a0a95c9b7b189397bcc0c7c630df6325"
+          "path": "docs/research/codex-cloud-assets/r140/host/rtt_vector_policy.py",
+          "bytes": 1548,
+          "sha256": "cf2532e5183d5a9572965c7993e3ffe2a4a3fb0399e333bcf651448fd67f1777"
         },
         {
-          "path": "docs/research/codex-cloud-assets/r125/tests/task-focus-native-v4.fixture.mjs",
-          "bytes": 7433,
-          "sha256": "53d887b5b6145d64c17c05bca4ca84a07989ac0cf3eb2d784711fbf46258d0d5"
+          "path": "docs/research/codex-cloud-assets/r140/source-slice-manifest.json",
+          "bytes": 3578,
+          "sha256": "33f7343825a6dd67a077e1ed8fe94a1c4e4ccd7ceab54116fb204b19c3965584"
         },
         {
-          "path": "docs/research/codex-cloud-assets/r125/tests/task-focus-native-v4.test.mjs",
-          "bytes": 17425,
-          "sha256": "39ce8c911e7a570cd93725201cbc36d1a5e96e231880db8314042b3de5210b0a"
-        },
-        {
-          "path": "docs/research/codex-cloud-assets/r125/tests/task-focus-native.diagnostic.mjs",
-          "bytes": 4468,
-          "sha256": "e2ce03f5c7c757e948aee6b36d8ba98047da75c554342b1773bfc663a77880db"
-        },
-        {
-          "path": "docs/research/codex-cloud-assets/r125/tests/task-focus-native.fixture.mjs",
-          "bytes": 6813,
-          "sha256": "63e3b8049c34b391b8ee6d11c5371a7abc4b639e9893bd793f79d2e40d46ccd0"
-        },
-        {
-          "path": "docs/research/codex-cloud-assets/r125/tests/task-focus-native.launch.py",
-          "bytes": 7916,
-          "sha256": "dc8452cfb5d7a9a262a502ccf72fa9ac7e2e2d61611f68b9003d106e43d8f614"
-        },
-        {
-          "path": "docs/research/codex-cloud-assets/r125/tests/task-focus-native.lifecycle.mjs",
-          "bytes": 4219,
-          "sha256": "78113059acec15ade229b3343623c72242df3da1e0f7d6b3602f5ab9c33831bd"
-        },
-        {
-          "path": "docs/research/codex-cloud-assets/r125/tests/task-focus-native.manifest.json",
-          "bytes": 2037,
-          "sha256": "0a73afa70251d031839c49c70a07d0705251d86bb062f67e1c19b2868326988f"
-        },
-        {
-          "path": "docs/research/codex-cloud-assets/r125/tests/task-focus-native.observers.mjs",
-          "bytes": 16350,
-          "sha256": "b326cb1d264622ba5a5e4e4b2802e1c12cd301099d96454e1d34b8ee09ddc0b3"
-        },
-        {
-          "path": "docs/research/codex-cloud-assets/r125/tests/task-focus-native.tab-diagnostic.mjs",
-          "bytes": 5437,
-          "sha256": "29005e5f37c66d095bb0651fea96d39daff70520cf5551c8d4016903cf9ca87b"
-        },
-        {
-          "path": "docs/research/codex-cloud-assets/r125/tests/task-focus-native.test.mjs",
-          "bytes": 14720,
-          "sha256": "5bf5d8cbe244ebcce6bf1ed2ecddd25d5e29de91519f5fa8567cf2aa797bb147"
+          "path": "docs/research/codex-cloud-assets/r140/sources/network-ledger-overlay/ledger.mjs",
+          "bytes": 15551,
+          "sha256": "2bd14431eac9114b37ae7a19793dfa94a3d3288dd3a64e8865ac8363c859febe"
         }
       ]
     },
-    "r131-native": {
-      "manifestKind": "r131",
-      "prefix": "docs/research/codex-cloud-assets/r131-warm-error-v4",
-      "entrypoint": "docs/research/codex-cloud-assets/r131-warm-error-v4/entry.mjs",
-      "manifest": "docs/research/codex-cloud-assets/r131-warm-error-v4/runtime-publication-manifest.json",
-      "manifestSha256": "ab7dad55b8896826c8ca1502c9ac30de8c924dc0b24d0cddff7e0f1bc36be1b5",
+    "r141-planning-stages": {
+      "manifestKind": "r141",
+      "prefix": "docs/research/codex-cloud-assets/r141",
+      "entrypoint": "docs/research/codex-cloud-assets/r141/entry.mjs",
+      "manifest": "docs/research/codex-cloud-assets/r141/manifest.json",
+      "manifestSha256": "94975a1dd77befd33995bbdc00fbc3303a6fb0ef5df5b30518fe681b4096e9c6",
       "assets": [
         {
-          "path": "docs/research/codex-cloud-assets/r131-warm-error-v4/candidate/manifest-v4.json",
-          "bytes": 2273,
-          "sha256": "c2d5971da371289f1c3ace1852b70f5c658bf24d1fd9a197ccbed605ab09eed5"
+          "path": "docs/research/codex-cloud-assets/r141/accept-result.mjs",
+          "bytes": 5126,
+          "sha256": "65b403ea68c62f96ce23f29ebee61afc341f34702441ee8014b28b4cb10a7774"
         },
         {
-          "path": "docs/research/codex-cloud-assets/r131-warm-error-v4/candidate/production-v4.patch",
-          "bytes": 218295,
-          "sha256": "f338823b045747b9e0a052bcb04d4db632b83eb5400a370a9b7ff3637a8c4ee1"
+          "path": "docs/research/codex-cloud-assets/r141/case-contract.json",
+          "bytes": 8441,
+          "sha256": "43919e655760b6d5ba13984f9529413960efb972bb3b6953441d4ae87059c4d3"
         },
         {
-          "path": "docs/research/codex-cloud-assets/r131-warm-error-v4/case-result-adapter.mjs",
-          "bytes": 4220,
-          "sha256": "cce12bfd14b9d50a69f5762a954c1d0d8cfb13eaf69bb7953962ae866ca4e2ce"
+          "path": "docs/research/codex-cloud-assets/r141/diagnostics.mjs",
+          "bytes": 4033,
+          "sha256": "ec0d4758cb9b4096a1b9cda9b240020741e4ad1fce2fb20eee7f9fe5adb81a48"
         },
         {
-          "path": "docs/research/codex-cloud-assets/r131-warm-error-v4/copied-library/focus-core.mjs",
-          "bytes": 16855,
-          "sha256": "9d51b6758283fd61f5d5abf47bcdd21c33393a773bfe3599080ff3ec3ce121b8"
+          "path": "docs/research/codex-cloud-assets/r141/entry.mjs",
+          "bytes": 11176,
+          "sha256": "28d22373a16be11118fbb0de38032d07ac5dc05495b6894826ae926ac91810f1"
         },
         {
-          "path": "docs/research/codex-cloud-assets/r131-warm-error-v4/copied-library/tests/task-focus-native.observers.mjs",
-          "bytes": 16350,
-          "sha256": "b326cb1d264622ba5a5e4e4b2802e1c12cd301099d96454e1d34b8ee09ddc0b3"
+          "path": "docs/research/codex-cloud-assets/r141/fixture.json",
+          "bytes": 822,
+          "sha256": "afc4dd775a78452a1e8d87efc579269f9f3dfa477674243f6e482a5503445584"
         },
         {
-          "path": "docs/research/codex-cloud-assets/r131-warm-error-v4/diagnostics.mjs",
-          "bytes": 8399,
-          "sha256": "99f50710d33fc2d77223c5475f9a122ff6558d508d6af1c3c5fefdcaa684e61b"
+          "path": "docs/research/codex-cloud-assets/r141/game-defaults.json",
+          "bytes": 145,
+          "sha256": "9e67a7976c240c5c0f687b9fd4a6f9ceead717c3741ff47006550665dc0ad615"
         },
         {
-          "path": "docs/research/codex-cloud-assets/r131-warm-error-v4/driver-lib.mjs",
-          "bytes": 1907,
-          "sha256": "a12a06ee4ad4e608fccf9f351c04f826358e2a02d09b5345048c5d07aaa17326"
+          "path": "docs/research/codex-cloud-assets/r141/http-child.mjs",
+          "bytes": 10899,
+          "sha256": "231820862f8fc16b2153f7121985760eea8e69eef8ef014e3e108ade2961823a"
         },
         {
-          "path": "docs/research/codex-cloud-assets/r131-warm-error-v4/entry.mjs",
-          "bytes": 4334,
-          "sha256": "8ee19d37cc0637d79dd2a8350f1eec9f1791c19c09d45378e6dad7a8ca80b423"
+          "path": "docs/research/codex-cloud-assets/r141/instrument-A.patch",
+          "bytes": 20478,
+          "sha256": "47617e852420b2cf0be1fb924eeffb7d3a1d9b3e8032d5ed075a9d80e1d212cd"
         },
         {
-          "path": "docs/research/codex-cloud-assets/r131-warm-error-v4/install-v4.mjs",
-          "bytes": 1827,
-          "sha256": "e3671c6b3d3d69db998f7c4e27b28e191756a222f12cc4e3c152bd53bf0ef230"
+          "path": "docs/research/codex-cloud-assets/r141/instrument-C.patch",
+          "bytes": 21100,
+          "sha256": "740e2ffcf0877b9f7a4bdf494f889ef35454854484829974e9e5e3fd9edd9306"
         },
         {
-          "path": "docs/research/codex-cloud-assets/r131-warm-error-v4/native-cell-v3.mjs",
-          "bytes": 7320,
-          "sha256": "8db8127ef5659cb0df6451dbe0ddb7e33419625d065df33b67be17491b9a4f4e"
+          "path": "docs/research/codex-cloud-assets/r141/manifest.json",
+          "bytes": 5299,
+          "sha256": "94975a1dd77befd33995bbdc00fbc3303a6fb0ef5df5b30518fe681b4096e9c6"
         },
         {
-          "path": "docs/research/codex-cloud-assets/r131-warm-error-v4/native-phase-preload-v3.mjs",
-          "bytes": 1500,
-          "sha256": "5b330ae4e8c74c2f5527017b6ddfb6ea0a09b981ab88dad14d950bc1917de4b4"
+          "path": "docs/research/codex-cloud-assets/r141/observer.mjs",
+          "bytes": 2792,
+          "sha256": "7b3e77167c58ca90059f5c9d671cf7314d12dc9a278aaa2adcb98b00a09c6052"
         },
         {
-          "path": "docs/research/codex-cloud-assets/r131-warm-error-v4/protocol.mjs",
-          "bytes": 2408,
-          "sha256": "ca6030043c6b629e34f200707d8a19b699ee78bc703db8ddff17fc32adc43702"
+          "path": "docs/research/codex-cloud-assets/r141/pr8-advisory-ready.patch",
+          "bytes": 6043,
+          "sha256": "3d38008dfb6d0eaf9f52d326a7e61b868c396b90b11928720b759088688ce70f"
         },
         {
-          "path": "docs/research/codex-cloud-assets/r131-warm-error-v4/runtime-integrity.mjs",
-          "bytes": 2760,
-          "sha256": "71a5282079f7cf33c30a3ac94d5022dc03a149893dd1f8b8fc3a7e4df21eded8"
+          "path": "docs/research/codex-cloud-assets/r141/proof-A.json",
+          "bytes": 2162,
+          "sha256": "617cc2dcabf09933a6cc2b918509b4c643555dd00032ad3c50b2949a609d9157"
         },
         {
-          "path": "docs/research/codex-cloud-assets/r131-warm-error-v4/scheduler-fixture-v3.mjs",
-          "bytes": 5835,
-          "sha256": "45475f2b3d930c345f7afc22e93ad61d8585bbe53b7f0f099a46933329d9768e"
+          "path": "docs/research/codex-cloud-assets/r141/proof-C.json",
+          "bytes": 2200,
+          "sha256": "ff23466b17fdbefd6035d514235c3aa2f2e5010074d5ad455bb42d49eaa292e1"
         },
         {
-          "path": "docs/research/codex-cloud-assets/r131-warm-error-v4/runtime-publication-manifest.json",
-          "bytes": 2381,
-          "sha256": "ab7dad55b8896826c8ca1502c9ac30de8c924dc0b24d0cddff7e0f1bc36be1b5"
+          "path": "docs/research/codex-cloud-assets/r141/protocol.mjs",
+          "bytes": 2742,
+          "sha256": "27a28fddebe3dfdcd552564cf3c581069d84d67195c43f0a82cddbd605a84639"
+        },
+        {
+          "path": "docs/research/codex-cloud-assets/r141/provider-identity.json",
+          "bytes": 20273,
+          "sha256": "bee1483c20eed4356adacebcce04baca147ce24aea1093078d79412f757765c0"
+        },
+        {
+          "path": "docs/research/codex-cloud-assets/r141/reduce-trace.mjs",
+          "bytes": 8187,
+          "sha256": "6a9e24ee7745288b7096dd156a7a73685a3fe7cdc1d495820e331bf38fdb90e1"
+        },
+        {
+          "path": "docs/research/codex-cloud-assets/r141/resources.mjs",
+          "bytes": 1295,
+          "sha256": "37087d7bdda13526b5dd343d89bdd9bd5bcc71418cb064c2dfbb20222ffc6e16"
+        },
+        {
+          "path": "docs/research/codex-cloud-assets/r141/strict-patch.mjs",
+          "bytes": 1998,
+          "sha256": "fb432c769f124f887c9cb6ee76a7b67dfa1d99028c42180a858dc0e1aef9c470"
+        },
+        {
+          "path": "docs/research/codex-cloud-assets/r141/trace-contract.mjs",
+          "bytes": 3302,
+          "sha256": "bab1a17cdde79c810c38d9e281a1c64b9fc3c973b0f82af49804e3f3714403c5"
         }
       ]
     }

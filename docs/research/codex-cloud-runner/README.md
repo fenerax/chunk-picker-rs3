@@ -1,6 +1,18 @@
 # Prepared public Docker measurement envelope
 
-## Native pager and warm-module wave from published7df
+## Independent unshaped session and stage diagnostics from published4f4f
+
+Only `r140-unshaped-baseline` and `r141-planning-stages` are enabled; all twelve earlier case jobs are disabled on this future commit. Both remain runtime UNRUN. All product/final gates remain OPEN.
+
+R140 is an independently selected **UNSHAPED_0_ADDED_LATENCY** baseline, with zero added delay rather than zero raw RTT. Its explicit GO/profile/schema/mode and host predicate cannot fall back from R111 or establish a40ms profile. The old shaped39..48ms checks, defaults, transport and predicates remain unchanged. The unshaped bridge retains its caps, streaming/backpressure and closure while dispatching immediately. Current synchronous checkpoints and their overhead remain part of the actual1800s session. The54 journeys/45 mutations, actual clocks,110 cadence points, nulls, restart/ownership/persistence and full cleanup gates are retained. All40 initial RTT observations and50 initial/final valid health responses are required, including a stable hashed health version; health validation runs after body timing ends.
+
+Only independent R140 schema branches are added to the two sanitizers, reusing the existing strict numeric and RTT formats. Removing those branches reconstructs every original byte, including all resource/admission and old R111 code. Exact mapped host companions are copied unchanged. The actual final frame, including caseExitCode0, is32,423bytes below32,768, leaving345bytes. No rows, nulls or overflow are silently trimmed.
+
+R141 observes one normal first planning request in each of two fresh A/C lifetimes. It uses the exact existing PR8 product patch plus pinned five-module instrumentation in owned scratch. Complete physical source locks, all94 provider records with zero changes, full772-row body identity, actual module proofs and cleanup remain required. The128-key policy is an allowlist; actual maximum127 values excludes candidate prediction READY serialization, which must stay absent. EvaluateFull is present only on an observed miss; natural cache hits are valid. Foreground READY payloads remain, prediction C omission is explicit, and local catalogue counts must agree. Module/writer/clock overhead is recorded rather than subtracted. Different clock domains and two instrumented cells cannot establish clean gain or arm-specific resource benefit. Diagnostic/product/performance acceptance remains false.
+
+Exact outer bounds are2000s/40min for the R140 soak and360s for R141. Full runtime closure covers20+20 files through raw LF/CRLF CLI reads before Docker controls. R141 uses its unchanged mapped host contract. No application, server, worker, browser, Docker or benchmark was started locally.
+
+## Prior native pager and warm-module wave (published4f4f)
 
 Only R125 pager V6 and R131 warm-error V4 are enabled. All ten other case jobs remain disabled. Both native cases are runtime UNRUN and all product gates remain OPEN. The prior R139 observation passed without product acceptance; R116's diagnostic close failed with storeWrites pending and remains separate evidence.
 

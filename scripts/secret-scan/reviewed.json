@@ -186,6 +186,36 @@
   ],
   "lines": [
     {
+      "path": "docs/research/codex-cloud-runner/delivery-manifest.json",
+      "category": "token",
+      "sha256": "a788ebde9e3d67d80aece4dedd9124dfd3fa11dd864f6bf62d44679fd709b04d",
+      "reason": "Exact authored boolean proof-field name in the delivery manifest; its identifier length resembles a token, but its value is the literal true."
+    },
+    {
+      "path": "docs/research/codex-cloud-assets/r140/candidate/harness/container-bridge.mjs",
+      "category": "network-identifier",
+      "sha256": "15ccc59176dd87ab8ec10aac4ee8bd9837352f83517ecb168b3ee7902a0c161e",
+      "reason": "Exact container identity assertion uses a kernel cgroup membership marker; the IPv6 pattern matches colon syntax which names no network."
+    },
+    {
+      "path": "docs/research/codex-cloud-assets/r141/fixture.json",
+      "category": "account-map-binding",
+      "sha256": "92991cf52854c92c2fc3444f688d8528ad8f5c4499e9e4d46816ae43843ff888",
+      "reason": "Exact authored historical frozen R38/R91 test fixture with synthetic alpha and beta map identifiers; pinned fixture bytes, no real account or map."
+    },
+    {
+      "path": "docs/research/codex-cloud-assets/r141/game-defaults.json",
+      "category": "account-map-binding",
+      "sha256": "2d72ee2671ffd3cb0a615535707198f2e970aaedffeb6a832cadc641a6d6adf0",
+      "reason": "Exact authored historical frozen R38/R91 test fixture with synthetic alpha and beta map identifiers; pinned fixture bytes, no real account or map."
+    },
+    {
+      "path": "docs/research/codex-cloud-assets/r141/game-defaults.json",
+      "category": "personal-default",
+      "sha256": "2d72ee2671ffd3cb0a615535707198f2e970aaedffeb6a832cadc641a6d6adf0",
+      "reason": "Exact authored historical frozen R38/R91 defaults fixture with its synthetic administrator label; pinned fixture bytes, no person."
+    },
+    {
       "path": "docs/research/codex-cloud-assets/r138/fixture.json",
       "category": "account-map-binding",
       "sha256": "92991cf52854c92c2fc3444f688d8528ad8f5c4499e9e4d46816ae43843ff888",

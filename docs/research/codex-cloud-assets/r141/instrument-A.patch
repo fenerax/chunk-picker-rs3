@@ -1,0 +1,278 @@
+diff --git a/app/server.mjs b/app/server.mjs
+--- a/app/server.mjs
++++ b/app/server.mjs
+@@ -1,3 +1,5 @@
++import {r141Module,r141Now,r141Emit,payloadFacts,r141Bind,r141Endpoint,r141SetPeek,r141Peek} from './r141-observer.mjs';
++r141Module(import.meta.url,'server');
+ import { startupPhase } from './startup-timing.mjs';
+ import { projectTeleportRoute } from './teleports-response.mjs';
+ import { resolveDataset } from './datasets.mjs';
+@@ -990,7 +992,7 @@
+     // pending offers and blacklists cannot change these calculation results.
+     // Read it with the caller's state: workers reuse baselines by this input.
+     const input = stateInput?.inputKey ?? calculationState().input;
+-    if (side) await waitForList(state.revision, signal);
++    if (side) {const r141ListAt=type==='chunk-planning'?r141Now():undefined;await waitForList(state.revision, signal);if(type==='chunk-planning')r141Emit('server-list',{spanMs:r141Now()-r141ListAt});}
+     // Explicit Preview needs the same quiet window as the current task list:
+     // queued bulk predictions must not start between its answer and Unlock.
+     const foreground = type === 'evaluate' && !side || type === 'predict';
+@@ -1015,8 +1017,10 @@
+       const key = JSON.stringify([type === 'evaluate' ? input : state.revision, memberId, type, chunkId, type === 'death-estimates' ? chunkIds : undefined]);
+       const reused = type === 'evaluate' && resultView === PLAY_VIEW && stateInput
+         ? taskWorker.preparedEvaluation?.(() => stateInput.taskInputKey, memberId, state.revision) : undefined;
++      const r141EvaluationAt=type==='chunk-planning'?r141Now():undefined;
+       const evaluation = reused ?? await taskWorker.evaluate(state, memberId, type, chunkId, key, input, signal, chunkIds, resultView, stateInput,
+         side && type !== 'death-estimates' ? 'side' : evaluationLane, duoSidebarProjection);
++      if(type==='chunk-planning')r141Emit('server-evaluate',{spanMs:r141Now()-r141EvaluationAt});
+       completed = !evaluation.cancelled;
+       // Compress off the response path. Current lists survive retirement within
+       // the existing quota, so reading them need not compile another worker.
+@@ -1588,9 +1592,11 @@
+               await jsonBytes(request, response, 200, Buffer.concat([bytes.subarray(0, bytes.length - 1), Buffer.from(`,${suffix.slice(1)}`)])); return;
+             }
+             const result = type === 'evaluate' && viewFor(request) === PLAY_VIEW ? projectPlayResult(evaluation.result) : evaluation.result;
++            const r141JsonAt=type==='chunk-planning'?r141Now():undefined;
+             await json(request, response, 200, { ...result, stateRevision: state.revision, memberId,
+               ...(type === 'death-estimates' ? { candidateIds: chunkIds } : {}),
+-              cache: { ...evaluation.result.cache, hit: evaluation.hit, evaluationMs: evaluation.evaluationMs, timingMs: evaluation.timingMs, requestMs: performance.now() - started, worker: true } }); return;
++              cache: { ...evaluation.result.cache, hit: evaluation.hit, evaluationMs: evaluation.evaluationMs, timingMs: evaluation.timingMs, requestMs: performance.now() - started, worker: true } });
++            if(type==='chunk-planning')r141Emit('server-send',{spanMs:r141Now()-r141JsonAt,routeMs:r141Now()-started});return;
+           }
+           if (route === '/api/migration') { await json(request, response, 200, migrationSummary(store.getState())); return; }
+           if (route === '/api/rules') {
+diff --git a/app/tasks/scheduler.mjs b/app/tasks/scheduler.mjs
+--- a/app/tasks/scheduler.mjs
++++ b/app/tasks/scheduler.mjs
+@@ -1,3 +1,5 @@
++import {r141Module,r141Now,r141Emit,payloadFacts,r141Bind,r141Endpoint,r141SetPeek,r141Peek} from '../r141-observer.mjs';
++r141Module(import.meta.url,'scheduler');
+ import { Worker } from 'node:worker_threads';
+ import { ProcessWorker } from './process-worker.mjs';
+ import { createHash } from 'node:crypto';
+@@ -77,6 +79,7 @@
+   const foreground = await createWorkerLane({ ...options, maxPrewarmQueue, signal });
+   const unlockResults = createUnlockResultCache({ limit: predictionCacheLimit, byteLimit: Math.floor(predictionCacheBytes / 2) });
+   let death, prediction, duo, closed = false, closePromise, latestRevision = -1;
++  r141SetPeek(()=>{const f=foreground.getHealth(),p=prediction?.getHealth();if(!p)throw new Error('R141 prediction health unavailable at dispatch');return {foregroundReady:f.ready,foregroundResident:f.resident,foregroundRetiring:f.retiring,predictionReady:p.ready,predictionResident:p.resident,predictionRetiring:p.retiring};});
+   // Claims/preferences advance HTTP revisions while retaining task identities.
+   let taskRevision = -1, savedPredictionSourceRevision = -1;
+   const listeners = new Set();
+@@ -526,6 +529,7 @@
+     if (closed || status !== 'ready' || active) { if (entry) (entry.warm ? warmQueue : queue).unshift(entry); return; }
+     if (!entry) return;
+     active = entry; entry.startedAt = idleClock.now(); entry.id = ++sequence;
++    if(entry.type==='chunk-planning')r141Emit('scheduler-dispatch',{endpoint:r141Endpoint(worker),lane:retainActivePrediction?'prediction':'foreground',queueMs:entry.startedAt-entry.queuedAt,generation,queueDepth:queue.length,warmDepth:warmQueue.length,cacheEntries:cache.size,resident:!!worker,retiring:terminating.size,...r141Peek()});
+     entry.cancellation = new SharedArrayBuffer(4);
+     entry.sourceRevision = entry.state.revision;
+     if (entry.type === 'predict') {
+@@ -555,12 +559,15 @@
+       stateMemberIds: entry.state.members.map(member => member.id), stateJSONBytes: entry.stateInput.stateJSON.byteLength,
+       ...(fresh ? { stateJSON: entry.stateInput.stateJSON } : {}) } : {};
+     entry.snapshotKey = snapshotKey;
++    if(entry.type==='chunk-planning')r141Emit('dispatch-transport',{endpoint:r141Endpoint(worker),fresh,serialized:!!entry.stateInput,sharedBody:serialized.stateJSON!==undefined,stateObject:state!==undefined,referenceOnly:state===undefined&&serialized.stateJSON===undefined});
++    const r141PostAt=entry.type==='chunk-planning'?r141Now():undefined;
+     try { worker.postMessage({ id: entry.id, type: entry.type, reportProgress: true, state, snapshotKey, input: entry.input, memberId: entry.memberId, chunkId: entry.chunkId, chunkIds: entry.chunkIds, cancellation: entry.cancellation,
+       ...(entry.type === 'predict' ? { predictionProgress: true } : {}), ...serialized,
+       ...(entry.type === 'evaluate' ? { resultTransport: 'json-shared-v1', resultView: entry.resultView,
+         ...(duoResults && entry.resultView === 'play-v1' ? { duoProjection: true } : {}),
+         ...(entry.duoSidebarProjection ? { duoSidebarProjection: true } : {}) }
+         : entry.type === 'sandbox' ? { resultTransport: 'json-shared-v1' } : {}) });
++      if(entry.type==='chunk-planning')r141Emit('dispatch-post',{endpoint:r141Endpoint(worker),spanMs:r141Now()-r141PostAt});
+       if (snapshotKey) { sentSnapshots.delete(snapshotInput); sentSnapshots.set(snapshotInput, fresh ? { kind: entry.stateInput ? 'json-shared-v1' : 'object', revision: entry.state.revision } : sent); while (sentSnapshots.size > STATE_SNAPSHOT_LIMIT) sentSnapshots.delete(sentSnapshots.keys().next().value); }
+     }
+     catch { failure('worker-send'); }
+@@ -583,6 +590,7 @@
+     worker.on('message', message => {
+       if (ownGeneration !== generation || closed) return;
+       if (message.type === 'ready') {
++        r141Emit('scheduler-ready',{endpoint:r141Endpoint(worker),lane:retainActivePrediction?'prediction':'foreground',generation,...payloadFacts(message)});
+         if (workerData?.datasetDigest && (message.datasetDigest !== undefined || workerFactory === nativeWorker)
+           && message.datasetDigest !== workerData.datasetDigest) { failure('dataset-mismatch'); return; }
+         clearTimeout(startupTimer); status = 'ready';
+diff --git a/app/tasks/worker.mjs b/app/tasks/worker.mjs
+--- a/app/tasks/worker.mjs
++++ b/app/tasks/worker.mjs
+@@ -1,3 +1,5 @@
++import {r141Module,r141Now,r141Emit,payloadFacts,r141Bind,r141Endpoint,r141SetPeek,r141Peek} from '../r141-observer.mjs';
++r141Module(import.meta.url,'worker');
+ import { startupPhase } from '../startup-timing.mjs';
+ import { prepareWorkerDefinitions } from '../dataset-pipeline.mjs';
+ import { selectedDataset } from '../dataset-runtime.mjs';
+@@ -30,7 +32,9 @@
+ // Definitions compile once in this isolated worker. Evaluation never runs on
+ // the HTTP/save event loop and receives a structured-cloned state snapshot.
+ if (workerData.datasetDigest && workerData.datasetDigest !== selectedDataset.digest) throw new Error('Worker dataset digest mismatch.');
++const r141DefinitionsAt=r141Now();
+ const definitions = prepareWorkerDefinitions(takeDefinitions(), selectedDataset, workerData.preparedDatasetStages, workerData.datasetOptions);
++r141Emit('worker-definitions',{spanMs:r141Now()-r141DefinitionsAt});
+ // Parse once and drop the transfer input. A process worker owns the only other
+ // copy of those bytes, which would otherwise stay resident for its lifetime.
+ function takeDefinitions() {
+@@ -71,6 +75,7 @@
+ const houseStorageCatalogue = engine.catalogue.filter(row => row.kind === 'house-storage').map(({ slotId, ...identity }) => identity);
+ const derivedIds = new Set([...equipmentCatalogue, ...collectionEngine.catalogue, ...houseStorageCatalogue, ...generatedTaskCatalogue].map(row => row.id));
+ const sandboxCatalogue = [...engine.catalogue, ...equipmentCatalogue, ...collectionEngine.catalogue, ...houseStorageCatalogue, ...generatedTaskCatalogue];
++r141Emit('worker-catalogues',{spanMs:r141Now()-compileStarted,engineRows:engine.catalogue.length,equipmentRows:equipmentCatalogue.length,collectionRows:collectionEngine.catalogue.length,houseRows:houseStorageCatalogue.length,generatedRows:generatedTaskCatalogue.length});
+ const sandboxTaskIndexes = new WeakMap();
+ const progressRequests = new WeakMap();
+ function timed(timingMs, stage, operation) {
+@@ -145,6 +150,7 @@
+ // Keep two coherent member/input results. Each retains a complete graph,
+ // including collections and equipment goals; older revisions can be rebuilt.
+ // This bound is independent of the state-transfer LRU below.
++let r141Planning=false;
+ const snapshots = new Map();
+ const stateSnapshots = new Map();
+ let latestRevision = -1;
+@@ -156,10 +162,13 @@
+ function snapshotFor(state, memberId, timingMs, input, includeViews = true) {
+   const key = JSON.stringify(calculationKey(state, memberId, input));
+   let snapshot = snapshots.get(key), hit = !!snapshot;
++  if(r141Planning)r141Emit('worker-baseline',{hit,indexPresent:!!snapshot?.planningIndex,snapshotCount:snapshots.size});
+   if (!snapshot) {
+     // Release the oldest graph before allocating its replacement.
+     while (snapshots.size >= 2) snapshots.delete(snapshots.keys().next().value);
++    const r141EvaluateAt=r141Planning?r141Now():undefined;
+     snapshot = { baseline: evaluateFull(state, memberId, { includeViews, timingMs }), includeViews, estimates: new Map() };
++    if(r141Planning)r141Emit('worker-evaluate',{spanMs:r141Now()-r141EvaluateAt});
+   }
+   else if (includeViews && !snapshot.includeViews) {
+     // Advisory lanes need the complete obligations, but not the separate BiS
+@@ -180,10 +189,15 @@
+   });
+ }
+ function chunkPlanningFor(snapshot, chunkId) {
++  const r141IndexHit=!!snapshot.planningIndex,r141IndexAt=r141Now();
+   const index = snapshot.planningIndex ??= buildChunkPlanningIndex(definitions, snapshot.baseline, workerData.world);
+-  return { format: 'chunk-planning-v1', chunkId, rows: [...(index.byLocation.get(String(chunkId))?.values() ?? [])].map(({ task, evidence }) => ({
++  r141Emit('worker-index',{hit:r141IndexHit,spanMs:r141Now()-r141IndexAt});
++  const r141ProjectionAt=r141Now();
++  const result = { format: 'chunk-planning-v1', chunkId, rows: [...(index.byLocation.get(String(chunkId))?.values() ?? [])].map(({ task, evidence }) => ({
+     task: { ...projectPlayTask(task, { retainHiddenDisplay: true }), ...(task.record?.ClueTier !== undefined ? { record: { ClueTier: task.record.ClueTier } } : {}) }, evidence,
+   })), clueLocations: index.clueLocations.get(String(chunkId)) ?? [], access: snapshot.baseline.access };
++  r141Emit('worker-projection',{spanMs:r141Now()-r141ProjectionAt,rows:result.rows.length,clueLocations:result.clueLocations.length});
++  return result;
+ }
+ const sandboxSnapshots = new Map();
+ function sandboxFor(state, memberId, draft, timingMs, input) {
+@@ -299,6 +313,7 @@
+   if (type === 'cancel') { if (requests.has(id)) requests.get(id).cancelled = true; return; }
+   if (type === 'supersede') { latestRevision = Math.max(latestRevision, revision); return; }
+   const started = performance.now();
++  r141Planning=type==='chunk-planning';const r141InputAt=r141Planning?r141Now():undefined,r141HadState=state!==undefined;
+   // Fixed stage names and durations never expose personal state.
+   const timingMs = { engineMs: 0, collectionMs: 0, equipmentMs: 0, presentationMs: 0, currentBiSMs: 0, activityMs: 0, predictionMs: 0, deathMs: 0, totalMs: 0 };
+   if (reportProgress) progressRequests.set(timingMs, { id, at: started });
+@@ -325,6 +340,7 @@
+       while (stateSnapshots.size > STATE_SNAPSHOT_LIMIT) stateSnapshots.delete(stateSnapshots.keys().next().value);
+     }
+     latestRevision = Math.max(latestRevision, state.revision);
++    if(r141Planning)r141Emit('worker-input',{spanMs:r141Now()-r141InputAt,transport:stateTransport==='json-shared-v1'?(stateJSON!==undefined?'json-full':'json-reference'):snapshotKey!==undefined&&!r141HadState?'snapshot-reference':'object'});
+     let result, unlockReuse, partnerUnlockReuse;
+     if (type === 'prepare-rules') {
+       timed(timingMs, 'preparationMs', () => engine.prepare(state.rules));
+@@ -396,11 +412,13 @@
+         ...(duoSidebarProjection && duoSidebarJSON ? { duoSidebarJSON } : {}), cancelled: !!result.cancelled }
+       : { result };
+     timingMs.totalMs = performance.now() - started;
++    const r141SendAt=r141Planning?r141Now():undefined;
+     parentPort.postMessage({ id, ...payload, ...(unlockReuse ? { unlockReuse } : {}), ...(partnerUnlockReuse ? { partnerUnlockReuse } : {}), evaluationMs: timingMs.totalMs, timingMs });
++    if(r141Planning)r141Emit('worker-post',{spanMs:r141Now()-r141SendAt,totalMs:timingMs.totalMs});
+   } catch (error) {
+     timingMs.totalMs = performance.now() - started;
+     parentPort.postMessage({ id, error: { name: error.name, message: error.message }, evaluationMs: timingMs.totalMs, timingMs });
+-  } finally { requests.delete(id); }
++  } finally { if(type==='chunk-planning')r141Planning=false;requests.delete(id); }
+ });
+ 
+ // Module dependencies include top-level await. Let ESM finish its fulfillment
+@@ -412,7 +430,12 @@
+ // One structured-clone byte string crosses thread and process boundaries as a
+ // copy; a graph would be cloned, walked and cloned again on every hop.
+ setImmediate(() => {
++  const r141BuildAt=r141Now();
++  const r141SerializeAt=r141Now();
+   const dynamicCatalogueBytes = serialize([...collectionEngine.catalogue, ...houseStorageCatalogue, ...generatedTaskCatalogue]);
+-  parentPort.postMessage({ type: 'ready', datasetDigest: selectedDataset.digest,
+-    catalogue: [...engine.catalogue.filter(row => row.kind !== 'house-storage'), ...equipmentCatalogue], dynamicCatalogueBytes, compileMs });
++  const r141SerializeMs=r141Now()-r141SerializeAt;
++  const ready={ type: 'ready', datasetDigest: selectedDataset.digest,
++    catalogue: [...engine.catalogue.filter(row => row.kind !== 'house-storage'), ...equipmentCatalogue], dynamicCatalogueBytes, compileMs };
++  r141Emit('worker-ready',{...payloadFacts(ready),omitFlag:false,serializationObserved:true,serializationMs:r141SerializeMs,buildMs:r141Now()-r141BuildAt});
++  parentPort.postMessage(ready);
+ });
+diff --git a/app/tasks/process-worker.mjs b/app/tasks/process-worker.mjs
+--- a/app/tasks/process-worker.mjs
++++ b/app/tasks/process-worker.mjs
+@@ -1,3 +1,5 @@
++import {r141Module,r141Now,r141Emit,payloadFacts,r141Bind,r141Endpoint,r141SetPeek,r141Peek} from '../r141-observer.mjs';
++r141Module(import.meta.url,'process-worker');
+ import { fork } from 'node:child_process';
+ import { EventEmitter } from 'node:events';
+ import { fileURLToPath } from 'node:url';
+@@ -21,14 +23,23 @@
+     // Serialization failures must occur before a child is created.
+     const data = encodeProcessMessage(workerData);
+     this.#exitPromise = new Promise(resolve => { this.#resolveExit = resolve; });
++    const r141Id=r141Bind(this),r141ForkAt=r141Now();
+     this.#child = fork(fileURLToPath(new URL('./process-worker-host.mjs', import.meta.url)), [], {
+       // The relay host collects its own garbage (relay-collector.mjs).
+       execArgv: [...process.execArgv, '--expose-gc'],
++      env: {...process.env,R141_ENDPOINT_ID:String(r141Id)},
+       serialization: 'advanced', stdio: ['ignore', 'ignore', 'ignore', 'ipc'], windowsHide: true,
+     });
++    this.#child.once('spawn',()=>r141Emit('parent-spawn',{endpoint:r141Id,spanMs:r141Now()-r141ForkAt}));
++    let r141FirstNative=true;
+     this.#child.on('message', message => {
++      if(r141FirstNative){r141FirstNative=false;r141Emit('parent-first-native',{endpoint:r141Id,spanMs:r141Now()-r141ForkAt});}
+       try {
+-        if (message.kind === 'message') this.emit('message', decodeReceivedProcessMessage(message.payload));
++        if (message.kind === 'message') {
++          const decoded=decodeReceivedProcessMessage(message.payload);
++          if(decoded.type==='ready')r141Emit('parent-ready',{endpoint:r141Id,spanMs:r141Now()-r141ForkAt,...payloadFacts(decoded),compileMs:decoded.compileMs});
++          this.emit('message',decoded);
++        }
+         else if (message.kind === 'error') this.#fail(Object.assign(new Error(message.error.message), message.error));
+         else if (message.kind === 'memory') {
+           const request = this.#memory.get(message.id);
+diff --git a/app/tasks/process-worker-host.mjs b/app/tasks/process-worker-host.mjs
+--- a/app/tasks/process-worker-host.mjs
++++ b/app/tasks/process-worker-host.mjs
+@@ -1,3 +1,5 @@
++import {r141Module,r141Now,r141Emit,payloadFacts,r141Bind,r141Endpoint,r141SetPeek,r141Peek} from '../r141-observer.mjs';
++r141Module(import.meta.url,'process-worker-host');
+ import { Worker, MessageChannel } from 'node:worker_threads';
+ import { encodeReceivedWorkerMessage, decodeReceivedProcessMessage } from './process-worker-transport.mjs';
+ import { createRelayCollector, envelopeBytes } from './relay-collector.mjs';
+@@ -7,9 +9,9 @@
+ const cancellations = new Map();
+ const relay = createRelayCollector();
+ 
+-function send(message) {
++function send(message,r141Event,r141Started) {
+   if (!process.connected) return;
+-  try { process.send(message, error => { if (error) void stop(1); }); }
++  try { process.send(message, error => { if(r141Event)r141Emit(r141Event,{spanMs:r141Now()-r141Started});if (error) void stop(1); }); }
+   catch { void stop(1); }
+ }
+ 
+@@ -63,6 +65,7 @@
+       if (worker) throw new Error('Task worker process was initialized twice.');
+       const probeImport = message.probeImport ?? process.env.RS3_WORKER_MEMORY_PROBE_IMPORT;
+       probeEnabled = !!probeImport;
++      const r141ThreadAt=r141Now();
+       worker = new Worker(new URL('./worker.mjs', import.meta.url), {
+         workerData: decodeReceivedProcessMessage(message.data), resourceLimits: TASK_WORKER_RESOURCE_LIMITS,
+         // Diagnostic preloads need an explicit list. Native inheritance filters
+@@ -70,8 +73,10 @@
+         ...(probeEnabled ? { execArgv: ['--import', probeImport] } : {}),
+       });
+       worker.on('message', result => {
++        const r141Kind=result.type==='ready'?'host-ready-callback':result.result?.format==='chunk-planning-v1'?'host-planning-callback':undefined,r141ForwardAt=r141Kind?r141Now():undefined;
++        if(result.type==='ready')r141Emit('host-ready',{spanMs:r141Now()-r141ThreadAt,...payloadFacts(result)});
+         if (result.id !== undefined && !['progress', 'prediction-prepared'].includes(result.type)) cancellations.delete(result.id);
+-        try { const payload = encodeReceivedWorkerMessage(result); send({ kind: 'message', payload }); relay.note(envelopeBytes(payload)); }
++        try { const payload = encodeReceivedWorkerMessage(result); send({ kind: 'message', payload },r141Kind,r141ForwardAt); relay.note(envelopeBytes(payload)); }
+         catch (error) { fail(error); }
+       });
+       worker.on('error', fail);

@@ -1,0 +1,39 @@
+{
+  "schema": "r141-shared-integration-controls-v1",
+  "status": "SOURCE_READY_PURE_CONTROLS_PASSED",
+  "runtime": "UNRUN",
+  "innerManifestSha256": "94975a1dd77befd33995bbdc00fbc3303a6fb0ef5df5b30518fe681b4096e9c6",
+  "mappedRuntimeFileCount": 20,
+  "mappedRuntimeBytes": 138513,
+  "mappedByteHashMismatches": 0,
+  "canonicalStageMappedFileCount": 20,
+  "canonicalStageByteHashMismatches": 0,
+  "controls": ["test_r141_projection.py", "test_r141_acceptance.mjs"],
+  "sourceSyntax": {"pythonAstPassed": true, "nodeCheckPassed": true},
+  "pureVerification": {
+    "layout": "pure-public-layout/docs/research/codex-cloud-runner",
+    "python": {"command": ["python", "-B", "-m", "unittest", "-q", "test_r141_projection.py"], "tests": 6, "passed": 6, "exitCode": 0},
+    "node": {"command": ["node", "--max-old-space-size=128", "--test", "test_r141_acceptance.mjs"], "tests": 10, "passed": 10, "exitCode": 0},
+    "externalTimeoutSecondsPerSuite": 15,
+    "sanitizerNodeHeapMiB": 128,
+    "sanitizerNodeTimeoutSecondsPerProcess": 8,
+    "sourceAndStagedTestHashesMatch": true,
+    "testSha256": {
+      "test_r141_projection.py": "fbcb393d26fa6fe1a19cd675da96af9aceb378836b9526c0a5e0b88e7e97e7da",
+      "test_r141_acceptance.mjs": "ef60bf00aa4f654dbd224857c725bde217ed476590d1e4b3e792827d6fdf3ae9"
+    }
+  },
+  "contract": {
+    "metricAllowlistCount": 128,
+    "minimumActualMetricCount": 125,
+    "maximumActualMetricCount": 127,
+    "booleanScalarCount": 7,
+    "candidateReadySerialization": "absent",
+    "evaluateFullSpan": "present exactly on a baseline miss",
+    "acceptance": false,
+    "performanceAcceptance": false,
+    "productAcceptance": false,
+    "allFinalGates": "OPEN"
+  },
+  "scope": "Pure actual Python and Node sanitizer parity plus mapped host acceptance; no application, controller, provider, browser or measurement execution."
+}

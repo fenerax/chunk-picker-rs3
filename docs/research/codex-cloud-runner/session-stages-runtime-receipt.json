@@ -1,0 +1,27 @@
+{
+  "schema": "session-stages-runtime-receipt-v1",
+  "publicationBaseCommit": "4f4fd01204a0d54ce2bd4dbdeff29fdce18ceaf8",
+  "publicationBaseManifestSha256": "bc81002b98a249ee9db3ef46a031dde02387c1c0808e80108687778ecb16aba7",
+  "cases": [
+    {
+      "job": "r140-unshaped-baseline",
+      "sourceManifest": "../../r140-unshaped-lifecycle-ready/runtime-publication-manifest.json",
+      "sourceManifestSha256": "85bd24a945379d7cb94884d7531cd9fa13008d33d750aa3d89ad5724f4d7aaac",
+      "fullMappedFiles": 20,
+      "runtimeBytes": 133032,
+      "innerManifestSha256": "33f7343825a6dd67a077e1ed8fe94a1c4e4ccd7ceab54116fb204b19c3965584"
+    },
+    {
+      "job": "r141-planning-stages",
+      "sourceManifest": "../../r141-planning-stages-ready/publication-manifest.json",
+      "sourceManifestSha256": "0d772bca45b836b95d2dab5a343140d2765dd2f834869938a9324a95bc8b9a83",
+      "fullMappedFiles": 20,
+      "runtimeBytes": 138513,
+      "innerManifestSha256": "94975a1dd77befd33995bbdc00fbc3303a6fb0ef5df5b30518fe681b4096e9c6"
+    }
+  ],
+  "allMappedBytesVerified": true,
+  "fullMappedFiles": 40,
+  "fullMappedBytes": 271545,
+  "runtime": "UNRUN"
+}

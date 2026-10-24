@@ -1,0 +1,105 @@
+{
+  "schema": "r140-runtime-source-slice-v1",
+  "sourcePin": "6f22fefa782747790e2eaefa01e4e5ea7b557323",
+  "profile": "UNSHAPED_0_ADDED_LATENCY",
+  "artificialDelayMs": 0,
+  "observer": "unchanged synchronous checkpoints; overhead included",
+  "purpose": "Explicit independent unshaped lifecycle observation, never a fallback or40ms performance acceptance.",
+  "files": [
+    {
+      "path": "candidate/harness/container-bridge.mjs",
+      "bytes": 16254,
+      "sha256": "03b706edb2583d09638aaa85e8a18a06ba42ebe36b54dd65a4743e1a6ef7ee6d"
+    },
+    {
+      "path": "candidate/harness/container-result.mjs",
+      "bytes": 5171,
+      "sha256": "ed0f2312a653980a8b2eb5d70defa00c56df51a2773932df388411c8a96fc44d"
+    },
+    {
+      "path": "candidate/harness/contract.mjs",
+      "bytes": 1435,
+      "sha256": "fe746691818f77078a3a46e446e53941ec8704cda7244a7e1be663194475561c"
+    },
+    {
+      "path": "candidate/harness/delay.mjs",
+      "bytes": 1370,
+      "sha256": "24aeb421c2ca1f48294dd01d91eb0fa82af9a4982e7979d0e599254044b073e1"
+    },
+    {
+      "path": "candidate/harness/diagnostic.mjs",
+      "bytes": 5072,
+      "sha256": "7d84e92f232da6ec260fb893da706996dde1edcd93325e9cb297c8a127471508"
+    },
+    {
+      "path": "candidate/harness/evidence-vectors.mjs",
+      "bytes": 5415,
+      "sha256": "ae9033c68cb7a33f3af7e132496ca0849c974589643746803f8273100e071c15"
+    },
+    {
+      "path": "candidate/harness/fixture.json",
+      "bytes": 711,
+      "sha256": "a672a1f9b5de6a699a18c26c5fad6fe477a5e37d05c75f115f425a8a3f789b09"
+    },
+    {
+      "path": "candidate/harness/health-admission.mjs",
+      "bytes": 3889,
+      "sha256": "adc6e4403bc38fe956c146affb80683437ddbd03b0fd87b5bfc3a169a15688ba"
+    },
+    {
+      "path": "candidate/harness/metrics.mjs",
+      "bytes": 1733,
+      "sha256": "324a3834fc44d9b0263ac1d1df8502557eadae12069d0f4b46d8d71fd3d465cd"
+    },
+    {
+      "path": "candidate/harness/navigation-epochs.mjs",
+      "bytes": 6007,
+      "sha256": "611425f0cf1ab2ab79f2c0e051f22be070cd211c7bb3c5ef90d2bbd202c3645c"
+    },
+    {
+      "path": "candidate/harness/network.mjs",
+      "bytes": 13932,
+      "sha256": "3907cfffecf13afcd0b4929961232e064f8b08ad582139fca6900fadb801595d"
+    },
+    {
+      "path": "candidate/harness/probe.mjs",
+      "bytes": 2644,
+      "sha256": "fe3b11d1bf76439ab17d08fd4b92c6bc555fad2f2668b1bbf521777913b3b63a"
+    },
+    {
+      "path": "candidate/harness/rtt-evidence.mjs",
+      "bytes": 1990,
+      "sha256": "579b4ebf5185d59dba4a69a55dbdd9f7ef0c0bc33fda85385184e6f029b8b40d"
+    },
+    {
+      "path": "candidate/harness/run-container-session.mjs",
+      "bytes": 8523,
+      "sha256": "aaf26e821728cf4d56c70e47db434fa836cfcccb8ecbbc81195fc74284a6466f"
+    },
+    {
+      "path": "candidate/harness/server.mjs",
+      "bytes": 4786,
+      "sha256": "104c76ec6f9914cfe6d583665c68d0bd0b804c960249f6b40b8bf0dcf12579e1"
+    },
+    {
+      "path": "candidate/harness/session-protocol.mjs",
+      "bytes": 3835,
+      "sha256": "52f8691fd7f0e02df09d75699e3b2e8fb71fd833971b85cacefa8de9766d2bd3"
+    },
+    {
+      "path": "candidate/harness/session.mjs",
+      "bytes": 29588,
+      "sha256": "5e0030af5ae688d1d7ed866c399ca9eb555ce1103462109185023e655ae8a270"
+    },
+    {
+      "path": "host/rtt_vector_policy.py",
+      "bytes": 1548,
+      "sha256": "cf2532e5183d5a9572965c7993e3ffe2a4a3fb0399e333bcf651448fd67f1777"
+    },
+    {
+      "path": "sources/network-ledger-overlay/ledger.mjs",
+      "bytes": 15551,
+      "sha256": "2bd14431eac9114b37ae7a19793dfa94a3d3288dd3a64e8865ac8363c859febe"
+    }
+  ]
+}
