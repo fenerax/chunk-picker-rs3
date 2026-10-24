@@ -116,7 +116,12 @@
     "r111ErrorStackSha256",
     "r111ChildStdoutSha256",
     "r111ChildStderrSha256",
-    "r134FailureStackSha256"
+    "r134FailureStackSha256",
+    "r139HarnessManifestSha256",
+    "r139BaselineClientSha256",
+    "r139CandidateClientSha256",
+    "r139LedgerSha256",
+    "r139ErrorStackSha256"
   ],
   "enums": {
     "schema": [
@@ -129,7 +134,9 @@
       "r131-borrow-native-v1",
       "r134-engine-performance-v1",
       "r135-http-component-v1",
-      "r138-http-component-v1"
+      "r138-http-component-v1",
+      "r116-app-close-diagnostic-v1",
+      "r139-body-lifecycle-v1"
     ],
     "mode": [
       "r116-frozen-input-v1",
@@ -137,7 +144,9 @@
       "r124-engine-api-v1",
       "r125-alpha-personal-controlled-v1",
       "r111-public-duo-session-v2",
-      "r134-owner-evaluate-screen-v1"
+      "r134-owner-evaluate-screen-v1",
+      "r116-close-phases-observation-v1",
+      "r139-five-case-component-v1"
     ],
     "status": [
       "correct",
@@ -414,7 +423,10 @@
       "opening-section-ready-timeout",
       "cleanup-incomplete",
       "scratch-cleanup-incomplete",
-      "r138-screen-complete"
+      "r138-screen-complete",
+      "r116-close-observation-complete",
+      "r139-observation-complete",
+      "r139-operation-failed"
     ],
     "strictR79Code": [
       "all-arm-blocked",
@@ -2102,6 +2114,85 @@
       "dialog",
       "other",
       "unknown"
+    ],
+    "r139FailureOperation": [
+      "entry-admit",
+      "manifest-verify",
+      "runtime-verify",
+      "source-verify",
+      "fixture-listen",
+      "browser-launch",
+      "browser-version",
+      "cdp-attach",
+      "navigation",
+      "module-load",
+      "setup-drain",
+      "policy-issue",
+      "checkpoint",
+      "body-survey",
+      "validate",
+      "network-event",
+      "http-request",
+      "page-error",
+      "page-crash",
+      "browser-disconnected",
+      "cleanup-cdp",
+      "cleanup-browser",
+      "cleanup-http",
+      "write-result",
+      "deadline"
+    ],
+    "r139ErrorName": [
+      "Error",
+      "TypeError",
+      "RangeError",
+      "AssertionError",
+      "TimeoutError",
+      "unknown"
+    ],
+    "r139ErrorCode": [
+      "ENOENT",
+      "EACCES",
+      "EPERM",
+      "EADDRINUSE",
+      "ERR_ASSERTION",
+      "ERR_MODULE_NOT_FOUND",
+      "manifest-argument",
+      "manifest-sha",
+      "manifest-shape",
+      "manifest-member",
+      "manifest-member-sha",
+      "manifest-closure",
+      "runtime-pin",
+      "runtime-executable",
+      "node-sha",
+      "package-browser-pin",
+      "pinned-module-sha",
+      "source-module-sha",
+      "fresh-output",
+      "trace-cap",
+      "unexpected-http",
+      "server-case-identity",
+      "payload-cap",
+      "payload-identity",
+      "socket-cap",
+      "browser-version",
+      "request-epoch",
+      "response-request-identity",
+      "terminal-request-identity",
+      "post-path",
+      "pre-navigation-coverage",
+      "setup-network",
+      "response-url-identity",
+      "response-status-identity",
+      "observational-coverage",
+      "result-cap",
+      "fixture-listen",
+      "cdp-detach",
+      "browser-close",
+      "http-close",
+      "r139-deadline",
+      "unknown"
     ]
   },
   "metricKeys": [
@@ -2416,7 +2507,28 @@
     "focusTabRecordCount",
     "focusTabMalformedRecordCount",
     "focusTabBeforeBCount",
-    "focusTabAfterPendingBCount"
+    "focusTabAfterPendingBCount",
+    "r139ElapsedMs",
+    "r139TraceRows",
+    "r139TraceBytes",
+    "r139WindowMs",
+    "r139WindowStartMs",
+    "r139CutoffMs",
+    "r139CheckpointCapturedMs",
+    "r139CaseCount",
+    "r139CoverageTargets",
+    "r139LedgerFaultCount",
+    "r139LedgerDropped",
+    "r139LedgerPendingWrites",
+    "r139PreClosePersisted",
+    "r139CutoffObservedLateUs",
+    "r139FinitePendingAtCutoff",
+    "r139UnknownBodyUsedAtSurvey",
+    "r139ClosedPages",
+    "r139DetachedSessions",
+    "r139BrowserCloseCompleted",
+    "r139ServerCloseCompleted",
+    "r139OpenFixtureSockets"
   ],
   "scope": {
     "memberId": [
@@ -2487,11 +2599,12 @@
     "test_accept_r130_requires_both_backend_statuses",
     "test_accept_r131_requires_all_ten_intents_both_modes_and_real_proof_counts",
     "test_accept_wrong_schema_rejected",
-    "test_all_four_actual_full_runtime_maps_and_member_bytes",
     "test_all_seven_gates_stay_open",
     "test_allowed_cpu_list",
     "test_bad_cpu_range",
     "test_bad_security_rejected",
+    "test_booleans_fractions_range_and_strings_are_not_admitted_as_integer_facts",
+    "test_both_observation_actual_full_runtime_maps_and_member_bytes",
     "test_both_setup_failures_use_closed_diagnostics",
     "test_both_workflow_recipes_use_distinct_empty_npm_configs",
     "test_bounded_reader_rejects_nonregular_before_read",
@@ -2504,6 +2617,7 @@
     "test_cleanup_refuses_partial_id",
     "test_cleanup_refuses_wrong_owner",
     "test_cleanup_removes_before_log_failure",
+    "test_closed_nested_types_drop_private_unknown_and_bool_numbers",
     "test_compaction_and_malformed_json_lines_preserve_unknown",
     "test_complete_empty_partial_and_null_values_have_exact_js_python_parity",
     "test_complete_legacy_broad_scope_is_not_a_new_canonical40plusminus2_gate",
@@ -2533,12 +2647,14 @@
     "test_extra_bind_rejected",
     "test_failed_partial_evidence_is_preserved_without_zero_substitution_or_promotion",
     "test_first_sample_at_15000_is_within_start_boundary",
+    "test_fixed_nested_maximum_shape_fits_case_and_inner_frame_caps",
+    "test_healthy_five_case_projected_contract_and_nulls_have_exact_python_js_parity",
     "test_image_content_mismatch_rejected",
     "test_js_to_python_exact_parity_empty_complete_and_maximum",
     "test_known_admission",
     "test_main_actual_frozen_592crlf_workflow_with_real15_r131_assets",
     "test_main_failure_phase_job_and_ordinal_never_echo_paths",
-    "test_main_raw_lf_and_crlf_all_four_exact_public_asset_closures",
+    "test_main_raw_lf_and_crlf_both_observation_exact_public_asset_closures",
     "test_malformed_evidence_rejected_by_helpers_and_both_actual_sanitizers",
     "test_missing_and_malformed_envelope_returns_false",
     "test_missing_duplicate_wrong_kind_and_wrong_actor_journeys",
@@ -2547,8 +2663,9 @@
     "test_missing_required_rtt_fails_atomically_and_other_schema_stays_unchanged",
     "test_near_maximum_actual_case_and_envelope_fit",
     "test_never_started_negative_skips_wait",
-    "test_next_four_case_wave_retains_controls_and_disables_other_cases",
+    "test_nullable_body_used_is_never_false_or_zero_substituted",
     "test_numeric_type_range_and_null_count_rejections",
+    "test_observation_schema_preserves_false_identity_nulls_and_nested_phases_both",
     "test_observed_wrong_prefix_and_same_basename_are_rejected",
     "test_old_schema_projection_ignores_new_vectors_and_private_objects",
     "test_old_two_endpoint_evidence_rejected",
@@ -2602,9 +2719,11 @@
     "test_strict_timestamps_unique_buckets_and_endpoint_coverage",
     "test_strict_vector_schema_null_counts_and_private_fields",
     "test_timestamp_and_latency_nonfinite_or_boolean_values_rejected",
+    "test_two_observation_jobs_retain_controls_and_disable_all_previous_cases",
     "test_unexpected_environment_rejected",
     "test_unexpected_keys_labels_and_secrets_are_omitted_from_both",
     "test_unknown_docker_verb_is_fixed",
+    "test_unknown_fields_wrong_nested_types_and_labels_are_dropped",
     "test_valid_blocked_observation_with_121_points_and_null_latencies",
     "test_valid_cid_never_reads_cidfile",
     "test_valid_minimum_110_points_without_long_gaps",
@@ -3713,6 +3832,1747 @@
       },
       "r138PacketManifestSha256": {
         "type": "sha256-or-null"
+      }
+    },
+    "r116-app-close-diagnostic-v1": {
+      "failureOperation": {
+        "enum": [
+          "entry-setup",
+          "node-version",
+          "harness-verify",
+          "fixture-read",
+          "source-verify",
+          "source-lock-write",
+          "reference-root-create",
+          "reference-child-start",
+          "reference-child-ready",
+          "reference-witness-begin",
+          "reference-snapshot-before",
+          "reference-http-fetch",
+          "reference-body-parse",
+          "reference-playwright-load",
+          "reference-browser-launch",
+          "reference-browser-version",
+          "reference-context-create",
+          "reference-adapter-install",
+          "reference-origin-route-install",
+          "reference-page-create",
+          "reference-main-route-install",
+          "reference-main-fetch",
+          "reference-main-read",
+          "reference-main-instrument",
+          "reference-main-fulfill",
+          "reference-navigation",
+          "reference-context-wait",
+          "reference-open-chunk",
+          "reference-tasks-click",
+          "reference-summary-wait",
+          "reference-summary-open-read",
+          "reference-summary-click",
+          "reference-all-chip-wait",
+          "reference-map-read",
+          "reference-projection-build",
+          "reference-browser-close",
+          "reference-snapshot-before-all",
+          "reference-snapshot-after-frames",
+          "reference-witness-finish",
+          "reference-identity",
+          "reference-child-close",
+          "reference-page-error",
+          "measured-root-create",
+          "measured-store-copy",
+          "measured-playwright-load",
+          "measured-browser-launch",
+          "measured-browser-version",
+          "measured-child-start",
+          "measured-child-ready",
+          "measured-source-identity",
+          "measured-store-copy-identity",
+          "measured-dataset-identity",
+          "relay-start",
+          "measured-context-create",
+          "measured-adapter-install",
+          "measured-page-create",
+          "measured-network-ledger",
+          "measured-origin-route-install",
+          "measured-main-route-install",
+          "measured-main-fetch",
+          "measured-main-read",
+          "measured-main-instrument",
+          "measured-main-fulfill",
+          "measured-navigation",
+          "measured-context-wait",
+          "measured-instrumentation-count",
+          "measured-page-error",
+          "overlay-create",
+          "overlay-response-parse",
+          "overlay-page-create",
+          "overlay-network-ledger",
+          "overlay-navigation",
+          "overlay-content-wait",
+          "overlay-content-read",
+          "overlay-content-verify",
+          "measured-page-foreground",
+          "measured-open-chunk",
+          "measured-witness-begin",
+          "measured-snapshot-before",
+          "measured-input-verify",
+          "opening-arm",
+          "opening-tasks-click",
+          "opening-summary-wait",
+          "opening-summary-open-read",
+          "opening-summary-click",
+          "opening-transition-wait",
+          "all-expectation-build",
+          "contrast-wait",
+          "contrast-click",
+          "measured-snapshot-before-all",
+          "native-view-read",
+          "native-scope-verify",
+          "all-arm",
+          "all-click",
+          "all-transition-wait",
+          "measured-snapshot-after-frames",
+          "measured-witness-finish",
+          "measured-capture-read",
+          "overlay-capture-read",
+          "projection-audits",
+          "evidence-write",
+          "calibration-fetch",
+          "controller-cleanup",
+          "final-proof-write",
+          "scratch-cleanup",
+          "result-write",
+          "capability-survey",
+          "unknown-operation",
+          "reference-section-ready-wait",
+          "opening-section-ready-wait"
+        ]
+      },
+      "errorName": {
+        "enum": [
+          "error",
+          "type-error",
+          "range-error",
+          "syntax-error",
+          "reference-error",
+          "eval-error",
+          "uri-error",
+          "aggregate-error",
+          "abort-error",
+          "timeout-error",
+          "target-closed-error",
+          "protocol-error",
+          "unknown-error"
+        ]
+      },
+      "errorCode": {
+        "enum": [
+          "EACCES",
+          "EADDRINUSE",
+          "EADDRNOTAVAIL",
+          "EAGAIN",
+          "EAI_AGAIN",
+          "EBADF",
+          "EBUSY",
+          "ECANCELED",
+          "ECONNABORTED",
+          "ECONNREFUSED",
+          "ECONNRESET",
+          "EEXIST",
+          "EFAULT",
+          "EFBIG",
+          "EHOSTUNREACH",
+          "EINTR",
+          "EINVAL",
+          "EIO",
+          "EISDIR",
+          "EMFILE",
+          "ENETDOWN",
+          "ENETUNREACH",
+          "ENFILE",
+          "ENOENT",
+          "ENOMEM",
+          "ENOSPC",
+          "ENOSYS",
+          "ENOTDIR",
+          "ENOTEMPTY",
+          "ENOTFOUND",
+          "ENOTSOCK",
+          "ENOTSUP",
+          "EPERM",
+          "EPIPE",
+          "EROFS",
+          "ESRCH",
+          "ETIMEDOUT",
+          "EXDEV",
+          "ERR_ABORTED",
+          "ERR_ASSERTION",
+          "ERR_CHILD_PROCESS_IPC_REQUIRED",
+          "ERR_CHILD_PROCESS_STDIO_MAXBUFFER",
+          "ERR_CRYPTO_HASH_FINALIZED",
+          "ERR_HTTP_HEADERS_SENT",
+          "ERR_HTTP_INVALID_HEADER_VALUE",
+          "ERR_INVALID_ARG_TYPE",
+          "ERR_INVALID_ARG_VALUE",
+          "ERR_INVALID_RETURN_VALUE",
+          "ERR_IPC_CHANNEL_CLOSED",
+          "ERR_IPC_DISCONNECTED",
+          "ERR_IPC_ONE_PIPE",
+          "ERR_MODULE_NOT_FOUND",
+          "ERR_NETWORK_IMPORT_DISALLOWED",
+          "ERR_OPERATION_FAILED",
+          "ERR_OUT_OF_RANGE",
+          "ERR_SERVER_ALREADY_LISTEN",
+          "ERR_SERVER_NOT_RUNNING",
+          "ERR_STREAM_DESTROYED",
+          "ERR_STREAM_PREMATURE_CLOSE",
+          "ERR_STREAM_WRITE_AFTER_END",
+          "ERR_UNKNOWN_FILE_EXTENSION",
+          "ERR_UNSUPPORTED_DIR_IMPORT",
+          "UND_ERR_ABORTED",
+          "UND_ERR_BODY_TIMEOUT",
+          "UND_ERR_CONNECT_TIMEOUT",
+          "UND_ERR_HEADERS_TIMEOUT",
+          "UND_ERR_SOCKET",
+          "unknown"
+        ]
+      },
+      "errorStackSha256": {
+        "type": "sha256-or-null"
+      },
+      "callbackFailure": {
+        "type": "closed-object",
+        "optional": true,
+        "fields": {
+          "failureOperation": {
+            "enum": [
+              "entry-setup",
+              "node-version",
+              "harness-verify",
+              "fixture-read",
+              "source-verify",
+              "source-lock-write",
+              "reference-root-create",
+              "reference-child-start",
+              "reference-child-ready",
+              "reference-witness-begin",
+              "reference-snapshot-before",
+              "reference-http-fetch",
+              "reference-body-parse",
+              "reference-playwright-load",
+              "reference-browser-launch",
+              "reference-browser-version",
+              "reference-context-create",
+              "reference-adapter-install",
+              "reference-origin-route-install",
+              "reference-page-create",
+              "reference-main-route-install",
+              "reference-main-fetch",
+              "reference-main-read",
+              "reference-main-instrument",
+              "reference-main-fulfill",
+              "reference-navigation",
+              "reference-context-wait",
+              "reference-open-chunk",
+              "reference-tasks-click",
+              "reference-summary-wait",
+              "reference-summary-open-read",
+              "reference-summary-click",
+              "reference-all-chip-wait",
+              "reference-map-read",
+              "reference-projection-build",
+              "reference-browser-close",
+              "reference-snapshot-before-all",
+              "reference-snapshot-after-frames",
+              "reference-witness-finish",
+              "reference-identity",
+              "reference-child-close",
+              "reference-page-error",
+              "measured-root-create",
+              "measured-store-copy",
+              "measured-playwright-load",
+              "measured-browser-launch",
+              "measured-browser-version",
+              "measured-child-start",
+              "measured-child-ready",
+              "measured-source-identity",
+              "measured-store-copy-identity",
+              "measured-dataset-identity",
+              "relay-start",
+              "measured-context-create",
+              "measured-adapter-install",
+              "measured-page-create",
+              "measured-network-ledger",
+              "measured-origin-route-install",
+              "measured-main-route-install",
+              "measured-main-fetch",
+              "measured-main-read",
+              "measured-main-instrument",
+              "measured-main-fulfill",
+              "measured-navigation",
+              "measured-context-wait",
+              "measured-instrumentation-count",
+              "measured-page-error",
+              "overlay-create",
+              "overlay-response-parse",
+              "overlay-page-create",
+              "overlay-network-ledger",
+              "overlay-navigation",
+              "overlay-content-wait",
+              "overlay-content-read",
+              "overlay-content-verify",
+              "measured-page-foreground",
+              "measured-open-chunk",
+              "measured-witness-begin",
+              "measured-snapshot-before",
+              "measured-input-verify",
+              "opening-arm",
+              "opening-tasks-click",
+              "opening-summary-wait",
+              "opening-summary-open-read",
+              "opening-summary-click",
+              "opening-transition-wait",
+              "all-expectation-build",
+              "contrast-wait",
+              "contrast-click",
+              "measured-snapshot-before-all",
+              "native-view-read",
+              "native-scope-verify",
+              "all-arm",
+              "all-click",
+              "all-transition-wait",
+              "measured-snapshot-after-frames",
+              "measured-witness-finish",
+              "measured-capture-read",
+              "overlay-capture-read",
+              "projection-audits",
+              "evidence-write",
+              "calibration-fetch",
+              "controller-cleanup",
+              "final-proof-write",
+              "scratch-cleanup",
+              "result-write",
+              "capability-survey",
+              "unknown-operation",
+              "reference-section-ready-wait",
+              "opening-section-ready-wait"
+            ]
+          },
+          "errorName": {
+            "enum": [
+              "error",
+              "type-error",
+              "range-error",
+              "syntax-error",
+              "reference-error",
+              "eval-error",
+              "uri-error",
+              "aggregate-error",
+              "abort-error",
+              "timeout-error",
+              "target-closed-error",
+              "protocol-error",
+              "unknown-error"
+            ]
+          },
+          "errorCode": {
+            "enum": [
+              "EACCES",
+              "EADDRINUSE",
+              "EADDRNOTAVAIL",
+              "EAGAIN",
+              "EAI_AGAIN",
+              "EBADF",
+              "EBUSY",
+              "ECANCELED",
+              "ECONNABORTED",
+              "ECONNREFUSED",
+              "ECONNRESET",
+              "EEXIST",
+              "EFAULT",
+              "EFBIG",
+              "EHOSTUNREACH",
+              "EINTR",
+              "EINVAL",
+              "EIO",
+              "EISDIR",
+              "EMFILE",
+              "ENETDOWN",
+              "ENETUNREACH",
+              "ENFILE",
+              "ENOENT",
+              "ENOMEM",
+              "ENOSPC",
+              "ENOSYS",
+              "ENOTDIR",
+              "ENOTEMPTY",
+              "ENOTFOUND",
+              "ENOTSOCK",
+              "ENOTSUP",
+              "EPERM",
+              "EPIPE",
+              "EROFS",
+              "ESRCH",
+              "ETIMEDOUT",
+              "EXDEV",
+              "ERR_ABORTED",
+              "ERR_ASSERTION",
+              "ERR_CHILD_PROCESS_IPC_REQUIRED",
+              "ERR_CHILD_PROCESS_STDIO_MAXBUFFER",
+              "ERR_CRYPTO_HASH_FINALIZED",
+              "ERR_HTTP_HEADERS_SENT",
+              "ERR_HTTP_INVALID_HEADER_VALUE",
+              "ERR_INVALID_ARG_TYPE",
+              "ERR_INVALID_ARG_VALUE",
+              "ERR_INVALID_RETURN_VALUE",
+              "ERR_IPC_CHANNEL_CLOSED",
+              "ERR_IPC_DISCONNECTED",
+              "ERR_IPC_ONE_PIPE",
+              "ERR_MODULE_NOT_FOUND",
+              "ERR_NETWORK_IMPORT_DISALLOWED",
+              "ERR_OPERATION_FAILED",
+              "ERR_OUT_OF_RANGE",
+              "ERR_SERVER_ALREADY_LISTEN",
+              "ERR_SERVER_NOT_RUNNING",
+              "ERR_STREAM_DESTROYED",
+              "ERR_STREAM_PREMATURE_CLOSE",
+              "ERR_STREAM_WRITE_AFTER_END",
+              "ERR_UNKNOWN_FILE_EXTENSION",
+              "ERR_UNSUPPORTED_DIR_IMPORT",
+              "UND_ERR_ABORTED",
+              "UND_ERR_BODY_TIMEOUT",
+              "UND_ERR_CONNECT_TIMEOUT",
+              "UND_ERR_HEADERS_TIMEOUT",
+              "UND_ERR_SOCKET",
+              "unknown"
+            ]
+          },
+          "errorStackSha256": {
+            "type": "sha256-or-null"
+          }
+        }
+      },
+      "diagnosticMetrics": {
+        "type": "closed-object",
+        "optional": true,
+        "fields": {
+          "surveyStatus": {
+            "enum": [
+              "observed",
+              "unavailable",
+              "timed-out"
+            ]
+          },
+          "documentReadyState": {
+            "enum": [
+              "loading",
+              "interactive",
+              "complete",
+              "unknown"
+            ]
+          },
+          "tasksTabCount": {
+            "type": "nonnegative-safe-integer-or-null"
+          },
+          "tasksTabVisibleCount": {
+            "type": "nonnegative-safe-integer-or-null"
+          },
+          "possibleSummaryCount": {
+            "type": "nonnegative-safe-integer-or-null"
+          },
+          "pageErrorCount": {
+            "type": "nonnegative-safe-integer-or-null"
+          }
+        }
+      },
+      "referenceCloseDiagnostic": {
+        "type": "closed-object",
+        "optional": true,
+        "fields": {
+          "attemptStatus": {
+            "enum": [
+              "not-started",
+              "started",
+              "complete",
+              "failed"
+            ]
+          },
+          "stopRpcStatus": {
+            "enum": [
+              "not-attempted",
+              "acknowledged",
+              "rejected"
+            ]
+          },
+          "stopErrorCode": {
+            "enum": [
+              "none",
+              "unknown",
+              "CHILD_RPC_FAILED",
+              "CHILD_RPC_TIMEOUT",
+              "CHILD_IPC_SEND_FAILED",
+              "CHILD_EXITED",
+              "CHILD_CLOSE_TIMEOUT",
+              "CHILD_KILL_TIMEOUT",
+              "IPC_DISCONNECTED",
+              "STORE_OWNER_LOCK_REMAINS_AFTER_CLOSE",
+              "APP_NOT_READY_OR_CLOSING",
+              "EACCES",
+              "EPERM",
+              "ENOENT",
+              "EIO",
+              "ENOSPC",
+              "ERR_IPC_CHANNEL_CLOSED",
+              "ERR_IPC_DISCONNECTED"
+            ]
+          },
+          "exitWaitStatus": {
+            "enum": [
+              "not-attempted",
+              "already-exited",
+              "normal-exit",
+              "timed-out-kill-attempted",
+              "kill-timeout"
+            ]
+          },
+          "exitWaitErrorCode": {
+            "enum": [
+              "none",
+              "unknown",
+              "CHILD_RPC_FAILED",
+              "CHILD_RPC_TIMEOUT",
+              "CHILD_IPC_SEND_FAILED",
+              "CHILD_EXITED",
+              "CHILD_CLOSE_TIMEOUT",
+              "CHILD_KILL_TIMEOUT",
+              "IPC_DISCONNECTED",
+              "STORE_OWNER_LOCK_REMAINS_AFTER_CLOSE",
+              "APP_NOT_READY_OR_CLOSING",
+              "EACCES",
+              "EPERM",
+              "ENOENT",
+              "EIO",
+              "ENOSPC",
+              "ERR_IPC_CHANNEL_CLOSED",
+              "ERR_IPC_DISCONNECTED"
+            ]
+          },
+          "witnessCode": {
+            "enum": [
+              "not-checked",
+              "closed-witness-verified",
+              "close-receipt-incomplete",
+              "store-commit-or-capture-error-at-close",
+              "finalized-witness-invalid",
+              "input-changed-during-close"
+            ]
+          },
+          "receiptStatus": {
+            "enum": [
+              "missing",
+              "present"
+            ]
+          },
+          "elapsedMs": {
+            "type": "nonnegative-safe-integer-or-null"
+          },
+          "exitCode": {
+            "type": "nonnegative-safe-integer-or-null"
+          },
+          "exitSignal": {
+            "enum": [
+              "none",
+              "SIGKILL",
+              "SIGTERM",
+              "SIGABRT",
+              "SIGTRAP",
+              "other",
+              "unknown"
+            ]
+          },
+          "stoppedMessageCount": {
+            "type": "nonnegative-safe-integer-or-null"
+          },
+          "pendingRpcCount": {
+            "type": "nonnegative-safe-integer-or-null"
+          },
+          "closeCompleted": {
+            "enum": [
+              "yes",
+              "no",
+              "unobserved"
+            ]
+          },
+          "ownershipStable": {
+            "enum": [
+              "yes",
+              "no",
+              "unobserved"
+            ]
+          },
+          "ownerLockPresent": {
+            "enum": [
+              "yes",
+              "no",
+              "unobserved"
+            ]
+          },
+          "journalCount": {
+            "type": "nonnegative-safe-integer-or-null"
+          },
+          "captureErrorCount": {
+            "type": "nonnegative-safe-integer-or-null"
+          },
+          "witnessCount": {
+            "type": "nonnegative-safe-integer-or-null"
+          },
+          "validWitnessCount": {
+            "type": "nonnegative-safe-integer-or-null"
+          },
+          "driverStage": {
+            "enum": [
+              "unobserved",
+              "ownership-before",
+              "application-close",
+              "startup-drain",
+              "witness-finalize",
+              "ownership-after",
+              "closed-state-read",
+              "complete"
+            ]
+          }
+        }
+      },
+      "measuredCloseDiagnostic": {
+        "type": "closed-object",
+        "optional": true,
+        "fields": {
+          "attemptStatus": {
+            "enum": [
+              "not-started",
+              "started",
+              "complete",
+              "failed"
+            ]
+          },
+          "stopRpcStatus": {
+            "enum": [
+              "not-attempted",
+              "acknowledged",
+              "rejected"
+            ]
+          },
+          "stopErrorCode": {
+            "enum": [
+              "none",
+              "unknown",
+              "CHILD_RPC_FAILED",
+              "CHILD_RPC_TIMEOUT",
+              "CHILD_IPC_SEND_FAILED",
+              "CHILD_EXITED",
+              "CHILD_CLOSE_TIMEOUT",
+              "CHILD_KILL_TIMEOUT",
+              "IPC_DISCONNECTED",
+              "STORE_OWNER_LOCK_REMAINS_AFTER_CLOSE",
+              "APP_NOT_READY_OR_CLOSING",
+              "EACCES",
+              "EPERM",
+              "ENOENT",
+              "EIO",
+              "ENOSPC",
+              "ERR_IPC_CHANNEL_CLOSED",
+              "ERR_IPC_DISCONNECTED"
+            ]
+          },
+          "exitWaitStatus": {
+            "enum": [
+              "not-attempted",
+              "already-exited",
+              "normal-exit",
+              "timed-out-kill-attempted",
+              "kill-timeout"
+            ]
+          },
+          "exitWaitErrorCode": {
+            "enum": [
+              "none",
+              "unknown",
+              "CHILD_RPC_FAILED",
+              "CHILD_RPC_TIMEOUT",
+              "CHILD_IPC_SEND_FAILED",
+              "CHILD_EXITED",
+              "CHILD_CLOSE_TIMEOUT",
+              "CHILD_KILL_TIMEOUT",
+              "IPC_DISCONNECTED",
+              "STORE_OWNER_LOCK_REMAINS_AFTER_CLOSE",
+              "APP_NOT_READY_OR_CLOSING",
+              "EACCES",
+              "EPERM",
+              "ENOENT",
+              "EIO",
+              "ENOSPC",
+              "ERR_IPC_CHANNEL_CLOSED",
+              "ERR_IPC_DISCONNECTED"
+            ]
+          },
+          "witnessCode": {
+            "enum": [
+              "not-checked",
+              "closed-witness-verified",
+              "close-receipt-incomplete",
+              "store-commit-or-capture-error-at-close",
+              "finalized-witness-invalid",
+              "input-changed-during-close"
+            ]
+          },
+          "receiptStatus": {
+            "enum": [
+              "missing",
+              "present"
+            ]
+          },
+          "elapsedMs": {
+            "type": "nonnegative-safe-integer-or-null"
+          },
+          "exitCode": {
+            "type": "nonnegative-safe-integer-or-null"
+          },
+          "exitSignal": {
+            "enum": [
+              "none",
+              "SIGKILL",
+              "SIGTERM",
+              "SIGABRT",
+              "SIGTRAP",
+              "other",
+              "unknown"
+            ]
+          },
+          "stoppedMessageCount": {
+            "type": "nonnegative-safe-integer-or-null"
+          },
+          "pendingRpcCount": {
+            "type": "nonnegative-safe-integer-or-null"
+          },
+          "closeCompleted": {
+            "enum": [
+              "yes",
+              "no",
+              "unobserved"
+            ]
+          },
+          "ownershipStable": {
+            "enum": [
+              "yes",
+              "no",
+              "unobserved"
+            ]
+          },
+          "ownerLockPresent": {
+            "enum": [
+              "yes",
+              "no",
+              "unobserved"
+            ]
+          },
+          "journalCount": {
+            "type": "nonnegative-safe-integer-or-null"
+          },
+          "captureErrorCount": {
+            "type": "nonnegative-safe-integer-or-null"
+          },
+          "witnessCount": {
+            "type": "nonnegative-safe-integer-or-null"
+          },
+          "validWitnessCount": {
+            "type": "nonnegative-safe-integer-or-null"
+          },
+          "driverStage": {
+            "enum": [
+              "unobserved",
+              "ownership-before",
+              "application-close",
+              "startup-drain",
+              "witness-finalize",
+              "ownership-after",
+              "closed-state-read",
+              "complete"
+            ]
+          }
+        }
+      },
+      "closeObservationIdentity": {
+        "type": "closed-object",
+        "fields": {
+          "mode": {
+            "enum": [
+              "scratch-source-close-phases-v1"
+            ]
+          },
+          "timingEligibility": {
+            "enum": [
+              "diagnostic-only"
+            ]
+          },
+          "originalManifestSha256": {
+            "type": "sha256-or-null"
+          },
+          "observedManifestSha256": {
+            "type": "sha256-or-null"
+          },
+          "fileCount": {
+            "type": "nonnegative-safe-integer-or-null"
+          },
+          "originalServerSha256": {
+            "type": "sha256-or-null"
+          },
+          "observedServerSha256": {
+            "type": "sha256-or-null"
+          },
+          "originalStoreSha256": {
+            "type": "sha256-or-null"
+          },
+          "observedStoreSha256": {
+            "type": "sha256-or-null"
+          }
+        }
+      },
+      "closePhaseDiagnostic": {
+        "type": "closed-object",
+        "fields": {
+          "lastPhase": {
+            "enum": [
+              "unobserved",
+              "serverEnter",
+              "serverPreface",
+              "serverActivation",
+              "serverOverlays",
+              "serverConnections",
+              "serverMutation",
+              "serverInvites",
+              "serverFeedback",
+              "serverUsage",
+              "serverGamePlugin",
+              "serverAuth",
+              "serverStore",
+              "serverResponses",
+              "serverWorker",
+              "serverAll",
+              "storeEnter",
+              "storeActivation",
+              "storeWrites",
+              "storeMaintenance",
+              "storeBeforeUnlock",
+              "storeReleaseFile",
+              "storeReleaseGuard",
+              "storeAll"
+            ]
+          },
+          "events": {
+            "type": "nonnegative-safe-integer-or-null"
+          },
+          "dropped": {
+            "type": "nonnegative-safe-integer-or-null"
+          },
+          "states": {
+            "type": "closed-object",
+            "fields": {
+              "serverEnter": {
+                "enum": [
+                  "unobserved",
+                  "entered",
+                  "pending",
+                  "fulfilled",
+                  "rejected"
+                ]
+              },
+              "serverPreface": {
+                "enum": [
+                  "unobserved",
+                  "entered",
+                  "pending",
+                  "fulfilled",
+                  "rejected"
+                ]
+              },
+              "serverActivation": {
+                "enum": [
+                  "unobserved",
+                  "entered",
+                  "pending",
+                  "fulfilled",
+                  "rejected"
+                ]
+              },
+              "serverOverlays": {
+                "enum": [
+                  "unobserved",
+                  "entered",
+                  "pending",
+                  "fulfilled",
+                  "rejected"
+                ]
+              },
+              "serverConnections": {
+                "enum": [
+                  "unobserved",
+                  "entered",
+                  "pending",
+                  "fulfilled",
+                  "rejected"
+                ]
+              },
+              "serverMutation": {
+                "enum": [
+                  "unobserved",
+                  "entered",
+                  "pending",
+                  "fulfilled",
+                  "rejected"
+                ]
+              },
+              "serverInvites": {
+                "enum": [
+                  "unobserved",
+                  "entered",
+                  "pending",
+                  "fulfilled",
+                  "rejected"
+                ]
+              },
+              "serverFeedback": {
+                "enum": [
+                  "unobserved",
+                  "entered",
+                  "pending",
+                  "fulfilled",
+                  "rejected"
+                ]
+              },
+              "serverUsage": {
+                "enum": [
+                  "unobserved",
+                  "entered",
+                  "pending",
+                  "fulfilled",
+                  "rejected"
+                ]
+              },
+              "serverGamePlugin": {
+                "enum": [
+                  "unobserved",
+                  "entered",
+                  "pending",
+                  "fulfilled",
+                  "rejected"
+                ]
+              },
+              "serverAuth": {
+                "enum": [
+                  "unobserved",
+                  "entered",
+                  "pending",
+                  "fulfilled",
+                  "rejected"
+                ]
+              },
+              "serverStore": {
+                "enum": [
+                  "unobserved",
+                  "entered",
+                  "pending",
+                  "fulfilled",
+                  "rejected"
+                ]
+              },
+              "serverResponses": {
+                "enum": [
+                  "unobserved",
+                  "entered",
+                  "pending",
+                  "fulfilled",
+                  "rejected"
+                ]
+              },
+              "serverWorker": {
+                "enum": [
+                  "unobserved",
+                  "entered",
+                  "pending",
+                  "fulfilled",
+                  "rejected"
+                ]
+              },
+              "serverAll": {
+                "enum": [
+                  "unobserved",
+                  "entered",
+                  "pending",
+                  "fulfilled",
+                  "rejected"
+                ]
+              },
+              "storeEnter": {
+                "enum": [
+                  "unobserved",
+                  "entered",
+                  "pending",
+                  "fulfilled",
+                  "rejected"
+                ]
+              },
+              "storeActivation": {
+                "enum": [
+                  "unobserved",
+                  "entered",
+                  "pending",
+                  "fulfilled",
+                  "rejected"
+                ]
+              },
+              "storeWrites": {
+                "enum": [
+                  "unobserved",
+                  "entered",
+                  "pending",
+                  "fulfilled",
+                  "rejected"
+                ]
+              },
+              "storeMaintenance": {
+                "enum": [
+                  "unobserved",
+                  "entered",
+                  "pending",
+                  "fulfilled",
+                  "rejected"
+                ]
+              },
+              "storeBeforeUnlock": {
+                "enum": [
+                  "unobserved",
+                  "entered",
+                  "pending",
+                  "fulfilled",
+                  "rejected"
+                ]
+              },
+              "storeReleaseFile": {
+                "enum": [
+                  "unobserved",
+                  "entered",
+                  "pending",
+                  "fulfilled",
+                  "rejected"
+                ]
+              },
+              "storeReleaseGuard": {
+                "enum": [
+                  "unobserved",
+                  "entered",
+                  "pending",
+                  "fulfilled",
+                  "rejected"
+                ]
+              },
+              "storeAll": {
+                "enum": [
+                  "unobserved",
+                  "entered",
+                  "pending",
+                  "fulfilled",
+                  "rejected"
+                ]
+              }
+            }
+          },
+          "firstMs": {
+            "type": "closed-object",
+            "fields": {
+              "serverEnter": {
+                "type": "nonnegative-safe-integer-or-null"
+              },
+              "serverPreface": {
+                "type": "nonnegative-safe-integer-or-null"
+              },
+              "serverActivation": {
+                "type": "nonnegative-safe-integer-or-null"
+              },
+              "serverOverlays": {
+                "type": "nonnegative-safe-integer-or-null"
+              },
+              "serverConnections": {
+                "type": "nonnegative-safe-integer-or-null"
+              },
+              "serverMutation": {
+                "type": "nonnegative-safe-integer-or-null"
+              },
+              "serverInvites": {
+                "type": "nonnegative-safe-integer-or-null"
+              },
+              "serverFeedback": {
+                "type": "nonnegative-safe-integer-or-null"
+              },
+              "serverUsage": {
+                "type": "nonnegative-safe-integer-or-null"
+              },
+              "serverGamePlugin": {
+                "type": "nonnegative-safe-integer-or-null"
+              },
+              "serverAuth": {
+                "type": "nonnegative-safe-integer-or-null"
+              },
+              "serverStore": {
+                "type": "nonnegative-safe-integer-or-null"
+              },
+              "serverResponses": {
+                "type": "nonnegative-safe-integer-or-null"
+              },
+              "serverWorker": {
+                "type": "nonnegative-safe-integer-or-null"
+              },
+              "serverAll": {
+                "type": "nonnegative-safe-integer-or-null"
+              },
+              "storeEnter": {
+                "type": "nonnegative-safe-integer-or-null"
+              },
+              "storeActivation": {
+                "type": "nonnegative-safe-integer-or-null"
+              },
+              "storeWrites": {
+                "type": "nonnegative-safe-integer-or-null"
+              },
+              "storeMaintenance": {
+                "type": "nonnegative-safe-integer-or-null"
+              },
+              "storeBeforeUnlock": {
+                "type": "nonnegative-safe-integer-or-null"
+              },
+              "storeReleaseFile": {
+                "type": "nonnegative-safe-integer-or-null"
+              },
+              "storeReleaseGuard": {
+                "type": "nonnegative-safe-integer-or-null"
+              },
+              "storeAll": {
+                "type": "nonnegative-safe-integer-or-null"
+              }
+            }
+          },
+          "lastMs": {
+            "type": "closed-object",
+            "fields": {
+              "serverEnter": {
+                "type": "nonnegative-safe-integer-or-null"
+              },
+              "serverPreface": {
+                "type": "nonnegative-safe-integer-or-null"
+              },
+              "serverActivation": {
+                "type": "nonnegative-safe-integer-or-null"
+              },
+              "serverOverlays": {
+                "type": "nonnegative-safe-integer-or-null"
+              },
+              "serverConnections": {
+                "type": "nonnegative-safe-integer-or-null"
+              },
+              "serverMutation": {
+                "type": "nonnegative-safe-integer-or-null"
+              },
+              "serverInvites": {
+                "type": "nonnegative-safe-integer-or-null"
+              },
+              "serverFeedback": {
+                "type": "nonnegative-safe-integer-or-null"
+              },
+              "serverUsage": {
+                "type": "nonnegative-safe-integer-or-null"
+              },
+              "serverGamePlugin": {
+                "type": "nonnegative-safe-integer-or-null"
+              },
+              "serverAuth": {
+                "type": "nonnegative-safe-integer-or-null"
+              },
+              "serverStore": {
+                "type": "nonnegative-safe-integer-or-null"
+              },
+              "serverResponses": {
+                "type": "nonnegative-safe-integer-or-null"
+              },
+              "serverWorker": {
+                "type": "nonnegative-safe-integer-or-null"
+              },
+              "serverAll": {
+                "type": "nonnegative-safe-integer-or-null"
+              },
+              "storeEnter": {
+                "type": "nonnegative-safe-integer-or-null"
+              },
+              "storeActivation": {
+                "type": "nonnegative-safe-integer-or-null"
+              },
+              "storeWrites": {
+                "type": "nonnegative-safe-integer-or-null"
+              },
+              "storeMaintenance": {
+                "type": "nonnegative-safe-integer-or-null"
+              },
+              "storeBeforeUnlock": {
+                "type": "nonnegative-safe-integer-or-null"
+              },
+              "storeReleaseFile": {
+                "type": "nonnegative-safe-integer-or-null"
+              },
+              "storeReleaseGuard": {
+                "type": "nonnegative-safe-integer-or-null"
+              },
+              "storeAll": {
+                "type": "nonnegative-safe-integer-or-null"
+              }
+            }
+          },
+          "counts": {
+            "type": "closed-object",
+            "fields": {
+              "connections": {
+                "type": "nonnegative-safe-integer-or-null"
+              },
+              "savingConnections": {
+                "type": "nonnegative-safe-integer-or-null"
+              },
+              "clients": {
+                "type": "nonnegative-safe-integer-or-null"
+              },
+              "maintenancePending": {
+                "type": "nonnegative-safe-integer-or-null"
+              },
+              "storeListeners": {
+                "type": "nonnegative-safe-integer-or-null"
+              }
+            }
+          }
+        }
+      }
+    },
+    "r139-body-lifecycle-v1": {
+      "r139Cases": {
+        "type": "closed-object",
+        "fields": {
+          "ignore": {
+            "type": "closed-object",
+            "fields": {
+              "observedPostCount": {
+                "type": "nonnegative-safe-integer-or-null"
+              },
+              "requestOrdinal": {
+                "type": "nonnegative-safe-integer-or-null"
+              },
+              "targetOrdinal": {
+                "type": "nonnegative-safe-integer-or-null"
+              },
+              "sessionOrdinal": {
+                "type": "nonnegative-safe-integer-or-null"
+              },
+              "documentOrdinal": {
+                "type": "nonnegative-safe-integer-or-null"
+              },
+              "responseStatus": {
+                "type": "nonnegative-safe-integer-or-null"
+              },
+              "requestIdentityMatched": {
+                "type": "nonnegative-safe-integer-or-null"
+              },
+              "responseIdentityMatched": {
+                "type": "nonnegative-safe-integer-or-null"
+              },
+              "bodyUsedOnHeaders": {
+                "type": "nonnegative-safe-integer-or-null"
+              },
+              "bodyUsedAfterFlush": {
+                "type": "nonnegative-safe-integer-or-null"
+              },
+              "bodyUsedAtSurvey": {
+                "type": "nonnegative-safe-integer-or-null"
+              },
+              "bodyReadBytes": {
+                "type": "nonnegative-safe-integer-or-null"
+              },
+              "flushReturned": {
+                "type": "nonnegative-safe-integer-or-null"
+              },
+              "cancelComplete": {
+                "type": "nonnegative-safe-integer-or-null"
+              },
+              "serverAcceptedRequests": {
+                "type": "nonnegative-safe-integer-or-null"
+              },
+              "serverAcceptedEvents": {
+                "type": "nonnegative-safe-integer-or-null"
+              },
+              "serverPayloadBytes": {
+                "type": "nonnegative-safe-integer-or-null"
+              },
+              "serverResponseBytes": {
+                "type": "nonnegative-safe-integer-or-null"
+              },
+              "serverFinishedByCutoff": {
+                "type": "nonnegative-safe-integer-or-null"
+              },
+              "serverClosedByCutoff": {
+                "type": "nonnegative-safe-integer-or-null"
+              },
+              "surveyAfterCutoffUs": {
+                "type": "nonnegative-safe-integer-or-null"
+              },
+              "terminal": {
+                "enum": [
+                  "loadingFinished",
+                  "loadingFailed-canceled",
+                  "loadingFailed-other",
+                  "unobserved"
+                ]
+              },
+              "action": {
+                "enum": [
+                  "none",
+                  "pending",
+                  "complete",
+                  "failed",
+                  "module",
+                  "unknown"
+                ]
+              },
+              "visibility": {
+                "enum": [
+                  "visible",
+                  "hidden",
+                  "unknown"
+                ]
+              },
+              "consent": {
+                "enum": [
+                  "default",
+                  "enabled",
+                  "disabled",
+                  "not-applicable",
+                  "unknown"
+                ]
+              }
+            }
+          },
+          "consume": {
+            "type": "closed-object",
+            "fields": {
+              "observedPostCount": {
+                "type": "nonnegative-safe-integer-or-null"
+              },
+              "requestOrdinal": {
+                "type": "nonnegative-safe-integer-or-null"
+              },
+              "targetOrdinal": {
+                "type": "nonnegative-safe-integer-or-null"
+              },
+              "sessionOrdinal": {
+                "type": "nonnegative-safe-integer-or-null"
+              },
+              "documentOrdinal": {
+                "type": "nonnegative-safe-integer-or-null"
+              },
+              "responseStatus": {
+                "type": "nonnegative-safe-integer-or-null"
+              },
+              "requestIdentityMatched": {
+                "type": "nonnegative-safe-integer-or-null"
+              },
+              "responseIdentityMatched": {
+                "type": "nonnegative-safe-integer-or-null"
+              },
+              "bodyUsedOnHeaders": {
+                "type": "nonnegative-safe-integer-or-null"
+              },
+              "bodyUsedAfterFlush": {
+                "type": "nonnegative-safe-integer-or-null"
+              },
+              "bodyUsedAtSurvey": {
+                "type": "nonnegative-safe-integer-or-null"
+              },
+              "bodyReadBytes": {
+                "type": "nonnegative-safe-integer-or-null"
+              },
+              "flushReturned": {
+                "type": "nonnegative-safe-integer-or-null"
+              },
+              "cancelComplete": {
+                "type": "nonnegative-safe-integer-or-null"
+              },
+              "serverAcceptedRequests": {
+                "type": "nonnegative-safe-integer-or-null"
+              },
+              "serverAcceptedEvents": {
+                "type": "nonnegative-safe-integer-or-null"
+              },
+              "serverPayloadBytes": {
+                "type": "nonnegative-safe-integer-or-null"
+              },
+              "serverResponseBytes": {
+                "type": "nonnegative-safe-integer-or-null"
+              },
+              "serverFinishedByCutoff": {
+                "type": "nonnegative-safe-integer-or-null"
+              },
+              "serverClosedByCutoff": {
+                "type": "nonnegative-safe-integer-or-null"
+              },
+              "surveyAfterCutoffUs": {
+                "type": "nonnegative-safe-integer-or-null"
+              },
+              "terminal": {
+                "enum": [
+                  "loadingFinished",
+                  "loadingFailed-canceled",
+                  "loadingFailed-other",
+                  "unobserved"
+                ]
+              },
+              "action": {
+                "enum": [
+                  "none",
+                  "pending",
+                  "complete",
+                  "failed",
+                  "module",
+                  "unknown"
+                ]
+              },
+              "visibility": {
+                "enum": [
+                  "visible",
+                  "hidden",
+                  "unknown"
+                ]
+              },
+              "consent": {
+                "enum": [
+                  "default",
+                  "enabled",
+                  "disabled",
+                  "not-applicable",
+                  "unknown"
+                ]
+              }
+            }
+          },
+          "cancel": {
+            "type": "closed-object",
+            "fields": {
+              "observedPostCount": {
+                "type": "nonnegative-safe-integer-or-null"
+              },
+              "requestOrdinal": {
+                "type": "nonnegative-safe-integer-or-null"
+              },
+              "targetOrdinal": {
+                "type": "nonnegative-safe-integer-or-null"
+              },
+              "sessionOrdinal": {
+                "type": "nonnegative-safe-integer-or-null"
+              },
+              "documentOrdinal": {
+                "type": "nonnegative-safe-integer-or-null"
+              },
+              "responseStatus": {
+                "type": "nonnegative-safe-integer-or-null"
+              },
+              "requestIdentityMatched": {
+                "type": "nonnegative-safe-integer-or-null"
+              },
+              "responseIdentityMatched": {
+                "type": "nonnegative-safe-integer-or-null"
+              },
+              "bodyUsedOnHeaders": {
+                "type": "nonnegative-safe-integer-or-null"
+              },
+              "bodyUsedAfterFlush": {
+                "type": "nonnegative-safe-integer-or-null"
+              },
+              "bodyUsedAtSurvey": {
+                "type": "nonnegative-safe-integer-or-null"
+              },
+              "bodyReadBytes": {
+                "type": "nonnegative-safe-integer-or-null"
+              },
+              "flushReturned": {
+                "type": "nonnegative-safe-integer-or-null"
+              },
+              "cancelComplete": {
+                "type": "nonnegative-safe-integer-or-null"
+              },
+              "serverAcceptedRequests": {
+                "type": "nonnegative-safe-integer-or-null"
+              },
+              "serverAcceptedEvents": {
+                "type": "nonnegative-safe-integer-or-null"
+              },
+              "serverPayloadBytes": {
+                "type": "nonnegative-safe-integer-or-null"
+              },
+              "serverResponseBytes": {
+                "type": "nonnegative-safe-integer-or-null"
+              },
+              "serverFinishedByCutoff": {
+                "type": "nonnegative-safe-integer-or-null"
+              },
+              "serverClosedByCutoff": {
+                "type": "nonnegative-safe-integer-or-null"
+              },
+              "surveyAfterCutoffUs": {
+                "type": "nonnegative-safe-integer-or-null"
+              },
+              "terminal": {
+                "enum": [
+                  "loadingFinished",
+                  "loadingFailed-canceled",
+                  "loadingFailed-other",
+                  "unobserved"
+                ]
+              },
+              "action": {
+                "enum": [
+                  "none",
+                  "pending",
+                  "complete",
+                  "failed",
+                  "module",
+                  "unknown"
+                ]
+              },
+              "visibility": {
+                "enum": [
+                  "visible",
+                  "hidden",
+                  "unknown"
+                ]
+              },
+              "consent": {
+                "enum": [
+                  "default",
+                  "enabled",
+                  "disabled",
+                  "not-applicable",
+                  "unknown"
+                ]
+              }
+            }
+          },
+          "baseline": {
+            "type": "closed-object",
+            "fields": {
+              "observedPostCount": {
+                "type": "nonnegative-safe-integer-or-null"
+              },
+              "requestOrdinal": {
+                "type": "nonnegative-safe-integer-or-null"
+              },
+              "targetOrdinal": {
+                "type": "nonnegative-safe-integer-or-null"
+              },
+              "sessionOrdinal": {
+                "type": "nonnegative-safe-integer-or-null"
+              },
+              "documentOrdinal": {
+                "type": "nonnegative-safe-integer-or-null"
+              },
+              "responseStatus": {
+                "type": "nonnegative-safe-integer-or-null"
+              },
+              "requestIdentityMatched": {
+                "type": "nonnegative-safe-integer-or-null"
+              },
+              "responseIdentityMatched": {
+                "type": "nonnegative-safe-integer-or-null"
+              },
+              "bodyUsedOnHeaders": {
+                "type": "nonnegative-safe-integer-or-null"
+              },
+              "bodyUsedAfterFlush": {
+                "type": "nonnegative-safe-integer-or-null"
+              },
+              "bodyUsedAtSurvey": {
+                "type": "nonnegative-safe-integer-or-null"
+              },
+              "bodyReadBytes": {
+                "type": "nonnegative-safe-integer-or-null"
+              },
+              "flushReturned": {
+                "type": "nonnegative-safe-integer-or-null"
+              },
+              "cancelComplete": {
+                "type": "nonnegative-safe-integer-or-null"
+              },
+              "serverAcceptedRequests": {
+                "type": "nonnegative-safe-integer-or-null"
+              },
+              "serverAcceptedEvents": {
+                "type": "nonnegative-safe-integer-or-null"
+              },
+              "serverPayloadBytes": {
+                "type": "nonnegative-safe-integer-or-null"
+              },
+              "serverResponseBytes": {
+                "type": "nonnegative-safe-integer-or-null"
+              },
+              "serverFinishedByCutoff": {
+                "type": "nonnegative-safe-integer-or-null"
+              },
+              "serverClosedByCutoff": {
+                "type": "nonnegative-safe-integer-or-null"
+              },
+              "surveyAfterCutoffUs": {
+                "type": "nonnegative-safe-integer-or-null"
+              },
+              "terminal": {
+                "enum": [
+                  "loadingFinished",
+                  "loadingFailed-canceled",
+                  "loadingFailed-other",
+                  "unobserved"
+                ]
+              },
+              "action": {
+                "enum": [
+                  "none",
+                  "pending",
+                  "complete",
+                  "failed",
+                  "module",
+                  "unknown"
+                ]
+              },
+              "visibility": {
+                "enum": [
+                  "visible",
+                  "hidden",
+                  "unknown"
+                ]
+              },
+              "consent": {
+                "enum": [
+                  "default",
+                  "enabled",
+                  "disabled",
+                  "not-applicable",
+                  "unknown"
+                ]
+              }
+            }
+          },
+          "candidate": {
+            "type": "closed-object",
+            "fields": {
+              "observedPostCount": {
+                "type": "nonnegative-safe-integer-or-null"
+              },
+              "requestOrdinal": {
+                "type": "nonnegative-safe-integer-or-null"
+              },
+              "targetOrdinal": {
+                "type": "nonnegative-safe-integer-or-null"
+              },
+              "sessionOrdinal": {
+                "type": "nonnegative-safe-integer-or-null"
+              },
+              "documentOrdinal": {
+                "type": "nonnegative-safe-integer-or-null"
+              },
+              "responseStatus": {
+                "type": "nonnegative-safe-integer-or-null"
+              },
+              "requestIdentityMatched": {
+                "type": "nonnegative-safe-integer-or-null"
+              },
+              "responseIdentityMatched": {
+                "type": "nonnegative-safe-integer-or-null"
+              },
+              "bodyUsedOnHeaders": {
+                "type": "nonnegative-safe-integer-or-null"
+              },
+              "bodyUsedAfterFlush": {
+                "type": "nonnegative-safe-integer-or-null"
+              },
+              "bodyUsedAtSurvey": {
+                "type": "nonnegative-safe-integer-or-null"
+              },
+              "bodyReadBytes": {
+                "type": "nonnegative-safe-integer-or-null"
+              },
+              "flushReturned": {
+                "type": "nonnegative-safe-integer-or-null"
+              },
+              "cancelComplete": {
+                "type": "nonnegative-safe-integer-or-null"
+              },
+              "serverAcceptedRequests": {
+                "type": "nonnegative-safe-integer-or-null"
+              },
+              "serverAcceptedEvents": {
+                "type": "nonnegative-safe-integer-or-null"
+              },
+              "serverPayloadBytes": {
+                "type": "nonnegative-safe-integer-or-null"
+              },
+              "serverResponseBytes": {
+                "type": "nonnegative-safe-integer-or-null"
+              },
+              "serverFinishedByCutoff": {
+                "type": "nonnegative-safe-integer-or-null"
+              },
+              "serverClosedByCutoff": {
+                "type": "nonnegative-safe-integer-or-null"
+              },
+              "surveyAfterCutoffUs": {
+                "type": "nonnegative-safe-integer-or-null"
+              },
+              "terminal": {
+                "enum": [
+                  "loadingFinished",
+                  "loadingFailed-canceled",
+                  "loadingFailed-other",
+                  "unobserved"
+                ]
+              },
+              "action": {
+                "enum": [
+                  "none",
+                  "pending",
+                  "complete",
+                  "failed",
+                  "module",
+                  "unknown"
+                ]
+              },
+              "visibility": {
+                "enum": [
+                  "visible",
+                  "hidden",
+                  "unknown"
+                ]
+              },
+              "consent": {
+                "enum": [
+                  "default",
+                  "enabled",
+                  "disabled",
+                  "not-applicable",
+                  "unknown"
+                ]
+              }
+            }
+          }
+        }
       }
     }
   },

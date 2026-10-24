@@ -1,11 +1,12 @@
 {
   "schemaVersion": 1,
-  "mode": "r116-frozen-input-v1",
-  "diagnosticRevision": "r116-reference-close-v4",
+  "mode": "r116-close-phases-observation-v1",
+  "diagnosticRevision": "r116-app-close-v5",
   "sourceCommit": "6f22fefa782747790e2eaefa01e4e5ea7b557323",
   "entrypoint": "run-frozen-browser.mjs",
   "runtimeStatus": "UNRUN",
-  "parentHarnessManifestSha256": "87ef6ee01fa4bfdbfd0ada62b4b3e55541ac67071b967c4181a8ff3e5b01f46f",
+  "timingEligibility": "diagnostic-only",
+  "parentHarnessManifestSha256": "e47f0130064f361d242a1b3d7724e103e57835eb530883246ebe78a738b6c91e",
   "files": [
     {
       "path": "browser-adapter.mjs",
@@ -16,6 +17,11 @@
       "path": "child-close-diagnostics.mjs",
       "bytes": 4608,
       "sha256": "6634605499f5da78fd516e6981f4491d53c18f493769ef8fb4573ee08901e9a8"
+    },
+    {
+      "path": "close-observation.mjs",
+      "bytes": 9368,
+      "sha256": "980342fe222ca689258a7bad79da012500da1455167bf7ffd57fc6c4be3cc591"
     },
     {
       "path": "failure-diagnostics.mjs",
@@ -44,13 +50,13 @@
     },
     {
       "path": "run-frozen-browser.mjs",
-      "bytes": 54395,
-      "sha256": "144bfb7f2d9515a029add2371698a3ff3760ee2d55144605e1a0bda409a5962e"
+      "bytes": 55294,
+      "sha256": "09f87f779482619644033bbad03df6dba69357afba31e2b2e88935705ec7af03"
     },
     {
       "path": "server-driver.mjs",
-      "bytes": 24979,
-      "sha256": "7f8a33e1d75ea3af056ae9d61aa7900d8df70126dea44c611040064a7b9929e9"
+      "bytes": 25881,
+      "sha256": "eefd250a8aa17f4c1aafc717ebf0cda5ded54253ee9b95fa2c98b32eb99b3c6d"
     },
     {
       "path": "strict-oracle.mjs",

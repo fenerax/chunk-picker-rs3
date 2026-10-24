@@ -3,6 +3,7 @@ import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { readFile, mkdir, readdir, realpath, lstat } from 'node:fs/promises';
 import { pathToFileURL } from 'node:url';
+import {installObservedSource,createCloseCollector} from './close-observation.mjs';
 
 export const SOURCE_COMMIT = '6f22fefa782747790e2eaefa01e4e5ea7b557323';
 export const FIXTURE_SHA256 = '380ffb698ea594ccb1d375321708a4369f50da82fdc796fd91a4a8c8038b8022';
@@ -247,10 +248,21 @@ export async function runDriver(argv = process.argv.slice(2)) {
     process.send({ protocol: PROTOCOL, ...message }, error => error ? reject(error) : resolve());
   });
   const checkpoint = phase => send({ type: 'checkpoint', phase, at: performance.now() });
-  const load = relative => import(pathToFileURL(path.join(source, 'app', relative)).href);
+  // This packet is diagnostic-only. Verify original source above; load an
+  // explicitly identified scratch derivative with two observed close bodies.
+  if (!args['source-lock']) fail('CLOSE_OBSERVATION_SOURCE_LOCK_REQUIRED');
+  const observed=await installObservedSource({source,scratch,sourceLock:JSON.parse(await readFile(args['source-lock'],'utf8'))});
+  const collector=createCloseCollector();let observationStart;
+  globalThis.__r116ObserveClose=event=>{
+    observationStart??=performance.now();
+    const safe=collector.record({...event,elapsedMs:Math.max(0,Math.floor(performance.now()-observationStart))});
+    if(safe)void send({type:'close-observation',event:safe}).catch(()=>{});
+  };
+  const load = relative => import(pathToFileURL(path.join(observed.source, 'app', relative)).href);
   const sourceIdentity = { sourceCommit, manifestSha256: manifestSha256 ?? null, sourceLockSha256,
     criticalFiles: actualCriticalFiles, criticalVerification: 'child-read-and-sha256',
-    completeManifestVerification: 'controller-owned-read-only-source-mount' };
+    completeManifestVerification: 'original-readonly-source-plus-verified-observed-scratch-copy',
+    closeObservation:observed.identity };
   let early, app, witness, closePending, starting, readyOwner, closing = false, stopReceiptSent = false;
   // Fixed progress vocabulary only; a disconnected parent cannot prevent cleanup.
   const closeProgress = phase => { void send({ type: 'close-progress', phase }).catch(() => {}); };
@@ -349,8 +361,8 @@ export async function runDriver(argv = process.argv.slice(2)) {
     const readySnapshot = witness.capture('ready');
     const boundOptions = { host: options.host, port: options.port, dataDir: options.dataDir,
       assetRoots, initialStateSupplied: Boolean(args.initial), initialImportSupplied: false,
-      shippedPublicRoots: { webRoot: path.join(source, 'app', 'web'), resourcesRoot: path.join(source, 'resources'),
-        taskArtworkRoot: path.join(source, 'app', 'web', 'task-item-artwork.2026-10-09.v1'), mode: 'application-default-read-only-source' },
+      shippedPublicRoots: { webRoot: path.join(observed.source, 'app', 'web'), resourcesRoot: path.join(observed.source, 'resources'),
+        taskArtworkRoot: path.join(observed.source, 'app', 'web', 'task-item-artwork.2026-10-09.v1'), mode: 'application-default-verified-scratch-copy-diagnostic-only' },
       predictionPrewarm: 'application-default', startupWarmup: 'normal-startServer',
       workerFactory: 'application-default', beforeCommit: 'application-default', privateAddon: 'none',
       operatorEnvironment: { inheritedRS3Cleared: true, perfStageFdCleared: true, nodeOptionsCleared: true } };

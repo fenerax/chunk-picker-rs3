@@ -1,0 +1,21 @@
+{
+  "schema": "observation-policy-integration-v1",
+  "publicationBaseCommit": "33c2f2fd8f38f692956be6de7ae720a5cb3415be",
+  "publicationBaseManifestSha256": "234711325a948d5b0dae93b833f852fd4690914eb931c4c182ec331425c1071b",
+  "proposals": [
+    {
+      "case": "r116-close-v5",
+      "source": "../../r116-app-close-v5/result-policy-additions.proposal.json",
+      "bytes": 13449,
+      "sha256": "ef77e3b85f1d07e987f7e247172fe8afac1ab76b20261c38f823da9f67f7bf00"
+    },
+    {
+      "case": "r139-body",
+      "source": "../../r139-body-lifecycle-ready/result-policy.additions.proposal.json",
+      "bytes": 20051,
+      "sha256": "29063b2cc67e1cf7f7b1f1ab49da0fc64310037e24d08c45101361bda8507bfc"
+    }
+  ],
+  "existingRecursiveTypesOnly": true,
+  "newRuntime": "UNRUN"
+}

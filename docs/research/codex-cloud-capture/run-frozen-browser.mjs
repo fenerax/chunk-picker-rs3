@@ -15,9 +15,11 @@ import {initialExpectations,auditOpeningProjection} from './opening-oracle.mjs';
 import {createFailureTracker} from './failure-diagnostics.mjs';
 import {selectedTasksSectionReady} from './tasks-section-readiness.mjs';
 import {createChildCloser,CLOSE_DRIVER_STAGES,applyCleanupFailure} from './child-close-diagnostics.mjs';
+import {createCloseCollector} from './close-observation.mjs';
 
 const HERE=path.dirname(fileURLToPath(import.meta.url));
 const now=()=>performance.now();
+const OBSERVATION_COMPLETE=Symbol('reference-close-observation-complete');
 // Test-only observation. This finite vocabulary is also the public policy input.
 export const FAILURE_OPERATIONS=Object.freeze([
   'entry-setup','node-version','harness-verify','fixture-read','source-verify','source-lock-write',
@@ -142,6 +144,7 @@ function relayFor(directOrigin){
   },async close(){for(const timer of timers)clearTimeout(timer);timers.clear();for(const socket of sockets)socket.destroy();sockets.clear();if(listener?.listening)await new Promise(resolve=>listener.close(resolve));}};
 }
 function childHandle(args,onCheckpoint){
+  const closeObservation=createCloseCollector();
   const environment={...process.env};for(const key of ['NODE_OPTIONS','NODE_PATH','PERF_STAGE_FD'])delete environment[key];
   const child=fork(path.join(HERE,'server-driver.mjs'),args,{stdio:['ignore','ignore','pipe','ipc'],
     env:environment,execArgv:['--max-old-space-size=2048']});
@@ -154,6 +157,7 @@ function childHandle(args,onCheckpoint){
     if(message.type==='early')origin=message.origin;
     if(message.type==='ready'){ready=message;origin=message.origin??origin;}
     if(message.type==='private-invite')joinUrl=message.joinUrl;
+    if(message.type==='close-observation')closeObservation.record(message.event);
     if(message.type==='close-progress'&&CLOSE_DRIVER_STAGES.includes(message.phase))closeStage=message.phase;
     if(message.type==='reply'||message.type==='stopped'){
       const item=pending.get(message.id);if(item){pending.delete(message.id);message.ok===false?item.reject(Error(message.error?.code??message.code??'CHILD_RPC_FAILED')):item.resolve(message.result??message);}
@@ -168,6 +172,7 @@ function childHandle(args,onCheckpoint){
     getDriverStage:()=>closeStage,stop:()=>handle.rpc('stop',{},15000),waitExit:exitPromise,kill:signal=>child.kill(signal)});
   return handle={child,get ready(){return ready;},get origin(){return origin;},get joinUrl(){return joinUrl;},get exit(){return exit;},get stopped(){return stopped;},
     closeDiagnostic:()=>closer.diagnostic(),recordCloseWitness:code=>closer.witness(code),
+    closePhaseDiagnostic:()=>closeObservation.snapshot(),
     async waitReady(){await until(()=>{if(failure)throw Error(failure);if(exit)throw Error('CHILD_STARTUP_EXIT');return ready&&joinUrl&&origin;},90000,'CHILD_READY_TIMEOUT');return ready;},
     rpc(command,extra={},ms=15000){const id=++nextId;return bounded(new Promise((resolve,reject)=>{pending.set(id,{resolve,reject});child.send({id,command,...extra},error=>{if(error){pending.delete(id);reject(Error('CHILD_IPC_SEND_FAILED'));}});}),ms,'CHILD_RPC_TIMEOUT');},
     close:()=>closer.close()};
@@ -175,7 +180,7 @@ function childHandle(args,onCheckpoint){
 function datasetFrom(ready){const value=ready.identity?.dataset??ready.dataset??ready.identity??{};return {id:value.datasetId??value.id??'duo-legacy',digest:value.digest??ready.identity?.datasetDigest??ready.datasetDigest};}
 function snapshotFrom(reply){return reply.snapshot??reply;}
 function identityFields(sourceLock,dataset,fixtureHash,calculatorHash,ready){
-  const staticEnvelope={datasetId:dataset.id,datasetDigest:dataset.digest,publicOnly:true,
+  const staticEnvelope={datasetId:dataset.id,datasetDigest:dataset.digest,publicOnly:true,sourceObservation:'scratch-close-phases-only',
     suppliedDefinitions:false,suppliedWorld:false,suppliedRegistry:false,customWorkerFactories:false,
     nativeWorkerMode:'linux-default-thread',reviewedOverlays:true,predictionPrewarm:'default-on',
     externalAssetRoots:'fresh-empty-disposable',nodeVersion:process.version,workerSelection:ready.workerSelection,
@@ -244,7 +249,7 @@ export async function main(argv=process.argv.slice(2),tracker=createFailureTrack
   const checkpoint=checkpoints(path.join(options.scratch,'r116-checkpoints.jsonl'));let currentStage='start';
   const emit=(stage,fields={})=>{currentStage=stage;checkpoint(stage,fields);};emit.close=()=>checkpoint.close();
   const scope={memberId:options.member,chunkId:options.chunk,group:false,startup:options.startup};
-  const result={schema:'r116-frozen-browser-v1',mode:'r116-frozen-input-v1',status:'failed',code:'incomplete',scope,
+  const result={schema:'r116-app-close-diagnostic-v1',mode:'r116-close-phases-observation-v1',passed:false,acceptance:false,status:'failed',code:'incomplete',scope,
     sourcePin:options['expected-source-pin'],openGates:[...OPEN_GATES],cleanupStatus:'incomplete',rttStatus:'unobserved',
     strictR79Status:'blocked',strictR79Code:'not-observed',frozenStatus:'blocked',frozenCode:'not-observed',openingStatus:'unrun',openingCode:'not-observed',
     nodeVersion:process.version,metrics:{},limitations:['new-linux-chromium151-baseline','no-physical-windows-or-paint-proof','docker-hard-resource-envelope-required']};
@@ -276,7 +281,8 @@ export async function main(argv=process.argv.slice(2),tracker=createFailureTrack
     const referenceRoot=path.join(owned,'reference'),referenceStore=path.join(referenceRoot,'store');
     await at('reference-root-create',()=>fs.mkdir(referenceRoot,{recursive:true}));
     referenceChild=await at('reference-child-start',()=>childHandle(childArgs(referenceRoot,referenceStore,lockFile,true),(phase,fields={})=>emit('reference-start',{methodPhase:phase,...fields})));
-    await at('reference-child-ready',()=>referenceChild.waitReady());check();emit('reference-ready');
+    await at('reference-child-ready',()=>referenceChild.waitReady());check();
+    result.closeObservationIdentity=referenceChild.ready.sourceIdentity?.closeObservation;emit('reference-ready');
     referenceToken='reference-'+randomUUID();await at('reference-witness-begin',()=>referenceChild.rpc('begin',{token:referenceToken}));
     const referenceBefore=snapshotFrom(await at('reference-snapshot-before',()=>referenceChild.rpc('snapshot',{phase:'before'})));
     emit('reference-ready',{methodPhase:'input-snapshot',calculatorBytesSha256:snapshotHash(referenceBefore),fullStateSha256:fullStateHash(referenceBefore),revision:referenceBefore.revision});
@@ -328,16 +334,19 @@ export async function main(argv=process.argv.slice(2),tracker=createFailureTrack
     await at('reference-witness-finish',()=>{if(referenceFinished.witness?.valid!==true)throw Error('REFERENCE_WITNESS_INVALID');
       if(snapshotHash(referenceBefore)!==snapshotHash(referenceAfter))throw Error('REFERENCE_INPUT_CHANGED');});
     const identity=identityFields(sourceLock,dataset,result.fixtureSha256,snapshotHash(referenceAfter),referenceChild.ready);
-    reference={schema:'r116-frozen-reference-v1',origin:'separate-untouched-baseline-instance',instanceId:'reference-'+randomUUID(),
+    reference={schema:'r116-frozen-reference-v1',origin:'separate-observed-baseline-instance-diagnostic-only',instanceId:'reference-'+randomUUID(),
       ...identity,scope:{...scope,filter:'all',revision:referenceAfter.revision},...bodyRecord(refResponse.text),initialMapReference:referenceMap};
     result.referenceBodySha256=reference.bodySha256;result.calculatorBytesSha256=identity.calculatorBytesSha256;result.staticEnvelopeSha256=identity.staticEnvelopeSha256;
     emit('reference-result',{referenceBodySha256:reference.bodySha256,calculatorBytesSha256:identity.calculatorBytesSha256,totalRows:refBody.rows.length});
     referenceClosed=await at('reference-child-close',()=>referenceChild.close());check();
     const referenceClosure=validateClosedWitness(referenceClosed.final,referenceToken,reference.calculatorBytesSha256,fullStateHash(referenceBefore));
     referenceChild.recordCloseWitness(referenceClosure.code);result.referenceCloseDiagnostic=referenceChild.closeDiagnostic();
+    result.closePhaseDiagnostic=referenceChild.closePhaseDiagnostic();
     await at('reference-child-close',()=>{if(!referenceClosed.graceful||referenceClosed.exit?.code!==0||!referenceClosure.valid)throw Error('REFERENCE_CLOSE_INCOMPLETE');});
     referenceChild=null;
     emit('reference-close');
+    // Deliberate diagnostic-only endpoint. No measured UI/RTT lane can run.
+    throw OBSERVATION_COMPLETE;
     const measuredRoot=path.join(owned,'measured'),measuredStore=path.join(measuredRoot,'store');await at('measured-root-create',()=>fs.mkdir(measuredRoot,{recursive:true}));
     await at('measured-store-copy',()=>fs.cp(referenceStore,measuredStore,{recursive:true,errorOnExist:true,force:false}));
     // Prelaunch the browser before the measured server so browser startup does
@@ -475,6 +484,8 @@ export async function main(argv=process.argv.slice(2),tracker=createFailureTrack
     if(result.rttStatus==='outside-band'&&result.status==='correct'){result.status='calibration-blocked';result.code='total-rtt-outside-band';}
     emit('calibration-end',{rttStatus:result.rttStatus});
   }catch(error){
+    if(error===OBSERVATION_COMPLETE){result.status='blocked';result.code='r116-close-observation-complete';}
+    else{
     result.code=codeOf(error);result.status=result.code.includes('input')||result.code.includes('reference')||result.code.includes('opening')?'blocked':'failed';
     Object.assign(result,tracker.diagnostic(error));
     if(tracker.callbackFailure)result.callbackFailure=tracker.callbackFailure;
@@ -484,6 +495,7 @@ export async function main(argv=process.argv.slice(2),tracker=createFailureTrack
     // DOM text/labels/URLs, extra native actions, or weakening of a failed gate.
     result.diagnosticMetrics=await capabilitySurvey(measuredPage??referencePage,measuredPage?measuredPageErrorCount:referencePageErrorCount);
     emit('error',{methodPhase:'post-failure-capability-survey',diagnosticMetrics:result.diagnosticMetrics});
+    }
   }
   finally{
     emit('cleanup-start');let clean=true;
@@ -494,7 +506,7 @@ export async function main(argv=process.argv.slice(2),tracker=createFailureTrack
     try{await tracker.at('controller-cleanup',()=>relay?.close());}catch(error){cleanupFailed(error);}
     try{await tracker.at('controller-cleanup',async()=>{if(referenceChild){referenceClosed=await referenceChild.close();if(!referenceClosed.graceful||referenceClosed.exit?.code!==0||referenceClosed.final?.closeCompleted!==true)clean=false;}});}catch(error){cleanupFailed(error);}
     try{await tracker.at('controller-cleanup',async()=>{if(measuredChild){measuredClosed=await measuredChild.close();if(!measuredClosed.graceful||measuredClosed.exit?.code!==0||measuredClosed.final?.closeCompleted!==true)clean=false;}});}catch(error){cleanupFailed(error);}
-    if(referenceChild)result.referenceCloseDiagnostic=referenceChild.closeDiagnostic();
+    if(referenceChild){result.referenceCloseDiagnostic=referenceChild.closeDiagnostic();result.closePhaseDiagnostic=referenceChild.closePhaseDiagnostic();}
     if(measuredChild)result.measuredCloseDiagnostic=measuredChild.closeDiagnostic();
     // Stop/drain is part of the witness: a delayed store commit cannot be ignored.
     if(inputWitness){

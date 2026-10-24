@@ -1,6 +1,16 @@
 # Prepared public Docker measurement envelope
 
-## Next four cases from publishedf533
+## Two observation-only cases from published33c2
+
+Only new `r116-close-diagnostic` and `r139-body-lifecycle` jobs are enabled. All ten earlier case jobs are disabled on this future revision; their frozen runs continue independently. Both cases remain runtime UNRUN and all product acceptance gates remain OPEN. No R137 blocked Git cleanup is part of this packet.
+
+R116 V5 uses a different schema/mode and keeps passed=false/acceptance=false. It verifies the immutable1928-file source, loads an explicitly identified scratch derivative with only two admitted module transformations, records bounded close-phase markers and stops after reference close. The separate host gate binds the actual source-lock digest, deterministically recomputes the derived manifest using the exact original/transformed server/store hashes, and requires complete close receipt/witness, zero dropped markers, terminal phase fulfillment and exact container cleanup. A pending/rejected close or incomplete cleanup remains failed with its diagnostic evidence retained. No old measured opening/All/RTT acceptance is applied. Instrumented timings cannot be pooled with baseline measurements.
+
+R139 is a five-page response lifecycle component using a synthetic local HTTP fixture, not the game application. Its five treatments retain the13-byte control payloads and exact baseline/candidate modules with normal17-byte response. The host imports the unchanged mapped `observationComplete()` rule and requires the pinned runtime/source/client/manifest, exact resource/cleanup facts and acceptance=false. Ignore may finish or remain unobserved; completed cancel may finish or be canceled. Unknown bodyUsed remains null, not false. The observer neither reads nor retains responses. All wire/ledger facts use the same captured Node CDP receipt cutoff; the body survey is explicitly later. A complete observation establishes no leak, speed, full soak or product result.
+
+The original540s/480s R116 and120s/90s R139 bounds remain unchanged. Full runtime closure covers13+9 files and is checked through raw LF/CRLF CLI reads before Docker controls. The new policies use existing closed recursive enum/object/nullable integer/SHA types; both actual projectors pass Python/Node parity and counterexamples. No shared resource/projection implementation code changes in this wave. R139's projected case/frame remains6,212/6,435bytes, below32,768.
+
+## Prior four-case preparation (published33c2)
 
 Only R138's new existing-PR8 HTTP screen, R131 warm-field diagnostic V3, R111 RTT diagnostic V4 and R125 tab diagnostic V5 are enabled. R116, R135, R134 and the three older component cases remain disabled. R135 completed eight correct cells with eight observed warm responses, but all three candidate startup and first-body observations were slower; that descriptive PARK result is retained. No unchanged case is rerun. All four new variants remain runtime UNRUN and all product gates remain OPEN.
 

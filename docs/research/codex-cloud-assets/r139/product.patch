@@ -1,0 +1,22 @@
+diff --git a/app/web/usage-client.mjs b/app/web/usage-client.mjs
+--- a/app/web/usage-client.mjs
++++ b/app/web/usage-client.mjs
+@@ -36,12 +36,17 @@
+       try { if (beacon('/api/usage', new Blob([body], { type: 'application/json' }))) { pending.clear(); return; } } catch {}
+     }
+     pending.clear(); sending = true;
++    let result;
+     try {
+-      const result = await fetch('/api/usage', { method: 'POST', credentials: 'same-origin',
++      result = await fetch('/api/usage', { method: 'POST', credentials: 'same-origin',
+         headers: { 'Content-Type': 'application/json' }, body, keepalive: true });
+       if (!result.ok && enabled && epoch === version && (result.status >= 500 || result.status === 429)) rows.forEach(add);
+     } catch { if (enabled && epoch === version) rows.forEach(add); }
+     finally { sending = false; }
++    if (result) {
++      // Delivery status above owns retries; body cleanup must never resend counts.
++      try { void result.arrayBuffer().catch(() => {}); } catch {}
++    }
+   }
+   return { count, flush, setEnabled, refreshPreference, get enabled() { return enabled; },
+     start() { if (!timer) timer = schedule(() => { void flush(); }, 60000); },

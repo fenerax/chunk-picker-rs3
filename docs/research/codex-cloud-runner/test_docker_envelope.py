@@ -213,7 +213,7 @@ class Controls(unittest.TestCase):
     def test_both_workflow_recipes_use_distinct_empty_npm_configs(self):
         workflow = workflow_path().read_text()
         pairs = re.findall(r'npm_config_userconfig="([^"]+)"\s+npm_config_globalconfig="([^"]+)"', workflow)
-        self.assertEqual(len(pairs), 11)
+        self.assertEqual(len(pairs), 13)
         for user, global_config in pairs:
             self.assertNotEqual(user, global_config)
             self.assertNotEqual(user, '/dev/null'); self.assertNotEqual(global_config, '/dev/null')
@@ -221,20 +221,20 @@ class Controls(unittest.TestCase):
             self.assertIn(': > "' + global_config + '"', workflow)
     def test_both_setup_failures_use_closed_diagnostics(self):
         workflow = workflow_path().read_text()
-        self.assertEqual(workflow.count('--stage dependency-setup'), 11)
-        self.assertEqual(workflow.count('--stage public-image-pull'), 11)
+        self.assertEqual(workflow.count('--stage dependency-setup'), 13)
+        self.assertEqual(workflow.count('--stage public-image-pull'), 13)
         self.assertNotIn('cat "$RUNNER_TEMP/npm-setup.log"', workflow)
         self.assertNotIn('tail "$RUNNER_TEMP/image-pull.log"', workflow)
-    def test_next_four_case_wave_retains_controls_and_disables_other_cases(self):
+    def test_two_observation_jobs_retain_controls_and_disable_all_previous_cases(self):
         workflow=workflow_path().read_text()
         jobtext=workflow.split('jobs:\n',1)[1]
         markers=list(re.finditer(r'^  ([a-z0-9-]+):\n',jobtext,re.M))
         blocks={match.group(1):jobtext[match.start():(markers[i+1].start() if i+1<len(markers) else len(jobtext))] for i,match in enumerate(markers)}
-        self.assertEqual(len(blocks),11)
+        self.assertEqual(len(blocks),13)
         self.assertIn("github.event.repository.private == false",blocks['controls'])
-        for key in ('one-case','r127-component','r124-engine','r130-codec','r134-engine-performance','r135-codec-http'):
+        for key in ('one-case','r127-component','r124-engine','r130-codec','r134-engine-performance','r135-codec-http','r138-advisory','r125-focus','r111-scoped-soak','r131-native'):
             self.assertIn('if: ${{ false }}',blocks[key])
-        for key in ('r138-advisory','r125-focus','r111-scoped-soak','r131-native'):
+        for key in ('r116-close-diagnostic','r139-body-lifecycle'):
             self.assertIn('needs: controls',blocks[key]);self.assertIn('if: ${{ success() }}',blocks[key])
         self.assertIn('--entrypoint docs/research/codex-cloud-assets/r131-fixture-warm-v3/entry.mjs --mode native --seconds 180 --arg=--expected-harness-manifest-sha --arg=d70a4b35ba631b863c10b98b7b2b9faa2871aa2eaee914f694c90d71807d2a70',blocks['r131-native'])
         self.assertIn('--arg=--expected-harness-manifest-sha256 --arg=2184488130d8fef82cee0d5951f071ad55f16233b408e87ec5dafa842d6df396',blocks['r111-scoped-soak'])
@@ -243,6 +243,13 @@ class Controls(unittest.TestCase):
         self.assertIn('cancel-in-progress: false',workflow)
         self.assertIn('test_case_closure.py',blocks['controls'])
         self.assertIn('test_r111_rtt_projection.py',blocks['controls'])
+        for filename in ('test_r139_projection.py','test_r116_close_projection.py','test_r139_observation.mjs','test_r116_close_observation.mjs'):
+            self.assertIn(filename,blocks['controls'])
+        self.assertIn('--mode browser --seconds 540 --entrypoint docs/research/codex-cloud-capture/run-frozen-browser.mjs',blocks['r116-close-diagnostic'])
+        self.assertNotIn('--arg=--expected-harness',blocks['r116-close-diagnostic'])
+        self.assertIn('node "$tool/accept_r116_close.mjs" --final "$RUNNER_TEMP/r116-close-diagnostic/final.json"',blocks['r116-close-diagnostic'])
+        self.assertIn('--entrypoint docs/research/codex-cloud-assets/r139/entry.mjs --arg=--expected-harness-manifest-sha --arg=38b6213e5657a31a024fffc3618b2629c368e28e8a6154bf9545cdb62495a408 --mode browser --seconds 120',blocks['r139-body-lifecycle'])
+        self.assertIn('node "$tool/accept_r139.mjs" --final "$RUNNER_TEMP/r139-body-lifecycle/final.json"',blocks['r139-body-lifecycle'])
         self.assertIn('--entrypoint docs/research/codex-cloud-assets/r138/entry.mjs --mode native --control none --seconds 1200',blocks['r138-advisory'])
         self.assertNotIn('--arg=',blocks['r138-advisory'])
         self.assertIn('node "$RUNNER_TEMP/public-harness/docs/research/codex-cloud-assets/r138/accept-result.mjs" "$RUNNER_TEMP/r138-advisory/final.json" 9d74efb3ddeef7771fcfeb7d82525e52a27a904f5900e639aeaae90317e4a36e',blocks['r138-advisory'])
@@ -250,7 +257,7 @@ class Controls(unittest.TestCase):
     def test_performance_wave_uses_exact_cli_budgets_and_host_acceptance(self):
         workflow=workflow_path().read_text()
         r134=workflow.split('  r134-engine-performance:\n',1)[1].split('  r135-codec-http:\n',1)[0]
-        r135=workflow.split('  r135-codec-http:\n',1)[1]
+        r135=workflow.split('  r135-codec-http:\n',1)[1].split('  r138-advisory:\n',1)[0]
         self.assertIn('timeout-minutes: 20',r134);self.assertIn('timeout-minutes: 25',r135)
         self.assertIn('--mode component --control none --seconds 900 --arg=--packet-sha256 --arg=1e88a8b7318cf1923c443daaded1e1219a9bc5b337e9c7dac88631534f09684d --arg=--seconds --arg=860',r134)
         self.assertIn('--mode native --control none --seconds 1200',r135);self.assertNotIn('--arg=',r135)
