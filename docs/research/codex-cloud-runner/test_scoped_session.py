@@ -8,7 +8,7 @@ import unittest
 from accept_scoped_session import scoped_observed
 
 SOURCE = '6f22fefa782747790e2eaefa01e4e5ea7b557323'
-HARNESS = '2d6bbb25cac1673b296e03535b33cfd62e71187814974347e14b9cc561a2cc34'
+HARNESS = '2184488130d8fef82cee0d5951f071ad55f16233b408e87ec5dafa842d6df396'
 FIXTURE = 'a672a1f9b5de6a699a18c26c5fad6fe477a5e37d05c75f115f425a8a3f789b09'
 NODE = 'b'*64
 GATES = ['fault-recovery','latest-generation','physical-paint','independent-engine-correctness',
@@ -47,6 +47,8 @@ def valid_final():
           'metrics':{'targetDurationMs':1800000,'operations':54,'mutations':45,'closedPages':3,
                      'networkPending':0,'timedDurationMs':1800001,'observedTimedDurationMs':1800002,'elapsedMs':1900000}}
     case.update(vectors())
+    case['rttEvidence']={'schema':1,'directNodeUs':[1000]*10,'proxyNodeUs':[40000]*20,
+                         'browserProxyUs':[41000]*10,'unknown':[0,0,0]}
     inner={'passed':True,'control':'none','intentionalNegative':False,'samples':362,
            'cgroupMemoryPeak':1000000000,'rssUnknownSamples':0,'pssUnknownSamples':0,'orphanReaped':True,'caseResult':case}
     final={'schema':'docker-envelope-final-v1','envelope':'docker-hard-2cpu-6g-v1','sourceCommit':SOURCE,
@@ -73,6 +75,24 @@ class ScopedSession(unittest.TestCase):
         final,lock=valid_final()
         self.assertEqual(len(case_of(final)['sampleVectors']['tMs']),121)
         self.assertIs(scoped_observed(final,lock),True)
+
+    def test_scoped_healthy_observation_requires_all40_nonnull_rtt_values(self):
+        for change in ('missing','empty','partial','null','bad-count','extra-key'):
+            with self.subTest(change=change):
+                final,lock=valid_final();value=case_of(final)['rttEvidence']
+                if change=='missing':case_of(final).pop('rttEvidence')
+                elif change=='empty':value.update(directNodeUs=[],proxyNodeUs=[],browserProxyUs=[])
+                elif change=='partial':value['browserProxyUs'].pop()
+                elif change=='null':value['browserProxyUs'][0]=None;value['unknown'][2]=1
+                elif change=='bad-count':value['unknown'][0]=1
+                else:value['private']='SYNTHETIC_SECRET'
+                self.assert_rejected(final,lock)
+
+    def test_complete_legacy_broad_scope_is_not_a_new_canonical40plusminus2_gate(self):
+        final,lock=valid_final();value=case_of(final)['rttEvidence']
+        value['proxyNodeUs']=[47000]*20;value['browserProxyUs']=[47000]*10
+        self.assertIs(scoped_observed(final,lock),True)
+        self.assertFalse(case_of(final)['acceptance']);self.assertEqual(final['allProductAcceptanceGates'],'OPEN')
 
     def test_valid_minimum_110_points_without_long_gaps(self):
         final,lock=valid_final()

@@ -8,6 +8,7 @@ import { ensure, PROTOCOL, PIN, IMAGE, fileSha, sha, sourceTree, verifyTree, ver
 import { failureDiagnostic, browserVersionDiagnostic } from './focus-diagnostics.mjs';
 import { pinnedBrowserIdentity } from './focus-browser-identity.mjs';
 import { nativeExecutionDiagnostic } from './focus-native-evidence.mjs';
+import { tabExecutionDiagnostic } from './focus-tab-evidence.mjs';
 const started = performance.now(), deadline = started + 180000;
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 let active, stopRequested = false, escalation, phase = 'admission', result = { passed: false, status: 'failed', cleanupPassed: false };
@@ -160,7 +161,8 @@ try {
   for (const name of manifest.r109InstalledFiles) { const target = path.join(candidate, name); fs.mkdirSync(path.dirname(target), { recursive: true }); fs.copyFileSync(path.join(HERE, name), target); }
   const diagnosticFiles = portable.nativeDiagnosticFiles;
   ensure(JSON.stringify(Object.keys(diagnosticFiles ?? {}).sort()) === JSON.stringify([
-    'tests/task-focus-native-v4.fixture.mjs', 'tests/task-focus-native-v4.test.mjs', 'tests/task-focus-native.diagnostic.mjs'].sort()), 'packet-payload-hash');
+    'tests/task-focus-native-v4.fixture.mjs', 'tests/task-focus-native-v4.test.mjs', 'tests/task-focus-native.diagnostic.mjs',
+    'tests/task-focus-native.tab-diagnostic.mjs'].sort()), 'packet-payload-hash');
   for (const [name, row] of Object.entries(diagnosticFiles)) {
     ensure(fileSha(path.join(HERE, name)) === row.sha256, 'packet-payload-hash');
     fs.copyFileSync(path.join(HERE, name), path.join(candidate, name));
@@ -176,9 +178,10 @@ try {
   at('native-evidence');
   // Preserve the unsuccessful child's closed observations before the strict exit gate.
   const nativeDiagnostic = nativeExecutionDiagnostic(natural.raw, natural.code, natural.signal);
-  Object.assign(result, nativeDiagnostic);
+  const tabDiagnostic = tabExecutionDiagnostic(natural.raw);
+  Object.assign(result, nativeDiagnostic, tabDiagnostic, { metrics: { ...nativeDiagnostic.metrics, ...tabDiagnostic.metrics } });
   const parsed = parseNativeEvidence(natural.raw, natural.code, natural.signal);
-  result = { ...result, ...parsed, metrics: { ...nativeDiagnostic.metrics, ...parsed.metrics } };
+  result = { ...result, ...parsed, metrics: { ...result.metrics, ...parsed.metrics } };
   phase = 'drain'; await emit('episode-end'); await emit('cleanup-start');
   at('native-drain'); await waitDrained(ownAncestors, 2000);
   result.cleanupPassed = true; result.code = 'r125-focus-correct';

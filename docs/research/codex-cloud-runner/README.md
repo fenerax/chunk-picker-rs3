@@ -1,6 +1,16 @@
 # Prepared public Docker measurement envelope
 
-## Five-case recovery from published6e5
+## Next four cases from publishedf533
+
+Only R138's new existing-PR8 HTTP screen, R131 warm-field diagnostic V3, R111 RTT diagnostic V4 and R125 tab diagnostic V5 are enabled. R116, R135, R134 and the three older component cases remain disabled. R135 completed eight correct cells with eight observed warm responses, but all three candidate startup and first-body observations were slower; that descriptive PARK result is retained. No unchanged case is rerun. All four new variants remain runtime UNRUN and all product gates remain OPEN.
+
+R138 uses the exact existing two-file PR8 product outputs on the public6f22 source. Its own mapped host checker independently recomputes the first-body, startup and optional warm screen from eight fresh cells. First-body median gain must exceed fresh-AA noise plus0.02. Recurring startup or warm regression in at least two of three pairs vetoes promotion. Missing warm observations stay absent and unobserved. Promising, parked and inconclusive are all valid completed measurements, with no SLO, release or integrated-speedup claim. The native outer limit is1200s; its entry accepts no extra arguments or custom environment.
+
+R111's new `rttEvidence` is strictly projected by exact copied JS and Python helpers. Both sanitizers require the complete closed object, preserve ordered partial arrays and null counts on failures, and reject unknown keys or malformed values atomically. Healthy scoped observations additionally require all40 non-null durations in10/20/10 direct/proxy/browser samples. The profile remains **LEGACY_BROAD_SCOPE**: existing39..48ms lower-median guards, transport, waits and sample counts are unchanged. These are full-fetch durations in different process/load domains; they establish neither canonical40±2ms RTT nor isolated link overhead nor a product SLO. R111's54 journeys,110 cadence buckets,45s maximum gap,30min duration, cleanup and passed=false/full acceptance=false scope remain unchanged.
+
+Only imports and result-projection blocks change in the shared Docker/inside files; do not describe those whole files as unchanged. `r111-rtt-projector-source-receipt.json` proves all remaining resource-code bytes identical, binds the exact helper copies, and records the32,013-byte worst final frame below32,768. Host acceptance binds the new R111218448... and R131d70a... identities. R131's explicit new public prefix is `r131-fixture-warm-v3/`; no basename substitution is allowed. The full closure checks74 mapped files and every inner manifest/member through the actual raw LF/CRLF CLI before Docker controls.
+
+## Prior five-case recovery (publishedf533)
 
 This separate derivative enables only changed R111 bootstrap V3, R116 close V4, R125 native-evidence V4, R131 after the closure-parser fix, and R135 provider-identity V3. R134 completed48 correct observations and its screen was PARKED; it is disabled, as are R124/R130/R127. No unchanged case is retried. All five recovery variants remain runtime UNRUN and all product gates stay OPEN.
 

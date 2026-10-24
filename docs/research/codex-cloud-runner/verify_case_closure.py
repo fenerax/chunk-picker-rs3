@@ -7,7 +7,7 @@ import re
 import sys
 import stat
 from accept_case import read_final
-KINDS={'one-case':'r116','r125-focus':'r125','r111-scoped-soak':'r111','r135-codec-http':'r135','r131-native':'r131'}
+KINDS={'one-case':'r116','r125-focus':'r125','r111-scoped-soak':'r111','r135-codec-http':'r135','r131-native':'r131','r138-advisory':'r138'}
 PIN='6f22fefa782747790e2eaefa01e4e5ea7b557323'
 class ClosureError(ValueError):
     def __init__(self,phase='definition',job=None,ordinal=None):
@@ -74,13 +74,13 @@ def verify(workflow,closure,reader):
             require(type(manifest.get('schemaVersion')) is int and manifest['schemaVersion']==1 and manifest.get('mode')=='r116-frozen-input-v1' and manifest.get('sourceCommit')==PIN)
             require(prefix+relative(manifest['entrypoint'])==entry);rows=manifest['files']
         elif kind=='r111':
-            require(manifest.get('schema')=='r111-runtime-source-slice-v3' and manifest.get('sourcePin')==PIN)
+            require(manifest.get('schema')=='r111-runtime-source-slice-v4' and manifest.get('sourcePin')==PIN)
             require(entry==prefix+'candidate/harness/run-container-session.mjs');rows=manifest['files']
         elif kind=='r135':
             require(manifest.get('schema')=='r135-http-runtime-manifest-v1' and manifest.get('sourcePin')==PIN)
             require(entry==prefix+'entry.mjs');rows=manifest['files']
         elif kind=='r125':
-            require(manifest.get('schema')=='r125-compatible-source-manifest-v4' and manifest.get('sourcePin')==PIN and manifest.get('entrypoint')==entry)
+            require(manifest.get('schema')=='r125-compatible-source-manifest-v5' and manifest.get('sourcePin')==PIN and manifest.get('entrypoint')==entry)
             members={}
             for group in ('runtimeFiles','unchangedOriginalPayload'):
                 require(type(manifest.get(group)) is dict)
@@ -90,6 +90,9 @@ def verify(workflow,closure,reader):
             rows=[{'path':name,**pin} for name,pin in members.items()]
         elif kind=='r131':
             require(manifest.get('schema')=='r131-required-runtime-assets-v1' and manifest.get('sourceCommit')==PIN)
+            require(prefix+relative(manifest['entry'])==entry);rows=manifest['files']
+        elif kind=='r138':
+            require(manifest.get('schema')=='r138-required-runtime-assets-v1' and manifest.get('sourceCommit')==PIN and manifest.get('candidateCommit')=='157e16614bcd248df96070a4c3482e0691b18594')
             require(prefix+relative(manifest['entry'])==entry);rows=manifest['files']
         else:raise ValueError('case-runtime-closure-failed')
         wanted={row['path']:row for row in case['assets'] if row['path']!=case['manifest']}

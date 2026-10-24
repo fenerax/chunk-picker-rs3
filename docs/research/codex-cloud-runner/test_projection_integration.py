@@ -14,11 +14,12 @@ import fs from 'node:fs';
 import {pathToFileURL} from 'node:url';
 const root=process.argv[1],policy=JSON.parse(fs.readFileSync(root+'/result-policy.json','utf8'));
 const {projectNumericEvidence,assertCaseBudget}=await import(pathToFileURL(root+'/r111_vectors.mjs'));
+const {projectRttEvidence}=await import(pathToFileURL(root+'/r111_rtt_evidence.mjs'));
 const source=fs.readFileSync(root+'/inside.mjs','utf8');
 const start=source.indexOf('function sanitized(value) {'),end=source.indexOf('\nfunction boundedCaseResult(',start);
 if(start<0||end<0)throw Error('pure sanitizer extraction failed');
 const ensure=(ok)=>{if(!ok)throw Error('invalid');};
-const sanitize=new Function('publicPolicy','projectNumericEvidence','assertCaseBudget','ensure',source.slice(start,end)+';return sanitized;')(policy,projectNumericEvidence,assertCaseBudget,ensure);
+const sanitize=new Function('publicPolicy','projectNumericEvidence','projectRttEvidence','assertCaseBudget','ensure',source.slice(start,end)+';return sanitized;')(policy,projectNumericEvidence,projectRttEvidence,assertCaseBudget,ensure);
 let text='';for await(const bytes of process.stdin)text+=bytes;
 process.stdout.write(JSON.stringify(JSON.parse(text).map(value=>{try{return{ok:true,value:sanitize(value)};}catch{return{ok:false};}})));
 """
@@ -49,11 +50,11 @@ class BothProjectionControls(unittest.TestCase):
         value=actual_near_maximum_case(); projected=self.both([value])[0]
         self.assertTrue(projected["ok"])
         for key in ("sampleVectors","journeyLatencies"):self.assertEqual(projected["value"][key],value[key])
-        self.assertEqual(len((compact_json(projected["value"])+"\n").encode()),30716)
+        self.assertEqual(len((compact_json(projected["value"])+"\n").encode()),31173)
     def test_r111_case_exit_and_actual_envelope_remain_below_frame_cap(self):
         case=self.both([actual_near_maximum_case()])[0]["value"];case["caseExitCode"]=0
         envelope={"schema":"docker-hard-2cpu-6g-result-v1","passed":True,"control":"none","intentionalNegative":False,"samples":10000,"cgroupMemoryPeak":6442450944,"rssUnknownSamples":10000,"pssUnknownSamples":10000,"orphanReaped":True,"caseResult":case}
-        self.assertEqual(len((compact_json(envelope)+"\n").encode()),30966)
+        self.assertEqual(len((compact_json(envelope)+"\n").encode()),31423)
         self.assertLess(len((compact_json(envelope)+"\n").encode()),32768)
     def test_r111_failed_partial_evidence_survives_without_becoming_accepted(self):
         value=actual_near_maximum_case();value.update(status="failed",code="r111-child-nonzero")

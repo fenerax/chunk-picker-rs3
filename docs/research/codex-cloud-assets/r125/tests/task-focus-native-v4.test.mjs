@@ -1,6 +1,7 @@
 // Controlled functional race: real ACK and unchanged HTTP bodies are held.
 // No mocked cache/generation/focus, dispatchEvent, or checkbox property changes.
 import test from 'node:test';
+import { captureTabSnapshot, instrumentTabTasks } from './task-focus-native.tab-diagnostic.mjs';
 import { operationTracker, projectRecord } from './task-focus-native.diagnostic.mjs';
 import assert from 'node:assert/strict';
 import { fork } from 'node:child_process';
@@ -119,7 +120,7 @@ async function setup(t, group, owner, tracker) {
     assert.match(response.headers()['content-security-policy'] || '', /script-src 'self'/, `${name} CSP`);
     moduleGates.push({ path: name, status: response.status(), type: response.headers()['content-type'], csp: response.headers()['content-security-policy'] });
   };
-  for (const [name, instrument] of [['screen-loading.mjs', instrumentLoading], ['screen-tasks.mjs', instrumentTasks]]) {
+  for (const [name, instrument] of [['screen-loading.mjs', instrumentLoading], ['screen-tasks.mjs', source => instrumentTabTasks(source, instrumentTasks)]]) {
     await context.route(`**/${name}`, routeGuard(async route => {
       const response = await route.fetch(); checkModule(response, '/' + name);
       const raw = await response.text(), body = instrument(raw);
@@ -170,17 +171,29 @@ async function setup(t, group, owner, tracker) {
   tracker.mark('show-more'); await page.getByRole('button', { name: /^Show more Custom tasks/ }).click(); await page.waitForSelector(b);
   tracker.mark('key-observer'); await page.evaluate(() => { window.r68Keys = []; document.addEventListener('keydown', event => r68Keys.push({
     key: event.key, trusted: event.isTrusted, taskId: event.target.closest('[data-task-id]')?.dataset.taskId || '' }), true); });
+  let tabAction = 'pending', tabIndex = 0;
+  const tabEmit = record => console.log('r125-tab-diagnostic ' + JSON.stringify(record));
+  const tabSnapshot = phase => captureTabSnapshot(page, { a, b, owner, phase, action: tabAction, index: tabIndex }, tabEmit);
   return { page, dir, commands, release, aId, bId, a, b, responses, moduleGates, browserErrors,
-    async pending() { tracker.mark('pending'); holdTasks = true; await page.locator(a).click(); await deadline(held.promise, 15000, 'committed held ACK'); },
+    async pending() { tracker.mark('pending'); tabAction = 'pending';
+      await tabSnapshot('before-command');
+      try { holdTasks = true; await page.locator(a).click(); await deadline(held.promise, 15000, 'committed held ACK');
+        await tabSnapshot('after-pending');
+      } catch (error) { await tabSnapshot('failure'); throw error; }
+    },
     async tabToB() {
       tracker.mark('tab');
+      try {
       for (let i = 0; i < 1000; i++) {
+        tabIndex = i + 1; tabAction = 'press';
         await page.keyboard.press('Tab');
+        tabAction = 'locate-b'; await tabSnapshot('after-tab');
         if (await page.locator(b).evaluate(node => node === document.activeElement)) {
-          assert.equal(await page.locator(b).isEnabled(), true); assert.equal(await page.locator('#save-status').textContent(), 'Saving…'); return;
+          tabAction = 'check-enabled'; assert.equal(await page.locator(b).isEnabled(), true); tabAction = 'check-save'; assert.equal(await page.locator('#save-status').textContent(), 'Saving…'); return;
         }
       }
-      assert.fail('native Tab never reached later-page B');
+      tabAction = 'exhausted'; assert.fail('native Tab never reached later-page B');
+      } catch (error) { await tabSnapshot('failure'); throw error; }
     },
     async settled() {
       assert.ok(receipt && Number.isSafeInteger(receipt.revision), 'actual committed command receipt required');

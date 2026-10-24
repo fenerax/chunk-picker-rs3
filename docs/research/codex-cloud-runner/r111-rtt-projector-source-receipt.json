@@ -1,0 +1,69 @@
+{
+  "schema": "r111-rtt-projector-integration-v1",
+  "sourceProposalSha256": "aeacfc0bcc7e77a0368ba4990bd632324c39c102fcde2401e1b722644b9d5852",
+  "byteIdenticalCopies": true,
+  "files": [
+    {
+      "source": "../../r111-rtt-calibration-v4/rtt_vector_policy.py",
+      "copy": "r111_rtt_policy.py",
+      "bytes": 1548,
+      "sourceSha256": "4b535cf600f102fb9780d854a964e8079d479aaf684abb5268a259c84943f9e6",
+      "copySha256": "4b535cf600f102fb9780d854a964e8079d479aaf684abb5268a259c84943f9e6"
+    },
+    {
+      "source": "../../r111-rtt-calibration-v4/runtime-publication/candidate/harness/rtt-evidence.mjs",
+      "copy": "r111_rtt_evidence.mjs",
+      "bytes": 1990,
+      "sourceSha256": "aa95948f6b2181a08f1ffad8a6918266e1f44d0f1370da15795280e74dd11242",
+      "copySha256": "aa95948f6b2181a08f1ffad8a6918266e1f44d0f1370da15795280e74dd11242"
+    }
+  ],
+  "resourceRemainder": [
+    {
+      "path": "docker_envelope.py",
+      "permittedChangedBlock": "sanitized_result",
+      "resourceRemainderBytes": 31120,
+      "baseResourceRemainderSha256": "b0571e5487c3e753814956afb19148e4c047cca4b8d8f0c31be35cd539fbe30b",
+      "newResourceRemainderSha256": "b0571e5487c3e753814956afb19148e4c047cca4b8d8f0c31be35cd539fbe30b",
+      "resourceRemainderByteIdentical": true
+    },
+    {
+      "path": "inside.mjs",
+      "permittedChangedBlock": "sanitized",
+      "resourceRemainderBytes": 14242,
+      "baseResourceRemainderSha256": "9c90ffa29037043dab00f970d450f589f61c6e7dc1cc319e9b94f12748c1f931",
+      "newResourceRemainderSha256": "9c90ffa29037043dab00f970d450f589f61c6e7dc1cc319e9b94f12748c1f931",
+      "resourceRemainderByteIdentical": true
+    }
+  ],
+  "scopeLabel": "LEGACY_BROAD_SCOPE",
+  "legacy39to48ThresholdsChanged": false,
+  "transportChanged": false,
+  "canonical40PlusMinus2SLOPassed": false,
+  "runtime": "UNRUN",
+  "pureControls": {
+    "targetedPythonPassed": 52,
+    "failed": 0,
+    "command": "python -B -m unittest -q test_r111_vector_policy test_projection_integration test_scoped_session test_r111_rtt_projection"
+  },
+  "frameBudget": {
+    "sourceWorstCaseBytes": 31763,
+    "sourceWorstInnerEnvelopeBytes": 31996,
+    "actualInnerEnvelopeWithCaseExitBytes": 32013,
+    "maximumBytes": 32768,
+    "remainingBytes": 755,
+    "copiedBaseMaxVectorCaseWithRttBytes": 31173,
+    "baseMaxEnvelopeWithCaseExitBytes": 31423
+  },
+  "healthyScopeCompleteness": {
+    "directNodeUs": 10,
+    "proxyNodeUs": 20,
+    "browserProxyUs": 10,
+    "unknownTotal": 0,
+    "legacyBandUnchanged": "39..48ms",
+    "scopeLabel": "LEGACY_BROAD_SCOPE",
+    "fullProductAcceptance": false
+  },
+  "existingScopedCriteriaByteIdenticalOutsideCompletenessAndIdentity": true,
+  "existingScopedCriteriaRemainderSha256": "7cef89c89cf92d621d9c6730e91f9b89d80fb099078406c10b6f73a08434f5ab"
+}

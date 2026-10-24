@@ -82,4 +82,17 @@ class PerformanceProjectionControls(unittest.TestCase):
         self.assertLess(len((compact_json(result[0]['value'])+'\n').encode())+250,32768)
         native.update(focusNativeFailureModule='C:/SYNTHETIC_SECRET',focusNativeFailureCode='SYNTHETIC_SECRET');self.assertNotIn('SYNTHETIC_SECRET',json.dumps(self.both([native])[0]['value']))
 
+    def test_r138_all42_numeric_fields_signed_decisions_and_closed_failure_fields(self):
+        policy=json.loads((HERE/'result-policy.json').read_text());keys=[k for k in policy['metricKeys'] if k.startswith('r138')];self.assertEqual(len(keys),42)
+        value={'schema':'r138-http-component-v1','status':'correct','code':'r138-screen-complete','screenStatus':'parked','gainBeyondNoise':True,'primaryPairCount':3,'warmPairCount':3,'startupControlStatus':'recurring-regression','warmControlStatus':'clear','r138PacketManifestSha256':'a'*64,'metrics':{k:(-0.25 if 'GainFraction' in k else 100) for k in keys}}
+        result=self.both([value])[0]['value'];self.assertEqual(result['metrics'],value['metrics']);self.assertEqual(result['screenStatus'],'parked');self.assertTrue(result['gainBeyondNoise']);self.assertEqual(result['r138PacketManifestSha256'],'a'*64)
+        value.update(status='failed',operationCode='r138-screen-classify',errorName='assertion-error',errorCode='ERR_ASSERTION',cellOrdinal=3,completedCellCount=3);result=self.both([value])[0]['value'];self.assertEqual(result['operationCode'],'r138-screen-classify');self.assertEqual(result['completedCellCount'],3)
+        value.update(operationCode='SYNTHETIC_SECRET',r138PacketManifestSha256='SYNTHETIC_SECRET');self.assertNotIn('SYNTHETIC_SECRET',json.dumps(self.both([value])[0]['value']))
+
+    def test_r125_tab_and_r131_warm_field_diagnostics_remain_closed(self):
+        tab={'schema':'r125-focus-functional-v1','status':'failed','focusTabObserved':True,'focusTabBPresent':False,'focusTabBVisible':False,'focusTabBEnabled':False,'focusTabPhase':'after-pending','focusTabAction':'locate-b','focusTabActiveKind':'target-a','metrics':{'focusTabIndex':2,'focusTabACount':1,'focusTabBCount':0}}
+        warm={'schema':'r131-borrow-native-v1','status':'failed','r131WarmAssertionField':'prewarm-declaration-count','metrics':{'r131WarmExpected':1,'r131WarmActual':0}}
+        result=self.both([tab,warm]);self.assertEqual(result[0]['value']['metrics'],tab['metrics']);self.assertFalse(result[0]['value']['focusTabBPresent']);self.assertEqual(result[1]['value']['metrics'],warm['metrics']);self.assertEqual(result[1]['value']['r131WarmAssertionField'],'prewarm-declaration-count')
+        tab['focusTabAction']='SYNTHETIC_SECRET';warm['r131WarmAssertionField']='SYNTHETIC_SECRET';self.assertNotIn('SYNTHETIC_SECRET',json.dumps(self.both([tab,warm])))
+
 if __name__=='__main__':unittest.main()

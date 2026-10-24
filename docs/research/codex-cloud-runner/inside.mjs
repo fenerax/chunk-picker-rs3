@@ -4,6 +4,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { spawn } from 'node:child_process';
 import { projectNumericEvidence, assertCaseBudget } from './r111_vectors.mjs';
+import { projectRttEvidence } from './r111_rtt_evidence.mjs';
 
 const pins = JSON.parse(fs.readFileSync('/runner/pins.json', 'utf8'));
 // The host applies the same closed public projection again before printing.
@@ -110,6 +111,7 @@ function sanitized(value) {
   }
   if (value?.schema === 'r111-long-session-v2') {
     Object.assign(out, projectNumericEvidence(value.sampleVectors, value.journeyLatencies));
+    out.rttEvidence = projectRttEvidence(value.rttEvidence);
     assertCaseBudget(out);
   }
   return out;

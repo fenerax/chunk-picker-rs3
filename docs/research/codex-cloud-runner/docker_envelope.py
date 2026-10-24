@@ -13,6 +13,7 @@ import sys
 import time
 import uuid
 from r111_vector_policy import project_numeric_evidence
+from r111_rtt_policy import project_rtt_evidence
 
 HERE = Path(__file__).resolve().parent
 PINS = json.loads((HERE / "pins.json").read_text())
@@ -186,6 +187,7 @@ def sanitized_result(value):
     if value.get("schema") == "r111-long-session-v2":
         # Both closed structures are projected atomically; malformed/partial structures fail.
         out.update(project_numeric_evidence(value.get("sampleVectors"), value.get("journeyLatencies")))
+        out["rttEvidence"] = project_rtt_evidence(value.get("rttEvidence"))
         require(len((json.dumps(out, separators=(",", ":"), allow_nan=False) + "\n").encode()) <= 32768, "r111-case-output-cap")
     return out
 

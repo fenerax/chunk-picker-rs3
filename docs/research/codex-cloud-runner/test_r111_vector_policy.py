@@ -64,6 +64,10 @@ def complete_vectors():
     value['journeyLatencies'].update(rows=[[i,i%6,(i//6)%2,0,1,None,2] for i in range(54)],unknown=[0,0,54,0])
     return value
 
+def maximum_rtt_evidence():
+    return {'schema':1,'directNodeUs':[90000000]*10,'proxyNodeUs':[90000000]*20,
+            'browserProxyUs':[90000000]*10,'unknown':[0,0,0]}
+
 def actual_near_maximum_case():
     # Exact source test shape from candidate/tests/evidence-vectors.test.mjs,
     # including source publicResult's forced-code cleanup status and field order.
@@ -82,6 +86,7 @@ def actual_near_maximum_case():
                    'operations':54,'mutations':45,'closedPages':3,'networkPending':0},
         'sourceManifestSha256':'a'*64,'harnessManifestSha256':'b'*64,'nodeSha256':'c'*64}
     value.update(maximum_vectors())
+    value['rttEvidence']=maximum_rtt_evidence()
     return value
 
 class R111VectorPolicy(unittest.TestCase):
@@ -137,10 +142,10 @@ class R111VectorPolicy(unittest.TestCase):
                   'intentionalNegative':False,'samples':10000,'cgroupMemoryPeak':6442450944,
                   'rssUnknownSamples':10000,'pssUnknownSamples':10000,'orphanReaped':True,'caseResult':case}
         results=self.node_requests([{'op':'budget','value':case},{'op':'budget','value':envelope}])
-        self.assertEqual([row['bytes'] for row in results],[30716,30949])
+        self.assertEqual([row['bytes'] for row in results],[31173,31406])
         self.assertTrue(all(row['ok'] for row in results))
-        self.assertEqual(len((compact_json(case)+'\n').encode()),30716)
-        self.assertEqual(len((compact_json(envelope)+'\n').encode()),30949)
+        self.assertEqual(len((compact_json(case)+'\n').encode()),31173)
+        self.assertEqual(len((compact_json(envelope)+'\n').encode()),31406)
         self.assertEqual(self.projected(case),maximum_vectors())
 
     def test_case_budget_rejects_oversize_serialized_result(self):

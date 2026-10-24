@@ -1,0 +1,33 @@
+{
+  "schema": "next-four-sparse-policy-receipt-v1",
+  "publicationBaseCommit": "f533cd79deb3ba63f5ce88e28bafa423ed1f3ee0",
+  "publicationBaseManifestSha256": "5c7fa6bd76a006cbb94e345369fa252da05160c1833e6623dfb98c5c59f9bbca",
+  "proposals": [
+    {
+      "case": "r138",
+      "source": "../../r138-advisory-ready-research/result-policy.additions.json",
+      "bytes": 5928,
+      "sha256": "20a23827cd4531b814adca5a7996c0dd34ee174e7ee3f536ee550460b88af566"
+    },
+    {
+      "case": "r131-warm-v3",
+      "source": "../../r131-fixture-warm-v3/result-policy.additions.proposal.json",
+      "bytes": 515,
+      "sha256": "70fd5027d834f0309edd66eb0154e35e5163669706d3b3c91a0789ed4567c645"
+    },
+    {
+      "case": "r125-tab-v5",
+      "source": "../../r125-tab-action-v5/derived/result-policy-tab-additions.json",
+      "bytes": 1473,
+      "sha256": "8dceb9ff553c5c198dff35cadfcce105a0a95c9b7b189397bcc0c7c630df6325"
+    },
+    {
+      "case": "r111-rtt-v4",
+      "source": "../../r111-rtt-calibration-v4/result-policy-rtt-proposal.json",
+      "bytes": 1466,
+      "sha256": "aeacfc0bcc7e77a0368ba4990bd632324c39c102fcde2401e1b722644b9d5852"
+    }
+  ],
+  "r111RttProfile": "LEGACY_BROAD_SCOPE",
+  "newRuntime": "UNRUN"
+}

@@ -7,10 +7,11 @@ import re
 import sys
 from accept_case import read_final
 from r111_vector_policy import project_numeric_evidence
+from r111_rtt_policy import complete_rtt_evidence
 
 PIN = "6f22fefa782747790e2eaefa01e4e5ea7b557323"
 FIXTURE = "a672a1f9b5de6a699a18c26c5fad6fe477a5e37d05c75f115f425a8a3f789b09"
-HARNESS = "2d6bbb25cac1673b296e03535b33cfd62e71187814974347e14b9cc561a2cc34"
+HARNESS = "2184488130d8fef82cee0d5951f071ad55f16233b408e87ec5dafa842d6df396"
 SCOPE = {"dataset":"duo-legacy","fixtureBaseline":"r37-authored-711-v2","players":2,"overlays":1,"memberUnlockedChunks":1,"taskCoverage":"fixture-member-catalogue","sessionMinutes":30}
 GATES = {"fault-recovery","latest-generation","physical-paint","independent-engine-correctness","full-legacy-coverage","memory-nonaccumulation","statistical-performance"}
 BASELINE = {"node":"v24.19.0","playwright":"1.62.1","chromium":"151.0.7922.34","chromiumRevision":"1234","platform":"linux/amd64","image":"mcr.microsoft.com/playwright:v1.62.1-noble@sha256:c091b21d9fae78c76e85cd4356431e9b018402f172a214fc7d7a5e9a7e29d8ac"}
@@ -54,6 +55,8 @@ def scoped_observed(final, source_lock):
         for key,expected in {"targetDurationMs":1800000,"operations":54,"mutations":45,"closedPages":3,"networkPending":0}.items():
             check(type(metrics.get(key)) is int and metrics[key] == expected)
         check(number(metrics.get("timedDurationMs"),1800000,1810000) and number(metrics.get("observedTimedDurationMs"),1800000,1815000) and number(metrics.get("elapsedMs"),1800000,2000000))
+        # Completeness only: LEGACY_BROAD_SCOPE remains separate from the canonical SLO.
+        check(complete_rtt_evidence(case.get("rttEvidence")))
         vectors = project_numeric_evidence(case.get("sampleVectors"),case.get("journeyLatencies"))
         samples, journeys = vectors["sampleVectors"],vectors["journeyLatencies"]
         times = samples["tMs"]

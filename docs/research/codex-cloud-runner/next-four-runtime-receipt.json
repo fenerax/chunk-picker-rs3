@@ -1,0 +1,44 @@
+{
+  "schema": "next-four-full-runtime-closure-receipt-v1",
+  "publicationBaseCommit": "f533cd79deb3ba63f5ce88e28bafa423ed1f3ee0",
+  "publicationBaseManifestSha256": "5c7fa6bd76a006cbb94e345369fa252da05160c1833e6623dfb98c5c59f9bbca",
+  "cases": [
+    {
+      "job": "r138-advisory",
+      "sourceManifest": "../../r138-advisory-ready-research/publication-manifest.json",
+      "sourceManifestSha256": "6f83384e96c241ab14bb4cfaa9573cb82182d6c28e7e0b1e0e6dc7765c01bb84",
+      "fullMappedFiles": 13,
+      "runtimeBytes": 66357,
+      "innerManifestSha256": "9d74efb3ddeef7771fcfeb7d82525e52a27a904f5900e639aeaae90317e4a36e"
+    },
+    {
+      "job": "r131-native",
+      "sourceManifest": "../../r131-fixture-warm-v3/runtime-publication-map.json",
+      "sourceManifestSha256": "04e50a92161ff765923c474385076a531975326c128b801c730bd14e88220b7d",
+      "fullMappedFiles": 15,
+      "runtimeBytes": 291485,
+      "innerManifestSha256": "d70a4b35ba631b863c10b98b7b2b9faa2871aa2eaee914f694c90d71807d2a70"
+    },
+    {
+      "job": "r111-scoped-soak",
+      "sourceManifest": "../../r111-rtt-calibration-v4/runtime-publication-manifest.json",
+      "sourceManifestSha256": "e47c859fa3868f0615960b834ff67fa7f421680c39870077f4f3988b5a877b7a",
+      "fullMappedFiles": 19,
+      "runtimeBytes": 125752,
+      "innerManifestSha256": "2184488130d8fef82cee0d5951f071ad55f16233b408e87ec5dafa842d6df396"
+    },
+    {
+      "job": "r125-focus",
+      "sourceManifest": "../../r125-tab-action-v5/runtime-publication-map.json",
+      "sourceManifestSha256": "a7fbf1096a68b0927c4cf37e422542389b7b0e5811a7b5ad1c98c11044b29892",
+      "fullMappedFiles": 27,
+      "runtimeBytes": 193267,
+      "innerManifestSha256": "0aa70cfd49b3fbdc55836aec2080f06f06e07eb4530932911b8f56f9b991d3d6"
+    }
+  ],
+  "allMappedBytesVerified": true,
+  "fullMappedFiles": 74,
+  "fullMappedBytes": 676861,
+  "r111Profile": "LEGACY_BROAD_SCOPE",
+  "newRuntime": "UNRUN"
+}

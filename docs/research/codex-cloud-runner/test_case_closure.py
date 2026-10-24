@@ -16,7 +16,7 @@ WORKFLOW_PATH=workflow_path(HERE)
 RAW=WORKFLOW_PATH.read_bytes()
 WORKFLOW=RAW.decode('utf8')
 CLOSURE=json.loads((HERE/'case-runtime-closure.json').read_text())
-EXPECTED={'one-case':12,'r111-scoped-soak':17,'r135-codec-http':11,'r125-focus':24,'r131-native':15}
+EXPECTED={'r138-advisory':13,'r131-native':15,'r111-scoped-soak':19,'r125-focus':27}
 
 class CaseClosureControls(unittest.TestCase):
     def cli(self,workflow,mapping,harness):
@@ -24,18 +24,18 @@ class CaseClosureControls(unittest.TestCase):
         with contextlib.redirect_stdout(stream):status=main(['--workflow',str(workflow),'--map',str(mapping),'--harness',str(harness)])
         return status,json.loads(stream.getvalue())
 
-    def test_all_five_actual_full_runtime_maps_and_member_bytes(self):
+    def test_all_four_actual_full_runtime_maps_and_member_bytes(self):
         self.assertEqual({k:len(v['assets']) for k,v in CLOSURE['cases'].items()},EXPECTED)
-        self.assertEqual(verify(WORKFLOW,CLOSURE,lambda name:(PUBLIC_ROOT/name).read_bytes()),5)
+        self.assertEqual(verify(WORKFLOW,CLOSURE,lambda name:(PUBLIC_ROOT/name).read_bytes()),4)
 
-    def test_main_raw_lf_and_crlf_all_five_exact_public_asset_closures(self):
+    def test_main_raw_lf_and_crlf_all_four_exact_public_asset_closures(self):
         with tempfile.TemporaryDirectory(dir=HERE,prefix='pure-closure-') as name:
             root=Path(name).resolve();self.assertIn(HERE,root.parents)
             lf=RAW.replace(b'\r\n',b'\n')
             for label,raw in [('lf',lf),('crlf',lf.replace(b'\n',b'\r\n'))]:
                 workflow=root/(label+'.yml');workflow.write_bytes(raw)
                 status,result=self.cli(workflow,HERE/'case-runtime-closure.json',PUBLIC_ROOT)
-                self.assertEqual(status,0);self.assertTrue(result['passed']);self.assertEqual(result['enabledCases'],5)
+                self.assertEqual(status,0);self.assertTrue(result['passed']);self.assertEqual(result['enabledCases'],4)
                 self.assertIsNone(result['failurePhase'])
 
     def test_main_actual_frozen_592crlf_workflow_with_real15_r131_assets(self):
@@ -44,12 +44,12 @@ class CaseClosureControls(unittest.TestCase):
         self.assertEqual(hashlib.sha256(raw).hexdigest(),'3d1706814dcd5af3d99f3a1105a8d5b6589b2d3311961db1219398d18fc78b6c')
         with tempfile.TemporaryDirectory(dir=HERE,prefix='pure-closure-') as name:
             root=Path(name).resolve();self.assertIn(HERE,root.parents);mapping=root/'r131-only.json'
-            mapping.write_text(json.dumps({'schema':CLOSURE['schema'],'cases':{'r131-native':CLOSURE['cases']['r131-native']}}))
+            mapping.write_bytes((HERE/'r131-crlf-runtime.fixture.json').read_bytes())
             status,result=self.cli(fixture,mapping,PUBLIC_ROOT)
             self.assertEqual(status,0);self.assertTrue(result['passed']);self.assertEqual(result['enabledCases'],1)
 
     def test_observed_wrong_prefix_and_same_basename_are_rejected(self):
-        wrong=WORKFLOW.replace('--entrypoint docs/research/codex-cloud-assets/r131/entry.mjs','--entrypoint docs/research/codex-cloud-assets/r131-diagnostic-v2/entry.mjs')
+        wrong=WORKFLOW.replace('--entrypoint docs/research/codex-cloud-assets/r131-fixture-warm-v3/entry.mjs','--entrypoint docs/research/codex-cloud-assets/r131/entry.mjs')
         with self.assertRaises(ValueError):definition(wrong,CLOSURE)
         for change in (WORKFLOW.replace('    if: ${{ success() }}',''),WORKFLOW.replace('    needs: controls','')):
             with self.assertRaises(ValueError):definition(change,CLOSURE)
@@ -81,7 +81,7 @@ class CaseClosureControls(unittest.TestCase):
             root=Path(name).resolve();self.assertIn(HERE,root.parents)
             status,result=self.cli(WORKFLOW_PATH,HERE/'case-runtime-closure.json',root)
             self.assertEqual(status,1);self.assertEqual(result['failurePhase'],'member-read')
-            self.assertEqual(result['job'],'one-case');self.assertEqual(result['memberOrdinal'],0)
+            self.assertEqual(result['job'],'r125-focus');self.assertEqual(result['memberOrdinal'],0)
             self.assertNotIn(str(root),json.dumps(result));self.assertEqual(result['reasonCode'],'case-runtime-closure-failed')
 
 if __name__=='__main__':unittest.main()

@@ -1,0 +1,64 @@
+{
+  "proposalOnly": true,
+  "merge": "Union these closed tab-action observations into the current policy; preserve existing native diagnostics and all concurrent entries. No proof-gate or timeout change.",
+  "scalarKeys": [
+    "focusTabObserved",
+    "focusTabBPresent",
+    "focusTabBVisible",
+    "focusTabBEnabled",
+    "focusTabDocumentFocused",
+    "focusTabHideCompleted",
+    "focusTabShowBlocked",
+    "focusTabShowAll",
+    "focusTabGroup",
+    "focusTabFilterEmpty",
+    "focusTabOwnerMatches",
+    "focusTabScopeSame",
+    "focusTabLiveObserved",
+    "focusTabAfterPendingScopeSame"
+  ],
+  "hashKeys": [],
+  "metricKeys": [
+    "focusTabIndex",
+    "focusTabACount",
+    "focusTabBCount",
+    "focusTabActiveCheckboxCount",
+    "focusTabMoreCount",
+    "focusTabRequestGeneration",
+    "focusTabRenderGeneration",
+    "focusTabRecordCount",
+    "focusTabMalformedRecordCount",
+    "focusTabBeforeBCount",
+    "focusTabAfterPendingBCount"
+  ],
+  "enums": {
+    "focusTabPhase": [
+      "before-command",
+      "after-pending",
+      "after-tab",
+      "failure"
+    ],
+    "focusTabAction": [
+      "pending",
+      "press",
+      "locate-b",
+      "check-enabled",
+      "check-save",
+      "exhausted"
+    ],
+    "focusTabActiveKind": [
+      "target-a",
+      "target-b",
+      "other-task-checkbox",
+      "show-more",
+      "body",
+      "filter",
+      "dialog",
+      "other",
+      "unknown"
+    ]
+  },
+  "scope": {},
+  "openGates": [],
+  "stages": []
+}
