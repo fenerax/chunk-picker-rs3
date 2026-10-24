@@ -13,6 +13,7 @@ import {auditPlanning,projectPlanningTask} from './strict-oracle.mjs';
 import {auditFrozenPlanning,OPEN_GATES} from './frozen-oracle.mjs';
 import {initialExpectations,auditOpeningProjection} from './opening-oracle.mjs';
 import {createFailureTracker} from './failure-diagnostics.mjs';
+import {selectedTasksSectionReady} from './tasks-section-readiness.mjs';
 
 const HERE=path.dirname(fileURLToPath(import.meta.url));
 const now=()=>performance.now();
@@ -24,7 +25,7 @@ export const FAILURE_OPERATIONS=Object.freeze([
   'reference-browser-launch','reference-browser-version','reference-context-create','reference-adapter-install',
   'reference-origin-route-install','reference-page-create','reference-main-route-install','reference-main-fetch',
   'reference-main-read','reference-main-instrument','reference-main-fulfill','reference-navigation',
-  'reference-context-wait','reference-open-chunk','reference-tasks-click','reference-summary-wait',
+  'reference-context-wait','reference-open-chunk','reference-tasks-click','reference-section-ready-wait',
   'reference-summary-open-read','reference-summary-click','reference-all-chip-wait','reference-map-read',
   'reference-projection-build','reference-browser-close','reference-snapshot-before-all',
   'reference-snapshot-after-frames','reference-witness-finish','reference-identity','reference-child-close',
@@ -38,7 +39,7 @@ export const FAILURE_OPERATIONS=Object.freeze([
   'overlay-page-create','overlay-network-ledger','overlay-navigation','overlay-content-wait',
   'overlay-content-read','overlay-content-verify','measured-page-foreground','measured-open-chunk',
   'measured-witness-begin','measured-snapshot-before','measured-input-verify','opening-arm','opening-tasks-click',
-  'opening-summary-wait','opening-summary-open-read','opening-summary-click','opening-transition-wait',
+  'opening-section-ready-wait','opening-summary-open-read','opening-summary-click','opening-transition-wait',
   'all-expectation-build','contrast-wait','contrast-click','measured-snapshot-before-all','native-view-read',
   'native-scope-verify','all-arm','all-click','all-transition-wait','measured-snapshot-after-frames',
   'measured-witness-finish','measured-capture-read','overlay-capture-read','projection-audits',
@@ -79,7 +80,7 @@ export const HARNESS_ERROR_MESSAGES=Object.freeze([
   'IPC_DISCONNECTED','IPC_REQUIRED','MAIN_INSTRUMENTATION_COUNT','MAIN_SOURCE_MISMATCH','MEASURED_DATASET_CHANGED',
   'MEASURED_EXISTING_STORE_REQUIRED','MEASURED_INPUT_DIFFERS_FROM_REFERENCE','MEASURED_SOURCE_IDENTITY_CHANGED',
   'MISSING_ARGUMENT_VALUE','NATIVE_SCOPE_MISMATCH','NATIVE_TARGET_NOT_VISIBLE','NO_ACTIVE_WITNESS',
-  'NODE_VERSION_MISMATCH','NON_LOOPBACK_LISTENER','OPENING_TRANSITION_TIMEOUT','OVERLAY_NAVIGATION_FAILED',
+  'NODE_VERSION_MISMATCH','NON_LOOPBACK_LISTENER','OPENING_TRANSITION_TIMEOUT','OPENING_SECTION_READY_TIMEOUT','REFERENCE_SECTION_READY_TIMEOUT','OVERLAY_NAVIGATION_FAILED',
   'OVERLAY_WIDGET_CONTENT_MISSING','PATH_NOT_OWNED','PINNED_NODE_VERSION_REQUIRED','PLAYWRIGHT_VERSION_MISMATCH',
   'PREDICATE_TIMEOUT','PUBLIC_ASSET_ROOT_NOT_EMPTY','PUBLIC_DATASET_IDENTITY_MISMATCH',
   'REFERENCE_BROWSER_CLOSE_TIMEOUT','REFERENCE_BROWSER_CONTEXT_TIMEOUT','REFERENCE_BROWSER_LAUNCH_DRAIN_TIMEOUT',
@@ -310,9 +311,10 @@ export async function main(argv=process.argv.slice(2),tracker=createFailureTrack
     await at('reference-context-wait',()=>until(()=>refPage.evaluate(()=>!!window.__r116Snap?.()?.memberId),60000,'REFERENCE_BROWSER_CONTEXT_TIMEOUT'));
     await at('reference-open-chunk',()=>refPage.evaluate(id=>window.__r116OpenChunk(id),scope.chunkId));
     await at('reference-tasks-click',()=>nativeClick(refPage,refPage.locator('#chunk-content button[data-tab="tasks"][role="tab"]')));
-    const refSummary=refPage.locator('#chunk-content summary').filter({hasText:'Possible Tasks'});
-    await at('reference-summary-wait',()=>refSummary.waitFor({state:'visible',timeout:60000}));
-    if(!await at('reference-summary-open-read',()=>refSummary.evaluate(node=>node.parentElement.open)))await at('reference-summary-click',()=>nativeClick(refPage,refSummary));
+    // The native Tasks tab auto-opens its DETAILS; the shipping stylesheet
+    // deliberately hides SUMMARY in tab panels. Observe the linked visible
+    // section without clicking hidden UI or changing its open state.
+    await at('reference-section-ready-wait',()=>until(()=>refPage.evaluate(selectedTasksSectionReady),60000,'REFERENCE_SECTION_READY_TIMEOUT'));
     await at('reference-all-chip-wait',()=>refPage.locator('#chunk-content .filter-chip').filter({hasText:/^All \d+$/}).waitFor({state:'visible',timeout:60000}));
     const referenceMap=await at('reference-map-read',()=>refPage.evaluate(id=>window.__r116MapTaskIds(id),scope.chunkId));
     await at('reference-map-read',()=>{if(referenceMap.memberId!==scope.memberId||String(referenceMap.chunkId)!==scope.chunkId||referenceMap.group!==false||!Array.isArray(referenceMap.taskIds))throw Error('REFERENCE_MAP_SCOPE_INVALID');});
@@ -400,8 +402,7 @@ export async function main(argv=process.argv.slice(2),tracker=createFailureTrack
     await at('opening-arm',()=>page.evaluate(payload=>window.__r116ArmOpening(payload),{token:openingToken,scope:reference.scope,expectedByFilter}));
     const tasksDispatch=await at('opening-tasks-click',()=>nativeClick(page,page.locator('#chunk-content button[data-tab="tasks"][role="tab"]')));
     result.metrics.tasksPlannedNodeMs=tasksDispatch.plannedNode;result.metrics.tasksReturnedNodeMs=tasksDispatch.returnedNode;
-    const summary=page.locator('#chunk-content summary').filter({hasText:'Possible Tasks'});await at('opening-summary-wait',()=>summary.waitFor({state:'visible',timeout:60000}));
-    if(!await at('opening-summary-open-read',()=>summary.evaluate(node=>node.parentElement.open)))await at('opening-summary-click',()=>nativeClick(page,summary));
+    await at('opening-section-ready-wait',()=>until(()=>page.evaluate(selectedTasksSectionReady),60000,'OPENING_SECTION_READY_TIMEOUT'));
     const openingTransition=await at('opening-transition-wait',()=>until(()=>page.evaluate(value=>{const t=window.__r116Transition(value);return t?.status==='correct'||t?.status==='blocked'?t:null;},openingToken),60000,'OPENING_TRANSITION_TIMEOUT'));
     result.metrics.openingObservedNodeMs=now();
     emit('episode-start',{methodPhase:'opening-dom-observed',observationStatus:openingTransition.status});

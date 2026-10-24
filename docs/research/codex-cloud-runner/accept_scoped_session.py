@@ -10,7 +10,7 @@ from r111_vector_policy import project_numeric_evidence
 
 PIN = "6f22fefa782747790e2eaefa01e4e5ea7b557323"
 FIXTURE = "a672a1f9b5de6a699a18c26c5fad6fe477a5e37d05c75f115f425a8a3f789b09"
-HARNESS = "40cd9e41bee43424dd1c85e759a8f975e10f3a90e48c98e0c2cd383ab660a7c8"
+HARNESS = "510aa8034635626b1c16e61a2108ef3a9f9dc056e3dc30913f92f842135dca37"
 SCOPE = {"dataset":"duo-legacy","fixtureBaseline":"r37-authored-711-v2","players":2,"overlays":1,"memberUnlockedChunks":1,"taskCoverage":"fixture-member-catalogue","sessionMinutes":30}
 GATES = {"fault-recovery","latest-generation","physical-paint","independent-engine-correctness","full-legacy-coverage","memory-nonaccumulation","statistical-performance"}
 BASELINE = {"node":"v24.19.0","playwright":"1.62.1","chromium":"151.0.7922.34","chromiumRevision":"1234","platform":"linux/amd64","image":"mcr.microsoft.com/playwright:v1.62.1-noble@sha256:c091b21d9fae78c76e85cd4356431e9b018402f172a214fc7d7a5e9a7e29d8ac"}

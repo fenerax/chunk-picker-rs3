@@ -16,8 +16,8 @@
     },
     {
       "path": "case-result-adapter.mjs",
-      "bytes": 3272,
-      "sha256": "b0610013faa8f2a40b06602f50179d7f66915b25bab8d02809db74ec40f9f179"
+      "bytes": 3506,
+      "sha256": "929686a0155a06d0effb4a872f1449898f342b699a98f6a1dc95c88265f2ba14"
     },
     {
       "path": "copied-library/focus-core.mjs",
@@ -30,14 +30,19 @@
       "sha256": "b326cb1d264622ba5a5e4e4b2802e1c12cd301099d96454e1d34b8ee09ddc0b3"
     },
     {
+      "path": "diagnostics.mjs",
+      "bytes": 3382,
+      "sha256": "4a0a2d0053fef0202a6e039e5736f98867a6819563b50d87337d1182556963d1"
+    },
+    {
       "path": "driver-lib.mjs",
       "bytes": 1907,
       "sha256": "a12a06ee4ad4e608fccf9f351c04f826358e2a02d09b5345048c5d07aaa17326"
     },
     {
       "path": "entry.mjs",
-      "bytes": 3155,
-      "sha256": "ed498db3d5a7b67c07e194ebd0cd78a29fac15d16b410ac2e6c4b020ef927447"
+      "bytes": 3777,
+      "sha256": "325dcd672717c3dd04432a84e02ece1721ab42d9519c65b69c819d77da71a402"
     },
     {
       "path": "install-v4.mjs",
@@ -46,8 +51,8 @@
     },
     {
       "path": "native-cell-v3.mjs",
-      "bytes": 5702,
-      "sha256": "8208ab44813ff5c02b360c6c44f635a7b5d277ea8c237e0ce2b4844b790d0f9b"
+      "bytes": 6495,
+      "sha256": "63d0ecc89b7c4532101c3a92d835ce5e0999251a6f83a22fdf05c1730956f01a"
     },
     {
       "path": "native-phase-preload-v3.mjs",
@@ -61,13 +66,13 @@
     },
     {
       "path": "runtime-integrity.mjs",
-      "bytes": 2742,
-      "sha256": "3df34082dacf32050b5aa6eb2bea9c0257c492f3f5e5ff661897f0ff1633adcb"
+      "bytes": 2760,
+      "sha256": "71a5282079f7cf33c30a3ac94d5022dc03a149893dd1f8b8fc3a7e4df21eded8"
     },
     {
       "path": "scheduler-fixture-v3.mjs",
-      "bytes": 5296,
-      "sha256": "1cdc143790f2304f6646ae898b6d81250fa519356ffe9801e8dbd28b220c3f75"
+      "bytes": 5750,
+      "sha256": "38d2f5bbcdadebd54e7190c48c3be216577f3707039128468622ba0ed8d33b50"
     }
   ]
 }

@@ -1,0 +1,63 @@
+diff --git a/app/server.mjs b/app/server.mjs
+--- a/app/server.mjs
++++ b/app/server.mjs
+@@ -21,6 +21,7 @@
+ import { pipeline } from 'node:stream/promises';
+ import { isImportRoute, readBackupRequest, sendGzipBackup, backupPreviewState } from './backup-transfer.mjs';
+ import { createTaskScheduler } from './tasks/scheduler.mjs';
++import { serialize } from 'node:v8';
+ import { sharedJSONBytes, sharedBuffer } from './tasks/shared-bytes.mjs';
+ import { createPoolRanking } from './tasks/pool-ranking.mjs';
+ import { openStore, prepareStoreProcessIdentity } from './storage/store.mjs';
+@@ -284,11 +285,14 @@
+ async function startTaskWorker(definitions, definitionBytes, world, registry, options, dataset, datasetOptions) {
+   const builtinIds = new Set(builtInRules.map(rule => rule.id));
+   const extraRules = registry.definitions.filter(rule => !builtinIds.has(rule.id)).map(({ candidates, exclude, ...metadata }) => metadata);
+-  // Worker factories keep their existing object input. Native lanes can parse
+-  // the already available JSON without cloning the entire definition graph.
++  // Preserve custom factories: object input, or JSON for prediction-only.
++  // Wholly native lanes share one encoding of the canonical JSON.
+   let input = { definitions };
+   if (!options?.workerFactory && !options?.deathWorkerFactory && !options?.duoWorkerFactory) {
+-    input = { definitionBytes: sharedBuffer(definitionBytes) };
++    input = options?.predictionWorkerFactory
++      ? { definitionBytes: sharedBuffer(definitionBytes) }
++      : { definitionV8Bytes: sharedBuffer(serialize(JSON.parse(
++        new TextDecoder('utf-8', { fatal: true }).decode(definitionBytes)))) };
+   }
+   return createTaskScheduler({ ...options, workerData: { ...input, datasetSelection: dataset.workerSelection(), datasetDigest: dataset.digest, datasetOptions, preparedDatasetStages: preparedDefinitionStages(definitions), world: { chunks: world.chunks, areas: world.areas, ...(world.surface ? { surface: world.surface } : {}) }, extraRules } });
+ }
+diff --git a/app/tasks/worker.mjs b/app/tasks/worker.mjs
+--- a/app/tasks/worker.mjs
++++ b/app/tasks/worker.mjs
+@@ -24,7 +24,7 @@
+ import { STATE_SNAPSHOT_LIMIT } from './state-transfer.mjs';
+ import { analyzeAreaCheck, normalizeAreaCheckRequest } from './area-check.mjs';
+ import { constants as zlibConstants, crc32, gzipSync } from 'node:zlib';
+-import { serialize } from 'node:v8';
++import { serialize, deserialize } from 'node:v8';
+ 
+ startupPhase('worker:modules');
+ // Definitions compile once in this isolated worker. Evaluation never runs on
+@@ -34,10 +34,17 @@
+ // Parse once and drop the transfer input. A process worker owns the only other
+ // copy of those bytes, which would otherwise stay resident for its lifetime.
+ function takeDefinitions() {
+-  const raw = workerData.definitionBytes === undefined ? workerData.definitions
+-    : JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(workerData.definitionBytes));
+-  delete workerData.definitionBytes; delete workerData.definitions;
+-  return raw;
++  try {
++    if (workerData.definitionV8Bytes !== undefined && workerData.definitionBytes !== undefined) {
++      throw new TypeError('Ambiguous native definition codecs.');
++    }
++    return workerData.definitionV8Bytes !== undefined
++      ? deserialize(Buffer.from(workerData.definitionV8Bytes))
++      : workerData.definitionBytes === undefined ? workerData.definitions
++        : JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(workerData.definitionBytes));
++  } finally {
++    delete workerData.definitionV8Bytes; delete workerData.definitionBytes; delete workerData.definitions;
++  }
+ }
+ const mapLocationResults = new WeakMap();
+ function mapPlayResult(result) {

@@ -6,6 +6,7 @@ import { spawn } from 'node:child_process';
 import { ensure, PROTOCOL, PIN, IMAGE, fileSha, sha, sourceTree, verifyTree, verifySourceLock, applyUnifiedPatch,
   nativeEnvironment, nativeArguments, parseNativeEvidence, procIdentity, ancestors, waitDrained } from './focus-core.mjs';
 import { failureDiagnostic, browserVersionDiagnostic } from './focus-diagnostics.mjs';
+import { pinnedBrowserIdentity } from './focus-browser-identity.mjs';
 const started = performance.now(), deadline = started + 180000;
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 let active, stopRequested = false, escalation, phase = 'admission', result = { passed: false, status: 'failed', cleanupPassed: false };
@@ -135,7 +136,8 @@ try {
   at('browser-version-execute');
   const version = await execute(browser, ['--version'], { env: { ...process.env }, milliseconds: 5000 });
   Object.assign(admission, browserVersionDiagnostic(version.raw, version.code, version.signal)); at('browser-version-admit');
-  ensure(version.code === 0 && version.signal === null && /Chromium 151\.0\.7922\.34\b/.test(version.raw), 'chromium-executable');
+  ensure(pinnedBrowserIdentity({ image: pins.image, executable: browser, playwright: pins.playwright,
+    revision: pins.chromiumRevision, version: pins.chromium }, version), 'chromium-executable');
   at('scratch-copy');
   const workspace = fs.mkdtempSync('/scratch/r125-'), candidate = path.join(workspace, 'source');
   fs.cpSync('/source', candidate, { recursive: true, errorOnExist: true, force: false, filter: name => !path.relative('/source', name).split(path.sep).includes('.git') });

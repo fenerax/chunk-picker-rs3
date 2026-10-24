@@ -186,6 +186,54 @@
   ],
   "lines": [
     {
+      "path": "docs/research/codex-cloud-runner/result-policy.json",
+      "category": "token",
+      "sha256": "e0bb6bc7097bfa5be21a874150029cb72601c1be9bf30f2ebe4af085871ddf12",
+      "reason": "Exact fixed numeric metric name merged from the authored R134 result policy; its identifier length resembles a token, but the line carries no credential value."
+    },
+    {
+      "path": "docs/research/codex-cloud-assets/r134/defaults.json",
+      "category": "account-map-binding",
+      "sha256": "2d72ee2671ffd3cb0a615535707198f2e970aaedffeb6a832cadc641a6d6adf0",
+      "reason": "Exact authored historical frozen R38/R91 test fixture with synthetic alpha and beta map identifiers; pinned fixture bytes, no real account or map."
+    },
+    {
+      "path": "docs/research/codex-cloud-assets/r134/defaults.json",
+      "category": "personal-default",
+      "sha256": "2d72ee2671ffd3cb0a615535707198f2e970aaedffeb6a832cadc641a6d6adf0",
+      "reason": "Exact authored historical frozen R38/R91 defaults fixture with its synthetic administrator label; pinned fixture bytes, no person."
+    },
+    {
+      "path": "docs/research/codex-cloud-assets/r134/fixture.json",
+      "category": "account-map-binding",
+      "sha256": "92991cf52854c92c2fc3444f688d8528ad8f5c4499e9e4d46816ae43843ff888",
+      "reason": "Exact authored historical frozen R38/R91 test fixture with synthetic alpha and beta map identifiers; pinned fixture bytes, no real account or map."
+    },
+    {
+      "path": "docs/research/codex-cloud-assets/r134/result-policy.additions.json",
+      "category": "token",
+      "sha256": "e0bb6bc7097bfa5be21a874150029cb72601c1be9bf30f2ebe4af085871ddf12",
+      "reason": "Exact fixed numeric metric name in the authored R134 result policy; its identifier length resembles a token, but the line carries no credential value."
+    },
+    {
+      "path": "docs/research/codex-cloud-assets/r135/fixture.json",
+      "category": "account-map-binding",
+      "sha256": "92991cf52854c92c2fc3444f688d8528ad8f5c4499e9e4d46816ae43843ff888",
+      "reason": "Exact authored historical frozen R38/R91 test fixture with synthetic alpha and beta map identifiers; pinned fixture bytes, no real account or map."
+    },
+    {
+      "path": "docs/research/codex-cloud-assets/r135/game-defaults.json",
+      "category": "account-map-binding",
+      "sha256": "2d72ee2671ffd3cb0a615535707198f2e970aaedffeb6a832cadc641a6d6adf0",
+      "reason": "Exact authored historical frozen R38/R91 test fixture with synthetic alpha and beta map identifiers; pinned fixture bytes, no real account or map."
+    },
+    {
+      "path": "docs/research/codex-cloud-assets/r135/game-defaults.json",
+      "category": "personal-default",
+      "sha256": "2d72ee2671ffd3cb0a615535707198f2e970aaedffeb6a832cadc641a6d6adf0",
+      "reason": "Exact authored historical frozen R38/R91 defaults fixture with its synthetic administrator label; pinned fixture bytes, no person."
+    },
+    {
       "path": "docs/research/codex-cloud-assets/r111/candidate/harness/container-bridge.mjs",
       "category": "network-identifier",
       "sha256": "98f513dccece2654ec6c2b46bdfa75616137974c627c80f25ddee604e3b6d228",

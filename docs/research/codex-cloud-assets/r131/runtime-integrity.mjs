@@ -1,5 +1,5 @@
 import fs from 'node:fs';import path from 'node:path';import crypto from 'node:crypto';import {fileURLToPath} from 'node:url';
-export const REQUIRED_RUNTIME=Object.freeze(['entry.mjs','protocol.mjs','install-v4.mjs','copied-library/focus-core.mjs','copied-library/tests/task-focus-native.observers.mjs','native-cell-v3.mjs','scheduler-fixture-v3.mjs','native-phase-preload-v3.mjs','driver-lib.mjs','candidate/manifest-v4.json','candidate/production-v4.patch','runtime-integrity.mjs','case-result-adapter.mjs'].sort());
+export const REQUIRED_RUNTIME=Object.freeze(['entry.mjs','protocol.mjs','install-v4.mjs','copied-library/focus-core.mjs','copied-library/tests/task-focus-native.observers.mjs','native-cell-v3.mjs','scheduler-fixture-v3.mjs','native-phase-preload-v3.mjs','driver-lib.mjs','candidate/manifest-v4.json','candidate/production-v4.patch','runtime-integrity.mjs','case-result-adapter.mjs','diagnostics.mjs'].sort());
 const hash=b=>crypto.createHash('sha256').update(b).digest('hex');
 export function expectedManifestArgument(args){
  if(!Array.isArray(args)||args.length!==2||args[0]!=='--expected-harness-manifest-sha'||typeof args[1]!=='string'||!/^[0-9a-f]{64}$/.test(args[1]))throw Error('required --expected-harness-manifest-sha <64hex>');return args[1];

@@ -87,8 +87,8 @@ export function sessionEnvironment(env,{scratch,playwright,chromium,expectedChro
 export function startSession({entry,scratch,env,budget,stage,forkImpl=fork,signals=process}){
  const child=forkImpl(entry,['primary','R111-current30'],{cwd:scratch,env,execArgv:['--max-old-space-size=768'],stdio:['ignore','pipe','pipe','ipc']});
  // Drain arbitrary child output; only fixed stage names and closed final JSON are public.
- let stdoutBytes=0,stderrBytes=0;for(const [name,stream]of [['stdout',child.stdout],['stderr',child.stderr]])stream?.on('data',bytes=>{if(name==='stdout')stdoutBytes+=bytes.length;else stderrBytes+=bytes.length;});
- return superviseSession(child,budget,{stage,signals}).then(outcome=>({...outcome,stdoutBytes,stderrBytes}));
+ let stdoutBytes=0,stderrBytes=0;const stdoutHash=crypto.createHash('sha256'),stderrHash=crypto.createHash('sha256');for(const [name,stream]of [['stdout',child.stdout],['stderr',child.stderr]])stream?.on('data',bytes=>{if(name==='stdout'){stdoutBytes+=bytes.length;stdoutHash.update(bytes);}else{stderrBytes+=bytes.length;stderrHash.update(bytes);}});
+ return superviseSession(child,budget,{stage,signals}).then(outcome=>({...outcome,stdoutBytes,stderrBytes,stdoutSha256:stdoutHash.digest('hex'),stderrSha256:stderrHash.digest('hex')}));
 }
 export function buildCase({outcome,result,closure,browserClose,identity,elapsedMs,forcedCode,numericEvidence}){
  return publicResult({evidence:{outcome,result,closure,browserClose,stages:outcome?.stages??[]},identity,elapsedMs,numericEvidence,forcedCode:forcedCode??(outcome?.ipcFailure?'r111-child-ipc':undefined)});

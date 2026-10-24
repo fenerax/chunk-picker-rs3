@@ -65,12 +65,18 @@ jobs:
         shell: bash
         run: |
           pure_status=0
-          python3 -B -m unittest -q test_accept_case.py test_docker_envelope.py test_projection_integration.py test_r111_vector_policy.py test_scoped_session.py > "$RUNNER_TEMP/pure-controls.log" 2>&1 || pure_status=$?
+          python3 -B -m unittest -q test_accept_case.py test_docker_envelope.py test_projection_integration.py test_r111_vector_policy.py test_scoped_session.py test_performance_projection.py > "$RUNNER_TEMP/pure-controls.log" 2>&1 || pure_status=$?
           if [ "$pure_status" -ne 0 ]; then
             python3 -B setup_diagnostics.py --stage pure-controls --exit-code "$pure_status" --log "$RUNNER_TEMP/pure-controls.log"
             exit "$pure_status"
           fi
-          printf '{"stage":"pure-controls","passed":true,"count":108}\n'
+          pure_status=0
+          node --max-old-space-size=128 --test "$GITHUB_WORKSPACE/inputs/assets/docs/research/codex-cloud-runner/test_accept_performance.mjs" > "$RUNNER_TEMP/performance-pure-controls.log" 2>&1 || pure_status=$?
+          if [ "$pure_status" -ne 0 ]; then
+            python3 -B setup_diagnostics.py --stage pure-controls --exit-code "$pure_status" --log "$RUNNER_TEMP/performance-pure-controls.log"
+            exit "$pure_status"
+          fi
+          printf '{"stage":"pure-controls","passed":true,"count":126}\n'
       - name: Positive, CPU, memory, and missing-init remote controls
         shell: bash
         run: |
@@ -129,7 +135,7 @@ jobs:
             exit "$setup_status"
           fi
           printf '{"stage":"public-setup","passed":true}\n'
-      - name: R116 diagnostic v2 one frozen browser case
+      - name: R116 summary diagnostic v3 one frozen browser case
         shell: bash
         run: |
           set -euo pipefail
@@ -295,7 +301,7 @@ jobs:
             exit "$setup_status"
           fi
           printf '{"stage":"public-setup","passed":true}\n'
-      - name: R125 diagnostic v2 native focus case
+      - name: R125 exact browser brand v3 native focus case
         shell: bash
         run: |
           set -euo pipefail
@@ -410,7 +416,7 @@ jobs:
         run: |
           set -euo pipefail
           tool="$GITHUB_WORKSPACE/inputs/assets/docs/research/codex-cloud-runner"
-          python3 -B "$tool/docker_envelope.py" --execute --remote-only-ack remote-disposable-public --source "$RUNNER_TEMP/public-source" --harness "$RUNNER_TEMP/public-harness" --harness-commit "$GITHUB_SHA" --deps "$RUNNER_TEMP/deps" --node "$RUNNER_TEMP/runtime/node" --output "$RUNNER_TEMP/r131-native" --entrypoint docs/research/codex-cloud-assets/r131/entry.mjs --mode native --seconds 180 --arg=--expected-harness-manifest-sha --arg=d5de71c73a26b5667b7a99b31e08d297f37fee1935f6bdb1142fb0ba545f695c
+          python3 -B "$tool/docker_envelope.py" --execute --remote-only-ack remote-disposable-public --source "$RUNNER_TEMP/public-source" --harness "$RUNNER_TEMP/public-harness" --harness-commit "$GITHUB_SHA" --deps "$RUNNER_TEMP/deps" --node "$RUNNER_TEMP/runtime/node" --output "$RUNNER_TEMP/r131-native" --entrypoint docs/research/codex-cloud-assets/r131-diagnostic-v2/entry.mjs --mode native --seconds 180 --arg=--expected-harness-manifest-sha --arg=fc3f39f0bb4765ec7074907fc69e8d25401d844e69d6377803cc74a0a342e8c4
           python3 -B "$tool/accept_case.py" --case r131 --final "$RUNNER_TEMP/r131-native/final.json"
 
   r111-scoped-soak:
@@ -465,5 +471,118 @@ jobs:
         run: |
           set -euo pipefail
           tool="$GITHUB_WORKSPACE/inputs/assets/docs/research/codex-cloud-runner"
-          python3 -B "$tool/docker_envelope.py" --execute --remote-only-ack remote-disposable-public --source "$RUNNER_TEMP/public-source" --harness "$RUNNER_TEMP/public-harness" --harness-commit "$GITHUB_SHA" --deps "$RUNNER_TEMP/deps" --node "$RUNNER_TEMP/runtime/node" --output "$RUNNER_TEMP/r111-scoped-soak" --entrypoint docs/research/codex-cloud-assets/r111/candidate/harness/run-container-session.mjs --mode soak --seconds 2000 --arg=--go --arg=R111-container-v3 --arg=--source-lock --arg=/scratch/source-lock.json --arg=--expected-harness-manifest-sha256 --arg=40cd9e41bee43424dd1c85e759a8f975e10f3a90e48c98e0c2cd383ab660a7c8 --arg=--expected-node-sha256 --arg=bc17c508ffeed0ec622934f9b7fa72f8e78da65350e63c3eceb56fa688aa5e12 --arg=--outer-seconds --arg=2000 --arg=--expected-chromium --arg=151.0.7922.34
+          python3 -B "$tool/docker_envelope.py" --execute --remote-only-ack remote-disposable-public --source "$RUNNER_TEMP/public-source" --harness "$RUNNER_TEMP/public-harness" --harness-commit "$GITHUB_SHA" --deps "$RUNNER_TEMP/deps" --node "$RUNNER_TEMP/runtime/node" --output "$RUNNER_TEMP/r111-scoped-soak" --entrypoint docs/research/codex-cloud-assets/r111/candidate/harness/run-container-session.mjs --mode soak --seconds 2000 --arg=--go --arg=R111-container-v3 --arg=--source-lock --arg=/scratch/source-lock.json --arg=--expected-harness-manifest-sha256 --arg=510aa8034635626b1c16e61a2108ef3a9f9dc056e3dc30913f92f842135dca37 --arg=--expected-node-sha256 --arg=bc17c508ffeed0ec622934f9b7fa72f8e78da65350e63c3eceb56fa688aa5e12 --arg=--outer-seconds --arg=2000 --arg=--expected-chromium --arg=151.0.7922.34
           python3 -B "$tool/accept_scoped_session.py" --final "$RUNNER_TEMP/r111-scoped-soak/final.json" --source-lock "$RUNNER_TEMP/r111-scoped-soak/scratch/source-lock.json"
+
+  r134-engine-performance:
+    needs: controls
+    # Root-authorized next wave; runs only after all four remote Docker controls PASS.
+    # Publish the reviewed packet and shared result-policy union before this workflow.
+    if: ${{ success() }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          path: inputs/assets
+          persist-credentials: false
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: 6f22fefa782747790e2eaefa01e4e5ea7b557323
+          path: inputs/source
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 24.19.0
+      - name: Prepare exact public execution inputs
+        shell: bash
+        run: |
+          set -euo pipefail
+          tool="$GITHUB_WORKSPACE/inputs/assets/docs/research/codex-cloud-runner"
+          export PYTHONDONTWRITEBYTECODE=1
+          python3 -B "$tool/prepare_public.py" --checkout "$GITHUB_WORKSPACE/inputs/source" --commit 6f22fefa782747790e2eaefa01e4e5ea7b557323 --output "$RUNNER_TEMP/public-source"
+          python3 -B "$tool/prepare_public.py" --checkout "$GITHUB_WORKSPACE/inputs/assets" --commit "$GITHUB_SHA" --output "$RUNNER_TEMP/public-harness"
+          mkdir -m 700 "$RUNNER_TEMP/deps" "$RUNNER_TEMP/npm-home" "$RUNNER_TEMP/npm-config" "$RUNNER_TEMP/runtime" "$RUNNER_TEMP/pull-config"
+          cp "$tool/package.json" "$tool/package-lock.json" "$RUNNER_TEMP/deps/"
+          cp "$(command -v node)" "$RUNNER_TEMP/runtime/node"
+          : > "$RUNNER_TEMP/npm-config/empty-user.npmrc"
+          : > "$RUNNER_TEMP/npm-config/empty-global.npmrc"
+          setup_status=0
+          env -i PATH="$PATH" HOME="$RUNNER_TEMP/npm-home" npm_config_userconfig="$RUNNER_TEMP/npm-config/empty-user.npmrc" npm_config_globalconfig="$RUNNER_TEMP/npm-config/empty-global.npmrc" npm_config_cache="$RUNNER_TEMP/npm-home/cache" npm_config_registry=https://registry.npmjs.org/ npm_config_update_notifier=false npm ci --prefix "$RUNNER_TEMP/deps" --ignore-scripts --omit=optional --no-audit --no-fund > "$RUNNER_TEMP/npm-setup.log" 2>&1 || setup_status=$?
+          if [ "$setup_status" -ne 0 ]; then
+            python3 -B "$tool/setup_diagnostics.py" --stage dependency-setup --exit-code "$setup_status" --log "$RUNNER_TEMP/npm-setup.log"
+            exit "$setup_status"
+          fi
+          image=$(python3 -B -c 'import json,sys; print(json.load(open(sys.argv[1]))["image"])' "$tool/pins.json")
+          setup_status=0
+          docker --host unix:///var/run/docker.sock --config "$RUNNER_TEMP/pull-config" pull --platform linux/amd64 "$image" > "$RUNNER_TEMP/image-pull.log" 2>&1 || setup_status=$?
+          if [ "$setup_status" -ne 0 ]; then
+            python3 -B "$tool/setup_diagnostics.py" --stage public-image-pull --exit-code "$setup_status" --log "$RUNNER_TEMP/image-pull.log"
+            exit "$setup_status"
+          fi
+          printf '{"stage":"public-setup","passed":true}\n'
+      - name: R134 scoped engine performance screen
+        shell: bash
+        run: |
+          set -euo pipefail
+          tool="$GITHUB_WORKSPACE/inputs/assets/docs/research/codex-cloud-runner"
+          python3 -B "$tool/docker_envelope.py" --execute --remote-only-ack remote-disposable-public --source "$RUNNER_TEMP/public-source" --harness "$RUNNER_TEMP/public-harness" --harness-commit "$GITHUB_SHA" --deps "$RUNNER_TEMP/deps" --node "$RUNNER_TEMP/runtime/node" --output "$RUNNER_TEMP/r134-engine-performance" --entrypoint docs/research/codex-cloud-assets/r134/entry.mjs --mode component --control none --seconds 900 --arg=--packet-sha256 --arg=1e88a8b7318cf1923c443daaded1e1219a9bc5b337e9c7dac88631534f09684d --arg=--seconds --arg=860
+          node "$tool/accept_performance.mjs" --case r134 --final "$RUNNER_TEMP/r134-engine-performance/final.json"
+      # Detailed results remain on the ephemeral runner; only the closed envelope JSON is logged.
+
+  r135-codec-http:
+    needs: controls
+    # Root-authorized next wave; runs only after all four remote Docker controls PASS.
+    # Publish the reviewed packet and shared result-policy union before this workflow.
+    if: ${{ success() }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          path: inputs/assets
+          persist-credentials: false
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: 6f22fefa782747790e2eaefa01e4e5ea7b557323
+          path: inputs/source
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 24.19.0
+      - name: Prepare exact public execution inputs
+        shell: bash
+        run: |
+          set -euo pipefail
+          tool="$GITHUB_WORKSPACE/inputs/assets/docs/research/codex-cloud-runner"
+          export PYTHONDONTWRITEBYTECODE=1
+          python3 -B "$tool/prepare_public.py" --checkout "$GITHUB_WORKSPACE/inputs/source" --commit 6f22fefa782747790e2eaefa01e4e5ea7b557323 --output "$RUNNER_TEMP/public-source"
+          python3 -B "$tool/prepare_public.py" --checkout "$GITHUB_WORKSPACE/inputs/assets" --commit "$GITHUB_SHA" --output "$RUNNER_TEMP/public-harness"
+          mkdir -m 700 "$RUNNER_TEMP/deps" "$RUNNER_TEMP/npm-home" "$RUNNER_TEMP/npm-config" "$RUNNER_TEMP/runtime" "$RUNNER_TEMP/pull-config"
+          cp "$tool/package.json" "$tool/package-lock.json" "$RUNNER_TEMP/deps/"
+          cp "$(command -v node)" "$RUNNER_TEMP/runtime/node"
+          : > "$RUNNER_TEMP/npm-config/empty-user.npmrc"
+          : > "$RUNNER_TEMP/npm-config/empty-global.npmrc"
+          setup_status=0
+          env -i PATH="$PATH" HOME="$RUNNER_TEMP/npm-home" npm_config_userconfig="$RUNNER_TEMP/npm-config/empty-user.npmrc" npm_config_globalconfig="$RUNNER_TEMP/npm-config/empty-global.npmrc" npm_config_cache="$RUNNER_TEMP/npm-home/cache" npm_config_registry=https://registry.npmjs.org/ npm_config_update_notifier=false npm ci --prefix "$RUNNER_TEMP/deps" --ignore-scripts --omit=optional --no-audit --no-fund > "$RUNNER_TEMP/npm-setup.log" 2>&1 || setup_status=$?
+          if [ "$setup_status" -ne 0 ]; then
+            python3 -B "$tool/setup_diagnostics.py" --stage dependency-setup --exit-code "$setup_status" --log "$RUNNER_TEMP/npm-setup.log"
+            exit "$setup_status"
+          fi
+          image=$(python3 -B -c 'import json,sys; print(json.load(open(sys.argv[1]))["image"])' "$tool/pins.json")
+          setup_status=0
+          docker --host unix:///var/run/docker.sock --config "$RUNNER_TEMP/pull-config" pull --platform linux/amd64 "$image" > "$RUNNER_TEMP/image-pull.log" 2>&1 || setup_status=$?
+          if [ "$setup_status" -ne 0 ]; then
+            python3 -B "$tool/setup_diagnostics.py" --stage public-image-pull --exit-code "$setup_status" --log "$RUNNER_TEMP/image-pull.log"
+            exit "$setup_status"
+          fi
+          printf '{"stage":"public-setup","passed":true}\n'
+      - name: R135 unshaped HTTP component baseline
+        shell: bash
+        run: |
+          set -euo pipefail
+          tool="$GITHUB_WORKSPACE/inputs/assets/docs/research/codex-cloud-runner"
+          python3 -B "$tool/docker_envelope.py" --execute --remote-only-ack remote-disposable-public --source "$RUNNER_TEMP/public-source" --harness "$RUNNER_TEMP/public-harness" --harness-commit "$GITHUB_SHA" --deps "$RUNNER_TEMP/deps" --node "$RUNNER_TEMP/runtime/node" --output "$RUNNER_TEMP/r135-codec-http" --entrypoint docs/research/codex-cloud-assets/r135/entry.mjs --mode native --control none --seconds 1200
+          node "$tool/accept_performance.mjs" --case r135 --final "$RUNNER_TEMP/r135-codec-http/final.json"
+      # Detailed results remain on the ephemeral runner; only the closed envelope JSON is logged.
+

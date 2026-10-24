@@ -1,11 +1,14 @@
 {
   "schema": "container-runner-preparation-verification-v1",
   "date": "2026-10-23",
-  "readiness": "NEXT_FOUR_CASES_AUTHORIZED_UNRUN",
+  "readiness": "SIX_CHANGED_CASES_AUTHORIZED_UNRUN",
   "assetBaseCommit": "7ad315acd39223df3b4d2304e295ef5c017dfe17",
   "pureTests": {
-    "command": "python -B -m unittest -q test_accept_case.py test_docker_envelope.py test_projection_integration.py test_r111_vector_policy.py test_scoped_session.py",
-    "passed": 108,
+    "pythonCommand": "python -B -m unittest -q test_accept_case.py test_docker_envelope.py test_projection_integration.py test_r111_vector_policy.py test_scoped_session.py test_performance_projection.py",
+    "pythonPassed": 116,
+    "nodeCommand": "node --max-old-space-size=128 --test test_accept_performance.mjs",
+    "nodePassed": 10,
+    "passed": 126,
     "failed": 0
   },
   "subsequentPublishedTrial": {
@@ -89,7 +92,7 @@
     "missingWorkflowNegative": "failed with exactly two fixed test IDs and input-missing class",
     "diagnosisEvidence": "control-run-40044649892-diagnosis.json"
   },
-  "priorManifestSha256": "f4cd6e21cb86312a403413f2088dadfd00cbb51ff44a6a9e19386a4782a9303a",
+  "priorManifestSha256": "80fadbe29659a835ccaeeaa703014dee2085ef01877b0e180104a400bdbba6e4",
   "runnerRevision": "docker-pinned-image-env-v3",
   "latestPublishedTrial": {
     "commit": "0cd14471af591e40d339aa86b39e1a7da3bd5337",
@@ -250,7 +253,9 @@
       "one-case",
       "r125-focus",
       "r131-native",
-      "r111-scoped-soak"
+      "r111-scoped-soak",
+      "r134-engine-performance",
+      "r135-codec-http"
     ],
     "disabledFutureJobs": [
       "r124-engine",
@@ -263,38 +268,64 @@
     "r111FullAcceptance": false,
     "r111ProductSLOGates": "OPEN",
     "r111TimeoutMinutes": 40,
-    "newCliReceipts": [
+    "perCommitConcurrency": true,
+    "cancelInProgress": false,
+    "exactCliReceipts": [
       {
-        "job": "one-case",
+        "entrypoint": "docs/research/codex-cloud-capture/run-frozen-browser.mjs",
         "mode": "browser",
         "seconds": 540,
-        "entrypoint": "docs/research/codex-cloud-capture/run-frozen-browser.mjs",
         "commandSha256": "b163b5af67d87d6858f05471595ffa95ce54e26c20c434d9ab728cde684c8613"
       },
       {
-        "job": "r125-focus",
+        "entrypoint": "docs/research/codex-cloud-assets/r127/container-entry.mjs",
+        "mode": "component",
+        "seconds": 240,
+        "commandSha256": "a8e478699ccd74c4f5a9867a212dc2e2e782792bfc1fe4ab9723a556ac10a0b2"
+      },
+      {
+        "entrypoint": "docs/research/codex-cloud-assets/r124/entry.mjs",
+        "mode": "component",
+        "seconds": 300,
+        "commandSha256": "98dfc96f4dddcd6ff6cb5612729e99b4a8f522203292676cc2d08e37e15d6ded"
+      },
+      {
+        "entrypoint": "docs/research/codex-cloud-assets/r125/case-entry.mjs",
         "mode": "browser",
         "seconds": 215,
-        "entrypoint": "docs/research/codex-cloud-assets/r125/case-entry.mjs",
         "commandSha256": "ca4a2288759712230abcc8107dd1947a1e1c9c94c5fbe747c11ca16ec0ece211"
       },
       {
-        "job": "r131-native",
+        "entrypoint": "docs/research/codex-cloud-assets/r130/entry.mjs",
         "mode": "native",
-        "seconds": 180,
-        "entrypoint": "docs/research/codex-cloud-assets/r131/entry.mjs",
-        "commandSha256": "aea5f106905c48eaff60e445540a5eca7a401febac72a01eb9ad8faa07f9a10d"
+        "seconds": 120,
+        "commandSha256": "566df64a1ca131254586deead19a322950eb9c2c604d1abc6b01b2134542ff98"
       },
       {
-        "job": "r111-scoped-soak",
+        "entrypoint": "docs/research/codex-cloud-assets/r131-diagnostic-v2/entry.mjs",
+        "mode": "native",
+        "seconds": 180,
+        "commandSha256": "a925ddb2655722fac84ff67b49ed0379b5c1162110329bcd3d5b760678c0bfaa"
+      },
+      {
+        "entrypoint": "docs/research/codex-cloud-assets/r111/candidate/harness/run-container-session.mjs",
         "mode": "soak",
         "seconds": 2000,
-        "entrypoint": "docs/research/codex-cloud-assets/r111/candidate/harness/run-container-session.mjs",
-        "commandSha256": "71d18047036f8a0ecaa55f3b6138a42d63dc5398d4e4ffbc0be4de3c0a0118be"
+        "commandSha256": "f6eb99ecfbfd9fade5ae15e435edfc3409a0cb362a014910f8a1029d52fccfa2"
+      },
+      {
+        "entrypoint": "docs/research/codex-cloud-assets/r134/entry.mjs",
+        "mode": "component",
+        "seconds": 900,
+        "commandSha256": "48dcbabfa377092ad59c1a4e090c9215310a752488c98afca8a5bbc8e7c05738"
+      },
+      {
+        "entrypoint": "docs/research/codex-cloud-assets/r135/entry.mjs",
+        "mode": "native",
+        "seconds": 1200,
+        "commandSha256": "e36ca27682a0a871c87b48c75142c60412a141795cf1ff75dc0ad49b88d907f5"
       }
-    ],
-    "perCommitConcurrency": true,
-    "cancelInProgress": false
+    ]
   },
   "strictBothSanitizers": {
     "r111VectorsAtomic": true,
@@ -379,5 +410,47 @@
       }
     ],
     "newRuntime": "UNRUN"
+  },
+  "priorFourCaseTrial": {
+    "head": "55a1cf65402458531dbb9dde02c60ff368cd3a18",
+    "run": 40051110527,
+    "reportedBy": "root",
+    "resourceControls": "PASS",
+    "caseOutcomes": {
+      "r116": "FAILED",
+      "r125": "FAILED",
+      "r131": "FAILED",
+      "r111": "FAILED"
+    },
+    "failedHistoryPreserved": true
+  },
+  "sixCaseIntegration": {
+    "sourceReceipt": "performance-source-receipt.json",
+    "publicationBaseManifestSha256": "80fadbe29659a835ccaeeaa703014dee2085ef01877b0e180104a400bdbba6e4",
+    "runtime": "UNRUN",
+    "yamlJobs": 10,
+    "enabledCases": 6,
+    "setupRecipes": 10,
+    "resourceCoreAndPinsUnchanged": true,
+    "r111NumericProjectorsExactAndUnchanged": true,
+    "r111ScopedAcceptanceCriteriaUnchanged": true,
+    "r116HarnessIdentity": "87ef6ee01fa4bfdbfd0ada62b4b3e55541ac67071b967c4181a8ff3e5b01f46f",
+    "r131HarnessIdentity": "fc3f39f0bb4765ec7074907fc69e8d25401d844e69d6377803cc74a0a342e8c4",
+    "r111HarnessIdentity": "510aa8034635626b1c16e61a2108ef3a9f9dc056e3dc30913f92f842135dca37",
+    "r134Metrics": 126,
+    "r134RawTimings": 84,
+    "r134RecomputedDerivedMetrics": 42,
+    "r134RecomputedClassifications": 7,
+    "r134ValidCompletedScreens": [
+      "promising",
+      "inconclusive",
+      "parked"
+    ],
+    "r135RequiredMetrics": 16,
+    "r135OptionalWarmMetrics": 8,
+    "outerResourceVerdictSeparateFromCaseAcceptance": true,
+    "closedFirstFailureDiagnosticsBothSanitizers": true,
+    "newPrivacyAndPublicationPreflight": "ROOT_PENDING",
+    "productSLOGates": "OPEN"
   }
 }

@@ -41,13 +41,13 @@ class HostAcceptanceControls(unittest.TestCase):
                 row = valid("r130"); row["result"]["caseResult"][key] = bad
                 self.assertFalse(accepted(row, "r130"))
     def test_accept_r116_requires_both_projections_calibration_and_cleanup(self):
-        case={"schema":"r116-frozen-browser-v1","mode":"r116-frozen-input-v1","status":"correct","openingStatus":"correct","frozenStatus":"correct","rttStatus":"within-band","cleanupStatus":"complete","caseExitCode":0}
+        case={"schema":"r116-frozen-browser-v1","mode":"r116-frozen-input-v1","status":"correct","openingStatus":"correct","frozenStatus":"correct","rttStatus":"within-band","cleanupStatus":"complete","caseExitCode":0,"harnessManifestSha256":"87ef6ee01fa4bfdbfd0ada62b4b3e55541ac67071b967c4181a8ff3e5b01f46f"}
         final={"passed":True,"cleanupPassed":True,"result":{"caseResult":case}}
         self.assertTrue(accepted(final,"r116"))
-        for key,bad in (("openingStatus","blocked"),("frozenStatus","incorrect"),("rttStatus","outside-band"),("cleanupStatus","incomplete"),("caseExitCode",False),("status","failed"),("passed",False)):
+        for key,bad in (("harnessManifestSha256","0"*64),("openingStatus","blocked"),("frozenStatus","incorrect"),("rttStatus","outside-band"),("cleanupStatus","incomplete"),("caseExitCode",False),("status","failed"),("passed",False)):
             changed=copy.deepcopy(final);changed["result"]["caseResult"][key]=bad;self.assertFalse(accepted(changed,"r116"))
     def test_accept_r131_requires_all_ten_intents_both_modes_and_real_proof_counts(self):
-        case={"schema":"r131-borrow-native-v1","status":"correct","passed":True,"code":"r131-native-correct","cleanupPassed":True,"nativeAssertionsPassed":True,"sourceCommit":"6f22fefa782747790e2eaefa01e4e5ea7b557323","r131NativeReportSha256":"a"*64,"r131RuntimeManifestSha256":"d5de71c73a26b5667b7a99b31e08d297f37fee1935f6bdb1142fb0ba545f695c","r131CandidatePatchSha256":"f338823b045747b9e0a052bcb04d4db632b83eb5400a370a9b7ff3637a8c4ee1","metrics":{"r131CompletedIntentCount":10,"r131ModeCount":2,"r131DeclarationProofCount":2,"r131TaskProofCount":2,"r131IndependentFallbackCount":8}}
+        case={"schema":"r131-borrow-native-v1","status":"correct","passed":True,"code":"r131-native-correct","cleanupPassed":True,"nativeAssertionsPassed":True,"sourceCommit":"6f22fefa782747790e2eaefa01e4e5ea7b557323","r131NativeReportSha256":"a"*64,"r131RuntimeManifestSha256":"fc3f39f0bb4765ec7074907fc69e8d25401d844e69d6377803cc74a0a342e8c4","r131CandidatePatchSha256":"f338823b045747b9e0a052bcb04d4db632b83eb5400a370a9b7ff3637a8c4ee1","metrics":{"r131CompletedIntentCount":10,"r131ModeCount":2,"r131DeclarationProofCount":2,"r131TaskProofCount":2,"r131IndependentFallbackCount":8}}
         final={"passed":True,"cleanupPassed":True,"result":{"caseResult":case}}
         self.assertTrue(accepted(final,"r131"))
         for key in case["metrics"]:

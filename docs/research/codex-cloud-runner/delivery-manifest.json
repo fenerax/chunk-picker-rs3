@@ -2,71 +2,188 @@
   "schema": "container-runner-delivery-v1",
   "envelope": "docker-hard-2cpu-6g-v1",
   "runnerRevision": "docker-pinned-image-env-v3",
-  "readiness": "NEXT_FOUR_CASES_AUTHORIZED_UNRUN",
+  "readiness": "SIX_CHANGED_CASES_AUTHORIZED_UNRUN",
   "sourceCommit": "6f22fefa782747790e2eaefa01e4e5ea7b557323",
   "assetBaseCommit": "7ad315acd39223df3b4d2304e295ef5c017dfe17",
-  "publicationBaseManifestSha256": "f4cd6e21cb86312a403413f2088dadfd00cbb51ff44a6a9e19386a4782a9303a",
-  "publicationBase": "published f4cd manifest / 76a wave",
-  "previousManifestSha256": "f4cd6e21cb86312a403413f2088dadfd00cbb51ff44a6a9e19386a4782a9303a",
+  "publicationBaseCommit": "55a1cf65402458531dbb9dde02c60ff368cd3a18",
+  "publicationBaseManifestSha256": "80fadbe29659a835ccaeeaa703014dee2085ef01877b0e180104a400bdbba6e4",
+  "publicationBase": "published55a four-case wave; shared80fad",
+  "previousManifestSha256": "80fadbe29659a835ccaeeaa703014dee2085ef01877b0e180104a400bdbba6e4",
   "activation": {
-    "jobs": [
+    "authorizedBy": "root",
+    "enabledJobs": [
       "one-case",
       "r125-focus",
       "r131-native",
-      "r111-scoped-soak"
+      "r111-scoped-soak",
+      "r134-engine-performance",
+      "r135-codec-http"
     ],
     "disabledFutureJobs": [
       "r124-engine",
       "r130-codec",
       "r127-component"
     ],
-    "newMeasurements": "UNRUN",
-    "r111": "SCOPED observation only; passed false/full acceptance false; all gates OPEN",
-    "r111ContainerSeconds": 2000,
-    "r111JobMinutes": 40,
-    "perShaConcurrency": true,
-    "cancelInProgress": false
+    "needsControlsRetained": true,
+    "cases": "UNRUN",
+    "r111JobScope": "SCOPED observation only",
+    "r111FullAcceptance": false,
+    "r111ProductSLOGates": "OPEN",
+    "r111TimeoutMinutes": 40,
+    "perCommitConcurrency": true,
+    "cancelInProgress": false,
+    "exactCliReceipts": [
+      {
+        "entrypoint": "docs/research/codex-cloud-capture/run-frozen-browser.mjs",
+        "mode": "browser",
+        "seconds": 540,
+        "commandSha256": "b163b5af67d87d6858f05471595ffa95ce54e26c20c434d9ab728cde684c8613"
+      },
+      {
+        "entrypoint": "docs/research/codex-cloud-assets/r127/container-entry.mjs",
+        "mode": "component",
+        "seconds": 240,
+        "commandSha256": "a8e478699ccd74c4f5a9867a212dc2e2e782792bfc1fe4ab9723a556ac10a0b2"
+      },
+      {
+        "entrypoint": "docs/research/codex-cloud-assets/r124/entry.mjs",
+        "mode": "component",
+        "seconds": 300,
+        "commandSha256": "98dfc96f4dddcd6ff6cb5612729e99b4a8f522203292676cc2d08e37e15d6ded"
+      },
+      {
+        "entrypoint": "docs/research/codex-cloud-assets/r125/case-entry.mjs",
+        "mode": "browser",
+        "seconds": 215,
+        "commandSha256": "ca4a2288759712230abcc8107dd1947a1e1c9c94c5fbe747c11ca16ec0ece211"
+      },
+      {
+        "entrypoint": "docs/research/codex-cloud-assets/r130/entry.mjs",
+        "mode": "native",
+        "seconds": 120,
+        "commandSha256": "566df64a1ca131254586deead19a322950eb9c2c604d1abc6b01b2134542ff98"
+      },
+      {
+        "entrypoint": "docs/research/codex-cloud-assets/r131-diagnostic-v2/entry.mjs",
+        "mode": "native",
+        "seconds": 180,
+        "commandSha256": "a925ddb2655722fac84ff67b49ed0379b5c1162110329bcd3d5b760678c0bfaa"
+      },
+      {
+        "entrypoint": "docs/research/codex-cloud-assets/r111/candidate/harness/run-container-session.mjs",
+        "mode": "soak",
+        "seconds": 2000,
+        "commandSha256": "f6eb99ecfbfd9fade5ae15e435edfc3409a0cb362a014910f8a1029d52fccfa2"
+      },
+      {
+        "entrypoint": "docs/research/codex-cloud-assets/r134/entry.mjs",
+        "mode": "component",
+        "seconds": 900,
+        "commandSha256": "48dcbabfa377092ad59c1a4e090c9215310a752488c98afca8a5bbc8e7c05738"
+      },
+      {
+        "entrypoint": "docs/research/codex-cloud-assets/r135/entry.mjs",
+        "mode": "native",
+        "seconds": 1200,
+        "commandSha256": "e36ca27682a0a871c87b48c75142c60412a141795cf1ff75dc0ad49b88d907f5"
+      }
+    ]
   },
   "projectionProof": {
-    "pureControlsPassed": 108,
+    "pureControlsPassed": 126,
+    "pythonControls": 116,
+    "nodeControls": 10,
     "exactR111ModuleCopies": true,
     "jsPythonParity": true,
     "sourceCaseBytes": 30716,
     "sourceEnvelopeBytes": 30949,
     "actualEnvelopeWithExitCodeBytes": 30966,
+    "newMaximumDiagnosticVectorsBelowCap": true,
     "frameCapBytes": 32768,
     "r111QualityMinimumBuckets": 110,
-    "r111MaxGapMs": 45000
+    "r111MaxGapMs": 45000,
+    "r111FullAcceptance": false,
+    "r134All126MetricsRetained": true,
+    "r134ClassificationsRecomputed": true,
+    "r135OptionalWarmMetricsPreserved": true
   },
+  "runtimePackets": [
+    {
+      "case": "r134-diagnostic-v2",
+      "publicationManifest": "../r134-engine-performance-diagnostic-v2/runtime-publication-manifest.json",
+      "publicationManifestSha256": "5f8149d46cc8a6faa2ac66d155b71d4d4e5b7d91947b85dd63bb5c0936ebc020",
+      "fileCount": 13,
+      "runtimeBytes": 390873,
+      "innerManifestSha256": "1e88a8b7318cf1923c443daaded1e1219a9bc5b337e9c7dac88631534f09684d"
+    },
+    {
+      "case": "r135-diagnostic-v2",
+      "publicationManifest": "../r135-codec-http-diagnostic-v2/publication-manifest.json",
+      "publicationManifestSha256": "28be5aa9007eb04dd6cab60a8ee07d74b764a52af16ae5991aba19b93ceb438e",
+      "fileCount": 10,
+      "runtimeBytes": 35994,
+      "innerManifestSha256": "e8a434ab0d89062c0ebf9c1876b1651caefee45054a63e7fc9e81a51c8e343cb"
+    }
+  ],
+  "additionalChangedCases": [
+    {
+      "case": "r116-v3",
+      "publicationManifest": "../r116-summary-diagnostic-v3/runtime-delta-manifest.json",
+      "sha256": "428d75dbfc8a6f4dcb8ad31ecf1d22e399a7596651322bf15ab9e190e124a1fd",
+      "mappedFiles": 3
+    },
+    {
+      "case": "r125-v3",
+      "publicationManifest": "../r125-focus-brand-v3/publication-delta.json",
+      "sha256": "bc14d5109381dcde0d3cc5a9b56d873eb2178646ba34e4e1d68e27dcf9377fa8",
+      "mappedFiles": 3
+    },
+    {
+      "case": "r131-diagnostic-v2",
+      "publicationManifest": "../r131-native-diagnostic-v2/runtime-publication-manifest.json",
+      "sha256": "fc3f39f0bb4765ec7074907fc69e8d25401d844e69d6377803cc74a0a342e8c4",
+      "mappedFiles": 15
+    },
+    {
+      "case": "r111-diagnostic-v2",
+      "publicationManifest": "../r111-container-diagnostic-v2/runtime-publication-manifest.json",
+      "sha256": "92668227e14c8f136d94fdbdee92d26217d50da5f83b4a2233a5fcb983553956",
+      "mappedFiles": 17
+    }
+  ],
+  "resourceCoreUnchanged": true,
+  "allProductAcceptanceGates": "OPEN",
   "changedFiles": [
     "accept_case.py",
+    "accept_performance.mjs",
     "accept_scoped_session.py",
-    "docker_envelope.py",
-    "inside.mjs",
-    "next-four-policy-merge.json",
+    "performance-source-receipt.json",
     "public-container-envelope.yml",
-    "r111-projector-source-receipt.json",
-    "r111_vector_policy.py",
-    "r111_vectors.mjs",
+    "r134_screen_core.mjs",
     "README.md",
     "result-policy.json",
     "test_accept_case.py",
+    "test_accept_performance.mjs",
     "test_docker_envelope.py",
-    "test_projection_integration.py",
-    "test_r111_vector_policy.py",
+    "test_performance_projection.py",
     "test_scoped_session.py",
     "verification.json"
   ],
   "files": [
     {
       "path": "accept_case.py",
-      "bytes": 3516,
-      "sha256": "aa8a0a4db76ab2fd5a3674ac37153fff13099c107753a0496d84ac519bbaf32d"
+      "bytes": 3688,
+      "sha256": "c51830f64e4ba9cc093db6034115498880f9d5215c350b81660df8b6aee76be0"
+    },
+    {
+      "path": "accept_performance.mjs",
+      "bytes": 6240,
+      "sha256": "ae7afcc4f4d1f0f20365cd19cbb280f6c43658b54afef47e21715c3fe450b32a"
     },
     {
       "path": "accept_scoped_session.py",
-      "bytes": 5707,
-      "sha256": "5327761baf159529c72f2fefb17edbeb31c28acd894099a23aa1cbe31bc330f9"
+      "bytes": 5787,
+      "sha256": "f09259ab2f2386d915c81c8c8cbf7d3d155a0c9ce6741dd7ec5baf94bb534982"
     },
     {
       "path": "control-run-40044649892-diagnosis.json",
@@ -119,6 +236,11 @@
       "sha256": "a73a006f68e11465d8f6d65ba0e31d8440d6c26e89deafbcced1475b80bfc6e2"
     },
     {
+      "path": "performance-source-receipt.json",
+      "bytes": 4148,
+      "sha256": "d505c24f9262282dea95fbaf728366586dc01dcd168a81921d3587f5e3b1ae57"
+    },
+    {
       "path": "pins.json",
       "bytes": 1077,
       "sha256": "d5d50f72ec7a600314ed58817c33f6dec90d7d857313f8aaa4e528fc1a6ae747"
@@ -130,8 +252,8 @@
     },
     {
       "path": "public-container-envelope.yml",
-      "bytes": 33577,
-      "sha256": "9d3e9ed519f397da3121582c1ec0b9d421f5d85054d8be832e21b14b4516c2bb"
+      "bytes": 42255,
+      "sha256": "929111176af122c994e7c120e99cd9f6a8e6a880d6781be4a0d925291a3d45cb"
     },
     {
       "path": "public-metadata-evidence.json",
@@ -159,14 +281,19 @@
       "sha256": "266b4a1274ede3c99fd6d4c5488ebce998707576381bd76108ffa78703435bac"
     },
     {
+      "path": "r134_screen_core.mjs",
+      "bytes": 4786,
+      "sha256": "f33a7435e90d251d781358fc0d09a7afca9fe48fa7cbc1363425087ba6211287"
+    },
+    {
       "path": "README.md",
-      "bytes": 24595,
-      "sha256": "5901810f119912046ad3a18696700e09624b611602eee5ab4858167d7795d592"
+      "bytes": 27584,
+      "sha256": "490b0fd9ec2aa4209cbbe9e2a0866aeb10ff00925da92b4453c896fe4693515e"
     },
     {
       "path": "result-policy.json",
-      "bytes": 78771,
-      "sha256": "944ee434eb7b5f2f52f1a86a102df4b61c9fa5d999b03578c9eed066cea64c0f"
+      "bytes": 94644,
+      "sha256": "457a168e86449c1c98f1217bbea1df247900cf45ea4ce5ba8b5332ac7e59b060"
     },
     {
       "path": "setup_diagnostics.py",
@@ -175,13 +302,23 @@
     },
     {
       "path": "test_accept_case.py",
-      "bytes": 4298,
-      "sha256": "c3d60ffb904094e279cf978032b8f76cfda77751b61eec8e7d2357f1c7a54c39"
+      "bytes": 4481,
+      "sha256": "20c2cd20d8ff08608687577a03b3990120f66fe194c7200bf23d83ab636cf768"
+    },
+    {
+      "path": "test_accept_performance.mjs",
+      "bytes": 8058,
+      "sha256": "f7940422b13abbe7699e205c92425d85a9af5d13312239f98e25fd002f54bde8"
     },
     {
       "path": "test_docker_envelope.py",
-      "bytes": 27821,
-      "sha256": "d7edd9bf6c335e0a7fd8a3b93a10f01d201a82088c70dabddb2f9f2580bb8bfd"
+      "bytes": 30590,
+      "sha256": "8736e7faa174479148b0179ac46bc9ba63643ce403bea49d21defc9422dfe005"
+    },
+    {
+      "path": "test_performance_projection.py",
+      "bytes": 6618,
+      "sha256": "7bd198cd8a33bb542fd4830d90c56a9d0ee8c480b1d829d45dcb859935326a56"
     },
     {
       "path": "test_projection_integration.py",
@@ -195,13 +332,13 @@
     },
     {
       "path": "test_scoped_session.py",
-      "bytes": 14418,
-      "sha256": "7f48fa14ba54feb1062d1806b27e3d7889db1d042f23e034717fa56ffb51b540"
+      "bytes": 14663,
+      "sha256": "117280a32e7dda09c50280b7275ba9eb814edab0bd1db0aca752be95c7d6f152"
     },
     {
       "path": "verification.json",
-      "bytes": 13661,
-      "sha256": "33533d38f2f1c93a52ad66f39bbd1941ccdc05d0ff1f6827b2bd7843755a4d1f"
+      "bytes": 16578,
+      "sha256": "bf9a363fc26f682ac2f294fd6df6171c564310c7b14061806aeb2d6b34152a94"
     }
   ]
 }

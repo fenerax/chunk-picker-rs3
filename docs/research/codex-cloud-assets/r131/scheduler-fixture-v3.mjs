@@ -2,6 +2,7 @@
 import {pathToFileURL} from 'node:url';
 import {qualifies} from './protocol.mjs';
 import {existsSync,readFileSync} from 'node:fs';
+import {note} from './diagnostics.mjs';
 const candidate=pathToFileURL(process.env.R131_CANDIDATE_ROOT+'/');
 const appURL=p=>new URL(p,candidate);
 import assert from 'node:assert/strict';
@@ -9,13 +10,15 @@ import { writeFile } from 'node:fs/promises';
 import { sha256, requirePublicOnly, authoredDefinitions, serializedState } from './driver-lib.mjs';
 if (!process.argv.includes('--authorized-native')) throw new Error('Native execution requires root authorization and --authorized-native');
 
+const tracked=async(op,load)=>{note(op);try{return await load();}catch(error){note(op,error,'failed');throw error;}};
 const [{ Worker }, { ProcessWorker }, { createTaskScheduler }, { createGroupState }, { buildWorld }, { selectedDataset }] = await Promise.all([
-  import('node:worker_threads'), import(appURL('app/tasks/process-worker.mjs')), import(appURL('app/tasks/scheduler.mjs')),
-  import(appURL('app/core/state.mjs')), import(appURL('app/data/world.mjs')), import(appURL('app/dataset-runtime.mjs')),
+  import('node:worker_threads'), tracked('app-import-process',()=>import(appURL('app/tasks/process-worker.mjs'))), tracked('app-import-scheduler',()=>import(appURL('app/tasks/scheduler.mjs'))),
+  tracked('app-import-state',()=>import(appURL('app/core/state.mjs'))), tracked('app-import-world',()=>import(appURL('app/data/world.mjs'))), tracked('app-import-dataset',()=>import(appURL('app/dataset-runtime.mjs'))),
 ]);
 const records=[];let generation=0;
 
 export function fixture(scale,cold=false) {
+  note('fixture-definition');
   const definitions = authoredDefinitions(scale);if(cold)for(const record of Object.values(definitions.challenges.Quest))record.NeverShow=true;const world = buildWorld(definitions);
   const state = createGroupState([{ id:'a',name:'Authored A' },{ id:'b',name:'Authored B' }]);
   state.members[0].unlocked = ['12341']; state.members[1].unlocked = ['12342']; state.rules['content.f2p'] = false;
@@ -42,11 +45,11 @@ export async function schedulerFixture(t, mode, data, enabled, phase) {
     });
     return worker;
   };
-  const scheduler = await createTaskScheduler({ workerData:data.workerData, workerFactory:factory, predictionWorkerFactory:factory,
+  note('fixture-scheduler-start');const scheduler = await createTaskScheduler({ workerData:data.workerData, workerFactory:factory, predictionWorkerFactory:factory,
     experimentalIdleForegroundPlanning:enabled, deadlineMs:12000, startupDeadlineMs:12000, maxRestarts:0 });
   t.after(async()=>{await scheduler.close();for(const {worker,identity} of workers){assert.ok(events.some(e=>e.direction==='exit'&&e.identity===identity),'real owned worker exit required');if(mode==='thread')assert.equal(worker.threadId,-1);else if(existsSync(`/proc/${identity.pid}/stat`)){const stat=readFileSync(`/proc/${identity.pid}/stat`,'utf8');assert.notEqual(stat.slice(stat.lastIndexOf(')')+2).split(' ')[19],identity.startTicks,'owned process must be absent');}}});
   const inputFor = () => sha256(JSON.stringify([data.state.rules,data.state.taskRules,data.state.members]));
-  const warm = member => scheduler.evaluate(data.state,member,'evaluate',undefined,`warm:${member}:${inputFor()}`, inputFor(),undefined,[],'full',serializedState(data.state,inputFor()));
-  const planning = signal => scheduler.evaluate(data.state,'a','chunk-planning','12341',JSON.stringify([data.state.revision,inputFor(),'a','12341']),inputFor(),signal,[],'full',serializedState(data.state,inputFor()));
+  const warm = member => {note('fixture-warm');return scheduler.evaluate(data.state,member,'evaluate',undefined,`warm:${member}:${inputFor()}`, inputFor(),undefined,[],'full',serializedState(data.state,inputFor()));};
+  const planning = signal => {note('fixture-planning');return scheduler.evaluate(data.state,'a','chunk-planning','12341',JSON.stringify([data.state.revision,inputFor(),'a','12341']),inputFor(),signal,[],'full',serializedState(data.state,inputFor()));};
   return { scheduler,warm,planning,events,workers,setPhaseAction:action => phaseAction=action };
 }

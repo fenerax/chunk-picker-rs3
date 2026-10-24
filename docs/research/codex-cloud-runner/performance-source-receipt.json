@@ -1,0 +1,102 @@
+{
+  "schema": "public-performance-source-receipt-v1",
+  "publicationBaseCommit": "55a1cf65402458531dbb9dde02c60ff368cd3a18",
+  "publicationBaseManifestSha256": "80fadbe29659a835ccaeeaa703014dee2085ef01877b0e180104a400bdbba6e4",
+  "proposals": [
+    {
+      "case": "r134",
+      "source": "../r134-engine-performance-ready/result-policy.additions.json",
+      "bytes": 6358,
+      "sha256": "cb09c2f087d8f7b653a1ecceeb32b1f775c1045c92c432fd515dda9bd5773fcb"
+    },
+    {
+      "case": "r135",
+      "source": "../r135-codec-http-performance-ready/result-policy.additions.json",
+      "bytes": 761,
+      "sha256": "c4362e68650ba7e11d6bf8776c03b8411bbf7a1e962045d9d05aaf182f673334"
+    },
+    {
+      "case": "r135-diagnostic-v2",
+      "source": "../r135-codec-http-diagnostic-v2/result-policy.additions.json",
+      "bytes": 3317,
+      "sha256": "50b77282f3a31185e953013e75271f1d13e77876021fe68f782887a3c5a04570"
+    },
+    {
+      "case": "r116-v3",
+      "source": "../r116-summary-diagnostic-v3/result-policy-additions.proposal.json",
+      "bytes": 488,
+      "sha256": "473dffb6d474614ed4e23eeed42cc1705eaeaeef27dec173e4beaf3df1341426"
+    },
+    {
+      "case": "r131-diagnostic-v2",
+      "source": "../r131-native-diagnostic-v2/result-policy.additions.proposal.json",
+      "bytes": 2162,
+      "sha256": "29a10770e478d2f9ef9dd4ab9b04a2c868610bae5f2d4c86182be539573342a4"
+    },
+    {
+      "case": "r111-diagnostic-v2",
+      "source": "../r111-container-diagnostic-v2/result-policy-diagnostic-proposal.json",
+      "bytes": 1634,
+      "sha256": "d4475d2d4daf4b5431607b5b398d7e4d4227af6069575aa333d80d6df282d8a9"
+    },
+    {
+      "case": "r134-diagnostic-v2",
+      "source": "../r134-engine-performance-diagnostic-v2/diagnostic-policy.additions.json",
+      "bytes": 1665,
+      "sha256": "f857cd170a74dad362b7e5a5c816b1df94b57f08c631d202b421986272b39811"
+    }
+  ],
+  "assessorCopy": {
+    "source": "../r134-engine-performance-ready/screen-core.mjs",
+    "path": "r134_screen_core.mjs",
+    "bytes": 4786,
+    "sha256": "f33a7435e90d251d781358fc0d09a7afca9fe48fa7cbc1363425087ba6211287"
+  },
+  "runtime": "UNRUN",
+  "runtimePackets": [
+    {
+      "case": "r134-diagnostic-v2",
+      "publicationManifest": "../r134-engine-performance-diagnostic-v2/runtime-publication-manifest.json",
+      "publicationManifestSha256": "5f8149d46cc8a6faa2ac66d155b71d4d4e5b7d91947b85dd63bb5c0936ebc020",
+      "fileCount": 13,
+      "runtimeBytes": 390873,
+      "innerManifestSha256": "1e88a8b7318cf1923c443daaded1e1219a9bc5b337e9c7dac88631534f09684d"
+    },
+    {
+      "case": "r135-diagnostic-v2",
+      "publicationManifest": "../r135-codec-http-diagnostic-v2/publication-manifest.json",
+      "publicationManifestSha256": "28be5aa9007eb04dd6cab60a8ee07d74b764a52af16ae5991aba19b93ceb438e",
+      "fileCount": 10,
+      "runtimeBytes": 35994,
+      "innerManifestSha256": "e8a434ab0d89062c0ebf9c1876b1651caefee45054a63e7fc9e81a51c8e343cb"
+    }
+  ],
+  "sharedResourceCoreUnchanged": true,
+  "r111SemanticAndCadenceCriteriaUnchanged": true,
+  "additionalChangedCases": [
+    {
+      "case": "r116-v3",
+      "publicationManifest": "../r116-summary-diagnostic-v3/runtime-delta-manifest.json",
+      "sha256": "428d75dbfc8a6f4dcb8ad31ecf1d22e399a7596651322bf15ab9e190e124a1fd",
+      "mappedFiles": 3
+    },
+    {
+      "case": "r125-v3",
+      "publicationManifest": "../r125-focus-brand-v3/publication-delta.json",
+      "sha256": "bc14d5109381dcde0d3cc5a9b56d873eb2178646ba34e4e1d68e27dcf9377fa8",
+      "mappedFiles": 3
+    },
+    {
+      "case": "r131-diagnostic-v2",
+      "publicationManifest": "../r131-native-diagnostic-v2/runtime-publication-manifest.json",
+      "sha256": "fc3f39f0bb4765ec7074907fc69e8d25401d844e69d6377803cc74a0a342e8c4",
+      "mappedFiles": 15
+    },
+    {
+      "case": "r111-diagnostic-v2",
+      "publicationManifest": "../r111-container-diagnostic-v2/runtime-publication-manifest.json",
+      "sha256": "92668227e14c8f136d94fdbdee92d26217d50da5f83b4a2233a5fcb983553956",
+      "mappedFiles": 17
+    }
+  ]
+}

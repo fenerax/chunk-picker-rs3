@@ -213,7 +213,7 @@ class Controls(unittest.TestCase):
     def test_both_workflow_recipes_use_distinct_empty_npm_configs(self):
         workflow = workflow_path().read_text()
         pairs = re.findall(r'npm_config_userconfig="([^"]+)"\s+npm_config_globalconfig="([^"]+)"', workflow)
-        self.assertEqual(len(pairs), 8)
+        self.assertEqual(len(pairs), 10)
         for user, global_config in pairs:
             self.assertNotEqual(user, global_config)
             self.assertNotEqual(user, '/dev/null'); self.assertNotEqual(global_config, '/dev/null')
@@ -221,10 +221,37 @@ class Controls(unittest.TestCase):
             self.assertIn(': > "' + global_config + '"', workflow)
     def test_both_setup_failures_use_closed_diagnostics(self):
         workflow = workflow_path().read_text()
-        self.assertEqual(workflow.count('--stage dependency-setup'), 8)
-        self.assertEqual(workflow.count('--stage public-image-pull'), 8)
+        self.assertEqual(workflow.count('--stage dependency-setup'), 10)
+        self.assertEqual(workflow.count('--stage public-image-pull'), 10)
         self.assertNotIn('cat "$RUNNER_TEMP/npm-setup.log"', workflow)
         self.assertNotIn('tail "$RUNNER_TEMP/image-pull.log"', workflow)
+    def test_six_case_wave_retains_control_dependency_and_disables_completed_unchanged_cases(self):
+        workflow=workflow_path().read_text()
+        jobtext=workflow.split('jobs:\n',1)[1]
+        markers=list(re.finditer(r'^  ([a-z0-9-]+):\n',jobtext,re.M))
+        blocks={match.group(1):jobtext[match.start():(markers[i+1].start() if i+1<len(markers) else len(jobtext))] for i,match in enumerate(markers)}
+        self.assertEqual(len(blocks),10)
+        self.assertIn("github.event.repository.private == false",blocks['controls'])
+        for key in ('r127-component','r124-engine','r130-codec'):
+            self.assertIn('if: ${{ false }}',blocks[key])
+        for key in ('one-case','r125-focus','r131-native','r111-scoped-soak','r134-engine-performance','r135-codec-http'):
+            self.assertIn('needs: controls',blocks[key]);self.assertIn('if: ${{ success() }}',blocks[key])
+        self.assertIn('--entrypoint docs/research/codex-cloud-assets/r131-diagnostic-v2/entry.mjs --mode native --seconds 180 --arg=--expected-harness-manifest-sha --arg=fc3f39f0bb4765ec7074907fc69e8d25401d844e69d6377803cc74a0a342e8c4',blocks['r131-native'])
+        self.assertIn('--arg=--expected-harness-manifest-sha256 --arg=510aa8034635626b1c16e61a2108ef3a9f9dc056e3dc30913f92f842135dca37',blocks['r111-scoped-soak'])
+        self.assertIn('--entrypoint docs/research/codex-cloud-capture/run-frozen-browser.mjs',blocks['one-case'])
+        self.assertIn('group: public-docker-envelope-${{ github.sha }}',workflow)
+        self.assertIn('cancel-in-progress: false',workflow)
+    def test_performance_wave_uses_exact_cli_budgets_and_host_acceptance(self):
+        workflow=workflow_path().read_text()
+        r134=workflow.split('  r134-engine-performance:\n',1)[1].split('  r135-codec-http:\n',1)[0]
+        r135=workflow.split('  r135-codec-http:\n',1)[1]
+        self.assertIn('timeout-minutes: 20',r134);self.assertIn('timeout-minutes: 25',r135)
+        self.assertIn('--mode component --control none --seconds 900 --arg=--packet-sha256 --arg=1e88a8b7318cf1923c443daaded1e1219a9bc5b337e9c7dac88631534f09684d --arg=--seconds --arg=860',r134)
+        self.assertIn('--mode native --control none --seconds 1200',r135);self.assertNotIn('--arg=',r135)
+        for case,block,output in (('r134',r134,'r134-engine-performance'),('r135',r135,'r135-codec-http')):
+            self.assertIn('docs/research/codex-cloud-assets/'+case+'/entry.mjs',block)
+            self.assertIn('node "$tool/accept_performance.mjs" --case '+case+' --final "$RUNNER_TEMP/'+output+'/final.json"',block)
+        self.assertIn('test_performance_projection.py',workflow);self.assertIn('--test "$GITHUB_WORKSPACE/inputs/assets/docs/research/codex-cloud-runner/test_accept_performance.mjs"',workflow)
     def test_workflow_path_supports_canonical_public_layout(self):
         base = Path('/public/docs/research/codex-cloud-runner')
         with patch.object(Path, 'is_file', side_effect=[False, True]):

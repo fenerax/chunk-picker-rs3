@@ -1,4 +1,5 @@
 import crypto from 'node:crypto';import {cancelProof,PIN} from './protocol.mjs';
+import {diagnosticProjection} from './diagnostics.mjs';
 const sha=b=>crypto.createHash('sha256').update(b).digest('hex');
 const INTENTS=['initial full borrow conformance','declaration cancellation and independent fallback equality','task cancellation and independent fallback equality','cold/member/input/revision classification','original reachable cache-warm negative control'];
 export function publicCaseResult(report,reportBytes){
@@ -15,5 +16,5 @@ export function publicCaseResult(report,reportBytes){
  const hashes={r131NativeReportSha256:sha(reportBytes)};for(const [key,value] of [['r131RuntimeManifestSha256',report.runtimeManifest?.sha256],['r131CandidatePatchSha256',report.install?.patchSHA256]])if(/^[a-f0-9]{64}$/.test(value??''))hashes[key]=value;
  if(Object.keys(hashes).length!==3||report.install?.patchSHA256!=='f338823b045747b9e0a052bcb04d4db632b83eb5400a370a9b7ff3637a8c4ee1')accepted=false;
  const out={schema:'r131-borrow-native-v1',status:accepted?'correct':'failed',passed:accepted,code:accepted?'r131-native-correct':'r131-native-failed',count:completed,cleanupPassed:cleanup,nativeAssertionsPassed:accepted,sourceCommit:PIN,...hashes,metrics:{r131CompletedIntentCount:completed,r131ModeCount:modes,r131DeclarationProofCount:declarations,r131TaskProofCount:tasks,r131IndependentFallbackCount:fallbacks}};
- if(Buffer.byteLength(JSON.stringify(out))>32768)throw Error('compact result bound');return out;
+ const diagnostics=diagnosticProjection(report.diagnostics??[],report.records);const projected={...out,...diagnostics,metrics:{...out.metrics,...diagnostics.metrics}};if(Buffer.byteLength(JSON.stringify(projected))>32768)throw Error('compact result bound');return projected;
 }

@@ -1,11 +1,11 @@
 {
   "schemaVersion": 1,
   "mode": "r116-frozen-input-v1",
-  "diagnosticRevision": "r116-docker-diagnostic-v2",
+  "diagnosticRevision": "r116-summary-readiness-v3",
   "sourceCommit": "6f22fefa782747790e2eaefa01e4e5ea7b557323",
   "entrypoint": "run-frozen-browser.mjs",
   "runtimeStatus": "UNRUN",
-  "parentHarnessManifestSha256": "b3da4018a8bc448dd902436bf7f0738fdc522a2970fe37e84fae9a5206dd5571",
+  "parentHarnessManifestSha256": "0b9512f552f1830aaf053ddd8d5bbb7abe6be34b509a973d02dc038abf2cfe40",
   "files": [
     {
       "path": "browser-adapter.mjs",
@@ -13,34 +13,9 @@
       "sha256": "2a53212a693323839df2d2472e72bf94bdfc4d088ce65ab25380a4fd0fa97c32"
     },
     {
-      "path": "browser-adapter.test.mjs",
-      "bytes": 15725,
-      "sha256": "69449702f489308f587e5f3bdce27e713da556feb1cc782eca0e458975996f4a"
-    },
-    {
-      "path": "controller.test.mjs",
-      "bytes": 10692,
-      "sha256": "5cc4e23fd533dede41312d6fed08551793fe2c7ee2e80b8d159b391c0d6df9fa"
-    },
-    {
-      "path": "diagnostic-policy-additions.json",
-      "bytes": 13932,
-      "sha256": "4c973ddc8c6c37e0acf563dfdfb2308bd173c1eed896b078bcfbcd839a3abb07"
-    },
-    {
       "path": "failure-diagnostics.mjs",
       "bytes": 7597,
       "sha256": "6c9f4c67b353d1dda2d6edfddd10b0c398aaca7d1cab6b2848f8fb876a5b540c"
-    },
-    {
-      "path": "failure-diagnostics.test.mjs",
-      "bytes": 8202,
-      "sha256": "d487af860c14e27eca8521897a013e8eab665bafd6e3346dd882e1ee5b5ce1b5"
-    },
-    {
-      "path": "first-failure-diagnosis.md",
-      "bytes": 3419,
-      "sha256": "ace98c0dd447abc8309fa848fce9e23dc728e329e1a520c791038ecc80eae764"
     },
     {
       "path": "fixture.json",
@@ -53,11 +28,6 @@
       "sha256": "7751c4ea4ffc07c03ab042a1f4975fe1dc0de7bbcfda9450949e8b6b432ef485"
     },
     {
-      "path": "frozen-oracle.test.mjs",
-      "bytes": 7127,
-      "sha256": "7017ba31f6ac8e44174de7c0a20e4236b01d4ffb2a82c8799799faa51c1204fe"
-    },
-    {
       "path": "harness-utils.mjs",
       "bytes": 7452,
       "sha256": "fd273b2b99e29fc3ee04fdf7937ccae5844be1572311abb772c8dcc92a6adb73"
@@ -68,34 +38,9 @@
       "sha256": "2fccb5e0a90e062b356ce912abd0d2acde39b89fe89c6322f01c9a68ce8ef63b"
     },
     {
-      "path": "opening-oracle.test.mjs",
-      "bytes": 4573,
-      "sha256": "2c0e3d7bda88aa0ef88003c3068f4c07fe687fc1f8fd3aa4acfe8a0a2a1377ba"
-    },
-    {
-      "path": "pending-command.sh",
-      "bytes": 430,
-      "sha256": "f4c7da8eaacb69abf672982155015b0b423f57b44a53d6d451cdafe97fa9274b"
-    },
-    {
-      "path": "pure-tests.log",
-      "bytes": 6329,
-      "sha256": "df35bcd564c8b78cf40d815909fb9a3b4bd274c38fba7e0c11ceb5b117f94ea8"
-    },
-    {
-      "path": "README.md",
-      "bytes": 12871,
-      "sha256": "92a27acab2c86c2d5a3825ee55930a9567a44937ee8cf74c8eb99b87f8960e67"
-    },
-    {
       "path": "run-frozen-browser.mjs",
-      "bytes": 53681,
-      "sha256": "9e6e9b2da6266c6a624f463f8effac34be1f602a9f95f3b10727b27d2d83e7e5"
-    },
-    {
-      "path": "server-driver-protocol.md",
-      "bytes": 9388,
-      "sha256": "711891969c0cea74fbb7ee416db260221dd06d0e648ff9d7b5912bb3651c1bdd"
+      "bytes": 53624,
+      "sha256": "eaceefe25c4732664912e693e415d5abc97bf50749b73b585091f009bc35a4f8"
     },
     {
       "path": "server-driver.mjs",
@@ -108,9 +53,9 @@
       "sha256": "29f28c1d5705b681be5bbb3aa6408e01bb8d049f27b1c1428f4737f5c42c789d"
     },
     {
-      "path": "verification.json",
-      "bytes": 3070,
-      "sha256": "23f539b4f7b94dedd1edc5060f6a0b52efc14d22c3cd88117bca0e830ef8443e"
+      "path": "tasks-section-readiness.mjs",
+      "bytes": 1550,
+      "sha256": "969b0c52d457d5c07fbd466e4e732e02db691149fb9eaecd345a2d0fdff7107b"
     }
   ]
 }

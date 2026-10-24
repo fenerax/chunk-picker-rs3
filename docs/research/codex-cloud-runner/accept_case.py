@@ -19,14 +19,14 @@ def accepted(value, case):
     if not isinstance(actual, dict) or actual.get("schema") != SCHEMAS[case] or actual.get("status") != "correct":
         return False
     if case == "r116":
-        return ("passed" not in actual or actual["passed"] is True) and actual.get("mode") == "r116-frozen-input-v1" and actual.get("openingStatus") == "correct" and actual.get("frozenStatus") == "correct" and actual.get("rttStatus") == "within-band" and actual.get("cleanupStatus") == "complete" and type(actual.get("caseExitCode")) is int and actual["caseExitCode"] == 0
+        return ("passed" not in actual or actual["passed"] is True) and actual.get("harnessManifestSha256") == "87ef6ee01fa4bfdbfd0ada62b4b3e55541ac67071b967c4181a8ff3e5b01f46f" and actual.get("mode") == "r116-frozen-input-v1" and actual.get("openingStatus") == "correct" and actual.get("frozenStatus") == "correct" and actual.get("rttStatus") == "within-band" and actual.get("cleanupStatus") == "complete" and type(actual.get("caseExitCode")) is int and actual["caseExitCode"] == 0
     if actual.get("passed") is not True:
         return False
     if case == "r131":
         metrics = actual.get("metrics",{})
         expected = {"r131CompletedIntentCount":10,"r131ModeCount":2,"r131DeclarationProofCount":2,"r131TaskProofCount":2,"r131IndependentFallbackCount":8}
         report = actual.get("r131NativeReportSha256")
-        return type(metrics) is dict and actual.get("code") == "r131-native-correct" and actual.get("cleanupPassed") is True and actual.get("nativeAssertionsPassed") is True and actual.get("sourceCommit") == "6f22fefa782747790e2eaefa01e4e5ea7b557323" and all(type(metrics.get(k)) is int and metrics[k] == v for k,v in expected.items()) and actual.get("r131RuntimeManifestSha256") == "d5de71c73a26b5667b7a99b31e08d297f37fee1935f6bdb1142fb0ba545f695c" and actual.get("r131CandidatePatchSha256") == "f338823b045747b9e0a052bcb04d4db632b83eb5400a370a9b7ff3637a8c4ee1" and type(report) is str and re.fullmatch(r"[0-9a-f]{64}",report) is not None
+        return type(metrics) is dict and actual.get("code") == "r131-native-correct" and actual.get("cleanupPassed") is True and actual.get("nativeAssertionsPassed") is True and actual.get("sourceCommit") == "6f22fefa782747790e2eaefa01e4e5ea7b557323" and all(type(metrics.get(k)) is int and metrics[k] == v for k,v in expected.items()) and actual.get("r131RuntimeManifestSha256") == "fc3f39f0bb4765ec7074907fc69e8d25401d844e69d6377803cc74a0a342e8c4" and actual.get("r131CandidatePatchSha256") == "f338823b045747b9e0a052bcb04d4db632b83eb5400a370a9b7ff3637a8c4ee1" and type(report) is str and re.fullmatch(r"[0-9a-f]{64}",report) is not None
     if case == "r124":
         metrics = actual.get("metrics")
         return isinstance(metrics, dict) and all(type(metrics.get(key)) is int and metrics[key] == 8 for key in ("r124BaselineCompletedCases", "r124CandidateCompletedCases"))

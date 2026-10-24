@@ -1,12 +1,12 @@
 {
-  "schema": "r111-runtime-publication-v1",
+  "schema": "r111-runtime-source-slice-v2",
   "sourcePin": "6f22fefa782747790e2eaefa01e4e5ea7b557323",
-  "status": "UNCHANGED_RUNTIME_SOURCE_ONLY_UNRUN",
+  "purpose": "Runtime-only diagnostic derivative; immutable originals preserved; no raw runtime errors or recovered chat context.",
   "files": [
     {
       "path": "candidate/harness/container-bridge.mjs",
-      "bytes": 15276,
-      "sha256": "8c5b32443c4fb5cdf02e469ee971795992963ce6d6f1524e913e76b2d72a075e"
+      "bytes": 15489,
+      "sha256": "14ac0de44120779c644860117f6694aedebc0eb9ce8493be1be943f9f608e5dd"
     },
     {
       "path": "candidate/harness/container-result.mjs",
@@ -22,6 +22,11 @@
       "path": "candidate/harness/delay.mjs",
       "bytes": 1256,
       "sha256": "6dda8f10ddbf81dcfdcebb8724f1c154e5e3840164a03d44fa99739c58652a59"
+    },
+    {
+      "path": "candidate/harness/diagnostic.mjs",
+      "bytes": 2776,
+      "sha256": "934703547f42e0de300d63f87e682d497a8753aa017ed065d044a3853f844743"
     },
     {
       "path": "candidate/harness/evidence-vectors.mjs",
@@ -55,8 +60,8 @@
     },
     {
       "path": "candidate/harness/run-container-session.mjs",
-      "bytes": 5529,
-      "sha256": "7f89b3786ddc2231dc1ebfaceeb847654b2a9fd990197c8a9469be034b218b85"
+      "bytes": 6900,
+      "sha256": "8883615729d14366e5c6aedb38701cae4eae0759bd28616b1ef63b0a9cae017f"
     },
     {
       "path": "candidate/harness/server.mjs",
@@ -70,40 +75,13 @@
     },
     {
       "path": "candidate/harness/session.mjs",
-      "bytes": 26998,
-      "sha256": "024557234d46668f68304fb11110c01ae3a368a54fcd88e0b727008660c8b896"
+      "bytes": 28027,
+      "sha256": "081fed2a83cf4e2db0bbc7dd939c6541430f5b1386dd4b636ff58d3c9b4818e8"
     },
     {
       "path": "sources/network-ledger-overlay/ledger.mjs",
       "bytes": 15551,
       "sha256": "2bd14431eac9114b37ae7a19793dfa94a3d3288dd3a64e8865ac8363c859febe"
     }
-  ],
-  "provenance": {
-    "fullV3PacketMembers": 94,
-    "fullV3PacketSHA256": "ebefaed90b2f8ca048ec4316ae20c006f55224f65b59ff199b265bdd8d25a3f1",
-    "fullV3ManifestSHA256": "695eb428726c65d12a2c6328bbf3a97237a540b1a790b4b07bc7eff6b65df7e9",
-    "allRuntimeBytesEqualFullV3": true,
-    "r83ManifestSHA256": "632faf515166dc9464e5cc925224850b0a11308ffb121a0f25be7d92c1cbf648",
-    "requiredR83Member": {
-      "path": "network-ledger-overlay/ledger.mjs",
-      "bytes": 15551,
-      "sha256": "2bd14431eac9114b37ae7a19793dfa94a3d3288dd3a64e8865ac8363c859febe",
-      "origin": ".local/claude-tools/cloud-speed-batch-2026-10-22/goal/network-ledger-overlay/ledger.mjs",
-      "kind": "exact-existing-source"
-    }
-  },
-  "externalVerifiedMounts": [
-    "/source exact6f22 and complete source-lock",
-    "/deps pinned Playwright1.62.1",
-    "/runtime/node pinned24.19 and expected SHA256",
-    "/runner reviewed envelope/result-policy including both vector projectors"
-  ],
-  "generatedOrKernelReads": [
-    "/scratch generated session files",
-    "/proc and /sys identity/resource observations"
-  ],
-  "runtime": "UNRUN",
-  "acceptance": false,
-  "selfHashExcluded": "source-slice-manifest.json; exact hash supplied by CLI"
+  ]
 }
