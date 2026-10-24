@@ -37,11 +37,11 @@ test('History loads older pages from the server and keeps the filters in place',
     ? { stateRevision: 300, history: [event(150)], nextBefore: null, hasMore: false }
     : { stateRevision: 300, history: Array.from({ length: 150 }, (_, index) => event(300 - index)), nextBefore: 151, hasMore: true });
   await h.c.historyDialog();
-  const search = h.control('Search History');
+  const search = h.control('Find a change');
   assert.equal(h.all().filter(node => node.className === 'history-row').length, 150);
   await h.find('button', 'Load older').action();
   assert.equal(h.all().filter(node => node.className === 'history-row').length, 151);
-  assert.equal(h.control('Search History'), search);
+  assert.equal(h.control('Find a change'), search);
   assert.match(h.calls[1], /before=151/); assert.match(h.calls[1], /stateRevision=300/);
   assert.equal(h.find('button', 'Load older'), undefined);
 });
@@ -50,7 +50,7 @@ test('player and change filters search the server and discard a delayed older pa
   const h = harness(), older = deferred();
   h.respond(async path => path.includes('before=250') ? older.promise : { stateRevision: 300, history: [event(250)], hasMore: !path.includes('player='), nextBefore: 250 });
   await h.c.historyDialog(); const loading = h.find('button', 'Load older').action();
-  h.control('Search History').value = 'Lumbridge & note'; h.control('Player').value = 'reed'; h.control('Type of change').value = 'notes';
+  h.control('Find a change').value = 'Lumbridge & note'; h.control('Player').value = 'reed'; h.control('Type of change').value = 'notes';
   await h.control('Player').emit('change');
   assert.match(h.calls.at(-1), /player=reed&type=notes&q=Lumbridge%20%26%20note/);
   assert.doesNotMatch(h.calls.at(-1), /before=/);

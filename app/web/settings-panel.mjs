@@ -55,7 +55,7 @@ export function createSettingsPanel(ctx) {
     const content = el('div', undefined, 'settings-panel');
     content.dataset.mobileView = 'list';
     const searchBar = el('div', undefined, 'settings-search'), search = input('search');
-    search.placeholder = 'Find a setting'; search.setAttribute('aria-label', 'Find a setting');
+    search.placeholder = 'Find a setting…'; search.setAttribute('aria-label', 'Find a setting');
     const clear = button('Clear', () => { search.value = ''; content.dataset.mobileView = 'detail'; render(); search.focus?.(); }, 'settings-clear');
     clear.hidden = true; searchBar.append(search, clear);
     const layout = el('div', undefined, 'settings-layout'), navigation = el('nav', undefined, 'settings-navigation');

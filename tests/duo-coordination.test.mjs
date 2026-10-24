@@ -84,7 +84,8 @@ const allNodes = node => [node, ...(node.children ?? []).flatMap(allNodes)];
 
 test('Undo names the author and requires an in-page confirmation for the other player', async () => {
   const h = harness(); await h.controller.refresh();
-  assert.equal(h.undoButton.textContent, 'Undo: Unlocked East Daemonheim Castle (13882) for Reed · by Reed');
+  assert.equal(h.undoButton.textContent, 'Undo');
+  assert.equal(h.undoButton.title, 'Undo: Unlocked East Daemonheim Castle (13882) for Reed · by Reed');
   await h.controller.undo(); assert.equal(h.calls.length, 0); assert.equal(h.dialogs[0].title, 'Undo Reed’s change?');
   const confirm = h.dialogs[0].children.flatMap(node => [node, ...(node.children ?? [])]).find(node => node.textContent === 'Undo Reed’s change');
   await confirm.action(); assert.deepEqual(h.calls[0], { command: { type: 'undo', undoRevision: 3 }, revision: 3 });
@@ -159,6 +160,6 @@ test('a failed metadata request leaves a working Retry Undo button and does not 
   const h = harness({ seen: 1 }); h.setFailure(true); await h.controller.refresh();
   assert.equal(h.undoButton.disabled, false); assert.equal(h.undoButton.textContent, 'Retry Undo');
   assert.equal([...h.values.values()][0], '1'); h.setFailure(false); await h.controller.undo();
-  assert.equal(h.undoButton.disabled, false); assert.match(h.undoButton.textContent, /^Undo: Unlocked/);
+  assert.equal(h.undoButton.disabled, false); assert.equal(h.undoButton.textContent, 'Undo'); assert.match(h.undoButton.title, /^Undo: Unlocked/);
   assert.equal(h.catchUpHost.hidden, false);
 });
