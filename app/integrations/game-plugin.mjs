@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { RUNE_METRICS_SKILLS, normalizeQuestTitle, QUEST_TITLE_ALIASES } from './runemetrics.mjs';
+import { RUNE_METRICS_SKILLS, normalizeQuestTitle, QUEST_TITLE_ALIASES, UNMAPPED_QUEST_REASONS } from './runemetrics.mjs';
 import { validateRuneMetricsTimestamp, validateObservedSkill } from '../core/game-progress.mjs';
 import { lookupPermanentId } from '../tasks/identity.mjs';
 
@@ -113,10 +113,10 @@ export function pluginProposal(state, memberId, report, questMapping) {
       before: before ? { level: before.level, xp: before.xp } : null, after: { level: observation.level, xp: observation.xp } });
   }
   for (const kind of ['finished', 'started']) for (const title of report.quests?.[kind] ?? []) {
-    const candidates = questMapping.get(canonicalQuest(title)) ?? [];
+    const key = canonicalQuest(title), candidates = questMapping.get(key) ?? [];
     const match = candidates.length === 1 && state.tasks.some(task => task.id === candidates[0].taskId && task.category === 'Quest') ? candidates[0] : null;
     if (!match) { unmatched.quests.push({ title, reason: candidates.length > 1 ? 'Several quest completions match. Review manually.'
-      : /\(miniquest\)$/i.test(title) ? 'Miniquest. The picker has no completion task for it.' : 'No whole-quest completion matches this name.' }); continue; }
+      : UNMAPPED_QUEST_REASONS[key] ?? (/\(miniquest\)$/i.test(title) ? 'Miniquest. The picker has no completion task for it.' : 'No whole-quest completion matches this name.') }); continue; }
     if (kind !== 'finished') continue;
     observedQuests.push({ taskId: match.taskId, title: match.title });
     if (!member.completedTasks.includes(match.taskId)) quests.push({ ...match });
