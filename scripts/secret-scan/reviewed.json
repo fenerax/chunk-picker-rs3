@@ -186,6 +186,114 @@
   ],
   "lines": [
     {
+      "path": "docs/research/codex-cloud-runner/inside.mjs",
+      "category": "network-identifier",
+      "sha256": "aa94f12672c592df6c83528ddceecc912592d202cca07ebac05d76048d0feecb",
+      "reason": "Exact cgroup-v2 root assertion uses the kernel marker 0::/; its 0:: substring resembles IPv6, but names no network."
+    },
+    {
+      "path": "docs/research/codex-cloud-runner/package-lock.json",
+      "category": "network-identifier",
+      "sha256": "0417b05e6bb6eb89d96cafd4b7a8c280eb99698d7e77f65f820fa08bcb7cfe87",
+      "reason": "Exact public npm registry tarball for a pinned Playwright dependency; no account, credential or deployment binding."
+    },
+    {
+      "path": "docs/research/codex-cloud-runner/package-lock.json",
+      "category": "network-identifier",
+      "sha256": "5f4f57049b5219512701196a12ac671d9be0f69479e07375e0ae6c39e5a4b3e9",
+      "reason": "Exact public npm registry tarball for a pinned Playwright dependency; no account, credential or deployment binding."
+    },
+    {
+      "path": "docs/research/codex-cloud-runner/package-lock.json",
+      "category": "network-identifier",
+      "sha256": "fc9801cfb4d72f27734b2b6cff7954e25a41b122b825a4868b812cc8a742fd51",
+      "reason": "Exact public npm registry tarball for a pinned Playwright dependency; no account, credential or deployment binding."
+    },
+    {
+      "path": "docs/research/codex-cloud-runner/package-lock.json",
+      "category": "network-identifier",
+      "sha256": "acd01574d59152eb74e3eb172d72cd9bfabe684736a8b8fed3fc5d8f07b98549",
+      "reason": "Exact public npm registry tarball for a pinned Playwright dependency; no account, credential or deployment binding."
+    },
+    {
+      "path": "docs/research/codex-cloud-runner/public-metadata-evidence.json",
+      "category": "network-identifier",
+      "sha256": "06954d1cb90f9fdfac7200f5bdc7bc126304a44a67c811f0c6c6a92473c490a3",
+      "reason": "Exact public primary runtime metadata or documentation URL; no account, credential or deployment binding."
+    },
+    {
+      "path": "docs/research/codex-cloud-runner/public-metadata-evidence.json",
+      "category": "network-identifier",
+      "sha256": "2bce73d7890fdcb73e0238a1306d9e3c72da64240403525dcd56e32de55a4e78",
+      "reason": "Exact public primary runtime metadata or documentation URL; no account, credential or deployment binding."
+    },
+    {
+      "path": "docs/research/codex-cloud-runner/public-metadata-evidence.json",
+      "category": "network-identifier",
+      "sha256": "7f9bc1afd19fe94b6e9cabd1d45b0eb222e02ae48984975f088d3c1b9bc32349",
+      "reason": "Exact public primary runtime metadata or documentation URL; no account, credential or deployment binding."
+    },
+    {
+      "path": "docs/research/codex-cloud-runner/public-metadata-evidence.json",
+      "category": "network-identifier",
+      "sha256": "76916bde4ea33aff56e526b4d9320abea07341e8f76857913712600b0b221eb0",
+      "reason": "Exact public primary runtime metadata or documentation URL; no account, credential or deployment binding."
+    },
+    {
+      "path": "docs/research/codex-cloud-runner/public-metadata-evidence.json",
+      "category": "network-identifier",
+      "sha256": "86a7656fc6264bc2b4af8aba6eca95cce56d5fa114201487ec08e2f1557b4696",
+      "reason": "Exact public primary runtime metadata or documentation URL; no account, credential or deployment binding."
+    },
+    {
+      "path": "docs/research/codex-cloud-runner/public-metadata-evidence.json",
+      "category": "network-identifier",
+      "sha256": "fdaf47fab605b4e611c98a87fd84b6829600fdbff7a6ff7435a5e99e38e5e957",
+      "reason": "Exact public primary runtime metadata or documentation URL; no account, credential or deployment binding."
+    },
+    {
+      "path": "docs/research/codex-cloud-runner/public-metadata-evidence.json",
+      "category": "network-identifier",
+      "sha256": "7e845e39e141f1f9d907731966545380d855a6960e194bb7a215b4dc137cff7e",
+      "reason": "Exact public primary runtime metadata or documentation URL; no account, credential or deployment binding."
+    },
+    {
+      "path": "docs/research/codex-cloud-runner/public-metadata-evidence.json",
+      "category": "network-identifier",
+      "sha256": "10c5e415bf7e2c865f94d3024d8bb92510ed426acf6c19774ad8519dcd17311c",
+      "reason": "Exact public primary runtime metadata or documentation URL; no account, credential or deployment binding."
+    },
+    {
+      "path": "docs/research/codex-cloud-runner/public-metadata-evidence.json",
+      "category": "network-identifier",
+      "sha256": "5a75919c3239015a6c312c836459b82f1a9fbe000f31132da94172460945a8df",
+      "reason": "Exact public primary runtime metadata or documentation URL; no account, credential or deployment binding."
+    },
+    {
+      "path": "docs/research/codex-cloud-runner/public-metadata-evidence.json",
+      "category": "network-identifier",
+      "sha256": "96b200e802edb42f40f21f1346c959b26b92eab25da0bed5b252a5cf41627d1d",
+      "reason": "Exact public primary runtime metadata or documentation URL; no account, credential or deployment binding."
+    },
+    {
+      "path": "docs/research/codex-cloud-runner/public-metadata-evidence.json",
+      "category": "network-identifier",
+      "sha256": "20753dec055f1bf13b14cbe5ec6671ed6101586644e8ebb720e5c5d377e57643",
+      "reason": "Exact public primary runtime metadata or documentation URL; no account, credential or deployment binding."
+    },
+    {
+      "path": "docs/research/codex-cloud-runner/public-metadata-evidence.json",
+      "category": "network-identifier",
+      "sha256": "8977be33e905aa88a39e29017cd553c5d965883efa8acdee4a0f4a8883e155e5",
+      "reason": "Exact public primary runtime metadata or documentation URL; no account, credential or deployment binding."
+    },
+    {
+      "path": "docs/research/codex-cloud-runner/README.md",
+      "category": "network-identifier",
+      "sha256": "714f6d874ebab28047db6951517d75e5965de9928ef68ee0345968bbf1dab665",
+      "reason": "Exact public primary runtime metadata or documentation URL; no account, credential or deployment binding."
+    },
+    {
       "path": "app/capture-maps.mjs",
       "category": "network-identifier",
       "sha256": "f972983e3f2fa21c4292071cd4effb16bd91d0079c614d34c64ee08ea9741792",
