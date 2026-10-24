@@ -412,6 +412,12 @@ startupPhase('worker:compiled');
 // One structured-clone byte string crosses thread and process boundaries as a
 // copy; a graph would be cloned, walked and cloned again on every hop.
 setImmediate(() => {
+  // Advisory workers still compile/use every local catalogue. Only their
+  // unused ready payload is suppressed by the scheduler's explicit opt-out.
+  if (workerData.omitReadyCatalogue === true) {
+    parentPort.postMessage({ type: 'ready', datasetDigest: selectedDataset.digest, compileMs });
+    return;
+  }
   const dynamicCatalogueBytes = serialize([...collectionEngine.catalogue, ...houseStorageCatalogue, ...generatedTaskCatalogue]);
   parentPort.postMessage({ type: 'ready', datasetDigest: selectedDataset.digest,
     catalogue: [...engine.catalogue.filter(row => row.kind !== 'house-storage'), ...equipmentCatalogue], dynamicCatalogueBytes, compileMs });

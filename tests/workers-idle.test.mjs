@@ -196,3 +196,32 @@ test('prediction-only residency reports retirement completion without foreground
   assert.equal(residency.at(-1).prediction.resident, false);
   assert.equal(foreground.length, 0);
 });
+
+test('custom factories keep the exact workerData on every lane and wake; advisory lanes need no ready catalogue', async t => {
+  const f = factory(), idleClock = clock(), workerData = { datasetOptions: { tag: 'exact' } }, received = [];
+  const create = data => {
+    received.push(data);
+    const worker = f.create();
+    // Native advisory workers omit the catalogue; foreground keeps it.
+    if (f.workers.length > 1) worker.emit = new Proxy(worker.emit, { apply: (emit, self, [type, message, ...rest]) =>
+      emit.call(self, type, message?.type === 'ready' ? { type: 'ready', compileMs: 1 } : message, ...rest) });
+    return worker;
+  };
+  const scheduler = await createTaskScheduler({ workerData, workerFactory: create, idleMs: 100, idleClock });
+  t.after(() => scheduler.close());
+  const state = { revision: 0 };
+  const lanes = [scheduler.evaluate(state, 'reed', 'evaluate', undefined, 'peer', 'input', undefined, [], 'play-v1', undefined, 'duo'),
+    scheduler.evaluate(state, 'actor1', 'death-estimates', undefined, 'death', 'input'),
+    scheduler.evaluate(state, 'actor1', 'predict', '100', 'prediction', 'input')];
+  await flush();
+  assert.equal(f.workers.length, 4);
+  for (const worker of f.workers.slice(1)) worker.finish(); await Promise.all(lanes);
+  assert.deepEqual(scheduler.catalogue, [{ id: 'test' }]);
+  idleClock.tick(100); await flush();
+  const woken = scheduler.evaluate(state, 'actor1', 'predict', '101', 'prediction-2', 'input');
+  await flush(); await new Promise(resolve => setImmediate(resolve));
+  f.workers.at(-1).finish(); await woken;
+  assert.equal(received.length, 5);
+  for (const data of received) assert.equal(data, workerData);
+  assert.equal('omitReadyCatalogue' in workerData, false);
+});

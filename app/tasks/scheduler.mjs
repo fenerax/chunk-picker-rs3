@@ -16,6 +16,9 @@ const superseded = () => Object.assign(new Error('Calculation superseded by a ne
 const nativeWorker = data => process.env.RS3_TASK_WORKER_MODE === 'thread'
   || process.platform !== 'win32' && process.env.RS3_TASK_WORKER_MODE !== 'process'
   ? new Worker(new URL('./worker.mjs', import.meta.url), { workerData: data, resourceLimits: TASK_WORKER_RESOURCE_LIMITS }) : new ProcessWorker(data);
+// Built-in advisory lanes never read the ready catalogue, so their workers skip
+// sending it. The flag is always overwritten: callers cannot strip foreground's.
+export const nativeWorkerInput = (workerData, includeReadyCatalogue) => ({ ...workerData, omitReadyCatalogue: !includeReadyCatalogue });
 // Rules are included even for direct callers that omit the gameplay fingerprint.
 const predictionInput = (state, input) => createHash('sha256').update(JSON.stringify([input,
   state.rules, state.taskRules, state.members?.map(member => [member.id, member.taskRules, state.legacy?.maps?.[member.sourceMapId]?.rules])])).digest('hex');
@@ -74,7 +77,7 @@ export async function createTaskScheduler({ maxDeathQueue = 2, deathDeadlineMs =
   positive(maxDeathQueue, 'maxDeathQueue'); positive(deathDeadlineMs, 'deathDeadlineMs');
   for (const [name, value] of Object.entries({ maxPredictionQueue, predictionDeadlineMs, predictionCacheLimit, predictionCacheBytes, maxPrewarmQueue })) positive(value, name);
   for (const [name, value] of Object.entries({ maxDuoQueue, duoDeadlineMs, duoCacheLimit, duoCacheBytes })) positive(value, name);
-  const foreground = await createWorkerLane({ ...options, maxPrewarmQueue, signal });
+  const foreground = await createWorkerLane({ ...options, includeReadyCatalogue: true, maxPrewarmQueue, signal });
   const unlockResults = createUnlockResultCache({ limit: predictionCacheLimit, byteLimit: Math.floor(predictionCacheBytes / 2) });
   let death, prediction, duo, closed = false, closePromise, latestRevision = -1;
   // Claims/preferences advance HTTP revisions while retaining task identities.
@@ -90,6 +93,7 @@ export async function createTaskScheduler({ maxDeathQueue = 2, deathDeadlineMs =
   function duoLane() {
     if (!duo) void createWorkerLane({ ...options,
       ...(duoWorkerFactory ? { workerFactory: duoWorkerFactory } : {}),
+      includeReadyCatalogue: false,
       maxQueue: maxDuoQueue, deadlineMs: duoDeadlineMs, cacheLimit: duoCacheLimit, cacheByteLimit: duoCacheBytes, duoResults: true,
       onCreated(lane) { duo = lane; lane.subscribe(announce); },
     }).catch(() => { /* The lane reports bounded startup/recovery failure. */ });
@@ -98,6 +102,7 @@ export async function createTaskScheduler({ maxDeathQueue = 2, deathDeadlineMs =
   function predictionLane() {
     if (!prediction) void createWorkerLane({ ...options,
       ...(predictionWorkerFactory ? { workerFactory: predictionWorkerFactory } : {}),
+      includeReadyCatalogue: false,
       maxQueue: maxPredictionQueue, deadlineMs: predictionDeadlineMs, cacheLimit: predictionCacheLimit,
       cacheByteLimit: predictionCacheBytes - Math.floor(predictionCacheBytes / 2), maxPrewarmQueue, strictRevision: true, shareSnapshots: true,
       retainActivePrediction: true,
@@ -240,6 +245,7 @@ export async function createTaskScheduler({ maxDeathQueue = 2, deathDeadlineMs =
         // Expose the lane before it is ready: startup admissions use its bounded
         // queue and request watchdog, rather than accumulating promise waiters.
         void createWorkerLane({ ...options, ...(deathWorkerFactory ? { workerFactory: deathWorkerFactory } : {}),
+          includeReadyCatalogue: false,
           maxQueue: maxDeathQueue, deadlineMs: deathDeadlineMs,
           onCreated(lane) { death = lane; lane.subscribe(announce); },
         }).catch(() => { /* The lane rejects its requests and reports its failure. */ });
@@ -346,7 +352,7 @@ export async function createTaskScheduler({ maxDeathQueue = 2, deathDeadlineMs =
 }
 
 /** One worker, bounded snapshots, and a bounded lifetime restart budget. */
-async function createWorkerLane({ workerData, workerFactory = nativeWorker, onCreated, onEvaluation, onSleep,
+async function createWorkerLane({ workerData, workerFactory = nativeWorker, includeReadyCatalogue = true, onCreated, onEvaluation, onSleep,
   maxQueue = 8, deadlineMs = 30000, startupDeadlineMs = 30000, maxRestarts = 3, backoffMs = 250, maxBackoffMs = 5000, cacheLimit = 8,
   cacheByteLimit = 128 * 1024 * 1024, maxPrewarmQueue = 256, strictRevision = false, shareSnapshots = false, duoResults = false,
   idleMs = Number(process.env.RS3_WORKER_IDLE_MS ?? 600000), idleClock = { now: () => performance.now(), setTimeout, clearTimeout }, retainActivePrediction = false,
@@ -575,7 +581,8 @@ async function createWorkerLane({ workerData, workerFactory = nativeWorker, onCr
     const ownGeneration = ++generation;
     sentSnapshots.clear();
     for (const [key, value] of cache) if (value.type === 'prepare-rules') cache.delete(key);
-    try { worker = workerFactory(workerData); }
+    // Custom factories retain their exact workerData contract. Reapply on every wake/restart.
+    try { worker = workerFactory(workerFactory === nativeWorker ? nativeWorkerInput(workerData, includeReadyCatalogue) : workerData); }
     catch { failure('worker-start'); return; }
     startupTimer = setTimeout(() => failure('startup-deadline'), startupDeadlineMs);
     worker.on('error', () => { if (ownGeneration === generation) failure('worker-error'); });
