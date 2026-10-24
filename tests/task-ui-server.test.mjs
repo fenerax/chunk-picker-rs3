@@ -19,7 +19,7 @@ test('authenticated task UI serves its modules, dependencies and theme styles', 
   assert.ok(![8788, 8789, 8790, 8791].includes(server.address().port));
   const joined = await fetch(server.inviteUrl, { redirect: 'manual' }); assert.equal(joined.status, 303);
   const headers = { Cookie: joined.headers.get('set-cookie').split(';')[0] };
-  for (const route of ['/task-hover.mjs', '/task-why.mjs', '/tasks/task-provenance.mjs', '/task-methods.mjs', '/task-equipment.mjs', '/task-artwork.mjs', '/core/task-alternatives.mjs', '/tasks/gameplay-compat.mjs', '/duo-tasks.mjs', '/duo-task-view.mjs', '/duo-task-lists.mjs', '/duo-backlog-view.mjs', '/duo-tasks.css', '/task-filters.mjs', '/task-filters-model.mjs', '/task-filters.css', '/core/progress-index.mjs', '/tasks/fact-projection.mjs', '/task-ui.css', '/bis-panel.css']) {
+  for (const route of ['/task-hover.mjs', '/task-why.mjs', '/task-focus.mjs', '/tasks/task-provenance.mjs', '/task-methods.mjs', '/task-equipment.mjs', '/task-artwork.mjs', '/core/task-alternatives.mjs', '/tasks/gameplay-compat.mjs', '/duo-tasks.mjs', '/duo-task-view.mjs', '/duo-task-lists.mjs', '/duo-backlog-view.mjs', '/duo-tasks.css', '/task-filters.mjs', '/task-filters-model.mjs', '/task-filters.css', '/core/progress-index.mjs', '/tasks/fact-projection.mjs', '/task-ui.css', '/bis-panel.css']) {
     const response = await fetch(`${origin}${route}`, { headers }); assert.equal(response.status, 200, route);
     assert.match(response.headers.get('content-type'), /javascript|css/, route);
     assert.ok((await response.text()).length > 20, `${route} supplies an authored module or stylesheet`);

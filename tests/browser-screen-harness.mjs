@@ -23,6 +23,7 @@ import { usageSummary } from '../app/web/usage-model.mjs';
 import { supportsDatasetFeature, applyDatasetFeatureControls, applyDatasetLaunchCopy } from '../app/web/dataset-features.mjs';
 import { buildChunkPlanningIndex } from '../app/tasks/chunk-planning-index.mjs';
 import { createLiveSwapCommandClient } from '../app/web/live-swap-client.mjs';
+import { createTaskFocus } from '../app/web/task-focus.mjs';
 
 const entry = new URL('../app/web/main.mjs', import.meta.url);
 const imports = /^import\s+([\s\S]*?)\s+from\s+['"]([^'"]+)['"];?\r?\n/gm;
@@ -72,6 +73,7 @@ export function runScreenGraph(context, modules) {
   context.createCalculationFeedback ??= options => createCalculationFeedback({ ...options, setTimer: context.setTimeout, clearTimer: context.clearTimeout });
   context.calculationLabel ??= calculationLabel;
   context.createMapActivityLayers ??= createMapActivityLayers;
+  context.createTaskFocus ??= createTaskFocus;
   const commandStorage = new Map();
   context.createLiveSwapCommandClient ??= options => createLiveSwapCommandClient({ ...options,
     acquireSession: () => () => {},
