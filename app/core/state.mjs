@@ -1148,15 +1148,27 @@ function seedRandomStartSections(member, ids, world) {
   }
 }
 
-function hasRandomStartChoices(state, member) {
+function pendingOffer(state, member) {
   // Intervening preference/note edits do not erase the origin of pending choices.
   // An Original pending offer has its own origin, even when the IDs match an
   // older local offer. Ignore undone offers so undo restores the previous origin.
   const offer = [...state.history].reverse().find(event => event.undoneRevision === undefined &&
     ((event.command?.memberId === member.id && ['random-start', 'roll'].includes(event.type)) ||
       (event.type === 'sync-original' && event.command?.members?.some(target => target.memberId === member.id && target.groups.includes('pendingRoll')))));
-  return offer?.type === 'random-start' && offer.command.count === 2 &&
-    JSON.stringify(offer.command.rolled) === JSON.stringify(member.pendingRoll);
+  return ['random-start', 'roll'].includes(offer?.type) && JSON.stringify(offer.command.rolled) === JSON.stringify(member.pendingRoll) ? offer : undefined;
+}
+
+function hasRandomStartChoices(state, member) {
+  const offer = pendingOffer(state, member);
+  return offer?.type === 'random-start' && offer.command.count === 2;
+}
+
+function returnUnpickedChoices(state, member, ids, registry) {
+  // Manual mode rolls only from selected chunks, so unpicked choices go back there.
+  // Computed modes derive the pool again; only choices that were hand-added before
+  // the offer return, otherwise a passed-on chunk would look like an unlock.
+  const handSelected = registryOrDefault(registry).resolve(state.rules)['roll.neighborMode'] === 'manual' ? undefined : pendingOffer(state, member)?.command.handSelected;
+  member.selected.push(...(Array.isArray(handSelected) ? ids.filter(id => handSelected.includes(id)) : ids));
 }
 
 function undoChanges(before, after) {
@@ -1987,6 +1999,7 @@ function applyCommandCopy(next, command, { expectedRevision, world, registry, ra
       const picks = sampleRoll(pool, payload.count, random);
       const ids = picks.map(candidate => typeof candidate === 'string' ? candidate : candidate.id ?? candidate.chunkId);
       uniqueStrings(ids, 'rolled chunks', chunk);
+      if (payload.count === 2) payload.handSelected = ids.filter(id => member.selected.includes(id));
       member.selected = member.selected.filter(id => !ids.includes(id));
       if (payload.count === 1) {
         member.unlocked.push(ids[0]); addManualNeighbors(next, member, ids, world, registry);
@@ -2009,7 +2022,7 @@ function applyCommandCopy(next, command, { expectedRevision, world, registry, ra
       const randomStart = hasRandomStartChoices(next, member);
       if (randomStart && !world) fail('A world is required to unlock random start choices');
       knownRollDestination(world, payload.chunkId);
-      member.selected.push(...member.pendingRoll.filter(id => id !== payload.chunkId));
+      returnUnpickedChoices(next, member, member.pendingRoll.filter(id => id !== payload.chunkId), registry);
       member.pendingRoll = [];
       member.unlocked.push(payload.chunkId);
       if (!randomStart) addManualNeighbors(next, member, [payload.chunkId], world, registry);
@@ -2020,7 +2033,7 @@ function applyCommandCopy(next, command, { expectedRevision, world, registry, ra
     case 'cancel-roll': {
       const member = findMember(next, payload.memberId);
       if (!member.pendingRoll.length) fail('No pending roll to cancel');
-      member.selected.push(...member.pendingRoll);
+      returnUnpickedChoices(next, member, member.pendingRoll, registry);
       member.pendingRoll = [];
       break;
     }
@@ -2091,6 +2104,7 @@ function applyCommandCopy(next, command, { expectedRevision, world, registry, ra
       const pool = [...(world.surface ?? world.chunks.keys())].filter(id => BASE_CHUNK.test(id) && world.chunks.has(id) && world.walkable.has(id)
         && !world.cacheWalking?.blockedRegions?.has(id) && (!settings['content.f2p'] || world.f2p.has(id)) && !accessible.has(id) && !blacklisted.has(id)).sort().map(id => ({ id }));
       const ids = sampleRoll(pool, count, random).map(choice => choice.id);
+      if (count === 2) payload.handSelected = ids.filter(id => member.selected.includes(id));
       member.selected = member.selected.filter(candidate => !ids.includes(candidate));
       payload.rolled = ids;
       if (count === 2) member.pendingRoll = ids;

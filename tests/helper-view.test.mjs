@@ -1,3 +1,4 @@
+import { amountInput, parseAmount } from '../app/web/amount-input.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { helperDrops } from '../app/helper-drops.mjs';
@@ -22,7 +23,7 @@ function dom() {
     focus() { this.focused = true; }
     after(node) { roots.push(node); }
     checkValidity() {
-      return walk([this]).filter(node => node.tag === 'input' && node.type === 'number').every(node => {
+      return walk([this]).filter(node => node.tag === 'input' && node.attributes['data-amount']).every(node => {
         if (!node.required && node.value === '') return true;
         const value = Number(node.value);
         return node.value !== '' && Number.isFinite(value) && (node.min === undefined || value >= Number(node.min))
@@ -190,7 +191,7 @@ test('drop renderer refuses newer server rows against an older local save while 
     assert.deepEqual(source.children.map(node => node.textContent), ['Enter a rate']);
     assert.doesNotMatch(text(h.host), /Goblin|Ore/);
     assert.match(text(h.host), /save changed while loading drops/);
-    const form = find(h.host, 'form'), [denominator, own, partner] = walk([form]).filter(node => node.tag === 'input' && node.type === 'number');
+    const form = find(h.host, 'form'), [denominator, own, partner] = walk([form]).filter(node => node.tag === 'input' && node.attributes['data-amount']);
     denominator.value = '2'; own.value = '1'; partner.value = '0'; submit(form);
     assert.match(text(h.host), /50\.00% chance of at least one drop after 1 combined kills/);
     assert.ok(find(h.host, 'caption', 'Drop chance by kill count'));
@@ -211,7 +212,7 @@ test('drop drafts retain kills and selected rates across reordered source data, 
   await new Promise(resolve => setImmediate(resolve));
   const form = find(h.host, 'form'), source = find(form, 'select');
   source.value = '0'; source.dispatchEvent({ type: 'change' });
-  const [denominator, own, partner] = walk([form]).filter(node => node.tag === 'input' && node.type === 'number');
+  const [denominator, own, partner] = walk([form]).filter(node => node.tag === 'input' && node.attributes['data-amount']);
   own.value = '300'; partner.value = '200'; submit(form);
   assert.match(text(h.host), /from this loot roll after 500 combined kills/);
   const draft = dispose.getDraft(); dispose();
@@ -220,7 +221,7 @@ test('drop drafts retain kills and selected rates across reordered source data, 
   try {
     await new Promise(resolve => setImmediate(resolve));
     const restoredForm = find(restored.host, 'form'), restoredSource = find(restoredForm, 'select');
-    const restoredInputs = walk([restoredForm]).filter(node => node.tag === 'input' && node.type === 'number');
+    const restoredInputs = walk([restoredForm]).filter(node => node.tag === 'input' && node.attributes['data-amount']);
     assert.deepEqual(restoredInputs.map(input => input.value), ['128', '300', '200']);
     assert.equal(restoredSource.value, '1');
     assert.match(text(restored.host), /from this loot roll after 500 combined kills/);
@@ -243,7 +244,7 @@ test('a numerically equal manual rate typed during source refresh keeps the rest
     draft: { denominator: '128', ownKills: '10', partnerKills: '20', filter: '',
       selectedRoll: { monster: 'Goblin', item: 'Ore', denominator: 128 } } });
   try {
-    const form = find(h.host, 'form'), denominator = walk([form]).find(node => node.tag === 'input' && node.type === 'number');
+    const form = find(h.host, 'form'), denominator = walk([form]).find(node => node.tag === 'input' && node.attributes['data-amount']);
     denominator.value = '128.0'; denominator.dispatchEvent({ type: 'input' });
     resolveSources({ memberId: owner.id, stateRevision: 8, f2p: true,
       drops: [{ monster: 'Goblin', item: 'Ore', denominator: 128, rate: '1/128' }] });
@@ -364,4 +365,17 @@ test('shell keeps calculator inputs when task results finish, retains drafts acr
     assert.deepEqual(state.members, before);
     assert.ok(reads.every(read => read.path === '/api/training-catalogue' && read.body === undefined));
   } finally { helper.close(); }
+});
+
+test('amounts take k, m, b and t, and the fields check their range as typed', () => {
+  assert.deepEqual(['10k', '2.5m', '1.1k', '1b', '1t', '1,000', '3M', '.5k', '128'].map(parseAmount), [10000, 2500000, 1100, 1e9, 1e12, 1000, 3e6, 500, 128]);
+  for (const text of ['', 'k', '12kk', '-5', '1e3', 'ten']) assert.ok(Number.isNaN(parseAmount(text)), text);
+  const messages = [], events = {};
+  const input = { value: '', attributes: {}, setAttribute(name, value) { this.attributes[name] = value; }, addEventListener: (name, handler) => { events[name] = handler; }, setCustomValidity: message => messages.push(message) };
+  amountInput(input, { min: 0, max: 1e12, whole: true });
+  assert.equal(input.type, 'text'); assert.equal(input.attributes['data-amount'], 'whole');
+  for (const [text, ok] of [['2k', true], ['1.5', false], ['2t', false], ['lots', false], ['', true]]) {
+    input.value = text; events.input();
+    assert.equal(messages.at(-1) === '', ok, text);
+  }
 });

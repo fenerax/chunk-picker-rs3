@@ -25,7 +25,9 @@ async function execute(dir, body, expected = 0, hostShell = shell) {
   return result;
 }
 
-async function tick(mode) {
+// build: a release-build mark naming this check's own process ('live'), with a
+// creation time that is off by a second ('wrong-start'), or two hours old ('old').
+async function tick(mode, build = '') {
   return fixture(async dir => {
     const config = join(dir, 'candidate.json');
     const runtime = join(dir, 'server-runtime.json');
@@ -40,7 +42,13 @@ $global:gets = 0
 $global:context = [pscustomobject]@{ localDir = ${ps(dir)}; runtimeFile = ${ps(runtime)}; configHash = 'test'; config = [pscustomobject]@{ host = $(if ($global:mode -eq 'tailscale-wait') { '100.100.100.100' } else { '127.0.0.1' }); port = 19888; loopbackPort = 19889 } }
 function Read-OperatorConfig { return $global:context }
 function Get-OperatorOwnedProcess { param($Context, $Record); if ($global:mode -eq 'foreign-process') { throw 'private-secret-error' }; return [pscustomobject]@{ ProcessId = 123 } }
-function Get-NetTCPConnection { param($State, $LocalPort, $ErrorAction); return [pscustomobject]@{ LocalAddress = '127.0.0.1'; OwningProcess = $(if ($global:mode -eq 'foreign-listener') { 456 } else { 123 }) } }
+if (${ps(build)}) {
+    $started = ([DateTime](Get-CimInstance Win32_Process -Filter "ProcessId = $PID").CreationDate).ToUniversalTime()
+    if (${ps(build)} -eq 'wrong-start') { $started = $started.AddSeconds(-1) }
+    $at = $(if (${ps(build)} -eq 'old') { [DateTime]::UtcNow.AddHours(-2) } else { [DateTime]::UtcNow })
+    Set-Content -LiteralPath (Join-Path $global:context.localDir 'release-build-active.json') -Value (@{ pid = $PID; processStartedAt = $started.ToString('o'); startedAt = $at.ToString('o') } | ConvertTo-Json)
+}
+function Get-NetTCPConnection { param($State, $LocalPort, $ErrorAction); if ($global:mode -eq 'silent') { return @() }; return [pscustomobject]@{ LocalAddress = '127.0.0.1'; OwningProcess = $(if ($global:mode -eq 'foreign-listener') { 456 } else { 123 }) } }
 function Get-NetIPAddress { return @() }
 function Assert-OperatorStoreReleased { }
 function Get-OperatorToken { Add-Content -LiteralPath $global:calls -Value 'Token'; return ('a' * 43) }
@@ -94,6 +102,19 @@ test('core watchdog recovers worker first and safely restarts failed health or w
     assert.deepEqual(failed.calls.slice(-2), ['Stop', 'Start']); assert.equal(failed.paused, false);
     assert.doesNotMatch(failed.log, /private-secret-error|a{43}|Bearer|http:/);
   }
+});
+test('core watchdog leaves a listening picker running only during a proven release build', { skip: !available }, async () => {
+  const held = await tick('unavailable', 'live');
+  assert.deepEqual(held.calls, ['Token', 'Health', 'Token', 'Health', 'Token', 'Health']);
+  assert.match(held.log, /during a release build; the serving picker was left running/);
+  for (const build of ['wrong-start', 'old']) {
+    const restarted = await tick('unavailable', build);
+    assert.deepEqual(restarted.calls.slice(-2), ['Stop', 'Start'], build);
+  }
+  // No listeners: the writer is not serving, so the build mark does not hold it.
+  assert.deepEqual((await tick('silent', 'live')).calls, ['Stop', 'Start']);
+  const release = await readFile(fileURLToPath(new URL('../scripts/release/pc/Quick-Release.ps1', import.meta.url)), 'utf8');
+  assert.match(release, /'release-build-active\.json'[\s\S]*try \{\s*& \$node \$builder build[\s\S]*\} finally \{[\s\S]*Remove-Item -LiteralPath \$mark/);
 });
 test('core watchdog refuses foreign processes/listeners and stopping or unknown records before credentials', { skip: !available }, async () => {
   for (const mode of ['foreign-process', 'foreign-listener', 'stopping', 'unknown']) {

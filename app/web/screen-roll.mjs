@@ -11,7 +11,6 @@ export function createScreenRoll(c) {
     c.$('roll-two').title = `Roll two choices for ${target}, then choose which chunk to unlock`;
     c.$('roll-two').setAttribute('aria-label', `Roll two choices for ${target}`);
     c.$('pick').title = `Roll one chunk for ${target}`;
-    c.membersStartEntry?.refresh();
     c.$('unpick').disabled = blocked || !owner?.unlocked.length;
   }
 

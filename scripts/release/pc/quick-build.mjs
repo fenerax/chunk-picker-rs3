@@ -1,18 +1,24 @@
 // Builds a release folder from one commit that GitHub has already tested, then
 // proves it opens a copy of the live save. This is all the release PC runs: an
-// export, a pack copy, the profile/addon build and three startup probes. The
-// test suites belong to GitHub; nothing here runs them.
+// export, the data packs built from that export, the profile/addon build and
+// the startup probes. The test suites belong to GitHub; nothing here runs them.
 //
 //   node scripts/release/pc/quick-build.mjs build --repo <checkout> --commit <sha>
 //     --current <current.json> --releases <folder> --release <id>
 //   node scripts/release/pc/quick-build.mjs verify --repo <checkout> --release-dir <folder>
+//   node scripts/release/pc/quick-build.mjs prepare-swap --current <current.json> --release-dir <folder>
 //
-// Pack changes are refused: a pack upgrade needs a transition plan, which this
-// path does not make. The live save is only read; probes open disposable copies.
+// Game data comes from the release's own core. Only the art pack and the six
+// local map/game caches the public repository lacks are carried from live,
+// each checked against its live hash. When the data differs from live, the
+// save's dataset binding must change with the pointer: the build proves the
+// swap both ways on save copies and writes pack-transition.json, and
+// prepare-swap proves it again on the latest save just before a go-live. The
+// live save is only read; probes open disposable copies.
 import path from 'node:path';
 import os from 'node:os';
 import { execFileSync, spawn } from 'node:child_process';
-import { cp, lstat, mkdir, mkdtemp, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
+import { copyFile, cp, lstat, mkdir, mkdtemp, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { parseArgs } from 'node:util';
@@ -134,6 +140,50 @@ function runProbe(script, config, dataDir, output, sanitize) {
   });
 }
 
+// Each step opens a disposable copy: of the live save for the first step, of
+// the previous step's result after that, under the binding its dataset needs.
+// Identities, progress and history must survive every step; from the third
+// step on, the saved identity registry must too.
+async function probeChain(core, dataDir, steps, lap = () => {}) {
+  const check = await import(pathToFileURL(path.join(core, 'scripts/private-companion/release-pack-check.mjs')).href);
+  const identity = await import(pathToFileURL(path.join(core, 'scripts/private-companion/release-identity.mjs')).href);
+  const script = path.join(core, 'scripts/private-companion/release-pack-check.mjs');
+  const scratch = await mkdtemp(path.join(os.tmpdir(), 'rs3-quick-'));
+  const probes = [];
+  try {
+    for (const [index, step] of steps.entries()) {
+      const copy = path.join(scratch, step.name);
+      await snapshotSave(index ? path.join(scratch, steps[index - 1].name) : dataDir, copy, { saveIdentity: check.saveIdentity, digestValue: identity.digestValue });
+      await writeFile(copy + '.dataset.json', step.binding, { flag: 'wx' });
+      const report = await runProbe(script, step.config, copy, path.join(scratch, step.name + '.json'), identity.sanitizeExecutionEnvironment);
+      if (index) {
+        const before = probes.at(-1);
+        check.assertStableIdentities(before, report);
+        check.assertPreserved(before, report);
+        if (index > 1 && before.registryDigest !== report.registryDigest) throw new Error(`The ${step.name} step changed saved registry data.`);
+      }
+      probes.push(report);
+      lap('probe-' + step.name);
+    }
+  } finally { await rm(scratch, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }); }
+  return probes.map((r, i) => ({ step: steps[i].name, tasks: r.taskIds.length, saved: Object.keys(r.saved).length, history: r.historyEvents.length, lostRecords: r.migrationSummary.lostRecords }));
+}
+
+// The six local caches are data inputs the public repository does not carry.
+// They come from the live data pack, byte for byte.
+export async function carryLocalInputs(liveDataManifest, liveDataDir, mapAssetsDir, gameDataDir) {
+  const records = liveDataManifest.files.filter(record => /^local-(?:map|game)\//.test(record.path));
+  for (const record of records) {
+    const [prefix, ...rest] = record.path.split('/');
+    const target = path.join(prefix === 'local-map' ? mapAssetsDir : gameDataDir, ...rest);
+    await mkdir(path.dirname(target), { recursive: true });
+    await copyFile(path.join(liveDataDir, ...record.path.split('/')), target);
+    const bytes = await readFile(target);
+    if (bytes.length !== record.bytes || sha(bytes) !== record.sha256) throw new Error('A local data input differs from the live pack.');
+  }
+  return records;
+}
+
 export async function build({ repo, commit, current, releases, release, now = () => Date.now() }) {
   if (!/^[a-zA-Z0-9][a-zA-Z0-9._-]{0,127}$/.test(release ?? '')) throw new Error('Release id refused.');
   for (const value of [repo, current, releases]) if (!value || !path.isAbsolute(value)) throw new Error('Absolute paths required.');
@@ -163,20 +213,42 @@ export async function build({ repo, commit, current, releases, release, now = ()
   await verifyExport(core, entries);
   t = lap('export', t);
 
-  // Same packs as live, copied so each release keeps its own immutable inputs.
-  const packsDir = path.join(dir, 'packs');
-  await cp(liveConfig.packsDir, packsDir, { recursive: true, errorOnExist: true, force: false });
-  if (await treeShape(packsDir) !== await treeShape(liveConfig.packsDir)) throw new Error('Pack copy differs.');
-  const selectionPath = path.join(packsDir, 'selection.json'), selectionBytes = await readFile(selectionPath);
-  if (sha(selectionBytes) !== liveConfig.selection.sha256) throw new Error('Pack selection differs from live.');
-  const selection = JSON.parse(selectionBytes);
-  const packs = {};
-  for (const kind of ['data', 'rulesText', 'art']) {
+  // Art is the one pack carried from live, copied so each release keeps its
+  // own immutable inputs. The data and rules-text packs are built from core.
+  const packsDir = path.join(dir, 'packs'), selectionPath = path.join(packsDir, 'selection.json');
+  const liveSelectionBytes = await readFile(liveConfig.selection.path);
+  if (sha(liveSelectionBytes) !== liveConfig.selection.sha256) throw new Error('Live pack selection changed.');
+  const liveSelection = JSON.parse(liveSelectionBytes);
+  const artFrom = path.join(liveConfig.packsDir, liveSelection.art.id, liveSelection.art.version);
+  const artTo = path.join(packsDir, liveSelection.art.id, liveSelection.art.version);
+  await cp(artFrom, artTo, { recursive: true, errorOnExist: true, force: false });
+  if (await treeShape(artTo) !== await treeShape(artFrom)) throw new Error('Art pack copy differs.');
+  const artPack = path.join(artTo, 'pack.json');
+  if (sha(await readFile(artPack)) !== liveConfig.packs.art.sha256) throw new Error('Art pack differs from live.');
+  await writeFile(selectionPath, encode({ schemaVersion: 1, art: liveSelection.art }), { flag: 'wx' });
+  t = lap('art', t);
+
+  const liveDataBytes = await readFile(liveConfig.packs.data.path);
+  if (sha(liveDataBytes) !== liveConfig.packs.data.sha256) throw new Error('Live data pack changed.');
+  const liveData = JSON.parse(liveDataBytes);
+  const inputs = path.join(dir, 'inputs'), mapAssetsDir = path.join(inputs, 'map-assets'), gameDataDir = path.join(inputs, 'game-data');
+  const { buildDataPack } = await import(pathToFileURL(path.join(core, 'scripts/build-data-pack.mjs')).href);
+  let carried;
+  try {
+    carried = await carryLocalInputs(liveData, path.dirname(liveConfig.packs.data.path), mapAssetsDir, gameDataDir);
+    await buildDataPack({ sourceRoot: core, packsDir, selectionPath, version: `1.1.0-c${full.slice(0, 7)}`,
+      mapAssetsDir, gameDataDir, environment: liveData.environment });
+  } finally { await rm(inputs, { recursive: true, force: true }); }
+  const selection = await json(selectionPath);
+  const packs = { art: { path: artPack, sha256: liveConfig.packs.art.sha256 } };
+  for (const kind of ['data', 'rulesText']) {
     const file = path.join(packsDir, selection[kind].id, selection[kind].version, 'pack.json');
-    if (sha(await readFile(file)) !== liveConfig.packs[kind].sha256) throw new Error('Pack differs from live; pack upgrades need the full release path.');
-    packs[kind] = { path: file, sha256: liveConfig.packs[kind].sha256 };
+    packs[kind] = { path: file, sha256: sha(await readFile(file)) };
   }
-  t = lap('packs', t);
+  const builtData = await json(packs.data.path);
+  const builtLocal = new Map(builtData.files.filter(record => /^local-(?:map|game)\//.test(record.path)).map(record => [record.path, record.sha256]));
+  if (builtLocal.size !== carried.length || carried.some(record => builtLocal.get(record.path) !== record.sha256)) throw new Error('Built data pack lost a local input.');
+  t = lap('data', t);
 
   // Public source carries placeholder members. The live member defaults stay
   // on this PC: they come from the live profile, never from the repository.
@@ -195,7 +267,7 @@ export async function build({ repo, commit, current, releases, release, now = ()
   t = lap('profile-addon', t);
 
   const config = { ...liveConfig, coreRoot: core, packsDir,
-    selection: { path: selectionPath, sha256: liveConfig.selection.sha256 }, packs,
+    selection: { path: selectionPath, sha256: sha(await readFile(selectionPath)) }, packs,
     profile: { path: profilePath, sha256: sha(profileBytes) }, addons: { path: addon.path, sha256: sha(addonBytes) } };
   const configPath = path.join(dir, 'config.json'), configBytes = encode(config);
   await writeFile(configPath, configBytes, { flag: 'wx' });
@@ -203,35 +275,33 @@ export async function build({ repo, commit, current, releases, release, now = ()
 
   // Old code opens the save, new code opens that result, then old code opens
   // the new result: the swap and a swap back both keep every saved record.
+  // A data change puts the new binding on the new side, and new code must
+  // also reopen what old code wrote after a swap back.
   const check = await import(pathToFileURL(path.join(core, 'scripts/private-companion/release-pack-check.mjs')).href);
   const identity = await import(pathToFileURL(path.join(core, 'scripts/private-companion/release-identity.mjs')).href);
   const from = await check.configDescriptor(pointer.config.path), to = await check.configDescriptor(configPath);
-  if (identity.digestValue(from.descriptor) !== identity.digestValue(to.descriptor)) throw new Error('Candidate dataset differs from live.');
-  const binding = await readFile(liveConfig.dataDir + '.dataset.json');
-  const script = path.join(core, 'scripts/private-companion/release-pack-check.mjs');
-  const scratch = await mkdtemp(path.join(os.tmpdir(), 'rs3-quick-'));
-  const probes = [];
-  try {
-    const steps = [['live', liveConfig, liveConfig.dataDir], ['candidate', config, 'live'], ['swap-back', liveConfig, 'candidate']];
-    for (const [name, probeConfig, source] of steps) {
-      const copy = path.join(scratch, name);
-      await snapshotSave(source === liveConfig.dataDir ? source : path.join(scratch, source), copy, { saveIdentity: check.saveIdentity, digestValue: identity.digestValue });
-      await writeFile(copy + '.dataset.json', binding, { flag: 'wx' });
-      probes.push(await runProbe(script, probeConfig, copy, path.join(scratch, name + '.json'), identity.sanitizeExecutionEnvironment));
-      if (probes.length > 1) {
-        const [a, b] = probes.slice(-2);
-        check.assertStableIdentities(a, b);
-        check.assertPreserved(a, b);
-        if (name === 'swap-back' && a.registryDigest !== b.registryDigest) throw new Error('Swap back dropped saved registry data.');
-      }
-      t = lap('probe-' + name, t);
-    }
-  } finally { await rm(scratch, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }); }
+  const binding = await readFile(liveConfig.dataDir + '.dataset.json'), bound = JSON.parse(binding);
+  if (bound.requiresPack !== true || ['datasetId', 'datasetContractVersion', 'digest'].some(key => bound[key] !== from.descriptor[key])) throw new Error('Live binding does not match the live data pack.');
+  const dataChanged = identity.digestValue(from.descriptor) !== identity.digestValue(to.descriptor);
+  const newBinding = dataChanged ? check.bindingBytes(to.descriptor) : binding;
+  const steps = [{ name: 'live', config: liveConfig, binding }, { name: 'candidate', config, binding: newBinding },
+    { name: 'swap-back', config: liveConfig, binding }, ...(dataChanged ? [{ name: 'forward', config, binding: newBinding }] : [])];
+  const probes = await probeChain(core, liveConfig.dataDir, steps, name => { t = lap(name, t); });
+  let transition = null;
+  if (dataChanged) {
+    // The managed operator's transition format, so either path can read it.
+    const plan = { schemaVersion: 1, oldConfig: from.pin, newConfig: to.pin,
+      old: { ...from.descriptor, bindingSha256: sha(binding) }, new: { ...to.descriptor, bindingSha256: sha(newBinding) },
+      oldBindingBase64: binding.toString('base64'), newBindingBase64: newBinding.toString('base64') };
+    const planBytes = encode(plan);
+    await writeFile(path.join(dir, 'pack-transition.json'), planBytes, { flag: 'wx' });
+    transition = { sha256: sha(planBytes), from: from.descriptor.digest, to: to.descriptor.digest };
+  }
 
   const receipt = { schemaVersion: 1, releaseId: release, commit: full, tree, repository: REPOSITORY, checks: github.checks,
     live: { releaseId: pointer.releaseId, configSha256: pointer.config.sha256 },
-    sameAsLive: { profile: sha(profileBytes) === liveConfig.profile.sha256, addon: sha(addonBytes) === liveConfig.addons.sha256 },
-    probes: probes.map((r, i) => ({ step: ['live', 'candidate', 'swap-back'][i], tasks: r.taskIds.length, saved: Object.keys(r.saved).length, history: r.historyEvents.length, lostRecords: r.migrationSummary.lostRecords })),
+    sameAsLive: { data: !dataChanged, profile: sha(profileBytes) === liveConfig.profile.sha256, addon: sha(addonBytes) === liveConfig.addons.sha256 },
+    dataPack: builtData.version, transition, probes,
     seconds: { ...seconds, total: Math.round((now() - started) / 100) / 10 }, builtAt: new Date().toISOString() };
   await writeFile(path.join(dir, 'quick-build.json'), encode(receipt), { flag: 'wx' });
   return receipt;
@@ -244,10 +314,44 @@ export async function verify({ repo, releaseDir }) {
   const pointer = await json(path.join(releaseDir, 'pointer.json'));
   if (pointer.releaseId !== receipt.releaseId || sha(await readFile(pointer.config.path)) !== pointer.config.sha256) throw new Error('Release pointer changed.');
   const config = await json(pointer.config.path);
-  for (const pin of [config.selection, config.profile, config.addons, ...Object.values(config.packs)]) {
+  const transition = receipt.transition ? [{ path: path.join(releaseDir, 'pack-transition.json'), sha256: receipt.transition.sha256 }] : [];
+  for (const pin of [config.selection, config.profile, config.addons, ...Object.values(config.packs), ...transition]) {
     if (sha(await readFile(pin.path)) !== pin.sha256) throw new Error('Release input changed since the build.');
   }
   return receipt;
+}
+
+// Just before a go-live: which binding the save needs after the swap, proven
+// again on the latest save. Going forward uses the candidate's transition;
+// going back uses the live release's, and the candidate must open the save as
+// the live release left it. With no transition for the pair the data must match.
+export async function prepareSwap({ current, releaseDir }) {
+  const pointer = await json(current), candidatePointer = await json(path.join(releaseDir, 'pointer.json'));
+  if (sha(await readFile(pointer.config.path)) !== pointer.config.sha256 || sha(await readFile(candidatePointer.config.path)) !== candidatePointer.config.sha256) throw new Error('A release config changed.');
+  const liveConfig = await json(pointer.config.path), config = await json(candidatePointer.config.path);
+  const read = async file => { try { return await json(file); } catch (error) { if (error.code === 'ENOENT') return null; throw error; } };
+  const forward = await read(path.join(releaseDir, 'pack-transition.json'));
+  const backward = await read(path.join(path.dirname(pointer.config.path), 'pack-transition.json'));
+  const same = (pin, actual) => pin?.path === actual.path && pin?.sha256 === actual.sha256;
+  const pair = forward && same(forward.oldConfig, pointer.config) && same(forward.newConfig, candidatePointer.config) ? { plan: forward, from: 'old', to: 'new' }
+    : backward && same(backward.newConfig, pointer.config) && same(backward.oldConfig, candidatePointer.config) ? { plan: backward, from: 'new', to: 'old' } : null;
+  const check = await import(pathToFileURL(path.join(config.coreRoot, 'scripts/private-companion/release-pack-check.mjs')).href);
+  const identity = await import(pathToFileURL(path.join(config.coreRoot, 'scripts/private-companion/release-identity.mjs')).href);
+  const from = await check.configDescriptor(pointer.config.path), to = await check.configDescriptor(candidatePointer.config.path);
+  const bindingPath = liveConfig.dataDir + '.dataset.json', binding = await readFile(bindingPath);
+  if (!pair) {
+    if (identity.digestValue(from.descriptor) !== identity.digestValue(to.descriptor)) throw new Error('The data differs from live and neither release has a transition for this pair.');
+    return { binding: null };
+  }
+  const bytes = side => Buffer.from(pair.plan[side + 'BindingBase64'], 'base64');
+  for (const side of ['old', 'new']) if (sha(bytes(side)) !== pair.plan[side].bindingSha256) throw new Error('Transition binding bytes differ.');
+  if (pair.plan[pair.from].digest !== from.descriptor.digest || pair.plan[pair.to].digest !== to.descriptor.digest) throw new Error('Transition does not describe these releases.');
+  if (sha(binding) !== pair.plan[pair.from].bindingSha256) throw new Error('The save binding is not the one the live release uses.');
+  const steps = [{ name: 'live', config: liveConfig, binding }, { name: 'candidate', config, binding: bytes(pair.to) },
+    ...(pair.to === 'new' ? [{ name: 'swap-back', config: liveConfig, binding }, { name: 'forward', config, binding: bytes('new') }] : [])];
+  const probes = await probeChain(config.coreRoot, liveConfig.dataDir, steps);
+  return { binding: { path: bindingPath, fromSha256: sha(binding), toSha256: pair.plan[pair.to].bindingSha256,
+    fromBase64: binding.toString('base64'), toBase64: bytes(pair.to).toString('base64') }, probes };
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
@@ -257,7 +361,8 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
       release: { type: 'string' }, 'release-dir': { type: 'string' } } });
     const result = command === 'build' ? await build(values)
       : command === 'verify' ? await verify({ repo: values.repo, releaseDir: values['release-dir'] })
-      : (() => { throw new Error('Use build or verify.'); })();
+      : command === 'prepare-swap' ? await prepareSwap({ current: values.current, releaseDir: values['release-dir'] })
+      : (() => { throw new Error('Use build, verify or prepare-swap.'); })();
     console.log(JSON.stringify(result, null, 2));
   } catch (error) {
     console.error('Quick build refused: ' + String(error?.message ?? error).replace(/https?:\/\/[^\s]+/gi, '[address redacted]'));

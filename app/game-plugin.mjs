@@ -389,16 +389,20 @@ export async function openGamePlugin({ dataDir, store, world, registry, questMap
       const result = await keys.revoke(id, identity.admin ? undefined : identity.memberId); notify(); return { record: result };
     },
     findReview(identity, body, apply = false) {
-      fields(body, apply ? ['previewId', 'expectedRevision', 'achievements', 'items'] : ['previewId'], 'review');
+      fields(body, apply ? ['previewId', 'expectedRevision', 'skills', 'quests', 'achievements', 'items'] : ['previewId'], 'review');
       if (typeof body.previewId !== 'string') throw fail(400, 'A reviewed preview ID is required.');
       const review = [...pending.keys()].map(liveReview).find(review => review?.proposal?.preview.previewId === body.previewId);
       if (!review) throw fail(410, 'This game progress review expired or changed. Review it again.');
       authorize(identity, review.proposal.preview.memberId);
       if (apply && (!Number.isSafeInteger(body.expectedRevision) || body.expectedRevision !== review.proposal.preview.stateRevision || body.expectedRevision !== store.getInfo().revision)) throw fail(409, 'The save changed. Review game progress again.');
       if (!apply) return review.proposal;
+      // Skipping levels or quests leaves them out of the command; omitted means apply, as before.
+      if (['skills', 'quests'].some(key => body[key] !== undefined && body[key] !== false)) throw fail(400, 'Skills and quests can only be skipped with false.');
       // Item rows apply only when chosen; nothing from items ticks by default.
       const items = body.items === undefined ? [] : selectItems(review.proposal.preview, body.items);
-      if (body.achievements === undefined) return { ...review.proposal, command: { ...review.proposal.command, items } };
+      const command = { ...review.proposal.command, ...(body.skills === false ? { skills: [] } : {}), ...(body.quests === false ? { quests: [] } : {}), items };
+      const nothing = rows => body.skills === false && body.quests === false && !rows.length && !items.length;
+      if (body.achievements === undefined) { if (nothing([])) throw fail(400, 'Nothing is selected. Dismiss the review instead.'); return { ...review.proposal, command }; }
       if (!Array.isArray(body.achievements) || body.achievements.length > ACHIEVEMENT_REVIEW_LIMIT) throw fail(400, 'Choose at most 200 achievements.');
       const ids = new Set(), tasks = new Set();
       const achievements = body.achievements.map(selection => {
@@ -410,7 +414,8 @@ export async function openGamePlugin({ dataDir, store, world, registry, questMap
         ids.add(selection.achievementId); tasks.add(selection.taskId);
         return { taskId: selection.taskId, achievementId: selection.achievementId, title: row.title };
       });
-      return { ...review.proposal, command: { ...review.proposal.command, achievements, items } };
+      if (nothing(achievements)) throw fail(400, 'Nothing is selected. Dismiss the review instead.');
+      return { ...review.proposal, command: { ...command, achievements } };
     },
     async finish(memberId) {
       const review = liveReview(memberId);

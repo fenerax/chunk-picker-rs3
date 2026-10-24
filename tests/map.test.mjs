@@ -264,6 +264,20 @@ test('canvas density is capped while device-density changes resize only when nee
   assert.equal(resizes, settledResizes, 'Sub-1 browser density uses the same normalization in resize and schedule');
 });
 
+test('a stage resize repaints every layer before the browser paints, so no empty map frame shows', t => {
+  const { map, counters, stage, frames, flush } = harness(t, { pins: true });
+  const before = counters.map(counter => counter.clear);
+  // A status line appearing above the map shrinks the stage; setting canvas sizes wipes them.
+  stage.getBoundingClientRect = () => ({ left: 10, top: 20, width: 800, height: 582 });
+  map.resize();
+  assert.ok(map.canvases.every(canvas => canvas.height === Math.round(582 * map.dpr)));
+  assert.deepEqual(counters.map(counter => counter.clear), before.map(value => value + 1), 'Resize repaints all layers in the same task');
+  assert.equal(map.frame, null, 'No repaint is left waiting for the next frame');
+  flush();
+  assert.equal(frames.size, 0);
+  assert.deepEqual(counters.map(counter => counter.clear), before.map(value => value + 1), 'The next frame does not paint again');
+});
+
 test('cached reveal path follows pan and zoom and restores the canvas before annotations', t => {
   const { map, counters, flush } = harness(t, { path2D: true });
   map.image.onload(); flush();
