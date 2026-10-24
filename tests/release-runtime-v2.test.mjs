@@ -92,9 +92,13 @@ public static class FixtureJob {
 }
 '@
 $job=[FixtureJob]::Enter()
+# The watchdog task runs below normal; the picker must not inherit that.
+[Diagnostics.Process]::GetCurrentProcess().PriorityClass='BelowNormal'
 $child=Start-OperatorDetached -Executable ${quote(process.execPath)} -Arguments ${quote(`"${server}" "${pidFile}"`)} -WorkingDirectory ${quote(root)} -StandardOutput ${quote(path.join(root, 'stdout.log'))} -StandardError ${quote(path.join(root, 'stderr.log'))}
 $until=[DateTime]::UtcNow.AddSeconds(3); while (-not (Test-Path -LiteralPath ${quote(pidFile)}) -and [DateTime]::UtcNow -lt $until) { Start-Sleep -Milliseconds 25 }
 if ($child.HasExited) { throw 'Synthetic detached child exited early' }
+if ($child.PriorityClass -ne 'Normal') { throw "Detached child runs at $($child.PriorityClass) priority" }
+[Diagnostics.Process]::GetCurrentProcess().PriorityClass='Normal'
 # A job that permits breakaway must not keep the picker.
 if ($job -ne [IntPtr]::Zero -and [FixtureJob]::MayBreakAway() -and [FixtureJob]::InJob($child.Handle, $job)) { throw 'Detached child stayed in the caller job' }
 Write-Output $child.Id; $child.Dispose()

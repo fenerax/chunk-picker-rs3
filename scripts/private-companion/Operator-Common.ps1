@@ -228,9 +228,11 @@ namespace ReleaseV2 {
     SX sx=new SX(); sx.si.cb=Marshal.SizeOf(typeof(SX)); sx.si.flags=0x100; sx.si.input=input; sx.si.output=stdout; sx.si.error=stderr; sx.attributes=list;
     // Leave the caller's job, so closing the app or session that ran a helper does not end the
     // picker. A job that forbids breakaway refuses with access denied; start inside it as before.
-    if(!CreateProcess(exe,new StringBuilder("\""+exe+"\" "+args),IntPtr.Zero,IntPtr.Zero,true,0x09080000,IntPtr.Zero,directory,ref sx,out info)) {
+    // NORMAL_PRIORITY_CLASS (0x20): the watchdog task runs below normal, and a picker that
+    // inherited that starved on a busy PC until it stopped answering and was restarted.
+    if(!CreateProcess(exe,new StringBuilder("\""+exe+"\" "+args),IntPtr.Zero,IntPtr.Zero,true,0x09080020,IntPtr.Zero,directory,ref sx,out info)) {
      int failure=Marshal.GetLastWin32Error(); if(failure!=5) throw new Win32Exception(failure);
-     Check(CreateProcess(exe,new StringBuilder("\""+exe+"\" "+args),IntPtr.Zero,IntPtr.Zero,true,0x08080000,IntPtr.Zero,directory,ref sx,out info));
+     Check(CreateProcess(exe,new StringBuilder("\""+exe+"\" "+args),IntPtr.Zero,IntPtr.Zero,true,0x08080020,IntPtr.Zero,directory,ref sx,out info));
     }
     Process child=Process.GetProcessById(info.pid); IntPtr retained=child.Handle; return child;
    } finally {

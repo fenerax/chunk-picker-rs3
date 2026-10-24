@@ -33,7 +33,7 @@ async function tick(mode, build = '') {
     const runtime = join(dir, 'server-runtime.json');
     const calls = join(dir, 'calls');
     await writeFile(config, '{}');
-    if (mode !== 'absent') await writeFile(runtime, JSON.stringify({ pid: 123, processStartedAt: mode === 'starting' ? new Date().toISOString() : '2026-01-01T00:00:00Z', configHash: 'test', state: mode === 'stopping' ? 'stopping' : mode === 'unknown' ? 'unknown' : mode === 'starting' ? 'starting' : 'running' }));
+    if (mode !== 'absent') await writeFile(runtime, JSON.stringify({ pid: 123, processStartedAt: mode === 'starting' ? new Date().toISOString() : '2026-01-01T00:00:00Z', configHash: 'test', state: mode.startsWith('stopping') ? 'stopping' : mode === 'unknown' ? 'unknown' : mode === 'starting' ? 'starting' : 'running' }));
     if (mode === 'paused') await writeFile(join(dir, 'picker-paused'), 'paused');
     await execute(dir, `
 $global:mode = ${ps(mode)}
@@ -41,7 +41,13 @@ $global:calls = ${ps(calls)}
 $global:gets = 0
 $global:context = [pscustomobject]@{ localDir = ${ps(dir)}; runtimeFile = ${ps(runtime)}; configHash = 'test'; config = [pscustomobject]@{ host = $(if ($global:mode -eq 'tailscale-wait') { '100.100.100.100' } else { '127.0.0.1' }); port = 19888; loopbackPort = 19889 } }
 function Read-OperatorConfig { return $global:context }
-function Get-OperatorOwnedProcess { param($Context, $Record); if ($global:mode -eq 'foreign-process') { throw 'private-secret-error' }; return [pscustomobject]@{ ProcessId = 123 } }
+function Get-OperatorOwnedProcess {
+    param($Context, $Record)
+    if ($global:mode -eq 'foreign-process') { throw 'private-secret-error' }
+    if ($global:mode -eq 'stopping-reused') { throw 'PID, creation time or command ownership changed. No process action was taken.' }
+    if ($global:mode -in @('exited', 'stopping-exited', 'stopping-held', 'stopping-locked')) { return $null }
+    return [pscustomobject]@{ ProcessId = 123 }
+}
 if (${ps(build)}) {
     $started = ([DateTime](Get-CimInstance Win32_Process -Filter "ProcessId = $PID").CreationDate).ToUniversalTime()
     if (${ps(build)} -eq 'wrong-start') { $started = $started.AddSeconds(-1) }
@@ -69,7 +75,10 @@ function Invoke-CoreWatchHelper {
     Add-Content -LiteralPath $global:calls -Value $Operation
     if ($Operation -eq 'Stop') { Remove-Item -LiteralPath $Context.runtimeFile }
 }
-function Assert-CoreWatchUnoccupied { }
+function Assert-CoreWatchUnoccupied {
+    if ($global:mode -eq 'stopping-held') { throw 'A process still names this data directory. No writer was started.' }
+    if ($global:mode -eq 'stopping-locked') { throw 'Storage lock remains; verify its owner before retrying. No lock was deleted.' }
+}
 Invoke-CoreWatchTick -Config ${ps(config)} -ConfigSha256 (Get-FixtureHash ${ps(config)}) -HealthRetryDelaySeconds 0 -WorkerRecoveryTimeoutSeconds 1
 `);
     return {
@@ -122,6 +131,29 @@ test('core watchdog refuses foreign processes/listeners and stopping or unknown 
     assert.deepEqual(result.calls, []); assert.match(result.log, /refused recovery/);
     assert.doesNotMatch(result.log, /private-secret-error|a{43}/);
   }
+});
+test('core watchdog clears a stopping record only when its writer has provably exited', { skip: !available }, async () => {
+  const cleared = await tick('stopping-exited');
+  assert.deepEqual(cleared.calls, ['Stop', 'Start']);
+  assert.match(cleared.log, /exited after a Stop that did not finish; clearing its stopping record through managed Stop and starting the picker/);
+  const exited = await tick('exited');
+  assert.deepEqual(exited.calls, ['Stop', 'Start']); assert.match(exited.log, /The recorded writer exited; clearing its record/);
+  const reasons = {
+    'stopping': 'The recorded writer is still stopping.',
+    'stopping-reused': 'PID, creation time or command ownership changed. No process action was taken.',
+    'stopping-held': 'A process still names this data directory. No writer was started.',
+    'stopping-locked': 'Storage lock remains; verify its owner before retrying. No lock was deleted.',
+    'unknown': 'Runtime record state is unknown.',
+  };
+  for (const [mode, reason] of Object.entries(reasons)) {
+    const refused = await tick(mode);
+    assert.deepEqual(refused.calls, [], mode);
+    assert.ok(refused.log.includes(`Reason: ${reason}`), `${mode}: ${refused.log}`);
+  }
+  // Exception text the operator did not write itself is never logged.
+  const foreign = await tick('foreign-process');
+  assert.ok(foreign.log.includes('Reason: an unexpected error (details withheld).'), foreign.log);
+  assert.doesNotMatch(foreign.log, /private-secret-error/);
 });
 test('core watchdog retains initial startup grace and waits for pinned Tailscale address', { skip: !available }, async () => {
   const starting = await tick('starting');
