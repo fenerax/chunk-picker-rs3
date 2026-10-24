@@ -7,8 +7,18 @@ export const RUNE_METRICS_CACHE_MS = 3 * 60 * 1000;
 export const RUNE_METRICS_TIMEOUT_MS = 10 * 1000;
 export const RUNE_METRICS_USER_AGENT = 'RS3ChunkPicker/0.1 (private duo; on-demand personal progress sync)';
 
-// Only spelling/title changes, never replacement quests or quest steps.
-export const QUEST_TITLE_ALIASES = Object.freeze({ 'vampire slayer': 'vampyre slayer' });
+// Only spelling/title changes, never replacement quests or quest steps. The game
+// and RuneMetrics drop the Wiki's "(miniquest)" and series prefixes.
+export const QUEST_TITLE_ALIASES = Object.freeze({ 'vampire slayer': 'vampyre slayer',
+  'garden of tranquillity': 'garden of tranquility',
+  'curse of the empty lord miniquest': 'the curse of the empty lord miniquest',
+  'father and son': 'father and son miniquest', 'helping laniakea': 'helping laniakea miniquest',
+  ...Object.fromEntries(['foreshadowing', 'flashback', 'fortunes', 'finale'].map(part => [part, `once upon a time in gielinor ${part}`])),
+  ...Object.fromEntries(['my one and only lute', 'skelly by everlight', 'flesh and bone', 'hermy and bass'].map(part => [part, `that old black magic ${part}`])) });
+// Quests left out of the picker on purpose, keyed by canonical title. The review
+// list shows why instead of calling them unknown.
+const TUTORIAL = 'Tutorial quest. It runs off the chunk map and every account finishes it, so the picker has no task for it.';
+export const UNMAPPED_QUEST_REASONS = Object.freeze({ 'learning the ropes': TUTORIAL, 'unstable foundations': TUTORIAL });
 export function normalizeQuestTitle(title) {
   return title.normalize('NFKC').toLowerCase().replace(/&amp;/g, '&')
     .replace(/[‘’`´]/g, "'").replace(/[‐‑‒–—−]/g, '-')
@@ -68,7 +78,8 @@ export function previewRuneMetrics(state, memberId, snapshot, questMapping) {
     seenQuests.add(key); completedQuests++;
     const candidates = questMapping.get(key) ?? [];
     if (candidates.length !== 1) {
-      unmatched.quests.push({ title: row.title, reason: candidates.length ? 'Several whole-quest tasks match; manual review is required.' : 'No whole-quest completion task matches this title.' }); continue;
+      unmatched.quests.push({ title: row.title, reason: candidates.length ? 'Several whole-quest tasks match; manual review is required.'
+        : UNMAPPED_QUEST_REASONS[key] ?? 'No whole-quest completion task matches this title.' }); continue;
     }
     const match = { ...candidates[0], title: row.title };
     // The prepared state catalogue is the authority for personal completions.
