@@ -1,0 +1,79 @@
+{
+  "scope": "prepared source and pure controls only; full-public runtime UNRUN",
+  "driverEntry": "scripts/perf/r81/full-public-component.r119.mjs",
+  "baseDriverSHA256": "1db38559d4c65cf338ed96c19e2bde58794ea9389054854563b53931afb09177",
+  "native04": {
+    "outerHardCapSeconds": 240,
+    "guardProductWallSeconds": 220,
+    "prepCapSeconds": 120,
+    "guardSHA256": "e97cbbe394ef0d50a90b988a0f9f52eccf05651f4f6334188c63c65c020b452e",
+    "guardUnmodified": true,
+    "warmPriming": "same full synchronous build in every mode, outside interval"
+  },
+  "files": {
+    "build-packet.py": {
+      "bytes": 11278,
+      "sha256": "9bea3e6bd8e72106a20f695a786272396a27314e873dc4da13180c79efba5c3b"
+    },
+    "full-public-component.r119.mjs": {
+      "bytes": 15779,
+      "sha256": "eed16e8329424a3015b437e64173ce2e754ac9157b00f619c4c5f6dd079622f8"
+    },
+    "full-public-component.r119.test-only.patch": {
+      "bytes": 14649,
+      "sha256": "deb6cff8805867834ab27a52aba74ef5a92c29822acf84036212bc00f541d054"
+    },
+    "native04-GO-prompt.md": {
+      "bytes": 5010,
+      "sha256": "0bd14063cf4136e95aa493cc6a3d07ac47cf02d605efe79d8ba1eb287f9f2b8f"
+    },
+    "PENDING-COMMAND.txt": {
+      "bytes": 929,
+      "sha256": "f20e38c5d09c881873c3008d310edc2301ce1d17c1f5d106eebfe0e660f70423"
+    },
+    "pure-driver-controls.mjs": {
+      "bytes": 11821,
+      "sha256": "c3f2c0d1c00a60b4fee24067968425ebf9cc4fdc35a6d798235b1c42fcff55cb"
+    },
+    "pure-driver-results.json": {
+      "bytes": 1385,
+      "sha256": "4077383326f1249f1ea401355fa4c61227238fdd1b0ce81cba3a2341bf5c091e"
+    },
+    "pure-launcher-controls.py": {
+      "bytes": 3347,
+      "sha256": "c9280de16ed09b2509f87e53ccc91ed909527aec4d66f2d9ff89ceec2ad6621d"
+    },
+    "pure-launcher-results.json": {
+      "bytes": 749,
+      "sha256": "0922591e17e00e19ba9f2a5b3bb71dfbab18d7226106028dc91a012d51720a17"
+    },
+    "r110-tested-driver.recovered.mjs": {
+      "bytes": 11042,
+      "sha256": "1db38559d4c65cf338ed96c19e2bde58794ea9389054854563b53931afb09177"
+    },
+    "r119-budgeted-index.mjs": {
+      "bytes": 8009,
+      "sha256": "b5f9ad2750b0a42a637784d16c09ebbf42fb5aa54ca3dd1d866d0f7041e0711d"
+    },
+    "r119-original-index.mjs": {
+      "bytes": 6739,
+      "sha256": "9e388742608443a4affb493120b2045edcc02004a7f412f2c6bd2dc962f356df"
+    },
+    "r119-prototype-index.mjs": {
+      "bytes": 7816,
+      "sha256": "f5d058741cd19b926bba2636d37c6cc2d3f30420497874f741d7b2841e622c1a"
+    },
+    "README.md": {
+      "bytes": 5893,
+      "sha256": "1d183c8afd39a06c344cb79d25813f1c13a10eb5a9df8554a26e0f8e02346efc"
+    },
+    "run-native04-r119.py": {
+      "bytes": 3080,
+      "sha256": "1983b13717a85985f5404e803b7bfbc869017663e21c3c9759e7ea622a3364b9"
+    },
+    "warm-priming-review-resolution.md": {
+      "bytes": 1111,
+      "sha256": "519d6be87397047df2fe98130dfed4a4785645962ccb60a50f08371c78d3075c"
+    }
+  }
+}
