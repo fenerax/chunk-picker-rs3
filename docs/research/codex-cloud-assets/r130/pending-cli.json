@@ -1,0 +1,42 @@
+{
+  "schema": "r130-pending-cli-v2",
+  "runtime": "UNRUN",
+  "profile": "docker-hard-2cpu-6g-v1",
+  "publicationPrefix": "docs/research/codex-cloud-assets/r130/",
+  "harnessMount": "FULL prepared public Git tree at /harness",
+  "relativeEntrypoint": "docs/research/codex-cloud-assets/r130/entry.mjs",
+  "entryArgs": [],
+  "requiredPolicyProposal": "result-policy.additions.json outside runtime source files; root must merge reviewed additions",
+  "outerSeconds": 120,
+  "supervisorSeconds": 90,
+  "productSeconds": 35,
+  "childHeapMiB": 768,
+  "innerRequiredExecutables": [
+    "/runtime/node"
+  ],
+  "requiredModules": "/deps/node_modules",
+  "sourcePin": "6f22fefa782747790e2eaefa01e4e5ea7b557323",
+  "sourceLock": "/scratch/source-lock.json",
+  "closedResult": "/scratch/case-result.json",
+  "ephemeralFullReports": [
+    "/scratch/r130-case-report.json",
+    "/scratch/r130-cell-1.log",
+    "/scratch/r130-cell-2.log"
+  ],
+  "cells": [
+    [
+      "C",
+      "process",
+      "0",
+      "authored"
+    ],
+    [
+      "C",
+      "thread",
+      "1",
+      "authored"
+    ]
+  ],
+  "command": "python3 -B \"$tool/docker_envelope.py\" --execute --remote-only-ack remote-disposable-public --source \"$RUNNER_TEMP/public-source\" --harness \"$RUNNER_TEMP/public-harness\" --harness-commit \"$GITHUB_SHA\" --deps \"$RUNNER_TEMP/deps\" --node \"$RUNNER_TEMP/runtime/node\" --output \"$RUNNER_TEMP/r130-codec\" --mode native --seconds 120 --entrypoint docs/research/codex-cloud-assets/r130/entry.mjs",
+  "gate": "all independent Docker controls PASS; reviewed policy additions merged; root authorizes concrete run"
+}

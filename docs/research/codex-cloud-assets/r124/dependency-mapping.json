@@ -1,0 +1,69 @@
+{
+  "contract": "docker-hard-2cpu-6g-v1",
+  "status": "SOURCE PREP ONLY; application runtime UNRUN",
+  "publicSource": {
+    "mount": "/source",
+    "pin": "6f22fefa782747790e2eaefa01e4e5ea7b557323",
+    "archiveSHA256": "d49c13a037316de674857acab52dbefa2ffef2d165957ba54487fe01547c7b82",
+    "files": 1928,
+    "immutable": true
+  },
+  "mounts": {
+    "/source": "read-only complete exact public tree",
+    "/harness": "read-only extracted source bundle",
+    "/deps": "read-only reserved; no external libraries needed",
+    "/runtime/node": "read-only exact Node executable 24.19.0 SHA256 bc17c508ffeed0ec622934f9b7fa72f8e78da65350e63c3eceb56fa688aa5e12; image supplies compatible loader/libc",
+    "/scratch": "fresh writable owned directory; all results, candidate staging and logs only here"
+  },
+  "entry": "/runtime/node /harness/docs/research/codex-cloud-assets/r124/entry.mjs",
+  "supervisorContract": "same container hard aggregate 2 CPUs and 6GiB; external container timeout required; own child fd3 IPC only, separate fresh baseline/candidate processes; first failure/mismatch stops",
+  "sourceAdaptation": "Original R105 driver/oracle preserved byte-for-byte. Portable driver imports the unchanged token-sink oracle and a test-only case boundary around the original synchronous evaluation/assertion/row block. Supervisor supplies baseline expected vectors by its own fd3 IPC; candidate clones and recursively freezes them before driver import. Compare each case before the next evaluation; retain final aggregate comparison. Production candidate engine and fixture/defaults/public-tree bytes unchanged.",
+  "gates": {
+    "providerFiles": 94,
+    "baselineProviderDigest": "3cbb39538d6d5c50cc04308a709771af2fbf23bd0da56499e076645b2be9a5c9",
+    "migrationSchema": 2,
+    "savedTasks": 23935,
+    "aliases": 91471,
+    "resultsPerArm": 8
+  },
+  "limits": [
+    "runtime UNRUN: no Docker/envelope acceptance",
+    "external hard timeout still owned by root; no e97 imported or bundled",
+    "full engine API only, not native worker/presentation/planning wire or speed",
+    "only exact root metrics.elapsedMs omitted; original timing values retained separately",
+    "unsupported prototypes/accessors/symbols fail closed; no recursive field removal",
+    "source-sensitive provider digests reported separately; result fields never normalized",
+    "R115 root-Z guard failure remains invalid; candidate was UNRUN"
+  ],
+  "priorReceipts": {
+    "R115": "/workspace/R115-scalar-full-runtime/runtime-receipt.json",
+    "driverSHA256": "44223e5c192c399236a681ad4504a363ed605499f99a9534c252661bc07918a7",
+    "oracleSHA256": "5735690c69a6c46b0540dad938170d4ba761e6b1f998e52224a2ca398e884c8b"
+  },
+  "caseBoundary": {
+    "expectedDelivery": "r124-baseline-expected-v1 on own child fd3 only, after awaiting-baseline stage",
+    "expectedImmutability": "independent JSON clone recursively Object.freeze in candidate before app import; constructor makes another frozen copy",
+    "failure": "first identity/case mismatch or evaluation error throws before next engine.evaluate; failed boundary cannot be reused; partial actual vectors and full token stream retained",
+    "originalPreparation": {
+      "seconds": 245.69584800200028,
+      "capSeconds": 240,
+      "overrunSeconds": 5.69584800200028,
+      "wholeTurnMilliseconds": 340784
+    },
+    "reviewRuntime": "UNRUN; source/pure/syntax review only"
+  },
+  "outerProtocol": {
+    "stages": "raw FD3 newline JSON {stage}; only existing shared-policy stages start/reference-start/reference-ready/reference-close/measured-start/measured-ready/result/error",
+    "nestedIPC": "supervisor creates its own child fd3 IPC; clears PERF_STAGE_FD and NODE_PATH from child environment",
+    "publicResult": "/scratch/case-result.json compact closed fields, status correct/failed, <32768 bytes",
+    "fullResult": "/scratch/r124-full-result.json plus per-arm results/tokens remain owned scratch; never passed through public projection",
+    "policyAdditions": "result-policy.additions.json; root container agent owns merge, no shared policy edited",
+    "runtimeDependencies": "Node and built-ins only; no image Python/git/browser dependency; /deps remains reserved"
+  },
+  "publication": {
+    "prefix": "docs/research/codex-cloud-assets/r124/",
+    "harnessMount": "whole public Git export at /harness",
+    "packetAssets": "resolved relative to import.meta.url; no /harness-root packet assumptions",
+    "packetManifestHash": "r124PacketManifestSha256; distinct from host whole-Git harness manifest"
+  }
+}

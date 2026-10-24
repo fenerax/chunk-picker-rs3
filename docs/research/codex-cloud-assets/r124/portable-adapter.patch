@@ -1,0 +1,342 @@
+--- a/driver-original.mjs
++++ b/driver-portable.mjs
+@@ -3,7 +3,8 @@
+ import {resolve} from 'node:path';
+ import {pathToFileURL} from 'node:url';
+ import {createHash} from 'node:crypto';
+-import {fingerprint,assertEquivalent} from './oracle.mjs';
++import {fingerprint,assertEquivalent} from './oracle-portable.mjs';
++import {createCaseComparison} from './case-comparison.mjs';
+ const [tree,out,arm]=process.argv.slice(2), root=resolve(tree), dir=resolve(out);
+ const load=p=>import(pathToFileURL(resolve(root,p))), sha=b=>createHash('sha256').update(b).digest('hex');
+ const fixtureBytes=readFileSync(new URL('./fixture.json',import.meta.url)),fixture=JSON.parse(fixtureBytes);
+@@ -40,15 +41,20 @@
+ const initialDefinitions=fingerprint(definitions),stateHash=fingerprint(state);
+ const summary={arm,providerDigest:dataset.digest,providerFiles:dataset.files.length,fixtureSHA256:sha(fixtureBytes),definitionsHash:initialDefinitions,stateHash,migration:{schema:2,savedTasks:state.tasks.length,aliases:Object.keys(state.identityRegistry.aliases).length},catalogueCounts:{ordinary:catalogue.length,dynamic:dynamicCatalogue.length},results:[]};
+ writeFileSync(resolve(dir,'migration.json'),JSON.stringify({report:migrated.report,summary},null,2)+'\n');
++const caseComparison=createCaseComparison(summary);
+ for(const owner of ['alpha','beta']){
+  const original=structuredClone(state),unlocked=structuredClone(state);unlocked.members.find(r=>r.id===owner).unlocked.push(fixture.unlock[owner]);
+  for(const [label,template] of [['cold',original],['identical-hit',original],['unlocked',unlocked],['unlocked-hit',unlocked]]){
++  const row=caseComparison.runCase(summary.results.length,()=>{
+   const input=structuredClone(template),before=fingerprint(input);console.log('R105 evaluate',owner,label);
+   const result=engine.evaluate(input,owner);assert.equal(fingerprint(input),before,'input mutation');assert.equal(fingerprint(definitions),initialDefinitions,'definitions mutation');
+   assertEquivalent(result,result,'required hidden metadata');
+   const metrics=Object.fromEntries(Reflect.ownKeys(result.metrics).filter(k=>k!=='elapsedMs').map(k=>[k,result.metrics[k]]));
+   const row={owner,label,inputHash:before,semanticHash:fingerprint(result,true),rows:result.tasks.length,statuses:result.tasks.reduce((a,r)=>(a[r.status]=(a[r.status]??0)+1,a),{}),metrics,elapsedMs:{value:result.metrics.elapsedMs,cachedOrHistorical:label.includes('hit')},eligibilityCacheHit:result.metrics.eligibilityCacheHit};
+-  summary.results.push(row);writeFileSync(resolve(dir,'results.json'),JSON.stringify(summary,null,2)+'\n');console.log('R105 completed',owner,label,row.rows,row.semanticHash);
++  summary.results.push(row);writeFileSync(resolve(dir,'results.json'),JSON.stringify(summary,null,2)+'\n');
++  return row;
++  });
++  console.log('R105 completed',owner,label,row.rows,row.semanticHash);
+  }
+ }
+-assert.equal(summary.results.length,8);console.log('R105 COMPLETE eight full engine results');
++caseComparison.finish();assert.equal(summary.results.length,8);console.log('R105 COMPLETE eight full engine results');
+--- a/oracle-original.mjs
++++ b/oracle-portable.mjs
+@@ -1,5 +1,10 @@
+ import assert from 'node:assert/strict';
+ import {createHash} from 'node:crypto';
++import {openSync,writeSync,closeSync} from 'node:fs';
++import {resolve} from 'node:path';
++let outputDirectory=null, resultIndex=0;
++export function configureOutput(directory){ if(outputDirectory!==null)throw Error('output already configured');outputDirectory=directory; }
++
+ function comparable(result) {
+   // Exact sole exception: root result.metrics.elapsedMs. Preserve descriptors,
+   // ordinary enumerable values/order; named hidden fields are asserted separately.
+@@ -56,7 +61,8 @@
+ export {assertEquivalent};
+ export function fingerprint(value, omitRootElapsed = false) {
+  const h=createHash('sha256'), seen=new Map();
+- const put=v=>h.update(JSON.stringify(v)+'\n');
++ const fd=omitRootElapsed && outputDirectory!==null ? openSync(resolve(outputDirectory,`full-result-${String(resultIndex++).padStart(2,'0')}.tokens.ndjson`),'wx') : null;
++ const put=v=>{const bytes=JSON.stringify(v)+'\n';h.update(bytes);if(fd!==null)writeSync(fd,bytes);};
+  function visit(v,path) {
+   if(v===null){put(['null']);return;}
+   const t=typeof v;
+@@ -74,5 +80,5 @@
+    const d=Object.getOwnPropertyDescriptor(v,key);if(!Object.hasOwn(d,'value'))throw Error('unsupported accessor at '+path+'.'+key);
+    put(['key',key,d.enumerable,d.writable,d.configurable]);visit(d.value,path+'.'+key);
+   }put(['end']);
+- }visit(value,'$');return h.digest('hex');
++ }try{visit(value,'$');return h.digest('hex');}finally{if(fd!==null)closeSync(fd);}
+ }
+--- a/case-entry.mjs
++++ b/case-entry.mjs
+@@ -2,22 +2,38 @@
+ import {readFileSync,writeFileSync,mkdirSync,existsSync,copyFileSync,lstatSync,realpathSync} from 'node:fs';
+ import {resolve,dirname} from 'node:path';
+ import {createHash} from 'node:crypto';
++import {fileURLToPath} from 'node:url';
+ import {configureOutput} from './oracle-portable.mjs';
++import {configureComparison} from './case-comparison.mjs';
+ const arm=process.argv[2],scratch='/scratch',sha=x=>createHash('sha256').update(x).digest('hex');
++const packet=dirname(fileURLToPath(import.meta.url));
+ const emit=(stage,detail={})=>new Promise((ok,no)=>process.send({schema:'r124-stage-v1',arm,stage,...detail},e=>e?no(e):ok()));
+ let dir,originalLog=console.log;
+ try {
+  assert.ok(['baseline','candidate'].includes(arm));assert.equal(typeof process.send,'function');assert.equal(process.channel?.fd,3,'IPC must be fd3 from own supervisor');
+  assert.equal(process.versions.node,'24.19.0');assert.equal(sha(readFileSync(process.execPath)),'bc17c508ffeed0ec622934f9b7fa72f8e78da65350e63c3eceb56fa688aa5e12');
+  for(const k of Object.keys(process.env))if(k.startsWith('RS3_')||k.startsWith('R67_')||k.startsWith('NODE_TEST_')||['NODE_OPTIONS','NODE_PATH','NODE_V8_COVERAGE','NODE_CHANNEL_FD','NODE_CHANNEL_SERIALIZATION_MODE','NODE_DEBUG','NODE_DEBUG_NATIVE'].includes(k))delete process.env[k];
+- Object.assign(process.env,{RS3_DATASET:'duo-legacy',RS3_GAME_DEFAULTS_FILE:'/harness/defaults.json',RS3_PACKS_DIR:'/scratch/absent/packs',RS3_PACK_SELECTION:'/scratch/absent/selection.json',RS3_GAME_DATA_DIR:'/scratch/absent/game',RS3_MAP_ASSETS_DIR:'/scratch/absent/map'});
++ Object.assign(process.env,{RS3_DATASET:'duo-legacy',RS3_GAME_DEFAULTS_FILE:resolve(packet,'defaults.json'),RS3_PACKS_DIR:'/scratch/absent/packs',RS3_PACK_SELECTION:'/scratch/absent/selection.json',RS3_GAME_DATA_DIR:'/scratch/absent/game',RS3_MAP_ASSETS_DIR:'/scratch/absent/map'});
+  for(const p of ['/scratch/absent/packs','/scratch/absent/selection.json','/scratch/absent/game','/scratch/absent/map'])assert.equal(existsSync(p),false);
+  const memory=readFileSync('/sys/fs/cgroup/memory.max','utf8').trim(),cpu=readFileSync('/sys/fs/cgroup/cpu.max','utf8').trim().split(/\s+/);
+  assert.equal(memory,'6442450944','hard envelope must expose exact 6GiB');assert.notEqual(cpu[0],'max');assert.ok(Number(cpu[0])/Number(cpu[1])<=2 && Number(cpu[0])>0);
+  const affinity=readFileSync('/proc/self/status','utf8').match(/^Cpus_allowed_list:\s*(.+)$/m)?.[1];assert.equal(affinity,'0-1','root must provide CPUs 0,1');
+  dir=resolve(scratch,arm);mkdirSync(dir,{recursive:false});
+  await emit('scope-gates',{memoryMax:memory,cpuMax:cpu.join(' '),affinity});
+- const manifest=JSON.parse(readFileSync('/harness/public-tree.json'));assert.equal(manifest.pin,'6f22fefa782747790e2eaefa01e4e5ea7b557323');
++ let expected=null;
++ if(arm==='candidate'){
++  const pending=new Promise((ok,no)=>{
++   const disconnected=()=>no(Error('supervisor disconnected before baseline expectations'));
++   process.once('disconnect',disconnected);
++   process.once('message',message=>{
++    process.removeListener('disconnect',disconnected);
++    try{assert.equal(message?.schema,'r124-baseline-expected-v1');assert.equal(message.arm,'candidate');ok(message.expected);}catch(error){no(error);}
++   });
++  });
++  await emit('awaiting-baseline');expected=await pending;
++ }
++ configureComparison(arm,expected);
++ const manifest=JSON.parse(readFileSync(new URL('./public-tree.json',import.meta.url)));assert.equal(manifest.pin,'6f22fefa782747790e2eaefa01e4e5ea7b557323');
+  let tree='/source';if(arm==='candidate'){tree='/scratch/candidate-source';mkdirSync(tree);}
+  for(const [file,expected] of Object.entries(manifest.files)){
+   assert.ok(!file.startsWith('/')&&!file.split('/').includes('..'));
+@@ -25,10 +41,10 @@
+   assert.equal(sha(readFileSync(source)),expected,file);
+   if(arm==='candidate'){const target=resolve(tree,file);mkdirSync(dirname(target),{recursive:true});copyFileSync(source,target);}
+  }
+- if(arm==='candidate')copyFileSync('/harness/candidate-engine.mjs',resolve(tree,'app/tasks/engine.mjs'));
++ if(arm==='candidate')copyFileSync(new URL('./candidate-engine.mjs',import.meta.url),resolve(tree,'app/tasks/engine.mjs'));
+  assert.equal(sha(readFileSync(resolve(tree,'app/tasks/engine.mjs'))),arm==='baseline'?'3d6e7e1d177b1bfa35c102911f119d1fe6af7d7e01dab758af41840a8a544a20':'4b89f61b6f3e9ccab48d140bb2d43f10b4cc4a62283002110b4f3571a65247a0');
+  configureOutput(dir);console.log=(...args)=>{originalLog(...args);process.send({schema:'r124-stage-v1',arm,stage:'driver-progress',message:args.map(String)});};
+- process.argv=[process.execPath,'/harness/driver-portable.mjs',tree,dir,arm];await emit('before-app-import');
++ process.argv=[process.execPath,resolve(packet,'driver-portable.mjs'),tree,dir,arm];await emit('before-app-import');
+  await import('./driver-portable.mjs');
+  const result=JSON.parse(readFileSync(resolve(dir,'results.json')));assert.equal(result.results.length,8);
+  for(let i=0;i<8;i++)assert.equal(sha(readFileSync(resolve(dir,`full-result-${String(i).padStart(2,'0')}.tokens.ndjson`))),result.results[i].semanticHash);
+--- a/supervisor.mjs
++++ b/supervisor.mjs
+@@ -1,29 +1,43 @@
+ import assert from 'node:assert/strict';
+ import {spawn} from 'node:child_process';
+-import {readFileSync,writeFileSync,createWriteStream,existsSync} from 'node:fs';
++import {readFileSync,writeFileSync,writeSync,createWriteStream,existsSync} from 'node:fs';
+ import {createHash} from 'node:crypto';
+ import {isDeepStrictEqual} from 'node:util';
+-const sha=x=>createHash('sha256').update(x).digest('hex'),out='/scratch/case-result.json';
++import {immutableExpected} from './case-comparison.mjs';
++import {fileURLToPath} from 'node:url';
++const sha=x=>createHash('sha256').update(x).digest('hex'),out='/scratch/r124-full-result.json';
++const outerStage=stage=>writeSync(3,JSON.stringify({stage})+'\n');
+ const report={schema:'r124-hard-docker-result-v1',contract:'docker-hard-2cpu-6g-v1',status:'running',arms:{baseline:{status:'UNRUN'},candidate:{status:'UNRUN'}},comparison:null};
+ const save=()=>writeFileSync(out,JSON.stringify(report,null,2)+'\n');
+ try{
+  assert.equal(process.versions.node,'24.19.0');assert.equal(sha(readFileSync(process.execPath)),'bc17c508ffeed0ec622934f9b7fa72f8e78da65350e63c3eceb56fa688aa5e12');
+  assert.equal(existsSync(out),false,'fresh owned scratch required');
+- const env={...process.env};for(const k of Object.keys(env))if(k.startsWith('RS3_')||k.startsWith('R67_')||k.startsWith('NODE_TEST_')||['NODE_OPTIONS','NODE_PATH','NODE_V8_COVERAGE','NODE_CHANNEL_FD','NODE_CHANNEL_SERIALIZATION_MODE','NODE_DEBUG','NODE_DEBUG_NATIVE'].includes(k))delete env[k];
+- const stages=[];
++ const env={...process.env};for(const k of Object.keys(env))if(k.startsWith('RS3_')||k.startsWith('R67_')||k.startsWith('NODE_TEST_')||['NODE_OPTIONS','NODE_PATH','NODE_V8_COVERAGE','NODE_CHANNEL_FD','NODE_CHANNEL_SERIALIZATION_MODE','NODE_DEBUG','NODE_DEBUG_NATIVE','PERF_STAGE_FD'].includes(k))delete env[k];
++ const stages=[];let baselineExpected=null;
+  for(const arm of ['baseline','candidate']){
+   report.arms[arm]={status:'running'};save();
+   const stdout=createWriteStream(`/scratch/${arm}.stdout.log`,{flags:'wx'}),stderr=createWriteStream(`/scratch/${arm}.stderr.log`,{flags:'wx'});
+   // This supervisor exclusively owns the IPC endpoint; fd3 is supplied only to
+   // its own direct child. Every arm has a fresh process and module cache.
+-  const child=spawn('/runtime/node',['--max-old-space-size=4096','/harness/case-entry.mjs',arm],{env,cwd:'/scratch',stdio:['ignore','pipe','pipe','ipc']});
+-  child.stdout.pipe(stdout);child.stderr.pipe(stderr);let complete=false,protocolError=null;
+-  child.on('message',m=>{if(m?.schema!=='r124-stage-v1'||m.arm!==arm){protocolError='unexpected IPC message';child.kill('SIGTERM');return;}stages.push(m);if(m.stage==='case-complete'&&m.cases===8)complete=true;writeFileSync('/scratch/stages.ndjson',stages.map(x=>JSON.stringify(x)).join('\n')+'\n');});
++  const child=spawn('/runtime/node',['--max-old-space-size=4096',fileURLToPath(new URL('./case-entry.mjs',import.meta.url)),arm],{env,cwd:'/scratch',stdio:['ignore','pipe','pipe','ipc']});
++  child.stdout.pipe(stdout);child.stderr.pipe(stderr);let complete=false,protocolError=null,expectedSent=false;
++  child.on('message',m=>{
++   if(m?.schema!=='r124-stage-v1'||m.arm!==arm){protocolError='unexpected IPC message';child.kill('SIGTERM');return;}
++   if(m.stage==='awaiting-baseline'){
++    if(arm!=='candidate'||expectedSent||baselineExpected===null){protocolError='unexpected baseline expectation request';child.kill('SIGTERM');return;}
++    expectedSent=true;
++    child.send({schema:'r124-baseline-expected-v1',arm,expected:baselineExpected},error=>{if(error){protocolError='baseline expectation delivery failed';child.kill('SIGTERM');}});
++   }
++   stages.push(m);if(m.stage==='case-complete'&&m.cases===8)complete=true;writeFileSync('/scratch/stages.ndjson',stages.map(x=>JSON.stringify(x)).join('\n')+'\n');
++   const mapped=m.stage==='scope-gates'?(arm==='baseline'?'reference-start':'measured-start'):m.stage==='before-app-import'?(arm==='baseline'?'reference-ready':'measured-ready'):m.stage==='case-complete'&&arm==='baseline'?'reference-close':null;
++   if(mapped)outerStage(mapped);
++  });
+   const exit=await new Promise((ok,no)=>{child.on('error',no);child.on('exit',(code,signal)=>ok({code,signal}));});
+   await Promise.all([new Promise(ok=>stdout.writableFinished?ok():stdout.once('finish',ok)),new Promise(ok=>stderr.writableFinished?ok():stderr.once('finish',ok))]);
+   let artifact=null;try{artifact=JSON.parse(readFileSync(`/scratch/${arm}/case-result.json`));}catch{}
+-  report.arms[arm]={status:exit.code===0&&exit.signal===null&&complete&&!protocolError&&artifact?.status==='complete'?'complete':'failed',exit,ipcComplete:complete,protocolError,artifact};save();
++  report.arms[arm]={status:exit.code===0&&exit.signal===null&&complete&&!protocolError&&artifact?.status==='complete'&&(arm==='baseline'||expectedSent)?'complete':'failed',exit,ipcComplete:complete,expectedSent,protocolError,artifact};save();
+   if(report.arms[arm].status!=='complete')throw Error(`${arm} failed; remaining arm UNRUN`);
++  if(arm==='baseline')baselineExpected=immutableExpected(artifact.results);
+  }
+  const B=report.arms.baseline.artifact.results,C=report.arms.candidate.artifact.results;
+  report.comparison={status:'running',providerDigests:{baseline:B.providerDigest,candidate:C.providerDigest},sourceSensitiveDigestsComparedSeparately:true};
+--- /dev/null
++++ b/case-comparison.mjs
+@@ -0,0 +1,73 @@
++import assert from 'node:assert/strict';
++
++export const caseOrder = Object.freeze(['alpha', 'beta'].flatMap(owner =>
++  ['cold', 'identical-hit', 'unlocked', 'unlocked-hit'].map(label => Object.freeze({owner, label}))));
++const identityFields = ['fixtureSHA256', 'definitionsHash', 'stateHash', 'migration', 'catalogueCounts'];
++const comparedFields = ['owner', 'label', 'inputHash', 'semanticHash', 'rows', 'statuses', 'metrics', 'eligibilityCacheHit'];
++const hash = /^[a-f0-9]{64}$/;
++let configuration;
++
++function validateRow(row, index) {
++  assert.ok(row && typeof row === 'object', `missing case ${index}`);
++  for (const key of [...comparedFields, 'elapsedMs']) assert.ok(Object.hasOwn(row, key), `case ${index} missing ${key}`);
++  assert.equal(row.owner, caseOrder[index].owner, `case ${index} owner/order`);
++  assert.equal(row.label, caseOrder[index].label, `case ${index} label/order`);
++  assert.match(row.inputHash, hash, `case ${index} input hash`);
++  assert.match(row.semanticHash, hash, `case ${index} semantic hash`);
++  assert.ok(Number.isSafeInteger(row.rows) && row.rows >= 0, `case ${index} rows`);
++  assert.ok(row.metrics && row.statuses && row.elapsedMs, `case ${index} vectors`);
++  assert.equal(row.elapsedMs.cachedOrHistorical, row.label.includes('hit'), `case ${index} historical timing label`);
++}
++
++function freeze(value) {
++  if (value && typeof value === 'object') {
++    for (const child of Object.values(value)) freeze(child);
++    Object.freeze(value);
++  }
++  return value;
++}
++
++export function immutableExpected(summary) {
++  // IPC uses JSON serialization. Keep an independent frozen copy in each process.
++  const copy = JSON.parse(JSON.stringify(summary));
++  assert.equal(copy.arm, 'baseline');
++  assert.equal(copy.results?.length, 8, 'baseline requires all eight cases');
++  for (const key of identityFields) assert.ok(Object.hasOwn(copy, key), `missing identity ${key}`);
++  copy.results.forEach(validateRow);
++  return freeze(copy);
++}
++
++export function configureComparison(arm, expected) {
++  assert.equal(configuration, undefined, 'comparison already configured');
++  assert.ok(['baseline', 'candidate'].includes(arm));
++  assert.ok(arm === 'candidate' ? expected !== null && expected !== undefined : expected === null);
++  configuration = Object.freeze({arm, expected: arm === 'candidate' ? immutableExpected(expected) : null});
++}
++
++export function createCaseComparison(summary, configured = configuration) {
++  assert.ok(configured, 'comparison must be configured before driver import');
++  assert.equal(summary.arm, configured.arm);
++  const expected = configured.arm === 'candidate' ? immutableExpected(configured.expected) : null;
++  if (expected) for (const key of identityFields) assert.deepStrictEqual(summary[key], expected[key], `identity mismatch ${key}`);
++  let next = 0, failed = false;
++  return Object.freeze({
++    runCase(index, evaluate) {
++      assert.equal(failed, false, 'case sequence already failed');
++      try {
++      assert.equal(index, next, 'case boundary order');
++      assert.ok(next < 8, 'unexpected ninth case');
++      const row = evaluate();
++      validateRow(row, index);
++      if (expected) for (const key of comparedFields) {
++        assert.deepStrictEqual(row[key], expected.results[index][key], `case ${index} mismatch ${key}`);
++      }
++      next++;
++      return row;
++      } catch (error) { failed = true; throw error; }
++    },
++    finish() {
++      try { assert.equal(failed, false, 'case sequence already failed'); assert.equal(next, 8, 'incomplete case sequence'); }
++      catch (error) { failed = true; throw error; }
++    },
++  });
++}
+--- /dev/null
++++ b/case-comparison.test.mjs
+@@ -0,0 +1,59 @@
++import assert from 'node:assert/strict';
++import {caseOrder, immutableExpected, createCaseComparison} from './case-comparison.mjs';
++
++const row = (index) => ({...caseOrder[index], inputHash: '1'.repeat(64), semanticHash: '2'.repeat(64),
++  rows: 1, statuses: {available: 1}, metrics: {processingAccessEvaluations: 3},
++  elapsedMs: {value: index + 1, cachedOrHistorical: caseOrder[index].label.includes('hit')}, eligibilityCacheHit: false});
++const baseline = () => ({arm: 'baseline', fixtureSHA256: '3'.repeat(64), definitionsHash: '4'.repeat(64),
++  stateHash: '5'.repeat(64), migration: {schema: 2, savedTasks: 23935, aliases: 91471},
++  catalogueCounts: {ordinary: 1, dynamic: 1}, results: caseOrder.map((_, i) => row(i))});
++const candidate = (expected) => ({...structuredClone(expected), arm: 'candidate', results: []});
++const checker = (expected = baseline()) => createCaseComparison(candidate(expected), {arm: 'candidate', expected});
++
++const source = baseline(), expected = immutableExpected(source);
++source.results[0].metrics.processingAccessEvaluations = 999;
++assert.equal(expected.results[0].metrics.processingAccessEvaluations, 3);
++assert.ok(Object.isFrozen(expected.results[0].metrics));
++assert.throws(() => { expected.results[0].semanticHash = '0'.repeat(64); }, TypeError);
++
++const visited = [], early = checker();
++assert.throws(() => {
++  for (let index = 0; index < 8; index++) early.runCase(index, () => {
++    visited.push(index);
++    return {...row(index), semanticHash: '0'.repeat(64)};
++  });
++}, /case 0 mismatch semanticHash/);
++assert.deepStrictEqual(visited, [0], 'second case must never run after first mismatch');
++assert.throws(() => early.runCase(1, () => { visited.push(1); return row(1); }), /already failed/);
++assert.deepStrictEqual(visited, [0], 'a caught mismatch must not permit later callbacks');
++
++const complete = checker();
++for (let i = 0; i < 8; i++) complete.runCase(i, () => ({...row(i), elapsedMs: {value: 999, cachedOrHistorical: i % 2 === 1}}));
++complete.finish();
++
++const late = checker(), lateVisited = [];
++assert.throws(() => {
++  for (let i = 0; i < 8; i++) late.runCase(i, () => {
++    lateVisited.push(i);
++    if (i === 7) throw Error('late engine failure');
++    return row(i);
++  });
++}, /late engine failure/);
++assert.equal(lateVisited.length, 8);
++assert.throws(() => late.finish(), /already failed/);
++
++const missingActual = checker();
++for (let i = 0; i < 7; i++) missingActual.runCase(i, () => row(i));
++assert.throws(() => missingActual.finish(), /incomplete case sequence/);
++assert.throws(() => missingActual.runCase(7, () => { throw Error('must not resume'); }), /already failed/);
++const missingExpected = baseline(); missingExpected.results.pop();
++assert.throws(() => checker(missingExpected), /all eight cases/);
++const corruptExpected = baseline(); corruptExpected.results[0].semanticHash = 'corrupt';
++assert.throws(() => checker(corruptExpected), /semantic hash/);
++const reordered = baseline(); reordered.results.reverse();
++assert.throws(() => checker(reordered), /owner\/order/);
++for (const field of ['inputHash', 'rows', 'statuses', 'metrics', 'eligibilityCacheHit']) {
++  const boundary = checker();
++  assert.throws(() => boundary.runCase(0, () => ({...row(0), [field]: field === 'inputHash' ? '0'.repeat(64) : field === 'rows' ? 2 : field === 'eligibilityCacheHit' ? true : {changed: 1}})), /mismatch/);
++}
++console.log('R124 CASE BOUNDARY PURE PASS: first mismatch stops before case 2; frozen vectors; all eight required; corrupt/missing/reordered vectors, late errors and all original compared fields fail closed');
+--- /dev/null
++++ b/entry.mjs
+@@ -0,0 +1,26 @@
++// Outer runner supplies a raw JSON stage pipe at FD3, never process.send IPC.
++import {readFileSync,writeFileSync,writeSync} from 'node:fs';
++import {createHash} from 'node:crypto';
++const stage=value=>writeSync(3,JSON.stringify({stage:value})+'\n');
++const sha=value=>createHash('sha256').update(value).digest('hex');
++const result={schema:'r124-engine-api-comparison-v1',mode:'r124-engine-api-v1',status:'failed',passed:false,code:'runtime-error',metrics:{}};
++try{
++ stage('start');
++ await import('./supervisor.mjs');
++ const full=JSON.parse(readFileSync('/scratch/r124-full-result.json','utf8'));
++ const B=full.arms.baseline.artifact?.results,C=full.arms.candidate.artifact?.results;
++ if(B)result.metrics.r124BaselineCompletedCases=B.results.length;
++ else if(full.arms.baseline.status==='UNRUN')result.metrics.r124BaselineCompletedCases=0;
++ if(C)result.metrics.r124CandidateCompletedCases=C.results.length;
++ else if(full.arms.candidate.status==='UNRUN')result.metrics.r124CandidateCompletedCases=0;
++ if(B){result.fixtureSha256=B.fixtureSHA256;result.r124BaselineProviderDigest=B.providerDigest;result.r124BaselineVectorsSha256=sha(JSON.stringify(B));}
++ if(C){result.r124CandidateProviderDigest=C.providerDigest;result.r124CandidateVectorsSha256=sha(JSON.stringify(C));}
++ result.r124PacketManifestSha256=sha(readFileSync(new URL('./manifest.json',import.meta.url)));
++ result.calculatorBytesSha256=sha(readFileSync(new URL('./candidate-engine.mjs',import.meta.url)));
++ result.sourcePin='6f22fefa782747790e2eaefa01e4e5ea7b557323';
++ result.passed=full.status==='complete'&&full.comparison?.status==='matched'&&!process.exitCode;
++ if(result.passed){result.status='correct';result.code='r124-full-engine-vectors-match';result.count=8;result.r124ComparisonSha256=sha(JSON.stringify(full.comparison));}
++}catch{process.exitCode=1;}
++if(!result.passed)process.exitCode=1;
++writeFileSync('/scratch/case-result.json',JSON.stringify(result)+'\n',{flag:'wx',mode:0o600});
++stage(result.passed?'result':'error');

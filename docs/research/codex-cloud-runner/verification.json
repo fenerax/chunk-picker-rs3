@@ -1,11 +1,11 @@
 {
   "schema": "container-runner-preparation-verification-v1",
   "date": "2026-10-23",
-  "readiness": "CONTROLS_VALIDATED_TWO_CASES_AUTHORIZED_UNRUN",
+  "readiness": "VALIDATED_CONTROLS_NEXT_THREE_CASES_AUTHORIZED_UNRUN",
   "assetBaseCommit": "7ad315acd39223df3b4d2304e295ef5c017dfe17",
   "pureTests": {
-    "command": "python -B -m unittest -q test_docker_envelope.py",
-    "passed": 52,
+    "command": "python -B -m unittest -q test_docker_envelope.py test_accept_case.py",
+    "passed": 62,
     "failed": 0
   },
   "subsequentPublishedTrial": {
@@ -45,11 +45,13 @@
   "workflowStaticGates": {
     "exactPublicAssetBranchOnly": true,
     "contentsReadOnly": true,
-    "measurementJobDisabled": false,
+    "measurementJobDisabled": true,
     "noCachesOrArtifactUploads": true,
     "noSecretOrTokenContexts": true,
-    "r127ComponentDisabled": false,
-    "exactlyTwoMeasuredJobsEnabled": true
+    "r127ComponentDisabled": true,
+    "exactlyTwoMeasuredJobsEnabled": false,
+    "exactlyThreeNextWaveJobsEnabled": true,
+    "sixSetupRecipesChecked": true
   },
   "independentCodeReview": {
     "remainingConcreteBlockingCodeBugFound": false,
@@ -85,7 +87,7 @@
     "missingWorkflowNegative": "failed with exactly two fixed test IDs and input-missing class",
     "diagnosisEvidence": "control-run-40044649892-diagnosis.json"
   },
-  "priorManifestSha256": "bdd9441c088c9a3476bf9cebf0dd2387fdcce8f219730ec2a759055822df6678",
+  "priorManifestSha256": "ab64ca23397fed6d976916de9d14ab0046541a8146e4ac99814d5215a28041a5",
   "runnerRevision": "docker-pinned-image-env-v3",
   "latestPublishedTrial": {
     "commit": "0cd14471af591e40d339aa86b39e1a7da3bd5337",
@@ -126,24 +128,111 @@
     "numericMetricKeysAdded": 25,
     "sharedCurrentPolicyPreserved": true,
     "projectionControlsPassed": true,
-    "jobDisabled": false
+    "jobDisabled": true
   },
+  "activationHistory": [
+    {
+      "authorizedBy": "root",
+      "enabledJobs": [
+        "one-case",
+        "r127-component"
+      ],
+      "needsControlsRetained": true,
+      "actualControlsRunId": 40046487079,
+      "actualControlsCommit": "6b8d38ee4c2ceeed6f69954cbf2431994d3d6c10",
+      "actualControlsEvidence": "public-harness-delivery/validated-resource-controls-40046487079.json",
+      "actualControlCountPassed": 4,
+      "allFourExactOwnedContainersRemoved": true,
+      "r116Measurement": "UNRUN",
+      "r127Measurement": "UNRUN",
+      "measurementAcceptanceGates": "OPEN",
+      "prior52PureTestsReused": true,
+      "nextRunRechecksPureAndResourceControls": true,
+      "frozenPublicCommit": "d138ad31eddce2b7ce858013f2341b3de116abb9",
+      "publicRunId": 40046815149,
+      "outcomesRecordedHere": false,
+      "notCancelled": true
+    }
+  ],
   "activation": {
     "authorizedBy": "root",
     "enabledJobs": [
+      "r124-engine",
+      "r125-focus",
+      "r130-codec"
+    ],
+    "disabledInNextRevision": [
       "one-case",
       "r127-component"
     ],
     "needsControlsRetained": true,
-    "actualControlsRunId": 40046487079,
-    "actualControlsCommit": "6b8d38ee4c2ceeed6f69954cbf2431994d3d6c10",
-    "actualControlsEvidence": "public-harness-delivery/validated-resource-controls-40046487079.json",
-    "actualControlCountPassed": 4,
-    "allFourExactOwnedContainersRemoved": true,
-    "r116Measurement": "UNRUN",
-    "r127Measurement": "UNRUN",
-    "measurementAcceptanceGates": "OPEN",
-    "prior52PureTestsReused": true,
-    "nextRunRechecksPureAndResourceControls": true
+    "validatedResourceControlRuns": [
+      40046487079,
+      40046815149
+    ],
+    "newCases": "UNRUN",
+    "caseAcceptance": "OPEN",
+    "previousFrozenWaveNotCancelled": true,
+    "newRunRechecksPureAndFourResourceControls": true,
+    "perCommitConcurrency": true,
+    "cancelInProgress": false,
+    "longJobAdded": false,
+    "exactCliChecks": [
+      {
+        "job": "r124-engine",
+        "sha256": "98dfc96f4dddcd6ff6cb5612729e99b4a8f522203292676cc2d08e37e15d6ded",
+        "seconds": 300,
+        "mode": "component",
+        "entrypoint": "docs/research/codex-cloud-assets/r124/entry.mjs"
+      },
+      {
+        "job": "r125-focus",
+        "sha256": "e7872c26799c41f39d1c25b1bef26290a594ace7b9d52a0d575fd1156d08f094",
+        "seconds": 215,
+        "mode": "browser",
+        "entrypoint": "docs/research/codex-cloud-assets/r125/case-entry.mjs"
+      },
+      {
+        "job": "r130-codec",
+        "sha256": "566df64a1ca131254586deead19a322950eb9c2c604d1abc6b01b2134542ff98",
+        "seconds": 120,
+        "mode": "native",
+        "entrypoint": "docs/research/codex-cloud-assets/r130/entry.mjs"
+      }
+    ]
+  },
+  "nextWavePolicyMerge": {
+    "schema": "next-wave-policy-merge-v1",
+    "previousManifestSha256": "ab64ca23397fed6d976916de9d14ab0046541a8146e4ac99814d5215a28041a5",
+    "additions": [
+      {
+        "case": "r124",
+        "sha256": "ad4a9b0f51cdc4afbcbcea5b1a0d5cd89c8506adcbe36a30a3484eff7c6a2d16",
+        "bytes": 420
+      },
+      {
+        "case": "r125",
+        "sha256": "b0b18ca7b93cc089d63584308924cfafc3baf39cebee387a44a3b02fb63d33bf",
+        "bytes": 1184
+      },
+      {
+        "case": "r130",
+        "sha256": "3b99fe60165dc51a1eaab7e4ec3a91b38229f1c34889d6201bf5efa74ebaaf7d",
+        "bytes": 349
+      }
+    ],
+    "preservedExistingValues": true,
+    "pureTestCount": 55,
+    "runtime": "UNRUN"
+  },
+  "newPolicyProjectionCounterexamplesPassed": true,
+  "hostAcceptance": {
+    "r124": "outer passed+cleanup, exact schema/correct/passed and both completed counts8",
+    "r130": "outer passed+cleanup, exact schema/correct/passed and both backend statuses correct",
+    "r125": "existing packet focusAccepted host predicate retained",
+    "newPureControls": 7,
+    "prior55ControlsReused": true,
+    "resourceCoreUnchanged": true,
+    "failedCaseEvidencePreserved": true
   }
 }

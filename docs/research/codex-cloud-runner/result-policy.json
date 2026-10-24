@@ -32,7 +32,17 @@
     "rttMs",
     "rttPassed",
     "samples",
-    "strictPassed"
+    "strictPassed",
+    "nativeAssertionsPassed",
+    "freshBodyJoinPassed",
+    "cachedFallbackPassed",
+    "realSlicePassed",
+    "trustedSpacePassed",
+    "commandHistoryPassed",
+    "persistedOwnerReadbackPassed",
+    "fixtureDrainPassed",
+    "controllerDrainPassed",
+    "originalSourceUnchanged"
   ],
   "hashKeys": [
     "calculatorBytesSha256",
@@ -52,16 +62,27 @@
     "staticEnvelopeSha256",
     "componentStateSha256",
     "componentRowsSha256",
-    "componentIndexSha256"
+    "componentIndexSha256",
+    "r124BaselineProviderDigest",
+    "r124CandidateProviderDigest",
+    "r124BaselineVectorsSha256",
+    "r124CandidateVectorsSha256",
+    "r124ComparisonSha256",
+    "r124PacketManifestSha256"
   ],
   "enums": {
     "schema": [
       "r116-frozen-browser-v1",
-      "container-component-control-v1"
+      "container-component-control-v1",
+      "r124-engine-api-comparison-v1",
+      "r125-focus-functional-v1",
+      "r130-codec-functional-v1"
     ],
     "mode": [
       "r116-frozen-input-v1",
-      "r127-four-mode-docker-v1"
+      "r127-four-mode-docker-v1",
+      "r124-engine-api-v1",
+      "r125-alpha-personal-controlled-v1"
     ],
     "status": [
       "correct",
@@ -307,7 +328,14 @@
       "witness-token-mismatch",
       "witness-token-reused",
       "worker-selection-dataset-mismatch",
-      "writer-or-source-ownership-unproven"
+      "writer-or-source-ownership-unproven",
+      "r124-full-engine-vectors-match",
+      "r125-focus-correct",
+      "r125-admission-failed",
+      "r125-native-failed",
+      "r125-drain-failed",
+      "r125-entry-failed",
+      "r125-source-changed"
     ],
     "strictR79Code": [
       "all-arm-blocked",
@@ -1429,6 +1457,16 @@
       "blocked",
       "incorrect",
       "failed"
+    ],
+    "processStatus": [
+      "correct",
+      "failed",
+      "unrun"
+    ],
+    "threadStatus": [
+      "correct",
+      "failed",
+      "unrun"
     ]
   },
   "metricKeys": [
@@ -1490,14 +1528,24 @@
     "r127NewBudgetedWarmRep0Ms",
     "r127NewBudgetedWarmRep1Ms",
     "r127NewBudgetedWarmRep2Ms",
-    "r127SetupMs"
+    "r127SetupMs",
+    "r124BaselineCompletedCases",
+    "r124CandidateCompletedCases",
+    "focusNamedPassCount",
+    "focusCommandCount",
+    "focusHistoryCount",
+    "processElapsedMs",
+    "threadElapsedMs",
+    "processGenerations",
+    "threadGenerations"
   ],
   "scope": {
     "memberId": [
       "explorer-1"
     ],
     "owner": [
-      "explorer-1"
+      "explorer-1",
+      "alpha"
     ],
     "chunkId": [
       "12850",
@@ -1521,9 +1569,18 @@
     "other-inputs",
     "group-on",
     "physical-paint",
-    "independent-engine-correctness"
+    "independent-engine-correctness",
+    "r125-other-native-cases",
+    "r125-slo"
   ],
   "pureTestIds": [
+    "test_accept_failed_case_rejected_despite_green_envelope",
+    "test_accept_missing_case_rejected",
+    "test_accept_outer_or_cleanup_failure_rejected",
+    "test_accept_positive_both_cases_without_mode",
+    "test_accept_r124_requires_both_exact_eight_counts",
+    "test_accept_r130_requires_both_backend_statuses",
+    "test_accept_wrong_schema_rejected",
     "test_allowed_cpu_list",
     "test_bad_cpu_range",
     "test_bad_security_rejected",
@@ -1557,8 +1614,11 @@
     "test_plan_never_opens_inputs_or_docker",
     "test_public_projection_discards_auth_url_and_store",
     "test_public_projection_rejects_arbitrary_status_and_nonhex",
+    "test_r124_projection_retains_fixed_vector_proof_and_rejects_private_or_malformed_values",
+    "test_r125_projection_preserves_all_named_flags_and_failed_case_scope",
     "test_r127_all_fixed_metrics_and_hashes_survive_projection",
     "test_r127_unexpected_fields_secret_values_and_nonfinite_metrics_rejected",
+    "test_r130_projection_preserves_both_backend_outcomes_and_rejects_unknown_status",
     "test_raw_failed_report_is_never_valid",
     "test_setup_diagnostic_cli_errors_do_not_echo_paths_or_arguments",
     "test_setup_diagnostic_docker_classes_are_fixed",

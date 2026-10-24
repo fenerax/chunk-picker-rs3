@@ -1,0 +1,9 @@
+{
+  "enums": {
+    "schema": ["r124-engine-api-comparison-v1"],
+    "mode": ["r124-engine-api-v1"],
+    "code": ["r124-full-engine-vectors-match"]
+  },
+  "hashKeys": ["r124BaselineProviderDigest", "r124CandidateProviderDigest", "r124BaselineVectorsSha256", "r124CandidateVectorsSha256", "r124ComparisonSha256", "r124PacketManifestSha256"],
+  "metricKeys": ["r124BaselineCompletedCases", "r124CandidateCompletedCases"]
+}

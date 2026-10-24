@@ -1,0 +1,24 @@
+{
+  "schema": "next-wave-policy-merge-v1",
+  "previousManifestSha256": "ab64ca23397fed6d976916de9d14ab0046541a8146e4ac99814d5215a28041a5",
+  "additions": [
+    {
+      "case": "r124",
+      "sha256": "ad4a9b0f51cdc4afbcbcea5b1a0d5cd89c8506adcbe36a30a3484eff7c6a2d16",
+      "bytes": 420
+    },
+    {
+      "case": "r125",
+      "sha256": "b0b18ca7b93cc089d63584308924cfafc3baf39cebee387a44a3b02fb63d33bf",
+      "bytes": 1184
+    },
+    {
+      "case": "r130",
+      "sha256": "3b99fe60165dc51a1eaab7e4ec3a91b38229f1c34889d6201bf5efa74ebaaf7d",
+      "bytes": 349
+    }
+  ],
+  "preservedExistingValues": true,
+  "pureTestCount": 55,
+  "runtime": "UNRUN"
+}

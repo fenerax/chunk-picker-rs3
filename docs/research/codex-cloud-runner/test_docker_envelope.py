@@ -213,7 +213,7 @@ class Controls(unittest.TestCase):
     def test_both_workflow_recipes_use_distinct_empty_npm_configs(self):
         workflow = workflow_path().read_text()
         pairs = re.findall(r'npm_config_userconfig="([^"]+)"\s+npm_config_globalconfig="([^"]+)"', workflow)
-        self.assertEqual(len(pairs), 3)
+        self.assertEqual(len(pairs), 6)
         for user, global_config in pairs:
             self.assertNotEqual(user, global_config)
             self.assertNotEqual(user, '/dev/null'); self.assertNotEqual(global_config, '/dev/null')
@@ -221,8 +221,8 @@ class Controls(unittest.TestCase):
             self.assertIn(': > "' + global_config + '"', workflow)
     def test_both_setup_failures_use_closed_diagnostics(self):
         workflow = workflow_path().read_text()
-        self.assertEqual(workflow.count('--stage dependency-setup'), 3)
-        self.assertEqual(workflow.count('--stage public-image-pull'), 3)
+        self.assertEqual(workflow.count('--stage dependency-setup'), 6)
+        self.assertEqual(workflow.count('--stage public-image-pull'), 6)
         self.assertNotIn('cat "$RUNNER_TEMP/npm-setup.log"', workflow)
         self.assertNotIn('tail "$RUNNER_TEMP/image-pull.log"', workflow)
     def test_workflow_path_supports_canonical_public_layout(self):
@@ -317,5 +317,28 @@ class Controls(unittest.TestCase):
         got=e.sanitized_result({'mode':'r127-four-mode-docker-v1','private':'SYNTHETIC_SECRET','componentStateSha256':'SYNTHETIC_SECRET','metrics':{'r127SetupMs':float('nan'),'r127OriginalSyncColdRep0Ms':float('inf'),'unexpected':123,'r127NewBudgetedWarmRep2Ms':'SYNTHETIC_SECRET'}})
         self.assertEqual(got['metrics'],{});self.assertNotIn('componentStateSha256',got)
         self.assertNotIn('SYNTHETIC',json.dumps(got));self.assertNotIn('unexpected',json.dumps(got))
+    def test_r124_projection_retains_fixed_vector_proof_and_rejects_private_or_malformed_values(self):
+        hashes={key:'a'*64 for key in ('r124BaselineProviderDigest','r124CandidateProviderDigest','r124BaselineVectorsSha256','r124CandidateVectorsSha256','r124ComparisonSha256','r124PacketManifestSha256')}
+        value={'schema':'r124-engine-api-comparison-v1','mode':'r124-engine-api-v1','code':'r124-full-engine-vectors-match','passed':True,**hashes,'metrics':{'r124BaselineCompletedCases':8,'r124CandidateCompletedCases':8}}
+        got=e.sanitized_result(value)
+        self.assertEqual(got['schema'],value['schema']);self.assertEqual(got['mode'],value['mode']);self.assertEqual(got['code'],value['code'])
+        for key,digest in hashes.items():self.assertEqual(got[key],digest)
+        self.assertEqual(got['metrics'],value['metrics'])
+        bad=e.sanitized_result({'passed':False,'r124ComparisonSha256':'token=SYNTHETIC_SECRET','vectors':{'private':'SYNTHETIC_SECRET'},'metrics':{'r124BaselineCompletedCases':float('nan'),'r124CandidateCompletedCases':'SYNTHETIC_SECRET'}})
+        self.assertFalse(bad['passed']);self.assertEqual(bad['metrics'],{});self.assertNotIn('SYNTHETIC',json.dumps(bad))
+    def test_r125_projection_preserves_all_named_flags_and_failed_case_scope(self):
+        flags=('nativeAssertionsPassed','freshBodyJoinPassed','cachedFallbackPassed','realSlicePassed','trustedSpacePassed','commandHistoryPassed','persistedOwnerReadbackPassed','fixtureDrainPassed','controllerDrainPassed','originalSourceUnchanged')
+        value={'schema':'r125-focus-functional-v1','mode':'r125-alpha-personal-controlled-v1','code':'r125-focus-correct','passed':True,'cleanupPassed':True,**{key:True for key in flags},'scope':{'owner':'alpha','group':False},'finalProofSha256':'b'*64,'observedBodySha256':'c'*64,'metrics':{'focusNamedPassCount':1,'focusCommandCount':2,'focusHistoryCount':2},'openGates':['r125-other-native-cases','r125-slo']}
+        got=e.sanitized_result(value)
+        for key in flags:self.assertIs(got[key],True)
+        for key in ('schema','mode','code','scope','metrics','openGates','finalProofSha256','observedBodySha256'):self.assertEqual(got[key],value[key])
+        bad=e.sanitized_result({'passed':False,'code':'r125-native-failed','nativeAssertionsPassed':'SYNTHETIC_SECRET','scope':{'owner':'private-owner','group':False},'metrics':{'focusCommandCount':'SYNTHETIC_SECRET'},'store':'SYNTHETIC_SECRET'})
+        self.assertFalse(bad['passed']);self.assertEqual(bad['code'],'r125-native-failed');self.assertNotIn('owner',bad['scope']);self.assertNotIn('nativeAssertionsPassed',bad);self.assertNotIn('SYNTHETIC',json.dumps(bad))
+    def test_r130_projection_preserves_both_backend_outcomes_and_rejects_unknown_status(self):
+        value={'schema':'r130-codec-functional-v1','passed':True,'processStatus':'correct','threadStatus':'correct','metrics':{'processElapsedMs':12.5,'threadElapsedMs':8.5,'processGenerations':4,'threadGenerations':4}}
+        got=e.sanitized_result(value)
+        for key in ('schema','passed','processStatus','threadStatus','metrics'):self.assertEqual(got[key],value[key])
+        bad=e.sanitized_result({'passed':False,'processStatus':'correct?token=SYNTHETIC_SECRET','threadStatus':'failed','metrics':{'processGenerations':float('inf'),'threadElapsedMs':float('nan')},'ipc':'SYNTHETIC_SECRET'})
+        self.assertFalse(bad['passed']);self.assertEqual(bad['threadStatus'],'failed');self.assertNotIn('processStatus',bad);self.assertEqual(bad['metrics'],{});self.assertNotIn('SYNTHETIC',json.dumps(bad))
 
 if __name__ == '__main__': unittest.main()

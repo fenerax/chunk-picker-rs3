@@ -1,0 +1,16 @@
+{
+  "proposalOnly": true,
+  "baselinePolicySHA256": "7354bc7c5ab06c9be394facd0e051dd569413b919aede1dcb2eaeec81e1dd214",
+  "merge": "Union these exact values into the current shared policy; preserve concurrent additions; never replace the whole policy from this snapshot",
+  "scalarKeys": ["nativeAssertionsPassed", "freshBodyJoinPassed", "cachedFallbackPassed", "realSlicePassed", "trustedSpacePassed", "commandHistoryPassed", "persistedOwnerReadbackPassed", "fixtureDrainPassed", "controllerDrainPassed", "originalSourceUnchanged"],
+  "metricKeys": ["focusNamedPassCount", "focusCommandCount", "focusHistoryCount"],
+  "enums": {
+    "schema": ["r125-focus-functional-v1"],
+    "mode": ["r125-alpha-personal-controlled-v1"],
+    "code": ["r125-focus-correct", "r125-admission-failed", "r125-native-failed", "r125-drain-failed", "r125-entry-failed", "r125-source-changed"]
+  },
+  "scope": {"owner": ["alpha"]},
+  "openGates": ["r125-other-native-cases", "r125-slo"],
+  "stages": [],
+  "acceptance": "Use focusAccepted(final) from focus-core.mjs AFTER both shared projections and independent outer wait/inspect/Pid0/exact-owned removal. Envelope passed alone is infrastructure only."
+}

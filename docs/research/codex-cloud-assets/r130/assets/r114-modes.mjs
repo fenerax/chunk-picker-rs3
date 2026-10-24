@@ -1,0 +1,8 @@
+import assert from 'node:assert/strict';
+import {createHash} from 'node:crypto';
+export const keys=['definitions','definitionBytes','definitionV8Bytes'];
+export function admit(arm,mode,mask,flavour){assert.ok(arm==='C'&&flavour==='authored'&&((mode==='process'&&mask===0)||(mode==='thread'&&mask===1)),'R114 exact two cases only');return mode==='process'?'definitionV8Bytes':'definitions';}
+export const digest=value=>createHash('sha256').update(value).digest('hex');
+export function inputIntegrity(data,expected){assert.deepEqual(keys.filter(k=>Object.hasOwn(data,k)),[expected]);return expected==='definitions'?digest(JSON.stringify(data.definitions)):digest(Buffer.from(data.definitionV8Bytes));}
+export function generationChannel(record,onDecoder,onReady){assert.ok(record&&Number.isSafeInteger(record.generation));return value=>{const receipt=Object.freeze({...value,generation:record.generation,lifetime:record.lifetime});if(value.type==='r92-decoder')onDecoder(receipt);if(value.type==='ready')onReady(receipt);};}
+export function wireParentData(envelope,decode){const decoded=decode(envelope);assert.deepEqual(keys.filter(k=>Object.hasOwn(decoded,k)),['definitionV8Bytes']);const shared=envelope.shared.find(row=>row.placeholder===envelope.data.definitionV8Bytes);assert.ok(shared,'exact definition shared placeholder');assert.ok(shared.bytes.buffer instanceof SharedArrayBuffer);assert.equal(shared.bytes.byteOffset,0);assert.equal(shared.bytes.byteLength,shared.bytes.buffer.byteLength);assert.equal(digest(shared.bytes),digest(Buffer.from(decoded.definitionV8Bytes)));return {...decoded,definitionV8Bytes:shared.bytes.buffer};}

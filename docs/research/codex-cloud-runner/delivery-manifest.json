@@ -2,11 +2,46 @@
   "schema": "container-runner-delivery-v1",
   "envelope": "docker-hard-2cpu-6g-v1",
   "runnerRevision": "docker-pinned-image-env-v3",
-  "readiness": "CONTROLS_VALIDATED_TWO_CASES_AUTHORIZED_UNRUN",
+  "readiness": "VALIDATED_CONTROLS_NEXT_THREE_CASES_AUTHORIZED_UNRUN",
   "sourceCommit": "6f22fefa782747790e2eaefa01e4e5ea7b557323",
   "assetBaseCommit": "7ad315acd39223df3b4d2304e295ef5c017dfe17",
-  "previousManifestSha256": "bdd9441c088c9a3476bf9cebf0dd2387fdcce8f219730ec2a759055822df6678",
+  "previousManifestSha256": "37663a71223340465dc24985e8cc7657db76af7684f0eac5201c0d7efefb9a15",
+  "activation": {
+    "jobs": [
+      "r124-engine",
+      "r125-focus",
+      "r130-codec"
+    ],
+    "disabledFutureJobs": [
+      "one-case",
+      "r127-component"
+    ],
+    "controlsRuns": [
+      40046487079,
+      40046815149
+    ],
+    "newMeasurements": "UNRUN",
+    "acceptance": "OPEN",
+    "perShaConcurrency": true,
+    "cancelInProgress": false
+  },
+  "changedFiles": [
+    "accept_case.py",
+    "next-wave-jobs-snippet.yml",
+    "next-wave-policy-merge.json",
+    "public-container-envelope.yml",
+    "README.md",
+    "result-policy.json",
+    "test_accept_case.py",
+    "test_docker_envelope.py",
+    "verification.json"
+  ],
   "files": [
+    {
+      "path": "accept_case.py",
+      "bytes": 2102,
+      "sha256": "c96812ca82098f80863dfbb4e5fdf9c9cfd73ec1c31f9eea176791057acfed22"
+    },
     {
       "path": "control-run-40044649892-diagnosis.json",
       "bytes": 2341,
@@ -26,6 +61,16 @@
       "path": "inside.mjs",
       "bytes": 15196,
       "sha256": "7fcc934c916940a4290e7ab97c4aa7d9714edd6d41e1f9420cf928d6fef71b72"
+    },
+    {
+      "path": "next-wave-jobs-snippet.yml",
+      "bytes": 11627,
+      "sha256": "9c8f265c6209185b143028206dbd62af3e08e78ba7db60798ea337850a6c9828"
+    },
+    {
+      "path": "next-wave-policy-merge.json",
+      "bytes": 680,
+      "sha256": "93911f8478b257a9816abea860ad7983739a87186e3507221d545b7bf9e4c263"
     },
     {
       "path": "npm-config-repro-evidence.json",
@@ -54,8 +99,8 @@
     },
     {
       "path": "public-container-envelope.yml",
-      "bytes": 13206,
-      "sha256": "47be36427ff58e075616fba720e5141f034a16a669384991829b17ecd8440ca6"
+      "bytes": 25236,
+      "sha256": "d309a22b6a0ee2688b3db1e62beff8f8e876be998a00d28d0d00e44a3fcba17e"
     },
     {
       "path": "public-metadata-evidence.json",
@@ -69,13 +114,13 @@
     },
     {
       "path": "README.md",
-      "bytes": 20554,
-      "sha256": "d083d64d4cd745ad725f55c297def44cdeb7a279fc05b6ece4fd8e28eb918258"
+      "bytes": 22200,
+      "sha256": "d6cc0beb8ffd6106791df5deb64c3aa6e331159cfcfcb1d5b7f5184894a2f6fc"
     },
     {
       "path": "result-policy.json",
-      "bytes": 52596,
-      "sha256": "7354bc7c5ab06c9be394facd0e051dd569413b919aede1dcb2eaeec81e1dd214"
+      "bytes": 54603,
+      "sha256": "dd5780594d65feb87567f2481e317273b9af73ac6045be78e82bceb3b5f71f07"
     },
     {
       "path": "setup_diagnostics.py",
@@ -83,23 +128,27 @@
       "sha256": "133c0f539a4c7975e8cea50f68d252ec3add9aac3d28c93dbe8e8bef30fa4082"
     },
     {
+      "path": "test_accept_case.py",
+      "bytes": 2340,
+      "sha256": "1522124c16b12c1888de856a41552229e9730c831767040327917fbe63fd277e"
+    },
+    {
       "path": "test_docker_envelope.py",
-      "bytes": 24247,
-      "sha256": "bc787232907469fc0581983bffc91ec58082e88bab7612b842faa1b059a468a1"
+      "bytes": 27821,
+      "sha256": "6f1b9b7b88911ba007b096d78e63999f1026626cb18626fa576d5fa72561435f"
     },
     {
       "path": "verification.json",
-      "bytes": 5280,
-      "sha256": "d384052b54a0c544f0cf43a712c7cccca0ce69829b01272c15c73c0fbe80ac9b"
+      "bytes": 8283,
+      "sha256": "3f6c018286c8ef9026b8ba64e0ecfa177135617932837e4b780032d6dbeb289f"
     }
   ],
-  "activation": {
-    "jobs": [
-      "one-case",
-      "r127-component"
-    ],
-    "controlsRunId": 40046487079,
-    "measurements": "UNRUN",
-    "acceptance": "OPEN"
+  "publicationBaseManifestSha256": "ab64ca23397fed6d976916de9d14ab0046541a8146e4ac99814d5215a28041a5",
+  "hostAcceptance": {
+    "r124": true,
+    "r130": true,
+    "r125": "existing-packet-predicate",
+    "newControlsPassed": 7,
+    "old55ControlsReused": true
   }
 }

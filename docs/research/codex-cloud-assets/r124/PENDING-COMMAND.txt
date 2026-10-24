@@ -1,0 +1,14 @@
+PENDING ONLY. Root validates docker-hard-2cpu-6g-v1 controls and merges result-policy.additions.json before executing the workload. No Docker/application runtime was invoked in source review.
+
+Remote host controller command (ROOT supplies exact verified public paths/commit and fresh owned output):
+python CONTAINER_RUNNER/docker_envelope.py --source PUBLIC_SOURCE --harness REVIEWED_PUBLIC_HARNESS --deps VERIFIED_PUBLIC_DEPS --node VERIFIED_NODE --output FRESH_OWNED_OUTPUT --harness-commit REVIEWED_PUBLIC_HARNESS_COMMIT --entrypoint docs/research/codex-cloud-assets/r124/entry.mjs --mode component --control none --seconds 300 --execute --remote-only-ack remote-disposable-public
+
+Use the shared pinned image and controller rather than an independently assembled docker run. Shared controls require aggregate CPU2/memory6GiB/no swap, two-CPU affinity (this harness admits0-1), PID512, nonroot user, init, no network, read-only root and /source,/harness,/deps,/runtime/node; only owned /scratch writable. Each arm Node heap4096MiB; exact Node24.19.0 executable SHA256 bc17c508ffeed0ec622934f9b7fa72f8e78da65350e63c3eceb56fa688aa5e12. No Python/git/browser runtime dependency inside the image.
+
+Outer controller wall ceiling300s includes its bounded stop/kill/removal reserve (15s); independent inside watchdog is seconds-18. It must confirm exact owned container stopped/Pid0/removed and no OOM/pids failure. A timeout/nonzero exit/unknown cleanup fails even if a partial artifact exists. Preserve outer resource/cleanup/exit evidence independently.
+
+entry.mjs writes allowlisted raw FD3 JSON stages; it does not require process.send. Supervisor alone creates child fd3 IPC, clears inherited PERF_STAGE_FD and NODE_PATH, sends immutable baseline vectors to candidate and compares before the next case. Public /scratch/case-result.json is compact status correct/failed; full vectors/stages/diagnostics are retained separately in /scratch/r124-full-result.json and arm directories. Root merges the minimal policy additions; no shared policy was changed here.
+
+Original R124 prep245.695848002s exceeded240s by5.695848002s, whole turn340.784s. R128 export whole turn221.564s exceeded requested120s by101.564s (no export-only timer). R115 root-Z guard remains FAILED and candidate UNRUN. Runtime/conformance/performance remain UNRUN.
+
+Publication mounts the FULL public Git export at /harness. Packet files live under docs/research/codex-cloud-assets/r124/; all asset reads/imports resolve from import.meta.url. Packet manifest hash is r124PacketManifestSha256, independent of the host whole-Git harness manifest.

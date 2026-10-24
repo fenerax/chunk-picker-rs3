@@ -1,0 +1,36 @@
+PREPARED ONLY. No Docker, browser, provider or application run occurred here.
+
+Publish the complete derived folder as docs/research/codex-cloud-assets/r125/ in the isolated public asset
+branch. Preserve its original payload/provenance files; install the sparse
+result-policy-additions.json union into the current shared runner policy before
+publishing the runner. Never overwrite concurrent policy additions.
+
+Use the root wrapper and its exact-owned-container cleanup, not the retained
+pending-command.sh/docker-hard-entry.py. Those two files are provenance only.
+
+After root image/envelope admission and public archive receipt verification:
+
+python3 "$RUNNER/docker_envelope.py" \
+  --source "$PUBLIC_SOURCE" \
+  --harness "$PUBLIC_ASSET_TREE" --harness-commit "$ASSET_COMMIT" \
+  --deps "$PINNED_DEPS" --node "$PINNED_NODE" \
+  --output "$FRESH_R125_OUTPUT" \
+  --entrypoint docs/research/codex-cloud-assets/r125/case-entry.mjs \
+  --mode browser --seconds 215 \
+  --execute --remote-only-ack remote-disposable-public
+
+The relative entry folder may be renamed with the published asset layout;
+controller dependencies are resolved beside the entry, under /harness.
+Input/output paths and the asset commit are root-resolved values, not literal
+placeholder strings to execute. The wrapper pins the image and Node24.19,
+Playwright1.62.1/Chromium151 revision1234; no alternate runtime cohort is allowed.
+
+Functional acceptance requires focusAccepted(final) from focus-core.mjs (or the
+accept-focus-result.mjs CLI) after the actual inside AND host projections and
+independent exact-container wait/inspect/Pid0/removal. Outer passed alone can
+represent infrastructure success with a failed case. All other native cases
+and all SLOs remain OPEN even after this one case passes.
+
+Do not recursively publish /scratch: native-private.log and any failed fixture
+stores remain private owned diagnostics. Public result collection is limited
+to the closed case/envelope/final JSON and the runner's projected journals.

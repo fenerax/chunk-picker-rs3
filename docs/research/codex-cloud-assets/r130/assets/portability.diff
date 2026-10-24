@@ -1,0 +1,12 @@
+--- exact-r114-driver.mjs
++++ portable-driver.mjs
+@@ -18,8 +18,7 @@
+ console.log(JSON.stringify({phase:'R114-execution-context',pid:process.pid,procSelfPidMatch:Number(ownStat.split(' ',1)[0])===process.pid,namespace:await readlink('/proc/self/ns/pid'),allowedCPUList:status.split('\n').find(line=>line.startsWith('Cpus_allowed_list:')).split(':')[1].trim(),kernel:(await import('node:os')).release(),caps:await Promise.all(['cpu.max','memory.max','cpuset.cpus.effective'].map(async name=>[name,await readFile('/sys/fs/cgroup/'+name,'utf8').catch(()=> 'missing')])),bootIdSha256:createHash('sha256').update(await readFile('/proc/sys/kernel/random/boot_id')).digest('hex')}));
+ assert.equal(Number(ownStat.split(' ',1)[0]),process.pid);
+ 
+-if(process.env.R92_NATIVE_GO!=='root-reviewed-functional')throw Error('UNRUN: exact ready command still requires root GO');
+-const guard=await readFile(root+'sdk/guard-candidate.py');assert.equal(createHash('sha256').update(guard).digest('hex'),'e97cbbe394ef0d50a90b988a0f9f52eccf05651f4f6334188c63c65c020b452e');
++assert.equal(process.env.R130_DOCKER_PROFILE,'docker-hard-2cpu-6g-v1','pending validated outer wrapper profile required');
+ const [arm,mode,maskText,flavour='authored']=process.argv.slice(2),mask=Number(maskText);
+ assert.ok(['B','C'].includes(arm));assert.ok(['thread','process'].includes(mode));assert.ok(Number.isInteger(mask)&&mask>=0&&mask<16);assert.ok(['authored','normal-http'].includes(flavour));
+ const expected=admit(arm,mode,mask,flavour);

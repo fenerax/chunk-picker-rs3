@@ -1,0 +1,165 @@
+{
+  "schema": "r125-compatible-source-manifest-v1",
+  "protocol": "docker-hard-2cpu-6g-v1",
+  "runtime": "UNRUN",
+  "originalZipSHA256": "045d88acfb2d1a4e9b93ef33394af7b9b9fe5d520083bfeb465048e6f7c48590",
+  "originalBundleManifestSHA256": "f1d3cefe9cf0eaec850f3fd41e4ef6432555f153deaf80e478e7fb88d432b198",
+  "sourcePin": "6f22fefa782747790e2eaefa01e4e5ea7b557323",
+  "sourceTreeDigest": {
+    "files": 1928,
+    "sha256": "94051a5c74f8890e9f101195c31ecc605ac991c381a1cc18e58c6390b19d0b51"
+  },
+  "entrypoint": "docs/research/codex-cloud-assets/r125/case-entry.mjs",
+  "runtimeFiles": {
+    "case-entry.mjs": {
+      "bytes": 3600,
+      "sha256": "bfee0ae71080ca0e09abc2900874695f45422e7e98d059c29acc0d6bec0d19b0"
+    },
+    "focus-controller.mjs": {
+      "bytes": 11239,
+      "sha256": "df5cd5191708c72332a73d7d9d10d865598da91155bf4e19dbf3a5cc6215df6e"
+    },
+    "focus-core.mjs": {
+      "bytes": 16855,
+      "sha256": "9d51b6758283fd61f5d5abf47bcdd21c33393a773bfe3599080ff3ec3ce121b8"
+    },
+    "accept-focus-result.mjs": {
+      "bytes": 1001,
+      "sha256": "5c12ac4c566ee13fbca3afdf8e2587a9328c5ab0e839b9f3eeabf962110dd3fd"
+    },
+    "result-policy-additions.json": {
+      "bytes": 1184,
+      "sha256": "b0b18ca7b93cc089d63584308924cfafc3baf39cebee387a44a3b02fb63d33bf"
+    }
+  },
+  "unchangedOriginalPayload": {
+    "tests/task-focus-native.fixture.mjs": {
+      "bytes": 6813,
+      "sha256": "63e3b8049c34b391b8ee6d11c5371a7abc4b639e9893bd793f79d2e40d46ccd0"
+    },
+    "tests/task-focus-native.launch.py": {
+      "bytes": 7916,
+      "sha256": "dc8452cfb5d7a9a262a502ccf72fa9ac7e2e2d61611f68b9003d106e43d8f614"
+    },
+    "tests/task-focus-native.lifecycle.mjs": {
+      "bytes": 4219,
+      "sha256": "78113059acec15ade229b3343623c72242df3da1e0f7d6b3602f5ab9c33831bd"
+    },
+    "tests/task-focus-native.manifest.json": {
+      "bytes": 2037,
+      "sha256": "0a73afa70251d031839c49c70a07d0705251d86bb062f67e1c19b2868326988f"
+    },
+    "tests/task-focus-native.observers.mjs": {
+      "bytes": 16350,
+      "sha256": "b326cb1d264622ba5a5e4e4b2802e1c12cd301099d96454e1d34b8ee09ddc0b3"
+    },
+    "tests/task-focus-native.test.mjs": {
+      "bytes": 14720,
+      "sha256": "5bf5d8cbe244ebcce6bf1ed2ecddd25d5e29de91519f5fa8567cf2aa797bb147"
+    },
+    "candidate/production.patch": {
+      "bytes": 17065,
+      "sha256": "a9f23f6a67af9d5f8cc6bf7a1873b5f3781d492db35a27f5d1e7d724701b8c8f"
+    },
+    "docker-hard-entry.py": {
+      "bytes": 9440,
+      "sha256": "416df8a0682f5ba3f62dc918b3bd5fb1d12b51769e659207e5308d54a324b513"
+    },
+    "pending-command.sh": {
+      "bytes": 1818,
+      "sha256": "e0121cce03bf752886339d8b04d41bb562d619e9cb56987f316b52d322c03f7b"
+    }
+  },
+  "dependencies": {
+    "node": "v24.19.0",
+    "playwright": "1.62.1",
+    "chromium": "151.0.7922.34",
+    "revision": "1234",
+    "browserRoot": "/ms-playwright",
+    "pythonInsideRequired": false,
+    "gitInsideRequired": false
+  },
+  "bounds": {
+    "selectedTestSeconds": 150,
+    "controllerWholeSeconds": 180,
+    "entrySoftStopSeconds": 184,
+    "entryHardDrainSeconds": 189,
+    "wrapperSeconds": 215,
+    "pureControlJobMiB": 256,
+    "pureControlWallSeconds": 15
+  },
+  "remainingGates": [
+    "root-policy-merge",
+    "image-and-envelope-admission",
+    "native-first-case",
+    "independent-container-removal",
+    "all-other-native-cases",
+    "all-SLOs"
+  ],
+  "publicationFiles": {
+    "accept-focus-result.mjs": {
+      "bytes": 1001,
+      "sha256": "5c12ac4c566ee13fbca3afdf8e2587a9328c5ab0e839b9f3eeabf962110dd3fd"
+    },
+    "bundle-manifest.json": {
+      "bytes": 4119,
+      "sha256": "f1d3cefe9cf0eaec850f3fd41e4ef6432555f153deaf80e478e7fb88d432b198"
+    },
+    "candidate/production.patch": {
+      "bytes": 17065,
+      "sha256": "a9f23f6a67af9d5f8cc6bf7a1873b5f3781d492db35a27f5d1e7d724701b8c8f"
+    },
+    "case-entry.mjs": {
+      "bytes": 3600,
+      "sha256": "bfee0ae71080ca0e09abc2900874695f45422e7e98d059c29acc0d6bec0d19b0"
+    },
+    "docker-hard-entry.py": {
+      "bytes": 9440,
+      "sha256": "416df8a0682f5ba3f62dc918b3bd5fb1d12b51769e659207e5308d54a324b513"
+    },
+    "focus-controller.mjs": {
+      "bytes": 11239,
+      "sha256": "df5cd5191708c72332a73d7d9d10d865598da91155bf4e19dbf3a5cc6215df6e"
+    },
+    "focus-core.mjs": {
+      "bytes": 16855,
+      "sha256": "9d51b6758283fd61f5d5abf47bcdd21c33393a773bfe3599080ff3ec3ce121b8"
+    },
+    "pending-command.sh": {
+      "bytes": 1818,
+      "sha256": "e0121cce03bf752886339d8b04d41bb562d619e9cb56987f316b52d322c03f7b"
+    },
+    "PENDING-COMMAND.txt": {
+      "bytes": 2006,
+      "sha256": "49278acb9863058ed239d51e7e6b9438ae4c1f95745f2b99c006a45c88d38a57"
+    },
+    "result-policy-additions.json": {
+      "bytes": 1184,
+      "sha256": "b0b18ca7b93cc089d63584308924cfafc3baf39cebee387a44a3b02fb63d33bf"
+    },
+    "tests/task-focus-native.fixture.mjs": {
+      "bytes": 6813,
+      "sha256": "63e3b8049c34b391b8ee6d11c5371a7abc4b639e9893bd793f79d2e40d46ccd0"
+    },
+    "tests/task-focus-native.launch.py": {
+      "bytes": 7916,
+      "sha256": "dc8452cfb5d7a9a262a502ccf72fa9ac7e2e2d61611f68b9003d106e43d8f614"
+    },
+    "tests/task-focus-native.lifecycle.mjs": {
+      "bytes": 4219,
+      "sha256": "78113059acec15ade229b3343623c72242df3da1e0f7d6b3602f5ab9c33831bd"
+    },
+    "tests/task-focus-native.manifest.json": {
+      "bytes": 2037,
+      "sha256": "0a73afa70251d031839c49c70a07d0705251d86bb062f67e1c19b2868326988f"
+    },
+    "tests/task-focus-native.observers.mjs": {
+      "bytes": 16350,
+      "sha256": "b326cb1d264622ba5a5e4e4b2802e1c12cd301099d96454e1d34b8ee09ddc0b3"
+    },
+    "tests/task-focus-native.test.mjs": {
+      "bytes": 14720,
+      "sha256": "5bf5d8cbe244ebcce6bf1ed2ecddd25d5e29de91519f5fa8567cf2aa797bb147"
+    }
+  }
+}

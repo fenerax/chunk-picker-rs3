@@ -1,0 +1,88 @@
+{
+  "assets": {
+    "decoder-preload.mjs": "eb97038b627a4b1c7d72ee6e20c2c7c741992f3f21811d355393242c4e9d2841",
+    "exact-r114-driver.mjs": "f0030bb006397b0078853af20cd326b3819315a3092b35abaddb1757391cce32",
+    "extract.mjs": "ef295698ebc0398aa941bd592a3f8c29d4e689298d163b1afb6cae4f8095087d",
+    "portability.diff": "21aa9288cbc990e556b626b573a3e68075672d262386f70f3a39f014a62759f7",
+    "portable-driver.mjs": "b0db8c6e5e063f214df4686204676669ccb087c9eeccbc768f0c957a26c58f27",
+    "r104-generations.mjs": "db34cee07730cbf9f8e1f395906009d4a9f7c91f462294e3d45549cb14e32c10",
+    "r114-modes.mjs": "7ab6cc91bc974850b2b25761c203f2cf23d03f3a659851b7448023cdd70abe13",
+    "r49-production-v2.patch": "de1710639fdf88a57d6d7d945c310c89e06dc99635dbbb7898c33e963a572c9a"
+  },
+  "baselineCore": {
+    "app/dataset-pipeline.mjs": "a84b3bea39ce5198ae55855a79da5085fa389870c05a5fe44a835850092daa2f",
+    "app/dataset-runtime.mjs": "cceb3f3a3bcd2d14f8ac412188929c47c44c155320230818f3227e01d0231000",
+    "app/server.mjs": "5edc544473fe98ba1bdf42deaf8cceccbea9db5fa9f42d51daa111f3eb9ceb25",
+    "app/tasks/engine.mjs": "3d6e7e1d177b1bfa35c102911f119d1fe6af7d7e01dab758af41840a8a544a20",
+    "app/tasks/process-worker-host.mjs": "9e5abde6c15efe0650147ffb88cd9209ca7714789a98220b3f2375d36a833a72",
+    "app/tasks/process-worker-transport.mjs": "e528ccac284956f5f2c0ffa12db4e4a5ea8101c3c775761bd2adb5fe631f10a5",
+    "app/tasks/process-worker.mjs": "eda5b9f499a879072eef69b0c0d71eabc6b1e5384c1ebf0d90c71e0058d11a7a",
+    "app/tasks/scheduler.mjs": "1e2e309cee05f64c8886cf1e08fd10d7d8d7631f63c4bb0d93bd1eb5d828b81b",
+    "app/tasks/worker.mjs": "f0deaa35cb61e864a4e162afa00b8afa7926911b471ea463383bf315e186170e",
+    "package.json": "74c30ad00c8a18d075c856cfaa89d5b85c04c57c2df207e3e2eaf036f042fb2f"
+  },
+  "candidateCore": {
+    "app/dataset-pipeline.mjs": "a84b3bea39ce5198ae55855a79da5085fa389870c05a5fe44a835850092daa2f",
+    "app/dataset-runtime.mjs": "cceb3f3a3bcd2d14f8ac412188929c47c44c155320230818f3227e01d0231000",
+    "app/server.mjs": "77e37222c77bb3eeaf56e0b93f5b3d34d8fb48deef3e93aa331dcfc1b1603329",
+    "app/tasks/engine.mjs": "3d6e7e1d177b1bfa35c102911f119d1fe6af7d7e01dab758af41840a8a544a20",
+    "app/tasks/process-worker-host.mjs": "9e5abde6c15efe0650147ffb88cd9209ca7714789a98220b3f2375d36a833a72",
+    "app/tasks/process-worker-transport.mjs": "e528ccac284956f5f2c0ffa12db4e4a5ea8101c3c775761bd2adb5fe631f10a5",
+    "app/tasks/process-worker.mjs": "eda5b9f499a879072eef69b0c0d71eabc6b1e5384c1ebf0d90c71e0058d11a7a",
+    "app/tasks/scheduler.mjs": "1e2e309cee05f64c8886cf1e08fd10d7d8d7631f63c4bb0d93bd1eb5d828b81b",
+    "app/tasks/worker.mjs": "ac1c2603ea7ec759d0dd1a64abfe60c32c9f6bf69de21996cdcbe14c060f1e66",
+    "package.json": "74c30ad00c8a18d075c856cfaa89d5b85c04c57c2df207e3e2eaf036f042fb2f"
+  },
+  "clarification": "Entry raw FD3 stages; child own IPC fd3 and PERF_STAGE_FD cleared. Exact original two-task fixture, not full94.",
+  "controls": {
+    "directNamedTests": 3,
+    "localNode": "v24.20.0",
+    "runtime": "UNRUN",
+    "targetNode": "v24.19.0"
+  },
+  "derivation": {
+    "changes": [
+      "entry wrapper fixed env admission",
+      "known NODE_PATH validated then cleared",
+      "strict Node exact-context R49 patch application in scratch only",
+      "closed correct/failed public receipt and separate full report",
+      "import-meta-relative full-public-tree paths",
+      "pure patch admission controls"
+    ],
+    "originalNativeDriverAndHelpersUnchanged": true,
+    "originalZipSha256": "fce9b8f7c756edee764d2207c2db968bd6f66f9d73e66b56de9eae005fc2cfdd",
+    "runtime": "UNRUN"
+  },
+  "fixture": {
+    "chunks": 2,
+    "datasetDigest": "f129828c58260ba4894f2cb6ed7287c07c8f5360cb8d0a1716a5f26ddb9dfbc0",
+    "datasetId": "open-f2p",
+    "questTasks": 2,
+    "sha256": "e46b59151a55bfaf5101f6f542118c1a8e4b860f5eed6b8dd34ab3ad436a465c"
+  },
+  "historicalTrials": {
+    "R104": "native PASS; original guard PASS",
+    "R114": "native UNRUN; missing parent guard startup failure",
+    "R118": "native incomplete; guard ProcessLookupError; PID1806 zombie under PID1, complete drain unproved; exact store/binding scoped cleanup completed"
+  },
+  "publicHarnessFiles": {
+    "README.txt": "fa4f95fb3ecd03b57241616441f824f07db6a2276529c56cac19e1fd17d463d5",
+    "assets/decoder-preload.mjs": "eb97038b627a4b1c7d72ee6e20c2c7c741992f3f21811d355393242c4e9d2841",
+    "assets/exact-r114-driver.mjs": "f0030bb006397b0078853af20cd326b3819315a3092b35abaddb1757391cce32",
+    "assets/extract.mjs": "ef295698ebc0398aa941bd592a3f8c29d4e689298d163b1afb6cae4f8095087d",
+    "assets/portability.diff": "21aa9288cbc990e556b626b573a3e68075672d262386f70f3a39f014a62759f7",
+    "assets/portable-driver.mjs": "b0db8c6e5e063f214df4686204676669ccb087c9eeccbc768f0c957a26c58f27",
+    "assets/r104-generations.mjs": "db34cee07730cbf9f8e1f395906009d4a9f7c91f462294e3d45549cb14e32c10",
+    "assets/r114-modes.mjs": "7ab6cc91bc974850b2b25761c203f2cf23d03f3a659851b7448023cdd70abe13",
+    "assets/r49-production-v2.patch": "de1710639fdf88a57d6d7d945c310c89e06dc99635dbbb7898c33e963a572c9a",
+    "child-entry.mjs": "af77af76fdbf9bba39ed5b5610e38204442af68d8c3a55cfb0c3685142a27262",
+    "controls.test.mjs": "75714abb9ff0b8e687711a343635bfd0e795c23593472cf3122550d66126dbc7",
+    "entry.mjs": "d1e4fa48ae77c5ad86efa4e7581b3dc1fd1aef6ca165b7e68c030f777a3dffb0",
+    "pending-cli.json": "53f8e459b84f3421b7ee36d263d50f32540cc6e4d98587ce209cb2e920ab5e6c",
+    "result-policy.mjs": "3f0b83d6a3571a726e53da2385f61efcb6589ba17a17c20168b7ad355ca0cdf5",
+    "strict-patch.mjs": "a613beb645d133132c8435c1f83b3d56a944c104679e48e31d4e8a67f3171b11"
+  },
+  "schema": "r130-public-source-manifest-derived-v1",
+  "sourceFullManifestSha256": "732012619dc8296ab2223a3170ab9a0be2ce189bc1bb73dcb27f78acca3f7c34",
+  "sourceRevision": "6f22fefa782747790e2eaefa01e4e5ea7b557323"
+}

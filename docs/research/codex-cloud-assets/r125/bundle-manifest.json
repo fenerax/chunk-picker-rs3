@@ -1,0 +1,95 @@
+{
+  "protocol": "docker-hard-2cpu-6g-v1",
+  "runtime": "UNRUN",
+  "publicPin": "6f22fefa782747790e2eaefa01e4e5ea7b557323",
+  "publicArchiveSHA256": "d49c13a037316de674857acab52dbefa2ffef2d165957ba54487fe01547c7b82",
+  "publicTreeRoot": "/workspace/R99-focus-first-native/clean-base",
+  "publicSourceTreeDigest": {
+    "files": 1928,
+    "sha256": "94051a5c74f8890e9f101195c31ecc605ac991c381a1cc18e58c6390b19d0b51"
+  },
+  "digestAlgorithm": "sorted relative POSIX path UTF8 + NUL + raw32byte SHA256 for each regular file; ignore .git only; reject symlinks",
+  "r109PatchSHA256": "d2c48b26655b4bcd746e56741fca3849cee0028d8001f054b9c930a1ed4cc825",
+  "r109InstalledFiles": [
+    "tests/task-focus-native.fixture.mjs",
+    "tests/task-focus-native.launch.py",
+    "tests/task-focus-native.lifecycle.mjs",
+    "tests/task-focus-native.manifest.json",
+    "tests/task-focus-native.observers.mjs",
+    "tests/task-focus-native.test.mjs"
+  ],
+  "candidateApplicationFiles": {
+    "app/web/screen-loading.mjs": "aac839576ef212bd22af38420f08befcc3dc483f4f9db132fa947b6c9534b1cf",
+    "app/web/screen-tasks.mjs": "572b08f701847bb9ea24d41023a2af972492ff8fe95730b159259995c7ff79e1",
+    "app/web/screen-task-focus.mjs": "48f2dcc35a6812ee478d4655dc9c69c2e0c8c1b00d2b4e1242229279012b96ad",
+    "app/web/duo-task-view.mjs": "47fa0707e6f099613078b1e4a5229dccd4270eb42c4d998c737258029193ab3b",
+    "app/server.mjs": "934fe6bb5c3d8058cfdd9ba924bd926eddf3f03b7f042fe324f6808391153bd3"
+  },
+  "payload": {
+    "tests/task-focus-native.fixture.mjs": {
+      "bytes": 6813,
+      "sha256": "63e3b8049c34b391b8ee6d11c5371a7abc4b639e9893bd793f79d2e40d46ccd0"
+    },
+    "tests/task-focus-native.launch.py": {
+      "bytes": 7916,
+      "sha256": "dc8452cfb5d7a9a262a502ccf72fa9ac7e2e2d61611f68b9003d106e43d8f614"
+    },
+    "tests/task-focus-native.lifecycle.mjs": {
+      "bytes": 4219,
+      "sha256": "78113059acec15ade229b3343623c72242df3da1e0f7d6b3602f5ab9c33831bd"
+    },
+    "tests/task-focus-native.manifest.json": {
+      "bytes": 2037,
+      "sha256": "0a73afa70251d031839c49c70a07d0705251d86bb062f67e1c19b2868326988f"
+    },
+    "tests/task-focus-native.observers.mjs": {
+      "bytes": 16350,
+      "sha256": "b326cb1d264622ba5a5e4e4b2802e1c12cd301099d96454e1d34b8ee09ddc0b3"
+    },
+    "tests/task-focus-native.test.mjs": {
+      "bytes": 14720,
+      "sha256": "5bf5d8cbe244ebcce6bf1ed2ecddd25d5e29de91519f5fa8567cf2aa797bb147"
+    },
+    "candidate/production.patch": {
+      "bytes": 17065,
+      "sha256": "a9f23f6a67af9d5f8cc6bf7a1873b5f3781d492db35a27f5d1e7d724701b8c8f"
+    },
+    "docker-hard-entry.py": {
+      "bytes": 9440,
+      "sha256": "416df8a0682f5ba3f62dc918b3bd5fb1d12b51769e659207e5308d54a324b513"
+    },
+    "pending-command.sh": {
+      "bytes": 1818,
+      "sha256": "e0121cce03bf752886339d8b04d41bb562d619e9cb56987f316b52d322c03f7b"
+    }
+  },
+  "firstCase": "native later-page focus across held ack: group=false, owner=alpha",
+  "bounds": {
+    "testSeconds": 150,
+    "controllerSeconds": 180,
+    "termKillSeconds": 2,
+    "outerContainerSeconds": 215,
+    "CPU": 2,
+    "memoryBytes": 6442450944,
+    "memoryPlusSwapBytes": 6442450944,
+    "heapMiB": 768
+  },
+  "runtimePins": {
+    "node": "24.19.0",
+    "playwright": "1.62.1",
+    "chromium": "151.0.7922.34",
+    "revision": "1234",
+    "imageDigest": "PENDING_ROOT_ADMISSION"
+  },
+  "limits": [
+    "new protocol; no e97 invocation/modification",
+    "R109 launch.py retained provenance only, never invoked",
+    "original source readonly, candidate applied only in fresh scratch",
+    "instrumented functional race, no timing pooling with Chromium154",
+    "missing8ms branch or witness fails coverage; no artificial work or retries",
+    "container drain requires independent external receipt; no process-exit inference",
+    "sanitized case-result excludes natural bodies, request IDs, fixture stores and raw logs",
+    "no semantic changes to R109 six installed files; only new portable entrypoint/command"
+  ],
+  "partialAuthoredChanges": "new portable entrypoint and pending container command only; no production or R109 semantic revision"
+}
