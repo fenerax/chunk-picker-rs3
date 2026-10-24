@@ -1,15 +1,14 @@
 {
   "schema": "container-runner-preparation-verification-v1",
   "date": "2026-10-23",
-  "readiness": "SIX_CHANGED_CASES_AUTHORIZED_UNRUN",
+  "readiness": "R131_ENTRY_CLOSURE_TARGETED_RETRY_UNRUN",
   "assetBaseCommit": "7ad315acd39223df3b4d2304e295ef5c017dfe17",
   "pureTests": {
-    "pythonCommand": "python -B -m unittest -q test_accept_case.py test_docker_envelope.py test_projection_integration.py test_r111_vector_policy.py test_scoped_session.py test_performance_projection.py",
-    "pythonPassed": 116,
-    "nodeCommand": "node --max-old-space-size=128 --test test_accept_performance.mjs",
-    "nodePassed": 10,
-    "passed": 126,
-    "failed": 0
+    "pythonPassed": 121,
+    "nodePassedReusedUnchanged": 10,
+    "passed": 131,
+    "failed": 0,
+    "newClosureControls": 5
   },
   "subsequentPublishedTrial": {
     "commit": "ecdda6af916d56f533c9517ef7d221a984f47295",
@@ -92,7 +91,7 @@
     "missingWorkflowNegative": "failed with exactly two fixed test IDs and input-missing class",
     "diagnosisEvidence": "control-run-40044649892-diagnosis.json"
   },
-  "priorManifestSha256": "80fadbe29659a835ccaeeaa703014dee2085ef01877b0e180104a400bdbba6e4",
+  "priorManifestSha256": "d52e8f2f48c427221438a863e6ee84eff346d91169a46a860f1b36c693b90046",
   "runnerRevision": "docker-pinned-image-env-v3",
   "latestPublishedTrial": {
     "commit": "0cd14471af591e40d339aa86b39e1a7da3bd5337",
@@ -250,82 +249,22 @@
   "activation": {
     "authorizedBy": "root",
     "enabledJobs": [
-      "one-case",
-      "r125-focus",
-      "r131-native",
-      "r111-scoped-soak",
-      "r134-engine-performance",
-      "r135-codec-http"
+      "r131-native"
     ],
     "disabledFutureJobs": [
+      "one-case",
+      "r125-focus",
+      "r111-scoped-soak",
+      "r134-engine-performance",
+      "r135-codec-http",
       "r124-engine",
       "r130-codec",
       "r127-component"
     ],
     "needsControlsRetained": true,
     "cases": "UNRUN",
-    "r111JobScope": "SCOPED observation only",
-    "r111FullAcceptance": false,
-    "r111ProductSLOGates": "OPEN",
-    "r111TimeoutMinutes": 40,
     "perCommitConcurrency": true,
-    "cancelInProgress": false,
-    "exactCliReceipts": [
-      {
-        "entrypoint": "docs/research/codex-cloud-capture/run-frozen-browser.mjs",
-        "mode": "browser",
-        "seconds": 540,
-        "commandSha256": "b163b5af67d87d6858f05471595ffa95ce54e26c20c434d9ab728cde684c8613"
-      },
-      {
-        "entrypoint": "docs/research/codex-cloud-assets/r127/container-entry.mjs",
-        "mode": "component",
-        "seconds": 240,
-        "commandSha256": "a8e478699ccd74c4f5a9867a212dc2e2e782792bfc1fe4ab9723a556ac10a0b2"
-      },
-      {
-        "entrypoint": "docs/research/codex-cloud-assets/r124/entry.mjs",
-        "mode": "component",
-        "seconds": 300,
-        "commandSha256": "98dfc96f4dddcd6ff6cb5612729e99b4a8f522203292676cc2d08e37e15d6ded"
-      },
-      {
-        "entrypoint": "docs/research/codex-cloud-assets/r125/case-entry.mjs",
-        "mode": "browser",
-        "seconds": 215,
-        "commandSha256": "ca4a2288759712230abcc8107dd1947a1e1c9c94c5fbe747c11ca16ec0ece211"
-      },
-      {
-        "entrypoint": "docs/research/codex-cloud-assets/r130/entry.mjs",
-        "mode": "native",
-        "seconds": 120,
-        "commandSha256": "566df64a1ca131254586deead19a322950eb9c2c604d1abc6b01b2134542ff98"
-      },
-      {
-        "entrypoint": "docs/research/codex-cloud-assets/r131-diagnostic-v2/entry.mjs",
-        "mode": "native",
-        "seconds": 180,
-        "commandSha256": "a925ddb2655722fac84ff67b49ed0379b5c1162110329bcd3d5b760678c0bfaa"
-      },
-      {
-        "entrypoint": "docs/research/codex-cloud-assets/r111/candidate/harness/run-container-session.mjs",
-        "mode": "soak",
-        "seconds": 2000,
-        "commandSha256": "f6eb99ecfbfd9fade5ae15e435edfc3409a0cb362a014910f8a1029d52fccfa2"
-      },
-      {
-        "entrypoint": "docs/research/codex-cloud-assets/r134/entry.mjs",
-        "mode": "component",
-        "seconds": 900,
-        "commandSha256": "48dcbabfa377092ad59c1a4e090c9215310a752488c98afca8a5bbc8e7c05738"
-      },
-      {
-        "entrypoint": "docs/research/codex-cloud-assets/r135/entry.mjs",
-        "mode": "native",
-        "seconds": 1200,
-        "commandSha256": "e36ca27682a0a871c87b48c75142c60412a141795cf1ff75dc0ad49b88d907f5"
-      }
-    ]
+    "cancelInProgress": false
   },
   "strictBothSanitizers": {
     "r111VectorsAtomic": true,
@@ -452,5 +391,25 @@
     "closedFirstFailureDiagnosticsBothSanitizers": true,
     "newPrivacyAndPublicationPreflight": "ROOT_PENDING",
     "productSLOGates": "OPEN"
+  },
+  "entryClosureCorrection": {
+    "schema": "r131-entry-closure-correction-v1",
+    "publicationBaseCommit": "670aa961442db44b6212bd1dd7cc700f3b59fda3",
+    "priorTrialRun": 40052220177,
+    "observedOuterReasonCode": "case-entrypoint-missing",
+    "innerExecutionObserved": false,
+    "wrongEntry": "docs/research/codex-cloud-assets/r131-diagnostic-v2/entry.mjs",
+    "correctEntry": "docs/research/codex-cloud-assets/r131/entry.mjs",
+    "runtimeManifestSha256": "fc3f39f0bb4765ec7074907fc69e8d25401d844e69d6377803cc74a0a342e8c4",
+    "actualAssetMapSha256": "7d11791275549e35b2a86811aece1993e69528b7e288ce883861416a0a9bec5d",
+    "mappedR131Files": 15,
+    "actualAllMappedBytesAndCompleteManifestEntryClosure": "PASS",
+    "immutableFrozenWrongWorkflow": "REJECTED",
+    "missingEntryManifestMemberDuplicateAndChangedBytesControls": "PASS",
+    "controlsBeforeDocker": "verify_case_closure.py against exact exported public harness bytes",
+    "oldFrozenD52ePreserved": true,
+    "resourceAndNativeCriteriaUnchanged": true,
+    "otherCasesNotRetried": true,
+    "runtime": "UNRUN"
   }
 }

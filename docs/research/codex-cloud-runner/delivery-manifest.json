@@ -2,172 +2,69 @@
   "schema": "container-runner-delivery-v1",
   "envelope": "docker-hard-2cpu-6g-v1",
   "runnerRevision": "docker-pinned-image-env-v3",
-  "readiness": "SIX_CHANGED_CASES_AUTHORIZED_UNRUN",
+  "readiness": "R131_ENTRY_CLOSURE_TARGETED_RETRY_UNRUN",
   "sourceCommit": "6f22fefa782747790e2eaefa01e4e5ea7b557323",
   "assetBaseCommit": "7ad315acd39223df3b4d2304e295ef5c017dfe17",
-  "publicationBaseCommit": "55a1cf65402458531dbb9dde02c60ff368cd3a18",
-  "publicationBaseManifestSha256": "80fadbe29659a835ccaeeaa703014dee2085ef01877b0e180104a400bdbba6e4",
-  "publicationBase": "published55a four-case wave; shared80fad",
-  "previousManifestSha256": "80fadbe29659a835ccaeeaa703014dee2085ef01877b0e180104a400bdbba6e4",
+  "publicationBaseCommit": "670aa961442db44b6212bd1dd7cc700f3b59fda3",
+  "publicationBaseManifestSha256": "d52e8f2f48c427221438a863e6ee84eff346d91169a46a860f1b36c693b90046",
+  "previousManifestSha256": "d52e8f2f48c427221438a863e6ee84eff346d91169a46a860f1b36c693b90046",
+  "derivative": "r131-entry-closure-v1",
   "activation": {
     "authorizedBy": "root",
     "enabledJobs": [
-      "one-case",
-      "r125-focus",
-      "r131-native",
-      "r111-scoped-soak",
-      "r134-engine-performance",
-      "r135-codec-http"
+      "r131-native"
     ],
     "disabledFutureJobs": [
+      "one-case",
+      "r125-focus",
+      "r111-scoped-soak",
+      "r134-engine-performance",
+      "r135-codec-http",
       "r124-engine",
       "r130-codec",
       "r127-component"
     ],
     "needsControlsRetained": true,
     "cases": "UNRUN",
-    "r111JobScope": "SCOPED observation only",
-    "r111FullAcceptance": false,
-    "r111ProductSLOGates": "OPEN",
-    "r111TimeoutMinutes": 40,
     "perCommitConcurrency": true,
-    "cancelInProgress": false,
-    "exactCliReceipts": [
-      {
-        "entrypoint": "docs/research/codex-cloud-capture/run-frozen-browser.mjs",
-        "mode": "browser",
-        "seconds": 540,
-        "commandSha256": "b163b5af67d87d6858f05471595ffa95ce54e26c20c434d9ab728cde684c8613"
-      },
-      {
-        "entrypoint": "docs/research/codex-cloud-assets/r127/container-entry.mjs",
-        "mode": "component",
-        "seconds": 240,
-        "commandSha256": "a8e478699ccd74c4f5a9867a212dc2e2e782792bfc1fe4ab9723a556ac10a0b2"
-      },
-      {
-        "entrypoint": "docs/research/codex-cloud-assets/r124/entry.mjs",
-        "mode": "component",
-        "seconds": 300,
-        "commandSha256": "98dfc96f4dddcd6ff6cb5612729e99b4a8f522203292676cc2d08e37e15d6ded"
-      },
-      {
-        "entrypoint": "docs/research/codex-cloud-assets/r125/case-entry.mjs",
-        "mode": "browser",
-        "seconds": 215,
-        "commandSha256": "ca4a2288759712230abcc8107dd1947a1e1c9c94c5fbe747c11ca16ec0ece211"
-      },
-      {
-        "entrypoint": "docs/research/codex-cloud-assets/r130/entry.mjs",
-        "mode": "native",
-        "seconds": 120,
-        "commandSha256": "566df64a1ca131254586deead19a322950eb9c2c604d1abc6b01b2134542ff98"
-      },
-      {
-        "entrypoint": "docs/research/codex-cloud-assets/r131-diagnostic-v2/entry.mjs",
-        "mode": "native",
-        "seconds": 180,
-        "commandSha256": "a925ddb2655722fac84ff67b49ed0379b5c1162110329bcd3d5b760678c0bfaa"
-      },
-      {
-        "entrypoint": "docs/research/codex-cloud-assets/r111/candidate/harness/run-container-session.mjs",
-        "mode": "soak",
-        "seconds": 2000,
-        "commandSha256": "f6eb99ecfbfd9fade5ae15e435edfc3409a0cb362a014910f8a1029d52fccfa2"
-      },
-      {
-        "entrypoint": "docs/research/codex-cloud-assets/r134/entry.mjs",
-        "mode": "component",
-        "seconds": 900,
-        "commandSha256": "48dcbabfa377092ad59c1a4e090c9215310a752488c98afca8a5bbc8e7c05738"
-      },
-      {
-        "entrypoint": "docs/research/codex-cloud-assets/r135/entry.mjs",
-        "mode": "native",
-        "seconds": 1200,
-        "commandSha256": "e36ca27682a0a871c87b48c75142c60412a141795cf1ff75dc0ad49b88d907f5"
-      }
-    ]
+    "cancelInProgress": false
   },
-  "projectionProof": {
-    "pureControlsPassed": 126,
-    "pythonControls": 116,
-    "nodeControls": 10,
-    "exactR111ModuleCopies": true,
-    "jsPythonParity": true,
-    "sourceCaseBytes": 30716,
-    "sourceEnvelopeBytes": 30949,
-    "actualEnvelopeWithExitCodeBytes": 30966,
-    "newMaximumDiagnosticVectorsBelowCap": true,
-    "frameCapBytes": 32768,
-    "r111QualityMinimumBuckets": 110,
-    "r111MaxGapMs": 45000,
-    "r111FullAcceptance": false,
-    "r134All126MetricsRetained": true,
-    "r134ClassificationsRecomputed": true,
-    "r135OptionalWarmMetricsPreserved": true
+  "entryClosureCorrection": {
+    "schema": "r131-entry-closure-correction-v1",
+    "publicationBaseCommit": "670aa961442db44b6212bd1dd7cc700f3b59fda3",
+    "priorTrialRun": 40052220177,
+    "observedOuterReasonCode": "case-entrypoint-missing",
+    "innerExecutionObserved": false,
+    "wrongEntry": "docs/research/codex-cloud-assets/r131-diagnostic-v2/entry.mjs",
+    "correctEntry": "docs/research/codex-cloud-assets/r131/entry.mjs",
+    "runtimeManifestSha256": "fc3f39f0bb4765ec7074907fc69e8d25401d844e69d6377803cc74a0a342e8c4",
+    "actualAssetMapSha256": "7d11791275549e35b2a86811aece1993e69528b7e288ce883861416a0a9bec5d",
+    "mappedR131Files": 15,
+    "actualAllMappedBytesAndCompleteManifestEntryClosure": "PASS",
+    "immutableFrozenWrongWorkflow": "REJECTED",
+    "missingEntryManifestMemberDuplicateAndChangedBytesControls": "PASS",
+    "controlsBeforeDocker": "verify_case_closure.py against exact exported public harness bytes",
+    "oldFrozenD52ePreserved": true,
+    "resourceAndNativeCriteriaUnchanged": true,
+    "otherCasesNotRetried": true,
+    "runtime": "UNRUN"
   },
-  "runtimePackets": [
-    {
-      "case": "r134-diagnostic-v2",
-      "publicationManifest": "../r134-engine-performance-diagnostic-v2/runtime-publication-manifest.json",
-      "publicationManifestSha256": "5f8149d46cc8a6faa2ac66d155b71d4d4e5b7d91947b85dd63bb5c0936ebc020",
-      "fileCount": 13,
-      "runtimeBytes": 390873,
-      "innerManifestSha256": "1e88a8b7318cf1923c443daaded1e1219a9bc5b337e9c7dac88631534f09684d"
-    },
-    {
-      "case": "r135-diagnostic-v2",
-      "publicationManifest": "../r135-codec-http-diagnostic-v2/publication-manifest.json",
-      "publicationManifestSha256": "28be5aa9007eb04dd6cab60a8ee07d74b764a52af16ae5991aba19b93ceb438e",
-      "fileCount": 10,
-      "runtimeBytes": 35994,
-      "innerManifestSha256": "e8a434ab0d89062c0ebf9c1876b1651caefee45054a63e7fc9e81a51c8e343cb"
-    }
-  ],
-  "additionalChangedCases": [
-    {
-      "case": "r116-v3",
-      "publicationManifest": "../r116-summary-diagnostic-v3/runtime-delta-manifest.json",
-      "sha256": "428d75dbfc8a6f4dcb8ad31ecf1d22e399a7596651322bf15ab9e190e124a1fd",
-      "mappedFiles": 3
-    },
-    {
-      "case": "r125-v3",
-      "publicationManifest": "../r125-focus-brand-v3/publication-delta.json",
-      "sha256": "bc14d5109381dcde0d3cc5a9b56d873eb2178646ba34e4e1d68e27dcf9377fa8",
-      "mappedFiles": 3
-    },
-    {
-      "case": "r131-diagnostic-v2",
-      "publicationManifest": "../r131-native-diagnostic-v2/runtime-publication-manifest.json",
-      "sha256": "fc3f39f0bb4765ec7074907fc69e8d25401d844e69d6377803cc74a0a342e8c4",
-      "mappedFiles": 15
-    },
-    {
-      "case": "r111-diagnostic-v2",
-      "publicationManifest": "../r111-container-diagnostic-v2/runtime-publication-manifest.json",
-      "sha256": "92668227e14c8f136d94fdbdee92d26217d50da5f83b4a2233a5fcb983553956",
-      "mappedFiles": 17
-    }
-  ],
-  "resourceCoreUnchanged": true,
+  "pureControls": {
+    "pythonPassed": 121,
+    "nodePassedReusedUnchanged": 10,
+    "passed": 131,
+    "failed": 0,
+    "newClosureControls": 5
+  },
   "allProductAcceptanceGates": "OPEN",
   "changedFiles": [
-    "accept_case.py",
-    "accept_performance.mjs",
-    "accept_scoped_session.py",
-    "performance-source-receipt.json",
+    "case-runtime-closure.json",
     "public-container-envelope.yml",
-    "r134_screen_core.mjs",
-    "README.md",
     "result-policy.json",
-    "test_accept_case.py",
-    "test_accept_performance.mjs",
+    "test_case_closure.py",
     "test_docker_envelope.py",
-    "test_performance_projection.py",
-    "test_scoped_session.py",
-    "verification.json"
+    "verification.json",
+    "verify_case_closure.py"
   ],
   "files": [
     {
@@ -184,6 +81,11 @@
       "path": "accept_scoped_session.py",
       "bytes": 5787,
       "sha256": "f09259ab2f2386d915c81c8c8cbf7d3d155a0c9ce6741dd7ec5baf94bb534982"
+    },
+    {
+      "path": "case-runtime-closure.json",
+      "bytes": 3802,
+      "sha256": "419793063da7af96ca8e71cd812a69682fd79e34548ab754163229ec4c3c9db6"
     },
     {
       "path": "control-run-40044649892-diagnosis.json",
@@ -252,8 +154,8 @@
     },
     {
       "path": "public-container-envelope.yml",
-      "bytes": 42255,
-      "sha256": "929111176af122c994e7c120e99cd9f6a8e6a880d6781be4a0d925291a3d45cb"
+      "bytes": 42675,
+      "sha256": "3d1706814dcd5af3d99f3a1105a8d5b6589b2d3311961db1219398d18fc78b6c"
     },
     {
       "path": "public-metadata-evidence.json",
@@ -292,8 +194,8 @@
     },
     {
       "path": "result-policy.json",
-      "bytes": 94644,
-      "sha256": "457a168e86449c1c98f1217bbea1df247900cf45ea4ce5ba8b5332ac7e59b060"
+      "bytes": 94981,
+      "sha256": "32822cb84b1efe2015cb52be6871b1c673544eadb7c2aa52f38d4e8dc31efd27"
     },
     {
       "path": "setup_diagnostics.py",
@@ -311,9 +213,14 @@
       "sha256": "f7940422b13abbe7699e205c92425d85a9af5d13312239f98e25fd002f54bde8"
     },
     {
+      "path": "test_case_closure.py",
+      "bytes": 3810,
+      "sha256": "6eb58456441ac422f66963f35654d8a66a357dba211c226f990798a753e57709"
+    },
+    {
       "path": "test_docker_envelope.py",
-      "bytes": 30590,
-      "sha256": "8736e7faa174479148b0179ac46bc9ba63643ce403bea49d21defc9422dfe005"
+      "bytes": 30929,
+      "sha256": "38f7f4787575d744c5705156028ee6566d8dcca3d05b038f68beeb2a0949fa04"
     },
     {
       "path": "test_performance_projection.py",
@@ -337,8 +244,13 @@
     },
     {
       "path": "verification.json",
-      "bytes": 16578,
-      "sha256": "bf9a363fc26f682ac2f294fd6df6171c564310c7b14061806aeb2d6b34152a94"
+      "bytes": 15035,
+      "sha256": "f5f23a8803097b7fd694cb9f5cf6921f4fc095f57dcf9d06f193f3bd78b03144"
+    },
+    {
+      "path": "verify_case_closure.py",
+      "bytes": 4608,
+      "sha256": "95351597944b8eaeeaafa27556d7a90a2bee9bf82aa416f387e7b76e409f6f8a"
     }
   ]
 }
