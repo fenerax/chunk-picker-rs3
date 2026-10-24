@@ -1,7 +1,7 @@
 import { openPluginKeys } from './plugin-keys.mjs';
 import { openPluginAchievements } from './plugin-achievements.mjs';
 import { fields, validatePluginReport, pluginProposal, matchPluginAchievements, ACHIEVEMENT_REVIEW_LIMIT } from './integrations/game-plugin.mjs';
-import { pluginTaskRows, pluginTaskList } from './game-plugin-tasks.mjs';
+import { pluginTaskRows, pluginTaskList, pluginTaskFrom } from './game-plugin-tasks.mjs';
 
 const fail = (status, message) => Object.assign(new Error(message), { status });
 const LIFETIME = 10 * 60 * 1000;
@@ -188,7 +188,7 @@ export async function openGamePlugin({ dataDir, store, world, registry, questMap
   }
   function hasActiveKey(player) { return keys.list(player).some(record => !record.revoked); }
   // Reads the saved task list only. A missing list is reported, never calculated.
-  function tasks(player) {
+  function tasks(player, from) {
     member(player);
     const revision = store.getInfo().revision, fresh = savedTasks(player);
     if (fresh?.bytes) retainedTasks.set(player, fresh.bytes);
@@ -202,7 +202,7 @@ export async function openGamePlugin({ dataDir, store, world, registry, questMap
         rows: pluginTaskRows({ state, result: JSON.parse(bytes.toString('utf8')), registry, memberId: player, stale: !current }) };
       taskRows.set(player, cached);
     }
-    return pluginTaskList({ rows: cached.rows, chunkId, stateRevision: revision, stale: cached.stale });
+    return pluginTaskList({ rows: cached.rows, chunkId, stateRevision: revision, stale: cached.stale, from });
   }
   // Other players' last reported chunks, from their own plugins. Never their exact tiles.
   function partners(player) {
@@ -221,7 +221,9 @@ export async function openGamePlugin({ dataDir, store, world, registry, questMap
       }
       const credential = keys.authenticate(request); member(credential.player); rate(credential.id);
       if (request.method !== PLUGIN_ROUTES.get(route)) throw fail(405, 'Method not allowed.');
-      if (new URL(request.url, 'http://localhost').search) throw fail(400, 'Game plugin routes take no query parameters.');
+      // Only the task list takes a query: `from` pages through the whole active list.
+      const search = new URL(request.url, 'http://localhost').search, from = route === '/api/plugin/v1/tasks' ? pluginTaskFrom(search) : search ? null : 0;
+      if (from === null) throw fail(400, route === '/api/plugin/v1/tasks' ? 'The task list takes only a from row number.' : 'Game plugin routes take no query parameters.');
       if (request.method === 'GET' && (Number(request.headers['content-length']) > 0 || request.headers['transfer-encoding'])) {
         throw fail(Number(request.headers['content-length']) > 16384 ? 413 : 400, 'Plugin reads take no body.');
       }
@@ -231,7 +233,7 @@ export async function openGamePlugin({ dataDir, store, world, registry, questMap
       if (request.headers.origin || request.headers['sec-fetch-site'] === 'cross-site') checkRequestOrigin(request, security);
       if (route === '/api/plugin/v1/tasks') {
         // Outside the mutation queue: parsing a saved list must not delay commands.
-        keys.touch(credential.id); await json(request, response, 200, tasks(credential.player)); return true;
+        keys.touch(credential.id); await json(request, response, 200, tasks(credential.player, from)); return true;
       }
       const report = route === '/api/plugin/v1/report' ? validatePluginReport(await bodyJSON(request, 16384)) : null;
       const result = await serializeMutation(async () => {

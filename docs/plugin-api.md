@@ -296,8 +296,10 @@ when that report is older than ten minutes. Exact tiles are never shared.
 
 ## GET /api/plugin/v1/tasks
 
-No body or query parameters. Returns the player's active tasks for the game
-panel, read from the task list the picker last saved for that player:
+No body. One optional query parameter, `from` (a row number, 0 to 999999),
+picks where `all` starts; any other query is refused with 400. Returns the
+player's active tasks for the game panel, read from the task list the picker
+last saved for that player:
 
 ```json
 {
@@ -309,6 +311,7 @@ panel, read from the task list the picker last saved for that player:
   "hereKnown": true,
   "here": [{ "id": "rs3:Skills:Cut%20a%20tree", "label": "Cut a tree", "category": "Skills", "level": 1 }],
   "all": ["… up to 100 rows …"],
+  "allFrom": 0,
   "hereCount": 1,
   "allCount": 37
 }
@@ -318,8 +321,12 @@ Rows use the picker's Active Tasks order: favourites, then category, then
 highest level, then label. They are the player's own default list: blocked,
 hidden, backlogged and completed tasks are left out. `level` is omitted when the
 task has none. Labels have control characters removed and are cut at 120
-characters. `all` holds at most 100 rows and `here` at most 50;
-`allCount` and `hereCount` give the true totals.
+characters. `all` holds at most 100 rows, starting at row `allFrom` (the `from` asked
+for, else 0), and `here` at most 50; `allCount` and `hereCount` give the true
+totals. A plugin reaches rows past the first 100 by asking again with
+`?from=100` and so on; a `from` past the end returns an empty `all`. Pickers
+before `allFrom` existed refuse any query, so a plugin should send `from` only
+after a response that included `allFrom`.
 
 `here` lists the tasks whose map locations include `chunkId`, the chunk from
 the player's latest report (null after ten minutes without one). `hereKnown`

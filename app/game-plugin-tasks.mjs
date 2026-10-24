@@ -18,13 +18,22 @@ export function pluginTaskRows({ state, result, registry, memberId, stale = fals
   });
 }
 
-/** Response body for GET /api/plugin/v1/tasks. `chunks` stays on the server. */
-export function pluginTaskList({ rows, chunkId, stateRevision, stale }) {
-  if (!rows) return { v: 1, ready: false, stale: false, stateRevision, chunkId, here: [], all: [], hereCount: 0, allCount: 0, hereKnown: false };
+/** `?from=N` on GET /api/plugin/v1/tasks: the first `all` row to send. Absent means 0; anything else is refused. */
+export function pluginTaskFrom(search) {
+  const query = new URLSearchParams(search);
+  if ([...query.keys()].some(key => key !== 'from') || query.getAll('from').length > 1) return null;
+  if (!query.has('from')) return 0;
+  return /^\d{1,6}$/.test(query.get('from')) ? Number(query.get('from')) : null;
+}
+
+/** Response body for GET /api/plugin/v1/tasks. `chunks` stays on the server.
+ * `all` is one page of up to 100 rows starting at `from`; `allFrom` tells the plugin it can ask for more. */
+export function pluginTaskList({ rows, chunkId, stateRevision, stale, from = 0 }) {
+  if (!rows) return { v: 1, ready: false, stale: false, stateRevision, chunkId, here: [], all: [], allFrom: 0, hereCount: 0, allCount: 0, hereKnown: false };
   const strip = ({ chunks, ...row }) => row;
   const hereKnown = chunkId !== null && rows.every(row => row.chunks !== null);
   const here = hereKnown ? rows.filter(row => row.chunks.includes(chunkId)) : [];
   return { v: 1, ready: true, stale, stateRevision, chunkId, hereKnown,
-    here: here.slice(0, PLUGIN_TASK_LIMITS.here).map(strip), all: rows.slice(0, PLUGIN_TASK_LIMITS.all).map(strip),
-    hereCount: here.length, allCount: rows.length };
+    here: here.slice(0, PLUGIN_TASK_LIMITS.here).map(strip), all: rows.slice(from, from + PLUGIN_TASK_LIMITS.all).map(strip),
+    allFrom: from, hereCount: here.length, allCount: rows.length };
 }
