@@ -1,0 +1,72 @@
+{
+  "schema": "r138-required-runtime-assets-v1",
+  "sourceCommit": "6f22fefa782747790e2eaefa01e4e5ea7b557323",
+  "candidateCommit": "157e16614bcd248df96070a4c3482e0691b18594",
+  "entry": "entry.mjs",
+  "patchOutputs": {
+    "app/tasks/scheduler.mjs": "4d2b8c206387f43eda1ebfbeed1f9c856bc71881c11152c725a6c2123ac03b24",
+    "app/tasks/worker.mjs": "cea6fe56154e7c8e1e90aa3b977968e991e8002afd16696bd3e62078eb9c3e69"
+  },
+  "files": [
+    {
+      "path": "accept-result.mjs",
+      "bytes": 3016,
+      "sha256": "9ff85ab77ac44e297f6d599702f7ae4d8f96646085e0fb600f1b12a4e82379ce"
+    },
+    {
+      "path": "diagnostics.mjs",
+      "bytes": 3927,
+      "sha256": "6f94dd6fc8b2cb1f178d50c17778d1e5bf18f923375905ffe691838013fc7b22"
+    },
+    {
+      "path": "entry.mjs",
+      "bytes": 9710,
+      "sha256": "3763f3e37d32028c8b801c216ead82a9446dd0b9e8352621ff0897480d600f67"
+    },
+    {
+      "path": "fixture.json",
+      "bytes": 822,
+      "sha256": "afc4dd775a78452a1e8d87efc579269f9f3dfa477674243f6e482a5503445584"
+    },
+    {
+      "path": "game-defaults.json",
+      "bytes": 145,
+      "sha256": "9e67a7976c240c5c0f687b9fd4a6f9ceead717c3741ff47006550665dc0ad615"
+    },
+    {
+      "path": "http-child.mjs",
+      "bytes": 11694,
+      "sha256": "64db34cabd05ede8e9813e57c40caa8bd2d1a85be6a05931485b4f061933809f"
+    },
+    {
+      "path": "pr8-advisory-ready.patch",
+      "bytes": 6043,
+      "sha256": "3d38008dfb6d0eaf9f52d326a7e61b868c396b90b11928720b759088688ce70f"
+    },
+    {
+      "path": "protocol.mjs",
+      "bytes": 2784,
+      "sha256": "ed42ad4f6cf7e2e6c522d4937067941cceac54355d736316af373e0e2e88b3b9"
+    },
+    {
+      "path": "provider-identity.json",
+      "bytes": 20273,
+      "sha256": "bee1483c20eed4356adacebcce04baca147ce24aea1093078d79412f757765c0"
+    },
+    {
+      "path": "resources.mjs",
+      "bytes": 1295,
+      "sha256": "37087d7bdda13526b5dd343d89bdd9bd5bcc71418cb064c2dfbb20222ffc6e16"
+    },
+    {
+      "path": "screen.mjs",
+      "bytes": 2506,
+      "sha256": "c03f0b45aecf486f1851d17f06d5c59c88c32e230d1ca56126555178e08ba7eb"
+    },
+    {
+      "path": "strict-patch.mjs",
+      "bytes": 1903,
+      "sha256": "7c1015bad3c1799e768fc94e93ced028a6110f9510800938c3f09569b91571c7"
+    }
+  ]
+}

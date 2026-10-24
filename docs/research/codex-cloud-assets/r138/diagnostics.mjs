@@ -1,0 +1,19 @@
+import assert from 'node:assert/strict';
+import {createHash} from 'node:crypto';
+export const OPERATIONS=Object.freeze(['r138-entry-admission','r138-harness-read','r138-harness-verify','r138-source-verify','r138-scratch-create','r138-source-copy','r138-patch-read','r138-patch-apply','r138-candidate-verify','r138-dependency-link','r138-child-start','r138-child-wait','r138-resource-validation','r138-descendant-drain','r138-child-report-read','r138-provider-validation','r138-first-body-read','r138-row-validation','r138-warm-body-read','r138-metric-record','r138-source-postflight','r138-screen-classify','r138-controller-deadline','r138-output-create','r138-child-admission','r138-child-harness-verify','r138-provider-load','r138-fixture-import','r138-server-create','r138-server-ready','r138-auth-request','r138-first-request','r138-http-body-validation','r138-warm-readiness','r138-warm-request','r138-app-close','r138-child-deadline','r138-child-signal','r138-cleanup','r138-report-write','r138-result-write']);
+export const ERROR_NAMES=Object.freeze(['error','assertion-error','type-error','range-error','syntax-error','reference-error','aggregate-error','abort-error','timeout-error','unknown-error']);
+export const ERROR_CODES=Object.freeze(['EACCES','EADDRINUSE','EADDRNOTAVAIL','EAGAIN','EBADF','ECONNABORTED','ECONNREFUSED','ECONNRESET','EEXIST','EINVAL','EIO','EISDIR','EMFILE','ENOENT','ENOMEM','ENOSPC','ENOTDIR','ENOTEMPTY','ENOTFOUND','EPERM','EPIPE','EROFS','ESRCH','ETIMEDOUT','ABORT_ERR','ERR_ABORTED','ERR_ASSERTION','ERR_INVALID_ARG_TYPE','ERR_INVALID_ARG_VALUE','ERR_IPC_CHANNEL_CLOSED','ERR_MODULE_NOT_FOUND','ERR_OUT_OF_RANGE','ERR_SERVER_ALREADY_LISTEN','ERR_SERVER_NOT_RUNNING','ERR_STREAM_PREMATURE_CLOSE','ERR_UNKNOWN_FILE_EXTENSION','ERR_UNSUPPORTED_DIR_IMPORT','UND_ERR_ABORTED','UND_ERR_BODY_TIMEOUT','UND_ERR_CONNECT_TIMEOUT','UND_ERR_HEADERS_TIMEOUT','UND_ERR_SOCKET','unknown']);
+const names={Error:'error',AssertionError:'assertion-error',TypeError:'type-error',RangeError:'range-error',SyntaxError:'syntax-error',ReferenceError:'reference-error',AggregateError:'aggregate-error',AbortError:'abort-error',TimeoutError:'timeout-error'};
+const safe=(error,key)=>{try{return error?.[key];}catch{return undefined;}};
+export function failureDiagnostic(error,operationCode,cellOrdinal,completedCellCount){
+ assert.ok(OPERATIONS.includes(operationCode));assert.ok(cellOrdinal===null||Number.isInteger(cellOrdinal)&&cellOrdinal>=0&&cellOrdinal<8);assert.ok(Number.isInteger(completedCellCount)&&completedCellCount>=0&&completedCellCount<=8);
+ const name=safe(error,'name'),code=safe(error,'code'),stack=safe(error,'stack');
+ return Object.freeze({operationCode,cellOrdinal,errorName:typeof name==='string'&&Object.hasOwn(names,name)?names[name]:'unknown-error',errorCode:ERROR_CODES.includes(code)?code:'unknown',errorStackSha256:typeof stack==='string'?createHash('sha256').update(stack).digest('hex'):null,completedCellCount});
+}
+export function validateDiagnostic(d){
+ assert.deepEqual(Object.keys(d).sort(),['operationCode','cellOrdinal','errorName','errorCode','errorStackSha256','completedCellCount'].sort());
+ assert.ok(OPERATIONS.includes(d.operationCode));assert.ok(d.cellOrdinal===null||Number.isInteger(d.cellOrdinal)&&d.cellOrdinal>=0&&d.cellOrdinal<8);
+ assert.ok(ERROR_NAMES.includes(d.errorName));assert.ok(ERROR_CODES.includes(d.errorCode));assert.ok(d.errorStackSha256===null||typeof d.errorStackSha256==='string'&&/^[a-f0-9]{64}$/.test(d.errorStackSha256));
+ assert.ok(Number.isInteger(d.completedCellCount)&&d.completedCellCount>=0&&d.completedCellCount<=8);return d;
+}
+export function firstFailureRecorder(){let first;return {capture(error,operation,cell,count){return first??=failureDiagnostic(error,operation,cell,count);},accept(d,cell,count){validateDiagnostic(d);return first??=Object.freeze({...d,cellOrdinal:cell,completedCellCount:count});},get value(){return first;}};}
