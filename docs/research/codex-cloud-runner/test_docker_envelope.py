@@ -213,7 +213,7 @@ class Controls(unittest.TestCase):
     def test_both_workflow_recipes_use_distinct_empty_npm_configs(self):
         workflow = workflow_path().read_text()
         pairs = re.findall(r'npm_config_userconfig="([^"]+)"\s+npm_config_globalconfig="([^"]+)"', workflow)
-        self.assertEqual(len(pairs), 6)
+        self.assertEqual(len(pairs), 8)
         for user, global_config in pairs:
             self.assertNotEqual(user, global_config)
             self.assertNotEqual(user, '/dev/null'); self.assertNotEqual(global_config, '/dev/null')
@@ -221,8 +221,8 @@ class Controls(unittest.TestCase):
             self.assertIn(': > "' + global_config + '"', workflow)
     def test_both_setup_failures_use_closed_diagnostics(self):
         workflow = workflow_path().read_text()
-        self.assertEqual(workflow.count('--stage dependency-setup'), 6)
-        self.assertEqual(workflow.count('--stage public-image-pull'), 6)
+        self.assertEqual(workflow.count('--stage dependency-setup'), 8)
+        self.assertEqual(workflow.count('--stage public-image-pull'), 8)
         self.assertNotIn('cat "$RUNNER_TEMP/npm-setup.log"', workflow)
         self.assertNotIn('tail "$RUNNER_TEMP/image-pull.log"', workflow)
     def test_workflow_path_supports_canonical_public_layout(self):

@@ -1,7 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createHash} from 'node:crypto';
-import {buildExpected,normalizeView,validateClosedWitness,choosePlanningBody,publicCloseProof} from './run-frozen-browser.mjs';
+import {spawnSync} from 'node:child_process';
+import {fileURLToPath} from 'node:url';
+import {buildExpected,normalizeView,validateClosedWitness,choosePlanningBody,publicCloseProof,
+ capabilitySurvey,codeOf,FAILURE_OPERATIONS,HARNESS_ERROR_MESSAGES} from './run-frozen-browser.mjs';
 import {ownedPath,parseArgs,classifyObservedWrites,sanitizePath} from './harness-utils.mjs';
 import {createWitnessJournal} from './server-driver.mjs';
 const sha=value=>createHash('sha256').update(value).digest('hex');
@@ -70,4 +73,44 @@ test('commit after finish invalidates authoritative closed witness',()=>{
 });
 test('capture failure is retained without saved error values',()=>{
  const store=fakeStore(),j=createWitnessJournal(store);j.begin('case');store.break();finishJournal(j);const result=j.finalize();assert.ok(result.captureErrors.length);assert.equal(result.witnesses[0].valid,false);assert.ok(!JSON.stringify(result).includes('saved secret'));
+});
+test('public case error code accepts only authored codes, never arbitrary uppercase exception text',()=>{
+ assert.equal(codeOf(Error('REFERENCE_MAP_SCOPE_INVALID')),'reference-map-scope-invalid');
+ assert.equal(codeOf(Error('HTTP_503')),'http-error');
+ for(const text of ['SECRET','PRIVATE_BASE32_TOKEN','Bearer SECRET','https://example.invalid/SECRET'])assert.equal(codeOf(Error(text)),'runtime-error');
+ assert.equal(codeOf({get message(){throw Error('SECRET');}}),'runtime-error');
+ assert.equal(HARNESS_ERROR_MESSAGES.length,new Set(HARNESS_ERROR_MESSAGES).size);
+ assert.equal(FAILURE_OPERATIONS.length,new Set(FAILURE_OPERATIONS).size);
+});
+test('post-failure survey keeps only fixed capability counts and ready-state enum',async()=>{
+ const output=await capabilitySurvey({isClosed:()=>false,evaluate:async()=>({documentReadyState:'complete',tasksTabCount:1,tasksTabVisibleCount:1,possibleSummaryCount:0,url:'https://SECRET',text:'SECRET'})},2);
+ assert.deepEqual(output,{surveyStatus:'observed',documentReadyState:'complete',tasksTabCount:1,tasksTabVisibleCount:1,possibleSummaryCount:0,pageErrorCount:2});
+ assert.ok(!JSON.stringify(output).includes('SECRET'));
+});
+test('absent or closed page survey states unavailable with null counts rather than fake zero',async()=>{
+ for(const page of [undefined,{isClosed:()=>true}])assert.deepEqual(await capabilitySurvey(page,0),{
+  surveyStatus:'unavailable',documentReadyState:'unknown',tasksTabCount:null,tasksTabVisibleCount:null,possibleSummaryCount:null,pageErrorCount:0});
+});
+test('survey rejection never publishes exception fields or produces observed zeros',async()=>{
+ const output=await capabilitySurvey({isClosed:()=>false,evaluate:async()=>{throw Error('https://SECRET');}},3);
+ assert.equal(output.surveyStatus,'unavailable');assert.equal(output.tasksTabCount,null);assert.equal(output.pageErrorCount,3);
+ assert.ok(!JSON.stringify(output).includes('SECRET'));
+});
+test('survey timeout remains bounded and explicitly unavailable',async()=>{
+ const started=performance.now(),output=await capabilitySurvey({isClosed:()=>false,evaluate:()=>new Promise(()=>{})},1,15);
+ assert.equal(output.surveyStatus,'timed-out');assert.equal(output.tasksTabCount,null);assert.ok(performance.now()-started<1000);
+});
+test('survey rejects unexpected strings, negative counts and noninteger counts',async()=>{
+ const output=await capabilitySurvey({isClosed:()=>false,evaluate:async()=>({documentReadyState:'SECRET',tasksTabCount:'SECRET',tasksTabVisibleCount:-1,possibleSummaryCount:1.5})},-1);
+ assert.deepEqual(output,{surveyStatus:'observed',documentReadyState:'unknown',tasksTabCount:null,tasksTabVisibleCount:null,possibleSummaryCount:null,pageErrorCount:null});
+});
+test('rejected CLI entry emits raw enum-only FD3 stages and closed diagnostics without starting the app',()=>{
+ const sentinel='PRIVATE_CLI_SENTINEL',entry=fileURLToPath(new URL('./run-frozen-browser.mjs',import.meta.url));
+ const child=spawnSync(process.execPath,[entry,'--unknown',sentinel],{env:{...process.env,PERF_STAGE_FD:'3'},
+  stdio:['ignore','pipe','pipe','pipe'],encoding:'utf8',timeout:3000});
+ assert.equal(child.status,1);assert.equal(child.stdout,'');
+ const rows=child.output[3].trim().split('\n').map(JSON.parse);
+ assert.deepEqual(rows,[{stage:'error'},{stage:'result'}]);
+ const summary=JSON.parse(child.stderr);assert.equal(summary.code,'unknown-argument');assert.equal(summary.failureOperation,'entry-setup');
+ assert.match(summary.errorStackSha256,/^[a-f0-9]{64}$/);assert.ok(!child.stderr.includes(sentinel));
 });

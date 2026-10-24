@@ -1,0 +1,73 @@
+{
+  "schema": "next-four-policy-integration-v1",
+  "publicationBaseManifestSha256": "f4cd6e21cb86312a403413f2088dadfd00cbb51ff44a6a9e19386a4782a9303a",
+  "proposals": [
+    {
+      "source": "../r111-long-session-ready/result-policy-proposal.json",
+      "bytes": 4623,
+      "sha256": "619a9f15d9914848d9435e47bfcf7afaaafafe76553b52e96d7b483fb1995c8c"
+    },
+    {
+      "source": "../r116-docker-diagnostic-v2/diagnostic-policy-additions.json",
+      "bytes": 13932,
+      "sha256": "4c973ddc8c6c37e0acf563dfdfb2308bd173c1eed896b078bcfbcd839a3abb07"
+    },
+    {
+      "source": "../r125-focus-diagnostic-v2/derived/result-policy-diagnostic-additions.json",
+      "bytes": 3540,
+      "sha256": "284ef936e0e721d545f462988b5dbe2d41b3d5b027cf8534134d22ae81cc5b31"
+    },
+    {
+      "source": "../r131-borrow-declaration-ready/runtime-result-policy.additions.proposal.json",
+      "bytes": 385,
+      "sha256": "82b3f5b06f2a9749de4de02c38d08fce7a46ce76119dc55b73f87d2cf5aee2d2"
+    }
+  ],
+  "exactR111CopiesReceipt": "r111-projector-source-receipt.json",
+  "caseFrames": {
+    "sourceCaseBytes": 30716,
+    "sourceEnvelopeBytes": 30949,
+    "insideEnvelopeWithExitCodeBytes": 30966,
+    "limitBytes": 32768
+  },
+  "r111ObservationQuality": {
+    "minimumDistinct15sBuckets": 110,
+    "maxGapMs": 45000,
+    "minimumLastMs": 1800000,
+    "maximumFirstMs": 15000,
+    "journeys": 54,
+    "fullAcceptance": false,
+    "nullableValuesPreserved": true
+  },
+  "jobs": [
+    {
+      "job": "one-case",
+      "mode": "browser",
+      "seconds": 540,
+      "entrypoint": "docs/research/codex-cloud-capture/run-frozen-browser.mjs",
+      "commandSha256": "b163b5af67d87d6858f05471595ffa95ce54e26c20c434d9ab728cde684c8613"
+    },
+    {
+      "job": "r125-focus",
+      "mode": "browser",
+      "seconds": 215,
+      "entrypoint": "docs/research/codex-cloud-assets/r125/case-entry.mjs",
+      "commandSha256": "ca4a2288759712230abcc8107dd1947a1e1c9c94c5fbe747c11ca16ec0ece211"
+    },
+    {
+      "job": "r131-native",
+      "mode": "native",
+      "seconds": 180,
+      "entrypoint": "docs/research/codex-cloud-assets/r131/entry.mjs",
+      "commandSha256": "aea5f106905c48eaff60e445540a5eca7a401febac72a01eb9ad8faa07f9a10d"
+    },
+    {
+      "job": "r111-scoped-soak",
+      "mode": "soak",
+      "seconds": 2000,
+      "entrypoint": "docs/research/codex-cloud-assets/r111/candidate/harness/run-container-session.mjs",
+      "commandSha256": "71d18047036f8a0ecaa55f3b6138a42d63dc5398d4e4ffbc0be4de3c0a0118be"
+    }
+  ],
+  "newRuntime": "UNRUN"
+}

@@ -1,0 +1,109 @@
+{
+  "schema": "r111-runtime-publication-v1",
+  "sourcePin": "6f22fefa782747790e2eaefa01e4e5ea7b557323",
+  "status": "UNCHANGED_RUNTIME_SOURCE_ONLY_UNRUN",
+  "files": [
+    {
+      "path": "candidate/harness/container-bridge.mjs",
+      "bytes": 15276,
+      "sha256": "8c5b32443c4fb5cdf02e469ee971795992963ce6d6f1524e913e76b2d72a075e"
+    },
+    {
+      "path": "candidate/harness/container-result.mjs",
+      "bytes": 4903,
+      "sha256": "8107c67717111b7b4bf16eeb1aa307aac92a2b2eb6369a18f2391aa429e7b1db"
+    },
+    {
+      "path": "candidate/harness/contract.mjs",
+      "bytes": 1435,
+      "sha256": "fe746691818f77078a3a46e446e53941ec8704cda7244a7e1be663194475561c"
+    },
+    {
+      "path": "candidate/harness/delay.mjs",
+      "bytes": 1256,
+      "sha256": "6dda8f10ddbf81dcfdcebb8724f1c154e5e3840164a03d44fa99739c58652a59"
+    },
+    {
+      "path": "candidate/harness/evidence-vectors.mjs",
+      "bytes": 5415,
+      "sha256": "d5dd20e30e9a40655d9f4600fc8f5ed2ffdcdb9312dbd551ab401b3563bbb5f8"
+    },
+    {
+      "path": "candidate/harness/fixture.json",
+      "bytes": 711,
+      "sha256": "a672a1f9b5de6a699a18c26c5fad6fe477a5e37d05c75f115f425a8a3f789b09"
+    },
+    {
+      "path": "candidate/harness/metrics.mjs",
+      "bytes": 1733,
+      "sha256": "324a3834fc44d9b0263ac1d1df8502557eadae12069d0f4b46d8d71fd3d465cd"
+    },
+    {
+      "path": "candidate/harness/navigation-epochs.mjs",
+      "bytes": 6007,
+      "sha256": "611425f0cf1ab2ab79f2c0e051f22be070cd211c7bb3c5ef90d2bbd202c3645c"
+    },
+    {
+      "path": "candidate/harness/network.mjs",
+      "bytes": 13932,
+      "sha256": "3907cfffecf13afcd0b4929961232e064f8b08ad582139fca6900fadb801595d"
+    },
+    {
+      "path": "candidate/harness/probe.mjs",
+      "bytes": 2644,
+      "sha256": "9e4a9a4910a487841a11505312bce876c58cebb48898fc336480512a44fd48cd"
+    },
+    {
+      "path": "candidate/harness/run-container-session.mjs",
+      "bytes": 5529,
+      "sha256": "7f89b3786ddc2231dc1ebfaceeb847654b2a9fd990197c8a9469be034b218b85"
+    },
+    {
+      "path": "candidate/harness/server.mjs",
+      "bytes": 2955,
+      "sha256": "9524650cc2835c8ae4fdf6b601cdf80f7c3c6c72c46a08745500ae2eae0cd43a"
+    },
+    {
+      "path": "candidate/harness/session-protocol.mjs",
+      "bytes": 3835,
+      "sha256": "755ab7c447851ac8bd664ce0c087409968dcdf4c79a95fdafc7a5e1547be5fd4"
+    },
+    {
+      "path": "candidate/harness/session.mjs",
+      "bytes": 26998,
+      "sha256": "024557234d46668f68304fb11110c01ae3a368a54fcd88e0b727008660c8b896"
+    },
+    {
+      "path": "sources/network-ledger-overlay/ledger.mjs",
+      "bytes": 15551,
+      "sha256": "2bd14431eac9114b37ae7a19793dfa94a3d3288dd3a64e8865ac8363c859febe"
+    }
+  ],
+  "provenance": {
+    "fullV3PacketMembers": 94,
+    "fullV3PacketSHA256": "ebefaed90b2f8ca048ec4316ae20c006f55224f65b59ff199b265bdd8d25a3f1",
+    "fullV3ManifestSHA256": "695eb428726c65d12a2c6328bbf3a97237a540b1a790b4b07bc7eff6b65df7e9",
+    "allRuntimeBytesEqualFullV3": true,
+    "r83ManifestSHA256": "632faf515166dc9464e5cc925224850b0a11308ffb121a0f25be7d92c1cbf648",
+    "requiredR83Member": {
+      "path": "network-ledger-overlay/ledger.mjs",
+      "bytes": 15551,
+      "sha256": "2bd14431eac9114b37ae7a19793dfa94a3d3288dd3a64e8865ac8363c859febe",
+      "origin": ".local/claude-tools/cloud-speed-batch-2026-10-22/goal/network-ledger-overlay/ledger.mjs",
+      "kind": "exact-existing-source"
+    }
+  },
+  "externalVerifiedMounts": [
+    "/source exact6f22 and complete source-lock",
+    "/deps pinned Playwright1.62.1",
+    "/runtime/node pinned24.19 and expected SHA256",
+    "/runner reviewed envelope/result-policy including both vector projectors"
+  ],
+  "generatedOrKernelReads": [
+    "/scratch generated session files",
+    "/proc and /sys identity/resource observations"
+  ],
+  "runtime": "UNRUN",
+  "acceptance": false,
+  "selfHashExcluded": "source-slice-manifest.json; exact hash supplied by CLI"
+}

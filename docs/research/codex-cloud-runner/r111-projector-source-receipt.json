@@ -1,0 +1,24 @@
+{
+  "schema": "r111-projector-source-receipt-v1",
+  "sourceProposal": "../r111-long-session-ready/result-policy-proposal.json",
+  "sourceProposalSha256": "619a9f15d9914848d9435e47bfcf7afaaafafe76553b52e96d7b483fb1995c8c",
+  "byteIdentical": true,
+  "files": [
+    {
+      "source": "../r111-long-session-ready/candidate/harness/evidence-vectors.mjs",
+      "copy": "r111_vectors.mjs",
+      "bytes": 5415,
+      "sourceSha256": "d5dd20e30e9a40655d9f4600fc8f5ed2ffdcdb9312dbd551ab401b3563bbb5f8",
+      "copySha256": "d5dd20e30e9a40655d9f4600fc8f5ed2ffdcdb9312dbd551ab401b3563bbb5f8"
+    },
+    {
+      "source": "../r111-long-session-ready/safe_vector_policy.py",
+      "copy": "r111_vector_policy.py",
+      "bytes": 2711,
+      "sourceSha256": "5c4cb5aaa2dba733e834c01a4a2a99dd9ac2423cd00cec71e03e0438bc8b0577",
+      "copySha256": "5c4cb5aaa2dba733e834c01a4a2a99dd9ac2423cd00cec71e03e0438bc8b0577"
+    }
+  ],
+  "runtime": "UNRUN",
+  "scope": "pure numeric projector copies only; no application/provider/browser imports or execution"
+}

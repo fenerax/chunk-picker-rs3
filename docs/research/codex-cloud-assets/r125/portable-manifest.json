@@ -1,7 +1,7 @@
 {
-  "schema": "r125-compatible-source-manifest-v1",
+  "schema": "r125-compatible-source-manifest-v2",
   "protocol": "docker-hard-2cpu-6g-v1",
-  "runtime": "UNRUN",
+  "runtime": "V2_UNRUN_V1_ADMISSION_FAILED",
   "originalZipSHA256": "045d88acfb2d1a4e9b93ef33394af7b9b9fe5d520083bfeb465048e6f7c48590",
   "originalBundleManifestSHA256": "f1d3cefe9cf0eaec850f3fd41e4ef6432555f153deaf80e478e7fb88d432b198",
   "sourcePin": "6f22fefa782747790e2eaefa01e4e5ea7b557323",
@@ -16,12 +16,16 @@
       "sha256": "bfee0ae71080ca0e09abc2900874695f45422e7e98d059c29acc0d6bec0d19b0"
     },
     "focus-controller.mjs": {
-      "bytes": 11239,
-      "sha256": "df5cd5191708c72332a73d7d9d10d865598da91155bf4e19dbf3a5cc6215df6e"
+      "bytes": 13028,
+      "sha256": "e64eff8c68ccb0f9cc0620b5dfb3ae8be4fff7de298c617a266ed9f088ad2d8c"
     },
     "focus-core.mjs": {
-      "bytes": 16855,
-      "sha256": "9d51b6758283fd61f5d5abf47bcdd21c33393a773bfe3599080ff3ec3ce121b8"
+      "bytes": 17025,
+      "sha256": "73134d59250149b90199a481e0b7e95dd9e33f1e58b3578178dc75f5c1006062"
+    },
+    "focus-diagnostics.mjs": {
+      "bytes": 5552,
+      "sha256": "4cf52528cdd031344d756a9ec7620ca75bef90e2adb88099e2ed8dedc24fbb70"
     },
     "accept-focus-result.mjs": {
       "bytes": 1001,
@@ -30,6 +34,10 @@
     "result-policy-additions.json": {
       "bytes": 1184,
       "sha256": "b0b18ca7b93cc089d63584308924cfafc3baf39cebee387a44a3b02fb63d33bf"
+    },
+    "result-policy-diagnostic-additions.json": {
+      "bytes": 3540,
+      "sha256": "284ef936e0e721d545f462988b5dbe2d41b3d5b027cf8534134d22ae81cc5b31"
     }
   },
   "unchangedOriginalPayload": {
@@ -89,9 +97,8 @@
     "pureControlWallSeconds": 15
   },
   "remainingGates": [
-    "root-policy-merge",
-    "image-and-envelope-admission",
-    "native-first-case",
+    "root-diagnostic-policy-union",
+    "changed-first-case-runtime",
     "independent-container-removal",
     "all-other-native-cases",
     "all-SLOs"
@@ -118,12 +125,16 @@
       "sha256": "416df8a0682f5ba3f62dc918b3bd5fb1d12b51769e659207e5308d54a324b513"
     },
     "focus-controller.mjs": {
-      "bytes": 11239,
-      "sha256": "df5cd5191708c72332a73d7d9d10d865598da91155bf4e19dbf3a5cc6215df6e"
+      "bytes": 13028,
+      "sha256": "e64eff8c68ccb0f9cc0620b5dfb3ae8be4fff7de298c617a266ed9f088ad2d8c"
     },
     "focus-core.mjs": {
-      "bytes": 16855,
-      "sha256": "9d51b6758283fd61f5d5abf47bcdd21c33393a773bfe3599080ff3ec3ce121b8"
+      "bytes": 17025,
+      "sha256": "73134d59250149b90199a481e0b7e95dd9e33f1e58b3578178dc75f5c1006062"
+    },
+    "focus-diagnostics.mjs": {
+      "bytes": 5552,
+      "sha256": "4cf52528cdd031344d756a9ec7620ca75bef90e2adb88099e2ed8dedc24fbb70"
     },
     "pending-command.sh": {
       "bytes": 1818,
@@ -136,6 +147,10 @@
     "result-policy-additions.json": {
       "bytes": 1184,
       "sha256": "b0b18ca7b93cc089d63584308924cfafc3baf39cebee387a44a3b02fb63d33bf"
+    },
+    "result-policy-diagnostic-additions.json": {
+      "bytes": 3540,
+      "sha256": "284ef936e0e721d545f462988b5dbe2d41b3d5b027cf8534134d22ae81cc5b31"
     },
     "tests/task-focus-native.fixture.mjs": {
       "bytes": 6813,
@@ -161,5 +176,19 @@
       "bytes": 14720,
       "sha256": "5bf5d8cbe244ebcce6bf1ed2ecddd25d5e29de91519f5fa8567cf2aa797bb147"
     }
-  }
+  },
+  "diagnosticOnly": true,
+  "originalPortableManifestSHA256": "356561a389e1b09286b40b485e8a001861235032021c6f97c8c37c7f3a43473b",
+  "previousRun": {
+    "runId": 40048376622,
+    "jobId": 120735533443,
+    "assetCommit": "76a4028eb387e72c3f6ef8534f227fba9141d321",
+    "caseCode": "r125-admission-failed",
+    "resourceEnvelopePassed": true,
+    "cleanupPassed": true,
+    "nativeReached": false
+  },
+  "sourceCause": "UNKNOWN; exact 1928-file source verified; host receipt is sibling, source lock is scratch; no admission exception",
+  "sourceAdmissionUnchanged": true,
+  "nativeOracleUnchanged": true
 }

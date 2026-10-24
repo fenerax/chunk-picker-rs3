@@ -12,6 +12,7 @@ import subprocess
 import sys
 import time
 import uuid
+from r111_vector_policy import project_numeric_evidence
 
 HERE = Path(__file__).resolve().parent
 PINS = json.loads((HERE / "pins.json").read_text())
@@ -136,6 +137,9 @@ def hostconfig_errors(doc, owner, cpus, p, uid, sources):
 
 def sanitized_result(value):
     require(isinstance(value, dict), "case-result-not-object")
+    if value.get("schema") == "r111-long-session-v2":
+        require(len((json.dumps(value, separators=(",", ":"), allow_nan=False) + "\n").encode()) <= 32768, "r111-case-output-cap")
+        require(value.get("mode") == "r111-public-duo-session-v2" and value.get("passed") is False and value.get("acceptance") is False and value.get("status") in ("blocked", "failed"), "r111-case-invariants")
     out = {k: v for k, v in value.items() if k in POLICY["scalarKeys"] and (type(v) is bool or type(v) in {int, float} and -1e15 < v < 1e15)}
     for key, allowed in POLICY["enums"].items():
         if isinstance(value.get(key), str) and value[key] in allowed:
@@ -155,6 +159,34 @@ def sanitized_result(value):
     gates = POLICY["openGates"]
     if isinstance(value.get("openGates"), list):
         out["openGates"] = [x for x in value["openGates"] if isinstance(x, str) and x in gates]
+    omitted = object()
+    def diagnostic(item, rule):
+        if "enum" in rule:
+            return item if type(item) is str and item in rule["enum"] else omitted
+        kind = rule.get("type")
+        if kind == "sha256-or-null":
+            return item if item is None or type(item) is str and re.fullmatch(r"[0-9a-f]{64}", item) else omitted
+        if kind == "nonnegative-safe-integer-or-null":
+            return item if item is None or type(item) is int and 0 <= item <= 9007199254740991 else omitted
+        if kind == "closed-object" and type(item) is dict:
+            selected = {}
+            for key, child_rule in rule["fields"].items():
+                if key in item:
+                    selected_value = diagnostic(item[key], child_rule)
+                    if selected_value is not omitted:
+                        selected[key] = selected_value
+            return selected
+        return omitted
+    diagnostic_fields = POLICY.get("caseDiagnosticFields", {}).get(value.get("schema"), {}) if type(value.get("schema")) is str else {}
+    for key, rule in diagnostic_fields.items():
+        if key in value:
+            item = diagnostic(value[key], rule)
+            if item is not omitted:
+                out[key] = item
+    if value.get("schema") == "r111-long-session-v2":
+        # Both closed structures are projected atomically; malformed/partial structures fail.
+        out.update(project_numeric_evidence(value.get("sampleVectors"), value.get("journeyLatencies")))
+        require(len((json.dumps(out, separators=(",", ":"), allow_nan=False) + "\n").encode()) <= 32768, "r111-case-output-cap")
     return out
 
 def bounded_bytes(path, limit=32768):

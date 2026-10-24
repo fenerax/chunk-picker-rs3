@@ -1,6 +1,6 @@
 #!/bin/sh
 set -eu
-# Pending: run only in the separately authorized Docker hard-resource envelope.
+# Diagnostic revision 2: pending policy merge and one separately authorized Docker case.
 exec /runtime/node /harness/run-frozen-browser.mjs \
   --source /source --scratch /scratch --deps /deps \
   --source-lock /scratch/source-lock.json \

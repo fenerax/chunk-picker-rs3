@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { spawn } from 'node:child_process';
+import { projectNumericEvidence, assertCaseBudget } from './r111_vectors.mjs';
 
 const pins = JSON.parse(fs.readFileSync('/runner/pins.json', 'utf8'));
 // The host applies the same closed public projection again before printing.
@@ -76,6 +77,10 @@ async function orphanFixture() {
   write('orphan-reaped', { pid, parentExitCode: end.code, absentAfterExit: true });
 }
 function sanitized(value) {
+  if (value?.schema === 'r111-long-session-v2') {
+    assertCaseBudget(value);
+    ensure(value.mode === 'r111-public-duo-session-v2' && value.passed === false && value.acceptance === false && ['blocked','failed'].includes(value.status), 'r111-case-invariants');
+  }
   const out = {};
   for (const [key, item] of Object.entries(value)) {
     if (publicPolicy.scalarKeys.includes(key) && (typeof item === 'boolean' || (typeof item === 'number' && Number.isFinite(item) && Math.abs(item) < 1e15))) out[key] = item;
@@ -84,6 +89,28 @@ function sanitized(value) {
     if (key === 'metrics' && item && typeof item === 'object') out.metrics = Object.fromEntries(Object.entries(item).filter(([k, v]) => publicPolicy.metricKeys.includes(k) && typeof v === 'number' && Number.isFinite(v) && Math.abs(v) < 1e15));
     if (key === 'scope' && item && typeof item === 'object') out.scope = Object.fromEntries(Object.entries(item).filter(([k, v]) => publicPolicy.scope[k]?.includes(v)));
     if (key === 'openGates' && Array.isArray(item)) out.openGates = item.filter(x => publicPolicy.openGates.includes(x));
+  }
+  const diagnostic = (item, rule) => {
+    if (rule.enum) return typeof item === 'string' && rule.enum.includes(item) ? item : undefined;
+    if (rule.type === 'sha256-or-null') return item === null || typeof item === 'string' && /^[0-9a-f]{64}$/.test(item) ? item : undefined;
+    if (rule.type === 'nonnegative-safe-integer-or-null') return item === null || Number.isSafeInteger(item) && item >= 0 ? item : undefined;
+    if (rule.type === 'closed-object' && item && typeof item === 'object' && !Array.isArray(item)) {
+      const selected = {};
+      for (const [key, childRule] of Object.entries(rule.fields)) if (Object.hasOwn(item, key)) {
+        const result = diagnostic(item[key], childRule);
+        if (result !== undefined) selected[key] = result;
+      }
+      return selected;
+    }
+    return undefined;
+  };
+  for (const [key, rule] of Object.entries(publicPolicy.caseDiagnosticFields?.[value.schema] ?? {})) if (Object.hasOwn(value, key)) {
+    const selected = diagnostic(value[key], rule);
+    if (selected !== undefined) out[key] = selected;
+  }
+  if (value?.schema === 'r111-long-session-v2') {
+    Object.assign(out, projectNumericEvidence(value.sampleVectors, value.journeyLatencies));
+    assertCaseBudget(out);
   }
   return out;
 }

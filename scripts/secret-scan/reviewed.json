@@ -186,6 +186,36 @@
   ],
   "lines": [
     {
+      "path": "docs/research/codex-cloud-assets/r111/candidate/harness/container-bridge.mjs",
+      "category": "network-identifier",
+      "sha256": "98f513dccece2654ec6c2b46bdfa75616137974c627c80f25ddee604e3b6d228",
+      "reason": "Exact container identity assertion uses a kernel cgroup membership marker; the IPv6 pattern matches colon syntax which names no network."
+    },
+    {
+      "path": "docs/research/codex-cloud-capture/controller.test.mjs",
+      "category": "network-identifier",
+      "sha256": "0860b3dd3ada981e2e1944dbfb5ac76a2151092a24a790281633c2c912ecb06f",
+      "reason": "Exact authored capability-survey test uses a single-label synthetic URL sentinel to assert rejected fields never reach public output."
+    },
+    {
+      "path": "docs/research/codex-cloud-capture/controller.test.mjs",
+      "category": "network-identifier",
+      "sha256": "8815ba95568641874cc21eded1c19f79e08b9298a48cf937c61cd2bf902248f0",
+      "reason": "Exact authored capability-survey test uses a single-label synthetic URL sentinel to assert rejected fields never reach public output."
+    },
+    {
+      "path": "docs/research/codex-cloud-capture/failure-diagnostics.test.mjs",
+      "category": "token",
+      "sha256": "f98007cc46a12cfd3123bf6ebe510669442e13ff2e3258e48ff59890884fc481",
+      "reason": "Exact invented sentinel declaration used only by authored failure-diagnostic redaction tests; assertions prove raw values never reach diagnostic output."
+    },
+    {
+      "path": "docs/research/codex-cloud-capture/failure-diagnostics.test.mjs",
+      "category": "token",
+      "sha256": "340c78102378ebf0fc67dd434ee6c0e8b59c86963634eb7c8e8590e2460b62dd",
+      "reason": "Exact authored invalid-operation fixture asserts a generic invalid-domain join URL is rejected as an operation; no real invite or credential."
+    },
+    {
       "path": "docs/research/codex-cloud-runner/next-wave-jobs-snippet.yml",
       "category": "network-identifier",
       "sha256": "db5bc542d94caa5495e71bf267b2f819916ce6c9ed1c364904779ae8972a9f86",
