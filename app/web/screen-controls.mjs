@@ -1,6 +1,6 @@
 import { applyTheme } from './map-tools.mjs';
 import { observeScreenBars } from './phone-layout.mjs';
-import { createMapControlDiscovery, mountMembersStartEntry } from './map-control-discovery.mjs';
+import { createMapControlDiscovery } from './map-control-discovery.mjs';
 
 const topMenuIds = ['info-tools', 'admin-tools', 'more-tools'];
 
@@ -39,7 +39,6 @@ export function createScreenControls(c) {
   function bindControls() {
     bindHideCompletedPreference(c);
     c.mapControlDiscovery = createMapControlDiscovery(c); c.mapControlDiscovery.mount();
-    c.membersStartEntry = mountMembersStartEntry(c);
     c.$('help-open')?.addEventListener('click', () => c.openDialog('Help', c.mapControls()));
     c.mapCapture?.mount();
     c.$('member').addEventListener('change', () => { const nextMember = c.$('member').value; if (c.sandbox.active) { c.sandbox.exit(); c.notice('Sandbox closed. Start Sandbox again to try changes for this player.'); } c.memberId = nextMember; c.result = c.fullResult = undefined; c.taskRequest++; c.taskController?.abort(); c.closeDialog(); c.stickerPicker.close(); c.closeChunkMenu(); try { localStorage.setItem('duo-member', c.memberId); } catch {} c.renderState(); c.map.centerOnUnlocked(); c.scheduleTasks(); });

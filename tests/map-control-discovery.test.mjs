@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createMapControlDiscovery, mountMembersStartEntry, PHONE_CONTROLS_KEY } from '../app/web/map-control-discovery.mjs';
+import { createMapControlDiscovery, PHONE_CONTROLS_KEY } from '../app/web/map-control-discovery.mjs';
 import { createScreenRoll } from '../app/web/screen-roll.mjs';
 import { handleScreenEscape } from '../app/web/screen-controls.mjs';
 import { readFile } from 'node:fs/promises';
@@ -158,20 +158,6 @@ test('outside interaction and Escape dismiss the legend without dismissing map d
   let prevented = false;
   handleScreenEscape(c, { key: 'Escape', preventDefault() { prevented = true; } });
   assert.equal(prevented, true); assert.equal(h.controller.isOpen(), false);
-});
-
-test('Ready for members follows the existing capability seam and rechecks writer and sandbox access', async () => {
-  const entry = new Node(); let writable = true, available = true, reviews = 0;
-  const c = { $: () => entry, canWrite: () => writable, panelContext: {
-    membersStart: () => { reviews++; }, membersStartAvailable: () => available }, showError: assert.fail };
-  const control = mountMembersStartEntry(c);
-  entry.emit('click'); await new Promise(setImmediate); assert.equal(reviews, 1);
-  available = false; entry.emit('click'); await new Promise(setImmediate);
-  assert.equal(reviews, 1); assert.equal(entry.disabled, true);
-  available = true; writable = false; control.refresh();
-  assert.equal(entry.hidden, true); entry.emit('click'); await new Promise(setImmediate); assert.equal(reviews, 1);
-  writable = true; delete c.panelContext.membersStart; control.refresh();
-  assert.equal(entry.hidden, true); entry.emit('click'); await new Promise(setImmediate); assert.equal(reviews, 1);
 });
 
 test('roll labels follow the selected player while two choices remain one player’s choices', () => {

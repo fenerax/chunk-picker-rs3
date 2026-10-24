@@ -451,7 +451,8 @@ export function createScreenTasks(c) {
       completedRows = c.duoListSelection.completed.rows; backlogRows = c.duoListSelection.backlog.rows;
     }
     c.copyLists?.tasks(groupOn ? c.copyActiveTasks : active, completedRows, groupOn, groupOn ? c.duoView().filter() : undefined);
-    c.tickActiveTasks?.update(groupOn ? c.activeDuoRows ?? [] : active, { duo: groupOn, host: c.$('task-count').parentElement,
+    // ⋯ sits in Copy's own group so the two stay on one line.
+    c.tickActiveTasks?.update(groupOn ? c.activeDuoRows ?? [] : active, { duo: groupOn, host: c.$('copy-active-tasks')?.parentElement ?? c.$('task-count').parentElement,
       ready: groupOn ? duoReady : view?.memberId === c.memberId && view.stateRevision === c.state.revision && taskDisplayState() === c.state });
     c.taskListRows.set('completed-tasks', completedRows); c.renderCompleted(completedRows, jobs, generation);
     c.taskListRows.set('backlog-tasks', backlogRows);

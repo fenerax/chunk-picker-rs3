@@ -192,7 +192,7 @@ test('Activity Info displays observed account progress separately from planning 
     openDialog: (title, ...nodes) => { h.ui.nodes = nodes; h.ui.open = true; return ++h.ui.generation; },
   });
   await panels.activityInfo();
-  assert.ok(h.find('h3', 'RuneMetrics sync'));
+  assert.ok(h.find('summary', 'RuneMetrics sync'));
   // Skills open as a tile grid; a tile shows the synced level and opens that skill's detail.
   const tile = h.walk(h.ui.nodes).find(node => node.tag === 'button' && node.attributes?.['aria-label']?.startsWith('Mining: level 6'));
   assert.ok(tile, 'Mining tile carries the observed level');

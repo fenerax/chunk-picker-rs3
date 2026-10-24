@@ -451,7 +451,8 @@ test('closed or superseded panel failures stay quiet, while active calculation f
       else h.ui.memberId = 'b';
       reject(new Error('Selected map changed while loading'));
       await assert.doesNotReject(request, `${panel}: ${invalidation}`);
-      assert.equal(h.ui.title, invalidation === 'replace' ? 'Newer dialog' : 'Existing panel');
+      // Current BiS opens its own Loading… dialog before the calculation.
+      assert.equal(h.ui.title, invalidation === 'replace' ? 'Newer dialog' : panel === 'currentBiS' ? 'Current BiS' : 'Existing panel');
     }
     const active = harness();
     active.ui.pendingResult = Promise.reject(new Error('Task calculation failed'));

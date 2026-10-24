@@ -84,6 +84,15 @@ export function createScreenDialogs(c) {
 
   function download(value, name) { const blob = new Blob([JSON.stringify(value, null, 2)], { type: 'application/json' }), url = URL.createObjectURL(blob), link = c.el('a'); link.href = url; link.download = name; link.click(); setTimeout(() => URL.revokeObjectURL(url), 1000); }
 
+  // A normal button and the chosen file's name, in place of the browser's own file box.
+  // The button comes first so the surrounding field label names it.
+  function filePicker(file) {
+    const wrap = c.el('span', undefined, 'file-picker'), name = c.el('span', 'No file chosen', 'file-picker-name');
+    file.className = 'file-picker-input'; file.tabIndex = -1;
+    file.addEventListener('change', () => { name.textContent = file.files?.[0]?.name ?? 'No file chosen'; });
+    wrap.append(c.button('Choose file…', () => file.click()), name, file);
+    return wrap;
+  }
   async function readJSON(file) { const selected = file.files[0]; if (!selected) throw new Error('Choose a JSON file.'); if (selected.size > 32 * 1024 * 1024) throw new Error('This file is larger than 32 MB.'); try { return JSON.parse(await selected.text()); } catch { throw new Error('The file is not valid JSON.'); } }
 
   function replacementSummary(preview, incoming) {
@@ -148,7 +157,7 @@ export function createScreenDialogs(c) {
     if (scope) content.append(c.field('Replace', scope));
     else content.append(c.el('p', `Restoring here replaces only ${ownName}’s map. The other map, shared rules and History stay, and Undo can reverse it.`, 'status-detail'));
     const previewButton = c.button(legacyImport ? 'Preview import / restore' : 'Preview restore', () => read());
-    content.append(c.field(legacyImport ? 'Choose a full backup or an exported copy of both maps' : 'Choose a full backup', file), c.el('p', 'Choose .json or .json.gz. Backups download compressed. Limit: 256 MiB after decompression.', 'status-detail'), previewButton, preview, retained, ...(legacyImport && c.advanced() ? [c.button('View migration report', async () => { const generation = c.beginDialogRequest(), value = await c.api('/api/migration'); if (c.dialogCurrent(generation)) c.openDialog('Migration report', c.lazyJSON('Imported names and unmatched records', value)); })] : [])); c.openDialog('Backup & Import', content);
+    content.append(c.field(legacyImport ? 'Choose a full backup or an exported copy of both maps' : 'Choose a full backup', filePicker(file)), c.el('p', 'Choose .json or .json.gz. Backups download compressed. Limit: 256 MiB after decompression.', 'status-detail'), previewButton, preview, retained, ...(legacyImport && c.advanced() ? [c.button('View migration report', async () => { const generation = c.beginDialogRequest(), value = await c.api('/api/migration'); if (c.dialogCurrent(generation)) c.openDialog('Migration report', c.lazyJSON('Imported names and unmatched records', value)); })] : [])); c.openDialog('Backup & Import', content);
   }
 
   function mapSourcesDialog() {

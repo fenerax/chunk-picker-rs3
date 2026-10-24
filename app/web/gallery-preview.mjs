@@ -198,7 +198,7 @@ async function render(entry) {
   if (type === 'completed') return c.completedView.open();
   if (type === 'tick-active') {
     // The sample sidebar skips the live task render, so hand the menu the rows it shows.
-    c.tickActiveTasks.update(c.result.tasks.slice(0, 5), { ready: true, host: c.$('task-count').parentElement });
+    c.tickActiveTasks.update(c.result.tasks.slice(0, 5), { ready: true, host: c.$('copy-active-tasks')?.parentElement ?? c.$('task-count').parentElement });
     return c.tickActiveTasks.open();
   }
   if (type === 'stickers') return c.mapTools.sticker('12341');
