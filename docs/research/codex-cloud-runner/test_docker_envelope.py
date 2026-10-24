@@ -31,8 +31,8 @@ def admitted_doc():
         'HostConfig': {'NanoCpus': 2_000_000_000, 'CpusetCpus': '2,3', 'Memory': 6 * 1024**3,
           'MemorySwap': 6 * 1024**3, 'PidsLimit': 512, 'Init': True, 'NetworkMode': 'none',
           'ReadonlyRootfs': True, 'Privileged': False, 'CapAdd': [], 'CapDrop': ['ALL'],
-          'SecurityOpt': ['no-new-privileges'], 'PidMode': 'private', 'IpcMode': 'private',
-          'UTSMode': 'private', 'CgroupnsMode': 'private', 'PortBindings': {}, 'PublishAllPorts': False,
+          'SecurityOpt': ['no-new-privileges'], 'PidMode': '', 'IpcMode': 'private',
+          'UTSMode': '', 'CgroupnsMode': 'private', 'PortBindings': {}, 'PublishAllPorts': False,
           'Devices': [], 'DeviceRequests': []},
         'Mounts': [{'Destination': k, 'Source': v, 'RW': k == '/scratch', 'Type': 'bind'} for k, v in SOURCES.items()],
         'State': {'Running': False, 'Pid': 0, 'Status': 'exited', 'ExitCode': 0, 'OOMKilled': False}}
@@ -75,6 +75,12 @@ class Controls(unittest.TestCase):
         for key, bad in [('NetworkMode', 'host'), ('Privileged', True), ('CapAdd', ['SYS_ADMIN']), ('SecurityOpt', ['seccomp=unconfined']), ('ReadonlyRootfs', False), ('PidMode', 'host')]:
             doc = admitted_doc(); doc['HostConfig'][key] = bad
             with self.subTest(key=key): self.assertTrue(e.hostconfig_errors(doc, OWNER, [2, 3], e.profile('none'), 1001, SOURCES))
+    def test_default_pid_uts_encoding_is_exact(self):
+        for key in ('PidMode', 'UTSMode'):
+            for bad in ('host', 'container:' + CID, 'private', None):
+                doc = admitted_doc(); doc['HostConfig'][key] = bad
+                with self.subTest(key=key, bad=bad):
+                    self.assertIn('private-namespaces', e.hostconfig_errors(doc, OWNER, [2,3], e.profile('none'), 1001, SOURCES))
     def test_wrong_bind_source_rejected(self):
         doc = admitted_doc(); doc['Mounts'][0]['Source'] = '/host/credential-store'
         self.assertIn('exact-mounts', e.hostconfig_errors(doc, OWNER, [2, 3], e.profile('none'), 1001, SOURCES))
@@ -183,6 +189,9 @@ class Controls(unittest.TestCase):
         self.assertEqual(command[command.index('--entrypoint')+1], '/usr/bin/timeout')
         self.assertIn('1980s', command); self.assertIn('--kill-after=3s', command)
         self.assertIn('--cidfile', command); self.assertIn('--init', command)
+        self.assertNotIn('--pid', command); self.assertNotIn('--uts', command)
+        self.assertEqual(command[command.index('--ipc')+1], 'private')
+        self.assertEqual(command[command.index('--cgroupns')+1], 'private')
         self.assertNotIn('--env-file', command); self.assertNotIn('--privileged', command)
         forwarded = [command[i+1] for i, value in enumerate(command) if value == '--env']
         self.assertEqual(set(forwarded), {f'{k}={v}' for k,v in e.fixed_env().items()})
@@ -250,5 +259,41 @@ class Controls(unittest.TestCase):
             self.assertEqual(diagnostics.main(['--stage','SYNTHETIC_SECRET','--log','/private/SYNTHETIC_SECRET','--exit-code','1']),0)
         self.assertNotIn('SYNTHETIC_SECRET', output.getvalue())
         self.assertEqual(json.loads(output.getvalue())['errorClass'],'diagnostic-unavailable')
+    def test_docker_diagnostic_never_emits_actual_argv_or_output(self):
+        raw = b'invalid PID mode: SYNTHETIC_SECRET at /private/path?token=SYNTHETIC_TOKEN'
+        result = e.docker_diagnostic(['create','--mount','/private/SYNTHETIC_SECRET'],125,b'SYNTHETIC_STATE',raw)
+        self.assertEqual(result['commandStage'],'docker-create')
+        self.assertEqual(result['errorClass'],'invalid-pid-mode')
+        self.assertEqual(result['stderrSha256'],hashlib.sha256(raw).hexdigest())
+        self.assertEqual(result['stderrBytes'],len(raw))
+        self.assertNotIn('SYNTHETIC',json.dumps(result)); self.assertNotIn('/private/',json.dumps(result))
+    def test_unknown_docker_verb_is_fixed(self):
+        result = e.docker_diagnostic(['SYNTHETIC_SECRET'],1,b'',b'private unknown output')
+        self.assertEqual(result['commandStage'],'docker-unknown')
+        self.assertEqual(result['argvTemplate'],'docker <unclassified-command>')
+        self.assertNotIn('SYNTHETIC',json.dumps(result))
+    def test_docker_call_failure_is_classified_without_running_docker(self):
+        obj = object.__new__(e.Docker); obj.base=['docker']; obj.env={}; obj.emit=None; obj.diagnostics=[]
+        response = SimpleNamespace(returncode=125,stdout=b'',stderr=b'invalid UTS mode: private')
+        with patch.object(e.subprocess,'run',return_value=response):
+            with self.assertRaises(e.Blocked): obj.call(['create','--uts','private'])
+        self.assertEqual(obj.diagnostics[0]['commandStage'],'docker-create')
+        self.assertEqual(obj.diagnostics[0]['errorClass'],'invalid-uts-mode')
+        self.assertEqual(obj.diagnostics[0]['exitCode'],125)
+    def test_docker_call_timeout_preserves_partial_output_hashes(self):
+        obj = object.__new__(e.Docker); obj.base=['docker']; obj.env={}; obj.emit=None; obj.diagnostics=[]
+        timeout = e.subprocess.TimeoutExpired(['docker'],1,output=b'partial',stderr=b'SYNTHETIC_SECRET')
+        with patch.object(e.subprocess,'run',side_effect=timeout):
+            with self.assertRaises(e.Blocked): obj.call(['inspect',CID])
+        result=obj.diagnostics[0]
+        self.assertEqual(result['errorClass'],'docker-command-timeout'); self.assertFalse(result['outputComplete'])
+        self.assertEqual(result['stderrSha256'],hashlib.sha256(b'SYNTHETIC_SECRET').hexdigest())
+        self.assertNotIn('SYNTHETIC',json.dumps(result))
+    def test_docker_failure_logging_cannot_abort_cleanup(self):
+        obj = object.__new__(e.Docker); obj.diagnostics=[]
+        def failed_emit(*_args): raise OSError('synthetic log device failure')
+        obj.emit=failed_emit
+        obj.record_failure(['stop',CID],1,b'',b'unknown')
+        self.assertEqual(obj.diagnostics[0]['commandStage'],'docker-stop')
 
 if __name__ == '__main__': unittest.main()

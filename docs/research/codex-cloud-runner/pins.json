@@ -1,5 +1,6 @@
 {
   "envelope": "docker-hard-2cpu-6g-v1",
+  "runnerRevision": "docker-private-defaults-v2",
   "sourceCommit": "6f22fefa782747790e2eaefa01e4e5ea7b557323",
   "assetBranch": "codex/perf-harness-assets-20261023",
   "assetBaseCommit": "7ad315acd39223df3b4d2304e295ef5c017dfe17",

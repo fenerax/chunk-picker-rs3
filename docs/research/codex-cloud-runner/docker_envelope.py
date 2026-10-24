@@ -72,7 +72,7 @@ def create_args(args, owner, cpus, uid, gid):
            "--label", f"rs3.public-experiment.envelope={PINS['envelope']}", "--cpus", str(p["cpus"]),
            "--cpuset-cpus", ",".join(map(str, cpus)), "--memory", str(p["memory"]),
            "--memory-swap", str(p["memory"]), "--pids-limit", "512", "--network", "none",
-           "--pid", "private", "--ipc", "private", "--uts", "private", "--cgroupns", "private",
+           "--ipc", "private", "--cgroupns", "private",
            "--shm-size", "268435456", "--cap-drop", "ALL", "--security-opt", "no-new-privileges",
            "--read-only", "--user", f"{uid}:{gid}", "--workdir", "/scratch", "--stop-timeout", "10",
            "--log-driver", "none", "--entrypoint", "/usr/bin/timeout"]
@@ -117,7 +117,8 @@ def hostconfig_errors(doc, owner, cpus, p, uid, sources):
         "no-privilege": h.get("Privileged") is False and not h.get("CapAdd") and "ALL" in h.get("CapDrop", []),
         "no-new-privileges": h.get("SecurityOpt") == ["no-new-privileges"],
         "explicit-environment": set(c.get("Env", [])) == {f"{k}={v}" for k, v in fixed_env().items()},
-        "private-namespaces": h.get("PidMode") == "private" and h.get("IpcMode") == "private" and h.get("UTSMode") == "private" and h.get("CgroupnsMode") == "private",
+        # Docker's exact supported default encoding for private PID and UTS is empty, not "private".
+        "private-namespaces": h.get("PidMode") == "" and h.get("IpcMode") == "private" and h.get("UTSMode") == "" and h.get("CgroupnsMode") == "private",
         "nonroot": c.get("User", "").split(":")[0] == str(uid) and uid != 0,
         "no-ports": not h.get("PortBindings") and not h.get("PublishAllPorts"),
         "no-devices": not h.get("Devices") and not h.get("DeviceRequests"),
@@ -280,18 +281,76 @@ def verify_receipt(root, expected_commit):
     require(doc.get("files") == actual, "public-tree-content-mismatch")
     return hashlib.sha256(json.dumps(actual, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
 
+DOCKER_TEMPLATES = {
+    "create": "docker create --cidfile <owned-file> --platform linux/amd64 --pull=never --label <fixed-owner-labels> --cpus <profile> --cpuset-cpus <two-allowed> --memory <profile> --memory-swap <equal-memory> --pids-limit 512 --network none --ipc private --cgroupns private --shm-size 268435456 --cap-drop ALL --security-opt no-new-privileges --read-only --user <nonroot> --workdir /scratch --stop-timeout 10 --log-driver none --entrypoint /usr/bin/timeout [--init] --mount <six-exact-owned-mounts> --env <fixed-environment> <pinned-image> <bounded-entrypoint>",
+    "inspect": "docker inspect --type container <exact-owned-id>",
+    "start": "docker start <exact-owned-id>",
+    "stop": "docker stop --time 5 <exact-owned-id>",
+    "kill": "docker kill <exact-owned-id>",
+    "wait": "docker wait <exact-owned-id>",
+    "rm": "docker rm <exact-owned-id>",
+}
+
+def docker_error_class(stderr, timed_out=False):
+    if timed_out:
+        return "docker-command-timeout"
+    text = stderr[-65536:].decode("utf-8", "replace").lower()
+    if any(x in text for x in ("invalid pid mode", "invalid pidmode", "invalid --pid")):
+        return "invalid-pid-mode"
+    if any(x in text for x in ("invalid uts mode", "invalid utsmode", "uts mode can be", "invalid --uts")):
+        return "invalid-uts-mode"
+    if "permission denied" in text or "operation not permitted" in text:
+        return "docker-permission-denied"
+    if "cannot connect to the docker daemon" in text or "is the docker daemon running" in text:
+        return "docker-daemon-unavailable"
+    if "no such image" in text or "pull access denied" in text:
+        return "docker-image-unavailable"
+    if "no such container" in text:
+        return "docker-container-not-found"
+    if "invalid mount config" in text or "bind source path does not exist" in text:
+        return "docker-invalid-mount"
+    if "unknown flag" in text or "invalid argument" in text or "invalid parameter" in text:
+        return "docker-invalid-argument"
+    return "unknown-docker-error"
+
+def docker_diagnostic(argv, exit_code, stdout=b"", stderr=b"", timed_out=False, required=True):
+    verb = argv[0] if argv and argv[0] in DOCKER_TEMPLATES else "unknown"
+    return {"schema": "docker-command-diagnostic-v1", "commandStage": "docker-" + verb,
+            "argvTemplate": DOCKER_TEMPLATES.get(verb, "docker <unclassified-command>"),
+            "exitCode": exit_code, "timedOut": timed_out, "requiredCommand": required,
+            "errorClass": docker_error_class(stderr, timed_out), "outputComplete": not timed_out,
+            "stdoutBytes": len(stdout), "stdoutSha256": hashlib.sha256(stdout).hexdigest(),
+            "stderrBytes": len(stderr), "stderrSha256": hashlib.sha256(stderr).hexdigest()}
+
 class Docker:
-    def __init__(self, config):
+    def __init__(self, config, emit=None):
         binary = shutil.which("docker")
         require(bool(binary), "docker-client-unavailable")
         self.base = [binary, "--host", "unix:///var/run/docker.sock", "--config", str(config)]
         self.env = {"PATH": os.defpath, "LANG": "C.UTF-8", "HOME": str(config)}
+        self.diagnostics = []
+        self.emit = emit
 
-    def call(self, argv, timeout=20, check=True):
+    def record_failure(self, argv, exit_code, stdout, stderr, timed_out=False, required=True):
+        record = docker_diagnostic(argv, exit_code, stdout or b"", stderr or b"", timed_out, required)
+        self.diagnostics = (self.diagnostics + [record])[-8:]
+        if self.emit:
+            try:
+                self.emit("docker-command-failed", {"diagnostic": record})
+            except (OSError, ValueError):
+                pass  # A failed log write cannot preempt exact-owned termination/cleanup.
+
+    def call(self, argv, timeout=20, check=True, diagnose=True):
         try:
             proc = subprocess.run(self.base + list(argv), env=self.env, capture_output=True, timeout=timeout)
-        except subprocess.TimeoutExpired:
+        except subprocess.TimeoutExpired as exc:
+            self.record_failure(argv, None, exc.stdout, exc.stderr, timed_out=True, required=check)
             raise Blocked("docker-command-timeout") from None
+        except OSError:
+            self.record_failure(argv, None, b"", b"", required=check)
+            raise Blocked("docker-client-exec-failed") from None
+        if proc.returncode != 0 and diagnose:
+            self.record_failure(argv, proc.returncode, proc.stdout, proc.stderr, required=check)
         require(len(proc.stdout) < 4 * 1024**2, "docker-output-too-large")
         if check:
             require(proc.returncode == 0, "docker-command-failed")
@@ -324,7 +383,7 @@ def owned_cleanup(docker, cid, owner, emit):
     if final["State"].get("Status") != "created":
         require(docker.call(["wait", cid], timeout=5).returncode == 0, "container-wait-failed")
     docker.call(["rm", cid])
-    require(docker.call(["inspect", "--type", "container", cid], check=False).returncode != 0, "container-removal-unconfirmed")
+    require(docker.call(["inspect", "--type", "container", cid], check=False, diagnose=False).returncode != 0, "container-removal-unconfirmed")
     # Logging failure must never prevent removal of the already-confirmed owned container.
     emit("container-exited", {"exitCode": final["State"].get("ExitCode"), "oomKilled": final["State"].get("OOMKilled"), "running": False, "pid": 0})
     emit("cleanup-finished", {"wholeContainerExited": True, "exactOwnedContainerRemoved": True})
@@ -360,6 +419,7 @@ def run(a):
     validate_args(a)
     if not a.execute:
         return {"schema": "docker-envelope-plan-v1", "envelope": PINS["envelope"], "preparedOnly": True,
+                "runnerRevision": PINS["runnerRevision"],
                 "mode": a.mode, "seconds": a.seconds, "control": a.control, "image": PINS["image"], "requiresRemoteExecution": True}
     # No executable, Docker or input files are touched by the plan path above.
     require(all(not x.is_symlink() for x in (a.source, a.harness, a.deps, a.node)), "symlink-input-root")
@@ -396,7 +456,7 @@ def run(a):
     require(len(cpus) == 2, "fewer-than-two-allowed-cpus")
     docker, cid, cleanup, result, failure, host_facts, cleanup_facts = None, None, False, None, None, None, None
     try:
-        docker = Docker(config)
+        docker = Docker(config, emit)
         emit("container-create-start", {"cpus": cpus, "profile": profile(a.control), "control": a.control})
         cid = docker.call(create_args(a, owner, cpus, os.getuid(), os.getgid())).stdout.decode().strip()
         require(bool(HEX64.fullmatch(cid)), "invalid-created-container-id")
@@ -464,6 +524,7 @@ def run(a):
         except (Blocked, OSError, ValueError):
             evidence = {"present": False, "unreadableOrUnsafe": True}
         final = {"schema": "docker-envelope-final-v1", "envelope": PINS["envelope"], "sourceCommit": PINS["sourceCommit"],
+                 "runnerRevision": PINS["runnerRevision"], "dockerDiagnostics": docker.diagnostics if docker else [],
                  "mode": a.mode, "control": a.control, "passed": failure is None and cleanup and result is not None,
                  "cleanupPassed": cleanup, "reasonCode": failure, "result": result, "resourceEvidence": evidence,
                  "hostConfig": host_facts, "containerCleanup": cleanup_facts,

@@ -1,0 +1,38 @@
+{
+  "schema": "public-control-run-diagnosis-v1",
+  "remoteRunId": 40045294439,
+  "remoteCommit": "0cd14471af591e40d339aa86b39e1a7da3bd5337",
+  "observed": {
+    "setupPassed": true,
+    "pureTestsPassed": 42,
+    "control": "positive",
+    "reasonCode": "docker-command-failed",
+    "hostConfig": null,
+    "containerCleanup": null,
+    "cleanupPassed": false,
+    "ownedContainerIdRecorded": false,
+    "innerResourceEvidencePresent": false,
+    "dockerStderrRetained": false
+  },
+  "sourceProof": {
+    "primarySource": "https://raw.githubusercontent.com/moby/moby/v28.5.1/api/types/container/hostconfig.go",
+    "reviewedSourceVersion": "v28.5.1",
+    "originalCreateFlags": ["--pid private", "--uts private"],
+    "supportedPrivateEncoding": {"PidMode": "", "UTSMode": ""},
+    "pidValidModes": ["", "host", "container:<valid-id>"],
+    "utsValidModes": ["", "host"],
+    "firstDockerCommandInSourceOrder": "create"
+  },
+  "inference": "Unsupported literal private modes reject creation; this is consistent with the pre-admission remote failure. The original failing command stderr was not retained.",
+  "correction": {
+    "runnerRevision": "docker-private-defaults-v2",
+    "omitOnlyFlags": ["--pid", "--uts"],
+    "requireExactly": {"PidMode": "", "UTSMode": "", "IpcMode": "private", "CgroupnsMode": "private"},
+    "resourceLimitsOrSecurityPolicyWeakened": false,
+    "fixedSafeDockerDiagnosticsAdded": true
+  },
+  "cleanupClaimed": false,
+  "runtimeVerification": "UNRUN",
+  "measuredCaseEnabled": false,
+  "allProductAcceptanceGates": "OPEN"
+}

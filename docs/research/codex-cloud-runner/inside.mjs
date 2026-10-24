@@ -122,7 +122,7 @@ function writeSourceLock() {
   write('source-lock-created', { sourceCommit: pins.sourceCommit, manifestSha256, files: files.length });
 }
 async function main() {
-  write('probe-start', { envelope: pins.envelope, node: process.version, pid: process.pid, control: args.control });
+  write('probe-start', { envelope: pins.envelope, runnerRevision: pins.runnerRevision, node: process.version, pid: process.pid, control: args.control });
   ensure(process.version === pins.node && process.arch === 'x64', 'node-version-or-architecture-mismatch');
   ensure(process.getuid() === Number(args.uid) && process.getuid() !== 0, 'container-not-expected-nonroot');
   ensure(fs.readFileSync('/proc/self/cgroup', 'utf8').trim() === '0::/', 'private-cgroup-v2-required');

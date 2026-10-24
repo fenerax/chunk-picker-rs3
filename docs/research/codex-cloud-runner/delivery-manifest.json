@@ -1,10 +1,11 @@
 {
   "schema": "container-runner-delivery-v1",
   "envelope": "docker-hard-2cpu-6g-v1",
+  "runnerRevision": "docker-private-defaults-v2",
   "readiness": "PREPARED_ONLY",
   "sourceCommit": "6f22fefa782747790e2eaefa01e4e5ea7b557323",
   "assetBaseCommit": "7ad315acd39223df3b4d2304e295ef5c017dfe17",
-  "previousManifestSha256": "0b4e9dbb5a3c0055599f5b3909c9f653409ff381d4b6323c2df11cbc7edd377b",
+  "previousManifestSha256": "d67a8dfe0aea74aa27ce1812a7161cd9e140ad7f123bfafe0183add3db785d59",
   "files": [
     {
       "path": "control-run-40044649892-diagnosis.json",
@@ -12,14 +13,19 @@
       "sha256": "4e69b08aff06e3a325ebf864d70a58e0b5ce3acf7cafe3b5004ae0239de513d1"
     },
     {
+      "path": "control-run-40045294439-diagnosis.json",
+      "bytes": 1555,
+      "sha256": "e05ff1483283803f0a3879b8333953af38b2cff997a22f2220351de98f6612e0"
+    },
+    {
       "path": "docker_envelope.py",
-      "bytes": 27980,
-      "sha256": "b66db234aa7a0bbc6251f650d597aa21f5a8ada106e7689879951836d388f490"
+      "bytes": 31986,
+      "sha256": "cbb35ae39407fb6b563d8020a728a8eb0d3b4f10b71638f9243cb57995ceb606"
     },
     {
       "path": "inside.mjs",
-      "bytes": 15159,
-      "sha256": "f0f030e68f28ba93b81bd01b7a543c867be5f06014ddd98be7f88df578eece4f"
+      "bytes": 15196,
+      "sha256": "7fcc934c916940a4290e7ab97c4aa7d9714edd6d41e1f9420cf928d6fef71b72"
     },
     {
       "path": "npm-config-repro-evidence.json",
@@ -38,8 +44,8 @@
     },
     {
       "path": "pins.json",
-      "bytes": 820,
-      "sha256": "7c79ae5f1c70c14ee57717b7823707fc8217b1e6228e9f118767ea2805f48ad3"
+      "bytes": 870,
+      "sha256": "b6d708273465745876d1db24dfe1ede393faaca966b445eddc68e486d782a33a"
     },
     {
       "path": "prepare_public.py",
@@ -49,7 +55,7 @@
     {
       "path": "public-container-envelope.yml",
       "bytes": 8967,
-      "sha256": "0e5aab45b974c62782ab6292319c116f3515a321f33064c966e80354840d01a2"
+      "sha256": "c35302c8fed50d1c74baeb7477f76a583c2491d42260a2f2ca6ebfec3a5b71c5"
     },
     {
       "path": "public-metadata-evidence.json",
@@ -58,13 +64,13 @@
     },
     {
       "path": "README.md",
-      "bytes": 17429,
-      "sha256": "d482f3e53c95f66d0fc55cf8e75c234527d5c587027e5524b00052034ae3187e"
+      "bytes": 19174,
+      "sha256": "2ff99adf768e22b9baca8e70ba550df218edf049a567500fafe7dda200619d63"
     },
     {
       "path": "result-policy.json",
-      "bytes": 51001,
-      "sha256": "a78dd7e5ec69730aeb9ce483b66dd9a7e576aec79feb367b8e6ae9be27b56a3f"
+      "bytes": 51347,
+      "sha256": "0d00a2c7ae957092307d07a57f95b2d701674822e7dbe3629f2b629f66310ac8"
     },
     {
       "path": "setup_diagnostics.py",
@@ -73,13 +79,13 @@
     },
     {
       "path": "test_docker_envelope.py",
-      "bytes": 18568,
-      "sha256": "e7ee6a244dc7fab2e82f9a6470bc2dc01e30a0e6e117b972959598e21ae53e7e"
+      "bytes": 21939,
+      "sha256": "c21bf6101fb4454e14f0f6cc72343779d9cd91b22dbe037393fa0b3b0ca40a88"
     },
     {
       "path": "verification.json",
-      "bytes": 3369,
-      "sha256": "c61ab6ca8c6818cdd24fd6c84072ff274cd87256af09f6eacbb6a736426296dc"
+      "bytes": 3848,
+      "sha256": "6302bad0c323dc1e1c9f859ac4bd8d0b985e55a4281d9b32be2ab9efa1686206"
     }
   ]
 }

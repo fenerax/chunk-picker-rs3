@@ -5,7 +5,7 @@
   "assetBaseCommit": "7ad315acd39223df3b4d2304e295ef5c017dfe17",
   "pureTests": {
     "command": "python -B -m unittest -q test_docker_envelope.py",
-    "passed": 42,
+    "passed": 48,
     "failed": 0
   },
   "subsequentPublishedTrial": {
@@ -89,5 +89,19 @@
     "missingWorkflowNegative": "failed with exactly two fixed test IDs and input-missing class",
     "diagnosisEvidence": "control-run-40044649892-diagnosis.json"
   },
-  "priorManifestSha256": "0b4e9dbb5a3c0055599f5b3909c9f653409ff381d4b6323c2df11cbc7edd377b"
+  "priorManifestSha256": "d67a8dfe0aea74aa27ce1812a7161cd9e140ad7f123bfafe0183add3db785d59",
+  "runnerRevision": "docker-private-defaults-v2",
+  "latestPublishedTrial": {
+    "commit": "0cd14471af591e40d339aa86b39e1a7da3bd5337",
+    "runId": 40045294439,
+    "setupPassed": true,
+    "pureTestsPassed": 42,
+    "control": "positive",
+    "reasonCode": "docker-command-failed",
+    "stderrRetained": false,
+    "ownedContainerIdRecorded": false,
+    "cleanupClaimed": false,
+    "runtimeAcceptance": "OPEN",
+    "sourceProvenInvalidNamespaceModes": true
+  }
 }

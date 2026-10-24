@@ -186,10 +186,22 @@
   ],
   "lines": [
     {
+      "path": ".github/workflows/public-container-envelope.yml",
+      "category": "network-identifier",
+      "sha256": "db5bc542d94caa5495e71bf267b2f819916ce6c9ed1c364904779ae8972a9f86",
+      "reason": "Exact public npm registry configuration in the isolated setup command; no account, credential or deployment binding."
+    },
+    {
+      "path": "docs/research/codex-cloud-runner/test_docker_envelope.py",
+      "category": "network-identifier",
+      "sha256": "11ff2a33442f51e3e1a0b9cc43ccd9bbecd20678142311fce7dbd4f2e336a16a",
+      "reason": "Exact synthetic diagnostic classifier fixture with a single-label fake host and a marker-word query value; no real endpoint or credential."
+    },
+    {
       "path": "docs/research/codex-cloud-runner/inside.mjs",
       "category": "network-identifier",
       "sha256": "aa94f12672c592df6c83528ddceecc912592d202cca07ebac05d76048d0feecb",
-      "reason": "Exact cgroup-v2 root assertion uses the kernel marker 0::/; its 0:: substring resembles IPv6, but names no network."
+      "reason": "Exact cgroup-v2 root assertion uses a kernel membership marker; the IPv6 pattern matches its colon syntax, which names no network."
     },
     {
       "path": "docs/research/codex-cloud-runner/package-lock.json",
