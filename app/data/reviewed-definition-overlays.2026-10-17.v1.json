@@ -1246,6 +1246,90 @@
           "url": "https://runescape.wiki/w/Fishing_Shop_(Wendlewick)?oldid=37108534"
         }
       ]
+    },
+    {
+      "path": [
+        "challenges",
+        "Nonskill",
+        "Caverns under Arandar"
+      ],
+      "beforePresent": true,
+      "before": {
+        "UnlocksArea": true
+      },
+      "beforeRecordSha256": "297ac6cd513bd544463f128fce469b2f7efbd24112790ea04a7e7f25f038abde",
+      "afterPresent": true,
+      "after": {
+        "UnlocksArea": true,
+        "Tasks": {
+          "~|The Prisoner of Glouphrie|~ 2": "Quest"
+        }
+      },
+      "evidence": {
+        "title": "The Prisoner of Glouphrie",
+        "revision": 37212419,
+        "url": "https://runescape.wiki/w/The_Prisoner_of_Glouphrie?oldid=37212419"
+      }
+    },
+    {
+      "path": [
+        "challenges",
+        "Nonskill",
+        "Arposandra"
+      ],
+      "beforePresent": true,
+      "before": {
+        "UnlocksArea": true
+      },
+      "beforeRecordSha256": "297ac6cd513bd544463f128fce469b2f7efbd24112790ea04a7e7f25f038abde",
+      "afterPresent": true,
+      "after": {
+        "UnlocksArea": true,
+        "Tasks": {
+          "~|The Prisoner of Glouphrie|~ 6": "Quest"
+        }
+      },
+      "evidence": {
+        "title": "Arposandra",
+        "revision": 37198099,
+        "url": "https://runescape.wiki/w/Arposandra?oldid=37198099"
+      }
+    },
+    {
+      "path": [
+        "chunks",
+        "Arposandra",
+        "Monster"
+      ],
+      "beforePresent": true,
+      "before": {
+        "Terrorbird": 7,
+        "Tortoise": 2
+      },
+      "beforeRecordSha256": "d4903baad84836e22764ab0554d1cf20b21d369bcc0da59907ef4c91141ac8f2",
+      "afterPresent": false,
+      "evidence": {
+        "title": "Arposandra",
+        "revision": 37198099,
+        "url": "https://runescape.wiki/w/Arposandra?oldid=37198099"
+      }
+    },
+    {
+      "path": [
+        "chunks",
+        "Arposandra",
+        "Object",
+        "Fremennik Furnace"
+      ],
+      "beforePresent": true,
+      "before": 1,
+      "beforeRecordSha256": "6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b",
+      "afterPresent": false,
+      "evidence": {
+        "title": "Arposandra",
+        "revision": 37198099,
+        "url": "https://runescape.wiki/w/Arposandra?oldid=37198099"
+      }
     }
   ],
   "guards": [
