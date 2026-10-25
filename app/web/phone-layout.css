@@ -72,7 +72,7 @@
   :root .more-tools-menu>a { min-height:44px!important;display:flex;align-items:center; }
   :root input[type=color] { min-width:44px; }
   :root input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=color]),:root select,:root textarea { font-size:max(var(--type-input-mobile),1rem)!important;min-width:0;max-width:100%; }
-  :root summary { min-width:44px;align-content:center; }
+  :root summary { min-width:44px!important;align-content:center; }
   :root label:has(input[type=checkbox]),:root label:has(input[type=radio]),:root .checkbox-field { min-height:44px; }
   :root input[type=checkbox],:root input[type=radio] { width:44px;height:44px;min-width:44px;min-height:44px; }
   :root label>input[type=radio] { width:20px;height:20px;min-width:20px;min-height:20px;margin:12px;accent-color:var(--gold); }

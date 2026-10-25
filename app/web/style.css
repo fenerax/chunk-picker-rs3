@@ -294,6 +294,8 @@ details[open]>summary::before{transform:rotate(45deg)}
 .more-tools>summary::before{display:none}
 .more-tools>summary::after{content:"";display:inline-block;width:.38em;height:.38em;margin:0 0 var(--space-legacy-0-18em) var(--space-legacy-0-5em);border:solid currentColor;border-width:0 var(--border-check) var(--border-check) 0;transform:rotate(45deg);opacity:.7}
 .more-tools-menu{position:absolute;top:calc(100% + .45rem);right:0;min-width:230px;display:flex;flex-direction:column;gap:var(--space-legacy-1px);padding:var(--space-3);background:var(--panel);border:var(--border-thin) solid var(--hairline);border-radius:var(--radius);box-shadow:var(--shadow)}
+/* Long top-bar menus stay inside short windows, including customized overflow. */
+.topbar .more-tools-menu{max-height:calc(100dvh - var(--topbar-height,110px) - 1rem);overflow-y:auto;overscroll-behavior:contain}
 .more-tools-menu button{text-align:left;min-height:36px;background:transparent;color:var(--panel-text,var(--text))}
 .more-tools-menu button:hover{background:var(--surface);filter:none}
 .more-tools-menu a{display:block;font:inherit;text-align:left;min-height:36px;padding:var(--space-3) var(--space-5);border:var(--border-thin) solid transparent;line-height:var(--leading-control);border-radius:var(--radius-sm);color:var(--panel-text,var(--text));text-decoration:none}

@@ -1,0 +1,751 @@
+{
+  "browser": "headless Chromium",
+  "node": "v24.19.0",
+  "baseline": "90dcb2aaf181e036dfd9dacf9807ecf59d9720cd",
+  "rows": [
+    {
+      "viewport": "phone",
+      "pair": "1",
+      "variant": "baseline",
+      "target": {
+        "width": 28.5,
+        "height": 44
+      },
+      "menu": {
+        "top": 413,
+        "bottom": 1381.25,
+        "clientHeight": 966,
+        "scrollHeight": 966,
+        "overflowY": "visible",
+        "viewportHeight": 844
+      },
+      "end": {
+        "bottom": 519.25,
+        "reachable": true
+      },
+      "pageScrollY": 0,
+      "interactionLayoutShiftSum": 0.13616818467689407
+    },
+    {
+      "viewport": "phone",
+      "pair": "1",
+      "variant": "candidate",
+      "target": {
+        "width": 44,
+        "height": 44
+      },
+      "menu": {
+        "top": 413,
+        "bottom": 1381.25,
+        "clientHeight": 966,
+        "scrollHeight": 966,
+        "overflowY": "visible",
+        "viewportHeight": 844
+      },
+      "end": {
+        "bottom": 519.25,
+        "reachable": true
+      },
+      "pageScrollY": 0,
+      "interactionLayoutShiftSum": 0.13616818467689407
+    },
+    {
+      "viewport": "phone",
+      "pair": "2",
+      "variant": "candidate",
+      "target": {
+        "width": 44,
+        "height": 44
+      },
+      "menu": {
+        "top": 413,
+        "bottom": 1381.25,
+        "clientHeight": 966,
+        "scrollHeight": 966,
+        "overflowY": "visible",
+        "viewportHeight": 844
+      },
+      "end": {
+        "bottom": 519.25,
+        "reachable": true
+      },
+      "pageScrollY": 0,
+      "interactionLayoutShiftSum": 0
+    },
+    {
+      "viewport": "phone",
+      "pair": "2",
+      "variant": "baseline",
+      "target": {
+        "width": 28.5,
+        "height": 44
+      },
+      "menu": {
+        "top": 413,
+        "bottom": 1381.25,
+        "clientHeight": 966,
+        "scrollHeight": 966,
+        "overflowY": "visible",
+        "viewportHeight": 844
+      },
+      "end": {
+        "bottom": 519.25,
+        "reachable": true
+      },
+      "pageScrollY": 0,
+      "interactionLayoutShiftSum": 0
+    },
+    {
+      "viewport": "phone",
+      "pair": "3",
+      "variant": "baseline",
+      "target": {
+        "width": 28.5,
+        "height": 44
+      },
+      "menu": {
+        "top": 413,
+        "bottom": 1381.25,
+        "clientHeight": 966,
+        "scrollHeight": 966,
+        "overflowY": "visible",
+        "viewportHeight": 844
+      },
+      "end": {
+        "bottom": 519.25,
+        "reachable": true
+      },
+      "pageScrollY": 0,
+      "interactionLayoutShiftSum": 0.13616818467689407
+    },
+    {
+      "viewport": "phone",
+      "pair": "3",
+      "variant": "candidate",
+      "target": {
+        "width": 44,
+        "height": 44
+      },
+      "menu": {
+        "top": 413,
+        "bottom": 1381.25,
+        "clientHeight": 966,
+        "scrollHeight": 966,
+        "overflowY": "visible",
+        "viewportHeight": 844
+      },
+      "end": {
+        "bottom": 519.25,
+        "reachable": true
+      },
+      "pageScrollY": 0,
+      "interactionLayoutShiftSum": 0.13616818467689407
+    },
+    {
+      "viewport": "laptop",
+      "pair": "1",
+      "variant": "baseline",
+      "target": {
+        "width": 28.5,
+        "height": 28.5
+      },
+      "menu": {
+        "top": 48.75,
+        "bottom": 884.4375,
+        "clientHeight": 834,
+        "scrollHeight": 834,
+        "overflowY": "visible",
+        "viewportHeight": 720
+      },
+      "end": {
+        "bottom": 703.4375,
+        "reachable": true
+      },
+      "pageScrollY": 164,
+      "interactionLayoutShiftSum": 0.8822057213650809
+    },
+    {
+      "viewport": "laptop",
+      "pair": "1",
+      "variant": "candidate",
+      "target": {
+        "width": 28.5,
+        "height": 28.5
+      },
+      "menu": {
+        "top": 48.75,
+        "bottom": 651,
+        "clientHeight": 600,
+        "scrollHeight": 834,
+        "overflowY": "auto",
+        "viewportHeight": 720
+      },
+      "end": {
+        "bottom": 633.4375,
+        "reachable": true
+      },
+      "pageScrollY": 0,
+      "interactionLayoutShiftSum": 1.020546840151151
+    },
+    {
+      "viewport": "laptop",
+      "pair": "2",
+      "variant": "candidate",
+      "target": {
+        "width": 28.5,
+        "height": 28.5
+      },
+      "menu": {
+        "top": 48.75,
+        "bottom": 651,
+        "clientHeight": 600,
+        "scrollHeight": 834,
+        "overflowY": "auto",
+        "viewportHeight": 720
+      },
+      "end": {
+        "bottom": 633.4375,
+        "reachable": true
+      },
+      "pageScrollY": 0,
+      "interactionLayoutShiftSum": 1.020546840151151
+    },
+    {
+      "viewport": "laptop",
+      "pair": "2",
+      "variant": "baseline",
+      "target": {
+        "width": 28.5,
+        "height": 28.5
+      },
+      "menu": {
+        "top": 48.75,
+        "bottom": 884.4375,
+        "clientHeight": 834,
+        "scrollHeight": 834,
+        "overflowY": "visible",
+        "viewportHeight": 720
+      },
+      "end": {
+        "bottom": 703.4375,
+        "reachable": true
+      },
+      "pageScrollY": 164,
+      "interactionLayoutShiftSum": 0.3136489995850457
+    },
+    {
+      "viewport": "laptop",
+      "pair": "3",
+      "variant": "baseline",
+      "target": {
+        "width": 28.5,
+        "height": 28.5
+      },
+      "menu": {
+        "top": 48.75,
+        "bottom": 884.4375,
+        "clientHeight": 834,
+        "scrollHeight": 834,
+        "overflowY": "visible",
+        "viewportHeight": 720
+      },
+      "end": {
+        "bottom": 703.4375,
+        "reachable": true
+      },
+      "pageScrollY": 164,
+      "interactionLayoutShiftSum": 1.0242881054878235
+    },
+    {
+      "viewport": "laptop",
+      "pair": "3",
+      "variant": "candidate",
+      "target": {
+        "width": 28.5,
+        "height": 28.5
+      },
+      "menu": {
+        "top": 48.75,
+        "bottom": 651,
+        "clientHeight": 600,
+        "scrollHeight": 834,
+        "overflowY": "auto",
+        "viewportHeight": 720
+      },
+      "end": {
+        "bottom": 633.4375,
+        "reachable": true
+      },
+      "pageScrollY": 0,
+      "interactionLayoutShiftSum": 1.020546840151151
+    }
+  ],
+  "checks": [
+    {
+      "screenshot": "phone-00-loading.png",
+      "bytes": 18728,
+      "width": 390,
+      "height": 844,
+      "touch": 1,
+      "coarse": true,
+      "documentOverflow": 0
+    },
+    {
+      "viewport": "phone",
+      "phoneTabKeyboard": true
+    },
+    {
+      "screenshot": "phone-01-map.png",
+      "bytes": 20039,
+      "width": 390,
+      "height": 844,
+      "touch": 1,
+      "coarse": true,
+      "documentOverflow": 0
+    },
+    {
+      "viewport": "phone",
+      "initialLayoutShifts": [
+        {
+          "value": 0.11844831652478606,
+          "at": 871.8000000000466
+        },
+        {
+          "value": 0.017719868152107996,
+          "at": 876.8000000000466
+        }
+      ]
+    },
+    {
+      "screenshot": "phone-02-controls.png",
+      "bytes": 21875,
+      "width": 390,
+      "height": 844,
+      "touch": 1,
+      "coarse": true,
+      "documentOverflow": 0
+    },
+    {
+      "screenshot": "phone-03-roll.png",
+      "bytes": 26051,
+      "width": 390,
+      "height": 844,
+      "touch": 1,
+      "coarse": true,
+      "documentOverflow": 0
+    },
+    {
+      "screenshot": "phone-04-unlocked.png",
+      "bytes": 21563,
+      "width": 390,
+      "height": 844,
+      "touch": 1,
+      "coarse": true,
+      "documentOverflow": 0
+    },
+    {
+      "screenshot": "phone-05-chunk-contents.png",
+      "bytes": 20532,
+      "width": 390,
+      "height": 844,
+      "touch": 1,
+      "coarse": true,
+      "documentOverflow": 0
+    },
+    {
+      "screenshot": "phone-05-chunk-note.png",
+      "bytes": 19736,
+      "width": 390,
+      "height": 844,
+      "touch": 1,
+      "coarse": true,
+      "documentOverflow": 0
+    },
+    {
+      "screenshot": "phone-05-chunk-access.png",
+      "bytes": 17831,
+      "width": 390,
+      "height": 844,
+      "touch": 1,
+      "coarse": true,
+      "documentOverflow": 0
+    },
+    {
+      "screenshot": "phone-06-access-scrolled.png",
+      "bytes": 20705,
+      "width": 390,
+      "height": 844,
+      "touch": 1,
+      "coarse": true,
+      "documentOverflow": 0
+    },
+    {
+      "screenshot": "phone-07-group-tasks.png",
+      "bytes": 22532,
+      "width": 390,
+      "height": 844,
+      "touch": 1,
+      "coarse": true,
+      "documentOverflow": 0
+    },
+    {
+      "screenshot": "phone-08-filters.png",
+      "bytes": 20739,
+      "width": 390,
+      "height": 844,
+      "touch": 1,
+      "coarse": true,
+      "documentOverflow": 0
+    },
+    {
+      "screenshot": "phone-09-filtered-rows.png",
+      "bytes": 23495,
+      "width": 390,
+      "height": 844,
+      "touch": 1,
+      "coarse": true,
+      "documentOverflow": 0
+    },
+    {
+      "screenshot": "phone-10-task-dialog.png",
+      "bytes": 22586,
+      "width": 390,
+      "height": 844,
+      "touch": 1,
+      "coarse": true,
+      "documentOverflow": 0
+    },
+    {
+      "viewport": "phone",
+      "dialogTabEscaped": false,
+      "escapeClosedDialog": true,
+      "returnFocusVisible": true
+    },
+    {
+      "screenshot": "phone-11-personal-tasks.png",
+      "bytes": 18652,
+      "width": 390,
+      "height": 844,
+      "touch": 1,
+      "coarse": true,
+      "documentOverflow": 0
+    },
+    {
+      "screenshot": "phone-12-more.png",
+      "bytes": 14764,
+      "width": 390,
+      "height": 844,
+      "touch": 1,
+      "coarse": true,
+      "documentOverflow": 0
+    },
+    {
+      "screenshot": "phone-13-more-end.png",
+      "bytes": 19564,
+      "width": 390,
+      "height": 844,
+      "touch": 1,
+      "coarse": true,
+      "documentOverflow": 0
+    },
+    {
+      "screenshot": "phone-14-settings.png",
+      "bytes": 26365,
+      "width": 390,
+      "height": 844,
+      "touch": 1,
+      "coarse": true,
+      "documentOverflow": 0
+    },
+    {
+      "screenshot": "phone-15-settings-map.png",
+      "bytes": 29204,
+      "width": 390,
+      "height": 844,
+      "touch": 1,
+      "coarse": true,
+      "documentOverflow": 0
+    },
+    {
+      "screenshot": "phone-16-history.png",
+      "bytes": 31972,
+      "width": 390,
+      "height": 844,
+      "touch": 1,
+      "coarse": true,
+      "documentOverflow": 0
+    },
+    {
+      "screenshot": "phone-17-recent.png",
+      "bytes": 18831,
+      "width": 390,
+      "height": 844,
+      "touch": 1,
+      "coarse": true,
+      "documentOverflow": 0
+    },
+    {
+      "screenshot": "phone-21-more-customized.png",
+      "bytes": 14944,
+      "width": 390,
+      "height": 844,
+      "touch": 1,
+      "coarse": true,
+      "documentOverflow": 0
+    },
+    {
+      "screenshot": "phone-22-more-customized-end.png",
+      "bytes": 20934,
+      "width": 390,
+      "height": 844,
+      "touch": 1,
+      "coarse": true,
+      "documentOverflow": 0
+    },
+    {
+      "screenshot": "laptop-00-loading.png",
+      "bytes": 49273,
+      "width": 1280,
+      "height": 720,
+      "touch": 0,
+      "coarse": false,
+      "documentOverflow": 0
+    },
+    {
+      "screenshot": "laptop-01-map.png",
+      "bytes": 50007,
+      "width": 1280,
+      "height": 720,
+      "touch": 0,
+      "coarse": false,
+      "documentOverflow": 0
+    },
+    {
+      "viewport": "laptop",
+      "initialLayoutShifts": [
+        {
+          "value": 0.008578706728087531,
+          "at": 667.3000000000466
+        },
+        {
+          "value": 0.00035251547230614555,
+          "at": 686.8999999999069
+        },
+        {
+          "value": 0.0007215938303205702,
+          "at": 691.6999999999534
+        },
+        {
+          "value": 0.07988805272844103,
+          "at": 769.1999999999534
+        },
+        {
+          "value": 0.0015979634390936956,
+          "at": 794.3999999999069
+        },
+        {
+          "value": 0.003471971087985568,
+          "at": 820.8999999999069
+        },
+        {
+          "value": 0.035410156250000005,
+          "at": 837.3000000000466
+        },
+        {
+          "value": 0.0035635291205512155,
+          "at": 842.6999999999534
+        },
+        {
+          "value": 0.15224356351958382,
+          "at": 878.8000000000466
+        }
+      ]
+    },
+    {
+      "screenshot": "laptop-02-controls.png",
+      "bytes": 50007,
+      "width": 1280,
+      "height": 720,
+      "touch": 0,
+      "coarse": false,
+      "documentOverflow": 0
+    },
+    {
+      "screenshot": "laptop-03-roll.png",
+      "bytes": 54077,
+      "width": 1280,
+      "height": 720,
+      "touch": 0,
+      "coarse": false,
+      "documentOverflow": 0
+    },
+    {
+      "screenshot": "laptop-04-unlocked.png",
+      "bytes": 49127,
+      "width": 1280,
+      "height": 720,
+      "touch": 0,
+      "coarse": false,
+      "documentOverflow": 0
+    },
+    {
+      "screenshot": "laptop-05-chunk-contents.png",
+      "bytes": 53550,
+      "width": 1280,
+      "height": 720,
+      "touch": 0,
+      "coarse": false,
+      "documentOverflow": 0
+    },
+    {
+      "screenshot": "laptop-05-chunk-note.png",
+      "bytes": 53557,
+      "width": 1280,
+      "height": 720,
+      "touch": 0,
+      "coarse": false,
+      "documentOverflow": 0
+    },
+    {
+      "screenshot": "laptop-05-chunk-access.png",
+      "bytes": 50774,
+      "width": 1280,
+      "height": 720,
+      "touch": 0,
+      "coarse": false,
+      "documentOverflow": 0
+    },
+    {
+      "screenshot": "laptop-06-access-scrolled.png",
+      "bytes": 55380,
+      "width": 1280,
+      "height": 720,
+      "touch": 0,
+      "coarse": false,
+      "documentOverflow": 0
+    },
+    {
+      "screenshot": "laptop-07-group-tasks.png",
+      "bytes": 51484,
+      "width": 1280,
+      "height": 720,
+      "touch": 0,
+      "coarse": false,
+      "documentOverflow": 0
+    },
+    {
+      "screenshot": "laptop-08-filters.png",
+      "bytes": 51412,
+      "width": 1280,
+      "height": 720,
+      "touch": 0,
+      "coarse": false,
+      "documentOverflow": 0
+    },
+    {
+      "screenshot": "laptop-09-filtered-rows.png",
+      "bytes": 54944,
+      "width": 1280,
+      "height": 720,
+      "touch": 0,
+      "coarse": false,
+      "documentOverflow": 0
+    },
+    {
+      "screenshot": "laptop-10-task-dialog.png",
+      "bytes": 78552,
+      "width": 1280,
+      "height": 720,
+      "touch": 0,
+      "coarse": false,
+      "documentOverflow": 0
+    },
+    {
+      "viewport": "laptop",
+      "dialogTabEscaped": false,
+      "escapeClosedDialog": true,
+      "returnFocusVisible": true
+    },
+    {
+      "screenshot": "laptop-11-personal-tasks.png",
+      "bytes": 52834,
+      "width": 1280,
+      "height": 720,
+      "touch": 0,
+      "coarse": false,
+      "documentOverflow": 0
+    },
+    {
+      "screenshot": "laptop-12-more.png",
+      "bytes": 54400,
+      "width": 1280,
+      "height": 720,
+      "touch": 0,
+      "coarse": false,
+      "documentOverflow": 0
+    },
+    {
+      "screenshot": "laptop-13-more-end.png",
+      "bytes": 54400,
+      "width": 1280,
+      "height": 720,
+      "touch": 0,
+      "coarse": false,
+      "documentOverflow": 0
+    },
+    {
+      "screenshot": "laptop-14-settings.png",
+      "bytes": 77049,
+      "width": 1280,
+      "height": 720,
+      "touch": 0,
+      "coarse": false,
+      "documentOverflow": 0
+    },
+    {
+      "screenshot": "laptop-15-settings-map.png",
+      "bytes": 77124,
+      "width": 1280,
+      "height": 720,
+      "touch": 0,
+      "coarse": false,
+      "documentOverflow": 0
+    },
+    {
+      "screenshot": "laptop-16-history.png",
+      "bytes": 80528,
+      "width": 1280,
+      "height": 720,
+      "touch": 0,
+      "coarse": false,
+      "documentOverflow": 0
+    },
+    {
+      "screenshot": "laptop-17-recent.png",
+      "bytes": 54274,
+      "width": 1280,
+      "height": 720,
+      "touch": 0,
+      "coarse": false,
+      "documentOverflow": 0
+    },
+    {
+      "screenshot": "laptop-21-more-customized.png",
+      "bytes": 54928,
+      "width": 1280,
+      "height": 720,
+      "touch": 0,
+      "coarse": false,
+      "documentOverflow": 0
+    },
+    {
+      "screenshot": "laptop-22-more-customized-end.png",
+      "bytes": 43251,
+      "width": 1280,
+      "height": 720,
+      "touch": 0,
+      "coarse": false,
+      "documentOverflow": 0
+    }
+  ]
+}

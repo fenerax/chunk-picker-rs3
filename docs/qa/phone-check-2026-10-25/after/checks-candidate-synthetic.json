@@ -1,0 +1,286 @@
+{
+  "browser": "headless Chromium",
+  "node": "v24.19.0",
+  "baseline": "90dcb2aaf181e036dfd9dacf9807ecf59d9720cd",
+  "rows": [],
+  "checks": [
+    {
+      "viewport": "phone",
+      "chunkTabKeyboard": true
+    },
+    {
+      "screenshot": "phone-18-synthetic-contents.png",
+      "bytes": 21665,
+      "width": 390,
+      "height": 844,
+      "touch": 1,
+      "coarse": true,
+      "documentOverflow": 0
+    },
+    {
+      "screenshot": "phone-18-synthetic-tasks-loading.png",
+      "bytes": 19819,
+      "width": 390,
+      "height": 844,
+      "touch": 1,
+      "coarse": true,
+      "documentOverflow": 0
+    },
+    {
+      "screenshot": "phone-18-synthetic-tasks.png",
+      "bytes": 25722,
+      "width": 390,
+      "height": 844,
+      "touch": 1,
+      "coarse": true,
+      "documentOverflow": 0
+    },
+    {
+      "screenshot": "phone-18-synthetic-clues.png",
+      "bytes": 23271,
+      "width": 390,
+      "height": 844,
+      "touch": 1,
+      "coarse": true,
+      "documentOverflow": 0
+    },
+    {
+      "screenshot": "phone-18-synthetic-note.png",
+      "bytes": 20262,
+      "width": 390,
+      "height": 844,
+      "touch": 1,
+      "coarse": true,
+      "documentOverflow": 0
+    },
+    {
+      "screenshot": "phone-18-synthetic-interior.png",
+      "bytes": 19221,
+      "width": 390,
+      "height": 844,
+      "touch": 1,
+      "coarse": true,
+      "documentOverflow": 0
+    },
+    {
+      "screenshot": "phone-18-synthetic-access.png",
+      "bytes": 18495,
+      "width": 390,
+      "height": 844,
+      "touch": 1,
+      "coarse": true,
+      "documentOverflow": 0
+    },
+    {
+      "screenshot": "phone-19-synthetic-preview.png",
+      "bytes": 22991,
+      "width": 390,
+      "height": 844,
+      "touch": 1,
+      "coarse": true,
+      "documentOverflow": 0
+    },
+    {
+      "screenshot": "phone-19-synthetic-estimate.png",
+      "bytes": 22329,
+      "width": 390,
+      "height": 844,
+      "touch": 1,
+      "coarse": true,
+      "documentOverflow": 0
+    },
+    {
+      "screenshot": "phone-20-activity-skills.png",
+      "bytes": 23748,
+      "width": 390,
+      "height": 844,
+      "touch": 1,
+      "coarse": true,
+      "documentOverflow": 0
+    },
+    {
+      "screenshot": "phone-20-activity-quests.png",
+      "bytes": 20423,
+      "width": 390,
+      "height": 844,
+      "touch": 1,
+      "coarse": true,
+      "documentOverflow": 0
+    },
+    {
+      "screenshot": "phone-20-activity-achievements.png",
+      "bytes": 23443,
+      "width": 390,
+      "height": 844,
+      "touch": 1,
+      "coarse": true,
+      "documentOverflow": 0
+    },
+    {
+      "screenshot": "phone-20-activity-activities.png",
+      "bytes": 21278,
+      "width": 390,
+      "height": 844,
+      "touch": 1,
+      "coarse": true,
+      "documentOverflow": 0
+    },
+    {
+      "screenshot": "phone-20-activity-slayer.png",
+      "bytes": 22744,
+      "width": 390,
+      "height": 844,
+      "touch": 1,
+      "coarse": true,
+      "documentOverflow": 0
+    },
+    {
+      "screenshot": "phone-20-activity-clues.png",
+      "bytes": 21606,
+      "width": 390,
+      "height": 844,
+      "touch": 1,
+      "coarse": true,
+      "documentOverflow": 0
+    },
+    {
+      "viewport": "laptop",
+      "chunkTabKeyboard": true
+    },
+    {
+      "screenshot": "laptop-18-synthetic-contents.png",
+      "bytes": 50102,
+      "width": 1280,
+      "height": 720,
+      "touch": 0,
+      "coarse": false,
+      "documentOverflow": 0
+    },
+    {
+      "screenshot": "laptop-18-synthetic-tasks-loading.png",
+      "bytes": 49555,
+      "width": 1280,
+      "height": 720,
+      "touch": 0,
+      "coarse": false,
+      "documentOverflow": 0
+    },
+    {
+      "screenshot": "laptop-18-synthetic-tasks.png",
+      "bytes": 55070,
+      "width": 1280,
+      "height": 720,
+      "touch": 0,
+      "coarse": false,
+      "documentOverflow": 0
+    },
+    {
+      "screenshot": "laptop-18-synthetic-clues.png",
+      "bytes": 52083,
+      "width": 1280,
+      "height": 720,
+      "touch": 0,
+      "coarse": false,
+      "documentOverflow": 0
+    },
+    {
+      "screenshot": "laptop-18-synthetic-note.png",
+      "bytes": 49508,
+      "width": 1280,
+      "height": 720,
+      "touch": 0,
+      "coarse": false,
+      "documentOverflow": 0
+    },
+    {
+      "screenshot": "laptop-18-synthetic-interior.png",
+      "bytes": 48930,
+      "width": 1280,
+      "height": 720,
+      "touch": 0,
+      "coarse": false,
+      "documentOverflow": 0
+    },
+    {
+      "screenshot": "laptop-18-synthetic-access.png",
+      "bytes": 47914,
+      "width": 1280,
+      "height": 720,
+      "touch": 0,
+      "coarse": false,
+      "documentOverflow": 0
+    },
+    {
+      "screenshot": "laptop-19-synthetic-preview.png",
+      "bytes": 52569,
+      "width": 1280,
+      "height": 720,
+      "touch": 0,
+      "coarse": false,
+      "documentOverflow": 0
+    },
+    {
+      "screenshot": "laptop-19-synthetic-estimate.png",
+      "bytes": 50482,
+      "width": 1280,
+      "height": 720,
+      "touch": 0,
+      "coarse": false,
+      "documentOverflow": 0
+    },
+    {
+      "screenshot": "laptop-20-activity-skills.png",
+      "bytes": 75231,
+      "width": 1280,
+      "height": 720,
+      "touch": 0,
+      "coarse": false,
+      "documentOverflow": 0
+    },
+    {
+      "screenshot": "laptop-20-activity-quests.png",
+      "bytes": 73602,
+      "width": 1280,
+      "height": 720,
+      "touch": 0,
+      "coarse": false,
+      "documentOverflow": 0
+    },
+    {
+      "screenshot": "laptop-20-activity-achievements.png",
+      "bytes": 72559,
+      "width": 1280,
+      "height": 720,
+      "touch": 0,
+      "coarse": false,
+      "documentOverflow": 0
+    },
+    {
+      "screenshot": "laptop-20-activity-activities.png",
+      "bytes": 68966,
+      "width": 1280,
+      "height": 720,
+      "touch": 0,
+      "coarse": false,
+      "documentOverflow": 0
+    },
+    {
+      "screenshot": "laptop-20-activity-slayer.png",
+      "bytes": 73827,
+      "width": 1280,
+      "height": 720,
+      "touch": 0,
+      "coarse": false,
+      "documentOverflow": 0
+    },
+    {
+      "screenshot": "laptop-20-activity-clues.png",
+      "bytes": 76054,
+      "width": 1280,
+      "height": 720,
+      "touch": 0,
+      "coarse": false,
+      "documentOverflow": 0
+    }
+  ]
+}
