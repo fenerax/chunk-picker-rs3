@@ -250,7 +250,11 @@ export function selectPresentedTasks(result, state, memberId, definitions = {}, 
   const primary = row => row.primary ?? !!(record(row).Primary ?? record(row).Priamry ?? record(row).primary);
 
   const completedLevels = new Map();
-  for (const row of rows) if (row.obligation !== false && isSkillGoal(row) && done(row)) completedLevels.set(row.category, Math.max(completedLevels.get(row.category) ?? 0, level(row)));
+  // The reference cutoff reads every completed challenge (worker.js:9858), so a
+  // tick still counts after a map change (an F2P-to-members restart can move or
+  // wipe chunks). challengeSatisfied already applies the group completion rule:
+  // under the shared default, a partner's higher goal also covers lower ones.
+  for (const row of rows) if (isSkillGoal(row) && done(row)) completedLevels.set(row.category, Math.max(completedLevels.get(row.category) ?? 0, level(row)));
   const skills = new Map();
   const selected = [];
   for (const row of rows) {

@@ -246,6 +246,23 @@ test('required achievement groups follow family rules independently of active se
     assert.equal(withActivityTimingTags('Diary', other), other);
   });
 
+  test('sinkhole area and every task that needs it follow the timing rules', () => {
+    const area = { 'Not F2P': true, UnlocksArea: true };
+    assert.deepEqual(withActivityTimingTags('Nonskill', area, 'Sinkhole').Category, ['Timegated', 'DnD']);
+    assert.equal(withActivityTimingTags('Nonskill', area, 'Fixture hub'), area);
+    const data = { chunks: { '1': {}, '36': { Name: 'Sinkhole' }, Sinkhole: { Connect: { '1': true } } },
+      challenges: { Nonskill: { Sinkhole: area },
+        Diary: { 'Fixture sinkhole': { Category: ['Show Diary Tasks'], Description: 'Complete a sinkhole.', Chunks: ['Sinkhole'] },
+          'Fixture duty': { Category: ['Show Diary Tasks'], Chunks: ['1'] } } } };
+    for (const [Timegated, DnD, allowed] of [[false, true, false], [true, false, false], [true, true, true]]) {
+      const result = createTaskEngine(data, options).evaluate(saved({ Timegated, DnD, 'Show Diary Tasks': true }), 'a');
+      const status = name => result.tasks.find(row => row.rawLabel === name).status;
+      assert.equal(status('Fixture sinkhole') === 'available', allowed, `Timegated=${Timegated}, DnD=${DnD}`);
+      assert.equal(status('Sinkhole') === 'available', allowed);
+      assert.equal(status('Fixture duty'), 'available');
+    }
+  });
+
   test('reward-shop supplies respect timing rules without blocking the same ordinary item elsewhere', () => {
     const data = { ...definitions, chunks: { '1': { Spawn: { 'Ordinary flower': 1 }, Shop: { 'Reward Shop (Big Chinchompa)': true } } },
       shopItems: { 'Reward Shop (Big Chinchompa)': { 'Fixture reward': 1, 'Ordinary flower': 1 } } };

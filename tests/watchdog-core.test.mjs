@@ -54,7 +54,10 @@ if (${ps(build)}) {
     $at = $(if (${ps(build)} -eq 'old') { [DateTime]::UtcNow.AddHours(-2) } else { [DateTime]::UtcNow })
     Set-Content -LiteralPath (Join-Path $global:context.localDir 'release-build-active.json') -Value (@{ pid = $PID; processStartedAt = $started.ToString('o'); startedAt = $at.ToString('o') } | ConvertTo-Json)
 }
-function Get-NetTCPConnection { param($State, $LocalPort, $ErrorAction); if ($global:mode -eq 'silent') { return @() }; return [pscustomobject]@{ LocalAddress = '127.0.0.1'; OwningProcess = $(if ($global:mode -eq 'foreign-listener') { 456 } else { 123 }) } }
+function Get-NetTCPConnection {
+    [CmdletBinding()] param($CimSession, $State, $LocalPort)
+    if ($global:mode -eq 'listener-error') { Write-Error -Message 'private-secret-error' -Category OperationTimeout; return }
+    if ($global:mode -eq 'silent') { return @() }; return [pscustomobject]@{ LocalAddress = '127.0.0.1'; OwningProcess = $(if ($global:mode -eq 'foreign-listener') { 456 } else { 123 }) } }
 function Get-NetIPAddress { return @() }
 function Assert-OperatorStoreReleased { }
 function Get-OperatorToken { Add-Content -LiteralPath $global:calls -Value 'Token'; return ('a' * 43) }
@@ -150,10 +153,34 @@ test('core watchdog clears a stopping record only when its writer has provably e
     assert.deepEqual(refused.calls, [], mode);
     assert.ok(refused.log.includes(`Reason: ${reason}`), `${mode}: ${refused.log}`);
   }
-  // Exception text the operator did not write itself is never logged.
+  // Exception text the operator did not write itself is never logged; only
+  // its type, codes and the command and line that raised it.
   const foreign = await tick('foreign-process');
-  assert.ok(foreign.log.includes('Reason: an unexpected error (details withheld).'), foreign.log);
+  assert.match(foreign.log, /Reason: an unexpected error \(details withheld; System\.Management\.Automation\.RuntimeException, HResult 0x[0-9A-F]{8}, category \w+, in Get-OperatorOwnedProcess at check\.ps1:\d+\)\./, foreign.log);
   assert.doesNotMatch(foreign.log, /private-secret-error/);
+});
+test('a failed listener query refuses recovery instead of reading as no listener', { skip: !available }, async () => {
+  const failed = await tick('listener-error');
+  assert.deepEqual(failed.calls, []);
+  assert.ok(failed.log.includes('Reason: Listener query failed.'), failed.log);
+  assert.doesNotMatch(failed.log, /private-secret-error/);
+  await fixture(async dir => {
+    const result = await execute(dir, `
+function New-CimSession { param($OperationTimeoutSec, $ErrorAction) $global:timeout = $OperationTimeoutSec; return 'session' }
+function Get-NetTCPConnection {
+    [CmdletBinding()] param($CimSession, $State, $LocalPort)
+    if ($CimSession -ne 'session') { throw 'Query ran without the timed session' }
+    if ($LocalPort -eq 1) { Write-Error -Message 'No matching objects' -Category ObjectNotFound; return }
+    if ($LocalPort -eq 2) { Write-Error -Message 'Timed out' -Category OperationTimeout; return }
+    return [pscustomobject]@{ LocalAddress = '127.0.0.1'; OwningProcess = 123 }
+}
+"none:$(@(Get-OperatorListenSockets 1).Count)"
+try { $null = Get-OperatorListenSockets 2; 'failed:accepted' } catch { "failed:$($_.Exception.Message)" }
+"found:$(@(Get-OperatorListenSockets 3).Count)"
+"timeout:$global:timeout"
+`);
+    assert.deepEqual(result.stdout.trim().split(/\r?\n/), ['none:0', 'failed:Listener query failed.', 'found:1', 'timeout:30']);
+  });
 });
 test('core watchdog retains initial startup grace and waits for pinned Tailscale address', { skip: !available }, async () => {
   const starting = await tick('starting');
@@ -207,7 +234,7 @@ if ("$output" -notmatch 'Verified writer stopped') { throw "Unexpected output: $
 // Boot is pinned at 2026-06-01; "before" times predate it, "after" times follow it.
 const bootStub = writer => `
 function Get-CimInstance {
-    param([Parameter(Position = 0)]$ClassName, $Filter)
+    param([Parameter(Position = 0)]$ClassName, $Filter, $OperationTimeoutSec)
     if ($ClassName -eq 'Win32_OperatingSystem') { return [pscustomobject]@{ LastBootUpTime = [DateTimeOffset]::Parse('2026-06-01T00:00:00Z').LocalDateTime } }
     if ($Filter -like '*node.exe*') { return @(${writer ? "[pscustomobject]@{ CommandLine = 'node app/server.mjs --data-dir \"' + $global:dataDir + '\"' }" : ''}) }
     return [pscustomobject]@{ ExecutablePath = 'C:\\other.exe'; CommandLine = 'reused'; CreationDate = [DateTime]::Now }
@@ -278,7 +305,7 @@ test('watchdog moves aside the lock of an exited recorded writer only on an exac
 $global:dataDir = ${ps(data)}
 $context = [pscustomobject]@{ localDir = ${ps(dir)}; config = [pscustomobject]@{ dataDir = $global:dataDir; port = 19888; loopbackPort = 19889 } }
 function Get-CimInstance {
-    param([Parameter(Position = 0)]$ClassName, $Filter)
+    param([Parameter(Position = 0)]$ClassName, $Filter, $OperationTimeoutSec)
     if ($ClassName -eq 'Win32_OperatingSystem') { return [pscustomobject]@{ LastBootUpTime = [DateTimeOffset]::Parse('2026-06-01T00:00:00Z').LocalDateTime } }
     if ($Filter -like '*node.exe*') { return @(${writer ? "[pscustomobject]@{ CommandLine = 'node app/server.mjs --data-dir \"' + $global:dataDir + '\"' }" : ''}) }
     return @(${alive ? "[pscustomobject]@{ ExecutablePath = 'C:\\other.exe'; CommandLine = 'reused'; CreationDate = [DateTime]::Now }" : ''})
