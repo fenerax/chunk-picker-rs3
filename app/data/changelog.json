@@ -2,6 +2,15 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "date": "2026-10-25",
+      "title": "The game plugin ticks gear you own",
+      "items": [
+        "When the game plugin sees an item in your backpack or worn on a live world, the matching Best in Slot “Obtain” goal ticks by itself. It shows in Completed as from the game plugin, with the item and whether you had it already or got it since, and History can undo it",
+        "Wear and Wield tasks, and tasks that need an item from a particular source, still wait for you in the game plugin review, which now lists item evidence in its own section",
+        "Beta worlds never tick your save. Items on the tool belt or in the bank aren’t read yet"
+      ]
+    },
+    {
       "date": "2026-10-24",
       "title": "The picker gets itself back up after a stuck restart",
       "items": [
