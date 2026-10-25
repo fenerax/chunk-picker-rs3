@@ -3,6 +3,13 @@
   "entries": [
     {
       "date": "2026-10-25",
+      "title": "Old skill ticks still count after a map change",
+      "items": [
+        "A skill task you ticked stays counted even when its chunk is no longer in your map, for example after switching from free-to-play to members. Lower tasks in that skill stay out of your list, as in the original picker. This applies to every skill"
+      ]
+    },
+    {
+      "date": "2026-10-25",
       "title": "Bosses wait until you're ready for them",
       "items": [
         "Bosses now unlock at the levels from the group's boss unlock sheet, such as Defence and one combat style at the boss's tier, plus Prayer where the sheet asks. Until your own synced levels meet them, that boss's kill, drop, challenge and gear tasks stay out of your list",
