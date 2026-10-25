@@ -149,7 +149,7 @@ export const commandPermissions = Object.freeze(Object.fromEntries([
   'set-task-alternative', 'set-primary-override', 'set-skill-levels', 'set-xp-choices', 'replace-member',
   'set-runescape-name', 'apply-runemetrics', 'apply-game-progress', 'set-slayer-lock', 'set-sticker', 'add-sticker',
   'update-sticker', 'remove-sticker', 'clear-stickers', 'set-chunk-colour', 'rename-chunk-colour', 'set-starting-chunk', 'set-section',
-  'set-source-backlog', 'set-area', 'complete-task', 'set-obtained-equipment', 'roll', 'pick-for-me', 'unlock-selection',
+  'set-source-backlog', 'set-boss-unlock', 'set-area', 'complete-task', 'set-obtained-equipment', 'roll', 'pick-for-me', 'unlock-selection',
   'cancel-roll', 'unlock-both', 'random-start', 'go-members', 'setup-start', 'unpick', 'undo', 'claim-task', 'clear-task-claim', TICK_ACTIVE_TASKS,
 ].map(type => [type, 'write'])));
 export function apiPermission(method, route) {
@@ -2037,7 +2037,7 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
       else if (['/area-check.mjs', '/area-check-selection.mjs', '/area-check.css'].includes(route)) file = await containedFile(webRoot, route.slice(1));
       else if (['/partner-supply-model.mjs', '/partner-supply-view.mjs', '/partner-supply.css'].includes(route)) file = await containedFile(webRoot, route.slice(1));
       else if (['/tasks/rule-defaults.mjs', '/tasks/task-provenance.mjs', '/tasks/fact-projection.mjs', '/tasks/gameplay-compat.mjs', '/tasks/gameplay-facts.mjs', '/tasks/chunk-planning-index.mjs'].includes(route)) file = await containedFile(path.join(ROOT, 'app', 'tasks'), route.slice('/tasks/'.length));
-      else if (['/data/surface-grid.mjs', '/data/world-connections.mjs'].includes(route)) file = await containedFile(path.join(ROOT, 'app', 'data'), route.slice('/data/'.length));
+      else if (['/data/surface-grid.mjs', '/data/world-connections.mjs', '/data/boss-gates.mjs'].includes(route)) file = await containedFile(path.join(ROOT, 'app', 'data'), route.slice('/data/'.length));
       else if (['/data/cache-archaeology.mjs', '/data/cache-interiors.mjs'].includes(route)) file = await containedFile(path.join(ROOT, 'app', 'data'), route.slice('/data/'.length));
       else if (['/rules-panel.mjs', '/rules-model.mjs', '/rules-review.mjs', '/rules-review-model.mjs', '/rules-review-preview.mjs', '/rule-explanations.mjs', '/rules-review.css', '/kept-rules.mjs', '/sandbox.mjs', '/sandbox.css', '/sandbox-rules.mjs', '/duo-coordination.mjs'].includes(route)) file = await containedFile(webRoot, route.slice(1));
       else if (['/completed-view.mjs', '/completed-model.mjs', '/completed-range.mjs', '/completed-range-preference.mjs', '/completed-view.css'].includes(route)) file = await containedFile(webRoot, route.slice(1));

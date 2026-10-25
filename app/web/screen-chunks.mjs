@@ -81,7 +81,8 @@ export function createScreenChunks(c) {
     const status = owner => ['unlocked', 'selected', 'pendingRoll', 'blacklisted'].map(key => owner[key]?.includes(id) ? 1 : 0).join('');
     return JSON.stringify([c.memberId, c.$('group-view').checked, c.state.members.map(owner => [owner.id, owner.name, status(owner), owner.notes?.[id] ?? null, owner.stickers?.[id] ?? null, [Object.hasOwn(owner.chunkColours ?? {}, id), owner.chunkColours?.[id]], owner.chunkColourNames,
       owner.areaOverrides?.[id] ?? null, Object.entries(owner.sectionOverrides ?? {}).filter(([key]) => key.split('-')[0] === String(id))]),
-      c.pool.eligible.some(item => item.id === id), c.pool.excluded.some(item => item.id === id), c.result ? c.result.access?.areas?.includes(id) : null, c.state.rules, c.preferences().advanced,
+      c.pool.eligible.some(item => item.id === id), c.pool.excluded.some(item => item.id === id), c.result ? c.result.access?.areas?.includes(id) : null,
+      c.result ? c.result.bossGates?.map(gate => `${gate.id}:${gate.open ? gate.openedBy : 0}`).join() : null, c.state.rules, c.preferences().advanced,
       // Preview follows gameplay; location evidence still follows the exact save.
       ['unlock', 'challenges', 'clues', 'tasks'].includes(c.chunkTab ?? c.defaultChunkTab())
         ? [(c.chunkTab ?? c.defaultChunkTab()) === 'unlock' ? c.canonicalTaskRevision() : c.state.revision, c.sandbox.signature(), predictionActorScope()] : null]);
@@ -390,7 +391,21 @@ export function createScreenChunks(c) {
           availability.title = 'This resource is visible in the chunk contents, but its location is not currently reachable by this player.';
           title.append(availability);
         }
+        // A boss gate is per player, so only this player's current result can say.
+        const gate = key === 'Monster' && c.result?.memberId === c.memberId ? c.result.bossGates?.find(status => status.monsters.includes(name)) : undefined;
+        if (gate && !gate.open) {
+          const locked = c.el('small', 'Boss locked', 'status-detail object-provenance');
+          locked.title = gate.reason;
+          title.append(locked);
+        }
         row.append(title);
+        if (gate && c.canWrite() && (!gate.open || gate.openedBy === 'manual')) {
+          const toggle = c.button(gate.open ? 'Relock boss' : 'Unlock now', async () => {
+            await c.command({ type: 'set-boss-unlock', memberId: c.memberId, gate: gate.id, unlocked: !gate.open });
+          });
+          toggle.dataset.bossGate = gate.id;
+          row.append(toggle);
+        }
         if (kinds[key] && c.canWrite()) { const kind = kinds[key], blocked = c.member().sourceBacklogs?.[kind]?.[name] ?? !!c.result?.access?.backloggedSources?.[kind]?.[name]; row.append(c.button(blocked ? 'Use source' : 'Backlog source', async () => { await c.command({ type: 'set-source-backlog', memberId: c.memberId, kind, name, backlogged: !blocked }); })); }
         else if (key === 'Connect' && (c.world.chunks.has(name) || c.world.areas.has(name))) row.append(c.button('View', () => { c.map.centerOnChunk(name); c.showChunk(name); }));
         rows.append(row);
@@ -404,7 +419,17 @@ export function createScreenChunks(c) {
     return container;
   }
 
-  Object.assign(c, { disposeAccessSections, syncPredictionIntents, chunkSignature, showChunk, refreshChunkSummary, closeChunkMenu, chunkMenu, tabStrip, chunkStatusActions, predictUnlock, unlockPreview, chunkAccess, chunkContents });
+  // Gate states arrive with the task result, after the command that changed
+  // them. Redraw then, even from the gate button itself, and keep its focus.
+  function refreshBossGates() {
+    if (!c.chunkId || c.$('chunk-info').hidden || c.chunkSignature(c.chunkId) === c.shownChunkSignature) return;
+    const content = c.$('chunk-content'), focused = content.contains(document.activeElement) ? document.activeElement : undefined;
+    if (focused && !focused.dataset?.bossGate) return;
+    c.showChunk(c.chunkId);
+    if (focused) content.querySelector(`[data-boss-gate="${focused.dataset.bossGate}"]`)?.focus();
+  }
+
+  Object.assign(c, { refreshBossGates, disposeAccessSections, syncPredictionIntents, chunkSignature, showChunk, refreshChunkSummary, closeChunkMenu, chunkMenu, tabStrip, chunkStatusActions, predictUnlock, unlockPreview, chunkAccess, chunkContents });
 
   c.$?.('map-menu')?.addEventListener('keydown', event => {
     const keys = ['ArrowDown', 'ArrowUp', 'Home', 'End'];

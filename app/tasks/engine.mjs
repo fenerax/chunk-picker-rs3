@@ -31,6 +31,7 @@ import { combatLevelFromSkills } from '../core/combat-level.mjs';
 import { createEligibilityCache } from './eligibility-cache.mjs';
 import { createObligationCache } from './obligation-cache.mjs';
 import { recordedEquipment } from './recorded-equipment.mjs';
+import { evaluateBossGates, closedBossMonsters } from './boss-gates.mjs';
 import { applyDivinationTraining } from '../data/divination-training.mjs';
 import { personalQuestProgressBlocker } from './personal-quest-progress.mjs';
 import { taskRuleEnabled } from './rule-defaults.mjs';
@@ -398,6 +399,13 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
         && Number.isSafeInteger(observation.level) && observation.level >= 1 && observation.level <= 120
         && Number.isFinite(observation.xp) && observation.xp >= 0) observedProgress[skill] = observation;
     }
+    const bossGates = evaluateBossGates(Object.fromEntries(Object.entries(observedProgress).map(([skill, observation]) => [skill, observation.level])), member.bossUnlocks);
+    const gatedBosses = closedBossMonsters(bossGates);
+    const restrictGatedBosses = access => {
+      for (const [monster, gate] of gatedBosses) if (access.monsters.delete(monster)) {
+        access.diagnostics.push({ code: 'boss-gated', kind: 'Monster', source: monster, gate: gate.id, detail: gate.reason });
+      }
+    };
     const rules = { ...(!hasGameplayMigration(state, member) ? legacyMap.rules : {}), ...state.taskRules, ...member.taskRules };
     const ruleDiagnostics = taskRuleDiagnostics(rules, { memberId });
     for (const { ruleId } of ruleDiagnostics) {
@@ -619,6 +627,8 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
         : memoAccess(accessIndex, state, memberId, { territory: { bases, sections, transportNoop: connections.transportNoop === true }, retainedTerritory });
     }
     refreshAccess();
+    restrictGatedBosses(access);
+    if (access !== ownAccess) restrictGatedBosses(ownAccess);
     releaseForTargets(access);
     if (playerControls.primaryOverrides.Slayer === true) releaseSlayerLock({ kind: 'manual-primary' });
     const initialSlayerLevel = Math.min(caps.Slayer, Math.max(1, Number(playerControls.passiveLevels.Slayer ?? 1), observedProgress.Slayer?.level ?? 1, Number(playerControls.slayerLock?.level ?? 1), ...compiled.filter(task => task.category === 'Slayer' && completedTask(task)).map(task => task.level)));
@@ -1180,6 +1190,8 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
         counters.passes++; changed = false;
         obligationCache.clear();
         refreshAccess(); counters.accessPasses++;
+        restrictGatedBosses(access);
+        if (access !== ownAccess) restrictGatedBosses(ownAccess);
         const priorLock = effectiveSlayerLock;
         releaseForTargets(access);
         if (priorLock && !effectiveSlayerLock) { changed = true; refreshSlayerLevel(); }
@@ -1326,7 +1338,7 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
     processing = selectProcessingSources(rows, [...items].map(name => ({ name, sources: sourceList(name) })),
       Object.fromEntries(Object.keys(skillCaps).map(skill => [skill, { passiveLevel: passive[skill], primary: trained.has(skill),
         manualPrimary: playerControls.primaryOverrides[skill] === true }])), rules, definitions, serializedAccess, ordinaryProcessingInput);
-    const result = { tasks: rows, houseStorage: { ...houseStorage, tasks: undefined }, playerControls, effectiveSlayerLock, slayerLockRelease, access: serializedAccess, obligationAccess: serializeAccess(ownAccess), ownItems: [...ownItems].sort(), ownItemOrigins, partnerConnections: connections ?? { regions: [], byChunk: {} }, items: [...items].sort().map(name => ({ name, sources: sourceList(name) })), equipment, training: Object.fromEntries(Object.keys(skillCaps).map(skill => [skill, { level: levels[skill], cap: caps[skill], primary: trained.has(skill), passiveLevel: passive[skill], viaPartners: ownTraining.has(skill) ? [] : [...(trainingVia.get(skill) ?? [])], primaryOverride: playerControls.primaryOverrides[skill] ?? null, manualPrimary: playerControls.primaryOverrides[skill] === true, passiveOverride: playerControls.passiveLevels[skill] ?? null, maxOverride: playerControls.maxLevels[skill] ?? null, observedLevel: observedProgress[skill]?.level ?? null, observedXp: observedProgress[skill]?.xp ?? null, observedSource: observedProgress[skill]?.source ?? null, observedFetchedAt: observedProgress[skill]?.fetchedAt ?? null, observedRunescapeName: observedProgress[skill]?.runescapeName ?? null, observedCapabilityLevel: observedProgress[skill] ? Math.min(observedProgress[skill].level, caps[skill]) : null }])), points, metrics: { ...counters, elapsedMs: performance.now() - started, catalogueCount: compiled.length, availableCount: rows.filter(row => row.status === 'available' && row.obligation).length, unsupportedCount: unsupported }, diagnostics, coverage: { declaredTasks: compiled.length, supportedTasks: compiled.length - unsupported, unsupportedTasks: unsupported, supportedFields: [...KNOWN].filter(field => !['Categories', 'OutputVar'].includes(field)), unsupportedFields: ['Categories', 'OutputVar'], unsupportedRules: UNSUPPORTED_RULES, limitations: ['Some original highest-level task links and Best in Slot comparisons are still incomplete.', 'Some optional XP choices and special item sources are still incomplete. Tasks with unsupported requirements or unidentified sources are excluded.'] } };
+    const result = { tasks: rows, houseStorage: { ...houseStorage, tasks: undefined }, playerControls, effectiveSlayerLock, slayerLockRelease, bossGates, access: serializedAccess, obligationAccess: serializeAccess(ownAccess), ownItems: [...ownItems].sort(), ownItemOrigins, partnerConnections: connections ?? { regions: [], byChunk: {} }, items: [...items].sort().map(name => ({ name, sources: sourceList(name) })), equipment, training: Object.fromEntries(Object.keys(skillCaps).map(skill => [skill, { level: levels[skill], cap: caps[skill], primary: trained.has(skill), passiveLevel: passive[skill], viaPartners: ownTraining.has(skill) ? [] : [...(trainingVia.get(skill) ?? [])], primaryOverride: playerControls.primaryOverrides[skill] ?? null, manualPrimary: playerControls.primaryOverrides[skill] === true, passiveOverride: playerControls.passiveLevels[skill] ?? null, maxOverride: playerControls.maxLevels[skill] ?? null, observedLevel: observedProgress[skill]?.level ?? null, observedXp: observedProgress[skill]?.xp ?? null, observedSource: observedProgress[skill]?.source ?? null, observedFetchedAt: observedProgress[skill]?.fetchedAt ?? null, observedRunescapeName: observedProgress[skill]?.runescapeName ?? null, observedCapabilityLevel: observedProgress[skill] ? Math.min(observedProgress[skill].level, caps[skill]) : null }])), points, metrics: { ...counters, elapsedMs: performance.now() - started, catalogueCount: compiled.length, availableCount: rows.filter(row => row.status === 'available' && row.obligation).length, unsupportedCount: unsupported }, diagnostics, coverage: { declaredTasks: compiled.length, supportedTasks: compiled.length - unsupported, unsupportedTasks: unsupported, supportedFields: [...KNOWN].filter(field => !['Categories', 'OutputVar'].includes(field)), unsupportedFields: ['Categories', 'OutputVar'], unsupportedRules: UNSUPPORTED_RULES, limitations: ['Some original highest-level task links and Best in Slot comparisons are still incomplete.', 'Some optional XP choices and special item sources are still incomplete. Tasks with unsupported requirements or unidentified sources are excluded.'] } };
     Object.defineProperty(result, 'processing', { value: processing });
     result.finiteRewards = rows.flatMap(row => row.finiteRewards ?? []);
     replay.finalizations++;

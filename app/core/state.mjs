@@ -22,6 +22,7 @@ import { groupGoalCommandKeys, groupGoalCommandTypes, applyGroupGoalCommand, val
   groupGoalChanges, validateGroupGoalChanges, restoreGroupGoalChanges } from './group-goals.mjs';
 import { validateRuleReviewId, normalizeRuleReviewNote, validateRuleReviews, ruleReviewChange,
   validateRuleReviewChange, restoreRuleReviewChange } from './rule-reviews.mjs';
+import { bossGates } from '../data/boss-gates.mjs';
 import { TICK_ACTIVE_TASKS, tickActiveTasksKeys, applyTickActiveTasks } from './tick-active-tasks.mjs';
 export { MAX_RULE_REVIEW_NOTE_LENGTH } from './rule-reviews.mjs';
 export { preferenceDefinitions, validatePreference } from './preferences.mjs';
@@ -35,11 +36,11 @@ const GAMEPLAY_KEYS = new Set(['rules', 'chunkOrder', 'settings', 'chunkinfo', '
   'activeSubTabs', 'topbarSelection', 'manualPrimary', 'recentFancyRollTime',
   'recent', 'recentTime', 'randomLoot', 'chunkNotes', 'userTasks', 'friends', 'friendsAlt']);
 const STATE_KEYS = new Set(['schemaVersion', 'revision', 'rules', 'members', 'tasks', 'history', 'legacy', 'provenance', 'identityRegistry', 'taskClaims', 'progressSnapshots', 'finishLine', 'groupGoals', 'ruleReviews']);
-export const MEMBER_KEYS = new Set(['id', 'name', 'sourceMapId', 'unlocked', 'selected', 'pendingRoll', 'blacklisted', 'completedTasks', 'obtainedEquipment', 'teleports', 'teleportOverrides', 'notes', 'journal', 'taskStatus', 'taskRules', 'sectionOverrides', 'sourceBacklogs', 'areaOverrides', 'preferences', 'primaryOverrides', 'passiveLevels', 'maxLevels', 'slayerLock', 'stickers', 'chunkColours', 'chunkColourNames', 'taskAlternatives', 'runescapeName', 'skillProgress', 'questProgress', 'achievementProgress', 'runeMetricsSync', 'originalPickerSync', 'transportFacts', 'f2pMap', 'xpChoices']);
+export const MEMBER_KEYS = new Set(['id', 'name', 'sourceMapId', 'unlocked', 'selected', 'pendingRoll', 'blacklisted', 'completedTasks', 'obtainedEquipment', 'teleports', 'teleportOverrides', 'notes', 'journal', 'taskStatus', 'taskRules', 'sectionOverrides', 'sourceBacklogs', 'areaOverrides', 'preferences', 'primaryOverrides', 'passiveLevels', 'maxLevels', 'slayerLock', 'stickers', 'chunkColours', 'chunkColourNames', 'taskAlternatives', 'runescapeName', 'skillProgress', 'questProgress', 'achievementProgress', 'runeMetricsSync', 'originalPickerSync', 'transportFacts', 'f2pMap', 'xpChoices', 'bossUnlocks']);
 const SOURCE_KINDS = new Set(['objects', 'npcs', 'monsters', 'shops', 'spawns', 'items']);
 const MEMBER_ARRAY_FIELDS = new Set(['unlocked', 'selected', 'pendingRoll', 'blacklisted', 'completedTasks', 'obtainedEquipment', 'teleports']);
 const MEMBER_PROGRESSION_FIELDS = new Set(['unlocked', 'selected', 'pendingRoll']);
-const MEMBER_DICTIONARY_FIELDS = new Set(['notes', 'taskStatus', 'taskRules', 'sectionOverrides', 'sourceBacklogs', 'areaOverrides', 'preferences', 'primaryOverrides', 'passiveLevels', 'maxLevels', 'stickers', 'chunkColours', 'chunkColourNames', 'taskAlternatives', 'skillProgress', 'questProgress', 'achievementProgress', 'teleportOverrides', 'xpChoices']);
+const MEMBER_DICTIONARY_FIELDS = new Set(['notes', 'taskStatus', 'taskRules', 'sectionOverrides', 'sourceBacklogs', 'areaOverrides', 'preferences', 'primaryOverrides', 'passiveLevels', 'maxLevels', 'stickers', 'chunkColours', 'chunkColourNames', 'taskAlternatives', 'skillProgress', 'questProgress', 'achievementProgress', 'teleportOverrides', 'xpChoices', 'bossUnlocks']);
 const MEMBER_NESTED_DICTIONARY_FIELDS = new Set(['sourceBacklogs', 'taskAlternatives']);
 const MEMBER_VALUE_FIELDS = new Set(['journal', 'slayerLock', 'runescapeName', 'runeMetricsSync', 'originalPickerSync', 'transportFacts', 'f2pMap']);
 const ORIGINAL_SYNC_FIELDS = new Map([['chunks', 'unlocked'], ['selections', 'selected'], ['blacklist', 'blacklisted'], ['pendingRoll', 'pendingRoll'], ['rules', 'taskRules'], ['tasks', 'tasks']]);
@@ -103,6 +104,7 @@ const COMMAND_KEYS = new Map([
   ['set-starting-chunk', new Set(['type', 'memberId', 'chunkId'])],
   ['set-section', new Set(['type', 'memberId', 'sectionId', 'accessible'])],
   ['set-source-backlog', new Set(['type', 'memberId', 'kind', 'name', 'backlogged'])],
+  ['set-boss-unlock', new Set(['type', 'memberId', 'gate', 'unlocked'])],
   ['set-area', new Set(['type', 'memberId', 'areaId', 'accessible'])],
   ['delete-teleport', new Set(['type', 'memberId', 'teleportId'])],
   ['undo', new Set(['type', 'undoRevision'])],
@@ -730,6 +732,8 @@ function validateStateCopy(copy, registry) {
       if (!SOURCE_KINDS.has(kind)) fail(`Unknown source backlog kind: ${kind}`);
       dictionary(entries, `${path}.sourceBacklogs.${kind}`, value => { if (typeof value !== 'boolean') fail('source backlog must be boolean'); });
     });
+    // Keys are boss gate ids; a gate removed from the data later is ignored, not refused.
+    if (member.bossUnlocks !== undefined) dictionary(member.bossUnlocks, `${path}.bossUnlocks`, value => { if (value !== true) fail('boss unlock must be true'); });
     if (member.taskStatus !== undefined) dictionary(member.taskStatus, `${path}.taskStatus`, (value, id) => {
       if (!tasks.has(id)) fail(`Task status references absent task: ${id}`);
       record(value, 'task status'); knownKeys(value, new Set(['backlogged', 'backlogReason', 'favorite', 'note', 'challengeCompleted']), 'task status');
@@ -997,6 +1001,7 @@ export function previewRestore(current, incoming, registry) {
       sectionOverrides: dictionaryChanges(oldMember?.sectionOverrides, newMember?.sectionOverrides),
       areaOverrides: dictionaryChanges(oldMember?.areaOverrides, newMember?.areaOverrides),
       sourceBacklogs: dictionaryChanges(oldMember?.sourceBacklogs, newMember?.sourceBacklogs),
+      bossUnlocks: dictionaryChanges(oldMember?.bossUnlocks, newMember?.bossUnlocks),
     };
   });
   const resolvedBefore = registryOrDefault(registry).resolve(before.rules);
@@ -1029,8 +1034,8 @@ export function previewRestore(current, incoming, registry) {
     if (member.teleports.removed.length || member.teleports.changed.length) warnings.push(`Restore removes or changes saved teleports for ${member.identity.name.before ?? member.name}.`);
     if (member.transportFacts.changed) warnings.push(`Restore changes confirmed travel requirements for ${member.identity.name.before ?? member.name}.`);
     if (member.teleportOverrides.changed) warnings.push(`Restore changes personal teleport availability choices for ${member.identity.name.before ?? member.name}.`);
-    for (const field of ['notes', 'taskStatus', 'taskRules', 'sectionOverrides', 'areaOverrides', 'sourceBacklogs', 'preferences', 'primaryOverrides', 'passiveLevels', 'maxLevels', 'stickers', 'chunkColours', 'chunkColourNames', 'taskAlternatives', 'skillProgress', 'questProgress', 'achievementProgress', 'xpChoices']) {
-      if (member[field].removed.length || member[field].changed.length) warnings.push(`Restore removes or changes ${({ notes: 'notes', taskStatus: 'task checks and backlog choices', taskRules: 'task rules', sectionOverrides: 'section access choices', areaOverrides: 'area access choices', sourceBacklogs: 'backlogged item sources', preferences: 'settings', primaryOverrides: 'main training method assumptions', passiveLevels: 'levels possible without a main training method', maxLevels: 'training level limits', stickers: 'map stickers', chunkColours: 'chunk colours', chunkColourNames: 'chunk colour names', taskAlternatives: 'chosen task methods', skillProgress: 'personal levels and XP', questProgress: 'personal quest progress', achievementProgress: 'personal achievement progress', xpChoices: 'XP reward choices' })[field]} for ${member.identity.name.before ?? member.name}.`);
+    for (const field of ['notes', 'taskStatus', 'taskRules', 'sectionOverrides', 'areaOverrides', 'sourceBacklogs', 'preferences', 'primaryOverrides', 'passiveLevels', 'maxLevels', 'stickers', 'chunkColours', 'chunkColourNames', 'taskAlternatives', 'skillProgress', 'questProgress', 'achievementProgress', 'xpChoices', 'bossUnlocks']) {
+      if (member[field].removed.length || member[field].changed.length) warnings.push(`Restore removes or changes ${({ notes: 'notes', taskStatus: 'task checks and backlog choices', taskRules: 'task rules', sectionOverrides: 'section access choices', areaOverrides: 'area access choices', sourceBacklogs: 'backlogged item sources', preferences: 'settings', primaryOverrides: 'main training method assumptions', passiveLevels: 'levels possible without a main training method', maxLevels: 'training level limits', stickers: 'map stickers', chunkColours: 'chunk colours', chunkColourNames: 'chunk colour names', taskAlternatives: 'chosen task methods', skillProgress: 'personal levels and XP', questProgress: 'personal quest progress', achievementProgress: 'personal achievement progress', xpChoices: 'XP reward choices', bossUnlocks: 'bosses unlocked by hand' })[field]} for ${member.identity.name.before ?? member.name}.`);
     }
     if (member.slayerLock.changed) warnings.push(`Restore changes the Slayer lock for ${member.identity.name.before ?? member.name}.`);
     if (member.runeMetricsSync.changed) warnings.push(`Restore changes the last RuneMetrics sync for ${member.identity.name.before ?? member.name}.`);
@@ -1941,6 +1946,17 @@ function applyCommandCopy(next, command, { expectedRevision, world, registry, ra
       if (typeof payload.backlogged !== 'boolean') fail('Source backlogged must be boolean');
       // False is a durable override, not deletion: it can unmask legacy backlogs.
       member.sourceBacklogs = { ...(member.sourceBacklogs ?? {}), [payload.kind]: { ...(member.sourceBacklogs?.[payload.kind] ?? {}), [payload.name]: payload.backlogged } };
+      break;
+    }
+    case 'set-boss-unlock': {
+      const member = findMember(next, payload.memberId);
+      string(payload.gate, 'boss gate');
+      if (!bossGates.some(gate => gate.id === payload.gate)) fail(`Unknown boss gate: ${payload.gate}`);
+      if (typeof payload.unlocked !== 'boolean') fail('Boss unlocked must be boolean');
+      // Relocking deletes the entry, so the gate goes back to checking levels.
+      member.bossUnlocks = { ...(member.bossUnlocks ?? {}) };
+      if (payload.unlocked) member.bossUnlocks[payload.gate] = true;
+      else delete member.bossUnlocks[payload.gate];
       break;
     }
     case 'set-area': {

@@ -5,7 +5,7 @@ const NON_MAP_TYPES = new Set(['set-rule-review', 'set-rule', 'set-profile', 'se
   'set-task-status', 'clear-backlog', 'clear-challenge-ticks', 'tick-active-tasks', 'set-task-rule', 'reset-task-rule', 'set-task-alternative',
   'set-preference', 'set-primary-override', 'set-skill-levels', 'set-runescape-name', 'apply-runemetrics', 'apply-game-progress', 'set-slayer-lock',
   'set-sticker', 'add-sticker', 'update-sticker', 'remove-sticker', 'clear-stickers', 'set-chunk-colour', 'rename-chunk-colour', 'set-starting-chunk', 'set-section',
-  'set-source-backlog', 'set-area', 'delete-teleport']);
+  'set-source-backlog', 'set-boss-unlock', 'set-area', 'delete-teleport']);
 
 /** Keep only map evidence needed by computeRollStats. Full task snapshots,
  * imported map payloads, actor identities and credentials are never copied.

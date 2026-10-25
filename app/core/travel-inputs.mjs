@@ -3,7 +3,7 @@
 const memberFields = ['id', 'name', 'sourceMapId', 'unlocked', 'completedTasks', 'obtainedEquipment',
   'teleports', 'teleportOverrides', 'taskRules', 'sectionOverrides', 'sourceBacklogs',
   'areaOverrides', 'primaryOverrides', 'passiveLevels', 'maxLevels', 'slayerLock',
-  'runescapeName', 'skillProgress', 'questProgress', 'transportFacts', 'xpChoices'];
+  'runescapeName', 'skillProgress', 'questProgress', 'transportFacts', 'xpChoices', 'bossUnlocks'];
 const irrelevantRules = new Set(['roll.selected', 'roll.adjacent', 'roll.neighborMode',
   'roll.clearSelected', 'roll.walkable', 'roll.teleports', 'roll.teleportScope', 'tasks.completion']);
 const pick = (value, fields) => Object.fromEntries(fields.filter(key => value?.[key] !== undefined).map(key => [key, value[key]]));

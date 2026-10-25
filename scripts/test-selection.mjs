@@ -313,6 +313,7 @@ const fullOnlyTests = new Set([
   "group-goals-server.test.mjs",
   "members-start-server.test.mjs",
   "access.test.mjs",
+  "boss-gates.test.mjs",
   "achievement-metadata-evidence.test.mjs",
   "achievement-rules.test.mjs",
   "activity.test.mjs",
