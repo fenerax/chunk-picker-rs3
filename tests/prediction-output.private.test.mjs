@@ -110,13 +110,18 @@ const fingerprint = value => createHash('sha256').update(JSON.stringify(value, (
 // here; no fixture monster is gated). Dropping only bossGates from the JSON
 // reproduces all six previous hashes; no task, item, access or prediction
 // value changes. The new hashes match on Linux CI and Windows.
+// Boss gear 2026-10-25: each bossGates entry gains condition, missing and gear
+// (the group gear check), and closed-gate reasons name the missing gear. All
+// gates stay closed. Dropping only bossGates still reproduces main 33932ab's
+// stripped hashes in all six modes, so no task, item, access or prediction
+// value changes. The new hashes match CI run 40213710811 (Linux) and Windows.
 const expected = {
-  shared: '170ecc8fe0f4d4a0a1441c63f88a0d4351ba1ead597e7831dcb38c144d499b75',
-  unshared: '480dab73e64c3885f4a746ce6e32c5eeff726915166390db8fcc639c1852ada1',
-  'member-inclusive': '1fd8f67839e2e5805adb85d75c37f5493b49bd22308084a13763678a9c8ab8d5',
-  backlogs: '75ca73fdfad2bedaecfab8e702bf8da904a4d9ffbc9387d60800ff8456e39a54',
-  personal: 'ae34a9d7b1123681faebdf3d85ba9287702bcaa7a9ce668ecc4780b73bb6d5c7',
-  'legacy-all': '1cf491d140033a1db61c682c63cb858596609c74c7adb57d055c304ac7ac1eea',
+  shared: 'a8b909b620a3419fe7251a01a87da9c97f000302c888a6b07a6694756e01239b',
+  unshared: '049e48ceeb40ec95fddec1d16b3cbbbb39737cf5ed63d409464e2dda7316c900',
+  'member-inclusive': '2191e2f30d9808c0e18f0499fc80f150629b19a56fd7c2d0886f1151a8a58a44',
+  backlogs: 'c3b15514faeec49b489b274ed9b76fcc4fbda760803de54acd5757b21fcae20c',
+  personal: '48f03741616720871782c2185ec1348007f1e6c8fb4b70292c11bf3f322e940b',
+  'legacy-all': '0ff364ce7017ee09e8cd6df4654f316b6faf7d9c5e76df75743a94fb46fcde00',
 };
 
 for (const [mode, golden] of Object.entries(expected)) test(`full prediction output retains baseline behavior: ${mode}`, () => {
