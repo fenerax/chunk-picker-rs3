@@ -68,16 +68,19 @@ test('completed high skill challenge suppresses lower goals without inventing pe
   assert.deepEqual(names(select([completed, lower])), []);
 });
 
-test('own completed skill goal outside the current map still suppresses lower goals', () => {
+test('completed skill goal outside the current map still suppresses lower goals', () => {
   // Yew shafts were ticked before an F2P-to-members restart moved the map.
   const yew = task('Fletching', 'Yew shafts', 70, {}, { status: 'blocked', obligation: false });
   const mahogany = task('Fletching', 'Mahogany shafts', 60), magic = task('Fletching', 'Magic shafts', 80);
   const saved = state(); saved.members[0].taskStatus = { [yew.id]: { challengeCompleted: true } };
   assert.deepEqual(names(selectPresentedTasks(result([yew, mahogany]), saved, 'a')), []);
   assert.deepEqual(names(selectPresentedTasks(result([yew, mahogany, magic]), saved, 'a')), ['Magic shafts']);
-  // A partner's completion of a row outside this map does not cut this member's goals.
+  // Under the shared completion rule the engine marks a partner's tick as
+  // challengeSatisfied; that covers this member's lower goals too.
   const partner = { ...yew, challengeSatisfied: true };
-  assert.deepEqual(names(selectPresentedTasks(result([partner, mahogany]), state(), 'a')), ['Mahogany shafts']);
+  assert.deepEqual(names(selectPresentedTasks(result([partner, mahogany]), state(), 'a')), []);
+  // With personal completion the partner's tick leaves challengeSatisfied false.
+  assert.deepEqual(names(selectPresentedTasks(result([yew, mahogany]), state(), 'a')), ['Mahogany shafts']);
 });
 
 test('backlogged winner falls back to a lower available task; unavailable rows cannot be alternatives', () => {

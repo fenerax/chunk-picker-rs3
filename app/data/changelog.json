@@ -5,7 +5,8 @@
       "date": "2026-10-25",
       "title": "Old skill ticks still count after a map change",
       "items": [
-        "A skill task you ticked stays counted even when its chunk is no longer in your map, for example after switching from free-to-play to members. Lower tasks in that skill stay out of your list, as in the original picker. This applies to every skill"
+        "A skill task you ticked stays counted even when its chunk is no longer in your map, for example after switching from free-to-play to members. Lower tasks in that skill stay out of your list, as in the original picker. This applies to every skill",
+        "Your partner's ticks count too: if either of you has done a higher task in a skill, the lower ones leave both lists. A personal completion rule keeps this to your own ticks"
       ]
     },
     {

@@ -133,8 +133,7 @@ export function selectPresentedTasks(result, state, memberId, definitions = {}, 
     const status = member.taskStatus?.[row.id] ?? {};
     return Object.hasOwn(status, field) ? !!status[field] : legacyFlags(row, legacyField);
   };
-  const doneByMember = row => row.personalCompleted || (reuse ? completedIds.has(row.id) : member.completedTasks?.includes(row.id)) || statusFlag(row, 'challengeCompleted', 'completedChallenges');
-  const done = row => row.challengeSatisfied || doneByMember(row);
+  const done = row => row.challengeSatisfied || row.personalCompleted || (reuse ? completedIds.has(row.id) : member.completedTasks?.includes(row.id)) || statusFlag(row, 'challengeCompleted', 'completedChallenges');
   const backlog = row => statusFlag(row, 'backlogged', 'backlog');
 
   function level(row) {
@@ -251,10 +250,11 @@ export function selectPresentedTasks(result, state, memberId, definitions = {}, 
   const primary = row => row.primary ?? !!(record(row).Primary ?? record(row).Priamry ?? record(row).primary);
 
   const completedLevels = new Map();
-  // The reference cutoff reads every completed challenge (worker.js:9858). A
-  // member's own tick still counts after a map change (an F2P-to-members restart
-  // can move or wipe chunks); partner-only rows outside this map do not.
-  for (const row of rows) if (isSkillGoal(row) && (row.obligation !== false ? done(row) : doneByMember(row))) completedLevels.set(row.category, Math.max(completedLevels.get(row.category) ?? 0, level(row)));
+  // The reference cutoff reads every completed challenge (worker.js:9858), so a
+  // tick still counts after a map change (an F2P-to-members restart can move or
+  // wipe chunks). challengeSatisfied already applies the group completion rule:
+  // under the shared default, a partner's higher goal also covers lower ones.
+  for (const row of rows) if (isSkillGoal(row) && done(row)) completedLevels.set(row.category, Math.max(completedLevels.get(row.category) ?? 0, level(row)));
   const skills = new Map();
   const selected = [];
   for (const row of rows) {
