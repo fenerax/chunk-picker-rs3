@@ -70,25 +70,43 @@ public static class FixtureJob {
  [StructLayout(LayoutKind.Sequential)] struct Extended { public Basic basic; public ulong i1,i2,i3,i4,i5,i6; public UIntPtr p,j,pp,jp; }
  [StructLayout(LayoutKind.Sequential,CharSet=CharSet.Unicode)] struct Startup { public int cb; public string r,d,t; public int x,y,w,h,cx,cy,fill,flags; public short show,r2; public IntPtr r3,i,o,e; }
  [StructLayout(LayoutKind.Sequential)] struct Info { public IntPtr process,thread; public int pid,tid; }
- [DllImport("kernel32.dll")] static extern bool IsProcessInJob(IntPtr process, IntPtr job, out bool result);
- [DllImport("kernel32.dll")] static extern IntPtr CreateJobObject(IntPtr attributes, string name);
- [DllImport("kernel32.dll")] static extern bool SetInformationJobObject(IntPtr job, int kind, ref Extended info, int size);
- [DllImport("kernel32.dll")] static extern bool AssignProcessToJobObject(IntPtr job, IntPtr process);
+ [DllImport("kernel32.dll",SetLastError=true)] static extern bool IsProcessInJob(IntPtr process, IntPtr job, out bool result);
+ [DllImport("kernel32.dll",SetLastError=true)] static extern IntPtr CreateJobObject(IntPtr attributes, string name);
+ [DllImport("kernel32.dll",SetLastError=true)] static extern bool SetInformationJobObject(IntPtr job, int kind, ref Extended info, int size);
+ [DllImport("kernel32.dll",SetLastError=true)] static extern bool AssignProcessToJobObject(IntPtr job, IntPtr process);
  [DllImport("kernel32.dll")] static extern bool CloseHandle(IntPtr handle);
- [DllImport("kernel32.dll",CharSet=CharSet.Unicode)] static extern bool CreateProcess(string exe, StringBuilder line, IntPtr pa, IntPtr ta, bool inherit, uint flags, IntPtr env, string dir, ref Startup si, out Info pi);
+ [DllImport("kernel32.dll",CharSet=CharSet.Unicode,SetLastError=true)] static extern bool CreateProcess(string exe, StringBuilder line, IntPtr pa, IntPtr ta, bool inherit, uint flags, IntPtr env, string dir, ref Startup si, out Info pi);
+ public static string SkipReason;
+ static string NativeFailure(string reason, string api) { return reason+": "+api+" failed (Win32 error "+Marshal.GetLastWin32Error()+")"; }
  // Joins a fresh job that permits breakaway, as the desktop app's does; Zero where nesting is refused.
  public static IntPtr Enter() {
   IntPtr job=CreateJobObject(IntPtr.Zero,null); Extended info=new Extended(); info.basic.flags=0x800;
-  if(job==IntPtr.Zero || !SetInformationJobObject(job,9,ref info,Marshal.SizeOf(typeof(Extended))) || !AssignProcessToJobObject(job,System.Diagnostics.Process.GetCurrentProcess().Handle)) return IntPtr.Zero;
-  return job;
+  if(job==IntPtr.Zero) SkipReason=NativeFailure("create-job-unavailable","CreateJobObject");
+  else if(!SetInformationJobObject(job,9,ref info,Marshal.SizeOf(typeof(Extended)))) SkipReason=NativeFailure("configure-breakaway-unavailable","SetInformationJobObject");
+  else if(!AssignProcessToJobObject(job,System.Diagnostics.Process.GetCurrentProcess().Handle)) SkipReason=NativeFailure("assign-caller-job-unavailable","AssignProcessToJobObject");
+  else return job;
+  if(job!=IntPtr.Zero) CloseHandle(job);
+  return IntPtr.Zero;
  }
  // Outer jobs (a CI runner's) may still forbid breakaway, where the launcher rightly stays inside.
- public static bool MayBreakAway() {
+ public static string BreakawayUnavailable() {
   Startup si=new Startup(); si.cb=Marshal.SizeOf(typeof(Startup)); Info pi; string cmd=Environment.GetEnvironmentVariable("ComSpec");
-  if(!CreateProcess(cmd,new StringBuilder("\\""+cmd+"\\" /c exit"),IntPtr.Zero,IntPtr.Zero,false,0x09000000,IntPtr.Zero,null,ref si,out pi)) return false;
-  CloseHandle(pi.thread); CloseHandle(pi.process); return true;
+  if(!CreateProcess(cmd,new StringBuilder("\\""+cmd+"\\" /c exit"),IntPtr.Zero,IntPtr.Zero,false,0x09000000,IntPtr.Zero,null,ref si,out pi)) return NativeFailure("breakaway-probe-unavailable (outer job may forbid breakaway)","CreateProcess");
+  CloseHandle(pi.thread); CloseHandle(pi.process); return null;
  }
- public static bool InJob(IntPtr process, IntPtr job) { bool result; IsProcessInJob(process, job, out result); return result; }
+ public static bool InJob(IntPtr process, IntPtr job) {
+  bool result;
+  if(!IsProcessInJob(process, job, out result)) {
+   int error=Marshal.GetLastWin32Error();
+   throw new System.ComponentModel.Win32Exception(error,"IsProcessInJob failed (Win32 error "+error+")");
+  }
+  return result;
+ }
+ public static string EnableKillOnClose(IntPtr job) {
+  Extended info=new Extended(); info.basic.flags=0x2800; // BREAKAWAY_OK | KILL_ON_JOB_CLOSE
+  if(!SetInformationJobObject(job,9,ref info,Marshal.SizeOf(typeof(Extended)))) return NativeFailure("kill-on-job-close-unavailable","SetInformationJobObject");
+  return null;
+ }
 }
 '@
 $job=[FixtureJob]::Enter()
@@ -99,12 +117,40 @@ $until=[DateTime]::UtcNow.AddSeconds(3); while (-not (Test-Path -LiteralPath ${q
 if ($child.HasExited) { throw 'Synthetic detached child exited early' }
 if ($child.PriorityClass -ne 'Normal') { throw "Detached child runs at $($child.PriorityClass) priority" }
 [Diagnostics.Process]::GetCurrentProcess().PriorityClass='Normal'
-# A job that permits breakaway must not keep the picker.
-if ($job -ne [IntPtr]::Zero -and [FixtureJob]::MayBreakAway() -and [FixtureJob]::InJob($child.Handle, $job)) { throw 'Detached child stayed in the caller job' }
-Write-Output $child.Id; $child.Dispose()
+# A job that permits breakaway must not keep the picker. Query failures are fatal.
+$reason=[FixtureJob]::SkipReason
+if ($job -ne [IntPtr]::Zero) { $reason=[FixtureJob]::BreakawayUnavailable() }
+$membership=@{status='skipped';reason=$reason}
+$survival=@{status='skipped';reason=$reason}
+if (-not $reason) {
+ if (-not [FixtureJob]::InJob([Diagnostics.Process]::GetCurrentProcess().Handle, $job)) { throw 'Fixture caller did not join its job' }
+ if ([FixtureJob]::InJob($child.Handle, $job)) { throw 'Detached child stayed in the caller job' }
+ $membership=@{status='asserted';reason='caller is in fixture job; detached child is outside fixture job'}
+ $reason=[FixtureJob]::EnableKillOnClose($job)
+ if ($reason) { $survival=@{status='skipped';reason=$reason} }
+ else { $survival=@{status='armed';reason='KILL_ON_JOB_CLOSE enabled; caller exit closes the last job handle'} }
+}
+# The unnamed, non-inheritable job handle stays open until this caller exits.
+# Only arm kill-on-close after proving the child escaped, preserving fallback tests.
+@{childPid=$child.Id;membership=$membership;survival=$survival} | ConvertTo-Json -Compress
+$child.Dispose()
 `, 12000);
-    childPid = Number(output.trim());
+    const result = JSON.parse(output.trim());
+    childPid = result.childPid;
     assert.ok(Date.now() - start < 10000, 'foreground pipes must close before the child lifetime');
+    for (const [name, capability, expectedStatus] of [
+      ['detached child breaks away from the caller job', result.membership, 'asserted'],
+      ['detached child outlives the kill-on-job-close caller', result.survival, 'armed'],
+    ]) {
+      t.diagnostic(`${name}: ${capability.status}: ${capability.reason}`);
+      await t.test(name, subtest => {
+        assert.ok(capability.reason, 'capability path must include a reason');
+        if (capability.status === 'skipped') { subtest.skip(capability.reason); return; }
+        assert.equal(capability.status, expectedStatus, 'capability path must be explicit');
+        // run() waited for the caller to exit, closing its last job handle.
+        process.kill(childPid, 0);
+      });
+    }
     process.kill(childPid, 0);
     assert.equal(Number(await readFile(pidFile, 'utf8')), childPid);
     assert.equal((await readFile(path.join(root, 'stdout.log'), 'utf8')).trim(), 'synthetic stdout');
