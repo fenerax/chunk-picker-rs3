@@ -63,10 +63,14 @@ export function checkRequestOrigin(request, context) {
   if (!origin && !request.headers.authorization) throw Object.assign(new Error('An Origin header is required for cookie-authenticated mutations.'), { status: 403 });
 }
 
-/** Bounded fixed windows. Active buckets are never evicted to reset a client's limit. */
+/** Bounded fixed windows. Active buckets are never evicted to reset a client's limit.
+ * The calculation budget stops scripted spam from a leaked link; opening a chunk
+ * costs several budgeted requests and the master link shares one identity across
+ * every tab, so it stays far above what a person clicking around can reach. */
 export function createRateLimits({ now = Date.now, failedJoins = 10, joinWindowMs = 15 * 60 * 1000,
-  unauthenticated = 60, requestWindowMs = 60 * 1000, maxClients = 10000 } = {}) {
-  for (const value of [failedJoins, joinWindowMs, unauthenticated, requestWindowMs, maxClients]) {
+  unauthenticated = 60, requestWindowMs = 60 * 1000, maxClients = 10000,
+  expensive = 600, expensiveGlobal = 1200, expensiveWindowMs = 60 * 1000 } = {}) {
+  for (const value of [failedJoins, joinWindowMs, unauthenticated, requestWindowMs, maxClients, expensive, expensiveGlobal, expensiveWindowMs]) {
     if (!Number.isSafeInteger(value) || value < 1) throw new TypeError('Rate limit settings must be positive integers.');
   }
   const buckets = new Map();
@@ -86,6 +90,13 @@ export function createRateLimits({ now = Date.now, failedJoins = 10, joinWindowM
     if (increment) entry.count++;
   }
   return {
+    expensive(key) {
+      const total = bucket('global', 'expensive-total', expensiveWindowMs);
+      const identity = bucket(key, 'expensive', expensiveWindowMs);
+      // Check both before charging either; rejected identities cannot drain the global budget.
+      check(total, expensiveGlobal, false); check(identity, expensive, false);
+      total.count++; identity.count++;
+    },
     unauthenticated(key) { check(bucket(key, 'request', requestWindowMs), unauthenticated, true); },
     joinAllowed(key) { check(bucket(key, 'join', joinWindowMs), failedJoins, false); },
     joinFailed(key) { bucket(key, 'join', joinWindowMs).count++; },
@@ -96,4 +107,36 @@ export function createRateLimits({ now = Date.now, failedJoins = 10, joinWindowM
       return success => { if (!finished && success) entry.count--; finished = true; };
     },
   };
+}
+
+/** Shared picker/overlay connection budget; a new session cannot reset an invite's cap. */
+export function createStreamLimits({ streamsPerIdentity = 16, streamsGlobal = 64 } = {}) {
+  for (const value of [streamsPerIdentity, streamsGlobal]) {
+    if (!Number.isSafeInteger(value) || value < 1) throw new TypeError('Stream limits must be positive integers.');
+  }
+  const identities = new Map();
+  let total = 0;
+  return (key, response) => {
+    // A peer may disconnect while authentication/sidecar persistence is awaited.
+    if (response.destroyed || response.writableEnded) return false;
+    const count = identities.get(key) ?? 0;
+    if (count >= streamsPerIdentity || total >= streamsGlobal) throw Object.assign(new Error('Too many event streams. Close an existing connection and retry.'), { status: 429, retryAfter: 20 });
+    total++; identities.set(key, count + 1);
+    let released = false;
+    const release = () => {
+      if (released) return;
+      released = true; total--;
+      const remaining = identities.get(key) - 1;
+      if (remaining) identities.set(key, remaining); else identities.delete(key);
+    };
+    response.once('close', release); response.once('finish', release);
+    return true;
+  };
+}
+
+/** Disconnect slow SSE consumers instead of accumulating buffered broadcasts. */
+export function writeEvent(response, bytes) {
+  if (response.destroyed) return false;
+  if (response.write(bytes)) return true;
+  response.destroy(); return false;
 }

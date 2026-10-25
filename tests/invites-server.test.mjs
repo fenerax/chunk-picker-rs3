@@ -7,7 +7,7 @@ import { createHash } from 'node:crypto';
 import { gunzipSync } from 'node:zlib';
 import http from 'node:http';
 import { setImmediate as nextTurn } from 'node:timers/promises';
-import { createServer } from '../app/server.mjs';
+import { createServer, routePermissions } from '../app/server.mjs';
 import { createGroupState } from '../app/core/state.mjs';
 import { resolveDataset } from '../app/datasets.mjs';
 
@@ -481,4 +481,140 @@ test('feedback master owner and linked owner admin invitations share seen and au
   await f.restart();
   assert.deepEqual(await (await f.admin('/api/feedback/summary')).json(), { unread: 0 });
   assert.deepEqual(await (await request('/api/feedback/summary')).json(), { unread: 0 });
+});
+
+
+test('all declared private API routes deny anonymous access and all admin routes deny members', async t => {
+  const f = await fixture(t, { rateLimits: { unauthenticated: 1000 } });
+  const joined = await f.join((await f.invite()).link);
+  for (const [method, routes] of Object.entries(routePermissions)) {
+    for (const [template, permission] of Object.entries(routes)) {
+      const route = template.replace(':id', '00000000-0000-0000-0000-000000000000');
+      const body = method === 'POST' ? {} : undefined;
+      const anonymous = await f.request(route, { body });
+      assert.equal(anonymous.status, 401, `${method} ${route}`); await anonymous.arrayBuffer();
+      if (permission === 'admin') {
+        const member = await f.request(route, { cookie: joined.cookie, body });
+        // Legacy import is 404 where original sync is unavailable and 403 where it loads; both deny.
+        const denied = route === '/api/import' || route === '/api/import/preview' ? [403, 404] : [403];
+        assert.ok(denied.includes(member.status), `${method} ${route}: ${member.status}`); await member.arrayBuffer();
+      }
+    }
+  }
+  assert.equal(f.application.store.getInfo().revision, 0);
+});
+
+test('unknown API mutations fail before reading a slow body and close the upload socket', async t => {
+  const f = await fixture(t);
+  const result = await new Promise((resolve, reject) => {
+    const req = http.request(`${f.origin}/api/not-a-route`, { method: 'POST', headers: {
+      Cookie: f.masterCookie, Origin: f.origin, 'Content-Type': 'application/json', 'Content-Length': 1024,
+    } }, res => {
+      const chunks = []; res.on('data', bytes => chunks.push(bytes));
+      res.on('end', () => resolve({ status: res.statusCode, connection: res.headers.connection, body: Buffer.concat(chunks).toString() }));
+    });
+    req.setTimeout(2000, () => req.destroy(new Error('Unknown route waited for the upload.')));
+    req.on('error', reject); req.flushHeaders();
+    t.after(() => req.destroy());
+  });
+  assert.equal(result.status, 404); assert.equal(result.connection, 'close');
+  assert.deepEqual(JSON.parse(result.body), { message: 'API route not found.' });
+  assert.equal((await f.admin('/api/chunk-sections', {})).status, 405);
+  assert.equal((await f.admin('/api/ids/rs3:task:fixture', {})).status, 404);
+});
+
+test('ordinary JSON rejects deep and oversized declared or chunked bodies without saving', async t => {
+  const f = await fixture(t);
+  const headers = { Cookie: f.masterCookie, Origin: f.origin, 'Content-Type': 'application/json' };
+  const deep = '{"command":{"type":"set-note","value":' + '['.repeat(129) + '0' + ']'.repeat(129) + '}}';
+  const response = await fetch(`${f.origin}/api/command`, { method: 'POST', headers, body: deep });
+  assert.equal(response.status, 400); assert.match((await response.json()).message, /nesting/);
+  const bytes = JSON.stringify({ padding: 'x'.repeat(1024 * 1024) });
+  // Windows resets a socket closed with unread upload bytes, which can drop the
+  // 413 before the client reads it; the refusal and the no-save check still hold.
+  const reset = error => process.platform === 'win32' && (error.code ?? error.cause?.code) === 'ECONNRESET';
+  const oversized = await fetch(`${f.origin}/api/command`, { method: 'POST', headers, body: bytes })
+    .then(async response => { await response.arrayBuffer(); return response.status; }, error => { if (reset(error)) return 'reset'; throw error; });
+  assert.ok(oversized === 413 || oversized === 'reset', String(oversized));
+  const streamed = await new Promise((resolve, reject) => {
+    const req = http.request(`${f.origin}/api/command`, { method: 'POST', headers: { ...headers, 'Transfer-Encoding': 'chunked' } }, res => {
+      res.resume(); res.on('end', () => resolve(res.statusCode));
+    });
+    req.on('error', error => reset(error) ? resolve('reset') : reject(error));
+    req.write(bytes.slice(0, 100)); req.end(bytes.slice(100));
+  });
+  assert.ok(streamed === 413 || streamed === 'reset', String(streamed));
+  const overlay = await fetch(`${f.origin}/api/overlays`, { method: 'POST', headers, body: deep });
+  assert.equal(overlay.status, 400); assert.match((await overlay.json()).message, /nesting/);
+  assert.equal(f.application.store.getInfo().revision, 0);
+  assert.equal((await f.admin('/api/session')).status, 200);
+});
+
+test('missing static files return a generic error without server filesystem paths', async t => {
+  const f = await fixture(t, { webRoot: path.join(root, 'absent-web-root') });
+  const response = await f.admin('/');
+  assert.equal(response.status, 404);
+  assert.deepEqual(await response.json(), { message: 'Not found.' });
+});
+
+test('expensive request spam shares one invite budget across sessions, IPs, methods and routes', async t => {
+  const f = await fixture(t, { publicOrigin, rateLimits: { expensive: 2, expensiveGlobal: 3 } });
+  const link = await f.invite(), first = await f.join(link.link), second = await f.join(link.link);
+  // Validation fails, but admission is still charged before calculation/body allocation.
+  for (const route of ['/api/tasks', '/api/predict']) {
+    const response = await f.request(route, { cookie: first.cookie });
+    assert.equal(response.status, 503); await response.arrayBuffer();
+  }
+  const blocked = await f.request('/api/predict', { cookie: second.cookie, headers: { ...funnel, 'X-Forwarded-For': '203.0.113.99' } });
+  assert.equal(blocked.status, 429); assert.ok(Number(blocked.headers.get('retry-after')) > 0); await blocked.arrayBuffer();
+  assert.equal((await f.request('/api/sandbox/evaluate', { cookie: second.cookie, body: {} })).status, 429);
+  const other = await f.join((await f.invite('Other')).link);
+  const allowed = await f.request('/api/tasks', { cookie: other.cookie });
+  assert.equal(allowed.status, 503); await allowed.arrayBuffer();
+  assert.equal((await f.admin('/api/teleports')).status, 429, 'global ceiling');
+  assert.equal((await f.request('/api/state', { cookie: first.cookie })).status, 200, 'cheap reads stay available');
+  assert.equal((await f.request('/api/command', { cookie: first.cookie, body: { command, expectedRevision: 0 } })).status, 200, 'ordinary saves stay available');
+});
+
+
+test('picker and overlay SSE caps share a global budget and release slots after disconnect', async t => {
+  const f = await fixture(t, { rateLimits: { streamsPerIdentity: 1, streamsGlobal: 2 } });
+  const link = await f.invite(), first = await f.join(link.link), second = await f.join(link.link);
+  const live = await f.request('/api/events', { cookie: first.cookie });
+  t.after(() => live.body.cancel().catch(() => {}));
+  assert.equal(live.status, 200);
+  assert.equal((await f.request('/api/events', { cookie: second.cookie })).status, 429, 'same invite across sessions');
+  const overlay = await (await f.admin('/api/overlays', { widget: 'count', player: 'duo' })).json();
+  const key = new URL(overlay.link).hash.slice('#key='.length);
+  const headers = { Authorization: `Bearer ${key}` };
+  const source = await f.request('/overlay/events?widget=count&player=duo', { headers });
+  t.after(() => source.body.cancel().catch(() => {}));
+  assert.equal(source.status, 200);
+  assert.equal((await f.admin('/api/events')).status, 429, 'shared global cap');
+  assert.equal((await f.request('/overlay/events?widget=count&player=duo', { headers })).status, 429);
+  await live.body.cancel();
+  // Observe the server closing the abandoned response, without assuming a timer delay.
+  let replacement;
+  for (let attempt = 0; attempt < 50; attempt++) {
+    replacement = await f.request('/api/events', { cookie: second.cookie });
+    if (replacement.status === 200) break;
+    await replacement.arrayBuffer(); await nextTurn();
+  }
+  assert.equal(replacement.status, 200); await replacement.body.cancel();
+});
+
+
+test('invalid game-plugin credentials cannot bypass the anonymous request budget', async t => {
+  const f = await fixture(t, { publicOrigin, rateLimits: { unauthenticated: 2 } });
+  const headers = { ...funnel, Authorization: `Bearer gpk_${'A'.repeat(43)}` };
+  for (const route of ['/api/plugin/v1/status', '/api/plugin/v1/tasks']) {
+    const response = await f.request(route, { headers });
+    assert.equal(response.status, 401); await response.arrayBuffer();
+  }
+  for (const route of ['/api/plugin/v1/report', '/api/state']) {
+    const response = await f.request(route, { headers, body: {} });
+    assert.equal(response.status, 429); assert.ok(Number(response.headers.get('retry-after')) > 0); await response.arrayBuffer();
+  }
+  assert.equal((await f.request('/api/plugin/v1/status', { headers: { ...headers, 'X-Forwarded-For': '203.0.113.8' } })).status, 401);
+  assert.equal(f.application.store.getInfo().revision, 0);
 });

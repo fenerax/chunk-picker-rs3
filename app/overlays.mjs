@@ -1,3 +1,5 @@
+import { createStreamLimits } from './security/request.mjs';
+import { parseRequestJSON } from './security/json.mjs';
 import { open, readFile, realpath, rename, rm } from 'node:fs/promises';
 import { randomBytes, randomUUID, createHash, timingSafeEqual } from 'node:crypto';
 import { setTimeout as delay } from 'node:timers/promises';
@@ -55,9 +57,8 @@ async function bodyJSON(request) {
   if (!/^application\/json(?:\s*;|$)/i.test(request.headers['content-type'] ?? '')) throw fail(415, 'Use application/json.');
   if (Number(request.headers['content-length']) > 8192) throw fail(413, 'Request body is too large.');
   const chunks = []; let size = 0;
-  for await (const chunk of request) { size += chunk.length; if (size > 8192) throw fail(413, 'Request body is too large.'); chunks.push(chunk); }
-  let value;
-  try { value = JSON.parse(Buffer.concat(chunks).toString('utf8')); } catch { throw fail(400, 'Request body is not valid JSON.'); }
+  for await (const chunk of request.iterator({ destroyOnReturn: false })) { size += chunk.length; if (size > 8192) throw fail(413, 'Request body is too large.'); chunks.push(chunk); }
+  const value = parseRequestJSON(Buffer.concat(chunks).toString('utf8'));
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw fail(400, 'Request body must be a JSON object.');
   return value;
 }
@@ -84,7 +85,7 @@ function options(query, widget) {
 
 /** Sidecar credentials live under the existing exclusive save-directory lock. */
 export async function openOverlays({ dataDir, store, world, webRoot, publicOrigin, authenticateAdmin, checkRequestOrigin,
-  serializeMutation = operation => operation(), unauthenticated = () => {} }) {
+  serializeMutation = operation => operation(), unauthenticated = () => {}, admitStream = createStreamLimits() }) {
   const file = path.join(dataDir, 'overlays.json');
   let current;
   try { current = validate(JSON.parse(await readFile(file, 'utf8'))); }
@@ -128,7 +129,7 @@ export async function openOverlays({ dataDir, store, world, webRoot, publicOrigi
     if (record.player !== 'duo' && !members().some(member => member.id === record.player)) throw fail(403, 'This overlay player is no longer available.');
     return record;
   }
-  function stop(client) { clearInterval(client.heartbeat); clients.delete(client); client.response.end(); }
+  function stop(client, slow = false) { clearInterval(client.heartbeat); clients.delete(client); if (slow) client.response.destroy(); else client.response.end(); }
   const unsubscribe = store.subscribe(({ revision }) => {
     payloads.clear();
     const event = store.getHistoryEvent?.(revision);
@@ -136,7 +137,7 @@ export async function openOverlays({ dataDir, store, world, webRoot, publicOrigi
     for (const client of clients) {
       if (closed || !current.links.some(record => record.id === client.id && !record.revoked)) { stop(client); continue; }
       // An OBS source cannot make a slow client grow an unbounded write buffer.
-      if (!client.response.write(`event: revision\ndata: ${JSON.stringify({ revision })}\n\n`)) stop(client);
+      if (!client.response.write(`event: revision\ndata: ${JSON.stringify({ revision })}\n\n`)) stop(client, true);
     }
   });
   async function archivedRoll(state, player) {
@@ -266,12 +267,13 @@ export async function openOverlays({ dataDir, store, world, webRoot, publicOrigi
         }
         json(request, response, 200, payloads.get(key)); return true;
       }
+      if (request.method !== 'HEAD' && !admitStream(`overlay:${record.id}`, response)) return true;
       response.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'private, no-store', 'Referrer-Policy': 'no-referrer', Connection: 'keep-alive' });
       if (request.method === 'HEAD') { response.end(); return true; }
       response.write(`event: revision\ndata: ${JSON.stringify({ revision: store.getInfo().revision })}\n\n`);
       const client = { id: record.id, response };
       clients.add(client);
-      client.heartbeat = setInterval(() => { if (!response.write(': heartbeat\n\n')) stop(client); }, 20000);
+      client.heartbeat = setInterval(() => { if (!response.write(': heartbeat\n\n')) stop(client, true); }, 20000);
       client.heartbeat.unref();
       response.once('close', () => { clearInterval(client.heartbeat); clients.delete(client); });
       return true;

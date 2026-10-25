@@ -31,7 +31,8 @@ import { openOverlays } from './overlays.mjs';
 import { openGamePlugin } from './game-plugin.mjs';
 import { readBackupStatus } from './storage/backup-status.mjs';
 import { transportRouteById } from './data/transport-routes.mjs';
-import { normalizePublicOrigin, requestContext, checkRequestOrigin, createRateLimits } from './security/request.mjs';
+import { parseRequestJSON } from './security/json.mjs';
+import { normalizePublicOrigin, requestContext, checkRequestOrigin, createRateLimits, createStreamLimits, writeEvent } from './security/request.mjs';
 import { buildWorld } from './data/world.mjs';
 import { loadDatasetInputs, loadOriginalSyncIntegration } from './dataset-bootstrap.mjs';
 import { evaluateTransportRoutes } from './core/transport-access.mjs';
@@ -100,7 +101,8 @@ const APP_VERSION = (() => {
   visit(path.join(ROOT, 'app'));
   return hash.digest('hex').slice(0, 12);
 })();
-const MAX_BODY = 32 * 1024 * 1024;
+// Backup routes use their separate streaming 256 MiB limit.
+const MAX_BODY = 1024 * 1024;
 // About one task recalculation plus the usual quiet window on the real save.
 const NOTE_PREWARM_QUIET_MS = 5000;
 const MIME = { '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8', '.mjs': 'text/javascript; charset=utf-8',
@@ -257,13 +259,12 @@ async function bodyJSON(request, maxBytes = MAX_BODY) {
   if (Number.isFinite(declared) && declared > maxBytes) throw httpError(413, 'Request body is too large.');
   const chunks = [];
   let length = 0;
-  for await (const chunk of request) {
+  for await (const chunk of request.iterator({ destroyOnReturn: false })) {
     length += chunk.length;
     if (length > maxBytes) throw httpError(413, 'Request body is too large.');
     chunks.push(chunk);
   }
-  let value;
-  try { value = JSON.parse(Buffer.concat(chunks).toString('utf8')); } catch { throw httpError(400, 'Request body is not valid JSON.'); }
+  const value = parseRequestJSON(Buffer.concat(chunks).toString('utf8'));
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw httpError(400, 'Request body must be a JSON object.');
   return value;
 }
@@ -395,6 +396,7 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
   const startupTimingMs = { cataloguesMs: 0, workerAndReferencesMs: 0, storeMs: 0, authMs: 0, variantMs: 0, stateResponseMs: 0 };
   publicOrigin = normalizePublicOrigin(publicOrigin);
   const limits = createRateLimits(rateLimits);
+  const admitStream = createStreamLimits(rateLimits);
   if (typeof host !== 'string' || !host.trim()) throw new TypeError('host must be nonempty.');
   if (!Number.isInteger(port) || port < 0 || port > 65535) throw new TypeError('port must be an integer from 0 through 65535.');
   if (loopbackPort !== undefined && (!Number.isInteger(loopbackPort) || loopbackPort < 0 || loopbackPort > 65535)) throw new TypeError('loopbackPort must be an integer from 0 through 65535.');
@@ -606,15 +608,15 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
       ...(now === undefined ? {} : { now: () => typeof now === 'function' ? now() : now }), rateLimits: usageRateLimits });
     overlays = await openOverlays({ dataDir, store, world: indexedWorld, webRoot, publicOrigin,
       authenticateAdmin: (request, security) => invites.authenticate(request, security), checkRequestOrigin, serializeMutation,
-      unauthenticated: key => limits.unauthenticated(key) });
+      unauthenticated: key => limits.unauthenticated(key), admitStream });
     gamePlugin = await openGamePlugin({ dataDir, store, world: indexedWorld, registry: ruleRegistry, questMapping, bodyJSON, json,
-      serializeMutation, checkRequestOrigin,
+      serializeMutation, checkRequestOrigin, unauthenticated: key => limits.unauthenticated(key),
       // In-game lists read the saved task result only; they never start an evaluation.
       savedTasks: memberId => { const entry = savedTaskResults.get(memberId); return entry?.playJSON ? { bytes: entry.playJSON, revision: entry.revision } : null; },
       itemsBetaAsLive: pluginItemsBetaAsLive,
       // Item evidence may propose generated Obtain goals, which live in the catalogue until ticked.
       taskCatalogue: () => [...(taskWorker?.catalogue ?? []), ...(taskWorker?.dynamicCatalogue ?? [])],
-      notify: () => { for (const client of clients) if (!client.write('event: game-plugin\ndata: {}\n\n')) client.end(); } });
+      notify: () => broadcast('event: game-plugin\ndata: {}\n\n') });
   }
   try { await openSidecars(); }
   catch (error) { await Promise.all([invites?.close(), feedback?.close(), usage?.close(), overlays?.close(), gamePlugin?.close(), store.close(), taskWorker?.close()]); throw error; }
@@ -695,6 +697,11 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
   };
   const clients = new Set();
   const clientCredentials = new Map();
+  function broadcast(bytes) {
+    for (const client of clients) if (!writeEvent(client, bytes)) {
+      clients.delete(client); clientCredentials.delete(client);
+    }
+  }
   // Preserve completed bytes while calculators sleep. Viewers only read these;
   // they never touch scheduler admission, cache LRU, prewarming or worker timers.
   const savedTaskResults = new Map();
@@ -762,7 +769,7 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
       delete result.fullGzip; delete result.fullBytes; delete result.fullResponseBytes; delete result.fullETag; delete result.fullBodyRevision;
     }
     endInactiveClients();
-    for (const client of clients) client.write(`event: task-ready\ndata: ${JSON.stringify({ revision, memberId })}\n\n`);
+    broadcast(`event: task-ready\ndata: ${JSON.stringify({ revision, memberId })}\n\n`);
   }
   async function readSavedTasks(request, response) {
     const query = new URL(request.url, 'http://localhost').searchParams;
@@ -1102,7 +1109,7 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
     }
     notifyForeground();
     endInactiveClients();
-    for (const client of clients) client.write(`event: revision\ndata: ${JSON.stringify({ revision, ...(taskResultsUnchanged ? { taskResultsUnchanged: true } : {}) })}\n\n`);
+    broadcast(`event: revision\ndata: ${JSON.stringify({ revision, ...(taskResultsUnchanged ? { taskResultsUnchanged: true } : {}) })}\n\n`);
   });
   const idleMemory = createIdleMemoryReclaimer({ ...idleMemoryOptions,
     idle() {
@@ -1136,7 +1143,7 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
       interiorsPending = undefined; chunkSectionsPending = undefined;
     }
     endInactiveClients();
-    for (const client of clients) client.write(`event: worker\ndata: ${JSON.stringify(worker)}\n\n`);
+    broadcast(`event: worker\ndata: ${JSON.stringify(worker)}\n\n`);
   });
   let importingBackup = false;
   const applicationRequestHandler = async (request, response, lease) => {
@@ -1195,6 +1202,10 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
       function requireAdmin() { if (!identity.admin) throw httpError(403, 'Administrator access required.'); }
       function requirePermission() {
         const permission = apiPermission(request.method, route);
+        if (!permission) {
+          const methodRejected = route === '/api/chunk-sections' || route === '/api/usage';
+          throw httpError(methodRejected ? 405 : 404, methodRejected ? 'Method not allowed.' : 'API route not found.');
+        }
         if (identity.readOnly && !usageWrite && (!['GET', 'HEAD'].includes(request.method) || !['read', 'saved-tasks'].includes(permission))) throw httpError(403, 'This link is view only.');
         if (permission === 'admin') requireAdmin();
       }
@@ -1204,6 +1215,13 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
       if (privateAddon?.features.originalSync && route.startsWith('/api/original-sync/')) await privateAddon.verify();
       if (route.startsWith('/api/')) {
         requirePermission();
+        // Stable invitation identity: opening new sessions or changing IP cannot reset it.
+        const expensiveRead = ['GET', 'HEAD'].includes(request.method)
+          && ['/api/tasks', '/api/helper-drops', '/api/teleports', '/api/training-plan', '/api/area-check', '/api/predict', '/api/death-estimates', '/api/chunk-planning'].includes(route)
+          && !(identity.readOnly && route === '/api/tasks');
+        const expensiveWrite = request.method === 'POST'
+          && ['/api/sandbox/evaluate', '/api/prediction-intent', '/api/pool-ranking-intent', '/api/profile/preview', '/api/runemetrics/preview', '/api/original-sync/preview'].includes(route);
+        if (expensiveRead || expensiveWrite) limits.expensive(identity.inviteId ?? identity.kind);
         if (unavailableDatasetFeature(dataset, route)) throw httpError(422, 'This feature is unavailable in this game.');
         if (closed && route !== '/api/health') throw httpError(503, 'The picker is stopping. Retry after it restarts.');
         if (await usage.handle(request, response, { route, security, identity, closed: () => closed, checkRequestOrigin })) return;
@@ -1615,6 +1633,7 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
             await json(request, response, 200, await store.readBackup(id), { 'Content-Disposition': `attachment; filename="${id.replace(/\.gz$/, '')}"` }); return;
           }
           if (route === '/api/events') {
+            if (request.method !== 'HEAD' && !admitStream(`invite:${identity.inviteId ?? identity.kind}`, response)) return;
             response.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': PRIVATE_NO_STORE, Connection: 'keep-alive' });
             if (request.method === 'HEAD') { response.end(); return; }
             response.write(`event: revision\ndata: ${JSON.stringify({ revision: store.getInfo().revision })}\n\n`);
@@ -1622,7 +1641,7 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
             if (taskWorker) response.write(`event: worker\ndata: ${JSON.stringify(taskWorker.getHealth())}\n\n`);
             clients.add(response);
             clientCredentials.set(response, { request, security });
-            const heartbeat = setInterval(() => { endInactiveClients(); if (clients.has(response)) response.write(': keepalive\n\n'); }, 20000);
+            const heartbeat = setInterval(() => { endInactiveClients(); if (clients.has(response)) writeEvent(response, ': keepalive\n\n'); }, 20000);
             heartbeat.unref();
             request.on('close', () => { clearInterval(heartbeat); clients.delete(response); clientCredentials.delete(response); });
             return;
@@ -2129,7 +2148,9 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
       if (response.headersSent) { response.end(); return; }
       const status = error.code === 'REVISION_CONFLICT' ? 409 : error.status ?? (error.code === 'ENOENT' ? 404 : error instanceof TypeError || error instanceof RangeError || error instanceof SyntaxError ? 400 : 500);
       if (error.retryAfter) response.setHeader('Retry-After', error.retryAfter);
-      await json(request, response, status, { message: status === 500 ? 'The save could not be completed. Your previous save remains available.' : redactInviteTokens(error.message),
+      // Refuse unread/slow uploads without keeping their socket alive.
+      if (!request.complete) response.setHeader('Connection', 'close');
+      await json(request, response, status, { message: status === 500 ? 'The save could not be completed. Your previous save remains available.' : error.code === 'ENOENT' ? 'Not found.' : redactInviteTokens(error.message),
         ...(error.code === 'TASK_RESULTS_UNAVAILABLE' || error.code === 'PICKER_UPDATING' || /^(?:REQUEST_|ACTION_SESSION_)/.test(error.code ?? '') ? { code: error.code } : {}),
         ...(error.code === 'ACTION_SESSION_RETIRED' && error.safeToRetry === true ? { safeToRetry: true } : {}),
         ...(error.code === 'REVISION_CONFLICT' ? viewEnvelope(error.state, viewFor(request)) : {}),

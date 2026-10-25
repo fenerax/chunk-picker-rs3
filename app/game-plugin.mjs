@@ -27,7 +27,7 @@ const PLUGIN_ROUTES = new Map([['/api/plugin/v1/report', 'POST'], ['/api/plugin/
 
 /** Positions, assemblies and proposals are ephemeral. Ticks use store.command. */
 export async function openGamePlugin({ dataDir, store, world, registry, questMapping, bodyJSON, json,
-  serializeMutation, checkRequestOrigin, notify = () => {}, clock = Date.now, savedTasks = () => null, taskCatalogue = () => [], itemsBetaAsLive = false, log = console.warn }) {
+  serializeMutation, checkRequestOrigin, unauthenticated = () => {}, notify = () => {}, clock = Date.now, savedTasks = () => null, taskCatalogue = () => [], itemsBetaAsLive = false, log = console.warn }) {
   const keys = await openPluginKeys({ dataDir, clock });
   const handled = await openPluginAchievements({ dataDir, members: () => state().members, clock, log });
   const itemStore = await openPluginItems({ dataDir, members: () => state().members, clock, log });
@@ -311,10 +311,13 @@ export async function openGamePlugin({ dataDir, store, world, registry, questMap
     async handle(request, response, { route, security, closed: serverClosed }) {
       if (!PLUGIN_ROUTES.has(route)) {
         // A prefixed explicit key cannot fall back to a cookie, even after revocation/restart.
-        if (keys.isCredential(request)) throw fail(401, 'Game plugin keys cannot open picker routes.');
+        if (keys.isCredential(request)) { unauthenticated(security.rateKey); throw fail(401, 'Game plugin keys cannot open picker routes.'); }
         return false;
       }
-      const credential = keys.authenticate(request); member(credential.player); rate(credential.id);
+      let credential;
+      try { credential = keys.authenticate(request); }
+      catch (error) { if (error.status === 401) unauthenticated(security.rateKey); throw error; }
+      member(credential.player); rate(credential.id);
       if (request.method !== PLUGIN_ROUTES.get(route)) throw fail(405, 'Method not allowed.');
       // Only the task list takes a query: `from` pages through the whole active list.
       const search = new URL(request.url, 'http://localhost').search, from = route === '/api/plugin/v1/tasks' ? pluginTaskFrom(search) : search ? null : 0;
