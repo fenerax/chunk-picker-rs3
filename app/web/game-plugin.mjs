@@ -85,6 +85,7 @@ export function createGamePlugin(c) {
     const openDiagnostics = new Set();
     let selectedPreview, singlesOpen = false;
     let achievementChoices = new Map();
+    const itemChoices = new Set();
     const skippedParts = new Set();
     const report = (message, failed = false) => { status.textContent = message; status.className = failed ? 'warning' : 'info-meta'; };
     const clearSecret = () => { secret = ''; if (secretInput) secretInput.value = ''; secretHost?.remove(); secretInput = secretHost = undefined; };
@@ -154,9 +155,10 @@ export function createGamePlugin(c) {
     }
     function review(value) {
       const achievements = (value.achievements ?? []).slice(0, 200);
-      if (selectedPreview !== value.previewId) { selectedPreview = value.previewId; achievementChoices = initialAchievementChoices(achievements); skippedParts.clear(); singlesOpen = false; }
+      if (selectedPreview !== value.previewId) { selectedPreview = value.previewId; achievementChoices = initialAchievementChoices(achievements); skippedParts.clear(); itemChoices.clear(); singlesOpen = false; }
       const canWrite = writable(memberId), stale = c.state.revision !== value.stateRevision;
       const skills = value.skills ?? [], quests = value.quests ?? [], unmatched = value.unmatched?.quests ?? [];
+      const items = value.items ?? [], unmappedItems = value.unmappedItems ?? [];
       const section = el('section', undefined, 'game-plugin-review form-stack');
       section.append(el('h4', `Review plugin progress for ${owner.name}`), el('p', `Received ${date(value.fetchedAt)}${value.world ? ` · World ${value.world.id}` : ''}`, 'info-meta'));
       // World warnings appear once. Rows carry a short tag only when worlds are mixed.
@@ -176,6 +178,8 @@ export function createGamePlugin(c) {
         if (quests.length && !skippedParts.has('quests')) parts.push(plural(quests.length, 'quest'));
         const ticks = chosen().length;
         if (ticks) parts.push(plural(ticks, 'achievement tick'));
+        const itemTicks = items.filter(row => itemChoices.has(row.taskId)).length;
+        if (itemTicks) parts.push(plural(itemTicks, 'item task'));
         summary.textContent = parts.length ? `Apply saves ${parts.length > 1 ? `${parts.slice(0, -1).join(', ')} and ${parts.at(-1)}` : parts[0]}.` : 'Nothing is selected. Dismiss clears this snapshot without changes.';
         if (apply) apply.disabled = stale || !parts.length;
       }
@@ -268,6 +272,28 @@ export function createGamePlugin(c) {
         }
         section.append(box);
       }
+      if (items.length || unmappedItems.length) {
+        // Item rows start unticked: having an item doesn't show where it came from, so the player decides.
+        const box = part(null, `Items (${items.length})`);
+        if (items.length) {
+          box.append(el('p', 'Tick a task only if the evidence fits it. Having an item does not show where it came from.', 'field-help'));
+          const list = el('div', undefined, 'game-plugin-matches');
+          for (const item of items) {
+            const line = el('label', undefined, 'game-plugin-match'), tick = el('input'), text = el('span', undefined, 'game-plugin-match-text');
+            tick.type = 'checkbox'; tick.disabled = !canWrite;
+            const tag = worldTags[item.world] && !(item.world === 'beta' && value.world?.beta) ? [el('span', worldTags[item.world], 'game-plugin-tag')] : [];
+            text.append(el('strong', reviewText(c.plain(item.label))), el('span', `${item.evidence === 'worn' ? 'Worn' : 'Owned'}: ${reviewText(item.gameName)} (game item ${item.gameItemId}) · ${reviewText(item.seen)}`, 'game-plugin-task'), ...tag);
+            tick.addEventListener('change', () => { if (tick.checked) itemChoices.add(item.taskId); else itemChoices.delete(item.taskId); refreshChoices(); });
+            syncs.push(() => { tick.checked = itemChoices.has(item.taskId); });
+            line.append(tick, text); list.append(line);
+          }
+          box.append(list);
+          if (value.itemsMore > 0) box.append(el('p', `${value.itemsMore} more item matches are not shown.`, 'info-meta'));
+        }
+        if (unmappedItems.length) box.append(el('p', `Not matched to tasks yet, no reviewed ID (${unmappedItems.length + (value.unmappedItemsMore ?? 0)}):`, 'info-meta game-plugin-unmatched'),
+          c.list(unmappedItems.map(row => `${reviewText(row.name)} · game item ${row.gameItemId}`)));
+        section.append(box);
+      }
       const more = (value.achievementsMore ?? 0) + Math.max(0, (value.achievements?.length ?? 0) - achievements.length);
       if (more > 0) section.append(el('p', `${more} more achievement matches are not shown. Only the first 200 can be reviewed in this snapshot.`, 'info-meta'));
       if (!canWrite) { refreshChoices(); section.append(el('p', 'View only. This player or an admin can apply or dismiss this snapshot.', 'info-meta')); return section; }
@@ -281,11 +307,12 @@ export function createGamePlugin(c) {
         if (!current() || busy || !writable(memberId)) return;
         if (action === 'apply' && c.state.revision !== value.stateRevision) { apply.disabled = true; report('The saved map changed. Refresh the review before applying.', true); return; }
         const selectedAchievements = chosen().map(row => ({ achievementId: row.achievementId, taskId: achievementChoices.get(row.achievementId) }));
+        const selectedItems = items.filter(row => itemChoices.has(row.taskId)).map(row => ({ taskId: row.taskId }));
         const skipped = { ...(skills.length && skippedParts.has('skills') ? { skills: false } : {}), ...(quests.length && skippedParts.has('quests') ? { quests: false } : {}) };
         busy = true; apply.disabled = dismiss.disabled = true;
         try {
           const task = c.queue.then(async () => {
-            await c.api(`/api/game-plugin/${action}`, { previewId: value.previewId, ...(action === 'apply' ? { expectedRevision: value.stateRevision, ...skipped, ...(selectedAchievements.length ? { achievements: selectedAchievements } : {}) } : {}) });
+            await c.api(`/api/game-plugin/${action}`, { previewId: value.previewId, ...(action === 'apply' ? { expectedRevision: value.stateRevision, ...skipped, ...(selectedAchievements.length ? { achievements: selectedAchievements } : {}), ...(selectedItems.length ? { items: selectedItems } : {}) } : {}) });
             if (action === 'apply') { const loaded = await c.api('/api/state'); c.adopt(loaded.state, loaded.pools); }
           });
           c.queue = task.catch(() => {}); await task;

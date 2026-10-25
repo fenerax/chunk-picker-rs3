@@ -209,6 +209,7 @@ export function createCompletedView(context) {
       const detail = el('div', undefined, 'completed-attribution');
       detail.append(el('span', how), el('span', `${date(completion.at)}${completion.imported ? ' · Imported from original picker' : ''}`, 'completed-task-meta'));
       if (completion.source === 'game-plugin' && completion.achievementId !== undefined) detail.append(el('span', 'ticked by the game', 'completed-task-meta'));
+      else if (completion.source === 'game-plugin' && completion.gameItemId !== undefined) detail.append(el('span', `game item ${completion.gameItemId} · ${completion.itemSeen}`, 'completed-task-meta'));
       evidence.append(detail);
     }
     host.append(evidence);

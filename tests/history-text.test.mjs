@@ -76,6 +76,8 @@ const coverage = [
   ['progress', 'set-runescape-name', {}, 'Set the RuneScape name'],
   ['progress', 'apply-runemetrics', {}, 'Synced skills and quests from RuneMetrics'],
   ['progress', 'apply-game-progress', {}, 'Applied skills and quests from the game plugin'],
+  ['progress', 'apply-game-progress', { skills: [], quests: [], achievements: [], items: [{}, {}] }, 'Ticked 2 tasks from items the game plugin saw'],
+  ['progress', 'apply-game-progress', { skills: [{}], items: [{}] }, 'Applied skills and quests and item tasks from the game plugin'],
   ['progress', 'set-xp-choices', { taskId: 'quest:lamp', taskLabel: 'A lamp' }, 'Changed XP choices for “A lamp”'],
   ['notes', 'set-note', { chunkId: '12850', note: 'Later' }, 'Edited the note on Lumbridge'],
   ['notes', 'set-journal', { memberId: 'actor1', note: 'Later' }, 'Edited the journal for Player'],
