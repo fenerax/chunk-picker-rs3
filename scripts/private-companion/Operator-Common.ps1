@@ -249,12 +249,38 @@ namespace ReleaseV2 {
         (Assert-OperatorPath $WorkingDirectory -Directory), $StandardOutput, $StandardError)
 }
 
+# Windows queries give up after this long, so a stalled WMI provider fails a
+# check instead of hanging it. A failed query throws; it never reads as "none".
+$script:OperatorQueryTimeoutSec = 30
+$script:OperatorCimSession = $null
+
+function Get-OperatorCimSession {
+    if ($null -eq $script:OperatorCimSession) { $script:OperatorCimSession = New-CimSession -OperationTimeoutSec $script:OperatorQueryTimeoutSec -ErrorAction Stop }
+    return $script:OperatorCimSession
+}
+
+function Get-OperatorNetQuery([ValidateSet('Get-NetTCPConnection', 'Get-NetIPAddress')][string]$Command, [hashtable]$Parameters) {
+    # Both commands report "no match" as an ObjectNotFound error; any other
+    # error leaves the answer unproven.
+    $queryErrors = @()
+    $result = @(& $Command -CimSession (Get-OperatorCimSession) @Parameters -ErrorAction SilentlyContinue -ErrorVariable queryErrors)
+    if (@($queryErrors | Where-Object { $_.CategoryInfo.Category -ne 'ObjectNotFound' }).Count) {
+        if ($Command -eq 'Get-NetIPAddress') { throw 'Address query failed.' }
+        throw 'Listener query failed.'
+    }
+    return $result
+}
+
+function Get-OperatorListenSockets([int]$Port) {
+    return Get-OperatorNetQuery 'Get-NetTCPConnection' @{ State = 'Listen'; LocalPort = $Port }
+}
+
 function Assert-OperatorStoreReleased($Context) {
     foreach ($name in 'store.lock', 'store.lock.recovery') {
         if (Test-Path -LiteralPath (Join-Path $Context.config.dataDir $name)) { throw 'Storage lock remains; verify its owner before retrying. No lock was deleted.' }
     }
     $pattern = '(?i)(?:^|\s)--data-dir\s+"?' + [regex]::Escape($Context.config.dataDir) + '"?(?:\s|$)'
-    $writers = @(Get-CimInstance Win32_Process -Filter "Name = 'node.exe'" | Where-Object { $_.CommandLine -match $pattern })
+    $writers = @(Get-CimInstance Win32_Process -Filter "Name = 'node.exe'" -OperationTimeoutSec $script:OperatorQueryTimeoutSec -ErrorAction Stop | Where-Object { $_.CommandLine -match $pattern })
     if ($writers.Count) { throw 'A process still names this data directory. No writer was started.' }
 }
 
@@ -270,14 +296,14 @@ function ConvertTo-OperatorUtc($Value) {
 
 function Test-OperatorBeforeBoot($Value) {
     # Nothing that started before this computer last booted can still run.
-    $boot = ([DateTime](Get-CimInstance Win32_OperatingSystem -ErrorAction Stop).LastBootUpTime).ToUniversalTime()
+    $boot = ([DateTime](Get-CimInstance Win32_OperatingSystem -OperationTimeoutSec $script:OperatorQueryTimeoutSec -ErrorAction Stop).LastBootUpTime).ToUniversalTime()
     if ($boot -gt [DateTime]::UtcNow) { throw 'Boot time is in the future.' }
     return (ConvertTo-OperatorUtc $Value) -lt $boot
 }
 
 function Get-OperatorOwnedProcess($Context, $Record) {
     if (-not $Record -or $Record.pid -isnot [int] -or $Record.pid -lt 1 -or -not $Record.processStartedAt -or $Record.configHash -cne $Context.configHash) { throw 'Missing or mismatched exact process ownership record.' }
-    $process = Get-CimInstance Win32_Process -Filter "ProcessId = $($Record.pid)"
+    $process = Get-CimInstance Win32_Process -Filter "ProcessId = $($Record.pid)" -OperationTimeoutSec $script:OperatorQueryTimeoutSec -ErrorAction Stop
     if (-not $process) { return $null }
     # Windows reuses PIDs after a restart; a record from before the last boot
     # names a process that the restart ended, whatever now holds its PID.
@@ -297,7 +323,7 @@ function Test-OperatorListeners($Context, $Record) {
     if ($null -ne $Context.config.loopbackPort) { $listeners += @{ address = '127.0.0.1'; port = $Context.config.loopbackPort } }
     foreach ($listener in $listeners) {
         # Query only the configured port; never contact a responder without proving its owner.
-        $sockets = @(Get-NetTCPConnection -State Listen -LocalPort $listener.port -ErrorAction SilentlyContinue | Where-Object { $_.LocalAddress -eq $listener.address })
+        $sockets = @(Get-OperatorListenSockets $listener.port | Where-Object { $_.LocalAddress -eq $listener.address })
         if (-not $sockets.Count) { return $false }
         if (@($sockets | Where-Object { $_.OwningProcess -ne $Record.pid }).Count) { throw 'Configured listener belongs to another process. No authenticated request was sent.' }
     }

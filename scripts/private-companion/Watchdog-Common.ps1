@@ -26,7 +26,28 @@ function Get-CoreWatchRefusalReason($ErrorRecord) {
             }
         }
     }
-    return 'Reason: an unexpected error (details withheld).'
+    return "Reason: an unexpected error (details withheld; $(Get-CoreWatchErrorFingerprint $ErrorRecord))."
+}
+
+function Get-CoreWatchErrorFingerprint($ErrorRecord) {
+    # Identify an unexpected error by its type, codes and where it was raised,
+    # never by message text. Each part keeps only name characters.
+    $safe = { param($Value) ("$Value" -replace '[^A-Za-z0-9._-]', '') -replace '^(.{0,80}).*$', '$1' }
+    $exception = $ErrorRecord.Exception
+    $parts = @(& $safe $exception.GetType().FullName)
+    $parts += 'HResult 0x{0:X8}' -f $exception.HResult
+    if ($exception.PSObject.Properties['NativeErrorCode']) { $parts += 'native ' + (& $safe $exception.NativeErrorCode) }
+    $parts += 'category ' + (& $safe $ErrorRecord.CategoryInfo.Category)
+    $invocation = $ErrorRecord.InvocationInfo
+    if ($invocation) {
+        $where = if ($invocation.ScriptName) { (& $safe (Split-Path -Leaf $invocation.ScriptName)) + ':' + [int]$invocation.ScriptLineNumber } else { 'line ' + [int]$invocation.ScriptLineNumber }
+        # A cmdlet error names its cmdlet; a throw names only its enclosing
+        # function, as the first frame of the script stack trace.
+        $command = if ($invocation.MyCommand) { & $safe $invocation.MyCommand.Name }
+            elseif ("$($ErrorRecord.ScriptStackTrace)" -match '^at ([^,\r\n]+),') { & $safe $Matches[1] } else { '' }
+        $parts += $(if ($command) { "in $command at $where" } else { "at $where" })
+    }
+    return $parts -join ', '
 }
 
 function Test-CoreWatchPaused($Context) { return Test-Path -LiteralPath (Join-Path $Context.localDir 'picker-paused') }
@@ -42,7 +63,7 @@ function Test-CoreWatchReleaseBuild($Context) {
         if (-not ($marker.pid -is [int] -or $marker.pid -is [long]) -or $marker.pid -lt 1) { return $false }
         $age = [DateTime]::UtcNow - (ConvertTo-OperatorUtc $marker.startedAt)
         if ($age -lt [TimeSpan]::FromMinutes(-1) -or $age -gt [TimeSpan]::FromMinutes(60)) { return $false }
-        $process = Get-CimInstance Win32_Process -Filter "ProcessId = $([int]$marker.pid)"
+        $process = Get-CimInstance Win32_Process -Filter "ProcessId = $([int]$marker.pid)" -OperationTimeoutSec $script:OperatorQueryTimeoutSec -ErrorAction Stop
         if (-not $process) { return $false }
         return ([DateTime]$process.CreationDate).ToUniversalTime().Ticks -eq (ConvertTo-OperatorUtc $marker.processStartedAt).Ticks
     } catch { return $false }
@@ -50,7 +71,7 @@ function Test-CoreWatchReleaseBuild($Context) {
 
 function Assert-CoreWatchUnoccupied($Context, $DeadRecord = $null) {
     foreach ($port in @($Context.config.port, $Context.config.loopbackPort) | Where-Object { $null -ne $_ }) {
-        if (@(Get-NetTCPConnection -State Listen -LocalPort $port -ErrorAction SilentlyContinue).Count) { throw 'An unowned listener prevents startup.' }
+        if (@(Get-OperatorListenSockets $port).Count) { throw 'An unowned listener prevents startup.' }
     }
     Move-CoreWatchRestartLock $Context
     if ($null -ne $DeadRecord) { Move-CoreWatchDeadRecordLock $Context $DeadRecord }
@@ -64,7 +85,7 @@ function Read-CoreWatchLocalLock($Context) {
     $lock = Join-Path $dataDir 'store.lock'
     if (-not (Test-Path -LiteralPath $lock -PathType Leaf) -or (Test-Path -LiteralPath "$lock.recovery")) { return $null }
     $pattern = '(?i)(?:^|\s)--data-dir\s+"?' + [regex]::Escape($dataDir) + '"?(?:\s|$)'
-    if (@(Get-CimInstance Win32_Process -Filter "Name = 'node.exe'" | Where-Object { $_.CommandLine -match $pattern }).Count) { return $null }
+    if (@(Get-CimInstance Win32_Process -Filter "Name = 'node.exe'" -OperationTimeoutSec $script:OperatorQueryTimeoutSec -ErrorAction Stop | Where-Object { $_.CommandLine -match $pattern }).Count) { return $null }
     $text = [IO.File]::ReadAllText($lock)
     try {
         $owner = $text | ConvertFrom-Json
@@ -105,7 +126,7 @@ function Move-CoreWatchDeadRecordLock($Context, $Record) {
         if ([Math]::Abs((ConvertTo-OperatorUtc $lock.owner.startedAt).Ticks - $started) -ge [TimeSpan]::TicksPerMillisecond) { return }
         if ((ConvertTo-OperatorUtc $lock.owner.createdAt).Ticks -lt $started) { return }
     } catch { return }
-    if (@(Get-CimInstance Win32_Process -Filter "ProcessId = $($Record.pid)").Count) { return }
+    if (@(Get-CimInstance Win32_Process -Filter "ProcessId = $($Record.pid)" -OperationTimeoutSec $script:OperatorQueryTimeoutSec -ErrorAction Stop).Count) { return }
     Move-CoreWatchLockAside $Context $lock 'dead' 'Moved the storage lock of the recorded writer, which has exited, to a review copy.'
 }
 
@@ -116,7 +137,7 @@ function Assert-CoreWatchOwnership($Context, $Record) {
     $listeners = @(@{ address = $Context.config.host; port = $Context.config.port })
     if ($null -ne $Context.config.loopbackPort) { $listeners += @{ address = '127.0.0.1'; port = $Context.config.loopbackPort } }
     foreach ($listener in $listeners) {
-        $sockets = @(Get-NetTCPConnection -State Listen -LocalPort $listener.port -ErrorAction SilentlyContinue | Where-Object { $_.LocalAddress -eq $listener.address })
+        $sockets = @(Get-OperatorListenSockets $listener.port | Where-Object { $_.LocalAddress -eq $listener.address })
         if (@($sockets | Where-Object { $_.OwningProcess -ne $Record.pid }).Count) { throw 'Configured listener is foreign.' }
     }
 }
@@ -188,7 +209,7 @@ function Invoke-CoreWatchTick([string]$Config, [string]$ConfigSha256,
         if (Test-CoreWatchPaused $context) { return }
         # Pinned Tailscale listeners must wait for that exact address to return
         # after boot; never silently replace the configured address with loopback.
-        if ($context.config.host -like '100.*' -and -not @(Get-NetIPAddress -AddressFamily IPv4 -IPAddress $context.config.host -ErrorAction SilentlyContinue).Count) {
+        if ($context.config.host -like '100.*' -and -not @(Get-OperatorNetQuery 'Get-NetIPAddress' @{ AddressFamily = 'IPv4'; IPAddress = $context.config.host }).Count) {
             Write-CoreWatchLog $context 'Waiting for the pinned private listener address before checking the picker.'
             return
         }
