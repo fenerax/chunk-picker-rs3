@@ -121,6 +121,45 @@ test('single matches start selected, several start skipped, and apply sends only
   });
 });
 
+test('item evidence is labelled and only ticked item tasks are applied', async t => {
+  const f = fixture(t), preview = f.proposal();
+  preview.items = [
+    { taskId: 'goal', label: 'Obtain a Yew shortbow', gameItemId: 857, gameName: 'Yew shortbow', evidence: 'owned', seen: 'owned when first seen; source unknown', world: 'beta' },
+    { taskId: 'wear', label: 'Wear a Gud raider item', gameItemId: 34830, gameName: 'Gud raider chainbody', evidence: 'worn', seen: 'worn 2026-10-19T12:00:00Z', world: 'beta' },
+  ];
+  preview.unmappedItems = [{ gameItemId: 99999, name: 'Mystery item' }];
+  f.setPreview(preview); const root = await f.open();
+  const items = partFor(root, 'Items (2)');
+  assert.match(text(items), /Having an item does not show where it came from/);
+  assert.match(text(items), /Owned: Yew shortbow \(game item 857\) · owned when first seen; source unknown/);
+  assert.match(text(items), /Worn: Gud raider chainbody \(game item 34830\)/);
+  assert.match(text(items), /no reviewed ID \(1\)/); assert.match(text(items), /Mystery item · game item 99999/);
+  const boxes = ticks(items);
+  assert.equal(boxes.length, 2); assert.ok(boxes.every(box => !box.checked));
+  boxes[1].checked = true; boxes[1].emit('change');
+  assert.match(summaryText(root), /and 1 item task\.$/);
+  await button(root, 'Apply selected').action();
+  assert.deepEqual(f.posts.find(row => row.path.endsWith('/apply')).body, { previewId: preview.previewId, expectedRevision: 1, items: [{ taskId: 'wear' }] });
+});
+
+test('item review sends no items when none are ticked, and an item alone can be applied', async t => {
+  const f = fixture(t), preview = f.proposal();
+  preview.items = [{ taskId: 'goal', label: 'Obtain a Yew shortbow', gameItemId: 857, gameName: 'Yew shortbow', evidence: 'owned', seen: 'new since 2026-10-19T12:00:00Z', world: 'live' }];
+  f.setPreview(preview); const root = await f.open();
+  await button(root, 'Apply selected').action();
+  assert.deepEqual(f.posts.find(row => row.path.endsWith('/apply')).body, { previewId: preview.previewId, expectedRevision: 1 });
+
+  const g = fixture(t), only = g.proposal();
+  only.items = preview.items;
+  g.setPreview(only); const other = await g.open();
+  for (const node of all(other).filter(node => node.tag === 'button' && node.textContent === 'Skip')) await node.action();
+  assert.equal(button(other, 'Apply selected').disabled, true);
+  const [box] = ticks(partFor(other, 'Items (1)')); box.checked = true; box.emit('change');
+  assert.equal(summaryText(other), 'Apply saves 1 item task.'); assert.equal(button(other, 'Apply selected').disabled, false);
+  await button(other, 'Apply selected').action();
+  assert.deepEqual(g.posts.find(row => row.path.endsWith('/apply')).body, { previewId: only.previewId, expectedRevision: 1, skills: false, quests: false, items: [{ taskId: 'goal' }] });
+});
+
 test('bulk actions skip every achievement and reselect the single matches', async t => {
   const f = fixture(t), preview = f.proposal();
   preview.achievements = Array.from({ length: 4 }, (_, index) => ({ achievementId: index, title: `Achievement ${index}`, reason: 'beta', world: 'beta', candidates: [{ taskId: `task-${index}`, label: `Task ${index}` }] }));

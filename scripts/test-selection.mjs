@@ -21,6 +21,7 @@ export const quickTests = new Set([
   "game-plugin-web.test.mjs",
   "game-plugin-mapping.test.mjs",
   "game-plugin-achievements.test.mjs",
+  "game-plugin-items.test.mjs",
   "plugin-achievements.test.mjs",
   "ci-cache-inputs-pack.test.mjs",
   "ci-coverage-gate.test.mjs",

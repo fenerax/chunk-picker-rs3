@@ -42,8 +42,8 @@ async function archivePath(file, timestamp) {
   }
 }
 
-async function write(file, value, corrupt, clock) {
-  const contents = `${JSON.stringify(validate(value))}\n`;
+/** Atomic replace for small plugin sidecars; a corrupt original is archived, never deleted. */
+export async function replaceSidecar(file, contents, corrupt, clock) {
   const temporary = `${file}.${randomUUID()}.tmp`;
   let handle, archived;
   try {
@@ -58,7 +58,7 @@ async function write(file, value, corrupt, clock) {
       if (archived) {
         try { await renameWithRetry(archived, file); }
         catch (restoreError) {
-          throw new AggregateError([error, restoreError], 'Could not replace the plugin achievement store; its original remains in the corrupt archive.');
+          throw new AggregateError([error, restoreError], `Could not replace ${path.basename(file)}; its original remains in the corrupt archive.`);
         }
       }
       throw error;
@@ -114,7 +114,7 @@ export async function openPluginAchievements({ dataDir, members, clock = Date.no
           }
         }
         if (changed) {
-          await write(file, next, corrupt, clock);
+          await replaceSidecar(file, `${JSON.stringify(validate(next))}\n`, corrupt, clock);
           current = next; corrupt = false;
         }
       });
