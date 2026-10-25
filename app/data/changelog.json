@@ -3,6 +3,13 @@
   "entries": [
     {
       "date": "2026-10-25",
+      "title": "Mami Rimba's tree no longer counts as a bloodwood tree",
+      "items": [
+        "The bloodwood tree by Mami Rimba, north of Edgeville Monastery, can't be cut in the game. It no longer gives Cut bloodwood logs, Fletch bakriminel bolt shafts or Tip bakriminel bolts. The Wilderness bloodwood trees still count"
+      ]
+    },
+    {
+      "date": "2026-10-25",
       "title": "Bosses also wait for the right gear",
       "items": [
         "A boss now opens only once the group can get a weapon, body and legs of the boss's tier, all in one combat style the boss allows, on top of your own levels. Gear one player can make from another's materials counts",

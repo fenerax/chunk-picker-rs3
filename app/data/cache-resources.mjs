@@ -14,6 +14,15 @@ export function cacheResourceContentsEnabled() {
   return selectedDataset.capabilities.cacheResources;
 }
 
+// Reviewed placements the game never lets a player use, adapted from RuneScape
+// Wiki contributors (CC BY-NC-SA 3.0). Mami Rimba's bloodwood tree north of
+// Edgeville Monastery has a "Chop down" option in the cache but cannot be cut;
+// the Wiki's bloodwood tree locations omit it, and a player confirmed it in game.
+// The original picker lists it separately as "Bloodwood tree (Mami)".
+export const unusablePlacements = new Map([
+  ['object-59cb89f84994493e389d4770@28:0:3059:3517', 'https://runescape.wiki/w/Bloodwood_tree'],
+]);
+
 const entries = value => Object.entries(value ?? {});
 const unpack = (columns, row) => Array.isArray(row) ? Object.fromEntries(columns.map((key, index) => [key, row[index]])) : row;
 const classesOf = row => row.classKeys ?? (row.classKey ? [row.classKey] : []);
@@ -44,7 +53,7 @@ export function applyCacheResources(world, definitions, {
     retainedOnlyDeclarations: 0, attachedPlacements: 0 };
   for (const packed of resourceCatalogue.placements) {
     const p = unpack(columns, packed), base = String(p.chunkId);
-    if (!coverage.has(base) || !world.chunks.has(base)) continue;
+    if (!coverage.has(base) || !world.chunks.has(base) || unusablePlacements.has(p.id)) continue;
     const components = (p.components ?? []).map(id => id.includes(':')
       ? `${id.split(':')[0]}-${1000000 + Number(id.split(':')[1])}` : id)
       .filter(id => world.cacheWalking.components.has(id));

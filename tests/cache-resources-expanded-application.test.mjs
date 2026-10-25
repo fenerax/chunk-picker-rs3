@@ -94,3 +94,15 @@ test('real Musa Point placements respect an authored alias gate and source backl
   assert(!backlogged.objects.has('Teak tree'));
   assert(!backlogged.objects.has('Teak'));
 });
+
+test("Mami Rimba's bloodwood tree at Edgeville Monastery is not a choppable tree", () => {
+  const placement = 'object-59cb89f84994493e389d4770@28:0:3059:3517';
+  assert(JSON.parse(readFileSync(new URL('../app/data/cache-resources.2026-10-08.v1.json', import.meta.url)))
+    .placements.some(row => row[0] === placement), 'The catalogue still carries the cache placement');
+  const chunk = world.resourceContents.get('12086');
+  assert.equal(chunk.Object['Bloodwood tree'], undefined);
+  assert.equal(chunk.Object['Bloodwood tree (Mami)'], 1, 'The original picker row stays visible');
+  assert(![...world.cacheResources.byComponent.values()].some(resources => resources.has('tree:bloodwood')));
+  const access = calculateAccess(buildAccessIndex(definitions, options), enteredState([['12086', '12086-1000001']]), 'synthetic');
+  assert.equal(access.objects.has('Bloodwood tree'), false);
+});
