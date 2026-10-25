@@ -1,0 +1,22 @@
+/* Boss gates use the compact Info-dialog palette, like Ask your partner. */
+dialog:has(.boss-gates-panel){width:min(760px,calc(100vw - 1.5rem))}
+.boss-gates-panel{min-width:0;color:var(--panel-text,var(--text));font-variant-numeric:tabular-nums}
+.boss-gates-toolbar{display:flex;align-items:center;gap:var(--space-4);flex-wrap:wrap;margin-bottom:var(--space-5)}
+.boss-gates-toolbar>button{margin-left:auto;font-size:var(--type-sm);min-height:36px}
+.boss-gates-filter{display:flex;align-items:center;gap:var(--space-2);font-size:var(--type-sm);min-height:36px;cursor:pointer}
+.boss-gates-intro{font-size:var(--type-body);margin:0 0 var(--space-3)}
+.boss-gates-note,.boss-gates-condition,.boss-gates-detail{font-size:var(--type-sm);color:var(--panel-muted,var(--muted));line-height:var(--leading-body);overflow-wrap:anywhere}
+.boss-gates-note{margin:0 0 var(--space-5)}
+.boss-gates-list,.boss-gates-players{list-style:none;margin:0;padding:0}
+.boss-gates-row{padding:var(--space-4) 0;border-top:var(--border-thin) solid var(--hairline);overflow-wrap:anywhere}
+.boss-gates-row strong{font-size:var(--type-body);font-weight:var(--weight-semibold)}
+.boss-gates-condition{margin:var(--space-1) 0 var(--space-3)}
+.boss-gates-player{display:grid;grid-template-columns:4.5rem minmax(5rem,9rem) 1fr;gap:var(--space-3);align-items:baseline;padding:var(--space-1) 0}
+.boss-gates-state{font-size:var(--type-sm);font-weight:var(--weight-semibold)}
+.boss-gates-player.is-open .boss-gates-state{color:var(--ok)}
+.boss-gates-name{font-size:var(--type-sm);overflow-wrap:anywhere}
+@media(max-width:500px){
+  .boss-gates-toolbar>button,.boss-gates-filter{min-height:44px}
+  .boss-gates-player{grid-template-columns:4rem 1fr}
+  .boss-gates-detail{grid-column:2}
+}

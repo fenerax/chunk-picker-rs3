@@ -35,6 +35,7 @@ export function createScreenMap(c) {
     c.mapDisplay?.refresh();
     c.finishLine?.refresh();
     c.partnerSupply?.refresh();
+    c.bossGatesView?.refresh();
     c.$('undo').disabled = !c.canWrite() || c.sandbox.active || !c.state.history.some(event => event.undo && !event.undoneRevision);
     c.duoCoordination?.render();
     c.gamePlugin?.render();

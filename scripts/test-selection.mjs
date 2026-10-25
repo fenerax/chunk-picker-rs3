@@ -207,6 +207,7 @@ export const quickTests = new Set([
   "partner-supply-model.test.mjs",
   "partner-supply-engine.test.mjs",
   "partner-supply-view.test.mjs",
+  "boss-gates-view.test.mjs",
   "phone-layout.test.mjs",
   "chunk-long-press.test.mjs",
   "warmstart-scheduler.test.mjs",

@@ -68,6 +68,7 @@ async function build() {
   const { createScreenCapture } = await import('./screen-capture.mjs'); createScreenCapture(c);
   const { createFinishLineView } = await import('./finish-line-view.mjs'); c.finishLine = createFinishLineView(c);
   const { createPartnerSupplyView } = await import('./partner-supply-view.mjs'); c.partnerSupply = createPartnerSupplyView(c);
+  const { createBossGatesView } = await import('./boss-gates-view.mjs'); c.bossGatesView = createBossGatesView(c);
   const { createScreenAreaCheck } = await import('./area-check.mjs'); createScreenAreaCheck(c);
   const { createMapPinsPanel } = await import('./map-pins.mjs');
   createMapPinsPanel({ panel: c.$('map-pins-panel'), toggle: c.$('map-pins-open'), map: c.map,
@@ -190,6 +191,20 @@ async function render(entry) {
   if (type === 'roll-stats') return c.rollStatsDialog();
   if (type === 'finish') return c.finishLine.open();
   if (type === 'partner') return c.partnerSupply.open();
+  if (type === 'boss-gates') {
+    // Sample results carry no gate states; show one of each kind of row.
+    const mole = '40 Defence and 40 Attack, Ranged, Magic or Necromancy and the group can get a tier-40 weapon, body and legs in one style';
+    const kbd = '40 Defence and 40 Attack, Ranged, Magic or Necromancy and 37 Prayer and the group can get a tier-40 weapon, body and legs in one style';
+    const gate = (id, boss, condition, fields) => ({ id, boss, monsters: [boss], condition, open: false, openedBy: null, reason: '', missing: [], gearItems: [], ...fields });
+    const samples = {
+      player1: [gate('giant-mole', 'Giant Mole', mole, { open: true, openedBy: 'levels', gearItems: ['Steel 2h sword', 'Steel platebody', 'Steel platelegs'] }),
+        gate('king-black-dragon', 'King Black Dragon', kbd, { missing: ['Prayer 31/37'] }), gate('vorago', 'Vorago', 'group content, unlocked by hand')],
+      player2: [gate('giant-mole', 'Giant Mole', mole, { missing: ['Defence 34/40'] }),
+        gate('king-black-dragon', 'King Black Dragon', kbd, { missing: ['Prayer 12/37', 'needs tier-40 melee legs'] }), gate('vorago', 'Vorago', 'group content, unlocked by hand', { open: true, openedBy: 'manual' })],
+    };
+    for (const member of c.state.members) fixtures.resultFor(member.id).bossGates ??= samples[member.id] ?? samples.player1;
+    return c.bossGatesView.open();
+  }
   if (type === 'custom') return c.customTaskDialog();
   if (type === 'custom-edit') return c.customTaskDialog(c.state.tasks[0]);
   if (type === 'custom-delete') return c.deleteCustomTaskDialog(c.state.tasks[0]);

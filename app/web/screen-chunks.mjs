@@ -82,7 +82,7 @@ export function createScreenChunks(c) {
     return JSON.stringify([c.memberId, c.$('group-view').checked, c.state.members.map(owner => [owner.id, owner.name, status(owner), owner.notes?.[id] ?? null, owner.stickers?.[id] ?? null, [Object.hasOwn(owner.chunkColours ?? {}, id), owner.chunkColours?.[id]], owner.chunkColourNames,
       owner.areaOverrides?.[id] ?? null, Object.entries(owner.sectionOverrides ?? {}).filter(([key]) => key.split('-')[0] === String(id))]),
       c.pool.eligible.some(item => item.id === id), c.pool.excluded.some(item => item.id === id), c.result ? c.result.access?.areas?.includes(id) : null,
-      c.result ? c.result.bossGates?.map(gate => `${gate.id}:${gate.open ? gate.openedBy : 0}`).join() : null, c.state.rules, c.preferences().advanced,
+      c.result ? c.result.bossGates?.map(gate => `${gate.id}:${gate.open ? gate.openedBy : gate.reason}`).join() : null, c.state.rules, c.preferences().advanced,
       // Preview follows gameplay; location evidence still follows the exact save.
       ['unlock', 'challenges', 'clues', 'tasks'].includes(c.chunkTab ?? c.defaultChunkTab())
         ? [(c.chunkTab ?? c.defaultChunkTab()) === 'unlock' ? c.canonicalTaskRevision() : c.state.revision, c.sandbox.signature(), predictionActorScope()] : null]);

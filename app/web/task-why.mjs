@@ -44,7 +44,7 @@ export function renderTaskWhy(why, { document, actions = [], openRule } = {}) {
   if (why.categoryNote) card.append(line(why.category, why.categoryNote));
   if (why.set?.preferred && why.set.over.length) card.append(line('Picked over', `${why.set.over.join(', ')} (same set)`));
   if (why.set && !why.set.preferred && why.set.by) card.append(line('Hidden behind', `${why.set.by} (same set)`));
-  if (why.bossGate) card.append(line('Boss unlocked', `${why.bossGate.boss}. ${why.bossGate.reason}`));
+  if (why.bossGate) card.append(line(why.bossGate.open === false ? 'Boss locked' : 'Boss unlocked', `${why.bossGate.boss}. ${why.bossGate.reason}`));
   for (const chain of why.neededFor) card.append(line('Needed for', chain.join(' → ')));
   const source = why.sources[0];
   if (source?.text) card.append(line('Possible from', `${source.text}${source.rate ? ` (${source.rate}${why.rareDrop ? `, counts because ${why.rareDrop.label} is on` : ''})` : ''}`));

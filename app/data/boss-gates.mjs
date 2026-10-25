@@ -1,6 +1,7 @@
 // Boss unlock gates for the group's one-chunk run. A gated boss counts as
 // unreachable for a player until that player's synced levels meet its
-// condition, or the player unlocks it by hand from the chunk panel.
+// condition and the group can get the tier gear, or the player unlocks it by
+// hand from the chunk panel.
 //
 // First values come from the group's "Boss unlock Conditions" sheet
 // (2026-10-25); the group expects to tune them. To change a threshold, edit the
@@ -10,8 +11,12 @@
 //   id       stable key; saved "unlock now" choices refer to it, so don't rename
 //   boss     name shown to players
 //   monsters exact picker monster names covered by the gate
-//   tier     "Tier N equipment": Defence N and N in one of `styles`
+//   tier     "Tier N equipment": Defence N and N in one of `styles`, and the
+//            group can get a tier-N weapon, body and legs in one of those
+//            styles from everyone's unlocked areas (crafted items count)
 //   styles   combat skills that count for the tier (default: any combat style)
+//   gear     optional gear tiers when they differ from `tier`, e.g.
+//            { weapon: 70, armour: 60 }; false skips the gear check
 //   levels   extra skill levels, e.g. { Prayer: 37 }
 //   locked   'group' or 'hard-mode': never opens on levels, only by hand
 //   notes    shown with the gate; not checked by the picker

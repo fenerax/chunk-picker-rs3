@@ -31,7 +31,8 @@ import { combatLevelFromSkills } from '../core/combat-level.mjs';
 import { createEligibilityCache } from './eligibility-cache.mjs';
 import { createObligationCache } from './obligation-cache.mjs';
 import { recordedEquipment } from './recorded-equipment.mjs';
-import { evaluateBossGates, closedBossMonsters } from './boss-gates.mjs';
+import { evaluateBossGates, closedBossMonsters, bossGearCatalogue, bestBossGear } from './boss-gates.mjs';
+import { bossGates as bossGateData } from '../data/boss-gates.mjs';
 import { applyDivinationTraining } from '../data/divination-training.mjs';
 import { personalQuestProgressBlocker } from './personal-quest-progress.mjs';
 import { taskRuleEnabled } from './rule-defaults.mjs';
@@ -399,8 +400,19 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
         && Number.isSafeInteger(observation.level) && observation.level >= 1 && observation.level <= 120
         && Number.isFinite(observation.xp) && observation.xp >= 0) observedProgress[skill] = observation;
     }
-    const bossGates = evaluateBossGates(Object.fromEntries(Object.entries(observedProgress).map(([skill, observation]) => [skill, observation.level])), member.bossUnlocks);
-    const gatedBosses = closedBossMonsters(bossGates);
+    // Gates need the player's own synced levels and tier gear the group can
+    // get. The item set pools partners' areas under shared access, so gates are
+    // checked again each pass as items arrive; they only ever open.
+    const gateLevels = Object.fromEntries(Object.entries(observedProgress).map(([skill, observation]) => [skill, observation.level]));
+    const gateGear = bossGearCatalogue(definitions.equipment);
+    let bossGates = evaluateBossGates(gateLevels, member.bossUnlocks, bossGateData, null);
+    let gatedBosses = closedBossMonsters(bossGates);
+    const refreshBossGates = obtainable => {
+      const next = evaluateBossGates(gateLevels, member.bossUnlocks, bossGateData, bestBossGear(gateGear, obtainable));
+      const opened = next.some((status, index) => status.open !== bossGates[index].open);
+      bossGates = next; gatedBosses = closedBossMonsters(bossGates);
+      return opened;
+    };
     const restrictGatedBosses = access => {
       for (const [monster, gate] of gatedBosses) if (access.monsters.delete(monster)) {
         access.diagnostics.push({ code: 'boss-gated', kind: 'Monster', source: monster, gate: gate.id, detail: gate.reason });
@@ -734,6 +746,8 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
     const outputCache = replay.outputCache ??= new Map();
     const sourceList = item => sources.get(item) ?? [];
     const ordinaryItem = (name, own = false) => sourceList(name).some(source => source.processingMode !== 'multi' && (!own || ownSource(source)));
+    // Crafted gear counts here: one player's ore and another's smithing make it.
+    const gateItem = name => items.has(name) && ordinaryItem(name) && !itemMembershipBlocker(name, f2p, definitions) && (!f2p || definitions.equipment?.[name]?.members !== true);
     const sourceName = value => typeof value === 'string' ? value : value.name ?? value.source ?? value.task ?? value.location ?? '';
     const sourceType = value => typeof value === 'string' ? value : value.kind ?? value.type ?? '';
     const sourcePrimary = source => {
@@ -1190,6 +1204,7 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
         counters.passes++; changed = false;
         obligationCache.clear();
         refreshAccess(); counters.accessPasses++;
+        if (refreshBossGates(gateItem)) changed = true;
         restrictGatedBosses(access);
         if (access !== ownAccess) restrictGatedBosses(ownAccess);
         const priorLock = effectiveSlayerLock;

@@ -119,6 +119,11 @@
       "overlays"
     ]
   },
+  "app/web/boss-gates-view.mjs :: 'Boss gates'": {
+    "entries": [
+      "boss-gates"
+    ]
+  },
   "app/web/partner-supply-view.mjs :: 'Ask your partner'": {
     "entries": [
       "partner"

@@ -89,16 +89,18 @@ export function explainTask(task, { result = { tasks: [] }, describeRule = () =>
   const rareDrop = describeRule('Rare Drop'), amount = Number(describeRule('Rare Drop Amount')?.value);
   const rare = rareDrop?.on && amount > 0 && (task.sources ?? []).some(source => source.kind === 'drop' && source.probability > 0 && source.probability <= 1 / amount);
 
-  // A boss task reaches the list only once that boss's gate is open.
+  // A boss task reaches the list only once that boss's gate is open; a task
+  // still waiting on a closed gate says what the gate needs.
   const monsters = new Set([task.monster, ...list(record.Monsters), ...(task.sources ?? []).filter(source => source.kind === 'drop' || source.kind === 'monster').map(source => source.source ?? source.name)].filter(Boolean).map(plain));
-  const gate = (result.bossGates ?? []).find(status => status.open && status.monsters.some(monster => monsters.has(monster)));
+  const gates = (result.bossGates ?? []).filter(status => status.monsters.some(monster => monsters.has(monster)));
+  const gate = gates.find(status => status.open) ?? (task.status === 'available' ? undefined : gates[0]);
   const reasons = suppressed ?? result.presentation?.suppressed?.[task.id] ?? [];
   const decisive = rules.filter(rule => rule.reason === 'tag');
   return {
     label: plain(task.label), category: task.category, group: record.Label && record.Label !== task.category ? plain(record.Label) : undefined,
     categoryNote: CATEGORY_NOTES[task.category],
     rules, set: setStanding(task, result), neededFor: neededForChains(task, result),
-    bossGate: gate ? { boss: gate.boss, reason: gate.reason } : undefined,
+    bossGate: gate ? { boss: gate.boss, open: gate.open, reason: gate.reason } : undefined,
     sources, rareDrop: rare ? { label: rareDrop.label ?? 'Rare Drop', amount } : undefined,
     hidden: reasons.filter(reason => reason !== 'Task is not available.'),
     summary: (decisive.length ? decisive : rules).slice(0, 2).map(rule => rule.label).join(' and ') || undefined,
