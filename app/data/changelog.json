@@ -3,6 +3,14 @@
   "entries": [
     {
       "date": "2026-10-25",
+      "title": "The watchdog says more when it holds off",
+      "items": [
+        "If a Windows check stalls, the watchdog now gives up on it after 30 seconds instead of hanging, and it never reads a failed check as a sign the picker is down",
+        "When it holds off for an unexpected reason, its log now says what kind of error it was and where it happened, still without the error text"
+      ]
+    },
+    {
+      "date": "2026-10-25",
       "title": "Sinkhole tasks follow your D&D and time-gated rules",
       "items": [
         "Sinkholes open once an hour at one of 21 spots, so a chunk-locked map may wait a long time for its own spot. Sinking Fast and the other sinkhole tasks now leave your list when Distractions & Diversions or time-gated tasks are turned off, the same as Big Chinchompa"
