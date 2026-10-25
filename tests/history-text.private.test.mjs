@@ -58,6 +58,7 @@ const coverage = [
   ['tasks', 'delete-task', { taskId: 'custom:cake', taskLabel: 'Bake a cake' }, 'Deleted custom task “Bake a cake”'],
   ['tasks', 'set-task-alternative', { taskId: 't:cape', category: 'opaque:category', group: 'opaque:group' }, 'Chose “Obtain a Team-1 cape” as the preferred method'],
   ['tasks', 'set-source-backlog', { kind: 'shops', name: 'General Store', backlogged: true }, 'Backlogged the source “General Store”'],
+  ['tasks', 'set-boss-unlock', { gate: 'telos', unlocked: true }, 'Unlocked Telos, the Warden'],
   ['settings', 'set-task-rule', { ruleId: 'Kill X Amount', value: 100 }, 'Changed Kill X Amount to a new value'],
   ['settings', 'reset-task-rule', { ruleId: 'Combat Mastery achievements' }, 'Reset Combat Mastery achievements to automatic'],
   ['settings', 'set-rule', { ruleId: 'opaque:rule', value: false }, 'Turned a shared rule off'],

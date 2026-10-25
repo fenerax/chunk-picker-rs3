@@ -8,6 +8,7 @@ import { gatheringSettingDefinitions, calculatorBankingSettingDefinitions as ban
 import { groupGoalCommandTypes } from '../core/group-goal-types.mjs';
 import { topBarSettingDefinitions } from '../core/top-bar-settings.mjs';
 import { setupGuideSettingDefinitions } from '../core/setup-guide.mjs';
+import { bossGates } from '../data/boss-gates.mjs';
 const settingNames = new Map([...settingDefinitions, ...authoredSettingDefinitions, ...deathSettingDefinitions, ...miningSettingDefinitions, ...woodcuttingSettingDefinitions, ...bankingSettingDefinitions, ...gatheringSettingDefinitions, ...topBarSettingDefinitions, ...setupGuideSettingDefinitions].map(row => [row.id, row.label]));
 const ruleNames = new Map(taskRuleDefinitions.map(row => [row.id, row.label]));
 export const historyChangeTypes = Object.freeze([
@@ -18,7 +19,7 @@ export const historyChangeTypes = Object.freeze([
 const changeTypes = new Map([
   ['tasks', groupGoalCommandTypes],
   ['map', ['set-chunk', 'roll', 'unlock-selection', 'pick-for-me', 'unlock-both', 'cancel-roll', 'random-start', 'unpick', 'set-starting-chunk', 'setup-start']],
-  ['tasks', ['claim-task', 'clear-task-claim', 'prune-task-claims', 'set-task-status', 'clear-challenge-ticks', 'tick-active-tasks', 'clear-backlog', 'add-task', 'update-task', 'delete-task', 'set-task-alternative', 'set-source-backlog', 'add-finish-line-custom', 'set-finish-line-custom', 'delete-finish-line-custom']],
+  ['tasks', ['claim-task', 'clear-task-claim', 'prune-task-claims', 'set-task-status', 'clear-challenge-ticks', 'tick-active-tasks', 'clear-backlog', 'add-task', 'update-task', 'delete-task', 'set-task-alternative', 'set-source-backlog', 'set-boss-unlock', 'add-finish-line-custom', 'set-finish-line-custom', 'delete-finish-line-custom']],
   ['settings', ['set-task-rule', 'reset-task-rule', 'set-rule', 'set-rule-review', 'set-profile', 'set-preference', 'set-primary-override', 'set-skill-levels', 'set-slayer-lock', 'set-finish-line-item']],
   ['travel', ['set-section', 'set-area', 'set-teleport', 'set-teleport-override', 'delete-teleport', 'set-transport-facts']],
   ['progress', ['complete-task', 'set-obtained-equipment', 'set-runescape-name', 'apply-runemetrics', 'apply-game-progress', 'set-xp-choices']],
@@ -142,6 +143,7 @@ export function describeHistoryEvent(event = {}, { memberName = id => id, chunkN
     case 'set-slayer-lock': return `${c.lock ? 'Set' : 'Cleared'} the Slayer lock${forWho}`;
     case 'set-section': return `Set a section of ${chunk(String(c.sectionId).split('-')[0])} to ${c.accessible === null ? 'automatic' : c.accessible ? 'accessible' : 'blocked'}${forWho}`;
     case 'set-area': return `Set ${named(c.areaId, chunkName, 'an area')} to ${c.accessible === null ? 'automatic' : c.accessible ? 'accessible' : 'blocked'}${forWho}`;
+    case 'set-boss-unlock': return `${c.unlocked ? 'Unlocked' : 'Relocked'} ${bossGates.find(gate => gate.id === c.gate)?.boss ?? 'a boss'}${forWho}`;
     case 'set-source-backlog': return `${c.backlogged ? 'Backlogged' : 'Restored'} ${c.name ? `the source “${c.name}”` : 'an item source'}${forWho}`;
     case 'set-teleport': return `Saved ${c.teleport?.label ? `teleport “${c.teleport.label}”` : 'a teleport'}${forWho}`;
     case 'set-teleport-override': return `${c.value === null ? 'Reset automatic availability for' : c.value ? 'Marked usable' : 'Marked unusable'} ${named(c.routeId, routeLabel, 'a travel route')}${forWho}`;

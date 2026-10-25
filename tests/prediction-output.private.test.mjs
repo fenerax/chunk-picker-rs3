@@ -106,13 +106,17 @@ const fingerprint = value => createHash('sha256').update(JSON.stringify(value, (
 // inputs from a clean git archive of db6ae1b, with no packs, profile, local
 // metadata or RS3_* environment overrides. All six reproduce run 39582931047's
 // Linux output on Windows; only elapsedMs remains excluded from the full JSON.
+// Boss gates 2026-10-25: every result gains a bossGates list (all gates closed
+// here; no fixture monster is gated). Dropping only bossGates from the JSON
+// reproduces all six previous hashes; no task, item, access or prediction
+// value changes. The new hashes match on Linux CI and Windows.
 const expected = {
-  shared: 'ead6b95fe7427a9ea4ff6ea6b8c42958f934977e0f991b2ae7f4aa115cec1944',
-  unshared: '19c89972c58a18b6d594a5cf800ae87fd476e0fdf897bb379c7ce036ad6c0479',
-  'member-inclusive': '5d44ffabb671da82b249a14fe0f67f988c6a0c7dfefb609e2422c24259df95b8',
-  backlogs: '37de1e90f613490cd7f75c0e7e7f760a8083d25bdb659419cfdd4d18e1add23c',
-  personal: '99c732c826bae8947af5ea0613a5c4b151e5312b9c032a1cc531951f99388a86',
-  'legacy-all': '112a473898bae3abb167cf8ca09572291faf34cbf1c949e4a0a46d83280708b8',
+  shared: '170ecc8fe0f4d4a0a1441c63f88a0d4351ba1ead597e7831dcb38c144d499b75',
+  unshared: '480dab73e64c3885f4a746ce6e32c5eeff726915166390db8fcc639c1852ada1',
+  'member-inclusive': '1fd8f67839e2e5805adb85d75c37f5493b49bd22308084a13763678a9c8ab8d5',
+  backlogs: '75ca73fdfad2bedaecfab8e702bf8da904a4d9ffbc9387d60800ff8456e39a54',
+  personal: 'ae34a9d7b1123681faebdf3d85ba9287702bcaa7a9ce668ecc4780b73bb6d5c7',
+  'legacy-all': '1cf491d140033a1db61c682c63cb858596609c74c7adb57d055c304ac7ac1eea',
 };
 
 for (const [mode, golden] of Object.entries(expected)) test(`full prediction output retains baseline behavior: ${mode}`, () => {

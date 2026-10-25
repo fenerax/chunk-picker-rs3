@@ -115,7 +115,7 @@ function rewind(state, event, events) {
   }
   const undo = event.undo;
   if (!undo) {
-    const unrelated = ['set-note', 'set-journal', 'set-preference', 'set-teleport', 'set-teleport-override', 'set-transport-facts', 'set-skill-levels', 'set-primary-override', 'set-task-rule', 'reset-task-rule', 'set-slayer-lock', 'set-section', 'set-source-backlog', 'set-area', 'add-sticker', 'update-sticker', 'remove-sticker', 'clear-stickers', 'set-sticker', 'set-chunk-colour', 'rename-chunk-colour', 'cancel-roll'];
+    const unrelated = ['set-note', 'set-journal', 'set-preference', 'set-teleport', 'set-teleport-override', 'set-transport-facts', 'set-skill-levels', 'set-primary-override', 'set-task-rule', 'reset-task-rule', 'set-slayer-lock', 'set-section', 'set-source-backlog', 'set-boss-unlock', 'set-area', 'add-sticker', 'update-sticker', 'remove-sticker', 'clear-stickers', 'set-sticker', 'set-chunk-colour', 'rename-chunk-colour', 'cancel-roll'];
     return unrelated.includes(event.type) ? null : 'History lacks reversible state evidence';
   }
   if (undo.rules) state.rules = { ...undo.rules };

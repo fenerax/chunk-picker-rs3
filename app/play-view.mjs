@@ -116,6 +116,8 @@ export function projectPlayResult(result, { reuse = true } = {}) {
       completedTasks } } : {}),
     ...(result.metrics ? { metrics: result.metrics } : {}),
     ...(result.access ? { access: result.access } : {}),
+    // The chunk panel and task explanations name each boss gate's state.
+    ...(result.bossGates ? { bossGates: result.bossGates.map(({ id, boss, monsters, open, openedBy, reason }) => ({ id, boss, monsters, open, openedBy, reason })) } : {}),
     ...(result.partnerConnections ? { partnerConnections: result.partnerConnections } : {}),
     ...(result.collectionPlanning ? { collectionPlanning: { completionGroups: result.collectionPlanning.completionGroups } } : {}),
   };

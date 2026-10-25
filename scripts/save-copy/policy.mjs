@@ -20,7 +20,7 @@ export const schemaKeys = new Set(`
   sectionOverrides sourceBacklogs areaOverrides preferences primaryOverrides
   passiveLevels maxLevels slayerLock stickers chunkColours chunkColourNames
   taskAlternatives runescapeName skillProgress questProgress runeMetricsSync
-  originalPickerSync transportFacts f2pMap xpChoices identityRegistry taskClaims
+  originalPickerSync transportFacts f2pMap xpChoices bossUnlocks identityRegistry taskClaims
   progressSnapshots finishLine groupGoals ruleReviews
   label category completionIds skill level memberIds destination available consumable
   backlogged backlogReason favorite note challengeCompleted type color text

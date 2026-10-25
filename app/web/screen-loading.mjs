@@ -327,7 +327,7 @@ export function createScreenLoading(c) {
       c.normalPlayResults.set(value.memberId, value);
     }
     c.duoResults().remember(value);
-    c.result = value; c.renderTasks();
+    c.result = value; c.renderTasks(); c.refreshBossGates?.();
     let rendering, painted;
     do { rendering = c.taskRenderDone; painted = await rendering; } while (rendering !== c.taskRenderDone && c.result === value);
     if (!painted || c.result !== value || value.stateRevision !== c.state.revision || value.memberId !== c.memberId) return;
