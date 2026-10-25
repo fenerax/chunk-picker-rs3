@@ -58,6 +58,7 @@ export const galleryEntries = [
   entry('roll-stats', 'Roll stats', 'screen-roll-stats.mjs', 'roll-stats', ['roll:stats']),
   entry('finish', 'F2P finish line', 'finish-line-view.mjs', 'finish', ['finish']),
   entry('partner', 'Ask your partner', 'partner-supply-view.mjs', 'partner', ['partner']),
+  entry('boss-gates', 'Boss gates', 'boss-gates-view.mjs', 'boss-gates', ['boss-gates']),
   entry('custom-task', 'Add custom task', 'screen-custom-tasks.mjs', 'custom', ['tasks:custom']),
   entry('custom-edit', 'Edit custom task', 'screen-custom-tasks.mjs', 'custom-edit'),
   entry('custom-delete', 'Delete custom task', 'screen-custom-tasks.mjs', 'custom-delete', ['tasks:custom-delete']),

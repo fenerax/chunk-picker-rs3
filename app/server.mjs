@@ -2041,6 +2041,7 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
       else if (['/map-capture.mjs', '/screen-capture.mjs', '/map-capture.css'].includes(route)) file = await containedFile(webRoot, route.slice(1));
       else if (['/area-check.mjs', '/area-check-selection.mjs', '/area-check.css'].includes(route)) file = await containedFile(webRoot, route.slice(1));
       else if (['/partner-supply-model.mjs', '/partner-supply-view.mjs', '/partner-supply.css'].includes(route)) file = await containedFile(webRoot, route.slice(1));
+      else if (['/boss-gates-view.mjs', '/boss-gates.css'].includes(route)) file = await containedFile(webRoot, route.slice(1));
       else if (['/tasks/rule-defaults.mjs', '/tasks/task-provenance.mjs', '/tasks/fact-projection.mjs', '/tasks/gameplay-compat.mjs', '/tasks/gameplay-facts.mjs', '/tasks/chunk-planning-index.mjs'].includes(route)) file = await containedFile(path.join(ROOT, 'app', 'tasks'), route.slice('/tasks/'.length));
       else if (['/data/surface-grid.mjs', '/data/world-connections.mjs', '/data/boss-gates.mjs'].includes(route)) file = await containedFile(path.join(ROOT, 'app', 'data'), route.slice('/data/'.length));
       else if (['/data/cache-archaeology.mjs', '/data/cache-interiors.mjs'].includes(route)) file = await containedFile(path.join(ROOT, 'app', 'data'), route.slice('/data/'.length));

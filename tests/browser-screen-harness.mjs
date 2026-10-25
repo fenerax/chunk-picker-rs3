@@ -12,6 +12,7 @@ import { createProfileView } from '../app/web/profile-view.mjs';
 import { createBackupUpload, downloadFullBackup } from '../app/web/backup-transfer.mjs';
 import { createFinishLineView } from '../app/web/finish-line-view.mjs';
 import { createPartnerSupplyView } from '../app/web/partner-supply-view.mjs';
+import { createBossGatesView } from '../app/web/boss-gates-view.mjs';
 import { createXpChoices } from '../app/web/lamp-choices.mjs';
 import { chunkColourLegend } from '../app/web/chunk-colour-picker.mjs';
 import { createGroupGoals } from '../app/web/group-goals.mjs';
@@ -65,6 +66,7 @@ export function runScreenGraph(context, modules) {
   context.downloadFullBackup ??= downloadFullBackup;
   context.createFinishLineView ??= createFinishLineView;
   context.createPartnerSupplyView ??= createPartnerSupplyView;
+  context.createBossGatesView ??= createBossGatesView;
   context.createXpChoices ??= createXpChoices;
   context.chunkColourLegend ??= chunkColourLegend;
   context.createScreenChunkColours ??= c => { c.chunkColours = { summary: () => c.el('div'), action: () => null }; };
