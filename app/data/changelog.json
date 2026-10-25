@@ -3,6 +3,15 @@
   "entries": [
     {
       "date": "2026-10-25",
+      "title": "Bosses also wait for the right gear",
+      "items": [
+        "A boss now opens only once the group can get a weapon, body and legs of the boss's tier, all in one combat style the boss allows, on top of your own levels. Gear one player can make from another's materials counts",
+        "Info → Our run → Boss gates lists every boss with what it needs and where each player stands, such as “Defence 38/40; needs tier-40 melee legs”",
+        "The chunk panel's Boss locked badge and the task “Why?” panel now say which gear is still missing"
+      ]
+    },
+    {
+      "date": "2026-10-25",
       "title": "The watchdog says more when it holds off",
       "items": [
         "If a Windows check stalls, the watchdog now gives up on it after 30 seconds instead of hanging, and it never reads a failed check as a sign the picker is down",
