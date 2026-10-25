@@ -48,8 +48,9 @@ export function selectDuoTasks({ state, results, registry, selectedMemberId, fil
     const extras = customRows.map(task => customTaskForMember(task, source.member)).filter(Boolean);
     if (inspect) {
       const known = new Set(tasks.map(task => task.id)), savedMember = source.member;
+      const completedIds = new Set(savedMember.completedTasks ?? []);
       extras.push(...(state.tasks ?? []).filter(task => !custom(task) && !known.has(task.id)
-        && (Object.hasOwn(savedMember.taskStatus ?? {}, task.id) || savedMember.completedTasks?.includes(task.id)))
+        && (Object.hasOwn(savedMember.taskStatus ?? {}, task.id) || completedIds.has(task.id)))
         .map(task => ({ ...task, status: 'unsupported', blockers: [{ detail: 'Preserved imported task; it has no current availability result.' }] })));
     }
     source.candidates = [...references.map(reference => byId.get(typeof reference === 'string' ? reference : reference.id)
@@ -74,11 +75,17 @@ export function selectDuoTasks({ state, results, registry, selectedMemberId, fil
       availability.get(id)[member.id] = true;
     }
   }
+  // Personal filters inspect the full catalogue. Project each saved member
+  // once for this selection; both facts indexes read the same catalogue and
+  // saved snapshot. Nothing is retained across filters, members or revisions.
+  const projectedMembers = personalFilter !== 'group' && sources.length
+    ? new Map(state.members.map(member => [member.id, projectMemberTaskFacts(state, member, catalogue)])) : undefined;
+  const projection = projectedMembers ? { projectMemberTaskFacts: (_state, member) => projectedMembers.get(member.id) } : undefined;
   const combined = new Map();
   for (const { member: savedMember, result, candidates, presentedIds, neverShowIds } of sources) {
-    const member = projectMemberTaskFacts(state, savedMember, catalogue);
+    const member = projectedMembers?.get(savedMember.id) ?? projectMemberTaskFacts(state, savedMember, catalogue);
     const completionGroups = result.collectionPlanning?.completionGroups ?? {};
-    const facts = createTaskFactsIndex(state, member.id, registry, { tasks: catalogue, completionGroups });
+    const facts = createTaskFactsIndex(state, member.id, registry, { tasks: catalogue, completionGroups }, projection);
     for (const task of candidates) {
       if (!visible(task) || neverShowIds.has(task.id) || (!showBlocked && task.status !== 'available')) continue;
       const id = canonical(task);

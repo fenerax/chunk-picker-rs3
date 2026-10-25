@@ -285,3 +285,25 @@ test('peer routing captures the selected member and revision before asynchronous
   await Promise.resolve(); assert.deepEqual(calls, [['reed', 5, 'actor1']]);
   response.resolve(result('reed', [])); await early;
 });
+
+// START 90dcb2aaf181e036dfd9dacf9807ecf59d9720cd: full serialized selector
+// outputs, including every row, owner, fact, order, recovery flag and count.
+// The 576 cases cover both members, all personal/owner filters, all completion
+// policies, locked/unlocked maps and blocked/completed visibility switches.
+test('personal filter optimization preserves the complete baseline responses', async () => {
+  const { createHash } = await import('node:crypto');
+  const { groupFilterCases } = await import('../scripts/perf/group-filter-equivalence.mjs');
+  const expected = {
+    any: '82a540d90b59fbc4e1dcf2bb3f8b8c1a2d1b53f82d084e2527e60b3f0653f8ee',
+    all: '78419486e7f68d0bcc516d0ab4015cb9138ce1041cc631a0b5949f511546e65e',
+    personal: '8f68c9a016c9bc61c5f3a4fac9d8f28028333c30adf92455aae0149cfdb5647c',
+  };
+  const hashes = Object.fromEntries(Object.keys(expected).map(mode => [mode, createHash('sha256')]));
+  for (const { state, results, options, label } of groupFilterCases()) {
+    const before = JSON.stringify({ state, results });
+    const view = selectDuoTasks({ state, results, registry, ...options });
+    hashes[state.rules['tasks.completion']].update(JSON.stringify([label, view]));
+    assert.equal(JSON.stringify({ state, results }), before, label);
+  }
+  assert.deepEqual(Object.fromEntries(Object.entries(hashes).map(([mode, hash]) => [mode, hash.digest('hex')])), expected);
+});
