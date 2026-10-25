@@ -3,6 +3,13 @@
   "entries": [
     {
       "date": "2026-10-25",
+      "title": "Sinkhole tasks follow your D&D and time-gated rules",
+      "items": [
+        "Sinkholes open once an hour at one of 21 spots, so a chunk-locked map may wait a long time for its own spot. Sinking Fast and the other sinkhole tasks now leave your list when Distractions & Diversions or time-gated tasks are turned off, the same as Big Chinchompa"
+      ]
+    },
+    {
+      "date": "2026-10-25",
       "title": "Old skill ticks still count after a map change",
       "items": [
         "A skill task you ticked stays counted even when its chunk is no longer in your map, for example after switching from free-to-play to members. Lower tasks in that skill stay out of your list, as in the original picker. This applies to every skill",
@@ -17,7 +24,8 @@
         "Group bosses and hard modes the sheet doesn't cover stay locked until someone unlocks them by hand",
         "The chunk panel shows a “Boss locked” badge with the reason, and an “Unlock now” or “Relock boss” button for each player. History can undo it"
       ]
-    },    {
+    },
+    {
       "date": "2026-10-25",
       "title": "The game plugin ticks gear you own",
       "items": [
