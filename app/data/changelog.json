@@ -3,6 +3,14 @@
   "entries": [
     {
       "date": "2026-10-25",
+      "title": "Bosses wait until you're ready for them",
+      "items": [
+        "Bosses now unlock at the levels from the group's boss unlock sheet, such as Defence and one combat style at the boss's tier, plus Prayer where the sheet asks. Until your own synced levels meet them, that boss's kill, drop, challenge and gear tasks stay out of your list",
+        "Group bosses and hard modes the sheet doesn't cover stay locked until someone unlocks them by hand",
+        "The chunk panel shows a “Boss locked” badge with the reason, and an “Unlock now” or “Relock boss” button for each player. History can undo it"
+      ]
+    },    {
+      "date": "2026-10-25",
       "title": "The game plugin ticks gear you own",
       "items": [
         "When the game plugin sees an item in your backpack or worn on a live world, the matching Best in Slot “Obtain” goal ticks by itself. It shows in Completed as from the game plugin, with the item and whether you had it already or got it since, and History can undo it",
