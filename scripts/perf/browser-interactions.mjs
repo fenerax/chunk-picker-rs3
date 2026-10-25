@@ -126,7 +126,7 @@ export async function measureBrowserInteractions(browser, { timeout = 180000, sc
   const rows = [];
   for (const name of interactionScenarios(scenarios)) {
     onScenario(name);
-    rows.push(await browser.evaluate(`(${browserInteraction.toString()})(${JSON.stringify(name)},${timeout})`));
+    rows.push(await browser.evaluate(`(${browserInteraction.toString()})(${JSON.stringify(name)},${timeout})`, timeout + 30000));
   }
   return rows;
 }

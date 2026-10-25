@@ -122,10 +122,10 @@ test('save burst timeline counts only the page state reads and leaves an unobser
 
 test('UI measurements run sequentially through the existing browser and return scalar rows', async () => {
   let active = false;
-  const expressions = [];
-  const browser = { async evaluate(expression) {
+  const expressions = [], budgets = [];
+  const browser = { async evaluate(expression, budget) {
     assert.equal(active, false); active = true;
-    expressions.push(expression);
+    expressions.push(expression); budgets.push(budget);
     await Promise.resolve(); active = false;
     const name = expression.match(/\)\("([a-z-]+)",50\)$/)?.[1];
     assert.ok(name);
@@ -134,6 +134,8 @@ test('UI measurements run sequentially through the existing browser and return s
   const rows = await measureBrowserInteractions(browser, { timeout: 50, scenarios: ['panels', 'search'] });
   assert.deepEqual(rows.map(row => row.name), ['chunk-info', 'possible-tasks', 'search']);
   assert.equal(expressions.length, 3);
+  // The CDP call outlasts the in-page wait, so a slow panel fails as a paint timeout, not a CDP cut-off.
+  assert.ok(budgets.every(budget => budget > 50), 'each probe gets a CDP budget beyond its in-page timeout');
   assert.ok(rows.every(row => Object.values(row).every(value => ['number', 'string', 'boolean'].includes(typeof value))));
   await assert.rejects(measureBrowserInteractions(browser, { timeout: NaN }), /Invalid interaction timeout/);
 });

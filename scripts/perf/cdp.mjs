@@ -4,6 +4,8 @@ import path from 'node:path';
 import { chromeStartupMessage } from './diagnostics.mjs';
 
 export const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+export const CDP_TIMEOUT_MS = 30000;
+
 export async function until(action, timeoutMs = 30000, interval = 50) {
   const end = Date.now() + timeoutMs;
   while (Date.now() < end) { const result = await action(); if (result) return result; await sleep(interval); }
@@ -81,14 +83,15 @@ export async function openChrome(executable, profile, options = {}, dependencies
       } else for (const listener of listeners) listener(message);
     });
     socket.addEventListener('close', () => { for (const entry of pending.values()) { clearTimeout(entry.timer); entry.reject(new Error('CDP closed.')); } pending.clear(); });
-    const send = (method, params = {}) => new Promise((resolve, reject) => {
+    const send = (method, params = {}, timeoutMs = CDP_TIMEOUT_MS) => new Promise((resolve, reject) => {
       const id = ++sequence;
-      const timer = setTimeout(() => { pending.delete(id); reject(new Error(`CDP ${method} timed out.`)); }, 30000);
+      const timer = setTimeout(() => { pending.delete(id); reject(new Error(`CDP ${method} timed out.`)); }, timeoutMs);
       pending.set(id, { resolve, reject, timer, method });
       socket.send(JSON.stringify({ id, method, params }));
     });
-    const evaluate = async expression => {
-      const response = await send('Runtime.evaluate', { expression, returnByValue: true, awaitPromise: true });
+    // Long in-page waits pass their own budget so the CDP ceiling never cuts them short.
+    const evaluate = async (expression, timeoutMs = CDP_TIMEOUT_MS) => {
+      const response = await send('Runtime.evaluate', { expression, returnByValue: true, awaitPromise: true }, timeoutMs);
       if (response.exceptionDetails) throw new Error('Benchmark browser probe failed.');
       return response.result?.value;
     };
