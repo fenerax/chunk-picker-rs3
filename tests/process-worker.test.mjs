@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { once } from 'node:events';
+import { readFile } from 'node:fs/promises';
 import { serialize, deserialize } from 'node:v8';
 import childProcesses from 'node:child_process';
 import { syncBuiltinESMExports } from 'node:module';
@@ -163,7 +164,52 @@ test('a host that ignores graceful termination is killed before retirement resol
   } finally { childProcesses.fork = original; syncBuiltinESMExports(); }
 });
 
+// kill(pid, 0) also succeeds for Linux zombies. An orphan can have exited
+// without being reaped when a container's PID 1 does not collect children.
+async function processHasExited(pid, { platform = process.platform, kill = process.kill,
+  readStat = pid => readFile(`/proc/${pid}/stat`, 'utf8') } = {}) {
+  try { kill(pid, 0); }
+  catch (error) { if (error.code === 'ESRCH') return true; throw error; }
+  if (platform !== 'linux') return false;
+  let stat;
+  try { stat = await readStat(pid); }
+  catch (error) { if (error.code === 'ENOENT') return true; throw error; }
+  // comm can contain spaces, newlines and ')'; the state follows its final ')'.
+  const match = /^\d+ \([\s\S]*\) ([A-Za-z]) /.exec(stat);
+  assert.ok(match, 'expected a Linux /proc/<pid>/stat process state');
+  return match[1] === 'Z' || match[1] === 'X';
+}
+
+test('orphan exit detection distinguishes live, stopped, zombie and missing processes', async () => {
+  const missing = Object.assign(new Error('missing'), { code: 'ESRCH' });
+  const denied = Object.assign(new Error('denied'), { code: 'EPERM' });
+  const gone = Object.assign(new Error('gone'), { code: 'ENOENT' });
+  const kill = () => {};
+  for (const state of ['R', 'S', 'D', 'T', 't', 'I', 'Z', 'X']) {
+    assert.equal(await processHasExited(123, { platform: 'linux', kill,
+      readStat: async () => `123 (name with ) and\nspaces) ${state} 1 2 3` }), ['Z', 'X'].includes(state), state);
+  }
+  for (const platform of ['linux', 'win32', 'darwin']) {
+    assert.equal(await processHasExited(123, { platform, kill: () => { throw missing; } }), true);
+    await assert.rejects(processHasExited(123, { platform, kill: () => { throw denied; } }), { code: 'EPERM' });
+  }
+  for (const platform of ['win32', 'darwin']) {
+    assert.equal(await processHasExited(123, { platform, kill, readStat: () => assert.fail('must not read /proc') }), false);
+  }
+  assert.equal(await processHasExited(123, { platform: 'linux', kill, readStat: async () => { throw gone; } }), true);
+  await assert.rejects(processHasExited(123, { platform: 'linux', kill, readStat: async () => { throw denied; } }), { code: 'EPERM' });
+  await assert.rejects(processHasExited(123, { platform: 'linux', kill, readStat: async () => 'malformed' }), /process state/);
+});
+
 test('an owned calculator exits when its parent disappears without calling terminate', { timeout: 15000 }, async t => {
+  if (process.platform === 'linux') {
+    try { await readFile('/proc/self/stat', 'utf8'); }
+    catch (error) {
+      if (!['ENOENT', 'EACCES', 'EPERM'].includes(error.code)) throw error;
+      t.skip(`Linux orphan exit detection requires readable /proc/<pid>/stat (${error.code})`);
+      return;
+    }
+  }
   const parent = childProcesses.fork(new URL('./fixtures/process-worker-parent.mjs', import.meta.url), [], {
     stdio: ['ignore', 'ignore', 'ignore', 'ipc'], windowsHide: true,
   });
@@ -174,7 +220,7 @@ test('an owned calculator exits when its parent disappears without calling termi
   const exited = once(parent, 'exit'); parent.send({ stop: true }); await exited;
   const deadline = Date.now() + 5000;
   while (true) {
-    try { process.kill(workerPid, 0); } catch (error) { assert.equal(error.code, 'ESRCH'); workerPid = undefined; break; }
+    if (await processHasExited(workerPid)) { workerPid = undefined; break; }
     assert.ok(Date.now() < deadline, 'calculator must exit after parent IPC disconnect');
     await new Promise(resolve => setTimeout(resolve, 20));
   }

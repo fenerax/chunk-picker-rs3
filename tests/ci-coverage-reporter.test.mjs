@@ -88,16 +88,38 @@ test('parent test', async t => { await t.test('child test', () => {}); });
 `);
   const runner = new URL('../scripts/adaptive-test-runner.mjs', import.meta.url).href;
   const collector = new URL('../scripts/ci/coverage-reporter.mjs', import.meta.url).href;
-  await writeFile(path.join(root, 'run.mjs'), `import { runAdaptive } from ${JSON.stringify(runner)};
+  // Probe Node itself, independently of our runner: older Node 24 releases do
+  // not expose entryFile, so they cannot identify cases from imported helpers.
+  await writeFile(path.join(root, 'tests/probe.mjs'), `import { test } from 'node:test'; test('native identity probe', () => {});`);
+  await writeFile(path.join(root, 'run.mjs'), `import { run } from 'node:test';
+import { writeFile } from 'node:fs/promises';
+import { runAdaptive } from ${JSON.stringify(runner)};
 import { createCoverageReporter } from ${JSON.stringify(collector)};
+let nativeCase, nativeSuccess = false;
+for await (const event of run({files: ['tests/probe.mjs'], isolation: 'process', concurrency: 1})) {
+  if (event.type === 'test:complete' && event.data.name === 'native identity probe') nativeCase = event.data;
+  if (event.type === 'test:summary' && !event.data.file) nativeSuccess = event.data.success;
+}
+if (!nativeSuccess || !nativeCase) throw new Error('Native coverage identity probe failed');
+const entryFile = typeof nativeCase.entryFile === 'string';
+await writeFile('capability.json', JSON.stringify({entryFile, node: process.version}));
+if (entryFile) {
 const files = [${JSON.stringify(file)}], r = createCoverageReporter({cwd: process.cwd(), files});
 const result = await runAdaptive({files, minConcurrency: 1, maxConcurrency: 1, memory: () => 8 * 1024 ** 3, policy: () => ({}), onEvent: r.onEvent, onFile: r.onFile});
 await r.write('coverage.json', {passed: result.passed});
+}
 `);
   const env = { ...process.env };
   delete env.NODE_TEST_CONTEXT;
   const child = spawnSync(process.execPath, ['run.mjs'], { cwd: root, env, encoding: 'utf8', timeout: 30000, windowsHide: true });
   assert.equal(child.status, 0, child.stderr);
+  const capability = JSON.parse(await readFile(path.join(root, 'capability.json'), 'utf8'));
+  assert.equal(capability.node, process.version);
+  assert.equal(typeof capability.entryFile, 'boolean');
+  if (!capability.entryFile) {
+    t.skip(`Node ${capability.node} node:test lacks native entryFile identities required for coverage collection`);
+    return;
+  }
   const result = JSON.parse(await readFile(path.join(root, 'coverage.json'), 'utf8'));
   assert.equal(result.passed, true);
   assert.equal(result.tests.length, 7);
