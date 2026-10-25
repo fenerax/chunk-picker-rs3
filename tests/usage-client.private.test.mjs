@@ -22,7 +22,7 @@ function fixture({ off = false, send } = {}) {
 test('catalogue ids match the UI map or explicit new families and do not include overlay/gallery pages', async () => {
   const inventory = JSON.parse(await readFile(new URL('../docs/research/ui-map-2026-10-13.json', import.meta.url)));
   const known = new Set(inventory.nodes.map(node => node.id));
-  const added = /^(?:usage|dom:usage-|tasks:other-control|tasks:category-fold-all$|helper:back|dom:helper-player)/;
+  const added = /^(?:usage|dom:usage-|tasks:other-control|tasks:category-fold-all$|helper:back|dom:helper-player|dom:boss-gates-open$)/;
   assert.equal(new Set(usageEvents.map(event => event.id)).size, usageEvents.length);
   for (const event of usageEvents) {
     assert.match(event.id, /^[a-z][a-z0-9]*(?:[-:][a-z0-9]+)*$/);
