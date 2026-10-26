@@ -305,13 +305,18 @@ test('bank parts assemble in order, tick owned goals and are acknowledged once c
   const saved = JSON.parse(await readFile(path.join(f.dataDir, 'plugin-items.json'), 'utf8'));
   assert.deepEqual(saved.players.a.bank, { snapshot: 'b0123456789abcde', seenAt, coins: 1000 });
   assert.equal(saved.players.a.items[YEW_SHORTBOW].name, 'Yew shortbow', 'Bank items take the reviewed name');
-  // Repeats of a held set are no-ops; a restart remembers the live bank.
-  await f.sendBank(bank(1, 2, [[995, 1000]], { age: 120 }));
+  // A held set sent again in full ticks nothing new but moves "bank as of" on; a restart
+  // remembers the live bank.
+  await f.sendBank(bank(1, 2, [[995, 1000], [YEW_SHORTBOW, 1], [UNKNOWN, 3]], { age: 0 }));
+  status = await f.sendBank(bank(2, 2, [[BRONZE_DAGGER, 1]], { age: 0 }));
+  assert.deepEqual(status.bank, { snapshot: 'b0123456789abcde' });
   assert.equal(f.commands.length, 1);
+  const later = new Date(f.at).toISOString();
+  assert.equal(f.controller.list(identity).keys[0].bankSeenAt, later);
   await f.restart();
   status = await f.send(items({ snapshot: '5523456789abcdef' }));
   assert.deepEqual(status.bank, { snapshot: 'b0123456789abcde' });
-  assert.equal(f.controller.list(identity).keys[0].bankSeenAt, seenAt);
+  assert.equal(f.controller.list(identity).keys[0].bankSeenAt, later);
 });
 
 test('coins on hand add pouch, backpack and bank on live worlds, only when the total changes', async t => {

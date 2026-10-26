@@ -279,8 +279,8 @@ export async function openGamePlugin({ dataDir, store, world, registry, questMap
   // Bank parts arrive in order, part 1 first; a new part 1 replaces an unfinished set. Status
   // acknowledges the last complete snapshot only.
   async function receiveBank(player, report) {
-    const part = report.bank, world = itemWorld(report), held = bankAcks.get(player);
-    if (held?.snapshot === part.snapshot && held.world === world) return;
+    // A held set sent again in full is the bank seen open again: it only moves "bank as of" on.
+    const part = report.bank, world = itemWorld(report);
     let assembly = bankAssemblies.get(player);
     if (part.part === 1) { assembly = { snapshot: part.snapshot, parts: part.parts, received: 0, rows: [], world }; bankAssemblies.set(player, assembly); }
     if (!assembly || assembly.snapshot !== part.snapshot || assembly.parts !== part.parts || assembly.world !== world || part.part !== assembly.received + 1) return;
