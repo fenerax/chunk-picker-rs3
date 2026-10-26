@@ -108,7 +108,8 @@ test('the eight BiS goals from the in-game test map to their checked IDs, noted 
 
 test('better owned gear from the second in-game test maps to its checked IDs, noted copies included', () => {
   for (const [suffix, name, slot, wearable, noted] of [['00006c', 'Adamant kiteshield', 'off-hand', 45519, 1200], ['0009f4', 'Rune gauntlets + 3', 'hands', 46938, 46939],
-    ['0009c5', 'Rune armoured boots + 3', 'feet', 46925, 46926], ['0000e3', 'Amulet of power', 'neck', 1731, 1732]]) {
+    ['0009c5', 'Rune armoured boots + 3', 'feet', 46925, 46926], ['0000e3', 'Amulet of power', 'neck', 1731, 1732],
+    ['000a5d', 'Rune pickaxe', 'main hand weapon', 45548, 1276]]) {
     assert.deepEqual([GAME_ITEMS.get(wearable).goalId, GAME_ITEMS.get(wearable).name, GAME_ITEMS.get(wearable).slot, GAME_ITEMS.get(wearable).noted], [goal(suffix), name, slot, false]);
     assert.deepEqual([GAME_ITEMS.get(noted).goalId, GAME_ITEMS.get(noted).noted], [goal(suffix), true]);
   }
@@ -250,7 +251,7 @@ test('a corrupt item sidecar is archived on the next write, never deleted', asyn
   assert.ok((await readdir(f.dataDir)).some(name => name.startsWith('plugin-items.json.corrupt-')));
 });
 
-const NOOSE_WAND = 10150, RUNE_HATCHET = 1359;
+const NOOSE_WAND = 10150, RUNE_HATCHET = 1359, RUNE_PICKAXE = 45548;
 const bank = (part, parts, rows, { snapshot = 'b0123456789abcde', age = 0 } = {}) => ({ snapshot, part, parts, age, rows });
 
 test('tool belt, pouch and bank reports are bounded and the bank travels alone', () => {
@@ -284,9 +285,9 @@ test('reviewed tool belt entries count as owned; other entries are not listed', 
   assert.deepEqual(f.commands[0].items.map(row => [row.taskId, row.gameItemId, row.title]),
     [[goal('0009f8'), RUNE_HATCHET, 'Rune hatchet'], [goal('00080a'), NOOSE_WAND, 'Noose wand']]);
   const saved = JSON.parse(await readFile(path.join(f.dataDir, 'plugin-items.json'), 'utf8'));
-  assert.deepEqual(Object.keys(saved.players.a.items).sort(), [String(RUNE_HATCHET), String(NOOSE_WAND)].sort());
+  assert.deepEqual(Object.keys(saved.players.a.items).sort(), [String(RUNE_HATCHET), String(NOOSE_WAND), String(RUNE_PICKAXE)].sort());
   // Unmapped belt entries don't join the unmapped item list.
-  await f.send({ ...items({ snapshot: '2223456789abcdef', worn: [[4, CHAINBODY, 1, 'Gud raider chainbody']] }), toolbelt: [['HATCHET', 1], ['PICKAXE_LEVEL', 16]] });
+  await f.send({ ...items({ snapshot: '2223456789abcdef', worn: [[4, CHAINBODY, 1, 'Gud raider chainbody']] }), toolbelt: [['HATCHET', 1], ['PICKAXE_LEVEL', 15]] });
   assert.deepEqual(f.review().unmappedItems, []);
 });
 
