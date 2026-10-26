@@ -63,7 +63,7 @@ process.on('message', message => {
       if (worker) throw new Error('Task worker process was initialized twice.');
       const probeImport = message.probeImport ?? process.env.RS3_WORKER_MEMORY_PROBE_IMPORT;
       probeEnabled = !!probeImport;
-      worker = new Worker(new URL('./worker.mjs', import.meta.url), {
+      worker = new Worker(new URL(message.planning === true ? './planning-worker.mjs' : './worker.mjs', import.meta.url), {
         workerData: decodeReceivedProcessMessage(message.data), resourceLimits: TASK_WORKER_RESOURCE_LIMITS,
         // Diagnostic preloads need an explicit list. Native inheritance filters
         // process-only V8 flags; explicitly forwarding those flags rejects them.

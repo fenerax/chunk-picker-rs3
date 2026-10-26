@@ -16,6 +16,7 @@ export const adaptiveOptionsFor = (suite, env = process.env) => {
 // Reviewed small fixtures and model/controller tests. No running browser or full catalogue.
 export const quickTests = new Set([
   "security-json.test.mjs",
+  "planning-baseline.test.mjs",
   "game-plugin-state.test.mjs",
   "game-plugin-status.test.mjs",
   "game-plugin-tasks.test.mjs",
@@ -268,6 +269,7 @@ const fullOnlyPatterns = [
 
 // Remaining integration/provenance tests are named explicitly to catch unreviewed additions.
 const fullOnlyTests = new Set([
+  "planning-handoff.test.mjs",
   "game-plugin-routes.test.mjs",
   "game-plugin-shutdown.test.mjs",
   "release-lane-status.test.mjs",

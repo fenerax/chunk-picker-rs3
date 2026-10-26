@@ -18,6 +18,7 @@ import { resolveDeathSettings } from '../core/death-settings.mjs';
 import { decodeLegacyText, hasGameplayMigration } from './migration.mjs';
 import { projectPlayResult, projectPlayTask } from '../play-view.mjs';
 import { projectDuoSidebarResult } from '../duo-play-view.mjs';
+import { encodePlanningBaseline } from './planning-baseline.mjs';
 import { buildChunkPlanningIndex } from './chunk-planning-index.mjs';
 import { projectMapTaskLocations } from './map-task-locations.mjs';
 import { createTaskReuseFingerprint } from './unlock-reuse.mjs';
@@ -40,6 +41,7 @@ function takeDefinitions() {
   return raw;
 }
 const mapLocationResults = new WeakMap();
+const planningBaselines = new WeakMap();
 function mapPlayResult(result) {
   let locations = mapLocationResults.get(result);
   if (!locations) {
@@ -295,7 +297,7 @@ function serializedState({ stateJSON, stateJSONBytes, stateRevision, stateMember
   return state;
 }
 parentPort.on('message', async ({ id, type = 'evaluate', state, memberId, chunkId, chunkIds = [], revision, input, snapshotKey, resultTransport, resultView = 'full', cancellation, predictionProgress = false,
-  stateTransport, stateJSON, stateJSONBytes, stateRevision, stateMemberIds, duoProjection = false, duoSidebarProjection = false, reportProgress = false }) => {
+  stateTransport, stateJSON, stateJSONBytes, stateRevision, stateMemberIds, duoProjection = false, duoSidebarProjection = false, reportProgress = false, planningBaseline = false }) => {
   if (type === 'cancel') { if (requests.has(id)) requests.get(id).cancelled = true; return; }
   if (type === 'supersede') { latestRevision = Math.max(latestRevision, revision); return; }
   const started = performance.now();
@@ -395,6 +397,11 @@ parentPort.on('message', async ({ id, type = 'evaluate', state, memberId, chunkI
         ...(duoProjection && duoSidebarJSON ? { duoJSON: duoSidebarJSON } : {}),
         ...(duoSidebarProjection && duoSidebarJSON ? { duoSidebarJSON } : {}), cancelled: !!result.cancelled }
       : { result };
+    if (type === 'evaluate' && planningBaseline && !result.cancelled) {
+      if (!planningBaselines.has(result)) planningBaselines.set(result,
+        timed(timingMs, 'planningBaselineMs', () => encodePlanningBaseline(definitions, result, workerData.world)));
+      payload.planningBaseline = planningBaselines.get(result);
+    }
     timingMs.totalMs = performance.now() - started;
     parentPort.postMessage({ id, ...payload, ...(unlockReuse ? { unlockReuse } : {}), ...(partnerUnlockReuse ? { partnerUnlockReuse } : {}), evaluationMs: timingMs.totalMs, timingMs });
   } catch (error) {

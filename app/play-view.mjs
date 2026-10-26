@@ -1,10 +1,8 @@
 import { lookupPermanentId, resolveIdentity } from './tasks/identity.mjs';
-import { helperTaskLevels } from './helper-task-levels.mjs';
+import { projectPlayTask } from './play-task.mjs';
+export { projectPlayTask } from './play-task.mjs';
 
 export const PLAY_VIEW = 'play-v1';
-const factKeys = ['id', 'label', 'category', 'status', 'hidden', 'obligation', 'aliases', 'completionGroup', 'completionIds'];
-const displayKeys = ['level', 'primary', 'generated', 'equipmentName', 'item', 'rawLabel', 'wiki'];
-
 /** Materialize only the identities queried by browser facts, retaining every
  * competing candidate. The browser need not download the authored registry. */
 export function projectIdentityRegistry(state) {
@@ -62,26 +60,6 @@ export function projectPlayState(state) {
   for (const goal of state.groupGoals ?? []) if (goal.link?.kind === 'task') add(goal.link.id);
   const tasks = (state.tasks ?? []).filter(task => task.id.startsWith('custom:') || task.id.startsWith('rs3:task:custom:') || wanted.has(task.id));
   return { ...display, tasks, identityRegistry: projectIdentityRegistry({ ...state, tasks }) };
-}
-
-/** Browser facts always retain identity, scope and completion-family evidence.
- * Hidden rows need display fields only in an explicitly opened planning view. */
-export function projectPlayTask(task, { retainHiddenDisplay = false, reuse = true } = {}) {
-  let projected;
-  if (reuse) {
-    projected = {};
-    for (const key of factKeys) if (Object.hasOwn(task, key)) projected[key] = task[key];
-    if (!task.hidden || retainHiddenDisplay) for (const key of displayKeys) if (Object.hasOwn(task, key)) projected[key] = task[key];
-  } else {
-    const keys = [...factKeys];
-    if (!task.hidden || retainHiddenDisplay) keys.push(...displayKeys);
-    projected = Object.fromEntries(keys.filter(key => Object.hasOwn(task, key)).map(key => [key, task[key]]));
-  }
-  if (!task.hidden || retainHiddenDisplay) { const levels = helperTaskLevels(task); if (Object.keys(levels).length) projected.skillRequirements = levels; }
-  if (task.record?.RequirementAlternatives && Number(task.level ?? task.record.Level ?? 1) === 1) delete projected.level;
-  if ((!task.hidden || retainHiddenDisplay) && task.blockers?.length) projected.blockers = [{ detail: task.blockers[0].detail }];
-  if ((!task.hidden || retainHiddenDisplay) && typeof task.record?.Description === 'string') projected.description = task.record.Description;
-  return projected;
 }
 
 export function projectPlayResult(result, { reuse = true } = {}) {

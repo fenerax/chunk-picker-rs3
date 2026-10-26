@@ -1115,7 +1115,7 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
     idle() {
       const health = taskWorker?.getHealth();
       if (closed || foregroundActive || activePreviews || automaticDeathActive || health?.status !== 'sleeping') return false;
-      return [health, health.death, health.duo, health.prediction].filter(Boolean)
+      return [health, health.death, health.duo, health.prediction, health.planning].filter(Boolean)
         .every(lane => ['sleeping', 'idle'].includes(lane.status) && !lane.resident && !lane.retiring) ? true : null;
     },
     release() {
@@ -1125,7 +1125,7 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
   });
   let memorySleeping = false;
   const unsubscribeResidency = taskWorker?.subscribeResidency(worker => {
-    const sleeping = [worker, worker.death, worker.duo, worker.prediction].filter(Boolean)
+    const sleeping = [worker, worker.death, worker.duo, worker.prediction, worker.planning].filter(Boolean)
       .every(lane => ['sleeping', 'idle'].includes(lane.status) && !lane.resident && !lane.retiring);
     if (worker.status === 'sleeping' && sleeping) {
       if (!memorySleeping) { memorySleeping = true; idleMemory.sleep(); }

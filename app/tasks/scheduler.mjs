@@ -4,6 +4,7 @@ import { createHash } from 'node:crypto';
 import { deserialize } from 'node:v8';
 import { createUnlockResultCache, taskReuseInputKey } from './unlock-reuse.mjs';
 import { STATE_SNAPSHOT_LIMIT } from './state-transfer.mjs';
+import { PLANNING_BASELINE_BYTES } from './planning-baseline.mjs';
 import { TASK_WORKER_RESOURCE_LIMITS } from './worker-limits.mjs';
 
 const unavailable = message => Object.assign(new Error(message), { status: 503 });
@@ -16,6 +17,10 @@ const superseded = () => Object.assign(new Error('Calculation superseded by a ne
 const nativeWorker = data => process.env.RS3_TASK_WORKER_MODE === 'thread'
   || process.platform !== 'win32' && process.env.RS3_TASK_WORKER_MODE !== 'process'
   ? new Worker(new URL('./worker.mjs', import.meta.url), { workerData: data, resourceLimits: TASK_WORKER_RESOURCE_LIMITS }) : new ProcessWorker(data);
+const nativePlanningWorker = () => process.env.RS3_TASK_WORKER_MODE === 'thread'
+  || process.platform !== 'win32' && process.env.RS3_TASK_WORKER_MODE !== 'process'
+  ? new Worker(new URL('./planning-worker.mjs', import.meta.url), { resourceLimits: TASK_WORKER_RESOURCE_LIMITS })
+  : new ProcessWorker({}, { planning: true });
 // Built-in advisory lanes never read the ready catalogue, so their workers skip
 // sending it. The flag is always overwritten: callers cannot strip foreground's.
 export const nativeWorkerInput = (workerData, includeReadyCatalogue) => ({ ...workerData, omitReadyCatalogue: !includeReadyCatalogue });
@@ -72,14 +77,25 @@ function validStateInput(state, input, stateInput, type) {
 /** Interactive work and advisory batches have independent bounded workers. */
 export async function createTaskScheduler({ maxDeathQueue = 2, deathDeadlineMs = 120000, deathWorkerFactory,
   duoWorkerFactory, maxDuoQueue = 2, duoDeadlineMs = 30000, duoCacheLimit = 4, duoCacheBytes = 32 * 1024 * 1024,
-  predictionWorkerFactory, maxPredictionQueue = 8, predictionDeadlineMs = 120000,
+  predictionWorkerFactory, planningWorkerFactory, maxPredictionQueue = 8, predictionDeadlineMs = 120000,
   predictionCacheLimit = 256, predictionCacheBytes = 32 * 1024 * 1024, maxPrewarmQueue = 256, signal, ...options } = {}) {
   positive(maxDeathQueue, 'maxDeathQueue'); positive(deathDeadlineMs, 'deathDeadlineMs');
   for (const [name, value] of Object.entries({ maxPredictionQueue, predictionDeadlineMs, predictionCacheLimit, predictionCacheBytes, maxPrewarmQueue })) positive(value, name);
   for (const [name, value] of Object.entries({ maxDuoQueue, duoDeadlineMs, duoCacheLimit, duoCacheBytes })) positive(value, name);
-  const foreground = await createWorkerLane({ ...options, includeReadyCatalogue: true, maxPrewarmQueue, signal });
+  const planningBaselines = new Map();
+  const planningKey = (state, memberId, input) => typeof input === 'string' ? JSON.stringify([memberId, predictionInput(state, input)]) : undefined;
+  const rememberPlanning = (message, entry) => {
+    if (entry.type !== 'evaluate' || !entry.planningKey || !ArrayBuffer.isView(message.planningBaseline)
+      || message.planningBaseline.byteLength > PLANNING_BASELINE_BYTES) return;
+    planningBaselines.delete(entry.planningKey);
+    planningBaselines.set(entry.planningKey, message.planningBaseline);
+    while (planningBaselines.size > 2 || [...planningBaselines.values()].reduce((n, b) => n + b.byteLength, 0) > PLANNING_BASELINE_BYTES)
+      planningBaselines.delete(planningBaselines.keys().next().value);
+  };
+  const foreground = await createWorkerLane({ ...options, includeReadyCatalogue: true, maxPrewarmQueue, signal,
+    onEvaluation: rememberPlanning, onSleep: () => planningBaselines.clear() });
   const unlockResults = createUnlockResultCache({ limit: predictionCacheLimit, byteLimit: Math.floor(predictionCacheBytes / 2) });
-  let death, prediction, duo, closed = false, closePromise, latestRevision = -1;
+  let death, prediction, duo, planning, closed = false, closePromise, latestRevision = -1;
   // Claims/preferences advance HTTP revisions while retaining task identities.
   let taskRevision = -1, savedPredictionSourceRevision = -1;
   const listeners = new Set();
@@ -93,11 +109,19 @@ export async function createTaskScheduler({ maxDeathQueue = 2, deathDeadlineMs =
   function duoLane() {
     if (!duo) void createWorkerLane({ ...options,
       ...(duoWorkerFactory ? { workerFactory: duoWorkerFactory } : {}),
-      includeReadyCatalogue: false,
+      includeReadyCatalogue: false, onEvaluation: rememberPlanning,
       maxQueue: maxDuoQueue, deadlineMs: duoDeadlineMs, cacheLimit: duoCacheLimit, cacheByteLimit: duoCacheBytes, duoResults: true,
       onCreated(lane) { duo = lane; lane.subscribe(announce); },
     }).catch(() => { /* The lane reports bounded startup/recovery failure. */ });
     return duo;
+  }
+  function planningLane() {
+    if (!planning) void createWorkerLane({ ...options, workerData: undefined, workerFactory: planningWorkerFactory ?? nativePlanningWorker,
+      includeReadyCatalogue: false, strictRevision: true, maxQueue: maxPredictionQueue, deadlineMs: predictionDeadlineMs,
+      cacheLimit: predictionCacheLimit, cacheByteLimit: Math.floor(predictionCacheBytes / 2),
+      onCreated(lane) { planning = lane; lane.subscribe(announceResidency); announceResidency(); },
+    }).catch(() => {});
+    return planning;
   }
   function predictionLane() {
     if (!prediction) void createWorkerLane({ ...options,
@@ -107,6 +131,7 @@ export async function createTaskScheduler({ maxDeathQueue = 2, deathDeadlineMs =
       cacheByteLimit: predictionCacheBytes - Math.floor(predictionCacheBytes / 2), maxPrewarmQueue, strictRevision: true, shareSnapshots: true,
       retainActivePrediction: true,
       onEvaluation(message, entry) {
+        rememberPlanning(message, entry);
         if (!closed && entry.revision === latestRevision && !entry.discarded && !message.result?.cancelled
           && Array.isArray(message.result?.delta?.tasksAdded)) {
           const state = { ...entry.predictionState, revision: entry.revision };
@@ -229,6 +254,11 @@ export async function createTaskScheduler({ maxDeathQueue = 2, deathDeadlineMs =
         prediction?.cancelPrewarm({ keepActiveKey: predictionKey });
         return predictionLane().evaluate(state, memberId, type, chunkId, predictionKey, input, signal);
       }
+      if (type === 'chunk-planning' && state.revision >= latestRevision) {
+        const baselineKey = planningKey(state, memberId, input), bytes = planningBaselines.get(baselineKey);
+        if (bytes) return planningLane().evaluate({ revision: state.revision, planningKey: baselineKey, planningBaseline: bytes },
+          memberId, type, chunkId, key, input, signal);
+      }
       if (evaluationLane === 'side' || type === 'chunk-planning') {
         if (state.revision < latestRevision) return Promise.reject(superseded());
         return predictionLane().evaluate(state, memberId, type, chunkId, key, input, signal, chunkIds, resultView, stateInput);
@@ -263,14 +293,14 @@ export async function createTaskScheduler({ maxDeathQueue = 2, deathDeadlineMs =
       latestRevision = Math.max(latestRevision, revision);
       foreground.supersede(revision, input, memberId); death?.supersede(revision, input, memberId);
       prediction?.supersede(revision, input);
-      duo?.supersede(revision, input);
+      duo?.supersede(revision, input); planning?.supersede(revision, input);
     },
     // Claims and display saves advance HTTP guards without disturbing prediction
     // queues or sending control work to a calculator with identical task inputs.
     supersedeDisplay(revision, input) {
       latestRevision = Math.max(latestRevision, revision);
       foreground.supersedeDisplay(revision); death?.supersedeDisplay(revision);
-      prediction?.supersedeDisplay(revision); duo?.supersedeDisplay(revision);
+      prediction?.supersedeDisplay(revision); duo?.supersedeDisplay(revision); planning?.supersedeDisplay(revision);
     },
     setRevision(revision, input) {
       positive(revision, 'revision', 0);
@@ -278,7 +308,7 @@ export async function createTaskScheduler({ maxDeathQueue = 2, deathDeadlineMs =
       scheduler.supersede(revision, input);
       if (changed) {
         prediction?.retireObsolete(revision);
-        death?.retireObsolete(revision);
+        death?.retireObsolete(revision); planning?.retireObsolete(revision);
       }
       return changed;
     },
@@ -314,7 +344,7 @@ export async function createTaskScheduler({ maxDeathQueue = 2, deathDeadlineMs =
     resumePrewarm() { prediction?.noteInteractiveUse(); },
     getHealth() {
       const health = foreground.getHealth(), lanes = { death: death?.getHealth() ?? { status: 'idle', ready: false },
-        prediction: prediction?.getHealth() ?? { status: 'idle', ready: false }, duo: duo?.getHealth() ?? { status: 'idle', ready: false } };
+        prediction: prediction?.getHealth() ?? { status: 'idle', ready: false }, duo: duo?.getHealth() ?? { status: 'idle', ready: false }, planning: planning?.getHealth() ?? { status: 'idle', ready: false } };
       const all = [health, ...Object.values(lanes)];
       return { ...health, ...lanes, stuck: all.some(lane => lane.stuck), restartRequired: all.some(lane => lane.restartRequired),
         recovering: all.some(lane => ['starting', 'waking', 'restarting'].includes(lane.status)) };
@@ -323,13 +353,13 @@ export async function createTaskScheduler({ maxDeathQueue = 2, deathDeadlineMs =
       if (closed) throw unavailable('The task server is closing.');
       const restarted = [];
       // Inspect only existing lanes. Sleeping and never-created lanes stay asleep.
-      for (const [name, lane] of [['foreground', foreground], ['death', death], ['prediction', prediction], ['duo', duo]]) {
+      for (const [name, lane] of [['foreground', foreground], ['death', death], ['prediction', prediction], ['duo', duo], ['planning', planning]]) {
         if (lane && await lane.restartUnhealthy()) restarted.push(name);
       }
       if (restarted.length) unlockResults.clear();
       return { restarted, worker: scheduler.getHealth() };
     },
-    getDiagnostics: () => ({ ...foreground.getDiagnostics(), unlockReuse: unlockResults.getDiagnostics(), deathLane: death?.getDiagnostics() ?? {
+    getDiagnostics: () => ({ ...foreground.getDiagnostics(), planningLane: planning?.getDiagnostics(), planningBaselines: { entries: planningBaselines.size, bytes: [...planningBaselines.values()].reduce((n, b) => n + b.byteLength, 0), byteLimit: PLANNING_BASELINE_BYTES }, unlockReuse: unlockResults.getDiagnostics(), deathLane: death?.getDiagnostics() ?? {
       worker: { status: 'idle', ready: false }, queue: { depth: 0, active: 0, limit: maxDeathQueue, deadlineMs: deathDeadlineMs },
     }, duoLane: duo?.getDiagnostics() ?? {
       worker: { status: 'idle', ready: false }, queue: { depth: 0, active: 0, limit: maxDuoQueue, deadlineMs: duoDeadlineMs },
@@ -342,8 +372,8 @@ export async function createTaskScheduler({ maxDeathQueue = 2, deathDeadlineMs =
     } }),
     close(timeoutMs = 10000) {
       if (!closePromise) {
-        closed = true; listeners.clear(); residencyListeners.clear(); unlockResults.clear();
-        closePromise = Promise.all([foreground.close(timeoutMs), death?.close(timeoutMs), prediction?.close(timeoutMs), duo?.close(timeoutMs)]).then(() => {});
+        closed = true; listeners.clear(); residencyListeners.clear(); unlockResults.clear(); planningBaselines.clear();
+        closePromise = Promise.all([foreground.close(timeoutMs), death?.close(timeoutMs), prediction?.close(timeoutMs), duo?.close(timeoutMs), planning?.close(timeoutMs)]).then(() => {});
       }
       return closePromise;
     },
@@ -534,6 +564,7 @@ async function createWorkerLane({ workerData, workerFactory = nativeWorker, incl
     active = entry; entry.startedAt = idleClock.now(); entry.id = ++sequence;
     entry.cancellation = new SharedArrayBuffer(4);
     entry.sourceRevision = entry.state.revision;
+    entry.planningKey = entry.type === 'evaluate' && typeof entry.input === 'string' ? JSON.stringify([entry.memberId, predictionInput(entry.state, entry.input)]) : undefined;
     if (entry.type === 'predict') {
       const { rules, taskRules, members, legacy } = entry.state;
       entry.predictionState = { rules, taskRules, members: members?.map(({ id, taskRules, sourceMapId }) => ({ id, taskRules, sourceMapId })),
@@ -563,7 +594,7 @@ async function createWorkerLane({ workerData, workerFactory = nativeWorker, incl
     entry.snapshotKey = snapshotKey;
     try { worker.postMessage({ id: entry.id, type: entry.type, reportProgress: true, state, snapshotKey, input: entry.input, memberId: entry.memberId, chunkId: entry.chunkId, chunkIds: entry.chunkIds, cancellation: entry.cancellation,
       ...(entry.type === 'predict' ? { predictionProgress: true } : {}), ...serialized,
-      ...(entry.type === 'evaluate' ? { resultTransport: 'json-shared-v1', resultView: entry.resultView,
+      ...(entry.type === 'evaluate' ? { resultTransport: 'json-shared-v1', resultView: entry.resultView, planningBaseline: true,
         ...(duoResults && entry.resultView === 'play-v1' ? { duoProjection: true } : {}),
         ...(entry.duoSidebarProjection ? { duoSidebarProjection: true } : {}) }
         : entry.type === 'sandbox' ? { resultTransport: 'json-shared-v1' } : {}) });

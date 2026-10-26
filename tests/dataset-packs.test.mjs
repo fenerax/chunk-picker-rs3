@@ -37,6 +37,12 @@ test('synthetic scaled packs resolve with every pinned digest and are determinis
   assert.equal(sha(inputs.definitionBytes), inputs.selection.definitions.sha256);
   assert.equal(sha(inputs.taskBytes), inputs.selection.taskMap.sha256);
   assert.ok(dataset.value('app/tasks/engine.mjs#F2P') instanceof Set);
+  assert.deepEqual(dataset.json('app/data/cache-walkability.2026-10-07.v1.json').summary, { doors: 0, conditionalMorphs: 0 });
+  assert.deepEqual(dataset.json('app/data/legacy-task-history.json'), {});
+  assert.deepEqual(dataset.value('app/data/identity-registry.mjs#authoredGoals'), []);
+  const ids = dataset.value('app/data/identity-registry.mjs#authoredTasks').map(([id]) => id);
+  assert.ok(ids.every(id => id.startsWith('rs3:task:synthetic:')));
+  assert.equal(new Set(ids).size, ids.length);
   // A digest from the same bytes also stands for the repository-text hash.
   const plain = { ...dataset, verifiedBytes: undefined };
   assert.deepEqual(await loadDatasetInputs(plain), inputs);
@@ -124,4 +130,49 @@ test('the full preparation pipeline applies every synthetic correction once with
   const { stdout } = await promisify(execFile)(process.execPath, ['--input-type=module', '-e', script], { env: environment, windowsHide: true });
   assert.deepEqual(JSON.parse(stdout), { digest: made.digest, unchanged: true, notes: made.corrections.retained + made.corrections.selected,
     doubled: 0, reviews: made.corrections.overlay, difficulty: made.corrections.metadata });
+});
+
+
+test('synthetic installed packs support production process workers and repeated planning for both members', { timeout: 120000 }, async () => {
+  const made = await companion();
+  const script = `
+    import assert from 'node:assert/strict';
+    import { startServer } from ${JSON.stringify(new URL('../app/server.mjs', import.meta.url).href)};
+    import { createGroupState } from ${JSON.stringify(new URL('../app/core/state.mjs', import.meta.url).href)};
+    import { loadDatasetInputs } from ${JSON.stringify(new URL('../app/dataset-bootstrap.mjs', import.meta.url).href)};
+    import { selectedDataset } from ${JSON.stringify(new URL('../app/dataset-runtime.mjs', import.meta.url).href)};
+    const inputs = await loadDatasetInputs(selectedDataset);
+    const defs = JSON.parse(inputs.definitionBytes);
+    const ids = Object.keys(defs.chunks).filter(id => /^[1-9]\\d*$/.test(id));
+    const initialState = createGroupState([{id:'a',name:'A',unlocked:[ids[0]]},{id:'b',name:'B',unlocked:[ids[1]]}]);
+    const app = await startServer({port:0,host:'127.0.0.1',dataDir:process.env.SYNTHETIC_TEST_STORE,initialState,predictionPrewarm:false});
+    try {
+      await app.ready;
+      const url = new URL(app.inviteUrl);
+      const get = async route => {
+        const response = await fetch(url.origin + route, {headers:{Authorization:'Bearer ' + url.pathname.slice('/join/'.length)}});
+        assert.equal(response.status,200); return response.json();
+      };
+      for (const member of initialState.members) {
+        await get('/api/tasks?memberId='+member.id+'&view=play-v1');
+        for (const id of [ids[0],ids[1],ids.at(-1)]) {
+          const one = await get('/api/chunk-planning?memberId='+member.id+'&chunkId='+id);
+          const two = await get('/api/chunk-planning?memberId='+member.id+'&chunkId='+id);
+          delete one.cache; delete two.cache;
+          assert.equal(one.format,'chunk-planning-v1'); assert.deepEqual(two,one);
+        }
+      }
+    } finally { await app.close(); }
+  `;
+  // Process workers inherit execArgv: a real entry file prevents --eval from
+  // being inherited and recursively running the parent observer.
+  const entry = path.join(made.root, 'server-check.mjs');
+  await writeFile(entry, script);
+  const env = { ...process.env, ...made.environment, RS3_TASK_WORKER_MODE: 'process',
+    SYNTHETIC_TEST_STORE: path.join(made.root, 'server-test'), RS3_PRIVATE_ADDON: '', RS3_PRIVATE_ADDON_SHA256: '' };
+  delete env.NODE_TEST_CONTEXT;
+  await promisify(execFile)(process.execPath, [entry], {
+    env,
+    timeout: 110000, maxBuffer: 1024 * 1024,
+  });
 });

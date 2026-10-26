@@ -16,7 +16,7 @@ export class ProcessWorker extends EventEmitter {
   #sequence = 0;
   #failed = false;
 
-  constructor(workerData, { probeImport = process.env.RS3_WORKER_MEMORY_PROBE_IMPORT } = {}) {
+  constructor(workerData, { probeImport = process.env.RS3_WORKER_MEMORY_PROBE_IMPORT, planning = false } = {}) {
     super();
     // Serialization failures must occur before a child is created.
     const data = encodeProcessMessage(workerData);
@@ -45,7 +45,7 @@ export class ProcessWorker extends EventEmitter {
     // A spawn failure has a close event, but no exit event or OS process.
     this.#child.once('close', code => { if (!this.#child.pid) this.#finish(code ?? 1); });
     this.#child.once('disconnect', () => { if (!this.#exited && !this.#stopping) void this.terminate(); });
-    this.#send({ kind: 'init', data, probeImport });
+    this.#send({ kind: 'init', data, probeImport, planning });
   }
 
   get pid() { return this.#child.pid; }

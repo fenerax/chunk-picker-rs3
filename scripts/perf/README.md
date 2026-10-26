@@ -314,3 +314,94 @@ attribute that separately from application work. Inherited Node `--cpu-prof`
 also samples the ordinary stage measurements and main-thread orchestration, so
 those timings must be labelled as sampled-profile measurements. Output and
 profiles stay ignored under `.local/perf/`; source/app hashes are rechecked.
+
+## Possible Tasks cold-lane breakdown (public synthetic data)
+
+`scale-dataset.mjs` now produces installed packs that can pass normal server
+startup and save migration, including permanent synthetic task IDs, an empty
+legacy-history catalogue and the empty cache-topology summary. It uses only the
+public open-f2p template. The generated geometry and empty cache catalogues are
+not substitutes for validation on a representative real save.
+
+On a dedicated Linux test machine with Node 24 and Chromium:
+
+```sh
+node scripts/perf/scale-dataset.mjs --out .local/possible-tasks-pack --scale 612 --seed 1
+taskset -c 0,1 node scripts/perf/possible-tasks.mjs \
+  --companion .local/possible-tasks-pack --baseline START_SHA --runs 7 \
+  --out .local/possible-tasks-results.json
+node scripts/perf/possible-tasks-summary.mjs .local/possible-tasks-results.json
+```
+
+Choose two allowed CPUs if `0,1` is outside the machine's affinity mask. Keep
+other heavy work stopped. The public fixture generator permits scales through
+1,000, but scale 613 first exceeds the production 128 MiB per-file limit for
+its four catalogue shards; 612 is the largest loadable output for seed 1.
+The maximum fixture can exceed production calculation deadlines in Group view.
+Use `--scale 400` for the recorded repeatability workload, or a smaller scale to
+model a smaller catalogue. Failed readiness is reported, not bypassed. No loader
+or worker deadline is relaxed.
+
+Each pair alternates START/current order, with a fresh `startServer`, synthetic
+save and native process workers for each group view. Server and process hosts
+inherit a 3 GiB old-space limit. Chromium runs headless through the existing CDP
+helper; no browser package or npm dependency is installed. The observer creates
+owned source copies and applies identical timing hooks there. Application source
+in the checkout is untouched. HTTP queries cover both members, four chunk IDs
+and two requests per ID. Interior IDs are included if the fixture supplies any;
+the current public template supplies none.
+
+The click clock starts at the real Tasks-tab click and ends after the filter bar
+appears and two animation frames pass without a mutation under `#chunk-content`.
+The first selected-member request starts a cold planning lane; another chunk
+reuses its baseline/index, and reopened chunks can use the browser cache. The
+separate HTTP second-member request measures a cold member baseline on a warm
+worker. Cached responses retain old `cache.timingMs`: the summary counts worker
+time only on misses, using dispatch events to identify actual work.
+
+RSS samples every 50 ms add the main process and its tracked native worker hosts
+using `/proc/PID/status`, excluding Chromium and the parent observer. They are
+sampled peaks, not kernel simultaneous high-water marks. `maxMainRSS` separately
+records the main process's cumulative kernel high-water mark. Readiness is
+measured from the call to `startServer` after fixture preparation and module
+imports; it is not a complete cold-process startup measurement. Reports retain
+full-response hashes (excluding volatile `cache` metadata), numeric phase times,
+admitted/active lane work and response sizes, never invitation URLs or tokens.
+Interrupted/failed observations preserve partial numeric evidence when possible.
+
+Use `--settlement early --runs 1 --out PATH` in a separate invocation to click
+as soon as the saved map and controls are adopted, while task calculation can
+still be pending. Its measured `foreground` span includes the actual
+`ensureForegroundSettled()` wait. Keep these observations separate from the
+seven-pair settled-list batch. `--resume yes` skips completed observations in the
+same output file; the baseline, settlement policy and companion receipt must
+match. `--chrome PATH` selects another installed Chromium executable.
+
+`--metadata only --out PATH` performs normal startup/migration and reports the
+installed saved-task count and logical full-state JSON bytes without a browser.
+Use it separately so counting allocations do not affect timing or RSS results.
+
+Possible Tasks baseline handoff measurements use the same public synthetic
+scale-400, seed-1 companion as the initial investigation. `--members all` adds a
+normal map switch and foreground-settle wait before timing the second member's
+first Possible Tasks click. CPU affinity is inherited by servers, process
+workers and Chrome. Use Node 24:
+
+```sh
+node scripts/perf/scale-dataset.mjs --out .local/planning-scale400 --scale 400 --seed 1
+taskset -c 0,1 node scripts/perf/possible-tasks.mjs --companion .local/planning-scale400 --baseline 33932ab3453dec9d6268504b83be80fd76438b13 --runs 7 --members all --out .local/planning-paired.json
+node scripts/perf/possible-tasks-summary.mjs .local/planning-paired.json
+node scripts/perf/planning-area-parity.mjs --out .local/planning-area-parity.json
+```
+
+The summary checks full response digests, repeated requests, and that uncached
+candidate clicks used the planning handoff without engine evaluation. The
+observer reports the planning host's peak RSS separately from the whole server
+process tree and the foreground baseline-encoding duration. It includes the
+production startup warm-up; it does not disable background calculations. Chrome
+RSS is excluded. Area parity uses the public fixture shared with the handoff
+regression tests and fresh production process-worker servers from START and the
+working app. It compares both members and Group projections, unlocked and locked
+surface chunks, named interiors, source gates and numeric interior aliases.
+Volatile `cache` telemetry is excluded from response digests; every gameplay and
+display field is included.

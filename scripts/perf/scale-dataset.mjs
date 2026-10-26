@@ -1,8 +1,8 @@
 // Deterministic synthetic companion for load profiling. It scales open-f2p's
 // shape (definitions, task map, catalogue rows, values, rule text) into a
 // hash-pinned duo-legacy data pack, rules-text pack and installed profile, the
-// same seams a private dataset uses. Every name and number is replaced by a
-// same-shaped synthetic token; only field names and structure are kept.
+// same seams a private dataset uses. Names and numbers use same-shaped synthetic
+// tokens; saved task IDs retain the required permanent synthetic namespace.
 //
 //   node scripts/perf/scale-dataset.mjs --out <empty dir> [--target-mb 130 | --scale 116] [--seed 1]
 //
@@ -142,6 +142,11 @@ export async function writeScaledCompanion(out, { scale = 1, seed = 1, version, 
     merge(taskMap, map(templateTaskMap));
     catalogueHandles[replica % catalogueFiles].rows.push(replica);
   }
+  // The duo namespace requires permanent task identities. Scrambled public
+  // activity IDs are display-shaped tokens, not valid installed-save IDs.
+  for (const [category, rows] of Object.entries(definitions.challenges)) for (const [label, record] of Object.entries(rows))
+    record.PickerId = `rs3:task:synthetic:${sha(`${category}\0${label}`).slice(0, 24)}`;
+
   // Large catalogues hold whole synthetic replicas of the row shape, streamed.
   for (const [index, file] of catalogueHandles.entries()) {
     const relative = cataloguePath(index);
@@ -180,12 +185,16 @@ export async function writeScaledCompanion(out, { scale = 1, seed = 1, version, 
   const stub = key => ({ ...template.json(key) });
   const stubs = new Map(template.files.filter(row => row.kind === 'input' && row.path.startsWith('app/') && !row.path.startsWith(prefix)
     && row.path !== SCALED_PATHS.selection && row.path !== SCALED_PATHS.rulesUi).map(row => [row.path, stub(row.path)]));
+  // The independent public game skips cache topology. A duo-shaped synthetic
+  // pack exercises it with empty cache data and still needs its summary shape.
+  stubs.get('app/data/cache-walkability.2026-10-07.v1.json').summary = { doors: 0, conditionalMorphs: 0 };
   stubs.get('app/data/retained-task-corrections.2026-10-09.v1.json').corrections = retained;
   stubs.get('app/data/metadata-corrections.2026-10-08.v1.json').corrections = metadata;
 
   // Values keep open-f2p's authored keys; identities follow the synthetic tasks.
   const values = decodeDatasetValue(template.materializeValues());
   values['app/data/identity-registry.mjs#authoredTasks'] = labels.map(([category, label]) => [definitions.challenges[category][label].PickerId ?? `synthetic:${label}`, category, label]);
+  values['app/data/identity-registry.mjs#authoredGoals'] = [];
   const textKeys = Object.keys(values).filter(key => key.endsWith(':presentation'));
   const dataValues = Object.fromEntries(Object.entries(values).filter(([key]) => !textKeys.includes(key)));
   const textValues = Object.fromEntries(textKeys.map(key => [key, values[key]]));
@@ -197,6 +206,9 @@ export async function writeScaledCompanion(out, { scale = 1, seed = 1, version, 
   await put('data', SCALED_PATHS.selection, json({ schemaVersion: 1, version: `synthetic-${scale}`,
     definitions: { path: SCALED_PATHS.definitions, sha256: sha(definitionBytes) }, taskMap: { path: SCALED_PATHS.taskMap, sha256: sha(taskMapBytes) } }), 'input');
   for (const [key, value] of stubs) await put('data', key, json(value), 'input');
+  // Public independent data has no legacy history; the installed duo seam reads
+  // this catalogue during normal server startup. Keep the synthetic history empty.
+  await put('data', 'app/data/legacy-task-history.json', json({}), 'input');
   await put('data', SCALED_PATHS.overlay, json({ schemaVersion: 1, id: 'synthetic-review', version: '1', guards: [], patches,
     retainedTaskCorrections: [SCALED_PATHS.selectedRetained] }), 'input');
   await put('data', SCALED_PATHS.selectedRetained, json({ schemaVersion: 1, corrections: [...selected, ...retained.slice(0, 3 * scale)] }), 'input');
