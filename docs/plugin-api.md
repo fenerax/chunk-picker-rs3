@@ -5,7 +5,11 @@ works for beta and live worlds. A beta world is a separate character copy:
 review its progress carefully before applying it. Unique achievement matches
 tick automatically on live worlds only, with Undo.
 
-Create a key in **Game plugin** in the picker. Players manage their own keys;
+Start and authenticate the picker as described in the [README](../README.md).
+No game-client plugin installer is included in this repository; manual play
+needs none. The simulator below exercises this API with synthetic data.
+
+Create a key in **More → Game plugin** in the picker. Players manage their own keys;
 administrators can manage any player's. Viewers cannot manage keys or apply
 progress. Each player can have three active keys. Copy a newly created key once
 and paste it into the plugin. Only SHA-256 hashes are stored in the separate
@@ -418,11 +422,52 @@ open the picker's task list once.
 
 ## Simulator
 
-On a scratch server, set `RS3_PLUGIN_KEY` and run:
+Use the README's Node version from the checkout root. Start a separate scratch
+F2P game in an empty directory and leave its terminal running:
 
 ```sh
-node scripts/plugin-sim.mjs http://127.0.0.1:8953
+npm start -- --port 8953 --data-dir var/plugin-demo
 ```
 
-It walks four chunks then sends synthetic skills/quests flagged as beta. Set
-`RS3_PLUGIN_PATH` to comma-separated chunk IDs for a different player's path.
+Open `http://127.0.0.1:8953/join/<token>` with the token read locally from
+`var/plugin-demo/access-token`. Finish or skip setup and select the intended
+player's map. Open **More → Game plugin**, enter a key label and choose
+**Create plugin key**. Copy
+the new `gpk_…` key once. This is a dedicated plugin key, not the administrator
+access token or an invitation token.
+
+In a second terminal at the checkout root, set `RS3_PLUGIN_KEY` to that key.
+For a POSIX shell, the following reads it without echoing it or placing it in
+shell history:
+
+```sh
+printf 'Paste plugin key: '
+stty -echo
+IFS= read -r RS3_PLUGIN_KEY
+stty echo
+printf '\n'
+export RS3_PLUGIN_KEY
+node scripts/plugin-sim.mjs http://127.0.0.1:8953
+unset RS3_PLUGIN_KEY
+```
+
+In PowerShell:
+
+```powershell
+$pluginSecret = Read-Host 'Paste plugin key' -AsSecureString
+$env:RS3_PLUGIN_KEY = [System.Net.NetworkCredential]::new('', $pluginSecret).Password
+node scripts/plugin-sim.mjs http://127.0.0.1:8953
+Remove-Item Env:RS3_PLUGIN_KEY
+Remove-Variable pluginSecret
+```
+
+The simulator prints four status responses without the credential. It walks
+four chunks then sends synthetic skills/quests flagged as beta. Reopen
+**More → Game plugin** to review the pending progress; applying it changes only
+this scratch save and is undoable. No game client, real account or private data
+is used. Revoke the demo key when done and stop the scratch server with Ctrl+C.
+
+Set `RS3_PLUGIN_PATH` to comma-separated chunk IDs for a different player's
+path, and use a key for that player. If port 8953 is already occupied, choose
+another free port in 8900–8999 and use it in the start command, join URL and
+simulator command. Never run the simulator against a save you want to keep.

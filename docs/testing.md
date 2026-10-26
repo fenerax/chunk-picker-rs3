@@ -1,37 +1,71 @@
 # Testing
 
-`npm run test:quick` runs the reviewed small-fixture tests with Node's native test
-runner and two concurrent test files. It targets less than about 60 seconds on
-the Windows desktop. It covers state and commands, Undo, History wording,
-Settings and Chunk Rules, task filters, completion and Helper models, planning,
-Sandbox, and cheap map, sticker and task controllers and utilities. Fake DOM
-tests do not launch a browser.
+From the checkout root, use Node.js 24.20.0 or a newer 24.x release and npm.
+There are no dependencies to install. Tests use public repository inputs and synthetic/temporary stores;
+no plugin, running picker, downloaded Wiki cache or personal save is required.
+Node 24.19.0 lacks the native `entryFile` test-event metadata used by the
+coverage reporter: its synthetic coverage test fails with `Native coverage
+count mismatch`. Upgrade to 24.20.0 or a newer 24.x before running the suites.
 
-Use quick while iterating on the covered logic and controllers. On 2026-10-15,
-Node v24.20.0 passed 1,458 tests with one existing optional-cache skip in 100.8
-seconds under background load. The 60-second target is not established for the
-current private tree; imported private modules still validate their dataset.
+```sh
+npm run test:quick
+npm test
+```
 
-`npm test` runs every top-level `tests/*.test.mjs` file in isolated Node processes.
-It runs three files at a time through Node's standard test CLI. The October 15
-quiet run took 8m21s: 4,197 passes and two existing optional-input skips across
-419 files, with a sampled Node peak of 2,709 MiB. Set `RS3_TEST_CONCURRENCY` (1-8)
-to change concurrency for one run. The three-file default bounds memory beside
-the live picker; see [test-speed.md](test-speed.md). Use it before completing a
-broad change. Browser acceptance and performance commands remain separate;
-passing quick tests does not establish
-full-data calculation, server integration, browser or performance readiness.
+`npm run test:quick` selects reviewed small-fixture tests for state, commands,
+Undo, History, settings, tasks, planning and browser controllers. Fake DOM tests
+do not launch a browser. `npm test` selects every top-level `tests/*.test.mjs`
+file, including server, worker and large-data integration tests. Neither command
+is a substitute for trying the application in a real browser.
+
+When testing inside a Linux container, run it with an init that reaps orphaned
+child processes (for example Docker's `--init` option). The full suite checks
+that a calculator exits when its parent disappears. A container without a
+reaping init can leave that exited process as a zombie and fail
+`tests/process-worker.test.mjs` even though the calculator stopped.
+
+Both use `scripts/test.mjs` and the adaptive native Node test runner. Full starts
+with two files and may grow to six; quick starts with two and caps at two by
+default. Reviewed heavy files run alone. Every admitted worker reserves 1 GiB
+above a **4 GiB free-memory floor**. With less than 5 GiB free, admission waits;
+free memory before retrying if a run appears idle. Allow extra memory for test
+children and browsers. Timing depends on the machine and selected tests; there
+is no current portable 60-second quick guarantee.
+
+`RS3_TEST_CONCURRENCY` accepts 1–6 and sets the cap for either suite. A value
+above two can raise quick's cap too. For a lower cap in a POSIX shell:
+
+```sh
+RS3_TEST_CONCURRENCY=1 npm test
+```
+
+In PowerShell:
+
+```powershell
+$env:RS3_TEST_CONCURRENCY = '1'
+npm test
+Remove-Item Env:RS3_TEST_CONCURRENCY
+```
+
+Keep expensive test, browser and performance runs sequential. No ignored
+`.local` PowerShell wrapper is needed for these npm commands. Some legacy
+measurement scripts require maintainer-only wrappers or Windows tools; they
+are not part of setup and there is no `npm run test:timing` script in this
+package. To time the ordinary suite, use your shell's timing facility, such as
+`time npm test` in a POSIX shell.
 
 Each run normally shares a fresh native Node bytecode cache among its isolated
 test processes and removes that owned cache afterward. Node validates cached
 bytecode against source; imports initialize and assertions execute normally.
 Explicit `NODE_COMPILE_CACHE` and `NODE_DISABLE_COMPILE_CACHE` settings are
-respected. Reviewed immutable server fixtures reuse their selected provider;
-dataset selection, tampering and startup-failure checks still resolve fresh ones.
+respected. Tests needing optional inputs or platform-specific facilities may
+report skips, including the real pinned-Wiki-cache rebuild when that cache is
+absent. Synthetic offline generator tests still run. A skip is not a failure;
+check the final pass/fail/skipped counts and the process exit status.
 
 To inspect selection without executing tests:
 
-```powershell
+```sh
 npm run test:quick -- --list
 npm test -- --list
 ```
@@ -49,27 +83,15 @@ small-fixture test from an integration family to participate.
 
 The selection tests check required quick coverage, full-suite preservation and
 failure on unknown filenames. Remove or rename the corresponding classification
-when deleting or renaming a test. Keep fixtures and helper modules free of the
-`.test.mjs` suffix unless they are independently runnable tests.
+when deleting or renaming a test, including any `soloTests` or `openF2PTests`
+policy entry. Keep fixtures and helper modules free of the `.test.mjs` suffix
+unless they are independently runnable tests.
 
 Inspect storage defaults before running a test that writes files. Use isolated
 synthetic saves and temporary directories; never point tests at a personal save.
-On this shared Windows workspace, timing, full-suite and browser runs use the
-local `.local/with-heavy.ps1` wrapper so expensive checks do not overlap.
-
-Both suite commands reject hard-coded test ports in the 8000–9999 range during
-discovery, including full-only files during a quick run. Use `port: 0` and read
-the bound address. The check covers literal options, listen calls and simple
-constant bindings; no exceptions are currently needed.
-
-For whole-file wall time and rough peak memory, use the shared lock:
-
-```powershell
-powershell -NoProfile -File .local/with-heavy.ps1 npm run test:timing -- comparison
-```
-
-Reports go to `.local/test-speed/<label>.json`; [test-speed.md](test-speed.md)
-records the measured baseline, concurrency choice and before/after ranking.
-To measure a focused group instead of the full suite, append explicit
-`tests/<file>.test.mjs` paths after the concurrency. The report labels that run
-as targeted; it does not establish full-suite speed or memory.
+Both suite commands check test sources for hard-coded ports in the 8000–9999
+range during discovery, including full-only files during a quick run. Use
+`port: 0` and read the bound address. The check covers literal options, listen
+calls and simple constant bindings. The two explicitly reviewed front-door
+fixtures in `scripts/test-selection.mjs` are exceptions because their lane
+validation requires ports in 8900–8999.
