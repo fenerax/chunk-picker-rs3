@@ -70,7 +70,11 @@ function synthesizer(seed, replica, preserved) {
     tokens.set(run, value);
     return value;
   };
-  const text = value => preserved.has(value) ? value : value.replace(/[A-Za-z]+|[0-9]+/g, token);
+  const text = value => preserved.has(value) ? value : value.startsWith('rs3:')
+    // The duo-shaped profile accepts permanent task IDs, not open-f2p's
+    // independent namespace. Keep references consistently synthetic and valid.
+    ? `rs3:task:synthetic:${value.slice(4).replace(/[A-Za-z]+|[0-9]+/g, token)}`
+    : value.replace(/[A-Za-z]+|[0-9]+/g, token);
   const number = value => Number.isInteger(value) ? Math.max(value < 0 ? value - 2 : 0, value + Math.floor(random() * 5) - 2)
     : Math.round(value * (0.5 + random()) * 1e6) / 1e6;
   const map = value => {
@@ -180,6 +184,10 @@ export async function writeScaledCompanion(out, { scale = 1, seed = 1, version, 
   const stub = key => ({ ...template.json(key) });
   const stubs = new Map(template.files.filter(row => row.kind === 'input' && row.path.startsWith('app/') && !row.path.startsWith(prefix)
     && row.path !== SCALED_PATHS.selection && row.path !== SCALED_PATHS.rulesUi).map(row => [row.path, stub(row.path)]));
+  // The duo-shaped synthetic profile enables these two legacy seams, while
+  // open-f2p intentionally omits their unused metadata. Empty evidence suffices.
+  stubs.get('app/data/cache-walkability.2026-10-07.v1.json').summary = { doors: 0, conditionalMorphs: 0 };
+  stubs.set('app/data/legacy-task-history.json', { mappings: {}, tombstones: {}, conflicts: [] });
   stubs.get('app/data/retained-task-corrections.2026-10-09.v1.json').corrections = retained;
   stubs.get('app/data/metadata-corrections.2026-10-08.v1.json').corrections = metadata;
 

@@ -101,3 +101,32 @@ test('owned encoding retains ordinary native-cloned graphs and every supported s
     assert.deepEqual(decodeReceivedProcessMessage(deserialize(serialize(envelope))), cold);
   }
 });
+
+test('owner metadata restores direct aliases without traversing unrelated state', () => {
+  const shared = new SharedArrayBuffer(8), view = new Uint16Array(shared, 2, 2);
+  const untouched = { registry: { entries: ['ordinary', 'save', 'data'] } };
+  const input = { state: untouched, cancellation: shared,
+    aliases: [shared, view, shared], map: new Map([[shared, view], [view, shared]]), set: new Set([view, shared]),
+    parents: ['user data'], nested: { views: { shared: 'ordinary' } } };
+  const envelope = receive(input);
+  assert.equal(envelope.parents.length, 4, 'only the root, array, Map and Set directly own placeholders');
+  const ownedState = envelope.data.state;
+  Object.defineProperty(ownedState, 'mustNotVisit', { enumerable: true, get() { assert.fail('decoder walked unrelated save state'); } });
+  const result = decodeReceivedProcessMessage(envelope);
+  assert.equal(result.state, ownedState);
+  assert.equal(result.aliases[0], result.cancellation); assert.equal(result.aliases[2], result.cancellation);
+  assert.equal(result.aliases[1].buffer, result.cancellation);
+  assert.deepEqual([...result.map], [[result.cancellation, result.aliases[1]], [result.aliases[1], result.cancellation]]);
+  assert.deepEqual([...result.set], [result.aliases[1], result.cancellation]);
+  assert.deepEqual(result.parents, ['user data']);
+  assert.equal(input.state, untouched); assert.equal(input.cancellation, shared);
+});
+
+test('old envelopes without owner metadata keep the complete restoration fallback', () => {
+  const shared = new SharedArrayBuffer(4);
+  const envelope = receive({ nested: { shared }, again: shared });
+  delete envelope.parents;
+  const result = decodeReceivedProcessMessage(envelope);
+  assert.ok(result.nested.shared instanceof SharedArrayBuffer);
+  assert.equal(result.again, result.nested.shared);
+});

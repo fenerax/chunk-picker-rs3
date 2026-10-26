@@ -225,3 +225,34 @@ test('an owned calculator exits when its parent disappears without calling termi
     await new Promise(resolve => setTimeout(resolve, 20));
   }
 });
+
+// Compare full response values at both native boundaries. Timing is the only
+// nondeterministic result field; cache counters and every ordered row remain.
+test('process and thread responses agree for both members, Group projections and locked/unlocked chunks', { timeout: 30000 }, async t => {
+  const { Worker } = await import('node:worker_threads');
+  const world = buildWorld(definitions), data = genericWorkerData({ definitions, world: { chunks: world.chunks, surface: world.surface } });
+  const processWorker = new ProcessWorker(data), threadWorker = new Worker(new URL('../app/tasks/worker.mjs', import.meta.url), { workerData: data });
+  t.after(async () => { await Promise.all([processWorker.terminate(), threadWorker.terminate()]); });
+  const ready = await Promise.all([once(processWorker, 'message'), once(threadWorker, 'message')]);
+  assert.equal(ready[0][0].type, 'ready'); assert.equal(ready[1][0].type, 'ready');
+  const state = createGroupState([{ id: 'one', name: 'One', unlocked: ['12341'] }, { id: 'two', name: 'Two', unlocked: ['12341'] }]);
+  const stable = value => JSON.stringify(value, (key, entry) => key === 'elapsedMs' ? undefined : entry);
+  let id = 0;
+  for (const unlocked of [false, true]) {
+    state.revision++;
+    for (const member of state.members) member.unlocked = unlocked ? ['12341', '12342'] : [member.id === 'one' ? '12341' : '12342'];
+    for (const member of state.members) for (const group of [false, true]) {
+      const request = { id: ++id, type: 'evaluate', state, memberId: member.id, cancellation: new SharedArrayBuffer(4),
+        resultTransport: 'json-shared-v1', resultView: 'full', duoProjection: group, duoSidebarProjection: group };
+      const pending = [processWorker, threadWorker].map(worker => waitFor(worker, message => message.id === request.id && message.type !== 'progress'));
+      processWorker.postMessage(request); threadWorker.postMessage(request);
+      const [actual, expected] = await Promise.all(pending);
+      assert.equal(actual.error, undefined); assert.equal(expected.error, undefined);
+      for (const key of ['resultJSON', 'playJSON', 'duoJSON', 'duoSidebarJSON']) {
+        assert.equal(actual[key] === undefined, expected[key] === undefined, key);
+        if (expected[key]) assert.equal(stable(JSON.parse(Buffer.from(actual[key]).toString())),
+          stable(JSON.parse(Buffer.from(expected[key]).toString())), `${member.id}: unlocked=${unlocked} group=${group} ${key}`);
+      }
+    }
+  }
+});

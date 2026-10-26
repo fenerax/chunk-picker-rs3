@@ -29,6 +29,9 @@ test('synthetic scaled packs resolve with every pinned digest and are determinis
   assert.equal(made.digest, again.digest);
   assert.equal(await readFile(made.environment.RS3_PACK_SELECTION, 'utf8'), await readFile(again.environment.RS3_PACK_SELECTION, 'utf8'));
   const dataset = await resolveDataset(options(made));
+  assert.deepEqual(dataset.json('app/data/cache-walkability.2026-10-07.v1.json').summary, { doors: 0, conditionalMorphs: 0 });
+  assert.deepEqual(dataset.json('app/data/legacy-task-history.json'), { mappings: {}, tombstones: {}, conflicts: [] });
+  assert.ok(dataset.value('app/data/identity-registry.mjs#authoredTasks').every(([id]) => /^rs3:task:synthetic:/.test(id)));
   assert.equal(dataset.digest, made.digest); assert.equal(dataset.packed, true); assert.equal(dataset.ruleContractHash, made.ruleContractHash);
   const { bytes, sha256 } = dataset.verifiedBytes(SCALED_PATHS.definitions);
   assert.equal(sha(bytes), sha256);
