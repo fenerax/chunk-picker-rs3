@@ -165,6 +165,7 @@ export async function createTaskScheduler({ maxDeathQueue = 2, deathDeadlineMs =
       if (stateInput && !validStateInput(state, input, stateInput, type)) return Promise.reject(new TypeError('Invalid serialized task state input.'));
       if (!['foreground', 'duo', 'side'].includes(evaluationLane) || evaluationLane === 'duo' && (type !== 'evaluate' || resultView !== 'play-v1')
         || evaluationLane === 'side' && !(type === 'chunk-planning' || type === 'evaluate' && resultView === 'full')) return Promise.reject(new TypeError('Invalid task evaluation lane.'));
+      foreground.cancelMemberPreparation();
       if (typeof duoSidebarProjection !== 'boolean' || duoSidebarProjection && (type !== 'evaluate' || resultView !== 'play-v1' || evaluationLane !== 'foreground')) return Promise.reject(new TypeError('Invalid duo sidebar projection.'));
       scheduler.supersede(state.revision, input, memberId);
       if (type === 'evaluate' && resultView === 'play-v1' && state.revision >= latestRevision && unlockResults.getDiagnostics().entries) {
@@ -309,6 +310,21 @@ export async function createTaskScheduler({ maxDeathQueue = 2, deathDeadlineMs =
       scheduler.supersede(state.revision, input);
       return (usePrediction ? predictionLane() : foreground).prewarmTasks(state, input, memberIds, resultView, stateInput);
     },
+    // A single speculative result on the resident foreground calculator. This
+    // never wakes a worker, consumes a foreground queue slot or extends idle use.
+    prepareMember(state, input, memberId, stateInput) {
+      if (closed || state.revision !== latestRevision) return false;
+      // Other interactive lanes keep their existing admission. Only this
+      // speculative work backs off when any resident calculator is occupied.
+      if ([duo, prediction, death].some(lane => {
+        const queue = lane?.getDiagnostics().queue;
+        return queue && (queue.active || queue.depth);
+      })) return false;
+      if (!state.members?.some(member => member.id === memberId)) return false;
+      if (stateInput && !validStateInput(state, input, stateInput, 'evaluate')) return false;
+      return foreground.prepareMember(state, input, memberId, stateInput);
+    },
+    cancelMemberPreparation() { foreground.cancelMemberPreparation(); },
     cancelPrewarm(options) { if (!options?.keepTasks) foreground.cancelPrewarm(); prediction?.cancelPrewarm(options); },
     retireWarmPrediction() { return prediction?.retireWarm() ?? false; },
     resumePrewarm() { prediction?.noteInteractiveUse(); },
@@ -365,6 +381,9 @@ async function createWorkerLane({ workerData, workerFactory = nativeWorker, incl
   let worker, generation = 0, sequence = 0, active, closed = false, restartTimer, startupTimer, initialResolve, initialReject, closePromise, idleTimer, prewarmSignal, prewarmAbort, latestRevision = -1;
   let status = 'starting', restarts = 0, failures = 0, nextRetryAt = null, compileMs = 0, lastFailure = null;
   const queue = [], warmQueue = [], sentSnapshots = new Map(), pending = new Map(), cache = new Map(), terminating = new Set(), listeners = new Set();
+  let preparedMember, memberRevision = -1;
+  const preparedMemberLimit = 32 * 1024 * 1024;
+  const memberCounts = { started: 0, completed: 0, cancelled: 0, hits: 0, oversized: 0, lastCancellationMs: 0, maxCancellationMs: 0 };
   const warmCounts = { queued: 0, completed: 0, cancelled: 0, skipped: 0 };
   const counts = { requested: 0, coalesced: 0, cacheHits: 0, completed: 0, errors: 0, expired: 0, cancelled: 0, superseded: 0, rejected: 0, promoted: 0, retired: 0 };
   const timings = {};
@@ -401,7 +420,7 @@ async function createWorkerLane({ workerData, workerFactory = nativeWorker, incl
     if (active) { clearTimeout(active.timer); active = undefined; }
     clearImmediate(idleTimer); idleTimer = undefined;
     const old = worker; worker = undefined; generation++;
-    status = 'sleeping'; idleStops++; sentSnapshots.clear(); cache.clear();
+    status = 'sleeping'; idleStops++; sentSnapshots.clear(); cache.clear(); preparedMember = undefined;
     onSleep?.(); terminate(old); announce();
   }
   function wake() {
@@ -485,12 +504,13 @@ async function createWorkerLane({ workerData, workerFactory = nativeWorker, incl
     idleClock.clearTimeout(sleepTimer); sleepTimer = undefined;
     clearImmediate(idleTimer); idleTimer = undefined;
     const old = worker; worker = undefined; generation++;
-    status = 'sleeping'; counts.retired++; sentSnapshots.clear();
+    status = 'sleeping'; counts.retired++; sentSnapshots.clear(); preparedMember = undefined;
     // Idle sleep clears caches; retirement deliberately does not call onSleep.
     // wake() already waits for termination before allocating a replacement.
     terminate(old); announce(); return true;
   }
   function failure(kind) {
+    preparedMember = undefined;
     if (closed || status === 'restarting' || status === 'restart-required') return;
     failures++; lastFailure = { kind, at: new Date().toISOString() };
     clearTimeout(startupTimer);
@@ -564,6 +584,7 @@ async function createWorkerLane({ workerData, workerFactory = nativeWorker, incl
     try { worker.postMessage({ id: entry.id, type: entry.type, reportProgress: true, state, snapshotKey, input: entry.input, memberId: entry.memberId, chunkId: entry.chunkId, chunkIds: entry.chunkIds, cancellation: entry.cancellation,
       ...(entry.type === 'predict' ? { predictionProgress: true } : {}), ...serialized,
       ...(entry.type === 'evaluate' ? { resultTransport: 'json-shared-v1', resultView: entry.resultView,
+        ...(entry.memberPreparation ? { memberPreparation: true } : {}),
         ...(duoResults && entry.resultView === 'play-v1' ? { duoProjection: true } : {}),
         ...(entry.duoSidebarProjection ? { duoSidebarProjection: true } : {}) }
         : entry.type === 'sandbox' ? { resultTransport: 'json-shared-v1' } : {}) });
@@ -619,6 +640,23 @@ async function createWorkerLane({ workerData, workerFactory = nativeWorker, incl
       }
       const entry = active; active = undefined; clearTimeout(entry.timer);
       if (entry.waiters.size || entry.reuseWaiters?.size) lastRequestAt = idleClock.now();
+      if (entry.memberPreparation) {
+        if (entry.memberCancelledAt !== undefined) {
+          memberCounts.lastCancellationMs = idleClock.now() - entry.memberCancelledAt;
+          memberCounts.maxCancellationMs = Math.max(memberCounts.maxCancellationMs, memberCounts.lastCancellationMs);
+        }
+        if (!entry.discarded && !message.cancelled && !message.error && entry.revision === memberRevision) {
+          const value = workerEvaluation(message), bytes = value.playJSON?.length ?? Infinity;
+          if (bytes <= preparedMemberLimit) {
+            preparedMember = { key: entry.key, revision: entry.revision, bytes, value: cachedPlayValue(value) };
+            memberCounts.completed++;
+          } else memberCounts.oversized++;
+        }
+        if (!entry.discarded) settle(entry, message.error ? unavailable('Member preparation failed.') : null);
+        pump();
+        if (status === 'ready' && !active && !queue.length) armSleep();
+        return;
+      }
       recordTimings(message.timingMs ?? { totalMs: message.evaluationMs });
       if (message.error) {
         // An error may occur before or after the worker touches its snapshot
@@ -704,6 +742,25 @@ async function createWorkerLane({ workerData, workerFactory = nativeWorker, incl
       if (stored) counts.promoted++;
       return stored;
     },
+    prepareMember(state, input, memberId, stateInput) {
+      if (closed || status !== 'ready' || active || queue.length || warmQueue.length
+        || state.revision !== memberRevision || !scheduler.canPrewarm()) return false;
+      const rawKey = JSON.stringify([input, memberId, 'evaluate', undefined, undefined]);
+      const key = JSON.stringify(['play-v1', rawKey]);
+      if (cache.has(key) || cache.get(JSON.stringify(['full', rawKey]))?.value.playJSON
+        || preparedMember?.key === key) return false;
+      preparedMember = undefined;
+      const entry = { key, input, state, stateInput, memberId, type: 'evaluate', resultView: 'play-v1',
+        revision: state.revision, queuedAt: idleClock.now(), waiters: new Set(), warm: true, memberPreparation: true };
+      pending.set(key, entry); warmQueue.push(entry); memberCounts.started++;
+      pump(); return true;
+    },
+    cancelMemberPreparation() {
+      for (const entry of [...pending.values()]) if (entry.memberPreparation && !entry.discarded) {
+        entry.warm = false; memberCounts.cancelled++; entry.memberCancelledAt = idleClock.now();
+        cancel(entry, unavailable('Member preparation yielded to foreground work.'));
+      }
+    },
     evaluate(state, memberId, type, chunkId, key, input, signal, chunkIds = [], resultView = 'full', stateInput, duoSidebarProjection = false) {
       counts.requested++;
       if (stateInput && !validStateInput(state, input, stateInput, type)) return Promise.reject(new TypeError('Invalid serialized task state input.'));
@@ -713,9 +770,16 @@ async function createWorkerLane({ workerData, workerFactory = nativeWorker, incl
       }
       if (closed || status === 'restart-required') return Promise.reject(unavailable(closed ? 'The task server is closing.' : 'Task engine needs a server restart. Saves remain available.'));
       if (signal?.aborted) return Promise.reject(Object.assign(new Error('Requester disconnected.'), { name: 'AbortError' }));
+      scheduler.cancelMemberPreparation();
       touch();
       scheduler.supersede(state.revision, input, memberId);
       if (strictRevision && state.revision < latestRevision) return Promise.reject(superseded());
+      if (preparedMember?.key === key && preparedMember.revision === state.revision) {
+        const prepared = preparedMember; preparedMember = undefined;
+        memberCounts.hits++; counts.cacheHits++;
+        storeEvaluation(key, state.revision, type, prepared.value);
+        return Promise.resolve(evaluationWith(prepared.value, { hit: true }));
+      }
       if (cache.has(key)) {
         counts.cacheHits++;
         const value = cache.get(key); cache.delete(key); cache.set(key, value);
@@ -761,6 +825,9 @@ async function createWorkerLane({ workerData, workerFactory = nativeWorker, incl
       wake(); pump(); return promise;
     },
     supersede(revision, input, memberId) {
+      if (revision > memberRevision) {
+        scheduler.cancelMemberPreparation(); preparedMember = undefined; memberRevision = revision;
+      }
       if (strictRevision && revision > latestRevision) {
         latestRevision = revision;
         if (active?.reuseRevision) {
@@ -786,6 +853,9 @@ async function createWorkerLane({ workerData, workerFactory = nativeWorker, incl
       }
     },
     supersedeDisplay(revision) {
+      if (revision > memberRevision) {
+        scheduler.cancelMemberPreparation(); preparedMember = undefined; memberRevision = revision;
+      }
       latestRevision = Math.max(latestRevision, revision);
       for (const entry of new Set([...pending.values(), ...(active ? [active] : [])])) {
         if (entry.reuseRevision) {
@@ -914,7 +984,7 @@ async function createWorkerLane({ workerData, workerFactory = nativeWorker, incl
         const error = unavailable('Task calculation restarted. Retry shortly.');
         for (const entry of [...pending.values()]) settle(entry, error);
         if (active) { clearTimeout(active.timer); settle(active, error); active = undefined; }
-        sentSnapshots.clear(); cache.clear(); onSleep?.();
+        sentSnapshots.clear(); cache.clear(); preparedMember = undefined; onSleep?.();
         const old = worker; worker = undefined; terminate(old); announce();
         // Finish retirement before allocating replacement definitions.
         await Promise.allSettled([...terminating]);
@@ -926,6 +996,8 @@ async function createWorkerLane({ workerData, workerFactory = nativeWorker, incl
       return { worker: scheduler.getHealth(), queue: { depth: queue.length, active: active ? 1 : 0, limit: maxQueue, deadlineMs,
         oldestWaitMs: queue.length ? idleClock.now() - queue[0].queuedAt : 0 }, counts: { ...counts },
       cache: { entries: cache.size, limit: cacheLimit, byteLimit: cacheByteLimit, bytes: [...cache.values()].reduce((sum, value) => sum + value.bytes, 0) },
+      memberPreparation: { ...memberCounts, active: active?.memberPreparation && !active.discarded ? 1 : 0,
+        pending: warmQueue.filter(entry => entry.memberPreparation).length, ready: preparedMember ? 1 : 0, bytes: preparedMember?.bytes ?? 0, byteLimit: preparedMemberLimit },
       prewarm: { ...warmCounts, pending: warmQueue.length, active: active?.warm ? 1 : 0, limit: maxPrewarmQueue },
       ranking: { pending: warmQueue.filter(entry => entry.warm && entry.purpose === 'ranking').length,
         active: active?.warm && active.purpose === 'ranking' ? 1 : 0 },
@@ -943,7 +1015,7 @@ async function createWorkerLane({ workerData, workerFactory = nativeWorker, incl
         clearImmediate(idleTimer); scheduler.cancelPrewarm(); sentSnapshots.clear();
         for (const entry of [...pending.values()]) settle(entry, unavailable('The task server is closing.'));
         if (active) { clearTimeout(active.timer); settleReuse(active, unavailable('The task server is closing.')); active = undefined; }
-        terminate(worker); worker = undefined; cache.clear();
+        terminate(worker); worker = undefined; cache.clear(); preparedMember = undefined;
       }
       closePromise = (async () => {
         let timer;

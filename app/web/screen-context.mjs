@@ -56,6 +56,7 @@ export function createScreenContext() {
     mapAssets: undefined,
     mapTools: undefined,
     memberId: undefined,
+    memberPreparation: undefined,
     normalPlayResults: undefined,
     noticeTimer: undefined,
     originalSync: undefined,

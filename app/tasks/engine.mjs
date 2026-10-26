@@ -380,8 +380,10 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
     }
     evaluationPrepared = true;
   }
-  function* evaluatePass(state, memberId, { ownItemQueries = [], reuseObligations = true } = {}, admitted = new Set(), multiAdmitted = new Set(), replay, projectOnly = false) {
+  function* evaluatePass(state, memberId, { ownItemQueries = [], reuseObligations = true, checkpoint } = {}, admitted = new Set(), multiAdmitted = new Set(), replay, projectOnly = false) {
     const started = performance.now();
+    let checkpointVisits = 0;
+    const poll = checkpoint ? () => { if ((++checkpointVisits & 255) === 0) checkpoint(); } : undefined;
     const sourceMembershipBlocker = replay.membership.source, itemMembershipBlocker = replay.membership.item;
     const member = state.members.find(value => value.id === memberId);
     if (!member) throw new TypeError(`Unknown member: ${memberId}`);
@@ -440,13 +442,16 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
     // These gates cannot change during the capability closure. The ordinary
     // pass only tests whether any blocker exists; final explanation still
     // evaluates every guard in its original order, including dynamic access.
-    const staticBlocked = replay.staticBlocked ??= new Set(compiled.filter(task => task.unknown.length || task.manualChecks.length || task.record.Categories || task.record.OutputVar
+    const staticBlocked = replay.staticBlocked ??= new Set(compiled.filter(task => {
+      poll?.();
+      return task.unknown.length || task.manualChecks.length || task.record.Categories || task.record.OutputVar
       || task.invalidRequirements.length || task.invalidDependencies.length || task.invalidCompletedDependencies.length || task.unsupportedCompletedDependencies.length || f2p && task.record['Not F2P']
       || membershipByTask.get(task).length
       || task.record['Not Skiller'] && on(rules, 'Skiller', false)
       || task.tags.some(tag => !PRESENTATION_RULES.has(tag) && !MAYBE_PRIMARY.has(tag) && !on(rules, tag))
       || task.level > 1 && task.tags.includes('InsidePOH Primary') && !on(rules, 'InsidePOH', true)
-      || member.taskStatus?.[task.id]?.backlogged));
+      || member.taskStatus?.[task.id]?.backlogged;
+    }));
     // Rules are fixed throughout this evaluation. Source probabilities recur
     // across methods, provenance queries and fixed-point passes.
     const cutoffCache = replay.cutoffCache ??= { rare: new Map(), primary: new Map() };
@@ -517,13 +522,17 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
     // Personal completion above can seed capabilities. Challenge satisfaction
     // is neutral in the retained proof and applied only by the final overlay.
     const challengeSatisfied = () => false;
-    for (const task of compiled) if (completedTask(task)) { valid.add(task.key); validRows.push(task); }
+    for (const task of compiled) {
+      poll?.();
+      if (completedTask(task)) { valid.add(task.key); validRows.push(task); }
+    }
     const discoveryRows = uniqueTaskKeys && discoveryTasks
       ? processingRowsForDiscovery.filter(task => !staticBlocked.has(task) || completedTask(task))
       : processingRowsForDiscovery;
     const checkableTasks = [], multiRows = [];
     let blockedCheckCount = 0;
     for (const task of compiled) {
+      poll?.();
       if (multiAdmitted.has(task.id)) multiRows.push(task);
       if (!uniqueTaskKeys || !staticBlocked.has(task)) checkableTasks.push(task);
       else if (!discoveryTasks && !valid.has(task.key) && (!processingTasks.has(task) || admitted.has(task.id))) blockedCheckCount++;
@@ -734,7 +743,10 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
     // A lock explicitly declares the reached Slayer level as well as restricting
     // further assignment training. It is personal evidence, not a group ceiling.
     passive.Slayer = Math.max(passive.Slayer, Math.min(Number(playerControls.slayerLock?.level ?? 1), caps.Slayer));
-    for (const task of compiled) if (completedTask(task) && caps[task.category]) passive[task.category] = Math.max(passive[task.category], Math.min(task.level, caps[task.category]));
+    for (const task of compiled) {
+      poll?.();
+      if (completedTask(task) && caps[task.category]) passive[task.category] = Math.max(passive[task.category], Math.min(task.level, caps[task.category]));
+    }
     passive.Combat = Math.max(passive.Combat, combatLevelFromSkills(passive, { f2p }));
     const levels = { ...passive }, trained = new Set(), ownTraining = new Set(), trainingVia = new Map();
     const refreshSlayerLevel = () => {
@@ -1151,7 +1163,9 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
       if (access.monsters.size) for (const skill of MONSTER_TRAINING) seed(skill, ownAccess.monsters.size > 0);
       if (access.monsters.size && Object.keys(code.ammoTools ?? {}).some(ammo => (ammo === 'No ammo' || (code.itemsPlus?.[ammo] ?? [ammo]).some(item => ordinaryItem(item))) && Object.keys(code.ammoTools[ammo]).some(weapon => ordinaryItem(weapon) && (code.rangedItems?.[weapon] ?? definitions.equipment?.[weapon]?.requirements?.Ranged ?? 1) <= passive.Ranged))) seed('Ranged', ownAccess.monsters.size > 0 && Object.keys(code.ammoTools ?? {}).some(ammo => (ammo === 'No ammo' || (code.itemsPlus?.[ammo] ?? [ammo]).some(item => ordinaryItem(item, true))) && Object.keys(code.ammoTools[ammo]).some(weapon => ordinaryItem(weapon, true) && (code.rangedItems?.[weapon] ?? definitions.equipment?.[weapon]?.requirements?.Ranged ?? 1) <= passive.Ranged)));
       if (array(code.boneItems).some(item => ordinaryItem(item))) seed('Prayer', array(code.boneItems).some(item => ordinaryItem(item, true)));
-      for (const task of primarySkillTasks) if (valid.has(task.key) && caps[task.category]) {
+      for (const task of primarySkillTasks) {
+        poll?.();
+        if (!valid.has(task.key) || !caps[task.category]) continue;
         if (f2p && (task.record['Not F2P'] || membershipByTask.get(task).length)) continue;
         const primary = primaryEligible(task);
         const smithing = task.category !== 'Smithing' || on(rules, 'Smithing by Smelting', false) || access.objects.has('Anvil') || access.objects.has('Rusted anvil');
@@ -1169,7 +1183,9 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
     function updatePoints() {
       points = { QuestPointsNeeded: 0, KudosNeeded: 0, CombatScoreNeeded: 0, TotalLevelNeeded: Object.entries(levels).filter(([skill]) => skill !== 'Combat').reduce((sum, [, level]) => sum + level, 0), TotalVirtualLevelNeeded: Object.entries(levels).filter(([skill]) => skill !== 'Combat').reduce((sum, [skill, level]) => sum + (trained.has(skill) && !f2p ? 120 : level), 0) };
       const xp = {};
-      for (const task of pointTasks) if (valid.has(task.key)) {
+      for (const task of pointTasks) {
+        poll?.();
+        if (!valid.has(task.key)) continue;
         points.QuestPointsNeeded += Number(task.record.QuestPoints ?? 0);
         points.KudosNeeded += Number(task.record.Kudos ?? 0);
         points.CombatScoreNeeded += Number(task.record.CombatScore ?? 0);
@@ -1179,7 +1195,9 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
         const task = byKey.get(keyOf(category, rawLabel));
         if (valid.has(keyOf(category, rawLabel)) && !authoredXpTasks.has(task?.id)) for (const [skill, amount] of Object.entries(allocation)) if (caps[skill] && Number.isFinite(Number(amount))) xp[skill] = (xp[skill] ?? 0) + Number(amount);
       }
-      for (const task of pointTasks) if (valid.has(task.key) && authoredXpTasks.has(task.id)) {
+      for (const task of pointTasks) {
+        poll?.();
+        if (!valid.has(task.key) || !authoredXpTasks.has(task.id)) continue;
         for (const [skill, amount] of Object.entries(xpChoiceAllocation(task, member.xpChoices[task.id]))) if (caps[skill]) xp[skill] = (xp[skill] ?? 0) + amount;
       }
       let changed = false;
@@ -1224,18 +1242,28 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
         }
         changed = updateSkills() || changed;
         changed = updatePoints() || changed;
-        for (const task of uniqueTaskKeys ? validRows : compiled) if (uniqueTaskKeys || valid.has(task.key)) changed = materialize(task) || changed;
+        for (const task of uniqueTaskKeys ? validRows : compiled) {
+          poll?.();
+          if (uniqueTaskKeys || valid.has(task.key)) changed = materialize(task) || changed;
+        }
         counters.checks += blockedCheckCount;
-        for (const task of checkableTasks) if ((!discoveryTasks || discoveryTasks.has(task)) && !valid.has(task.key) && (!processingTasks.has(task) || admitted.has(task.id)) && check(task).length === 0) {
+        for (const task of checkableTasks) {
+          poll?.();
+          if (discoveryTasks && !discoveryTasks.has(task) || valid.has(task.key) || processingTasks.has(task) && !admitted.has(task.id) || check(task).length) continue;
           admitTask(task); changed = true;
           materialize(task);
         }
-        for (const task of multiRows) if (!valid.has(task.key) && check(task).length === 0) changed = materialize(task, true) || changed;
+        for (const task of multiRows) {
+          poll?.();
+          if (!valid.has(task.key) && check(task).length === 0) changed = materialize(task, true) || changed;
+        }
         if (discoveryExpanded) { changed = true; discoveryExpanded = false; }
       }
       updatePoints();
       setWinners = new Map();
-      for (const task of compiled) if (task.category === 'Extra' && task.record.Set && valid.has(task.key) && obligation(task)) {
+      for (const task of compiled) {
+        poll?.();
+        if (task.category !== 'Extra' || !task.record.Set || !valid.has(task.key) || !obligation(task)) continue;
         const previous = setWinners.get(task.record.Set);
         if (!previous || Number(task.record.Priority ?? Infinity) < Number(previous.record.Priority ?? Infinity)) setWinners.set(task.record.Set, task);
       }
@@ -1246,6 +1274,7 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
       const checksBeforeSelection = counters.checks, dependenciesBeforeSelection = counters.dependencyChecks;
       const processingRows = [];
       for (const task of replay.fullDiscovery ? compiled : discoveryRows) {
+        poll?.();
         const blocked = valid.has(task.key) ? membershipByTask.get(task).length > 0 || f2p && task.record['Not F2P']
           : check(task).length > 0;
         const winner = setWinners.get(task.record.Set);
@@ -1276,6 +1305,7 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
       hideDiaries = !on(rules, 'Achievement', true), wholeQuests = on(rules, 'Show Quest Tasks Complete', false),
       smithingPrimary = on(rules, 'Smithing by Smelting', false) || access.objects.has('Anvil') || access.objects.has('Rusted anvil');
     const rows = compiled.map(task => {
+      poll?.();
       const blockers = valid.has(task.key) ? membershipByTask.get(task).slice() : check(task, true);
       if (valid.has(task.key) && f2p && task.record['Not F2P']) blockers.push({ kind: 'membership', detail: 'This activity requires membership.' });
       const record = task.record;
@@ -1364,6 +1394,7 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
     return result;
   }
   function computeEligibility(state, memberId, options) {
+    options?.checkpoint?.();
     const started = performance.now();
     prepareEvaluation();
     // Immutable replay caches are confined to one evaluation. Ordinary growth
@@ -1417,6 +1448,7 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
       processing = evaluation.next().value;
     }
     for (let pass = 0; pass <= recipeIds.size + 2; pass++) {
+      options?.checkpoint?.();
       const next = new Set(processing.eligibleTaskIds.filter(id => recipeIds.has(id)));
       const nextMulti = new Set(processing.multiTaskIds.filter(id => recipeIds.has(id)));
       const signature = JSON.stringify([[...next].sort(), [...nextMulti].sort()]);

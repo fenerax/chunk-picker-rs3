@@ -225,3 +225,20 @@ test('custom factories keep the exact workerData on every lane and wake; advisor
   for (const data of received) assert.equal(data, workerData);
   assert.equal('omitReadyCatalogue' in workerData, false);
 });
+
+test('idle retirement releases the single prepared member result and preparation never wakes it', async t => {
+  const { scheduler, workers, idleClock } = await fixture(t);
+  const input = 'prepared-idle', state = { revision: 0, members: [{ id: 'actor1' }, { id: 'reed' }] };
+  scheduler.supersede(0, input);
+  assert.equal(scheduler.prepareMember(state, input, 'reed'), true);
+  await new Promise(resolve => setImmediate(resolve));
+  const bytes = new TextEncoder().encode('{"format":"play-v1","tasks":[]}'), shared = new SharedArrayBuffer(bytes.length);
+  new Uint8Array(shared).set(bytes);
+  workers[0].emit('message', { id: workers[0].messages.at(-1).id, playJSON: shared, evaluationMs: 1 });
+  assert.equal(scheduler.getDiagnostics().memberPreparation.ready, 1);
+  idleClock.tick(100); await flush();
+  assert.equal(scheduler.getDiagnostics().memberPreparation.bytes, 0);
+  assert.equal(scheduler.getHealth().status, 'sleeping');
+  assert.equal(scheduler.prepareMember(state, input, 'reed'), false);
+  assert.equal(workers.length, 1);
+});

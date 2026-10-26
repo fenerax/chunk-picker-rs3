@@ -1644,7 +1644,7 @@ function harness({ realPlanning = false, localStorage, documentEvents = false } 
   }
   // Opt-in: most fixtures predate document listeners and must not gain them.
   const documentListeners = {};
-  const nodes = new Map(), timers = new Map(), deathTimers = new Map(), calls = [], intentCalls = [], deathCalls = [], renders = [], eventSources = [], planningPrimes = [], planningRenders = [];
+  const nodes = new Map(), timers = new Map(), deathTimers = new Map(), calls = [], preparationCalls = [], intentCalls = [], deathCalls = [], renders = [], eventSources = [], planningPrimes = [], planningRenders = [];
   const document = { getElementById: id => { if (!nodes.has(id)) { const node = new Node(); node.connected = true; nodes.set(id, node); } return nodes.get(id); }, createElement: tag => new Node(tag), createTextNode: value => new Node('text', value), querySelector: selector => document.getElementById(selector), documentElement: new Node(), activeElement: undefined };
   document.head = document.getElementById('test-head'); document.body = document.getElementById('test-body');
   if (documentEvents) document.addEventListener = (key, action) => (documentListeners[key] ??= []).push(action);
@@ -1684,7 +1684,7 @@ function harness({ realPlanning = false, localStorage, documentEvents = false } 
     addEventListener() {},
     setTimeout: (action, delay) => { const id = Symbol(); timers.set(id, { action, delay }); return id; }, clearTimeout: id => timers.delete(id),
     requestAnimationFrame: action => { Promise.resolve().then(action); return 1; }, performance: { now: () => 0, mark() {} },
-    fetch: async (requestPath, options) => { const url = new URL(requestPath, 'http://fixture.invalid'); url.searchParams.delete('view'); for (const parameter of ['lane', 'peerFor', 'revision', 'projection']) url.searchParams.delete(parameter); const path = url.pathname + url.search; let body; if (options?.headers?.['Content-Type'] === BACKUP_UPLOAD_TYPE) { const stream = Readable.fromWeb(options.body.stream()); stream.headers = Object.fromEntries(Object.entries(options.headers).map(([key, value]) => [key.toLowerCase(), value])); body = (await readBackupRequest(stream)).body; } else body = options?.body ? JSON.parse(options.body) : undefined; if (path === '/api/prediction-intent') { intentCalls.push({ body, options }); return { ok: true, json: async () => ({ ...body, stateRevision: body.revision, prepared: true }) }; } if (path.startsWith('/api/death-estimates?')) { deathCalls.push({ path, options }); const ownerId = new URL(path, 'http://fixture.invalid').searchParams.get('memberId'); return { ok: true, json: async () => ({ memberId: ownerId, stateRevision: run('state.revision'), candidateIds: [], estimates: [] }) }; } calls.push({ path, requestPath, body, options }); const value = await route(path, body); return value?.ok === false ? { ...value, json: async () => value.value } : { ok: true, json: async () => value }; },
+    fetch: async (requestPath, options) => { if (options?.method === 'HEAD') { preparationCalls.push({ requestPath, options }); return { ok: true, status: 202, json() { throw new Error('Preparation must not read a body'); } }; } const url = new URL(requestPath, 'http://fixture.invalid'); url.searchParams.delete('view'); for (const parameter of ['lane', 'peerFor', 'revision', 'projection']) url.searchParams.delete(parameter); const path = url.pathname + url.search; let body; if (options?.headers?.['Content-Type'] === BACKUP_UPLOAD_TYPE) { const stream = Readable.fromWeb(options.body.stream()); stream.headers = Object.fromEntries(Object.entries(options.headers).map(([key, value]) => [key.toLowerCase(), value])); body = (await readBackupRequest(stream)).body; } else body = options?.body ? JSON.parse(options.body) : undefined; if (path === '/api/prediction-intent') { intentCalls.push({ body, options }); return { ok: true, json: async () => ({ ...body, stateRevision: body.revision, prepared: true }) }; } if (path.startsWith('/api/death-estimates?')) { deathCalls.push({ path, options }); const ownerId = new URL(path, 'http://fixture.invalid').searchParams.get('memberId'); return { ok: true, json: async () => ({ memberId: ownerId, stateRevision: run('state.revision'), candidateIds: [], estimates: [] }) }; } calls.push({ path, requestPath, body, options }); const value = await route(path, body); return value?.ok === false ? { ...value, json: async () => value.value } : { ok: true, json: async () => value }; },
   });
   const run = code => runInContext(code, context);
   run(settingsSource); runScreenGraph(context, screenGraph);
@@ -1697,7 +1697,7 @@ function harness({ realPlanning = false, localStorage, documentEvents = false } 
   const snapshot = () => structuredClone(run('state'));
   // A trusted user event as the document's capture listeners see it.
   const user = (key, event = {}) => { for (const action of documentListeners[key] ?? []) action({ target: document.activeElement, ...event }); };
-  return { run, context, nodes, calls, intentCalls, deathCalls, deathTimers, renders, timers, eventSources, planningPrimes, planningRenders, map, find, all, click, adopt, snapshot, user, route: action => { route = action; } };
+  return { run, context, nodes, calls, preparationCalls, intentCalls, deathCalls, deathTimers, renders, timers, eventSources, planningPrimes, planningRenders, map, find, all, click, adopt, snapshot, user, route: action => { route = action; } };
 }
 
 test('chunk contents defer full planning sections until a planning tab is selected', async () => {
@@ -3864,4 +3864,19 @@ test('accessibility: shared errors are alerts and ordinary notices remain polite
   assert.equal(h.nodes.get('notice').hidden, false);
   h.run("notice('Copied')");
   assert.equal(h.nodes.get('notice').attributes.role, 'status');
+});
+
+test('member preparation is bodyless and starts only after the selected list paints', async () => {
+  const h = harness(); h.context.personal = taskResult(7);
+  h.run('result = personal; prepareMemberSwitch()');
+  assert.equal(h.preparationCalls.length, 0);
+  await h.run('acceptTaskResult(personal)');
+  assert.equal(h.preparationCalls.length, 1);
+  assert.equal(h.preparationCalls[0].requestPath, '/api/tasks?memberId=reed&view=play-v1&prepareFor=actor1&revision=7');
+  await h.run('memberPreparation.promise');
+  h.run('prepareMemberSwitch(true); renderTasks()');
+  assert.equal(h.preparationCalls.length, 1);
+  assert.equal(h.run('normalPlayResults.size'), 1);
+  const signal = h.preparationCalls[0].options.signal;
+  h.run('beginGameplayAttempt(7)'); assert.equal(signal.aborted, true);
 });

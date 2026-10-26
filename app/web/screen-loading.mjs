@@ -52,6 +52,7 @@ export function createScreenLoading(c) {
   }
 
   function beginGameplayAttempt(expectedRevision) {
+    c.memberPreparation?.controller.abort(); c.memberPreparation = undefined;
     c.discardEarlyTasks();
     return c.pendingGameplayAttempt = { id: ++c.gameplayAttemptSequence, expectedRevision, revision: expectedRevision + 1,
       memberId: c.memberId, projection: c.foregroundProjection(), memberIds: c.state.members.map(owner => owner.id), observedRevision: Math.max(expectedRevision, c.latestEventRevision) };
@@ -126,6 +127,26 @@ export function createScreenLoading(c) {
     }).finally(() => signal?.removeEventListener('abort', abort));
   }
 
+  // Prepare one partner on the existing calculator, without downloading or
+  // parsing a second catalogue. The server/scheduler keep their existing byte
+  // limits. An ordinary GET preempts unfinished preparation at a safe point.
+  function prepareMemberSwitch(start = false) {
+    const previous = c.memberPreparation;
+    const eligible = c.canWrite() && c.state && !c.sandbox.active && !c.duoEnabled() && !c.hasProvisionalTasks() && c.state.members.length === 2;
+    if (previous && (!eligible || previous.revision !== c.state.revision)) {
+      previous.controller.abort(); c.memberPreparation = undefined;
+    }
+    if (!start || !eligible || !c.foregroundSettled() || c.memberPreparation) return;
+    const peer = c.state.members.find(owner => owner.id !== c.memberId);
+    if (c.normalPlayResults.get(peer.id)?.stateRevision === c.state.revision) return;
+    const controller = new AbortController(), record = { revision: c.state.revision, controller };
+    c.memberPreparation = record;
+    const path = `/api/tasks?memberId=${encodeURIComponent(peer.id)}&view=play-v1&prepareFor=${encodeURIComponent(c.memberId)}&revision=${record.revision}`;
+    // No retry loop, state adoption or UI errors from speculative work. Retain
+    // the small attempt record until the saved revision or view mode changes.
+    record.promise = fetch(path, { method: 'HEAD', signal: controller.signal }).catch(() => {});
+  }
+
   function foregroundSettled() {
     if (c.hasProvisionalTasks()) return false;
     if (!c.state || !c.result || c.sandbox.active || c.result.memberId !== c.memberId || c.result.stateRevision !== c.state.revision) return false;
@@ -185,6 +206,7 @@ export function createScreenLoading(c) {
   }
 
   function reconcileForegroundMode() {
+    c.prepareMemberSwitch();
     if (c.earlyTaskLoad && !c.earlyTaskScopeCurrent(c.earlyTaskLoad)) c.discardEarlyTasks();
     if (c.state && !c.sandbox.active && !c.duoEnabled()) {
       const thinPending = c.foregroundTaskLoad?.projection && c.foregroundTaskLoad.memberId === c.memberId;
@@ -352,6 +374,7 @@ export function createScreenLoading(c) {
     c.perfMark('tasks-shown', { revision: value.stateRevision, memberId: value.memberId,
       cache: { hit: value.cache?.hit === true, ...(Number.isFinite(value.cache?.evaluationMs) ? { evaluationMs: value.cache.evaluationMs } : {}),
         ...(Number.isFinite(value.cache?.requestMs) ? { requestMs: value.cache.requestMs } : {}), timingMs } });
+    c.prepareMemberSwitch(true);
     c.deathChunks.refresh();
     if (c.chunkId && !c.$('chunk-info').hidden && !c.$('chunk-content').contains(document.activeElement)) c.showChunk(c.chunkId);
   }
@@ -370,5 +393,5 @@ export function createScreenLoading(c) {
     return value;
   }
 
-  Object.assign(c, { foregroundProjection, foregroundCompatible, foregroundTaskPath, scheduleTasks, earlyTaskScopeCurrent, discardEarlyTasks, hasProvisionalTasks, beginGameplayAttempt, finishGameplayAttempt, clearClaimedEarlyTasks, savedTaskPath, primeSavedTasks, fetchSavedTasks, foregroundSettled, ensureForegroundSettled, advisoryApi, workerStatus, alignTaskResult, reconcileForegroundMode, loadTasks, runTaskLoad, showTaskLoadError, ensureResult, ensurePlanningResult, ensureFullDefinitions, ensureFullResult, ensureChunkSearch, acceptTaskResult, completedResult });
+  Object.assign(c, { foregroundProjection, foregroundCompatible, foregroundTaskPath, scheduleTasks, earlyTaskScopeCurrent, discardEarlyTasks, hasProvisionalTasks, beginGameplayAttempt, finishGameplayAttempt, clearClaimedEarlyTasks, savedTaskPath, primeSavedTasks, fetchSavedTasks, prepareMemberSwitch, foregroundSettled, ensureForegroundSettled, advisoryApi, workerStatus, alignTaskResult, reconcileForegroundMode, loadTasks, runTaskLoad, showTaskLoadError, ensureResult, ensurePlanningResult, ensureFullDefinitions, ensureFullResult, ensureChunkSearch, acceptTaskResult, completedResult });
 }

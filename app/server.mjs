@@ -1517,11 +1517,11 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
             const chunkId = query.get('chunkId');
             const type = route === '/api/predict' ? 'predict' : route === '/api/death-estimates' ? 'death-estimates' : route === '/api/chunk-planning' ? 'chunk-planning' : 'evaluate';
             const savedTasks = savedTaskResults.get(memberId), revision = store.getInfo().revision;
-            if (route === '/api/tasks' && taskWorker.getHealth().status === 'sleeping' && savedTasks?.revision === revision
+            if (route === '/api/tasks' && !query.has('prepareFor') && taskWorker.getHealth().status === 'sleeping' && savedTasks?.revision === revision
               && (viewFor(request) === PLAY_VIEW ? savedTasks.playJSON : savedTasks.fullGzip && savedTasks.fullBodyRevision === revision)) {
               await readSavedTasks(request, response); return;
             }
-            if (route === '/api/tasks' && query.get('projection') === DUO_INSPECTION_VIEW
+            if (route === '/api/tasks' && !query.has('prepareFor') && query.get('projection') === DUO_INSPECTION_VIEW
               && savedTaskResults.get(memberId)?.revision === store.getInfo().revision) {
               await readSavedTasks(request, response); return;
             }
@@ -1540,6 +1540,19 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
               const peerFor = query.get('peerFor');
               if (route !== '/api/tasks' || viewFor(request) !== PLAY_VIEW || peerFor === memberId || !metadata.members.some(member => member.id === peerFor)) throw httpError(400, 'Choose two different saved players to view both task lists.');
               if (query.get('revision') !== String(metadata.revision)) throw httpError(409, 'Saved state changed before the duo calculation. Request the current tasks.');
+            }
+            const prepareFor = query.get('prepareFor');
+            if (prepareFor !== null) {
+              if (route !== '/api/tasks' || request.method !== 'HEAD' || viewFor(request) !== PLAY_VIEW
+                || evaluationLane !== 'foreground' || projection || prepareFor === memberId
+                || !metadata.members.some(member => member.id === prepareFor)) throw httpError(400, 'Choose a saved partner to prepare.');
+              if (query.get('revision') !== String(metadata.revision)) throw httpError(409, 'Saved state changed before preparing tasks.');
+              // This request only admits idle work. It never becomes a list
+              // waiter, changes the selected-member gate, or evicts viewer bytes.
+              const idle = nativeForegroundState && !foregroundActive && !automaticDeathActive && !listPending(metadata.revision)
+                && requiredTaskMembers.size === 1 && requiredTaskMembers.has(prepareFor) && metadata.members.length === 2;
+              const admitted = idle && taskWorker.prepareMember?.(metadata, captured.input, memberId, captured.stateInput);
+              response.writeHead(admitted ? 202 : 204, { 'Cache-Control': PRIVATE_NO_STORE }); response.end(); return;
             }
             if (type === 'evaluate' && viewFor(request) === PLAY_VIEW && evaluationLane === 'foreground' && !duoInspectionProjection) {
               refreshMemberId = memberId;
@@ -1648,6 +1661,7 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
           }
         } else if (request.method === 'POST') {
           checkRequestOrigin(request, security);
+          taskWorker?.cancelMemberPreparation?.();
           if (isImportRoute(route)) {
             if (importingBackup) throw httpError(503, 'Another backup is being checked or imported. Wait for it to finish, then try again.');
             importingBackup = ownsImport = true;
@@ -2282,6 +2296,7 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
       schedulePredictions(10000);
       if (!liveSwap?.standby && httpServer && taskWorker && nativeForegroundState) startupWarmup = createStartupWarmup({ worker: taskWorker, clock: schedulingClock,
         snapshot: calculationState, busy: () => foregroundActive > 0 || automaticDeathActive > 0 || listPending(store.getInfo().revision)
+          || taskWorker.getDiagnostics().memberPreparation?.ready === 1
           || schedulingClock.now() - foregroundLastActivity < 1000 });
       return handle;
     },

@@ -84,7 +84,7 @@ export function projectPlayTask(task, { retainHiddenDisplay = false, reuse = tru
   return projected;
 }
 
-export function projectPlayResult(result, { reuse = true } = {}) {
+export function projectPlayResult(result, { reuse = true, checkpoint } = {}) {
   let tasks, completedTasks;
   if (reuse) {
     const rows = result.tasks ?? [];
@@ -92,6 +92,7 @@ export function projectPlayResult(result, { reuse = true } = {}) {
     // Both arrays follow catalogue order, just as the independent reference
     // map and filter passes do, without allocating callback pairs per row.
     for (let index = 0; index < rows.length; index++) {
+      if (checkpoint && (index & 255) === 0) checkpoint();
       if (!(index in rows)) continue;
       const task = rows[index];
       tasks[index] = projectPlayTask(task);

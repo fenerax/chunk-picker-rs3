@@ -89,7 +89,7 @@ function decodedRecord(value = {}) {
 /** Select active tasks without changing any engine row or saved game fact.
  * alternatives and suppressed contain task IDs so this result is JSON serializable.
  */
-export function selectPresentedTasks(result, state, memberId, definitions = {}, { reuse = true } = {}) {
+export function selectPresentedTasks(result, state, memberId, definitions = {}, { reuse = true, checkpoint } = {}) {
   const savedMember = state.members.find(value => value.id === memberId);
   const member = savedMember && projectMemberTaskFacts(state, savedMember, result.tasks);
   if (!member) throw new TypeError(`Unknown member: ${memberId}`);
@@ -159,7 +159,9 @@ export function selectPresentedTasks(result, state, memberId, definitions = {}, 
     return effectiveLevels[row.id] = Math.max(1, requirement - boost - saw);
   }
 
+  let checkpointVisits = 0;
   for (const row of rows) {
+    if (checkpoint && (++checkpointVisits & 255) === 0) checkpoint();
     if (row.obligation === false) hide(row, 'Outside this member’s own obligation map.');
     const data = record(row);
     if ((state.rules?.['content.f2p'] ?? true) && membersEquipmentRequirement(row, data, definitions, membershipSelection)) hide(row, 'This equipment requires membership in free-to-play mode.');

@@ -59,3 +59,14 @@ test('zero rare-drop amount includes all known monster and skill rates', () => {
 
 
 
+
+test('cancelling speculative scans leaves normal task calculation identical and unpoisoned', () => {
+  const definitions = { chunks: { '100': {}, '101': {} }, challenges: { Quest: Object.fromEntries(
+    Array.from({ length: 1200 }, (_, i) => [`Cancellation fixture ${i}`, { Chunks: [i % 2 ? '100' : '101'] }])) } };
+  const saved = state({}), before = structuredClone(saved), engine = createTaskEngine(definitions);
+  const cancelled = new Error('cancelled at a task checkpoint'); let checks = 0;
+  assert.throws(() => engine.evaluate(saved, 'm', { reuseEligibility: false, checkpoint() { if (++checks === 3) throw cancelled; } }), e => e === cancelled);
+  assert.equal(checks, 3); assert.deepEqual(saved, before);
+  const normalize = result => JSON.parse(JSON.stringify(result, (key, value) => key === 'elapsedMs' ? undefined : value));
+  assert.deepEqual(normalize(engine.evaluate(saved, 'm')), normalize(createTaskEngine(definitions).evaluate(saved, 'm')));
+});

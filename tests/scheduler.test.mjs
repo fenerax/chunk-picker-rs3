@@ -729,3 +729,72 @@ test('native worker input always sets the ready-catalogue flag without changing 
   assert.deepEqual(nativeWorkerInput(undefined, false), { omitReadyCatalogue: true });
   assert.equal(workerData.omitReadyCatalogue, true);
 });
+
+test('member preparation admits only idle work and yields the worker before a foreground miss', async t => {
+  const { scheduler, workers } = await fixture(t);
+  const state = { revision: 0, members: [{ id: 'actor1' }, { id: 'reed' }] }, input = 'member-input';
+  scheduler.supersede(0, input);
+  assert.equal(scheduler.prepareMember(state, input, 'reed'), true);
+  await until(() => workers[0].messages.some(m => m.memberPreparation));
+  const background = workers[0].messages.find(m => m.memberPreparation);
+  assert.equal(scheduler.prepareMember(state, input, 'actor1'), false);
+  const key = JSON.stringify([input, 'actor1', 'evaluate', undefined, undefined]);
+  const foreground = scheduler.evaluate(state, 'actor1', 'evaluate', undefined, key, input, undefined, [], 'play-v1');
+  assert.equal(Atomics.load(new Int32Array(background.cancellation), 0), 1);
+  assert.equal(workers[0].messages.filter(m => m.type === 'evaluate').length, 1, 'wait for safe cancellation acknowledgement');
+  workers[0].emit('message', { id: background.id, cancelled: true, result: { cancelled: true }, evaluationMs: 1 });
+  assert.equal(workers[0].messages.filter(m => m.type === 'evaluate').length, 2);
+  workers[0].finish(); await foreground;
+  const diagnostics = scheduler.getDiagnostics();
+  assert.equal(diagnostics.memberPreparation.cancelled, 1);
+  assert.equal(diagnostics.memberPreparation.ready, 0);
+  assert.equal(diagnostics.counts.requested, 1, 'background work does not consume foreground admission');
+});
+
+test('one completed member result is bounded, consumed by play and dropped on every revision', async t => {
+  const { scheduler, workers } = await fixture(t);
+  const state = { revision: 0, members: [{ id: 'actor1' }, { id: 'reed' }] }, input = 'member-input';
+  scheduler.supersede(0, input);
+  assert.equal(scheduler.prepareMember(state, input, 'reed'), true);
+  await until(() => workers[0].messages.some(m => m.memberPreparation));
+  const play = '{"format":"play-v1","tasks":[],"metrics":{"availableCount":0}}';
+  finishPlay(workers[0], play);
+  assert.equal(scheduler.getDiagnostics().memberPreparation.ready, 1);
+  assert.equal(scheduler.getDiagnostics().memberPreparation.bytes, Buffer.byteLength(play));
+  assert.equal(scheduler.prepareMember(state, input, 'reed'), false);
+  const key = JSON.stringify([input, 'reed', 'evaluate', undefined, undefined]);
+  const result = await scheduler.evaluate(state, 'reed', 'evaluate', undefined, key, input, undefined, [], 'play-v1');
+  assert.equal(result.hit, true); assert.equal(result.playJSON.toString(), play);
+  assert.equal(scheduler.getDiagnostics().memberPreparation.ready, 0);
+  assert.equal(workers[0].messages.filter(m => m.type === 'evaluate').length, 1);
+  assert.equal(scheduler.prepareMember(state, input, 'actor1'), true);
+  await until(() => workers[0].messages.filter(m => m.memberPreparation).length === 2);
+  finishPlay(workers[0], play);
+  scheduler.supersedeDisplay(1, input);
+  assert.equal(scheduler.getDiagnostics().memberPreparation.bytes, 0, 'even task-equivalent display revisions release speculation');
+});
+
+test('member preparation respects the byte cap without evicting ordinary task caches', async t => {
+  const { scheduler, workers, evaluate } = await fixture(t);
+  const ordinary = evaluate('ordinary'); workers[0].finish(); await ordinary;
+  const before = scheduler.getDiagnostics().cache;
+  const state = { revision: 0, members: [{ id: 'actor1' }, { id: 'reed' }] };
+  assert.equal(scheduler.prepareMember(state, 'ordinary', 'reed'), true);
+  await until(() => workers[0].messages.some(m => m.memberPreparation));
+  const message = workers[0].messages.at(-1);
+  workers[0].emit('message', { id: message.id, playJSON: new SharedArrayBuffer(32 * 1024 ** 2 + 1), evaluationMs: 1 });
+  const after = scheduler.getDiagnostics();
+  assert.equal(after.memberPreparation.oversized, 1); assert.equal(after.memberPreparation.bytes, 0);
+  assert.deepEqual(after.cache, before);
+});
+
+
+test('member preparation backs off while another interactive lane is occupied', async t => {
+  const peer = factory(), { scheduler } = await fixture(t, { duoWorkerFactory: peer.create });
+  const state = { revision: 0, members: [{ id: 'actor1' }, { id: 'reed' }] }, input = 'member-input';
+  const result = scheduler.evaluate(state, 'reed', 'evaluate', undefined, 'peer-key', input, undefined, [], 'play-v1', undefined, 'duo');
+  await until(() => peer.workers[0]?.messages.some(m => m.type === 'evaluate'));
+  assert.equal(scheduler.prepareMember(state, input, 'reed'), false);
+  peer.workers[0].finish(); await result;
+  assert.equal(scheduler.prepareMember(state, input, 'reed'), true);
+});

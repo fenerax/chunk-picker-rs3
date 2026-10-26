@@ -40,13 +40,15 @@ function takeDefinitions() {
   return raw;
 }
 const mapLocationResults = new WeakMap();
-function mapPlayResult(result) {
+function mapPlayResult(result, checkpoint) {
+  checkpoint?.();
   let locations = mapLocationResults.get(result);
   if (!locations) {
     locations = projectMapTaskLocations(definitions, result, workerData.world);
     mapLocationResults.set(result, locations);
   }
-  return { ...projectPlayResult(result), taskLocations: locations };
+  checkpoint?.();
+  return { ...projectPlayResult(result, { checkpoint }), taskLocations: locations };
 }
 const compileStarted = performance.now();
 const engineOptions = { dataset: selectedDataset, ...workerData.datasetOptions, skillGuideCatalogue: workerData.skillGuideCatalogue };
@@ -84,9 +86,11 @@ function timed(timingMs, stage, operation) {
     }
   }
 }
-function evaluateCore(state, memberId, timingMs) {
+function evaluateCore(state, memberId, timingMs, checkpoint) {
+  checkpoint?.();
   const member = state.members.find(owner => owner.id === memberId), savedIds = [...new Set([...Object.keys(member?.taskStatus ?? {}), ...member?.completedTasks ?? []])];
-  const result = timed(timingMs, 'engineMs', () => engine.evaluate(state, memberId, { ownItemQueries: savedIds.filter(id => equipmentById.has(id)).map(id => equipmentById.get(id)) }));
+  const result = timed(timingMs, 'engineMs', () => engine.evaluate(state, memberId, { ownItemQueries: savedIds.filter(id => equipmentById.has(id)).map(id => equipmentById.get(id)), ...(checkpoint ? { checkpoint, reuseEligibility: false } : {}) }));
+  checkpoint?.();
   const collection = timed(timingMs, 'collectionMs', () => collectionEngine.evaluate(state, memberId, result, { obligationQueries: savedIds }));
   result.tasks.push(...collection.tasks);
   result.collectionPlanning = { completionGroups: collection.completionGroups, obligationIds: collection.obligationIds, diagnostics: collection.diagnostics, coverage: collection.coverage };
@@ -105,8 +109,9 @@ function appendViews(result, timingMs) {
   viewContexts.delete(result);
   return result;
 }
-function evaluateFull(state, memberId, { includeViews = true, timingMs } = {}) {
-  const result = evaluateCore(state, memberId, timingMs);
+function evaluateFull(state, memberId, { includeViews = true, timingMs, checkpoint } = {}) {
+  const result = evaluateCore(state, memberId, timingMs, checkpoint);
+  checkpoint?.();
   const equipment = timed(timingMs, 'equipmentMs', () => evaluateEquipment(result, state, memberId, definitions));
   const member = state.members.find(owner => owner.id === memberId);
   const legacyRules = hasGameplayMigration(state, member) ? {} : Object.fromEntries(Object.entries(state.legacy?.maps?.[member.sourceMapId]?.rules ?? {}).map(([key, value]) => [decodeLegacyText(key), value]));
@@ -119,7 +124,9 @@ function evaluateFull(state, memberId, { includeViews = true, timingMs } = {}) {
       ? { ...owner, taskRules: { ...owner.taskRules, 'Show Best in Slot Tasks': true } } : owner) };
     dutyEquipment = timed(timingMs, 'equipmentMs', () => evaluateEquipment(result, dutyState, memberId, definitions));
   }
-  result.presentation = timed(timingMs, 'presentationMs', () => selectCollectionGoals(selectPresentedTasks({ ...result, tasks: [...result.tasks, ...equipment.tasks] }, state, memberId, definitions), state, memberId));
+  checkpoint?.();
+  result.presentation = timed(timingMs, 'presentationMs', () => selectCollectionGoals(selectPresentedTasks({ ...result, tasks: [...result.tasks, ...equipment.tasks] }, state, memberId, definitions, { checkpoint }), state, memberId));
+  checkpoint?.();
   result.presentation.alternatives = { ...result.presentation.alternatives, ...equipment.alternatives };
   const visibleEquipmentIds = new Set(equipment.catalogue.map(task => task.id));
   const hiddenDuties = dutyEquipment.catalogue.filter(task => !visibleEquipmentIds.has(task.id)).map(task => ({ ...task,
@@ -295,7 +302,7 @@ function serializedState({ stateJSON, stateJSONBytes, stateRevision, stateMember
   return state;
 }
 parentPort.on('message', async ({ id, type = 'evaluate', state, memberId, chunkId, chunkIds = [], revision, input, snapshotKey, resultTransport, resultView = 'full', cancellation, predictionProgress = false,
-  stateTransport, stateJSON, stateJSONBytes, stateRevision, stateMemberIds, duoProjection = false, duoSidebarProjection = false, reportProgress = false }) => {
+  stateTransport, stateJSON, stateJSONBytes, stateRevision, stateMemberIds, memberPreparation = false, duoProjection = false, duoSidebarProjection = false, reportProgress = false }) => {
   if (type === 'cancel') { if (requests.has(id)) requests.get(id).cancelled = true; return; }
   if (type === 'supersede') { latestRevision = Math.max(latestRevision, revision); return; }
   const started = performance.now();
@@ -305,7 +312,12 @@ parentPort.on('message', async ({ id, type = 'evaluate', state, memberId, chunkI
   const request = { cancelled: false };
   const abandoned = () => request.cancelled || cancellation instanceof SharedArrayBuffer && Atomics.load(new Int32Array(cancellation), 0) !== 0;
   requests.set(id, request);
+  const checkpoint = memberPreparation ? () => {
+    if (abandoned()) throw Object.assign(new Error('Background member preparation cancelled.'), { code: 'MEMBER_PREPARATION_CANCELLED' });
+  } : undefined;
   try {
+    if (memberPreparation && (type !== 'evaluate' || resultView !== 'play-v1' || resultTransport !== 'json-shared-v1')) throw new TypeError('Invalid member preparation request.');
+    checkpoint?.();
     if (stateTransport !== undefined || stateJSON !== undefined) {
       if (stateTransport !== 'json-shared-v1' || !['evaluate', 'chunk-planning', 'sandbox', 'area-check'].includes(type) || state !== undefined) throw new TypeError('Worker state transport is invalid.');
       state = serializedState({ stateJSON, stateJSONBytes, stateRevision, stateMemberIds, snapshotKey, input });
@@ -339,6 +351,11 @@ parentPort.on('message', async ({ id, type = 'evaluate', state, memberId, chunkI
         baseline: cached?.snapshot.baseline, baselineTaskIds, definitions, world: workerData.world,
       }), cache: { baselineHit: !!baselineTaskIds || cached.hit, baselineSource: baselineTaskIds ? 'current-list' : 'worker' } };
     });
+    else if (memberPreparation) {
+      // Speculation never enters the two ordinary graph snapshots or retains an
+      // eligibility proof. Only its completed compact bytes leave this worker.
+      result = evaluateFull(state, memberId, { includeViews: false, timingMs, checkpoint });
+    }
     else if (type === 'death-estimates') result = await deathEstimates(state, memberId, chunkIds, timingMs, request, input);
     else {
       const compact = type === 'evaluate' && resultTransport === 'json-shared-v1' && resultView === 'play-v1';
@@ -383,7 +400,9 @@ parentPort.on('message', async ({ id, type = 'evaluate', state, memberId, chunkI
     }
     // The HTTP thread can cache and send these immutable bytes without cloning
     // or serializing the full task graph. Direct worker clients keep objects.
-    const playResult = type === 'evaluate' && resultTransport === 'json-shared-v1' ? mapPlayResult(result) : undefined;
+    checkpoint?.();
+    const playResult = type === 'evaluate' && resultTransport === 'json-shared-v1' ? mapPlayResult(result, checkpoint) : undefined;
+    checkpoint?.();
     // Both group lanes need the owner's ordinary Completed and Backlog rows,
     // including completion families absent from the active presentation.
     const duoSidebarJSON = playResult && resultView === 'play-v1' && (duoProjection || duoSidebarProjection)
@@ -395,11 +414,14 @@ parentPort.on('message', async ({ id, type = 'evaluate', state, memberId, chunkI
         ...(duoProjection && duoSidebarJSON ? { duoJSON: duoSidebarJSON } : {}),
         ...(duoSidebarProjection && duoSidebarJSON ? { duoSidebarJSON } : {}), cancelled: !!result.cancelled }
       : { result };
+    checkpoint?.();
     timingMs.totalMs = performance.now() - started;
     parentPort.postMessage({ id, ...payload, ...(unlockReuse ? { unlockReuse } : {}), ...(partnerUnlockReuse ? { partnerUnlockReuse } : {}), evaluationMs: timingMs.totalMs, timingMs });
   } catch (error) {
     timingMs.totalMs = performance.now() - started;
-    parentPort.postMessage({ id, error: { name: error.name, message: error.message }, evaluationMs: timingMs.totalMs, timingMs });
+    if (memberPreparation && error.code === 'MEMBER_PREPARATION_CANCELLED') {
+      parentPort.postMessage({ id, cancelled: true, result: { cancelled: true }, evaluationMs: timingMs.totalMs, timingMs });
+    } else parentPort.postMessage({ id, error: { name: error.name, message: error.message }, evaluationMs: timingMs.totalMs, timingMs });
   } finally { requests.delete(id); }
 });
 

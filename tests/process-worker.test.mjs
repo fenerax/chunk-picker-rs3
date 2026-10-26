@@ -225,3 +225,29 @@ test('an owned calculator exits when its parent disappears without calling termi
     await new Promise(resolve => setTimeout(resolve, 20));
   }
 });
+
+test('process member preparation observes cancellation while scanning and preserves both members results', async t => {
+  const source = { ...definitions, challenges: { Quest: Object.fromEntries(Array.from({ length: 16000 }, (_, i) =>
+    [`Member preparation ${i}`, { Chunks: [i % 2 ? '12341' : '12342'] }])) } };
+  const world = buildWorld(source), worker = new ProcessWorker(genericWorkerData({ definitions: source,
+    world: { chunks: world.chunks, surface: world.surface } }));
+  t.after(() => worker.terminate());
+  await waitFor(worker, m => m.type === 'ready');
+  const state = createGroupState([{ id: 'one', name: 'One', unlocked: ['12341'] }, { id: 'two', name: 'Two', unlocked: ['12342'] }]);
+  const send = (id, memberId, extra = {}) => {
+    const result = waitFor(worker, m => m.id === id && m.type !== 'progress');
+    worker.postMessage({ id, type: 'evaluate', state, memberId, resultTransport: 'json-shared-v1', resultView: 'play-v1', ...extra });
+    return result;
+  };
+  const semantic = response => { const value = JSON.parse(Buffer.from(response.playJSON).toString()); delete value.metrics.elapsedMs; return value; };
+  const one = semantic(await send(1, 'one'));
+  const cancelled = send(2, 'two', { memberPreparation: true, cancellation: new SharedArrayBuffer(4) });
+  await new Promise(resolve => setTimeout(resolve, 10));
+  worker.postMessage({ type: 'cancel', id: 2 });
+  assert.equal((await cancelled).cancelled, true, 'host must set the shared flag even while the worker event loop is busy');
+  const prepared = await send(3, 'two', { memberPreparation: true, cancellation: new SharedArrayBuffer(4) });
+  const ordinary = await send(4, 'two');
+  assert.deepEqual(semantic(prepared), semantic(ordinary));
+  assert.ok(ordinary.timingMs.engineMs > 0, 'preparation does not retain an ordinary full graph snapshot');
+  assert.deepEqual(semantic(await send(5, 'one')), one);
+});

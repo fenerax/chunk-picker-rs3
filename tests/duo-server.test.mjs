@@ -53,7 +53,7 @@ async function fixture(t, options = {}) {
   t.after(async () => { await app.close(); await rm(directory, { recursive: true, force: true }); });
   await app.listen(); const invite = new URL(app.inviteUrl), origin = invite.origin;
   const auth = { Authorization: `Bearer ${invite.pathname.slice('/join/'.length)}` };
-  const request = (route, { body, signal } = {}) => fetch(origin + route, { signal, method: body ? 'POST' : 'GET',
+  const request = (route, { body, signal, method = 'GET' } = {}) => fetch(origin + route, { signal, method: body ? 'POST' : method,
     headers: { ...auth, ...(body ? { Origin: origin, 'Content-Type': 'application/json' } : {}) }, ...(body ? { body: JSON.stringify(body) } : {}) });
   const diagnostics = async () => (await request('/api/diagnostics')).json();
   return { app, origin, request, diagnostics };
@@ -371,4 +371,42 @@ test('viewer inspection reads only saved ordinary results and never admits missi
   assert.equal((await diagnostics()).counts.requested, ready.counts.requested);
   assert.equal((await viewer(inspectionRoute(1))).status, 409); assert.equal((await viewer(inspectionRoute(0, 'two'))).status, 409);
   assert.equal(peer.workers.length, 0);
+});
+
+
+test('member preparation HEAD admits background work without joining or changing foreground gates', async t => {
+  const own = factory(), peer = factory(), { request, diagnostics } = await fixture(t, mockOptions(own, peer));
+  const selected = request('/api/tasks?memberId=one&view=play-v1');
+  await until(() => evaluations(own.workers[0]).length === 1); own.workers[0].finish(); await selected;
+  const before = (await diagnostics()).counts.requested;
+  const response = await request('/api/tasks?memberId=two&view=play-v1&prepareFor=one&revision=0', { method: 'HEAD' });
+  assert.equal(response.status, 202); assert.equal(await response.text(), '');
+  await until(() => evaluations(own.workers[0]).length === 2);
+  const message = evaluations(own.workers[0])[1]; assert.equal(message.memberPreparation, true);
+  assert.equal((await diagnostics()).counts.requested, before); assert.equal(peer.workers.length, 0);
+  const current = await (await request('/api/tasks?memberId=one&view=play-v1')).json();
+  assert.equal(current.cache.hit, true); assert.equal(Atomics.load(new Int32Array(message.cancellation), 0), 1);
+  own.workers[0].finish(message);
+  for (const [query, method, status] of [
+    ['memberId=two&view=play-v1&prepareFor=one&revision=0', 'GET', 400],
+    ['memberId=two&view=play-v1&prepareFor=two&revision=0', 'HEAD', 400],
+    ['memberId=two&view=play-v1&prepareFor=one&revision=1', 'HEAD', 409],
+  ]) assert.equal((await request('/api/tasks?' + query, { method })).status, status);
+});
+
+test('prepared native play bytes equal ordinary results for both owners and all group lanes', async t => {
+  const source = { ...definitions, challenges: { Quest: { Here: { Chunks: ['12341'] }, There: { Chunks: ['12342'] }, Both: { Chunks: ['12341', '12342'] } } } };
+  const reference = await fixture(t, { definitions: source }), candidate = await fixture(t, { definitions: source });
+  for (const f of [reference, candidate]) await (await f.request('/api/tasks?memberId=one&view=play-v1')).json();
+  const head = await candidate.request('/api/tasks?memberId=two&view=play-v1&prepareFor=one&revision=0', { method: 'HEAD' });
+  assert.equal(head.status, 202);
+  await until(async () => (await candidate.diagnostics()).memberPreparation.ready === 1);
+  const semantic = ({ cache, metrics, ...value }) => ({ ...value, metrics: Object.fromEntries(Object.entries(metrics).filter(([key]) => key !== 'elapsedMs')) });
+  for (const member of ['two', 'one']) for (const extra of ['', '&projection=duo-sidebar-v1&revision=0', `&lane=duo-v1&peerFor=${member === 'one' ? 'two' : 'one'}&revision=0`]) {
+    const route = `/api/tasks?memberId=${member}&view=play-v1${extra}`;
+    const expected = await (await reference.request(route)).json(), actual = await (await candidate.request(route)).json();
+    assert.deepEqual(semantic(actual), semantic(expected));
+    if (!extra) { assert.ok(actual.tasks.some(r => r.status === 'available')); assert.ok(actual.tasks.some(r => r.status === 'blocked')); }
+  }
+  assert.equal((await candidate.diagnostics()).memberPreparation.hits, 1);
 });
