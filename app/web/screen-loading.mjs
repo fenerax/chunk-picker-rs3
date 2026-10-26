@@ -1,3 +1,5 @@
+import { requestError } from './live-swap-client.mjs';
+
 // Main-screen loading; shared values and callbacks live in the explicit screen context.
 export function createScreenLoading(c) {
   c.taskEngineCount = value => `${value.metrics.availableCount.toLocaleString()} possible tasks${c.duoEnabled?.() ? ` for ${c.member().name}` : ''}`;
@@ -95,9 +97,9 @@ export function createScreenLoading(c) {
       // These provisional reads bypass api()'s conflict adoption and never call
       // alignTaskResult, acceptTaskResult, saved(), or any rendering callback.
       entry.promise = (async () => {
-        const response = await fetch(path, { signal: controller.signal }), value = await response.json();
+        const { response, value } = await c.readRequest(path, { signal: controller.signal });
         if (controller.signal.aborted) throw Object.assign(new Error('Request abandoned.'), { name: 'AbortError' });
-        if (!response.ok) throw Object.assign(new Error('Tasks could not be loaded.'), { status: response.status });
+        if (!response.ok) throw requestError(response, value);
         if (value.memberId !== id || value.stateRevision !== revision) throw Object.assign(new Error('Your saved map changed while loading tasks.'), { status: 409 });
         return value;
       })().finally(() => { entry.settled = true; c.clearClaimedEarlyTasks(record); });
@@ -159,11 +161,13 @@ export function createScreenLoading(c) {
     if (health.ready) {
       // Advisory-worker events also carry foreground readiness. Only a recovery
       // transition or an otherwise unstarted foreground load needs another fetch.
+      // After a failed load only the transition retries, once per recovery.
       const loadingCurrent = c.foregroundTaskLoad?.memberId === c.memberId && c.foregroundTaskLoad.revision === c.state?.revision;
-      if (!c.taskInFlight && !loadingCurrent && (previouslyReady === false || (!c.result && !c.syncTimer))) c.scheduleTasks();
+      if (!c.taskInFlight && !loadingCurrent && (previouslyReady === false || (!c.result && !c.syncTimer && !c.taskLoadError))) c.scheduleTasks();
       return;
     }
-    if (health.status === 'sleeping') return;
+    // Keep a failed load's message and Retry instead of generic health text.
+    if (health.status === 'sleeping' || c.taskLoadError) return;
     c.$('task-engine-status').textContent = ['waking', 'starting'].includes(health.status) ? 'Waking up the task calculator…'
       : health.restartRequired ? 'Task calculator needs a server restart. Saves remain available.' : 'Task calculator recovering… Saves remain available.';
   }
@@ -209,11 +213,16 @@ export function createScreenLoading(c) {
   async function runTaskLoad(projection = c.foregroundProjection()) {
     c.taskController?.abort(); const controller = new AbortController(); c.taskController = controller;
     const request = ++c.taskRequest, requestedMember = c.memberId;
-    c.taskInFlight = true;
+    c.taskInFlight = true; c.taskLoadError = undefined;
     c.$('task-engine-status').textContent = !c.canWrite() ? 'Loading saved tasks…' : ['sleeping', 'waking', 'starting'].includes(c.taskHealth?.status)
       ? 'Waking up the task calculator…' : c.result ? 'Updating tasks…' : 'Calculating tasks…';
-    try { const foregroundResponse = c.fetchSavedTasks(requestedMember, c.state.revision, projection, controller.signal); c.startDuoTaskLoad(true); const value = await foregroundResponse; if (!await c.alignTaskResult(value, requestedMember, () => request === c.taskRequest && (!projection || c.duoEnabled()), controller.signal)) { if (request === c.taskRequest && requestedMember === c.memberId) c.scheduleTasks(); return; } await c.acceptTaskResult(value); if (request !== c.taskRequest || requestedMember !== c.memberId || value.stateRevision !== c.state.revision) return; c.$('task-engine-status').replaceChildren(c.el('span', c.taskEngineCount(value)), ...(c.advanced() ? [c.button('Details', c.engineDetails)] : [])); if (c.taskHealth && !c.taskHealth.ready) c.workerStatus(c.taskHealth); } catch (error) { if (request === c.taskRequest && error.code === 'TASK_RESULTS_UNAVAILABLE') { c.$('task-engine-status').replaceChildren(c.el('span', c.viewerTaskWait())); return; } if (request === c.taskRequest && error.name !== 'AbortError') { c.$('task-engine-status').replaceChildren(c.el('span', error.message), c.button('Retry', c.loadTasks)); try { const health = await c.api('/api/health', undefined, controller.signal); if (request === c.taskRequest && !health.worker?.ready) c.workerStatus(health.worker ?? {}); } catch {} } }
+    try { const foregroundResponse = c.fetchSavedTasks(requestedMember, c.state.revision, projection, controller.signal); c.startDuoTaskLoad(true); const value = await foregroundResponse; if (!await c.alignTaskResult(value, requestedMember, () => request === c.taskRequest && (!projection || c.duoEnabled()), controller.signal)) { if (request === c.taskRequest && requestedMember === c.memberId) c.scheduleTasks(); return; } await c.acceptTaskResult(value); if (request !== c.taskRequest || requestedMember !== c.memberId || value.stateRevision !== c.state.revision) return; c.$('task-engine-status').replaceChildren(c.el('span', c.taskEngineCount(value)), ...(c.advanced() ? [c.button('Details', c.engineDetails)] : [])); if (c.taskHealth && !c.taskHealth.ready) c.workerStatus(c.taskHealth); } catch (error) { if (request === c.taskRequest && error.code === 'TASK_RESULTS_UNAVAILABLE') { c.$('task-engine-status').replaceChildren(c.el('span', c.viewerTaskWait())); return; } if (request === c.taskRequest && error.name !== 'AbortError') c.showTaskLoadError(error); }
     finally { if (c.taskController === controller) c.taskInFlight = false; }
+  }
+
+  function showTaskLoadError(error) {
+    c.taskLoadError = error;
+    c.$('task-engine-status').replaceChildren(c.el('span', error.message), c.button('Retry', c.loadTasks));
   }
 
   async function ensureResult() {
@@ -230,6 +239,7 @@ export function createScreenLoading(c) {
     const request = { memberId: requestedMember, revision, projection: c.foregroundProjection() };
     c.taskController?.abort(); const controller = new AbortController(); c.taskController = controller;
     const requestId = ++c.taskRequest;
+    c.taskInFlight = true; c.taskLoadError = undefined;
     request.promise = (async () => {
       const foregroundResponse = c.fetchSavedTasks(requestedMember, revision, request.projection, controller.signal);
       c.startDuoTaskLoad(true);
@@ -240,8 +250,14 @@ export function createScreenLoading(c) {
       c.$('task-engine-status').replaceChildren(c.el('span', c.taskEngineCount(value)), ...(c.advanced() ? [c.button('Details', c.engineDetails)] : []));
       if (c.taskHealth && !c.taskHealth.ready) c.workerStatus(c.taskHealth);
       return c.result;
-    })(); c.foregroundTaskLoad = request;
-    return request.promise.finally(() => { if (c.foregroundTaskLoad === request) c.foregroundTaskLoad = undefined; });
+    })().catch(error => {
+      if (requestId === c.taskRequest && error.name !== 'AbortError') c.showTaskLoadError(error);
+      throw error;
+    }); c.foregroundTaskLoad = request;
+    return request.promise.finally(() => {
+      if (c.foregroundTaskLoad === request) c.foregroundTaskLoad = undefined;
+      if (c.taskController === controller) c.taskInFlight = false;
+    });
   }
 
   async function ensurePlanningResult(id) {
@@ -354,5 +370,5 @@ export function createScreenLoading(c) {
     return value;
   }
 
-  Object.assign(c, { foregroundProjection, foregroundCompatible, foregroundTaskPath, scheduleTasks, earlyTaskScopeCurrent, discardEarlyTasks, hasProvisionalTasks, beginGameplayAttempt, finishGameplayAttempt, clearClaimedEarlyTasks, savedTaskPath, primeSavedTasks, fetchSavedTasks, foregroundSettled, ensureForegroundSettled, advisoryApi, workerStatus, alignTaskResult, reconcileForegroundMode, loadTasks, runTaskLoad, ensureResult, ensurePlanningResult, ensureFullDefinitions, ensureFullResult, ensureChunkSearch, acceptTaskResult, completedResult });
+  Object.assign(c, { foregroundProjection, foregroundCompatible, foregroundTaskPath, scheduleTasks, earlyTaskScopeCurrent, discardEarlyTasks, hasProvisionalTasks, beginGameplayAttempt, finishGameplayAttempt, clearClaimedEarlyTasks, savedTaskPath, primeSavedTasks, fetchSavedTasks, foregroundSettled, ensureForegroundSettled, advisoryApi, workerStatus, alignTaskResult, reconcileForegroundMode, loadTasks, runTaskLoad, showTaskLoadError, ensureResult, ensurePlanningResult, ensureFullDefinitions, ensureFullResult, ensureChunkSearch, acceptTaskResult, completedResult });
 }

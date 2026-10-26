@@ -322,7 +322,7 @@ export function createScreenChunks(c) {
       outcome.replaceChildren(c.el('p', added.length ? `${added.length} new possible task${added.length === 1 ? '' : 's'}` : 'No new possible tasks', 'unlock-count'));
       for (const [category, tasks] of groups) outcome.append(c.el('h4', `${category} (${tasks.length})`, 'content-heading'), c.list(tasks.map(task => c.plain(task.label))));
       if (value.delta.itemsAdded?.length || value.delta.areasAdded?.length) { const additions = c.el('div'); if (value.delta.itemsAdded?.length) additions.append(c.el('h4', 'Items'), c.list(value.delta.itemsAdded.map(item => c.plain(typeof item === 'string' ? item : item.name ?? item.label)))); if (value.delta.areasAdded?.length) additions.append(c.el('h4', 'Areas'), c.list(value.delta.areasAdded.map(area => c.plain(c.world.areas.get(typeof area === 'string' ? area : area.id)?.name ?? (typeof area === 'string' ? area : area.name ?? area.label))))); if (c.advanced()) additions.append(c.jsonPreview({ items: value.delta.itemsAdded, areas: value.delta.areasAdded })); outcome.append(c.details('New items and areas', additions)); }
-    }).catch(error => { if (outcome.isConnected) outcome.replaceChildren(c.el('p', error.message || String(error), 'error')); });
+    }).catch(error => { if (outcome.isConnected) outcome.replaceChildren(c.el('p', error.message || String(error), 'error'), c.button('Retry preview', () => box.replaceWith(c.unlockPreview(id)))); });
     return box;
   }
 

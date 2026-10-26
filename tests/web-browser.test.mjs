@@ -1181,7 +1181,7 @@ test('failed partner loading does not preserve an error after switching to a rea
   h.route(async () => { throw new Error('Partner temporarily unavailable'); });
   h.run("document.getElementById('group-view').checked = true; renderTasks()");
   await h.run('duoLoading?.promise').catch(() => {}); await flush();
-  assert.equal(h.run('duoLoadError'), 'Partner temporarily unavailable');
+  assert.equal(h.run('duoLoadError'), 'Could not reach the picker. Check your internet connection, then try again.');
   assert.ok(h.find('button', 'Retry duo tasks'));
   h.run("memberId = 'reed'; result = reedResult; renderTasks()"); await flush();
   assert.equal(h.run('duoLoadError'), undefined);
@@ -2126,7 +2126,7 @@ test('sandbox stale responses preserve the draft and a remote save restores and 
   const h = sandboxHarness(); await h.run('sandbox.enter()');
   const real = h.snapshot(); real.revision++;
   h.route(async () => ({ ok: false, status: 409, value: { message: 'Saved revision changed', state: real, pools: {} } }));
-  await assert.rejects(h.run("toggleChunk('12341')"), /Saved revision changed/);
+  await assert.rejects(h.run("toggleChunk('12341')"), /The saved map changed/);
   assert.equal(h.run('sandbox.stale'), true); assert.equal(h.run('state.revision'), 7);
   assert.ok(h.snapshot().members[0].unlocked.includes('12341'));
   h.adopt(real);
@@ -3728,4 +3728,117 @@ test('group claim controls retain the session actor across task ownership and ma
   const payload = h.calls.find(call => call.path === '/api/command').body.command;
   assert.deepEqual(payload, { type: 'claim-task', memberId: 'reed', taskId: f.own.id });
   assert.equal(h.run('memberId'), 'actor1');
+});
+
+// Shared failure injection: no network, real screen API and shipped panel bodies.
+const requestFailureKinds = [429, 503, 409, 413, 'offline', 'ECONNRESET'];
+function failRequest(kind) {
+  if (typeof kind === 'string') throw new TypeError(kind);
+  return { ok: false, status: kind, value: { message: 'Error: internal failure\n at server (/private/file:1)' } };
+}
+const failureWords = kind => typeof kind === 'string' ? /Check your internet/ : ({ 429: /Too many requests/, 503: /busy or restarting/, 409: /saved map changed/, 413: /too large/ })[kind];
+
+for (const kind of requestFailureKinds) {
+  for (const loader of ['loadTasks', 'ensureResult']) test(`request failure ${kind}: ${loader} clears loading, keeps Retry through health events, and recovers`, async () => {
+    const h = harness(); let failed = true;
+    h.route(() => failed ? failRequest(kind) : taskResult(7));
+    const first = h.run(`${loader}()`);
+    if (loader === 'ensureResult') await assert.rejects(first, failureWords(kind)); else await first;
+    assert.ok(h.find('button', 'Retry')); assert.equal(h.run('taskInFlight'), false);
+    assert.match(h.nodes.get('task-engine-status').children[0].textContent, failureWords(kind));
+    h.run("workerStatus({ready:false,status:'recovering'})");
+    assert.ok(h.find('button', 'Retry'), 'worker messages must not erase recovery controls');
+    const reloads = () => [...h.timers.entries()].filter(([, timer]) => timer.delay === 0);
+    h.run('workerStatus({ready:true})');
+    assert.equal(reloads().length, 1, 'a calculator recovery retries the failed load once');
+    for (const [id, timer] of reloads()) { h.timers.delete(id); await timer.action(); }
+    await flush(); assert.ok(h.find('button', 'Retry'), 'a failed automatic retry keeps recovery controls');
+    const count = h.calls.length; h.run('workerStatus({ready:true}); workerStatus({ready:true})'); await flush();
+    assert.equal(reloads().length, 0); assert.equal(h.calls.length, count, 'no failure-driven hot loop');
+    failed = false; await h.click('Retry');
+    assert.equal(h.run('result.stateRevision'), 7); assert.equal(h.run('taskInFlight'), false);
+    assert.equal(h.run('taskLoadError'), undefined);
+  });
+
+  test(`request failure ${kind}: Unlock preview replaces working text with error and a working retry`, async () => {
+    const h = harness(); let failed = true;
+    h.route(() => failed ? failRequest(kind) : { memberId: 'actor1', stateRevision: 7, delta: { tasksAdded: [] } });
+    h.run("ensureForegroundSettled = async () => {}; chunkTab = 'unlock'; showChunk('12341')"); await flush();
+    assert.ok(h.find('button', 'Retry preview'));
+    assert.ok(h.all().some(node => node.className === 'error' && failureWords(kind).test(node.textContent)));
+    failed = false; await h.click('Retry preview'); await flush();
+    assert.ok(h.find('p', 'No new possible tasks')); assert.ok(!h.find('button', 'Retry preview'));
+  });
+
+  test(`request failure ${kind}: Chunk Info Possible Tasks retries in place`, async () => {
+    const h = harness({ realPlanning: true }); let failed = true;
+    h.route(path => path.startsWith('/api/chunk-planning?') ? failed ? failRequest(kind) : planningResult() : taskResult(7));
+    h.context.readyTasks = taskResult(7);
+    h.run("result = readyTasks; ensureForegroundSettled = async () => {}; chunkTab = 'tasks'; showChunk('12341')");
+    const section = h.all().find(node => node.tagName === 'DETAILS' && node.children[0]?.textContent === 'Possible Tasks');
+    assert.ok(section); section.open = true; await section.emit('toggle'); await flush();
+    assert.ok(h.find('button', 'Retry chunk tasks'));
+    failed = false; await h.click('Retry chunk tasks'); await flush();
+    assert.ok(!h.find('button', 'Retry chunk tasks')); assert.ok(h.find('button', 'All 1'));
+  });
+
+  test(`request failure ${kind}: Teleports clears busy and retries availability`, async () => {
+    const h = harness(); let failed = true;
+    h.route(() => failed ? failRequest(kind) : { memberId: 'actor1', stateRevision: 7, rows: [] });
+    await h.run('teleportsDialog()');
+    assert.ok(h.find('button', 'Retry availability'));
+    assert.ok(h.all().some(node => node.className === 'teleports-error' && failureWords(kind).test(node.textContent)));
+    assert.ok(h.all().filter(node => node.attributes['aria-busy']).every(node => node.attributes['aria-busy'] === 'false'));
+    failed = false; await h.click('Retry availability');
+    assert.ok(h.find('p', 'No automatic routes were found for this player.'));
+  });
+}
+
+test('HTTP Retry-After survives repeated panel retry clicks without another fetch', async () => {
+  const h = harness(); let clock = 10000, failed = true;
+  h.context.Date = class extends Date { static now() { return clock; } };
+  h.route(() => failed ? { ...failRequest(429), headers: { get: () => '5' } } : taskResult(7));
+  await h.run('loadTasks()'); const before = h.calls.length;
+  await h.click('Retry'); await h.click('Retry'); assert.equal(h.calls.length, before);
+  assert.match(h.nodes.get('task-engine-status').children[0].textContent, /5 seconds/);
+  clock = 15000; failed = false; await h.click('Retry'); assert.equal(h.run('result.stateRevision'), 7);
+});
+
+test('an open event stream retries failed state reconciliation with growing waits and recovers without replaying a save', async () => {
+  const h = harness(); let failed = true;
+  h.run("ensureForegroundSettled = async () => {}; chunkTab = 'note'; showChunk('12341'); connectEvents()"); await h.run('queue');
+  const draft = h.find('textarea'); draft.value = 'Keep my unsaved note'; draft.focus();
+  const latest = h.snapshot(); latest.revision = 8;
+  h.route(() => failed ? failRequest(503) : { state: latest, pools: {} });
+  await h.eventSources[0].emit('revision', { data: JSON.stringify({ revision: 8 }) });
+  for (const delay of [1000, 2000]) {
+    const timer = [...h.timers.entries()].find(([, timer]) => timer.delay === delay); assert.ok(timer);
+    h.timers.delete(timer[0]); timer[1].action(); await flush();
+  }
+  const timer = [...h.timers.entries()].find(([, timer]) => timer.delay === 4000); assert.ok(timer);
+  failed = false; h.timers.delete(timer[0]); timer[1].action(); await flush();
+  assert.equal(h.run('state.revision'), 8); assert.equal(draft.value, 'Keep my unsaved note');
+  assert.ok(h.calls.every(call => call.path === '/api/state')); assert.equal(h.nodes.get('save-status').textContent, 'Saved');
+});
+
+test('repeated CLOSED stream errors schedule only one reconnect and restore sync', async () => {
+  const h = harness(); h.run('connectEvents()'); await h.run('queue');
+  h.context.Math = Object.assign(Object.create(Math), { random: () => 0 });
+  const events = h.eventSources[0]; events.readyState = 2;
+  await events.emit('error'); await events.emit('error');
+  const reconnects = [...h.timers.values()].filter(timer => timer.delay === 1000); assert.equal(reconnects.length, 1);
+  reconnects[0].action(); assert.equal(h.eventSources.length, 2);
+  await h.eventSources[1].emit('open');
+  await h.eventSources[1].emit('revision', { data: JSON.stringify({ revision: 7 }) });
+  assert.equal(h.nodes.get('save-status').textContent, 'Saved');
+});
+
+test('a failing on-demand load clears the busy flag after taking over an aborted player request', async () => {
+  const h = harness(), old = deferred(); let count = 0;
+  h.route(() => ++count === 1 ? old.promise : failRequest(503));
+  const loading = h.run('loadTasks()');
+  h.run("memberId = 'reed'");
+  await assert.rejects(h.run('ensureResult()'), /busy or restarting/);
+  old.resolve(taskResult(7)); await loading;
+  assert.equal(h.run('taskInFlight'), false); assert.ok(h.find('button', 'Retry'));
 });

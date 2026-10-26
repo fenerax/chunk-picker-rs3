@@ -1,3 +1,4 @@
+import { createRequestReader, requestError, retryAfterMs } from '../app/web/live-swap-client.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
@@ -490,7 +491,8 @@ test('closing a page during an in-flight response retains the outcome without ac
 test('missing Web Locks support fails closed before registration, dispatch or acknowledgement', async () => {
   const source = await readFile(new URL('../app/web/live-swap-client.mjs', import.meta.url), 'utf8');
   const scope = { navigator: {} };
-  runInNewContext(source.replace(/^export /gm, '') + '\nglobalThis.create = createLiveSwapCommandClient;', scope);
+  Object.assign(scope, { retryAfterMs, requestError });
+  runInNewContext(source.replace(/^import .*;\r?\n/gm, '').replace(/^export /gm, '') + '\nglobalThis.create = createLiveSwapCommandClient;', scope);
   let requests = 0;
   const transport = scope.create({ storage: storage(), uuid: () => ids[0], fetch: async () => { requests++; } });
   await assert.rejects(transport.send(command()), error => error.pendingCommand === true
@@ -504,7 +506,8 @@ test('missing crypto.randomUUID gives secure-connection guidance before registra
   const source = await readFile(new URL('../app/web/live-swap-client.mjs', import.meta.url), 'utf8');
   let requests = 0, ownership = 0;
   const scope = { crypto: {}, navigator: { locks: { request() { ownership++; } } } };
-  runInNewContext(source.replace(/^export /gm, '') + '\nglobalThis.create = createLiveSwapCommandClient;', scope);
+  Object.assign(scope, { retryAfterMs, requestError });
+  runInNewContext(source.replace(/^import .*;\r?\n/gm, '').replace(/^export /gm, '') + '\nglobalThis.create = createLiveSwapCommandClient;', scope);
   const outbox = storage();
   const transport = scope.create({ storage: outbox, fetch: async () => { requests++; } });
   await assert.rejects(transport.send(command()), error => error.pendingCommand === true
@@ -521,7 +524,8 @@ test('plain HTTP refuses new and restored sessions clearly even if secure APIs a
   let uuids = 0, owners = 0, requests = 0;
   const scope = { clearTimeout, isSecureContext: false, crypto: { randomUUID: () => { uuids++; return ids[0]; } },
     navigator: { locks: { request() { owners++; } } } };
-  runInNewContext(source.replace(/^export /gm, '') + '\nglobalThis.create = createLiveSwapCommandClient;', scope);
+  Object.assign(scope, { retryAfterMs, requestError });
+  runInNewContext(source.replace(/^import .*;\r?\n/gm, '').replace(/^export /gm, '') + '\nglobalThis.create = createLiveSwapCommandClient;', scope);
   for (const outbox of [storage(), registeredStorage()]) {
     const before = outbox.getItem(commandOutboxKey);
     const transport = scope.create({ storage: outbox, fetch: async () => { requests++; } });
@@ -552,7 +556,8 @@ test('the default Web Locks adapter holds exclusive ownership until document clo
 test('pagehide releases ownership and pageshow requires reacquisition before another save', async () => {
   const source = await readFile(new URL('../app/web/live-swap-client.mjs', import.meta.url), 'utf8'), lifecycle = new Map();
   const scope = { TextEncoder, AbortController, setTimeout, clearTimeout, addEventListener: (type, fn) => lifecycle.set(type, fn) };
-  runInNewContext(source.replace(/^export /gm, '') + '\nglobalThis.create = createLiveSwapCommandClient;', scope);
+  Object.assign(scope, { retryAfterMs, requestError });
+  runInNewContext(source.replace(/^import .*;\r?\n/gm, '').replace(/^export /gm, '') + '\nglobalThis.create = createLiveSwapCommandClient;', scope);
   const outbox = registeredStorage(), acquireSession = sessionLocks(), paths = [], keepalives = [];
   const fetch = async (path, init) => {
     paths.push(path);
@@ -581,7 +586,7 @@ async function screen(fetch, { outbox = storage(), clientOptions = {}, context =
   const source = await readFile(new URL('../app/web/screen-commands.mjs', import.meta.url), 'utf8');
   const recovery = await readFile(new URL('../app/web/screen-save-recovery.mjs', import.meta.url), 'utf8');
   const scope = { document: { activeElement: null }, fetch, confirm: context.confirm ?? (() => true), createLiveSwapCommandClient: options => clientFactory({ ...options, storage: outbox, fetch, ...clientOptions }),
-    createCalculationFeedback: () => ({ begin: () => () => {} }), calculationLabel: () => '',
+    createRequestReader, requestError, createCalculationFeedback: () => ({ begin: () => () => {} }), calculationLabel: () => '',
     groupGoalCommandTypes: [], reviewedNoteRevision: (state, _payload, revision) => revision ?? state.revision };
   runInNewContext(recovery.replace('export function createSaveRecovery', 'function createSaveRecovery') + '\n' + source.replace(/^import .*;\r?\n/gm, '').replace('export function createScreenCommands', 'function createScreenCommands')
     + '\nglobalThis.install = createScreenCommands;', scope);
@@ -625,7 +630,7 @@ test('noncommand mutation and ephemeral original-sync failures are sent once wit
     ['/api/command', { expectedRevision: 7, command: { type: 'sync-original', previewId: 'review' } }]]) {
     let requests = 0;
     const c = await screen(async () => { requests++; throw new Error('ambiguous noncommand response'); });
-    await assert.rejects(c.api(path, body), /ambiguous noncommand response/);
+    await assert.rejects(c.api(path, body), /Check History before repeating the change/);
     assert.equal(requests, 1);
     assert.equal(c.hasPendingCommand(), false);
   }
@@ -916,7 +921,8 @@ test('Discard pending save asks to check History, honors cancel, clears storage 
 test('insecure page load explains the address once and chunk failure never claims an unstored request', async () => {
   const source = await readFile(new URL('../app/web/live-swap-client.mjs', import.meta.url), 'utf8');
   const scope = { isSecureContext: false };
-  runInNewContext(source.replace(/^export /gm, '') + '\nglobalThis.create = createLiveSwapCommandClient;', scope);
+  Object.assign(scope, { retryAfterMs, requestError });
+  runInNewContext(source.replace(/^import .*;\r?\n/gm, '').replace(/^export /gm, '') + '\nglobalThis.create = createLiveSwapCommandClient;', scope);
   const outbox = storage(), notices = [], statuses = [];
   let requests = 0;
   const c = await screen(async () => { requests++; }, { outbox, clientFactory: scope.create,
@@ -954,4 +960,43 @@ test('a live stream the browser closed after an update reopens with growing wait
   assert.equal(statuses.at(-1), 'Syncing…');
   streams[2].readyState = 2; streams[2].listeners.get('error')();
   assert.equal(timers.at(-1).delay, 1000);
+});
+
+
+for (const status of [429, 503]) test(`HTTP ${status} honors Retry-After while recovering a lost save acknowledgement exactly once`, async () => {
+  const outbox = registeredStorage(), bytes = [], receipts = new Set(), sleeps = [];
+  let clock = 10000, applied = 0, retryAt;
+  const transport = protocolClient(outbox, async (_path, init) => {
+    bytes.push(init.body); const request = JSON.parse(init.body);
+    if (bytes.length === 1) { receipts.add(request.requestId); applied++; throw new TypeError('ECONNRESET after commit'); }
+    if (bytes.length === 2) { retryAt = Date.parse(new Date(clock + 5000).toUTCString()); return { ...answer(status, {}), headers: { get: () => new Date(retryAt).toUTCString() } }; }
+    assert.ok(clock >= retryAt, 'no dispatch before the HTTP date');
+    assert.ok(receipts.has(request.requestId)); return committed(init);
+  }, { now: () => clock, sleep: async delay => { sleeps.push(delay); clock += delay; } });
+  await transport.send(command());
+  assert.equal(applied, 1); assert.equal(new Set(bytes).size, 1); assert.equal(bytes.length, 3);
+  assert.ok(sleeps.length >= 2); assert.equal(transport.pending(), null);
+  transport.close();
+});
+
+test('a Retry-After beyond the save retry budget pauses, survives recreation, and prevents an early manual dispatch', async () => {
+  const outbox = registeredStorage(); let clock = 0, calls = 0;
+  const options = { now: () => clock, maxRetryMs: 1000, sleep: async delay => { clock += delay; } };
+  const first = protocolClient(outbox, async () => { calls++; return { ...answer(429, {}), headers: { get: () => '10' } }; }, options);
+  await assert.rejects(first.send(command()), { retryPaused: true });
+  const frozen = first.pending(); first.close();
+  const restored = protocolClient(outbox, async (_path, init) => { calls++; return committed(init); }, options);
+  await assert.rejects(restored.send(frozen, { retry: true }), { retryPaused: true }); assert.equal(calls, 1);
+  clock = 10000; await restored.send(restored.pending(), { retry: true });
+  assert.equal(calls, 2); assert.equal(restored.pending(), null); restored.close();
+});
+
+test('a non-JSON rate limit still honors Retry-After and retains the save bytes', async () => {
+  const outbox = registeredStorage(); let clock = 0, calls = 0;
+  const transport = protocolClient(outbox, async (_path, init) => {
+    calls++;
+    return calls === 1 ? new Response('<html>Too many requests</html>', { status: 429, headers: { 'Retry-After': '10' } }) : committed(init);
+  }, { now: () => clock, maxRetryMs: 1000, sleep: async delay => { clock += delay; } });
+  await assert.rejects(transport.send(command()), error => error.retryPaused && error.retryAfterMs > 0 && /Retry save in/.test(error.message));
+  assert.equal(calls, 1); assert.ok(transport.pending()); transport.close();
 });

@@ -1,3 +1,4 @@
+import { createRequestReader, requestError } from '../app/web/live-swap-client.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { renderTraining, trainingTargets, trainingActionsPerHour, nextBetterTrainingMethod } from '../app/web/helper-training.mjs';
@@ -361,4 +362,23 @@ test('Advanced reveals source revision numbers while Wiki evidence remains linke
     assert.match(h.text(), /Gather or obtain 10 Logs/);
     assert.deepEqual(h.member, h.initial); h.dispose();
   }
+});
+
+for (const kind of [429, 503, 409, 413, 'offline', 'ECONNRESET']) test(`request failure ${kind}: training plan clears busy, retains inputs, and can plan again`, async () => {
+  let failed = true;
+  const read = createRequestReader({ fetch: async () => {
+    if (failed && typeof kind === 'string') throw new TypeError(kind);
+    return new Response(JSON.stringify(failed ? { message: 'Error: secret stack\n at internal (/private/file:1)' } : plan), { status: failed ? kind : 200 });
+  } });
+  const h = harness({ target: { skill: 'Firemaking', level: 20 }, apiOverride: async path => {
+    if (path === '/api/training-catalogue') return structuredClone(catalogue);
+    const { response, value } = await read(path); if (!response.ok) throw requestError(response, value); return value;
+  } });
+  await tick(); await h.submit();
+  assert.doesNotMatch(h.text(), /Error:|secret stack|internal|ECONN/);
+  assert.match(h.text(), /Too many requests|busy or restarting|saved map changed|too large|Check your internet/);
+  assert.ok(h.nodes().filter(node => node.attributes['aria-busy']).every(node => node.attributes['aria-busy'] === 'false'));
+  assert.equal(h.field('Skill').value, 'Firemaking');
+  failed = false; await h.submit(); assert.match(h.text(), /Plan ready/);
+  assert.deepEqual(h.member, h.initial); h.dispose();
 });

@@ -128,7 +128,10 @@ export function createLiveSwapCommandClient({ storage = sessionStorage(), fetch 
       // Bound even a transport or response reader that ignores AbortSignal.
       return await Promise.race([timedOut, (async () => {
         const response = await fetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: bytes, signal: controller.signal, cache: 'no-store' });
-        return { response, value: await response.json() };
+        let value;
+        try { value = await response.json(); }
+        catch (error) { if (response.ok) throw error; value = {}; }
+        return { response, value };
       })()]);
     } finally { clearTimeout(deadline); signal?.removeEventListener('abort', stop); }
   }
@@ -138,11 +141,15 @@ export function createLiveSwapCommandClient({ storage = sessionStorage(), fetch 
     'ACTION_SESSION_FULL', 'REQUEST_ACKNOWLEDGED', 'REQUEST_ID_MISMATCH', 'REQUEST_SEQUENCE',
     'RECEIPT_CAPACITY', 'ACTION_SESSION_CAPACITY']);
   const fatal = (status, code) => status === 401 || recoveryCodes.has(code);
-  function pausedError() { return Object.assign(pendingError('Save could not be confirmed. Your pending save is kept. Use Retry save to try again.'), { retryPaused: true }); }
+  function pausedError(record) {
+    const delay = Math.max(0, (record?.retryAt ?? 0) - now());
+    const advice = delay > 0 ? `Use Retry save in ${Math.ceil(delay / 1000)} seconds.` : 'Use Retry save to try again.';
+    return Object.assign(pendingError(`Save could not be confirmed. Your pending save is kept. ${advice}`), { retryPaused: true, retryAfterMs: delay });
+  }
   function pause(record, budget) {
     persist({ ...record, paused: true });
     onRetry({ status: 'paused', attempt: budget.attempts, maxAttempts });
-    throw pausedError();
+    throw pausedError(record);
   }
   async function retryRequest(path, bytes, signal, record, budget, registration = false) {
     for (let attempt = 0; ; attempt++) {
@@ -152,17 +159,26 @@ export function createLiveSwapCommandClient({ storage = sessionStorage(), fetch 
       let result;
       const remaining = budget.deadline - now();
       if (remaining <= 0) pause(record, budget);
+      if (record.retryAt > now()) {
+        const delay = record.retryAt - now();
+        if (delay >= remaining) pause(record, budget);
+        await sleep(delay);
+        if (signal?.aborted) throw pendingError('Save confirmation was paused. Its pending request is retained.');
+        if (now() >= budget.deadline) pause(record, budget);
+      }
       budget.attempts++;
-      try { result = await request(path, bytes, signal, Math.min(timeoutMs, remaining)); } catch {}
+      try { result = await request(path, bytes, signal, Math.min(timeoutMs, budget.deadline - now())); } catch {}
       if (signal?.aborted) throw pendingError('Save confirmation was paused. Its pending request is retained.');
       if (result) {
         const { response, value } = result;
-        if (fatal(response.status, value?.code)) throw Object.assign(pendingError(value?.message || 'Save confirmation needs recovery. Keep this tab open, restore access and check History before saving again.'), {
+        if (fatal(response.status, value?.code)) throw Object.assign(pendingError('Save confirmation needs recovery. Keep this tab open, restore access and check History before saving again.'), {
           status: response.status, code: value?.code, safeToRetry: value?.safeToRetry === true, firstAttempt: attempt === 0 });
         const validAnswer = registration ? validSession(value)
           : integer(value?.state?.revision) && validReceipt(value?.receipt, JSON.parse(bytes).requestId)
             && value.receipt.revision <= value.state.revision;
-        if (response.status < 500 && (!response.ok || validAnswer)) return result;
+        if (response.status < 500 && response.status !== 429 && (!response.ok || validAnswer)) return result;
+        const delay = retryAfterMs(response, now());
+        if (delay > 0) { record = { ...record, retryAt: now() + delay }; persist(record); }
       }
       if (budget.attempts >= maxAttempts || now() >= budget.deadline) pause(record, budget);
       onRetry({ status: 'retrying', attempt: budget.attempts, maxAttempts });
@@ -173,7 +189,7 @@ export function createLiveSwapCommandClient({ storage = sessionStorage(), fetch 
     const ownership = ensureOwnership(record); if (ownership) await ownership;
     if (!record.session) {
       const { response, value } = await retryRequest('/api/action-session', JSON.stringify({ clientId: record.clientId }), signal, record, budget, true);
-      if (!response.ok) throw Object.assign(pendingError(value?.message || 'A save session could not be registered.'), { status: response.status, code: value?.code });
+      if (!response.ok) throw Object.assign(pendingError(requestError(response, value).message), { status: response.status, code: value?.code });
       if (value.sequence !== 0 || value.acknowledged !== 0) throw pendingError('This save session has unexpected history. Check History before saving again.');
       record = { ...record, session: { slot: value.slot, generation: value.generation, sequence: 0, ...(value.scope ? { scope: value.scope } : {}) } };
       persist(record);
@@ -226,7 +242,7 @@ export function createLiveSwapCommandClient({ storage = sessionStorage(), fetch 
     send: (body, { signal, retry = false } = {}) => serialize(async () => {
       let record = read();
       const fresh = !record?.body;
-      if (record?.paused && !retry) { onRetry({ status: 'paused' }); throw pausedError(); }
+      if (record?.paused && !retry) { onRetry({ status: 'paused' }); throw pausedError(record); }
       const pending = record?.body ?? record?.unsent;
       if (pending && JSON.stringify(body) !== pending) throw pendingError('Confirm the pending save before sending another change.');
       const budget = { attempts: 0, deadline: now() + maxRetryMs };
@@ -273,11 +289,71 @@ export function createLiveSwapCommandClient({ storage = sessionStorage(), fetch 
       record = result.response.ok
         ? { ...record, session: { ...record.session, sequence: record.confirmed + 1 }, confirmed: record.confirmed + 1, lastReceipt: result.value.receipt, body: null }
         : { ...record, body: null };
+      delete record.retryAt;
       persist(record);
       onRetry({ status: 'confirmed' });
       if (!documentActive) throw pendingError('Save confirmation paused because this page was closed or suspended. Reopen it to recover the saved outcome.');
       scheduleAcknowledgement();
       return result;
     }),
+  };
+}
+
+// Read-only calculations are retried by the player. Never replay a save here.
+export function retryAfterMs(response, now = Date.now()) {
+  const raw = response.headers?.get?.('Retry-After')?.trim();
+  if (!raw) return 0;
+  if (/^\d+$/.test(raw)) {
+    const delay = Number(raw) * 1000;
+    return Number.isSafeInteger(delay) ? delay : 0;
+  }
+  const date = Date.parse(raw);
+  return Number.isFinite(date) ? Math.max(0, date - now) : 0;
+}
+
+export function requestError(response, value, delay = retryAfterMs(response)) {
+  const status = response.status;
+  const wait = delay > 0 ? ` Try again in ${Math.ceil(delay / 1000)} seconds.` : ' Try again in a moment.';
+  let message = status === 429 ? `Too many requests.${wait}`
+    : status === 503 ? `The picker is busy or restarting.${wait}`
+    : status === 409 ? value?.code === 'TASK_RESULTS_UNAVAILABLE'
+      ? 'Saved tasks are not ready yet. Wait for a player to calculate them, then try again.'
+      : 'The saved map changed. Review the latest view and try again.'
+    : status === 413 ? 'This request is too large. Use a smaller file or make a smaller change, then try again.'
+    : status >= 500 ? 'The picker could not complete this request. Try again in a moment.' : null;
+  // Keep ordinary validation guidance, but never display an exception or HTML.
+  const detail = value?.message;
+  message ??= typeof detail === 'string' && detail.length <= 400 && !/[\r\n<>]|(?:Error:|\bat \w+.*\()|ECONN|\bstack\b/i.test(detail)
+    ? detail : 'The request could not be completed. Refresh the view and try again.';
+  return Object.assign(new Error(message), { status, code: value?.code, retryAfterMs: delay });
+}
+
+export function createRequestReader({ fetch = (...args) => globalThis.fetch(...args), now = () => Date.now() } = {}) {
+  const cooldowns = new Map();
+  return async (path, options) => {
+    const key = path.split('?')[0], pending = cooldowns.get(key);
+    if (options?.signal?.aborted) throw Object.assign(new Error('Request abandoned.'), { name: 'AbortError' });
+    if (pending && pending.until > now()) throw requestError(pending.response, {}, pending.until - now());
+    cooldowns.delete(key);
+    let response;
+    try { response = await fetch(path, options); }
+    catch (error) {
+      if (error.name === 'AbortError') throw error;
+      throw new Error('Could not reach the picker. Check your internet connection, then try again.');
+    }
+    const delay = retryAfterMs(response, now());
+    if ([429, 503].includes(response.status) && delay > 0) cooldowns.set(key, { response: { status: response.status }, until: now() + delay });
+    let value;
+    try { value = await response.json(); }
+    catch (error) {
+      if (error.name === 'AbortError') throw error;
+      if (response.ok) throw new Error('The response was interrupted or unreadable. Try again.');
+      value = {};
+    }
+    if (!value || typeof value !== 'object') {
+      if (response.ok) throw new Error('The response was unreadable. Try again.');
+      value = {};
+    }
+    return { response, value };
   };
 }

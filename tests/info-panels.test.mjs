@@ -1,3 +1,4 @@
+import { createRequestReader, requestError } from '../app/web/live-swap-client.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createInfoPanels } from '../app/web/info-panels.mjs';
@@ -505,4 +506,21 @@ test('known chunk names replace IDs in sources and default views keep unknown ga
   assert.equal(meter, undefined, 'Slayer view does not draw the skill meter');
   await h.panels.activityInfo();
   const progress = h.nodes().find(node => node.tag === 'progress'); assert.equal(progress.max, 90); assert.equal(progress.value, 90); assert.equal(progress.style, undefined);
+});
+
+for (const kind of [429, 503, 409, 413, 'offline', 'ECONNRESET']) test(`request failure ${kind}: Activity Info training plan keeps its form and recovers`, async () => {
+  const h = harness(); let failed = true;
+  const read = createRequestReader({ fetch: async () => {
+    if (failed && typeof kind === 'string') throw new TypeError(kind);
+    return new Response(JSON.stringify(failed ? { message: 'Error: internal stack\n at server (/private/file:1)' } : { status: 'estimated', fromLevel: 10, toLevel: 20, xpNeeded: 1000, plans: {} }), { status: failed ? kind : 200 });
+  } });
+  h.ctx.api = async path => { const { response, value } = await read(path); if (!response.ok) throw requestError(response, value); return value; };
+  await h.openTraining();
+  h.inputFor('From level').value = '10'; h.inputFor('To level').value = '20';
+  const run = h.find('button', 'Plan training'); await run.events.click();
+  const output = h.nodes().find(node => node.className === 'plan-output');
+  assert.match(output.children[0].textContent, /Too many requests|busy or restarting|saved map changed|too large|Check your internet/);
+  assert.doesNotMatch(output.children[0].textContent, /Error:|stack|ECONN|private/);
+  assert.equal(h.inputFor('From level').value, '10'); failed = false; await run.events.click();
+  assert.ok(h.find('p', '1,000 XP from level 10 to 20')); assert.equal(h.ui.attempts.length, 0);
 });

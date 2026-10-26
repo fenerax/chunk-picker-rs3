@@ -1,12 +1,13 @@
+import { createLiveSwapCommandClient, createRequestReader, requestError } from './live-swap-client.mjs';
 import { mergeCommandState, projectChunkState, projectTaskState } from './command-state.mjs';
 import { reviewedNoteRevision } from './info-panels.mjs';
 import { groupGoalCommandTypes } from '../core/group-goal-types.mjs';
 import { createCalculationFeedback, calculationLabel } from './calculation-feedback.mjs';
-import { createLiveSwapCommandClient } from './live-swap-client.mjs';
 import { createSaveRecovery } from './screen-save-recovery.mjs';
 
 // Main-screen commands; shared values and callbacks live in the explicit screen context.
 export function createScreenCommands(c) {
+  const readRequest = createRequestReader({ fetch: (...args) => fetch(...args) });
   let durableCommands, connectionNoticeShown = false;
   const showSaveRetry = createSaveRecovery(c, {
     retry: () => {
@@ -64,9 +65,16 @@ export function createScreenCommands(c) {
     const requestPath = stateRoute ? `${path}?view=play-v1` : path;
     const durable = path === '/api/command' && body?.command?.type !== 'sync-original';
     const sent = durable ? await commandClient().send(body, { signal, ...commandOptions }) : undefined;
-    const response = sent?.response ?? await fetch(requestPath, body === undefined ? { signal } : typeof body.toBackupRequest === 'function'
-      ? { ...await body.toBackupRequest(), signal } : { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), signal });
-    const value = sent?.value ?? await response.json();
+    const { response, value } = sent ?? await readRequest(requestPath, body === undefined ? { signal } : typeof body.toBackupRequest === 'function'
+      ? { ...await body.toBackupRequest(), signal } : { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), signal }).catch(error => {
+        // Reviewed imports and original-sync use one-shot preview tokens rather
+        // than action receipts. Never encourage blind replay after a lost reply.
+        if (body !== undefined && error.name !== 'AbortError' && !error.status
+          && (/^\/api\/(?:runemetrics\/apply|restore|import|member-restore)$/.test(path) || path === '/api/command')) {
+          error.message = 'The save could not be confirmed. It may already have arrived. Check History before repeating the change.';
+        }
+        throw error;
+      });
     const provisionalTaskState = /^\/api\/tasks(?:\?|$)/.test(path) && typeof c.hasProvisionalTasks === 'function' && c.hasProvisionalTasks();
     if (!provisionalTaskState && path !== '/api/prediction-intent' && value.state && (response.status === 409 || /^\/api\/(?:state|command|runemetrics\/apply|restore|import|member-restore)$/.test(path))) c.stateIsPlayView = value.format === 'play-v1';
     if (!response.ok) {
@@ -84,7 +92,7 @@ export function createScreenCommands(c) {
           status: 409, claimOnlyChanges: value.claimOnlyChanges === true, stateRevision: value.state.revision,
         });
       }
-      throw Object.assign(new Error(value.message || `Request failed (${response.status}).`), { status: response.status, code: value.code });
+      throw requestError(response, value);
     }
     if (!c.canWrite() && /^\/api\/tasks(?:\?|$)/.test(path)) {
       // Saved task bytes stay reusable across display-only saves. The server
@@ -287,5 +295,5 @@ export function createScreenCommands(c) {
     if (schedule && (!reuseResult || reuseResult.memberId !== c.memberId)) c.scheduleTasks();
   }
 
-  Object.assign(c, { api, command, taskDisplayState, removeChunkPreview, toggleChunk, applyRuneMetrics, adopt, recoverPendingCommand, hasPendingCommand, pendingCommandPaused });
+  Object.assign(c, { api, readRequest, command, taskDisplayState, removeChunkPreview, toggleChunk, applyRuneMetrics, adopt, recoverPendingCommand, hasPendingCommand, pendingCommandPaused });
 }

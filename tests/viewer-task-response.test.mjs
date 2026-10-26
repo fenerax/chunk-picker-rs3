@@ -1,3 +1,4 @@
+import { createRequestReader, requestError } from '../app/web/live-swap-client.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createContext, runInContext } from 'node:vm';
@@ -10,7 +11,7 @@ const apiSource = screenFunctionSource(await readScreenGraph(), 'api');
 const payload = () => ({memberId:'reed',stateRevision:7,tasks:[{id:'custom:one',label:'Saved goal'}],metrics:{availableCount:1}});
 function harness(response, canWrite = false) {
   const context=createContext({canWrite:()=>canWrite,sandbox:{active:false},state:{revision:8},fetch:async()=>response,
-    feedback:{begin:()=>()=>{}},calculationLabel:()=>'',memberId:'reed',duoEnabled:()=>false});
+    readRequest:createRequestReader({fetch:async()=>response}),requestError,feedback:{begin:()=>()=>{}},calculationLabel:()=>'',memberId:'reed',duoEnabled:()=>false});
   runInContext(apiSource,context); return context;
 }
 
@@ -44,5 +45,5 @@ test('editor sessions, other read routes and header-free fixture responses keep 
 
 test('error responses preserve their status and code without applying revision metadata', async () => {
   const response=new Response(JSON.stringify({message:'Tasks unavailable',code:'TASK_RESULTS_UNAVAILABLE'}),{status:409,headers:{'X-RS3-State-Revision':'8'}});
-  await assert.rejects(harness(response).api('/api/tasks?memberId=reed'),{message:'Tasks unavailable',status:409,code:'TASK_RESULTS_UNAVAILABLE'});
+  await assert.rejects(harness(response).api('/api/tasks?memberId=reed'),{message:'Saved tasks are not ready yet. Wait for a player to calculate them, then try again.',status:409,code:'TASK_RESULTS_UNAVAILABLE'});
 });

@@ -94,6 +94,7 @@ export function createScreenContext() {
     taskHover: undefined,
     taskIconPainter: undefined,
     taskInFlight: undefined,
+    taskLoadError: undefined,
     taskListDepthScope: undefined,
     taskListDepths: undefined,
     taskListRows: undefined,

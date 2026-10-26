@@ -1,3 +1,4 @@
+import { createRequestReader, requestError } from '../app/web/live-swap-client.mjs';
 import { readFile } from 'node:fs/promises';
 import { runInContext, Script } from 'node:vm';
 import * as customTasks from '../app/web/custom-tasks-model.mjs';
@@ -74,6 +75,8 @@ export function runScreenGraph(context, modules) {
   context.groupGoalCommandTypes ??= groupGoalCommandTypes;
   context.createCalculationFeedback ??= options => createCalculationFeedback({ ...options, setTimer: context.setTimeout, clearTimer: context.clearTimeout });
   context.calculationLabel ??= calculationLabel;
+  context.createRequestReader ??= options => createRequestReader({ ...options, now: () => context.Date?.now() ?? Date.now() });
+  context.requestError ??= requestError;
   context.createMapActivityLayers ??= createMapActivityLayers;
   context.createTaskFocus ??= createTaskFocus;
   const commandStorage = new Map();

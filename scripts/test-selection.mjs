@@ -69,6 +69,7 @@ export const quickTests = new Set([
   "reviewed-supplies.test.mjs",
   "eligibility-reuse.test.mjs",
   "calculation-feedback.test.mjs",
+  "request-failures.test.mjs",
   "map-control-discovery.test.mjs",
   "members-start-bank-names.test.mjs",
   "search-place-ranking.test.mjs",
