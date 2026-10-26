@@ -3,6 +3,17 @@
   "entries": [
     {
       "date": "2026-10-25",
+      "title": "The game plugin sees your tool belt, coin pouch and bank",
+      "items": [
+        "Tools on your tool belt and items in your bank now count as owned, so their Obtain goals tick on live worlds, like the Noose wand, Rune hatchet and Rune pickaxe",
+        "Open your bank once each time you log in so the plugin can read it. The bank only updates while it's open, so the plugin panel shows when it was last seen",
+        "Coins on hand now fill in from your coin pouch, backpack and bank on live worlds, and change only when the total does",
+        "Four more items are recognised: Adamant kiteshield, Rune gauntlets + 3, Rune armoured boots + 3 and Amulet of power, so owning an Adamant kiteshield now replaces the Steel kiteshield goal",
+        "A new Sync now button in the game sends your location, progress and items straight away"
+      ]
+    },
+    {
+      "date": "2026-10-25",
       "title": "Clearer messages when the picker is busy or out of reach",
       "items": [
         "When the picker is busy, restarting or can't be reached, panels now say so in plain words, such as “The picker is busy or restarting. Try again in 10 seconds.”, instead of showing server error text",
