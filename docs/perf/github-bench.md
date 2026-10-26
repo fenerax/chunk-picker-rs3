@@ -36,7 +36,7 @@ defaults to the approved scrubbed-v2 SHA256, checked before either import.
 `scripts/ci/perf-bench-config.mjs` owns the scenario catalogue, defaults and cost
 estimates. A future `score.mjs --against` adapter can consume `measurementPlan()`
 without changing workflow requests. Optional request settings are `groupViews`,
-`unlockMember`, `unlockPick`, `unlockPreview`, `unlockDwellMs`, `settlement`,
+`unlockMember`, `unlockPick`, `unlockPreview`, `unlockDwellMs`, `switchDwellMs`, `settlement`,
 `timeoutMs` and `screenshots`. Unknown fields fail validation. Screenshots default
 to false; CPU profiling stays off. Default settlement waits for tasks and terrain.
 The CI default Unlock choice is `unprepared`, outside the warm pool, so the

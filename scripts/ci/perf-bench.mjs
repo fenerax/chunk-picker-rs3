@@ -129,7 +129,7 @@ export async function runBenchmark(values, dependencies = {}) {
         '--settlement', request.options.settlement, '--timeout', String(request.options.timeoutMs),
         '--unlock-member', request.options.unlockMember, '--unlock-pick', request.options.unlockPick,
         '--unlock-preview', request.options.unlockPreview, '--unlock-dwell-ms', String(request.options.unlockDwellMs),
-        '--note-dwell-ms', String(request.options.noteDwellMs),
+        '--note-dwell-ms', String(request.options.noteDwellMs), '--switch-dwell-ms', String(request.options.switchDwellMs),
         '--screenshots', request.options.screenshots ? 'responsive' : 'off'];
       if (values.chrome) args.push('--chrome', path.resolve(values.chrome));
       await runChild(path.join(ROOT, 'scripts/perf/page-load.mjs'), args, { env });

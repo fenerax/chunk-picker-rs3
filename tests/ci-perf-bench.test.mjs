@@ -117,6 +117,9 @@ test('one scenario catalogue controls bounded requests and alternating plans', (
   assert.equal(normalizeRequest({}).options.unlockPick, 'unprepared');
   assert.equal(normalizeRequest({ options: { unlockPreview: 'on' } }).options.unlockPick, 'any');
   assert.equal(normalizeRequest({ options: { unlockDwellMs: 3 } }).options.unlockPick, 'any');
+  assert.equal(normalizeRequest({}).options.switchDwellMs, 0);
+  assert.equal(normalizeRequest({ options: { switchDwellMs: 12000 } }).options.switchDwellMs, 12000);
+  assert.throws(() => normalizeRequest({ options: { switchDwellMs: 60001 } }), /switchDwellMs/);
   const request = normalizeRequest({ runs: 3, scenarios: ['unlock', 'panels'] });
   assert.deepEqual(measurementPlan(request).map(row => `${row.arm}${row.run}/${row.groupView}`),
     ['A1/off','B1/off','A1/on','B1/on','A2/off','B2/off','A2/on','B2/on','A3/off','B3/off','A3/on','B3/on']);

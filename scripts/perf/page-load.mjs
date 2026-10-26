@@ -23,7 +23,7 @@ const PERF = path.join(ROOT, '.local/perf');
 const chromeExtraArgs = process.platform === 'linux' && process.env.GITHUB_ACTIONS === 'true'
   ? ['--no-sandbox', '--disable-dev-shm-usage'] : [];
 let diagnosticContext = {};
-const options = { runs: 3, label: 'baseline', timeout: 180000, prewarm: 'on', groupView: 'off', unlockMember: 'player1', unlockPick: 'any', unlockPreview: 'off', unlockDwellMs: 0, noteDwellMs: 0, settlement: 'idle', cpuProfile: 'off', screenshots: 'off', cancellationCheck: 'off', idleSampleMs: 0, scenarios: ['cold', 'reload', 'switch-player2', 'switch-player1', 'unlock', 'cold-30mbps'] };
+const options = { runs: 3, label: 'baseline', timeout: 180000, prewarm: 'on', groupView: 'off', unlockMember: 'player1', unlockPick: 'any', unlockPreview: 'off', unlockDwellMs: 0, noteDwellMs: 0, switchDwellMs: 0, settlement: 'idle', cpuProfile: 'off', screenshots: 'off', cancellationCheck: 'off', idleSampleMs: 0, scenarios: ['cold', 'reload', 'switch-player2', 'switch-player1', 'unlock', 'cold-30mbps'] };
 // Even, so the alternating save/clear burst ends with the copied save's notes.
 const SAVE_BURST_COMMANDS = 20;
 const usage = `Usage: npm run perf -- [options]
@@ -35,6 +35,7 @@ const usage = `Usage: npm run perf -- [options]
   --group-view on|off     Group task view (default off); on waits for the complete duo
   --unlock-preview on|off Wait for the chunk's Preview before Unlock (default off; separate workflow)
   --unlock-dwell-ms MS   Wait in the locked panel before timing Unlock (0 off; max 60000; any only)
+  --switch-dwell-ms MS   Wait on the first member's list before timing switch-player2 (0 off; max 60000)
   --note-dwell-ms MS     Pause before note-clear, save-burst and the after-suite sample (0 off; max 60000)
   --unlock-member player1|player2  Player whose scratch chunk is unlocked (default player1)
   --unlock-pick any|prepared|unprepared  Existing choice, Preview, or outside the warm pool (default any)
@@ -81,6 +82,7 @@ function parse(args) {
     else if (key === '--group-view') options.groupView = value;
     else if (key === '--unlock-preview') options.unlockPreview = value;
     else if (key === '--unlock-dwell-ms') options.unlockDwellMs = Number(value);
+    else if (key === '--switch-dwell-ms') options.switchDwellMs = Number(value);
     else if (key === '--note-dwell-ms') options.noteDwellMs = Number(value);
     else if (key === '--unlock-member') options.unlockMember = value;
     else if (key === '--unlock-pick') options.unlockPick = value;
@@ -117,6 +119,7 @@ function parse(args) {
   if (!['any', 'prepared', 'unprepared'].includes(options.unlockPick)) throw new Error('--unlock-pick must be any, prepared or unprepared.');
   if (options.unlockChunk !== undefined && !/^[1-9]\d*$/.test(options.unlockChunk)) throw new Error('--unlock-chunk must be a numeric surface chunk ID.');
   if (options.unlockPick === 'unprepared' && options.unlockPreview === 'on') throw new Error('--unlock-pick unprepared requires --unlock-preview off.');
+  if (!Number.isInteger(options.switchDwellMs) || options.switchDwellMs < 0 || options.switchDwellMs > 60000) throw new Error('--switch-dwell-ms must be an integer from 0 through 60000.');
   if (!Number.isInteger(options.unlockDwellMs) || options.unlockDwellMs < 0 || options.unlockDwellMs > 60000) throw new Error('--unlock-dwell-ms must be an integer from 0 through 60000.');
   if (!Number.isInteger(options.noteDwellMs) || options.noteDwellMs < 0 || options.noteDwellMs > 60000) throw new Error('--note-dwell-ms must be an integer from 0 through 60000.');
   if (options.unlockDwellMs && (options.unlockPick !== 'any' || options.unlockPreview !== 'off')) throw new Error('--unlock-dwell-ms requires --unlock-pick any and --unlock-preview off.');
@@ -796,6 +799,8 @@ async function suite(executable, run, throttled) {
     if (!throttled) {
       if (options.scenarios.includes('reload')) results.push(await measure(browser, 'reload', () => browser.send('Page.reload', { ignoreCache: false }), { navigation: true, member: 'player1' }));
       for (const [name, member] of [['switch-player2', 'player2'], ['switch-player1', 'player1']]) {
+        // A reader stays on the first member's list before switching.
+        if (name === 'switch-player2' && options.switchDwellMs && options.scenarios.includes(name)) await sleep(options.switchDwellMs);
         if (options.scenarios.includes(name)) results.push(await measure(browser, name, () => switchMember(browser, member), { member }));
         else if (name === 'switch-player1' && await browser.evaluate(`document.getElementById('member').value`) !== 'player1') await measure(browser, name, () => switchMember(browser, member), { member });
       }

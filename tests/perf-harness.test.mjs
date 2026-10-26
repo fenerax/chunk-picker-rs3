@@ -14,6 +14,12 @@ function parsing(args) {
   return context.options;
 }
 
+test('switch dwell is opt-in and bounded', () => {
+  assert.equal(parsing([]).switchDwellMs, 0);
+  assert.equal(parsing(['--switch-dwell-ms', '12000']).switchDwellMs, 12000);
+  for (const value of ['-1', '0.5', 'NaN', '60001']) assert.throws(() => parsing(['--switch-dwell-ms', value]), /integer from 0 through 60000/);
+});
+
 test('locked-panel dwell is opt-in and keeps existing task/member controls', () => {
   assert.equal(parsing([]).unlockDwellMs, 0);
   const options = parsing(['--unlock-dwell-ms', '3000', '--unlock-member', 'player2', '--group-view', 'on', '--settlement', 'tasks']);
