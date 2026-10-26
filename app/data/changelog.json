@@ -3,6 +3,23 @@
   "entries": [
     {
       "date": "2026-10-25",
+      "title": "Menus fit small phone screens",
+      "items": [
+        "The More tools menu now scrolls within short or sideways phone screens instead of running off the bottom",
+        "Every fold-out section header is now at least 44 pixels wide, so it is easier to tap"
+      ]
+    },
+    {
+      "date": "2026-10-25",
+      "title": "The picker turns away junk requests sooner",
+      "items": [
+        "Requests over 1 MB, broken or very deeply nested data and unknown addresses now get a plain refusal before they reach the picker's own code",
+        "One link can start at most 600 calculations a minute and keep 16 live-update connections open, far above what anyone clicking around reaches, so a leaked link can't tie up the picker",
+        "A connection that stops reading live updates is closed instead of piling up memory"
+      ]
+    },
+    {
+      "date": "2026-10-25",
       "title": "Mami Rimba's tree no longer counts as a bloodwood tree",
       "items": [
         "The bloodwood tree by Mami Rimba, north of Edgeville Monastery, can't be cut in the game. It no longer gives Cut bloodwood logs, Fletch bakriminel bolt shafts or Tip bakriminel bolts. The Wilderness bloodwood trees still count"
