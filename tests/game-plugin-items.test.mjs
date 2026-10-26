@@ -7,6 +7,7 @@ import { openGamePlugin } from '../app/game-plugin.mjs';
 import { validatePluginReport } from '../app/integrations/game-plugin.mjs';
 import { GAME_ITEMS, matchGameItems } from '../app/integrations/game-items.mjs';
 import { applyCommand, createGroupState, validateState } from '../app/core/state.mjs';
+import { equipmentTaskIdentity } from '../app/tasks/presentation.mjs';
 
 const identity = { admin: true };
 const journalId = 'aaaaaaaaaaaaaaaa';
@@ -100,6 +101,20 @@ test('the eight BiS goals from the in-game test map to their checked IDs, noted 
     assert.equal(GAME_ITEMS.get(wearable).goalId, goal(suffix)); assert.equal(GAME_ITEMS.get(wearable).noted, false);
     assert.equal(GAME_ITEMS.get(noted).goalId, goal(suffix)); assert.equal(GAME_ITEMS.get(noted).noted, true);
   }
+});
+
+test('better owned gear from the second in-game test maps to its checked IDs, noted copies included', () => {
+  for (const [suffix, name, slot, wearable, noted] of [['00006c', 'Adamant kiteshield', 'off-hand', 45519, 1200], ['0009f4', 'Rune gauntlets + 3', 'hands', 46938, 46939],
+    ['0009c5', 'Rune armoured boots + 3', 'feet', 46925, 46926], ['0000e3', 'Amulet of power', 'neck', 1731, 1732]]) {
+    assert.deepEqual([GAME_ITEMS.get(wearable).goalId, GAME_ITEMS.get(wearable).name, GAME_ITEMS.get(wearable).slot, GAME_ITEMS.get(wearable).noted], [goal(suffix), name, slot, false]);
+    assert.deepEqual([GAME_ITEMS.get(noted).goalId, GAME_ITEMS.get(noted).noted], [goal(suffix), true]);
+  }
+  // Lent copies stay unmapped.
+  for (const lent of [45042, 46940, 46927]) assert.equal(GAME_ITEMS.has(lent), false);
+});
+
+test('every reviewed row names the picker item whose generated Obtain goal it ticks', () => {
+  for (const [id, item] of GAME_ITEMS) assert.equal(equipmentTaskIdentity(item.name).id, item.goalId, `${id} ${item.name}`);
 });
 
 test('live owned items tick their BiS goals with labels and provenance; Wear tasks stay in review', async t => {

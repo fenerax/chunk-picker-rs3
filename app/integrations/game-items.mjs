@@ -1,5 +1,5 @@
 // Reviewed RS3 item IDs for game plugin evidence. Each row was checked on
-// 2026-10-22 three ways: the wiki infobox ID (revision below), the decoded game
+// 2026-10-22 (the last four on 2026-10-25) three ways: the wiki infobox ID (revision below), the decoded game
 // cache name and slot, and the picker entity for the same name. Names are never
 // matched at runtime; an ID absent from this table stays unmapped.
 // Row: [picker entity suffix, name, slot, wearable IDs, noted IDs, wiki revision].
@@ -39,6 +39,10 @@ const ROWS = [
   ['000b61', 'Splitbark helm', 'head', [3385], [3386], 37191937],
   ['000be4', 'Steel kiteshield', 'off-hand', [45465], [1194], 36970590],
   ['000cb2', 'Team-46 cape', 'back', [4405], [4406], 36961340],
+  ['00006c', 'Adamant kiteshield', 'off-hand', [45519], [1200], 37179170],
+  ['0009f4', 'Rune gauntlets + 3', 'hands', [46938], [46939], 36992351],
+  ['0009c5', 'Rune armoured boots + 3', 'feet', [46925], [46926], 36992333],
+  ['0000e3', 'Amulet of power', 'neck', [1731], [1732], 36997571],
 ];
 
 // Tasks proved only by wearing one of the listed items. The Gud raider set is
