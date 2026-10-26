@@ -22,11 +22,3 @@ export async function createLegacyMetadataResolver({ root, packsDir, selectionPa
     expected: filename => art.pack.expected(filename),
   });
 }
-
-export async function resolveLegacyMetadata(options = {}) {
-  const resolver = await createLegacyMetadataResolver(options);
-  const keys = options.keys ?? (await import('./dataset-inputs.mjs')).DATASET_INPUTS.filter(key => key.startsWith('local-map/'));
-  const files = new Map();
-  for (const key of keys) { const filename = await resolver.file(key); if (filename) files.set(key, filename); }
-  return files;
-}

@@ -268,8 +268,6 @@ details[open]>summary::before{transform:rotate(45deg)}
 .topbar h1::before{content:"";width:1.55rem;height:1.55rem;border-radius:var(--radius-sm);background:url(/favicon.svg) center/contain no-repeat;flex-shrink:0}
 .brand-tag{font-family:var(--font-sans);font-size:var(--type-xs);font-weight:var(--weight-bold);letter-spacing:.12em;padding:var(--space-1) var(--space-3);border-radius:var(--radius-check);color:var(--gold);border:var(--border-thin) solid color-mix(in srgb,var(--gold) var(--border-legacy-55),transparent);align-self:center}
 .view-only-badge{flex-shrink:0;font-size:var(--type-xs);font-weight:var(--weight-semibold);padding:var(--space-2) var(--space-3);white-space:nowrap;color:var(--panel-text,var(--text));border:var(--border-thin) solid var(--hairline);border-radius:var(--radius-sm)}
-.viewer-display{padding:var(--space-4) var(--space-4);font-size:var(--type-body);color:var(--panel-text,var(--text))}
-.viewer-display small{margin-left:auto;color:var(--panel-muted,var(--muted));font-size:var(--type-xs)}
 :root[data-read-only=true] :is(#pick,#roll-two,#unpick,.toolbar-undo,.toolbar-sandbox,#sandbox-toggle,#settings-open,#runemetrics-open,#feedback-open,#teleports-open,#invites-open,#backup-open,#original-sync-open,#saves-heading,#empty-import,#random-start,#custom-task-open){display:none!important}
 :root[data-read-only=true] textarea[readonly]{min-height:4rem}
 .player-controls{order:1;display:flex;align-items:center;gap:var(--space-6);padding-left:var(--space-6);border-left:var(--border-thin) solid var(--hairline)}
