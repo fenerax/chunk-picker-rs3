@@ -1,7 +1,7 @@
 import { openPluginKeys } from './plugin-keys.mjs';
 import { openPluginAchievements } from './plugin-achievements.mjs';
 import { openPluginItems } from './plugin-items.mjs';
-import { GAME_ITEMS, GAME_WORN_TASKS, ITEM_REVIEW_LIMIT, matchGameItems } from './integrations/game-items.mjs';
+import { GAME_ITEMS, GAME_TOOLBELT, GAME_WORN_TASKS, COINS, COIN_BILLIONS, ITEM_REVIEW_LIMIT, matchGameItems } from './integrations/game-items.mjs';
 import { fields, validatePluginReport, pluginProposal, matchPluginAchievements, ACHIEVEMENT_REVIEW_LIMIT } from './integrations/game-plugin.mjs';
 import { pluginTaskRows, pluginTaskList, pluginTaskFrom } from './game-plugin-tasks.mjs';
 
@@ -11,6 +11,7 @@ const LIFETIME = 10 * 60 * 1000;
 const NEARBY_RADIUS = 2;
 const COMPLETED_SNAPSHOT_LIMIT = 8;
 const HANDLED_RETRY_INTERVAL = 60 * 1000;
+const COIN_WRITE_INTERVAL = 60 * 1000;
 function selectItems(preview, selections) {
   if (!Array.isArray(selections) || selections.length > preview.items.length) throw fail(400, 'Choose item tasks from this review.');
   const tasks = new Set();
@@ -33,6 +34,8 @@ export async function openGamePlugin({ dataDir, store, world, registry, questMap
   const itemStore = await openPluginItems({ dataDir, members: () => state().members, clock, log });
   // Beta and unknown-world item evidence stays in memory, apart from live evidence.
   const itemMemory = new Map(), itemAcks = new Map(), itemHandled = new Map();
+  // One unfinished bank set per player, the last complete one, and coin counts by container.
+  const bankAssemblies = new Map(), bankAcks = new Map(), itemCoins = new Map();
   let itemTasks;
   const positions = new Map(), pending = new Map(), sequences = new Map(), buckets = new Map(), diagnostics = new Map();
   const assemblies = new Map(), completedSnapshots = new Map(), achievementSummaries = new Map();
@@ -177,42 +180,38 @@ export async function openGamePlugin({ dataDir, store, world, registry, questMap
     pending.set(player, { report: { ...prior, sentAt: report.sentAt, world: hasProgress ? prior.world : report.world, itemReview: result.rows,
       itemsMore: result.more, unmappedItems: result.unmapped, unmappedItemsMore: result.unmappedMore }, proposal: null });
   }
-  async function receiveItems(player, report) {
-    const value = report.items, now = new Date(clock()).toISOString();
-    // itemsBetaAsLive is for a synthetic scratch save only: beta items then tick it as live ones would.
-    const world = report.world?.beta === false || itemsBetaAsLive && report.world?.beta === true ? 'live' : report.world?.beta === true ? 'beta' : 'unknown';
+  // itemsBetaAsLive is for a synthetic scratch save only: beta items then tick it as live ones would.
+  const itemWorld = report => report.world?.beta === false || itemsBetaAsLive && report.world?.beta === true ? 'live' : report.world?.beta === true ? 'beta' : 'unknown';
+  function itemRecord(player, world) {
     const memory = itemMemory.get(player);
-    const saved = world === 'live' ? itemStore.get(player) : memory?.world === world ? structuredClone(memory.record) : null;
-    const ack = { snapshot: value.snapshot, journal: itemAcks.get(player)?.journal ?? null };
-    // The first look needs both containers; until then only the snapshot is acknowledged.
-    if (!saved && (value.worn === null || value.backpack === null)) { itemAcks.set(player, ack); return; }
-    const record = saved ?? { baselineAt: now, items: {}, handled: [], journal: null }, fresh = !saved, unmapped = new Map();
-    let changed = fresh;
-    const touch = (id, name, worn) => {
+    return world === 'live' ? itemStore.get(player) : memory?.world === world ? structuredClone(memory.record) : null;
+  }
+  // Live records are saved; beta and unknown ones stay in memory. False when the write failed.
+  async function keepItemRecord(player, world, record) {
+    if (world !== 'live') { itemMemory.set(player, { world, record }); return true; }
+    try { await itemStore.put(player, record); return true; }
+    catch { log('Could not save plugin item evidence; the plugin will send it again.'); return false; }
+  }
+  // Evidence entries are [id, name or null, worn]. Only reviewed IDs are kept; named others are returned.
+  function addEvidence(record, entries, now, fresh) {
+    let changed = false;
+    const unmapped = new Map();
+    for (const [id, name, worn] of entries) {
       const item = GAME_ITEMS.get(id);
-      if (!item) { if (!unmapped.has(id)) unmapped.set(id, name); return; }
+      if (!item) { if (name && !unmapped.has(id)) unmapped.set(id, name); continue; }
       const key = String(id);
-      if (!record.items[key]) { record.items[key] = { name, ownedAt: now, wornAt: null, first: fresh }; changed = true; }
+      if (!record.items[key]) { record.items[key] = { name: name ?? item.name, ownedAt: now, wornAt: null, first: fresh }; changed = true; }
       if (worn && !item.noted && !record.items[key].wornAt) { record.items[key].wornAt = now; changed = true; }
-    };
-    for (const [, id, , name] of value.worn ?? []) touch(id, name, true);
-    for (const [, id, , name] of value.backpack ?? []) touch(id, name, false);
-    // Worn events the plugin saw while the picker was away; a new journal ID restarts the count.
-    const after = record.journal?.id === value.journal.id ? record.journal.event : 0;
-    for (const [event, id, name] of value.journal.events) if (event > after) touch(id, name, true);
-    const last = Math.max(after, value.journal.events.at(-1)?.[0] ?? 0);
-    if (record.journal?.id !== value.journal.id || last > after) { record.journal = { id: value.journal.id, event: last }; changed = true; }
-    if (changed) {
-      if (world === 'live') {
-        try { await itemStore.put(player, record); }
-        catch { log('Could not save plugin item evidence; the plugin will send it again.'); itemAcks.set(player, ack); return; }
-      } else itemMemory.set(player, { world, record });
     }
-    itemAcks.set(player, { snapshot: value.snapshot, journal: record.journal });
+    return { changed, unmapped: [...unmapped].map(([gameItemId, name]) => ({ gameItemId, name })) };
+  }
+  async function matchItems(player, report, record, world, unmapped) {
     const owner = member(player), dismissed = itemHandled.get(player);
     const evidence = new Map(Object.entries(record.items).map(([id, fact]) => [Number(id), fact]));
     const result = matchGameItems({ evidence, task: itemTask, completed: new Set(owner.completedTasks), world, autoTick: world === 'live',
-      handled: id => record.handled.includes(id) || !!dismissed?.has(id), unmapped: [...unmapped].map(([gameItemId, name]) => ({ gameItemId, name })) });
+      handled: id => record.handled.includes(id) || !!dismissed?.has(id), unmapped: unmapped ?? [] });
+    // null keeps the unmapped list from the last items report.
+    if (unmapped === null) { const prior = liveReview(player)?.report; result.unmapped = prior?.unmappedItems ?? []; result.unmappedMore = prior?.unmappedItemsMore ?? 0; }
     if (result.ticks.length) {
       try {
         // Live owned items tick their BiS goals. Already inside the server's mutation queue: the
@@ -227,6 +226,77 @@ export async function openGamePlugin({ dataDir, store, world, registry, questMap
       }
     }
     itemReview(player, report, result);
+  }
+  const coinCount = (rows, billions = false) => (rows ?? []).reduce((sum, [, id, count]) => sum + (id === COINS ? count : billions && id === COIN_BILLIONS ? count * 1e9 : 0), 0);
+  // Coins on hand: pouch, backpack and the last bank the plugin saw. Live worlds only, written
+  // only when the total changes and at most once a minute, so History isn't one entry per drop.
+  async function updateCoins(player, world) {
+    const coins = itemCoins.get(player);
+    if (world !== 'live' || !coins || coins.pouch === null || coins.backpack === null) return;
+    const total = Math.min(1e12, coins.pouch + coins.backpack + (coins.bank ?? 0)), owner = member(player);
+    if (owner.transportFacts?.currencies?.coins === total || clock() - (coins.writtenAt ?? -Infinity) < COIN_WRITE_INTERVAL) return;
+    const facts = structuredClone(owner.transportFacts ?? {});
+    facts.currencies = { ...facts.currencies, coins: total };
+    try { await store.command({ type: 'set-transport-facts', memberId: player, facts }, store.getInfo().revision); coins.writtenAt = clock(); }
+    catch { log('Could not save coins from the game plugin; the next report tries again.'); }
+  }
+  function coinParts(player, world, bank) {
+    const coins = itemCoins.get(player);
+    if (coins?.world === world) return coins;
+    const fresh = { world, pouch: null, backpack: null, bank };
+    itemCoins.set(player, fresh); return fresh;
+  }
+  async function receiveItems(player, report) {
+    const value = report.items, now = new Date(clock()).toISOString(), world = itemWorld(report);
+    const saved = itemRecord(player, world);
+    const ack = { snapshot: value.snapshot, journal: itemAcks.get(player)?.journal ?? null };
+    // The first look needs both containers; until then only the snapshot is acknowledged.
+    if (!saved && (value.worn === null || value.backpack === null)) { itemAcks.set(player, ack); return; }
+    const record = saved ?? { baselineAt: now, items: {}, handled: [], journal: null }, fresh = !saved;
+    const entries = [...(value.worn ?? []).map(([, id, , name]) => [id, name, true]), ...(value.backpack ?? []).map(([, id, , name]) => [id, name, false])];
+    // Worn events the plugin saw while the picker was away; a new journal ID restarts the count.
+    const after = record.journal?.id === value.journal.id ? record.journal.event : 0;
+    for (const [event, id, name] of value.journal.events) if (event > after) entries.push([id, name, true]);
+    // Tool belt entries name tools, not items: only reviewed name=value pairs become owned items.
+    // The rest aren't listed; a full belt is about 60 entries and would bury the review.
+    for (const [name, level] of value.toolbelt ?? []) {
+      const id = GAME_TOOLBELT.get(`${name}=${level}`);
+      if (id !== undefined) entries.push([id, null, false]);
+    }
+    const added = addEvidence(record, entries, now, fresh);
+    let changed = fresh || added.changed;
+    const last = Math.max(after, value.journal.events.at(-1)?.[0] ?? 0);
+    if (record.journal?.id !== value.journal.id || last > after) { record.journal = { id: value.journal.id, event: last }; changed = true; }
+    if (changed && !await keepItemRecord(player, world, record)) { itemAcks.set(player, ack); return; }
+    itemAcks.set(player, { snapshot: value.snapshot, journal: record.journal });
+    // A container the plugin couldn't read keeps its last coin count.
+    const coins = coinParts(player, world, record.bank?.coins ?? null);
+    if (value.pouch) coins.pouch = coinCount(value.pouch, true);
+    if (value.backpack) coins.backpack = coinCount(value.backpack);
+    await matchItems(player, report, record, world, added.unmapped);
+    await updateCoins(player, world);
+  }
+  // Bank parts arrive in order, part 1 first; a new part 1 replaces an unfinished set. Status
+  // acknowledges the last complete snapshot only.
+  async function receiveBank(player, report) {
+    // A held set sent again in full is the bank seen open again: it only moves "bank as of" on.
+    const part = report.bank, world = itemWorld(report);
+    let assembly = bankAssemblies.get(player);
+    if (part.part === 1) { assembly = { snapshot: part.snapshot, parts: part.parts, received: 0, rows: [], world }; bankAssemblies.set(player, assembly); }
+    if (!assembly || assembly.snapshot !== part.snapshot || assembly.parts !== part.parts || assembly.world !== world || part.part !== assembly.received + 1) return;
+    assembly.rows.push(...part.rows); assembly.received++;
+    if (assembly.received !== assembly.parts) return;
+    bankAssemblies.delete(player);
+    const now = new Date(clock()).toISOString(), seenAt = new Date(Date.parse(report.sentAt) - part.age * 1000).toISOString();
+    const saved = itemRecord(player, world), record = saved ?? { baselineAt: now, items: {}, handled: [], journal: null };
+    // Bank rows carry no names, so unmapped bank items aren't listed for review.
+    addEvidence(record, assembly.rows.map(([id]) => [id, null, false]), now, !saved);
+    record.bank = { snapshot: part.snapshot, seenAt, coins: Math.min(1e12, coinCount(assembly.rows.map(([id, count]) => [0, id, count]))) };
+    if (!await keepItemRecord(player, world, record)) return;
+    bankAcks.set(player, { snapshot: part.snapshot, world, seenAt });
+    coinParts(player, world, null).bank = record.bank.coins;
+    await matchItems(player, report, record, world, null);
+    await updateCoins(player, world);
   }
   async function rememberItemsHandled(player, rows) {
     const dismissed = itemHandled.get(player) ?? new Set();
@@ -274,13 +344,19 @@ export async function openGamePlugin({ dataDir, store, world, registry, questMap
         nearby.push(row);
       }
     }
-    return { v: 1, accepts: ['achievements', 'items'], achievements: achievementStatus(player), items: itemAcks.get(player) ?? null, player: { id: player, name: owner.name }, chunkId, chunkName: chunk?.name ?? null,
+    return { v: 1, accepts: ['achievements', 'items', 'toolbelt', 'pouch', 'bank'], achievements: achievementStatus(player), items: itemAcks.get(player) ?? null, bank: bankStatus(player), player: { id: player, name: owner.name }, chunkId, chunkName: chunk?.name ?? null,
       state: !position ? 'unknown' : stateOf(chunkId),
       activeTaskCount: taskRows.get(player)?.revision === revision && !taskRows.get(player).stale ? taskRows.get(player).rows.length : null, unlockedChunkCount: cached.count, pendingProgress: !!liveReview(player), seenAt: position?.seenAt ?? null, nearby,
       pickableCount: pool ? pool.eligible.length : null,
       pendingRoll: (owner.pendingRoll ?? []).map(id => ({ chunkId: id, chunkName: world.chunks.get(id.split('-')[0])?.name ?? null })),
       partners: partners(player) };
   }
+  // The last complete bank this picker holds; after a restart, the saved live one.
+  function bankStatus(player) {
+    const snapshot = bankAcks.get(player)?.snapshot ?? itemStore.get(player)?.bank?.snapshot;
+    return snapshot ? { snapshot } : null;
+  }
+  function bankSeenAt(player) { return bankAcks.get(player)?.seenAt ?? itemStore.get(player)?.bank?.seenAt ?? null; }
   function hasActiveKey(player) { return keys.list(player).some(record => !record.revoked); }
   // Reads the saved task list only. A missing list is reported, never calculated.
   function tasks(player, from) {
@@ -364,6 +440,7 @@ export async function openGamePlugin({ dataDir, store, world, registry, questMap
           }
           if (report.achievements) await receiveAchievements(credential.player, report);
           if (report.items) await receiveItems(credential.player, report);
+          if (report.bank) await receiveBank(credential.player, report);
           notify();
         }
         keys.touch(credential.id, report?.world);
@@ -374,7 +451,7 @@ export async function openGamePlugin({ dataDir, store, world, registry, questMap
     list(identity) {
       const latest = [...positions.values()].filter(position => clock() - Date.parse(position.seenAt) < LIFETIME && store.getCalculationSnapshot().members.some(owner => owner.id === position.memberId));
       const visible = identity.readOnly || !identity.admin && !identity.memberId ? [] : keys.list(identity.admin ? undefined : identity.memberId);
-      return { keys: visible.map(record => ({ ...record, diagnostics: diagnostics.get(record.id) ?? null,
+      return { keys: visible.map(record => ({ ...record, diagnostics: diagnostics.get(record.id) ?? null, bankSeenAt: bankSeenAt(record.player),
         achievements: assemblies.has(record.player) ? { ...achievementStatus(record.player), completeCount: null, matchedTaskCount: null, lastTickedCount: 0, lastTickedAt: null, ...achievementSummaries.get(record.player) } : null })), positions: latest, active: latest.length > 0 };
     },
     review(identity, player) {
@@ -442,7 +519,7 @@ export async function openGamePlugin({ dataDir, store, world, registry, questMap
         await handledFlush;
         await flushHandled(true);
         await Promise.all([keys.close(), handled.close(), itemStore.close()]);
-        itemMemory.clear(); itemAcks.clear(); itemHandled.clear();
+        itemMemory.clear(); itemAcks.clear(); itemHandled.clear(); bankAssemblies.clear(); bankAcks.clear(); itemCoins.clear();
         positions.clear(); pending.clear(); diagnostics.clear(); retainedTasks.clear(); taskRows.clear(); assemblies.clear(); completedSnapshots.clear(); achievementSummaries.clear();
       })();
       return closePromise;

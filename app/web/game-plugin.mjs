@@ -103,6 +103,8 @@ export function createGamePlugin(c) {
       for (const record of records) {
         const row = el('div', undefined, 'game-plugin-key');
         row.append(el('strong', record.label || 'Game plugin key'), el('p', `Created ${date(record.createdAt)} · Last used ${date(record.lastUsedAt)}${record.lastWorld ? ` · World ${record.lastWorld.id ?? record.lastWorld}` : ''}${record.revoked ? ' · Revoked' : ''}`, 'info-meta'));
+        // The bank's contents only update while it's open in game, so its age is shown.
+        if (record.bankSeenAt) row.append(el('p', `Bank as of ${date(record.bankSeenAt)}`, 'info-meta'));
         if (record.diagnostics?.lines?.length) {
           // The plugin's own status lines, so nobody has to screenshot the in-game console.
           const details = el('details', undefined, 'game-plugin-diagnostics');

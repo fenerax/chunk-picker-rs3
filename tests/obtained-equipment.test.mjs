@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import { createGroupState, applyCommand, applyValidatedCommand, exportBackup, importBackup, validateState, previewRestore } from '../app/core/state.mjs';
 import { createTaskEngine } from '../app/tasks/engine.mjs';
 import { evaluateEquipment, buildCurrentBiS } from '../app/tasks/equipment.mjs';
-import { equipmentTaskIdentity } from '../app/tasks/presentation.mjs';
+import { equipmentTaskIdentity, selectPresentedTasks } from '../app/tasks/presentation.mjs';
+import { GAME_ITEMS } from '../app/integrations/game-items.mjs';
 import { createGameplayFingerprint } from '../app/storage/gameplay-fingerprint.mjs';
 import { createTaskReuseFingerprint } from '../app/tasks/unlock-reuse.mjs';
 import { describeHistoryEvent } from '../app/web/history-text.mjs';
@@ -119,4 +120,34 @@ test('task and hand records supply the same coupled bow setup, with ammunition r
   assert.equal(manual.find(row => row.style === 'Ranged').best.ammunition, 'Arrow');
   saved.members[0].obtainedEquipment = []; saved.members[0].completedTasks = Object.entries(defs.equipment).map(([name, data]) => equipmentTaskIdentity(name, data).id);
   assert.deepEqual(inspect(), manual);
+});
+
+test('an owned better item in the same slot replaces the weaker Obtain goal without ticking it', () => {
+  // Real names and armour; sources are synthetic. Only the weaker items are reachable.
+  const gear = {
+    'Test sword': { slot: 'main hand weapon', class: 'melee', tier: 20, ability_damage: 10, accuracy: 20 },
+    'Steel kiteshield': { slot: 'off-hand', class: 'melee', tier: 20, armour: 63.2, accuracy: 0, type: 'Shield' },
+    'Adamant kiteshield': { slot: 'off-hand', class: 'melee', tier: 40, armour: 125.6, accuracy: 0, type: 'Shield' },
+    'Adamant gauntlets': { slot: 'hands', class: 'melee', tier: 40, armour: 31.4, lp: 200 },
+    'Rune gauntlets + 3': { slot: 'hands', class: 'melee', tier: 53, armour: 46.4, lp: 265 },
+  };
+  const defs = { chunks: { '100': { Spawn: { 'Test sword': 1, 'Steel kiteshield': 1, 'Adamant gauntlets': 1 } } }, challenges: {}, equipment: gear };
+  const goal = name => equipmentTaskIdentity(name, gear[name]).id;
+  const shown = (state, definitions = defs) => {
+    const result = createTaskEngine(definitions).evaluate(state, 'actor1'), planning = evaluateEquipment(result, state, 'actor1', definitions);
+    const view = selectPresentedTasks({ ...result, tasks: [...result.tasks, ...planning.tasks] }, state, 'actor1', definitions);
+    return { goals: view.tasks.filter(task => task.category === 'BiS').map(task => task.id).sort(), suppressed: view.suppressed };
+  };
+  const saved = group();
+  assert.deepEqual(shown(saved).goals, [goal('Adamant gauntlets'), goal('Steel kiteshield'), goal('Test sword')].sort());
+  // The game plugin ticks the Obtain goal of the owned item (45519, 46938).
+  saved.members[0].completedTasks = [GAME_ITEMS.get(45519).goalId, GAME_ITEMS.get(46938).goalId];
+  assert.deepEqual(saved.members[0].completedTasks, [goal('Adamant kiteshield'), goal('Rune gauntlets + 3')]);
+  const after = shown(saved);
+  assert.deepEqual(after.goals, [goal('Test sword')], 'the weaker same-slot goals are no longer outstanding');
+  for (const name of ['Adamant kiteshield', 'Rune gauntlets + 3']) assert.deepEqual(after.suppressed[goal(name)], ['Challenge already satisfied.']);
+  for (const name of ['Steel kiteshield', 'Adamant gauntlets']) assert.ok(!saved.members[0].completedTasks.includes(goal(name)), `${name} is not ticked`);
+  // An owned item the player cannot equip yet does not replace the weaker goal.
+  const gated = { ...defs, equipment: { ...gear, 'Adamant kiteshield': { ...gear['Adamant kiteshield'], requirements: { Defence: 40 } } } };
+  assert.ok(shown(saved, gated).goals.includes(goal('Steel kiteshield')));
 });

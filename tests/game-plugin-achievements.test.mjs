@@ -78,8 +78,8 @@ async function fixture(t, tasks = [task('diary:one', 'First Task'), task('diary:
 test('achievement assembly is ordered, player-scoped, replaceable, and forgotten on restart', async t => {
   const f = await fixture(t);
   const fresh = await f.status();
-  assert.deepEqual(fresh.accepts, ['achievements', 'items']); assert.equal(fresh.achievements, null); assert.equal(fresh.items, null);
-  assert.deepEqual(Object.keys(fresh).sort(), ['v', 'accepts', 'achievements', 'items', 'player', 'chunkId', 'chunkName', 'state', 'activeTaskCount',
+  assert.deepEqual(fresh.accepts, ['achievements', 'items', 'toolbelt', 'pouch', 'bank']); assert.equal(fresh.achievements, null); assert.equal(fresh.items, null); assert.equal(fresh.bank, null);
+  assert.deepEqual(Object.keys(fresh).sort(), ['v', 'accepts', 'achievements', 'items', 'bank', 'player', 'chunkId', 'chunkName', 'state', 'activeTaskCount',
     'unlockedChunkCount', 'pendingProgress', 'seenAt', 'nearby', 'pickableCount', 'pendingRoll', 'partners'].sort());
   assert.equal((await f.send(part(2, 3))).achievements, null);
   const first = await f.send(part(1, 3, [[1, 'First Task', 0, 0]]));

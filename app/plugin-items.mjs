@@ -4,7 +4,8 @@ import { replaceSidecar } from './plugin-achievements.mjs';
 
 // Live-world item evidence per player: reviewed item IDs seen owned or worn,
 // the first snapshot's time, item tasks the player already handled, and the
-// newest acknowledged plugin journal event. Beta evidence is never stored.
+// newest acknowledged plugin journal event, and when the bank was last seen with its
+// coins. Beta evidence is never stored.
 const ITEM_LIMIT = 500, HANDLED_LIMIT = 2000;
 const object = value => value !== null && typeof value === 'object' && !Array.isArray(value);
 const exactKeys = (value, keys) => object(value) && Object.keys(value).length === keys.length && keys.every(key => Object.hasOwn(value, key));
@@ -12,7 +13,8 @@ const time = value => typeof value === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{
 const text = (value, max) => typeof value === 'string' && value.length >= 1 && value.length <= max && !/[\x00-\x1f\x7f-\x9f]/.test(value);
 
 export function validateItemRecord(record) {
-  if (!exactKeys(record, ['baselineAt', 'items', 'handled', 'journal']) || !time(record.baselineAt) || !object(record.items)
+  // bank is optional: records written before the plugin read the bank have none.
+  if (!exactKeys(record, ['baselineAt', 'items', 'handled', 'journal']) && !exactKeys(record, ['baselineAt', 'items', 'handled', 'journal', 'bank']) || !time(record.baselineAt) || !object(record.items)
     || Object.keys(record.items).length > ITEM_LIMIT || !Array.isArray(record.handled) || record.handled.length > HANDLED_LIMIT
     || record.handled.some((id, index, ids) => !text(id, 200) || index > 0 && ids[index - 1] >= id)) throw new TypeError('Invalid plugin item record.');
   for (const [id, fact] of Object.entries(record.items)) {
@@ -21,6 +23,8 @@ export function validateItemRecord(record) {
   }
   if (record.journal !== null && (!exactKeys(record.journal, ['id', 'event']) || !/^[a-f0-9]{16}$/.test(record.journal.id)
     || !Number.isSafeInteger(record.journal.event) || record.journal.event < 0)) throw new TypeError('Invalid plugin item journal.');
+  if (record.bank !== undefined && (!exactKeys(record.bank, ['snapshot', 'seenAt', 'coins']) || !/^[a-f0-9]{16}$/.test(record.bank.snapshot) || !time(record.bank.seenAt)
+    || !Number.isSafeInteger(record.bank.coins) || record.bank.coins < 0)) throw new TypeError('Invalid plugin item bank.');
   return record;
 }
 

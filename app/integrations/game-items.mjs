@@ -1,5 +1,5 @@
 // Reviewed RS3 item IDs for game plugin evidence. Each row was checked on
-// 2026-10-22 three ways: the wiki infobox ID (revision below), the decoded game
+// 2026-10-22 (the last five on 2026-10-25) three ways: the wiki infobox ID (revision below), the decoded game
 // cache name and slot, and the picker entity for the same name. Names are never
 // matched at runtime; an ID absent from this table stays unmapped.
 // Row: [picker entity suffix, name, slot, wearable IDs, noted IDs, wiki revision].
@@ -39,6 +39,11 @@ const ROWS = [
   ['000b61', 'Splitbark helm', 'head', [3385], [3386], 37191937],
   ['000be4', 'Steel kiteshield', 'off-hand', [45465], [1194], 36970590],
   ['000cb2', 'Team-46 cape', 'back', [4405], [4406], 36961340],
+  ['00006c', 'Adamant kiteshield', 'off-hand', [45519], [1200], 37179170],
+  ['0009f4', 'Rune gauntlets + 3', 'hands', [46938], [46939], 36992351],
+  ['0009c5', 'Rune armoured boots + 3', 'feet', [46925], [46926], 36992333],
+  ['0000e3', 'Amulet of power', 'neck', [1731], [1732], 36997571],
+  ['000a5d', 'Rune pickaxe', 'main hand weapon', [45548], [1276], 37178503],
 ];
 
 // Tasks proved only by wearing one of the listed items. The Gud raider set is
@@ -52,6 +57,21 @@ for (const [suffix, name, slot, wearable, noted, revision] of ROWS) {
   for (const id of noted) GAME_ITEMS.set(id, { ...item, noted: true });
 }
 export const GAME_WORN_TASKS = new Map(WORN_TASKS.map(([taskId, ids]) => [taskId, new Set(ids)]));
+
+// Tool belt entries the plugin reports as [name, value]: the game's TOOLBELT_ varbit without
+// its prefix. Checked against a real belt on 2026-10-25 (in-game tool belt screenshots and
+// the beta probe): NOOSE_WAND=1 is the Noose wand, HATCHET_LEVEL=6 a Rune hatchet and
+// PICKAXE_LEVEL=16 a Rune pickaxe. Other hatchet and pickaxe tiers are unverified, so they
+// stay unmapped. Row: [name, value, game item ID from the reviewed table above].
+const TOOLBELT_ROWS = [
+  ['NOOSE_WAND', 1, 10150],
+  ['HATCHET_LEVEL', 6, 1359],
+  ['PICKAXE_LEVEL', 16, 45548],
+];
+export const GAME_TOOLBELT = new Map(TOOLBELT_ROWS.map(([name, value, id]) => [`${name}=${value}`, id]));
+for (const id of GAME_TOOLBELT.values()) if (!GAME_ITEMS.has(id)) throw new Error(`Tool belt item ${id} is not in the reviewed table.`);
+// Coins and the money pouch's billions item (one of 54830 is 1,000,000,000 coins).
+export const COINS = 995, COIN_BILLIONS = 54830;
 
 export const ITEM_REVIEW_LIMIT = 100;
 const UNMAPPED_LIMIT = 30;
