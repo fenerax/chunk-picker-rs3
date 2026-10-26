@@ -331,3 +331,48 @@ test('long synthetic history keeps daily checkpoints, archives every older snaps
   t.diagnostic(JSON.stringify({ commands: count, standaloneSnapshots: files.length, archivedSnapshots: count - files.length,
     activeHistory: compact.getState().history.length, retainedBytes, baselineBytes, reductionPercent: Math.round(100 * (1 - retainedBytes / baselineBytes)) }));
 });
+
+test('SIGKILL during replacement preserves the acknowledged action and replays it exactly once', async t => {
+  const dataDir = await directory(t);
+  const child = spawn(process.execPath, ['--input-type=module', '-e', `
+    import { openStore } from ${JSON.stringify(storageUrl)};
+    const store = await openStore({ dataDir: ${JSON.stringify(dataDir)}, beforeCommit: async ({ state }) => {
+      if (state.revision !== 2) return;
+      setInterval(() => {}, 1000);
+      process.send({ phase: 'synced-before-rename' });
+      await new Promise(() => {});
+    } });
+    const session = await store.openActionSession('00000000-0000-4000-8000-000000000001');
+    const requestId = n => 'v3.' + session.scope + '.' + session.slot + '.' + session.generation + '.' + n;
+    await store.command({ type: 'set-rule', ruleId: 'access.shared', value: true }, 0,
+      { requestId: requestId(1), requestAck: 0 });
+    process.send({ phase: 'acknowledged', first: requestId(1), second: requestId(2) });
+    await store.command({ type: 'set-rule', ruleId: 'access.shared', value: false }, 1,
+      { requestId: requestId(2), requestAck: 1 });
+  `], { cwd: root, windowsHide: true, stdio: ['ignore', 'ignore', 'pipe', 'ipc'] });
+  const exited = once(child, 'exit'); let acknowledged, stderr = '';
+  child.stderr.on('data', bytes => { stderr += bytes; });
+  t.after(async () => { if (child.exitCode === null && child.signalCode === null) child.kill('SIGKILL'); await exited; });
+  await new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => reject(new Error(`Save child timed out: ${stderr}`)), CHILD_STARTUP_MS);
+    child.on('message', message => {
+      if (message.phase === 'acknowledged') acknowledged = message;
+      if (message.phase === 'synced-before-rename') { clearTimeout(timeout); resolve(); }
+    });
+    exited.then(() => { clearTimeout(timeout); reject(new Error(`Save child exited early: ${stderr}`)); });
+  });
+  assert.ok(acknowledged);
+  child.kill('SIGKILL'); await exited;
+  const store = await trackedStore(t, { dataDir });
+  assert.equal(store.getInfo().revision, 1);
+  assert.equal(store.getState().rules['access.shared'], true);
+  const replay = await store.command(setRule(true), 0, { requestId: acknowledged.first, requestAck: 0 });
+  assert.equal(replay.revision, 1);
+  assert.equal(store.getInfo().revision, 1);
+  const second = await store.command(setRule(false), 1, { requestId: acknowledged.second, requestAck: 1 });
+  assert.equal(second.revision, 2);
+  const duplicate = await store.command(setRule(false), 1, { requestId: acknowledged.second, requestAck: 1 });
+  assert.equal(duplicate.revision, 2);
+  assert.equal(store.getState().history.length, 2);
+  await store.close();
+});

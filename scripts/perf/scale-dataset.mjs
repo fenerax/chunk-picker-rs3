@@ -70,7 +70,10 @@ function synthesizer(seed, replica, preserved) {
     tokens.set(run, value);
     return value;
   };
-  const text = value => preserved.has(value) ? value : value.replace(/[A-Za-z]+|[0-9]+/g, token);
+  // The duo profile needs permanent task IDs; preserve that structural prefix.
+  const text = value => preserved.has(value) ? value : value.startsWith('rs3:open-f2p:')
+    ? `rs3:task:synthetic:${value.slice('rs3:open-f2p:'.length).replace(/[A-Za-z]+|[0-9]+/g, token)}`
+    : value.replace(/[A-Za-z]+|[0-9]+/g, token);
   const number = value => Number.isInteger(value) ? Math.max(value < 0 ? value - 2 : 0, value + Math.floor(random() * 5) - 2)
     : Math.round(value * (0.5 + random()) * 1e6) / 1e6;
   const map = value => {
@@ -177,9 +180,12 @@ export async function writeScaledCompanion(out, { scale = 1, seed = 1, version, 
     return { path: ['challenges', category, label, 'Description'], beforePresent: before !== undefined,
       ...(before !== undefined ? { before, beforeRecordSha256: hash(before) } : {}), afterPresent: true, after: `${before ?? ''} Synthetic review.` };
   });
-  const stub = key => ({ ...template.json(key) });
+  // The normal server consumes topology counts and identity history even
+  // when a synthetic companion has no walking edges or historical aliases.
+  const stub = key => ({ ...template.json(key), ...(key.includes('cache-walkability.') ? { summary: { doors: 0, conditionalMorphs: 0 } } : {}) });
   const stubs = new Map(template.files.filter(row => row.kind === 'input' && row.path.startsWith('app/') && !row.path.startsWith(prefix)
     && row.path !== SCALED_PATHS.selection && row.path !== SCALED_PATHS.rulesUi).map(row => [row.path, stub(row.path)]));
+  stubs.set('app/data/legacy-task-history.json', { schemaVersion: 1, currentNextIndex: 1, mappings: {} });
   stubs.get('app/data/retained-task-corrections.2026-10-09.v1.json').corrections = retained;
   stubs.get('app/data/metadata-corrections.2026-10-08.v1.json').corrections = metadata;
 

@@ -33,6 +33,13 @@ test('synthetic scaled packs resolve with every pinned digest and are determinis
   const { bytes, sha256 } = dataset.verifiedBytes(SCALED_PATHS.definitions);
   assert.equal(sha(bytes), sha256);
   assert.deepEqual(dataset.json(SCALED_PATHS.definitions), JSON.parse(bytes));
+  // The generated companion must also be usable by the server/store, whose
+  // duo profile requires permanent IDs and these otherwise optional inputs.
+  for (const task of Object.values(dataset.json(SCALED_PATHS.definitions).challenges).flatMap(Object.values)) {
+    assert.match(task.PickerId, /^rs3:task:synthetic:/);
+  }
+  assert.deepEqual(dataset.json('app/data/cache-walkability.2026-10-07.v1.json').summary, { doors: 0, conditionalMorphs: 0 });
+  assert.deepEqual(dataset.json('app/data/legacy-task-history.json').mappings, {});
   const inputs = await loadDatasetInputs(dataset);
   assert.equal(sha(inputs.definitionBytes), inputs.selection.definitions.sha256);
   assert.equal(sha(inputs.taskBytes), inputs.selection.taskMap.sha256);

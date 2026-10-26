@@ -95,3 +95,45 @@ test('serialized calculation snapshots retain every input field and stay coheren
   assert.equal(nextJSON.members[0].notes['12341'], 'Next revision');
   assert.ok(store.getState().provenance.restore.previousHistory); assert.ok(store.getState().history.length);
 });
+
+test('note acknowledgements match independent full projections for both players and locked/unlocked chunks', async t => {
+  const { projectPlayState } = await import('../app/play-view.mjs');
+  const { evaluateRollPool, partnerConnections, createRuleRegistry } = await import('../app/core/rules.mjs');
+  const registry = createRuleRegistry();
+  const { selectDuoTasks } = await import('../app/web/duo-tasks.mjs');
+  const initialState = createGroupState([{ id: 'one', name: 'One', unlocked: ['12341'] }, { id: 'two', name: 'Two', unlocked: ['12342'] }]);
+  initialState.tasks = [{ id: 'custom:one', label: 'One task', category: 'Custom' }, { id: 'custom:two', label: 'Two task', category: 'Custom' }];
+  initialState.members[0].taskStatus = { 'custom:one': { favorite: true } };
+  initialState.members[1].taskStatus = { 'custom:two': { challengeCompleted: true } };
+  const store = await fixture(t, { initialState, retention: { historyEntries: 2 } });
+  for (const view of [undefined, 'play-v1']) for (const memberId of ['one', 'two']) for (const chunkId of ['12341', '12342']) {
+    const baseline = snapshot(store.getStateSnapshot({ view }));
+    const saved = snapshot(await store.commandSerialized({ type: 'set-note', memberId, chunkId, note: `Note 🦊 ${view} ${memberId} ${chunkId}` }, store.getInfo().revision,
+      { view, omitUnchanged: true }));
+    const full = store.getState(), reference = view ? projectPlayState(full) : full;
+    const merged = mergeCommandState(baseline.state, saved);
+    assert.deepEqual(merged, reference, 'Every state field, including notes and History, matches an independent projection');
+    const expectedPools = Object.fromEntries(full.members.map(member => [member.id, { ...evaluateRollPool(world, full, member.id),
+      ...(view ? { partnerConnections: partnerConnections(world, full, member.id) } : {}) }]));
+    assert.deepEqual(saved.pools, expectedPools);
+    const results = Object.fromEntries(full.members.map(member => [member.id, { memberId: member.id, stateRevision: full.revision,
+      tasks: full.tasks.map(task => ({ ...task, status: 'available' })) }]));
+    for (const groupView of [false, true]) {
+      const rows = state => groupView ? selectDuoTasks({ state, results, registry, selectedMemberId: memberId }) : results[memberId];
+      assert.deepEqual(rows(merged), rows(reference), `Group view ${groupView}, member ${memberId}, chunk ${chunkId}`);
+    }
+  }
+});
+
+test('note projection reuse falls back when a preparation hook changes saved task references', async t => {
+  const { projectPlayState } = await import('../app/play-view.mjs');
+  const store = await fixture(t, { prepareState(state, { operation }) {
+    if (operation === 'command') state.tasks.push({ id: `custom:hook-${state.revision}`, label: 'Hook task', category: 'Custom' });
+    return state;
+  } });
+  const before = snapshot(store.getStateSnapshot({ view: 'play-v1' }));
+  const saved = snapshot(await store.commandSerialized({ type: 'set-note', memberId: 'one', chunkId: '12341', note: 'Hook edit' }, 0,
+    { view: 'play-v1', omitUnchanged: true }));
+  assert.deepEqual(mergeCommandState(before.state, saved), projectPlayState(store.getState()));
+  assert.ok(saved.state.tasks.some(task => task.id === 'custom:hook-1'));
+});

@@ -63,3 +63,111 @@ Command responses omit only unchanged large fields, anchored to `baseRevision`. 
 The same test checks exact retained-field reconstruction, immutable undo guards, backup contents, sidecar hashes, revision-conflict durability, and restart recovery. Focused storage/state tests also exercise atomic-write failures, retention packing, alias registration, undo, migration hooks, and corrupt or missing sidecars.
 
 Full validation: `npm test` passed all 792 tests, with zero failures, cancellations, or skips (144.7 seconds). Under that parallel suite load, the synthetic preference/select/clear commands took 1,781/771/1,009 ms, below the generous regression threshold, with zero whole-state JSON copies. The private reproduction copies and logs were deleted after profiling.
+
+## Note response projection trial — 2026-10-26
+
+START: `90dcb2aaf181e036dfd9dacf9807ecf59d9720cd`.
+
+A scale-400 synthetic companion produces a 103,514,448-byte portable save;
+unchanged large fields already use sidecars, leaving a 4,663-byte current
+snapshot after the measured edits. The largest avoidable note-save cost here
+was rebuilding the sparse browser task/identity projection by scanning the
+unchanged catalogue. This fixture has little personal progress, so it does not
+reproduce every cost in a long-running duo save.
+
+`store.mjs` now reuses an already cached projection only for a built-in
+`set-note` whose preparation returned the exact authored state. It takes notes,
+History and all other display fields from the newly durable state. Preparation
+hooks and other commands use the ordinary projection path. The write queue,
+backups, synchronized temp file, rename and atomic action receipt remain the
+same. This change speeds the response after persistence; it does not make the
+write itself faster.
+
+Seven fresh-process pairs alternated START/changed and changed/START. Node
+24.19.0, process calculators, a 3 GiB server heap, Linux, five logical AMD EPYC
+9V74 CPUs. Results are milliseconds, with medians and full min–max ranges:
+
+| Scenario | START | Changed | Median paired change |
+| --- | ---: | ---: | ---: |
+| One note, through HTTP parsing/merge and Saved status reducer | 17.91 (16.43–20.69) | 12.50 (10.94–14.88) | −5.95 ms / −30.5% |
+| Four sequential acknowledged note edits | 54.53 (52.90–66.36) | 31.78 (30.49–35.79) | −22.04 ms / −41.4% |
+
+The median paired change is calculated from each pair, separately from the two
+variant medians. Every complete response plus reconstructed client state and
+portable save had identical hashes across all 14 runs (only the random receipt
+request ID is normalized). Each edit carries a real scoped action receipt.
+
+| Inclusive stage, one note | START median | Changed median |
+| --- | ---: | ---: |
+| Request JSON parsing | 0.256 | 0.278 |
+| Command validation and mutation | 0.526 | 0.558 |
+| Preparation | 0.006 | 0.006 |
+| Compact disk document serialization | 0.063 | 0.065 |
+| Prior backup, including gzip and atomic write | 2.205 | 2.345 |
+| Both atomic writes together | 3.022 | 2.883 |
+| Temp file writes, nested in atomic writes | 0.168 | 0.262 |
+| File fsyncs, nested in atomic writes | 2.012 | 1.891 |
+| Renames, nested in atomic writes | 0.183 | 0.189 |
+| Synchronous revision subscribers/broadcast | 0.365 | 0.323 |
+| Roll pools / partner connections | 0.424 | 0.416 |
+| Sparse play projection, nested in response snapshot | 5.175 | 0.006 |
+| Complete response snapshot assembly | 5.754 | 0.482 |
+| Response encoding/send | 0.673 | 0.596 |
+
+These stages overlap; do not sum them. Request-to-commit median was 8.79 →
+8.92 ms. The removed projection was about 29% of the original local
+request-to-status action and about 37% of the four-edit burst. Note saves keep
+the existing unchanged-task-results branch; task calculator results are not
+awaited by the save response.
+
+Server peak RSS median: 1,508.18 → 1,506.67 MiB, ranges 1,494.52–1,518.53 →
+1,464.89–1,523.65 MiB. This is the process high-water mark including startup,
+not the combined calculator/browser total; it does not establish a memory win.
+Raw samples and summaries: `scripts/perf/save-path-results.json`.
+
+The client endpoint is the actual save-status reducer with a lightweight badge,
+not a running browser. DOM rendering, IndexedDB receipt handling, phone CPU,
+internet latency and delivery to a second browser are unmeasured. The burst is
+four note edits, not a mixed unlock/completion/settings burst. These synthetic
+results do not establish a user-visible win on the duo's real save. Run the
+required scrubbed-save benchmark on its two-CPU Linux runner before merging.
+
+Reproduce without network access, from the repository root:
+
+```sh
+mkdir -p .local/perf/save-start
+# Substitute the START commit above if comparing this trial.
+git archive 90dcb2aaf181e036dfd9dacf9807ecf59d9720cd app scripts/lib | tar -x -C .local/perf/save-start
+node scripts/perf/scale-dataset.mjs --out .local/perf/save-scale400 --scale 400
+node scripts/perf/save-path.mjs --companion .local/perf/save-scale400 --baseline .local/perf/save-start --pairs 7 --out .local/perf/save-paired.json
+```
+
+The generator needs three small runtime repairs: keep permanent task-ID syntax
+when converting open-f2p identities, supply empty topology summary counts, and
+supply empty synthetic identity history. The existing dataset-pack tests cover
+those fields. Existing storage-play tests compare all saved fields and pools
+against independent projections for both members, locked/unlocked chunks and
+Group view on/off, including history compaction and preparation-hook fallback.
+A new storage reliability test kills a child after its next temp file is synced
+but before rename, then verifies the earlier acknowledged revision survives
+and both receipt retries remain exactly once.
+
+Validation environment notes: Node 24.19.0 reports a native coverage-count
+mismatch in `ci-coverage-reporter.test.mjs`; an untouched START copy reproduces
+it (4 passed, 1 failed), while the supplied Node 24.20.0 passes all 5 cases.
+Initial Node 24.19 runs finished quick at 2,311 passed / 1 failed / 65 skipped,
+and full at 5,344 passed / 2 failed / 137 skipped. The second failure was the
+unchanged orphan-calculator test: this container runs `tail` as PID 1, which
+does not reap orphaned calculator zombies. Untouched START on Node 24.20
+reproduces that failure without a reaper (0 passed / 1 failed), and passes with
+a temporary Linux child subreaper (1 passed / 0 failed). No calculator code was
+changed. Final validation uses the supplied Node 24.20 runtime; full runs under
+a temporary Python parent using `prctl(PR_SET_CHILD_SUBREAPER, 1)` and `wait()`.
+The plain Node 24.20 full trial was stopped early to use this environment.
+
+Final Node 24.20 validation: `npm run test:quick` passed 2,312 tests, zero
+failures, 65 skips; then `npm test` under the child subreaper passed 5,346
+tests, zero failures or cancellations, 137 skips (416.4 seconds). The earlier
+plain Node 24.20 full trial stopped at 66 passed / 0 failed / 1 cancelled /
+7 skipped when switching to the reaper environment. All new cases live in
+existing classified test files. No new test-file classification is needed.
