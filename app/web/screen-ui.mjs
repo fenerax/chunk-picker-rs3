@@ -25,7 +25,7 @@ export function createScreenUi(c) {
 
   function showError(error) { c.notice(error.message || String(error), true); }
 
-  function notice(message, error = false) { clearTimeout(c.noticeTimer); c.$('notice').replaceChildren(c.el('span', message), c.button('Dismiss', () => { c.$('notice').hidden = true; c.reviewSaveRefusal?.(); })); c.$('notice').hidden = false; c.$('notice').className = error ? 'error' : ''; if (!error) c.noticeTimer = setTimeout(() => { c.$('notice').hidden = true; }, 10000); }
+  function notice(message, error = false) { clearTimeout(c.noticeTimer); c.$('notice').setAttribute('role', error ? 'alert' : 'status'); c.$('notice').replaceChildren(c.el('span', message), c.button('Dismiss', () => { c.$('notice').hidden = true; c.reviewSaveRefusal?.(); })); c.$('notice').hidden = false; c.$('notice').className = error ? 'error' : ''; if (!error) c.noticeTimer = setTimeout(() => { c.$('notice').hidden = true; }, 10000); }
 
   const saved = createSaveStatus(c);
 

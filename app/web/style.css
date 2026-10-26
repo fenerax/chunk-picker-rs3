@@ -1180,3 +1180,8 @@ progress.skill-meter::-moz-progress-bar{background:var(--gold);border-radius:var
 .file-picker{display:flex;align-items:center;gap:var(--space-4);flex-wrap:wrap;min-width:0}
 .file-picker-name{min-width:0;overflow-wrap:anywhere;font-size:var(--type-sm);color:var(--panel-muted,var(--muted))}
 .file-picker-input{display:none}
+
+/* Respect reduced motion for disclosures, switches and other decorative changes. */
+@media(prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation:none!important;transition:none!important;scroll-behavior:auto!important}
+}

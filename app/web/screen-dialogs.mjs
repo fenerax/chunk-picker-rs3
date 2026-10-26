@@ -24,7 +24,12 @@ export function createScreenDialogs(c) {
 
   function beginDialogRequest() { search.clear(); return ++c.dialogGeneration; }
 
-  function closeDialog(generation) { if (generation !== undefined && !c.dialogCurrent(generation)) return; search.clear(); c.dialogGeneration++; c.$('tool-dialog').close(); }
+  function closeDialog(generation, { focusTarget } = {}) {
+    if (generation !== undefined && !c.dialogCurrent(generation)) return;
+    // A result can hand focus to the surface it opens instead of its old launcher.
+    if (focusTarget) { returnFocus = focusTarget; returnToTasks = false; }
+    search.clear(); c.dialogGeneration++; c.$('tool-dialog').close();
+  }
 
   function bindDialogLifecycle() {
     const dialog = c.$('tool-dialog');

@@ -3842,3 +3842,26 @@ test('a failing on-demand load clears the busy flag after taking over an aborted
   old.resolve(taskResult(7)); await loading;
   assert.equal(h.run('taskInFlight'), false); assert.ok(h.find('button', 'Retry'));
 });
+
+test('accessibility: search actions name their result and hand focus to Chunk Info on close', async () => {
+  const h = harness();
+  h.run("chunkSearch = [{id:'12341',name:'Named chunk',search:'named chunk'}]; searchDialog()");
+  await flush();
+  const view = h.find('button', 'View'); assert.ok(view);
+  assert.equal(view.attributes['aria-label'], 'View Named chunk');
+  let closeArgs;
+  h.context.captureClose = (...args) => { closeArgs = args; };
+  h.run('closeDialog = captureClose');
+  await view.emit('click');
+  assert.equal(h.nodes.get('chunk-info').hidden, false);
+  assert.equal(closeArgs[1].focusTarget, h.nodes.get('chunk-close'));
+});
+
+test('accessibility: shared errors are alerts and ordinary notices remain polite statuses', () => {
+  const h = harness();
+  h.run("notice('Could not save', true)");
+  assert.equal(h.nodes.get('notice').attributes.role, 'alert');
+  assert.equal(h.nodes.get('notice').hidden, false);
+  h.run("notice('Copied')");
+  assert.equal(h.nodes.get('notice').attributes.role, 'status');
+});

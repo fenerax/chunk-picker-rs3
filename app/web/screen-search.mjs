@@ -43,7 +43,7 @@ export function createSearchDialog(c) {
     const openChunk = (id, matchedNotes, query) => {
       c.chunkNoteReveal = matchedNotes?.length ? { chunkId: id, memberIds: matchedNotes.map(note => note.memberId), query } : undefined;
       if (c.chunkNoteReveal) c.chunkTab = 'note';
-      c.closeDialog(generation); c.map.centerOnChunk(id); c.showChunk(id);
+      c.closeDialog(generation, { focusTarget: c.$('chunk-close') }); c.map.centerOnChunk(id); c.showChunk(id);
     };
 
     async function enrichTaskMatches(request, targetEntries) {
@@ -81,11 +81,12 @@ export function createSearchDialog(c) {
         title.append(c.el('span', entry.label));
         text.append(title, c.el('small', entry.subtitle));
         for (const note of entry.notes ?? []) text.append(c.el('small', `${note.name}’s note: ${searchNoteExcerpt(note.text, query)}`, 'search-note'));
-        row.append(text, c.button('View', () => {
+        const view = c.button('View', () => {
           if (!current() || entryRequest !== requestId) throw new Error('Saved state or search changed. Search again before opening this result.');
           return entry.action();
-        }));
-        rows.append(row);
+        });
+        view.setAttribute('aria-label', `View ${entry.label}`);
+        row.append(text, view); rows.append(row);
       }
       paging.replaceChildren();
       if (value.pages > 1) {

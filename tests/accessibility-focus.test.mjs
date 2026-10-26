@@ -122,3 +122,24 @@ test('Escape dismisses one foremost tool at a time without closing the surfaces 
 test('Escape already handled by a nested picker does not dismiss its parent', () => {
   const h = escapeFixture(); handleScreenEscape(h.c, { key: 'Escape', defaultPrevented: true }); assert.deepEqual(h.calls, []);
 });
+
+
+test('a dialog result hands focus to its destination when it closes', async t => {
+  const h = dialogs(t), destination = new Node(); destination.document = h.document;
+  h.c.openDialog('Search');
+  h.c.closeDialog(h.c.dialogGeneration, { focusTarget: destination });
+  await Promise.resolve(); assert.equal(h.document.activeElement, destination);
+  // The destination must not leak into the next ordinary dialog lifecycle.
+  h.opener.focus(); h.c.openDialog('Settings'); h.c.closeDialog();
+  await Promise.resolve(); assert.equal(h.document.activeElement, h.opener);
+});
+
+test('a stale dialog close cannot change the current focus destination', async t => {
+  const h = dialogs(t), stale = new Node(); stale.document = h.document;
+  const generation = h.c.openDialog('Search'); h.c.openDialog('Settings');
+  h.c.closeDialog(generation, { focusTarget: stale });
+  assert.equal(h.dialog.open, true);
+  await Promise.resolve(); // Discard the queued Search → modal close while it is open.
+  h.c.closeDialog(); await Promise.resolve();
+  assert.equal(h.document.activeElement, h.opener);
+});
