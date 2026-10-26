@@ -3,6 +3,25 @@
   "entries": [
     {
       "date": "2026-10-25",
+      "title": "Clearer messages when the picker is busy or out of reach",
+      "items": [
+        "When the picker is busy, restarting or can't be reached, panels now say so in plain words, such as “The picker is busy or restarting. Try again in 10 seconds.”, instead of showing server error text",
+        "Tasks, the unlock preview and other panels keep a Retry button instead of waiting forever, and Tasks reload on their own once the calculator is back",
+        "A save that couldn't be confirmed waits as long as the picker asks before trying again, and still counts only once",
+        "After a dropped connection, the live updates reconnect with growing pauses instead of hammering the picker"
+      ]
+    },
+    {
+      "date": "2026-10-25",
+      "title": "Easier to use with a keyboard or screen reader",
+      "items": [
+        "Picking a search result moves keyboard focus into the chunk panel it opens, and each result's View button says which result it opens",
+        "Errors are read out straight away, and save status messages are read out whole",
+        "If your device is set to reduce motion, the picker turns off its decorative animations"
+      ]
+    },
+    {
+      "date": "2026-10-25",
       "title": "Menus fit small phone screens",
       "items": [
         "The More tools menu now scrolls within short or sideways phone screens instead of running off the bottom",
