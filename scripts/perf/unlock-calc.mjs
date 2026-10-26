@@ -234,7 +234,7 @@ async function instrument(scratch, appDir) {
     '      while (changed && counters.passes - roundStart < compiled.length + 2) {\n        const passStarted = performance.now(), beforeChecks = counters.checks, beforeDependencies = counters.dependencyChecks;\n        counters.passes++; changed = false;', 'inner fixed-point pass start');
   engine = replace(engine, '        if (discoveryExpanded) { changed = true; discoveryExpanded = false; }\n      }\n      updatePoints();',
     '        if (discoveryExpanded) { changed = true; discoveryExpanded = false; }\n        fixedPointPass(passStarted, beforeChecks, beforeDependencies, counters, blockedCheckCount, projectOnly, changed, valid.size);\n      }\n      updatePoints();', 'inner fixed-point pass end');
-  engine = replace(engine, '    const rows = compiled.map(task => {\n      const blockers', '    const provenanceStarted = performance.now();\n    const rows = compiled.map(task => {\n      const blockers', 'provenance start');
+  engine = replace(engine, '    const rows = compiled.map(task => {', '    const provenanceStarted = performance.now();\n    const rows = compiled.map(task => {', 'provenance start');
   engine = replace(engine, '    const equipment = [];\n    const houseStorage', '    addDuration("taskProvenanceMs", provenanceStarted);\n    const equipment = [];\n    const houseStorage', 'provenance end');
   engine = replace(engine, '    const diagnostics = [...compileDiagnostics,', '    const diagnosticsStarted = performance.now();\n    const diagnostics = [...compileDiagnostics,', 'diagnostics start');
   engine = replace(engine, '    const ownItemOrigins = ownItemQueries.filter', '    addDuration("diagnosticsMs", diagnosticsStarted);\n    const ownItemOrigins = ownItemQueries.filter', 'diagnostics end');
@@ -272,9 +272,13 @@ async function instrument(scratch, appDir) {
     : worker.includes('compileMs }));')
     ? replace(worker, 'compileMs }));', 'compileMs, probe: startupSnapshot() }));', 'startup timing')
     : replace(worker, "compileMs: performance.now() - compileStarted });", "compileMs: performance.now() - compileStarted, probe: startupSnapshot() });", 'startup timing');
-  worker = replace(worker, 'stateTransport, stateJSON, stateJSONBytes, stateRevision, stateMemberIds, duoProjection = false, duoSidebarProjection = false', 'stateTransport, stateJSON, stateJSONBytes, stateRevision, stateMemberIds, duoProjection = false, duoSidebarProjection = false, probeFresh = false, probeProfile', 'request flags');
+  worker = replace(worker, 'duoProjection = false, duoSidebarProjection = false', 'duoProjection = false, duoSidebarProjection = false, probeFresh = false, probeProfile', 'request flags');
   worker = replace(worker, '  const started = performance.now();\n  // Fixed stage names', '  begin();\n  if (probeFresh) { snapshots.clear(); stateSnapshots.clear(); sandboxSnapshots.clear(); }\n  const started = performance.now();\n  // Fixed stage names', 'request begin');
-  worker = replace(worker, '  requests.set(id, request);\n  try {', '  requests.set(id, request);\n  try {\n    await startProfile(probeProfile);', 'profile start');
+  // Background checkpoints may be declared between request registration and
+  // the try block. Keep the probe inside that block in both source versions.
+  const profileStart = worker.includes('  const checkpoint = memberPreparation')
+    ? '  try {\n    if (memberPreparation' : '  requests.set(id, request);\n  try {';
+  worker = replace(worker, profileStart, profileStart.replace('  try {', '  try {\n    await startProfile(probeProfile);'), 'profile start');
   worker = replace(worker, '    parentPort.postMessage({ id, ...payload,', '    await stopProfile(probeProfile);\n    parentPort.postMessage({ id, probe: snapshot(), ...payload,', 'profile stop and report');
   worker = replace(worker, '  } catch (error) {\n    timingMs.totalMs', '  } catch (error) {\n    await stopProfile(probeProfile);\n    timingMs.totalMs', 'profile error cleanup');
   worker = absoluteImports(worker, workerFile, new Map([['./engine.mjs', engineURL]]));

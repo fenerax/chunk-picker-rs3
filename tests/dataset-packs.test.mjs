@@ -125,3 +125,29 @@ test('the full preparation pipeline applies every synthetic correction once with
   assert.deepEqual(JSON.parse(stdout), { digest: made.digest, unchanged: true, notes: made.corrections.retained + made.corrections.selected,
     doubled: 0, reviews: made.corrections.overlay, difficulty: made.corrections.metadata });
 });
+
+test('synthetic companion starts a runnable duo server with valid permanent task identities', async () => {
+  const made = await companion();
+  const script = `
+    const { createServer } = await import(${JSON.stringify(new URL('../app/server.mjs', import.meta.url).href)});
+    const { mkdtemp, rm } = await import('node:fs/promises');
+    const { tmpdir } = await import('node:os');
+    const path = await import('node:path');
+    const directory = await mkdtemp(path.join(tmpdir(), 'synthetic-server-'));
+    let app;
+    try {
+      app = await createServer({ dataDir: directory, port: 0, predictionPrewarm: false });
+      await app.listen();
+      const invite = new URL(app.inviteUrl);
+      const response = await fetch(invite.origin + '/api/tasks?memberId=explorer-1&view=play-v1', { headers: { Authorization: 'Bearer ' + invite.pathname.slice('/join/'.length) } });
+      if (response.status !== 200) throw new Error('Synthetic tasks did not load: ' + response.status);
+      const value = await response.json();
+      if (!value.tasks.length || !value.tasks.every(row => /^rs3:(task|entity|goal):/.test(row.id))) throw new Error('Invalid synthetic task identities');
+    } finally { await app?.close(); await rm(directory, { recursive: true, force: true }); }
+  `;
+  const environment = { ...process.env, ...made.environment };
+  for (const key of ['RS3_PRIVATE_ADDON', 'RS3_PRIVATE_ADDON_SHA256', 'RS3_DATA_DIR', 'RS3_PUBLIC_ORIGIN', 'RS3_LOOPBACK_PORT']) delete environment[key];
+  const runner = path.join(directory, `runnable-${counter++}.mjs`);
+  await writeFile(runner, script);
+  await promisify(execFile)(process.execPath, [runner], { env: environment, timeout: 30000, windowsHide: true });
+});

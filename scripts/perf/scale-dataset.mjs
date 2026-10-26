@@ -70,7 +70,10 @@ function synthesizer(seed, replica, preserved) {
     tokens.set(run, value);
     return value;
   };
-  const text = value => preserved.has(value) ? value : value.replace(/[A-Za-z]+|[0-9]+/g, token);
+  // Installed duo profiles require the permanent task namespace; only the
+  // payload is synthetic. Equal IDs still map to equal IDs in every reference.
+  const text = value => preserved.has(value) ? value : value.startsWith('rs3:')
+    ? `rs3:task:synthetic:${value.slice(4).replace(/[A-Za-z]+|[0-9]+/g, token)}` : value.replace(/[A-Za-z]+|[0-9]+/g, token);
   const number = value => Number.isInteger(value) ? Math.max(value < 0 ? value - 2 : 0, value + Math.floor(random() * 5) - 2)
     : Math.round(value * (0.5 + random()) * 1e6) / 1e6;
   const map = value => {
@@ -180,12 +183,17 @@ export async function writeScaledCompanion(out, { scale = 1, seed = 1, version, 
   const stub = key => ({ ...template.json(key) });
   const stubs = new Map(template.files.filter(row => row.kind === 'input' && row.path.startsWith('app/') && !row.path.startsWith(prefix)
     && row.path !== SCALED_PATHS.selection && row.path !== SCALED_PATHS.rulesUi).map(row => [row.path, stub(row.path)]));
+  stubs.set('app/data/legacy-task-history.json', {});
+  // The duo server exercises cache topology even with the public empty stub.
+  stubs.get('app/data/cache-walkability.2026-10-07.v1.json').summary ??= { doors: 0, conditionalMorphs: 0 };
   stubs.get('app/data/retained-task-corrections.2026-10-09.v1.json').corrections = retained;
   stubs.get('app/data/metadata-corrections.2026-10-08.v1.json').corrections = metadata;
 
   // Values keep open-f2p's authored keys; identities follow the synthetic tasks.
   const values = decodeDatasetValue(template.materializeValues());
-  values['app/data/identity-registry.mjs#authoredTasks'] = labels.map(([category, label]) => [definitions.challenges[category][label].PickerId ?? `synthetic:${label}`, category, label]);
+  values['app/data/identity-registry.mjs#authoredTasks'] = labels.map(([category, label]) => [definitions.challenges[category][label].PickerId ?? `rs3:task:synthetic:${label}`, category, label]);
+  // The public manual journal goal belongs to open-f2p, not this duo profile.
+  values['app/data/identity-registry.mjs#authoredGoals'] = [];
   const textKeys = Object.keys(values).filter(key => key.endsWith(':presentation'));
   const dataValues = Object.fromEntries(Object.entries(values).filter(([key]) => !textKeys.includes(key)));
   const textValues = Object.fromEntries(textKeys.map(key => [key, values[key]]));

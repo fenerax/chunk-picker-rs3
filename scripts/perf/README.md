@@ -314,3 +314,171 @@ attribute that separately from application work. Inherited Node `--cpu-prof`
 also samples the ordinary stage measurements and main-thread orchestration, so
 those timings must be labelled as sampled-profile measurements. Output and
 profiles stay ignored under `.local/perf/`; source/app hashes are rechecked.
+
+## Member switching with Group view off (Task H)
+
+`member-switch.mjs` creates its own disposable synthetic duo, localhost server,
+process calculators and Chromium profile. It never reads an existing save. It
+forces a 3 GiB server/calculator heap, disables prediction prewarming, and uses
+ordinary writer/admin authentication. Strict read-only viewers use retained
+saved bytes and do not start a calculator; this experiment diagnoses the writer
+path. Ownership sets differ between members and include locked and unlocked
+chunks. Full response hashes exclude only `cache` and `metrics.elapsedMs`,
+retaining rows, order, counters, identities, references and presentation.
+
+The first experiment is preserved in `member-switch-results.json` and
+`member-switch-preparation.patch`. Seven alternating pairs found calculation
+responsible for 86.5% of the switch (8.076 s of 9.333 s), compared with 0.085 s
+transfer and 0.609 s after-body client work. Preparing the other member during a
+12 s reading interval reduced switching to 0.825 s, but an overlapping unlock
+regressed from 10.80 to 16.27 s. That prototype was withdrawn. To reproduce that
+older patch with the current harness, pass `--require-preparation off`; it lacks
+the new cancellation diagnostics.
+
+The follow-up is also **withdrawn: no application change is retained**. Its
+seven-pair completed-preparation unlock had a median paired ratio of 1.0352,
+exceeding the 1.03 limit (the ratio of the separate medians was 1.0146). The
+interruption scenario met the limit. The complete candidate and regression
+cases are preserved in `member-switch-background-preparation.patch`, which
+applies to START, for further investigation.
+
+The archived follow-up candidate admits only idle work on the resident foreground
+calculator. Foreground task requests and authenticated POSTs cancel it through
+the existing process-host shared cancellation flag. Catalogue scan checkpoints
+stop calculation without retaining another full graph or eligibility proof.
+Only one compact result, capped at 32 MiB, can be prepared; every revision,
+worker retirement and recovery releases it. Consumption moves it into the
+ordinary cache. Preparation neither wakes a worker nor extends its idle timer.
+It starts after the selected list paints, including after an unlock settles.
+Other interactive calculator lanes retain their existing admission rules; only
+preparation backs off while they are occupied. Optional startup warming pauses
+while the prepared bytes are held to avoid duplicate graphs. Planning and the
+duo personal filter are unchanged.
+
+Reproduce with Node 24, Linux and Chromium, using only public/generated data.
+Substitute two available CPU IDs for `0,1` if necessary. The `after` tree must
+contain the measured candidate (or its archived patch if it was withdrawn):
+
+```sh
+mkdir -p .local/perf/member-switch-before .local/perf/member-switch-after
+# Use START, not the possibly stale origin/main. No network access is needed.
+git archive 90dcb2aaf181e036dfd9dacf9807ecf59d9720cd | tar -x -C .local/perf/member-switch-before
+git archive 90dcb2aaf181e036dfd9dacf9807ecf59d9720cd | tar -x -C .local/perf/member-switch-after
+git apply --directory=.local/perf/member-switch-after scripts/perf/member-switch-background-preparation.patch
+node scripts/perf/scale-dataset.mjs --out .local/perf/member-switch-data --scale 400
+
+for scenario in switch unlock-running unlock-idle; do
+  taskset -c 0,1 node scripts/perf/member-switch.mjs \
+    --companion .local/perf/member-switch-data \
+    --before .local/perf/member-switch-before --after .local/perf/member-switch-after \
+    --pairs 7 --scenario "$scenario" --dwell-ms 12000 --interrupt-ms 800 \
+    --out ".local/perf/member-switch-$scenario.json" || break
+done
+
+node scripts/perf/member-switch-background-summary.mjs \
+  .local/perf/member-switch-switch.json \
+  .local/perf/member-switch-unlock-running.json \
+  .local/perf/member-switch-unlock-idle.json
+```
+
+Each scenario uses seven independent alternating AB/BA pairs with fresh servers
+and browser profiles. `switch` compares both members, Group off/on.
+`unlock-running` requires preparation active 800 ms after the first list;
+`unlock-idle` waits 12 s and requires completed preparation, with nothing queued
+or running. Unlock timing includes command-session registration and ends at the
+new revision's tasks-shown milestone. Untimed validation then compares both
+members' personal, sidebar and peer responses. The new summary checks all 112
+response comparisons, paired medians, quartiles, ranges, cancellation handoff,
+and the 3% latency/RSS budgets. `member-switch-summary.mjs` remains available for
+the original experiment's report format.
+
+RSS is sampled every 50 ms for owned processes, with descendant discovery every
+second. The report includes server, server plus calculators, Chromium, and the
+simultaneous total. Brief unsampled peaks are possible. Browser RSS includes
+inspector response retention. Unlock RSS is frozen before the untimed response
+comparisons, which deliberately calculate the other member. No forced GC is
+used. The 12 s switch interval hides preparation; immediate switches still need
+a foreground calculation. Results above 32 MiB are not prepared.
+
+Scale 400 has 110,358 task rows and 18,602 chunk definitions, but only 12 remapped
+cells inside the original surface crop. It models calculation load rather than
+a faithful game map, limiting conclusions about unlock behavior. Scale 612
+with corrected permanent IDs exceeds the pack's 128 MiB per-file limit; scale
+400 is the practical load. The generator changes only invalid identity prefixes,
+an unrelated public manual goal, and missing empty topology/history inputs.
+
+Final follow-up results are retained, including all 42 observations and source
+hashes, in `member-switch-background-results.json`. Each latency cell is the
+median with the observed min–max range, in seconds:
+
+| Action | START | Candidate | Median paired change |
+| --- | --- | --- | --- |
+| Switch, Group off | 9.361 [8.348–10.508] | 0.847 [0.771–0.934] | −91.170% |
+| Unlock during preparation | 11.788 [10.858–13.101] | 11.833 [11.566–12.069] | +0.165% |
+| Unlock, preparation completed | 11.599 [11.084–12.368] | 11.768 [11.184–13.953] | **+3.521%** |
+
+The ratio of separate medians is +0.387% for interruption and +1.461% for the
+completed-preparation unlock. The conservative gate requires both that ratio
+and the median paired ratio to stay at or below 1.03. No pairs were omitted or
+rerun to select a favorable result. The latter scenario therefore fails. This
+is a measured budget miss, not proof of its exact cause: co-located tests and
+run variation limit attribution of a marginal difference.
+
+The baseline worker calculation is 8.034 s median, with a median per-observation
+share of 86.6% of the user-visible switch. Transfer is 0.096 s and after-body
+client work 0.607 s. The prepared response removes calculation from the timed
+switch, leaving 0.071 s transfer and 0.618 s after-body work. The overall switch
+median falls by 91.0%; calculation itself is not faster. Cancellation handoff
+has a 256 ms median and 97–346 ms range. All 112 full-response comparisons match.
+
+Peak RSS maxima across the seven observations in each condition (MiB):
+
+| Scenario | Server + calculators, START → candidate | Including Chromium, START → candidate |
+| --- | --- | --- |
+| Switch | 3658.1 → 3654.0 | 5101.9 → 5153.4 |
+| Unlock during preparation | 3908.0 → 3942.8 | 4898.5 → 4891.8 |
+| Unlock, preparation completed | 3928.7 → 3991.8 | 4822.5 → 4931.1 |
+
+Server-only peaks also pass the 3% gate. The report includes paired peak ratios,
+medians, quartiles and complete ranges. Benchmarks were pinned to CPUs 0–1;
+required tests used CPUs 2–3 during portions of the runs on this four-CPU-quota
+host. No performance observations ran concurrently. This is not an isolated
+GitHub runner result.
+
+Required checks ran quick then full after the final withdrawal:
+quick **2312 pass / 1 fail / 65 skip**; full **5342 pass / 2 fail / 137 skip**.
+The archived candidate's final full run was **5352 pass / 2 fail / 137 skip**,
+including ten new passing regression cases. Remaining failures were previously
+reproduced at START: native coverage's fixture-count mismatch on Node 24.19 and
+the orphan-calculator check observing an unreaped container zombie. The existing
+heap instrumentation matches all 32 anchors in both exact source trees; the
+archived patch replays to the exact eight measured app files.
+
+Files in the archived background candidate (application and regression cases
+are in the patch only):
+
+| File | Change |
+| --- | --- |
+| `app/web/screen-context.mjs` | One small preparation attempt record. |
+| `app/web/screen-loading.mjs` | Bodyless preparation after paint; invalidate attempts on gameplay/revision/mode changes. |
+| `app/server.mjs` | Authenticated idle-only HEAD admission, immediate POST cancellation, bounded background warming. |
+| `app/tasks/scheduler.mjs` | One capped result, existing warm-queue priority, preemption, revision and idle release, diagnostics. |
+| `app/tasks/worker.mjs` | Observe the existing process cancellation flag; avoid retaining speculative graphs/proofs. |
+| `app/tasks/engine.mjs` | Optional scan checkpoints; ordinary results retain their existing semantics. |
+| `app/tasks/presentation.mjs`, `app/play-view.mjs` | Optional projection checkpoints. |
+| `tests/duo-server.test.mjs`, `tests/process-worker.test.mjs` | Native response equality for both members and group lanes, plus real process cancellation. |
+| `tests/scheduler.test.mjs`, `tests/workers-idle.test.mjs` | Idle admission, foreground priority, one-slot/byte limits, revision and retirement cleanup. |
+| `tests/engine.test.mjs`, `tests/web-browser.test.mjs` | Cancellation leaves ordinary results intact; preparation follows paint and reads no body. |
+| `scripts/perf/member-switch.mjs` | Three seven-pair browser scenarios, native command unlocks, response hashes, owned-process RSS. |
+| `scripts/perf/member-switch-background-summary.mjs` | Verify alternation/equality and calculate spread, paired changes and budgets. |
+| `scripts/perf/member-switch-background-results.json`, `scripts/perf/member-switch-background-preparation.patch` | Complete measurements and the withdrawn, reproducible candidate. |
+| `scripts/perf/unlock-calc.mjs` | Preserve existing instrumentation anchors across START and checkpoint-enabled sources. |
+| `scripts/perf/scale-dataset.mjs`, `tests/dataset-packs.test.mjs` | Minimal valid-synthetic-pack fixes and native-server coverage retained from the first investigation. |
+
+All archived regression cases extend existing classified test files. No
+test-selection change is needed. The active test change is the synthetic pack
+server test in `tests/dataset-packs.test.mjs`.
+
+The required real scrubbed-save benchmark on the designated GitHub runner
+remains outstanding. This sandbox uses only public/synthetic inputs and never
+accesses GitHub.

@@ -1,0 +1,907 @@
+diff --git a/app/play-view.mjs b/app/play-view.mjs
+index 7df9b9b..b139216 100644
+--- a/app/play-view.mjs
++++ b/app/play-view.mjs
+@@ -84,7 +84,7 @@ export function projectPlayTask(task, { retainHiddenDisplay = false, reuse = tru
+   return projected;
+ }
+
+-export function projectPlayResult(result, { reuse = true } = {}) {
++export function projectPlayResult(result, { reuse = true, checkpoint } = {}) {
+   let tasks, completedTasks;
+   if (reuse) {
+     const rows = result.tasks ?? [];
+@@ -92,6 +92,7 @@ export function projectPlayResult(result, { reuse = true } = {}) {
+     // Both arrays follow catalogue order, just as the independent reference
+     // map and filter passes do, without allocating callback pairs per row.
+     for (let index = 0; index < rows.length; index++) {
++      if (checkpoint && (index & 255) === 0) checkpoint();
+       if (!(index in rows)) continue;
+       const task = rows[index];
+       tasks[index] = projectPlayTask(task);
+diff --git a/app/server.mjs b/app/server.mjs
+index e6b83f7..fdee8f3 100644
+--- a/app/server.mjs
++++ b/app/server.mjs
+@@ -1499,11 +1499,11 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
+             const chunkId = query.get('chunkId');
+             const type = route === '/api/predict' ? 'predict' : route === '/api/death-estimates' ? 'death-estimates' : route === '/api/chunk-planning' ? 'chunk-planning' : 'evaluate';
+             const savedTasks = savedTaskResults.get(memberId), revision = store.getInfo().revision;
+-            if (route === '/api/tasks' && taskWorker.getHealth().status === 'sleeping' && savedTasks?.revision === revision
++            if (route === '/api/tasks' && !query.has('prepareFor') && taskWorker.getHealth().status === 'sleeping' && savedTasks?.revision === revision
+               && (viewFor(request) === PLAY_VIEW ? savedTasks.playJSON : savedTasks.fullGzip && savedTasks.fullBodyRevision === revision)) {
+               await readSavedTasks(request, response); return;
+             }
+-            if (route === '/api/tasks' && query.get('projection') === DUO_INSPECTION_VIEW
++            if (route === '/api/tasks' && !query.has('prepareFor') && query.get('projection') === DUO_INSPECTION_VIEW
+               && savedTaskResults.get(memberId)?.revision === store.getInfo().revision) {
+               await readSavedTasks(request, response); return;
+             }
+@@ -1523,6 +1523,19 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
+               if (route !== '/api/tasks' || viewFor(request) !== PLAY_VIEW || peerFor === memberId || !metadata.members.some(member => member.id === peerFor)) throw httpError(400, 'Choose two different saved players to view both task lists.');
+               if (query.get('revision') !== String(metadata.revision)) throw httpError(409, 'Saved state changed before the duo calculation. Request the current tasks.');
+             }
++            const prepareFor = query.get('prepareFor');
++            if (prepareFor !== null) {
++              if (route !== '/api/tasks' || request.method !== 'HEAD' || viewFor(request) !== PLAY_VIEW
++                || evaluationLane !== 'foreground' || projection || prepareFor === memberId
++                || !metadata.members.some(member => member.id === prepareFor)) throw httpError(400, 'Choose a saved partner to prepare.');
++              if (query.get('revision') !== String(metadata.revision)) throw httpError(409, 'Saved state changed before preparing tasks.');
++              // This request only admits idle work. It never becomes a list
++              // waiter, changes the selected-member gate, or evicts viewer bytes.
++              const idle = nativeForegroundState && !foregroundActive && !automaticDeathActive && !listPending(metadata.revision)
++                && requiredTaskMembers.size === 1 && requiredTaskMembers.has(prepareFor) && metadata.members.length === 2;
++              const admitted = idle && taskWorker.prepareMember?.(metadata, captured.input, memberId, captured.stateInput);
++              response.writeHead(admitted ? 202 : 204, { 'Cache-Control': PRIVATE_NO_STORE }); response.end(); return;
++            }
+             if (type === 'evaluate' && viewFor(request) === PLAY_VIEW && evaluationLane === 'foreground' && !duoInspectionProjection) {
+               refreshMemberId = memberId;
+               requiredTaskMembers = new Set(duoSidebarProjection ? metadata.members.map(member => member.id) : [memberId]);
+@@ -1629,6 +1642,7 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
+           }
+         } else if (request.method === 'POST') {
+           checkRequestOrigin(request, security);
++          taskWorker?.cancelMemberPreparation?.();
+           if (isImportRoute(route)) {
+             if (importingBackup) throw httpError(503, 'Another backup is being checked or imported. Wait for it to finish, then try again.');
+             importingBackup = ownsImport = true;
+@@ -2261,6 +2275,7 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
+       schedulePredictions(10000);
+       if (!liveSwap?.standby && httpServer && taskWorker && nativeForegroundState) startupWarmup = createStartupWarmup({ worker: taskWorker, clock: schedulingClock,
+         snapshot: calculationState, busy: () => foregroundActive > 0 || automaticDeathActive > 0 || listPending(store.getInfo().revision)
++          || taskWorker.getDiagnostics().memberPreparation?.ready === 1
+           || schedulingClock.now() - foregroundLastActivity < 1000 });
+       return handle;
+     },
+diff --git a/app/tasks/engine.mjs b/app/tasks/engine.mjs
+index ec1eec8..75cb93b 100644
+--- a/app/tasks/engine.mjs
++++ b/app/tasks/engine.mjs
+@@ -380,8 +380,10 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false,
+     }
+     evaluationPrepared = true;
+   }
+-  function* evaluatePass(state, memberId, { ownItemQueries = [], reuseObligations = true } = {}, admitted = new Set(), multiAdmitted = new Set(), replay, projectOnly = false) {
++  function* evaluatePass(state, memberId, { ownItemQueries = [], reuseObligations = true, checkpoint } = {}, admitted = new Set(), multiAdmitted = new Set(), replay, projectOnly = false) {
+     const started = performance.now();
++    let checkpointVisits = 0;
++    const poll = checkpoint ? () => { if ((++checkpointVisits & 255) === 0) checkpoint(); } : undefined;
+     const sourceMembershipBlocker = replay.membership.source, itemMembershipBlocker = replay.membership.item;
+     const member = state.members.find(value => value.id === memberId);
+     if (!member) throw new TypeError(`Unknown member: ${memberId}`);
+@@ -440,13 +442,16 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false,
+     // These gates cannot change during the capability closure. The ordinary
+     // pass only tests whether any blocker exists; final explanation still
+     // evaluates every guard in its original order, including dynamic access.
+-    const staticBlocked = replay.staticBlocked ??= new Set(compiled.filter(task => task.unknown.length || task.manualChecks.length || task.record.Categories || task.record.OutputVar
++    const staticBlocked = replay.staticBlocked ??= new Set(compiled.filter(task => {
++      poll?.();
++      return task.unknown.length || task.manualChecks.length || task.record.Categories || task.record.OutputVar
+       || task.invalidRequirements.length || task.invalidDependencies.length || task.invalidCompletedDependencies.length || task.unsupportedCompletedDependencies.length || f2p && task.record['Not F2P']
+       || membershipByTask.get(task).length
+       || task.record['Not Skiller'] && on(rules, 'Skiller', false)
+       || task.tags.some(tag => !PRESENTATION_RULES.has(tag) && !MAYBE_PRIMARY.has(tag) && !on(rules, tag))
+       || task.level > 1 && task.tags.includes('InsidePOH Primary') && !on(rules, 'InsidePOH', true)
+-      || member.taskStatus?.[task.id]?.backlogged));
++      || member.taskStatus?.[task.id]?.backlogged;
++    }));
+     // Rules are fixed throughout this evaluation. Source probabilities recur
+     // across methods, provenance queries and fixed-point passes.
+     const cutoffCache = replay.cutoffCache ??= { rare: new Map(), primary: new Map() };
+@@ -517,13 +522,17 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false,
+     // Personal completion above can seed capabilities. Challenge satisfaction
+     // is neutral in the retained proof and applied only by the final overlay.
+     const challengeSatisfied = () => false;
+-    for (const task of compiled) if (completedTask(task)) { valid.add(task.key); validRows.push(task); }
++    for (const task of compiled) {
++      poll?.();
++      if (completedTask(task)) { valid.add(task.key); validRows.push(task); }
++    }
+     const discoveryRows = uniqueTaskKeys && discoveryTasks
+       ? processingRowsForDiscovery.filter(task => !staticBlocked.has(task) || completedTask(task))
+       : processingRowsForDiscovery;
+     const checkableTasks = [], multiRows = [];
+     let blockedCheckCount = 0;
+     for (const task of compiled) {
++      poll?.();
+       if (multiAdmitted.has(task.id)) multiRows.push(task);
+       if (!uniqueTaskKeys || !staticBlocked.has(task)) checkableTasks.push(task);
+       else if (!discoveryTasks && !valid.has(task.key) && (!processingTasks.has(task) || admitted.has(task.id))) blockedCheckCount++;
+@@ -734,7 +743,10 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false,
+     // A lock explicitly declares the reached Slayer level as well as restricting
+     // further assignment training. It is personal evidence, not a group ceiling.
+     passive.Slayer = Math.max(passive.Slayer, Math.min(Number(playerControls.slayerLock?.level ?? 1), caps.Slayer));
+-    for (const task of compiled) if (completedTask(task) && caps[task.category]) passive[task.category] = Math.max(passive[task.category], Math.min(task.level, caps[task.category]));
++    for (const task of compiled) {
++      poll?.();
++      if (completedTask(task) && caps[task.category]) passive[task.category] = Math.max(passive[task.category], Math.min(task.level, caps[task.category]));
++    }
+     passive.Combat = Math.max(passive.Combat, combatLevelFromSkills(passive, { f2p }));
+     const levels = { ...passive }, trained = new Set(), ownTraining = new Set(), trainingVia = new Map();
+     const refreshSlayerLevel = () => {
+@@ -1151,7 +1163,9 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false,
+       if (access.monsters.size) for (const skill of MONSTER_TRAINING) seed(skill, ownAccess.monsters.size > 0);
+       if (access.monsters.size && Object.keys(code.ammoTools ?? {}).some(ammo => (ammo === 'No ammo' || (code.itemsPlus?.[ammo] ?? [ammo]).some(item => ordinaryItem(item))) && Object.keys(code.ammoTools[ammo]).some(weapon => ordinaryItem(weapon) && (code.rangedItems?.[weapon] ?? definitions.equipment?.[weapon]?.requirements?.Ranged ?? 1) <= passive.Ranged))) seed('Ranged', ownAccess.monsters.size > 0 && Object.keys(code.ammoTools ?? {}).some(ammo => (ammo === 'No ammo' || (code.itemsPlus?.[ammo] ?? [ammo]).some(item => ordinaryItem(item, true))) && Object.keys(code.ammoTools[ammo]).some(weapon => ordinaryItem(weapon, true) && (code.rangedItems?.[weapon] ?? definitions.equipment?.[weapon]?.requirements?.Ranged ?? 1) <= passive.Ranged)));
+       if (array(code.boneItems).some(item => ordinaryItem(item))) seed('Prayer', array(code.boneItems).some(item => ordinaryItem(item, true)));
+-      for (const task of primarySkillTasks) if (valid.has(task.key) && caps[task.category]) {
++      for (const task of primarySkillTasks) {
++        poll?.();
++        if (!valid.has(task.key) || !caps[task.category]) continue;
+         if (f2p && (task.record['Not F2P'] || membershipByTask.get(task).length)) continue;
+         const primary = primaryEligible(task);
+         const smithing = task.category !== 'Smithing' || on(rules, 'Smithing by Smelting', false) || access.objects.has('Anvil') || access.objects.has('Rusted anvil');
+@@ -1169,7 +1183,9 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false,
+     function updatePoints() {
+       points = { QuestPointsNeeded: 0, KudosNeeded: 0, CombatScoreNeeded: 0, TotalLevelNeeded: Object.entries(levels).filter(([skill]) => skill !== 'Combat').reduce((sum, [, level]) => sum + level, 0), TotalVirtualLevelNeeded: Object.entries(levels).filter(([skill]) => skill !== 'Combat').reduce((sum, [skill, level]) => sum + (trained.has(skill) && !f2p ? 120 : level), 0) };
+       const xp = {};
+-      for (const task of pointTasks) if (valid.has(task.key)) {
++      for (const task of pointTasks) {
++        poll?.();
++        if (!valid.has(task.key)) continue;
+         points.QuestPointsNeeded += Number(task.record.QuestPoints ?? 0);
+         points.KudosNeeded += Number(task.record.Kudos ?? 0);
+         points.CombatScoreNeeded += Number(task.record.CombatScore ?? 0);
+@@ -1179,7 +1195,9 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false,
+         const task = byKey.get(keyOf(category, rawLabel));
+         if (valid.has(keyOf(category, rawLabel)) && !authoredXpTasks.has(task?.id)) for (const [skill, amount] of Object.entries(allocation)) if (caps[skill] && Number.isFinite(Number(amount))) xp[skill] = (xp[skill] ?? 0) + Number(amount);
+       }
+-      for (const task of pointTasks) if (valid.has(task.key) && authoredXpTasks.has(task.id)) {
++      for (const task of pointTasks) {
++        poll?.();
++        if (!valid.has(task.key) || !authoredXpTasks.has(task.id)) continue;
+         for (const [skill, amount] of Object.entries(xpChoiceAllocation(task, member.xpChoices[task.id]))) if (caps[skill]) xp[skill] = (xp[skill] ?? 0) + amount;
+       }
+       let changed = false;
+@@ -1224,18 +1242,28 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false,
+         }
+         changed = updateSkills() || changed;
+         changed = updatePoints() || changed;
+-        for (const task of uniqueTaskKeys ? validRows : compiled) if (uniqueTaskKeys || valid.has(task.key)) changed = materialize(task) || changed;
++        for (const task of uniqueTaskKeys ? validRows : compiled) {
++          poll?.();
++          if (uniqueTaskKeys || valid.has(task.key)) changed = materialize(task) || changed;
++        }
+         counters.checks += blockedCheckCount;
+-        for (const task of checkableTasks) if ((!discoveryTasks || discoveryTasks.has(task)) && !valid.has(task.key) && (!processingTasks.has(task) || admitted.has(task.id)) && check(task).length === 0) {
++        for (const task of checkableTasks) {
++          poll?.();
++          if (discoveryTasks && !discoveryTasks.has(task) || valid.has(task.key) || processingTasks.has(task) && !admitted.has(task.id) || check(task).length) continue;
+           admitTask(task); changed = true;
+           materialize(task);
+         }
+-        for (const task of multiRows) if (!valid.has(task.key) && check(task).length === 0) changed = materialize(task, true) || changed;
++        for (const task of multiRows) {
++          poll?.();
++          if (!valid.has(task.key) && check(task).length === 0) changed = materialize(task, true) || changed;
++        }
+         if (discoveryExpanded) { changed = true; discoveryExpanded = false; }
+       }
+       updatePoints();
+       setWinners = new Map();
+-      for (const task of compiled) if (task.category === 'Extra' && task.record.Set && valid.has(task.key) && obligation(task)) {
++      for (const task of compiled) {
++        poll?.();
++        if (task.category !== 'Extra' || !task.record.Set || !valid.has(task.key) || !obligation(task)) continue;
+         const previous = setWinners.get(task.record.Set);
+         if (!previous || Number(task.record.Priority ?? Infinity) < Number(previous.record.Priority ?? Infinity)) setWinners.set(task.record.Set, task);
+       }
+@@ -1246,6 +1274,7 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false,
+       const checksBeforeSelection = counters.checks, dependenciesBeforeSelection = counters.dependencyChecks;
+       const processingRows = [];
+       for (const task of replay.fullDiscovery ? compiled : discoveryRows) {
++        poll?.();
+         const blocked = valid.has(task.key) ? membershipByTask.get(task).length > 0 || f2p && task.record['Not F2P']
+           : check(task).length > 0;
+         const winner = setWinners.get(task.record.Set);
+@@ -1276,6 +1305,7 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false,
+       hideDiaries = !on(rules, 'Achievement', true), wholeQuests = on(rules, 'Show Quest Tasks Complete', false),
+       smithingPrimary = on(rules, 'Smithing by Smelting', false) || access.objects.has('Anvil') || access.objects.has('Rusted anvil');
+     const rows = compiled.map(task => {
++      poll?.();
+       const blockers = valid.has(task.key) ? membershipByTask.get(task).slice() : check(task, true);
+       if (valid.has(task.key) && f2p && task.record['Not F2P']) blockers.push({ kind: 'membership', detail: 'This activity requires membership.' });
+       const record = task.record;
+@@ -1364,6 +1394,7 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false,
+     return result;
+   }
+   function computeEligibility(state, memberId, options) {
++    options?.checkpoint?.();
+     const started = performance.now();
+     prepareEvaluation();
+     // Immutable replay caches are confined to one evaluation. Ordinary growth
+@@ -1417,6 +1448,7 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false,
+       processing = evaluation.next().value;
+     }
+     for (let pass = 0; pass <= recipeIds.size + 2; pass++) {
++      options?.checkpoint?.();
+       const next = new Set(processing.eligibleTaskIds.filter(id => recipeIds.has(id)));
+       const nextMulti = new Set(processing.multiTaskIds.filter(id => recipeIds.has(id)));
+       const signature = JSON.stringify([[...next].sort(), [...nextMulti].sort()]);
+diff --git a/app/tasks/presentation.mjs b/app/tasks/presentation.mjs
+index 685a794..339372e 100644
+--- a/app/tasks/presentation.mjs
++++ b/app/tasks/presentation.mjs
+@@ -89,7 +89,7 @@ function decodedRecord(value = {}) {
+ /** Select active tasks without changing any engine row or saved game fact.
+  * alternatives and suppressed contain task IDs so this result is JSON serializable.
+  */
+-export function selectPresentedTasks(result, state, memberId, definitions = {}, { reuse = true } = {}) {
++export function selectPresentedTasks(result, state, memberId, definitions = {}, { reuse = true, checkpoint } = {}) {
+   const savedMember = state.members.find(value => value.id === memberId);
+   const member = savedMember && projectMemberTaskFacts(state, savedMember, result.tasks);
+   if (!member) throw new TypeError(`Unknown member: ${memberId}`);
+@@ -159,7 +159,9 @@ export function selectPresentedTasks(result, state, memberId, definitions = {},
+     return effectiveLevels[row.id] = Math.max(1, requirement - boost - saw);
+   }
+
++  let checkpointVisits = 0;
+   for (const row of rows) {
++    if (checkpoint && (++checkpointVisits & 255) === 0) checkpoint();
+     if (row.obligation === false) hide(row, 'Outside this member’s own obligation map.');
+     const data = record(row);
+     if ((state.rules?.['content.f2p'] ?? true) && membersEquipmentRequirement(row, data, definitions, membershipSelection)) hide(row, 'This equipment requires membership in free-to-play mode.');
+diff --git a/app/tasks/scheduler.mjs b/app/tasks/scheduler.mjs
+index 536a137..d70622d 100644
+--- a/app/tasks/scheduler.mjs
++++ b/app/tasks/scheduler.mjs
+@@ -165,6 +165,7 @@ export async function createTaskScheduler({ maxDeathQueue = 2, deathDeadlineMs =
+       if (stateInput && !validStateInput(state, input, stateInput, type)) return Promise.reject(new TypeError('Invalid serialized task state input.'));
+       if (!['foreground', 'duo', 'side'].includes(evaluationLane) || evaluationLane === 'duo' && (type !== 'evaluate' || resultView !== 'play-v1')
+         || evaluationLane === 'side' && !(type === 'chunk-planning' || type === 'evaluate' && resultView === 'full')) return Promise.reject(new TypeError('Invalid task evaluation lane.'));
++      foreground.cancelMemberPreparation();
+       if (typeof duoSidebarProjection !== 'boolean' || duoSidebarProjection && (type !== 'evaluate' || resultView !== 'play-v1' || evaluationLane !== 'foreground')) return Promise.reject(new TypeError('Invalid duo sidebar projection.'));
+       scheduler.supersede(state.revision, input, memberId);
+       if (type === 'evaluate' && resultView === 'play-v1' && state.revision >= latestRevision && unlockResults.getDiagnostics().entries) {
+@@ -309,6 +310,21 @@ export async function createTaskScheduler({ maxDeathQueue = 2, deathDeadlineMs =
+       scheduler.supersede(state.revision, input);
+       return (usePrediction ? predictionLane() : foreground).prewarmTasks(state, input, memberIds, resultView, stateInput);
+     },
++    // A single speculative result on the resident foreground calculator. This
++    // never wakes a worker, consumes a foreground queue slot or extends idle use.
++    prepareMember(state, input, memberId, stateInput) {
++      if (closed || state.revision !== latestRevision) return false;
++      // Other interactive lanes keep their existing admission. Only this
++      // speculative work backs off when any resident calculator is occupied.
++      if ([duo, prediction, death].some(lane => {
++        const queue = lane?.getDiagnostics().queue;
++        return queue && (queue.active || queue.depth);
++      })) return false;
++      if (!state.members?.some(member => member.id === memberId)) return false;
++      if (stateInput && !validStateInput(state, input, stateInput, 'evaluate')) return false;
++      return foreground.prepareMember(state, input, memberId, stateInput);
++    },
++    cancelMemberPreparation() { foreground.cancelMemberPreparation(); },
+     cancelPrewarm(options) { if (!options?.keepTasks) foreground.cancelPrewarm(); prediction?.cancelPrewarm(options); },
+     retireWarmPrediction() { return prediction?.retireWarm() ?? false; },
+     resumePrewarm() { prediction?.noteInteractiveUse(); },
+@@ -365,6 +381,9 @@ async function createWorkerLane({ workerData, workerFactory = nativeWorker, incl
+   let worker, generation = 0, sequence = 0, active, closed = false, restartTimer, startupTimer, initialResolve, initialReject, closePromise, idleTimer, prewarmSignal, prewarmAbort, latestRevision = -1;
+   let status = 'starting', restarts = 0, failures = 0, nextRetryAt = null, compileMs = 0, lastFailure = null;
+   const queue = [], warmQueue = [], sentSnapshots = new Map(), pending = new Map(), cache = new Map(), terminating = new Set(), listeners = new Set();
++  let preparedMember, memberRevision = -1;
++  const preparedMemberLimit = 32 * 1024 * 1024;
++  const memberCounts = { started: 0, completed: 0, cancelled: 0, hits: 0, oversized: 0, lastCancellationMs: 0, maxCancellationMs: 0 };
+   const warmCounts = { queued: 0, completed: 0, cancelled: 0, skipped: 0 };
+   const counts = { requested: 0, coalesced: 0, cacheHits: 0, completed: 0, errors: 0, expired: 0, cancelled: 0, superseded: 0, rejected: 0, promoted: 0, retired: 0 };
+   const timings = {};
+@@ -401,7 +420,7 @@ async function createWorkerLane({ workerData, workerFactory = nativeWorker, incl
+     if (active) { clearTimeout(active.timer); active = undefined; }
+     clearImmediate(idleTimer); idleTimer = undefined;
+     const old = worker; worker = undefined; generation++;
+-    status = 'sleeping'; idleStops++; sentSnapshots.clear(); cache.clear();
++    status = 'sleeping'; idleStops++; sentSnapshots.clear(); cache.clear(); preparedMember = undefined;
+     onSleep?.(); terminate(old); announce();
+   }
+   function wake() {
+@@ -485,12 +504,13 @@ async function createWorkerLane({ workerData, workerFactory = nativeWorker, incl
+     idleClock.clearTimeout(sleepTimer); sleepTimer = undefined;
+     clearImmediate(idleTimer); idleTimer = undefined;
+     const old = worker; worker = undefined; generation++;
+-    status = 'sleeping'; counts.retired++; sentSnapshots.clear();
++    status = 'sleeping'; counts.retired++; sentSnapshots.clear(); preparedMember = undefined;
+     // Idle sleep clears caches; retirement deliberately does not call onSleep.
+     // wake() already waits for termination before allocating a replacement.
+     terminate(old); announce(); return true;
+   }
+   function failure(kind) {
++    preparedMember = undefined;
+     if (closed || status === 'restarting' || status === 'restart-required') return;
+     failures++; lastFailure = { kind, at: new Date().toISOString() };
+     clearTimeout(startupTimer);
+@@ -564,6 +584,7 @@ async function createWorkerLane({ workerData, workerFactory = nativeWorker, incl
+     try { worker.postMessage({ id: entry.id, type: entry.type, reportProgress: true, state, snapshotKey, input: entry.input, memberId: entry.memberId, chunkId: entry.chunkId, chunkIds: entry.chunkIds, cancellation: entry.cancellation,
+       ...(entry.type === 'predict' ? { predictionProgress: true } : {}), ...serialized,
+       ...(entry.type === 'evaluate' ? { resultTransport: 'json-shared-v1', resultView: entry.resultView,
++        ...(entry.memberPreparation ? { memberPreparation: true } : {}),
+         ...(duoResults && entry.resultView === 'play-v1' ? { duoProjection: true } : {}),
+         ...(entry.duoSidebarProjection ? { duoSidebarProjection: true } : {}) }
+         : entry.type === 'sandbox' ? { resultTransport: 'json-shared-v1' } : {}) });
+@@ -619,6 +640,23 @@ async function createWorkerLane({ workerData, workerFactory = nativeWorker, incl
+       }
+       const entry = active; active = undefined; clearTimeout(entry.timer);
+       if (entry.waiters.size || entry.reuseWaiters?.size) lastRequestAt = idleClock.now();
++      if (entry.memberPreparation) {
++        if (entry.memberCancelledAt !== undefined) {
++          memberCounts.lastCancellationMs = idleClock.now() - entry.memberCancelledAt;
++          memberCounts.maxCancellationMs = Math.max(memberCounts.maxCancellationMs, memberCounts.lastCancellationMs);
++        }
++        if (!entry.discarded && !message.cancelled && !message.error && entry.revision === memberRevision) {
++          const value = workerEvaluation(message), bytes = value.playJSON?.length ?? Infinity;
++          if (bytes <= preparedMemberLimit) {
++            preparedMember = { key: entry.key, revision: entry.revision, bytes, value: cachedPlayValue(value) };
++            memberCounts.completed++;
++          } else memberCounts.oversized++;
++        }
++        if (!entry.discarded) settle(entry, message.error ? unavailable('Member preparation failed.') : null);
++        pump();
++        if (status === 'ready' && !active && !queue.length) armSleep();
++        return;
++      }
+       recordTimings(message.timingMs ?? { totalMs: message.evaluationMs });
+       if (message.error) {
+         // An error may occur before or after the worker touches its snapshot
+@@ -704,6 +742,25 @@ async function createWorkerLane({ workerData, workerFactory = nativeWorker, incl
+       if (stored) counts.promoted++;
+       return stored;
+     },
++    prepareMember(state, input, memberId, stateInput) {
++      if (closed || status !== 'ready' || active || queue.length || warmQueue.length
++        || state.revision !== memberRevision || !scheduler.canPrewarm()) return false;
++      const rawKey = JSON.stringify([input, memberId, 'evaluate', undefined, undefined]);
++      const key = JSON.stringify(['play-v1', rawKey]);
++      if (cache.has(key) || cache.get(JSON.stringify(['full', rawKey]))?.value.playJSON
++        || preparedMember?.key === key) return false;
++      preparedMember = undefined;
++      const entry = { key, input, state, stateInput, memberId, type: 'evaluate', resultView: 'play-v1',
++        revision: state.revision, queuedAt: idleClock.now(), waiters: new Set(), warm: true, memberPreparation: true };
++      pending.set(key, entry); warmQueue.push(entry); memberCounts.started++;
++      pump(); return true;
++    },
++    cancelMemberPreparation() {
++      for (const entry of [...pending.values()]) if (entry.memberPreparation && !entry.discarded) {
++        entry.warm = false; memberCounts.cancelled++; entry.memberCancelledAt = idleClock.now();
++        cancel(entry, unavailable('Member preparation yielded to foreground work.'));
++      }
++    },
+     evaluate(state, memberId, type, chunkId, key, input, signal, chunkIds = [], resultView = 'full', stateInput, duoSidebarProjection = false) {
+       counts.requested++;
+       if (stateInput && !validStateInput(state, input, stateInput, type)) return Promise.reject(new TypeError('Invalid serialized task state input.'));
+@@ -713,9 +770,16 @@ async function createWorkerLane({ workerData, workerFactory = nativeWorker, incl
+       }
+       if (closed || status === 'restart-required') return Promise.reject(unavailable(closed ? 'The task server is closing.' : 'Task engine needs a server restart. Saves remain available.'));
+       if (signal?.aborted) return Promise.reject(Object.assign(new Error('Requester disconnected.'), { name: 'AbortError' }));
++      scheduler.cancelMemberPreparation();
+       touch();
+       scheduler.supersede(state.revision, input, memberId);
+       if (strictRevision && state.revision < latestRevision) return Promise.reject(superseded());
++      if (preparedMember?.key === key && preparedMember.revision === state.revision) {
++        const prepared = preparedMember; preparedMember = undefined;
++        memberCounts.hits++; counts.cacheHits++;
++        storeEvaluation(key, state.revision, type, prepared.value);
++        return Promise.resolve(evaluationWith(prepared.value, { hit: true }));
++      }
+       if (cache.has(key)) {
+         counts.cacheHits++;
+         const value = cache.get(key); cache.delete(key); cache.set(key, value);
+@@ -761,6 +825,9 @@ async function createWorkerLane({ workerData, workerFactory = nativeWorker, incl
+       wake(); pump(); return promise;
+     },
+     supersede(revision, input, memberId) {
++      if (revision > memberRevision) {
++        scheduler.cancelMemberPreparation(); preparedMember = undefined; memberRevision = revision;
++      }
+       if (strictRevision && revision > latestRevision) {
+         latestRevision = revision;
+         if (active?.reuseRevision) {
+@@ -786,6 +853,9 @@ async function createWorkerLane({ workerData, workerFactory = nativeWorker, incl
+       }
+     },
+     supersedeDisplay(revision) {
++      if (revision > memberRevision) {
++        scheduler.cancelMemberPreparation(); preparedMember = undefined; memberRevision = revision;
++      }
+       latestRevision = Math.max(latestRevision, revision);
+       for (const entry of new Set([...pending.values(), ...(active ? [active] : [])])) {
+         if (entry.reuseRevision) {
+@@ -914,7 +984,7 @@ async function createWorkerLane({ workerData, workerFactory = nativeWorker, incl
+         const error = unavailable('Task calculation restarted. Retry shortly.');
+         for (const entry of [...pending.values()]) settle(entry, error);
+         if (active) { clearTimeout(active.timer); settle(active, error); active = undefined; }
+-        sentSnapshots.clear(); cache.clear(); onSleep?.();
++        sentSnapshots.clear(); cache.clear(); preparedMember = undefined; onSleep?.();
+         const old = worker; worker = undefined; terminate(old); announce();
+         // Finish retirement before allocating replacement definitions.
+         await Promise.allSettled([...terminating]);
+@@ -926,6 +996,8 @@ async function createWorkerLane({ workerData, workerFactory = nativeWorker, incl
+       return { worker: scheduler.getHealth(), queue: { depth: queue.length, active: active ? 1 : 0, limit: maxQueue, deadlineMs,
+         oldestWaitMs: queue.length ? idleClock.now() - queue[0].queuedAt : 0 }, counts: { ...counts },
+       cache: { entries: cache.size, limit: cacheLimit, byteLimit: cacheByteLimit, bytes: [...cache.values()].reduce((sum, value) => sum + value.bytes, 0) },
++      memberPreparation: { ...memberCounts, active: active?.memberPreparation && !active.discarded ? 1 : 0,
++        pending: warmQueue.filter(entry => entry.memberPreparation).length, ready: preparedMember ? 1 : 0, bytes: preparedMember?.bytes ?? 0, byteLimit: preparedMemberLimit },
+       prewarm: { ...warmCounts, pending: warmQueue.length, active: active?.warm ? 1 : 0, limit: maxPrewarmQueue },
+       ranking: { pending: warmQueue.filter(entry => entry.warm && entry.purpose === 'ranking').length,
+         active: active?.warm && active.purpose === 'ranking' ? 1 : 0 },
+@@ -943,7 +1015,7 @@ async function createWorkerLane({ workerData, workerFactory = nativeWorker, incl
+         clearImmediate(idleTimer); scheduler.cancelPrewarm(); sentSnapshots.clear();
+         for (const entry of [...pending.values()]) settle(entry, unavailable('The task server is closing.'));
+         if (active) { clearTimeout(active.timer); settleReuse(active, unavailable('The task server is closing.')); active = undefined; }
+-        terminate(worker); worker = undefined; cache.clear();
++        terminate(worker); worker = undefined; cache.clear(); preparedMember = undefined;
+       }
+       closePromise = (async () => {
+         let timer;
+diff --git a/app/tasks/worker.mjs b/app/tasks/worker.mjs
+index 1236a8b..53fb6ea 100644
+--- a/app/tasks/worker.mjs
++++ b/app/tasks/worker.mjs
+@@ -40,13 +40,15 @@ function takeDefinitions() {
+   return raw;
+ }
+ const mapLocationResults = new WeakMap();
+-function mapPlayResult(result) {
++function mapPlayResult(result, checkpoint) {
++  checkpoint?.();
+   let locations = mapLocationResults.get(result);
+   if (!locations) {
+     locations = projectMapTaskLocations(definitions, result, workerData.world);
+     mapLocationResults.set(result, locations);
+   }
+-  return { ...projectPlayResult(result), taskLocations: locations };
++  checkpoint?.();
++  return { ...projectPlayResult(result, { checkpoint }), taskLocations: locations };
+ }
+ const compileStarted = performance.now();
+ const engineOptions = { dataset: selectedDataset, ...workerData.datasetOptions, skillGuideCatalogue: workerData.skillGuideCatalogue };
+@@ -84,9 +86,11 @@ function timed(timingMs, stage, operation) {
+     }
+   }
+ }
+-function evaluateCore(state, memberId, timingMs) {
++function evaluateCore(state, memberId, timingMs, checkpoint) {
++  checkpoint?.();
+   const member = state.members.find(owner => owner.id === memberId), savedIds = [...new Set([...Object.keys(member?.taskStatus ?? {}), ...member?.completedTasks ?? []])];
+-  const result = timed(timingMs, 'engineMs', () => engine.evaluate(state, memberId, { ownItemQueries: savedIds.filter(id => equipmentById.has(id)).map(id => equipmentById.get(id)) }));
++  const result = timed(timingMs, 'engineMs', () => engine.evaluate(state, memberId, { ownItemQueries: savedIds.filter(id => equipmentById.has(id)).map(id => equipmentById.get(id)), ...(checkpoint ? { checkpoint, reuseEligibility: false } : {}) }));
++  checkpoint?.();
+   const collection = timed(timingMs, 'collectionMs', () => collectionEngine.evaluate(state, memberId, result, { obligationQueries: savedIds }));
+   result.tasks.push(...collection.tasks);
+   result.collectionPlanning = { completionGroups: collection.completionGroups, obligationIds: collection.obligationIds, diagnostics: collection.diagnostics, coverage: collection.coverage };
+@@ -105,8 +109,9 @@ function appendViews(result, timingMs) {
+   viewContexts.delete(result);
+   return result;
+ }
+-function evaluateFull(state, memberId, { includeViews = true, timingMs } = {}) {
+-  const result = evaluateCore(state, memberId, timingMs);
++function evaluateFull(state, memberId, { includeViews = true, timingMs, checkpoint } = {}) {
++  const result = evaluateCore(state, memberId, timingMs, checkpoint);
++  checkpoint?.();
+   const equipment = timed(timingMs, 'equipmentMs', () => evaluateEquipment(result, state, memberId, definitions));
+   const member = state.members.find(owner => owner.id === memberId);
+   const legacyRules = hasGameplayMigration(state, member) ? {} : Object.fromEntries(Object.entries(state.legacy?.maps?.[member.sourceMapId]?.rules ?? {}).map(([key, value]) => [decodeLegacyText(key), value]));
+@@ -119,7 +124,9 @@ function evaluateFull(state, memberId, { includeViews = true, timingMs } = {}) {
+       ? { ...owner, taskRules: { ...owner.taskRules, 'Show Best in Slot Tasks': true } } : owner) };
+     dutyEquipment = timed(timingMs, 'equipmentMs', () => evaluateEquipment(result, dutyState, memberId, definitions));
+   }
+-  result.presentation = timed(timingMs, 'presentationMs', () => selectCollectionGoals(selectPresentedTasks({ ...result, tasks: [...result.tasks, ...equipment.tasks] }, state, memberId, definitions), state, memberId));
++  checkpoint?.();
++  result.presentation = timed(timingMs, 'presentationMs', () => selectCollectionGoals(selectPresentedTasks({ ...result, tasks: [...result.tasks, ...equipment.tasks] }, state, memberId, definitions, { checkpoint }), state, memberId));
++  checkpoint?.();
+   result.presentation.alternatives = { ...result.presentation.alternatives, ...equipment.alternatives };
+   const visibleEquipmentIds = new Set(equipment.catalogue.map(task => task.id));
+   const hiddenDuties = dutyEquipment.catalogue.filter(task => !visibleEquipmentIds.has(task.id)).map(task => ({ ...task,
+@@ -295,7 +302,7 @@ function serializedState({ stateJSON, stateJSONBytes, stateRevision, stateMember
+   return state;
+ }
+ parentPort.on('message', async ({ id, type = 'evaluate', state, memberId, chunkId, chunkIds = [], revision, input, snapshotKey, resultTransport, resultView = 'full', cancellation, predictionProgress = false,
+-  stateTransport, stateJSON, stateJSONBytes, stateRevision, stateMemberIds, duoProjection = false, duoSidebarProjection = false, reportProgress = false }) => {
++  stateTransport, stateJSON, stateJSONBytes, stateRevision, stateMemberIds, memberPreparation = false, duoProjection = false, duoSidebarProjection = false, reportProgress = false }) => {
+   if (type === 'cancel') { if (requests.has(id)) requests.get(id).cancelled = true; return; }
+   if (type === 'supersede') { latestRevision = Math.max(latestRevision, revision); return; }
+   const started = performance.now();
+@@ -305,7 +312,12 @@ parentPort.on('message', async ({ id, type = 'evaluate', state, memberId, chunkI
+   const request = { cancelled: false };
+   const abandoned = () => request.cancelled || cancellation instanceof SharedArrayBuffer && Atomics.load(new Int32Array(cancellation), 0) !== 0;
+   requests.set(id, request);
++  const checkpoint = memberPreparation ? () => {
++    if (abandoned()) throw Object.assign(new Error('Background member preparation cancelled.'), { code: 'MEMBER_PREPARATION_CANCELLED' });
++  } : undefined;
+   try {
++    if (memberPreparation && (type !== 'evaluate' || resultView !== 'play-v1' || resultTransport !== 'json-shared-v1')) throw new TypeError('Invalid member preparation request.');
++    checkpoint?.();
+     if (stateTransport !== undefined || stateJSON !== undefined) {
+       if (stateTransport !== 'json-shared-v1' || !['evaluate', 'chunk-planning', 'sandbox', 'area-check'].includes(type) || state !== undefined) throw new TypeError('Worker state transport is invalid.');
+       state = serializedState({ stateJSON, stateJSONBytes, stateRevision, stateMemberIds, snapshotKey, input });
+@@ -339,6 +351,11 @@ parentPort.on('message', async ({ id, type = 'evaluate', state, memberId, chunkI
+         baseline: cached?.snapshot.baseline, baselineTaskIds, definitions, world: workerData.world,
+       }), cache: { baselineHit: !!baselineTaskIds || cached.hit, baselineSource: baselineTaskIds ? 'current-list' : 'worker' } };
+     });
++    else if (memberPreparation) {
++      // Speculation never enters the two ordinary graph snapshots or retains an
++      // eligibility proof. Only its completed compact bytes leave this worker.
++      result = evaluateFull(state, memberId, { includeViews: false, timingMs, checkpoint });
++    }
+     else if (type === 'death-estimates') result = await deathEstimates(state, memberId, chunkIds, timingMs, request, input);
+     else {
+       const compact = type === 'evaluate' && resultTransport === 'json-shared-v1' && resultView === 'play-v1';
+@@ -383,7 +400,9 @@ parentPort.on('message', async ({ id, type = 'evaluate', state, memberId, chunkI
+     }
+     // The HTTP thread can cache and send these immutable bytes without cloning
+     // or serializing the full task graph. Direct worker clients keep objects.
+-    const playResult = type === 'evaluate' && resultTransport === 'json-shared-v1' ? mapPlayResult(result) : undefined;
++    checkpoint?.();
++    const playResult = type === 'evaluate' && resultTransport === 'json-shared-v1' ? mapPlayResult(result, checkpoint) : undefined;
++    checkpoint?.();
+     // Both group lanes need the owner's ordinary Completed and Backlog rows,
+     // including completion families absent from the active presentation.
+     const duoSidebarJSON = playResult && resultView === 'play-v1' && (duoProjection || duoSidebarProjection)
+@@ -395,11 +414,14 @@ parentPort.on('message', async ({ id, type = 'evaluate', state, memberId, chunkI
+         ...(duoProjection && duoSidebarJSON ? { duoJSON: duoSidebarJSON } : {}),
+         ...(duoSidebarProjection && duoSidebarJSON ? { duoSidebarJSON } : {}), cancelled: !!result.cancelled }
+       : { result };
++    checkpoint?.();
+     timingMs.totalMs = performance.now() - started;
+     parentPort.postMessage({ id, ...payload, ...(unlockReuse ? { unlockReuse } : {}), ...(partnerUnlockReuse ? { partnerUnlockReuse } : {}), evaluationMs: timingMs.totalMs, timingMs });
+   } catch (error) {
+     timingMs.totalMs = performance.now() - started;
+-    parentPort.postMessage({ id, error: { name: error.name, message: error.message }, evaluationMs: timingMs.totalMs, timingMs });
++    if (memberPreparation && error.code === 'MEMBER_PREPARATION_CANCELLED') {
++      parentPort.postMessage({ id, cancelled: true, result: { cancelled: true }, evaluationMs: timingMs.totalMs, timingMs });
++    } else parentPort.postMessage({ id, error: { name: error.name, message: error.message }, evaluationMs: timingMs.totalMs, timingMs });
+   } finally { requests.delete(id); }
+ });
+
+diff --git a/app/web/screen-context.mjs b/app/web/screen-context.mjs
+index d30452f..3853cc8 100644
+--- a/app/web/screen-context.mjs
++++ b/app/web/screen-context.mjs
+@@ -56,6 +56,7 @@ export function createScreenContext() {
+     mapAssets: undefined,
+     mapTools: undefined,
+     memberId: undefined,
++    memberPreparation: undefined,
+     normalPlayResults: undefined,
+     noticeTimer: undefined,
+     originalSync: undefined,
+diff --git a/app/web/screen-loading.mjs b/app/web/screen-loading.mjs
+index 8989f08..823d258 100644
+--- a/app/web/screen-loading.mjs
++++ b/app/web/screen-loading.mjs
+@@ -50,6 +50,7 @@ export function createScreenLoading(c) {
+   }
+
+   function beginGameplayAttempt(expectedRevision) {
++    c.memberPreparation?.controller.abort(); c.memberPreparation = undefined;
+     c.discardEarlyTasks();
+     return c.pendingGameplayAttempt = { id: ++c.gameplayAttemptSequence, expectedRevision, revision: expectedRevision + 1,
+       memberId: c.memberId, projection: c.foregroundProjection(), memberIds: c.state.members.map(owner => owner.id), observedRevision: Math.max(expectedRevision, c.latestEventRevision) };
+@@ -124,6 +125,26 @@ export function createScreenLoading(c) {
+     }).finally(() => signal?.removeEventListener('abort', abort));
+   }
+
++  // Prepare one partner on the existing calculator, without downloading or
++  // parsing a second catalogue. The server/scheduler keep their existing byte
++  // limits. An ordinary GET preempts unfinished preparation at a safe point.
++  function prepareMemberSwitch(start = false) {
++    const previous = c.memberPreparation;
++    const eligible = c.canWrite() && c.state && !c.sandbox.active && !c.duoEnabled() && !c.hasProvisionalTasks() && c.state.members.length === 2;
++    if (previous && (!eligible || previous.revision !== c.state.revision)) {
++      previous.controller.abort(); c.memberPreparation = undefined;
++    }
++    if (!start || !eligible || !c.foregroundSettled() || c.memberPreparation) return;
++    const peer = c.state.members.find(owner => owner.id !== c.memberId);
++    if (c.normalPlayResults.get(peer.id)?.stateRevision === c.state.revision) return;
++    const controller = new AbortController(), record = { revision: c.state.revision, controller };
++    c.memberPreparation = record;
++    const path = `/api/tasks?memberId=${encodeURIComponent(peer.id)}&view=play-v1&prepareFor=${encodeURIComponent(c.memberId)}&revision=${record.revision}`;
++    // No retry loop, state adoption or UI errors from speculative work. Retain
++    // the small attempt record until the saved revision or view mode changes.
++    record.promise = fetch(path, { method: 'HEAD', signal: controller.signal }).catch(() => {});
++  }
++
+   function foregroundSettled() {
+     if (c.hasProvisionalTasks()) return false;
+     if (!c.state || !c.result || c.sandbox.active || c.result.memberId !== c.memberId || c.result.stateRevision !== c.state.revision) return false;
+@@ -181,6 +202,7 @@ export function createScreenLoading(c) {
+   }
+
+   function reconcileForegroundMode() {
++    c.prepareMemberSwitch();
+     if (c.earlyTaskLoad && !c.earlyTaskScopeCurrent(c.earlyTaskLoad)) c.discardEarlyTasks();
+     if (c.state && !c.sandbox.active && !c.duoEnabled()) {
+       const thinPending = c.foregroundTaskLoad?.projection && c.foregroundTaskLoad.memberId === c.memberId;
+@@ -336,6 +358,7 @@ export function createScreenLoading(c) {
+     c.perfMark('tasks-shown', { revision: value.stateRevision, memberId: value.memberId,
+       cache: { hit: value.cache?.hit === true, ...(Number.isFinite(value.cache?.evaluationMs) ? { evaluationMs: value.cache.evaluationMs } : {}),
+         ...(Number.isFinite(value.cache?.requestMs) ? { requestMs: value.cache.requestMs } : {}), timingMs } });
++    c.prepareMemberSwitch(true);
+     c.deathChunks.refresh();
+     if (c.chunkId && !c.$('chunk-info').hidden && !c.$('chunk-content').contains(document.activeElement)) c.showChunk(c.chunkId);
+   }
+@@ -354,5 +377,5 @@ export function createScreenLoading(c) {
+     return value;
+   }
+
+-  Object.assign(c, { foregroundProjection, foregroundCompatible, foregroundTaskPath, scheduleTasks, earlyTaskScopeCurrent, discardEarlyTasks, hasProvisionalTasks, beginGameplayAttempt, finishGameplayAttempt, clearClaimedEarlyTasks, savedTaskPath, primeSavedTasks, fetchSavedTasks, foregroundSettled, ensureForegroundSettled, advisoryApi, workerStatus, alignTaskResult, reconcileForegroundMode, loadTasks, runTaskLoad, ensureResult, ensurePlanningResult, ensureFullDefinitions, ensureFullResult, ensureChunkSearch, acceptTaskResult, completedResult });
++  Object.assign(c, { foregroundProjection, foregroundCompatible, foregroundTaskPath, scheduleTasks, earlyTaskScopeCurrent, discardEarlyTasks, hasProvisionalTasks, beginGameplayAttempt, finishGameplayAttempt, clearClaimedEarlyTasks, savedTaskPath, primeSavedTasks, fetchSavedTasks, prepareMemberSwitch, foregroundSettled, ensureForegroundSettled, advisoryApi, workerStatus, alignTaskResult, reconcileForegroundMode, loadTasks, runTaskLoad, ensureResult, ensurePlanningResult, ensureFullDefinitions, ensureFullResult, ensureChunkSearch, acceptTaskResult, completedResult });
+ }
+diff --git a/tests/duo-server.test.mjs b/tests/duo-server.test.mjs
+index 04c8804..84fd65a 100644
+--- a/tests/duo-server.test.mjs
++++ b/tests/duo-server.test.mjs
+@@ -53,7 +53,7 @@ async function fixture(t, options = {}) {
+   t.after(async () => { await app.close(); await rm(directory, { recursive: true, force: true }); });
+   await app.listen(); const invite = new URL(app.inviteUrl), origin = invite.origin;
+   const auth = { Authorization: `Bearer ${invite.pathname.slice('/join/'.length)}` };
+-  const request = (route, { body, signal } = {}) => fetch(origin + route, { signal, method: body ? 'POST' : 'GET',
++  const request = (route, { body, signal, method = 'GET' } = {}) => fetch(origin + route, { signal, method: body ? 'POST' : method,
+     headers: { ...auth, ...(body ? { Origin: origin, 'Content-Type': 'application/json' } : {}) }, ...(body ? { body: JSON.stringify(body) } : {}) });
+   const diagnostics = async () => (await request('/api/diagnostics')).json();
+   return { app, origin, request, diagnostics };
+@@ -372,3 +372,41 @@ test('viewer inspection reads only saved ordinary results and never admits missi
+   assert.equal((await viewer(inspectionRoute(1))).status, 409); assert.equal((await viewer(inspectionRoute(0, 'two'))).status, 409);
+   assert.equal(peer.workers.length, 0);
+ });
++
++
++test('member preparation HEAD admits background work without joining or changing foreground gates', async t => {
++  const own = factory(), peer = factory(), { request, diagnostics } = await fixture(t, mockOptions(own, peer));
++  const selected = request('/api/tasks?memberId=one&view=play-v1');
++  await until(() => evaluations(own.workers[0]).length === 1); own.workers[0].finish(); await selected;
++  const before = (await diagnostics()).counts.requested;
++  const response = await request('/api/tasks?memberId=two&view=play-v1&prepareFor=one&revision=0', { method: 'HEAD' });
++  assert.equal(response.status, 202); assert.equal(await response.text(), '');
++  await until(() => evaluations(own.workers[0]).length === 2);
++  const message = evaluations(own.workers[0])[1]; assert.equal(message.memberPreparation, true);
++  assert.equal((await diagnostics()).counts.requested, before); assert.equal(peer.workers.length, 0);
++  const current = await (await request('/api/tasks?memberId=one&view=play-v1')).json();
++  assert.equal(current.cache.hit, true); assert.equal(Atomics.load(new Int32Array(message.cancellation), 0), 1);
++  own.workers[0].finish(message);
++  for (const [query, method, status] of [
++    ['memberId=two&view=play-v1&prepareFor=one&revision=0', 'GET', 400],
++    ['memberId=two&view=play-v1&prepareFor=two&revision=0', 'HEAD', 400],
++    ['memberId=two&view=play-v1&prepareFor=one&revision=1', 'HEAD', 409],
++  ]) assert.equal((await request('/api/tasks?' + query, { method })).status, status);
++});
++
++test('prepared native play bytes equal ordinary results for both owners and all group lanes', async t => {
++  const source = { ...definitions, challenges: { Quest: { Here: { Chunks: ['12341'] }, There: { Chunks: ['12342'] }, Both: { Chunks: ['12341', '12342'] } } } };
++  const reference = await fixture(t, { definitions: source }), candidate = await fixture(t, { definitions: source });
++  for (const f of [reference, candidate]) await (await f.request('/api/tasks?memberId=one&view=play-v1')).json();
++  const head = await candidate.request('/api/tasks?memberId=two&view=play-v1&prepareFor=one&revision=0', { method: 'HEAD' });
++  assert.equal(head.status, 202);
++  await until(async () => (await candidate.diagnostics()).memberPreparation.ready === 1);
++  const semantic = ({ cache, metrics, ...value }) => ({ ...value, metrics: Object.fromEntries(Object.entries(metrics).filter(([key]) => key !== 'elapsedMs')) });
++  for (const member of ['two', 'one']) for (const extra of ['', '&projection=duo-sidebar-v1&revision=0', `&lane=duo-v1&peerFor=${member === 'one' ? 'two' : 'one'}&revision=0`]) {
++    const route = `/api/tasks?memberId=${member}&view=play-v1${extra}`;
++    const expected = await (await reference.request(route)).json(), actual = await (await candidate.request(route)).json();
++    assert.deepEqual(semantic(actual), semantic(expected));
++    if (!extra) { assert.ok(actual.tasks.some(r => r.status === 'available')); assert.ok(actual.tasks.some(r => r.status === 'blocked')); }
++  }
++  assert.equal((await candidate.diagnostics()).memberPreparation.hits, 1);
++});
+diff --git a/tests/engine.test.mjs b/tests/engine.test.mjs
+index 7176576..4d23d1d 100644
+--- a/tests/engine.test.mjs
++++ b/tests/engine.test.mjs
+@@ -59,3 +59,14 @@ test('zero rare-drop amount includes all known monster and skill rates', () => {
+
+
+
++
++test('cancelling speculative scans leaves normal task calculation identical and unpoisoned', () => {
++  const definitions = { chunks: { '100': {}, '101': {} }, challenges: { Quest: Object.fromEntries(
++    Array.from({ length: 1200 }, (_, i) => [`Cancellation fixture ${i}`, { Chunks: [i % 2 ? '100' : '101'] }])) } };
++  const saved = state({}), before = structuredClone(saved), engine = createTaskEngine(definitions);
++  const cancelled = new Error('cancelled at a task checkpoint'); let checks = 0;
++  assert.throws(() => engine.evaluate(saved, 'm', { reuseEligibility: false, checkpoint() { if (++checks === 3) throw cancelled; } }), e => e === cancelled);
++  assert.equal(checks, 3); assert.deepEqual(saved, before);
++  const normalize = result => JSON.parse(JSON.stringify(result, (key, value) => key === 'elapsedMs' ? undefined : value));
++  assert.deepEqual(normalize(engine.evaluate(saved, 'm')), normalize(createTaskEngine(definitions).evaluate(saved, 'm')));
++});
+diff --git a/tests/process-worker.test.mjs b/tests/process-worker.test.mjs
+index 261c230..7040c7f 100644
+--- a/tests/process-worker.test.mjs
++++ b/tests/process-worker.test.mjs
+@@ -179,3 +179,29 @@ test('an owned calculator exits when its parent disappears without calling termi
+     await new Promise(resolve => setTimeout(resolve, 20));
+   }
+ });
++
++test('process member preparation observes cancellation while scanning and preserves both members results', async t => {
++  const source = { ...definitions, challenges: { Quest: Object.fromEntries(Array.from({ length: 16000 }, (_, i) =>
++    [`Member preparation ${i}`, { Chunks: [i % 2 ? '12341' : '12342'] }])) } };
++  const world = buildWorld(source), worker = new ProcessWorker(genericWorkerData({ definitions: source,
++    world: { chunks: world.chunks, surface: world.surface } }));
++  t.after(() => worker.terminate());
++  await waitFor(worker, m => m.type === 'ready');
++  const state = createGroupState([{ id: 'one', name: 'One', unlocked: ['12341'] }, { id: 'two', name: 'Two', unlocked: ['12342'] }]);
++  const send = (id, memberId, extra = {}) => {
++    const result = waitFor(worker, m => m.id === id && m.type !== 'progress');
++    worker.postMessage({ id, type: 'evaluate', state, memberId, resultTransport: 'json-shared-v1', resultView: 'play-v1', ...extra });
++    return result;
++  };
++  const semantic = response => { const value = JSON.parse(Buffer.from(response.playJSON).toString()); delete value.metrics.elapsedMs; return value; };
++  const one = semantic(await send(1, 'one'));
++  const cancelled = send(2, 'two', { memberPreparation: true, cancellation: new SharedArrayBuffer(4) });
++  await new Promise(resolve => setTimeout(resolve, 10));
++  worker.postMessage({ type: 'cancel', id: 2 });
++  assert.equal((await cancelled).cancelled, true, 'host must set the shared flag even while the worker event loop is busy');
++  const prepared = await send(3, 'two', { memberPreparation: true, cancellation: new SharedArrayBuffer(4) });
++  const ordinary = await send(4, 'two');
++  assert.deepEqual(semantic(prepared), semantic(ordinary));
++  assert.ok(ordinary.timingMs.engineMs > 0, 'preparation does not retain an ordinary full graph snapshot');
++  assert.deepEqual(semantic(await send(5, 'one')), one);
++});
+diff --git a/tests/scheduler.test.mjs b/tests/scheduler.test.mjs
+index e0c3871..04e4542 100644
+--- a/tests/scheduler.test.mjs
++++ b/tests/scheduler.test.mjs
+@@ -729,3 +729,72 @@ test('native worker input always sets the ready-catalogue flag without changing
+   assert.deepEqual(nativeWorkerInput(undefined, false), { omitReadyCatalogue: true });
+   assert.equal(workerData.omitReadyCatalogue, true);
+ });
++
++test('member preparation admits only idle work and yields the worker before a foreground miss', async t => {
++  const { scheduler, workers } = await fixture(t);
++  const state = { revision: 0, members: [{ id: 'actor1' }, { id: 'reed' }] }, input = 'member-input';
++  scheduler.supersede(0, input);
++  assert.equal(scheduler.prepareMember(state, input, 'reed'), true);
++  await until(() => workers[0].messages.some(m => m.memberPreparation));
++  const background = workers[0].messages.find(m => m.memberPreparation);
++  assert.equal(scheduler.prepareMember(state, input, 'actor1'), false);
++  const key = JSON.stringify([input, 'actor1', 'evaluate', undefined, undefined]);
++  const foreground = scheduler.evaluate(state, 'actor1', 'evaluate', undefined, key, input, undefined, [], 'play-v1');
++  assert.equal(Atomics.load(new Int32Array(background.cancellation), 0), 1);
++  assert.equal(workers[0].messages.filter(m => m.type === 'evaluate').length, 1, 'wait for safe cancellation acknowledgement');
++  workers[0].emit('message', { id: background.id, cancelled: true, result: { cancelled: true }, evaluationMs: 1 });
++  assert.equal(workers[0].messages.filter(m => m.type === 'evaluate').length, 2);
++  workers[0].finish(); await foreground;
++  const diagnostics = scheduler.getDiagnostics();
++  assert.equal(diagnostics.memberPreparation.cancelled, 1);
++  assert.equal(diagnostics.memberPreparation.ready, 0);
++  assert.equal(diagnostics.counts.requested, 1, 'background work does not consume foreground admission');
++});
++
++test('one completed member result is bounded, consumed by play and dropped on every revision', async t => {
++  const { scheduler, workers } = await fixture(t);
++  const state = { revision: 0, members: [{ id: 'actor1' }, { id: 'reed' }] }, input = 'member-input';
++  scheduler.supersede(0, input);
++  assert.equal(scheduler.prepareMember(state, input, 'reed'), true);
++  await until(() => workers[0].messages.some(m => m.memberPreparation));
++  const play = '{"format":"play-v1","tasks":[],"metrics":{"availableCount":0}}';
++  finishPlay(workers[0], play);
++  assert.equal(scheduler.getDiagnostics().memberPreparation.ready, 1);
++  assert.equal(scheduler.getDiagnostics().memberPreparation.bytes, Buffer.byteLength(play));
++  assert.equal(scheduler.prepareMember(state, input, 'reed'), false);
++  const key = JSON.stringify([input, 'reed', 'evaluate', undefined, undefined]);
++  const result = await scheduler.evaluate(state, 'reed', 'evaluate', undefined, key, input, undefined, [], 'play-v1');
++  assert.equal(result.hit, true); assert.equal(result.playJSON.toString(), play);
++  assert.equal(scheduler.getDiagnostics().memberPreparation.ready, 0);
++  assert.equal(workers[0].messages.filter(m => m.type === 'evaluate').length, 1);
++  assert.equal(scheduler.prepareMember(state, input, 'actor1'), true);
++  await until(() => workers[0].messages.filter(m => m.memberPreparation).length === 2);
++  finishPlay(workers[0], play);
++  scheduler.supersedeDisplay(1, input);
++  assert.equal(scheduler.getDiagnostics().memberPreparation.bytes, 0, 'even task-equivalent display revisions release speculation');
++});
++
++test('member preparation respects the byte cap without evicting ordinary task caches', async t => {
++  const { scheduler, workers, evaluate } = await fixture(t);
++  const ordinary = evaluate('ordinary'); workers[0].finish(); await ordinary;
++  const before = scheduler.getDiagnostics().cache;
++  const state = { revision: 0, members: [{ id: 'actor1' }, { id: 'reed' }] };
++  assert.equal(scheduler.prepareMember(state, 'ordinary', 'reed'), true);
++  await until(() => workers[0].messages.some(m => m.memberPreparation));
++  const message = workers[0].messages.at(-1);
++  workers[0].emit('message', { id: message.id, playJSON: new SharedArrayBuffer(32 * 1024 ** 2 + 1), evaluationMs: 1 });
++  const after = scheduler.getDiagnostics();
++  assert.equal(after.memberPreparation.oversized, 1); assert.equal(after.memberPreparation.bytes, 0);
++  assert.deepEqual(after.cache, before);
++});
++
++
++test('member preparation backs off while another interactive lane is occupied', async t => {
++  const peer = factory(), { scheduler } = await fixture(t, { duoWorkerFactory: peer.create });
++  const state = { revision: 0, members: [{ id: 'actor1' }, { id: 'reed' }] }, input = 'member-input';
++  const result = scheduler.evaluate(state, 'reed', 'evaluate', undefined, 'peer-key', input, undefined, [], 'play-v1', undefined, 'duo');
++  await until(() => peer.workers[0]?.messages.some(m => m.type === 'evaluate'));
++  assert.equal(scheduler.prepareMember(state, input, 'reed'), false);
++  peer.workers[0].finish(); await result;
++  assert.equal(scheduler.prepareMember(state, input, 'reed'), true);
++});
+diff --git a/tests/web-browser.test.mjs b/tests/web-browser.test.mjs
+index 9a4a0e5..6a3dae1 100644
+--- a/tests/web-browser.test.mjs
++++ b/tests/web-browser.test.mjs
+@@ -1644,7 +1644,7 @@ function harness({ realPlanning = false, localStorage, documentEvents = false }
+   }
+   // Opt-in: most fixtures predate document listeners and must not gain them.
+   const documentListeners = {};
+-  const nodes = new Map(), timers = new Map(), deathTimers = new Map(), calls = [], intentCalls = [], deathCalls = [], renders = [], eventSources = [], planningPrimes = [], planningRenders = [];
++  const nodes = new Map(), timers = new Map(), deathTimers = new Map(), calls = [], preparationCalls = [], intentCalls = [], deathCalls = [], renders = [], eventSources = [], planningPrimes = [], planningRenders = [];
+   const document = { getElementById: id => { if (!nodes.has(id)) { const node = new Node(); node.connected = true; nodes.set(id, node); } return nodes.get(id); }, createElement: tag => new Node(tag), createTextNode: value => new Node('text', value), querySelector: selector => document.getElementById(selector), documentElement: new Node(), activeElement: undefined };
+   document.head = document.getElementById('test-head'); document.body = document.getElementById('test-body');
+   if (documentEvents) document.addEventListener = (key, action) => (documentListeners[key] ??= []).push(action);
+@@ -1684,7 +1684,7 @@ function harness({ realPlanning = false, localStorage, documentEvents = false }
+     addEventListener() {},
+     setTimeout: (action, delay) => { const id = Symbol(); timers.set(id, { action, delay }); return id; }, clearTimeout: id => timers.delete(id),
+     requestAnimationFrame: action => { Promise.resolve().then(action); return 1; }, performance: { now: () => 0, mark() {} },
+-    fetch: async (requestPath, options) => { const url = new URL(requestPath, 'http://fixture.invalid'); url.searchParams.delete('view'); for (const parameter of ['lane', 'peerFor', 'revision', 'projection']) url.searchParams.delete(parameter); const path = url.pathname + url.search; let body; if (options?.headers?.['Content-Type'] === BACKUP_UPLOAD_TYPE) { const stream = Readable.fromWeb(options.body.stream()); stream.headers = Object.fromEntries(Object.entries(options.headers).map(([key, value]) => [key.toLowerCase(), value])); body = (await readBackupRequest(stream)).body; } else body = options?.body ? JSON.parse(options.body) : undefined; if (path === '/api/prediction-intent') { intentCalls.push({ body, options }); return { ok: true, json: async () => ({ ...body, stateRevision: body.revision, prepared: true }) }; } if (path.startsWith('/api/death-estimates?')) { deathCalls.push({ path, options }); const ownerId = new URL(path, 'http://fixture.invalid').searchParams.get('memberId'); return { ok: true, json: async () => ({ memberId: ownerId, stateRevision: run('state.revision'), candidateIds: [], estimates: [] }) }; } calls.push({ path, requestPath, body, options }); const value = await route(path, body); return value?.ok === false ? { ...value, json: async () => value.value } : { ok: true, json: async () => value }; },
++    fetch: async (requestPath, options) => { if (options?.method === 'HEAD') { preparationCalls.push({ requestPath, options }); return { ok: true, status: 202, json() { throw new Error('Preparation must not read a body'); } }; } const url = new URL(requestPath, 'http://fixture.invalid'); url.searchParams.delete('view'); for (const parameter of ['lane', 'peerFor', 'revision', 'projection']) url.searchParams.delete(parameter); const path = url.pathname + url.search; let body; if (options?.headers?.['Content-Type'] === BACKUP_UPLOAD_TYPE) { const stream = Readable.fromWeb(options.body.stream()); stream.headers = Object.fromEntries(Object.entries(options.headers).map(([key, value]) => [key.toLowerCase(), value])); body = (await readBackupRequest(stream)).body; } else body = options?.body ? JSON.parse(options.body) : undefined; if (path === '/api/prediction-intent') { intentCalls.push({ body, options }); return { ok: true, json: async () => ({ ...body, stateRevision: body.revision, prepared: true }) }; } if (path.startsWith('/api/death-estimates?')) { deathCalls.push({ path, options }); const ownerId = new URL(path, 'http://fixture.invalid').searchParams.get('memberId'); return { ok: true, json: async () => ({ memberId: ownerId, stateRevision: run('state.revision'), candidateIds: [], estimates: [] }) }; } calls.push({ path, requestPath, body, options }); const value = await route(path, body); return value?.ok === false ? { ...value, json: async () => value.value } : { ok: true, json: async () => value }; },
+   });
+   const run = code => runInContext(code, context);
+   run(settingsSource); runScreenGraph(context, screenGraph);
+@@ -1697,7 +1697,7 @@ function harness({ realPlanning = false, localStorage, documentEvents = false }
+   const snapshot = () => structuredClone(run('state'));
+   // A trusted user event as the document's capture listeners see it.
+   const user = (key, event = {}) => { for (const action of documentListeners[key] ?? []) action({ target: document.activeElement, ...event }); };
+-  return { run, context, nodes, calls, intentCalls, deathCalls, deathTimers, renders, timers, eventSources, planningPrimes, planningRenders, map, find, all, click, adopt, snapshot, user, route: action => { route = action; } };
++  return { run, context, nodes, calls, preparationCalls, intentCalls, deathCalls, deathTimers, renders, timers, eventSources, planningPrimes, planningRenders, map, find, all, click, adopt, snapshot, user, route: action => { route = action; } };
+ }
+
+ test('chunk contents defer full planning sections until a planning tab is selected', async () => {
+@@ -3729,3 +3729,19 @@ test('group claim controls retain the session actor across task ownership and ma
+   assert.deepEqual(payload, { type: 'claim-task', memberId: 'reed', taskId: f.own.id });
+   assert.equal(h.run('memberId'), 'actor1');
+ });
++
++
++test('member preparation is bodyless and starts only after the selected list paints', async () => {
++  const h = harness(); h.context.personal = taskResult(7);
++  h.run('result = personal; prepareMemberSwitch()');
++  assert.equal(h.preparationCalls.length, 0);
++  await h.run('acceptTaskResult(personal)');
++  assert.equal(h.preparationCalls.length, 1);
++  assert.equal(h.preparationCalls[0].requestPath, '/api/tasks?memberId=reed&view=play-v1&prepareFor=actor1&revision=7');
++  await h.run('memberPreparation.promise');
++  h.run('prepareMemberSwitch(true); renderTasks()');
++  assert.equal(h.preparationCalls.length, 1);
++  assert.equal(h.run('normalPlayResults.size'), 1);
++  const signal = h.preparationCalls[0].options.signal;
++  h.run('beginGameplayAttempt(7)'); assert.equal(signal.aborted, true);
++});
+diff --git a/tests/workers-idle.test.mjs b/tests/workers-idle.test.mjs
+index f26be57..12ace14 100644
+--- a/tests/workers-idle.test.mjs
++++ b/tests/workers-idle.test.mjs
+@@ -225,3 +225,20 @@ test('custom factories keep the exact workerData on every lane and wake; advisor
+   for (const data of received) assert.equal(data, workerData);
+   assert.equal('omitReadyCatalogue' in workerData, false);
+ });
++
++test('idle retirement releases the single prepared member result and preparation never wakes it', async t => {
++  const { scheduler, workers, idleClock } = await fixture(t);
++  const input = 'prepared-idle', state = { revision: 0, members: [{ id: 'actor1' }, { id: 'reed' }] };
++  scheduler.supersede(0, input);
++  assert.equal(scheduler.prepareMember(state, input, 'reed'), true);
++  await new Promise(resolve => setImmediate(resolve));
++  const bytes = new TextEncoder().encode('{"format":"play-v1","tasks":[]}'), shared = new SharedArrayBuffer(bytes.length);
++  new Uint8Array(shared).set(bytes);
++  workers[0].emit('message', { id: workers[0].messages.at(-1).id, playJSON: shared, evaluationMs: 1 });
++  assert.equal(scheduler.getDiagnostics().memberPreparation.ready, 1);
++  idleClock.tick(100); await flush();
++  assert.equal(scheduler.getDiagnostics().memberPreparation.bytes, 0);
++  assert.equal(scheduler.getHealth().status, 'sleeping');
++  assert.equal(scheduler.prepareMember(state, input, 'reed'), false);
++  assert.equal(workers.length, 1);
++});
