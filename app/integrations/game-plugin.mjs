@@ -14,8 +14,9 @@ skillNames.set('RUNECRAFT', 'Runecrafting');
 skillNames.set('HITPOINTS', 'Constitution');
 
 export function validatePluginReport(body) {
-  fields(body, ['v', 'seq', 'sentAt', 'world', 'position', 'skills', 'quests', 'diagnostics', 'achievements', 'items'], 'report');
+  fields(body, ['v', 'seq', 'sentAt', 'world', 'position', 'skills', 'quests', 'diagnostics', 'achievements', 'items', 'bank'], 'report');
   if (body.items !== undefined) validatePluginItems(body);
+  if (body.bank !== undefined) validatePluginBank(body);
   if (body.achievements !== undefined) {
     const value = body.achievements;
     fields(value, ['snapshot', 'part', 'parts', 'complete'], 'achievements');
@@ -89,10 +90,21 @@ function validateItemRows(rows, label) {
 }
 function validatePluginItems(body) {
   const value = body.items;
-  fields(value, ['snapshot', 'worn', 'backpack', 'journal'], 'items');
-  if (['skills', 'quests', 'diagnostics', 'achievements'].some(key => body[key] !== undefined)) fail('Send items separately from skills, quests, diagnostics and achievements.');
+  fields(value, ['snapshot', 'worn', 'backpack', 'journal', 'toolbelt', 'pouch'], 'items');
+  if (['skills', 'quests', 'diagnostics', 'achievements', 'bank'].some(key => body[key] !== undefined)) fail('Send items separately from skills, quests, diagnostics, achievements and the bank.');
   if (typeof value.snapshot !== 'string' || !/^[a-f0-9]{16}$/.test(value.snapshot)) fail('Items needs a 16-character snapshot.');
   validateItemRows(value.worn, 'worn'); validateItemRows(value.backpack, 'backpack');
+  // Optional, from plugins that saw toolbelt and pouch in accepts. Null means unreadable.
+  if (value.pouch !== undefined) validateItemRows(value.pouch, 'pouch');
+  if (value.toolbelt !== undefined && value.toolbelt !== null) {
+    if (!Array.isArray(value.toolbelt) || value.toolbelt.length > 128) fail('The tool belt must be null or at most 128 rows.');
+    let previous = '';
+    for (const row of value.toolbelt) {
+      if (!Array.isArray(row) || row.length !== 2 || typeof row[0] !== 'string' || !/^[A-Z0-9_]{1,40}$/.test(row[0]) || row[0] <= previous
+        || !Number.isInteger(row[1]) || row[1] < 1 || row[1] > 1000) fail('Tool belt rows need sorted unique names of A-Z, 0-9 and _ and a value from 1 to 1000.');
+      previous = row[0];
+    }
+  }
   fields(value.journal, ['id', 'events'], 'item journal');
   if (typeof value.journal.id !== 'string' || !/^[a-f0-9]{16}$/.test(value.journal.id) || !Array.isArray(value.journal.events) || value.journal.events.length > 32) {
     fail('The item journal needs a 16-character id and at most 32 events.');
@@ -103,6 +115,22 @@ function validatePluginItems(body) {
       fail('Item journal events need increasing positive IDs, an item ID and a name.');
     }
     previous = event[0];
+  }
+}
+
+// The bank travels alone, in up to 8 parts of [id, count] in slot order. age is how many
+// seconds ago the plugin last saw the bank change, since a closed bank's contents go stale.
+function validatePluginBank(body) {
+  const value = body.bank;
+  fields(value, ['snapshot', 'part', 'parts', 'age', 'rows'], 'bank');
+  if (['skills', 'quests', 'diagnostics', 'achievements', 'items'].some(key => body[key] !== undefined)) fail('Send bank parts separately from skills, quests, diagnostics, achievements and items.');
+  if (typeof value.snapshot !== 'string' || !/^[a-f0-9]{16}$/.test(value.snapshot)
+    || !Number.isInteger(value.parts) || value.parts < 1 || value.parts > 8 || !Number.isInteger(value.part) || value.part < 1 || value.part > value.parts
+    || !Number.isInteger(value.age) || value.age < 0 || value.age > 604800 || !Array.isArray(value.rows) || value.rows.length > 700) {
+    fail('The bank needs a snapshot, part, parts from 1 to 8, an age from 0 to 604800 seconds and at most 700 rows.');
+  }
+  for (const row of value.rows) {
+    if (!Array.isArray(row) || row.length !== 2 || !itemId(row[0]) || !Number.isSafeInteger(row[1]) || row[1] < 1 || row[1] > 2147483647) fail('Bank rows need an item ID and a positive count.');
   }
 }
 

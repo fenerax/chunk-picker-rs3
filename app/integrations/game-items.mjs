@@ -57,6 +57,20 @@ for (const [suffix, name, slot, wearable, noted, revision] of ROWS) {
 }
 export const GAME_WORN_TASKS = new Map(WORN_TASKS.map(([taskId, ids]) => [taskId, new Set(ids)]));
 
+// Tool belt entries the plugin reports as [name, value]: the game's TOOLBELT_ varbit without
+// its prefix. Checked against a real belt on 2026-10-25 (in-game tool belt screenshots and
+// the beta probe): NOOSE_WAND=1 is the Noose wand, HATCHET_LEVEL=6 her Rune hatchet. Other
+// hatchet and pickaxe tiers are unverified (PICKAXE_LEVEL=16 is not yet identified), so they
+// stay unmapped. Row: [name, value, game item ID from the reviewed table above].
+const TOOLBELT_ROWS = [
+  ['NOOSE_WAND', 1, 10150],
+  ['HATCHET_LEVEL', 6, 1359],
+];
+export const GAME_TOOLBELT = new Map(TOOLBELT_ROWS.map(([name, value, id]) => [`${name}=${value}`, id]));
+for (const id of GAME_TOOLBELT.values()) if (!GAME_ITEMS.has(id)) throw new Error(`Tool belt item ${id} is not in the reviewed table.`);
+// Coins and the money pouch's billions item (one of 54830 is 1,000,000,000 coins).
+export const COINS = 995, COIN_BILLIONS = 54830;
+
 export const ITEM_REVIEW_LIMIT = 100;
 const UNMAPPED_LIMIT = 30;
 

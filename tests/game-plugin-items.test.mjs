@@ -20,6 +20,8 @@ const catalogue = [
   { id: goal('000dc1'), label: 'Obtain a Yew shortbow', category: 'BiS' },
   { id: goal('0002ae'), label: 'Obtain a Bronze dagger', category: 'BiS' },
   { id: WEAR_TASK, label: 'Wear a piece of gud raider equipment', category: 'Skill' },
+  { id: goal('00080a'), label: 'Obtain a Noose wand', category: 'BiS' },
+  { id: goal('0009f8'), label: 'Obtain a Rune hatchet', category: 'BiS' },
 ];
 const items = ({ snapshot = '0123456789abcdef', worn = [], backpack = [], events = [], id = journalId } = {}) => ({ snapshot, worn, backpack, journal: { id, events } });
 
@@ -46,8 +48,8 @@ async function fixture(t, { betaAsLive = false } = {}) {
   await start();
   const { key } = await controller.create(identity, { memberId: 'a', label: 'Synthetic plugin' });
   t.after(async () => { await controller.close(); await rm(dataDir, { recursive: true, force: true }); });
-  async function send(value, beta = false) {
-    at += 1001; input = { v: 1, seq: ++seq, sentAt: new Date(at).toISOString(), position: { x: 50, z: 50, floor: 0 }, world: { id: beta ? 204 : 1, beta }, items: value };
+  async function send(value, beta = false, field = 'items') {
+    at += 1001; input = { v: 1, seq: ++seq, sentAt: new Date(at).toISOString(), position: { x: 50, z: 50, floor: 0 }, world: { id: beta ? 204 : 1, beta }, [field]: value };
     const request = { method: 'POST', url: '/api/plugin/v1/report', headers: { authorization: `Bearer ${key}` } };
     await controller.handle(request, {}, { route: request.url, security: {} }); return output;
   }
@@ -57,7 +59,8 @@ async function fixture(t, { betaAsLive = false } = {}) {
     await store.command(review.command, preview.stateRevision); await controller.finish('a');
     return review.command;
   }
-  return { get controller() { return controller; }, get state() { return state; }, commands, send, apply, dataDir, warnings, failing,
+  return { get controller() { return controller; }, get state() { return state; }, get at() { return at; }, advance: ms => { at += ms; }, commands, send, apply, dataDir, warnings, failing,
+    sendBank: (value, beta = false) => send(value, beta, 'bank'),
     review: () => controller.review(identity, 'a'), restart: async () => { await controller.close(); await start(); } };
 }
 
@@ -245,4 +248,88 @@ test('a corrupt item sidecar is archived on the next write, never deleted', asyn
   await f.send(items({ backpack: [[0, BRONZE_DAGGER, 1, 'Bronze dagger']] }));
   const { readdir } = await import('node:fs/promises');
   assert.ok((await readdir(f.dataDir)).some(name => name.startsWith('plugin-items.json.corrupt-')));
+});
+
+const NOOSE_WAND = 10150, RUNE_HATCHET = 1359;
+const bank = (part, parts, rows, { snapshot = 'b0123456789abcde', age = 0 } = {}) => ({ snapshot, part, parts, age, rows });
+
+test('tool belt, pouch and bank reports are bounded and the bank travels alone', () => {
+  const base = { v: 1, seq: 1, sentAt: '2026-10-22T12:00:00.000Z', position: { x: 1, z: 1, floor: 0 } };
+  assert.doesNotThrow(() => validatePluginReport({ ...base, items: { ...items(), toolbelt: [['HATCHET_LEVEL', 6], ['NOOSE_WAND', 1]], pouch: [[0, 995, 82094, 'Coins']] } }));
+  assert.doesNotThrow(() => validatePluginReport({ ...base, items: { ...items(), toolbelt: null, pouch: null } }));
+  assert.doesNotThrow(() => validatePluginReport({ ...base, bank: bank(1, 2, [[995, 1000], [995, 5], [857, 1]], { age: 30 }) }));
+  for (const bad of [
+    { ...base, items: { ...items(), toolbelt: [['NOOSE_WAND', 1], ['HATCHET_LEVEL', 6]] } },
+    { ...base, items: { ...items(), toolbelt: [['NOOSE_WAND', 1], ['NOOSE_WAND', 1]] } },
+    { ...base, items: { ...items(), toolbelt: [['noose_wand', 1]] } },
+    { ...base, items: { ...items(), toolbelt: [['NOOSE_WAND', 0]] } },
+    { ...base, items: { ...items(), toolbelt: Array.from({ length: 129 }, (_, n) => [`T${String(n).padStart(3, '0')}`, 1]) } },
+    { ...base, items: { ...items(), pouch: [[0, 995, 0, 'Coins']] } },
+    { ...base, items: items(), bank: bank(1, 1, []) },
+    { ...base, bank: bank(1, 1, []), diagnostics: [] },
+    { ...base, bank: { ...bank(1, 1, []), extra: 1 } },
+    { ...base, bank: bank(2, 1, []) },
+    { ...base, bank: bank(1, 9, []) },
+    { ...base, bank: bank(1, 1, [], { age: -1 }) },
+    { ...base, bank: bank(1, 1, [], { snapshot: 'nope' }) },
+    { ...base, bank: bank(1, 1, [[995, 0]]) },
+    { ...base, bank: bank(1, 1, [[995, 1, 'Coins']]) },
+    { ...base, bank: bank(1, 1, Array.from({ length: 701 }, () => [995, 1])) },
+  ]) assert.throws(() => validatePluginReport(bad), error => error.status === 400);
+});
+
+test('reviewed tool belt entries count as owned; other entries are not listed', async t => {
+  const f = await fixture(t);
+  await f.send({ ...items(), toolbelt: [['HATCHET', 1], ['HATCHET_LEVEL', 6], ['NOOSE_WAND', 1], ['PICKAXE_LEVEL', 16]] });
+  assert.deepEqual(f.commands[0].items.map(row => [row.taskId, row.gameItemId, row.title]),
+    [[goal('0009f8'), RUNE_HATCHET, 'Rune hatchet'], [goal('00080a'), NOOSE_WAND, 'Noose wand']]);
+  const saved = JSON.parse(await readFile(path.join(f.dataDir, 'plugin-items.json'), 'utf8'));
+  assert.deepEqual(Object.keys(saved.players.a.items).sort(), [String(RUNE_HATCHET), String(NOOSE_WAND)].sort());
+  // Unmapped belt entries don't join the unmapped item list.
+  await f.send({ ...items({ snapshot: '2223456789abcdef', worn: [[4, CHAINBODY, 1, 'Gud raider chainbody']] }), toolbelt: [['HATCHET', 1], ['PICKAXE_LEVEL', 16]] });
+  assert.deepEqual(f.review().unmappedItems, []);
+});
+
+test('bank parts assemble in order, tick owned goals and are acknowledged once complete, across a restart', async t => {
+  const f = await fixture(t);
+  let status = await f.sendBank(bank(2, 2, [[BRONZE_DAGGER, 1]]));
+  assert.equal(status.bank, null, 'A set starts at part 1');
+  status = await f.sendBank(bank(1, 2, [[995, 1000], [YEW_SHORTBOW, 1], [UNKNOWN, 3]], { age: 120 }));
+  assert.equal(status.bank, null, 'Not acknowledged until every part arrives');
+  status = await f.sendBank(bank(2, 2, [[BRONZE_DAGGER, 1]], { age: 120 }));
+  assert.deepEqual(status.bank, { snapshot: 'b0123456789abcde' });
+  assert.deepEqual(f.commands.map(command => command.type), ['apply-game-progress'], 'Bank alone never writes coins: pouch and backpack are unknown');
+  assert.deepEqual(f.commands[0].items.map(row => row.taskId), [goal('000dc1'), goal('0002ae')]);
+  const seenAt = new Date(f.at - 120000).toISOString();
+  assert.equal(f.controller.list(identity).keys[0].bankSeenAt, seenAt);
+  const saved = JSON.parse(await readFile(path.join(f.dataDir, 'plugin-items.json'), 'utf8'));
+  assert.deepEqual(saved.players.a.bank, { snapshot: 'b0123456789abcde', seenAt, coins: 1000 });
+  assert.equal(saved.players.a.items[YEW_SHORTBOW].name, 'Yew shortbow', 'Bank items take the reviewed name');
+  // Repeats of a held set are no-ops; a restart remembers the live bank.
+  await f.sendBank(bank(1, 2, [[995, 1000]], { age: 120 }));
+  assert.equal(f.commands.length, 1);
+  await f.restart();
+  status = await f.send(items({ snapshot: '5523456789abcdef' }));
+  assert.deepEqual(status.bank, { snapshot: 'b0123456789abcde' });
+  assert.equal(f.controller.list(identity).keys[0].bankSeenAt, seenAt);
+});
+
+test('coins on hand add pouch, backpack and bank on live worlds, only when the total changes', async t => {
+  const f = await fixture(t);
+  const coins = () => f.state.members[0].transportFacts?.currencies?.coins;
+  const writes = () => f.commands.filter(command => command.type === 'set-transport-facts').length;
+  const value = (snapshot, carried, pouch = [[0, 995, 82094, 'Coins'], [1, 54830, 2, 'Coins']]) => ({ ...items({ snapshot, backpack: [[0, 995, carried, 'Coins']] }), pouch });
+  await f.send(value('0123456789abcdef', 100), true);
+  assert.equal(coins(), undefined, 'Beta never writes coins');
+  await f.send(value('1123456789abcdef', 100));
+  assert.equal(coins(), 2000082194);
+  await f.send(value('1123456789abcdef', 100));
+  assert.equal(writes(), 1, 'An unchanged total writes nothing');
+  await f.sendBank(bank(1, 1, [[995, 5000]]));
+  assert.equal(coins(), 2000082194, 'At most one write a minute');
+  f.advance(60000);
+  await f.send(value('2223456789abcdef', 100, null));
+  assert.equal(coins(), 2000087194, 'An unreadable pouch keeps its last count; the bank adds in');
+  assert.equal(writes(), 2);
+  assert.doesNotThrow(() => validateState(f.state));
 });
