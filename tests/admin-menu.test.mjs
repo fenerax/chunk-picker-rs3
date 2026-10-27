@@ -52,7 +52,7 @@ test('only a loaded writable admin session reveals Admin; losing access closes i
   const { c, $ } = fixture(t); $('admin-tools').hidden = true;
   createScreenSettings(c); assert.equal($('admin-tools').hidden, true);
   for (const session of [{}, { admin: false, memberId: 'player2' }, { admin: false, readOnly: true },
-    { admin: true, readOnly: true }, { admin: true, canWrite: false }, { admin: true, capabilities: { canWrite: false } }]) {
+    { admin: true, adminAvailable: false }, { admin: true, readOnly: true }, { admin: true, canWrite: false }, { admin: true, capabilities: { canWrite: false } }]) {
     $('admin-tools').open = true; c.applySession(session);
     assert.equal($('admin-tools').hidden, true); assert.equal($('admin-tools').open, false);
   }

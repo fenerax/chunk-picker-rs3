@@ -53,7 +53,7 @@ export function createScreenStartup(c) {
     const invites = createInvites({ api: c.api, el: c.el, button: c.button, input: c.input, field: c.field, openDialog: c.openDialog, dialogCurrent: c.dialogCurrent, dialog: c.$('tool-dialog'), menuButton: c.$('invites-open'), members: () => c.state?.members ?? [], streamSafe: c.streamSafe });
     const overlayPanel = createOverlayPanel({ api: c.api, el: c.el, button: c.button, openDialog: c.openDialog, dialogCurrent: c.dialogCurrent, dialog: c.$('tool-dialog'), members: () => c.state?.members ?? [] });
     c.$('overlays-open')?.addEventListener('click', () => { if (c.sessionAdmin) void overlayPanel.open().catch(c.showError); });
-    const viewerSession = invites.loadSession().then(session => { c.applySession(session); if (c.$('overlays-open')) c.$('overlays-open').hidden = !session.admin; feedbackSessionReady = true; c.backupStatus.start(); feedbackPanel.setSession(session); feedbackPanel.start(); return session; });
+    const viewerSession = invites.loadSession().then(session => { c.applySession(session); if (c.$('overlays-open')) c.$('overlays-open').hidden = !c.sessionAdmin; feedbackSessionReady = true; c.backupStatus.start(); feedbackPanel.setSession(session); feedbackPanel.start(); return session; });
     globalThis.addEventListener?.('pagehide', () => feedbackPanel.pause());
     globalThis.addEventListener?.('pageshow', event => { if (event.persisted) { c.streamSafe.refreshFromStorage(); feedbackPanel.start(); } });
     c.$('invites-open').addEventListener('click', () => invites.open().catch(c.showError));

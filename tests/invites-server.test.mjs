@@ -111,7 +111,7 @@ test('HTTP invitation lifecycle preserves sessions and stores only hashed invite
     }
   }
   await f.restart();
-  assert.deepEqual(await (await f.request('/api/session', { cookie: joined.cookie, headers: funnel })).json(), { admin: false, readOnly: false, capabilities: { canWrite: true }, label: 'Reed', kind: 'invite', memberId: null,
+  assert.deepEqual(await (await f.request('/api/session', { cookie: joined.cookie, headers: funnel })).json(), { admin: false, adminAvailable: false, readOnly: false, capabilities: { canWrite: true }, label: 'Reed', kind: 'invite', memberId: null,
     actor: { kind: 'invite', inviteId: created.invite.id, label: 'Reed' } });
   assert.equal((await f.admin(`/api/invites/${created.invite.id}/revoke`, {})).status, 200);
   await f.restart();
@@ -199,10 +199,10 @@ test('Funnel and public forwarding reject every master credential while invite s
   const f = await fixture(t, { publicOrigin });
   const master = f.application.store.getAccessToken();
   for (const headers of [funnel, { 'Tailscale-Funnel-Request': 'spoof' }, { 'X-Forwarded-For': '203.0.113.9' }, { 'X-Forwarded-For': '127.0.0.1, 203.0.113.9' }]) {
-    assert.equal((await f.request(`/join/${master}`, { headers })).status, 401);
-    assert.equal((await f.request('/api/state', { headers: { ...headers, Authorization: `Bearer ${master}` } })).status, 401);
-    assert.equal((await f.request('/api/state', { cookie: `duo_access=${master}`, headers })).status, 401);
-    assert.equal((await f.request('/api/state', { cookie: f.masterCookie, headers })).status, 401);
+    assert.equal((await f.request(`/join/${master}`, { headers })).status, 403);
+    assert.equal((await f.request('/api/state', { headers: { ...headers, Authorization: `Bearer ${master}` } })).status, 403);
+    assert.equal((await f.request('/api/state', { cookie: `duo_access=${master}`, headers })).status, 403);
+    assert.equal((await f.request('/api/state', { cookie: f.masterCookie, headers })).status, 403);
   }
   assert.equal((await f.request('/api/state', { headers: { Authorization: `Bearer ${master}` } })).status, 200);
   const { cookie } = await f.join((await f.invite()).link, funnel);
@@ -237,7 +237,7 @@ test('join and anonymous rate limits use forwarded clients separately and generi
   const rejectedJoin = await f.request(new URL(created.link).pathname, { headers: client('203.0.113.20') });
   assert.equal(rejectedJoin.status, 429); assert.ok(Number(rejectedJoin.headers.get('retry-after')) > 0);
   assert.equal((await f.request(new URL(created.link).pathname, { headers: client('203.0.113.21') })).status, 303);
-  for (const route of ['/', '/api/state', '/api/invites', '/api/admin/master-link', '/api/health']) {
+  for (const route of ['/', '/api/state', '/api/session', '/api/history', '/api/health']) {
     const response = await f.request(route, { headers: client('203.0.113.22') });
     assert.equal(response.status, 401);
     const text = await response.text();
@@ -349,7 +349,7 @@ test('optional loopback listener serves Funnel with the same invite rules and cl
     http.get(`${loopback}${route}`, { headers }, res => { res.resume(); res.on('end', () => resolve(res)); }).on('error', reject);
   });
   assert.equal((await get('/', funnel)).statusCode, 401);
-  assert.equal((await get(`/join/${app.application.store.getAccessToken()}`, funnel)).statusCode, 401, 'master link is refused through Funnel');
+  assert.equal((await get(`/join/${app.application.store.getAccessToken()}`, funnel)).statusCode, 403, 'master link is refused through Funnel');
   const joined = await get(new URL(created.link).pathname, funnel);
   assert.equal(joined.statusCode, 303);
   assert.match(joined.headers['set-cookie'][0], /; Secure/);

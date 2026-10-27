@@ -15,6 +15,7 @@ export const adaptiveOptionsFor = (suite, env = process.env) => {
 
 // Reviewed small fixtures and model/controller tests. No running browser or full catalogue.
 export const quickTests = new Set([
+  "public-request.test.mjs",
   "security-json.test.mjs",
   "game-plugin-state.test.mjs",
   "game-plugin-status.test.mjs",
@@ -269,6 +270,7 @@ const fullOnlyPatterns = [
 
 // Remaining integration/provenance tests are named explicitly to catch unreviewed additions.
 const fullOnlyTests = new Set([
+  "public-ingress-server.test.mjs",
   "game-plugin-routes.test.mjs",
   "game-plugin-shutdown.test.mjs",
   "release-lane-status.test.mjs",
@@ -507,6 +509,7 @@ export const openF2PTests = new Set([
   "migration.test.mjs",
   "overlay-routes.test.mjs",
   "play-server.test.mjs",
+  "public-ingress-server.test.mjs",
   "pool-ranking-server.test.mjs",
   "prediction-output.test.mjs",
   "prediction-server.test.mjs",
@@ -530,7 +533,7 @@ export const openF2PTests = new Set([
   "xp-choices-server.test.mjs"
 ]);
 const openF2PEnvironment = Object.freeze({ RS3_DATASET: 'open-f2p', ...Object.fromEntries(['RS3_PACKS_DIR', 'RS3_PACK_SELECTION',
-  'RS3_MAP_ASSETS_DIR', 'RS3_TERRAIN_ASSETS_DIR', 'RS3_ICON_ASSETS_DIR', 'RS3_GAME_DATA_DIR', 'RS3_PUBLIC_ORIGIN', 'RS3_LOOPBACK_PORT',
+  'RS3_MAP_ASSETS_DIR', 'RS3_TERRAIN_ASSETS_DIR', 'RS3_ICON_ASSETS_DIR', 'RS3_GAME_DATA_DIR', 'RS3_PUBLIC_ORIGIN', 'RS3_LOOPBACK_PORT', 'RS3_LOOPBACK_ROLE',
   'RS3_DATASET_PROFILE', 'RS3_DATASET_PROFILE_SHA256'].map(key => [key, undefined])) });
 
 /** adaptive-test-runner.mjs reads this for every lane that runs this tree's tests. */

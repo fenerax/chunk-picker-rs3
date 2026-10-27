@@ -11,7 +11,7 @@ export function createInvites({ api, el, button, input, field, openDialog, dialo
   async function loadSession() {
     menuButton.hidden = true;
     const session = await api('/api/session');
-    menuButton.hidden = session.admin !== true;
+    menuButton.hidden = session.adminAvailable === false || session.admin !== true;
     return session;
   }
 

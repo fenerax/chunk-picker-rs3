@@ -35,21 +35,51 @@ export function normalizePublicOrigin(value) {
   return parsed.origin;
 }
 
-/** Only loopback and this server's exact bound Tailscale IP can be tailscaled. */
-export function requestContext(request, { host, publicOrigin } = {}) {
+export function normalizeIngressRole(value = 'private') {
+  if (value !== 'private' && value !== 'public') throw new TypeError('ingressRole must be private or public.');
+  return value;
+}
+
+function publicHost(value, publicOrigin) {
+  // Parse an authority only: URL's permissive handling of paths, credentials,
+  // numeric host aliases and whitespace must not expand this allowlist.
+  if (typeof value !== 'string') return false;
+  const match = /^(\[[a-fA-F0-9:.]+\]|[a-zA-Z0-9.-]+)(?::([0-9]+))?$/.exec(value);
+  if (!match || match[0] !== value || (match[2] !== undefined && Number(match[2]) > 65535)) return false;
+  const name = match[1].startsWith('[') ? match[1].slice(1, -1) : match[1];
+  if (match[1].startsWith('[') && isIP(name) !== 6) return false;
+  if (matches(loopback, clientAddress(name))) return true;
+  return !!publicOrigin && value.toLowerCase() === new URL(publicOrigin).host.toLowerCase();
+}
+
+/** Listener policy owns privilege; forwarding metadata only describes a request. */
+export function requestContext(request, { host, publicOrigin, ingressRole = 'private' } = {}) {
+  normalizeIngressRole(ingressRole);
+  const publicIngress = ingressRole === 'public';
   const peer = clientAddress(request.socket.remoteAddress);
   const bound = clientAddress(host);
-  const trustedProxy = matches(loopback, peer) || (!!bound && !matches(loopback, bound) && isPrivateClient(bound) && peer === bound);
+  // Public proxy trust is deliberately narrower than the legacy private lane.
+  const trustedProxy = publicIngress ? peer === '127.0.0.1' || peer === '::1'
+    : matches(loopback, peer) || (!!bound && !matches(loopback, bound) && isPrivateClient(bound) && peer === bound);
   const hasForwarding = trustedProxy && ['x-forwarded-for', 'x-forwarded-proto', 'x-forwarded-host'].some(key => key in request.headers);
   // tailscaled overwrites XFF with one IP, rather than appending a chain. Reject chains.
-  const forwarded = hasForwarding ? clientAddress(request.headers['x-forwarded-for']) : null;
-  const address = hasForwarding ? forwarded : peer;
+  const forwarded = trustedProxy ? clientAddress(request.headers['x-forwarded-for']) : null;
+  const address = publicIngress && trustedProxy ? forwarded : hasForwarding ? forwarded : peer;
   // Any marker, even an untrusted/spoofed one, disables master credentials.
   const funnel = 'tailscale-funnel-request' in request.headers;
   const secure = !!request.socket.encrypted || (trustedProxy && (request.headers['x-forwarded-proto'] === 'https' || funnel));
-  const origin = `${secure ? 'https' : 'http'}://${request.headers.host}`;
-  return { address, rateKey: address ?? `unknown:${peer ?? 'peer'}`, trustedProxy, funnel, secure, origin,
-    publicRequest: funnel || !isPrivateClient(address), masterAllowed: !funnel && isPrivateClient(address), publicOrigin };
+  let effectiveHost = request.headers.host;
+  if (publicIngress) {
+    if (!publicHost(effectiveHost, publicOrigin)) throw Object.assign(new Error('Unexpected public Host.'), { status: 403 });
+    if (trustedProxy && 'x-forwarded-host' in request.headers) {
+      effectiveHost = request.headers['x-forwarded-host'];
+      if (!publicHost(effectiveHost, publicOrigin)) throw Object.assign(new Error('Unexpected forwarded Host.'), { status: 403 });
+    }
+    effectiveHost = effectiveHost.toLowerCase();
+  }
+  const origin = `${secure ? 'https' : 'http'}://${effectiveHost}`;
+  return { address, rateKey: address ?? `unknown:${peer ?? 'peer'}`, trustedProxy, funnel, secure, origin, ingressRole,
+    publicRequest: publicIngress || funnel || !isPrivateClient(address), masterAllowed: !publicIngress && !funnel && isPrivateClient(address), publicOrigin };
 }
 
 export function checkRequestOrigin(request, context) {

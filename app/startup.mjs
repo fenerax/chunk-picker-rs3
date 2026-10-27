@@ -2,7 +2,7 @@ import http from 'node:http';
 import path from 'node:path';
 import { readFile } from 'node:fs/promises';
 import { timingSafeEqual } from 'node:crypto';
-import { normalizePublicOrigin, requestContext } from './security/request.mjs';
+import { normalizeIngressRole, normalizePublicOrigin, requestContext } from './security/request.mjs';
 import { startupPhase } from './startup-timing.mjs';
 
 // Bind before store/catalogue initialization. The dispatcher has no save queue:
@@ -11,6 +11,8 @@ export async function startEarlyServer(options, createApplication) {
   const { dataDir, host = '127.0.0.1', port = 8788,
     loopbackPort = process.env.RS3_LOOPBACK_PORT ? Number(process.env.RS3_LOOPBACK_PORT) : undefined } = options;
   const publicOrigin = normalizePublicOrigin(options.publicOrigin ?? process.env.RS3_PUBLIC_ORIGIN);
+  const ingressRole = normalizeIngressRole(options.ingressRole);
+  const loopbackRole = normalizeIngressRole(options.loopbackRole ?? process.env.RS3_LOOPBACK_ROLE);
   if (typeof host !== 'string' || !host.trim()) throw new TypeError('host must be nonempty.');
   for (const value of [port, loopbackPort].filter(value => value !== undefined)) {
     if (!Number.isInteger(value) || value < 0 || value > 65535) throw new TypeError('port must be an integer from 0 through 65535.');
@@ -18,21 +20,31 @@ export async function startEarlyServer(options, createApplication) {
   let handler, application, stopped = false, closePromise, token;
   const initialization = new AbortController();
   const connections = new Set();
-  async function dispatch(request, response) {
-    if (handler && !stopped) { await handler(request, response); return; }
+  async function dispatch(request, response, ingress) {
+    if (handler && !stopped) { await handler(request, response, ingress); return; }
     response.setHeader('Cache-Control', 'private, no-store');
     response.setHeader('Content-Type', 'application/json; charset=utf-8');
     response.setHeader('X-Content-Type-Options', 'nosniff');
     response.setHeader('Referrer-Policy', 'no-referrer');
+    let security;
+    try { security = requestContext(request, { ...ingress, publicOrigin }); }
+    catch (error) {
+      response.statusCode = error.status ?? 400;
+      response.setHeader('Connection', 'close');
+      response.end(request.method === 'HEAD' ? undefined : JSON.stringify({ message: error.message }));
+      return;
+    }
     const health = ['GET', 'HEAD'].includes(request.method) && request.url?.split('?')[0] === '/api/health';
-    let authorized = false;
+    let authorized = false, publicMaster = false;
     if (health) {
       try { token ??= (await readFile(path.join(dataDir, 'access-token'), 'utf8')).trim(); } catch { /* Fresh stores create the token during initialization. */ }
       const bearer = /^Bearer ([A-Za-z0-9_-]{43})$/i.exec(request.headers.authorization ?? '')?.[1];
-      authorized = requestContext(request, { host, publicOrigin }).masterAllowed && /^[A-Za-z0-9_-]{43}$/.test(token ?? '')
+      const validMaster = /^[A-Za-z0-9_-]{43}$/.test(token ?? '')
         && !!bearer && timingSafeEqual(Buffer.from(bearer), Buffer.from(token));
+      authorized = security.masterAllowed && validMaster;
+      publicMaster = security.ingressRole === 'public' && validMaster;
     }
-    response.statusCode = health && !authorized ? 401 : health ? 200 : 503;
+    response.statusCode = publicMaster ? 403 : health && !authorized ? 401 : health ? 200 : 503;
     response.setHeader('Retry-After', '1');
     // Closing refused requests also bounds unread/slow POST bodies. No body is
     // parsed or queued, so retrying cannot duplicate a saved command.
@@ -42,8 +54,10 @@ export async function startEarlyServer(options, createApplication) {
       : { message: health ? 'Access required.' : 'The picker is starting. Try again in a moment.', code: 'PICKER_WARMING' };
     response.end(request.method === 'HEAD' ? undefined : JSON.stringify(payload));
   }
-  const server = http.createServer(dispatch);
-  const loopbackServer = loopbackPort === undefined ? null : http.createServer(dispatch);
+  const primaryIngress = Object.freeze({ host, ingressRole });
+  const loopbackIngress = Object.freeze({ host: '127.0.0.1', ingressRole: loopbackRole });
+  const server = http.createServer((request, response) => dispatch(request, response, primaryIngress));
+  const loopbackServer = loopbackPort === undefined ? null : http.createServer((request, response) => dispatch(request, response, loopbackIngress));
   const track = socket => { connections.add(socket); socket.once('close', () => connections.delete(socket)); };
   for (const listener of [server, loopbackServer]) listener?.on('connection', track);
   const bind = (listener, bindPort, bindHost) => new Promise((resolve, reject) => {
@@ -80,7 +94,7 @@ export async function startEarlyServer(options, createApplication) {
   handle.ready = new Promise(resolve => setImmediate(resolve)).then(async () => {
     try {
       if (stopped) throw new Error('Server is closed.');
-      application = await createApplication({ ...options, publicOrigin, httpServer: server, httpLoopbackServer: loopbackServer,
+      application = await createApplication({ ...options, publicOrigin, ingressRole, loopbackRole, httpServer: server, httpLoopbackServer: loopbackServer,
         startupConnections: connections, onRequestHandler(value) { handler = value; },
         startupSignal: initialization.signal,
         taskWorkerOptions: { startupDeadlineMs: 300000, ...options.taskWorkerOptions, signal: initialization.signal } });

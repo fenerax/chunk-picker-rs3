@@ -32,7 +32,7 @@ import { openGamePlugin } from './game-plugin.mjs';
 import { readBackupStatus } from './storage/backup-status.mjs';
 import { transportRouteById } from './data/transport-routes.mjs';
 import { parseRequestJSON } from './security/json.mjs';
-import { normalizePublicOrigin, requestContext, checkRequestOrigin, createRateLimits, createStreamLimits, writeEvent } from './security/request.mjs';
+import { normalizePublicOrigin, normalizeIngressRole, requestContext, checkRequestOrigin, createRateLimits, createStreamLimits, writeEvent } from './security/request.mjs';
 import { buildWorld } from './data/world.mjs';
 import { loadDatasetInputs, loadOriginalSyncIntegration } from './dataset-bootstrap.mjs';
 import { evaluateTransportRoutes } from './core/transport-access.mjs';
@@ -365,8 +365,10 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
   schedulingClock = { now: () => performance.now(), setTimeout, clearTimeout },
   publicOrigin = process.env.RS3_PUBLIC_ORIGIN, rateLimits = {}, usageRateLimits = {},
   requestContextFor = requestContext,
+  ingressRole = 'private',
   // Optional second listener on 127.0.0.1 for Tailscale Funnel, which can only proxy to loopback.
   loopbackPort = process.env.RS3_LOOPBACK_PORT ? Number(process.env.RS3_LOOPBACK_PORT) : undefined,
+  loopbackRole = process.env.RS3_LOOPBACK_ROLE ?? 'private',
   httpServer, httpLoopbackServer, startupConnections, onRequestHandler, startupSignal,
   // Operator capability only: no HTTP endpoint can acquire writer ownership.
   liveSwap,
@@ -395,6 +397,8 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
   startupPhase('create:browser-payload');
   const startupTimingMs = { cataloguesMs: 0, workerAndReferencesMs: 0, storeMs: 0, authMs: 0, variantMs: 0, stateResponseMs: 0 };
   publicOrigin = normalizePublicOrigin(publicOrigin);
+  ingressRole = normalizeIngressRole(ingressRole);
+  loopbackRole = normalizeIngressRole(loopbackRole);
   const limits = createRateLimits(rateLimits);
   const admitStream = createStreamLimits(rateLimits);
   if (typeof host !== 'string' || !host.trim()) throw new TypeError('host must be nonempty.');
@@ -1146,8 +1150,10 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
     broadcast(`event: worker\ndata: ${JSON.stringify(worker)}\n\n`);
   });
   let importingBackup = false;
-  const applicationRequestHandler = async (request, response, lease) => {
-    const security = requestContextFor(request, { host, publicOrigin });
+  const applicationRequestHandler = async (request, response, lease, listener) => {
+    // Listener policy is supplied by the socket dispatcher, never HTTP input.
+    const listenerOptions = { ...listener, publicOrigin };
+    const security = listener.ingressRole === 'public' ? requestContext(request, listenerOptions) : requestContextFor(request, listenerOptions);
     response.setHeader('X-Content-Type-Options', 'nosniff');
     response.setHeader('Referrer-Policy', 'no-referrer');
     response.setHeader('Cache-Control', PRIVATE_NO_STORE);
@@ -1170,6 +1176,7 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
       let route;
       try { route = decodeURIComponent(rawPath); } catch { throw httpError(400, 'Invalid URL.'); }
       if (route.includes('\\') || route.includes('\0') || route.split('/').some(part => part === '..' || part === '.')) throw httpError(404, 'Not found.');
+      if (security.publicRequest && apiPermission(request.method, route) === 'admin') throw httpError(403, 'Administrator access requires a private connection.');
       if (await gamePlugin.handle(request, response, { route, security, closed })) return;
       if (await overlays.handle(request, response, { route, security, closed })) return;
       identity = invites.authenticate(request, security);
@@ -1199,7 +1206,10 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
       // Aggregate usage is the sole viewer POST exception; gameplay stays read only.
       const usageWrite = route === '/api/usage' && request.method === 'POST';
       if (identity.readOnly && !['GET', 'HEAD'].includes(request.method) && !usageWrite) throw httpError(403, 'This link is view only.');
-      function requireAdmin() { if (!identity.admin) throw httpError(403, 'Administrator access required.'); }
+      function requireAdmin() {
+        if (security.publicRequest) throw httpError(403, 'Administrator access requires a private connection.');
+        if (!identity.admin) throw httpError(403, 'Administrator access required.');
+      }
       function requirePermission() {
         const permission = apiPermission(request.method, route);
         if (!permission) {
@@ -1233,7 +1243,7 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
             if ([...query.keys()].some(key => key !== 'memberId') || query.getAll('memberId').length !== 1) throw httpError(400, 'Choose a player for game progress review.');
             await json(request, response, 200, gamePlugin.review(identity, query.get('memberId'))); return;
           }
-          if (route === '/api/session') { await json(request, response, 200, { admin: identity.admin, readOnly: identity.readOnly, capabilities: identity.capabilities, label: identity.label, kind: identity.kind, memberId: identity.memberId ?? null, actor: identity.actor }); return; }
+          if (route === '/api/session') { await json(request, response, 200, { admin: identity.admin, ...(security.publicRequest ? { adminAvailable: false } : {}), readOnly: identity.readOnly, capabilities: identity.capabilities, label: identity.label, kind: identity.kind, memberId: identity.memberId ?? null, actor: identity.actor }); return; }
           if (route === '/api/pool-ranking') {
             const query = new URL(request.url, 'http://localhost').searchParams;
             const captured = calculationState(), state = captured.state, memberId = query.get('memberId');
@@ -2158,7 +2168,7 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
         ...((routeIsRuneMetrics(request) || (request.url ?? '').startsWith('/api/original-sync/')) && error.code !== 'REVISION_CONFLICT' && error.code ? { code: error.code } : {}) });
     } finally { if (ownsImport) importingBackup = false; }
   };
-  const requestHandler = async (request, response) => {
+  const requestHandler = async (request, response, listener = { host, ingressRole }) => {
     let route, lease;
     try {
       route = decodeURIComponent((request.url ?? '/').split('?')[0]);
@@ -2172,7 +2182,7 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
       // All handlers, including overlays, join, usage retention and invitation
       // touches, enter this exclusion before their first asynchronous operation.
       if (!health) lease = handover.begin();
-      await applicationRequestHandler(request, response, lease);
+      await applicationRequestHandler(request, response, lease, listener);
     } catch (error) {
       request.resume();
       if (response.destroyed || response.headersSent) return;
@@ -2185,7 +2195,8 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
   // ordinary listener budget unchanged when no operator adapter is selected.
   const headerOptions = { maxHeaderSize: requestContextFor === requestContext ? http.maxHeaderSize : 64 * 1024 };
   const server = httpServer ?? http.createServer(headerOptions, requestHandler);
-  const loopbackServer = httpLoopbackServer ?? (loopbackPort === undefined ? null : http.createServer(headerOptions, requestHandler));
+  const loopbackServer = httpLoopbackServer ?? (loopbackPort === undefined ? null : http.createServer(headerOptions,
+    (request, response) => requestHandler(request, response, { host: '127.0.0.1', ingressRole: loopbackRole })));
   for (const listener of [server, loopbackServer]) listener?.on('connection', socket => { connections.add(socket); socket.once('close', () => connections.delete(socket)); });
   let activationPending;
   const handle = {

@@ -9,7 +9,7 @@ the owner's unread feedback count, and authors' handled notes.
 
 Open the private master link, then **Admin → Invite links**. Create an invitation labelled `Player 2`, choosing **Player**. Copy the generated link and send it privately. The full token is shown when created; the invitation list retains its label and status, not a recoverable token. Create a replacement if the link is lost. Last used updates on joining and at most once per minute during session activity.
 
-A player invitation grants editing access to both maps. Link it to its intended player using **Player** in the invite list. A fresh browser opens that player's map; a valid map selection remembered by that browser takes precedence. Invitations without a linked player and the private master link keep the first-player default. Selecting a map changes the gameplay view, not the invitation's permissions. Administrator invitations can also create, list and revoke invitations and retrieve the private master link. Player 1 may create an administrator invitation for herself when she wants public HTTPS access; the master credential itself is never accepted through Funnel.
+A player invitation grants editing access to both maps. Link it to its intended player using **Player** in the invite list. A fresh browser opens that player's map; a valid map selection remembered by that browser takes precedence. Invitations without a linked player and the private master link keep the first-player default. Selecting a map changes the gameplay view, not the invitation's permissions. Administrator invitations can also create, list and revoke invitations and retrieve the private master link, but administrator access is private only. The public interface does not offer the Admin controls.
 
 Choose **View only** for someone who wants to watch. A viewer can see both maps, task lists, notes, History and existing Helper information, including live updates. They cannot roll, unlock, tick tasks, edit notes, change rules or settings, pin tasks, undo, import or restore maps, use backups, send feedback, sync RuneMetrics or manage invitations. A **View only** badge stays in the top bar. Theme, chunk IDs and the chosen map are remembered only in that viewer's browser.
 
@@ -51,6 +51,7 @@ These are operator instructions. The picker does not change Tailscale settings o
 
    ```powershell
    $env:RS3_PUBLIC_ORIGIN = 'https://<computer>.<tailnet>.ts.net'
+   $env:RS3_LOOPBACK_ROLE = 'public'
    ./scripts/Stop-Picker.ps1
    ./scripts/Start-Picker.ps1 -HostAddress <tailscale-ip>
    ```
@@ -63,7 +64,7 @@ These are operator instructions. The picker does not change Tailscale settings o
    tailscale funnel --bg http://127.0.0.1:8789
    ```
 
-   Funnel can only reach a loopback address on Windows (proxying to `<tailscale-ip>:8788` returns 502 after a timeout). With a public origin configured, `Start-Picker.ps1` sets `RS3_LOOPBACK_PORT` to the picker port plus one, so the picker also listens on `127.0.0.1:8789`; the Tailscale address keeps working for private links.
+   Funnel can only reach a loopback address on Windows (proxying to `<tailscale-ip>:8788` returns 502 after a timeout). With a public origin configured, `Start-Picker.ps1` sets `RS3_LOOPBACK_PORT` to the picker port plus one, so the picker also listens on `127.0.0.1:8789`; the Tailscale address keeps working for private links. Set `RS3_LOOPBACK_ROLE=public` for the Funnel listener; the programmatic `createServer` option is `loopbackRole: 'public'`. The primary listener's `ingressRole` option defaults to `private`. Use the private listener for administration and master credentials.
 
    The public URL is `https://<computer>.<tailnet>.ts.net`. The [Funnel CLI reference](https://tailscale.com/docs/reference/tailscale-cli/funnel) explains background persistence and disabling a configured Funnel. Stopping the picker does not remove Funnel configuration.
 
@@ -71,15 +72,43 @@ These are operator instructions. The picker does not change Tailscale settings o
 
 Funnel terminates HTTPS on this desktop and forwards HTTP to the picker's loopback listener. Checked 2026-10-08: proxying to the desktop's own Tailscale address timed out with 502, so use the loopback target.
 
+## Listener roles and reverse proxies
+
+The default role is `private` for both listeners, preserving existing deployments
+until the operator opts in. Set `RS3_LOOPBACK_PORT=8789` and
+`RS3_LOOPBACK_ROLE=public` for the local Funnel or Caddy target, then restart.
+The primary listener stays private. Programmatic options are `ingressRole` and
+`loopbackRole`, each accepting only `private` or `public`.
+
+A public listener is always public, including while startup is warming. Missing,
+malformed, chained or private-valued `X-Forwarded-For` cannot grant privileges.
+Public Host values must match the host (and port) of `RS3_PUBLIC_ORIGIN`, or a
+literal loopback IP (`127.0.0.1`, another `127/8` literal, or `[::1]`, with an
+optional port). `localhost` and arbitrary domains are refused. Forwarded Host,
+when accepted from the exact loopback proxy peer, must pass the same allowlist.
+Forward HTTPS scheme and the public Host through the proxy for browser use.
+Do not publish the private listener through that proxy.
+
+All administrator routes require a private connection, including overlays,
+invites, feedback administration, usage reads, backup status, master-link reads,
+shutdown, worker restart and full-save import/restore and previews. Public
+refusals return 403. `/api/session` reports `adminAvailable: false` publicly,
+and the browser hides administrator controls. Existing administrator invitations
+also require private ingress. Player plugin-key management remains available;
+plugin bearer requests deliberately allow no Origin, including a literal loopback
+Host. Scoped OBS reads and streams remain public. There is no CORS allowance.
+
 ## Credentials, sessions and recovery
 
 Invitation tokens contain 256 random bits. Only their SHA-256 digests are stored. An invite token is accepted at `/join/<token>` to establish an opaque session; it is not an API bearer credential. Session secrets are also stored only as hashes. HTTPS sessions use `Secure`, `HttpOnly` and `SameSite=Lax` cookies. Authentication responses prevent referrer disclosure and caching; HTTPS responses include HSTS.
 
-The original master token in `.local/duo/access-token` remains a separate private administrator credential. Keep that file and your saved master URL private. Server startup logs show only the address, without the token; invitation paths in errors and feedback are redacted. It works only through loopback or a direct Tailscale connection (`100.64.0.0/10` or `fd7a:115c:a1e0::/48`). Funnel rejects the master join link, master bearer token and an existing master cookie. Use an administrator invitation for public access.
+The original master token in `.local/duo/access-token` remains a separate private administrator credential. Keep that file and your saved master URL private. Server startup logs show only the address, without the token; invitation paths in errors and feedback are redacted. Use it through a private listener over loopback or a direct Tailscale connection (`100.64.0.0/10` or `fd7a:115c:a1e0::/48`). Public ingress rejects master links, bearer tokens and existing master cookies, as well as administrator invitations and sessions. Administration requires a private connection.
 
 Authentication records live in `.local/duo/invites.json` beside gameplay state. Sessions expire after 30 days, with at most 32 active sessions per invitation. **Download full backup**, gameplay restore, migration, undo and reference sync exclude that sidecar and the master token. Restoring an older gameplay backup does not restore invitations or clear revocations. Keep `invites.json` and `access-token` separately when preserving server access, and retain the complete private data directory for machine recovery. Do not publish either credential file.
 
-The server trusts forwarded scheme and client address only from loopback or its exact bound Tailscale address, never from every Tailscale peer. Direct peers cannot claim public proxy identity by adding forwarded headers. Any Funnel marker disables master credentials, including a spoofed marker. Current [Tailscale proxy source](https://github.com/tailscale/tailscale/blob/main/ipn/ipnlocal/serve.go) retains the original Host, supplies the client IP in `X-Forwarded-For`, sets `X-Forwarded-Proto` for HTTPS, and replaces `Tailscale-Funnel-Request` with `?1` for Funnel. Public mutations require HTTPS and the exact configured origin. An accepted save finishes before revocation returns; later queued writes recheck authentication.
+The server treats a public listener as public regardless of supplied headers. On a public listener, only the exact loopback proxy peers `127.0.0.1` and `::1` can supply forwarding metadata. It is used for rate-limit buckets, scheme and effective origin, never privileges. The legacy private listener trusts loopback or its exact bound Tailscale address, never every Tailscale peer. Direct peers cannot claim public proxy identity by adding forwarded headers. Any Funnel marker disables private administrator credentials, including a spoofed marker. Current [Tailscale proxy source](https://github.com/tailscale/tailscale/blob/main/ipn/ipnlocal/serve.go) retains the original Host, supplies the client IP in `X-Forwarded-For`, sets `X-Forwarded-Proto` for HTTPS, and replaces `Tailscale-Funnel-Request` with `?1` for Funnel. Public mutations require HTTPS and the exact configured origin. An accepted save finishes before revocation returns; later queued writes recheck authentication.
+
+The plugin and OBS overlay endpoints use their own scoped credentials and access rules; the private-only administrator rule does not replace those rules. Keep their credentials private and use only the access each integration needs.
 
 Failed joins are limited to 10 per client in 15 minutes; unauthenticated requests are limited to 60 per client per minute. Client addresses come from trusted proxy metadata only when the connection is from the local proxy. Limits reset on server restart.
 

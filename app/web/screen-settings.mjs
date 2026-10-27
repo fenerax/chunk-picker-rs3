@@ -23,7 +23,7 @@ export function createScreenSettings(c) {
   function applySession(session) {
     c.preferenceSignature = undefined;
     c.sessionReadOnly = session.readOnly === true || session.canWrite === false || session.capabilities?.canWrite === false;
-    c.sessionAdmin = !c.sessionReadOnly && session.admin === true;
+    c.sessionAdmin = !c.sessionReadOnly && session.adminAvailable !== false && session.admin === true;
     c.$('admin-tools').hidden = !c.sessionAdmin;
     if (!c.sessionAdmin) c.$('admin-tools').open = false;
     c.sessionMember = session.memberId ?? null;

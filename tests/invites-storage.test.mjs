@@ -10,7 +10,7 @@ import { clientAddress, isPrivateClient, requestContext, checkRequestOrigin, cre
 const root = fileURLToPath(new URL('../.local/invite-tests/', import.meta.url));
 const masterToken = 'legacy-private-master-token';
 const privateContext = { masterAllowed: true, secure: false };
-const publicContext = { masterAllowed: false, secure: true };
+const publicContext = { masterAllowed: false, publicRequest: true, secure: true };
 const cookieRequest = token => ({ headers: { cookie: `duo_access=${token}` } });
 const digest = token => createHash('sha256').update(token).digest('hex');
 async function fixture(t, options = {}) {
@@ -70,17 +70,19 @@ test('master compatibility stays private and expired sessions cannot authenticat
   const master = f.store.authenticate({ headers: { authorization: `Bearer ${masterToken}` } }, privateContext);
   assert.equal(master.label, 'Test administrator');
   assert.equal(master.actor.label, 'Test administrator');
-  assert.equal(await f.store.join(masterToken, publicContext), null);
+  await assert.rejects(() => f.store.join(masterToken, publicContext), { status: 403 });
   for (const request of [cookieRequest(masterToken), { headers: { authorization: `Bearer ${masterToken}` } }]) {
-    assert.equal(f.store.authenticate(request, publicContext), null);
+    assert.throws(() => f.store.authenticate(request, publicContext), { status: 403 });
     assert.equal(f.store.authenticate(request, privateContext).admin, true);
   }
   const masterSession = await f.store.join(masterToken, privateContext);
-  assert.equal(f.store.authenticate(cookieRequest(masterSession), publicContext), null);
+  assert.throws(() => f.store.authenticate(cookieRequest(masterSession), publicContext), { status: 403 });
   assert.equal(f.store.authenticate(cookieRequest(masterSession), privateContext).kind, 'master');
   const { token } = await f.store.create({ label: 'Admin', admin: true });
-  const session = await f.store.join(token, publicContext);
-  assert.equal(f.store.authenticate(cookieRequest(session), publicContext).admin, true);
+  await assert.rejects(() => f.store.join(token, publicContext), { status: 403 });
+  const session = await f.store.join(token, privateContext);
+  assert.throws(() => f.store.authenticate(cookieRequest(session), publicContext), { status: 403 });
+  assert.equal(f.store.authenticate(cookieRequest(session), privateContext).admin, true);
   at += 30 * 24 * 60 * 60 * 1000;
   assert.equal(f.store.authenticate(cookieRequest(session), publicContext), null);
   assert.match(f.store.cookie(session, publicContext), /; Secure$/);

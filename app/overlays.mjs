@@ -114,6 +114,7 @@ export async function openOverlays({ dataDir, store, world, webRoot, publicOrigi
     ['/overlay/overlay-client.mjs', ['overlay-client.mjs', 'text/javascript; charset=utf-8']],
   ]);
   function requireAdmin(request, security) {
+    if (security.publicRequest) throw fail(403, 'Administrator access requires a private connection.');
     const identity = authenticateAdmin(request, security);
     if (!identity) { unauthenticated(security.rateKey); throw fail(401, 'Access required.'); }
     if (!identity.admin || identity.readOnly) throw fail(403, 'Administrator access required.');

@@ -28,7 +28,7 @@ test('default core request context keeps existing authentication',async t=>{
 });
 test('operator context adapter controls authentication before route handling',async t=>{
   let calls=0; const get=await fixture(t,(request,options)=>{calls++;return {...requestContext(request,options),masterAllowed:false};});
-  const response=await get({}); assert.equal(response.status,401);await response.arrayBuffer(); assert.equal(calls,1);
+  const response=await get({}); assert.equal(response.status,403);await response.arrayBuffer(); assert.equal(calls,1);
 });
 test('invalid provenance refusal cannot fall back to loopback master',async t=>{
   const get=await fixture(t,()=>{throw Object.assign(Error('Invalid ingress provenance.'),{status:403});});

@@ -139,11 +139,13 @@ export async function openInviteStore({ dataDir, masterToken, masterLabel, now =
     },
     async join(token, context) {
       // Fixed token syntax prevents oversized input before hashing. Master format is legacy.
+      if (!context.masterAllowed && equals(token, masterToken)) throw error(403, 'Administrator access requires a private connection.');
       const master = context.masterAllowed && equals(token, masterToken);
       if (!master && !TOKEN.test(token)) return null;
       return mutate(next => {
         const invite = master ? null : next.invites.find(invite => !invite.revoked && equals(invite.tokenHash, hash(token)));
         if (!master && !invite) throw error(401, 'Access required.');
+        if (invite?.admin && context.publicRequest) throw error(403, 'Administrator access requires a private connection.');
         const inviteId = invite?.id ?? null;
         if (invite) invite.lastUsedAt = new Date(now()).toISOString();
         // Bound active sessions per link; older browsers can rejoin with the link.
@@ -159,16 +161,19 @@ export async function openInviteStore({ dataDir, masterToken, masterLabel, now =
     authenticate(request, context) {
       const bearer = /^Bearer (\S+)$/i.exec(request.headers.authorization ?? '')?.[1];
       const cookie = (request.headers.cookie ?? '').split(';').map(item => item.trim()).find(item => item.startsWith(`${COOKIE}=`))?.slice(COOKIE.length + 1);
+      if (!context.masterAllowed && (equals(bearer, masterToken) || equals(cookie, masterToken))) throw error(403, 'Administrator access requires a private connection.');
       // Preserve private CLI bearer and existing master cookies, never on Funnel.
       if (context.masterAllowed && (equals(bearer, masterToken) || equals(cookie, masterToken))) return principal(null);
       if (!TOKEN.test(cookie ?? '')) return null;
       const digest = hash(cookie);
       const session = current.sessions.find(session => equals(session.tokenHash, digest) && Date.parse(session.expiresAt) > now());
-      if (!session || (session.inviteId === null && !context.masterAllowed)) return null;
+      if (!session) return null;
+      if (session.inviteId === null && !context.masterAllowed) throw error(403, 'Administrator access requires a private connection.');
       const identity = principal(session.inviteId);
+      if (identity?.admin && context.publicRequest) throw error(403, 'Administrator access requires a private connection.');
       return identity ? { ...identity, expiresAt: session.expiresAt } : null;
     },
-    active(identity, context) { return !!identity && (identity.kind === 'master' ? context.masterAllowed : !!principal(identity.inviteId)); },
+    active(identity, context) { return !!identity && !(context.publicRequest && identity.admin) && (identity.kind === 'master' ? context.masterAllowed : !!principal(identity.inviteId)); },
     cookie(token, context) { return `${COOKIE}=${token}; HttpOnly; SameSite=Lax; Path=/; Max-Age=${SESSION_MS / 1000}${context.secure ? '; Secure' : ''}`; },
     async close() { closed = true; await queue; },
   };
