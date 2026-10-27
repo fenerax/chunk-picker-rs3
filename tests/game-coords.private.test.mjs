@@ -13,6 +13,11 @@ test('archival world verifies area membership, exclusions, aliases and sparse su
   const enriched = createGameCoordinates(buildWorld(definitions, { dataset: selectedDataset }));
   assert.deepEqual(enriched.ambiguous, [], 'cache-only terrain is not an independent picker destination');
   const counts = [35, 67, 38, 10], aliasCounts = [32, 55, 0, 0];
+  const contentKeys = record => new Set([
+    ...Object.entries(record).filter(([key]) => !['Name', 'Nickname', 'Connect', 'Sections'].includes(key))
+      .flatMap(([kind, values]) => Object.keys(values ?? {}).map(key => `${kind}:${key}`)),
+    ...Object.values(record.Sections ?? {}).flatMap(section => [...contentKeys(section)]),
+  ]);
   for (const [index, area] of GAME_COORDINATE_AREAS.entries()) {
     const sw = area.picker[0], ne = area.picker[1];
     const inBox = [...world.chunks.keys()].filter(id => /^\d+$/.test(id) && Math.floor(+id / 256) >= Math.floor(sw / 256)
@@ -20,6 +25,15 @@ test('archival world verifies area membership, exclusions, aliases and sparse su
     const members = inBox.filter(id => !area.excluded.includes(+id));
     assert.equal(members.length, counts[index], `${area.name}: re-audit membership if definitions change`);
     assert.equal(members.filter(id => world.chunks.has(coords.pickerChunkToGameId(id))).length, aliasCounts[index]);
+    if (index < 2) {
+      const sharedContent = members.filter(id => {
+        const alias = definitions.chunks[coords.pickerChunkToGameId(id)];
+        if (!alias) return false;
+        const keys = contentKeys(alias);
+        return [...contentKeys(definitions.chunks[id])].some(key => keys.has(key));
+      });
+      assert.equal(sharedContent.length, [31, 39][index], `${area.name}: independent content corroboration at shifted positions`);
+    }
     for (const id of members) {
       const point = coords.pickerChunkToGameSquare(id);
       assert.equal(coords.gameSquareToPickerChunk(point.x, point.z), id);

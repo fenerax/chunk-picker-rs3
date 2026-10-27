@@ -54,10 +54,12 @@ start a new plugin session without reusing sequence numbers. Retries with an
 old sequence return 409 without changing anything. `sentAt` is a valid ISO UTC
 timestamp with seconds and optional 1–3 fractional digits.
 
-`x`/`z` are **map squares**, integers 0–199, not tile coordinates. `floor` is an
-integer 0–3. Chunk ID is the decimal string `x*256+z`: Lumbridge `(50,50)` is
+`x`/`z` are **game map squares**, integers 0–199, not tile coordinates. `floor` is an
+integer 0–3. The wire chunk ID is the decimal string `x*256+z`: Lumbridge `(50,50)` is
 `"12850"`; `(53,45)` is `"13613"`. Position expires after ten minutes and never
-enters the save, History, Undo or backups. It never unlocks a chunk.
+enters the save, History, Undo or backups. It never unlocks a chunk. The server
+translates displaced map drawings into picker IDs internally; all plugin wire
+chunk IDs remain game IDs. See [coordinate membership and verification](game-coordinates.md).
 
 `world` is optional; when supplied it needs integer `id` 1–10000 and boolean
 `beta`. Send it on each report. `skills` and `quests` are optional; position-only
@@ -406,8 +408,9 @@ totals. A plugin reaches rows past the first 100 by asking again with
 before `allFrom` existed refuse any query, so a plugin should send `from` only
 after a response that included `allFrom`.
 
-`here` lists the tasks whose map locations include `chunkId`, the chunk from
-the player's latest report (null after ten minutes without one). `hereKnown`
+`here` lists the tasks whose picker map locations include the translated chunk
+from the player's latest report. The response `chunkId` stays a game ID (null
+after ten minutes without a report). `hereKnown`
 is false when there is no recent position or the saved list has no map
 locations; `here` is then empty.
 
