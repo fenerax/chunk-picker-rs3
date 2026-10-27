@@ -122,7 +122,7 @@ test('plugin exact routes allow no-Origin native clients through Funnel while pr
   assert.equal((await f.plugin('/api/plugin/v1/status', first.key, undefined, { ...funnel, Origin: 'https://foreign.example' })).status, 403);
   assert.equal((await f.plugin('/api/plugin/v1/report', second.key, report(), { ...funnel, Origin: 'https://foreign.example' })).status, 403);
   assert.equal((await f.plugin('/api/plugin/v1/status', second.key, undefined, { ...funnel, Origin: publicOrigin, 'Sec-Fetch-Site': 'cross-site' })).status, 403);
-  assert.equal((await f.admin('/api/state', undefined, funnel)).status, 401);
+  assert.equal((await f.admin('/api/state', undefined, funnel)).status, 403);
   assert.equal((await f.admin('/api/command', { expectedRevision: 0, command: { type: 'set-journal', memberId: 'actor1', note: 'Wrong origin' } }, { Origin: 'https://foreign.example' })).status, 403);
   assert.equal((await f.plugin('/api/plugin/v1/status/extra', second.key)).status, 401);
 });

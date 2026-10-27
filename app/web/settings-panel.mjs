@@ -38,6 +38,7 @@ const sections = [
   { id: 'panels', label: 'Panels', ids: ['info', 'defaultChunkinfo', 'recent', 'topButtons', 'allTasks', 'hideAchievements'] },
   { id: 'topbar', label: 'Top bar', ids: [] },
   { id: 'time', label: 'Time estimates', ids: [] },
+  { id: 'account', label: 'Account', ids: [] },
 ];
 const optionLabels = {
   theme: { light: 'Light', dark: 'Dark', gray: 'Gray', terminal: 'Terminal', neon: 'Neon', pumpkin: 'Pumpkin', mono: 'Monochrome', winter: 'Winter', autumn: 'Autumn', voyage: 'Voyage' },
@@ -51,7 +52,7 @@ export function createSettingsPanel(ctx) {
   function settings() {
     if (ctx.canWrite?.() === false) return;
     const id = ctx.memberId(), owner = ctx.state().members.find(member => member.id === id);
-    const activeSections = sections.filter(section => (section.id !== 'time' || ctx.supportsFeature?.('training') !== false) && (section.id !== 'topbar' || ctx.topBar));
+    const activeSections = sections.filter(section => (section.id !== 'time' || ctx.supportsFeature?.('training') !== false) && (section.id !== 'topbar' || ctx.topBar) && (section.id !== 'account' || ctx.account?.available()));
     const content = el('div', undefined, 'settings-panel');
     content.dataset.mobileView = 'list';
     const searchBar = el('div', undefined, 'settings-search'), search = input('search');
@@ -132,6 +133,9 @@ export function createSettingsPanel(ctx) {
         if (!query && section.id === 'retained' && selected !== 'panels') continue;
         const node = el('section', undefined, 'settings-section'), heading = el('h3', section.label);
         heading.tabIndex = -1; sectionHeadings.set(section.id, heading); node.append(heading); let count = 0;
+        if (section.id === 'account' && ctx.account?.available() && (!query || 'account sign in discord google link sign out invitation'.includes(query))) {
+          node.append(ctx.account.rows()); count++;
+        }
         if (section.id === 'panels' && ctx.usage && (!query || 'count which windows i use usage counts privacy device'.includes(query))) {
           node.append(ctx.usage.settingsRow()); count++;
         }

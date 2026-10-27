@@ -96,6 +96,18 @@
     {
       "host": "twitter.com",
       "reason": "Public posts linked from RuneScape Wiki page text in fixtures."
+    },
+    {
+      "host": "discord.com",
+      "reason": "Fixed public Discord OAuth endpoints for member sign-in."
+    },
+    {
+      "host": "accounts.google.com",
+      "reason": "Fixed public Google OpenID Connect authorization and issuer."
+    },
+    {
+      "host": "oauth2.googleapis.com",
+      "reason": "Fixed public Google OpenID Connect token endpoint."
     }
   ],
   "placeholders": [

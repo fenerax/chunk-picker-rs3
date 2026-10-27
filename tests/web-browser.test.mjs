@@ -2455,6 +2455,8 @@ test('startup fetches display definitions and leaves chunk search and full evide
   const h = harness(), loaded = h.snapshot(); let indexedChunks = 0;
   const display = { chunks: { '12341': { toJSON() { indexedChunks++; return { Object: { 'Unique ore': 1 } }; } }, '12342': {} } };
   Object.assign(h.context, { createInvites: () => ({ loadSession: async () => ({}), open: async () => {} }),
+    createAccountPanel: () => ({ setSession() {}, open() {} }),
+    createAccountsPanel: () => ({ setSession() {}, open: async () => {} }),
     createOverlayPanel: () => ({ open: async () => {} }),
     loadTerrainManifest: async () => null, loadMapInformation: async () => null,
     hydrateDisplayWorld, createRuleRegistryFromDefinitions: () => createRuleRegistry(),

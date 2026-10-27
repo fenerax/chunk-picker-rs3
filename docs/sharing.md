@@ -80,6 +80,11 @@ until the operator opts in. Set `RS3_LOOPBACK_PORT=8789` and
 The primary listener stays private. Programmatic options are `ingressRole` and
 `loopbackRole`, each accepting only `private` or `public`.
 
+The managed Windows launcher rebuilds the child environment and currently clears
+inherited `RS3_*` settings. Its operator must explicitly pass these new settings
+to the child; setting them only in the parent shell is insufficient. Direct Node
+or a Linux service can supply the documented environment variables normally.
+
 A public listener is always public, including while startup is warming. Missing,
 malformed, chained or private-valued `X-Forwarded-For` cannot grant privileges.
 Public Host values must match the host (and port) of `RS3_PUBLIC_ORIGIN`, or a
@@ -140,3 +145,93 @@ before returning a cached 200 or 304, including HEAD requests. Content-digest as
 paths may use immutable caching. Sessions, errors, joins, SSE and volatile calculation
 responses use private no-store. Compact play views grant the same access as their
 full routes; they do not bypass invitation or origin checks.
+
+
+## Discord and Google sign-in
+
+Sign-in works only on explicitly public HTTPS ingress with the exact
+`RS3_PUBLIC_ORIGIN` configured. Private access still uses the private master link.
+Set `RS3_SIGNIN=off|optional|required`, then restart. The default `off` preserves
+invitation entry. `optional` offers sign-in plus **Continue with invite link** for
+unclaimed player links and keeps old unclaimed invitation sessions working.
+`required` rejects old player-only invitation sessions and requires an account.
+Viewer links work without sign-in in every mode. Claimed links remain claimed in
+every mode and cannot create invitation-only sessions.
+
+Create a Player invitation and link it to the intended picker member, then open it
+on the public site. **Sign in to join** claims the invitation for one account after
+successful sign-in. Returning members use `/auth/signin` without the claim link.
+The page explains cancelled consent, expired attempts, already claimed invites and
+accounts without an active membership. Private administration remains separate.
+
+### Register providers and secret files
+
+For Discord, create an application in the Discord Developer Portal. In **OAuth2**,
+register exactly `${RS3_PUBLIC_ORIGIN}/auth/discord/callback`. Use its OAuth2 client
+ID and client secret; no bot is needed. The picker requests only `identify`, without
+email or guild access.
+
+For Google, create a project and configure its OAuth consent screen and audience
+in Google Cloud. Add the intended members as test users while the app is in
+Testing. Create a **Web application** OAuth client and register exactly
+`${RS3_PUBLIC_ORIGIN}/auth/google/callback` as an authorized redirect URI. The picker
+requests only `openid`, without email or profile scopes. Provider audience and
+publication settings must permit the intended existing members.
+
+Put each client secret alone in a UTF-8 file outside the repository and web root,
+readable only by the service account (for example Linux mode `0600`). Configure:
+
+```text
+RS3_DISCORD_CLIENT_ID=<discord-client-id>
+RS3_DISCORD_CLIENT_SECRET_FILE=/etc/rs3-picker/discord-client-secret
+RS3_GOOGLE_CLIENT_ID=<google-client-id>
+RS3_GOOGLE_CLIENT_SECRET_FILE=/etc/rs3-picker/google-client-secret
+```
+
+A provider missing either setting is not offered. Secret files are read at startup;
+restart after changing them. Keep secrets out of URLs, command arguments, logs,
+screenshots and receipts. The public proxy must preserve the public Host and HTTPS
+scheme. Keep master-token operator calls on the separate private listener.
+
+### Accounts and recovery
+
+Settings has an Account section showing the signed-in provider, a link to add the
+other provider, and Sign out. The More menu also has Account, including for viewers.
+Linking requires an existing account session; identities already owned by another
+account are never merged automatically. Private **Admin > Accounts** shows
+providers, short account ID, linked member and role, and last use. Its actions
+unlink an identity, revoke sessions or delete an account. Unlinking also revokes
+sessions. Deleting an account leaves its invitation claimed; use a replacement
+invitation for recovery. Revoking a claimed invitation invalidates its membership
+and sessions immediately. Plugin keys stay separate and per member; signed-in
+players can issue/revoke them as before.
+
+Malformed authentication sidecars fail closed without replacing their bytes. Stop
+the service before restoring a consistent complete data-directory copy and sibling
+dataset binding. Gameplay backups exclude auth: preserve `accounts.json`,
+`invites.json`, `access-token`, `plugin-keys.json` and `overlays.json` separately.
+A claim reserves the invitation before writing its membership. If interrupted,
+the same account can reopen the claim to complete it; another account cannot take
+it. A private administrator can revoke it and create a replacement. Lost provider
+access can be recovered through a linked second provider or private administration.
+
+Keep a stopped-store copy before enabling claims. Older picker releases do not
+recognize the new claim and account-session fields in `invites.json`. Rolling back
+code therefore needs an auth-compatible release or a deliberate matching sidecar
+restore. Restoring older authentication records can also undo revocations.
+
+### What sign-in stores
+
+`accounts.json` stores a random account ID, each provider name and opaque subject
+ID, created/last-used timestamps, and a list of memberships (player/viewer, member
+ID and source invitation). That list supports several RS3 accounts and additional
+picker members; this version has no account-selection screens. It stores no email,
+username, avatar, access token, refresh token or ID token. Provider tokens are
+discarded after the callback. `invites.json` stores only hashed random session
+secrets, account/membership/provider IDs and expiry, plus durable invite claims.
+The host-only HttpOnly SameSite=Lax cookie lasts 30 days and is Secure over HTTPS.
+History keeps existing invite-label and member attribution, without provider
+profiles. State, PKCE verifiers and Google nonces stay in bounded server memory,
+bound to a short-lived host-only HttpOnly Secure SameSite=Lax pre-auth cookie.
+Each attempt expires after ten minutes and is single-use. Expired entries are
+pruned on the next auth request; restarting clears all attempts.

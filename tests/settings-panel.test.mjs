@@ -76,6 +76,15 @@ test('unsupported game catalogue settings disappear while ordinary settings rema
   assert.deepEqual(h.headings(), []);
 });
 
+test('Account appears as an existing Settings section only when sign-in is available', () => {
+  const h = harness({ supportsFeature: feature => feature !== 'training' }); h.panel.settings(); assert.equal(h.button('Account'), undefined);
+  h.ctx.account = { available: () => true, rows: () => h.ctx.el('p', 'Signed in with Discord') };
+  h.panel.settings(); h.button('Account').events.click();
+  assert.deepEqual(h.headings(), ['Account']); assert.ok(h.nodes().some(node => node.textContent === 'Signed in with Discord'));
+  const search = h.control('Find a setting'); search.value = 'discord'; search.events.input(); assert.deepEqual(h.headings(), ['Account']);
+  h.ctx.account.available = () => false; h.panel.settings(); assert.equal(h.button('Account'), undefined);
+});
+
 
 test('map settings hand off to the existing editors and omit duplicate display preferences', () => {
   const h = harness(); h.panel.settings(); assert.ok(h.control('Theme'));

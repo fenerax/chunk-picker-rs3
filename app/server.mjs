@@ -25,6 +25,8 @@ import { sharedJSONBytes, sharedBuffer } from './tasks/shared-bytes.mjs';
 import { createPoolRanking } from './tasks/pool-ranking.mjs';
 import { openStore, prepareStoreProcessIdentity } from './storage/store.mjs';
 import { openInviteStore } from './storage/invites.mjs';
+import { openAccountStore } from './storage/accounts.mjs';
+import { openSignIn } from './signin.mjs';
 import { openFeedbackStore } from './storage/feedback.mjs';
 import { openUsageRoute } from './usage-route.mjs';
 import { openOverlays } from './overlays.mjs';
@@ -116,7 +118,7 @@ export const routePermissions = Object.freeze({
   GET: Object.freeze({
     '/api/game-plugin': 'read', '/api/game-plugin/review': 'read',
     '/api/plugin/v1/status': 'plugin', '/api/plugin/v1/tasks': 'plugin', '/api/session': 'read', '/api/coordination': 'read', '/api/invites': 'admin', '/api/overlays': 'admin', '/api/feedback': 'admin',
-    '/api/feedback/summary': 'write', '/api/feedback/own': 'write', '/api/usage': 'admin',
+    '/api/feedback/summary': 'write', '/api/feedback/own': 'write', '/api/usage': 'admin', '/api/accounts': 'admin',
     '/api/admin/master-link': 'admin', '/api/icons': 'read', '/api/ids/:id': 'read',
     '/api/state': 'read', '/api/history': 'read', '/api/history/:id': 'read', '/api/roll-stats': 'read', '/api/display-world': 'read', '/api/health': 'read', '/api/art-status': 'read', '/api/dataset-status': 'read', '/api/dataset-runtime': 'read', '/api/dataset-input': 'read',
     '/api/changelog': 'read', '/api/roadmap': 'read', '/api/diagnostics': 'read', '/api/definitions': 'read',
@@ -135,6 +137,7 @@ export const routePermissions = Object.freeze({
     '/api/action-session': 'write', '/api/sandbox/evaluate': 'write', '/api/prediction-intent': 'write', '/api/pool-ranking-intent': 'write', '/api/feedback': 'write', '/api/feedback/:id/status': 'admin',
     '/api/feedback/seen': 'write', '/api/usage': 'usage',
     '/api/invites': 'admin', '/api/invites/:id/player': 'admin', '/api/invites/:id/revoke': 'admin',
+    '/api/accounts/:id/unlink': 'admin', '/api/accounts/:id/revoke-sessions': 'admin', '/api/accounts/:id/delete': 'admin',
     '/api/overlays': 'admin', '/api/overlays/:id/revoke': 'admin',
     '/api/shutdown': 'admin', '/api/worker-restart': 'admin', '/api/runemetrics/preview': 'write', '/api/original-sync/preview': 'write',
     '/api/runemetrics/apply': 'write', '/api/profile/preview': 'write', '/api/command': 'write',
@@ -193,7 +196,7 @@ function redactInviteFields(value) {
 function actorOwnsEvent(actor, identity) {
   if (!actor) return false;
   if (actor.memberId && identity.memberId && actor.memberId === identity.memberId) return true;
-  if (actor.kind === 'invite' && actor.inviteId) return identity.kind === 'invite' && actor.inviteId === identity.inviteId;
+  if (actor.kind === 'invite' && actor.inviteId) return ['invite', 'account'].includes(identity.kind) && actor.inviteId === identity.inviteId;
   if (actor.memberId) return false;
   if (actor.kind === 'master') return identity.kind === 'master';
   return Boolean(actor.label && actor.label === identity.label);
@@ -369,6 +372,7 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
   // Optional second listener on 127.0.0.1 for Tailscale Funnel, which can only proxy to loopback.
   loopbackPort = process.env.RS3_LOOPBACK_PORT ? Number(process.env.RS3_LOOPBACK_PORT) : undefined,
   loopbackRole = process.env.RS3_LOOPBACK_ROLE ?? 'private',
+  signIn = process.env.RS3_SIGNIN ?? 'off', signInProvider,
   httpServer, httpLoopbackServer, startupConnections, onRequestHandler, startupSignal,
   // Operator capability only: no HTTP endpoint can acquire writer ownership.
   liveSwap,
@@ -399,6 +403,7 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
   publicOrigin = normalizePublicOrigin(publicOrigin);
   ingressRole = normalizeIngressRole(ingressRole);
   loopbackRole = normalizeIngressRole(loopbackRole);
+  if (!['off', 'optional', 'required'].includes(signIn)) throw new TypeError('RS3_SIGNIN must be off, optional or required.');
   const limits = createRateLimits(rateLimits);
   const admitStream = createStreamLimits(rateLimits);
   if (typeof host !== 'string' || !host.trim()) throw new TypeError('host must be nonempty.');
@@ -604,9 +609,13 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
   let feedbackOwnerId = store.getCalculationSnapshot().members[0]?.id;
   const feedbackActor = identity => identity.kind === 'master' && feedbackOwnerId
     ? { ...identity.actor, memberId: feedbackOwnerId } : identity.actor;
-  let invites, feedback, overlays, usage, gamePlugin;
+  let invites, accounts, signInFlow, feedback, overlays, usage, gamePlugin;
   async function openSidecars() {
-    invites = await openInviteStore({ dataDir, masterToken: token, masterLabel: dataset.gameDefaults.masterLabel }); feedback = await openFeedbackStore({ dataDir });
+    accounts = await openAccountStore({ dataDir });
+    invites = await openInviteStore({ dataDir, masterToken: token, masterLabel: dataset.gameDefaults.masterLabel, accounts, signInMode: signIn });
+    signInFlow = await openSignIn({ publicOrigin, mode: signIn, accounts, invites, provider: signInProvider,
+      unauthenticated: key => limits.unauthenticated(key), checkRequestOrigin, serializeMutation, webRoot });
+    feedback = await openFeedbackStore({ dataDir });
     usage = await openUsageRoute({ dataDir, readOnly: liveSwap?.standby === true, members: store.getCalculationSnapshot().members,
       authenticate: (request, security) => invites.authenticate(request, security), bodyJSON, json,
       ...(now === undefined ? {} : { now: () => typeof now === 'function' ? now() : now }), rateLimits: usageRateLimits });
@@ -623,8 +632,8 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
       notify: () => broadcast('event: game-plugin\ndata: {}\n\n') });
   }
   try { await openSidecars(); }
-  catch (error) { await Promise.all([invites?.close(), feedback?.close(), usage?.close(), overlays?.close(), gamePlugin?.close(), store.close(), taskWorker?.close()]); throw error; }
-  if (startupSignal?.aborted) { await Promise.all([overlays.close(), gamePlugin.close()]); await Promise.all([store.close(), taskWorker?.close(), invites.close(), feedback.close(), usage.close()]); startupSignal.throwIfAborted(); }
+  catch (error) { await Promise.all([signInFlow?.close(), accounts?.close(), invites?.close(), feedback?.close(), usage?.close(), overlays?.close(), gamePlugin?.close(), store.close(), taskWorker?.close()]); throw error; }
+  if (startupSignal?.aborted) { await Promise.all([overlays.close(), gamePlugin.close()]); await Promise.all([store.close(), taskWorker?.close(), signInFlow.close(), accounts.close(), invites.close(), feedback.close(), usage.close()]); startupSignal.throwIfAborted(); }
   startupTimingMs.authMs = performance.now() - authStarted;
   startupPhase('create:sidecars');
   // Compile the static fingerprint before readiness; subsequent saves hash
@@ -1179,11 +1188,20 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
       if (security.publicRequest && apiPermission(request.method, route) === 'admin') throw httpError(403, 'Administrator access requires a private connection.');
       if (await gamePlugin.handle(request, response, { route, security, closed })) return;
       if (await overlays.handle(request, response, { route, security, closed })) return;
+      const authRoute = route.startsWith('/auth/');
+      if (authRoute) limits.unauthenticated(security.rateKey);
       identity = invites.authenticate(request, security);
+      if (await signInFlow.handle(request, response, { route, security, identity, budgeted: authRoute })) { endInactiveClients(); return; }
       if (!identity) limits.unauthenticated(security.rateKey);
       if (request.method === 'GET' && route.startsWith('/join/')) {
         if (closed) throw httpError(503, 'Please try again later.');
         const finishJoin = limits.beginJoin(security.rateKey);
+        if (signIn !== 'off' && security.publicRequest) {
+          const invite = invites.inspectToken(route.slice('/join/'.length), security);
+          if (invite && !invite.admin && !invite.viewer && await signInFlow.join(request, response, { invite, security, identity })) {
+            finishJoin(true); return;
+          }
+        }
         const session = await invites.join(route.slice('/join/'.length), security);
         finishJoin(!!session);
         if (!session) throw httpError(401, 'Access required.');
@@ -1195,6 +1213,7 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
       if (await serveGallery(request, response, { route, identity, dataset, privateAddon: privateAddon?.features.gallery ? privateAddon : null })) return;
       if (!identity) {
         if (route.startsWith('/api/')) throw httpError(401, 'Access required.');
+        if (route === '/' && signIn !== 'off' && security.publicRequest && await signInFlow.join(request, response, { invite: null, security, identity: null })) return;
         response.writeHead(401, { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': PRIVATE_NO_STORE });
         response.end('Access required.'); return;
       }
@@ -1243,7 +1262,8 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
             if ([...query.keys()].some(key => key !== 'memberId') || query.getAll('memberId').length !== 1) throw httpError(400, 'Choose a player for game progress review.');
             await json(request, response, 200, gamePlugin.review(identity, query.get('memberId'))); return;
           }
-          if (route === '/api/session') { await json(request, response, 200, { admin: identity.admin, ...(security.publicRequest ? { adminAvailable: false } : {}), readOnly: identity.readOnly, capabilities: identity.capabilities, label: identity.label, kind: identity.kind, memberId: identity.memberId ?? null, actor: identity.actor }); return; }
+          if (route === '/api/session') { await json(request, response, 200, { admin: identity.admin, ...(security.publicRequest ? { adminAvailable: false } : {}), readOnly: identity.readOnly, capabilities: identity.capabilities, label: identity.label, kind: identity.kind, memberId: identity.memberId ?? null, actor: identity.actor, ...signInFlow.sessionView(identity, security) }); return; }
+          if (route === '/api/accounts') { requireAdmin(); await json(request, response, 200, { accounts: accounts.list() }); return; }
           if (route === '/api/pool-ranking') {
             const query = new URL(request.url, 'http://localhost').searchParams;
             const captured = calculationState(), state = captured.state, memberId = query.get('memberId');
@@ -1774,6 +1794,20 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
             if (route === '/api/feedback/seen') { await json(request, response, 200, await feedback.markSeen(body.ids, feedbackActor(identity), identity.admin)); return; }
             const feedbackStatus = /^\/api\/feedback\/([a-f0-9-]{36})\/status$/.exec(route);
             if (feedbackStatus) { requireAdmin(); await json(request, response, 200, { item: redactInviteFields(await feedback.setStatus(feedbackStatus[1], body.status)) }); return; }
+            const accountAction = /^\/api\/accounts\/([a-f0-9-]{36})\/(unlink|revoke-sessions|delete)$/.exec(route);
+            if (accountAction) {
+              requireAdmin();
+              const [, id, action] = accountAction;
+              if (Object.keys(body).some(key => action !== 'unlink' || key !== 'provider')) throw httpError(400, 'Use only the requested account action.');
+              if (!accounts.get(id)) throw httpError(404, 'Account not found.');
+              if (action === 'unlink' && !['discord', 'google'].includes(body.provider)) throw httpError(400, 'Choose a sign-in provider.');
+              // Identity removal also invalidates existing sessions; re-entry uses a remaining identity.
+              await invites.revokeAccountSessions(id);
+              if (action === 'unlink') await accounts.unlinkIdentity(id, body.provider);
+              if (action === 'delete') await accounts.delete(id);
+              endInactiveClients();
+              await json(request, response, 200, { status: action === 'delete' ? 'deleted' : 'updated' }); return;
+            }
             if (route === '/api/invites') {
               requireAdmin();
               if (!knownMember(body.memberId)) throw httpError(400, 'Choose a known player for the invite.');
@@ -1987,7 +2021,8 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
           // request cannot commit using the revoked session or admin capability.
           const durable = ['/api/action-session', '/api/command', '/api/restore', '/api/import', '/api/member-restore', '/api/runemetrics/apply', '/api/game-plugin/apply', '/api/game-plugin/dismiss', '/api/shutdown'].includes(route)
             || route === '/api/game-plugin/keys' || /^\/api\/game-plugin\/keys\/[^/]+\/revoke$/.test(route)
-            || route === '/api/invites' || /^\/api\/invites\/[^/]+\/(?:revoke|player)$/.test(route);
+            || route === '/api/invites' || /^\/api\/invites\/[^/]+\/(?:revoke|player)$/.test(route)
+            || /^\/api\/accounts\/[^/]+\/(?:unlink|revoke-sessions|delete)$/.test(route);
           await (durable ? serializeMutation(execute) : execute());
           return;
         }
@@ -2011,7 +2046,7 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
         await sendRepresentation(request, response, catalogue.response, { conditional: catalogue.complete && catalogue.manifest.available }); return;
       }
       if (route === '/') file = await containedFile(webRoot, 'index.html');
-      else if (['/overlay-panel.mjs', '/overlay-panel.css', '/game-plugin.mjs', '/game-plugin.css'].includes(route)) file = await containedFile(webRoot, route.slice(1));
+      else if (['/overlay-panel.mjs', '/overlay-panel.css', '/game-plugin.mjs', '/game-plugin.css', '/signin.css', '/account-panel.mjs', '/accounts-panel.mjs'].includes(route)) file = await containedFile(webRoot, route.slice(1));
       else if (route === '/core/chunk-colours.mjs') file = await containedFile(path.join(ROOT, 'app', 'core'), 'chunk-colours.mjs');
       else if (['/chunk-colour-picker.mjs', '/map-chunk-colours.mjs', '/chunk-colours.css'].includes(route)) file = await containedFile(webRoot, route.slice(1));
       else if (['/lamp-choices.mjs', '/lamp-choices.css'].includes(route)) file = await containedFile(webRoot, route.slice(1));
@@ -2160,6 +2195,7 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
       if (error.retryAfter) response.setHeader('Retry-After', error.retryAfter);
       // Refuse unread/slow uploads without keeping their socket alive.
       if (!request.complete) response.setHeader('Connection', 'close');
+      if (signInFlow.errorPage(request, response, security, error, status)) return;
       await json(request, response, status, { message: status === 500 ? 'The save could not be completed. Your previous save remains available.' : error.code === 'ENOENT' ? 'Not found.' : redactInviteTokens(error.message),
         ...(error.code === 'TASK_RESULTS_UNAVAILABLE' || error.code === 'PICKER_UPDATING' || /^(?:REQUEST_|ACTION_SESSION_)/.test(error.code ?? '') ? { code: error.code } : {}),
         ...(error.code === 'ACTION_SESSION_RETIRED' && error.safeToRetry === true ? { safeToRetry: true } : {}),
@@ -2210,7 +2246,7 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
         try {
           await handover.freeze(liveSwap?.freezeDeadlineMs ?? 2000);
           let phaseStarted = performance.now();
-          await Promise.all([invites.close(), feedback.close(), usage.close(), overlays.close(), gamePlugin.close()]);
+          await Promise.all([signInFlow.close(), accounts.close(), invites.close(), feedback.close(), usage.close(), overlays.close(), gamePlugin.close()]);
           reportActivationTiming(liveSwap?.onActivationTiming, 'app.sidecarsClose', phaseStarted);
           if (closed) throw new Error('Standby activation was cancelled by shutdown.');
           await store.activate(checkpoint);
@@ -2335,7 +2371,7 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
         }) : Promise.resolve();
         // Accepted mutations may still be awaiting a save command. Drain them
         // before the final handled-ID flush and sidecar close.
-        const authClosed = mutationQueue.then(() => Promise.all([invites.close(), feedback.close(), usage.close(), overlaysClosed, gamePlugin.close()]));
+        const authClosed = mutationQueue.then(() => Promise.all([signInFlow.close(), accounts.close(), invites.close(), feedback.close(), usage.close(), overlaysClosed, gamePlugin.close()]));
         const storeClosed = store.close({ beforeUnlock: authClosed });
         // A peer can stop reading an accepted save response. Protect its durable
         // transaction first, then bound the remaining network transmission too.

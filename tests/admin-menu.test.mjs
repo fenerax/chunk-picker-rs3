@@ -37,7 +37,7 @@ function fixture(t) {
 test('Admin starts hidden, preserves launchers, and sits before More with a real gallery link', () => {
   const admin = shell.match(/<details class="more-tools" id="admin-tools" hidden>([\s\S]*?)<\/details>/)?.[1];
   assert(admin); assert.match(admin, /<summary>Admin<\/summary>/);
-  for (const id of ['invites-open', 'overlays-open', 'usage-open']) {
+  for (const id of ['invites-open', 'accounts-open', 'overlays-open', 'usage-open']) {
     assert.match(admin, new RegExp(`<button id="${id}" hidden>`));
     assert.equal(shell.match(new RegExp(`id="${id}"`, 'g')).length, 1);
   }
@@ -45,7 +45,7 @@ test('Admin starts hidden, preserves launchers, and sits before More with a real
   assert(shell.indexOf('id="admin-tools"') < shell.indexOf('id="more-tools"'));
   const more = shell.match(/id="more-tools">([\s\S]*?)<\/details>/)[1];
   assert.match(more, /id="saves-heading">Saves/); assert.match(more, /id="about-heading">About/);
-  assert(!/invites-open|overlays-open|usage-open/.test(more));
+  assert(!/invites-open|accounts-open|overlays-open|usage-open/.test(more));
 });
 
 test('only a loaded writable admin session reveals Admin; losing access closes it', t => {
@@ -78,22 +78,25 @@ test('Info, Admin and More close one another, outside clicks and Escape dismiss 
   $('.topbar nav').dispatchEvent(click); assert.equal($('admin-tools').open, false);
 });
 
-test('moved Invite links and OBS overlays retain their startup dialog handlers', async t => {
+test('Invite links, Accounts, Account and OBS overlays retain their startup dialog handlers', async t => {
   const { c, $ } = fixture(t), opened = [], stop = new Error('Stop before full startup');
   const source = (await readFile(new URL('../app/web/screen-startup.mjs', import.meta.url), 'utf8')).replace(/^import .*;\r?\n/gm, '').replace(/^export /gm, '');
   c.api = async () => { throw stop; }; c.applySession = session => { c.sessionAdmin = session.admin; };
+  c.panelContext = {};
   const panel = () => ({ start() {}, setSession() {} });
   runInNewContext(source + '\ncreateScreenStartup(c);', { c, document: globalThis.document, globalThis: {},
     createFeedback: panel, createUpdates: panel, createBackupStatus: panel,
     createInvites: () => ({ loadSession: async () => ({ admin: true }), open: async () => opened.push('Invite links') }),
+    createAccountPanel: () => ({ setSession() {}, open: () => opened.push('Account') }),
+    createAccountsPanel: () => ({ setSession() {}, open: async () => opened.push('Accounts') }),
     createOverlayPanel: () => ({ open: async () => opened.push('OBS overlays') }),
     loadArtStatus: async () => {}, loadTerrainManifest: async () => {},
   });
   await assert.rejects(c.start(), error => error === stop);
-  $('invites-open').dispatchEvent(new Event('click')); $('overlays-open').dispatchEvent(new Event('click'));
-  await Promise.resolve(); assert.deepEqual(opened, ['Invite links', 'OBS overlays']);
-  c.sessionAdmin = false; $('overlays-open').dispatchEvent(new Event('click'));
-  assert.equal(opened.length, 2);
+  $('invites-open').dispatchEvent(new Event('click')); $('accounts-open').dispatchEvent(new Event('click')); $('account-open').dispatchEvent(new Event('click')); $('overlays-open').dispatchEvent(new Event('click'));
+  await Promise.resolve(); assert.deepEqual(opened, ['Invite links', 'Accounts', 'Account', 'OBS overlays']);
+  c.sessionAdmin = false; $('accounts-open').dispatchEvent(new Event('click')); $('overlays-open').dispatchEvent(new Event('click'));
+  assert.equal(opened.length, 4);
 });
 
 test('Admin and Component gallery have stable usage ids and an Admin gallery sample', () => {

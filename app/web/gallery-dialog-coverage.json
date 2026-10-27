@@ -1,4 +1,10 @@
 {
+  "app/web/account-panel.mjs :: 'Account'": {
+    "reason": "Account uses the Settings layout. Provider redirects and sign-out change authentication, which the read-only gallery cannot perform; generated-account browser evidence covers these controls at desktop and phone widths."
+  },
+  "app/web/accounts-panel.mjs :: 'Accounts'": {
+    "reason": "Private account administration includes identity removal, session revocation and deletion. The gallery denies authentication writes; generated-account browser evidence covers this panel at desktop and phone widths."
+  },
   "app/web/screen-controls.mjs :: 'Help'": { "entries": ["summary"] },
   "app/web/area-check.mjs :: 'Area check'": {
     "entries": [

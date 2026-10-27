@@ -19,7 +19,8 @@ if (!Number.isInteger(options.port) || options.port < 8900 || options.port > 899
 // Select before importing any rules, catalogues, workers or storage modules.
 process.env.RS3_DATASET = datasetId;
 for (const key of ['RS3_PACKS_DIR', 'RS3_PACK_SELECTION', 'RS3_MAP_ASSETS_DIR', 'RS3_TERRAIN_ASSETS_DIR',
-  'RS3_ICON_ASSETS_DIR', 'RS3_GAME_DATA_DIR', 'RS3_PUBLIC_ORIGIN', 'RS3_LOOPBACK_PORT',
+  'RS3_ICON_ASSETS_DIR', 'RS3_GAME_DATA_DIR', 'RS3_PUBLIC_ORIGIN', 'RS3_LOOPBACK_PORT', 'RS3_LOOPBACK_ROLE', 'RS3_SIGNIN',
+  'RS3_DISCORD_CLIENT_ID', 'RS3_DISCORD_CLIENT_SECRET_FILE', 'RS3_GOOGLE_CLIENT_ID', 'RS3_GOOGLE_CLIENT_SECRET_FILE',
   'RS3_DATASET_PROFILE', 'RS3_DATASET_PROFILE_SHA256', 'RS3_PRIVATE_ADDON', 'RS3_PRIVATE_ADDON_SHA256']) delete process.env[key];
 const { startServer } = await import('../app/server.mjs');
 let application;

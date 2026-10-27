@@ -22,6 +22,8 @@ function label(value) {
   return value.trim();
 }
 const MEMBER = /^[A-Za-z0-9_-]{1,64}$/;
+const UUID = /^[a-f0-9-]{36}$/;
+const PROVIDERS = new Set(['discord', 'google']);
 function memberId(value) {
   if (value === undefined || value === null) return null;
   if (typeof value !== 'string' || !MEMBER.test(value)) throw error(400, 'Choose a known player for the invite.');
@@ -33,20 +35,22 @@ function validate(document) {
   const ids = new Set(), hashes = new Set();
   if (document.invites.length > 1000 || document.sessions.length > 10000) throw new TypeError('Invite store exceeds its limits.');
   for (const invite of document.invites) {
-    if (Object.keys(invite).some(key => !['id', 'label', 'admin', 'viewer', 'createdAt', 'lastUsedAt', 'revoked', 'tokenHash', 'memberId'].includes(key)) ||
+    if (Object.keys(invite).some(key => !['id', 'label', 'admin', 'viewer', 'createdAt', 'lastUsedAt', 'revoked', 'tokenHash', 'memberId', 'claimedAccountId', 'claimedAt'].includes(key)) ||
       typeof invite.id !== 'string' || !/^[a-f0-9-]{36}$/.test(invite.id) || ids.has(invite.id) || !HASH.test(invite.tokenHash) || hashes.has(invite.tokenHash) ||
-      label(invite.label) !== invite.label || typeof invite.admin !== 'boolean' || !(invite.viewer === undefined || typeof invite.viewer === 'boolean') || (invite.viewer && (invite.admin || invite.memberId != null)) || typeof invite.revoked !== 'boolean' || !(invite.memberId === undefined || invite.memberId === null || (typeof invite.memberId === 'string' && MEMBER.test(invite.memberId))) || !validDate(invite.createdAt) || !(invite.lastUsedAt === null || validDate(invite.lastUsedAt))) throw new TypeError('Invalid invite record.');
+      label(invite.label) !== invite.label || typeof invite.admin !== 'boolean' || !(invite.viewer === undefined || typeof invite.viewer === 'boolean') || (invite.viewer && (invite.admin || invite.memberId != null)) || typeof invite.revoked !== 'boolean' || !(invite.memberId === undefined || invite.memberId === null || (typeof invite.memberId === 'string' && MEMBER.test(invite.memberId))) || !validDate(invite.createdAt) || !(invite.lastUsedAt === null || validDate(invite.lastUsedAt)) ||
+      (invite.claimedAccountId !== undefined && (!UUID.test(invite.claimedAccountId) || !validDate(invite.claimedAt) || invite.admin || invite.viewer || !invite.memberId)) || (invite.claimedAt !== undefined && invite.claimedAccountId === undefined)) throw new TypeError('Invalid invite record.');
     ids.add(invite.id); hashes.add(invite.tokenHash);
   }
   const sessionHashes = new Set();
   for (const session of document.sessions) {
-    if (Object.keys(session).some(key => !['tokenHash', 'inviteId', 'expiresAt'].includes(key)) || !HASH.test(session.tokenHash) || sessionHashes.has(session.tokenHash) ||
-      !(session.inviteId === null || ids.has(session.inviteId)) || !validDate(session.expiresAt)) throw new TypeError('Invalid invite session.');
+    if (Object.keys(session).some(key => !['tokenHash', 'inviteId', 'expiresAt', 'accountId', 'membershipId', 'provider'].includes(key)) || !HASH.test(session.tokenHash) || sessionHashes.has(session.tokenHash) ||
+      !(session.inviteId === null || ids.has(session.inviteId)) || !validDate(session.expiresAt) ||
+      (session.accountId !== undefined ? !UUID.test(session.accountId) || session.membershipId !== session.inviteId || !UUID.test(session.membershipId) || !PROVIDERS.has(session.provider) : session.membershipId !== undefined || session.provider !== undefined)) throw new TypeError('Invalid invite session.');
     sessionHashes.add(session.tokenHash);
   }
   return document;
 }
-async function atomicWrite(file, document) {
+export async function atomicWrite(file, document) {
   const temporary = `${file}.${process.pid}.${randomBytes(8).toString('hex')}.tmp`;
   let handle;
   try {
@@ -64,12 +68,13 @@ async function atomicWrite(file, document) {
 }
 
 /** Open under the gameplay store's existing exclusive data-directory lock. */
-export async function openInviteStore({ dataDir, masterToken, masterLabel, now = Date.now } = {}) {
+export async function openInviteStore({ dataDir, masterToken, masterLabel, now = Date.now, accounts, signInMode = 'off' } = {}) {
+  if (!['off', 'optional', 'required'].includes(signInMode)) throw new Error('Invalid sign-in mode.');
   if (masterLabel === undefined) masterLabel = (await loadGameDefaults()).masterLabel;
   const file = path.join(dataDir, 'invites.json');
   let current;
   try { current = validate(JSON.parse(await readFile(file, 'utf8'))); }
-  catch (failure) { if (failure.code !== 'ENOENT') throw failure; current = { schemaVersion: 1, invites: [], sessions: [] }; }
+  catch (failure) { if (failure.code !== 'ENOENT') throw new Error('Invalid invite store.'); current = { schemaVersion: 1, invites: [], sessions: [] }; }
   let queue = Promise.resolve(), closed = false;
   const uses = new Map();
   function mutate(operation) {
@@ -90,10 +95,76 @@ export async function openInviteStore({ dataDir, masterToken, masterLabel, now =
     return invite ? { kind: 'invite', label: safeText(invite.label), inviteId, admin: invite.admin, readOnly: invite.viewer ?? false, capabilities: { canWrite: !invite.viewer }, memberId: invite.memberId ?? null,
       actor: { kind: 'invite', inviteId, label: safeText(invite.label), ...(invite.memberId ? { memberId: invite.memberId } : {}) } } : null;
   }
+  function accountPrincipal(session) {
+    const account = accounts?.get(session.accountId);
+    const membership = account?.memberships.find(item => item.id === session.membershipId && item.inviteId === session.inviteId);
+    const invite = current.invites.find(item => item.id === session.inviteId && !item.revoked);
+    if (!membership || !invite || invite.admin || invite.claimedAccountId !== account.id || membership.memberId !== (invite.memberId ?? null) || membership.role !== (invite.viewer ? 'viewer' : 'player') || !account.identities.some(identity => identity.provider === session.provider)) return null;
+    return { ...principal(invite.id), kind: 'account', admin: false, readOnly: membership.role === 'viewer', capabilities: { canWrite: membership.role !== 'viewer' }, accountId: account.id, membershipId: membership.id, provider: session.provider, account: { id: account.id, providers: account.identities.map(identity => identity.provider) } };
+  }
+  function cookieToken(request) {
+    return (request.headers.cookie ?? '').split(';').map(item => item.trim()).find(item => item.startsWith(`${COOKIE}=`))?.slice(COOKIE.length + 1);
+  }
+  function addSession(next, source) {
+    const same = next.sessions.filter(session => source.accountId ? session.accountId === source.accountId : !session.accountId && session.inviteId === source.inviteId);
+    const remove = new Set(same.slice(0, Math.max(0, same.length - 31)).map(session => session.tokenHash));
+    next.sessions = next.sessions.filter(session => !remove.has(session.tokenHash));
+    if (next.sessions.length >= 10000) throw error(429, 'Please try again later.');
+    const token = randomBytes(32).toString('base64url');
+    next.sessions.push({ tokenHash: hash(token), ...source, expiresAt: new Date(now() + SESSION_MS).toISOString() });
+    return token;
+  }
+  function issueInvite(next, invite, context) {
+    if (invite?.admin && context.publicRequest) throw error(403, 'Administrator access requires a private connection.');
+    if (invite?.claimedAccountId || (signInMode === 'required' && invite && !invite.admin && !invite.viewer)) throw error(403, 'Sign in to use this invitation.');
+    if (invite) invite.lastUsedAt = new Date(now()).toISOString();
+    return addSession(next, { inviteId: invite?.id ?? null });
+  }
   return {
     list() { return current.invites.map(publicInvite); },
-    touch(identity) {
-      if (identity?.kind !== 'invite') return Promise.resolve();
+    get(id) { const invite = current.invites.find(item => item.id === id && !item.revoked); return invite ? publicInvite(invite) : null; },
+    inspectToken(token, context) {
+      if (equals(token, masterToken)) {
+        if (!context.masterAllowed) throw error(403, 'Administrator access requires a private connection.');
+        return null;
+      }
+      if (!TOKEN.test(token ?? '')) return null;
+      const invite = current.invites.find(item => !item.revoked && equals(item.tokenHash, hash(token)));
+      if (invite?.admin && context.publicRequest) throw error(403, 'Administrator access requires a private connection.');
+      return invite ? publicInvite(invite) : null;
+    },
+    claim(id, accountId) {
+      return mutate(next => {
+        const invite = next.invites.find(item => item.id === id && !item.revoked);
+        if (!invite) throw error(404, 'Invite not found.');
+        if (invite.admin || invite.viewer || !invite.memberId) throw error(403, 'Choose a player invitation.');
+        if (!UUID.test(accountId) || !accounts?.get(accountId)) throw error(404, 'Account not found.');
+        if (invite.claimedAccountId && invite.claimedAccountId !== accountId) throw error(409, 'This invitation has already been claimed.');
+        if (!invite.claimedAccountId) { invite.claimedAccountId = accountId; invite.claimedAt = new Date(now()).toISOString(); }
+        next.sessions = next.sessions.filter(session => session.inviteId !== id || session.accountId === accountId);
+        return publicInvite(invite);
+      });
+    },
+    issueAccountSession(accountId, membershipId, provider) {
+      return mutate(next => {
+        const membership = accounts?.get(accountId)?.memberships.find(item => item.id === membershipId);
+        const source = { accountId, membershipId, provider, inviteId: membership?.inviteId };
+        if (!accountPrincipal(source)) throw error(403, 'Account access required.');
+        const invite = next.invites.find(item => item.id === source.inviteId);
+        if (!invite || invite.revoked || invite.claimedAccountId !== accountId) throw error(403, 'Account access required.');
+        invite.lastUsedAt = new Date(now()).toISOString();
+        return addSession(next, source);
+      });
+    },
+    signOut(request) {
+      const token = cookieToken(request);
+      if (!TOKEN.test(token ?? '')) return Promise.resolve();
+      return mutate(next => { const digest = hash(token); next.sessions = next.sessions.filter(session => !equals(session.tokenHash, digest)); });
+    },
+    revokeAccountSessions(accountId) { return mutate(next => { next.sessions = next.sessions.filter(session => session.accountId !== accountId); }); },
+    async touch(identity) {
+      if (!['invite', 'account'].includes(identity?.kind)) return Promise.resolve();
+      if (identity.kind === 'account' && accountPrincipal(identity)) await accounts.touch(identity.accountId, identity.provider);
       const invite = current.invites.find(invite => invite.id === identity.inviteId && !invite.revoked);
       if (!invite || (invite.lastUsedAt && now() - Date.parse(invite.lastUsedAt) < 60000)) return Promise.resolve();
       if (uses.has(invite.id)) return uses.get(invite.id);
@@ -124,6 +195,7 @@ export async function openInviteStore({ dataDir, masterToken, masterLabel, now =
         const invite = next.invites.find(invite => invite.id === id);
         if (!invite) throw error(404, 'Invite not found.');
         if (invite.viewer) throw error(400, 'View-only links cannot be assigned to a player.');
+        if (invite.claimedAccountId && player !== invite.memberId) throw error(409, 'A claimed invitation cannot change players.');
         if (player) invite.memberId = player; else delete invite.memberId;
         return publicInvite(invite);
       });
@@ -145,22 +217,18 @@ export async function openInviteStore({ dataDir, masterToken, masterLabel, now =
       return mutate(next => {
         const invite = master ? null : next.invites.find(invite => !invite.revoked && equals(invite.tokenHash, hash(token)));
         if (!master && !invite) throw error(401, 'Access required.');
-        if (invite?.admin && context.publicRequest) throw error(403, 'Administrator access requires a private connection.');
-        const inviteId = invite?.id ?? null;
-        if (invite) invite.lastUsedAt = new Date(now()).toISOString();
-        // Bound active sessions per link; older browsers can rejoin with the link.
-        const same = next.sessions.filter(session => session.inviteId === inviteId);
-        const remove = new Set(same.slice(0, Math.max(0, same.length - 31)).map(session => session.tokenHash));
-        next.sessions = next.sessions.filter(session => !remove.has(session.tokenHash));
-        if (next.sessions.length >= 10000) throw error(429, 'Please try again later.');
-        const session = randomBytes(32).toString('base64url');
-        next.sessions.push({ tokenHash: hash(session), inviteId, expiresAt: new Date(now() + SESSION_MS).toISOString() });
-        return session;
+        return issueInvite(next, invite, context);
       }).catch(failure => { if (failure.status === 401) return null; throw failure; });
+    },
+    joinById(id, context) {
+      return mutate(next => {
+        const invite = next.invites.find(item => item.id === id && !item.revoked);
+        return invite ? issueInvite(next, invite, context) : null;
+      });
     },
     authenticate(request, context) {
       const bearer = /^Bearer (\S+)$/i.exec(request.headers.authorization ?? '')?.[1];
-      const cookie = (request.headers.cookie ?? '').split(';').map(item => item.trim()).find(item => item.startsWith(`${COOKIE}=`))?.slice(COOKIE.length + 1);
+      const cookie = cookieToken(request);
       if (!context.masterAllowed && (equals(bearer, masterToken) || equals(cookie, masterToken))) throw error(403, 'Administrator access requires a private connection.');
       // Preserve private CLI bearer and existing master cookies, never on Funnel.
       if (context.masterAllowed && (equals(bearer, masterToken) || equals(cookie, masterToken))) return principal(null);
@@ -169,11 +237,20 @@ export async function openInviteStore({ dataDir, masterToken, masterLabel, now =
       const session = current.sessions.find(session => equals(session.tokenHash, digest) && Date.parse(session.expiresAt) > now());
       if (!session) return null;
       if (session.inviteId === null && !context.masterAllowed) throw error(403, 'Administrator access requires a private connection.');
-      const identity = principal(session.inviteId);
+      const invite = current.invites.find(item => item.id === session.inviteId);
+      if (!session.accountId && invite && (invite.claimedAccountId || (signInMode === 'required' && !invite.admin && !invite.viewer))) return null;
+      const identity = session.accountId ? accountPrincipal(session) : principal(session.inviteId);
       if (identity?.admin && context.publicRequest) throw error(403, 'Administrator access requires a private connection.');
-      return identity ? { ...identity, expiresAt: session.expiresAt } : null;
+      return identity ? { ...identity, sessionId: session.tokenHash, expiresAt: session.expiresAt } : null;
     },
-    active(identity, context) { return !!identity && !(context.publicRequest && identity.admin) && (identity.kind === 'master' ? context.masterAllowed : !!principal(identity.inviteId)); },
+    active(identity, context) {
+      if (!identity || (context.publicRequest && identity.admin)) return false;
+      if ((identity.expiresAt && Date.parse(identity.expiresAt) <= now()) || (identity.sessionId && !current.sessions.some(session => session.tokenHash === identity.sessionId && Date.parse(session.expiresAt) > now()))) return false;
+      if (identity.kind === 'master') return context.masterAllowed;
+      if (identity.kind === 'account') return !!accountPrincipal(identity);
+      const invite = current.invites.find(item => item.id === identity.inviteId && !item.revoked);
+      return !!invite && !invite.claimedAccountId && !(signInMode === 'required' && !invite.admin && !invite.viewer);
+    },
     cookie(token, context) { return `${COOKIE}=${token}; HttpOnly; SameSite=Lax; Path=/; Max-Age=${SESSION_MS / 1000}${context.secure ? '; Secure' : ''}`; },
     async close() { closed = true; await queue; },
   };

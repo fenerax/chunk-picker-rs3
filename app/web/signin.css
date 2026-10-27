@@ -1,0 +1,32 @@
+/* Sign-in inherits the picker's explorer's ledger: warm charcoal, serif headings and gold. */
+.signin-page{--bg:#141310;--panel:#1c1a16;--surface:#2b2822;--border:#3b372f;--text:#ece4d3;--muted:#b9af9d;--gold:#d9a441;--gold-strong:#e9b955;--on-gold:#1d1406;--focus:#f5c451;margin:0;min-height:100svh;display:grid;align-items:center;background:var(--bg);color:var(--text);font:15px/1.5 "Segoe UI Variable Text","Segoe UI",system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+.signin-page *{box-sizing:border-box}
+.signin-content{width:min(100%,30rem);margin:0 auto;padding:3rem 1.5rem}
+.signin-brand{margin:0 0 2.5rem;font-family:"Palatino Linotype","Book Antiqua",Palatino,Georgia,serif;font-size:1.15rem;font-weight:600}
+.signin-brand span{color:var(--gold);margin-left:.35rem;font:600 .8rem "Segoe UI",sans-serif}
+.signin-content h1{font-family:"Palatino Linotype","Book Antiqua",Palatino,Georgia,serif;font-size:2rem;font-weight:600;line-height:1.2;margin:0 0 1rem;overflow-wrap:anywhere}
+.signin-message{margin:0 0 1.5rem;overflow-wrap:anywhere}
+.signin-providers{display:flex;flex-direction:column;gap:.75rem}
+.signin-provider,.signin-page button{display:flex;align-items:center;justify-content:center;min-height:46px;padding:.75rem 1rem;border:1px solid var(--border);border-radius:6px;color:var(--text);background:var(--surface);font:600 1rem/1.4 "Segoe UI",sans-serif;text-align:center;text-decoration:none;cursor:pointer}
+.signin-provider:hover,.signin-page button:hover{background:var(--border)}
+.signin-provider:focus-visible,.signin-page button:focus-visible{outline:2px solid var(--focus);outline-offset:3px}
+.signin-claim{margin:1.5rem 0 0}
+.signin-claim button{width:100%;color:var(--on-gold);border-color:var(--gold);background:var(--gold)}
+.signin-claim button:hover{background:var(--gold-strong)}
+.signin-invite{border-top:1px solid var(--border);margin:1.5rem 0 0;padding-top:1.5rem}
+.signin-invite button{width:100%;background:transparent}
+.signin-help{margin:1.5rem 0 0;color:var(--muted);font-size:.9rem}
+.signin-page ::selection{background:var(--gold);color:var(--on-gold)}
+.account-details{display:flex;flex-direction:column;gap:var(--space-5);min-width:0}
+.account-details p{overflow-wrap:anywhere}
+.account-actions{display:flex;flex-wrap:wrap;align-items:center;gap:var(--space-5)}
+.account-actions form{margin:0}
+.account-actions button,.account-actions a{min-height:44px;display:inline-flex;align-items:center}
+.account-row{padding:var(--space-6) 0;border-bottom:var(--border-thin) solid var(--hairline);overflow-wrap:anywhere}
+.account-row:last-child{border-bottom:0}
+.account-row h3{margin-bottom:var(--space-3)}
+.account-meta{color:var(--panel-muted,var(--muted));font-size:var(--type-sm);line-height:var(--leading-copy)}
+.account-row .form-actions{margin-top:var(--space-5);flex-wrap:wrap}
+.account-confirmation{margin-top:var(--space-5)}
+.account-danger{color:var(--danger)}
+@media(max-width:500px){.signin-content{padding:2rem 1.25rem}.signin-brand{margin-bottom:2rem}.account-row .form-actions button{min-height:44px}.account-actions{align-items:flex-start;flex-direction:column}}
