@@ -21,6 +21,7 @@ export const quickTests = new Set([
   "signin-provider.test.mjs",
   "security-json.test.mjs",
   "game-plugin-state.test.mjs",
+  "game-coords.test.mjs",
   "game-plugin-status.test.mjs",
   "game-plugin-tasks.test.mjs",
   "game-plugin-web.test.mjs",
