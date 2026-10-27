@@ -353,16 +353,17 @@ export async function createTaskScheduler({ maxDeathQueue = 2, deathDeadlineMs =
 
 /** One worker, bounded snapshots, and a bounded lifetime restart budget. */
 async function createWorkerLane({ workerData, workerFactory = nativeWorker, includeReadyCatalogue = true, onCreated, onEvaluation, onSleep,
-  maxQueue = 8, deadlineMs = 30000, startupDeadlineMs = 30000, maxRestarts = 3, backoffMs = 250, maxBackoffMs = 5000, cacheLimit = 8,
+  maxQueue = 8, deadlineMs = 30000, firstCalculationDeadlineMs = Math.max(120000, deadlineMs), startupDeadlineMs = 30000, maxRestarts = 3, backoffMs = 250, maxBackoffMs = 5000, cacheLimit = 8,
   cacheByteLimit = 128 * 1024 * 1024, maxPrewarmQueue = 256, strictRevision = false, shareSnapshots = false, duoResults = false,
   idleMs = Number(process.env.RS3_WORKER_IDLE_MS ?? 600000), idleClock = { now: () => performance.now(), setTimeout, clearTimeout }, retainActivePrediction = false,
-  stuckMs = 120000, signal,
+  stuckMs = 120000, signal, deadlineClock = { setTimeout, clearTimeout },
 } = {}) {
-  for (const [name, value] of Object.entries({ maxQueue, deadlineMs, startupDeadlineMs, backoffMs, maxBackoffMs, cacheLimit })) positive(value, name);
+  for (const [name, value] of Object.entries({ maxQueue, deadlineMs, firstCalculationDeadlineMs, startupDeadlineMs, backoffMs, maxBackoffMs, cacheLimit })) positive(value, name);
   positive(maxRestarts, 'maxRestarts', 0);
   positive(idleMs, 'idleMs');
   positive(stuckMs, 'stuckMs');
   let worker, generation = 0, sequence = 0, active, closed = false, restartTimer, startupTimer, initialResolve, initialReject, closePromise, idleTimer, prewarmSignal, prewarmAbort, latestRevision = -1;
+  let firstCalculation = true;
   let status = 'starting', restarts = 0, failures = 0, nextRetryAt = null, compileMs = 0, lastFailure = null;
   const queue = [], warmQueue = [], sentSnapshots = new Map(), pending = new Map(), cache = new Map(), terminating = new Set(), listeners = new Set();
   const warmCounts = { queued: 0, completed: 0, cancelled: 0, skipped: 0 };
@@ -398,9 +399,10 @@ async function createWorkerLane({ workerData, workerFactory = nativeWorker, incl
     // worker until every waiter has received a complete response.
     if (active?.waiters.size || active?.reuseWaiters?.size || queue.length) return;
     scheduler.cancelPrewarm();
-    if (active) { clearTimeout(active.timer); active = undefined; }
+    if (active) { deadlineClock.clearTimeout(active.timer); active = undefined; }
     clearImmediate(idleTimer); idleTimer = undefined;
     const old = worker; worker = undefined; generation++;
+    firstCalculation = true;
     status = 'sleeping'; idleStops++; sentSnapshots.clear(); cache.clear();
     onSleep?.(); terminate(old); announce();
   }
@@ -441,7 +443,7 @@ async function createWorkerLane({ workerData, workerFactory = nativeWorker, incl
     terminating.add(operation);
   }
   function settle(entry, error, value) {
-    if (active !== entry) clearTimeout(entry.timer);
+    if (active !== entry) deadlineClock.clearTimeout(entry.timer);
     if (pending.get(entry.key) === entry) pending.delete(entry.key);
     const position = queue.indexOf(entry);
     if (position >= 0) queue.splice(position, 1);
@@ -478,13 +480,14 @@ async function createWorkerLane({ workerData, workerFactory = nativeWorker, incl
   }
   function retire() {
     if (active) {
-      clearTimeout(active.timer); active.reuseRevision = undefined;
+      deadlineClock.clearTimeout(active.timer); active.reuseRevision = undefined;
       cancel(active, superseded()); active = undefined;
     }
     clearTimeout(startupTimer); clearTimeout(restartTimer); restartTimer = undefined;
     idleClock.clearTimeout(sleepTimer); sleepTimer = undefined;
     clearImmediate(idleTimer); idleTimer = undefined;
     const old = worker; worker = undefined; generation++;
+    firstCalculation = true;
     status = 'sleeping'; counts.retired++; sentSnapshots.clear();
     // Idle sleep clears caches; retirement deliberately does not call onSleep.
     // wake() already waits for termination before allocating a replacement.
@@ -492,11 +495,12 @@ async function createWorkerLane({ workerData, workerFactory = nativeWorker, incl
   }
   function failure(kind) {
     if (closed || status === 'restarting' || status === 'restart-required') return;
+    firstCalculation = true;
     failures++; lastFailure = { kind, at: new Date().toISOString() };
     clearTimeout(startupTimer);
     idleClock.clearTimeout(sleepTimer); sleepTimer = undefined;
     const old = worker; worker = undefined; generation++; terminate(old);
-    if (active) { clearTimeout(active.timer); counts.errors++; settle(active, unavailable('Task engine interrupted. It is recovering; retry shortly.')); active = undefined; }
+    if (active) { deadlineClock.clearTimeout(active.timer); counts.errors++; settle(active, unavailable('Task engine interrupted. It is recovering; retry shortly.')); active = undefined; }
     if (restarts >= maxRestarts) {
       status = 'restart-required'; nextRetryAt = null;
       const error = unavailable('Task engine needs a server restart. Saves remain available.');
@@ -522,11 +526,14 @@ async function createWorkerLane({ workerData, workerFactory = nativeWorker, incl
     const entry = queue.shift();
     dispatch(entry);
   }
-  function deadline(entry) {
-    entry.timer = setTimeout(() => {
+  function deadline(entry, allowance = !active && firstCalculation && queue.length <= 1 && entry.type !== 'prepare-rules'
+    ? Math.max(deadlineMs, firstCalculationDeadlineMs) : deadlineMs) {
+    entry.deadlineStartedAt ??= idleClock.now();
+    deadlineClock.clearTimeout(entry.timer);
+    entry.timer = deadlineClock.setTimeout(() => {
       counts.expired++; settle(entry, Object.assign(new Error('Task calculation deadline exceeded. Retry shortly.'), { status: 504 }));
       if (active === entry) failure('calculation-deadline'); else pump();
-    }, deadlineMs);
+    }, Math.max(0, allowance - (idleClock.now() - entry.deadlineStartedAt)));
   }
   function dispatch(entry) {
     if (closed || status !== 'ready' || active) { if (entry) (entry.warm ? warmQueue : queue).unshift(entry); return; }
@@ -540,7 +547,10 @@ async function createWorkerLane({ workerData, workerFactory = nativeWorker, incl
         legacy: { maps: Object.fromEntries((members ?? []).filter(member => member.sourceMapId !== undefined)
           .map(member => [member.sourceMapId, { rules: legacy?.maps?.[member.sourceMapId]?.rules }])) } };
     }
-    if (!entry.timer) deadline(entry);
+    if (firstCalculation && entry.type !== 'prepare-rules') {
+      firstCalculation = false;
+      deadline(entry, Math.max(deadlineMs, firstCalculationDeadlineMs));
+    } else if (!entry.timer) deadline(entry);
     // Coalesced display revisions can update entry.revision while the captured
     // bytes retain their original revision, so the key names that revision.
     // Both LRUs key only its task input: after a display-only save the worker
@@ -576,6 +586,7 @@ async function createWorkerLane({ workerData, workerFactory = nativeWorker, incl
   }
   function launch() {
     if (closed) return;
+    firstCalculation = true;
     status = 'starting'; nextRetryAt = null;
     lastProgressAt = idleClock.now();
     const ownGeneration = ++generation;
@@ -617,7 +628,7 @@ async function createWorkerLane({ workerData, workerFactory = nativeWorker, incl
         }
         return;
       }
-      const entry = active; active = undefined; clearTimeout(entry.timer);
+      const entry = active; active = undefined; deadlineClock.clearTimeout(entry.timer);
       if (entry.waiters.size || entry.reuseWaiters?.size) lastRequestAt = idleClock.now();
       recordTimings(message.timingMs ?? { totalMs: message.evaluationMs });
       if (message.error) {
@@ -913,7 +924,7 @@ async function createWorkerLane({ workerData, workerFactory = nativeWorker, incl
         scheduler.cancelPrewarm();
         const error = unavailable('Task calculation restarted. Retry shortly.');
         for (const entry of [...pending.values()]) settle(entry, error);
-        if (active) { clearTimeout(active.timer); settle(active, error); active = undefined; }
+        if (active) { deadlineClock.clearTimeout(active.timer); settle(active, error); active = undefined; }
         sentSnapshots.clear(); cache.clear(); onSleep?.();
         const old = worker; worker = undefined; terminate(old); announce();
         // Finish retirement before allocating replacement definitions.
@@ -923,7 +934,7 @@ async function createWorkerLane({ workerData, workerFactory = nativeWorker, incl
       try { await manualRestart; return true; } finally { manualRestart = undefined; }
     },
     getDiagnostics() {
-      return { worker: scheduler.getHealth(), queue: { depth: queue.length, active: active ? 1 : 0, limit: maxQueue, deadlineMs,
+      return { worker: scheduler.getHealth(), queue: { depth: queue.length, active: active ? 1 : 0, limit: maxQueue, deadlineMs, firstCalculationDeadlineMs,
         oldestWaitMs: queue.length ? idleClock.now() - queue[0].queuedAt : 0 }, counts: { ...counts },
       cache: { entries: cache.size, limit: cacheLimit, byteLimit: cacheByteLimit, bytes: [...cache.values()].reduce((sum, value) => sum + value.bytes, 0) },
       prewarm: { ...warmCounts, pending: warmQueue.length, active: active?.warm ? 1 : 0, limit: maxPrewarmQueue },
@@ -942,7 +953,7 @@ async function createWorkerLane({ workerData, workerFactory = nativeWorker, incl
         idleClock.clearTimeout(sleepTimer); sleepTimer = undefined;
         clearImmediate(idleTimer); scheduler.cancelPrewarm(); sentSnapshots.clear();
         for (const entry of [...pending.values()]) settle(entry, unavailable('The task server is closing.'));
-        if (active) { clearTimeout(active.timer); settleReuse(active, unavailable('The task server is closing.')); active = undefined; }
+        if (active) { deadlineClock.clearTimeout(active.timer); settleReuse(active, unavailable('The task server is closing.')); active = undefined; }
         terminate(worker); worker = undefined; cache.clear();
       }
       closePromise = (async () => {

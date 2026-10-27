@@ -383,7 +383,7 @@ test('unchanged revision with changed rules and another member never reuses a pr
 });
 
 test('abandoned warming keeps its watchdog and restart resends the full snapshot', async t => {
-  const { scheduler, prediction, warm, predict, foreground } = await fixture(t, { predictionDeadlineMs: 25 });
+  const { scheduler, prediction, warm, predict, foreground } = await fixture(t, { predictionDeadlineMs: 25, firstCalculationDeadlineMs: 25 });
   warm(['1']); await until(() => prediction.workers[0]?.requests().length === 1);
   scheduler.cancelPrewarm();
   await until(() => prediction.workers.length === 2 && scheduler.getHealth().prediction.ready);

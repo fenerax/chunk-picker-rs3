@@ -207,3 +207,35 @@ test('a cancelled initial signal allocates no worker and abort after readiness l
   await yieldToEventLoop();
   assert.equal(workers.length, 2); workers[1].finish({ delta: { tasksAdded: [] } }); await preview;
 });
+
+
+for (const lane of ['foreground', 'duo', 'prediction', 'death']) test(`${lane}: first calculation after startup/wake/restart has a bounded longer deadline`, async t => {
+  const clock = createManualClock();
+  const { scheduler, workers } = await fixture(t, { idleClock: clock, deadlineClock: clock, idleMs: 200,
+    deadlineMs: 30, duoDeadlineMs: 30, predictionDeadlineMs: 30, deathDeadlineMs: 30,
+    firstCalculationDeadlineMs: 120, maxRestarts: 0 });
+  let sequence = 0;
+  const request = () => scheduler.evaluate(state(), 'actor1', lane === 'prediction' ? 'predict' : lane === 'death' ? 'death-estimates' : 'evaluate',
+    lane === 'prediction' ? String(++sequence) : undefined, `request-${++sequence}`, `input-${sequence}`, undefined, [], lane === 'duo' ? 'play-v1' : 'full', undefined, lane === 'duo' ? 'duo' : 'foreground');
+  const health = () => lane === 'foreground' ? scheduler.getHealth() : scheduler.getHealth()[lane];
+  const first = request(); await yieldToEventLoop();
+  let worker = workers.at(-1);
+  await clock.advance(31);
+  assert.equal(health().ready, true); assert.equal(worker.terminated, false);
+  worker.finish(); await first;
+  const steady = request(); const rejected = assert.rejects(steady, { status: 504 });
+  await clock.advance(31); await rejected;
+  assert.equal(health().lastFailure.kind, 'calculation-deadline');
+  assert.ok((await scheduler.restartUnhealthy()).restarted.includes(lane));
+  await yieldToEventLoop();
+  const restarted = request(); await yieldToEventLoop(); worker = workers.at(-1);
+  await clock.advance(31); assert.equal(worker.terminated, false);
+  worker.finish(); await restarted;
+  await clock.advance(200); assert.equal(health().status, 'sleeping');
+  const waking = request(); await yieldToEventLoop(); worker = workers.at(-1);
+  await clock.advance(31); assert.equal(worker.terminated, false);
+  // A cold calculation is still killed when its longer allowance runs out.
+  const expired = assert.rejects(waking, { status: 504 });
+  await clock.advance(89); await expired;
+  assert.equal(health().lastFailure.kind, 'calculation-deadline');
+});

@@ -42,7 +42,7 @@ function finishPlay(worker, play = '{"format":"play-v1"}', duo) {
 }
 async function fixture(t, options = {}) {
   const f = factory();
-  const scheduler = await createTaskScheduler({ workerFactory: f.create, backoffMs: 10, maxBackoffMs: 20, ...options });
+  const scheduler = await createTaskScheduler({ workerFactory: f.create, firstCalculationDeadlineMs: options.deadlineMs ?? 30000, backoffMs: 10, maxBackoffMs: 20, ...options });
   t.after(() => scheduler.close());
   const evaluate = (key, revision = 0, memberId = 'actor1', signal, input = key) => scheduler.evaluate({ revision }, memberId, 'evaluate', undefined, key, input, signal);
   return { ...f, scheduler, evaluate };
@@ -501,7 +501,7 @@ test('death cancellation preserves followers and cancelled partial results never
 });
 
 test('death failures and deadlines leave the foreground worker available', async t => {
-  const { workers, scheduler, evaluate } = await fixture(t, { maxRestarts: 0, deathDeadlineMs: 25 });
+  const { workers, scheduler, evaluate } = await fixture(t, { maxRestarts: 0, deathDeadlineMs: 25, firstCalculationDeadlineMs: 25 });
   const dead = scheduler.evaluate({ revision: 0 }, 'actor1', 'death-estimates', undefined, 'death', 'input', undefined, ['12342']);
   await assert.rejects(dead, { status: 504 });
   assert.equal(scheduler.getHealth().death.restartRequired, true);
