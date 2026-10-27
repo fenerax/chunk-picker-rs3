@@ -45,3 +45,16 @@ test('retained command fields reject unknown, missing or already supplied values
   }
   assert.throws(() => mergeCommandState(baseline, { state: { revision: 2, tasks: [] }, baseRevision: 1, unchangedFields: ['tasks'] }));
 });
+
+
+test('full responses and retained baselines cannot reintroduce migration archives', () => {
+  const provenance = { dataset: { id: 'example' }, taskIdentityMigration: { archives: [{ large: true }], conversions: [{}], conflicts: [{}] } };
+  const baseline = { revision: 1, provenance };
+  const merged = mergeCommandState(baseline, { state: { revision: 2 }, baseRevision: 1, unchangedFields: ['provenance'] });
+  assert.deepEqual(merged.provenance, { dataset: provenance.dataset });
+  assert.equal(merged.revision, 2);
+  assert.equal(provenance.taskIdentityMigration.archives.length, 1);
+  assert.deepEqual(mergeCommandState(undefined, { state: baseline }).provenance, merged.provenance);
+  assert.deepEqual(mergeCommandState(baseline, { state: { revision: 2, provenance: { dataset: { id: 'new' } } } }).provenance, { dataset: { id: 'new' } });
+  assert.equal(mergeCommandState({ ...baseline, revision: 0 }, { state: { revision: 2 }, baseRevision: 1, unchangedFields: ['provenance'] }), null);
+});

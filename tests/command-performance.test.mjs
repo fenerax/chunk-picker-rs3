@@ -103,6 +103,7 @@ test('large retained state saves preferences and chunk selection promptly withou
   const bytes = Buffer.byteLength(JSON.stringify(initialState));
   assert.ok(bytes >= 24 * 1024 * 1024, `Synthetic state must exercise the large-save regression (${bytes} bytes)`);
   const expectedDigest = retainedDigest(initialState);
+  const expectedBrowserDigest = retainedDigest({ ...initialState, provenance: {} });
   t.diagnostic(`Synthetic save: ${(bytes / 1024 / 1024).toFixed(1)} MiB, ${TASKS} tasks, ${ALIASES} aliases, ${STATUSES} statuses/member, ${HISTORY} sparse history events`);
   const dataDir = path.join(directory, 'data');
   // Missing challenges intentionally avoids task workers and full definition
@@ -124,12 +125,13 @@ test('large retained state saves preferences and chunk selection promptly withou
   let responseBaseline = application.store.getState();
   assertRetained(responseBaseline);
 
-  function assertRetained(state) {
+  function assertRetained(state, browser = false) {
     assert.equal(state.tasks.length, TASKS);
     assert.equal(Object.keys(state.identityRegistry.aliases).length, ALIASES);
-    assert.equal(state.provenance.taskIdentityMigration.archives[0].history.length, HISTORY);
+    if (browser) assert.equal(state.provenance.taskIdentityMigration, undefined, 'Browser command merges omit retained migration evidence');
+    else assert.equal(state.provenance.taskIdentityMigration.archives[0].history.length, HISTORY);
     assert.deepEqual(state.history.slice(0, HISTORY), initialState.history, 'The full existing sparse undo history must remain intact');
-    assert.equal(retainedDigest(state), expectedDigest, 'Every catalogue row, alias, legacy fact and exact archive must survive');
+    assert.equal(retainedDigest(state), browser ? expectedBrowserDigest : expectedDigest, 'Catalogue, aliases and legacy facts survive; exact migration archives remain durable');
     assert.deepEqual(state.members[1], initialState.members[1], 'The other member must remain unchanged');
     assert.deepEqual(state.members[0].taskStatus, initialState.members[0].taskStatus);
   }
@@ -175,9 +177,9 @@ test('large retained state saves preferences and chunk selection promptly withou
         'A client with another revision must fetch complete state rather than merge stale retained fields');
     }
     const mergedState = mergeCommandState(responseBaseline, body);
-    assert.ok(mergedState, 'The exact command baseline must reconstruct complete state');
+    assert.ok(mergedState, 'The exact command baseline must reconstruct browser state');
     responseBaseline = mergedState;
-    assertRetained(mergedState);
+    assertRetained(mergedState, true);
     const durable = JSON.parse(await readFile(path.join(dataDir, 'state.json'), 'utf8'));
     assert.equal(durable.storage.schemaVersion, 1);
     const referenceFields = Object.keys(durable.storage.fields);
@@ -211,6 +213,8 @@ test('large retained state saves preferences and chunk selection promptly withou
   assert.equal(conflict.members[0].preferences.ids, true);
   assert.deepEqual(await readFile(path.join(dataDir, 'state.json')), savedBytes, 'A stale save must not alter durable bytes');
 
+  const durableState = application.store.getState();
+  assertRetained(durableState);
   const durable = JSON.parse(savedBytes.toString('utf8'));
   for (const [field, reference] of Object.entries(durable.storage.fields)) {
     assert.match(reference.sha256, /^[a-f0-9]{64}$/);
@@ -220,15 +224,15 @@ test('large retained state saves preferences and chunk selection promptly withou
     assert.equal(path.dirname(file), staticDirectory, 'Sidecar verification must stay inside this isolated test store');
     const bytes = gunzipSync(await readFile(file));
     assert.equal(createHash('sha256').update(bytes).digest('hex'), reference.sha256, 'Every referenced immutable field must be durably stored under its exact content hash');
-    assert.deepEqual(JSON.parse(bytes.toString('utf8')), state[field], `Durable ${field} sidecar must contain the complete API field`);
+    assert.deepEqual(JSON.parse(bytes.toString('utf8')), durableState[field], `Durable ${field} sidecar must retain the full saved field`);
   }
-  assert.deepEqual((await application.store.backup()).state, state, 'Portable backups must contain complete state, including all retained archives');
+  assert.deepEqual((await application.store.backup()).state, durableState, 'Portable backups must contain complete state, including all retained archives');
   await application.close();
   application = await createServer(serverOptions);
   await application.listen();
   const recovered = application.store.getState();
   assertRetained(recovered);
-  assert.deepEqual(recovered, state, 'Restart must hydrate the exact acknowledged state from state.json and its durable sidecars');
+  assert.deepEqual(recovered, durableState, 'Restart must hydrate the full saved state from state.json and its durable sidecars');
 
   t.diagnostic(JSON.stringify({ stateMiB: +(bytes / 1024 / 1024).toFixed(1), tasks: TASKS,
     aliases: ALIASES, statusesPerMember: STATUSES, historyEvents: HISTORY, measurements }));

@@ -1,3 +1,5 @@
+import { projectBrowserState } from './browser-state.mjs';
+
 const retainedFields = new Set(['tasks', 'identityRegistry', 'legacy', 'provenance']);
 
 /** Pending checks affect presentation only; commands still use acknowledged state. */
@@ -32,7 +34,7 @@ export function projectChunkState(state, changes) {
 
 /** A command may reuse large fields from the exact revision it changed. */
 export function mergeCommandState(baseline, response) {
-  if (!response.unchangedFields?.length) return response.state;
+  if (!response.unchangedFields?.length) return projectBrowserState(response.state);
   if (!Array.isArray(response.unchangedFields)) throw new TypeError('Invalid unchanged command fields');
   if (!baseline || baseline.revision !== response.baseRevision) return null;
   const state = { ...response.state };
@@ -42,5 +44,5 @@ export function mergeCommandState(baseline, response) {
     }
     state[field] = baseline[field];
   }
-  return state;
+  return projectBrowserState(state);
 }

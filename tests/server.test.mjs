@@ -6,6 +6,7 @@ import { existsSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import http from 'node:http';
+import { gunzipSync } from 'node:zlib';
 import { createServer } from '../app/server.mjs';
 import { createGroupState, exportBackup, importLegacyMaps } from '../app/core/state.mjs';
 import { createRuleRegistry, evaluateRollPool } from '../app/core/rules.mjs';
@@ -632,4 +633,29 @@ test('a heavy task evaluation cannot block health or saves, and obsolete results
   assert.equal(originalResult.status, 409);
   assert.match((await originalResult.json()).message, /superseded/);
   assert.equal((await (await api('/api/state')).json()).state.revision, 1);
+});
+
+
+test('state, command, conflict and live refreshes omit migration evidence; backup downloads preserve it', async t => {
+  const initialState = createGroupState([{ id: 'player1', name: 'Player 1' }]);
+  const evidence = { schemaVersion: 1, archives: [{ fixture: 'archive' }], conversions: [{ fixture: 'conversion' }], conflicts: [], unresolved: [] };
+  initialState.provenance = { source: 'fixture', taskIdentityMigration: evidence };
+  const { api, application } = await fixture(t, { initialState });
+  for (const route of ['/api/state', '/api/state?view=play-v1']) {
+    const response = await api(route); assert.equal(response.status, 200);
+    const { state } = await response.json(); assert.equal(state.provenance?.taskIdentityMigration, undefined);
+  }
+  const saved = await api('/api/command', { expectedRevision: 0, command }); assert.equal(saved.status, 200);
+  assert.equal((await saved.json()).state.provenance.taskIdentityMigration, undefined);
+  const stale = await api('/api/command', { expectedRevision: 0, command }); assert.equal(stale.status, 409);
+  assert.equal((await stale.json()).state.provenance.taskIdentityMigration, undefined);
+  const controller = new AbortController();
+  const live = await api('/api/events', undefined, { signal: controller.signal });
+  const reader = live.body.getReader(); const event = new TextDecoder().decode((await reader.read()).value);
+  assert.match(event, /event: revision/); assert.doesNotMatch(event, /taskIdentityMigration|archives|conversions/);
+  controller.abort(); await reader.cancel().catch(() => {});
+  assert.deepEqual((await (await api('/api/backup')).json()).state.provenance.taskIdentityMigration, evidence);
+  const compressed = await api('/api/backup?download=gzip');
+  assert.deepEqual(JSON.parse(gunzipSync(Buffer.from(await compressed.arrayBuffer()))).state.provenance.taskIdentityMigration, evidence);
+  assert.deepEqual(application.store.getState().provenance.taskIdentityMigration, evidence);
 });

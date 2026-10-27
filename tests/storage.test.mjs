@@ -388,3 +388,32 @@ test('trusted-state copying still isolates hooks, backups and client results and
   initialState.members[0].unlocked = ['0'];
   await assert.rejects(() => openStore({ dataDir: otherDir, initialState, prepareState: () => { throw new Error('Must not run before input validation'); } }), /base chunk ID/);
 });
+
+
+test('browser snapshots omit identity migration evidence while history, undo and backups retain it', async t => {
+  const dataDir = await directory(t), initialState = createGroupState([{ id: 'actor1', name: 'Player' }]);
+  const evidence = { schemaVersion: 1, archives: [{ retained: 'archive' }], conversions: [{ retained: 'conversion' }], conflicts: [], unresolved: [] };
+  initialState.provenance = { source: 'fixture', taskIdentityMigration: evidence };
+  const world = buildWorld({ chunks: { '12341': {} }, walkableChunks: ['12341'], walkableChunksF2P: ['12341'] });
+  const store = await openStore({ dataDir, initialState, world }); t.after(() => store.close());
+  const baseline = await store.backup();
+  for (const view of [undefined, 'play-v1']) {
+    const display = JSON.parse(store.getStateSnapshot({ view }).stateJSON);
+    assert.equal(display.provenance?.taskIdentityMigration, undefined);
+    assert.equal(display.revision, baseline.state.revision);
+  }
+  const saved = await store.commandSerialized(command, 0);
+  assert.equal(JSON.parse(saved.stateJSON).provenance.taskIdentityMigration, undefined);
+  assert.deepEqual((await store.backup()).state.provenance.taskIdentityMigration, evidence);
+  const retained = await store.readBackup((await store.listBackups())[0].id);
+  assert.deepEqual(retained.state.provenance.taskIdentityMigration, evidence);
+  await assert.rejects(store.command(command, 0), error => error.code === 'REVISION_CONFLICT');
+  await store.command({ type: 'undo' }, 1);
+  assert.deepEqual(store.getState().provenance.taskIdentityMigration, evidence);
+  assert.ok(store.getState().history.length >= 2);
+  assert.deepEqual(exportBackup(store.getState()).state.provenance.taskIdentityMigration, evidence);
+  assert.deepEqual(importBackup(await store.backup()).provenance.taskIdentityMigration, evidence);
+  await store.replace(baseline, 2);
+  assert.deepEqual((await store.backup()).state.provenance.restore.incomingProvenance.taskIdentityMigration, evidence);
+  assert.equal(JSON.parse(store.getStateSnapshot().stateJSON).provenance.restore.incomingProvenance.taskIdentityMigration, undefined);
+});

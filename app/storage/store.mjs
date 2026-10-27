@@ -14,6 +14,7 @@ import { captureProgressSnapshot, buildProgressModel } from '../core/progress-ti
 import { createGameplayFingerprint } from './gameplay-fingerprint.mjs';
 import { createTaskReuseFingerprint } from '../tasks/unlock-reuse.mjs';
 import { projectPlayState, PLAY_VIEW } from '../play-view.mjs';
+import { projectBrowserState } from '../web/browser-state.mjs';
 import { readHistoryEvents } from './history-reader.mjs';
 import { computeRollStats, selectRollStatsEvent } from '../core/roll-stats.mjs';
 import { describeHistoryEvent, historyChangeType, historyChangeTypes } from '../web/history-text.mjs';
@@ -511,7 +512,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
   function commandSnapshot(baseline, omitUnchanged = false, view) {
     const pools = rollPools(view);
     // Deleting omitted fields must never mutate the memoized full display view.
-    const projection = view === PLAY_VIEW ? { ...playProjection(current).state } : { ...current }, unchangedFields = [];
+    const projection = view === PLAY_VIEW ? { ...playProjection(current).state } : { ...projectBrowserState(current) }, unchangedFields = [];
     if (omitUnchanged && view === PLAY_VIEW && baseline) {
       if (Object.hasOwn(current, 'legacy') && current.legacy === baseline.legacy) { unchangedFields.push('legacy'); delete projection.legacy; }
       if (playProjection(current).tasksJSON === playProjection(baseline).tasksJSON) { unchangedFields.push('tasks'); delete projection.tasks; }

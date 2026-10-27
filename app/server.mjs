@@ -66,6 +66,7 @@ import { loadChunkSectionIndex, buildChunkSectionIndex, chunkSectionsPayload } f
 import { projectDisplayWorld } from './display-world.mjs';
 import { projectMapLayerData } from './map-layer-data.mjs';
 import { projectPlayState, projectPlayResult, PLAY_VIEW } from './play-view.mjs';
+import { projectBrowserState } from './web/browser-state.mjs';
 import { projectDuoPlayResult, projectDuoInspectionJSON, DUO_INSPECTION_VIEW } from './duo-play-view.mjs';
 import { selectDuoTasks } from './web/duo-tasks.mjs';
 import { createRepresentation, sendRepresentation, createResponseCache, negotiateEncoding, PRIVATE_NO_STORE, PRIVATE_REVALIDATE } from './http-response.mjs';
@@ -649,7 +650,7 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
   const originalSyncClient = originalSyncIntegration?.createOriginalSyncClient(originalSync), originalSyncPreviews = new Map();
   const originalSyncNow = () => (originalSync.now?.() ?? new Date()).getTime();
   const previewLifetimeMs = 10 * 60 * 1000;
-  const stateEnvelope = state => ({ state, pools: Object.fromEntries(state.members.map(member => [member.id, evaluateRollPool(indexedWorld, state, member.id, ruleRegistry)])) });
+  const stateEnvelope = state => ({ state: projectBrowserState(state), pools: Object.fromEntries(state.members.map(member => [member.id, evaluateRollPool(indexedWorld, state, member.id, ruleRegistry)])) });
   const responseCache = createResponseCache({ maxEntries: 32, maxBytes: 48 * 1024 * 1024 });
   const staticCache = createResponseCache({ maxEntries: 128, maxBytes: 48 * 1024 * 1024 });
   const sandboxPools = createResponseCache({ maxEntries: 32, maxBytes: 4 * 1024 * 1024 });
@@ -2111,7 +2112,7 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
       else if (['/phone-layout.css', '/phone-layout.mjs', '/screen-phone-layout.mjs', '/chunk-long-press.mjs', '/map-control-discovery.mjs', '/calculation-feedback.mjs', '/screen-task-guidance.mjs'].includes(route)) file = await containedFile(webRoot, route.slice(1));
       else if (['/screen-usage.mjs', '/usage-client.mjs', '/usage-model.mjs', '/usage-catalogue.mjs', '/usage.css'].includes(route)) file = await containedFile(webRoot, route.slice(1));
       else if (['/quest-map.mjs', '/quest-map-model.mjs', '/quest-map.css'].includes(route)) file = await containedFile(webRoot, route.slice(1));
-      else if (['/live-swap-client.mjs', '/screen-context.mjs', '/save-address.mjs', '/http-session-lock.mjs', '/screen-ui.mjs', '/screen-save-status.mjs', '/screen-save-recovery.mjs', '/screen-settings.mjs', '/screen-commands.mjs', '/screen-roll.mjs', '/screen-map.mjs', '/screen-loading.mjs', '/screen-tasks.mjs', '/screen-task-dialogs.mjs', '/screen-chunks.mjs', '/screen-dialogs.mjs', '/screen-history.mjs', '/screen-live.mjs', '/screen-startup.mjs', '/screen-controls.mjs', '/screen-panels.mjs', '/dataset-panels.mjs', '/original-sync-loader.mjs'].includes(route)) file = await containedFile(webRoot, route.slice(1));
+      else if (['/live-swap-client.mjs', '/screen-context.mjs', '/browser-state.mjs', '/save-address.mjs', '/http-session-lock.mjs', '/screen-ui.mjs', '/screen-save-status.mjs', '/screen-save-recovery.mjs', '/screen-settings.mjs', '/screen-commands.mjs', '/screen-roll.mjs', '/screen-map.mjs', '/screen-loading.mjs', '/screen-tasks.mjs', '/screen-task-dialogs.mjs', '/screen-chunks.mjs', '/screen-dialogs.mjs', '/screen-history.mjs', '/screen-live.mjs', '/screen-startup.mjs', '/screen-controls.mjs', '/screen-panels.mjs', '/dataset-panels.mjs', '/original-sync-loader.mjs'].includes(route)) file = await containedFile(webRoot, route.slice(1));
       else if (['/map-capture.mjs', '/screen-capture.mjs', '/map-capture.css'].includes(route)) file = await containedFile(webRoot, route.slice(1));
       else if (['/area-check.mjs', '/area-check-selection.mjs', '/area-check.css'].includes(route)) file = await containedFile(webRoot, route.slice(1));
       else if (['/partner-supply-model.mjs', '/partner-supply-view.mjs', '/partner-supply.css'].includes(route)) file = await containedFile(webRoot, route.slice(1));
