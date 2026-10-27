@@ -83,10 +83,21 @@ until the operator opts in. Set `RS3_LOOPBACK_PORT=8789` and
 The primary listener stays private. Programmatic options are `ingressRole` and
 `loopbackRole`, each accepting only `private` or `public`.
 
-The managed Windows launcher rebuilds the child environment and currently clears
-inherited `RS3_*` settings. Its operator must explicitly pass these new settings
-to the child; setting them only in the parent shell is insufficient. Direct Node
-or a Linux service can supply the documented environment variables normally.
+The managed Windows launcher rebuilds the child environment and clears inherited
+`RS3_*` settings, so setting them in the parent shell does nothing. Instead it
+reads an optional `signin.json` beside the `public-origin` file. When that file
+exists, the launcher makes the loopback listener public and turns on sign-in:
+
+```json
+{ "schemaVersion": 1, "mode": "optional",
+  "discord": { "clientId": "…", "secretFile": "C:\\…\\discord-client-secret" },
+  "google": { "clientId": "…", "secretFile": "C:\\…\\google-client-secret" } }
+```
+
+Set a provider to `null` to leave it off. Start refuses a malformed file, a
+missing secret file or a non-HTTPS public origin. Delete the file and restart to
+return to the legacy private loopback. Direct Node or a Linux service can supply
+the documented environment variables normally.
 
 A public listener is always public, including while startup is warming. Missing,
 malformed, chained or private-valued `X-Forwarded-For` cannot grant privileges.

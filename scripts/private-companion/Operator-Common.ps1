@@ -167,6 +167,30 @@ function Read-OperatorConfig([string]$Path, [switch]$ForStop, [switch]$ForDryRun
     return [pscustomobject]@{ config = $config; localDir = $localDir; origin = $origin; configHash = $configHash; runtimeFile = Join-Path $localDir 'server-runtime.json' }
 }
 
+function Read-OperatorSignIn($Context) {
+    # Optional signin.json beside public-origin. Its presence makes the loopback
+    # listener the public lane and turns on Discord/Google sign-in. Client
+    # secrets stay in their own files; only their paths reach the child.
+    $path = Join-Path $Context.localDir 'signin.json'
+    if (-not (Test-Path -LiteralPath $path)) { return $null }
+    $settings = Read-OperatorJson (Assert-OperatorPath $path)
+    Assert-OperatorFields $settings @('schemaVersion', 'mode', 'discord', 'google')
+    if ($settings.schemaVersion -ne 1 -or $settings.mode -cnotin @('optional', 'required')) { throw 'Invalid sign-in settings.' }
+    if ($null -eq $Context.config.loopbackPort -or $Context.origin -notmatch '^https://') { throw 'Sign-in needs the public HTTPS loopback listener.' }
+    $environment = [ordered]@{ RS3_LOOPBACK_ROLE = 'public'; RS3_SIGNIN = $settings.mode }
+    foreach ($provider in 'discord', 'google') {
+        $entry = $settings.$provider
+        if ($null -eq $entry) { continue }
+        Assert-OperatorFields $entry @('clientId', 'secretFile')
+        if ($entry.clientId -isnot [string] -or $entry.clientId -cnotmatch '^[A-Za-z0-9._-]{1,200}$') { throw 'Invalid sign-in client ID.' }
+        $name = $provider.ToUpperInvariant()
+        $environment["RS3_${name}_CLIENT_ID"] = $entry.clientId
+        $environment["RS3_${name}_CLIENT_SECRET_FILE"] = Assert-OperatorPath $entry.secretFile
+    }
+    if ($environment.Count -eq 2) { throw 'Sign-in needs at least one provider.' }
+    return $environment
+}
+
 function Show-OperatorPlan($Context, [string]$Operation) {
     $c = $Context.config
     [ordered]@{ operation = $Operation; dryRun = $true; coreRoot = $c.coreRoot; dataDir = $c.dataDir;
@@ -390,6 +414,7 @@ function Start-OperatorCore($Context, [int]$TimeoutSeconds, [switch]$PreservePau
         $token = Get-OperatorToken $Context
         $null = Get-Command Get-NetTCPConnection -ErrorAction Stop
         $c = $Context.config
+        $signIn = Read-OperatorSignIn $Context
         $args = @('--expose-gc', ('"' + (Join-Path $c.coreRoot 'app/server.mjs') + '"'), '--data-dir', ('"' + $c.dataDir + '"'), '--host', $c.host, '--port', [string]$c.port)
         if ($null -ne $c.loopbackPort) { $args += @('--loopback-port', [string]$c.loopbackPort) }
         if ($null -ne $c.runtimeOptions.backupDays) { $args += @('--backup-days', [string]$c.runtimeOptions.backupDays) }
@@ -403,6 +428,7 @@ function Start-OperatorCore($Context, [int]$TimeoutSeconds, [switch]$PreservePau
             if ($null -ne $c.addons) { $env:RS3_PRIVATE_ADDON = $c.addons.path; $env:RS3_PRIVATE_ADDON_SHA256 = $c.addons.sha256 }
             if ($null -ne $c.runtimeOptions.taskWorkerMode) { $env:RS3_TASK_WORKER_MODE = $c.runtimeOptions.taskWorkerMode }
             if ($null -ne $c.runtimeOptions.workerIdleMs) { $env:RS3_WORKER_IDLE_MS = [string]$c.runtimeOptions.workerIdleMs }
+            if ($null -ne $signIn) { foreach ($key in $signIn.Keys) { [Environment]::SetEnvironmentVariable($key, $signIn[$key], 'Process') } }
             $child = Start-OperatorDetached -Executable $c.nodePath -Arguments ($args -join ' ') -WorkingDirectory $c.coreRoot -StandardOutput (Join-Path $Context.localDir 'server.log') -StandardError (Join-Path $Context.localDir 'server-error.log')
         } finally {
             foreach ($entry in @(Get-ChildItem Env: | Where-Object { $_.Name -like 'RS3_*' -or $_.Name -in @('NODE_OPTIONS', 'NODE_PATH') })) { [Environment]::SetEnvironmentVariable($entry.Name, $null, 'Process') }

@@ -231,3 +231,30 @@ exit 0`;
   assert.equal(checked.status, 0, checked.stdout + checked.stderr);
   assert.deepEqual(await inventory(f.root), before);
 });
+
+test('an optional signin.json sidecar makes loopback public and passes only sign-in client settings', { skip: process.platform !== 'win32' }, async t => {
+  const f = await fixture(t), secret = 'synthetic-client-secret', discordSecret = path.join(f.root, 'discord-secret'), googleSecret = path.join(f.root, 'google-secret');
+  await writeFile(discordSecret, secret); await writeFile(googleSecret, secret);
+  const sidecar = path.join(f.local, 'signin.json');
+  const read = () => {
+    const command = `. '${path.join(tools, 'Operator-Common.ps1').replaceAll("'", "''")}'; $ErrorActionPreference='Stop'; try { $c=Read-OperatorConfig '${f.configPath.replaceAll("'", "''")}'; $s=Read-OperatorSignIn $c; if ($null -eq $s) { 'null' } else { $s | ConvertTo-Json -Compress } } catch { exit 1 }`;
+    return spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', command], { encoding: 'utf8', timeout: 20000 });
+  };
+  const absent = read(); assert.equal(absent.status, 0, absent.stderr); assert.equal(absent.stdout.trim(), 'null');
+  const valid = { schemaVersion: 1, mode: 'optional', discord: { clientId: '1234567890', secretFile: discordSecret }, google: { clientId: 'synthetic.apps.googleusercontent.com', secretFile: googleSecret } };
+  await writeFile(sidecar, JSON.stringify(valid));
+  const enabled = read(); assert.equal(enabled.status, 0, enabled.stderr);
+  assert.deepEqual(JSON.parse(enabled.stdout), { RS3_LOOPBACK_ROLE: 'public', RS3_SIGNIN: 'optional',
+    RS3_DISCORD_CLIENT_ID: '1234567890', RS3_DISCORD_CLIENT_SECRET_FILE: discordSecret,
+    RS3_GOOGLE_CLIENT_ID: 'synthetic.apps.googleusercontent.com', RS3_GOOGLE_CLIENT_SECRET_FILE: googleSecret });
+  assert.ok(!enabled.stdout.includes(secret));
+  await writeFile(sidecar, JSON.stringify({ ...valid, google: null }));
+  assert.deepEqual(Object.keys(JSON.parse(read().stdout)), ['RS3_LOOPBACK_ROLE', 'RS3_SIGNIN', 'RS3_DISCORD_CLIENT_ID', 'RS3_DISCORD_CLIENT_SECRET_FILE']);
+  for (const invalid of [{ ...valid, mode: 'off' }, { ...valid, extra: true }, { ...valid, discord: null, google: null },
+    { ...valid, discord: { ...valid.discord, secretFile: path.join(f.root, 'missing') } }, { ...valid, discord: { ...valid.discord, clientId: 'bad id' } }]) {
+    await writeFile(sidecar, JSON.stringify(invalid));
+    const refused = read(); assert.equal(refused.status, 1, JSON.stringify(invalid)); assert.ok(!(refused.stdout + refused.stderr).includes(secret));
+  }
+  await writeFile(sidecar, JSON.stringify(valid)); await writeFile(path.join(f.local, 'public-origin'), 'http://synthetic-private-origin.invalid');
+  assert.equal(read().status, 1, 'Sign-in refuses a non-HTTPS public origin');
+});
