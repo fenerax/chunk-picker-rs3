@@ -3,6 +3,16 @@
   "entries": [
     {
       "date": "2026-10-27",
+      "title": "Quest areas stay locked until you reach them",
+      "items": [
+        "Arposandra no longer counts as open just because you own the chunk beside it. It opens only during The Prisoner of Glouphrie, and its tortoises and terrorbirds no longer count as sources, because the quest seals the city again",
+        "66 more areas now need the quest step, skill level or item the game asks for before they count as reachable, for example Shady grove, Nature grotto, New Varrock, the Dragonkin Lair and Hall of Memories",
+        "Four areas you can only visit during a quest (Dreamer's Cave, Sigmund's base, the Temple Knight training ground and Nomad's temple) no longer offer their quest-only monsters, people and objects as sources",
+        "The lower Lumbridge Catacombs and the Grand Tree mine's ore rocks now need their quest finished, as in the game"
+      ]
+    },
+    {
+      "date": "2026-10-27",
       "title": "Admin saves again, and the picker opens faster",
       "items": [
         "Changes made from the private admin address save again. Since the sign-in update they were refused, because that address is plain HTTP",

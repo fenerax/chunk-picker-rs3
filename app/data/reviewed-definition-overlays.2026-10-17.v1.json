@@ -1246,6 +1246,2673 @@
           "url": "https://runescape.wiki/w/Fishing_Shop_(Wendlewick)?oldid=37108534"
         }
       ]
+    },
+    {
+      "path": [
+        "challenges",
+        "Nonskill",
+        "Caverns under Arandar"
+      ],
+      "beforePresent": true,
+      "before": {
+        "UnlocksArea": true
+      },
+      "beforeRecordSha256": "297ac6cd513bd544463f128fce469b2f7efbd24112790ea04a7e7f25f038abde",
+      "afterPresent": true,
+      "after": {
+        "UnlocksArea": true,
+        "Tasks": {
+          "~|The Prisoner of Glouphrie|~ 2": "Quest"
+        }
+      },
+      "evidence": {
+        "title": "The Prisoner of Glouphrie",
+        "revision": 37212419,
+        "url": "https://runescape.wiki/w/The_Prisoner_of_Glouphrie?oldid=37212419"
+      }
+    },
+    {
+      "path": [
+        "challenges",
+        "Nonskill",
+        "Arposandra"
+      ],
+      "beforePresent": true,
+      "before": {
+        "UnlocksArea": true
+      },
+      "beforeRecordSha256": "297ac6cd513bd544463f128fce469b2f7efbd24112790ea04a7e7f25f038abde",
+      "afterPresent": true,
+      "after": {
+        "UnlocksArea": true,
+        "Tasks": {
+          "~|The Prisoner of Glouphrie|~ 6": "Quest"
+        }
+      },
+      "evidence": {
+        "title": "Arposandra",
+        "revision": 37198099,
+        "url": "https://runescape.wiki/w/Arposandra?oldid=37198099"
+      }
+    },
+    {
+      "path": [
+        "chunks",
+        "Arposandra",
+        "Monster"
+      ],
+      "beforePresent": true,
+      "before": {
+        "Terrorbird": 7,
+        "Tortoise": 2
+      },
+      "beforeRecordSha256": "d4903baad84836e22764ab0554d1cf20b21d369bcc0da59907ef4c91141ac8f2",
+      "afterPresent": false,
+      "evidence": {
+        "title": "Arposandra",
+        "revision": 37198099,
+        "url": "https://runescape.wiki/w/Arposandra?oldid=37198099"
+      }
+    },
+    {
+      "path": [
+        "chunks",
+        "Arposandra",
+        "Object",
+        "Fremennik Furnace"
+      ],
+      "beforePresent": true,
+      "before": 1,
+      "beforeRecordSha256": "6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b",
+      "afterPresent": false,
+      "evidence": {
+        "title": "Arposandra",
+        "revision": 37198099,
+        "url": "https://runescape.wiki/w/Arposandra?oldid=37198099"
+      }
+    },
+    {
+      "path": [
+        "challenges",
+        "Nonskill",
+        "Falador Farm storm cellar"
+      ],
+      "beforePresent": true,
+      "before": {
+        "UnlocksArea": true
+      },
+      "beforeRecordSha256": "297ac6cd513bd544463f128fce469b2f7efbd24112790ea04a7e7f25f038abde",
+      "afterPresent": true,
+      "after": {
+        "UnlocksArea": true,
+        "Tasks": {
+          "~|Bringing Home the Bacon|~ 1": "Quest"
+        }
+      },
+      "evidence": {
+        "title": "Storm cellar",
+        "revision": 36776406,
+        "quote": "which is accessed during and after the quest Bringing Home the Bacon.",
+        "url": "https://runescape.wiki/w/Storm_cellar?oldid=36776406"
+      }
+    },
+    {
+      "path": [
+        "challenges",
+        "Nonskill",
+        "Dreamer's Cave"
+      ],
+      "beforePresent": true,
+      "before": {
+        "UnlocksArea": true
+      },
+      "beforeRecordSha256": "297ac6cd513bd544463f128fce469b2f7efbd24112790ea04a7e7f25f038abde",
+      "afterPresent": true,
+      "after": {
+        "UnlocksArea": true,
+        "Tasks": {
+          "~|Song from the Depths|~ 1": "Quest"
+        }
+      },
+      "evidence": {
+        "title": "Dreamer's cave",
+        "revision": 37130952,
+        "quote": "It is only accessible during Song from the Depths, after the player drinks a restless sleep potion.",
+        "url": "https://runescape.wiki/w/Dreamer's_cave?oldid=37130952"
+      }
+    },
+    {
+      "path": [
+        "challenges",
+        "Nonskill",
+        "Chamber of Shrines"
+      ],
+      "beforePresent": true,
+      "before": {
+        "UnlocksArea": true
+      },
+      "beforeRecordSha256": "297ac6cd513bd544463f128fce469b2f7efbd24112790ea04a7e7f25f038abde",
+      "afterPresent": true,
+      "after": {
+        "UnlocksArea": true,
+        "Tasks": {
+          "~|Rune Mysteries|~ 2": "Quest"
+        }
+      },
+      "evidence": {
+        "title": "Old Tower",
+        "revision": 37214438,
+        "quote": "In the Rune Mysteries quest, the player gains the access by using Wizards' Tower basement key on the door.",
+        "url": "https://runescape.wiki/w/Old_Tower?oldid=37214438"
+      }
+    },
+    {
+      "path": [
+        "challenges",
+        "Nonskill",
+        "Old Tower"
+      ],
+      "beforePresent": true,
+      "before": {
+        "UnlocksArea": true
+      },
+      "beforeRecordSha256": "297ac6cd513bd544463f128fce469b2f7efbd24112790ea04a7e7f25f038abde",
+      "afterPresent": true,
+      "after": {
+        "UnlocksArea": true,
+        "Tasks": {
+          "~|Rune Mysteries|~ 3": "Quest"
+        }
+      },
+      "evidence": {
+        "title": "Old Tower",
+        "revision": 37214438,
+        "quote": "The player may access to it during and after the Rune Mysteries and Rune Memories quests.",
+        "url": "https://runescape.wiki/w/Old_Tower?oldid=37214438"
+      }
+    },
+    {
+      "path": [
+        "challenges",
+        "Nonskill",
+        "Poison Waste Slayer Dungeon"
+      ],
+      "beforePresent": true,
+      "before": {
+        "UnlocksArea": true
+      },
+      "beforeRecordSha256": "297ac6cd513bd544463f128fce469b2f7efbd24112790ea04a7e7f25f038abde",
+      "afterPresent": true,
+      "after": {
+        "UnlocksArea": true,
+        "Tasks": {
+          "~|The Path of Glouphrie|~ 6": "Quest"
+        }
+      },
+      "evidence": {
+        "title": "The Path of Glouphrie",
+        "revision": 37153503,
+        "url": "https://runescape.wiki/w/The_Path_of_Glouphrie?oldid=37153503",
+        "quote": "Use the crystal chime on the spirit tree [...] to heal it, allowing you access to the dungeon."
+      }
+    },
+    {
+      "path": [
+        "challenges",
+        "Nonskill",
+        "Doric's cave"
+      ],
+      "beforePresent": true,
+      "before": {
+        "UnlocksArea": true
+      },
+      "beforeRecordSha256": "297ac6cd513bd544463f128fce469b2f7efbd24112790ea04a7e7f25f038abde",
+      "afterPresent": true,
+      "after": {
+        "UnlocksArea": true,
+        "Tasks": {
+          "~|What's Mine is Yours|~ 5": "Quest"
+        }
+      },
+      "evidence": {
+        "title": "Doric's cave",
+        "revision": 37133324,
+        "quote": "Players must partially complete the quest What's Mine is Yours to climb down the stairs leading to the cave.",
+        "url": "https://runescape.wiki/w/Doric's_cave?oldid=37133324"
+      }
+    },
+    {
+      "path": [
+        "challenges",
+        "Nonskill",
+        "ScapeRune"
+      ],
+      "beforePresent": true,
+      "before": {
+        "UnlocksArea": true
+      },
+      "beforeRecordSha256": "297ac6cd513bd544463f128fce469b2f7efbd24112790ea04a7e7f25f038abde",
+      "afterPresent": true,
+      "after": {
+        "UnlocksArea": true,
+        "Tasks": {
+          "~|A Fairy Tale II - Cure a Queen|~ 2": "Quest"
+        }
+      },
+      "evidence": {
+        "title": "ScapeRune",
+        "revision": 37159276,
+        "quote": "Players may visit and leave the island any time through fairy ring code {{fairycode|CIS}}.",
+        "url": "https://runescape.wiki/w/ScapeRune?oldid=37159276"
+      }
+    },
+    {
+      "path": [
+        "challenges",
+        "Nonskill",
+        "Fremennik Trials Maze"
+      ],
+      "beforePresent": true,
+      "before": {
+        "UnlocksArea": true
+      },
+      "beforeRecordSha256": "297ac6cd513bd544463f128fce469b2f7efbd24112790ea04a7e7f25f038abde",
+      "afterPresent": true,
+      "after": {
+        "UnlocksArea": true,
+        "Tasks": {
+          "~|The Fremennik Trials|~ 1": "Quest"
+        }
+      },
+      "evidence": {
+        "title": "The Fremennik Trials",
+        "revision": 37182654,
+        "quote": "Your task is to navigate your way through his maze of portals.",
+        "url": "https://runescape.wiki/w/The_Fremennik_Trials?oldid=37182654"
+      }
+    },
+    {
+      "path": [
+        "challenges",
+        "Nonskill",
+        "Enchanted valley"
+      ],
+      "beforePresent": true,
+      "before": {
+        "UnlocksArea": true
+      },
+      "beforeRecordSha256": "297ac6cd513bd544463f128fce469b2f7efbd24112790ea04a7e7f25f038abde",
+      "afterPresent": true,
+      "after": {
+        "UnlocksArea": true,
+        "Tasks": {
+          "~|A Fairy Tale II - Cure a Queen|~ 2": "Quest"
+        }
+      },
+      "evidence": {
+        "title": "Enchanted Valley",
+        "revision": 37181221,
+        "quote": "The only way to access the Enchanted Valley is with the fairy ring {{Fairycode|BKQ}}.",
+        "url": "https://runescape.wiki/w/Enchanted_Valley?oldid=37181221"
+      }
+    },
+    {
+      "path": [
+        "challenges",
+        "Nonskill",
+        "Courtroom"
+      ],
+      "beforePresent": true,
+      "before": {
+        "UnlocksArea": true
+      },
+      "beforeRecordSha256": "297ac6cd513bd544463f128fce469b2f7efbd24112790ea04a7e7f25f038abde",
+      "afterPresent": true,
+      "after": {
+        "UnlocksArea": true,
+        "Tasks": {
+          "~|King's Ransom|~ 1": "Quest"
+        }
+      },
+      "evidence": {
+        "title": "King's Ransom",
+        "revision": 37185342,
+        "url": "https://runescape.wiki/w/King's_Ransom?oldid=37185342",
+        "quote": "Once you are ready, go back to the courthouse and go down the stairs to start the trial."
+      }
+    },
+    {
+      "path": [
+        "challenges",
+        "Nonskill",
+        "Phoenix Lair"
+      ],
+      "beforePresent": true,
+      "before": {
+        "UnlocksArea": true
+      },
+      "beforeRecordSha256": "297ac6cd513bd544463f128fce469b2f7efbd24112790ea04a7e7f25f038abde",
+      "afterPresent": true,
+      "after": {
+        "UnlocksArea": true,
+        "Tasks": {
+          "~|In Pyre Need|~ 1": "Quest"
+        }
+      },
+      "evidence": {
+        "title": "Cave entrance (Phoenix Lair, entrance)",
+        "revision": 36668495,
+        "url": "https://runescape.wiki/w/Cave_entrance_(Phoenix_Lair%2C_entrance)?oldid=36668495",
+        "quote": "Players need to have spoken to the Priest of Guthix and started In Pyre Need to access the lair."
+      }
+    },
+    {
+      "path": [
+        "challenges",
+        "Nonskill",
+        "Sigmund's base"
+      ],
+      "beforePresent": true,
+      "before": {
+        "UnlocksArea": true
+      },
+      "beforeRecordSha256": "297ac6cd513bd544463f128fce469b2f7efbd24112790ea04a7e7f25f038abde",
+      "afterPresent": true,
+      "after": {
+        "UnlocksArea": true,
+        "Tasks": {
+          "~|The Chosen Commander|~ 4": "Quest"
+        }
+      },
+      "evidence": {
+        "title": "Sigmund's base",
+        "revision": 37130826,
+        "quote": "The player must recite the secret password to him in order to pass.",
+        "url": "https://runescape.wiki/w/Sigmund's_base?oldid=37130826"
+      }
+    },
+    {
+      "path": [
+        "challenges",
+        "Nonskill",
+        "Thammaron's Throne Room"
+      ],
+      "beforePresent": true,
+      "before": {
+        "UnlocksArea": true
+      },
+      "beforeRecordSha256": "297ac6cd513bd544463f128fce469b2f7efbd24112790ea04a7e7f25f038abde",
+      "afterPresent": true,
+      "after": {
+        "UnlocksArea": true,
+        "Tasks": {
+          "~|The Golem|~ 7": "Quest"
+        }
+      },
+      "evidence": {
+        "title": "The Golem",
+        "revision": 37182644,
+        "url": "https://runescape.wiki/w/The_Golem?oldid=37182644",
+        "quote": "turn all the statuettes to face the double doors at the north end of the dungeon"
+      }
+    },
+    {
+      "path": [
+        "challenges",
+        "Nonskill",
+        "Char's training cave"
+      ],
+      "beforePresent": true,
+      "before": {
+        "UnlocksArea": true
+      },
+      "beforeRecordSha256": "297ac6cd513bd544463f128fce469b2f7efbd24112790ea04a7e7f25f038abde",
+      "afterPresent": true,
+      "after": {
+        "UnlocksArea": true,
+        "Tasks": {
+          "~|The Firemaker's Curse|~ Complete the quest": "Quest"
+        }
+      },
+      "evidence": {
+        "title": "Char's training cave",
+        "revision": 37060741,
+        "quote": "Char's training cave is unlocked after the quest The Firemaker's Curse is completed.",
+        "url": "https://runescape.wiki/w/Char's_training_cave?oldid=37060741"
+      }
+    },
+    {
+      "path": [
+        "challenges",
+        "Nonskill",
+        "Temple Knight training ground"
+      ],
+      "beforePresent": true,
+      "before": {
+        "UnlocksArea": true
+      },
+      "beforeRecordSha256": "297ac6cd513bd544463f128fce469b2f7efbd24112790ea04a7e7f25f038abde",
+      "afterPresent": true,
+      "after": {
+        "UnlocksArea": true,
+        "Tasks": {
+          "~|Recruitment Drive|~ 1": "Quest"
+        }
+      },
+      "evidence": {
+        "title": "Recruitment Drive",
+        "revision": 37182740,
+        "url": "https://runescape.wiki/w/Recruitment_Drive?oldid=37182740",
+        "quote": "Sir Cashien will take you to the testing rooms."
+      }
+    },
+    {
+      "path": [
+        "challenges",
+        "Nonskill",
+        "Land of Snow (Yeti cave)"
+      ],
+      "beforePresent": true,
+      "before": {
+        "UnlocksArea": true
+      },
+      "beforeRecordSha256": "297ac6cd513bd544463f128fce469b2f7efbd24112790ea04a7e7f25f038abde",
+      "afterPresent": true,
+      "after": {
+        "UnlocksArea": true,
+        "Tasks": {
+          "~|Myths of the White Lands|~ 1": "Quest"
+        }
+      },
+      "evidence": {
+        "title": "Myths of the White Lands",
+        "revision": 37182733,
+        "quote": "Ask him how to get to the Land of Snow and the phrase 'Ectosum Glissendo' will be seen.",
+        "url": "https://runescape.wiki/w/Myths_of_the_White_Lands?oldid=37182733"
+      }
+    },
+    {
+      "path": [
+        "challenges",
+        "Nonskill",
+        "Land of Snow"
+      ],
+      "beforePresent": true,
+      "before": {
+        "UnlocksArea": true
+      },
+      "beforeRecordSha256": "297ac6cd513bd544463f128fce469b2f7efbd24112790ea04a7e7f25f038abde",
+      "afterPresent": true,
+      "after": {
+        "UnlocksArea": true,
+        "Tasks": {
+          "~|Violet is Blue|~ 1": "Quest"
+        }
+      },
+      "evidence": {
+        "title": "Violet is Blue",
+        "revision": 37204107,
+        "url": "https://runescape.wiki/w/Violet_is_Blue?oldid=37204107",
+        "quote": "After doing so, Violet enters the Land of Snow portal to the north."
+      }
+    },
+    {
+      "path": [
+        "challenges",
+        "Nonskill",
+        "Isle of Sann"
+      ],
+      "beforePresent": true,
+      "before": {
+        "UnlocksArea": true
+      },
+      "beforeRecordSha256": "297ac6cd513bd544463f128fce469b2f7efbd24112790ea04a7e7f25f038abde",
+      "afterPresent": true,
+      "after": {
+        "UnlocksArea": true,
+        "Tasks": {
+          "~|A Fairy Tale II - Cure a Queen|~ 2": "Quest"
+        }
+      },
+      "evidence": {
+        "title": "Isle of Sann",
+        "revision": 37162654,
+        "quote": "This location can only be accessed via the fairy ring system, using the code DIR and immediately followed by AKS.",
+        "url": "https://runescape.wiki/w/Isle_of_Sann?oldid=37162654"
+      }
+    },
+    {
+      "path": [
+        "challenges",
+        "Nonskill",
+        "Cave (Burgh de Rott)"
+      ],
+      "beforePresent": true,
+      "before": {
+        "UnlocksArea": true
+      },
+      "beforeRecordSha256": "297ac6cd513bd544463f128fce469b2f7efbd24112790ea04a7e7f25f038abde",
+      "afterPresent": true,
+      "after": {
+        "UnlocksArea": true,
+        "Tasks": {
+          "~|The Branches of Darkmeyer|~ 1": "Quest"
+        }
+      },
+      "evidence": {
+        "title": "Cave (Burgh de Rott)",
+        "revision": 37125020,
+        "quote": "Players can enter it through a cave entrance after starting The Branches of Darkmeyer.",
+        "url": "https://runescape.wiki/w/Cave_(Burgh_de_Rott)?oldid=37125020"
+      }
+    },
+    {
+      "path": [
+        "challenges",
+        "Nonskill",
+        "Fairy Resistance Hideout"
+      ],
+      "beforePresent": true,
+      "before": {
+        "UnlocksArea": true
+      },
+      "beforeRecordSha256": "297ac6cd513bd544463f128fce469b2f7efbd24112790ea04a7e7f25f038abde",
+      "afterPresent": true,
+      "after": {
+        "UnlocksArea": true,
+        "Tasks": {
+          "~|A Fairy Tale II - Cure a Queen|~ 4": "Quest"
+        }
+      },
+      "evidence": {
+        "title": "Fairy Resistance Hideout",
+        "revision": 37166313,
+        "quote": "Players must have at least started A Fairy Tale II - Cure a Queen and found Nuff's certificate.",
+        "url": "https://runescape.wiki/w/Fairy_Resistance_Hideout?oldid=37166313"
+      }
+    },
+    {
+      "path": [
+        "challenges",
+        "Nonskill",
+        "Infernal Source"
+      ],
+      "beforePresent": true,
+      "before": {
+        "UnlocksArea": true
+      },
+      "beforeRecordSha256": "297ac6cd513bd544463f128fce469b2f7efbd24112790ea04a7e7f25f038abde",
+      "afterPresent": true,
+      "after": {
+        "UnlocksArea": true,
+        "Tasks": {
+          "Archaeology Mystery: ~|Embrace the Chaos|~ 2": "Quest"
+        }
+      },
+      "evidence": {
+        "title": "Infernal Source Dig Site",
+        "revision": 37124842,
+        "quote": "To access the Source, the Embrace the Chaos mystery must be completed.",
+        "url": "https://runescape.wiki/w/Infernal_Source_Dig_Site?oldid=37124842"
+      }
+    },
+    {
+      "path": [
+        "challenges",
+        "Nonskill",
+        "Shredflesh's Cave"
+      ],
+      "beforePresent": true,
+      "before": {
+        "UnlocksArea": true
+      },
+      "beforeRecordSha256": "297ac6cd513bd544463f128fce469b2f7efbd24112790ea04a7e7f25f038abde",
+      "afterPresent": true,
+      "after": {
+        "UnlocksArea": true,
+        "Tasks": {
+          "~|A Fairy Tale III - Battle at Ork's Rift|~ 5": "Quest"
+        }
+      },
+      "evidence": {
+        "title": "Shredflesh's Cave",
+        "revision": 37127142,
+        "quote": "It is accessible during and after the quest A Fairy Tale III - Battle at Ork's Rift.",
+        "url": "https://runescape.wiki/w/Shredflesh's_Cave?oldid=37127142"
+      }
+    },
+    {
+      "path": [
+        "challenges",
+        "Nonskill",
+        "Sophanem Dungeon"
+      ],
+      "beforePresent": true,
+      "before": {
+        "UnlocksArea": true
+      },
+      "beforeRecordSha256": "297ac6cd513bd544463f128fce469b2f7efbd24112790ea04a7e7f25f038abde",
+      "afterPresent": true,
+      "after": {
+        "UnlocksArea": true,
+        "Tasks": {
+          "~|Contact!|~ 2": "Quest"
+        }
+      },
+      "evidence": {
+        "title": "Sophanem Dungeon",
+        "revision": 37130830,
+        "quote": "After starting the Contact! quest, the rest of the dungeon can be accessed via a trapdoor next to the ladder.",
+        "url": "https://runescape.wiki/w/Sophanem_Dungeon?oldid=37130830"
+      }
+    },
+    {
+      "path": [
+        "challenges",
+        "Nonskill",
+        "Gorak Plane"
+      ],
+      "beforePresent": true,
+      "before": {
+        "UnlocksArea": true
+      },
+      "beforeRecordSha256": "297ac6cd513bd544463f128fce469b2f7efbd24112790ea04a7e7f25f038abde",
+      "afterPresent": true,
+      "after": {
+        "UnlocksArea": true,
+        "Tasks": {
+          "~|A Fairy Tale II - Cure a Queen|~ 2": "Quest"
+        }
+      },
+      "evidence": {
+        "title": "Gorak Plane",
+        "revision": 37130915,
+        "quote": "The plane is only accessible through the fairy ring DIR.",
+        "url": "https://runescape.wiki/w/Gorak_Plane?oldid=37130915"
+      }
+    },
+    {
+      "path": [
+        "challenges",
+        "Nonskill",
+        "Cosmic Entity plane"
+      ],
+      "beforePresent": true,
+      "before": {
+        "UnlocksArea": true
+      },
+      "beforeRecordSha256": "297ac6cd513bd544463f128fce469b2f7efbd24112790ea04a7e7f25f038abde",
+      "afterPresent": true,
+      "after": {
+        "UnlocksArea": true,
+        "Tasks": {
+          "~|A Fairy Tale II - Cure a Queen|~ 2": "Quest"
+        }
+      },
+      "evidence": {
+        "title": "Cosmic Entity plane",
+        "revision": 37133159,
+        "quote": "It can only be accessed by starting A Fairy Tale II - Cure a Queen, and the only way to access it is via the fairy ring teleportation system, using the coordinates CKP.",
+        "url": "https://runescape.wiki/w/Cosmic_Entity_plane?oldid=37133159"
+      }
+    },
+    {
+      "path": [
+        "challenges",
+        "Nonskill",
+        "Shady grove"
+      ],
+      "beforePresent": true,
+      "before": {
+        "UnlocksArea": true
+      },
+      "beforeRecordSha256": "297ac6cd513bd544463f128fce469b2f7efbd24112790ea04a7e7f25f038abde",
+      "afterPresent": true,
+      "after": {
+        "UnlocksArea": true,
+        "Tasks": {
+          "~|A Fairy Tale I - Growing Pains|~ 9": "Quest"
+        }
+      },
+      "evidence": {
+        "title": "Transcript:Gatekeeper",
+        "revision": 37176171,
+        "url": "https://runescape.wiki/w/Transcript%3AGatekeeper?oldid=37176171",
+        "quote": "I'm afraid nobody is allowed in there, orders from the boss."
+      }
+    },
+    {
+      "path": [
+        "challenges",
+        "Nonskill",
+        "Yewnock's cave"
+      ],
+      "beforePresent": true,
+      "before": {
+        "UnlocksArea": true
+      },
+      "beforeRecordSha256": "297ac6cd513bd544463f128fce469b2f7efbd24112790ea04a7e7f25f038abde",
+      "afterPresent": true,
+      "after": {
+        "UnlocksArea": true,
+        "Tasks": {
+          "~|The Path of Glouphrie|~ 2": "Quest"
+        }
+      },
+      "evidence": {
+        "title": "Gnome Village Dungeon",
+        "revision": 37130547,
+        "quote": "Yewnock's cave in the Gnome Village Dungeon is only accessible during and after The Path of Glouphrie quest.",
+        "url": "https://runescape.wiki/w/Gnome_Village_Dungeon?oldid=37130547"
+      }
+    },
+    {
+      "path": [
+        "challenges",
+        "Nonskill",
+        "Nature grotto"
+      ],
+      "beforePresent": true,
+      "before": {
+        "UnlocksArea": true
+      },
+      "beforeRecordSha256": "297ac6cd513bd544463f128fce469b2f7efbd24112790ea04a7e7f25f038abde",
+      "afterPresent": true,
+      "after": {
+        "UnlocksArea": true,
+        "Tasks": {
+          "~|Nature Spirit|~ 5": "Quest"
+        }
+      },
+      "evidence": {
+        "title": "Nature Grotto",
+        "revision": 37124527,
+        "quote": "The Nature Grotto is hidden deep within the Mort Myre Swamp in a tree that is only unlockable during and after the Nature Spirit quest.",
+        "url": "https://runescape.wiki/w/Nature_Grotto?oldid=37124527"
+      }
+    },
+    {
+      "path": [
+        "challenges",
+        "Nonskill",
+        "Nomad's temple"
+      ],
+      "beforePresent": true,
+      "before": {
+        "UnlocksArea": true
+      },
+      "beforeRecordSha256": "297ac6cd513bd544463f128fce469b2f7efbd24112790ea04a7e7f25f038abde",
+      "afterPresent": true,
+      "after": {
+        "UnlocksArea": true,
+        "Tasks": {
+          "~|Nomad's Requiem|~ 1": "Quest"
+        }
+      },
+      "evidence": {
+        "title": "Nomad's temple",
+        "revision": 37130796,
+        "quote": "Once Nomad's Requiem is completed, there is no way to enter his temple again, until a brief section during Nomad's Elegy",
+        "url": "https://runescape.wiki/w/Nomad's_temple?oldid=37130796"
+      }
+    },
+    {
+      "path": [
+        "challenges",
+        "Nonskill",
+        "Erjolf's cave"
+      ],
+      "beforePresent": true,
+      "before": {
+        "UnlocksArea": true
+      },
+      "beforeRecordSha256": "297ac6cd513bd544463f128fce469b2f7efbd24112790ea04a7e7f25f038abde",
+      "afterPresent": true,
+      "after": {
+        "UnlocksArea": true,
+        "Tasks": {
+          "~|The Tale of the Muspah|~ 1": "Quest"
+        }
+      },
+      "evidence": {
+        "title": "Transcript:The Tale of the Muspah",
+        "revision": 37045199,
+        "quote": "Then, in the name of the Fremennik people, I shall not let you enter the cave!",
+        "url": "https://runescape.wiki/w/Transcript%3AThe_Tale_of_the_Muspah?oldid=37045199"
+      }
+    },
+    {
+      "path": [
+        "challenges",
+        "Nonskill",
+        "Elemental Workshop Second Floor"
+      ],
+      "beforePresent": true,
+      "before": {
+        "UnlocksArea": true
+      },
+      "beforeRecordSha256": "297ac6cd513bd544463f128fce469b2f7efbd24112790ea04a7e7f25f038abde",
+      "afterPresent": true,
+      "after": {
+        "UnlocksArea": true,
+        "Tasks": {
+          "~|Elemental Workshop II|~ 1": "Quest"
+        }
+      },
+      "evidence": {
+        "title": "Elemental Workshop",
+        "revision": 37122718,
+        "quote": "Accessed during and after the [[Elemental Workshop II]] quest, four pieces of equipment on this floor (crane, press, tank, and wind tunnel) must be repaired.",
+        "url": "https://runescape.wiki/w/Elemental_Workshop?oldid=37122718"
+      }
+    },
+    {
+      "path": [
+        "challenges",
+        "Nonskill",
+        "Elemental Workshop Third Floor Second Hallway"
+      ],
+      "beforePresent": true,
+      "before": {
+        "UnlocksArea": true
+      },
+      "beforeRecordSha256": "297ac6cd513bd544463f128fce469b2f7efbd24112790ea04a7e7f25f038abde",
+      "afterPresent": true,
+      "after": {
+        "UnlocksArea": true,
+        "Tasks": {
+          "~|Elemental Workshop IV|~ 2": "Quest"
+        }
+      },
+      "evidence": {
+        "title": "Elemental Workshop",
+        "revision": 37122718,
+        "quote": "Accessed during [[Elemental Workshop IV]], this hallway requires a [[keyblade]] to enter. The key is no longer needed after the quest is completed.",
+        "url": "https://runescape.wiki/w/Elemental_Workshop?oldid=37122718"
+      }
+    },
+    {
+      "path": [
+        "challenges",
+        "Nonskill",
+        "Gnome glider hangar"
+      ],
+      "beforePresent": true,
+      "before": {
+        "UnlocksArea": true
+      },
+      "beforeRecordSha256": "297ac6cd513bd544463f128fce469b2f7efbd24112790ea04a7e7f25f038abde",
+      "afterPresent": true,
+      "after": {
+        "UnlocksArea": true,
+        "Tasks": {
+          "~|Monkey Madness|~ 3": "Quest"
+        }
+      },
+      "evidence": {
+        "title": "Gnome glider hangar",
+        "revision": 37133198,
+        "quote": "During and after the quest, the hangar can only be accessed by talking to [[Daero]] on the {{floornumber|2}} of the [[Grand Tree]], in [[Blurberry's Bar]].",
+        "url": "https://runescape.wiki/w/Gnome_glider_hangar?oldid=37133198"
+      }
+    },
+    {
+      "path": [
+        "challenges",
+        "Nonskill",
+        "Viyeldi Caves"
+      ],
+      "beforePresent": true,
+      "before": {
+        "UnlocksArea": true
+      },
+      "beforeRecordSha256": "297ac6cd513bd544463f128fce469b2f7efbd24112790ea04a7e7f25f038abde",
+      "afterPresent": true,
+      "after": {
+        "UnlocksArea": true,
+        "Tasks": {
+          "~|Legends' Quest|~ 4": "Quest"
+        }
+      },
+      "evidence": {
+        "title": "Viyeldi caves",
+        "revision": 37122322,
+        "quote": "They play a large role in the [[Legends' Quest]] and can only be accessed during and after the quest. To enter, the player must go to the north-western part of the [[Kharazi Jungle]] and squeeze into the [[Rocks (Viyeldi caves)|rocks]] there, which requires 50 [[Agility]].",
+        "url": "https://runescape.wiki/w/Viyeldi_caves?oldid=37122322"
+      }
+    },
+    {
+      "path": [
+        "challenges",
+        "Nonskill",
+        "Bandos's Sanctum"
+      ],
+      "beforePresent": true,
+      "before": {
+        "UnlocksArea": true
+      },
+      "beforeRecordSha256": "297ac6cd513bd544463f128fce469b2f7efbd24112790ea04a7e7f25f038abde",
+      "afterPresent": true,
+      "after": {
+        "UnlocksArea": true,
+        "Tasks": {
+          "Archaeology Mystery: ~|You Have Chosen...|~ 4": "Quest"
+        }
+      },
+      "evidence": {
+        "title": "You Have Chosen...",
+        "revision": 37153102,
+        "quote": "The wall will become a [[Hidden switch#Wall opening|wall opening]] that can be climbed through to access [[Warforge - Bandos's sanctum excavation site|Bandos's sanctum]].",
+        "url": "https://runescape.wiki/w/You_Have_Chosen...?oldid=37153102"
+      }
+    },
+    {
+      "path": [
+        "challenges",
+        "Nonskill",
+        "Ork's Rift"
+      ],
+      "beforePresent": true,
+      "before": {
+        "UnlocksArea": true
+      },
+      "beforeRecordSha256": "297ac6cd513bd544463f128fce469b2f7efbd24112790ea04a7e7f25f038abde",
+      "afterPresent": true,
+      "after": {
+        "UnlocksArea": true,
+        "Tasks": {
+          "~|A Fairy Tale III - Battle at Ork's Rift|~ 7": "Quest"
+        }
+      },
+      "evidence": {
+        "title": "Ork's Rift",
+        "revision": 37161465,
+        "quote": "You must enter: {{fairycode|BIR}}, {{fairycode|DIP}}, {{fairycode|CLR}}, {{fairycode|ALP}} in that order or use the automatic fairy ring log after having unlocked it.",
+        "url": "https://runescape.wiki/w/Ork's_Rift?oldid=37161465"
+      }
+    },
+    {
+      "path": [
+        "challenges",
+        "Nonskill",
+        "Jatizso dungeon mine"
+      ],
+      "beforePresent": true,
+      "before": {
+        "UnlocksArea": true
+      },
+      "beforeRecordSha256": "297ac6cd513bd544463f128fce469b2f7efbd24112790ea04a7e7f25f038abde",
+      "afterPresent": true,
+      "after": {
+        "UnlocksArea": true,
+        "Tasks": {
+          "~|The Fremennik Isles|~ 1": "Quest"
+        }
+      },
+      "evidence": {
+        "title": "Jatizso dungeon mine",
+        "revision": 37180801,
+        "quote": "As [[The Fremennik Isles]] must be started in order to access Jatizso, the quest is an indirect requirement to access the mine.",
+        "url": "https://runescape.wiki/w/Jatizso_dungeon_mine?oldid=37180801"
+      }
+    },
+    {
+      "path": [
+        "challenges",
+        "Nonskill",
+        "Penguin outpost"
+      ],
+      "beforePresent": true,
+      "before": {
+        "UnlocksArea": true
+      },
+      "beforeRecordSha256": "297ac6cd513bd544463f128fce469b2f7efbd24112790ea04a7e7f25f038abde",
+      "afterPresent": true,
+      "after": {
+        "UnlocksArea": true,
+        "Tasks": {
+          "~|Cold War|~ 15": "Quest"
+        }
+      },
+      "evidence": {
+        "title": "Iceberg",
+        "revision": 37132111,
+        "quote": "players must have progressed through part of Cold War in order to access this area.",
+        "url": "https://runescape.wiki/w/Iceberg?oldid=37132111"
+      }
+    },
+    {
+      "path": [
+        "challenges",
+        "Nonskill",
+        "Meiyerditch Myreque base"
+      ],
+      "beforePresent": true,
+      "before": {
+        "UnlocksArea": true
+      },
+      "beforeRecordSha256": "297ac6cd513bd544463f128fce469b2f7efbd24112790ea04a7e7f25f038abde",
+      "afterPresent": true,
+      "after": {
+        "UnlocksArea": true,
+        "Tasks": {
+          "~|The Darkness of Hallowvale|~ 4": "Quest"
+        }
+      },
+      "evidence": {
+        "title": "Myreque Hideout",
+        "revision": 37125039,
+        "quote": "In order to gain access to the Sanguinesti Hideout, the player must gain the help of a citizen of Meiyerditch, [[Old Man Ral]], who knows the lay of the city and tells the player about the entrance to the secret base.",
+        "url": "https://runescape.wiki/w/Myreque_Hideout?oldid=37125039"
+      }
+    },
+    {
+      "path": [
+        "challenges",
+        "Nonskill",
+        "Ghorrock Fortress Dungeon"
+      ],
+      "beforePresent": true,
+      "before": {
+        "UnlocksArea": true
+      },
+      "beforeRecordSha256": "297ac6cd513bd544463f128fce469b2f7efbd24112790ea04a7e7f25f038abde",
+      "afterPresent": true,
+      "after": {
+        "UnlocksArea": true,
+        "Tasks": {
+          "~|The Temple at Senntisten|~ 3": "Quest"
+        }
+      },
+      "evidence": {
+        "title": "Ghorrock",
+        "revision": 37125144,
+        "quote": "Completing a small portion of [[The Temple at Senntisten]] is required to melt the Ice Block and enter the fortress.",
+        "url": "https://runescape.wiki/w/Ghorrock?oldid=37125144"
+      }
+    },
+    {
+      "path": [
+        "challenges",
+        "Nonskill",
+        "Clock Tower Dungeon"
+      ],
+      "beforePresent": true,
+      "before": {
+        "UnlocksArea": true
+      },
+      "beforeRecordSha256": "297ac6cd513bd544463f128fce469b2f7efbd24112790ea04a7e7f25f038abde",
+      "afterPresent": true,
+      "after": {
+        "UnlocksArea": true,
+        "Tasks": {
+          "~|Clock Tower|~ 1": "Quest"
+        }
+      },
+      "evidence": {
+        "title": "Clock Tower Dungeon",
+        "revision": 37178777,
+        "quote": "Players must start the quest before they can access zones 1 and 2 of the dungeon.",
+        "url": "https://runescape.wiki/w/Clock_Tower_Dungeon?oldid=37178777"
+      }
+    },
+    {
+      "path": [
+        "challenges",
+        "Nonskill",
+        "Mos Le'Harmless caves"
+      ],
+      "beforePresent": true,
+      "before": {
+        "UnlocksArea": true
+      },
+      "beforeRecordSha256": "297ac6cd513bd544463f128fce469b2f7efbd24112790ea04a7e7f25f038abde",
+      "afterPresent": true,
+      "after": {
+        "UnlocksArea": true,
+        "Tasks": {
+          "~|Cabin Fever|~ Complete the quest": "Quest"
+        }
+      },
+      "evidence": {
+        "title": "Mos Le'Harmless Caves",
+        "revision": 37125021,
+        "quote": "Players can only reach the island after completing the [[Cabin Fever]] quest.",
+        "url": "https://runescape.wiki/w/Mos_Le'Harmless_Caves?oldid=37125021"
+      }
+    },
+    {
+      "path": [
+        "challenges",
+        "Nonskill",
+        "Scabarite Hive Dungeon"
+      ],
+      "beforePresent": true,
+      "before": {
+        "UnlocksArea": true
+      },
+      "beforeRecordSha256": "297ac6cd513bd544463f128fce469b2f7efbd24112790ea04a7e7f25f038abde",
+      "afterPresent": true,
+      "after": {
+        "UnlocksArea": true,
+        "Tasks": {
+          "~|Dealing with Scabaras|~ 5": "Quest"
+        }
+      },
+      "evidence": {
+        "title": "Dealing with Scabaras",
+        "revision": 37152729,
+        "quote": "She will give you the [[scabarite key]] that will unlock the door to the dungeon.",
+        "url": "https://runescape.wiki/w/Dealing_with_Scabaras?oldid=37152729"
+      }
+    },
+    {
+      "path": [
+        "challenges",
+        "Nonskill",
+        "Beneath Harmony Island"
+      ],
+      "beforePresent": true,
+      "before": {
+        "UnlocksArea": true
+      },
+      "beforeRecordSha256": "297ac6cd513bd544463f128fce469b2f7efbd24112790ea04a7e7f25f038abde",
+      "afterPresent": true,
+      "after": {
+        "UnlocksArea": true,
+        "Tasks": {
+          "~|The Great Brain Robbery|~ 1": "Quest"
+        },
+        "Items": [
+          "Fishbowl helmet",
+          "Diving apparatus"
+        ]
+      },
+      "evidence": {
+        "title": "Underwater Tunnel",
+        "revision": 37125019,
+        "quote": "A fishbowl helmet and diving apparatus are required to enter.",
+        "url": "https://runescape.wiki/w/Underwater_Tunnel?oldid=37125019"
+      }
+    },
+    {
+      "path": [
+        "challenges",
+        "Nonskill",
+        "Mahjarrat Ritual Site Cavern"
+      ],
+      "beforePresent": true,
+      "before": {
+        "UnlocksArea": true
+      },
+      "beforeRecordSha256": "297ac6cd513bd544463f128fce469b2f7efbd24112790ea04a7e7f25f038abde",
+      "afterPresent": true,
+      "after": {
+        "UnlocksArea": true,
+        "Tasks": {
+          "~|The Tale of the Muspah|~ 6": "Quest"
+        }
+      },
+      "evidence": {
+        "title": "Jhallan's resting place",
+        "revision": 37130962,
+        "quote": "To travel there, players have to take the canoe made during The Tale of the Muspah",
+        "url": "https://runescape.wiki/w/Jhallan's_resting_place?oldid=37130962"
+      }
+    },
+    {
+      "path": [
+        "challenges",
+        "Nonskill",
+        "Lamistard's Tunnels"
+      ],
+      "beforePresent": true,
+      "before": {
+        "UnlocksArea": true
+      },
+      "beforeRecordSha256": "297ac6cd513bd544463f128fce469b2f7efbd24112790ea04a7e7f25f038abde",
+      "afterPresent": true,
+      "after": {
+        "UnlocksArea": true,
+        "Tasks": {
+          "~|The Curse of Arrav|~ 1": "Quest"
+        }
+      },
+      "evidence": {
+        "title": "Cave entrance (Ritual plateau tunnels)",
+        "revision": 36479749,
+        "quote": "Partial completion of The Curse of Arrav is required to enter",
+        "url": "https://runescape.wiki/w/Cave_entrance_(Ritual_plateau_tunnels)?oldid=36479749"
+      }
+    },
+    {
+      "path": [
+        "challenges",
+        "Nonskill",
+        "Tunnel to Trollheim"
+      ],
+      "beforePresent": true,
+      "before": {
+        "UnlocksArea": true
+      },
+      "beforeRecordSha256": "297ac6cd513bd544463f128fce469b2f7efbd24112790ea04a7e7f25f038abde",
+      "afterPresent": true,
+      "after": {
+        "UnlocksArea": true,
+        "Tasks": {
+          "~|Troll Stronghold|~ 2": "Quest"
+        }
+      },
+      "evidence": {
+        "title": "Tunnel to Trollheim",
+        "revision": 37133254,
+        "quote": "Players can enter the area after defeating the Dad during Troll Stronghold quest.",
+        "url": "https://runescape.wiki/w/Tunnel_to_Trollheim?oldid=37133254"
+      }
+    },
+    {
+      "path": [
+        "challenges",
+        "Nonskill",
+        "Guthixian ruins"
+      ],
+      "beforePresent": true,
+      "before": {
+        "UnlocksArea": true
+      },
+      "beforeRecordSha256": "297ac6cd513bd544463f128fce469b2f7efbd24112790ea04a7e7f25f038abde",
+      "afterPresent": true,
+      "after": {
+        "UnlocksArea": true,
+        "Tasks": {
+          "~|The World Wakes|~ 1": "Quest"
+        }
+      },
+      "evidence": {
+        "title": "The World Wakes",
+        "revision": 37153063,
+        "quote": "After the conversation has finished, the door will be opened. Enter the ruins with him.",
+        "url": "https://runescape.wiki/w/The_World_Wakes?oldid=37153063"
+      }
+    },
+    {
+      "path": [
+        "challenges",
+        "Nonskill",
+        "Naragun"
+      ],
+      "beforePresent": true,
+      "before": {
+        "UnlocksArea": true
+      },
+      "beforeRecordSha256": "297ac6cd513bd544463f128fce469b2f7efbd24112790ea04a7e7f25f038abde",
+      "afterPresent": true,
+      "after": {
+        "UnlocksArea": true,
+        "Tasks": {
+          "~|The World Wakes|~ 2": "Quest"
+        }
+      },
+      "evidence": {
+        "title": "Naragun",
+        "revision": 37133101,
+        "quote": "However, they can view their memories of it after The World Wakes by using the fairy ring code AIS.",
+        "url": "https://runescape.wiki/w/Naragun?oldid=37133101"
+      }
+    },
+    {
+      "path": [
+        "challenges",
+        "Nonskill",
+        "Stalker dungeon"
+      ],
+      "beforePresent": true,
+      "before": {
+        "UnlocksArea": true
+      },
+      "beforeRecordSha256": "297ac6cd513bd544463f128fce469b2f7efbd24112790ea04a7e7f25f038abde",
+      "afterPresent": true,
+      "after": {
+        "UnlocksArea": true,
+        "Tasks": {
+          "~|Dishonour among Thieves|~ Complete the quest": "Quest"
+        },
+        "Items": [
+          "Communication device"
+        ]
+      },
+      "evidence": {
+        "title": "Stalker dungeon",
+        "revision": 37168659,
+        "quote": "requires the completion of Dishonour among Thieves to access.",
+        "url": "https://runescape.wiki/w/Stalker_dungeon?oldid=37168659"
+      }
+    },
+    {
+      "path": [
+        "challenges",
+        "Nonskill",
+        "Ashdale Caves"
+      ],
+      "beforePresent": true,
+      "before": {
+        "UnlocksArea": true
+      },
+      "beforeRecordSha256": "297ac6cd513bd544463f128fce469b2f7efbd24112790ea04a7e7f25f038abde",
+      "afterPresent": true,
+      "after": {
+        "UnlocksArea": true,
+        "Tasks": {
+          "~|A Shadow over Ashdale|~ 1": "Quest"
+        }
+      },
+      "evidence": {
+        "title": "Ashdale Caves",
+        "revision": 37133024,
+        "quote": "The entrance is opened by investigating a bust of his head, revealing a centrepiece on the floor to actually be stairs.",
+        "url": "https://runescape.wiki/w/Ashdale_Caves?oldid=37133024"
+      }
+    },
+    {
+      "path": [
+        "challenges",
+        "Nonskill",
+        "New Varrock"
+      ],
+      "beforePresent": true,
+      "before": {
+        "UnlocksArea": true
+      },
+      "beforeRecordSha256": "297ac6cd513bd544463f128fce469b2f7efbd24112790ea04a7e7f25f038abde",
+      "afterPresent": true,
+      "after": {
+        "UnlocksArea": true,
+        "Tasks": {
+          "~|Dimension of Disaster: Coin of the Realm|~ 1": "Quest"
+        }
+      },
+      "evidence": {
+        "title": "New Varrock",
+        "revision": 37187626,
+        "quote": "Players must have started Dimension of Disaster to first gain access to the city.",
+        "url": "https://runescape.wiki/w/New_Varrock?oldid=37187626"
+      }
+    },
+    {
+      "path": [
+        "challenges",
+        "Nonskill",
+        "V's Island (interior)"
+      ],
+      "beforePresent": true,
+      "before": {
+        "UnlocksArea": true
+      },
+      "beforeRecordSha256": "297ac6cd513bd544463f128fce469b2f7efbd24112790ea04a7e7f25f038abde",
+      "afterPresent": true,
+      "after": {
+        "UnlocksArea": true,
+        "Tasks": {
+          "~|Hero's Welcome|~ 2": "Quest"
+        }
+      },
+      "evidence": {
+        "title": "V's island",
+        "revision": 37134420,
+        "quote": "The player comes here after V arrives in Rellekka and asks the player to meet there after the feast.",
+        "url": "https://runescape.wiki/w/V's_island?oldid=37134420"
+      }
+    },
+    {
+      "path": [
+        "challenges",
+        "Nonskill",
+        "Ice Troll Caves"
+      ],
+      "beforePresent": true,
+      "before": {
+        "UnlocksArea": true
+      },
+      "beforeRecordSha256": "297ac6cd513bd544463f128fce469b2f7efbd24112790ea04a7e7f25f038abde",
+      "afterPresent": true,
+      "after": {
+        "UnlocksArea": true,
+        "Tasks": {
+          "~|The Fremennik Isles|~ 14": "Quest"
+        }
+      },
+      "evidence": {
+        "title": "Ice Troll Caves",
+        "revision": 37125220,
+        "quote": "To enter the caves, players need to have completed parts of The Fremennik Isles quest.",
+        "url": "https://runescape.wiki/w/Ice_Troll_Caves?oldid=37125220"
+      }
+    },
+    {
+      "path": [
+        "challenges",
+        "Nonskill",
+        "Enakhra's Temple"
+      ],
+      "beforePresent": true,
+      "before": {
+        "UnlocksArea": true
+      },
+      "beforeRecordSha256": "297ac6cd513bd544463f128fce469b2f7efbd24112790ea04a7e7f25f038abde",
+      "afterPresent": true,
+      "after": {
+        "UnlocksArea": true,
+        "Tasks": {
+          "~|Enakhra's Lament|~ 5": "Quest"
+        }
+      },
+      "evidence": {
+        "title": "Enakhra's Temple",
+        "revision": 37121980,
+        "quote": "To get access to the temple, you must start the Enakhra's Lament quest.",
+        "url": "https://runescape.wiki/w/Enakhra's_Temple?oldid=37121980"
+      }
+    },
+    {
+      "path": [
+        "challenges",
+        "Nonskill",
+        "Dragonkin Lair"
+      ],
+      "beforePresent": true,
+      "before": {
+        "UnlocksArea": true
+      },
+      "beforeRecordSha256": "297ac6cd513bd544463f128fce469b2f7efbd24112790ea04a7e7f25f038abde",
+      "afterPresent": true,
+      "after": {
+        "UnlocksArea": true,
+        "Tasks": {
+          "~|Hero's Welcome|~ 6": "Quest"
+        }
+      },
+      "evidence": {
+        "title": "Dragonkin Lair",
+        "revision": 37162637,
+        "quote": "The dragon-mithril key is needed to unlock the door, but is not needed for later visits.",
+        "url": "https://runescape.wiki/w/Dragonkin_Lair?oldid=37162637"
+      }
+    },
+    {
+      "path": [
+        "challenges",
+        "Nonskill",
+        "Lumbridge Catacombs"
+      ],
+      "beforePresent": true,
+      "before": {
+        "UnlocksArea": true
+      },
+      "beforeRecordSha256": "297ac6cd513bd544463f128fce469b2f7efbd24112790ea04a7e7f25f038abde",
+      "afterPresent": true,
+      "after": {
+        "UnlocksArea": true,
+        "Tasks": {
+          "~|The Blood Pact|~ 1": "Quest"
+        }
+      },
+      "evidence": {
+        "title": "The Blood Pact",
+        "revision": 37153014,
+        "url": "https://runescape.wiki/w/The_Blood_Pact?oldid=37153014",
+        "quote": "After agreeing to help Xenia, enter through the catacombs entrance to confront the cultists."
+      }
+    },
+    {
+      "path": [
+        "challenges",
+        "Nonskill",
+        "The Skullery"
+      ],
+      "beforePresent": true,
+      "before": {
+        "UnlocksArea": true
+      },
+      "beforeRecordSha256": "297ac6cd513bd544463f128fce469b2f7efbd24112790ea04a7e7f25f038abde",
+      "afterPresent": true,
+      "after": {
+        "UnlocksArea": true,
+        "Tasks": {
+          "~|Stolen Hearts|~ 1": "Quest"
+        }
+      },
+      "evidence": {
+        "title": "Stolen Hearts",
+        "revision": 37153478,
+        "url": "https://runescape.wiki/w/Stolen_Hearts?oldid=37153478",
+        "quote": "only to be stopped by the bouncer; threaten him and he will let you in."
+      }
+    },
+    {
+      "path": [
+        "challenges",
+        "Nonskill",
+        "Elemental Workshop Third Floor First Hallway"
+      ],
+      "beforePresent": true,
+      "before": {
+        "UnlocksArea": true
+      },
+      "beforeRecordSha256": "297ac6cd513bd544463f128fce469b2f7efbd24112790ea04a7e7f25f038abde",
+      "afterPresent": true,
+      "after": {
+        "UnlocksArea": true,
+        "Tasks": {
+          "~|Elemental Workshop II|~ 1": "Quest"
+        }
+      },
+      "evidence": {
+        "title": "Elemental Workshop",
+        "revision": 37122718,
+        "quote": "Accessed during and after the [[Elemental Workshop II]] and [[Elemental Workshop III|III]] quests, this hallway contains two doors: one with a mind symbol on it, and the other with a body symbol.",
+        "url": "https://runescape.wiki/w/Elemental_Workshop?oldid=37122718"
+      }
+    },
+    {
+      "path": [
+        "challenges",
+        "Nonskill",
+        "Grand Tree Mine"
+      ],
+      "beforePresent": true,
+      "before": {
+        "UnlocksArea": true
+      },
+      "beforeRecordSha256": "297ac6cd513bd544463f128fce469b2f7efbd24112790ea04a7e7f25f038abde",
+      "afterPresent": true,
+      "after": {
+        "UnlocksArea": true,
+        "Tasks": {
+          "~|The Grand Tree|~ 7": "Quest"
+        }
+      },
+      "evidence": {
+        "title": "Grand Tree Tunnels",
+        "revision": 37130876,
+        "quote": "is only accessible during and after [[The Grand Tree]] quest.",
+        "url": "https://runescape.wiki/w/Grand_Tree_Tunnels?oldid=37130876"
+      }
+    },
+    {
+      "path": [
+        "challenges",
+        "Nonskill",
+        "Western Ardougne Sewer"
+      ],
+      "beforePresent": true,
+      "before": {
+        "UnlocksArea": true
+      },
+      "beforeRecordSha256": "297ac6cd513bd544463f128fce469b2f7efbd24112790ea04a7e7f25f038abde",
+      "afterPresent": true,
+      "after": {
+        "UnlocksArea": true,
+        "Tasks": {
+          "~|Plague City|~ 2": "Quest"
+        }
+      },
+      "evidence": {
+        "title": "Plague City",
+        "revision": 37152931,
+        "quote": "dig through the patch into the sewers. If you didn't bring water, there is a bucket spawn in the garden",
+        "url": "https://runescape.wiki/w/Plague_City?oldid=37152931"
+      }
+    },
+    {
+      "path": [
+        "challenges",
+        "Nonskill",
+        "Cairn Island Dungeon"
+      ],
+      "beforePresent": true,
+      "before": {
+        "UnlocksArea": true
+      },
+      "beforeRecordSha256": "297ac6cd513bd544463f128fce469b2f7efbd24112790ea04a7e7f25f038abde",
+      "afterPresent": true,
+      "after": {
+        "UnlocksArea": true,
+        "Skills": {
+          "Agility": 32
+        }
+      },
+      "evidence": {
+        "title": "Well stacked rocks",
+        "revision": 36851258,
+        "quote": "The chance of successfully entering the tomb depends on your Agility level.",
+        "url": "https://runescape.wiki/w/Well_stacked_rocks?oldid=36851258"
+      }
+    },
+    {
+      "path": [
+        "challenges",
+        "Nonskill",
+        "Hall of Memories"
+      ],
+      "beforePresent": true,
+      "before": {
+        "UnlocksArea": true
+      },
+      "beforeRecordSha256": "297ac6cd513bd544463f128fce469b2f7efbd24112790ea04a7e7f25f038abde",
+      "afterPresent": true,
+      "after": {
+        "UnlocksArea": true,
+        "Skills": {
+          "Divination": 70
+        }
+      },
+      "evidence": {
+        "title": "Hall of Memories",
+        "revision": 37192098,
+        "quote": "It acts as a Divination-training location, requiring level 70 Divination to access.",
+        "url": "https://runescape.wiki/w/Hall_of_Memories?oldid=37192098"
+      }
+    },
+    {
+      "path": [
+        "challenges",
+        "Nonskill",
+        "Pyramid Plunder"
+      ],
+      "beforePresent": true,
+      "before": {
+        "UnlocksArea": true
+      },
+      "beforeRecordSha256": "297ac6cd513bd544463f128fce469b2f7efbd24112790ea04a7e7f25f038abde",
+      "afterPresent": true,
+      "after": {
+        "UnlocksArea": true,
+        "Skills": {
+          "Thieving": 21
+        }
+      },
+      "evidence": {
+        "title": "Pyramid Plunder",
+        "revision": 37195756,
+        "quote": "==Requirements==\n* Access to the city of [[Sophanem]]\n** Having started the quest [[Icthlarin's Little Helper]]\n* {{scm|Thieving|21}} Thieving",
+        "url": "https://runescape.wiki/w/Pyramid_Plunder?oldid=37195756"
+      }
+    },
+    {
+      "path": [
+        "challenges",
+        "Nonskill",
+        "Invention Guild"
+      ],
+      "beforePresent": true,
+      "before": {
+        "UnlocksArea": true
+      },
+      "beforeRecordSha256": "297ac6cd513bd544463f128fce469b2f7efbd24112790ea04a7e7f25f038abde",
+      "afterPresent": true,
+      "after": {
+        "UnlocksArea": true,
+        "Skills": {
+          "Crafting": 80,
+          "Divination": 80,
+          "Smithing": 80
+        },
+        "NoBoost": true
+      },
+      "evidence": {
+        "title": "Invention Guild",
+        "revision": 37124934,
+        "quote": "An Invention level of 1 is required to enter the guild.",
+        "url": "https://runescape.wiki/w/Invention_Guild?oldid=37124934"
+      }
+    },
+    {
+      "path": [
+        "chunks",
+        "Dreamer's Cave",
+        "Object",
+        "Acid"
+      ],
+      "beforePresent": true,
+      "before": 25,
+      "beforeRecordSha256": "b7a56873cd771f2c446d369b649430b65a756ba278ff97ec81bb6f55b2e73569",
+      "afterPresent": false,
+      "evidence": {
+        "title": "Dreamer's cave",
+        "revision": 37130952,
+        "quote": "It is only accessible during Song from the Depths, after the player drinks a restless sleep potion.",
+        "url": "https://runescape.wiki/w/Dreamer's_cave?oldid=37130952"
+      }
+    },
+    {
+      "path": [
+        "chunks",
+        "Dreamer's Cave",
+        "NPC",
+        "Ethereal figure"
+      ],
+      "beforePresent": true,
+      "before": 4,
+      "beforeRecordSha256": "4b227777d4dd1fc61c6f884f48641d02b4d121d3fd328cb08b5531fcacdabf8a",
+      "afterPresent": false,
+      "evidence": {
+        "title": "Dreamer's cave",
+        "revision": 37130952,
+        "quote": "It is only accessible during Song from the Depths, after the player drinks a restless sleep potion.",
+        "url": "https://runescape.wiki/w/Dreamer's_cave?oldid=37130952"
+      }
+    },
+    {
+      "path": [
+        "chunks",
+        "Dreamer's Cave",
+        "NPC",
+        "Dreaming soul"
+      ],
+      "beforePresent": true,
+      "before": 3,
+      "beforeRecordSha256": "4e07408562bedb8b60ce05c1decfe3ad16b72230967de01f640b7e4729b49fce",
+      "afterPresent": false,
+      "evidence": {
+        "title": "Dreamer's cave",
+        "revision": 37130952,
+        "quote": "It is only accessible during Song from the Depths, after the player drinks a restless sleep potion.",
+        "url": "https://runescape.wiki/w/Dreamer's_cave?oldid=37130952"
+      }
+    },
+    {
+      "path": [
+        "chunks",
+        "Dreamer's Cave",
+        "NPC",
+        "Waylan's soul"
+      ],
+      "beforePresent": true,
+      "before": 1,
+      "beforeRecordSha256": "6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b",
+      "afterPresent": false,
+      "evidence": {
+        "title": "Dreamer's cave",
+        "revision": 37130952,
+        "quote": "It is only accessible during Song from the Depths, after the player drinks a restless sleep potion.",
+        "url": "https://runescape.wiki/w/Dreamer's_cave?oldid=37130952"
+      }
+    },
+    {
+      "path": [
+        "chunks",
+        "Dreamer's Cave",
+        "NPC",
+        "The Raptor"
+      ],
+      "beforePresent": true,
+      "before": 1,
+      "beforeRecordSha256": "6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b",
+      "afterPresent": false,
+      "evidence": {
+        "title": "Dreamer's cave",
+        "revision": 37130952,
+        "quote": "It is only accessible during Song from the Depths, after the player drinks a restless sleep potion.",
+        "url": "https://runescape.wiki/w/Dreamer's_cave?oldid=37130952"
+      }
+    },
+    {
+      "path": [
+        "chunks",
+        "Sigmund's base",
+        "Object",
+        "Noticeboard"
+      ],
+      "beforePresent": true,
+      "before": 1,
+      "beforeRecordSha256": "6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b",
+      "afterPresent": false,
+      "evidence": {
+        "title": "Sigmund's base",
+        "revision": 37130826,
+        "quote": "After the quest there is no way the base can be rebuilt or accessed.",
+        "url": "https://runescape.wiki/w/Sigmund's_base?oldid=37130826"
+      }
+    },
+    {
+      "path": [
+        "chunks",
+        "Sigmund's base",
+        "Object",
+        "Interrogation notes"
+      ],
+      "beforePresent": true,
+      "before": 1,
+      "beforeRecordSha256": "6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b",
+      "afterPresent": false,
+      "evidence": {
+        "title": "Sigmund's base",
+        "revision": 37130826,
+        "quote": "After the quest there is no way the base can be rebuilt or accessed.",
+        "url": "https://runescape.wiki/w/Sigmund's_base?oldid=37130826"
+      }
+    },
+    {
+      "path": [
+        "chunks",
+        "Sigmund's base",
+        "Object",
+        "Dirty plates"
+      ],
+      "beforePresent": true,
+      "before": 1,
+      "beforeRecordSha256": "6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b",
+      "afterPresent": false,
+      "evidence": {
+        "title": "Sigmund's base",
+        "revision": 37130826,
+        "quote": "After the quest there is no way the base can be rebuilt or accessed.",
+        "url": "https://runescape.wiki/w/Sigmund's_base?oldid=37130826"
+      }
+    },
+    {
+      "path": [
+        "chunks",
+        "Sigmund's base",
+        "Object",
+        "Hole"
+      ],
+      "beforePresent": true,
+      "before": 1,
+      "beforeRecordSha256": "6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b",
+      "afterPresent": false,
+      "evidence": {
+        "title": "Sigmund's base",
+        "revision": 37130826,
+        "quote": "After the quest there is no way the base can be rebuilt or accessed.",
+        "url": "https://runescape.wiki/w/Sigmund's_base?oldid=37130826"
+      }
+    },
+    {
+      "path": [
+        "chunks",
+        "Sigmund's base",
+        "Object",
+        "Crate"
+      ],
+      "beforePresent": true,
+      "before": 49,
+      "beforeRecordSha256": "0e17daca5f3e175f448bacace3bc0da47d0655a74c8dd0dc497a3afbdad95f1f",
+      "afterPresent": false,
+      "evidence": {
+        "title": "Sigmund's base",
+        "revision": 37130826,
+        "quote": "After the quest there is no way the base can be rebuilt or accessed.",
+        "url": "https://runescape.wiki/w/Sigmund's_base?oldid=37130826"
+      }
+    },
+    {
+      "path": [
+        "chunks",
+        "Sigmund's base",
+        "NPC",
+        "Sigmund"
+      ],
+      "beforePresent": true,
+      "before": 1,
+      "beforeRecordSha256": "6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b",
+      "afterPresent": false,
+      "evidence": {
+        "title": "Sigmund's base",
+        "revision": 37130826,
+        "quote": "After the quest there is no way the base can be rebuilt or accessed.",
+        "url": "https://runescape.wiki/w/Sigmund's_base?oldid=37130826"
+      }
+    },
+    {
+      "path": [
+        "chunks",
+        "Sigmund's base",
+        "NPC",
+        "H.A.M. guard"
+      ],
+      "beforePresent": true,
+      "before": 2,
+      "beforeRecordSha256": "d4735e3a265e16eee03f59718b9b5d03019c07d8b6c51f90da3a666eec13ab35",
+      "afterPresent": false,
+      "evidence": {
+        "title": "Sigmund's base",
+        "revision": 37130826,
+        "quote": "After the quest there is no way the base can be rebuilt or accessed.",
+        "url": "https://runescape.wiki/w/Sigmund's_base?oldid=37130826"
+      }
+    },
+    {
+      "path": [
+        "chunks",
+        "Sigmund's base",
+        "NPC",
+        "H.A.M. agent Brian"
+      ],
+      "beforePresent": true,
+      "before": 1,
+      "beforeRecordSha256": "6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b",
+      "afterPresent": false,
+      "evidence": {
+        "title": "Sigmund's base",
+        "revision": 37130826,
+        "quote": "After the quest there is no way the base can be rebuilt or accessed.",
+        "url": "https://runescape.wiki/w/Sigmund's_base?oldid=37130826"
+      }
+    },
+    {
+      "path": [
+        "chunks",
+        "Sigmund's base",
+        "NPC",
+        "H.A.M. agent William"
+      ],
+      "beforePresent": true,
+      "before": 1,
+      "beforeRecordSha256": "6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b",
+      "afterPresent": false,
+      "evidence": {
+        "title": "Sigmund's base",
+        "revision": 37130826,
+        "quote": "After the quest there is no way the base can be rebuilt or accessed.",
+        "url": "https://runescape.wiki/w/Sigmund's_base?oldid=37130826"
+      }
+    },
+    {
+      "path": [
+        "chunks",
+        "Sigmund's base",
+        "NPC",
+        "H.A.M. agent Charles"
+      ],
+      "beforePresent": true,
+      "before": 1,
+      "beforeRecordSha256": "6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b",
+      "afterPresent": false,
+      "evidence": {
+        "title": "Sigmund's base",
+        "revision": 37130826,
+        "quote": "After the quest there is no way the base can be rebuilt or accessed.",
+        "url": "https://runescape.wiki/w/Sigmund's_base?oldid=37130826"
+      }
+    },
+    {
+      "path": [
+        "chunks",
+        "Sigmund's base",
+        "NPC",
+        "H.A.M. agent Sam"
+      ],
+      "beforePresent": true,
+      "before": 1,
+      "beforeRecordSha256": "6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b",
+      "afterPresent": false,
+      "evidence": {
+        "title": "Sigmund's base",
+        "revision": 37130826,
+        "quote": "After the quest there is no way the base can be rebuilt or accessed.",
+        "url": "https://runescape.wiki/w/Sigmund's_base?oldid=37130826"
+      }
+    },
+    {
+      "path": [
+        "chunks",
+        "Sigmund's base",
+        "NPC",
+        "H.A.M. agent Christopher"
+      ],
+      "beforePresent": true,
+      "before": 1,
+      "beforeRecordSha256": "6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b",
+      "afterPresent": false,
+      "evidence": {
+        "title": "Sigmund's base",
+        "revision": 37130826,
+        "quote": "After the quest there is no way the base can be rebuilt or accessed.",
+        "url": "https://runescape.wiki/w/Sigmund's_base?oldid=37130826"
+      }
+    },
+    {
+      "path": [
+        "chunks",
+        "Sigmund's base",
+        "NPC",
+        "H.A.M. agent Daniel"
+      ],
+      "beforePresent": true,
+      "before": 1,
+      "beforeRecordSha256": "6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b",
+      "afterPresent": false,
+      "evidence": {
+        "title": "Sigmund's base",
+        "revision": 37130826,
+        "quote": "After the quest there is no way the base can be rebuilt or accessed.",
+        "url": "https://runescape.wiki/w/Sigmund's_base?oldid=37130826"
+      }
+    },
+    {
+      "path": [
+        "chunks",
+        "Sigmund's base",
+        "NPC",
+        "H.A.M. agent Michael"
+      ],
+      "beforePresent": true,
+      "before": 1,
+      "beforeRecordSha256": "6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b",
+      "afterPresent": false,
+      "evidence": {
+        "title": "Sigmund's base",
+        "revision": 37130826,
+        "quote": "After the quest there is no way the base can be rebuilt or accessed.",
+        "url": "https://runescape.wiki/w/Sigmund's_base?oldid=37130826"
+      }
+    },
+    {
+      "path": [
+        "chunks",
+        "Sigmund's base",
+        "NPC",
+        "Grubfoot"
+      ],
+      "beforePresent": true,
+      "before": 1,
+      "beforeRecordSha256": "6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b",
+      "afterPresent": false,
+      "evidence": {
+        "title": "Sigmund's base",
+        "revision": 37130826,
+        "quote": "After the quest there is no way the base can be rebuilt or accessed.",
+        "url": "https://runescape.wiki/w/Sigmund's_base?oldid=37130826"
+      }
+    },
+    {
+      "path": [
+        "chunks",
+        "Temple Knight training ground",
+        "Object",
+        "Portal"
+      ],
+      "beforePresent": true,
+      "before": 14,
+      "beforeRecordSha256": "8527a891e224136950ff32ca212b45bc93f69fbb801c3b1ebedac52775f99e61",
+      "afterPresent": false,
+      "evidence": {
+        "title": "Recruitment Drive",
+        "revision": 37182740,
+        "url": "https://runescape.wiki/w/Recruitment_Drive?oldid=37182740",
+        "quote": "Sir Cashien will take you to the testing rooms."
+      }
+    },
+    {
+      "path": [
+        "chunks",
+        "Temple Knight training ground",
+        "Object",
+        "Precarious bridge"
+      ],
+      "beforePresent": true,
+      "before": 2,
+      "beforeRecordSha256": "d4735e3a265e16eee03f59718b9b5d03019c07d8b6c51f90da3a666eec13ab35",
+      "afterPresent": false,
+      "evidence": {
+        "title": "Recruitment Drive",
+        "revision": 37182740,
+        "url": "https://runescape.wiki/w/Recruitment_Drive?oldid=37182740",
+        "quote": "Sir Cashien will take you to the testing rooms."
+      }
+    },
+    {
+      "path": [
+        "chunks",
+        "Temple Knight training ground",
+        "Object",
+        "Old Bookshelf"
+      ],
+      "beforePresent": true,
+      "before": 4,
+      "beforeRecordSha256": "4b227777d4dd1fc61c6f884f48641d02b4d121d3fd328cb08b5531fcacdabf8a",
+      "afterPresent": false,
+      "evidence": {
+        "title": "Recruitment Drive",
+        "revision": 37182740,
+        "url": "https://runescape.wiki/w/Recruitment_Drive?oldid=37182740",
+        "quote": "Sir Cashien will take you to the testing rooms."
+      }
+    },
+    {
+      "path": [
+        "chunks",
+        "Temple Knight training ground",
+        "Object",
+        "Shelves"
+      ],
+      "beforePresent": true,
+      "before": 8,
+      "beforeRecordSha256": "2c624232cdd221771294dfbb310aca000a0df6ac8b66b696d90ef06fdefb64a3",
+      "afterPresent": false,
+      "evidence": {
+        "title": "Recruitment Drive",
+        "revision": 37182740,
+        "url": "https://runescape.wiki/w/Recruitment_Drive?oldid=37182740",
+        "quote": "Sir Cashien will take you to the testing rooms."
+      }
+    },
+    {
+      "path": [
+        "chunks",
+        "Temple Knight training ground",
+        "Object",
+        "Crate"
+      ],
+      "beforePresent": true,
+      "before": 7,
+      "beforeRecordSha256": "7902699be42c8a8e46fbbb4501726517e86b22c56a189f7625a6da49081b2451",
+      "afterPresent": false,
+      "evidence": {
+        "title": "Recruitment Drive",
+        "revision": 37182740,
+        "url": "https://runescape.wiki/w/Recruitment_Drive?oldid=37182740",
+        "quote": "Sir Cashien will take you to the testing rooms."
+      }
+    },
+    {
+      "path": [
+        "chunks",
+        "Temple Knight training ground",
+        "Object",
+        "Closed chest"
+      ],
+      "beforePresent": true,
+      "before": 1,
+      "beforeRecordSha256": "6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b",
+      "afterPresent": false,
+      "evidence": {
+        "title": "Recruitment Drive",
+        "revision": 37182740,
+        "url": "https://runescape.wiki/w/Recruitment_Drive?oldid=37182740",
+        "quote": "Sir Cashien will take you to the testing rooms."
+      }
+    },
+    {
+      "path": [
+        "chunks",
+        "Nomad's temple",
+        "Monster",
+        "Spectral worshipper"
+      ],
+      "beforePresent": true,
+      "before": 16,
+      "beforeRecordSha256": "b17ef6d19c7a5b1ee83b907c595526dcb1eb06db8227d650d5dda0a9f4ce8cd9",
+      "afterPresent": false,
+      "evidence": {
+        "title": "Nomad's temple",
+        "revision": 37130796,
+        "quote": "Once Nomad's Requiem is completed, there is no way to enter his temple again, until a brief section during Nomad's Elegy",
+        "url": "https://runescape.wiki/w/Nomad's_temple?oldid=37130796"
+      }
+    },
+    {
+      "path": [
+        "chunks",
+        "Nomad's temple",
+        "Object",
+        "Lever"
+      ],
+      "beforePresent": true,
+      "before": 2,
+      "beforeRecordSha256": "d4735e3a265e16eee03f59718b9b5d03019c07d8b6c51f90da3a666eec13ab35",
+      "afterPresent": false,
+      "evidence": {
+        "title": "Nomad's temple",
+        "revision": 37130796,
+        "quote": "Once Nomad's Requiem is completed, there is no way to enter his temple again, until a brief section during Nomad's Elegy",
+        "url": "https://runescape.wiki/w/Nomad's_temple?oldid=37130796"
+      }
+    },
+    {
+      "path": [
+        "chunks",
+        "Nomad's temple",
+        "Object",
+        "Rubble"
+      ],
+      "beforePresent": true,
+      "before": 6,
+      "beforeRecordSha256": "e7f6c011776e8db7cd330b54174fd76f7d0216b612387a5ffcfb81e6f0919683",
+      "afterPresent": false,
+      "evidence": {
+        "title": "Nomad's temple",
+        "revision": 37130796,
+        "quote": "Once Nomad's Requiem is completed, there is no way to enter his temple again, until a brief section during Nomad's Elegy",
+        "url": "https://runescape.wiki/w/Nomad's_temple?oldid=37130796"
+      }
+    },
+    {
+      "path": [
+        "chunks",
+        "Nomad's temple",
+        "Object",
+        "Root"
+      ],
+      "beforePresent": true,
+      "before": 17,
+      "beforeRecordSha256": "4523540f1504cd17100c4835e85b7eefd49911580f8efff0599a8f283be6b9e3",
+      "afterPresent": false,
+      "evidence": {
+        "title": "Nomad's temple",
+        "revision": 37130796,
+        "quote": "Once Nomad's Requiem is completed, there is no way to enter his temple again, until a brief section during Nomad's Elegy",
+        "url": "https://runescape.wiki/w/Nomad's_temple?oldid=37130796"
+      }
+    },
+    {
+      "path": [
+        "chunks",
+        "Nomad's temple",
+        "Object",
+        "Fuel hopper"
+      ],
+      "beforePresent": true,
+      "before": 4,
+      "beforeRecordSha256": "4b227777d4dd1fc61c6f884f48641d02b4d121d3fd328cb08b5531fcacdabf8a",
+      "afterPresent": false,
+      "evidence": {
+        "title": "Nomad's temple",
+        "revision": 37130796,
+        "quote": "Once Nomad's Requiem is completed, there is no way to enter his temple again, until a brief section during Nomad's Elegy",
+        "url": "https://runescape.wiki/w/Nomad's_temple?oldid=37130796"
+      }
+    },
+    {
+      "path": [
+        "chunks",
+        "Nomad's temple",
+        "Object",
+        "Adventuring equipment"
+      ],
+      "beforePresent": true,
+      "before": 1,
+      "beforeRecordSha256": "6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b",
+      "afterPresent": false,
+      "evidence": {
+        "title": "Nomad's temple",
+        "revision": 37130796,
+        "quote": "Once Nomad's Requiem is completed, there is no way to enter his temple again, until a brief section during Nomad's Elegy",
+        "url": "https://runescape.wiki/w/Nomad's_temple?oldid=37130796"
+      }
+    },
+    {
+      "path": [
+        "chunks",
+        "Nomad's temple",
+        "Object",
+        "Slab"
+      ],
+      "beforePresent": true,
+      "before": 2,
+      "beforeRecordSha256": "d4735e3a265e16eee03f59718b9b5d03019c07d8b6c51f90da3a666eec13ab35",
+      "afterPresent": false,
+      "evidence": {
+        "title": "Nomad's temple",
+        "revision": 37130796,
+        "quote": "Once Nomad's Requiem is completed, there is no way to enter his temple again, until a brief section during Nomad's Elegy",
+        "url": "https://runescape.wiki/w/Nomad's_temple?oldid=37130796"
+      }
+    },
+    {
+      "path": [
+        "taskUnlocks",
+        "Monsters",
+        "Corpse archer"
+      ],
+      "beforePresent": false,
+      "afterPresent": true,
+      "after": {
+        "Lumbridge Catacombs": [
+          {
+            "~|The Blood Pact|~ Complete the quest": "Quest"
+          }
+        ]
+      },
+      "evidence": {
+        "title": "Lumbridge Catacombs",
+        "revision": 37109974,
+        "quote": "The Blood Pact must be completed in order to be able to access the lower level of the dungeon.",
+        "url": "https://runescape.wiki/w/Lumbridge_Catacombs?oldid=37109974"
+      }
+    },
+    {
+      "path": [
+        "taskUnlocks",
+        "Monsters",
+        "Skoblin"
+      ],
+      "beforePresent": false,
+      "afterPresent": true,
+      "after": {
+        "Lumbridge Catacombs": [
+          {
+            "~|The Blood Pact|~ Complete the quest": "Quest"
+          }
+        ]
+      },
+      "evidence": {
+        "title": "Lumbridge Catacombs",
+        "revision": 37109974,
+        "quote": "The Blood Pact must be completed in order to be able to access the lower level of the dungeon.",
+        "url": "https://runescape.wiki/w/Lumbridge_Catacombs?oldid=37109974"
+      }
+    },
+    {
+      "path": [
+        "taskUnlocks",
+        "Monsters",
+        "Corpse mage"
+      ],
+      "beforePresent": false,
+      "afterPresent": true,
+      "after": {
+        "Lumbridge Catacombs": [
+          {
+            "~|The Blood Pact|~ Complete the quest": "Quest"
+          }
+        ]
+      },
+      "evidence": {
+        "title": "Lumbridge Catacombs",
+        "revision": 37109974,
+        "quote": "The Blood Pact must be completed in order to be able to access the lower level of the dungeon.",
+        "url": "https://runescape.wiki/w/Lumbridge_Catacombs?oldid=37109974"
+      }
+    },
+    {
+      "path": [
+        "taskUnlocks",
+        "Monsters",
+        "Dragith Nurn"
+      ],
+      "beforePresent": false,
+      "afterPresent": true,
+      "after": {
+        "Lumbridge Catacombs": [
+          {
+            "~|The Blood Pact|~ Complete the quest": "Quest"
+          }
+        ]
+      },
+      "evidence": {
+        "title": "Lumbridge Catacombs",
+        "revision": 37109974,
+        "quote": "The Blood Pact must be completed in order to be able to access the lower level of the dungeon.",
+        "url": "https://runescape.wiki/w/Lumbridge_Catacombs?oldid=37109974"
+      }
+    },
+    {
+      "path": [
+        "taskUnlocks",
+        "Monsters",
+        "Warped cockroach"
+      ],
+      "beforePresent": false,
+      "afterPresent": true,
+      "after": {
+        "Lumbridge Catacombs": [
+          {
+            "~|The Blood Pact|~ Complete the quest": "Quest"
+          }
+        ]
+      },
+      "evidence": {
+        "title": "Lumbridge Catacombs",
+        "revision": 37109974,
+        "quote": "The Blood Pact must be completed in order to be able to access the lower level of the dungeon.",
+        "url": "https://runescape.wiki/w/Lumbridge_Catacombs?oldid=37109974"
+      }
+    },
+    {
+      "path": [
+        "taskUnlocks",
+        "Monsters",
+        "Corpse spider"
+      ],
+      "beforePresent": false,
+      "afterPresent": true,
+      "after": {
+        "Lumbridge Catacombs": [
+          {
+            "~|The Blood Pact|~ Complete the quest": "Quest"
+          }
+        ]
+      },
+      "evidence": {
+        "title": "Lumbridge Catacombs",
+        "revision": 37109974,
+        "quote": "The Blood Pact must be completed in order to be able to access the lower level of the dungeon.",
+        "url": "https://runescape.wiki/w/Lumbridge_Catacombs?oldid=37109974"
+      }
+    },
+    {
+      "path": [
+        "taskUnlocks",
+        "Monsters",
+        "Warped fly"
+      ],
+      "beforePresent": false,
+      "afterPresent": true,
+      "after": {
+        "Lumbridge Catacombs": [
+          {
+            "~|The Blood Pact|~ Complete the quest": "Quest"
+          }
+        ]
+      },
+      "evidence": {
+        "title": "Lumbridge Catacombs",
+        "revision": 37109974,
+        "quote": "The Blood Pact must be completed in order to be able to access the lower level of the dungeon.",
+        "url": "https://runescape.wiki/w/Lumbridge_Catacombs?oldid=37109974"
+      }
+    },
+    {
+      "path": [
+        "taskUnlocks",
+        "Monsters",
+        "Crawling corpse torso"
+      ],
+      "beforePresent": false,
+      "afterPresent": true,
+      "after": {
+        "Lumbridge Catacombs": [
+          {
+            "~|The Blood Pact|~ Complete the quest": "Quest"
+          }
+        ]
+      },
+      "evidence": {
+        "title": "Lumbridge Catacombs",
+        "revision": 37109974,
+        "quote": "The Blood Pact must be completed in order to be able to access the lower level of the dungeon.",
+        "url": "https://runescape.wiki/w/Lumbridge_Catacombs?oldid=37109974"
+      }
+    },
+    {
+      "path": [
+        "taskUnlocks",
+        "Monsters",
+        "Warped rat"
+      ],
+      "beforePresent": false,
+      "afterPresent": true,
+      "after": {
+        "Lumbridge Catacombs": [
+          {
+            "~|The Blood Pact|~ Complete the quest": "Quest"
+          }
+        ]
+      },
+      "evidence": {
+        "title": "Lumbridge Catacombs",
+        "revision": 37109974,
+        "quote": "The Blood Pact must be completed in order to be able to access the lower level of the dungeon.",
+        "url": "https://runescape.wiki/w/Lumbridge_Catacombs?oldid=37109974"
+      }
+    },
+    {
+      "path": [
+        "taskUnlocks",
+        "Monsters",
+        "Skeleton (Lumbridge Catacombs)"
+      ],
+      "beforePresent": false,
+      "afterPresent": true,
+      "after": {
+        "Lumbridge Catacombs": [
+          {
+            "~|The Blood Pact|~ Complete the quest": "Quest"
+          }
+        ]
+      },
+      "evidence": {
+        "title": "Lumbridge Catacombs",
+        "revision": 37109974,
+        "quote": "The Blood Pact must be completed in order to be able to access the lower level of the dungeon.",
+        "url": "https://runescape.wiki/w/Lumbridge_Catacombs?oldid=37109974"
+      }
+    },
+    {
+      "path": [
+        "taskUnlocks",
+        "Monsters",
+        "Warped bat"
+      ],
+      "beforePresent": false,
+      "afterPresent": true,
+      "after": {
+        "Lumbridge Catacombs": [
+          {
+            "~|The Blood Pact|~ Complete the quest": "Quest"
+          }
+        ]
+      },
+      "evidence": {
+        "title": "Lumbridge Catacombs",
+        "revision": 37109974,
+        "quote": "The Blood Pact must be completed in order to be able to access the lower level of the dungeon.",
+        "url": "https://runescape.wiki/w/Lumbridge_Catacombs?oldid=37109974"
+      }
+    },
+    {
+      "path": [
+        "taskUnlocks",
+        "Objects",
+        "Mithril rock"
+      ],
+      "beforePresent": true,
+      "before": {
+        "Desert Mining Camp cave": [
+          {
+            "~|The Tourist Trap|~ 7": "Quest"
+          }
+        ],
+        "TzHaar City": [
+          {
+            "~|TokTz-Ket-Dill|~ Complete the quest": "Quest"
+          }
+        ]
+      },
+      "beforeRecordSha256": "6dcde428ec8306d4d3321ca8d1fcdf85d73f7b21597b5643fe26ab6a71482828",
+      "afterPresent": true,
+      "after": {
+        "Desert Mining Camp cave": [
+          {
+            "~|The Tourist Trap|~ 7": "Quest"
+          }
+        ],
+        "TzHaar City": [
+          {
+            "~|TokTz-Ket-Dill|~ Complete the quest": "Quest"
+          }
+        ],
+        "Grand Tree Mine": [
+          {
+            "~|The Grand Tree|~ Complete the quest": "Quest"
+          }
+        ]
+      },
+      "evidence": {
+        "title": "Grand Tree Tunnels",
+        "revision": 37130876,
+        "quote": "The northern area can be accessed after the quest",
+        "url": "https://runescape.wiki/w/Grand_Tree_Tunnels?oldid=37130876"
+      }
+    },
+    {
+      "path": [
+        "taskUnlocks",
+        "Objects",
+        "Adamantite rock"
+      ],
+      "beforePresent": true,
+      "before": {
+        "Desert Mining Camp cave": [
+          {
+            "~|The Tourist Trap|~ Complete the quest": "Quest"
+          }
+        ],
+        "TzHaar City": [
+          {
+            "~|TokTz-Ket-Dill|~ Complete the quest": "Quest"
+          }
+        ]
+      },
+      "beforeRecordSha256": "e08f314b1aa3544d0a8ad0e4ad106d135fef8736cbec5f748e465b3abb4d4d27",
+      "afterPresent": true,
+      "after": {
+        "Desert Mining Camp cave": [
+          {
+            "~|The Tourist Trap|~ Complete the quest": "Quest"
+          }
+        ],
+        "TzHaar City": [
+          {
+            "~|TokTz-Ket-Dill|~ Complete the quest": "Quest"
+          }
+        ],
+        "Grand Tree Mine": [
+          {
+            "~|The Grand Tree|~ Complete the quest": "Quest"
+          }
+        ]
+      },
+      "evidence": {
+        "title": "Grand Tree Tunnels",
+        "revision": 37130876,
+        "quote": "The northern area can be accessed after the quest",
+        "url": "https://runescape.wiki/w/Grand_Tree_Tunnels?oldid=37130876"
+      }
+    },
+    {
+      "path": [
+        "taskUnlocks",
+        "Objects",
+        "Runite rock"
+      ],
+      "beforePresent": false,
+      "afterPresent": true,
+      "after": {
+        "Grand Tree Mine": [
+          {
+            "~|The Grand Tree|~ Complete the quest": "Quest"
+          }
+        ]
+      },
+      "evidence": {
+        "title": "Grand Tree Tunnels",
+        "revision": 37130876,
+        "quote": "The northern area can be accessed after the quest",
+        "url": "https://runescape.wiki/w/Grand_Tree_Tunnels?oldid=37130876"
+      }
     }
   ],
   "guards": [
