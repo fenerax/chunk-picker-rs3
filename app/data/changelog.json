@@ -3,6 +3,15 @@
   "entries": [
     {
       "date": "2026-10-27",
+      "title": "The game plugin knows where you are in Anachronia, the Arc, Havenhythe and Lost Grove",
+      "items": [
+        "In these four areas the picker map draws chunks away from where they sit in the game. The game plugin now translates your position, so it shows the right chunk, its locked or unlocked state, and the tasks for the chunk you are in",
+        "Chunk borders, fills and your partner's chunk in game still line up with the game world there",
+        "These areas still need a check in game; elsewhere nothing changes"
+      ]
+    },
+    {
+      "date": "2026-10-27",
       "title": "Quest areas stay locked until you reach them",
       "items": [
         "Arposandra no longer counts as open just because you own the chunk beside it. It opens only during The Prisoner of Glouphrie, and its tortoises and terrorbirds no longer count as sources, because the quest seals the city again",
