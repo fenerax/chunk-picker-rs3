@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updated": "2026-10-21",
+  "updated": "2026-10-26",
   "statuses": {
     "working": "In progress",
     "next": "Up next",
@@ -92,7 +92,7 @@
           "why": "Ends manual ticking and fills the gaps RuneMetrics can’t see, like achievements and quest steps.",
           "size": "L",
           "status": "working",
-          "note": "Works on the beta world now. Next: a map window in game. The Plugin Hub listing waits for Jagex's review."
+          "note": "Works on the beta world now. Not submitted to the Plugin Hub yet; we're working through Jagex's submission checklist first. After that comes a map window in game."
         },
         {
           "id": "A12",
@@ -833,6 +833,15 @@
           "size": "L",
           "status": "done",
           "done": "2026-10-21"
+        },
+        {
+          "id": "G15",
+          "title": "Keep levels and quests syncing after RuneMetrics closes",
+          "what": "Move the picker's level and quest sync off RuneMetrics to Jagex's new web API, and use the game plugin as the main source when it's connected.",
+          "why": "Jagex turns RuneMetrics off on 10 November, and the picker reads your levels and quests from it today.",
+          "size": "M",
+          "status": "next",
+          "note": "Jagex will publish the new API's details before the shutdown. Until then the picker keeps using RuneMetrics."
         }
       ]
     },
