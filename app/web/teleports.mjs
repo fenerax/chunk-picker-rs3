@@ -1,3 +1,4 @@
+import { browserUUID } from './save-address.mjs';
 import { amountInput, parseAmount } from './amount-input.mjs';
 
 const groups = [['lodestones', 'Lodestones'], ['spells', 'Spells'], ['items', 'Items'], ['transport', 'Transport']];
@@ -62,7 +63,7 @@ if (globalThis.document?.head && !document.querySelector('link[data-teleports-st
 }
 
 /** Personal route review. No catalogue response mutates saved state. */
-export function openTeleportsDialog(ctx, { uuid = () => globalThis.crypto.randomUUID() } = {}) {
+export function openTeleportsDialog(ctx, { uuid = browserUUID } = {}) {
   const { el, input, field, select, button } = ctx;
   const advanced = () => ctx.advanced?.() ?? ctx.preferences?.()?.advanced === true;
   const destinationLabel = (name, id) => name ? `${ctx.plain?.(name) ?? name}${advanced() ? ` · Chunk ${id}` : ''}` : `Chunk ${id}`;

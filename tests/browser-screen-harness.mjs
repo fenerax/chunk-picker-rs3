@@ -26,6 +26,7 @@ import { supportsDatasetFeature, applyDatasetFeatureControls, applyDatasetLaunch
 import { buildChunkPlanningIndex } from '../app/tasks/chunk-planning-index.mjs';
 import { createLiveSwapCommandClient } from '../app/web/live-swap-client.mjs';
 import { createTaskFocus } from '../app/web/task-focus.mjs';
+import { browserUUID, canSaveAddress } from '../app/web/save-address.mjs';
 
 const entry = new URL('../app/web/main.mjs', import.meta.url);
 const imports = /^import\s+([\s\S]*?)\s+from\s+['"]([^'"]+)['"];?\r?\n/gm;
@@ -79,6 +80,8 @@ export function runScreenGraph(context, modules) {
   context.requestError ??= requestError;
   context.createMapActivityLayers ??= createMapActivityLayers;
   context.createTaskFocus ??= createTaskFocus;
+  context.browserUUID ??= () => browserUUID(context.crypto ?? globalThis.crypto);
+  context.canSaveAddress ??= () => canSaveAddress(context);
   const commandStorage = new Map();
   context.createLiveSwapCommandClient ??= options => createLiveSwapCommandClient({ ...options,
     acquireSession: () => () => {},

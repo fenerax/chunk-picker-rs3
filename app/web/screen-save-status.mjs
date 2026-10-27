@@ -1,3 +1,5 @@
+import { canSaveAddress } from './save-address.mjs';
+
 // Live synchronization reports shared revisions; only the local attempt can
 // clear a refused change or finish an in-flight save.
 export function createSaveStatus(c) {
@@ -9,7 +11,7 @@ export function createSaveStatus(c) {
     const writable = c.canWrite(), pending = writable && c.hasPendingCommand?.();
     if (failed && !pending) saving = false;
     let status = failed ? 'failed' : 'saved';
-    if (writable && globalThis.isSecureContext === false) {
+    if (writable && !canSaveAddress()) {
       text = 'This address cannot save'; status = 'failed';
     } else if (pending && (c.pendingCommandPaused?.() || failed)) {
       text = c.pendingCommandPaused?.() ? 'Save not confirmed' : 'Save confirmation needed'; status = 'failed';

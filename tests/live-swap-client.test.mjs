@@ -7,6 +7,7 @@ import { randomUUID } from 'node:crypto';
 import { openActionSession, acknowledgeActionSession, inspectActionReceipt, commitActionReceipt } from '../app/storage/action-receipts.mjs';
 import { createLiveSwapCommandClient, commandOutboxKey } from '../app/web/live-swap-client.mjs';
 
+const saveAddressSource = (await readFile(new URL('../app/web/save-address.mjs', import.meta.url), 'utf8')).replace(/^export /gm, '');
 const ids = ['00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-000000000002'];
 function storage() {
   const values = new Map();
@@ -492,7 +493,7 @@ test('missing Web Locks support fails closed before registration, dispatch or ac
   const source = await readFile(new URL('../app/web/live-swap-client.mjs', import.meta.url), 'utf8');
   const scope = { navigator: {} };
   Object.assign(scope, { retryAfterMs, requestError });
-  runInNewContext(source.replace(/^import .*;\r?\n/gm, '').replace(/^export /gm, '') + '\nglobalThis.create = createLiveSwapCommandClient;', scope);
+  runInNewContext(saveAddressSource + '\n' + source.replace(/^import .*;\r?\n/gm, '').replace(/^export /gm, '') + '\nglobalThis.create = createLiveSwapCommandClient;', scope);
   let requests = 0;
   const transport = scope.create({ storage: storage(), uuid: () => ids[0], fetch: async () => { requests++; } });
   await assert.rejects(transport.send(command()), error => error.pendingCommand === true
@@ -507,7 +508,7 @@ test('missing crypto.randomUUID gives secure-connection guidance before registra
   let requests = 0, ownership = 0;
   const scope = { crypto: {}, navigator: { locks: { request() { ownership++; } } } };
   Object.assign(scope, { retryAfterMs, requestError });
-  runInNewContext(source.replace(/^import .*;\r?\n/gm, '').replace(/^export /gm, '') + '\nglobalThis.create = createLiveSwapCommandClient;', scope);
+  runInNewContext(saveAddressSource + '\n' + source.replace(/^import .*;\r?\n/gm, '').replace(/^export /gm, '') + '\nglobalThis.create = createLiveSwapCommandClient;', scope);
   const outbox = storage();
   const transport = scope.create({ storage: outbox, fetch: async () => { requests++; } });
   await assert.rejects(transport.send(command()), error => error.pendingCommand === true
@@ -525,7 +526,7 @@ test('plain HTTP refuses new and restored sessions clearly even if secure APIs a
   const scope = { clearTimeout, isSecureContext: false, crypto: { randomUUID: () => { uuids++; return ids[0]; } },
     navigator: { locks: { request() { owners++; } } } };
   Object.assign(scope, { retryAfterMs, requestError });
-  runInNewContext(source.replace(/^import .*;\r?\n/gm, '').replace(/^export /gm, '') + '\nglobalThis.create = createLiveSwapCommandClient;', scope);
+  runInNewContext(saveAddressSource + '\n' + source.replace(/^import .*;\r?\n/gm, '').replace(/^export /gm, '') + '\nglobalThis.create = createLiveSwapCommandClient;', scope);
   for (const outbox of [storage(), registeredStorage()]) {
     const before = outbox.getItem(commandOutboxKey);
     const transport = scope.create({ storage: outbox, fetch: async () => { requests++; } });
@@ -557,7 +558,7 @@ test('pagehide releases ownership and pageshow requires reacquisition before ano
   const source = await readFile(new URL('../app/web/live-swap-client.mjs', import.meta.url), 'utf8'), lifecycle = new Map();
   const scope = { TextEncoder, AbortController, setTimeout, clearTimeout, addEventListener: (type, fn) => lifecycle.set(type, fn) };
   Object.assign(scope, { retryAfterMs, requestError });
-  runInNewContext(source.replace(/^import .*;\r?\n/gm, '').replace(/^export /gm, '') + '\nglobalThis.create = createLiveSwapCommandClient;', scope);
+  runInNewContext(saveAddressSource + '\n' + source.replace(/^import .*;\r?\n/gm, '').replace(/^export /gm, '') + '\nglobalThis.create = createLiveSwapCommandClient;', scope);
   const outbox = registeredStorage(), acquireSession = sessionLocks(), paths = [], keepalives = [];
   const fetch = async (path, init) => {
     paths.push(path);
@@ -922,7 +923,7 @@ test('insecure page load explains the address once and chunk failure never claim
   const source = await readFile(new URL('../app/web/live-swap-client.mjs', import.meta.url), 'utf8');
   const scope = { isSecureContext: false };
   Object.assign(scope, { retryAfterMs, requestError });
-  runInNewContext(source.replace(/^import .*;\r?\n/gm, '').replace(/^export /gm, '') + '\nglobalThis.create = createLiveSwapCommandClient;', scope);
+  runInNewContext(saveAddressSource + '\n' + source.replace(/^import .*;\r?\n/gm, '').replace(/^export /gm, '') + '\nglobalThis.create = createLiveSwapCommandClient;', scope);
   const outbox = storage(), notices = [], statuses = [];
   let requests = 0;
   const c = await screen(async () => { requests++; }, { outbox, clientFactory: scope.create,
@@ -999,4 +1000,23 @@ test('a non-JSON rate limit still honors Retry-After and retains the save bytes'
   }, { now: () => clock, maxRetryMs: 1000, sleep: async delay => { clock += delay; } });
   await assert.rejects(transport.send(command()), error => error.retryPaused && error.retryAfterMs > 0 && /Retry save in/.test(error.message));
   assert.equal(calls, 1); assert.ok(transport.pending()); transport.close();
+});
+
+
+test('Tailscale HTTP registers and saves using random bytes and exclusive HTTP ownership', async () => {
+  const source = await readFile(new URL('../app/web/live-swap-client.mjs', import.meta.url), 'utf8');
+  const paths = []; let ownership = 0, released = 0;
+  const scope = { TextEncoder, AbortController, setTimeout, clearTimeout, isSecureContext: false,
+    location: { protocol: 'http:', hostname: [100, 64, 0, 1].join('.') }, navigator: {}, indexedDB: {},
+    crypto: { getRandomValues: bytes => { bytes.fill(17); return bytes; } },
+    acquireHttpSession: async () => { ownership++; return () => released++; } };
+  runInNewContext(saveAddressSource + '\n' + source.replace(/^import .*;\r?\n/gm, '').replace(/^export /gm, '') + '\nglobalThis.create = createLiveSwapCommandClient;', scope);
+  const transport = scope.create({ storage: storage(), fetch: async (path, init) => {
+    paths.push(path);
+    return path === '/api/action-session' ? registered() : committed(init);
+  } });
+  assert.equal(transport.connectionMessage(), null);
+  await transport.send(command()); transport.close();
+  assert.equal(ownership, 1); assert.equal(released, 1);
+  assert.deepEqual(paths, ['/api/action-session', '/api/command?view=play-v1']);
 });

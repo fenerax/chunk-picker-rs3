@@ -1,22 +1,28 @@
+import { canSaveAddress, browserUUID, insecureAddressMessage } from './save-address.mjs';
+import { acquireHttpSession } from './http-session-lock.mjs';
+
 // The session watermark and its one pending command are replaced together. Never
 // acknowledge a server receipt until the browser has durably recorded its answer.
 export const commandOutboxKey = 'picker.commandOutbox.v2';
 const legacyOutboxKey = 'picker.commandOutbox.v1';
 const pendingError = message => Object.assign(new Error(message), { pendingCommand: true });
 const secureConnectionMessage = 'Saving needs a secure connection and a supported browser. Open the picker over HTTPS or a trusted localhost address with a current browser, then check History before trying again.';
-const insecureAddressMessage = 'This address cannot save safely. Open the HTTPS link or localhost.';
 function requireSecureConnection() {
-  if (globalThis.isSecureContext === false) throw Object.assign(pendingError(insecureAddressMessage), { insecureConnection: true });
+  if (!canSaveAddress()) throw Object.assign(pendingError(insecureAddressMessage), { insecureConnection: true });
 }
 function sessionStorage() { try { return globalThis.sessionStorage; } catch { return null; } }
 function sessionUUID() {
   requireSecureConnection();
-  if (typeof globalThis.crypto?.randomUUID !== 'function') throw pendingError(secureConnectionMessage);
-  return globalThis.crypto.randomUUID();
+  try { return browserUUID(); } catch { throw pendingError(secureConnectionMessage); }
 }
 async function acquireBrowserSession(clientId) {
   requireSecureConnection();
-  if (!globalThis.navigator?.locks?.request) throw pendingError(secureConnectionMessage);
+  if (!globalThis.navigator?.locks?.request) {
+    if (globalThis.isSecureContext === false && canSaveAddress() && globalThis.indexedDB) {
+      try { return await acquireHttpSession(clientId); } catch { throw pendingError('Saving session ownership is unavailable. Restore browser storage, then check History before trying again.'); }
+    }
+    throw pendingError(secureConnectionMessage);
+  }
   return new Promise((resolve, reject) => {
     globalThis.navigator.locks.request(`picker.command-session.v2.${clientId}`, { ifAvailable: true }, lock => {
       if (!lock) { resolve(null); return; }
@@ -225,7 +231,7 @@ export function createLiveSwapCommandClient({ storage = sessionStorage(), fetch 
     ackTimer.unref?.();
   }
   return {
-    connectionMessage: () => globalThis.isSecureContext === false ? insecureAddressMessage : null,
+    connectionMessage: () => !canSaveAddress() ? insecureAddressMessage : null,
     pending: () => { const record = read(); return record?.body || record?.unsent ? JSON.parse(record.body ?? record.unsent) : null; },
     paused: () => read()?.paused === true,
     lastReceipt: () => read()?.lastReceipt ?? null,

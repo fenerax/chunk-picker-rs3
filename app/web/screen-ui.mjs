@@ -1,20 +1,11 @@
 import { createSaveStatus } from './screen-save-status.mjs';
+import { browserUUID } from './save-address.mjs';
 
 // Main-screen ui; shared values and callbacks live in the explicit screen context.
 export function createScreenUi(c) {
   function perfMark(name, detail = {}) {
     const probe = globalThis.__rs3Perf;
     if (probe?.enabled && probe.events.length < 1000) probe.events.push({ name, time: performance.now(), ...detail });
-  }
-
-  function browserUUID() {
-    if (typeof globalThis.crypto?.randomUUID === 'function') return globalThis.crypto.randomUUID();
-    // getRandomValues remains available on the private HTTP/Tailscale origin.
-    const bytes = globalThis.crypto.getRandomValues(new Uint8Array(16));
-    bytes[6] = (bytes[6] & 0x0f) | 0x40;
-    bytes[8] = (bytes[8] & 0x3f) | 0x80;
-    const hex = Array.from(bytes, value => value.toString(16).padStart(2, '0')).join('');
-    return [hex.slice(0, 8), hex.slice(8, 12), hex.slice(12, 16), hex.slice(16, 20), hex.slice(20)].join('-');
   }
 
   function iconLink(href, label, name) { const node = c.el('a', undefined, 'icon-button'); node.href = href; node.target = '_blank'; node.rel = 'noopener noreferrer'; node.title = label; node.setAttribute('aria-label', label); node.append(c.icon(name)); return node; }

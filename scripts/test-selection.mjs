@@ -51,6 +51,7 @@ export const quickTests = new Set([
   "action-acknowledgements.test.mjs",
   "receipt-quarantine.test.mjs",
   "live-swap-client.test.mjs",
+  "save-address.test.mjs",
   "live-swap-storage.test.mjs",
   "live-swap-server.test.mjs",
   "private-live-swap.test.mjs",
