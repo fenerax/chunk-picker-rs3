@@ -1190,7 +1190,16 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
       if (await overlays.handle(request, response, { route, security, closed })) return;
       const authRoute = route.startsWith('/auth/');
       if (authRoute) limits.unauthenticated(security.rateKey);
-      identity = invites.authenticate(request, security);
+      try { identity = invites.authenticate(request, security); } catch (failure) {
+        // A browser that once opened admin through the public link still sends
+        // that cookie. Page visits drop it and reload as a visitor; API calls and
+        // bearer credentials keep the explicit refusal.
+        if (failure.status !== 403 || !security.publicRequest || request.headers.authorization || route.startsWith('/api/') || !['GET', 'HEAD'].includes(request.method)) throw failure;
+        const location = /^\/(?![/\\])/.test(request.url ?? '') ? request.url : '/';
+        response.writeHead(303, { Location: location, 'Cache-Control': PRIVATE_NO_STORE,
+          'Set-Cookie': invites.cookie('', security).replace(/Max-Age=\d+/, 'Max-Age=0') });
+        response.end(); return;
+      }
       if (await signInFlow.handle(request, response, { route, security, identity, budgeted: authRoute })) { endInactiveClients(); return; }
       if (!identity) limits.unauthenticated(security.rateKey);
       if (request.method === 'GET' && route.startsWith('/join/')) {

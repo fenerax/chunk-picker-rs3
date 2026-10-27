@@ -153,6 +153,24 @@ test('public loopback listener never promotes master/admin credentials from forw
   assert.equal((await f.admin('/api/admin/master-link')).status, 200);
 });
 
+test('a public page visit with a leftover administrator cookie clears it instead of dead-ending', { timeout: 30000 }, async t => {
+  const f = await fixture(t), adminInvite = await f.invite({ label: 'Private administrator', admin: true });
+  const master = f.app.store.getAccessToken();
+  for (const Cookie of [f.masterCookie, adminInvite.cookie, `duo_access=${master}`]) {
+    for (const [route, location] of [['/', '/'], ['/?tab=tasks', '/?tab=tasks'], ['//evil.example/x', '/']]) {
+      const page = await f.publicRequest(route, { headers: { ...proxy, Cookie } });
+      assert.equal(page.status, 303, route); assert.equal(page.headers.get('location'), location);
+      assert.match(page.headers.get('set-cookie'), /^duo_access=;.*Max-Age=0/);
+    }
+    assert.equal((await f.publicRequest('/api/session', { headers: { ...proxy, Cookie } })).status, 403, 'API calls keep the refusal');
+    assert.equal((await f.publicRequest('/', { method: 'POST', headers: { ...proxy, Cookie } })).status, 403);
+  }
+  const bearer = await f.publicRequest('/', { headers: { ...proxy, Authorization: `Bearer ${master}` } });
+  assert.equal(bearer.status, 403); assert.equal(bearer.headers.get('set-cookie'), null);
+  assert.equal((await f.publicRequest('/', { headers: proxy })).status, 401, 'Without the cookie the page is an ordinary visit');
+  assert.equal((await f.privateRequest('/api/session', { headers: { Cookie: f.masterCookie } })).status, 200, 'The private listener still accepts it');
+});
+
 test('early startup and ready handoff preserve each socket role with incomplete or spoofed proxy headers', { timeout: 30000 }, async () => {
   await mkdir(root, { recursive: true });
   for (const roles of [{ ingressRole: undefined, loopbackRole: 'public' }, { ingressRole: 'public', loopbackRole: undefined }]) {
