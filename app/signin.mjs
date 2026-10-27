@@ -43,6 +43,8 @@ export async function openSignIn({ publicOrigin, mode = 'off', accounts, invites
   if (mode !== 'off' && (!publicOrigin || new URL(publicOrigin).protocol !== 'https:' || new URL(publicOrigin).origin !== publicOrigin)) throw new TypeError('Sign-in requires an HTTPS public origin.');
   const now = provider?.now ?? Date.now;
   const fetchProvider = provider?.fetch ?? globalThis.fetch;
+  const scheduleTimeout = provider?.setTimeout ?? setTimeout;
+  const cancelTimeout = provider?.clearTimeout ?? clearTimeout;
   const configured = new Map();
   if (mode !== 'off') for (const name of ['discord', 'google']) {
     const prefix = `RS3_${name.toUpperCase()}`;
@@ -81,10 +83,25 @@ export async function openSignIn({ publicOrigin, mode = 'off', accounts, invites
     addCookie(response, preauthCookie(key));
     return entry;
   }
-  function liveInvite(id) {
+  function liveInvite(id, requireMember = true) {
     const invite = invites.get(id);
-    if (!invite || invite.revoked || invite.admin || invite.viewer || !invite.memberId) throw failure(409, 'This player invite is no longer available.');
+    if (!invite || invite.revoked || invite.admin || invite.viewer || (requireMember && !invite.memberId)) throw failure(409, 'This player invite is no longer available.');
     return invite;
+  }
+  function inviteRequired(response) {
+    page(response, { providers, heading: 'Invite required', message: 'This account has no membership yet. Open a player invite link to join this game.' }, 403);
+  }
+  async function createWithInvite(name, subject, inviteId) {
+    const invite = liveInvite(inviteId);
+    if (invite.claimedAccountId) throw failure(409, 'This invitation has already been claimed.');
+    const created = await accounts.ensureIdentity(name, subject);
+    try {
+      // Prepare membership before the durable claim, so a failed claim can
+      // remove the entire new account without leaving a claimed invite behind.
+      const account = await accounts.attachMembership(created.id, { inviteId: invite.id, role: 'player', memberId: invite.memberId });
+      await invites.claim(invite.id, account.id);
+      return account;
+    } catch (error) { await accounts.delete(created.id); throw error; }
   }
   async function claim(account, inviteId) {
     const invite = liveInvite(inviteId);
@@ -102,7 +119,7 @@ export async function openSignIn({ publicOrigin, mode = 'off', accounts, invites
   async function issue(response, account, security, name, membership) {
     const selected = membership ?? availableMembership(account);
     if (!selected) {
-      page(response, { providers, heading: 'Invite required', message: 'This account has no membership yet. Open a player invite link to join this game.' }, 403);
+      inviteRequired(response);
       return;
     }
     const token = await invites.issueAccountSession(account.id, selected.id, name);
@@ -111,7 +128,7 @@ export async function openSignIn({ publicOrigin, mode = 'off', accounts, invites
   }
   async function jsonFromProvider(url, options) {
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 10000);
+    const timer = scheduleTimeout(() => controller.abort(), 10000);
     timer.unref?.();
     try {
       const result = await fetchProvider(url, { ...options, redirect: 'manual', signal: controller.signal });
@@ -138,7 +155,7 @@ export async function openSignIn({ publicOrigin, mode = 'off', accounts, invites
       if (!document || typeof document !== 'object' || Array.isArray(document)) throw new Error();
       return document;
     } catch { throw failure(502, 'Sign-in could not be completed. Please try again.'); }
-    finally { clearTimeout(timer); }
+    finally { cancelTimeout(timer); }
   }
   async function subjectFor(name, code, entry) {
     const config = configured.get(name), endpoints = SIGN_IN_ENDPOINTS[name];
@@ -191,7 +208,7 @@ export async function openSignIn({ publicOrigin, mode = 'off', accounts, invites
         if (!entry?.inviteId || entry.provider) throw failure(400, 'This invitation has expired. Open the invite link again.');
         if (route === '/auth/invite') {
           if (mode !== 'optional') throw failure(403, 'Sign in to join this game.');
-          liveInvite(entry.inviteId);
+          liveInvite(entry.inviteId, false);
           const token = await serializeMutation(() => invites.joinById(entry.inviteId, security));
           if (!token) throw failure(409, 'This player invite is no longer available.');
           addCookie(response, invites.cookie(token, security)); redirect(response); return true;
@@ -227,13 +244,20 @@ export async function openSignIn({ publicOrigin, mode = 'off', accounts, invites
           throw error;
         }
         await serializeMutation(async () => {
-          let account;
+          let account, claimed = false;
           if (entry.accountId) {
             const active = invites.authenticate(request, security);
             if (active?.kind !== 'account' || active.accountId !== entry.accountId || !equal(active.sessionId, entry.sessionId)) throw failure(401, 'Sign in again before linking an account.');
             account = await accounts.linkIdentity(entry.accountId, name, subject);
-          } else account = await accounts.ensureIdentity(name, subject);
-          if (entry.inviteId) account = await claim(account, entry.inviteId);
+          } else {
+            account = accounts.findIdentity(name, subject);
+            if (!account) {
+              if (!entry.inviteId) { inviteRequired(response); return; }
+              account = await createWithInvite(name, subject, entry.inviteId);
+              claimed = true;
+            }
+          }
+          if (entry.inviteId && !claimed) account = await claim(account, entry.inviteId);
           await issue(response, account, security, name, entry.inviteId ? account.memberships.find(item => item.id === entry.inviteId) : undefined);
         });
         return true;
@@ -264,8 +288,13 @@ export async function openSignIn({ publicOrigin, mode = 'off', accounts, invites
       if (mode === 'off' || invite?.admin || invite?.viewer) return false;
       ingress(security);
       if (invite) {
-        if (!invite.memberId || invite.revoked) { take(request, response); throw failure(409, 'This player invite is no longer available.'); }
+        if (invite.revoked) { take(request, response); throw failure(409, 'This player invite is no longer available.'); }
         put(request, response, { inviteId: invite.id });
+        if (!invite.memberId) {
+          page(response, { heading: 'Player invite', message: 'Ask the admin to choose a player for this invite before signing in',
+            continueInvite: mode === 'optional' && !invite.claimedAccountId, help: false });
+          return true;
+        }
         page(response, { providers, heading: identity?.kind === 'account' ? 'Join this game' : 'Sign in to join',
           message: identity?.kind === 'account' ? 'Claim this player invite with your signed-in account.' : 'Sign in to keep your player access on this browser and other devices.',
           claim: identity?.kind === 'account', continueInvite: mode === 'optional' && !invite.claimedAccountId && identity?.kind !== 'account' });

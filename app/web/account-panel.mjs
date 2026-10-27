@@ -8,7 +8,7 @@ export function createAccountPanel({ el, openDialog, menuButton }) {
     session = value;
     if (menuButton) menuButton.hidden = !available();
   }
-  const link = (text, href) => { const node = el('a', text); node.href = href; return node; };
+  const link = (text, href) => { const node = el('a', text, 'secondary-button'); node.href = href; return node; };
   function rows() {
     const content = el('div', undefined, 'account-details');
     const actions = el('div', undefined, 'account-actions');
@@ -21,11 +21,12 @@ export function createAccountPanel({ el, openDialog, menuButton }) {
         if (Object.hasOwn(providerNames, provider) && !providers.includes(provider)) actions.append(link(`Link ${providerNames[provider]} too`, `/auth/link/${provider}`));
       }
       const form = el('form'); form.method = 'post'; form.action = '/auth/signout';
-      const signout = el('button', 'Sign out'); signout.type = 'submit'; form.append(signout); actions.append(form);
+      const signout = el('button', 'Sign out', 'secondary-button'); signout.type = 'submit'; form.append(signout); actions.append(form);
     } else {
       content.append(el('p', 'Using an invite link.', 'section-intro'));
-      content.append(el('p', 'Sign in to use this invitation with your account.', 'field-help'));
-      for (const provider of session.signIn?.providers ?? []) if (Object.hasOwn(providerNames, provider)) actions.append(link(`Sign in with ${providerNames[provider]}`, `/auth/${provider}`));
+      const unassigned = session.kind === 'invite' && !session.admin && !session.readOnly && !session.memberId;
+      content.append(el('p', unassigned ? 'Ask the admin to choose a player for this invite before signing in' : 'Sign in to use this invitation with your account.', 'field-help'));
+      if (!unassigned) for (const provider of session.signIn?.providers ?? []) if (Object.hasOwn(providerNames, provider)) actions.append(link(`Sign in with ${providerNames[provider]}`, `/auth/${provider}`));
     }
     content.append(actions);
     return content;

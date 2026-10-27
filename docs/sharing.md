@@ -9,6 +9,9 @@ the owner's unread feedback count, and authors' handled notes.
 
 Open the private master link, then **Admin → Invite links**. Create an invitation labelled `Player 2`, choosing **Player**. Copy the generated link and send it privately. The full token is shown when created; the invitation list retains its label and status, not a recoverable token. Create a replacement if the link is lost. Last used updates on joining and at most once per minute during session activity.
 
+Admin invite links use the private address where they were created. Player and
+viewer links use the configured public origin when available.
+
 A player invitation grants editing access to both maps. Link it to its intended player using **Player** in the invite list. A fresh browser opens that player's map; a valid map selection remembered by that browser takes precedence. Invitations without a linked player and the private master link keep the first-player default. Selecting a map changes the gameplay view, not the invitation's permissions. Administrator invitations can also create, list and revoke invitations and retrieve the private master link, but administrator access is private only. The public interface does not offer the Admin controls.
 
 Choose **View only** for someone who wants to watch. A viewer can see both maps, task lists, notes, History and existing Helper information, including live updates. They cannot roll, unlock, tick tasks, edit notes, change rules or settings, pin tasks, undo, import or restore maps, use backups, send feedback, sync RuneMetrics or manage invitations. A **View only** badge stays in the top bar. Theme, chunk IDs and the chosen map are remembered only in that viewer's browser.
@@ -163,6 +166,11 @@ on the public site. **Sign in to join** claims the invitation for one account af
 successful sign-in. Returning members use `/auth/signin` without the claim link.
 The page explains cancelled consent, expired attempts, already claimed invites and
 accounts without an active membership. Private administration remains separate.
+An unknown sign-in identity creates an account only with a still-claimable player
+invitation. Signing in without one shows **Invite required** and stores nothing.
+An invite with **No player** can still use **Continue with invite link** in
+`optional` mode. Its sign-in controls stay hidden until the admin chooses a player;
+`required` mode shows the same player-selection note without offering entry.
 
 ### Register providers and secret files
 
@@ -210,8 +218,10 @@ Malformed authentication sidecars fail closed without replacing their bytes. Sto
 the service before restoring a consistent complete data-directory copy and sibling
 dataset binding. Gameplay backups exclude auth: preserve `accounts.json`,
 `invites.json`, `access-token`, `plugin-keys.json` and `overlays.json` separately.
-A claim reserves the invitation before writing its membership. If interrupted,
-the same account can reopen the claim to complete it; another account cannot take
+A new account prepares its membership before claiming the invitation, inside the
+same serialized operation; a failed claim removes the new account. Existing
+accounts reserve the invitation before attaching membership. If interrupted, the
+same account can reopen that claim to complete it; another account cannot take
 it. A private administrator can revoke it and create a replacement. Lost provider
 access can be recovered through a linked second provider or private administration.
 

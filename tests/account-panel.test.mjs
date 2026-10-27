@@ -41,9 +41,21 @@ test('account settings show only safe provider names, link only missing provider
   const form = nodes.find(node => node.tag === 'form');
   assert.equal(form.method, 'post'); assert.equal(form.action, '/auth/signout');
   assert.equal(form.children[0].type, 'submit');
+  assert.equal(nodes.find(node => node.tag === 'a').className, 'secondary-button');
+  assert.equal(form.children[0].className, 'secondary-button');
   panel.setSession({ signIn: { providers: ['google', 'toString', '<bad>'] }, account: { provider: 'toString', providers: ['<bad>'] } });
   assert.doesNotMatch(text(panel.rows()), /function|<bad>/);
   assert.deepEqual(walk(panel.rows()).filter(node => node.tag === 'a').map(node => node.href), ['/auth/link/google']);
+});
+
+test('unassigned invite settings explain player selection without offering sign-in', () => {
+  const panel = createAccountPanel({ el, openDialog() {} });
+  panel.setSession({ kind: 'invite', memberId: null, signIn: { mode: 'optional', providers: ['discord', 'google'] } });
+  const rows = panel.rows();
+  assert.match(text(rows), /Ask the admin to choose a player for this invite before signing in/);
+  assert.equal(walk(rows).filter(node => node.tag === 'a').length, 0);
+  panel.setSession({ kind: 'invite', readOnly: true, memberId: null, signIn: { mode: 'optional', providers: ['discord', 'google'] } });
+  assert.doesNotMatch(text(panel.rows()), /Ask the admin to choose a player/);
 });
 
 test('optional invite sessions offer configured sign-in providers and disabled sign-in hides Account', () => {

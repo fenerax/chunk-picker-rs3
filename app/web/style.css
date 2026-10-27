@@ -207,9 +207,10 @@
 body{margin:0;background:var(--bg);color:var(--text);-webkit-font-smoothing:antialiased}
 button,input,select,textarea{font:inherit}
 button,select{cursor:pointer}
-button{color:var(--surface-text,var(--text));background:var(--surface);border:var(--border-thin) solid transparent;padding:var(--space-3) var(--space-5);border-radius:var(--radius-sm);line-height:var(--leading-control);transition:background-color .12s,border-color .12s,color .12s,filter .12s}
-button:hover{filter:brightness(1.12)}
-button:active{filter:brightness(.94)}
+button,.secondary-button{color:var(--surface-text,var(--text));background:var(--surface);border:var(--border-thin) solid transparent;padding:var(--space-3) var(--space-5);border-radius:var(--radius-sm);line-height:var(--leading-control);transition:background-color .12s,border-color .12s,color .12s,filter .12s}
+.secondary-button{text-decoration:none}
+button:hover,.secondary-button:hover{filter:brightness(1.12)}
+button:active,.secondary-button:active{filter:brightness(.94)}
 button:disabled{cursor:default;opacity:1;color:var(--surface-muted,var(--muted));filter:none}
 input,textarea,select{color:var(--text);background:var(--bg);border:var(--border-thin) solid var(--border);padding:var(--space-3) var(--space-4);border-radius:var(--radius-sm)}
 select{background:var(--surface);color:var(--surface-text,var(--text))}

@@ -53,7 +53,29 @@ function httpRequest(origin, route, { body, method = body === undefined ? 'GET' 
 }
 
 function providerFixture(config, clock) {
-  const grants = new Map(), access = new Map(), calls = [], sensitive = [], exchanges = [];
+  const grants = new Map(), access = new Map(), calls = [], sensitive = [], exchanges = [], responses = [];
+  function reply(document, record, options) {
+    if (record.timeout) return new Promise((resolve, reject) => {
+      options.signal.addEventListener('abort', () => reject(new DOMException('Fixture timeout', 'AbortError')), { once: true });
+      clock.advance(9999); assert.equal(options.signal.aborted, false);
+      clock.advance(1); assert.equal(options.signal.aborted, true);
+    });
+    const bytes = Buffer.from(JSON.stringify(document));
+    if (record.oversized === 'content-length') {
+      const result = new Response(bytes, { headers: { 'Content-Length': String(64 * 1024 + 1) } });
+      responses.push(result); return result;
+    }
+    if (record.oversized === 'streamed') {
+      const result = new Response(new ReadableStream({ start(controller) {
+        controller.enqueue(bytes);
+        controller.enqueue(new Uint8Array(32 * 1024).fill(32));
+        controller.enqueue(new Uint8Array(32 * 1024).fill(32));
+        controller.close();
+      } }));
+      assert.equal(result.headers.has('content-length'), false); responses.push(result); return result;
+    }
+    return responseJSON(document);
+  }
   function grant(provider, authorization, { subject = provider === 'discord' ? String(10n ** 17n + 1n) : 'fixture-google-subject', ...overrides } = {}) {
     const code = invented('fixture-code'); sensitive.push(code);
     sensitive.push(...['state', 'nonce'].map(key => authorization.searchParams.get(key)).filter(Boolean));
@@ -78,22 +100,22 @@ function providerFixture(config, clock) {
       if (record.tokenFailure) return responseJSON({ error: 'invalid_grant', error_description: invented('fixture-private-provider-error') }, 400);
       const accessValue = invented('fixture-access'), refreshValue = invented('fixture-refresh'); sensitive.push(accessValue, refreshValue);
       access.set(accessValue, record);
-      if (provider === 'discord') return responseJSON({ access_token: accessValue, refresh_token: refreshValue, token_type: 'Bearer' });
+      if (provider === 'discord') return reply({ access_token: accessValue, refresh_token: refreshValue, token_type: 'Bearer' }, record.profileFailure ? {} : record, options);
       const claims = { iss: 'https://accounts.google.com', aud: config.google.id, sub: record.subject,
         nonce: record.authorization.searchParams.get('nonce'), iat: Math.floor(clock.now() / 1000), exp: Math.floor(clock.now() / 1000) + 3600,
         email: 'fixture-profile@example.invalid', name: 'Fixture private profile', picture: 'https://profile.example.invalid/avatar', ...record.claims };
       const idValue = jwt(claims); sensitive.push(idValue);
-      return responseJSON({ access_token: accessValue, refresh_token: refreshValue, id_token: idValue, token_type: 'Bearer' });
+      return reply({ access_token: accessValue, refresh_token: refreshValue, id_token: idValue, token_type: 'Bearer' }, record, options);
     }
     if (target === endpoints.discord.user) {
       const authorization = new Headers(options.headers).get('authorization') ?? '', record = access.get(authorization.replace(/^Bearer /i, ''));
       assert.ok(record, 'Discord identity must be fetched with this exchange access credential');
-      return responseJSON({ id: record.subject, username: 'fixture-private-username', global_name: 'Fixture private profile',
-        email: 'fixture-profile@example.invalid', avatar: 'fixture-private-avatar' });
+      return reply({ id: record.subject, username: 'fixture-private-username', global_name: 'Fixture private profile',
+        email: 'fixture-profile@example.invalid', avatar: 'fixture-private-avatar' }, record.profileFailure ? record : {}, options);
     }
     throw new Error('The fake provider refuses every unlisted URL.');
   }
-  return { fetch, grant, calls, sensitive, exchanges };
+  return { fetch, grant, calls, sensitive, exchanges, responses };
 }
 
 async function fixture(t, mode = 'optional', rateLimits = {}) {
@@ -108,14 +130,19 @@ async function fixture(t, mode = 'optional', rateLimits = {}) {
       oldEnvironment.set(key, process.env[key]); process.env[key] = value; envKeys.push(key);
     }
   }
-  const clock = { value: Date.now(), now() { return this.value; }, advance(ms) { this.value += ms; } };
+  const timers = new Map();
+  const clock = { value: Date.now(), now() { return this.value; },
+    setTimeout(callback, ms) { assert.equal(ms, 10000); const timer = {}; timers.set(timer, { callback, at: clock.now() + ms }); return timer; },
+    clearTimeout(timer) { timers.delete(timer); },
+    advance(ms) { this.value += ms; for (const [timer, entry] of timers) if (entry.at <= this.value) { timers.delete(timer); entry.callback(); } },
+    get pending() { return timers.size; } };
   const provider = providerFixture(config, clock);
   const initialState = createGroupState([{ id: 'actor1', name: 'Player', unlocked: ['11825'] }, { id: 'reed', name: 'Reed', unlocked: ['11569'] }]);
   let app, currentMode = mode;
   async function start(state) {
     app = await createServer({ dataset: selectedDataset, dataDir, initialState: state, definitions, taskMap: {},
       host: '127.0.0.1', port: 0, loopbackPort: 0, loopbackRole: 'public', publicOrigin,
-      signIn: currentMode, signInProvider: { fetch: provider.fetch, now: () => clock.now() }, predictionPrewarm: false,
+      signIn: currentMode, signInProvider: { fetch: provider.fetch, now: () => clock.now(), setTimeout: clock.setTimeout, clearTimeout: clock.clearTimeout }, predictionPrewarm: false,
       shutdownDeadlineMs: 500, rateLimits: { failedJoins: 100, unauthenticated: 1000, ...rateLimits } });
     await app.listen();
   }
@@ -261,6 +288,7 @@ test('a claimed invitation rejects another account and linking a second provider
   const original = await signIn(f, owner, 'discord', invitation);
   const stranger = f.browser(), attempted = await f.callback(stranger, await f.begin(stranger, 'discord', invitation), { subject: String(10n ** 17n + 2n) });
   assert.equal(attempted.response.status, 409); assert.equal(stranger.jar.has('duo_access'), false);
+  assert.equal((await (await f.admin('/api/accounts')).json()).accounts.length, 1, 'A claimed invite cannot allocate a stranger account');
   const link = await owner.request('/auth/link/google'); assert.equal(link.status, 303);
   const authorization = new URL(link.headers.get('location'));
   assert.equal(authorization.origin + authorization.pathname, endpoints.google.authorize);
@@ -427,18 +455,97 @@ test('unconfigured providers are omitted and invalid secret files fail startup w
   } finally { process.env[secretKey] = secretFile; }
 });
 
-test('sign-in without membership asks for an invite and later claims that invite using the same account', { timeout: 30000 }, async t => {
+test('unknown identities without an invite store nothing and can later join through a player invite', { timeout: 30000 }, async t => {
   const f = await fixture(t), client = f.browser();
+  const before = (await (await f.admin('/api/accounts')).json()).accounts;
   const first = await f.callback(client, await f.begin(client, 'discord'));
   assert.equal(first.response.status, 403); assert.match(await first.response.text(), /invite required/i);
   assert.equal(client.jar.has('duo_access'), false);
   const accounts = (await (await f.admin('/api/accounts')).json()).accounts;
-  assert.equal(accounts.length, 1); assert.equal(accounts[0].memberships.length, 0);
-  const originalId = accounts[0].id;
+  assert.deepEqual(accounts, before); assert.equal(accounts.length, 0);
+  await assert.rejects(readFile(path.join(f.dataDir, 'accounts.json')), { code: 'ENOENT' });
+  await assert.rejects(readFile(path.join(f.dataDir, 'invites.json')), { code: 'ENOENT' });
+  assert.equal(client.jar.has('__Host-rs3_preauth'), false);
   const joined = await signIn(f, client, 'discord', await f.invite());
-  assert.equal(joined.account.id, originalId); assert.equal(joined.memberId, 'actor1');
+  assert.equal(joined.memberId, 'actor1');
   assert.equal((await (await f.admin('/api/accounts')).json()).accounts.length, 1);
+  const unknownGoogle = f.browser(), denied = await f.callback(unknownGoogle, await f.begin(unknownGoogle, 'google'));
+  assert.equal(denied.response.status, 403); assert.match(await denied.response.text(), /Invite required/);
+  assert.equal((await (await f.admin('/api/accounts')).json()).accounts.length, 1);
+  assert.equal(unknownGoogle.jar.has('duo_access'), false);
 });
+
+test('invites revoked or unassigned during OAuth cannot allocate new accounts', async t => {
+  const f = await fixture(t);
+  for (const action of ['revoke', 'player']) {
+    const client = f.browser(), invitation = await f.invite(), flow = await f.begin(client, 'discord', invitation);
+    assert.equal((await f.admin(`/api/invites/${invitation.invite.id}/${action}`, action === 'player' ? { memberId: null } : {})).status, 200);
+    const result = await f.callback(client, flow);
+    assert.equal(result.response.status, 409); assert.equal(client.jar.has('duo_access'), false);
+    assert.equal((await (await f.admin('/api/accounts')).json()).accounts.length, 0);
+  }
+  await assert.rejects(readFile(path.join(f.dataDir, 'accounts.json')), { code: 'ENOENT' });
+});
+
+test('simultaneous callbacks for one invite allocate only its winning account', async t => {
+  const f = await fixture(t), invitation = await f.invite(), one = f.browser(), two = f.browser();
+  const first = await f.begin(one, 'discord', invitation), second = await f.begin(two, 'google', invitation);
+  const results = await Promise.all([f.callback(one, first), f.callback(two, second)]);
+  assert.deepEqual(results.map(result => result.response.status).sort(), [303, 409]);
+  const accounts = (await (await f.admin('/api/accounts')).json()).accounts;
+  assert.equal(accounts.length, 1); assert.equal(accounts[0].memberships.length, 1);
+  const invites = (await (await f.admin('/api/invites')).json()).invites;
+  assert.equal(invites[0].claimedAccountId, accounts[0].id);
+});
+
+for (const mode of ['optional', 'required']) test(`${mode} unassigned player invites explain assignment and only optional links can continue`, async t => {
+  const f = await fixture(t, mode), client = f.browser(), invitation = await f.invite({ label: 'Unassigned player' });
+  const page = await client.request(new URL(invitation.link).pathname);
+  assert.equal(page.status, 200);
+  const text = await page.text();
+  assert.match(text, /Ask the admin to choose a player for this invite before signing in/);
+  assert.doesNotMatch(text, /href=["']\/auth\/(discord|google)|action=["']\/auth\/claim|No sign-in providers/);
+  assert.equal(text.includes('Continue with invite link'), mode === 'optional');
+  // Even a manually entered provider URL must not claim an unassigned invite.
+  const result = await f.callback(client, await f.begin(client, 'discord'));
+  assert.equal(result.response.status, 409); assert.equal(client.jar.has('duo_access'), false);
+  assert.equal((await (await f.admin('/api/accounts')).json()).accounts.length, 0);
+  await client.request(new URL(invitation.link).pathname);
+  const continued = await client.request('/auth/invite', { body: {} });
+  assert.equal(continued.status, mode === 'optional' ? 303 : 403);
+  if (mode === 'optional') { const identity = await session(client); assert.equal(identity.kind, 'invite'); assert.equal(identity.memberId, null); }
+  else assert.equal(client.jar.has('duo_access'), false);
+});
+
+for (const failure of [{ timeout: true }, { oversized: 'content-length' }, { oversized: 'streamed' }]) {
+  const label = failure.timeout ? 'ten-second timeout' : `oversized ${failure.oversized} response`;
+  test(`provider ${label} fails generically, consumes state and stores no account or session`, async t => {
+    const f = await fixture(t);
+    for (const [name, profileFailure] of [['discord', false], ['discord', true], ['google', false]]) {
+      const client = f.browser(), invitation = await f.invite(), flow = await f.begin(client, name, invitation);
+      const callsBefore = f.provider.calls.length;
+      const result = await f.callback(client, flow, { ...failure, profileFailure });
+      assert.equal(result.response.status, 502);
+      const text = await result.response.text();
+      assert.match(text, /Sign-in could not be completed\. Please try again\./);
+      for (const value of [result.code, f.config[name].secret, 'Fixture timeout', 'content-length', 'access_token', 'id_token']) assert.equal(text.includes(value), false);
+      assert.equal(client.jar.has('duo_access'), false);
+      assert.equal(f.provider.calls.length - callsBefore, profileFailure ? 2 : 1);
+      assert.equal(f.clock.pending, 0, 'Provider request timers are cleared after failure');
+      if (failure.oversized === 'content-length') assert.equal(f.provider.responses.at(-1).bodyUsed, false, 'Oversized declared responses are rejected before reading');
+      const callsAfter = f.provider.calls.length;
+      assert.equal((await client.request(result.route)).status, 400);
+      assert.equal(f.provider.calls.length, callsAfter, 'A consumed callback cannot exchange its code again');
+      assert.equal(client.jar.has('__Host-rs3_preauth'), false);
+      assert.equal((await (await f.admin('/api/accounts')).json()).accounts.length, 0);
+      const stored = JSON.parse(await readFile(path.join(f.dataDir, 'invites.json'), 'utf8'));
+      assert.equal(stored.invites.some(invite => invite.claimedAccountId), false);
+      assert.equal(stored.sessions.length, 0);
+      assert.equal((await client.request('/api/session')).status, 401);
+    }
+    await assert.rejects(readFile(path.join(f.dataDir, 'accounts.json')), { code: 'ENOENT' });
+  });
+}
 
 test('an existing optional invitation session upgrades from Settings sign-in without reopening its invite', { timeout: 30000 }, async t => {
   const f = await fixture(t), client = f.browser(), invitation = await f.invite();

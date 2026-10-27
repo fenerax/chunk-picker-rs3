@@ -1812,7 +1812,8 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
               requireAdmin();
               if (!knownMember(body.memberId)) throw httpError(400, 'Choose a known player for the invite.');
               const created = await invites.create(body);
-              await json(request, response, 201, { invite: created.invite, link: `${publicOrigin ?? security.origin}/join/${created.token}` }); return;
+              const inviteOrigin = created.invite.admin ? security.origin : publicOrigin ?? security.origin;
+              await json(request, response, 201, { invite: created.invite, link: `${inviteOrigin}/join/${created.token}` }); return;
             }
             const player = /^\/api\/invites\/([a-f0-9-]{36})\/player$/.exec(route);
             if (player) {

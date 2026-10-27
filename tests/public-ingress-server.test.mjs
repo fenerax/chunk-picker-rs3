@@ -99,7 +99,11 @@ async function fixture(t) {
   async function invite(input) {
     const created = await admin('/api/invites', input); assert.equal(created.status, 201);
     const result = await created.json();
-    const session = await privateRequest(joinPath(result)); assert.equal(session.status, 303);
+    const destination = new URL(result.link);
+    assert.equal(destination.origin, input.admin ? origin() : publicOrigin);
+    const session = input.admin ? await request(destination.origin, destination.pathname) : await privateRequest(destination.pathname);
+    assert.equal(session.status, 303);
+    if (input.admin) assert.equal((await request(publicAddress(), destination.pathname)).status, 403);
     return { ...result, cookie: cookieFrom(session) };
   }
   return { get app() { return app; }, origin, publicAddress, privateRequest, admin, invite, masterCookie: cookieFrom(joined),
