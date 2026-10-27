@@ -39,7 +39,7 @@ export function createScreenCommands(c) {
     if (!node && text) {
       node = c.el('span', undefined, 'status-detail'); node.id = 'calculation-status';
       node.setAttribute('role', 'status'); node.setAttribute('aria-live', 'polite');
-      document.querySelector('.topbar').append(node);
+      document.querySelector('.connection-status').append(node);
     }
     if (node) { node.textContent = text; node.hidden = !text; }
   } });
