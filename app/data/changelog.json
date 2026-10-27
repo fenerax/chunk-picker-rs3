@@ -2,6 +2,16 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "date": "2026-10-27",
+      "title": "Sign in with Discord or Google",
+      "items": [
+        "You can now sign in with Discord or Google instead of keeping your invite link safe. Your current link keeps working, and signing in is optional",
+        "Use your invite once to tie it to your Discord or Google account, then sign in from any device. You can link both and use either one",
+        "The account button at the top right shows how you're signed in, with Sign out and the option to link the other account. On phones it's at the top of More",
+        "Admin tools now open only from the private address, never from the public link"
+      ]
+    },
+    {
       "date": "2026-10-25",
       "title": "The game plugin sees your tool belt, coin pouch and bank",
       "items": [
