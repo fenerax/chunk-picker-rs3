@@ -53,7 +53,7 @@ export function createScreenStartup(c) {
     });
     c.backupStatus = createBackupStatus({ api: c.api, el: c.el, button: c.button, document, isAdmin: () => c.sessionAdmin, advanced: c.advanced, menuLine: c.$('backup-status-menu'), banner: c.$('backup-status-notice'), openBackup: c.backupDialog });
     const invites = createInvites({ api: c.api, el: c.el, button: c.button, input: c.input, field: c.field, openDialog: c.openDialog, dialogCurrent: c.dialogCurrent, dialog: c.$('tool-dialog'), menuButton: c.$('invites-open'), members: () => c.state?.members ?? [], streamSafe: c.streamSafe });
-    const account = createAccountPanel({ el: c.el, openDialog: c.openDialog, menuButton: c.$('account-open') });
+    const account = createAccountPanel({ el: c.el, openDialog: c.openDialog, menuButton: c.$('account-open'), topMenu: c.$('account-tools') });
     c.panelContext.account = account;
     const accounts = createAccountsPanel({ api: c.api, el: c.el, button: c.button, openDialog: c.openDialog, dialogCurrent: c.dialogCurrent, menuButton: c.$('accounts-open'), members: () => c.state?.members ?? [], streamSafe: c.streamSafe });
     c.$('account-open')?.addEventListener('click', account.open);

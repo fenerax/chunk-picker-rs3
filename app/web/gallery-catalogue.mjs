@@ -81,6 +81,7 @@ export const galleryEntries = [
   entry('error', 'Startup error and retry', 'main.mjs', 'error', ['dom:startup-error']),
 ];
 export const galleryExclusions = {
+  'dom:account-tools': 'Account needs a signed-in session and its links and sign-out change authentication. Fake-provider browser screenshots cover this menu at 1440 px and 390 px.',
   'dom:phone-legend-sheet': 'Phone-only wrapper borrows the live legend covered by summary; the 390 px browser evidence covers the wrapper.',
   'dialog:native-lock': 'Browser-native confirm is OS/Chrome chrome, not a styleable application window; the gallery does not call destructive confirmation.',
   'members:result': 'Success response exists only after a committed go-members command. Gallery throws before commands; the pre-save review and confirmation are covered.',

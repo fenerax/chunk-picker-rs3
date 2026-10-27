@@ -214,8 +214,9 @@ scheme. Keep master-token operator calls on the separate private listener.
 
 ### Accounts and recovery
 
-Settings has an Account section showing the signed-in provider, a link to add the
-other provider, and Sign out. The More menu also has Account, including for viewers.
+The signed-in provider appears at the right of the top bar. Open it to link another
+configured provider or Sign out. On phones, this menu is first in More. Settings
+keeps the same Account section. The More menu also has Account, including for viewers.
 Linking requires an existing account session; identities already owned by another
 account are never merged automatically. Private **Admin > Accounts** shows
 providers, short account ID, linked member and role, and last use. Its actions

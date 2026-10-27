@@ -45,14 +45,27 @@ function fixture({ phone = true, saved, blocked = false } = {}) {
   panels.more.setAttribute('aria-labelledby', 'phone-more-title');
   const header = new Node(), dock = new Node(), tools = new Node(), recent = new Node(), summary = new Node(), trailing = new Node();
   header.append(tools); header.append(trailing); dock.append(recent); dock.append(summary);
-  tools.menus = [{ open: true }];
+  const search = new Node(), account = new Node();
+  tools.append(search); tools.append(account);
+  tools.menus = [{ open: true }, account];
   const moreTools = new Node(), moreMap = new Node(), writes = [], changes = [];
   const storage = { getItem: () => { if (blocked) throw Error('blocked'); return saved; }, setItem: (key, value) => { if (blocked) throw Error('blocked'); writes.push([key, value]); } };
   const media = new Node(); media.matches = phone;
-  const controller = createPhoneLayout({ root, tabBar, buttons, panels, tools, moreTools, moreMap, recent, summary, media, storage, onChange: (...args) => changes.push(args) });
+  const controller = createPhoneLayout({ root, tabBar, buttons, panels, tools, moreTools, moreMap, recent, summary, leadingTool: account, media, storage, onChange: (...args) => changes.push(args) });
   controller.mount();
-  return { controller, root, tabBar, buttons, panels, header, dock, tools, recent, summary, trailing, moreTools, moreMap, media, writes, changes };
+  return { controller, root, tabBar, buttons, panels, header, dock, tools, recent, summary, trailing, moreTools, moreMap, media, writes, changes, search, account };
 }
+
+test('account leads phone More in reading and focus order and returns to the right on desktop', () => {
+  const h = fixture();
+  assert.deepEqual(h.tools.children, [h.account, h.search]);
+  h.account.open = true;
+  h.media.matches = false; h.media.emit('change');
+  assert.deepEqual(h.tools.children, [h.search, h.account]);
+  assert.equal(h.account.open, false);
+  h.media.matches = true; h.media.emit('change');
+  assert.deepEqual(h.tools.children, [h.account, h.search]);
+});
 
 test('phone tabs show only the chosen panel and persist the choice', () => {
   const h = fixture();

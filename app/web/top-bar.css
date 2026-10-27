@@ -4,3 +4,9 @@
 /* More's own items open with their Picker heading, so the Tools divider would repeat it. */
 .top-bar-overflow>.menu-heading:last-child:not(:first-child){display:none}
 .top-bar-settings .top-bar-intro>button{max-width:none;white-space:nowrap}
+.account-glyph{flex:none;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;margin-right:var(--space-2)}
+.account-menu-status{margin:0;padding:var(--space-3) var(--space-4);font-size:var(--type-sm);color:var(--panel-muted,var(--muted));white-space:nowrap}
+.account-menu-actions{display:flex;flex-direction:column;gap:var(--space-legacy-1px)}
+.account-menu-actions form{margin:0}
+.account-menu-actions button{width:100%}
+.phone-layout .account-menu-actions a{display:flex;align-items:center;min-height:44px}

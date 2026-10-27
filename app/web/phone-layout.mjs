@@ -12,7 +12,7 @@ export function observeScreenBars(document, Observer = globalThis.ResizeObserver
 
 // Move the actual panels and tools, so their listeners and future menu entries
 // keep one owner. Their original positions are restored above the breakpoint.
-export function createPhoneLayout({ root, tabBar, buttons, panels, tools, moreTools, moreMap, recent, summary, media, storage, onChange = () => {} }) {
+export function createPhoneLayout({ root, tabBar, buttons, panels, tools, moreTools, moreMap, recent, summary, leadingTool, media, storage, onChange = () => {} }) {
   let chosen = 'map', mounted = false;
   try { const saved = storage?.getItem(PHONE_TAB_KEY); if (tabs.includes(saved)) chosen = saved; } catch {}
   const moves = [[tools, moreTools], [recent, moreMap], [summary, moreMap]].map(([node, host]) => ({ node, host, parent: node.parentNode, next: node.nextSibling }));
@@ -50,6 +50,8 @@ export function createPhoneLayout({ root, tabBar, buttons, panels, tools, moreTo
       if (media.matches) host.append(node);
       else parent.insertBefore(node, next);
     }
+    // Keep visual, keyboard and reading order together when Account leads More.
+    if (leadingTool) tools.insertBefore(leadingTool, media.matches ? tools.children[0] : null);
     // A menu anchored in the previous layout should not linger after a resize.
     for (const menu of tools.querySelectorAll('details')) menu.open = false;
     render();

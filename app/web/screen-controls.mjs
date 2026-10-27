@@ -2,7 +2,7 @@ import { applyTheme } from './map-tools.mjs';
 import { observeScreenBars } from './phone-layout.mjs';
 import { createMapControlDiscovery } from './map-control-discovery.mjs';
 
-const topMenuIds = ['info-tools', 'admin-tools', 'more-tools'];
+const topMenuIds = ['info-tools', 'admin-tools', 'more-tools', 'account-tools'];
 
 export function bindHideCompletedPreference(c) {
   const control = c.$('hide-completed');
