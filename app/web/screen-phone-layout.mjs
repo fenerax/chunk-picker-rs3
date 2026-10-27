@@ -7,7 +7,7 @@ export function createScreenPhoneLayout(c) {
     root, media: matchMedia(PHONE_QUERY), storage: (() => { try { return localStorage; } catch { return null; } })(),
     tabBar: c.$('phone-tabs'), buttons: { map: c.$('phone-tab-map'), tasks: c.$('phone-tab-tasks'), more: c.$('phone-tab-more') },
     panels: { map: c.$('map-panel'), tasks: document.querySelector('.task-sidebar'), more: c.$('phone-more') },
-    tools: document.querySelector('.topbar nav'), moreTools: c.$('phone-tools'), moreMap: c.$('phone-map-summary'),
+    tools: document.querySelector('.topbar nav'), moreTools: c.$('phone-tools'), moreMap: c.$('phone-map-summary'), leadingTool: c.$('account-tools'),
     recent: c.$('recent-panel'), summary: document.querySelector('.map-summary'),
     onChange: (tab, phone) => {
       c.mapControlDiscovery?.close();

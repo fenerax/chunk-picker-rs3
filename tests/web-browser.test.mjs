@@ -521,6 +521,25 @@ test('viewer appearance toolbar, chunk IDs and map selection save only local pre
   assert.equal(h.calls.length,0); assert.equal(h.snapshot().revision,7);
 });
 
+test('account shares top-menu exclusivity, outside dismissal and Escape focus return', async () => {
+  const h = viewerHarness(), listeners = {};
+  h.context.document.addEventListener = (type, action) => (listeners[type] ??= []).push(action);
+  h.context.document.querySelectorAll = () => [];
+  h.context.ResizeObserver = class { observe() {} }; h.map.setOverlay = () => {};
+  const account = h.context.document.getElementById('account-tools'), summary = h.context.document.createElement('summary');
+  account.append(summary);
+  h.run("$('tool-dialog').open=false; bindControls()");
+  h.nodes.get('more-tools').open = true; account.open = true; await account.emit('toggle');
+  assert.equal(h.nodes.get('more-tools').open, false);
+  let prevented = false;
+  for (const action of listeners.keydown) await action({ key: 'Escape', target: summary, preventDefault() { prevented = true; } });
+  assert.equal(account.open, false); assert.equal(h.context.document.activeElement, summary); assert.equal(prevented, true);
+  account.open = true; h.run('closeTopMenus()'); assert.equal(account.open, false);
+  account.open = true;
+  for (const action of listeners.click) await action({ target: h.context.document.body });
+  assert.equal(account.open, false);
+});
+
 test('Escape closes Map display while its slider is focused before closing chunk details', async () => {
   const h = viewerHarness(), listeners = [], closed = [];
   h.context.document.addEventListener = (type, action) => { if (type === 'keydown') listeners.push(action); };
