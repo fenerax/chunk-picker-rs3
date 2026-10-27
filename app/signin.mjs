@@ -31,6 +31,13 @@ function redirect(response, destination = '/') {
   response.writeHead(303, { Location: destination, 'Cache-Control': 'private, no-store' });
   response.end();
 }
+// Pages send Referrer-Policy: no-referrer, so browsers serialise a plain form
+// POST's Origin as "null". Fetch Metadata still proves a same-origin submission;
+// browsers forbid scripts from setting it, so a cross-site page cannot forge it.
+function checkFormOrigin(request, security, checkRequestOrigin) {
+  if (request.headers.origin === 'null' && request.headers['sec-fetch-site'] === 'same-origin') return;
+  checkRequestOrigin(request, security);
+}
 function page(response, input, status = 200) {
   response.writeHead(status, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'private, no-store', 'Referrer-Policy': 'no-referrer' });
   response.end(renderSignInPage(input));
@@ -187,7 +194,7 @@ export async function openSignIn({ publicOrigin, mode = 'off', accounts, invites
       if (!route.startsWith('/auth/')) return false;
       if (!budgeted) unauthenticated(security.rateKey);
       ingress(security);
-      if (request.method === 'POST') checkRequestOrigin(request, security);
+      if (request.method === 'POST') checkFormOrigin(request, security, checkRequestOrigin);
       if ((route === '/auth/signin.css' || route === '/signin.css') && ['GET', 'HEAD'].includes(request.method)) {
         const css = await readFile(path.join(webRoot, 'signin.css'));
         response.writeHead(200, { 'Content-Type': 'text/css; charset=utf-8', 'Cache-Control': 'private, no-store' });

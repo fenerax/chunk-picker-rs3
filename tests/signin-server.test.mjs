@@ -392,6 +392,18 @@ test('auth routes require the public HTTPS origin, reject cross-site posts and s
   assert.equal(f.provider.calls.length, 0, 'Authorization redirects never contact a provider from the server');
 });
 
+test('plain form posts with a null Origin need same-origin Fetch Metadata', { timeout: 30000 }, async t => {
+  const f = await fixture(t), client = f.browser();
+  await signIn(f, client, 'discord', await f.invite());
+  const form = site => ({ body: {}, headers: { Origin: 'null', ...(site ? { 'Sec-Fetch-Site': site } : {}) } });
+  assert.equal((await client.request('/auth/signout', form())).status, 403);
+  assert.equal((await client.request('/auth/signout', form('cross-site'))).status, 403);
+  assert.equal((await client.request('/auth/signout', form('same-site'))).status, 403);
+  assert.equal((await client.request('/api/session')).status, 200, 'Refused sign-outs keep the session');
+  assert.equal((await client.request('/auth/signout', form('same-origin'))).status, 303);
+  assert.equal(client.jar.has('duo_access'), false); assert.equal((await client.request('/api/session')).status, 401);
+});
+
 test('provider failures remain generic and off mode preserves direct invitation access', { timeout: 30000 }, async t => {
   const f = await fixture(t), client = f.browser();
   const flow = await f.begin(client, 'discord', await f.invite());
