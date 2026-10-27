@@ -26,7 +26,9 @@ export function pluginTaskFrom(search) {
   return /^\d{1,6}$/.test(query.get('from')) ? Number(query.get('from')) : null;
 }
 
-/** Response body for GET /api/plugin/v1/tasks. `chunks` stays on the server.
+/** Response body for GET /api/plugin/v1/tasks. `chunkId` and row `chunks` are
+ * picker IDs here; the route converts the response chunkId to a game ID.
+ * `chunks` stays on the server.
  * `all` is one page of up to 100 rows starting at `from`; `allFrom` tells the plugin it can ask for more. */
 export function pluginTaskList({ rows, chunkId, stateRevision, stale, from = 0 }) {
   if (!rows) return { v: 1, ready: false, stale: false, stateRevision, chunkId, here: [], all: [], allFrom: 0, hereCount: 0, allCount: 0, hereKnown: false };

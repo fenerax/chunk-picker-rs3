@@ -4,6 +4,7 @@ import { openPluginItems } from './plugin-items.mjs';
 import { GAME_ITEMS, GAME_TOOLBELT, GAME_WORN_TASKS, COINS, COIN_BILLIONS, ITEM_REVIEW_LIMIT, matchGameItems } from './integrations/game-items.mjs';
 import { fields, validatePluginReport, pluginProposal, matchPluginAchievements, ACHIEVEMENT_REVIEW_LIMIT } from './integrations/game-plugin.mjs';
 import { pluginTaskRows, pluginTaskList, pluginTaskFrom } from './game-plugin-tasks.mjs';
+import { createGameCoordinates } from './core/game-coords.mjs';
 
 const fail = (status, message) => Object.assign(new Error(message), { status });
 const LIFETIME = 10 * 60 * 1000;
@@ -12,6 +13,7 @@ const NEARBY_RADIUS = 2;
 const COMPLETED_SNAPSHOT_LIMIT = 8;
 const HANDLED_RETRY_INTERVAL = 60 * 1000;
 const COIN_WRITE_INTERVAL = 60 * 1000;
+const positionGameId = latest => latest ? String(latest.position.x * 256 + latest.position.z) : null;
 function selectItems(preview, selections) {
   if (!Array.isArray(selections) || selections.length > preview.items.length) throw fail(400, 'Choose item tasks from this review.');
   const tasks = new Set();
@@ -29,6 +31,8 @@ const PLUGIN_ROUTES = new Map([['/api/plugin/v1/report', 'POST'], ['/api/plugin/
 /** Positions, assemblies and proposals are ephemeral. Ticks use store.command. */
 export async function openGamePlugin({ dataDir, store, world, registry, questMapping, bodyJSON, json,
   serializeMutation, checkRequestOrigin, unauthenticated = () => {}, notify = () => {}, clock = Date.now, savedTasks = () => null, taskCatalogue = () => [], itemsBetaAsLive = false, log = console.warn }) {
+  const coordinates = createGameCoordinates(world);
+  const gameId = id => coordinates.pickerChunkToGameId(id);
   const keys = await openPluginKeys({ dataDir, clock });
   const handled = await openPluginAchievements({ dataDir, members: () => state().members, clock, log });
   const itemStore = await openPluginItems({ dataDir, members: () => state().members, clock, log });
@@ -339,16 +343,18 @@ export async function openGamePlugin({ dataDir, store, world, registry, questMap
       for (let dz = -NEARBY_RADIUS; dz <= NEARBY_RADIUS; dz++) for (let dx = -NEARBY_RADIUS; dx <= NEARBY_RADIUS; dx++) {
         const nx = x + dx, nz = z + dz;
         if (nx < 0 || nx > 199 || nz < 0 || nz > 199) continue;
-        const id = String(nx * 256 + nz), row = { chunkId: id, state: stateOf(id) };
+        // Lua decodes chunkId into map squares for shading. Lookup ownership in
+        // picker space, but leave the row at the reported game's coordinates.
+        const id = coordinates.gameSquareToPickerChunk(nx, nz), row = { chunkId: String(nx * 256 + nz), state: stateOf(id) };
         if (row.state === 'unlocked' && cached.partner.size) row.by = !cached.partner.has(id) ? 'me' : cached.own.has(id) ? 'both' : 'partner';
         nearby.push(row);
       }
     }
-    return { v: 1, accepts: ['achievements', 'items', 'toolbelt', 'pouch', 'bank'], achievements: achievementStatus(player), items: itemAcks.get(player) ?? null, bank: bankStatus(player), player: { id: player, name: owner.name }, chunkId, chunkName: chunk?.name ?? null,
+    return { v: 1, accepts: ['achievements', 'items', 'toolbelt', 'pouch', 'bank'], achievements: achievementStatus(player), items: itemAcks.get(player) ?? null, bank: bankStatus(player), player: { id: player, name: owner.name }, chunkId: positionGameId(position), chunkName: chunk?.name ?? null,
       state: !position ? 'unknown' : stateOf(chunkId),
       activeTaskCount: taskRows.get(player)?.revision === revision && !taskRows.get(player).stale ? taskRows.get(player).rows.length : null, unlockedChunkCount: cached.count, pendingProgress: !!liveReview(player), seenAt: position?.seenAt ?? null, nearby,
       pickableCount: pool ? pool.eligible.length : null,
-      pendingRoll: (owner.pendingRoll ?? []).map(id => ({ chunkId: id, chunkName: world.chunks.get(id.split('-')[0])?.name ?? null })),
+      pendingRoll: (owner.pendingRoll ?? []).map(id => ({ chunkId: gameId(id), chunkName: world.chunks.get(id.split('-')[0])?.name ?? null })),
       partners: partners(player) };
   }
   // The last complete bank this picker holds; after a restart, the saved live one.
@@ -364,8 +370,9 @@ export async function openGamePlugin({ dataDir, store, world, registry, questMap
     const revision = store.getInfo().revision, fresh = savedTasks(player);
     if (fresh?.bytes) retainedTasks.set(player, fresh.bytes);
     const current = fresh?.bytes && fresh.revision === revision, bytes = current ? fresh.bytes : retainedTasks.get(player);
-    const latest = positions.get(player), chunkId = latest && clock() - Date.parse(latest.seenAt) < LIFETIME ? latest.chunkId : null;
-    if (!bytes) return pluginTaskList({ rows: null, chunkId, stateRevision: revision, stale: false });
+    const latest = positions.get(player), position = latest && clock() - Date.parse(latest.seenAt) < LIFETIME ? latest : null;
+    const chunkId = position?.chunkId ?? null;
+    if (!bytes) return { ...pluginTaskList({ rows: null, chunkId, stateRevision: revision, stale: false }), chunkId: positionGameId(position) };
     let cached = taskRows.get(player);
     if (cached?.bytes !== bytes || cached.revision !== revision) {
       const state = store.getTaskClaimState?.() ?? store.getCalculationSnapshot().state;
@@ -373,13 +380,15 @@ export async function openGamePlugin({ dataDir, store, world, registry, questMap
         rows: pluginTaskRows({ state, result: JSON.parse(bytes.toString('utf8')), registry, memberId: player, stale: !current }) };
       taskRows.set(player, cached);
     }
-    return pluginTaskList({ rows: cached.rows, chunkId, stateRevision: revision, stale: cached.stale, from });
+    // Filter tasks in picker space, then keep the wire's current-chunk identity
+    // consistent with status and the plugin's position/debounce checks.
+    return { ...pluginTaskList({ rows: cached.rows, chunkId, stateRevision: revision, stale: cached.stale, from }), chunkId: positionGameId(position) };
   }
   // Other players' last reported chunks, from their own plugins. Never their exact tiles.
   function partners(player) {
     return state().members.filter(other => other.id !== player).map(other => {
       const latest = positions.get(other.id), fresh = latest && clock() - Date.parse(latest.seenAt) < LIFETIME;
-      return { name: other.name, chunkId: fresh ? latest.chunkId : null, chunkName: fresh ? world.chunks.get(latest.chunkId)?.name ?? null : null,
+      return { name: other.name, chunkId: fresh ? positionGameId(latest) : null, chunkName: fresh ? world.chunks.get(latest.chunkId)?.name ?? null : null,
         seenAt: fresh ? latest.seenAt : null };
     });
   }
@@ -424,7 +433,7 @@ export async function openGamePlugin({ dataDir, store, world, registry, questMap
             assemblies.delete(credential.player);
             completedSnapshots.get(credential.player)?.delete(assembly.snapshot);
           }
-          positions.set(credential.player, { memberId: credential.player, chunkId: String(report.position.x * 256 + report.position.z),
+          positions.set(credential.player, { memberId: credential.player, chunkId: coordinates.gameSquareToPickerChunk(report.position.x, report.position.z),
             position: report.position, seenAt: new Date(clock()).toISOString() });
           if (report.diagnostics) diagnostics.set(credential.id, { lines: [...report.diagnostics], receivedAt: new Date(clock()).toISOString() });
           if (report.skills !== undefined || report.quests !== undefined) {
