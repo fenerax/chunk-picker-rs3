@@ -3,6 +3,16 @@
   "entries": [
     {
       "date": "2026-10-27",
+      "title": "Admin saves again, and the picker opens faster",
+      "items": [
+        "Changes made from the private admin address save again. Since the sign-in update they were refused, because that address is plain HTTP",
+        "Opening the picker downloads about a third as much: an old save-conversion record the page never used now stays on the server, and stays in your backups",
+        "After the picker has been idle, its first calculation gets more time instead of being stopped and redone, so waking it up is quicker on a busy PC",
+        "The \"Updating tasks…\" message now sits in the top bar beside the save status, so it no longer covers notices and their Dismiss buttons"
+      ]
+    },
+    {
+      "date": "2026-10-27",
       "title": "Sign in with Discord or Google",
       "items": [
         "You can now sign in with Discord or Google instead of keeping your invite link safe. Your current link keeps working, and signing in is optional",
