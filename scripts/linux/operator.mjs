@@ -68,8 +68,14 @@ async function waitReady(release, request = privateRequest, wait = delay, contro
   }
   throw new Error('Private readiness did not recover.');
 }
+// The task worker sleeps after RS3_WORKER_IDLE_MS without requests and wakes
+// on the next one, so a sleeping worker is healthy, not a reason to restart.
 const ready = async (release, request) => {
-  try { const health = await request(release, '/api/health'); return health.ready === true && health.savesReady === true; } catch { return false; }
+  try {
+    const health = await request(release, '/api/health'), worker = health.worker ?? {};
+    const asleep = worker.status === 'sleeping' && worker.stuck !== true && worker.restartRequired !== true;
+    return (health.ready === true || asleep) && health.savesReady === true;
+  } catch { return false; }
 };
 export async function healthRecovery({ settings, release, controller, request = privateRequest, wait = delay }) {
   const state = await controller.state();

@@ -162,6 +162,26 @@ test('worker recovery precedes writer recovery and a failed stop can never start
   assert(!events.includes('start'));
 });
 
+test('an idle sleeping worker is healthy; a stuck or failed one still recovers', async t => {
+  const { settings, current, controller, events } = await fixture(t);
+  const sleeping = { status: 'sleeping', ready: false, stuck: false, restartRequired: false };
+  let health = { ready: false, status: 'ready', savesReady: true, worker: sleeping };
+  // A restarted writer comes back ready; until then the synthetic health holds.
+  const request = async (_release, route) => { events.push(route); return events.includes('start') ? { ready: true, savesReady: true } : health; };
+  assert.deepEqual(await healthRecovery({ settings, release: current, controller, request, wait: noWait }), { healthy: true });
+  assert.deepEqual(events, ['/api/health']);
+  health = { ...health, savesReady: false };
+  events.length = 0;
+  assert.deepEqual(await healthRecovery({ settings, release: current, controller, request, wait: noWait }), { recovered: 'writer' });
+  assert(events.includes('/api/worker-restart') && events.includes('stop'));
+  for (const worker of [{ ...sleeping, stuck: true }, { ...sleeping, restartRequired: true }]) {
+    health = { ready: false, savesReady: true, worker };
+    events.length = 0;
+    assert.deepEqual(await healthRecovery({ settings, release: current, controller, request, wait: noWait }), { recovered: 'writer' });
+    assert(events.includes('/api/worker-restart'));
+  }
+});
+
 test('writer recovery waits for released store; inactive services and startup grace stay untouched', async t => {
   const { settings, current, controller, events } = await fixture(t);
   let started = false;
