@@ -10,6 +10,7 @@ import { backupStopped, checkStoppedCompatibility, restoreStopped, verifyBackup,
 import { deployStopped, deployPrechecked, backupOnline, healthRecovery } from '../scripts/linux/operator.mjs';
 import { readBackupStatus } from '../app/storage/backup-status.mjs';
 import { checkStart } from '../scripts/linux/start-check.mjs';
+import { compatibilityReports, syntheticAdditions, syntheticCore } from './helpers/release-compatibility.mjs';
 
 // Set before importing any state/server code. All writes stay in this worktree.
 process.env.RS3_DATASET = 'open-starter';
@@ -38,7 +39,7 @@ async function fixture(t) {
   const state = createGroupState([{ id: 'explorer1', name: 'Explorer 1' }, { id: 'explorer2', name: 'Explorer 2' }]);
   await writeFile(path.join(settings.dataDir, 'state.json'), encode(exportBackup(state)));
   await bindDatasetStorage(settings.dataDir, await resolveDataset({ datasetId: 'open-starter' }));
-  const release = async (name, { refusesRevision } = {}) => {
+  const release = async (name, { refusesRevision, additions } = {}) => {
     const core = path.join(scratch, name);
     await mkdir(path.join(core, 'app', 'core'), { recursive: true });
     const serverUrl = pathToFileURL(path.join(root, 'app/server.mjs')).href;
@@ -53,6 +54,12 @@ export async function createServer(options) {
   return open(options);
 }\n`;
     await writeFile(path.join(core, 'app', 'server.mjs'), source);
+    // The semantic child report loads the selected core's identity and dataset seams.
+    for (const name of ['tasks/identity.mjs', 'dataset-bootstrap.mjs', 'dataset-pipeline.mjs']) {
+      const target = path.join(core, 'app', name); await mkdir(path.dirname(target), { recursive: true });
+      await writeFile(target, `export * from ${JSON.stringify(pathToFileURL(path.join(root, 'app', name)).href)};\n`);
+    }
+    if (additions !== undefined) await syntheticCore(core, { additions });
     await writeFile(path.join(core, 'app', 'core', 'state.mjs'), `export { importBackup } from ${JSON.stringify(pathToFileURL(path.join(root, 'app/core/state.mjs')).href)};\n`);
     const configFile = path.join(scratch, name + '-config.json');
     const bytes = encode({ coreRoot: core, dataDir: settings.dataDir, datasetId: 'open-starter', runtimeOptions: {} });
@@ -127,6 +134,43 @@ test('final stopped-save gate runs all four real decoder probes even with unchan
   assert.equal(proof.passed, true); assert.equal(proof.steps, 4);
   assert.deepEqual(await inventory(settings.dataDir), before);
 });
+
+test('Linux semantic gate serves a synthetic four-task addition through current, candidate, rollback and re-forward', async t => {
+  const f = await fixture(t);
+  const current = await f.release('synthetic-old', { additions: false });
+  const candidate = await f.release('synthetic-new', { additions: true });
+  const before = await inventory(f.settings.dataDir), binding = await readFile(f.settings.dataDir + '.dataset.json');
+  let ownershipChecks = 0;
+  const proof = await checkStoppedCompatibility({ ...f.settings, current, candidate, savedIdentityAdditions: syntheticAdditions,
+    assertStopped: async () => { ownershipChecks++; } });
+  assert.equal(proof.steps, 4); assert.equal(ownershipChecks, 2);
+  assert.deepEqual(proof.savedIdentityAdditions, syntheticAdditions);
+  assert.deepEqual(await inventory(f.settings.dataDir), before);
+  assert.deepEqual(await readFile(f.settings.dataDir + '.dataset.json'), binding);
+});
+
+for (const fault of ['dropped history', 'changed progress', 'lost records', 'unserved tasks', 'registry', 'undeclared additions']) {
+  test(`Linux semantic gate refuses ${fault} and leaves the source untouched`, async t => {
+    const f = await fixture(t), { before, after } = compatibilityReports();
+    const original = await inventory(f.settings.dataDir);
+    let index = 0;
+    const probe = async () => {
+      const report = structuredClone(index ? after : before);
+      if (index === 1) {
+        if (fault === 'dropped history') report.historyEvents.shift();
+        if (fault === 'changed progress') report.progressDigest = 'changed';
+        if (fault === 'lost records') report.migrationSummary.lostRecords = 1;
+        if (fault === 'unserved tasks') report.tasksServed = false;
+      }
+      if (index === 2 && fault === 'registry') report.registryDigest = 'changed';
+      index++; return report;
+    };
+    await assert.rejects(checkStoppedCompatibility({ ...f.settings, current: f.current, candidate: f.candidate,
+      assertStopped: async () => {}, probe, ...(fault === 'undeclared additions' ? { savedIdentityAdditions: [] } : {}) }),
+      /history|progress|lost saved records|serve tasks|registry|reviewed list/);
+    assert.deepEqual(await inventory(f.settings.dataDir), original);
+  });
+}
 
 test('a candidate that accepted an earlier save refuses the final stopped revision and restarts old code untouched', { timeout: 55000 }, async t => {
   const { settings, current, release, controller, events } = await fixture(t);
@@ -279,8 +323,10 @@ for (const changed of [false, true]) test(`online deploy: changed=${changed} sel
     await stop();
     if (changed) await writeFile(path.join(f.settings.dataDir, 'new-sidecar.json'), '{}');
   };
-  const check = async ({ assertStopped }) => { await assertStopped(); checks++; };
-  await deployPrechecked({ ...f, check, capture, request: healthy, wait: noWait });
+  const check = async ({ assertStopped, savedIdentityAdditions }) => {
+    await assertStopped(); assert.deepEqual(savedIdentityAdditions, syntheticAdditions); checks++;
+  };
+  await deployPrechecked({ ...f, savedIdentityAdditions: syntheticAdditions, check, capture, request: healthy, wait: noWait });
   assert.equal(checks, changed ? 2 : 1);
   assert.deepEqual(f.events, ['stop', 'start']);
 });

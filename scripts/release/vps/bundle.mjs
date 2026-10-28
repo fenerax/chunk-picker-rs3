@@ -50,6 +50,9 @@ export async function prepareBundle(source, output) {
   if (!path.relative(source, output).startsWith('..')) throw new Error('Output must be outside the release.');
   await regular(source);
   const configBytes = await readFile(path.join(source, 'config.json')), config = JSON.parse(configBytes);
+  let savedIdentityAdditions;
+  try { savedIdentityAdditions = (await json(path.join(source, 'quick-build.json'))).savedIdentityAdditions; }
+  catch (error) { if (error.code !== 'ENOENT') throw error; }
   const sourceRoot = path.win32.dirname(config.coreRoot);
   const rows = [];
   for (const name of ['core', 'packs', 'profile.json', 'addons']) {
@@ -64,7 +67,7 @@ export async function prepareBundle(source, output) {
   await mkdir(output, { mode: 0o700 });
   execFileSync(windowsTar(), ['-cf', path.join(output, 'release.tar'), '-C', source, 'core', 'packs', 'profile.json', 'addons'], { stdio: 'ignore', windowsHide: true });
   await writeFile(path.join(output, 'source-config.json'), configBytes, { flag: 'wx', mode: 0o600 });
-  await writeFile(path.join(output, 'release-manifest.json'), encode({ sourceRoot, configSha256: sha(configBytes), rows }), { flag: 'wx', mode: 0o600 });
+  await writeFile(path.join(output, 'release-manifest.json'), encode({ sourceRoot, configSha256: sha(configBytes), rows, savedIdentityAdditions }), { flag: 'wx', mode: 0o600 });
   const transfer = {};
   for (const name of ['release.tar', 'source-config.json', 'release-manifest.json']) transfer[name] = await hash(path.join(output, name));
   await writeFile(path.join(output, 'transfer.json'), encode(transfer), { flag: 'wx', mode: 0o600 });
@@ -107,7 +110,7 @@ export async function rebaseBundle(upload, target, operatorFile, toolsRoot) {
   await writeFile(pointer, encode({ config: { path: configPath, sha256: sha(bytes) } }), { flag: 'wx', mode: 0o644 });
   const candidate = await readRelease(pointer, settings.dataDir);
   await writeFile(path.join(upload, 'verified.json'), encode({ candidateIdentity: candidate.identity,
-    previousPointerSha256: sha(current.pointerBytes), pointer }), { flag: 'wx', mode: 0o600 });
+    previousPointerSha256: sha(current.pointerBytes), pointer, savedIdentityAdditions: manifest.savedIdentityAdditions }), { flag: 'wx', mode: 0o600 });
 }
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   try {

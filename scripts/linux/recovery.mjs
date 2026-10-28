@@ -5,11 +5,18 @@ import { fileURLToPath } from 'node:url';
 import { randomUUID } from 'node:crypto';
 import { assertReleased, atomic, copyTree, directory, encode, exists, headroom, inventory, json, noLinks, outside, sha } from './files.mjs';
 import { assertSameRelease } from './runtime.mjs';
+import { assertCompatibleStep } from '../private-companion/release-compatibility.mjs';
 
 export async function runProbe(release, dataDir, output) {
+  return runChildProbe(release, dataDir, output, 'portable');
+}
+export async function runCompatibilityProbe(release, dataDir, output) {
+  return runChildProbe(release, dataDir, output, 'compatibility');
+}
+async function runChildProbe(release, dataDir, output, mode) {
   // Pass only an explicit config file, never credentials in argv or diagnostics.
   await new Promise((resolve, reject) => {
-    const child = spawn(process.execPath, ['--expose-gc', fileURLToPath(new URL('./probe.mjs', import.meta.url)), release.pointer.config.path, dataDir, output],
+    const child = spawn(process.execPath, ['--expose-gc', fileURLToPath(new URL('./probe.mjs', import.meta.url)), release.pointer.config.path, dataDir, output, mode],
       { env: { ...process.env, NODE_OPTIONS: '', NODE_PATH: '' }, stdio: 'ignore', windowsHide: true });
     let timedOut = false;
     const timer = setTimeout(() => { timedOut = true; child.kill('SIGKILL'); }, 180000);
@@ -17,7 +24,7 @@ export async function runProbe(release, dataDir, output) {
     child.once('exit', code => { clearTimeout(timer); code === 0 && !timedOut ? resolve() : reject(new Error('Recovery probe refused or timed out.')); });
   });
   const document = await json(output);
-  if (document.format !== 'rs3-chunk-picker' || !document.state?.members?.length) throw new Error('Invalid portable export.');
+  if (mode === 'portable' && (document.format !== 'rs3-chunk-picker' || !document.state?.members?.length)) throw new Error('Invalid portable export.');
   return document;
 }
 export async function storeIdentity(dataDir) {
@@ -107,7 +114,7 @@ export async function restoreStopped({ backup, dataDir, scratchRoot, release, mi
 }
 // Call under the deploy/health/backup exclusion, AFTER graceful systemd stop and
 // immediately BEFORE binding/pointer CAS. Even equal descriptors are probed.
-export async function checkStoppedCompatibility({ dataDir, scratchRoot, current, candidate, candidateBinding, minFreeBytes, assertStopped, probe = runProbe }) {
+export async function checkStoppedCompatibility({ dataDir, scratchRoot, current, candidate, candidateBinding, minFreeBytes, assertStopped, savedIdentityAdditions, probe = runCompatibilityProbe }) {
   if (typeof assertStopped !== 'function') throw new Error('A stopped-service ownership check is required.');
   await assertStopped();
   const before = await storeIdentity(dataDir);
@@ -116,24 +123,20 @@ export async function checkStoppedCompatibility({ dataDir, scratchRoot, current,
   await headroom(scratchRoot, before.files.reduce((sum, row) => sum + (row.bytes ?? 0), 0) * 6, minFreeBytes);
   const scratch = await mkdtemp(path.join(scratchRoot, 'compatibility-'));
   try {
-    let source = dataDir, baseline;
+    let source = dataDir, additions = [];
     const reports = [];
     for (const [index, release] of [current, candidate, current, candidate].entries()) {
       const copy = path.join(scratch, String(index));
       await snapshot(source, copy, index % 2 ? candidateBinding ?? binding : binding);
-      const document = await probe(release, copy, path.join(scratch, index + '.json'));
-      // Conservative: migrations that alter any logical gameplay/history/identity
-      // need explicit review. Object-key order and storage compression may differ.
-      const canonical = value => Array.isArray(value) ? value.map(canonical) : value && typeof value === 'object'
-        ? Object.fromEntries(Object.keys(value).sort().map(key => [key, canonical(value[key])])) : value;
-      const digest = sha(JSON.stringify(canonical(document)));
-      baseline ??= digest;
-      if (digest !== baseline) throw new Error('Candidate or rollback changed the logical portable save.');
-      reports.push(digest); source = copy;
+      const report = await probe(release, copy, path.join(scratch, index + '.json'));
+      const derived = assertCompatibleStep(reports.at(-1), report, { forward: index === 1,
+        ...(index === 1 ? { declaredAdditions: savedIdentityAdditions } : {}) });
+      if (index === 1) additions = derived;
+      reports.push(report); source = copy;
     }
     await assertSameRelease(current); await assertSameRelease(candidate); await assertStopped();
     if (encode(before) !== encode(await storeIdentity(dataDir))) throw new Error('Final stopped save changed during compatibility check.');
-    return { passed: true, steps: reports.length, storeDigest: sha(encode(before)), bindingSha256: sha(binding) };
+    return { passed: true, steps: reports.length, savedIdentityAdditions: additions, storeDigest: sha(encode(before)), bindingSha256: sha(binding) };
   } finally { await rm(scratch, { recursive: true, force: true }); }
 }
 export async function writeBackupStatus(dataDir, { result, byteSize = null, at = new Date().toISOString() }) {

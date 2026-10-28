@@ -182,7 +182,7 @@ export async function checkPackTransition({ fromConfig, toConfig, transition, ou
     throw error;
   } finally { await rm(scratch, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }); }
 }
-async function probe(core, dataDir, output) {
+export async function probe(core, dataDir, output, { retention } = {}) {
   const { authoredIdentityRegistry, resolveIdentity } = await import(pathToFileURL(path.join(core, 'app/tasks/identity.mjs')));
   const { loadDatasetInputs } = await import(pathToFileURL(path.join(core, 'app/dataset-bootstrap.mjs')));
   const { prepareTaskDefinitions } = await import(pathToFileURL(path.join(core, 'app/dataset-pipeline.mjs')));
@@ -193,7 +193,7 @@ async function probe(core, dataDir, output) {
   }
   if (!port) throw new Error('No scratch compatibility port available.');
   const { createServer } = await import(pathToFileURL(path.join(core, 'app/server.mjs')));
-  const app = await createServer({ dataDir, host: '127.0.0.1', port, loopbackPort: undefined, predictionPrewarm: false,
+  const app = await createServer({ dataDir, host: '127.0.0.1', port, loopbackPort: undefined, predictionPrewarm: false, retention,
     runeMetrics: { fetchImpl: async () => { throw new Error('Offline compatibility check'); } },
     originalSync: { fetchImpl: async () => { throw new Error('Offline compatibility check'); } } });
   try {

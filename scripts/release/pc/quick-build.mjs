@@ -22,6 +22,7 @@ import { copyFile, cp, lstat, mkdir, mkdtemp, readdir, readFile, rm, stat, write
 import { createHash } from 'node:crypto';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { parseArgs } from 'node:util';
+import { assertCompatibleStep } from '../../private-companion/release-compatibility.mjs';
 
 export const REPOSITORY = 'fenerax/chunk-picker-rs3';
 // Every job GitHub runs for a commit: tests (test.yml), the coverage gate over
@@ -144,29 +145,27 @@ function runProbe(script, config, dataDir, output, sanitize) {
 // the previous step's result after that, under the binding its dataset needs.
 // Identities, progress and history must survive every step; from the third
 // step on, the saved identity registry must too.
-async function probeChain(core, dataDir, steps, lap = () => {}) {
+export async function probeChain(core, dataDir, steps, lap = () => {}, { probe = runProbe, declaredAdditions, forward = true } = {}) {
   const check = await import(pathToFileURL(path.join(core, 'scripts/private-companion/release-pack-check.mjs')).href);
   const identity = await import(pathToFileURL(path.join(core, 'scripts/private-companion/release-identity.mjs')).href);
   const script = path.join(core, 'scripts/private-companion/release-pack-check.mjs');
   const scratch = await mkdtemp(path.join(os.tmpdir(), 'rs3-quick-'));
   const probes = [];
+  let savedIdentityAdditions = [];
   try {
     for (const [index, step] of steps.entries()) {
       const copy = path.join(scratch, step.name);
       await snapshotSave(index ? path.join(scratch, steps[index - 1].name) : dataDir, copy, { saveIdentity: check.saveIdentity, digestValue: identity.digestValue });
       await writeFile(copy + '.dataset.json', step.binding, { flag: 'wx' });
-      const report = await runProbe(script, step.config, copy, path.join(scratch, step.name + '.json'), identity.sanitizeExecutionEnvironment);
-      if (index) {
-        const before = probes.at(-1);
-        check.assertStableIdentities(before, report);
-        check.assertPreserved(before, report);
-        if (index > 1 && before.registryDigest !== report.registryDigest) throw new Error(`The ${step.name} step changed saved registry data.`);
-      }
+      const report = await probe(script, step.config, copy, path.join(scratch, step.name + '.json'), identity.sanitizeExecutionEnvironment);
+      const additions = assertCompatibleStep(probes.at(-1), report, { forward: index === 1 && forward,
+        ...(index === 1 ? { declaredAdditions } : {}) });
+      if (index === 1) savedIdentityAdditions = additions;
       probes.push(report);
       lap('probe-' + step.name);
     }
   } finally { await rm(scratch, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }); }
-  return probes.map((r, i) => ({ step: steps[i].name, tasks: r.taskIds.length, saved: Object.keys(r.saved).length, history: r.historyEvents.length, lostRecords: r.migrationSummary.lostRecords }));
+  return { savedIdentityAdditions, probes: probes.map((r, i) => ({ step: steps[i].name, tasks: r.taskIds.length, saved: Object.keys(r.saved).length, history: r.historyEvents.length, lostRecords: r.migrationSummary.lostRecords })) };
 }
 
 // The six local caches are data inputs the public repository does not carry.
@@ -286,11 +285,12 @@ export async function build({ repo, commit, current, releases, release, now = ()
   const newBinding = dataChanged ? check.bindingBytes(to.descriptor) : binding;
   const steps = [{ name: 'live', config: liveConfig, binding }, { name: 'candidate', config, binding: newBinding },
     { name: 'swap-back', config: liveConfig, binding }, ...(dataChanged ? [{ name: 'forward', config, binding: newBinding }] : [])];
-  const probes = await probeChain(core, liveConfig.dataDir, steps, name => { t = lap(name, t); });
+  const { probes, savedIdentityAdditions } = await probeChain(core, liveConfig.dataDir, steps, name => { t = lap(name, t); });
+  console.log(`Saved identity additions: ${savedIdentityAdditions.length}; targets: ${[...new Set(savedIdentityAdditions.map(row => row.target))].join(', ') || '-'}`);
   let transition = null;
   if (dataChanged) {
     // The managed operator's transition format, so either path can read it.
-    const plan = { schemaVersion: 1, oldConfig: from.pin, newConfig: to.pin,
+    const plan = { schemaVersion: 2, savedIdentityAdditions, oldConfig: from.pin, newConfig: to.pin,
       old: { ...from.descriptor, bindingSha256: sha(binding) }, new: { ...to.descriptor, bindingSha256: sha(newBinding) },
       oldBindingBase64: binding.toString('base64'), newBindingBase64: newBinding.toString('base64') };
     const planBytes = encode(plan);
@@ -301,7 +301,7 @@ export async function build({ repo, commit, current, releases, release, now = ()
   const receipt = { schemaVersion: 1, releaseId: release, commit: full, tree, repository: REPOSITORY, checks: github.checks,
     live: { releaseId: pointer.releaseId, configSha256: pointer.config.sha256 },
     sameAsLive: { data: !dataChanged, profile: sha(profileBytes) === liveConfig.profile.sha256, addon: sha(addonBytes) === liveConfig.addons.sha256 },
-    dataPack: builtData.version, transition, probes,
+    dataPack: builtData.version, transition, probes, savedIdentityAdditions,
     seconds: { ...seconds, total: Math.round((now() - started) / 100) / 10 }, builtAt: new Date().toISOString() };
   await writeFile(path.join(dir, 'quick-build.json'), encode(receipt), { flag: 'wx' });
   return receipt;
@@ -349,7 +349,8 @@ export async function prepareSwap({ current, releaseDir }) {
   if (sha(binding) !== pair.plan[pair.from].bindingSha256) throw new Error('The save binding is not the one the live release uses.');
   const steps = [{ name: 'live', config: liveConfig, binding }, { name: 'candidate', config, binding: bytes(pair.to) },
     ...(pair.to === 'new' ? [{ name: 'swap-back', config: liveConfig, binding }, { name: 'forward', config, binding: bytes('new') }] : [])];
-  const probes = await probeChain(config.coreRoot, liveConfig.dataDir, steps);
+  const { probes } = await probeChain(config.coreRoot, liveConfig.dataDir, steps, undefined,
+    { forward: pair.to === 'new', declaredAdditions: pair.to === 'new' ? pair.plan.savedIdentityAdditions : undefined });
   return { binding: { path: bindingPath, fromSha256: sha(binding), toSha256: pair.plan[pair.to].bindingSha256,
     fromBase64: binding.toString('base64'), toBase64: bytes(pair.to).toString('base64') }, probes };
 }

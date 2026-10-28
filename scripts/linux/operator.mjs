@@ -90,7 +90,7 @@ export async function healthRecovery({ settings, release, controller, request = 
   await controller.start(); await waitReady(release, request, wait, controller);
   return { recovered: 'writer' };
 }
-export async function deployStopped({ settings, current, candidate, controller, candidateBinding, checkedIdentity, check = checkStoppedCompatibility, request = privateRequest, wait = delay }) {
+export async function deployStopped({ settings, current, candidate, controller, candidateBinding, checkedIdentity, savedIdentityAdditions, check = checkStoppedCompatibility, request = privateRequest, wait = delay }) {
   const stopped = () => assertStopped(controller, settings.dataDir);
   await controller.stop(); await stopped();
   const originalBinding = await readFile(settings.dataDir + '.dataset.json');
@@ -98,7 +98,7 @@ export async function deployStopped({ settings, current, candidate, controller, 
   try {
     if (!checkedIdentity || encode(checkedIdentity) !== encode(await storeIdentity(settings.dataDir))) {
       await check({ dataDir: settings.dataDir, scratchRoot: settings.scratchRoot, minFreeBytes: settings.minFreeBytes,
-        current, candidate, candidateBinding, assertStopped: stopped });
+        current, candidate, candidateBinding, savedIdentityAdditions, assertStopped: stopped });
     }
     await stopped(); await assertSameRelease(current); await assertSameRelease(candidate);
     if (sha(await readFile(settings.dataDir + '.dataset.json')) !== sha(originalBinding)) throw new Error('Binding changed before activation.');
@@ -133,19 +133,19 @@ export async function deployStopped({ settings, current, candidate, controller, 
     throw error;
   }
 }
-export async function deployPrechecked({ settings, current, candidate, controller, candidateBinding,
+export async function deployPrechecked({ settings, current, candidate, controller, candidateBinding, savedIdentityAdditions,
   capture = captureOnline, check = checkStoppedCompatibility, request = privateRequest, wait = delay }) {
   const snapshot = await capture({ settings, release: current, request });
   let checkedIdentity;
   try {
     const before = await storeIdentity(snapshot.dataDir);
-    await check({ ...settings, dataDir: snapshot.dataDir, current, candidate, candidateBinding,
+    await check({ ...settings, dataDir: snapshot.dataDir, current, candidate, candidateBinding, savedIdentityAdditions,
       assertStopped: () => assertReleased(snapshot.dataDir) });
     if (encode(before) !== encode(await storeIdentity(snapshot.dataDir))) throw new Error('Checked snapshot changed.');
     checkedIdentity = before;
   } finally { await snapshot.cleanup(); }
   // No start/stop has happened if any of the online preparation failed.
-  return deployStopped({ settings, current, candidate, controller, candidateBinding, checkedIdentity, check, request, wait });
+  return deployStopped({ settings, current, candidate, controller, candidateBinding, savedIdentityAdditions, checkedIdentity, check, request, wait });
 }
 export async function backupOnline({ settings, release, request = privateRequest, capture = captureOnline, probe }) {
   const snapshot = await capture({ settings, release, request });
@@ -168,10 +168,12 @@ export async function runOperator(command, argument, evidence, mode) {
     }
     if (!['backup', 'restore', 'deploy'].includes(command)) throw new Error('Use health, backup, restore or deploy.');
     const candidate = command === 'deploy' ? await readRelease(argument, settings.dataDir) : null;
+    let savedIdentityAdditions;
     if (command === 'deploy' && evidence && evidence !== '--stopped') {
       const receipt = await json(evidence);
       if (receipt.previousPointerSha256 !== sha(release.pointerBytes) || receipt.candidateIdentity !== candidate.identity
         || path.resolve(receipt.pointer) !== path.resolve(argument)) throw new Error('Staged deployment receipt changed.');
+      savedIdentityAdditions = receipt.savedIdentityAdditions;
     }
     let candidateBinding;
     if (candidate?.config.packs?.data) {
@@ -189,7 +191,7 @@ export async function runOperator(command, argument, evidence, mode) {
     try {
       if (command === 'deploy') {
         const deploy = evidence === '--stopped' || mode === '--stopped' ? deployStopped : deployPrechecked;
-        await deploy({ settings, current: release, candidate, candidateBinding, controller });
+        await deploy({ settings, current: release, candidate, candidateBinding, savedIdentityAdditions, controller });
       } else if (command === 'backup' && argument !== '--stopped') {
         await atomic(path.join(path.dirname(settings.dataDir), 'backup-destination'), 'managed\n', 0o644);
         const result = await backupOnline({ settings, release });

@@ -5,7 +5,10 @@ import os from 'node:os';
 import { execFileSync } from 'node:child_process';
 import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
-import { REQUIRED_CHECKS, carryLocalInputs, evaluateChecks, prepareSwap, treeEntries, verifyExport } from '../scripts/release/pc/quick-build.mjs';
+import { REQUIRED_CHECKS, carryLocalInputs, evaluateChecks, prepareSwap, probeChain, treeEntries, verifyExport } from '../scripts/release/pc/quick-build.mjs';
+import { assertCompatibleStep, deriveSavedIdentityAdditions } from '../scripts/private-companion/release-compatibility.mjs';
+import { compatibilityReports, syntheticAdditions, syntheticCore } from './helpers/release-compatibility.mjs';
+import { fileURLToPath } from 'node:url';
 
 const run = (name, conclusion, id = 1, status = 'completed') => ({ id, name, status, conclusion, app: { slug: 'github-actions' }, completed_at: '2026-10-21T12:00:00Z' });
 // Every required job green, with `name` replaced (or dropped when `replacement` is absent).
@@ -130,4 +133,53 @@ test('the go-live save check needs no binding change for the same data, and a tr
     await writeFile(path.join(changed.candidate.dir, 'pack-transition.json'), JSON.stringify({ ...plan, newBindingBase64: bytes('d'.repeat(64)).toString('base64') }));
     await assert.rejects(prepareSwap({ current: changed.current, releaseDir: changed.candidate.dir }), /binding bytes differ/);
   } finally { await rm(root, { recursive: true, force: true }); }
+});
+
+test('derive and strictly validate the four newly authored saved identities', () => {
+  const { before, after } = compatibilityReports();
+  assert.deepEqual(deriveSavedIdentityAdditions(before, after), syntheticAdditions);
+  assert.deepEqual(assertCompatibleStep(before, after, { forward: true }), syntheticAdditions);
+  assert.doesNotThrow(() => assertCompatibleStep(after, after));
+  assert.throws(() => assertCompatibleStep(before, after), /identities/);
+  assert.throws(() => assertCompatibleStep(before, after, { forward: true, declaredAdditions: [] }), /reviewed list/);
+});
+
+for (const change of ['existing resolution', 'removed key', 'already authored target', 'non-resolved addition', 'code identities', 'implicit authored key']) {
+  test(`derivation refuses ${change}`, () => {
+    const { before, after } = structuredClone(compatibilityReports());
+    const key = syntheticAdditions[0].key;
+    if (change === 'existing resolution') after.saved['rs3:task:existing'].id = key;
+    if (change === 'removed key') delete after.saved['rs3:task:existing'];
+    if (change === 'already authored target') before.datasetAuthored[key] = key;
+    if (change === 'non-resolved addition') after.saved[key].status = 'unresolved';
+    if (change === 'code identities') after.authored = { ids: [], aliases: {} };
+    if (change === 'implicit authored key') before.datasetAuthoredKeys[key] = key;
+    assert.throws(() => deriveSavedIdentityAdditions(before, after), /identit|addition/);
+  });
+}
+
+test('quick-build chain derives only on forward and proves rollback and re-forward in child probes', async t => {
+  const local = fileURLToPath(new URL('../.local/', import.meta.url)); await mkdir(local, { recursive: true });
+  const scratch = await mkdtemp(path.join(local, 'quick-additions-'));
+  t.after(() => rm(scratch, { recursive: true, force: true }));
+  const old = path.join(scratch, 'old'), candidate = path.join(scratch, 'candidate'), save = path.join(scratch, 'save');
+  await syntheticCore(old); await syntheticCore(candidate, { additions: true }); await mkdir(save);
+  await writeFile(path.join(save, 'state.json'), JSON.stringify({ members: [{ id: 'synthetic' }] }));
+  const config = coreRoot => ({ coreRoot, nodePath: process.execPath, packsDir: scratch,
+    selection: { path: 'synthetic' }, profile: { path: 'synthetic', sha256: '0'.repeat(64) }, addons: { path: 'synthetic', sha256: '0'.repeat(64) } });
+  const steps = [old, candidate, old, candidate].map((core, index) => ({ name: String(index), config: config(core), binding: '{}' }));
+  const proof = await probeChain(fileURLToPath(new URL('../', import.meta.url)), save, steps);
+  assert.deepEqual(proof.savedIdentityAdditions, syntheticAdditions);
+  assert.deepEqual(proof.probes.map(row => [row.saved, row.history, row.lostRecords]), [[1, 1, 0], [5, 2, 0], [5, 2, 0], [5, 2, 0]]);
+  assert.deepEqual(JSON.parse(await readFile(path.join(save, 'state.json'))), { members: [{ id: 'synthetic' }] });
+  const { before, after } = compatibilityReports();
+  for (const index of [2, 3]) {
+    let call = 0;
+    const probe = async () => {
+      const report = structuredClone(call ? after : before);
+      if (call++ === index) report.saved.extra = { status: 'resolved', id: 'extra', candidates: ['extra'] };
+      return report;
+    };
+    await assert.rejects(probeChain(fileURLToPath(new URL('../', import.meta.url)), save, steps, undefined, { probe }), /identities/);
+  }
 });

@@ -176,8 +176,11 @@ test('release bundle pins and manifest verify every uploaded file without copyin
   const profile = path.join(source, 'profile.json'); await writeFile(profile, '{}');
   const { sha } = await import('../scripts/linux/files.mjs');
   await writeFile(path.join(source, 'config.json'), JSON.stringify({ coreRoot: path.join(source, 'core'), profile: { path: profile, sha256: sha('{}') } }));
+  const savedIdentityAdditions = [{ key: 'rs3:task:synthetic', target: 'rs3:task:synthetic' }];
+  await writeFile(path.join(source, 'quick-build.json'), JSON.stringify({ savedIdentityAdditions }));
   await prepareBundle(source, out);
   const manifest = JSON.parse(await readFile(path.join(out, 'release-manifest.json')));
+  assert.deepEqual(manifest.savedIdentityAdditions, savedIdentityAdditions);
   assert(manifest.rows.some(row => row.path === 'core/app.mjs'));
   assert(!manifest.rows.some(row => row.path.includes('state.json')));
   await writeFile(profile, 'changed');
