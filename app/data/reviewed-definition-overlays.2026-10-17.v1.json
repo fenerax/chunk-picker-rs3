@@ -3913,6 +3913,521 @@
         "quote": "The northern area can be accessed after the quest",
         "url": "https://runescape.wiki/w/Grand_Tree_Tunnels?oldid=37130876"
       }
+    },
+    {
+      "path": [
+        "challenges",
+        "Nonskill",
+        "Talk to Dotmatrix before entering the Jadinko Lair"
+      ],
+      "beforePresent": false,
+      "afterPresent": true,
+      "after": {
+        "PickerId": "rs3:task:jadinko-lair-introduction",
+        "ManualChecks": [
+          "Confirm in game that you spoke to Dotmatrix and unlocked the main entrance to the Jadinko Lair."
+        ],
+        "Description": "Record this introduction only after completing it in game.",
+        "Chunks": [
+          "11821",
+          "11822"
+        ],
+        "Not F2P": true
+      },
+      "evidence": {
+        "title": "Jadinko Lair",
+        "revision": 37214845,
+        "url": "https://runescape.wiki/w/Jadinko_Lair?oldid=37214845",
+        "quote": "players should speak to [[Dotmatrix]] to be able to enter the lair."
+      }
+    },
+    {
+      "path": [
+        "challenges",
+        "Nonskill",
+        "Jadinko Lair"
+      ],
+      "beforePresent": true,
+      "before": {
+        "UnlocksArea": true
+      },
+      "beforeRecordSha256": "297ac6cd513bd544463f128fce469b2f7efbd24112790ea04a7e7f25f038abde",
+      "afterPresent": true,
+      "after": {
+        "UnlocksArea": true,
+        "Tasks": {
+          "Talk to Dotmatrix before entering the Jadinko Lair": "Nonskill"
+        }
+      },
+      "evidence": {
+        "title": "Jadinko Lair",
+        "revision": 37214845,
+        "url": "https://runescape.wiki/w/Jadinko_Lair?oldid=37214845",
+        "quote": "players should speak to [[Dotmatrix]] to be able to enter the lair."
+      }
+    },
+    {
+      "path": [
+        "challenges",
+        "Nonskill",
+        "Talk to Wizard Finix to unlock the Runespan portals"
+      ],
+      "beforePresent": false,
+      "afterPresent": true,
+      "after": {
+        "PickerId": "rs3:task:runespan-introduction",
+        "ManualChecks": [
+          "Confirm in game that you spoke to Wizard Finix and unlocked the Runespan portals."
+        ],
+        "Description": "Record this introduction only after completing it in game.",
+        "Chunks": [
+          "12337"
+        ]
+      },
+      "evidence": {
+        "title": "Runespan",
+        "revision": 37202088,
+        "url": "https://runescape.wiki/w/Runespan?oldid=37202088",
+        "quote": "can be used after talking to [[Wizard Finix]]."
+      }
+    },
+    {
+      "path": [
+        "challenges",
+        "Nonskill",
+        "The Runespan"
+      ],
+      "beforePresent": true,
+      "before": {
+        "UnlocksArea": true
+      },
+      "beforeRecordSha256": "297ac6cd513bd544463f128fce469b2f7efbd24112790ea04a7e7f25f038abde",
+      "afterPresent": true,
+      "after": {
+        "UnlocksArea": true,
+        "Tasks": {
+          "Talk to Wizard Finix to unlock the Runespan portals": "Nonskill"
+        }
+      },
+      "evidence": {
+        "title": "Runespan",
+        "revision": 37202088,
+        "url": "https://runescape.wiki/w/Runespan?oldid=37202088",
+        "quote": "can be used after talking to [[Wizard Finix]]."
+      }
+    },
+    {
+      "path": [
+        "challenges",
+        "Nonskill",
+        "Complete Captain Cain's Barbarian Assault tutorial"
+      ],
+      "beforePresent": false,
+      "afterPresent": true,
+      "after": {
+        "PickerId": "rs3:task:barbarian-assault-tutorial",
+        "ManualChecks": [
+          "Confirm in game that you completed Captain Cain's Barbarian Assault tutorial."
+        ],
+        "Description": "Record this introduction only after completing it in game.",
+        "Chunks": [
+          "10039"
+        ],
+        "Not F2P": true
+      },
+      "evidence": {
+        "title": "Barbarian Assault",
+        "revision": 37173444,
+        "url": "https://runescape.wiki/w/Barbarian_Assault?oldid=37173444",
+        "quote": "Players who have not played Barbarian Assault must complete the tutorial with [[Captain Cain]] before they can play."
+      }
+    },
+    {
+      "path": [
+        "challenges",
+        "Nonskill",
+        "Barbarian Assault"
+      ],
+      "beforePresent": true,
+      "before": {
+        "UnlocksArea": true
+      },
+      "beforeRecordSha256": "297ac6cd513bd544463f128fce469b2f7efbd24112790ea04a7e7f25f038abde",
+      "afterPresent": true,
+      "after": {
+        "UnlocksArea": true,
+        "Tasks": {
+          "Complete Captain Cain's Barbarian Assault tutorial": "Nonskill"
+        }
+      },
+      "evidence": {
+        "title": "Barbarian Assault",
+        "revision": 37173444,
+        "url": "https://runescape.wiki/w/Barbarian_Assault?oldid=37173444",
+        "quote": "Players who have not played Barbarian Assault must complete the tutorial with [[Captain Cain]] before they can play."
+      }
+    },
+    {
+      "path": [
+        "codeItems",
+        "itemsPlus",
+        "Skavid cave entry[+]"
+      ],
+      "beforePresent": false,
+      "afterPresent": true,
+      "after": [
+        "Skavid map",
+        "Inferior locator",
+        "Poor locator",
+        "Good locator",
+        "Superior locator"
+      ],
+      "evidence": [
+        {
+          "title": "Skavid caves",
+          "revision": 37130969,
+          "url": "https://runescape.wiki/w/Skavid_caves?oldid=37130969",
+          "quote": "A Skavid map is not needed when using a resource [[locator]]"
+        },
+        {
+          "title": "Locator/HerbGroup1",
+          "revision": 36930707,
+          "url": "https://runescape.wiki/w/Locator%2FHerbGroup1?oldid=36930707",
+          "quote": "| {{plink|Cave nightshade}} <br> [[Light source]] required"
+        }
+      ]
+    },
+    {
+      "path": [
+        "challenges",
+        "Nonskill",
+        "Skavid caves"
+      ],
+      "beforePresent": true,
+      "before": {
+        "UnlocksArea": true
+      },
+      "beforeRecordSha256": "297ac6cd513bd544463f128fce469b2f7efbd24112790ea04a7e7f25f038abde",
+      "afterPresent": true,
+      "after": {
+        "UnlocksArea": true,
+        "Items": [
+          "Skavid cave entry[+]"
+        ]
+      },
+      "evidence": [
+        {
+          "title": "Skavid caves",
+          "revision": 37130969,
+          "url": "https://runescape.wiki/w/Skavid_caves?oldid=37130969",
+          "quote": "A Skavid map is not needed when using a resource [[locator]]"
+        },
+        {
+          "title": "Locator/HerbGroup1",
+          "revision": 36930707,
+          "url": "https://runescape.wiki/w/Locator%2FHerbGroup1?oldid=36930707",
+          "quote": "| {{plink|Cave nightshade}} <br> [[Light source]] required"
+        }
+      ]
+    },
+    {
+      "path": [
+        "codeItems",
+        "tasksPlus",
+        "Smoke Dungeon entry[+]"
+      ],
+      "beforePresent": false,
+      "afterPresent": true,
+      "after": [
+        "~|Desert Treasure|~ 6",
+        "~|Smoking Kills|~ 4"
+      ],
+      "evidence": [
+        {
+          "title": "Smoke Dungeon",
+          "revision": 37121995,
+          "url": "https://runescape.wiki/w/Smoke_Dungeon?oldid=37121995",
+          "quote": "Access to the Smoke Dungeon via the well entrance can be unlocked in the quest, [[Desert Treasure]]."
+        },
+        {
+          "title": "Dark stairs",
+          "revision": 36232667,
+          "url": "https://runescape.wiki/w/Dark_stairs?oldid=36232667",
+          "quote": "They provide access to the [[Smoke Dungeon]]"
+        },
+        {
+          "title": "Transcript:Dark stairs",
+          "revision": 36584018,
+          "url": "https://runescape.wiki/w/Transcript%3ADark_stairs?oldid=36584018",
+          "quote": "The player arrives in the Smoke Dungeon."
+        },
+        {
+          "title": "Smoking Kills",
+          "revision": 37211385,
+          "url": "https://runescape.wiki/w/Smoking_Kills?oldid=37211385",
+          "quote": "Put on your masked earmuffs, and go down the well into the [[Pollnivneach Slayer Dungeon]]."
+        }
+      ]
+    },
+    {
+      "path": [
+        "challenges",
+        "Nonskill",
+        "Smoke Dungeon"
+      ],
+      "beforePresent": true,
+      "before": {
+        "UnlocksArea": true
+      },
+      "beforeRecordSha256": "297ac6cd513bd544463f128fce469b2f7efbd24112790ea04a7e7f25f038abde",
+      "afterPresent": true,
+      "after": {
+        "UnlocksArea": true,
+        "Tasks": {
+          "Smoke Dungeon entry[+]": "Quest"
+        }
+      },
+      "evidence": [
+        {
+          "title": "Smoke Dungeon",
+          "revision": 37121995,
+          "url": "https://runescape.wiki/w/Smoke_Dungeon?oldid=37121995",
+          "quote": "Access to the Smoke Dungeon via the well entrance can be unlocked in the quest, [[Desert Treasure]]."
+        },
+        {
+          "title": "Dark stairs",
+          "revision": 36232667,
+          "url": "https://runescape.wiki/w/Dark_stairs?oldid=36232667",
+          "quote": "They provide access to the [[Smoke Dungeon]]"
+        },
+        {
+          "title": "Transcript:Dark stairs",
+          "revision": 36584018,
+          "url": "https://runescape.wiki/w/Transcript%3ADark_stairs?oldid=36584018",
+          "quote": "The player arrives in the Smoke Dungeon."
+        },
+        {
+          "title": "Smoking Kills",
+          "revision": 37211385,
+          "url": "https://runescape.wiki/w/Smoking_Kills?oldid=37211385",
+          "quote": "Put on your masked earmuffs, and go down the well into the [[Pollnivneach Slayer Dungeon]]."
+        }
+      ]
+    },
+    {
+      "path": [
+        "challenges",
+        "Quest",
+        "Archaeology Mystery: ~|Prison Break|~ 1"
+      ],
+      "beforePresent": true,
+      "before": {
+        "BaseQuest": "Prison Break",
+        "Description": "Gather all four custodian's log pages",
+        "Chunks": [
+          "Kharid-et - Barracks excavation site"
+        ],
+        "Items": [
+          "Custodian's log page 1",
+          "Custodian's log page 2",
+          "Custodian's log page 3",
+          "Custodian's log page 4"
+        ],
+        "Tasks": {
+          "Archaeology Mystery: ~|Breaking the Seal|~ Complete the mystery": "Quest"
+        },
+        "NoBoost": true
+      },
+      "beforeRecordSha256": "5b3b3cf58c2bf61ddc4217f3193ee3b0c1e0e35f99eade5f44b234231bb4a2b6",
+      "afterPresent": true,
+      "after": {
+        "BaseQuest": "Prison Break",
+        "Description": "Gather custodian's log pages 1 and 2",
+        "Chunks": [
+          "Kharid-et - Barracks excavation site"
+        ],
+        "Items": [
+          "Custodian's log page 1",
+          "Custodian's log page 2"
+        ],
+        "Tasks": {
+          "Archaeology Mystery: ~|Breaking the Seal|~ Complete the mystery": "Quest"
+        },
+        "NoBoost": true
+      },
+      "evidence": {
+        "title": "Prison Break",
+        "revision": 37152936,
+        "url": "https://runescape.wiki/w/Prison_Break?oldid=37152936",
+        "quote": "only the first two are needed to access the prison."
+      }
+    },
+    {
+      "path": [
+        "challenges",
+        "Quest",
+        "Archaeology Mystery: ~|Prison Break|~ 2"
+      ],
+      "beforePresent": true,
+      "before": {
+        "BaseQuest": "Prison Break",
+        "Description": "Hand in the pages to Liam and open the prison door",
+        "Chunks": [
+          "Kharid-et - Barracks excavation site"
+        ],
+        "Tasks": {
+          "Archaeology Mystery: ~|Prison Break|~ 1": "Quest"
+        }
+      },
+      "beforeRecordSha256": "fdcb722e11e23699a24b9d08bcf83b53bfc599b05f638704dd64d7410915f1d3",
+      "afterPresent": true,
+      "after": {
+        "BaseQuest": "Prison Break",
+        "Description": "Get the prison dial from Liam, repair it, and open the prison door: Shadow, Blood, Smoke, Ice",
+        "Chunks": [
+          "Kharid-et - Barracks excavation site"
+        ],
+        "Tasks": {
+          "Archaeology Mystery: ~|Prison Break|~ 1": "Quest"
+        }
+      },
+      "evidence": {
+        "title": "Prison Break",
+        "revision": 37152936,
+        "url": "https://runescape.wiki/w/Prison_Break?oldid=37152936",
+        "quote": "only the first two are needed to access the prison."
+      }
+    },
+    {
+      "path": [
+        "challenges",
+        "Quest",
+        "Archaeology Mystery: ~|Prison Break|~ 3"
+      ],
+      "beforePresent": false,
+      "afterPresent": true,
+      "after": {
+        "PickerId": "rs3:task:prison-break-remaining-pages",
+        "BaseQuest": "Prison Break",
+        "Description": "Gather the remaining custodian's log pages 3 and 4",
+        "Chunks": [
+          "Kharid-et - Barracks excavation site"
+        ],
+        "Items": [
+          "Custodian's log page 3",
+          "Custodian's log page 4"
+        ],
+        "Tasks": {
+          "Archaeology Mystery: ~|Prison Break|~ 2": "Quest"
+        },
+        "NoBoost": true
+      },
+      "evidence": {
+        "title": "Prison Break",
+        "revision": 37152936,
+        "url": "https://runescape.wiki/w/Prison_Break?oldid=37152936",
+        "quote": "only the first two are needed to access the prison."
+      }
+    },
+    {
+      "path": [
+        "challenges",
+        "Quest",
+        "Archaeology Mystery: ~|Prison Break|~ Complete the mystery"
+      ],
+      "beforePresent": true,
+      "before": {
+        "BaseQuest": "Prison Break",
+        "Chunks": [
+          "Kharid-et - Barracks excavation site"
+        ],
+        "Tasks": {
+          "Archaeology Mystery: ~|Prison Break|~ 2": "Quest"
+        },
+        "QuestPoints": 0,
+        "XpReward": {
+          "Archaeology": 900
+        }
+      },
+      "beforeRecordSha256": "2f9707edebe7246ac83807f284921a140ab027f7abef4d67cb96c92dcf453eee",
+      "afterPresent": true,
+      "after": {
+        "BaseQuest": "Prison Break",
+        "Chunks": [
+          "Kharid-et - Barracks excavation site"
+        ],
+        "Tasks": {
+          "Archaeology Mystery: ~|Prison Break|~ 3": "Quest"
+        },
+        "QuestPoints": 0,
+        "XpReward": {
+          "Archaeology": 900
+        }
+      },
+      "evidence": {
+        "title": "Prison Break",
+        "revision": 37152936,
+        "url": "https://runescape.wiki/w/Prison_Break?oldid=37152936",
+        "quote": "only the first two are needed to access the prison."
+      }
+    },
+    {
+      "path": [
+        "challenges",
+        "Nonskill",
+        "Kharid-et - Carcerem excavation site"
+      ],
+      "beforePresent": true,
+      "before": {
+        "UnlocksArea": true
+      },
+      "beforeRecordSha256": "297ac6cd513bd544463f128fce469b2f7efbd24112790ea04a7e7f25f038abde",
+      "afterPresent": true,
+      "after": {
+        "UnlocksArea": true,
+        "Tasks": {
+          "Archaeology Mystery: ~|Prison Break|~ 2": "Quest"
+        }
+      },
+      "evidence": {
+        "title": "Prison Break",
+        "revision": 37152936,
+        "url": "https://runescape.wiki/w/Prison_Break?oldid=37152936",
+        "quote": "only the first two are needed to access the prison."
+      }
+    },
+    {
+      "path": [
+        "challenges",
+        "Nonskill",
+        "Pretty Flower's Cave"
+      ],
+      "beforePresent": true,
+      "before": {
+        "UnlocksArea": true
+      },
+      "beforeRecordSha256": "297ac6cd513bd544463f128fce469b2f7efbd24112790ea04a7e7f25f038abde",
+      "afterPresent": true,
+      "after": {
+        "UnlocksArea": true,
+        "Tasks": {
+          "~|King of the Dwarves|~ 8": "Quest"
+        }
+      },
+      "evidence": [
+        {
+          "title": "Transcript:King of the Dwarves",
+          "revision": 36652921,
+          "url": "https://runescape.wiki/w/Transcript%3AKing_of_the_Dwarves?oldid=36652921",
+          "quote": "We don't need to go that way"
+        },
+        {
+          "title": "Transcript:King of the Dwarves",
+          "revision": 36652921,
+          "url": "https://runescape.wiki/w/Transcript%3AKing_of_the_Dwarves?oldid=36652921",
+          "quote": "Alright, go. I'll be back at the Laughing Miner if you need me."
+        }
+      ]
     }
   ],
   "guards": [
