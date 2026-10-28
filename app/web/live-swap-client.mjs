@@ -345,13 +345,13 @@ export function createRequestReader({ fetch = (...args) => globalThis.fetch(...a
   const read = async (path, options) => {
     const key = path.split('?')[0], pending = cooldowns.get(key);
     if (options?.signal?.aborted) throw Object.assign(new Error('Request abandoned.'), { name: 'AbortError' });
-    if (pending && pending.until > now()) throw requestError(pending.response, {}, pending.until - now());
+    if (pending && pending.until > now()) throw requestError(pending.response, { code: pending.code }, pending.until - now());
     cooldowns.delete(key);
     let response;
     try { response = await fetch(path, options); }
     catch (error) {
       if (error.name === 'AbortError') throw error;
-      throw Object.assign(new Error('Could not reach the picker. Check your internet connection, then try again.'), { restartRetry: true });
+      throw new Error('Could not reach the picker. Check your internet connection, then try again.');
     }
     const delay = retryAfterMs(response, now());
     if ([429, 503].includes(response.status) && delay > 0) cooldowns.set(key, { response: { status: response.status }, until: now() + delay });
@@ -359,23 +359,27 @@ export function createRequestReader({ fetch = (...args) => globalThis.fetch(...a
     try { value = await response.json(); }
     catch (error) {
       if (error.name === 'AbortError') throw error;
-      if (response.ok) throw Object.assign(new Error('The response was interrupted or unreadable. Try again.'), { restartRetry: true });
+      if (response.ok) throw new Error('The response was interrupted or unreadable. Try again.');
       value = {};
     }
     if (!value || typeof value !== 'object') {
       if (response.ok) throw new Error('The response was unreadable. Try again.');
       value = {};
     }
+    if (cooldowns.has(key)) cooldowns.get(key).code = value.code;
     return { response, value };
   };
+  // Only the picker's own restart answers retry by themselves. A busy server,
+  // other errors and lost connections stay single-dispatch for the player.
+  const restarting = (status, code) => status === 503 && ['PICKER_WARMING', 'PICKER_UPDATING'].includes(code);
   return async (path, options) => {
     const retryable = !options?.method || ['GET', 'HEAD'].includes(options.method.toUpperCase());
     const deadline = now() + maxReadRetryMs;
     for (let attempt = 1; ; attempt++) {
       let result, error;
       try { result = await read(path, options); }
-      catch (failure) { if (failure.name === 'AbortError' || !failure.restartRetry && failure.status !== 503) throw failure; error = failure; }
-      if (!retryable || attempt >= maxReadAttempts || now() >= deadline || result && result.response.status !== 503) {
+      catch (failure) { if (failure.name === 'AbortError' || !restarting(failure.status, failure.code)) throw failure; error = failure; }
+      if (!retryable || attempt >= maxReadAttempts || now() >= deadline || result && !restarting(result.response.status, result.value.code)) {
         if (error) throw error;
         return result;
       }

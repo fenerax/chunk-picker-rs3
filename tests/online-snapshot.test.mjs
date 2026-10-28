@@ -108,17 +108,21 @@ test('warm-up navigation gets a self-retrying HTML page while API responses rema
   assert.equal(response.status, 503); assert.equal((await response.json()).code, 'PICKER_WARMING');
 });
 
-test('reads retry 503, refusal and lost response; mutations and aborts are never blindly replayed', async () => {
+test('reads retry only restart answers; busy, refusal, mutations and aborts are never blindly replayed', async () => {
   let calls = 0;
   const read = createRequestReader({ sleep: async () => {}, fetch: async () => {
     calls++;
-    if (calls === 1) return { status: 503, ok: false, json: async () => ({}) };
-    if (calls === 2) throw new TypeError('refused');
-    if (calls === 3) return { status: 200, ok: true, json: async () => { throw new Error('lost body'); } };
+    if (calls === 1) return { status: 503, ok: false, json: async () => ({ code: 'PICKER_WARMING' }) };
+    if (calls === 2) return { status: 503, ok: false, json: async () => ({ code: 'PICKER_UPDATING' }) };
     return { status: 200, ok: true, json: async () => ({ revision: 1 }) };
   } });
-  assert.deepEqual((await read('/api/state')).value, { revision: 1 }); assert.equal(calls, 4);
-  calls = 0; assert.equal((await read('/api/anything', { method: 'POST' })).response.status, 503); assert.equal(calls, 1);
+  assert.deepEqual((await read('/api/state')).value, { revision: 1 }); assert.equal(calls, 3);
+  calls = 0; assert.equal((await createRequestReader({ sleep: async () => {}, fetch: async () => { calls++; return { status: 503, ok: false, json: async () => ({}) }; } })('/api/state')).response.status, 503);
+  assert.equal(calls, 1, 'a busy 503 stays single-dispatch');
+  calls = 0; await assert.rejects(createRequestReader({ sleep: async () => {}, fetch: async () => { calls++; throw new TypeError('refused'); } })('/api/state'), /Check your internet/);
+  assert.equal(calls, 1, 'a refused connection stays single-dispatch');
+  calls = 0; assert.equal((await createRequestReader({ sleep: async () => {}, fetch: async () => { calls++; return { status: 503, ok: false, json: async () => ({ code: 'PICKER_WARMING' }) }; } })('/api/anything', { method: 'POST' })).response.status, 503);
+  assert.equal(calls, 1);
   const controller = new AbortController(); controller.abort();
   await assert.rejects(read('/api/state', { signal: controller.signal }), { name: 'AbortError' });
 });
@@ -184,13 +188,13 @@ test('read retries cover a fifteen-second warm-up and remain bounded', async () 
   let at = 0, calls = 0;
   const read = createRequestReader({ now: () => at, sleep: async ms => { at += ms; }, fetch: async () => {
     calls++;
-    return { status: calls <= 15 ? 503 : 200, ok: calls > 15, headers: { get: () => '1' }, json: async () => ({}) };
+    return { status: calls <= 15 ? 503 : 200, ok: calls > 15, headers: { get: () => '1' }, json: async () => (calls <= 15 ? { code: 'PICKER_WARMING' } : {}) };
   } });
   assert.equal((await read('/api/state')).response.status, 200);
   assert.equal(at, 15000); assert.equal(calls, 16);
   calls = 0; at = 0;
   const bounded = createRequestReader({ maxReadAttempts: 3, now: () => at, sleep: async ms => { at += ms; }, fetch: async () => {
-    calls++; return { status: 503, ok: false, json: async () => ({}) };
+    calls++; return { status: 503, ok: false, json: async () => ({ code: 'PICKER_WARMING' }) };
   } });
   assert.equal((await bounded('/api/state')).response.status, 503); assert.equal(calls, 3);
 });

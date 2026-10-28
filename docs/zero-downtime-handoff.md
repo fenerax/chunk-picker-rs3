@@ -25,8 +25,10 @@ companion were untouched. No subagents were used.
   rollback remain strict. An exited candidate aborts readiness before automatic
   restarts spend the rollback start budget. Three starts / 300 seconds remains.
 - `app/startup.mjs:54`: script-free, self-refreshing warm-up HTML for navigation.
-  `app/web/live-swap-client.mjs:337`: bounded read retries across 503/refusal/body
-  loss. The existing command outbox and SSE reconnect remain the save protections.
+  `app/web/live-swap-client.mjs:337`: bounded GET retries only for the picker's
+  own restart 503s (`PICKER_WARMING`, `PICKER_UPDATING`). Busy 503s, refusals and
+  lost bodies stay single-dispatch (review change; Caddy covers refused dials).
+  The existing command outbox and SSE reconnect remain the save protections.
 - `scripts/release/vps/release.mjs:11`, `bundle.mjs:46`: prepare, upload, verify,
   rebase and review; activation requires explicit `--go-live`. A receipt pins the
   candidate and expected previous pointer. No PC store is transported.
