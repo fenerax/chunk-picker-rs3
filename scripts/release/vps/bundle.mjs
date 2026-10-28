@@ -2,7 +2,7 @@
 import path from 'node:path';
 import { createReadStream } from 'node:fs';
 import { createHash } from 'node:crypto';
-import { lstat, mkdir, readFile, readdir, writeFile } from 'node:fs/promises';
+import { chmod, chown, lstat, mkdir, readFile, readdir, stat, writeFile } from 'node:fs/promises';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
@@ -72,6 +72,19 @@ export async function prepareBundle(source, output) {
   for (const name of ['release.tar', 'source-config.json', 'release-manifest.json']) transfer[name] = await hash(path.join(output, name));
   await writeFile(path.join(output, 'transfer.json'), encode(transfer), { flag: 'wx', mode: 0o600 });
 }
+// Windows tar records 0777 modes and root extraction keeps them. A release must
+// stay immutable to the service account: root-owned, its group may only read.
+export async function lockRelease(root, gid, fs = { chmod, chown }) {
+  const lock = async (file, directory) => { await fs.chown(file, 0, gid); await fs.chmod(file, directory ? 0o750 : 0o640); };
+  const walk = async dir => {
+    for (const entry of await readdir(dir, { withFileTypes: true })) {
+      if (!entry.isFile() && !entry.isDirectory()) throw new Error('Unsafe release entry.');
+      await lock(path.join(dir, entry.name), entry.isDirectory());
+      if (entry.isDirectory()) await walk(path.join(dir, entry.name));
+    }
+  };
+  await lock(root, true); await walk(root);
+}
 export async function rebaseBundle(upload, target, operatorFile, toolsRoot) {
   if (process.platform !== 'linux' || process.getuid() !== 0) throw new Error('Rebase requires Linux root.');
   const transfer = await json(path.join(upload, 'transfer.json'));
@@ -108,6 +121,8 @@ export async function rebaseBundle(upload, target, operatorFile, toolsRoot) {
   await writeFile(configPath, bytes, { flag: 'wx', mode: 0o644 });
   const pointer = path.join(target, 'pointer.json');
   await writeFile(pointer, encode({ config: { path: configPath, sha256: sha(bytes) } }), { flag: 'wx', mode: 0o644 });
+  // Same owner and modes as the installed releases beside it.
+  await lockRelease(target, (await stat(path.dirname(target))).gid);
   const candidate = await readRelease(pointer, settings.dataDir);
   await writeFile(path.join(upload, 'verified.json'), encode({ candidateIdentity: candidate.identity,
     previousPointerSha256: sha(current.pointerBytes), pointer, savedIdentityAdditions: manifest.savedIdentityAdditions }), { flag: 'wx', mode: 0o600 });

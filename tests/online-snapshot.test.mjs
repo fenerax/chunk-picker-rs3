@@ -4,7 +4,7 @@ import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { releaseVps } from '../scripts/release/vps/release.mjs';
-import { prepareBundle } from '../scripts/release/vps/bundle.mjs';
+import { lockRelease, prepareBundle } from '../scripts/release/vps/bundle.mjs';
 import { execFileSync } from 'node:child_process';
 import { snapshotStore, snapshotPath, withStoreWrite } from '../app/storage/snapshot.mjs';
 import { atomic as linuxAtomic, inventory } from '../scripts/linux/files.mjs';
@@ -185,6 +185,18 @@ test('release bundle pins and manifest verify every uploaded file without copyin
   assert(!manifest.rows.some(row => row.path.includes('state.json')));
   await writeFile(profile, 'changed');
   await assert.rejects(prepareBundle(source, path.join(scratch, 'bad-bundle')), /pin mismatch/);
+});
+
+test('staged release trees are locked to root with group read, whatever modes the archive carried', async t => {
+  const { scratch } = await fixture(t), root = path.join(scratch, 'staged');
+  await mkdir(path.join(root, 'core/app'), { recursive: true });
+  await writeFile(path.join(root, 'core/app/server.mjs'), ''); await writeFile(path.join(root, 'profile.json'), '{}');
+  const calls = new Map();
+  const record = kind => async (file, ...args) => { calls.set(path.relative(root, file) || '.', { ...calls.get(path.relative(root, file) || '.'), [kind]: args }); };
+  await lockRelease(root, 4242, { chown: record('owner'), chmod: record('mode') });
+  assert.deepEqual(Object.fromEntries([...calls].map(([name, value]) => [name.split(path.sep).join('/'), value])), {
+    '.': { owner: [0, 4242], mode: [0o750] }, core: { owner: [0, 4242], mode: [0o750] }, 'core/app': { owner: [0, 4242], mode: [0o750] },
+    'core/app/server.mjs': { owner: [0, 4242], mode: [0o640] }, 'profile.json': { owner: [0, 4242], mode: [0o640] } });
 });
 
 test('read retries cover a fifteen-second warm-up and remain bounded', async () => {
