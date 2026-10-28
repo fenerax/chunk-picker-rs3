@@ -180,7 +180,7 @@ remain separate approved actions.
 
 ## Running a release from GitHub evidence
 
-Copy `.local/release-pc.example.json` to `.local/release-pc.json` and replace
+Copy `docs/release-pc.example.json` to `.local/release-pc.json` and replace
 its placeholder paths. The real config is ignored by Git and must stay local.
 Every config path also has a matching PowerShell parameter. `ExpectedEvidence`
 points to the independently approved expectation JSON described above;
@@ -188,7 +188,7 @@ points to the independently approved expectation JSON described above;
 exact candidate. Each kit and its work directory must be new.
 
 ```powershell
-Copy-Item .local/release-pc.example.json .local/release-pc.json
+Copy-Item docs/release-pc.example.json .local/release-pc.json
 $candidate = '<approved-40-character-commit>'
 $run = '<approved-run-id>'
 & scripts/release/pc/release-run-ci.ps1 -Release rel-example -Kit r-example -ExpectLive rel-example-old -CandidateCommit $candidate -RunId $run -PreflightOnly
