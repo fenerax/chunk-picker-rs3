@@ -95,14 +95,17 @@ Copy the five unit/timer files to the local systemd unit directory, review
 paths and access, then run `systemd-analyze verify` on those files on the VPS.
 After a staging rehearsal, reload systemd and enable the service and both
 timers. Nothing in this repository enables a unit or changes the desktop tasks.
-The daily timer runs at **04:00 UTC**, catches missed runs, and briefly stops
+The daily timer runs at **04:00 Atlantic time** (`America/Moncton`), catches missed runs, and briefly stops
 the writer. Choose the actual maintenance window before enabling it.
 
 ## Shutdown and health recovery
 
-`Restart=on-failure` handles crashes with a 15-second delay and a bounded start
-rate. An intentional systemd stop or clean app shutdown stays stopped. The
-health timer does not start an inactive service. Boot startup comes from the
+`Restart=always` restarts the writer after any exit, including a clean
+`/api/shutdown` or an unexpected exit code 0. A restart waits 15 seconds, and
+the start rate is bounded. `systemctl stop` is the only way to keep the writer
+stopped: systemd never undoes an explicit stop. After repeated start failures
+the unit stays `failed` and needs inspection. The health timer does not start
+an inactive service. Boot startup comes from the
 enabled writer unit.
 
 `KillMode=mixed` sends SIGTERM to the main Node process so its close path can

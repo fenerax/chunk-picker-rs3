@@ -2,8 +2,8 @@
 Description=Daily Chunk Picker recovery backup with missed-run catchup
 
 [Timer]
-# UTC is deliberate: change this calendar locally if a different window is wanted.
-OnCalendar=*-*-* 04:00:00 UTC
+# 04:00 Atlantic time, the same hour as the Windows backup. Change the zone if the server serves another region.
+OnCalendar=*-*-* 04:00:00 America/Moncton
 Persistent=yes
 AccuracySec=1min
 Unit=chunk-picker-backup.service
