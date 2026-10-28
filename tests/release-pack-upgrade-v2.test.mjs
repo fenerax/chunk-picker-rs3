@@ -200,3 +200,22 @@ test('saved progress preservation allows only appended catalogue bookkeeping and
   assert.throws(()=>assertPreserved(a,{...b,taskIds:['new']}),/progress/);
   assert.throws(()=>assertPreserved(a,{...b,progressDigest:'changed',progressFields:{members:'changed'}}),/progress/);
 });
+
+test('daily progress counts may recount only the latest day or start a new one; past days and real progress stay exact', () => {
+  const history={historyEvents:[],historyTypes:[],migrationArchives:[],migrationConversions:[],migrationConflicts:[],taskIds:['kept']};
+  const report=(rows,{members='same',meta='meta'}={})=>({...history,progressSnapshotRows:rows,progressSnapshotMeta:meta,
+    progressDigest:'whole-'+JSON.stringify(rows)+members,progressFields:{members,progressSnapshots:'days-'+JSON.stringify(rows)}});
+  const a=report([[100,'d100'],[101,'d101']]);
+  assert.doesNotThrow(()=>assertPreserved(a,report([[100,'d100'],[101,'recounted']])));
+  assert.doesNotThrow(()=>assertPreserved(a,report([[100,'d100'],[101,'d101'],[102,'d102']])));
+  assert.doesNotThrow(()=>assertPreserved(report([],{meta:null}),report([[101,'d101']])));
+  assert.throws(()=>assertPreserved(a,report([[100,'changed'],[101,'d101']])),/daily progress/);
+  assert.throws(()=>assertPreserved(a,report([[101,'d101']])),/daily progress/);
+  assert.throws(()=>assertPreserved(a,report([[100,'d100']])),/daily progress/);
+  assert.throws(()=>assertPreserved(a,report([[100,'d100'],[101,'d101'],[99,'d99']])),/daily progress/);
+  assert.throws(()=>assertPreserved(a,report([[100,'d100'],[101,'d101']],{meta:'other roster'})),/daily progress/);
+  assert.throws(()=>assertPreserved(a,report([[100,'d100'],[101,'recounted']],{members:'changed'})),/fields=members/);
+  // Older reports without day rows keep the whole-progress comparison.
+  const {progressSnapshotRows,progressSnapshotMeta,...legacy}=a;
+  assert.throws(()=>assertPreserved(legacy,{...legacy,progressDigest:'changed',progressFields:{...legacy.progressFields,progressSnapshots:'changed'}}),/progressSnapshots/);
+});

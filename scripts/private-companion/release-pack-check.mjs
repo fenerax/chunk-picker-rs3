@@ -103,6 +103,15 @@ export function assertStableIdentities(a, b, additions) {
   }
   if (digestValue(expected) !== digestValue(b.saved)) throw new Error('Stable task identities changed outside declared additions.');
 }
+function assertDailyProgress(a, b) {
+  // No series yet: the opening may start one.
+  if (a.progressSnapshotMeta === null) return;
+  const before = a.progressSnapshotRows, after = b.progressSnapshotRows, last = before.length - 1;
+  const kept = a.progressSnapshotMeta === b.progressSnapshotMeta
+    && before.every(([day, digest], i) => after[i]?.[0] === day && (i === last || after[i][1] === digest));
+  const added = after.slice(before.length).every(([day], i, rows) => day > (i ? rows[i - 1][0] : before.at(-1)?.[0] ?? -Infinity));
+  if (!kept || !added) throw new Error('Saved daily progress history changed during compatibility check.');
+}
 export function assertPreserved(a, b) {
   const present = new Set(b.taskIds);
   // Startup may append a catalogue-refresh event and its migration audit archive.
@@ -115,8 +124,15 @@ export function assertPreserved(a, b) {
     }
   }
   if (b.historyTypes.slice(a.historyEvents.length).some(type => type !== 'catalogue-refresh')) throw new Error('Unexpected history appended during startup.');
-  if (a.progressDigest !== b.progressDigest || a.taskIds.some(id => !present.has(id))) {
-    const changed = [...new Set([...Object.keys(a.progressFields), ...Object.keys(b.progressFields)])].filter(key => a.progressFields[key] !== b.progressFields[key]);
+  // Daily progress counts are derived, not progress: an opening may recount the
+  // latest day (a release can count it differently) or start a new one. Every
+  // earlier day and every authoritative field must stay identical.
+  const daily = a.progressSnapshotRows !== undefined && b.progressSnapshotRows !== undefined;
+  if (daily) assertDailyProgress(a, b);
+  const fields = report => daily ? Object.fromEntries(Object.entries(report.progressFields).filter(([key]) => key !== 'progressSnapshots')) : report.progressFields;
+  const [before, after] = [fields(a), fields(b)];
+  const changed = [...new Set([...Object.keys(before), ...Object.keys(after)])].filter(key => before[key] !== after[key]);
+  if ((daily ? changed.length : a.progressDigest !== b.progressDigest) || a.taskIds.some(id => !present.has(id))) {
     throw new Error('Saved progress or tasks changed during compatibility check: fields=' + changed.join(',') + '; missingTasks=' + a.taskIds.filter(id => !present.has(id)).length);
   }
 }
@@ -230,7 +246,7 @@ export async function probe(core, dataDir, output, { retention } = {}) {
     visit(state);
     const registry = authoredIdentityRegistry();
     const authored = { ids: Object.keys(registry.entries).sort(), aliases: registry.aliases };
-    await writeFile(output, encode({ authored, saved, datasetAuthored, datasetAuthoredKeys, ...preserved, progressFields: Object.fromEntries(Object.entries(progress).map(([key, value]) => [key, digestValue(value)])), registryDigest: digestValue(state.identityRegistry ?? {}), progressDigest: digestValue(progress), taskIds: state.tasks.map(t => t.id).sort(), tasksServed: true }), { flag: 'wx' });
+    await writeFile(output, encode({ authored, saved, datasetAuthored, datasetAuthoredKeys, ...preserved, progressFields: Object.fromEntries(Object.entries(progress).map(([key, value]) => [key, digestValue(value)])), registryDigest: digestValue(state.identityRegistry ?? {}), progressDigest: digestValue(progress), progressSnapshotRows: (state.progressSnapshots?.days ?? []).map(row => [row[0], digestValue(row)]), progressSnapshotMeta: state.progressSnapshots ? digestValue(Object.fromEntries(Object.entries(state.progressSnapshots).filter(([key]) => key !== 'days'))) : null, taskIds: state.tasks.map(t => t.id).sort(), tasksServed: true }), { flag: 'wx' });
   } finally { await app.close(); }
 }
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
