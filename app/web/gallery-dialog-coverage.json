@@ -254,7 +254,7 @@
       "search"
     ]
   },
-  "app/web/screen-startup.mjs :: `Sync ${owner.name} from RuneMetrics`": {
+  "app/web/screen-startup.mjs :: `Sync progress for ${owner.name}`": {
     "entries": [
       "runemetrics"
     ]
