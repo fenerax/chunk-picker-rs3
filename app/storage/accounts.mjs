@@ -1,3 +1,4 @@
+import { withStoreWrite } from './snapshot.mjs';
 import { readFile } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
 import path from 'node:path';
@@ -49,12 +50,12 @@ export async function openAccountStore({ dataDir, now = Date.now } = {}) {
   const find = (document, provider, subject) => document.accounts.find(account => account.identities.some(identity => identity.provider === provider && identity.subject === subject));
   function mutate(operation) {
     if (closed) return Promise.reject(new Error('Account store is closed.'));
-    const pending = queue.then(async () => {
+    const pending = queue.then(() => withStoreWrite(dataDir, async () => {
       const next = structuredClone(current), result = operation(next);
       validate(next);
       await atomicWrite(file, next); current = next;
       return clone(result);
-    });
+    }));
     queue = pending.catch(() => {});
     return pending;
   }

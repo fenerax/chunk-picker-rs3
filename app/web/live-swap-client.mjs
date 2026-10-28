@@ -305,7 +305,7 @@ export function createLiveSwapCommandClient({ storage = sessionStorage(), fetch 
   };
 }
 
-// Read-only calculations are retried by the player. Never replay a save here.
+// Reads may retry across a restart. Saves use the durable command outbox above.
 export function retryAfterMs(response, now = Date.now()) {
   const raw = response.headers?.get?.('Retry-After')?.trim();
   if (!raw) return 0;
@@ -334,9 +334,15 @@ export function requestError(response, value, delay = retryAfterMs(response)) {
   return Object.assign(new Error(message), { status, code: value?.code, retryAfterMs: delay });
 }
 
-export function createRequestReader({ fetch = (...args) => globalThis.fetch(...args), now = () => Date.now() } = {}) {
+export function createRequestReader({ fetch = (...args) => globalThis.fetch(...args), now = () => Date.now(),
+  sleep = (ms, signal) => new Promise((resolve, reject) => {
+    const abort = () => { clearTimeout(timer); reject(Object.assign(new Error('Request abandoned.'), { name: 'AbortError' })); };
+    const timer = setTimeout(() => { signal?.removeEventListener('abort', abort); resolve(); }, ms);
+    signal?.addEventListener('abort', abort, { once: true });
+    if (signal?.aborted) abort();
+  }), maxReadAttempts = 30, maxReadRetryMs = 45000 } = {}) {
   const cooldowns = new Map();
-  return async (path, options) => {
+  const read = async (path, options) => {
     const key = path.split('?')[0], pending = cooldowns.get(key);
     if (options?.signal?.aborted) throw Object.assign(new Error('Request abandoned.'), { name: 'AbortError' });
     if (pending && pending.until > now()) throw requestError(pending.response, {}, pending.until - now());
@@ -345,7 +351,7 @@ export function createRequestReader({ fetch = (...args) => globalThis.fetch(...a
     try { response = await fetch(path, options); }
     catch (error) {
       if (error.name === 'AbortError') throw error;
-      throw new Error('Could not reach the picker. Check your internet connection, then try again.');
+      throw Object.assign(new Error('Could not reach the picker. Check your internet connection, then try again.'), { restartRetry: true });
     }
     const delay = retryAfterMs(response, now());
     if ([429, 503].includes(response.status) && delay > 0) cooldowns.set(key, { response: { status: response.status }, until: now() + delay });
@@ -353,7 +359,7 @@ export function createRequestReader({ fetch = (...args) => globalThis.fetch(...a
     try { value = await response.json(); }
     catch (error) {
       if (error.name === 'AbortError') throw error;
-      if (response.ok) throw new Error('The response was interrupted or unreadable. Try again.');
+      if (response.ok) throw Object.assign(new Error('The response was interrupted or unreadable. Try again.'), { restartRetry: true });
       value = {};
     }
     if (!value || typeof value !== 'object') {
@@ -361,5 +367,22 @@ export function createRequestReader({ fetch = (...args) => globalThis.fetch(...a
       value = {};
     }
     return { response, value };
+  };
+  return async (path, options) => {
+    const retryable = !options?.method || ['GET', 'HEAD'].includes(options.method.toUpperCase());
+    const deadline = now() + maxReadRetryMs;
+    for (let attempt = 1; ; attempt++) {
+      let result, error;
+      try { result = await read(path, options); }
+      catch (failure) { if (failure.name === 'AbortError' || !failure.restartRetry && failure.status !== 503) throw failure; error = failure; }
+      if (!retryable || attempt >= maxReadAttempts || now() >= deadline || result && result.response.status !== 503) {
+        if (error) throw error;
+        return result;
+      }
+      const waitMs = error?.retryAfterMs || retryAfterMs(result?.response ?? {}, now()) || Math.min(3000, attempt * 500);
+      // Do not automatically wait an unbounded server-provided Retry-After.
+      if (waitMs > 3000 || waitMs >= deadline - now()) { if (error) throw error; return result; }
+      await sleep(waitMs, options?.signal);
+    }
   };
 }

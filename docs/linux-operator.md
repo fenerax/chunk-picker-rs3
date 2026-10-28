@@ -10,9 +10,9 @@ delivery and a private-data rehearsal remain cutover work.
 | --- | --- | --- |
 | `scripts/linux/systemd/chunk-picker.service`, `serve.mjs`, `start-check.mjs` | Foreground writer, dedicated service account, pinned selection, graceful signals and guarded starts | Managed Start/Stop and runtime ownership |
 | `chunk-picker-health.service` and `.timer`, `operator.mjs health` | Five-minute health checks, startup grace, worker recovery before writer recovery | Watchdog task and serialized tick |
-| `chunk-picker-backup.service` and `.timer`, `operator.mjs backup` | Daily stopped-store recovery snapshot, portable export and UI status | Daily backup task and backup script |
+| `chunk-picker-backup.service` and `.timer`, `operator.mjs backup` | Daily online recovery snapshot, portable export and UI status | Daily backup task and backup script |
 | `recovery.mjs` | Full snapshot, hashes, restore and final stopped-save compatibility function | Backup/export helpers and the missing final Quick Release check |
-| `operator.mjs deploy` | Stop, final compatibility check, binding/pointer selection, private readiness, guarded rollback | Quick Release handover portion |
+| `operator.mjs deploy` | Online compatibility check, stopped byte comparison, binding/pointer selection, private readiness, guarded rollback | Quick Release handover portion |
 
 Private-source Git bundles stay on the builder PC. The VPS recovery job does
 not back up a source repository that is absent from the VPS.
@@ -95,8 +95,8 @@ Copy the five unit/timer files to the local systemd unit directory, review
 paths and access, then run `systemd-analyze verify` on those files on the VPS.
 After a staging rehearsal, reload systemd and enable the service and both
 timers. Nothing in this repository enables a unit or changes the desktop tasks.
-The daily timer runs at **04:00 Atlantic time** (`America/Moncton`), catches missed runs, and briefly stops
-the writer. Choose the actual maintenance window before enabling it.
+The daily timer runs at **04:00 Atlantic time** (`America/Moncton`), catches missed runs, without stopping
+the writer. Rehearse the online path before enabling it.
 
 ## Shutdown and health recovery
 
@@ -263,3 +263,176 @@ current/previous/transition release pruning, candidate cleanup and journal/log
 size limits in the host's operator configuration. This kit bounds backup count
 and checks space; it does not prune release directories or configure journald.
 Approve a cutover window and keep exactly one production writer throughout.
+
+
+## Online backup and short deployments
+
+`operator.mjs backup` requires an active writer with the private master-only
+`POST /api/operator/snapshot` endpoint. Public ingress refuses it even with a
+master credential; private admin invitations and cookie-only requests also
+refuse it. The operator supplies a fresh UUID, never a caller-selected file
+path. Credentials are read privately and sent only in an Authorization header.
+
+Before enabling online operations, create the spool alongside the store. Its
+parent stays root-owned; do not give the service write access to that parent:
+
+```sh
+sudo install -d -o chunk-picker -g chunk-picker -m 0700 /var/lib/chunk-picker/data/game.snapshots
+```
+
+Gameplay, retention, accounts, invitations, usage, feedback, plugin sidecars and
+server mutation transactions share a write barrier. Shutdown-only retention and
+plugin metadata flush before capture, while requests continue. Capture waits for
+in-flight writes and pins all regular files and the sibling binding with open
+file descriptors. New writes wait rather than fail. The default capture budget
+is 1 second including drain, with at most 4096 files. Directory/file operations
+are checked against the deadline; an individual stalled filesystem call cannot
+be preempted. A timeout releases the barrier and fails the snapshot. It never
+abandons an active commit. Reads continue throughout.
+
+On Linux, replacement and unlink do not change a pinned inode. Windows retains
+the write barrier until copying closes the descriptors, with the same cooperative
+deadline, so queued writes never run into a pinned-file rename refusal. Bytes are copied
+after releasing the write barrier, with a 1 MiB buffer and a 64 MiB spool
+free-space floor. The operator takes ownership and copies to root-only scratch;
+all subsequent hashes and decoder/portable probes run there. Backup publication,
+`picker-recovery-v1`, pruning of verified older recoveries, and
+`backup-status.json` remain unchanged. An online failure records failure, keeps
+old recoveries and leaves the writer serving. There is **no automatic stopped
+fallback**. Incomplete/timed-out spool directories are private evidence; inspect
+and remove only confirmed completed/abandoned operation-owned directories.
+Do not recursively clear the spool while a snapshot is running.
+
+`backup --stopped` explicitly selects the previous stop/copy/probe/start path.
+`deploy POINTER [VERIFIED_RECEIPT]` performs all four current/candidate/current/
+candidate probes on an online snapshot before stopping. It then hashes the
+complete stopped store plus binding and compares that exact identity with the
+checked copy. If anything changed, it runs all four probes again while stopped.
+Pointer CAS, immutable release checks, activation breadcrumb and reverse probes
+against the latest candidate-written save are unchanged. It never restores an
+old recovery after candidate startup. A failed online preparation causes no
+start/stop. A failed stopped probe restarts the unchanged old selection. A failed
+reverse check stays stopped with evidence.
+
+The short path therefore applies to an unchanged final store. Active gameplay,
+late ACKs, account/usage timestamps, pending plugin state or retention changes
+can still select the conservative longer path. Never claim every deployment is
+15 seconds. Measure graceful stop, byte comparison, release scans and readiness
+on the actual VPS. `StartLimitBurst=3` over 300 seconds is unchanged: preparation
+uses no starts, activation uses one, and a readiness rollback uses at most one
+more. Readiness aborts on an exited writer before the 15-second automatic
+restart delay can spend that rollback budget. Space repeated rehearsals by at least five minutes; never reset limits to
+force a drill through.
+
+### First installation and proxy
+
+An older running release has no snapshot endpoint. The first feature release
+must use the explicit bootstrap command `deploy POINTER VERIFIED_RECEIPT
+--stopped` (or `deploy POINTER --stopped` without a staged receipt), after a
+reviewed staging rehearsal. This one deployment retains the old stopped-probe
+window. Subsequent releases and scheduled backups can use the online path.
+Do not silently detect a 404 and stop production.
+
+`docs/linux-Caddyfile.example` contains the proposed generic proxy config. The
+host-specific operator kit must retain its real host names. The added directives
+are inside the existing reverse_proxy block:
+
+```caddyfile
+lb_try_duration 30s
+lb_try_interval 250ms
+lb_retry_match {
+    method GET HEAD
+}
+```
+
+This holds connection failures across a normal restart. It does not turn an
+upstream 503 response into an automatic proxy replay. Warm-up navigation receives
+a script-free HTML page with a two-second automatic refresh, no-store, strict
+CSP and Retry-After. API reads retry connection failures, interrupted response
+bodies and short 503 delays, at most thirty attempts within a 45-second retry budget; aborts and long Retry-After
+values remain bounded. SSE already reopens terminally closed streams. Saves
+continue through the existing durable action-session outbox with the same
+request ID, original revision and receipt; no mutation is replayed by the read
+helper. Existing retry exhaustion keeps the pending save for explicit recovery.
+SSE flush, indefinite streams and redacted logging stay intact.
+
+Validate with Caddy 2.11.7 before installation. Keep the master listener private.
+The game plugin's existing HTTP implementation retries 503 and connection
+refusals with exponential delays (2 seconds up to 300 seconds); task reads have
+a separate retry clock. No plugin changes are needed. An extended fallback
+window can still exhaust a proxy/browser timeout; pending saves remain retained.
+
+## Built PC release to VPS
+
+The release transport never copies the PC store, bindings, tokens or operator
+state. It uses the existing built immutable core/packs/profile/addons, validates
+Quick Release's commit/pins locally, creates a manifest and tar, uploads to a
+new directory, checks transfer hashes and archive entries, extracts to a new
+root-owned release, verifies every file, rebases pins, and reads the Linux
+candidate through `readRelease`. Linux listener/store/origin settings come from
+the existing pinned current config. No origin-file contents are read or printed.
+The `verified.json` receipt binds the candidate identity and previous pointer.
+Activation checks that receipt again under the operator lock.
+
+Example PowerShell (replace release, repo and output paths locally):
+
+```powershell
+node scripts/release/vps/release.mjs prepare --repo <core-repo> --release-dir <built-release> --out <new-private-output-dir>
+node scripts/release/vps/release.mjs stage --out <private-output-dir> --host <ssh-alias> --upload /var/tmp/picker-upload-<release> --target /opt/chunk-picker/releases/<release> --operator-config /etc/chunk-picker/operator.json --tools-root /opt/chunk-picker/tools --node /opt/node/bin/node
+```
+
+Stage uploads and verifies only; it never starts/stops a service or changes the
+selected pointer. Review it before explicitly activating:
+
+```powershell
+node scripts/release/vps/release.mjs activate --go-live --host <ssh-alias> --upload /var/tmp/picker-upload-<release> --target /opt/chunk-picker/releases/<release> --operator-config /etc/chunk-picker/operator.json --tools-root /opt/chunk-picker/tools --node /opt/node/bin/node
+```
+
+`stage --go-live` also explicitly permits activation in one invocation. The
+separate `activate` command is preferable for review. There is no default host,
+credential or production destination. Uploads and failed candidate directories
+are deliberately retained for review; do not overwrite/reuse their paths.
+Quick Release's PC `-GoLive` now refuses an existing `picker-paused` marker before
+candidate load or stop. Keep the paused rollback copy untouched; do not remove
+that marker to ship a VPS release.
+
+### Reviewed install and rehearsal order
+
+These are future operator commands, not actions performed by this change.
+Stage the release first. Use a disposable staging VPS with its own installed service/config, an immutable complete recovery copy and ports 8900–8999.
+Never use production store paths for the staging rehearsal. Install the reviewed
+operator tools before using the new commands; preserve old tools for rollback.
+The selected writer code comes from the candidate release, not the tools tree.
+
+1. Validate the candidate file/pin receipt; run CI's full Linux/Windows, private
+   companion, release/recovery and coverage gates. Check real-dataset memory on
+   staging with one workload at a time.
+2. Run `scripts/linux/rehearse.mjs` as documented below on the isolated copy.
+   Prove online backup/public refusal, unchanged and changed final-store paths,
+   candidate-start failure, latest-save rollback, spool exhaustion and response
+   loss. Measure hold/down times, not only total operator time.
+3. Install tools and the backup unit on staging; preserve `/opt/node/bin/node`
+   in unit substitutions. `systemd-analyze verify` all installed units. Test the
+   root/service ownership handoff, start permits and start-limit behavior.
+4. On production, after approval, stop/wait only the health and backup timers/
+   oneshots before replacing tools. Do not stop the writer to install tools.
+   Install the reviewed Caddyfile, validate as caddy, then reload Caddy. Preserve
+   the existing credential redaction and SSE settings. Create the private spool.
+5. Perform the one explicit stopped bootstrap deployment with its staged receipt.
+   Check private ready/savesReady, public admin refusal, browser pending-command
+   recovery, plugin and SSE recovery. Then run online backup and verify its
+   recovery/export/status plus the existing off-host pull. Re-enable the timers
+   only after those pass. Do not clear transaction evidence after a refusal.
+
+The rehearsal helper accepts an immutable copied store and pointer and never
+uses systemctl. Its fake controller closes and opens exactly one scratch writer;
+ports must be free in 8900–8999. It measures online backup and same-release
+prechecked deployment with real probes, then removes scratch in finally:
+
+```sh
+/opt/node/bin/node /opt/chunk-picker/tools/scripts/linux/rehearse.mjs --pointer /path/to/reviewed/pointer.json --source /path/to/immutable-recovery/store --scratch /path/to/new-private-scratch --port 8956
+```
+
+The helper does not prove systemd/Caddy timing or a real version transition.
+Repeat the full operator commands on staging under its isolated systemd owner
+before production approval. Neither command starts the paused PC picker.

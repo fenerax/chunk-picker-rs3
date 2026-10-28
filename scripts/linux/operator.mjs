@@ -1,3 +1,5 @@
+import { configDescriptor, bindingBytes } from '../private-companion/release-pack-check.mjs';
+import { captureOnline } from './online.mjs';
 import path from 'node:path';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
@@ -7,7 +9,7 @@ import { setTimeout as delay } from 'node:timers/promises';
 import { fileURLToPath } from 'node:url';
 import { assertReleased, atomic, directory, encode, exclusive, exists, headroom, inventory, json, noLinks, sha } from './files.mjs';
 import { assertSameRelease, operatorSettings, readRelease } from './runtime.mjs';
-import { backupStopped, checkStoppedCompatibility, restoreStopped, writeBackupStatus } from './recovery.mjs';
+import { backupStopped, checkStoppedCompatibility, restoreStopped, writeBackupStatus, storeIdentity } from './recovery.mjs';
 import { processIdentity } from './start-check.mjs';
 
 const execute = promisify(execFile);
@@ -40,7 +42,7 @@ export async function assertStopped(controller, dataDir) {
   if (!(await controller.state()).stopped) throw new Error('The writer is still active or its ownership is uncertain.');
   await assertReleased(dataDir);
 }
-export async function privateRequest(release, route, method = 'GET') {
+export async function privateRequest(release, route, method = 'GET', body = {}) {
   const tokenFile = path.join(release.config.dataDir, 'access-token');
   await noLinks(tokenFile);
   const token = (await readFile(tokenFile, 'utf8')).trim();
@@ -50,15 +52,18 @@ export async function privateRequest(release, route, method = 'GET') {
   try {
     const response = await fetch(new URL(route, `http://${release.config.host.includes(':') ? '[' + release.config.host + ']' : release.config.host}:${release.config.port}`), {
       method, redirect: 'error', headers: { Authorization: 'Bearer ' + token, ...(method === 'POST' ? { 'Content-Type': 'application/json' } : {}) },
-      ...(method === 'POST' ? { body: '{}' } : {}), signal: AbortSignal.timeout(10000),
+      ...(method === 'POST' ? { body: JSON.stringify(body) } : {}), signal: AbortSignal.timeout(route === '/api/operator/snapshot' ? 120000 : 10000),
     });
     if (!response.ok) throw new Error();
     return await response.json();
   } catch { throw new Error('Private operator request failed.'); }
 }
-async function waitReady(release, request = privateRequest, wait = delay) {
+async function waitReady(release, request = privateRequest, wait = delay, controller) {
   for (let attempt = 0; attempt < 12; attempt++) {
     try { const health = await request(release, '/api/health'); if (health.ready && health.savesReady) return; } catch {}
+    // Stop a failed candidate before RestartSec=15 can consume the remaining
+    // three-start budget. Rollback needs its own guarded start.
+    if (controller && !(await controller.state()).active) throw new Error('Writer exited before private readiness.');
     if (attempt < 11) await wait(5000);
   }
   throw new Error('Private readiness did not recover.');
@@ -76,17 +81,19 @@ export async function healthRecovery({ settings, release, controller, request = 
   // Never systemctl restart: stop must succeed and release ownership first.
   await controller.stop(); await assertStopped(controller, settings.dataDir);
   await assertSameRelease(release);
-  await controller.start(); await waitReady(release, request, wait);
+  await controller.start(); await waitReady(release, request, wait, controller);
   return { recovered: 'writer' };
 }
-export async function deployStopped({ settings, current, candidate, controller, candidateBinding, check = checkStoppedCompatibility, request = privateRequest, wait = delay }) {
+export async function deployStopped({ settings, current, candidate, controller, candidateBinding, checkedIdentity, check = checkStoppedCompatibility, request = privateRequest, wait = delay }) {
   const stopped = () => assertStopped(controller, settings.dataDir);
   await controller.stop(); await stopped();
   const originalBinding = await readFile(settings.dataDir + '.dataset.json');
   let swapped = false, rebound = false;
   try {
-    await check({ dataDir: settings.dataDir, scratchRoot: settings.scratchRoot, minFreeBytes: settings.minFreeBytes,
-      current, candidate, candidateBinding, assertStopped: stopped });
+    if (!checkedIdentity || encode(checkedIdentity) !== encode(await storeIdentity(settings.dataDir))) {
+      await check({ dataDir: settings.dataDir, scratchRoot: settings.scratchRoot, minFreeBytes: settings.minFreeBytes,
+        current, candidate, candidateBinding, assertStopped: stopped });
+    }
     await stopped(); await assertSameRelease(current); await assertSameRelease(candidate);
     if (sha(await readFile(settings.dataDir + '.dataset.json')) !== sha(originalBinding)) throw new Error('Binding changed before activation.');
     // Write a durable recovery breadcrumb before either selection changes.
@@ -95,7 +102,7 @@ export async function deployStopped({ settings, current, candidate, controller, 
     if (candidateBinding) { await atomic(settings.dataDir + '.dataset.json', candidateBinding, 0o644); rebound = true; }
     if (sha(await readFile(settings.current)) !== sha(current.pointerBytes)) throw new Error('Current pointer changed before activation.');
     await atomic(settings.current, candidate.pointerBytes, 0o644); swapped = true;
-    await controller.start(); await waitReady(candidate, request, wait);
+    await controller.start(); await waitReady(candidate, request, wait, controller);
     await rm(path.join(settings.controlDir, 'activation.json'));
     return { activated: true };
   } catch (error) {
@@ -115,12 +122,31 @@ export async function deployStopped({ settings, current, candidate, controller, 
       await assertSameRelease(current);
       if (sha(await readFile(settings.current)) !== sha(current.pointerBytes)) throw new Error('Old pointer changed; automatic restart refused.');
     }
-    await controller.start(); await waitReady(current, request, wait);
+    await controller.start(); await waitReady(current, request, wait, controller);
     await rm(path.join(settings.controlDir, 'activation.json'), { force: true });
     throw error;
   }
 }
-export async function runOperator(command, argument) {
+export async function deployPrechecked({ settings, current, candidate, controller, candidateBinding,
+  capture = captureOnline, check = checkStoppedCompatibility, request = privateRequest, wait = delay }) {
+  const snapshot = await capture({ settings, release: current, request });
+  let checkedIdentity;
+  try {
+    const before = await storeIdentity(snapshot.dataDir);
+    await check({ ...settings, dataDir: snapshot.dataDir, current, candidate, candidateBinding,
+      assertStopped: () => assertReleased(snapshot.dataDir) });
+    if (encode(before) !== encode(await storeIdentity(snapshot.dataDir))) throw new Error('Checked snapshot changed.');
+    checkedIdentity = before;
+  } finally { await snapshot.cleanup(); }
+  // No start/stop has happened if any of the online preparation failed.
+  return deployStopped({ settings, current, candidate, controller, candidateBinding, checkedIdentity, check, request, wait });
+}
+export async function backupOnline({ settings, release, request = privateRequest, capture = captureOnline, probe }) {
+  const snapshot = await capture({ settings, release, request });
+  try { return await backupStopped({ ...settings, dataDir: snapshot.dataDir, release, ...(probe ? { probe } : {}) }); }
+  finally { await snapshot.cleanup(); }
+}
+export async function runOperator(command, argument, evidence, mode) {
   const settings = await operatorSettings();
   await directory(settings.controlDir);
   const pause = path.join(settings.controlDir, 'maintenance.json');
@@ -136,13 +162,32 @@ export async function runOperator(command, argument) {
     }
     if (!['backup', 'restore', 'deploy'].includes(command)) throw new Error('Use health, backup, restore or deploy.');
     const candidate = command === 'deploy' ? await readRelease(argument, settings.dataDir) : null;
+    if (command === 'deploy' && evidence && evidence !== '--stopped') {
+      const receipt = await json(evidence);
+      if (receipt.previousPointerSha256 !== sha(release.pointerBytes) || receipt.candidateIdentity !== candidate.identity
+        || path.resolve(receipt.pointer) !== path.resolve(argument)) throw new Error('Staged deployment receipt changed.');
+    }
+    let candidateBinding;
+    if (candidate?.config.packs?.data) {
+      const old = await configDescriptor(release.pointer.config.path), next = await configDescriptor(candidate.pointer.config.path);
+      const binding = JSON.parse(await readFile(settings.dataDir + '.dataset.json'));
+      if (['datasetId', 'datasetContractVersion', 'digest'].some(key => binding[key] !== old.descriptor[key])) throw new Error('Current binding differs from selected release.');
+      if (encode(old.descriptor) !== encode(next.descriptor)) candidateBinding = bindingBytes(next.descriptor);
+    }
     const wasActive = (await controller.state()).active;
     if (command === 'deploy' && !wasActive) throw new Error('Deploy requires an active, owned current service.');
     if (command === 'restore' && wasActive) throw new Error('Restore requires a deliberately stopped service.');
+    if (command === 'backup' && argument !== '--stopped' && !wasActive) throw new Error('Online backup requires an active writer; use backup --stopped explicitly.');
+    if (command === 'backup' && argument && argument !== '--stopped') throw new Error('Use backup or backup --stopped.');
     await atomic(pause, encode({ command, startedAt: new Date().toISOString() }));
     try {
       if (command === 'deploy') {
-        await deployStopped({ settings, current: release, candidate, controller });
+        const deploy = evidence === '--stopped' || mode === '--stopped' ? deployStopped : deployPrechecked;
+        await deploy({ settings, current: release, candidate, candidateBinding, controller });
+      } else if (command === 'backup' && argument !== '--stopped') {
+        await atomic(path.join(path.dirname(settings.dataDir), 'backup-destination'), 'managed\n', 0o644);
+        const result = await backupOnline({ settings, release });
+        await writeBackupStatus(settings.dataDir, { result: 'success', byteSize: result.byteSize });
       } else {
         await controller.stop(); await assertStopped(controller, settings.dataDir);
         try {
@@ -167,7 +212,7 @@ export async function runOperator(command, argument) {
         } finally {
           // Backup failure must still resume the unchanged old service, but a
           // partial restore must stay stopped for inspection.
-          if (command === 'backup' && wasActive) { await assertStopped(controller, settings.dataDir); await controller.start(); await waitReady(release); }
+          if (command === 'backup' && wasActive) { await assertStopped(controller, settings.dataDir); await controller.start(); await waitReady(release, privateRequest, delay, controller); }
         }
       }
       await rm(pause);

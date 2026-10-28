@@ -20,7 +20,7 @@ export async function runProbe(release, dataDir, output) {
   if (document.format !== 'rs3-chunk-picker' || !document.state?.members?.length) throw new Error('Invalid portable export.');
   return document;
 }
-async function storeIdentity(dataDir) {
+export async function storeIdentity(dataDir) {
   await assertReleased(dataDir);
   await noLinks(dataDir + '.dataset.json');
   return { files: await inventory(dataDir), binding: sha(await readFile(dataDir + '.dataset.json')) };

@@ -1,5 +1,5 @@
 [Unit]
-Description=Chunk Picker complete stopped-store recovery backup
+Description=Chunk Picker complete online recovery backup
 After=chunk-picker.service
 
 [Service]

@@ -1,3 +1,4 @@
+import { snapshotStore, withStoreWrite } from './storage/snapshot.mjs';
 import { startupPhase } from './startup-timing.mjs';
 import { projectTeleportRoute } from './teleports-response.mjs';
 import { resolveDataset } from './datasets.mjs';
@@ -141,7 +142,7 @@ export const routePermissions = Object.freeze({
     '/api/invites': 'admin', '/api/invites/:id/player': 'admin', '/api/invites/:id/revoke': 'admin',
     '/api/accounts/:id/unlink': 'admin', '/api/accounts/:id/revoke-sessions': 'admin', '/api/accounts/:id/delete': 'admin',
     '/api/overlays': 'admin', '/api/overlays/:id/revoke': 'admin',
-    '/api/shutdown': 'admin', '/api/worker-restart': 'admin', '/api/runemetrics/preview': 'write', '/api/original-sync/preview': 'write',
+    '/api/operator/snapshot': 'admin', '/api/shutdown': 'admin', '/api/worker-restart': 'admin', '/api/runemetrics/preview': 'write', '/api/original-sync/preview': 'write',
     '/api/runemetrics/apply': 'write', '/api/profile/preview': 'write', '/api/command': 'write',
     '/api/member-restore/preview': 'write', '/api/member-restore': 'write',
     '/api/restore/preview': 'admin', '/api/restore': 'admin', '/api/import/preview': 'admin', '/api/import': 'admin',
@@ -832,7 +833,7 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
   }
   let mutationQueue = Promise.resolve();
   function serializeMutation(operation) {
-    const pending = mutationQueue.then(operation);
+    const pending = mutationQueue.then(() => withStoreWrite(dataDir, operation));
     mutationQueue = pending.catch(() => {});
     return pending;
   }
@@ -1701,6 +1702,16 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
           // ordinary accepted commands may drain across the freeze boundary.
           if (route === '/api/command' && Object.hasOwn(commandPermissions, body.command?.type)
             && !['sync-original', 'replace-member', 'apply-runemetrics', 'apply-game-progress'].includes(body.command.type)) lease.ordinary();
+          if (route === '/api/operator/snapshot') {
+            requireAdmin();
+            if (!security.masterAllowed || identity.kind !== 'master' || !/^Bearer /i.test(request.headers.authorization ?? '')) throw httpError(403, 'Private operator credentials required.');
+            if (closed || liveSwap?.standby || handover.frozen) throw httpError(503, 'The writer is unavailable.');
+            if (Object.keys(body).length !== 1 || typeof body.id !== 'string') throw httpError(400, 'Use a snapshot ID.');
+            // Flush shutdown-only maintenance while the writer still serves, so
+            // an idle final stop can match the checked snapshot byte for byte.
+            await store.prepareSnapshot(); await gamePlugin.prepareSnapshot();
+            await json(request, response, 200, await snapshotStore(dataDir, body.id)); return;
+          }
           const execute = async () => {
             if (closed) throw httpError(503, 'The picker is stopping. Retry after it restarts.');
             // A session may have been revoked while a slow body was arriving.

@@ -1,3 +1,4 @@
+import { withStoreWrite } from './snapshot.mjs';
 import { open, readFile, rename, rm } from 'node:fs/promises';
 import { randomBytes } from 'node:crypto';
 import { setTimeout as delay } from 'node:timers/promises';
@@ -78,7 +79,7 @@ export async function openUsageStore({ dataDir, actors, now = Date.now, readOnly
   } catch (error) { if (error.code !== 'ENOENT') throw error; }
   function enqueue(operation) {
     if (closed) return Promise.reject(failure(503, 'Usage storage is closed.'));
-    const pending = queue.then(operation);
+    const pending = queue.then(() => withStoreWrite(dataDir, operation));
     queue = pending.catch(() => {}); return pending;
   }
   return {

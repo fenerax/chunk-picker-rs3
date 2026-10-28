@@ -7,7 +7,7 @@ import { mkdtemp, mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promis
 import { assertReleased, encode, exclusive, inventory, json, sha } from '../scripts/linux/files.mjs';
 import { assertSameRelease, readRelease } from '../scripts/linux/runtime.mjs';
 import { backupStopped, checkStoppedCompatibility, restoreStopped, verifyBackup, writeBackupStatus } from '../scripts/linux/recovery.mjs';
-import { deployStopped, healthRecovery } from '../scripts/linux/operator.mjs';
+import { deployStopped, deployPrechecked, backupOnline, healthRecovery } from '../scripts/linux/operator.mjs';
 import { readBackupStatus } from '../app/storage/backup-status.mjs';
 import { checkStart } from '../scripts/linux/start-check.mjs';
 
@@ -241,4 +241,67 @@ test('startup gate refuses abandoned maintenance and consumes a permit tied to t
   await assert.rejects(readFile(file), { code: 'ENOENT' });
   await writeFile(file, encode({ ...permit, expiresAt: 9999 }));
   await assert.rejects(checkStart(settings, { now: 10000, identity: async () => 'synthetic-boot:start' }), /blocked/);
+});
+
+// Fast operator decision tests use the complete synthetic fixture and real byte
+// inventories, while the decoder itself is covered by the serial probes above.
+for (const changed of [false, true]) test(`online deploy: changed=${changed} selects the stopped re-probe correctly`, async t => {
+  const f = await fixture(t); let checks = 0;
+  const { copyTree } = await import('../scripts/linux/files.mjs');
+  const capture = async () => {
+    const dir = path.join(f.scratch, 'captured');
+    await copyTree(f.settings.dataDir, dir);
+    await writeFile(dir + '.dataset.json', await readFile(f.settings.dataDir + '.dataset.json'));
+    return { dataDir: dir, cleanup: async () => {} };
+  };
+  const stop = f.controller.stop;
+  f.controller.stop = async () => {
+    await stop();
+    if (changed) await writeFile(path.join(f.settings.dataDir, 'new-sidecar.json'), '{}');
+  };
+  const check = async ({ assertStopped }) => { await assertStopped(); checks++; };
+  await deployPrechecked({ ...f, check, capture, request: healthy, wait: noWait });
+  assert.equal(checks, changed ? 2 : 1);
+  assert.deepEqual(f.events, ['stop', 'start']);
+});
+
+test('online preparation failure leaves the writer untouched', async t => {
+  const f = await fixture(t);
+  await assert.rejects(deployPrechecked({ ...f, capture: async () => { throw new Error('snapshot failed'); } }), /snapshot failed/);
+  assert.deepEqual(f.events, []);
+  assert.equal((await f.controller.state()).active, true);
+});
+
+test('online backup preserves recovery directory and status contracts without stopping the service', async t => {
+  const f = await fixture(t);
+  const { copyTree } = await import('../scripts/linux/files.mjs');
+  const capture = async () => {
+    const dir = path.join(f.scratch, 'captured');
+    await copyTree(f.settings.dataDir, dir);
+    await writeFile(dir + '.dataset.json', await readFile(f.settings.dataDir + '.dataset.json'));
+    return { dataDir: dir, cleanup: async () => {} };
+  };
+  const probe = async (_release, dir, output) => { const document = await json(path.join(dir, 'state.json')); await writeFile(output, encode(document)); return document; };
+  const result = await backupOnline({ settings: f.settings, release: f.current, capture, probe });
+  assert.equal((await verifyBackup(result.target)).format, 'picker-recovery-v1');
+  await writeFile(path.join(path.dirname(f.settings.dataDir), 'backup-destination'), 'managed\n');
+  await writeBackupStatus(f.settings.dataDir, { result: 'success', byteSize: result.byteSize });
+  assert.equal((await readBackupStatus(f.settings.dataDir)).warning, null);
+  assert.deepEqual(f.events, []);
+});
+
+
+test('an exited candidate is stopped before automatic restarts consume the rollback start budget', async t => {
+  const f = await fixture(t); let failed = false, starts = 0, waits = 0;
+  const state = f.controller.state, start = f.controller.start, stop = f.controller.stop;
+  f.controller.state = async () => failed ? { active: false, stopped: false } : state();
+  f.controller.start = async () => { await start(); starts++; };
+  f.controller.stop = async () => { failed = false; await stop(); };
+  await assert.rejects(deployStopped({ ...f, check: async () => {},
+    request: async release => { if (release === f.candidate) { failed = true; return { ready: false }; } return { ready: true, savesReady: true }; },
+    wait: async () => { waits++; },
+  }), /exited before/);
+  assert.equal(waits, 0); assert.equal(starts, 2);
+  assert.deepEqual(f.events, ['stop', 'start', 'stop', 'start']);
+  assert.deepEqual(await readFile(f.settings.current), f.current.pointerBytes);
 });

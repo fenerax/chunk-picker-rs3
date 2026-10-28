@@ -1,0 +1,85 @@
+{
+	# Leave Caddy's admin API on loopback. Never enable debug or log_credentials.
+	admin 127.0.0.1:2019
+	log default {
+		format filter {
+			wrap json
+			fields {
+				request>uri delete
+				request>headers delete
+				resp_headers delete
+			}
+		}
+	}
+	servers {
+		protocols h1 h2
+		timeouts {
+			read_header 10s
+			read_body 60s
+			idle 2m
+			# No response write deadline: SSE connections remain open.
+		}
+		max_header_size 32KB
+	}
+}
+
+(private_access_log) {
+	log {
+		output file /var/log/caddy/chunk-picker-access.json {
+			roll_size 10MiB
+			roll_keep 7
+			roll_keep_for 168h
+			mode 0600
+		}
+		format filter {
+			wrap json
+			fields {
+				# Remove ALL URIs and ALL request/response headers, including Referer,
+				# Location, Authorization, Cookie and Set-Cookie. Keep timing/status.
+				request>uri delete
+				request>headers delete
+				resp_headers delete
+			}
+		}
+	}
+	@credential_paths path /join /join/* /auth /auth/*
+	log_skip @credential_paths
+}
+
+picker.example.com {
+	import private_access_log
+	# Core caps normal JSON at 1 MiB and plugin JSON at 8 KiB. Allow framing
+	# overhead at the proxy; keep the application's stricter endpoint limits.
+	request_body {
+		max_size 2MiB
+	}
+	reverse_proxy 127.0.0.1:8789 {
+		# Hold connection failures across a short writer restart. Only reads may
+		# retry after an upstream exchange; commands use durable app receipts.
+		lb_try_duration 30s
+		lb_try_interval 250ms
+		lb_retry_match {
+			method GET HEAD
+		}
+		# The public-role listener accepts only a SINGLE canonical client IP.
+		# No trusted_proxies: this VPS receives clients directly, not via a CDN.
+		header_up X-Forwarded-For {remote_host}
+		header_up X-Forwarded-Proto https
+		header_up X-Forwarded-Host picker.example.com
+		header_up Host picker.example.com
+		# Preserve Authorization, Cookie, Origin, Fetch Metadata, URL and body.
+		flush_interval -1
+		transport http {
+			dial_timeout 3s
+			response_header_timeout 180s
+			keepalive off
+			# No read_timeout/stream_timeout or buffering; SSE is indefinite.
+		}
+	}
+}
+
+www.picker.example.com {
+	import private_access_log
+	# The browser keeps its fragment; the server preserves path and query.
+	redir https://picker.example.com{uri} 308
+}

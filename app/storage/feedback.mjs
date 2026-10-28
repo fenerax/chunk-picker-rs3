@@ -1,3 +1,4 @@
+import { withStoreWrite } from './snapshot.mjs';
 import { open, readFile, rename, rm } from 'node:fs/promises';
 import { randomBytes, randomUUID } from 'node:crypto';
 import { setTimeout as delay } from 'node:timers/promises';
@@ -69,12 +70,12 @@ export async function openFeedbackStore({ dataDir, now = Date.now, hourlyLimit =
   const recent = new Map();
   function mutate(operation) {
     if (closed) return Promise.reject(new Error('Feedback store is closed.'));
-    const pending = queue.then(async () => {
+    const pending = queue.then(() => withStoreWrite(dataDir, async () => {
       const next = structuredClone(current);
       const result = operation(next);
       await atomicWrite(file, next); current = next;
       return result;
-    });
+    }));
     queue = pending.catch(() => {});
     return pending;
   }

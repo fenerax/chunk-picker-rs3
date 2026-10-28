@@ -1,3 +1,4 @@
+import { withStoreWrite } from './snapshot.mjs';
 import { link, mkdir, open, readFile, readdir, realpath, rename, stat, unlink, utimes } from 'node:fs/promises';
 import path from 'node:path';
 import { hostname } from 'node:os';
@@ -771,7 +772,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     // A frozen handover still refuses new reads before writer ownership moves.
     if (!allowClosing && (frozen || (closing && !backupRead))) return Promise.reject(Object.assign(new Error('Please try again in a moment.'), { status: 503, code: 'PICKER_UPDATING' }));
     maintenancePending++;
-    const result = maintenanceQueue.then(work).finally(() => { maintenancePending--; });
+    const result = maintenanceQueue.then(() => withStoreWrite(directory, work)).finally(() => { maintenancePending--; });
     maintenanceQueue = result.catch(() => {});
     return result;
   }
@@ -869,7 +870,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
   function enqueue(work) {
     if (closing) return Promise.reject(new Error('The store is closed.'));
     if (frozen) return Promise.reject(Object.assign(new Error('The picker is updating.'), { status: 503, code: 'PICKER_UPDATING' }));
-    const result = queue.then(work);
+    const result = queue.then(() => withStoreWrite(directory, work));
     queue = result.catch(() => {});
     return result;
   }
@@ -1118,6 +1119,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     getInfo: () => ({ revision: current.revision, durable: true, schemaVersion: current.schemaVersion,
       retention: { policy, activeHistoryEntries: current.history.length, historyArchives: current.provenance?.historyArchive?.length ?? 0,
         ...(retentionFailure ? { failure: retentionFailure } : {}) } }),
+    prepareSnapshot: () => enqueueMaintenance(maintainRetention),
     backup: async () => envelope((await hydrateHistory(current)).state),
     async listBackups() {
       return enqueueMaintenance(async () => {

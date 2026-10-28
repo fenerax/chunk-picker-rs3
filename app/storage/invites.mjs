@@ -1,3 +1,4 @@
+import { withStoreWrite } from './snapshot.mjs';
 import { open, readFile, rename, rm } from 'node:fs/promises';
 import { randomBytes, randomUUID, createHash, timingSafeEqual } from 'node:crypto';
 import { setTimeout as delay } from 'node:timers/promises';
@@ -79,13 +80,13 @@ export async function openInviteStore({ dataDir, masterToken, masterLabel, now =
   const uses = new Map();
   function mutate(operation) {
     if (closed) return Promise.reject(new Error('Invite store is closed.'));
-    const pending = queue.then(async () => {
+    const pending = queue.then(() => withStoreWrite(dataDir, async () => {
       const next = structuredClone(current);
       next.sessions = next.sessions.filter(session => Date.parse(session.expiresAt) > now());
       const result = operation(next);
       await atomicWrite(file, next); current = next;
       return result;
-    });
+    }));
     queue = pending.catch(() => {});
     return pending;
   }

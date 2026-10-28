@@ -62,6 +62,9 @@ if (Test-Path -LiteralPath (Join-Path $dir 'quick-build.json')) {
 }
 $live = Read-ReleaseV2Pointer $settings.Current -ForStop
 if ($live.pointer.releaseId -cne $ExpectLive) { throw 'The live release is not the expected one.' }
+if (Test-Path -LiteralPath (Join-Path $live.context.localDir 'picker-paused')) {
+    throw 'PC picker is paused for VPS hosting. Use node scripts/release/vps/release.mjs stage (and explicit --go-live after approval). The PC rollback copy must stay stopped.'
+}
 $candidate = Read-ReleaseV2Pointer (Join-Path $dir 'pointer.json')
 if ($candidate.sha256 -ceq $live.sha256) { throw 'That release is already live.' }
 Assert-ReleaseV2CandidateLayout $candidate

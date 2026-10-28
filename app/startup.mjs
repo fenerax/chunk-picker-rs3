@@ -52,6 +52,13 @@ export async function startEarlyServer(options, createApplication) {
     const payload = health && authorized ? { ready: false, status: stopped ? 'stopping' : 'warming', savesReady: false,
       worker: { status: 'starting', ready: false, stuck: false, restartRequired: false }, local: true }
       : { message: health ? 'Access required.' : 'The picker is starting. Try again in a moment.', code: 'PICKER_WARMING' };
+    if (response.statusCode === 503 && ['GET', 'HEAD'].includes(request.method)
+      && !request.url?.split('?')[0].startsWith('/api/') && request.headers.accept?.includes('text/html')) {
+      response.setHeader('Content-Type', 'text/html; charset=utf-8');
+      response.setHeader('Content-Security-Policy', "default-src 'none'; base-uri 'none'; frame-ancestors 'none'");
+      response.end(request.method === 'HEAD' ? undefined : '<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="refresh" content="2"><title>Updating</title><body><h1>Updating</h1><p>Back in a moment. This page will retry automatically.</p></body></html>');
+      return;
+    }
     response.end(request.method === 'HEAD' ? undefined : JSON.stringify(payload));
   }
   const primaryIngress = Object.freeze({ host, ingressRole });

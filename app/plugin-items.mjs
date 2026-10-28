@@ -1,3 +1,4 @@
+import { withStoreWrite } from './storage/snapshot.mjs';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { replaceSidecar } from './plugin-achievements.mjs';
@@ -57,14 +58,14 @@ export async function openPluginItems({ dataDir, members, clock = Date.now, log 
       if (closed) return Promise.reject(Object.assign(new Error('The picker is stopping.'), { status: 503 }));
       try { validateItemRecord(record); } catch (error) { return Promise.reject(error); }
       const value = structuredClone(record);
-      const pending = queue.then(async () => {
+      const pending = queue.then(() => withStoreWrite(dataDir, async () => {
         const live = new Set(members().map(member => member.id));
         const players = Object.fromEntries(Object.entries(current.players).filter(([id]) => live.has(id)));
         if (live.has(player)) Object.defineProperty(players, player, { value, enumerable: true, configurable: true, writable: true });
         const next = { v: 1, players };
         await replaceSidecar(file, `${JSON.stringify(validate(next))}\n`, corrupt, clock);
         current = next; corrupt = false;
-      });
+      }));
       queue = pending.catch(() => {}); return pending;
     },
     async close() { closed = true; await queue; },
