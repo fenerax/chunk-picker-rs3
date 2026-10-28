@@ -1,0 +1,12 @@
+[Unit]
+Description=Daily Chunk Picker recovery backup with missed-run catchup
+
+[Timer]
+# UTC is deliberate: change this calendar locally if a different window is wanted.
+OnCalendar=*-*-* 04:00:00 UTC
+Persistent=yes
+AccuracySec=1min
+Unit=chunk-picker-backup.service
+
+[Install]
+WantedBy=timers.target

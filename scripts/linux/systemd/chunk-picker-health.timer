@@ -1,0 +1,11 @@
+[Unit]
+Description=Check Chunk Picker every five minutes
+
+[Timer]
+OnBootSec=5min
+OnUnitInactiveSec=5min
+AccuracySec=15s
+Unit=chunk-picker-health.service
+
+[Install]
+WantedBy=timers.target

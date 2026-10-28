@@ -1,0 +1,34 @@
+[Unit]
+Description=Chunk Picker foreground writer
+After=network-online.target
+Wants=network-online.target
+StartLimitIntervalSec=300
+StartLimitBurst=3
+
+[Service]
+Type=exec
+User=chunk-picker
+Group=chunk-picker
+WorkingDirectory=/opt/chunk-picker/tools
+EnvironmentFile=/etc/chunk-picker/runtime.env
+EnvironmentFile=-/etc/chunk-picker/signin.env
+ExecStartPre=+/usr/bin/node /opt/chunk-picker/tools/scripts/linux/start-check.mjs
+ExecStart=/usr/bin/node --expose-gc /opt/chunk-picker/tools/scripts/linux/serve.mjs
+Restart=on-failure
+RestartSec=15
+KillSignal=SIGTERM
+KillMode=mixed
+TimeoutStopSec=120
+SendSIGKILL=no
+TasksAccounting=yes
+UMask=0077
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/var/lib/chunk-picker
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

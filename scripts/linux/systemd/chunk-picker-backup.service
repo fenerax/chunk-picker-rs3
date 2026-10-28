@@ -1,0 +1,17 @@
+[Unit]
+Description=Chunk Picker complete stopped-store recovery backup
+After=chunk-picker.service
+
+[Service]
+Type=oneshot
+User=root
+EnvironmentFile=/etc/chunk-picker/runtime.env
+ExecStart=/usr/bin/node /opt/chunk-picker/tools/scripts/linux/operator.mjs backup
+# Large stores/probes may take time. Do not kill an operator transaction halfway.
+TimeoutStartSec=infinity
+UMask=0077
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/var/lib/chunk-picker /var/backups/chunk-picker
