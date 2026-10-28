@@ -2,6 +2,34 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "date": "2026-10-28",
+      "title": "The nightly backup keeps the picker open, and updates are shorter",
+      "items": [
+        "The nightly backup copies your save while the picker keeps running, instead of closing it for about a minute",
+        "Updates check a copy of your save while the picker keeps running, then restart in a few seconds. If something was saved during that check, the update checks again the slower way, as before",
+        "While the picker restarts, an open page says it is updating and reloads by itself, and the map retries instead of showing an error. Changes you made keep waiting and save once it is back"
+      ]
+    },
+    {
+      "date": "2026-10-28",
+      "title": "Progress sync after RuneMetrics",
+      "items": [
+        "Fresh progress from the game plugin comes first",
+        "Each sync shows where it came from",
+        "When RuneMetrics closes on 10 November, the picker says levels come from the plugin instead of showing an error"
+      ]
+    },
+    {
+      "date": "2026-10-28",
+      "title": "More accurate area entry requirements",
+      "items": [
+        "Jadinko Lair, the Runespan and Barbarian Assault need their introduction first. You tick it yourself",
+        "Skavid caves and Smoke Dungeon open by either route",
+        "Pretty Flower's Cave opens partway through King of the Dwarves",
+        "Early Carcerem access no longer needs the whole Prison Break mystery"
+      ]
+    },
+    {
       "date": "2026-10-27",
       "title": "The game plugin knows where you are in Anachronia, the Arc, Havenhythe and Lost Grove",
       "items": [
