@@ -19,7 +19,7 @@ export const textPaths = Object.freeze(['app/data/changelog.json', 'app/data/roa
 export const allowlistPath = 'scripts/private-companion/neutral-allowlist.json';
 // Phase A's Windows slice (.github/windows-slice/run.mjs); a test keeps both equal.
 export const windowsBoundTests = Object.freeze([
-  'backup-status.private.test.mjs', 'cutover-live.test.mjs', 'live-base-compatibility.test.mjs', 'operations-degraded.test.mjs', 'operations-forced.test.mjs',
+  'backup-status.private.test.mjs', 'cutover-live.test.mjs', 'live-base-compatibility.test.mjs', 'online-snapshot.test.mjs', 'operations-degraded.test.mjs', 'operations-forced.test.mjs',
   'operations-graceful.test.mjs', 'operations-owner.test.mjs', 'operations.test.mjs', 'operator-cutover.test.mjs',
   'operator-frozen-bundle.test.mjs', 'owned-child-processes.test.mjs',
   'private-live-swap.test.mjs', 'release-admission-v2.test.mjs', 'release-ci-evidence-workflow-harness.test.mjs', 'release-pack-upgrade-v2.test.mjs', 'release-pipeline-v2.test.mjs',

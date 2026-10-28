@@ -17,6 +17,7 @@ export const windowsFiles = [
   'backup-status.private.test.mjs',
   'cutover-live.test.mjs',
   'live-base-compatibility.test.mjs',
+  'online-snapshot.test.mjs',
   'operations-degraded.test.mjs',
   'operations-forced.test.mjs',
   'operations-graceful.test.mjs',
