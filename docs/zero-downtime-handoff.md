@@ -154,9 +154,10 @@ for evidence in operation.lock maintenance.json activation.json start-permit.jso
   sudo test ! -e "/var/lib/chunk-picker/control/$evidence"
 done
 sudo test ! -e /opt/chunk-picker/tools-zero-downtime
-sudo install -d -o root -g root -m 0755 /opt/chunk-picker/tools-zero-downtime
+# The service runs as chunk-picker and must read its tools; staging already
+# locked the release tree to root:chunk-picker 0750/0640, so cp -a keeps that.
+sudo install -d -o root -g chunk-picker -m 0750 /opt/chunk-picker/tools-zero-downtime
 sudo cp -a "/opt/chunk-picker/releases/$rel/core/." /opt/chunk-picker/tools-zero-downtime/
-sudo chown -R root:root /opt/chunk-picker/tools-zero-downtime
 sudo test ! -e /opt/chunk-picker/tools-before-zero-downtime
 sudo mv /opt/chunk-picker/tools /opt/chunk-picker/tools-before-zero-downtime
 sudo mv /opt/chunk-picker/tools-zero-downtime /opt/chunk-picker/tools
@@ -165,8 +166,11 @@ sed 's|/usr/bin/node|/opt/node/bin/node|g' /opt/chunk-picker/tools/scripts/linux
 sudo systemd-analyze verify /etc/systemd/system/chunk-picker.service /etc/systemd/system/chunk-picker-backup.service /etc/systemd/system/chunk-picker-backup.timer /etc/systemd/system/chunk-picker-health.service /etc/systemd/system/chunk-picker-health.timer
 sudo systemctl daemon-reload
 # Upload only the reviewed proposed host-specific Caddyfile to this path first.
-sudo -u caddy caddy validate --config /var/tmp/Caddyfile.zero-downtime --adapter caddyfile
-sudo install -o root -g root -m 0644 /var/tmp/Caddyfile.zero-downtime /etc/caddy/Caddyfile
+# A copy from Windows may carry CRLF line endings; strip them before installing.
+sudo sh -c "tr -d '\r' < /var/tmp/Caddyfile.zero-downtime > /var/tmp/Caddyfile.zero-downtime.lf"
+sudo -u caddy caddy validate --config /var/tmp/Caddyfile.zero-downtime.lf --adapter caddyfile
+sudo cp -a /etc/caddy/Caddyfile /etc/caddy/Caddyfile.before-zero-downtime
+sudo install -o root -g root -m 0644 /var/tmp/Caddyfile.zero-downtime.lf /etc/caddy/Caddyfile
 sudo systemctl reload caddy
 # Explicit one-time bootstrap: the old running release has no snapshot endpoint.
 sudo env RS3_OPERATOR_CONFIG=/etc/chunk-picker/operator.json /opt/node/bin/node /opt/chunk-picker/tools/scripts/linux/operator.mjs deploy "/opt/chunk-picker/releases/$rel/pointer.json" "/var/tmp/picker-upload-$rel/verified.json" --stopped
