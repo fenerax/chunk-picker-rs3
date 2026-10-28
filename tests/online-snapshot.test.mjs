@@ -3,7 +3,6 @@ import assert from 'node:assert/strict';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
-import net from 'node:net';
 import { releaseVps } from '../scripts/release/vps/release.mjs';
 import { prepareBundle } from '../scripts/release/vps/bundle.mjs';
 import { execFileSync } from 'node:child_process';
@@ -17,11 +16,6 @@ const { createServer } = await import('../app/server.mjs');
 const { openStore } = await import('../app/storage/store.mjs');
 const { createGroupState } = await import('../app/core/state.mjs');
 
-async function freePort(port) {
-  const server = net.createServer();
-  await new Promise((resolve, reject) => { server.once('error', reject); server.listen(port, '127.0.0.1', resolve); });
-  await new Promise(resolve => server.close(resolve));
-}
 async function atomic(file, bytes) {
   for (let attempt = 0; ; attempt++) {
     try { return await linuxAtomic(file, bytes); }
@@ -79,8 +73,7 @@ test('snapshot timeout/invalid ID releases writes and never removes existing sna
 
 test('snapshot is available only to the private master operator; public role refuses', async t => {
   const { dataDir } = await fixture(t);
-  await freePort(8972); await freePort(8973);
-  const app = await createServer({ dataDir, host: '127.0.0.1', port: 8972, loopbackPort: 8973, loopbackRole: 'public', predictionPrewarm: false });
+  const app = await createServer({ dataDir, host: '127.0.0.1', port: 0, loopbackPort: 0, loopbackRole: 'public', predictionPrewarm: false });
   await app.listen(); t.after(() => app.close());
   const token = app.store.getAccessToken();
   const privateOrigin = `http://127.0.0.1:${app.address().port}`;
@@ -99,8 +92,7 @@ test('snapshot is available only to the private master operator; public role ref
 test('warm-up navigation gets a self-retrying HTML page while API responses remain 503 JSON', async t => {
   const { dataDir } = await fixture(t);
   let finish;
-  await freePort(8974);
-  const app = await startEarlyServer({ dataDir, host: '127.0.0.1', port: 8974 }, async options => {
+  const app = await startEarlyServer({ dataDir, host: '127.0.0.1', port: 0 }, async options => {
     await new Promise(resolve => { finish = resolve; });
     return { listen: async () => {}, close: async () => { options.httpServer.closeAllConnections(); await new Promise(resolve => options.httpServer.close(resolve)); } };
   });
@@ -142,7 +134,6 @@ test('PC go-live refuses the VPS pause before loading a candidate or stopping an
   if (process.platform !== 'win32') { t.skip('Windows PowerShell guard is exercised by Windows CI'); return; }
   assert.throws(() => execFileSync('powershell', ['-NoProfile', '-File', path.resolve('scripts/release/pc/Quick-Release.ps1'), '-GoLive', '-ReleaseDir', scratch, '-ExpectLive', 'old', '-Config', config], { encoding: 'utf8', windowsHide: true, stdio: 'pipe' }), error => /PC picker is paused for VPS hosting/.test(error.stderr));
 });
-
 
 test('nested and deferred maintenance cannot escape the snapshot barrier', async t => {
   const { dataDir } = await fixture(t); await mkdir(dataDir);
@@ -188,7 +179,6 @@ test('release bundle pins and manifest verify every uploaded file without copyin
   await writeFile(profile, 'changed');
   await assert.rejects(prepareBundle(source, path.join(scratch, 'bad-bundle')), /pin mismatch/);
 });
-
 
 test('read retries cover a fifteen-second warm-up and remain bounded', async () => {
   let at = 0, calls = 0;

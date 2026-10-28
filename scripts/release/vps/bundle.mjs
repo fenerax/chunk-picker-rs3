@@ -9,6 +9,8 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 const encode = value => JSON.stringify(value, null, 2) + '\n';
 const sha = bytes => createHash('sha256').update(bytes).digest('hex');
 const json = async file => JSON.parse(await readFile(file, 'utf8'));
+// Git Bash's GNU tar reads "C:\..." as a remote host; Windows' own tar does not.
+const windowsTar = () => process.platform === 'win32' ? path.join(process.env.SystemRoot ?? 'C:\\Windows', 'System32', 'tar.exe') : 'tar';
 async function hash(file) {
   const h = createHash('sha256');
   for await (const bytes of createReadStream(file)) h.update(bytes);
@@ -60,7 +62,7 @@ export async function prepareBundle(source, output) {
   if (rows.some(row => /(^|\/)(?:\.git|\.local|var|node_modules|access-token|store\.lock|picker-paused)(\/|$)/i.test(row.path))) throw new Error('Runtime state in release tree.');
   for (const pin of pins(config)) if (rows.find(row => row.path === relativePin(sourceRoot, pin.path))?.sha256 !== pin.sha256) throw new Error('Source pin mismatch.');
   await mkdir(output, { mode: 0o700 });
-  execFileSync('tar', ['-cf', path.join(output, 'release.tar'), '-C', source, 'core', 'packs', 'profile.json', 'addons'], { stdio: 'ignore', windowsHide: true });
+  execFileSync(windowsTar(), ['-cf', path.join(output, 'release.tar'), '-C', source, 'core', 'packs', 'profile.json', 'addons'], { stdio: 'ignore', windowsHide: true });
   await writeFile(path.join(output, 'source-config.json'), configBytes, { flag: 'wx', mode: 0o600 });
   await writeFile(path.join(output, 'release-manifest.json'), encode({ sourceRoot, configSha256: sha(configBytes), rows }), { flag: 'wx', mode: 0o600 });
   const transfer = {};
