@@ -76,6 +76,10 @@ focused test instead seeds a bound, two-member open-f2p store with one unlocked
 starting chunk and a sentinel, and verifies its complete file inventory and
 binding remain unchanged, including after a memory-budget refusal.
 
+The installed-release mode imports `app/` beside the harness, so run it from a
+full copy of the installed release's `core` with the two harness files added,
+owned by the service account.
+
 ## Report interpretation
 
 All leaf values are finite numbers; field names are fixed schema identifiers.
@@ -143,24 +147,47 @@ only the main-process RSS guard; use Linux for process-tree capacity evidence.
 
 ## Results to fill from the installed release
 
-Keep production report files private; paste only reviewed numeric summaries here.
-The full-pack estimates remain unverified until this table is filled.
+Measured on the production VPS on 28 October 2026 from a scratch copy of that
+day's online backup (bound to the installed release), as the service account in
+a `MemoryMax=4G`, `CPUWeight=20`, `Nice=19` unit. The run took 2 min 22 s,
+peaked at 2.7 GiB and the live site kept answering in about 20 ms. Calculators
+were process-hosted. Keep production report files private; only these reviewed
+numeric summaries are published.
 
 | Measurement | Installed backup picker | Fresh solo, same installed inputs |
 | --- | --- | --- |
-| Release / dataset digest | TODO | TODO |
-| Node / CPU count / RAM / timestamp | TODO | TODO |
-| Before import / after import main RSS MiB | TODO | TODO |
-| After store open main heap / RSS MiB | TODO | TODO |
-| Idle main heap / RSS MiB | TODO | TODO |
-| Cold full tasks wall ms, per indexed member | TODO | TODO |
-| Cold main + worker CPU core-seconds | TODO | TODO |
-| Observed worker heap / RSS / VmHWM peak MiB | TODO | TODO |
-| Warm identical full tasks wall ms | TODO | TODO |
-| Roll-pool HTTP wall ms / main core-seconds | TODO | TODO |
-| After sleep main heap / RSS MiB | TODO | TODO |
-| Store-only retained heap MiB/context, N=1 / N=3 | TODO | TODO |
-| Store bytes / sibling receipt bytes | TODO | TODO |
+| Release / dataset digest | rel29-36b9db7 / 3768ecbd4197… | same |
+| Node / CPU count / RAM / timestamp | 24.22.1 / 6 vCPU / 11.4 GiB / 2026-10-28T16:27Z | same run |
+| Before import / after import main RSS MiB | 55 / 289 | 55 / 291 |
+| After store open main heap / RSS MiB | 566 / 1,063 | 505 / 879 |
+| Idle main heap / RSS MiB | 610 / 1,123 | 318 / 742 |
+| Cold full tasks wall ms, per indexed member | 14,647; 12,237 | 10,294 |
+| Cold main + worker CPU core-seconds | 4.19 + 20.70; 4.53 + 17.56 | 3.04 + 14.56 |
+| Observed worker heap / RSS / VmHWM peak MiB | 597 / 1,008 / 1,024 | 469 / 852 / 886 |
+| Warm identical full tasks wall ms | 356; 451 (main 1.26; 1.30 core-s) | 422 (main 1.56 core-s) |
+| Roll-pool HTTP wall ms / main core-seconds | 6,263 / 11.22 | 383 / 0.72 |
+| After sleep main heap / RSS MiB | 612 / 1,147 | 319 / 727 |
+| Store-only retained heap MiB/context, N=1 / N=3 | 257 / 257 | 78 / 78 |
+| Store bytes / sibling receipt bytes | 82,049,384 / 189 | 3,027,117 / 0 |
+
+### What the installed run shows
+
+- **A calculator wake costs about 14–21 core-seconds.** The fresh solo has
+  nothing unlocked, yet its cold query used 14.6 worker core-seconds: almost all
+  of that is loading and compiling the engine, not evaluating. The duo's
+  evaluation proper is therefore roughly 3–6 core-seconds per member on top.
+  Recompiling per picker would dominate CPU, so pool workers must stay warm and
+  serve many pickers.
+- **One calculator is about 1 GiB RSS** (heap 470–600 MiB) on full packs.
+- **Main-loop work matters.** The first full state envelope for the duo held the
+  HTTP loop for 6.3 s (11.2 core-seconds) evaluating roll pools; a cached task
+  list still cost 1.3–1.6 main core-seconds to send. Both block every other
+  picker in a shared process.
+- **Resident contexts are cheaper than feared for new players**: 78 MiB per fresh
+  solo store, most of it catalogue that later phases can share; 257 MiB per
+  mature duo store.
+- Not measured: a warm calculator re-evaluating after a real change (unlock or
+  completion). Repeat queries above hit the response cache.
 
 ### Synthetic evidence only
 

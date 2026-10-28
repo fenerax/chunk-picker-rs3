@@ -293,5 +293,5 @@ async function main() {
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === here) {
-  main().catch(() => { process.stderr.write('Footprint refused or aborted; check matching inputs, free port and RSS budget.\n'); process.exitCode = 1; });
+  main().catch(error => { process.stderr.write(`Footprint refused or aborted: ${error?.message ?? error}\nCheck matching inputs, free port and RSS budget.\n`); process.exitCode = 1; });
 }
