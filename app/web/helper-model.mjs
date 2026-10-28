@@ -1,6 +1,6 @@
 import { xpForLevel, levelForXp } from '../core/experience.mjs';
 import { combatLevelFromSkills } from '../core/combat-level.mjs';
-import { sameRuneScapeName } from '../core/game-progress.mjs';
+import { progressBelongsToMember } from '../core/game-progress.mjs';
 import { isCustomTask, customTaskAssignedTo } from './custom-tasks-model.mjs';
 
 // The duo is F2P. Include every trainable F2P skill and members skill trial;
@@ -19,7 +19,7 @@ const validXp = value => typeof value === 'number' && Number.isFinite(value) && 
  * absent: training ceilings, declarations and challenge checks are not XP. */
 export function personalSkillProgress(member) {
   return Object.fromEntries(Object.entries(member?.skillProgress ?? {}).filter(([skill, observation]) => skills.has(skill)
-    && observation?.source === 'runemetrics' && sameRuneScapeName(observation.runescapeName, member?.runescapeName)
+    && progressBelongsToMember(observation, member)
     && validLevel(observation.level) && validXp(observation.xp)).map(([skill, observation]) => [skill, {
     level: observation.level, xp: observation.xp, source: observation.source,
     fetchedAt: observation.fetchedAt ?? null, runescapeName: observation.runescapeName,
@@ -149,8 +149,7 @@ export function skillGoals(member, result, state) {
     grouped.set(skill, goals);
   }
   const invention = member?.skillProgress?.Invention;
-  if (grouped.has('Invention') && invention?.source === 'runemetrics'
-    && sameRuneScapeName(invention.runescapeName, member?.runescapeName)
+  if (grouped.has('Invention') && progressBelongsToMember(invention, member)
     && validLevel(invention.level) && validXp(invention.xp)) progress.Invention = invention;
   const goalSkills = grouped.has('Invention') ? [...helperSkills, 'Invention'] : helperSkills;
   return goalSkills.map(skill => {

@@ -8,7 +8,7 @@ export function completedReviewList({ rows, players, range, layout = 'category',
     const label = layout === 'category' ? row.category : '';
     if (!groups.has(label)) groups.set(label, []);
     const evidence = row.completions.map(completion => {
-      const kind = completion.kind === 'ticked' ? 'ticked' : completion.source === 'runemetrics' ? 'in-game, RuneMetrics' : 'in-game';
+      const kind = completion.kind === 'ticked' ? 'ticked' : completion.source === 'runemetrics' ? 'in-game, RuneMetrics' : completion.source === 'official-api' ? 'in-game, RuneScape API' : 'in-game';
       return `Done by ${completion.name ?? completion.memberName} (${kind}) · ${date(completion.at)}${completion.imported ? ' · Imported from original picker' : ''}`;
     }).join('; ');
     groups.get(label).push(`${plain(row.task.label)}${layout === 'category' ? '' : ` · ${row.category}`} · ${evidence}`);

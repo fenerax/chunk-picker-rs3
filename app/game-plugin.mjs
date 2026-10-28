@@ -4,6 +4,7 @@ import { openPluginItems } from './plugin-items.mjs';
 import { GAME_ITEMS, GAME_TOOLBELT, GAME_WORN_TASKS, COINS, COIN_BILLIONS, ITEM_REVIEW_LIMIT, matchGameItems } from './integrations/game-items.mjs';
 import { fields, validatePluginReport, pluginProposal, matchPluginAchievements, ACHIEVEMENT_REVIEW_LIMIT } from './integrations/game-plugin.mjs';
 import { pluginTaskRows, pluginTaskList, pluginTaskFrom } from './game-plugin-tasks.mjs';
+import { createPluginProgressSource } from './integrations/progress-sources.mjs';
 import { createGameCoordinates } from './core/game-coords.mjs';
 
 const fail = (status, message) => Object.assign(new Error(message), { status });
@@ -31,6 +32,7 @@ const PLUGIN_ROUTES = new Map([['/api/plugin/v1/report', 'POST'], ['/api/plugin/
 /** Positions, assemblies and proposals are ephemeral. Ticks use store.command. */
 export async function openGamePlugin({ dataDir, store, world, registry, questMapping, bodyJSON, json,
   serializeMutation, checkRequestOrigin, unauthenticated = () => {}, notify = () => {}, clock = Date.now, savedTasks = () => null, taskCatalogue = () => [], itemsBetaAsLive = false, log = console.warn }) {
+  const progressSource = createPluginProgressSource({ clock });
   const coordinates = createGameCoordinates(world);
   const gameId = id => coordinates.pickerChunkToGameId(id);
   const keys = await openPluginKeys({ dataDir, clock });
@@ -435,6 +437,7 @@ export async function openGamePlugin({ dataDir, store, world, registry, questMap
           }
           positions.set(credential.player, { memberId: credential.player, chunkId: coordinates.gameSquareToPickerChunk(report.position.x, report.position.z),
             position: report.position, seenAt: new Date(clock()).toISOString() });
+          progressSource.receive(credential.player, report);
           if (report.diagnostics) diagnostics.set(credential.id, { lines: [...report.diagnostics], receivedAt: new Date(clock()).toISOString() });
           if (report.skills !== undefined || report.quests !== undefined) {
             const prior = liveReview(credential.player)?.report;
@@ -469,6 +472,7 @@ export async function openGamePlugin({ dataDir, store, world, registry, questMap
       if (!review.proposal || review.proposal.preview.stateRevision !== store.getInfo().revision) review.proposal = pluginProposal(state(), player, review.report, questMapping);
       return review.proposal.preview;
     },
+    progressSnapshot(owner) { return hasActiveKey(owner.id) ? progressSource.snapshot(owner) : null; },
     async create(identity, body) {
       fields(body, ['memberId', 'label'], 'key'); authorize(identity, body.memberId);
       if (typeof body.label !== 'string' || !body.label.trim() || body.label.length > 80 || /[\x00-\x1f\x7f]/.test(body.label)) throw fail(400, 'Use a key label from 1 to 80 characters.');
@@ -529,6 +533,7 @@ export async function openGamePlugin({ dataDir, store, world, registry, questMap
         await flushHandled(true);
         await Promise.all([keys.close(), handled.close(), itemStore.close()]);
         itemMemory.clear(); itemAcks.clear(); itemHandled.clear(); bankAssemblies.clear(); bankAcks.clear(); itemCoins.clear();
+        progressSource.clear();
         positions.clear(); pending.clear(); diagnostics.clear(); retainedTasks.clear(); taskRows.clear(); assemblies.clear(); completedSnapshots.clear(); achievementSummaries.clear();
       })();
       return closePromise;

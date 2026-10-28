@@ -2,7 +2,7 @@ import { TRANSPORT_ROUTES } from '../data/transport-routes.mjs';
 import { TRANSPORT_ACCESS_RULE, TRANSPORT_MASK_SHA256, TRANSPORT_RUNTIME_SHA256 } from '../data/cache-entry-policy.mjs';
 import { componentLocations, componentBlocked, surfaceReachability } from './cache-surface.mjs';
 import { isWalkingSectionEdge, sectionIsFree } from './map-boundaries.mjs';
-import { sameRuneScapeName } from './game-progress.mjs';
+import { progressBelongsToMember } from './game-progress.mjs';
 import { surfaceLodestones } from '../data/lodestones.mjs';
 import { requireTeleportReturns } from './teleport-returns.mjs';
 import { automaticTransportEnabled, deriveAutomaticTransport, automaticRouteFacts, automaticRouteGroup,
@@ -102,9 +102,8 @@ export function resolveTransportStation(world, station) {
 function personalFacts(state, member, injected) {
   const explicit = validateTransportFacts(injected ?? member.transportFacts ?? {});
   const levels = { ...(member.passiveLevels ?? {}) }, quests = {};
-  for (const [skill, observation] of Object.entries(member.skillProgress ?? {})) if (observation.source === 'runemetrics'
-    && sameRuneScapeName(observation.runescapeName, member.runescapeName)) levels[skill] = observation.level;
-  for (const [id, observation] of Object.entries(member.questProgress ?? {})) if (sameRuneScapeName(observation.runescapeName, member.runescapeName)
+  for (const [skill, observation] of Object.entries(member.skillProgress ?? {})) if (progressBelongsToMember(observation, member)) levels[skill] = observation.level;
+  for (const [id, observation] of Object.entries(member.questProgress ?? {})) if (progressBelongsToMember(observation, member)
     && member.completedTasks?.includes(id)) quests[observation.title] = true;
   // Personal game completions can prove an exact quest title; challenge checks
   // and the task engine's potential-level fixed point cannot.

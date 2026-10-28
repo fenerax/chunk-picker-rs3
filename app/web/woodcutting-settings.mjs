@@ -1,5 +1,5 @@
 import { WOODCUTTING_HATCHETS } from '../training/woodcutting-rates.mjs';
-import { sameRuneScapeName } from '../core/game-progress.mjs';
+import { progressBelongsToMember } from '../core/game-progress.mjs';
 
 export const woodcuttingHatchetLabel = value => String(value).replace(/ \+ (\d+)/g, ' +$1');
 export function assumedWoodcuttingHatchet(level, hatchets = WOODCUTTING_HATCHETS) {
@@ -8,7 +8,7 @@ export function assumedWoodcuttingHatchet(level, hatchets = WOODCUTTING_HATCHETS
 }
 function savedWoodcuttingLevel(member) {
   const observation = member?.skillProgress?.Woodcutting;
-  return observation?.source === 'runemetrics' && sameRuneScapeName(observation.runescapeName, member.runescapeName)
+  return progressBelongsToMember(observation, member)
     && Number.isInteger(observation.level) && observation.level >= 1 && observation.level <= 120
     && Number.isFinite(observation.xp) && observation.xp >= 0 ? observation.level : null;
 }

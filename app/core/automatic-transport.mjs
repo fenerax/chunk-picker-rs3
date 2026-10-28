@@ -1,4 +1,4 @@
-import { sameRuneScapeName } from './game-progress.mjs';
+import { progressBelongsToMember } from './game-progress.mjs';
 import { automaticTravelInputKey } from './travel-inputs.mjs';
 import { teleportReturnCache } from './teleport-return-cache.mjs';
 
@@ -94,7 +94,7 @@ export function deriveAutomaticTransport(world, state, memberId, { baseline, tra
   const estimatedLevels = new Set(), observedLevels = new Set(), renewableBudget = {}, itemEvidence = new Map();
   const result = automaticTransportEnabled(state) ? baselineFor(world, state, memberId, baseline, signature) : null;
   for (const [skill, observation] of Object.entries(member.skillProgress ?? {})) {
-    if (observation?.source === 'runemetrics' && sameRuneScapeName(observation.runescapeName, member.runescapeName)
+    if (progressBelongsToMember(observation, member)
       && Number.isSafeInteger(observation.level) && observation.level >= 1) {
       facts.levels[skill] = observation.level; observedLevels.add(skill);
     }
@@ -104,13 +104,13 @@ export function deriveAutomaticTransport(world, state, memberId, { baseline, tra
     facts.levels[skill] = training.level; estimatedLevels.add(skill);
   }
   for (const [skill, level] of Object.entries(member.passiveLevels ?? {})) if (!observedLevels.has(skill) && facts.levels[skill] === undefined) facts.levels[skill] = level;
-  for (const [id, observation] of Object.entries(member.questProgress ?? {})) if (observation?.source === 'runemetrics'
-    && sameRuneScapeName(observation.runescapeName, member.runescapeName) && member.completedTasks?.includes(id)) facts.quests[observation.title] = true;
+  for (const [id, observation] of Object.entries(member.questProgress ?? {})) if (progressBelongsToMember(observation, member)
+    && member.completedTasks?.includes(id)) facts.quests[observation.title] = true;
   for (const task of state.tasks ?? []) if (task.category === 'Quest' && member.completedTasks?.includes(task.id)) {
     const observation = member.questProgress?.[task.id];
     // A sync record bound to a different character must not become a manual
     // completion merely because its old task checkbox survived a name change.
-    if (!observation || observation.source !== 'runemetrics' || sameRuneScapeName(observation.runescapeName, member.runescapeName)) facts.quests[task.label] = true;
+    if (!observation || progressBelongsToMember(observation, member)) facts.quests[task.label] = true;
   }
   const tasks = new Map((result?.tasks ?? []).map(task => [task.id, task]));
   const renewableTasks = new Map();
@@ -137,7 +137,7 @@ export function deriveAutomaticTransport(world, state, memberId, { baseline, tra
   for (const item of result?.items ?? []) {
     const sources = (item.sources ?? []).filter(source => source.processingMode !== 'multi'
       && (source.kind !== 'reward' || member.completedTasks?.includes(source.taskId)
-        && (!member.questProgress?.[source.taskId] || sameRuneScapeName(member.questProgress[source.taskId].runescapeName, member.runescapeName))));
+        && (!member.questProgress?.[source.taskId] || progressBelongsToMember(member.questProgress[source.taskId], member))));
     if (!sources.length) continue;
     itemEvidence.set(normalize(item.name), { name: item.name, sources });
     const renewable = sources.some(source => renewableSource(source));

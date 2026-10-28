@@ -58,11 +58,11 @@ function harness({ advanced = false, canWrite = true } = {}) {
 test('account editing and fetch are explicit, bound to the selected personal member', async () => {
   const h = harness();
   assert.equal(h.find('input').value, 'AccountA');
-  assert.match(h.text(), /Player · Last applied snapshot:/);
+  assert.match(h.text(), /Player · Last applied web snapshot:/);
   assert.match(h.text(), /apply them as personal progress/);
   assert.deepEqual(h.attempts, { fetch: [], apply: [], commands: [] });
   h.find('input').value = 'RenamedA'; h.find('input').events.input();
-  await h.click('Sync from RuneMetrics');
+  await h.click('Sync progress');
   assert.equal(h.attempts.fetch.length, 0);
   assert.match(h.text(), /Save this player’s RuneScape account name/);
   await h.click('Save RuneScape name');
@@ -71,7 +71,7 @@ test('account editing and fetch are explicit, bound to the selected personal mem
 });
 
 test('preview shows increases, decreases, unknown prior XP, personal quests and unmatched evidence without applying', async () => {
-  const h = harness(); await h.click('Sync from RuneMetrics');
+  const h = harness(); await h.click('Sync progress');
   assert.equal(h.attempts.fetch[0][0], '/api/runemetrics/preview');
   assert.deepEqual(h.attempts.fetch[0][1], { memberId: 'a' });
   assert.match(h.text(), /recent saved result/);
@@ -84,50 +84,73 @@ test('preview shows increases, decreases, unknown prior XP, personal quests and 
   assert.ok(h.find('li', 'Quest step only · Could not match this to a quest completion in this app.'));
   assert.equal(h.attempts.apply.length, 0); assert.equal(h.attempts.commands.length, 0);
   await h.click('Cancel preview');
-  assert.equal(h.find('button', 'Apply RuneMetrics snapshot'), undefined);
+  assert.equal(h.find('button', 'Apply progress snapshot'), undefined);
   assert.equal(h.attempts.apply.length, 0);
 });
 
 test('only Apply sends the reviewed token and revision, and a completed click cannot apply twice', async () => {
-  const h = harness(); await h.click('Sync from RuneMetrics');
-  const apply = h.find('button', 'Apply RuneMetrics snapshot');
+  const h = harness(); await h.click('Sync progress');
+  const apply = h.find('button', 'Apply progress snapshot');
   await apply.events.click(); await apply.events.click();
   assert.deepEqual(h.attempts.apply, [['review-a', 7]]);
   assert.equal(h.ui.refreshed, 1);
 });
 
+test('sync names the selected source and the unavailable state offers no Apply or warning', async () => {
+  const h = harness();
+  h.ui.fetchResponse = { ...snapshot(7), source: 'game-plugin', sourceLabel: 'Game plugin' };
+  await h.click('Sync progress');
+  assert.match(h.text(), /Source: Game plugin/);
+  assert.doesNotMatch(h.text(), /Saved revision/);
+  h.ui.fetchResponse = { available: false, memberId: 'a', runescapeName: 'AccountA', source: 'official-api',
+    message: 'The new RuneScape API is not available yet. Levels sync from the game plugin now.' };
+  await h.click('Sync progress');
+  assert.equal(h.find('button', 'Apply progress snapshot'), undefined);
+  assert.match(h.text(), /game plugin now/);
+  assert.equal(h.walk(h.ui.nodes).find(node => node.attributes.role === 'status').className, 'info-meta');
+  assert.equal(h.attempts.apply.length, 0);
+});
+
+test('plugin sync does not require a saved web account name', async () => {
+  const h = harness(); h.state.members[0].runescapeName = ''; h.find('input').value = '';
+  h.ui.fetchResponse = { ...snapshot(7), runescapeName: '', source: 'game-plugin', sourceLabel: 'Game plugin' };
+  await h.click('Sync progress');
+  assert.match(h.text(), /Source: Game plugin/);
+  assert.ok(h.find('button', 'Apply progress snapshot'));
+});
+
 test('edited account and changed shared revision invalidate the reviewed apply', async () => {
-  const h = harness(); await h.click('Sync from RuneMetrics');
-  const apply = h.find('button', 'Apply RuneMetrics snapshot'); h.state.revision++;
+  const h = harness(); await h.click('Sync progress');
+  const apply = h.find('button', 'Apply progress snapshot'); h.state.revision++;
   await apply.events.click();
   assert.equal(h.attempts.apply.length, 0); assert.equal(apply.disabled, true);
-  assert.match(h.text(), /Fetch a new RuneMetrics preview and review it/);
-  await h.click('Sync from RuneMetrics');
-  const refreshed = h.find('button', 'Apply RuneMetrics snapshot');
+  assert.match(h.text(), /Fetch a new progress preview and review it/);
+  await h.click('Sync progress');
+  const refreshed = h.find('button', 'Apply progress snapshot');
   h.find('input').value = 'AccountB'; h.find('input').events.input();
   await refreshed.events.click();
   assert.equal(h.attempts.apply.length, 0);
 });
 
 test('a stale server response does not retry Apply and requires a new preview', async () => {
-  const h = harness(); await h.click('Sync from RuneMetrics');
+  const h = harness(); await h.click('Sync progress');
   h.ui.applyResponse = Promise.reject(Object.assign(new Error('Stale review'), { status: 409 }));
-  const apply = h.find('button', 'Apply RuneMetrics snapshot');
+  const apply = h.find('button', 'Apply progress snapshot');
   await apply.events.click(); await apply.events.click();
   assert.equal(h.attempts.apply.length, 1); assert.equal(apply.disabled, true);
-  assert.match(h.text(), /Fetch a new RuneMetrics preview and review it/);
+  assert.match(h.text(), /Fetch a new progress preview and review it/);
   assert.equal(h.ui.refreshed, 0);
 });
 
 test('an expired or failed Apply token requires a freshly fetched review', async () => {
-  const h = harness(); await h.click('Sync from RuneMetrics');
+  const h = harness(); await h.click('Sync progress');
   h.ui.applyResponse = Promise.reject(new Error('Preview expired. Fetch a new snapshot.'));
-  const expired = h.find('button', 'Apply RuneMetrics snapshot');
+  const expired = h.find('button', 'Apply progress snapshot');
   await expired.events.click(); await expired.events.click();
   assert.equal(h.attempts.apply.length, 1); assert.equal(expired.disabled, true);
   assert.match(h.text(), /Preview expired/);
   h.ui.applyResponse = undefined;
-  await h.click('Sync from RuneMetrics'); await h.click('Apply RuneMetrics snapshot');
+  await h.click('Sync progress'); await h.click('Apply progress snapshot');
   assert.equal(h.attempts.fetch.length, 2); assert.equal(h.attempts.apply.length, 2);
 });
 
@@ -136,7 +159,7 @@ test('late preview success or failure cannot update a switched, closed or supers
     for (const invalidation of ['member', 'close', 'generation', 'cancel']) {
       const h = harness(); let settle;
       h.ui.fetchResponse = new Promise((resolve, reject) => { settle = outcome === 'resolve' ? resolve : reject; });
-      const pending = h.click('Sync from RuneMetrics');
+      const pending = h.click('Sync progress');
       if (invalidation === 'member') h.ui.memberId = 'b';
       else if (invalidation === 'close') h.ui.open = false;
       else if (invalidation === 'generation') h.ui.generation++;
@@ -145,7 +168,7 @@ test('late preview success or failure cannot update a switched, closed or supers
       settle(outcome === 'resolve' ? snapshot(7) : new Error('Late private-profile failure'));
       await assert.doesNotReject(pending);
       assert.equal(h.text(), prior, `${outcome}, ${invalidation}`);
-      assert.equal(h.find('button', 'Apply RuneMetrics snapshot'), undefined);
+      assert.equal(h.find('button', 'Apply progress snapshot'), undefined);
     }
   }
 });
@@ -153,18 +176,18 @@ test('late preview success or failure cannot update a switched, closed or supers
 test('cancelled fetch cannot overwrite a newer on-demand review', async () => {
   const h = harness(); let resolveOld;
   h.ui.fetchResponse = new Promise(resolve => { resolveOld = resolve; });
-  const old = h.click('Sync from RuneMetrics'); await h.click('Cancel preview');
-  h.ui.fetchResponse = undefined; await h.click('Sync from RuneMetrics');
+  const old = h.click('Sync progress'); await h.click('Cancel preview');
+  h.ui.fetchResponse = undefined; await h.click('Sync progress');
   resolveOld({ ...snapshot(7), previewId: 'old-review', skills: [] }); await old;
-  await h.click('Apply RuneMetrics snapshot');
+  await h.click('Apply progress snapshot');
   assert.deepEqual(h.attempts.apply, [['review-a', 7]]);
 });
 
 test('late Apply completion does not reopen a newer dialog, while the explicit request stays bound', async () => {
   for (const outcome of ['resolve', 'reject']) {
-    const h = harness(); await h.click('Sync from RuneMetrics'); let settle;
+    const h = harness(); await h.click('Sync progress'); let settle;
     h.ui.applyResponse = new Promise((resolve, reject) => { settle = outcome === 'resolve' ? resolve : reject; });
-    const pending = h.click('Apply RuneMetrics snapshot'); h.ui.generation++;
+    const pending = h.click('Apply progress snapshot'); h.ui.generation++;
     const prior = h.text(); settle(outcome === 'resolve' ? { state: h.state } : new Error('Late save failure'));
     await pending;
     assert.deepEqual(h.attempts.apply, [['review-a', 7]]);
@@ -174,8 +197,8 @@ test('late Apply completion does not reopen a newer dialog, while the explicit r
 
 test('a preview for a different member or account cannot be accepted', async () => {
   for (const changed of [{ memberId: 'b' }, { runescapeName: 'AccountB' }]) {
-    const h = harness(); h.ui.fetchResponse = { ...snapshot(7), ...changed }; await h.click('Sync from RuneMetrics');
-    assert.equal(h.find('button', 'Apply RuneMetrics snapshot'), undefined);
+    const h = harness(); h.ui.fetchResponse = { ...snapshot(7), ...changed }; await h.click('Sync progress');
+    assert.equal(h.find('button', 'Apply progress snapshot'), undefined);
     assert.match(h.text(), /account changed while fetching/); assert.equal(h.attempts.apply.length, 0);
   }
 });
@@ -192,7 +215,7 @@ test('Activity Info displays observed account progress separately from planning 
     openDialog: (title, ...nodes) => { h.ui.nodes = nodes; h.ui.open = true; return ++h.ui.generation; },
   });
   await panels.activityInfo();
-  assert.ok(h.find('summary', 'RuneMetrics sync'));
+  assert.ok(h.find('summary', 'Progress sync'));
   // Skills open as a tile grid; a tile shows the synced level and opens that skill's detail.
   const tile = h.walk(h.ui.nodes).find(node => node.tag === 'button' && node.attributes?.['aria-label']?.startsWith('Mining: level 6'));
   assert.ok(tile, 'Mining tile carries the observed level');
@@ -200,7 +223,7 @@ test('Activity Info displays observed account progress separately from planning 
   assert.match(h.text(), /Level 6 · 550\.5 XP \(RuneMetrics\)/);
   const manual = h.walk(h.ui.nodes).find(node => node.tag === 'details' && node.children[0]?.textContent === 'Training assumptions');
   manual.open = true; manual.events.toggle();
-  assert.match(h.text(), /RuneMetrics records actual account levels and XP separately/);
+  assert.match(h.text(), /Progress sync records actual account levels and XP separately/);
 });
 
 const graph = await readScreenGraph();
@@ -265,7 +288,7 @@ test('XP-only differences and decreases are readable', () => {
 
 test('RuneMetrics sync keeps raw skill IDs and save revisions in Advanced, including viewer suppression', async () => {
   for (const [advanced, canWrite] of [[false, true], [true, true], [true, false]]) {
-    const h = harness({ advanced, canWrite }); await h.click('Sync from RuneMetrics');
+    const h = harness({ advanced, canWrite }); await h.click('Sync progress');
     const raw = advanced && canWrite;
     assert.equal(/Skill ID 99/.test(h.text()), raw);
     assert.equal(/Saved revision 7/.test(h.text()), raw);

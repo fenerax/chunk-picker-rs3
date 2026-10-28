@@ -1,6 +1,6 @@
 import { playerControlSkills } from '../core/player-controls.mjs';
 import { combatLevelFromSkills } from '../core/combat-level.mjs';
-import { sameRuneScapeName } from '../core/game-progress.mjs';
+import { progressBelongsToMember } from '../core/game-progress.mjs';
 import { permanentTaskId } from '../tasks/identity.mjs';
 import { projectMemberTaskFacts, resolveSavedTaskId } from '../tasks/fact-projection.mjs';
 import { helperTrialCaps } from './helper-model.mjs';
@@ -8,8 +8,7 @@ import { buildBiSComparison } from './bis-compare.mjs';
 
 const array = value => Array.isArray(value) ? value : [];
 const timestamp = value => typeof value === 'string' && /^\d{4}-\d{2}-\d{2}T/.test(value) && Number.isFinite(Date.parse(value)) ? value : null;
-const observed = (fact, member) => fact?.source === 'game-plugin' && fact.memberId === member.id
-  || fact?.source === 'runemetrics' && sameRuneScapeName(fact.runescapeName, member.runescapeName);
+const observed = (fact, member) => progressBelongsToMember(fact, member);
 const enabled = value => ![false, 'false', 0].includes(value);
 const combatSkills = ['Attack', 'Strength', 'Defence', 'Constitution', 'Prayer', 'Magic', 'Ranged', 'Summoning', 'Necromancy'];
 const taskSections = ['Quests', 'Skills', 'BiS / gear', 'Diaries / achievements', 'Other'];

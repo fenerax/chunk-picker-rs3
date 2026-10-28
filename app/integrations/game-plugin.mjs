@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
-import { RUNE_METRICS_SKILLS, normalizeQuestTitle, QUEST_TITLE_ALIASES, UNMAPPED_QUEST_REASONS } from './runemetrics.mjs';
+import { observedSkills as RUNE_METRICS_SKILLS } from '../core/game-progress.mjs';
+import { canonicalTitle as canonicalQuest, normalizeQuestTitle, UNMAPPED_QUEST_REASONS } from './quest-mapping.mjs';
 import { validateRuneMetricsTimestamp, validateObservedSkill } from '../core/game-progress.mjs';
 import { lookupPermanentId } from '../tasks/identity.mjs';
 
@@ -8,7 +9,6 @@ export function fields(value, allowed, label) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) fail(`${label} must be an object.`);
   if (Object.keys(value).some(key => !allowed.includes(key))) fail(`Unknown ${label} field.`);
 }
-const canonicalQuest = title => { const key = normalizeQuestTitle(title.replaceAll('_', ' ')); return QUEST_TITLE_ALIASES[key] ?? key; };
 const skillNames = new Map(RUNE_METRICS_SKILLS.map(name => [name.toUpperCase(), name]));
 skillNames.set('RUNECRAFT', 'Runecrafting');
 skillNames.set('HITPOINTS', 'Constitution');

@@ -47,7 +47,8 @@ import { builtInRules, createRuleRegistry, evaluateRollPool, partnerConnections 
 import { previewRuleProfile } from './core/planning.mjs';
 import { hasGameplayMigration, hasCurrentProgressAliasMigration, hasCurrentJournalMigration, migrateOwnedGameplay, resolveSavedTaskId } from './tasks/migration.mjs';
 import { buildIdentityIndex, isPermanentId } from './tasks/identity.mjs';
-import { createRuneMetricsClient, createQuestMapping, previewRuneMetrics } from './integrations/runemetrics.mjs';
+import { createQuestMapping } from './integrations/quest-mapping.mjs';
+import { createProgressSources, previewProgress } from './integrations/progress-sources.mjs';
 const trainingCatalogue = await datasetJSON("app/data/training/methods.f2p.json");
 const membersStartBanks = await datasetJSON("app/data/members-start-banks.2026-10-12.v1.json");
 import { planTraining, trainingPreferences } from './tasks/training-planner.mjs';
@@ -356,7 +357,7 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
   worldImagesRoot,
   packsDir = process.env.RS3_PACKS_DIR || path.join(ROOT, '.local', 'packs'),
   packSelection = process.env.RS3_PACK_SELECTION,
-  runeMetrics = {}, originalSync = {}, privateAddonOptions = {},
+  runeMetrics = {}, progressSources = {}, originalSync = {}, privateAddonOptions = {},
   mapAssetsDir = process.env.RS3_MAP_ASSETS_DIR,
   terrainAssetsDir = process.env.RS3_TERRAIN_ASSETS_DIR || mapAssetsDir,
   iconAssetsDir = process.env.RS3_ICON_ASSETS_DIR || mapAssetsDir,
@@ -627,6 +628,7 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
       serializeMutation, checkRequestOrigin, unauthenticated: key => limits.unauthenticated(key),
       // In-game lists read the saved task result only; they never start an evaluation.
       savedTasks: memberId => { const entry = savedTaskResults.get(memberId); return entry?.playJSON ? { bytes: entry.playJSON, revision: entry.revision } : null; },
+      ...(progressSources.clock ? { clock: progressSources.clock } : {}),
       itemsBetaAsLive: pluginItemsBetaAsLive,
       // Item evidence may propose generated Obtain goals, which live in the catalogue until ticked.
       taskCatalogue: () => [...(taskWorker?.catalogue ?? []), ...(taskWorker?.dynamicCatalogue ?? [])],
@@ -645,7 +647,7 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
     // saved reuse hashes only the changed small fields on the Unlock path.
     void store.getCalculationSnapshot().taskInputKey;
   }
-  const runeMetricsClient = createRuneMetricsClient(runeMetrics);
+  const progressClient = createProgressSources({ ...progressSources, runeMetrics, pluginSnapshot: owner => gamePlugin.progressSnapshot(owner) });
   const runeMetricsPreviews = new Map();
   const originalSyncClient = originalSyncIntegration?.createOriginalSyncClient(originalSync), originalSyncPreviews = new Map();
   const originalSyncNow = () => (originalSync.now?.() ?? new Date()).getTime();
@@ -1864,10 +1866,13 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
               if (Object.keys(body).some(key => key !== 'memberId')) throw httpError(400, 'RuneMetrics preview accepts only memberId.');
               const owner = store.getState().members.find(member => member.id === body.memberId);
               if (!owner) throw httpError(400, 'Choose a known player for RuneMetrics sync.');
-              const snapshot = await runeMetricsClient.snapshot(owner);
+              let snapshot = await progressClient.snapshot(owner);
               const current = store.getState(), latest = current.members.find(member => member.id === owner.id);
               if (!latest || latest.runescapeName !== owner.runescapeName) throw Object.assign(httpError(409, 'The RuneScape name changed while fetching. Review a new sync.'), { code: 'REVISION_CONFLICT', state: current });
-              const proposal = previewRuneMetrics(current, owner.id, snapshot, questMapping);
+              // A plugin report arriving during a web fetch wins too.
+              snapshot = gamePlugin.progressSnapshot(latest) ?? snapshot;
+              if (snapshot.available === false) { await json(request, response, 200, { ...snapshot, memberId: owner.id, runescapeName: owner.runescapeName ?? '' }); return; }
+              const proposal = previewProgress(current, owner.id, snapshot, questMapping);
               const previewId = randomUUID(), createdAt = Date.now();
               for (const [id, review] of runeMetricsPreviews) if (createdAt - review.createdAt >= previewLifetimeMs) runeMetricsPreviews.delete(id);
               runeMetricsPreviews.set(previewId, { ...proposal, createdAt });
@@ -2356,7 +2361,7 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
         if (activationPending) await activationPending.catch(() => {});
         const overlaysClosed = overlays.close();
         unsubscribe();
-        runeMetricsClient.close(); runeMetricsPreviews.clear();
+        progressClient.close(); runeMetricsPreviews.clear();
         originalSyncClient?.close(); originalSyncPreviews.clear();
         unsubscribeWorker?.();
         unsubscribeResidency?.();

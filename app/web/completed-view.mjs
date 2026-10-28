@@ -205,7 +205,7 @@ export function createCompletedView(context) {
     const evidence = el('div', undefined, 'completed-evidence');
     for (const completion of row.completions) {
       const name = completion.name ?? completion.memberName;
-      const how = `Done by ${name} (${completion.kind === 'ticked' ? 'ticked' : completion.source === 'runemetrics' ? 'in-game, RuneMetrics' : completion.source === 'game-plugin' ? 'in-game, Game plugin' : 'in-game'})`;
+      const how = `Done by ${name} (${completion.kind === 'ticked' ? 'ticked' : completion.source === 'runemetrics' ? 'in-game, RuneMetrics' : completion.source === 'official-api' ? 'in-game, RuneScape API' : completion.source === 'game-plugin' ? 'in-game, Game plugin' : 'in-game'})`;
       const detail = el('div', undefined, 'completed-attribution');
       detail.append(el('span', how), el('span', `${date(completion.at)}${completion.imported ? ' · Imported from original picker' : ''}`, 'completed-task-meta'));
       if (completion.source === 'game-plugin' && completion.achievementId !== undefined) detail.append(el('span', 'ticked by the game', 'completed-task-meta'));

@@ -43,13 +43,13 @@ export function createScreenStartup(c) {
     c.updates = createUpdates({ el: c.el, button: c.button, openDialog: c.openDialog, api: c.api, banner: c.$('update-banner') });
     c.$('whats-new-open')?.addEventListener('click', () => c.updates.openList());
     c.$('roadmap-open')?.addEventListener('click', () => c.updates.openRoadmap());
-    // One click to the RuneMetrics review for the player being viewed (also inside Activity Info).
+    // One click to the progress review for the player being viewed (also inside Activity Info).
     c.$('runemetrics-open')?.addEventListener('click', function openRuneMetrics() {
       if (!c.canWrite() || c.supportsFeature?.('runeMetrics') === false) return;
       const owner = c.member(); let generation;
       const controls = createRuneMetricsControls({ ...c.panelContext, field: c.field }, { memberId: owner.id,
         isCurrent: () => c.memberId === owner.id && c.dialogCurrent(generation), onApplied: () => { if (c.dialogCurrent(generation)) openRuneMetrics(); } });
-      generation = c.openDialog(`Sync ${owner.name} from RuneMetrics`, controls);
+      generation = c.openDialog(`Sync progress for ${owner.name}`, controls);
     });
     c.backupStatus = createBackupStatus({ api: c.api, el: c.el, button: c.button, document, isAdmin: () => c.sessionAdmin, advanced: c.advanced, menuLine: c.$('backup-status-menu'), banner: c.$('backup-status-notice'), openBackup: c.backupDialog });
     const invites = createInvites({ api: c.api, el: c.el, button: c.button, input: c.input, field: c.field, openDialog: c.openDialog, dialogCurrent: c.dialogCurrent, dialog: c.$('tool-dialog'), menuButton: c.$('invites-open'), members: () => c.state?.members ?? [], streamSafe: c.streamSafe });

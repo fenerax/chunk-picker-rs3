@@ -1,14 +1,14 @@
 import { datasetValue, selectedDataset } from "../dataset-runtime.mjs";
 import { buildProfileModel } from './profile-model.mjs';
 import { helperSkills, helperTrialCaps } from './helper-model.mjs';
-import { sameRuneScapeName } from '../core/game-progress.mjs';
+import { progressBelongsToMember } from '../core/game-progress.mjs';
 import { entityId, generatedGoalId, legacyTaskId, permanentTaskId } from '../tasks/identity.mjs';
 import { projectMemberTaskFacts, resolveSavedTaskId } from '../tasks/fact-projection.mjs';
 
 const array = value => Array.isArray(value) ? value : [];
 const plain = value => String(value ?? '').replace(/~\|([^|]+)\|~/g, (_, text) => text.split('#')[0]).replace(/\*+$/g, '').trim();
 const flag = value => ![undefined, null, false, 'false', 0].includes(value);
-const observed = (fact, member) => fact?.source === 'runemetrics' && sameRuneScapeName(fact.runescapeName, member.runescapeName);
+const observed = (fact, member) => progressBelongsToMember(fact, member);
 const level = value => Number.isSafeInteger(value) && value >= 1 && value <= 120;
 
 // A proposed stopping point, not a maximum, engine ceiling or house rule.

@@ -133,7 +133,7 @@ export function describeHistoryEvent(event = {}, { memberName = id => id, chunkN
     case 'set-primary-override': return `${c.enabled === null || c.enabled === undefined ? 'Reset' : c.enabled ? 'Allowed' : 'Disallowed'} primary training${c.skill ? ` for ${c.skill}` : ''}${forWho}`;
     case 'set-skill-levels': return `Set ${c.skill ? `${c.skill} ` : ''}levels${forWho}`;
     case 'set-runescape-name': return `Set the RuneScape name${forWho}`;
-    case 'apply-runemetrics': return `Synced skills and quests from RuneMetrics${forWho}`;
+    case 'apply-runemetrics': return `Synced skills and quests from ${c.source === 'official-api' ? 'RuneScape API' : 'RuneMetrics'}${forWho}`;
     case 'apply-game-progress': return c.items?.length && !c.skills?.length && !c.quests?.length && !c.achievements?.length
       ? `Ticked ${c.items.length === 1 ? 'a task' : `${c.items.length} tasks`} from items the game plugin saw${forWho}`
       : `Applied ${c.achievements?.length ? 'skills, quests and achievements' : 'skills and quests'}${c.items?.length ? ' and item tasks' : ''} from the game plugin${forWho}`;

@@ -1,3 +1,4 @@
+import { progressBelongsToMember } from '../core/game-progress.mjs';
 import { createMiningSettings, miningPickaxeLabel } from './mining-settings.mjs';
 import { createWoodcuttingSettings } from './woodcutting-settings.mjs';
 import { createBankingSettings } from './banking-settings.mjs';
@@ -60,8 +61,7 @@ function rateNote(value) {
 
 function observedProgress(member, skill) {
   const value = member.skillProgress?.[skill];
-  const canonical = name => typeof name === 'string' ? name.trim().replace(/_/g, ' ').toLowerCase() : '';
-  return value?.source === 'runemetrics' && canonical(member.runescapeName) && canonical(value.runescapeName) === canonical(member.runescapeName)
+  return progressBelongsToMember(value, member)
     && Number.isInteger(value.level) && value.level >= 1 && value.level <= 120 && Number.isFinite(value.xp) && value.xp >= 0 ? value : null;
 }
 
@@ -178,7 +178,7 @@ export function renderTraining(host, { document = globalThis.document, api, memb
   function updateStarting() {
     const saved = observedProgress(member, skill.value);
     overrideField.hidden = !saved; fromField.hidden = !usesManual(); manualFrom.required = usesManual();
-    progress.textContent = saved ? `${member.name ?? member.id}: ${skill.value} ${saved.level} · ${number(saved.xp)} XP · RuneMetrics${saved.fetchedAt ? ` · Synced ${syncedDate(saved.fetchedAt)}` : ''}` : 'Your personal level is not saved. Enter your current level for this plan, or sync RuneMetrics in Activity Info.';
+    progress.textContent = saved ? `${member.name ?? member.id}: ${skill.value} ${saved.level} · ${number(saved.xp)} XP · ${saved.source === 'game-plugin' ? 'Game plugin' : saved.source === 'official-api' ? 'RuneScape API' : 'RuneMetrics'}${saved.fetchedAt ? ` · Synced ${syncedDate(saved.fetchedAt)}` : ''}` : 'Your personal level is not saved. Enter your current level for this plan, or sync progress in Activity Info.';
   }
   function targetOptions() {
     const row = info(), saved = observedProgress(member, skill.value);

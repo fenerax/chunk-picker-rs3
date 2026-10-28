@@ -24,6 +24,13 @@ export function sameRuneScapeName(first, second) {
   return !!first.trim() && !!second.trim() && name === canonical(second);
 }
 
+// Plugin observations belong to a member; web observations belong to the
+// member's current account binding, including after a name edit.
+export function progressBelongsToMember(value, member) {
+  return value?.source === 'game-plugin' ? !!member?.id && value.memberId === member.id
+    : ['runemetrics', 'official-api'].includes(value?.source) && sameRuneScapeName(value.runescapeName, member?.runescapeName);
+}
+
 export function validateRuneMetricsTimestamp(value, source = 'RuneMetrics') {
   if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?Z$/.test(value)) throw new TypeError(`${source} fetchedAt must be an ISO UTC timestamp`);
   const date = new Date(value);
@@ -45,7 +52,7 @@ export function validateObservedSkill(skill, value) {
 
 export function validateRuneMetricsProvenance(value, keys = ['source', 'fetchedAt', 'runescapeName'], path = 'RuneMetrics provenance') {
   fields(value, keys, path);
-  if (value.source !== 'runemetrics') throw new TypeError(`${path} source must be runemetrics`);
+  if (!['runemetrics', 'official-api'].includes(value.source)) throw new TypeError(`${path} source must be runemetrics or official-api`);
   validateRuneMetricsTimestamp(value.fetchedAt);
   if (validateRuneScapeName(value.runescapeName) !== value.runescapeName) throw new TypeError(`${path} RuneScape name must be trimmed`);
 }

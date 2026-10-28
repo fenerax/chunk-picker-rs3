@@ -1,4 +1,4 @@
-import { sameRuneScapeName } from '../core/game-progress.mjs';
+import { progressBelongsToMember } from '../core/game-progress.mjs';
 import { decodeLegacyText } from './migration.mjs';
 import { gatheringSettingDefinitions } from '../core/gathering-settings.mjs';
 
@@ -74,10 +74,10 @@ export function trainingProgress(member, skill, manualLevel) {
     return { level: manualLevel, xp: null, source: 'manual', fetchedAt: null };
   }
   const observed = member?.skillProgress?.[skill];
-  if (observed?.source === 'runemetrics' && sameRuneScapeName(observed.runescapeName, member.runescapeName)
+  if (progressBelongsToMember(observed, member)
     && Number.isSafeInteger(observed.level) && observed.level >= 1 && observed.level <= 120
     && Number.isFinite(observed.xp) && observed.xp >= 0) {
-    return { level: observed.level, xp: observed.xp, source: 'runemetrics', fetchedAt: observed.fetchedAt, runescapeName: observed.runescapeName };
+    return { level: observed.level, xp: observed.xp, source: observed.source, fetchedAt: observed.fetchedAt, ...(observed.source === 'game-plugin' ? { memberId: observed.memberId } : { runescapeName: observed.runescapeName }) };
   }
   return { level: null, xp: null, source: 'unknown', fetchedAt: null };
 }
@@ -93,12 +93,12 @@ export function buildTrainingAvailability(result, { state, memberId, definitions
     const saved = member.questProgress?.[row.id];
     // Account renaming preserves challenge checks and completed IDs. Old synced
     // IDs cannot become current-account progress through the row fallback.
-    return !saved || sameRuneScapeName(saved.runescapeName, member.runescapeName);
+    return !saved || progressBelongsToMember(saved, member);
   };
   const completedTasks = (result.tasks ?? []).filter(currentCompletion).map(row => ({ id: row.id, category: row.category, rawLabel: row.rawLabel, label: row.label }));
   const completedQuests = [...new Set((result.tasks ?? []).filter(row => row.category === 'Quest' && currentCompletion(row) && row.record?.QuestPoints !== undefined)
     .flatMap(row => [row.id, row.rawLabel, row.label, row.record?.BaseQuest].filter(Boolean)))];
-  for (const [id, quest] of entries(member.questProgress)) if (quest.source === 'runemetrics' && sameRuneScapeName(quest.runescapeName, member.runescapeName)) completedQuests.push(id, quest.title);
+  for (const [id, quest] of entries(member.questProgress)) if (progressBelongsToMember(quest, member)) completedQuests.push(id, quest.title);
   return { access: result.access ?? {}, items: result.items ?? [], skills, completedQuests, completedTasks,
     miningPickaxe: member.preferences?.miningPickaxe ?? 'auto', miningAttention: member.preferences?.miningAttention ?? 'active',
     woodcuttingHatchet: member.preferences?.woodcuttingHatchet ?? 'auto',

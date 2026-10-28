@@ -5,7 +5,7 @@ import { importedXpAllocations, xpChoiceAllocation } from '../core/xp-choices.mj
 import { buildAccessIndex, calculateAccess, collectBaseItemSources, baseItemSourceView, walkingConnections, copyAccess } from './access.mjs';
 import { decodeLegacyText, hasGameplayMigration, projectMemberTaskFacts } from './migration.mjs';
 import { playerControlSkills, resolvePlayerControls } from '../core/player-controls.mjs';
-import { sameRuneScapeName, observedSkills } from '../core/game-progress.mjs';
+import { progressBelongsToMember, observedSkills } from '../core/game-progress.mjs';
 import { configureAutomaticTransport, registerAutomaticTransportEngineFactory } from '../core/automatic-transport.mjs';
 import { taskRuleCutoffDefaults, taskRuleDiagnostics } from '../data/settings.mjs';
 import { parseDropRate, composeDropRates, passesRateCutoff as evaluateRateCutoff, rateEvidence } from './rates.mjs';
@@ -394,8 +394,7 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
     for (const skill of observedSkills) {
       if (!Object.hasOwn(skillCaps, skill)) continue;
       const observation = member.skillProgress?.[skill];
-      const boundObservation = observation?.source === 'game-plugin' ? observation.memberId === member.id
-        : observation?.source === 'runemetrics' && sameRuneScapeName(observation.runescapeName, member.runescapeName);
+      const boundObservation = progressBelongsToMember(observation, member);
       if (boundObservation
         && Number.isSafeInteger(observation.level) && observation.level >= 1 && observation.level <= 120
         && Number.isFinite(observation.xp) && observation.xp >= 0) observedProgress[skill] = observation;
@@ -492,7 +491,7 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
     const supportedPersonalCompletions = new Set([...recordedCompleted].filter(id => byId.has(id) && completedTask(byId.get(id))));
     const personallyCompletedQuests = compiled.filter(task => task.category === 'Quest' && completedTask(task)
       && task.record.QuestPoints !== undefined && (!member.questProgress?.[task.id]
-        || sameRuneScapeName(member.questProgress[task.id].runescapeName, member.runescapeName)))
+        || progressBelongsToMember(member.questProgress[task.id], member)))
       .flatMap(task => [task.record.BaseQuest, plainLabel(task.rawLabel).replace(/ Complete the quest$/, '')].filter(Boolean));
     function admitTask(task) {
       valid.add(task.key);

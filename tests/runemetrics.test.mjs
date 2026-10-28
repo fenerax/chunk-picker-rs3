@@ -3,8 +3,9 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { createGroupState } from '../app/core/state.mjs';
 import { taskId } from '../app/tasks/engine.mjs';
-import { RUNE_METRICS_SKILLS, createQuestMapping, normalizeQuestTitle, previewRuneMetrics, createRuneMetricsClient } from '../app/integrations/runemetrics.mjs';
+import { RUNE_METRICS_SKILLS, createQuestMapping, normalizeQuestTitle, previewRuneMetrics, createRuneMetricsClient as createClient } from '../app/integrations/runemetrics.mjs';
 
+const createRuneMetricsClient = options => createClient({ clock: () => Date.parse('2026-10-27T12:00:00Z'), ...options });
 const fixture = name => readFile(new URL(`./fixtures/runemetrics/${name}.json`, import.meta.url), 'utf8').then(JSON.parse);
 const [player1Profile, player1Quests, player2Profile, player2Quests, errors, definitions] = await Promise.all([
   fixture('examplegimab-profile'), fixture('examplegimab-quests'), fixture('twosamplegim-profile'), fixture('twosamplegim-quests'), fixture('errors'),

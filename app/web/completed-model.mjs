@@ -109,7 +109,7 @@ export function createCompletedModel({ state, result, memberId, registry, now = 
   }
   for (const owner of state.members) for (const [id, fact] of Object.entries(owner.questProgress ?? {})) {
     if (timestamp(fact.fetchedAt) && (fact.source === 'game-plugin' && fact.memberId === owner.id
-      || fact.source === 'runemetrics' && typeof fact.runescapeName === 'string' && fact.runescapeName.trim())) {
+      || ['runemetrics', 'official-api'].includes(fact.source) && typeof fact.runescapeName === 'string' && fact.runescapeName.trim())) {
       observations.set(key(owner.id, resolve(id)), fact);
     }
   }
@@ -125,7 +125,7 @@ export function createCompletedModel({ state, result, memberId, registry, now = 
         ...(observation ? { source: observation.source, observedAt: observation.fetchedAt,
           ...(achievement ? { achievementId: achievement.achievementId } : {}),
           ...(item && !achievement ? { gameItemId: item.gameItemId, itemSeen: item.seen } : {}),
-          ...(observation.source === 'runemetrics' ? { runescapeName: observation.runescapeName } : {}) } : {}) };
+          ...(['runemetrics', 'official-api'].includes(observation.source) ? { runescapeName: observation.runescapeName } : {}) } : {}) };
       const entries = evidence.get(id) ?? []; entries.push(completion); evidence.set(id, entries);
     };
     for (const [id, status] of Object.entries(owner.taskStatus ?? {})) if (status.challengeCompleted === true) add(id, 'ticked');

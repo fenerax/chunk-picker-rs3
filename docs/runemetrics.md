@@ -1,6 +1,11 @@
 # RuneMetrics personal progress sync
 
-Open **Activity Info**, check the selected player's RuneScape name, then choose **Sync from RuneMetrics**. Review the level and XP changes, personal quest completions and unmatched items. **Apply** saves one revision-checked, undoable batch; **Cancel** leaves gameplay unchanged. Names default to Player 1's `exampleGIMab` and Player 2's `twosamplegim` and can be edited there (1–12 ASCII letters, numbers, spaces, underscores or hyphens).
+Progress sync now chooses fresh live plugin observations first and retires
+RuneMetrics on 10 November 2026. See [Progress sources](progress-sources.md) for
+priority, the calm unavailable state, the API publication check and adapter setup.
+The RuneMetrics transport and compatibility storage described below still apply.
+
+Open **Activity Info**, check the selected player's RuneScape name, then choose **Sync progress**. Review the level and XP changes, personal quest completions and unmatched items. **Apply** saves one revision-checked, undoable batch; **Cancel** leaves gameplay unchanged. Names default to Player 1's `exampleGIMab` and Player 2's `twosamplegim` and can be edited there (1–12 ASCII letters, numbers, spaces, underscores or hyphens).
 
 The server uses the existing private invitation authentication and same-origin write checks:
 

@@ -68,7 +68,7 @@ export function dialogUsageId(title, nodes = []) {
   if (tagged) return tagged.dataset.usage;
   if (fixedDialogIds.has(title)) return fixedDialogIds.get(title);
   if (/’s Teleports$/.test(title)) return 'teleports';
-  if (/^Sync .+ from RuneMetrics$/.test(title)) return 'runemetrics:standalone';
+  if (/^(?:Sync .+ from RuneMetrics|Sync progress for .+)$/.test(title)) return 'runemetrics:standalone';
   if (/’s starting chunk$/.test(title)) return 'dialog:starting-marker';
   if (/’s stickers · /.test(title)) return 'stickers:full';
   if (/^Undo .+’s change\?$/.test(title)) return 'dialog:partner-undo';

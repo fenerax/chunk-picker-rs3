@@ -23,6 +23,7 @@ export async function prepareGameStorage(dataDir, dataset) {
 }
 
 const routeFeatures = new Map([
+  // Compatibility route/feature names cover all configured progress sources.
   ['/api/runemetrics/preview', 'runeMetrics'], ['/api/runemetrics/apply', 'runeMetrics'],
   ['/api/original-sync/preview', 'originalSync'], ['/api/training-plan', 'training'],
   ['/original-sync.mjs', 'originalSync'], ['/api/migration', 'originalSync'],

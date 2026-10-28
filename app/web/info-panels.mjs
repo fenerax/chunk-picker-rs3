@@ -168,7 +168,7 @@ export function createInfoPanels(context) {
     primary.value = Object.hasOwn(snapshot.authoredPrimary, skill.skill) ? String(snapshot.authoredPrimary[skill.skill]) : '';
     const passive = numberInput(controls.passiveLevels?.[skill.skill] ?? ''), maximum = numberInput(controls.maxLevels?.[skill.skill] ?? '');
     passive.placeholder = 'Automatic'; maximum.placeholder = 'Automatic';
-    node.append(paragraph(`These assumptions change the levels ${snapshot.memberName} could reach. RuneMetrics records actual account levels and XP separately. You can always use training methods already reachable in your chunks.`), paragraph(`Main training method assumed: ${controls.primaryOverrides?.[skill.skill] ? 'enabled' : 'disabled'}`), field('Assume a main training method', primary), button('Save training assumption', () => saveControls(result, { type: 'set-primary-override', skill: skill.skill, enabled: primary.value === '' ? null : primary.value === 'true' }, 'Skills')), field('Level possible without a main method (1–120)', passive), field('Training level limit (1–120)', maximum), paragraph('Clear a level to use its saved default. The first level allows progress without a main method; the limit sets the highest level to plan for.'), button('Save training levels', () => saveControls(result, { type: 'set-skill-levels', skill: skill.skill, passiveLevel: levelValue(passive), maxLevel: levelValue(maximum) }, 'Skills')));
+    node.append(paragraph(`These assumptions change the levels ${snapshot.memberName} could reach. Progress sync records actual account levels and XP separately. You can always use training methods already reachable in your chunks.`), paragraph(`Main training method assumed: ${controls.primaryOverrides?.[skill.skill] ? 'enabled' : 'disabled'}`), field('Assume a main training method', primary), button('Save training assumption', () => saveControls(result, { type: 'set-primary-override', skill: skill.skill, enabled: primary.value === '' ? null : primary.value === 'true' }, 'Skills')), field('Level possible without a main method (1–120)', passive), field('Training level limit (1–120)', maximum), paragraph('Clear a level to use its saved default. The first level allows progress without a main method; the limit sets the highest level to plan for.'), button('Save training levels', () => saveControls(result, { type: 'set-skill-levels', skill: skill.skill, passiveLevel: levelValue(passive), maxLevel: levelValue(maximum) }, 'Skills')));
     return node;
   }
   function slayerControls(view, result) {
@@ -610,14 +610,14 @@ export function createInfoPanels(context) {
       }
       const synced = view.skills.some(skill => observedOf(skill));
       if (!view.skills.length) grid.append(empty('No skills match these filters.'));
-      host.replaceChildren(...(synced ? [] : [paragraph(context.canWrite?.() === false ? 'Account levels have not been synced yet.' : 'Your real levels are not synced yet. Use RuneMetrics sync below to show them on each skill and plan training from them.', 'skills-hint')]), grid);
+      host.replaceChildren(...(synced ? [] : [paragraph(context.canWrite?.() === false ? 'Account levels have not been synced yet.' : 'Your real levels are not synced yet. Use progress sync below to show them on each skill and plan training from them.', 'skills-hint')]), grid);
     };
     showGrid(); return host;
   }
   function skillDetail(skill, result, back) {
     const node = el('div', undefined, 'skill-detail'), observed = snapshots.get(result)?.observedSkills?.[skill.skill];
     const header = el('div', undefined, 'skill-detail-head'), titles = el('div');
-    titles.append(el('h3', skill.skill), paragraph(observed ? `Level ${observed.level} · ${Number(observed.xp).toLocaleString()} XP (${observed.source === 'game-plugin' ? 'Game plugin' : 'RuneMetrics'})` : context.canWrite?.() === false ? 'Account level has not been synced yet.' : 'Level not synced yet: enter it below or sync RuneMetrics.', 'status-detail'));
+    titles.append(el('h3', skill.skill), paragraph(observed ? `Level ${observed.level} · ${Number(observed.xp).toLocaleString()} XP (${observed.source === 'game-plugin' ? 'Game plugin' : observed.source === 'official-api' ? 'RuneScape API' : 'RuneMetrics'})` : context.canWrite?.() === false ? 'Account level has not been synced yet.' : 'Level not synced yet: enter it below or sync progress.', 'status-detail'));
     header.append(button('← All skills', back, 'back-button'), skillBadge(skill.skill, 'large'), titles);
     const stats = el('div', undefined, 'skill-stats');
     for (const [value, label] of [[skill.reachableLevel, 'reachable ceiling'], [skill.availableTasks.length, 'methods you can use'], [skill.selectedGoals?.length ?? 0, 'active goals']]) { const stat = el('div', undefined, 'skill-stat'); stat.append(el('strong', String(value)), el('span', label)); stats.append(stat); }
@@ -752,10 +752,10 @@ export function createInfoPanels(context) {
       isCurrent: () => context.memberId() === snapshot.memberId && context.dialogGeneration?.() === generation && context.isDialogOpen?.() !== false,
       onApplied: () => activityInfo(initialTab),
     }) : undefined;
-    const nodes = [snapshotControls(snapshot, () => activityInfo(initialTab)), paragraph(context.canWrite?.() === false ? 'Reachable levels describe what the unlocked chunks can support. Synced account levels show the player’s recorded progress.' : 'Levels here are the highest you could reach from your unlocked chunks, not your account levels. RuneMetrics sync (below) records your real ones.', 'section-intro')];
+    const nodes = [snapshotControls(snapshot, () => activityInfo(initialTab)), paragraph(context.canWrite?.() === false ? 'Reachable levels describe what the unlocked chunks can support. Synced account levels show the player’s recorded progress.' : 'Levels here are the highest you could reach from your unlocked chunks, not your account levels. Progress sync (below) records your real ones.', 'section-intro')];
     if (context.openXpChoices) nodes.push(button('XP choices', () => context.openXpChoices(snapshot.memberId)));
     // Sync is occasional, so it sits below the main tabs in its own collapsed section.
-    const sync = syncControls ? details('RuneMetrics sync', syncControls) : null;
+    const sync = syncControls ? details('Progress sync', syncControls) : null;
     const plugin = context.gamePlugin ? details('Game plugin', context.gamePlugin.controls({ memberId: snapshot.memberId,
       isCurrent: () => context.memberId() === snapshot.memberId && context.dialogGeneration?.() === generation && context.isDialogOpen?.() !== false,
       onApplied: () => activityInfo(initialTab),

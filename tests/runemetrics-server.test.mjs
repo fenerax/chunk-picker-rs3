@@ -18,11 +18,11 @@ const definitions = { chunks: { '12341': {} }, walkableChunks: ['12341'], walkab
   '~|Broken Home|~ 1': {BaseQuest:'Broken Home'}, '~|Broken Home|~ Complete the quest': {BaseQuest:'Broken Home',QuestPoints:1}, 'Necromancy!': {QuestPoints:1},
 } } };
 function response(url) { return new Response(JSON.stringify(url.pathname.endsWith('/quests') ? quests : profile), {headers:{'Content-Type':'application/json'}}); }
-async function fixture(t, {fetchImpl = async url => response(url), timeoutMs, initialState} = {}) {
+async function fixture(t, {fetchImpl = async url => response(url), timeoutMs, initialState, progressSources = {}} = {}) {
   await mkdir(path.join(root,'.local'),{recursive:true});
   const directory = await mkdtemp(path.join(root,'.local','runemetrics-test-'));
   assert.ok(!path.relative(root,directory).startsWith('..'));
-  const options = { dataDir:path.join(directory,'data'), definitions, taskMap:{}, port:0, shutdownDeadlineMs:500, runeMetrics:{fetchImpl,...(timeoutMs?{timeoutMs}:{})} };
+  const options = { dataDir:path.join(directory,'data'), definitions, taskMap:{}, port:0, predictionPrewarm:false, shutdownDeadlineMs:500, progressSources, runeMetrics:{clock:()=>Date.parse('2026-10-27T12:00:00Z'),fetchImpl,...(timeoutMs?{timeoutMs}:{})} };
   const applications=[];
   let app;
   t.after(async()=>{
@@ -131,4 +131,42 @@ test('new browser modules are authenticated static assets',async t=>{
     assert.equal((await fetch(`${origin}${route}`)).status,401);
     assert.equal((await api(route)).status,200);
   }
+});
+
+test('after sunset the API returns a calm unavailable state without a preview token or state change', async t => {
+  const { api } = await fixture(t, { progressSources: { clock: () => Date.parse('2026-11-10T00:00:00Z') },
+    fetchImpl: () => { throw new Error('RuneMetrics must not be requested'); } });
+  const before = (await (await api('/api/state')).json()).state;
+  const response = await api('/api/runemetrics/preview', { memberId: 'player1' });
+  assert.equal(response.status, 200);
+  const value = await response.json();
+  assert.equal(value.available, false); assert.equal(value.memberId, 'player1');
+  assert.match(value.message, /game plugin now/); assert.equal(value.previewId, undefined);
+  assert.deepEqual((await (await api('/api/state')).json()).state, before);
+});
+
+test('accepted live plugin progress wins the shared preview and applies with plugin provenance, then falls back when stale', async t => {
+  let now = Date.parse('2026-10-27T12:00:00Z'), calls = 0;
+  const { api, origin } = await fixture(t, { progressSources: { clock: () => now }, fetchImpl: async url => { calls++; return response(url); } });
+  const created = await api('/api/game-plugin/keys', { memberId: 'player1', label: 'Progress test' });
+  assert.equal(created.status, 201);
+  const { key } = await created.json();
+  const report = await fetch(`${origin}/api/plugin/v1/report`, { method: 'POST', headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ v: 1, seq: 0, sentAt: new Date(now).toISOString(), world: { id: 1, beta: false }, position: { x: 46, z: 49, floor: 0 },
+      skills: { ATTACK: { level: 5, xp: 400 } }, quests: { finished: ['Broken_Home'], started: [] } }) });
+  assert.equal(report.status, 200);
+  const review = await (await api('/api/runemetrics/preview', { memberId: 'player1' })).json();
+  assert.equal(review.source, 'game-plugin'); assert.equal(review.sourceLabel, 'Game plugin'); assert.equal(calls, 0);
+  assert.equal(review.quests.length, 1);
+  const applied = await api('/api/runemetrics/apply', { previewId: review.previewId, expectedRevision: review.stateRevision });
+  assert.equal(applied.status, 200);
+  const state = (await applied.json()).state;
+  assert.equal(state.members[0].skillProgress.Attack.source, 'game-plugin');
+  assert.equal(state.members[0].questProgress[brokenId].source, 'game-plugin');
+  const undone = await api('/api/command', { expectedRevision: state.revision, command: { type: 'undo' } });
+  assert.equal(undone.status, 200);
+  assert.equal((await (await api('/api/runemetrics/preview', { memberId: 'player1' })).json()).source, 'game-plugin');
+  now += 10 * 60 * 1000;
+  assert.equal((await (await api('/api/runemetrics/preview', { memberId: 'player1' })).json()).source, 'runemetrics');
+  assert.equal(calls, 2);
 });

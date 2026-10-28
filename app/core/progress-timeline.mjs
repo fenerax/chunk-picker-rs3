@@ -1,6 +1,6 @@
 import { combatLevelFromSkills } from './combat-level.mjs';
 import { playerControlSkills } from './player-controls.mjs';
-import { sameRuneScapeName, validateRuneMetricsTimestamp } from './game-progress.mjs';
+import { progressBelongsToMember, validateRuneMetricsTimestamp } from './game-progress.mjs';
 import { resolveSavedTaskId } from '../tasks/migration.mjs';
 import { finishLineCommandTypes } from './finish-line.mjs';
 import { PROGRESS_METRICS, MAX_PROGRESS_DAYS, validateProgressSnapshots } from './progress-snapshots.mjs';
@@ -20,7 +20,7 @@ function completionKey(state, id) {
 }
 function observedSkills(member) {
   return Object.fromEntries(Object.entries(member.skillProgress ?? {}).filter(([skill, value]) => playerControlSkills.includes(skill)
-    && value.source === 'runemetrics' && sameRuneScapeName(value.runescapeName, member.runescapeName)
+    && progressBelongsToMember(value, member)
     && Number.isSafeInteger(value.level) && value.level >= 1 && value.level <= 120 && validAt(value.fetchedAt)));
 }
 function skillCounts(member, f2p) {
@@ -160,10 +160,10 @@ export function buildProgressModel(state, { questPoints, now = new Date().toISOS
   for (const member of state.members) {
     const observed = observedSkills(member), times = new Set(Object.values(observed).map(value => value.fetchedAt));
     const counts = skillCounts(member, state.rules?.['content.f2p'] !== false);
-    if (times.size === 1 && (counts.totalLevel !== null || counts.combatLevel !== null)) datedRecords.push({ at: [...times][0], memberId: member.id, kind: 'skills', label: 'Saved RuneMetrics skill observation', metrics: counts });
+    if (times.size === 1 && (counts.totalLevel !== null || counts.combatLevel !== null)) datedRecords.push({ at: [...times][0], memberId: member.id, kind: 'skills', label: 'Saved skill observation', metrics: counts });
     const batches = new Map();
     for (const [id, observation] of Object.entries(member.questProgress ?? {})) {
-      if (!member.completedTasks.includes(id) || !sameRuneScapeName(observation.runescapeName, member.runescapeName) || !validAt(observation.fetchedAt) || !questPoints?.has(id)) continue;
+      if (!member.completedTasks.includes(id) || !progressBelongsToMember(observation, member) || !validAt(observation.fetchedAt) || !questPoints?.has(id)) continue;
       const batch = batches.get(observation.fetchedAt) ?? new Map(); batch.set(resolveSavedTaskId(state.identityRegistry, id), questPoints.get(id)); batches.set(observation.fetchedAt, batch);
     }
     // A sync batch can contain just one newly observed quest alongside older

@@ -90,7 +90,7 @@ const COMMAND_KEYS = new Map([
   ['set-skill-levels', new Set(['type', 'memberId', 'skill', 'passiveLevel', 'maxLevel'])],
   ['set-runescape-name', new Set(['type', 'memberId', 'name'])],
   ['replace-member', new Set(['type', 'memberId', 'member', 'source'])],
-  ['apply-runemetrics', new Set(['type', 'memberId', 'runescapeName', 'fetchedAt', 'skills', 'quests'])],
+  ['apply-runemetrics', new Set(['type', 'memberId', 'runescapeName', 'fetchedAt', 'skills', 'quests', 'source'])],
   ['apply-game-progress', new Set(['type', 'memberId', 'fetchedAt', 'skills', 'quests', 'achievements', 'items'])],
   ['sync-original', new Set(['type', 'capturedAt', 'sourceHash', 'members'])],
   ['set-slayer-lock', new Set(['type', 'memberId', 'lock'])],
@@ -1836,7 +1836,8 @@ function applyCommandCopy(next, command, { expectedRevision, world, registry, ra
     case 'apply-game-progress':
     case 'apply-runemetrics': {
       const member = findMember(next, payload.memberId);
-      const plugin = payload.type === 'apply-game-progress', sourceLabel = plugin ? 'Game plugin' : 'RuneMetrics';
+      const plugin = payload.type === 'apply-game-progress', sourceLabel = plugin ? 'Game plugin' : payload.source === 'official-api' ? 'RuneScape API' : 'RuneMetrics';
+      if (!plugin && payload.source !== undefined && !['runemetrics', 'official-api'].includes(payload.source)) fail('Unknown web progress source.');
       if (!plugin) {
         const name = validateRuneScapeName(payload.runescapeName);
         if (!sameRuneScapeName(name, member.runescapeName)) fail('RuneMetrics name does not match the current member account binding');
@@ -1856,7 +1857,7 @@ function applyCommandCopy(next, command, { expectedRevision, world, registry, ra
       }
       const taskRows = new Map(next.tasks.map(task => [task.id, task]));
       const provenance = plugin ? { source: 'game-plugin', fetchedAt: payload.fetchedAt, memberId: member.id }
-        : { source: 'runemetrics', fetchedAt: payload.fetchedAt, runescapeName: member.runescapeName };
+        : { source: payload.source ?? 'runemetrics', fetchedAt: payload.fetchedAt, runescapeName: member.runescapeName };
       for (const quest of payload.quests) {
         record(quest, `${sourceLabel} quest`); knownKeys(quest, new Set(['taskId', 'title']), `${sourceLabel} quest`);
         propertyKey(quest.taskId, `${sourceLabel} quest taskId`);

@@ -1,5 +1,5 @@
 import { MINING_PICKAXES, MINING_PROFILES } from '../training/mining-rates.mjs';
-import { sameRuneScapeName } from '../core/game-progress.mjs';
+import { progressBelongsToMember } from '../core/game-progress.mjs';
 
 export const miningPickaxeLabel = value => String(value).replace(/ \+ (\d+)/g, ' +$1');
 export function assumedMiningPickaxe(level, pickaxes = MINING_PICKAXES) {
@@ -8,7 +8,7 @@ export function assumedMiningPickaxe(level, pickaxes = MINING_PICKAXES) {
 }
 function savedMiningLevel(member) {
   const observation = member?.skillProgress?.Mining;
-  return observation?.source === 'runemetrics' && sameRuneScapeName(observation.runescapeName, member.runescapeName)
+  return progressBelongsToMember(observation, member)
     && Number.isInteger(observation.level) && observation.level >= 1 && observation.level <= 120
     && Number.isFinite(observation.xp) && observation.xp >= 0 ? observation.level : null;
 }

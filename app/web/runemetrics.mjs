@@ -1,6 +1,6 @@
 const number = value => Number(value).toLocaleString('en-CA', { maximumFractionDigits: 3 });
 const time = value => value ? new Date(value).toLocaleString() : 'never';
-const refreshRequired = 'Saved state changed. Fetch a new RuneMetrics preview and review it before applying.';
+const refreshRequired = 'Saved state changed. Fetch a new progress preview and review it before applying.';
 
 function change(before, after) {
   if (before == null || before === after) return '';
@@ -21,7 +21,7 @@ export function createRuneMetricsControls(context, { memberId, isCurrent, onAppl
   const owner = context.state().members.find(member => member.id === memberId);
   const revision = context.state().revision;
   const root = el('section', undefined, 'dialog-section form-stack runemetrics-controls'), status = el('p', undefined, 'info-meta'), review = el('div', undefined, 'form-stack');
-  root.setAttribute('aria-label', `RuneMetrics for ${owner.name}`);
+  root.setAttribute('aria-label', `progress for ${owner.name}`);
   status.setAttribute('role', 'status'); status.setAttribute('aria-live', 'polite');
   const account = el('input'); account.type = 'text'; account.value = owner.runescapeName ?? ''; account.maxLength = 12; account.autocomplete = 'off';
   let serial = 0, busy = false, preview, controller;
@@ -48,7 +48,8 @@ export function createRuneMetricsControls(context, { memberId, isCurrent, onAppl
   function renderPreview(value) {
     preview = value;
     const content = el('section', undefined, 'form-stack runemetrics-preview');
-    content.append(el('h4', `Review RuneMetrics for ${owner.name} · ${value.runescapeName}`),
+    content.append(el('h4', `Review ${value.sourceLabel ?? 'RuneMetrics'} for ${owner.name} · ${value.runescapeName}`),
+      el('p', `Source: ${value.sourceLabel ?? 'RuneMetrics'}`, 'info-meta'),
       el('p', `Fetched ${time(value.fetchedAt)}${value.cached ? ' · recent saved result' : ''}${advanced() ? ` · Saved revision ${value.stateRevision}` : ''}`, 'info-meta'),
       el('p', `${value.counts.completedQuests} completed quests returned · ${value.counts.matchedQuests} matched · ${value.counts.unmatchedQuests} unmatched`, 'info-meta'),
       el('h5', `Observed skill changes (${value.skills.length})`));
@@ -68,14 +69,14 @@ export function createRuneMetricsControls(context, { memberId, isCurrent, onAppl
     content.append(value.unmatched.quests.length ? list(value.unmatched.quests.map(quest => `${quest.title} · ${advanced() ? quest.reason : 'Could not match this to a quest completion in this app.'}`)) : el('p', 'All completed quests matched.', 'info-meta'));
     content.append(el('p', 'Apply saves your levels, XP, the listed completed quests and the sync date. Skills and quests that could not be matched are skipped.', 'info-meta'));
     const cancel = button('Cancel preview', () => { if (current() && !busy) discard(); });
-    const apply = button('Apply RuneMetrics snapshot', async () => {
+    const apply = button('Apply progress snapshot', async () => {
       if (!current() || busy || preview !== value) return;
       if (context.state().revision !== value.stateRevision || savedAccount() !== value.runescapeName) { apply.disabled = true; setStatus(refreshRequired, true); return; }
-      const request = serial; setBusy(true); apply.disabled = cancel.disabled = true; setStatus('Applying reviewed RuneMetrics snapshot…');
+      const request = serial; setBusy(true); apply.disabled = cancel.disabled = true; setStatus('Applying reviewed progress snapshot…');
       try {
         await context.applyRuneMetrics(value.previewId, value.stateRevision);
         if (!active(request)) return;
-        preview = undefined; review.replaceChildren(); setStatus('RuneMetrics snapshot applied.');
+        preview = undefined; review.replaceChildren(); setStatus('Progress snapshot applied.');
         await onApplied?.();
       } catch (error) {
         if (!active(request)) return;
@@ -90,31 +91,32 @@ export function createRuneMetricsControls(context, { memberId, isCurrent, onAppl
     content.append(actions); review.replaceChildren(content);
   }
 
-  const fetchPreview = button('Sync from RuneMetrics', async () => {
+  const fetchPreview = button('Sync progress', async () => {
     if (!current() || busy) return;
     const name = savedAccount();
-    if (!name || account.value.trim() !== name) { setStatus('Save this player’s RuneScape account name before fetching a preview.', true); return; }
+    if (account.value.trim() !== name) { setStatus('Save this player’s RuneScape account name before fetching a preview.', true); return; }
     const request = ++serial; controller?.abort(); controller = new AbortController(); preview = undefined; setBusy(true);
-    setStatus(`Fetching a RuneMetrics snapshot for ${name}…`);
+    setStatus(`Fetching a progress snapshot for ${name}…`);
     review.replaceChildren(button('Cancel preview', () => { if (current()) discard(); }));
     try {
       const value = await context.api('/api/runemetrics/preview', { memberId }, controller.signal);
       if (!active(request)) return;
-      if (value.memberId !== memberId || value.runescapeName !== name) throw new Error('The account changed while fetching. Refresh Activity Info before reviewing RuneMetrics.');
+      if (value.memberId !== memberId || value.runescapeName !== name) throw new Error('The account changed while fetching. Refresh Activity Info before reviewing progress.');
+      if (value.available === false) { review.replaceChildren(); setStatus(value.message); return; }
       renderPreview(value);
     } catch (error) {
       if (active(request)) { review.replaceChildren(); setStatus(error.message || String(error), true); }
     } finally { if (active(request)) { controller = undefined; setBusy(false); } }
   });
   account.addEventListener('input', () => { serial++; preview = undefined; review.replaceChildren(); setStatus('Save the edited account name before fetching a preview.'); });
-  const help = el('p', 'Fetch your public levels and completed quests, review the changes, then apply them as personal progress.', 'field-help');
+  const help = el('p', 'Sync your levels and completed quests from the game plugin or the web, review the changes, then apply them as personal progress.', 'field-help');
   help.id = `runemetrics-help-${memberId}`; account.setAttribute('aria-describedby', help.id);
   const accountField = field('RuneScape account name', account); accountField.className = 'form-field';
   const actions = el('div', undefined, 'form-actions'); actions.append(saveName, fetchPreview);
-  root.setAttribute('aria-label', 'RuneMetrics sync');
+  root.setAttribute('aria-label', 'Progress sync');
   // The dialog title or the Activity Info section already names it.
   root.append(
-    el('p', `${owner.name} · Last applied snapshot: ${time(owner.runeMetricsSync?.fetchedAt)}${owner.runeMetricsSync?.runescapeName ? ` · ${owner.runeMetricsSync.runescapeName}` : ''}`, 'info-meta'),
+    el('p', `${owner.name} · Last applied web snapshot: ${time(owner.runeMetricsSync?.fetchedAt)}${owner.runeMetricsSync?.runescapeName ? ` · ${owner.runeMetricsSync.runescapeName}` : ''}`, 'info-meta'),
     help, accountField, actions, status, review);
   return root;
 }

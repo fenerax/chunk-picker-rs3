@@ -1,4 +1,4 @@
-import { sameRuneScapeName } from '../core/game-progress.mjs';
+import { progressBelongsToMember } from '../core/game-progress.mjs';
 
 export const isCustomTask = task => typeof task?.id === 'string' && (task.id.startsWith('custom:') || task.id.startsWith('rs3:task:custom:'));
 
@@ -15,7 +15,7 @@ export function customTaskDoable(task, member) {
   if (!isCustomTask(task) || !task.level) return true;
   const skill = task.skill || task.category;
   const observed = member?.skillProgress?.[skill];
-  return observed?.source === 'runemetrics' && sameRuneScapeName(observed.runescapeName, member?.runescapeName)
+  return progressBelongsToMember(observed, member)
     && Number.isSafeInteger(observed.level) && observed.level >= task.level;
 }
 
