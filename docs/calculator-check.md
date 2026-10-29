@@ -13,7 +13,13 @@ request sequence, then compares every result part.
 Comparison is exact after canonicalising each JSON part:
 
 - object keys sorted; array order kept (order is what players see);
-- `timingMs`, `evaluationMs` and `cache` removed; nothing else is ignored;
+- `timingMs`, `evaluationMs` and `cache` removed from result headers;
+- inside parts, only the measurement fields named in
+  `tools/calc-check/volatile.json` are removed. It starts with
+  `metrics.elapsedMs` (wall-clock time, `app/tasks/engine.mjs`). Each entry
+  names the source that makes it a timing or cache-state measurement. Nothing a
+  player sees may be listed, and adding an entry is reviewed like a protocol
+  change. Everything else is compared;
 - numbers compared as JavaScript prints them (shortest round-trip form). A
   candidate in another language must format numbers the same way.
 
