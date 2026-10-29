@@ -22,6 +22,7 @@ import { Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import { isImportRoute, readBackupRequest, sendGzipBackup, backupPreviewState } from './backup-transfer.mjs';
 import { createTaskScheduler } from './tasks/scheduler.mjs';
+import { createTaskReuseFingerprint } from './tasks/unlock-reuse.mjs';
 import { sharedJSONBytes, sharedBuffer } from './tasks/shared-bytes.mjs';
 import { createPoolRanking } from './tasks/pool-ranking.mjs';
 import { openStore, prepareStoreProcessIdentity } from './storage/store.mjs';
@@ -44,7 +45,7 @@ import { archaeologyTaskCorrections } from './data/archaeology-task-corrections.
 import { createGroupState, importBackup, importLegacyMaps, previewRestore, BACKUP_FORMAT, SCHEMA_VERSION } from './core/state.mjs';
 import { groupGoalCommandTypes } from './core/group-goals.mjs';
 import { TICK_ACTIVE_TASKS, tickActiveTasksDenied } from './core/tick-active-tasks.mjs';
-import { builtInRules, createRuleRegistry, evaluateRollPool, partnerConnections } from './core/rules.mjs';
+import { builtInRules, createRuleRegistry, evaluateRollPool, partnerConnections, createRollPoolCache, workerRollRules } from './core/rules.mjs';
 import { previewRuleProfile } from './core/planning.mjs';
 import { hasGameplayMigration, hasCurrentProgressAliasMigration, hasCurrentJournalMigration, migrateOwnedGameplay, resolveSavedTaskId } from './tasks/migration.mjs';
 import { buildIdentityIndex, isPermanentId } from './tasks/identity.mjs';
@@ -288,7 +289,7 @@ async function containedFile(directory, relative) {
   return file;
 }
 
-async function startTaskWorker(definitions, definitionBytes, world, registry, options, dataset, datasetOptions) {
+async function startTaskWorker(definitions, definitionBytes, world, registry, options, dataset, datasetOptions, transferRollWorld = false) {
   const builtinIds = new Set(builtInRules.map(rule => rule.id));
   const extraRules = registry.definitions.filter(rule => !builtinIds.has(rule.id)).map(({ candidates, exclude, ...metadata }) => metadata);
   // Worker factories keep their existing object input. Native lanes can parse
@@ -297,7 +298,9 @@ async function startTaskWorker(definitions, definitionBytes, world, registry, op
   if (!options?.workerFactory && !options?.deathWorkerFactory && !options?.duoWorkerFactory) {
     input = { definitionBytes: sharedBuffer(definitionBytes) };
   }
-  return createTaskScheduler({ ...options, workerData: { ...input, datasetSelection: dataset.workerSelection(), datasetDigest: dataset.digest, datasetOptions, preparedDatasetStages: preparedDefinitionStages(definitions), world: { chunks: world.chunks, areas: world.areas, ...(world.surface ? { surface: world.surface } : {}) }, extraRules } });
+  // Native indexes are rebuilt off-thread. Keep every cold lane's init payload small,
+  // while preserving custom topology from an explicitly supplied world.
+  return createTaskScheduler({ ...options, workerData: { ...input, datasetSelection: dataset.workerSelection(), datasetDigest: dataset.digest, datasetOptions, preparedDatasetStages: preparedDefinitionStages(definitions), world: transferRollWorld ? { ...world } : { chunks: world.chunks, areas: world.areas, ...(world.surface ? { surface: world.surface } : {}) }, extraRules } });
 }
 
 function migrationSummary(state) {
@@ -488,10 +491,36 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
     ? Promise.resolve(buildChunkSectionIndex(chunkSectionCatalogue, indexedWorld))
     : loadChunkSectionIndex(gameDataDir, ROOT, indexedWorld, { dataset });
   const ruleRegistry = registry ?? createRuleRegistry();
+  const rollPoolCache = createRollPoolCache(indexedWorld, ruleRegistry, { inputKey: createTaskReuseFingerprint() });
+  async function evaluatedRollPool(state, memberId, draft) {
+    const cached = draft === undefined && rollPoolCache.get(state, memberId);
+    if (cached?.partnerConnections !== undefined) return cached;
+    let value;
+    if (taskWorker?.supports('roll-pool') && workerRollRules(ruleRegistry)) try {
+      // Pool snapshots must include selections, pending offers and blacklists;
+      // the ordinary task-input snapshot intentionally excludes those fields.
+      const input = rollPoolCache.input(state), key = JSON.stringify(['roll-pool', memberId, input, draft]);
+      const candidate = store?.getInfo().revision === state.revision ? store.getCalculationSnapshot() : undefined;
+      const captured = candidate?.rollInputKey === input ? candidate : undefined;
+      const stateInput = captured ? { get stateJSON() { return captured.stateJSON; }, inputKey: input } : undefined;
+      value = (await taskWorker.evaluate(stateInput ? { revision: state.revision, members: captured.members } : state,
+        memberId, 'roll-pool', draft, key, input, undefined, [], 'full', stateInput)).result;
+    } catch {
+      // A restarting or unavailable calculator must not block a roll or a state send.
+      value = undefined;
+    }
+    if (value === undefined) {
+      // Injected workers and custom JavaScript hooks retain their inline API.
+      const hypothetical = draft === undefined ? state : applySandboxChanges(state, memberId, draft.changes, sandboxCatalogue);
+      value = { pool: evaluateRollPool(indexedWorld, hypothetical, memberId, ruleRegistry),
+        partnerConnections: partnerConnections(indexedWorld, hypothetical, memberId, ruleRegistry) };
+    }
+    return draft === undefined ? rollPoolCache.set(state, memberId, value) : value;
+  }
   const storeProcessPending = prepareStoreProcessIdentity();
   const definitionCachePending = cachedJSON(definitionBytes), taskCachePending = cachedJSON(taskBytes);
   const taskWorkerPending = parsedDefinitions.challenges && typeof parsedDefinitions.challenges === 'object' && !Array.isArray(parsedDefinitions.challenges)
-    ? startTaskWorker(parsedDefinitions, definitionBytes, indexedWorld, ruleRegistry, taskWorkerOptions, dataset, datasetOptions) : Promise.resolve(null);
+    ? startTaskWorker(parsedDefinitions, definitionBytes, indexedWorld, ruleRegistry, taskWorkerOptions, dataset, datasetOptions, world !== undefined) : Promise.resolve(null);
   let taskWorker, identityHistory, definitionCache, taskCache;
   // Optional map reference data has its own authenticated cache and payload.
   // Loading it never delays gameplay startup or enlarges state/definitions.
@@ -582,7 +611,7 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
   const handover = createLiveSwapAdmission();
   let store;
   prepareState = preserveGameIdentity(dataset, prepareState);
-  try { store = await openStore({ dataDir, world: indexedWorld, registry: ruleRegistry, initialState, migrateState, prepareState, beforeCommit, now, random, retention, membersStartBanks, xpChoiceCatalogue, progressQuestPoints: createProgressQuestPoints(parsedDefinitions),
+  try { store = await openStore({ dataDir, world: indexedWorld, registry: ruleRegistry, initialState, migrateState, prepareState, beforeCommit, now, random, retention, membersStartBanks, xpChoiceCatalogue, progressQuestPoints: createProgressQuestPoints(parsedDefinitions), rollPoolCache, computeRollPool: evaluatedRollPool,
     // Only rows carrying a level need a copy without it; generated goal rows are read as they are.
     taskCatalogue: taskWorker ? new Map([...taskWorker.catalogue, ...taskWorker.dynamicCatalogue].map(row => {
       if (!Object.hasOwn(row, 'level')) return [row.id, row];
@@ -653,17 +682,24 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
   const originalSyncClient = originalSyncIntegration?.createOriginalSyncClient(originalSync), originalSyncPreviews = new Map();
   const originalSyncNow = () => (originalSync.now?.() ?? new Date()).getTime();
   const previewLifetimeMs = 10 * 60 * 1000;
-  const stateEnvelope = state => ({ state: projectBrowserState(state), pools: Object.fromEntries(state.members.map(member => [member.id, evaluateRollPool(indexedWorld, state, member.id, ruleRegistry)])) });
+  const stateEnvelope = async state => {
+    const values = [];
+    for (const member of state.members) values.push([member.id, await evaluatedRollPool(state, member.id)]);
+    return { state: projectBrowserState(state), pools: Object.fromEntries(values.map(([id, value]) => [id, value.pool])), values: new Map(values) };
+  };
   const responseCache = createResponseCache({ maxEntries: 32, maxBytes: 48 * 1024 * 1024 });
   const staticCache = createResponseCache({ maxEntries: 128, maxBytes: 48 * 1024 * 1024 });
   const sandboxPools = createResponseCache({ maxEntries: 32, maxBytes: 4 * 1024 * 1024 });
   const poolRanking = createPoolRanking(), rankingPools = new Map();
   let rankingPoolInput, rankingLeaseTimer;
-  function rankingPoolIds(state, memberId, input) {
+  async function rankingPoolIds(state, memberId) {
+    const input = rollPoolCache.input(state);
     if (rankingPoolInput !== input) { rankingPools.clear(); rankingPoolInput = input; }
-    if (!rankingPools.has(memberId)) rankingPools.set(memberId,
-      evaluateRollPool(indexedWorld, state, memberId, ruleRegistry).eligible.map(row => row.id));
-    return rankingPools.get(memberId);
+    const cached = rankingPools.get(memberId);
+    if (cached) return cached;
+    const ids = (await evaluatedRollPool(state, memberId)).pool.eligible.map(row => row.id);
+    if (rankingPoolInput === input) rankingPools.set(memberId, ids);
+    return ids;
   }
   const viewFor = request => new URL(request.url, 'http://localhost').searchParams.get('view') === PLAY_VIEW ? PLAY_VIEW : undefined;
   async function restoreBackup(body) {
@@ -686,21 +722,22 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
     key = `${dataset.digest}:${key}`;
     return responseCache.get(key) ?? responseCache.set(key, createRepresentation(Buffer.from(JSON.stringify(value()))));
   }
-  function stateRepresentation(view, info = store.getInfo()) {
+  async function stateRepresentation(view, info = store.getInfo()) {
     const key = `state:${info.revision}:${view ?? 'full'}`;
     let cached = responseCache.get(key);
     if (!cached) {
-      const saved = store.getStateSnapshot({ view });
+      const saved = await store.getStateSnapshot({ view });
+      if (saved.revision !== info.revision) return stateRepresentation(view);
       cached = responseCache.set(key, createRepresentation(Buffer.from(`{"state":${saved.stateJSON},"pools":${JSON.stringify(saved.pools)},"store":${JSON.stringify(info)}${view ? ',"format":"play-v1","schemaVersion":1' : ''}}`)));
     }
     return cached;
   }
-  function viewEnvelope(state, view) {
-    const envelope = stateEnvelope(state);
+  async function viewEnvelope(state, view) {
+    const { values, ...envelope } = await stateEnvelope(state);
     if (view !== PLAY_VIEW) return envelope;
     return { format: PLAY_VIEW, schemaVersion: 1, state: projectPlayState(state),
       pools: Object.fromEntries(state.members.map(member => [member.id, { ...envelope.pools[member.id],
-        partnerConnections: partnerConnections(indexedWorld, state, member.id, ruleRegistry) }])) };
+        partnerConnections: values.get(member.id).partnerConnections }])) };
   }
   let identityLookupRevision = -1, identityLookup;
   const lookupIdentity = id => {
@@ -961,7 +998,7 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
     schedulingClock.clearTimeout(prewarmTimer);
     // Cheap guards run before cloning state, computing pools, or starting the
     // prediction worker. Foreground loading wins even on slow state transfers.
-    prewarmTimer = schedulingClock.setTimeout(() => {
+    prewarmTimer = schedulingClock.setTimeout(() => { void (async () => {
       if (closed) return;
       const time = schedulingClock.now();
       if (startupWarmup && ['pending', 'running'].includes(startupWarmup.diagnostics().status)) { schedulePredictions(); return; }
@@ -987,14 +1024,15 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
         interleave(state.members.map(member => valid(member.selected)));
       }
       const interested = poolRanking.interestedMembers();
-      const pools = state.members.map(member => interested.has(member.id)
-        ? poolRanking.missing(member.id, valid(rankingPoolIds(state, member.id, input))) : []);
+      const pools = await Promise.all(state.members.map(async member => interested.has(member.id)
+        ? poolRanking.missing(member.id, valid(await rankingPoolIds(state, member.id))) : []));
+      if (closed || input !== taskFingerprint()) return;
       for (let index = 0; index < Math.max(0, ...pools.map(ids => ids.length)); index++) {
         state.members.forEach((member, owner) => { if (pools[owner][index]) groups.push({ memberId: member.id,
           chunkIds: [pools[owner][index]], purpose: 'ranking' }); });
       }
       taskWorker.prewarm(state, input, groups);
-    }, delay);
+    })().catch(() => { /* A newer save or worker failure abandons background warming. */ }); }, delay);
     prewarmTimer.unref?.();
   }
   function watchRankingLeases() {
@@ -1281,7 +1319,7 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
             const query = new URL(request.url, 'http://localhost').searchParams;
             const captured = calculationState(), state = captured.state, memberId = query.get('memberId');
             if (!state.members.some(member => member.id === memberId)) throw httpError(400, 'Choose a known player to compare the roll pool.');
-            const ids = rankingPoolIds(state, memberId, captured.input);
+            const ids = await rankingPoolIds(state, memberId);
             // Like the map's pool membership, this read is available to viewers.
             // It only reads saved prediction deltas; no worker admission or touch.
             const ranking = poolRanking.read(captured.input, memberId, state.revision, ids,
@@ -1324,7 +1362,7 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
           if (route === '/api/state') {
             const view = viewFor(request), info = store.getInfo();
             if (!identity.readOnly && request.method === 'GET' && foregroundCompletedRevision < info.revision && lastUnchangedTaskRevision !== info.revision) awaitForeground(info.revision);
-            await sendCached(request, response, stateRepresentation(view, info)); return;
+            await sendCached(request, response, await stateRepresentation(view, info)); return;
           }
           if (route === '/api/dataset-status') { await json(request, response, 200, dataset.status()); return; }
           if (route === '/api/dataset-runtime') { await sendCached(request, response, cachedValue(`dataset-runtime:${dataset.digest}`, () => browserDataset)); return; }
@@ -1599,7 +1637,7 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
                 const member = state.members.find(owner => owner.id === memberId);
                 const excluded = new Set([...member.unlocked, ...member.pendingRoll, ...member.blacklisted]);
                 const selected = member.selected.filter(id => !excluded.has(id) && indexedWorld.chunks.has(id) && (!indexedWorld.surface || indexedWorld.surface.has(id)));
-                chunkIds = [...new Set([...evaluateRollPool(indexedWorld, state, memberId, ruleRegistry).eligible.map(row => row.id), ...selected])].sort();
+                chunkIds = [...new Set([...(await evaluatedRollPool(state, memberId)).pool.eligible.map(row => row.id), ...selected])].sort();
               }
             }
             const started = performance.now();
@@ -1791,15 +1829,17 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
               if (store.getInfo().revision !== draft.baseRevision) throw httpError(409, 'Your saved map changed during the Sandbox preview. Reset Sandbox to use the latest map.');
               // Recheck credentials before releasing a delayed advisory result.
               if (!invites.authenticate(request, security)) throw httpError(401, 'Access required.');
-              const poolStarted = performance.now(), poolKey = JSON.stringify([state.revision, draft.memberId, draft.changes]);
+              const poolStarted = performance.now(), poolKey = JSON.stringify([rollPoolCache.input(state), draft.memberId, draft.changes]);
               let pool = sandboxPools.get(poolKey); const poolHit = !!pool;
               if (!pool) {
-                const hypothetical = applySandboxChanges(state, draft.memberId, draft.changes, sandboxCatalogue, captured.sandboxTaskIndex);
-                const rollPool = { ...evaluateRollPool(indexedWorld, hypothetical, draft.memberId, ruleRegistry),
-                  partnerConnections: partnerConnections(indexedWorld, hypothetical, draft.memberId, ruleRegistry) };
+                const value = await evaluatedRollPool(state, draft.memberId, { changes: draft.changes });
+                const rollPool = { ...value.pool, partnerConnections: value.partnerConnections };
                 pool = sandboxPools.set(poolKey, createRepresentation(Buffer.from(JSON.stringify(rollPool))));
               }
               const sandboxPoolMs = performance.now() - poolStarted;
+              if (response.destroyed) return;
+              if (store.getInfo().revision !== draft.baseRevision) throw httpError(409, 'Your saved map changed during the Sandbox preview. Reset Sandbox to use the latest map.');
+              if (!invites.authenticate(request, security)) throw httpError(401, 'Access required.');
               const cache = { ...(evaluation.resultCache ?? evaluation.result.cache), hit: evaluation.hit, poolHit,
                 evaluationMs: evaluation.evaluationMs, timingMs: { ...evaluation.timingMs, sandboxValidationMs, sandboxPoolMs },
                 requestMs: performance.now() - started, worker: true };
@@ -1864,7 +1904,7 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
               if (applying) {
                 const state = await store.command(review.command, body.expectedRevision, { actor: identity.actor });
                 await gamePlugin.finish(review.command.memberId);
-                await json(request, response, 200, viewEnvelope(state, viewFor(request)));
+                await json(request, response, 200, await viewEnvelope(state, viewFor(request)));
               } else { await gamePlugin.finish(review.command.memberId); await json(request, response, 200, { dismissed: true }); }
               return;
             }
@@ -1916,7 +1956,7 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
               if (review.preview.stateRevision !== body.expectedRevision) throw Object.assign(httpError(409, 'The reviewed revision does not match. Fetch and review RuneMetrics again.'), { code: 'REVISION_CONFLICT', state: store.getState() });
               const state = await store.command(review.command, body.expectedRevision, { actor: identity.actor });
               runeMetricsPreviews.delete(body.previewId);
-              await json(request, response, 200, viewEnvelope(state, viewFor(request))); return;
+              await json(request, response, 200, await viewEnvelope(state, viewFor(request))); return;
             }
             if (route === '/api/profile/preview') {
               const state = store.getState();
@@ -2016,7 +2056,7 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
                 await json(request, response, 200, { preview, warnings,
                   ...(importedFile?.uploaded ? { state: backupPreviewState(next) } : retained ? { state: projectPlayState(next) } : {}) }); return;
               }
-              await json(request, response, 200, { ...viewEnvelope(await store.command(command, body.expectedRevision, { actor: identity.actor }), viewFor(request)), warnings }); return;
+              await json(request, response, 200, { ...await viewEnvelope(await store.command(command, body.expectedRevision, { actor: identity.actor }), viewFor(request)), warnings }); return;
             }
             // Replacing the whole save is an administrator action; invites keep normal gameplay.
             if (/^\/api\/(?:restore|import)(?:\/preview)?$/.test(route)) requireAdmin();
@@ -2027,7 +2067,7 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
               await json(request, response, 200, importedFile?.uploaded ? { preview, state: backupPreviewState(replacement.state) }
                 : Object.hasOwn(body, 'backupId') ? { preview, state: projectPlayState(replacement.state) } : preview); return;
             }
-            if (route === '/api/restore') { await json(request, response, 200, viewEnvelope(await store.replace(await restoreBackup(body), body.expectedRevision, { actor: identity.actor }), viewFor(request))); return; }
+            if (route === '/api/restore') { await json(request, response, 200, await viewEnvelope(await store.replace(await restoreBackup(body), body.expectedRevision, { actor: identity.actor }), viewFor(request))); return; }
             if (route === '/api/import/preview' || route === '/api/import') {
               const imported = convertLegacyCapture(body.document, { members: body.members, capturedAt: body.capturedAt, registry: ruleRegistry });
               const current = store.getState();
@@ -2035,10 +2075,10 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
               if (route.endsWith('/preview')) {
                 const replacement = await store.previewReplacement(imported.state);
                 await json(request, response, 200, { preview: previewRestore(replacement.current, replacement.state, registry), warnings: [...imported.warnings, ...migrationSummary(replacement.state).warnings],
-                  ...(importedFile?.uploaded ? { format: PLAY_VIEW, schemaVersion: 1, state: backupPreviewState(replacement.state) } : viewEnvelope(replacement.state, viewFor(request))) });
+                  ...(importedFile?.uploaded ? { format: PLAY_VIEW, schemaVersion: 1, state: backupPreviewState(replacement.state) } : await viewEnvelope(replacement.state, viewFor(request))) });
               } else {
                 const state = await store.replace(imported.state, body.expectedRevision, { actor: identity.actor });
-                await json(request, response, 200, { ...viewEnvelope(state, viewFor(request)), warnings: [...imported.warnings, ...migrationSummary(state).warnings] });
+                await json(request, response, 200, { ...await viewEnvelope(state, viewFor(request)), warnings: [...imported.warnings, ...migrationSummary(state).warnings] });
               }
               return;
             }
@@ -2226,7 +2266,7 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
       await json(request, response, status, { message: status === 500 ? 'The save could not be completed. Your previous save remains available.' : error.code === 'ENOENT' ? 'Not found.' : redactInviteTokens(error.message),
         ...(error.code === 'TASK_RESULTS_UNAVAILABLE' || error.code === 'PICKER_UPDATING' || /^(?:REQUEST_|ACTION_SESSION_)/.test(error.code ?? '') ? { code: error.code } : {}),
         ...(error.code === 'ACTION_SESSION_RETIRED' && error.safeToRetry === true ? { safeToRetry: true } : {}),
-        ...(error.code === 'REVISION_CONFLICT' ? viewEnvelope(error.state, viewFor(request)) : {}),
+        ...(error.code === 'REVISION_CONFLICT' ? await viewEnvelope(error.state, viewFor(request)) : {}),
         ...(error.code === 'REVISION_CONFLICT' && error.claimOnlyChanges === true ? { claimOnlyChanges: true } : {}),
         ...((routeIsRuneMetrics(request) || (request.url ?? '').startsWith('/api/original-sync/')) && error.code !== 'REVISION_CONFLICT' && error.code ? { code: error.code } : {}) });
     } finally { if (ownsImport) importingBackup = false; }
@@ -2335,7 +2375,7 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
           // state and optional reference data remain demand loaded. All HTTP
           // reads still authenticate before entering their cached route.
           try {
-            const playState = stateRepresentation(PLAY_VIEW, info);
+            const playState = await stateRepresentation(PLAY_VIEW, info);
             await Promise.all([playState.encoded('br'), playState.encoded('gzip')]);
             startupPrepared.stateResponse = true;
           } catch {

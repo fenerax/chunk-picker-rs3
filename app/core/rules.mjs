@@ -321,6 +321,55 @@ function readonlySnapshot(value, copies = new WeakMap()) {
   return Object.freeze(copy);
 }
 
+// Task fingerprints deliberately omit roll bookkeeping. Keep it in the pool
+// input, including partners: shared access and teleport rules can read them.
+export const rollPoolInputKey = (state, taskInput) => JSON.stringify([taskInput,
+  state.members.map(member => [member.id, member.selected, member.pendingRoll, member.blacklisted])]);
+export const workerRollRules = (registry = defaultRegistry) => registry.definitions.every(definition =>
+  trustedDefinitions.has(definition) || !definition.candidates && !definition.exclude);
+const preparedRollPools = new WeakMap();
+
+/** Bounded per-world/registry cache. inputKey may memoize immutable static trees;
+ * custom hooks retain the complete state, since they may read any field. */
+export function createRollPoolCache(world, registry = defaultRegistry, { inputKey = state => JSON.stringify(state), limit = 16 } = {}) {
+  const entries = new Map();
+  const input = state => workerRollRules(registry) ? rollPoolInputKey(state, inputKey(state)) : JSON.stringify(state);
+  const key = (state, memberId) => JSON.stringify([memberId, input(state)]);
+  const freeze = value => {
+    if (value && typeof value === 'object' && !Object.isFrozen(value)) { Object.values(value).forEach(freeze); Object.freeze(value); }
+    return value;
+  };
+  const cache = {
+    input,
+    get(state, memberId) {
+      const id = key(state, memberId), value = entries.get(id);
+      if (value) { entries.delete(id); entries.set(id, value); }
+      return value;
+    },
+    set(state, memberId, value) {
+      const id = key(state, memberId);
+      entries.delete(id); entries.set(id, freeze(value));
+      while (entries.size > limit) entries.delete(entries.keys().next().value);
+      return value;
+    },
+    prepare(state, memberId) {
+      const value = cache.get(state, memberId);
+      if (!value) return;
+      const token = Object.freeze({});
+      preparedRollPools.set(token, { world, registry, memberId, revision: state.revision, input: input(state), inputKey: input, pool: value.pool });
+      return token;
+    },
+  };
+  return cache;
+}
+
+/** Only a locally prepared pool at this exact revision and input may draw. */
+export function checkedPrecomputedRollPool(token, world, state, memberId, registry = defaultRegistry) {
+  const entry = token && preparedRollPools.get(token);
+  return entry && entry.world === world && entry.registry === registry && entry.memberId === memberId
+    && entry.revision === state.revision && entry.input === entry.inputKey(state) ? entry.pool : undefined;
+}
+
 /** Evaluate roll candidates without changing unlocks, selections, or teleport availability. */
 export function evaluateRollPool(world, state, memberId, registry = defaultRegistry) {
   if (!(world?.chunks instanceof Map) || !(world.neighbors instanceof Map) || !(world.walkable instanceof Set) || !(world.f2p instanceof Set)) {
