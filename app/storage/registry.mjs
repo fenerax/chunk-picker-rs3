@@ -108,7 +108,7 @@ function separate(a, b) {
 }
 async function load(file) {
   try { return JSON.parse(await readFile(file, 'utf8')); }
-  catch (failure) { if (failure.code === 'ENOENT') return null; throw new Error('Invalid registry document.'); }
+  catch (failure) { if (failure.code === 'ENOENT') return undefined; throw new Error('Invalid registry document.'); }
 }
 
 /** Operator paths only. No HTTP, gameplay state, sign-in, or store is opened here. */
@@ -263,9 +263,10 @@ export async function openRegistry({ registryDir, pickerRoot, tombstoneDir, lega
     releases.push(await lockRegistry(registryDir));
     releases.push(await lockRegistry(tombstoneDir));
     current = await load(file); ledger = await load(ledgerFile);
-    if (current && !ledger) throw new Error('Registry ledger is missing.');
-    current ??= { schemaVersion: 1, accounts: [], pickers: [], capabilities: [] };
-    ledger ??= { schemaVersion: 1, issuedPickerIds: [], pickers: [], accounts: [] };
+    // Only a missing file starts empty; a JSON null document fails validation.
+    if (current !== undefined && ledger === undefined) throw new Error('Registry ledger is missing.');
+    if (current === undefined) current = { schemaVersion: 1, accounts: [], pickers: [], capabilities: [] };
+    if (ledger === undefined) ledger = { schemaVersion: 1, issuedPickerIds: [], pickers: [], accounts: [] };
     validateLedger(ledger); validate(current);
     if (current.pickers.some(p => !ledger.issuedPickerIds.includes(p.id) || p.lifecycle !== 'active' && !ledger.pickers.some(t => t.pickerId === p.id))) bad();
     current = reconcile(current, ledger); validate(current); enforceCaps(current); rebuildIndexes(); rebuildLedgerIndexes();

@@ -252,7 +252,7 @@ test('corrupt registry and ledger fail closed without rewriting bytes or leaking
   const f = await fixture(t); await f.open(); await f.registry.firstLogin('google', 'synthetic-corruption'); await f.close();
   for (const file of [f.file, f.ledger]) {
     const original = await readFile(file);
-    for (const bytes of ['{"synthetic-secret":', JSON.stringify({ schemaVersion: 99, accounts: [] })]) {
+    for (const bytes of ['{"synthetic-secret":', JSON.stringify({ schemaVersion: 99, accounts: [] }), 'null\n']) {
       await writeFile(file, bytes); await assert.rejects(f.open(), failure => { assert.equal(failure.message.includes('synthetic-secret'), false); return true; }); assert.equal(await readFile(file, 'utf8'), bytes);
     } await writeFile(file, original);
   }
