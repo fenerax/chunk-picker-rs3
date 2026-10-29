@@ -73,6 +73,9 @@ source-file hash inventory is retained as provenance, not copied as executable
 code. Pin the manifest hash when transferring bundles: the dataset digest does
 not authenticate server-prepared definitions, overrides or legacy local defaults.
 The source pack/profile/environment is resolved only at export time.
+Identity is recomputed for duo-legacy, open-f2p and open-starter. For duo-legacy
+selected through an installed profile, the profile-only `capabilities.features`
+flags are excluded from the digest preimage and must equal the profile values.
 
 `createBundleWorker(directory, { mode: 'process', datasetDigest, manifestSha256 })`
 from `calculator/bundle/worker.mjs` returns the existing Worker-compatible endpoint.

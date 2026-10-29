@@ -5,7 +5,10 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { encode, decode } from '../calculator/bundle/codec.mjs';
 import { exportBundle } from '../calculator/bundle/export.mjs';
-import { loadBundle, sha256 } from '../calculator/bundle/load.mjs';
+import { identityDigest, loadBundle, sha256 } from '../calculator/bundle/load.mjs';
+import { DATASET_CONTRACT, DATASET_OVERLAY_ORDER, datasetDigest } from '../app/datasets.mjs';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
 
 process.env.RS3_DATASET = 'open-f2p';
 const { selectedDataset: dataset } = await import('../app/dataset-runtime.mjs');
@@ -90,4 +93,30 @@ test('native definition bytes and optional worker inputs survive portable export
   const loaded = await loadBundle(directory);
   const { definitionBytes: ignored, ...fields } = init;
   assert.deepEqual(loaded.init, { ...fields, definitions, datasetSelection: { datasetId: dataset.datasetId, digest: dataset.digest } });
+});
+
+test('open-starter bundles verify against the starter digest', async t => {
+  const scratch = await mkdtemp(path.join(tmpdir(), 'calculator-bundle-starter-'));
+  t.after(() => rm(scratch, { recursive: true, force: true }));
+  // The runtime selects one dataset per process.
+  const script = `const { exportBundle } = await import(${JSON.stringify(new URL('../calculator/bundle/export.mjs', import.meta.url).href)});
+    const { loadBundle } = await import(${JSON.stringify(new URL('../calculator/bundle/load.mjs', import.meta.url).href)});
+    const { selectedDataset } = await import(${JSON.stringify(new URL('../app/dataset-runtime.mjs', import.meta.url).href)});
+    const summary = await exportBundle(process.argv[1]);
+    const loaded = await loadBundle(process.argv[1], { expectedDatasetDigest: selectedDataset.digest, expectedManifestSha256: summary.manifestSha256 });
+    console.log(JSON.stringify({ datasetId: loaded.provider.datasetId, matches: loaded.provider.digest === selectedDataset.digest }));`;
+  const { stdout } = await promisify(execFile)(process.execPath, ['--input-type=module', '-e', script, path.join(scratch, 'bundle')],
+    { env: { ...process.env, RS3_DATASET: 'open-starter' } });
+  assert.deepEqual(JSON.parse(stdout.trim().split(/\r?\n/).at(-1)), { datasetId: 'open-starter', matches: true });
+});
+
+test('legacy identity ignores only the flags an installed profile adds after hashing', () => {
+  const files = [{ path: 'app/data/example.json', bytes: 2, sha256: 'a'.repeat(64), kind: 'input' }];
+  const capabilities = { independent: false, cacheWalking: true };
+  const legacy = { ...DATASET_CONTRACT, capabilities, overlayOrder: DATASET_OVERLAY_ORDER, files };
+  const expected = datasetDigest(files, capabilities);
+  assert.equal(identityDigest(legacy), expected);
+  const features = { originalSync: false, gallery: false, projectUpdates: false };
+  assert.equal(identityDigest({ ...legacy, capabilities: { ...capabilities, features } }), expected);
+  assert.throws(() => identityDigest({ ...legacy, capabilities: { ...capabilities, features: { ...features, gallery: true } } }), /verification/);
 });

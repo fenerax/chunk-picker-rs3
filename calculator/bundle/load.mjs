@@ -24,15 +24,22 @@ async function safeRead(root, file, expectedBytes) {
   return readFile(current);
 }
 const contract = dataset => Object.fromEntries(['datasetId', 'datasetContractVersion', 'identityNamespace', 'coordinateSystem', 'corePackApi'].map(key => [key, dataset[key]]));
+// An installed profile adds these flags after app/datasets.mjs computes the digest.
+const PROFILE_FEATURES = JSON.stringify({ originalSync: false, gallery: false, projectUpdates: false });
 export function identityDigest(dataset, encodedValues) {
   if (dataset.datasetId === 'duo-legacy') {
+    const { features, ...capabilities } = dataset.capabilities ?? {};
+    if (features !== undefined && JSON.stringify(features) !== PROFILE_FEATURES) fail();
     const files = dataset.files.filter(row => ['input', 'evidence'].includes(row.kind))
       .map(({ path, bytes, sha256, kind }) => ({ path, bytes, sha256, kind })).sort((a, b) => a.path.localeCompare(b.path, 'en'));
-    return sha256(JSON.stringify({ contract: contract(dataset), capabilities: dataset.capabilities, overlayOrder: dataset.overlayOrder, files,
+    return sha256(JSON.stringify({ contract: contract(dataset), capabilities, overlayOrder: dataset.overlayOrder, files,
       ...(dataset.definitionOverlays?.length ? { definitionOverlays: dataset.definitionOverlays } : {}) }));
   }
   if (dataset.datasetId === 'open-f2p') return sha256(JSON.stringify({ contract: contract(dataset), values: encodedValues,
     files: dataset.files, ruleContractHash: dataset.ruleContractHash, gameDefaults: dataset.gameDefaults }));
+  // Same preimage as app/open-starter.mjs; its capabilities include features.
+  if (dataset.datasetId === 'open-starter') return sha256(JSON.stringify({ contract: contract(dataset), capabilities: dataset.capabilities,
+    values: encodedValues, files: dataset.files, ruleContractHash: dataset.ruleContractHash }));
   fail();
 }
 
@@ -79,7 +86,7 @@ export async function loadBundle(directory, { expectedDatasetDigest, expectedMan
     for (const key of new Set([...dataset.jsonFiles, ...dataset.valueFiles])) {
       const data = files.get(key), source = dataset.files.find(row => row.path === key && row.kind === 'input');
       if (!data || dataset.datasetId === 'duo-legacy' && (!source || source.bytes !== data.length || source.sha256 !== sha256(data))) fail();
-      if (dataset.datasetId === 'open-f2p' && jsonFiles.has(key) && (!source || source.bytes !== data.length || source.sha256 !== sha256(data))) fail();
+      if (['open-f2p', 'open-starter'].includes(dataset.datasetId) && jsonFiles.has(key) && (!source || source.bytes !== data.length || source.sha256 !== sha256(data))) fail();
     }
     for (const input of audit.inputs) {
       if (input.kind === 'value' ? !Object.hasOwn(values, input.key) : !jsonFiles.has(input.key)) fail();
