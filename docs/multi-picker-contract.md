@@ -214,3 +214,157 @@ pretend that two stores already provide authenticated tenant routing.
 - Owners can exercise only the documented owner capabilities. Process control,
   raw snapshots, cross-account administration and global configuration remain
   private operator operations; global limits remain shared across both pickers.
+
+## Registry
+
+MP1 provides `openRegistry` in `app/storage/registry.mjs`. It is an operator-side
+storage API; HTTP routing, sign-in, gameplay stores and account sessions do not
+use it yet. Its required `registryDir`, `pickerRoot` and `tombstoneDir` are
+disjoint operator-controlled roots, canonicalized before locking. Keep the ledger
+outside both picker backups and restorable registry checkpoints, and retain it
+when restoring either. Never restore or prune it along with an older checkpoint.
+An existing registry without its ledger fails closed.
+
+The registry and ledger each hold a lifetime writer lock. Contenders fail with
+`REGISTRY_LOCKED`; callers can retry after the current writer closes. A kernel
+mutex serializes owner-file acquisition and recovery, and releases on process
+death. Only a provably dead local PID permits automatic owner-file recovery;
+foreign, live, reused or unverifiable PIDs require operator inspection. File
+writes use exclusive mode-0600 temporaries, file fsync, atomic rename and parent
+directory fsync. Newly created directory ancestors are synced too. Windows uses
+the existing bounded rename retry convention; directory fsync is best effort
+where Windows does not support it. Storage failures or an injected crash leave
+the instance requiring restart; `close()` drains accepted mutations and releases
+both locks. Validation and capacity rejections leave the writer usable.
+
+`ensureIdentity`, `findIdentity`, `linkIdentity` and `unlinkIdentity` maintain an
+in-memory provider-subject index rebuilt from the durable account rows. Supported
+providers match current sign-in (`discord`, `google`), with one identity per
+provider per account. Linking is explicit and conflicts never merge accounts.
+`getAccount` returns explicit `{ pickerId, role, memberId }` memberships. Owner
+and player member IDs must belong to that picker's recorded member list; viewers
+use `null`. `attachMembership` and `removeMembership` update those grants, with
+removal also dropping matching capability hashes. An owned default's owner
+cannot be detached independently of deletion. All returned records are copies.
+
+`firstLogin(provider, subject)` creates or resumes the account's sole owned
+default; `ensureDefaultPicker(accountId)` performs the same provisioning for an
+existing account. A default records one neutral `owner` member. Provisioning:
+
+1. Persist the account, then reserve a random 128-bit picker ID in the external
+   issued-ID ledger. A reservation abandoned before the registry write stays
+   burned; allocation also refuses surviving directories and sibling bindings.
+2. In one registry write, record the picker, its owner membership and the account's
+   default pointer, with `provisioning: reserved` and `lifecycle: active`.
+3. Create `<pickerRoot>/<pickerId>`, refusing symlinks and non-directories. Sync
+   it and its parent, then persist `provisioning: ready`.
+
+Restart reconciles tombstones first, then resumes reserved directories under the
+same ID. Parallel calls serialize through one mutation queue; separate processes
+must acquire the single writer before calling. The optional injected `crashPoint`
+receives `account-recorded`, `id-reserved`, `registry-reserved`,
+`directory-created`, `directory-synced` and `registry-ready`; synthetic tests exit
+a child process at every boundary and reopen its files. `ready` means registry
+and directory readiness only. A later store integration must initialize
+`createGroupState` with this neutral owner and empty progress, and validate the
+recorded members against loaded game state before admitting gameplay. MP1 never
+loads packs or copies another picker's progress.
+
+`pickerDirectory(pickerId)` accepts only a registered, well-formed ID and derives
+the path from the operator root. It is also available during deletion for purge;
+path resolution alone does not authorize admission. Admission must check active
+lifecycle, ready provisioning and the selected membership.
+
+For the sole existing shared exception, configure `legacyDir` to its existing
+directory, separate from all three roots. `readLegacyAccounts` in
+`app/storage/registry-legacy.mjs` reads today's schema-1 `accounts.json` without
+writing it. The caller supplies the two member IDs verified against the existing
+save. The returned plan retains account IDs, provider links and player/viewer
+permissions; duplicate invitation grants collapse to the same explicit grant.
+`registerLegacy(plan)` registers one `legacy-shared` picker and imports the plan
+atomically. It is idempotent for unchanged grants, rejects identity conflicts and
+deleted account IDs, and neither opens nor modifies the existing save. Its path
+comes only from `legacyDir`, and its memberships never consume a default slot.
+Removing a legacy membership or deleting a participant leaves the shared data
+and other participants intact. This is an operator import, not a sign-up API.
+
+`setCapability({ kind, hash, pickerId, accountId, memberId })`,
+`resolveCapability(kind, hash)` and `revokeCapability(kind, hash)` maintain a
+durable, lightweight hash index for `plugin-key` and `overlay-capability`.
+Hashes must be lowercase SHA-256 hex; raw secrets are not stored. A hash cannot
+be rebound within its kind while indexed. Each entry requires a matching membership, and
+plugin keys cannot bind viewers. Resolution reads the index without opening a
+store; it blocks tombstoned scopes even between the ledger write and registry
+cleanup. Later handlers must still validate the credential's local record,
+expiry and revocation, and recheck scope before asynchronous delivery or writes.
+
+`beginPickerDeletion` durably records `{ pickerId, lifecycle: deleting,
+deletingAt, deletedAt: null }` outside restorable data before dropping memberships
+and indexed capabilities. The default slot remains occupied while deleting.
+The caller must revoke sidecars/sessions, drain the runtime, then remove the
+owned directory and sibling binding. `completePickerDeletion` refuses completion
+while either exists; it durably advances to `deleted` before clearing the slot.
+Both steps are idempotent, and IDs are never reallocated. The registry does not
+purge data or claim erasure of retained backups. Legacy shared data cannot be
+completed through the owned-directory purge API.
+
+`deleteAccount` first records an account-ID tombstone and deleting tombstones for
+its owned pickers, then removes its providers, memberships and indexed hashes.
+`reconcileTombstones` applies the same rules to a restored registry checkpoint,
+returning blocked picker IDs (including ones absent from that checkpoint) and
+deleted account IDs. Startup performs reconciliation before exposing indexes or
+resuming provisioning. Restored directories for blocked IDs must be quarantined
+or purged before any store opens. The external ledger is authoritative; never
+discard it to make a restored checkpoint load.
+
+`caps` can override positive-integer limits: `accounts` (1,000), live/deleting
+`pickers` (1,000), `membershipsPerAccount` (1,000), `membersPerPicker` (100),
+`capabilities` (10,000), `capabilitiesPerPicker` (100), `issuedPickerIds`
+(1,000,000) and `retiredAccounts` (1,000,000). Allocation and record writes reject
+capacity overflow; lowering a cap below existing usage refuses startup. Ledger
+capacity must be raised before further allocations/deletions when exhausted;
+never prune issued IDs or tombstones to free capacity. These are storage bounds,
+not measured public-service capacity or substitutes for later runtime quotas.
+
+### MP1 validation and measurements
+
+Measured on Linux, Node 24.19.0, against START
+`9995140f3d0211500f2fe4f2555132b900f7eb8a`. All 585 existing app files have
+identical hashes; three registry modules are added and remain unimported by the
+server. Synthetic registry tests: 24 passed, zero failed. Final quick suite:
+2,469 passed, zero failed, 68 skipped, 68.2 seconds. Full suite: 5,605 passed,
+zero failed, 140 skipped, 269.1 seconds. No test was weakened or newly skipped.
+
+The existing `scripts/perf/picker-footprint.mjs` ran three times per checkout,
+sequentially, with an empty synthetic source, bundled open-f2p, process workers,
+port 0 and `--idle-ms 250`. Each run measures the default two-member case and a
+fresh solo. Values are median [minimum–maximum] across the three runs; each
+two-member timing is first reduced to that run's member median. Peak memory is
+the harness's sampled process-tree RSS. Store sizes were identical before/after:
+247,335 bytes for the default case and 246,609 bytes for solo.
+
+| Synthetic case / measurement | START | MP1 |
+| --- | --- | --- |
+| Two members, cold tasks (ms) | 215.8 [213.7–216.7] | 214.4 [214.1–235.6] |
+| Two members, repeat tasks (ms) | 7.54 [7.45–10.08] | 8.05 [6.76–10.05] |
+| Two members, roll pool (ms) | 8.17 [7.85–8.65] | 9.94 [8.03–11.00] |
+| Two members, peak RSS (MiB) | 108.13 [108.00–108.17] | 108.20 [107.98–108.73] |
+| Solo, cold tasks (ms) | 215.9 [192.2–218.7] | 204.6 [194.9–209.3] |
+| Solo, repeat tasks (ms) | 13.59 [7.19–14.69] | 7.74 [6.76–9.78] |
+| Solo, roll pool (ms) | 6.10 [6.07–8.02] | 8.63 [8.52–9.61] |
+| Solo, peak RSS (MiB) | 106.00 [105.97–108.60] | 107.84 [107.39–108.45] |
+
+A separate three-process synthetic measurement opens an empty registry,
+sequentially calls `firstLogin` for 100 distinct accounts, resumes all 100
+defaults, resolves one capability 100,000 times, then closes and reopens the
+registry. There is no START registry API to benchmark. Median [minimum–maximum]:
+initial open 7.27 [7.15–10.44] ms; provisioning 285.9 [251.4–294.3] ms;
+default resumption 0.512 [0.440–0.534] ms; capability lookups 138.6
+[132.3–140.5] ms; reopen 5.78 [4.43–5.82] ms; lifetime process peak RSS
+57.74 [57.37–58.28] MiB. Each run produced 53,566 registry bytes and
+3,767 ledger bytes. These small fixtures provide a regression baseline; capacity
+measurement must include the later integrated runtime and representative packs.
+
+The real-save calculator gate remains unrun: START contains its contract but no
+`tools/calc-check` implementation. Full Phase 1 acceptance and the lane-wide
+footprint document update remain integration gates before a merge to main.
