@@ -1,4 +1,5 @@
 import { readFile } from 'node:fs/promises';
+import { validateInviteStore } from './invites.mjs';
 
 export const REGISTRY_MEMBER = /^[A-Za-z0-9_-]{1,64}$/;
 export const REGISTRY_ACCOUNT = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/;
@@ -10,18 +11,21 @@ export function registryMembers(memberIds) {
   if (!Array.isArray(memberIds) || !memberIds.length || memberIds.some(id => typeof id !== 'string' || !REGISTRY_MEMBER.test(id)) || new Set(memberIds).size !== memberIds.length) throw new TypeError('Invalid registry members.');
 }
 
-/** Read only. The caller supplies member IDs validated against the existing save. */
-export async function readLegacyAccounts({ accountsFile, memberIds }) {
+/** Read only. The caller supplies member IDs validated against the existing save.
+ * Memberships are kept only where today's accountPrincipal would still honour them. */
+export async function readLegacyAccounts({ accountsFile, invitesFile, memberIds }) {
   registryMembers(memberIds);
   try {
     const document = JSON.parse(await readFile(accountsFile, 'utf8'));
+    const invites = validateInviteStore(JSON.parse(await readFile(invitesFile, 'utf8'))).invites;
+    let droppedMemberships = 0;
     if (!registryObject(document, ['schemaVersion', 'accounts']) || document.schemaVersion !== 1 || !Array.isArray(document.accounts) || document.accounts.length > 1000) throw new Error();
     const ids = new Set(), subjects = new Set();
     const date = value => typeof value === 'string' && Number.isFinite(Date.parse(value));
     const accounts = document.accounts.map(account => {
       if (!registryObject(account, ['id', 'identities', 'memberships', 'createdAt', 'lastUsedAt']) || !REGISTRY_ACCOUNT.test(account.id) || ids.has(account.id) || !Array.isArray(account.identities) || account.identities.length > 2 || !Array.isArray(account.memberships) || account.memberships.length > 1000 || !date(account.createdAt) || !date(account.lastUsedAt)) throw new Error();
       ids.add(account.id);
-      const providers = new Set(), invites = new Set();
+      const providers = new Set(), inviteIds = new Set();
       const identities = account.identities.map(identity => {
         if (!registryObject(identity, ['provider', 'subject', 'createdAt', 'lastUsedAt']) || !date(identity.createdAt) || !date(identity.lastUsedAt)) throw new Error();
         registryIdentity(identity.provider, identity.subject);
@@ -32,13 +36,16 @@ export async function readLegacyAccounts({ accountsFile, memberIds }) {
       });
       const memberships = [];
       for (const membership of account.memberships) {
-        if (!registryObject(membership, ['id', 'inviteId', 'role', 'memberId']) || !REGISTRY_ACCOUNT.test(membership.inviteId) || membership.id !== membership.inviteId || invites.has(membership.id) || !['player', 'viewer'].includes(membership.role) || (membership.role === 'player' ? !memberIds.includes(membership.memberId) : membership.memberId !== null)) throw new Error();
-        invites.add(membership.id);
+        if (!registryObject(membership, ['id', 'inviteId', 'role', 'memberId']) || !REGISTRY_ACCOUNT.test(membership.inviteId) || membership.id !== membership.inviteId || inviteIds.has(membership.id) || !['player', 'viewer'].includes(membership.role) || (membership.role === 'player' ? !memberIds.includes(membership.memberId) : membership.memberId !== null)) throw new Error();
+        inviteIds.add(membership.id);
+        // Revocation leaves the membership in accounts.json; the invitation decides.
+        const invite = invites.find(item => item.id === membership.inviteId && !item.revoked);
+        if (!invite || invite.admin || invite.claimedAccountId !== account.id || membership.memberId !== (invite.memberId ?? null) || membership.role !== (invite.viewer ? 'viewer' : 'player')) { droppedMemberships++; continue; }
         if (!memberships.some(item => item.role === membership.role && item.memberId === membership.memberId)) memberships.push({ role: membership.role, memberId: membership.memberId });
       }
       return { id: account.id, identities, memberships };
     });
-    return { memberIds: [...memberIds], accounts };
+    return { memberIds: [...memberIds], accounts, droppedMemberships };
   } catch (failure) {
     if (failure.code === 'ENOENT') throw failure;
     throw new Error('Invalid legacy account import.');

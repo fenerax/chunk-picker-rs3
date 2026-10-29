@@ -128,12 +128,22 @@ function legacyAccount(provider, subject, memberships) {
   return { id: randomUUID(), createdAt: at, lastUsedAt: at, identities: [{ provider, subject, createdAt: at, lastUsedAt: at }],
     memberships: memberships.map(([role, memberId]) => { const id = randomUUID(); return { id, inviteId: id, role, memberId }; }) };
 }
+// Today's claim flow: player invitations are claimed by one account; view-only invitations never are.
+function legacyInvites(accounts, edit = invite => invite) {
+  const at = '2026-01-01T00:00:00.000Z';
+  return { schemaVersion: 1, sessions: [], invites: accounts.flatMap(account => account.memberships.map(({ inviteId, role, memberId }) => edit({ id: inviteId, label: 'synthetic',
+    admin: false, viewer: role === 'viewer', createdAt: at, lastUsedAt: null, revoked: false, tokenHash: hash(inviteId),
+    ...(role === 'player' ? { memberId, claimedAccountId: account.id, claimedAt: at } : {}) }, account))) };
+}
 test('legacy import preserves permissions and data and leaves both default slots free', async t => {
   const f = await fixture(t), legacyDir = path.join(f.root, 'legacy'); await mkdir(legacyDir); f.options.legacyDir = legacyDir;
   const source = { schemaVersion: 1, accounts: [legacyAccount('discord', 'synthetic-legacy-a', [['player', 'alpha']]), legacyAccount('google', 'synthetic-legacy-b', [['player', 'beta'], ['viewer', null]])] };
   const accountsFile = path.join(legacyDir, 'accounts.json'), bytes = JSON.stringify(source);
-  await writeFile(accountsFile, bytes); await writeFile(path.join(legacyDir, 'state.json'), 'synthetic-state'); const before = (await lstat(accountsFile)).mtimeMs;
-  const plan = await readLegacyAccounts({ accountsFile, memberIds: ['alpha', 'beta'] }); await f.open();
+  const invitesFile = path.join(legacyDir, 'invites.json'), inviteBytes = JSON.stringify(legacyInvites(source.accounts));
+  await writeFile(accountsFile, bytes); await writeFile(invitesFile, inviteBytes); await writeFile(path.join(legacyDir, 'state.json'), 'synthetic-state'); const before = (await lstat(accountsFile)).mtimeMs;
+  const plan = await readLegacyAccounts({ accountsFile, invitesFile, memberIds: ['alpha', 'beta'] }); await f.open();
+  // A view-only invitation cannot be claimed today, so its membership grants nothing and is not imported.
+  assert.equal(plan.droppedMemberships, 1); assert.deepEqual(plan.accounts[1].memberships, [{ role: 'player', memberId: 'beta' }]);
   const legacy = await f.registry.registerLegacy(plan);
   assert.equal(legacy.kind, 'legacy-shared'); assert.equal(f.registry.pickerDirectory(legacy.id), legacyDir);
   assert.equal((await f.registry.registerLegacy(plan)).id, legacy.id);
@@ -145,22 +155,55 @@ test('legacy import preserves permissions and data and leaves both default slots
   await f.registry.removeMembership(source.accounts[0].id, legacy.id, 'alpha');
   await f.registry.deleteAccount(source.accounts[1].id); assert.equal(f.registry.getPicker(legacy.id).lifecycle, 'active');
   assert.equal(await readFile(accountsFile, 'utf8'), bytes); assert.equal((await lstat(accountsFile)).mtimeMs, before);
+  assert.equal(await readFile(invitesFile, 'utf8'), inviteBytes);
   assert.equal(await readFile(path.join(legacyDir, 'state.json'), 'utf8'), 'synthetic-state');
   await f.restart(); assert.equal(f.registry.pickerDirectory(legacy.id), legacyDir);
 });
 
 test('legacy import refuses corruption, unknown members, role escalation and identity collisions', async t => {
   const f = await fixture(t), legacyDir = path.join(f.root, 'legacy'); await mkdir(legacyDir); f.options.legacyDir = legacyDir;
-  const accountsFile = path.join(legacyDir, 'accounts.json');
+  const accountsFile = path.join(legacyDir, 'accounts.json'), invitesFile = path.join(legacyDir, 'invites.json');
+  await writeFile(invitesFile, JSON.stringify(legacyInvites([])));
   for (const source of [null, { schemaVersion: 99, accounts: [] }, { schemaVersion: 1, accounts: [legacyAccount('discord', 'synthetic', [['owner', 'alpha']])] }, { schemaVersion: 1, accounts: [legacyAccount('discord', 'synthetic', [['player', 'outside']])] }]) {
     const bytes = source === null ? '{' : JSON.stringify(source); await writeFile(accountsFile, bytes);
-    await assert.rejects(readLegacyAccounts({ accountsFile, memberIds: ['alpha', 'beta'] }), /Invalid legacy account import/);
+    await assert.rejects(readLegacyAccounts({ accountsFile, invitesFile, memberIds: ['alpha', 'beta'] }), /Invalid legacy account import/);
     assert.equal(await readFile(accountsFile, 'utf8'), bytes);
   }
+  await writeFile(accountsFile, JSON.stringify({ schemaVersion: 1, accounts: [] }));
+  for (const invites of ['null', '{', JSON.stringify({ schemaVersion: 1, invites: [{ id: 'not-an-invite' }], sessions: [] })]) {
+    await writeFile(invitesFile, invites);
+    await assert.rejects(readLegacyAccounts({ accountsFile, invitesFile, memberIds: ['alpha', 'beta'] }), /Invalid legacy account import/);
+  }
+  await rm(invitesFile); await assert.rejects(readLegacyAccounts({ accountsFile, invitesFile, memberIds: ['alpha', 'beta'] }), { code: 'ENOENT' });
   await f.open(); await f.registry.ensureIdentity('discord', 'synthetic-conflict');
   await assert.rejects(f.registry.registerLegacy({ memberIds: ['alpha', 'beta'], accounts: [{ id: randomUUID(), identities: [{ provider: 'discord', subject: 'synthetic-conflict' }], memberships: [] }] }), { status: 409 });
   await assert.rejects(f.registry.registerLegacy({ memberIds: ['alpha', 'beta'], accounts: [{ id: randomUUID(), identities: [], memberships: [{ role: 'player', memberId: 'outside' }] }] }), /Invalid legacy registration/);
   assert.equal(f.registry.listPickers().length, 0); assert.equal((await json(f.ledger)).issuedPickerIds.length, 0);
+});
+
+test('legacy import keeps only memberships the invitation records still honour', async t => {
+  const f = await fixture(t), legacyDir = path.join(f.root, 'legacy'); await mkdir(legacyDir); f.options.legacyDir = legacyDir;
+  const kept = legacyAccount('discord', 'synthetic-kept', [['player', 'alpha']]), other = legacyAccount('google', 'synthetic-other', [['player', 'beta']]);
+  const revoked = legacyAccount('discord', 'synthetic-revoked', [['player', 'alpha']]), unclaimed = legacyAccount('discord', 'synthetic-unclaimed', [['player', 'beta']]);
+  const elsewhere = legacyAccount('google', 'synthetic-elsewhere', [['player', 'alpha']]), moved = legacyAccount('google', 'synthetic-moved', [['player', 'alpha']]);
+  const missing = legacyAccount('discord', 'synthetic-missing', [['player', 'beta']]);
+  const accounts = [kept, other, revoked, unclaimed, elsewhere, moved, missing];
+  const invites = legacyInvites(accounts, (invite, account) => {
+    if (account === revoked) return { ...invite, revoked: true };
+    if (account === unclaimed) { const { claimedAccountId, claimedAt, ...rest } = invite; return rest; }
+    if (account === elsewhere) return { ...invite, claimedAccountId: other.id };
+    if (account === moved) return { ...invite, memberId: 'beta' };
+    return invite;
+  });
+  invites.invites = invites.invites.filter(invite => invite.id !== missing.memberships[0].inviteId);
+  const accountsFile = path.join(legacyDir, 'accounts.json'), invitesFile = path.join(legacyDir, 'invites.json');
+  await writeFile(accountsFile, JSON.stringify({ schemaVersion: 1, accounts })); await writeFile(invitesFile, JSON.stringify(invites));
+  const plan = await readLegacyAccounts({ accountsFile, invitesFile, memberIds: ['alpha', 'beta'] });
+  assert.equal(plan.droppedMemberships, 5);
+  assert.deepEqual(plan.accounts.map(account => account.memberships), [[{ role: 'player', memberId: 'alpha' }], [{ role: 'player', memberId: 'beta' }], [], [], [], [], []]);
+  await f.open(); const legacy = await f.registry.registerLegacy(plan);
+  for (const account of accounts.slice(2)) assert.equal(f.registry.getAccount(account.id).memberships.length, 0);
+  assert.deepEqual(f.registry.getAccount(kept.id).memberships.map(({ pickerId, role, memberId }) => ({ pickerId, role, memberId })), [{ pickerId: legacy.id, role: 'player', memberId: 'alpha' }]);
 });
 
 test('capability index retains scope and revokes hashes with memberships', async t => {

@@ -316,7 +316,7 @@ export async function openRegistry({ registryDir, pickerRoot, tombstoneDir, lega
       await save(next); return account;
     }); },
     registerLegacy(plan) { return enqueue(async () => {
-      if (!legacyDir || !object(plan, ['accounts', 'memberIds']) || !Array.isArray(plan.accounts)) throw new TypeError('Invalid legacy registration.');
+      if (!legacyDir || !object(plan, ['accounts', 'memberIds', 'droppedMemberships']) || !Array.isArray(plan.accounts)) throw new TypeError('Invalid legacy registration.');
       registryMembers(plan.memberIds);
       if (plan.memberIds.length !== 2) throw new TypeError('Legacy registration requires two established members.');
       let picker = current.pickers.find(p => p.kind === 'legacy-shared');

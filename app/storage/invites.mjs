@@ -31,7 +31,7 @@ function memberId(value) {
   return value;
 }
 function validDate(value) { return typeof value === 'string' && Number.isFinite(Date.parse(value)); }
-function validate(document) {
+export function validateInviteStore(document) {
   if (!document || Object.keys(document).some(key => !['schemaVersion', 'invites', 'sessions'].includes(key)) || document.schemaVersion !== 1 || !Array.isArray(document.invites) || !Array.isArray(document.sessions)) throw new TypeError('Invalid invite store.');
   const ids = new Set(), hashes = new Set();
   if (document.invites.length > 1000 || document.sessions.length > 10000) throw new TypeError('Invite store exceeds its limits.');
@@ -74,7 +74,7 @@ export async function openInviteStore({ dataDir, masterToken, masterLabel, now =
   if (masterLabel === undefined) masterLabel = (await loadGameDefaults()).masterLabel;
   const file = path.join(dataDir, 'invites.json');
   let current;
-  try { current = validate(JSON.parse(await readFile(file, 'utf8'))); }
+  try { current = validateInviteStore(JSON.parse(await readFile(file, 'utf8'))); }
   catch (failure) { if (failure.code !== 'ENOENT') throw new Error('Invalid invite store.'); current = { schemaVersion: 1, invites: [], sessions: [] }; }
   let queue = Promise.resolve(), closed = false;
   const uses = new Map();

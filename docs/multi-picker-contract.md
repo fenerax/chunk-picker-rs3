@@ -278,9 +278,14 @@ lifecycle, ready provisioning and the selected membership.
 For the sole existing shared exception, configure `legacyDir` to its existing
 directory, separate from all three roots. `readLegacyAccounts` in
 `app/storage/registry-legacy.mjs` reads today's schema-1 `accounts.json` without
-writing it. The caller supplies the two member IDs verified against the existing
-save. The returned plan retains account IDs, provider links and player/viewer
-permissions; duplicate invitation grants collapse to the same explicit grant.
+writing it, together with the same directory's `invites.json`, also read only. The
+caller supplies the two member IDs verified against the existing save. A
+membership is kept only if `accountPrincipal` would still honour it: its
+invitation exists, is not revoked or administrative, is claimed by that account
+and matches its player and role. Revocation leaves memberships in
+`accounts.json`, so this check is what keeps revoked access out. The plan reports
+only a `droppedMemberships` count. It retains account IDs, provider links and
+the surviving grants; duplicate invitation grants collapse to the same explicit grant.
 `registerLegacy(plan)` registers one `legacy-shared` picker and imports the plan
 atomically. It is idempotent for unchanged grants, rejects identity conflicts and
 deleted account IDs, and neither opens nor modifies the existing save. Its path
