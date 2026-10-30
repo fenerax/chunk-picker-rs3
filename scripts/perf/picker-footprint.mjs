@@ -27,10 +27,16 @@ async function trial(config) {
   const snapshots = { beforeImport: sample(1) };
   const controller = new AbortController();
   const module = name => import(pathToFileURL(path.join(config.appDir, name)).href);
-  const workers = new Set();
+  const workers = new Set(), compileMs = [];
   const { ProcessWorker } = await module('tasks/process-worker.mjs');
   const on = ProcessWorker.prototype.on;
-  ProcessWorker.prototype.on = function(...args) { workers.add(this); return on.apply(this, args); };
+  ProcessWorker.prototype.on = function(...args) {
+    if (!workers.has(this)) {
+      workers.add(this);
+      on.call(this, 'message', message => { if (message.type === 'ready' && Number.isFinite(message.compileMs)) compileMs.push(message.compileMs); });
+    }
+    return on.apply(this, args);
+  };
   const { createServer } = await module('server.mjs');
   snapshots.afterImport = sample(2);
   const { createRuleRegistry } = await module('core/rules.mjs');
@@ -62,6 +68,8 @@ async function trial(config) {
     await writeFile(path.join(config.store, 'access-token'), randomBytes(32).toString('base64url'), { mode: 0o600 });
     app = await createServer({ dataDir: config.store, port: config.port, host: '127.0.0.1',
       initialState, startupSignal: controller.signal, predictionPrewarm: false,
+      ...(config.multiPicker && !config.solo ? { multiPicker: { registryDir: path.join(config.root, 'registry'),
+        pickerRoot: path.join(config.root, 'pickers'), tombstoneDir: path.join(config.root, 'tombstones') } } : {}),
       shutdownDeadlineMs: 5000,
       runeMetrics: { fetchImpl: async () => { throw new Error('Offline footprint trial.'); } },
       originalSync: { fetchImpl: async () => { throw new Error('Offline footprint trial.'); } },
@@ -138,7 +146,7 @@ async function trial(config) {
           perContextHeapBytes: (after.memory.heapUsed - before.memory.heapUsed) / count });
       } finally { for (const store of opened) await store.close(); }
     }
-    return { snapshots, evaluations, rollPool, contexts, initialProgress,
+    return { snapshots, evaluations, rollPool, contexts, initialProgress, compileMs, multiPicker: Number(config.multiPicker && !config.solo),
       storeBytes: (await inventory(config.store)).reduce((sum, row) => sum + (row.bytes ?? 0), 0),
       bindingBytes: (await readFile(config.store + '.dataset.json').catch(error => { if (error.code !== 'ENOENT') throw error; return Buffer.alloc(0); })).length,
       datasetDigestBytes: [...Buffer.from(app.dataset.digest, 'hex')] };
@@ -158,7 +166,7 @@ async function trial(config) {
 }
 
 async function main() {
-  const { values } = parseArgs({ options: Object.fromEntries(['pointer', 'app-dir', 'store', 'port', 'out', 'max-rss-mib', 'idle-ms', 'internal'].map(key => [key, { type: 'string' }])) });
+  const { values } = parseArgs({ options: { 'multi-picker': { type: 'boolean', default: false }, ...Object.fromEntries(['pointer', 'app-dir', 'store', 'port', 'out', 'max-rss-mib', 'idle-ms', 'internal'].map(key => [key, { type: 'string' }])) } });
   if (values['internal']) {
     const config = JSON.parse(await readFile(values['internal'], 'utf8'));
     const result = await trial(config);
@@ -198,17 +206,19 @@ async function main() {
     const report = { schemaVersion: 1, startedAtMs, nodeVersion: process.versions.node.split('.').map(Number),
       linux: Number(process.platform === 'linux'), cpuCount: cpus().length, totalRAMBytes: totalmem(),
       releaseIdUtf8: [...Buffer.from(values.pointer ? path.basename(path.dirname(path.resolve(values.pointer))) : 'synthetic')],
-      workerMode: 1, idleMs, sampleIntervalMs: 100, maxRSSBytes: maxRSS, trials: [] };
+      workerMode: 1, multiPicker: Number(values['multi-picker']), idleMs, sampleIntervalMs: 100, maxRSSBytes: maxRSS, trials: [] };
     for (const solo of [0, 1]) {
       const trialRoot = path.join(root, `trial-${solo}`), samples = path.join(trialRoot, 'samples');
       await mkdir(samples, { recursive: true, mode: 0o700 });
       const store = path.join(trialRoot, 'store');
       const sourceBytes = solo ? 0 : await cloneStore(source, store);
       const trialConfig = { appDir: path.join(config.coreRoot, 'app'), root: trialRoot, store, port, solo, idleMs, maxRSS,
+        multiPicker: values['multi-picker'],
         retention: Object.fromEntries(Object.entries({ backupDays: config.runtimeOptions?.backupDays, historyEntries: config.runtimeOptions?.historyEntries }).filter(([, value]) => value != null)),
         result: path.join(trialRoot, 'result.json') };
       const input = path.join(trialRoot, 'input.json'); await writeFile(input, encode(trialConfig), { mode: 0o600 });
       const env = { ...runtimeEnvironment(config, { probe: true }),
+        ...(process.env.RS3_GAME_DEFAULTS_FILE ? { RS3_GAME_DEFAULTS_FILE: process.env.RS3_GAME_DEFAULTS_FILE } : {}),
         RS3_TASK_WORKER_MODE: 'process', RS3_WORKER_IDLE_MS: String(idleMs),
         RS3_FOOTPRINT_SAMPLES: samples, RS3_STARTUP_TIMING_LOG: path.join(trialRoot, 'phases.jsonl'),
         RS3_WORKER_MEMORY_PROBE_IMPORT: probe };
