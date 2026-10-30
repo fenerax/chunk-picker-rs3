@@ -1855,6 +1855,25 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
   let activationPending;
   const context = {
     pickerId, store,
+    fenceRevokedSessions: () => endInactiveClients(),
+    revokeDeletionSessions: scope => invites.revokeDeletion(scope),
+    async revokeDeletedAccount(accountId) {
+      endInactiveClients();
+      await invites.revokeDeletion({ accountId });
+      await accounts.revokeDeletion(accountId);
+      endInactiveClients();
+    },
+    fenceDeletion() {
+      closed = true;
+      taskWorker?.cancelPicker?.();
+      for (const client of clients) client.end();
+      clients.clear(); clientCredentials.clear();
+      overlays.fenceDeletion();
+    },
+    async revokeDeletion() {
+      context.fenceDeletion();
+      await Promise.all([invites.revokeDeletion({ all: true }), gamePlugin.revokeDeletion(), overlays.revokeDeletion()]);
+    },
     sessionView: (identity, security) => signInFlow.sessionView(identity, security),
     checkImportBody(request, check) { importBodyChecks.set(request, check); },
     admitImport(request, security) {

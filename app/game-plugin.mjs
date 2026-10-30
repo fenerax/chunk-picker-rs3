@@ -589,6 +589,7 @@ export async function openGamePlugin({ dataDir, store, world, registry, questMap
       if (closed || !bytes) return;
       if (hasActiveKey(memberId)) retainedTasks.set(memberId, bytes); else { retainedTasks.delete(memberId); taskRows.delete(memberId); }
     },
+    revokeDeletion() { return keys.revokeDeletion(); },
     async prepareSnapshot() { await handledFlush; await flushHandled(true); await keys.flush(); },
     close() {
       if (closePromise) return closePromise;

@@ -4,6 +4,7 @@ export { routePermissions, commandPermissions, apiPermission, redactInviteTokens
 import { createPickerContext } from './picker-context.mjs';
 import { createPickerLimits } from './security/picker-limits.mjs';
 import { createPickerRouter } from './picker-router.mjs';
+import { reconcileTombstones, backupDeletionDisclosure } from './storage/tombstones.mjs';
 import { openRegistry } from './storage/registry.mjs';
 import { readLegacyAccounts } from './storage/registry-legacy.mjs';
 import { startupPhase } from './startup-timing.mjs';
@@ -101,7 +102,7 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
   // Optional second listener on 127.0.0.1 for Tailscale Funnel, which can only proxy to loopback.
   loopbackPort = process.env.RS3_LOOPBACK_PORT ? Number(process.env.RS3_LOOPBACK_PORT) : undefined,
   loopbackRole = process.env.RS3_LOOPBACK_ROLE ?? 'private',
-  signIn = process.env.RS3_SIGNIN ?? 'off', signInProvider, multiPicker,
+  signIn = process.env.RS3_SIGNIN ?? 'off', signInProvider, multiPicker, backupRetentionMs,
   httpServer, httpLoopbackServer, startupConnections, onRequestHandler, startupSignal,
   // Operator capability only: no HTTP endpoint can acquire writer ownership.
   liveSwap,
@@ -373,7 +374,9 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
   try {
     if (multiPicker) {
       await mkdir(dataDir, { recursive: true, mode: 0o700 });
+      backupDeletionDisclosure(backupRetentionMs);
       pickerRegistry = await openRegistry({ ...multiPicker, legacyDir: dataDir });
+      await reconcileTombstones({ registry: pickerRegistry });
     }
     context = await createPickerContext({ pickerId: 'legacy', dataDir, runtime,
       initialState, prepareState, beforeCommit, now, random, retention, initialImport,
@@ -382,10 +385,12 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
       startupSignal, startupTimingMs, transport,
       pickerRouting: pickerRegistry ? { registry: pickerRegistry, syncLegacy } : undefined });
     if (pickerRegistry) {
+      await reconcileTombstones({ registry: pickerRegistry, revokeSessions: scope => context.revokeDeletionSessions(scope),
+        revokeAccount: id => context.revokeDeletedAccount(id) });
       await syncLegacy();
       await pickerLimits.initialize(pickerRegistry);
       pickerRouter = createPickerRouter({ registry: pickerRegistry, legacy: context, pickerLimits,
-        publicOrigin, requestContextFor, unauthenticated: key => limits.unauthenticated(key), maxOpenContexts: multiPicker.maxOpenContexts, idleCloseMs: multiPicker.idleCloseMs, maxConcurrentImports: multiPicker.maxConcurrentImports,
+        publicOrigin, requestContextFor, backupRetentionMs, unauthenticated: key => limits.unauthenticated(key), maxOpenContexts: multiPicker.maxOpenContexts, idleCloseMs: multiPicker.idleCloseMs, maxConcurrentImports: multiPicker.maxConcurrentImports,
         openContext: async pickerId => {
           const picker = pickerRegistry.getPicker(pickerId);
           if (picker?.kind !== 'default' || picker.lifecycle !== 'active' || picker.provisioning !== 'ready') throw httpError(403, 'Picker access denied.');

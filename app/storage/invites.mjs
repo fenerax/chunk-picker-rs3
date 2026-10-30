@@ -92,11 +92,12 @@ export async function openInviteStore({ dataDir, masterToken, masterLabel, now =
   }
   function principal(inviteId) {
     if (inviteId === null) return { kind: 'master', label: masterLabel, admin: true, readOnly: false, capabilities: { canWrite: true }, memberId: null, actor: { kind: 'master', label: masterLabel } };
-    const invite = current.invites.find(invite => invite.id === inviteId && !invite.revoked);
+    const invite = current.invites.find(invite => invite.id === inviteId && !invite.revoked && !pickerRegistry?.isAccountDeleted(invite.claimedAccountId));
     return invite ? { kind: 'invite', label: safeText(invite.label), inviteId, admin: invite.admin, readOnly: invite.viewer ?? false, capabilities: { canWrite: !invite.viewer }, memberId: invite.memberId ?? null,
       actor: { kind: 'invite', inviteId, label: safeText(invite.label), ...(invite.memberId ? { memberId: invite.memberId } : {}) } } : null;
   }
   function accountPrincipal(session) {
+    if (pickerRegistry?.isAccountDeleted(session.accountId)) return null;
     if (session.pickerId) {
       const account = pickerRegistry?.getAccount(session.accountId), picker = pickerRegistry?.getPicker(session.pickerId);
       const membership = account?.memberships.find(item => item.pickerId === session.pickerId);
@@ -179,6 +180,11 @@ export async function openInviteStore({ dataDir, masterToken, masterLabel, now =
       if (!TOKEN.test(token ?? '')) return Promise.resolve();
       return mutate(next => { const digest = hash(token); next.sessions = next.sessions.filter(session => !equals(session.tokenHash, digest)); });
     },
+    revokeDeletion({ pickerId, accountId, all = false }) { return mutate(next => {
+      const revoked = new Set();
+      for (const invite of next.invites) if (all || accountId && invite.claimedAccountId === accountId) { invite.revoked = true; revoked.add(invite.id); }
+      next.sessions = next.sessions.filter(session => !all && !(pickerId && session.pickerId === pickerId) && !(accountId && session.accountId === accountId) && !revoked.has(session.inviteId));
+    }); },
     revokeAccountSessions(accountId) { return mutate(next => { next.sessions = next.sessions.filter(session => session.accountId !== accountId); }); },
     async touch(identity) {
       if (!['invite', 'account'].includes(identity?.kind)) return Promise.resolve();

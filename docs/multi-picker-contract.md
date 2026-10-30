@@ -769,10 +769,10 @@ Both recovery paths produce one owned picker, no inherited progress and unchange
 shared ownership; MP1's storage-level process-exit coverage remains unchanged.
 
 Out of scope: browser account/picker switching and clearing client state on
-logout; deletion and runtime tombstone handling; owner capability UI; fair sharing
+logout; owner capability UI; fair sharing
 between pickers; RuneMetrics client reconciliation with G15; and opening sign-up
 in production. Public launch still needs the owner's approval and the remaining
-Phase 1 browser/deletion/operator/limit work. Default residency limits are
+Phase 1 browser/operator/limit work. MP5 below completes deletion and runtime tombstone handling. Default residency limits are
 configuration bounds, not a measured public service capacity.
 
 ### Initial MP4 validation and private gate (before follow-up 1)
@@ -985,6 +985,194 @@ unlink/relink/restart, rejected links without identity writes, and offline
 identity removal with both live and revoked legacy grants. The final raw-byte
 duo gate was run against this app version with both option settings. All changes
 are staged; the option remains off by default.
+
+
+## MP5 deletion
+
+START is `18aaca0ac37198c5ebed819ffa554a72dc1a3aca`. This feature uses
+MP4's existing `multiPicker` server option. With it absent, the original
+dispatcher, routes, credentials and gameplay behavior remain in use.
+Production sign-up remains off.
+
+`POST /api/picker/delete` and `POST /api/account/delete` take an empty JSON
+object, require a signed-in account session and a valid request origin, and
+recheck that same session after reading the bounded body and inside the deletion
+queue. Picker deletion derives the picker ID from that session and verifies its
+current owner membership and matching registry owner. Account deletion derives
+only the account ID from the session; the registry finds all its owned default
+pickers. Selectors can confirm the session's picker, never choose another target.
+Operator bearer credentials, plugin keys alone and invitations cannot invoke
+these owner capabilities. The shared picker, including the `legacy` HTTP scope,
+cannot be deleted by this route or `beginPickerDeletion`.
+
+Both success responses contain `status: "deleted"` and a `backups` object with
+`retentionMs` and `message`. The separate server option
+`createServer({ multiPicker: { ... }, backupRetentionMs })` has **no default**.
+When supplied it must be a positive safe integer in milliseconds. It describes
+the operator's finite retained-backup expiry policy; the app does not implement
+service-backup expiry. Responses explicitly say retained backups are **not
+erased immediately**. If the setting is absent, deletion still succeeds,
+`retentionMs` is null and the message says the retention period is not configured.
+Operators must implement and configure the disclosed expiry policy before public
+launch. Gameplay backup retention is a different setting.
+
+### Durable order and recovery
+
+The MP1 external `tombstoneDir/ledger.json` remains the authoritative ledger;
+there is no second restorable deletion database. Records contain only IDs,
+deletion timestamps, lifecycle and optional purge progress. No provider subject,
+name, game field, token or capability hash is added to tombstones. Existing
+issued-ID reservations and retired-account records remain compatible. Writes
+reuse the locked, mode-0600, fsync/rename/parent-fsync registry writer.
+START's ledger reader refuses the added progress fields. An enabled-routing
+rollback must use a version that understands them; never discard or edit the
+external ledger to force an older reader to open it.
+
+The sequence is: durably tombstone first; refuse account/picker admission through
+the registry; synchronously fence streams before the registry cleanup write and
+cancel only that picker's MP3 jobs; revoke local
+invitations, plugin keys and overlays plus issuer sessions; drain accepted writes,
+readers, calculations and sidecar flushes through context close; evict caches;
+remove the owned directory and sync its parent; remove its sibling binding and
+sync its parent; mark the picker deleted and clear the default slot. The ledger
+records `revoked`, `drained`, `directory-removed`, `binding-removed` and `complete`.
+Account tombstoning atomically includes every active owned picker, removes its
+provider-subject/index grants and records pending issuer cleanup. Its completion
+revokes claimed invitations and account sessions and removes its legacy account
+row, when present. A later provider login creates a fresh account after account
+deletion, or a fresh picker after picker-only deletion, with empty progress.
+
+Startup reconciles the registry and purges every tombstoned owned directory and
+binding before any owned context can open. It also initializes and cleans the
+single legacy session issuer before legacy registration or HTTP listening, so a
+restored account row cannot be imported or authenticated. Even completed records
+are reapplied: restoring old directories, registry grants or issuer sessions must
+not undo a deletion. Every purge operation is idempotent; an interruption is
+completed on restart. Registry storage failures fail closed and require restart,
+as in MP1. The post-acquisition check also refuses an open racing a tombstone.
+
+For MP8, `reconcileTombstones({ registry, revokeSessions, drainPicker,
+revokeAccount })` is exported from `app/storage/tombstones.mjs`. Keep the external
+ledger when restoring a service checkpoint. Call reconciliation before opening
+owned stores. A live caller must supply issuer revocation hooks and a
+`drainPicker(id, phase)` hook: phase `revoke` synchronously fences delivery before
+its first await and finishes durable sidecar revocation; phase `drain` closes and
+evicts the context after accepted work finishes. Startup can omit the drain hook
+when there are no live owned contexts. Issuer cleanup must finish before serving
+requests. A live account-revocation hook must also fence retired credentials in
+every resident membership, preserving other accounts' sessions. The HTTP path
+does that synchronously immediately after the ledger write. This function is an operator integration API, not an HTTP restore API.
+
+Owner uploads and retained restores remain gameplay-only and use the session's
+active context. Old sessions cannot restore, selectors cannot address a deleted
+picker, and a retained ID is resolved only inside the current store. An explicit
+compatible gameplay upload into a fresh picker does not restore the deleted ID,
+account, subjects, capabilities or ownership. The issued ID stays burned.
+
+Shared-only account deletion removes account grants and claimed invitations;
+it never closes, removes or mutates the shared gameplay store. Operator-issued
+shared plugin/overlay credentials retain their existing scope. MP4's separate
+live/offline duo-account retirement policy is preserved: its older account
+records have no runtime-purge marker, and restoring those retired account IDs
+still fails closed through legacy registration. Ordinary invitation revocation
+also retains the established shared-game behavior.
+
+### Changed files and security reread
+
+| File | Change and target derivation |
+| --- | --- |
+| `app/storage/registry.mjs` | Minimal progress validation and writes, retired-account checks, deletion records and ledger-derived owned paths; rejects shared-picker tombstoning. Storage APIs remain operator-only. |
+| `app/storage/tombstones.mjs` | Idempotent runtime/startup purge and explicit backup-retention disclosure; IDs and paths come only from the locked registry/ledger. |
+| `app/picker-router-deletion.mjs` | The two owner routes and serialized deletion transaction; every HTTP target is derived and reauthenticated from the same account session. |
+| `app/picker-router.mjs` | Selects the deletion handler without opening a store, fences opening races, and supplies context revocation/close hooks using registry-derived IDs. Shutdown waits for accepted deletions. |
+| `app/picker-context.mjs` | Internal `fenceRevokedSessions`, `fenceDeletion`, `revokeDeletionSessions`, `revokeDeletedAccount` and `revokeDeletion` entry points; fences SSE, cancels MP3 work, revokes sidecars and reuses the established close/drain. |
+| `app/server.mjs` | Opt-in startup reconciliation and retention-option wiring only. |
+| `app/storage/invites.mjs` | `revokeDeletion({ pickerId, accountId, all })` removes issuer sessions and revokes claimed/all local invitations; retired accounts cannot authenticate even before cleanup. The trusted caller supplies ledger/session scope. |
+| `app/storage/accounts.mjs` | Idempotent `revokeDeletion(accountId)` removes a ledger-selected legacy account row, with no gameplay mutation. |
+| `app/game-plugin.mjs`, `app/plugin-keys.mjs` | Internal `revokeDeletion()` entry points revoke keys in the already selected owned context; no request-selected player/path or new plugin permission. |
+| `app/overlays.mjs` | Internal `fenceDeletion()` and `revokeDeletion()` end local streams synchronously and durably revoke all local capabilities before close. |
+| `tests/picker-deletion*.test.mjs`, `scripts/test-selection.mjs` | Synthetic HTTP and fresh-process recovery tests, classified quick/open-f2p. |
+
+The security reread covered both HTTP deletions, each internal revocation entry
+point above, queued authentication, context acquisition and eviction, startup
+registration, provider-subject removal and gameplay restore. No deletion or
+revocation endpoint accepts a target account ID, picker ID, member ID, hash or
+filesystem path. Existing operator administration is unchanged.
+
+### Acceptance and remaining work
+
+The 27 new tests cover scoped/origin/body refusal; picker/account deletion;
+stream and overlay closure with both pickers subscribed; key, invitation, cookie
+and overlay refusal; durable local revocation before file removal; the paused
+post-tombstone/pre-cleanup window; a held
+accepted write; immediate revocation of an account's streams in another active
+membership while preserving that picker's owner streams; a late MP3 result and
+surviving B job; fresh empty login;
+shared-game hash preservation; old uploaded/retained backups; restored registry,
+issuer, directory and binding checkpoints; and real process death at 15 durable
+picker/account checkpoints, followed by recovery and another lifecycle. Existing
+assertions and skip classifications are unchanged.
+
+Remaining work: browser deletion controls and switching/logout reconciliation
+(MP6/follow-on UI), fair sharing and measured limits (MP7), operator backup expiry
+and service-restore integration (MP8), RuneMetrics/G15 reconciliation, the full
+lane acceptance gate, and the owner's decision before opening sign-up.
+
+
+### MP5 validation and duo gate
+
+Node 24.19.0. The final quick suite ran before the final full suite, both after
+the last app edit. Focused deletion/recovery: **27 passed, 0 failed, 0 skipped**.
+No existing test assertion or skip classification was changed.
+
+| Suite | START passed / failed / skipped | MP5 passed / failed / skipped |
+| --- | --- | --- |
+| Quick | 2,553 / 0 / 68 | 2,580 / 0 / 68 |
+| Full | 5,700 / 0 / 140 | 5,727 / 0 / 140 |
+
+START quick/full took 73.22/267.36 seconds; final MP5 took 77.62/269.55 seconds.
+Both pass totals equal START plus the 27 new tests. These are verification
+runtimes, not performance trials.
+
+The final duo gate uses fresh temporary copies, process workers, the same 10
+read routes as MP4, identical injected store timestamps and a fixed
+`performance.now()` preload in HTTP and calculator processes. Complete raw
+response bytes are hashed without dropping or normalizing fields. It compares
+START with the final change with `multiPicker` absent and then present.
+**10 responses per run; 0 response differences and 0 rewritten-save differences
+in both comparisons.** Each run returns 83,606,131 bytes, with digest-array
+SHA-256 `67aa2720e6be6280624d8b79a2dd966d5d16d157fdfbc8b761f15eb727e2fc01`.
+The full-state response is 16,213,478 bytes, SHA-256
+`fcfeafdf1cfd701066bb4189a39138d8e9fd38900ea4ed57d113060b48499ddf`.
+The rewritten save is 766,384 bytes, SHA-256
+`64de39c55452925587b87af05aa01507513263761bc407f54e81bcbb699acfdc`.
+There are 0 changed files in the private checkout.
+
+### MP5 timing and memory
+
+Three fresh-process pairs alternate START/MP5 after all suites finish. Each
+trial uses a fresh temporary copy, process workers, port zero, disabled
+prediction prewarming, identical injected store timestamps and normal elapsed
+clocks. `multiPicker` is absent. Cold time includes module import, create/listen,
+the first full-state read and the first full task-list body. A command toggles
+one saved task's backlog flag and immediately reads the same member's full task
+list. Copying and shutdown are outside the timings. Every before/after list
+contains 20,497 tasks. Peak HTTP RSS is sampled every 20 ms and at response
+boundaries, then checked against the process lifetime high-water mark; calculator
+children are excluded. Values are median [minimum–maximum].
+
+| Measurement | START | MP5 |
+| --- | --- | --- |
+| Cold state and full tasks, ms | 11,765.39 [11,739.48–11,825.14] | 11,530.74 [11,466.00–11,619.26] |
+| Save response, ms | 1,806.33 [1,783.31–1,855.16] | 1,827.17 [1,762.87–1,879.92] |
+| Next full task list, ms | 1,940.15 [1,882.29–1,960.72] | 1,913.04 [1,827.41–1,981.73] |
+| Save through next full list, ms | 3,746.50 [3,665.60–3,815.90] | 3,792.98 [3,590.29–3,808.91] |
+| Peak HTTP RSS, MiB | 1,337.34 [1,323.83–1,403.18] | 1,357.30 [1,340.64–1,442.18] |
+
+Save-through-list and RSS ranges overlap. These three pairs establish neither
+a throughput improvement nor a service-capacity estimate. No calculator or
+residency-limit behavior changed. The feature remains opt-in; retained-backup
+expiry and whole-service restore remain operator work.
 
 ## MP7 fairness and limits
 
