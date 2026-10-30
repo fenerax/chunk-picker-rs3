@@ -75,6 +75,7 @@ export async function openPluginKeys({ dataDir, clock = Date.now }) {
       const record = next.keys.find(record => record.id === id && (player === undefined || player === record.player));
       if (!record) throw fail(404, 'Game plugin key not found.'); record.revoked = true; return publicRecord(record);
     }); },
+    revokeDeletion() { return mutate(next => { for (const record of next.keys) record.revoked = true; }); },
     touch(id, world) {
       const record = current.keys.find(record => record.id === id && !record.revoked);
       if (!record) throw fail(401, 'A game plugin key is required.');

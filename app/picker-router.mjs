@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import { isImportRoute, readBackupRequest } from './backup-transfer.mjs';
 import { routedBody, rememberRoutedBody, httpError, json } from './picker-context-http.mjs';
 import { checkBodyWith } from './security/json.mjs';
+import { createPickerDeletion } from './picker-router-deletion.mjs';
 import { requestContext } from './security/request.mjs';
 
 const digest = key => createHash('sha256').update(key).digest('hex');
@@ -11,7 +12,7 @@ const retry = () => Object.assign(httpError(503, 'The picker is unavailable. Ret
 /** The only residency and HTTP selection boundary. IDs from requests are checks,
  * never inputs to acquisition, registry path lookup or capability registration. */
 export function createPickerRouter({ registry, legacy, openContext, publicOrigin, requestContextFor = requestContext,
-  unauthenticated = () => {}, maxOpenContexts = 8, idleCloseMs = 10 * 60 * 1000, maxConcurrentImports = 1 }) {
+  unauthenticated = () => {}, backupRetentionMs, maxOpenContexts = 8, idleCloseMs = 10 * 60 * 1000, maxConcurrentImports = 1 }) {
   if (!Number.isSafeInteger(maxOpenContexts) || maxOpenContexts < 1 || !Number.isSafeInteger(idleCloseMs) || idleCloseMs < 1) throw new TypeError('Invalid picker residency limits.');
   if (!Number.isSafeInteger(maxConcurrentImports) || maxConcurrentImports < 1) throw new TypeError('Invalid picker import limit.');
   const entries = new Map();
@@ -20,11 +21,27 @@ export function createPickerRouter({ registry, legacy, openContext, publicOrigin
   // at once. Legacy keeps its own guard and is outside this budget.
   let imports = 0;
   let queue = Promise.resolve(), closed = false, closing;
+  const deletion = createPickerDeletion({ registry, legacy, backupRetentionMs,
+    fencePicker: id => { const entry = entries.get(id); if (entry && !entry.closing) entry.context.fenceDeletion(); },
+    fenceSessions: () => {
+      legacy.fenceRevokedSessions();
+      for (const entry of entries.values()) if (!entry.closing) entry.context.fenceRevokedSessions();
+    },
+    drainPicker: (id, phase) => {
+      if (phase === 'revoke') {
+        const entry = entries.get(id);
+        if (entry && !entry.closing) { clearTimeout(entry.timer); return entry.revoking ??= entry.context.revokeDeletion(); }
+        return;
+      }
+      return serialize(async () => { const entry = entries.get(id); if (entry) { await entry.revoking; await evict(entry); } });
+    },
+  });
   function serialize(operation) {
     const pending = queue.then(operation); queue = pending.catch(() => {}); return pending;
   }
   async function evict(entry) {
     clearTimeout(entry.timer);
+    entry.closing = true;
     // Keep the entry until close drains, so no writer can reopen alongside it.
     try { await entry.context.close(); } finally { entries.delete(entry.id); }
   }
@@ -41,6 +58,7 @@ export function createPickerRouter({ registry, legacy, openContext, publicOrigin
   async function acquire(id) {
     return serialize(async () => {
       if (closed) throw retry();
+      if (registry.getPicker(id)?.lifecycle !== 'active') throw httpError(403, 'Picker access denied.');
       let entry = entries.get(id);
       if (!entry) {
         if (maxOpenContexts === 1) throw retry();
@@ -55,7 +73,7 @@ export function createPickerRouter({ registry, legacy, openContext, publicOrigin
           await evict(victim);
         }
         const context = await openContext(id);
-        if (closed) { await context.close(); throw retry(); }
+        if (closed || registry.getPicker(id)?.lifecycle !== 'active') { await context.close(); throw retry(); }
         entry = { id, context, active: 0, streams: new Set() };
       }
       clearTimeout(entry.timer);
@@ -144,6 +162,7 @@ export function createPickerRouter({ registry, legacy, openContext, publicOrigin
     request.url = url.pathname + url.search;
     // Pending OAuth callbacks and sign-out always use the one session issuer.
     if (pathname.startsWith('/auth/') || pathname.startsWith('/join/')) return { context: legacy };
+    if (['/api/picker/delete', '/api/account/delete'].includes(route)) return { deletion: route, identity, security };
     if (pickerId === 'legacy') return { context: legacy, legacyBackup: backup, checkBody };
     if (!identity && !capability) throw httpError(401, 'Access required.');
     const entry = await acquire(pickerId);
@@ -176,6 +195,7 @@ export function createPickerRouter({ registry, legacy, openContext, publicOrigin
         const options = { ...listener, publicOrigin };
         const security = listener.ingressRole === 'public' ? requestContext(request, options) : requestContextFor(request, options);
         const selected = await contextFor(request, security); entry = selected.entry;
+        if (selected.deletion) { await deletion.handle(request, response, selected); return; }
         if (selected.legacyBackup) selected.context.checkImportBody(request, selected.checkBody);
         if (selected.backup) {
           releaseImport = selected.context.admitImport(request, security);
@@ -205,7 +225,7 @@ export function createPickerRouter({ registry, legacy, openContext, publicOrigin
       if (closing) return closing;
       closed = true;
       for (const entry of entries.values()) clearTimeout(entry.timer);
-      closing = serialize(async () => { await Promise.all([...entries.values()].map(evict)); });
+      closing = deletion.drain().then(() => serialize(async () => { await Promise.all([...entries.values()].map(evict)); }));
       return closing;
     },
   };
