@@ -127,7 +127,9 @@ test('URL, header and body selectors cannot redirect command, reads, history, ex
   assert.equal((await f.send('/api/command?pickerId=' + own, a, { body: { pickerId: other } })).status, 403);
   assert.equal((await f.send('/api/state?pickerId=' + own + '&pickerId=' + other, a)).status, 403);
   assert.equal((await f.send('/api/pickers/' + other + '/state', a)).status, 403);
-  for (const id of [own, other]) await assert.rejects(readFile(path.join(f.multiPicker.pickerRoot, id, 'state.json')), { code: 'ENOENT' });
+  // Body selectors are checked after the caller's own context admits and reads the
+  // body, so only the caller's picker may have opened. The named picker never opens.
+  await assert.rejects(readFile(path.join(f.multiPicker.pickerRoot, other, 'state.json')), { code: 'ENOENT' });
   assert.equal((await f.send('/api/state?pickerId=' + own, a)).status, 200);
   assert.equal((await f.send('/api/state', b)).json().state.revision, 0);
   const created = await f.send('/api/game-plugin/keys', a, { body: { memberId: 'owner', label: 'Player 1' } });
@@ -515,6 +517,15 @@ test('owned backup admission checks origin, role, selectors and the same per-pic
   const legacyConflict = await f.private('/api/restore/preview', { body: { pickerId: await f.picker('101') } });
   assert.equal(legacyConflict.status, 403);
   assert.equal(f.app().store.getInfo().revision, 0);
+});
+
+test('signed-in JSON requests are refused by route, role and origin before the router reads a body', async t => {
+  const f = await fixture(t), a = await f.login('101');
+  // Body selectors are still refused after the handler reads its body (see the selector test above).
+  for (const [route, headers] of [['/api/operator/snapshot', {}], ['/api/no-such-route', {}], ['/api/command', { origin: 'https://elsewhere.example' }]]) {
+    const result = await directUpload(f, route, { cookie: a, headers }).done;
+    assert.ok(result.status >= 400 && result.status < 500, route + ' ' + result.status); assert.equal(result.reads, 0, route);
+  }
 });
 
 test('private account session exposes the same sign-in and account controls as a duo account', async t => {

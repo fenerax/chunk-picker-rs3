@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import { isImportRoute, readBackupRequest } from './backup-transfer.mjs';
-import { bodyJSON, routedBody, rememberRoutedBody, httpError, json, MAX_BODY } from './picker-context-http.mjs';
+import { routedBody, rememberRoutedBody, httpError, json } from './picker-context-http.mjs';
+import { checkBodyWith } from './security/json.mjs';
 import { requestContext } from './security/request.mjs';
 
 const digest = key => createHash('sha256').update(key).digest('hex');
@@ -112,9 +113,9 @@ export function createPickerRouter({ registry, legacy, openContext, publicOrigin
     const backup = isImportRoute(route) && request.method === 'POST';
     // Legacy backup admission and parsing stay entirely in its handler.
     // Owned backups acquire the context's import guard before any parser runs.
-    if (!backup && /^application\/json(?:\s*;|$)/i.test(request.headers['content-type'] ?? '') && !['GET', 'HEAD'].includes(request.method)) {
-      checkBody(await bodyJSON(request, MAX_BODY, { remember: true }));
-    }
+    // JSON selectors are checked when the handler reads its body, after its own
+    // route, role, origin and size admission. The router never buffers JSON.
+    if (!backup) checkBodyWith(request, checkBody);
     checkSelectors();
     const current = legacy.authenticate(request, security);
     if (identity && (!current || current.accountId !== identity.accountId || current.sessionId !== identity.sessionId || current.kind !== identity.kind)) throw httpError(401, 'Access required.');

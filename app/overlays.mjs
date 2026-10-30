@@ -1,5 +1,5 @@
 import { createStreamLimits } from './security/request.mjs';
-import { parseRequestJSON } from './security/json.mjs';
+import { parseRequestJSON, runBodyCheck } from './security/json.mjs';
 import { open, readFile, realpath, rename, rm } from 'node:fs/promises';
 import { randomBytes, randomUUID, createHash, timingSafeEqual } from 'node:crypto';
 import { setTimeout as delay } from 'node:timers/promises';
@@ -60,6 +60,7 @@ async function bodyJSON(request) {
   for await (const chunk of request.iterator({ destroyOnReturn: false })) { size += chunk.length; if (size > 8192) throw fail(413, 'Request body is too large.'); chunks.push(chunk); }
   const value = parseRequestJSON(Buffer.concat(chunks).toString('utf8'));
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw fail(400, 'Request body must be a JSON object.');
+  runBodyCheck(request, value);
   return value;
 }
 

@@ -16,3 +16,10 @@ export function parseRequestJSON(text, maxDepth = 128) {
   try { return JSON.parse(text); }
   catch { throw Object.assign(new Error('Request body is not valid JSON.'), { status: 400 }); }
 }
+
+// The picker routing boundary registers a selector check per request. Every
+// JSON body reader runs it on the parsed object, after its own admission and
+// size limit, before any handler sees the body.
+const bodyChecks = new WeakMap();
+export function checkBodyWith(request, check) { bodyChecks.set(request, check); }
+export function runBodyCheck(request, value) { bodyChecks.get(request)?.(value); }

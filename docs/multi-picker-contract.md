@@ -684,19 +684,23 @@ closes private contexts, then the legacy session issuer, then the registry.
 
 Supported optional selectors are query/body `pickerId` or `picker`, headers
 `X-Picker-Id` or `X-Picker`, and `/pickers/:id/...` or `/api/pickers/:id/...`.
-They must all equal the credential's bound picker, including nested body fields;
-ordinary JSON conflicts are refused before a context opens or its handler runs. Legacy uses
+They must all equal the credential's bound picker, including nested body fields.
+URL, query and header conflicts are refused before any context opens. The router
+never buffers ordinary JSON. Each JSON body reader (`bodyJSON` and the overlay
+reader) runs the router's registered check on the parsed object, after the
+selected context's own route, role, origin and size admission and before the
+handler uses the body. A body conflict can therefore open only the caller's own
+picker; the named picker never opens. Legacy uses
 `legacy` as its request scope. Matching routing envelope fields are removed
-before ordinary route schema checks. JSON parsing preserves exact byte counts
-and downstream route limits. Unauthenticated requests reach legacy without body
+before ordinary route schema checks. Unauthenticated requests reach legacy without body
 parsing. Legacy backup uploads also stay unread until the legacy handler admits
 them. For owned backups, URL and header selectors pass first; the selected
 context checks the owner role, origin and its shared import guard before the
 streaming parser runs. Legacy checks parsed selectors within its own admitted
 backup path. Parsed body selectors pass before gameplay handling,
 and the guard stays held through parsing and execution, releasing on failure.
-Authenticated GET/HEAD bodies are refused. Authentication is rechecked after
-ordinary JSON admission and again inside the selected context.
+Authenticated GET/HEAD bodies are refused. Authentication is checked again inside
+the selected context.
 
 Plugin key issuance writes the local key and its hash-to-account/picker/member
 registry entry before returning a secret. Failed indexing revokes the local key;
