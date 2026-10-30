@@ -3,7 +3,7 @@ import { openPluginAchievements } from './plugin-achievements.mjs';
 import { openPluginItems } from './plugin-items.mjs';
 import { GAME_ITEMS, GAME_TOOLBELT, GAME_WORN_TASKS, COINS, COIN_BILLIONS, ITEM_REVIEW_LIMIT, matchGameItems } from './integrations/game-items.mjs';
 import { fields, validatePluginReport, pluginProposal, matchPluginAchievements, ACHIEVEMENT_REVIEW_LIMIT } from './integrations/game-plugin.mjs';
-import { pluginTaskRows, pluginTaskList, pluginTaskFrom, pluginDoneRows, pluginDoneList, pluginRollSummary } from './game-plugin-tasks.mjs';
+import { pluginTaskRows, pluginTaskList, pluginTaskFrom, pluginDoneRows, pluginDoneList, pluginDoneLocations, PLUGIN_DONE_AGE_MS, pluginRollSummary } from './game-plugin-tasks.mjs';
 import { createPluginProgressSource } from './integrations/progress-sources.mjs';
 import { createGameCoordinates } from './core/game-coords.mjs';
 
@@ -393,14 +393,27 @@ export async function openGamePlugin({ dataDir, store, world, registry, questMap
     if (!bytes) return { ...pluginTaskList({ rows: null, chunkId, stateRevision: revision, stale: false }), chunkId: positionGameId(position),
       done: pluginDoneList({ chunkId, now: clock() }) };
     let cached = taskRows.get(player);
+    // The getter returns a stable live-history view immediately. Background archive
+    // completion replaces that view, invalidating only the finished-row projection.
+    const history = store.getTaskCompletionHistory?.(player, { since: clock() - PLUGIN_DONE_AGE_MS });
+    let snapshot, result;
     if (cached?.bytes !== bytes || cached.revision !== revision) {
-      const state = store.getTaskClaimState?.() ?? store.getCalculationSnapshot().state;
-      const result = JSON.parse(bytes.toString('utf8'));
-      const history = store.getTaskCompletionHistory?.(player) ?? state.history ?? [];
-      cached = { bytes, revision, stale: !current,
-        rows: pluginTaskRows({ state, result, registry, memberId: player, stale: !current }),
-        doneRows: pluginDoneRows({ state: { ...state, history }, result, registry, memberId: player }) };
+      snapshot = store.getTaskClaimState?.() ?? store.getCalculationSnapshot().state;
+      result = JSON.parse(bytes.toString('utf8'));
+      const doneLocations = cached?.revision === revision ? cached.doneLocations : new Map();
+      cached = { bytes, revision, stale: !current, doneLocations,
+        rows: pluginTaskRows({ state: snapshot, result, registry, memberId: player, stale: !current }) };
       taskRows.set(player, cached);
+    }
+    if (!cached.doneRows || cached.history !== history) {
+      cached.history = history;
+      // Reparse only if the background ledger changed; do not keep a second
+      // expanded copy of every saved task and the gameplay snapshot in memory.
+      snapshot ??= store.getTaskClaimState?.() ?? store.getCalculationSnapshot().state;
+      result ??= JSON.parse(bytes.toString('utf8'));
+      const rows = pluginDoneRows({ state: { ...snapshot, history: history ?? snapshot.history ?? [] },
+        result, registry, memberId: player });
+      cached.doneRows = pluginDoneLocations({ rows, state: snapshot, result, world, now: clock(), cache: cached.doneLocations });
     }
     // Filter tasks in picker space, then keep the wire's current-chunk identity
     // consistent with status and the plugin's position/debounce checks.

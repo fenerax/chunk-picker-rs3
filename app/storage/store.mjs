@@ -55,6 +55,16 @@ const ARCHIVE_ID = /^archive-[a-f0-9]{16}\.json\.gz$/;
 const STATIC_ID = /^static-([a-f0-9]{64})\.json\.gz$/;
 const STATIC_THRESHOLD = 256 * 1024;
 export const DEFAULT_RETENTION = Object.freeze({ backupDays: 90, historyEntries: 1000 });
+const COMPLETION_HISTORY_TYPES = new Set(['set-task-status', 'tick-active-tasks', 'complete-task', 'apply-runemetrics', 'apply-game-progress', 'sync-original']);
+function taskCompletionEvent({ revision, type, at, command, undoneRevision }) {
+  if (!command || !COMPLETION_HISTORY_TYPES.has(type)) return null;
+  // Keep only ledger evidence, never undo snapshots, actor details or notes.
+  return structuredClone({ revision, type, at, undoneRevision, command: type === 'sync-original'
+    ? { members: (command.members ?? []).map(row => ({ memberId: row.memberId, tasks: { complete: row.tasks?.complete ?? [] } })) }
+    : { memberId: command.memberId, taskId: command.taskId, taskIds: command.taskIds, completed: command.completed,
+      ...(Object.hasOwn(command, 'challengeCompleted') ? { challengeCompleted: command.challengeCompleted } : {}),
+      quests: command.quests?.map(row => ({ taskId: row.taskId })) } });
+}
 const host = hostname();
 const execFileAsync = promisify(execFile);
 let ownStart;
@@ -472,6 +482,55 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
       playProjections.set(state, projection);
     }
     return projection;
+  }
+  let taskCompletionCache;
+  const taskCompletionReads = new Set();
+  function completionHistoryCache(since) {
+    if (taskCompletionCache?.state === current && taskCompletionCache.since <= since) return taskCompletionCache;
+    const captured = current, events = new Map();
+    for (const event of captured.history) {
+      const selected = taskCompletionEvent(event);
+      if (selected) events.set(event.revision, selected);
+    }
+    const cache = taskCompletionCache = { state: captured, since, events, histories: new Map() };
+    const references = captured.provenance?.historyArchive ?? [];
+    const oldestLive = Date.parse(captured.history[0]?.at);
+    if (references.length && (!Number.isFinite(oldestLive) || oldestLive > since) && !closing) {
+      // Defer all archive I/O and decompression beyond the synchronous read reply.
+      const reading = new Promise(resolve => setImmediate(resolve)).then(async () => {
+        const events = new Map(cache.events), seen = new Set(captured.history.map(event => event.revision));
+        const through = references.map(reference => {
+          if (!HISTORY_ID.test(reference?.id)) throw new TypeError('Invalid history archive ID.');
+          return Number(reference.id.split('-')[2]);
+        });
+        const remainingMax = [];
+        for (let index = 0; index < through.length; index++) remainingMax[index] = Math.max(through[index], remainingMax[index - 1] ?? 0);
+        let boundary = -1;
+        for (let index = references.length - 1; index >= 0; index--) {
+          if (closing || taskCompletionCache !== cache || current !== captured) return;
+          // Newer segments and the live suffix win, including archived undo marks.
+          for await (const event of readHistoryEvents(path.join(historyDir, references[index].id))) {
+            if (closing || taskCompletionCache !== cache || current !== captured) return;
+            const at = Date.parse(event.at);
+            if (Number.isFinite(at) && at <= since) boundary = Math.max(boundary, event.revision);
+            if (seen.has(event.revision)) continue;
+            seen.add(event.revision);
+            if (!Number.isFinite(at) || at < since) continue;
+            const selected = taskCompletionEvent(event);
+            if (selected) events.set(event.revision, selected);
+          }
+          // A late override of an old revision must not hide newer unread segments.
+          if (index === 0 || remainingMax[index - 1] <= boundary) break;
+        }
+        if (!closing && taskCompletionCache === cache && current === captured) {
+          cache.events = events;
+          cache.histories.clear();
+        }
+      }).catch(() => { /* Unavailable archive evidence leaves live finishes readable. */ })
+        .finally(() => taskCompletionReads.delete(reading));
+      taskCompletionReads.add(reading);
+    }
+    return cache;
   }
   function refreshSnapshots() {
     if (poolState !== current) { poolState = current; fullPools = undefined; playPools = undefined; calculationSnapshot = undefined; }
@@ -1109,17 +1168,13 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
       return structuredClone({ schemaVersion, revision, rules, members, tasks, identityRegistry,
         ...(taskClaims !== undefined ? { taskClaims } : {}) });
     },
-    // Completion ledger evidence only, without copying undo snapshots or private notes.
-    getTaskCompletionHistory(memberId) {
-      const types = new Set(['set-task-status', 'tick-active-tasks', 'complete-task', 'apply-runemetrics', 'apply-game-progress', 'sync-original']);
-      return structuredClone(current.history.filter(event => event.command && types.has(event.type) &&
-        (event.command?.memberId === memberId || event.type === 'sync-original')).map(({ type, at, command, undoneRevision }) => ({
-        type, at, undoneRevision, command: type === 'sync-original'
-          ? { members: (command.members ?? []).filter(row => row.memberId === memberId).map(row => ({ memberId, tasks: { complete: row.tasks?.complete ?? [] } })) }
-          : { memberId, taskId: command.taskId, taskIds: command.taskIds, completed: command.completed,
-            ...(Object.hasOwn(command, 'challengeCompleted') ? { challengeCompleted: command.challengeCompleted } : {}),
-            quests: command.quests?.map(row => ({ taskId: row.taskId })) },
-      })));
+    // Stable per-revision views: an archive fill replaces the view on a later read.
+    getTaskCompletionHistory(memberId, { since = Date.parse(timestamp()) - 7 * 24 * 60 * 60 * 1000 } = {}) {
+      const cache = completionHistoryCache(since);
+      if (!cache.histories.has(memberId)) cache.histories.set(memberId, Object.freeze([...cache.events.values()]
+        .filter(event => event.command.memberId === memberId || event.command.members?.some(row => row.memberId === memberId))
+        .sort((a, b) => a.revision - b.revision)));
+      return cache.histories.get(memberId);
     },
     getTaskClaimSnapshot: () => ({ revision: current.revision, taskClaims: structuredClone(current.taskClaims ?? {}) }),
     getRules: () => ({ ...current.rules }),
@@ -1333,7 +1388,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     close({ beforeUnlock } = {}) {
       if (closePromise) return closePromise;
       closing = true;
-      closePromise = (async () => { await activationPending?.catch(() => {}); await queue; if (!readOnly && !frozen && !liveSwapStrict) await enqueueMaintenance(maintainRetention, { allowClosing: true }); else await maintenanceQueue; await beforeUnlock; listeners.clear(); await releaseLock(); })();
+      closePromise = (async () => { await activationPending?.catch(() => {}); await queue; await Promise.allSettled(taskCompletionReads); if (!readOnly && !frozen && !liveSwapStrict) await enqueueMaintenance(maintainRetention, { allowClosing: true }); else await maintenanceQueue; await beforeUnlock; listeners.clear(); await releaseLock(); })();
       return closePromise;
     },
   };

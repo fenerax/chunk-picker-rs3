@@ -1,3 +1,4 @@
+import { buildChunkPlanningIndex, baseLocationId } from './tasks/chunk-planning-index.mjs';
 import { resolveSavedTaskId } from './tasks/fact-projection.mjs';
 import { createCompletedModel } from './web/completed-model.mjs';
 import { selectDuoTasks } from './web/duo-tasks.mjs';
@@ -61,15 +62,48 @@ export function pluginDoneRows({ state, result, registry, memberId }) {
     const times = completions.filter(row => row.memberId === memberId && row.at).map(row => Date.parse(row.at)).filter(Number.isFinite);
     return { id: task.id, label: text(task.label, PLUGIN_TASK_LIMITS.label), category: text(task.category, PLUGIN_TASK_LIMITS.category),
       ...(Number.isSafeInteger(task.level) && task.level > 0 ? { level: task.level } : {}),
-      chunks: result.taskLocations ? (result.taskLocations[sourceIds.get(task.id) ?? task.id] ?? []).map(id => String(id).split('-')[0]) : null,
+      chunks: result.taskLocations ? result.taskLocations[sourceIds.get(task.id) ?? task.id]?.map(id => String(id).split('-')[0]) ?? null : null,
       done: true, doneAt: times.length ? new Date(Math.max(...times)).toISOString() : null };
   }).sort((a, b) => (Date.parse(b.doneAt) || 0) - (Date.parse(a.doneAt) || 0) || a.id.localeCompare(b.id));
 }
 
+const recentDoneRows = (rows, now) => (rows ?? []).filter(row => row.doneAt && Date.parse(row.doneAt) >= now - PLUGIN_DONE_AGE_MS && Date.parse(row.doneAt) <= now).slice(0, PLUGIN_DONE_LIMIT);
+const planningDefinitions = new WeakMap();
+
+/** Compact map projections omit completed tasks. Locate only the recent set,
+ * recovering authored records stripped from play results, never evaluating tasks. */
+export function pluginDoneLocations({ rows, state, result, world, now, cache = new Map() }) {
+  const recent = recentDoneRows(rows, now), definitions = world.definitions;
+  const sources = new Map([...(state.tasks ?? []), ...(result.tasks ?? [])].map(task => [resolveSavedTaskId(state.identityRegistry, task.id), task]));
+  const missing = recent.filter(row => !cache.has(row.id));
+  const candidates = missing.flatMap(row => {
+    const task = sources.get(row.id);
+    const record = task?.record ?? definitions?.challenges?.[task?.category]?.[task?.rawLabel ?? task?.label];
+    return record || task?.sources?.length ? [{ ...task, id: row.id, record: record ?? {} }] : [];
+  });
+  if (definitions && candidates.length) {
+    // Clue markers are unrelated to task locations. Keep the shared declaration
+    // index, without traversing the full clue catalogue for these bounded rows.
+    if (!planningDefinitions.has(definitions)) planningDefinitions.set(definitions, { ...definitions, clues: {} });
+    const index = buildChunkPlanningIndex(planningDefinitions.get(definitions), { tasks: candidates }, world);
+    const located = new Map();
+    for (const [location, tasks] of index.byLocation) for (const id of tasks.keys()) {
+      if (!located.has(id)) located.set(id, new Set());
+      const base = baseLocationId(location);
+      if (world.chunks.has(base)) located.get(id).add(base);
+    }
+    for (const [id, chunks] of located) cache.set(id, [...chunks].sort());
+  }
+  // A known task the index cannot place is in no chunk, as active map rows are; only a
+  // task missing from both the save and the result leaves its location unknown.
+  for (const row of missing) if (!cache.has(row.id)) cache.set(row.id, row.chunks ?? (definitions && sources.has(row.id) ? [] : null));
+  return recent.map(row => ({ ...row, chunks: cache.get(row.id) }));
+}
+
 export function pluginDoneList({ rows = null, chunkId, now }) {
-  const recent = (rows ?? []).filter(row => row.doneAt && Date.parse(row.doneAt) >= now - PLUGIN_DONE_AGE_MS && Date.parse(row.doneAt) <= now);
+  const recent = recentDoneRows(rows, now);
   const strip = ({ chunks, ...row }) => row;
-  const hereKnown = rows !== null && chunkId !== null && rows.every(row => row.chunks !== null);
+  const hereKnown = rows !== null && chunkId !== null && recent.every(row => row.chunks !== null);
   const here = hereKnown ? recent.filter(row => row.chunks.includes(chunkId)).slice(0, PLUGIN_DONE_LIMIT) : [];
   const all = recent.slice(0, PLUGIN_DONE_LIMIT);
   return { here: here.map(strip), all: all.map(strip), hereCount: here.length, allCount: all.length, hereKnown };

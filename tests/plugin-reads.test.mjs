@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 import { openGamePlugin } from '../app/game-plugin.mjs';
-import { pluginDoneRows, pluginDoneList, pluginRollSummary, PLUGIN_DONE_LIMIT, PLUGIN_DONE_AGE_MS } from '../app/game-plugin-tasks.mjs';
+import { pluginDoneRows, pluginDoneList, pluginDoneLocations, pluginRollSummary, PLUGIN_DONE_LIMIT, PLUGIN_DONE_AGE_MS } from '../app/game-plugin-tasks.mjs';
 
 const now = Date.parse('2026-10-30T12:00:00Z');
 const registry = { resolve: rules => ({ 'tasks.completion': 'any', 'access.shared': true, ...rules }) };
@@ -25,9 +25,7 @@ async function fixture(t, save = state(), savedResult = null) {
     store: { getInfo: () => ({ revision: save.revision }), getCalculationSnapshot: () => ({ state: save, members: save.members }),
       getTaskClaimState: () => { claimReads++; return save; },
       getTaskCompletionHistory: () => { historyReads++; return save.history; }, peekRollPool: () => null,
-      // Status has always warmed a missing roll pool in the background (unchanged here).
       rollPool: () => { poolWarms++; } },
-    // Summaries must only peek; a prediction request would be a calculation.
     peekPrediction: () => prediction,
     world: { chunks: new Map([['12850', { name: 'Home' }], ['13106', { name: 'East' }], ['13362', { name: 'Far east' }]]) },
     savedTasks: () => saved, bodyJSON: async () => input, json: async (_req, _res, _status, value) => { output = value; },
@@ -36,7 +34,8 @@ async function fixture(t, save = state(), savedResult = null) {
   t.after(async () => { await controller.close(); await rm(dataDir, { recursive: true, force: true }); });
   const { key } = await controller.create({ admin: true }, { memberId: 'a', label: 'Read test' });
   return { save, controller, setSaved(value) { saved = value; }, setPrediction(value) { prediction = value; }, advance(ms) { at += ms; },
-    get reads() { return { claimReads, historyReads }; }, get poolWarms() { return poolWarms; },
+    get poolWarms() { return poolWarms; },
+    get reads() { return { claimReads, historyReads }; },
     async call(route = 'tasks', report = null) {
       at += 1001; input = report && { v: 1, seq: 1, sentAt: new Date(at).toISOString(), position: { x: 50, z: 50, floor: 0 }, ...report };
       const url = `/api/plugin/v1/${route}`;
@@ -46,7 +45,7 @@ async function fixture(t, save = state(), savedResult = null) {
   };
 }
 
-test('finished lists are personal, newest first, capped per list at 20 over a rolling seven days', () => {
+test('finished lists are personal, newest first, capped at 20 over a rolling seven days', () => {
   const save = state(), tasks = Array.from({ length: 26 }, (_, index) => task(`t${String(index).padStart(2, '0')}`, 'Mining', { level: index + 1 }));
   tasks.push(task('partner'), task('old'), task('unknown'), task('future'));
   const saved = result(tasks);
@@ -58,9 +57,9 @@ test('finished lists are personal, newest first, capped per list at 20 over a ro
   const rows = pluginDoneRows({ state: save, result: saved, registry, memberId: 'a' });
   assert.equal(rows.find(row => row.id === 'unknown').doneAt, null);
   const listed = pluginDoneList({ rows, chunkId: '12850', now });
-  assert.equal(listed.allCount, PLUGIN_DONE_LIMIT); assert.equal(listed.hereCount, PLUGIN_DONE_LIMIT);
+  assert.equal(listed.allCount, PLUGIN_DONE_LIMIT); assert.equal(listed.hereCount, 14);
   assert.deepEqual(listed.all.map(row => row.id), tasks.slice(0, 20).map(row => row.id));
-  assert.deepEqual(listed.here.map(row => row.id), tasks.slice(6, 26).map(row => row.id));
+  assert.deepEqual(listed.here.map(row => row.id), tasks.slice(6, 20).map(row => row.id));
   assert.equal(listed.all[0].doneAt, new Date(now).toISOString());
   assert.ok(listed.all.every(row => row.done === true && !('chunks' in row) && row.level > 0));
   assert.ok(!rows.some(row => row.id === 'partner'));
@@ -111,7 +110,7 @@ test('saved and retained finished rows share active staleness, revision caching 
   f.setSaved({ bytes: Buffer.from(JSON.stringify(saved)), revision: 4 });
   await f.call('report', {});
   const before = await f.call(); assert.equal(before.done.allCount, 0);
-  await f.call(); assert.deepEqual([f.reads.claimReads, f.reads.historyReads], [1, 1]);
+  await f.call(); assert.deepEqual([f.reads.claimReads, f.reads.historyReads], [1, 2]);
   save.revision++; save.members[0].completedTasks = ['finish']; save.history = [completion('finish', 'a', now)]; f.setSaved(null);
   const stale = await f.call();
   assert.equal(stale.stale, true); assert.equal(stale.done.here[0].id, 'finish'); assert.equal(stale.hereCount, 1);
@@ -145,16 +144,45 @@ test('roll summaries group the exact prediction delta and bound plain-text highl
   assert.deepEqual(pluginRollSummary({ delta: { tasksAdded: [] } }), { newTasks: { skills: 0, quests: 0, diaries: 0, other: 0 }, highlights: [] });
 });
 
-test('GET status only peeks: missing data stays null, late predictions fill it, and no calculation starts', async t => {
+test('GET status summaries only peek while preserving missing-pool warmup', async t => {
   const f = await fixture(t);
   const first = await f.call('status'); assert.ok(first.pendingRoll.every(row => row.summary === null));
-  await delay(10); // The controller has only peekPrediction, so a summary cannot start work; plugin-reads-server checks the prediction lane.
+  await delay(10);
   f.setPrediction({ delta: { tasksAdded: [task('q', 'Quest')] } });
   const next = await f.call('status'); assert.equal(next.pendingRoll[0].summary.newTasks.quests, 1);
   await f.call('status'); await delay(10);
   assert.deepEqual(f.reads, { claimReads: 0, historyReads: 0 });
   f.save.revision++; f.setPrediction(null);
   assert.equal((await f.call('status')).pendingRoll[0].summary, null, 'No summary survives a changed prediction scope');
-  await delay(10); assert.ok(f.poolWarms >= 1, 'Status still warms a missing roll pool, as before');
   assert.equal('lastRoll' in next, false, 'A post-unlock state cannot reuse the pre-unlock prediction');
+  await delay(10); assert.ok(f.poolWarms >= 1, 'Status still warms a missing roll pool, as before');
+});
+
+
+test('done location recovery indexes at most 20 recent rows once and keeps missing evidence unknown', () => {
+  const tasks = [], indexed = new Set();
+  for (let index = 0; index < 25; index++) {
+    const row = task(`done${index}`);
+    Object.defineProperty(row, 'record', { enumerable: true, get() { indexed.add(row.id); return { Chunks: ['12850-1'] }; } });
+    tasks.push(row);
+  }
+  const rows = tasks.map((row, index) => ({ id: row.id, label: row.label, category: row.category, done: true,
+    doneAt: new Date(now - index * 1000).toISOString(), chunks: null }));
+  const world = { chunks: new Map([['12850', {}]]), definitions: { chunks: { '12850': { Sections: { '1': {} } } } } };
+  const cache = new Map(), input = { rows, state: state(), result: { tasks, taskLocations: {} }, world, now, cache };
+  const located = pluginDoneLocations(input);
+  assert.equal(located.length, 20); assert.equal(indexed.size, 20);
+  assert.ok(!indexed.has('done20')); assert.ok(located.every(row => row.chunks.includes('12850')));
+  indexed.clear(); pluginDoneLocations(input); assert.equal(indexed.size, 0, 'Repeated reads reuse location evidence');
+  const unknown = pluginDoneLocations({ ...input, rows: [{ ...rows[0], id: 'unknown' }], cache: new Map() });
+  assert.equal(unknown[0].chunks, null);
+  const listed = pluginDoneList({ rows: unknown, chunkId: '12850', now });
+  assert.equal(listed.hereKnown, false); assert.deepEqual(listed.here, []); assert.equal(listed.allCount, 1);
+  // A known finish with nothing to locate is simply not here; it must not hide the other rows.
+  const unlocatable = { id: 'nowhere', label: 'nowhere', category: 'Other' };
+  const mixed = pluginDoneLocations({ ...input, rows: [rows[0], { ...rows[1], id: 'nowhere' }],
+    result: { tasks: [tasks[0], unlocatable], taskLocations: {} }, cache: new Map() });
+  assert.deepEqual(mixed.find(row => row.id === 'nowhere').chunks, []);
+  const shown = pluginDoneList({ rows: mixed, chunkId: '12850', now });
+  assert.equal(shown.hereKnown, true); assert.deepEqual(shown.here.map(row => row.id), [rows[0].id]);
 });

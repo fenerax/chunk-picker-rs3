@@ -368,8 +368,8 @@ or `both`, saying whose saved unlocks contain the chunk.
 
 `pickableCount` is how many chunks the roll pool offers, or null until a pool
 exists. Status never calculates a pool inside its reply: when none exists it
-schedules one calculation after replying, so a later status has it. Roll
-summaries only peek at cached predictions and never start one.
+schedules one calculation after replying, so a later status has it. Roll summaries
+only peek at cached predictions and never start one.
 `pendingRoll` lists a roll's choices still waiting for this player to pick
 (empty when none). `partners` has one row per other player with the chunk
 their own plugin last reported; `chunkId`, `chunkName` and `seenAt` are null
@@ -490,11 +490,15 @@ Completed Tasks ledger supplies personal ticks, actual completions, aliases,
 completion families and undo handling. A partner's finish never supplies a row
 or its date. No new completion data is persisted.
 
-Both lists are newest first, with task ID breaking equal-time ties. Each list is
-capped independently at **20** rows finished within the preceding **7 × 24 hours**
+The recent set is newest first, with task ID breaking equal-time ties, capped
+at **20** rows finished within the preceding **7 × 24 hours**
 (inclusive boundary, future dates excluded). `done.here` uses the same translated
 surface-chunk location rule as active `here`, including interior suffix removal.
-`done.hereKnown` is false without a recent position or saved locations, and
+`done.here` is the subset of that recent set belonging to the current chunk.
+Its locations are recovered from the same chunk-planning index as Chunk Info,
+even when recalculated map badges omit completed tasks. At most 20 rows are
+indexed per member/revision and their locations are cached.
+`done.hereKnown` is false without a recent position or known row locations, and
 `done.here` is then empty. Counts describe the capped lists; there is no paging,
 and active `from` never changes these lists.
 
@@ -508,6 +512,13 @@ results apply current personal completion evidence, but can lack newly unlocked
 rows or locations until the picker loads a fresh result. Active and finished
 rows share the existing per-revision row cache; time expiry is checked on every
 read, including reads at the same revision. Reading tasks never calculates.
+
+If live History starts less than seven days ago, the picker schedules a background
+read of the newest archive segments needed to cover that window. It streams
+only those segments and retains compact completion evidence per revision; it
+never hydrates the full history or reads archives on every request. Until that
+cache is ready, the route returns finishes known from live History. A later read
+fills in archived finish dates at the same revision.
 Finished rows never enter active `here` or `all`, or change their counts or order.
 Responses remain `v: 1`.
 
