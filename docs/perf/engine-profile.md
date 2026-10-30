@@ -1135,3 +1135,512 @@ All observed full-suite failing modules reproduce the same failing test titles o
 - Native builds measured: 0; Rust is unavailable in this environment. Replacement performance remains an experiment to run.
 - OS file caches are warm; process/engine caches are cold as specified. Sampled heap estimates and instrumented profile timings must not be substituted for exact retained sizes or unprofiled latency.
 - The protocol input bundle needs agreement before a native implementation; request-type support cannot silently become view-specific support. Per-picker cache/supersession isolation is a correctness prerequisite for shared calculators.
+
+## Multi-picker capacity (EN6)
+
+START `ff08cea7af6696a2d4f97efe0b1820e7c698eed0`. Measurement only; no application or calculator changes. EN5 was not merged at this START. These are measurements of the current reference, not an EN5 comparison or a native rewrite forecast.
+
+**Light-workload bound:** one reference process carries all **32 tested synthetic public pickers** within the cold-evaluate <10 s and warm-repeat <2 s targets. Even with affinity limited to two CPUs, the worst of five run-level p95s is **176 ms cold / 147 ms repeat**, excluding worker wake. No latency-target knee was reached through 32. This is a calculator capacity result for small new public accounts, not a measured limit for grown saves, arbitrary rule variants or a mixed live fleet.
+
+### Reproduction, identity and measurement boundary
+
+```sh
+node scripts/perf/multi-picker-capacity.mjs --runs 5 --include-32 \
+  --output /tmp/en6-capacity.json
+taskset -c 0,1 node scripts/perf/multi-picker-capacity.mjs --runs 5 \
+  --pickers 1,32 --separate 0 --output /tmp/en6-two-cpu.json
+# Separate diagnostic, excluded from all timing tables:
+mkdir -p /tmp/en6-coverage
+NODE_V8_COVERAGE=/tmp/en6-coverage node scripts/perf/multi-picker-capacity.mjs \
+  --trial-pickers 16 --trial-workers 1 --trial-run=0 > /tmp/en6-coverage-trial.json
+```
+
+Node 24.19.0, Linux x86-64, AMD EPYC 9V45 96-Core Processor; 5 visible logical CPUs, 4 available to the default process, cgroup quota `400000 100000` (4 cores), 16 GiB memory limit. The affinity run reports 2 available CPUs under the same quota. Five repetitions per topology, rotating case order; fresh driver and fresh calculators every trial. The 32-picker case was admitted by a separate successful 16-picker pilot (<10 s cold, <2 s repeat, <2 GiB combined RSS), then interleaved with the other cases. No tests or other benchmarks overlapped timed trials. Process/engine caches are cold at spawn; OS file caches are warm and were not flushed. The eight-worker public case had ample memory headroom; no private packs or save were opened.
+
+The benchmark forces `open-f2p`, clears inherited pack/profile/defaults selections, and constructs synthetic members named `Player x`. Each picker has two members with intentionally colliding member IDs, revision numbers and input fingerprints across identities. Valid MP3 picker IDs isolate their jobs. Three gameplay inputs unlock zero, one or two additional public cells. There is no imported history, progression or identity registry. This deliberately measures new-account calculator work; it does not reproduce the much larger prepared snapshot in the earlier open-f2p profile.
+
+The real `calculator/reference/main.mjs --protocol 1` endpoint hosts the unchanged task worker. One worker here means one such process, including its host and task isolates. All requests use compact `evaluate` (`play-v1`), not the unprojected object-returning control or full view. Every endpoint has one active request; the driver owns a FIFO queue. Latency starts when a job is submitted, before that queue, and ends after the complete protocol reply is decoded. A missing state reference is retried with its body and the original latency clock. Thus state LRU eviction is included, not bypassed.
+
+Cold submits the first evaluate for every identity together. Repeat submits an identical complete round after cold, so it measures cross-picker cache pressure. Local repeat is an additional hot-cache control: each picker is primed and immediately repeated, with no intervening picker; only repeats enter its latency quantiles, while CPU, RSS and completed throughput include both jobs. Alternating queues six rounds over three genuine gameplay inputs (1,2,0,1,2,0), beyond both two-entry caches. Prediction queues three eligible candidates per picker and receives owner/partner reuse parts. Burst queues a post-save calculation with a new revision/body followed by a task-list reference for every picker in one synchronous turn. There is no save protocol verb: this measures calculator work after a save, including its task-list read; it does not measure storage writes, HTTP routing or scheduler-side result caches. All phase arrivals in each ordinary round occur within one second, even when completion takes longer.
+
+Ready wall runs from process spawn through init, compilation and ready catalogue decoding, excluding fixture preparation. Core-seconds sum Linux process `utime+stime` across the driver and calculator processes, including all their threads, at 100 ticks/s. Sub-10-ms CPU costs can quantize to zero; the table is not evidence of zero CPU consumption. RSS includes the fresh driver and all calculators, but excludes the idle outer experiment controller. Steady is post-reply RSS without forced GC. Combined peak is sampled synchronously every 25 ms; the sum of final process `VmHWM` values provides a conservative lifetime upper bound, since individual peaks need not coincide. Startup CPU and RSS are separate from the request-phase table. No allocator carry-over from a previous trial enters the measurement.
+
+Each reported cell is a median over five fresh trials; brackets give the minimum–maximum. p50 and p95 use the nearest-rank quantile within each trial, then the median of those five quantiles (not a pooled population percentile). One-picker cold/repeat trials each contain one latency, so their p95 spread is a five-sample range. Throughput counts completed protocol jobs per elapsed phase second, including priming for the local control. A prediction batch completes 3N jobs, alternating 6N and burst 2N. There is no sustained arrival-rate or soak-test claim.
+
+
+| Input pin | Value |
+| --- | --- |
+| Dataset digest | `f129828c58260ba4894f2cb6ed7287c07c8f5360cb8d0a1716a5f26ddb9dfbc0` |
+| Init SHA-256 | `618b63209f8fa4bec9b4d90e6fc949f9f1d17dd578cf4f6ddff2e61544fab452` |
+| Source hash inventory | 60 records; SHA-256 `e435ed4ccf4b07b195d1ea0d86a3736001fa277519dbcb843445a3e6597aef2c` |
+| Installed pack hashes | `[]` (public in-tree fixture; no installed packs) |
+| Benchmark SHA-256 | `19b1db1d3971f17bbdf5716dbe65472204a8de0cbdf337607be2b82266ef5e2f` |
+| Synthetic input 0 SHA-256 | `2ce988fed5e3ef144ad80223718e14eab9139d5abda7224cdd36784d7134891b` |
+| Synthetic input 1 SHA-256 | `712fab13b679d13b87f51fdfbee31af6af5ffe4e046bd639afa9ebc1a9871d06` |
+| Synthetic input 2 SHA-256 | `158c65c17b24b42eeec51fee08f65c18ecb4e738f8367d9f82162e907e13646b` |
+
+The inventory hash is over compact JSON of sorted `{sha256,bytes}` source records, as retained in the numeric report. Timing and affinity report fingerprint differences: 0.
+
+### Light-workload bound: startup and lifetime memory (4-core quota)
+
+| Pickers / workers | Ready ms | Ready core-s | Ready combined MiB | Lifetime sampled peak MiB | Largest HWM-sum upper bound MiB |
+| --- | --- | --- | --- | --- | ---: |
+| 1 / 1 | 206.3 [194.1–225.0] | 0.26 [0.25–0.27] | 161.0 [159.9–161.1] | 218.9 [217.3–220.0] | 220.0 |
+| 4 / 1 | 210.3 [197.3–217.1] | 0.25 [0.25–0.28] | 161.6 [160.4–162.0] | 357.2 [322.9–361.9] | 364.6 |
+| 8 / 1 | 201.9 [195.7–215.4] | 0.26 [0.25–0.30] | 161.6 [160.0–161.9] | 375.5 [370.5–377.5] | 380.6 |
+| 16 / 1 | 217.8 [209.2–231.7] | 0.29 [0.27–0.30] | 161.2 [160.6–161.7] | 435.1 [425.6–461.1] | 464.2 |
+| 32 / 1 | 210.2 [201.4–218.9] | 0.28 [0.26–0.28] | 162.1 [159.9–162.4] | 508.6 [482.5–528.3] | 536.2 |
+| 8 / 8 | 601.5 [594.3–612.4] | 2.33 [2.30–2.35] | 915.0 [913.2–919.4] | 1356.8 [1350.1–1360.1] | 1361.9 |
+
+### Light-workload bound: request patterns (4-core quota)
+
+RSS cells show median steady / median sampled peak MiB; lifetime peak spread and its conservative upper bound are above. CPU and p95 include their across-run spread. p50 and completed throughput are medians.
+
+| Pickers / workers | Pattern | Core-s | p50 ms | p95 ms | RSS steady / peak MiB | Completed / s |
+| --- | --- | --- | ---: | --- | ---: | ---: |
+| 1 / 1 | cold | 0.04 [0.03–0.05] | 29.9 | 29.9 [28.0–31.5] | 169.0 / 169.0 | 33.3 |
+| 1 / 1 | warm-round | 0.00 [0.00–0.00] | 1.8 | 1.8 [1.7–2.0] | 169.5 / 169.5 | 561.2 |
+| 1 / 1 | warm-local | 0.00 [0.00–0.02] | 1.3 | 1.3 [1.2–2.6] | 170.2 / 170.2 | 700.3 |
+| 1 / 1 | alternating | 0.10 [0.09–0.12] | 35.5 | 67.0 [61.5–68.3] | 202.1 / 202.1 | 89.4 |
+| 1 / 1 | prediction-3 | 0.10 [0.09–0.12] | 42.2 | 59.5 [56.6–64.6] | 216.7 / 216.7 | 50.4 |
+| 1 / 1 | save-list-burst | 0.01 [0.01–0.02] | 7.4 | 9.2 [8.7–10.9] | 218.9 / 218.9 | 215.6 |
+| 4 / 1 | cold | 0.05 [0.05–0.06] | 33.7 | 42.1 [40.6–42.8] | 171.4 / 171.4 | 94.8 |
+| 4 / 1 | warm-round | 0.03 [0.02–0.04] | 8.0 | 17.6 [15.1–19.6] | 179.2 / 179.2 | 226.1 |
+| 4 / 1 | warm-local | 0.02 [0.02–0.03] | 1.0 | 1.5 [1.3–1.7] | 188.3 / 188.3 | 447.9 |
+| 4 / 1 | alternating | 0.21 [0.19–0.23] | 75.8 | 130.6 [127.6–137.2] | 248.6 / 248.6 | 178.5 |
+| 4 / 1 | prediction-3 | 0.43 [0.39–0.47] | 129.4 | 258.2 [231.2–280.7] | 340.2 / 340.2 | 46.5 |
+| 4 / 1 | save-list-burst | 0.04 [0.03–0.04] | 13.6 | 20.9 [19.5–24.2] | 357.2 / 357.2 | 379.6 |
+| 8 / 1 | cold | 0.08 [0.06–0.09] | 40.8 | 57.3 [54.9–59.5] | 179.1 / 179.1 | 139.1 |
+| 8 / 1 | warm-round | 0.04 [0.03–0.05] | 14.1 | 26.9 [25.8–30.0] | 191.1 / 191.1 | 296.3 |
+| 8 / 1 | warm-local | 0.05 [0.04–0.06] | 1.1 | 2.9 [2.0–5.7] | 207.2 / 207.2 | 434.1 |
+| 8 / 1 | alternating | 0.32 [0.30–0.36] | 119.0 | 206.3 [204.5–225.2] | 290.4 / 290.4 | 226.3 |
+| 8 / 1 | prediction-3 | 0.77 [0.76–0.84] | 243.5 | 444.2 [403.3–461.7] | 374.6 / 374.6 | 52.4 |
+| 8 / 1 | save-list-burst | 0.05 [0.04–0.06] | 21.4 | 37.5 [31.8–38.4] | 374.9 / 375.5 | 417.6 |
+| 16 / 1 | cold | 0.12 [0.11–0.13] | 61.9 | 89.3 [88.3–90.5] | 193.1 / 193.1 | 178.7 |
+| 16 / 1 | warm-round | 0.09 [0.08–0.10] | 33.6 | 63.8 [53.9–67.8] | 220.2 / 220.2 | 250.6 |
+| 16 / 1 | warm-local | 0.12 [0.11–0.14] | 1.0 | 3.0 [2.4–4.3] | 244.7 / 244.7 | 417.6 |
+| 16 / 1 | alternating | 0.53 [0.52–0.58] | 199.5 | 360.6 [347.6–382.2] | 342.7 / 342.7 | 258.7 |
+| 16 / 1 | prediction-3 | 1.43 [1.38–1.47] | 473.4 | 845.9 [831.9–876.9] | 430.3 / 434.8 | 54.7 |
+| 16 / 1 | save-list-burst | 0.08 [0.08–0.09] | 36.1 | 63.3 [59.7–71.4] | 429.6 / 430.3 | 497.0 |
+| 32 / 1 | cold | 0.19 [0.17–0.22] | 85.1 | 135.7 [124.8–144.5] | 221.1 / 221.1 | 230.6 |
+| 32 / 1 | warm-round | 0.18 [0.16–0.19] | 60.0 | 109.8 [106.7–118.1] | 254.4 / 254.4 | 281.9 |
+| 32 / 1 | warm-local | 0.19 [0.18–0.21] | 0.9 | 5.0 [2.0–6.4] | 317.2 / 317.2 | 493.5 |
+| 32 / 1 | alternating | 0.98 [0.93–1.02] | 340.2 | 620.8 [598.8–644.0] | 409.1 / 409.1 | 299.1 |
+| 32 / 1 | prediction-3 | 2.60 [2.50–2.69] | 823.3 | 1519.7 [1482.6–1597.9] | 504.9 / 508.6 | 60.9 |
+| 32 / 1 | save-list-burst | 0.17 [0.16–0.22] | 65.4 | 117.3 [113.8–129.3] | 494.9 / 504.9 | 526.3 |
+| 8 / 8 | cold | 0.35 [0.34–0.36] | 75.1 | 82.0 [80.7–87.1] | 977.4 / 977.4 | 97.4 |
+| 8 / 8 | warm-round | 0.02 [0.00–0.03] | 5.5 | 6.7 [6.2–7.8] | 980.5 / 980.5 | 1178.7 |
+| 8 / 8 | warm-local | 0.03 [0.00–0.04] | 1.2 | 1.4 [1.3–1.8] | 983.9 / 983.9 | 639.7 |
+| 8 / 8 | alternating | 0.98 [0.96–0.99] | 145.9 | 225.9 [212.6–234.0] | 1242.1 / 1242.1 | 200.5 |
+| 8 / 8 | prediction-3 | 1.00 [0.94–1.05] | 159.7 | 252.3 [242.7–255.3] | 1343.7 / 1343.8 | 94.7 |
+| 8 / 8 | save-list-burst | 0.14 [0.12–0.15] | 26.0 | 33.4 [32.1–35.2] | 1356.8 / 1356.8 | 477.1 |
+
+### Light-workload bound: two-CPU reservation check
+
+Five interleaved repetitions of 1 and 32 pickers, each using one calculator. This is an actual affinity restriction, not a 6/4 multiplier applied to latency.
+
+| Pickers | Pattern | Core-s | p50 ms | p95 ms | RSS steady / peak MiB | Completed / s |
+| --- | --- | --- | ---: | --- | ---: | ---: |
+| 1 | cold | 0.03 [0.03–0.06] | 31.4 | 31.4 [30.0–39.3] | 169.8 / 169.8 | 31.7 |
+| 1 | warm-round | 0.01 [0.00–0.01] | 2.1 | 2.1 [1.9–3.1] | 170.3 / 170.3 | 480.5 |
+| 1 | warm-local | 0.00 [0.00–0.01] | 1.3 | 1.3 [1.2–1.6] | 171.2 / 171.2 | 640.7 |
+| 1 | alternating | 0.10 [0.09–0.11] | 37.1 | 64.8 [62.4–73.0] | 201.6 / 201.6 | 92.5 |
+| 1 | prediction-3 | 0.10 [0.10–0.13] | 49.2 | 70.0 [62.7–87.7] | 219.1 / 219.1 | 42.8 |
+| 1 | save-list-burst | 0.01 [0.01–0.01] | 8.1 | 10.6 [9.4–12.3] | 220.7 / 220.7 | 186.7 |
+| 32 | cold | 0.19 [0.18–0.25] | 99.6 | 154.8 [152.2–175.8] | 222.7 / 222.7 | 195.2 |
+| 32 | warm-round | 0.17 [0.14–0.18] | 67.3 | 133.2 [125.1–146.7] | 256.7 / 256.7 | 233.8 |
+| 32 | warm-local | 0.21 [0.19–0.23] | 1.0 | 5.8 [3.1–6.5] | 318.7 / 318.7 | 379.8 |
+| 32 | alternating | 0.95 [0.93–1.04] | 402.2 | 738.4 [708.8–767.0] | 413.1 / 416.2 | 251.7 |
+| 32 | prediction-3 | 2.56 [2.50–2.64] | 928.1 | 1726.9 [1672.8–1837.4] | 499.3 / 502.7 | 53.9 |
+| 32 | save-list-burst | 0.18 [0.16–0.19] | 79.8 | 143.5 [137.9–149.9] | 502.9 / 504.2 | 428.6 |
+
+### Answers and server recommendation
+
+**1. How many can be active?** At least 32 of these public synthetic pickers on one calculator: all five runs pass both evaluate latency targets, including rotating repeats that miss the caches. At the 4-core quota, 32-picker median p95 is 136 ms cold and 110 ms repeat; worst-run p95 is 145 / 118 ms. With two pinned CPUs, median p95 is 155 / 133 ms and worst-run p95 is 176 / 147 ms. The largest observed ready-plus-cold-p95 sum on two CPUs is 428 ms. These observations establish a tested floor, not a maximum picker count; counts above 32 were not tested. Predictions are more expensive: 32 simultaneous batches of three have median p95 1.52 s at the default quota and 1.73 s on two CPUs, with a worst-run 1.84 s. Mixed foreground/prediction arrivals or larger queues can exceed the isolated-pattern latency figures.
+
+**2. Is compilation shared?** Yes for the tested dataset/rule variant. A separate V8 precise-coverage diagnostic for the 16-picker workload records **273** calls to the variant resolver and **1** call each to `createTaskEngine` and `createCompiledTaskEngine` in the task isolate; the adapter host records 0 compiler calls. `app/tasks/worker.mjs` creates its engine once at module initialization; `app/tasks/engine.mjs:createTaskEngine` retains a map keyed by the three guide-rule booleans, not picker identity. What gets rebuilt is the evaluated baseline graph (tasks, collection, equipment and presentation), not the compiled dataset: the worker's result LRU and both transferred-state LRUs have only two global entries. At 4, 8, 16 and 32 pickers every job in the repeat round performs engine work and resends its missing state; immediate local repeats perform none. For 8 identities, sharing versus 8 separate processes reduces median startup CPU **2.33 → 0.26 core-s** (2.07 saved), ready combined RSS **915 → 162 MiB**, lifetime sampled peak **1356.8 → 375.5 MiB** (981.3 saved), and complete-workload CPU **4.81 → 1.61 core-s**. Eight separate workers do retain warm round results and improve prediction p95 (252 versus 444 ms), at much greater startup and memory cost. These public-fixture measurements do not validate or replace item 5's 43.9 core-s / 4.70 GiB duplicate estimate for the released packs. No per-picker compiled-state rebuild was found; no implementation fix is proposed as part of EN6. A later experiment could budget result/state entries across picker identities under an explicit byte cap; increasing entries blindly would trade cache misses for retained graphs.
+
+**3. Where is the knee?** The first observed knee is cache capacity between 2 and 4 identities, followed by queueing on the single active calculator request. At 32, the default-quota prediction median p95 is 1520 ms, with 1503 ms spent waiting in the driver queue; cold p95 is 136 ms with 132 ms queued. The available 4-core quota cannot make a serial worker execute several requests at once. Separate workers hit CPU competition: eight cold requests have worse p95 (82 versus 57 ms) despite having eight processes, and prediction gains far less than eightfold. RSS is not the first limit on this public workload: the largest lifetime sampled peak through 32 is 528 MiB, with a 536 MiB HWM-sum upper bound; the two-CPU run bounds it by 552 MiB. There is no measured hard CPU/RSS admission ceiling or sustained-rate knee at 32. Long idle/wake churn, larger saves, full views, other guide variants, cancellation, mixed revisions and concurrent HTTP/storage work remain outside this benchmark.
+
+The previous 32-context production recommendation is withdrawn. These public-fixture tables establish only a light-workload bound and omit server-context residency. A production limit must combine released-pack grown-save latency, server RSS, calculator RSS, the 1.5 GiB OS/Caddy reserve and 20% headroom. The follow-up measurements below replace that recommendation; no setting was changed.
+
+### Initial EN6 validation
+
+The new protocol smoke test runs both layouts at two pickers, all six patterns, three-input cache pressure and deliberately invalid inherited dataset settings in under 60 seconds. It is explicitly classified quick and open-f2p in `scripts/test-selection.mjs`. Application/result behaviour changes: 0; private input copies: 0; private checkout modifications: 0. Timing runs: 30 primary trials plus one admission pilot and 10 affinity trials; the coverage diagnostic is separate. START quick: 2533 tests, 2465 passed, 0 failed, 68 skipped. EN6 quick: 2534 tests, 2466 passed, 0 failed, 68 skipped (68.26 s): exactly START plus the new test. The standalone smoke test passed 1/1 in 1.31 s, with 0 failures. `npm test`: 5765 tests, 5625 passed, 0 failed, 140 skipped (268.94 s). No failing-file reruns or START failure reproductions were needed. `git diff --check`: 0 errors. No tests were weakened or skipped to change the outcome.
+
+### Released-pack follow-up (EN6-F1)
+
+The public tables above are a light-workload bound and do not set production admission. The released-pack workload below replaces that capacity evidence. Application/calculator changes remain 0.
+
+Prepared inputs are created in a separate process under `/tmp`. The grown input is copied, including its dataset binding, before `createServer` opens it; the original checkout is never opened as writable storage. The required packs and local-defaults override are explicit. Fresh uses a native empty initial save with two synthetic members, then the same server catalogue/identity preparation as the grown save. Both retain the full prepared task catalogue. The grown calculation hash matches the earlier EN3 profile exactly (hash differences: 0). No gameplay text, identifiers or catalogue paths are written to these reports.
+
+The production measurements use the existing `ProcessWorker` endpoint, the native MP3 picker key, JSON-shared state/result transport for compact task lists, and object state transport for predictions, as the production scheduler does. Definitions are normalized to the production byte input. No worker or engine code is edited. The original public tables use the framed reference adapter. These transports are deliberately labelled: they are not a speedup comparison. Production ready includes the ordinary V8 ready catalogue; client input normalization and IPC are included in ready CPU/wall. The prepared-init hash below precedes transport normalization.
+
+A separate framed-adapter diagnostic failed before evaluation while JSON-encoding the released ready catalogue (`calculator/reference/codec.mjs:78`, `RangeError`). The supported `omitReadyCatalogue` switch lets framed calculations run, but that path has more residency: a one-picker diagnostic reached 2447 MiB worker HWM; a four-picker diagnostic reached 3667 MiB. Those diagnostics are excluded from production capacity tables. The adapter problem is outside this task's permitted files and was not repaired or hidden by altering app/calculator code.
+
+Every picker identity receives the same complete grown snapshot in the grown cases, as requested; picker IDs separate states/results. Each case starts fresh processes. Three repetitions per full case are used because real evaluations, alternating rounds and prediction batches take minutes; case order rotates between repetitions. Timed cases and tests never overlap. One request per calculator is active, with queue-inclusive caller latency. The same six arrival patterns and completion accounting as the public benchmark apply. Three gameplay inputs add zero, one or two candidates; metadata is otherwise preserved. Grown revision is preserved, and the burst increments that revision. Fresh has 0 eligible candidates before choosing a start; its three prediction hypotheses use known surface candidates instead, without changing game command behaviour. Grown has 3 eligible candidates. These are exact-copy workloads, not diverse rule configurations or a mixed foreground/advisory service load.
+
+The host remains Node 24.19.0 / AMD EPYC 9V45, 5 visible CPUs, 4 available cores/quota and 16 GiB RAM. No 6/4 latency scaling is applied. Combined RSS includes the fresh benchmark driver and its calculator processes; **calculator HWM** excludes the driver and is the sum of process high-water marks, an upper bound on simultaneous calculator RSS. Context budgeting must use server RSS plus calculator-only RSS, rather than adding the driver again. Phase steady and peak combined RSS, CPU, throughput and quantiles retain the definitions above.
+
+```sh
+# Run each preparation in its own process. --data-dir is omitted for fresh inputs.
+node scripts/perf/multi-picker-capacity.mjs --dataset duo-legacy \
+  --packs "$RS3_PACKS_DIR" --game-defaults-file "$RS3_GAME_DEFAULTS_FILE" \
+  --data-dir "$COPY_INPUT_DIR" --prepare-output /tmp/en6-grown-input
+node scripts/perf/multi-picker-capacity.mjs --dataset duo-legacy \
+  --packs "$RS3_PACKS_DIR" --game-defaults-file "$RS3_GAME_DEFAULTS_FILE" \
+  --prepared-dir /tmp/en6-grown-input --transport production --runs 3 \
+  --pickers 1,4,8 --separate 8 --worker-peak-bytes 1698629632 \
+  --output /tmp/en6-grown-capacity.json
+# Fresh: separately prepare without --data-dir, then use --pickers 1,4,8,16.
+# --worker-peak-bytes is an admission input from a completed one-worker pilot;
+# remeasure it on another pack/host. A separate run is refused if estimated
+# worker RSS plus 2 GiB for driver/reserve exceeds current cgroup headroom.
+```
+
+Output/checkpoint files must be new and under `/tmp`; private prepared binaries are mode 0600 in mode-0700 directories. The `.partial` numeric report is checkpointed after each trial. Private binary inputs are not repository artifacts.
+
+
+| Input | Pin / count / size |
+| --- | --- |
+| Dataset digest | `3768ecbd4197cab2f42241ebd631904d2871bded05858a0bcb535eeba0b1898f` |
+| Pack 1 manifest SHA-256 | `5e23b5dfb1bf1ed265e7ef1d6edbc9067a820418baa5781e6f3c13864e781da1` |
+| Pack 2 manifest SHA-256 | `dfe952dccd200dbad0fde4082cc823f7f2c40a7e9edf9a43898acace7092d077` |
+| Local defaults SHA-256 | `1ab931d329b526e55b6283ed401b929023e7153e3e1dcd04604d85de8b4fabf0` |
+| Grown source-state SHA-256 | `64de39c55452925587b87af05aa01507513263761bc407f54e81bcbb699acfdc` |
+| Grown calculation SHA-256 | `13654556cfd6def495fcf18b96f3a481dfc9af7a13dd0a55ab19f4f87eb646c1` |
+| Grown input | 2 members; 23939 task rows; 15707693 bytes |
+| Fresh calculation SHA-256 | `b71ffc3682483b5a0f3ca0ecc6b0ce35a5a05e691a714d753b6260b70b39af00` |
+| Fresh input | 2 members; 23939 task rows; 15436572 bytes |
+| Prepared grown init SHA-256 | `2eb961bf1f4f1e75874adca2d94a0933a82e14fedc128213ba313dd4fd4b0e1e` |
+| Grown source inventory | 100 records; SHA-256 `5835fb660604f069a866ae2af8efffe1c1d5c2bbe8f7bf1fe0c86ed77183ab5a` |
+| Prepared fresh init SHA-256 | `2eb961bf1f4f1e75874adca2d94a0933a82e14fedc128213ba313dd4fd4b0e1e` |
+| Fresh source inventory | 100 records; SHA-256 `5835fb660604f069a866ae2af8efffe1c1d5c2bbe8f7bf1fe0c86ed77183ab5a` |
+
+#### Grown-save startup and lifetime memory
+
+Medians [minimum–maximum], 3 trials per row. Calculator HWM is a conservative sum, not an assertion that all individual peaks coincide.
+
+| Pickers / calculators | Ready ms | Ready core-s | Ready combined MiB | Lifetime sampled combined peak MiB | Calculator HWM MiB |
+| --- | --- | --- | --- | --- | --- |
+| 1 / 1 | 2823.0 [2787.1–2887.5] | 4.83 [4.78–4.92] | 1343.2 [1343.1–1351.9] | 2281.7 [2278.7–2328.6] | 1633.2 [1580.7–1690.9] |
+| 4 / 1 | 2853.4 [2766.3–3234.6] | 4.91 [4.73–5.50] | 1333.7 [1315.8–1372.4] | 2583.2 [2424.5–2664.9] | 1923.7 [1713.3–1926.5] |
+| 8 / 1 | 2819.3 [2762.4–2900.0] | 4.80 [4.66–4.81] | 1336.4 [1308.6–1372.4] | 2729.5 [2689.9–2871.4] | 2005.5 [1927.2–2121.4] |
+| 8 / 8 | 10729.3 [10506.1–15608.1] | 40.81 [39.75–56.08] | 7174.1 [7165.6–7174.7] | 13025.9 [12745.5–13126.8] | 11768.6 [11622.6–11969.9] |
+
+#### Grown-save arrival patterns
+
+p50 and throughput are medians. p95 and CPU show median [min–max]; RSS is median steady / median sampled peak combined MiB.
+
+| Pickers / calculators | Pattern | Core-s | p50 ms | p95 ms | RSS steady / peak MiB | Completed / s |
+| --- | --- | --- | ---: | --- | ---: | ---: |
+| 1 / 1 | cold | 4.92 [4.23–5.48] | 2905.9 | 2905.9 [2812.0–3522.9] | 1621.9 / 1621.9 | 0.34 |
+| 1 / 1 | warm-round | 0.06 [0.05–0.43] | 40.7 | 40.7 [40.3–100.3] | 1643.1 / 1643.1 | 24.54 |
+| 1 / 1 | warm-local | 0.80 [0.63–1.29] | 49.9 | 49.9 [42.6–60.6] | 1740.4 / 1779.7 | 5.62 |
+| 1 / 1 | alternating | 23.66 [23.05–25.17] | 7611.5 | 14523.3 [13831.6–15742.2] | 2058.1 / 2148.2 | 0.41 |
+| 1 / 1 | prediction-3 | 14.93 [14.72–15.42] | 6748.6 | 10006.6 [9632.0–10452.4] | 2144.9 / 2281.7 | 0.30 |
+| 1 / 1 | save-list-burst | 3.63 [3.05–3.85] | 2231.0 | 2273.3 [2204.1–2285.4] | 2169.2 / 2221.3 | 0.88 |
+| 4 / 1 | cold | 8.45 [8.15–8.56] | 3486.9 | 4480.0 [4450.9–4661.2] | 1789.4 / 1898.9 | 0.89 |
+| 4 / 1 | warm-round | 4.49 [3.81–4.55] | 1110.2 | 2026.1 [1920.2–2042.3] | 2049.2 / 2076.9 | 1.97 |
+| 4 / 1 | warm-local | 5.58 [5.34–5.75] | 43.5 | 86.0 [76.0–87.2] | 2094.4 / 2195.4 | 3.48 |
+| 4 / 1 | alternating | 42.51 [41.80–42.66] | 12199.5 | 22989.6 [22965.5–23130.6] | 2192.6 / 2279.1 | 1.02 |
+| 4 / 1 | prediction-3 | 68.00 [67.20–69.98] | 23425.7 | 47531.6 [47284.4–48203.1] | 2299.5 / 2583.2 | 0.25 |
+| 4 / 1 | save-list-burst | 6.82 [6.60–7.23] | 2811.0 | 3958.8 [3813.1–4020.4] | 2423.9 / 2450.9 | 2.02 |
+| 8 / 1 | cold | 12.25 [11.96–12.55] | 4435.1 | 6320.4 [6222.2–6374.0] | 1966.5 / 2050.4 | 1.27 |
+| 8 / 1 | warm-round | 9.04 [8.61–9.11] | 2014.8 | 3934.1 [3816.4–3998.1] | 2119.0 / 2218.5 | 2.03 |
+| 8 / 1 | warm-local | 10.35 [10.00–10.67] | 43.2 | 89.1 [79.3–93.8] | 2176.4 / 2236.1 | 3.62 |
+| 8 / 1 | alternating | 69.25 [68.83–69.77] | 18238.2 | 34763.3 [34654.1–34902.2] | 2351.5 / 2441.1 | 1.35 |
+| 8 / 1 | prediction-3 | 134.32 [131.23–135.67] | 47358.0 | 91911.0 [90763.4–92045.4] | 2590.0 / 2729.5 | 0.25 |
+| 8 / 1 | save-list-burst | 11.07 [11.02–11.84] | 3833.9 | 6030.1 [5810.5–6068.4] | 2629.7 / 2689.9 | 2.65 |
+| 8 / 8 | cold | 46.54 [45.26–49.71] | 11176.4 | 11951.1 [11662.3–13254.2] | 8407.0 / 8407.0 | 0.67 |
+| 8 / 8 | warm-round | 1.05 [0.75–1.55] | 110.0 | 247.0 [169.6–378.2] | 8348.8 / 8424.8 | 32.37 |
+| 8 / 8 | warm-local | 7.36 [6.39–9.78] | 53.0 | 149.2 [68.0–181.9] | 8765.0 / 8830.8 | 6.49 |
+| 8 / 8 | alternating | 206.87 [202.95–227.57] | 30772.5 | 51792.7 [50692.2–57493.1] | 11548.9 / 11860.5 | 0.92 |
+| 8 / 8 | prediction-3 | 134.24 [129.35–134.60] | 21359.1 | 33087.6 [32368.1–33664.5] | 12489.2 / 12556.5 | 0.71 |
+| 8 / 8 | save-list-burst | 35.11 [34.14–36.95] | 8673.3 | 9350.4 [8916.0–9759.2] | 12428.7 / 13025.9 | 1.71 |
+
+#### Fresh-state startup and lifetime memory
+
+Three trials per row; same units and memory definitions as the grown table.
+
+| Pickers / calculators | Ready ms | Ready core-s | Ready combined MiB | Lifetime sampled combined peak MiB | Calculator HWM MiB |
+| --- | --- | --- | --- | --- | --- |
+| 1 / 1 | 2791.0 [2788.0–2831.4] | 4.59 [4.49–4.71] | 1304.3 [1296.2–1306.2] | 1982.7 [1936.4–2027.8] | 1346.9 [1318.5–1384.7] |
+| 4 / 1 | 2769.3 [2765.0–2863.3] | 4.73 [4.58–4.89] | 1325.7 [1308.3–1328.8] | 2301.0 [2215.8–2340.6] | 1607.3 [1517.2–1653.6] |
+| 8 / 1 | 2820.0 [2796.2–2903.3] | 4.74 [4.70–4.83] | 1335.1 [1309.9–1365.0] | 2501.9 [2240.4–2557.9] | 1805.5 [1548.8–1835.3] |
+| 16 / 1 | 2838.9 [2752.4–2845.1] | 4.82 [4.62–4.91] | 1323.5 [1308.5–1324.0] | 2350.9 [2303.1–2377.7] | 1658.3 [1584.6–1664.9] |
+| 8 / 8 | 10748.8 [10568.6–10762.6] | 40.91 [40.90–41.09] | 7155.9 [6936.0–7167.4] | 9891.7 [9779.1–9944.0] | 8698.7 [8622.8–8815.2] |
+
+#### Fresh-state arrival patterns
+
+
+| Pickers / calculators | Pattern | Core-s | p50 ms | p95 ms | RSS steady / peak MiB | Completed / s |
+| --- | --- | --- | ---: | --- | ---: | ---: |
+| 1 / 1 | cold | 1.80 [1.78–1.80] | 919.0 | 919.0 [908.7–955.6] | 1419.6 / 1473.2 | 1.09 |
+| 1 / 1 | warm-round | 0.05 [0.05–0.06] | 37.2 | 37.2 [36.5–38.6] | 1434.3 / 1434.3 | 26.87 |
+| 1 / 1 | warm-local | 0.58 [0.58–0.65] | 31.9 | 31.9 [31.6–36.0] | 1546.8 / 1553.9 | 7.19 |
+| 1 / 1 | alternating | 9.58 [9.13–9.91] | 2053.2 | 4203.2 [4139.3–4307.6] | 1670.0 / 1742.6 | 1.43 |
+| 1 / 1 | prediction-3 | 6.60 [6.56–6.62] | 2480.9 | 3384.8 [3322.5–3411.2] | 1886.7 / 1982.7 | 0.89 |
+| 1 / 1 | save-list-burst | 1.91 [1.72–2.07] | 760.1 | 792.9 [760.1–831.0] | 1862.3 / 1965.4 | 2.52 |
+| 4 / 1 | cold | 5.08 [5.05–5.24] | 1429.4 | 2313.8 [2313.1–2378.4] | 1673.8 / 1748.1 | 1.73 |
+| 4 / 1 | warm-round | 4.10 [3.62–4.39] | 893.2 | 1723.3 [1656.6–1808.0] | 1902.8 / 1949.8 | 2.32 |
+| 4 / 1 | warm-local | 4.90 [4.75–5.17] | 32.8 | 47.8 [47.5–60.9] | 2015.6 / 2055.0 | 3.86 |
+| 4 / 1 | alternating | 27.45 [26.09–28.30] | 6272.5 | 11843.7 [11823.7–12073.0] | 2087.9 / 2152.6 | 1.96 |
+| 4 / 1 | prediction-3 | 32.92 [31.60–32.95] | 8755.1 | 17579.9 [17330.9–18097.0] | 2164.6 / 2301.0 | 0.68 |
+| 4 / 1 | save-list-burst | 5.20 [5.18–5.79] | 1253.6 | 2311.7 [2267.2–2404.5] | 2186.8 / 2260.0 | 3.46 |
+| 8 / 1 | cold | 8.84 [8.11–9.08] | 2304.9 | 4036.6 [3866.1–4080.3] | 1888.0 / 1944.8 | 1.98 |
+| 8 / 1 | warm-round | 7.56 [7.52–8.37] | 1764.9 | 3437.3 [3396.5–3491.6] | 2035.4 / 2103.9 | 2.33 |
+| 8 / 1 | warm-local | 9.35 [8.81–9.93] | 34.3 | 49.2 [47.4–49.6] | 1952.7 / 2086.0 | 4.19 |
+| 8 / 1 | alternating | 49.94 [49.82–51.08] | 11614.6 | 22186.6 [21903.6–22380.0] | 2170.8 / 2253.0 | 2.08 |
+| 8 / 1 | prediction-3 | 62.88 [62.42–63.05] | 18051.6 | 33751.9 [33601.1–34232.5] | 2352.5 / 2501.9 | 0.69 |
+| 8 / 1 | save-list-burst | 10.17 [10.09–10.36] | 2330.0 | 4453.4 [4393.8–4456.1] | 2345.3 / 2462.6 | 3.59 |
+| 16 / 1 | cold | 17.21 [16.97–17.45] | 4088.5 | 7754.7 [7573.1–7757.7] | 2023.5 / 2077.3 | 2.06 |
+| 16 / 1 | warm-round | 15.54 [15.49–16.01] | 3487.1 | 6913.2 [6842.1–7052.9] | 2028.2 / 2106.0 | 2.31 |
+| 16 / 1 | warm-local | 19.33 [18.31–19.46] | 37.0 | 76.6 [67.0–85.3] | 1982.0 / 2081.4 | 4.03 |
+| 16 / 1 | alternating | 96.31 [95.49–100.40] | 22442.0 | 42938.3 [42575.4–43660.8] | 2099.9 / 2193.0 | 2.15 |
+| 16 / 1 | prediction-3 | 127.81 [127.08–127.93] | 36109.9 | 68826.6 [68379.3–68851.5] | 2141.1 / 2350.9 | 0.68 |
+| 16 / 1 | save-list-burst | 20.39 [19.67–20.53] | 4524.8 | 8654.1 [8556.7–8821.3] | 2157.0 / 2264.2 | 3.68 |
+| 8 / 8 | cold | 19.19 [18.57–20.12] | 4824.5 | 5112.1 [5018.5–5322.2] | 7319.7 / 7859.5 | 1.56 |
+| 8 / 8 | warm-round | 0.79 [0.72–0.97] | 137.1 | 199.3 [188.3–237.5] | 7337.5 / 7349.7 | 40.11 |
+| 8 / 8 | warm-local | 5.11 [4.68–5.22] | 37.3 | 85.4 [50.9–87.2] | 7774.7 / 7799.2 | 7.76 |
+| 8 / 8 | alternating | 79.09 [77.83–80.75] | 12056.7 | 20540.8 [20249.4–20892.3] | 9257.2 / 9662.5 | 2.33 |
+| 8 / 8 | prediction-3 | 53.48 [53.10–54.49] | 9230.4 | 13315.3 [13186.3–13665.0] | 9276.5 / 9750.5 | 1.79 |
+| 8 / 8 | save-list-burst | 14.77 [11.47–15.74] | 3530.7 | 4001.3 [3137.6–4264.4] | 9678.9 / 9858.5 | 4.00 |
+
+Grown 16 was not run because every 8-picker repeat trial exceeded 2 s. Fresh 32 was not run because every 16-picker repeat trial exceeded 2 s. Eight separate production calculators were admitted and completed on the 16 GiB host; the unrun eight-worker framed diagnostic is not a substitute for those measurements.
+
+
+#### Server contexts and production budget: historical follow-up 1
+
+**Historical blocker, resolved by the routed-server measurements below.** `createPickerContext` is absent at START: source inspection found 0 definitions/references in `app/`, `tests/` and `docs/`, and 0 implementations across the available local refs. The available server exposes monolithic `createServer`, which is not a substitute for the MP2 factory's sharing and ownership. Constructing N whole servers would measure a different architecture. App changes are forbidden in this task, so no factory was invented or copied into the benchmark. The required MP2 commit/checkout and its dependencies are needed to run these measurements.
+
+| Workload | Context counts requested | Server RSS measurements | Per-context increment |
+| --- | --- | ---: | --- |
+| Fresh | 1, 4, 8 | 0 | Not measured |
+| Grown | 1, 4, 8 | 0 | Not measured |
+
+The separate MP4 evidence supplied for this task is 1554 MiB peak server RSS at 3 open contexts. It is not a measured fresh/grown curve in this checkout, and no slope is inferred from that single point. In particular, server-side context memory cannot be omitted from admission.
+
+Use the conservative full-machine interpretation of headroom: `11 − 1.5 − 0.20 × 11 = 7.3 GiB` available for **server + all calculators**. A candidate `(N, C)` must satisfy `serverPeakRSS(N) + calculatorPeakRSS(C) <= 7.3 GiB`, with the shared context included in N. This budget is separate from the 16 GiB experiment host's admission check. The pending server measurements prevent a validated production `maxOpenContexts`; the former value 32 is withdrawn, and no replacement setting is asserted from the light tables or a fitted guess. Current sign-up/admission settings are unchanged.
+
+#### Grown-save latency boundary
+
+Five interleaved repetitions per row, cold plus complete repeat round only. Two-calculator cases assign picker identities round-robin. RSS here is a shorter cold/repeat interval, so the full-pattern HWM above remains the budget input. Passing means both targets hold in all five observed run-level p95s, not a statistical latency guarantee.
+
+| Pickers / calculators | Ready ms | Cold p50 ms | Cold p95 ms | Repeat p50 ms | Repeat p95 ms | Combined sampled peak MiB | All five pass? |
+| --- | --- | ---: | --- | ---: | --- | --- | --- |
+| 2 / 1 | 2846.9 [2695.8–2959.0] | 3140.4 | 3622.4 [3383.8–3726.6] | 42.3 | 82.8 [78.8–85.3] | 1756.1 [1753.3–1795.7] | Yes |
+| 3 / 1 | 2928.1 [2620.0–2958.4] | 3470.3 | 4055.0 [3946.0–4143.1] | 910.5 | 1481.7 [1391.8–1500.7] | 2060.9 [1970.4–2117.8] | Yes |
+| 4 / 1 | 2881.6 [2733.7–2910.2] | 3490.4 | 4476.3 [4352.7–4603.2] | 1076.8 | 1990.8 [1873.6–2032.4] | 1986.2 [1947.5–2049.2] | No |
+| 4 / 2 | 3284.7 [3249.3–3321.3] | 3427.0 | 3907.6 [3817.2–4036.7] | 69.6 | 122.1 [95.0–176.8] | 2855.7 [2820.0–2957.8] | Yes |
+| 6 / 2 | 3276.9 [3233.3–3359.8] | 3947.2 | 4946.5 [4517.5–5212.2] | 1175.2 | 2198.9 [2006.3–2245.1] | 3413.6 [3189.7–3437.4] | No |
+| 8 / 2 | 3340.8 [3188.9–3415.0] | 3999.6 | 5386.1 [5265.0–5481.4] | 1583.3 | 2629.0 [2572.4–2811.6] | 3473.7 [3288.8–3494.4] | No |
+
+**Measured calculator capacity.** For grown saves, one production calculator meets the declared raw-worker targets at 3 identities: median p95 4.06 s cold / 1.48 s repeat, with worst-run p95 4.14 / 1.50 s. Four identities on one calculator are borderline and fail the repeat target in observed runs. Two production calculators meet both targets at 4 identities: median p95 3.91 s cold / 0.12 s repeat, worst-run 4.04 / 0.18 s. Six identities on two calculators fail (repeat p95 2.20 [2.01–2.25] s); eight also fail (2.63 [2.57–2.81] s). Thus the largest tested passing layout is **4 grown identities / 2 calculators**. This is not yet a production `maxOpenContexts` recommendation: server residency is unmeasured, and these repeat figures bypass HTTP/scheduler caches and exclude simultaneous advisory traffic. The earlier 32-context production recommendation remains withdrawn.
+
+**Sharing and duplication.** At 8 grown identities, one shared calculator versus eight separate calculators reduces median startup CPU 40.81 → 4.80 core-s (36.01 saved), ready calculator-only RSS 5788.2 → 713.0 MiB, conservative lifetime calculator HWM sum 11768.6 → 2005.5 MiB, and full-workload CPU 473.21 → 251.22 core-s. Combined driver/calculator sampled peak is 13025.9 → 2729.5 MiB. Eight separate calculators have faster repeat and prediction queues, but do not fit the server budget: observed calculator-only phase-end RSS reached 10871.9 MiB in the first run; adding just the 1536 MiB OS/Caddy reserve already exceeds 11264 MiB. This is a measured real-pack comparison, not a multiplication of the light fixture or the earlier item-5 estimate. The compiled engine remains shared per dataset/rule variant; full evaluated graphs and transferred states still churn in two-entry caches.
+
+**Knee.** Queueing after cache eviction is the first single-calculator latency knee. At 8 grown identities, median repeat p95 is 3934 ms, with 3460 ms queued; prediction p95 is 91911 ms, with 88850 ms queued. That prediction phase uses about 1.41 core-s per wall second despite a 4-core quota: a single active JavaScript calculation cannot consume the remaining capacity as parallel requests. Adding calculators is not linear: two calculators at 6 identities still miss the repeat SLO, and eight calculators consume too much RAM and have cold p95 11.95 [11.66–13.25] s at this quota. These observations locate calculator cache/queue and duplicate-worker memory limits. They do not locate the server-context RSS knee, which still needs the missing MP2 implementation. No engine/cache fix was implemented.
+
+**Budget candidate, not deployment approval.** Retaining the worst full-pattern single-calculator HWM (2121.4 MiB) twice leaves about **3.16 GiB for server RSS** inside the 7.3 GiB app budget. A four-context/two-calculator candidate therefore requires a measured `serverPeakRSS(4) <= 3.16 GiB`, including the shared context. The supplied 1554 MiB point at 3 contexts cannot establish that bound for 4 grown contexts or supply per-context increments. The calculator-only cold/repeat expectations for that candidate are the measured **3.91 / 0.12 s p95** above, under equal arrival schedules and no prediction ahead in the same queue. Six-vCPU transfer assumes comparable per-core speed and reserves four cores for the measured calculator/driver demand, leaving two for server/OS work; latency is not divided by 6/4. Active prediction coexistence, rule diversity, grown server-context memory and HTTP/storage overhead remain unmeasured. A final `maxOpenContexts` and calculator count must wait for those server measurements; public admission should not be raised on this evidence alone.
+
+
+#### Follow-up validation and remaining work
+
+- Full production-pattern trials: 27 completed (15 fresh, 12 grown), with 3 repetitions per layout and 0 rejected layouts. Boundary trials: 30 completed, with 5 repetitions per row. Framed/pilot diagnostics are separate and do not enter the production medians.
+- Expanded smoke test: 1 passed, 0 failed, in 2.50 s; both transports and both two-picker topologies are covered, with inherited dataset settings deliberately invalid. It remains one quick/open-f2p test.
+- Follow-up `npm run test:quick`: 2534 tests, 2466 passed, 0 failed, 68 skipped, 69.62 s. START: 2533 tests, 2465 passed, 0 failed, 68 skipped. Exactly START plus one; no tests weakened or skipped to change the result. The initial EN6 full-suite result remains historical; the follow-up required quick suite was rerun, and app/calculator source changes are 0.
+- Current benchmark SHA-256: `5256e58e3b0d47dd27dfca819e273d70d58116c0a4282fac36a9beaa26ba9530`. Private input contents added to the repository: 0. Source-state hash differences from EN3: 0. No commits were pushed and no PR was opened.
+- The follow-up-1 MP2 blocker is resolved by the unmodified multiplayer worktree measured below. Its previous budget candidate is superseded by the routed-server budget, including the updated 2 GiB service reserve. App/calculator changes remain 0.
+
+
+#### Routed-server capacity (EN6 follow-up 2)
+
+These measurements supersede the missing-runtime blocker and the production-budget candidate above. The open-f2p tables remain a **light-workload bound**. EN5 was not merged at START.
+
+Runtime commit: `5e15efe13a1dc34100ebbb1f2381f7c25ab43c07`, in an isolated multiplayer worktree. Application, calculator and pack changes: **0**. The runtime's calculator/worker/planning source differs from START in **0** files. The new `scripts/perf/multi-picker-server-capacity.mjs` runs real `createServer`, synthetic-provider OAuth, signed-in routing and process-mode calculators. Registry, picker and tombstone storage are temporary. N includes the always-open shared context and N−1 signed-in contexts; `maxOpenContexts` includes that shared context too. Fresh owned contexts use the actual one-member sign-up default. Grown contexts preserve the two-member save shape and have distinct picker/account identities.
+
+The dataset and both pack hashes are unchanged from the released-pack section. Defaults SHA-256: `1ab931d329b526e55b6283ed401b929023e7153e3e1dcd04604d85de8b4fabf0`. Source-state SHA-256: `64de39c55452925587b87af05aa01507513263761bc407f54e81bcbb699acfdc`. The grown seed is normalized through the real store codec, with **0** logical-state hash differences before/after normalization: logical backup **70,394,809 bytes**, compact state **765,849 bytes**. Earlier probes that directly stored a full logical backup are excluded from every table below. They were fixture diagnostics, not capacity evidence.
+
+Three rotating repetitions per fresh/grown/count case; a fresh server process for every trial. Five were impractical for the full routed matrix. Same CPU/model/quota as above: 5 visible CPUs, 4-core quota, AMD EPYC 9V45, 16 GiB cgroup RAM. No other timed workload overlaps. File caches are warm; no manual GC. Prediction prewarm and retention are disabled; one-hour context/calculator idle retirement keeps residents open. “Idle” means all requested contexts are open but no explicit task-list request has been made: opening itself prepares rules, state representations and roll pools, and already starts the foreground calculator. “Warm” follows one task-list evaluate per context and one complete repeat round. These task-list HTTP requests are sequential, not the simultaneous raw-worker burst measured above.
+
+RSS includes the entire server process and all calculator descendants. The loopback load client runs in the server process, so its response buffering is included. Steady values are phase-end observations after 250 ms; they do not imply a GC equilibrium. Sampled peaks are measured every 50 ms when the event loop is available, with child discovery every 250 ms. Synchronous server work can prevent sampling; kernel high-water marks are checked separately below. Peaks are reset before opening and before evaluation. MiB = 2²⁰ bytes. Every cell is median [min–max] across completed runs.
+
+##### Residency with one foreground calculator
+
+| Owned shape | Total contexts | Server idle MiB | Whole-tree idle MiB | Whole-tree opening peak MiB |
+| --- | ---: | --- | --- | --- |
+| fresh | 1 | 1152.8 [1115.2–1155.9] | 1983.2 [1963.8–1994.9] | 1983.2 [1963.8–1994.9] |
+| fresh | 2 | 1179.1 [1170.6–1180.6] | 2117.8 [2039.0–2127.3] | 2144.1 [2082.6–2156.5] |
+| fresh | 4 | 1632.3 [1627.3–1638.5] | 2619.5 [2567.9–2637.4] | 2627.6 [2581.9–2645.2] |
+| fresh | 8 | 2508.5 [2461.7–2513.4] | 3479.5 [3478.2–3539.4] | 3547.8 [3487.9–3579.1] |
+| fresh | 16 | 2896.0 [2888.6–2936.8] | 3855.6 [3851.0–3953.7] | 4368.4 [4118.0–4388.3] |
+| grown | 1 | 1150.7 [1140.8–1151.3] | 2019.8 [2018.1–2025.1] | 2019.8 [2018.1–2025.1] |
+| grown | 2 | 1813.8 [1807.3–1820.3] | 2826.3 [2722.2–2845.9] | 2826.3 [2807.9–2861.2] |
+| grown | 4 | 2397.3 [2393.2–2421.9] | 3464.4 [3406.4–3537.8] | 3584.0 [3444.7–3619.7] |
+| grown | 8 | 3617.0 [3598.2–3629.5] | 4711.2 [4690.4–4726.7] | 4736.0 [4735.6–4763.0] |
+| grown | 16 | Heap limit | Not completed | Not completed |
+
+| Owned shape | Total contexts | Server warm MiB | Calculator warm MiB | Whole-tree warm MiB | Whole-tree evaluation/repeat peak MiB |
+| --- | ---: | --- | --- | --- | --- |
+| fresh | 1 | 1168.8 [1152.6–1170.7] | 1007.6 [1006.8–1021.4] | 2177.6 [2160.2–2190.2] | 2228.3 [2184.3–2261.9] |
+| fresh | 2 | 1071.7 [1069.0–1084.9] | 1106.4 [1079.9–1134.5] | 2175.4 [2164.8–2206.1] | 2264.7 [2244.0–2274.0] |
+| fresh | 4 | 1402.4 [1394.5–1404.3] | 1236.0 [1211.9–1250.7] | 2630.5 [2616.2–2653.0] | 2789.9 [2747.4–2790.2] |
+| fresh | 8 | 2094.6 [2052.0–2094.6] | 1425.1 [1396.8–1469.9] | 3491.4 [3477.1–3564.5] | 3564.5 [3503.4–3629.4] |
+| fresh | 16 | 2918.9 [2882.4–2956.0] | 1527.7 [1514.7–1540.1] | 4459.0 [4397.2–4483.7] | 4488.9 [4466.2–4499.3] |
+| grown | 1 | 1166.6 [1156.7–1167.2] | 1062.2 [1014.9–1063.8] | 2220.5 [2181.5–2229.4] | 2280.0 [2245.5–2294.6] |
+| grown | 2 | 1447.4 [1410.1–1459.9] | 1216.6 [1163.3–1241.4] | 2651.4 [2610.7–2676.5] | 3065.7 [2992.6–3085.1] |
+| grown | 4 | 2002.5 [1997.7–2055.1] | 1409.2 [1346.2–1425.0] | 3411.8 [3344.0–3480.1] | 3724.6 [3712.4–3736.0] |
+| grown | 8 | 3257.3 [3235.1–3261.8] | 1399.2 [1324.4–1502.3] | 4656.5 [4559.5–4764.0] | 4906.9 [4872.6–4978.9] |
+| grown | 16 | Not completed | Not completed | Not completed | Not completed |
+
+Per-extra-context server RSS increments below use `(median RSS(N) − median RSS(1)) / (N−1)`, not a fitted extrapolation. The curve includes GC/allocation effects; it is not a constant retained-object size.
+
+| Owned shape | Total contexts | Idle MiB / extra context | Warm MiB / extra context |
+| --- | ---: | ---: | ---: |
+| fresh | 2 | 26.3 | -97.1 |
+| fresh | 4 | 159.8 | 77.9 |
+| fresh | 8 | 193.7 | 132.3 |
+| fresh | 16 | 116.2 | 116.7 |
+| grown | 2 | 663.0 | 280.8 |
+| grown | 4 | 415.5 | 278.6 |
+| grown | 8 | 352.3 | 298.7 |
+
+The default-heap grown-16 attempt failed while opening: **12** contexts reached the last checkpoint, **3,961,654,208 bytes** heap used against a **4,496,293,888-byte** heap limit, with **6,058,885,120 bytes** combined RSS at that checkpoint. One attempt failed; two further default-heap repetitions were not admitted after the same failure. This is a V8 heap boundary before the physical-RAM boundary, not a socket-test failure.
+
+
+##### Opening cost and calculator lanes
+
+A new routed request includes context materialization, compact-state loading, preparation, roll-pool work and the first task-list response. It is not comparable to a request issued after `/api/session` has already opened/prepared the context. The next measurements open N−1 contexts, evaluate them, activate the requested advisory lanes through real HTTP, then send the final picker's first task request directly. OAuth provisioning is completed before timing. All lanes are resident but their activation requests have finished before the newcomer arrives; these are not measurements of a newcomer queued behind an active prediction batch.
+
+The multiplayer scheduler has **one foreground lane**, plus lazy prediction, peer and death lanes. Counts 2/3/4 below activate those existing lanes in that order. They do not create a pool of 2/3/4 foreground evaluators. Thus the earlier **3.91 s** raw-worker result for four identities distributed across two foreground workers measures a different topology, and excludes routed context opening. The retained per-context HTTP task-result cache also explains why a routed warm repeat can be fast after a complete round, even where raw-worker caches have evicted earlier inputs. A save/input change must re-enter the worker queues; the full-pattern results above remain relevant.
+
+Three repetitions per row. “Peak” is sampled whole-tree RSS over all evaluation/advisory/newcomer/repeat requests. “HWM upper bound” adds the server and child kernel RSS high-water marks; those maxima need not coincide. The latter guards against event-loop sampling gaps.
+
+| Total contexts | Calculator processes | Server warm MiB | Calculators warm MiB | Whole-tree warm MiB | Whole-tree peak MiB | HWM upper bound MiB |
+| ---: | ---: | --- | --- | --- | --- | --- |
+| 2 | 4 | 1473.8 [1449.4–1524.0] | 4345.8 [4298.7–4411.6] | 5822.7 [5819.6–5861.0] | 6273.7 [6247.3–6293.5] | 6601.0 [6598.9–6611.7] |
+| 4 | 3 | 2068.1 [2016.5–2082.1] | 3437.9 [3308.0–3503.4] | 5519.9 [5376.1–5520.0] | 5909.3 [5897.7–5975.7] | 6223.7 [6221.5–6280.1] |
+| 4 | 4 | 2087.1 [2079.0–2089.7] | 4606.9 [4541.5–4750.4] | 6696.6 [6620.5–6837.5] | 7113.3 [7082.8–7223.6] | 7418.3 [7398.4–7547.1] |
+| 8 | 2 | 3240.2 [3235.3–3288.6] | 2646.4 [2587.9–2714.3] | 5881.7 [5828.1–6002.8] | 6337.3 [6331.6–6412.3] | 6648.9 [6586.0–6728.3] |
+| 8 | 3 | 3287.2 [3236.6–3294.1] | 3558.6 [3551.2–3565.8] | 6838.4 [6802.4–6852.7] | 7237.2 [7195.7–7268.5] | 7542.0 [7539.6–7542.4] |
+| 8 | 4 | 3292.3 [3233.7–3294.8] | 4700.6 [4694.0–4808.0] | 7992.9 [7927.7–8102.7] | 8527.2 [8364.8–8535.9] | 8826.0 [8674.5–8847.3] |
+
+| Total contexts | Calculator processes | Newcomer cold ms, median [min–max] | Newcomer empirical p95 ms | Warm task-list p95 ms, median [min–max] |
+| ---: | ---: | --- | ---: | --- |
+| 2 | 4 | 8108.6 [7810.3–8188.7] | 8188.7 | 16.1 [16.0–47.4] |
+| 4 | 3 | 5669.3 [5660.7–5934.8] | 5934.8 | 25.9 [14.2–50.4] |
+| 4 | 4 | 5752.8 [5705.7–5870.8] | 5870.8 | 54.8 [26.0–111.9] |
+| 8 | 2 | 6081.0 [5825.0–6356.0] | 6356.0 | 893.7 [877.3–925.2] |
+| 8 | 3 | 6219.7 [6091.2–6466.0] | 6466.0 | 921.1 [855.5–930.9] |
+| 8 | 4 | 6196.7 [6066.3–6641.9] | 6641.9 | 889.7 [847.0–901.5] |
+
+There are only three newcomer observations per row: nearest-rank empirical p95 is the maximum, not a reliable population-tail estimate. Warm p95 uses the complete context repeat round in each run, then reports the median/range of those run-level p95s. At N=2 the newcomer has no previously opened owned clone; at larger N, other owned clones are already resident. The copied saves intentionally share gameplay inputs, so these rows do not establish a tail for diverse saves, rules or simultaneous arrivals. The lower N=4/8 cold figures cannot be interpreted as higher load making arbitrary new pickers faster.
+
+**Does adding three or four calculators cut cold latency?** In the actual MP4 topology, no clear improvement is observed. At eight contexts the newcomer medians are **6.08 / 6.22 / 6.20 s** for 2/3/4 resident processes, while sampled peak medians are **6.19 / 7.07 / 8.33 GiB**. Additional processes run advisory lanes; foreground remains serial. Their activation has finished before timing, so these figures also exclude CPU contention from concurrent advisory work. Three and four calculators fit the 9 GiB hard application budget at eight contexts for these requests, but both exceed the 6.8 GiB budget retaining the earlier 20% headroom. More processes are not a demonstrated cold-latency improvement at this setting.
+
+Reproduction uses private inputs only as explicit external paths; the harness copies before opening:
+
+```sh
+node scripts/perf/multi-picker-server-capacity.mjs   --runtime "$RUNTIME" --packs "$PACKS" --defaults "$DEFAULTS"   --source "$SAVE" --output /tmp/routed-capacity.json   --counts 1,2,4,8,16 --shape both --runs 3
+# Additional residency/newcomer rows:
+# --counts 8 --shape grown --runs 3 --direct-last --lanes 2
+# --counts 8 --shape grown --runs 3 --direct-last --lanes 3
+# --counts 4,8 --shape grown --runs 3 --direct-last --lanes 4
+# --counts 4 --shape grown --runs 3 --direct-last --lanes 3
+# --counts 2 --shape grown --runs 3 --direct-last --lanes 4
+# Larger-heap diagnostic: --counts 16 --shape grown --runs 3 --heap-mb 8192
+```
+
+
+##### Live-box budget and recommendation
+
+Use **11 GiB total − 2 GiB OS/other services = 9 GiB** as the hard application allowance. Keeping the previously requested **20% of total RAM** as headroom leaves **6.8 GiB = 6963.2 MiB** for the complete server/calculator process tree. The shared context is included in every count. Both sampled peak and the more conservative sum of kernel high-water marks must fit. This is a measured operating envelope for the HTTP requests above; the full alternating/prediction stress series was calculator-only and must not be presented as an integrated server stress test.
+
+| Budget | Largest tested passing total contexts | Calculator processes | Maximum sampled peak MiB | Maximum HWM upper bound MiB | Qualification |
+| --- | ---: | ---: | ---: | ---: | --- |
+| 6.8 GiB with headroom | 8 | 2 | 6412.3 | 6728.3 | Requires a global process cap of 2 |
+| 6.8 GiB with headroom | 4 | 3 | 5975.7 | 6280.1 | Requires a global process cap of 3 |
+| 6.8 GiB with headroom | 2 | 4 | 6293.5 | 6611.7 | Existing MP4 maximum lane count |
+| 9 GiB without 20% headroom | 8 | 4 | 8535.9 | 8847.3 | Fits measured requests; loses requested headroom |
+| 9 GiB without 20% headroom | 16 | 1 | 7692.7 | 7866.0 | Requires 8 GiB old-space; loses requested headroom |
+
+**Recommended setting for unchanged MP4: `maxOpenContexts = 2`, with at most its four existing calculator lanes resident (one foreground job at a time).** This is the largest tested grown context count that retains the requested headroom when all four lanes can open. It includes the shared picker and one other open picker; additional signed-in pickers can exist on disk, but these measurements do not cover eviction/reopening churn. At this setting, the measured newcomer first-task p95 is **8.19 s**, median **8.11 [7.81–8.19] s**; warm task-list p95 is median **16 [16–47] ms**, with worst observed **47 ms**. These figures assume advisory activation has finished and no foreground queue is ahead of the newcomer. They meet the requested 10 s cold / 2 s warm bounds in the three observed runs, with limited cold margin.
+
+**Conditional larger setting: `maxOpenContexts = 8` with a hard global calculator cap of 2.** The measured newcomer p95 is **6.36 s**, median **6.08 [5.82–6.36] s**; warm p95 is median **0.89 [0.88–0.93] s**, and worst summed RSS HWM is **6.57 GiB**. Four contexts with three calculators are another measured memory frontier. MP4 exposes lazy lane creation, not a configurable global two/three-process pool. Thus neither larger setting is enforceable simply by changing `maxOpenContexts`; the multiplayer lane would need process admission/retirement or a bounded pool. No such behavior change was implemented here. Allowing all four MP4 processes at eight contexts is not equivalent to the two-process recommendation.
+
+On a 6-vCPU host, these latency expectations assume comparable per-core speed, at least the measured four cores available for calculator/server work, and two additional cores for HTTP/storage/OS work. No latency is divided by 6/4. Six CPUs are not evidence that four independent cold compiles/evaluates become proportionally faster. Concurrent predictions, rule variants, state growth and storage stalls can move both boundaries; the observed p95s are measurements of the stated schedules, not admission guarantees for arbitrary traffic.
+
+
+##### Sixteen grown contexts with a larger heap
+
+All three fresh-process repetitions completed with `--max-old-space-size=8192` (also inherited by calculator children). The measured V8 heap limit is **8,791,261,184 bytes**. This is a separate configuration variant; it does not erase the default-heap failure. There is still only one foreground calculator.
+
+| Contexts / calculators | Server idle MiB | Whole-tree idle MiB | Opening peak MiB | Server warm MiB | Calculator warm MiB | Whole-tree warm MiB | Evaluation/repeat peak MiB | HWM upper bound MiB |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 16 / 1 | 5884.0 [5869.7–5928.6] | 6982.2 [6973.2–7035.5] | 7058.5 [7023.8–7084.6] | 5573.7 [5554.4–5598.6] | 1565.4 [1540.8–1575.8] | 7130.3 [7114.5–7164.0] | 7204.6 [7154.0–7278.6] | 7754.1 [7686.1–7828.9] |
+
+The largest tested context count fitting the **9 GiB hard allowance** is therefore **16 / 1**, with a larger heap and worst HWM sum **7.68 GiB** including the direct-newcomer trials below. The largest tested calculator count fitting that hard allowance is **8 / 4**, worst HWM sum **8.64 GiB**. Neither retains the requested 20% headroom. No maximum beyond the tested grid is inferred, and 16 / 2 was not measured. Requesting the first task list after every context has already opened/prepared gives p95 **1.78 [1.77–1.91] s**; repeat p95 is **1.11 [1.04–1.14] s**. Those first-list values exclude opening and are not newcomer cold-latency estimates. There is no recommendation to increase the heap or deploy sixteen contexts from these results.
+
+
+##### Prospective foreground pool: 2 versus 3 versus 4
+
+These are **raw production ProcessWorker** measurements, not the advisory-lane topology or integrated HTTP server. Two-worker rows are the five-run boundary series above. Three/four-worker rows add five rotating repetitions each, cold and full-repeat rounds only, using the same pinned grown calculation-state hash. All **20** added trials completed; memory admission rejections: **0**. No other benchmark overlapped. Picker assignments are round-robin; MP4 does not currently wire this foreground pool. The complete server RSS must be added before treating these worker-only figures as a production configuration.
+
+| Pickers / foreground workers | Ready ms | Startup core-s | Calculator HWM upper bound MiB | Driver + calculators sampled peak MiB |
+| --- | --- | --- | --- | --- |
+| 4 / 2 | 3284.7 [3249.3–3321.3] | 9.8 [9.6–9.9] | 2098.1 [2065.1–2120.4] | 2855.7 [2820.0–2957.8] |
+| 4 / 3 | 4125.1 [4013.2–4209.1] | 15.1 [14.7–15.4] | 2876.5 [2819.9–2904.5] | 3688.4 [3637.9–3770.8] |
+| 4 / 4 | 5264.3 [5208.1–5606.4] | 19.9 [19.8–21.0] | 3636.6 [3563.7–3700.3] | 4669.3 [4528.3–4678.1] |
+| 8 / 2 | 3340.8 [3188.9–3415.0] | 10.0 [9.6–10.2] | 2701.8 [2552.1–2747.3] | 3473.7 [3288.8–3494.4] |
+| 8 / 3 | 4129.5 [4074.3–4179.2] | 15.0 [14.6–15.2] | 3599.6 [3500.6–3717.5] | 4289.6 [4194.2–4517.9] |
+| 8 / 4 | 5256.1 [5113.1–5358.3] | 19.7 [19.0–19.9] | 4200.0 [4162.2–4275.4] | 5125.7 [5090.3–5200.0] |
+
+| Pickers / workers | Pattern | Core-s | p50 ms | Queue-inclusive p95 ms | Combined steady / peak MiB | Completed / s |
+| --- | --- | --- | ---: | --- | ---: | ---: |
+| 4 / 2 | cold | 11.6 [11.1–12.0] | 3427.0 | 3907.6 [3817.2–4036.7] | 2855.0 / 2855.0 | 1.02 |
+| 4 / 2 | warm-round | 0.3 [0.2–0.7] | 69.6 | 122.1 [95.0–176.8] | 2839.2 / 2855.7 | 32.71 |
+| 4 / 3 | cold | 15.8 [14.8–16.3] | 3898.4 | 4417.4 [4124.4–4572.1] | 3682.3 / 3682.3 | 0.91 |
+| 4 / 3 | warm-round | 0.2 [0.2–0.2] | 56.1 | 94.5 [85.7–111.5] | 3688.4 / 3688.4 | 42.28 |
+| 4 / 4 | cold | 19.4 [19.1–20.4] | 4937.6 | 5266.3 [5136.2–5320.9] | 4634.9 / 4640.6 | 0.76 |
+| 4 / 4 | warm-round | 0.4 [0.4–0.5] | 69.8 | 109.7 [102.2–119.0] | 4669.3 / 4669.3 | 36.43 |
+| 8 / 2 | cold | 16.6 [16.2–17.0] | 3999.6 | 5386.1 [5265.0–5481.4] | 3021.3 / 3046.1 | 1.49 |
+| 8 / 2 | warm-round | 8.1 [7.3–9.5] | 1583.3 | 2629.0 [2572.4–2811.6] | 3369.2 / 3473.7 | 3.04 |
+| 8 / 3 | cold | 20.9 [20.3–21.7] | 4602.9 | 5683.4 [5484.2–5895.1] | 4048.2 / 4230.7 | 1.41 |
+| 8 / 3 | warm-round | 7.2 [6.4–8.3] | 950.0 | 2174.8 [2063.4–2344.2] | 4289.6 / 4289.6 | 3.68 |
+| 8 / 4 | cold | 24.7 [23.7–24.9] | 5548.9 | 6402.6 [6188.4–6503.1] | 5035.7 / 5125.7 | 1.25 |
+| 8 / 4 | warm-round | 0.9 [0.7–1.6] | 139.1 | 221.3 [176.7–391.6] | 5049.6 / 5065.7 | 36.13 |
+
+**Plain answer for a foreground pool:** three or four workers do **not** cut the four-picker cold p95 below the two-worker **3.91 s**. It rises to **4.42 / 5.27 s** on the four-core quota; median startup CPU rises **9.8 → 15.1 → 19.9 core-s**, and median calculator HWM rises **2098 → 2877 → 3637 MiB**. Four workers do improve eight-picker warm repeats: **2.63 → 0.22 s p95**, with all five four-worker repeat runs below 2 s; three workers remain above 2 s. The cost at eight pickers is **2702 → 4200 MiB** median calculator HWM, about **1.46 GiB extra**, plus server contexts. Even using the separate measured server HWM at eight contexts, that larger foreground pool exceeds the 6.8 GiB allowance with headroom. It can fit the hard 9 GiB allowance on a summed-envelope calculation, but that is not an integrated server/pool measurement. Buying four foreground workers therefore buys warm-cache capacity at a RAM/CPU cost, not a demonstrated improvement to the current two-worker cold p95. A true six-core calculator allocation needs its own measurement; it is not forecast here.
+
+
+##### Answers and limits
+
+**1. How many active pickers?** The calculator-only simultaneous-arrival boundary is four grown identities on two foreground workers at **3.91 s cold / 0.12 s repeat p95**. Eight require four foreground workers to meet both raw-worker bounds in this measured grid (**6.40 s / 0.22 s**), and that larger pool loses the required memory headroom once server residency is included. The actual routed server answers cached warm task lists for eight contexts and opens a newcomer within the targets with two resident processes, but this is a quiescent-advisory, single-newcomer schedule, not eight simultaneous saves. For unchanged MP4 with every existing lane allowed, use the measured two-context/four-process operating point above; eight/two is conditional on a global process cap. Open-context capacity, raw active-worker capacity and HTTP cache-hit capacity are different measured limits.
+
+**2. Is compiled state shared?** Yes within a calculator for the tested dataset/rule variant; picker identity does not cause recompilation. The original resolver/compiler coverage and released-pack startup comparison above establish this; the routed implementation passes one shared runtime, indexed world and scheduler into contexts. Each picker gets a `forPicker` facade and separate store/state/cache representations, not another compiled dataset. At eight grown contexts, warm server RSS alone is about **3.18 GiB**, with roughly **301 MiB per extra context** relative to the one-context baseline; compiled sharing does not eliminate that cost. Source inspection points to per-context store snapshots, serialized state/response caches and retained task results. Their individual retained-byte attribution was not heap-profiled, so no precise allocation breakdown is claimed. Investigating bounded response/snapshot retention or shared immutable catalogue representations is a possible follow-up; no cache/state behavior changed here.
+
+**3. Where is the knee?** Raw-worker queueing/cache eviction misses the warm bound before CPU quota or total RAM is exhausted on one calculator. Adding three/four foreground workers then contends for the four-core quota and increases cold CPU/latency and duplicate compilation. In the integrated server, the context heap is a second knee: default-heap grown-16 fails during opening, while an 8 GiB old-space setting permits it at higher physical RSS. The production whole-tree budget is a third boundary: at eight contexts, two processes preserve the requested headroom, three/four do not. Raising the heap only moves the heap boundary; it does not make additional contexts or calculator lanes free. The recommendation is constrained by measured memory and traffic shape, not a six-vCPU speedup forecast.
+
+
+##### Newcomer at the hard-budget sixteen-context boundary
+
+Three additional larger-heap, one-calculator trials open/evaluate fifteen contexts, then time the sixteenth context's direct first task request. This closes the opening-cost gap in the larger-heap table; it does not remove the headroom objection.
+
+| Total contexts / calculators | Newcomer cold ms median [min–max] | Newcomer empirical p95 ms | Warm p95 ms median [min–max] | Whole-tree peak MiB | HWM upper bound MiB |
+| --- | --- | ---: | --- | --- | --- |
+| 16 / 1 | 7189.3 [7127.4–8056.8] | 8056.8 | 1191.7 [1154.9–1195.5] | 7588.7 [7499.0–7692.7] | 7789.4 [7745.0–7866.0] |
+
+The measured hard-budget newcomer p95 is therefore **8.06 s**, warm p95 at most **1.20 s**; both targets hold in these three runs. Only one calculator is resident and advisory requests are quiescent. Four lazy lanes at this context count were not admitted or measured, and sixteen contexts still do not fit the 6.8 GiB headroom allowance.
+
+
+##### Final follow-up validation
+
+- Reported routed-server trials: **51 completed**, **1 default-heap failure**, **2 further default-heap cases not admitted**. Full-backup fixture diagnostics, the missing-revision request probe and the interrupted trial are excluded from the tables. The interrupted run was restarted in a fresh process; no partial timing enters a median.
+- Added prospective foreground-pool trials: **20 completed**, **0 rejected**, five repetitions per layout. Actual routed rows use three repetitions; all results carry that sample-size limitation.
+- Final `npm run test:quick`: **2534 tests, 2466 passed, 0 failed, 68 skipped**, **69.67 s**. START: **2533 tests, 2465 passed, 0 failed, 68 skipped**. Exactly START plus the classified open-f2p smoke test. Both benchmark scripts pass syntax checks; the server benchmark help command succeeds.
+- The initial full-suite result remains historical: **5765 tests, 5625 passed, 0 failed, 140 skipped**, **268.94 s**. This follow-up reran the required quick suite; application/calculator changes are **0**.
+- Server benchmark SHA-256: `7216d6d7bba81e8bcae1d0be8d369085654852350ac2c5028b750097e4fdd541`. Worker benchmark SHA-256 remains `5256e58e3b0d47dd27dfca819e273d70d58116c0a4282fac36a9beaa26ba9530`.
+- Multiplayer-worktree modifications: **0**. Private-checkout modifications: **0**. Source-state hash differences: **0**. Private named-value/path matches in added repository text: **0**. Prepared private fixtures and temporary server trees remaining: **0**. No push or PR.
+
+**MERGE-CANDIDATE for the measurement scripts and report.** Production admission above the unchanged-MP4 recommendation remains conditional on calculator process admission. Diverse saves/rules, context eviction/reopening churn and concurrent advisory traffic remain outside the integrated server measurements. The earlier full-pattern calculator tables quantify their CPU/queue/memory pressure but do not substitute for an integrated stress run. No application setting or game behavior was changed.
