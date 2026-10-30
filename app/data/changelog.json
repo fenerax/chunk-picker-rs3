@@ -3,6 +3,16 @@
   "entries": [
     {
       "date": "2026-10-30",
+      "title": "Slayer reward unlocks wait until they are useful",
+      "items": [
+        "Crafting a slayer helmet waits until you can get all its parts, and fusing rings onto it waits for the helmet",
+        "Quicker killing blows waits until a gargoyle, rock slug, desert lizard or zygomite is available",
+        "Unlocks for one monster, area or item (ice strykewyrms, Morvran's dungeon, the Sunken Pyramid, tool belt attachments) wait until you have it. A new rule under Permanent Unlockables brings them back early if you want the extra grind",
+        "The \"Why is this task here?\" panel says what a waiting unlock needs"
+      ]
+    },
+    {
+      "date": "2026-10-30",
       "title": "The picker stays quick while it works out what a roll can pick",
       "items": [
         "Working out which chunks a roll can land on now runs in the background, so the page and saves no longer wait for it",
