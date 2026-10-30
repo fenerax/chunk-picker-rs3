@@ -1578,3 +1578,193 @@ supply reviewed capacity numbers before public deployment. Deletion, browser UI,
 operator tooling and production sign-up policy remain outside MP7. No private
 inputs or scratch measurement scripts were added to this repository. All changes
 are staged for collection, with no push or pull request.
+
+## Phase 1 acceptance map
+
+MP10 uses combined START `341f81648a3f8d0e308420f99250a7a624362189`
+(MP9 including MP6/MP5, merged with MP7). The comparison main is
+`1c978e30d73a7a9cad0184e11b06376635438c6b`. Application files are
+unchanged after START. Public sign-up remains switched off.
+
+All executable cases use the real `createServer` with `multiPicker` enabled,
+synthetic OAuth sign-in and HTTP. Public fixtures deliberately collide member IDs
+and revisions. Controlled worker transports make stale delivery/crash ordering
+deterministic while retaining the real scheduler, router, contexts and limits.
+Browser cases execute the session module in a VM and the actual durable command
+client against HTTP sessions; they hold ownership before dispatch and change the
+cookie or sign out. The preview case enables the public fixture's progress
+features, uses public response fixtures and temporarily forces proposal UUID
+allocation to collide, restoring randomness before writes. No private input is
+used in tests.
+
+| Phase 1 bullet | Combined acceptance test(s) | Earlier focused coverage |
+| --- | --- | --- |
+| Two unrelated accounts, empty colliding members/revisions, mutate/check/reload | `phase1-acceptance.test.mjs`: P1.1 | MP4 `picker-routing.test.mjs`; MP2 `picker-context.test.mjs` |
+| Cross-picker commands, tasks/queries, conflicts, history, export, uploads/retained restore, invitations, overlays, SSE and plugin; conflicting selectors | P1.2 | MP4 `picker-routing.test.mjs`; MP5 `picker-deletion.test.mjs`; MP7 `picker-limits-http.test.mjs` |
+| Reused request/receipt/preview/backup IDs and revisions; replay, undo, caches and restore stay scoped | Both P1.3 cases | MP4 `picker-routing.test.mjs`; MP3 `picker-jobs.test.mjs`, `worker-picker-keys.test.mjs`; existing `action-receipts.test.mjs`, `runemetrics-server.test.mjs` |
+| Both subscribed; revoke/delete A, close its streams and prevent later revision/worker/plugin/overlay leakage | P1.4 | MP5 `picker-deletion.test.mjs`; MP4 `picker-routing.test.mjs` |
+| Interleaved colliding jobs, stale delivery, cancellation/crash/restart and eviction during queued writes; B survives | Both P1.5 cases | MP3 `picker-jobs.test.mjs`; MP4 `picker-routing.test.mjs`; MP5 `picker-deletion.test.mjs`; MP7 `picker-fairness-isolation.test.mjs` |
+| Racing/crashed provisioning, one empty default, unchanged shared exception and separate ownership slots | P1.6; `phase1-acceptance-crash.test.mjs`: six P1.6 process-death boundaries | MP1 `registry.test.mjs`; MP4 `picker-routing.test.mjs`, `picker-routing-crash.test.mjs` |
+| Browser switch/logout during queued commands clears views/streams/preferences/recovery without replay | Both P1.7 cases | MP6 `picker-browser-session.test.mjs`; MP9 `picker-owner-ui.test.mjs` |
+| Service backup containing a deleted picker honors tombstones, revoked credentials and unchanged B | P1.8 **covered by MP8, PR #35** | MP1 `registry.test.mjs`; MP5 `picker-deletion.test.mjs`, `picker-deletion-crash.test.mjs` cover checkpoint reconciliation, not MP8 service restoration |
+| Owner capabilities stay scoped; operator powers remain private; global budgets shared | P1.9 | MP4 `picker-routing.test.mjs`; MP7 `picker-limits-http.test.mjs`, `picker-limits.test.mjs`, `picker-fairness-isolation.test.mjs`; MP9 `picker-owner-ui.test.mjs` |
+
+The new files are explicitly quick/open-f2p in `scripts/test-selection.mjs`.
+Service recovery is covered by MP8, PR #35 (`mp/operator`), including MP5
+tombstones. Its P1.8 marker is skipped in this checkout; MP8 is not merged here.
+No application bug has been identified by the executable acceptance cases.
+
+### MP10 lane gates
+
+The checker and unchanged reference adapter come from engine commit
+`2856d0d8d19b49c4d36718bbb2cff1d61e080610` in a separate worktree.
+No checker files enter this branch. Scratch adapter directories link their
+`app` roots to the pinned main and START worktrees, permitting **direct
+cross-tree reference-versus-candidate comparisons**. The self-reference/report
+hash fallback is not used.
+
+This checker has no named duo mode. The duo workload here selects the current
+saved snapshot with `limits.save: 1`, seed 17, all default request caps, sequence
+8 and serial calculators. Its inventory contains 414 retained states; **1 state
+is checked per comparison**. **The multiplayer checker gate passes.** The 414-state engine gate runs as
+48 Cloud shards before the first engine merge to main and is outside this lane. Fresh gameplay copies and matching bindings are opened
+and closed by the real server first: main without routing, then START without
+or with `multiPicker`. All four preparation opens have 0 state-hash differences.
+The adapter itself has no `multiPicker` setting; the option selects the server
+preparation path. The acceptance suite above exercises routing and scheduler
+isolation through HTTP.
+
+| Direct comparison | States checked | Comparisons | Differences | Errors |
+| --- | --- | --- | --- | --- |
+| Main against START, option absent | 1 | 36 | 0 | 0 |
+| Main against START, option present | 1 | 36 | 0 | 0 |
+
+Both reports have manifest SHA-256
+`e820a65517c544267fce264904a612855aebe72fc7e1ca139718a5b7ac86c5b4`
+and state-ID SHA-256
+`78ede83a331763a6a92414ff0b5f6f94c1d6e8855f80152df16673529bd8e87e`:
+0 corpus/state-ID differences. A public external-adapter smoke comparison also
+checks 1 state with 0 differences and 0 errors. Historical engine coverage
+remains separate from these current-duo comparisons.
+
+Validation on Node 24.19.0 (passed / failed / skipped / TODO):
+
+| Suite | START | MP10 |
+| --- | --- | --- |
+| Quick | 2,661 / 0 / 68 / 0 | 2,678 / 0 / 69 / 0 |
+| Full | 5,808 / 0 / 140 / 0 | 5,825 / 0 / 141 / 0 |
+
+Totals increase by exactly 18 cases: 17 executable passes and the P1.8 external
+coverage marker for MP8, PR #35. There are 0 TODO cases.
+START quick/full took 78.731/268.819 seconds. The original MP10 run took
+82.407/292.448 seconds with P1.8 pending. After the MP8 coverage marker update,
+quick/full were rerun: 89.120/277.020 seconds.
+Acceptance cases: 17 passed, 0 failed, 1 external-coverage skip, 0 TODO. The existing footprint regression
+also passes after the harness addition (1 passed, 0 failed), and the new flag
+completes both synthetic trials with numeric reports. No existing tests changed.
+
+Save preservation uses fresh temporary copies, process workers and an identical
+fixed store clock to exclude clock-driven retention. Main, START without routing
+and START with routing each preserve the exact 766,384-byte state through open,
+close, reopen and close: SHA-256
+`64de39c55452925587b87af05aa01507513263761bc407f54e81bcbb699acfdc`
+before and after every open. Each retains 2 members and 23,939 saved tasks;
+there are 0 hash differences across configurations. A separate wall-clock check
+at all three configurations adds 1 field, removes 0 fields and changes 0 existing
+leaves; it produces 766,470 bytes at every configuration. This also occurs on
+main and is why the exact-hash comparison fixes the store clock. No source files
+in the private checkout were modified.
+
+Footprint results and their method are recorded in the Multiplayer lane section
+of `docs/perf/picker-footprint.md`. The current-duo comparisons above have
+0 differences and pass the multiplayer gate. Service recovery is covered by
+MP8, PR #35; the historical engine gate belongs to the engine lane. These measurements do not authorize
+opening public sign-up.
+
+### MP10 regression attribution follow-up
+
+The footprint section now includes a balanced repeat with the option absent
+and present, branch bisection probes and paired parent/child confirmation.
+Values are median [minimum–maximum], three primary runs per configuration.
+
+| Metric | Main | START option absent | START option present |
+| --- | --- | --- | --- |
+| Cold task wall time, ms | 5777.4 [5745.0–5907.9] | 5791.4 [5742.7–5994.3] | 5926.5 [5883.5–5986.3] |
+| Cold combined CPU, core-seconds | 10.498 [10.329–10.558] | 10.345 [10.242–10.981] | 10.905 [10.702–10.951] |
+| First full state CPU, core-seconds | 0.670 [0.583–0.686] | 0.782 [0.611–0.836] | 0.756 [0.498–0.854] |
+
+The cold-CPU bisection candidate is MP5
+`c19cef6d738f547875fa1dea1d4d96ff7227d8f8`: its parent measures
+10.679 [10.642–10.823] core-seconds and MP5 measures
+11.054 [10.935–11.453], a 3.51% increase with separated ranges.
+The initial suspect was `createPickerContext()` resource lifetime/GC; the
+requested cold-function follow-up below does not substantiate that hypothesis. Both task branches and the independent
+MP6 branch were probed; non-monotonic branch results prevent assigning every
+combined-lane difference solely to MP5.
+
+The harness `rollPool` interval sends already-prepared pools in the first full
+state envelope. It records 0 calculator CPU in every follow-up interval.
+Profiles point to GC and the shared `fieldJSON()` serializer; the relevant
+serializer/caller source has 0 differences between main and START. State-response
+CPU rises in both option settings, with overlapping ranges, so no introducing
+commit is established for that metric. Full probe/profile evidence and wider
+scouting ranges remain in `docs/perf/picker-footprint.md`.
+
+All previously staged test/harness changes are retained. The final rerun counts
+above include the P1.8 external-coverage skip replacing its earlier TODO.
+The checker results cover 1 current state and 36 comparisons per option, with
+0 differences and 0 errors. They do not claim historical engine coverage.
+Service recovery is covered by MP8, PR #35. Cold-CPU attribution is an
+investigation target, with no app fix.
+
+
+### MP10 cold-function follow-up and final disposition
+
+The confirmed multiplayer corpus is the current duo snapshot. Both direct
+main-versus-START checker modes **pass**: 1 state, 36 comparisons, 0 differences,
+0 errors each. The 414-state corpus belongs to the engine lane, run as 48 Cloud
+shards before its first merge to main. Service recovery honoring MP5 tombstones
+is **covered by MP8, PR #35** (`mp/operator`); that branch is not merged here.
+P1.8 is an explicit external-coverage skip, not a pending TODO.
+
+Native `--cpu-prof` runs compare MP5 `c19cef6` with immediate parent `d6ef7f1`,
+three fresh process-mode runs per tree in alternating pair order. All six stay
+under the 3,500 MiB RSS guard and produce 54 isolate profiles. Only cold task
+HTTP intervals are compared. The full method, top-function self-time table,
+resource counters and proposal are in `docs/perf/picker-footprint.md`.
+
+| Instrumented cold metric, median [minimum–maximum], 3 runs | Parent | MP5 |
+| --- | --- | --- |
+| Combined CPU, core-seconds | 10.855 [10.835–11.297] | 11.424 [11.018–11.429] |
+| HTTP main-thread CPU, core-seconds | 0.514 [0.510–0.541] | 0.560 [0.491–0.607] |
+| Idle HTTP heap, MiB | 421.772 [420.176–421.777] | 421.783 [420.218–421.814] |
+
+The combined median rises 5.24% under profiling, with overlapping ranges.
+The largest relevant positive named-function deltas are `serializedState()`
+(+15.0 ms) and engine `check()` (+14.8 ms), both with overlapping ranges.
+`createCompiledTaskEngine()` (+9.2 ms) and `ownItemOrigin()` (+10.6 ms)
+have separated sampled ranges but unchanged source; they do not explain the
+earlier 0.375 core-second gap. Native helper-thread CPU is outside these
+isolate profiles. No changed MP5 function is proven to cause +3.51%.
+
+Cold-window ledger reads are 0 across all 12 evaluations; both trees have
+1 active HTTP timer and 7 process event listeners. Heap/GC ranges overlap,
+with only 11,920 bytes median idle-heap difference. The earlier retained-context
+hypothesis is withdrawn. State-response `fieldJSON()`/GC remains unattributed;
+no further work on it is included.
+
+The concrete unapplied proposal targets `gzipSavedTaskResult()` in
+`app/picker-context-http.mjs` and `rememberTaskResultWork()` / full-task HTTP
+sending in `app/picker-context.mjs`: compress the shared bulk JSON prefix once,
+then finish separate tiny retained/live metadata suffixes using the existing
+single-member gzip prefix/CRC technique. Preserve metadata, negotiation,
+retention limits and deletion fences. Three isolated helper calibrations give
+0.048120 [0.046407–0.048252] core-seconds per bulk pass. The gross saving target is about
+0.048 core-seconds per eligible full response before prefix/CRC overhead; this is a measured cost bound for a
+proposal, not an implemented saving or proof of the MP5 regression's cause.
+It does not promise to recover the whole +3.51%.
+
+Final suites: quick 2,678 passed / 0 failed / 69 skipped / 0 TODO; full
+5,825 / 0 / 141 / 0. No application bug was found. No app/checker code changed
+after START. The remaining performance item is the proposal above.
+Recommendation: **MERGE-CANDIDATE**.
