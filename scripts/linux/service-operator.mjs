@@ -16,15 +16,16 @@ import { checkStoppedCompatibility, writeBackupStatus } from './recovery.mjs';
 // ledger is repaired explicitly: an operator that died after MP5 replaced it
 // leaves it root-owned, and a resumed reconcile would preserve that owner.
 // The rest of tombstoneDir keeps its owners.
-export async function repairServiceOwnership({ settings, uid, gid, change = chown }) {
+export async function repairServiceOwnership({ settings, uid, gid, change = chown, step = async label => {} }) {
+  const repair = async file => { await step('ownership.change'); await change(file, uid, gid); };
   for (const root of [settings.dataDir, settings.multiPicker.registryDir, settings.multiPicker.pickerRoot]) {
     if (!await exists(root)) continue;
-    for (const row of await inventory(root)) await change(path.join(root, row.path), uid, gid);
-    await change(root, uid, gid);
+    for (const row of await inventory(root)) await repair(path.join(root, row.path));
+    await repair(root);
   }
-  if (await exists(settings.dataDir + '.dataset.json')) await change(settings.dataDir + '.dataset.json', uid, gid);
+  if (await exists(settings.dataDir + '.dataset.json')) await repair(settings.dataDir + '.dataset.json');
   const ledger = path.join(settings.multiPicker.tombstoneDir, 'ledger.json');
-  if (await exists(ledger)) { await noLinks(ledger); await change(ledger, uid, gid); }
+  if (await exists(ledger)) { await noLinks(ledger); await repair(ledger); }
 }
 
 export async function assertServiceStopped(settings, controller) {

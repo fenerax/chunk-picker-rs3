@@ -2375,3 +2375,213 @@ Windows execution was not available in this environment.
 The START Windows syncRecoveryTree r+ fix, JSON plugin-key fixture, and MP7
 pickerDirectory fixture are retained. OPS1's scripts/linux/files.mjs and
 scripts/linux/operator.mjs were not edited. No new test file needed classification.
+
+### MP8 crash points
+
+Hooks run immediately **before** the labelled mutation. A fault at hook k leaves
+steps 1 through k-1 durable; tests also fault at the next hook to exercise the
+state immediately after each step. Labels are stable and may repeat per picker,
+file or journal save. This table describes a deliberately stopped service with
+unchanged backup, release, targets and external tombstone ledger. MP5 owns the
+idempotent deletion steps inside reconciliation; this table covers its operator
+call boundary, not a second implementation of MP5.
+
+`R` means **resumes to the same result** after validating journal identities and
+on-disk digests. `F` means **refuses: OPERATOR_ACTION_REQUIRED**, followed by the
+named manual step. Keep the service stopped for every manual step. Never delete
+an uncertain payload: move it aside for inspection, or restore the exact bytes
+from the verified backup. Source backups are never modified. Partial staging
+copies may coexist with their verified source; final results retain one payload
+location per eligible picker. Tombstoned payloads remain in the backup only,
+under MP5's existing deletion contract.
+
+Tests below refer to `tests/linux-service-crash.test.mjs`: C = capture sweep,
+S = restore sweep, Q = release sweep, O = ownership sweep, A = ambiguous evidence.
+The sweeps learn the hook count, fault at every call on fresh tiny fixtures,
+retry, perform the named manual step on refusal, and compare final registry,
+picker/binding identities, quarantine records and journal phase. A final
+successful retry covers death immediately after the last mutation.
+
+#### Service backup capture
+
+| Step label | Disk immediately after step | Same-input rerun | Test |
+| --- | --- | --- | --- |
+| `capture.spool` | Spool parent exists. | R | C |
+| `capture.target` | Snapshot directory exists without completion. | F: Move the snapshot aside after checking source stores; then rerun. | C |
+| `capture.pickers` | Empty picker container exists. | F: Move the snapshot aside after checking source stores; then rerun. | C |
+| `capture.gameplay` | A partial or complete gameplay copy exists. | F: Move the snapshot aside after checking source stores; then rerun. | C |
+| `capture.binding` | Copied binding exists. | F: Move the snapshot aside after checking source stores; then rerun. | C |
+| `capture.inputs` | Input container exists. | F: Move the snapshot aside after checking source stores; then rerun. | C |
+| `capture.input-directory` | Input pack directory exists. | F: Move the snapshot aside after checking source stores; then rerun. | C |
+| `capture.input-copy` | Copied input or pack payload exists. | F: Move the snapshot aside after checking source stores; then rerun. | C |
+| `capture.absent-store` | A newly absent picker copy has been removed. | F: Move the snapshot aside after checking source stores; then rerun. | C |
+| `capture.absent-binding` | Its copied binding has been removed. | F: Move the snapshot aside after checking source stores; then rerun. | C |
+| `capture.registry` | Sanitized registry copy exists. | F: Move the snapshot aside after checking source stores; then rerun. | C |
+| `capture.manifest` | Verified manifest exists, completion receipt absent. | F: Move the snapshot aside after checking source stores; then rerun. | C |
+| `capture.complete` | Verified snapshot and completion receipt exist. | R | C |
+| `capture.failed-cleanup` | Failed capture spool removed; live sources intact. | R | C |
+
+#### Shared MP5 operator adapter (planning, then application)
+
+MP5's existing storage API owns its internal registry/ledger writes and purge
+ordering. Hooks below cover the operator's own durable steps and each storage
+API call boundary; they do not instrument writes inside app/storage. Planning
+scratch contains sanitized metadata and disposable directories, never gameplay.
+
+| Step label | Disk immediately after step | Same-input rerun | Test |
+| --- | --- | --- | --- |
+| `reconcile.control` | Operator control parent exists. | R | S, Q |
+| `reconcile.scratch` | Disposable reconciliation directory exists. | R | S, Q |
+| `reconcile.directories` | Scratch registry/picker directories or live picker parent exist. | R | S, Q |
+| `reconcile.checkpoint` | Sanitized scratch checkpoint exists. | R | S, Q |
+| `reconcile.registry` | MP5 registry API reconciles scratch metadata against the live ledger. | R | S, Q |
+| `reconcile.purge` | MP5 purge API has applied its idempotent exclusions. | R | S, Q |
+| `reconcile.ownership` | Original ledger/issuer ownership restored where needed. | R | S, Q |
+| `reconcile.cleanup` | Disposable reconciliation scratch removed. | R | S, Q |
+
+#### Service restore: preparation, per-picker install and quarantine, publication
+
+| Step label | Disk immediately after step | Same-input rerun | Test |
+| --- | --- | --- | --- |
+| `restore.archive` | Completed journal archived; targets must pass empty checks. | R | S |
+| `restore.directories` | Control/work or target parent directories exist. | R | S |
+| `restore.legacy-reset` | Disposable unjournaled legacy probe stage removed. | R | S |
+| `restore.legacy-copy` | Legacy probe store or binding copied. | R | S |
+| `restore.reconcile` | MP5 applied authoritative exclusions and purge. | R | S |
+| `restore.prepared` | Prepared journal records verified legacy preflight. | R | S |
+| `restore.stage-reset` | Disposable pending owned stage removed. | R | S |
+| `restore.stage-directory` | Pending owned stage directory exists. | R | S |
+| `restore.stage-copy` | Owned probe store or binding copied. | R | S |
+| `install.stage-directory` | Sibling stage exists, but journal may not name it yet. | F: Move the unjournaled sibling stage aside after checking target and source; then rerun. | S, Q, A |
+| `install.stage-intent` | Journal names sibling stage and expected digests. | R | S, Q |
+| `install.reset-store` | Incomplete sibling store removed; verified source retained. | R | S, Q |
+| `install.reset-binding` | Incomplete sibling binding removed; verified source retained. | R | S, Q |
+| `install.copy-store` | Partial or complete sibling store copied from retained migration source. | R: staged file subset digests are checked against retained source. | S, Q, A |
+| `install.copy-binding` | Sibling binding copied from retained source. | R | S, Q |
+| `install.ready` | Journal records ready sibling store and binding digests. | R | S, Q |
+| `install.remove-target` | Empty destination removed; ready sibling retained. | R | S, Q |
+| `install.rename-store` | Store at target; binding still staged. | R | S, Q |
+| `install.rename-binding` | Store and binding at target. | R | S, Q |
+| `install.restored` | Journal records restored status after digest verification. | R | S, Q |
+| `install.cleanup` | Sibling stage removed after installed bytes verified or MP5 exclusion proved. | R | S, Q |
+| `quarantine.directory` | Quarantine parent exists. | R | S |
+| `quarantine.intent` | Journal records quarantining status and payload digests. | R | S |
+| `quarantine.rename-store` | Store moved into quarantine; binding may remain staged. | R | S, A |
+| `quarantine.rename-binding` | Quarantine store and binding installed. | R | S |
+| `quarantine.placeholder-directory` | Empty fenced destination directory exists. | R | S |
+| `quarantine.placeholder` | Initialization fence records picker ID. | R | S |
+| `quarantine.record` | Quarantine record exists. | R | S |
+| `quarantine.complete` | Journal records quarantined status after verification. | R | S |
+| `restore.stage-cleanup` | Migration stage removed after install/quarantine/exclusion. | R | S |
+| `restore.excluded` | Journal records authoritative tombstone exclusion. | R | S |
+| `restore.registry-intent` | Journal records old and new registry digests. | R | S |
+| `restore.registry-publish` | Effective registry atomically published. | R | S |
+| `restore.complete` | Journal phase is complete. | R | S |
+
+#### Quarantine release
+
+The install steps above also apply between `release.remove-marker` and
+`release.installed`. They are tested by both sweeps and counted once in the
+shared install table.
+
+| Step label | Disk immediately after step | Same-input rerun | Test |
+| --- | --- | --- | --- |
+| `release.reconcile` | MP5 exclusions applied before any installation. | R | Q |
+| `release.stage-directory` | Release stage directory exists. | R | Q |
+| `release.reset-store` | Unjournaled probe store removed; quarantine retained. | R | Q |
+| `release.reset-binding` | Unjournaled binding removed; quarantine retained. | R | Q |
+| `release.reset-portable` | Disposable probe output removed. | R | Q |
+| `release.copy-store` | Probe store copied from quarantine. | R | Q |
+| `release.copy-binding` | Probe binding copied. | R | Q |
+| `release.intent` | Journal records installing status and checked digests. | R | Q |
+| `release.remove-marker` | Fence removed; installing journal and payloads retained. | R | Q |
+| `release.installed` | Journal records installed status after target verification. | R | Q, A |
+| `release.remove-quarantine` | Quarantine payload removed; installed bytes verified. | R | Q |
+| `release.remove-binding` | Quarantine binding removed. | R | Q |
+| `release.remove-record` | Quarantine record removed; installed journal retained. | R | Q |
+| `release.stage-cleanup` | One disposable probe file removed. | R | Q |
+| `release.complete` | Journal records released status. | R | Q |
+
+#### Ownership repair
+
+| Step label | Disk immediately after step | Same-input rerun | Test |
+| --- | --- | --- | --- |
+| `ownership.change` | One inventoried file, root, legacy binding or ledger has the requested UID/GID. | R: repeats the idempotent chown to the same UID/GID. | O |
+
+#### Evidence that cannot be proved
+
+These are refusal conditions rather than additional durable steps. They apply
+at any table row: a partial sibling copy whose files fail source digest checks (move the sibling store aside after checking migration source), a changed installed/staged digest, a missing migration source
+before destination readiness, both/neither quarantine rename endpoints, an
+unrecognized registry digest, or a release cleanup journal whose target no longer
+matches. Each throws `OPERATOR_ACTION_REQUIRED` and names the affected path and
+manual step. Restore exact expected bytes from the verified backup or retained
+source and rerun; move an unexpected endpoint aside for inspection first. Never
+infer successful installation from status alone. A tests these refusals and the
+manual recovery. A conflicting released journal with a new quarantine record requires moving the journal aside after checking quarantine. Quarantine cleanup also refuses an unverified retained payload, naming its path to move aside after checking the installed target. Older quarantine rows without payload digests require moving their quarantine store and binding aside for inspection and setting only that picker row to pending, preserving other completed rows. The older missing-source upgrade is deliberately removed;
+normal split store/binding rename resume and completed-journal archival remain
+because their identities can be verified.
+
+#### Rerun decisions
+
+- Removed the older missing-source install upgrade: a target digest alone does
+  not establish the missing migration source and binding intent. Repopulate the
+  source explicitly before retrying.
+- Removed automatic reset of a released journal when a quarantine record exists:
+  that combination cannot establish a new quarantine generation. Archive the
+  journal only after inspecting quarantine.
+- Removed status-only acceptance of quarantined payloads and release cleanup:
+  both installed and retained bytes must match recorded digests before cleanup.
+  Older quarantine rows without digests require the named per-picker restart.
+- Removed deletion of unexplained nonempty sibling stages or changed partial
+  copies: move them aside for inspection instead of discarding their bytes.
+- Kept partial-copy restart only when the retained source digest matches and
+  every staged entry is an exact subset of its inventory. Split store/binding
+  renames and cleanup resume only with the expected on-disk hashes.
+- Kept pending probe-stage rebuild from the verified backup, and completed
+  capture retry only after verifying its manifest. These stages are disposable
+  copies; neither path replaces the source backup.
+- Kept registry publication using the journal's old/new digest set, and archival
+  of a completed restore journal followed by fresh empty-target checks. Neither
+  accepts an unrelated live registry or overwrites a populated target.
+- Kept MP5 reconciliation from the authoritative external ledger and repeated
+  ownership repair to the same UID/GID: these existing APIs are idempotent.
+
+#### Crash-point validation
+
+START: `5139bdbee36d8d8f3d620bfb5396ed4a29a07937`, Node 24.19.0.
+The specification was staged before code changes. There are **72 unique table
+rows: 60 resume and 12 refuse**. Capture has 14 (3/11); the shared MP5 adapter
+has 8 (8/0); restore/install/quarantine/publication has 34 (33/1); release has
+15 (15/0); ownership has 1 (1/0). Counts in parentheses are resume/refuse.
+Including shared rows, restore covers 42 (41/1) and release covers 35 (34/1).
+
+The small fixtures contain at most three pickers and use a stub probe. Counting
+runs discover 23 capture calls, 7 failed-capture calls, 63 restore calls,
+69 completed-journal archive calls, 50 release calls and 9 ownership calls:
+**221 injected faults**, plus successful completed-operation retries. Every
+unique table label is checked against the labels actually swept. Ambiguous
+state tests additionally exercise manual recovery without deleting uncertain
+bytes. The verified backup and source bytes remain unchanged; each eligible
+picker has exactly one final payload location. Authoritatively tombstoned
+payloads remain in the backup only.
+
+| Validation | Passed | Failed | Skipped | Duration, seconds |
+| --- | ---: | ---: | ---: | ---: |
+| New crash file | 17 | 0 | 1 | 37.68 |
+| Existing Linux multi-picker file | 30 | 0 | 0 | 89.01 |
+| Existing Linux operator file | 23 | 0 | 0 | 9.99 |
+| Quick | 2,758 | 0 | 69 | 226.84 |
+| Full | 5,906 | 0 | 141 | 581.27 |
+
+The new skip is `ownership native chown to another UID/GID`, which requires
+root; this process runs without root. The ownership fault sweep still runs
+with an injected chown function and checks every expected path and UID/GID.
+Focused files ran individually, followed by quick and full. An environment
+reconnect interrupted the first full attempt before totals; that partial run
+reported one failure in the unchanged chunk-planning UI file. Its standalone
+rerun passed 10/0, and the complete full rerun above passed without failures.
+No assertions were weakened or existing tests skipped. No private inputs or
+performance benchmark were needed for this service-only task. MP5's internal
+storage mutations remain behind its existing API boundary; the new hooks cover
+the operator-owned steps and those API calls, as specified in the table.
