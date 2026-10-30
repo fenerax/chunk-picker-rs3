@@ -129,6 +129,9 @@ export function createRulesPanel(ctx) {
       label.title = definition.description;
       if (definition.type === 'boolean') label.append(control, el('span', definition.label));
       else label.append(el('span', definition.label));
+      if (definition.difficultyMarker === 'extreme-supreme') {
+        const marker = el('span', ' *'); marker.title = 'Extreme / Supreme'; label.append(marker);
+      }
       const behavior = isShared ? null : taskRuleBehavior(definition.id);
       const limited = behavior && ['retained-only', 'not-implemented', 'partial'].includes(behavior.status);
       if (advanced(ctx) && limited) { const badge = el('span', behavior.status === 'partial' ? 'Partly supported' : 'No effect yet', 'rules-coverage'); badge.title = behavior.status === 'partial' ? behavior.detail : 'Saved, but it does not change tasks in this picker yet.'; label.append(badge); }

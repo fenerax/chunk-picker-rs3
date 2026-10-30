@@ -1,4 +1,5 @@
 import { datasetValue, datasetRuleDefinitions, datasetRuleRecords } from "../dataset-runtime.mjs";
+import { futureSlayerUnlocksRule, FUTURE_SLAYER_UNLOCKS_RULE } from './slayer-unlock-gates.mjs';
 // Declarative metadata extracted from retained upstream index.js v6.9.68.
 // Never execute upstream scripts or copy these defaults over imported player rules.
 const freeze = value => { if (value && typeof value === "object") { Object.values(value).forEach(freeze); Object.freeze(value); } return value; };
@@ -38,7 +39,7 @@ export const settingDefinitions = datasetRuleDefinitions("app/data/settings.mjs#
 export const authoredSettingDefinitions = datasetRuleDefinitions("app/data/settings.mjs#authoredSettingDefinitions");
 const rulePositions = positions(originalRuleStructure);
 const authoredTaskRules = datasetRuleRecords("app/data/settings.mjs#authoredTaskRules");
-export const taskRuleDefinitions = datasetRuleDefinitions("app/data/settings.mjs#taskRuleDefinitions");
+export const taskRuleDefinitions = Object.freeze([...datasetRuleDefinitions("app/data/settings.mjs#taskRuleDefinitions"), futureSlayerUnlocksRule]);
 // Worker cutoff aliases and presentation aliases are also known task rules.
 export const taskRuleCutoffDefaults = datasetValue("app/data/settings.mjs#taskRuleCutoffDefaults");
 const taskRuleTypes = new Map([...taskRuleDefinitions.map(rule => [rule.id, rule.type]), ...['Skills', 'Quests', 'Quest Complete', 'BIS', 'BIS Prayer', 'Relics', 'Show Nonskill Tasks'].map(id => [id, 'boolean'])]);
@@ -98,6 +99,7 @@ const retainedRuleBehavior = datasetValue("app/data/settings.mjs#retainedRuleBeh
  * Never use original defaults as effective imported values: absence is inheritance.
  */
 export function taskRuleBehavior(id) {
+ if (id === FUTURE_SLAYER_UNLOCKS_RULE) return { status: 'implemented-scope', detail: 'Includes eight Slayer Rewards before their monster, area or item is available.' };
  if (partialRuleBehavior[id]) return { status: 'partial', detail: partialRuleBehavior[id] };
  if (explicitRuleBehavior[id]) return { status: 'implemented-scope', detail: explicitRuleBehavior[id] };
  if (missingGeneratedBehavior[id]) return { status: 'not-implemented', detail: missingGeneratedBehavior[id] };

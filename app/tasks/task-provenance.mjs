@@ -79,6 +79,7 @@ export function explainTask(task, { result = { tasks: [] }, describeRule = () =>
     if (rule) rules.push({ id, reason, label: rule.label ?? id, section: rule.section, on: rule.on, source: rule.source });
   };
   for (const tag of list(record.Category)) addRule(tag, 'tag');
+  if (task.slayerUnlockGate?.ruleId) addRule(task.slayerUnlockGate.ruleId, 'condition');
   for (const id of categoryRuleIds(task.category)) addRule(id, 'category');
 
   const sources = (task.sources ?? []).slice(0, 3).map(source => ({
@@ -101,6 +102,7 @@ export function explainTask(task, { result = { tasks: [] }, describeRule = () =>
     categoryNote: CATEGORY_NOTES[task.category],
     rules, set: setStanding(task, result), neededFor: neededForChains(task, result),
     bossGate: gate ? { boss: gate.boss, open: gate.open, reason: gate.reason } : undefined,
+    ...(task.slayerUnlockGate ? { slayerUnlockGate: task.slayerUnlockGate } : {}),
     sources, rareDrop: rare ? { label: rareDrop.label ?? 'Rare Drop', amount } : undefined,
     hidden: reasons.filter(reason => reason !== 'Task is not available.'),
     summary: (decisive.length ? decisive : rules).slice(0, 2).map(rule => rule.label).join(' and ') || undefined,

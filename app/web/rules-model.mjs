@@ -5,6 +5,7 @@ import { hasGameplayMigration } from '../tasks/gameplay-compat.mjs';
 import { isKeptTaskRule } from './kept-rules.mjs';
 import { taskRuleDefault } from '../tasks/rule-defaults.mjs';
 import { loadRuleExplanations } from './rule-explanations.mjs';
+import { FUTURE_SLAYER_UNLOCKS_RULE, futureSlayerUnlocksExplanation } from '../data/slayer-unlock-gates.mjs';
 
 const own = (record, key) => Object.hasOwn(record ?? {}, key);
 const text = value => String(value ?? '').replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]*>/g, '').trim();
@@ -43,8 +44,10 @@ export function loadRulesCatalogue(raw) {
 
 export const rulesCatalogue = loadRulesCatalogue(capturedCatalogue);
 if (rulesCatalogue.explanationsFile && !/^app\/data\/[a-z0-9.-]+\.json$/.test(rulesCatalogue.explanationsFile)) throw new TypeError('Invalid rule explanations path.');
-export const ruleExplanations = rulesCatalogue.explanationsFile
-  ? loadRuleExplanations(await datasetJSON(rulesCatalogue.explanationsFile)) : Object.freeze({});
+export const ruleExplanations = Object.freeze({
+  ...(rulesCatalogue.explanationsFile ? loadRuleExplanations(await datasetJSON(rulesCatalogue.explanationsFile)) : {}),
+  ...loadRuleExplanations({ schemaVersion: 1, entries: { [FUTURE_SLAYER_UNLOCKS_RULE]: futureSlayerUnlocksExplanation } }),
+});
 
 /** Original copy and order are presentation data; current types stay registry-owned. */
 export function buildRulesSections(catalogue, state, sharedDefinitions = []) {
@@ -55,6 +58,7 @@ export function buildRulesSections(catalogue, state, sharedDefinitions = []) {
     return { ...definition, label: row.key === 'Achievement' ? 'Show Achievement Tasks' : row.label ?? row.key,
       description: row.descriptionText ?? text(row.descriptionHtml), tooltips: (row.tooltips ?? []).map(tooltip => text(tooltip.descriptionHtml)), currentDescription: definition.description, original: true,
       parent: row.parentKey ?? null, depth: row.depth ?? (row.parentKey ? 1 : 0), control: row.control,
+      difficultyMarker: row.difficultyMarker,
       ...(row.key === 'F2P' ? { sharedRuleId: 'content.f2p', scope: 'shared' } : {}) };
   }) }));
   // Authored additions join their original parent, without modifying retained metadata.

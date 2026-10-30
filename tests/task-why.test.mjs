@@ -63,6 +63,13 @@ test('with a rule opener the panel links to the rule instead of naming its secti
   assert.deepEqual(opened, ['Gear Goals']);
 });
 
+test('Slayer unlock explanations name open, waiting and bypassed conditions', () => {
+  for (const [open, bypassed, term] of [[true, false, 'Slayer unlock ready'], [false, false, 'Slayer unlock waiting'], [true, true, 'Slayer unlock rule']]) {
+    const why = { rules: [], neededFor: [], sources: [], hidden: [], slayerUnlockGate: { open, bypassed, reason: 'Bonecrusher is obtainable.' } };
+    assert(text(renderTaskWhy(why, { document })).includes(`${term}: Bonecrusher is obtainable.`));
+  }
+});
+
 test('the ? button loads once opened, toggles, and reports a load failure inline', async () => {
   const row = new Node('div'); let loads = 0;
   const describeRule = catalogued(await createRuleDescriber(state, 'fixture', rulesModule));
