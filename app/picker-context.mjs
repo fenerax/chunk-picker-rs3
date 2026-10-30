@@ -69,7 +69,7 @@ import { releaseAutomaticTransportCaches } from './core/automatic-transport.mjs'
 import { buildXpChoiceView } from './core/xp-choices.mjs';
 import { artBinding } from './art-bindings.mjs';
 
-import { MAX_BODY, NOTE_PREWARM_QUIET_MS, MIME, httpError, commandPermissions, apiPermission, redactInviteTokens, savedTaskSuffix, gzipSavedTaskResult, redactInviteFields, coordinationView, routeIsRuneMetrics, json, acceptsFastGzip, jsonBytes, commandJSON, bodyJSON, sendCached, containedFile, migrationSummary, convertLegacyCapture } from './picker-context-http.mjs';
+import { MAX_BODY, NOTE_PREWARM_QUIET_MS, MIME, httpError, commandPermissions, apiPermission, redactInviteTokens, savedTaskSuffix, gzipSavedTaskResult, redactInviteFields, coordinationView, routeIsRuneMetrics, json, acceptsFastGzip, jsonBytes, commandJSON, bodyJSON, routedBody, sendCached, containedFile, migrationSummary, convertLegacyCapture } from './picker-context-http.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 /** Private resources for one saved picker. The caller owns the shared runtime. */
@@ -78,7 +78,7 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
   runeMetrics = {}, progressSources = {}, originalSync = {},
   idleMemoryOptions, predictionPrewarm = true,
   schedulingClock = { now: () => performance.now(), setTimeout, clearTimeout },
-  publicOrigin, signIn = 'off', signInProvider, liveSwap, pluginItemsBetaAsLive = false,
+  publicOrigin, signIn = 'off', signInProvider, pickerRouting, liveSwap, pluginItemsBetaAsLive = false,
   startupSignal, startupTimingMs = {},
   backupStatusDir = pickerId === 'legacy' ? path.dirname(path.resolve(dataDir)) : path.resolve(dataDir),
   transport = {},
@@ -175,9 +175,10 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
   let invites, accounts, signInFlow, feedback, overlays, usage, usageStorage, gamePlugin;
   async function openSidecars() {
     accounts = await openAccountStore({ dataDir });
-    invites = await openInviteStore({ dataDir, masterToken: token, masterLabel: dataset.gameDefaults.masterLabel, accounts, signInMode: signIn });
+    invites = await openInviteStore({ dataDir, masterToken: token, masterLabel: dataset.gameDefaults.masterLabel, accounts, signInMode: signIn, pickerRegistry: pickerRouting?.registry });
+    if (pickerRouting?.authenticate) invites.authenticate = (request, security) => pickerRouting.authenticate(request, security, pickerId);
     signInFlow = await openSignIn({ publicOrigin, mode: signIn, accounts, invites, provider: signInProvider,
-      unauthenticated: key => limits.unauthenticated(key), checkRequestOrigin, serializeMutation, webRoot });
+      unauthenticated: key => limits.unauthenticated(key), checkRequestOrigin, serializeMutation, webRoot, pickerRegistry: pickerRouting?.registry, syncLegacy: pickerRouting?.syncLegacy });
     feedback = await openFeedbackStore({ dataDir });
     const usageMembers = store.getCalculationSnapshot().members;
     usageStorage = await openUsageStore({ dataDir, readOnly: liveSwap?.standby === true,
@@ -189,6 +190,7 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
       unauthenticated: key => limits.unauthenticated(key), admitStream });
     gamePlugin = await openGamePlugin({ dataDir, store, world: indexedWorld, registry: ruleRegistry, questMapping, bodyJSON, json,
       serializeMutation, checkRequestOrigin, unauthenticated: key => limits.unauthenticated(key),
+      indexKey: pickerRouting?.indexKey, removeKey: pickerRouting?.removeKey, authorizeKey: pickerRouting?.authenticateKey,
       // In-game lists read the saved task result only; they never start an evaluation.
       savedTasks: memberId => { const entry = savedTaskResults.get(memberId); return entry?.playJSON ? { bytes: entry.playJSON, revision: entry.revision } : null; },
       // Read the exact prediction cache used by Chunk Info and pool ranking.
@@ -291,6 +293,7 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
   const clients = new Set();
   const clientCredentials = new Map();
   function broadcast(bytes) {
+    if (pickerRouting?.authenticate) endInactiveClients();
     for (const client of clients) if (!writeEvent(client, bytes)) {
       clients.delete(client); clientCredentials.delete(client);
     }
@@ -767,7 +770,8 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
       let route;
       try { route = decodeURIComponent(rawPath); } catch { throw httpError(400, 'Invalid URL.'); }
       if (route.includes('\\') || route.includes('\0') || route.split('/').some(part => part === '..' || part === '.')) throw httpError(404, 'Not found.');
-      if (security.publicRequest && apiPermission(request.method, route) === 'admin') throw httpError(403, 'Administrator access requires a private connection.');
+      const ownerRestore = pickerId !== 'legacy' && /^\/api\/(?:restore|import)(?:\/preview)?$/.test(route);
+      if (security.publicRequest && apiPermission(request.method, route) === 'admin' && !ownerRestore) throw httpError(403, 'Administrator access requires a private connection.');
       if (await gamePlugin.handle(request, response, { route, security, closed })) return;
       if (await overlays.handle(request, response, { route, security, closed })) return;
       const authRoute = route.startsWith('/auth/');
@@ -809,7 +813,7 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
         response.end('Access required.'); return;
       }
       // Health probes must remain read only while standby/freeze is active.
-      if (route !== '/api/health' && !liveSwap?.standby) await invites.touch(identity);
+      if (route !== '/api/health' && !liveSwap?.standby && !identity.pickerId) await invites.touch(identity);
       // A concurrent revoke can finish while persisting the usage timestamp.
       identity = invites.authenticate(request, security);
       if (!identity) throw httpError(401, 'Access required.');
@@ -827,7 +831,7 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
           throw httpError(methodRejected ? 405 : 404, methodRejected ? 'Method not allowed.' : 'API route not found.');
         }
         if (identity.readOnly && !usageWrite && (!['GET', 'HEAD'].includes(request.method) || !['read', 'saved-tasks'].includes(permission))) throw httpError(403, 'This link is view only.');
-        if (permission === 'admin') requireAdmin();
+        if (permission === 'admin' && !(ownerRestore && identity.role === 'owner')) requireAdmin();
       }
       if (!originalSyncIntegration && (route.startsWith('/api/original-sync/') || unavailableDatasetFeature(dataset, route) === 'originalSync')) {
         throw httpError(404, 'Not found.');
@@ -841,7 +845,7 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
           && !(identity.readOnly && route === '/api/tasks');
         const expensiveWrite = request.method === 'POST'
           && ['/api/sandbox/evaluate', '/api/prediction-intent', '/api/pool-ranking-intent', '/api/profile/preview', '/api/runemetrics/preview', '/api/original-sync/preview'].includes(route);
-        if (expensiveRead || expensiveWrite) limits.expensive(identity.inviteId ?? identity.kind);
+        if (expensiveRead || expensiveWrite) limits.expensive(identity.pickerId ? `account:${identity.accountId}` : identity.inviteId ?? identity.kind);
         if (unavailableDatasetFeature(dataset, route)) throw httpError(422, 'This feature is unavailable in this game.');
         if (closed && route !== '/api/health') throw httpError(503, 'The picker is stopping. Retry after it restarts.');
         if (await usage.handle(request, response, { route, security, identity, closed: () => closed, checkRequestOrigin })) return;
@@ -853,7 +857,7 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
             if ([...query.keys()].some(key => key !== 'memberId') || query.getAll('memberId').length !== 1) throw httpError(400, 'Choose a player for game progress review.');
             await json(request, response, 200, gamePlugin.review(identity, query.get('memberId'))); return;
           }
-          if (route === '/api/session') { await json(request, response, 200, { admin: identity.admin, ...(security.publicRequest ? { adminAvailable: false } : {}), readOnly: identity.readOnly, capabilities: identity.capabilities, label: identity.label, kind: identity.kind, memberId: identity.memberId ?? null, actor: identity.actor, ...signInFlow.sessionView(identity, security) }); return; }
+          if (route === '/api/session') { await json(request, response, 200, { admin: identity.admin, ...(security.publicRequest ? { adminAvailable: false } : {}), readOnly: identity.readOnly, capabilities: identity.capabilities, label: identity.label, kind: identity.kind, memberId: identity.memberId ?? null, actor: identity.actor, ...(identity.pickerId ? { accountId: identity.accountId, pickerId: identity.pickerId } : {}), ...signInFlow.sessionView(identity, security) }); return; }
           if (route === '/api/accounts') { requireAdmin(); await json(request, response, 200, { accounts: accounts.list() }); return; }
           if (route === '/api/pool-ranking') {
             const query = new URL(request.url, 'http://localhost').searchParams;
@@ -1254,7 +1258,7 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
             await json(request, response, 200, await store.readBackup(id), { 'Content-Disposition': `attachment; filename="${id.replace(/\.gz$/, '')}"` }); return;
           }
           if (route === '/api/events') {
-            if (request.method !== 'HEAD' && !admitStream(`invite:${identity.inviteId ?? identity.kind}`, response)) return;
+            if (request.method !== 'HEAD' && !admitStream(identity.pickerId ? `account:${identity.accountId}` : `invite:${identity.inviteId ?? identity.kind}`, response)) return;
             response.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': PRIVATE_NO_STORE, Connection: 'keep-alive' });
             if (request.method === 'HEAD') { response.end(); return; }
             response.write(`event: revision\ndata: ${JSON.stringify({ revision: store.getInfo().revision })}\n\n`);
@@ -1274,7 +1278,7 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
             if (importingBackup) throw httpError(503, 'Another backup is being checked or imported. Wait for it to finish, then try again.');
             importingBackup = ownsImport = true;
           }
-          const importedFile = isImportRoute(route) ? await readBackupRequest(request) : null;
+          const importedFile = isImportRoute(route) ? (routedBody(request)?.imported ?? await readBackupRequest(request)) : null;
           const body = importedFile ? importedFile.body : await bodyJSON(request, route === '/api/sandbox/evaluate' ? 64 * 1024 : route === '/api/worker-restart' || route === '/api/prediction-intent' || route === '/api/pool-ranking-intent' || route.startsWith('/api/game-plugin/') || route.startsWith('/api/runemetrics/') || route.startsWith('/api/invites') ? 8192 : route.startsWith('/api/feedback') ? 16384 : MAX_BODY);
           if (importedFile?.uploaded && body.document && route.startsWith('/api/restore')) route = route.replace('/api/restore', '/api/import');
           // Keep slow uploads and reviewed sync-original commands excluded. Only
@@ -1600,7 +1604,7 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
               await json(request, response, 200, { ...await viewEnvelope(await store.command(command, body.expectedRevision, { actor: identity.actor }), viewFor(request)), warnings }); return;
             }
             // Replacing the whole save is an administrator action; invites keep normal gameplay.
-            if (/^\/api\/(?:restore|import)(?:\/preview)?$/.test(route)) requireAdmin();
+            if (/^\/api\/(?:restore|import)(?:\/preview)?$/.test(route) && !(ownerRestore && identity.role === 'owner')) requireAdmin();
             if (route === '/api/restore/preview') {
               // Storage validates the complete public backup at its replacement boundary.
               const replacement = await store.previewReplacement(await restoreBackup(body));
@@ -1839,6 +1843,8 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
   let activationPending;
   const context = {
     pickerId, store,
+    authenticate: (request, security) => invites.authenticate(request, security),
+    authenticatePlugin: request => gamePlugin.authenticate(request),
     handle: (request, response, listener = { host: '127.0.0.1', ingressRole: 'private' }) => track(requests, () => requestHandler(request, response, listener)),
     activate(checkpoint) {
       if (closed || !liveSwap?.standby) return Promise.reject(new Error('Only a prepared standby can activate.'));

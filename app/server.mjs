@@ -2,16 +2,19 @@ import { createUsageRateLimit } from './usage-route.mjs';
 import { httpError, redactInviteTokens, serverReadyMessage, cachedJSON } from './picker-context-http.mjs';
 export { routePermissions, commandPermissions, apiPermission, redactInviteTokens, serverReadyMessage, gzipSavedTaskResult, coordinationView } from './picker-context-http.mjs';
 import { createPickerContext } from './picker-context.mjs';
+import { createPickerRouter } from './picker-router.mjs';
+import { openRegistry } from './storage/registry.mjs';
+import { readLegacyAccounts } from './storage/registry-legacy.mjs';
 import { startupPhase } from './startup-timing.mjs';
 import { resolveDataset } from './datasets.mjs';
-import { verifyDatasetBinding } from './dataset-binding.mjs';
+import { verifyDatasetBinding, bindDatasetStorage } from './dataset-binding.mjs';
 import { defaultGameDirectory, prepareGameStorage, gameArtOptions, datasetFeature } from './game-profile.mjs';
 import { prepareServerDefinitions, preparedDefinitionStages } from './dataset-pipeline.mjs';
 import { datasetBrowserPayload } from './dataset-catalogues.mjs';
 import { datasetJSON, selectedDataset, adoptLegacyMetadataProvider } from "./dataset-runtime.mjs";
 import http from 'node:http';
 import { loadPrivateAddon, datasetWithPrivateAddon } from './private-addon.mjs';
-import { readFile } from 'node:fs/promises';
+import { readFile, mkdir, readdir } from 'node:fs/promises';
 import { readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -97,7 +100,7 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
   // Optional second listener on 127.0.0.1 for Tailscale Funnel, which can only proxy to loopback.
   loopbackPort = process.env.RS3_LOOPBACK_PORT ? Number(process.env.RS3_LOOPBACK_PORT) : undefined,
   loopbackRole = process.env.RS3_LOOPBACK_ROLE ?? 'private',
-  signIn = process.env.RS3_SIGNIN ?? 'off', signInProvider,
+  signIn = process.env.RS3_SIGNIN ?? 'off', signInProvider, multiPicker,
   httpServer, httpLoopbackServer, startupConnections, onRequestHandler, startupSignal,
   // Operator capability only: no HTTP endpoint can acquire writer ownership.
   liveSwap,
@@ -319,17 +322,72 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
   const connections = startupConnections ?? new Set();
   const transport = { savingConnections: new Map(), connectionDeadlinePassed: false,
     inviteUrl: () => handle.inviteUrl, requestClose: () => handle.close() };
-  let context;
+  let context, pickerRegistry, pickerRouter;
+  async function syncLegacy() {
+    const memberIds = context.store.getCalculationSnapshot().members.map(member => member.id);
+    let plan;
+    try {
+      await readFile(path.join(dataDir, 'accounts.json'));
+      plan = await readLegacyAccounts({ accountsFile: path.join(dataDir, 'accounts.json'), invitesFile: path.join(dataDir, 'invites.json'), memberIds });
+    } catch (error) {
+      if (error.code !== 'ENOENT') throw error;
+      // An account file without its invitation file is not an empty import.
+      try { await readFile(path.join(dataDir, 'accounts.json')); throw new Error('Legacy invitation store is missing.'); }
+      catch (missing) { if (missing.code !== 'ENOENT') throw missing; }
+      plan = { memberIds, accounts: [], droppedMemberships: 0 };
+    }
+    await pickerRegistry.registerLegacy(plan);
+  }
   try {
+    if (multiPicker) {
+      await mkdir(dataDir, { recursive: true, mode: 0o700 });
+      pickerRegistry = await openRegistry({ ...multiPicker, legacyDir: dataDir });
+    }
     context = await createPickerContext({ pickerId: 'legacy', dataDir, runtime,
       initialState, prepareState, beforeCommit, now, random, retention, initialImport,
       runeMetrics, progressSources, originalSync, idleMemoryOptions, predictionPrewarm,
       schedulingClock, publicOrigin, signIn, signInProvider, liveSwap, pluginItemsBetaAsLive,
-      startupSignal, startupTimingMs, transport });
-  } catch (error) { await taskWorker?.close(); throw error; }
-  // The sole context resolution boundary. Picker routing is deliberately deferred.
+      startupSignal, startupTimingMs, transport,
+      pickerRouting: pickerRegistry ? { registry: pickerRegistry, syncLegacy } : undefined });
+    if (pickerRegistry) {
+      await syncLegacy();
+      pickerRouter = createPickerRouter({ registry: pickerRegistry, legacy: context,
+        publicOrigin, requestContextFor, unauthenticated: key => limits.unauthenticated(key), maxOpenContexts: multiPicker.maxOpenContexts, idleCloseMs: multiPicker.idleCloseMs,
+        openContext: async pickerId => {
+          const picker = pickerRegistry.getPicker(pickerId);
+          if (picker?.kind !== 'default' || picker.lifecycle !== 'active' || picker.provisioning !== 'ready') throw httpError(403, 'Picker access denied.');
+          const directory = pickerRegistry.pickerDirectory(pickerId);
+          const binding = await verifyDatasetBinding(directory, dataset);
+          if (!binding.bound) {
+            if ((await readdir(directory)).length) throw httpError(503, 'Picker dataset binding is missing.');
+            await bindDatasetStorage(directory, dataset);
+          }
+          const initial = createGroupState(picker.memberIds.map(id => ({ id, name: 'Player 1' })), ruleRegistry);
+          initial.provenance = { dataset: { id: dataset.datasetId, contractVersion: dataset.datasetContractVersion, digest: dataset.digest } };
+          let opened;
+          try {
+            opened = await createPickerContext({ pickerId, dataDir: directory, runtime,
+              initialState: initial, now, random, beforeCommit, retention, runeMetrics, progressSources, originalSync,
+              prepareState: state => {
+                if (JSON.stringify(state.members.map(member => member.id)) !== JSON.stringify(picker.memberIds)) throw httpError(403, 'Picker membership does not match its registry.');
+                const identity = state.provenance?.dataset;
+                if (!identity || identity.id !== dataset.datasetId || identity.contractVersion !== dataset.datasetContractVersion || identity.digest !== dataset.digest) throw httpError(422, 'Choose a backup from this picker’s dataset.');
+                return state;
+              },
+              idleMemoryOptions, predictionPrewarm, schedulingClock, publicOrigin,
+              pickerRouting: { authenticate: pickerRouter.authenticate, indexKey: pickerRouter.indexKey, removeKey: pickerRouter.removeKey,
+                authenticateKey: (request, memberId) => pickerRouter.authenticateKey(request, pickerId, memberId) },
+              transport: { savingConnections: transport.savingConnections, requestClose: transport.requestClose } });
+            const actual = opened.store.getCalculationSnapshot().members.map(member => member.id);
+            if (JSON.stringify(actual) !== JSON.stringify(picker.memberIds)) throw httpError(503, 'Picker membership does not match its registry.');
+            await opened.prepare(); opened.startBackground(); return opened;
+          } catch (error) { await opened?.close(); throw error; }
+        } });
+    }
+  } catch (error) { await context?.close(); await pickerRegistry?.close(); await taskWorker?.close(); throw error; }
+  // Preserve the original synchronous dispatcher when routing is disabled.
   function contextFor(request) { return context; }
-  const requestHandler = (request, response, listener = { host, ingressRole }) => contextFor(request).handle(request, response, listener);
+  const requestHandler = (request, response, listener = { host, ingressRole }) => pickerRouter ? pickerRouter.handle(request, response, listener) : contextFor(request).handle(request, response, listener);
   const headerOptions = { maxHeaderSize: requestContextFor === requestContext ? http.maxHeaderSize : 64 * 1024 };
   const server = httpServer ?? http.createServer(headerOptions, requestHandler);
   const loopbackServer = httpLoopbackServer ?? (loopbackPort === undefined ? null : http.createServer(headerOptions,
@@ -365,7 +423,9 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
     close() {
       if (closePromise) return closePromise;
       closed = true;
-      const contextClosed = context.close();
+      const contextClosed = pickerRouter
+        ? pickerRouter.close().then(() => context.close()).then(() => pickerRegistry.close())
+        : context.close();
       closePromise = (async () => {
         let timer, saveResponseTimer;
         const listeners = [server, loopbackServer].filter(listener => listener?.listening);

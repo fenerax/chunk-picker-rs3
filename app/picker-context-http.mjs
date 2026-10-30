@@ -161,7 +161,17 @@ export async function commandJSON(request, response, saved) {
   const receipt = saved.receipt ? `,"receipt":${JSON.stringify(saved.receipt)}` : '';
   return jsonBytes(request, response, 200, Buffer.from(`{"state":${saved.stateJSON},"pools":${JSON.stringify(saved.pools)}${metadata}${view}${receipt}}`));
 }
-export async function bodyJSON(request, maxBytes = MAX_BODY) {
+// The routing boundary may parse JSON before opening a private context. Retain
+// the byte count so the handler's smaller route-specific limit still applies.
+const routedBodies = new WeakMap();
+export function routedBody(request) { return routedBodies.get(request); }
+export function rememberRoutedBody(request, value, bytes) { routedBodies.set(request, { value, bytes }); }
+export async function bodyJSON(request, maxBytes = MAX_BODY, { remember = false } = {}) {
+  const routed = routedBodies.get(request);
+  if (routed) {
+    if (routed.bytes > maxBytes) throw httpError(413, 'Request body is too large.');
+    return routed.value;
+  }
   if (!/^application\/json(?:\s*;|$)/i.test(request.headers['content-type'] ?? '')) throw httpError(415, 'Use application/json.');
   const declared = Number(request.headers['content-length']);
   if (Number.isFinite(declared) && declared > maxBytes) throw httpError(413, 'Request body is too large.');
@@ -174,6 +184,7 @@ export async function bodyJSON(request, maxBytes = MAX_BODY) {
   }
   const value = parseRequestJSON(Buffer.concat(chunks).toString('utf8'));
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw httpError(400, 'Request body must be a JSON object.');
+  if (remember) rememberRoutedBody(request, value, length);
   return value;
 }
 export async function cachedJSON(bytes) {

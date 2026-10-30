@@ -1,4 +1,6 @@
 import { openPluginKeys } from './plugin-keys.mjs';
+import { readFile } from 'node:fs/promises';
+import path from 'node:path';
 import { openPluginAchievements } from './plugin-achievements.mjs';
 import { openPluginItems } from './plugin-items.mjs';
 import { GAME_ITEMS, GAME_TOOLBELT, GAME_WORN_TASKS, COINS, COIN_BILLIONS, ITEM_REVIEW_LIMIT, matchGameItems } from './integrations/game-items.mjs';
@@ -31,7 +33,7 @@ const PLUGIN_ROUTES = new Map([['/api/plugin/v1/report', 'POST'], ['/api/plugin/
 
 /** Positions, assemblies and proposals are ephemeral. Ticks use store.command. */
 export async function openGamePlugin({ dataDir, store, world, registry, questMapping, bodyJSON, json,
-  serializeMutation, checkRequestOrigin, unauthenticated = () => {}, notify = () => {}, clock = Date.now, savedTasks = () => null, peekPrediction = () => null, taskCatalogue = () => [], itemsBetaAsLive = false, log = console.warn }) {
+  serializeMutation, checkRequestOrigin, unauthenticated = () => {}, notify = () => {}, clock = Date.now, savedTasks = () => null, peekPrediction = () => null, taskCatalogue = () => [], itemsBetaAsLive = false, log = console.warn, indexKey, removeKey, authorizeKey }) {
   const progressSource = createPluginProgressSource({ clock });
   const coordinates = createGameCoordinates(world);
   const gameId = id => coordinates.pickerChunkToGameId(id);
@@ -428,7 +430,13 @@ export async function openGamePlugin({ dataDir, store, world, registry, questMap
         seenAt: fresh ? latest.seenAt : null };
     });
   }
+  function credentialFor(request) {
+    const credential = keys.authenticate(request);
+    authorizeKey?.(request, credential.player);
+    return credential;
+  }
   return {
+    authenticate: credentialFor,
     async handle(request, response, { route, security, closed: serverClosed }) {
       if (!PLUGIN_ROUTES.has(route)) {
         // A prefixed explicit key cannot fall back to a cookie, even after revocation/restart.
@@ -436,7 +444,7 @@ export async function openGamePlugin({ dataDir, store, world, registry, questMap
         return false;
       }
       let credential;
-      try { credential = keys.authenticate(request); }
+      try { credential = credentialFor(request); }
       catch (error) { if (error.status === 401) unauthenticated(security.rateKey); throw error; }
       member(credential.player); rate(credential.id);
       if (request.method !== PLUGIN_ROUTES.get(route)) throw fail(405, 'Method not allowed.');
@@ -457,7 +465,7 @@ export async function openGamePlugin({ dataDir, store, world, registry, questMap
       const report = route === '/api/plugin/v1/report' ? validatePluginReport(await bodyJSON(request, 16384)) : null;
       const result = await serializeMutation(async () => {
         if (closed || serverClosed) throw fail(503, 'The picker is stopping.');
-        keys.authenticate(request); member(credential.player);
+        credentialFor(request); member(credential.player);
         void flushHandled();
         if (report) {
           if (report.seq <= (sequences.get(credential.id) ?? -1)) throw fail(409, 'The report seq must increase for this key.');
@@ -510,12 +518,24 @@ export async function openGamePlugin({ dataDir, store, world, registry, questMap
     async create(identity, body) {
       fields(body, ['memberId', 'label'], 'key'); authorize(identity, body.memberId);
       if (typeof body.label !== 'string' || !body.label.trim() || body.label.length > 80 || /[\x00-\x1f\x7f]/.test(body.label)) throw fail(400, 'Use a key label from 1 to 80 characters.');
-      const result = await keys.create(body.memberId, body.label.trim()); notify(); return result;
+      const result = await keys.create(body.memberId, body.label.trim());
+      try { await indexKey?.(identity, result.key, result.record.player); }
+      catch (error) { await keys.revoke(result.record.id, result.record.player); throw error; }
+      notify(); return result;
     },
     async revoke(identity, id, body) {
       fields(body, [], 'revocation');
       if (identity.readOnly || !identity.admin && !identity.memberId) throw fail(403, 'Player access required.');
-      const result = await keys.revoke(id, identity.admin ? undefined : identity.memberId); notify(); return { record: result };
+      const result = await keys.revoke(id, identity.admin ? undefined : identity.memberId);
+      if (removeKey) {
+        // The public key record redacts its hash. Read only this already-selected
+        // context's durable record, after local authorization and revocation.
+        const document = JSON.parse(await readFile(path.join(dataDir, 'plugin-keys.json'), 'utf8'));
+        const record = document.keys.find(record => record.id === result.id);
+        if (!record) throw fail(503, 'Retry revoking this key to finish removing its capability.');
+        await removeKey(identity, record.tokenHash, result.player);
+      }
+      notify(); return { record: result };
     },
     findReview(identity, body, apply = false) {
       fields(body, apply ? ['previewId', 'expectedRevision', 'skills', 'quests', 'achievements', 'items'] : ['previewId'], 'review');

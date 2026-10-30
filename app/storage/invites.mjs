@@ -44,9 +44,9 @@ export function validateInviteStore(document) {
   }
   const sessionHashes = new Set();
   for (const session of document.sessions) {
-    if (Object.keys(session).some(key => !['tokenHash', 'inviteId', 'expiresAt', 'accountId', 'membershipId', 'provider'].includes(key)) || !HASH.test(session.tokenHash) || sessionHashes.has(session.tokenHash) ||
+    if (Object.keys(session).some(key => !['tokenHash', 'inviteId', 'expiresAt', 'accountId', 'membershipId', 'provider', 'pickerId'].includes(key)) || !HASH.test(session.tokenHash) || sessionHashes.has(session.tokenHash) ||
       !(session.inviteId === null || ids.has(session.inviteId)) || !validDate(session.expiresAt) ||
-      (session.accountId !== undefined ? !UUID.test(session.accountId) || session.membershipId !== session.inviteId || !UUID.test(session.membershipId) || !PROVIDERS.has(session.provider) : session.membershipId !== undefined || session.provider !== undefined)) throw new TypeError('Invalid invite session.');
+      (session.pickerId !== undefined ? !/^p_[0-9a-f]{32}$/.test(session.pickerId) || !UUID.test(session.accountId) || session.inviteId !== null || session.membershipId !== undefined || !PROVIDERS.has(session.provider) : session.accountId !== undefined ? !UUID.test(session.accountId) || session.membershipId !== session.inviteId || !UUID.test(session.membershipId) || !PROVIDERS.has(session.provider) : session.membershipId !== undefined || session.provider !== undefined)) throw new TypeError('Invalid invite session.');
     sessionHashes.add(session.tokenHash);
   }
   return document;
@@ -69,7 +69,7 @@ export async function atomicWrite(file, document) {
 }
 
 /** Open under the gameplay store's existing exclusive data-directory lock. */
-export async function openInviteStore({ dataDir, masterToken, masterLabel, now = Date.now, accounts, signInMode = 'off' } = {}) {
+export async function openInviteStore({ dataDir, masterToken, masterLabel, now = Date.now, accounts, signInMode = 'off', pickerRegistry } = {}) {
   if (!['off', 'optional', 'required'].includes(signInMode)) throw new Error('Invalid sign-in mode.');
   if (masterLabel === undefined) masterLabel = (await loadGameDefaults()).masterLabel;
   const file = path.join(dataDir, 'invites.json');
@@ -97,6 +97,16 @@ export async function openInviteStore({ dataDir, masterToken, masterLabel, now =
       actor: { kind: 'invite', inviteId, label: safeText(invite.label), ...(invite.memberId ? { memberId: invite.memberId } : {}) } } : null;
   }
   function accountPrincipal(session) {
+    if (session.pickerId) {
+      const account = pickerRegistry?.getAccount(session.accountId), picker = pickerRegistry?.getPicker(session.pickerId);
+      const membership = account?.memberships.find(item => item.pickerId === session.pickerId);
+      if (!membership || picker?.kind !== 'default' || picker.lifecycle !== 'active' || picker.provisioning !== 'ready'
+        || !account.identities.some(item => item.provider === session.provider)) return null;
+      const readOnly = membership.role === 'viewer', label = 'Player 1';
+      return { kind: 'account', accountId: account.id, pickerId: picker.id, provider: session.provider,
+        memberId: membership.memberId, role: membership.role, label, admin: false, readOnly,
+        capabilities: { canWrite: !readOnly }, actor: { kind: 'invite', inviteId: account.id, memberId: membership.memberId, label } };
+    }
     const account = accounts?.get(session.accountId);
     const membership = account?.memberships.find(item => item.id === session.membershipId && item.inviteId === session.inviteId);
     const invite = current.invites.find(item => item.id === session.inviteId && !item.revoked);
@@ -144,6 +154,13 @@ export async function openInviteStore({ dataDir, masterToken, masterLabel, now =
         if (!invite.claimedAccountId) { invite.claimedAccountId = accountId; invite.claimedAt = new Date(now()).toISOString(); }
         next.sessions = next.sessions.filter(session => session.inviteId !== id || session.accountId === accountId);
         return publicInvite(invite);
+      });
+    },
+    issuePickerSession(accountId, pickerId, provider) {
+      return mutate(next => {
+        const source = { accountId, pickerId, provider, inviteId: null };
+        if (!accountPrincipal(source)) throw error(403, 'Account access required.');
+        return addSession(next, source);
       });
     },
     issueAccountSession(accountId, membershipId, provider) {
@@ -237,7 +254,7 @@ export async function openInviteStore({ dataDir, masterToken, masterLabel, now =
       const digest = hash(cookie);
       const session = current.sessions.find(session => equals(session.tokenHash, digest) && Date.parse(session.expiresAt) > now());
       if (!session) return null;
-      if (session.inviteId === null && !context.masterAllowed) throw error(403, 'Administrator access requires a private connection.');
+      if (session.inviteId === null && !session.pickerId && !context.masterAllowed) throw error(403, 'Administrator access requires a private connection.');
       const invite = current.invites.find(item => item.id === session.inviteId);
       if (!session.accountId && invite && (invite.claimedAccountId || (signInMode === 'required' && !invite.admin && !invite.viewer))) return null;
       const identity = session.accountId ? accountPrincipal(session) : principal(session.inviteId);

@@ -425,8 +425,8 @@ the shared calculator.
 
 - **Calculator namespaces and eviction:** completed by MP3 below. Calculator
   jobs, snapshots, reuse and delivery now carry picker identity, and context close
-  abandons only its own jobs. Registry routing, fair sharing and service-wide
-  eviction policy remain later integration work.
+  abandons only its own jobs. MP4 below adds authenticated routing and bounded
+  context eviction; fair sharing remains later work.
 - **RuneMetrics member/name cache:** `app/integrations/runemetrics.mjs` remains
   unchanged because its replacement is landing on main. The context owns its
   progress client and preview map, but that integration's cache/lifecycle must be
@@ -441,12 +441,14 @@ the shared calculator.
 - **Compatibility references and engine caches:** the existing server handle still
   exposes its explicit store reference for callers that inspect a closed store.
   Core world/transport caches retain their existing world/input scope; core is
-  outside this task's allowed files. Future registry eviction must release the
-  compatibility handle and audit engine cache lifetime together with calculator
-  namespaces. No new private interning is introduced by MP2.
-- **Registry/authentication integration and Phase 1 acceptance:** picker/account
-  provisioning, capability routing, deletion and service-wide eviction remain
-  later tasks. Public sign-up and routing behavior are unchanged.
+  outside this task's allowed files. MP4 retains only the non-evictable legacy
+  compatibility handle; evicted contexts drop their store references. No new
+  private interning is introduced.
+- **Registry/authentication integration and Phase 1 acceptance:** MP4 below
+  completes opt-in provisioning, session/plugin routing and bounded eviction.
+  Browser switching/logout reconciliation, deletion, tombstone recovery, operator
+  tooling and the complete Phase 1 gate remain later tasks. Production sign-up
+  remains off pending owner approval.
 
 ### Validation and measurements
 
@@ -624,3 +626,259 @@ These three-run samples show no material single-picker regression or added memor
 footprint, and do not establish a throughput improvement. Cooperative cancellation
 still relies on the existing watchdog for synchronous work; fair sharing and
 registry/authentication integration remain later tasks.
+
+## MP4 routing
+
+START is `475d6166a118edc08ed1c8cdb95921228feef1ac`. The server option is
+`createServer({ multiPicker: { registryDir, pickerRoot, tombstoneDir,
+maxOpenContexts: 8, idleCloseMs: 600000 } })`; both limits have those defaults.
+The three roots remain disjoint operator paths. There is no CLI/environment
+switch or production configuration change. Without the option, dispatch still
+calls the original single legacy context directly and opens no registry.
+
+With the option, startup opens the registry and idempotently registers the
+existing shared exception using its validated member IDs and live account/invite
+grants. It refuses an existing account file whose invitation file is missing.
+The registry's legacy picker retains no owner and consumes no private default
+slot. An explicit duo invitation, or a provider subject with a live legacy invitation
+membership, follows the existing sign-in/session path. Other subjects without
+an invitation call `firstLogin`; only the
+registry allocates account IDs, default ownership and directories. Every legacy identity creation, invite claim and provider link checks subject
+ownership in the global registry before writing legacy records. Successful
+legacy account mutations refresh `registerLegacy` in the same serialized mutation
+before issuing a session, including accounts created after startup. Sign-in
+receives this operation through `pickerRouting`; file paths remain in the server.
+An identity owned by a different registry account is refused with a clear sign-in
+page and no legacy account write. Startup still fails closed on real conflicts.
+
+One session issuer remains in the legacy context's invitation sidecar. New
+hash-only sessions add `accountId`, `pickerId` and provider, and every resolution
+checks the registry's active, ready picker and current membership/provider link.
+They grant ordinary owner gameplay authority, never operator `admin`. The
+session endpoint returns the two bindings for these sessions only. Gameplay
+History uses the existing member-scoped `invite` actor schema with the account
+UUID as its pseudonymous actor ID; it requires no core schema change. Sign-out
+revokes the original issuer's session, including after context eviction/restart.
+START cannot read the extended session records after this option has issued
+sessions; reverting the application version requires an operator session reset.
+The updated application can turn routing off and refuses those sessions.
+
+Private contexts start with one neutral member and empty progress from
+`createGroupState`, independently of legacy defaults, prepared state and imports.
+Every owned directory gets a sibling dataset binding before its first gameplay
+read; an unbound nonempty directory is refused. Dataset identity and member IDs
+are checked at every load/write, including restore.
+Only registry-derived IDs reach `pickerDirectory`. Legacy remains resident.
+`maxOpenContexts` includes legacy; a value of one cleanly refuses private context
+admission with retryable 503. Acquisitions/evictions serialize, include contexts
+still draining in the bound, and update request LRU order. Capacity eviction can
+end an SSE stream; an open stream prevents idle eviction. Idle timers run after
+the last active request/stream. A request during close waits for draining and
+reopens under a new handle. `PickerContext.close()` fences admission, drains
+accepted writes, explicitly refuses unaccepted queued HTTP work, cancels only
+its MP3 jobs, ends its streams and drops its private references. Server shutdown
+closes private contexts, then the legacy session issuer, then the registry.
+
+Supported optional selectors are query/body `pickerId` or `picker`, headers
+`X-Picker-Id` or `X-Picker`, and `/pickers/:id/...` or `/api/pickers/:id/...`.
+They must all equal the credential's bound picker, including nested body fields;
+conflicts are refused before a context opens or its handler runs. Legacy uses
+`legacy` as its request scope. Matching routing envelope fields are removed
+before ordinary route schema checks. JSON parsing preserves exact byte counts
+and downstream route limits. Backup uploads use the existing streaming parser
+and limits before acquisition; GET/HEAD bodies are refused. Authentication is
+rechecked after body admission and again inside the selected context.
+
+Plugin key issuance writes the local key and its hash-to-account/picker/member
+registry entry before returning a secret. Failed indexing revokes the local key;
+a crash leaving an unindexed key cannot authenticate it. Indexed keys select
+exactly one private context and recheck registry scope both before local private
+reads and inside queued plugin mutations. Local expiry/revocation checks still
+apply. Existing plugin keys use a lightweight check against the already-open
+legacy key store and can reach only legacy; no dormant store scan occurs.
+Cookies and keys with conflicting picker scopes are refused. Key revocation first
+authorizes and durably revokes the local key, then reads its hash from that
+selected context's key file and calls the existing registry `revokeCapability`
+API before returning success. Only that scoped account/member capability is
+removed. Repeated revocation is safe; an interrupted/failed index removal can be
+retried, while the local key already refuses access. No registry schema/API or
+plugin-key store API change is needed.
+
+Owners retain ordinary commands and gameplay export and can preview/restore a
+compatible gameplay backup in their selected context. Restores cannot change
+its recorded member IDs or import credentials. Raw snapshots, shutdown/restart,
+account administration and invitation/overlay management remain private operator
+routes. Retained backup IDs, action sessions, receipts, acknowledgements,
+revisions, caches and restores use only the selected store's namespaces.
+
+### Changed files and security review
+
+| File | Change and trusted resolution boundary |
+| --- | --- |
+| `app/server.mjs` | Opt-in registry lifetime, legacy registration and a lazy context factory. The factory receives IDs only from authenticated router acquisition, creates neutral state, verifies membership, and derives storage paths through the registry. Global runtime/admission/calculators remain shared. |
+| `app/picker-router.mjs` | Single enabled-mode HTTP boundary, `contextFor`, session/key scope, selector/body admission, capability indexing/rechecks, serialized LRU/idle close and reopen. No request ID supplies a store path. OAuth endpoints use only the single issuer's auth/invite handlers. A signed-in private account opening a duo invite receives the same clear joining refusal page. |
+| `app/picker-context.mjs` | Context authentication adapter for every API, usage, overlay administrator check, delivery check, queued write and SSE revocation check; native plugin scope hook; explicit owner gameplay restore; store member identity guard supplied by the server. SSE client sets and broadcasts remain local. |
+| `app/picker-context-http.mjs` | Weak request-local parsed-body handoff, preserving ordinary limits and avoiding re-reading admitted bodies. No private response cache is shared. |
+| `app/signin.mjs` | Recoverable first-login provisioning, bound session issuance, registry-aware linking, and the existing legacy membership exception. Provider subjects come only from the verified OAuth exchange. |
+| `app/storage/invites.mjs` | Extended session validation/issuance and registry-backed principal checks. Legacy master tokens and invite sessions retain their original legacy scope. This is the only changed account, invite and session storage module; `accounts.mjs` and `storage/registry.mjs` are unchanged. |
+| `app/game-plugin.mjs` | Key indexing before secret delivery, capability removal on revoke, and registry authorization at native key admission/queued execution, in addition to the local key check. No plugin calculation/gameplay behavior changes. |
+| `tests/picker-routing.test.mjs`, `tests/picker-routing-crash.test.mjs` | Synthetic HTTP/OAuth acceptance and real callback process-death/recovery coverage with temporary roots and neutral players. No private inputs. |
+| `scripts/test-selection.mjs` | Classifies both new files quick/open-f2p. No existing test expectations changed. |
+
+The final review covered every context/store factory, authentication adapter,
+plugin key admission/issuance/revalidation, legacy overlay capability handler,
+backup/restore namespace, queued browser/plugin mutation and SSE subscription,
+broadcast and heartbeat. Context/store/key/stream selection derives from the
+session or key, and request selectors can only confirm that scope. Legacy
+capabilities never choose another context. Existing local handlers still verify
+member/object IDs within that context. All shared limits are the original
+server-owned limiters; opening or evicting a picker does not reset them.
+
+### Acceptance and remaining scope
+
+The new HTTP tests cover independent empty games with colliding members and
+revisions, mutations/completion/reload, task reads, cross-picker command/history/
+export/SSE/plugin refusal before store creation, URL/body/header conflicts,
+plugin restart isolation, concurrent first-login callbacks, six provisioning
+interruption points, legacy account/master/invite compatibility, operator
+refusal, sign-out, owner restore, linked-identity conflicts, idle/capacity close,
+stream isolation and an accepted write deliberately held across eviction. The
+queued successor receives 503, a concurrent reopen waits, and both confirmed
+games survive restart. Synthetic on-disk namespaces deliberately collide action
+request/receipt scopes and retained backup IDs without copying either game into
+the other. Eighteen HTTP tests include thrown provisioning interruptions and graceful
+restart. Six more tests terminate the actual OAuth callback process at each
+MP1 durable boundary, then recover through sign-in and HTTP in a fresh process.
+Both recovery paths produce one owned picker, no inherited progress and unchanged
+shared ownership; MP1's storage-level process-exit coverage remains unchanged.
+
+Out of scope: browser account/picker switching and clearing client state on
+logout; deletion and runtime tombstone handling; owner capability UI; fair sharing
+between pickers; RuneMetrics client reconciliation with G15; and opening sign-up
+in production. Public launch still needs the owner's approval and the remaining
+Phase 1 browser/deletion/operator/limit work. Default residency limits are
+configuration bounds, not a measured public service capacity.
+
+### Initial MP4 validation and private gate (before follow-up 1)
+
+Node 24.19.0; both initial required suites ran in order after the initial app changes.
+No existing tests or expectations were edited, loosened or skipped. The 24 new
+tests are all quick/open-f2p. The untouched START checkout is the comparison,
+not a cached main ref.
+
+| Suite | START passed / failed / skipped | MP4 passed / failed / skipped |
+| --- | --- | --- |
+| Quick | 2,511 / 0 / 68 | 2,535 / 0 / 68 |
+| Full | 5,658 / 0 / 140 | 5,682 / 0 / 140 |
+
+START quick/full durations were 78.17/342.55 seconds; final MP4 durations were
+70.69/264.53 seconds. Focused acceptance: 24 passed, zero failed, zero skipped.
+These suite runtimes are verification records, not performance comparisons.
+
+The private compatibility gate uses a fresh temporary save copy per process,
+process workers, identical injected store timestamps and a fixed
+`performance.now()` preload in both HTTP and calculator processes. It compares
+complete raw response bytes without removing or normalizing fields. The same
+10 routes as MP3 cover full/play state, history, browser plugin status, full/play
+task lists for both members, and native plugin status for both members. Keys are
+minted only in the temporary copies, after browser plugin status is captured.
+START is compared with MP4 with the option absent and then present.
+
+**10 responses per run, zero differences in either comparison.** The response
+digest-array SHA-256 is
+`770860c24f1ee6cbbf4aa885cb8c8193737c58bac640cb2c63be8b7da5669ada`;
+the total response size is 83,606,217 bytes. Full-state response: 16,213,564 bytes,
+SHA-256 `f72cd9141b447e828e548a697ae8aaf602f1fe7ab27b0725ca58f4ff21664605`.
+The rewritten save is identical in all runs: 766,470 bytes, SHA-256
+`44cf36a23999b0e0ac4895b2b3a37011496ae177f23bbf99f711fbe95a09dc76`.
+The private source checkout has zero changed files.
+
+### MP4 timing and memory
+
+Three alternating START/MP4 fresh-process pairs use fresh temporary copies,
+process workers, port zero, disabled prediction prewarming and normal clocks.
+The option is absent for all six timing trials. No test processes compete during
+these trials. Cold start includes module import, create/listen and receiving the
+first full task-list body. A save toggles one saved task backlog preference
+through the command route, then immediately reads the same member's full list.
+Input copying and shutdown are outside these durations. All before/after list
+counts are 20,497. Values are median [minimum–maximum].
+
+| Measurement | START | MP4 |
+| --- | --- | --- |
+| Cold start through full task list, ms | 11,271.37 [10,930.20–11,424.94] | 11,664.31 [11,046.52–11,693.61] |
+| Save response, ms | 1,842.79 [1,757.61–1,941.20] | 1,805.54 [1,793.01–1,936.16] |
+| Next full task list, ms | 1,824.91 [1,776.06–1,872.33] | 1,818.55 [1,761.08–1,884.84] |
+| Save through next full task list, ms | 3,667.69 [3,533.67–3,813.53] | 3,611.56 [3,566.62–3,821.00] |
+| Sampled peak HTTP-process RSS, MiB | 1,311.25 [1,259.05–1,311.39] | 1,309.96 [1,307.93–1,318.23] |
+
+The cold median increases 3.49%; save-through-list decreases 1.53%. Ranges
+overlap, and these three samples establish neither a throughput improvement nor
+a service capacity estimate. Timings are specific to this environment and
+should not be compared directly with earlier MP3 machine runs.
+
+A separate fresh MP4 process with the option present serves task reads with two
+extra owned pickers open, for three resident contexts. Sampled peak HTTP RSS is
+**1,554.42 MiB**; HTTP plus calculator child processes peak at **2,741.40 MiB**.
+Sampling runs every 20 ms and at response boundaries. This environment omits
+`/proc` child lists; the verified extra-context run records Node fork/spawn PIDs
+and reads their RSS directly. Timing trials report only the verified HTTP RSS.
+This is one extra-context observation with a shared calculator pool, not a
+per-picker memory cost or a safe concurrency limit.
+
+The feature remains off by default. The remaining-work list above and the
+explicit MP4 exclusions still apply before any production sign-up decision.
+
+### MP4 follow-up 1
+
+The review found that an explicit duo invitation could fall into default-picker
+provisioning, and that legacy account writes after startup could conflict with
+or remain unknown to the registry. Explicit invite callbacks now keep the
+original invite path, including replacement invitations after revocation.
+Registry ownership is checked before creating a legacy identity, claiming onto
+an existing account or linking a legacy provider. A different owner gets:
+“This sign-in already has its own picker. Joining the shared game with it is not
+available yet.” The legacy record stays unchanged. A server-owned `syncLegacy`
+callback re-reads the validated account/invite plan and calls `registerLegacy`
+after successful legacy account writes in the same serialized mutation. The
+registry's original 409 conflict checks are unchanged. `/join/` uses the single
+legacy invitation issuer, so an already signed-in private owner also gets a
+clear refusal without opening an unrelated gameplay handler.
+
+Plugin revocation now removes its hash capability through the existing
+`revokeCapability` operation after local revocation. The public local key record
+redacts the hash, so the hook reads the selected context's durable key record;
+no caller-supplied hash or filename is accepted. Removal verifies picker,
+account and member scope, preserves other active keys, and supports retries.
+`storage/registry.mjs` is unchanged: its existing read-only `findIdentity` and
+capability revoke operation suffice.
+
+Follow-up changes are confined to `signin.mjs`, `server.mjs`,
+`picker-context.mjs`, `picker-router.mjs`, key-scoping code in `game-plugin.mjs`,
+`tests/picker-routing.test.mjs` and this MP4 section. The two-provider synthetic
+fixture replaces its old pre-auth cookie as a browser would. Six added tests
+cover new and replacement duo invitations, refusing a solo subject without a
+legacy write, immediate provider linking after startup and restart, refusing a
+provider already owned elsewhere, and removing only a revoked key's capability.
+Focused routing/crash validation: **30 passed, zero failed, zero skipped**.
+
+The follow-up duo gate reruns the same 10 raw-byte reads from fresh temporary
+copies at START, then with the option absent and present. Both comparisons have
+**zero differences**. Each run has 83,606,217 response bytes, digest-array SHA-256
+`770860c24f1ee6cbbf4aa885cb8c8193737c58bac640cb2c63be8b7da5669ada`.
+The rewritten save has 766,470 bytes and SHA-256
+`44cf36a23999b0e0ac4895b2b3a37011496ae177f23bbf99f711fbe95a09dc76`.
+The private source checkout has zero changed files. Initial MP4 timing/memory
+measurements above are retained; this follow-up does not claim new performance
+measurements. Production sign-up remains off.
+
+Final follow-up validation on Node 24.19.0 ran quick, then full, entirely after
+the app changes:
+
+| Suite | Reviewed MP4 passed / failed / skipped | Follow-up passed / failed / skipped |
+| --- | --- | --- |
+| Quick | 2,535 / 0 / 68 | 2,541 / 0 / 68 |
+| Full | 5,682 / 0 / 140 | 5,688 / 0 / 140 |
+
+Quick took 84.84 seconds; full took 267.83 seconds. Both totals add exactly the
+six new regressions, with no existing assertion loosened or test skipped.
