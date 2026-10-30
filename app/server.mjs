@@ -658,6 +658,13 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
       serializeMutation, checkRequestOrigin, unauthenticated: key => limits.unauthenticated(key),
       // In-game lists read the saved task result only; they never start an evaluation.
       savedTasks: memberId => { const entry = savedTaskResults.get(memberId); return entry?.playJSON ? { bytes: entry.playJSON, revision: entry.revision } : null; },
+      // Read the exact prediction cache used by Chunk Info and pool ranking.
+      // A peek neither admits work nor touches the worker idle clock.
+      peekPrediction: (memberId, chunkId) => {
+        if (!taskWorker) return null;
+        const captured = calculationState();
+        return taskWorker.peekPrediction(captured.state, memberId, chunkId, captured.input);
+      },
       ...(progressSources.clock ? { clock: progressSources.clock } : {}),
       itemsBetaAsLive: pluginItemsBetaAsLive,
       // Item evidence may propose generated Obtain goals, which live in the catalogue until ticked.

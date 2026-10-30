@@ -132,7 +132,7 @@ test('status names whose chunks are whose, partners\' chunks and a waiting roll'
   assert.equal(rows['13109'].by, undefined, 'Only unlocked rows say who unlocked them');
   assert.deepEqual(status.partners, [{ name: 'Explorer 2', chunkId: '12851', chunkName: 'Swamp', seenAt: status.partners[0].seenAt }]);
   assert.ok(status.partners[0].seenAt);
-  assert.deepEqual(status.pendingRoll, [{ chunkId: '13363', chunkName: 'Draynor' }]);
+  assert.deepEqual(status.pendingRoll, [{ chunkId: '13363', chunkName: 'Draynor', summary: null }]);
   assert.equal(status.pickableCount, 2);
   at += 10 * 60 * 1000 + 1;
   assert.equal((await report(keyA, 3, 51, 51)).partners[0].chunkId, null, 'A stale partner report is not shown');

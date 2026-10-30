@@ -1109,6 +1109,18 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
       return structuredClone({ schemaVersion, revision, rules, members, tasks, identityRegistry,
         ...(taskClaims !== undefined ? { taskClaims } : {}) });
     },
+    // Completion ledger evidence only, without copying undo snapshots or private notes.
+    getTaskCompletionHistory(memberId) {
+      const types = new Set(['set-task-status', 'tick-active-tasks', 'complete-task', 'apply-runemetrics', 'apply-game-progress', 'sync-original']);
+      return structuredClone(current.history.filter(event => event.command && types.has(event.type) &&
+        (event.command?.memberId === memberId || event.type === 'sync-original')).map(({ type, at, command, undoneRevision }) => ({
+        type, at, undoneRevision, command: type === 'sync-original'
+          ? { members: (command.members ?? []).filter(row => row.memberId === memberId).map(row => ({ memberId, tasks: { complete: row.tasks?.complete ?? [] } })) }
+          : { memberId, taskId: command.taskId, taskIds: command.taskIds, completed: command.completed,
+            ...(Object.hasOwn(command, 'challengeCompleted') ? { challengeCompleted: command.challengeCompleted } : {}),
+            quests: command.quests?.map(row => ({ taskId: row.taskId })) },
+      })));
+    },
     getTaskClaimSnapshot: () => ({ revision: current.revision, taskClaims: structuredClone(current.taskClaims ?? {}) }),
     getRules: () => ({ ...current.rules }),
     getStateSnapshot: ({ view } = {}) => computeRollPool ? preparedCommandSnapshot(undefined, false, view) : commandSnapshot(undefined, false, view),

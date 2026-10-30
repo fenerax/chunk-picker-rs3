@@ -368,11 +368,54 @@ or `both`, saying whose saved unlocks contain the chunk.
 
 `pickableCount` is how many chunks the roll pool offers, or null until a pool
 exists. Status never calculates a pool inside its reply: when none exists it
-schedules one calculation after replying, so a later status has it.
+schedules one calculation after replying, so a later status has it. Roll
+summaries only peek at cached predictions and never start one.
 `pendingRoll` lists a roll's choices still waiting for this player to pick
 (empty when none). `partners` has one row per other player with the chunk
 their own plugin last reported; `chunkId`, `chunkName` and `seenAt` are null
 when that report is older than ten minutes. Exact tiles are never shared.
+
+### Roll choice and candidate summaries
+
+Status and report replies also contain `rollChoice: boolean`. It follows the
+picker UI's `roll2` preference: the member override, then the legacy map setting,
+then the UI default (`true`). This enables the “Roll two chunks and keep one”
+button; it does not force the player to use Roll 2.
+
+Each existing `pendingRoll` entry additionally contains `summary`, either `null`
+or an object with:
+
+- `newTasks: { skills: number, quests: number, diaries: number, other: number }`.
+  Counts partition the cached prediction's `delta.tasksAdded`. Named skill
+  categories and `Skills` map to `skills`; `Quest`/`Quests` to `quests`;
+  `Diary`/`Diaries` and `Achievement Diary`/`Achievement Diaries` to `diaries`;
+  everything else maps to `other`.
+- `highlights: string[]`: at most four plain-text strings, each at most 60
+  characters. These describe banks, quest starts, newly trainable skills and
+  resources where the existing data provides them.
+
+The source for candidate task numbers is the same unlock prediction used by
+`app/web/chunk-planning.mjs` (“If unlocked”) and `app/tasks/pool-ranking.mjs`.
+The server uses `taskWorker.peekPrediction` with the current calculation input;
+it never requests a prediction. Counts include all `tasksAdded`, as pool ranking
+does. Chunk Info displays the highest task per skill first and puts lower tasks
+in a separate section; the summary counts both sections. Highlights use indexed
+Chunk Info `Object`, `NPC` and `Quest` contents, prediction training transitions
+from no primary method to a primary method, and newly available objects/items.
+These are advisory contents, not a promise that a quest can be completed.
+
+`summary: null` means there is no valid cached prediction yet (or it was cancelled
+or evicted). A later status may fill it in after the picker computes it. Zero
+counts with an empty highlights array mean a checked prediction added nothing.
+Summaries are cached without keeping large prediction results alive.
+
+There is currently no `lastRoll` field: after Roll 1 the unlocked state has a new
+calculation scope, so the pre-unlock prediction cannot be safely read as a delta
+against that state. The plugin can still display the rolled chunk from its usual
+state information; this route does not calculate or persist a before/after delta.
+
+Existing v1 active fields, ordering, pagination and counts keep their meanings.
+The added summary on a pending option does not change its chunk ID or name.
 
 ## GET /api/plugin/v1/tasks
 
@@ -422,6 +465,51 @@ favourites. New unlocks appear once the picker saves a new list; an open picker
 page does that on its own. `ready` is
 false, with empty lists, when no list has been saved since the picker started:
 open the picker's task list once.
+
+### Recently finished tasks
+
+Every tasks response also has a top-level `done` object:
+
+```json
+{
+  "done": {
+    "here": [],
+    "all": [{ "id": "example-task", "label": "Example task", "category": "Mining", "level": 1,
+              "done": true, "doneAt": "2026-10-30T12:00:00.000Z" }],
+    "hereCount": 0,
+    "allCount": 1,
+    "hereKnown": false
+  }
+}
+```
+
+Finished rows use the active row fields (`id`, `label`, `category`, optional
+positive integer `level`), plus `done: true` and `doneAt: string | null`. The date
+is the member's recorded finish/check time, normalized to ISO UTC. The existing
+Completed Tasks ledger supplies personal ticks, actual completions, aliases,
+completion families and undo handling. A partner's finish never supplies a row
+or its date. No new completion data is persisted.
+
+Both lists are newest first, with task ID breaking equal-time ties. Each list is
+capped independently at **20** rows finished within the preceding **7 × 24 hours**
+(inclusive boundary, future dates excluded). `done.here` uses the same translated
+surface-chunk location rule as active `here`, including interior suffix removal.
+`done.hereKnown` is false without a recent position or saved locations, and
+`done.here` is then empty. Counts describe the capped lists; there is no paging,
+and active `from` never changes these lists.
+
+`doneAt` is null when the save cannot establish a finish time. Such rows cannot
+be proven to fall within seven days and are omitted from these recent lists.
+An import date or sync observation date is never substituted for a finish date.
+
+The top-level `ready`, `stale` and `stateRevision` apply to both active and
+finished lists. Before any saved result exists, `done` is empty. Retained stale
+results apply current personal completion evidence, but can lack newly unlocked
+rows or locations until the picker loads a fresh result. Active and finished
+rows share the existing per-revision row cache; time expiry is checked on every
+read, including reads at the same revision. Reading tasks never calculates.
+Finished rows never enter active `here` or `all`, or change their counts or order.
+Responses remain `v: 1`.
 
 ## Simulator
 

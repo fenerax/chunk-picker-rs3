@@ -29,6 +29,7 @@ export const quickTests = new Set([
   "game-plugin-coords.test.mjs",
   "game-plugin-status.test.mjs",
   "game-plugin-tasks.test.mjs",
+  "plugin-reads.test.mjs",
   "game-plugin-web.test.mjs",
   "game-plugin-mapping.test.mjs",
   "game-plugin-achievements.test.mjs",
@@ -280,6 +281,7 @@ const fullOnlyPatterns = [
 
 // Remaining integration/provenance tests are named explicitly to catch unreviewed additions.
 const fullOnlyTests = new Set([
+  "plugin-reads-server.test.mjs",
   "roll-pool-worker.test.mjs",
   "public-ingress-server.test.mjs",
   "signin-server.test.mjs",
@@ -502,6 +504,7 @@ export const soloTests = new Set([
 // worker from their own definitions and assert nothing about duo-legacy content. They
 // run on the public open-f2p dataset, in the environment core's lane gives them.
 export const openF2PTests = new Set([
+  "plugin-reads-server.test.mjs",
   "roll-pool-worker.test.mjs",
   "area-check-server.test.mjs",
   "area-check-worker.test.mjs",
