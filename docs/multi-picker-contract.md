@@ -1906,6 +1906,28 @@ hashes, compact JSON SHA-256: START
 `0cc0239102a2e44b003289c669adc7b3c297ba4d04f3848c15a99c317416fdae`,
 final `b4bae7d696d336136e2ea070fa79c3b3a3a57c50c83bc54b18c7d4035ec8e243`.
 
+## MP13 audit fixes
+
+MP12A-2: Only the legacy picker can create or use the operator’s original-sync client. Owned contexts refuse preview and sync commands, including after whole-save restore, member restore or original-format import. Source bindings remain gameplay metadata and grant no integration authority. The legacy integration path is unchanged.
+
+MP12A-1: Both dataset-runtime routes in owned contexts return an empty default roster, a neutral administrator label and disabled original-sync controls. Browser startup takes the actual roster from authenticated state; a synthetic startup regression checks selection and rendering with these defaults. Legacy contexts retain the exact serialized dataset payload, with and without multiPicker.
+
+MP12B-1: Account-deletion confirmation requests a random, opaque token from the authenticated session preflight, bound to that account and session for five minutes. The browser submits it with the deletion, and the serialized deletion queue checks and consumes it before any tombstone or purge. Missing, mismatched, expired or reused tokens return 409 without deleting anything. The existing 403 selector fence between distinct owned pickers and all option-absent routes remain intact. Tokens are memory-only, bounded to 1,000 pending sessions and disappear on restart.
+
+Final validation on Node 24.19.0: quick **2,686 passed / 0 failed / 68 skipped /
+0 TODO** (258.41 seconds), then full **5,834 / 0 / 140 / 0** (869.19 seconds).
+The first quick run had 2,656 passes and 30 failures: headless context fixtures
+omit the optional browser payload, and account-deletion crash fixtures needed
+the new confirmation body. Headless construction is preserved; the context
+regression now requires source-sync refusal, and every crash checkpoint still
+runs with a valid confirmation. Those focused files subsequently passed
+69 checks with zero failures. A prematurely started full run was interrupted
+at 67 passed / 0 failed / 7 skipped / 1 cancelled before the final runs above.
+Existing MP6/MP9, option-absent, legacy source-sync and byte-payload checks pass.
+No new test file was added; the existing audit files retain their classifications.
+
+The duo compatibility checker reports **0 response, size and rewritten-save differences** with multiPicker absent and present (20 paired reads). Every run returns 83,606,131 bytes, and every saved state remains 766,384 bytes with the source-state SHA-256 unchanged. The private checkout has 0 changed files. Three alternating synthetic footprint pairs, medians/ranges, sampled peak RSS and the single-sample duo timings are recorded in [picker-footprint.md](perf/picker-footprint.md#mp13-audit-fixes-footprint-and-duo-compatibility). The reusable comparison scripts live under `scripts/perf/`. Public sign-up remains off; audit part C is untouched.
+
 ## MP8 operator tooling
 
 START: `18aaca0ac37198c5ebed819ffa554a72dc1a3aca`. The feature remains

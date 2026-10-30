@@ -176,6 +176,7 @@ export function createPickerRouter({ registry, legacy, openContext, publicOrigin
   }
   return {
     checkpoint,
+    accountDeletionToken: deletion.accountDeletionToken,
     authenticate,
     authenticateKey(request, pickerId, memberId) {
       const key = /^Bearer (gpk_[A-Za-z0-9_-]{43})$/i.exec(request.headers.authorization ?? '')?.[1];

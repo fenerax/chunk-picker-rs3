@@ -203,10 +203,12 @@ test('saved task bytes, ranking interests and progress previews remain local whe
   assert.notDeepEqual(diagA.poolRanking, diagB.poolRanking);
   const previewA = await send(a, '/api/original-sync/preview', { body: {} });
   const previewB = await send(b, '/api/original-sync/preview', { body: {} });
-  assert.equal(previewA.body.marker, 'a'); assert.equal(previewB.body.marker, 'b');
+  assert.equal(previewA.status, 404); assert.equal(previewB.status, 404);
+  assert.deepEqual(previewA.body, { message: 'Not found.' });
+  assert.deepEqual(previewB.body, { message: 'Not found.' });
   const wrongOriginal = await send(b, '/api/command', { body: { expectedRevision: 0,
-    command: { type: 'sync-original', previewId: previewA.body.previewId, members: {} } } });
-  assert.equal(wrongOriginal.status, 410);
+    command: { type: 'sync-original', previewId: 'synthetic-preview', members: {} } } });
+  assert.equal(wrongOriginal.status, 404);
   // A fresh plugin observation below creates a real review token without a web call.
   const key = await send(a, '/api/game-plugin/keys', { body: { memberId: 'one', label: 'Synthetic' } });
   const reported = await send(a, '/api/plugin/v1/report', { key: key.body.key, body: {

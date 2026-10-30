@@ -373,14 +373,15 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
     await pickerRegistry.registerLegacy(plan);
   }
   // A single additive, enabled-only field describes the session's own controls.
-  function ownerSessionView(identity, security) {
+  function ownerSessionView(identity, security, request) {
     const view = context.sessionView(identity, security);
     if (!view.account) return view;
     const picker = identity.pickerId ? pickerRegistry.getPicker(identity.pickerId)
       : pickerRegistry.listPickers().find(item => item.kind === 'legacy-shared');
     const account = pickerRegistry.getAccount(identity.accountId);
     const membership = account?.memberships.find(item => item.pickerId === picker?.id && item.memberId === (identity.memberId ?? null));
-    return { ...view, ownerControls: { role: membership?.role ?? null, shared: picker?.kind === 'legacy-shared',
+    return { ...view, ...(request?.headers['x-account-action'] === 'delete'
+      ? { accountDeletionToken: pickerRouter.accountDeletionToken(identity) } : {}), ownerControls: { role: membership?.role ?? null, shared: picker?.kind === 'legacy-shared',
       ownsDefaultPicker: pickerRegistry.listPickers().some(item => item.kind === 'default' && item.ownerAccountId === identity.accountId && item.lifecycle === 'active'),
       backups: backupDeletionDisclosure(backupRetentionMs) } };
   }
