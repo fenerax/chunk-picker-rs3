@@ -40,9 +40,14 @@ export function createPickerRouter({ registry, legacy, openContext, publicOrigin
       if (!entry) {
         if (maxOpenContexts === 1) throw retry();
         if (entries.size >= maxOpenContexts - 1) {
-          // Map order is the request LRU. Streams do not pin a heavy context
-          // against capacity eviction. Accepted requests drain through close().
-          await evict(entries.values().next().value);
+          // Map order is the request LRU. Only an idle context is evicted here:
+          // draining a busy one would hold this queue, and so every picker's
+          // acquisition, behind its slowest request or upload. While every
+          // resident context is busy the newcomer gets a retry. Streams do not
+          // pin a heavy context against capacity eviction.
+          const victim = [...entries.values()].find(candidate => !candidate.active);
+          if (!victim) throw retry();
+          await evict(victim);
         }
         const context = await openContext(id);
         if (closed) { await context.close(); throw retry(); }

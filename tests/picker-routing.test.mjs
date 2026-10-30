@@ -247,7 +247,7 @@ test('sign-out invalidates a picker-bound session before later stream delivery a
   await f.restart(); assert.equal((await f.send('/api/state', cookie)).status, 401);
 });
 
-test('capacity eviction drains an accepted write, refuses its queued successor and waits before reopening', { timeout: 15000 }, async t => {
+test('capacity eviction skips a busy picker; shutdown drains its accepted write and refuses its queued successor', { timeout: 15000 }, async t => {
   const entered = Promise.withResolvers(), release = Promise.withResolvers();
   t.after(() => release.resolve());
   let held = false;
@@ -263,17 +263,18 @@ test('capacity eviction drains an accepted write, refuses its queued successor a
     assert.equal((await f.note(b, 'Player 2', 0)).status, 200);
     const queued = f.note(a, 'Player 1 next', 1);
     await new Promise(resolve => setImmediate(resolve));
-    assert.equal((await f.send('/api/state', b)).status, 200); // A is now LRU.
-    const eviction = f.send('/api/state', c); await ended;
-    let reopened = false;
-    const reopening = f.send('/api/state', a).then(response => { reopened = true; return response; });
-    await new Promise(resolve => setImmediate(resolve)); assert.equal(reopened, false);
+    const other = await f.send('/api/events', b, { stream: true });
+    const otherEnded = new Promise(resolve => other.res.once('end', resolve));
+    // A is the request LRU but busy, so the idle B is evicted instead, at once.
+    assert.equal((await f.send('/api/state', c)).status, 200); await otherEnded;
+    assert.equal(stream.res.readableEnded, false);
+    // Shutdown still evicts A mid-write: the accepted write drains, the queued
+    // successor is refused and both confirmed games survive.
+    const restarting = f.restart(); await ended;
     release.resolve();
     const confirmed = await accepted; assert.equal(confirmed.status, 200, confirmed.text);
     assert.equal((await queued).status, 503);
-    assert.equal((await eviction).status, 200);
-    assert.equal((await reopening).json().state.members[0].notes['12341'], 'Player 1');
-    await f.restart();
+    await restarting;
     assert.equal((await f.send('/api/state', a)).json().state.members[0].notes['12341'], 'Player 1');
     assert.equal((await f.send('/api/state', b)).json().state.members[0].notes['12341'], 'Player 2');
   } finally { release.resolve(); }
@@ -657,7 +658,7 @@ test('startup retires a duo account deleted offline but keeps an owned picker ac
   assert.equal((await f.registry()).accounts.length, 2);
 });
 
-test('capacity eviction waits for an admitted backup parser before reopening its picker', { timeout: 15000 }, async t => {
+test('a slow admitted backup upload never holds another picker behind it; the newcomer gets a retry', { timeout: 15000 }, async t => {
   const f = await fixture(t, { maxOpenContexts: 2 }), a = await f.login('101'), b = await f.login('102');
   const stream = await f.send('/api/events', a, { stream: true });
   const ended = new Promise(resolve => stream.res.once('end', resolve));
@@ -665,14 +666,14 @@ test('capacity eviction waits for an admitted backup parser before reopening its
   const held = directUpload(f, '/api/restore/preview', { cookie: a, input: slow });
   try {
     await started.promise;
-    let opened = false;
-    const waiting = f.send('/api/state', b).then(result => { opened = true; return result; });
-    await ended; // A has entered close and ended its streams.
-    for (let turn = 0; turn < 20; turn++) await new Promise(resolve => setImmediate(resolve));
-    assert.equal(opened, false);
+    // The only private slot is busy with A's upload: B is refused immediately
+    // with a retry instead of waiting for A's body inside the shared queue.
+    const busy = await f.send('/api/state', b);
+    assert.equal(busy.status, 503); assert.equal(busy.headers['retry-after'], '1');
+    assert.equal(stream.res.readableEnded, false);
     slow.push('{}'); slow.push(null);
-    const refused = await held.done; assert.equal(refused.status, 503);
-    const next = await waiting; assert.equal(next.status, 200);
+    const finished = await held.done; assert.notEqual(finished.status, 503);
+    const next = await f.send('/api/state', b); assert.equal(next.status, 200); await ended;
     assert.equal((await f.send('/api/state', a)).json().state.revision, 0);
   } finally { if (!slow.readableEnded) slow.push(null); }
 });

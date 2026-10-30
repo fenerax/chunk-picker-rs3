@@ -674,8 +674,11 @@ are checked at every load/write, including restore.
 Only registry-derived IDs reach `pickerDirectory`. Legacy remains resident.
 `maxOpenContexts` includes legacy; a value of one cleanly refuses private context
 admission with retryable 503. Acquisitions/evictions serialize, include contexts
-still draining in the bound, and update request LRU order. Capacity eviction can
-end an SSE stream; an open stream prevents idle eviction. Idle timers run after
+still draining in the bound, and update request LRU order. Capacity eviction
+takes the least recently used idle context only; while every resident context
+has an active request or upload, a newcomer gets a retryable 503 rather than
+waiting inside the shared acquisition queue for a busy picker to drain. Capacity
+eviction can end an SSE stream; an open stream prevents idle eviction. Idle timers run after
 the last active request/stream. A request during close waits for draining and
 reopens under a new handle. `PickerContext.close()` fences admission, drains
 accepted writes, explicitly refuses unaccepted queued HTTP work, cancels only
@@ -755,9 +758,9 @@ export/SSE/plugin refusal before store creation, URL/body/header conflicts,
 plugin restart isolation, concurrent first-login callbacks, six provisioning
 interruption points, legacy account/master/invite compatibility, operator
 refusal, sign-out, owner restore, linked-identity conflicts, idle/capacity close,
-stream isolation and an accepted write deliberately held across eviction. The
-queued successor receives 503, a concurrent reopen waits, and both confirmed
-games survive restart. Synthetic on-disk namespaces deliberately collide action
+stream isolation and an accepted write deliberately held across shutdown
+eviction. Capacity eviction skips the busy picker, the queued successor receives
+503 at shutdown, and both confirmed games survive restart. Synthetic on-disk namespaces deliberately collide action
 request/receipt scopes and retained backup IDs without copying either game into
 the other. Eighteen HTTP tests include thrown provisioning interruptions and graceful
 restart. Six more tests terminate the actual OAuth callback process at each
