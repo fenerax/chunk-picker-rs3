@@ -2,6 +2,23 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "date": "2026-10-30",
+      "title": "The picker stays quick while it works out what a roll can pick",
+      "items": [
+        "Working out which chunks a roll can land on now runs in the background, so the page and saves no longer wait for it",
+        "When a save does not change what a roll can pick, the picker reuses its last answer instead of working it out again"
+      ]
+    },
+    {
+      "date": "2026-10-30",
+      "title": "The game plugin can learn what you just finished",
+      "items": [
+        "The picker now tells the game plugin which tasks you finished recently, and keeps them in the chunk where you finished them",
+        "It also sends a short summary of the Roll 2 options",
+        "A plugin update has to use this before you see it in game. The current plugin works as before"
+      ]
+    },
+    {
       "date": "2026-10-28",
       "title": "The nightly backup keeps the picker open, and updates are shorter",
       "items": [
