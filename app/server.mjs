@@ -221,7 +221,7 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
   const storeProcessPending = prepareStoreProcessIdentity();
   const definitionCachePending = cachedJSON(definitionBytes), taskCachePending = cachedJSON(taskBytes);
   const taskWorkerPending = parsedDefinitions.challenges && typeof parsedDefinitions.challenges === 'object' && !Array.isArray(parsedDefinitions.challenges)
-    ? startTaskWorker(parsedDefinitions, definitionBytes, indexedWorld, ruleRegistry, multiPicker ? { ...taskWorkerOptions, fairness: pickerLimits.config } : taskWorkerOptions, dataset, datasetOptions, world !== undefined) : Promise.resolve(null);
+    ? startTaskWorker(parsedDefinitions, definitionBytes, indexedWorld, ruleRegistry, multiPicker ? { ...taskWorkerOptions, fairness: pickerLimits.config, maxCalculators: multiPicker.maxCalculators ?? 2 } : taskWorkerOptions, dataset, datasetOptions, world !== undefined) : Promise.resolve(null);
   let taskWorker, identityHistory, definitionCache, taskCache;
   // Optional map reference data has its own authenticated cache and payload.
   // Loading it never delays gameplay startup or enlarges state/definitions.
