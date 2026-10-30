@@ -1606,12 +1606,11 @@ used in tests.
 | Interleaved colliding jobs, stale delivery, cancellation/crash/restart and eviction during queued writes; B survives | Both P1.5 cases | MP3 `picker-jobs.test.mjs`; MP4 `picker-routing.test.mjs`; MP5 `picker-deletion.test.mjs`; MP7 `picker-fairness-isolation.test.mjs` |
 | Racing/crashed provisioning, one empty default, unchanged shared exception and separate ownership slots | P1.6; `phase1-acceptance-crash.test.mjs`: six P1.6 process-death boundaries | MP1 `registry.test.mjs`; MP4 `picker-routing.test.mjs`, `picker-routing-crash.test.mjs` |
 | Browser switch/logout during queued commands clears views/streams/preferences/recovery without replay | Both P1.7 cases | MP6 `picker-browser-session.test.mjs`; MP9 `picker-owner-ui.test.mjs` |
-| Service backup containing a deleted picker honors tombstones, revoked credentials and unchanged B | P1.8 **covered by MP8, PR #35** | MP1 `registry.test.mjs`; MP5 `picker-deletion.test.mjs`, `picker-deletion-crash.test.mjs` cover checkpoint reconciliation, not MP8 service restoration |
+| Service backup containing a deleted picker honors tombstones, revoked credentials and unchanged B | P1.8 (MP8 service backup, HTTP deletion, stopped restore, real server reopen) | MP8 `linux-multi-picker.test.mjs`, `linux-service-crash.test.mjs`; MP1 `registry.test.mjs`; MP5 `picker-deletion.test.mjs`, `picker-deletion-crash.test.mjs` cover checkpoint reconciliation, not MP8 service restoration |
 | Owner capabilities stay scoped; operator powers remain private; global budgets shared | P1.9 | MP4 `picker-routing.test.mjs`; MP7 `picker-limits-http.test.mjs`, `picker-limits.test.mjs`, `picker-fairness-isolation.test.mjs`; MP9 `picker-owner-ui.test.mjs` |
 
 The new files are explicitly quick/open-f2p in `scripts/test-selection.mjs`.
-Service recovery is covered by MP8, PR #35 (`mp/operator`), including MP5
-tombstones. Its P1.8 marker is skipped in this checkout; MP8 is not merged here.
+MP8 (PR #35) is merged into this branch. P1.8 is executable; see the P1.8\nfollow-up below. The historical run records that follow describe the earlier skip.
 No application bug has been identified by the executable acceptance cases.
 
 ### MP10 lane gates
@@ -1677,8 +1676,7 @@ in the private checkout were modified.
 
 Footprint results and their method are recorded in the Multiplayer lane section
 of `docs/perf/picker-footprint.md`. The current-duo comparisons above have
-0 differences and pass the multiplayer gate. Service recovery is covered by
-MP8, PR #35; the historical engine gate belongs to the engine lane. These measurements do not authorize
+0 differences and pass the multiplayer gate. Service recovery is covered by\nP1.8 against MP8; the historical engine gate belongs to the engine lane. These measurements do not authorize
 opening public sign-up.
 
 ### MP10 regression attribution follow-up
@@ -1714,7 +1712,7 @@ All previously staged test/harness changes are retained. The final rerun counts
 above include the P1.8 external-coverage skip replacing its earlier TODO.
 The checker results cover 1 current state and 36 comparisons per option, with
 0 differences and 0 errors. They do not claim historical engine coverage.
-Service recovery is covered by MP8, PR #35. Cold-CPU attribution is an
+Service recovery is covered by P1.8 against MP8. Cold-CPU attribution is an
 investigation target, with no app fix.
 
 
@@ -1724,8 +1722,7 @@ The confirmed multiplayer corpus is the current duo snapshot. Both direct
 main-versus-START checker modes **pass**: 1 state, 36 comparisons, 0 differences,
 0 errors each. The 414-state corpus belongs to the engine lane, run as 48 Cloud
 shards before its first merge to main. Service recovery honoring MP5 tombstones
-is **covered by MP8, PR #35** (`mp/operator`); that branch is not merged here.
-P1.8 is an explicit external-coverage skip, not a pending TODO.
+was then covered by MP8, PR #35, before it merged; P1.8 now executes (below).
 
 Native `--cpu-prof` runs compare MP5 `c19cef6` with immediate parent `d6ef7f1`,
 three fresh process-mode runs per tree in alternating pair order. All six stay
@@ -1768,7 +1765,28 @@ Final suites: quick 2,678 passed / 0 failed / 69 skipped / 0 TODO; full
 5,825 / 0 / 141 / 0. No application bug was found. No app/checker code changed
 after START. The remaining performance item is the proposal above.
 Recommendation: **MERGE-CANDIDATE**.
-## MP11 calculator cap
+
+### MP10 P1.8 executable follow-up
+
+After MP8 (PR #35) merged, the P1.8 skip became an executable case in
+`phase1-acceptance.test.mjs`. Accounts A and B sign in through synthetic OAuth and
+write notes. A stopped `captureServiceCheckpoint` is taken while the real server
+is closed. A is then deleted over HTTP. With the server closed again,
+`restoreServiceStopped` restores into empty roots against the live tombstone
+ledger (1 picker excluded, 0 credentials restored). The recovered roots are
+swapped in and the real server reopens. A's picker stays deleted with no
+directory, A's session and plugin key return 401, and A's next sign-in gets a
+fresh empty default.
+
+B's account, membership, default picker and revision come back unchanged. The
+service format excludes provider identities by design, so B's sign-in must be
+relinked before B can reach that picker. No operator command for this exists
+yet. The test relinks through the registry storage API as a stand-in for that
+private administration. Without a relink, a returning player signs in to a new
+empty picker. That gap is an open operator follow-up and is not fixed here.
+
+Acceptance cases: 18 passed, 0 failed, 0 skipped, 0 TODO
+(`phase1-acceptance.test.mjs` plus `phase1-acceptance-crash.test.mjs`, Node 24.19.0).## MP11 calculator cap
 
 START is `0ef05ce1ac44cee956e4ce64b8295ce62d879479`, the multiplayer lane
 with MP7 merged. `createServer({ multiPicker: { ... , maxCalculators: 2 } })`

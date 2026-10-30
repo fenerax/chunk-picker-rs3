@@ -4,7 +4,7 @@ import http from 'node:http';
 import { EventEmitter } from 'node:events';
 import vm from 'node:vm';
 import { createLiveSwapCommandClient, commandOutboxKey } from '../app/web/live-swap-client.mjs';
-import { mkdtemp, rm, writeFile, readFile, rename } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, writeFile, readFile, rename } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import crypto, { createHash } from 'node:crypto';
@@ -13,6 +13,10 @@ import { syncBuiltinESMExports } from 'node:module';
 process.env.RS3_DATASET = 'open-f2p';
 for (const key of ['RS3_PACKS_DIR', 'RS3_PACK_SELECTION', 'RS3_PUBLIC_ORIGIN', 'RS3_LOOPBACK_PORT', 'RS3_LOOPBACK_ROLE', 'RS3_SIGNIN', 'RS3_GOOGLE_CLIENT_ID', 'RS3_GOOGLE_CLIENT_SECRET_FILE']) delete process.env[key];
 const { openRegistry } = await import('../app/storage/registry.mjs');
+const { snapshotPath } = await import('../app/storage/snapshot.mjs');
+const { captureServiceCheckpoint } = await import('../scripts/linux/service-checkpoint.mjs');
+const { restoreServiceStopped } = await import('../scripts/linux/service-recovery.mjs');
+const { readRelease } = await import('../scripts/linux/runtime.mjs');
 const { createServer } = await import('../app/server.mjs');
 const { createGroupState } = await import('../app/core/state.mjs');
 const { selectedDataset } = await import('../app/dataset-runtime.mjs');
@@ -433,7 +437,62 @@ for (const change of ['switch', 'logout']) test(`P1.7 browser ${change} retires 
 });
 
 // MP8 must provide the service backup/restore entry point before this can run.
-test.skip('P1.8 restore a service backup containing a deleted picker (covered by MP8, PR #35)');
+// Bullet 8: MP8 service backup and stopped restore with the real server on both
+// sides. A is deleted after the backup; its tombstone wins over the backup copy.
+test('P1.8 restoring a service backup containing a later-deleted picker keeps it deleted and B unchanged', { timeout: 15000 }, async t => {
+  const f = await fixture(t), a = await f.login(A), b = await f.login(B);
+  await f.note(a, 'Player 1', 0); await f.note(b, 'Player 2', 0);
+  const ids = [await f.picker(A), await f.picker(B)], keys = [await keyFor(f, a), await keyFor(f, b)];
+  const accountB = (await f.registry()).accounts.find(row => row.defaultPickerId === ids[1]).id;
+  const paths = root => ({ dataDir: path.join(root, 'legacy'), controlDir: path.join(root, 'control'), backupDir: path.join(root, 'backups'), scratchRoot: path.join(root, 'scratch'), minFreeBytes: 0,
+    multiPicker: { registryDir: path.join(root, 'registry'), pickerRoot: path.join(root, 'pickers'), tombstoneDir: f.multiPicker.tombstoneDir } });
+  const live = paths(f.root), recovered = paths(path.join(f.root, 'recovered')), backupId = crypto.randomUUID();
+  await f.restart(async () => {
+    const registry = await openRegistry(f.multiPicker);
+    try { await captureServiceCheckpoint({ settings: live, registry, id: backupId }); } finally { await registry.close(); }
+  });
+  const backup = snapshotPath(live.dataDir, backupId);
+  // Restore pins a release identity; the probe below replaces the release's own probe.
+  const core = path.join(f.root, 'release'), config = path.join(f.root, 'config.json'), pointer = path.join(f.root, 'current.json');
+  await mkdir(core); await writeFile(path.join(core, 'README.md'), 'synthetic release');
+  const configBytes = JSON.stringify({ coreRoot: core, dataDir: live.dataDir, datasetId: 'open-f2p', multiPicker: live.multiPicker });
+  await writeFile(config, configBytes); await writeFile(pointer, JSON.stringify({ config: { path: config, sha256: hash(configBytes) } }));
+  const release = await readRelease(pointer, live.dataDir);
+  assert.equal((await f.send('/api/picker/delete', a, { body: {} })).status, 200);
+  const before = await stateOf(f, b);
+  await f.restart(async () => {
+    const probe = async (_release, dir) => JSON.parse(await readFile(path.join(dir, 'state.json')));
+    const result = await restoreServiceStopped({ settings: recovered, backup, release, assertStopped: async () => {}, probe });
+    assert.equal(result.excluded, 1); assert.equal(result.credentialsRestored, 0);
+    // Swap the recovered service roots into place, as a disk recovery would.
+    for (const name of ['legacy', 'legacy.dataset.json', 'registry', 'pickers']) {
+      await rename(path.join(f.root, name), path.join(f.root, 'replaced-' + name));
+      await rename(path.join(f.root, 'recovered', name), path.join(f.root, name));
+    }
+    // Provider identities are not in the backup. B's account and membership are;
+    // private administration relinks the sign-in (no operator command exists yet).
+    const registry = await openRegistry(f.multiPicker);
+    try {
+      const account = registry.getAccount(accountB);
+      assert.deepEqual(account.identities, []); assert.equal(account.defaultPickerId, ids[1]);
+      await registry.linkIdentity(accountB, 'discord', String(B));
+    } finally { await registry.close(); }
+  });
+  const doc = await f.registry();
+  assert.equal(doc.pickers.find(p => p.id === ids[0])?.lifecycle ?? 'deleted', 'deleted');
+  await assert.rejects(readFile(path.join(f.multiPicker.pickerRoot, ids[0], 'state.json')), { code: 'ENOENT' });
+  // Credentials are never part of a service backup: A's session and key stay revoked.
+  assert.equal((await f.send('/api/state', a)).status, 401);
+  assert.equal((await f.send('/api/plugin/v1/status', undefined, { headers: { Authorization: 'Bearer ' + keys[0] } })).status, 401);
+  const again = await f.login(B);
+  assert.equal(await f.picker(B), ids[1]);
+  const after = await stateOf(f, again);
+  assert.equal(after.revision, before.revision); assert.equal(after.members[0].notes['12341'], 'Player 2');
+  // A signs in to a fresh empty default, never the deleted game.
+  const fresh = await f.login(A);
+  const blank = await stateOf(f, fresh);
+  assert.notEqual(await f.picker(A), ids[0]); assert.equal(blank.revision, 0); assert.equal(blank.members[0].notes?.['12341'], undefined);
+});
 
 // Bullet 9: owner affordances never grant operator authority; shared limits
 // persist across account sessions, eviction and server-side routing.
