@@ -23,11 +23,13 @@ function validateLedger(ledger) {
   const issued = new Set(), deleted = new Set(), accounts = new Set();
   for (const id of ledger.issuedPickerIds) { if (typeof id !== 'string' || !PICKER.test(id) || issued.has(id)) bad(); issued.add(id); }
   for (const entry of ledger.pickers) {
-    if (!object(entry, ['pickerId', 'lifecycle', 'deletingAt', 'deletedAt']) || !issued.has(entry.pickerId) || deleted.has(entry.pickerId) || !['deleting', 'deleted'].includes(entry.lifecycle) || !date(entry.deletingAt) || (entry.lifecycle === 'deleted' ? !date(entry.deletedAt) : entry.deletedAt !== null)) bad();
+    if (!object(entry, ['pickerId', 'lifecycle', 'deletingAt', 'deletedAt', 'purgeProgress']) || !issued.has(entry.pickerId) || deleted.has(entry.pickerId) || !['deleting', 'deleted'].includes(entry.lifecycle) || !date(entry.deletingAt) || (entry.lifecycle === 'deleted' ? !date(entry.deletedAt) : entry.deletedAt !== null)) bad();
+    if (entry.purgeProgress !== undefined && !['revoked', 'drained', 'directory-removed', 'binding-removed', 'complete'].includes(entry.purgeProgress)) bad();
     deleted.add(entry.pickerId);
   }
   for (const entry of ledger.accounts) {
-    if (!object(entry, ['accountId', 'deletedAt']) || !REGISTRY_ACCOUNT.test(entry.accountId) || accounts.has(entry.accountId) || !date(entry.deletedAt)) bad();
+    if (!object(entry, ['accountId', 'deletedAt', 'purgeProgress']) || !REGISTRY_ACCOUNT.test(entry.accountId) || accounts.has(entry.accountId) || !date(entry.deletedAt)) bad();
+    if (entry.purgeProgress !== undefined && !['pending', 'complete'].includes(entry.purgeProgress)) bad();
     accounts.add(entry.accountId);
   }
   return ledger;
@@ -364,9 +366,9 @@ export async function openRegistry({ registryDir, pickerRoot, tombstoneDir, lega
     revokeCapability(kind, hash) { return enqueue(async () => {
       const next = copy(current); next.capabilities = next.capabilities.filter(c => c.kind !== kind || c.hash !== hash); await save(next);
     }); },
-    beginPickerDeletion(id) { return enqueue(async () => {
-      requirePicker(current, id);
-      const next = copy(ledger); deletion(next, id); await saveLedger(next); await point('picker-tombstoned', id);
+    beginPickerDeletion(id, { onTombstone } = {}) { return enqueue(async () => {
+      if (requirePicker(current, id).kind === 'legacy-shared') throw error(409, 'The shared picker cannot be deleted.');
+      const next = copy(ledger); deletion(next, id); await saveLedger(next); onTombstone?.(); await point('picker-tombstoned', id);
       await applyTombstones(); return requirePicker(current, id);
     }); },
     completePickerDeletion(id) { return enqueue(async () => {
@@ -382,14 +384,26 @@ export async function openRegistry({ registryDir, pickerRoot, tombstoneDir, lega
       if (tombstone.lifecycle !== 'deleted') { tombstone.lifecycle = 'deleted'; tombstone.deletedAt = timestamp(); await saveLedger(next); await point('picker-deleted', id); }
       await applyTombstones(); return { pickerId: id, lifecycle: 'deleted' };
     }); },
-    deleteAccount(accountId) { return enqueue(async () => {
+    deleteAccount(accountId, { runtimePurge = false, onTombstone } = {}) { return enqueue(async () => {
       const account = current.accounts.find(a => a.id === accountId);
       if (!account && !ledger.accounts.some(t => t.accountId === accountId)) throw error(404, 'Account not found.');
       const next = copy(ledger);
-      if (!next.accounts.some(t => t.accountId === accountId)) next.accounts.push({ accountId, deletedAt: timestamp() });
+      if (!next.accounts.some(t => t.accountId === accountId)) next.accounts.push({ accountId, deletedAt: timestamp(), ...(runtimePurge ? { purgeProgress: 'pending' } : {}) });
       for (const picker of current.pickers) if (picker.kind === 'default' && picker.ownerAccountId === accountId && picker.lifecycle === 'active') deletion(next, picker.id);
-      await saveLedger(next); await point('account-tombstoned', account?.defaultPickerId ?? null); await applyTombstones();
+      await saveLedger(next); onTombstone?.(); await point('account-tombstoned', account?.defaultPickerId ?? null); await applyTombstones();
       return { accountId };
+    }); },
+    isAccountDeleted(id) { usable(); return retiredAccounts.has(id); },
+    deletionRecords() { usable(); return copy({ pickers: ledger.pickers, accounts: ledger.accounts }); },
+    deletionDirectory(id) {
+      usable(); if (!tombstoneIndex.has(id) || current.pickers.some(p => p.id === id && p.kind === 'legacy-shared')) throw error(409, 'Owned picker tombstone required.');
+      return path.join(pickerRoot, id);
+    },
+    advanceDeletion(kind, id, purgeProgress) { return enqueue(async () => {
+      const next = copy(ledger), entry = kind === 'picker' ? next.pickers.find(t => t.pickerId === id) : kind === 'account' ? next.accounts.find(t => t.accountId === id) : null;
+      if (!entry) throw error(409, 'Deletion tombstone required.');
+      entry.purgeProgress = purgeProgress; await saveLedger(next);
+      await point(`${kind}-purge-${purgeProgress}`, kind === 'picker' ? id : null);
     }); },
     reconcileTombstones() { return enqueue(applyTombstones); },
     close() { return closing ??= (async () => {

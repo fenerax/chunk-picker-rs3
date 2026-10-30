@@ -18,6 +18,8 @@ export const quickTests = new Set([
   "picker-browser-session.test.mjs",
   "picker-routing-crash.test.mjs",
   "picker-routing.test.mjs",
+  "picker-deletion.test.mjs",
+  "picker-deletion-crash.test.mjs",
   "picker-context.test.mjs",
   "picker-jobs.test.mjs",
   "worker-picker-keys.test.mjs",
@@ -513,6 +515,8 @@ export const soloTests = new Set([
 export const openF2PTests = new Set([
   "picker-routing-crash.test.mjs",
   "picker-routing.test.mjs",
+  "picker-deletion.test.mjs",
+  "picker-deletion-crash.test.mjs",
   "picker-context.test.mjs",
   "picker-jobs.test.mjs",
   "plugin-reads-server.test.mjs",

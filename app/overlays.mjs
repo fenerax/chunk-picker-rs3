@@ -280,6 +280,17 @@ export async function openOverlays({ dataDir, store, world, webRoot, publicOrigi
       response.once('close', () => { clearInterval(client.heartbeat); clients.delete(client); });
       return true;
     },
+    fenceDeletion() { closed = true; for (const client of clients) stop(client); },
+    revokeDeletion() {
+      closed = true;
+      for (const client of clients) stop(client);
+      const pending = queue.then(async () => {
+        const next = structuredClone(current);
+        for (const record of next.links) record.revoked = true;
+        await atomicWrite(file, next); current = next;
+      });
+      queue = pending.catch(() => {}); return pending;
+    },
     async close() { closed = true; unsubscribe(); payloads.clear(); rollResults.clear(); rollLookups.clear(); for (const client of clients) stop(client); await queue; },
   };
 }
