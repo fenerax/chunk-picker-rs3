@@ -213,10 +213,20 @@ async function verifyQuarantined(settings, picker, row) {
   if (!row.digest) throw unverifiedQuarantine(settings, picker);
   const root = quarantineRoot(settings), target = path.join(root, picker.id);
   await verifyInstalled(target, row);
-  const original = pickerPath(settings, picker);
-  if (encode(await readdir(original)) !== encode(['operator-quarantine.json'])
-    || (await json(path.join(original, 'operator-quarantine.json'))).id !== picker.id
-    || encode(await json(path.join(root, picker.id + '.json'))) !== encode({ id: picker.id, kind: picker.kind, reason: 'incompatible' })) throw restoreBytes(original);
+  await assertPlaceholder(settings, picker);
+  // The record is small fixed metadata; the backup's gameplay bytes cannot repair it.
+  const record = path.join(root, picker.id + '.json'), value = { id: picker.id, kind: picker.kind, reason: 'incompatible' }, expected = encode(value);
+  let current; try { current = encode(await json(record)); } catch {}
+  if (current !== expected) throw actionRequired(`Move ${record} aside for inspection and write it containing exactly ${JSON.stringify(value)}; then rerun.`);
+}
+// After quarantine the live picker directory holds only its placeholder; the
+// gameplay copy is already verified in quarantine, so restoring backup bytes
+// here could never satisfy this check. Name the exact placeholder instead.
+async function assertPlaceholder(settings, picker) {
+  const original = pickerPath(settings, picker), marker = path.join(original, 'operator-quarantine.json');
+  let entries, id; try { entries = await readdir(original); id = (await json(marker)).id; } catch {}
+  if (encode(entries ?? null) !== encode(['operator-quarantine.json']) || id !== picker.id)
+    throw actionRequired(`Move every entry in ${original} aside for inspection, leaving only ${marker} containing exactly ${JSON.stringify({ id: picker.id })}; then rerun.`);
 }
 async function quarantine(settings, picker, stageStore, row, save, step) {
   if (picker.kind === 'legacy-shared') throw legacyRefusal();
@@ -241,9 +251,7 @@ async function quarantine(settings, picker, stageStore, row, save, step) {
     await mutate(step, 'quarantine.rename-binding', () => rename(stageStore + '.dataset.json', target + '.dataset.json'));
   }
   await verifyInstalled(target, row);
-  if (await exists(original) && (await readdir(original)).length) {
-    if (encode(await readdir(original)) !== encode(['operator-quarantine.json']) || (await json(path.join(original, 'operator-quarantine.json'))).id !== picker.id) throw restoreBytes(original);
-  }
+  if (await exists(original) && (await readdir(original)).length) await assertPlaceholder(settings, picker);
   await mutate(step, 'quarantine.placeholder-directory', () => directory(original));
   await mutate(step, 'quarantine.placeholder', () => atomic(path.join(original, 'operator-quarantine.json'), encode({ id: picker.id })));
   await mutate(step, 'quarantine.record', () => atomic(path.join(root, picker.id + '.json'), encode({ id: picker.id, kind: picker.kind, reason: 'incompatible' })));

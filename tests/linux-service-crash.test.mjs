@@ -212,6 +212,34 @@ test('restore archive sweep: completed journal with recovered empty disks', asyn
   }, run, settings => finalState(f, settings, false, true));
 });
 
+test('quarantine metadata refusals name the exact repair, and following it completes the rerun', async t => {
+  const f = await fixture(t), settings = await f.target(), options = f.restore(settings);
+  await restoreServiceStopped(options);
+  const record = path.join(settings.controlDir, 'quarantine', f.incompatible.id + '.json');
+  const original = pickerPath(settings, f.incompatible), marker = path.join(original, 'operator-quarantine.json');
+  const follow = async (pattern, repair) => {
+    const error = await restoreServiceStopped(options).then(() => null, error => error);
+    assert.equal(error?.code, 'OPERATOR_ACTION_REQUIRED', error?.message);
+    const match = error.message.match(pattern); assert(match, error.message);
+    await repair(match);
+    await restoreServiceStopped(options);
+  };
+  // A changed record: the instruction names the record and its exact content.
+  await writeFile(record, encode({ id: f.incompatible.id, kind: f.incompatible.kind, reason: 'changed' }));
+  await follow(/^Move (.+) aside for inspection and write it containing exactly (\{.*\}); then rerun\.$/, async ([, file, content]) => {
+    assert.equal(file, record);
+    await rename(file, path.join(inspectionRoot, randomUUID())); await writeFile(file, content);
+  });
+  // A stray entry beside the placeholder: move everything else aside, keep only the marker.
+  await writeFile(path.join(original, 'state.json'), 'synthetic stray bytes');
+  await follow(/^Move every entry in (.+) aside for inspection, leaving only (.+) containing exactly (\{.*\}); then rerun\.$/, async ([, dir, file, content]) => {
+    assert.equal(dir, original); assert.equal(file, marker);
+    for (const name of await readdir(dir)) await rename(path.join(dir, name), path.join(inspectionRoot, randomUUID()));
+    await writeFile(file, content);
+  });
+  assert.deepEqual(await readdir(original), ['operator-quarantine.json']);
+});
+
 test('release sweep: shared installer and cleanup after record removal', async t => {
   const f = await fixture(t);
   await sweep(t, f, f.prepareRelease, (settings, step) => releaseServiceQuarantine({ ...f.releaseOptions(settings), step }), settings => finalState(f, settings, true));
