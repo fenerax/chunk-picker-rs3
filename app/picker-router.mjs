@@ -21,7 +21,7 @@ export function createPickerRouter({ registry, legacy, openContext, publicOrigin
   // at once. Legacy keeps its own guard and is outside this budget.
   let imports = 0;
   let queue = Promise.resolve(), closed = false, closing;
-  const deletion = createPickerDeletion({ registry, legacy, backupRetentionMs,
+  const deletion = createPickerDeletion({ registry, legacy, backupRetentionMs, afterPurge: () => pickerLimits?.forgetDeleted(),
     fencePicker: id => { const entry = entries.get(id); if (entry && !entry.closing) entry.context.fenceDeletion(); },
     fenceSessions: () => {
       legacy.fenceRevokedSessions();

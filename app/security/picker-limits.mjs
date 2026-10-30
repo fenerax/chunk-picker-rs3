@@ -131,6 +131,13 @@ export function createPickerLimits(options = {}, { now = Date.now } = {}) {
       } };
     },
     revokeKey(digest) { keys.delete(digest); },
+    // Deleted pickers and accounts stop holding key quota, dormant ones included.
+    forgetDeleted() {
+      if (!registry) return;
+      const records = registry.deletionRecords();
+      const pickers = new Set(records.pickers.map(t => t.pickerId)), accounts = new Set(records.accounts.map(t => t.accountId));
+      for (const [digest, owner] of keys) if (pickers.has(owner.pickerId) || accounts.has(owner.accountId)) keys.delete(digest);
+    },
     registration(client) { charge(rows('registration', { accountId: client }, config.registrationsPerAccount, 0, config.registrationsGlobal), 1, config.limitWindowMs, 'Too many sign-in attempts. Wait before starting sign-in again.'); },
     provisioningRegistry(value) {
       return new Proxy(value, { get(target, name) {

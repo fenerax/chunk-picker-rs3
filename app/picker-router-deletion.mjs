@@ -3,7 +3,7 @@ import { bodyJSON, httpError, json } from './picker-context-http.mjs';
 import { checkRequestOrigin } from './security/request.mjs';
 
 /** Session-derived self-service operations only. No caller-supplied target. */
-export function createPickerDeletion({ registry, legacy, backupRetentionMs, fencePicker, fenceSessions, drainPicker }) {
+export function createPickerDeletion({ registry, legacy, backupRetentionMs, fencePicker, fenceSessions, drainPicker, afterPurge }) {
   const backups = backupDeletionDisclosure(backupRetentionMs);
   let deletionQueue = Promise.resolve();
   async function handle(request, response, selected) {
@@ -32,6 +32,7 @@ export function createPickerDeletion({ registry, legacy, backupRetentionMs, fenc
       }
       await reconcileTombstones({ registry, revokeSessions: scope => legacy.revokeDeletionSessions(scope),
         revokeAccount: id => legacy.revokeDeletedAccount(id), drainPicker });
+      afterPurge?.();
       await json(request, response, 200, { status: 'deleted', backups });
     });
     deletionQueue = pending.catch(() => {}); await pending;

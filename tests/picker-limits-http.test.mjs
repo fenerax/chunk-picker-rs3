@@ -167,3 +167,17 @@ test('percent-encoded sign-in routes share the sign-in start budget', async t =>
     assert.equal(denied.status, 429, route); assert.ok(denied.headers['retry-after']);
   }
 });
+
+test('deleting a picker or an account releases its plugin key quota', async t => {
+  const f = await fixture(t, { pluginKeysPerAccount: 1, pluginKeysGlobal: 2, registrationsPerAccount: 20, registrationsGlobal: 20 });
+  const create = cookie => f.send('/api/game-plugin/keys', cookie, { body: { memberId: 'owner', label: 'Synthetic' } });
+  let a = await f.login('101');
+  assert.equal((await create(a)).status, 201); assert.equal((await create(a)).status, 429);
+  assert.equal((await f.send('/api/picker/delete', a, { body: {} })).status, 200);
+  a = await f.login('101');
+  assert.equal((await create(a)).status, 201);
+  const b = await f.login('102'); assert.equal((await create(b)).status, 201);
+  assert.equal((await create(await f.login('103'))).status, 429);
+  assert.equal((await f.send('/api/account/delete', b, { body: {} })).status, 200);
+  assert.equal((await create(await f.login('103'))).status, 201);
+});
