@@ -1,9 +1,10 @@
+import { gameStorage } from './screen-save-status.mjs';
 import { readTaskFilters, writeTaskFilters, selectTaskFilters } from './task-filters-model.mjs';
 
 const categoryName = category => ({ Quest: 'Quests', Diary: 'Achievements' })[category] ?? category;
 
 /** Browser-only display choices. No saved gameplay commands belong here. */
-export function createTaskFilters({ document, getStorage = () => globalThis.localStorage, onChange = () => {}, clearSearch = () => {}, getClaimMemberId }) {
+export function createTaskFilters({ document, getStorage = () => gameStorage(), onChange = () => {}, clearSearch = () => {}, getClaimMemberId }) {
   let storage;
   try { storage = getStorage(); } catch { /* Browsers can deny storage access. */ }
   let filters = readTaskFilters(storage), categoryKey, skillInputs = [], expanded = false, categoryId = 0;

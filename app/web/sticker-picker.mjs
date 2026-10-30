@@ -1,3 +1,4 @@
+import { gameStorage } from './screen-save-status.mjs';
 // One quick picker serves the map menu and chunk panel; labels use the full editor.
 import { stickerDefinitions, resolveMemberStickers, MAX_STICKERS_PER_CHUNK } from '../core/map-markers.mjs';
 import { stickerAsset, stickerGlyph, stickerFont, stickerLabel, loadStickerFont } from './map-tools.mjs';
@@ -8,8 +9,8 @@ const GRADES = new Set(['S', 'A', 'B', 'C', 'D', 'F']);
 const groupOf = id => stickerAsset(id) ? 'Skills & activities' : NUMBERS.has(id) ? 'Numbers' : GRADES.has(id) ? 'Grades' : 'Symbols';
 const RECENT_KEY = 'picker.recentStickers';
 const capital = text => text.charAt(0).toUpperCase() + text.slice(1);
-function recent() { try { return JSON.parse(localStorage.getItem(RECENT_KEY) ?? '[]').filter(id => stickerDefinitions.some(item => item.id === id)); } catch { return []; } }
-function remember(id) { try { localStorage.setItem(RECENT_KEY, JSON.stringify([id, ...recent().filter(item => item !== id)].slice(0, 8))); } catch { /* per-browser convenience only */ } }
+function recent() { try { return JSON.parse(gameStorage().getItem(RECENT_KEY) ?? '[]').filter(id => stickerDefinitions.some(item => item.id === id)); } catch { return []; } }
+function remember(id) { try { gameStorage().setItem(RECENT_KEY, JSON.stringify([id, ...recent().filter(item => item !== id)].slice(0, 8))); } catch { /* per-browser convenience only */ } }
 export function createStickerPicker({ el, button, command, host, state, memberId, member, world, openFullDialog, showError }) {
   const popover = el('div', undefined, 'sticker-popover'), toast = el('div', undefined, 'map-toast');
   popover.hidden = true; toast.hidden = true; popover.setAttribute('role', 'dialog'); popover.setAttribute('aria-label', 'Choose stickers');

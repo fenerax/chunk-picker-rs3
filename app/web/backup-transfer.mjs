@@ -53,7 +53,7 @@ export function createBackupUpload(file, metadata = {}) {
   } };
 }
 
-export async function downloadFullBackup(name) {
+export async function downloadFullBackup(name, fetch = globalThis.fetch) {
   const response = await fetch('/api/backup?download=gzip');
   if (!response.ok) { const value = await response.json(); throw new Error(value.message || 'The backup could not be downloaded.'); }
   const url = URL.createObjectURL(await response.blob()), link = document.createElement('a');

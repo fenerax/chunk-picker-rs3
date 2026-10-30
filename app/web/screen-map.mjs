@@ -1,3 +1,4 @@
+import { gameStorage } from './screen-save-status.mjs';
 import { projectChunkState } from './command-state.mjs';
 import { chunkColourLegend } from './chunk-colour-picker.mjs';
 import { createTravelLinesKey } from './map-info.mjs';
@@ -80,12 +81,12 @@ export function createScreenMap(c) {
     c.renderLegend();
   }
 
-  function storedOverlay() { try { return localStorage.getItem('picker.overlay'); } catch { return null; } }
+  function storedOverlay() { try { return gameStorage().getItem('picker.overlay'); } catch { return null; } }
 
   function setMembershipOverlay(on) {
     if (c.supportsFeature?.('rsCatalogues') === false) on = false;
     c.$('membership-overlay').setAttribute('aria-pressed', String(on)); c.map.setOverlay(on ? 'membership' : null);
-    try { if (on) localStorage.setItem('picker.overlay', 'membership'); else localStorage.removeItem('picker.overlay'); } catch {}
+    try { if (on) gameStorage().setItem('picker.overlay', 'membership'); else gameStorage().removeItem('picker.overlay'); } catch {}
     if (c.state && c.member()) c.renderLegend();
   }
 

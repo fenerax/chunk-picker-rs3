@@ -1,3 +1,4 @@
+import { gameStorage, observePickerStorage } from './screen-save-status.mjs';
 import { buildMapActivityLayers } from './map-activity-layer-model.mjs';
 
 const STORAGE_KEY = 'picker.activity-layers';
@@ -12,13 +13,17 @@ export function createMapActivityLayers(c, options = {}) {
     controls: () => c.el('span'), model: empty,
   };
   let storage;
-  try { storage = options.storage ?? globalThis.localStorage; } catch {}
+  try { storage = options.storage ?? gameStorage(); } catch {}
   const preferences = { clueTier: 'off', showSlayer: false };
+  function loadPreferences() {
+  preferences.clueTier = 'off'; preferences.showSlayer = false;
   try {
     const saved = JSON.parse(storage?.getItem(STORAGE_KEY) ?? '{}');
     if (['off', 'all', ...CLUE_TIERS].includes(saved.clueTier)) preferences.clueTier = saved.clueTier;
     if (typeof saved.showSlayer === 'boolean') preferences.showSlayer = saved.showSlayer;
   } catch {}
+  }
+  loadPreferences(); observePickerStorage(loadPreferences);
   let model = empty(), status = '', key, modelWorld, request = 0, data, dataRequest;
   const rows = new Map();
   const enabled = () => preferences.clueTier !== 'off' || preferences.showSlayer;

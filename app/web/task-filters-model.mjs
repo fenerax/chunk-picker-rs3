@@ -1,3 +1,4 @@
+import { gameStorage } from './screen-save-status.mjs';
 import { resolvePersistedIdentity } from '../tasks/fact-projection.mjs';
 import { customTaskDoable } from './custom-tasks-model.mjs';
 
@@ -18,14 +19,14 @@ export function normalizeTaskFilters(value) {
 
 export function readTaskFilters(storage) {
   try {
-    const saved = (storage ?? globalThis.localStorage)?.getItem(TASK_FILTERS_STORAGE_KEY);
+    const saved = (storage ?? gameStorage())?.getItem(TASK_FILTERS_STORAGE_KEY);
     return normalizeTaskFilters(saved ? JSON.parse(saved) : undefined);
   } catch { return normalizeTaskFilters(); }
 }
 
 export function writeTaskFilters(storage, filters) {
   try {
-    const target = storage ?? globalThis.localStorage;
+    const target = storage ?? gameStorage();
     if (!target) return false;
     target.setItem(TASK_FILTERS_STORAGE_KEY, JSON.stringify(normalizeTaskFilters(filters)));
     return true;

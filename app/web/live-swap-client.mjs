@@ -1,3 +1,4 @@
+import { pickerStoragePrefix } from './screen-save-status.mjs';
 import { canSaveAddress, browserUUID, insecureAddressMessage } from './save-address.mjs';
 import { acquireHttpSession } from './http-session-lock.mjs';
 
@@ -47,11 +48,16 @@ function validReceipt(receipt, requestId) {
 }
 
 export function createLiveSwapCommandClient({ storage = sessionStorage(), fetch = (...args) => globalThis.fetch(...args),
-  uuid = sessionUUID, sleep = delay => new Promise(resolve => setTimeout(resolve, delay)),
+  pickerId, uuid = sessionUUID, sleep = delay => new Promise(resolve => setTimeout(resolve, delay)),
   timeoutMs = 15000, onRetry = () => {}, acquireSession = acquireBrowserSession, ackDelayMs = 5000,
   maxAttempts = 12, maxRetryMs = 120000, now = () => Date.now() } = {}) {
   if (!Number.isInteger(maxAttempts) || maxAttempts < 1 || !Number.isFinite(maxRetryMs) || maxRetryMs <= 0
     || !Number.isFinite(timeoutMs) || timeoutMs <= 0) throw new TypeError('Positive save retry limits are required.');
+  const outboxKey = pickerId ? pickerStoragePrefix(pickerId) + commandOutboxKey : commandOutboxKey;
+  const oldOutboxKey = pickerId ? pickerStoragePrefix(pickerId) + legacyOutboxKey : legacyOutboxKey;
+  let stopped = false;
+  const abortRequests = new Set();
+  const active = () => { if (stopped) throw Object.assign(new Error('The account or picker changed. No queued change was sent.'), { name: 'AbortError' }); };
   let queue = Promise.resolve(), acknowledged = 0;
   let releaseSession, ownedClientId, ownershipPending, pendingOwnerId, documentActive = true, ackTimer;
   function releaseOwnership() {
@@ -63,6 +69,7 @@ export function createLiveSwapCommandClient({ storage = sessionStorage(), fetch 
     // Best effort only: ownership is still held and the answer was persisted.
     // A killed tab may send nothing, so server retirement must remain safe.
     try {
+      if (stopped) return;
       requireSecureConnection();
       const record = read();
       if (releaseSession && ownedClientId === record?.clientId && record.session && record.confirmed > acknowledged) {
@@ -72,17 +79,18 @@ export function createLiveSwapCommandClient({ storage = sessionStorage(), fetch 
     } catch {}
     releaseOwnership();
   });
-  globalThis.addEventListener?.('pageshow', () => { documentActive = true; });
+  globalThis.addEventListener?.('pageshow', () => { if (!stopped) documentActive = true; });
   function ensureOwnership(record) {
+    active();
     requireSecureConnection();
     if (!documentActive) throw pendingError('Save confirmation paused because this page was closed or suspended. Reopen it to recover the pending save.');
     if (releaseSession && ownedClientId === record.clientId) return;
     if (ownershipPending) return pendingOwnerId === record.clientId ? ownershipPending : ownershipPending.then(() => ensureOwnership(record));
     if (releaseSession) { releaseSession(); releaseSession = undefined; ownedClientId = undefined; acknowledged = 0; }
-    const acquired = acquireSession(record.clientId);
+    const acquired = acquireSession(pickerId ? `${pickerId}.${record.clientId}` : record.clientId);
     const hold = release => {
       if (typeof release !== 'function') throw pendingError('Another tab owns this copied saving session. Return to the original tab, or close it before recovering this tab. No change was sent.');
-      if (!documentActive) { release(); throw pendingError('Save confirmation paused because this page was closed or suspended.'); }
+      if (!documentActive || stopped) { release(); throw pendingError('Save confirmation paused because this page was closed or suspended.'); }
       releaseSession = release; ownedClientId = record.clientId;
     };
     if (!acquired || typeof acquired.then !== 'function') return hold(acquired);
@@ -90,13 +98,13 @@ export function createLiveSwapCommandClient({ storage = sessionStorage(), fetch 
     ownershipPending = acquired.then(hold).finally(() => { ownershipPending = undefined; pendingOwnerId = undefined; });
     return ownershipPending;
   }
-  const serialize = work => { const task = queue.then(work); queue = task.catch(() => {}); return task; };
+  const serialize = work => { const task = queue.then(() => { active(); return work(); }); queue = task.catch(() => {}); return task; };
   function read() {
     if (!storage) throw pendingError('Browser session storage is unavailable. Enable it before saving.');
     let raw;
     try {
-      if (storage.getItem(legacyOutboxKey) !== null) throw pendingError('An older pending save needs recovery. Keep this tab open and check History before saving again.');
-      raw = storage.getItem(commandOutboxKey);
+      if (storage.getItem(oldOutboxKey) !== null) throw pendingError('An older pending save needs recovery. Keep this tab open and check History before saving again.');
+      raw = storage.getItem(outboxKey);
     } catch (error) { if (error.pendingCommand) throw error; throw pendingError('The pending save could not be read. Restore browser session storage before saving.'); }
     if (raw === null) return null;
     try {
@@ -118,15 +126,18 @@ export function createLiveSwapCommandClient({ storage = sessionStorage(), fetch 
     return body && integer(body.expectedRevision) && body.command && typeof body.command.type === 'string' && body.command.type !== 'sync-original';
   }
   function persist(record) {
+    active();
     const value = JSON.stringify(record);
-    try { storage.setItem(commandOutboxKey, value); if (storage.getItem(commandOutboxKey) !== value) throw new Error(); }
+    try { storage.setItem(outboxKey, value); if (storage.getItem(outboxKey) !== value) throw new Error(); }
     catch { throw pendingError('The save confirmation could not be stored. Restore browser session storage before saving again.'); }
   }
   async function request(path, bytes, signal, limit = timeoutMs) {
+    active();
     const controller = new AbortController();
     let rejectTimeout;
     const timedOut = new Promise((_, reject) => { rejectTimeout = reject; });
     const stop = () => { controller.abort(); rejectTimeout(new Error('Save request timed out or was paused.')); };
+    abortRequests.add(stop);
     signal?.addEventListener('abort', stop, { once: true });
     const deadline = setTimeout(stop, limit);
     try {
@@ -139,7 +150,7 @@ export function createLiveSwapCommandClient({ storage = sessionStorage(), fetch 
         catch (error) { if (response.ok) throw error; value = {}; }
         return { response, value };
       })()]);
-    } finally { clearTimeout(deadline); signal?.removeEventListener('abort', stop); }
+    } finally { abortRequests.delete(stop); clearTimeout(deadline); signal?.removeEventListener('abort', stop); }
   }
   // Ordinary 403s are definitive command refusals (e.g. another player's Undo).
   // Protocol refusals cannot establish the outcome of an earlier dispatch.
@@ -159,6 +170,7 @@ export function createLiveSwapCommandClient({ storage = sessionStorage(), fetch 
   }
   async function retryRequest(path, bytes, signal, record, budget, registration = false) {
     for (let attempt = 0; ; attempt++) {
+      active();
       if (signal?.aborted) throw pendingError('Save confirmation was paused. Its pending request is retained.');
       if (budget.attempts >= maxAttempts || now() >= budget.deadline) pause(record, budget);
       const ownership = ensureOwnership(record); if (ownership) await ownership;
@@ -175,6 +187,7 @@ export function createLiveSwapCommandClient({ storage = sessionStorage(), fetch 
       budget.attempts++;
       try { result = await request(path, bytes, signal, Math.min(timeoutMs, budget.deadline - now())); } catch {}
       if (signal?.aborted) throw pendingError('Save confirmation was paused. Its pending request is retained.');
+      active();
       if (result) {
         const { response, value } = result;
         if (fatal(response.status, value?.code)) throw Object.assign(pendingError('Save confirmation needs recovery. Keep this tab open, restore access and check History before saving again.'), {
@@ -232,17 +245,22 @@ export function createLiveSwapCommandClient({ storage = sessionStorage(), fetch 
   }
   return {
     connectionMessage: () => !canSaveAddress() ? insecureAddressMessage : null,
-    pending: () => { const record = read(); return record?.body || record?.unsent ? JSON.parse(record.body ?? record.unsent) : null; },
+    pending: () => { if (stopped) return null; const record = read(); return record?.body || record?.unsent ? JSON.parse(record.body ?? record.unsent) : null; },
     paused: () => read()?.paused === true,
     lastReceipt: () => read()?.lastReceipt ?? null,
     discard: () => serialize(() => {
       try {
-        storage.removeItem(commandOutboxKey); storage.removeItem(legacyOutboxKey);
-        if (storage.getItem(commandOutboxKey) !== null || storage.getItem(legacyOutboxKey) !== null) throw new Error();
+        storage.removeItem(outboxKey); storage.removeItem(oldOutboxKey);
+        if (storage.getItem(outboxKey) !== null || storage.getItem(oldOutboxKey) !== null) throw new Error();
       } catch { throw pendingError('The pending save could not be discarded. Restore browser session storage and try again.'); }
       releaseOwnership(); acknowledged = 0; documentActive = true;
     }),
     close: releaseOwnership,
+    stop() {
+      stopped = true; releaseOwnership();
+      for (const abort of abortRequests) abort();
+      storage?.removeItem(outboxKey); storage?.removeItem(oldOutboxKey);
+    },
     confirm: ({ signal, lazy = false } = {}) => lazy ? (scheduleAcknowledgement(), Promise.resolve())
       : Promise.resolve().then(async () => { clearTimeout(ackTimer); const record = read(); if (record && !record.body && !record.unsent) await acknowledge(record, signal); }),
     send: (body, { signal, retry = false } = {}) => serialize(async () => {

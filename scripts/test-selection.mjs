@@ -15,6 +15,7 @@ export const adaptiveOptionsFor = (suite, env = process.env) => {
 
 // Reviewed small fixtures and model/controller tests. No running browser or full catalogue.
 export const quickTests = new Set([
+  "picker-browser-session.test.mjs",
   "picker-routing-crash.test.mjs",
   "picker-routing.test.mjs",
   "picker-deletion.test.mjs",

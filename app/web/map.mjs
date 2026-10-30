@@ -1,3 +1,4 @@
+import { gameStorage } from './screen-save-status.mjs';
 import { SURFACE_GRID, surfaceCoordinates } from '../data/surface-grid.mjs';
 import { selectedDataset } from '../dataset-runtime.mjs';
 import { resolveMemberStickers, resolveStartingChunk } from '../core/map-markers.mjs';
@@ -154,7 +155,7 @@ export class ChunkMap {
     this.initialized = false;
     this.autoFit = false;
     this.overlay = null;
-    try { this.travelLinesStorage = globalThis.localStorage; } catch { this.travelLinesStorage = null; }
+    try { this.travelLinesStorage = gameStorage(); } catch { this.travelLinesStorage = null; }
     this.travelLinesVisible = readTravelLines(this.travelLinesStorage);
     this.listeners = [];
     this.markerImages = new Map();

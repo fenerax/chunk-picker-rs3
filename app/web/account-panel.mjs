@@ -1,7 +1,7 @@
 const providerNames = { discord: 'Discord', google: 'Google' };
 const providersFor = account => [...new Set([...(account?.providers ?? []), ...(account?.identities ?? []).map(identity => identity.provider), account?.provider].filter(provider => Object.hasOwn(providerNames, provider)))];
 
-export function createAccountPanel({ el, openDialog, menuButton, topMenu, fetch = globalThis.fetch, location = globalThis.location }) {
+export function createAccountPanel({ el, openDialog, menuButton, topMenu, fetch = globalThis.fetch, location = globalThis.location, beforeSignOut = () => {} }) {
   let session = {};
   const available = () => Boolean(session.account) || (session.signIn?.providers?.length ?? 0) > 0;
   const signedInName = () => Object.hasOwn(providerNames, session.account?.provider) ? providerNames[session.account.provider] : providersFor(session.account).map(provider => providerNames[provider]).join(' and ');
@@ -25,6 +25,10 @@ export function createAccountPanel({ el, openDialog, menuButton, topMenu, fetch 
       const providers = providersFor(session.account);
       const signedIn = signedInName();
       content.append(el('p', signedIn ? `Signed in with ${signedIn}` : 'Signed in', compact ? 'account-menu-status' : undefined));
+      if (session.multiPicker) {
+        content.append(el('p', `Account: ${session.accountId ?? session.account.id}`, 'field-help'));
+        content.append(el('p', `Picker: ${session.pickerId}`, 'field-help'));
+      }
       if (!compact && providers.length > 1) content.append(el('p', `Linked sign-ins: ${providers.map(provider => providerNames[provider]).join(' and ')}.`, 'field-help'));
       for (const provider of session.signIn?.providers ?? []) {
         if (Object.hasOwn(providerNames, provider) && !providers.includes(provider)) actions.append(link(`Link ${providerNames[provider]} too`, `/auth/link/${provider}`));
@@ -39,6 +43,7 @@ export function createAccountPanel({ el, openDialog, menuButton, topMenu, fetch 
         if (signout.disabled) return;
         signout.disabled = true; error.hidden = true;
         try {
+          await beforeSignOut();
           const response = await fetch('/auth/signout', { method: 'POST', credentials: 'same-origin' });
           if (!response.ok) throw new Error('Sign out failed. Try again.');
           location.assign('/auth/signin');

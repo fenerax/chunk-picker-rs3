@@ -1,14 +1,16 @@
+import { gameStorage } from './screen-save-status.mjs';
 import { createUsageCounter, dialogUsageId, handleUsageControl } from './usage-client.mjs';
 import { usageSummary } from './usage-model.mjs';
 
 const observedPanels = ['chunk-info', 'map-display-panel', 'map-pins-panel', 'pending-panel', 'pool-ranking-panel', 'phone-task-panel', 'phone-more'];
 
 export function createScreenUsage(c, { storage: providedStorage, now = () => new Date() } = {}) {
-  const storage = providedStorage ?? (() => { try { return globalThis.localStorage; } catch { return undefined; } })();
+  const storage = providedStorage ?? (() => { try { return gameStorage(); } catch { return undefined; } })();
   const counter = createUsageCounter({ storage, now,
+    fetch: (...args) => c.panelContext?.pickerSession ? c.panelContext?.pickerSession.fetch(...args) : globalThis.fetch(...args),
     actor: () => c.state ? c.sessionReadOnly ? 'viewer' : c.sessionMember ?? c.state.members[0]?.id : undefined,
     width: () => globalThis.innerWidth ?? 1024,
-    beacon: (url, body) => globalThis.navigator?.sendBeacon?.(url, body),
+    beacon: (url, body) => c.panelContext?.pickerSession?.enabled ? false : globalThis.navigator?.sendBeacon?.(url, body),
   });
   let started = false, currentDialog;
   const visibility = new Map();
@@ -71,7 +73,7 @@ export function createScreenUsage(c, { storage: providedStorage, now = () => new
     pageOpened(id) { counter.count(id); },
     get enabled() { return counter.enabled; },
     start() {
-      if (started || !c.state) return; started = true;
+      if (started || !c.state) return; counter.refreshPreference(); started = true;
       const button = c.$('usage-open'); if (button) { button.hidden = !c.sessionAdmin; button.addEventListener('click', () => { void openView().catch(c.showError); }); }
       if (c.sessionReadOnly) {
         const privacy = c.button('Usage settings', openSettings);

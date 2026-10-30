@@ -1,3 +1,4 @@
+import { gameStorage } from './screen-save-status.mjs';
 export const TASK_VIEW_STORAGE_KEY = 'rs3:task-view';
 const normalize = value => ({ showBlocked: value?.showBlocked === true, showAll: value?.showAll === true, groupView: value?.groupView !== false });
 
@@ -13,7 +14,7 @@ export function writeTaskViewPreferences(storage, value) {
 
 // Initialise explicitly so browser form restoration cannot choose task filters.
 // Hide completed remains owned by the saved hideChecked preference.
-export function bindTaskViewPreferences(get, getStorage = () => globalThis.localStorage) {
+export function bindTaskViewPreferences(get, getStorage = () => gameStorage()) {
   let storage;
   try { storage = getStorage(); } catch { /* Storage may be denied. */ }
   const saved = readTaskViewPreferences(storage);
