@@ -3,7 +3,7 @@ import { openPluginAchievements } from './plugin-achievements.mjs';
 import { openPluginItems } from './plugin-items.mjs';
 import { GAME_ITEMS, GAME_TOOLBELT, GAME_WORN_TASKS, COINS, COIN_BILLIONS, ITEM_REVIEW_LIMIT, matchGameItems } from './integrations/game-items.mjs';
 import { fields, validatePluginReport, pluginProposal, matchPluginAchievements, ACHIEVEMENT_REVIEW_LIMIT } from './integrations/game-plugin.mjs';
-import { pluginTaskRows, pluginTaskList, pluginTaskFrom } from './game-plugin-tasks.mjs';
+import { pluginTaskRows, pluginTaskList, pluginTaskFrom, pluginDoneRows, pluginDoneList, pluginDoneLocations, PLUGIN_DONE_AGE_MS, pluginRollSummary } from './game-plugin-tasks.mjs';
 import { createPluginProgressSource } from './integrations/progress-sources.mjs';
 import { createGameCoordinates } from './core/game-coords.mjs';
 
@@ -31,7 +31,7 @@ const PLUGIN_ROUTES = new Map([['/api/plugin/v1/report', 'POST'], ['/api/plugin/
 
 /** Positions, assemblies and proposals are ephemeral. Ticks use store.command. */
 export async function openGamePlugin({ dataDir, store, world, registry, questMapping, bodyJSON, json,
-  serializeMutation, checkRequestOrigin, unauthenticated = () => {}, notify = () => {}, clock = Date.now, savedTasks = () => null, taskCatalogue = () => [], itemsBetaAsLive = false, log = console.warn }) {
+  serializeMutation, checkRequestOrigin, unauthenticated = () => {}, notify = () => {}, clock = Date.now, savedTasks = () => null, peekPrediction = () => null, taskCatalogue = () => [], itemsBetaAsLive = false, log = console.warn }) {
   const progressSource = createPluginProgressSource({ clock });
   const coordinates = createGameCoordinates(world);
   const gameId = id => coordinates.pickerChunkToGameId(id);
@@ -317,14 +317,11 @@ export async function openGamePlugin({ dataDir, store, world, registry, questMap
   }
   function status(player) {
     const owner = member(player), revision = store.getInfo().revision;
-    if (revision !== statusRevision) { statuses.clear(); statusRevision = revision; }
+    if (revision !== statusRevision) { statuses.clear(); rollSummaries = new WeakMap(); statusRevision = revision; }
     const pool = store.peekRollPool(player);
     // Nobody may have the picker page open. Warm the pool after this response, outside the
     // mutation queue, so a later status can say "can be picked next".
-    if (!pool && store.rollPool && !warming) {
-      warming = true;
-      setTimeout(() => { warming = false; if (!closed) try { store.rollPool(player); } catch {} }, 0).unref?.();
-    }
+    if (!pool) warmRollPool(player);
     if (!statuses.has(player) || statuses.get(player).pool !== pool) {
       const shared = registry.resolve(state().rules)['access.shared'];
       const base = id => id.split('-')[0], others = state().members.filter(other => other.id !== player);
@@ -356,8 +353,27 @@ export async function openGamePlugin({ dataDir, store, world, registry, questMap
       state: !position ? 'unknown' : stateOf(chunkId),
       activeTaskCount: taskRows.get(player)?.revision === revision && !taskRows.get(player).stale ? taskRows.get(player).rows.length : null, unlockedChunkCount: cached.count, pendingProgress: !!liveReview(player), seenAt: position?.seenAt ?? null, nearby,
       pickableCount: pool ? pool.eligible.length : null,
-      pendingRoll: (owner.pendingRoll ?? []).map(id => ({ chunkId: gameId(id), chunkName: world.chunks.get(id.split('-')[0])?.name ?? null })),
+      pendingRoll: (owner.pendingRoll ?? []).map(id => ({ chunkId: gameId(id), chunkName: world.chunks.get(id.split('-')[0])?.name ?? null, summary: rollSummary(player, id) })),
+      rollChoice: !!(owner.preferences?.roll2 ?? state().legacy?.maps?.[owner.sourceMapId]?.settings?.roll2 ?? true),
       partners: partners(player) };
+  }
+  // Cache only compact summaries; a late prediction can fill the same revision.
+  let rollSummaries = new WeakMap();
+  function rollSummary(player, id) {
+    const prediction = peekPrediction(player, id);
+    if (!prediction) return null;
+    let summaries = rollSummaries.get(prediction);
+    if (!summaries) { summaries = new Map(); rollSummaries.set(prediction, summaries); }
+    if (summaries.has(id)) return summaries.get(id);
+    const summary = pluginRollSummary(prediction, world.definitions?.chunks?.[id]);
+    summaries.set(id, summary);
+    return summary;
+  }
+  function warmRollPool(player) {
+    if (!store.peekRollPool(player) && store.rollPool && !warming) {
+      warming = true;
+      setTimeout(() => { warming = false; if (!closed) try { store.rollPool(player); } catch {} }, 0).unref?.();
+    }
   }
   // The last complete bank this picker holds; after a restart, the saved live one.
   function bankStatus(player) {
@@ -374,17 +390,35 @@ export async function openGamePlugin({ dataDir, store, world, registry, questMap
     const current = fresh?.bytes && fresh.revision === revision, bytes = current ? fresh.bytes : retainedTasks.get(player);
     const latest = positions.get(player), position = latest && clock() - Date.parse(latest.seenAt) < LIFETIME ? latest : null;
     const chunkId = position?.chunkId ?? null;
-    if (!bytes) return { ...pluginTaskList({ rows: null, chunkId, stateRevision: revision, stale: false }), chunkId: positionGameId(position) };
+    if (!bytes) return { ...pluginTaskList({ rows: null, chunkId, stateRevision: revision, stale: false }), chunkId: positionGameId(position),
+      done: pluginDoneList({ chunkId, now: clock() }) };
     let cached = taskRows.get(player);
+    // The getter returns a stable live-history view immediately. Background archive
+    // completion replaces that view, invalidating only the finished-row projection.
+    const history = store.getTaskCompletionHistory?.(player, { since: clock() - PLUGIN_DONE_AGE_MS });
+    let snapshot, result;
     if (cached?.bytes !== bytes || cached.revision !== revision) {
-      const state = store.getTaskClaimState?.() ?? store.getCalculationSnapshot().state;
-      cached = { bytes, revision, stale: !current,
-        rows: pluginTaskRows({ state, result: JSON.parse(bytes.toString('utf8')), registry, memberId: player, stale: !current }) };
+      snapshot = store.getTaskClaimState?.() ?? store.getCalculationSnapshot().state;
+      result = JSON.parse(bytes.toString('utf8'));
+      const doneLocations = cached?.revision === revision ? cached.doneLocations : new Map();
+      cached = { bytes, revision, stale: !current, doneLocations,
+        rows: pluginTaskRows({ state: snapshot, result, registry, memberId: player, stale: !current }) };
       taskRows.set(player, cached);
+    }
+    if (!cached.doneRows || cached.history !== history) {
+      cached.history = history;
+      // Reparse only if the background ledger changed; do not keep a second
+      // expanded copy of every saved task and the gameplay snapshot in memory.
+      snapshot ??= store.getTaskClaimState?.() ?? store.getCalculationSnapshot().state;
+      result ??= JSON.parse(bytes.toString('utf8'));
+      const rows = pluginDoneRows({ state: { ...snapshot, history: history ?? snapshot.history ?? [] },
+        result, registry, memberId: player });
+      cached.doneRows = pluginDoneLocations({ rows, state: snapshot, result, world, now: clock(), cache: cached.doneLocations });
     }
     // Filter tasks in picker space, then keep the wire's current-chunk identity
     // consistent with status and the plugin's position/debounce checks.
-    return { ...pluginTaskList({ rows: cached.rows, chunkId, stateRevision: revision, stale: cached.stale, from }), chunkId: positionGameId(position) };
+    return { ...pluginTaskList({ rows: cached.rows, chunkId, stateRevision: revision, stale: cached.stale, from }), chunkId: positionGameId(position),
+      done: pluginDoneList({ rows: cached.doneRows, chunkId, now: clock() }) };
   }
   // Other players' last reported chunks, from their own plugins. Never their exact tiles.
   function partners(player) {
@@ -536,7 +570,7 @@ export async function openGamePlugin({ dataDir, store, world, registry, questMap
         itemMemory.clear(); itemAcks.clear(); itemHandled.clear(); bankAssemblies.clear(); bankAcks.clear(); itemCoins.clear();
         progressSource.clear(); itemTasks = undefined;
         sequences.clear(); buckets.clear(); statuses.clear(); pendingHandled.clear();
-        positions.clear(); pending.clear(); diagnostics.clear(); retainedTasks.clear(); taskRows.clear(); assemblies.clear(); completedSnapshots.clear(); achievementSummaries.clear();
+        rollSummaries = new WeakMap(); positions.clear(); pending.clear(); diagnostics.clear(); retainedTasks.clear(); taskRows.clear(); assemblies.clear(); completedSnapshots.clear(); achievementSummaries.clear();
       })();
       return closePromise;
     },

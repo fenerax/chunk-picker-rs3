@@ -53,7 +53,7 @@ test('Anachronia report stores picker identity, shades game squares and filters 
   assert.deepEqual(rows['21284'], { chunkId: '21284', state: 'unlocked', by: 'partner' });
   assert.equal(rows['21281'].state, 'locked'); assert.equal(rows['21285'].state, 'available');
   assert.ok(!rows['15426'], 'nearby row shape and map-square positions remain compatible with current Lua');
-  assert.deepEqual(first.pendingRoll, [{ chunkId: '21287-2', chunkName: 'Fixture 15430' }]);
+  assert.deepEqual(first.pendingRoll, [{ chunkId: '21287-2', chunkName: 'Fixture 15430', summary: null }]);
   const here = await f.call('a', '/api/plugin/v1/tasks');
   assert.equal(here.chunkId, '21283'); assert.equal(here.hereKnown, true);
   assert.deepEqual(here.here.map(row => row.id), ['here']); assert.equal(here.allCount, 3);
