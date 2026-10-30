@@ -156,6 +156,34 @@ test('fixture harvesting includes commands, getter-safe engines and per-test dat
   assert.equal(result.datasets, 2);
 });
 
+test('malformed candidate replies and unread init bundles fail within the watchdog instead of hanging', { timeout: 60000 }, async () => {
+  const directory = await mkdtemp(path.join(tmpdir(), 'calc-check-client-'));
+  const { writeFile } = await import('node:fs/promises');
+  const codec = JSON.stringify(new URL('../calculator/reference/codec.mjs', import.meta.url).href);
+  try {
+    // Ready is valid; every result declares a part longer than its body.
+    const malformed = path.join(directory, 'malformed.mjs');
+    await writeFile(malformed, `import { frames, writer } from ${codec};
+      const send = writer(process.stdout);
+      for await (const { header } of frames(process.stdin)) {
+        if (header.type === 'init') await send({ v: 1, type: 'ready', parts: [] });
+        else if (header.id) await send({ v: 1, type: 'result', id: header.id, parts: [{ name: 'play', bytes: 99 }] }, Buffer.from('{}'));
+      }`);
+    const calculator = new Calculator(`${JSON.stringify(process.execPath)} ${JSON.stringify(malformed)}`, { timeoutMs: 20000 });
+    await calculator.init({});
+    const began = performance.now();
+    await assert.rejects(calculator.request({ type: 'evaluate' }, {}).promise, /failed/);
+    assert.ok(performance.now() - began < 10000, 'rejected by the decode failure, not the request watchdog');
+    await calculator.close();
+    // Never reads stdin, so a bundle larger than the pipe buffer cannot drain.
+    const deaf = path.join(directory, 'deaf.mjs');
+    await writeFile(deaf, 'setInterval(() => {}, 1000);');
+    const stuck = new Calculator(`${JSON.stringify(process.execPath)} ${JSON.stringify(deaf)}`, { timeoutMs: 1000 });
+    await assert.rejects(stuck.init({ padding: 'x'.repeat(8 * 1024 * 1024) }), /failed/);
+    await stuck.close();
+  } finally { await rm(directory, { recursive: true, force: true }); }
+});
+
 test('missing history states are verified forwards and backwards, while undo barriers stay gaps', async () => {
   const child = spawn(process.execPath, ['--input-type=module', '-e', `
     import assert from 'node:assert/strict';

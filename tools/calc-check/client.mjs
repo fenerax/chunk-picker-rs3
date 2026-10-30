@@ -32,6 +32,7 @@ export class Calculator {
     this.child.on('error', () => this.fail());
     this.child.stdin.on('error', () => this.fail());
     this.ready = new Promise((resolve, reject) => { this.onReady = resolve; this.readyReject = reject; });
+    this.ready.catch(() => {}); // A failure before init() awaits it is reported there, not as an unhandled rejection.
     this.reading = this.read().catch(() => this.fail());
     this.memoryTimer = setInterval(() => { void this.sampleMemory(); }, 25); this.memoryTimer.unref();
   }
@@ -82,14 +83,19 @@ export class Calculator {
       if (header.type === 'progress') { entry.arm(); continue; }
       if (header.type === 'prediction-prepared') { entry.prepared.push({ header: { memberId: header.memberId, taskInputKey: header.taskInputKey, sourceRevision: header.sourceRevision, priority: header.priority }, parts: unpackParts(header, body) }); entry.arm(); continue; }
       if (!['error', 'result'].includes(header.type)) throw new TypeError('invalid');
+      // Decode while the entry is still pending, so a malformed part rejects it through fail().
+      const parts = unpackParts(header, body);
       this.pending.delete(header.id); clearTimeout(entry.timer);
-      entry.resolve({ header, parts: unpackParts(header, body), prepared: entry.prepared });
+      entry.resolve({ header, parts, prepared: entry.prepared });
     }
     if (this.pending.size || this.readyReject) this.fail();
   }
   async init(bundle) {
-    const timeout = setTimeout(() => this.fail(), this.timeoutMs);
-    try { await this.send({ v: 1, type: 'init' }, Buffer.from(stringify(bundle))); return await this.ready; }
+    // The watchdog also covers the write: a candidate that never reads stdin
+    // would otherwise hold send() waiting for drain past the timeout.
+    let timeout;
+    const expired = new Promise((_, reject) => { timeout = setTimeout(() => { this.fail(); this.child.kill('SIGKILL'); reject(new Error('failed')); }, this.timeoutMs); });
+    try { return await Promise.race([this.send({ v: 1, type: 'init' }, Buffer.from(stringify(bundle))).then(() => this.ready), expired]); }
     finally { clearTimeout(timeout); }
   }
   async control(header) { await this.send({ v: 1, ...header }); }
