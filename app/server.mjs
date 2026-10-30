@@ -445,7 +445,10 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
       // transport authentication adapter. Forwarded headers cannot grant this.
       const security = requestContext(request, { ...listener, publicOrigin });
       const identity = context.authenticate(request, security);
-      if (!security.masterAllowed || identity?.kind !== 'master' || !/^Bearer /i.test(request.headers.authorization ?? '')) throw httpError(403, 'Private operator credentials required.');
+      const operator = security.masterAllowed && identity?.kind === 'master' && /^Bearer /i.test(request.headers.authorization ?? '');
+      // Players keep their own picker's health; only the operator sees the service-wide view.
+      if (!operator && request.url.split('?')[0] === '/api/health') return pickerRouter.handle(request, response, listener);
+      if (!operator) throw httpError(403, 'Private operator credentials required.');
       if (['GET', 'HEAD'].includes(request.method) && request.url.split('?')[0] === '/api/health') {
         const worker = (taskWorker?.forPicker?.('legacy') ?? taskWorker)?.getHealth() ?? { status: 'not-configured', ready: true, restartRequired: false };
         const service = pickerRouter.checkpoint.counts();
