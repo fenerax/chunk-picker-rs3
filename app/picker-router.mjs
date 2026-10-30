@@ -11,9 +11,14 @@ const retry = () => Object.assign(httpError(503, 'The picker is unavailable. Ret
 /** The only residency and HTTP selection boundary. IDs from requests are checks,
  * never inputs to acquisition, registry path lookup or capability registration. */
 export function createPickerRouter({ registry, legacy, openContext, publicOrigin, requestContextFor = requestContext,
-  unauthenticated = () => {}, maxOpenContexts = 8, idleCloseMs = 10 * 60 * 1000 }) {
+  unauthenticated = () => {}, maxOpenContexts = 8, idleCloseMs = 10 * 60 * 1000, maxConcurrentImports = 1 }) {
   if (!Number.isSafeInteger(maxOpenContexts) || maxOpenContexts < 1 || !Number.isSafeInteger(idleCloseMs) || idleCloseMs < 1) throw new TypeError('Invalid picker residency limits.');
+  if (!Number.isSafeInteger(maxConcurrentImports) || maxConcurrentImports < 1) throw new TypeError('Invalid picker import limit.');
   const entries = new Map();
+  // Process-wide budget for owned backup parsers, on top of each context's own
+  // single-import guard, so many owners cannot each materialize a large backup
+  // at once. Legacy keeps its own guard and is outside this budget.
+  let imports = 0;
   let queue = Promise.resolve(), closed = false, closing;
   function serialize(operation) {
     const pending = queue.then(operation); queue = pending.catch(() => {}); return pending;
@@ -174,6 +179,10 @@ export function createPickerRouter({ registry, legacy, openContext, publicOrigin
         if (selected.legacyBackup) selected.context.checkImportBody(request, selected.checkBody);
         if (selected.backup) {
           releaseImport = selected.context.admitImport(request, security);
+          if (imports >= maxConcurrentImports) throw Object.assign(httpError(503, 'Another backup is being checked. Wait a moment, then try again.'), { retryAfter: 5 });
+          imports++;
+          const releaseOwn = releaseImport; let counted = true;
+          releaseImport = () => { if (counted) { counted = false; imports--; } releaseOwn(); };
           const imported = await readBackupRequest(request);
           selected.checkBody(imported.body);
           rememberRoutedBody(request, imported.body, 0); routedBody(request).imported = imported;

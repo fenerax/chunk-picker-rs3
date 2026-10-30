@@ -905,7 +905,11 @@ six new regressions, with no existing assertion loosened or test skipped.
 All four enabled-routing review findings are fixed. Anonymous requests bypass
 router body parsing and reach the unchanged legacy admission path. Legacy backup
 requests also reach legacy unread. Owned backup uploads take the context's
-existing single-import guard after checking current owner authority and origin;
+existing single-import guard after checking current owner authority and origin,
+then one slot of a process-wide owned-import budget (`maxConcurrentImports`,
+default 1); when the budget is full they get a retryable 503 before any body
+byte is read. Legacy keeps its own single guard outside that budget, so at most
+one owned and one legacy backup parse at a time by default;
 that same guard spans streaming parsing and the context handler. Parser admission
 also enters the context drain set, so eviction cannot reopen a second parser
 for the same picker while the first is still active. URL and header

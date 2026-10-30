@@ -493,7 +493,8 @@ test('anonymous public backup uploads keep legacy status and never read a failin
 });
 
 test('owned backup admission checks origin, role, selectors and the same per-picker import guard before reading', async t => {
-  const f = await fixture(t), a = await f.login('101'), b = await f.login('102');
+  // Two process-wide import slots, so the per-picker guard alone decides here.
+  const f = await fixture(t, { maxConcurrentImports: 2 }), a = await f.login('101'), b = await f.login('102');
   for (const headers of [{ origin: 'https://elsewhere.example' }, { 'x-picker-id': await f.picker('102') }]) {
     const result = await directUpload(f, '/api/import', { cookie: a, headers }).done;
     assert.equal(result.status, 403); assert.equal(result.reads, 0);
@@ -656,6 +657,21 @@ test('startup retires a duo account deleted offline but keeps an owned picker ac
   const rejoined = await (await f.begin('101', await invitePending(f, await duoInvite(f))))(); assert.equal(rejoined.status, 303, rejoined.text);
   await f.restart();
   assert.equal((await f.registry()).accounts.length, 2);
+});
+
+test('one process-wide budget admits owned backup parsers; a second owner is refused unread with a retry', { timeout: 15000 }, async t => {
+  const f = await fixture(t), a = await f.login('101'), b = await f.login('102');
+  const started = Promise.withResolvers(), slow = new Readable({ read() { started.resolve(); } });
+  const held = directUpload(f, '/api/restore/preview', { cookie: a, input: slow });
+  try {
+    await started.promise;
+    const refused = await directUpload(f, '/api/restore/preview', { cookie: b }).done;
+    assert.equal(refused.status, 503); assert.equal(refused.reads, 0); assert.equal(refused.headers.get('retry-after'), 5);
+    slow.push('{}'); slow.push(null);
+    assert.notEqual((await held.done).status, 503);
+    const next = directUpload(f, '/api/restore/preview', { cookie: b, input: Readable.from([Buffer.from('{}')]) });
+    assert.notEqual((await next.done).status, 503);
+  } finally { if (!slow.readableEnded) slow.push(null); }
 });
 
 test('a slow admitted backup upload never holds another picker behind it; the newcomer gets a retry', { timeout: 15000 }, async t => {
