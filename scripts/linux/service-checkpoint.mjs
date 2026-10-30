@@ -89,7 +89,7 @@ async function checkpointBinding(source) {
   return json(file);
 }
 const captures = new WeakSet();
-export async function captureServiceCheckpoint({ settings, registry, checkpoint, id, inputs = {}, minFreeBytes = 67108864,
+export async function captureServiceCheckpoint({ settings, registry, checkpoint, id, inputs = {}, minFreeBytes = settings.minFreeBytes ?? 67108864,
   onPhase = async () => {}, spaceCheck = headroom }) {
   validateServicePaths(settings);
   const target = snapshotPath(settings.dataDir, id);

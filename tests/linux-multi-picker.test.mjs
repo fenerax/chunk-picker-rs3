@@ -6,13 +6,14 @@ import { tmpdir } from 'node:os';
 import { randomUUID } from 'node:crypto';
 import { chown, copyFile, lstat, mkdtemp, mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { withDirectoryBarriers, withStoreWrite, snapshotStore, snapshotPath } from '../app/storage/snapshot.mjs';
-import { openRegistry } from '../app/storage/registry.mjs';
+import { openRegistry, registryRecoveryDocument } from '../app/storage/registry.mjs';
 import { createPickerCheckpoint } from '../app/picker-router-checkpoint.mjs';
 import { captureServiceCheckpoint, verifyServiceBackup } from '../scripts/linux/service-checkpoint.mjs';
 import { restoreServiceStopped, listServicePickers, releaseServiceQuarantine, reconcileServiceRecoveryTombstones } from '../scripts/linux/service-recovery.mjs';
 import { atomic, encode, inventory, json, sha } from '../scripts/linux/files.mjs';
 import { readRelease } from '../scripts/linux/runtime.mjs';
-import { assertServiceStopped, repairServiceOwnership, serviceBackup, serviceBackupWarnings } from '../scripts/linux/service-operator.mjs';
+import { assertServiceStopped, repairServiceOwnership, runServiceOperator, serviceBackup, serviceBackupWarnings } from '../scripts/linux/service-operator.mjs';
+import { readBackupStatus } from '../app/storage/backup-status.mjs';
 import { checkStart } from '../scripts/linux/start-check.mjs';
 
 process.env.RS3_DATASET = 'open-starter';
@@ -346,11 +347,11 @@ test('pickers and accounts deleted after a backup remain deleted after service r
 
 test('service health keeps the backup-age and disk-reserve warnings', async t => {
   const root = await mkdtemp(path.join(tmpdir(), 'synthetic-service-health-')); t.after(() => rm(root, { recursive: true, force: true }));
-  const settings = { backupDir: path.join(root, 'backups'), controlDir: path.join(root, 'control'), minFreeBytes: 0 };
-  await mkdir(settings.backupDir); await mkdir(settings.controlDir);
+  const settings = { dataDir: path.join(root, 'legacy'), backupDir: path.join(root, 'backups'), minFreeBytes: 0 };
+  await mkdir(settings.dataDir); await mkdir(settings.backupDir);
   const warnings = async (options = {}) => { const lines = []; await serviceBackupWarnings({ ...settings, ...options }, { write: text => lines.push(text.trim()) }); return lines; };
   assert.deepEqual(await warnings(), ['Recovery backup is missing or older than two days.']);
-  const status = path.join(settings.controlDir, 'service-backup-status.json');
+  const status = path.join(root, 'backup-status.json');
   await writeFile(status, JSON.stringify({ lastSuccessAt: new Date(Date.now() - 3 * 86400000).toISOString() }));
   assert.deepEqual(await warnings(), ['Recovery backup is missing or older than two days.']);
   await writeFile(status, JSON.stringify({ lastSuccessAt: new Date().toISOString() }));
@@ -358,6 +359,25 @@ test('service health keeps the backup-age and disk-reserve warnings', async t =>
   assert.deepEqual(await warnings({ minFreeBytes: Number.MAX_SAFE_INTEGER }), ['Recovery disk free-space reserve is unavailable.']);
 });
 
+test('a stopped service backup reports to the admin status reader and honours the configured reserve', async t => {
+  const f = await fixture(t); await f.close();
+  const controller = { state: async () => ({ active: false, stopped: true }), stop: async () => {}, start: async () => {} };
+  const run = settings => runServiceOperator({ settings, command: 'backup', argument: '--stopped', release: f.release, controller });
+  const result = await run(f.settings);
+  const status = await readBackupStatus(f.settings.dataDir);
+  assert.equal(status.result, 'success'); assert.equal(status.warning, null); assert.equal(status.byteSize, result.byteSize);
+  const lines = []; await serviceBackupWarnings(f.settings, { write: text => lines.push(text) }); assert.deepEqual(lines, []);
+  // Capture checks the operator's reserve, not the 64 MiB default, before copying.
+  await rm(path.join(f.settings.controlDir, 'maintenance.json'), { force: true });
+  await assert.rejects(run({ ...f.settings, minFreeBytes: Number.MAX_SAFE_INTEGER }), /free space/i);
+  const failed = await readBackupStatus(f.settings.dataDir);
+  assert.equal(failed.result, 'failed'); assert.equal(failed.lastSuccessAt, status.lastSuccessAt);
+  const reserves = [];
+  const document = await json(path.join(f.settings.multiPicker.registryDir, 'registry.json'));
+  const registry = { withRecoveryCheckpoint: work => work(registryRecoveryDocument(document)) };
+  await captureServiceCheckpoint({ settings: { ...f.settings, minFreeBytes: 7 }, registry, id: randomUUID(), spaceCheck: async (_root, _bytes, reserve) => { reserves.push(reserve); } });
+  assert(reserves.length && reserves.every(reserve => reserve === 7));
+});
 test('ownership repair hands the tombstone ledger back to the service user after an interrupted reconcile', async t => {
   const f = await fixture(t), backup = await f.capture(), target = await f.target(); await f.close();
   const ledger = path.join(target.multiPicker.tombstoneDir, 'ledger.json');

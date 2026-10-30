@@ -10,7 +10,7 @@ import { captureServiceCheckpoint, pickerPath, publishServiceBackup, validateSer
 import { listServicePickers, releaseServiceQuarantine, restoreServiceStopped } from './service-recovery.mjs';
 import { captureOnline } from './online.mjs';
 import { serviceOperation } from './service-lock.mjs';
-import { checkStoppedCompatibility } from './recovery.mjs';
+import { checkStoppedCompatibility, writeBackupStatus } from './recovery.mjs';
 
 // Hands restored service files back to the service user. The tombstone
 // ledger is repaired explicitly: an operator that died after MP5 replaced it
@@ -57,7 +57,7 @@ export async function assertServiceStopped(settings, controller) {
 export async function serviceBackupWarnings(settings, { now = Date.now(), write = text => process.stderr.write(text) } = {}) {
   try { await headroom(settings.backupDir, 0, settings.minFreeBytes); } catch { write('Recovery disk free-space reserve is unavailable.\n'); }
   let status;
-  try { status = await json(path.join(settings.controlDir, 'service-backup-status.json')); } catch {}
+  try { status = await json(path.join(path.dirname(settings.dataDir), 'backup-status.json')); } catch {}
   if (!status?.lastSuccessAt || !Number.isFinite(Date.parse(status.lastSuccessAt)) || now - Date.parse(status.lastSuccessAt) > 172800000) write('Recovery backup is missing or older than two days.\n');
 }
 function sameService(settings, release) {
@@ -95,7 +95,7 @@ export async function runServiceOperator({ settings, command, argument, evidence
       if (!(command === 'restore' && previous.command === 'service-restore' && previous.backup === path.resolve(argument) || command === 'quarantine-release' && previous.command === command && previous.id === argument)) throw new Error('Reconcile maintenance evidence before continuing.');
     }
     if (command === 'health') {
-      // Same operator warnings as the single-duo path, from the service backup status.
+      // Same operator warnings as the single-duo path, from the same status file.
       await serviceBackupWarnings(settings);
       return healthRecovery({ settings, release, controller, request, assertStopped: stopped });
     }
@@ -108,7 +108,13 @@ export async function runServiceOperator({ settings, command, argument, evidence
     let result;
     if (command === 'backup') {
       if (argument === '--stopped') { await controller.stop(); await stopped(); }
-      try { result = await serviceBackup({ settings, release, request, stopped: argument === '--stopped', assertStopped: stopped }); }
+      // Same service-readable status the admin UI and single-duo backups use.
+      const at = new Date().toISOString();
+      await atomic(path.join(path.dirname(settings.dataDir), 'backup-destination'), 'managed\n', 0o644);
+      try {
+        result = await serviceBackup({ settings, release, request, stopped: argument === '--stopped', assertStopped: stopped });
+        await writeBackupStatus(settings.dataDir, { result: 'success', byteSize: result.byteSize, at });
+      } catch (error) { await writeBackupStatus(settings.dataDir, { result: 'failed', at }); throw error; }
       finally { if (argument === '--stopped' && wasActive) { await stopped(); await controller.start(); } }
     } else if (command === 'restore') {
       await stopped();
@@ -139,7 +145,6 @@ export async function runServiceOperator({ settings, command, argument, evidence
       result = await deployStopped({ settings, current: release, candidate, controller, request, check, savedIdentityAdditions });
     }
     if (['restore', 'quarantine-release'].includes(command)) await repairServiceOwnership({ settings, ...await serviceIdentity() });
-    if (command === 'backup') await atomic(path.join(settings.controlDir, 'service-backup-status.json'), encode({ lastSuccessAt: new Date().toISOString(), byteSize: result.byteSize, pickerCount: result.pickerCount }));
     await rm(pause); return result;
   });
 }
