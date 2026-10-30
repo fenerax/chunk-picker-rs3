@@ -11,7 +11,7 @@ const retry = () => Object.assign(httpError(503, 'The picker is unavailable. Ret
 /** The only residency and HTTP selection boundary. IDs from requests are checks,
  * never inputs to acquisition, registry path lookup or capability registration. */
 export function createPickerRouter({ registry, legacy, openContext, publicOrigin, requestContextFor = requestContext,
-  unauthenticated = () => {}, maxOpenContexts = 8, idleCloseMs = 10 * 60 * 1000, maxConcurrentImports = 1 }) {
+  pickerLimits, unauthenticated = () => {}, maxOpenContexts = 8, idleCloseMs = 10 * 60 * 1000, maxConcurrentImports = 1 }) {
   if (!Number.isSafeInteger(maxOpenContexts) || maxOpenContexts < 1 || !Number.isSafeInteger(idleCloseMs) || idleCloseMs < 1) throw new TypeError('Invalid picker residency limits.');
   if (!Number.isSafeInteger(maxConcurrentImports) || maxConcurrentImports < 1) throw new TypeError('Invalid picker import limit.');
   const entries = new Map();
@@ -38,8 +38,9 @@ export function createPickerRouter({ registry, legacy, openContext, publicOrigin
     }, idleCloseMs);
     entry.timer.unref();
   }
-  async function acquire(id) {
-    return serialize(async () => {
+  async function acquire(id, owner) {
+    const release = !entries.has(id) ? pickerLimits?.coldStart(owner) : undefined;
+    try { return await serialize(async () => {
       if (closed) throw retry();
       let entry = entries.get(id);
       if (!entry) {
@@ -61,7 +62,7 @@ export function createPickerRouter({ registry, legacy, openContext, publicOrigin
       clearTimeout(entry.timer);
       entries.delete(id); entries.set(id, entry); entry.active++;
       return entry;
-    });
+    }); } finally { release?.(); }
   }
   function authenticate(request, security, pickerId) {
     const identity = legacy.authenticate(request, security);
@@ -71,8 +72,8 @@ export function createPickerRouter({ registry, legacy, openContext, publicOrigin
     if (identity && !auth && (identity.pickerId ?? 'legacy') !== pickerId) throw httpError(403, 'Picker access denied.');
     return identity;
   }
-  async function contextFor(request, security) {
-    let identity;
+  async function contextFor(request, security, bindBody) {
+    let identity, legacyCredential;
     try { identity = legacy.authenticate(request, security); } catch (error) {
       let page;
       try { page = decodeURIComponent(new URL(request.url, 'http://localhost').pathname); } catch { throw error; }
@@ -86,11 +87,11 @@ export function createPickerRouter({ registry, legacy, openContext, publicOrigin
     const key = /^Bearer (gpk_[A-Za-z0-9_-]{43})$/i.exec(request.headers.authorization ?? '')?.[1];
     const capability = key ? registry.resolveCapability('plugin-key', digest(key)) : null;
     if (key && !capability) {
-      try { legacy.authenticatePlugin(request); }
+      try { legacyCredential = legacy.authenticatePlugin(request); }
       catch (error) { unauthenticated(security.rateKey); throw error; }
     }
     // Preserve legacy rejection without consuming unauthenticated uploads.
-    if (!identity && !key) return { context: legacy };
+    if (!identity && !key) { bindBody?.({ accountId: `client:${security.rateKey}`, pickerId: 'legacy' }); return { context: legacy }; }
     if (['GET', 'HEAD'].includes(request.method) && (Number(request.headers['content-length']) > 0 || request.headers['transfer-encoding'])) throw httpError(400, 'Reads take no request body.');
     const keyPicker = capability?.pickerId ?? 'legacy';
     if (key && identity && keyPicker !== (identity.pickerId ?? 'legacy')) throw httpError(403, 'Conflicting credentials.');
@@ -143,10 +144,11 @@ export function createPickerRouter({ registry, legacy, openContext, publicOrigin
     for (const name of selectorKeys) url.searchParams.delete(name);
     request.url = url.pathname + url.search;
     // Pending OAuth callbacks and sign-out always use the one session issuer.
+    bindBody?.(legacyCredential ? pickerLimits.pluginScope(request, pickerId, legacyCredential.player) : pickerLimits.scope(capability ?? identity, pickerId));
     if (pathname.startsWith('/auth/') || pathname.startsWith('/join/')) return { context: legacy };
     if (pickerId === 'legacy') return { context: legacy, legacyBackup: backup, checkBody };
     if (!identity && !capability) throw httpError(401, 'Access required.');
-    const entry = await acquire(pickerId);
+    const entry = await acquire(pickerId, pickerLimits?.scope(capability ?? identity, pickerId));
     return { context: entry.context, entry, backup, checkBody };
   }
   return {
@@ -170,12 +172,14 @@ export function createPickerRouter({ registry, legacy, openContext, publicOrigin
       await registry.revokeCapability('plugin-key', hash);
     },
     async handle(request, response, listener) {
-      let entry, releaseImport;
+      let entry, releaseImport, bindBody;
       try {
         if (closed) throw retry();
         const options = { ...listener, publicOrigin };
         const security = listener.ingressRole === 'public' ? requestContext(request, options) : requestContextFor(request, options);
-        const selected = await contextFor(request, security); entry = selected.entry;
+        bindBody = pickerLimits?.body(request);
+        if (request.method === 'GET' && /^\/auth\/(?:discord|google)$/.test(new URL(request.url, 'http://localhost').pathname)) pickerLimits?.registration(security.rateKey);
+        const selected = await contextFor(request, security, bindBody); entry = selected.entry;
         if (selected.legacyBackup) selected.context.checkImportBody(request, selected.checkBody);
         if (selected.backup) {
           releaseImport = selected.context.admitImport(request, security);
@@ -199,7 +203,7 @@ export function createPickerRouter({ registry, legacy, openContext, publicOrigin
           const badInput = error instanceof SyntaxError || error instanceof TypeError || error instanceof RangeError;
           await json(request, response, error.status ?? (badInput ? 400 : 503), { message: error.status ? error.message : badInput ? 'Invalid request.' : 'The picker is unavailable. Retry in a moment.' });
         }
-      } finally { releaseImport?.(); if (entry) { entry.active--; if (entries.get(entry.id) === entry) idle(entry); } }
+      } finally { bindBody?.release(); releaseImport?.(); if (entry) { entry.active--; if (entries.get(entry.id) === entry) idle(entry); } }
     },
     close() {
       if (closing) return closing;

@@ -17,6 +17,9 @@ export const adaptiveOptionsFor = (suite, env = process.env) => {
 export const quickTests = new Set([
   "picker-routing-crash.test.mjs",
   "picker-routing.test.mjs",
+  "picker-fairness-isolation.test.mjs",
+  "picker-limits-http.test.mjs",
+  "picker-limits.test.mjs",
   "picker-context.test.mjs",
   "picker-jobs.test.mjs",
   "worker-picker-keys.test.mjs",
@@ -512,6 +515,9 @@ export const soloTests = new Set([
 export const openF2PTests = new Set([
   "picker-routing-crash.test.mjs",
   "picker-routing.test.mjs",
+  "picker-fairness-isolation.test.mjs",
+  "picker-limits-http.test.mjs",
+  "picker-limits.test.mjs",
   "picker-context.test.mjs",
   "picker-jobs.test.mjs",
   "plugin-reads-server.test.mjs",

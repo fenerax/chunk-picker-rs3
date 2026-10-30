@@ -2,6 +2,7 @@ import { createUsageRateLimit } from './usage-route.mjs';
 import { httpError, redactInviteTokens, serverReadyMessage, cachedJSON } from './picker-context-http.mjs';
 export { routePermissions, commandPermissions, apiPermission, redactInviteTokens, serverReadyMessage, gzipSavedTaskResult, coordinationView } from './picker-context-http.mjs';
 import { createPickerContext } from './picker-context.mjs';
+import { createPickerLimits } from './security/picker-limits.mjs';
 import { createPickerRouter } from './picker-router.mjs';
 import { openRegistry } from './storage/registry.mjs';
 import { readLegacyAccounts } from './storage/registry-legacy.mjs';
@@ -132,6 +133,8 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
   ingressRole = normalizeIngressRole(ingressRole);
   loopbackRole = normalizeIngressRole(loopbackRole);
   if (!['off', 'optional', 'required'].includes(signIn)) throw new TypeError('RS3_SIGNIN must be off, optional or required.');
+  // MP7: one enabled-mode budget for the full server lifetime.
+  const pickerLimits = multiPicker ? createPickerLimits(multiPicker) : undefined;
   const limits = createRateLimits(rateLimits);
   const admitStream = createStreamLimits(rateLimits);
   if (typeof host !== 'string' || !host.trim()) throw new TypeError('host must be nonempty.');
@@ -216,7 +219,7 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
   const storeProcessPending = prepareStoreProcessIdentity();
   const definitionCachePending = cachedJSON(definitionBytes), taskCachePending = cachedJSON(taskBytes);
   const taskWorkerPending = parsedDefinitions.challenges && typeof parsedDefinitions.challenges === 'object' && !Array.isArray(parsedDefinitions.challenges)
-    ? startTaskWorker(parsedDefinitions, definitionBytes, indexedWorld, ruleRegistry, taskWorkerOptions, dataset, datasetOptions, world !== undefined) : Promise.resolve(null);
+    ? startTaskWorker(parsedDefinitions, definitionBytes, indexedWorld, ruleRegistry, multiPicker ? { ...taskWorkerOptions, fairness: pickerLimits.config } : taskWorkerOptions, dataset, datasetOptions, world !== undefined) : Promise.resolve(null);
   let taskWorker, identityHistory, definitionCache, taskCache;
   // Optional map reference data has its own authenticated cache and payload.
   // Loading it never delays gameplay startup or enlarges state/definitions.
@@ -310,7 +313,7 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
     originalSyncIntegration, privateAddon, appVersion, browserDataset, webRoot, art,
     loadChunkSections, loadMapInfo, loadNpcShopInfo, loadArchaeology, loadInteriors,
     iconCatalogue, terrainCatalogue, trainingCatalogue, membersStartBanks,
-    limits, admitStream, usageAdmission, requestContextFor,
+    limits, admitStream, usageAdmission, requestContextFor, pickerLimits,
     get definitionCache() { return definitionCache; }, get taskCache() { return taskCache; },
     staticCache: createResponseCache({ maxEntries: 128, maxBytes: 48 * 1024 * 1024 }),
     releaseReferences() {
@@ -380,7 +383,8 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
       pickerRouting: pickerRegistry ? { registry: pickerRegistry, syncLegacy } : undefined });
     if (pickerRegistry) {
       await syncLegacy();
-      pickerRouter = createPickerRouter({ registry: pickerRegistry, legacy: context,
+      await pickerLimits.initialize(pickerRegistry);
+      pickerRouter = createPickerRouter({ registry: pickerRegistry, legacy: context, pickerLimits,
         publicOrigin, requestContextFor, unauthenticated: key => limits.unauthenticated(key), maxOpenContexts: multiPicker.maxOpenContexts, idleCloseMs: multiPicker.idleCloseMs, maxConcurrentImports: multiPicker.maxConcurrentImports,
         openContext: async pickerId => {
           const picker = pickerRegistry.getPicker(pickerId);
