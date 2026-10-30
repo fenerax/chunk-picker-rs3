@@ -3141,6 +3141,20 @@ test('retained saves preview and apply by ID with revision checks for both resto
   }
 });
 
+test('a picker owner restores the whole save and is told Undo cannot reverse it', async () => {
+  const h = harness(), incoming = h.snapshot(), preview = { currentRevision: 7, members: [], rules: { changed: [] }, warnings: [] };
+  h.run("sessionAdmin = false; sessionMember = 'reed'; panelContext.account = { isOwner: () => true }; backupDialog()");
+  const text = () => h.all().filter(node => typeof node === 'object').map(node => node.textContent).join('\n');
+  assert.match(text(), /replaces this whole picker/); assert.doesNotMatch(text(), /replaces only/);
+  h.route(path => path === '/api/backups' ? { backups: [{ id: 'snapshot-7.json.gz', revision: 7, at: '2026-10-12T12:00:00Z', bytes: 8192 }] }
+    : path.endsWith('/preview') ? { preview, state: incoming } : { state: { ...incoming, revision: 8 }, pools: {} });
+  await h.click('Browse previous saves'); await h.click('Preview selected snapshot');
+  assert.deepEqual(JSON.parse(JSON.stringify(h.calls.find(call => call.path === '/api/restore/preview').body)), { backupId: 'snapshot-7.json.gz' });
+  assert.match(text(), /Undo can’t reverse it/); assert.doesNotMatch(text(), /Undo can reverse/);
+  await h.click('Apply reviewed replacement');
+  assert.ok(h.find('span', 'Backup restored. The previous save is under Browse previous saves.'));
+});
+
 test('changing the retained save or restore scope invalidates pending and completed previews', async () => {
   for (const changed of ['save', 'scope']) {
     const h = harness(), pending = deferred(), preview = { currentRevision: 7, members: [], rules: { changed: [] }, warnings: [] };
