@@ -1321,7 +1321,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     close({ beforeUnlock } = {}) {
       if (closePromise) return closePromise;
       closing = true;
-      closePromise = (async () => { await activationPending?.catch(() => {}); await queue; if (!readOnly && !frozen && !liveSwapStrict) await enqueueMaintenance(maintainRetention, { allowClosing: true }); else await maintenanceQueue; await beforeUnlock; listeners.clear(); await releaseLock(); })();
+      closePromise = (async () => { await activationPending?.catch(() => {}); await queue; if (!readOnly && !frozen && !liveSwapStrict) await enqueueMaintenance(maintainRetention, { allowClosing: true }); else await maintenanceQueue; await (typeof beforeUnlock === 'function' ? beforeUnlock() : beforeUnlock); listeners.clear(); await releaseLock(); })();
       return closePromise;
     },
   };

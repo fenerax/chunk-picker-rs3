@@ -22,10 +22,10 @@ export function createUsageRateLimit({ now = Date.now, perIdentity = 12, global 
   };
 }
 
-export async function openUsageRoute({ dataDir, members, authenticate, bodyJSON, json, now = Date.now, rateLimits, readOnly = false } = {}) {
+export async function openUsageRoute({ dataDir, members, authenticate, bodyJSON, json, now = Date.now, rateLimits, readOnly = false, storage, admission } = {}) {
   const actors = members.map(member => member.id);
-  const storage = await openUsageStore({ dataDir, actors, now, readOnly });
-  const admission = createUsageRateLimit({ now, ...rateLimits });
+  storage ??= await openUsageStore({ dataDir, actors, now, readOnly });
+  admission ??= createUsageRateLimit({ now, ...rateLimits });
   return {
     async handle(request, response, { route, security, identity, closed, checkRequestOrigin } = {}) {
       if (route !== '/api/usage') return false;

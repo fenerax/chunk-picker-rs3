@@ -373,3 +373,137 @@ measurement must include the later integrated runtime and representative packs.
 The real-save calculator gate remains unrun: START contains its contract but no
 `tools/calc-check` implementation. Full Phase 1 acceptance and the lane-wide
 footprint document update remain integration gates before a merge to main.
+
+## MP2 picker context
+
+Baseline is START `4d2b779de1b712c81830d3c8021e0292e073dec0` on
+`lane/multiplayer`. `createPickerContext({ pickerId, dataDir, runtime, ... })` in
+`app/picker-context.mjs` is the private resource boundary. The server creates
+exactly one, with ID `legacy`, and every application request goes through
+`contextFor(request)` before dispatch. This introduces no registry, sign-in
+routing, picker selection or new storage format. Existing legacy filenames,
+directories and the sibling backup-status location are unchanged. Other contexts
+use their own backup-status directory, overridable only by a trusted caller.
+Stateless HTTP helpers and permission tables are in `picker-context-http.mjs`;
+the established server exports are preserved.
+
+### Resource ownership audit
+
+| Contract resource | MP2 owner and boundary |
+| --- | --- |
+| Store, writer lock, current state, write queue | The context's `store` instance from `openStore`; one writer per physical directory remains enforced. |
+| Revisions, history, Undo, replacement, mutation serialization | Revision/history/Undo/restore state is inside that store; `mutationQueue` and claim cleanup belong to the context. |
+| Action sessions, receipts, acknowledgements and retries | The store owns its durable action ledger and acknowledgement sidecar; neither revision nor request ID selects another context. |
+| Private state/static fields, custom tasks, aliases, evidence, rules, notes, progress | Each store owns its current snapshot, serialization/static-field references and on-disk static/history/backup namespaces. No private fields are interned across contexts. |
+| Response, identity, task, calculation and preview caches | `responseCache`, `identityLookup`, `savedTaskResults`, `calculationSnapshot`, both progress-preview maps, roll/Sandbox/ranking caches and private scheduling bookkeeping are context-local. Immutable asset/reference caches remain shared runtime resources. |
+| SSE subscribers and revocation | `clients`, `clientCredentials`, heartbeats, broadcasts and invitation reauthentication belong to the context; overlay streams belong to its overlay controller. |
+| Plugin keys, reports, fragments, sequencing, evidence | Context-owned `gamePlugin` owns its key, progress, achievement and item controllers, assemblies, sequence/rate/status maps and retained task bytes. RuneMetrics member/name caching is the explicit exception below. |
+| Invitations, overlays, feedback, usage | The context constructs its account/invitation/sign-in/overlay/feedback controllers and `usageStorage`. `openUsageRoute` receives that storage and the shared usage admission function from the context; standalone callers keep their existing defaults. |
+| Backups, binding, status, restore scope | Context creation verifies the dataset binding; all retained/uploaded restore handlers use its store/dataset. Backup status receives its explicit directory. Store backup/static/history directories and snapshot spool paths derive only from this trusted data directory. The directory-keyed snapshot coordinator is the explicit exception below. |
+
+Dataset/world/topology, rule definitions, verified pack/reference/static assets,
+calculator scheduler/pool, and service-wide rate/stream/usage admission budgets
+are caller-owned shared runtime resources. Usage's existing limits, error bodies,
+headers and `usage.json` format are unchanged; the global usage budget is created
+once per server runtime and is not renewed by opening or closing a context.
+
+### Close and drain
+
+`close()` synchronously stops HTTP admission and calls `store.close`, which
+synchronously rejects new direct store writes with its existing closed-store
+error. Already accepted store writes finish durably. Queued HTTP operations that
+have not entered the store receive an explicit stopping refusal. Private timers
+and streams stop first; the store's `beforeUnlock` callback then drains accepted
+handlers/readers, mutation and claim cleanup queues, readiness work, plugin and
+sidecar flushes, local calculation/compression jobs and borrowed warm queues.
+Private caches/references are cleared before the writer lock is released.
+`beforeUnlock` continues to accept a promise and additionally accepts a callback
+that runs after the store queues drain. Closing a context never closes or cancels
+the shared calculator.
+
+### Remaining work and reasons
+
+- **Calculator namespaces and eviction:** scheduler/worker job keys, supersession,
+  cancellation, compiled/snapshot/result caches and delivery guards still need
+  picker identity. The original MP2 brief reserves `app/tasks/**` for that follow-up.
+  Until then, context close conservatively waits for all borrowed warm queues;
+  sustained work in another context can delay eviction. MP2 does not claim full
+  authenticated concurrent-calculator tenancy.
+- **RuneMetrics member/name cache:** `app/integrations/runemetrics.mjs` remains
+  unchanged because its replacement is landing on main. The context owns its
+  progress client and preview map, but that integration's cache/lifecycle must be
+  reconciled with the replacement before enabling multiple routed pickers.
+- **Snapshot coordination registry:** `app/storage/snapshot.mjs` still keeps the
+  process-wide directory-keyed barrier registry so direct store/sidecar writes and
+  operator snapshot callers rendezvous on the same barrier. Entries have separate
+  active sets/gates per resolved data directory and retain no game snapshot when
+  idle. Passing barrier ownership through operator APIs and evicting idle entries
+  is a later lifecycle refinement; removing the shared rendezvous here would break
+  snapshot consistency for existing direct callers.
+- **Compatibility references and engine caches:** the existing server handle still
+  exposes its explicit store reference for callers that inspect a closed store.
+  Core world/transport caches retain their existing world/input scope; core is
+  outside this task's allowed files. Future registry eviction must release the
+  compatibility handle and audit engine cache lifetime together with calculator
+  namespaces. No new private interning is introduced by MP2.
+- **Registry/authentication integration and Phase 1 acceptance:** picker/account
+  provisioning, capability routing, deletion and service-wide eviction remain
+  later tasks. Public sign-up and routing behavior are unchanged.
+
+### Validation and measurements
+
+Measured on Linux, Node 24.19.0. START quick: 2,470 passed, zero failed,
+68 skipped. START full: 5,613 passed, zero failed, 140 skipped. MP2 adds 15
+synthetic context tests, classified as quick/open-f2p; no existing tests or
+expectations are changed. Final quick: **2,485 passed, zero failed, 68 skipped**
+(112.73 seconds). Focused context/live-swap/plugin/usage checks: **34 passed,
+zero failed**. The previously failing shutdown file, run alone unchanged:
+**seven passed, zero failed**.
+
+Final full: **5,628 passed, zero failed, 140 skipped** (444.18 seconds).
+Both suite pass totals equal START plus the 15 new tests; skip counts are
+unchanged. The graceful-shutdown regression also passes inside the full suite.
+
+The private gate uses fresh temporary copies and the same 10 successful reads,
+sequentially at each revision: full/play state, history, browser plugin status,
+full/play tasks for each member, and native plugin status for each member.
+SHA-256 comparison: **10 routes, zero differences**. SHA-256 of the JSON array
+of response digests in request order:
+`7915e8d9ce92d4d7ee81265e44d5694e97e1a6b88f7d6595c368b2cf095453c0`.
+The full-state body is 16,213,564 bytes with SHA-256
+`c2416e6b4f65e4f8468aac0177392a64d2de402680a44225dc14050ad3970a4f`.
+The gate uses identical injected save timestamps and a temporary fixed
+`performance.now()` preload in HTTP/calculator processes to make elapsed-time
+metadata deterministic. No fields are removed, rounded or normalized. These
+clock controls exist only in the temporary gate process.
+
+The RSS comparison uses fresh copies, process workers, port 0, disabled unsolicited
+prediction warming and the same injected save clock, with **normal elapsed-time
+clocks**. Three independent processes per revision run alternately START/MP2,
+one measurement server at a time. Samples are for the HTTP process, excluding
+calculator children. Each process records startup RSS, runs two identical
+full-GC/event-loop checkpoints, reads the full state once, records RSS, and repeats
+those GC checkpoints. This records both collection timing and retained-memory
+sizes. Lifetime peaks include pre-checkpoint allocations. Values are median
+[minimum–maximum]; MiB means 1,048,576 bytes.
+
+| Measurement | START | MP2 |
+| --- | --- | --- |
+| Startup RSS before GC, MiB | 1150.24 [1127.64–1162.65] | 1099.31 [1090.23–1106.49] |
+| Startup RSS after GC, MiB | 924.22 [901.30–935.98] | 872.82 [863.90–880.75] |
+| First full-state RSS before GC, MiB | 1010.22 [1006.30–1034.98] | 984.69 [977.40–993.75] |
+| First full-state RSS after GC, MiB | 948.04 [944.05–972.73] | 922.58 [915.15–931.45] |
+| Lifetime peak RSS, MiB | 1272.71 [1265.30–1286.41] | 1236.67 [1226.88–1242.47] |
+| Startup duration, ms | 16390.00 [16224.00–17088.00] | 17328.00 [16483.00–18543.00] |
+| First full-state duration, ms | 173.00 [160.00–192.00] | 161.00 [158.00–186.00] |
+
+The earlier approximately 28 MiB startup increase does **not** reproduce in this
+alternating three-run comparison. Post-GC startup live heap medians are 551.95
+MiB at START and 550.70 MiB at MP2; physical V8 heap sizes are 703.37 and 687.54
+MiB. Retained array-buffer sizes are identical: 30.66 MiB at startup and 46.17 MiB
+after the full read. Median post-GC anonymous RSS is 894.42 versus 842.74 MiB.
+There is no extra retained context buffer or live-heap allocation accounting for
+a 28 MiB addition. Committed heap capacity, allocator residency and collection
+placement vary between processes; neither these three samples nor the earlier
+samples establish a capacity limit or a performance improvement. The task gate
+shows no meaningful added memory from context ownership.

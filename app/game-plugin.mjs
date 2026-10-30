@@ -534,7 +534,8 @@ export async function openGamePlugin({ dataDir, store, world, registry, questMap
         await flushHandled(true);
         await Promise.all([keys.close(), handled.close(), itemStore.close()]);
         itemMemory.clear(); itemAcks.clear(); itemHandled.clear(); bankAssemblies.clear(); bankAcks.clear(); itemCoins.clear();
-        progressSource.clear();
+        progressSource.clear(); itemTasks = undefined;
+        sequences.clear(); buckets.clear(); statuses.clear(); pendingHandled.clear();
         positions.clear(); pending.clear(); diagnostics.clear(); retainedTasks.clear(); taskRows.clear(); assemblies.clear(); completedSnapshots.clear(); achievementSummaries.clear();
       })();
       return closePromise;
