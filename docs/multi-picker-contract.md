@@ -1292,3 +1292,110 @@ suite ran during these six trials.
 
 All changes are staged. The option stays off by default; opening public sign-up
 and the remaining multiplayer-lane acceptance items remain outside MP6.
+
+## MP9 owner controls
+
+START is `4efebccc480e03cbee832660b20ab8bfd872a804`, the local multiplayer
+base with MP5 and MP6 merged. Public sign-up remains off. With `multiPicker`
+absent, account-panel markup, requests and storage behavior stay at START.
+
+The enabled signed-in session adds exactly one field, `ownerControls`:
+`{ role, shared, ownsDefaultPicker, backups: { retentionMs, message } }`.
+The server derives role and picker kind from the registry membership, checks
+whether this account has an active owned default, and reuses MP5's retention
+disclosure verbatim. Existing account, picker and permission fields are unchanged.
+The browser uses this field to show the current role and distinguish an owned
+picker from the shared exception; write permission alone never implies ownership.
+
+Owners get shortcuts to existing rules, preferences, gameplay export/compatible
+restore and plugin-key tools, plus picker and account deletion. Owner gameplay
+restore uses the whole owned game route rather than the legacy member-only route.
+The shared picker has no picker-deletion button and no Leave capability. Its
+account-deletion dialog says this removes the account's access and claimed
+invitations while preserving the shared game and other player. If an account
+also owns a default, the dialog discloses that its owned game is deleted too.
+MP4's operator-only invitation/overlay administration remains unavailable to
+owners. Process control, raw snapshots, cross-account administration and global
+configuration acquire no new browser entry points or grants.
+
+Each destructive dialog names the target, warns that deletion is irreversible,
+and shows the server's retention text, including the unconfigured-policy message.
+Confirmation first reads the signed-in session again and verifies its account,
+picker, role and permissions, then sends an empty JSON object to MP5's existing
+session-scoped route with the active picker selector. MP5 reauthenticates the
+session after the body and inside its deletion queue; it requires no additional
+OAuth challenge. No caller-supplied account or deletion target is sent.
+
+While confirmation runs, the MP6 coordinator blocks other new API requests and
+session-monitor checks, preventing a revocation poll from reloading before the
+deletion receipt. Refusals release that temporary block without retiring the
+page. Server messages are rendered as text. A retryable 503 offers a manual retry
+and honors seconds or date forms of Retry-After; it never resends automatically.
+Every retry checks the session again. Cancelled or replaced dialogs cannot send
+a stale confirmation, and repeated clicks cannot submit concurrent deletions.
+
+On success the browser immediately uses MP6's before-sign-out cleanup: stop
+sending, reject queued commands, dispose streams and monitors, clear the old
+picker's recovery/preferences and rendered game, and warn about unsent changes.
+The receipt shows MP5's response retention message verbatim. Continue lands on
+`/auth/signin`; MP5 has already revoked the session, so there is no second sign-out
+request. A storage-cleanup failure blocks navigation and offers cleanup again
+without repeating deletion. This does not promise immediate retained-backup
+erasure or implement the operator's expiry policy.
+
+Files: `app/server.mjs` adds the session field; `app/web/account-panel.mjs` owns
+the controls and dialogs; `screen-startup.mjs` wires existing gameplay tools;
+`screen-save-status.mjs` coordinates an in-progress account action;
+`screen-dialogs.mjs` selects the owner's gameplay restore scope.
+`gallery-dialog-coverage.json` records why destructive authentication dialogs
+are exercised by synthetic tests rather than the read-only gallery.
+`tests/picker-owner-ui.test.mjs` adds 16 synthetic browser/HTTP regressions and
+`scripts/test-selection.mjs` classifies them quick/open-f2p. No new screen-context
+field, static module dependency or existing test change is needed.
+
+Final validation on Node 24.19.0 ran quick, then full, after the app changes.
+The new owner file passes 16 tests; focused account/session/VM cache checks pass
+56 tests and the gallery inventory passes 11, with zero failures. The first quick
+attempt exposed the missing gallery registrations; the inventory now records
+both dialogs without changing or weakening any test.
+
+| Suite | START passed / failed / skipped | MP9 passed / failed / skipped |
+| --- | --- | --- |
+| Quick | 2,607 / 0 / 68 | 2,623 / 0 / 68 |
+| Full | 5,754 / 0 / 140 | 5,770 / 0 / 140 |
+
+Both totals are exactly START plus the 16 new tests, with unchanged skips.
+START quick/full took 77.71/265.83 seconds; final MP9 took 79.29/270.94 seconds.
+These suite durations are verification runtimes, not performance trials.
+
+The duo gate ran three alternating START/MP9 pairs with the option absent,
+then three pairs with it present. All 12 runs used fresh temporary save/binding
+copies, process workers, the same 10 read routes as MP4, identical injected store
+timestamps and a fixed performance clock in HTTP/calculator processes. Complete
+raw responses were hashed without removing or normalizing fields.
+**0 response differences across 60 paired reads; 0 size differences; 0 rewritten-save
+differences across six pairs.** Each run returned 83,606,131 bytes, with digest-array
+SHA-256 `67aa2720e6be6280624d8b79a2dd966d5d16d157fdfbc8b761f15eb727e2fc01`.
+Each rewritten save was 766,384 bytes, SHA-256
+`64de39c55452925587b87af05aa01507513263761bc407f54e81bcbb699acfdc`.
+The private source checkout has 0 changed files.
+
+These are compatibility-workload measurements under fixed response clocks, not
+browser interaction benchmarks or service-capacity estimates. Real wall time
+includes module import, startup, reads and shutdown, excluding input copying.
+Aggregate HTTP/calculator RSS is sampled every 50 ms and at response boundaries.
+No test workloads ran during these trials. Values are median [minimum–maximum],
+three fresh processes per version and option setting.
+
+| Option / measurement | START | MP9 |
+| --- | --- | --- |
+| Absent, workload seconds | 18.04 [18.03–18.66] | 18.30 [18.08–18.68] |
+| Absent, sampled peak RSS, MiB | 3,175.14 [3,148.89–3,249.57] | 3,198.73 [3,184.63–3,252.47] |
+| Present, workload seconds | 17.79 [17.69–18.15] | 17.61 [17.50–18.38] |
+| Present, sampled peak RSS, MiB | 3,222.07 [3,158.89–3,239.59] | 3,249.32 [3,101.45–3,265.95] |
+
+All before/after ranges overlap. These samples establish no throughput improvement
+or new concurrency limit. Retained-backup expiry remains the operator's
+responsibility; the browser discloses the configured policy without promising
+immediate erasure. Public sign-up and the remaining lane-wide acceptance items
+remain outside MP9. All changes are staged.

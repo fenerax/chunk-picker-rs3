@@ -368,6 +368,18 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
     for (const [id, provider] of removals) await pickerRegistry.unlinkIdentity(id, provider);
     await pickerRegistry.registerLegacy(plan);
   }
+  // A single additive, enabled-only field describes the session's own controls.
+  function ownerSessionView(identity, security) {
+    const view = context.sessionView(identity, security);
+    if (!view.account) return view;
+    const picker = identity.pickerId ? pickerRegistry.getPicker(identity.pickerId)
+      : pickerRegistry.listPickers().find(item => item.kind === 'legacy-shared');
+    const account = pickerRegistry.getAccount(identity.accountId);
+    const membership = account?.memberships.find(item => item.pickerId === picker?.id && item.memberId === (identity.memberId ?? null));
+    return { ...view, ownerControls: { role: membership?.role ?? null, shared: picker?.kind === 'legacy-shared',
+      ownsDefaultPicker: pickerRegistry.listPickers().some(item => item.kind === 'default' && item.ownerAccountId === identity.accountId && item.lifecycle === 'active'),
+      backups: backupDeletionDisclosure(backupRetentionMs) } };
+  }
   try {
     if (multiPicker) {
       await mkdir(dataDir, { recursive: true, mode: 0o700 });
@@ -380,7 +392,7 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
       runeMetrics, progressSources, originalSync, idleMemoryOptions, predictionPrewarm,
       schedulingClock, publicOrigin, signIn, signInProvider, liveSwap, pluginItemsBetaAsLive,
       startupSignal, startupTimingMs, transport,
-      pickerRouting: pickerRegistry ? { registry: pickerRegistry, syncLegacy } : undefined });
+      pickerRouting: pickerRegistry ? { registry: pickerRegistry, syncLegacy, sessionView: ownerSessionView } : undefined });
     if (pickerRegistry) {
       await reconcileTombstones({ registry: pickerRegistry, revokeSessions: scope => context.revokeDeletionSessions(scope),
         revokeAccount: id => context.revokeDeletedAccount(id) });
@@ -409,7 +421,7 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
                 return state;
               },
               idleMemoryOptions, predictionPrewarm, schedulingClock, publicOrigin,
-              pickerRouting: { sessionView: context.sessionView, authenticate: pickerRouter.authenticate, indexKey: pickerRouter.indexKey, removeKey: pickerRouter.removeKey,
+              pickerRouting: { sessionView: ownerSessionView, authenticate: pickerRouter.authenticate, indexKey: pickerRouter.indexKey, removeKey: pickerRouter.removeKey,
                 authenticateKey: (request, memberId) => pickerRouter.authenticateKey(request, pickerId, memberId) },
               transport: { savingConnections: transport.savingConnections, requestClose: transport.requestClose } });
             const actual = opened.store.getCalculationSnapshot().members.map(member => member.id);

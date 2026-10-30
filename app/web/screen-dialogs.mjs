@@ -125,7 +125,7 @@ export function createScreenDialogs(c) {
     const scope = scopes.length ? c.select(scopes, '') : null;
     scope?.addEventListener('change', invalidatePreview);
     file.addEventListener('change', invalidatePreview);
-    const scopedMember = () => c.sessionAdmin ? scope.value || null : c.sessionMember;
+    const scopedMember = () => c.panelContext.account?.isOwner() ? null : c.sessionAdmin ? scope.value || null : c.sessionMember;
     const read = async (document, generation = c.dialogGeneration, request = ++previewRequest, backupId) => {
       if (reading) return;
       reading = true; previewButton.disabled = true;
