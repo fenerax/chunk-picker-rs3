@@ -133,6 +133,19 @@ test('unfinished upload reservations survive rate-window rollover and release un
   const fourth = limits.body(request(8)); fourth(limits.scope(account, A)); fourth.release();
 });
 
+test('an account tombstone keeps its surviving shared-picker keys counted; a picker tombstone releases them', async () => {
+  const records = { pickers: [], accounts: [] };
+  const registry = { listPickers: () => [], deletionRecords: () => records };
+  const limits = createPickerLimits({ pluginKeysGlobal: 2 }); await limits.initialize(registry);
+  limits.reserveKey({ accountId: accountIds.two }, 'legacy', 'one').finish('gpk_' + 'a'.repeat(43));
+  limits.reserveKey({ accountId: accountIds.three }, B, 'one').finish('gpk_' + 'b'.repeat(43));
+  refused(() => limits.reserveKey({ accountId: accountIds.third }, A, 'one'));
+  records.accounts.push({ accountId: accountIds.two }); limits.forgetDeleted();
+  refused(() => limits.reserveKey({ accountId: accountIds.third }, A, 'one'));
+  records.pickers.push({ pickerId: B }); limits.forgetDeleted();
+  assert.ok(limits.reserveKey({ accountId: accountIds.third }, A, 'one'));
+});
+
 test('restarted legacy keys retain issuer quotas and old ambiguous keys charge every possible owner', async t => {
   const { mkdtemp, rm } = await import('node:fs/promises');
   const { openPluginKeys } = await import('../app/plugin-keys.mjs');
