@@ -462,3 +462,156 @@ test('copying one picker does not hold global admission or other store writes; r
   const registry = await json(path.join(target.multiPicker.registryDir, 'registry.json'));
   assert(!registry.pickers.some(p => [created.id, deleting.id, deletedAfterCopy.id].includes(p.id)));
 });
+
+test('service startup never reads private operator recovery state; privileged gate still blocks partial restores', async t => {
+  const runtimeUrl = new URL('../scripts/linux/runtime.mjs', import.meta.url).href;
+  const filesUrl = new URL('../scripts/linux/files.mjs', import.meta.url).href;
+  const serveUrl = new URL('../scripts/linux/serve.mjs', import.meta.url).href;
+  // Model EACCES at the private operator boundary on every platform, without
+  // depending on POSIX modes or on the test process running unprivileged.
+  const code = `import { registerHooks } from 'node:module';
+    registerHooks({ load(url, context, next) {
+      if (url === ${JSON.stringify(runtimeUrl)}) return { format: 'module', shortCircuit: true, source:
+        'export const operatorSettings = async () => ({multiPicker:{},controlDir:"private-control",dataDir:"game",current:"pointer"}); export const readRelease = async () => ({config:{}}); export const assertOperatorService = () => {}; export const openApplication = async () => ({ready:Promise.resolve(),close:async()=>{}});' };
+      if (url === ${JSON.stringify(filesUrl)}) return { format:'module',shortCircuit:true,source:
+        'export const noLinks = async () => {}; export const exists = async () => { throw Object.assign(new Error("Private control directory"),{code:"EACCES"}); }; export const json = async () => { throw new Error("Private control directory"); };' };
+      if (url === 'node:fs/promises') return { format:'module',shortCircuit:true,source:'export const readFile = async () => Buffer.from("synthetic");' };
+      return next(url,context);
+    }}); await import(${JSON.stringify(serveUrl)});`;
+  assert.equal(execFileSync(process.execPath, ['--input-type=module', '-e', code], { encoding: 'utf8' }), 'Picker ready.\n');
+  const root = await mkdtemp(path.join(tmpdir(), 'linux-start-gate-'));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const settings = { controlDir: root, multiPicker: {} };
+  await mkdir(path.join(root, 'service-restore'));
+  await atomic(path.join(root, 'service-restore', 'progress.json'), encode({ phase: 'prepared' }));
+  await assert.rejects(checkStart(settings), /incomplete/);
+  await atomic(path.join(root, 'service-restore', 'progress.json'), encode({ phase: 'complete' }));
+  await checkStart(settings);
+});
+
+test('service backups refuse quarantined pickers without losing their payload or initialization fence', async t => {
+  const f = await fixture(t), backup = await f.capture(), target = await f.target(), blocked = f.pickers[1]; await f.close();
+  await restoreServiceStopped({ settings: target, backup, release: f.release, assertStopped: stopped,
+    probe: async (...args) => { if (args[1].includes(blocked.id)) throw new Error('Synthetic incompatibility'); return portableProbe(...args); } });
+  const payload = path.join(target.controlDir, 'quarantine'), fence = path.join(target.multiPicker.pickerRoot, blocked.id);
+  const before = { payload: await inventory(payload), fence: await inventory(fence) };
+  const registry = await openRegistry({ ...target.multiPicker, legacyDir: target.dataDir });
+  try {
+    await assert.rejects(captureServiceCheckpoint({ settings: target, registry, id: randomUUID(), minFreeBytes: 0 }), /[Qq]uarantin/);
+  } finally { await registry.close(); }
+  await assert.rejects(serviceBackup({ settings: target, release: f.release, stopped: true, assertStopped: stopped }), /[Qq]uarantin/);
+  assert.deepEqual(await inventory(payload), before.payload);
+  assert.deepEqual(await inventory(fence), before.fence);
+  assert.deepEqual(await readdir(fence), ['operator-quarantine.json']);
+  assert.deepEqual(await readdir(target.dataDir + '.snapshots'), []);
+});
+
+test('cross-filesystem restore and quarantine release stage atomic installs beside the destination and resume intent', async t => {
+  const f = await fixture(t, 1), backup = await f.capture(), target = await f.target(), owned = f.pickers[1];
+  const { default: fs } = await import('node:fs'), { syncBuiltinESMExports } = await import('node:module');
+  const rename = fs.promises.rename, destinations = new Set(f.pickers.flatMap(p => {
+    const dir = p.kind === 'legacy-shared' ? target.dataDir : path.join(target.multiPicker.pickerRoot, p.id);
+    return [dir, dir + '.dataset.json'];
+  }));
+  // Model controlDir on another mount on Windows as well as POSIX. Other
+  // atomic writes and same-destination-filesystem renames retain native behavior.
+  let interruptAfterStore = true;
+  fs.promises.rename = async (from, to) => {
+    if (String(from).startsWith(target.controlDir + path.sep) && destinations.has(String(to))) {
+      throw Object.assign(new Error('Synthetic cross-device rename'), { code: 'EXDEV' });
+    }
+    const result = await rename(from, to);
+    if (String(to) === target.dataDir && interruptAfterStore) { interruptAfterStore = false; throw new Error('Synthetic store rename interruption'); }
+    return result;
+  };
+  syncBuiltinESMExports();
+  let interrupted = false, localStage;
+  try {
+    const options = { settings: target, backup, release: f.release, assertStopped: stopped, reconcileTombstones: reconcile,
+      probe: async (...args) => { if (args[1].includes(owned.id)) throw new Error('Synthetic incompatibility'); return portableProbe(...args); } };
+    await assert.rejects(restoreServiceStopped({ ...options, onProgress: async progress => {
+      if (!interrupted && progress.pickers.some(row => row.installing)) { interrupted = true; throw new Error('Synthetic install interruption'); }
+    } }), /install interruption/);
+    const intent = (await json(path.join(target.controlDir, 'service-restore', 'progress.json'))).pickers.find(row => row.installing);
+    localStage = intent.installStage;
+    assert.equal(path.dirname(localStage ?? ''), path.dirname(target.dataDir));
+    assert.equal((await lstat(localStage)).dev, (await lstat(path.dirname(target.dataDir))).dev);
+    await assert.rejects(restoreServiceStopped(options), /store rename interruption/);
+    const result = await restoreServiceStopped(options);
+    assert.equal(result.restored, 1); assert.deepEqual(result.quarantined, [owned.id]);
+    await assert.rejects(readdir(localStage), { code: 'ENOENT' });
+    await releaseServiceQuarantine({ settings: target, id: owned.id, release: f.release, assertStopped: stopped, reconcileTombstones: reconcile, probe: portableProbe });
+    for (const picker of f.pickers) {
+      const dir = picker.kind === 'legacy-shared' ? target.dataDir : path.join(target.multiPicker.pickerRoot, picker.id);
+      assert.equal(sha(await readFile(path.join(dir, 'state.json'))), sha(await readFile(path.join(backup, 'pickers', picker.id, 'state.json'))));
+      assert.equal((await readdir(path.dirname(dir))).some(name => name.startsWith('.' + path.basename(dir) + '.restore-')), false);
+    }
+  } finally { fs.promises.rename = rename; syncBuiltinESMExports(); }
+});
+
+test('a dormant picker waiting on its checkpoint never blocks an unrelated resident handler', async () => {
+  const { createPickerRouter } = await import('../app/picker-router.mjs');
+  const { Readable, Writable } = await import('node:stream');
+  const A = 'p_' + 'a'.repeat(32), B = 'p_' + 'b'.repeat(32);
+  const dir = id => path.join(tmpdir(), 'synthetic-checkpoint-router', id);
+  const held = Promise.withResolvers(), finish = Promise.withResolvers(), waiting = Promise.withResolvers();
+  let lifecycle = 'active', calls = [], handled = [];
+  const router = createPickerRouter({
+    registry: { getPicker: id => ({ lifecycle: id === A ? lifecycle : 'active', provisioning: 'ready' }),
+      pickerDirectory: id => { if (id === A) waiting.resolve(); return dir(id); } },
+    legacy: { authenticate: request => ({ kind: 'account', accountId: request.headers.picker, pickerId: request.headers.picker }) },
+    openContext: async id => { calls.push(id); return { close: async () => {}, handle: async (_req, res) => { handled.push(id); res.writeHead(200); res.end('{}'); } }; },
+  });
+  async function send(id) {
+    const request = Readable.from([]); Object.assign(request, { headers: { host: 'localhost', picker: id }, method: 'GET', url: '/api/state', complete: true, socket: { remoteAddress: '127.0.0.1' } });
+    const headers = new Map(), response = new Writable({ write(_chunk, _encoding, callback) { callback(); } });
+    response.setHeader = (name, value) => headers.set(name.toLowerCase(), value); response.getHeader = name => headers.get(name.toLowerCase());
+    response.writeHead = status => { response.statusCode = status; response.headersSent = true; };
+    await router.handle(request, response, { host: '127.0.0.1' }); return response.statusCode;
+  }
+  assert.equal(await send(B), 200);
+  const barrier = withDirectoryBarriers([dir(A)], async () => { held.resolve(); await finish.promise; });
+  await held.promise;
+  const first = send(A); await waiting.promise;
+  const second = send(B); let timer, completed;
+  try { completed = await Promise.race([second.then(() => true), new Promise(resolve => { timer = setTimeout(() => resolve(false), 1000); })]); }
+  finally {
+    clearTimeout(timer); lifecycle = 'deleting'; finish.resolve(); await barrier;
+    await Promise.all([first, second]); await router.close();
+  }
+  assert.equal(completed, true, 'Resident B must run before A releases its checkpoint gate.');
+  assert.equal(await first, 403); assert.deepEqual(calls, [B]); assert.deepEqual(handled, [B, B]);
+});
+
+test('stopped ownership reclaims a dead MP5 reconciliation lock but refuses live and unverifiable owners', async t => {
+  const f = await fixture(t); await f.close();
+  const { lockRegistry } = await import('../app/storage/registry-lock.mjs');
+  const { hostname } = await import('node:os');
+  const moduleUrl = new URL('../scripts/linux/service-recovery.mjs', import.meta.url).href;
+  const ledger = path.join(f.settings.multiPicker.tombstoneDir, 'ledger.json'), lock = path.join(f.settings.multiPicker.tombstoneDir, 'registry.lock');
+  const checkpoint = await json(path.join(f.settings.multiPicker.registryDir, 'registry.json'));
+  // Die in the real reconciler while MP1 owns the external ledger, after its
+  // atomic replacement but before finally can release the registry lock.
+  const code = `import fs from 'node:fs'; import { syncBuiltinESMExports } from 'node:module';
+    const rename = fs.promises.rename; fs.promises.rename = async (from,to) => {
+      const result = await rename(from,to); if (String(to) === ${JSON.stringify(ledger)}) process.exit(0); return result;
+    }; syncBuiltinESMExports();
+    const { reconcileServiceRecoveryTombstones } = await import(${JSON.stringify(moduleUrl)});
+    await reconcileServiceRecoveryTombstones(${JSON.stringify({ settings: f.settings, checkpoint })});
+    throw new Error('Expected reconciliation interruption');`;
+  execFileSync(process.execPath, ['--input-type=module', '-e', code]);
+  assert.equal((await json(lock)).host, hostname());
+  const controller = { state: async () => ({ stopped: true }) };
+  await assertServiceStopped(f.settings, controller);
+  await assert.rejects(readFile(lock), { code: 'ENOENT' });
+  const release = await lockRegistry(f.settings.multiPicker.tombstoneDir);
+  try {
+    const live = await readFile(lock);
+    await assert.rejects(assertServiceStopped(f.settings, controller), /ownership/);
+    assert.deepEqual(await readFile(lock), live);
+  } finally { await release(); }
+  await atomic(lock, encode({ pid: process.pid, host: 'synthetic-foreign-host', nonce: '0'.repeat(32) }));
+  const foreign = await readFile(lock);
+  await assert.rejects(assertServiceStopped(f.settings, controller), /ownership/);
+  assert.deepEqual(await readFile(lock), foreign);
+});

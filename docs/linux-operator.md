@@ -493,3 +493,9 @@ blocks service startup. Legacy is never quarantined; incompatible legacy is
 refused before changing live data. The full format, file boundaries,
 recovery journal and MP5 call site are documented in
 [multi-picker-contract.md](multi-picker-contract.md#mp8-operator-tooling).
+
+Service backups refuse active quarantined pickers. Their live initialization
+fence and private quarantine payload remain intact; release with compatible
+inputs or explicitly delete the owned picker before retrying backup. The
+unprivileged server never reads the root-only control directory; the privileged
+ExecStartPre gate checks incomplete restore state.

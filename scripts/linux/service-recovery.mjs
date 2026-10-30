@@ -72,7 +72,7 @@ export async function reconcileServiceRecoveryTombstones({ settings, checkpoint 
           const current = await lstat(owner.file);
           if (current.uid !== owner.uid || current.gid !== owner.gid) {
             await chown(owner.file, owner.uid, owner.gid);
-            const handle = await open(owner.file, 'r');
+            const handle = await open(owner.file, process.platform === 'win32' ? 'r+' : 'r');
             try { await handle.sync(); } finally { await handle.close(); }
           }
         }
@@ -95,34 +95,82 @@ async function checkedTarget(dir) { await noLinks(path.dirname(dir)); await asse
 async function empty(dir) {
   if (await exists(dir)) { await noLinks(dir); if ((await readdir(dir)).length) throw new Error('Service recovery requires empty targets.'); }
 }
-async function installPicker(settings, picker, stage, row, save) {
-  const target = pickerPath(settings, picker), stageStore = path.join(stage, 'store');
-  await checkedTarget(target);
-  if (!row.installing) {
-    await empty(target);
-    if (await exists(target + '.dataset.json')) throw new Error('Existing binding blocks service recovery.');
-    await syncRecoveryTree(stageStore);
-    row.installing = true; row.digest = await identity(stageStore);
-    row.bindingSha256 = await exists(stageStore + '.dataset.json') ? sha(await readFile(stageStore + '.dataset.json')) : null;
-    await save();
+function installStage(settings, picker, row) {
+  if (!row.installStage) return;
+  const target = pickerPath(settings, picker), prefix = '.' + path.basename(target) + '.restore-';
+  if (path.dirname(row.installStage) !== path.dirname(target) || !path.basename(row.installStage).startsWith(prefix)
+    || !/^[a-zA-Z0-9]{6}$/.test(path.basename(row.installStage).slice(prefix.length))) throw new Error('Invalid restore staging path.');
+  return row.installStage;
+}
+async function cleanInstallStage(settings, picker, row) {
+  const stage = installStage(settings, picker, row);
+  if (stage && await exists(stage)) {
+    await noLinks(stage); await rm(stage, { recursive: true, force: true });
+    await syncRecoveryDirectory(path.dirname(stage));
   }
-  // Durable intent precedes both renames. Resume accepts only exact bytes owned
-  // by this operation, including the crash window between store and binding.
-  if (await exists(stageStore)) {
-    await empty(target); await rm(target, { recursive: true, force: true });
-    await rename(stageStore, target);
-  }
+}
+async function verifyInstalled(target, row) {
   if (await identity(target) !== row.digest) throw new Error('Restore destination changed; keep service stopped.');
   if (row.bindingSha256) {
-    if (await exists(stageStore + '.dataset.json')) {
-      if (await exists(target + '.dataset.json')) throw new Error('Restore binding destination changed.');
-      await rename(stageStore + '.dataset.json', target + '.dataset.json');
-    }
     await noLinks(target + '.dataset.json');
     if (sha(await readFile(target + '.dataset.json')) !== row.bindingSha256) throw new Error('Restore binding changed.');
   }
-  await syncRecoveryDirectory(path.dirname(target)); await syncRecoveryDirectory(stage);
+}
+async function installPicker(settings, picker, stage, row, save) {
+  const target = pickerPath(settings, picker), source = path.join(stage, 'store');
+  await checkedTarget(target);
+  if (row.status === 'restored') {
+    await verifyInstalled(target, row); await cleanInstallStage(settings, picker, row); return;
+  }
+  if (!row.installing) {
+    await empty(target);
+    if (await exists(target + '.dataset.json')) throw new Error('Existing binding blocks service recovery.');
+    row.digest = await identity(source);
+    row.bindingSha256 = await exists(source + '.dataset.json') ? sha(await readFile(source + '.dataset.json')) : null;
+  }
+  // Keep the resumable journal in controlDir, but prepare both atomic renames
+  // on the destination filesystem. No live directory changes before readiness.
+  if (!row.installStage) {
+    row.installStage = await mkdtemp(path.join(path.dirname(target), '.' + path.basename(target) + '.restore-'));
+    await syncRecoveryDirectory(path.dirname(target)); await save();
+  }
+  const local = installStage(settings, picker, row), stageStore = path.join(local, 'store');
+  await noLinks(local);
+  if (!row.destinationReady) {
+    await rm(stageStore, { recursive: true, force: true }); await rm(stageStore + '.dataset.json', { force: true });
+    if (await exists(source)) {
+      const files = await inventory(source);
+      await headroom(path.dirname(target), files.reduce((n, r) => n + (r.bytes ?? 0), 0), settings.minFreeBytes);
+      await copyTree(source, stageStore);
+      if (await identity(stageStore) !== row.digest) throw new Error('Restore source changed.');
+    } else {
+      // Upgrade an older intent whose store rename already completed, but whose
+      // binding was still in controlDir (including an earlier EXDEV refusal).
+      if (!row.installing || await identity(target) !== row.digest) throw new Error('Restore source is missing.');
+    }
+    if (row.bindingSha256 && await exists(source + '.dataset.json')) {
+      await copyFile(source + '.dataset.json', stageStore + '.dataset.json', 1);
+      if (sha(await readFile(stageStore + '.dataset.json')) !== row.bindingSha256) throw new Error('Restore source binding changed.');
+    }
+    await syncRecoveryTree(local);
+    row.destinationReady = true; row.installing = true; await save();
+  }
+  // The intent owns these exact bytes, including the window between store and
+  // binding renames. The source copy remains available until installation ends.
+  if (await exists(stageStore)) {
+    if (await identity(stageStore) !== row.digest) throw new Error('Restore staged data changed.');
+    await empty(target); await rm(target, { recursive: true, force: true });
+    await rename(stageStore, target);
+  }
+  if (await exists(stageStore + '.dataset.json')) {
+    if (await exists(target + '.dataset.json')) throw new Error('Restore binding destination changed.');
+    if (sha(await readFile(stageStore + '.dataset.json')) !== row.bindingSha256) throw new Error('Restore staged binding changed.');
+    await rename(stageStore + '.dataset.json', target + '.dataset.json');
+  }
+  await verifyInstalled(target, row);
+  await syncRecoveryDirectory(path.dirname(target)); await syncRecoveryDirectory(local);
   row.status = 'restored'; await save();
+  await cleanInstallStage(settings, picker, row);
 }
 async function quarantine(settings, picker, stageStore, row, save) {
   if (picker.kind === 'legacy-shared') throw legacyRefusal();
@@ -221,17 +269,22 @@ export async function restoreServiceStopped({ settings, backup, release, assertS
     const row = progress.pickers.find(r => r.id === picker.id);
     // Scope decisions belong exclusively to MP5 reconciliation.
     if (excludedPickerIds.has(picker.id)) {
+      await cleanInstallStage(settings, picker, row);
       await rm(path.join(work, picker.id), { recursive: true, force: true });
       row.status = 'excluded'; await save(); continue;
     }
     if (row.status === 'restored') {
-      const target = pickerPath(settings, picker);
-      if (await identity(target) !== row.digest || row.bindingSha256 && sha(await readFile(target + '.dataset.json')) !== row.bindingSha256) throw new Error('Completed restore destination changed.');
+      await verifyInstalled(pickerPath(settings, picker), row);
+      await cleanInstallStage(settings, picker, row);
+      await rm(path.join(work, picker.id), { recursive: true, force: true });
       continue;
     }
     if (row.status === 'quarantined') continue;
     const stage = path.join(work, picker.id), stageStore = path.join(stage, 'store');
-    if (row.installing) { await installPicker(settings, picker, stage, row, save); continue; }
+    if (row.installing) {
+      await installPicker(settings, picker, stage, row, save);
+      await rm(stage, { recursive: true, force: true }); continue;
+    }
     if (row.status === 'quarantining') { await quarantine(settings, picker, stageStore, row, save); continue; }
     if (picker.kind === 'legacy-shared') {
       if (!row.checked || await identity(stageStore) !== row.checkedDigest || sha(await readFile(stageStore + '.dataset.json')) !== row.checkedBindingSha256) throw legacyRefusal();

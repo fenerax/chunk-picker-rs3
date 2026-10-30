@@ -1664,7 +1664,8 @@ registry. It records backup/release/target identity, installation intent, file
 hashes and completed/quarantined results in a synced progress journal. A resume
 requires the same backup, release and targets; completed files are rechecked.
 Store and binding renames can resume independently. Partial recovery blocks
-`start-check.mjs` and `serve.mjs` from starting the writer.
+the privileged `start-check.mjs` gate before the writer starts. The unprivileged
+`serve.mjs` does not read private operator recovery state.
 
 An incompatible **owned** picker moves to private operator quarantine and gets
 an unbound, nonempty placeholder at its registered directory. That prevents MP4
@@ -1968,3 +1969,60 @@ one pending case. The first integration full run similarly had one intermittent
 failure, and its standalone file rerun passed 21/0. The immutable release fixture
 above addresses the concurrent checkout-writing interaction; final quick and
 full both pass without retries. No socket/parent-death exception was needed.
+
+
+### MP8 review round 4
+
+START is `31ca5e0c8e1856f7c2e9a120b03b41637a472816`, including MP7 and
+the Windows/merge fixes. The unprivileged `serve.mjs` no longer traverses the
+root-only operator control directory. The privileged `start-check.mjs` gate
+continues to refuse incomplete service recovery before systemd starts the writer.
+
+A service backup now **refuses any active quarantined picker** under that
+picker's storage barrier. This choice retains the existing backup format and
+prevents capture from silently dropping the initialization fence and the payload
+stored in private operator quarantine. Release the quarantine with compatible
+inputs or explicitly delete the owned picker before retrying a backup. Online
+capture checks only the live initialization marker, without reading root-only
+operator data. A failed capture removes its incomplete spool and preserves the
+quarantine payload and fence. Deleted scopes still reconcile as absent.
+
+Install intent now records a private staging directory beside the legacy or owned
+picker destination. The migrated store and binding are copied and synced there
+before either atomic rename; the journal remains under controlDir. Partial copies
+can restart from the retained migration source, store/binding rename windows
+resume by recorded hashes, and older intents whose source or store rename is
+still in controlDir can be upgraded. Completed and excluded scopes remove their
+sibling staging directory. Destination free-space checks include the extra copy.
+The same installer is used by quarantine release, so controlDir and picker roots
+may reside on separate filesystems. Windows file sync handles remain writable.
+
+Owned acquisition waits for its per-picker checkpoint gate before entering the
+shared residency queue. Residency, closed state and lifecycle are checked again
+inside that queue, and the existing post-factory lifecycle check remains. Thus a
+checkpointed dormant picker cannot stall unrelated resident handlers. MP7's cold
+lease is still acquired before waiting or calling the factory; a refusal calls no
+factory. The MP7 router fixture's pickerDirectory mapping is retained unchanged.
+
+Stopped-service ownership checks now acquire both registry-root locks through
+MP1's kernel-backed lockRegistry proof, reclaiming only provably dead local
+owners before checking stores. Live kernel owners, foreign hosts and malformed
+owner records still refuse; partial acquisition is released on every failure.
+A regression kills a child during real MP5 reconciliation, then verifies that
+retry can clear its stale ledger lock while live and foreign owners remain
+untouched. No custom PID inference or weakened store-lock handling was added.
+
+Round-4 validation used one test file at a time, then the quick suite once.
+Each of the five new regressions failed before its corresponding fix and passed
+afterward. The complete multi-picker file passed 26/0; the unchanged MP7 limits
+file passed 12/0, including refusal before factory invocation; the existing
+Linux operator file passed 23/0. These focused files total 61 passed, no failures,
+skips or pending cases. Quick passed 2,690 with zero failures, 68 existing skips
+and zero pending cases (2,758 total), in 102.37 seconds. No full-suite run was
+requested for this review round. Tests simulate permission denial and cross-device
+rename on every platform rather than depending on POSIX file modes. Native
+Windows execution was not available in this environment.
+
+The START Windows syncRecoveryTree r+ fix, JSON plugin-key fixture, and MP7
+pickerDirectory fixture are retained. OPS1's scripts/linux/files.mjs and
+scripts/linux/operator.mjs were not edited. No new test file needed classification.

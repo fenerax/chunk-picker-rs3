@@ -5,11 +5,6 @@ import { noLinks } from './files.mjs';
 
 try {
   const settings = await operatorSettings();
-  if (settings.multiPicker) {
-    const { exists, json } = await import('./files.mjs');
-    const progress = path.join(settings.controlDir, 'service-restore', 'progress.json');
-    if (await exists(progress) && (await json(progress)).phase !== 'complete') throw new Error('Service recovery is incomplete.');
-  }
   const release = await readRelease(settings.current, settings.dataDir);
   assertOperatorService(settings, release);
   for (const file of [path.join(settings.dataDir, 'state.json'), ...(!settings.multiPicker ? [path.join(settings.dataDir, 'access-token')] : []), settings.dataDir + '.dataset.json']) {

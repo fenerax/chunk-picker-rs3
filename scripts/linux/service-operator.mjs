@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { chown, readFile, rm } from 'node:fs/promises';
 import { snapshotPath } from '../../app/storage/snapshot.mjs';
 import { registryRecoveryDocument } from '../../app/storage/registry.mjs';
+import { lockRegistry } from '../../app/storage/registry-lock.mjs';
 import { assertReleased, atomic, directory, encode, exists, inventory, json, noLinks } from './files.mjs';
 import { assertSameRelease, readRelease } from './runtime.mjs';
 import { captureServiceCheckpoint, pickerPath, publishServiceBackup, validateServicePaths } from './service-checkpoint.mjs';
@@ -13,17 +14,31 @@ import { checkStoppedCompatibility } from './recovery.mjs';
 
 export async function assertServiceStopped(settings, controller) {
   if (!(await controller.state()).stopped) throw new Error('Service ownership is uncertain.');
-  for (const root of [settings.multiPicker.registryDir, settings.multiPicker.tombstoneDir]) {
-    await noLinks(await exists(root) ? root : path.dirname(root));
-    if (await exists(path.join(root, 'registry.lock'))) throw new Error('Registry ownership has not been released.');
-  }
-  await assertReleased(settings.dataDir);
-  const file = path.join(settings.multiPicker.registryDir, 'registry.json');
-  if (await exists(file)) {
-    await noLinks(file);
-    for (const picker of registryRecoveryDocument(await json(file)).pickers) await assertReleased(pickerPath(settings, picker));
+  const releases = [];
+  try {
+    for (const root of [settings.multiPicker.registryDir, settings.multiPicker.tombstoneDir]) {
+      await noLinks(await exists(root) ? root : path.dirname(root));
+      if (!await exists(root)) continue;
+      const file = path.join(root, 'registry.lock');
+      if (await exists(file)) await noLinks(file);
+      // The kernel guard plus MP1's PID/host proof can reclaim a dead local
+      // operator. Existence alone must not strand an interrupted reconciliation.
+      try { releases.push(await lockRegistry(root)); }
+      catch (cause) { throw Object.assign(new Error('Registry ownership has not been released.', { cause }), { code: cause.code }); }
+    }
+    await assertReleased(settings.dataDir);
+    const file = path.join(settings.multiPicker.registryDir, 'registry.json');
+    if (await exists(file)) {
+      await noLinks(file);
+      for (const picker of registryRecoveryDocument(await json(file)).pickers) await assertReleased(pickerPath(settings, picker));
+    }
+  } finally {
+    const results = await Promise.allSettled(releases.reverse().map(release => release()));
+    const failed = results.find(result => result.status === 'rejected');
+    if (failed) throw failed.reason;
   }
 }
+
 function sameService(settings, release) {
   for (const key of ['registryDir', 'pickerRoot', 'tombstoneDir']) if (settings.multiPicker[key] !== release.config.multiPicker?.[key]) throw new Error('Service roots differ from the pinned release.');
 }

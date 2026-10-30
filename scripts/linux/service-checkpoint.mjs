@@ -89,6 +89,7 @@ export async function captureServiceCheckpoint({ settings, registry, checkpoint,
         await withDirectoryBarriers([source], async () => {
           await onPhase('picker-barrier', { id: picker.id });
           await noLinks(source);
+          if (await exists(path.join(source, 'operator-quarantine.json'))) throw new Error('Quarantined picker blocks service backup; release or delete it before capture.');
           picker.initialized = await exists(path.join(source, 'state.json'));
           const binding = await checkpointBinding(source);
           if (picker.binding && encode(binding) !== encode(picker.binding)) throw new Error('Picker binding changed during backup.');

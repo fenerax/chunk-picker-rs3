@@ -59,7 +59,9 @@ export function createPickerRouter({ registry, legacy, openContext, publicOrigin
   }
   async function acquire(id, owner) {
     const release = !entries.has(id) ? pickerLimits?.coldStart(owner) : undefined;
-    try { return await serialize(async () => {
+    // Wait for this directory before entering the global residency queue.
+    // The cold-start lease still refuses admission before any factory is called.
+    try { return await checkpoint.open(id, () => serialize(async () => {
       if (closed) throw retry();
       if (registry.getPicker(id)?.lifecycle !== 'active') throw httpError(403, 'Picker access denied.');
       let entry = entries.get(id);
@@ -75,14 +77,14 @@ export function createPickerRouter({ registry, legacy, openContext, publicOrigin
           if (!victim) throw retry();
           await evict(victim);
         }
-        const context = await checkpoint.open(id, () => openContext(id));
+        const context = await openContext(id);
         if (closed || registry.getPicker(id)?.lifecycle !== 'active') { await context.close(); throw retry(); }
         entry = { id, context, active: 0, streams: new Set() };
       }
       clearTimeout(entry.timer);
       entries.delete(id); entries.set(id, entry); entry.active++;
       return entry;
-    }); } finally { release?.(); }
+    })); } finally { release?.(); }
   }
   function authenticate(request, security, pickerId) {
     const identity = legacy.authenticate(request, security);
