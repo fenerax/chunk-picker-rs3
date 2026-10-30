@@ -134,7 +134,8 @@ test('adapter refuses unknown requests, validates state members, bounds refs, sc
   assert.equal(calculator.exit.code, 0);
 });
 
-test('fixture harvesting includes commands, getter-safe engines and per-test datasets', { timeout: 30000 }, async () => {
+// Runs three core test files in a child; under the full suite on CI that alone can pass 30 s.
+test('fixture harvesting includes commands, getter-safe engines and per-test datasets', { timeout: 120000 }, async () => {
   const env = publicEnv('duo-legacy');
   const child = spawn(process.execPath, ['--input-type=module', '-e', `
     import { buildCorpus } from './tools/calc-check/corpus.mjs';
