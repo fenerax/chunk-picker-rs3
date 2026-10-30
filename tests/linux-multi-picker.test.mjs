@@ -12,7 +12,7 @@ import { captureServiceCheckpoint, verifyServiceBackup } from '../scripts/linux/
 import { restoreServiceStopped, listServicePickers, releaseServiceQuarantine, reconcileServiceRecoveryTombstones } from '../scripts/linux/service-recovery.mjs';
 import { atomic, encode, inventory, json, sha } from '../scripts/linux/files.mjs';
 import { readRelease } from '../scripts/linux/runtime.mjs';
-import { assertServiceStopped, serviceBackup } from '../scripts/linux/service-operator.mjs';
+import { assertServiceStopped, repairServiceOwnership, serviceBackup } from '../scripts/linux/service-operator.mjs';
 import { checkStart } from '../scripts/linux/start-check.mjs';
 
 process.env.RS3_DATASET = 'open-starter';
@@ -295,6 +295,22 @@ test('pickers and accounts deleted after a backup remain deleted after service r
   assert.deepEqual(registry.getAccount(deletedPicker.ownerAccountId).memberships, []);
   assert.equal(registry.getAccount(deletedPicker.ownerAccountId).defaultPickerId, null);
   await registry.close();
+});
+
+test('ownership repair hands the tombstone ledger back to the service user after an interrupted reconcile', async t => {
+  const f = await fixture(t), backup = await f.capture(), target = await f.target(); await f.close();
+  const ledger = path.join(target.multiPicker.tombstoneDir, 'ledger.json');
+  await restoreServiceStopped({ settings: target, backup, release: f.release, assertStopped: stopped, probe: portableProbe });
+  const changed = [];
+  await repairServiceOwnership({ settings: target, uid: 1001, gid: 1001, change: async file => { changed.push(file); } });
+  assert(changed.includes(ledger));
+  // Root CI models an operator that died after MP5 replaced the ledger.
+  if (process.getuid?.() === 0) {
+    await chown(ledger, 0, 0);
+    await repairServiceOwnership({ settings: target, uid: 1001, gid: 1001 });
+    const owner = await lstat(ledger);
+    assert.equal(owner.uid, 1001); assert.equal(owner.gid, 1001);
+  }
 });
 
 test('resumed recovery reapplies newer tombstones and purges an already installed owned picker', async t => {

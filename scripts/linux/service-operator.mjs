@@ -12,6 +12,21 @@ import { captureOnline } from './online.mjs';
 import { serviceOperation } from './service-lock.mjs';
 import { checkStoppedCompatibility } from './recovery.mjs';
 
+// Hands restored service files back to the service user. The tombstone
+// ledger is repaired explicitly: an operator that died after MP5 replaced it
+// leaves it root-owned, and a resumed reconcile would preserve that owner.
+// The rest of tombstoneDir keeps its owners.
+export async function repairServiceOwnership({ settings, uid, gid, change = chown }) {
+  for (const root of [settings.dataDir, settings.multiPicker.registryDir, settings.multiPicker.pickerRoot]) {
+    if (!await exists(root)) continue;
+    for (const row of await inventory(root)) await change(path.join(root, row.path), uid, gid);
+    await change(root, uid, gid);
+  }
+  if (await exists(settings.dataDir + '.dataset.json')) await change(settings.dataDir + '.dataset.json', uid, gid);
+  const ledger = path.join(settings.multiPicker.tombstoneDir, 'ledger.json');
+  if (await exists(ledger)) { await noLinks(ledger); await change(ledger, uid, gid); }
+}
+
 export async function assertServiceStopped(settings, controller) {
   if (!(await controller.state()).stopped) throw new Error('Service ownership is uncertain.');
   const releases = [];
@@ -113,15 +128,7 @@ export async function runServiceOperator({ settings, command, argument, evidence
       };
       result = await deployStopped({ settings, current: release, candidate, controller, request, check, savedIdentityAdditions });
     }
-    if (['restore', 'quarantine-release'].includes(command)) {
-      const { uid, gid } = await serviceIdentity();
-      for (const root of [settings.dataDir, settings.multiPicker.registryDir, settings.multiPicker.pickerRoot]) {
-        if (!await exists(root)) continue;
-        for (const row of await inventory(root)) await chown(path.join(root, row.path), uid, gid);
-        await chown(root, uid, gid);
-      }
-      if (await exists(settings.dataDir + '.dataset.json')) await chown(settings.dataDir + '.dataset.json', uid, gid);
-    }
+    if (['restore', 'quarantine-release'].includes(command)) await repairServiceOwnership({ settings, ...await serviceIdentity() });
     if (command === 'backup') await atomic(path.join(settings.controlDir, 'service-backup-status.json'), encode({ lastSuccessAt: new Date().toISOString(), byteSize: result.byteSize, pickerCount: result.pickerCount }));
     await rm(pause); return result;
   });
