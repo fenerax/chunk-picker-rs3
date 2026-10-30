@@ -138,10 +138,12 @@ commands refuse with a static lock-busy reason.
 Recovering a dead owner's lock does not clear maintenance or activation evidence.
 Before clearing evidence, stop the timers, inspect the service/cgroup, ownership
 files, selected pointer and `activation.json`, and reconcile the operation.
-The persistent `operation.lock.recovery` file serializes stale-lock moves with
-Linux `flock`; the kernel releases that guard on process death. Do not unlink
-that coordination file while commands may be running. If `flock` is unavailable,
-recovery refuses conservatively and the original lock stays busy. Do not run
+The persistent `operation.lock.recovery` file serializes stale-lock moves and
+new lock creation with Linux `flock`, so recovery can never move a lock that
+replaced the one it checked. The kernel releases that guard on process death.
+Do not unlink that coordination file while commands may be running. If `flock`
+is unavailable, acquisition and recovery refuse conservatively and the lock
+stays busy. Do not run
 manual service starts during an operator transaction. There is no crash-journal
 replay.
 
@@ -442,7 +444,7 @@ that marker to ship a VPS release.
 ### Reviewed install and rehearsal order
 
 These are future operator commands, not actions performed by this change.
-Stage the release first. Use a disposable staging VPS with its own installed service/config, an immutable complete recovery copy and ports 8900–8999.
+Stage the release first. Use a disposable staging VPS with its own installed service/config, an immutable complete recovery copy and ports 8900â€“8999.
 Never use production store paths for the staging rehearsal. Install the reviewed
 operator tools before using the new commands; preserve old tools for rollback.
 The selected writer code comes from the candidate release, not the tools tree.
@@ -469,7 +471,7 @@ The selected writer code comes from the candidate release, not the tools tree.
 
 The rehearsal helper accepts an immutable copied store and pointer and never
 uses systemctl. Its fake controller closes and opens exactly one scratch writer;
-ports must be free in 8900–8999. It measures online backup and same-release
+ports must be free in 8900â€“8999. It measures online backup and same-release
 prechecked deployment with real probes, then removes scratch in finally:
 
 ```sh
