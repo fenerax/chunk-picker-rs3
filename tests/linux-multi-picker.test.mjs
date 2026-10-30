@@ -12,7 +12,7 @@ import { captureServiceCheckpoint, verifyServiceBackup } from '../scripts/linux/
 import { restoreServiceStopped, listServicePickers, releaseServiceQuarantine, reconcileServiceRecoveryTombstones } from '../scripts/linux/service-recovery.mjs';
 import { atomic, encode, inventory, json, sha } from '../scripts/linux/files.mjs';
 import { readRelease } from '../scripts/linux/runtime.mjs';
-import { assertServiceStopped, repairServiceOwnership, serviceBackup } from '../scripts/linux/service-operator.mjs';
+import { assertServiceStopped, repairServiceOwnership, serviceBackup, serviceBackupWarnings } from '../scripts/linux/service-operator.mjs';
 import { checkStart } from '../scripts/linux/start-check.mjs';
 
 process.env.RS3_DATASET = 'open-starter';
@@ -344,6 +344,20 @@ test('pickers and accounts deleted after a backup remain deleted after service r
   await registry.close();
 });
 
+test('service health keeps the backup-age and disk-reserve warnings', async t => {
+  const root = await mkdtemp(path.join(tmpdir(), 'synthetic-service-health-')); t.after(() => rm(root, { recursive: true, force: true }));
+  const settings = { backupDir: path.join(root, 'backups'), controlDir: path.join(root, 'control'), minFreeBytes: 0 };
+  await mkdir(settings.backupDir); await mkdir(settings.controlDir);
+  const warnings = async (options = {}) => { const lines = []; await serviceBackupWarnings({ ...settings, ...options }, { write: text => lines.push(text.trim()) }); return lines; };
+  assert.deepEqual(await warnings(), ['Recovery backup is missing or older than two days.']);
+  const status = path.join(settings.controlDir, 'service-backup-status.json');
+  await writeFile(status, JSON.stringify({ lastSuccessAt: new Date(Date.now() - 3 * 86400000).toISOString() }));
+  assert.deepEqual(await warnings(), ['Recovery backup is missing or older than two days.']);
+  await writeFile(status, JSON.stringify({ lastSuccessAt: new Date().toISOString() }));
+  assert.deepEqual(await warnings(), []);
+  assert.deepEqual(await warnings({ minFreeBytes: Number.MAX_SAFE_INTEGER }), ['Recovery disk free-space reserve is unavailable.']);
+});
+
 test('ownership repair hands the tombstone ledger back to the service user after an interrupted reconcile', async t => {
   const f = await fixture(t), backup = await f.capture(), target = await f.target(); await f.close();
   const ledger = path.join(target.multiPicker.tombstoneDir, 'ledger.json');
@@ -670,6 +684,42 @@ test('a dormant picker waiting on its checkpoint never blocks an unrelated resid
   }
   assert.equal(completed, true, 'Resident B must run before A releases its checkpoint gate.');
   assert.equal(await first, 403); assert.deepEqual(calls, [B]); assert.deepEqual(handled, [B, B]);
+});
+
+test('capacity eviction skips a checkpointed context so resident handlers keep running', async () => {
+  const { createPickerRouter } = await import('../app/picker-router.mjs');
+  const { Readable, Writable } = await import('node:stream');
+  const [A, B, C, D] = ['a', 'b', 'c', 'd'].map(c => 'p_' + c.repeat(32));
+  const dir = id => path.join(tmpdir(), 'synthetic-checkpoint-evict', id);
+  const held = Promise.withResolvers(), finish = Promise.withResolvers();
+  const calls = [], closed = [], handled = [];
+  const router = createPickerRouter({ maxOpenContexts: 4,
+    registry: { getPicker: () => ({ lifecycle: 'active', provisioning: 'ready' }), pickerDirectory: dir },
+    legacy: { authenticate: request => ({ kind: 'account', accountId: request.headers.picker, pickerId: request.headers.picker }) },
+    // The real close enters the picker's write barrier, as retention and plugin keys do.
+    openContext: async id => { calls.push(id); return { close: () => withStoreWrite(dir(id), async () => { closed.push(id); }),
+      handle: async (_req, res) => { handled.push(id); res.writeHead(200); res.end('{}'); } }; },
+  });
+  async function send(id) {
+    const request = Readable.from([]); Object.assign(request, { headers: { host: 'localhost', picker: id }, method: 'GET', url: '/api/state', complete: true, socket: { remoteAddress: '127.0.0.1' } });
+    const headers = new Map(), response = new Writable({ write(_chunk, _encoding, callback) { callback(); } });
+    response.setHeader = (name, value) => headers.set(name.toLowerCase(), value); response.getHeader = name => headers.get(name.toLowerCase());
+    response.writeHead = status => { response.statusCode = status; response.headersSent = true; };
+    await router.handle(request, response, { host: '127.0.0.1' }); return response.statusCode;
+  }
+  for (const id of [B, C, D]) assert.equal(await send(id), 200);
+  // B is the least recently used idle context, and a checkpoint now holds it.
+  // B's own requests wait for its copy by design; other pickers must not.
+  const barrier = withDirectoryBarriers([dir(B)], async () => { held.resolve(); await finish.promise; });
+  await held.promise;
+  let timer, completed;
+  try {
+    completed = await Promise.race([(async () => [await send(A), await send(D)])(),
+      new Promise(resolve => { timer = setTimeout(() => resolve(false), 1000); })]);
+  } finally { clearTimeout(timer); finish.resolve(); await barrier; await router.close(); }
+  assert.deepEqual(completed, [200, 200], 'Cold A and resident D must not wait for B\'s checkpoint.');
+  assert.deepEqual(calls, [B, C, D, A]); assert.equal(closed[0], C);
+  assert.deepEqual(handled, [B, C, D, A, D]);
 });
 
 test('stopped ownership reclaims a dead MP5 reconciliation lock but refuses live and unverifiable owners', async t => {

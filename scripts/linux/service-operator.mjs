@@ -4,7 +4,7 @@ import { chown, readFile, rm } from 'node:fs/promises';
 import { snapshotPath } from '../../app/storage/snapshot.mjs';
 import { registryRecoveryDocument } from '../../app/storage/registry.mjs';
 import { lockRegistry } from '../../app/storage/registry-lock.mjs';
-import { assertReleased, atomic, directory, encode, exists, inventory, json, noLinks } from './files.mjs';
+import { assertReleased, atomic, directory, encode, exists, headroom, inventory, json, noLinks } from './files.mjs';
 import { assertSameRelease, readRelease } from './runtime.mjs';
 import { captureServiceCheckpoint, pickerPath, publishServiceBackup, validateServicePaths } from './service-checkpoint.mjs';
 import { listServicePickers, releaseServiceQuarantine, restoreServiceStopped } from './service-recovery.mjs';
@@ -54,6 +54,12 @@ export async function assertServiceStopped(settings, controller) {
   }
 }
 
+export async function serviceBackupWarnings(settings, { now = Date.now(), write = text => process.stderr.write(text) } = {}) {
+  try { await headroom(settings.backupDir, 0, settings.minFreeBytes); } catch { write('Recovery disk free-space reserve is unavailable.\n'); }
+  let status;
+  try { status = await json(path.join(settings.controlDir, 'service-backup-status.json')); } catch {}
+  if (!status?.lastSuccessAt || !Number.isFinite(Date.parse(status.lastSuccessAt)) || now - Date.parse(status.lastSuccessAt) > 172800000) write('Recovery backup is missing or older than two days.\n');
+}
 function sameService(settings, release) {
   for (const key of ['registryDir', 'pickerRoot', 'tombstoneDir']) if (settings.multiPicker[key] !== release.config.multiPicker?.[key]) throw new Error('Service roots differ from the pinned release.');
 }
@@ -88,7 +94,11 @@ export async function runServiceOperator({ settings, command, argument, evidence
       const previous = await json(pause);
       if (!(command === 'restore' && previous.command === 'service-restore' && previous.backup === path.resolve(argument) || command === 'quarantine-release' && previous.command === command && previous.id === argument)) throw new Error('Reconcile maintenance evidence before continuing.');
     }
-    if (command === 'health') return healthRecovery({ settings, release, controller, request, assertStopped: stopped });
+    if (command === 'health') {
+      // Same operator warnings as the single-duo path, from the service backup status.
+      await serviceBackupWarnings(settings);
+      return healthRecovery({ settings, release, controller, request, assertStopped: stopped });
+    }
     if (!['backup', 'restore', 'quarantine-release', 'deploy'].includes(command)) throw new Error('Use health, backup, restore, deploy, list, inspect or quarantine-release.');
     const wasActive = (await controller.state()).active;
     if (['restore', 'quarantine-release'].includes(command) && wasActive) throw new Error('Recovery requires a deliberately stopped service.');

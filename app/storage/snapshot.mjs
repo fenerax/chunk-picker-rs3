@@ -23,6 +23,10 @@ export async function withStoreWrite(dataDir, work) {
   finally { owner.active = false; state.active.delete(done); release(); }
 }
 
+// True while a snapshot holds this directory's gate: closing a context on it
+// would wait for the copy, so residency eviction picks another victim.
+export function storeWriteBlocked(dataDir) { return Boolean(barriers.get(path.resolve(dataDir))?.gate); }
+
 export function snapshotRoot(dataDir) { return path.resolve(dataDir) + '.snapshots'; }
 export function snapshotPath(dataDir, id) {
   if (!/^[a-f0-9-]{36}$/.test(id)) throw new TypeError('Invalid snapshot ID.');

@@ -5,6 +5,7 @@ import { routedBody, rememberRoutedBody, httpError, json } from './picker-contex
 import { checkBodyWith } from './security/json.mjs';
 import { createPickerDeletion } from './picker-router-deletion.mjs';
 import { requestContext } from './security/request.mjs';
+import { storeWriteBlocked } from './storage/snapshot.mjs';
 
 const digest = key => createHash('sha256').update(key).digest('hex');
 const selectorKeys = new Set(['picker', 'pickerId']);
@@ -47,12 +48,16 @@ export function createPickerRouter({ registry, legacy, openContext, publicOrigin
     // Keep the entry until close drains, so no writer can reopen alongside it.
     try { await entry.context.close(); } finally { entries.delete(entry.id); }
   }
+  const checkpointBlocked = entry => storeWriteBlocked(registry.pickerDirectory(entry.id));
   function idle(entry) {
     clearTimeout(entry.timer);
     if (closed || entries.get(entry.id) !== entry || entry.active || entry.streams.size) return;
     entry.timer = setTimeout(() => {
       void serialize(async () => {
-        if (!closed && entries.get(entry.id) === entry && !entry.active && !entry.streams.size) await evict(entry);
+        if (closed || entries.get(entry.id) !== entry || entry.active || entry.streams.size) return;
+        // A checkpoint holds this directory: closing now would hold the queue behind the copy.
+        if (checkpointBlocked(entry)) return idle(entry);
+        await evict(entry);
       }).catch(() => {});
     }, idleCloseMs);
     entry.timer.unref();
@@ -73,7 +78,9 @@ export function createPickerRouter({ registry, legacy, openContext, publicOrigin
           // acquisition, behind its slowest request or upload. While every
           // resident context is busy the newcomer gets a retry. Streams do not
           // pin a heavy context against capacity eviction.
-          const victim = [...entries.values()].find(candidate => !candidate.active);
+          // A context whose directory a checkpoint holds is skipped too: its close
+          // waits for the copy while every acquisition waits here.
+          const victim = [...entries.values()].find(candidate => !candidate.active && !checkpointBlocked(candidate));
           if (!victim) throw retry();
           await evict(victim);
         }
