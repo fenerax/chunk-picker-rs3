@@ -10,7 +10,7 @@ import { gzip, gunzip, constants } from 'node:zlib';
 import { promisify, isDeepStrictEqual } from 'node:util';
 import { applyValidatedCommand, BACKUP_FORMAT, SCHEMA_VERSION, createGroupState, importBackup, validateState, validateOwnedState, validateHistoryActor, getUndoEligibility, hasRetainedSparseUndo, cancelTaskClaimUndo } from '../core/state.mjs';
 import { resolveSavedTaskId } from '../tasks/migration.mjs';
-import { evaluateRollPool, partnerConnections } from '../core/rules.mjs';
+import { evaluateRollPool, partnerConnections, createRollPoolCache } from '../core/rules.mjs';
 import { captureProgressSnapshot, buildProgressModel } from '../core/progress-timeline.mjs';
 import { createGameplayFingerprint } from './gameplay-fingerprint.mjs';
 import { createTaskReuseFingerprint } from '../tasks/unlock-reuse.mjs';
@@ -55,6 +55,16 @@ const ARCHIVE_ID = /^archive-[a-f0-9]{16}\.json\.gz$/;
 const STATIC_ID = /^static-([a-f0-9]{64})\.json\.gz$/;
 const STATIC_THRESHOLD = 256 * 1024;
 export const DEFAULT_RETENTION = Object.freeze({ backupDays: 90, historyEntries: 1000 });
+const COMPLETION_HISTORY_TYPES = new Set(['set-task-status', 'tick-active-tasks', 'complete-task', 'apply-runemetrics', 'apply-game-progress', 'sync-original']);
+function taskCompletionEvent({ revision, type, at, command, undoneRevision }) {
+  if (!command || !COMPLETION_HISTORY_TYPES.has(type)) return null;
+  // Keep only ledger evidence, never undo snapshots, actor details or notes.
+  return structuredClone({ revision, type, at, undoneRevision, command: type === 'sync-original'
+    ? { members: (command.members ?? []).map(row => ({ memberId: row.memberId, tasks: { complete: row.tasks?.complete ?? [] } })) }
+    : { memberId: command.memberId, taskId: command.taskId, taskIds: command.taskIds, completed: command.completed,
+      ...(Object.hasOwn(command, 'challengeCompleted') ? { challengeCompleted: command.challengeCompleted } : {}),
+      quests: command.quests?.map(row => ({ taskId: row.taskId })) } });
+}
 const host = hostname();
 const execFileAsync = promisify(execFile);
 let ownStart;
@@ -221,7 +231,7 @@ async function atomicWrite(file, contents, beforeRename) {
 }
 
 /** One durable, exclusively locked store. All writes share one revision queue. */
-export async function openStore({ dataDir, world, registry, initialState, migrateState, prepareState, beforeCommit, beforeLockRecovery, now, random, taskCatalogue, retention, progressQuestPoints, membersStartBanks, xpChoiceCatalogue, readOnly = false, liveSwapStrict = false, expectedCheckpoint, onActivationTiming } = {}) {
+export async function openStore({ dataDir, world, registry, initialState, migrateState, prepareState, beforeCommit, beforeLockRecovery, now, random, taskCatalogue, retention, progressQuestPoints, membersStartBanks, xpChoiceCatalogue, readOnly = false, liveSwapStrict = false, expectedCheckpoint, onActivationTiming, rollPoolCache, computeRollPool } = {}) {
   if (!dataDir) throw new TypeError('dataDir is required.');
   const policy = retention === false ? false : { ...DEFAULT_RETENTION, ...retention };
   if (policy) {
@@ -462,6 +472,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
   }
   let poolState, fullPools, playPools, calculationSnapshot;
   const taskReuseFingerprint = createTaskReuseFingerprint();
+  rollPoolCache ??= createRollPoolCache(world, registry, { inputKey: taskReuseFingerprint });
   const playProjections = new WeakMap();
   function playProjection(state) {
     let projection = playProjections.get(state);
@@ -472,6 +483,55 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     }
     return projection;
   }
+  let taskCompletionCache;
+  const taskCompletionReads = new Set();
+  function completionHistoryCache(since) {
+    if (taskCompletionCache?.state === current && taskCompletionCache.since <= since) return taskCompletionCache;
+    const captured = current, events = new Map();
+    for (const event of captured.history) {
+      const selected = taskCompletionEvent(event);
+      if (selected) events.set(event.revision, selected);
+    }
+    const cache = taskCompletionCache = { state: captured, since, events, histories: new Map() };
+    const references = captured.provenance?.historyArchive ?? [];
+    const oldestLive = Date.parse(captured.history[0]?.at);
+    if (references.length && (!Number.isFinite(oldestLive) || oldestLive > since) && !closing) {
+      // Defer all archive I/O and decompression beyond the synchronous read reply.
+      const reading = new Promise(resolve => setImmediate(resolve)).then(async () => {
+        const events = new Map(cache.events), seen = new Set(captured.history.map(event => event.revision));
+        const through = references.map(reference => {
+          if (!HISTORY_ID.test(reference?.id)) throw new TypeError('Invalid history archive ID.');
+          return Number(reference.id.split('-')[2]);
+        });
+        const remainingMax = [];
+        for (let index = 0; index < through.length; index++) remainingMax[index] = Math.max(through[index], remainingMax[index - 1] ?? 0);
+        let boundary = -1;
+        for (let index = references.length - 1; index >= 0; index--) {
+          if (closing || taskCompletionCache !== cache || current !== captured) return;
+          // Newer segments and the live suffix win, including archived undo marks.
+          for await (const event of readHistoryEvents(path.join(historyDir, references[index].id))) {
+            if (closing || taskCompletionCache !== cache || current !== captured) return;
+            const at = Date.parse(event.at);
+            if (Number.isFinite(at) && at <= since) boundary = Math.max(boundary, event.revision);
+            if (seen.has(event.revision)) continue;
+            seen.add(event.revision);
+            if (!Number.isFinite(at) || at < since) continue;
+            const selected = taskCompletionEvent(event);
+            if (selected) events.set(event.revision, selected);
+          }
+          // A late override of an old revision must not hide newer unread segments.
+          if (index === 0 || remainingMax[index - 1] <= boundary) break;
+        }
+        if (!closing && taskCompletionCache === cache && current === captured) {
+          cache.events = events;
+          cache.histories.clear();
+        }
+      }).catch(() => { /* Unavailable archive evidence leaves live finishes readable. */ })
+        .finally(() => taskCompletionReads.delete(reading));
+      taskCompletionReads.add(reading);
+    }
+    return cache;
+  }
   function refreshSnapshots() {
     if (poolState !== current) { poolState = current; fullPools = undefined; playPools = undefined; calculationSnapshot = undefined; }
   }
@@ -480,11 +540,12 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     if (!calculationSnapshot) {
       const { provenance, history, taskClaims, progressSnapshots, finishLine, groupGoals, ruleReviews, ...input } = current;
       input.history = [];
-      let state, stateJSON, taskInputKey;
+      let state, stateJSON, taskInputKey, rollInputKey;
       const revision = current.revision, members = Object.freeze(current.members.map(member => Object.freeze({ id: member.id })));
       const inputKey = gameplayFingerprint();
       calculationSnapshot = { revision, members, inputKey,
         get taskInputKey() { return taskInputKey ??= taskReuseFingerprint(input); },
+        get rollInputKey() { return rollInputKey ??= rollPoolCache.input(input); },
         get state() { return state ??= structuredClone(input); },
         get stateJSON() {
           if (!stateJSON) {
@@ -504,12 +565,25 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
   }
   function rollPools(view) {
     refreshSnapshots();
-    fullPools ??= Object.fromEntries(current.members.map(member => [member.id, evaluateRollPool(world, current, member.id, registry)]));
+    fullPools ??= Object.fromEntries(current.members.map(member => [member.id,
+      (rollPoolCache.get(current, member.id) ?? rollPoolCache.set(current, member.id,
+        { pool: evaluateRollPool(world, current, member.id, registry) })).pool]));
     if (view !== PLAY_VIEW) return fullPools;
     playPools ??= Object.fromEntries(current.members.map(member => [member.id, { ...fullPools[member.id],
-      partnerConnections: partnerConnections(world, current, member.id, registry) }]));
+      partnerConnections: rollPoolCache.get(current, member.id)?.partnerConnections
+        ?? partnerConnections(world, current, member.id, registry) }]));
     return playPools;
   }
+  async function prepareRollPools() {
+    refreshSnapshots();
+    if (!computeRollPool || fullPools && playPools) return;
+    const captured = current, values = [];
+    for (const member of captured.members) values.push([member.id, await computeRollPool(captured, member.id)]);
+    if (current !== captured) return prepareRollPools();
+    fullPools = Object.fromEntries(values.map(([id, value]) => [id, value.pool]));
+    playPools = Object.fromEntries(values.map(([id, value]) => [id, { ...value.pool, partnerConnections: value.partnerConnections }]));
+  }
+  async function preparedCommandSnapshot(...args) { await prepareRollPools(); return commandSnapshot(...args); }
   function commandSnapshot(baseline, omitUnchanged = false, view) {
     const pools = rollPools(view);
     // Deleting omitted fields must never mutate the memoized full display view.
@@ -531,7 +605,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     let stateJSON;
     return { get stateJSON() { return stateJSON ??= parts.join(''); }, stateJSONParts: [...parts], revision: current.revision,
       ...(unchangedFields.length ? { baseRevision: baseline.revision, unchangedFields } : {}),
-      pools, ...(view === PLAY_VIEW ? { format: PLAY_VIEW, schemaVersion: 1 } : {}) };
+      pools: structuredClone(pools), ...(view === PLAY_VIEW ? { format: PLAY_VIEW, schemaVersion: 1 } : {}) };
   }
   async function retainBackup(state, operation, label) {
     const name = `${String(state.revision).padStart(16, '0')}-${randomBytes(8).toString('hex')}.json.gz`;
@@ -897,10 +971,10 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
       try { listener({ revision: current.revision, ...(ownershipChanged ? { ownershipChanged: true } : {}), ...(noteEdit ? { noteEdit: true } : {}) }); } catch { /* A subscriber cannot roll back a committed write. */ }
     }
     // Let already-requested task lanes receive the committed snapshot before
-    // synchronous travel/pool rebuilding occupies the HTTP process.
+    // preparing the response pools.
     if (ownershipChanged) await new Promise(resolve => setImmediate(resolve));
     return cleanup ? structuredClone({ revision: current.revision, taskClaims: current.taskClaims, history: current.history })
-      : serializedResult ? { ...commandSnapshot(baseline, omitUnchanged, view), ...(receiptResult ? { receipt: receiptResult } : {}) } : cloneCurrent();
+      : serializedResult ? { ...await preparedCommandSnapshot(baseline, omitUnchanged, view), ...(receiptResult ? { receipt: receiptResult } : {}) } : cloneCurrent();
   }
   const commandReceipt = (command, actor, requestId, requestAck) => inspectActionReceipt(receipts, command, actor, requestId, requestAck);
   function runCommand(command, expectedRevision, serializedResult = false, omitUnchanged = false, actor, view, requestId, requestAck) {
@@ -908,7 +982,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     return enqueue(async () => {
       const receipt = commandReceipt(command, attribution, requestId, requestAck);
       if (receipt) {
-        if (receipt.replay) return serializedResult ? { ...commandSnapshot(undefined, false, view), receipt: receipt.result } : cloneCurrent();
+        if (receipt.replay) return serializedResult ? { ...await preparedCommandSnapshot(undefined, false, view), receipt: receipt.result } : cloneCurrent();
       }
       checkRevision(expectedRevision);
       const baseline = current;
@@ -923,7 +997,13 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
         && undoTarget.command?.memberId !== attribution.memberId) {
         throw Object.assign(new Error('You can only undo task claims made by your signed-in player.'), { status: 403 });
       }
-      const next = applyValidatedCommand(input.state, command, { expectedRevision, world, registry,
+      let precomputedPool;
+      if (command.type === 'roll' && computeRollPool && [1, 2].includes(command.count)
+        && input.state.members.some(member => member.id === command.memberId && !member.pendingRoll.length)) {
+        await computeRollPool(input.state, command.memberId);
+        precomputedPool = rollPoolCache.prepare(input.state, command.memberId);
+      }
+      const next = applyValidatedCommand(input.state, command, { expectedRevision, world, registry, precomputedPool,
         random: ['go-members', 'setup-start'].includes(command.type) ? random ?? (() => randomBytes(6).readUIntBE(0, 6) / 2 ** 48) : random,
         now, taskCatalogue, actor: attribution, membersStartBanks, xpChoiceCatalogue });
       const ready = await prepared(next, 'command');
@@ -1088,15 +1168,26 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
       return structuredClone({ schemaVersion, revision, rules, members, tasks, identityRegistry,
         ...(taskClaims !== undefined ? { taskClaims } : {}) });
     },
+    // Stable per-revision views: an archive fill replaces the view on a later read.
+    getTaskCompletionHistory(memberId, { since = Date.parse(timestamp()) - 7 * 24 * 60 * 60 * 1000 } = {}) {
+      const cache = completionHistoryCache(since);
+      if (!cache.histories.has(memberId)) cache.histories.set(memberId, Object.freeze([...cache.events.values()]
+        .filter(event => event.command.memberId === memberId || event.command.members?.some(row => row.memberId === memberId))
+        .sort((a, b) => a.revision - b.revision)));
+      return cache.histories.get(memberId);
+    },
     getTaskClaimSnapshot: () => ({ revision: current.revision, taskClaims: structuredClone(current.taskClaims ?? {}) }),
     getRules: () => ({ ...current.rules }),
-    getStateSnapshot: ({ view } = {}) => commandSnapshot(undefined, false, view),
+    getStateSnapshot: ({ view } = {}) => computeRollPool ? preparedCommandSnapshot(undefined, false, view) : commandSnapshot(undefined, false, view),
     getCalculationState: () => capturedCalculation().state,
     getCalculationSnapshot: capturedCalculation,
     // Advisory clients may reuse an existing pool, never trigger travel/task work.
     peekRollPool(memberId) { refreshSnapshots(); return fullPools?.[memberId] ?? null; },
     // Computes the pool when no page has asked yet; memoized per state like the page's own pools.
-    rollPool(memberId) { return rollPools()[memberId] ?? null; },
+    rollPool(memberId) {
+      if (computeRollPool) { void prepareRollPools().catch(() => {}); return store.peekRollPool(memberId); }
+      return rollPools()[memberId] ?? null;
+    },
     releaseTaskCaches() {
       calculationSnapshot = undefined; poolState = undefined; fullPools = undefined; playPools = undefined;
       serializedFields = new WeakMap();
@@ -1166,9 +1257,9 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
       return runCommand(command, expectedRevision, false, false, actor, undefined, requestId, requestAck);
     },
     commandSerialized(command, expectedRevision, { omitUnchanged = false, actor, view, requestId, requestAck } = {}) { return runCommand(command, expectedRevision, true, omitUnchanged, actor, view, requestId, requestAck); },
-    replayCommandSerialized(command, requestId, { actor, view, requestAck } = {}) {
+    async replayCommandSerialized(command, requestId, { actor, view, requestAck } = {}) {
       const receipt = commandReceipt(command, actor, requestId, requestAck);
-      return receipt?.replay ? { ...commandSnapshot(undefined, false, view), receipt: receipt.result } : undefined;
+      return receipt?.replay ? { ...await preparedCommandSnapshot(undefined, false, view), receipt: receipt.result } : undefined;
     },
     openActionSession(clientId, { actor } = {}) {
       return enqueue(async () => {
@@ -1297,7 +1388,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     close({ beforeUnlock } = {}) {
       if (closePromise) return closePromise;
       closing = true;
-      closePromise = (async () => { await activationPending?.catch(() => {}); await queue; if (!readOnly && !frozen && !liveSwapStrict) await enqueueMaintenance(maintainRetention, { allowClosing: true }); else await maintenanceQueue; await beforeUnlock; listeners.clear(); await releaseLock(); })();
+      closePromise = (async () => { await activationPending?.catch(() => {}); await queue; await Promise.allSettled(taskCompletionReads); if (!readOnly && !frozen && !liveSwapStrict) await enqueueMaintenance(maintainRetention, { allowClosing: true }); else await maintenanceQueue; await beforeUnlock; listeners.clear(); await releaseLock(); })();
       return closePromise;
     },
   };

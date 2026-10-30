@@ -16,6 +16,7 @@ export const adaptiveOptionsFor = (suite, env = process.env) => {
 // Reviewed small fixtures and model/controller tests. No running browser or full catalogue.
 export const quickTests = new Set([
   "calculator-bundle.test.mjs",
+  "worker-picker-keys.test.mjs",
   "picker-footprint.test.mjs",
   "linux-operator.test.mjs",
   "online-snapshot.test.mjs",
@@ -30,6 +31,7 @@ export const quickTests = new Set([
   "game-plugin-coords.test.mjs",
   "game-plugin-status.test.mjs",
   "game-plugin-tasks.test.mjs",
+  "plugin-reads.test.mjs",
   "game-plugin-web.test.mjs",
   "game-plugin-mapping.test.mjs",
   "game-plugin-achievements.test.mjs",
@@ -283,6 +285,8 @@ const fullOnlyPatterns = [
 const fullOnlyTests = new Set([
   "calculator-bundle-worker.test.mjs",
   "calc-check.test.mjs",
+  "plugin-reads-server.test.mjs",
+  "roll-pool-worker.test.mjs",
   "public-ingress-server.test.mjs",
   "signin-server.test.mjs",
   "game-plugin-routes.test.mjs",
@@ -506,6 +510,9 @@ export const soloTests = new Set([
 export const openF2PTests = new Set([
   "calculator-bundle.test.mjs",
   "calculator-bundle-worker.test.mjs",
+  "plugin-reads-server.test.mjs",
+  "worker-picker-keys.test.mjs",
+  "roll-pool-worker.test.mjs",
   "area-check-server.test.mjs",
   "area-check-worker.test.mjs",
   "backup-watchdog-server.test.mjs",
