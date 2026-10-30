@@ -72,14 +72,31 @@ export async function saveSnapshots(directory, registry) {
     }
     return validateState(complete, registry);
   }
-  const byId = new Map();
+  const byId = new Map(), archiveCache = new Map();
+  // The listing keeps only archive names and snapshot ids; a shard decompresses
+  // just the archives holding its own states, two at a time.
+  async function archive(name) {
+    if (!archiveCache.has(name)) {
+      const pack = await document('backups/archives', name);
+      if (pack.format !== 'rs3-chunk-picker-retained-archive' || !Array.isArray(pack.snapshots)) invalid();
+      if (archiveCache.size >= 2) archiveCache.delete(archiveCache.keys().next().value);
+      archiveCache.set(name, pack);
+    }
+    return archiveCache.get(name);
+  }
+  async function archivedSnapshot(name, id) {
+    const snapshot = (await archive(name)).snapshots.find(row => row?.id === id);
+    if (!snapshot) invalid();
+    return importDocument(snapshot.document);
+  }
   for (const name of (await readdir(path.join(directory, 'backups', 'archives')).catch(error => { if (error.code === 'ENOENT') return []; throw error; })).sort()) {
     if (!archiveId.test(name)) continue;
     const pack = await document('backups/archives', name);
     if (pack.format !== 'rs3-chunk-picker-retained-archive' || !Array.isArray(pack.snapshots)) invalid();
     for (const snapshot of pack.snapshots) {
       if (!backupId.test(snapshot?.id)) invalid();
-      byId.set(snapshot.id, { id: snapshot.id, revision: Number(backupId.exec(snapshot.id)[1]), at: snapshot.at, load: () => importDocument(snapshot.document) });
+      const id = snapshot.id;
+      byId.set(id, { id, revision: Number(backupId.exec(id)[1]), at: snapshot.at, load: () => archivedSnapshot(name, id) });
     }
   }
   for (const name of (await readdir(path.join(directory, 'backups'))).sort()) {
@@ -93,7 +110,9 @@ export async function saveSnapshots(directory, registry) {
   // Hash source bytes once, without normalizing every historical snapshot.
   async function inventory(base) {
     const rows = [];
-    for (const entry of (await readdir(path.join(directory, base), { withFileTypes: true })).sort((a,b) => a.name.localeCompare(b.name))) {
+    // Storage creates static/ and history/ only when a save needs them.
+    const entries = await readdir(path.join(directory, base), { withFileTypes: true }).catch(error => { if (error.code === 'ENOENT') return []; throw error; });
+    for (const entry of entries.sort((a,b) => a.name.localeCompare(b.name))) {
       const relative = path.join(base, entry.name);
       if (entry.isDirectory()) rows.push(...await inventory(relative));
       else if (entry.isFile()) rows.push([relative.split(path.sep).join('/'), hash(await readFile(path.join(directory, relative)))]);

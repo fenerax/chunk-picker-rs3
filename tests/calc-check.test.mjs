@@ -310,6 +310,20 @@ test('optimized snapshots match storage for static, archived and hydrated histor
       await writeFile(path.join(directory,'static',staticName),gzipSync('[] '));
       const corrupt=await saveSnapshots(directory,registry);
       await assert.rejects(()=>corrupt.readBackup(entry));
+      // Archived documents load on demand: the listing keeps names and ids only.
+      const lazy=await saveSnapshots(directory,registry), archivedEntry=(await lazy.listBackups()).find(row=>row.id===archived);
+      await rm(path.join(directory,'backups/archives','archive-cccccccccccccccc.json.gz'));
+      await assert.rejects(()=>lazy.readBackup(archivedEntry));
+      // A small save never creates static/ or history/; it is still a valid corpus.
+      const plain=await mkdtemp(path.join(tmpdir(),'calc-check-plain-save-'));
+      try {
+        await mkdir(path.join(plain,'backups'));
+        await writeFile(path.join(plain,'state.json'),JSON.stringify(envelope(current)));
+        await writeFile(path.join(plain,'backups','0000000000000002-dddddddddddddddd.json.gz'),gzipSync(JSON.stringify(envelope(current))));
+        const small=await saveSnapshots(plain,registry), rows=await small.listBackups();
+        assert.equal(rows.length,1); assert.equal((await small.readBackup(rows[0])).revision,current.revision);
+        assert.match(small.identity,/^[a-f0-9]{64}$/);
+      } finally { await rm(plain,{recursive:true,force:true}); }
     } finally { await store?.close();await rm(directory,{recursive:true,force:true}); }
   `], { cwd:root, env:publicEnv('open-starter'), stdio:['ignore','ignore','pipe'] });
   let error='';child.stderr.on('data',bytes=>{error+=bytes;});
