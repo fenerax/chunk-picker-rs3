@@ -1832,3 +1832,76 @@ changelog, roadmap or operator-tool files change. There is no protocol pull
 request dependency. The seven-context default is deliberately based on the
 mixed workload's conservative RSS bound; an eight-context override retains
 the documented quiescent-workload qualification.
+
+### MP11 PR #37 review round 1
+
+Review START is `8c590b744ab1e15dc539f78265d0f17cb5c500e5`. Two fixes
+stay behind the existing calculator-pool option:
+
+- Advisory allocation counts starting, resident and retiring advisory slots
+  against **cap minus one** when the cap exceeds one. Foreground can allocate
+  its reserved capacity after its idle calculator exits. Candidate selection
+  considers a group that can allocate as well as groups with ready workers, so
+  an advisory request waiting on its busy group cannot block foreground startup.
+  Idle advisory calculators cannot consume foreground's final available slot.
+  Cap one still shares one calculator across all lanes; interactive priority
+  and the existing warm-work preemption remain in place.
+- Lane admission enforces `maxQueue` while a ready pooled lane waits for a
+  physical lease. Overflow keeps the existing **429** error, retry metadata and
+  rejected counter; coalesced waiters continue sharing an admitted job. The
+  uncapped admission condition retains its START behavior.
+
+Regression evidence: the foreground-idle test fails on START because advisory
+allocation takes the vacated slot (**2** residents instead of **1**). Both queue
+regressions fail before the scheduler fix with depth **6** against limit **2**;
+with the fix they retain depth **2** and record **4** refusals, exercising both
+fair and legacy error shapes. The added uncapped test passes on START and the
+final code with identical expected response bytes, immediate foreground/queued
+job dispatch, independent lane workers and START's active-plus-queue bound.
+The tests use mock timers and synthetic workers without platform-specific
+process or filesystem assumptions. Windows execution was not available here.
+
+Final validation, one focused file at a time followed by one quick-suite run:
+
+| Check | Passed | Failed | Skipped |
+| --- | ---: | ---: | ---: |
+| Calculator cap file | 25 | 0 | 0 |
+| Existing scheduler file | 43 | 0 | 0 |
+| Existing server limit file | 9 | 0 | 0 |
+| START uncapped tests, including the added byte assertion | 2 | 0 | 0 |
+| Quick suite, 81.11 seconds | 2,689 | 0 | 68 |
+
+There are **4** added tests in the already classified cap file. No existing
+assertions or skips change. The full suite was not rerun for this review round,
+following the requested short-run gate. No server, worker protocol, engine or
+live-duo configuration changes are needed.
+
+One fresh-process **8**-context grown-save trial per version repeats EN6's
+four-lane, direct-last schedule from its separate worktree, after all tests
+finish. It uses the same harness hash and synthetic registration-only adapter
+as above, temporary save copies, process workers and the default cap **2**.
+All other application limits remain at their defaults. Node **24.19.0**,
+**4** core quota and **16 GiB** memory; no concurrent calculator experiment.
+
+| Measurement | Review START | Review fixes |
+| --- | ---: | ---: |
+| Cold p95, ms | 6,237.8 | 6,100.4 |
+| Warm p95, ms | 978.9 | 754.1 |
+| Peak sampled process-tree RSS, MiB | 6,641.9 | 6,537.1 |
+| Conservative summed kernel HWM, MiB | 6,996.2 | 6,974.6 |
+| Calculators: opened / pre-newcomer / evaluated / repeated | 1 / 2 / 2 / 2 | 1 / 2 / 2 / 2 |
+| Maximum observed calculators | 2 | 2 |
+
+These are single trials, not repeated-run medians or evidence of a latency
+improvement. Neither trial exercises the old foreground-idle deadlock or
+queue overflow, which the synthetic regressions cover directly. Both HWM
+bounds remain slightly above the existing **6,963.2 MiB** eight-context
+allowance; the seven-context default and eight-context qualification remain
+unchanged. Stable source, dataset, defaults, pack-pin, member-count and size
+difference counts are **0**. Whole-shape hash differences: **1**, with the
+startup-observation qualification already documented above.
+
+The two changed application files have sorted `{file,bytes,sha256}` inventory
+hashes, compact JSON SHA-256: START
+`0cc0239102a2e44b003289c669adc7b3c297ba4d04f3848c15a99c317416fdae`,
+final `b4bae7d696d336136e2ea070fa79c3b3a3a57c50c83bc54b18c7d4035ec8e243`.

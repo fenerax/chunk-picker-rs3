@@ -969,7 +969,8 @@ async function createWorkerLane({ workerData, workerFactory = nativeWorker, incl
         }
       }
       else {
-        if (queue.length >= maxQueue && (active || status !== 'ready')) {
+        // A ready pooled lane can still be queued behind another lane's lease.
+        if (queue.length >= maxQueue && (calculatorPool || active || status !== 'ready')) {
           counts.rejected++;
           return Promise.reject(fairness ? queueFull() : Object.assign(new Error('Task calculation queue is full. Retry shortly.'), { status: 429 }));
         }

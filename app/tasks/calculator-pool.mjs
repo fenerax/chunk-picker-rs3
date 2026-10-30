@@ -77,14 +77,21 @@ export function createCalculatorPool({ limit, workerFactory, workerData, idleMs 
         for (const id of ids) if (!turns.includes(id)) turns.push(id);
         const idleSlots = [...slots].filter(value => value.ready && !value.stopping && !value.owner);
         const usable = (slot, endpoint) => limit === 1 || slot.group === endpoint.group;
+        // Advisory lanes share at most limit - 1 slots, including retiring
+        // slots. Foreground can then wake even after its idle worker exits.
+        const canAllocate = endpoint => slots.size < limit
+          && (limit === 1 || endpoint.group === 'foreground'
+            || [...slots].filter(value => value.group === 'advisory').length < limit - 1)
+          && ![...slots].some(value => !value.ready && !value.stopping && usable(value, endpoint));
         const ordered = turns.flatMap(id => eligible.filter(value => value.pickerId === id));
         // A request awaiting its group's cold start cannot block another
         // picker's interactive request on an already-ready calculator.
-        const selected = ordered.find(value => idleSlots.some(slot => usable(slot, value.endpoint))) ?? ordered[0];
+        const selected = ordered.find(value => idleSlots.some(slot => usable(slot, value.endpoint)))
+          ?? ordered.find(value => canAllocate(value.endpoint)) ?? ordered[0];
         const slot = idleSlots.find(value => usable(value, selected.endpoint));
         if (!slot) {
           const starting = [...slots].some(value => !value.ready && !value.stopping && usable(value, selected.endpoint));
-          if (slots.size < limit && !starting) {
+          if (canAllocate(selected.endpoint)) {
             const endpoint = selected.endpoint;
             try { allocate(endpoint); } catch (error) {
               waiting.delete(endpoint); queueMicrotask(() => { if (!endpoint.stopped) endpoint.emit('error', error); });

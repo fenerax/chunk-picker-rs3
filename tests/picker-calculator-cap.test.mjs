@@ -1,9 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { EventEmitter } from 'node:events';
+import { EventEmitter, once } from 'node:events';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import { createCalculatorPool } from '../app/tasks/calculator-pool.mjs';
 import { createTaskScheduler } from '../app/tasks/scheduler.mjs';
 import { createPickerContext } from '../app/picker-context.mjs';
 import { createGroupState } from '../app/core/state.mjs';
@@ -311,4 +312,74 @@ test('advisory queues preserve a ready foreground calculator for another picker 
   assert.equal(f.jobs.length, 0); finish(advisory); await prediction;
   const next = await f.next(); assert.equal(next.worker, advisory.worker); assert.equal(next.message.type, 'death-estimates');
   finish(next); await death; assert.equal(f.peak, 2);
+});
+
+
+test('advisory allocation preserves foreground capacity after its idle calculator exits', async t => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const f = factory(), pool = createCalculatorPool({ limit: 2, workerFactory: f.create, workerData: () => ({}), idleMs: 1000 });
+  t.after(() => pool.close());
+  const foreground = pool.createEndpoint(true); await once(foreground, 'message');
+  const prediction = pool.createEndpoint(false); await once(prediction, 'message');
+  const start = (endpoint, id, type) => endpoint.schedule(() => ({ pickerId: ids[0], interactive: true }),
+    () => endpoint.postMessage({ id, pickerId: ids[0], type }));
+  start(prediction, 1, 'predict'); const running = await f.next();
+  t.mock.timers.tick(1000); await tick();
+  assert.equal(f.workers[0].exited, true); assert.equal(f.live, 1);
+  const death = pool.createEndpoint(false); await once(death, 'message');
+  start(death, 2, 'death-estimates'); await tick();
+  assert.equal(f.live, 1, 'advisory allocation must leave a foreground slot available');
+  start(foreground, 3, 'evaluate'); await tick();
+  assert.equal(f.jobs.length, 1, 'foreground dispatches while prediction is still running');
+  const requested = await f.next(); assert.equal(requested.message.type, 'evaluate'); finish(requested);
+  finish(running); const estimate = await f.next(); assert.equal(estimate.worker, running.worker); finish(estimate);
+  // An idle advisory resident must not obstruct another foreground request.
+  start(foreground, 4, 'evaluate'); await tick();
+  assert.equal(f.jobs.length, 1); finish(await f.next());
+  assert.equal(pool.diagnostics().waiting, 0); assert.equal(f.peak, 2);
+});
+
+
+for (const fairness of [undefined, { maxOutstandingJobsPerPicker: 8 }]) test(`pooled lease waiting enforces the death queue limit (${fairness ? 'fair' : 'legacy refusal'})`, async t => {
+  const { f, scheduler, scopes } = await fixture(t, { maxCalculators: 1, maxDeathQueue: 2, fairness });
+  const foreground = evaluate(scopes[0], 'foreground'); foreground.catch(() => {});
+  const running = await f.next();
+  const accepted = [1, 2].map(index => evaluate(scopes[index], `death-${index}`, 'death-estimates'));
+  for (const promise of accepted) promise.catch(() => {});
+  await tick(); assert.equal(scheduler.getDiagnostics().deathLane.worker.ready, true);
+  const follower = evaluate(scopes[1], 'death-1', 'death-estimates'); follower.catch(() => {});
+  const refused = [3, 4, 5, 6].map(index => evaluate(scopes[index], `death-${index}`, 'death-estimates')
+    .then(value => ({ value }), error => ({ error })));
+  await tick();
+  const { queue, counts } = scheduler.getDiagnostics().deathLane;
+  assert.equal(queue.active, 0); assert.equal(queue.limit, 2); assert.equal(queue.depth, 2);
+  assert.equal(counts.rejected, 4); assert.equal(counts.coalesced, 1);
+  for (const { error } of await Promise.all(refused)) {
+    assert.equal(error.status, 429); assert.equal(error.retryAfter, fairness ? 1 : undefined);
+    assert.equal(error.message, fairness ? 'Task calculation budget is full. Wait for pending tasks and retry.'
+      : 'Task calculation queue is full. Retry shortly.');
+  }
+  finish(running); await foreground;
+  for (let index = 0; index < accepted.length; index++) { finish(await f.next()); await accepted[index]; }
+  assert.equal((await follower).hit, true); assert.equal(f.peak, 1);
+  assert.equal(scheduler.getDiagnostics().deathLane.queue.depth, 0);
+});
+
+test('absent cap retains immediate independent dispatch and START queue and response bytes', async t => {
+  const { f, scheduler, scopes: [a] } = await fixture(t, { maxCalculators: undefined, fairness: undefined, maxDeathQueue: 2 });
+  const foreground = evaluate(a, 'foreground');
+  assert.equal(f.jobs.length, 1, 'legacy foreground dispatch remains synchronous');
+  const running = await f.next(), first = evaluate(a, 'death-1', 'death-estimates'), death = await f.next();
+  const second = evaluate(a, 'death-2', 'death-estimates'), third = evaluate(a, 'death-3', 'death-estimates');
+  await assert.rejects(evaluate(a, 'overflow', 'death-estimates'), { status: 429, message: 'Task calculation queue is full. Retry shortly.' });
+  assert.equal(scheduler.getDiagnostics().deathLane.queue.active, 1);
+  assert.equal(scheduler.getDiagnostics().deathLane.queue.depth, 2);
+  assert.equal(scheduler.getDiagnostics().calculators, undefined); assert.equal(f.live, 2);
+  assert.notEqual(running.worker, death.worker);
+  finish(running, 'foreground'); finish(death, 'first');
+  assert.equal(JSON.stringify(await foreground), '{"hit":false,"result":{"marker":"foreground","delta":{"tasksAdded":[]}},"evaluationMs":0}');
+  assert.equal(JSON.stringify(await first), '{"hit":false,"result":{"marker":"first","delta":{"tasksAdded":[]}},"evaluationMs":0}');
+  assert.equal(f.jobs.length, 1, 'legacy next queued job dispatches synchronously on completion');
+  finish(await f.next()); await second; finish(await f.next()); await third;
+  assert.equal(scheduler.getDiagnostics().deathLane.counts.rejected, 1);
 });
