@@ -493,7 +493,7 @@ test('death cancellation preserves followers and cancelled partial results never
   firstController.abort(); await firstRejected;
   assert.equal(workers[1].messages.length, 1);
   followerController.abort(); await followerRejected;
-  assert.deepEqual(workers[1].messages.at(-1), { id: 1, type: 'cancel' });
+  assert.deepEqual(workers[1].messages.at(-1), { id: 1, type: 'cancel', pickerId: 'legacy-shared' });
   workers[1].finish({ estimates: [], cancelled: true });
   assert.equal(scheduler.getDiagnostics().deathLane.cache.entries, 0);
   const partial = death(); workers[1].finish({ estimates: [], cancelled: true }); await partial;

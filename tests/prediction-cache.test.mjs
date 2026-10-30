@@ -303,7 +303,7 @@ test('abort cancels active warm work, discards its late result and stops subsequ
   const controller = new AbortController(); warm(undefined, undefined, undefined, controller.signal);
   await until(() => prediction.workers[0]?.requests().length === 1);
   const worker = prediction.workers[0]; controller.abort();
-  assert.deepEqual(worker.messages.at(-1), { id: 1, type: 'cancel' });
+  assert.deepEqual(worker.messages.at(-1), { id: 1, type: 'cancel', pickerId: 'legacy-shared' });
   worker.finish(); await delay(10);
   assert.equal(worker.requests().length, 1); assert.equal(scheduler.getDiagnostics().predictionLane.cache.entries, 0);
 });

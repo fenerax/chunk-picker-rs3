@@ -423,12 +423,10 @@ the shared calculator.
 
 ### Remaining work and reasons
 
-- **Calculator namespaces and eviction:** scheduler/worker job keys, supersession,
-  cancellation, compiled/snapshot/result caches and delivery guards still need
-  picker identity. The original MP2 brief reserves `app/tasks/**` for that follow-up.
-  Until then, context close conservatively waits for all borrowed warm queues;
-  sustained work in another context can delay eviction. MP2 does not claim full
-  authenticated concurrent-calculator tenancy.
+- **Calculator namespaces and eviction:** completed by MP3 below. Calculator
+  jobs, snapshots, reuse and delivery now carry picker identity, and context close
+  abandons only its own jobs. Registry routing, fair sharing and service-wide
+  eviction policy remain later integration work.
 - **RuneMetrics member/name cache:** `app/integrations/runemetrics.mjs` remains
   unchanged because its replacement is landing on main. The context owns its
   progress client and preview map, but that integration's cache/lifecycle must be
@@ -507,3 +505,122 @@ a 28 MiB addition. Committed heap capacity, allocator residency and collection
 placement vary between processes; neither these three samples nor the earlier
 samples establish a capacity limit or a performance improvement. The task gate
 shows no meaningful added memory from context ownership.
+
+
+## MP3 job keys
+
+START is `400ed50a0ec47e1b9a5162185d54133afc3e5f27`. The shared scheduler now
+provides `forPicker(pickerId)` handles. `pickerJobId` is the single mapping from
+the server's `legacy` context to protocol ID `legacy-shared`; other accepted IDs
+are `p_` followed by 32 lowercase hex digits. Every calculation and control
+message carries that protocol identity. Worker callers omitting it continue to
+use `legacy-shared`.
+
+Revisions, task/prediction source revisions, unlock-reuse caches and prediction
+subscriptions belong to a picker. Each shared lane keys pending/coalesced work,
+full/play results and sent snapshots by picker. Worker state references use
+`(pickerId, input)`; calculation inputs are namespaced at message admission for
+nonlegacy pickers. Prewarm replacement, abort handlers, ranking cancellation,
+saved-prediction followers, display rebinding, retirement and delivery guards
+all check the owning picker. Existing lane counts, queue limits, deadlines and
+snapshot/result budgets remain unchanged. Reuse caches have private entries and
+share the existing total entry/byte budget; admission can evict another picker's
+cached reuse bucket, but never reuse its results.
+
+`PickerContext.close()` stops admission and synchronously calls its handle's
+`cancelPicker()`. This cancels its queued and active waiters, signals its active
+calculation, discards late results and removes its result caches and warm
+subscriptions. Sent-snapshot hints are invalidated while retaining their LRU
+positions until eviction, so references for other pickers remain coherent.
+Cooperative active work keeps its physical slot until completion
+or the existing watchdog; another picker's jobs are neither cancelled nor
+retired. Store durability and accepted local work still drain before unlocking.
+The old borrowed-queue polling wait is removed. A new handle can reopen a picker;
+an abandoned handle stays fenced. There is still one production context and the
+same shared queues; fair sharing and authenticated routing remain deferred.
+
+The worker changes are self-contained message admission, state-reference keys
+and per-request supersession checks, covered separately by
+`tests/worker-picker-keys.test.mjs`. `tests/picker-jobs.test.mjs` covers two
+contexts with separate temporary stores, colliding revisions/member IDs, reuse,
+queue cancellation, late delivery, shared-LRU eviction and reopened handles.
+Retiring obsolete or warm work also wakes surviving queued work on the replacement
+worker without changing its position or deadline. The existing test files changed are
+`tests/scheduler.test.mjs` and `tests/prediction-cache.test.mjs`: each exact
+cancel-message expectation adds `pickerId: 'legacy-shared'`. No existing assertion is removed or loosened.
+
+
+### MP3 validation and private gate
+
+The private gate opens fresh temporary copies at START and MP3 with process
+workers, identical injected save timestamps and a temporary fixed
+`performance.now()` preload in both HTTP and calculator processes. It compares
+raw response bytes without dropping or normalizing any field. Reads are
+`/api/state`, `/api/state?view=play-v1`, `/api/history`, `/api/game-plugin`, full
+and play task lists for each member, and authenticated native plugin status for
+each member. Scratch plugin credentials are created only in those copies after
+the browser plugin-status read.
+
+**10 routes, zero differences.** SHA-256 of the JSON array of response digests in
+request order is
+`c47afae7f9ba70ef91bac677d788f01aa7982555547ded3fa99e0d9399a96189`.
+Full-state response: 16,213,564 bytes, SHA-256
+`f72cd9141b447e828e548a697ae8aaf602f1fe7ab27b0725ca58f4ff21664605`.
+The rewritten save bodies also match: 766,470 bytes, SHA-256
+`44cf36a23999b0e0ac4895b2b3a37011496ae177f23bbf99f711fbe95a09dc76`.
+Both copies report 2 members and 23,939 saved tasks; the first full list contains
+20,497 tasks. The private source checkout remains unchanged.
+
+
+Final validation on Node 24.19.0:
+
+| Suite | START passed / failed / skipped | MP3 passed / failed / skipped |
+| --- | --- | --- |
+| Quick | 2,485 / 0 / 68 | 2,503 / 0 / 68 |
+| Full | 5,628 / 0 / 140 | 5,646 / 0 / 140 |
+
+MP3 adds 18 tests across the two new files, classified quick/open-f2p. The final
+quick run took 103.07 seconds and full took 402.28 seconds; START took 96.48 and
+420.96 seconds. Focused scheduler/context/worker/residency/watchdog validation:
+110 passed, zero failed. The separately corrected prediction-cache file:
+23 passed, zero failed.
+
+The first complete MP3 full run had two failures: the second exact cancel-message
+expectation (subsequently updated only by adding the authorized picker field),
+and an `ENOTEMPTY` teardown failure in the untouched
+`tests/cache-game-data-objects.test.mjs`. That file passed alone, 10 tests with
+zero failures, and passed in the final full rerun. No test was weakened or newly
+skipped. Both existing test files edited are listed above.
+
+
+### MP3 timing and memory
+
+Three fresh processes per revision run alternately START/MP3, after all test
+processes have exited, with one measurement server at a time. Every trial uses a
+fresh temporary save copy, process workers, port 0, disabled unsolicited prediction
+warming, identical injected save timestamps and normal elapsed-time clocks. Cold
+start includes server module import, creation, listen and receipt of the first
+full task-list body. A save toggles one saved task backlog preference through the
+HTTP command route; the next request reads that member's full task list. Copying
+the input and closing the server are outside these durations. The same 20,497
+full-list tasks are returned before and after each save in all six runs.
+
+Values are median [minimum–maximum]. RSS is sampled every 20 ms and at phase
+boundaries; process-tree RSS includes the HTTP process and calculator child.
+These are sampled peaks rather than a service-capacity estimate.
+
+| Measurement | START | MP3 |
+| --- | --- | --- |
+| Cold start to full tasks, ms | 17,650.2 [17,250.1–17,822.8] | 17,830.5 [17,811.1–18,132.9] |
+| Save response, ms | 3,090.4 [2,947.7–3,165.8] | 3,064.9 [2,839.8–3,112.2] |
+| Next full task list, ms | 2,945.2 [2,853.7–3,083.0] | 2,736.6 [2,665.4–2,942.2] |
+| Save through next full list, ms | 6,042.0 [5,801.6–6,249.1] | 5,730.5 [5,576.6–6,054.5] |
+| Peak process-tree RSS, MiB | 2,470.81 [2,460.52–2,520.04] | 2,470.36 [2,467.14–2,483.95] |
+| Peak HTTP-process RSS, MiB | 1,258.51 [1,187.51–1,288.81] | 1,251.41 [1,181.51–1,259.08] |
+
+The cold-start median is 1.02% higher with overlapping ranges; the save-to-list
+median is 5.16% lower and peak process-tree memory is effectively unchanged.
+These three-run samples show no material single-picker regression or added memory
+footprint, and do not establish a throughput improvement. Cooperative cancellation
+still relies on the existing watchdog for synchronous work; fair sharing and
+registry/authentication integration remain later tasks.

@@ -16,6 +16,8 @@ export const adaptiveOptionsFor = (suite, env = process.env) => {
 // Reviewed small fixtures and model/controller tests. No running browser or full catalogue.
 export const quickTests = new Set([
   "picker-context.test.mjs",
+  "picker-jobs.test.mjs",
+  "worker-picker-keys.test.mjs",
   "registry.test.mjs",
   "picker-footprint.test.mjs",
   "linux-operator.test.mjs",
@@ -505,6 +507,8 @@ export const soloTests = new Set([
 // run on the public open-f2p dataset, in the environment core's lane gives them.
 export const openF2PTests = new Set([
   "picker-context.test.mjs",
+  "picker-jobs.test.mjs",
+  "worker-picker-keys.test.mjs",
   "roll-pool-worker.test.mjs",
   "area-check-server.test.mjs",
   "area-check-worker.test.mjs",

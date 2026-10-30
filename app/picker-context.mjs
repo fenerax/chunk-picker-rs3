@@ -84,13 +84,14 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
   transport = {},
 }) {
   if (typeof pickerId !== 'string' || !pickerId) throw new TypeError('pickerId is required.');
-  const { dataset, indexedWorld, ruleRegistry, taskWorker, taskWorkerOptions, parsedDefinitions,
+  const { dataset, indexedWorld, ruleRegistry, taskWorker: sharedTaskWorker, taskWorkerOptions, parsedDefinitions,
     parsedTaskMap, identityHistory, migrateState, registry, xpChoiceCatalogue, sandboxCatalogue,
     originalSyncIntegration, privateAddon, appVersion, browserDataset, webRoot, art,
     loadChunkSections, loadMapInfo, loadNpcShopInfo, loadArchaeology, loadInteriors,
     iconCatalogue, terrainCatalogue, trainingCatalogue, membersStartBanks,
     limits, admitStream, usageAdmission, requestContextFor,
   } = runtime;
+  const taskWorker = sharedTaskWorker?.forPicker?.(pickerId) ?? sharedTaskWorker;
   if (typeof usageAdmission !== 'function') throw new TypeError('A shared usage admission limiter is required.');
   const usageClock = now === undefined ? Date.now : () => typeof now === 'function' ? now() : now;
   // Verify the selected runtime before touching this picker's gameplay files.
@@ -109,16 +110,6 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
     return pending;
   }
   const trackJob = operation => track(jobs, operation);
-  async function drainCalculatorQueues() {
-    // Warm queues do not return promises. Until jobs gain picker keys, wait
-    // conservatively for the borrowed runtime's queues without cancelling them.
-    const busy = lane => !!(lane?.queue?.active || lane?.queue?.depth || lane?.prewarm?.active || lane?.prewarm?.pending);
-    while (taskWorker?.getDiagnostics) {
-      const status = taskWorker.getDiagnostics();
-      if (![status, status.deathLane, status.duoLane, status.predictionLane].some(busy)) return;
-      await new Promise(resolve => setTimeout(resolve, 10));
-    }
-  }
   const evaluatedRollPool = (...args) => trackJob(() => evaluatedRollPoolWork(...args));
   const evaluatedTasks = (...args) => trackJob(() => evaluatedTasksWork(...args));
   const rememberTaskResult = (...args) => trackJob(() => rememberTaskResultWork(...args));
@@ -1928,6 +1919,7 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
       notifyForeground();
       schedulingClock.clearTimeout(prewarmTimer);
       startupWarmup?.close();
+      taskWorker?.cancelPicker?.();
       clearTimeout(rankingLeaseTimer);
       for (const client of clients) client.end();
       clients.clear(); clientCredentials.clear();
@@ -1944,7 +1936,6 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
         await Promise.all([signInFlow.close(), accounts.close(), invites.close(), feedback.close(), usage.close(), gamePlugin.close()]);
         progressClient.close(); originalSyncClient?.close();
         while (jobs.size) await Promise.allSettled([...jobs]);
-        await drainCalculatorQueues();
         responseCache.clear(); sandboxPools.clear(); rollPoolCache = undefined;
         poolRanking.clear(); rankingPools.clear(); savedTaskResults.clear();
         runeMetricsPreviews.clear(); originalSyncPreviews.clear();
