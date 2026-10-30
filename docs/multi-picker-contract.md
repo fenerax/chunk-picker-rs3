@@ -1400,6 +1400,185 @@ responsibility; the browser discloses the configured policy without promising
 immediate erasure. Public sign-up and the remaining lane-wide acceptance items
 remain outside MP9. All changes are staged.
 
+## MP7 fairness and limits
+
+MP7 starts at `18aaca0ac37198c5ebed819ffa554a72dc1a3aca`. All new
+behavior requires `createServer({ multiPicker: { ... } })`. Omitting that option
+retains the START scheduler, rate/stream admission and plugin-key/report limits.
+Public sign-up remains off by default.
+
+The server constructs one `createPickerLimits` instance and supplies it to the
+router and every context. Context eviction, new sessions, extra memberships and
+extra plugin keys never create a fresh global budget. Authenticated account IDs
+are the account boundary across picker memberships. Capability-only legacy
+traffic without an account is conservatively grouped by picker; indexed and
+known plugin keys use their owning account. New enabled-mode keys retain a private issuer account ID in their key sidecar;
+it is omitted from public key records. Existing legacy keys without that binding
+charge every account registered to that player, so ambiguous ownership cannot
+reset a quota across restart. Revoke and reissue these keys to remove that
+conservative grouping. START cannot read the optional issuer field: rolling back
+after enabled-mode issuance requires resetting those plugin keys, in addition
+to the MP4 session-reset requirement. Global active-key
+accounting is reconstructed at startup by reading lightweight key sidecars,
+without opening dormant gameplay contexts. Pending key issuance reserves its
+slot before persistence; failed issuance releases it, and durable revocation
+frees the slot. Existing active keys are not automatically revoked when a bound
+is lowered; new issuance remains refused until usage falls below the bound.
+
+Every calculator lane uses the MP3 picker identity and round-robin dispatch
+among waiting pickers. Within a picker, requested work takes precedence over
+warming. A picker may have at most `maxOutstandingJobsPerPicker` distinct jobs
+across all lanes, with a further per-lane ceiling of half that lane's queue
+bound, rounded down with a minimum of one. This leaves admission room for a
+quiet picker. Existing global lane queues, snapshot/result byte budgets,
+watchdogs and worker counts remain in force. Coalesced requests have a bounded
+number of waiters. Cancellation, revision supersession, stale result rejection,
+worker recovery and context draining retain their MP3/MP4 scope. Work already
+executing keeps its physical worker until completion or the existing watchdog;
+round-robin sharing does not preempt a synchronous calculator. A single active
+picker has no artificial inter-job delay.
+
+The following are flat fields of `multiPicker`. Values are positive safe
+integers; rates use fixed windows. These defaults are admission bounds, not
+measured capacity. EN6 can replace the values in `MP7_DEFAULTS` in
+`app/security/picker-limits.mjs` once its measurements are reviewed.
+
+| Fields | Defaults |
+| --- | --- |
+| `maxOutstandingJobsPerPicker`, `maxWaitersPerJob` | 4, 64 |
+| `expensivePerAccount`, `expensivePerPicker`, `expensiveGlobal` | 600, 600, 1,200 per window |
+| `streamsPerAccount`, `streamsPerPicker`, `streamsGlobal` | 16, 32, 64 concurrent |
+| `pluginKeysPerAccount`, `pluginKeysPerPicker`, `pluginKeysGlobal` | 3, 6, 192 active, including pending issuance |
+| `pluginRequestsPerKey`, `pluginRequestsPerAccount`, `pluginRequestsPerPicker`, `pluginRequestsGlobal` | 4, 16, 32, 128 per plugin window |
+| `invitationsPerAccount`, `invitationsPerPicker`, `invitationsGlobal` | 10, 20, 100 creations per window |
+| `registrationsPerAccount`, `registrationsGlobal` | 3, 30 per window |
+| `provisioningPerAccount`, `provisioningGlobal` | 3, 30 attempts per window |
+| `coldStartsPerAccount`, `coldStartsGlobal` | 1, 1 concurrent admissions |
+| `bodyBytesPerRequest`, `bodyBytesPerAccount`, `bodyBytesPerPicker`, `bodyBytesGlobal` | 268,435,456; 268,435,456; 268,435,456; 536,870,912 bytes |
+| `limitWindowMs`, `pluginWindowMs`, `limitMaxAccounts` | 60,000 ms; 1,000 ms; 10,000 |
+
+Registration has both pre-authentication client admission at provider sign-in
+start and verified provider-subject admission before new-account creation.
+Provisioning uses the account ID once allocated; interrupted provisioning can
+be retried under the same budget, and ready-picker sign-ins do not consume
+provisioning tokens. Invitation limits cover creation rate; the existing durable
+record caps still apply. Cold-start leases cover opening and queued opening
+admissions, release on success/failure, and refuse excess work before the factory
+runs. The existing serialized residency transition still opens at most one
+context at a time even if a larger cold-start bound is configured.
+
+Body limits count wire bytes across JSON iterators, streaming backup parsers
+and handlers that drain bodies. Declared bytes reserve global admission before
+authentication and account/picker admission before context acquisition. Actual
+streamed bytes consume that reservation; undeclared excess is checked at ingress
+before parser delivery. Unused reservations release when handling finishes.
+Account/picker/global byte reservations also enforce concurrent in-flight bounds
+across window rollovers. The rate totals use the ordinary limit window; the
+per-request byte maximum is independent. Existing smaller route-specific and
+decompressed-backup limits continue to apply. Unauthenticated traffic shares
+its client bucket and the legacy picker bucket. Live accounting buckets are
+never evicted to reset a budget; overflow shares bounded fallback buckets.
+
+New capacity refusals use 429, or 503 for cold starts, with `Retry-After` and
+advice to wait, close streams, revoke keys, reduce uploads or slow plugin polling.
+Rate checks validate every layer before charging any layer. Streams release on
+finish or disconnect exactly once. Residency and authority checks remain in
+the router; these budgets never grant access.
+
+Changed files: `app/tasks/scheduler.mjs` adds fair dispatch and outstanding/waiter
+admission. `app/security/picker-limits.mjs` owns the server budgets and default
+configuration. `app/server.mjs` only constructs and passes the enabled-mode
+settings/instance. `app/picker-router.mjs` wires body, registration and cold-start
+admission. `app/picker-context.mjs` wires account-aware expensive requests,
+streams, invitations, provisioning and plugin limits. `app/game-plugin.mjs` and
+`app/plugin-keys.mjs` wire account/global key reservations and traffic, retaining
+the old path when disabled. Three new synthetic test files are classified
+quick/open-f2p in `scripts/test-selection.mjs`.
+
+### MP7 validation and compatibility gate
+
+Final validation on Node 24.19.0 ran quick and then full after all app changes.
+All 33 new tests are synthetic, quick/open-f2p. Existing tests and expectations
+are unchanged; no test was weakened or newly skipped.
+
+| Suite | START passed / failed / skipped | MP7 passed / failed / skipped |
+| --- | --- | --- |
+| Quick | 2,553 / 0 / 68 | 2,586 / 0 / 68 |
+| Full | 5,700 / 0 / 140 | 5,733 / 0 / 140 |
+
+START quick/full durations were 72.24/266.08 seconds; final MP7 durations were
+75.52/266.06 seconds. These suite runtimes are validation records, not performance
+comparisons. The focused limit/issuer review passed 18 tests with no failures.
+Coverage includes colliding members/revisions, stale delivery, cancellation,
+worker crash/restart, eviction across an accepted write, cross-membership/account
+budgets, extra sessions and keys, pending key issuance, restart accounting,
+chunked/piped bodies, upload reservations across window rollover and cold-start
+factory exclusion.
+
+The final full-suite flooding test uses 20 independent samples per mode, a
+64-slot synthetic queue, a 32-job picker cap and 2 ms simulated calculator work.
+A flooding picker submits 32 distinct jobs; a quiet picker submits one. FIFO
+p95 queue wait is **75.89 ms [68.87–77.56 ms observed range]**; fair p95 is
+**5.67 ms [3.99–10.56 ms observed range]**. The quiet picker waits behind at most
+one queued flooding job, plus the already executing job. The final quick run
+independently records 70.82/4.32 ms p95. These measure queue sharing with test
+doubles, not production calculator throughput or EN6 capacity.
+
+The private compatibility gate uses fresh temporary copies, process workers,
+identical injected save timestamps and fixed `performance.now()` in HTTP and
+calculator processes. It compares all response bytes without normalization,
+using the same 10 responses as MP4. START is compared against final MP7 with
+`multiPicker` absent and present: **zero response, size or rewritten-save
+differences in both comparisons**. Each run returns 83,606,217 bytes;
+digest-array SHA-256 is
+`770860c24f1ee6cbbf4aa885cb8c8193737c58bac640cb2c63be8b7da5669ada`.
+The rewritten save has 766,470 bytes, SHA-256
+`44cf36a23999b0e0ac4895b2b3a37011496ae177f23bbf99f711fbe95a09dc76`.
+The private source checkout has zero changed files.
+
+
+### MP7 timing and memory
+
+Three alternating START/MP7-off/MP7-on fresh-process rounds use fresh temporary
+copies, process workers, port zero, disabled unsolicited prediction warming,
+identical injected store timestamps and normal elapsed-time clocks. All test
+processes have exited before these trials. Copying and shutdown are outside the
+measurements. Cold start includes module import, server creation/listen and the
+first full task list. The save toggles one saved task backlog preference through
+HTTP, followed immediately by the same full list. All nine before/after pairs
+return 20,497 tasks. Each metric is reduced independently; values are median
+[minimum–maximum] across three processes per configuration.
+
+RSS is sampled every 20 ms and at response boundaries. Process-tree samples
+include the HTTP process and calculator child PIDs recorded at fork/spawn;
+thread heaps belong to their hosting child process. These are sampled peaks,
+not a service capacity estimate.
+
+| Measurement | START | MP7 option absent | MP7 option present |
+| --- | --- | --- | --- |
+| Cold start through first full list, ms | 11,368.24 [11,288.81–11,590.35] | 11,427.14 [11,303.85–11,486.10] | 11,351.03 [11,336.25–11,407.51] |
+| Save response, ms | 1,781.74 [1,693.71–1,786.37] | 1,810.56 [1,729.96–1,877.84] | 1,823.43 [1,758.10–1,840.32] |
+| Next full task list, ms | 1,868.74 [1,811.38–1,871.93] | 1,863.62 [1,820.34–1,894.43] | 1,864.36 [1,825.15–1,868.76] |
+| Save through next full list, ms | 3,597.75 [3,562.46–3,653.67] | 3,674.17 [3,550.30–3,772.28] | 3,692.20 [3,583.25–3,704.69] |
+| Sampled peak HTTP RSS, MiB | 1,309.15 [1,275.00–1,328.55] | 1,306.23 [1,275.91–1,327.61] | 1,298.64 [1,276.41–1,319.05] |
+| Sampled peak process-tree RSS, MiB | 2,607.55 [2,545.01–2,661.08] | 2,572.29 [2,560.67–2,659.95] | 2,598.62 [2,560.50–2,625.46] |
+
+Save-through-list medians increase 2.12% with the option absent and 2.63% with it
+present. Both ranges overlap START; the enabled median is 0.49% above the disabled
+median, within the observed run-to-run spread. These three-sample comparisons
+show no regression beyond observed variation and do not establish a throughput
+improvement or public-service capacity. Sampled peak memory is within the START
+range in both settings.
+
+Remaining limits: synchronous active calculator work relies on the existing
+watchdog rather than preemption; cold opens remain serialized; ambiguous old
+legacy keys conservatively share candidate-account quotas; and START rollback
+after issuer-bearing key creation requires resetting those keys. EN6 must still
+supply reviewed capacity numbers before public deployment. Deletion, browser UI,
+operator tooling and production sign-up policy remain outside MP7. No private
+inputs or scratch measurement scripts were added to this repository. All changes
+are staged for collection, with no push or pull request.
+
 ## MP8 operator tooling
 
 START: `18aaca0ac37198c5ebed819ffa554a72dc1a3aca`. The feature remains

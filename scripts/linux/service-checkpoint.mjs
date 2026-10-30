@@ -18,7 +18,8 @@ export async function syncRecoveryTree(root) {
   for (const file of [...rows.filter(r => !r.directory).map(r => path.join(root, r.path)),
     ...rows.filter(r => r.directory).map(r => path.join(root, r.path)).reverse(), root]) {
     if (process.platform === 'win32' && (file === root || rows.some(r => r.directory && path.join(root, r.path) === file))) continue;
-    const handle = await open(file, 'r');
+    // Windows only flushes a file through a handle opened for writing.
+    const handle = await open(file, process.platform === 'win32' ? 'r+' : 'r');
     try { await handle.sync(); } finally { await handle.close(); }
   }
 }

@@ -89,8 +89,9 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
     originalSyncIntegration, privateAddon, appVersion, browserDataset, webRoot, art,
     loadChunkSections, loadMapInfo, loadNpcShopInfo, loadArchaeology, loadInteriors,
     iconCatalogue, terrainCatalogue, trainingCatalogue, membersStartBanks,
-    limits, admitStream, usageAdmission, requestContextFor,
+    limits, admitStream: legacyAdmitStream, usageAdmission, requestContextFor, pickerLimits,
   } = runtime;
+  const admitStream = pickerLimits ? (key, response) => pickerLimits.stream({ accountId: key }, pickerId, response) : legacyAdmitStream;
   const taskWorker = sharedTaskWorker?.forPicker?.(pickerId) ?? sharedTaskWorker;
   if (typeof usageAdmission !== 'function') throw new TypeError('A shared usage admission limiter is required.');
   const usageClock = now === undefined ? Date.now : () => typeof now === 'function' ? now() : now;
@@ -178,7 +179,7 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
     invites = await openInviteStore({ dataDir, masterToken: token, masterLabel: dataset.gameDefaults.masterLabel, accounts, signInMode: signIn, pickerRegistry: pickerRouting?.registry });
     if (pickerRouting?.authenticate) invites.authenticate = (request, security) => pickerRouting.authenticate(request, security, pickerId);
     signInFlow = await openSignIn({ publicOrigin, mode: signIn, accounts, invites, provider: signInProvider,
-      unauthenticated: key => limits.unauthenticated(key), checkRequestOrigin, serializeMutation, webRoot, pickerRegistry: pickerRouting?.registry, syncLegacy: pickerRouting?.syncLegacy });
+      unauthenticated: key => limits.unauthenticated(key), checkRequestOrigin, serializeMutation, webRoot, pickerRegistry: pickerLimits && pickerRouting?.registry ? pickerLimits.provisioningRegistry(pickerRouting.registry) : pickerRouting?.registry, syncLegacy: pickerRouting?.syncLegacy });
     feedback = await openFeedbackStore({ dataDir });
     const usageMembers = store.getCalculationSnapshot().members;
     usageStorage = await openUsageStore({ dataDir, readOnly: liveSwap?.standby === true,
@@ -188,7 +189,7 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
     overlays = await openOverlays({ dataDir, store, world: indexedWorld, webRoot, publicOrigin,
       authenticateAdmin: (request, security) => invites.authenticate(request, security), checkRequestOrigin, serializeMutation,
       unauthenticated: key => limits.unauthenticated(key), admitStream });
-    gamePlugin = await openGamePlugin({ dataDir, store, world: indexedWorld, registry: ruleRegistry, questMapping, bodyJSON, json,
+    gamePlugin = await openGamePlugin({ pickerLimits, pickerId, dataDir, store, world: indexedWorld, registry: ruleRegistry, questMapping, bodyJSON, json,
       serializeMutation, checkRequestOrigin, unauthenticated: key => limits.unauthenticated(key),
       indexKey: pickerRouting?.indexKey, removeKey: pickerRouting?.removeKey, authorizeKey: pickerRouting?.authenticateKey,
       // In-game lists read the saved task result only; they never start an evaluation.
@@ -847,7 +848,7 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
           && !(identity.readOnly && route === '/api/tasks');
         const expensiveWrite = request.method === 'POST'
           && ['/api/sandbox/evaluate', '/api/prediction-intent', '/api/pool-ranking-intent', '/api/profile/preview', '/api/runemetrics/preview', '/api/original-sync/preview'].includes(route);
-        if (expensiveRead || expensiveWrite) limits.expensive(identity.pickerId ? `account:${identity.accountId}` : identity.inviteId ?? identity.kind);
+        if (expensiveRead || expensiveWrite) pickerLimits ? pickerLimits.expensive(identity, pickerId) : limits.expensive(identity.pickerId ? `account:${identity.accountId}` : identity.inviteId ?? identity.kind);
         if (unavailableDatasetFeature(dataset, route)) throw httpError(422, 'This feature is unavailable in this game.');
         if (closed && route !== '/api/health') throw httpError(503, 'The picker is stopping. Retry after it restarts.');
         if (await usage.handle(request, response, { route, security, identity, closed: () => closed, checkRequestOrigin })) return;
@@ -1260,7 +1261,7 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
             await json(request, response, 200, await store.readBackup(id), { 'Content-Disposition': `attachment; filename="${id.replace(/\.gz$/, '')}"` }); return;
           }
           if (route === '/api/events') {
-            if (request.method !== 'HEAD' && !admitStream(identity.pickerId ? `account:${identity.accountId}` : `invite:${identity.inviteId ?? identity.kind}`, response)) return;
+            if (request.method !== 'HEAD' && !(pickerLimits ? pickerLimits.stream(identity, pickerId, response) : admitStream(identity.pickerId ? `account:${identity.accountId}` : `invite:${identity.inviteId ?? identity.kind}`, response))) return;
             response.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': PRIVATE_NO_STORE, Connection: 'keep-alive' });
             if (request.method === 'HEAD') { response.end(); return; }
             response.write(`event: revision\ndata: ${JSON.stringify({ revision: store.getInfo().revision })}\n\n`);
@@ -1429,6 +1430,7 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
             if (route === '/api/invites') {
               requireAdmin();
               if (!knownMember(body.memberId)) throw httpError(400, 'Choose a known player for the invite.');
+              pickerLimits?.invitation(identity, pickerId);
               const created = await invites.create(body);
               const inviteOrigin = created.invite.admin ? security.origin : publicOrigin ?? security.origin;
               await json(request, response, 201, { invite: created.invite, link: `${inviteOrigin}/join/${created.token}` }); return;

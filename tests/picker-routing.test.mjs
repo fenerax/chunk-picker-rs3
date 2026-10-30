@@ -54,7 +54,9 @@ async function fixture(t, { initiallyEnabled = true, beforeCommit, ...limits } =
     assert.equal(url, 'https://discord.com/api/users/@me');
     return Response.json({ id: access.get(options.headers.Authorization.slice(7)) });
   } };
-  const multiPicker = { registryDir: path.join(root, 'registry'), pickerRoot: path.join(root, 'pickers'), tombstoneDir: path.join(root, 'tombstones'), ...limits };
+  const multiPicker = { registryDir: path.join(root, 'registry'), pickerRoot: path.join(root, 'pickers'), tombstoneDir: path.join(root, 'tombstones'),
+    // Linking starts share the sign-in budget; these flows sign in and link many times.
+    registrationsPerAccount: 20, registrationsGlobal: 40, ...limits };
   let app, handler;
   const start = async (multi) => {
     app = await createServer({ dataDir: path.join(root, 'legacy'), dataset: selectedDataset, definitions, taskMap: {},

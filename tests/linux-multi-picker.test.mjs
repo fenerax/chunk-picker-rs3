@@ -49,7 +49,9 @@ async function fixture(t, count = 2) {
     const dir = registry.pickerDirectory(picker.id);
     await writeFile(path.join(dir, 'state.json'), encode(exportBackup(createGroupState(picker.memberIds.map((id, index) => ({ id, name: 'Player ' + (index + 1) }))))));
     await bindDatasetStorage(dir, dataset);
-    for (const name of ['accounts.json', 'invites.json', 'plugin-keys.json', 'access-token', 'overlays.json', 'future-secret.json']) await writeFile(path.join(dir, name), 'synthetic-private-credential');
+    for (const name of ['accounts.json', 'invites.json', 'access-token', 'overlays.json', 'future-secret.json']) await writeFile(path.join(dir, name), 'synthetic-private-credential');
+    // MP7 limits parse each active picker's plugin keys at startup.
+    await writeFile(path.join(dir, 'plugin-keys.json'), encode({ keys: [], note: 'synthetic-private-credential' }));
   }
   const config = { coreRoot: releaseRoot, dataDir: settings.dataDir, datasetId: 'open-starter', host: '127.0.0.1', port: 0, loopbackPort: 1, multiPicker: settings.multiPicker };
   const configFile = path.join(root, 'config.json'); await writeFile(configFile, encode(config));

@@ -33,11 +33,11 @@ const PLUGIN_ROUTES = new Map([['/api/plugin/v1/report', 'POST'], ['/api/plugin/
 
 /** Positions, assemblies and proposals are ephemeral. Ticks use store.command. */
 export async function openGamePlugin({ dataDir, store, world, registry, questMapping, bodyJSON, json,
-  serializeMutation, checkRequestOrigin, unauthenticated = () => {}, notify = () => {}, clock = Date.now, savedTasks = () => null, peekPrediction = () => null, taskCatalogue = () => [], itemsBetaAsLive = false, log = console.warn, indexKey, removeKey, authorizeKey }) {
+  serializeMutation, checkRequestOrigin, unauthenticated = () => {}, notify = () => {}, clock = Date.now, savedTasks = () => null, peekPrediction = () => null, taskCatalogue = () => [], itemsBetaAsLive = false, log = console.warn, indexKey, removeKey, authorizeKey, pickerLimits, pickerId }) {
   const progressSource = createPluginProgressSource({ clock });
   const coordinates = createGameCoordinates(world);
   const gameId = id => coordinates.pickerChunkToGameId(id);
-  const keys = await openPluginKeys({ dataDir, clock });
+  const keys = await openPluginKeys({ dataDir, clock, maxActiveKeysPerPlayer: pickerLimits?.config.pluginKeysPerAccount });
   const handled = await openPluginAchievements({ dataDir, members: () => state().members, clock, log });
   const itemStore = await openPluginItems({ dataDir, members: () => state().members, clock, log });
   // Beta and unknown-world item evidence stays in memory, apart from live evidence.
@@ -446,7 +446,8 @@ export async function openGamePlugin({ dataDir, store, world, registry, questMap
       let credential;
       try { credential = credentialFor(request); }
       catch (error) { if (error.status === 401) unauthenticated(security.rateKey); throw error; }
-      member(credential.player); rate(credential.id);
+      member(credential.player);
+      if (pickerLimits) pickerLimits.plugin(request, pickerId, credential.player); else rate(credential.id);
       if (request.method !== PLUGIN_ROUTES.get(route)) throw fail(405, 'Method not allowed.');
       // Only the task list takes a query: `from` pages through the whole active list.
       const search = new URL(request.url, 'http://localhost').search, from = route === '/api/plugin/v1/tasks' ? pluginTaskFrom(search) : search ? null : 0;
@@ -518,22 +519,31 @@ export async function openGamePlugin({ dataDir, store, world, registry, questMap
     async create(identity, body) {
       fields(body, ['memberId', 'label'], 'key'); authorize(identity, body.memberId);
       if (typeof body.label !== 'string' || !body.label.trim() || body.label.length > 80 || /[\x00-\x1f\x7f]/.test(body.label)) throw fail(400, 'Use a key label from 1 to 80 characters.');
-      const result = await keys.create(body.memberId, body.label.trim());
-      try { await indexKey?.(identity, result.key, result.record.player); }
-      catch (error) { await keys.revoke(result.record.id, result.record.player); throw error; }
+      const reservation = pickerLimits?.reserveKey(identity, pickerId, body.memberId);
+      let result;
+      try {
+        result = await keys.create(body.memberId, body.label.trim(), pickerLimits ? identity.accountId : undefined);
+        await indexKey?.(identity, result.key, result.record.player);
+        reservation?.finish(result.key);
+      } catch (error) {
+        reservation?.finish();
+        if (result) await keys.revoke(result.record.id, result.record.player);
+        throw error;
+      }
       notify(); return result;
     },
     async revoke(identity, id, body) {
       fields(body, [], 'revocation');
       if (identity.readOnly || !identity.admin && !identity.memberId) throw fail(403, 'Player access required.');
       const result = await keys.revoke(id, identity.admin ? undefined : identity.memberId);
-      if (removeKey) {
+      if (removeKey || pickerLimits) {
         // The public key record redacts its hash. Read only this already-selected
         // context's durable record, after local authorization and revocation.
         const document = JSON.parse(await readFile(path.join(dataDir, 'plugin-keys.json'), 'utf8'));
         const record = document.keys.find(record => record.id === result.id);
         if (!record) throw fail(503, 'Retry revoking this key to finish removing its capability.');
-        await removeKey(identity, record.tokenHash, result.player);
+        await removeKey?.(identity, record.tokenHash, result.player);
+        pickerLimits?.revokeKey(record.tokenHash);
       }
       notify(); return { record: result };
     },
