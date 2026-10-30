@@ -1394,17 +1394,14 @@ Existing legacy, picker and registry data remain untouched. Successful preflight
 is journaled and reused on resume. No startup or session code change is needed.
 
 **MP5 integration call site:** `reconcileServiceRecoveryTombstones` in
-`service-recovery.mjs`. Recovery and quarantine release call it before any probe
-opens a restored store, including on resume. It currently fails closed. MP5 must
-replace that stub with its exported reconciliation function, retain the external
-live ledger, remove deleted scopes and revoke restored grants before allowing
-probes/publication. MP8 implements no tombstone logic. One test is explicitly
-pending until that export lands; synthetic recovery tests inject a no-op only
-for synthetic roots. Production service recovery/release is blocked until MP5
-is wired. The adapter receives the sanitized `checkpoint` and returns an effective
-`checkpoint` plus `excludedPickerIds`; the external reconciler owns all deletion
-decisions and cleanup. Recovery publishes that effective checkpoint, rather than
-reintroducing the original backup's grants. Do not bypass the stub or remove the live ledger to complete a restore.
+`service-recovery.mjs` now uses MP5's registry reconciliation and exported purge
+function. It opens a disposable sanitized checkpoint registry against the target's
+live external ledger. It never copies a ledger from a backup, creates a missing
+live ledger, or infers tombstones from checkpoint lifecycle rows. Planning precedes
+even the legacy probe; its returned `apply` operation runs MP5 cleanup only after
+legacy compatibility and destination checks succeed. Both restore and quarantine
+release use this adapter. The MP5 integration test is enabled; see MP8b below.
+Recovery publishes the effective checkpoint and skips all excluded picker IDs.
 
 ### Commands and files
 
@@ -1423,7 +1420,8 @@ unquarantined pickers and retains pointer CAS, receipt checks and reverse probes
 Changing dataset/pack/profile/add-on pins in-place is explicitly refused; install
 compatible pinned inputs and use the sequential recovery path for those changes.
 The single-source rehearsal script refuses service configuration before touching
-its registry; a complete service rehearsal depends on MP5's recovery integration.
+its registry; a complete service rehearsal must independently copy and repin
+every service root, including the external ledger.
 Process control and raw snapshots acquire no public or owner route.
 
 Changed operator files: `runtime.mjs`, `serve.mjs`, `operator.mjs`, `online.mjs`,
@@ -1593,3 +1591,94 @@ no performance-improvement claim. The operator's 120-second total snapshot
 request timeout still applies to a sufficiently large service, although copying
 no longer holds global admission. MP5 wiring is the intentionally deferred
 integration item; the legacy quarantine/startup gap is closed by refusal.
+
+
+### MP8b: MP5 recovery integration
+
+START2 is `ead0a6313210ca979ebe54f5e8afb07d4ffdf84d`, the integrated
+operator branch containing MP4 through MP6. No router, startup, session, gameplay,
+registry, or single-picker operator path changes are needed. The integrated router
+retains both `checkpoint.open(id, () => openContext(id))` and the lifecycle recheck.
+
+`scripts/linux/service-recovery.mjs` replaces the fail-closed stub with MP5's
+`openRegistry`, `registry.reconcileTombstones()` and the exported
+`reconcileTombstones` from `app/storage/tombstones.mjs`. Registry copies contain
+only the sanitized checkpoint. Planning uses disposable picker directories, so
+MP1 provisioning cannot touch live games before legacy compatibility passes. Both
+planning and application open the **target's existing ledger in place**, under
+MP1's writer lock and validation; an absent or invalid ledger refuses recovery.
+The adapter preserves the live ledger and existing issuer sidecars' original
+UID/GID across atomic writes, including failure paths, so a root-run operator
+does not strand the service behind root-owned mode-0600 files. Reserved-directory
+provisioning completes only in planning scratch; application cannot provision
+unrelated live directories while refusing quarantine release.
+No backup ledger is read or installed. MP5 determines blocked picker IDs and
+retired accounts; the returned checkpoint removes retired account grants and
+all provider identities and capabilities. A legacy tombstone refuses recovery.
+
+After preflight and empty-destination checks, the adapter reopens the checkpoint
+against that same authoritative ledger, calls MP5's idempotent purge, and obtains
+an updated checkpoint. Owned directories and bindings are removed by MP5. The
+legacy issuer's existing invitation/session and account sidecars are revoked using
+their storage APIs, without opening gameplay or starting a calculator. Missing
+issuer files stay missing. Account cleanup also covers older retired-account
+records without runtime progress markers. Other accounts' sessions and shared
+operator capabilities retain their scope. No credential from a service backup is
+copied or reintroduced. An incompatible legacy never reaches this application
+phase, so refusal leaves live registry, picker and legacy data untouched.
+
+Restore repeats reconciliation on every resume before any store probe, excludes
+newly tombstoned IDs even if a previous attempt installed their directories, and
+removes their migration scratch. Its checkpoint publication journals old/new
+hashes so an interrupted publication or a newer ledger decision can safely update
+only its own prior checkpoint. Quarantine release applies the same MP5 cleanup and
+refuses an excluded scope before probing or installing anything. Retained private
+quarantine payloads remain subject to operator retention and cannot override a
+ledger decision. Keep the service stopped throughout both operations.
+
+`scripts/linux/rehearse.mjs` still refuses multi-picker configuration. Its interface
+accepts one source store and copies only that store and binding; it does not copy
+and repin the registry, all owned directories and external ledger. Lifting that
+refusal would risk opening or purging source service roots. The refusal now names
+that concrete limitation. Single-picker rehearsals are unchanged.
+
+`tests/linux-multi-picker.test.mjs` enables the pending MP5 integration case and
+adds post-backup deletion, interrupted recovery with a newer tombstone, and
+invalid-ledger/fabricated-lifecycle cases. The integration case also checks stale
+issuer revocation and repeat quarantine-release refusal, while the existing
+successful quarantine-release and incompatible-legacy tests now use the real
+adapter. Synthetic no-op injection remains only in unrelated isolated tests.
+The existing file remains classified in the quick suite. There are no new test
+files and no pending MP5 tests.
+
+The recovery tests now pin a separate temporary release from tracked public files.
+Other full-suite tests create temporary directories directly in the checkout;
+using that changing checkout as an immutable release made the existing MP8
+release checks fail intermittently. The pinned copy keeps those same release
+identity checks enabled and runs the real recovery decoder from immutable inputs.
+Ledger-owner preservation is checked during real reconciliation; root-run CI also
+uses a ledger owned by a different UID/GID to exercise atomic replacement.
+
+#### MP8b validation
+
+| Suite | START2 total / skipped / pending | Final total / passed / failed / skipped / pending |
+| --- | --- | --- |
+| Quick | 2,697 / 68 / 1 | 2,700 / 2,632 / 0 / 68 / 0 |
+| Full | 5,916 / 140 / 1 | 5,919 / 5,779 / 0 / 140 / 0 |
+
+The delta is three new cases plus the enabled MP5 integration case; no tests
+were skipped or weakened. Final quick/full durations were 118.01/307.45 seconds.
+The final focused recovery file passed 21/0 with no skips or pending cases;
+focused Linux operator/snapshot verification also passed 54/0 with one existing
+platform skip before the final ownership extension. The complete final suites
+cover that extension. Existing single-picker Linux test files, all app files,
+and test selection are unchanged from START2. No real-save or pack measurement
+was needed for this script-only integration; the MP8 private measurements above
+remain historical and are not claimed as new MP8b runs.
+
+START2 quick passed 2,628/0. Its untouched full run passed 5,773 with two
+intermittent Linux failures; the untouched Linux file then passed 17/0 with its
+one pending case. The first integration full run similarly had one intermittent
+failure, and its standalone file rerun passed 21/0. The immutable release fixture
+above addresses the concurrent checkout-writing interaction; final quick and
+full both pass without retries. No socket/parent-death exception was needed.

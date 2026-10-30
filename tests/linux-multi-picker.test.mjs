@@ -1,14 +1,15 @@
-import test from 'node:test';
+import test, { after } from 'node:test';
+import { execFileSync } from 'node:child_process';
 import assert from 'node:assert/strict';
 import path from 'node:path';
 import { tmpdir } from 'node:os';
 import { randomUUID } from 'node:crypto';
-import { mkdtemp, mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises';
+import { chown, copyFile, lstat, mkdtemp, mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { withDirectoryBarriers, withStoreWrite, snapshotStore, snapshotPath } from '../app/storage/snapshot.mjs';
 import { openRegistry } from '../app/storage/registry.mjs';
 import { createPickerCheckpoint } from '../app/picker-router-checkpoint.mjs';
 import { captureServiceCheckpoint, verifyServiceBackup } from '../scripts/linux/service-checkpoint.mjs';
-import { restoreServiceStopped, listServicePickers, releaseServiceQuarantine } from '../scripts/linux/service-recovery.mjs';
+import { restoreServiceStopped, listServicePickers, releaseServiceQuarantine, reconcileServiceRecoveryTombstones } from '../scripts/linux/service-recovery.mjs';
 import { atomic, encode, inventory, json, sha } from '../scripts/linux/files.mjs';
 import { readRelease } from '../scripts/linux/runtime.mjs';
 import { assertServiceStopped, serviceBackup } from '../scripts/linux/service-operator.mjs';
@@ -23,6 +24,16 @@ const { openStore } = await import('../app/storage/store.mjs');
 const dataset = await resolveDataset({ datasetId: 'open-starter' });
 const reconcile = async () => {};
 const stopped = async () => {};
+
+// Recovery checks an immutable release. Other full-suite tests create temporary
+// directories in the checkout, so pin an independent tracked-file release copy.
+const releaseRoot = await mkdtemp(path.join(tmpdir(), 'linux-multi-release-'));
+after(() => rm(releaseRoot, { recursive: true, force: true }));
+for (const file of execFileSync('git', ['ls-files', '-z'], { encoding: 'utf8', maxBuffer: 16 * 1024 * 1024 }).split('\0').filter(Boolean)) {
+  const target = path.join(releaseRoot, file);
+  await mkdir(path.dirname(target), { recursive: true });
+  await copyFile(path.resolve(file), target);
+}
 
 async function fixture(t, count = 2) {
   const root = await mkdtemp(path.join(tmpdir(), 'linux-multi-picker-'));
@@ -40,7 +51,7 @@ async function fixture(t, count = 2) {
     await bindDatasetStorage(dir, dataset);
     for (const name of ['accounts.json', 'invites.json', 'plugin-keys.json', 'access-token', 'overlays.json', 'future-secret.json']) await writeFile(path.join(dir, name), 'synthetic-private-credential');
   }
-  const config = { coreRoot: path.resolve('.'), dataDir: settings.dataDir, datasetId: 'open-starter', host: '127.0.0.1', port: 0, loopbackPort: 1, multiPicker: settings.multiPicker };
+  const config = { coreRoot: releaseRoot, dataDir: settings.dataDir, datasetId: 'open-starter', host: '127.0.0.1', port: 0, loopbackPort: 1, multiPicker: settings.multiPicker };
   const configFile = path.join(root, 'config.json'); await writeFile(configFile, encode(config));
   const pointerFile = path.join(root, 'current.json'); await writeFile(pointerFile, encode({ config: { path: configFile, sha256: sha(encode(config)) } }));
   const release = await readRelease(pointerFile, settings.dataDir);
@@ -186,23 +197,139 @@ test('interrupted restore resumes after a durable picker checkpoint and never re
 
 test('incompatible picker is quarantined while unrelated games restore, then explicitly released', async t => {
   const f = await fixture(t), backup = await f.capture(), target = await f.target(), incompatible = f.pickers[1];
-  const result = await restoreServiceStopped({ settings: target, backup, release: f.release, assertStopped: stopped, reconcileTombstones: reconcile,
+  await f.close();
+  const result = await restoreServiceStopped({ settings: target, backup, release: f.release, assertStopped: stopped,
     probe: async (...args) => { if (args[1].includes(incompatible.id)) throw new Error('Synthetic incompatibility'); return portableProbe(...args); } });
   assert.equal(result.restored, 2); assert.deepEqual(result.quarantined, [incompatible.id]);
   const report = await listServicePickers(target, incompatible.id); assert.equal(report.pickers[0].quarantined, true);
   assert.deepEqual(await readdir(path.join(target.multiPicker.pickerRoot, incompatible.id)), ['operator-quarantine.json']);
   assert(!JSON.stringify(report).includes('Player'));
-  await releaseServiceQuarantine({ settings: target, id: incompatible.id, release: f.release, assertStopped: stopped, reconcileTombstones: reconcile, probe: portableProbe });
+  await releaseServiceQuarantine({ settings: target, id: incompatible.id, release: f.release, assertStopped: stopped, probe: portableProbe });
   assert.equal((await listServicePickers(target, incompatible.id)).pickers[0].quarantined, false);
 });
 
-test('service recovery fails closed at the clearly named MP5 call site before any probe', async t => {
+test('service recovery refuses a missing live ledger before any probe and never initializes one', async t => {
   const f = await fixture(t), backup = await f.capture(), target = await f.target(); let probes = 0;
-  await assert.rejects(restoreServiceStopped({ settings: target, backup, release: f.release, assertStopped: stopped, probe: async () => { probes++; } }), /MP5/);
+  target.multiPicker.tombstoneDir = path.join(f.root, 'missing-ledger');
+  await assert.rejects(restoreServiceStopped({ settings: target, backup, release: f.release, assertStopped: stopped, probe: async () => { probes++; } }), /Live tombstone ledger/);
   assert.equal(probes, 0);
+  await assert.rejects(readdir(target.multiPicker.tombstoneDir), { code: 'ENOENT' });
 });
 
-test('MP5 tombstone reconcile export blocks deleted picker recovery and quarantine release', { todo: 'Enable when MP5 supplies its reconciliation export.' }, () => {});
+test('MP5 tombstone reconcile export blocks deleted picker recovery and quarantine release', async t => {
+  const f = await fixture(t), backup = await f.capture(), target = await f.target(), blocked = f.pickers[1], survivor = f.pickers[2];
+  await f.close();
+  const restored = await restoreServiceStopped({ settings: target, backup, release: f.release, assertStopped: stopped,
+    probe: async (...args) => { if (args[1].includes(blocked.id)) throw new Error('Synthetic incompatibility'); return portableProbe(...args); } });
+  assert.deepEqual(restored.quarantined, [blocked.id]);
+  const registry = await openRegistry({ ...target.multiPicker, legacyDir: target.dataDir });
+  await registry.deleteAccount(blocked.ownerAccountId, { runtimePurge: true }); await registry.close();
+  const date = '2099-01-01T00:00:00.000Z', inviteId = randomUUID(), session = accountId => ({ tokenHash: sha(accountId),
+    accountId, pickerId: accountId === blocked.ownerAccountId ? blocked.id : survivor.id, inviteId: null, provider: 'discord', expiresAt: date });
+  // Synthetic stale issuer files model a restored pre-deletion checkpoint.
+  await atomic(path.join(target.dataDir, 'invites.json'), encode({ schemaVersion: 1,
+    invites: [{ id: inviteId, label: 'Player 1', tokenHash: sha(inviteId), admin: false, revoked: false, memberId: 'one',
+      createdAt: date, lastUsedAt: null, claimedAccountId: blocked.ownerAccountId, claimedAt: date }],
+    sessions: [session(blocked.ownerAccountId), session(survivor.ownerAccountId)] }));
+  await atomic(path.join(target.dataDir, 'accounts.json'), encode({ schemaVersion: 1, accounts: [blocked, survivor].map(p => ({
+    id: p.ownerAccountId, identities: [{ provider: 'discord', subject: p.id, createdAt: date, lastUsedAt: date }], memberships: [], createdAt: date, lastUsedAt: date })) }));
+  await atomic(path.join(target.multiPicker.pickerRoot, blocked.id, 'plugin-keys.json'), 'synthetic-revoked-key');
+  const issuerOwners = [];
+  for (const name of ['accounts.json', 'invites.json']) {
+    const file = path.join(target.dataDir, name);
+    if (process.getuid?.() === 0) await chown(file, 1001, 1001);
+    issuerOwners.push({ file, ...await lstat(file) });
+  }
+  let probes = 0;
+  for (let i = 0; i < 2; i++) await assert.rejects(releaseServiceQuarantine({ settings: target, id: blocked.id,
+    release: f.release, assertStopped: stopped, probe: async () => { probes++; } }), /excluded/);
+  assert.equal(probes, 0);
+  for (const owner of issuerOwners) {
+    const current = await lstat(owner.file);
+    assert.equal(current.uid, owner.uid); assert.equal(current.gid, owner.gid);
+  }
+  const issuer = await json(path.join(target.dataDir, 'invites.json'));
+  assert.equal(issuer.invites[0].revoked, true);
+  assert.deepEqual(issuer.sessions.map(s => s.accountId), [survivor.ownerAccountId]);
+  assert.deepEqual((await json(path.join(target.dataDir, 'accounts.json'))).accounts.map(a => a.id), [survivor.ownerAccountId]);
+  await assert.rejects(readdir(path.join(target.multiPicker.pickerRoot, blocked.id)), { code: 'ENOENT' });
+  const checkpoint = await json(path.join(target.multiPicker.registryDir, 'registry.json'));
+  const planned = await reconcileServiceRecoveryTombstones({ settings: target, checkpoint });
+  assert(planned.excludedPickerIds.includes(blocked.id));
+  assert(!planned.excludedPickerIds.includes(f.pickers[0].id));
+  assert(!planned.checkpoint.accounts.some(a => a.id === blocked.ownerAccountId));
+  assert(planned.checkpoint.accounts.every(a => a.identities.length === 0));
+  assert.deepEqual(planned.checkpoint.capabilities, []);
+});
+
+test('pickers and accounts deleted after a backup remain deleted after service restore', async t => {
+  const f = await fixture(t), backup = await f.capture(), target = await f.target(), [legacy, deletedPicker, retiredAccount] = f.pickers;
+  await f.registry.beginPickerDeletion(deletedPicker.id);
+  await f.registry.deleteAccount(retiredAccount.ownerAccountId); // Also covers MP1 records without a runtime marker.
+  await f.close();
+  const ledgerFile = path.join(target.multiPicker.tombstoneDir, 'ledger.json');
+  // Root CI can exercise an actual owner change; ordinary runs still verify
+  // ownership and all authoritative ledger decisions survive the operation.
+  if (process.getuid?.() === 0) await chown(ledgerFile, 1001, 1001);
+  const owner = await lstat(ledgerFile);
+  let probes = 0;
+  const options = { settings: target, backup, release: f.release, assertStopped: stopped,
+    probe: async (...args) => { probes++; return portableProbe(...args); } };
+  const result = await restoreServiceStopped(options);
+  assert.equal(result.restored, 1); assert.equal(result.excluded, 2); assert.equal(result.credentialsRestored, 0);
+  assert.equal(probes, 1);
+  const restoredOwner = await lstat(ledgerFile);
+  assert.equal(restoredOwner.uid, owner.uid); assert.equal(restoredOwner.gid, owner.gid);
+  for (const picker of [deletedPicker, retiredAccount]) {
+    await assert.rejects(readFile(path.join(target.multiPicker.pickerRoot, picker.id, 'state.json')), { code: 'ENOENT' });
+    await assert.rejects(readFile(path.join(target.multiPicker.pickerRoot, picker.id + '.dataset.json')), { code: 'ENOENT' });
+  }
+  assert(!JSON.stringify(await inventory(target.dataDir)).includes('plugin-keys.json'));
+  const registry = await openRegistry({ ...target.multiPicker, legacyDir: target.dataDir });
+  assert.equal(registry.getAccount(retiredAccount.ownerAccountId), null);
+  assert.equal(registry.findIdentity('discord', 'synthetic-1'), null);
+  assert.equal(registry.getPicker(deletedPicker.id).lifecycle, 'deleted');
+  assert.equal(registry.getPicker(legacy.id).lifecycle, 'active');
+  assert.deepEqual(registry.getAccount(deletedPicker.ownerAccountId).memberships, []);
+  assert.equal(registry.getAccount(deletedPicker.ownerAccountId).defaultPickerId, null);
+  await registry.close();
+});
+
+test('resumed recovery reapplies newer tombstones and purges an already installed owned picker', async t => {
+  const f = await fixture(t), backup = await f.capture(), target = await f.target(), blocked = f.pickers[1]; await f.close();
+  const options = { settings: target, backup, release: f.release, assertStopped: stopped, probe: portableProbe };
+  let interrupted = false;
+  await assert.rejects(restoreServiceStopped({ ...options, onProgress: async p => {
+    if (!interrupted && p.pickers.some(row => row.id === blocked.id && row.status === 'restored')) {
+      interrupted = true; throw new Error('Synthetic deletion interruption');
+    }
+  } }), /deletion interruption/);
+  assert(await readFile(path.join(target.multiPicker.pickerRoot, blocked.id, 'state.json')));
+  const registry = await openRegistry({ ...f.settings.multiPicker, legacyDir: f.settings.dataDir });
+  await registry.beginPickerDeletion(blocked.id); await registry.close();
+  const result = await restoreServiceStopped(options);
+  assert.equal(result.restored, 2); assert.equal(result.excluded, 1);
+  await assert.rejects(readdir(path.join(target.multiPicker.pickerRoot, blocked.id)), { code: 'ENOENT' });
+  assert.equal((await json(path.join(target.multiPicker.registryDir, 'registry.json'))).pickers.find(p => p.id === blocked.id).lifecycle, 'deleted');
+});
+
+test('recovery refuses invalid ledgers and never infers tombstones from checkpoint lifecycle rows', async t => {
+  const f = await fixture(t); await f.close();
+  const checkpoint = await json(path.join(f.settings.multiPicker.registryDir, 'registry.json'));
+  const file = path.join(f.settings.multiPicker.tombstoneDir, 'ledger.json'), ledger = await readFile(file);
+  await atomic(file, '{}');
+  await assert.rejects(reconcileServiceRecoveryTombstones({ settings: f.settings, checkpoint }), /Invalid registry/);
+  assert.equal(await readFile(file, 'utf8'), '{}');
+  await atomic(file, ledger);
+  const blocked = f.pickers[1]; checkpoint.pickers.find(p => p.id === blocked.id).lifecycle = 'deleted';
+  for (const account of checkpoint.accounts) {
+    account.memberships = account.memberships.filter(m => m.pickerId !== blocked.id);
+    if (account.defaultPickerId === blocked.id) account.defaultPickerId = null;
+  }
+  await assert.rejects(reconcileServiceRecoveryTombstones({ settings: f.settings, checkpoint }), /Invalid registry/);
+  assert.deepEqual(await readFile(file), ledger);
+  assert(await readFile(path.join(f.dir(blocked), 'state.json')));
+});
 
 test('operator inspection validates IDs and stopped proof covers every store and both registry roots', async t => {
   const f = await fixture(t); await f.close();
@@ -288,7 +415,7 @@ test('incompatible legacy refuses restore before any live target changes and is 
   };
   for (const settings of [f.settings, await f.target()]) {
     await assert.rejects(restoreServiceStopped({ settings, backup, release: f.release, assertStopped: stopped,
-      reconcileTombstones: reconcile, probe: rejectLegacy }), error => error.code === 'LEGACY_RESTORE_INCOMPATIBLE' && /Live data was not changed/.test(error.message));
+      probe: rejectLegacy }), error => error.code === 'LEGACY_RESTORE_INCOMPATIBLE' && /Live data was not changed/.test(error.message));
     await assert.rejects(readdir(path.join(settings.controlDir, 'quarantine')), { code: 'ENOENT' });
   }
   assert.equal(probes, 2);

@@ -462,11 +462,18 @@ With that option:
   while stopped. Changed dataset/pack/profile/add-on pins require the service
   recovery workflow and are refused by in-place deployment.
 
-**Service restore and quarantine release currently fail closed at the MP5
-reconciliation hook.** Do not bypass it. MP5 must supply tombstone reconciliation
-before either operation opens restored stores. A pending test marks that dependency.
-The existing single-source rehearsal also refuses service configuration so it
-cannot accidentally open the live registry. Complete service rehearsals await MP5.
+Service restore and quarantine release reconcile MP5 tombstones against the
+**existing target ledger** before opening restored stores. Missing or invalid
+ledgers refuse recovery; never replace that ledger with backup data. Legacy is
+preflighted before live purge or credential cleanup. Tombstoned owned pickers
+remain excluded, including on resume, and cannot be released from quarantine.
+Existing issuer sessions, claimed invitations and retired account rows are
+revoked through MP5's cleanup; no service-backup credentials are imported.
+
+The single-source rehearsal still refuses service configuration: it copies only
+one store and binding. A service rehearsal needs independent copies and repinned
+paths for every service root, including the external ledger. Removing that guard
+would risk opening or purging live source roots.
 
 The service format excludes sign-in identities, sessions, invitations, tokens,
 plugin keys and capabilities. It preserves pseudonymous account membership rows,

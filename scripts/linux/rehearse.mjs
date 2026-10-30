@@ -27,7 +27,7 @@ export async function rehearse({ pointer, source, scratch, port, coreRoot }) {
   const configBytes = await readFile(originalPointer.config.path);
   if (sha(configBytes) !== originalPointer.config.sha256) throw new Error('Source config pin mismatch.');
   const original = JSON.parse(configBytes);
-  if (original.multiPicker) throw new Error('Service rehearsals require MP5 recovery integration; never open the source registry.');
+  if (original.multiPicker) throw new Error('Service rehearsals require isolated copies of every service root; this helper copies one store only.');
   if (path.resolve(original.dataDir) === scratch || path.resolve(original.coreRoot) === scratch) throw new Error('Scratch overlaps source runtime.');
   await mkdir(scratch, { mode: 0o700 }); // must be a new, owned directory
   let app, downAt, downMs, heldMs;

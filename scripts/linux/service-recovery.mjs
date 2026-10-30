@@ -1,16 +1,91 @@
 import path from 'node:path';
-import { copyFile, mkdir, readFile, readdir, rename, rm } from 'node:fs/promises';
+import { chown, copyFile, lstat, mkdir, mkdtemp, open, readFile, readdir, rename, rm } from 'node:fs/promises';
 import { assertReleased, atomic, copyTree, directory, encode, exists, headroom, inventory, json, noLinks, sha } from './files.mjs';
 import { assertSameRelease } from './runtime.mjs';
 import { runProbe } from './recovery.mjs';
+import { openRegistry, registryRecoveryDocument } from '../../app/storage/registry.mjs';
+import { reconcileTombstones as reconcileMP5Tombstones } from '../../app/storage/tombstones.mjs';
+import { openAccountStore } from '../../app/storage/accounts.mjs';
+import { openInviteStore } from '../../app/storage/invites.mjs';
 import { pickerId, pickerPath, validateServicePaths, verifyServiceBackup, syncRecoveryTree, syncRecoveryDirectory } from './service-checkpoint.mjs';
 
-// MP5 integration point. Fail closed before ANY probe opens a restored store.
-// MP5 supplies this callback; it must retain/reconcile the external live ledger,
-// block deleted scopes and revoke credentials before returning. No ledger is
-// copied from a backup, initialized here, or inferred from registry rows.
-export async function reconcileServiceRecoveryTombstones() {
-  throw new Error('MP5 tombstone reconciliation is required before service recovery can open stores.');
+// MP5 owns deletion decisions and purge order. The checkpoint registry is
+// disposable; the target's external ledger is always opened in place, never
+// copied, initialized from a backup, or inferred from checkpoint lifecycle rows.
+export async function reconcileServiceRecoveryTombstones({ settings, checkpoint }) {
+  validateServicePaths(settings);
+  const document = registryRecoveryDocument(checkpoint);
+  async function reconcile(purge, effectiveDocument = document) {
+    const ledger = path.join(settings.multiPicker.tombstoneDir, 'ledger.json');
+    if (!await exists(ledger)) throw new Error('Live tombstone ledger is required for service recovery.');
+    await noLinks(ledger);
+    const owners = [{ file: ledger, ...await lstat(ledger) }];
+    await directory(settings.controlDir);
+    const scratch = await mkdtemp(path.join(settings.controlDir, 'tombstone-reconcile-'));
+    let registry, accounts, invites;
+    try {
+      const registryDir = path.join(scratch, 'registry'); await directory(registryDir);
+      await atomic(path.join(registryDir, 'registry.json'), encode(effectiveDocument));
+      // Planning provisions only disposable directories. Actual purge is deferred
+      // until legacy preflight and destination checks have succeeded.
+      const pickerRoot = purge ? settings.multiPicker.pickerRoot : path.join(scratch, 'pickers');
+      await directory(pickerRoot);
+      registry = await openRegistry({ registryDir, pickerRoot,
+        tombstoneDir: settings.multiPicker.tombstoneDir, caps: settings.multiPicker.caps });
+      const decisions = await registry.reconcileTombstones();
+      if (effectiveDocument.pickers.some(p => p.kind === 'legacy-shared' && decisions.blockedPickerIds.includes(p.id))) throw legacyRefusal();
+      if (purge) {
+        // These sidecar APIs do not open gameplay or calculators. No credentials
+        // from a backup enter them; missing issuer files remain missing.
+        for (const name of ['accounts.json', 'invites.json']) {
+          const file = path.join(settings.dataDir, name);
+          if (await exists(file)) {
+            await checkedTarget(settings.dataDir); await noLinks(file);
+            owners.push({ file, ...await lstat(file) });
+          }
+        }
+        if (await exists(path.join(settings.dataDir, 'accounts.json'))) accounts = await openAccountStore({ dataDir: settings.dataDir });
+        if (await exists(path.join(settings.dataDir, 'invites.json'))) invites = await openInviteStore({ dataDir: settings.dataDir, masterLabel: 'Administrator', pickerRegistry: registry });
+        const revokeAccount = async accountId => {
+          await invites?.revokeDeletion({ accountId }); await accounts?.revokeDeletion(accountId);
+        };
+        await reconcileMP5Tombstones({ registry,
+          revokeSessions: scope => invites?.revokeDeletion(scope), revokeAccount,
+          drainPicker: async id => {
+            const dir = registry.deletionDirectory(id);
+            await checkedTarget(dir);
+            if (await exists(dir)) await noLinks(dir);
+            if (await exists(dir + '.dataset.json')) await noLinks(dir + '.dataset.json');
+          } });
+        // Older retired-account records have no runtime-purge marker. Recovery
+        // still must not retain their issuer credentials or legacy account rows.
+        for (const id of decisions.deletedAccountIds) await revokeAccount(id);
+        if (invites || accounts) await syncRecoveryDirectory(settings.dataDir);
+      }
+      return { checkpoint: await registry.withRecoveryCheckpoint(value => value), excludedPickerIds: decisions.blockedPickerIds };
+    } finally {
+      try {
+        await invites?.close(); await accounts?.close();
+        // Preserve service ownership after atomic replacement, even when a
+        // root-run operator refuses recovery or quarantine release.
+        for (const owner of owners) {
+          const current = await lstat(owner.file);
+          if (current.uid !== owner.uid || current.gid !== owner.gid) {
+            await chown(owner.file, owner.uid, owner.gid);
+            const handle = await open(owner.file, 'r');
+            try { await handle.sync(); } finally { await handle.close(); }
+          }
+        }
+      } finally {
+        try { await registry?.close(); }
+        finally { await rm(scratch, { recursive: true, force: true }); }
+      }
+    }
+  }
+  const planned = await reconcile(false);
+  // Planning has completed any MP1 reserved-directory provisioning in scratch;
+  // application must not provision unrelated live directories on a refusal.
+  return { ...planned, apply: () => reconcile(true, planned.checkpoint) };
 }
 const legacyRefusal = () => Object.assign(new Error('Legacy picker is incompatible; service restore refused. Live data was not changed.'), { code: 'LEGACY_RESTORE_INCOMPATIBLE' });
 const progressFile = settings => path.join(settings.controlDir, 'service-restore', 'progress.json');
@@ -91,7 +166,7 @@ export async function restoreServiceStopped({ settings, backup, release, assertS
     progress = await json(progressFile(settings));
     if (progress.backupSha256 !== backupSha256 || progress.targetIdentity !== targetIdentity) throw new Error('Resume requires the same backup, targets and release.');
   } else progress = { backupSha256, targetIdentity, phase: 'prepared', pickers: manifest.pickers.map(p => ({ id: p.id, status: 'pending' })) };
-  // MP5 integration call site: remains pending, before even the legacy probe.
+  // MP5 planning call site: before even the legacy probe; no live store changes.
   const reconciled = await reconcileTombstones({ settings, backup, manifest, progress, checkpoint: structuredClone(document) });
   const excludedPickerIds = new Set([...absent, ...(reconciled?.excludedPickerIds ?? [])]);
   if (reconciled?.checkpoint) {
@@ -132,13 +207,23 @@ export async function restoreServiceStopped({ settings, backup, release, assertS
       if (await exists(dir + '.dataset.json')) throw new Error('Existing binding blocks service recovery.');
     }
   }
+  // Apply MP5's purge/revocation only after the shared duo and empty targets
+  // pass. Re-read the live ledger on every attempt, including a resumed restore.
+  const applied = await reconciled?.apply?.();
+  if (applied) {
+    document = registryRecoveryDocument(applied.checkpoint);
+    for (const id of applied.excludedPickerIds) excludedPickerIds.add(id);
+  }
   const save = async () => { await atomic(progressFile(settings), encode(progress)); await onProgress(structuredClone(progress)); };
   await save();
   await assertStopped();
   for (const picker of [legacy, ...manifest.pickers.filter(p => p.kind !== 'legacy-shared')]) {
     const row = progress.pickers.find(r => r.id === picker.id);
-    // Scope decisions belong exclusively to the injected MP5 reconciler.
-    if (excludedPickerIds.has(picker.id)) { row.status = 'excluded'; await save(); continue; }
+    // Scope decisions belong exclusively to MP5 reconciliation.
+    if (excludedPickerIds.has(picker.id)) {
+      await rm(path.join(work, picker.id), { recursive: true, force: true });
+      row.status = 'excluded'; await save(); continue;
+    }
     if (row.status === 'restored') {
       const target = pickerPath(settings, picker);
       if (await identity(target) !== row.digest || row.bindingSha256 && sha(await readFile(target + '.dataset.json')) !== row.bindingSha256) throw new Error('Completed restore destination changed.');
@@ -172,8 +257,12 @@ export async function restoreServiceStopped({ settings, backup, release, assertS
   }
   await assertStopped(); await assertSameRelease(release); await verifyServiceBackup(backup);
   const registryFile = path.join(settings.multiPicker.registryDir, 'registry.json'), bytes = encode(document);
-  if (await exists(registryFile) && sha(await readFile(registryFile)) !== sha(bytes)) throw new Error('Registry destination changed.');
-  if (!await exists(registryFile)) await atomic(registryFile, bytes);
+  const digest = sha(bytes), previous = await exists(registryFile) ? sha(await readFile(registryFile)) : null;
+  if (previous && ![digest, progress.registrySha256, progress.previousRegistrySha256].includes(previous)) throw new Error('Registry destination changed.');
+  // A later tombstone may change our own previously published checkpoint.
+  // Journal both hashes before replacement so that intent is also resumable.
+  progress.previousRegistrySha256 = previous; progress.registrySha256 = digest; await save();
+  if (previous !== digest) await atomic(registryFile, bytes);
   progress.phase = 'complete'; await save();
   return { restored: progress.pickers.filter(p => p.status === 'restored').length,
     quarantined: progress.pickers.filter(p => p.status === 'quarantined').map(p => p.id), excluded: progress.pickers.filter(p => p.status === 'excluded').length, credentialsRestored: 0 };
@@ -203,7 +292,8 @@ export async function releaseServiceQuarantine({ settings, id, release, assertSt
   if (record.id !== id) throw new Error('Quarantine record mismatch.');
   if (record.kind === 'legacy-shared') throw legacyRefusal();
   let document = await json(path.join(settings.multiPicker.registryDir, 'registry.json'));
-  const reconciled = await reconcileTombstones({ settings, pickerId: id, checkpoint: structuredClone(document) });
+  const planned = await reconcileTombstones({ settings, pickerId: id, checkpoint: structuredClone(document) });
+  const reconciled = await planned?.apply?.() ?? planned;
   if (reconciled?.excludedPickerIds?.includes(id)) throw new Error('Scope excluded from recovery.');
   document = reconciled?.checkpoint ?? document;
   const picker = document.pickers.find(p => p.id === id);
