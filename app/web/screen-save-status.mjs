@@ -71,7 +71,7 @@ export function createScreenPickerSession(c, { fetch = (...args) => globalThis.f
   location = globalThis.location, notify = message => globalThis.alert?.(message),
   storage = () => globalThis.localStorage, tabStorage = () => globalThis.sessionStorage,
   schedule = globalThis.setInterval, cancel = globalThis.clearInterval } = {}) {
-  let session, signature, stopped = false, checking, timer, queued = 0, commands;
+  let session, signature, stopped = false, checking, timer, queued = 0, commands, accountAction = false;
   const disposers = new Set(), requests = new Set();
   const safe = work => { try { return work(); } catch {} };
   const active = () => { if (stopped) throw abandoned(); };
@@ -112,6 +112,7 @@ export function createScreenPickerSession(c, { fetch = (...args) => globalThis.f
   async function check() {
     if (!session?.multiPicker) return;
     active();
+    if (accountAction) throw new Error('An account change is in progress. Try again after it finishes.');
     if (!checking) checking = (async () => {
       const response = await fetch('/api/session', { credentials: 'same-origin', cache: 'no-store' });
       active();
@@ -188,6 +189,13 @@ export function createScreenPickerSession(c, { fetch = (...args) => globalThis.f
   };
   c.panelContext ??= {};
   c.panelContext.pickerSession = { initialize, check, fetch: scopedFetch, stop, beforeSignOut,
+    async beginAccountAction() {
+      if (checking) await checking;
+      active();
+      if (accountAction) throw new Error('An account change is already in progress.');
+      accountAction = true;
+      return () => { accountAction = false; };
+    },
     get pickerId() { return session?.pickerId; }, get stopped() { return stopped; },
     get enabled() { return session?.multiPicker === true; },
     streamPath: () => session?.multiPicker ? `/api/events?picker=${encodeURIComponent(session.pickerRoute ?? session.pickerId)}` : '/api/events',
