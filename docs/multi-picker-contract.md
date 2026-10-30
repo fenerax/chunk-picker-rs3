@@ -1578,3 +1578,257 @@ supply reviewed capacity numbers before public deployment. Deletion, browser UI,
 operator tooling and production sign-up policy remain outside MP7. No private
 inputs or scratch measurement scripts were added to this repository. All changes
 are staged for collection, with no push or pull request.
+
+## MP11 calculator cap
+
+START is `0ef05ce1ac44cee956e4ce64b8295ce62d879479`, the multiplayer lane
+with MP7 merged. `createServer({ multiPicker: { ... , maxCalculators: 2 } })`
+now owns one calculator pool for its entire lifetime. `maxCalculators` defaults
+to **2** and must be a positive safe integer. All contexts borrow picker-keyed
+handles from the same scheduler. Foreground, prediction/Sandbox/side work,
+death estimates, duo peer work and rule preparation all consume this one cap.
+Starting, executing, idle and retiring physical calculators count towards it;
+replacement allocation waits for a proven exit. The operator diagnostics add
+`calculators: { limit, resident, peak, active, retiring, waiting }`; use these
+physical counts instead of summing logical lane residency. A rejected termination keeps
+its slot counted until an exit event proves it is gone.
+
+### Where the four calculators came from
+
+At START, `createTaskScheduler` eagerly creates its foreground `createWorkerLane`
+and lazily creates prediction, death and duo lanes. Each lane's `launch` calls
+its own worker factory. `ProcessWorker` forks a relay host, which creates one
+calculator thread; native thread mode creates that thread directly. A host and
+its one calculator thread represent one calculator, not two independent engines.
+The contexts already share this scheduler through `runtime.taskWorker` and
+`forPicker`; opening a context does **not** create another scheduler. EN6's
+**2 contexts / 4 calculators** row activates all four lanes through HTTP. It is
+four lane-owned calculators shared by two contexts, not two calculators per
+context. At eight contexts the same four independent compiled heaps were still
+possible, exceeding EN6's memory allowance with headroom.
+
+`app/tasks/calculator-pool.mjs` now owns physical workers. Logical lanes borrow
+one calculator from their group for a single job and return it on completion.
+Every picker shares the foreground calculator; the remaining slots are shared
+by prediction, death and duo lanes. At cap **1**, that one calculator serves
+both groups. At larger caps, advisory jobs queue within their shared group
+instead of occupying the foreground calculator: keeping advisory graphs off it
+preserves interactive cache residency and the measured memory envelope. A group
+waiting for compilation cannot block another group with a ready calculator.
+No individual picker owns or reserves a calculator. Advisory lanes share
+calculators rather than each compiling another engine. The existing
+one-active-job-per-logical-lane topology remains; this does not introduce two
+parallel foreground lanes or claim EN6's raw foreground-pool throughput.
+The pool uses the primary worker factory and one dataset input; lane-specific
+factory hooks retain their original behavior in uncapped mode.
+
+### Priority, isolation and lifecycle
+
+Pool admission selects interactive work before queued warming, then rotates
+among picker identities. Each logical lane also prioritizes interactive work
+across picker identities, with MP7 round-robin sharing within that priority.
+MP7's cross-lane outstanding-job and waiter limits remain shared. An interactive
+request can displace its own queued warming in another lane when its admission
+share is full. No new queue or unbounded snapshot backlog is added by the pool:
+its waiting records refer to the existing bounded lane queues.
+
+An unrequested active warm-up yields when it blocks interactive work in its
+logical lane, or when interactive work in another lane waits at a full pool.
+Retirement cancels that producer and preserves other queued jobs and their
+original deadlines. The physical slot remains occupied until exit; a calculator
+already serving request/reuse waiters finishes under the established watchdog.
+A cold replacement can therefore add compilation latency after preemption.
+Context close/eviction still fences its own handle and cancels only its MP3
+jobs. Closing a context does not close the shared pool. Server shutdown closes
+the logical lanes and then drains all physical calculators.
+
+Physical request IDs are unique across lanes; replies restore the logical ID
+only for the owning lease and matching picker. Progress and prepared-prediction
+messages retain the lease until the final response. Cancel IDs are translated
+only within that lease; supersession remains picker-scoped. Existing lane
+caches, unlock reuse, result views, deadlines and byte budgets remain in place.
+Snapshot hints belong to each physical calculator and follow its two-entry LRU
+across all logical lanes. Borrowing a different calculator uses its own hints
+and resends a body when needed; context cancellation invalidates that picker
+on every calculator while preserving the other LRU positions. Hints retain only
+keys, transport kind and revision, with no additional private state bodies.
+A logical lane seeing a picker for the first time does not invalidate another
+lane's valid physical hints.
+
+The option-absent server retains START's native factories, lane counts,
+admission, snapshot references and dispatch path. `app/server.mjs` only passes
+the cap when `multiPicker` is present. Neither `app/tasks/worker.mjs` nor
+`docs/calculator-protocol.md` changes; no shared protocol pull request is needed.
+The implementation changes are in the scheduler, the new pool and that small
+server wiring. The new `tests/picker-calculator-cap.test.mjs` is classified
+quick/open-f2p in `scripts/test-selection.mjs`.
+
+### Context default and capacity boundary
+
+The default is **7 open contexts**, including the shared picker, with a default
+cap of **2 calculators**. START's numeric default was already eight; it lacked
+an enforceable calculator premise. EN6's four-calculator operating point
+supported only two grown contexts with the requested headroom. MP11 increases
+that measured operating envelope while replacing the unsupported numeric
+default with a value validated against the additional mixed workload below.
+An explicit `maxOpenContexts: 8` remains available.
+
+EN6 follow-up 2 suggested eight grown contexts with two calculators for its
+quiescent-advisory newcomer schedule. MP11's primary rerun at eight also meets
+that schedule's latency and memory bounds. A separate eight-context pilot
+issues an owned death request alongside a shared prediction before the normal
+lane activations and newcomer. Its cold/warm p95 is **5.78 / 0.854 s**, sampled
+peak **6702.8 MiB**, but summed kernel HWM **7104.7 MiB**, above the **6963.2 MiB**
+allowance after the 2 GiB OS reserve and 20% total-RAM headroom. This is one
+pilot, not a population percentile estimate. The same mixed schedule at seven
+passes all three runs; its detailed median/range table follows.
+
+This stronger workload determines the default, rather than applying EN6's
+conditional eight-context recommendation to every advisory arrival pattern.
+Eight contexts are still covered by the cap/isolation tests and the primary
+measurement matrix. More simultaneous saves, full-view requests, rule diversity
+and eviction/reopening churn need separate capacity measurements. Extra CPU
+does not justify raising the calculator cap: EN6's four-picker raw cold p95
+increased from **3.91 s** with two to **4.42 / 5.27 s** with three/four.
+
+### Validation and measurements
+
+The new tests exercise eight simultaneously open temporary contexts with steady
+work in every logical lane at caps **1, 2 and 3**, interactive priority within
+and across lanes, active warming retirement, cross-lane per-picker admission,
+context close and share reuse, delayed exit/crash recovery, stale and wrong-picker
+replies, snapshot reassignment, rejected termination, bootstrap abort/retry,
+native process/thread execution, and the unchanged uncapped four-lane topology.
+All synthetic member names use `Player x`.
+
+The private duo gate uses fresh temporary copies, process workers, fixed
+`performance.now()` in HTTP/calculator processes and identical store timestamps.
+For both option settings it compares START with MP11 across the established
+**10** raw responses without normalization: **0 response differences, 0 size
+differences and 0 rewritten-save differences**. Every run returns **83,606,063
+bytes**; digest-array SHA-256 is
+`24f0f05b68d1020a8bbc53b18ee5203891b7d3808f8f73907ad063191ee232c5`.
+Rewritten state: **766,384 bytes**, SHA-256
+`64de39c55452925587b87af05aa01507513263761bc407f54e81bcbb699acfdc`.
+No private input is added to the public checkout.
+
+#### MP11 capacity reproduction and results
+
+The unmodified EN6 server harness runs from its own worktree, pointed at START
+or the MP11 checkout. Harness SHA-256:
+`7216d6d7bba81e8bcae1d0be8d369085654852350ac2c5028b750097e4fdd541`.
+Final changed-app inventory: **4** sorted `{file,bytes,sha256}` records
+(router, server, pool and scheduler), compact-JSON SHA-256
+`f9c07837ef284d2fc5c0cd5eb7e365f66b4b8b0a0c88bd51b4bab4a73e037018`.
+No application source is edited in the EN6 worktree.
+
+`node /tmp/en6/scripts/perf/multi-picker-server-capacity.mjs --runtime CHECKOUT
+--packs "$PACKS" --defaults "$DEFAULTS" --source "$SOURCE" --output /tmp/report.json
+--counts 2,4,8 --shape grown --runs 3 --lanes 4 --direct-last`
+
+EN6 predates MP7's sign-in budget. A temporary Node load adapter changes only
+the harness's synthetic registration quota to **10,000 per client**, equally
+for both versions. A first setup-only **429** was excluded before any timing.
+The option-absent control uses **1** context and **3** runs: setup still
+provisions through routing, then the timed application's `multiPicker` is
+undefined. The mixed schedule adds an owned death request alongside a shared
+prediction before the ordinary four lane activations and newcomer. The default
+is measured at **7** contexts under that schedule; the **8**-context mixed pilot
+above is separate. Neither adapter changes application quotas or calculator code.
+
+Node **24.19.0**, Linux x86-64, **4-core** cgroup quota, **16 GiB** experiment
+memory. Fresh processes and temporary save copies per trial; warm OS file
+caches; no forced GC. Three repetitions per reported cell, rotating the primary
+context counts. Final accepted timing trials do not overlap tests or other
+benchmarks. Two baseline trials near a focused regression run were discarded
+and replaced with quiet runs of the same configuration. Exploratory candidate
+runs and pilots do not enter the comparison medians.
+
+N includes the shared context. Primary cases explicitly allow **8** resident
+contexts, open/evaluate N−1, activate every logical lane, then time the last
+context's first task request directly. Quiescent advisory activation finishes
+before that newcomer. Cold/warm columns summarize each trial's nearest-rank
+p95, then report the median **[minimum–maximum]** across three trials. Cold has
+only N samples per trial, so these p95s are empirical maxima, not population
+tail guarantees. RSS covers server plus calculator descendants, sampled every
+**50 ms** with process discovery every **250 ms**. Peak is the maximum over
+opening/evaluation/repeat phases. HWM adds server and calculator kernel maxima,
+a conservative bound whose individual peaks need not coincide. Shutdown is
+outside these request-phase measurements.
+
+Source/dataset/defaults/pack-pin and normalized-size difference counts are **0**
+across the comparison reports. Each grown input has **2** members, a logical
+backup of **70,394,809 bytes**, and a compact normalized state of **765,849 bytes**;
+seed normalization has **0** logical hash differences. Whole-backup hashes vary
+because ordinary startup adds a daily progress observation timestamp. That
+metadata is excluded by the calculator snapshot builder; it must not be treated
+as a changed task input. The private compatibility gate fixes the clock and
+compares all raw response bytes independently.
+
+Dataset digest:
+`3768ecbd4197cab2f42241ebd631904d2871bded05858a0bcb535eeba0b1898f`.
+Defaults SHA-256:
+`1ab931d329b526e55b6283ed401b929023e7153e3e1dcd04604d85de8b4fabf0`.
+The **2** pack hashes are
+`5e23b5dfb1bf1ed265e7ef1d6edbc9067a820418baa5781e6f3c13864e781da1` and
+`dfe952dccd200dbad0fde4082cc823f7f2c40a7e9edf9a43898acace7092d077`.
+
+| Contexts | Version | Cold p95 ms | Warm p95 ms | Whole-tree peak MiB | HWM sum MiB | Calculator peak |
+| ---: | --- | --- | --- | --- | --- | ---: |
+| 2 | START | 8196.8 [7892.6–8271.3] | 21.2 [13.1–29.0] | 6308.2 [6275.7–6343.4] | 6624.8 [6603.9–6683.0] | 4 |
+| 2 | MP11 | 8138.4 [8035.4–8151.2] | 14.2 [14.1–52.6] | 4510.7 [4292.7–4554.8] | 4840.9 [4665.0–4895.1] | 2 |
+| 4 | START | 5727.3 [5579.1–5781.8] | 25.8 [23.0–71.3] | 7084.0 [7064.7–7165.0] | 7405.7 [7392.0–7489.4] | 4 |
+| 4 | MP11 | 5782.5 [5719.7–5851.4] | 20.2 [16.8–210.9] | 5177.2 [5142.6–5185.2] | 5520.7 [5456.9–5530.6] | 2 |
+| 8 | START | 6000.1 [5822.4–7298.8] | 862.0 [707.4–918.3] | 8439.3 [8395.3–8478.1] | 8760.8 [8722.0–8812.1] | 4 |
+| 8 | MP11 | 6139.9 [6103.8–6315.0] | 728.7 [691.3–876.8] | 6513.6 [6460.3–6517.9] | 6860.4 [6835.6–6870.6] | 2 |
+
+Option absent, the unchanged shared picker with all four lanes activated:
+
+| Version | Cold p95 ms | Warm p95 ms | Whole-tree peak MiB | HWM sum MiB | Calculator peak |
+| --- | --- | --- | --- | --- | ---: |
+| START | 1532.0 [1423.8–1567.9] | 8.1 [6.8–9.0] | 5218.2 [5135.7–5254.8] | 5730.5 [5585.4–5792.8] | 4 |
+| MP11 | 1504.1 [1501.4–1571.9] | 6.8 [6.7–7.0] | 5214.8 [5210.0–5249.0] | 5693.7 [5688.3–5737.8] | 4 |
+
+The option-absent cold medians differ by **-1.8%** with overlapping ranges;
+median peak RSS differs by **-0.07%**. The warm difference is
+**1.3 ms**. These are within observed process/GC noise;
+there is no claim of a live-path speedup. Both versions have one foreground
+calculator during opening and four after lane activation.
+
+Default configuration under the stronger mixed schedule:
+
+| Contexts / cap | Cold p95 ms | Warm p95 ms | Whole-tree peak MiB | HWM sum MiB |
+| --- | --- | --- | --- | --- |
+| 7 / 2 | 5919.3 [5911.7–6228.3] | 812.1 [626.2–865.9] | 6311.6 [6289.0–6343.3] | 6726.7 [6667.1–6774.0] |
+
+Every enabled primary and mixed trial has one physical calculator during
+opening and two after advisory activation, with **0** observations above the
+cap. The allocator peak diagnostics and delayed/rejected-termination tests
+cover allocation transitions that periodic RSS sampling could miss. The mixed
+maximum HWM is **6774.0 MiB**, retaining **189.2 MiB** inside the specified
+headroom allowance. Raising the default or cap needs another workload-specific
+measurement. At the default cap, advisory calculations serialize through one
+shared calculator; an interactive foreground list remains independent of that
+queue. Preempting unrequested work can require a cold replacement. These limits
+do not promise latency for seven simultaneous saves or arbitrary rule variants.
+
+#### MP11 final suite gate
+
+Both required suites ran in order after the final application changes.
+
+| Suite | START passed / failed / skipped | MP11 passed / failed / skipped | START / MP11 seconds |
+| --- | --- | --- | --- |
+| Quick | 2,646 / 0 / 68 | 2,667 / 0 / 68 | 77.87 / 79.94 |
+| Full | 5,793 / 0 / 140 | 5,814 / 0 / 140 | 267.36 / 271.61 |
+
+Exactly **21** new tests, all quick/open-f2p. The final focused cap file passes
+**21 / 21**, with **0** failures. Existing tests and assertions changed: **0**;
+new skips: **0**. No failing-file or START-failure reproductions were needed
+for either final suite. Source checkout modifications in the private inputs:
+**0**. Private named-value/path matches in added public text: **0**.
+
+No calculator protocol, worker message-handler, engine, core, web, integration,
+changelog, roadmap or operator-tool files change. There is no protocol pull
+request dependency. The seven-context default is deliberately based on the
+mixed workload's conservative RSS bound; an eight-context override retains
+the documented quiescent-workload qualification.

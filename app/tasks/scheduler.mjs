@@ -1,5 +1,6 @@
 import { Worker } from 'node:worker_threads';
 import { ProcessWorker } from './process-worker.mjs';
+import { createCalculatorPool } from './calculator-pool.mjs';
 import { createHash } from 'node:crypto';
 import { deserialize } from 'node:v8';
 import { createUnlockResultCache, taskReuseInputKey } from './unlock-reuse.mjs';
@@ -86,7 +87,7 @@ function validStateInput(state, input, stateInput, type) {
 export async function createTaskScheduler({ maxDeathQueue = 2, deathDeadlineMs = 120000, deathWorkerFactory,
   duoWorkerFactory, maxDuoQueue = 2, duoDeadlineMs = 30000, duoCacheLimit = 4, duoCacheBytes = 32 * 1024 * 1024,
   predictionWorkerFactory, maxPredictionQueue = 8, predictionDeadlineMs = 120000,
-  predictionCacheLimit = 256, predictionCacheBytes = 32 * 1024 * 1024, maxPrewarmQueue = 256, signal, ...options } = {}) {
+  predictionCacheLimit = 256, predictionCacheBytes = 32 * 1024 * 1024, maxPrewarmQueue = 256, signal, maxCalculators, ...options } = {}) {
   positive(maxDeathQueue, 'maxDeathQueue'); positive(deathDeadlineMs, 'deathDeadlineMs');
   for (const [name, value] of Object.entries({ maxPredictionQueue, predictionDeadlineMs, predictionCacheLimit, predictionCacheBytes, maxPrewarmQueue })) positive(value, name);
   for (const [name, value] of Object.entries({ maxDuoQueue, duoDeadlineMs, duoCacheLimit, duoCacheBytes })) positive(value, name);
@@ -94,7 +95,8 @@ export async function createTaskScheduler({ maxDeathQueue = 2, deathDeadlineMs =
     const { maxOutstandingJobsPerPicker = 4, maxWaitersPerJob = 64 } = options.fairness;
     positive(maxOutstandingJobsPerPicker, 'maxOutstandingJobsPerPicker'); positive(maxWaitersPerJob, 'maxWaitersPerJob');
     const outstanding = new Map();
-    options.fairness = { maxOutstandingJobsPerPicker, maxWaitersPerJob, admit(pickerId) {
+    options.fairness = { maxOutstandingJobsPerPicker, maxWaitersPerJob, admit(pickerId, interactive = false) {
+      if (maxCalculators !== undefined && interactive && (outstanding.get(pickerId) ?? 0) >= maxOutstandingJobsPerPicker) options.fairness.displaceWarm?.(pickerId);
       const count = outstanding.get(pickerId) ?? 0;
       if (count >= maxOutstandingJobsPerPicker) return;
       outstanding.set(pickerId, count + 1);
@@ -106,7 +108,17 @@ export async function createTaskScheduler({ maxDeathQueue = 2, deathDeadlineMs =
       };
     } };
   }
-  const foreground = await createWorkerLane({ ...options, includeReadyCatalogue: true, maxPrewarmQueue, signal });
+  if (maxCalculators !== undefined) {
+    positive(maxCalculators, 'maxCalculators');
+    const factory = options.workerFactory ?? nativeWorker;
+    options.calculatorPool = createCalculatorPool({ limit: maxCalculators, workerFactory: factory,
+      workerData: includeCatalogue => factory === nativeWorker ? nativeWorkerInput(options.workerData, includeCatalogue) : options.workerData,
+      idleMs: options.idleMs ?? Number(process.env.RS3_WORKER_IDLE_MS ?? 600000), startupDeadlineMs: options.startupDeadlineMs });
+  }
+  let foreground;
+  try { foreground = await createWorkerLane({ ...options, includeReadyCatalogue: true, maxPrewarmQueue, signal }); }
+  catch (error) { await options.calculatorPool?.close(); throw error; }
+  options.calculatorPool?.releaseCatalogue();
   const pickers = new Map();
   function pickerState(pickerId) {
     pickerId = pickerJobId(pickerId);
@@ -127,6 +139,9 @@ export async function createTaskScheduler({ maxDeathQueue = 2, deathDeadlineMs =
     }
   }
   let death, prediction, duo, closed = false, closePromise;
+  if (options.calculatorPool) options.fairness && (options.fairness.displaceWarm = pickerId => {
+    for (const lane of [foreground, death, prediction, duo]) lane?.yieldQueuedWarm(pickerId);
+  });
   const listeners = new Set();
   const residencyListeners = new Set();
   const predictionListeners = new Set();
@@ -434,7 +449,7 @@ export async function createTaskScheduler({ maxDeathQueue = 2, deathDeadlineMs =
       if (restarted.length) clearUnlockResults();
       return { restarted, worker: scheduler.getHealth() };
     },
-    getDiagnostics: () => ({ ...foreground.getDiagnostics(), unlockReuse: pickerState('legacy-shared').unlockResults.getDiagnostics(), deathLane: death?.getDiagnostics() ?? {
+    getDiagnostics: () => ({ ...foreground.getDiagnostics(), ...(options.calculatorPool ? { calculators: options.calculatorPool.diagnostics() } : {}), unlockReuse: pickerState('legacy-shared').unlockResults.getDiagnostics(), deathLane: death?.getDiagnostics() ?? {
       worker: { status: 'idle', ready: false }, queue: { depth: 0, active: 0, limit: maxDeathQueue, deadlineMs: deathDeadlineMs },
     }, duoLane: duo?.getDiagnostics() ?? {
       worker: { status: 'idle', ready: false }, queue: { depth: 0, active: 0, limit: maxDuoQueue, deadlineMs: duoDeadlineMs },
@@ -448,7 +463,7 @@ export async function createTaskScheduler({ maxDeathQueue = 2, deathDeadlineMs =
     close(timeoutMs = 10000) {
       if (!closePromise) {
         closed = true; listeners.clear(); residencyListeners.clear(); predictionListeners.clear(); clearUnlockResults();
-        closePromise = Promise.all([foreground.close(timeoutMs), death?.close(timeoutMs), prediction?.close(timeoutMs), duo?.close(timeoutMs)]).then(() => {});
+        closePromise = Promise.all([foreground.close(timeoutMs), death?.close(timeoutMs), prediction?.close(timeoutMs), duo?.close(timeoutMs)]).then(() => options.calculatorPool?.close());
       }
       return closePromise;
     },
@@ -461,7 +476,7 @@ async function createWorkerLane({ workerData, workerFactory = nativeWorker, incl
   maxQueue = 8, deadlineMs = 30000, firstCalculationDeadlineMs = Math.max(120000, deadlineMs), startupDeadlineMs = 30000, maxRestarts = 3, backoffMs = 250, maxBackoffMs = 5000, cacheLimit = 8,
   cacheByteLimit = 128 * 1024 * 1024, maxPrewarmQueue = 256, strictRevision = false, shareSnapshots = false, duoResults = false,
   idleMs = Number(process.env.RS3_WORKER_IDLE_MS ?? 600000), idleClock = { now: () => performance.now(), setTimeout, clearTimeout }, retainActivePrediction = false,
-  stuckMs = 120000, signal, fairness, deadlineClock = { setTimeout, clearTimeout },
+  stuckMs = 120000, signal, fairness, calculatorPool, deadlineClock = { setTimeout, clearTimeout },
 } = {}) {
   for (const [name, value] of Object.entries({ maxQueue, deadlineMs, firstCalculationDeadlineMs, startupDeadlineMs, backoffMs, maxBackoffMs, cacheLimit })) positive(value, name);
   positive(maxRestarts, 'maxRestarts', 0);
@@ -473,8 +488,10 @@ async function createWorkerLane({ workerData, workerFactory = nativeWorker, incl
   let firstCalculation = true;
   let supported = new Set();
   let status = 'starting', restarts = 0, failures = 0, nextRetryAt = null, compileMs = 0, lastFailure = null;
-  const queue = [], warmQueue = [], sentSnapshots = new Map(), pending = new Map(), cache = new Map(), terminating = new Set(), listeners = new Set();
+  let sentSnapshots = new Map();
+  const queue = [], warmQueue = [], pending = new Map(), cache = new Map(), terminating = new Set(), listeners = new Set();
   function forgetPickerSnapshots(pickerId) {
+    calculatorPool?.forgetPicker(pickerId);
     // The worker still has these LRU slots. Keep their positions until normal
     // eviction, but force a body if this picker is used again. Deleting slots
     // here could leave another picker's evicted state looking referenceable.
@@ -482,7 +499,8 @@ async function createWorkerLane({ workerData, workerFactory = nativeWorker, incl
   }
   const turns = [];
   function fairTake() {
-    const waiting = new Set([...queue, ...warmQueue].map(entry => entry.pickerId));
+    const candidates = calculatorPool && queue.length ? queue : [...queue, ...warmQueue];
+    const waiting = new Set(candidates.map(entry => entry.pickerId));
     for (let index = turns.length - 1; index >= 0; index--) if (!waiting.has(turns[index])) turns.splice(index, 1);
     for (const id of waiting) if (!turns.includes(id)) turns.push(id);
     const id = turns.shift();
@@ -504,7 +522,7 @@ async function createWorkerLane({ workerData, workerFactory = nativeWorker, incl
       if (entry.pickerId === pickerId && entry.warm && !entry.waiters.size) { warmCounts.cancelled++; cancel(entry, superseded()); }
     }
     if (count() >= limit) return;
-    return fairness.admit(pickerId);
+    return fairness.admit(pickerId, interactive);
   }
   const warmCounts = { queued: 0, completed: 0, cancelled: 0, skipped: 0 };
   const counts = { requested: 0, coalesced: 0, cacheHits: 0, completed: 0, errors: 0, expired: 0, cancelled: 0, superseded: 0, rejected: 0, promoted: 0, retired: 0 };
@@ -662,7 +680,26 @@ async function createWorkerLane({ workerData, workerFactory = nativeWorker, incl
     restartTimer = setTimeout(launch, delay);
   }
   function pump() {
-    if (closed || status !== 'ready' || active) return;
+    if (closed || status !== 'ready') return;
+    if (active) {
+      if (calculatorPool && queue.length) scheduler.yieldForInteractive();
+      return;
+    }
+    if (calculatorPool) {
+      worker.schedule(() => {
+        if (closed || status !== 'ready' || active) return;
+        const candidates = queue.length ? queue : warmQueue;
+        const id = turns.find(id => candidates.some(entry => entry.pickerId === id));
+        const entry = candidates.find(entry => entry.pickerId === id) ?? candidates[0];
+        return entry && { pickerId: entry.pickerId, interactive: !!queue.length };
+      }, () => {
+        // Hints belong to this physical calculator, shared across its lanes.
+        // They contain only bounded metadata, never another retained state body.
+        sentSnapshots = worker.snapshotHints;
+        dispatch(fairness ? fairTake() : queue.shift() ?? warmQueue.shift());
+      }, () => scheduler.yieldForInteractive());
+      return;
+    }
     if (fairness && (queue.length || warmQueue.length)) { dispatch(fairTake()); return; }
     if (!queue.length && idleClock.now() - lastRequestAt >= idleMs) { sleep(); return; }
     if (!queue.length) {
@@ -742,7 +779,8 @@ async function createWorkerLane({ workerData, workerFactory = nativeWorker, incl
     sentSnapshots.clear();
     for (const [key, value] of cache) if (value.type === 'prepare-rules') cache.delete(key);
     // Custom factories retain their exact workerData contract. Reapply on every wake/restart.
-    try { worker = workerFactory(workerFactory === nativeWorker ? nativeWorkerInput(workerData, includeReadyCatalogue) : workerData); }
+    try { worker = calculatorPool ? calculatorPool.createEndpoint(includeReadyCatalogue)
+      : workerFactory(workerFactory === nativeWorker ? nativeWorkerInput(workerData, includeReadyCatalogue) : workerData); }
     catch { failure('worker-start'); return; }
     startupTimer = setTimeout(() => failure('startup-deadline'), startupDeadlineMs);
     worker.on('error', () => { if (ownGeneration === generation) failure('worker-error'); });
@@ -807,6 +845,17 @@ async function createWorkerLane({ workerData, workerFactory = nativeWorker, incl
     });
   }
   const scheduler = {
+    yieldForInteractive() {
+      if (closed || status !== 'ready' || !active || !(active.warm || active.discarded)
+        || active.waiters.size || active.reuseWaiters?.size) return false;
+      if (active.warm) { active.warm = false; warmCounts.cancelled++; }
+      return retire();
+    },
+    yieldQueuedWarm(pickerId) {
+      for (const entry of [...warmQueue]) if (entry.pickerId === pickerId && !entry.waiters.size) {
+        warmCounts.cancelled++; cancel(entry, superseded());
+      }
+    },
     openPicker(pickerId) { closedPickers.delete(pickerId); },
     cancelPicker(pickerId) {
       closedPickers.add(pickerId);
@@ -946,6 +995,7 @@ async function createWorkerLane({ workerData, workerFactory = nativeWorker, incl
     },
     supersede(revision, input, memberId, pickerId = 'legacy-shared') {
       if (strictRevision && revision > revisionFor(pickerId)) {
+        const previousRevision = revisionFor(pickerId);
         latestRevisions.set(pickerId, revision);
         if (active?.pickerId === pickerId && active.reuseRevision) {
           // A saved follower can outlive the obsolete Preview's pending entry.
@@ -960,7 +1010,9 @@ async function createWorkerLane({ workerData, workerFactory = nativeWorker, incl
         }
         scheduler.cancelPrewarm({ keepActive: true }, pickerId);
         for (const [key, value] of cache) if (value.pickerId === pickerId && value.revision < revision) cache.delete(key);
-        forgetPickerSnapshots(pickerId);
+        // A newly created logical lane has no older state to supersede.
+        // Another lane may already have valid hints on the same calculator.
+        if (!calculatorPool || previousRevision >= 0) forgetPickerSnapshots(pickerId);
         try { worker?.postMessage({ type: 'supersede', revision, pickerId }); } catch { failure('worker-send'); }
       }
       for (const entry of [...pending.values()]) {
