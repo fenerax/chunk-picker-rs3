@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { copyFile, lstat, mkdir, open, readFile, rename, rm, writeFile } from 'node:fs/promises';
+import { copyFile, lstat, mkdir, open, readdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { packRelative } from '../../app/packs.mjs';
 import { randomUUID } from 'node:crypto';
 import { performance } from 'node:perf_hooks';
@@ -37,6 +37,41 @@ export function validateServicePaths(settings) {
 }
 // A strict gameplay allowlist prevents new credential sidecars from silently
 // entering the service export. Raw single-picker recoveries remain unchanged.
+// Byte estimates for the headroom checks. Pack sizes come from the manifest;
+// copying still verifies every file against it.
+// Sizes only, no hashing: copyGameplay still validates and hashes the tree.
+// Outside its barrier a live store may rename a file mid-walk, so a vanished
+// entry counts as 0; the per-picker check under the barrier is authoritative.
+async function gameplayBytes(source) {
+  const walk = async (dir, top) => {
+    let entries;
+    try { entries = await readdir(dir, { withFileTypes: true }); }
+    catch (error) { if (error.code === 'ENOENT') return 0; throw error; }
+    let bytes = 0;
+    for (const entry of entries) {
+      if (top && !gameplayRoots.has(entry.name)) continue;
+      const file = path.join(dir, entry.name);
+      if (entry.isDirectory()) bytes += await walk(file, false);
+      else if (entry.isFile()) {
+        try { bytes += (await lstat(file)).size; }
+        catch (error) { if (error.code !== 'ENOENT') throw error; }
+      }
+    }
+    return bytes;
+  };
+  return walk(source, true);
+}
+async function inputBytes(inputs) {
+  let bytes = 0;
+  for (const [key, pin] of Object.entries(inputs)) {
+    await noLinks(pin.path);
+    bytes += (await lstat(pin.path)).size;
+    if (!['data', 'rulesText', 'rules-text', 'art'].includes(key)) continue;
+    const files = (await json(pin.path)).files;
+    if (Array.isArray(files)) for (const row of files) if (Number.isSafeInteger(row?.bytes) && row.bytes > 0) bytes += row.bytes;
+  }
+  return bytes;
+}
 async function copyGameplay(source, target) {
   const files = await inventory(source);
   await mkdir(target, { mode: 0o700 });
@@ -55,7 +90,7 @@ async function checkpointBinding(source) {
 }
 const captures = new WeakSet();
 export async function captureServiceCheckpoint({ settings, registry, checkpoint, id, inputs = {}, minFreeBytes = 67108864,
-  onPhase = async () => {} }) {
+  onPhase = async () => {}, spaceCheck = headroom }) {
   validateServicePaths(settings);
   const target = snapshotPath(settings.dataDir, id);
   if (captures.has(registry)) throw Object.assign(new Error('A service backup is already running.'), { status: 503 });
@@ -78,7 +113,13 @@ export async function captureServiceCheckpoint({ settings, registry, checkpoint,
     const { document, pickers: manifestPickers } = initial;
     await onPhase('manifest', { pickerCount: manifestPickers.length });
     await directory(snapshotRoot(settings.dataDir));
-    await headroom(snapshotRoot(settings.dataDir), 0, minFreeBytes);
+    // The spool usually shares the live data filesystem. Refuse before copying
+    // anything that would eat into the reserve, then recheck before each copy
+    // because live gameplay keeps growing while earlier pickers are copied.
+    const spool = snapshotRoot(settings.dataDir);
+    let payload = await inputBytes(inputs);
+    for (const picker of manifestPickers) payload += await gameplayBytes(pickerPath(settings, picker));
+    await spaceCheck(spool, payload, minFreeBytes);
     await mkdir(target, { mode: 0o700 }); created = true;
     await mkdir(path.join(target, 'pickers'), { mode: 0o700 });
     const pickerBarriers = [], errors = new Map();
@@ -95,6 +136,7 @@ export async function captureServiceCheckpoint({ settings, registry, checkpoint,
           if (picker.binding && encode(binding) !== encode(picker.binding)) throw new Error('Picker binding changed during backup.');
           picker.binding = binding;
           if (picker.initialized && !picker.binding) throw new Error('Initialized picker has no binding.');
+          await spaceCheck(spool, await gameplayBytes(source), minFreeBytes);
           await copyGameplay(source, to);
           if (picker.binding) await writeFile(to + '.dataset.json', encode(picker.binding), { flag: 'wx', mode: 0o600 });
           await syncRecoveryTree(to);
@@ -112,6 +154,7 @@ export async function captureServiceCheckpoint({ settings, registry, checkpoint,
       await noLinks(pin.path);
       if (sha(await readFile(pin.path)) !== pin.sha256) throw new Error('Recovery input pin changed.');
       const pack = ['data', 'rules-text', 'art'].includes(name);
+      await spaceCheck(spool, await inputBytes({ [key]: pin }), minFreeBytes);
       if (pack) {
         const manifest = await json(pin.path), dest = path.join(target, 'inputs', name);
         if (!Array.isArray(manifest.files)) throw new Error('Pack file manifest required.');

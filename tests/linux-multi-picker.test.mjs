@@ -382,6 +382,32 @@ test('service backup carries complete pinned pack payloads and omits unrelated i
   assert(!(await inventory(backup)).some(r => r.path.includes('unrelated-secret')));
 });
 
+test('service backup counts the gameplay and pack payload against the spool reserve before copying', async t => {
+  const f = await fixture(t), input = path.join(f.root, 'pack'); await mkdir(input);
+  const payload = 'x'.repeat(4096); await writeFile(path.join(input, 'payload.json'), payload);
+  const manifest = encode({ files: [{ path: 'payload.json', bytes: payload.length, sha256: sha(payload) }] });
+  await writeFile(path.join(input, 'pack.json'), manifest);
+  const history = path.join(f.dir(f.pickers[1]), 'history'); await mkdir(history, { recursive: true });
+  await writeFile(path.join(history, 'synthetic.json'), 'y'.repeat(65536));
+  // A credential file outside the gameplay roots is never copied, so it is not counted.
+  await writeFile(path.join(f.dir(f.pickers[1]), 'access-token'), 'z'.repeat(1 << 20));
+  const inputs = { data: { path: path.join(input, 'pack.json'), sha256: sha(manifest) } };
+  const calls = [];
+  const id = randomUUID();
+  await captureServiceCheckpoint({ settings: f.settings, registry: f.registry, id, minFreeBytes: 7, inputs,
+    spaceCheck: async (root, bytes, reserve) => { calls.push({ bytes, reserve }); } });
+  assert(calls.length >= 1 + f.pickers.length + 1, 'checks before copying, before each picker and before each input');
+  assert(calls.every(call => call.reserve === 7));
+  assert(calls[0].bytes >= 65536 + 4096 + Buffer.byteLength(manifest));
+  assert(calls[0].bytes < 1 << 20);
+  // A spool too small for the payload refuses before any copy and leaves nothing behind.
+  const refused = randomUUID();
+  await assert.rejects(captureServiceCheckpoint({ settings: f.settings, registry: f.registry, id: refused, minFreeBytes: 7, inputs,
+    spaceCheck: async (root, bytes) => { if (bytes > 65536) throw new Error('Insufficient free space for recovery work and reserve.'); } }),
+  /Insufficient free space/);
+  await assert.rejects(readdir(snapshotPath(f.settings.dataDir, refused)), { code: 'ENOENT' });
+});
+
 test('restore resumes the intent window before installation and runs real decoder migrations sequentially', async t => {
   const f = await fixture(t), backup = await f.capture(), target = await f.target(); let once = false;
   await assert.rejects(restoreServiceStopped({ settings: target, backup, release: f.release, assertStopped: stopped, reconcileTombstones: reconcile,
