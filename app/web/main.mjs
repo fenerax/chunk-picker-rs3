@@ -1,3 +1,4 @@
+import { createScreenPickerSession } from './screen-save-status.mjs';
 import { createScreenContext } from './screen-context.mjs';
 import { createScreenUi } from './screen-ui.mjs';
 import { createScreenSettings } from './screen-settings.mjs';
@@ -35,6 +36,7 @@ import { createScreenSetupGuide } from './setup-guide.mjs';
 const screen = createScreenContext();
 screen.applyDatasetCopy();
 createScreenUi(screen);
+createScreenPickerSession(screen);
 createScreenSettings(screen);
 createScreenUsage(screen);
 createScreenCommands(screen);

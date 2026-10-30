@@ -1,3 +1,4 @@
+import { gameStorage } from './screen-save-status.mjs';
 import { createTaskFactsIndex, goalProgress } from './core/progress-index.mjs';
 import { createTaskIconPainter } from './task-icon-painter.mjs';
 import { taskIcon, taskCategoryIcon } from './browser-task-icons.mjs';
@@ -153,7 +154,7 @@ export function createScreenTasks(c) {
 
   function activeTaskFilters() {
     if (!c.taskFiltersView) {
-      c.taskFiltersView = createTaskFilters({ document, getClaimMemberId: () => c.sessionMember ?? c.memberId, getStorage: () => globalThis.localStorage, onChange: c.renderTasks, clearSearch: () => { c.$('task-filter').value = ''; c.duoTaskView?.clearFilter(); } });
+      c.taskFiltersView = createTaskFilters({ document, getClaimMemberId: () => c.sessionMember ?? c.memberId, getStorage: () => gameStorage(), onChange: c.renderTasks, clearSearch: () => { c.$('task-filter').value = ''; c.duoTaskView?.clearFilter(); } });
       c.$('task-filter').after(c.taskFiltersView.element);
     }
     return c.taskFiltersView;
@@ -300,7 +301,7 @@ export function createScreenTasks(c) {
   function duoView() {
     if (!c.duoTaskView) {
       c.duoTaskView = createDuoTaskView({ document, getState: () => c.state, getSelectedMember: () => c.memberId,
-        getStorage: () => globalThis.localStorage, getViewerId: () => c.sessionMember ?? (c.canWrite() ? 'admin' : 'viewer'),
+        getStorage: () => gameStorage(), getViewerId: () => c.sessionMember ?? (c.canWrite() ? 'admin' : 'viewer'),
         getClaimMember: () => c.sessionMember ?? c.memberId, actingForMember: () => !c.sessionMember,
         command: c.command, backlog: c.backlogForm, showTask: c.showTask, attachHover: c.attachDuoHover, appendWhy, appendIcon: (body, task) => c.taskIconPainter.append(body, task),
         canComplete: () => c.canWrite() && !c.sandbox.active && c.duoEnabled(),

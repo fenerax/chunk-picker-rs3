@@ -116,7 +116,7 @@ export function createScreenDialogs(c) {
     void c.backupStatus?.refresh();
     const generic = c.dataset?.capabilities?.independent === true;
     const legacyImport = c.supportsFeature?.('originalSync') !== false;
-    const content = c.el('div', undefined, 'form-stack'); content.append(c.el('p', generic ? 'Full backups include maps, tasks, progress, rules, notes and history. Every replacement retains the previous state on the server.' : 'Full backups include both maps, progress, rules, notes, teleport confirmations, original imported records and history. Every replacement retains the previous state on the server.', 'section-intro'), c.button('Download full backup', async () => downloadFullBackup(`${generic ? 'grid-challenge' : 'rs3-duo'}-${new Date().toISOString().slice(0, 10)}.json.gz`)));
+    const content = c.el('div', undefined, 'form-stack'); content.append(c.el('p', generic ? 'Full backups include maps, tasks, progress, rules, notes and history. Every replacement retains the previous state on the server.' : 'Full backups include both maps, progress, rules, notes, teleport confirmations, original imported records and history. Every replacement retains the previous state on the server.', 'section-intro'), c.button('Download full backup', async () => downloadFullBackup(`${generic ? 'grid-challenge' : 'rs3-duo'}-${new Date().toISOString().slice(0, 10)}.json.gz`, c.panelContext?.pickerSession ? c.panelContext?.pickerSession.fetch : fetch)));
     if (statusLine) content.prepend(statusLine);
     const file = c.input('file'); file.accept = '.json,.json.gz,application/json,application/gzip'; const preview = c.el('div');
     const invalidatePreview = () => { previewRequest++; preview.replaceChildren(); };

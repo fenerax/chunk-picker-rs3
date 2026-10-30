@@ -985,3 +985,122 @@ unlink/relink/restart, rejected links without identity writes, and offline
 identity removal with both live and revoked legacy grants. The final raw-byte
 duo gate was run against this app version with both option settings. All changes
 are staged; the option remains off by default.
+
+## MP6 browser
+
+MP6 binds each browser document to the account and picker returned by its initial
+`/api/session` read. The opt-in response adds `multiPicker: true` and
+`pickerRoute`; it also supplies `pickerId` for legacy sessions, using the
+registry's durable shared-picker ID. Private-account responses already contain
+`accountId` and `pickerId`. `pickerRoute` is the authenticated router selector
+(the shared context uses its existing `legacy` alias); it conveys no new grant.
+With the option absent these additions are absent, the browser uses its original
+storage keys, and session polling and picker selectors remain inactive.
+
+The session read finishes before private startup reads or command recovery.
+Enabled documents check the session before API traffic, every five seconds, on
+focus, on pageshow and after a sign-out storage notification. API requests carry
+`X-Picker-Id`, and SSE carries the same selector in its query, so a cookie change
+between the check and dispatch cannot route an old command into another picker.
+Account, picker, member or permission changes and expired sessions retire the
+old document and reload. There is no in-place transfer of caches to a new game.
+The account panel retains its existing layout, adds the active account and picker
+IDs in enabled mode, and runs cleanup before its existing sign-out POST.
+
+Game preference keys use `picker.scope.<pickerId>.` in local storage. Durable
+outboxes use that prefix in session storage, and command ownership qualifies the
+client ID with the picker ID for both Web Locks and the HTTP IndexedDB/probe
+fallback. This scopes both ownership records and cross-tab ownership probes.
+Old unscoped outboxes are never assigned to a picker: enabling the feature warns
+about pending intentions and removes those records without replaying them.
+Unscoped preferences are not imported into enabled picker scopes.
+
+| Scope | Browser state |
+| --- | --- |
+| Picker | Remembered member; task-view, task-list, group personal and activity filters; completed-review date choice; hide-obtained choice; map activity layers, pin filters, travel lines and membership overlay; recent stickers; viewer preferences (including the theme/IDs record); usage opt-in. |
+| Picker/document | Saved views, task/planning/prediction/inspection caches, drafts, previews, sandbox and review controllers, queued commands, durable recovery, save retry controls, SSE and reconnect/reconciliation timers. A retired document clears its visible game and caches, rejects late responses and cannot bind another picker. |
+| Site UI | Map display sizes/count/place-label visibility; phone/dock layout; settings-section navigation; group-goal disclosure layout; map-control discovery; stream-safe display controls; update/roadmap read position. Saved member preferences remain in their existing server-side game state. |
+| Session coordination | A per-tab active-scope/retirement marker and a site sign-out change notification. These carry coordination metadata, never commands or cached game views. |
+
+Retirement blocks sending first, cancels durable retries and queued writes,
+releases ownership, closes streams and timers, stops feedback/plugin/usage
+activity, removes recovery controls, clears scoped local/session storage and the
+old rendered game, then allows navigation. Late callbacks cannot repopulate
+retired storage. Queued writes and durable unconfirmed intentions trigger an
+explicit warning that queued changes were not sent, and that a request already
+in flight may have arrived and needs a History check. Storage cleanup failure
+blocks sign-out/account navigation; a retired marker forces cleanup again before
+a later document loads, including a return to the same account and picker.
+
+### Files
+
+| File(s) | Change |
+| --- | --- |
+| `app/picker-context.mjs` | Additive enabled-mode session metadata only. |
+| `app/web/screen-save-status.mjs` | Scoped storage adapter and document session/retirement coordinator, alongside existing save status in an already-served module. |
+| `app/web/main.mjs`, `screen-panels.mjs` | Install and preserve the coordinator in the existing panel context; no new top-level screen-context fields or renderer dependencies. |
+| `app/web/screen-startup.mjs` | Session-first bootstrap, scoped member/coordination storage, feedback disposal and sign-out hookup. |
+| `app/web/account-panel.mjs` | Active account/picker details and pre-sign-out cleanup callback. |
+| `app/web/live-swap-client.mjs` | Scoped outbox/ownership identifiers and terminal cancellation of queued/in-flight/retrying saves. The existing HTTP lock implementation receives the qualified ownership key. |
+| `app/web/screen-commands.mjs` | Guard API reads/writes and durable traffic; track queued commands and sync applies. |
+| `app/web/screen-live.mjs` | Scope SSE; close streams and cancel reconnect/reconciliation work at retirement. |
+| `app/web/game-plugin.mjs` | Track queued applies/dismissals and dispose private plugin state/timers. |
+| `app/web/screen-usage.mjs` | Scoped opt-in and guarded sends; enabled mode avoids unscoped beacons. |
+| `app/web/backup-transfer.mjs`, `screen-dialogs.mjs` | Send backup downloads through the session guard. |
+| `app/web/screen-settings.mjs`, `screen-controls.mjs`, `screen-map.mjs`, `screen-tasks.mjs` | Scope viewer/member/overlay/task preferences. |
+| `app/web/task-view-preferences.mjs`, `task-filters.mjs`, `task-filters-model.mjs`, `duo-task-view.mjs` | Scope task and group filter storage. |
+| `app/web/activity-filters.mjs`, `bis-preferences.mjs`, `completed-range-preference.mjs`, `sticker-picker.mjs` | Scope activity/review/equipment/sticker preferences. |
+| `app/web/map.mjs`, `map-pins.mjs`, `map-activity-layers.mjs` | Scope travel/pin/activity choices; reread early-created game choices after session discovery. |
+| `tests/picker-browser-session.test.mjs`, `scripts/test-selection.mjs` | 26 new VM/DOM/command regressions, explicitly classified quick. |
+
+### Validation
+
+Untouched START is `18aaca0ac37198c5ebed819ffa554a72dc1a3aca`.
+Node is 24.19.0. START quick: 2,553 passed, 0 failed, 68 skipped
+(72.27 seconds); START full: 5,700 passed, 0 failed, 140 skipped
+(274.20 seconds). Final MP6 suite and duo-gate measurements are recorded below.
+
+Residual limits: enabled mode adds a session preflight to API traffic and a
+five-second session monitor. A network failure checking identity blocks that
+request and retains recovery until identity can be established. Already-dispatched
+writes cannot be recalled; the warning directs the user to History. No new
+screen, signup, deletion flow, owner powers or gameplay behavior is introduced.
+
+Final validation, run quick then full after the last app change:
+
+| Suite | START passed / failed / skipped | MP6 passed / failed / skipped |
+| --- | --- | --- |
+| Quick | 2,553 / 0 / 68 | 2,579 / 0 / 68 |
+| Full | 5,700 / 0 / 140 | 5,726 / 0 / 140 |
+
+MP6 quick took 73.49 seconds; full took 266.52 seconds. Both totals add exactly
+26 tests, with unchanged skips and no existing assertion weakened. The separate
+account-panel, gallery, screen-model and browser-module dependency checks passed
+34 tests, failed 0, skipped 0 (0.93 seconds). Standalone VM regressions remain
+unchanged and pass in the full suite.
+
+The option-absent duo gate ran three alternating START/MP6 pairs, one server and
+its process calculators at a time, from a fresh temporary save/binding copy for
+each run. It repeated MP4's 10 raw-response reads with identical injected store
+timestamps and a fixed `performance.now()` preload in HTTP/calculator processes.
+No response field was removed, normalized or rounded. Each run returned
+83,606,131 bytes across 10 responses. All six runs had digest-array SHA-256
+`67aa2720e6be6280624d8b79a2dd966d5d16d157fdfbc8b761f15eb727e2fc01`:
+**0 response or size differences**. Rewritten saves were 766,384 bytes with
+SHA-256 `64de39c55452925587b87af05aa01507513263761bc407f54e81bcbb699acfdc`:
+**0 save differences**. The private source checkout had **0 changed files**.
+
+These are compatibility-workload measurements under fixed response clocks, not
+a browser latency benchmark or a claim of server performance improvement. Wall
+time uses the real clock and includes copying, import, startup, reads and close.
+Memory is sampled aggregate RSS of the HTTP process and its process calculators
+at 50 ms intervals and response boundaries; it excludes test processes. No test
+suite ran during these six trials.
+
+| Measurement, median (minimum–maximum), 3 runs each | START | MP6 |
+| --- | --- | --- |
+| Compatibility workload wall time | 18.222 s (17.827–18.686) | 17.989 s (17.764–18.048) |
+| Sampled peak aggregate RSS | 3,214.86 MiB (3,197.94–3,231.97) | 3,200.10 MiB (3,179.68–3,254.17) |
+
+All changes are staged. The option stays off by default; opening public sign-up
+and the remaining multiplayer-lane acceptance items remain outside MP6.

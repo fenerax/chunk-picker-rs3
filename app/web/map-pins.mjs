@@ -1,3 +1,4 @@
+import { gameStorage } from './screen-save-status.mjs';
 import { MAP_PIN_LEGEND_GROUPS } from '../data/map-pin-categories.mjs';
 import { CACHE_PIN_PATH, CACHE_PIN_MANIFEST_PATH, normalizeCachePins } from '../data/map-pins.mjs';
 import { createTravelLinesControl } from './map-info.mjs';
@@ -121,7 +122,7 @@ export async function loadMapAssets(fetcher = globalThis.fetch) {
 
 export function createMapPinsPanel({ panel, toggle, map, manifest, dataset, onSources, storage, preferences = () => ({}), canWrite = () => true }) {
   const advanced = () => canWrite() !== false && preferences()?.advanced === true;
-  if (storage === undefined) { try { storage = globalThis.localStorage; } catch { storage = null; } }
+  if (storage === undefined) { try { storage = gameStorage(); } catch { storage = null; } }
   // Group styling is optional in non-browser fixtures and loaded only once.
   if (document.head && !document.getElementById('map-pin-groups-style')) {
     const stylesheet = document.createElement('link'); stylesheet.id = 'map-pin-groups-style';

@@ -1,3 +1,4 @@
+import { gameStorage } from './screen-save-status.mjs';
 export const ACTIVITY_FILTERS_STORAGE_KEY = 'rs3:activity-info-filters:v1';
 
 const activityChoices = [['done', 'Done'], ['doable', 'Doable'], ['blocked', 'Blocked']];
@@ -16,13 +17,13 @@ export function normalizeActivityFilters(value) {
 }
 
 export function readActivityFilters(storage) {
-  try { return normalizeActivityFilters(JSON.parse((storage ?? globalThis.localStorage)?.getItem(ACTIVITY_FILTERS_STORAGE_KEY) ?? 'null')); }
+  try { return normalizeActivityFilters(JSON.parse((storage ?? gameStorage())?.getItem(ACTIVITY_FILTERS_STORAGE_KEY) ?? 'null')); }
   catch { return {}; }
 }
 
 export function writeActivityFilters(storage, value) {
   try {
-    storage ??= globalThis.localStorage;
+    storage ??= gameStorage();
     if (typeof storage?.setItem !== 'function') return false;
     storage.setItem(ACTIVITY_FILTERS_STORAGE_KEY, JSON.stringify(normalizeActivityFilters(value)));
     return true;

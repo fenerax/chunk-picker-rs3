@@ -7,7 +7,7 @@ import { createSaveRecovery } from './screen-save-recovery.mjs';
 
 // Main-screen commands; shared values and callbacks live in the explicit screen context.
 export function createScreenCommands(c) {
-  const readRequest = createRequestReader({ fetch: (...args) => fetch(...args) });
+  const readRequest = createRequestReader({ fetch: (...args) => c.panelContext?.pickerSession ? c.panelContext?.pickerSession.fetch(...args) : fetch(...args) });
   let durableCommands, connectionNoticeShown = false;
   const showSaveRetry = createSaveRecovery(c, {
     retry: () => {
@@ -30,10 +30,12 @@ export function createScreenCommands(c) {
       return c.queue;
     },
   });
-  const commandClient = () => durableCommands ??= createLiveSwapCommandClient({ onRetry: event => {
+  const commandClient = () => durableCommands ??= createLiveSwapCommandClient({ pickerId: c.panelContext?.pickerSession?.pickerId,
+    fetch: (...args) => c.panelContext?.pickerSession ? c.panelContext?.pickerSession.fetch(...args) : fetch(...args), onRetry: event => {
     if (event?.status === 'paused') { c.saved('Save not confirmed', true); showSaveRetry(true); }
     else { showSaveRetry(false); if (event?.status !== 'confirmed') c.saved('Reconnecting… Confirming save', true); }
   } });
+  c.panelContext?.pickerSession?.registerCommands({ pending: () => hasPendingCommand(), stop: () => { durableCommands?.stop(); showSaveRetry(false); checks = []; } });
   const feedback = createCalculationFeedback({ show(text) {
     let node = c.$('calculation-status');
     if (!node && text) {
@@ -53,6 +55,7 @@ export function createScreenCommands(c) {
   }
   function removeCheck(check) { checks = checks.filter(item => item !== check); }
   async function api(path, body, signal, commandOptions) {
+    if (typeof c.panelContext !== 'undefined' && c.panelContext?.pickerSession?.stopped) throw Object.assign(new Error('The picker changed.'), { name: 'AbortError' });
     if (!c.canWrite() && (body !== undefined || /^\/api\/(?:predict|death-estimates|chunk-planning|training-plan|teleports)(?:[/?]|$)/.test(path))) throw new Error('This link is view only.');
     if (c.sandbox.active && body !== undefined && path !== '/api/sandbox/evaluate'
       && !(path === '/api/pool-ranking-intent' && body.visible === false)) throw new Error('Exit Sandbox before saving changes. Nothing here is saved.');
@@ -139,10 +142,12 @@ export function createScreenCommands(c) {
   function command(payload, reviewedRevision, reviewedNote, reviewCurrent, chunkPreview) {
     if (!c.canWrite()) return Promise.reject(new Error('This link is view only.'));
     if (c.sandbox.active) return c.sandbox.command(payload);
+    const finishQueued = typeof c.panelContext !== 'undefined' ? c.panelContext?.pickerSession?.queueCommand() : undefined;
     c.lastSaveControl = document.activeElement;
     const check = payload.type === 'set-task-status' && typeof payload.challengeCompleted === 'boolean' ? { ...payload } : undefined;
     if (check) { checks = [...checks, check]; c.saved('Saving…'); c.renderTasks(); }
     const task = c.queue.then(async () => {
+      if (typeof c.panelContext !== 'undefined' && c.panelContext?.pickerSession?.stopped) throw Object.assign(new Error('The picker changed.'), { name: 'AbortError' });
       await recoverPendingCommand();
       if (c.sandbox.active) throw new Error('Exit Sandbox before saving changes. Nothing here is saved.');
       if (reviewCurrent && !reviewCurrent()) throw Object.assign(new Error(reviewedNote !== undefined ? 'The note editor was closed or the selected player changed. Reopen the note before saving.' : 'The original-picker review was closed. Fetch and review again.'), { reviewAbandoned: true });
@@ -208,7 +213,8 @@ export function createScreenCommands(c) {
       if (check) removeCheck(check);
       c.adopt(response.state, response.pools, reuse);
       c.saved(checks.length ? 'Saving…' : 'Saved', false, c.state.revision, { confirmed: true }); return response;
-    }).catch(error => {
+    }).finally(() => finishQueued?.()).catch(error => {
+      if (typeof c.panelContext !== 'undefined' && c.panelContext?.pickerSession?.stopped) throw error;
       if (check) { removeCheck(check); c.renderTasks(); }
       if (chunkPreview) {
         c.removeChunkPreview(chunkPreview);
@@ -221,7 +227,7 @@ export function createScreenCommands(c) {
       }
       throw error;
     });
-    c.queue = task.catch(error => { if (error.reviewAbandoned) return; if (error.pendingCommand && !error.insecureConnection) showSaveRetry(true); c.saved(error.insecureConnection ? 'This address cannot save' : error.retryPaused ? 'Save not confirmed' : error.pendingCommand ? 'Save confirmation needed' : 'Save failed', true, undefined, { refused: [403, 409, 422].includes(error.status) }); c.showError(error); });
+    c.queue = task.catch(error => { if (typeof c.panelContext !== 'undefined' && c.panelContext?.pickerSession?.stopped || error.reviewAbandoned) return; if (error.pendingCommand && !error.insecureConnection) showSaveRetry(true); c.saved(error.insecureConnection ? 'This address cannot save' : error.retryPaused ? 'Save not confirmed' : error.pendingCommand ? 'Save confirmation needed' : 'Save failed', true, undefined, { refused: [403, 409, 422].includes(error.status) }); c.showError(error); });
     return task;
   }
 
@@ -242,6 +248,7 @@ export function createScreenCommands(c) {
   }
 
   function applyRuneMetrics(previewId, expectedRevision) {
+    const finishQueued = typeof c.panelContext !== 'undefined' ? c.panelContext?.pickerSession?.queueCommand() : undefined;
     const reviewedMember = c.memberId, generation = c.dialogGeneration;
     const current = () => c.memberId === reviewedMember && c.dialogCurrent(generation);
     const task = c.queue.then(async () => {
@@ -258,8 +265,9 @@ export function createScreenCommands(c) {
         throw error;
       }
     });
-    c.queue = task.catch(error => { if (error.reviewAbandoned) return; c.saved('Save failed', true); if (current()) c.showError(error); });
-    return task;
+    const tracked = task.finally(() => finishQueued?.());
+    c.queue = tracked.catch(error => { if (typeof c.panelContext !== 'undefined' && c.panelContext?.pickerSession?.stopped || error.reviewAbandoned) return; c.saved('Save failed', true); if (current()) c.showError(error); });
+    return tracked;
   }
 
   function adopt(next, pools, reuseResult, schedule = true) {
