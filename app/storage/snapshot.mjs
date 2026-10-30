@@ -110,3 +110,25 @@ export async function snapshotStore(dataDir, id, { maxHoldMs = 1000, maxFiles = 
     finally { unlock(); state.snapshotBusy = false; }
   }
 }
+
+// Additive service checkpoint. Reserve all gates synchronously before draining
+// any writer; single-directory snapshotStore and its callers are unchanged.
+export async function withDirectoryBarriers(dataDirs, work, { maxDrainMs = 30000 } = {}) {
+  if (!Number.isSafeInteger(maxDrainMs) || maxDrainMs < 1) throw new TypeError('Invalid checkpoint deadline.');
+  const states = [...new Set(dataDirs.map(dir => path.resolve(dir)))].sort().map(barrier);
+  if (states.some(state => state.snapshotBusy || state.gate)) throw Object.assign(new Error('A snapshot is already being captured.'), { status: 503 });
+  const releases = states.map(state => {
+    state.snapshotBusy = true;
+    let release; state.gate = new Promise(resolve => { release = resolve; });
+    return () => { state.gate = null; state.snapshotBusy = false; release(); };
+  });
+  let timer;
+  try {
+    await Promise.race([
+      (async () => { for (const state of states) while (state.active.size) await Promise.all([...state.active]); })(),
+      new Promise((_, reject) => { timer = setTimeout(() => reject(new Error('Service checkpoint writer drain timed out.')), maxDrainMs); }),
+    ]);
+    clearTimeout(timer);
+    return await work();
+  } finally { clearTimeout(timer); for (const release of releases.reverse()) release(); }
+}

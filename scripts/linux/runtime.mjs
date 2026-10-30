@@ -47,6 +47,10 @@ export function runtimeEnvironment(config, { probe = false } = {}) {
 export async function openApplication(config, dataDir, { probe = false } = {}) {
   if (!probe && (!isPrivateClient(config.host) || !Number.isInteger(config.port) || !Number.isInteger(config.loopbackPort)
     || config.port === config.loopbackPort)) throw new Error('Distinct explicit private and public listener configuration is required.');
+  if (config.multiPicker) {
+    const { validateServicePaths } = await import('./service-checkpoint.mjs');
+    validateServicePaths({ dataDir, multiPicker: config.multiPicker });
+  }
   const environment = runtimeEnvironment(config, { probe });
   if (!probe) environment.RS3_PUBLIC_ORIGIN = (await readFile(config.publicOriginFile, 'utf8')).trim();
   for (const key of Object.keys(process.env)) if (/^RS3_|^NODE_(?:OPTIONS|PATH)$/.test(key)) delete process.env[key];
@@ -55,6 +59,8 @@ export async function openApplication(config, dataDir, { probe = false } = {}) {
   const options = { dataDir, host: config.host, port: config.port, loopbackPort: probe ? undefined : config.loopbackPort,
     loopbackRole: 'public', predictionPrewarm: !probe,
     retention: Object.fromEntries(Object.entries({ backupDays: config.runtimeOptions?.backupDays, historyEntries: config.runtimeOptions?.historyEntries }).filter(([, value]) => value != null)) };
+  if (!probe && config.multiPicker) options.multiPicker = { ...config.multiPicker, recoveryInputs: { ...config.packs,
+    ...(config.selection ? { selection: config.selection } : {}), ...(config.profile ? { profile: config.profile } : {}), ...(config.addons ? { addons: config.addons } : {}) } };
   if (probe) {
     options.runeMetrics = options.originalSync = { fetchImpl: async () => { throw new Error('Offline recovery probe.'); } };
     return server.createServer(options);
@@ -68,5 +74,16 @@ export async function operatorSettings() {
   const settings = await json(file);
   for (const key of ['current', 'dataDir', 'controlDir', 'scratchRoot', 'backupDir']) if (!path.isAbsolute(settings[key] ?? '')) throw new Error('Operator paths must be absolute.');
   if (settings.service !== 'chunk-picker.service') throw new Error('Unexpected service identity.');
+  if (settings.multiPicker) {
+    const { validateServicePaths } = await import('./service-checkpoint.mjs');
+    validateServicePaths(settings);
+  }
   return settings;
+}
+
+export function assertOperatorService(settings, release) {
+  if (!!settings.multiPicker !== !!release.config.multiPicker) throw new Error('Operator and release service options differ.');
+  if (settings.multiPicker) for (const key of ['registryDir', 'pickerRoot', 'tombstoneDir']) {
+    if (settings.multiPicker[key] !== release.config.multiPicker[key]) throw new Error('Operator and release service roots differ.');
+  }
 }

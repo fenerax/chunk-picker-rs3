@@ -1292,3 +1292,304 @@ suite ran during these six trials.
 
 All changes are staged. The option stays off by default; opening public sign-up
 and the remaining multiplayer-lane acceptance items remain outside MP6.
+
+## MP8 operator tooling
+
+START: `18aaca0ac37198c5ebed819ffa554a72dc1a3aca`. The feature remains
+opt-in. Set the same `multiPicker.registryDir`, `pickerRoot` and `tombstoneDir`
+in the pinned Linux release config and the operator config. Roots, legacy,
+control, scratch, backup and snapshot spool paths must be absolute and disjoint.
+`runtime.mjs` passes the option only to the live application, never to an
+individual offline recovery probe. No environment or public sign-up default changes.
+
+### Checkpoint and export boundary
+
+`app/storage/snapshot.mjs` adds `withDirectoryBarriers`; the original
+`withStoreWrite`, `snapshotStore` and every single-directory caller are unchanged.
+Service capture uses that additive API for one picker at a time. Accepted writes
+finish before that picker's copy; its queued writes resume after copying/syncing.
+A drain deadline abandons capture, not an accepted write.
+
+`app/picker-router-checkpoint.mjs` briefly queues new routed requests while
+the registry/account checkpoint and picker roster are captured in the registry
+mutation queue. It does not wait for HTTP responses or context residency work. There is no copying, hashing, syncing or pack reading under this
+global barrier. Requests resume before the first picker copy, and unrelated
+stores keep accepting writes. Global barrier and request-wait durations are
+reported by private health and the snapshot result. The router diff contains
+only coordinator construction, admission/release and its exported handle.
+The registry adds the read-only `withRecoveryCheckpoint(callback)` and
+`registryRecoveryDocument(document)` without changing schema or mutations.
+
+The roster fixes which IDs can enter the backup. Gameplay has a separate
+consistent cut for each picker, rather than one simultaneous cross-picker cut.
+At final reconciliation, newly created IDs stay excluded and IDs no longer
+active are recorded `absent` in the manifest; their staged files are removed.
+Restore projects those absent scopes out of the checkpoint and never initializes
+replacement games for them. This manifest projection reads no tombstone ledger;
+MP5 remains responsible for authoritative tombstone decisions during recovery.
+
+Behind the option, `/api/operator/service-snapshot` requires the real private
+listener policy and a master Bearer credential. Public listeners, forwarding
+markers, cookies and ordinary owner sessions cannot grant access. The response
+contains only operation ID, hold duration and picker count. The private spool
+is under the existing snapshot namespace and `online.mjs` takes ownership and
+copies it to operator scratch before publication. There is no stopped fallback.
+
+The new `picker-service-recovery-v1` format carries a sanitized registry/account
+checkpoint, picker IDs and kinds, each dataset binding, initialized status,
+gameplay data, and verified selected pack manifests **and their declared payloads**.
+It includes pinned selection/profile/add-on manifests. It copies only reviewed
+gameplay roots: state, static, history, backups, plugin achievement IDs and plugin
+item evidence. It excludes provider identities, capabilities, sign-in/account
+sidecars, invitations, sessions, plugin keys, access tokens, overlay links,
+feedback and usage. Unknown sidecars are excluded by default. Registry account
+IDs and explicit memberships survive; authentication must be established anew
+through private administration. No credentials are imported from a service backup.
+The live tombstone ledger is never included or replaced.
+
+The existing single-directory `picker-recovery-v1` backup still includes the
+entire raw store, including credential-bearing sidecars and the access token.
+That pre-existing behavior and its tests are unchanged. Such raw recoveries must
+remain private; this task adds no transfer or off-host operation.
+
+Capture streams and synchronizes files under each picker's barrier, then hashes
+and publishes the service manifest after all picker barriers have released.
+`globalBarrierMs` and request-wait counts/max/total describe the short admission
+barrier; `pickerBarriers[].heldMs` records each individual copy's hold (including
+writer drain). The compatible `heldMs` field now means global barrier duration.
+The 30-second deadlines bound registry checkpoint completion and individual
+writer drain. A very large copy can still
+exceed the operator's 120-second HTTP timeout and leave private spool evidence;
+inspect it before retrying. Service retention prunes only verified `service-*`
+recoveries and never legacy recoveries.
+
+### Health and recovery
+
+Private health retains legacy store revision, schema and worker diagnostics and
+adds registry readiness, total/active picker counts, resident/dormant context
+counts and checkpoint state. Counting reads only the registry and router map.
+Startup and warm-up still prepare legacy only; no health request prepares dormant
+members or stores. Public health cannot expose the service report.
+
+`scripts/linux/service-recovery.mjs` verifies the service manifest, then stages,
+probes/migrates and installs one picker at a time. Each real probe is a child
+process that exits before the next starts. Restored member IDs must match the
+registry. It records backup/release/target identity, installation intent, file
+hashes and completed/quarantined results in a synced progress journal. A resume
+requires the same backup, release and targets; completed files are rechecked.
+Store and binding renames can resume independently. Partial recovery blocks
+`start-check.mjs` and `serve.mjs` from starting the writer.
+
+An incompatible **owned** picker moves to private operator quarantine and gets
+an unbound, nonempty placeholder at its registered directory. That prevents MP4
+from initializing an empty replacement under the same ID. Other owned restores
+continue. Reports contain only IDs, status, file counts and byte sizes. Explicit
+quarantine release rechecks compatibility, membership and stopped ownership.
+
+Legacy is never quarantined. Before changing any live target, restore probes
+and migrates the shared duo on an operator scratch copy, even if an owned picker
+appears first in the manifest. Incompatibility refuses the whole restore with
+`LEGACY_RESTORE_INCOMPATIBLE`, a clear operator message and nonzero CLI exit.
+Existing legacy, picker and registry data remain untouched. Successful preflight
+is journaled and reused on resume. No startup or session code change is needed.
+
+**MP5 integration call site:** `reconcileServiceRecoveryTombstones` in
+`service-recovery.mjs`. Recovery and quarantine release call it before any probe
+opens a restored store, including on resume. It currently fails closed. MP5 must
+replace that stub with its exported reconciliation function, retain the external
+live ledger, remove deleted scopes and revoke restored grants before allowing
+probes/publication. MP8 implements no tombstone logic. One test is explicitly
+pending until that export lands; synthetic recovery tests inject a no-op only
+for synthetic roots. Production service recovery/release is blocked until MP5
+is wired. The adapter receives the sanitized `checkpoint` and returns an effective
+`checkpoint` plus `excludedPickerIds`; the external reconciler owns all deletion
+decisions and cleanup. Recovery publishes that effective checkpoint, rather than
+reintroducing the original backup's grants. Do not bypass the stub or remove the live ledger to complete a restore.
+
+### Commands and files
+
+`operator.mjs list`, `inspect PICKER_ID` and `quarantine-release PICKER_ID` are
+private CLI operations under the existing operator configuration. Restore and
+release require a deliberately stopped service. Online backup uses the service
+endpoint; `backup --stopped` explicitly drains/stops all writers first. Ownership
+checks cover both registry locks and every registered picker, including legacy.
+`service-lock.mjs` reuses the existing kernel-backed registry-lock primitive in a
+separate operator-control namespace. A killed local operator can resume recovery
+once its PID is provably dead; live, foreign and unverifiable owner evidence is
+refused. Health skips a busy operator. The single-picker lock path is unchanged.
+
+Service deploy uses sequential stopped compatibility probes for all initialized,
+unquarantined pickers and retains pointer CAS, receipt checks and reverse probes.
+Changing dataset/pack/profile/add-on pins in-place is explicitly refused; install
+compatible pinned inputs and use the sequential recovery path for those changes.
+The single-source rehearsal script refuses service configuration before touching
+its registry; a complete service rehearsal depends on MP5's recovery integration.
+Process control and raw snapshots acquire no public or owner route.
+
+Changed operator files: `runtime.mjs`, `serve.mjs`, `operator.mjs`, `online.mjs`,
+`start-check.mjs`, the safety guard in `rehearse.mjs`, and the new
+`service-checkpoint.mjs`, `service-recovery.mjs`, `service-operator.mjs` and
+`service-lock.mjs`. `tests/linux-multi-picker.test.mjs` is classified quick and
+uses only synthetic temporary roots and neutral players.
+
+### Initial MP8 validation and private gate
+
+Node 24.19.0. Required suites ran quick, then full. No existing tests were edited,
+weakened or skipped. The 16 new cases comprise 15 active tests and one explicitly
+pending MP5 integration case. All original Linux operator/snapshot cases pass.
+Focused operator/snapshot validation: 48 passed, zero failed, one existing
+platform skip and one pending MP5 case.
+
+| Suite | START passed / failed / skipped / pending | MP8 passed / failed / skipped / pending |
+| --- | --- | --- |
+| Quick | 2,553 / 0 / 68 / 0 | 2,568 / 0 / 68 / 1 |
+| Full | 5,700 / 0 / 140 / 0 | 5,715 / 0 / 140 / 1 |
+
+START quick/full durations: 72.62/275.92 seconds. MP8: 83.16/276.23 seconds.
+START's first full attempt had one unrelated transient plugin-sidecar failure;
+that unchanged file passed 21/0 alone, and the complete START repeat passed
+5,700/0. The MP8 full run passed without a repeat.
+
+The private gate uses fresh temporary copies, process calculators and the option
+absent. Three paired runs compare the same 10 raw successful response bodies:
+full/play state, history, browser plugin status, full/play tasks per member and
+native plugin status per member. Fixed save timestamps and a fixed
+`performance.now()` preload in HTTP/calculator processes make timing metadata
+deterministic; no response fields are removed or normalized. Every comparison
+has **zero differences**, including all 30 paired response comparisons.
+
+Before/after response-checkpoint SHA-256 (the JSON array of response hash/size
+records):
+`dc66077f41df0edfcd2dacf24b9c6737b09fbce89d9b699aea198e489835bccb`.
+Response bytes per run: **83,606,063**.
+
+Three backup/restore trials per revision use the real offline app decoder and
+portable import validation on disposable probe copies. The original raw store
+is backed up and restored without startup writes. The identity is SHA-256 of the
+encoded sorted file inventory plus the sibling binding's SHA-256. Before and
+after, at both revisions:
+`2cd41ad09957f03e3c7cfc42b75c043485c6f179d2af49ba64aac592213479b4`.
+There are **431 store files** (plus one sibling binding), **82,007,295 store bytes**,
+and **zero differences**. Recovery payload size: **197,282,005 bytes**. The private
+source checkout has **zero changed files**.
+
+Values below are median [minimum–maximum], three fresh-process samples per side.
+Route trials alternate START/MP8 after both suites complete. Backup START trials
+preceded the MP8 trials and overlapped some synthetic verification work; these
+are validation timings, not evidence of a performance improvement. The gate's
+offline probes run sequentially in the gate process; RSS includes that process
+and its live calculator children, sampled every 20 ms. These numbers do not
+measure production service-restore memory or establish a many-picker capacity.
+
+| Measurement | START | MP8 |
+| --- | --- | --- |
+| Route gate elapsed, ms | 18,719.79 [18,268.89–18,766.39] | 18,375.23 [17,932.58–18,750.48] |
+| Backup, ms | 12,738.15 [12,403.49–12,757.93] | 12,018.80 [11,654.63–12,178.22] |
+| Restore, ms | 12,161.05 [12,105.59–13,030.93] | 11,817.05 [11,629.70–13,371.72] |
+| Route gate sampled peak RSS, MiB | 3,265.47 [3,227.79–3,299.61] | 3,252.09 [3,227.88–3,255.55] |
+| Backup/restore gate sampled peak RSS, MiB | 2,943.58 [2,911.02–3,055.84] | 2,367.80 [2,327.54–3,117.77] |
+
+The initial measurements above predate the follow-up below. MP5 remains a
+pending integration hook. Legacy refusal and short global admission are now
+implemented as described above. Same-dataset service deployment is supported, while pack
+changes and a full service rehearsal remain explicit recovery/integration work.
+The live single-duo option remains absent by default.
+
+### MP8 follow-up: legacy refusal and short global checkpoints
+
+The staged MP8 implementation is retained. This follow-up closes the legacy and
+admission gaps without changing startup or session behavior:
+
+- `service-recovery.mjs` probes legacy on scratch before changing any live
+  restore target, regardless of manifest order. Incompatibility throws
+  `LEGACY_RESTORE_INCOMPATIBLE`; `operator.mjs` prints the fixed operator message
+  and exits nonzero. Legacy never enters quarantine. Owned failures still do.
+- `picker-router-checkpoint.mjs` now holds global admission only for the registry
+  queue's metadata checkpoint and bounded binding-receipt reads. It waits for
+  neither unrelated HTTP responses nor context acquisition/eviction. Requests
+  queued at this gate resume before data copying. Their wait count/max/total are
+  cumulative since process startup; `globalBarrierMs` describes the latest gate.
+- `service-checkpoint.mjs` fixes the initial roster, copies and syncs one picker
+  under its own barrier, then reconciles against a fresh registry checkpoint.
+  New IDs stay out. Deleted IDs are marked `absent` and their copied data is
+  removed. Restore projects these absent scopes out without recreating them.
+- The router's context-open call uses the same per-picker barrier: cold
+  initialization cannot write into a directory while that directory is copied.
+- The existing MP5 stub, its named call site and pending test remain. There is no
+  MP5 import or independent tombstone implementation. The integrating task must
+  wire that hook before production service recovery/release.
+
+Two additional tests bring the file to 18 cases: 17 active and one pending MP5
+case. They prove legacy refusal leaves live registry/picker/legacy inventories
+unchanged, and exercise creation after the roster plus deletion during and after
+copying. The race test also proves unrelated admission/writes continue while a
+copy is held, and cold initialization of that picker waits. The coordinator test
+proves unrelated HTTP/residency work cannot extend the global gate. No START
+case was changed, weakened or skipped.
+
+Focused Linux/snapshot/routing/recovery: **86 passed, zero failed**, one existing
+platform skip and one pending MP5 case. The required final suites ran quick,
+then full against the final implementation:
+
+| Suite | START passed / failed / skipped / pending | Final MP8 passed / failed / skipped / pending |
+| --- | --- | --- |
+| Quick | 2,553 / 0 / 68 / 0 | 2,570 / 0 / 68 / 1 |
+| Full | 5,700 / 0 / 140 / 0 | 5,717 / 0 / 140 / 1 |
+
+Final quick/full durations: **85.72/274.58 seconds**. Each pass count is START
+plus 17 active tests; skip counts are unchanged. Both final suites passed on
+their first run after the metadata-only global gate change.
+
+#### Three-run barrier probe
+
+Each trial opens a fresh temporary duo copy with process calculators and the
+option enabled. An accepted HTTP write is held to race the snapshot with
+concurrent read traffic, without a fixed sleep. Metadata and unrelated session
+reads complete while that write is still held; only the duo's own copy barrier
+waits for it. Thus the per-picker duration includes the accepted write draining
+and the durable copy. Clocks are normal. One context is open in every trial.
+The number of requests observed waiting is **13 [12–16]**.
+
+Values are median [minimum–maximum], three fresh-process trials, with no test
+suite competing. RSS samples include HTTP and calculator child processes every
+20 ms; these workload measurements do not establish service capacity.
+
+| Measurement | Final MP8 |
+| --- | --- |
+| Global metadata barrier, ms | 5.95 [5.60–6.46] |
+| Maximum request wait for global barrier, ms | 4.19 [3.76–4.55] |
+| Total request wait for global barrier, ms | 22.53 [22.19–27.46] |
+| Duo per-picker barrier, ms | 2,292.25 [2,218.44–2,324.07] |
+| Sampled HTTP + calculator peak RSS, MiB | 2,334.29 [2,201.60–2,359.50] |
+
+#### Repeated option-absent private gate
+
+Three fresh-copy START/final route pairs use the same fixed clocks and 10 raw
+successful bodies described above. **30 paired comparisons, zero differences.**
+Before/after response-checkpoint SHA-256 remains
+`dc66077f41df0edfcd2dacf24b9c6737b09fbce89d9b699aea198e489835bccb`;
+response size per run is **83,606,063 bytes**. No fields are normalized away.
+
+Three backup/restore trials per side use fresh copies and real offline
+app/portable-import validation, sequentially after the suites. Before and after:
+**431 store files** plus one sibling binding, **82,007,295 store bytes**, and
+**zero differences**. The sorted-inventory-plus-binding identity remains
+`2cd41ad09957f03e3c7cfc42b75c043485c6f179d2af49ba64aac592213479b4`.
+Recovery payload size is **197,282,442 bytes**. The private checkout has **zero
+changed files**. Each row is median [minimum–maximum] from three fresh processes:
+
+| Measurement | START | Final MP8 |
+| --- | --- | --- |
+| Route gate elapsed, ms | 18,422.05 [18,386.96–18,455.99] | 18,477.12 [18,165.30–18,830.42] |
+| Backup, ms | 12,308.40 [12,229.61–12,721.84] | 12,332.83 [12,140.43–12,345.20] |
+| Restore, ms | 11,950.13 [11,904.23–12,210.92] | 12,078.26 [11,984.08–12,229.39] |
+| Route sampled peak RSS, MiB | 3,270.74 [3,172.24–3,285.56] | 3,236.37 [3,235.95–3,302.46] |
+| Backup/restore sampled peak RSS, MiB | 3,069.36 [2,899.18–3,084.46] | 2,861.46 [2,351.67–3,023.98] |
+
+The earlier raw-backup timings used fixed store timestamps too; these repeated
+backup trials use normal store timestamps on disposable probe copies. The raw
+backed-up/restored source remains byte-identical. These validation timings make
+no performance-improvement claim. The operator's 120-second total snapshot
+request timeout still applies to a sufficiently large service, although copying
+no longer holds global admission. MP5 wiring is the intentionally deferred
+integration item; the legacy quarantine/startup gap is closed by refusal.

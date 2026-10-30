@@ -280,6 +280,9 @@ export async function openRegistry({ registryDir, pickerRoot, tombstoneDir, lega
     throw failure;
   }
   return {
+    // Queue-held read-only checkpoint. No provider subjects or capabilities may
+    // leave the server; explicit account IDs and memberships survive recovery.
+    withRecoveryCheckpoint(work) { return enqueue(() => work(registryRecoveryDocument(current))); },
     getAccount(id) { usable(); return visibleAccount(id); },
     listAccounts() { usable(); return [...accountIndex.keys()].map(visibleAccount).filter(Boolean); },
     findIdentity(provider, subject) { usable(); registryIdentity(provider, subject); return visibleAccount(providerIndex.get(identityKey(provider, subject))); },
@@ -413,4 +416,11 @@ export async function openRegistry({ registryDir, pickerRoot, tombstoneDir, lega
       if (failure) throw failure.reason;
     })(); },
   };
+}
+
+export function registryRecoveryDocument(document) {
+  validate(document);
+  return { schemaVersion: document.schemaVersion,
+    accounts: document.accounts.map(account => ({ ...copy(account), identities: [] })),
+    pickers: copy(document.pickers), capabilities: [] };
 }

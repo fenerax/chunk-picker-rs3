@@ -10,7 +10,7 @@ export async function captureOnline({ settings, release, request }) {
   const id = randomUUID(), source = snapshotPath(settings.dataDir, id);
   let scratch;
   try {
-    const result = await request(release, '/api/operator/snapshot', 'POST', { id });
+    const result = await request(release, settings.multiPicker ? '/api/operator/service-snapshot' : '/api/operator/snapshot', 'POST', { id });
     if (result.id !== id || !Number.isFinite(result.heldMs)) throw new Error('Invalid online snapshot response.');
     await noLinks(source);
     if ((await json(path.join(source, 'complete.json'))).id !== id) throw new Error('Incomplete online snapshot.');
@@ -22,6 +22,11 @@ export async function captureOnline({ settings, release, request }) {
     await directory(settings.scratchRoot);
     await headroom(settings.scratchRoot, files.reduce((n, row) => n + (row.bytes ?? 0), 0) * 7, settings.minFreeBytes);
     scratch = await mkdtemp(path.join(settings.scratchRoot, 'online-'));
+    if (settings.multiPicker) {
+      const serviceDir = path.join(scratch, 'service');
+      await copyTree(source, serviceDir);
+      return { serviceDir, heldMs: result.heldMs, cleanup: () => rm(scratch, { recursive: true, force: true }) };
+    }
     const dataDir = path.join(scratch, 'store');
     await copyTree(path.join(source, 'store'), dataDir);
     await copyFile(path.join(source, 'store.dataset.json'), dataDir + '.dataset.json', 1);

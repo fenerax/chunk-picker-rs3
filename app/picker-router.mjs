@@ -1,3 +1,4 @@
+import { createPickerCheckpoint } from './picker-router-checkpoint.mjs';
 import { createHash } from 'node:crypto';
 import { isImportRoute, readBackupRequest } from './backup-transfer.mjs';
 import { routedBody, rememberRoutedBody, httpError, json } from './picker-context-http.mjs';
@@ -39,6 +40,7 @@ export function createPickerRouter({ registry, legacy, openContext, publicOrigin
   function serialize(operation) {
     const pending = queue.then(operation); queue = pending.catch(() => {}); return pending;
   }
+  const checkpoint = createPickerCheckpoint({ serialize, entries, registry, legacy });
   async function evict(entry) {
     clearTimeout(entry.timer);
     entry.closing = true;
@@ -72,7 +74,7 @@ export function createPickerRouter({ registry, legacy, openContext, publicOrigin
           if (!victim) throw retry();
           await evict(victim);
         }
-        const context = await openContext(id);
+        const context = await checkpoint.open(id, () => openContext(id));
         if (closed || registry.getPicker(id)?.lifecycle !== 'active') { await context.close(); throw retry(); }
         entry = { id, context, active: 0, streams: new Set() };
       }
@@ -169,6 +171,7 @@ export function createPickerRouter({ registry, legacy, openContext, publicOrigin
     return { context: entry.context, entry, backup, checkBody };
   }
   return {
+    checkpoint,
     authenticate,
     authenticateKey(request, pickerId, memberId) {
       const key = /^Bearer (gpk_[A-Za-z0-9_-]{43})$/i.exec(request.headers.authorization ?? '')?.[1];
@@ -189,8 +192,10 @@ export function createPickerRouter({ registry, legacy, openContext, publicOrigin
       await registry.revokeCapability('plugin-key', hash);
     },
     async handle(request, response, listener) {
-      let entry, releaseImport;
+      let entry, releaseImport, releaseCheckpoint;
       try {
+        if (closed) throw retry();
+        releaseCheckpoint = await checkpoint.enter();
         if (closed) throw retry();
         const options = { ...listener, publicOrigin };
         const security = listener.ingressRole === 'public' ? requestContext(request, options) : requestContextFor(request, options);
@@ -219,7 +224,7 @@ export function createPickerRouter({ registry, legacy, openContext, publicOrigin
           const badInput = error instanceof SyntaxError || error instanceof TypeError || error instanceof RangeError;
           await json(request, response, error.status ?? (badInput ? 400 : 503), { message: error.status ? error.message : badInput ? 'Invalid request.' : 'The picker is unavailable. Retry in a moment.' });
         }
-      } finally { releaseImport?.(); if (entry) { entry.active--; if (entries.get(entry.id) === entry) idle(entry); } }
+      } finally { releaseCheckpoint?.(); releaseImport?.(); if (entry) { entry.active--; if (entries.get(entry.id) === entry) idle(entry); } }
     },
     close() {
       if (closing) return closing;
