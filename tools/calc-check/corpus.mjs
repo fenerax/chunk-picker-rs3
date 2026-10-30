@@ -3,6 +3,9 @@ import path from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { hash } from './compare.mjs';
+import { manifestFor } from './shards.mjs';
+import { saveSnapshots } from './save-snapshots.mjs';
+import { packValue, unpackValue } from './values.mjs';
 import { rebuildHistoryRevisions } from './history.mjs';
 import { gunzipSync } from 'node:zlib';
 import { completeFixtureState } from './fixture-state.mjs';
@@ -169,7 +172,7 @@ async function assemble(spec, seed, cleanups) {
     await mkdir(dataDir);
     // Gameplay-only copy: authentication and operator files are never needed.
     for (const name of ['state.json', 'static', 'history', 'backups']) {
-      try { await cp(path.join(source, name), path.join(dataDir, name), { recursive: true, errorOnExist: true, dereference: true }); }
+      try { await cp(path.join(source, name), path.join(dataDir, name), { recursive: true, errorOnExist: true, dereference: true, preserveTimestamps: true }); }
       catch (error) { if (error.code !== 'ENOENT' || name === 'state.json') throw error; }
     }
     await copyFile(binding.bindingPath(source), binding.bindingPath(dataDir));
@@ -181,9 +184,10 @@ async function assemble(spec, seed, cleanups) {
     try {
       const current = (await store.backup()).state;
       const historyRevisions = new Set(current.history.map(event => event.revision));
-      const backups = await store.listBackups();
-      const byRevision = new Map(backups.map(backup => [backup.revision, { load: async () => (await store.readBackup(backup.id)).state }]));
-      byRevision.set(current.revision, { load: async () => (await store.backup()).state });
+      const snapshots = await saveSnapshots(dataDir, registry);
+      const backups = await snapshots.listBackups();
+      const byRevision = new Map(backups.map(backup => [backup.revision, { identity: hash(JSON.stringify([snapshots.identity, backup.id])), load: () => snapshots.readBackup(backup) }]));
+      byRevision.set(current.revision, { identity: hash(JSON.stringify([snapshots.identity, 'current'])), load: async () => current });
       coverage.rebuiltHistoryRevisions = await rebuildHistoryRevisions(current, byRevision, { world: input.world, registry });
       coverage.saveRevisions = byRevision.size;
       coverage.historyRevisions = historyRevisions.size;
@@ -192,9 +196,18 @@ async function assemble(spec, seed, cleanups) {
       const earlier = [...byRevision].filter(([revision]) => revision !== current.revision).sort((a,b) => a[0]-b[0]);
       const ordered = cap > 0 ? [...sample(earlier, Math.max(0, cap - 1), random), [current.revision, byRevision.get(current.revision)]].sort((a,b) => a[0]-b[0]) : [];
       const entries = [];
-      for (const [, entry] of ordered) {
-        const state = await entry.load();
-        entries.push({ ...entry, source: 'save', revision: state.revision, digest: hash(JSON.stringify(state)) });
+      const loaded = new Map();
+      for (const [revision, original] of ordered) {
+        let packed;
+        const entry = { source: 'save', revision, identity: original.identity ?? hash(JSON.stringify([snapshots.identity, revision])), async load() {
+          if (loaded.has(revision)) { const state = loaded.get(revision); loaded.delete(revision); loaded.set(revision, state); return state; }
+          const state = packed ? unpackValue(packed) : await original.load();
+          if (!packed) { entry.digest = hash(JSON.stringify(state)); packed = packValue(state); }
+          loaded.set(revision, state);
+          while (loaded.size > 2) loaded.delete(loaded.keys().next().value);
+          return state;
+        } };
+        entries.push(entry);
       }
       groups.push({ ...input, states: entries });
     } catch (error) { await store.close(); throw error; }
@@ -208,7 +221,8 @@ async function assemble(spec, seed, cleanups) {
   }
   groups.splice(0, groups.length, ...merged.values());
   for (const group of groups) group.states.sort((a,b) => (a.revision ?? 0) - (b.revision ?? 0));
-  return { groups, registry, dataset, coverage, close: async () => { for (const cleanup of [...cleanups].reverse()) await cleanup(); }, manifestHash: hash(JSON.stringify(groups.map(group => ({ bundle: hash(JSON.stringify(group.bundle, (_, v) => v instanceof Map ? [...v] : v instanceof Set ? [...v] : v)), states: group.states.map(s => ({ source: s.source, digest: s.digest })) })))) };
+  const manifest = manifestFor(groups);
+  return { groups, registry, dataset, coverage, manifest, close: async () => { for (const cleanup of [...cleanups].reverse()) await cleanup(); }, manifestHash: hash(JSON.stringify(manifest)) };
 }
 export async function coreTestFiles(root) {
   const files = [];

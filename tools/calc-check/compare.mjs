@@ -4,11 +4,20 @@ export const volatile = JSON.parse(readFileSync(new URL('./volatile.json', impor
 for (const entry of volatile) if (typeof entry.path !== 'string' || !/^[\w/.-]+:\d+$/.test(entry.source) || !entry.reason) throw new TypeError('invalid');
 export const hash = value => createHash('sha256').update(value).digest('hex');
 export const valueHash = value => hash(value === undefined ? 'missing' : `json:${JSON.stringify(value)}`);
+const patterns = new Map();
+for (const entry of volatile) {
+  const pattern = entry.path.split('.'), key = pattern.at(-1);
+  if (!patterns.has(key)) patterns.set(key, []);
+  patterns.get(key).push(pattern);
+}
 function ignored(path) {
-  return volatile.some(entry => {
-    const pattern = entry.path.split('.');
-    return pattern[0] === '**' ? path.slice(-pattern.length + 1).join('.') === pattern.slice(1).join('.') : path.join('.') === entry.path;
-  });
+  const key = path.at(-1);
+  // Preserve the original joined-path policy, including literal dotted keys.
+  // Ordinary keys avoid scanning unrelated exclusions.
+  const candidates = key?.includes('.') ? [...patterns.values()].flat() : patterns.get(key) ?? [];
+  return candidates.some(pattern => pattern[0] === '**'
+    ? path.slice(-pattern.length + 1).join('.') === pattern.slice(1).join('.')
+    : path.join('.') === pattern.join('.'));
 }
 export function canonical(value, path = []) {
   if (Array.isArray(value)) return value.map((child, index) => canonical(child, [...path, String(index)]));
@@ -74,4 +83,22 @@ export function treeDifferences(a, b, prefix = '') {
   }
   visit(a, b, prefix);
   return found;
+}
+
+// Compare decoded values directly. Build hashes only for the differing leaves
+// (or differently typed subtrees), preserving the original hash-tree verdicts.
+export function compareValues(left, right) {
+  const found = [], path = [], indices = [];
+  function walk(a, b, hasA = true, hasB = true) {
+    if (hasA && hasB && (a === b || (!a || typeof a !== 'object') && (!b || typeof b !== 'object') && JSON.stringify(a) === JSON.stringify(b))) return;
+    if (hasA && hasB && a && b && typeof a === 'object' && typeof b === 'object' && Array.isArray(a) === Array.isArray(b)) {
+      for (const key of [...new Set([...Object.keys(a), ...Object.keys(b)])].sort()) {
+        path.push(key); indices.push(Array.isArray(a));
+        if (!ignored(path)) walk(a[key], b[key], Object.hasOwn(a, key), Object.hasOwn(b, key));
+        path.pop(); indices.pop();
+      }
+    } else found.push({ path: path.length ? '/' + path.map((key, i) => segment(key, indices[i])).join('/') : '/', referenceHash: hasA ? digestTree(a, path).hash : valueHash(undefined), candidateHash: hasB ? digestTree(b, path).hash : valueHash(undefined) });
+  }
+  walk(left, right);
+  return found.sort((a,b) => a.path < b.path ? -1 : a.path > b.path ? 1 : 0);
 }

@@ -95,7 +95,15 @@ export class Calculator {
     // would otherwise hold send() waiting for drain past the timeout.
     let timeout;
     const expired = new Promise((_, reject) => { timeout = setTimeout(() => { this.fail(); this.child.kill('SIGKILL'); reject(new Error('failed')); }, this.timeoutMs); });
-    try { return await Promise.race([this.send({ v: 1, type: 'init' }, Buffer.from(stringify(bundle))).then(() => this.ready), expired]); }
+    try {
+      const ready = await Promise.race([this.send({ v: 1, type: 'init' }, Buffer.from(stringify(bundle))).then(() => this.ready), expired]);
+      // Fast calculators can finish before the next periodic descendant scan.
+      // Sample at ready while wrapper children are guaranteed to be alive.
+      while (this.samplingMemory) await new Promise(resolve => setImmediate(resolve));
+      this.nextProcessScan = 0;
+      await this.sampleMemory();
+      return ready;
+    }
     finally { clearTimeout(timeout); }
   }
   async control(header) { await this.send({ v: 1, ...header }); }

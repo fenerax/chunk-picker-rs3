@@ -2,8 +2,10 @@ import { readFile, writeFile } from 'node:fs/promises';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { performance } from 'node:perf_hooks';
 import { Calculator } from './client.mjs';
+import { packValue, unpackValue } from './values.mjs';
+import { parseShard, partitionCorpus, mergeReportFiles } from './shards.mjs';
 import { buildCorpus, randomFor, sample } from './corpus.mjs';
-import { comparable, digestTree, treeDifferences, hash, volatile } from './compare.mjs';
+import { comparable, compareValues, hash, volatile } from './compare.mjs';
 
 export const referenceCommand = `${JSON.stringify(process.execPath)} ${JSON.stringify(fileURLToPath(new URL('../../calculator/reference/main.mjs', import.meta.url)))}`;
 const types = ['evaluate', 'predict', 'death-estimates', 'chunk-planning', 'sandbox', 'area-check', 'roll-pool', 'prepare-rules'];
@@ -14,19 +16,28 @@ function summary(values) {
     min: sorted[0] ?? 0, max: sorted.at(-1) ?? 0 };
 }
 export async function check({ reference = referenceCommand, candidate = referenceCommand, corpus: spec = { generated: { steps: 4 }, fixtures: {} }, seed = 1,
-  caps = {}, serial = false, onProgress, sequence = 8, timeoutMs = 180000, reportFile } = {}) {
+  caps = {}, shard = '1/1', serial = false, onProgress, sequence = 8, timeoutMs = 180000, reportFile } = {}) {
   const began = performance.now(), limits = { ...defaultCaps, ...caps }, random = randomFor(seed);
+  const selectedShard = parseShard(shard);
   const activeTypes = types.filter(type => limits[type] > 0);
-  const report = { seed, corpusManifestHash: null, corpus: { states: 0, generated: 0, fixtures: 0, save: 0, bundles: 0 },
+  const report = { format: 'calc-check-shard-report-v1', shard: selectedShard, stateIds: [], checkConfiguration: { caps: limits, sequence, serial }, seed, corpusManifestHash: null, corpus: { states: 0, generated: 0, fixtures: 0, save: 0, bundles: 0 },
     engineVersions: { reference: [], candidate: [] }, requests: Object.fromEntries(types.map(type => [type, 0])),
     sentRequests: { reference: {}, candidate: {} }, sequenceRequests: 0, controls: { cancel: 0, supersede: 0 }, cancelledReruns: 0, snapshotResends: 0,
     differences: [], differenceCount: 0, errors: 0, volatile, peakRSSBytes: { reference: 0, candidate: 0 },
-    durationsMs: { corpus: 0, total: 0 }, requestDurationsMs: {}, supported: { reference: [], candidate: [] } };
+    durationsMs: { corpus: 0, snapshotLoading: 0, total: 0 }, requestDurationsMs: {}, supported: { reference: [], candidate: [] } };
   const durations = { reference: Object.fromEntries(types.map(t => [t, []])), candidate: Object.fromEntries(types.map(t => [t, []])) };
   let corpus;
+  async function loadEntry(entry) {
+    const start = performance.now();
+    try { return entry.load ? await entry.load() : entry.state; }
+    finally { report.durationsMs.snapshotLoading += performance.now() - start; }
+  }
   try {
     corpus = await buildCorpus(spec, seed);
     report.corpusManifestHash = corpus.manifestHash;
+    report.corpusManifest = corpus.manifest;
+    const fullGroups = corpus.groups;
+    corpus.groups = partitionCorpus(corpus, selectedShard);
     report.coverage = corpus.coverage;
     report.durationsMs.corpus = performance.now() - began;
     report.corpus.bundles = corpus.groups.length;
@@ -38,6 +49,7 @@ export async function check({ reference = referenceCommand, candidate = referenc
       for (let i = 0; i < group.states.length; i += batchSize) batches.push({ ...group, states: group.states.slice(i, i + batchSize) });
       return batches;
     }) : corpus.groups;
+    if (!runGroups.length) runGroups.push({ ...fullGroups[0], states: [] });
     report.calculatorBatches = runGroups.length;
     onProgress?.({ states: report.corpus.states, batches: runGroups.length, durationMs: performance.now() - began });
     for (let groupIndex = 0; groupIndex < runGroups.length; groupIndex++) {
@@ -84,29 +96,29 @@ export async function check({ reference = referenceCommand, candidate = referenc
           return reply;
         }
         function compare(a, b, descriptor, phase) {
-          const diff = treeDifferences(a, b);
+          const diff = compareValues(Buffer.isBuffer(a) ? unpackValue(a) : a, Buffer.isBuffer(b) ? unpackValue(b) : b);
           report.differences.push(...diff.map(d => ({ requestType: descriptor.header.type, memberSlot: descriptor.memberSlot, phase, ...d })));
         }
         async function run(descriptor, state, ref = false, baseline) {
           report.requests[descriptor.header.type]++;
           if (ref) report.sequenceRequests++;
           const replies = await Promise.all(calculators.map((c,i) => dispatch(c, slots[i], descriptor, state, ref)));
-          const left = replies[0].digest ?? digestTree(comparable(replies[0]));
-          const values = [left, serial ? left : digestTree(comparable(replies[1]))];
+          const left = comparable(replies[0]);
+          const values = [left, serial ? left : comparable(replies[1])];
           compare(...values, descriptor, ref ? 'sequence-pair' : 'cold');
           if (baseline) { compare(baseline, values[0], descriptor, 'reference-sequence'); if (!serial) compare(baseline, values[1], descriptor, 'candidate-sequence'); }
           else if (sequence > 0) {
             // Reservoir sampling bounds retained outputs even for large saves.
-            const entry = { descriptor, baseline: values[0] };
+            const entry = () => ({ descriptor, baseline: packValue(values[0]) });
             const sameType = retained.findIndex(e => e.descriptor.header.type === descriptor.header.type);
             observed++;
-            if (sameType >= 0) { if (random() < 0.2) retained[sameType] = entry; }
-            else if (retained.length < sequence) retained.push(entry);
+            if (sameType >= 0) { if (random() < 0.2) retained[sameType] = entry(); }
+            else if (retained.length < sequence) retained.push(entry());
           }
           return replies[0];
         }
         for (let stateIndex = 0; stateIndex < group.states.length; stateIndex++) {
-          const entry = group.states[stateIndex], state = entry.load ? await entry.load() : entry.state;
+          const entry = group.states[stateIndex], state = await loadEntry(entry);
           const pickerId = 'legacy-shared';
           function descriptor(type, memberSlot, fields = {}) {
             return { entry, memberSlot, header: { type, pickerId, revision: state.revision, input: entry.digest,
@@ -135,12 +147,13 @@ export async function check({ reference = referenceCommand, candidate = referenc
             for (let n = 0; n < limits['area-check']; n++) await run(descriptor('area-check', memberSlot, { draft: { chunkIds: future, asMembers: random() < 0.5 } }), state);
             for (let n = 1; n < limits['roll-pool']; n++) await run(descriptor('roll-pool', memberSlot, { draft }), state);
           }
+          report.stateIds.push(entry.id);
         }
         // An unrelated picker's high revision must never abandon this work.
         // Reuse the selected body, then replay in shuffled order through refs.
         for (const entry of sample(retained, retained.length, random)) {
           const { descriptor: d, baseline } = entry;
-          const state = d.entry.load ? await d.entry.load() : d.entry.state;
+          const state = await loadEntry(d.entry);
           for (const c of calculators) {
             await c.control({ type: 'supersede', pickerId: 'p_ffffffffffffffffffffffffffffffff', revision: Number.MAX_SAFE_INTEGER }); report.controls.supersede++;
             // A prepare-rules body primes the state LRU without warming views.
@@ -153,7 +166,7 @@ export async function check({ reference = referenceCommand, candidate = referenc
         // intentionally not compared, and the same request is rerun normally.
         const chosen = retained.find(e => e.descriptor.header.type === 'death-estimates' || e.descriptor.header.type === 'predict');
         if (chosen) {
-          const d = chosen.descriptor, state = d.entry.load ? await d.entry.load() : d.entry.state;
+          const d = chosen.descriptor, state = await loadEntry(d.entry);
           for (const c of calculators) {
             const pending = c.request({ ...d.header, state: 'body' }, state);
             await c.control({ type: 'cancel', id: pending.id }); report.controls.cancel++;
@@ -186,13 +199,20 @@ export async function check({ reference = referenceCommand, candidate = referenc
   return report;
 }
 export async function cli(args = process.argv.slice(2)) {
-  if (args.includes('--help')) { console.log('calc-check --reference <cmd> --candidate <cmd> --corpus <JSON-file|fixtures,generated,save> --seed N --report <file> [--data-dir <copied-save>] [--cap-<request-type> N] [--sequence N] [--timeout-ms N]'); return; }
+  if (args[0] === '--merge-reports') {
+    if (args.length < 2 || args.slice(1).some(value => value.startsWith('--'))) throw new TypeError('invalid');
+    const merged = await mergeReportFiles(args.slice(1));
+    console.log(JSON.stringify(merged));
+    if (merged.differences || merged.errors) process.exitCode = 1;
+    return merged;
+  }
+  if (args.includes('--help')) { console.log('calc-check --reference <cmd> --candidate <cmd> --corpus <JSON-file|fixtures,generated,save> --seed N --report <file> [--data-dir <copied-save>] [--cap-<request-type> N] [--sequence N] [--timeout-ms N] [--shard i/n] | calc-check --merge-reports <files...>'); return; }
   const options = {}, caps = {};
   for (let i = 0; i < args.length; i += 2) {
     const key = args[i], value = args[i+1];
     if (!key.startsWith('--') || value === undefined) throw new TypeError('invalid');
     if (key.startsWith('--cap-') && types.includes(key.slice(6))) caps[key.slice(6)] = integer(value);
-    else if (['--reference','--candidate','--corpus','--report','--seed','--data-dir','--sequence','--timeout-ms','--serial'].includes(key)) options[key.slice(2)] = value;
+    else if (['--reference','--candidate','--corpus','--report','--seed','--data-dir','--sequence','--timeout-ms','--serial','--shard'].includes(key)) options[key.slice(2)] = value;
     else throw new TypeError('invalid');
   }
   if (!options.reference || !options.candidate || !options.corpus || !options.report) throw new TypeError('invalid');
@@ -203,7 +223,7 @@ export async function cli(args = process.argv.slice(2)) {
   if (corpus.save?.gameDefaultsFile) process.env.RS3_GAME_DEFAULTS_FILE = corpus.save.gameDefaultsFile;
   let lastProgress = 0;
   const report = await check({ onProgress: progress => { if (performance.now() - lastProgress >= 10000) { console.log(JSON.stringify(progress)); lastProgress = performance.now(); } }, reference: options.reference, candidate: options.candidate, corpus, seed: integer(options.seed ?? '1'), caps,
-    serial: options.serial === 'true', sequence: integer(options.sequence ?? '8'), timeoutMs: integer(options['timeout-ms'] ?? '180000'), reportFile: options.report });
+    shard: options.shard ?? '1/1', serial: options.serial === 'true', sequence: integer(options.sequence ?? '8'), timeoutMs: integer(options['timeout-ms'] ?? '180000'), reportFile: options.report });
   console.log(JSON.stringify({ states: report.corpus.states, requests: report.requests, differences: report.differenceCount, errors: report.errors, durationMs: report.durationsMs.total, peakRSSBytes: report.peakRSSBytes }));
   if (report.differenceCount || report.errors) process.exitCode = 1;
 }

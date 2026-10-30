@@ -212,3 +212,136 @@ test('missing history states are verified forwards and backwards, while undo bar
   const [code]=await once(child,'close');
   assert.equal(code,0,errors);
 });
+
+
+test('structural comparison preserves hash-tree differences, paths and exclusions', async () => {
+  const { compareValues } = await import('../tools/calc-check/compare.mjs');
+  const values = [{ 'metrics.elapsedMs': 1 }, { 'metrics.elapsedMs': 2 }, { play: { 'cache.baselineHit': true } }, { play: { 'cache.baselineHit': false } }, undefined, null, false, 0, -0, 1, 'value', [], [0,1], [1,0], {}, { missing: undefined },
+    { cache: { baselineHit: true, baselineSource: 'worker' } }, { cache: { baselineHit: false, baselineSource: 'worker' } },
+    { metrics: { elapsedMs: 1, availableCount: 2 } }, { metrics: { elapsedMs: 3, availableCount: 2 } },
+    { play: [{ 'private dictionary A': 1, 'private dictionary B': [2] }] }, { play: [{ 'private dictionary A': 2, 'private dictionary B': {} }] }];
+  for (const a of values) for (const b of values) assert.deepEqual(compareValues(a,b), treeDifferences(digestTree(a),digestTree(b)));
+});
+
+test('report merge requires complete disjoint shards and matching provenance', async () => {
+  const { mergeReports, parseShard, manifestFor, partitionCorpus } = await import('../tools/calc-check/shards.mjs');
+  const { hash } = await import('../tools/calc-check/compare.mjs');
+  assert.deepEqual(parseShard('3/10'), { index:3, count:10 });
+  for (const value of ['0/2','3/2','1/0','1','1/2x','01/2','1/9007199254740992']) assert.throws(() => parseShard(value));
+  const groups = [{bundle:{}, states:Array.from({length:5},(_,i)=>({source:'generated',digest:hash(String(i))}))}];
+  const manifest = manifestFor(groups), ids = groups[0].states.map(s=>s.id);
+  const make = index => ({format:'calc-check-shard-report-v1', corpusManifest:manifest, corpusManifestHash:hash(JSON.stringify(manifest)),
+    seed:17, shard:{index,count:2}, engineVersions:{reference:[{version:'one'}], candidate:[{version:'two'}]}, checkConfiguration:{sequence:8},
+    stateIds:ids.filter((_,i)=>i%2===index-1), corpus:{states:ids.filter((_,i)=>i%2===index-1).length}, requests:{evaluate:3}, differences:[],differenceCount:0,errors:0,durationsMs:{total:index*100}});
+  const reports=[make(1),make(2)];
+  const reordered=structuredClone(reports);reordered[0].stateIds.reverse();
+  assert.equal(mergeReports(reordered).states,5);
+  assert.deepEqual(partitionCorpus({groups},parseShard('2/2'))[0].states.map(s=>s.id),reports[1].stateIds);
+  assert.equal(mergeReports(reports).states,5);
+  assert.equal(mergeReports(reports).comparisons,6);
+  assert.equal(mergeReports(reports).totalWallMs,300);
+  assert.equal(mergeReports(reports).maxShardWallMs,200);
+  const mutate = fn => { const copy=structuredClone(reports);fn(copy);return copy; };
+  for (const bad of [reports.slice(0,1), [reports[0],reports[0]],
+    mutate(r=>r[1].stateIds.pop()), mutate(r=>r[1].stateIds[0]=r[0].stateIds[0]),
+    mutate(r=>r[1].corpusManifestHash='0'.repeat(64)),mutate(r=>r[1].seed++),mutate(r=>r[1].shard.count++),
+    mutate(r=>r[1].engineVersions.candidate[0].version='other'),mutate(r=>r[1].differenceCount=1),
+    mutate(r=>r[1].volatile=[{path:'new-exclusion'}]),mutate(r=>{for(const row of r)row.requests={evaluate:0};})]) assert.throws(()=>mergeReports(bad));
+  const failed=mutate(r=>{r[1].differences=[{path:'/play/metrics/availableCount'}];r[1].differenceCount=1;r[1].errors=2;});
+  assert.equal(mergeReports(failed).differences,1);assert.equal(mergeReports(failed).errors,2);
+  const directory=await mkdtemp(path.join(tmpdir(),'calc-check-merge-cli-'));
+  const { writeFile }=await import('node:fs/promises');
+  try {
+    const files=[];
+    for(let i=0;i<reports.length;i++){const file=path.join(directory,String(i)+'.json');await writeFile(file,JSON.stringify(reports[i]));files.push(file);}
+    const changed=path.join(directory,'changed.json');
+    await writeFile(changed,JSON.stringify({...reports[1],corpusManifestHash:'0'.repeat(64)}));
+    for(const [inputs,expected] of [[files,0],[[files[0]],1],[[files[0],files[0]],1],[[files[0],changed],1]]) {
+      const child=spawn(process.execPath,['tools/calc-check/main.mjs','--merge-reports',...inputs],{cwd:root,env:publicEnv('open-starter'),stdio:['ignore','pipe','pipe']});
+      let output='';child.stdout.on('data',b=>{output+=b;});child.stderr.resume();
+      const [code]=await once(child,'close');assert.equal(code,expected);
+      if(!expected){const merged=JSON.parse(output);assert.equal(merged.states,5);assert.equal(merged.comparisons,6);}
+      else assert.equal(output,'');
+    }
+  } finally { await rm(directory,{recursive:true,force:true}); }
+});
+
+test('optimized snapshots match storage for static, archived and hydrated history inputs', async () => {
+  const child = spawn(process.execPath, ['--input-type=module', '-e', `
+    import assert from 'node:assert/strict';
+    import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
+    import { tmpdir } from 'node:os';
+    import path from 'node:path';
+    import { gzipSync } from 'node:zlib';
+    import { createGroupState, applyCommand, BACKUP_FORMAT, SCHEMA_VERSION } from './app/core/state.mjs';
+    import { createRuleRegistry } from './app/core/rules.mjs';
+    import { buildWorld } from './app/data/world.mjs';
+    import { SURFACE_GRID } from './app/data/surface-grid.mjs';
+    import { openStore } from './app/storage/store.mjs';
+    import { saveSnapshots } from './tools/calc-check/save-snapshots.mjs';
+    import { hash } from './tools/calc-check/compare.mjs';
+    const directory=await mkdtemp(path.join(tmpdir(),'calc-check-save-reader-'));
+    let store;
+    try {
+      for(const sub of ['static','history','backups/archives']) await mkdir(path.join(directory,sub),{recursive:true});
+      const registry=createRuleRegistry(), id=String(SURFACE_GRID.startId), world=buildWorld({chunks:{[id]:{}},challenges:{},walkableChunks:[id],walkableChunksF2P:[id]});
+      const initial=createGroupState([{id:'m',name:'Player',unlocked:[id]}],registry), rule=registry.definitions.find(row=>row.type==='boolean');
+      const first=applyCommand(initial,{type:'set-rule',ruleId:rule.id,value:!rule.default},{world,registry,now:()=> '2026-01-01T00:00:00.000Z'});
+      const current=applyCommand(first,{type:'set-rule',ruleId:rule.id,value:rule.default},{world,registry,now:()=> '2026-01-01T00:00:00.000Z'});
+      const envelope=state=>({format:BACKUP_FORMAT,schemaVersion:SCHEMA_VERSION,state});
+      const bytes=JSON.stringify(first.tasks), sha256=hash(bytes), staticName='static-'+sha256+'.json.gz';
+      await writeFile(path.join(directory,'static',staticName),gzipSync(bytes));
+      const history='history-0000000000000001-0000000000000001-aaaaaaaaaaaaaaaa.json.gz';
+      await writeFile(path.join(directory,'history',history),gzipSync(JSON.stringify({format:'rs3-chunk-picker-history',events:first.history})));
+      const {tasks,...compact}=first;
+      compact.history=[];compact.provenance={historyArchive:[{id:history}]};
+      const doc={...envelope(compact),storage:{schemaVersion:1,fields:{tasks:{id:staticName,sha256}}}};
+      const standalone='0000000000000001-aaaaaaaaaaaaaaaa.json.gz', archived='0000000000000000-bbbbbbbbbbbbbbbb.json.gz';
+      await writeFile(path.join(directory,'backups',standalone),gzipSync(JSON.stringify(doc)));
+      await writeFile(path.join(directory,'backups/archives','archive-cccccccccccccccc.json.gz'),gzipSync(JSON.stringify({format:'rs3-chunk-picker-retained-archive',snapshots:[{id:archived,at:'2026-01-01T00:00:00.000Z',bytes:1,document:envelope(initial)}]})));
+      await writeFile(path.join(directory,'state.json'),JSON.stringify(envelope(current)));
+      store=await openStore({dataDir:directory,world,registry,retention:false});
+      const reader=await saveSnapshots(directory,registry), entries=await reader.listBackups();
+      assert.equal(entries.length,2);
+      for(const entry of entries) assert.equal(hash(JSON.stringify(await reader.readBackup(entry))),hash(JSON.stringify((await store.readBackup(entry.id)).state)));
+      const entry=entries.find(row=>row.id===standalone), loaded=await reader.readBackup(entry);
+      loaded.tasks.push({id:'modified'});
+      assert.equal((await reader.readBackup(entry)).tasks.length,first.tasks.length);
+      await writeFile(path.join(directory,'static',staticName),gzipSync('[] '));
+      const corrupt=await saveSnapshots(directory,registry);
+      await assert.rejects(()=>corrupt.readBackup(entry));
+    } finally { await store?.close();await rm(directory,{recursive:true,force:true}); }
+  `], { cwd:root, env:publicEnv('open-starter'), stdio:['ignore','ignore','pipe'] });
+  let error='';child.stderr.on('data',bytes=>{error+=bytes;});
+  const [code]=await once(child,'close');assert.equal(code,0,error);
+});
+
+test('real checker shards interleave one full manifest and merge complete coverage', async () => {
+  const directory=await mkdtemp(path.join(tmpdir(),'calc-check-shards-'));
+  const {writeFile}=await import('node:fs/promises');
+  try {
+    const spec=path.join(directory,'corpus.json');
+    await writeFile(spec,JSON.stringify({generated:{steps:1},limits:{generated:4}}));
+    const reports=[];
+    for(const shard of ['1/2','2/2','5/5']) {
+      const output=path.join(directory,shard.replace('/','-')+'.json');
+      const child=spawn(process.execPath,['tools/calc-check/main.mjs','--reference',reference,'--candidate',reference,'--corpus',spec,'--seed','17','--serial','true','--shard',shard,'--report',output],{cwd:root,env:publicEnv('open-starter'),stdio:['ignore','ignore','pipe']});
+      let error='';child.stderr.on('data',bytes=>{error+=bytes;});
+      const [code]=await once(child,'close');assert.equal(code,0,error);
+      reports.push(JSON.parse(await readFile(output,'utf8')));
+    }
+    const [first,second,empty]=reports;
+    const ids=first.corpusManifest.groups.flatMap(group=>group.states.map(state=>state.id));
+    assert.equal(ids.length,4);
+    assert.equal(first.corpusManifestHash,second.corpusManifestHash);
+    assert.deepEqual(first.stateIds,ids.filter((_,i)=>i%2===0));
+    assert.deepEqual(second.stateIds,ids.filter((_,i)=>i%2===1));
+    assert.equal(empty.corpus.states,0);assert.deepEqual(empty.stateIds,[]);
+    assert.ok(empty.engineVersions.reference.length);assert.ok(empty.engineVersions.candidate.length);
+    const {mergeReports}=await import('../tools/calc-check/shards.mjs');
+    const merged=mergeReports([second,first]);
+    assert.equal(merged.states,4);assert.equal(merged.differences,0);assert.equal(merged.errors,0);
+    assert.ok(first.sequenceRequests>0);assert.ok(second.sequenceRequests>0);
+    assert.ok(first.controls.cancel>0);assert.ok(second.controls.cancel>0);
+  } finally {await rm(directory,{recursive:true,force:true});}
+});

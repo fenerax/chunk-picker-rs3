@@ -1,15 +1,16 @@
 import { mkdtemp, readFile, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
+import { packValue, unpackValue } from './values.mjs';
 import path from 'node:path';
 import { Calculator } from './client.mjs';
-import { comparable, digestTree, treeDifferences, hash } from './compare.mjs';
+import { comparable, compareValues, hash } from './compare.mjs';
 
 // Record the oracle's wire sequence, close it, then replay the candidate. Only
-// temporary request bodies and value-free result hashes are written here.
+// private temporary request bodies and compressed expected values are written here.
 export async function sequentialPair(reference, candidate, options, onReady, onDifference) {
   const directory = await mkdtemp(path.join(tmpdir(), 'calc-check-wire-'));
   const oracle = new Calculator(reference, options), operations = [];
-  const bodies = new Set();
+  const bodies = new Set(), bodyCache = new WeakMap();
   let bundle, last, closePromise;
   const originalInit = oracle.init.bind(oracle), originalRequest = oracle.request.bind(oracle), originalControl = oracle.control.bind(oracle), originalClose = oracle.close.bind(oracle);
   oracle.replayDurations = {};
@@ -21,7 +22,9 @@ export async function sequentialPair(reference, candidate, options, onReady, onD
     const operation = { header, index, id: pending.id };
     operations.push(operation);
     const stored = state === undefined ? Promise.resolve() : (async () => {
-      const bytes = JSON.stringify(state), key = hash(bytes);
+      let cached = bodyCache.get(state);
+      if (!cached) { const bytes = JSON.stringify(state); cached = { bytes, key: hash(bytes) }; bodyCache.set(state, cached); }
+      const { bytes, key } = cached;
       operation.body = key;
       if (!bodies.has(key)) { bodies.add(key); await writeFile(path.join(directory, key), bytes); }
     })();
@@ -30,9 +33,7 @@ export async function sequentialPair(reference, candidate, options, onReady, onD
       await stored;
       operation.snapshotMissing = reply.header.error?.kind === 'snapshot-missing';
       operation.cancelled = !!reply.header.cancelled || Object.values(reply.parts).some(p => p?.cancelled);
-      reply.digest = digestTree(comparable(reply));
-      operation.rootHash = reply.digest.hash;
-      await writeFile(path.join(directory, `${index}.hashes`), JSON.stringify(reply.digest));
+      await writeFile(path.join(directory, `${index}.expected`), packValue(comparable(reply)));
       return reply;
     }) };
     return last;
@@ -77,11 +78,8 @@ export async function sequentialPair(reference, candidate, options, onReady, onD
           }
           (peer.replayDurations[operation.header.type] ??= []).push(performance.now() - began);
           if (operation.cancelled || operation.snapshotMissing) continue;
-          const actual = digestTree(comparable(reply));
-          if (actual.hash !== operation.rootHash) {
-            const expected = JSON.parse(await readFile(path.join(directory, `${operation.index}.hashes`), 'utf8'));
-            onDifference(operation, treeDifferences(expected, actual));
-          }
+          const expected = unpackValue(await readFile(path.join(directory, `${operation.index}.expected`)));
+          onDifference(operation, compareValues(expected, comparable(reply)));
         }
       } finally {
         await calculator.close();
