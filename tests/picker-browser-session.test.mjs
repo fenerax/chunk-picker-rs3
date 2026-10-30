@@ -301,3 +301,32 @@ test('enabling picker isolation warns and clears an older unscoped intention wit
   assert.equal(tab.getItem(prefix(scopeA) + commandOutboxKey), null);
   assert.equal(f.calls.length, 0);
 });
+
+test('a retired document restored from the back-forward cache reloads instead of checking', () => {
+  const f = fixture(); f.c.panelContext.pickerSession.stop({ announce: false });
+  f.listeners.pageshow({ persisted: true });
+  assert.equal(f.reloads, 1); assert.equal(f.calls.length, 0);
+});
+
+test('sign-in links opened in another window leave the current document running', () => {
+  const f = fixture(), link = target => ({ getAttribute: name => name === 'href' ? '/auth/discord' : name === 'target' ? target : null });
+  const click = (extra, target = null) => f.listeners['document:click']({ target: { closest: () => link(target) }, button: 0, preventDefault() {}, ...extra });
+  click({ shiftKey: true }); click({ altKey: true }); click({ button: 1 }); click({}, '_blank');
+  assert.equal(f.c.panelContext.pickerSession.stopped, false);
+  click({});
+  assert.equal(f.c.panelContext.pickerSession.stopped, true);
+});
+
+test('a different invite for the same member retires the document', async () => {
+  const invite = inviteId => ({ multiPicker: true, pickerId: scopeA, pickerRoute: scopeA, kind: 'invite', memberId: 'owner', readOnly: false, actor: { kind: 'invite', inviteId } });
+  const f = fixture({ initial: invite('invite-1') }); f.setSession(invite('invite-2'));
+  await assert.rejects(f.c.panelContext.pickerSession.check(), { name: 'AbortError' });
+  assert.equal(f.reloads, 1); assert.equal(f.c.state, undefined);
+});
+
+test('keepalive unload flushes dispatch at once with the picker header', () => {
+  const f = fixture(); f.disconnect();
+  void f.c.panelContext.pickerSession.fetch('/api/usage', { method: 'POST', keepalive: true, body: '{}' });
+  assert.deepEqual(f.calls.map(call => call.path), ['/api/usage']);
+  assert.equal(f.calls[0].options.keepalive, true); assert.equal(f.calls[0].options.headers.get('X-Picker-Id'), scopeA);
+});

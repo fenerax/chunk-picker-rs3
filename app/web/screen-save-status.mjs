@@ -64,7 +64,7 @@ const sessionKey = 'picker.active-session.v1';
 const changeKey = 'picker.session-change.v1';
 const unsentMessage = 'Queued changes were not sent because the account or picker changed. A save already in flight may have arrived; check History before repeating it.';
 const abandoned = () => Object.assign(new Error('The account or picker changed. Reload the picker.'), { name: 'AbortError' });
-const identity = session => JSON.stringify([session.pickerId, session.accountId ?? session.account?.id, session.kind, session.memberId, session.readOnly, session.capabilities]);
+const identity = session => JSON.stringify([session.pickerId, session.accountId ?? session.account?.id, session.kind, session.memberId, session.readOnly, session.capabilities, session.actor?.kind ?? null, session.actor?.inviteId ?? null]);
 
 // One document, one picker: no cache, controller or queued closure is transferred.
 export function createScreenPickerSession(c, { fetch = (...args) => globalThis.fetch(...args),
@@ -124,7 +124,9 @@ export function createScreenPickerSession(c, { fetch = (...args) => globalThis.f
   }
   async function scopedFetch(path, options) {
     if (!session?.multiPicker) return fetch(path, options);
-    await check(); active();
+    // Unload flushes must dispatch before teardown: skip the preflight. The
+    // picker header still binds them, and the server refuses a changed session.
+    if (options?.keepalive) active(); else { await check(); active(); }
     const controller = new AbortController(), abort = () => controller.abort();
     options?.signal?.addEventListener('abort', abort, { once: true });
     if (options?.signal?.aborted) abort();
@@ -165,11 +167,14 @@ export function createScreenPickerSession(c, { fetch = (...args) => globalThis.f
     safe(() => tabStorage().setItem(sessionKey, JSON.stringify({ signature, pickerId: session.pickerId })));
     c.usage?.refreshPreference();
     timer = schedule?.(() => { void check().catch(() => {}); }, 5000); timer?.unref?.();
-    for (const event of ['focus', 'pageshow']) globalThis.addEventListener?.(event, () => { void check().catch(() => {}); });
+    globalThis.addEventListener?.('focus', () => { void check().catch(() => {}); });
+    // A retired document restored from the back-forward cache cannot recover in place.
+    globalThis.addEventListener?.('pageshow', () => { if (stopped) location.reload(); else void check().catch(() => {}); });
     globalThis.addEventListener?.('storage', event => { if (event.key === changeKey) void check().catch(() => {}); });
     globalThis.document?.addEventListener?.('click', event => {
       const link = event.target?.closest?.('a[href]');
-      if (link && /^\/auth\//.test(link.getAttribute('href') ?? '') && !event.ctrlKey && !event.metaKey) {
+      if (link && /^\/auth\//.test(link.getAttribute('href') ?? '') && !event.ctrlKey && !event.metaKey && !event.shiftKey && !event.altKey
+        && (event.button ?? 0) === 0 && !['_blank', '_new'].includes((link.getAttribute('target') ?? '').toLowerCase())) {
         stop();
         try { clear(session.pickerId); } catch { event.preventDefault(); c.notice?.('Browser storage could not be cleared. Restore browser storage before switching accounts.', true); }
       }
