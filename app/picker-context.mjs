@@ -744,6 +744,8 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
     broadcast(`event: worker\ndata: ${JSON.stringify(worker)}\n\n`);
   });
   let importingBackup = false;
+  const admittedImports = new WeakSet();
+  const importBodyChecks = new WeakMap();
   const applicationRequestHandler = async (request, response, lease, listener) => {
     // Listener policy is supplied by the socket dispatcher, never HTTP input.
     const listenerOptions = { ...listener, publicOrigin };
@@ -857,7 +859,7 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
             if ([...query.keys()].some(key => key !== 'memberId') || query.getAll('memberId').length !== 1) throw httpError(400, 'Choose a player for game progress review.');
             await json(request, response, 200, gamePlugin.review(identity, query.get('memberId'))); return;
           }
-          if (route === '/api/session') { await json(request, response, 200, { admin: identity.admin, ...(security.publicRequest ? { adminAvailable: false } : {}), readOnly: identity.readOnly, capabilities: identity.capabilities, label: identity.label, kind: identity.kind, memberId: identity.memberId ?? null, actor: identity.actor, ...(identity.pickerId ? { accountId: identity.accountId, pickerId: identity.pickerId } : {}), ...signInFlow.sessionView(identity, security) }); return; }
+          if (route === '/api/session') { await json(request, response, 200, { admin: identity.admin, ...(security.publicRequest ? { adminAvailable: false } : {}), readOnly: identity.readOnly, capabilities: identity.capabilities, label: identity.label, kind: identity.kind, memberId: identity.memberId ?? null, actor: identity.actor, ...(identity.pickerId ? { accountId: identity.accountId, pickerId: identity.pickerId } : {}), ...(pickerRouting?.sessionView ?? signInFlow.sessionView)(identity, security) }); return; }
           if (route === '/api/accounts') { requireAdmin(); await json(request, response, 200, { accounts: accounts.list() }); return; }
           if (route === '/api/pool-ranking') {
             const query = new URL(request.url, 'http://localhost').searchParams;
@@ -1274,11 +1276,12 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
           }
         } else if (request.method === 'POST') {
           checkRequestOrigin(request, security);
-          if (isImportRoute(route)) {
+          if (isImportRoute(route) && !admittedImports.has(request)) {
             if (importingBackup) throw httpError(503, 'Another backup is being checked or imported. Wait for it to finish, then try again.');
             importingBackup = ownsImport = true;
           }
           const importedFile = isImportRoute(route) ? (routedBody(request)?.imported ?? await readBackupRequest(request)) : null;
+          if (importedFile) importBodyChecks.get(request)?.(importedFile.body);
           const body = importedFile ? importedFile.body : await bodyJSON(request, route === '/api/sandbox/evaluate' ? 64 * 1024 : route === '/api/worker-restart' || route === '/api/prediction-intent' || route === '/api/pool-ranking-intent' || route.startsWith('/api/game-plugin/') || route.startsWith('/api/runemetrics/') || route.startsWith('/api/invites') ? 8192 : route.startsWith('/api/feedback') ? 16384 : MAX_BODY);
           if (importedFile?.uploaded && body.document && route.startsWith('/api/restore')) route = route.replace('/api/restore', '/api/import');
           // Keep slow uploads and reviewed sync-original commands excluded. Only
@@ -1411,7 +1414,10 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
               if (action === 'unlink' && !['discord', 'google'].includes(body.provider)) throw httpError(400, 'Choose a sign-in provider.');
               // Identity removal also invalidates existing sessions; re-entry uses a remaining identity.
               await invites.revokeAccountSessions(id);
-              if (action === 'unlink') await accounts.unlinkIdentity(id, body.provider);
+              if (action === 'unlink') {
+                await accounts.unlinkIdentity(id, body.provider);
+                if (pickerRouting?.registry?.getAccount(id)) await pickerRouting.registry.unlinkIdentity(id, body.provider);
+              }
               if (action === 'delete') await accounts.delete(id);
               endInactiveClients();
               await json(request, response, 200, { status: action === 'delete' ? 'deleted' : 'updated' }); return;
@@ -1843,6 +1849,21 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
   let activationPending;
   const context = {
     pickerId, store,
+    sessionView: (identity, security) => signInFlow.sessionView(identity, security),
+    checkImportBody(request, check) { importBodyChecks.set(request, check); },
+    admitImport(request, security) {
+      const identity = invites.authenticate(request, security);
+      if (!identity) throw httpError(401, 'Access required.');
+      if (pickerId === 'legacy' || identity.role !== 'owner' || identity.readOnly) throw httpError(403, 'Picker owner access required.');
+      checkRequestOrigin(request, security);
+      if (closed || handover.frozen || liveSwap?.standby) throw httpError(503, 'The picker is stopping. Retry after it restarts.');
+      if (importingBackup) throw httpError(503, 'Another backup is being checked or imported. Wait for it to finish, then try again.');
+      importingBackup = true; admittedImports.add(request);
+      // Router parsing precedes handle(), so include its admission in the same
+      // drain set. Eviction must not reopen alongside a still-running parser.
+      const drained = Promise.withResolvers(); requests.add(drained.promise);
+      return () => { admittedImports.delete(request); importingBackup = false; requests.delete(drained.promise); drained.resolve(); };
+    },
     authenticate: (request, security) => invites.authenticate(request, security),
     authenticatePlugin: request => gamePlugin.authenticate(request),
     handle: (request, response, listener = { host: '127.0.0.1', ingressRole: 'private' }) => track(requests, () => requestHandler(request, response, listener)),

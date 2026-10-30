@@ -102,6 +102,8 @@ export async function openSignIn({ publicOrigin, mode = 'off', accounts, invites
   function checkRegistryOwner(accountId, name, subject) {
     const owner = pickerRegistry?.findIdentity(name, subject);
     if (owner && owner.id !== accountId) throw failure(409, sharedIdentityConflict);
+    const existing = accountId && pickerRegistry?.getAccount(accountId)?.identities.find(i => i.provider === name);
+    if (existing && existing.subject !== subject) throw failure(409, 'This account already has a linked identity for this provider.');
   }
   async function createWithInvite(name, subject, inviteId) {
     checkRegistryOwner(undefined, name, subject);

@@ -637,7 +637,7 @@ switch or production configuration change. Without the option, dispatch still
 calls the original single legacy context directly and opens no registry.
 
 With the option, startup opens the registry and idempotently registers the
-existing shared exception using its validated member IDs and live account/invite
+existing shared exception using its validated member IDs and live account and invitation
 grants. It refuses an existing account file whose invitation file is missing.
 The registry's legacy picker retains no owner and consumes no private default
 slot. An explicit duo invitation, or a provider subject with a live legacy invitation
@@ -655,7 +655,10 @@ One session issuer remains in the legacy context's invitation sidecar. New
 hash-only sessions add `accountId`, `pickerId` and provider, and every resolution
 checks the registry's active, ready picker and current membership/provider link.
 They grant ordinary owner gameplay authority, never operator `admin`. The
-session endpoint returns the two bindings for these sessions only. Gameplay
+session endpoint returns the two bindings for these sessions only, along with
+the same sign-in mode, configured providers and account/provider fields as legacy
+account sessions. Private contexts use the legacy issuer's session view only;
+they do not create another OAuth flow. Gameplay
 History uses the existing member-scoped `invite` actor schema with the account
 UUID as its pseudonymous actor ID; it requires no core schema change. Sign-out
 revokes the original issuer's session, including after context eviction/restart.
@@ -682,12 +685,18 @@ closes private contexts, then the legacy session issuer, then the registry.
 Supported optional selectors are query/body `pickerId` or `picker`, headers
 `X-Picker-Id` or `X-Picker`, and `/pickers/:id/...` or `/api/pickers/:id/...`.
 They must all equal the credential's bound picker, including nested body fields;
-conflicts are refused before a context opens or its handler runs. Legacy uses
+ordinary JSON conflicts are refused before a context opens or its handler runs. Legacy uses
 `legacy` as its request scope. Matching routing envelope fields are removed
 before ordinary route schema checks. JSON parsing preserves exact byte counts
-and downstream route limits. Backup uploads use the existing streaming parser
-and limits before acquisition; GET/HEAD bodies are refused. Authentication is
-rechecked after body admission and again inside the selected context.
+and downstream route limits. Unauthenticated requests reach legacy without body
+parsing. Legacy backup uploads also stay unread until the legacy handler admits
+them. For owned backups, URL and header selectors pass first; the selected
+context checks the owner role, origin and its shared import guard before the
+streaming parser runs. Legacy checks parsed selectors within its own admitted
+backup path. Parsed body selectors pass before gameplay handling,
+and the guard stays held through parsing and execution, releasing on failure.
+Authenticated GET/HEAD bodies are refused. Authentication is rechecked after
+ordinary JSON admission and again inside the selected context.
 
 Plugin key issuance writes the local key and its hash-to-account/picker/member
 registry entry before returning a secret. Failed indexing revokes the local key;
@@ -716,7 +725,7 @@ revisions, caches and restores use only the selected store's namespaces.
 | File | Change and trusted resolution boundary |
 | --- | --- |
 | `app/server.mjs` | Opt-in registry lifetime, legacy registration and a lazy context factory. The factory receives IDs only from authenticated router acquisition, creates neutral state, verifies membership, and derives storage paths through the registry. Global runtime/admission/calculators remain shared. |
-| `app/picker-router.mjs` | Single enabled-mode HTTP boundary, `contextFor`, session/key scope, selector/body admission, capability indexing/rechecks, serialized LRU/idle close and reopen. No request ID supplies a store path. OAuth endpoints use only the single issuer's auth/invite handlers. A signed-in private account opening a duo invite receives the same clear joining refusal page. |
+| `app/picker-router.mjs` | Single enabled-mode HTTP boundary, `contextFor`, session/key scope, selector/body admission, capability indexing/rechecks, serialized LRU/idle close and reopen. No request ID supplies a store path. OAuth endpoints use only the single issuer's authentication and invitation handlers. A signed-in private account opening a duo invite receives the same clear joining refusal page. |
 | `app/picker-context.mjs` | Context authentication adapter for every API, usage, overlay administrator check, delivery check, queued write and SSE revocation check; native plugin scope hook; explicit owner gameplay restore; store member identity guard supplied by the server. SSE client sets and broadcasts remain local. |
 | `app/picker-context-http.mjs` | Weak request-local parsed-body handoff, preserving ordinary limits and avoiding re-reading admitted bodies. No private response cache is shared. |
 | `app/signin.mjs` | Recoverable first-login provisioning, bound session issuance, registry-aware linking, and the existing legacy membership exception. Provider subjects come only from the verified OAuth exchange. |
@@ -882,3 +891,75 @@ the app changes:
 
 Quick took 84.84 seconds; full took 267.83 seconds. Both totals add exactly the
 six new regressions, with no existing assertion loosened or test skipped.
+
+
+### MP4 follow-up 2
+
+All four enabled-routing review findings are fixed. Anonymous requests bypass
+router body parsing and reach the unchanged legacy admission path. Legacy backup
+requests also reach legacy unread. Owned backup uploads take the context's
+existing single-import guard after checking current owner authority and origin;
+that same guard spans streaming parsing and the context handler. Parser admission
+also enters the context drain set, so eviction cannot reopen a second parser
+for the same picker while the first is still active. URL and header
+selectors pass before admission, and body selectors pass before execution.
+Legacy validates backup body selectors after its existing admission and parser,
+before executing a restore. Refused uploads close their connection without
+draining the body. Public ordinary
+GET/HEAD visits carrying a forbidden administrator cookie reach legacy's existing
+cookie-clear redirect; APIs and explicit bearer access still refuse it.
+
+Private session responses delegate their account and sign-in fields to the
+legacy issuer's session view, which already holds the configured provider list
+and registry. Authentication endpoints remain on that issuer. No browser file
+changes or additional OAuth state are required.
+
+Legacy provider writes preflight both global subject ownership and the target
+account's existing registry identity for that provider. A conflicting link
+returns before either identity store changes. Unlink removes the provider from
+both stores inside the existing serialized mutation. Startup validates every
+planned subject owner before reconciling removals and calling `registerLegacy`.
+Removal reconciliation applies only to matching legacy account IDs that already
+have no owned default picker and only shared-picker memberships (including
+none after revoked grants); registry-native
+accounts are untouched. This also repairs an identity removed from legacy
+storage offline or an unlink interrupted between the two durable writes. The
+registry's original conflict checks remain intact.
+
+Follow-up edits are limited to `app/picker-router.mjs` (admission and public-page
+recovery), `app/picker-context.mjs` (shared import admission, session view and
+registry unlink), `app/server.mjs` (session-view wiring and startup reconciliation),
+`app/signin.mjs` (provider conflict preflight), `tests/picker-routing.test.mjs`
+(nine regression tests and dispatch capture), and this MP4 section, including
+the two scanner-safe wording corrections in the changed-files table.
+`app/web/account-panel.mjs` and `app/storage/registry.mjs` are unchanged.
+
+The security reread covers router context selection, session and plugin-key
+resolution, body admission, the context import guard, legacy authentication
+recovery, session view delegation, serialized legacy provider writes and startup
+reconciliation. Store paths, capability scope and stream routing still derive
+only from authenticated credentials. Production sign-up and all earlier MP4
+exclusions remain unchanged.
+
+Follow-up 2 repeats the same 10 raw-response duo reads on fresh temporary save
+copies at START, with the option absent, and with it present: **zero response,
+size or rewritten-save differences** for both comparisons. Each run returns
+83,606,217 bytes; digest-array SHA-256 is
+`770860c24f1ee6cbbf4aa885cb8c8193737c58bac640cb2c63be8b7da5669ada`.
+The rewritten save is 766,470 bytes, SHA-256
+`44cf36a23999b0e0ac4895b2b3a37011496ae177f23bbf99f711fbe95a09dc76`.
+The private checkout has zero changed files. Earlier performance measurements
+remain the recorded measurements; this follow-up makes no new timing claim.
+
+Final follow-up 2 validation on Node 24.19.0 ran quick, then full, after the last
+app change. Quick: **2,550 passed, 0 failed, 68 skipped** (82.24 seconds).
+Full: **5,697 passed, 0 failed, 140 skipped** (268.85 seconds). These are exactly
+follow-up 1 plus nine new tests, or START plus the 39 routing and crash tests.
+No existing assertions were loosened and no tests were skipped to obtain these
+results. Added coverage includes unread anonymous/stale-credential uploads,
+origin and role admission, per-picker import exclusion and draining through
+capacity eviction, session account controls, public cookie recovery, provider
+unlink/relink/restart, rejected links without identity writes, and offline
+identity removal with both live and revoked legacy grants. The final raw-byte
+duo gate was run against this app version with both option settings. All changes
+are staged; the option remains off by default.

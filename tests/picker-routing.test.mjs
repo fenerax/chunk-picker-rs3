@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import http from 'node:http';
+import { Readable, Writable } from 'node:stream';
 import { mkdtemp, rm, writeFile, readFile, rename } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -54,12 +55,12 @@ async function fixture(t, { initiallyEnabled = true, beforeCommit, ...limits } =
     return Response.json({ id: access.get(options.headers.Authorization.slice(7)) });
   } };
   const multiPicker = { registryDir: path.join(root, 'registry'), pickerRoot: path.join(root, 'pickers'), tombstoneDir: path.join(root, 'tombstones'), ...limits };
-  let app;
+  let app, handler;
   const start = async (multi) => {
     app = await createServer({ dataDir: path.join(root, 'legacy'), dataset: selectedDataset, definitions, taskMap: {},
       initialState: createGroupState([{ id: 'one', name: 'Player 1' }, { id: 'two', name: 'Player 2' }]),
       port: 0, loopbackPort: 0, loopbackRole: 'public', publicOrigin: origin, signIn: 'optional', signInProvider: provider,
-      beforeCommit, now: () => Date.parse('2026-10-21T12:00:00.000Z'), multiPicker: multi, predictionPrewarm: false, shutdownDeadlineMs: 500,
+      onRequestHandler: value => { handler = value; }, beforeCommit, now: () => Date.parse('2026-10-21T12:00:00.000Z'), multiPicker: multi, predictionPrewarm: false, shutdownDeadlineMs: 500,
       rateLimits: { unauthenticated: 10000, expensivePerIdentity: 10000 } });
     await app.listen();
   };
@@ -84,9 +85,9 @@ async function fixture(t, { initiallyEnabled = true, beforeCommit, ...limits } =
       if (env[i] === undefined) delete process.env[key]; else process.env[key] = env[i];
     }
   });
-  return { root, send, login, begin, picker, registry, multiPicker,
+  return { root, send, login, begin, picker, registry, multiPicker, handler: () => handler,
     private: (route, options = {}) => request(`http://127.0.0.1:${app.address().port}`, route, { ...options, headers: { Authorization: 'Bearer ' + app.store.getAccessToken(), Origin: `http://127.0.0.1:${app.address().port}`, ...options.headers } }),
-    app: () => app, restart: async () => { await app.close(); await start(multiPicker); },
+    app: () => app, restart: async edit => { await app.close(); await edit?.(); await start(multiPicker); },
     note: (cookie, text, revision, extra = {}) => send('/api/command', cookie, { body: { command: { type: 'set-note', memberId: 'owner', chunkId: '12341', note: text }, expectedRevision: revision, ...extra } }),
   };
 }
@@ -453,4 +454,182 @@ test('revoking an owned picker plugin key removes exactly its capability across 
   assert.deepEqual((await f.registry()).capabilities.map(c => c.hash), [hash(second.json().key)]);
   assert.equal((await f.send('/api/plugin/v1/status', undefined, { headers: { Authorization: 'Bearer ' + first.json().key } })).status, 401);
   assert.equal((await f.send('/api/plugin/v1/status', undefined, { headers: { Authorization: 'Bearer ' + second.json().key } })).status, 200);
+});
+
+
+// A real Readable that fails if body admission starts, with a writable HTTP
+// response double. Dispatch is the same captured server handler used on sockets.
+function directUpload(f, route, { cookie, headers = {}, input } = {}) {
+  let reads = 0;
+  const incoming = input ?? new Readable({ read() { reads++; this.destroy(new Error('Body must remain unread.')); } });
+  incoming.on('error', () => {});
+  Object.assign(incoming, { method: 'POST', url: route, socket: { remoteAddress: '127.0.0.1' }, complete: false,
+    headers: { host: 'picker.example', 'x-forwarded-for': '203.0.113.7', 'x-forwarded-proto': 'https',
+      origin, 'content-type': 'application/json', ...(cookie ? { cookie } : {}), ...headers } });
+  const chunks = [], outputHeaders = new Map();
+  const response = new Writable({ write(chunk, _encoding, done) { chunks.push(Buffer.from(chunk)); done(); } });
+  response.setHeader = (name, value) => outputHeaders.set(name.toLowerCase(), value);
+  response.getHeader = name => outputHeaders.get(name.toLowerCase());
+  response.writeHead = (status, values = {}) => { response.statusCode = status; response.headersSent = true;
+    for (const [name, value] of Object.entries(values)) response.setHeader(name, value); return response; };
+  const done = f.handler()(incoming, response, { host: '127.0.0.1', ingressRole: 'public' });
+  return { incoming, done: done.then(() => ({ status: response.statusCode, reads, headers: outputHeaders, text: Buffer.concat(chunks).toString() })) };
+}
+
+test('anonymous public backup uploads keep legacy status and never read a failing stream', async t => {
+  const baseline = await fixture(t, { initiallyEnabled: false }), routed = await fixture(t);
+  for (const route of ['/api/restore/preview', '/api/import']) {
+    const before = await directUpload(baseline, route).done, after = await directUpload(routed, route).done;
+    assert.equal(before.status, 403); assert.equal(after.status, before.status);
+    assert.equal(before.reads, 0); assert.equal(after.reads, 0); assert.equal(after.text, before.text);
+    for (const f of [baseline, routed]) {
+      const denied = await directUpload(f, route, { cookie: 'duo_access=' + f.app().store.getAccessToken() }).done;
+      assert.equal(denied.status, 403); assert.equal(denied.reads, 0);
+    }
+  }
+});
+
+test('owned backup admission checks origin, role, selectors and the same per-picker import guard before reading', async t => {
+  const f = await fixture(t), a = await f.login('101'), b = await f.login('102');
+  for (const headers of [{ origin: 'https://elsewhere.example' }, { 'x-picker-id': await f.picker('102') }]) {
+    const result = await directUpload(f, '/api/import', { cookie: a, headers }).done;
+    assert.equal(result.status, 403); assert.equal(result.reads, 0);
+  }
+  const key = (await f.send('/api/game-plugin/keys', a, { body: { memberId: 'owner', label: 'Player 1' } })).json().key;
+  const deniedKey = await directUpload(f, '/api/import', { headers: { authorization: 'Bearer ' + key } }).done;
+  assert.equal(deniedKey.status, 401); assert.equal(deniedKey.reads, 0);
+  // Hold A in the streaming parser. B must still admit an independent upload.
+  const started = Promise.withResolvers(), slow = new Readable({ read() { started.resolve(); } });
+  const held = directUpload(f, '/api/restore/preview', { cookie: a, input: slow });
+  await started.promise;
+  const concurrent = await directUpload(f, '/api/import', { cookie: a }).done;
+  assert.equal(concurrent.status, 503); assert.equal(concurrent.reads, 0);
+  const other = await directUpload(f, '/api/import', { cookie: b, input: Readable.from(['{}']) }).done;
+  assert.notEqual(other.status, 503);
+  slow.push('{}'); slow.push(null); await held.done;
+  const retry = await directUpload(f, '/api/import', { cookie: a, input: Readable.from(['{}']) }).done;
+  assert.notEqual(retry.status, 503);
+  const conflict = await directUpload(f, '/api/import', { cookie: a, input: Readable.from([JSON.stringify({ pickerId: await f.picker('102') })]) }).done;
+  assert.equal(conflict.status, 403);
+  assert.equal((await f.send('/api/state', a)).json().state.revision, 0);
+  const legacyConflict = await f.private('/api/restore/preview', { body: { pickerId: await f.picker('101') } });
+  assert.equal(legacyConflict.status, 403);
+  assert.equal(f.app().store.getInfo().revision, 0);
+});
+
+test('private account session exposes the same sign-in and account controls as a duo account', async t => {
+  const f = await fixture(t), solo = await f.login('101'), invitation = await duoInvite(f);
+  const joined = await (await f.begin('102', await invitePending(f, invitation)))();
+  const own = (await f.send('/api/session', solo)).json(), duo = (await f.send('/api/session', sessionCookie(joined))).json();
+  assert.deepEqual(own.signIn, { mode: 'optional', providers: ['discord', 'google'] });
+  assert.deepEqual(own.signIn, duo.signIn);
+  assert.deepEqual(own.account, { id: own.accountId, providers: ['discord'], provider: 'discord' });
+  assert.deepEqual(Object.keys(own.account).sort(), Object.keys(duo.account).sort());
+  assert.equal((await f.send('/auth/link/google', solo)).status, 303);
+  assert.equal((await f.send('/auth/signout', solo, { body: {} })).status, 303);
+  assert.equal((await f.send('/api/session', solo)).status, 401);
+});
+
+test('public stale administrator cookies recover exactly as without routing while APIs and bearer stay refused', async t => {
+  const baseline = await fixture(t, { initiallyEnabled: false }), routed = await fixture(t);
+  for (const method of ['GET', 'HEAD']) for (const session of [false, true]) {
+    const results = [];
+    for (const f of [baseline, routed]) {
+      const master = f.app().store.getAccessToken();
+      const joined = await f.private(new URL(f.app().inviteUrl).pathname);
+      const cookie = session ? joined.headers['set-cookie'][0].split(';')[0] : 'duo_access=' + master;
+      const page = await f.send('/?view=play-v1', cookie, { method });
+      results.push([page.status, page.headers.location, page.headers['set-cookie'], page.text]);
+      assert.equal((await f.send('/api/session', cookie)).status, 403);
+      assert.equal((await f.send('/', undefined, { headers: { Authorization: 'Bearer ' + master } })).status, 403);
+    }
+    assert.equal(results[0][0], 303); assert.deepEqual(results[1], results[0]);
+  }
+});
+
+test('duo provider unlink updates both stores and a different subject can link and restart', async t => {
+  const f = await fixture(t), invitation = await duoInvite(f);
+  const joined = await (await f.begin('101', await invitePending(f, invitation)))();
+  let cookie = sessionCookie(joined);
+  assert.equal((await (await f.begin('201', cookie, '/auth/link/google'))()).status, 303);
+  const id = (await f.registry()).accounts[0].id;
+  assert.equal((await f.private('/api/accounts/' + id + '/unlink', { body: { provider: 'google' } })).status, 200);
+  assert.deepEqual((await f.registry()).accounts[0].identities, [{ provider: 'discord', subject: '101' }]);
+  assert.deepEqual((await legacyAccounts(f))[0].identities.map(i => i.provider), ['discord']);
+  cookie = await f.login('101');
+  assert.equal((await (await f.begin('202', cookie, '/auth/link/google'))()).status, 303);
+  await f.restart();
+  assert.deepEqual((await f.registry()).accounts[0].identities, [{ provider: 'discord', subject: '101' }, { provider: 'google', subject: '202' }]);
+  for (const active of [await f.login('101'), await f.login('202', undefined, '/auth/google')]) assert.equal((await f.send('/api/state', active)).status, 200);
+});
+
+test('a rejected replacement provider link leaves both stores unchanged and restart succeeds', async t => {
+  const f = await fixture(t), invitation = await duoInvite(f);
+  const joined = await (await f.begin('101', await invitePending(f, invitation)))();
+  const cookie = sessionCookie(joined);
+  assert.equal((await (await f.begin('201', cookie, '/auth/link/google'))()).status, 303);
+  const accounts = await readFile(path.join(f.root, 'legacy/accounts.json')), registry = await f.registry();
+  const rejected = await (await f.begin('202', cookie, '/auth/link/google'))();
+  assert.equal(rejected.status, 409); assert.match(rejected.text, /already has a linked identity/);
+  assert.deepEqual(await readFile(path.join(f.root, 'legacy/accounts.json')), accounts); assert.deepEqual(await f.registry(), registry);
+  await f.restart();
+  assert.equal((await f.send('/api/state', await f.login('201', undefined, '/auth/google'))).status, 200);
+});
+
+test('startup drops identities removed offline only from legacy-imported accounts', async t => {
+  const f = await fixture(t), invitation = await duoInvite(f), solo = await f.login('301', undefined, '/auth/google');
+  const joined = await (await f.begin('101', await invitePending(f, invitation)))();
+  assert.equal((await (await f.begin('201', sessionCookie(joined), '/auth/link/google'))()).status, 303);
+  const native = (await f.registry()).accounts.find(a => a.defaultPickerId);
+  await f.restart(async () => {
+    const file = path.join(f.root, 'legacy/accounts.json'), document = JSON.parse(await readFile(file));
+    document.accounts[0].identities = document.accounts[0].identities.filter(i => i.provider !== 'google');
+    await writeFile(file, JSON.stringify(document));
+  });
+  const doc = await f.registry();
+  assert.deepEqual(doc.accounts.find(a => !a.defaultPickerId).identities, [{ provider: 'discord', subject: '101' }]);
+  assert.deepEqual(doc.accounts.find(a => a.defaultPickerId), native);
+  assert.equal((await f.send('/api/state', solo)).status, 200);
+  const cookie = await f.login('101');
+  assert.equal((await (await f.begin('202', cookie, '/auth/link/google'))()).status, 303);
+  await f.restart();
+  assert.equal((await f.send('/api/state', await f.login('202', undefined, '/auth/google'))).status, 200);
+});
+
+
+test('startup reconciles identities of a legacy account imported with no active grants', async t => {
+  const f = await fixture(t, { initiallyEnabled: false }), invitation = await duoInvite(f);
+  const joined = await (await f.begin('101', await invitePending(f, invitation)))();
+  assert.equal((await (await f.begin('201', sessionCookie(joined), '/auth/link/google'))()).status, 303);
+  assert.equal((await f.private('/api/invites/' + invitation.invite.id + '/revoke', { body: {} })).status, 200);
+  await f.restart();
+  const imported = (await f.registry()).accounts[0];
+  assert.equal(imported.defaultPickerId, null); assert.deepEqual(imported.memberships, []);
+  await f.restart(async () => {
+    const file = path.join(f.root, 'legacy/accounts.json'), document = JSON.parse(await readFile(file));
+    document.accounts[0].identities = document.accounts[0].identities.filter(i => i.provider !== 'google');
+    await writeFile(file, JSON.stringify(document));
+  });
+  assert.deepEqual((await f.registry()).accounts[0].identities, [{ provider: 'discord', subject: '101' }]);
+});
+
+
+test('capacity eviction waits for an admitted backup parser before reopening its picker', { timeout: 15000 }, async t => {
+  const f = await fixture(t, { maxOpenContexts: 2 }), a = await f.login('101'), b = await f.login('102');
+  const stream = await f.send('/api/events', a, { stream: true });
+  const ended = new Promise(resolve => stream.res.once('end', resolve));
+  const started = Promise.withResolvers(), slow = new Readable({ read() { started.resolve(); } });
+  const held = directUpload(f, '/api/restore/preview', { cookie: a, input: slow });
+  try {
+    await started.promise;
+    let opened = false;
+    const waiting = f.send('/api/state', b).then(result => { opened = true; return result; });
+    await ended; // A has entered close and ended its streams.
+    for (let turn = 0; turn < 20; turn++) await new Promise(resolve => setImmediate(resolve));
+    assert.equal(opened, false);
+    slow.push('{}'); slow.push(null);
+    const refused = await held.done; assert.equal(refused.status, 503);
+    const next = await waiting; assert.equal(next.status, 200);
+    assert.equal((await f.send('/api/state', a)).json().state.revision, 0);
+  } finally { if (!slow.readableEnded) slow.push(null); }
 });

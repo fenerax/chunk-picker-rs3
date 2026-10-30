@@ -336,6 +336,23 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
       catch (missing) { if (missing.code !== 'ENOENT') throw missing; }
       plan = { memberIds, accounts: [], droppedMemberships: 0 };
     }
+    // Only accounts previously imported into the shared exception are eligible
+    // for removal reconciliation, including imports with all grants revoked.
+    // Native account IDs do not occur in the legacy plan and stay untouched.
+    const removals = [];
+    for (const input of plan.accounts) {
+      const account = pickerRegistry.getAccount(input.id);
+      const imported = account && !account.defaultPickerId && account.memberships.every(m => pickerRegistry.getPicker(m.pickerId)?.kind === 'legacy-shared');
+      for (const identity of input.identities) {
+        const owner = pickerRegistry.findIdentity(identity.provider, identity.subject);
+        const existing = account?.identities.find(i => i.provider === identity.provider);
+        if (owner && owner.id !== input.id || !imported && existing && existing.subject !== identity.subject) throw httpError(409, 'Sign-in identity is already assigned.');
+      }
+      if (imported) for (const identity of account.identities) {
+        if (!input.identities.some(i => i.provider === identity.provider && i.subject === identity.subject)) removals.push([account.id, identity.provider]);
+      }
+    }
+    for (const [id, provider] of removals) await pickerRegistry.unlinkIdentity(id, provider);
     await pickerRegistry.registerLegacy(plan);
   }
   try {
@@ -375,7 +392,7 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
                 return state;
               },
               idleMemoryOptions, predictionPrewarm, schedulingClock, publicOrigin,
-              pickerRouting: { authenticate: pickerRouter.authenticate, indexKey: pickerRouter.indexKey, removeKey: pickerRouter.removeKey,
+              pickerRouting: { sessionView: context.sessionView, authenticate: pickerRouter.authenticate, indexKey: pickerRouter.indexKey, removeKey: pickerRouter.removeKey,
                 authenticateKey: (request, memberId) => pickerRouter.authenticateKey(request, pickerId, memberId) },
               transport: { savingConnections: transport.savingConnections, requestClose: transport.requestClose } });
             const actual = opened.store.getCalculationSnapshot().members.map(member => member.id);

@@ -61,8 +61,13 @@ export function createPickerRouter({ registry, legacy, openContext, publicOrigin
     return identity;
   }
   async function contextFor(request, security) {
-    if (['GET', 'HEAD'].includes(request.method) && (Number(request.headers['content-length']) > 0 || request.headers['transfer-encoding'])) throw httpError(400, 'Reads take no request body.');
-    const identity = legacy.authenticate(request, security);
+    let identity;
+    try { identity = legacy.authenticate(request, security); } catch (error) {
+      let page;
+      try { page = decodeURIComponent(new URL(request.url, 'http://localhost').pathname); } catch { throw error; }
+      if (error.status === 403 && security.publicRequest && !request.headers.authorization && !page.startsWith('/api/') && ['GET', 'HEAD'].includes(request.method)) return { context: legacy };
+      throw error;
+    }
     if (request.headers.authorization && request.headers.cookie) {
       const cookieIdentity = legacy.authenticate({ headers: { ...request.headers, authorization: undefined } }, security);
       if (cookieIdentity && identity && (cookieIdentity.pickerId ?? 'legacy') !== (identity.pickerId ?? 'legacy')) throw httpError(403, 'Conflicting credentials.');
@@ -73,7 +78,9 @@ export function createPickerRouter({ registry, legacy, openContext, publicOrigin
       try { legacy.authenticatePlugin(request); }
       catch (error) { unauthenticated(security.rateKey); throw error; }
     }
-    if (!identity && !key) unauthenticated(security.rateKey);
+    // Preserve legacy rejection without consuming unauthenticated uploads.
+    if (!identity && !key) return { context: legacy };
+    if (['GET', 'HEAD'].includes(request.method) && (Number(request.headers['content-length']) > 0 || request.headers['transfer-encoding'])) throw httpError(400, 'Reads take no request body.');
     const keyPicker = capability?.pickerId ?? 'legacy';
     if (key && identity && keyPicker !== (identity.pickerId ?? 'legacy')) throw httpError(403, 'Conflicting credentials.');
     const pickerId = key ? keyPicker : identity?.pickerId ?? 'legacy';
@@ -88,16 +95,7 @@ export function createPickerRouter({ registry, legacy, openContext, publicOrigin
       if (selectors.some(value => typeof value !== 'string' || value !== pickerId) || new Set(selectors).size > 1) throw httpError(403, 'Picker access denied.');
     };
     checkSelectors();
-    // Global body admission precedes acquisition. Backup uploads keep their
-    // streaming limit; ordinary handlers retain their smaller JSON limits.
-    const route = pathScope ? (pathname.startsWith('/api/') ? '/api' : '') + (pathScope[2] || '/') : pathname;
-    if ((isImportRoute(route) && request.method === 'POST')
-      || /^application\/json(?:\s*;|$)/i.test(request.headers['content-type'] ?? '') && !['GET', 'HEAD'].includes(request.method)) {
-      let body;
-      if (isImportRoute(route)) {
-        const imported = await readBackupRequest(request); body = imported.body;
-        rememberRoutedBody(request, body, 0); routedBody(request).imported = imported;
-      } else body = await bodyJSON(request, MAX_BODY, { remember: true });
+    const checkBody = body => {
       const pending = [body];
       while (pending.length) {
         const value = pending.pop();
@@ -107,9 +105,15 @@ export function createPickerRouter({ registry, legacy, openContext, publicOrigin
           else if (item && typeof item === 'object') pending.push(item);
         }
       }
-      // Only the top-level routing envelope is removed. Nested selectors stay
-      // subject to the command/report schema after passing this boundary.
+      checkSelectors();
       for (const name of selectorKeys) delete body[name];
+    };
+    const route = pathScope ? (pathname.startsWith('/api/') ? '/api' : '') + (pathScope[2] || '/') : pathname;
+    const backup = isImportRoute(route) && request.method === 'POST';
+    // Legacy backup admission and parsing stay entirely in its handler.
+    // Owned backups acquire the context's import guard before any parser runs.
+    if (!backup && /^application\/json(?:\s*;|$)/i.test(request.headers['content-type'] ?? '') && !['GET', 'HEAD'].includes(request.method)) {
+      checkBody(await bodyJSON(request, MAX_BODY, { remember: true }));
     }
     checkSelectors();
     const current = legacy.authenticate(request, security);
@@ -129,10 +133,10 @@ export function createPickerRouter({ registry, legacy, openContext, publicOrigin
     request.url = url.pathname + url.search;
     // Pending OAuth callbacks and sign-out always use the one session issuer.
     if (pathname.startsWith('/auth/') || pathname.startsWith('/join/')) return { context: legacy };
-    if (pickerId === 'legacy') return { context: legacy };
+    if (pickerId === 'legacy') return { context: legacy, legacyBackup: backup, checkBody };
     if (!identity && !capability) throw httpError(401, 'Access required.');
     const entry = await acquire(pickerId);
-    return { context: entry.context, entry };
+    return { context: entry.context, entry, backup, checkBody };
   }
   return {
     authenticate,
@@ -155,25 +159,32 @@ export function createPickerRouter({ registry, legacy, openContext, publicOrigin
       await registry.revokeCapability('plugin-key', hash);
     },
     async handle(request, response, listener) {
-      let entry;
+      let entry, releaseImport;
       try {
         if (closed) throw retry();
         const options = { ...listener, publicOrigin };
         const security = listener.ingressRole === 'public' ? requestContext(request, options) : requestContextFor(request, options);
         const selected = await contextFor(request, security); entry = selected.entry;
+        if (selected.legacyBackup) selected.context.checkImportBody(request, selected.checkBody);
+        if (selected.backup) {
+          releaseImport = selected.context.admitImport(request, security);
+          const imported = await readBackupRequest(request);
+          selected.checkBody(imported.body);
+          rememberRoutedBody(request, imported.body, 0); routedBody(request).imported = imported;
+        }
         await selected.context.handle(request, response, listener);
         if (entry && !response.writableEnded && !response.destroyed) {
           entry.streams.add(response);
           response.once('close', () => { entry.streams.delete(response); idle(entry); });
         }
       } catch (error) {
-        request.resume();
         if (!response.headersSent && !response.destroyed) {
+          if (!request.complete) response.setHeader('Connection', 'close');
           if (error.retryAfter) response.setHeader('Retry-After', error.retryAfter);
           const badInput = error instanceof SyntaxError || error instanceof TypeError || error instanceof RangeError;
           await json(request, response, error.status ?? (badInput ? 400 : 503), { message: error.status ? error.message : badInput ? 'Invalid request.' : 'The picker is unavailable. Retry in a moment.' });
         }
-      } finally { if (entry) { entry.active--; if (entries.get(entry.id) === entry) idle(entry); } }
+      } finally { releaseImport?.(); if (entry) { entry.active--; if (entries.get(entry.id) === entry) idle(entry); } }
     },
     close() {
       if (closing) return closing;
