@@ -186,7 +186,10 @@ for (const target of ['picker', 'account']) test(`owner deletes ${target} throug
   assert.deepEqual(b.calls, [], 'opening the dialog makes no requests');
   await click(b.dialog.node, `Delete ${target}`);
   assert.deepEqual(b.calls.map(([route]) => route), ['/api/session', `/api/${target}/delete`]);
-  assert.equal(b.calls[1][1].body, '{}'); assert.equal(b.calls[1][1].headers['X-Picker-Id'], session.pickerRoute);
+  if (target === 'account') {
+    assert.match(JSON.parse(b.calls[1][1].body).accountDeletionToken, /^[A-Za-z0-9_-]{43}$/);
+    assert.equal(b.calls[0][1].headers['X-Account-Action'], 'delete');
+  } else assert.equal(b.calls[1][1].body, '{}'); assert.equal(b.calls[1][1].headers['X-Picker-Id'], session.pickerRoute);
   assert.equal(b.coordinator.stopped, true); assert.equal(b.c.state, undefined); assert.equal(b.c.result, undefined);
   assert.equal(b.c.normalPlayResults.size, 0); assert.equal(b.rendered.children.length, 0);
   assert.equal(b.siteStore.getItem(prefix + 'duo-member'), null); assert.equal(b.tab.getItem(prefix + commandOutboxKey), null);

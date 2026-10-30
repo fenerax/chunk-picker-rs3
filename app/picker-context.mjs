@@ -86,11 +86,21 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
   if (typeof pickerId !== 'string' || !pickerId) throw new TypeError('pickerId is required.');
   const { dataset, indexedWorld, ruleRegistry, taskWorker: sharedTaskWorker, taskWorkerOptions, parsedDefinitions,
     parsedTaskMap, identityHistory, migrateState, registry, xpChoiceCatalogue, sandboxCatalogue,
-    originalSyncIntegration, privateAddon, appVersion, browserDataset, webRoot, art,
+    originalSyncIntegration: configuredOriginalSync, privateAddon, appVersion, browserDataset: sharedBrowserDataset, webRoot, art,
     loadChunkSections, loadMapInfo, loadNpcShopInfo, loadArchaeology, loadInteriors,
     iconCatalogue, terrainCatalogue, trainingCatalogue, membersStartBanks,
     limits, admitStream: legacyAdmitStream, usageAdmission, requestContextFor, pickerLimits,
   } = runtime;
+  // Uploaded gameplay (whole-save restore, member restore and import) is never
+  // authority to use the operator's source integration. Only legacy owns it.
+  const originalSyncIntegration = pickerId === 'legacy' ? configuredOriginalSync : null;
+  const browserDataset = pickerId === 'legacy' || !sharedBrowserDataset ? sharedBrowserDataset : {
+    ...sharedBrowserDataset,
+    capabilities: { ...sharedBrowserDataset.capabilities,
+      features: { ...sharedBrowserDataset.capabilities.features, originalSync: false } },
+    // The browser learns its roster from authenticated state, not operator data.
+    gameDefaults: { members: [], masterLabel: 'Administrator' },
+  };
   const admitStream = pickerLimits ? (key, response) => pickerLimits.stream({ accountId: key }, pickerId, response) : legacyAdmitStream;
   const taskWorker = sharedTaskWorker?.forPicker?.(pickerId) ?? sharedTaskWorker;
   if (typeof usageAdmission !== 'function') throw new TypeError('A shared usage admission limiter is required.');
@@ -860,7 +870,7 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
             if ([...query.keys()].some(key => key !== 'memberId') || query.getAll('memberId').length !== 1) throw httpError(400, 'Choose a player for game progress review.');
             await json(request, response, 200, gamePlugin.review(identity, query.get('memberId'))); return;
           }
-          if (route === '/api/session') { await json(request, response, 200, { ...(pickerRouting ? { multiPicker: true, pickerId: identity.pickerId ?? pickerRouting.registry?.listPickers().find(p => p.kind === 'legacy-shared')?.id ?? pickerId, pickerRoute: pickerId } : {}), admin: identity.admin, ...(security.publicRequest ? { adminAvailable: false } : {}), readOnly: identity.readOnly, capabilities: identity.capabilities, label: identity.label, kind: identity.kind, memberId: identity.memberId ?? null, actor: identity.actor, ...(identity.pickerId ? { accountId: identity.accountId, pickerId: identity.pickerId } : {}), ...(pickerRouting?.sessionView ?? signInFlow.sessionView)(identity, security) }); return; }
+          if (route === '/api/session') { await json(request, response, 200, { ...(pickerRouting ? { multiPicker: true, pickerId: identity.pickerId ?? pickerRouting.registry?.listPickers().find(p => p.kind === 'legacy-shared')?.id ?? pickerId, pickerRoute: pickerId } : {}), admin: identity.admin, ...(security.publicRequest ? { adminAvailable: false } : {}), readOnly: identity.readOnly, capabilities: identity.capabilities, label: identity.label, kind: identity.kind, memberId: identity.memberId ?? null, actor: identity.actor, ...(identity.pickerId ? { accountId: identity.accountId, pickerId: identity.pickerId } : {}), ...(pickerRouting?.sessionView ?? signInFlow.sessionView)(identity, security, request) }); return; }
           if (route === '/api/accounts') { requireAdmin(); await json(request, response, 200, { accounts: accounts.list() }); return; }
           if (route === '/api/pool-ranking') {
             const query = new URL(request.url, 'http://localhost').searchParams;
@@ -1573,6 +1583,7 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
               }
               response.once('finish', scheduleClaimCleanup);
               if (command?.type === 'sync-original') {
+                if (!originalSyncIntegration) throw httpError(404, 'Not found.');
                 if (privateAddon?.features.originalSync) await privateAddon.verify();
                 if (Object.keys(command).some(key => !['type', 'previewId', 'members'].includes(key)) || typeof command.previewId !== 'string') throw httpError(400, 'Original-picker sync requires a reviewed preview ID and group selections.');
                 const review = originalSyncPreviews.get(command.previewId);

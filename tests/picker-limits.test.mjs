@@ -98,7 +98,8 @@ test('router refuses a second cold context before calling its factory, with retr
   const gate = Promise.withResolvers(), entered = Promise.withResolvers();
   const pickerLimits = createPickerLimits({ coldStartsGlobal: 1 });
   const calls = [];
-  const router = createPickerRouter({ pickerLimits, registry: { getPicker: () => ({ lifecycle: 'active', provisioning: 'ready' }) },
+  // pickerDirectory only keys MP8's in-memory checkpoint barrier; nothing is written there.
+  const router = createPickerRouter({ pickerLimits, registry: { getPicker: () => ({ lifecycle: 'active', provisioning: 'ready' }), pickerDirectory: id => `/synthetic-pickers/${id}` },
     legacy: { authenticate: request => ({ kind: 'account', accountId: request.headers.account, pickerId: request.headers.picker }) },
     openContext: async id => { calls.push(id); entered.resolve(); await gate.promise; return { close: async () => {}, handle: async (_req, res) => { res.writeHead(200); res.end('{}'); } }; },
   });

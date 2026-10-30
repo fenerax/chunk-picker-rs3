@@ -1,4 +1,5 @@
 import { createUsageRateLimit } from './usage-route.mjs';
+import { bodyJSON, json } from './picker-context-http.mjs';
 import { httpError, redactInviteTokens, serverReadyMessage, cachedJSON } from './picker-context-http.mjs';
 export { routePermissions, commandPermissions, apiPermission, redactInviteTokens, serverReadyMessage, gzipSavedTaskResult, coordinationView } from './picker-context-http.mjs';
 import { createPickerContext } from './picker-context.mjs';
@@ -24,7 +25,7 @@ import { createHash } from 'node:crypto';
 import { createTaskScheduler } from './tasks/scheduler.mjs';
 import { sharedJSONBytes, sharedBuffer } from './tasks/shared-bytes.mjs';
 import { prepareStoreProcessIdentity } from './storage/store.mjs';
-import { normalizePublicOrigin, normalizeIngressRole, requestContext, createRateLimits, createStreamLimits } from './security/request.mjs';
+import { normalizePublicOrigin, normalizeIngressRole, requestContext, checkRequestOrigin, createRateLimits, createStreamLimits } from './security/request.mjs';
 import { buildWorld } from './data/world.mjs';
 import { loadDatasetInputs, loadOriginalSyncIntegration } from './dataset-bootstrap.mjs';
 import { archaeologyTaskCorrections } from './data/archaeology-task-corrections.mjs';
@@ -220,7 +221,7 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
   const storeProcessPending = prepareStoreProcessIdentity();
   const definitionCachePending = cachedJSON(definitionBytes), taskCachePending = cachedJSON(taskBytes);
   const taskWorkerPending = parsedDefinitions.challenges && typeof parsedDefinitions.challenges === 'object' && !Array.isArray(parsedDefinitions.challenges)
-    ? startTaskWorker(parsedDefinitions, definitionBytes, indexedWorld, ruleRegistry, multiPicker ? { ...taskWorkerOptions, fairness: pickerLimits.config } : taskWorkerOptions, dataset, datasetOptions, world !== undefined) : Promise.resolve(null);
+    ? startTaskWorker(parsedDefinitions, definitionBytes, indexedWorld, ruleRegistry, multiPicker ? { ...taskWorkerOptions, fairness: pickerLimits.config, maxCalculators: multiPicker.maxCalculators ?? 2 } : taskWorkerOptions, dataset, datasetOptions, world !== undefined) : Promise.resolve(null);
   let taskWorker, identityHistory, definitionCache, taskCache;
   // Optional map reference data has its own authenticated cache and payload.
   // Loading it never delays gameplay startup or enlarges state/definitions.
@@ -372,14 +373,15 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
     await pickerRegistry.registerLegacy(plan);
   }
   // A single additive, enabled-only field describes the session's own controls.
-  function ownerSessionView(identity, security) {
+  function ownerSessionView(identity, security, request) {
     const view = context.sessionView(identity, security);
     if (!view.account) return view;
     const picker = identity.pickerId ? pickerRegistry.getPicker(identity.pickerId)
       : pickerRegistry.listPickers().find(item => item.kind === 'legacy-shared');
     const account = pickerRegistry.getAccount(identity.accountId);
     const membership = account?.memberships.find(item => item.pickerId === picker?.id && item.memberId === (identity.memberId ?? null));
-    return { ...view, ownerControls: { role: membership?.role ?? null, shared: picker?.kind === 'legacy-shared',
+    return { ...view, ...(request?.headers['x-account-action'] === 'delete'
+      ? { accountDeletionToken: pickerRouter.accountDeletionToken(identity) } : {}), ownerControls: { role: membership?.role ?? null, shared: picker?.kind === 'legacy-shared',
       ownsDefaultPicker: pickerRegistry.listPickers().some(item => item.kind === 'default' && item.ownerAccountId === identity.accountId && item.lifecycle === 'active'),
       backups: backupDeletionDisclosure(backupRetentionMs) } };
   }
@@ -437,7 +439,44 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
   } catch (error) { await context?.close(); await pickerRegistry?.close(); await taskWorker?.close(); throw error; }
   // Preserve the original synchronous dispatcher when routing is disabled.
   function contextFor(request) { return context; }
-  const requestHandler = (request, response, listener = { host, ingressRole }) => pickerRouter ? pickerRouter.handle(request, response, listener) : contextFor(request).handle(request, response, listener);
+  async function serviceOperator(request, response, listener) {
+    try {
+      // Use the real listener policy even when the application has a test or
+      // transport authentication adapter. Forwarded headers cannot grant this.
+      const security = requestContext(request, { ...listener, publicOrigin });
+      const identity = context.authenticate(request, security);
+      const operator = security.masterAllowed && identity?.kind === 'master' && /^Bearer /i.test(request.headers.authorization ?? '');
+      // Players keep their own picker's health; only the operator sees the service-wide view.
+      if (!operator && request.url.split('?')[0] === '/api/health') return pickerRouter.handle(request, response, listener);
+      if (!operator) throw httpError(403, 'Private operator credentials required.');
+      if (['GET', 'HEAD'].includes(request.method) && request.url.split('?')[0] === '/api/health') {
+        const worker = (taskWorker?.forPicker?.('legacy') ?? taskWorker)?.getHealth() ?? { status: 'not-configured', ready: true, restartRequired: false };
+        const service = pickerRouter.checkpoint.counts();
+        await json(request, response, 200, { ready: !closed && !service.checkpoint && worker.ready && !worker.stuck && !worker.restartRequired,
+          status: closed ? 'stopping' : service.checkpoint ? 'checkpoint' : worker.stuck ? 'stuck' : worker.restartRequired ? 'restart-required' : worker.ready ? 'ready' : ['sleeping', 'waking'].includes(worker.status) ? worker.status : 'degraded',
+          savesReady: !closed && !service.checkpoint, standby: false, worker, service, checkpointTiming: pickerRouter.checkpoint.timings(), local: true,
+          revision: context.store.getInfo().revision, version: appVersion, schemaVersion: 1,
+          liveSwapProtocol: 2, actionReceiptFormat: 2, saveSchemaVersion: context.store.getInfo().schemaVersion });
+        return;
+      }
+      if (request.method !== 'POST') throw httpError(405, 'Use POST.');
+      checkRequestOrigin(request, security);
+      const body = await bodyJSON(request, 8192);
+      if (Object.keys(body).length !== 1 || typeof body.id !== 'string') throw httpError(400, 'Use a snapshot ID.');
+      if (closed) throw httpError(503, 'The writer is unavailable.');
+      const { captureServiceCheckpoint } = await import('../scripts/linux/service-checkpoint.mjs');
+      const result = await captureServiceCheckpoint({ settings: { dataDir, multiPicker }, id: body.id,
+        registry: pickerRegistry, checkpoint: pickerRouter.checkpoint, inputs: multiPicker.recoveryInputs });
+      await json(request, response, 200, result);
+    } catch (error) {
+      request.resume();
+      if (!response.headersSent && !response.destroyed) await json(request, response, error.status ?? (error instanceof TypeError || error instanceof SyntaxError ? 400 : 503), { message: error.status ? error.message : 'Service checkpoint refused.' });
+    }
+  }
+  const requestHandler = (request, response, listener = { host, ingressRole }) => {
+    if (pickerRouter && ['/api/operator/service-snapshot', '/api/health'].includes((request.url ?? '').split('?')[0])) return serviceOperator(request, response, listener);
+    return pickerRouter ? pickerRouter.handle(request, response, listener) : contextFor(request).handle(request, response, listener);
+  };
   const headerOptions = { maxHeaderSize: requestContextFor === requestContext ? http.maxHeaderSize : 64 * 1024 };
   const server = httpServer ?? http.createServer(headerOptions, requestHandler);
   const loopbackServer = httpLoopbackServer ?? (loopbackPort === undefined ? null : http.createServer(headerOptions,

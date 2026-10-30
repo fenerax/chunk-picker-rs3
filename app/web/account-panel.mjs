@@ -100,13 +100,15 @@ export function createAccountPanel({ el, openDialog, menuButton, topMenu, fetch 
       let release;
       try {
         release = await beginAccountAction();
-        const checked = await fetch('/api/session', { credentials: 'same-origin', cache: 'no-store' });
+        const checked = await fetch('/api/session', { credentials: 'same-origin', cache: 'no-store',
+          ...(target === 'account' ? { headers: { 'X-Account-Action': 'delete' } } : {}) });
         if (!checked.ok) throw new Error('Could not verify your signed-in account. Reload and sign in again.');
         const next = await checked.json();
         if (!current()) return;
         if (binding(next) !== binding(selected)) throw new Error('The account or picker changed. Reload before deleting.');
         const response = await fetch(`/api/${target}/delete`, { method: 'POST', credentials: 'same-origin',
-          headers: { 'Content-Type': 'application/json', 'X-Picker-Id': selected.pickerRoute ?? selected.pickerId }, body: '{}' });
+          headers: { 'Content-Type': 'application/json', 'X-Picker-Id': selected.pickerRoute ?? selected.pickerId },
+          body: JSON.stringify(target === 'account' ? { accountDeletionToken: next.accountDeletionToken } : {}) });
         const value = await response.json();
         if (!response.ok) {
           if (response.status === 503) {

@@ -436,3 +436,66 @@ prechecked deployment with real probes, then removes scratch in finally:
 The helper does not prove systemd/Caddy timing or a real version transition.
 Repeat the full operator commands on staging under its isolated systemd owner
 before production approval. Neither command starts the paused PC picker.
+
+## Optional multi-picker service operations (MP8)
+
+The default single-duo configuration and backup format are unchanged. To operate
+MP4's opt-in service, put identical `multiPicker` roots in the pinned release
+configuration and `RS3_OPERATOR_CONFIG`: `registryDir`, `pickerRoot` and
+`tombstoneDir`. Keep those roots, legacy data, snapshot spool, control, scratch
+and backups disjoint. Release configuration passes the option to the live server;
+individual recovery probes always open one disposable store without it.
+
+With that option:
+
+- `health` reads registry and resident/dormant counts without opening dormant games.
+- `backup` makes a private, consistent service checkpoint online; it never falls
+  back to stopping. `backup --stopped` explicitly uses stopped ownership checks.
+- `list` and `inspect PICKER_ID` print picker IDs, status, counts and byte sizes.
+- `restore BACKUP` records progress and resumes the same backup/release/targets.
+  It preflights legacy in scratch before changing live targets; incompatible
+  legacy refuses the whole restore with a clear error and nonzero exit. Owned
+  failures are quarantined while unrelated restores continue. Keep the external live tombstone ledger.
+- `quarantine-release PICKER_ID` explicitly checks and reinstalls a quarantined
+  picker while stopped; it cannot silently initialize a replacement game.
+- `deploy POINTER [VERIFIED_RECEIPT]` checks every initialized picker sequentially
+  while stopped. Changed dataset/pack/profile/add-on pins require the service
+  recovery workflow and are refused by in-place deployment.
+
+Service restore and quarantine release reconcile MP5 tombstones against the
+**existing target ledger** before opening restored stores. Missing or invalid
+ledgers refuse recovery; never replace that ledger with backup data. Legacy is
+preflighted before live purge or credential cleanup. Tombstoned owned pickers
+remain excluded, including on resume, and cannot be released from quarantine.
+Existing issuer sessions, claimed invitations and retired account rows are
+revoked through MP5's cleanup; no service-backup credentials are imported.
+
+The single-source rehearsal still refuses service configuration: it copies only
+one store and binding. A service rehearsal needs independent copies and repinned
+paths for every service root, including the external ledger. Removing that guard
+would risk opening or purging live source roots.
+
+The service format excludes sign-in identities, sessions, invitations, tokens,
+plugin keys and capabilities. It preserves pseudonymous account membership rows,
+gameplay, bindings and complete selected pack payloads. Re-establish sign-in
+through private administration after recovery. The existing single-duo raw format
+still includes credentials; keep those recoveries private. No new off-host
+transfer is implemented.
+
+Service capture briefly queues global admission for the registry/account and
+roster checkpoint, then copies one picker at a time under its own barrier. New
+pickers are left out; deleted pickers are recorded absent. Review
+`globalBarrierMs`, request-wait max/total and `pickerBarriers[].heldMs` along with
+disk capacity before scheduling large backups. Interrupted operations retain
+maintenance/progress evidence. A provably dead local recovery operator can resume
+under the kernel guard; live or unverifiable ownership is refused. Partial restore
+blocks service startup. Legacy is never quarantined; incompatible legacy is
+refused before changing live data. The full format, file boundaries,
+recovery journal and MP5 call site are documented in
+[multi-picker-contract.md](multi-picker-contract.md#mp8-operator-tooling).
+
+Service backups refuse active quarantined pickers. Their live initialization
+fence and private quarantine payload remain intact; release with compatible
+inputs or explicitly delete the owned picker before retrying backup. The
+unprivileged server never reads the root-only control directory; the privileged
+ExecStartPre gate checks incomplete restore state.

@@ -314,3 +314,28 @@ attribute that separately from application work. Inherited Node `--cpu-prof`
 also samples the ordinary stage measurements and main-thread orchestration, so
 those timings must be labelled as sampled-profile measurements. Output and
 profiles stay ignored under `.local/perf/`; source/app hashes are rechecked.
+
+## Duo byte compatibility
+
+`duo-compatibility.mjs` compares an untouched checkout with a candidate, with
+`multiPicker` absent and present. Supply absolute paths with `--baseline`,
+`--candidate`, `--source` (a released two-member gameplay directory with its
+sibling dataset binding), `--packs`, `--defaults`, and an absent `--out` JSON file.
+For example, use temporary input/output paths outside both checkouts. The tool
+copies gameplay into temporary directories before opening it and runs one
+server/calculator workload at a time. It refuses external sync fetches.
+
+The ten raw response comparisons cover full/play state, history, browser plugin
+status, full/play tasks for each member and native plugin status for each member.
+Native keys are minted only after browser plugin status has been captured.
+The gate also compares rewritten state bytes and verifies the source-state hash.
+The output contains counts, hashes, sizes, real wall duration and sampled peak
+process-tree RSS, with no response bodies or credentials. Linux RSS sampling is
+50 ms; short peaks may be missed. Each revision/mode has one sample, so these
+are compatibility timings, not performance medians or capacity estimates.
+
+`duo-compatibility-clock.mjs` fixes only `performance.now()` in HTTP and calculator
+processes/isolates; store writes use an identical injected timestamp. No response
+fields are stripped or normalized. A nonzero response, size or state difference
+fails the command. Keep ordinary performance measurements separate from this
+fixed-clock gate.
