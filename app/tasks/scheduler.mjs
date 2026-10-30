@@ -492,11 +492,18 @@ async function createWorkerLane({ workerData, workerFactory = nativeWorker, incl
     if ([...queue, ...warmQueue].some(entry => entry.pickerId === id)) turns.push(id);
     return entry;
   }
-  function admitFair(pickerId) {
+  function admitFair(pickerId, { interactive = false } = {}) {
     if (!fairness) return () => {};
     // Leave room for another picker even in the small advisory queues.
-    const count = [...pending.values()].filter(entry => entry.pickerId === pickerId).length;
-    if (count >= Math.min(fairness.maxOutstandingJobsPerPicker, Math.max(1, Math.floor(maxQueue / 2)))) return;
+    const limit = Math.min(fairness.maxOutstandingJobsPerPicker, Math.max(1, Math.floor(maxQueue / 2)));
+    const count = () => [...pending.values()].filter(entry => entry.pickerId === pickerId).length;
+    // Automatic warming never refuses the same picker's own request: queued,
+    // unrequested warm jobs yield, newest first.
+    for (let i = warmQueue.length - 1; interactive && i >= 0 && count() >= limit; i--) {
+      const entry = warmQueue[i];
+      if (entry.pickerId === pickerId && entry.warm && !entry.waiters.size) { warmCounts.cancelled++; cancel(entry, superseded()); }
+    }
+    if (count() >= limit) return;
     return fairness.admit(pickerId);
   }
   const warmCounts = { queued: 0, completed: 0, cancelled: 0, skipped: 0 };
@@ -917,7 +924,7 @@ async function createWorkerLane({ workerData, workerFactory = nativeWorker, incl
           counts.rejected++;
           return Promise.reject(fairness ? queueFull() : Object.assign(new Error('Task calculation queue is full. Retry shortly.'), { status: 429 }));
         }
-        const releaseFair = admitFair(pickerId);
+        const releaseFair = admitFair(pickerId, { interactive: true });
         if (!releaseFair) { counts.rejected++; return Promise.reject(queueFull()); }
         entry = { releaseFair, key, originalKey, pickerId, input, state, stateInput, memberId, type, chunkId, chunkIds, resultView, duoSidebarProjection, revision: state.revision, queuedAt: idleClock.now(), waiters: new Set() };
         pending.set(key, entry);

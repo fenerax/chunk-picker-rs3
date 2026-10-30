@@ -288,3 +288,15 @@ test('quiet picker p95 queue wait stays bounded under a sustained flooding picke
   assert.ok(measurements.fair.p95Ms < 500, 'Two 2 ms calculator turns plus scheduling noise stay below 500 ms');
   assert.ok(measurements.fair.p95Ms < measurements.fifo.p95Ms / 2);
 });
+
+test('a picker request displaces its own queued warming instead of being refused', async t => {
+  const f = await fixture(t, { fairness: { maxOutstandingJobsPerPicker: 1, maxWaitersPerJob: 4 } });
+  const b = evaluate(f.b, state('beta')), busy = await f.next();
+  f.a.prewarmTasks(state(), 'same-input', ['one']);
+  assert.equal(f.scheduler.getDiagnostics().prewarm.pending, 1);
+  const requested = evaluate(f.a, state(), 'requested');
+  assert.equal(f.scheduler.getDiagnostics().prewarm.pending, 0);
+  finish(busy, result('beta')); assert.equal((await b).result.marker, 'beta');
+  const next = await f.next(); assert.equal(next.message.pickerId, A);
+  finish(next, result('alpha')); assert.equal((await requested).result.marker, 'alpha');
+});

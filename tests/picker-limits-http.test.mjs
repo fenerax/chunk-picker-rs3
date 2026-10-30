@@ -158,3 +158,12 @@ test('request byte quotas reject oversized bodies and aggregate admitted bodies 
   const denied = await f.note(a, 'three', 2); assert.equal(denied.status, 429); assert.ok(denied.headers['retry-after']);
   const oversized = await f.note(a, 'x'.repeat(1024), 2); assert.equal(oversized.status, 429); assert.ok(oversized.headers['retry-after']);
 });
+
+test('percent-encoded sign-in routes share the sign-in start budget', async t => {
+  const f = await fixture(t, { registrationsPerAccount: 1, registrationsGlobal: 1 });
+  assert.equal((await f.send('/auth/discord')).status, 303);
+  for (const route of ['/auth/discord', '/auth/%64iscord', '/auth/%67oogle']) {
+    const denied = await f.send(route);
+    assert.equal(denied.status, 429, route); assert.ok(denied.headers['retry-after']);
+  }
+});
