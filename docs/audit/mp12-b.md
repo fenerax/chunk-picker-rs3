@@ -6,7 +6,7 @@ Counts: **P0: 0; P1: 0; P2: 1; P3: 0.**
 
 | id | severity | route or file:line | attacker steps | impact | suggested fix | test name |
 | --- | --- | --- | --- | --- | --- | --- |
-| MP12B-1 | P2 | `app/web/account-panel.mjs:108`, `app/picker-router-deletion.mjs:17` (`POST /api/account/delete`) | Keep an account-deletion dialog open for account A on the shared picker. A second tab signs in as account B after the dialog's session preflight response is produced and before deletion dispatch. The browser sends B's cookie with the same `legacy` picker selector and an empty body. | The server deletes B although the confirmed dialog names A; A survives. Requires two legitimate sessions in the same browser and a cookie-switch race. This is a stale UI integrity failure; the test does not demonstrate remote session theft or arbitrary-account deletion using A's cookie alone. | Issue an opaque account/session-bound destructive-action token during confirmation, require it on deletion, and validate against the current session inside the deletion queue. A picker selector alone cannot distinguish accounts sharing a picker. | `MP12B: shared deletion stays bound to the account confirmed by the dialog` |
+| MP12B-1 (Fixed in MP13) | P2 | `app/web/account-panel.mjs:108`, `app/picker-router-deletion.mjs:17` (`POST /api/account/delete`) | Keep an account-deletion dialog open for account A on the shared picker. A second tab signs in as account B after the dialog's session preflight response is produced and before deletion dispatch. The browser sends B's cookie with the same `legacy` picker selector and an empty body. | The server deletes B although the confirmed dialog names A; A survives. Requires two legitimate sessions in the same browser and a cookie-switch race. This is a stale UI integrity failure; the test does not demonstrate remote session theft or arbitrary-account deletion using A's cookie alone. | Issue an opaque account/session-bound destructive-action token during confirmation, require it on deletion, and validate against the current session inside the deletion queue. A picker selector alone cannot distinguish accounts sharing a picker. | `MP12B: shared deletion stays bound to the account confirmed by the dialog` |
 
 The reproducer executes the real account panel against real HTTP routes. It injects a cookie replacement between the session response and deletion request, without changing application code or fabricating server permissions. Observed: deletion HTTP 200, A's session HTTP 200, B's session HTTP 401. The TODO asserts refusal (401, 403 or 409) and survival of both accounts. With distinct owned pickers, the equivalent race is refused with 403; both accounts survive. MP9's temporary account-action lock prevents a monitor from retiring the document during confirmation, but cannot lock cookies against another tab.
 
@@ -45,3 +45,13 @@ Application-file differences against START: **0**. Performance before/after medi
 ## Outside my scope
 
 - Global registration/provisioning quotas and shared admission pressure belong to the parallel limits audit; no additional finding is claimed here.
+
+## MP13 resolution
+
+MP12B-1 is **Fixed in MP13**. The original evidence above is retained. Its TODO
+marker is removed; the real-browser-panel race now requires HTTP 409 and both
+accounts to survive. The focused file has eleven passing checks, including
+missing/forged/foreign/other-session tokens, expiry while queued and single-use
+consumption. The distinct-owned-picker race keeps its existing HTTP 403 fence.
+Final suite and duo-gate results are recorded in the MP13 contract and footprint
+notes.

@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { createHash, randomUUID } from 'node:crypto';
 import { gzipSync } from 'node:zlib';
+import { runInNewContext } from 'node:vm';
 
 process.env.RS3_DATASET = 'open-f2p';
 for (const key of ['RS3_PACKS_DIR', 'RS3_PACK_SELECTION', 'RS3_PUBLIC_ORIGIN', 'RS3_LOOPBACK_PORT', 'RS3_LOOPBACK_ROLE',
@@ -38,7 +39,7 @@ function request(base, route, { body, rawBody, headers = {}, method = body === u
     req.on('error', reject); req.end(bytes);
   });
 }
-async function fixture(t, { originalSync } = {}) {
+async function fixture(t, { originalSync, enabled = true } = {}) {
   const root = await mkdtemp(path.join(tmpdir(), 'picker-audit-a-'));
   const secret = path.join(root, 'synthetic-secret'); await writeFile(secret, 'synthetic-secret');
   const envKeys = ['RS3_DISCORD_CLIENT_ID', 'RS3_DISCORD_CLIENT_SECRET_FILE'];
@@ -68,7 +69,7 @@ async function fixture(t, { originalSync } = {}) {
   const multiPicker = { registryDir: path.join(root, 'registry'), pickerRoot: path.join(root, 'pickers'), tombstoneDir: path.join(root, 'tombstones') };
   app = await createServer({ dataset, dataDir: path.join(root, 'legacy'), definitions, taskMap: {},
     initialState: createGroupState(legacyMembers.map(({ mapId, ...member }) => ({ ...member, sourceMapId: mapId }))), port: 0, loopbackPort: 0, loopbackRole: 'public',
-    publicOrigin: origin, signIn: 'optional', signInProvider: provider, multiPicker, originalSync,
+    publicOrigin: origin, signIn: 'optional', signInProvider: provider, multiPicker: enabled ? multiPicker : undefined, originalSync,
     predictionPrewarm: false, shutdownDeadlineMs: 500, rateLimits: { unauthenticated: 10000, expensivePerIdentity: 10000 } });
   await app.listen();
   const send = (route, cookie, options = {}) => request(`http://127.0.0.1:${app.loopbackAddress().port}`, route,
@@ -90,16 +91,65 @@ async function fixture(t, { originalSync } = {}) {
   return { root, send, privateSend, login, note, app, multiPicker };
 }
 
-test('MP12A-1: owned picker dataset responses omit shared-game identity and map bindings', { todo: 'MP12A finding 1' }, async t => {
+test('MP12A-1: owned picker dataset responses omit shared-game identity and map bindings', async t => {
   const f = await fixture(t), cookie = await f.login(subjects[0]);
   const state = (await f.send('/api/state', cookie)).json().state;
   assert.deepEqual(state.members.map(member => member.id), ['owner']);
   const leakedRoutes = [];
   for (const route of ['/api/dataset-runtime', '/data/dataset-runtime.json']) {
     const response = await f.send(route, cookie); assert.equal(response.status, 200);
+    assert.deepEqual(response.json().gameDefaults, { members: [], masterLabel: 'Administrator' });
+    assert.equal(response.json().capabilities.features.originalSync, false);
     if (legacyMembers.some(member => [member.id, member.name, member.mapId].some(value => response.text.includes(value)))) leakedRoutes.push(route);
   }
   assert.deepEqual(leakedRoutes, [], 'Shared-game defaults must not cross the owned-picker response boundary');
+});
+
+test('MP13: legacy dataset payload bytes are unchanged with routing absent or present', async t => {
+  const { datasetBrowserPayload } = await import('../app/dataset-catalogues.mjs');
+  for (const enabled of [false, true]) {
+    const f = await fixture(t, { enabled });
+    const expected = JSON.stringify(await datasetBrowserPayload({ ...baseDataset,
+      gameDefaults: { members: legacyMembers, masterLabel: 'Player 8' },
+      capabilities: { ...baseDataset.capabilities, features: { ...baseDataset.capabilities.features, originalSync: false } } }));
+    for (const route of ['/api/dataset-runtime', '/data/dataset-runtime.json']) {
+      const response = await f.privateSend(route);
+      assert.equal(response.status, 200);
+      assert.equal(response.text, expected);
+    }
+  }
+});
+
+test('MP13: browser startup renders the owned roster with neutral dataset defaults', async t => {
+  const f = await fixture(t), cookie = await f.login(subjects[0]);
+  const payload = (await f.send('/data/dataset-runtime.json', cookie)).json();
+  const loaded = (await f.send('/api/state', cookie)).json();
+  const session = (await f.send('/api/session', cookie)).json();
+  const source = async name => (await readFile(new URL('../app/web/' + name, import.meta.url), 'utf8'))
+    .replace(/^import .*;\r?\n/gm, '').replace(/^export /gm, '');
+  const c = runInNewContext(await source('screen-context.mjs') + '\ncreateScreenContext();', { selectedDataset: payload });
+  assert.equal(c.owners.length, 0);
+  const noop = () => {}, node = { addEventListener: noop, append: noop, setAttribute: noop };
+  const panel = () => ({ start: noop, setSession: noop, refresh: noop });
+  let rendered = false, connected = false;
+  Object.assign(c, { $: () => node, el: () => node, panelContext: { pickerSession: { initialize: noop, registerStop: noop } },
+    api: async route => route === '/api/state' ? loaded : route === '/api/rules' ? { definitions: [] } : {},
+    applySession: noop, taskIconPainter: { settle: noop }, categoryIconPainter: { settle: noop },
+    gamePlugin: { refresh: noop }, bindControls: noop, connectEvents: () => { connected = true; },
+    saved: noop, loadTasks: noop, supportsFeature: () => false, applyDatasetControls: noop,
+    adopt: state => { c.state = state; rendered = true; assert.equal(c.owners[0].id, state.members[0].id); assert.equal(c.owners[0].name, 'Player 1'); } });
+  runInNewContext(await source('screen-startup.mjs') + '\ncreateScreenStartup(c);', { c, document: {}, globalThis: {},
+    createFeedback: panel, createUpdates: panel, createBackupStatus: panel, createAccountPanel: panel,
+    createAccountsPanel: panel, createOverlayPanel: panel,
+    createInvites: () => ({ loadSession: async () => session }),
+    loadArtStatus: async () => {}, installPictureFallbacks: noop, observeArtStatus: noop,
+    hydrateDisplayWorld: value => value, createRuleRegistryFromDefinitions: value => value,
+    gameStorage: () => ({ getItem: () => null }),
+    ChunkMap: class { centerOnUnlocked() {} setMapAssets() {} }, loadIcons: async () => {}, bindTaskViewPreferences: noop,
+    createDuoCoordination: panel });
+  await c.start();
+  assert.equal(c.memberId, loaded.state.members[0].id);
+  assert.equal(rendered, true); assert.equal(connected, true);
 });
 
 test('audit A: sessions, state, errors and headers contain only the caller account and picker', async t => {
@@ -124,7 +174,7 @@ test('audit A: sessions, state, errors and headers contain only the caller accou
   assert.deepEqual(left.account.providers, ['discord']);
 });
 
-test('MP12A-2: restoring a source binding cannot read the shared original maps', { todo: 'MP12A finding 2' }, async t => {
+test('MP12A-2: restoring a source binding cannot read the shared original maps', async t => {
   const marker = 'Player 8 shared note';
   const sourceMaps = Object.fromEntries(legacyMembers.map(member => [member.mapId,
     { chunks: { unlocked: { '12342': true } }, chunkNotes: { '12342': marker } }]));
@@ -144,9 +194,27 @@ test('MP12A-2: restoring a source binding cannot read the shared original maps',
   assert.equal(restored.status, 200, restored.text);
   assert.equal(reads, 0);
   const preview = await f.send('/api/original-sync/preview', cookie, { body: {} });
-  assert.equal(preview.status, 200, preview.text);
-  assert.ok(reads > 0, 'the configured shared source was contacted');
+  assert.equal(preview.status, 404, preview.text);
+  assert.equal(reads, 0, 'the configured shared source must not be contacted');
   assert.equal(preview.text.includes(marker), false, 'An owned-picker backup must not grant access to shared source notes');
+  const command = await f.send('/api/command', cookie, { body: { expectedRevision: 1,
+    command: { type: 'sync-original', previewId: randomUUID(), members: [] } } });
+  assert.equal(command.status, 404);
+  const memberRestored = await f.send('/api/member-restore', cookie, { body: { backup, memberId: 'owner', expectedRevision: 1 } });
+  assert.equal(memberRestored.status, 200, memberRestored.text);
+  assert.equal((await f.send('/api/original-sync/preview', cookie, { body: {} })).status, 404);
+  const imported = await f.send('/api/import', cookie, { body: { expectedRevision: 2,
+    document: { maps: { [legacyMembers[0].mapId]: { chunks: { unlocked: {}, selected: {} } } } },
+    members: [{ id: 'owner', name: 'Player 1', mapId: legacyMembers[0].mapId }] } });
+  assert.equal(imported.status, 422, imported.text); // Existing dataset-identity fence.
+  assert.equal((await f.send('/api/state', cookie)).json().state.revision, 2);
+  assert.equal((await f.send('/api/original-sync/preview', cookie, { body: {} })).status, 404);
+  assert.equal(reads, 0);
+  // The configured legacy client still fetches and previews the same source.
+  const legacy = await f.privateSend('/api/original-sync/preview', { body: {} });
+  assert.equal(legacy.status, 200, legacy.text);
+  assert.ok(reads > 0);
+  assert.equal(legacy.text.includes(marker), true);
 });
 
 test('audit A: every registered HTTP route rejects foreign selectors without opening the target store', async t => {
@@ -238,4 +306,16 @@ test('audit A: owned cookies and plugin keys do not acquire overlay or operator 
   assert.equal((await f.send('/overlay/events' + scope, cookie)).status, 401);
   assert.equal((await f.send('/overlay/data' + scope, cookie, { headers: { Authorization: 'Bearer ' + key } })).status, 401);
   assert.equal((await f.send('/api/state', null, { headers: { Authorization: 'Bearer ' + key } })).status, 401);
+});
+
+
+test('MP13: option-absent legacy original sync still fetches configured sources', async t => {
+  let reads = 0;
+  const f = await fixture(t, { enabled: false, originalSync: { retries: 0, fetchImpl: async url => {
+    reads++;
+    return Response.json(url.endsWith('/chunks.json') ? { unlocked: {}, selected: {} } : null);
+  } } });
+  const response = await f.privateSend('/api/original-sync/preview', { body: {} });
+  assert.equal(response.status, 200, response.text); assert.ok(reads > 0);
+  assert.deepEqual(response.json().members.map(member => member.id), legacyMembers.map(member => member.id));
 });

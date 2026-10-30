@@ -147,7 +147,7 @@ test('account deletion removes subjects and all owned pickers and discloses conf
   const f = await fixture(t, { backupRetentionMs: 86400000 }), a = await f.login('101');
   const id = await f.picker('101'), accountId = (await f.registry()).accounts[0].id;
   await f.note(a, 'Player 1', 0);
-  const response = await f.send('/api/account/delete', a, { body: {} }); assert.equal(response.status, 200, response.text);
+  const response = await f.send('/api/account/delete', a, { body: { accountDeletionToken: (await f.send('/api/session', a, { headers: { 'X-Account-Action': 'delete' } })).json().accountDeletionToken } }); assert.equal(response.status, 200, response.text);
   assert.equal(response.json().backups.retentionMs, 86400000); assert.match(response.json().backups.message, /not erased immediately/);
   assert.equal((await f.registry()).accounts.some(row => row.id === accountId), false);
   assert.equal((await f.send('/api/state', a)).status, 401);
@@ -163,7 +163,7 @@ test('pre-deletion uploads and retained backups cannot restore old ownership, su
   const backup = (await f.send('/api/backup', a)).json();
   const retained = (await f.send('/api/backups', a)).json().backups;
   const key = (await f.send('/api/game-plugin/keys', a, { body: { memberId: 'owner', label: 'Player 1' } })).json().key;
-  assert.equal((await f.send('/api/account/delete', a, { body: {} })).status, 200);
+  assert.equal((await f.send('/api/account/delete', a, { body: { accountDeletionToken: (await f.send('/api/session', a, { headers: { 'X-Account-Action': 'delete' } })).json().accountDeletionToken } })).status, 200);
   assert.equal((await f.send('/api/restore', a, { body: { backup, expectedRevision: 1 } })).status, 403);
   const fresh = await f.login('101'), freshId = await f.picker('101'); assert.notEqual(freshId, id);
   assert.equal((await f.send('/api/restore', fresh, { body: { backup, expectedRevision: 0, pickerId: id } })).status, 403);
@@ -189,7 +189,7 @@ test('a restored registry, directory, binding and issuer checkpoint are purged b
   const issuer = await readFile(path.join(f.root, 'legacy', 'invites.json'));
   const copy = path.join(f.root, 'checkpoint'); await cp(directory, copy, { recursive: true });
   const binding = await readFile(directory + '.dataset.json');
-  assert.equal((await f.send('/api/account/delete', a, { body: {} })).status, 200);
+  assert.equal((await f.send('/api/account/delete', a, { body: { accountDeletionToken: (await f.send('/api/session', a, { headers: { 'X-Account-Action': 'delete' } })).json().accountDeletionToken } })).status, 200);
   await f.restart(async () => {
     await writeFile(path.join(f.multiPicker.registryDir, 'registry.json'), checkpoint);
     await writeFile(path.join(f.root, 'legacy', 'invites.json'), issuer);
@@ -212,7 +212,7 @@ test('legacy picker deletion is refused; deleting its member account preserves t
   assert.equal((await f.send('/api/picker/delete', a, { body: {} })).status, 403);
   const stream = await f.send('/api/events', a, { stream: true }); t.after(() => stream.req.destroy());
   const ended = new Promise(resolve => stream.res.once('end', resolve));
-  const deleted = await f.send('/api/account/delete', a, { body: {} }); assert.equal(deleted.status, 200, deleted.text); await ended;
+  const deleted = await f.send('/api/account/delete', a, { body: { accountDeletionToken: (await f.send('/api/session', a, { headers: { 'X-Account-Action': 'delete' } })).json().accountDeletionToken } }); assert.equal(deleted.status, 200, deleted.text); await ended;
   assert.equal(hash((await f.private('/api/backup')).text), before);
   assert.equal((await f.send('/api/state', a)).status, 401);
   assert.equal((await f.private(new URL(invite.link).pathname, { headers: { Authorization: '' } })).status, 401);
@@ -361,9 +361,19 @@ test('account deletion ends its sessions in other memberships without closing th
   const left = await f.send('/api/events', peer, { stream: true }), right = await f.send('/api/events', b, { stream: true });
   t.after(() => { left.req.destroy(); right.req.destroy(); });
   const ended = new Promise(resolve => left.res.once('end', resolve));
-  assert.equal((await f.send('/api/account/delete', a, { body: {} })).status, 200); await ended;
+  assert.equal((await f.send('/api/account/delete', a, { body: { accountDeletionToken: (await f.send('/api/session', a, { headers: { 'X-Account-Action': 'delete' } })).json().accountDeletionToken } })).status, 200); await ended;
   assert.equal(right.res.readableEnded, false); assert.equal((await f.send('/api/state', peer)).status, 401);
   assert.equal((await f.note(b, 'Player 2', 0)).status, 200);
   assert.equal((await f.send('/api/state', b)).json().state.members[0].notes['12341'], 'Player 2');
   assert.equal((await f.registry()).pickers.find(row => row.id === bId).lifecycle, 'active');
+});
+
+
+test('MP13: option-absent confirmation headers add no token or account deletion route', async t => {
+  const f = await fixture(t, { initiallyEnabled: false });
+  const before = await f.private('/api/session');
+  const confirmed = await f.private('/api/session', { headers: { 'X-Account-Action': 'delete' } });
+  assert.equal(confirmed.status, 200); assert.equal(confirmed.text, before.text);
+  assert.equal(Object.hasOwn(confirmed.json(), 'accountDeletionToken'), false);
+  assert.equal((await f.private('/api/account/delete', { body: { accountDeletionToken: 'synthetic-token' } })).status, 404);
 });

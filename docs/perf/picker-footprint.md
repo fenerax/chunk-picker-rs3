@@ -207,3 +207,35 @@ saves, VPS CPU speed, or production capacity.
 | Roll-pool wall ms | 28.7 | 17.3 |
 | Store-only MiB/context, N=1 / N=3 | 0.421 / 0.357 | 0.437 / 0.352 |
 | Store bytes (receipt bytes separately) | 247,222 (163) | 246,609 (163) |
+
+## MP13 audit fixes: footprint and duo compatibility
+
+START `e82c13ba80d9816691344f9c5238c522643ed0d3`. Linux, Node 24.19.0, five logical CPUs, 16 GiB container memory limit; measured 30 October 2026.
+
+The existing `scripts/perf/picker-footprint.mjs` ran three alternating START/MP13 pairs, sequentially, with an empty synthetic source, bundled open-f2p, process workers, port zero and 250 ms worker idle interval. No tests ran during measurements. Clocks are normal. Values below are median [minimum–maximum] across three fresh processes per revision; two-member timings/CPU are first reduced to the member median for each run. CPU is observed combined HTTP/calculator CPU from the harness samples. Peak RSS is the sampled Linux process-tree sum (50 ms interval); short peaks may be missed. These small synthetic inputs do not establish full-pack performance or production capacity.
+
+| Synthetic case / measurement | START | MP13 |
+| --- | --- | --- |
+| Two-member, cold full tasks, ms | 391.98 [377.77–393.38] | 386.62 [372.34–401.27] |
+| Two-member, warm full tasks, ms | 13.17 [12.85–13.79] | 13.60 [12.88–17.93] |
+| Two-member, cold CPU, core-seconds | 0.411 [0.391–0.412] | 0.407 [0.399–0.424] |
+| Two-member, peak RSS, MiB | 108.61 [108.00–109.66] | 108.45 [107.37–108.70] |
+| Fresh solo, cold full tasks, ms | 375.58 [370.54–427.43] | 383.43 [381.57–388.16] |
+| Fresh solo, warm full tasks, ms | 13.86 [11.14–14.16] | 12.44 [12.30–13.40] |
+| Fresh solo, cold CPU, core-seconds | 0.388 [0.382–0.460] | 0.408 [0.401–0.414] |
+| Fresh solo, peak RSS, MiB | 108.29 [107.49–108.41] | 108.50 [107.75–113.01] |
+
+Store bytes are unchanged in every pair: 247,335 for the two-member case and 246,609 for solo; each binding is 163 bytes.
+
+The reusable `scripts/perf/duo-compatibility.mjs` gate ran once per revision with routing absent, then once per revision with routing present. Each comparison covers ten complete identity-encoded response bodies and the rewritten state, without dropping or normalizing fields. Both modes have **0 response differences, 0 size differences and 0 save differences**, across 20 paired reads. Each of the four runs returned **83,606,131 bytes**. SHA-256 of the ordered size/hash rows is `1b4583763d891cc5bbada4fcdcab6b7eff6aebf5f38bfb93d098c08f7e4a60ba`. Each saved state is **766,384 bytes**, SHA-256 `64de39c55452925587b87af05aa01507513263761bc407f54e81bcbb699acfdc`, identical to the source-state hash. The private checkout has **0 changed files**.
+
+The compatibility gate uses the same injected store timestamp and `duo-compatibility-clock.mjs` preload in HTTP/calculator processes and isolates. Its wall duration uses the real clock and includes imports, startup, reads and close, excluding copying. These are single samples under fixed response clocks, not performance medians; no spread is estimated.
+
+| Routing / compatibility measurement | START | MP13 |
+| --- | --- | --- |
+| Absent, wall seconds | 32.03 | 29.20 |
+| Absent, sampled peak RSS, MiB | 1215.39 | 1177.00 |
+| Present, wall seconds | 29.71 | 30.11 |
+| Present, sampled peak RSS, MiB | 1203.29 | 1262.91 |
+
+The checker copies inputs only into temporary directories, mints temporary plugin credentials after the browser status read, refuses external sync fetches and emits only counts, hashes, sizes and measurements. Its usage and limits are documented in `scripts/perf/README.md`. Public sign-up remains off.

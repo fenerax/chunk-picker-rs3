@@ -189,6 +189,6 @@ test('deleting a picker or an account releases its plugin key quota', async t =>
   assert.equal((await create(a)).status, 201);
   const b = await f.login('102'); assert.equal((await create(b)).status, 201);
   assert.equal((await create(await f.login('103'))).status, 429);
-  assert.equal((await f.send('/api/account/delete', b, { body: {} })).status, 200);
+  assert.equal((await f.send('/api/account/delete', b, { body: { accountDeletionToken: (await f.send('/api/session', b, { headers: { 'X-Account-Action': 'delete' } })).json().accountDeletionToken } })).status, 200);
   assert.equal((await create(await f.login('103'))).status, 201);
 });

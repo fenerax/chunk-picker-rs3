@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import http from 'node:http';
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -125,7 +125,7 @@ function panel(session, fetch) {
   return { instance, get dialog() { return dialog; }, open: () => click(instance.rows(), 'Delete account') };
 }
 
-test('MP12B: shared deletion stays bound to the account confirmed by the dialog', { todo: 'MP12B finding 1' }, async t => {
+test('MP12B: shared deletion stays bound to the account confirmed by the dialog', async t => {
   const f = await fixture(t), firstCookie = await f.shared(FIRST, 'one'), secondCookie = await f.shared(SECOND, 'two');
   const first = (await f.send('/api/session', firstCookie)).json();
   const second = (await f.send('/api/session', secondCookie)).json();
@@ -145,6 +145,7 @@ test('MP12B: shared deletion stays bound to the account confirmed by the dialog'
   assert.ok(walk(ui.dialog.node).some(node => node.textContent.includes(first.account.id)));
   await click(ui.dialog.node, 'Delete account');
   const firstAfter = await f.send('/api/session', firstCookie), secondAfter = await f.send('/api/session', secondCookie);
+  assert.equal(deletion.status, 409);
   assert.deepEqual({ deletionRefused: [401, 403, 409].includes(deletion.status), first: firstAfter.status, second: secondAfter.status },
     { deletionRefused: true, first: 200, second: 200 }, 'A stale account confirmation must refuse deletion and preserve both accounts');
 });
@@ -197,12 +198,12 @@ test('MP12B: logout during a provider exchange prevents linking even if another 
 test('MP12B: issued sessions rotate, logout revokes its token, and account deletion invalidates all its old tokens', async t => {
   const f = await fixture(t), first = await f.login(FIRST), rotated = await f.login(FIRST), other = await f.login(SECOND);
   assert.notEqual(first, rotated); assert.notEqual(rotated, other);
-  const session = (await f.send('/api/session', rotated)).json();
+  const session = (await f.send('/api/session', rotated, { headers: { 'X-Account-Action': 'delete' } })).json();
   assert.equal((await f.send('/auth/signout', first, { body: {} })).status, 303);
   assert.equal((await f.send('/api/session', first)).status, 401);
   assert.equal((await f.send('/api/session', rotated)).status, 200);
   const another = await f.login(FIRST);
-  assert.equal((await f.send('/api/account/delete', rotated, { body: {}, headers: { 'X-Picker-Id': session.pickerRoute } })).status, 200);
+  assert.equal((await f.send('/api/account/delete', rotated, { body: { accountDeletionToken: session.accountDeletionToken }, headers: { 'X-Picker-Id': session.pickerRoute } })).status, 200);
   for (const cookie of [first, rotated, another]) {
     assert.equal((await f.send('/api/session', cookie)).status, 401);
     assert.equal((await f.send('/api/state', cookie)).status, 401);
@@ -279,4 +280,55 @@ test('MP12B: a cookie switch between distinct owned pickers cannot redirect a st
   assert.equal(refused.status, 403);
   assert.equal((await f.send('/api/session', firstCookie)).status, 200);
   assert.equal((await f.send('/api/session', secondCookie)).status, 200);
+});
+
+
+test('MP13: account deletion refuses missing, forged, foreign and other-session confirmations', async t => {
+  const f = await fixture(t), first = await f.shared(FIRST, 'one'), second = await f.shared(SECOND, 'two');
+  const getToken = async cookie => (await f.send('/api/session', cookie,
+    { headers: { 'X-Account-Action': 'delete' } })).json().accountDeletionToken;
+  assert.equal(Object.hasOwn((await f.send('/api/session', first)).json(), 'accountDeletionToken'), false);
+  const token = await getToken(first), foreign = await getToken(second);
+  assert.match(token, /^[A-Za-z0-9_-]{43}$/); assert.notEqual(token, foreign);
+  const otherSession = await f.login(FIRST);
+  for (const [cookie, body] of [[first, {}], [first, { accountDeletionToken: randomUUID() }],
+    [second, { accountDeletionToken: token }], [first, { accountDeletionToken: foreign }],
+    [otherSession, { accountDeletionToken: token }]]) {
+    assert.equal((await f.send('/api/account/delete', cookie, { body })).status, 409);
+    assert.equal((await f.send('/api/session', first)).status, 200);
+    assert.equal((await f.send('/api/session', second)).status, 200);
+  }
+});
+
+test('MP13: the deletion queue checks expiry and consumes confirmations once', async () => {
+  const { createPickerDeletion } = await import('../app/picker-router-deletion.mjs');
+  const { rememberRoutedBody } = await import('../app/picker-context-http.mjs');
+  let time = 0;
+  const entered = Promise.withResolvers(), release = Promise.withResolvers(), deleted = [];
+  const identities = [FIRST, SECOND].map(accountId => ({ kind: 'account', accountId, sessionId: randomUUID() }));
+  const service = createPickerDeletion({ now: () => time, legacy: { authenticate: request => request.identity },
+    registry: { listPickers: () => [], deletionRecords: () => ({ accounts: [] }),
+      reconcileTombstones: async () => ({ blockedPickerIds: [], deletedAccountIds: [] }),
+      deleteAccount: async id => { deleted.push(id); if (id === FIRST) { entered.resolve(); await release.promise; } } } });
+  const invoke = (identity, token) => {
+    const request = { identity, method: 'POST', url: '/api/account/delete', headers: { origin } };
+    rememberRoutedBody(request, { accountDeletionToken: token }, 0);
+    return service.handle(request, { writeHead() {}, end() {} },
+      { identity, deletion: '/api/account/delete', security: { origin } });
+  };
+  const firstToken = service.accountDeletionToken(identities[0]);
+  const secondToken = service.accountDeletionToken(identities[1]);
+  const first = invoke(identities[0], firstToken); await entered.promise;
+  const second = invoke(identities[1], secondToken);
+  const rejected = assert.rejects(second, { status: 409 });
+  await Promise.resolve(); // Finish body admission and enqueue behind the first deletion.
+  // Advance while a prior deletion holds the queue: validation must happen
+  // after that wait, not merely when the request is admitted.
+  time = 5 * 60 * 1000; release.resolve(); await first; await rejected;
+  assert.deepEqual(deleted, [FIRST]);
+  const renewed = service.accountDeletionToken(identities[1]); assert.notEqual(renewed, secondToken);
+  await assert.rejects(invoke(identities[1], secondToken), { status: 409 });
+  await invoke(identities[1], renewed);
+  await assert.rejects(invoke(identities[1], renewed), { status: 409 });
+  assert.deepEqual(deleted, [FIRST, SECOND]);
 });
