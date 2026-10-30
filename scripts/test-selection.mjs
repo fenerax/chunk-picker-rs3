@@ -282,6 +282,7 @@ const fullOnlyPatterns = [
 // Remaining integration/provenance tests are named explicitly to catch unreviewed additions.
 const fullOnlyTests = new Set([
   "calculator-bundle-worker.test.mjs",
+  "calc-check.test.mjs",
   "public-ingress-server.test.mjs",
   "signin-server.test.mjs",
   "game-plugin-routes.test.mjs",
