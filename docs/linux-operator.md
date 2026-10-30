@@ -19,7 +19,7 @@ not back up a source repository that is absent from the VPS.
 
 ## Local installation layout
 
-Use Node 24.20.0 or a newer reviewed 24.x version, systemd and procps. Pin the
+Use Node 24.20.0 or a newer reviewed 24.x version, systemd, procps and util-linux (`flock`). Pin the
 exact Node binary/version in the machine's deployment record. The examples use
 `/usr/bin/node`; adjust every unit together if Node lives elsewhere.
 
@@ -123,14 +123,27 @@ ownership, start the same service, and wait for private readiness. Credentials
 are read from the store, sent only in an authorization header, and never put
 in command arguments or diagnostics. Redirects are refused.
 
-Health, backups, restores and deploys share `control/operation.lock`. A busy
-health tick skips. Other concurrent commands refuse. `maintenance.json`
-survives failed transactions; health will refuse while it remains. An
-interrupted operation lock also remains. Before clearing either file, stop the
-timers, inspect the service/cgroup, ownership files, selected pointer and
-`activation.json`, and reconcile the operation. Do not run manual service
-starts during an operator transaction. There is no automatic lock stealing or
-crash-journal replay.
+Health, backups, restores, deploys and VPS additions reviews share
+`control/operation.lock`. Each new Linux lock records the PID, process start
+identity and boot ID. Only an owner proven gone (missing process, reused PID or
+previous boot) permits automatic recovery: the lock is retained as
+`stale-operation.lock.<timestamp>-pid<n>` before continuing. A live owner, an
+unreadable record or a legacy record without process identity stays busy.
+A recent busy health tick exits quietly. After 30 minutes, measured from the
+lock's modification time, health exits non-zero with the static line
+"Operator lock held for over 30 minutes; inspect privately." Other concurrent
+commands refuse with a static lock-busy reason.
+
+`maintenance.json` survives failed transactions; health refuses while it remains.
+Recovering a dead owner's lock does not clear maintenance or activation evidence.
+Before clearing evidence, stop the timers, inspect the service/cgroup, ownership
+files, selected pointer and `activation.json`, and reconcile the operation.
+The persistent `operation.lock.recovery` file serializes stale-lock moves with
+Linux `flock`; the kernel releases that guard on process death. Do not unlink
+that coordination file while commands may be running. If `flock` is unavailable,
+recovery refuses conservatively and the original lock stays busy. Do not run
+manual service starts during an operator transaction. There is no crash-journal
+replay.
 
 The root `ExecStartPre` check also blocks boot/manual starts while transaction
 evidence remains. An active operator can authorize one start with a short-lived
@@ -382,15 +395,45 @@ node scripts/release/vps/release.mjs stage --out <private-output-dir> --host <ss
 ```
 
 Stage uploads and verifies only; it never starts/stops a service or changes the
-selected pointer. Review it before explicitly activating:
+selected pointer. PC Quick Release continues deriving additions from the PC save
+for PC deployments. Those additions are not accepted for the VPS: its save may
+already contain them. Install the reviewed operator tools, then derive the VPS
+list from a copy of the newest verified recovery backup:
+
+```powershell
+node scripts/release/vps/release.mjs derive --host <ssh-alias> --upload /var/tmp/picker-upload-<release> --target /opt/chunk-picker/releases/<release> --operator-config /etc/chunk-picker/operator.json --tools-root /opt/chunk-picker/tools --node /opt/node/bin/node
+```
+
+This runs on the VPS under the operator lock. It verifies backup manifests,
+ignores incomplete/corrupt recoveries, and refuses if no verified backup exists.
+Only disposable copies are opened, through `checkStoppedCompatibility`'s four
+current/candidate/current/candidate probes, with the candidate binding when its
+pack changes. The live store and recovery backup are never opened by a probe.
+The command prints the proposed list and its SHA-256 digest privately; keep
+that output out of public logs. Review the entire list, including an empty list,
+then repeat the same `derive` command with `--accept-additions <reviewed-digest>`.
+Acceptance re-derives from the newest verified backup and requires the exact
+digest. It binds the accepted list to the staged receipt. Nothing is accepted
+by staging or by deriving without that flag.
+
+Before activation, rehearse every release with a new data pack on a disposable
+backup copy rebound to the candidate's pack. Keep the immutable backup unchanged;
+its old binding must not be used to claim a successful candidate-pack rehearsal.
+Follow the isolated staging/service checks below as well.
+
+After review and rehearsal, explicitly activate:
 
 ```powershell
 node scripts/release/vps/release.mjs activate --go-live --host <ssh-alias> --upload /var/tmp/picker-upload-<release> --target /opt/chunk-picker/releases/<release> --operator-config /etc/chunk-picker/operator.json --tools-root /opt/chunk-picker/tools --node /opt/node/bin/node
 ```
 
-`stage --go-live` also explicitly permits activation in one invocation. The
-separate `activate` command is preferable for review. There is no default host,
-credential or production destination. Uploads and failed candidate directories
+Activation re-derives the list on a fresh online snapshot and refuses any
+difference from the accepted list before stopping. If the final stopped store
+changed, all four probes run again against it before pointer/binding writes.
+An unreviewed staged receipt refuses activation, including `stage --go-live`;
+legacy receipts must be restaged to fresh paths and reviewed with the new tools.
+Use the separate stage, derive, accept and activate steps. There is no default
+host, credential or production destination. Uploads and failed candidate directories
 are deliberately retained for review; do not overwrite/reuse their paths.
 Quick Release's PC `-GoLive` now refuses an existing `picker-paused` marker before
 candidate load or stop. Keep the paused rollback copy untouched; do not remove

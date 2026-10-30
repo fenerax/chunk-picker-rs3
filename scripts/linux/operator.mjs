@@ -11,6 +11,7 @@ import { assertReleased, atomic, directory, encode, exclusive, exists, headroom,
 import { assertSameRelease, operatorSettings, readRelease } from './runtime.mjs';
 import { backupStopped, checkStoppedCompatibility, restoreStopped, writeBackupStatus, storeIdentity } from './recovery.mjs';
 import { processIdentity } from './start-check.mjs';
+import { digestValue } from '../private-companion/release-identity.mjs';
 
 const execute = promisify(execFile);
 export function systemd(settings) {
@@ -157,7 +158,7 @@ export async function runOperator(command, argument, evidence, mode) {
   await directory(settings.controlDir);
   const pause = path.join(settings.controlDir, 'maintenance.json');
   return exclusive(path.join(settings.controlDir, 'operation.lock'), async () => {
-    if (await exists(pause)) throw new Error('Maintenance evidence remains; reconcile it before continuing.');
+    if (await exists(pause)) throw Object.assign(new Error('Maintenance evidence remains; reconcile it before continuing.'), { code: 'OPERATOR_MAINTENANCE' });
     const release = await readRelease(settings.current, settings.dataDir), controller = systemd(settings);
     if (command === 'health') {
       try { await headroom(settings.backupDir, 0, settings.minFreeBytes); } catch { process.stderr.write('Recovery disk free-space reserve is unavailable.\n'); }
@@ -173,6 +174,11 @@ export async function runOperator(command, argument, evidence, mode) {
       const receipt = await json(evidence);
       if (receipt.previousPointerSha256 !== sha(release.pointerBytes) || receipt.candidateIdentity !== candidate.identity
         || path.resolve(receipt.pointer) !== path.resolve(argument)) throw new Error('Staged deployment receipt changed.');
+      if (receipt.savedIdentityAdditionsReviewed !== true
+        || !Array.isArray(receipt.savedIdentityAdditions)
+        || digestValue(receipt.savedIdentityAdditions) !== receipt.savedIdentityAdditionsDigest) {
+        throw Object.assign(new Error('VPS additions require explicit review.'), { code: 'OPERATOR_ADDITIONS_REVIEW' });
+      }
       savedIdentityAdditions = receipt.savedIdentityAdditions;
     }
     let candidateBinding;
@@ -233,9 +239,19 @@ export async function runOperator(command, argument, evidence, mode) {
       throw error;
     }
     return { completed: command };
-  }, { skipBusy: command === 'health' });
+  }, { skipBusy: command === 'health', maxBusyMs: command === 'health' ? 1800000 : Infinity });
 }
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  try { await runOperator(...process.argv.slice(2)); process.stdout.write('Operator command completed.\n'); }
-  catch { process.stderr.write('Operator command refused; keep maintenance evidence and inspect privately.\n'); process.exitCode = 1; }
+  try { const result = await runOperator(...process.argv.slice(2)); if (!result?.skipped) process.stdout.write('Operator command completed.\n'); }
+  catch (error) {
+    if (error.code === 'OPERATOR_LOCK_LONG_HELD') process.stderr.write('Operator lock held for over 30 minutes; inspect privately.\n');
+    else {
+      const reason = error.code === 'EEXIST' ? ' Lock busy.'
+        : error.code === 'OPERATOR_MAINTENANCE' ? ' Maintenance evidence remains.'
+        : error.code === 'OPERATOR_ADDITIONS_REVIEW' ? ' VPS additions require explicit review.'
+        : error.message === 'Derived saved identity additions differ from the reviewed list.' ? ' Additions differ.' : '';
+      process.stderr.write('Operator command refused; keep maintenance evidence and inspect privately.' + reason + '\n');
+    }
+    process.exitCode = 1;
+  }
 }

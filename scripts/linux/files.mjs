@@ -2,6 +2,8 @@ import path from 'node:path';
 import { createReadStream } from 'node:fs';
 import { chmod, copyFile, lstat, mkdir, open, readFile, readdir, rename, rm, statfs, writeFile } from 'node:fs/promises';
 import { createHash, randomUUID } from 'node:crypto';
+import { spawnSync } from 'node:child_process';
+import { processIdentity } from './start-check.mjs';
 
 export const sha = bytes => createHash('sha256').update(bytes).digest('hex');
 export const json = async file => JSON.parse(await readFile(file, 'utf8'));
@@ -80,11 +82,56 @@ export async function headroom(root, bytes, reserve) {
   const fs = await statfs(root, { bigint: true });
   if (fs.bavail * fs.bsize < BigInt(Math.ceil(bytes)) + BigInt(reserve)) throw new Error('Insufficient free space for recovery work and reserve.');
 }
-// An interrupted owner leaves evidence. Never guess that an old lock is stale.
-export async function exclusive(file, action, { skipBusy = false } = {}) {
+// Serialize stale-owner recovery so another observer cannot move a fresh lock.
+// flock is tied to this open description: the kernel releases it on owner death.
+// Keep its inode in place; unlinking it would let observers lock different files.
+async function recoverDeadOwner(file) {
+  if (process.platform !== 'linux') return false;
+  let guard;
+  try { guard = await open(file + '.recovery', 'a', 0o600); } catch { return false; }
+  try {
+    await noLinks(file + '.recovery');
+    // The child inherits the same open description as guard. Its successful
+    // flock survives child exit until our handle closes, including SIGKILL.
+    const result = spawnSync('flock', ['--exclusive', '--nonblock', '3'], { stdio: ['ignore', 'ignore', 'ignore', guard.fd] });
+    if (result.error || result.status !== 0) return false;
+    await noLinks(file);
+    const owner = await json(file);
+    if (!Number.isSafeInteger(owner.pid) || owner.pid < 1
+      || !/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}:\d+$/.test(owner.processIdentity ?? '')) return false;
+    const boot = (await readFile('/proc/sys/kernel/random/boot_id', 'utf8')).trim();
+    if (owner.processIdentity.split(':')[0] === boot) {
+      try { if (await processIdentity(owner.pid) === owner.processIdentity) return false; }
+      catch (error) { if (error.code !== 'ENOENT') return false; }
+    }
+    await rename(file, path.join(path.dirname(file), 'stale-operation.lock.' + Date.now() + '.' + process.hrtime.bigint() + '-pid' + owner.pid));
+    return true;
+  } catch { return false; }
+  finally { await guard.close(); }
+}
+export async function exclusive(file, action, { skipBusy = false, maxBusyMs = Infinity } = {}) {
   let handle;
-  try { handle = await open(file, 'wx', 0o600); }
-  catch (error) { if (skipBusy && error.code === 'EEXIST') return { skipped: true }; throw error; }
-  try { await handle.writeFile(encode({ pid: process.pid, startedAt: new Date().toISOString() })); return await action(); }
-  finally { await handle.close(); await rm(file); }
+  for (;;) {
+    try { handle = await open(file, 'wx', 0o600); break; }
+    catch (error) {
+      if (error.code !== 'EEXIST') throw error;
+      if (await recoverDeadOwner(file)) continue;
+      if (Number.isFinite(maxBusyMs)) {
+        // Metadata also covers malformed and legacy records, without trusting
+        // their timestamps or exposing their contents in health diagnostics.
+        const info = await lstat(file).catch(() => null);
+        if (info && Date.now() - info.mtimeMs > maxBusyMs) {
+          throw Object.assign(new Error('Operator lock held for over 30 minutes; inspect privately.'), { code: 'OPERATOR_LOCK_LONG_HELD' });
+        }
+      }
+      if (skipBusy) return { skipped: true };
+      throw error;
+    }
+  }
+  try {
+    await handle.writeFile(encode({ pid: process.pid, startedAt: new Date().toISOString(),
+      processIdentity: process.platform === 'linux' ? await processIdentity(process.pid) : null }));
+    await handle.sync();
+    return await action();
+  } finally { await handle.close(); await rm(file); }
 }

@@ -18,6 +18,8 @@ export const quickTests = new Set([
   "worker-picker-keys.test.mjs",
   "picker-footprint.test.mjs",
   "linux-operator.test.mjs",
+  "linux-lock-recovery.test.mjs",
+  "release-vps-additions.test.mjs",
   "online-snapshot.test.mjs",
   "progress-sources.test.mjs",
   "public-request.test.mjs",
