@@ -210,6 +210,53 @@ test('incompatible picker is quarantined while unrelated games restore, then exp
   assert.equal((await listServicePickers(target, incompatible.id)).pickers[0].quarantined, false);
 });
 
+test('a completed restore journal does not block restoring a newer backup onto recovered disks', async t => {
+  const f = await fixture(t), first = await f.capture();
+  // Later gameplay makes the newer backup's manifest differ.
+  await mkdir(path.join(f.dir(f.pickers[1]), 'history'), { recursive: true });
+  await writeFile(path.join(f.dir(f.pickers[1]), 'history', 'synthetic.json'), encode({ revision: 2 }));
+  const second = await f.capture(), target = await f.target(); await f.close();
+  const options = { settings: target, release: f.release, assertStopped: stopped, probe: portableProbe };
+  assert.equal((await restoreServiceStopped({ ...options, backup: first })).restored, 3);
+  // The same completed restore still resumes (an operator that died before ownership repair).
+  assert.equal((await restoreServiceStopped({ ...options, backup: first })).restored, 3);
+  // The gameplay disks are lost again while controlDir survives.
+  for (const dir of [target.dataDir, target.multiPicker.registryDir, target.multiPicker.pickerRoot]) await rm(dir, { recursive: true, force: true });
+  await rm(target.dataDir + '.dataset.json', { force: true });
+  assert.equal((await restoreServiceStopped({ ...options, backup: second })).restored, 3);
+  await checkStart(target);
+  const work = path.join(target.controlDir, 'service-restore');
+  assert.equal((await readdir(work)).filter(name => name.startsWith('progress.complete-')).length, 1);
+  // An incomplete journal still refuses a different backup.
+  const progress = path.join(work, 'progress.json');
+  await atomic(progress, encode({ ...await json(progress), phase: 'prepared' }));
+  await assert.rejects(restoreServiceStopped({ ...options, backup: first }), /same backup/);
+});
+
+test('an interrupted quarantine release finishes on retry after its record is gone', async t => {
+  const f = await fixture(t), backup = await f.capture(), target = await f.target(), incompatible = f.pickers[1];
+  await f.close();
+  await restoreServiceStopped({ settings: target, backup, release: f.release, assertStopped: stopped,
+    probe: async (...args) => { if (args[1].includes(incompatible.id)) throw new Error('Synthetic incompatibility'); return portableProbe(...args); } });
+  const options = { settings: target, id: incompatible.id, release: f.release, assertStopped: stopped, probe: portableProbe };
+  assert.deepEqual(await releaseServiceQuarantine(options), { released: incompatible.id });
+  // Model an operator that died right after deleting the quarantine record:
+  // the journal says installed and the record is gone.
+  const journal = path.join(target.controlDir, 'release-' + incompatible.id, 'progress.json');
+  await atomic(journal, encode({ ...await json(journal), status: 'installed' }));
+  assert.deepEqual(await releaseServiceQuarantine(options), { released: incompatible.id });
+  assert.equal((await json(journal)).status, 'released');
+  // Retrying a finished release is harmless.
+  assert.deepEqual(await releaseServiceQuarantine(options), { released: incompatible.id });
+  assert.equal((await listServicePickers(target, incompatible.id)).pickers[0].quarantined, false);
+  // A changed install is not silently accepted.
+  await atomic(journal, encode({ ...await json(journal), status: 'installed' }));
+  await writeFile(path.join(target.multiPicker.pickerRoot, incompatible.id, 'state.json'), encode({ changed: true }));
+  await assert.rejects(releaseServiceQuarantine(options), /destination changed/);
+  // A picker that was never quarantined still has no record to release.
+  await assert.rejects(releaseServiceQuarantine({ ...options, id: f.pickers[2].id }), /No quarantine record/);
+});
+
 test('service recovery refuses a missing live ledger before any probe and never initializes one', async t => {
   const f = await fixture(t), backup = await f.capture(), target = await f.target(); let probes = 0;
   target.multiPicker.tombstoneDir = path.join(f.root, 'missing-ledger');

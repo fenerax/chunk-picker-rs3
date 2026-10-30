@@ -209,11 +209,22 @@ export async function restoreServiceStopped({ settings, backup, release, assertS
   const work = path.dirname(progressFile(settings));
   let progress;
   const targetIdentity = sha(encode({ dataDir: settings.dataDir, multiPicker: settings.multiPicker, releaseIdentity: release.identity }));
-  const resuming = await exists(progressFile(settings));
+  let resuming = await exists(progressFile(settings));
   if (resuming) {
     progress = await json(progressFile(settings));
-    if (progress.backupSha256 !== backupSha256 || progress.targetIdentity !== targetIdentity) throw new Error('Resume requires the same backup, targets and release.');
-  } else progress = { backupSha256, targetIdentity, phase: 'prepared', pickers: manifest.pickers.map(p => ({ id: p.id, status: 'pending' })) };
+    // A finished restore is history, not an operation to resume, once a
+    // different backup or target is chosen or its registry is gone (the disks
+    // were recovered again). Archive it; the empty-target checks below apply.
+    // The same completed restore still resumes, so an operator that died before
+    // ownership repair can finish.
+    const registryGone = !await exists(path.join(settings.multiPicker.registryDir, 'registry.json'));
+    if (progress.phase === 'complete' && (registryGone || progress.backupSha256 !== backupSha256 || progress.targetIdentity !== targetIdentity)) {
+      await rename(progressFile(settings), path.join(work, `progress.complete-${Date.now()}.json`));
+      await syncRecoveryDirectory(work);
+      resuming = false;
+    } else if (progress.backupSha256 !== backupSha256 || progress.targetIdentity !== targetIdentity) throw new Error('Resume requires the same backup, targets and release.');
+  }
+  if (!resuming) progress = { backupSha256, targetIdentity, phase: 'prepared', pickers: manifest.pickers.map(p => ({ id: p.id, status: 'pending' })) };
   // MP5 planning call site: before even the legacy probe; no live store changes.
   const reconciled = await reconcileTombstones({ settings, backup, manifest, progress, checkpoint: structuredClone(document) });
   const excludedPickerIds = new Set([...absent, ...(reconciled?.excludedPickerIds ?? [])]);
@@ -341,7 +352,27 @@ export async function listServicePickers(settings, id) {
 export async function releaseServiceQuarantine({ settings, id, release, assertStopped, reconcileTombstones = reconcileServiceRecoveryTombstones, probe = runProbe }) {
   if (!pickerId(id)) throw new Error('Invalid picker ID.');
   validateServicePaths(settings); await assertStopped();
-  const root = quarantineRoot(settings), record = await json(path.join(root, id + '.json'));
+  const root = quarantineRoot(settings), recordFile = path.join(root, id + '.json');
+  const stage = path.join(settings.controlDir, 'release-' + id), journal = path.join(stage, 'progress.json');
+  // Cleanup after the install is journaled first, so a retry after the record
+  // is gone can still finish and let the operator repair ownership.
+  const finish = async row => {
+    row.status = 'installed'; await atomic(journal, encode(row));
+    await rm(path.join(root, id), { recursive: true, force: true }); await rm(path.join(root, id + '.dataset.json'), { force: true });
+    await rm(recordFile, { force: true }); await syncRecoveryDirectory(root);
+    for (const name of ['store', 'store.dataset.json', 'portable.json']) await rm(path.join(stage, name), { recursive: true, force: true });
+    row.status = 'released'; await atomic(journal, encode(row));
+    return { released: id };
+  };
+  if (!await exists(recordFile)) {
+    const done = await exists(journal) ? await json(journal) : null;
+    if (done?.id !== id || done.releaseIdentity !== release.identity || !['installed', 'released'].includes(done.status)) throw new Error('No quarantine record for this picker.');
+    // Legacy is never quarantine-released, so the install is an owned picker.
+    // Startup stays blocked until ownership repair, so it can't have changed.
+    if (done.status === 'installed') await verifyInstalled(pickerPath(settings, { id, kind: 'default' }), done);
+    return finish(done);
+  }
+  const record = await json(recordFile);
   if (record.id !== id) throw new Error('Quarantine record mismatch.');
   if (record.kind === 'legacy-shared') throw legacyRefusal();
   let document = await json(path.join(settings.multiPicker.registryDir, 'registry.json'));
@@ -353,11 +384,13 @@ export async function releaseServiceQuarantine({ settings, id, release, assertSt
   if (!picker || picker.lifecycle !== 'active') throw new Error('Scope unavailable for recovery.');
   const target = pickerPath(settings, record), marker = path.join(target, 'operator-quarantine.json');
   await checkedTarget(target);
-  const stage = path.join(settings.controlDir, 'release-' + id), journal = path.join(stage, 'progress.json');
   await directory(stage);
-  let row = await exists(journal) ? await json(journal) : { id, status: 'pending', releaseIdentity: release.identity };
+  let row = await exists(journal) ? await json(journal) : null;
+  // A journal left by an earlier, finished release of the same ID is history.
+  if (!row || row.status === 'released') row = { id, status: 'pending', releaseIdentity: release.identity };
   if (row.id !== id || row.releaseIdentity !== release.identity) throw new Error('Quarantine release identity changed.');
   const save = () => atomic(journal, encode(row));
+  if (row.status === 'installed') return finish(row);
   if (!row.installing) {
     if (encode(await readdir(target)) !== encode(['operator-quarantine.json']) || (await json(marker)).id !== id) throw new Error('Quarantine placeholder changed.');
     await rm(path.join(stage, 'store'), { recursive: true, force: true }); await rm(path.join(stage, 'store.dataset.json'), { force: true });
@@ -376,8 +409,5 @@ export async function releaseServiceQuarantine({ settings, id, release, assertSt
     await rm(marker);
   }
   await installPicker(settings, record, stage, row, save);
-  await rm(path.join(root, id), { recursive: true, force: true }); await rm(path.join(root, id + '.dataset.json'), { force: true });
-  await rm(path.join(root, id + '.json')); await syncRecoveryDirectory(root);
-  await rm(stage, { recursive: true, force: true });
-  return { released: id };
+  return finish(row);
 }
