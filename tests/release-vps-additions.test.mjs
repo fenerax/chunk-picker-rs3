@@ -137,7 +137,8 @@ test('operator refuses unreviewed or tampered VPS receipts before service contro
   await writeFile(f.receiptFile, encode({ ...receipt, savedIdentityAdditionsReviewed: true,
     savedIdentityAdditions: [], savedIdentityAdditionsDigest: digestValue(syntheticAdditions) }));
   await assert.rejects(runOperator('deploy', f.pointer, f.receiptFile), { code: 'OPERATOR_ADDITIONS_REVIEW' });
-  assert.deepEqual(await readdir(f.settings.controlDir), []);
+  // Only the lock guard, which stays in place by design, may remain.
+  assert.deepEqual((await readdir(f.settings.controlDir)).filter(name => name !== 'operation.lock.recovery'), []);
 });
 
 test('VPS derivation uses the candidate pack binding only on disposable forward copies', async t => {

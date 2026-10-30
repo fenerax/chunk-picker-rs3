@@ -107,6 +107,33 @@ test('health CLI quietly skips a recent busy lock and fails with one static line
   });
 });
 
+// Holds the recovery guard in a child process until its stdin closes.
+function holdGuard(t, lock) {
+  const script = `const { openSync } = require('node:fs');
+    const { spawnSync } = require('node:child_process');
+    const fd = openSync(process.argv[1], 'a', 0o600);
+    if (spawnSync('flock', ['--exclusive', '--nonblock', '3'], { stdio: ['ignore', 'ignore', 'ignore', fd] }).status !== 0) process.exit(1);
+    process.stdout.write('ready'); process.stdin.resume(); process.stdin.on('end', () => process.exit(0));`;
+  const child = spawn(process.execPath, ['-e', script, lock + '.recovery'], { stdio: ['pipe', 'pipe', 'ignore'] });
+  t.after(() => { if (child.exitCode === null) child.kill('SIGKILL'); });
+  return child;
+}
+
+test('a new lock cannot appear while a reclaimer holds the guard, so recovery never moves a replacement', linux, async t => {
+  const { lock, root } = await fixture(t);
+  const reclaimer = holdGuard(t, lock);
+  await once(reclaimer.stdout, 'data');
+  // The checked owner has already finished and removed its lock; a new command arrives.
+  let ran = false;
+  const next = exclusive(lock, () => { ran = true; return 'ran'; });
+  await new Promise(resolve => setTimeout(resolve, 500));
+  assert.equal(ran, false);
+  assert.deepEqual(await readdir(root), ['operation.lock.recovery']);
+  reclaimer.stdin.end(); await once(reclaimer, 'exit');
+  assert.equal(await next, 'ran');
+  assert.deepEqual(await readdir(root), ['operation.lock.recovery']);
+});
+
 test('a killed recovery coordinator cannot leave a second stale lock', linux, async t => {
   const { root, lock } = await fixture(t);
   const [, start] = (await processIdentity(process.pid)).split(':');
