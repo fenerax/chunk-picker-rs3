@@ -926,6 +926,17 @@ accounts are untouched. This also repairs an identity removed from legacy
 storage offline or an unlink interrupted between the two durable writes. The
 registry's original conflict checks remain intact.
 
+Deleting a duo account, live or offline, retires its registry copy through
+`deleteAccount`, so its subjects can rejoin through a fresh invitation. The legacy
+plan lists every account in `accounts.json`, so a missing imported account was
+deleted. Startup retires it before checking subject owners. Only accounts with at
+least one membership, all of them in the shared picker, and no owned default
+picker are retired. Accounts with an owned picker, interrupted first logins with
+no membership, and every account when `accounts.json` itself is missing are left
+alone. The live delete reuses the same startup synchronization. Retired account
+IDs are permanent: restoring an older `accounts.json` that still lists one fails
+closed at startup.
+
 Follow-up edits are limited to `app/picker-router.mjs` (admission and public-page
 recovery), `app/picker-context.mjs` (shared import admission, session view and
 registry unlink), `app/server.mjs` (session-view wiring and startup reconciliation),

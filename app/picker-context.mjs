@@ -1418,7 +1418,11 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
                 await accounts.unlinkIdentity(id, body.provider);
                 if (pickerRouting?.registry?.getAccount(id)) await pickerRouting.registry.unlinkIdentity(id, body.provider);
               }
-              if (action === 'delete') await accounts.delete(id);
+              if (action === 'delete') {
+                await accounts.delete(id);
+                // Retires the registry copy of a deleted shared-only account so its subjects can rejoin.
+                await pickerRouting?.syncLegacy?.();
+              }
               endInactiveClients();
               await json(request, response, 200, { status: action === 'delete' ? 'deleted' : 'updated' }); return;
             }

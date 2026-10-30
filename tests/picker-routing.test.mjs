@@ -614,6 +614,38 @@ test('startup reconciles identities of a legacy account imported with no active 
 });
 
 
+test('a deleted duo account frees its subject to rejoin through a fresh invite, live and across restart', async t => {
+  const f = await fixture(t), solo = await f.login('301', undefined, '/auth/google'), invitation = await duoInvite(f);
+  const joined = await (await f.begin('101', await invitePending(f, invitation)))(); assert.equal(joined.status, 303);
+  const native = (await f.registry()).accounts.find(a => a.defaultPickerId);
+  const deleted = (await f.registry()).accounts.find(a => !a.defaultPickerId).id;
+  assert.equal((await f.private('/api/accounts/' + deleted + '/delete', { body: {} })).status, 200);
+  assert.equal((await f.registry()).accounts.some(a => a.id === deleted), false);
+  const rejoined = await (await f.begin('101', await invitePending(f, await duoInvite(f))))(); assert.equal(rejoined.status, 303, rejoined.text);
+  assert.deepEqual((await f.send('/api/state', sessionCookie(rejoined))).json().state.members.map(m => m.id), ['one', 'two']);
+  const replacement = (await legacyAccounts(f))[0].id; assert.notEqual(replacement, deleted);
+  await f.restart();
+  const doc = await f.registry();
+  assert.deepEqual(doc.accounts.find(a => a.id === replacement).identities, [{ provider: 'discord', subject: '101' }]);
+  assert.deepEqual(doc.accounts.find(a => a.defaultPickerId), native);
+  assert.equal((await f.send('/api/state', solo)).status, 200);
+});
+
+test('startup retires a duo account deleted offline but keeps an owned picker account', async t => {
+  const f = await fixture(t), solo = await f.login('301', undefined, '/auth/google'), invitation = await duoInvite(f);
+  assert.equal((await (await f.begin('101', await invitePending(f, invitation)))()).status, 303);
+  const native = (await f.registry()).accounts.find(a => a.defaultPickerId);
+  await f.restart(async () => {
+    const file = path.join(f.root, 'legacy/accounts.json'), document = JSON.parse(await readFile(file));
+    document.accounts = []; await writeFile(file, JSON.stringify(document));
+  });
+  assert.deepEqual((await f.registry()).accounts, [native]);
+  assert.equal((await f.send('/api/state', solo)).status, 200);
+  const rejoined = await (await f.begin('101', await invitePending(f, await duoInvite(f))))(); assert.equal(rejoined.status, 303, rejoined.text);
+  await f.restart();
+  assert.equal((await f.registry()).accounts.length, 2);
+});
+
 test('capacity eviction waits for an admitted backup parser before reopening its picker', { timeout: 15000 }, async t => {
   const f = await fixture(t, { maxOpenContexts: 2 }), a = await f.login('101'), b = await f.login('102');
   const stream = await f.send('/api/events', a, { stream: true });

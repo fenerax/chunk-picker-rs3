@@ -279,6 +279,7 @@ export async function openRegistry({ registryDir, pickerRoot, tombstoneDir, lega
   }
   return {
     getAccount(id) { usable(); return visibleAccount(id); },
+    listAccounts() { usable(); return [...accountIndex.keys()].map(visibleAccount).filter(Boolean); },
     findIdentity(provider, subject) { usable(); registryIdentity(provider, subject); return visibleAccount(providerIndex.get(identityKey(provider, subject))); },
     getPicker(id) { usable(); return visiblePicker(current.pickers.find(p => p.id === id)); },
     listPickers() { usable(); return current.pickers.map(visiblePicker); },

@@ -325,16 +325,28 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
   let context, pickerRegistry, pickerRouter;
   async function syncLegacy() {
     const memberIds = context.store.getCalculationSnapshot().members.map(member => member.id);
-    let plan;
+    let plan, fromFile = false;
     try {
       await readFile(path.join(dataDir, 'accounts.json'));
       plan = await readLegacyAccounts({ accountsFile: path.join(dataDir, 'accounts.json'), invitesFile: path.join(dataDir, 'invites.json'), memberIds });
+      fromFile = true;
     } catch (error) {
       if (error.code !== 'ENOENT') throw error;
       // An account file without its invitation file is not an empty import.
       try { await readFile(path.join(dataDir, 'accounts.json')); throw new Error('Legacy invitation store is missing.'); }
       catch (missing) { if (missing.code !== 'ENOENT') throw missing; }
       plan = { memberIds, accounts: [], droppedMemberships: 0 };
+    }
+    // The plan lists every account in accounts.json, so an imported account
+    // missing from it was deleted there. Retire its registry copy first, so its
+    // subjects can rejoin. Owned pickers and accounts without memberships (an
+    // interrupted first login) are never retired here; a missing file retires nothing.
+    if (fromFile) {
+      const planned = new Set(plan.accounts.map(input => input.id));
+      for (const account of pickerRegistry.listAccounts()) {
+        if (planned.has(account.id) || account.defaultPickerId || !account.memberships.length) continue;
+        if (account.memberships.every(m => pickerRegistry.getPicker(m.pickerId)?.kind === 'legacy-shared')) await pickerRegistry.deleteAccount(account.id);
+      }
     }
     // Only accounts previously imported into the shared exception are eligible
     // for removal reconciliation, including imports with all grants revoked.
