@@ -62,7 +62,7 @@ function workerEvaluation(message) {
     get result() { return result ??= JSON.parse((resultJSON ?? playJSON).toString('utf8')); } };
 }
 function validStateInput(state, input, stateInput, type) {
-  return ['evaluate', 'chunk-planning', 'sandbox', 'area-check'].includes(type) && stateInput.stateJSON instanceof SharedArrayBuffer
+  return ['evaluate', 'chunk-planning', 'sandbox', 'area-check', 'roll-pool'].includes(type) && stateInput.stateJSON instanceof SharedArrayBuffer
     && stateInput.stateJSON.byteLength > 0 && typeof stateInput.inputKey === 'string' && stateInput.inputKey === input
     && Number.isSafeInteger(state.revision) && state.revision >= 0 && Array.isArray(state.members)
     && state.members.length > 0 && state.members.every(member => member && typeof member.id === 'string' && member.id.length > 0)
@@ -132,6 +132,7 @@ export async function createTaskScheduler({ maxDeathQueue = 2, deathDeadlineMs =
   }
   const scheduler = {
     catalogue: foreground.catalogue, dynamicCatalogue: foreground.dynamicCatalogue,
+    supports: type => foreground.supports(type),
     subscribe(listener) { listeners.add(listener); return () => listeners.delete(listener); },
     subscribeResidency(listener) { residencyListeners.add(listener); return () => residencyListeners.delete(listener); },
     subscribePredictions(listener) { predictionListeners.add(listener); return () => predictionListeners.delete(listener); },
@@ -166,7 +167,7 @@ export async function createTaskScheduler({ maxDeathQueue = 2, deathDeadlineMs =
       if (!['foreground', 'duo', 'side'].includes(evaluationLane) || evaluationLane === 'duo' && (type !== 'evaluate' || resultView !== 'play-v1')
         || evaluationLane === 'side' && !(type === 'chunk-planning' || type === 'evaluate' && resultView === 'full')) return Promise.reject(new TypeError('Invalid task evaluation lane.'));
       if (typeof duoSidebarProjection !== 'boolean' || duoSidebarProjection && (type !== 'evaluate' || resultView !== 'play-v1' || evaluationLane !== 'foreground')) return Promise.reject(new TypeError('Invalid duo sidebar projection.'));
-      scheduler.supersede(state.revision, input, memberId);
+      if (type !== 'roll-pool') scheduler.supersede(state.revision, input, memberId);
       if (type === 'evaluate' && resultView === 'play-v1' && state.revision >= latestRevision && unlockResults.getDiagnostics().entries) {
         const taskInputKey = stateInput ? stateInput.taskInputKey : taskReuseInputKey(state);
         const reused = unlockResults.get(taskInputKey, memberId, state.revision);
@@ -364,6 +365,7 @@ async function createWorkerLane({ workerData, workerFactory = nativeWorker, incl
   positive(stuckMs, 'stuckMs');
   let worker, generation = 0, sequence = 0, active, closed = false, restartTimer, startupTimer, initialResolve, initialReject, closePromise, idleTimer, prewarmSignal, prewarmAbort, latestRevision = -1;
   let firstCalculation = true;
+  let supported = new Set();
   let status = 'starting', restarts = 0, failures = 0, nextRetryAt = null, compileMs = 0, lastFailure = null;
   const queue = [], warmQueue = [], sentSnapshots = new Map(), pending = new Map(), cache = new Map(), terminating = new Set(), listeners = new Set();
   const warmCounts = { queued: 0, completed: 0, cancelled: 0, skipped: 0 };
@@ -572,7 +574,8 @@ async function createWorkerLane({ workerData, workerFactory = nativeWorker, incl
       ...(fresh ? { stateJSON: entry.stateInput.stateJSON } : {}) } : {};
     entry.snapshotKey = snapshotKey;
     try { worker.postMessage({ id: entry.id, type: entry.type, reportProgress: true, state, snapshotKey, input: entry.input, memberId: entry.memberId, chunkId: entry.chunkId, chunkIds: entry.chunkIds, cancellation: entry.cancellation,
-      ...(entry.type === 'predict' ? { predictionProgress: true } : {}), ...serialized,
+      ...(entry.type === 'predict' ? { predictionProgress: true } : {}),
+      ...(entry.type === 'roll-pool' && entry.chunkId !== undefined ? { draft: entry.chunkId } : {}), ...serialized,
       ...(entry.type === 'evaluate' ? { resultTransport: 'json-shared-v1', resultView: entry.resultView,
         ...(duoResults && entry.resultView === 'play-v1' ? { duoProjection: true } : {}),
         ...(entry.duoSidebarProjection ? { duoSidebarProjection: true } : {}) }
@@ -601,6 +604,7 @@ async function createWorkerLane({ workerData, workerFactory = nativeWorker, incl
     worker.on('message', message => {
       if (ownGeneration !== generation || closed) return;
       if (message.type === 'ready') {
+        supported = new Set(message.supports ?? []);
         if (workerData?.datasetDigest && (message.datasetDigest !== undefined || workerFactory === nativeWorker)
           && message.datasetDigest !== workerData.datasetDigest) { failure('dataset-mismatch'); return; }
         clearTimeout(startupTimer); status = 'ready';
@@ -657,6 +661,7 @@ async function createWorkerLane({ workerData, workerFactory = nativeWorker, incl
     });
   }
   const scheduler = {
+    supports: type => supported.has(type),
     subscribe(listener) { listeners.add(listener); return () => listeners.delete(listener); },
     noteInteractiveUse: touch,
     confirmSavedPrediction(taskInputKey, revision) {
@@ -725,7 +730,7 @@ async function createWorkerLane({ workerData, workerFactory = nativeWorker, incl
       if (closed || status === 'restart-required') return Promise.reject(unavailable(closed ? 'The task server is closing.' : 'Task engine needs a server restart. Saves remain available.'));
       if (signal?.aborted) return Promise.reject(Object.assign(new Error('Requester disconnected.'), { name: 'AbortError' }));
       touch();
-      scheduler.supersede(state.revision, input, memberId);
+      if (type !== 'roll-pool') scheduler.supersede(state.revision, input, memberId);
       if (strictRevision && state.revision < latestRevision) return Promise.reject(superseded());
       if (cache.has(key)) {
         counts.cacheHits++;

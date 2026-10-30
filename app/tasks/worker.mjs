@@ -6,7 +6,8 @@ import { createTaskEngine, taskId, plainLabel } from './engine.mjs';
 import { legacyTaskId } from './identity.mjs';
 import { applySkillGuideTasks } from '../data/skill-guides.mjs';
 import { prepareChunkPrediction } from '../core/planning.mjs';
-import { createRuleRegistry } from '../core/rules.mjs';
+import { createRuleRegistry, createRollPoolCache, evaluateRollPool, partnerConnections } from '../core/rules.mjs';
+import { buildWorld } from '../data/world.mjs';
 import { configureAutomaticTransport } from '../core/automatic-transport.mjs';
 import { SANDBOX_FORMAT, normalizeSandboxRequest, sandboxTaskCatalogue, applySandboxChanges, sandboxDelta, compactSandboxPrediction } from '../sandbox.mjs';
 import { selectPresentedTasks, buildEquipmentCatalogue } from './presentation.mjs';
@@ -171,6 +172,23 @@ function snapshotFor(state, memberId, timingMs, input, includeViews = true) {
   return { snapshot, hit };
 }
 const taskReuseFingerprint = createTaskReuseFingerprint();
+// Rebuild native roll topology here; explicit worlds retain their supplied indexes.
+const rollWorld = workerData.world?.neighbors ? workerData.world : buildWorld(definitions, engineOptions);
+configureAutomaticTransport(rollWorld, { definitions, engine });
+const rollPools = createRollPoolCache(rollWorld, registry, { inputKey: taskReuseFingerprint });
+function rollPoolFor(state, memberId, draft) {
+  if (draft !== undefined) {
+    let taskIndex = sandboxTaskIndexes.get(state);
+    if (!taskIndex) { taskIndex = sandboxTaskCatalogue(state, sandboxCatalogue); sandboxTaskIndexes.set(state, taskIndex); }
+    const normalized = normalizeSandboxRequest({ memberId, baseRevision: state.revision, ...draft },
+      { state, world: rollWorld, catalogue: sandboxCatalogue, taskIndex });
+    state = applySandboxChanges(state, memberId, normalized.changes, sandboxCatalogue, taskIndex);
+  }
+  return rollPools.get(state, memberId) ?? rollPools.set(state, memberId, {
+    pool: evaluateRollPool(rollWorld, state, memberId, registry),
+    partnerConnections: partnerConnections(rollWorld, state, memberId, registry),
+  });
+}
 function predictionFor(state, memberId, chunkId, snapshot, timingMs) {
   let evaluations = 0;
   const planningEngine = { ...engine, evaluate: (input, member) => evaluations++ === 0 ? snapshot.baseline : evaluateFull(input, member, { includeViews: false, timingMs }) };
@@ -294,7 +312,7 @@ function serializedState({ stateJSON, stateJSONBytes, stateRevision, stateMember
   serializedStateSizes.set(state, stateJSONBytes);
   return state;
 }
-parentPort.on('message', async ({ id, type = 'evaluate', state, memberId, chunkId, chunkIds = [], revision, input, snapshotKey, resultTransport, resultView = 'full', cancellation, predictionProgress = false,
+parentPort.on('message', async ({ id, type = 'evaluate', state, memberId, chunkId, draft, chunkIds = [], revision, input, snapshotKey, resultTransport, resultView = 'full', cancellation, predictionProgress = false,
   stateTransport, stateJSON, stateJSONBytes, stateRevision, stateMemberIds, duoProjection = false, duoSidebarProjection = false, reportProgress = false }) => {
   if (type === 'cancel') { if (requests.has(id)) requests.get(id).cancelled = true; return; }
   if (type === 'supersede') { latestRevision = Math.max(latestRevision, revision); return; }
@@ -307,7 +325,7 @@ parentPort.on('message', async ({ id, type = 'evaluate', state, memberId, chunkI
   requests.set(id, request);
   try {
     if (stateTransport !== undefined || stateJSON !== undefined) {
-      if (stateTransport !== 'json-shared-v1' || !['evaluate', 'chunk-planning', 'sandbox', 'area-check'].includes(type) || state !== undefined) throw new TypeError('Worker state transport is invalid.');
+      if (stateTransport !== 'json-shared-v1' || !['evaluate', 'chunk-planning', 'sandbox', 'area-check', 'roll-pool'].includes(type) || state !== undefined) throw new TypeError('Worker state transport is invalid.');
       state = serializedState({ stateJSON, stateJSONBytes, stateRevision, stateMemberIds, snapshotKey, input });
     }
     if (snapshotKey !== undefined) {
@@ -324,12 +342,13 @@ parentPort.on('message', async ({ id, type = 'evaluate', state, memberId, chunkI
       stateSnapshots.delete(snapshotInput); stateSnapshots.set(snapshotInput, state);
       while (stateSnapshots.size > STATE_SNAPSHOT_LIMIT) stateSnapshots.delete(stateSnapshots.keys().next().value);
     }
-    latestRevision = Math.max(latestRevision, state.revision);
+    if (type !== 'roll-pool') latestRevision = Math.max(latestRevision, state.revision);
     let result, unlockReuse, partnerUnlockReuse;
     if (type === 'prepare-rules') {
       timed(timingMs, 'preparationMs', () => engine.prepare(state.rules));
       result = { prepared: true };
-    } else if (type === 'sandbox') result = sandboxFor(state, memberId, chunkId, timingMs, input);
+    } else if (type === 'roll-pool') result = timed(timingMs, 'rollPoolMs', () => rollPoolFor(state, memberId, draft ?? chunkId));
+    else if (type === 'sandbox') result = sandboxFor(state, memberId, chunkId, timingMs, input);
     else if (type === 'area-check') result = timed(timingMs, 'areaCheckMs', () => {
       const { baselineTaskIds, ...requested } = chunkId;
       const draft = normalizeAreaCheckRequest(requested, { state, memberId, world: workerData.world });
@@ -406,6 +425,7 @@ parentPort.on('message', async ({ id, type = 'evaluate', state, memberId, chunkI
 // Module dependencies include top-level await. Let ESM finish its fulfillment
 // callbacks before the scheduler can retire this isolate, even with idleMs=1.
 // Terminating during that fulfillment can abort the host in V8 on Linux.
+const supports = ['evaluate', 'predict', 'death-estimates', 'chunk-planning', 'sandbox', 'area-check', 'prepare-rules', 'roll-pool'];
 const compileMs = performance.now() - compileStarted;
 startupPhase('worker:compiled');
 // The generated catalogue is large and shares completion families between rows.
@@ -415,10 +435,10 @@ setImmediate(() => {
   // Advisory workers still compile/use every local catalogue. Only their
   // unused ready payload is suppressed by the scheduler's explicit opt-out.
   if (workerData.omitReadyCatalogue === true) {
-    parentPort.postMessage({ type: 'ready', datasetDigest: selectedDataset.digest, compileMs });
+    parentPort.postMessage({ type: 'ready', datasetDigest: selectedDataset.digest, supports, compileMs });
     return;
   }
   const dynamicCatalogueBytes = serialize([...collectionEngine.catalogue, ...houseStorageCatalogue, ...generatedTaskCatalogue]);
-  parentPort.postMessage({ type: 'ready', datasetDigest: selectedDataset.digest,
+  parentPort.postMessage({ type: 'ready', datasetDigest: selectedDataset.digest, supports,
     catalogue: [...engine.catalogue.filter(row => row.kind !== 'house-storage'), ...equipmentCatalogue], dynamicCatalogueBytes, compileMs });
 });

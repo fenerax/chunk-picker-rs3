@@ -1,7 +1,7 @@
 import { validateSavedXpChoices, validateXpChoices } from './xp-choices.mjs';
 import { selectedDataset } from '../dataset-runtime.mjs';
 import { createTaskFactsIndex } from './progress-index.mjs';
-import { createRuleRegistry, evaluateRollPool, sampleRoll } from './rules.mjs';
+import { createRuleRegistry, evaluateRollPool, sampleRoll, checkedPrecomputedRollPool } from './rules.mjs';
 import { validateProgressSnapshots } from './progress-snapshots.mjs';
 import { preferenceDefinitions, validatePreference } from './preferences.mjs';
 import { validateControlSkill, validateControlLevel, validateSlayerLock } from './player-controls.mjs';
@@ -1341,9 +1341,9 @@ export function getUndoEligibility(state, undoRevision, { registry } = {}) {
   }
 }
 
-export function applyCommand(state, command, { expectedRevision, world, registry, random, now, taskCatalogue, actor, membersStartBanks, xpChoiceCatalogue } = {}) {
+export function applyCommand(state, command, { expectedRevision, world, registry, random, now, taskCatalogue, actor, membersStartBanks, xpChoiceCatalogue, precomputedPool } = {}) {
   const next = validateState(state, registry);
-  return applyCommandCopy(next, command, { expectedRevision, world, registry, random, now, taskCatalogue, actor, membersStartBanks, xpChoiceCatalogue });
+  return applyCommandCopy(next, command, { expectedRevision, world, registry, random, now, taskCatalogue, actor, membersStartBanks, xpChoiceCatalogue, precomputedPool });
 }
 
 /** Storage-only capability check, not an eligibility or authorization check. */
@@ -1400,7 +1400,7 @@ function validateCommandGameplay(state, baseline, registry) {
   return referenced;
 }
 
-function applyCommandCopy(next, command, { expectedRevision, world, registry, random, now, taskCatalogue, actor, membersStartBanks, xpChoiceCatalogue } = {}, baseline) {
+function applyCommandCopy(next, command, { expectedRevision, world, registry, random, now, taskCatalogue, actor, membersStartBanks, xpChoiceCatalogue, precomputedPool } = {}, baseline) {
   const attribution = actor === undefined ? undefined : validateHistoryActor(actor);
   // Commands replace/add/remove catalogue rows; they do not mutate old rows.
   const before = baseline ? { members: baseline.members, rules: baseline.rules, tasks: baseline.tasks, taskClaims: baseline.taskClaims, finishLine: baseline.finishLine, groupGoals: baseline.groupGoals, ruleReviews: baseline.ruleReviews }
@@ -2011,7 +2011,8 @@ function applyCommandCopy(next, command, { expectedRevision, world, registry, ra
       if (!world) fail('A world is required to roll');
       if (member.pendingRoll.length) fail(`${member.name || member.id} must choose or cancel the pending roll before rolling again`);
       if (payload.count !== 1 && payload.count !== 2) fail('Roll count must be 1 or 2');
-      const evaluation = evaluateRollPool(world, next, payload.memberId, registry);
+      const evaluation = checkedPrecomputedRollPool(precomputedPool, world, next, payload.memberId, registry)
+        ?? evaluateRollPool(world, next, payload.memberId, registry);
       const pool = evaluation.eligible;
       const picks = sampleRoll(pool, payload.count, random);
       const ids = picks.map(candidate => typeof candidate === 'string' ? candidate : candidate.id ?? candidate.chunkId);

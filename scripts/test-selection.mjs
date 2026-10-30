@@ -281,6 +281,7 @@ const fullOnlyPatterns = [
 
 // Remaining integration/provenance tests are named explicitly to catch unreviewed additions.
 const fullOnlyTests = new Set([
+  "roll-pool-worker.test.mjs",
   "public-ingress-server.test.mjs",
   "signin-server.test.mjs",
   "game-plugin-routes.test.mjs",
@@ -502,6 +503,7 @@ export const soloTests = new Set([
 // worker from their own definitions and assert nothing about duo-legacy content. They
 // run on the public open-f2p dataset, in the environment core's lane gives them.
 export const openF2PTests = new Set([
+  "roll-pool-worker.test.mjs",
   "area-check-server.test.mjs",
   "area-check-worker.test.mjs",
   "backup-watchdog-server.test.mjs",
