@@ -172,7 +172,8 @@ test('provider-linking starts share the sign-in start budget', async t => {
   const f = await fixture(t, { registrationsPerAccount: 2, registrationsGlobal: 2 });
   const a = await f.login('101');
   assert.equal((await f.send('/auth/link/discord', a)).status, 303);
-  for (const route of ['/auth/link/google', '/auth/link/%64iscord', '/auth/discord']) {
+  const own = (await f.send('/api/session', a)).json().pickerId;
+  for (const route of ['/auth/link/google', '/auth/link/%64iscord', '/auth/discord', `/pickers/${own}/auth/discord`, `/pickers/${own}/auth/link/%2567oogle`]) {
     const denied = await f.send(route, a);
     assert.equal(denied.status, 429, route); assert.ok(denied.headers['retry-after']);
   }

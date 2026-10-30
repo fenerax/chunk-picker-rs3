@@ -197,10 +197,11 @@ export function createPickerRouter({ registry, legacy, openContext, publicOrigin
         const options = { ...listener, publicOrigin };
         const security = listener.ingressRole === 'public' ? requestContext(request, options) : requestContextFor(request, options);
         bindBody = pickerLimits?.body(request);
-        // Match the route exactly as the sign-in handler decodes it.
+        const selected = await contextFor(request, security, bindBody); entry = selected.entry;
+        // Match the route exactly as the sign-in handler decodes it, after any
+        // /pickers/<id> prefix is rewritten away.
         let signInRoute; try { signInRoute = decodeURIComponent((request.url ?? '/').split('?')[0]); } catch {}
         if (request.method === 'GET' && /^\/auth\/(?:link\/)?(?:discord|google)$/.test(signInRoute ?? '')) pickerLimits?.registration(security.rateKey);
-        const selected = await contextFor(request, security, bindBody); entry = selected.entry;
         if (selected.deletion) { await deletion.handle(request, response, selected); return; }
         if (selected.legacyBackup) selected.context.checkImportBody(request, selected.checkBody);
         if (selected.backup) {
