@@ -199,7 +199,7 @@ export function createPickerRouter({ registry, legacy, openContext, publicOrigin
         bindBody = pickerLimits?.body(request);
         // Match the route exactly as the sign-in handler decodes it.
         let signInRoute; try { signInRoute = decodeURIComponent((request.url ?? '/').split('?')[0]); } catch {}
-        if (request.method === 'GET' && /^\/auth\/(?:discord|google)$/.test(signInRoute ?? '')) pickerLimits?.registration(security.rateKey);
+        if (request.method === 'GET' && /^\/auth\/(?:link\/)?(?:discord|google)$/.test(signInRoute ?? '')) pickerLimits?.registration(security.rateKey);
         const selected = await contextFor(request, security, bindBody); entry = selected.entry;
         if (selected.deletion) { await deletion.handle(request, response, selected); return; }
         if (selected.legacyBackup) selected.context.checkImportBody(request, selected.checkBody);

@@ -168,6 +168,16 @@ test('percent-encoded sign-in routes share the sign-in start budget', async t =>
   }
 });
 
+test('provider-linking starts share the sign-in start budget', async t => {
+  const f = await fixture(t, { registrationsPerAccount: 2, registrationsGlobal: 2 });
+  const a = await f.login('101');
+  assert.equal((await f.send('/auth/link/discord', a)).status, 303);
+  for (const route of ['/auth/link/google', '/auth/link/%64iscord', '/auth/discord']) {
+    const denied = await f.send(route, a);
+    assert.equal(denied.status, 429, route); assert.ok(denied.headers['retry-after']);
+  }
+});
+
 test('deleting a picker or an account releases its plugin key quota', async t => {
   const f = await fixture(t, { pluginKeysPerAccount: 1, pluginKeysGlobal: 2, registrationsPerAccount: 20, registrationsGlobal: 20 });
   const create = cookie => f.send('/api/game-plugin/keys', cookie, { body: { memberId: 'owner', label: 'Synthetic' } });
