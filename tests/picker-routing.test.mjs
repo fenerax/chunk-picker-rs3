@@ -504,7 +504,7 @@ test('owned backup admission checks origin, role, selectors and the same per-pic
   const key = (await f.send('/api/game-plugin/keys', a, { body: { memberId: 'owner', label: 'Player 1' } })).json().key;
   const deniedKey = await directUpload(f, '/api/import', { headers: { authorization: 'Bearer ' + key } }).done;
   assert.equal(deniedKey.status, 401); assert.equal(deniedKey.reads, 0);
-  // Hold A in the streaming parser. B must still admit an independent upload.
+  // Hold A in body receipt. B must still admit an independent upload.
   const started = Promise.withResolvers(), slow = new Readable({ read() { started.resolve(); } });
   const held = directUpload(f, '/api/restore/preview', { cookie: a, input: slow });
   await started.promise;
@@ -661,19 +661,24 @@ test('startup retires a duo account deleted offline but keeps an owned picker ac
   assert.equal((await f.registry()).accounts.length, 2);
 });
 
-test('one process-wide budget admits owned backup parsers; a second owner is refused unread with a retry', { timeout: 15000 }, async t => {
-  const f = await fixture(t), a = await f.login('101'), b = await f.login('102');
-  const started = Promise.withResolvers(), slow = new Readable({ read() { started.resolve(); } });
-  const held = directUpload(f, '/api/restore/preview', { cookie: a, input: slow });
+test('one process-wide budget refuses another complete upload with a retry while an import is active', { timeout: 15000 }, async t => {
+  const started = Promise.withResolvers(), release = Promise.withResolvers(); let armed = false;
+  const f = await fixture(t, { beforeCommit: async () => {
+    if (armed) { armed = false; started.resolve(); await release.promise; }
+  } });
+  t.after(() => release.resolve());
+  const a = await f.login(String(101)), b = await f.login(String(102));
+  const backup = (await f.send('/api/backup', a)).json();
+  armed = true;
+  const held = f.send('/api/restore', a, { body: { backup, expectedRevision: 0 } });
   try {
     await started.promise;
-    const refused = await directUpload(f, '/api/restore/preview', { cookie: b }).done;
-    assert.equal(refused.status, 503); assert.equal(refused.reads, 0); assert.equal(refused.headers.get('retry-after'), 5);
-    slow.push('{}'); slow.push(null);
-    assert.notEqual((await held.done).status, 503);
-    const next = directUpload(f, '/api/restore/preview', { cookie: b, input: Readable.from([Buffer.from('{}')]) });
-    assert.notEqual((await next.done).status, 503);
-  } finally { if (!slow.readableEnded) slow.push(null); }
+    const refused = await directUpload(f, '/api/restore/preview', { cookie: b, input: Readable.from(['{}']) }).done;
+    assert.equal(refused.status, 503); assert.equal(refused.headers.get('retry-after'), 5);
+    release.resolve(); assert.equal((await held).status, 200);
+    const next = directUpload(f, '/api/restore/preview', { cookie: b, input: Readable.from(['{}']) });
+    assert.equal((await next.done).status, 422);
+  } finally { release.resolve(); }
 });
 
 test('a slow admitted backup upload never holds another picker behind it; the newcomer gets a retry', { timeout: 15000 }, async t => {
@@ -694,4 +699,36 @@ test('a slow admitted backup upload never holds another picker behind it; the ne
     const next = await f.send('/api/state', b); assert.equal(next.status, 200); await ended;
     assert.equal((await f.send('/api/state', a)).json().state.revision, 0);
   } finally { if (!slow.readableEnded) slow.push(null); }
+});
+
+test('MP14: a fenced picker drains outside residency and cannot be chosen as a capacity victim', { timeout: 10000 }, async t => {
+  const accepted = Promise.withResolvers(), release = Promise.withResolvers(); let armed = false;
+  const f = await fixture(t, { maxOpenContexts: 3, beforeCommit: async () => {
+    if (armed) { armed = false; accepted.resolve(); await release.promise; }
+  } });
+  const a = await f.login(String(101)), b = await f.login(String(102)), c = await f.login(String(103));
+  for (const cookie of [a, b]) assert.equal((await f.send('/api/state', cookie)).status, 200);
+  const id = (await f.send('/api/session', a)).json().pickerId;
+  const stream = await f.send('/api/events', a, { stream: true });
+  const fenced = new Promise(resolve => stream.res.once('end', resolve));
+  armed = true;
+  const write = f.note(a, 'Player 1', 0); await accepted.promise;
+  const deletion = f.send('/api/picker/delete', a, { body: {} });
+  try {
+    await fenced;
+    // The ledger stays at revoked while close drains the accepted write.
+    // Observe that phase before probing residency, rather than racing revoke.
+    let draining = false;
+    for (let attempt = 0; attempt < 100; attempt++) {
+      const ledger = JSON.parse(await readFile(path.join(f.multiPicker.tombstoneDir, 'ledger.json')));
+      if (ledger.pickers.find(row => row.pickerId === id)?.purgeProgress === 'revoked') { draining = true; break; }
+      await new Promise(resolve => setTimeout(resolve, 10));
+    }
+    assert.equal(draining, true, 'deletion reached the local close drain');
+    assert.equal((await f.send('/api/state', b)).status, 200, 'resident reads proceed during the drain');
+    // B is idle and may be evicted; the closing A must never be selected.
+    assert.equal((await f.send('/api/state', c)).status, 200, 'capacity acquisition does not wait on the closing picker');
+    release.resolve(); assert.equal((await write).status, 200); assert.equal((await deletion).status, 200);
+    assert.equal((await f.send('/api/state', a)).status, 401);
+  } finally { release.resolve(); stream.req.destroy(); }
 });

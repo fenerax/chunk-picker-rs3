@@ -16,6 +16,7 @@ export const MP7_DEFAULTS = Object.freeze({
   coldStartsPerAccount: 1, coldStartsGlobal: 1,
   bodyBytesPerRequest: 256 * 1024 * 1024, bodyBytesPerAccount: 256 * 1024 * 1024,
   bodyBytesPerPicker: 256 * 1024 * 1024, bodyBytesGlobal: 512 * 1024 * 1024,
+  importBodyIdleMs: 30000,
   limitWindowMs: 60000, pluginWindowMs: 1000, limitMaxAccounts: 10000,
 });
 export function pickerLimitOptions(options = {}) {

@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { Readable } from 'node:stream';
 import { gzipSync, gunzipSync } from 'node:zlib';
-import { readBackupRequest, BACKUP_UPLOAD_TYPE, backupJSONChunks } from '../app/backup-transfer.mjs';
+import { readBackupRequest, receiveBackupRequest, BACKUP_UPLOAD_TYPE, backupJSONChunks } from '../app/backup-transfer.mjs';
 import { createBackupUpload, MAX_BACKUP_BYTES } from '../app/web/backup-transfer.mjs';
 import { parseJSONStream } from '../app/storage/json-stream.mjs';
 
@@ -80,4 +80,15 @@ test('CRC corruption and truncated gzip files are rejected by the browser and se
     await assert.rejects(readBackupRequest(request(bytes, { 'content-encoding': 'gzip' })), error => error.status === 400 && /gzip.*corrupt|corrupt.*gzip/i.test(error.message));
     await assert.rejects(createBackupUpload(new File([bytes], 'bad.json.gz')).toBackupRequest(), /gzip.*corrupt|corrupt.*gzip/i);
   }
+});
+
+test('owned body receipt enforces wire bounds before parsing and preserves gzip decompression bounds', async () => {
+  const options = { maxUploadBytes: 128, idleTimeoutMs: 1000 };
+  await assert.rejects(receiveBackupRequest(request(Buffer.from('{}'), { 'content-length': '129' }), options), { status: 413 });
+  await assert.rejects(receiveBackupRequest(request(Buffer.alloc(129, 32)), options), { status: 413 });
+  const upload = await receiveBackupRequest(request(gzipSync(JSON.stringify({ large: 'x'.repeat(80) })),
+    { 'content-encoding': 'gzip' }), options);
+  await assert.rejects(readBackupRequest(upload, { maxBackupBytes: 64, maxUploadBytes: 128 }), { status: 413 });
+  const valid = await receiveBackupRequest(request(gzipSync('{"ok":true}'), { 'content-encoding': 'gzip' }), options);
+  assert.deepEqual(await readBackupRequest(valid), { body: { ok: true }, uploaded: false });
 });

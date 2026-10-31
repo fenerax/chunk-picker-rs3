@@ -94,9 +94,12 @@ async function waitFor(check, label) {
 async function slowImport(f, cookie, other) {
   const upload = f.start('/api/restore/preview', cookie, { method: 'POST', raw: Buffer.from('{'), hold: true,
     headers: { 'Content-Length': 2 } });
-  // Same-picker admission is a barrier proving that its parser is running.
-  await waitFor(async () => (await f.send('/api/restore/preview', cookie, { body: {} })).status === 503,
-    'the held upload must acquire import admission');
+  // Same-picker admission is a barrier proving that its body reader is running.
+  await waitFor(async () => {
+    const response = await f.send('/api/restore/preview', cookie, { body: {} });
+    return response.status === 503 && /Another backup/.test(response.json().message);
+  },
+    'the held upload must acquire picker-local admission');
   assert.equal((await f.send('/api/state', other)).status, 200, 'unrelated reads initially work');
   return upload;
 }
@@ -117,7 +120,7 @@ test('C2 sizes: declared route limits refuse bodies before mutation', async t =>
 });
 
 test('MP12C2-1: a one-byte unfinished upload must not monopolise imports for other accounts',
-  { todo: 'MP12C2 finding 1' }, async t => {
+  async t => {
     const f = await fixture(t), a = await f.login(subjects[0]), b = await f.login(subjects[1]);
     const beforeAt = performance.now(), baseline = await f.send('/api/restore/preview', b, { body: {} });
     const beforeMs = performance.now() - beforeAt; assert.equal(baseline.status, 422);
@@ -133,8 +136,41 @@ test('MP12C2-1: a one-byte unfinished upload must not monopolise imports for oth
     assert.equal(denied.status, baseline.status, 'one account must not exclude every other importer while waiting for bytes');
   });
 
+test('MP14: two unfinished uploads leave the global parser available to a third account', async t => {
+  const f = await fixture(t), a = await f.login(subjects[0]), b = await f.login(subjects[1]), c = await f.login(subjects[2]);
+  for (const cookie of [a, b, c]) assert.equal((await f.send('/api/state', cookie)).status, 200);
+  const uploads = [await slowImport(f, a, c), await slowImport(f, b, c)];
+  const baseline = await f.send('/api/restore/preview', c, { body: {} });
+  assert.equal(baseline.status, 422);
+  // Complete each previously slow body; both must still enter the parser.
+  for (const upload of uploads) {
+    upload.req.end('}'); assert.equal((await upload.result).status, baseline.status);
+  }
+});
+
+test('MP14: import bodies time out on idle, renew on bytes, and release picker admission', async t => {
+  const idleMs = 200, f = await fixture(t, { importBodyIdleMs: idleMs }), a = await f.login(subjects[0]);
+  for (const route of ['/api/import', '/api/restore/preview']) {
+    const upload = f.start(route, a, { method: 'POST', hold: true, raw: Buffer.from('{'), headers: { 'Content-Length': 8 } });
+    await waitFor(async () => (await f.send(route, a, { body: {} })).status === 503, 'body reader admitted');
+    // Total upload time exceeds the idle limit; arriving bytes renew the lease.
+    for (let index = 0; index < 3; index++) {
+      await delay(idleMs * 0.6); upload.req.write(' ');
+      assert.equal(await within(upload.result, 10), pending);
+    }
+    const response = await upload.result;
+    assert.equal(response.status, 408); assert.equal(response.headers.connection, 'close');
+    assert.notEqual((await f.send(route, a, { body: {} })).status, 503, 'timed-out reader releases the local guard');
+  }
+  const empty = f.start('/api/import/preview', a, { method: 'POST', hold: true,
+    headers: { 'Content-Type': 'application/json', 'Transfer-Encoding': 'chunked' } });
+  assert.equal((await empty.result).status, 408, 'the idle deadline also covers zero-byte chunked uploads');
+  assert.notEqual((await f.send('/api/import/preview', a, { body: {} })).status, 503);
+  assert.equal((await f.send('/api/state', a)).json().state.revision, 0);
+});
+
 test('MP12C2-2: deleting a picker with an unfinished upload must not block unrelated picker reads',
-  { todo: 'MP12C2 finding 2' }, async t => {
+  async t => {
     const f = await fixture(t), a = await f.login(subjects[0]), b = await f.login(subjects[1]);
     const id = (await f.send('/api/session', a)).json().pickerId;
     const beforeAt = performance.now(), baseline = await f.send('/api/state', b);
@@ -142,8 +178,9 @@ test('MP12C2-2: deleting a picker with an unfinished upload must not block unrel
     const upload = await slowImport(f, a, b);
     const deletion = f.send('/api/picker/delete', a, { body: {} });
     await waitFor(async () => (await f.registry()).pickers.find(p => p.id === id)?.lifecycle !== 'active', 'deletion must be durably fenced');
-    // Give the deletion drain a turn to enter the global residency queue.
-    assert.equal(await within(deletion, 100), pending);
+    // Deletion must finish without the attacker voluntarily ending the upload.
+    assert.equal((await within(deletion, 1000)).status, 200);
+    assert.equal(await upload.result.then(() => false, () => true), true, 'the fenced picker upload is cancelled');
     const started = performance.now(), reading = f.send('/api/state', b);
     const during = await within(reading), abortedAt = performance.now();
     upload.req.destroy();

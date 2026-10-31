@@ -1,6 +1,6 @@
 import { createPickerCheckpoint } from './picker-router-checkpoint.mjs';
 import { createHash } from 'node:crypto';
-import { isImportRoute, readBackupRequest } from './backup-transfer.mjs';
+import { isImportRoute, readBackupRequest, receiveBackupRequest } from './backup-transfer.mjs';
 import { routedBody, rememberRoutedBody, httpError, json } from './picker-context-http.mjs';
 import { checkBodyWith } from './security/json.mjs';
 import { createPickerDeletion } from './picker-router-deletion.mjs';
@@ -35,7 +35,13 @@ export function createPickerRouter({ registry, legacy, openContext, publicOrigin
         if (entry && !entry.closing) { clearTimeout(entry.timer); return entry.revoking ??= entry.context.revokeDeletion(); }
         return;
       }
-      return serialize(async () => { const entry = entries.get(id); if (entry) { await entry.revoking; await evict(entry); } });
+      // Reserve the closing entry under the queue, then drain only this picker
+      // outside it. Closing entries cannot be selected as capacity victims.
+      return serialize(() => {
+        const entry = entries.get(id);
+        if (entry) { clearTimeout(entry.timer); entry.closing = true; }
+        return entry;
+      }).then(async entry => { if (entry) { await entry.revoking; await evict(entry); } });
     },
   });
   function serialize(operation) {
@@ -51,10 +57,10 @@ export function createPickerRouter({ registry, legacy, openContext, publicOrigin
   const checkpointBlocked = entry => storeWriteBlocked(registry.pickerDirectory(entry.id));
   function idle(entry) {
     clearTimeout(entry.timer);
-    if (closed || entries.get(entry.id) !== entry || entry.active || entry.streams.size) return;
+    if (closed || entry.closing || entries.get(entry.id) !== entry || entry.active || entry.streams.size) return;
     entry.timer = setTimeout(() => {
       void serialize(async () => {
-        if (closed || entries.get(entry.id) !== entry || entry.active || entry.streams.size) return;
+        if (closed || entry.closing || entries.get(entry.id) !== entry || entry.active || entry.streams.size) return;
         // A checkpoint holds this directory: closing now would hold the queue behind the copy.
         if (checkpointBlocked(entry)) return idle(entry);
         await evict(entry);
@@ -80,7 +86,7 @@ export function createPickerRouter({ registry, legacy, openContext, publicOrigin
           // pin a heavy context against capacity eviction.
           // A context whose directory a checkpoint holds is skipped too: its close
           // waits for the copy while every acquisition waits here.
-          const victim = [...entries.values()].find(candidate => !candidate.active && !checkpointBlocked(candidate));
+          const victim = [...entries.values()].find(candidate => !candidate.active && !candidate.closing && !checkpointBlocked(candidate));
           if (!victim) throw retry();
           await evict(victim);
         }
@@ -221,11 +227,12 @@ export function createPickerRouter({ registry, legacy, openContext, publicOrigin
         if (selected.legacyBackup) selected.context.checkImportBody(request, selected.checkBody);
         if (selected.backup) {
           releaseImport = selected.context.admitImport(request, security);
+          const upload = await receiveBackupRequest(request, { idleTimeoutMs: pickerLimits.config.importBodyIdleMs });
           if (imports >= maxConcurrentImports) throw Object.assign(httpError(503, 'Another backup is being checked. Wait a moment, then try again.'), { retryAfter: 5 });
           imports++;
           const releaseOwn = releaseImport; let counted = true;
           releaseImport = () => { if (counted) { counted = false; imports--; } releaseOwn(); };
-          const imported = await readBackupRequest(request);
+          const imported = await readBackupRequest(upload);
           selected.checkBody(imported.body);
           rememberRoutedBody(request, imported.body, 0); routedBody(request).imported = imported;
         }

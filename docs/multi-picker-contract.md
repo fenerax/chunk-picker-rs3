@@ -2582,3 +2582,9 @@ Windows execution was not available in this environment.
 The START Windows syncRecoveryTree r+ fix, JSON plugin-key fixture, and MP7
 pickerDirectory fixture are retained. OPS1's scripts/linux/files.mjs and
 scripts/linux/operator.mjs were not edited. No new test file needed classification.
+
+## MP14 resource-abuse fixes
+
+MP12C2-2: durable deletion fences cancel unfinished request bodies belonging to the deleted picker before draining its accepted work. Picker-local revocation and close waits run outside the global residency queue; closing entries cannot become capacity-eviction victims. Existing accepted-write and crash recovery guarantees still apply.
+
+MP12C2-1: owned import and restore bodies arrive completely under MP7 byte reservations before acquiring the global parser slot. `multiPicker.importBodyIdleMs` defaults to 30,000 ms and accepts a positive integer override; a body with no arriving bytes for that interval receives 408 and releases admission. The timer renews on each chunk and stops at body completion. Concurrent slow owners do not occupy parser slots; a parser/apply slot that is actually busy still returns 503 with Retry-After 5. Option-absent and shared legacy backup handling remain unchanged.
