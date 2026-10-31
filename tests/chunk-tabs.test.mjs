@@ -114,7 +114,7 @@ test('task names omit markup, viewers cannot write, and backlog dismissal return
     .replace(/^import .*;\r?\n/gm, '').replace(/^export /gm, '');
   const c = {
     el: h.node, button: h.c.button, input: type => { const node = h.node('input'); node.type = type; return node; },
-    member: () => ({ name: 'Player', taskStatus: {} }), memberId: 'actor1', canWrite: () => false,
+    member: () => ({ name: 'Player', taskStatus: {} }), memberId: 'actor1', canWrite: () => false, preferences: () => ({}),
     plain: value => value.replace(/<[^>]*>/g, ''), sandbox: { isNewTask: () => false },
     state: { members: [] }, taskPins: () => [], appendCustomTaskEdit() {},
     iconButton: label => { const node = h.node('button'); node.setAttribute('aria-label', label); return node; },
@@ -122,7 +122,7 @@ test('task names omit markup, viewers cannot write, and backlog dismissal return
   };
   runInContext(taskSource + '\ncreateScreenTasks(c);', createContext({
     c, document: h.document, createTaskClaimClock: () => ({}),
-    createTaskIconPainter: () => ({ append() {} }), appendTaskPin() {}, appendTaskWhy() {}, isCustomTask: () => false,
+    createTaskIconPainter: () => ({ append() {} }), appendTaskPin() {}, appendTaskWhy() {}, appendTaskHow() {}, isCustomTask: () => false,
   }));
   c.taskFacts = () => ({ personal: false, group: false }); c.hoverTasks = () => ({ attach() {} });
   // Viewers see a completion status instead of a completion control.
