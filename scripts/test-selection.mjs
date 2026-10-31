@@ -92,6 +92,7 @@ export const quickTests = new Set([
 
   "rule-explanations.test.mjs",
   "automatic-rule-defaults.test.mjs",
+  "rule-parent-inheritance.test.mjs",
   "rule-reviews-server.test.mjs",
   "rules-review.test.mjs",
   "rules-review-preview.test.mjs",

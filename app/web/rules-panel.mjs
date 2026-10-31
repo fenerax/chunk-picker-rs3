@@ -134,7 +134,7 @@ export function createRulesPanel(ctx) {
       }
       const behavior = isShared ? null : taskRuleBehavior(definition.id);
       const limited = behavior && ['retained-only', 'not-implemented', 'partial'].includes(behavior.status);
-      if (advanced(ctx) && limited) { const badge = el('span', behavior.status === 'partial' ? 'Partly supported' : 'No effect yet', 'rules-coverage'); badge.title = behavior.status === 'partial' ? behavior.detail : 'Saved, but it does not change tasks in this picker yet.'; label.append(badge); }
+      if (limited) { const badge = el('span', behavior.status === 'partial' ? 'Partly supported' : 'No effect yet', 'rules-coverage'); badge.title = behavior.detail; label.append(badge); }
       copy.append(label);
       if (!isShared) {
         for (const id of memberIds()) {
@@ -148,7 +148,8 @@ export function createRulesPanel(ctx) {
       if (!appendRuleExplanation(ctx, copy, definition) && definition.description && plainText(definition.description) !== plainText(definition.label)) copy.append(el('p', definition.description, 'rules-desc'));
       // Only say where a value comes from when it matters: players differ, or the parent rule is off.
       const note = value.mixed ? `${ctx.state().members.map(member => member.name).join(' and ')} have different values.` : !canEdit ? `Turn on ${definition.parent ?? 'the parent rule'} to change this; its value is kept.` : '';
-      if (note) copy.append(el('p', note, 'rules-value-source'));
+      if (note) copy.append(el('p', !canEdit ? `Inactive while a parent is Off. ${note}` : note, 'rules-value-source'));
+      if (behavior?.status === 'partial') copy.append(el('p', behavior.detail, 'rules-coverage-detail'));
       const help = details('More', el('p', isShared ? 'Shared by both players.' : 'For the selected player.', 'rules-current-description')); if (advanced(ctx)) help.append(el('p', `${isShared ? 'Shared by both players' : 'Personal'} · ${value.source}`, 'rules-current-description'));
       if (definition.explanation && definition.description) help.append(el('p', definition.description, 'rules-original-tooltip'));
       if (limited) help.append(el('p', behavior.status === 'partial' ? behavior.detail : 'This rule is saved but does not affect tasks yet.', 'rules-coverage-detail'));
@@ -186,6 +187,7 @@ export function createRulesPanel(ctx) {
       row.append(el('span', definition.label), el('span', value.mixed ? value.source : value.source === 'Automatic'
         ? `Automatic (${ruleValueText(value.value)})` : `${ruleValueText(value.value)}${writable ? ` · ${value.source}` : ''}`, 'rules-kept-value'));
       const copy = el('div', undefined, 'rules-kept-copy');
+      copy.append(el('p', taskRuleBehavior(definition.id).detail, 'rules-coverage-detail'));
       appendRuleExplanation(ctx, copy, definition);
       const more = details('More');
       if (definition.description) more.append(el('p', definition.description, 'rules-original-tooltip'));

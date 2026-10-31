@@ -1,6 +1,6 @@
 import { datasetJSON } from "../dataset-runtime.mjs";
 const capturedCatalogue = await datasetJSON("app/data/original-rules-ui.2026-10-08.v1.json");
-import { taskRuleDefinitions, taskRuleCutoffDefaults } from '../data/settings.mjs';
+import { taskRuleDefinitions, taskRuleCutoffDefaults, independentTaskRuleControls } from '../data/settings.mjs';
 import { hasGameplayMigration } from '../tasks/gameplay-compat.mjs';
 import { isKeptTaskRule } from './kept-rules.mjs';
 import { taskRuleDefault } from '../tasks/rule-defaults.mjs';
@@ -55,8 +55,8 @@ export function buildRulesSections(catalogue, state, sharedDefinitions = []) {
   const sections = catalogue.sections.map(section => ({ id: section.id, name: section.name, scope: 'personal', rules: section.rows.map(row => {
     seen.add(row.key);
     const definition = definitions.get(row.key) ?? { id: row.key, label: row.label, type: 'boolean' };
-    return { ...definition, label: row.key === 'Achievement' ? 'Show Achievement Tasks' : row.label ?? row.key,
-      description: row.descriptionText ?? text(row.descriptionHtml), tooltips: (row.tooltips ?? []).map(tooltip => text(tooltip.descriptionHtml)), currentDescription: definition.description, original: true,
+    return { ...definition, label: row.key === 'Achievement' ? 'Show Achievement Tasks' : row.key === 'Rare Drop' ? 'Include drops rarer than my cutoff' : row.label ?? row.key,
+      description: row.key === 'Rare Drop' ? 'On includes all drop rates. Off applies Rare Drop Amount and Rare Drop Inclusive; unknown rates remain included.' : row.descriptionText ?? text(row.descriptionHtml), tooltips: (row.tooltips ?? []).map(tooltip => text(tooltip.descriptionHtml)), currentDescription: definition.description, original: true,
       parent: row.parentKey ?? null, depth: row.depth ?? (row.parentKey ? 1 : 0), control: row.control,
       difficultyMarker: row.difficultyMarker,
       ...(row.key === 'F2P' ? { sharedRuleId: 'content.f2p', scope: 'shared' } : {}) };
@@ -105,13 +105,10 @@ export function taskRuleAutomaticValue(state, memberId, definition) {
 }
 
 export function ruleEnabled(definition, values, definitions) {
-  // The original cutoff editors remain usable regardless of their saved flag.
-  if (/^(Rare Drop|Secondary Primary) (Amount|Inclusive)$/.test(definition.id) || definition.id === 'Kill X Amount') return true;
-  // The upstream Rare Drop checkbox deliberately leaves this exception usable.
-  if (definition.id === 'KeyItem Bosses' && definition.parent === 'Rare Drop') return true;
+  if (independentTaskRuleControls.has(definition.id)) return true;
   let parent = definition.parent;
   while (parent) {
-    if (values.get(parent) === false) return false;
+    if ([false, 'false', 0].includes(values.get(parent))) return false;
     parent = definitions.find(rule => rule.id === parent)?.parent;
   }
   return true;

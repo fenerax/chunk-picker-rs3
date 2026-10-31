@@ -56,18 +56,19 @@ for (const Achievement of [false, true]) for (const showArea of [false, true])
       assert.equal(result.items.some(item => item.name === 'Fixture achievement output'), showArea && Any);
       assert.equal(row(result, 'Use achievement output', 'Extra').status, showArea && Any ? 'available' : 'blocked');
       const expected = [];
+      const effectiveComplete = showArea && Complete;
       if (Achievement) {
-        if (!Complete) expected.push('Misc duty', 'Combat duty');
+        if (!effectiveComplete) expected.push('Misc duty', 'Combat duty');
         if (showArea) {
           expected.push('Explicit false marker');
-          if (!Complete) expected.push('Ready area duty', ...(Any ? ['Later duty'] : []));
+          if (!effectiveComplete) expected.push('Ready area duty', ...(Any ? ['Later duty'] : []));
         }
       }
       assert.deepEqual(selectedNames(result.presentation), expected.sort());
     });
   }
 
-test('achievement family and subfamily tags are conjunctive eligibility gates independent of display', () => {
+test('achievement family tags and parent rules are conjunctive eligibility gates independent of display', () => {
   const families = ['Combat Mastery achievements', 'Comp achievements', 'MQC achievements', 'Misc achievements', 'Misc Combat achievements'];
   const data = definitions(Object.fromEntries(families.map(family => [family, { Category: [family, 'Fixture subfamily'] }])));
   for (const enabledFamily of families) for (const subfamily of [false, true]) for (const Achievement of [false, true]) {
@@ -75,8 +76,8 @@ test('achievement family and subfamily tags are conjunctive eligibility gates in
     Object.assign(rules, { Achievement, 'Show Diary Tasks': false, 'Fixture subfamily': subfamily });
     const result = evaluate(data, state(rules));
     for (const family of families) assert.equal(row(result, family).status,
-      family === enabledFamily && subfamily ? 'available' : 'blocked', family);
-    assert.deepEqual(selectedNames(result.presentation), Achievement && subfamily ? [enabledFamily] : []);
+      family === enabledFamily && subfamily && family !== 'Misc Combat achievements' ? 'available' : 'blocked', family);
+    assert.deepEqual(selectedNames(result.presentation), Achievement && subfamily && enabledFamily !== 'Misc Combat achievements' ? [enabledFamily] : []);
   }
 });
 
