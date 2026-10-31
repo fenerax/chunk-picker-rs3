@@ -169,6 +169,34 @@ test('MP14: import bodies time out on idle, renew on bytes, and release picker a
   assert.equal((await f.send('/api/state', a)).json().state.revision, 0);
 });
 
+test('MP14: held owned uploads cannot take the ordinary-write body headroom', async t => {
+  const f = await fixture(t, { bodyBytesGlobal: 4096, importBodyBytesGlobal: 3072, bodyBytesPerRequest: 2048,
+    bodyBytesPerAccount: 3072, bodyBytesPerPicker: 3072 });
+  const a = await f.login(subjects[0]), b = await f.login(subjects[1]), c = await f.login(subjects[2]);
+  for (const cookie of [a, b, c]) assert.equal((await f.send('/api/state', cookie)).status, 200);
+  const held = f.start('/api/restore/preview', a, { method: 'POST', raw: Buffer.from('{'), hold: true, headers: { 'Content-Length': 2048 } });
+  await waitFor(async () => (await f.send('/api/restore/preview', a, { body: {} })).status === 503, 'the held upload is admitted');
+  // A second account's maximum upload would exceed the import budget, not the global one.
+  const second = await f.start('/api/restore/preview', b, { method: 'POST', raw: Buffer.from('{'), hold: true, headers: { 'Content-Length': 2048 } }).result;
+  assert.equal(second.status, 429, second.text); assert.match(second.json().message, /Upload budget/);
+  // Without the import budget both held uploads fill bodyBytesGlobal and this write gets 429.
+  const write = await f.send('/api/command', c, { raw: Buffer.alloc(1024, 32) });
+  assert.notEqual(write.status, 429, write.text);
+  held.req.destroy();
+});
+
+test('MP14: a trickled import body ends at the total deadline even while bytes keep arriving', async t => {
+  const f = await fixture(t, { importBodyIdleMs: 300, importBodyTotalMs: 600 }), a = await f.login(subjects[0]);
+  const upload = f.start('/api/restore/preview', a, { method: 'POST', hold: true, raw: Buffer.from('{'), headers: { 'Content-Length': 64 } });
+  const started = performance.now();
+  const trickle = setInterval(() => { if (!upload.req.destroyed) upload.req.write(' '); }, 100);
+  t.after(() => clearInterval(trickle));
+  const response = await upload.result; clearInterval(trickle);
+  assert.equal(response.status, 408, response.text); assert.match(response.json().message, /took too long/);
+  assert.ok(performance.now() - started < 3000, 'the total deadline ends a renewing trickle');
+  assert.notEqual((await f.send('/api/restore/preview', a, { body: {} })).status, 503, 'the timed-out reader releases the local guard');
+});
+
 test('MP12C2-2: deleting a picker with an unfinished upload must not block unrelated picker reads',
   async t => {
     const f = await fixture(t), a = await f.login(subjects[0]), b = await f.login(subjects[1]);

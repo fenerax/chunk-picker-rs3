@@ -227,7 +227,8 @@ export function createPickerRouter({ registry, legacy, openContext, publicOrigin
         if (selected.legacyBackup) selected.context.checkImportBody(request, selected.checkBody);
         if (selected.backup) {
           releaseImport = selected.context.admitImport(request, security);
-          const upload = await receiveBackupRequest(request, { idleTimeoutMs: pickerLimits.config.importBodyIdleMs });
+          bindBody?.importing();
+          const upload = await receiveBackupRequest(request, { idleTimeoutMs: pickerLimits.config.importBodyIdleMs, totalTimeoutMs: pickerLimits.config.importBodyTotalMs });
           if (imports >= maxConcurrentImports) throw Object.assign(httpError(503, 'Another backup is being checked. Wait a moment, then try again.'), { retryAfter: 5 });
           imports++;
           const releaseOwn = releaseImport; let counted = true;

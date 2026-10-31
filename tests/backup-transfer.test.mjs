@@ -83,7 +83,7 @@ test('CRC corruption and truncated gzip files are rejected by the browser and se
 });
 
 test('owned body receipt enforces wire bounds before parsing and preserves gzip decompression bounds', async () => {
-  const options = { maxUploadBytes: 128, idleTimeoutMs: 1000 };
+  const options = { maxUploadBytes: 128, idleTimeoutMs: 1000, totalTimeoutMs: 5000 };
   await assert.rejects(receiveBackupRequest(request(Buffer.from('{}'), { 'content-length': '129' }), options), { status: 413 });
   await assert.rejects(receiveBackupRequest(request(Buffer.alloc(129, 32)), options), { status: 413 });
   const upload = await receiveBackupRequest(request(gzipSync(JSON.stringify({ large: 'x'.repeat(80) })),
