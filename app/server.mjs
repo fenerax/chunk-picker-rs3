@@ -50,7 +50,7 @@ import { previewRuleProfile } from './core/planning.mjs';
 import { hasGameplayMigration, hasCurrentProgressAliasMigration, hasCurrentJournalMigration, migrateOwnedGameplay, resolveSavedTaskId } from './tasks/migration.mjs';
 import { buildIdentityIndex, isPermanentId } from './tasks/identity.mjs';
 import { createQuestMapping } from './integrations/quest-mapping.mjs';
-import { createProgressSources, previewProgress } from './integrations/progress-sources.mjs';
+import { createProgressSources, previewProgress, mergePluginProgress } from './integrations/progress-sources.mjs';
 const trainingCatalogue = await datasetJSON("app/data/training/methods.f2p.json");
 const membersStartBanks = await datasetJSON("app/data/members-start-banks.2026-10-12.v1.json");
 import { planTraining, trainingPreferences } from './tasks/training-planner.mjs';
@@ -1928,7 +1928,7 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
               const current = store.getState(), latest = current.members.find(member => member.id === owner.id);
               if (!latest || latest.runescapeName !== owner.runescapeName) throw Object.assign(httpError(409, 'The RuneScape name changed while fetching. Review a new sync.'), { code: 'REVISION_CONFLICT', state: current });
               // A plugin report arriving during a web fetch wins too.
-              snapshot = gamePlugin.progressSnapshot(latest) ?? snapshot;
+              snapshot = mergePluginProgress(latest, snapshot, gamePlugin.progressSnapshot(latest));
               if (snapshot.available === false) { await json(request, response, 200, { ...snapshot, memberId: owner.id, runescapeName: owner.runescapeName ?? '' }); return; }
               const proposal = previewProgress(current, owner.id, snapshot, questMapping);
               const previewId = randomUUID(), createdAt = Date.now();

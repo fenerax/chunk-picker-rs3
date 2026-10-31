@@ -178,7 +178,7 @@ export function renderTraining(host, { document = globalThis.document, api, memb
   function updateStarting() {
     const saved = observedProgress(member, skill.value);
     overrideField.hidden = !saved; fromField.hidden = !usesManual(); manualFrom.required = usesManual();
-    progress.textContent = saved ? `${member.name ?? member.id}: ${skill.value} ${saved.level} · ${number(saved.xp)} XP · ${saved.source === 'game-plugin' ? 'Game plugin' : saved.source === 'official-api' ? 'RuneScape API' : 'RuneMetrics'}${saved.fetchedAt ? ` · Synced ${syncedDate(saved.fetchedAt)}` : ''}` : 'Your personal level is not saved. Enter your current level for this plan, or sync progress in Activity Info.';
+    progress.textContent = saved ? `${member.name ?? member.id}: ${skill.value} ${saved.level} · ${number(saved.xp)} XP · ${saved.source === 'game-plugin' ? 'Game plugin' : saved.source === 'hiscores' ? 'RS3 hiscores' : saved.source === 'official-api' ? 'RuneScape API' : 'RuneMetrics'}${saved.fetchedAt ? ` · Synced ${syncedDate(saved.fetchedAt)}` : ''}` : 'Your personal level is not saved. Enter your current level for this plan, or sync progress in Activity Info.';
   }
   function targetOptions() {
     const row = info(), saved = observedProgress(member, skill.value);

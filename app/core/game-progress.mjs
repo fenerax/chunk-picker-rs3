@@ -28,7 +28,7 @@ export function sameRuneScapeName(first, second) {
 // member's current account binding, including after a name edit.
 export function progressBelongsToMember(value, member) {
   return value?.source === 'game-plugin' ? !!member?.id && value.memberId === member.id
-    : ['runemetrics', 'official-api'].includes(value?.source) && sameRuneScapeName(value.runescapeName, member?.runescapeName);
+    : ['runemetrics', 'official-api', 'hiscores'].includes(value?.source) && sameRuneScapeName(value.runescapeName, member?.runescapeName);
 }
 
 export function validateRuneMetricsTimestamp(value, source = 'RuneMetrics') {
@@ -52,7 +52,7 @@ export function validateObservedSkill(skill, value) {
 
 export function validateRuneMetricsProvenance(value, keys = ['source', 'fetchedAt', 'runescapeName'], path = 'RuneMetrics provenance') {
   fields(value, keys, path);
-  if (!['runemetrics', 'official-api'].includes(value.source)) throw new TypeError(`${path} source must be runemetrics or official-api`);
+  if (!['runemetrics', 'official-api', 'hiscores'].includes(value.source)) throw new TypeError(`${path} source must be runemetrics, official-api or hiscores`);
   validateRuneMetricsTimestamp(value.fetchedAt);
   if (validateRuneScapeName(value.runescapeName) !== value.runescapeName) throw new TypeError(`${path} RuneScape name must be trimmed`);
 }
