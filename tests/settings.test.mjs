@@ -63,7 +63,7 @@ test('catalogue includes nested controls and preserves missing original defaults
 });
 
 test('coverage does not misrepresent retained or tag-gated rules as full upstream parity', () => {
-  for (const id of ['Kill X', 'Kill X Amount', 'Kill X Boss', 'Every Drop', 'Every Drop Thieving', 'Every Drop Implings', 'Every Drop BGH', 'All Droptables', 'All Droptables Nest', 'All Shops']) {
+  for (const id of ['Kill X', 'Kill X Amount', 'Kill X Boss', 'Every Drop', 'Every Drop Thieving', 'Every Drop Implings', 'Every Drop BGH', 'All Droptables', 'All Shops']) {
     assert.equal(metadata.taskRuleBehavior(id).status, 'implemented-scope', id);
   }
   assert.equal(metadata.taskRuleBehavior('Skiller').status, 'partial');
@@ -79,7 +79,9 @@ test('coverage does not misrepresent retained or tag-gated rules as full upstrea
   assert.equal(metadata.taskRuleBehavior('Cleaning herbs').status, 'retained-only');
   assert.equal(metadata.taskRuleBehavior('Show Best in Slot Weight Tasks').status, 'partial');
   assert.equal(metadata.taskRuleBehavior('BIS Skilling Relics').status, 'partial');
-  assert.equal(metadata.taskRuleBehavior('PvM Relics').status, 'partial');
+  for (const id of ['PvM Relics', 'All Droptables Nest']) assert.equal(metadata.taskRuleBehavior(id).status, 'no-effect-dataset');
+  assert.match(metadata.taskRuleBehavior('KeyItem Bosses').detail, /No effect.*key rarity/);
+  assert.match(metadata.taskRuleBehavior('Skiller').detail, /Combat-level goals can still appear/);
   assert.equal(metadata.taskRuleBehavior('Skillcape').status, 'category-gate');
   assert.equal(metadata.taskRuleBehavior('Quest Skill Reqs').status, 'retained-only');
   assert.equal(metadata.taskRuleBehavior('Show Best in Slot 1H and 2H').status, 'implemented-scope');

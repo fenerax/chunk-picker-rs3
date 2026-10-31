@@ -1,8 +1,9 @@
 import { datasetValue } from '../dataset-runtime.mjs';
+import { taskRuleEnabled } from './rule-defaults.mjs';
 // These are retained BaseQuest families, not task-name matching. Area families
 // are every other Diary BaseQuest in the reference's dependency validator.
 const nonAreaFamilies = datasetValue("app/tasks/achievements.mjs#nonAreaFamilies");
-const enabled = (rules, name) => rules[name] !== undefined && ![false, 'false', 0].includes(rules[name]);
+const enabled = (rules, name) => taskRuleEnabled(rules, name, false);
 
 /** The original relaxes tier dependencies, never a task's own access, skill,
  * item, membership or family-rule requirements. Alias options have a stricter

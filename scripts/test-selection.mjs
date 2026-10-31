@@ -15,6 +15,7 @@ export const adaptiveOptionsFor = (suite, env = process.env) => {
 
 // Reviewed small fixtures and model/controller tests. No running browser or full catalogue.
 export const quickTests = new Set([
+  "json-duplicates.test.mjs",
   "worker-picker-keys.test.mjs",
   "picker-footprint.test.mjs",
   "linux-operator.test.mjs",
@@ -92,6 +93,7 @@ export const quickTests = new Set([
 
   "rule-explanations.test.mjs",
   "automatic-rule-defaults.test.mjs",
+  "rule-parent-inheritance.test.mjs",
   "rule-reviews-server.test.mjs",
   "rules-review.test.mjs",
   "rules-review-preview.test.mjs",
@@ -338,6 +340,7 @@ const fullOnlyTests = new Set([
   "members-start-server.test.mjs",
   "access.test.mjs",
   "boss-gates.test.mjs",
+  "reference-integrity.test.mjs",
   "slayer-unlock-gates.test.mjs",
   "area-unlock-gates.test.mjs",
   "achievement-metadata-evidence.test.mjs",
@@ -417,6 +420,7 @@ const fullOnlyTests = new Set([
   "repository-provenance.test.mjs",
   "requirement-alternatives.test.mjs",
   "retained-task-corrections.test.mjs",
+  "requirements-corrections.test.mjs",
   "rules-fixes.test.mjs",
   "rules.test.mjs",
   "runemetrics.test.mjs",

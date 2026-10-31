@@ -322,7 +322,9 @@ export function requestError(response, value, delay = retryAfterMs(response)) {
   const wait = delay > 0 ? ` Try again in ${Math.ceil(delay / 1000)} seconds.` : ' Try again in a moment.';
   let message = status === 429 ? `Too many requests.${wait}`
     : status === 503 ? `The picker is busy or restarting.${wait}`
-    : status === 409 ? value?.code === 'TASK_RESULTS_UNAVAILABLE'
+    : status === 409 ? value?.code === 'TASK_DETAILS_UNAVAILABLE'
+      ? 'The saved task list is ready, but additional calculated details are not available yet.'
+      : value?.code === 'TASK_RESULTS_UNAVAILABLE'
       ? 'Saved tasks are not ready yet. Wait for a player to calculate them, then try again.'
       : 'The saved map changed. Review the latest view and try again.'
     : status === 413 ? 'This request is too large. Use a smaller file or make a smaller change, then try again.'

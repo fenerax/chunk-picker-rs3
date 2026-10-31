@@ -2,6 +2,41 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "date": "2026-10-31",
+      "title": "Helper, view-only links and backups work properly",
+      "items": [
+        "The Helper now knows your save is members: it uses members level caps, includes Summoning and uses the members combat formula",
+        "Search marks places that are not on the surface map",
+        "View-only links show whether a task is finished and who claimed it, and \"Why is this task here?\" works for them",
+        "If \"Why is this task here?\" fails to load, a Retry button keeps your place",
+        "Restoring a backup shows each step, can be cancelled, and cannot be applied twice by accident",
+        "An open, empty Group goals section now offers Hide instead of Show"
+      ]
+    },
+    {
+      "date": "2026-10-31",
+      "title": "Rules do what they say",
+      "items": [
+        "Turning a rule off now also turns off the rules under it. Your choices for those are kept for when you turn it back on",
+        "Rules that do nothing yet (PvM Relics, KeyItem Bosses, the bird nest rule) now say so, and partly supported rules explain what they cover",
+        "The rare drop switch is now called \"Include drops rarer than my cutoff\", which is what On does",
+        "Ports Scrolls now also covers the four skilling scroll unlocks in the Ports reward shop",
+        "A switch you just changed keeps its new position and says \"Saving…\" until the save is done, and changing several quickly no longer causes a conflict"
+      ]
+    },
+    {
+      "date": "2026-10-31",
+      "title": "Fixes to task names and requirements",
+      "items": [
+        "About 130 tasks named an item, monster or place slightly wrong (for example \"Balls of wool\"). They now find the right source, which adds a few tasks such as wielding a mirror shield",
+        "The Lumbridge range now opens after Cook's Assistant as it should",
+        "Boss requirements now cover the Black Stone Dragon and all six Legiones",
+        "Added missing requirements: Dungeoneering blueprint levels, the Player-owned farm barn and cleaners, Garden of Kharid favour, the Runespan portal, earlier Necromancy talent tiers, Barbarian Assault reward tiers, and the quests some prayers need",
+        "Some parts of the original data were lost because the same entry appeared twice. 33 of those are restored, including quest steps, collections and drops",
+        "The Reaper unlock that the game removed no longer shows as a task. If you finished it, it stays finished"
+      ]
+    },
+    {
       "date": "2026-10-30",
       "title": "Slayer reward unlocks wait until they are useful",
       "items": [
