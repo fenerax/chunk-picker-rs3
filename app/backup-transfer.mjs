@@ -24,12 +24,57 @@ function limitBytes(maximum) {
   } });
 }
 
-export async function readBackupRequest(request, { maxBackupBytes = MAX_BACKUP_BYTES, maxUploadBytes = MAX_UPLOAD_BYTES } = {}) {
+function backupHeaders(request, maxUploadBytes) {
   const type = (request.headers['content-type'] ?? '').split(';')[0].trim().toLowerCase();
   if (!['application/json', BACKUP_UPLOAD_TYPE].includes(type)) throw fail(415, 'Choose a .json or .json.gz backup.');
   const encoding = (request.headers['content-encoding'] ?? 'identity').toLowerCase();
   if (!['identity', 'gzip'].includes(encoding)) throw fail(415, 'Use JSON or gzip for this backup.');
   if (Number(request.headers['content-length']) > maxUploadBytes) throw fail(413, 'This backup is too large. The limit is 256 MiB after decompression.');
+  return { type, encoding };
+}
+
+// Owned uploads reserve bytes at ingress before buffering. Only a complete wire
+// body may compete for the global decompression/JSON parser slot. Keep chunks
+// separate so admission does not need a second contiguous copy of the upload.
+export async function receiveBackupRequest(request, { idleTimeoutMs, totalTimeoutMs, maxUploadBytes = MAX_UPLOAD_BYTES } = {}) {
+  backupHeaders(request, maxUploadBytes);
+  if (!Number.isSafeInteger(idleTimeoutMs) || idleTimeoutMs < 1) throw new TypeError('Invalid backup body idle timeout.');
+  if (!Number.isSafeInteger(totalTimeoutMs) || totalTimeoutMs < 1) throw new TypeError('Invalid backup body total timeout.');
+  const chunks = [];
+  await new Promise((resolve, reject) => {
+    // Bytes renew only the idle timer: a trickled body still ends at the total deadline.
+    let bytes = 0, timer, total;
+    const cleanup = () => {
+      clearTimeout(timer); clearTimeout(total);
+      request.off('data', data); request.off('end', end);
+      request.off('error', failed); request.off('aborted', aborted);
+    };
+    const failed = error => { cleanup(); request.pause(); reject(error); };
+    const aborted = () => failed(fail(400, 'The backup upload was interrupted. Choose it again.'));
+    const reset = () => {
+      clearTimeout(timer);
+      timer = setTimeout(() => failed(fail(408, 'The backup upload stopped arriving. Choose it again.')), idleTimeoutMs);
+      timer.unref();
+    };
+    const data = chunk => {
+      bytes += Buffer.byteLength(chunk);
+      if (bytes > maxUploadBytes) { failed(fail(413, 'This backup is too large. The limit is 256 MiB after decompression.')); return; }
+      chunks.push(chunk); reset();
+    };
+    const end = () => { cleanup(); resolve(); };
+    if (request.destroyed) { aborted(); return; }
+    request.on('error', failed); request.on('aborted', aborted);
+    total = setTimeout(() => failed(fail(408, 'The backup upload took too long. Choose it again.')), totalTimeoutMs);
+    total.unref();
+    request.on('end', end); request.on('data', data); reset();
+  });
+  // The parser retains the same headers and size/depth/decompression checks as
+  // the legacy streaming path. Its source is now entirely local.
+  return Object.assign(Readable.from(chunks), { headers: request.headers, complete: true });
+}
+
+export async function readBackupRequest(request, { maxBackupBytes = MAX_BACKUP_BYTES, maxUploadBytes = MAX_UPLOAD_BYTES } = {}) {
+  const { type, encoding } = backupHeaders(request, maxUploadBytes);
   // Do not destroy the HTTP socket on parser/size errors: it must carry the error response.
   const input = new Transform({ transform(chunk, encoding, callback) { callback(null, chunk); } });
   const inputError = error => input.destroy(error);

@@ -16,6 +16,9 @@ export const MP7_DEFAULTS = Object.freeze({
   coldStartsPerAccount: 1, coldStartsGlobal: 1,
   bodyBytesPerRequest: 256 * 1024 * 1024, bodyBytesPerAccount: 256 * 1024 * 1024,
   bodyBytesPerPicker: 256 * 1024 * 1024, bodyBytesGlobal: 512 * 1024 * 1024,
+  // Owned backup bodies may wait on the network; their own global budget keeps
+  // the rest of bodyBytesGlobal for ordinary writes. Keep it below bodyBytesGlobal.
+  importBodyBytesGlobal: 384 * 1024 * 1024, importBodyIdleMs: 30000, importBodyTotalMs: 600000,
   limitWindowMs: 60000, pluginWindowMs: 1000, limitMaxAccounts: 10000,
 });
 export function pickerLimitOptions(options = {}) {
@@ -169,7 +172,8 @@ export function createPickerLimits(options = {}, { now = Date.now } = {}) {
         return charged;
       }
       const credits = reserved ? [admit(rows('body', {}, 0, 0, config.bodyBytesGlobal), reserved)] : [];
-      let owner, bytes = 0, failed = false, released = false;
+      const importRows = () => rows('import-body', {}, 0, 0, config.importBodyBytesGlobal);
+      let owner, bytes = 0, failed = false, released = false, importing = false;
       const emit = request.emit;
       // All existing body readers (iterator, pipe and resume) share this ingress
       // check. Refused chunks never reach a parser or an allocation buffer.
@@ -180,7 +184,8 @@ export function createPickerLimits(options = {}, { now = Date.now } = {}) {
           try {
             if (bytes + size > config.bodyBytesPerRequest) throw refusal('Request body is too large. Send a smaller request.');
             const extra = Math.max(0, bytes + size - reserved) - Math.max(0, bytes - reserved);
-            if (extra) admit(rows('body', owner ?? {}, owner ? config.bodyBytesPerAccount : 0, owner ? config.bodyBytesPerPicker : 0, config.bodyBytesGlobal), extra);
+            if (extra) admit([...rows('body', owner ?? {}, owner ? config.bodyBytesPerAccount : 0, owner ? config.bodyBytesPerPicker : 0, config.bodyBytesGlobal),
+              ...(importing ? importRows() : [])], extra);
             bytes += size;
           } catch (error) { failed = true; this.pause(); return emit.call(this, 'error', error); }
         }
@@ -191,6 +196,14 @@ export function createPickerLimits(options = {}, { now = Date.now } = {}) {
         if (owner) return;
         const accountCredits = reserved ? admit(rows('body', selected, config.bodyBytesPerAccount, config.bodyBytesPerPicker, 0), reserved) : [];
         owner = selected; credits.push(accountCredits);
+      };
+      // Called once a request is known to be an owned backup upload, before any
+      // wait on its body: charges what it holds and will hold to the import budget.
+      bind.importing = () => {
+        if (importing || released) return;
+        const amount = Math.max(reserved, bytes);
+        if (amount) credits.push(admit(importRows(), amount));
+        importing = true;
       };
       bind.release = () => {
         if (released) return; released = true;

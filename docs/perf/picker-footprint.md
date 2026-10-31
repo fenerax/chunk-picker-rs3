@@ -581,3 +581,58 @@ The compatibility gate uses the same injected store timestamp and `duo-compatibi
 | Present, sampled peak RSS, MiB | 1203.29 | 1262.91 |
 
 The checker copies inputs only into temporary directories, mints temporary plugin credentials after the browser status read, refuses external sync fetches and emits only counts, hashes, sizes and measurements. Its usage and limits are documented in `scripts/perf/README.md`. Public sign-up remains off.
+
+
+## MP14 resource-abuse fixes
+
+START `d51c63d33e3cfaee827222fda555f04a782c1007`. Node 24.21.0, Linux.
+Three alternating START/candidate pairs ran sequentially with the existing
+`scripts/perf/picker-footprint.mjs`, an empty synthetic source, bundled open-f2p,
+process workers, routing enabled for the two-member case, port zero, 250 ms
+worker idle and a 3,500 MiB RSS guard. No other workloads ran during measurements.
+The fresh-solo control uses the harness's existing option-absent path. Values are
+median [minimum–maximum] across three fresh processes per revision; member
+measurements are first reduced to each run's median. CPU combines the sampled
+HTTP/calculator host CPU. Peak RSS sums the Linux process tree at 50 ms intervals
+and may miss shorter peaks. These small synthetic workloads measure regression
+risk, not maximum upload memory or real-pack capacity.
+
+| Synthetic measurement | START | MP14 |
+| --- | --- | --- |
+| Two-member cold full tasks, ms | 367.74 [353.04–392.75] | 362.57 [344.26–366.79] |
+| Two-member warm full tasks, ms | 10.95 [10.14–11.48] | 11.00 [10.22–11.26] |
+| Two-member cold CPU, core-seconds | 0.383 [0.367–0.413] | 0.389 [0.368–0.391] |
+| Two-member peak RSS, MiB | 109.23 [108.99–110.07] | 109.18 [109.17–109.42] |
+| Fresh solo cold full tasks, ms | 370.74 [357.45–378.52] | 380.32 [376.67–382.08] |
+| Fresh solo warm full tasks, ms | 18.64 [14.10–27.01] | 23.12 [22.03–25.22] |
+| Fresh solo cold CPU, core-seconds | 0.393 [0.368–0.395] | 0.405 [0.404–0.416] |
+| Fresh solo peak RSS, MiB | 110.22 [108.36–110.32] | 106.99 [106.88–107.46] |
+
+Store sizes are unchanged in all pairs: 247,335 bytes for the two-member case
+and 246,609 bytes for solo. The small cohort and overlapping wall-time ranges do
+not establish a throughput improvement. Owned uploads now retain bounded wire
+chunks before parsing; the existing per-account/picker/global MP7 reservations
+remain held until the request finishes. Worst-case object-graph amplification at
+the maximum import size is not measured here.
+
+
+The final existing `scripts/perf/duo-compatibility.mjs` checker ran once per
+revision in each routing mode, sequentially, using temporary copies. Both modes
+have **0 response differences, 0 size differences and 0 save differences**, over
+20 paired raw responses. Every run returns 83,606,131 bytes; the ordered
+size/hash digest is
+`1b4583763d891cc5bbada4fcdcab6b7eff6aebf5f38bfb93d098c08f7e4a60ba`.
+All rewritten states are 766,384 bytes with SHA-256
+`64de39c55452925587b87af05aa01507513263761bc407f54e81bcbb699acfdc`,
+identical to the source. The private checkout has 0 changed files.
+
+Response clocks are fixed by the existing checker; durations use its real
+clock. These are single compatibility samples per revision/mode, not performance
+medians or spread estimates. Peak RSS is the sampled process-tree sum at 50 ms.
+
+| Compatibility measurement | START | MP14 |
+| --- | --- | --- |
+| Absent, wall seconds | 31.30 | 29.53 |
+| Absent, peak RSS, MiB | 1176.14 | 1213.82 |
+| Present, wall seconds | 28.87 | 28.21 |
+| Present, peak RSS, MiB | 1230.36 | 1204.56 |
