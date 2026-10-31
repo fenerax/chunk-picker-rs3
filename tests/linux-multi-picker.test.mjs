@@ -413,6 +413,10 @@ test('pickers and accounts deleted after a backup remain deleted after service r
   // ownership and all authoritative ledger decisions survive the operation.
   if (process.getuid?.() === 0) await chown(ledgerFile, 1001, 1001);
   const owner = await lstat(ledgerFile);
+  // A used live ledger cannot boot an empty target, but stopped service recovery
+  // seeds its scratch checkpoint before opening and publishes the live registry.
+  await assert.rejects(openRegistry(target.multiPicker), /Restore registry\.json/);
+  await assert.rejects(readFile(path.join(target.multiPicker.registryDir, 'registry.json')), { code: 'ENOENT' });
   let probes = 0;
   const options = { settings: target, backup, release: f.release, assertStopped: stopped,
     probe: async (...args) => { probes++; return portableProbe(...args); } };

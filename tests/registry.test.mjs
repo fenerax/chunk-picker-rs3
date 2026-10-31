@@ -303,6 +303,82 @@ test('corrupt registry and ledger fail closed without rewriting bytes or leaking
   await f.open(); assert.equal(f.registry.listPickers().length, 1);
 });
 
+for (const usage of ['issued ID', 'picker tombstone', 'retired account']) test(`missing registry refuses a ledger with ${usage} without writing either file`, async t => {
+  const f = await fixture(t); await f.open();
+  if (usage === 'retired account') {
+    const account = await f.registry.ensureIdentity('google', 'synthetic-retired');
+    await f.registry.deleteAccount(account.id);
+  } else {
+    const { picker } = await f.registry.firstLogin('discord', 'synthetic-issued');
+    if (usage === 'picker tombstone') await f.registry.beginPickerDeletion(picker.id);
+  }
+  const checkpoint = await readFile(f.file); await f.close(); await rm(f.file);
+  const bytes = await readFile(f.ledger), before = await lstat(f.ledger);
+  for (let attempt = 0; attempt < 2; attempt++) {
+    await assert.rejects(f.open(), failure => {
+      assert(failure.message.includes(f.file)); assert(failure.message.includes(f.ledger));
+      assert.match(failure.message, /Restore registry\.json/);
+      assert.match(failure.message, /keeping the existing ledger\.json/); return true;
+    });
+    await assert.rejects(readFile(f.file), { code: 'ENOENT' });
+    assert.deepEqual(await readFile(f.ledger), bytes);
+    const after = await lstat(f.ledger);
+    for (const key of ['ino', 'size', 'mtimeMs', 'ctimeMs']) assert.equal(after[key], before[key]);
+  }
+  // Refusal releases both locks; restoring the checkpoint allows normal opening.
+  await writeFile(f.file, checkpoint); await f.open();
+});
+
+test('missing registry after an ID-reservation crash refuses until checkpoint restoration without reusing the ID', async t => {
+  const f = await fixture(t);
+  const result = await child(childOpen(f.options) + `
+    const registry = await openRegistry({ ...options, crashPoint(name) { if (name === 'id-reserved') process.exit(86); } });
+    await registry.firstLogin('discord', 'synthetic-reservation'); process.exit(1);`);
+  assert.equal(result.code, 86, result.stderr);
+  const checkpoint = await readFile(f.file), ledgerBytes = await readFile(f.ledger);
+  const ledger = JSON.parse(ledgerBytes);
+  assert.equal(ledger.issuedPickerIds.length, 1);
+  assert.deepEqual(ledger.pickers, []); assert.deepEqual(ledger.accounts, []);
+  assert.deepEqual(JSON.parse(checkpoint).pickers, []);
+  assert.deepEqual(await readdir(f.options.pickerRoot), []);
+  await rm(f.file);
+  await assert.rejects(f.open(), /Restore registry\.json/);
+  await assert.rejects(readFile(f.file), { code: 'ENOENT' });
+  assert.deepEqual(await readFile(f.ledger), ledgerBytes);
+  assert.deepEqual(await readdir(f.options.registryDir), []);
+  assert.deepEqual(await readdir(f.options.tombstoneDir), ['ledger.json']);
+  await writeFile(f.file, checkpoint);
+  // Force a collision with the orphan reservation before supplying a fresh ID.
+  const samples = [Buffer.from(ledger.issuedPickerIds[0].slice(2), 'hex'), Buffer.alloc(16, 42)];
+  await f.open({ pickerRandomBytes: () => samples.shift() });
+  const login = await f.registry.firstLogin('discord', 'synthetic-reservation');
+  assert.notEqual(login.picker.id, ledger.issuedPickerIds[0]);
+  assert.equal(samples.length, 0);
+  assert.equal((await json(f.ledger)).issuedPickerIds.length, 2);
+  await f.restart(); assert.equal(f.registry.listPickers().length, 1);
+});
+
+test('first-startup process crash after the empty ledger write still starts without a registry', async t => {
+  const f = await fixture(t);
+  const result = await child(childOpen(f.options) + `
+    import fs from 'node:fs/promises';
+    import { syncBuiltinESMExports } from 'node:module';
+    const rename = fs.rename;
+    fs.rename = async (source, target) => {
+      if (target === ${JSON.stringify(f.file)}) process.exit(86);
+      return rename(source, target);
+    };
+    syncBuiltinESMExports();
+    await openRegistry(options); process.exit(1);`);
+  assert.equal(result.code, 86, result.stderr);
+  await assert.rejects(readFile(f.file), { code: 'ENOENT' });
+  assert.deepEqual(await json(f.ledger), { schemaVersion: 1, issuedPickerIds: [], pickers: [], accounts: [] });
+  await f.open();
+  assert.deepEqual(f.registry.listAccounts(), []); assert.deepEqual(f.registry.listPickers(), []);
+  assert.deepEqual(await json(f.file), { schemaVersion: 1, accounts: [], pickers: [], capabilities: [] });
+  await f.restart(); assert.deepEqual(f.registry.listPickers(), []);
+});
+
 test('roots cannot overlap and pending directories cannot escape through symlinks', async t => {
   const f = await fixture(t);
   await assert.rejects(openRegistry({ ...f.options, tombstoneDir: f.options.registryDir }), /disjoint/);
