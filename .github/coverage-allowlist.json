@@ -2,6 +2,11 @@
   "schema": "rs3-coverage-allowlist-v1",
   "tests": [
     {
+      "file": "tests/linux-service-crash.test.mjs",
+      "name": ["ownership native chown to another UID/GID"],
+      "occurrence": 1,
+      "reason": "Requires root to chown to a different UID/GID; CI runs tests unprivileged. The ownership sweep test in the same file drives every interrupted chown through the same code with the current UID/GID."
+    },    {
       "file": "tests/browser-screen-harness-contract.test.mjs",
       "name": ["private browser harness supplies every public collaborator"],
       "occurrence": 1,
