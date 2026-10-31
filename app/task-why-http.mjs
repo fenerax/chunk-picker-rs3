@@ -6,7 +6,7 @@ const unzip = promisify(gunzip);
 const failure = (status, message) => Object.assign(new Error(message), { status });
 // One parse (including concurrent clicks) per retained saved entry. Weak keys
 // release the graph on entry replacement/eviction; revision rebinding drops it.
-const parsedResults = new WeakMap();
+const parsedResults = new WeakMap(), IDLE_MS = 120_000;
 export function forgetSavedWhyChain(entry) { parsedResults.delete(entry); }
 function parsedResult(entry, revision) {
   let cached = parsedResults.get(entry);
@@ -19,6 +19,10 @@ function parsedResult(entry, revision) {
       });
     parsedResults.set(entry, cached);
   }
+  // A parsed full result is large; keep it only while explanations are being opened.
+  clearTimeout(cached.timer);
+  cached.timer = setTimeout(() => { if (parsedResults.get(entry) === cached) parsedResults.delete(entry); }, IDLE_MS);
+  cached.timer.unref?.();
   return cached.promise;
 }
 
