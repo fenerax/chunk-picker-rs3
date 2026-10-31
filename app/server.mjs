@@ -865,7 +865,10 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
     const bytes = entry?.revision === revision ? view === PLAY_VIEW
       ? lane === 'duo-v1' ? entry.duoJSON ?? entry.playJSON : projection === DUO_INSPECTION_VIEW ? inspectionBytes(entry) : projection ? entry.duoSidebarJSON ?? entry.playJSON : entry.playJSON
       : undefined : undefined;
-    if (!bytes) throw Object.assign(httpError(409, 'Current tasks are not ready yet. They will appear after a player loads them.'), { code: 'TASK_RESULTS_UNAVAILABLE' });
+    if (!bytes) {
+      const detailsOnly = entry?.revision === revision && !!entry.playJSON;
+      throw Object.assign(httpError(409, detailsOnly ? 'The saved task list is ready, but calculated details are not retained yet.' : 'Current tasks are not ready yet. They will appear after a player loads them.'), { code: detailsOnly ? 'TASK_DETAILS_UNAVAILABLE' : 'TASK_RESULTS_UNAVAILABLE' });
+    }
     const suffix = JSON.stringify({ stateRevision: revision, memberId, cache: { hit: true, savedResult: true, worker: false } });
     await jsonBytes(request, response, 200, Buffer.concat([bytes.subarray(0, bytes.length - 1), Buffer.from(`,${suffix.slice(1)}`)]));
   }
@@ -2271,7 +2274,7 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
       if (!request.complete) response.setHeader('Connection', 'close');
       if (signInFlow.errorPage(request, response, security, error, status)) return;
       await json(request, response, status, { message: status === 500 ? 'The save could not be completed. Your previous save remains available.' : error.code === 'ENOENT' ? 'Not found.' : redactInviteTokens(error.message),
-        ...(error.code === 'TASK_RESULTS_UNAVAILABLE' || error.code === 'PICKER_UPDATING' || /^(?:REQUEST_|ACTION_SESSION_)/.test(error.code ?? '') ? { code: error.code } : {}),
+        ...(['TASK_RESULTS_UNAVAILABLE', 'TASK_DETAILS_UNAVAILABLE'].includes(error.code) || error.code === 'PICKER_UPDATING' || /^(?:REQUEST_|ACTION_SESSION_)/.test(error.code ?? '') ? { code: error.code } : {}),
         ...(error.code === 'ACTION_SESSION_RETIRED' && error.safeToRetry === true ? { safeToRetry: true } : {}),
         ...(error.code === 'REVISION_CONFLICT' ? await viewEnvelope(error.state, viewFor(request)) : {}),
         ...(error.code === 'REVISION_CONFLICT' && error.claimOnlyChanges === true ? { claimOnlyChanges: true } : {}),

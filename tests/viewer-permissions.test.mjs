@@ -458,3 +458,18 @@ test('retained full task results compress exact evidence and metadata without pa
   const { stateRevision, memberId, cache, ...result } = JSON.parse(gunzipSync(compressed).toString());
   assert.deepEqual(result, evidence); assert.equal(stateRevision, 10); assert.equal(memberId, 'actor1'); assert.equal(cache.savedResult, true);
 });
+
+test('viewer distinguishes a missing task list from compact tasks whose full details are absent', async t => {
+  const f = await fixture(t), stream = await openEvents(t, f);
+  const id = f.application.store.getState().members[0].id, route = `/api/tasks?memberId=${id}`;
+  const missing = await f.viewer(route); assert.equal((await missing.json()).code, 'TASK_RESULTS_UNAVAILABLE');
+  const calculated = await f.admin(route + '&view=play-v1'); assert.equal(calculated.status, 200); await calculated.arrayBuffer();
+  await until(() => stream.events.some(event => event.event === 'task-ready' && event.data.memberId === id), 'compact tasks retained');
+  const before = await (await f.admin('/api/diagnostics')).json();
+  const details = await f.viewer(route); assert.equal(details.status, 409); assert.equal((await details.json()).code, 'TASK_DETAILS_UNAVAILABLE');
+  const list = await f.viewer(route + '&view=play-v1'); assert.equal(list.status, 200); assert.ok((await list.json()).tasks.length);
+  const after = await (await f.admin('/api/diagnostics')).json();
+  assert.equal(after.counts.requested, before.counts.requested, 'viewer does not submit calculator work');
+  const denied = await f.viewer('/api/command', { expectedRevision: 0, command: { type: 'set-rule', ruleId: 'content.f2p', value: false } });
+  assert.equal(denied.status, 403); assert.equal(f.application.store.getInfo().revision, 0);
+});

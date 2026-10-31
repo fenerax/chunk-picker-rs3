@@ -64,7 +64,11 @@ export function createScreenCommands(c) {
     const stateRoute = /^\/api\/(?:state|command|runemetrics\/(?:apply|preview)|original-sync\/preview|(?:restore|import|member-restore)(?:\/preview)?)$/.test(path);
     const requestPath = stateRoute ? `${path}?view=play-v1` : path;
     const durable = path === '/api/command' && body?.command?.type !== 'sync-original';
-    const sent = durable ? await commandClient().send(body, { signal, ...commandOptions }) : undefined;
+    const sent = durable ? await commandClient().send(body, { signal, ...commandOptions })
+      : typeof body?.sendBackupRequest === 'function' ? await body.sendBackupRequest(requestPath, signal, (...args) => fetch(...args)).catch(error => {
+        if (error.name !== 'AbortError' && !/\/preview$/.test(path) && !error.status) error.message = 'The save could not be confirmed. It may already have arrived. Check History before repeating the change.';
+        throw error;
+      }) : undefined;
     const { response, value } = sent ?? await readRequest(requestPath, body === undefined ? { signal } : typeof body.toBackupRequest === 'function'
       ? { ...await body.toBackupRequest(), signal } : { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), signal }).catch(error => {
         // Reviewed imports and original-sync use one-shot preview tokens rather

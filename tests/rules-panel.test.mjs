@@ -501,3 +501,29 @@ test('a pending direct save disables preset apply and keeps its review until the
   assert.ok(h.all().includes(review));
   assert.ok(h.find('p', 'Rules changed since this review. Review the preset again.'));
 });
+
+for (const fail of [false, true]) test(`pending rule keeps its chosen value and Saving feedback until ${fail ? 'failure' : 'confirmation'}`, async () => {
+  const h = panelHarness(createRulesPanel), response = deferred(); h.panel.open();
+  const initial = controlByRule(h, 'Show Best in Slot Tasks').checked;
+  h.route(async payload => { await response.promise; if (fail) throw new Error('Refused'); h.adopt(applyCommand(h.snapshot(), payload, { now: clock })); });
+  const control = controlByRule(h, 'Show Best in Slot Tasks'); control.checked = !initial;
+  const saving = control.emit('change'); await flush();
+  assert.equal(controlByRule(h, 'Show Best in Slot Tasks').checked, !initial);
+  assert.equal(controlByRule(h, 'Show Best in Slot Tasks').disabled, true);
+  assert.ok(h.find('p', 'Saving…'));
+  assert.ok(h.all().some(node => node.className === 'rules-value-source' && node.textContent.startsWith(`Saving…: ${initial ? 'Off' : 'On'}`)));
+  assert.equal(h.calls[0].revision, undefined, 'simple toggles choose their revision inside the command queue');
+  response.resolve(); await saving;
+  assert.equal(controlByRule(h, 'Show Best in Slot Tasks').checked, fail ? initial : !initial);
+  assert.equal(controlByRule(h, 'Show Best in Slot Tasks').disabled, false);
+  assert.equal(h.errors.length, fail ? 1 : 0);
+});
+
+test('an unconfirmed rule save keeps the pending choice until recovery rather than claiming failure', async () => {
+  const h = panelHarness(createRulesPanel); h.panel.open();
+  h.route(async () => { throw Object.assign(new Error('Save confirmation needed'), {pendingCommand:true}); });
+  const control = controlByRule(h, 'Show Best in Slot Tasks'), initial = control.checked; control.checked = !initial; await control.emit('change');
+  assert.equal(controlByRule(h, 'Show Best in Slot Tasks').checked, !initial);
+  assert.equal(controlByRule(h, 'Show Best in Slot Tasks').disabled, true);
+  assert.ok(h.find('p', 'Save not confirmed. Use Retry save to confirm this choice.'));
+});

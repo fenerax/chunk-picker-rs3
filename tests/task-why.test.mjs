@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { appendTaskWhy, catalogued, createRuleDescriber, renderTaskWhy } from '../app/web/task-why.mjs';
+import { appendTaskWhy, catalogued, createRuleDescriber, renderTaskWhy, savedTaskWhyResult } from '../app/web/task-why.mjs';
 
 class Node {
   constructor(tag) { this.tagName = tag; this.children = []; this.attributes = {}; this.events = {}; this.hidden = false; }
@@ -9,6 +9,8 @@ class Node {
   setAttribute(key, value) { this.attributes[key] = String(value); }
   getAttribute(key) { return this.attributes[key] ?? null; }
   addEventListener(key, action) { (this.events[key] ??= []).push(action); }
+  contains(node) { return this === node || this.children.some(child => child.contains(node)); }
+  focus() { document.activeElement = this; }
   click() { return Promise.all((this.events.click ?? []).map(action => action())); }
 }
 const document = { createElement: tag => new Node(tag) };
@@ -61,6 +63,8 @@ test('with a rule opener the panel links to the rule instead of naming its secti
   assert.equal(link.textContent, 'Change in Rules → Visible Tasks');
   await link.click();
   assert.deepEqual(opened, ['Gear Goals']);
+  const viewer = renderTaskWhy(explainTask(task, { result: { tasks: [task] }, describeRule }), { document, openRule: () => {}, readOnly: true });
+  assert.equal(all(viewer).find(node => node.className === 'task-why-link').textContent, 'View in Rules → Visible Tasks');
 });
 
 test('Slayer unlock explanations name open, waiting and bypassed conditions', () => {
@@ -88,4 +92,35 @@ test('the ? button loads once opened, toggles, and reports a load failure inline
   const broken = appendTaskWhy(failing, task, { document, button, icon, load: async () => { throw new Error('The selected map or saved state changed while loading. Open the panel again.'); } });
   await broken.click();
   assert.match(text(failing.children[1]), /saved state changed/);
+});
+
+test('Why Retry keeps the task, expanded panel and keyboard focus through failure and success', async () => {
+  const row = new Node('div'); let loads = 0, release;
+  const toggle = appendTaskWhy(row, task, { document, button, icon, load: async value => {
+    assert.equal(value, task); loads++;
+    if (loads < 3) throw new Error('Temporary failure');
+    await new Promise(resolve => { release = resolve; });
+    return { task, result: { tasks: [task] } };
+  } });
+  toggle.focus(); await toggle.click();
+  const panel = row.children[1];
+  assert.equal(document.activeElement, toggle);
+  let retry = panel.children[1]; assert.equal(retry.textContent, 'Retry explanation');
+  retry.focus(); await retry.click();
+  retry = panel.children[1]; assert.equal(document.activeElement, retry);
+  retry.focus(); const pending = retry.click();
+  assert.equal(document.activeElement, panel); assert.equal(panel.getAttribute('aria-busy'), 'true');
+  assert.equal(panel.hidden, false); assert.equal(toggle.getAttribute('aria-expanded'), 'true');
+  release(); await pending;
+  assert.equal(document.activeElement, panel); assert.equal(panel.getAttribute('aria-busy'), 'false');
+  assert.match(text(panel), /Why this task/); assert.equal(loads, 3);
+});
+
+test('saved viewer explanations supplement compact rows with definition records without mutating either', () => {
+  const row = { id: 'mining', category: 'Mining', label: 'Mine ore', rawLabel: 'Mine ~|ore|~', status: 'available' };
+  const record = { Category: ['Gathering'] }, saved = { tasks: [row], memberId: 'fixture', stateRevision: 7 };
+  const result = savedTaskWhyResult(saved, { challenges: { Mining: { 'Mine ~|ore|~': record } } });
+  assert.equal(result.tasks[0].record, record); assert.equal(row.record, undefined);
+  assert.match(result.explanationNotice, /Additional calculated details/);
+  assert.equal(result.memberId, saved.memberId); assert.equal(result.stateRevision, 7);
 });

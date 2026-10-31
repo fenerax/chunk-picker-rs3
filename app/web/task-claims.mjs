@@ -45,7 +45,7 @@ export function createTaskClaimClock({ document, window = document.defaultView, 
 
 /** A visible row action, shared by Group view and the personal list. */
 export function appendTaskClaim({ document, host, task, taskId = task.id, getState, getMemberId, command, showError,
-  canEdit = () => true, actingForMember = () => false, completed = false, now = Date.now }) {
+  canEdit = () => true, readOnly = false, actingForMember = () => false, completed = false, now = Date.now }) {
   const state = getState(), revision = state.revision, memberId = getMemberId(), claim = taskClaim(state, taskId, task.category);
   if (completed && !claim) return;
   const canAct = () => !!memberId && canEdit() && (!completed || claim?.memberId === memberId);
@@ -67,7 +67,8 @@ export function appendTaskClaim({ document, host, task, taskId = task.id, getSta
     when.dateTime = claim.at; when.title = new Date(claim.at).toLocaleString();
     line.append(name, when);
   }
-  line.append(action); host.append(line);
+  if (!readOnly) line.append(action);
+  if (line.children.length) host.append(line);
   const apply = async takeover => {
     if (!canAct() || getMemberId() !== memberId || getState().revision !== revision) throw new Error('The player or saved task list changed. Try this task again.');
     action.disabled = true;
