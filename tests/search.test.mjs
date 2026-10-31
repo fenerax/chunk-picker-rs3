@@ -97,6 +97,26 @@ test('paging reaches every result while highlights cover the whole result set an
   await h.find('View').emit('click'); assert.deepEqual(h.opens, ['10240', '10240']); assert.deepEqual(h.matches.at(-1), []);
 });
 
+test('off-map numeric and named interiors are distinct destinations with accurate types and notes', async t => {
+  const h = harness(t);
+  const name = 'Lair of the Rex Matriarchs';
+  h.c.world.surface = new Set(['12850']);
+  h.c.world.chunks = new Map([['1', { name }], ['12950', { name: 'Dorgesh-Kaan mine' }], ['12850', { name: 'Lumbridge' }]]);
+  h.c.world.areas = new Map([[name, { name }]]);
+  h.c.chunkSearch = [...h.c.world.chunks, ...h.c.world.areas].map(([id, row]) => ({ id, name: row.name, search: `${id} ${row.name}`.toLowerCase() }));
+  h.c.state.members[0].notes = { '1': 'Numeric entrance note', [name]: 'Named interior note' };
+  h.search.open(); await h.settle(); await h.type(name);
+  assert.equal(h.all().filter(node => node.className === 'search-result').length, 2);
+  assert.ok(h.find(`1 · ${name}`)); assert.ok(h.find(name));
+  assert.ok(h.find('Off-map record · 1')); assert.ok(h.find(`Interior or connected area · ${name}`));
+  assert.ok(h.find('No chunks highlighted'));
+  assert.ok(h.find('Player’s note: Numeric entrance note')); assert.ok(h.find('Player’s note: Named interior note'));
+  await h.find('View').emit('click'); assert.deepEqual(h.opens, [name, name]);
+  h.search.open(); await h.settle(); await h.type('Dorgesh-Kaan mine');
+  assert.ok(h.find('Off-map record · 12950')); assert.ok(h.find('No chunks highlighted'));
+  await h.type('Lumbridge'); assert.ok(h.find('Surface chunk · Locked')); assert.ok(h.find('1 chunk highlighted in pink'));
+});
+
 test('opening Search clears the quest selection before taking over the shared highlight layer', async t => {
   const h = harness(t); let clears = 0; h.c.questMap = { clear() { clears++; } };
   h.search.open(); await h.settle();
