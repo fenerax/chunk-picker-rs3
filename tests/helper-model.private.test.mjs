@@ -97,3 +97,13 @@ test('all 28 trainable F2P skills retain personal progress and trial targets sto
   assert.equal(row(rows, 'Archaeology').targetLevel, null);
 });
 
+
+
+test('shared membership keeps members skill requirements above trial levels in Helper goals', () => {
+  const owner = member();
+  const result = { tasks: [{ id: 'thieving', label: 'Thieving goal', category: 'Thieving', level: 50, status: 'available', obligation: true }] };
+  const state = { rules: { 'content.f2p': false }, members: [owner] };
+  assert.equal(row(skillGoals(owner, result, state), 'Thieving').targetLevel, 50);
+  state.rules['content.f2p'] = true;
+  assert.equal(row(skillGoals(owner, result, state), 'Thieving').targetLevel, null);
+});

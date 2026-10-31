@@ -1,3 +1,4 @@
+import { helperSkillCap } from './helper-model.mjs';
 import { progressBelongsToMember } from '../core/game-progress.mjs';
 import { createMiningSettings, miningPickaxeLabel } from './mining-settings.mjs';
 import { createWoodcuttingSettings } from './woodcutting-settings.mjs';
@@ -93,10 +94,11 @@ export function trainingActionsPerHour(method, xpPerHour) {
 
 export function nextBetterTrainingMethod(plan, catalogue) {
   const currentRate = Math.max(0, ...(plan.availableMethods ?? []).filter(method => method.eligibleNow).map(method => method.xpPerHour ?? 0));
-  const cap = catalogue.skills.find(row => row.skill === plan.skill)?.f2pCap ?? plan.cap;
+  const row = catalogue.skills.find(row => row.skill === plan.skill);
+  const cap = row?.cap ?? plan.cap ?? row?.f2pCap;
   return (plan.lockedMethods ?? []).filter(method => {
     const record = catalogue.methods.find(row => row.id === method.methodId);
-    return record?.members === false && method.level <= cap && (method.maxLevel ?? cap) >= plan.fromLevel
+    return record && (catalogue.f2p === false || record.members === false) && method.level <= cap && (method.maxLevel ?? cap) >= plan.fromLevel
       && positive(method.xpPerHour) && method.xpPerHour > currentRate && !(method.blockers ?? []).some(blocker => blocker.kind === 'membership');
   }).sort((a, b) => Math.max(plan.fromLevel, a.level) - Math.max(plan.fromLevel, b.level) || b.xpPerHour - a.xpPerHour)[0] ?? null;
 }
@@ -122,7 +124,7 @@ function blockerText(blocker) {
  * Manual levels are temporary request inputs. Mining estimate choices are
  * personal preferences saved through the shell's validated command.
  */
-export function renderTraining(host, { document = globalThis.document, api, member, command, canWrite = () => false, getPreferences = () => member.preferences ?? {}, getResult = () => null, isCurrent = () => true, target: initialTarget, stateRevision, draft, advanced = false }) {
+export function renderTraining(host, { document = globalThis.document, api, member, command, canWrite = () => false, getPreferences = () => member.preferences ?? {}, getResult = () => null, isCurrent = () => true, target: initialTarget, stateRevision, draft, advanced = false, f2p = true }) {
   let disposed = false, generation = 0, catalogue = null, controller = null, miningSaving = false, woodcuttingSaving = false, bankingSaving = false;
   const listeners = [];
   const current = token => !disposed && isCurrent() && token === generation;
@@ -130,7 +132,7 @@ export function renderTraining(host, { document = globalThis.document, api, memb
   const listen = (node, event, callback) => { node.addEventListener(event, callback); listeners.push([node, event, callback]); };
   const field = (label, control) => { const node = el('label', undefined, 'helper-training-field'); node.append(el('span', label), control); return node; };
   const section = el('section', undefined, 'helper-training'), body = el('div', undefined, 'helper-training-body');
-  const status = el('p', 'Loading F2P training methods…', 'helper-training-status'); status.setAttribute('aria-live', 'polite'); status.setAttribute('role', 'status');
+  const status = el('p', `Loading ${f2p ? 'F2P ' : ''}training methods…`, 'helper-training-status'); status.setAttribute('aria-live', 'polite'); status.setAttribute('role', 'status');
   const form = el('form', undefined, 'helper-training-form'), output = el('div', undefined, 'helper-training-output');
   const skill = el('select'), target = el('select'), manualTarget = el('input'), manualFrom = el('input'), override = el('input');
   skill.setAttribute('aria-label', 'Training skill'); target.setAttribute('aria-label', 'Training target'); override.type = 'checkbox';
@@ -182,7 +184,7 @@ export function renderTraining(host, { document = globalThis.document, api, memb
   }
   function targetOptions() {
     const row = info(), saved = observedProgress(member, skill.value);
-    const targets = trainingTargets(getResult(), skill.value, row.f2pCap, saved?.level ?? 0, member);
+    const targets = trainingTargets(getResult(), skill.value, row.cap, saved?.level ?? 0, member);
     target.replaceChildren();
     for (const goal of targets) { const option = el('option', `Level ${goal.level} · ${goal.labels.join('; ')}`); option.value = String(goal.level); target.append(option); }
     const custom = el('option', 'Custom target'); custom.value = 'custom'; target.append(custom);
@@ -214,11 +216,11 @@ export function renderTraining(host, { document = globalThis.document, api, memb
   function chooseSkill() {
     invalidate(); override.checked = false; manualFrom.value = ''; updateStarting();
     const row = info(), saved = observedProgress(member, skill.value);
-    manualTarget.max = manualFrom.max = String(row.f2pCap);
-    capNote.textContent = row.status === 'trial' ? `Members skill trial: F2P training stops at level ${row.f2pCap}.` : `F2P target limit: level ${row.f2pCap}.`;
+    manualTarget.max = manualFrom.max = String(row.cap);
+    capNote.textContent = f2p && row.status === 'trial' ? `Members skill trial: F2P training stops at level ${row.cap}.` : `${f2p ? 'F2P target' : 'Skill'} limit: level ${row.cap}.`;
     const targets = targetOptions();
     target.value = targets.length ? String(targets[0].level) : 'custom';
-    manualTarget.value = String(Math.min(row.f2pCap, (saved?.level ?? 1) + 5)); targetField.hidden = target.value !== 'custom';
+    manualTarget.value = String(Math.min(row.cap, (saved?.level ?? 1) + 5)); targetField.hidden = target.value !== 'custom';
     notice(saved ? 'Choose a target, then plan your grind.' : 'Enter your current level to plan your grind.');
     updateGatheringSettings();
   }
@@ -303,7 +305,7 @@ export function renderTraining(host, { document = globalThis.document, api, memb
     const route = plan.plans?.['best-xp'], ids = [...(info()?.sourceIds ?? [])];
     const view = el('div', undefined, 'helper-training-plan');
     if (plan.status === 'unknown-level') { override.checked = true; fromField.hidden = false; manualFrom.required = true; view.append(el('p', 'No saved personal level is available. Enter your current level and plan again.')); output.replaceChildren(view); return; }
-    if ((plan.issues ?? []).some(issue => issue.code === 'skill-cap')) { view.append(el('p', `This target is outside the F2P limit for ${skill.value}. Choose level ${info().f2pCap} or below.`)); output.replaceChildren(view); return; }
+    if ((plan.issues ?? []).some(issue => issue.code === 'skill-cap')) { view.append(el('p', `This target is outside the ${f2p ? 'F2P' : 'skill'} limit for ${skill.value}. Choose level ${info().cap} or below.`)); output.replaceChildren(view); return; }
     view.append(el('h3', `${skill.value} ${plan.fromLevel} → ${plan.toLevel}`), el('p', `${number(plan.xpNeeded)} XP needed`, 'helper-training-total'));
     const comparedMethods = new Set();
     if (plan.gatheringMode) view.append(el('p', plan.gatheringMode === 'bank' ? 'Training time includes the estimated bank trip.' : plan.gatheringProcessing && plan.gatheringProcessing !== 'none' ? 'Training time includes processing and dropping.' : 'Training time assumes you drop resources.', 'helper-training-note'));
@@ -360,7 +362,7 @@ export function renderTraining(host, { document = globalThis.document, api, memb
         if (locations.length) row.append(el('p', `Possible sources: ${[...new Set(locations)].join('; ')}. Check the route and return journey before using them.`)); gates.append(row);
       }
       locked.append(gates, notes(record, better.assumptions, better.mining, better.woodcutting, better.fishing, false)); ids.push(...(record.sourceIds ?? []));
-    } else locked.append(el('p', 'No faster F2P method is locked behind these chunks.'));
+    } else locked.append(el('p', `No faster ${f2p ? 'F2P ' : ''}method is locked behind these chunks.`));
     view.append(locked, el('p', plan.availableMethods?.some(method => method.banking) ? 'Drop and bank rates are estimates. Walking stays inside your reachable chunks; storing and bank actions use estimated delays.' : skill.value === 'Mining' ? 'Estimates are at the rock, no banking. Travel and storing ore add time. A reachable pickaxe source does not mean you own the tool.' : skill.value === 'Woodcutting' ? 'Estimates include one-tree respawn waits. Travel, banking and storing logs add time.' : skill.value === 'Fishing' ? 'Expected catches are estimates. Bait and feathers still need gathering; reachable sources do not mean you own the supplies.' : 'Estimates depend on gear, attention and the stated method assumptions. Training time excludes gathering inputs and travel unless a method note explicitly includes them. Total time with self-gathered supplies is unknown. Duo supplies can be shared; reachable sources do not mean your bank already has stock.', 'helper-training-note'));
     const evidence = sources(ids, plan); if (evidence) view.append(evidence); output.replaceChildren(view);
   }
@@ -368,7 +370,7 @@ export function renderTraining(host, { document = globalThis.document, api, memb
     event?.preventDefault(); if (disposed || !isCurrent() || !catalogue || miningSaving || woodcuttingSaving || bankingSaving) return;
     invalidate(); const token = generation;
     let to, from;
-    try { to = target.value === 'custom' ? level(manualTarget, 'Target level', info().f2pCap) : level(target, 'Target level', info().f2pCap); if (usesManual()) from = level(manualFrom, 'Starting level', info().f2pCap); }
+    try { to = target.value === 'custom' ? level(manualTarget, 'Target level', info().cap) : level(target, 'Target level', info().cap); if (usesManual()) from = level(manualFrom, 'Starting level', info().cap); }
     catch (error) { notice(error.message, true); return; }
     const params = new URLSearchParams({ memberId: member.id, skill: skill.value, targetLevel: String(to), preference: 'best-xp' });
     if (from !== undefined) params.set('fromLevel', String(from));
@@ -383,13 +385,13 @@ export function renderTraining(host, { document = globalThis.document, api, memb
     finally { if (current(token)) output.setAttribute('aria-busy', 'false'); }
   }
   async function load() {
-    if (disposed || !isCurrent()) return; invalidate(); const token = generation; controller = new AbortController(); retry.hidden = true; notice('Loading F2P training methods…');
+    if (disposed || !isCurrent()) return; invalidate(); const token = generation; controller = new AbortController(); retry.hidden = true; notice(`Loading ${f2p ? 'F2P ' : ''}training methods…`);
     try {
       const data = await api('/api/training-catalogue', undefined, controller.signal); if (!current(token)) return;
       if (!Array.isArray(data.skills) || !Array.isArray(data.methods)) throw new Error('Training methods are unavailable. Retry loading methods.');
-      catalogue = data;
-      for (const row of data.skills.filter(row => row.status !== 'unavailable' && Number.isInteger(row.f2pCap))) { const option = el('option', row.status === 'trial' ? `${row.skill} · F2P trial to ${row.f2pCap}` : row.skill); option.value = row.skill; skill.append(option); }
-      if (!skill.children.length) throw new Error('No F2P training skills are available.');
+      catalogue = { ...data, f2p, skills: data.skills.map(row => ({ ...row, cap: f2p ? row.f2pCap : helperSkillCap(row.skill, false) })) };
+      for (const row of catalogue.skills.filter(row => row.status !== 'unavailable' && Number.isInteger(row.cap))) { const option = el('option', f2p && row.status === 'trial' ? `${row.skill} · F2P trial to ${row.cap}` : row.skill); option.value = row.skill; skill.append(option); }
+      if (!skill.children.length) throw new Error(`No ${f2p ? 'F2P ' : ''}training skills are available.`);
       const hasSkill = name => [...skill.children].some(option => option.value === name);
       skill.value = hasSkill(initialTarget?.skill) ? initialTarget.skill : hasSkill(draft?.skill) ? draft.skill : skill.children[0].value;
       form.hidden = false; submit.disabled = false; chooseSkill();
@@ -399,7 +401,7 @@ export function renderTraining(host, { document = globalThis.document, api, memb
         updateGatheringSettings();
         if (typeof draft.targetLevel === 'string' || typeof draft.targetLevel === 'number') setTarget(draft.targetLevel);
       }
-      if (initialTarget?.skill === skill.value && Number.isInteger(initialTarget.level) && initialTarget.level >= 1 && initialTarget.level <= info().f2pCap) {
+      if (initialTarget?.skill === skill.value && Number.isInteger(initialTarget.level) && initialTarget.level >= 1 && initialTarget.level <= info().cap) {
         setTarget(initialTarget.level);
       }
     } catch (error) { if (current(token) && error.name !== 'AbortError') { notice(error.message || 'Training methods could not load. Retry loading methods.', true); retry.hidden = false; } }
