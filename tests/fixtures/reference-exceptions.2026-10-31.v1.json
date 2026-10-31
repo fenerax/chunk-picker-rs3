@@ -1647,22 +1647,6 @@
       "path": [
         "challenges",
         "Diary",
-        "~|Completionist achievements#Trimmed Completionist Cape|~ Collectors Assemble",
-        "Tasks"
-      ],
-      "token": "AnyCollection[+]x78",
-      "category": "Nonskill",
-      "required": 78,
-      "unresolved": [
-        "Complete the archaeology collection 'Guthixian II'"
-      ],
-      "reason": "Known destructive duplicate-key/collection-count defect assigned to the separate duplicate-key job (reference audit §2/§8). Temporary tracking exception, not an accepted cardinality."
-    },
-    {
-      "kind": "task-prerequisite",
-      "path": [
-        "challenges",
-        "Diary",
         "~|Completionist achievements#Trimmed Completionist Cape|~ Reaper Crew",
         "Tasks"
       ],
