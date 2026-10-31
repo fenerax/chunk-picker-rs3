@@ -4,10 +4,11 @@ import { parseDropRate, composeDropRates, passesRateCutoff, rateEvidence } from 
 import { resolveTaskAlternatives } from '../core/task-alternatives.mjs';
 import { entityId, generatedGoalId, legacyTaskId, permanentTaskId } from './identity.mjs';
 import { applyCacheShops } from '../data/cache-shops.mjs';
+import { taskRuleEnabled } from './rule-defaults.mjs';
 
 const list = value => value == null ? [] : Array.isArray(value) ? value : [value];
 const entries = value => value && typeof value === 'object' && !Array.isArray(value) ? Object.entries(value) : [];
-const enabled = (rules, key, fallback = false) => rules[key] === undefined ? fallback : ![false, 'false', 0].includes(rules[key]);
+const enabled = (rules, key, fallback = false) => taskRuleEnabled(rules, key, fallback);
 const clean = value => String(value).replaceAll('*', '');
 const displaySource = value => String(value).replaceAll('[+]', '');
 const keyOf = (category, label) => `${category}\u0000${label}`;

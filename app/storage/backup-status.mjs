@@ -55,8 +55,8 @@ function legacyRecord(text, truncated, before = Infinity) {
 
 // The public allowlist contains only timestamps, outcome, size and a warning code.
 // dataDir is the server's .local/duo directory, not the backup destination.
-export async function readBackupStatus(dataDir, { now = Date.now(), legacyLog = true } = {}) {
-  const localDir = path.dirname(path.resolve(dataDir));
+export async function readBackupStatus(dataDir, { now = Date.now(), legacyLog = true, directory = path.dirname(path.resolve(dataDir)) } = {}) {
+  const localDir = path.resolve(directory);
   const destination = await boundedRead(path.join(localDir, 'backup-destination'), 4096);
   const configured = typeof destination.text === 'string' && Boolean(destination.text.split(/\r?\n/, 1)[0].trim());
   const raw = await boundedRead(path.join(localDir, 'backup-status.json'), 16384);

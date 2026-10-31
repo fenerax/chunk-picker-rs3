@@ -1,12 +1,26 @@
 import { Worker } from 'node:worker_threads';
 import { ProcessWorker } from './process-worker.mjs';
+import { createCalculatorPool } from './calculator-pool.mjs';
 import { createHash } from 'node:crypto';
 import { deserialize } from 'node:v8';
 import { createUnlockResultCache, taskReuseInputKey } from './unlock-reuse.mjs';
 import { STATE_SNAPSHOT_LIMIT } from './state-transfer.mjs';
 import { TASK_WORKER_RESOURCE_LIMITS } from './worker-limits.mjs';
 
+// The server's compatibility context has one protocol identity.
+export function pickerJobId(pickerId = 'legacy-shared') {
+  if (pickerId === 'legacy') return 'legacy-shared';
+  if (typeof pickerId !== 'string' || pickerId !== 'legacy-shared' && !/^p_[a-f0-9]{32}$/.test(pickerId)) throw new TypeError('Invalid calculator pickerId.');
+  return pickerId;
+}
+const pickerKey = (pickerId, key) => JSON.stringify([pickerId, key]);
+// Keep the established positional API for legacy callers. Contexts borrow a
+// bound facade; all lanes and their admission/memory limits remain shared.
+const pickerArguments = { peekPrediction: 4, cancelRankingPrewarm: 1, preparedEvaluation: 3, prepareRules: 2,
+  evaluate: 12, supersede: 3, supersedeDisplay: 2, setRevision: 2, prewarm: 4, prewarmTasks: 4,
+  cancelPrewarm: 1, retireWarmPrediction: 0 };
 const unavailable = message => Object.assign(new Error(message), { status: 503 });
+const queueFull = () => Object.assign(new Error('Task calculation budget is full. Wait for pending tasks and retry.'), { status: 429, retryAfter: 1 });
 const positive = (value, name, minimum = 1) => {
   if (!Number.isSafeInteger(value) || value < minimum) throw new TypeError(`${name} must be an integer of at least ${minimum}.`);
 };
@@ -73,15 +87,61 @@ function validStateInput(state, input, stateInput, type) {
 export async function createTaskScheduler({ maxDeathQueue = 2, deathDeadlineMs = 120000, deathWorkerFactory,
   duoWorkerFactory, maxDuoQueue = 2, duoDeadlineMs = 30000, duoCacheLimit = 4, duoCacheBytes = 32 * 1024 * 1024,
   predictionWorkerFactory, maxPredictionQueue = 8, predictionDeadlineMs = 120000,
-  predictionCacheLimit = 256, predictionCacheBytes = 32 * 1024 * 1024, maxPrewarmQueue = 256, signal, ...options } = {}) {
+  predictionCacheLimit = 256, predictionCacheBytes = 32 * 1024 * 1024, maxPrewarmQueue = 256, signal, maxCalculators, ...options } = {}) {
   positive(maxDeathQueue, 'maxDeathQueue'); positive(deathDeadlineMs, 'deathDeadlineMs');
   for (const [name, value] of Object.entries({ maxPredictionQueue, predictionDeadlineMs, predictionCacheLimit, predictionCacheBytes, maxPrewarmQueue })) positive(value, name);
   for (const [name, value] of Object.entries({ maxDuoQueue, duoDeadlineMs, duoCacheLimit, duoCacheBytes })) positive(value, name);
-  const foreground = await createWorkerLane({ ...options, includeReadyCatalogue: true, maxPrewarmQueue, signal });
-  const unlockResults = createUnlockResultCache({ limit: predictionCacheLimit, byteLimit: Math.floor(predictionCacheBytes / 2) });
-  let death, prediction, duo, closed = false, closePromise, latestRevision = -1;
-  // Claims/preferences advance HTTP revisions while retaining task identities.
-  let taskRevision = -1, savedPredictionSourceRevision = -1;
+  if (options.fairness) {
+    const { maxOutstandingJobsPerPicker = 4, maxWaitersPerJob = 64 } = options.fairness;
+    positive(maxOutstandingJobsPerPicker, 'maxOutstandingJobsPerPicker'); positive(maxWaitersPerJob, 'maxWaitersPerJob');
+    const outstanding = new Map();
+    options.fairness = { maxOutstandingJobsPerPicker, maxWaitersPerJob, admit(pickerId, interactive = false) {
+      if (maxCalculators !== undefined && interactive && (outstanding.get(pickerId) ?? 0) >= maxOutstandingJobsPerPicker) options.fairness.displaceWarm?.(pickerId);
+      const count = outstanding.get(pickerId) ?? 0;
+      if (count >= maxOutstandingJobsPerPicker) return;
+      outstanding.set(pickerId, count + 1);
+      let released = false;
+      return () => {
+        if (released) return; released = true;
+        const remaining = outstanding.get(pickerId) - 1;
+        if (remaining) outstanding.set(pickerId, remaining); else outstanding.delete(pickerId);
+      };
+    } };
+  }
+  if (maxCalculators !== undefined) {
+    positive(maxCalculators, 'maxCalculators');
+    const factory = options.workerFactory ?? nativeWorker;
+    options.calculatorPool = createCalculatorPool({ limit: maxCalculators, workerFactory: factory,
+      workerData: includeCatalogue => factory === nativeWorker ? nativeWorkerInput(options.workerData, includeCatalogue) : options.workerData,
+      idleMs: options.idleMs ?? Number(process.env.RS3_WORKER_IDLE_MS ?? 600000), startupDeadlineMs: options.startupDeadlineMs });
+  }
+  let foreground;
+  try { foreground = await createWorkerLane({ ...options, includeReadyCatalogue: true, maxPrewarmQueue, signal }); }
+  catch (error) { await options.calculatorPool?.close(); throw error; }
+  options.calculatorPool?.releaseCatalogue();
+  const pickers = new Map();
+  function pickerState(pickerId) {
+    pickerId = pickerJobId(pickerId);
+    if (!pickers.has(pickerId)) pickers.set(pickerId, { latestRevision: -1, taskRevision: -1, savedPredictionSourceRevision: -1, closed: false,
+      unlockResults: createUnlockResultCache({ limit: predictionCacheLimit, byteLimit: Math.floor(predictionCacheBytes / 2) }) });
+    return pickers.get(pickerId);
+  }
+  function clearUnlockResults() { for (const picker of pickers.values()) picker.unlockResults.clear(); }
+  // Preserve the shared reuse budget even when several picker caches are live.
+  function boundUnlockResults(keep) {
+    const total = () => [...pickers.values()].reduce((sum, picker) => {
+      const d = picker.unlockResults.getDiagnostics(); return { entries: sum.entries + d.entries, bytes: sum.bytes + d.bytes };
+    }, { entries: 0, bytes: 0 });
+    for (const picker of pickers.values()) {
+      const d = total();
+      if (d.entries <= predictionCacheLimit && d.bytes <= Math.floor(predictionCacheBytes / 2)) break;
+      if (picker !== keep) picker.unlockResults.clear();
+    }
+  }
+  let death, prediction, duo, closed = false, closePromise;
+  if (options.calculatorPool) options.fairness && (options.fairness.displaceWarm = pickerId => {
+    for (const lane of [foreground, death, prediction, duo]) lane?.yieldQueuedWarm(pickerId);
+  });
   const listeners = new Set();
   const residencyListeners = new Set();
   const predictionListeners = new Set();
@@ -107,76 +167,115 @@ export async function createTaskScheduler({ maxDeathQueue = 2, deathDeadlineMs =
       cacheByteLimit: predictionCacheBytes - Math.floor(predictionCacheBytes / 2), maxPrewarmQueue, strictRevision: true, shareSnapshots: true,
       retainActivePrediction: true,
       onEvaluation(message, entry) {
-        if (!closed && entry.revision === latestRevision && !entry.discarded && !message.result?.cancelled
+        const picker = pickerState(entry.pickerId);
+        if (picker.closed) return;
+        if (!closed && entry.revision === picker.latestRevision && !entry.discarded && !message.result?.cancelled
           && Array.isArray(message.result?.delta?.tasksAdded)) {
           const state = { ...entry.predictionState, revision: entry.revision };
           for (const listener of predictionListeners) {
-            try { listener({ state, input: entry.input, memberId: entry.memberId, chunkId: entry.chunkId, result: message.result }); }
+            try { listener({ pickerId: entry.pickerId, state, input: entry.input, memberId: entry.memberId, chunkId: entry.chunkId, result: message.result }); }
             catch { /* Summary observers cannot interrupt prediction admission. */ }
           }
         }
         const reuse = message.unlockReuse;
         if (!closed && reuse?.memberId === entry.memberId && reuse.sourceRevision === entry.revision
-          && (entry.revision === latestRevision || entry.reuseRevision === latestRevision
+          && (entry.revision === picker.latestRevision || entry.reuseRevision === picker.latestRevision
             && (entry.reuseWaiters?.size || entry.confirmedTaskInputKey === reuse.taskInputKey))) {
           const peer = message.partnerUnlockReuse;
           const pair = peer && peer.memberId !== reuse.memberId && peer.taskInputKey === reuse.taskInputKey && peer.sourceRevision === reuse.sourceRevision;
-          unlockResults.admitMany(pair ? [reuse, peer] : [reuse], entry.purpose === 'ranking' ? 0 : entry.warm ? reuse.priority : 3, entry.key);
+          picker.unlockResults.admitMany(pair ? [reuse, peer] : [reuse], entry.purpose === 'ranking' ? 0 : entry.warm ? reuse.priority : 3, entry.originalKey);
+          boundUnlockResults(picker);
         }
       },
-      onSleep() { unlockResults.clear(); },
+      onSleep: clearUnlockResults,
       // Background readiness must not announce a new foreground-ready event.
       onCreated(lane) { prediction = lane; lane.subscribe(announceResidency); announceResidency(); },
     }).catch(() => {});
     return prediction;
   }
   const scheduler = {
+    forPicker(id) {
+      const pickerId = pickerJobId(id);
+      pickerState(pickerId).closed = false;
+      for (const lane of [foreground, death, prediction, duo]) lane?.openPicker(pickerId);
+      let abandoned = false;
+      const facade = Object.create(scheduler);
+      for (const [name, count] of Object.entries(pickerArguments)) facade[name] = (...args) => {
+        if (abandoned) {
+          if (name === 'evaluate' || name === 'prepareRules') return Promise.reject(unavailable('The picker is closing.'));
+          return name === 'prewarm' || name === 'prewarmTasks' ? { queued: 0 } : undefined;
+        }
+        args.length = count; return scheduler[name](...args, pickerId);
+      };
+      facade.subscribePredictions = listener => scheduler.subscribePredictions(event => { if (!abandoned && event.pickerId === pickerId) listener(event); });
+      facade.canPrewarmTasks = (...args) => !abandoned && scheduler.canPrewarmTasks(...args);
+      facade.notePredictionUse = () => { if (!abandoned) scheduler.notePredictionUse(); };
+      facade.resumePrewarm = () => { if (!abandoned) scheduler.resumePrewarm(); };
+      facade.cancelPicker = () => { if (!abandoned) { abandoned = true; scheduler.cancelPicker(pickerId); } };
+      return facade;
+    },
+    cancelPicker(id) {
+      const pickerId = pickerJobId(id), picker = pickerState(pickerId);
+      picker.closed = true; picker.unlockResults.clear();
+      for (const lane of [foreground, death, prediction, duo]) lane?.cancelPicker(pickerId);
+    },
     catalogue: foreground.catalogue, dynamicCatalogue: foreground.dynamicCatalogue,
     supports: type => foreground.supports(type),
     subscribe(listener) { listeners.add(listener); return () => listeners.delete(listener); },
     subscribeResidency(listener) { residencyListeners.add(listener); return () => residencyListeners.delete(listener); },
     subscribePredictions(listener) { predictionListeners.add(listener); return () => predictionListeners.delete(listener); },
-    peekPrediction(state, memberId, chunkId, input) {
-      if (closed || state.revision < latestRevision) return;
-      return prediction?.peekPrediction(predictionCacheKey({ ...state, revision: taskRevision }, memberId, chunkId, input));
+    peekPrediction(state, memberId, chunkId, input, pickerId = 'legacy-shared') {
+      pickerId = pickerJobId(pickerId);
+      const picker = pickerState(pickerId);
+      if (closed || picker.closed || state.revision < picker.latestRevision) return;
+      return prediction?.peekPrediction(predictionCacheKey({ ...state, revision: picker.taskRevision }, memberId, chunkId, input), pickerId);
     },
     // Only a newly opened ranking view counts as interactive use. Reading its
     // progress and completing background candidates leave the idle clock alone.
     notePredictionUse() { if (!closed) prediction?.noteInteractiveUse(); },
-    cancelRankingPrewarm(keepMemberIds) { prediction?.cancelRankingPrewarm(keepMemberIds); },
-    preparedEvaluation(taskInputKey, memberId, revision) {
+    cancelRankingPrewarm(keepMemberIds, pickerId = 'legacy-shared') {
+      pickerId = pickerJobId(pickerId);
+      prediction?.cancelRankingPrewarm(keepMemberIds, pickerId);
+    },
+    preparedEvaluation(taskInputKey, memberId, revision, pickerId = 'legacy-shared') {
+      pickerId = pickerJobId(pickerId);
+      const picker = pickerState(pickerId);
       // The server hashes its captured immutable task input before asking here.
       // A hit needs no serialized worker snapshot or resident foreground worker.
-      if (closed || revision !== latestRevision || !unlockResults.getDiagnostics().entries) return;
+      if (closed || picker.closed || revision !== picker.latestRevision || !picker.unlockResults.getDiagnostics().entries) return;
       if (typeof taskInputKey === 'function') taskInputKey = taskInputKey();
       if (typeof taskInputKey !== 'string' || !/^[a-f0-9]{64}$/.test(taskInputKey) || typeof memberId !== 'string') return;
-      const reused = unlockResults.get(taskInputKey, memberId, revision);
-      if (reused) prediction?.confirmSavedPrediction(taskInputKey, revision);
+      const reused = picker.unlockResults.get(taskInputKey, memberId, revision);
+      if (reused) prediction?.confirmSavedPrediction(taskInputKey, revision, pickerId);
       return reused ? evaluationWith(unlockEvaluation(reused), { hit: true }) : undefined;
     },
-    prepareRules(rules, revision) {
-      if (closed) return Promise.reject(unavailable('The task server is closing.'));
+    prepareRules(rules, revision, pickerId = 'legacy-shared') {
+      pickerId = pickerJobId(pickerId);
+      const picker = pickerState(pickerId);
+      if (closed || picker.closed) return Promise.reject(unavailable('The task server is closing.'));
       if (!rules || typeof rules !== 'object' || Array.isArray(rules) || !Number.isSafeInteger(revision) || revision < 0) return Promise.reject(new TypeError('Invalid task preparation input.'));
       const key = JSON.stringify(['prepare-rules', revision, rules]);
-      return foreground.evaluate({ revision, rules }, undefined, 'prepare-rules', undefined, key);
+      return foreground.evaluate({ revision, rules }, undefined, 'prepare-rules', undefined, key, undefined, undefined, [], 'full', undefined, false, pickerId);
     },
-    evaluate(state, memberId, type = 'evaluate', chunkId, key, input, signal, chunkIds = [], resultView = 'full', stateInput, evaluationLane = 'foreground', duoSidebarProjection = false) {
-      if (closed) return Promise.reject(unavailable('The task server is closing.'));
+    evaluate(state, memberId, type = 'evaluate', chunkId, key, input, signal, chunkIds = [], resultView = 'full', stateInput, evaluationLane = 'foreground', duoSidebarProjection = false, pickerId = 'legacy-shared') {
+      pickerId = pickerJobId(pickerId);
+      const picker = pickerState(pickerId);
+      if (closed || picker.closed) return Promise.reject(unavailable('The task server is closing.'));
       if (signal?.aborted) return Promise.reject(Object.assign(new Error('Requester disconnected.'), { name: 'AbortError' }));
       if (stateInput && !validStateInput(state, input, stateInput, type)) return Promise.reject(new TypeError('Invalid serialized task state input.'));
       if (!['foreground', 'duo', 'side'].includes(evaluationLane) || evaluationLane === 'duo' && (type !== 'evaluate' || resultView !== 'play-v1')
         || evaluationLane === 'side' && !(type === 'chunk-planning' || type === 'evaluate' && resultView === 'full')) return Promise.reject(new TypeError('Invalid task evaluation lane.'));
       if (typeof duoSidebarProjection !== 'boolean' || duoSidebarProjection && (type !== 'evaluate' || resultView !== 'play-v1' || evaluationLane !== 'foreground')) return Promise.reject(new TypeError('Invalid duo sidebar projection.'));
-      if (type !== 'roll-pool') scheduler.supersede(state.revision, input, memberId);
-      if (type === 'evaluate' && resultView === 'play-v1' && state.revision >= latestRevision && unlockResults.getDiagnostics().entries) {
+      if (type !== 'roll-pool') scheduler.supersede(state.revision, input, memberId, pickerId);
+      if (type === 'evaluate' && resultView === 'play-v1' && state.revision >= picker.latestRevision && picker.unlockResults.getDiagnostics().entries) {
         const taskInputKey = stateInput ? stateInput.taskInputKey : taskReuseInputKey(state);
-        const reused = unlockResults.get(taskInputKey, memberId, state.revision);
+        const reused = picker.unlockResults.get(taskInputKey, memberId, state.revision);
         if (reused) {
-          prediction?.confirmSavedPrediction(taskInputKey, state.revision);
+          prediction?.confirmSavedPrediction(taskInputKey, state.revision, pickerId);
           // Both projections were calculated from the complete hypothetical
           // fixed point. Matching saved task inputs makes these authoritative.
           const value = unlockEvaluation(reused);
-          if (!value.gzipJSONPrefixes) foreground.admitPlayEvaluation(key, state.revision, value);
+          if (!value.gzipJSONPrefixes) foreground.admitPlayEvaluation(key, state.revision, value, pickerId);
           return Promise.resolve(evaluationWith(value, { hit: true }));
         }
       }
@@ -186,62 +285,63 @@ export async function createTaskScheduler({ maxDeathQueue = 2, deathDeadlineMs =
       const raceController = type === 'evaluate' && resultView === 'play-v1' ? new AbortController() : undefined;
       const requestSignal = raceController ? signal ? AbortSignal.any([signal, raceController.signal]) : raceController.signal : signal;
       const raceSavedPrediction = ordinary => {
-        const following = raceController && prediction?.followSavedPrediction(memberId, state.revision, requestSignal);
+        const following = raceController && prediction?.followSavedPrediction(memberId, state.revision, requestSignal, pickerId);
         if (!following) return ordinary;
         const projected = following.then(reuse => {
           const taskInputKey = stateInput ? stateInput.taskInputKey : taskReuseInputKey(state);
-          if (closed || requestSignal.aborted || state.revision !== latestRevision || reuse?.memberId !== memberId
-            || reuse.sourceRevision !== savedPredictionSourceRevision || reuse.taskInputKey !== taskInputKey
+          if (closed || picker.closed || requestSignal.aborted || state.revision !== picker.latestRevision || reuse?.memberId !== memberId
+            || reuse.sourceRevision !== picker.savedPredictionSourceRevision || reuse.taskInputKey !== taskInputKey
             || !['playJSON', 'duoJSON', 'duoSidebarJSON'].every(key => reuse[key] instanceof SharedArrayBuffer)) throw superseded();
-          prediction?.confirmSavedPrediction(taskInputKey, state.revision);
-          unlockResults.admit(reuse, 3);
-          const retained = unlockResults.get(taskInputKey, memberId, state.revision);
+          prediction?.confirmSavedPrediction(taskInputKey, state.revision, pickerId);
+          picker.unlockResults.admit(reuse, 3);
+          boundUnlockResults(picker);
+          const retained = picker.unlockResults.get(taskInputKey, memberId, state.revision);
           const value = unlockEvaluation(retained ?? Object.fromEntries(['playJSON', 'duoJSON', 'duoSidebarJSON'].map(key => [key, Buffer.from(reuse[key])])));
-          if (!value.gzipJSONPrefixes) foreground.admitPlayEvaluation(key, state.revision, value);
+          if (!value.gzipJSONPrefixes) foreground.admitPlayEvaluation(key, state.revision, value, pickerId);
           return evaluationWith(value, { hit: true });
         });
         return Promise.any([ordinary, projected]).catch(error => { throw error.errors?.[0] ?? error; })
-          .finally(() => { raceController.abort(); prediction?.releaseSavedPrediction(state.revision); });
+          .finally(() => { raceController.abort(); prediction?.releaseSavedPrediction(state.revision, pickerId); });
       };
       if (evaluationLane === 'duo') {
-        if (state.revision < latestRevision) return Promise.reject(superseded());
+        if (state.revision < picker.latestRevision) return Promise.reject(superseded());
         // Keep peer computation compact. A later map switch can reuse its bytes
         // through the normal foreground cache; full details still hydrate normally.
-        const cached = foreground.cachedEvaluation(key, resultView);
+        const cached = foreground.cachedEvaluation(key, resultView, pickerId);
         if (cached) return Promise.resolve(cached);
-        return raceSavedPrediction(duoLane().evaluate(state, memberId, type, chunkId, key, input, requestSignal, chunkIds, resultView, stateInput).then(value => {
-          if (!closed && !signal?.aborted && state.revision === latestRevision && !value.cancelled) {
-            foreground.admitPlayEvaluation(key, state.revision, value);
+        return raceSavedPrediction(duoLane().evaluate(state, memberId, type, chunkId, key, input, requestSignal, chunkIds, resultView, stateInput, false, pickerId).then(value => {
+          if (!closed && !picker.closed && !signal?.aborted && state.revision === picker.latestRevision && !value.cancelled) {
+            foreground.admitPlayEvaluation(key, state.revision, value, pickerId);
           }
           return value;
         }));
       }
       if (type === 'predict') {
-        if (state.revision < latestRevision) return Promise.reject(superseded());
-        const predictionKey = predictionCacheKey({ ...state, revision: taskRevision }, memberId, chunkId, input);
+        if (state.revision < picker.latestRevision) return Promise.reject(superseded());
+        const predictionKey = predictionCacheKey({ ...state, revision: picker.taskRevision }, memberId, chunkId, input);
         const owner = state.members?.find(member => member.id === memberId);
         if (/^\d+$/.test(String(chunkId)) && Array.isArray(owner?.unlocked) && !owner.unlocked.includes(String(chunkId))
-          && !unlockResults.hasCompletePrediction(predictionKey, state.members.map(member => member.id))) {
+          && !picker.unlockResults.hasCompletePrediction(predictionKey, state.members.map(member => member.id))) {
           // A delta may outlive its bounded prepared pair. Explicit interest
           // must prepare missing task bytes before Preview is considered ready.
-          prediction?.invalidatePrediction(predictionKey);
+          prediction?.invalidatePrediction(predictionKey, pickerId);
         }
-        unlockResults.touchPrediction(predictionKey);
-        prediction?.cancelPrewarm({ keepActiveKey: predictionKey });
-        return predictionLane().evaluate(state, memberId, type, chunkId, predictionKey, input, signal);
+        picker.unlockResults.touchPrediction(predictionKey);
+        prediction?.cancelPrewarm({ keepActiveKey: predictionKey }, pickerId);
+        return predictionLane().evaluate(state, memberId, type, chunkId, predictionKey, input, signal, [], 'full', undefined, false, pickerId);
       }
       if (evaluationLane === 'side' || type === 'chunk-planning') {
-        if (state.revision < latestRevision) return Promise.reject(superseded());
-        return predictionLane().evaluate(state, memberId, type, chunkId, key, input, signal, chunkIds, resultView, stateInput);
+        if (state.revision < picker.latestRevision) return Promise.reject(superseded());
+        return predictionLane().evaluate(state, memberId, type, chunkId, key, input, signal, chunkIds, resultView, stateInput, false, pickerId);
       }
       if (type === 'sandbox' || type === 'area-check') {
-        if (state.revision < latestRevision) return Promise.reject(superseded());
+        if (state.revision < picker.latestRevision) return Promise.reject(superseded());
         // Drafts use their normalized changes in the key, with the same bounded
         // advisory lane as Preview so foreground saved tasks remain independent.
-        return predictionLane().evaluate(state, memberId, type, chunkId, key, input, signal, [], resultView, stateInput);
+        return predictionLane().evaluate(state, memberId, type, chunkId, key, input, signal, [], resultView, stateInput, false, pickerId);
       }
-      if (type !== 'death-estimates') return raceSavedPrediction(foreground.evaluate(state, memberId, type, chunkId, key, input, requestSignal, chunkIds, resultView, stateInput, duoSidebarProjection));
-      if (state.revision < latestRevision) return Promise.reject(Object.assign(new Error('Calculation superseded by a newer save. Request the current tasks.'), { status: 409 }));
+      if (type !== 'death-estimates') return raceSavedPrediction(foreground.evaluate(state, memberId, type, chunkId, key, input, requestSignal, chunkIds, resultView, stateInput, duoSidebarProjection, pickerId));
+      if (state.revision < picker.latestRevision) return Promise.reject(Object.assign(new Error('Calculation superseded by a newer save. Request the current tasks.'), { status: 409 }));
       if (!death) {
         // Expose the lane before it is ready: startup admissions use its bounded
         // queue and request watchdog, rather than accumulating promise waiters.
@@ -251,67 +351,86 @@ export async function createTaskScheduler({ maxDeathQueue = 2, deathDeadlineMs =
           onCreated(lane) { death = lane; lane.subscribe(announce); },
         }).catch(() => { /* The lane rejects its requests and reports its failure. */ });
       }
-      return death.evaluate(state, memberId, type, undefined, JSON.stringify([key, chunkIds]), input, signal, chunkIds);
+      return death.evaluate(state, memberId, type, undefined, JSON.stringify([key, chunkIds]), input, signal, chunkIds, 'full', undefined, false, pickerId);
     },
-    supersede(revision, input, memberId) {
-      if (revision > latestRevision) {
-        savedPredictionSourceRevision = latestRevision;
+    supersede(revision, input, memberId, pickerId = 'legacy-shared') {
+      pickerId = pickerJobId(pickerId);
+      const picker = pickerState(pickerId);
+      if (closed || picker.closed) return;
+      if (revision > picker.latestRevision) {
+        picker.savedPredictionSourceRevision = picker.latestRevision;
         // Display revisions share the same prediction origin. Expire only at
         // an actual task change, preserving the preceding hypothetical pair.
-        unlockResults.supersede(taskRevision + 1);
-        taskRevision = revision;
+        picker.unlockResults.supersede(picker.taskRevision + 1);
+        picker.taskRevision = revision;
       }
-      latestRevision = Math.max(latestRevision, revision);
-      foreground.supersede(revision, input, memberId); death?.supersede(revision, input, memberId);
-      prediction?.supersede(revision, input);
-      duo?.supersede(revision, input);
+      picker.latestRevision = Math.max(picker.latestRevision, revision);
+      foreground.supersede(revision, input, memberId, pickerId); death?.supersede(revision, input, memberId, pickerId);
+      prediction?.supersede(revision, input, undefined, pickerId);
+      duo?.supersede(revision, input, undefined, pickerId);
     },
     // Claims and display saves advance HTTP guards without disturbing prediction
     // queues or sending control work to a calculator with identical task inputs.
-    supersedeDisplay(revision, input) {
-      latestRevision = Math.max(latestRevision, revision);
-      foreground.supersedeDisplay(revision); death?.supersedeDisplay(revision);
-      prediction?.supersedeDisplay(revision); duo?.supersedeDisplay(revision);
+    supersedeDisplay(revision, input, pickerId = 'legacy-shared') {
+      pickerId = pickerJobId(pickerId);
+      const picker = pickerState(pickerId);
+      if (closed || picker.closed) return;
+      picker.latestRevision = Math.max(picker.latestRevision, revision);
+      foreground.supersedeDisplay(revision, pickerId); death?.supersedeDisplay(revision, pickerId);
+      prediction?.supersedeDisplay(revision, pickerId); duo?.supersedeDisplay(revision, pickerId);
     },
-    setRevision(revision, input) {
+    setRevision(revision, input, pickerId = 'legacy-shared') {
+      pickerId = pickerJobId(pickerId);
+      const picker = pickerState(pickerId);
       positive(revision, 'revision', 0);
-      const changed = revision > latestRevision;
-      scheduler.supersede(revision, input);
+      const changed = revision > picker.latestRevision;
+      scheduler.supersede(revision, input, undefined, pickerId);
       if (changed) {
-        prediction?.retireObsolete(revision);
-        death?.retireObsolete(revision);
+        prediction?.retireObsolete(revision, pickerId);
+        death?.retireObsolete(revision, pickerId);
       }
       return changed;
     },
-    prewarm(state, input, groups, { signal } = {}) {
-      if (closed || signal?.aborted || state.revision < latestRevision) return { queued: 0 };
-      scheduler.supersede(state.revision, input);
+    prewarm(state, input, groups, { signal } = {}, pickerId = 'legacy-shared') {
+      pickerId = pickerJobId(pickerId);
+      const picker = pickerState(pickerId);
+      if (closed || picker.closed || signal?.aborted || state.revision < picker.latestRevision) return { queued: 0 };
+      scheduler.supersede(state.revision, input, undefined, pickerId);
       // Ranking deltas may displace a reviewed choice's response from the LRU.
       // Its complete prepared bytes still satisfy automatic preparation, so a
       // refill must not repeat that calculation merely to restore the delta.
       const memberIds = state.members?.map(member => member.id) ?? [];
-      if (memberIds.length && unlockResults.getDiagnostics().entries) {
+      if (memberIds.length && picker.unlockResults.getDiagnostics().entries) {
         groups = groups.map(group => group.purpose === 'ranking' ? group : { ...group,
-          chunkIds: group.chunkIds.filter(chunkId => !unlockResults.hasCompletePrediction(
-            predictionCacheKey({ ...state, revision: taskRevision }, group.memberId, chunkId, input), memberIds)) });
+          chunkIds: group.chunkIds.filter(chunkId => !picker.unlockResults.hasCompletePrediction(
+            predictionCacheKey({ ...state, revision: picker.taskRevision }, group.memberId, chunkId, input), memberIds)) });
       }
       if (!prediction && !groups.some(group => group.chunkIds.length)) return { queued: 0 };
-      return predictionLane().prewarm(state, input, groups, signal, taskRevision);
+      return predictionLane().prewarm(state, input, groups, signal, picker.taskRevision, pickerId);
     },
     // Current task results and arbitrary Preview baselines use the same bounded
     // low-priority admission as candidate warming, without interactive waiters.
     canPrewarmTasks(usePrediction = false) { return !closed && foreground.canPrewarm() && (!usePrediction || !prediction || prediction.canPrewarm()); },
-    prewarmTasks(state, input, memberIds, { resultView = 'full', stateInput, prediction: usePrediction = false } = {}) {
-      if (closed || state.revision < latestRevision) return { queued: 0 };
+    prewarmTasks(state, input, memberIds, { resultView = 'full', stateInput, prediction: usePrediction = false } = {}, pickerId = 'legacy-shared') {
+      pickerId = pickerJobId(pickerId);
+      const picker = pickerState(pickerId);
+      if (closed || picker.closed || state.revision < picker.latestRevision) return { queued: 0 };
       if (!['full', 'play-v1'].includes(resultView)) throw new TypeError('Unknown task result view.');
       if (!Array.isArray(memberIds) || memberIds.some(id => !state.members?.some(member => member.id === id))) throw new TypeError('Choose known players to prepare tasks.');
       if (stateInput && !validStateInput(state, input, stateInput, 'evaluate')) throw new TypeError('Invalid serialized task state input.');
       if (!memberIds.length || usePrediction && !prediction && !foreground.canPrewarm()) return { queued: 0 };
-      scheduler.supersede(state.revision, input);
-      return (usePrediction ? predictionLane() : foreground).prewarmTasks(state, input, memberIds, resultView, stateInput);
+      scheduler.supersede(state.revision, input, undefined, pickerId);
+      return (usePrediction ? predictionLane() : foreground).prewarmTasks(state, input, memberIds, resultView, stateInput, pickerId);
     },
-    cancelPrewarm(options) { if (!options?.keepTasks) foreground.cancelPrewarm(); prediction?.cancelPrewarm(options); },
-    retireWarmPrediction() { return prediction?.retireWarm() ?? false; },
+    cancelPrewarm(options, pickerId = 'legacy-shared') {
+      pickerId = pickerJobId(pickerId);
+      if (!options?.keepTasks) foreground.cancelPrewarm({}, pickerId);
+      prediction?.cancelPrewarm(options, pickerId);
+    },
+    retireWarmPrediction(pickerId = 'legacy-shared') {
+      pickerId = pickerJobId(pickerId);
+      return prediction?.retireWarm(pickerId) ?? false;
+    },
     resumePrewarm() { prediction?.noteInteractiveUse(); },
     getHealth() {
       const health = foreground.getHealth(), lanes = { death: death?.getHealth() ?? { status: 'idle', ready: false },
@@ -327,10 +446,10 @@ export async function createTaskScheduler({ maxDeathQueue = 2, deathDeadlineMs =
       for (const [name, lane] of [['foreground', foreground], ['death', death], ['prediction', prediction], ['duo', duo]]) {
         if (lane && await lane.restartUnhealthy()) restarted.push(name);
       }
-      if (restarted.length) unlockResults.clear();
+      if (restarted.length) clearUnlockResults();
       return { restarted, worker: scheduler.getHealth() };
     },
-    getDiagnostics: () => ({ ...foreground.getDiagnostics(), unlockReuse: unlockResults.getDiagnostics(), deathLane: death?.getDiagnostics() ?? {
+    getDiagnostics: () => ({ ...foreground.getDiagnostics(), ...(options.calculatorPool ? { calculators: options.calculatorPool.diagnostics() } : {}), unlockReuse: pickerState('legacy-shared').unlockResults.getDiagnostics(), deathLane: death?.getDiagnostics() ?? {
       worker: { status: 'idle', ready: false }, queue: { depth: 0, active: 0, limit: maxDeathQueue, deadlineMs: deathDeadlineMs },
     }, duoLane: duo?.getDiagnostics() ?? {
       worker: { status: 'idle', ready: false }, queue: { depth: 0, active: 0, limit: maxDuoQueue, deadlineMs: duoDeadlineMs },
@@ -343,8 +462,8 @@ export async function createTaskScheduler({ maxDeathQueue = 2, deathDeadlineMs =
     } }),
     close(timeoutMs = 10000) {
       if (!closePromise) {
-        closed = true; listeners.clear(); residencyListeners.clear(); unlockResults.clear();
-        closePromise = Promise.all([foreground.close(timeoutMs), death?.close(timeoutMs), prediction?.close(timeoutMs), duo?.close(timeoutMs)]).then(() => {});
+        closed = true; listeners.clear(); residencyListeners.clear(); predictionListeners.clear(); clearUnlockResults();
+        closePromise = Promise.all([foreground.close(timeoutMs), death?.close(timeoutMs), prediction?.close(timeoutMs), duo?.close(timeoutMs)]).then(() => options.calculatorPool?.close());
       }
       return closePromise;
     },
@@ -357,17 +476,54 @@ async function createWorkerLane({ workerData, workerFactory = nativeWorker, incl
   maxQueue = 8, deadlineMs = 30000, firstCalculationDeadlineMs = Math.max(120000, deadlineMs), startupDeadlineMs = 30000, maxRestarts = 3, backoffMs = 250, maxBackoffMs = 5000, cacheLimit = 8,
   cacheByteLimit = 128 * 1024 * 1024, maxPrewarmQueue = 256, strictRevision = false, shareSnapshots = false, duoResults = false,
   idleMs = Number(process.env.RS3_WORKER_IDLE_MS ?? 600000), idleClock = { now: () => performance.now(), setTimeout, clearTimeout }, retainActivePrediction = false,
-  stuckMs = 120000, signal, deadlineClock = { setTimeout, clearTimeout },
+  stuckMs = 120000, signal, fairness, calculatorPool, deadlineClock = { setTimeout, clearTimeout },
 } = {}) {
   for (const [name, value] of Object.entries({ maxQueue, deadlineMs, firstCalculationDeadlineMs, startupDeadlineMs, backoffMs, maxBackoffMs, cacheLimit })) positive(value, name);
   positive(maxRestarts, 'maxRestarts', 0);
   positive(idleMs, 'idleMs');
   positive(stuckMs, 'stuckMs');
-  let worker, generation = 0, sequence = 0, active, closed = false, restartTimer, startupTimer, initialResolve, initialReject, closePromise, idleTimer, prewarmSignal, prewarmAbort, latestRevision = -1;
+  let worker, generation = 0, sequence = 0, active, closed = false, restartTimer, startupTimer, initialResolve, initialReject, closePromise, idleTimer;
+  const latestRevisions = new Map(), prewarmSubscriptions = new Map(), closedPickers = new Set();
+  const revisionFor = pickerId => latestRevisions.get(pickerId) ?? -1;
   let firstCalculation = true;
   let supported = new Set();
   let status = 'starting', restarts = 0, failures = 0, nextRetryAt = null, compileMs = 0, lastFailure = null;
-  const queue = [], warmQueue = [], sentSnapshots = new Map(), pending = new Map(), cache = new Map(), terminating = new Set(), listeners = new Set();
+  let sentSnapshots = new Map();
+  const queue = [], warmQueue = [], pending = new Map(), cache = new Map(), terminating = new Set(), listeners = new Set();
+  function forgetPickerSnapshots(pickerId) {
+    calculatorPool?.forgetPicker(pickerId);
+    // The worker still has these LRU slots. Keep their positions until normal
+    // eviction, but force a body if this picker is used again. Deleting slots
+    // here could leave another picker's evicted state looking referenceable.
+    for (const key of sentSnapshots.keys()) if (JSON.parse(key)[0] === pickerId) sentSnapshots.set(key, {});
+  }
+  const turns = [];
+  function fairTake() {
+    const candidates = calculatorPool && queue.length ? queue : [...queue, ...warmQueue];
+    const waiting = new Set(candidates.map(entry => entry.pickerId));
+    for (let index = turns.length - 1; index >= 0; index--) if (!waiting.has(turns[index])) turns.splice(index, 1);
+    for (const id of waiting) if (!turns.includes(id)) turns.push(id);
+    const id = turns.shift();
+    if (id === undefined) return;
+    const selected = queue.some(entry => entry.pickerId === id) ? queue : warmQueue;
+    const entry = selected.splice(selected.findIndex(entry => entry.pickerId === id), 1)[0];
+    if ([...queue, ...warmQueue].some(entry => entry.pickerId === id)) turns.push(id);
+    return entry;
+  }
+  function admitFair(pickerId, { interactive = false } = {}) {
+    if (!fairness) return () => {};
+    // Leave room for another picker even in the small advisory queues.
+    const limit = Math.min(fairness.maxOutstandingJobsPerPicker, Math.max(1, Math.floor(maxQueue / 2)));
+    const count = () => [...pending.values()].filter(entry => entry.pickerId === pickerId).length;
+    // Automatic warming never refuses the same picker's own request: queued,
+    // unrequested warm jobs yield, newest first.
+    for (let i = warmQueue.length - 1; interactive && i >= 0 && count() >= limit; i--) {
+      const entry = warmQueue[i];
+      if (entry.pickerId === pickerId && entry.warm && !entry.waiters.size) { warmCounts.cancelled++; cancel(entry, superseded()); }
+    }
+    if (count() >= limit) return;
+    return fairness.admit(pickerId, interactive);
+  }
   const warmCounts = { queued: 0, completed: 0, cancelled: 0, skipped: 0 };
   const counts = { requested: 0, coalesced: 0, cacheHits: 0, completed: 0, errors: 0, expired: 0, cancelled: 0, superseded: 0, rejected: 0, promoted: 0, retired: 0 };
   const timings = {};
@@ -426,7 +582,7 @@ async function createWorkerLane({ workerData, workerFactory = nativeWorker, incl
       aggregate.count++; aggregate.totalMs += value; aggregate.maxMs = Math.max(aggregate.maxMs, value);
     }
   }
-  function storeEvaluation(key, revision, type, value) {
+  function storeEvaluation(key, revision, type, value, pickerId) {
     const bytes = value.sandboxJSON ? value.sandboxJSON.length
       + Buffer.byteLength(JSON.stringify({ evaluationMs: value.evaluationMs, timingMs: value.timingMs, resultCache: value.resultCache }))
       : value.playJSON ? (value.resultJSON?.length ?? 0) + (value.duoJSON?.length ?? 0) + (value.duoSidebarJSON?.length ?? 0) + value.playJSON.length
@@ -434,7 +590,7 @@ async function createWorkerLane({ workerData, workerFactory = nativeWorker, incl
       + Buffer.byteLength(JSON.stringify({ evaluationMs: value.evaluationMs, timingMs: value.timingMs, cancelled: value.cancelled }))
       : Buffer.byteLength(JSON.stringify(value));
     if ((value.playJSON || value.sandboxJSON ? value.cancelled : value.result?.cancelled) || bytes > cacheByteLimit) return false;
-    cache.delete(key); cache.set(key, { value, bytes, revision, type });
+    cache.delete(key); cache.set(key, { value, bytes, revision, type, pickerId });
     while (cache.size > cacheLimit || [...cache.values()].reduce((sum, item) => sum + item.bytes, 0) > cacheByteLimit) cache.delete(cache.keys().next().value);
     return cache.has(key);
   }
@@ -445,6 +601,7 @@ async function createWorkerLane({ workerData, workerFactory = nativeWorker, incl
     terminating.add(operation);
   }
   function settle(entry, error, value) {
+    entry.releaseFair?.();
     if (active !== entry) deadlineClock.clearTimeout(entry.timer);
     if (pending.get(entry.key) === entry) pending.delete(entry.key);
     const position = queue.indexOf(entry);
@@ -476,7 +633,7 @@ async function createWorkerLane({ workerData, workerFactory = nativeWorker, incl
   function cancel(entry, error) {
     if (active === entry && worker && !entry.reuseRevision) {
       if (entry.cancellation) Atomics.store(new Int32Array(entry.cancellation), 0, 1);
-      try { worker.postMessage({ id: entry.id, type: 'cancel' }); } catch { failure('worker-send'); }
+      try { worker.postMessage({ id: entry.id, type: 'cancel', pickerId: entry.pickerId }); } catch { failure('worker-send'); }
     }
     settle(entry, error);
   }
@@ -493,7 +650,12 @@ async function createWorkerLane({ workerData, workerFactory = nativeWorker, incl
     status = 'sleeping'; counts.retired++; sentSnapshots.clear();
     // Idle sleep clears caches; retirement deliberately does not call onSleep.
     // wake() already waits for termination before allocating a replacement.
-    terminate(old); announce(); return true;
+    terminate(old); announce();
+    // Retirement belongs to the obsolete active job. Already admitted work
+    // (including other pickers) must wake on the replacement, with its original
+    // queue position and deadline.
+    if (queue.length || warmQueue.length) wake();
+    return true;
   }
   function failure(kind) {
     if (closed || status === 'restarting' || status === 'restart-required') return;
@@ -518,7 +680,27 @@ async function createWorkerLane({ workerData, workerFactory = nativeWorker, incl
     restartTimer = setTimeout(launch, delay);
   }
   function pump() {
-    if (closed || status !== 'ready' || active) return;
+    if (closed || status !== 'ready') return;
+    if (active) {
+      if (calculatorPool && queue.length) scheduler.yieldForInteractive();
+      return;
+    }
+    if (calculatorPool) {
+      worker.schedule(() => {
+        if (closed || status !== 'ready' || active) return;
+        const candidates = queue.length ? queue : warmQueue;
+        const id = turns.find(id => candidates.some(entry => entry.pickerId === id));
+        const entry = candidates.find(entry => entry.pickerId === id) ?? candidates[0];
+        return entry && { pickerId: entry.pickerId, interactive: !!queue.length };
+      }, () => {
+        // Hints belong to this physical calculator, shared across its lanes.
+        // They contain only bounded metadata, never another retained state body.
+        sentSnapshots = worker.snapshotHints;
+        dispatch(fairness ? fairTake() : queue.shift() ?? warmQueue.shift());
+      }, () => scheduler.yieldForInteractive());
+      return;
+    }
+    if (fairness && (queue.length || warmQueue.length)) { dispatch(fairTake()); return; }
     if (!queue.length && idleClock.now() - lastRequestAt >= idleMs) { sleep(); return; }
     if (!queue.length) {
       if (!warmQueue.length || idleTimer) return;
@@ -565,7 +747,8 @@ async function createWorkerLane({ workerData, workerFactory = nativeWorker, incl
     const snapshotKey = snapshotInput === undefined ? undefined : JSON.stringify([entry.state.revision, snapshotInput]);
     // Area checks read member preferences, which task inputs exclude, so they
     // reference only a state parsed from their own captured revision.
-    const sent = sentSnapshots.get(snapshotInput);
+    const sentKey = pickerKey(entry.pickerId, snapshotInput);
+    const sent = sentSnapshots.get(sentKey);
     const sentKind = entry.type === 'area-check' && sent?.revision !== entry.state.revision ? undefined : sent?.kind;
     const fresh = entry.stateInput ? sentKind !== 'json-shared-v1' : !sentKind;
     const state = entry.stateInput || !fresh ? undefined : entry.state;
@@ -573,14 +756,14 @@ async function createWorkerLane({ workerData, workerFactory = nativeWorker, incl
       stateMemberIds: entry.state.members.map(member => member.id), stateJSONBytes: entry.stateInput.stateJSON.byteLength,
       ...(fresh ? { stateJSON: entry.stateInput.stateJSON } : {}) } : {};
     entry.snapshotKey = snapshotKey;
-    try { worker.postMessage({ id: entry.id, type: entry.type, reportProgress: true, state, snapshotKey, input: entry.input, memberId: entry.memberId, chunkId: entry.chunkId, chunkIds: entry.chunkIds, cancellation: entry.cancellation,
+    try { worker.postMessage({ id: entry.id, pickerId: entry.pickerId, type: entry.type, reportProgress: true, state, snapshotKey, input: entry.input, memberId: entry.memberId, chunkId: entry.chunkId, chunkIds: entry.chunkIds, cancellation: entry.cancellation,
       ...(entry.type === 'predict' ? { predictionProgress: true } : {}),
       ...(entry.type === 'roll-pool' && entry.chunkId !== undefined ? { draft: entry.chunkId } : {}), ...serialized,
       ...(entry.type === 'evaluate' ? { resultTransport: 'json-shared-v1', resultView: entry.resultView,
         ...(duoResults && entry.resultView === 'play-v1' ? { duoProjection: true } : {}),
         ...(entry.duoSidebarProjection ? { duoSidebarProjection: true } : {}) }
         : entry.type === 'sandbox' ? { resultTransport: 'json-shared-v1' } : {}) });
-      if (snapshotKey) { sentSnapshots.delete(snapshotInput); sentSnapshots.set(snapshotInput, fresh ? { kind: entry.stateInput ? 'json-shared-v1' : 'object', revision: entry.state.revision } : sent); while (sentSnapshots.size > STATE_SNAPSHOT_LIMIT) sentSnapshots.delete(sentSnapshots.keys().next().value); }
+      if (snapshotKey) { sentSnapshots.delete(sentKey); sentSnapshots.set(sentKey, fresh ? { kind: entry.stateInput ? 'json-shared-v1' : 'object', revision: entry.state.revision } : sent); while (sentSnapshots.size > STATE_SNAPSHOT_LIMIT) sentSnapshots.delete(sentSnapshots.keys().next().value); }
     }
     catch { failure('worker-send'); }
     // The worker now owns its structured clone; do not retain another snapshot.
@@ -596,7 +779,8 @@ async function createWorkerLane({ workerData, workerFactory = nativeWorker, incl
     sentSnapshots.clear();
     for (const [key, value] of cache) if (value.type === 'prepare-rules') cache.delete(key);
     // Custom factories retain their exact workerData contract. Reapply on every wake/restart.
-    try { worker = workerFactory(workerFactory === nativeWorker ? nativeWorkerInput(workerData, includeReadyCatalogue) : workerData); }
+    try { worker = calculatorPool ? calculatorPool.createEndpoint(includeReadyCatalogue)
+      : workerFactory(workerFactory === nativeWorker ? nativeWorkerInput(workerData, includeReadyCatalogue) : workerData); }
     catch { failure('worker-start'); return; }
     startupTimer = setTimeout(() => failure('startup-deadline'), startupDeadlineMs);
     worker.on('error', () => { if (ownGeneration === generation) failure('worker-error'); });
@@ -648,7 +832,7 @@ async function createWorkerLane({ workerData, workerFactory = nativeWorker, incl
         const value = workerEvaluation(message);
         if (!entry.discarded && (entry.waiters.size || entry.warm)) {
           onEvaluation?.(message, entry);
-          storeEvaluation(entry.key, entry.revision, entry.type, value);
+          storeEvaluation(entry.key, entry.revision, entry.type, value, entry.pickerId);
           settle(entry, null, value);
         }
         if (entry.reuseRevision) {
@@ -661,49 +845,77 @@ async function createWorkerLane({ workerData, workerFactory = nativeWorker, incl
     });
   }
   const scheduler = {
+    yieldForInteractive() {
+      if (closed || status !== 'ready' || !active || !(active.warm || active.discarded)
+        || active.waiters.size || active.reuseWaiters?.size) return false;
+      if (active.warm) { active.warm = false; warmCounts.cancelled++; }
+      return retire();
+    },
+    yieldQueuedWarm(pickerId) {
+      for (const entry of [...warmQueue]) if (entry.pickerId === pickerId && !entry.waiters.size) {
+        warmCounts.cancelled++; cancel(entry, superseded());
+      }
+    },
+    openPicker(pickerId) { closedPickers.delete(pickerId); },
+    cancelPicker(pickerId) {
+      closedPickers.add(pickerId);
+      scheduler.cancelPrewarm({}, pickerId);
+      for (const entry of new Set([...pending.values(), ...(active ? [active] : [])])) {
+        if (entry.pickerId !== pickerId) continue;
+        entry.reuseRevision = undefined;
+        counts.cancelled++; cancel(entry, unavailable('The picker is closing.'));
+      }
+      for (const [key, entry] of cache) if (entry.pickerId === pickerId) cache.delete(key);
+      forgetPickerSnapshots(pickerId);
+      pump();
+    },
     supports: type => supported.has(type),
     subscribe(listener) { listeners.add(listener); return () => listeners.delete(listener); },
     noteInteractiveUse: touch,
-    confirmSavedPrediction(taskInputKey, revision) {
-      if (active?.reuseRevision !== revision || active.preparedReuse?.taskInputKey !== taskInputKey) return false;
+    confirmSavedPrediction(taskInputKey, revision, pickerId) {
+      if (active?.pickerId !== pickerId || active.reuseRevision !== revision || active.preparedReuse?.taskInputKey !== taskInputKey) return false;
       active.confirmedTaskInputKey = taskInputKey; return true;
     },
-    releaseSavedPrediction(revision) {
+    releaseSavedPrediction(revision, pickerId) {
       // A partial response may detach its follower before signature validation.
       // Race completion must also release that unconfirmed producer.
       const entry = active;
-      if (!entry || entry.reuseRevision !== revision || entry.reuseWaiters?.size || entry.waiters.size
+      if (!entry || entry.pickerId !== pickerId || entry.reuseRevision !== revision || entry.reuseWaiters?.size || entry.waiters.size
         || entry.warm || entry.confirmedTaskInputKey) return false;
       entry.reuseRevision = undefined; cancel(entry, superseded()); return true;
     },
-    followSavedPrediction(memberId, revision, signal) {
+    followSavedPrediction(memberId, revision, signal, pickerId) {
       const entry = active;
-      if (!entry || entry.reuseRevision !== revision || closed || signal?.aborted) return;
+      if (!entry || entry.pickerId !== pickerId || entry.reuseRevision !== revision || closed || signal?.aborted) return;
       touch();
       if (entry.preparedReuse?.memberId === memberId) return Promise.resolve(entry.preparedReuse);
+      if (fairness && (entry.reuseWaiters?.size ?? 0) >= fairness.maxWaitersPerJob) return;
       return new Promise((resolve, reject) => {
         const waiter = { resolve, reject, signal, memberId };
         entry.reuseWaiters ??= new Set();
         waiter.abort = () => {
           entry.reuseWaiters.delete(waiter); signal.removeEventListener('abort', waiter.abort);
           reject(Object.assign(new Error('Requester disconnected.'), { name: 'AbortError' }));
-          if (active === entry) scheduler.releaseSavedPrediction(revision);
+          if (active === entry) scheduler.releaseSavedPrediction(revision, pickerId);
           armSleep();
         };
         entry.reuseWaiters.add(waiter); signal?.addEventListener('abort', waiter.abort, { once: true });
       });
     },
     // Internal cross-lane access preserves ordinary cache hit accounting and LRU.
-    invalidatePrediction(key) {
+    invalidatePrediction(key, pickerId) {
+      key = pickerKey(pickerId, key);
       if (cache.get(key)?.type !== 'predict') return false;
       return cache.delete(key);
     },
-    peekPrediction(key) {
+    peekPrediction(key, pickerId) {
+      key = pickerKey(pickerId, key);
       if (closed) return;
       const entry = cache.get(key);
       return entry?.type === 'predict' ? entry.value.result : undefined;
     },
-    cachedEvaluation(key, resultView) {
+    cachedEvaluation(key, resultView, pickerId) {
+      key = pickerKey(pickerId, key);
       if (closed || status === 'restart-required') return;
       const exact = JSON.stringify([resultView, key]), full = JSON.stringify(['full', key]);
       const cacheKey = cache.has(exact) ? exact : resultView === 'play-v1' && cache.has(full) && cache.get(full).value.playJSON ? full : undefined;
@@ -713,25 +925,27 @@ async function createWorkerLane({ workerData, workerFactory = nativeWorker, incl
       const entry = cache.get(cacheKey); cache.delete(cacheKey); cache.set(cacheKey, entry);
       return evaluationWith(cacheKey === exact ? entry.value : cachedPlayValue(entry.value), { hit: true });
     },
-    admitPlayEvaluation(key, revision, value) {
+    admitPlayEvaluation(key, revision, value, pickerId) {
       if (closed || status === 'restart-required' || status === 'sleeping' || value.cancelled || !Buffer.isBuffer(value.playJSON)) return false;
       touch();
-      const stored = storeEvaluation(JSON.stringify(['play-v1', key]), revision, 'evaluate', cachedPlayValue(value));
+      const stored = storeEvaluation(JSON.stringify(['play-v1', pickerKey(pickerId, key)]), revision, 'evaluate', cachedPlayValue(value), pickerId);
       if (stored) counts.promoted++;
       return stored;
     },
-    evaluate(state, memberId, type, chunkId, key, input, signal, chunkIds = [], resultView = 'full', stateInput, duoSidebarProjection = false) {
+    evaluate(state, memberId, type, chunkId, key, input, signal, chunkIds = [], resultView = 'full', stateInput, duoSidebarProjection = false, pickerId = 'legacy-shared') {
       counts.requested++;
       if (stateInput && !validStateInput(state, input, stateInput, type)) return Promise.reject(new TypeError('Invalid serialized task state input.'));
+      const originalKey = key;
+      key = pickerKey(pickerId, key);
       if (type === 'evaluate') {
         if (!['full', 'play-v1'].includes(resultView)) return Promise.reject(new TypeError('Unknown task result view.'));
         key = JSON.stringify([resultView, key]);
       }
-      if (closed || status === 'restart-required') return Promise.reject(unavailable(closed ? 'The task server is closing.' : 'Task engine needs a server restart. Saves remain available.'));
+      if (closed || closedPickers.has(pickerId) || status === 'restart-required') return Promise.reject(unavailable(closed ? 'The task server is closing.' : 'Task engine needs a server restart. Saves remain available.'));
       if (signal?.aborted) return Promise.reject(Object.assign(new Error('Requester disconnected.'), { name: 'AbortError' }));
       touch();
-      if (type !== 'roll-pool') scheduler.supersede(state.revision, input, memberId);
-      if (strictRevision && state.revision < latestRevision) return Promise.reject(superseded());
+      if (type !== 'roll-pool') scheduler.supersede(state.revision, input, memberId, pickerId);
+      if (strictRevision && state.revision < revisionFor(pickerId)) return Promise.reject(superseded());
       if (cache.has(key)) {
         counts.cacheHits++;
         const value = cache.get(key); cache.delete(key); cache.set(key, value);
@@ -739,6 +953,7 @@ async function createWorkerLane({ workerData, workerFactory = nativeWorker, incl
       }
       let entry = pending.get(key), hit = !!entry;
       if (entry) {
+        if (fairness && entry.waiters.size >= fairness.maxWaitersPerJob) { counts.rejected++; return Promise.reject(queueFull()); }
         counts.coalesced++; entry.revision = Math.max(entry.revision, state.revision);
         if (entry.purpose === 'ranking') {
           entry.purpose = undefined;
@@ -749,18 +964,21 @@ async function createWorkerLane({ workerData, workerFactory = nativeWorker, incl
         entry.duoSidebarProjection ||= duoSidebarProjection;
         const position = warmQueue.indexOf(entry);
         if (position >= 0) {
-          if (queue.length >= maxQueue) { counts.rejected++; return Promise.reject(Object.assign(new Error('Task calculation queue is full. Retry shortly.'), { status: 429 })); }
+          if (queue.length >= maxQueue) { counts.rejected++; return Promise.reject(fairness ? queueFull() : Object.assign(new Error('Task calculation queue is full. Retry shortly.'), { status: 429 })); }
           warmQueue.splice(position, 1); queue.unshift(entry); deadline(entry);
         }
       }
       else {
-        if (queue.length >= maxQueue && (active || status !== 'ready')) {
+        // A ready pooled lane can still be queued behind another lane's lease.
+        if (queue.length >= maxQueue && (calculatorPool || active || status !== 'ready')) {
           counts.rejected++;
-          return Promise.reject(Object.assign(new Error('Task calculation queue is full. Retry shortly.'), { status: 429 }));
+          return Promise.reject(fairness ? queueFull() : Object.assign(new Error('Task calculation queue is full. Retry shortly.'), { status: 429 }));
         }
-        entry = { key, input, state, stateInput, memberId, type, chunkId, chunkIds, resultView, duoSidebarProjection, revision: state.revision, queuedAt: idleClock.now(), waiters: new Set() };
+        const releaseFair = admitFair(pickerId, { interactive: true });
+        if (!releaseFair) { counts.rejected++; return Promise.reject(queueFull()); }
+        entry = { releaseFair, key, originalKey, pickerId, input, state, stateInput, memberId, type, chunkId, chunkIds, resultView, duoSidebarProjection, revision: state.revision, queuedAt: idleClock.now(), waiters: new Set() };
         pending.set(key, entry);
-        if (type === 'predict' || type === 'evaluate' && resultView === 'play-v1') queue.unshift(entry); else queue.push(entry);
+        if (!fairness && (type === 'predict' || type === 'evaluate' && resultView === 'play-v1')) queue.unshift(entry); else queue.push(entry);
         deadline(entry);
       }
       const promise = new Promise((resolve, reject) => {
@@ -776,34 +994,38 @@ async function createWorkerLane({ workerData, workerFactory = nativeWorker, incl
       });
       wake(); pump(); return promise;
     },
-    supersede(revision, input, memberId) {
-      if (strictRevision && revision > latestRevision) {
-        latestRevision = revision;
-        if (active?.reuseRevision) {
+    supersede(revision, input, memberId, pickerId = 'legacy-shared') {
+      if (strictRevision && revision > revisionFor(pickerId)) {
+        const previousRevision = revisionFor(pickerId);
+        latestRevisions.set(pickerId, revision);
+        if (active?.pickerId === pickerId && active.reuseRevision) {
           // A saved follower can outlive the obsolete Preview's pending entry.
           // A second save must cancel that detached producer as well.
           active.reuseRevision = undefined; counts.superseded++; cancel(active, superseded());
         }
-        if (retainActivePrediction && active?.type === 'predict' && active.revision === revision - 1 && !active.discarded) {
+        if (retainActivePrediction && active?.pickerId === pickerId && active.type === 'predict' && active.revision === revision - 1 && !active.discarded) {
           active.reuseRevision = revision;
           // Settle obsolete Preview waiters below, while allowing the already
           // running synchronous calculation to publish only to saved followers.
           if (active.warm) { active.warm = false; warmCounts.cancelled++; }
         }
-        scheduler.cancelPrewarm({ keepActive: true });
-        for (const [key, value] of cache) if (value.revision < revision) cache.delete(key);
-        sentSnapshots.clear();
-        try { worker?.postMessage({ type: 'supersede', revision }); } catch { failure('worker-send'); }
+        scheduler.cancelPrewarm({ keepActive: true }, pickerId);
+        for (const [key, value] of cache) if (value.pickerId === pickerId && value.revision < revision) cache.delete(key);
+        // A newly created logical lane has no older state to supersede.
+        // Another lane may already have valid hints on the same calculator.
+        if (!calculatorPool || previousRevision >= 0) forgetPickerSnapshots(pickerId);
+        try { worker?.postMessage({ type: 'supersede', revision, pickerId }); } catch { failure('worker-send'); }
       }
       for (const entry of [...pending.values()]) {
-        if (entry.revision >= revision || (memberId && entry.memberId !== memberId) || (entry.type === 'evaluate' && entry.input === input)) continue;
+        if (entry.pickerId !== pickerId || entry.revision >= revision || (memberId && entry.memberId !== memberId) || (entry.type === 'evaluate' && entry.input === input)) continue;
         counts.superseded++;
         cancel(entry, Object.assign(new Error('Calculation superseded by a newer save. Request the current tasks.'), { status: 409 }));
       }
     },
-    supersedeDisplay(revision) {
-      latestRevision = Math.max(latestRevision, revision);
+    supersedeDisplay(revision, pickerId) {
+      latestRevisions.set(pickerId, Math.max(revisionFor(pickerId), revision));
       for (const entry of new Set([...pending.values(), ...(active ? [active] : [])])) {
+        if (entry.pickerId !== pickerId) continue;
         if (entry.reuseRevision) {
           entry.reuseRevision = Math.max(entry.reuseRevision, revision);
         } else {
@@ -811,19 +1033,21 @@ async function createWorkerLane({ workerData, workerFactory = nativeWorker, incl
           if (entry.preparedReuse) entry.preparedReuse = { ...entry.preparedReuse, sourceRevision: entry.revision };
         }
       }
-      for (const value of cache.values()) value.revision = Math.max(value.revision, revision);
+      for (const value of cache.values()) if (value.pickerId === pickerId) value.revision = Math.max(value.revision, revision);
     },
-    retireObsolete(revision) {
+    retireObsolete(revision, pickerId) {
       if (closed || status === 'restart-required') return false;
-      const cold = ['starting', 'waking', 'restarting'].includes(status);
+      if (active && active.pickerId !== pickerId) return false;
+      const cold = ['starting', 'waking', 'restarting'].includes(status)
+        && [...pending.values()].every(entry => entry.pickerId === pickerId);
       const obsolete = active && active.revision < revision;
-      const usefulPrediction = status === 'ready' && retainActivePrediction && active?.type === 'predict'
+      const usefulPrediction = status === 'ready' && retainActivePrediction && active?.pickerId === pickerId && active.type === 'predict'
         && active.reuseRevision === revision;
       if (!cold && (!obsolete || usefulPrediction)) return false;
       // A synchronous obsolete side calculation cannot read its cancel flag
       // until it finishes. Retire its worker at the actual save boundary, while
       // keeping reusable projections and valid cached responses independent.
-      for (const entry of [...pending.values()]) if (entry.revision < revision) {
+      for (const entry of [...pending.values()]) if (entry.pickerId === pickerId && entry.revision < revision) {
         counts.superseded++; cancel(entry, superseded());
       }
       return retire();
@@ -833,9 +1057,9 @@ async function createWorkerLane({ workerData, workerFactory = nativeWorker, incl
     // as a gameplay save would; requested work and an idle worker stay. A
     // cancelled warm-up no longer counts as warm but runs on: a process
     // worker reads its cancel message only after the synchronous work.
-    retireWarm() {
-      if (closed || status !== 'ready' || !active || active.waiters.size || active.reuseWaiters?.size) return false;
-      for (const entry of [...pending.values()]) if (entry.warm && !entry.waiters.size) {
+    retireWarm(pickerId) {
+      if (closed || status !== 'ready' || !active || active.pickerId !== pickerId || active.waiters.size || active.reuseWaiters?.size) return false;
+      for (const entry of [...pending.values()]) if (entry.pickerId === pickerId && entry.warm && !entry.waiters.size) {
         entry.warm = false; warmCounts.cancelled++; cancel(entry, unavailable('Background prediction cancelled.'));
       }
       return retire();
@@ -843,28 +1067,31 @@ async function createWorkerLane({ workerData, workerFactory = nativeWorker, incl
     canPrewarm() {
       return !closed && ['starting', 'ready'].includes(status) && idleClock.now() - lastRequestAt < idleMs;
     },
-    prewarmTasks(state, input, memberIds, resultView, stateInput) {
-      if (!scheduler.canPrewarm() || state.revision < latestRevision) return { queued: 0 };
+    prewarmTasks(state, input, memberIds, resultView, stateInput, pickerId) {
+      if (closedPickers.has(pickerId) || !scheduler.canPrewarm() || state.revision < revisionFor(pickerId)) return { queued: 0 };
       let queued = 0, snapshot;
       for (const memberId of new Set(memberIds)) {
-        const key = JSON.stringify([resultView, JSON.stringify([input, memberId, 'evaluate', undefined, undefined])]);
+        const originalKey = JSON.stringify([input, memberId, 'evaluate', undefined, undefined]);
+        const key = JSON.stringify([resultView, pickerKey(pickerId, originalKey)]);
         if (cache.has(key) || pending.has(key) || warmQueue.length >= maxPrewarmQueue) { warmCounts.skipped++; continue; }
         // A captured serialized snapshot is already immutable. Object callers
         // share one defensive clone across this bounded batch.
+        const releaseFair = admitFair(pickerId);
+        if (!releaseFair) { warmCounts.skipped++; continue; }
         snapshot ??= stateInput ? state : structuredClone(state);
-        const entry = { key, input, state: snapshot, stateInput, memberId, type: 'evaluate', resultView,
+        const entry = { releaseFair, key, originalKey, pickerId, input, state: snapshot, stateInput, memberId, type: 'evaluate', resultView,
           revision: state.revision, queuedAt: idleClock.now(), waiters: new Set(), warm: true };
         pending.set(key, entry); warmQueue.push(entry); queued++; warmCounts.queued++;
       }
       pump(); return { queued };
     },
-    prewarm(state, input, groups, signal, predictionRevision = state.revision) {
-      if (closed || signal?.aborted || status === 'restart-required' || state.revision < latestRevision
+    prewarm(state, input, groups, signal, predictionRevision = state.revision, pickerId = 'legacy-shared') {
+      if (closed || closedPickers.has(pickerId) || signal?.aborted || status === 'restart-required' || state.revision < revisionFor(pickerId)
         || idleClock.now() - lastRequestAt >= idleMs) return { queued: 0 };
-      scheduler.supersede(state.revision, input);
+      scheduler.supersede(state.revision, input, undefined, pickerId);
       const desired = new Map(), fingerprint = predictionInput(state, input);
       for (const group of groups) for (const chunkId of group.chunkIds) {
-        const key = JSON.stringify([predictionRevision, group.memberId, String(chunkId), fingerprint]);
+        const key = pickerKey(pickerId, JSON.stringify([predictionRevision, group.memberId, String(chunkId), fingerprint]));
         if (desired.has(key)) continue;
         // Finished reviewed choices do not consume queue slots ahead of missing
         // pool candidates when a visible comparison refills the bounded batch.
@@ -872,8 +1099,9 @@ async function createWorkerLane({ workerData, workerFactory = nativeWorker, incl
         if (desired.size < maxPrewarmQueue) desired.set(key, { memberId: group.memberId, chunkId: String(chunkId), purpose: group.purpose });
         else warmCounts.skipped++;
       }
-      prewarmSignal?.removeEventListener('abort', prewarmAbort);
-      for (const entry of [...pending.values()]) if (entry.warm && entry.type === 'predict' && !desired.has(entry.key)) {
+      const previous = prewarmSubscriptions.get(pickerId);
+      previous?.signal?.removeEventListener('abort', previous.abort);
+      for (const entry of [...pending.values()]) if (entry.pickerId === pickerId && entry.warm && entry.type === 'predict' && !desired.has(entry.key)) {
         entry.warm = false; warmCounts.cancelled++;
         if (!entry.waiters.size) cancel(entry, unavailable('Background prediction cancelled.'));
       }
@@ -882,26 +1110,35 @@ async function createWorkerLane({ workerData, workerFactory = nativeWorker, incl
         const existing = pending.get(key);
         if (existing?.purpose === 'ranking' && purpose !== 'ranking') existing.purpose = purpose;
         if (cache.has(key) || pending.has(key) || warmQueue.length >= maxPrewarmQueue) { warmCounts.skipped++; continue; }
+        const releaseFair = admitFair(pickerId);
+        if (!releaseFair) { warmCounts.skipped++; continue; }
         snapshot ??= structuredClone(state);
-        const entry = { key, input, state: snapshot, memberId, type: 'predict', chunkId, revision: state.revision,
+        const entry = { releaseFair, key, originalKey: JSON.parse(key)[1], pickerId, input, state: snapshot, memberId, type: 'predict', chunkId, revision: state.revision,
           queuedAt: idleClock.now(), waiters: new Set(), warm: true, purpose };
         pending.set(key, entry); warmQueue.push(entry); queued++; warmCounts.queued++;
       }
-      prewarmSignal = signal; prewarmAbort = () => scheduler.cancelPrewarm();
-      signal?.addEventListener('abort', prewarmAbort, { once: true });
+      const abort = () => scheduler.cancelPrewarm({}, pickerId);
+      prewarmSubscriptions.set(pickerId, { signal, abort });
+      signal?.addEventListener('abort', abort, { once: true });
       if (queued) wake();
       pump(); return { queued };
     },
-    cancelPrewarm({ keepActive = false, keepActiveKey } = {}) {
-      prewarmSignal?.removeEventListener('abort', prewarmAbort); prewarmSignal = undefined; prewarmAbort = undefined;
-      for (const entry of [...pending.values()]) if (entry.warm) {
-        if (active === entry && (keepActive || keepActiveKey === entry.key)) continue;
+    cancelPrewarm({ keepActive = false, keepActiveKey } = {}, pickerId) {
+      const previous = prewarmSubscriptions.get(pickerId);
+      previous?.signal?.removeEventListener('abort', previous.abort);
+      prewarmSubscriptions.delete(pickerId);
+      if (pickerId === undefined) {
+        for (const subscription of prewarmSubscriptions.values()) subscription.signal?.removeEventListener('abort', subscription.abort);
+        prewarmSubscriptions.clear();
+      }
+      for (const entry of [...pending.values()]) if (entry.warm && (pickerId === undefined || entry.pickerId === pickerId)) {
+        if (active === entry && (keepActive || pickerKey(entry.pickerId, keepActiveKey) === entry.key)) continue;
         entry.warm = false; warmCounts.cancelled++;
         if (!entry.waiters.size) cancel(entry, unavailable('Background prediction cancelled.'));
       }
     },
-    cancelRankingPrewarm(keepMemberIds = new Set()) {
-      for (const entry of [...pending.values()]) if (entry.warm && entry.purpose === 'ranking' && !keepMemberIds.has(entry.memberId)) {
+    cancelRankingPrewarm(keepMemberIds = new Set(), pickerId) {
+      for (const entry of [...pending.values()]) if (entry.pickerId === pickerId && entry.warm && entry.purpose === 'ranking' && !keepMemberIds.has(entry.memberId)) {
         entry.warm = false; warmCounts.cancelled++;
         if (!entry.waiters.size) cancel(entry, unavailable('Pool ranking cancelled.'));
       }

@@ -135,6 +135,7 @@ export async function openAccountStore({ dataDir, now = Date.now } = {}) {
         return account;
       });
     },
+    revokeDeletion(id) { return mutate(next => { next.accounts = next.accounts.filter(account => account.id !== id); }); },
     delete(id) { return mutate(next => { requireAccount(next, id); next.accounts = next.accounts.filter(account => account.id !== id); return { id }; }); },
     async close() { closed = true; await queue; },
   };

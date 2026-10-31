@@ -617,7 +617,7 @@ export function createInfoPanels(context) {
   function skillDetail(skill, result, back) {
     const node = el('div', undefined, 'skill-detail'), observed = snapshots.get(result)?.observedSkills?.[skill.skill];
     const header = el('div', undefined, 'skill-detail-head'), titles = el('div');
-    titles.append(el('h3', skill.skill), paragraph(observed ? `Level ${observed.level} · ${Number(observed.xp).toLocaleString()} XP (${observed.source === 'game-plugin' ? 'Game plugin' : observed.source === 'official-api' ? 'RuneScape API' : 'RuneMetrics'})` : context.canWrite?.() === false ? 'Account level has not been synced yet.' : 'Level not synced yet: enter it below or sync progress.', 'status-detail'));
+    titles.append(el('h3', skill.skill), paragraph(observed ? `Level ${observed.level} · ${Number(observed.xp).toLocaleString()} XP (${observed.source === 'game-plugin' ? 'Game plugin' : observed.source === 'hiscores' ? 'RS3 hiscores' : observed.source === 'official-api' ? 'RuneScape API' : 'RuneMetrics'})` : context.canWrite?.() === false ? 'Account level has not been synced yet.' : 'Level not synced yet: enter it below or sync progress.', 'status-detail'));
     header.append(button('← All skills', back, 'back-button'), skillBadge(skill.skill, 'large'), titles);
     const stats = el('div', undefined, 'skill-stats');
     for (const [value, label] of [[skill.reachableLevel, 'reachable ceiling'], [skill.availableTasks.length, 'methods you can use'], [skill.selectedGoals?.length ?? 0, 'active goals']]) { const stat = el('div', undefined, 'skill-stat'); stat.append(el('strong', String(value)), el('span', label)); stats.append(stat); }

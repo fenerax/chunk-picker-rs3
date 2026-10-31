@@ -19,7 +19,7 @@ not back up a source repository that is absent from the VPS.
 
 ## Local installation layout
 
-Use Node 24.20.0 or a newer reviewed 24.x version, systemd and procps. Pin the
+Use Node 24.20.0 or a newer reviewed 24.x version, systemd, procps and util-linux (`flock`). Pin the
 exact Node binary/version in the machine's deployment record. The examples use
 `/usr/bin/node`; adjust every unit together if Node lives elsewhere.
 
@@ -123,14 +123,29 @@ ownership, start the same service, and wait for private readiness. Credentials
 are read from the store, sent only in an authorization header, and never put
 in command arguments or diagnostics. Redirects are refused.
 
-Health, backups, restores and deploys share `control/operation.lock`. A busy
-health tick skips. Other concurrent commands refuse. `maintenance.json`
-survives failed transactions; health will refuse while it remains. An
-interrupted operation lock also remains. Before clearing either file, stop the
-timers, inspect the service/cgroup, ownership files, selected pointer and
-`activation.json`, and reconcile the operation. Do not run manual service
-starts during an operator transaction. There is no automatic lock stealing or
-crash-journal replay.
+Health, backups, restores, deploys and VPS additions reviews share
+`control/operation.lock`. Each new Linux lock records the PID, process start
+identity and boot ID. Only an owner proven gone (missing process, reused PID or
+previous boot) permits automatic recovery: the lock is retained as
+`stale-operation.lock.<timestamp>-pid<n>` before continuing. A live owner, an
+unreadable record or a legacy record without process identity stays busy.
+A recent busy health tick exits quietly. After 30 minutes, measured from the
+lock's modification time, health exits non-zero with the static line
+"Operator lock held for over 30 minutes; inspect privately." Other concurrent
+commands refuse with a static lock-busy reason.
+
+`maintenance.json` survives failed transactions; health refuses while it remains.
+Recovering a dead owner's lock does not clear maintenance or activation evidence.
+Before clearing evidence, stop the timers, inspect the service/cgroup, ownership
+files, selected pointer and `activation.json`, and reconcile the operation.
+The persistent `operation.lock.recovery` file serializes stale-lock moves and
+new lock creation with Linux `flock`, so recovery can never move a lock that
+replaced the one it checked. The kernel releases that guard on process death.
+Do not unlink that coordination file while commands may be running. If `flock`
+is unavailable, acquisition and recovery refuse conservatively and the lock
+stays busy. Do not run
+manual service starts during an operator transaction. There is no crash-journal
+replay.
 
 The root `ExecStartPre` check also blocks boot/manual starts while transaction
 evidence remains. An active operator can authorize one start with a short-lived
@@ -382,15 +397,45 @@ node scripts/release/vps/release.mjs stage --out <private-output-dir> --host <ss
 ```
 
 Stage uploads and verifies only; it never starts/stops a service or changes the
-selected pointer. Review it before explicitly activating:
+selected pointer. PC Quick Release continues deriving additions from the PC save
+for PC deployments. Those additions are not accepted for the VPS: its save may
+already contain them. Install the reviewed operator tools, then derive the VPS
+list from a copy of the newest verified recovery backup:
+
+```powershell
+node scripts/release/vps/release.mjs derive --host <ssh-alias> --upload /var/tmp/picker-upload-<release> --target /opt/chunk-picker/releases/<release> --operator-config /etc/chunk-picker/operator.json --tools-root /opt/chunk-picker/tools --node /opt/node/bin/node
+```
+
+This runs on the VPS under the operator lock. It verifies backup manifests,
+ignores incomplete/corrupt recoveries, and refuses if no verified backup exists.
+Only disposable copies are opened, through `checkStoppedCompatibility`'s four
+current/candidate/current/candidate probes, with the candidate binding when its
+pack changes. The live store and recovery backup are never opened by a probe.
+The command prints the proposed list and its SHA-256 digest privately; keep
+that output out of public logs. Review the entire list, including an empty list,
+then repeat the same `derive` command with `--accept-additions <reviewed-digest>`.
+Acceptance re-derives from the newest verified backup and requires the exact
+digest. It binds the accepted list to the staged receipt. Nothing is accepted
+by staging or by deriving without that flag.
+
+Before activation, rehearse every release with a new data pack on a disposable
+backup copy rebound to the candidate's pack. Keep the immutable backup unchanged;
+its old binding must not be used to claim a successful candidate-pack rehearsal.
+Follow the isolated staging/service checks below as well.
+
+After review and rehearsal, explicitly activate:
 
 ```powershell
 node scripts/release/vps/release.mjs activate --go-live --host <ssh-alias> --upload /var/tmp/picker-upload-<release> --target /opt/chunk-picker/releases/<release> --operator-config /etc/chunk-picker/operator.json --tools-root /opt/chunk-picker/tools --node /opt/node/bin/node
 ```
 
-`stage --go-live` also explicitly permits activation in one invocation. The
-separate `activate` command is preferable for review. There is no default host,
-credential or production destination. Uploads and failed candidate directories
+Activation re-derives the list on a fresh online snapshot and refuses any
+difference from the accepted list before stopping. If the final stopped store
+changed, all four probes run again against it before pointer/binding writes.
+An unreviewed staged receipt refuses activation, including `stage --go-live`;
+legacy receipts must be restaged to fresh paths and reviewed with the new tools.
+Use the separate stage, derive, accept and activate steps. There is no default
+host, credential or production destination. Uploads and failed candidate directories
 are deliberately retained for review; do not overwrite/reuse their paths.
 Quick Release's PC `-GoLive` now refuses an existing `picker-paused` marker before
 candidate load or stop. Keep the paused rollback copy untouched; do not remove
@@ -399,7 +444,7 @@ that marker to ship a VPS release.
 ### Reviewed install and rehearsal order
 
 These are future operator commands, not actions performed by this change.
-Stage the release first. Use a disposable staging VPS with its own installed service/config, an immutable complete recovery copy and ports 8900–8999.
+Stage the release first. Use a disposable staging VPS with its own installed service/config, an immutable complete recovery copy and ports 8900â€“8999.
 Never use production store paths for the staging rehearsal. Install the reviewed
 operator tools before using the new commands; preserve old tools for rollback.
 The selected writer code comes from the candidate release, not the tools tree.
@@ -426,7 +471,7 @@ The selected writer code comes from the candidate release, not the tools tree.
 
 The rehearsal helper accepts an immutable copied store and pointer and never
 uses systemctl. Its fake controller closes and opens exactly one scratch writer;
-ports must be free in 8900–8999. It measures online backup and same-release
+ports must be free in 8900â€“8999. It measures online backup and same-release
 prechecked deployment with real probes, then removes scratch in finally:
 
 ```sh
@@ -436,3 +481,66 @@ prechecked deployment with real probes, then removes scratch in finally:
 The helper does not prove systemd/Caddy timing or a real version transition.
 Repeat the full operator commands on staging under its isolated systemd owner
 before production approval. Neither command starts the paused PC picker.
+
+## Optional multi-picker service operations (MP8)
+
+The default single-duo configuration and backup format are unchanged. To operate
+MP4's opt-in service, put identical `multiPicker` roots in the pinned release
+configuration and `RS3_OPERATOR_CONFIG`: `registryDir`, `pickerRoot` and
+`tombstoneDir`. Keep those roots, legacy data, snapshot spool, control, scratch
+and backups disjoint. Release configuration passes the option to the live server;
+individual recovery probes always open one disposable store without it.
+
+With that option:
+
+- `health` reads registry and resident/dormant counts without opening dormant games.
+- `backup` makes a private, consistent service checkpoint online; it never falls
+  back to stopping. `backup --stopped` explicitly uses stopped ownership checks.
+- `list` and `inspect PICKER_ID` print picker IDs, status, counts and byte sizes.
+- `restore BACKUP` records progress and resumes the same backup/release/targets.
+  It preflights legacy in scratch before changing live targets; incompatible
+  legacy refuses the whole restore with a clear error and nonzero exit. Owned
+  failures are quarantined while unrelated restores continue. Keep the external live tombstone ledger.
+- `quarantine-release PICKER_ID` explicitly checks and reinstalls a quarantined
+  picker while stopped; it cannot silently initialize a replacement game.
+- `deploy POINTER [VERIFIED_RECEIPT]` checks every initialized picker sequentially
+  while stopped. Changed dataset/pack/profile/add-on pins require the service
+  recovery workflow and are refused by in-place deployment.
+
+Service restore and quarantine release reconcile MP5 tombstones against the
+**existing target ledger** before opening restored stores. Missing or invalid
+ledgers refuse recovery; never replace that ledger with backup data. Legacy is
+preflighted before live purge or credential cleanup. Tombstoned owned pickers
+remain excluded, including on resume, and cannot be released from quarantine.
+Existing issuer sessions, claimed invitations and retired account rows are
+revoked through MP5's cleanup; no service-backup credentials are imported.
+
+The single-source rehearsal still refuses service configuration: it copies only
+one store and binding. A service rehearsal needs independent copies and repinned
+paths for every service root, including the external ledger. Removing that guard
+would risk opening or purging live source roots.
+
+The service format excludes sign-in identities, sessions, invitations, tokens,
+plugin keys and capabilities. It preserves pseudonymous account membership rows,
+gameplay, bindings and complete selected pack payloads. Re-establish sign-in
+through private administration after recovery. The existing single-duo raw format
+still includes credentials; keep those recoveries private. No new off-host
+transfer is implemented.
+
+Service capture briefly queues global admission for the registry/account and
+roster checkpoint, then copies one picker at a time under its own barrier. New
+pickers are left out; deleted pickers are recorded absent. Review
+`globalBarrierMs`, request-wait max/total and `pickerBarriers[].heldMs` along with
+disk capacity before scheduling large backups. Interrupted operations retain
+maintenance/progress evidence. A provably dead local recovery operator can resume
+under the kernel guard; live or unverifiable ownership is refused. Partial restore
+blocks service startup. Legacy is never quarantined; incompatible legacy is
+refused before changing live data. The full format, file boundaries,
+recovery journal and MP5 call site are documented in
+[multi-picker-contract.md](multi-picker-contract.md#mp8-operator-tooling).
+
+Service backups refuse active quarantined pickers. Their live initialization
+fence and private quarantine payload remain intact; release with compatible
+inputs or explicitly delete the owned picker before retrying backup. The
+unprivileged server never reads the root-only control directory; the privileged
+ExecStartPre gate checks incomplete restore state.

@@ -111,34 +111,53 @@ export function createScreenDialogs(c) {
 
   function backupDialog() {
     if (!c.state) { c.notice('The picker is still loading. Try again in a moment.'); return; }
-    let previewRequest = 0, retainedRequest = 0, reading = false;
+    let previewRequest = 0, retainedRequest = 0, reading = false, submitting = false, previewController;
     const statusLine = c.backupStatus?.line();
     void c.backupStatus?.refresh();
     const generic = c.dataset?.capabilities?.independent === true;
     const legacyImport = c.supportsFeature?.('originalSync') !== false;
-    const content = c.el('div', undefined, 'form-stack'); content.append(c.el('p', generic ? 'Full backups include maps, tasks, progress, rules, notes and history. Every replacement retains the previous state on the server.' : 'Full backups include both maps, progress, rules, notes, teleport confirmations, original imported records and history. Every replacement retains the previous state on the server.', 'section-intro'), c.button('Download full backup', async () => downloadFullBackup(`${generic ? 'grid-challenge' : 'rs3-duo'}-${new Date().toISOString().slice(0, 10)}.json.gz`)));
+    const content = c.el('div', undefined, 'form-stack'); content.append(c.el('p', generic ? 'Full backups include maps, tasks, progress, rules, notes and history. Every replacement retains the previous state on the server.' : 'Full backups include both maps, progress, rules, notes, teleport confirmations, original imported records and history. Every replacement retains the previous state on the server.', 'section-intro'), c.button('Download full backup', async () => downloadFullBackup(`${generic ? 'grid-challenge' : 'rs3-duo'}-${new Date().toISOString().slice(0, 10)}.json.gz`, c.panelContext?.pickerSession ? c.panelContext?.pickerSession.fetch : fetch)));
     if (statusLine) content.prepend(statusLine);
     const file = c.input('file'); file.accept = '.json,.json.gz,application/json,application/gzip'; const preview = c.el('div');
-    const invalidatePreview = () => { previewRequest++; preview.replaceChildren(); };
+    const progress = c.el('p', '', 'status-detail'); progress.setAttribute('role', 'status'); progress.setAttribute('aria-live', 'polite');
+    const cancel = c.button('Cancel preview', () => { invalidatePreview(); progress.textContent = 'Preview cancelled.'; previewButton.focus?.(); }); cancel.hidden = true;
+    const invalidatePreview = () => { previewRequest++; previewController?.abort(); previewController = undefined; reading = false; previewButton.disabled = false; cancel.hidden = true; progress.textContent = ''; preview.replaceChildren(); };
     // Admins replace both maps or one player's; an invite that owns a player restores only that map.
     const scopes = c.sessionAdmin ? [{ value: '', label: 'Both maps (whole save)' }, ...c.state.members.map(member => ({ value: member.id, label: `Only ${member.name}’s map` }))] : [];
     const scope = scopes.length ? c.select(scopes, '') : null;
     scope?.addEventListener('change', invalidatePreview);
     file.addEventListener('change', invalidatePreview);
-    const scopedMember = () => c.sessionAdmin ? scope.value || null : c.sessionMember;
+    // A picker owner restores the whole save, like an admin choosing Both maps.
+    const owner = c.panelContext?.account?.isOwner?.() === true;
+    const scopedMember = () => owner ? null : c.sessionAdmin ? scope.value || null : c.sessionMember;
     const read = async (document, generation = c.dialogGeneration, request = ++previewRequest, backupId) => {
-      if (reading) return;
-      reading = true; previewButton.disabled = true;
+      if (reading || submitting) return;
+      reading = true; previewButton.disabled = true; preview.replaceChildren(); cancel.hidden = false;
+      const controller = new AbortController(); previewController = controller;
+      const stage = text => { if (previewController === controller && c.dialogCurrent(generation) && request === previewRequest) progress.textContent = text; };
+      stage(backupId !== undefined ? 'Checking replacement…' : 'Preparing backup…');
       try {
       if (!c.dialogCurrent(generation) || request !== previewRequest) return; const memberScope = scopedMember();
       const path = memberScope ? '/api/member-restore' : '/api/restore';
       const payload = backupId !== undefined ? { backupId, ...(memberScope ? { memberId: memberScope } : {}) }
-        : createBackupUpload(file.files[0], { members: c.owners, ...(memberScope ? { memberId: memberScope } : {}) });
-      const value = await c.api(`${path}/preview`, payload); if (!c.dialogCurrent(generation) || request !== previewRequest) return; const expectedRevision = (value.preview ?? value).currentRevision;
-      preview.replaceChildren(c.el('h3', 'Review replacement'), c.el('p', memberScope ? `Applying this replaces ${c.state.members.find(member => member.id === memberScope)?.name ?? 'this player'}’s map only. Undo can reverse it.` : 'Applying this replaces the saved group with the previewed state. Download a full backup above to keep a portable copy.', 'warning'), c.replacementSummary(value.preview ?? value, value.state ?? document?.state));
+        : createBackupUpload(file.files[0], { members: c.owners, ...(memberScope ? { memberId: memberScope } : {}) }, { onStage: stage });
+      const value = await c.api(`${path}/preview`, payload, controller.signal); if (!c.dialogCurrent(generation) || request !== previewRequest) return; const expectedRevision = (value.preview ?? value).currentRevision;
+      preview.replaceChildren(c.el('h3', 'Review replacement'), c.el('p', memberScope ? `Applying this replaces ${c.state.members.find(member => member.id === memberScope)?.name ?? 'this player'}’s map only. Undo can reverse it.` : owner ? 'Applying this replaces the whole picker with the previewed state, including rules and History. Undo can’t reverse it; the current save stays under Browse previous saves. Download a full backup above to keep a portable copy.' : 'Applying this replaces the saved group with the previewed state. Download a full backup above to keep a portable copy.', 'warning'), c.replacementSummary(value.preview ?? value, value.state ?? document?.state));
       if (value.warnings?.length) preview.append(c.details('Import warnings', c.list(value.warnings)));
-      preview.append(c.button('Apply reviewed replacement', async () => { const response = await c.api(path, { ...payload, expectedRevision }); c.adopt(response.state, response.pools); c.saved('Saved', false, c.state.revision, { confirmed: true }); if (!c.dialogCurrent(generation)) return; c.closeDialog(generation); c.map.centerOnUnlocked(); c.notice(memberScope ? `${c.state.members.find(member => member.id === memberScope)?.name ?? 'The'}’s map was replaced. Undo can reverse it.` : legacyImport ? 'Import saved. Your imported records and previous save are kept in the backup.' : 'Backup restored. The previous save is retained, and Undo can reverse this replacement.'); }));
-      } finally { reading = false; previewButton.disabled = false; }
+      const apply = c.button('Apply reviewed replacement', async () => {
+        if (apply.disabled || !c.dialogCurrent(generation) || request !== previewRequest) return;
+        submitting = true; apply.disabled = true; previewButton.disabled = true; file.disabled = true; if (scope) scope.disabled = true;
+        progress.textContent = 'Applying replacement…';
+        try {
+          const response = await c.api(path, { ...payload, expectedRevision }); c.adopt(response.state, response.pools); c.saved('Saved', false, c.state.revision, { confirmed: true });
+          if (!c.dialogCurrent(generation)) return;
+          c.closeDialog(generation); c.map.centerOnUnlocked(); c.notice(memberScope ? `${c.state.members.find(member => member.id === memberScope)?.name ?? 'The'}’s map was replaced. Undo can reverse it.` : owner ? 'Backup restored. The previous save is under Browse previous saves.' : legacyImport ? 'Import saved. Your imported records and previous save are kept in the backup.' : 'Backup restored. The previous save is retained, and Undo can reverse this replacement.');
+        } catch (error) { if (c.dialogCurrent(generation)) { progress.textContent = 'Replacement was not confirmed. Check History before trying again.'; c.showError(error); } }
+        finally { submitting = false; if (c.dialogCurrent(generation)) { previewButton.disabled = false; file.disabled = false; if (scope) scope.disabled = false; } }
+      });
+      preview.append(apply); stage('Replacement ready to review.');
+      } catch (error) { if (error.name !== 'AbortError' && c.dialogCurrent(generation) && request === previewRequest) { progress.textContent = 'Preview failed. Try again.'; c.showError(error); } }
+      finally { if (previewController === controller) { previewController = undefined; reading = false; previewButton.disabled = false; cancel.hidden = true; } }
     };
     const retained = c.el('div', undefined, 'form-stack'); retained.append(c.button('Browse previous saves', async () => {
       const generation = c.dialogGeneration, request = ++retainedRequest, response = await c.api('/api/backups');
@@ -158,11 +177,13 @@ export function createScreenDialogs(c) {
       }));
     }));
     const ownName = c.state.members.find(member => member.id === c.sessionMember)?.name;
-    if (!c.sessionAdmin && !ownName) { content.append(c.el('p', 'This link isn’t linked to a player, so it can’t restore a map. Ask an admin to set its player.', 'status-detail')); return; }
-    if (scope) content.append(c.field('Replace', scope));
+    if (!owner && !c.sessionAdmin && !ownName) { content.append(c.el('p', 'This link isn’t linked to a player, so it can’t restore a map. Ask an admin to set its player.', 'status-detail')); return; }
+    if (owner) content.append(c.el('p', 'Restoring here replaces this whole picker: maps, progress, rules, notes and History. Undo can’t reverse it, but the current save is kept and listed under Browse previous saves.', 'status-detail'));
+    else if (scope) content.append(c.field('Replace', scope));
     else content.append(c.el('p', `Restoring here replaces only ${ownName}’s map. The other map, shared rules and History stay, and Undo can reverse it.`, 'status-detail'));
     const previewButton = c.button(legacyImport ? 'Preview import / restore' : 'Preview restore', () => read());
-    content.append(c.field(legacyImport ? 'Choose a full backup or an exported copy of both maps' : 'Choose a full backup', filePicker(file)), c.el('p', 'Choose .json or .json.gz. Backups download compressed. Limit: 256 MiB after decompression.', 'status-detail'), previewButton, preview, retained, ...(legacyImport && c.advanced() ? [c.button('View migration report', async () => { const generation = c.beginDialogRequest(), value = await c.api('/api/migration'); if (c.dialogCurrent(generation)) c.openDialog('Migration report', c.lazyJSON('Imported names and unmatched records', value)); })] : [])); c.openDialog('Backup & Import', content);
+    content.append(c.field(legacyImport ? 'Choose a full backup or an exported copy of both maps' : 'Choose a full backup', filePicker(file)), c.el('p', 'Choose .json or .json.gz. Backups download compressed. Limit: 256 MiB after decompression.', 'status-detail'), previewButton, progress, cancel, preview, retained, ...(legacyImport && c.advanced() ? [c.button('View migration report', async () => { const generation = c.beginDialogRequest(), value = await c.api('/api/migration'); if (c.dialogCurrent(generation)) c.openDialog('Migration report', c.lazyJSON('Imported names and unmatched records', value)); })] : [])); c.openDialog('Backup & Import', content);
+    c.$('tool-dialog')?.addEventListener('close', () => { previewController?.abort(); }, { once: true });
   }
 
   function mapSourcesDialog() {

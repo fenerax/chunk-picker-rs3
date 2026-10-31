@@ -1,3 +1,4 @@
+import { gameStorage } from './screen-save-status.mjs';
 import { originalSettings } from './data/settings.mjs';
 import { applyTheme } from './map-tools.mjs';
 import { createStreamSafe } from './stream-safe.mjs';
@@ -16,7 +17,7 @@ export function createScreenSettings(c) {
   function setViewerPreference(id, value) {
     if (c.canWrite() || !['theme', 'ids'].includes(id)) return;
     c.viewerPreferences[id] = value;
-    try { localStorage.setItem('picker.viewer-preferences', JSON.stringify(c.viewerPreferences)); } catch { /* Display remains usable without storage. */ }
+    try { gameStorage().setItem('picker.viewer-preferences', JSON.stringify(c.viewerPreferences)); } catch { /* Display remains usable without storage. */ }
     c.preferenceSignature = undefined; c.applyPreferences(); c.renderMapState();
   }
 
@@ -31,7 +32,7 @@ export function createScreenSettings(c) {
     document.documentElement.dataset.readOnly = String(c.sessionReadOnly);
     if (c.sessionReadOnly) {
       try {
-        const saved = JSON.parse(localStorage.getItem('picker.viewer-preferences') ?? '{}');
+        const saved = JSON.parse((session.multiPicker ? gameStorage() : localStorage).getItem('picker.viewer-preferences') ?? '{}');
         if (['dark', 'gray', 'light'].includes(saved.theme)) c.viewerPreferences.theme = saved.theme;
         if (typeof saved.ids === 'boolean') c.viewerPreferences.ids = saved.ids;
       } catch { /* Invalid or unavailable local preferences use the map defaults. */ }

@@ -21,15 +21,18 @@ const fullGear = gearFrom(Object.fromEntries(['melee', 'ranged', 'magic', 'necro
 test('the shipped boss gates are valid and name monsters the picker knows', () => {
   assert.equal(validateBossGates(bossGates), bossGates);
   const data = JSON.parse(readFileSync(new URL('../rs3-chunkpicker-chunkinfo-export.json', import.meta.url), 'utf8'));
-  const known = new Set(Object.keys(data.drops ?? {}));
+  const known = new Set(Object.keys(data.taskUnlocks?.Monsters ?? {}));
   const visit = value => {
     if (!value || typeof value !== 'object') return;
     if (value.Monster && typeof value.Monster === 'object') for (const name of Object.keys(value.Monster)) known.add(name);
     for (const child of Object.values(value)) if (child && typeof child === 'object') visit(child);
   };
   visit(data.chunks);
-  // Legiones has no monster record yet; its gate waits for the data.
-  const missing = bossGates.flatMap(entry => entry.monsters).filter(name => !known.has(name) && name !== 'Legiones');
+  // A dormant Zuk-wave drop table has no access source yet. Keep this exact
+  // reviewed exception separate from the actual placed/gated boss namespace.
+  const dormant = 'TzekHaar-Mej Disciple (TzKal-Zuk)';
+  assert.ok(Object.hasOwn(data.drops, dormant));
+  const missing = bossGates.flatMap(entry => entry.monsters).filter(name => !known.has(name) && name !== dormant);
   assert.deepEqual(missing, []);
 });
 

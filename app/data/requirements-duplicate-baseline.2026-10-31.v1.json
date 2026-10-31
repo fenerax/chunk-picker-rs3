@@ -1,0 +1,1422 @@
+{
+  "schemaVersion": 1,
+  "reviewedOn": "2026-10-31",
+  "policy": "Exact archival exceptions only. Every path, occurrence, line and competing value is pinned. New or changed collisions require explicit review; corrections are applied separately without rewriting the export.",
+  "duplicates": [
+    {
+      "path": [
+        "challenges",
+        "Archaeology",
+        "Gain access to the ~|Daemonheim Dig Site|~",
+        "Chunks"
+      ],
+      "firstLine": 4489,
+      "laterLine": 4493,
+      "beforeSha256": "4f34533436d8949a44592efa5978bdb0cf849ddf012b39c5847e43b10af5a2e1",
+      "afterSha256": "ac60c04305005f54bef60b22171e532d382ee13ad4b9a20db3b5df87c3575c24",
+      "identical": false
+    },
+    {
+      "path": [
+        "challenges",
+        "Construction",
+        "Construct a ~|teak kitchen cabinet|~"
+      ],
+      "firstLine": 11993,
+      "laterLine": 12335,
+      "beforeSha256": "c182374da2d45de6b564e974a55c18077e4a5c7fc94edb95b9cd3e24f5b47105",
+      "afterSha256": "0c42a39a349740ce893b3cc478fe1480de9fb097a5ca96f6b2c08ae777f74d45",
+      "identical": false
+    },
+    {
+      "path": [
+        "challenges",
+        "Construction",
+        "Construct a ~|mahogany kitchen cabinet|~"
+      ],
+      "firstLine": 13254,
+      "laterLine": 13679,
+      "beforeSha256": "2a92974c297bd5901b2922ea89f3ab0e1b1edd408ab52a3f979b03c2441e2857",
+      "afterSha256": "9813d03db497c52daf972dd01d8bfef6b2c842ff24df47cddaa26dbecf8bf63f",
+      "identical": false
+    },
+    {
+      "path": [
+        "challenges",
+        "Construction",
+        "Build a room with the dark stone slabs ~|floor style|~"
+      ],
+      "firstLine": 12861,
+      "laterLine": 14488,
+      "beforeSha256": "1ad41bb876393c3d9e8ee9c5cbd4f686a184bc748f93d79c24c518104dadc65d",
+      "afterSha256": "f7e0a5bc03747daf7fad3a9e87536ac28f3ace8a46cd74c027e1111bdbf4332f",
+      "identical": false
+    },
+    {
+      "path": [
+        "challenges",
+        "Cooking",
+        "Make an ~|uncooked egg|~"
+      ],
+      "firstLine": 16309,
+      "laterLine": 16594,
+      "beforeSha256": "9c3bd47959386013a50404d7bcaabc2c356ca6de7f55d4713eb8da8e9bc46055",
+      "afterSha256": "40177e7c07c5ce53fb05b2aa9203d2fafd4d9505e248b62499970fdf812ee520",
+      "identical": false
+    },
+    {
+      "path": [
+        "challenges",
+        "Crafting",
+        "Craft a ~|wizard book|~ (alt)",
+        "Tasks",
+        "Craft a ~|wizard book|~"
+      ],
+      "firstLine": 19517,
+      "laterLine": 19518,
+      "beforeSha256": "9683cd94c7663acf34df4d282a95ae7619bf1195882b755f1363f4096151ee08",
+      "afterSha256": "2da737fefaf0907b81d9b3d9b2e301937a83c25ed5540fbec821af04c000de72",
+      "identical": false
+    },
+    {
+      "path": [
+        "challenges",
+        "Crafting",
+        "Craft a ~|wizard wand|~ (alt)",
+        "Tasks",
+        "Craft a ~|wizard wand|~"
+      ],
+      "firstLine": 19528,
+      "laterLine": 19529,
+      "beforeSha256": "9683cd94c7663acf34df4d282a95ae7619bf1195882b755f1363f4096151ee08",
+      "afterSha256": "2da737fefaf0907b81d9b3d9b2e301937a83c25ed5540fbec821af04c000de72",
+      "identical": false
+    },
+    {
+      "path": [
+        "challenges",
+        "Crafting",
+        "Craft an ~|imphide book|~ (alt)",
+        "Tasks",
+        "Craft an ~|imphide book|~"
+      ],
+      "firstLine": 20493,
+      "laterLine": 20494,
+      "beforeSha256": "9683cd94c7663acf34df4d282a95ae7619bf1195882b755f1363f4096151ee08",
+      "afterSha256": "2da737fefaf0907b81d9b3d9b2e301937a83c25ed5540fbec821af04c000de72",
+      "identical": false
+    },
+    {
+      "path": [
+        "challenges",
+        "Crafting",
+        "Craft an ~|imp horn wand|~ (alt)",
+        "Tasks",
+        "Craft an ~|imp horn wand|~"
+      ],
+      "firstLine": 20620,
+      "laterLine": 20621,
+      "beforeSha256": "9683cd94c7663acf34df4d282a95ae7619bf1195882b755f1363f4096151ee08",
+      "afterSha256": "2da737fefaf0907b81d9b3d9b2e301937a83c25ed5540fbec821af04c000de72",
+      "identical": false
+    },
+    {
+      "path": [
+        "challenges",
+        "Crafting",
+        "Craft a ~|spider silk orb|~ (alt)",
+        "Tasks",
+        "Craft a ~|spider silk orb|~"
+      ],
+      "firstLine": 21110,
+      "laterLine": 21111,
+      "beforeSha256": "9683cd94c7663acf34df4d282a95ae7619bf1195882b755f1363f4096151ee08",
+      "afterSha256": "2da737fefaf0907b81d9b3d9b2e301937a83c25ed5540fbec821af04c000de72",
+      "identical": false
+    },
+    {
+      "path": [
+        "challenges",
+        "Crafting",
+        "Craft a ~|spider silk wand|~ (alt)",
+        "Tasks",
+        "Craft a ~|spider silk wand|~"
+      ],
+      "firstLine": 21233,
+      "laterLine": 21234,
+      "beforeSha256": "9683cd94c7663acf34df4d282a95ae7619bf1195882b755f1363f4096151ee08",
+      "afterSha256": "2da737fefaf0907b81d9b3d9b2e301937a83c25ed5540fbec821af04c000de72",
+      "identical": false
+    },
+    {
+      "path": [
+        "challenges",
+        "Crafting",
+        "Craft a ~|batwing book|~ (alt)",
+        "Tasks",
+        "Craft a ~|batwing book|~"
+      ],
+      "firstLine": 21762,
+      "laterLine": 21763,
+      "beforeSha256": "9683cd94c7663acf34df4d282a95ae7619bf1195882b755f1363f4096151ee08",
+      "afterSha256": "2da737fefaf0907b81d9b3d9b2e301937a83c25ed5540fbec821af04c000de72",
+      "identical": false
+    },
+    {
+      "path": [
+        "challenges",
+        "Crafting",
+        "Craft a ~|batwing wand|~ (alt)",
+        "Tasks",
+        "Craft a ~|batwing wand|~"
+      ],
+      "firstLine": 21811,
+      "laterLine": 21812,
+      "beforeSha256": "9683cd94c7663acf34df4d282a95ae7619bf1195882b755f1363f4096151ee08",
+      "afterSha256": "2da737fefaf0907b81d9b3d9b2e301937a83c25ed5540fbec821af04c000de72",
+      "identical": false
+    },
+    {
+      "path": [
+        "challenges",
+        "Crafting",
+        "Craft a ~|mystic orb|~ (alt)",
+        "Tasks",
+        "Craft a ~|mystic orb|~"
+      ],
+      "firstLine": 22786,
+      "laterLine": 22787,
+      "beforeSha256": "9683cd94c7663acf34df4d282a95ae7619bf1195882b755f1363f4096151ee08",
+      "afterSha256": "2da737fefaf0907b81d9b3d9b2e301937a83c25ed5540fbec821af04c000de72",
+      "identical": false
+    },
+    {
+      "path": [
+        "challenges",
+        "Crafting",
+        "Craft a ~|mystic wand|~ (alt)",
+        "Tasks",
+        "Craft a ~|mystic wand|~"
+      ],
+      "firstLine": 22845,
+      "laterLine": 22846,
+      "beforeSha256": "9683cd94c7663acf34df4d282a95ae7619bf1195882b755f1363f4096151ee08",
+      "afterSha256": "2da737fefaf0907b81d9b3d9b2e301937a83c25ed5540fbec821af04c000de72",
+      "identical": false
+    },
+    {
+      "path": [
+        "challenges",
+        "Fishing",
+        "Catch a ~|raw mackerel|~",
+        "Not F2P"
+      ],
+      "firstLine": 37840,
+      "laterLine": 37841,
+      "beforeSha256": "b5bea41b6c623f7c09f1bf24dcae58ebab3c0cdd90ad966bc43a45b44867e12b",
+      "afterSha256": "b5bea41b6c623f7c09f1bf24dcae58ebab3c0cdd90ad966bc43a45b44867e12b",
+      "identical": true
+    },
+    {
+      "path": [
+        "challenges",
+        "Prayer",
+        "Wield an ~|arcane spirit shield|~"
+      ],
+      "firstLine": 56085,
+      "laterLine": 56142,
+      "beforeSha256": "3f90f68c0cdc9cca21324f9a494495ce3be7be54d0e326c752afc680b23efce2",
+      "afterSha256": "3f90f68c0cdc9cca21324f9a494495ce3be7be54d0e326c752afc680b23efce2",
+      "identical": true
+    },
+    {
+      "path": [
+        "challenges",
+        "Prayer",
+        "Wield a ~|spectral spirit shield|~"
+      ],
+      "firstLine": 56096,
+      "laterLine": 56153,
+      "beforeSha256": "3ca0b8bc77de5d90c0f6d19486390f4e37d5609e42538d97d92d91d28be649ae",
+      "afterSha256": "3ca0b8bc77de5d90c0f6d19486390f4e37d5609e42538d97d92d91d28be649ae",
+      "identical": true
+    },
+    {
+      "path": [
+        "challenges",
+        "Prayer",
+        "Wield a ~|divine spirit shield|~"
+      ],
+      "firstLine": 56107,
+      "laterLine": 56164,
+      "beforeSha256": "74a8d593dbba4c57cdf57c2a9995c72b6b37349a151bf84ff8b54897223fbedb",
+      "afterSha256": "74a8d593dbba4c57cdf57c2a9995c72b6b37349a151bf84ff8b54897223fbedb",
+      "identical": true
+    },
+    {
+      "path": [
+        "challenges",
+        "Prayer",
+        "Wield an ~|elysian spirit shield|~"
+      ],
+      "firstLine": 56118,
+      "laterLine": 56175,
+      "beforeSha256": "8606dadd207bef2ffcaff787bd67af1a33cd66afe8147fe7463ae448cb47fa84",
+      "afterSha256": "8606dadd207bef2ffcaff787bd67af1a33cd66afe8147fe7463ae448cb47fa84",
+      "identical": true
+    },
+    {
+      "path": [
+        "challenges",
+        "Prayer",
+        "Unlock and use the ~|Eclipsed Soul|~ prayer"
+      ],
+      "firstLine": 56129,
+      "laterLine": 56186,
+      "beforeSha256": "457b73095649961ea96928dc33b48aa8b39a75e45ea85c0c7ce5df0b6959107b",
+      "afterSha256": "457b73095649961ea96928dc33b48aa8b39a75e45ea85c0c7ce5df0b6959107b",
+      "identical": true
+    },
+    {
+      "path": [
+        "challenges",
+        "Ranged",
+        "Wield an ~|orikalkum crossbow|~"
+      ],
+      "firstLine": 58338,
+      "laterLine": 58346,
+      "beforeSha256": "b5267f563c48886ce6d625c1b98f95c4eb0935bd2c143e3feb751c7eb4182fd2",
+      "afterSha256": "b5267f563c48886ce6d625c1b98f95c4eb0935bd2c143e3feb751c7eb4182fd2",
+      "identical": true
+    },
+    {
+      "path": [
+        "challenges",
+        "Thieving",
+        "Pickpocket an ~|elf|~ for triple loot"
+      ],
+      "firstLine": 71369,
+      "laterLine": 71596,
+      "beforeSha256": "345d60f78d1040d4a6b19d0706b7ee38afb21f2566d9815ce59d5b467fbfd9a5",
+      "afterSha256": "c93281e78ecf963b63bbfda3b216104a6f3cb53a109474dafe7a56152aa0cdf2",
+      "identical": false
+    },
+    {
+      "path": [
+        "challenges",
+        "Quest",
+        "~|Head of the Family (miniquest)|~ 2"
+      ],
+      "firstLine": 86626,
+      "laterLine": 86635,
+      "beforeSha256": "ff2aeb003671386e28f9c16e5bc140189a0320dce7bb8f25125a3d4731733d2f",
+      "afterSha256": "6d33168d0c9822f9dbfc8d5b42d666751207dd46c29f55501522ec5c3c0f3b70",
+      "identical": false
+    },
+    {
+      "path": [
+        "challenges",
+        "Quest",
+        "~|Three's Company (abridged saga)|~ 1",
+        "Chunks"
+      ],
+      "firstLine": 102260,
+      "laterLine": 102264,
+      "beforeSha256": "ac60c04305005f54bef60b22171e532d382ee13ad4b9a20db3b5df87c3575c24",
+      "afterSha256": "4f34533436d8949a44592efa5978bdb0cf849ddf012b39c5847e43b10af5a2e1",
+      "identical": false
+    },
+    {
+      "path": [
+        "challenges",
+        "Quest",
+        "~|Three's Company (unabridged saga)|~ 1",
+        "Chunks"
+      ],
+      "firstLine": 102281,
+      "laterLine": 102288,
+      "beforeSha256": "ac60c04305005f54bef60b22171e532d382ee13ad4b9a20db3b5df87c3575c24",
+      "afterSha256": "4f34533436d8949a44592efa5978bdb0cf849ddf012b39c5847e43b10af5a2e1",
+      "identical": false
+    },
+    {
+      "path": [
+        "challenges",
+        "Quest",
+        "~|Tuai Leit's Own (miniquest)|~ 3"
+      ],
+      "firstLine": 103392,
+      "laterLine": 103411,
+      "beforeSha256": "460b8668546e973d78f2272a9c2e103a8b3e2cf01030f08468f9bddee1ea3279",
+      "afterSha256": "b49b116c6a4e9531644f87341248896b51f8468b0d51a64451fce2c207307406",
+      "identical": false
+    },
+    {
+      "path": [
+        "challenges",
+        "Quest",
+        "~|Tuai Leit's Own (miniquest)|~ 4"
+      ],
+      "firstLine": 103402,
+      "laterLine": 103421,
+      "beforeSha256": "a25fd0d31ec7408e341e3d33b1a013adc8ffad389e17fbfcf9e6d18ba7819e81",
+      "afterSha256": "4cb01ab52ceb01aa41da7dbc0bdc4f88d5e3dd440b3e635213939ca57b24ca9a",
+      "identical": false
+    },
+    {
+      "path": [
+        "challenges",
+        "Diary",
+        "~|Daemonheim Achievements#Easy|~ Tales of Old",
+        "Chunks"
+      ],
+      "firstLine": 108918,
+      "laterLine": 108922,
+      "beforeSha256": "ac60c04305005f54bef60b22171e532d382ee13ad4b9a20db3b5df87c3575c24",
+      "afterSha256": "4f34533436d8949a44592efa5978bdb0cf849ddf012b39c5847e43b10af5a2e1",
+      "identical": false
+    },
+    {
+      "path": [
+        "challenges",
+        "Diary",
+        "~|Daemonheim Achievements#Easy|~ Complete the Easy Achievements",
+        "Reward"
+      ],
+      "firstLine": 108962,
+      "laterLine": 108965,
+      "beforeSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "afterSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "identical": true
+    },
+    {
+      "path": [
+        "challenges",
+        "Diary",
+        "~|Daemonheim Achievements#Medium|~ Complete the Medium Achievements",
+        "Reward"
+      ],
+      "firstLine": 109156,
+      "laterLine": 109159,
+      "beforeSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "afterSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "identical": true
+    },
+    {
+      "path": [
+        "challenges",
+        "Diary",
+        "~|Daemonheim Achievements#Hard|~ Healing Factor",
+        "Chunks"
+      ],
+      "firstLine": 109228,
+      "laterLine": 109229,
+      "beforeSha256": "4f34533436d8949a44592efa5978bdb0cf849ddf012b39c5847e43b10af5a2e1",
+      "afterSha256": "ac60c04305005f54bef60b22171e532d382ee13ad4b9a20db3b5df87c3575c24",
+      "identical": false
+    },
+    {
+      "path": [
+        "challenges",
+        "Diary",
+        "~|Daemonheim Achievements#Hard|~ Complete the Hard Achievements",
+        "Reward"
+      ],
+      "firstLine": 109355,
+      "laterLine": 109358,
+      "beforeSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "afterSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "identical": true
+    },
+    {
+      "path": [
+        "challenges",
+        "Diary",
+        "~|Daemonheim Achievements#Elite|~ Complete the Elite Achievements",
+        "Reward"
+      ],
+      "firstLine": 109460,
+      "laterLine": 109463,
+      "beforeSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "afterSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "identical": true
+    },
+    {
+      "path": [
+        "challenges",
+        "Extra",
+        "Find ~|hauyne|~",
+        "Items"
+      ],
+      "firstLine": 140055,
+      "laterLine": 140057,
+      "beforeSha256": "344d631aee0cc43dc128c6ffffad903f74601638b8a652ecb3c93fb451ef04e8",
+      "afterSha256": "59e27581a67ba4d32ff1e9ebc5adce7e43592e3be9cb101d4bb997221dcb0677",
+      "identical": false
+    },
+    {
+      "path": [
+        "challenges",
+        "Extra",
+        "Find ~|idocrase|~",
+        "Items"
+      ],
+      "firstLine": 140078,
+      "laterLine": 140115,
+      "beforeSha256": "344d631aee0cc43dc128c6ffffad903f74601638b8a652ecb3c93fb451ef04e8",
+      "afterSha256": "59e27581a67ba4d32ff1e9ebc5adce7e43592e3be9cb101d4bb997221dcb0677",
+      "identical": false
+    },
+    {
+      "path": [
+        "challenges",
+        "Extra",
+        "(Shrine of the Spirit Wolves) Obtain ~|shaman's moccasins|~"
+      ],
+      "firstLine": 150713,
+      "laterLine": 150718,
+      "beforeSha256": "7b639b04d5bc564c088d18a745f4dde51a9348b6bbe92579fa0bb70525772c0c",
+      "afterSha256": "28c7591c22995c72a5ff79fa62db24764b6dd8d300f185f61160a0855fbf49d0",
+      "identical": false
+    },
+    {
+      "path": [
+        "challenges",
+        "Extra",
+        "Unlock and fully upgrade the ~|storm barn|~"
+      ],
+      "firstLine": 155215,
+      "laterLine": 155220,
+      "beforeSha256": "f018524c5c334de52206668c9a20356f1efbc44d4278a851fe4f1757be439292",
+      "afterSha256": "f018524c5c334de52206668c9a20356f1efbc44d4278a851fe4f1757be439292",
+      "identical": true
+    },
+    {
+      "path": [
+        "challenges",
+        "Extra",
+        "Obtain the ~|of Daemonheim|~ title",
+        "Tasks"
+      ],
+      "firstLine": 156835,
+      "laterLine": 156841,
+      "beforeSha256": "d919a1be46eba24061adb08c33ccbf782abcee1a6a5246122138bec93ea8afd2",
+      "afterSha256": "fcd983f03db77c9a29c4735691e236deb82254fdd871872a6f2e7cb562271a4e",
+      "identical": false
+    },
+    {
+      "path": [
+        "challenges",
+        "Extra",
+        "Obtain a ~|crystal fishing rod|~"
+      ],
+      "firstLine": 160091,
+      "laterLine": 160099,
+      "beforeSha256": "e50d5292dd82177fbab0e3b00d4de2c6353ef6d74b673dbb5c31572cc53af483",
+      "afterSha256": "196881f796014e0986a9ce2a78fda7c36e361a78762f565588e4ddeb53a62df8",
+      "identical": false
+    },
+    {
+      "path": [
+        "challenges",
+        "Nonskill",
+        "Complete the archaeology collection 'Museum - Guthixian II'"
+      ],
+      "firstLine": 167100,
+      "laterLine": 167140,
+      "beforeSha256": "1b8d244061cae43197e4fddbb58fb166ba8f419876b7f72cdcdf0c9c8f6e589c",
+      "afterSha256": "0da4404c2479b1d192ef542d1ae700a4c6f4c4a674ccdc1b62c01536af627959",
+      "identical": false
+    },
+    {
+      "path": [
+        "challenges",
+        "Nonskill",
+        "North of Nardah, mid-way to the group of rocks."
+      ],
+      "firstLine": 172215,
+      "laterLine": 172473,
+      "beforeSha256": "f94700f58db8f7b477b133d3c6e37f124c73b8102c5d40944ca69855197942e9",
+      "afterSha256": "f94700f58db8f7b477b133d3c6e37f124c73b8102c5d40944ca69855197942e9",
+      "identical": true
+    },
+    {
+      "path": [
+        "challenges",
+        "Nonskill",
+        "South of Fenkenstrain's Castle."
+      ],
+      "firstLine": 172941,
+      "laterLine": 177777,
+      "beforeSha256": "815254358397ac0d05b97815484604b8df30ab497caf931e92ae70de0ca1cc24",
+      "afterSha256": "ebcad857f673f68f96517d10b26316074760f0509149e1c76401e842586d3b20",
+      "identical": false
+    },
+    {
+      "path": [
+        "challenges",
+        "Nonskill",
+        "South-west of fairy ring ALQ."
+      ],
+      "firstLine": 172965,
+      "laterLine": 177831,
+      "beforeSha256": "815254358397ac0d05b97815484604b8df30ab497caf931e92ae70de0ca1cc24",
+      "afterSha256": "c41527295f82b1a632f6c68cbe65cfa8abaad85719e0d3bd46ab3dc85941d1ad",
+      "identical": false
+    },
+    {
+      "path": [
+        "challenges",
+        "Nonskill",
+        "North-west of Red Dragon Isle."
+      ],
+      "firstLine": 178089,
+      "laterLine": 178107,
+      "beforeSha256": "8c826991a3a37b4d7c0c44282a785087b94d5afa8a425fe25f2bd85e8a5750fa",
+      "afterSha256": "ab2ac9ecf9658cd7a754a8e0dd9c5083580df099718add90e99f422ada569eef",
+      "identical": false
+    },
+    {
+      "path": [
+        "chunks",
+        "9275",
+        "Object",
+        "Rope bridge"
+      ],
+      "firstLine": 186067,
+      "laterLine": 186073,
+      "beforeSha256": "d4735e3a265e16eee03f59718b9b5d03019c07d8b6c51f90da3a666eec13ab35",
+      "afterSha256": "d4735e3a265e16eee03f59718b9b5d03019c07d8b6c51f90da3a666eec13ab35",
+      "identical": true
+    },
+    {
+      "path": [
+        "chunks",
+        "9275",
+        "Object",
+        "Arctic Pine"
+      ],
+      "firstLine": 186071,
+      "laterLine": 186075,
+      "beforeSha256": "19581e27de7ced00ff1ce50b2047e7a567c76b1cbaebabe5ef03f7c3017bb5b7",
+      "afterSha256": "b17ef6d19c7a5b1ee83b907c595526dcb1eb06db8227d650d5dda0a9f4ce8cd9",
+      "identical": false
+    },
+    {
+      "path": [
+        "chunks",
+        "12347",
+        "Sections",
+        "1",
+        "Monster",
+        "Abyssal beast"
+      ],
+      "firstLine": 200907,
+      "laterLine": 200908,
+      "beforeSha256": "4a44dc15364204a80fe80e9039455cc1608281820fe2b24f1e5233ade6af1dd5",
+      "afterSha256": "6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b",
+      "identical": false
+    },
+    {
+      "path": [
+        "chunks",
+        "12598",
+        "Object",
+        "Portal"
+      ],
+      "firstLine": 201902,
+      "laterLine": 201907,
+      "beforeSha256": "6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b",
+      "afterSha256": "6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b",
+      "identical": true
+    },
+    {
+      "path": [
+        "chunks",
+        "13620",
+        "Sections",
+        "2",
+        "Spawn"
+      ],
+      "firstLine": 206592,
+      "laterLine": 206599,
+      "beforeSha256": "e5de234362ea69472c07b2bc8a94e000dc14c0d18866a8bfc45c906cdbb78cf7",
+      "afterSha256": "e5de234362ea69472c07b2bc8a94e000dc14c0d18866a8bfc45c906cdbb78cf7",
+      "identical": true
+    },
+    {
+      "path": [
+        "chunks",
+        "16692",
+        "Object",
+        "Bank booth"
+      ],
+      "firstLine": 213135,
+      "laterLine": 213151,
+      "beforeSha256": "6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b",
+      "afterSha256": "6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b",
+      "identical": true
+    },
+    {
+      "path": [
+        "chunks",
+        "Thieves' Guild",
+        "Object",
+        "Mark 1"
+      ],
+      "firstLine": 221894,
+      "laterLine": 221896,
+      "beforeSha256": "6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b",
+      "afterSha256": "6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b",
+      "identical": true
+    },
+    {
+      "path": [
+        "chunks",
+        "Thieves' Guild",
+        "Object",
+        "Caper board"
+      ],
+      "firstLine": 221895,
+      "laterLine": 221900,
+      "beforeSha256": "6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b",
+      "afterSha256": "6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b",
+      "identical": true
+    },
+    {
+      "path": [
+        "chunks",
+        "Thieves' Guild",
+        "Object",
+        "Mark 1"
+      ],
+      "firstLine": 221896,
+      "laterLine": 221902,
+      "beforeSha256": "6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b",
+      "afterSha256": "6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b",
+      "identical": true
+    },
+    {
+      "path": [
+        "chunks",
+        "Thieves' Guild",
+        "Object",
+        "Mark 2"
+      ],
+      "firstLine": 221897,
+      "laterLine": 221903,
+      "beforeSha256": "4b227777d4dd1fc61c6f884f48641d02b4d121d3fd328cb08b5531fcacdabf8a",
+      "afterSha256": "4b227777d4dd1fc61c6f884f48641d02b4d121d3fd328cb08b5531fcacdabf8a",
+      "identical": true
+    },
+    {
+      "path": [
+        "chunks",
+        "Thieves' Guild",
+        "Object",
+        "Drawers"
+      ],
+      "firstLine": 221898,
+      "laterLine": 221904,
+      "beforeSha256": "6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b",
+      "afterSha256": "ef2d127de37b942baad06145e54b0c619a1f22327b2ebbcfbec78f5564afe39d",
+      "identical": false
+    },
+    {
+      "path": [
+        "codeItems",
+        "ammoTools",
+        "No ammo",
+        "Decimation"
+      ],
+      "firstLine": 228590,
+      "laterLine": 228677,
+      "beforeSha256": "b5bea41b6c623f7c09f1bf24dcae58ebab3c0cdd90ad966bc43a45b44867e12b",
+      "afterSha256": "b5bea41b6c623f7c09f1bf24dcae58ebab3c0cdd90ad966bc43a45b44867e12b",
+      "identical": true
+    },
+    {
+      "path": [
+        "codeItems",
+        "dropTables",
+        "GemDropTable+",
+        "Uncut diamond"
+      ],
+      "firstLine": 228687,
+      "laterLine": 228723,
+      "beforeSha256": "0d88cb144698887c12e1e4dc4d32067b0a4782a21ffc4198322ccaa3aaf8b7b1",
+      "afterSha256": "08f8ff94d5f6bd25e64aa0532c24c0b68fa91cc704486aaa62b539e33bd1de96",
+      "identical": false
+    },
+    {
+      "path": [
+        "codeItems",
+        "dropTables",
+        "GemDropTable+",
+        "Uncut dragonstone"
+      ],
+      "firstLine": 228689,
+      "laterLine": 228724,
+      "beforeSha256": "c2cc2d77d10708733afa5be3cf73a9b8f78a8dd5e7501d3e98ca9a0b86974ce3",
+      "afterSha256": "c99e939cbbbd0417a8ec5b693721cf9dd7f3069dc2cf48493bae5bf1822368a9",
+      "identical": false
+    },
+    {
+      "path": [
+        "codeItems",
+        "dropTables",
+        "RareDropTable+",
+        "Huge plated rune salvage"
+      ],
+      "firstLine": 228745,
+      "laterLine": 228764,
+      "beforeSha256": "67812e76ecab2769bd2294d78026a3210bef2c8281c94da6e6eeada8647f3702",
+      "afterSha256": "0db1023024421fb45008ef6575b2e6e19506513caeefc4459d151145cb149ac3",
+      "identical": false
+    },
+    {
+      "path": [
+        "codeItems",
+        "dropTables",
+        "RareDropTable+",
+        "Uncut dragonstone"
+      ],
+      "firstLine": 228742,
+      "laterLine": 228778,
+      "beforeSha256": "fe722050ec17f8b9e7ec71df338d80bdaa60342101b716a56e50d6b9eb6bb8a7",
+      "afterSha256": "b79ec4d2a74665c7abc380d0031079eaac2c3fa01473545de9b5a974bec9be62",
+      "identical": false
+    },
+    {
+      "path": [
+        "codeItems",
+        "dropTables",
+        "TempleOfAminishiCurrencyDropTable+",
+        "Coins"
+      ],
+      "firstLine": 229050,
+      "laterLine": 229051,
+      "beforeSha256": "6bed44294562e02e71050bafd956f9d842c52e9c7d26ea9fc0245db15adda936",
+      "afterSha256": "819bafe2ff6ff9dcc107b2afff6c6d00b43a2242711168c0e9fc936dce68a77e",
+      "identical": false
+    },
+    {
+      "path": [
+        "codeItems",
+        "dropTables",
+        "TempleOfAminishiSuppliesDropTable+",
+        "Huge spiky rune salvage"
+      ],
+      "firstLine": 229059,
+      "laterLine": 229060,
+      "beforeSha256": "3d3da7def2ddbd4b5f08e2ddf3d3561fa0a0a2d489b21e6e2cafc885ecdd0a93",
+      "afterSha256": "aeda14373ebd525779cfafa0f8cce052a3bfc19e03117632b0d30e983242aa52",
+      "identical": false
+    },
+    {
+      "path": [
+        "codeItems",
+        "dropTables",
+        "TempleOfAminishiSuppliesDropTable+",
+        "Huge spiky rune salvage"
+      ],
+      "firstLine": 229060,
+      "laterLine": 229061,
+      "beforeSha256": "aeda14373ebd525779cfafa0f8cce052a3bfc19e03117632b0d30e983242aa52",
+      "afterSha256": "2423a4c704bbd36e25af9e0bd052c91a1137f32a4d35988425b3a28ecb26c097",
+      "identical": false
+    },
+    {
+      "path": [
+        "codeItems",
+        "dropTables",
+        "TempleOfAminishiSuppliesDropTable+",
+        "Huge spiky rune salvage"
+      ],
+      "firstLine": 229061,
+      "laterLine": 229062,
+      "beforeSha256": "2423a4c704bbd36e25af9e0bd052c91a1137f32a4d35988425b3a28ecb26c097",
+      "afterSha256": "598ae0a7588dad26c68756cd7345fea1efe684597b2712de3ea814ba66a6a871",
+      "identical": false
+    },
+    {
+      "path": [
+        "codeItems",
+        "dropTables",
+        "TempleOfAminishiSuppliesDropTable+",
+        "Huge spiky rune salvage"
+      ],
+      "firstLine": 229062,
+      "laterLine": 229063,
+      "beforeSha256": "598ae0a7588dad26c68756cd7345fea1efe684597b2712de3ea814ba66a6a871",
+      "afterSha256": "06c5d4942464ade6bad0446f6b9886064560e962c446ba5f1c11e7a0b45df383",
+      "identical": false
+    },
+    {
+      "path": [
+        "codeItems",
+        "dropTables",
+        "DragonkinLaboratoryCurrencyDropTable+",
+        "Coins"
+      ],
+      "firstLine": 229073,
+      "laterLine": 229074,
+      "beforeSha256": "fc3197cfd29590b09e47c3dd02c906a915a65b61be44e336d88e931109ede172",
+      "afterSha256": "b4adf78f2592473105953a706b136a040f5638030f92080f19c91db20127e2a7",
+      "identical": false
+    },
+    {
+      "path": [
+        "codeItems",
+        "dropTables",
+        "DragonkinLaboratoryCurrencyDropTable+",
+        "Coins"
+      ],
+      "firstLine": 229074,
+      "laterLine": 229075,
+      "beforeSha256": "b4adf78f2592473105953a706b136a040f5638030f92080f19c91db20127e2a7",
+      "afterSha256": "e6b17e020d57574c8e0c261a2f369da7762a7333755be19fd2f325dd7495f8dd",
+      "identical": false
+    },
+    {
+      "path": [
+        "codeItems",
+        "dropTables",
+        "DragonkinLaboratoryCurrencyDropTable+",
+        "Coins"
+      ],
+      "firstLine": 229075,
+      "laterLine": 229076,
+      "beforeSha256": "e6b17e020d57574c8e0c261a2f369da7762a7333755be19fd2f325dd7495f8dd",
+      "afterSha256": "f189e5f908834530bf0c1ecb10c3e106f5a85a159a2eea274b68406424126ad4",
+      "identical": false
+    },
+    {
+      "path": [
+        "codeItems",
+        "dropTables",
+        "ShadowReefCurrencyDropTable+",
+        "Coins"
+      ],
+      "firstLine": 229090,
+      "laterLine": 229091,
+      "beforeSha256": "50a9b751dd2c1d3f59f474dce897af6b8a16cfd9bec5117af2a099f22242613c",
+      "afterSha256": "efe3d2a98cbcc9724e444482e04ddfccbe9f0e0007828c998dbed0e93846f9d5",
+      "identical": false
+    },
+    {
+      "path": [
+        "codeItems",
+        "dropTables",
+        "ShadowReefCurrencyDropTable+",
+        "Coins"
+      ],
+      "firstLine": 229091,
+      "laterLine": 229092,
+      "beforeSha256": "efe3d2a98cbcc9724e444482e04ddfccbe9f0e0007828c998dbed0e93846f9d5",
+      "afterSha256": "5debc2bd426f94329143146fe2a0df003dcd97571131208e2c8a6a78231d36ce",
+      "identical": false
+    },
+    {
+      "path": [
+        "codeItems",
+        "dropTables",
+        "ShadowReefCurrencyDropTable+",
+        "Coins"
+      ],
+      "firstLine": 229092,
+      "laterLine": 229093,
+      "beforeSha256": "5debc2bd426f94329143146fe2a0df003dcd97571131208e2c8a6a78231d36ce",
+      "afterSha256": "38fee9c044c3707c2155823bf4f328321860f685b0277fd4c33f38766e4a1e2b",
+      "identical": false
+    },
+    {
+      "path": [
+        "codeItems",
+        "dropTables",
+        "ShadowReefSuppliesDropTable+",
+        "Huge spiky rune salvage"
+      ],
+      "firstLine": 229099,
+      "laterLine": 229100,
+      "beforeSha256": "52ecbdd68d33f5aab4999c038ac1a0c4989886f84c5d6976c08503e3026257c1",
+      "afterSha256": "26e9b2905e0bed0673eb37041dc0bd4b96a58f887f95f3919feb21026536400c",
+      "identical": false
+    },
+    {
+      "path": [
+        "codeItems",
+        "dropTables",
+        "ShadowReefSuppliesDropTable+",
+        "Huge spiky rune salvage"
+      ],
+      "firstLine": 229100,
+      "laterLine": 229101,
+      "beforeSha256": "26e9b2905e0bed0673eb37041dc0bd4b96a58f887f95f3919feb21026536400c",
+      "afterSha256": "77d2f68154ea29d2c9a1712d8a5cfd7b7a7f9e1f0a9ee131215dc84832952a6f",
+      "identical": false
+    },
+    {
+      "path": [
+        "codeItems",
+        "dropTables",
+        "ShadowReefSuppliesDropTable+",
+        "Huge spiky rune salvage"
+      ],
+      "firstLine": 229101,
+      "laterLine": 229102,
+      "beforeSha256": "77d2f68154ea29d2c9a1712d8a5cfd7b7a7f9e1f0a9ee131215dc84832952a6f",
+      "afterSha256": "4ec89f6b527e904c112fc2f8d9084d6c7558fd63825d4620f1cb53b671429963",
+      "identical": false
+    },
+    {
+      "path": [
+        "codeItems",
+        "dropTables",
+        "ShadowReefSuppliesDropTable+",
+        "Huge spiky rune salvage"
+      ],
+      "firstLine": 229102,
+      "laterLine": 229103,
+      "beforeSha256": "4ec89f6b527e904c112fc2f8d9084d6c7558fd63825d4620f1cb53b671429963",
+      "afterSha256": "976596cb6fbade95db34cd3eb1a67e745fdac9aaf45d2db6e8d79bce2ddff03d",
+      "identical": false
+    },
+    {
+      "path": [
+        "drops",
+        "Corpse mage",
+        "Chargebow",
+        "1"
+      ],
+      "firstLine": 250631,
+      "laterLine": 250632,
+      "beforeSha256": "a7262fe4177501b6ff7e898e1db2634ded50098e98e17b3dcda1a5c1deb5a1b2",
+      "afterSha256": "eb4ba63ba5b0acacfe17262f3c53f02f05f1dd01ee4dcdb6e8eaf010429c1901",
+      "identical": false
+    },
+    {
+      "path": [
+        "drops",
+        "Corpse mage",
+        "Staff of air",
+        "1"
+      ],
+      "firstLine": 250635,
+      "laterLine": 250636,
+      "beforeSha256": "a7262fe4177501b6ff7e898e1db2634ded50098e98e17b3dcda1a5c1deb5a1b2",
+      "afterSha256": "eb4ba63ba5b0acacfe17262f3c53f02f05f1dd01ee4dcdb6e8eaf010429c1901",
+      "identical": false
+    },
+    {
+      "path": [
+        "drops",
+        "Demon Boss",
+        "Infernal ashes"
+      ],
+      "firstLine": 253405,
+      "laterLine": 253435,
+      "beforeSha256": "02b763519166b91e34a8e9ad08d425929a3925ffba88ac4847c10f0a257012d8",
+      "afterSha256": "f9b0b319465a1fd7a5915f1569e44d178e1f7751707ff5a89597aa528cbeaa3a",
+      "identical": false
+    },
+    {
+      "path": [
+        "drops",
+        "Dragith Nurn",
+        "Chargebow",
+        "1"
+      ],
+      "firstLine": 253879,
+      "laterLine": 253880,
+      "beforeSha256": "a7262fe4177501b6ff7e898e1db2634ded50098e98e17b3dcda1a5c1deb5a1b2",
+      "afterSha256": "eb4ba63ba5b0acacfe17262f3c53f02f05f1dd01ee4dcdb6e8eaf010429c1901",
+      "identical": false
+    },
+    {
+      "path": [
+        "drops",
+        "Dragith Nurn",
+        "Staff of air",
+        "1"
+      ],
+      "firstLine": 253883,
+      "laterLine": 253884,
+      "beforeSha256": "a7262fe4177501b6ff7e898e1db2634ded50098e98e17b3dcda1a5c1deb5a1b2",
+      "afterSha256": "eb4ba63ba5b0acacfe17262f3c53f02f05f1dd01ee4dcdb6e8eaf010429c1901",
+      "identical": false
+    },
+    {
+      "path": [
+        "drops",
+        "Dwarf#Keldagrim",
+        "Iron battleaxe"
+      ],
+      "firstLine": 254521,
+      "laterLine": 254524,
+      "beforeSha256": "b86eb07c4645f19b50779fa4f0ab67ab0dcfe52f05e339bc83ceea3e90f61a9a",
+      "afterSha256": "b86eb07c4645f19b50779fa4f0ab67ab0dcfe52f05e339bc83ceea3e90f61a9a",
+      "identical": true
+    },
+    {
+      "path": [
+        "drops",
+        "Giant mole (Hard Mode)",
+        "Coins"
+      ],
+      "firstLine": 260002,
+      "laterLine": 260005,
+      "beforeSha256": "79aad2a676d5544d3894ac0a06e5e5e0c4f9fad7998e911f5fe6e53eb2986980",
+      "afterSha256": "3b322065aa1017a6940495567e18f91bb1afd68d65a4c04de9036926fc1cee34",
+      "identical": false
+    },
+    {
+      "path": [
+        "drops",
+        "Skoblin",
+        "Chargebow",
+        "1"
+      ],
+      "firstLine": 283436,
+      "laterLine": 283437,
+      "beforeSha256": "a7262fe4177501b6ff7e898e1db2634ded50098e98e17b3dcda1a5c1deb5a1b2",
+      "afterSha256": "eb4ba63ba5b0acacfe17262f3c53f02f05f1dd01ee4dcdb6e8eaf010429c1901",
+      "identical": false
+    },
+    {
+      "path": [
+        "drops",
+        "Skoblin",
+        "Staff of air",
+        "1"
+      ],
+      "firstLine": 283440,
+      "laterLine": 283441,
+      "beforeSha256": "a7262fe4177501b6ff7e898e1db2634ded50098e98e17b3dcda1a5c1deb5a1b2",
+      "afterSha256": "eb4ba63ba5b0acacfe17262f3c53f02f05f1dd01ee4dcdb6e8eaf010429c1901",
+      "identical": false
+    },
+    {
+      "path": [
+        "taskUnlocks",
+        "Items",
+        "Micah^"
+      ],
+      "firstLine": 295661,
+      "laterLine": 297407,
+      "beforeSha256": "ae133ba576ca74f9a107bacb4e246d37f4dd39375e50c2e952bc4ac1b5c630c7",
+      "afterSha256": "e4f17bb36987d93d3de3d7e42b137c4bd446af8eb737dce0122ca358b218221b",
+      "identical": false
+    },
+    {
+      "path": [
+        "taskUnlocks",
+        "Items",
+        "Slayer's staff^"
+      ],
+      "firstLine": 295799,
+      "laterLine": 297545,
+      "beforeSha256": "e4f17bb36987d93d3de3d7e42b137c4bd446af8eb737dce0122ca358b218221b",
+      "afterSha256": "e4f17bb36987d93d3de3d7e42b137c4bd446af8eb737dce0122ca358b218221b",
+      "identical": true
+    },
+    {
+      "path": [
+        "taskUnlocks",
+        "Items",
+        "Unlit bug lantern^"
+      ],
+      "firstLine": 295817,
+      "laterLine": 297569,
+      "beforeSha256": "e4f17bb36987d93d3de3d7e42b137c4bd446af8eb737dce0122ca358b218221b",
+      "afterSha256": "e4f17bb36987d93d3de3d7e42b137c4bd446af8eb737dce0122ca358b218221b",
+      "identical": true
+    },
+    {
+      "path": [
+        "taskUnlocks",
+        "Items",
+        "Demon horn (God Emissaries)^"
+      ],
+      "firstLine": 295577,
+      "laterLine": 297623,
+      "beforeSha256": "1d0247463ab9325cf42fbacebdba323fca616aa9dd8403f43b8111a0ad69bac8",
+      "afterSha256": "cffea1e0f71174a7b6cda6d6985ac88ae841c062ff3650caf4f0d804cbc643e4",
+      "identical": false
+    },
+    {
+      "path": [
+        "taskUnlocks",
+        "Shops",
+        "Shrine of the Spirit Wolves"
+      ],
+      "firstLine": 299395,
+      "laterLine": 299415,
+      "beforeSha256": "15bccdd127bfbf77c7f852c1da215ecffab7a3b8abefae89eb133c4620e50f32",
+      "afterSha256": "9aef18cb067e2898c475300d2cd0970c56d414fa4a28e4d7bf2f5f6dca8651b3",
+      "identical": false
+    },
+    {
+      "path": [
+        "taskUnlocks",
+        "Shops",
+        "Slayer Equipment^Unfinished broad bolts",
+        "11310-1"
+      ],
+      "firstLine": 299429,
+      "laterLine": 299438,
+      "beforeSha256": "1d3299c85096ceb38d0cc2f9bdade375160b79687f69fb76741a6ce7660d7b09",
+      "afterSha256": "1d3299c85096ceb38d0cc2f9bdade375160b79687f69fb76741a6ce7660d7b09",
+      "identical": true
+    },
+    {
+      "path": [
+        "taskUnlocks",
+        "Shops",
+        "Slayer Equipment^Unfinished broad bolts",
+        "11310-1"
+      ],
+      "firstLine": 299438,
+      "laterLine": 299459,
+      "beforeSha256": "1d3299c85096ceb38d0cc2f9bdade375160b79687f69fb76741a6ce7660d7b09",
+      "afterSha256": "1d3299c85096ceb38d0cc2f9bdade375160b79687f69fb76741a6ce7660d7b09",
+      "identical": true
+    },
+    {
+      "path": [
+        "taskUnlocks",
+        "Shops",
+        "Slayer Equipment^Broad arrowheads",
+        "11310-1"
+      ],
+      "firstLine": 299476,
+      "laterLine": 299485,
+      "beforeSha256": "1d3299c85096ceb38d0cc2f9bdade375160b79687f69fb76741a6ce7660d7b09",
+      "afterSha256": "1d3299c85096ceb38d0cc2f9bdade375160b79687f69fb76741a6ce7660d7b09",
+      "identical": true
+    },
+    {
+      "path": [
+        "taskUnlocks",
+        "Shops",
+        "Slayer Equipment^Broad arrowheads",
+        "11310-1"
+      ],
+      "firstLine": 299485,
+      "laterLine": 299506,
+      "beforeSha256": "1d3299c85096ceb38d0cc2f9bdade375160b79687f69fb76741a6ce7660d7b09",
+      "afterSha256": "1d3299c85096ceb38d0cc2f9bdade375160b79687f69fb76741a6ce7660d7b09",
+      "identical": true
+    },
+    {
+      "path": [
+        "taskUnlocks",
+        "Shops",
+        "Slayer Rewards",
+        "11310-1"
+      ],
+      "firstLine": 299523,
+      "laterLine": 299532,
+      "beforeSha256": "98d4c2ad0adeb2c3ec5a1d0da93eab1b05473dd8f533026e1b8e1c8468550e68",
+      "afterSha256": "98d4c2ad0adeb2c3ec5a1d0da93eab1b05473dd8f533026e1b8e1c8468550e68",
+      "identical": true
+    },
+    {
+      "path": [
+        "taskUnlocks",
+        "Shops",
+        "Slayer Rewards",
+        "11310-1"
+      ],
+      "firstLine": 299532,
+      "laterLine": 299550,
+      "beforeSha256": "98d4c2ad0adeb2c3ec5a1d0da93eab1b05473dd8f533026e1b8e1c8468550e68",
+      "afterSha256": "98d4c2ad0adeb2c3ec5a1d0da93eab1b05473dd8f533026e1b8e1c8468550e68",
+      "identical": true
+    },
+    {
+      "path": [
+        "skillItems",
+        "Archaeology",
+        "Banded limestone cache"
+      ],
+      "firstLine": 308029,
+      "laterLine": 308037,
+      "beforeSha256": "f44b00d6c1551ae4f4fe6e61ab751782ce9063e4222e5f3d281fbfb0eaec60dc",
+      "afterSha256": "f44b00d6c1551ae4f4fe6e61ab751782ce9063e4222e5f3d281fbfb0eaec60dc",
+      "identical": true
+    },
+    {
+      "path": [
+        "skillItems",
+        "Thieving",
+        "Zanaris Market spirit stall",
+        "Luminite stone spirit"
+      ],
+      "firstLine": 342347,
+      "laterLine": 342365,
+      "beforeSha256": "892b19359ab5a2b034c0a6d6317985c97378c5687af35ba96a0ab0c863684cb3",
+      "afterSha256": "022ca99d255add71842c36f4d8f1c74469aab3565db5525d491888c1a296d834",
+      "identical": false
+    },
+    {
+      "path": [
+        "skillItems",
+        "Nonskill",
+        "Lucky charm (Temple of Aminishi) loot",
+        "Onyx dust"
+      ],
+      "firstLine": 345310,
+      "laterLine": 345313,
+      "beforeSha256": "0155421f60e15a819da47b1a4c4f40e469bc5c2353c66cb37db51dc9bf5c1c90",
+      "afterSha256": "8a2deac1a5edbaf51650ecee80659e09f31dc4a43d4506ffab4441798d639dc9",
+      "identical": false
+    },
+    {
+      "path": [
+        "skillItems",
+        "Nonskill",
+        "Lucky charm (Dragonkin Laboratory) loot",
+        "Onyx dust"
+      ],
+      "firstLine": 345363,
+      "laterLine": 345366,
+      "beforeSha256": "ff978d384c40095a852b5d6ad9d9c3d22125faaf89d9739cec53b974ef7fb17f",
+      "afterSha256": "25ab8acf1ef7d170b77d0ac967890aac6399cfaadd9c987f3d5ce3fd1eac7331",
+      "identical": false
+    },
+    {
+      "path": [
+        "skillItems",
+        "Nonskill",
+        "Lucky charm (Shadow Reef) loot",
+        "Onyx dust"
+      ],
+      "firstLine": 345374,
+      "laterLine": 345377,
+      "beforeSha256": "9a78e097219dc53bd4d76f51b720d65b1fc254ac959047f94b994e42487ea149",
+      "afterSha256": "e3d02ceb9c5cbba6eb86a20b9bd8d86e1a7dd6af8e89a6354dbbe430398f8cfa",
+      "identical": false
+    },
+    {
+      "path": [
+        "skillItems",
+        "Nonskill",
+        "Washed ashore loot",
+        "Chimes"
+      ],
+      "firstLine": 345524,
+      "laterLine": 345527,
+      "beforeSha256": "eb3ccc6c8f037dd529f0cf7d06bf9e18e7b3fad50fdba03255e923c8ba275616",
+      "afterSha256": "67b473a1df1aed972ad19d734179f606a58b8726810e11b92af5c418a4b32077",
+      "identical": false
+    },
+    {
+      "path": [
+        "questSections",
+        "12331-2"
+      ],
+      "firstLine": 352774,
+      "laterLine": 352775,
+      "beforeSha256": "19097a13b21cb9618dafd1337065fbe95584c73460c80dd72c38eb340b9b4f89",
+      "afterSha256": "19097a13b21cb9618dafd1337065fbe95584c73460c80dd72c38eb340b9b4f89",
+      "identical": true
+    },
+    {
+      "path": [
+        "equipment",
+        "Death guard (tier 30)",
+        "ability_damage"
+      ],
+      "firstLine": 370054,
+      "laterLine": 370061,
+      "beforeSha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+      "afterSha256": "23c657f2efda7731a3c1990b25f318fa2eb1332208f97ab9cc2a7eac70ab5a76",
+      "identical": false
+    },
+    {
+      "path": [
+        "equipment",
+        "Death guard (tier 40)",
+        "ability_damage"
+      ],
+      "firstLine": 370074,
+      "laterLine": 370081,
+      "beforeSha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+      "afterSha256": "37b73510175057c633ebe4beb0a34917fa2a0696432db43a4eeb2c3ff83a4c3b",
+      "identical": false
+    },
+    {
+      "path": [
+        "equipment",
+        "Death guard (tier 50)",
+        "ability_damage"
+      ],
+      "firstLine": 370094,
+      "laterLine": 370101,
+      "beforeSha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+      "afterSha256": "ddfe0e8d462af661f81db36589c39882dc0f2330785b5d80cd34f2f520ad618f",
+      "identical": false
+    },
+    {
+      "path": [
+        "equipment",
+        "Death guard (tier 60)",
+        "ability_damage"
+      ],
+      "firstLine": 370114,
+      "laterLine": 370121,
+      "beforeSha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+      "afterSha256": "f3457dabe1b412ed6374d56fe8fe3b969c761b77dcc80ecc0964b7c7641d219b",
+      "identical": false
+    },
+    {
+      "path": [
+        "equipment",
+        "Death guard (tier 70)",
+        "ability_damage"
+      ],
+      "firstLine": 370134,
+      "laterLine": 370141,
+      "beforeSha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+      "afterSha256": "12f26af0dcdfae8fe4331d6a4c369edd549220cdeb119b3b1831b2a2cf77f281",
+      "identical": false
+    },
+    {
+      "path": [
+        "equipment",
+        "Death guard (tier 80)",
+        "ability_damage"
+      ],
+      "firstLine": 370156,
+      "laterLine": 370163,
+      "beforeSha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+      "afterSha256": "f7b856c054de7ccced087ad4f9413380ec494e40abc818b840aaad990ca3c5bc",
+      "identical": false
+    },
+    {
+      "path": [
+        "equipment",
+        "Death guard (tier 90)",
+        "ability_damage"
+      ],
+      "firstLine": 370178,
+      "laterLine": 370185,
+      "beforeSha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+      "afterSha256": "8f97d9164b8fa131f0361abbe49fe706d3abfd77663ed7939ee20d361a0c6a67",
+      "identical": false
+    },
+    {
+      "path": [
+        "equipment",
+        "Masterwork bow",
+        "ability_damage"
+      ],
+      "firstLine": 386242,
+      "laterLine": 386249,
+      "beforeSha256": "a4ff3ad278c7b0575a8e32ae08eebfb327e37762cb1a2caa793c431b9b2ca2c6",
+      "afterSha256": "b60300641c365f1db9cea77f0c76648ed7c35bbff715d3de360d802d93d8ca7d",
+      "identical": false
+    }
+  ]
+}

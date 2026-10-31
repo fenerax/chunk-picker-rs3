@@ -41,17 +41,18 @@ test('BIS Skilling hides active equipment and relic goals while preserving their
   const before = structuredClone(evaluated);
   const selected = selectPresentedTasks(evaluated, saved, 'a', definitions);
   assert.deepEqual(names(selected), ['Unrelated goal']);
-  assert.ok(evaluated.tasks.filter(row => row.category === 'Extra').every(row => row.status === 'available'));
+  // BIS Skilling Relics inherits Off from BIS Skilling in the engine; the plain BIS goal is only hidden.
+  assert.deepEqual(evaluated.tasks.filter(row => row.category === 'Extra').map(row => row.status), ['available', 'blocked', 'available']);
   assert.ok(evaluated.items.some(row => row.name === 'Tool token'));
   assert.match(selected.suppressed[taskId('Extra', 'Obtain pickaxe')][0], /BIS Skilling rule/);
   assert.deepEqual(evaluated, before);
   saved.members[0].taskRules['BIS Skilling'] = true;
-  assert.deepEqual(names(selectPresentedTasks(evaluated, saved, 'a', definitions)), ['Obtain pickaxe', 'Unlock relic', 'Unrelated goal']);
+  assert.deepEqual(names(selectPresentedTasks(createTaskEngine(definitions).evaluate(saved, 'a'), saved, 'a', definitions)), ['Obtain pickaxe', 'Unlock relic', 'Unrelated goal']);
 });
 
 test('partial products, herb cleaning, shortcuts, and never-show metadata affect presentation only', () => {
   const tasks = [task('Cooking', 'Component', 10, { Partial: true, Primary: true }), task('Herblore', 'Clean a herb', 10, { Primary: true }), task('Agility', 'Shortcut', 10, { Category: ['Shortcut'], Primary: true }), task('Mining', 'Internal', 20, { NeverShow: true }), task('Extra', 'Keep')];
-  assert.deepEqual(names(select(tasks, { 'Hide Partial Products': true, 'Cleaning Herbs': false, 'Shortcut Task': false })), ['Keep']);
+  assert.deepEqual(names(select(tasks, { 'Multi Step Processing': true, 'Hide Partial Products': true, 'Cleaning Herbs': false, 'Shortcut Task': false })), ['Keep']);
   assert.ok(tasks.every(row => row.status === 'available'));
 });
 

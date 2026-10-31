@@ -31,7 +31,7 @@ function memberId(value) {
   return value;
 }
 function validDate(value) { return typeof value === 'string' && Number.isFinite(Date.parse(value)); }
-function validate(document) {
+export function validateInviteStore(document) {
   if (!document || Object.keys(document).some(key => !['schemaVersion', 'invites', 'sessions'].includes(key)) || document.schemaVersion !== 1 || !Array.isArray(document.invites) || !Array.isArray(document.sessions)) throw new TypeError('Invalid invite store.');
   const ids = new Set(), hashes = new Set();
   if (document.invites.length > 1000 || document.sessions.length > 10000) throw new TypeError('Invite store exceeds its limits.');
@@ -44,9 +44,9 @@ function validate(document) {
   }
   const sessionHashes = new Set();
   for (const session of document.sessions) {
-    if (Object.keys(session).some(key => !['tokenHash', 'inviteId', 'expiresAt', 'accountId', 'membershipId', 'provider'].includes(key)) || !HASH.test(session.tokenHash) || sessionHashes.has(session.tokenHash) ||
+    if (Object.keys(session).some(key => !['tokenHash', 'inviteId', 'expiresAt', 'accountId', 'membershipId', 'provider', 'pickerId'].includes(key)) || !HASH.test(session.tokenHash) || sessionHashes.has(session.tokenHash) ||
       !(session.inviteId === null || ids.has(session.inviteId)) || !validDate(session.expiresAt) ||
-      (session.accountId !== undefined ? !UUID.test(session.accountId) || session.membershipId !== session.inviteId || !UUID.test(session.membershipId) || !PROVIDERS.has(session.provider) : session.membershipId !== undefined || session.provider !== undefined)) throw new TypeError('Invalid invite session.');
+      (session.pickerId !== undefined ? !/^p_[0-9a-f]{32}$/.test(session.pickerId) || !UUID.test(session.accountId) || session.inviteId !== null || session.membershipId !== undefined || !PROVIDERS.has(session.provider) : session.accountId !== undefined ? !UUID.test(session.accountId) || session.membershipId !== session.inviteId || !UUID.test(session.membershipId) || !PROVIDERS.has(session.provider) : session.membershipId !== undefined || session.provider !== undefined)) throw new TypeError('Invalid invite session.');
     sessionHashes.add(session.tokenHash);
   }
   return document;
@@ -69,12 +69,12 @@ export async function atomicWrite(file, document) {
 }
 
 /** Open under the gameplay store's existing exclusive data-directory lock. */
-export async function openInviteStore({ dataDir, masterToken, masterLabel, now = Date.now, accounts, signInMode = 'off' } = {}) {
+export async function openInviteStore({ dataDir, masterToken, masterLabel, now = Date.now, accounts, signInMode = 'off', pickerRegistry } = {}) {
   if (!['off', 'optional', 'required'].includes(signInMode)) throw new Error('Invalid sign-in mode.');
   if (masterLabel === undefined) masterLabel = (await loadGameDefaults()).masterLabel;
   const file = path.join(dataDir, 'invites.json');
   let current;
-  try { current = validate(JSON.parse(await readFile(file, 'utf8'))); }
+  try { current = validateInviteStore(JSON.parse(await readFile(file, 'utf8'))); }
   catch (failure) { if (failure.code !== 'ENOENT') throw new Error('Invalid invite store.'); current = { schemaVersion: 1, invites: [], sessions: [] }; }
   let queue = Promise.resolve(), closed = false;
   const uses = new Map();
@@ -92,11 +92,22 @@ export async function openInviteStore({ dataDir, masterToken, masterLabel, now =
   }
   function principal(inviteId) {
     if (inviteId === null) return { kind: 'master', label: masterLabel, admin: true, readOnly: false, capabilities: { canWrite: true }, memberId: null, actor: { kind: 'master', label: masterLabel } };
-    const invite = current.invites.find(invite => invite.id === inviteId && !invite.revoked);
+    const invite = current.invites.find(invite => invite.id === inviteId && !invite.revoked && !pickerRegistry?.isAccountDeleted(invite.claimedAccountId));
     return invite ? { kind: 'invite', label: safeText(invite.label), inviteId, admin: invite.admin, readOnly: invite.viewer ?? false, capabilities: { canWrite: !invite.viewer }, memberId: invite.memberId ?? null,
       actor: { kind: 'invite', inviteId, label: safeText(invite.label), ...(invite.memberId ? { memberId: invite.memberId } : {}) } } : null;
   }
   function accountPrincipal(session) {
+    if (pickerRegistry?.isAccountDeleted(session.accountId)) return null;
+    if (session.pickerId) {
+      const account = pickerRegistry?.getAccount(session.accountId), picker = pickerRegistry?.getPicker(session.pickerId);
+      const membership = account?.memberships.find(item => item.pickerId === session.pickerId);
+      if (!membership || picker?.kind !== 'default' || picker.lifecycle !== 'active' || picker.provisioning !== 'ready'
+        || !account.identities.some(item => item.provider === session.provider)) return null;
+      const readOnly = membership.role === 'viewer', label = 'Player 1';
+      return { kind: 'account', accountId: account.id, pickerId: picker.id, provider: session.provider,
+        memberId: membership.memberId, role: membership.role, label, admin: false, readOnly,
+        capabilities: { canWrite: !readOnly }, actor: { kind: 'invite', inviteId: account.id, memberId: membership.memberId, label } };
+    }
     const account = accounts?.get(session.accountId);
     const membership = account?.memberships.find(item => item.id === session.membershipId && item.inviteId === session.inviteId);
     const invite = current.invites.find(item => item.id === session.inviteId && !item.revoked);
@@ -146,6 +157,13 @@ export async function openInviteStore({ dataDir, masterToken, masterLabel, now =
         return publicInvite(invite);
       });
     },
+    issuePickerSession(accountId, pickerId, provider) {
+      return mutate(next => {
+        const source = { accountId, pickerId, provider, inviteId: null };
+        if (!accountPrincipal(source)) throw error(403, 'Account access required.');
+        return addSession(next, source);
+      });
+    },
     issueAccountSession(accountId, membershipId, provider) {
       return mutate(next => {
         const membership = accounts?.get(accountId)?.memberships.find(item => item.id === membershipId);
@@ -162,6 +180,11 @@ export async function openInviteStore({ dataDir, masterToken, masterLabel, now =
       if (!TOKEN.test(token ?? '')) return Promise.resolve();
       return mutate(next => { const digest = hash(token); next.sessions = next.sessions.filter(session => !equals(session.tokenHash, digest)); });
     },
+    revokeDeletion({ pickerId, accountId, all = false }) { return mutate(next => {
+      const revoked = new Set();
+      for (const invite of next.invites) if (all || accountId && invite.claimedAccountId === accountId) { invite.revoked = true; revoked.add(invite.id); }
+      next.sessions = next.sessions.filter(session => !all && !(pickerId && session.pickerId === pickerId) && !(accountId && session.accountId === accountId) && !revoked.has(session.inviteId));
+    }); },
     revokeAccountSessions(accountId) { return mutate(next => { next.sessions = next.sessions.filter(session => session.accountId !== accountId); }); },
     async touch(identity) {
       if (!['invite', 'account'].includes(identity?.kind)) return Promise.resolve();
@@ -237,7 +260,7 @@ export async function openInviteStore({ dataDir, masterToken, masterLabel, now =
       const digest = hash(cookie);
       const session = current.sessions.find(session => equals(session.tokenHash, digest) && Date.parse(session.expiresAt) > now());
       if (!session) return null;
-      if (session.inviteId === null && !context.masterAllowed) throw error(403, 'Administrator access requires a private connection.');
+      if (session.inviteId === null && !session.pickerId && !context.masterAllowed) throw error(403, 'Administrator access requires a private connection.');
       const invite = current.invites.find(item => item.id === session.inviteId);
       if (!session.accountId && invite && (invite.claimedAccountId || (signInMode === 'required' && !invite.admin && !invite.viewer))) return null;
       const identity = session.accountId ? accountPrincipal(session) : principal(session.inviteId);

@@ -207,3 +207,588 @@ saves, VPS CPU speed, or production capacity.
 | Roll-pool wall ms | 28.7 | 17.3 |
 | Store-only MiB/context, N=1 / N=3 | 0.421 / 0.357 | 0.437 / 0.352 |
 | Store bytes (receipt bytes separately) | 247,222 (163) | 246,609 (163) |
+
+## Multiplayer lane
+
+MP10 compares main `1c978e30d73a7a9cad0184e11b06376635438c6b`
+with combined multiplayer START
+`341f81648a3f8d0e308420f99250a7a624362189`, without and with routing.
+The application trees are immutable detached worktrees. Every trial uses a
+fresh harness-owned copy of the supplied save and binding; no private files
+enter this repository. The private checkout remains unchanged.
+
+The additive `--multi-picker` flag enables routing for the supplied two-member
+trial, with registry, owned-picker and tombstone roots inside its temporary
+trial directory. The existing fresh one-member control remains without routing:
+the shared legacy registration requires two members. Both the top-level flag
+and each trial's actual mode are numeric report fields. These are shared-duo
+measurements and fresh-solo controls, not measurements of provisioned owned
+contexts or simultaneous public players.
+
+The harness also retains an explicitly supplied `RS3_GAME_DEFAULTS_FILE` in its
+child environment and collects each process worker's own `ready.compileMs` into
+numeric `compileMs` arrays. This measures engine compilation after imports,
+not total worker startup. No application or calculator code changes are needed.
+The existing harness regression and a synthetic flag run both pass; reports
+remain entirely numeric. Installed-input runs use pinned `--pointer` configs;
+`--app-dir` remains the original open-f2p synthetic mode.
+
+Three sequential rounds run main, START without routing, then START with routing;
+only one harness/calculator workload runs at once, after the suites exit. Linux,
+Node 24.19.0, process workers, port zero, `--idle-ms 250`, nice level 10 and the
+harness's 3,500 MiB process-tree RSS guard are identical across columns. The RSS
+guard is sampled admission, not an OS hard ceiling. No trial breaches it.
+
+Values below are median [minimum–maximum] across three fresh-process reports.
+For each report, cold/repeat wall time and combined main/worker CPU are first
+reduced to the median across indexed members; compilation is that report's
+median across worker-ready samples. RSS comes from `snapshots.idle.memory.rss`
+and `processTreePeakRSSBytes`. CPU adds main plus worker relay-host user/system
+microseconds and divides by 1,000,000; worker threads are not counted twice.
+Idle workers have slept. Cold evaluations include waking, import/compile,
+transfer, evaluation and serialization; repeats can hit the retained result
+cache and are not forced warm-engine evaluations. The existing probe/sampling
+limitations above apply. These samples establish no production capacity.
+
+The reports record 5 logical CPUs and 18,882,662,400 bytes of RAM.
+All nine reports complete successfully (18 sequential trial processes).
+
+| Supplied two-member trial | Main | START option absent | START option present |
+| --- | --- | --- | --- |
+| Worker engine compile, ms | 1224.3 [1220.0–1252.7] | 1220.2 [1205.5–1223.8] | 1203.5 [1188.1–1207.4] |
+| Cold full tasks, ms per evaluation | 5708.2 [5699.8–5823.3] | 5886.2 [5874.2–5914.1] | 5907.8 [5877.3–5918.0] |
+| Cold combined CPU, core-seconds per evaluation | 10.493 [10.074–10.748] | 10.614 [10.485–10.859] | 10.791 [10.742–10.917] |
+| Repeat full tasks, ms | 169.3 [157.8–202.2] | 171.3 [143.1–221.4] | 182.1 [179.9–188.3] |
+| Repeat combined CPU, core-seconds | 0.596 [0.483–0.729] | 0.499 [0.455–0.669] | 0.620 [0.596–0.621] |
+| Roll-pool HTTP wall time, ms | 228.7 [209.1–255.2] | 236.8 [232.2–242.2] | 258.3 [251.6–309.2] |
+| Roll-pool combined CPU, core-seconds | 0.605 [0.508–0.670] | 0.646 [0.631–0.705] | 0.789 [0.740–1.037] |
+| Idle main RSS, MiB | 830.23 [829.28–831.70] | 828.86 [813.98–831.19] | 830.74 [830.52–831.00] |
+| Peak process-tree RSS, MiB | 2266.62 [2225.74–2272.57] | 2209.17 [2209.09–2237.19] | 2219.42 [2186.97–2224.21] |
+| Complete harness run, seconds (both trials) | 55.498 [54.676–56.803] | 54.532 [54.084–55.352] | 54.853 [54.755–55.664] |
+
+| Fresh one-member control (routing absent in every column) | Main | START, flag absent | START, flag supplied |
+| --- | --- | --- | --- |
+| Worker engine compile, ms | 1180.1 [1179.4–1207.1] | 1234.0 [1232.2–1245.9] | 1229.1 [1183.3–1242.9] |
+| Cold full tasks, ms per evaluation | 4185.8 [4152.4–4185.9] | 4214.6 [4186.4–4298.6] | 4096.4 [4024.3–4272.7] |
+| Cold combined CPU, core-seconds per evaluation | 7.544 [7.184–7.919] | 7.589 [7.428–8.170] | 7.283 [7.014–7.947] |
+| Repeat combined CPU, core-seconds | 0.640 [0.499–0.699] | 0.524 [0.513–0.828] | 0.582 [0.517–0.718] |
+| Idle main RSS, MiB | 698.36 [693.61–701.39] | 698.86 [694.22–705.28] | 695.09 [693.44–769.34] |
+| Peak process-tree RSS, MiB | 1032.88 [1004.09–1060.04] | 1031.99 [1024.05–1040.10] | 1025.62 [1005.08–1026.69] |
+
+The enabled cold-task median is 3.50% slower than main; the
+option-absent median is 3.12% slower. Their observed cold wall-time
+ranges do not overlap main in these three rounds. Enabled cold CPU increases
+2.84%. Idle main RSS changes by 0.50 MiB, and peak tree RSS decreases
+2.08% at the median. The roll-pool CPU median increases 30.28%
+(0.183 core-seconds); those CPU ranges also do not overlap. These original
+sample differences motivated the counterbalanced repetitions and branch
+bisection below; they do not establish a causal code regression. The repeat
+and solo-control spreads show ordinary runtime variation. This run supports
+neither a throughput improvement nor a public concurrency limit.
+
+The footprint rerun is complete. The engine-lane checker now reports 1 current
+state, 36 comparisons, 0 differences and 0 errors for each option setting through
+direct main-versus-START adapter comparisons. This is not the 414-state
+historical engine gate. Exact manifest/save hashes, the comparison method and
+test counts are in the Phase 1 acceptance map in `docs/multi-picker-contract.md`.
+The multiplayer checker gate passes on the current duo snapshot. The 414-state
+engine gate runs as 48 Cloud shards before its first merge to main. Service
+recovery is covered by MP8, PR #35 (`mp/operator`), not merged here.
+Public sign-up remains off.
+
+### MP10 follow-up: option cost and attribution
+
+The follow-up retains the original three-column results above and adds fresh
+comparison processes. The primary comparison uses three complete rotations:
+`on/main/off`, `off/on/main`, `main/off/on` (reports 2–4). Each configuration
+occupies each position once. The final rotation and this selection were recorded
+before its results. Earlier scouting controls (report 1), branch probes and
+instrumented profiles are reported separately, rather than pooled into the
+primary medians. No workloads run concurrently. The quota is 4 CPU cores and
+16 GiB; Node 24.19.0, process workers, 250 ms idle, nice 10 and the 3,500 MiB
+RSS guard match the first run. No application code changes.
+
+| Fresh balanced comparison, median [minimum–maximum], 3 runs | Main | START option absent | START option present |
+| --- | --- | --- | --- |
+| Cold full tasks, ms | 5777.4 [5745.0–5907.9] | 5791.4 [5742.7–5994.3] | 5926.5 [5883.5–5986.3] |
+| Cold combined CPU, core-seconds | 10.498 [10.329–10.558] | 10.345 [10.242–10.981] | 10.905 [10.702–10.951] |
+| First full state HTTP wall time, ms | 247.6 [221.1–255.3] | 243.5 [231.8–280.8] | 224.3 [213.1–262.1] |
+| First full state combined CPU, core-seconds | 0.670 [0.583–0.686] | 0.782 [0.611–0.836] | 0.756 [0.498–0.854] |
+| First full state main-thread CPU, core-seconds | 0.160 [0.150–0.162] | 0.172 [0.149–0.219] | 0.155 [0.151–0.180] |
+| First full state calculator CPU, core-seconds | 0.000 [0.000–0.000] | 0.000 [0.000–0.000] | 0.000 [0.000–0.000] |
+| Idle main RSS, MiB | 827.50 [811.64–829.58] | 814.70 [800.03–829.39] | 832.30 [814.27–841.23] |
+| Peak process-tree RSS, MiB | 2233.64 [2216.28–2263.02] | 2206.29 [2105.51–2267.49] | 2228.90 [2228.77–2234.03] |
+
+Enabled cold CPU is 3.87% above main in this balanced cohort;
+its sampled ranges are separated. The original cohort showed +2.84% with
+overlapping ranges. Enabled cold wall time is now +2.58%, with overlapping
+ranges. The state-response CPU median increases
+16.70% without routing and 12.79% with routing. Both state-response
+CPU ranges overlap main. The cost is therefore not exclusive to enabling the
+option, and the data do not establish a zero-cost disabled path.
+
+The additional scouting control is retained as evidence of wider variability.
+Across all four fresh controls per configuration, the cold CPU ranges are:
+| All four fresh controls, core-seconds | Main | START option absent | START option present |
+| --- | --- | --- | --- |
+| Cold combined CPU | 10.528 [10.329–11.072] | 10.567 [10.242–10.981] | 10.915 [10.702–10.951] |
+
+These all-control ranges overlap. They are not used to erase the primary
+balanced result; they limit how confidently a small difference can be assigned
+to a code change.
+
+#### Branch bisection diagnostics
+
+The first-parent lane history and both task-branch histories were inspected.
+The comparison main and lane share ancestor
+`53b965b0daa9392aed39f86895e380928a52329e`; the newer main changes affect
+plugin reads. The probes below traverse context extraction, routing, both late
+routing fixes, deletion, browser ownership and limits. Each row is **one fresh
+process**, useful for choosing a bisection boundary, not a three-run bound.
+
+| Checkpoint | Option | Cold wall ms | Cold CPU core-seconds | Full state CPU core-seconds |
+| --- | --- | ---: | ---: | ---: |
+| `400ed50` | absent | 5772.4 | 10.189 | 0.542 |
+| `18aaca0` | absent | 5753.5 | 10.320 | 0.583 |
+| `18aaca0` | present | 5765.4 | 10.536 | 0.779 |
+| `5e15efe` | present | 5863.4 | 10.809 | 0.679 |
+| `d6ef7f1` | present | 6042.3 | 10.642 | 0.545 |
+| `c19cef6` | absent | 5946.9 | 10.941 | 0.748 |
+| `c19cef6` | present | 5941.8 | 10.935 | 0.803 |
+| `bbddcd8` | present | 6035.1 | 11.213 | 0.786 |
+| `51d7a49 (mp/owner-ui)` | absent | 5907.2 | 10.999 | 0.763 |
+| `51d7a49 (mp/owner-ui)` | present | 5907.7 | 11.214 | 0.766 |
+| `acf5319 (mp/limits)` | absent | 5920.9 | 10.706 | 0.495 |
+| `acf5319 (mp/limits)` | present | 6063.6 | 11.229 | 0.761 |
+
+The cold probe first crosses 3% above the primary main median at MP5
+`c19cef6d738f547875fa1dea1d4d96ff7227d8f8`, after parent
+`d6ef7f13f753abaaf0ab14d07caea594713fb208`. That nominates a candidate,
+not a causal verdict. The two preceding routing patches change owned eviction
+and backup import paths that this legacy read workload does not exercise.
+The MP6 branch without MP5 also gives a high cold sample. Paired confirmation
+against the MP5 parent follows below.
+
+#### The measured state-response cost
+
+The harness field called `rollPool` times the first full `/api/state` response.
+Since M0, startup `prepare()` has already obtained pools while preparing the
+play response. Every follow-up state-response interval records **0 calculator
+CPU**. It measures state materialization/serialization, encoding, HTTP handling
+and process-wide memory-management work; it is not an uncached roll-pool
+algorithm benchmark.
+
+Separate instrumented main-thread profiles cover this interval only, after the
+unmodified comparison runs. They are not included in the timing tables.
+The disabled/enabled duo profiles contain 242/231 samples: GC has 97/82 self
+samples and `fieldJSON()` in `app/storage/store.mjs` has 50/51. These profiles
+do not capture helper-thread CPU. The main-thread CPU table above also shows
+that most combined CPU is charged outside the JavaScript main thread.
+
+The likely cost site is `fieldJSON()`/state assembly plus GC. Both `fieldJSON()`
+and its `stateRepresentation()` caller have **0 source differences** between
+main and START. The field serializer has source SHA-256
+`ddcee78832c652f6b9bf5d7dfc1815fc4fed524ab232642165fff3f77e8fd430`
+in both trees. This locates work, without establishing which change, if any,
+causes the differing GC/sampling behavior. No application fix is made.
+
+#### Paired MP5 boundary confirmation
+
+The candidate and its immediate parent were each measured three times, all
+with routing enabled. Two further parent/child confirmations used the orders
+`parent/child` and `child/parent`, in addition to the initial probes. These
+figures use the same per-report reductions as the primary table.
+
+| Paired confirmation, median [minimum–maximum], 3 runs | Parent `d6ef7f1` | MP5 `c19cef6` |
+| --- | --- | --- |
+| Cold task wall time, ms | 5925.7 [5820.0–6042.3] | 5941.8 [5926.0–6107.5] |
+| Cold combined CPU, core-seconds | 10.679 [10.642–10.823] | 11.054 [10.935–11.453] |
+| First full state CPU, core-seconds | 0.599 [0.545–0.788] | 0.726 [0.640–0.803] |
+
+Cold CPU rises 3.51% at this parent/child boundary, with separated observed
+ranges. The bisection candidate is **MP5 commit
+`c19cef6d738f547875fa1dea1d4d96ff7227d8f8`**. The initial suspect was `createPickerContext()` resource lifetime and retained
+lifecycle closures. The cold-function profiling below does not substantiate
+that hypothesis.
+The calculator worker, engine and rule files have 0 differences at this boundary.
+The state-response profiles locate shared `fieldJSON()`/GC cost, not a new
+calculator algorithm.
+
+Attribution remains bounded: MP6 without MP5 also produced a high diagnostic
+sample, and later merged branches do not compose monotonically. The paired
+MP5 boundary is evidence for an investigation target, not proof that MP5 alone
+explains every main-to-START difference. The state-response CPU ranges still
+overlap, so no introducing commit is established for that metric. Its median
+increase appears with the option absent as well as present.
+
+No app or checker code is changed in this follow-up. The current-duo checker
+comparisons pass with 0 differences; service recovery is covered by MP8,
+PR #35, and the historical engine gate belongs to the engine lane. The requested cold-function follow-up and final recommendation follow below.
+
+
+#### MP5 cold-function profiling and proposed mitigation
+
+The requested native `--cpu-prof` follow-up compares immediate parent
+`d6ef7f13f753abaaf0ab14d07caea594713fb208` with MP5
+`c19cef6d738f547875fa1dea1d4d96ff7227d8f8`, three fresh process-mode runs each.
+The recorded pair order is parent/child, child/parent, parent/child. Each run
+uses a fresh temporary save copy, the same packs, two cold member evaluations,
+250 ms worker idle, nice 10 and a 3,500 MiB process-tree RSS guard. All six runs
+finish with 0 guard breaches. The HTTP process, relay hosts and calculator
+isolates produce 54 native profiles at the default 1,000 microsecond sampling
+interval. A scratch preload enables native profiling in the explicitly configured
+Worker isolates, records clock alignment, GC events and resource counts, and
+counts ledger reads. No application file is edited. A preliminary priority check
+at nice 19 was discarded before this cohort; its measurements are excluded.
+
+Only cold `/api/tasks` intervals enter the following profiles. Startup, warm
+requests and full-state responses are excluded. Reduce the two member
+measurements within each run first, then report the three-run median and
+minimum–maximum. Profile self-time is sampled elapsed time, not a substitute
+for process CPU: scheduling and GC sampling can move it, and native helper
+threads are outside these isolate profiles. These instrumented results are kept
+separate from the earlier uninstrumented +3.51% boundary result.
+
+| Profile cohort, median [minimum–maximum], 3 runs | Parent | MP5 |
+| --- | --- | --- |
+| Cold tasks wall time, ms | 5938.2 [5843.9–6049.7] | 5985.7 [5971.4–6139.5] |
+| Cold combined CPU, core-seconds | 10.855 [10.835–11.297] | 11.424 [11.018–11.429] |
+| HTTP-process CPU, core-seconds | 1.871 [1.859–1.883] | 2.144 [1.791–2.278] |
+| HTTP main-thread CPU, core-seconds | 0.514 [0.510–0.541] | 0.560 [0.491–0.607] |
+| Calculator-host CPU, core-seconds | 8.996 [8.951–9.426] | 9.227 [9.151–9.280] |
+| Idle HTTP heap used, MiB | 421.772 [420.176–421.777] | 421.783 [420.218–421.814] |
+| Idle HTTP RSS, MiB | 836.83 [818.22–845.62] | 822.26 [818.49–836.19] |
+| Peak process-tree RSS, MiB | 2211.34 [2172.79–2244.08] | 2189.50 [2181.32–2263.61] |
+
+The profiled combined-CPU median increases 5.24%, but these observed ranges
+**overlap**. The HTTP process accounts for much of the difference. Its CPU
+outside the JavaScript main thread is 1.349 [1.342–1.358] versus
+1.584 [1.300–1.671] core-seconds per evaluation; those ranges also overlap.
+This cannot be charged to a JavaScript function from isolate profiles alone.
+
+The top self-time functions and the largest relevant increases are below.
+Values are milliseconds per cold evaluation, median [minimum–maximum]; the
+last column subtracts the medians. GC and native serialization are shown
+explicitly. Medians of separate rows need not add to the combined median.
+
+| Isolate / function | Parent self ms | MP5 self ms | Delta ms |
+| --- | --- | --- | --- |
+| calculator: `(garbage collector)` | 619.6 [575.9–727.9] | 557.7 [554.6–601.3] | -61.9 |
+| calculator: `feed` (`app/dataset-json-check.mjs`) | 299.3 [293.4–302.7] | 298.2 [297.0–308.1] | -1.1 |
+| main: `(garbage collector)` | 248.4 [160.4–254.9] | 261.6 [195.6–308.3] | +13.2 |
+| calculator: `evaluate` (`app/tasks/obligation-cache.mjs`) | 235.3 [228.7–238.0] | 233.9 [219.0–248.1] | -1.4 |
+| calculator: `createCompiledTaskEngine` (`app/tasks/engine.mjs`) | 203.8 [187.5–207.8] | 213.0 [211.5–221.4] | +9.2 |
+| calculator: `serialize` (`node:v8`) | 189.0 [187.3–189.6] | 195.2 [192.6–198.0] | +6.1 |
+| calculator: `check` (`app/tasks/engine.mjs`) | 171.8 [171.2–185.7] | 186.6 [177.7–205.8] | +14.8 |
+| calculator: `sharedJSON` (`app/tasks/worker.mjs`) | 128.1 [125.1–130.2] | 128.8 [125.9–145.6] | +0.7 |
+| calculator: `json` (`app/datasets.mjs`) | 121.9 [116.3–131.4] | 120.7 [115.3–121.8] | -1.2 |
+| calculator: `serializedState` (`app/tasks/worker.mjs`) | 96.4 [74.1–113.8] | 111.4 [92.4–137.1] | +15.0 |
+| calculator: `ownItemOrigin` (`app/tasks/engine.mjs`) | 31.3 [30.9–34.4] | 41.9 [35.8–43.2] | +10.6 |
+| relay: `(garbage collector)` | 39.5 [27.2–40.4] | 24.2 [23.7–29.4] | -15.2 |
+
+No MP5 deletion function acquires a measured cold-path self-time cost.
+`serializedState()` (+15.0 ms) and the engine's `check()` (+14.8 ms) have
+overlapping ranges. `createCompiledTaskEngine()` (+9.2 ms) and
+`ownItemOrigin()` (+10.6 ms) have separated sampled ranges here, but their
+source is unchanged at MP5 and their increments do not explain 0.375
+core-seconds. The worker, transport, engine and rules source has 0 differences
+at the boundary. A changed MP5 function causing +3.51% is **not established**.
+
+Checks on the original suspects:
+
+- `createPickerContext()` runs before the cold windows. Idle live heap changes
+  by only 11,920 bytes at the median, with overlapping ranges. The additional
+  lifecycle methods capture already-live context/sidecar resources. There is
+  no measured evidence of extra retained-heap pressure; the earlier lifecycle
+  hypothesis is withdrawn, rather than promoted to a causal conclusion.
+- Each HTTP process has 1 active timer and 7 process event listeners at the
+  sampled cold boundaries in both trees. The MP5 diff adds no timer/listener
+  registration on this master-session legacy read path. Transient process
+  handles occur on both sides while workers retire.
+- Ledger reads during all 12 cold evaluations: 0. Reconciliation occurs at
+  startup; account-deletion checks are bypassed by this master identity and
+  owned-picker acquisition is bypassed by legacy routing. Tombstone reads
+  are not a measured per-evaluation cost here.
+- GC observer pause durations overlap: HTTP 38.8 [27.2–43.4] versus
+  44.9 [37.8–50.5] ms, calculator 472.9 [444.2–491.3] versus
+  461.4 [444.9–499.7] ms. Calculator/relay sampled GC self-time decreases;
+  HTTP sampled GC increases only 13.2 ms with overlapping ranges. These
+  measurements do not support a new MP5 retained-object explanation.
+
+A concrete **cost-reduction proposal**, not a proven MP5-specific repair, is
+available in `app/picker-context-http.mjs: gzipSavedTaskResult()` and
+`app/picker-context.mjs: rememberTaskResultWork()` plus the full-task HTTP
+response branch. The current full-result path compresses the bulk JSON once
+for retained tasks and again through `jsonBytes()` / `createRepresentation()`
+for a gzip HTTP response. Prepare one flushed gzip prefix for the bulk JSON,
+retain its CRC/length, and finish it with each small metadata suffix. Reuse the
+existing compact-response single-member prefix/trailer technique. Keep the
+retained and live cache/revision/timing metadata distinct, preserve encoding
+negotiation, invalidation, deletion fences and byte budgets, and avoid retaining
+an additional full uncompressed result. This removes one bulk gzip operation
+and its extra buffer/hash work when both representations are needed.
+
+To bound that proposal, a separate scratch capture supplies a full-result-sized
+JSON payload to the unchanged `gzipSavedTaskResult()` helper in three clean
+processes, after GC and a 250 ms settling interval. The real calculator is
+closed first; this avoids charging its background heap work to compression.
+The input is 26,241,511 bytes (SHA-256
+`17e9dfe3ca6cd1bcb29efef3aedca95a435462001d23706744bd8653bf9a2a44`);
+each compressed result is 2,047,249 bytes. One helper call costs
+0.048120 [0.046407–0.048252] core-seconds and 47.9 [45.6–48.3] ms;
+peak RSS is 188.90 [180.96–190.31] MiB. The gross saving target is approximately
+0.048 core-seconds and one bulk pass per eligible full response,
+about 0.45% of the earlier parent cold CPU. This is a calibrated gross estimate; prefix/CRC overhead must be subtracted
+in the implementation benchmark. It is not a measured implementation result; it cannot be claimed to recover the
+entire +3.51%. No app fix or prototype is applied.
+
+The state-response `fieldJSON()`/GC variation remains **unattributed**, with
+overlapping ranges; no further investigation of that metric was performed.
+The current-duo checker gate passes in both modes (1 state, 36 comparisons,
+0 differences and 0 errors each). MP8 service recovery is covered by PR #35,
+without merging that branch. Quick/full suites pass with 2,678/5,825 passes,
+0 failures, 69/141 skips and 0 TODOs. The remaining performance work is the
+unapplied proposal above; this tests-and-measurements change is a
+**MERGE-CANDIDATE**, with causal attribution bounded as stated.
+## MP13 audit fixes: footprint and duo compatibility
+
+START `e82c13ba80d9816691344f9c5238c522643ed0d3`. Linux, Node 24.19.0, five logical CPUs, 16 GiB container memory limit; measured 30 October 2026.
+
+The existing `scripts/perf/picker-footprint.mjs` ran three alternating START/MP13 pairs, sequentially, with an empty synthetic source, bundled open-f2p, process workers, port zero and 250 ms worker idle interval. No tests ran during measurements. Clocks are normal. Values below are median [minimum–maximum] across three fresh processes per revision; two-member timings/CPU are first reduced to the member median for each run. CPU is observed combined HTTP/calculator CPU from the harness samples. Peak RSS is the sampled Linux process-tree sum (50 ms interval); short peaks may be missed. These small synthetic inputs do not establish full-pack performance or production capacity.
+
+| Synthetic case / measurement | START | MP13 |
+| --- | --- | --- |
+| Two-member, cold full tasks, ms | 391.98 [377.77–393.38] | 386.62 [372.34–401.27] |
+| Two-member, warm full tasks, ms | 13.17 [12.85–13.79] | 13.60 [12.88–17.93] |
+| Two-member, cold CPU, core-seconds | 0.411 [0.391–0.412] | 0.407 [0.399–0.424] |
+| Two-member, peak RSS, MiB | 108.61 [108.00–109.66] | 108.45 [107.37–108.70] |
+| Fresh solo, cold full tasks, ms | 375.58 [370.54–427.43] | 383.43 [381.57–388.16] |
+| Fresh solo, warm full tasks, ms | 13.86 [11.14–14.16] | 12.44 [12.30–13.40] |
+| Fresh solo, cold CPU, core-seconds | 0.388 [0.382–0.460] | 0.408 [0.401–0.414] |
+| Fresh solo, peak RSS, MiB | 108.29 [107.49–108.41] | 108.50 [107.75–113.01] |
+
+Store bytes are unchanged in every pair: 247,335 for the two-member case and 246,609 for solo; each binding is 163 bytes.
+
+The reusable `scripts/perf/duo-compatibility.mjs` gate ran once per revision with routing absent, then once per revision with routing present. Each comparison covers ten complete identity-encoded response bodies and the rewritten state, without dropping or normalizing fields. Both modes have **0 response differences, 0 size differences and 0 save differences**, across 20 paired reads. Each of the four runs returned **83,606,131 bytes**. SHA-256 of the ordered size/hash rows is `1b4583763d891cc5bbada4fcdcab6b7eff6aebf5f38bfb93d098c08f7e4a60ba`. Each saved state is **766,384 bytes**, SHA-256 `64de39c55452925587b87af05aa01507513263761bc407f54e81bcbb699acfdc`, identical to the source-state hash. The private checkout has **0 changed files**.
+
+The compatibility gate uses the same injected store timestamp and `duo-compatibility-clock.mjs` preload in HTTP/calculator processes and isolates. Its wall duration uses the real clock and includes imports, startup, reads and close, excluding copying. These are single samples under fixed response clocks, not performance medians; no spread is estimated.
+
+| Routing / compatibility measurement | START | MP13 |
+| --- | --- | --- |
+| Absent, wall seconds | 32.03 | 29.20 |
+| Absent, sampled peak RSS, MiB | 1215.39 | 1177.00 |
+| Present, wall seconds | 29.71 | 30.11 |
+| Present, sampled peak RSS, MiB | 1203.29 | 1262.91 |
+
+The checker copies inputs only into temporary directories, mints temporary plugin credentials after the browser status read, refuses external sync fetches and emits only counts, hashes, sizes and measurements. Its usage and limits are documented in `scripts/perf/README.md`. Public sign-up remains off.
+
+
+## MP15 account reclaim
+
+START `5fce2f3984a4fdf1ea3ab4fe8935733045e3c478`. Linux, Node 24.21.0,
+4-core CPU quota, 16 GiB memory limit; measured 31 October 2026. No tests ran
+during measurements. The existing harness ran three alternating START/MP15 pairs,
+sequentially, against an empty synthetic source and bundled open-f2p, process
+workers, port zero and 250 ms idle interval. `--multi-picker` enables routing for
+the two-member trial; the harness's fresh solo trial keeps the option absent.
+
+Values are median [minimum–maximum] across three fresh processes per revision.
+Two-member task timings and CPU are first reduced to their member median per
+trial. CPU sums the observed HTTP and calculator-host samples without counting
+calculator threads twice. RSS is the existing harness's reported sampled process
+sum at 50 ms intervals; brief peaks can be missed. These small synthetic trials
+are not a production capacity estimate or evidence of a speed improvement.
+
+| Synthetic case / measurement | START | MP15 |
+| --- | --- | --- |
+| Two-member, cold full tasks, ms | 390.85 [382.53–401.26] | 390.50 [382.76–404.26] |
+| Two-member, warm full tasks, ms | 14.43 [12.94–15.32] | 13.85 [13.30–14.26] |
+| Two-member, cold CPU, core-seconds | 0.413 [0.412–0.436] | 0.421 [0.417–0.433] |
+| Two-member, reported peak RSS, MiB | 109.82 [109.71–109.82] | 110.14 [109.19–113.80] |
+| Fresh solo, cold full tasks, ms | 398.00 [393.84–410.58] | 408.31 [404.43–413.72] |
+| Fresh solo, warm full tasks, ms | 25.66 [15.15–28.18] | 14.70 [14.51–22.40] |
+| Fresh solo, cold CPU, core-seconds | 0.437 [0.434–0.446] | 0.427 [0.424–0.447] |
+| Fresh solo, reported peak RSS, MiB | 109.64 [107.74–110.13] | 109.79 [108.93–109.93] |
+
+The duo compatibility checker ran on the final code, once per revision with
+routing absent and once with routing present. Both modes report **0 response / 0 size / 0
+saved-state differences**, across **20** paired reads. Each of the four runs
+returned **83,606,131 bytes**. The ordered response-size/hash digest is
+`1b4583763d891cc5bbada4fcdcab6b7eff6aebf5f38bfb93d098c08f7e4a60ba`.
+Each rewritten state is **766,384 bytes**, SHA-256
+`64de39c55452925587b87af05aa01507513263761bc407f54e81bcbb699acfdc`,
+identical to the unchanged source hash. The private checkout has **0** changed files.
+
+The checker uses fixed response timestamps and real wall duration. Timings below
+are single samples, including imports, startup, reads and close, excluding copying;
+there are no repeated-run medians or estimated spread for this gate.
+
+| Routing / checker measurement | START | MP15 |
+| --- | --- | --- |
+| Absent, wall seconds | 33.94 | 34.01 |
+| Absent, reported peak RSS, MiB | 1187.61 | 1196.90 |
+| Present, wall seconds | 32.09 | 33.01 |
+| Present, reported peak RSS, MiB | 1211.39 | 1213.02 |
+
+The synthetic footprint pairs above preceded the final stopped-checkpoint
+guard. The duo checker results in this section were rerun on the final code,
+including that guard. Final quick/full results are recorded in the MP15 section
+of [multi-picker-contract.md](../multi-picker-contract.md#mp15-account-reclaim).
+Both suites and both checker modes passed. Public sign-up remains off.
+
+### MP15 adversarial review fixes
+
+Review START `fbb1ec3ef92597587a77310f25d12bc49df844ce`; Linux,
+Node 24.21.0, measured 31 October 2026. Three alternating START/fixed pairs ran
+sequentially with no tests running, using the existing `picker-footprint.mjs`,
+an empty synthetic source, bundled open-f2p, process workers, port zero,
+`--multi-picker` and `--idle-ms 250`. The two-member trial enables routing;
+the fresh solo trial keeps routing absent.
+
+Values are median [minimum–maximum] across three fresh processes per revision.
+Task time and CPU first use the median across members within each trial.
+CPU includes the HTTP process and calculator-host samples, without counting
+calculator threads twice. RSS is the existing harness's reported peak, sampled
+at 50 ms; brief peaks can be missed. These small synthetic trials do not
+establish a performance change or production capacity.
+
+| Synthetic case / measurement | START | Review fixes |
+| --- | --- | --- |
+| Two-member cold full tasks, ms | 297.98 [290.04–298.54] | 294.77 [287.82–303.77] |
+| Two-member warm full tasks, ms | 8.68 [8.22–9.22] | 10.32 [9.44–10.71] |
+| Two-member cold CPU, core-seconds | 0.3110 [0.3010–0.3151] | 0.3185 [0.3056–0.3278] |
+| Two-member reported peak RSS, MiB | 110.03 [108.69–110.43] | 109.34 [109.29–109.58] |
+| Fresh solo cold full tasks, ms | 286.72 [282.05–295.99] | 306.27 [295.41–322.77] |
+| Fresh solo warm full tasks, ms | 15.91 [14.60–17.69] | 16.71 [14.44–19.29] |
+| Fresh solo cold CPU, core-seconds | 0.2989 [0.2959–0.3197] | 0.3192 [0.3131–0.3399] |
+| Fresh solo reported peak RSS, MiB | 107.79 [107.30–109.31] | 108.86 [108.32–109.06] |
+
+
+The final review code also passed `duo-compatibility.mjs` against exact START
+with routing absent and present: **0 response / 0 size / 0 saved-state
+differences**, across **20 paired reads**. Each of the four runs returned
+**83,606,131 bytes**, ordered response-size/hash digest
+`1b4583763d891cc5bbada4fcdcab6b7eff6aebf5f38bfb93d098c08f7e4a60ba`.
+Each saved state remained **766,384 bytes**, SHA-256
+`64de39c55452925587b87af05aa01507513263761bc407f54e81bcbb699acfdc`,
+identical to the source. The private checkout had **0 changed files**.
+
+These compatibility durations are one sample per revision/mode, including
+imports, startup, reads and close, excluding copying. They have no repeated-run
+median or spread. Reported peak RSS uses the checker's existing 50 ms sampling.
+
+| Routing / compatibility measurement | START | Review fixes |
+| --- | --- | --- |
+| Absent wall seconds | 25.51 | 25.21 |
+| Absent reported peak RSS, MiB | 1221.43 | 1256.12 |
+| Present wall seconds | 25.51 | 25.77 |
+| Present reported peak RSS, MiB | 1244.08 | 1174.89 |
+
+
+## MP14 resource-abuse fixes
+
+START `d51c63d33e3cfaee827222fda555f04a782c1007`. Node 24.21.0, Linux.
+Three alternating START/candidate pairs ran sequentially with the existing
+`scripts/perf/picker-footprint.mjs`, an empty synthetic source, bundled open-f2p,
+process workers, routing enabled for the two-member case, port zero, 250 ms
+worker idle and a 3,500 MiB RSS guard. No other workloads ran during measurements.
+The fresh-solo control uses the harness's existing option-absent path. Values are
+median [minimum–maximum] across three fresh processes per revision; member
+measurements are first reduced to each run's median. CPU combines the sampled
+HTTP/calculator host CPU. Peak RSS sums the Linux process tree at 50 ms intervals
+and may miss shorter peaks. These small synthetic workloads measure regression
+risk, not maximum upload memory or real-pack capacity.
+
+| Synthetic measurement | START | MP14 |
+| --- | --- | --- |
+| Two-member cold full tasks, ms | 367.74 [353.04–392.75] | 362.57 [344.26–366.79] |
+| Two-member warm full tasks, ms | 10.95 [10.14–11.48] | 11.00 [10.22–11.26] |
+| Two-member cold CPU, core-seconds | 0.383 [0.367–0.413] | 0.389 [0.368–0.391] |
+| Two-member peak RSS, MiB | 109.23 [108.99–110.07] | 109.18 [109.17–109.42] |
+| Fresh solo cold full tasks, ms | 370.74 [357.45–378.52] | 380.32 [376.67–382.08] |
+| Fresh solo warm full tasks, ms | 18.64 [14.10–27.01] | 23.12 [22.03–25.22] |
+| Fresh solo cold CPU, core-seconds | 0.393 [0.368–0.395] | 0.405 [0.404–0.416] |
+| Fresh solo peak RSS, MiB | 110.22 [108.36–110.32] | 106.99 [106.88–107.46] |
+
+Store sizes are unchanged in all pairs: 247,335 bytes for the two-member case
+and 246,609 bytes for solo. The small cohort and overlapping wall-time ranges do
+not establish a throughput improvement. Owned uploads now retain bounded wire
+chunks before parsing; the existing per-account/picker/global MP7 reservations
+remain held until the request finishes. Worst-case object-graph amplification at
+the maximum import size is not measured here.
+
+
+The final existing `scripts/perf/duo-compatibility.mjs` checker ran once per
+revision in each routing mode, sequentially, using temporary copies. Both modes
+have **0 response differences, 0 size differences and 0 save differences**, over
+20 paired raw responses. Every run returns 83,606,131 bytes; the ordered
+size/hash digest is
+`1b4583763d891cc5bbada4fcdcab6b7eff6aebf5f38bfb93d098c08f7e4a60ba`.
+All rewritten states are 766,384 bytes with SHA-256
+`64de39c55452925587b87af05aa01507513263761bc407f54e81bcbb699acfdc`,
+identical to the source. The private checkout has 0 changed files.
+
+Response clocks are fixed by the existing checker; durations use its real
+clock. These are single compatibility samples per revision/mode, not performance
+medians or spread estimates. Peak RSS is the sampled process-tree sum at 50 ms.
+
+| Compatibility measurement | START | MP14 |
+| --- | --- | --- |
+| Absent, wall seconds | 31.30 | 29.53 |
+| Absent, peak RSS, MiB | 1176.14 | 1213.82 |
+| Present, wall seconds | 28.87 | 28.21 |
+| Present, peak RSS, MiB | 1230.36 | 1204.56 |
+
+
+## Multiplayer/main integration on current lane
+
+MAIN `a46ec91806327e01ef0e24d1f6947497b3a6c04b`, with exact G15
+`fd262bb746e9eef10b1a3471489ab001b6e287f0`, is the baseline. The candidate merges
+both into LANE `c325f31fb9812cfc6b44e9b08279e4af7ee60fd0`. START was
+`3b1577232a6a51f77de168497ee6d03ff8096353`. Node 24.21.0, Linux, 4 CPU quota
+and 16 GiB container memory limit.
+
+Three alternating baseline/candidate pairs ran sequentially with the unchanged
+`picker-footprint.mjs`, an empty synthetic source, bundled open-f2p, process
+workers, port zero, 250 ms worker idle and a 3,500 MiB RSS guard. All test processes
+had finished. The two-member candidate enables routing; MAIN ignores that option.
+The fresh-solo control uses the harness's option-absent path on both revisions.
+Clocks are normal. Each cell is median [minimum–maximum] across three fresh
+processes; two-member values first reduce each run to its member median.
+CPU sums sampled HTTP/calculator host CPU. Peak RSS is the Linux process-tree
+sum sampled every 50 ms; short peaks may be missed.
+
+| Synthetic measurement | MAIN + G15 | Merged multiplayer |
+| --- | --- | --- |
+| Two-member cold full tasks, ms | 313.23 [296.80–347.80] | 309.15 [290.37–316.81] |
+| Two-member warm full tasks, ms | 12.31 [12.07–16.25] | 9.60 [9.42–10.32] |
+| Two-member cold CPU, core-seconds | 0.3383 [0.3170–0.3787] | 0.3292 [0.3138–0.3383] |
+| Two-member peak RSS, MiB | 109.28 [109.11–110.00] | 109.80 [109.79–109.93] |
+| Fresh solo cold full tasks, ms | 325.37 [287.54–331.38] | 309.00 [298.87–332.34] |
+| Fresh solo warm full tasks, ms | 16.74 [15.14–25.26] | 15.61 [13.67–21.42] |
+| Fresh solo cold CPU, core-seconds | 0.3330 [0.3043–0.3545] | 0.3191 [0.3172–0.3684] |
+| Fresh solo peak RSS, MiB | 107.71 [107.37–108.13] | 108.84 [107.50–110.20] |
+
+Two-member store inventories are 247,335 bytes across all six runs.
+
+Fresh solo store inventories are 246,609 bytes across all six runs.
+
+Cold-time ranges overlap. These small inputs do not establish a speed improvement,
+real-pack capacity, maximum import amplification or a change to operating limits.
+The historical full-input CPU/serialization questions remain open.
+
+The required real-duo gates are **BLOCKED**: the supplied released selection has
+1 missing required input against MAIN's 95-input catalogue, with 0 extra inputs.
+LANE loads it; exact MAIN, MAIN+G15 and the merged tree refuse before opening a
+store. Both checker attempts report 0 states, 0 comparisons and 1 error; the
+extended HTTP attempt reaches 0 paired responses. No zero-difference pass or
+real-pack performance result is claimed. A separate supplementary public generated
+comparison passes 6 states / 107 comparisons / 0 differences / 0 errors.
+
+Final quick: 2,907 passed / 1 failed / 68 skipped. Final full: 6,125 passed /
+12 failed / 140 skipped. All failures reproduce on exact MAIN; no remaining
+merge-created test failure was observed. All 18 P1 cases pass. The complete
+attribution, G15 cache reconciliation and readiness inventory are in
+[multiplayer-main-gate.md](../audit/multiplayer-main-gate.md).
+
+Core CI and the required real-data gate remain blocked. Public sign-up stays off.

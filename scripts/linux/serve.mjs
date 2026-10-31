@@ -1,4 +1,4 @@
-import { openApplication, operatorSettings, readRelease } from './runtime.mjs';
+import { openApplication, operatorSettings, readRelease, assertOperatorService } from './runtime.mjs';
 import path from 'node:path';
 import { readFile } from 'node:fs/promises';
 import { noLinks } from './files.mjs';
@@ -6,7 +6,8 @@ import { noLinks } from './files.mjs';
 try {
   const settings = await operatorSettings();
   const release = await readRelease(settings.current, settings.dataDir);
-  for (const file of [path.join(settings.dataDir, 'state.json'), path.join(settings.dataDir, 'access-token'), settings.dataDir + '.dataset.json']) {
+  assertOperatorService(settings, release);
+  for (const file of [path.join(settings.dataDir, 'state.json'), ...(!settings.multiPicker ? [path.join(settings.dataDir, 'access-token')] : []), settings.dataDir + '.dataset.json']) {
     await noLinks(file);
     if (!(await readFile(file)).length) throw new Error('Existing complete bound store required.');
   }

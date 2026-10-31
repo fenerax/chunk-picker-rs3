@@ -125,7 +125,9 @@ export async function rebaseBundle(upload, target, operatorFile, toolsRoot) {
   await lockRelease(target, (await stat(path.dirname(target))).gid);
   const candidate = await readRelease(pointer, settings.dataDir);
   await writeFile(path.join(upload, 'verified.json'), encode({ candidateIdentity: candidate.identity,
-    previousPointerSha256: sha(current.pointerBytes), pointer, savedIdentityAdditions: manifest.savedIdentityAdditions }), { flag: 'wx', mode: 0o600 });
+    previousPointerSha256: sha(current.pointerBytes), pointer,
+    // PC additions describe the PC save. The VPS must derive and accept its own.
+    additionsReviewRequired: true }), { flag: 'wx', mode: 0o600 });
 }
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   try {

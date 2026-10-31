@@ -1,5 +1,5 @@
 import { createStreamLimits } from './security/request.mjs';
-import { parseRequestJSON } from './security/json.mjs';
+import { parseRequestJSON, runBodyCheck } from './security/json.mjs';
 import { open, readFile, realpath, rename, rm } from 'node:fs/promises';
 import { randomBytes, randomUUID, createHash, timingSafeEqual } from 'node:crypto';
 import { setTimeout as delay } from 'node:timers/promises';
@@ -60,6 +60,7 @@ async function bodyJSON(request) {
   for await (const chunk of request.iterator({ destroyOnReturn: false })) { size += chunk.length; if (size > 8192) throw fail(413, 'Request body is too large.'); chunks.push(chunk); }
   const value = parseRequestJSON(Buffer.concat(chunks).toString('utf8'));
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw fail(400, 'Request body must be a JSON object.');
+  runBodyCheck(request, value);
   return value;
 }
 
@@ -278,6 +279,17 @@ export async function openOverlays({ dataDir, store, world, webRoot, publicOrigi
       client.heartbeat.unref();
       response.once('close', () => { clearInterval(client.heartbeat); clients.delete(client); });
       return true;
+    },
+    fenceDeletion() { closed = true; for (const client of clients) stop(client); },
+    revokeDeletion() {
+      closed = true;
+      for (const client of clients) stop(client);
+      const pending = queue.then(async () => {
+        const next = structuredClone(current);
+        for (const record of next.links) record.revoked = true;
+        await atomicWrite(file, next); current = next;
+      });
+      queue = pending.catch(() => {}); return pending;
     },
     async close() { closed = true; unsubscribe(); payloads.clear(); rollResults.clear(); rollLookups.clear(); for (const client of clients) stop(client); await queue; },
   };

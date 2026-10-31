@@ -312,5 +312,11 @@
       "news",
       "roadmap"
     ]
+  },
+  "app/web/account-panel.mjs :: title": {
+    "reason": "Deletion requires a signed-in opt-in account and changes authentication and saved data. Synthetic owner UI/HTTP tests cover confirmation, refusal and the success receipt; the read-only gallery cannot perform deletion."
+  },
+  "app/web/account-panel.mjs :: 'Deletion complete'": {
+    "reason": "Deletion requires a signed-in opt-in account and changes authentication and saved data. Synthetic owner UI/HTTP tests cover confirmation, refusal and the success receipt; the read-only gallery cannot perform deletion."
   }
 }

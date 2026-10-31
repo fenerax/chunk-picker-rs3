@@ -3,7 +3,7 @@ const escape = value => String(value ?? '').replace(/[&<>"']/g, character => ({ 
 
 // A server-rendered form in the picker's established warm charcoal and gold palette.
 // Provider destinations are fixed locally; no provider scripts, images or fonts load here.
-export function renderSignInPage({ providers = [], heading = 'Sign in', message, continueInvite = false, claim = false, help = true } = {}) {
+export function renderSignInPage({ providers = [], heading = 'Sign in', message, continueInvite = false, claim = false, help = true, home = false } = {}) {
   const available = [...new Set(providers.map(provider => typeof provider === 'string' ? provider : provider?.id ?? provider?.provider))].filter(provider => Object.hasOwn(providerNames, provider));
   const links = available.map(provider => `<a class="signin-provider" href="/auth/${provider}">Sign in with ${providerNames[provider]}</a>`).join('\n');
   return `<!doctype html>
@@ -21,7 +21,7 @@ export function renderSignInPage({ providers = [], heading = 'Sign in', message,
     <p class="signin-brand">Chunk Picker <span>RS3</span></p>
     <h1 id="signin-title">${escape(heading)}</h1>
     ${message ? `<p class="signin-message" role="status">${escape(message)}</p>` : ''}
-    ${links ? `<div class="signin-providers" aria-label="Sign-in providers">${links}</div>` : ''}
+    ${home ? '<a class="signin-provider" href="/">Open your picker</a>' : ''}${links ? `<div class="signin-providers" aria-label="Sign-in providers">${links}</div>` : ''}
     ${claim ? '<form class="signin-claim" method="post" action="/auth/claim"><button type="submit">Use this invitation with this account</button></form>' : ''}
     ${continueInvite ? '<form class="signin-invite" method="post" action="/auth/invite"><button type="submit">Continue with invite link</button></form>' : ''}
     ${help && !links && !claim && !continueInvite ? '<p class="signin-help">No sign-in providers are available. Contact the picker administrator for access.</p>' : ''}

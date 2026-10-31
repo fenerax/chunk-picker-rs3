@@ -3,9 +3,10 @@ import { decodeLegacyText, hasGameplayMigration } from './migration.mjs';
 import { passesRateCutoff } from './rates.mjs';
 import { achievementFamilyRequired } from './achievements.mjs';
 import { buildQuestReadiness, isWholeQuestTask, questGroupName } from './activity-readiness.mjs';
+import { taskRuleEnabled } from './rule-defaults.mjs';
 
 const list = value => value == null ? [] : Array.isArray(value) ? value : [value];
-const on = (rules, key, fallback = true) => rules[key] === undefined ? fallback : ![false, 'false', 0].includes(rules[key]);
+const on = (rules, key, fallback = true) => taskRuleEnabled(rules, key, fallback);
 const clean = value => String(value).replace(/\*/g, '');
 
 /** Read-only activity index over every engine row, including display-suppressed

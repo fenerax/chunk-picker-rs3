@@ -19,6 +19,7 @@ the RuneScape Wiki.
 
 ## Files
 
+- `app/data/slayer-unlock-gates.mjs` — Slayer helmet components and finishing-blow monsters; source URLs are recorded in the module.
 - `app/data/banking-interiors.json`
 - `app/data/combat-level-formula.2026-10-09.v1.json`
 - `app/data/divination.2026-10-13.v1.json`

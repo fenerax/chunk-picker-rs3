@@ -43,7 +43,7 @@ const woodcuttingPlan = () => {
   return { memberId: 'a', skill: 'Woodcutting', fromLevel: 75, toLevel: 80, xpNeeded: 100000, status: 'ready', progress: { source: 'runemetrics' },
     plans: { 'best-xp': { complete: true, hours: 8.3, segments: [{ ...method, fromLevel: 75, toLevel: 80, hours: 8.3, actions: null, inputs: [], outputs: [{ item: 'Yew logs', totalQuantity: 533.3 }], logsProduced: 533.3, xpPerHourStart: 10000.3, xpPerHourEnd: 14000.2, logsPerHourStart: 53.3, logsPerHourEnd: 74.7 }] } }, availableMethods: [method], lockedMethods: [] };
 };
-function harness({ saved = true, account = 'Account', result, apiOverride, target, stateRevision, draft, savedXp = 1200, advanced = false, canWrite = false, command, preferences = {}, miningLevel, woodcuttingLevel } = {}) {
+function harness({ f2p = true, saved = true, account = 'Account', result, apiOverride, target, stateRevision, draft, savedXp = 1200, advanced = false, canWrite = false, command, preferences = {}, miningLevel, woodcuttingLevel } = {}) {
   const host = new Node('div'), document = { createElement: tag => new Node(tag) }, calls = [];
   const member = { id: 'a', name: 'Player', runescapeName: account, skillProgress: saved ? { Firemaking: { level: 10, xp: savedXp, source: 'runemetrics', runescapeName: 'Account', fetchedAt: '2026-10-10T00:00:00Z' } } : {} };
   if (miningLevel) member.skillProgress.Mining = { level: miningLevel, xp: 10000, source: 'runemetrics', runescapeName: 'Account' };
@@ -51,7 +51,7 @@ function harness({ saved = true, account = 'Account', result, apiOverride, targe
   const initial = structuredClone(member); let current = true, resultReads = 0;
   let tasks = result ?? { presentation: { tasks: [{ label: 'Achievement goal', category: 'Diary', status: 'available', record: { Skills: { Firemaking: 20 } } }] } };
   const api = async (path, body, signal) => { calls.push({ path, body, signal }); return apiOverride ? apiOverride(path, signal) : path === '/api/training-catalogue' ? structuredClone(catalogue) : structuredClone(plan); };
-  const dispose = renderTraining(host, { document, api, member, target, stateRevision, draft, advanced, canWrite: () => canWrite, command, getPreferences: () => preferences, getResult: () => { resultReads++; return tasks; }, isCurrent: () => current });
+  const dispose = renderTraining(host, { document, api, member, f2p, target, stateRevision, draft, advanced, canWrite: () => canWrite, command, getPreferences: () => preferences, getResult: () => { resultReads++; return tasks; }, isCurrent: () => current });
   const walk = node => [node, ...node.children.flatMap(walk)];
   const nodes = () => walk(host);
   const find = (tag, text) => nodes().find(node => node.tag === tag && (text === undefined || node.textContent === text));
@@ -381,4 +381,32 @@ for (const kind of [429, 503, 409, 413, 'offline', 'ECONNRESET']) test(`request 
   assert.equal(h.field('Skill').value, 'Firemaking');
   failed = false; await h.submit(); assert.match(h.text(), /Plan ready/);
   assert.deepEqual(h.member, h.initial); h.dispose();
+});
+
+
+test('members planning accepts targets beyond a trial cap while F2P retains the cap', async () => {
+  for (const f2p of [true, false]) {
+    const h = harness({ f2p, saved: false, target: { skill: 'Agility', level: 50 } });
+    await tick();
+    const cap = Number(h.field('Custom target level').max);
+    assert.equal(f2p ? cap === 5 : cap >= 99, true);
+    assert.equal(Number(h.field('Temporary starting level').max), cap);
+    assert.equal(h.field('Skill').children.find(node => node.value === 'Agility').textContent.includes('F2P trial'), f2p);
+    if (!f2p) {
+      h.field('Temporary starting level').value = '10';
+      h.field('Custom target level').value = '50';
+      await h.submit();
+      assert.ok(h.calls.some(call => call.path.startsWith('/api/training-plan?') && call.path.includes('targetLevel=50')));
+      assert.doesNotMatch(h.text(), /F2P target limit|F2P training stops/);
+    }
+    h.dispose();
+  }
+});
+
+
+test('members can see a faster members method below the members cap', () => {
+  const method = { methodId: 'members', level: 10, xpPerHour: 3000, blockers: [{ kind: 'chunk' }] };
+  const value = { ...plan, availableMethods: [{ eligibleNow: true, xpPerHour: 1000 }], lockedMethods: [method] };
+  assert.equal(nextBetterTrainingMethod(value, { ...catalogue, f2p: true }), null);
+  assert.equal(nextBetterTrainingMethod(value, { ...catalogue, f2p: false }), method);
 });

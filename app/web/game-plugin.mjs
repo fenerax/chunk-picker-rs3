@@ -312,12 +312,14 @@ export function createGamePlugin(c) {
         const selectedItems = items.filter(row => itemChoices.has(row.taskId)).map(row => ({ taskId: row.taskId }));
         const skipped = { ...(skills.length && skippedParts.has('skills') ? { skills: false } : {}), ...(quests.length && skippedParts.has('quests') ? { quests: false } : {}) };
         busy = true; apply.disabled = dismiss.disabled = true;
+        const finishQueued = c.panelContext?.pickerSession?.queueCommand();
         try {
           const task = c.queue.then(async () => {
             await c.api(`/api/game-plugin/${action}`, { previewId: value.previewId, ...(action === 'apply' ? { expectedRevision: value.stateRevision, ...skipped, ...(selectedAchievements.length ? { achievements: selectedAchievements } : {}), ...(selectedItems.length ? { items: selectedItems } : {}) } : {}) });
             if (action === 'apply') { const loaded = await c.api('/api/state'); c.adopt(loaded.state, loaded.pools); }
           });
-          c.queue = task.catch(() => {}); await task;
+          const tracked = task.finally(() => finishQueued?.());
+          c.queue = tracked.catch(() => {}); await tracked;
           busy = false;
           if (current()) { await update(); report(action === 'apply' ? 'Plugin snapshot applied.' : 'Plugin snapshot dismissed.'); if (action === 'apply') await onApplied?.(); }
         } catch (error) { if (current()) { apply.disabled = true; report(error.status === 409 ? 'The saved map changed. Refresh the review and check the changes again.' : error.message, true); section.append(button('Refresh review', () => update())); } }
@@ -360,5 +362,5 @@ export function createGamePlugin(c) {
   document.addEventListener('visibilitychange', () => { clearTimeout(timer); if (!document.hidden && snapshot.active) void refresh(); });
   globalThis.addEventListener('pagehide', () => { stopped = true; clearTimeout(timer); });
   globalThis.addEventListener('pageshow', event => { if (event.persisted) { stopped = false; void refresh(); } });
-  return { refresh, controls, open, render: () => { for (const listener of listeners) listener(); } };
+  return { dispose() { stopped = true; clearTimeout(timer); snapshot = { keys: [], positions: [], active: false }; listeners.clear(); }, refresh, controls, open, render: () => { for (const listener of listeners) listener(); } };
 }

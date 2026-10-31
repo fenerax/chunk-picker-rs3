@@ -1,9 +1,11 @@
-import { taskRuleCutoffDefaults, taskRuleCategoryCounts } from '../data/settings.mjs';
+import { taskRuleCutoffDefaults, taskRuleCategoryCounts, taskRuleParents } from '../data/settings.mjs';
+import { FUTURE_SLAYER_UNLOCKS_RULE } from '../data/slayer-unlock-gates.mjs';
 
 // Authored unset behavior, independent of captured upstream defaults or save
 // payloads. Literal fallbacks in engine/presentation are checked against this
 // contract by automatic-rule-defaults.test.mjs. Unknown category tags default on.
 export const taskRuleBooleanDefaults = Object.freeze({
+  [FUTURE_SLAYER_UNLOCKS_RULE]: false,
   // F2P is normalized from shared content.f2p, whose unset value is true.
   F2P: true, Skills: true, Quests: true, Achievement: true, Extra: true,
   Attack: true, Strength: true, Defence: true, Constitution: true, Ranged: true,
@@ -46,5 +48,15 @@ export function taskRuleDefault(id) {
 
 /** Legacy literal fallbacks are checked against this contract; unknown tags default on. */
 export function taskRuleEnabled(rules, id, fallback = taskRuleDefault(id) ?? true) {
-  return rules[id] === undefined ? fallback : ![false, 'false', 0].includes(rules[id]);
+  const own = rules[id] === undefined ? fallback : ![false, 'false', 0].includes(rules[id]);
+  return own && taskRuleParentsEnabled(rules, id);
+}
+
+/** Effective dependency only: never clear a saved child preference. */
+export function taskRuleParentsEnabled(rules, id) {
+  for (let parent = taskRuleParents[id]; parent; parent = taskRuleParents[parent]) {
+    const value = rules instanceof Map ? rules.get(parent) : rules[parent];
+    if (value === undefined ? !(taskRuleDefault(parent) ?? true) : [false, 'false', 0].includes(value)) return false;
+  }
+  return true;
 }

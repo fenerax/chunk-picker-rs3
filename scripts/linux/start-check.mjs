@@ -15,6 +15,10 @@ export async function processIdentity(pid) {
   return (await readFile('/proc/sys/kernel/random/boot_id', 'utf8')).trim() + ':' + start;
 }
 export async function checkStart(settings, { identity = processIdentity, now = Date.now() } = {}) {
+  if (settings.multiPicker) {
+    const progress = path.join(settings.controlDir, 'service-restore', 'progress.json');
+    if (await exists(progress) && (await json(progress)).phase !== 'complete') throw new Error('Service recovery is incomplete.');
+  }
   const control = settings.controlDir, permitFile = path.join(control, 'start-permit.json');
   const evidence = ['operation.lock', 'maintenance.json', 'activation.json'];
   if (!(await Promise.all(evidence.map(name => exists(path.join(control, name))))).some(Boolean)) {

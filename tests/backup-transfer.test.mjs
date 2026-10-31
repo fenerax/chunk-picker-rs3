@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { Readable } from 'node:stream';
 import { gzipSync, gunzipSync } from 'node:zlib';
-import { readBackupRequest, BACKUP_UPLOAD_TYPE, backupJSONChunks } from '../app/backup-transfer.mjs';
+import { readBackupRequest, receiveBackupRequest, BACKUP_UPLOAD_TYPE, backupJSONChunks } from '../app/backup-transfer.mjs';
 import { createBackupUpload, MAX_BACKUP_BYTES } from '../app/web/backup-transfer.mjs';
 import { parseJSONStream } from '../app/storage/json-stream.mjs';
 
@@ -80,4 +80,73 @@ test('CRC corruption and truncated gzip files are rejected by the browser and se
     await assert.rejects(readBackupRequest(request(bytes, { 'content-encoding': 'gzip' })), error => error.status === 400 && /gzip.*corrupt|corrupt.*gzip/i.test(error.message));
     await assert.rejects(createBackupUpload(new File([bytes], 'bad.json.gz')).toBackupRequest(), /gzip.*corrupt|corrupt.*gzip/i);
   }
+});
+
+test('owned body receipt enforces wire bounds before parsing and preserves gzip decompression bounds', async () => {
+  const options = { maxUploadBytes: 128, idleTimeoutMs: 1000, totalTimeoutMs: 5000 };
+  await assert.rejects(receiveBackupRequest(request(Buffer.from('{}'), { 'content-length': '129' }), options), { status: 413 });
+  await assert.rejects(receiveBackupRequest(request(Buffer.alloc(129, 32)), options), { status: 413 });
+  const upload = await receiveBackupRequest(request(gzipSync(JSON.stringify({ large: 'x'.repeat(80) })),
+    { 'content-encoding': 'gzip' }), options);
+  await assert.rejects(readBackupRequest(upload, { maxBackupBytes: 64, maxUploadBytes: 128 }), { status: 413 });
+  const valid = await receiveBackupRequest(request(gzipSync('{"ok":true}'), { 'content-encoding': 'gzip' }), options);
+  assert.deepEqual(await readBackupRequest(valid), { body: { ok: true }, uploaded: false });
+});
+
+test('backup preparation cancels the file stream and preserves AbortError', async () => {
+  const controller = new AbortController(); let started, cancelled = false;
+  const ready = new Promise(resolve => { started = resolve; });
+  const file = { name: 'slow.json', size: 2, stream: () => new ReadableStream({ start() { started(); }, cancel() { cancelled = true; } }) };
+  const stages = [], upload = createBackupUpload(file, {}, { onStage: stage => stages.push(stage) });
+  const pending = upload.toBackupRequest({ signal: controller.signal }); await ready;
+  controller.abort(); await assert.rejects(pending, { name: 'AbortError' });
+  assert.equal(cancelled, true); assert.deepEqual(stages, ['Preparing backup…']);
+});
+
+test('backup upload reports actual upload completion separately from validation and aborts HTTP', async () => {
+  const previous = globalThis.XMLHttpRequest;
+  let xhr;
+  class FakeXHR {
+    constructor() { xhr = this; this.upload = {}; this.headers = {}; }
+    open(method, path) { this.method = method; this.path = path; }
+    setRequestHeader(name, value) { this.headers[name] = value; }
+    send(body) { this.body = body; }
+    abort() { this.aborted = true; this.onabort(); }
+  }
+  globalThis.XMLHttpRequest = FakeXHR;
+  try {
+    const stages = [], upload = createBackupUpload(new File(['{}'], 'backup.json'), {}, { onStage: value => stages.push(value) });
+    let controller = new AbortController();
+    let pending = upload.sendBackupRequest('/api/restore/preview', controller.signal);
+    while (!xhr?.body) await new Promise(resolve => setImmediate(resolve));
+    assert.deepEqual(stages, ['Preparing backup…', 'Uploading…']);
+    xhr.upload.onload(); assert.equal(stages.at(-1), 'Checking replacement…');
+    xhr.status = 200; xhr.responseText = '{"preview":{"currentRevision":7}}'; xhr.onload();
+    assert.equal((await pending).value.preview.currentRevision, 7);
+    xhr = undefined; controller = new AbortController(); pending = upload.sendBackupRequest('/api/restore/preview', controller.signal);
+    while (!xhr?.body) await new Promise(resolve => setImmediate(resolve));
+    controller.abort(); await assert.rejects(pending, { name: 'AbortError' }); assert.equal(xhr.aborted, true);
+  } finally { globalThis.XMLHttpRequest = previous; }
+});
+
+
+test('backup upload preserves an injected fetch through the session transport without XHR', async () => {
+  const previous = globalThis.XMLHttpRequest;
+  globalThis.XMLHttpRequest = undefined;
+  const calls = [];
+  try {
+    const upload = createBackupUpload(new File(['{}'], 'backup.json'));
+    const sent = await upload.sendBackupRequest('/api/restore/preview', undefined,
+      async (path, options) => {
+        calls.push({ path, options });
+        return Response.json({ preview: { currentRevision: 7 } });
+      }, async (path, options, transport) => {
+        assert.equal(path, '/api/restore/preview');
+        return transport(path, { ...options, headers: { ...options.headers, 'X-Picker-Id': 'synthetic-picker' } });
+      });
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0].options.headers['X-Picker-Id'], 'synthetic-picker');
+    assert.equal(calls[0].options.headers['Content-Type'], BACKUP_UPLOAD_TYPE);
+    assert.equal(sent.value.preview.currentRevision, 7);
+  } finally { globalThis.XMLHttpRequest = previous; }
 });

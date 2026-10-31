@@ -111,6 +111,16 @@ test('sync names the selected source and the unavailable state offers no Apply o
   assert.equal(h.attempts.apply.length, 0);
 });
 
+test('a usable fallback preview keeps the one closure message visible alongside Apply', async () => {
+  const h = harness();
+  const message = 'RuneMetrics has closed; levels and quests come from the game plugin until the new Jagex API is connected';
+  h.ui.fetchResponse = { ...snapshot(7), source: 'hiscores', sourceLabel: 'RS3 hiscores', message };
+  await h.click('Sync progress');
+  assert.equal(h.walk(h.ui.nodes).find(node => node.attributes.role === 'status').textContent, message);
+  assert.ok(h.find('button', 'Apply progress snapshot'));
+  assert.equal(h.text().split(message).length - 1, 1);
+});
+
 test('plugin sync does not require a saved web account name', async () => {
   const h = harness(); h.state.members[0].runescapeName = ''; h.find('input').value = '';
   h.ui.fetchResponse = { ...snapshot(7), runescapeName: '', source: 'game-plugin', sourceLabel: 'Game plugin' };

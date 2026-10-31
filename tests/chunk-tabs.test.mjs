@@ -125,11 +125,10 @@ test('task names omit markup, viewers cannot write, and backlog dismissal return
     createTaskIconPainter: () => ({ append() {} }), appendTaskPin() {}, appendTaskWhy() {}, isCustomTask: () => false,
   }));
   c.taskFacts = () => ({ personal: false, group: false }); c.hoverTasks = () => ({ attach() {} });
-  const row = c.taskRow({ id: 'one', label: '<b>Mine copper</b>', status: 'blocked' }), checkbox = row.children[0];
-  assert.equal(checkbox.attributes['aria-label'], 'Mark Mine copper done for Player');
-  assert.equal(checkbox.disabled, true);
-  checkbox.checked = true; await checkbox.emit('change');
-  assert.equal(checkbox.checked, false); assert.equal(calls.length, 0);
+  // Viewers see a completion status instead of a completion control.
+  const row = c.taskRow({ id: 'one', label: '<b>Mine copper</b>', status: 'blocked' }), status = row.children[0];
+  assert.equal(status.tagName, 'SPAN'); assert.equal(status.className, 'task-completion-status'); assert.equal(status.textContent, 'Not done');
+  assert.equal(row.children.some(child => child.tagName === 'INPUT'), false); assert.equal(calls.length, 0);
   c.canWrite = () => true;
   const host = h.node('div'), trigger = h.node('button'), fallback = h.node('button');
   host.querySelector = selector => selector.startsWith(':scope') ? undefined : fallback;

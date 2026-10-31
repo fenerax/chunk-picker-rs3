@@ -1,3 +1,4 @@
+import { gameStorage } from './screen-save-status.mjs';
 import { createFeedback } from './feedback.mjs';
 import { createBackupStatus } from './backup-status.mjs';
 import { createUpdates } from './updates.mjs';
@@ -53,17 +54,22 @@ export function createScreenStartup(c) {
     });
     c.backupStatus = createBackupStatus({ api: c.api, el: c.el, button: c.button, document, isAdmin: () => c.sessionAdmin, advanced: c.advanced, menuLine: c.$('backup-status-menu'), banner: c.$('backup-status-notice'), openBackup: c.backupDialog });
     const invites = createInvites({ api: c.api, el: c.el, button: c.button, input: c.input, field: c.field, openDialog: c.openDialog, dialogCurrent: c.dialogCurrent, dialog: c.$('tool-dialog'), menuButton: c.$('invites-open'), members: () => c.state?.members ?? [], streamSafe: c.streamSafe });
-    const account = createAccountPanel({ el: c.el, openDialog: c.openDialog, menuButton: c.$('account-open'), topMenu: c.$('account-tools') });
+    const account = createAccountPanel({ el: c.el, openDialog: c.openDialog, menuButton: c.$('account-open'), topMenu: c.$('account-tools'), beforeSignOut: () => c.panelContext?.pickerSession?.beforeSignOut(),
+      beginAccountAction: () => c.panelContext.pickerSession.beginAccountAction(), dialogCurrent: c.dialogCurrent,
+      ownerActions: { 'Rules': () => c.rulesDialog(), 'Preferences': () => c.settingsPanels.settings(),
+        'Export or restore gameplay': () => c.backupDialog(), 'Plugin keys': () => c.gamePlugin.open() } });
     c.panelContext.account = account;
     const accounts = createAccountsPanel({ api: c.api, el: c.el, button: c.button, openDialog: c.openDialog, dialogCurrent: c.dialogCurrent, menuButton: c.$('accounts-open'), members: () => c.state?.members ?? [], streamSafe: c.streamSafe });
     c.$('account-open')?.addEventListener('click', account.open);
     c.$('accounts-open')?.addEventListener('click', () => { if (c.sessionAdmin) void accounts.open().catch(c.showError); });
     const overlayPanel = createOverlayPanel({ api: c.api, el: c.el, button: c.button, openDialog: c.openDialog, dialogCurrent: c.dialogCurrent, dialog: c.$('tool-dialog'), members: () => c.state?.members ?? [] });
     c.$('overlays-open')?.addEventListener('click', () => { if (c.sessionAdmin) void overlayPanel.open().catch(c.showError); });
-    const viewerSession = invites.loadSession().then(session => { c.applySession(session); account.setSession(session); accounts.setSession(session); if (c.$('overlays-open')) c.$('overlays-open').hidden = !c.sessionAdmin; feedbackSessionReady = true; c.backupStatus.start(); feedbackPanel.setSession(session); feedbackPanel.start(); return session; });
+    const viewerSession = invites.loadSession().then(session => { if (session.multiPicker) c.panelContext?.pickerSession.initialize(session); c.applySession(session); account.setSession(session); accounts.setSession(session); if (c.$('overlays-open')) c.$('overlays-open').hidden = !c.sessionAdmin; feedbackSessionReady = true; c.backupStatus.start(); feedbackPanel.setSession(session); feedbackPanel.start(); return session; });
     globalThis.addEventListener?.('pagehide', () => feedbackPanel.pause());
     globalThis.addEventListener?.('pageshow', event => { if (event.persisted) { c.streamSafe.refreshFromStorage(); feedbackPanel.start(); } });
     c.$('invites-open').addEventListener('click', () => invites.open().catch(c.showError));
+    const activeSession = await viewerSession;
+    if (activeSession.multiPicker) c.panelContext?.pickerSession.registerStop(() => feedbackPanel.stop());
     const artwork = loadArtStatus();
     const terrainManifest = c.supportsFeature?.('mapMetadata') === false ? Promise.resolve(null) : loadTerrainManifest();
     const [loaded, data, rules, displayWorld, session] = await Promise.all([c.api('/api/state'), c.api('/api/definitions?view=display-v1'), c.api('/api/rules'), c.api('/api/display-world'), viewerSession]);
@@ -79,7 +85,7 @@ export function createScreenStartup(c) {
       const mapId = sourceMapId || configuredOwners.get(id)?.mapId;
       return { id, name, ...(mapId ? { mapId } : {}) };
     });
-    try { c.memberId = localStorage.getItem('duo-member'); } catch { /* Private browsing may block preference storage. */ }
+    try { c.memberId = (session.multiPicker ? gameStorage() : localStorage).getItem('duo-member'); } catch { /* Private browsing may block preference storage. */ }
     if (!loaded.state.members.some(item => item.id === c.memberId)) c.memberId = loaded.state.members.find(item => item.id === c.sessionMember)?.id ?? loaded.state.members[0]?.id;
     c.map = new ChunkMap({ stage: c.$('map-stage'), baseCanvas: c.$('map-base'), stateCanvas: c.$('map-state'), pinCanvas: c.$('map-pins'), hoverCanvas: c.$('map-hover'), tooltip: c.$('map-tooltip'), deferFallback: true, onChunk: c.mapChunkClick,
       canChunkHold: () => !document.documentElement.classList.contains('screenshot-mode'),
@@ -103,7 +109,7 @@ export function createScreenStartup(c) {
     c.duoCoordination = createDuoCoordination({ canWrite: c.canWrite, api: c.api, viewer: session ?? {}, getState: () => ({ revision: c.state.revision, members: c.state.members, sandboxActive: c.sandbox.active }),
       lookups: () => { const names = c.historyLookups(); return { ...names, chunkName: id => c.advanced() ? `${names.chunkName(id)} (${id})` : names.chunkName(id) }; }, el: c.el, button: c.button, openDialog: c.openDialog, closeDialog: c.closeDialog, command: c.command, openHistory: c.historyDialog,
       undoButton: c.$('undo'), ownHost: c.$('undo-own'), catchUpHost: c.$('duo-catchup'), liveHost: c.$('duo-live'),
-      storage: (() => { try { return localStorage; } catch { return null; } })() });
+      storage: (() => { try { return gameStorage(); } catch { return null; } })() });
     void c.duoCoordination.refresh();
     void c.gamePlugin.refresh();
     c.bindControls();

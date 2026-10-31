@@ -6,7 +6,7 @@
   "licence": "Wiki-derived facts and adaptations: CC BY-NC-SA 3.0. Independently authored interface explanations remain separate from original-picker text.",
   "licenceUrl": "https://creativecommons.org/licenses/by-nc-sa/3.0/",
   "coverage": {
-    "normal": 148,
+    "normal": 146,
     "total": 182
   },
   "savedRuleIds": [
@@ -1337,16 +1337,12 @@
       ]
     },
     "KeyItem Bosses": {
-      "what": "This saved option has no implemented boss-item source filter here. It cannot independently permit a boss drop needed by another task.",
-      "example": "No task is added here; obtaining dragon bones from the King Black Dragon still follows the supported boss and drop-source rules.",
+      "what": "This saved option currently has no effect. Entry-key rarity is not included in boss drop cutoffs or time estimates.",
+      "example": "Turning this on leaves task lists and drop cutoffs unchanged; how an entry key should count still needs a rule decision.",
       "sources": [
         {
-          "title": "King Black Dragon",
-          "url": "https://runescape.wiki/w/King_Black_Dragon?oldid=37188001"
-        },
-        {
-          "title": "Dragon bones",
-          "url": "https://runescape.wiki/w/Dragon_bones?oldid=37134781"
+          "title": "Key to the Crossing",
+          "url": "https://runescape.wiki/w/Key_to_the_Crossing?oldid=37138866"
         }
       ]
     },

@@ -5,10 +5,11 @@ import { permanentTaskId } from './identity.mjs';
 import { isNonPermanentEquipment } from '../data/equipment-permanence.mjs';
 import { taskItemMembershipBlockers } from './membership.mjs';
 import { recordedEquipment as personalEquipmentRecords } from './recorded-equipment.mjs';
+import { taskRuleEnabled } from './rule-defaults.mjs';
 export { buildEquipmentCatalogue } from './presentation.mjs';
 
 // Authored coupled equipment selection over the engine's eligible equipment only.
-const enabled = (rules, name, fallback = true) => rules[name] === undefined ? fallback : ![false, 'false', 0].includes(rules[name]);
+const enabled = (rules, name, fallback = true) => taskRuleEnabled(rules, name, fallback);
 const number = value => Number.isFinite(Number(value)) ? Number(value) : 0;
 const decoded = value => Object.fromEntries(Object.entries(value ?? {}).map(([key, child]) => [decodeLegacyText(key), child]));
 const unique = values => [...new Set(values)];

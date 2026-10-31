@@ -8,9 +8,10 @@ import { chown, readFile, rm } from 'node:fs/promises';
 import { setTimeout as delay } from 'node:timers/promises';
 import { fileURLToPath } from 'node:url';
 import { assertReleased, atomic, directory, encode, exclusive, exists, headroom, inventory, json, noLinks, sha } from './files.mjs';
-import { assertSameRelease, operatorSettings, readRelease } from './runtime.mjs';
+import { assertSameRelease, operatorSettings, readRelease, assertOperatorService } from './runtime.mjs';
 import { backupStopped, checkStoppedCompatibility, restoreStopped, writeBackupStatus, storeIdentity } from './recovery.mjs';
 import { processIdentity } from './start-check.mjs';
+import { digestValue } from '../private-companion/release-identity.mjs';
 
 const execute = promisify(execFile);
 export function systemd(settings) {
@@ -52,7 +53,7 @@ export async function privateRequest(release, route, method = 'GET', body = {}) 
   try {
     const response = await fetch(new URL(route, `http://${release.config.host.includes(':') ? '[' + release.config.host + ']' : release.config.host}:${release.config.port}`), {
       method, redirect: 'error', headers: { Authorization: 'Bearer ' + token, ...(method === 'POST' ? { 'Content-Type': 'application/json' } : {}) },
-      ...(method === 'POST' ? { body: JSON.stringify(body) } : {}), signal: AbortSignal.timeout(route === '/api/operator/snapshot' ? 120000 : 10000),
+      ...(method === 'POST' ? { body: JSON.stringify(body) } : {}), signal: AbortSignal.timeout(['/api/operator/snapshot', '/api/operator/service-snapshot'].includes(route) ? 120000 : 10000),
     });
     if (!response.ok) throw new Error();
     return await response.json();
@@ -77,7 +78,7 @@ const ready = async (release, request) => {
     return (health.ready === true || asleep) && health.savesReady === true;
   } catch { return false; }
 };
-export async function healthRecovery({ settings, release, controller, request = privateRequest, wait = delay }) {
+export async function healthRecovery({ settings, release, controller, request = privateRequest, wait = delay, assertStopped: stopped = () => assertStopped(controller, settings.dataDir) }) {
   const state = await controller.state();
   if (!state.active || state.activeForMs < 300000) return { skipped: true };
   if (await ready(release, request)) return { healthy: true };
@@ -85,7 +86,7 @@ export async function healthRecovery({ settings, release, controller, request = 
   try { await request(release, '/api/worker-restart', 'POST'); } catch {}
   for (let attempt = 0; attempt < 6; attempt++) { await wait(5000); if (await ready(release, request)) return { recovered: 'workers' }; }
   // Never systemctl restart: stop must succeed and release ownership first.
-  await controller.stop(); await assertStopped(controller, settings.dataDir);
+  await controller.stop(); await stopped();
   await assertSameRelease(release);
   await controller.start(); await waitReady(release, request, wait, controller);
   return { recovered: 'writer' };
@@ -148,17 +149,34 @@ export async function deployPrechecked({ settings, current, candidate, controlle
   return deployStopped({ settings, current, candidate, controller, candidateBinding, savedIdentityAdditions, checkedIdentity, check, request, wait });
 }
 export async function backupOnline({ settings, release, request = privateRequest, capture = captureOnline, probe }) {
+  if (settings.multiPicker) {
+    const { serviceBackup } = await import('./service-operator.mjs');
+    return serviceBackup({ settings, release, request });
+  }
   const snapshot = await capture({ settings, release, request });
   try { return await backupStopped({ ...settings, dataDir: snapshot.dataDir, release, ...(probe ? { probe } : {}) }); }
   finally { await snapshot.cleanup(); }
 }
 export async function runOperator(command, argument, evidence, mode) {
   const settings = await operatorSettings();
+  if (settings.multiPicker) {
+    const { runServiceOperator } = await import('./service-operator.mjs');
+    return runServiceOperator({ settings, command, argument, evidence,
+      release: await readRelease(settings.current, settings.dataDir), controller: systemd(settings),
+      request: privateRequest, healthRecovery, deployStopped,
+      serviceIdentity: async () => {
+        const uid = Number((await execute('id', ['-u', 'chunk-picker'])).stdout.trim());
+        const gid = Number((await execute('id', ['-g', 'chunk-picker'])).stdout.trim());
+        if (!Number.isSafeInteger(uid) || uid < 1 || !Number.isSafeInteger(gid) || gid < 1) throw new Error('Dedicated service identity required.');
+        return { uid, gid };
+      } });
+  }
   await directory(settings.controlDir);
   const pause = path.join(settings.controlDir, 'maintenance.json');
   return exclusive(path.join(settings.controlDir, 'operation.lock'), async () => {
-    if (await exists(pause)) throw new Error('Maintenance evidence remains; reconcile it before continuing.');
+    if (await exists(pause)) throw Object.assign(new Error('Maintenance evidence remains; reconcile it before continuing.'), { code: 'OPERATOR_MAINTENANCE' });
     const release = await readRelease(settings.current, settings.dataDir), controller = systemd(settings);
+    assertOperatorService(settings, release);
     if (command === 'health') {
       try { await headroom(settings.backupDir, 0, settings.minFreeBytes); } catch { process.stderr.write('Recovery disk free-space reserve is unavailable.\n'); }
       let status;
@@ -173,6 +191,11 @@ export async function runOperator(command, argument, evidence, mode) {
       const receipt = await json(evidence);
       if (receipt.previousPointerSha256 !== sha(release.pointerBytes) || receipt.candidateIdentity !== candidate.identity
         || path.resolve(receipt.pointer) !== path.resolve(argument)) throw new Error('Staged deployment receipt changed.');
+      if (receipt.savedIdentityAdditionsReviewed !== true
+        || !Array.isArray(receipt.savedIdentityAdditions)
+        || digestValue(receipt.savedIdentityAdditions) !== receipt.savedIdentityAdditionsDigest) {
+        throw Object.assign(new Error('VPS additions require explicit review.'), { code: 'OPERATOR_ADDITIONS_REVIEW' });
+      }
       savedIdentityAdditions = receipt.savedIdentityAdditions;
     }
     let candidateBinding;
@@ -233,9 +256,20 @@ export async function runOperator(command, argument, evidence, mode) {
       throw error;
     }
     return { completed: command };
-  }, { skipBusy: command === 'health' });
+  }, { skipBusy: command === 'health', maxBusyMs: command === 'health' ? 1800000 : Infinity });
 }
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  try { await runOperator(...process.argv.slice(2)); process.stdout.write('Operator command completed.\n'); }
-  catch { process.stderr.write('Operator command refused; keep maintenance evidence and inspect privately.\n'); process.exitCode = 1; }
+  try { const result = await runOperator(...process.argv.slice(2)); if (!result?.skipped) process.stdout.write(['list', 'inspect', 'quarantine-release', 'relink-code'].includes(process.argv[2]) ? encode(result) : 'Operator command completed.\n'); }
+  catch (error) {
+    if (error.code === 'LEGACY_RESTORE_INCOMPATIBLE') process.stderr.write(error.message + '\n');
+    else if (error.code === 'OPERATOR_LOCK_LONG_HELD') process.stderr.write('Operator lock held for over 30 minutes; inspect privately.\n');
+    else {
+      const reason = error.code === 'EEXIST' ? ' Lock busy.'
+        : error.code === 'OPERATOR_MAINTENANCE' ? ' Maintenance evidence remains.'
+        : error.code === 'OPERATOR_ADDITIONS_REVIEW' ? ' VPS additions require explicit review.'
+        : error.message === 'Derived saved identity additions differ from the reviewed list.' ? ' Additions differ.' : '';
+      process.stderr.write('Operator command refused; keep maintenance evidence and inspect privately.' + reason + '\n');
+    }
+    process.exitCode = 1;
+  }
 }
