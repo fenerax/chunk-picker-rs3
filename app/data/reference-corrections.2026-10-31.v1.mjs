@@ -6611,6 +6611,114 @@ export default {
         "Soulgazer": true
       },
       "reason": "Resolve the assignment to its existing base monster. Special variants remain subject to separate review."
+    },
+    {
+      "path": [
+        "slayerMasterTasks",
+        "Mazchna/Achtryn",
+        "Sanguine crawlers",
+        "Weight"
+      ],
+      "beforePresent": true,
+      "before": 10,
+      "beforeRecordSha256": "4a44dc15364204a80fe80e9039455cc1608281820fe2b24f1e5233ade6af1dd5",
+      "afterPresent": true,
+      "after": 15,
+      "reason": "Match the assignment weight in the reviewed RS Wiki master table (2026-10-31).",
+      "wiki": {
+        "url": "https://runescape.wiki/w/Slayer_assignment/Mazchna",
+        "source": "Sanguine crawlers assignment weight 15."
+      }
+    },
+    {
+      "path": [
+        "slayerMasterTasks",
+        "Sumona",
+        "Profane Scabarites",
+        "Weight"
+      ],
+      "beforePresent": true,
+      "before": 5,
+      "beforeRecordSha256": "ef2d127de37b942baad06145e54b0c619a1f22327b2ebbcfbec78f5564afe39d",
+      "afterPresent": true,
+      "after": 15,
+      "reason": "Match the assignment weight in the reviewed RS Wiki master table (2026-10-31).",
+      "wiki": {
+        "url": "https://runescape.wiki/w/Slayer_assignment/Sumona",
+        "source": "Profane Scabarites assignment weight 15."
+      }
+    },
+    {
+      "path": [
+        "slayerMasterTasks",
+        "Kuradal",
+        "Profane Scabarites",
+        "Weight"
+      ],
+      "beforePresent": true,
+      "before": 5,
+      "beforeRecordSha256": "ef2d127de37b942baad06145e54b0c619a1f22327b2ebbcfbec78f5564afe39d",
+      "afterPresent": true,
+      "after": 10,
+      "reason": "Match the assignment weight in the reviewed RS Wiki master table (2026-10-31).",
+      "wiki": {
+        "url": "https://runescape.wiki/w/Slayer_assignment/Kuradal",
+        "source": "Profane Scabarites assignment weight 10."
+      }
+    },
+    {
+      "path": [
+        "slayerMasterTasks",
+        "Morvran",
+        "Profane Scabarites",
+        "Weight"
+      ],
+      "beforePresent": true,
+      "before": 5,
+      "beforeRecordSha256": "ef2d127de37b942baad06145e54b0c619a1f22327b2ebbcfbec78f5564afe39d",
+      "afterPresent": true,
+      "after": 12,
+      "reason": "Match the assignment weight in the reviewed RS Wiki master table (2026-10-31).",
+      "wiki": {
+        "url": "https://runescape.wiki/w/Slayer_assignment/Morvran",
+        "source": "Profane Scabarites assignment weight 12."
+      }
+    },
+    {
+      "path": [
+        "slayerMasterTasks",
+        "Laniakea",
+        "Profane Scabarites",
+        "Weight"
+      ],
+      "beforePresent": true,
+      "before": 5,
+      "beforeRecordSha256": "ef2d127de37b942baad06145e54b0c619a1f22327b2ebbcfbec78f5564afe39d",
+      "afterPresent": true,
+      "after": 12,
+      "reason": "Match the assignment weight in the reviewed RS Wiki master table (2026-10-31).",
+      "wiki": {
+        "url": "https://runescape.wiki/w/Slayer_assignment/Laniakea",
+        "source": "Profane Scabarites assignment weight 12."
+      }
+    },
+    {
+      "path": [
+        "slayerMasterTasks",
+        "Laniakea",
+        "Undead",
+        "Weight"
+      ],
+      "beforePresent": true,
+      "before": 9,
+      "beforeRecordSha256": "19581e27de7ced00ff1ce50b2047e7a567c76b1cbaebabe5ef03f7c3017bb5b7",
+      "afterPresent": true,
+      "after": 4,
+      "reason": "Match the assignment weight in the reviewed RS Wiki master table (2026-10-31).",
+      "wiki": {
+        "url": "https://runescape.wiki/w/Slayer_assignment/Laniakea",
+        "source": "Undead assignment weight 4."
+      }
     }
   ]
 };

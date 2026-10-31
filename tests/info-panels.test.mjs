@@ -554,3 +554,21 @@ for (const kind of [429, 503, 409, 413, 'offline', 'ECONNRESET']) test(`request 
   assert.equal(h.inputFor('From level').value, '10'); failed = false; await run.events.click();
   assert.ok(h.find('p', '1,000 XP from level 10 to 20')); assert.equal(h.ui.attempts.length, 0);
 });
+
+test('Slayer chances show before expansion, with exact weights in advanced details and quest conditions on assignments', async () => {
+  for (const advanced of [false, true]) {
+    const h = harness({ advanced });
+    const planning = { line: "About 1 in 4 of Jacquelyn's tasks can't be done in your chunks yet (Cows).", weightsKnown: true, stuckWeight: 15, poolWeight: 60, unknownWeight: 0 };
+    h.result.activityInfo.slayer.masters = [{ name: 'Jacquelyn', reachable: true, eligibleCount: 1, totalCount: 2,
+      warnings: { planning, current: { line: 'Sync your levels to see your chances right now.' } },
+      tasks: [{ name: 'Bats', weight: 10, planningEligible: true, afterQuests: ['The Blood Pact'], reachableMonsters: ['Warped bat'], blockers: [], requirements: {} }] }];
+    await h.panels.activityInfo('Slayer');
+    assert.ok(h.find('p', planning.line));
+    assert.ok(h.find('p', 'Sync your levels to see your chances right now.'));
+    assert.equal(h.find('p', 'Possible after The Blood Pact.'), undefined);
+    h.openDetails('Jacquelyn');
+    assert.ok(h.find('p', 'Possible after The Blood Pact.'));
+    const exact = h.find('p', "Planning: 15 / 60 assignment weight can't be done (25.00%); 0 / 60 can't be checked.");
+    assert.equal(!!exact, advanced);
+  }
+});

@@ -716,21 +716,29 @@ export function createInfoPanels(context) {
   }
 
   function slayerView(view, result) {
-    const node = el('div', undefined, 'form-stack'); node.append(slayerControls(view, result), list(view.limitations), paged(view.masters, master => lazy(`${master.name} · ${master.eligibleCount} of ${master.totalCount} assignments possible now`, () => {
-      const detail = el('div', undefined, 'form-stack'); detail.append(paragraph(master.reachable ? 'You can reach this Slayer master for an assignment.' : 'No way to get an assignment from this master is known in your chunks yet.'));
-      if (master.method) detail.append(taskRow(master.method, result));
-      detail.append(paged(master.tasks, task => {
-        const row = el('div', undefined, 'info-row'); row.append(el('strong', text(task.name)), paragraph(`${task.planningEligible ? 'Possible assignment' : 'Blocked / unknown'} · Assignment weight ${task.weight}`));
-        if (task.reachableMonsters.length) row.append(paragraph(`Reachable target monsters: ${task.reachableMonsters.map(text).join(', ')}`));
-        if (task.blockers.length) row.append(list(task.blockers.map(blocker => blocker.detail)));
-        if (!task.planningEligible) row.append(createWhyChainDisclosure(context, { master: master.name, assignment: task.name }, {
-          memberId: result.memberId, revision: result.stateRevision, advanced,
-          ...(context.isSandbox?.() ? { result, definitions: context.definitions?.() ?? {} } : {}),
-          current: () => context.state().revision === result.stateRevision && context.memberId() === result.memberId,
-        }));
-        row.append(requirementsView({ skills: { ...task.requirements.Skills, ...(task.requirements.Level ? { Slayer: task.requirements.Level } : {}), ...(task.requirements.CombatLevel ? { Combat: task.requirements.CombatLevel } : {}) }, tasks: task.requirements.Tasks, chunks: values(task.requirements.Chunks) })); return row;
-      }, 'assignments')); return detail;
-    }), 'Slayer masters')); return node;
+    const node = el('div', undefined, 'form-stack'); node.append(slayerControls(view, result), list(view.limitations), paged(view.masters, master => {
+      const entry = el('div', undefined, 'form-stack');
+      for (const warning of [master.warnings?.planning, master.warnings?.current]) if (warning?.line) entry.append(paragraph(warning.line));
+      entry.append(lazy(`${master.name} · ${master.eligibleCount} of ${master.totalCount} assignments possible in your chunks`, () => {
+        const detail = el('div', undefined, 'form-stack'); detail.append(paragraph(master.reachable ? 'You can reach this Slayer master for an assignment.' : 'No way to get an assignment from this master is known in your chunks yet.'));
+        if (master.method) detail.append(taskRow(master.method, result));
+        if (advanced()) for (const [label, warning] of [['Planning', master.warnings?.planning], ['Right now', master.warnings?.current]]) {
+          if (warning?.weightsKnown) detail.append(paragraph(`${label}: ${warning.stuckWeight} / ${warning.poolWeight} assignment weight can't be done (${(100 * warning.stuckWeight / warning.poolWeight).toFixed(2)}%); ${warning.unknownWeight} / ${warning.poolWeight} can't be checked.`));
+        }
+        detail.append(paged(master.tasks, task => {
+          const row = el('div', undefined, 'info-row'); row.append(el('strong', text(task.name)), paragraph(`${task.planningEligible ? 'Possible assignment' : 'Blocked / unknown'} · Assignment weight ${task.weight ?? 'unknown'}`));
+          if (task.planningEligible && task.afterQuests?.length) row.append(paragraph(`Possible after ${task.afterQuests.join(' and ')}.`));
+          if (task.reachableMonsters.length) row.append(paragraph(`Reachable target monsters: ${task.reachableMonsters.map(text).join(', ')}`));
+          if (task.blockers.length) row.append(list(task.blockers.map(blocker => blocker.detail)));
+          if (!task.planningEligible) row.append(createWhyChainDisclosure(context, { master: master.name, assignment: task.name }, {
+            memberId: result.memberId, revision: result.stateRevision, advanced,
+            ...(context.isSandbox?.() ? { result, definitions: context.definitions?.() ?? {} } : {}),
+            current: () => context.state().revision === result.stateRevision && context.memberId() === result.memberId,
+          }));
+          row.append(requirementsView({ skills: { ...task.requirements.Skills, ...(task.requirements.Level ? { Slayer: task.requirements.Level } : {}), ...(task.requirements.CombatLevel ? { Combat: task.requirements.CombatLevel } : {}) }, tasks: task.requirements.Tasks, chunks: values(task.requirements.Chunks) })); return row;
+        }, 'assignments')); return detail;
+      })); return entry;
+    }, 'Slayer masters')); return node;
   }
 
   async function activityInfo(initialTab = 'Skills') {

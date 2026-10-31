@@ -4,6 +4,7 @@ import { passesRateCutoff } from './rates.mjs';
 import { achievementFamilyRequired } from './achievements.mjs';
 import { buildQuestReadiness, isWholeQuestTask, questGroupName } from './activity-readiness.mjs';
 import { taskRuleEnabled } from './rule-defaults.mjs';
+import { currentSlayerLevels, slayerTargetAccess, slayerStuckSummary } from './slayer-assignments.mjs';
 
 const list = value => value == null ? [] : Array.isArray(value) ? value : [value];
 const on = (rules, key, fallback = true) => taskRuleEnabled(rules, key, fallback);
@@ -97,34 +98,62 @@ export function buildActivityInfo(result, state, memberId, definitions = {}) {
   }), limitations: ['Counts describe declared clue steps and locations. They do not predict complete-scroll success or prove possession of a clue.'] };
   const monsters = new Set(result.access?.monsters ?? []);
   const slayerRows = rows.filter(row => row.category === 'Slayer');
+  const currentLevels = currentSlayerLevels(result, { f2p: state.rules?.['content.f2p'] ?? rules.F2P ?? true });
+  const currentLevelsKnown = currentLevels.Slayer != null && currentLevels.Combat != null;
+  const resolveAssignmentTasks = (label, category) => (definitions.codeItems?.tasksPlus?.[label] ?? [label]).map(value => {
+    const raw = value.split('--')[0];
+    return byId.get(taskId(category, raw, definitions.challenges?.[category]?.[raw]));
+  }).filter(Boolean);
+  const targetNow = slayerTargetAccess(result, definitions, resolveAssignmentTasks, currentLevels);
   const masters = Object.entries(definitions.slayerMasterTasks ?? {}).map(([name, assignments]) => {
     const aliases = name.split('/');
     const method = slayerRows.find(row => /assignment|assignement|bounty/i.test(row.rawLabel) && (name === 'Death' ? /Reaper assignment/.test(row.rawLabel) : aliases.some(alias => row.record?.NPCs?.includes(alias) || row.rawLabel.includes(`~|${alias}|~`))));
     const tasks = Object.entries(assignments).map(([assignment, data]) => {
-      const blockers = [];
+      const blockers = [], afterQuests = [], currentQuests = [];
+      let currentUnlocked = true;
       if (!method || method.status !== 'available') blockers.push({ kind: 'master', detail: 'No verified way to get an assignment from this master is reachable.' });
-      for (const [skill, level] of Object.entries({ ...data.Skills, ...(data.Level ? { Slayer: data.Level } : {}), ...(data.CombatLevel ? { Combat: data.CombatLevel } : {}) })) if ((result.training?.[skill]?.level ?? 1) < level) blockers.push({ kind: 'training', detail: `${skill} ${level} exceeds reachable training.` });
-      for (const [label, category] of Object.entries(data.Tasks ?? {})) {
-        const alternatives = definitions.codeItems?.tasksPlus?.[label] ?? [label];
-        const candidates = alternatives.map(value => { const raw = value.split('--')[0]; return byId.get(taskId(category, raw, definitions.challenges?.[category]?.[raw])); }).filter(Boolean);
-        if (category === 'Quest' ? !candidates.some(row => row.personalCompleted) : !candidates.some(row => row.status === 'available')) blockers.push({ kind: category === 'Quest' ? 'personal-completion' : 'task', detail: `${plainLabel(label)} requires ${category === 'Quest' ? 'completion on this player’s account' : 'a reachable prerequisite'}.` });
+      for (const [skill, level] of Object.entries({ ...data.Skills, ...(data.Level ? { Slayer: data.Level } : {}), ...(data.CombatLevel ? { Combat: data.CombatLevel } : {}) })) {
+        if ((result.training?.[skill]?.level ?? 1) < level) blockers.push({ kind: 'training', detail: `${skill} ${level} exceeds reachable training.` });
+        if (currentLevels[skill] == null || currentLevels[skill] < level) currentUnlocked = false;
       }
+      for (const [label, category] of Object.entries(data.Tasks ?? {})) {
+        const candidates = resolveAssignmentTasks(label, category);
+        const done = candidates.some(row => row.personalCompleted);
+        if (!candidates.some(row => row.personalCompleted || row.status === 'available')) blockers.push({ kind: 'task', detail: `${plainLabel(label)} requires a reachable prerequisite.` });
+        if (category === 'Quest' && !done) {
+          afterQuests.push(candidates[0] ? questGroupName(candidates[0]) : plainLabel(label));
+          currentUnlocked = false;
+        } else if (category !== 'Quest' && !done) currentUnlocked = false;
+      }
+      for (const location of list(data.Chunks)) if (!(definitions.codeItems?.chunksPlus?.[location] ?? [location]).some(value => locations.has(value))) {
+        blockers.push({ kind: 'chunks', detail: `Required location: ${definitions.chunks?.[location]?.Nickname ?? definitions.chunks?.[location]?.Name ?? location}.` });
+        currentUnlocked = false;
+      }
+      const known = new Set(['Level', 'CombatLevel', 'Skills', 'Tasks', 'Chunks', 'Weight']);
+      const unsupported = Object.keys(data).filter(key => !known.has(key));
+      if (unsupported.length) { blockers.push({ kind: 'unsupported', detail: `Some assignment requirements are not yet supported: ${unsupported.join(', ')}.` }); currentUnlocked = false; }
+      const planningUnlocked = !blockers.some(blocker => blocker.kind !== 'master');
       const alternatives = Object.keys(definitions.codeItems?.slayerTasks?.[assignment.split(' - ')[0]] ?? definitions.codeItems?.reaperTasks?.[assignment.split(' - ')[0]] ?? {});
       const reachableMonsters = alternatives.filter(monster => monsters.has(monster));
       if (!reachableMonsters.length) blockers.push({ kind: 'monsters', detail: alternatives.length ? 'No matching target monster is reachable.' : 'The monsters for this assignment have not been identified in the game data.' });
-      for (const location of list(data.Chunks)) if (!(definitions.codeItems?.chunksPlus?.[location] ?? [location]).some(value => locations.has(value))) blockers.push({ kind: 'chunks', detail: `Required location: ${definitions.chunks?.[location]?.Nickname ?? definitions.chunks?.[location]?.Name ?? location}.` });
-      const known = new Set(['Level', 'CombatLevel', 'Skills', 'Tasks', 'Chunks', 'Weight']);
-      const unknown = Object.keys(data).filter(key => !known.has(key));
-      if (unknown.length) blockers.push({ kind: 'unsupported', detail: `Some assignment requirements are not yet supported: ${unknown.join(', ')}.` });
-      return { name: assignment, weight: Number(data.Weight ?? 0), reachableMonsters, planningEligible: blockers.length === 0, blockers, requirements: data };
+      const targetChecks = currentLevelsKnown && currentUnlocked && method?.status === 'available' && name !== 'Death' ? reachableMonsters.map(targetNow) : [];
+      const currentStatus = !alternatives.length ? 'unknown' : !reachableMonsters.length ? 'stuck' : targetChecks.some(check => check.status === 'doable') ? 'doable' : targetChecks.some(check => check.status === 'unknown') || !targetChecks.length ? 'unknown' : 'stuck';
+      if (currentStatus === 'stuck') currentQuests.push(...new Set(targetChecks.flatMap(check => check.quests)));
+      return { name: assignment, weight: data.Weight == null || data.Weight === '' ? null : Number(data.Weight), reachableMonsters,
+        planningUnlocked, planningEligible: blockers.length === 0, afterQuests, currentUnlocked, currentStatus, currentQuests, blockers, requirements: data };
     });
-    return { name, method: method ? summarize(method) : null, reachable: method?.status === 'available', tasks,
+    // Death's Soul Reaper rolls and replacement rules differ from ordinary Slayer.
+    const warnings = method?.status === 'available' && name !== 'Death' ? {
+      planning: slayerStuckSummary(name, tasks),
+      current: currentLevelsKnown ? slayerStuckSummary(name, tasks, true) : { line: 'Sync your levels to see your chances right now.' },
+    } : null;
+    return { name, method: method ? summarize(method) : null, reachable: method?.status === 'available', tasks, warnings,
       eligibleCount: tasks.filter(task => task.planningEligible).length, totalCount: tasks.length };
   });
   return { memberId, skills, quests, questStates, achievements,
     activities: rows.filter(row => ['Extra', 'Nonskill'].includes(row.category) && !row.record?.ClueTier && row.obligation !== false).map(summarize),
     slayer: { masters, lockOptions: { monsters: Object.keys(definitions.codeItems?.slayerTasks ?? {}), bosses: Object.keys(definitions.codeItems?.reaperTasks ?? {}) },
       declaredLock: result.playerControls?.slayerLock ?? null, effectiveLock: result.effectiveSlayerLock ?? null, lockRelease: result.slayerLockRelease ?? null,
-      limitations: ['Availability uses the highest levels you can train to. Manual entries do not independently verify your current combat or Slayer level or your in-game assignment. You must complete personal quest requirements on your own account.'] }, clues,
+      limitations: ['Availability uses the highest levels you can train to. Manual entries do not independently verify your current combat or Slayer level or your in-game assignment. Planning can include available quests you have yet to finish. Right now uses personal quest completions and recorded levels; routes that cannot be checked stay unknown.'] }, clues,
     points: result.points, coverage: { limitations: ['Activity Info lists supported activities from the game data. Unavailable activities show why; alternative tasks remain visible here.', 'Reachable training and possible quest points are planning estimates. Current account statistics are recorded separately.'] } };
 }
