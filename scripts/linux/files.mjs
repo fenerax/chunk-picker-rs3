@@ -1,6 +1,6 @@
 import path from 'node:path';
 import { createReadStream } from 'node:fs';
-import { chmod, copyFile, lstat, mkdir, open, readFile, readdir, rename, rm, statfs, writeFile } from 'node:fs/promises';
+import { chmod, copyFile, link, lstat, mkdir, open, readFile, readdir, rename, rm, statfs, writeFile } from 'node:fs/promises';
 import { createHash, randomUUID } from 'node:crypto';
 import { spawn } from 'node:child_process';
 import { once } from 'node:events';
@@ -124,25 +124,69 @@ async function recoverDeadOwner(file) {
   } catch (error) { return error.code === 'ENOENT'; }
   finally { await release(); }
 }
+// Publication temps are never transaction evidence. Under the kernel guard no
+// other Linux publisher can be using them. Match only our exact UUID namespace;
+// unlink files/symlinks without following links or recursively removing trees.
+async function cleanOwnerTemporaries(file) {
+  const prefix = path.basename(file) + '.owner.';
+  for (const entry of await readdir(path.dirname(file), { withFileTypes: true })) {
+    if (entry.name.startsWith(prefix)
+      && /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}\.tmp$/.test(entry.name.slice(prefix.length))
+      && (entry.isFile() || entry.isSymbolicLink())) {
+      await rm(path.join(path.dirname(file), entry.name), { force: true });
+    }
+  }
+}
+async function publishOwner(file) {
+  const temporary = file + '.owner.' + randomUUID() + '.tmp';
+  let temporaryOwned = false, published = false;
+  try {
+    const handle = await open(temporary, 'wx', 0o600);
+    temporaryOwned = true;
+    try {
+      // Keep the existing wire format: old and new tools read identical owners.
+      await handle.writeFile(encode({ pid: process.pid, startedAt: new Date().toISOString(),
+        processIdentity: process.platform === 'linux' ? await processIdentity(process.pid) : null }));
+      await handle.sync();
+    } finally { await handle.close(); }
+    if (process.platform === 'linux') {
+      // Every Linux publisher, including older tools, holds this same guard.
+      // Only removal can race this absence check, so rename cannot replace an
+      // owner. Unlike a link/unlink pair, it never leaves a two-link lock that
+      // older noLinks() checks would refuse after a kill.
+      if (await exists(file)) return false;
+      await rename(temporary, file);
+    } else {
+      // There is no kernel guard here; link must refuse an existing target.
+      try { await link(temporary, file); }
+      catch (error) { if (error.code === 'EEXIST') return false; throw error; }
+    }
+    published = true;
+    await rm(temporary, { force: true });
+    if (process.platform !== 'win32') {
+      const parent = await open(path.dirname(file), 'r');
+      try { await parent.sync(); } finally { await parent.close(); }
+    }
+    return true;
+  } catch (error) {
+    if (published) await rm(file, { force: true });
+    throw error;
+  } finally {
+    if (temporaryOwned) await rm(temporary, { force: true });
+  }
+}
 export async function exclusive(file, action, { skipBusy = false, maxBusyMs = Infinity } = {}) {
-  let handle;
+  let acquired;
   for (;;) {
     const release = await lockGuard(file, true);
     if (release) {
       try {
-        try { handle = await open(file, 'wx', 0o600); }
-        catch (error) { if (error.code !== 'EEXIST') throw error; }
-        if (handle) {
-          // Write the owner record before releasing the guard: recovery never
-          // reads a partial record from a live owner.
-          try {
-            await handle.writeFile(encode({ pid: process.pid, startedAt: new Date().toISOString(),
-              processIdentity: process.platform === 'linux' ? await processIdentity(process.pid) : null }));
-            await handle.sync();
-          } catch (error) { await handle.close(); await rm(file, { force: true }); throw error; }
-        }
+        // Only a guarded Linux publisher can have created these names. A dead
+        // publisher may have left a partial temp; it is never lock evidence.
+        if (process.platform === 'linux') await cleanOwnerTemporaries(file);
+        acquired = await publishOwner(file);
       } finally { await release(); }
-      if (handle) break;
+      if (acquired) break;
       if (await recoverDeadOwner(file)) continue;
     }
     if (Number.isFinite(maxBusyMs)) {
@@ -157,5 +201,5 @@ export async function exclusive(file, action, { skipBusy = false, maxBusyMs = In
     throw Object.assign(new Error('Operator lock busy.'), { code: 'EEXIST' });
   }
   try { return await action(); }
-  finally { await handle.close(); await rm(file); }
+  finally { await rm(file); }
 }
