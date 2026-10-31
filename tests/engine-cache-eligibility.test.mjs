@@ -112,3 +112,26 @@ test('invalid entry and byte bounds are rejected', () => {
     assert.throws(() => createEligibilityBudget({ entryLimit: value }), TypeError);
   }
 });
+
+
+test('idle compression keeps large bursts fully charged without reviving evicted entries', async () => {
+  const budget = createEligibilityBudget({ byteLimit: 700000, eligibilityByteLimit: 500000 });
+  const a = createEligibilityCache({ limit: 8, budget }), b = createEligibilityCache({ limit: 8, budget });
+  const snapshot = {};
+  assert.ok(budget.admit(snapshot, () => assert.fail('proof burst displaced snapshot'), { cost: 180000, owner: 'picker:peer' }));
+  for (let i = 0; i < 50; i++) {
+    call(i % 2 ? a : b, i, () => proof(i, 'large', 120000));
+    assert.equal(budget.bytes, a.bytes + b.bytes + 180000);
+    assert.ok(a.bytes + b.bytes <= 500000); assert.ok(budget.bytes <= budget.byteLimit);
+  }
+  const before = a.bytes + b.bytes, size = a.size + b.size;
+  assert.ok(before >= size * 120000, 'pending raw buffers have their full charge');
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(a.size + b.size, size, 'idle jobs cannot resurrect evicted proofs');
+  assert.ok(a.bytes + b.bytes < before);
+  assert.equal(budget.bytes, a.bytes + b.bytes + 180000);
+  assert.equal(call(a, 49, () => assert.fail('compacted proof recomputed')).metrics.eligibilityCacheHit, true);
+  // A raw proof exceeding the owner quota takes synchronous compressed admission.
+  call(a, 51, () => proof(51, 'large', 600000));
+  assert.ok(a.bytes + b.bytes <= 500000); assert.ok(budget.bytes <= budget.byteLimit);
+});

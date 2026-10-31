@@ -2264,3 +2264,252 @@ full 414-state private gate.
 No checker, game behavior, byte-budget constant, state-transfer bound or existing
 test assertion changed. The only production change is the owning-cache refresh.
 **MERGE-CANDIDATE.**
+
+## EN7 latency follow-up: serial evaluate
+
+START `dcccaa8bf7fd36ffb6f39a13d65437540fc09514`; reference `1c2a07cb584f7762c9f4bc4e5af5c8acc7220462`.
+Node v24.21.0, four-core cgroup quota, 16 GiB memory limit. All timing
+trials run sequentially with no test or checker workload running beside them.
+One calculator is resident at a time. The private input checkout is read only;
+all save opening and protocol input files use disposable copies under /tmp.
+
+### Reproduction and measurement boundary
+
+`scripts/perf/engine-cache-latency.mjs` builds the seed-17 save corpus once,
+then selects zero-based positions 4, 7 and 19: one input each from shards 5/48,
+8/48 and 20/48. Each state gets five fresh reference/candidate pairs in A B A B
+order. The final rerun repeats both sides after the cache change. Each calculator
+receives prepare-rules, then play/full evaluate requests for both member slots,
+with both duo projections. Full-view requests include the adapter's additional
+projection request. State references, adapter, Node executable and input bundle
+are identical between sides. Each side has 60 evaluate requests per run.
+
+These are isolated evaluate sequences through the same protocol adapter used by
+calc-check, not a replay of every request in a full private shard. The table is
+median [minimum–maximum] of five trial medians; each trial median covers four
+wire requests, including response decoding. It does not measure HTTP cache hits.
+
+With the documented private pack/default environment and a disposable save copy:
+
+```sh
+node scripts/perf/engine-cache-latency.mjs \
+  --reference /tmp/en7lat-reference --candidate "$PWD" \
+  --data-dir "$COPIED_SAVE" --positions 4,7,19 --runs 5 \
+  --output /tmp/latency.json
+```
+
+The reference directory must be a worktree at the reference commit above.
+The final source fingerprint across worker, engine, eligibility-cache and
+snapshot-cache is `c559fbba07914287049b19a747ab67f31e65103ade7adbcb868f426f722f3ce7`. Both timing runs have the same complete
+corpus manifest hash, `cdf50309f628d6b676044135fb6063b185fc9b0e0d213cbb4224dd8be40760ba`, and identical per-state hashes.
+
+| Sample shard | Reference before, ms | EN7 before, ms | Reference rerun, ms | Revised, ms |
+| --- | ---: | ---: | ---: | ---: |
+| 5/48 | 2285 [2218–2532] | 3153 [3119–3327] | 2513 [2364–2657] | 2619 [2488–2870] |
+| 8/48 | 2391 [2350–2475] | 3102 [3046–3172] | 2403 [2347–2645] | 2651 [2539–2821] |
+| 20/48 | 2345 [2213–2538] | 3143 [3033–3419] | 2307 [2272–2468] | 2637 [2534–2768] |
+
+Revised latency is 14.5–16.9% lower than EN7,
+but still 4.2–14.3% above the fresh reference controls.
+The original gap is real without two calculators sharing the sandbox.
+
+Calculator-process peak RSS, including adapter isolates, GiB:
+
+| Sample shard | EN7 before | Revised |
+| --- | ---: | ---: |
+| 5/48 | 2.29 [2.18–2.33] | 2.20 [2.17–2.27] |
+| 8/48 | 2.22 [2.17–2.23] | 2.22 [2.19–2.30] |
+| 20/48 | 2.23 [2.18–2.29] | 2.22 [2.22–2.26] |
+
+This shorter request mix does not reproduce the whole-shard peak-RSS workload.
+
+### Cause and local change
+
+A separate diagnostic preload times serialization, compression, decoding and
+travel-input key construction; an admission trace logs only numeric costs and
+public cache kinds. Instrumented runs are excluded from latency tables.
+Before the change, snapshot serialization costs 948–1191 ms per cold evaluate
+(two whole-graph measurements), plus 465–510 ms when promoting to the full view.
+The trace records zero admission rejections and zero evictions in this sample.
+Key construction costs about 11 ms; gzip costs 108–112 ms per cold proof.
+Snapshot payload measurement is the dominant added work in these requests.
+
+snapshot-cache.mjs caches the bulk graph's measured cost until a bulk root
+changes. Large planning and sandbox graphs stay in that measurement so shared
+references remain deduplicated. Views, locations and estimates are measured as
+separate components only when changed; forced refresh still remeasures all
+components. Dropping a deferred context keeps its old charge until a later bulk
+measurement, without retaining that context. Unsupported data drops the cache
+entry; repaired or evicted snapshots are fully measured on readmission.
+
+The total quota, per-picker quota, proof reservation and 512-entry bound are
+unchanged. Small aliases across components may be charged more than once, so
+accounting remains conservative. Prediction clones remain independently charged.
+The hard bound is serialized payload, not total V8 heap or process RSS.
+worker.mjs, including the separately assigned snapshot-ownership fix, is untouched.
+
+After the fix, cold snapshot serialization totals 460–471 ms (one bulk walk plus
+small components), and full-view promotion costs 23–26 ms. The first measurement
+and roughly 0.11 s of proof compression explain the remaining cold-path cost.
+
+The preload also records a complete baseBytes span, which contains the nested
+snapshot.serialize span; those times must not be added together. Numeric spans
+and all per-request measurements are in the accompanying results artifact.
+The initial whole-graph measurement and proof compression remain on cold paths.
+
+### Multi-picker probes and verification
+
+The existing engine-cache-profile/probe harness runs three fresh trials per
+case, one cold and two warm rounds, with all seven request kinds. The revised
+branch explicitly uses 402653184 bytes. The reference retains its entry-bound
+policy. Dataset, source-state, grown-state and harness hashes match between sides.
+Eight-picker trials use the final accounting implementation; final two-picker
+trials rerun after grouping the large aliased graphs.
+
+| Probe, median [min–max] | Reference | Revised |
+| --- | ---: | ---: |
+| 2 pickers, warm round ms | 16474 [16208–17101] | 8128 [7982–8583] |
+| 8 pickers, mixed warm p95 ms | 4800 [4747–4890] | 2491 [2337–2508] |
+| 2 pickers, peak worker RSS MiB | 2176.5 [2146.6–2203.7] | 2038.7 [1997.3–2042.6] |
+| 8 pickers, peak worker RSS MiB | 2443.9 [2422.4–2475.3] | 1999.7 [1984.6–2015.9] |
+
+All revised budget telemetry stays at or below 402653184 bytes and 512 entries.
+The results artifact includes complete/sandbox hit rates and charged-byte ranges.
+Only one active member per picker is used by these existing capacity probes;
+other roster sizes and request mixes are not covered by their memory result.
+
+Four synthetic accounting tests were added to the existing classified snapshot
+test file: avoiding repeated baseline walks, deferred-context replacement and
+forced growth, failed-measurement readmission, and deduplication of large aliases.
+Focused files run individually, followed by exactly one quick-suite run.
+
+| Check | Pass | Fail | Skip |
+| --- | ---: | ---: | ---: |
+| tests/engine-cache-snapshot.test.mjs | 11 | 0 | 0 |
+| tests/engine-cache-eligibility.test.mjs | 7 | 0 | 0 |
+| tests/engine-cache-worker.test.mjs | 3 | 0 | 0 |
+| tests/worker-timings.test.mjs | 18 | 0 | 0 |
+| tests/multi-picker-capacity.test.mjs | 1 | 0 | 0 |
+| npm run test:quick | 2488 | 0 | 67 |
+
+Public fixture preparation: 179 files,
+2073 passed, 0 failed,
+2 skipped, 3962 captures. Public calc-check against
+the pinned reference: **4067 states, 71970 comparisons,
+0 differences, 0 errors**;
+all 16 shards accepted by the strict full-coverage merger. The full npm test suite
+and full private correctness gate were not rerun for this task.
+
+Numeric evidence: [en7-cache-latency-results.json](../../scripts/perf/en7-cache-latency-results.json).
+Recommendation: **NEEDS-WORK**. Repeated size walks are removed and
+the multi-picker gains remain, but single-picker evaluate still has a material
+cold-path cost relative to the reference.
+
+## EN7 reply-path continuation after snapshot ownership fix
+
+START `db42342eb2bb71d1babf3bb71bf5c0cbbfa8bd16`; reference `1c2a07cb584f7762c9f4bc4e5af5c8acc7220462`.
+The preceding latency section records the first iteration. This continuation
+rebases that patch onto the ownership fix and reruns its gates on Node v24.21.0,
+with a four-core quota and a 16 GiB memory limit. worker.mjs is unchanged.
+
+The same three corpus positions receive five interleaved A/B pairs each, using
+the existing serial latency harness and process settings. Calculators run one
+at a time, with no tests or checker workload beside them. Values below are
+median [minimum–maximum] of the five trial medians, in milliseconds.
+
+| Sample shard | Reference | Candidate | Difference |
+| --- | ---: | ---: | ---: |
+| 5/48 | 2,398 [2,311–2,537] | 2,542 [2,441–2,775] | +6.0% |
+| 8/48 | 2,529 [2,281–2,660] | 2,592 [2,402–2,729] | +2.5% |
+| 20/48 | 2,561 [2,383–2,638] | 2,521 [2,499–2,793] | -1.6% |
+
+Two samples meet the requested 3% limit; the first remains 6.0% slower. This
+fails the merge criterion. The paired inputs retain manifest hash
+`cdf50309f628d6b676044135fb6063b185fc9b0e0d213cbb4224dd8be40760ba`.
+The final four-module source fingerprint is `050c746e985fbba445894c9fbd4963a7e4f8eaa543e1c78b03a1e12fb6e5c006`.
+
+Calculator process-tree peak RSS, median [minimum–maximum], MiB:
+
+| Sample shard | Reference | Candidate |
+| --- | ---: | ---: |
+| 5/48 | 2,272 [2,229–2,358] | 2,279 [2,211–2,309] |
+| 8/48 | 2,273 [2,179–2,373] | 2,321 [2,257–2,359] |
+| 20/48 | 2,314 [2,244–2,368] | 2,321 [2,297–2,349] |
+
+### Local changes and remaining cost
+
+- snapshot-cache.mjs keeps the prior component accounting and four regression
+  tests. It now measures each immutable state once through a weak-key size map,
+  then charges that measured size separately to every retaining snapshot. The
+  matching deferred-view state is omitted from the bulk measurement; distinct
+  context states remain in it. Forced refresh remeasures the state and components.
+- eligibility-cache.mjs retains and charges the complete uncompressed backing
+  store first. A coalesced setImmediate job reads current cache entries and
+  replaces them with smaller Zstandard level-1 buffers. Evicted entries have no
+  pending strong reference and cannot be readmitted by the idle job. Small
+  proofs and raw proofs larger than their owner quota compact synchronously.
+  Decoding preserves the original mutable-result and hidden-fact behavior.
+- The existing snapshot tests add independent native-size checks during a burst
+  of large inserts, shared-state measurement reuse, and forced remeasurement.
+  The eligibility tests add a large burst before idle compression, full raw
+  charging, unchanged entry counts after eviction, and oversized-raw admission.
+
+The byte quota, per-picker quota, reserved proof space and entry limit remain
+unchanged. State memoization uses the calculator's immutable-state contract.
+Compression replaces an entry only with a smaller charged backing store; its
+job reads current cache entries. Prediction work can run idle jobs during its
+existing event-loop yields. RSS remains a separate measure
+from serialized-payload admission.
+
+A separate instrumented trial measures 223–235 ms for the remaining cold bulk
+baseline pass, 24–25 ms for full-view growth, and 10–11 ms for key construction.
+The first state measurement takes 367 ms in that diagnostic; the second member
+reuses it. Proof serialization takes 196–197 ms, and queued compression takes
+43–103 ms after the cold evaluate reply. These nested spans are not additive.
+The isolated admission trace records zero evictions and zero rejections.
+
+An attempted conservative JavaScript graph walk took 700–723 ms and caused
+additional exact sizing under pressure. It was discarded. A second prototype
+privately froze and measured 20,389 compiled records (3,547,181 serialized bytes). Projecting those records out of a roughly 48 MB
+baseline raised its sizing span to 542–556 ms; it too was discarded.
+The remaining cold baseline pass is still on the reply path. A sufficiently
+cheap, proven bound for that graph remains open. The 6% sample prevents a merge recommendation.
+
+### Rerun gates
+
+Each cache probe uses three fresh trials, one cold and two warm rounds, with all
+seven request kinds. The candidate explicitly uses 402653184 bytes. Inputs and
+harness hashes match between sides. Only one calculator runs at a time.
+
+| Probe, median [minimum–maximum] | Reference | Candidate |
+| --- | ---: | ---: |
+| 2 pickers, warm round ms | 17,009 [16,934–17,864] | 8,237 [8,223–8,841] |
+| 8 pickers, warm p95 ms | 5,037 [4,926–5,172] | 2,435 [2,429–2,527] |
+| 2 pickers, peak worker RSS MiB | 2,178 [2,104–2,206] | 1,996 [1,959–2,020] |
+| 8 pickers, peak worker RSS MiB | 2,453 [2,429–2,453] | 2,032 [1,977–2,051] |
+
+All candidate telemetry remains within 402653184 bytes and 512 entries. The
+numeric artifact retains charged-byte ranges and warm hit/miss counts.
+
+Focused files ran separately, and the same final source passed one quick-suite
+run. Discarded prototypes were reverted to the validated source fingerprint,
+then focused tests ran again before the final candidate probe:
+
+| Check | Pass | Fail | Skip |
+| --- | ---: | ---: | ---: |
+| tests/engine-cache-snapshot.test.mjs | 13 | 0 | 0 |
+| tests/engine-cache-eligibility.test.mjs | 8 | 0 | 0 |
+| tests/engine-cache-worker.test.mjs | 4 | 0 | 0 |
+| tests/worker-timings.test.mjs | 18 | 0 | 0 |
+| tests/multi-picker-capacity.test.mjs | 1 | 0 | 0 |
+| npm run test:quick | 2492 | 0 | 67 |
+
+The public checker reused the prior reference fixture captures and their
+unchanged corpus specification. All 16 newly executed shards merge with full
+coverage: **4067 states, 71970 comparisons,
+0 differences, 0 errors**. Manifest hash:
+`f4f6eef17780043e1defd9f278a4985764c709ae64b829533afd638b4a775305`.
+The full npm test suite and full private correctness corpus were not rerun.
+
+Numeric evidence: [en7-cache-latency-reply-results.json](../../scripts/perf/en7-cache-latency-reply-results.json).
+Recommendation: **NEEDS-WORK**.

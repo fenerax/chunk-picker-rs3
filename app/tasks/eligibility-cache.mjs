@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { serialize, deserialize } from 'node:v8';
-import { gzipSync, gunzipSync } from 'node:zlib';
+import { zstdCompressSync, zstdDecompressSync, constants } from 'node:zlib';
 import { automaticTravelInputKey } from '../core/travel-inputs.mjs';
 
 // Use the conservative travel proof boundary: every personal completion and
@@ -17,23 +17,27 @@ export function eligibilityInputKey(state, memberId, options) {
   return createHash('sha256').update(automaticTravelInputKey(input)).update(JSON.stringify([memberId, options ?? null])).digest('hex');
 }
 
-// Retain lossless compressed bytes so shared workers can keep many proofs.
-// Copy out of zlib's output slab rather than retaining its unused capacity.
-// Decoding on a hit still gives callers private, mutable rows. Keep engine facts
-// explicitly: neither structured cloning nor V8 serialization keeps descriptors.
+// Cold replies retain their already serialized proof first. Idle compression
+// replaces it only with a smaller backing store; the full original buffer stays
+// charged until that replacement. No pending job owns evicted buffers.
+const compressed = new WeakSet(), compacted = new WeakSet();
 function retainResult(result) {
-  const bytes = gzipSync(serialize({ result, processing: result.processing,
+  return serialize({ result, processing: result.processing,
     primary: result.tasks.map(row => row.processingPrimary),
     metrics: Object.fromEntries(Object.entries(Object.getOwnPropertyDescriptors(result.metrics))
-      .filter(([, descriptor]) => !descriptor.enumerable)) }), { level: 1 });
-  if (bytes.buffer.byteLength === bytes.byteLength) return bytes;
+      .filter(([, descriptor]) => !descriptor.enumerable)) });
+}
+function compactResult(raw) {
+  const bytes = zstdCompressSync(raw, { params: { [constants.ZSTD_c_compressionLevel]: 1 } });
+  compacted.add(raw);
+  if (bytes.byteLength >= raw.buffer.byteLength) return raw;
   const compact = Buffer.allocUnsafeSlow(bytes.byteLength);
-  bytes.copy(compact);
+  bytes.copy(compact); compressed.add(compact); compacted.add(compact);
   return compact;
 }
 
 function copyResult(bytes) {
-  const copy = deserialize(gunzipSync(bytes));
+  const copy = deserialize(compressed.has(bytes) ? zstdDecompressSync(bytes) : bytes);
   if (copy.processing !== undefined) Object.defineProperty(copy.result, 'processing', { value: copy.processing });
   copy.result.tasks.forEach((row, index) => {
     if (copy.primary[index] !== undefined) Object.defineProperty(row, 'processingPrimary', { value: copy.primary[index] });
@@ -73,6 +77,7 @@ export function createEligibilityBudget({ byteLimit = 384 * 1024 * 1024, entryLi
   return Object.freeze({
     get byteLimit() { return byteLimit; },
     get entryLimit() { return entryLimit; },
+    get eligibilityByteLimit() { return eligibilityByteLimit; },
     get bytes() { return retainedBytes; },
     get size() { return retained.size; },
     forget(bytes) {
@@ -124,6 +129,22 @@ export function createEligibilityCache({ limit = 2, byteLimit = 128 * 1024 * 102
     if (!entries.delete(key)) return;
     retainedBytes -= backingBytes(bytes); budget.forget(bytes);
   };
+  let compactionPending = false;
+  const compactWhenIdle = () => {
+    if (compactionPending) return;
+    compactionPending = true;
+    setImmediate(() => {
+      compactionPending = false;
+      for (const [key, raw] of entries) {
+        if (compacted.has(raw)) continue;
+        const bytes = compactResult(raw);
+        if (bytes === raw) continue;
+        discard(key, raw);
+        if (!budget.admit(bytes, () => discard(key, bytes))) throw new Error('Eligibility compaction accounting mismatch.');
+        entries.set(key, bytes); retainedBytes += backingBytes(bytes);
+      }
+    }).unref();
+  };
   const evict = () => {
     const [key, bytes] = entries.entries().next().value;
     discard(key, bytes);
@@ -150,11 +171,14 @@ export function createEligibilityCache({ limit = 2, byteLimit = 128 * 1024 * 102
         // Release the oldest retained proof before computing its replacement.
         if (entries.size >= limit) evict();
         result = compute();
-        const bytes = retainResult(result);
+        let bytes = retainResult(result);
+        // A single raw proof can exceed its quota even though its compressed
+        // form fits. Only this admission fallback compresses on the reply path.
+        if (backingBytes(bytes) < 65536 || backingBytes(bytes) > budget.eligibilityByteLimit) bytes = compactResult(bytes);
         // Oversized proofs are returned normally but never retained. Global
         // eviction removes the owning variant's reference as well as the ledger.
         if (budget.admit(bytes, () => discard(key, bytes))) {
-          entries.set(key, bytes); retainedBytes += backingBytes(bytes);
+          entries.set(key, bytes); retainedBytes += backingBytes(bytes); compactWhenIdle();
         }
       }
       Object.defineProperty(result.metrics, 'eligibilityCacheHit', { value: !!cached });
