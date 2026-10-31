@@ -72,14 +72,25 @@ async function inputBytes(inputs) {
   }
   return bytes;
 }
-async function copyGameplay(source, target) {
+async function copyGameplay(source, target, mutate) {
   const files = await inventory(source);
-  await mkdir(target, { mode: 0o700 });
+  await mutate('capture.gameplay', () => mkdir(target, { mode: 0o700 }));
   for (const row of files.filter(row => gameplayRoots.has(row.path.split('/')[0]))) {
     const to = path.join(target, row.path);
-    if (row.directory) await mkdir(to, { mode: 0o700 });
-    else await copyFile(path.join(source, row.path), to, 1);
+    if (row.directory) await mutate('capture.gameplay', () => mkdir(to, { mode: 0o700 }));
+    else await mutate('capture.gameplay', () => copyFile(path.join(source, row.path), to, 1));
   }
+}
+export async function copyServiceTree(source, target, step, label) {
+  const before = await inventory(source);
+  await step(label); await mkdir(target, { mode: 0o700 });
+  for (const row of before) {
+    await step(label);
+    if (row.directory) await mkdir(path.join(target, row.path), { mode: 0o700 });
+    else await copyFile(path.join(source, row.path), path.join(target, row.path), 1);
+  }
+  if (encode(before) !== encode(await inventory(source)) || encode(before) !== encode(await inventory(target))) throw new Error('Recovery source changed while copying.');
+  return before;
 }
 async function checkpointBinding(source) {
   const file = source + '.dataset.json';
@@ -90,13 +101,24 @@ async function checkpointBinding(source) {
 }
 const captures = new WeakSet();
 export async function captureServiceCheckpoint({ settings, registry, checkpoint, id, inputs = {}, minFreeBytes = settings.minFreeBytes ?? 67108864,
-  onPhase = async () => {}, spaceCheck = headroom }) {
+  onPhase = async () => {}, spaceCheck = headroom, step = async label => {} }) {
   validateServicePaths(settings);
   const target = snapshotPath(settings.dataDir, id);
   if (captures.has(registry)) throw Object.assign(new Error('A service backup is already running.'), { status: 503 });
   captures.add(registry);
-  let created = false;
+  let created = false, interrupted = false;
+  const mutate = async (label, work) => {
+    try { await step(label); } catch (error) { interrupted = true; throw error; }
+    return work();
+  };
   try {
+    if (await exists(target)) {
+      if (await exists(path.join(target, 'complete.json'))) {
+        await verifyServiceBackup(target);
+        return json(path.join(target, 'complete.json'));
+      }
+      throw Object.assign(new Error(`Move ${target} aside after checking source stores; then rerun.`), { code: 'OPERATOR_ACTION_REQUIRED' });
+    }
     const started = performance.now();
     // No file copying, hashing, syncing or pack reads under global admission.
     const roster = async document => {
@@ -112,7 +134,7 @@ export async function captureServiceCheckpoint({ settings, registry, checkpoint,
     const globalBarrierMs = checkpoint ? checkpoint.timings().globalBarrierMs : performance.now() - started;
     const { document, pickers: manifestPickers } = initial;
     await onPhase('manifest', { pickerCount: manifestPickers.length });
-    await directory(snapshotRoot(settings.dataDir));
+    await mutate('capture.spool', () => directory(snapshotRoot(settings.dataDir)));
     // The spool usually shares the live data filesystem. Refuse before copying
     // anything that would eat into the reserve, then recheck before each copy
     // because live gameplay keeps growing while earlier pickers are copied.
@@ -120,8 +142,8 @@ export async function captureServiceCheckpoint({ settings, registry, checkpoint,
     let payload = await inputBytes(inputs);
     for (const picker of manifestPickers) payload += await gameplayBytes(pickerPath(settings, picker));
     await spaceCheck(spool, payload, minFreeBytes);
-    await mkdir(target, { mode: 0o700 }); created = true;
-    await mkdir(path.join(target, 'pickers'), { mode: 0o700 });
+    await mutate('capture.target', () => mkdir(target, { mode: 0o700 })); created = true;
+    await mutate('capture.pickers', () => mkdir(path.join(target, 'pickers'), { mode: 0o700 }));
     const pickerBarriers = [], errors = new Map();
     for (const picker of manifestPickers) {
       const source = pickerPath(settings, picker), to = path.join(target, 'pickers', picker.id);
@@ -137,16 +159,16 @@ export async function captureServiceCheckpoint({ settings, registry, checkpoint,
           picker.binding = binding;
           if (picker.initialized && !picker.binding) throw new Error('Initialized picker has no binding.');
           await spaceCheck(spool, await gameplayBytes(source), minFreeBytes);
-          await copyGameplay(source, to);
-          if (picker.binding) await writeFile(to + '.dataset.json', encode(picker.binding), { flag: 'wx', mode: 0o600 });
+          await copyGameplay(source, to, mutate);
+          if (picker.binding) await mutate('capture.binding', () => writeFile(to + '.dataset.json', encode(picker.binding), { flag: 'wx', mode: 0o600 }));
           await syncRecoveryTree(to);
         });
-      } catch (error) { errors.set(picker.id, error); }
+      } catch (error) { if (interrupted) throw error; errors.set(picker.id, error); }
       const heldMs = performance.now() - began;
       pickerBarriers.push({ id: picker.id, heldMs });
       await onPhase('picker-copied', { id: picker.id, heldMs });
     }
-    await mkdir(path.join(target, 'inputs'), { mode: 0o700 });
+    await mutate('capture.inputs', () => mkdir(path.join(target, 'inputs'), { mode: 0o700 }));
     const pins = [];
     for (const [key, pin] of Object.entries(inputs)) {
       const name = key === 'rulesText' ? 'rules-text' : key;
@@ -158,16 +180,16 @@ export async function captureServiceCheckpoint({ settings, registry, checkpoint,
       if (pack) {
         const manifest = await json(pin.path), dest = path.join(target, 'inputs', name);
         if (!Array.isArray(manifest.files)) throw new Error('Pack file manifest required.');
-        await directory(dest); await copyFile(pin.path, path.join(dest, 'pack.json'), 1);
+        await mutate('capture.input-directory', () => directory(dest)); await mutate('capture.input-copy', () => copyFile(pin.path, path.join(dest, 'pack.json'), 1));
         for (const row of manifest.files) {
           packRelative(row.path);
           if (row.path === 'pack.json') throw new Error('Invalid pack file.');
           const source = path.join(path.dirname(pin.path), row.path), output = path.join(dest, row.path);
-          await noLinks(source); await directory(path.dirname(output)); await copyFile(source, output, 1);
+          await noLinks(source); await mutate('capture.input-directory', () => directory(path.dirname(output))); await mutate('capture.input-copy', () => copyFile(source, output, 1));
         }
         const copied = await inventory(dest);
         for (const row of manifest.files) if (!copied.some(actual => actual.path === row.path && actual.sha256 === row.sha256 && actual.bytes === row.bytes)) throw new Error('Pack file verification failed.');
-      } else await copyFile(pin.path, path.join(target, 'inputs', name), 1);
+      } else await mutate('capture.input-copy', () => copyFile(pin.path, path.join(target, 'inputs', name), 1));
       pins.push({ name, sha256: pin.sha256, pack });
     }
 
@@ -179,21 +201,21 @@ export async function captureServiceCheckpoint({ settings, registry, checkpoint,
       if (!active.has(picker.id)) {
         if (picker.kind === 'legacy-shared') throw new Error('Legacy picker became unavailable during backup.');
         picker.absent = true;
-        await rm(path.join(target, 'pickers', picker.id), { recursive: true, force: true });
-        await rm(path.join(target, 'pickers', picker.id + '.dataset.json'), { force: true });
+        await mutate('capture.absent-store', () => rm(path.join(target, 'pickers', picker.id), { recursive: true, force: true }));
+        await mutate('capture.absent-binding', () => rm(path.join(target, 'pickers', picker.id + '.dataset.json'), { force: true }));
       } else if (errors.has(picker.id)) throw errors.get(picker.id);
     }
-    await writeFile(path.join(target, 'registry.json'), encode(document), { flag: 'wx', mode: 0o600 });
+    await mutate('capture.registry', () => writeFile(path.join(target, 'registry.json'), encode(document), { flag: 'wx', mode: 0o600 }));
     await syncRecoveryTree(target);
     const files = await inventory(target);
     const timing = checkpoint?.timings() ?? { waitedRequests: 0, maxRequestWaitMs: 0, totalRequestWaitMs: 0 };
     const result = { id, heldMs: globalBarrierMs, globalBarrierMs, pickerCount: manifestPickers.length,
       absentPickerCount: manifestPickers.filter(p => p.absent).length, pickerBarriers,
       waitedRequests: timing.waitedRequests, maxRequestWaitMs: timing.maxRequestWaitMs, totalRequestWaitMs: timing.totalRequestWaitMs };
-    await atomic(path.join(target, 'manifest.json'), encode({ format: serviceFormat, pickers: manifestPickers, inputs: pins, files }));
-    await atomic(path.join(target, 'complete.json'), encode(result));
+    await mutate('capture.manifest', () => atomic(path.join(target, 'manifest.json'), encode({ format: serviceFormat, pickers: manifestPickers, inputs: pins, files })));
+    await mutate('capture.complete', () => atomic(path.join(target, 'complete.json'), encode(result)));
     return result;
-  } catch (error) { if (created) await rm(target, { recursive: true, force: true }); throw error; }
+  } catch (error) { if (created && !interrupted) await mutate('capture.failed-cleanup', () => rm(target, { recursive: true, force: true })); throw error; }
   finally { captures.delete(registry); }
 }
 export async function verifyServiceBackup(backup) {
