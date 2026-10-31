@@ -338,6 +338,7 @@ const fullOnlyTests = new Set([
   "members-start-server.test.mjs",
   "access.test.mjs",
   "boss-gates.test.mjs",
+  "reference-integrity.test.mjs",
   "slayer-unlock-gates.test.mjs",
   "area-unlock-gates.test.mjs",
   "achievement-metadata-evidence.test.mjs",
