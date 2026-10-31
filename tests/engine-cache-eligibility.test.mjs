@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
 import { createEligibilityCache, createEligibilityBudget } from '../app/tasks/eligibility-cache.mjs';
 
 const state = n => ({ schemaVersion: 1, revision: 7, rules: {}, tasks: [], history: [],
@@ -134,4 +135,71 @@ test('idle compression keeps large bursts fully charged without reviving evicted
   // A raw proof exceeding the owner quota takes synchronous compressed admission.
   call(a, 51, () => proof(51, 'large', 600000));
   assert.ok(a.bytes + b.bytes <= 500000); assert.ok(budget.bytes <= budget.byteLimit);
+});
+
+
+for (const mode of ['idle', 'small', 'oversized']) test(`compression failure preserves results and full charges (${mode})`, () => {
+  // Isolate the injected native failure: an uncaught idle exception must fail
+  // this test without terminating the test runner or affecting other cases.
+  const source = `
+    import assert from 'node:assert/strict';
+    import zlib from 'node:zlib';
+    import { syncBuiltinESMExports } from 'node:module';
+    import { createEligibilityCache, createEligibilityBudget } from ${JSON.stringify(new URL('../app/tasks/eligibility-cache.mjs', import.meta.url).href)};
+    let attempts = 0;
+    zlib.zstdCompressSync = () => { attempts++; throw Object.assign(new Error('Compression failed'), { code: 'ERR_ZSTD_GENERIC' }); };
+    syncBuiltinESMExports();
+    const state = ${state.toString()}, proof = ${proof.toString()};
+    const mode = ${JSON.stringify(mode)};
+    const budget = createEligibilityBudget({ byteLimit: mode === 'oversized' ? 1000 : 200000 });
+    const cache = createEligibilityCache({ limit: 1, budget });
+    const expected = proof(0, 'alpha', mode === 'small' ? 1000 : 120000);
+    expected.tasks[0].challengeSatisfied = false;
+    const call = () => cache.evaluate(state(0), 'same', undefined, () => structuredClone(expected));
+    assert.deepEqual(call(), expected);
+    const before = cache.bytes;
+    if (mode === 'idle') assert.equal(attempts, 0);
+    if (mode !== 'oversized') assert.ok(before >= expected.tasks[0].record.payload.length);
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(attempts, 1);
+    assert.equal(cache.bytes, before);
+    assert.equal(budget.bytes, cache.bytes);
+    const warm = call();
+    assert.deepEqual(warm, expected);
+    assert.equal(warm.metrics.eligibilityCacheHit, mode !== 'oversized');
+    if (mode === 'oversized') { assert.equal(cache.size, 0); assert.equal(budget.bytes, 0); }
+    else {
+      assert.equal(attempts, 1, 'failed compression is not retried on hits');
+      assert.ok(budget.admit(Buffer.allocUnsafeSlow(200000), () => {}));
+      assert.equal(cache.size, 0); assert.equal(cache.bytes, 0);
+    }
+  `;
+  const child = spawnSync(process.execPath, ['--input-type=module', '--eval', source], { encoding: 'utf8', timeout: 10000 });
+  assert.equal(child.status, 0, child.stderr);
+});
+
+test('large proofs preserve data, aliases and hidden facts before and after idle compression', async () => {
+  const budget = createEligibilityBudget({ byteLimit: 500000 }), cache = createEligibilityCache({ budget });
+  const expected = proof(0, 'large', 120000);
+  expected.tasks[0].record.bytes = Buffer.from(Array.from({ length: 256 }, (_, i) => i));
+  const processing = { diagnostics: [{ detail: 'fixture' }], bytes: expected.tasks[0].record.bytes };
+  Object.defineProperty(expected, 'processing', { value: processing });
+  Object.defineProperty(expected.tasks[0], 'processingPrimary', { value: false });
+  Object.defineProperty(expected.metrics, 'processingPasses', { value: 3, configurable: true });
+  const cold = call(cache, 0, () => expected), before = cache.bytes;
+  const read = () => {
+    const warm = call(cache, 0, () => assert.fail('proof recomputed'));
+    assert.deepEqual(warm, cold);
+    assert.deepEqual(warm.processing, processing);
+    assert.equal(warm.processing.bytes, warm.tasks[0].record.bytes);
+    for (const [left, right, key] of [[warm, cold, 'processing'], [warm.tasks[0], cold.tasks[0], 'processingPrimary'], [warm.metrics, cold.metrics, 'processingPasses']]) {
+      assert.deepEqual(Object.getOwnPropertyDescriptor(left, key), Object.getOwnPropertyDescriptor(right, key));
+    }
+    return warm;
+  };
+  read().tasks[0].record.bytes.fill(0);
+  await new Promise(resolve => setImmediate(resolve));
+  assert.ok(cache.bytes < before);
+  assert.equal(budget.bytes, cache.bytes);
+  read();
 });

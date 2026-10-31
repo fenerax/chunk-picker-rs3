@@ -28,16 +28,24 @@ function retainResult(result) {
       .filter(([, descriptor]) => !descriptor.enumerable)) });
 }
 function compactResult(raw) {
-  const bytes = zstdCompressSync(raw, { params: { [constants.ZSTD_c_compressionLevel]: 1 } });
   compacted.add(raw);
-  if (bytes.byteLength >= raw.buffer.byteLength) return raw;
-  const compact = Buffer.allocUnsafeSlow(bytes.byteLength);
-  bytes.copy(compact); compressed.add(compact); compacted.add(compact);
-  return compact;
+  try {
+    const bytes = zstdCompressSync(raw, { params: { [constants.ZSTD_c_compressionLevel]: 1 } });
+    if (bytes.byteLength >= raw.buffer.byteLength) return raw;
+    const compact = Buffer.allocUnsafeSlow(bytes.byteLength);
+    bytes.copy(compact); compressed.add(compact); compacted.add(compact);
+    return compact;
+  } catch {
+    // Compression is optional. Keep the original backing store fully charged
+    // on failure, including when this runs outside the request error handler.
+    return raw;
+  }
 }
 
 function copyResult(bytes) {
-  const copy = deserialize(compressed.has(bytes) ? zstdDecompressSync(bytes) : bytes);
+  // V8 may decode typed arrays as views into its input. Raw hits must own
+  // their input bytes just as decompressed hits do, so caller edits stay private.
+  const copy = deserialize(compressed.has(bytes) ? zstdDecompressSync(bytes) : Buffer.from(bytes));
   if (copy.processing !== undefined) Object.defineProperty(copy.result, 'processing', { value: copy.processing });
   copy.result.tasks.forEach((row, index) => {
     if (copy.primary[index] !== undefined) Object.defineProperty(row, 'processingPrimary', { value: copy.primary[index] });
