@@ -329,6 +329,35 @@ for (const usage of ['issued ID', 'picker tombstone', 'retired account']) test(`
   await writeFile(f.file, checkpoint); await f.open();
 });
 
+test('missing registry after an ID-reservation crash refuses until checkpoint restoration without reusing the ID', async t => {
+  const f = await fixture(t);
+  const result = await child(childOpen(f.options) + `
+    const registry = await openRegistry({ ...options, crashPoint(name) { if (name === 'id-reserved') process.exit(86); } });
+    await registry.firstLogin('discord', 'synthetic-reservation'); process.exit(1);`);
+  assert.equal(result.code, 86, result.stderr);
+  const checkpoint = await readFile(f.file), ledgerBytes = await readFile(f.ledger);
+  const ledger = JSON.parse(ledgerBytes);
+  assert.equal(ledger.issuedPickerIds.length, 1);
+  assert.deepEqual(ledger.pickers, []); assert.deepEqual(ledger.accounts, []);
+  assert.deepEqual(JSON.parse(checkpoint).pickers, []);
+  assert.deepEqual(await readdir(f.options.pickerRoot), []);
+  await rm(f.file);
+  await assert.rejects(f.open(), /Restore registry\.json/);
+  await assert.rejects(readFile(f.file), { code: 'ENOENT' });
+  assert.deepEqual(await readFile(f.ledger), ledgerBytes);
+  assert.deepEqual(await readdir(f.options.registryDir), []);
+  assert.deepEqual(await readdir(f.options.tombstoneDir), ['ledger.json']);
+  await writeFile(f.file, checkpoint);
+  // Force a collision with the orphan reservation before supplying a fresh ID.
+  const samples = [Buffer.from(ledger.issuedPickerIds[0].slice(2), 'hex'), Buffer.alloc(16, 42)];
+  await f.open({ pickerRandomBytes: () => samples.shift() });
+  const login = await f.registry.firstLogin('discord', 'synthetic-reservation');
+  assert.notEqual(login.picker.id, ledger.issuedPickerIds[0]);
+  assert.equal(samples.length, 0);
+  assert.equal((await json(f.ledger)).issuedPickerIds.length, 2);
+  await f.restart(); assert.equal(f.registry.listPickers().length, 1);
+});
+
 test('first-startup process crash after the empty ledger write still starts without a registry', async t => {
   const f = await fixture(t);
   const result = await child(childOpen(f.options) + `

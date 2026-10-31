@@ -120,6 +120,7 @@ changes required):
 | `scripts/linux/service-checkpoint.mjs` `captureServiceCheckpoint`, `publishServiceBackup`; `service-operator.mjs` `serviceBackup`; `online.mjs` capture/cleanup | No: write/copy/move/remove backup or spool registry images only, never the live registry or ledger. Stopped backup reads the existing registry; online capture uses its open owner. |
 | `service-operator.mjs` stopped proof, list/inspect, deploy, ownership repair | No registry open: read existing metadata, acquire/release locks, or repair ownership only. Missing registry cannot be silently recreated by these operations. Deploy startup goes through the server rule. |
 | Single-store `recovery.mjs`, `operator.mjs`, `probe.mjs`; install/runtime setup; `rehearse.mjs` | No registry/ledger creation, move or restore. Single-store recovery touches gameplay roots only; service mode dispatches to service recovery. Offline probes omit multiplayer configuration; rehearsal refuses service configuration. |
+| `scripts/release/vps/release.mjs` stage/activate with `--go-live`, `bundle.mjs`; PC/private-companion release preparation | No metadata initialization: VPS activation delegates to `scripts/linux/operator.mjs` deploy and its service-root checks; release preparation writes release inputs. Per-store compatibility probes omit multiplayer configuration. Normal service startup still applies the refusal. |
 | `scripts/perf/duo-compatibility.mjs`, `picker-footprint.mjs` | Fresh temporary registry/ledger roots per server trial; cleanup removes the complete trial root. No used-ledger/missing-registry pairing. |
 
 Synthetic evidence: `tests/registry.test.mjs` covers issued-only history,
@@ -130,6 +131,24 @@ before the registry rename, after the empty ledger is durable, then reopens.
 target refuses against a used ledger, while stopped restore succeeds and the
 published registry reopens with tombstones applied. Existing quarantine/resume
 cases exercise the same adapter.
+
+Independent gate review at `d7b2fb63371f60b7b813a99e0c1754b9d08307b6`
+found no P1/P2/P3 defect in the SC3 change. A further synthetic process-crash
+regression stops at `id-reserved`, before any picker record or directory exists,
+then removes the registry. Refusal preserves ledger bytes and leaves neither
+writer lock nor temporary file; restoring the checkpoint allows startup, and a
+forced collision confirms the orphan issued ID is never reused. This is metadata
+loss after a provisioning crash; the crash alone retains a valid registry and
+continues to recover normally. The additional regression fails against the
+integration baseline `c299c4f` with "Missing expected rejection" and passes here.
+
+Gate validation on Node v24.21.0 (passed / failed / skipped): registry 30/0/0,
+linux-multi-picker 33/0/0, linux-service-crash 21/0/1, phase1-acceptance 12/0/0,
+picker-deletion 13/0/0. The service-crash skip requires root for native chown.
+Then `npm run test:quick`: 2807/0/68 in 179.5 seconds; `npm test`: 5955/0/140
+in 442.6 seconds. Existing platform/environment skips were retained; no tests
+were weakened. These are single-run test durations; no performance comparison,
+median, spread or peak-memory measurement was made for this review gate.
 
 ## Durable inventory
 
