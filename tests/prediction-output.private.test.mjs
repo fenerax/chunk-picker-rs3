@@ -115,13 +115,17 @@ const fingerprint = value => createHash('sha256').update(JSON.stringify(value, (
 // gates stay closed. Dropping only bossGates still reproduces main 33932ab's
 // stripped hashes in all six modes, so no task, item, access or prediction
 // value changes. The new hashes match CI run 40213710811 (Linux) and Windows.
+// Boss names 2026-10-31: the reference repairs rename Black Stone Dragon and list
+// the six Legio monsters for Legiones. Dropping only bossGates reproduces rel31
+// 3b15772's stripped hashes in all six modes; the new hashes match CI run
+// 41166557018 (Linux) and Windows.
 const expected = {
-  shared: 'a8b909b620a3419fe7251a01a87da9c97f000302c888a6b07a6694756e01239b',
-  unshared: '049e48ceeb40ec95fddec1d16b3cbbbb39737cf5ed63d409464e2dda7316c900',
-  'member-inclusive': '2191e2f30d9808c0e18f0499fc80f150629b19a56fd7c2d0886f1151a8a58a44',
-  backlogs: 'c3b15514faeec49b489b274ed9b76fcc4fbda760803de54acd5757b21fcae20c',
-  personal: '48f03741616720871782c2185ec1348007f1e6c8fb4b70292c11bf3f322e940b',
-  'legacy-all': '0ff364ce7017ee09e8cd6df4654f316b6faf7d9c5e76df75743a94fb46fcde00',
+  shared: '77235445d40c8f2712d7ea5a97d3ea0ea1f1a4dd97d962cce0367f44d3687fc3',
+  unshared: '632d9e1bda861c267200ac33246a243c7293ffe9b744d9f6823875a76ec6bd43',
+  'member-inclusive': '3d9852535ade17fa3b3803c0b6a1d3e94563f43d2d61350c031b056bc4cfe939',
+  backlogs: '4d09fe2e1557df80de0fda2007e64c215ed4852782fe744c1f2b896f3c08d816',
+  personal: '1bf9442179d03b26ff47cdb06375eddf243b701375360fe897b8aeb1ddbfa9e2',
+  'legacy-all': '69ce853874effbb7da38a1c557c03318e1a9d96ca147394ae18d7f2dbbf0fa07',
 };
 
 for (const [mode, golden] of Object.entries(expected)) test(`full prediction output retains baseline behavior: ${mode}`, () => {

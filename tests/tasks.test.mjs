@@ -239,7 +239,9 @@ test('full reference compiles uniquely and evaluates synthetic unlocked geograph
   assert.equal(colossi[0].level, 77);
   const reviewedTaskIds = ["rs3:task:wiki-malik-waterskin","rs3:task:wiki-karim-kebab","rs3:task:wiki-ned-rope","rs3:task:canifis-citizen-legal-entry","rs3:task:wiki-wild-onion","rs3:task:wiki-wild-potato","rs3:task:wendlewick-fish-deposit-access","rs3:task:canifis-ghoul-barrier-entry","rs3:task:wiki-nardah-banana","rs3:task:jadinko-lair-introduction","rs3:task:runespan-introduction","rs3:task:barbarian-assault-tutorial","rs3:task:prison-break-remaining-pages"];
   for (const id of reviewedTaskIds) assert.equal(engine.catalogue.filter(task => task.id === id).length, 1, id);
-  assert.equal(engine.catalogue.length, 20375 + colossi.length + buildHouseStorageCatalogue().length + reviewedTaskIds.length);
+  const requirementTasks = engine.catalogue.filter(task => task.id.startsWith('rs3:task:requirements-'));
+  assert.equal(requirementTasks.length, 36, 'The 2026-10-31 requirements corrections add 36 prerequisite tasks.');
+  assert.equal(engine.catalogue.length, 20375 + colossi.length + buildHouseStorageCatalogue().length + reviewedTaskIds.length + requirementTasks.length);
   assert.equal(new Set(engine.catalogue.map(task => task.id)).size, engine.catalogue.length);
   const a = member('a', ['12850','12594','12338','12853','11575']);
   const result = engine.evaluate(state([a]), 'a');
