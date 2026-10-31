@@ -39,7 +39,7 @@ import { createDuoTaskView } from '../app/web/duo-task-view.mjs';
 import { selectDuoTaskLists } from '../app/web/duo-task-lists.mjs';
 import { createDuoBacklogView } from '../app/web/duo-backlog-view.mjs';
 import { createTaskFilters, appendTaskPin } from '../app/web/task-filters.mjs';
-import { appendTaskWhy, catalogued, createRuleDescriber } from '../app/web/task-why.mjs';
+import { appendTaskWhy, catalogued, createRuleDescriber, savedTaskWhyResult } from '../app/web/task-why.mjs';
 import { isTaskPinned, createTaskPinChecker } from '../app/web/task-filters-model.mjs';
 import { createActivityFilterControls, selectActivityRows } from '../app/web/activity-filters.mjs';
 import { createCompletedView } from '../app/web/completed-view.mjs';
@@ -429,7 +429,8 @@ test('viewer group rows remain inspectable and completion review has no saved ac
   h.run("state.members[0].taskStatus={'rs3:task:own':{challengeCompleted:true}}; state.members[1].taskStatus={'rs3:task:partner':{challengeCompleted:true}}; document.getElementById('hide-completed').checked=false");
   h.route(path => f.reed); await enableDuo(h);
   const row = h.all().find(node => node.className === 'task-row duo-task-row');
-  assert.ok(row); assert.equal(row.children[0].disabled, true);
+  assert.ok(row); assert.equal(row.children[0].textContent, 'Done');
+  assert.ok(!row.querySelector('input'));
   const label = row.querySelector('.task-label-button'); assert.equal(label.disabled, false);
   assert.equal(row.querySelector('.duo-task-backlog').hidden, true);
   await label.emit('click'); await flush();
@@ -445,7 +446,7 @@ test('viewer current selected tasks remain inspectable while peer tasks are miss
   h.route(path=>path.includes('reed')?{ok:false,status:409,value:{message:'Waiting for Reed tasks',code:'TASK_RESULTS_UNAVAILABLE'}}:f.actor1);
   await enableDuo(h); await flush(); assert.equal(h.run('duoRowsReady'),false);
   const own=h.all().find(node=>node.className==='task-row duo-task-row'&&node.dataset.taskId===f.own.id);
-  assert.ok(own); assert.equal(own.querySelector('.task-label-button').disabled,false); assert.equal(own.children[0].disabled,true);
+  assert.ok(own); assert.equal(own.querySelector('.task-label-button').disabled,false); assert.equal(own.children[0].textContent,'Not done');
   await own.querySelector('.task-label-button').emit('click'); await flush();
   assert.equal(h.nodes.get('dialog-title').textContent,f.own.label); assert.ok(h.calls.every(call=>call.body===undefined));
   h.run('result=undefined; shownResult=undefined; lastDuoResults=[actor1Result,reedResult]; state.revision=8; renderTasks()');
@@ -1694,7 +1695,7 @@ function harness({ realPlanning = false, localStorage, documentEvents = false } 
     artStatusText, datasetStatusText, loadArtStatus: async () => null, installPictureFallbacks() {}, observeArtStatus: listener => listener(null),
     createActivityFilterControls: (collaborators, options) => createActivityFilterControls({ ...collaborators, storage: localStorage }, options), selectActivityRows,
     travelIntoChunk, createChunkQuestList: (collaborators, entries) => { collaborators.storage = localStorage; return createChunkQuestList(collaborators, entries); },
-    createMapDisplay: () => ({ sizes: { rollNumberScale: 1, chunkIdScale: 1, stickerScale: 1 }, open() {}, close() {}, refresh() {}, isOpen: () => false }), createHelperView: () => ({}), createBackupStatus: () => ({ start() {}, refresh: async () => {}, line: () => null }), createSandbox, openSandboxRules, createTaskHover, createTaskMethods, renderTaskEquipment, resolveTaskAlternatives, createDuoResultCache, selectDuoTasks, createDuoTaskView, createTaskFilters, appendTaskPin, appendTaskWhy, catalogued, createRuleDescriber, isTaskPinned, createTaskPinChecker, createCompletedView, createDuoCoordination, openTeleportsDialog,
+    createMapDisplay: () => ({ sizes: { rollNumberScale: 1, chunkIdScale: 1, stickerScale: 1 }, open() {}, close() {}, refresh() {}, isOpen: () => false }), createHelperView: () => ({}), createBackupStatus: () => ({ start() {}, refresh: async () => {}, line: () => null }), createSandbox, openSandboxRules, createTaskHover, createTaskMethods, renderTaskEquipment, resolveTaskAlternatives, createDuoResultCache, selectDuoTasks, createDuoTaskView, createTaskFilters, appendTaskPin, appendTaskWhy, catalogued, createRuleDescriber, savedTaskWhyResult, isTaskPinned, createTaskPinChecker, createCompletedView, createDuoCoordination, openTeleportsDialog,
     selectDuoTaskLists, createDuoBacklogView, buildWorld, createRuleRegistry, originalSettings, settingDefinitions, createRulesPanel,
     taskItemIcon, taskIcon, taskCategoryIcon, createTaskIconPainter, skillIcon: () => null, itemIcon: () => null, loadIcons: async () => false, interiorCandidates: () => [], interiorPanel: () => ({}), describeHistoryEvent: event => event.type, createFeedback: () => ({ open() {}, setSession() {}, start() {}, stop() {} }), createUpdates: () => ({ seen() {}, openList() {} }), createRuneMetricsControls: () => ({}), createGamePlugin: () => ({ refresh: async () => {}, render() {}, open() {}, controls: () => ({}) }), createStickerPicker: () => ({ open() {}, close() {}, isOpen: () => false, element: { contains: () => false } }), createInfoPanels, createNoteEditor, reviewedNoteRevision, createMapTools, applyTheme, createTaskFactsIndex, goalProgress, createDeathSettings, createMiningSettings, createWoodcuttingSettings, createBankingSettings, mergeCommandState, projectChunkState, projectTaskState, createOriginalSync,
     EventSource: class extends Node { constructor(url) { super(); this.url = url; eventSources.push(this); } },
@@ -3572,16 +3573,19 @@ test('personal claim controls use the session member while another map is viewed
   assert.equal(h.calls[0].body.command.memberId, 'reed');
 });
 
-test('master personal claim controls name the selected player and viewers disable all claims', async () => {
+test('master personal claim controls name the selected player and viewers see status without claim controls', async () => {
   const h = harness(); h.context.claimTask = task;
   h.run("result = { memberId: 'actor1', stateRevision: 7, tasks: [claimTask] }; claimableTaskIds = new Set([claimTask.id]); taskFacts = () => ({personal:false, group:false}); $('active-tasks').replaceChildren(taskRow(claimTask))");
   let claim = h.all().find(node => node.className === 'task-claim-action');
   assert.equal(claim.textContent, 'Claim for Player');
   assert.equal(claim.disabled, false);
-  h.run("sessionReadOnly = true; $('active-tasks').replaceChildren(taskRow(claimTask))");
+  h.run("sessionReadOnly = true; state.taskClaims={[claimTask.id]:{memberId:'reed',at:'2026-10-12T12:00:00Z'}}; $('active-tasks').replaceChildren(taskRow(claimTask))");
   claim = h.all().find(node => node.className === 'task-claim-action');
-  assert.equal(claim.disabled, true);
-  await claim.emit('click');
+  assert.equal(claim, undefined);
+  const row = h.all().find(node => node.className === 'task-row');
+  assert.equal(row.children[0].textContent, 'Not done');
+  assert.ok(!row.querySelector('input'));
+  assert.ok(row.querySelector('.task-claim-name').textContent.includes('Reed is doing this'));
   assert.equal(h.calls.length, 0);
 });
 
@@ -3885,4 +3889,69 @@ test('accessibility: shared errors are alerts and ordinary notices remain polite
   assert.equal(h.nodes.get('notice').hidden, false);
   h.run("notice('Copied')");
   assert.equal(h.nodes.get('notice').attributes.role, 'status');
+});
+
+test('simple rule toggles queue after local saves and use the resulting revision', async () => {
+  const h = harness(), first = deferred();
+  h.route(async (path, body) => {
+    if (path === '/api/command') {
+      if (body.command.type === 'set-preference') await first.promise;
+      const before = h.snapshot(); assert.equal(body.expectedRevision, before.revision);
+      return { state: { ...before, revision: before.revision + 1 }, pools: {} };
+    }
+    return taskResult(h.snapshot().revision);
+  });
+  const pref = h.run("command({type:'set-preference',memberId:'actor1',preferenceId:'hideChecked',value:false})"); await flush();
+  h.run('rulesDialog()');
+  const control = h.all().find(node => node.attributes?.['aria-label'] === 'Show Best in Slot Tasks');
+  control.checked = false; const saving = control.emit('change'); await flush();
+  assert.equal(h.calls.filter(call => call.path === '/api/command').length, 1);
+  first.resolve(); await pref; await saving;
+  const calls = h.calls.filter(call => call.path === '/api/command');
+  assert.deepEqual(calls.map(call => call.body.expectedRevision), [7, 8]);
+  assert.equal(h.run('state.revision'), 9);
+});
+
+test('backup preview cancellation suppresses late responses and Apply submits only once', async () => {
+  const h = harness(), pending = deferred(), preview = { currentRevision: 7, members: [], rules: { changed: [] }, warnings: [] };
+  h.run('backupDialog()');
+  h.all().find(node => node.type === 'file').files = [new File(['{}'], 'fixture.json')];
+  const requestStarted = deferred(); h.route(() => { requestStarted.resolve(); return pending.promise; });
+  const reading = h.click('Preview import / restore');
+  await requestStarted.promise;
+  assert.ok(h.find('p', 'Checking replacement…'));
+  await h.click('Cancel preview');
+  assert.equal(h.calls[0].options.signal.aborted, true);
+  assert.ok(h.find('p', 'Preview cancelled.'));
+  assert.equal(h.find('button', 'Preview import / restore').disabled, false);
+  pending.resolve({ preview }); await reading;
+  assert.equal(h.find('button', 'Apply reviewed replacement'), undefined);
+  h.route(() => ({ preview })); await h.click('Preview import / restore');
+  const applyResponse = deferred(), applyStarted = deferred(); h.route(() => { applyStarted.resolve(); return applyResponse.promise; });
+  const apply = h.find('button', 'Apply reviewed replacement');
+  const saving = apply.emit('click'); await flush();
+  assert.equal(apply.disabled, true); assert.ok(h.find('p', 'Applying replacement…'));
+  await apply.emit('click');
+  await applyStarted.promise;
+  assert.equal(h.calls.filter(call => call.path === '/api/restore').length, 1);
+  applyResponse.resolve({ state: { ...h.snapshot(), revision: 8 }, pools: {} }); await saving;
+  assert.equal(h.run('state.revision'), 8);
+});
+
+test('viewer Why uses saved facts when full details are absent, keeping all requests read-only', async () => {
+  const h = viewerHarness();
+  const visible = { id: 'builtin:why', label: 'Mine fixture ore', rawLabel: 'Mine fixture ore', category: 'Mining', status: 'available' };
+  h.context.whyTask = visible;
+  h.run("definitions.challenges = {Mining:{'Mine fixture ore':{Category:['Show Skill Tasks']}}}; result={memberId:'actor1',stateRevision:7,tasks:[whyTask]}; $('active-tasks').replaceChildren(taskRow(whyTask))");
+  h.route((path, body) => {
+    assert.equal(body, undefined);
+    return h.calls.at(-1).requestPath.includes('view=play-v1')
+      ? { format: 'play-v1', memberId: 'actor1', stateRevision: 7, tasks: [visible] }
+      : { ok: false, status: 409, value: { code: 'TASK_DETAILS_UNAVAILABLE' } };
+  });
+  const why = h.all().find(node => node.className === 'icon-button task-why'); await why.emit('click'); await flush();
+  assert.ok(h.all().some(node => node.textContent === 'Why this task?'));
+  assert.ok(h.all().some(node => node.textContent?.includes('Additional calculated details')));
+  assert.equal(h.all().some(node => node.className === 'task-why-retry'), false);
+  assert.ok(h.calls.every(call => call.body === undefined));
 });
