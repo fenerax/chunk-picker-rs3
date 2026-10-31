@@ -1,4 +1,4 @@
-import test from 'node:test';
+import baseTest from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtemp, mkdir, readFile, readdir, rm, writeFile, lstat, symlink } from 'node:fs/promises';
 import { tmpdir, hostname } from 'node:os';
@@ -7,17 +7,31 @@ import { randomUUID, createHash } from 'node:crypto';
 import { spawn } from 'node:child_process';
 import { once } from 'node:events';
 import { openRegistry, REGISTRY_PROVISION_POINTS } from '../app/storage/registry.mjs';
+import { openRegistryBackend } from '../app/storage/registry-backend.mjs';
+import { DatabaseSync, backup } from 'node:sqlite';
 import { readLegacyAccounts } from '../app/storage/registry-legacy.mjs';
 
 const moduleUrl = new URL('../app/storage/registry.mjs', import.meta.url).href;
 const hash = text => createHash('sha256').update(text).digest('hex');
-const json = async file => JSON.parse(await readFile(file, 'utf8'));
+const json = async file => {
+  if (!file.endsWith('.sqlite')) return JSON.parse(await readFile(file, 'utf8'));
+  const storage = await openRegistryBackend({ registryDir: path.dirname(file), registryBackend: 'sqlite', readOnly: true });
+  try { return storage.readView(); } finally { storage.close(); }
+};
+for (const registryBackend of ['json', 'sqlite']) {
+const test = (name, ...args) => baseTest(`[${registryBackend}] ${name}`, ...args);
 async function fixture(t) {
   const root = await mkdtemp(path.join(tmpdir(), 'picker-registry-test-'));
-  const options = { registryDir: path.join(root, 'registry'), pickerRoot: path.join(root, 'pickers'), tombstoneDir: path.join(root, 'ledger') };
+  const options = { registryBackend, registryDir: path.join(root, 'registry'), pickerRoot: path.join(root, 'pickers'), tombstoneDir: path.join(root, 'ledger') };
   let registry;
-  const f = { root, options, file: path.join(options.registryDir, 'registry.json'), ledger: path.join(options.tombstoneDir, 'ledger.json'),
+  const f = { root, options, file: path.join(options.registryDir, registryBackend === 'json' ? 'registry.json' : 'registry.sqlite'), ledger: path.join(options.tombstoneDir, 'ledger.json'),
     get registry() { return registry; },
+    async capture() {
+      if (registryBackend === 'json') return readFile(f.file);
+      const db = new DatabaseSync(f.file, { readOnly: true }), target = path.join(root, 'checkpoint.sqlite');
+      try { await backup(db, target); return await readFile(target); }
+      finally { db.close(); await rm(target, { force: true }); }
+    },
     async open(overrides = {}) { registry = await openRegistry({ ...options, ...overrides }); return registry; },
     async close() { await registry?.close(); registry = undefined; },
     async restart(overrides = {}) { await f.close(); return f.open(overrides); } };
@@ -101,7 +115,7 @@ test('two first-login processes serialize writers and select the same picker', {
 test('IDs survive deletion and checkpoint rollback without reuse', async t => {
   const f = await fixture(t), samples = [1, 1, 2, 1, 2, 3].map(n => Buffer.alloc(16, n));
   await f.open({ pickerRandomBytes: () => samples.shift() });
-  const first = await f.registry.firstLogin('discord', 'synthetic-reuse'), oldCheckpoint = await readFile(f.file);
+  const first = await f.registry.firstLogin('discord', 'synthetic-reuse'), oldCheckpoint = await f.capture();
   await assert.rejects(f.registry.completePickerDeletion(first.picker.id), { status: 409 });
   await f.registry.beginPickerDeletion(first.picker.id);
   await assert.rejects(f.registry.ensureDefaultPicker(first.account.id), { status: 409 });
@@ -231,7 +245,7 @@ test('tombstones reconcile restored accounts, memberships and capabilities befor
   const first = await f.registry.firstLogin('discord', 'synthetic-restore-a'), second = await f.registry.firstLogin('google', 'synthetic-restore-b');
   const a = capability(first), b = capability(second, 'overlay-capability', 'synthetic-other-key');
   await f.registry.setCapability(a); await f.registry.setCapability(b);
-  await f.registry.attachMembership(second.account.id, { pickerId: first.picker.id, role: 'player', memberId: 'owner' }); const checkpoint = await readFile(f.file);
+  await f.registry.attachMembership(second.account.id, { pickerId: first.picker.id, role: 'player', memberId: 'owner' }); const checkpoint = await f.capture();
   await f.registry.deleteAccount(first.account.id);
   assert.equal(f.registry.getAccount(first.account.id), null); assert.equal(f.registry.resolveCapability(a.kind, a.hash), null);
   assert.equal(f.registry.getPicker(first.picker.id).lifecycle, 'deleting');
@@ -315,3 +329,5 @@ test('roots cannot overlap and pending directories cannot escape through symlink
   const id = (await json(f.file)).pickers[0].id, target = path.join(f.root, 'outside'); await mkdir(target); await symlink(target, path.join(f.options.pickerRoot, id), 'dir');
   await assert.rejects(f.open(), /Unsafe picker directory/); assert.deepEqual(await readdir(target), []);
 });
+
+}

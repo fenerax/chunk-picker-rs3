@@ -2,6 +2,7 @@ import { lstat, mkdir, readFile, realpath } from 'node:fs/promises';
 import { randomBytes, randomUUID } from 'node:crypto';
 import path from 'node:path';
 import { durableDirectory, lockRegistry, syncDirectory, writeRegistryJson } from './registry-lock.mjs';
+import { openRegistryBackend } from './registry-backend.mjs';
 import { REGISTRY_ACCOUNT, registryIdentity, registryMembers, registryObject as object } from './registry-legacy.mjs';
 
 const PICKER = /^p_[0-9a-f]{32}$/;
@@ -115,8 +116,9 @@ async function load(file) {
 
 /** Operator paths only. No HTTP, gameplay state, sign-in, or store is opened here. */
 export async function openRegistry({ registryDir, pickerRoot, tombstoneDir, legacyDir, caps: overrides = {}, now = Date.now,
-  crashPoint, pickerRandomBytes = randomBytes } = {}) {
+  crashPoint, commitPoint, pickerRandomBytes = randomBytes, registryBackend = 'json' } = {}) {
   if ([registryDir, pickerRoot, tombstoneDir].some(dir => typeof dir !== 'string' || !dir)) throw new TypeError('Registry, picker and tombstone roots are required.');
+  if (!['json', 'sqlite'].includes(registryBackend)) throw new TypeError('Invalid registry backend.');
   const caps = { ...DEFAULT_REGISTRY_CAPS, ...overrides };
   if (!object(overrides, Object.keys(DEFAULT_REGISTRY_CAPS)) || Object.values(caps).some(n => !Number.isSafeInteger(n) || n < 1)) throw new TypeError('Invalid registry caps.');
   let roots = [registryDir, pickerRoot, tombstoneDir].map(dir => path.resolve(dir));
@@ -130,9 +132,10 @@ export async function openRegistry({ registryDir, pickerRoot, tombstoneDir, lega
     if (!(await lstat(legacyDir)).isDirectory() || roots.some(dir => !separate(dir, legacyDir))) throw new TypeError('Legacy directory must be separate from registry roots.');
   }
   const releases = [];
+  let storage;
   let current, ledger, queue = Promise.resolve(), closed = false, failed = false, closing;
   let providerIndex, capabilityIndex, accountIndex, tombstoneIndex, retiredAccounts, issuedIds;
-  const file = path.join(registryDir, 'registry.json'), ledgerFile = path.join(tombstoneDir, 'ledger.json');
+  const ledgerFile = path.join(tombstoneDir, 'ledger.json');
   const timestamp = () => new Date(now()).toISOString();
   const usable = () => { if (closed || failed) throw new Error('Registry is closed or requires restart.'); };
   const rebuildIndexes = () => {
@@ -151,7 +154,7 @@ export async function openRegistry({ registryDir, pickerRoot, tombstoneDir, lega
   }
   async function save(next) {
     validate(next); enforceCaps(next);
-    try { await writeRegistryJson(file, next); current = next; rebuildIndexes(); }
+    try { await storage.commit(next); current = next; rebuildIndexes(); }
     catch (failure) { failed = true; throw failure; }
   }
   async function saveLedger(next) {
@@ -264,7 +267,10 @@ export async function openRegistry({ registryDir, pickerRoot, tombstoneDir, lega
   try {
     releases.push(await lockRegistry(registryDir));
     releases.push(await lockRegistry(tombstoneDir));
-    current = await load(file); ledger = await load(ledgerFile);
+    ledger = await load(ledgerFile);
+    if (ledger !== undefined) validateLedger(ledger);
+    storage = await openRegistryBackend({ registryDir, registryBackend, expected: ledger !== undefined, validate, enforceCaps, commitPoint });
+    current = storage.readView();
     // Only a missing file starts empty; a JSON null document fails validation.
     if (current !== undefined && ledger === undefined) throw new Error('Registry ledger is missing.');
     if (current === undefined) current = { schemaVersion: 1, accounts: [], pickers: [], capabilities: [] };
@@ -276,13 +282,14 @@ export async function openRegistry({ registryDir, pickerRoot, tombstoneDir, lega
     await saveLedger(ledger); await save(current);
     for (const picker of current.pickers.filter(p => p.lifecycle === 'active' && p.provisioning === 'reserved')) await provision(picker.id);
   } catch (failure) {
+    try { storage?.close(); } catch { /* Preserve the startup failure and release ownership. */ }
     for (const release of releases.reverse()) await release().catch(() => {});
     throw failure;
   }
   return {
     // Queue-held read-only checkpoint. No provider subjects or capabilities may
     // leave the server; explicit account IDs and memberships survive recovery.
-    withRecoveryCheckpoint(work) { return enqueue(() => work(registryRecoveryDocument(current))); },
+    withRecoveryCheckpoint(work) { return enqueue(() => work(registryRecoveryDocument(reconcile(storage.readView(), ledger)))); },
     getAccount(id) { usable(); return visibleAccount(id); },
     listAccounts() { usable(); return [...accountIndex.keys()].map(visibleAccount).filter(Boolean); },
     findIdentity(provider, subject) { usable(); registryIdentity(provider, subject); return visibleAccount(providerIndex.get(identityKey(provider, subject))); },
@@ -411,9 +418,11 @@ export async function openRegistry({ registryDir, pickerRoot, tombstoneDir, lega
     reconcileTombstones() { return enqueue(applyTombstones); },
     close() { return closing ??= (async () => {
       closed = true; await queue;
+      let closeFailure;
+      try { storage.close(); } catch (failure) { closeFailure = failure; }
       const results = await Promise.allSettled(releases.reverse().map(release => release()));
       const failure = results.find(result => result.status === 'rejected');
-      if (failure) throw failure.reason;
+      if (closeFailure || failure) throw closeFailure ?? failure.reason;
     })(); },
   };
 }

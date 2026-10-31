@@ -33,6 +33,7 @@ export const quickTests = new Set([
   "picker-jobs.test.mjs",
   "worker-picker-keys.test.mjs",
   "registry.test.mjs",
+  "registry-backend.test.mjs",
   "picker-footprint.test.mjs",
   "linux-operator.test.mjs",
   "linux-multi-picker.test.mjs",

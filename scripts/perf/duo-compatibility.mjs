@@ -13,7 +13,7 @@ const sha = bytes => createHash('sha256').update(bytes).digest('hex');
 const here = fileURLToPath(import.meta.url);
 const clock = fileURLToPath(new URL('./duo-compatibility-clock.mjs', import.meta.url));
 const { values } = parseArgs({ options: Object.fromEntries(
-  ['baseline', 'candidate', 'source', 'packs', 'defaults', 'out', 'internal'].map(key => [key, { type: 'string' }])) });
+  ['baseline', 'candidate', 'source', 'packs', 'defaults', 'out', 'internal', 'registry-backend'].map(key => [key, { type: 'string' }])) });
 
 async function trial(config) {
   const start = process.hrtime.bigint();
@@ -21,7 +21,7 @@ async function trial(config) {
   const app = await createServer({ dataDir: config.store, port: 0, predictionPrewarm: false,
     now: () => Date.parse('2026-10-21T12:00:00.000Z'), shutdownDeadlineMs: 5000,
     ...(config.enabled ? { multiPicker: { registryDir: path.join(config.root, 'registry'),
-      pickerRoot: path.join(config.root, 'pickers'), tombstoneDir: path.join(config.root, 'tombstones') } } : {}),
+      pickerRoot: path.join(config.root, 'pickers'), tombstoneDir: path.join(config.root, 'tombstones'), registryBackend: config.registryBackend ?? 'json' } } : {}),
     originalSync: { fetchImpl: async () => { throw Error('Offline comparison.'); } },
     runeMetrics: { fetchImpl: async () => { throw Error('Offline comparison.'); } } });
   try {
@@ -60,6 +60,7 @@ async function main() {
     await writeFile(config.result, JSON.stringify(await trial(config)), { mode: 0o600 }); return;
   }
   for (const key of ['baseline', 'candidate', 'source', 'packs', 'defaults', 'out']) if (!values[key]) throw Error('Missing comparison argument.');
+  if (values['registry-backend'] && !['json', 'sqlite'].includes(values['registry-backend'])) throw Error('Invalid registry backend.');
   const sourceHash = sha(await readFile(path.join(values.source, 'state.json')));
   const root = await mkdtemp(path.join(tmpdir(), 'duo-compatibility-'));
   const results = [];
@@ -70,7 +71,7 @@ async function main() {
         const run = await mkdtemp(path.join(root, 'run-')), store = path.join(run, 'game');
         await cp(values.source, store, { recursive: true, filter: file => !['store.lock', 'access-token', 'accounts.json', 'invites.json', 'plugin-keys.json'].includes(path.basename(file)) });
         await copyFile(values.source + '.dataset.json', store + '.dataset.json');
-        const config = { checkout: path.resolve(checkout), store, root: run, enabled, result: path.join(run, 'result.json') };
+        const config = { checkout: path.resolve(checkout), store, root: run, enabled, registryBackend: values['registry-backend'] ?? 'json', result: path.join(run, 'result.json') };
         const input = path.join(run, 'input.json'); await writeFile(input, JSON.stringify(config), { mode: 0o600 });
         let peakRSSBytes = 0;
         await new Promise((resolve, reject) => {

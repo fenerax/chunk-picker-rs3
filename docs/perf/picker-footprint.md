@@ -581,3 +581,33 @@ The compatibility gate uses the same injected store timestamp and `duo-compatibi
 | Present, sampled peak RSS, MiB | 1203.29 | 1262.91 |
 
 The checker copies inputs only into temporary directories, mints temporary plugin credentials after the browser status read, refuses external sync fetches and emits only counts, hashes, sizes and measurements. Its usage and limits are documented in `scripts/perf/README.md`. Public sign-up remains off.
+
+## SC2 opt-in registry trial: default-backend footprint
+
+START `5fce2f3984a4fdf1ea3ab4fe8935733045e3c478`. Linux, Node 24.21.0.
+Three alternating START/candidate pairs used the existing footprint harness with
+an empty synthetic source, bundled open-f2p, process workers, port zero, routing
+enabled and 250 ms worker idle interval. JSON remained the default in every run.
+No tests or other measurements ran concurrently. Medians [minimum–maximum]
+across three runs follow; two-member times/CPU first use each run's member median.
+Peak RSS is the harness's sampled process-tree result; short peaks can be missed.
+Registry-only SQLite comparisons are in `../storage/sqlite-trial.md`.
+
+| Synthetic case / measurement | START | SC2 default JSON |
+| --- | ---: | ---: |
+| Two-member, Cold full tasks ms | 326.019 [317.149–334.446] | 318.778 [310.384–324.131] |
+| Two-member, Warm full tasks ms | 11.077 [10.265–11.168] | 10.356 [9.585–13.195] |
+| Two-member, Cold CPU core-seconds | 0.344 [0.340–0.364] | 0.349 [0.340–0.357] |
+| Two-member, Sampled peak RSS MiB | 109.617 [109.488–110.449] | 109.648 [109.641–110.523] |
+| Solo, Cold full tasks ms | 334.332 [320.436–337.300] | 331.035 [327.019–338.612] |
+| Solo, Warm full tasks ms | 12.628 [12.363–15.054] | 13.454 [13.117–21.194] |
+| Solo, Cold CPU core-seconds | 0.352 [0.350–0.363] | 0.361 [0.358–0.362] |
+| Solo, Sampled peak RSS MiB | 109.855 [109.660–109.855] | 108.973 [107.324–109.453] |
+
+Two-member store sizes were identical in all six runs: 247,335 bytes; bindings 163 bytes.
+
+Solo store sizes were identical in all six runs: 246,609 bytes; bindings 163 bytes.
+
+These small synthetic workloads verify the default path's footprint only; they
+do not predict full-pack capacity or establish a performance benefit for SQLite.
+The trial remains disabled by default.

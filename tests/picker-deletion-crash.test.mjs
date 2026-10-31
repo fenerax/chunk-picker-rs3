@@ -19,6 +19,7 @@ const program = [
   "",
   "process.env.RS3_DATASET = 'open-f2p';",
   "for (const key of ['RS3_PACKS_DIR', 'RS3_PACK_SELECTION', 'RS3_PUBLIC_ORIGIN', 'RS3_LOOPBACK_PORT', 'RS3_LOOPBACK_ROLE', 'RS3_SIGNIN', 'RS3_GOOGLE_CLIENT_ID', 'RS3_GOOGLE_CLIENT_SECRET_FILE']) delete process.env[key];",
+  "const { openRegistryBackend } = await import('./app/storage/registry-backend.mjs');",
   "const { openRegistry } = await import('./app/storage/registry.mjs');",
   "const { reconcileTombstones } = await import('./app/storage/tombstones.mjs');",
   "const { createServer } = await import('./app/server.mjs');",
@@ -66,7 +67,7 @@ const program = [
   "    assert.equal(url, 'https://discord.com/api/users/@me');",
   "    return Response.json({ id: access.get(options.headers.Authorization.slice(7)) });",
   "  } };",
-  "  const multiPicker = { registryDir: path.join(root, 'registry'), pickerRoot: path.join(root, 'pickers'), tombstoneDir: path.join(root, 'tombstones'), ...limits };",
+  "  const multiPicker = { registryBackend, registryDir: path.join(root, 'registry'), pickerRoot: path.join(root, 'pickers'), tombstoneDir: path.join(root, 'tombstones'), ...limits };",
   "  let app, handler;",
   "  const start = async (multi) => {",
   "    app = await createServer({ dataDir: path.join(root, 'legacy'), dataset: selectedDataset, definitions, taskMap: {},",
@@ -90,7 +91,10 @@ const program = [
   "    const response = await (await begin(subject, cookie, route))(); assert.equal(response.status, 303, response.text);",
   "    return response.headers['set-cookie'].find(value => value.startsWith('duo_access=')).split(';')[0];",
   "  }",
-  "  const registry = async () => JSON.parse(await readFile(path.join(multiPicker.registryDir, 'registry.json')));",
+  "  const registry = async () => {",
+  "    const storage = await openRegistryBackend({ registryDir: multiPicker.registryDir, registryBackend, readOnly: true });",
+  "    try { return storage.readView(); } finally { storage.close(); }",
+  "  };",
   "  const picker = async subject => { const doc = await registry(); return doc.accounts.find(a => a.identities.some(i => i.subject === subject)).defaultPickerId; };",
   "  t.after(async () => { await app.close(); await rm(root, { recursive: true, force: true });",
   "    for (const [i, key] of envKeys.entries()) {",
@@ -105,7 +109,7 @@ const program = [
   "}",
   "",
   "",
-  "const [root, mode, step, kind] = process.argv.slice(1);",
+  "const [root, mode, step, kind, registryBackend] = process.argv.slice(1);",
   "let armed = false;",
   "const f = await fixture({ after() {} }, { crashPoint(name) { if (mode === 'crash' && armed && name === step) process.exit(86); } });",
   "try {",
@@ -147,19 +151,19 @@ const program = [
   "  }",
   "} finally { await f.app().close(); }"
 ].join('\n');
-function run(root, mode, step, kind) {
+function run(root, mode, step, kind, registryBackend) {
   return new Promise((resolve, reject) => {
-    const child = spawn(process.execPath, ['--input-type=module', '-e', program, root, mode, step, kind], { cwd: path.resolve(import.meta.dirname, '..'), stdio: ['ignore', 'pipe', 'pipe'] });
+    const child = spawn(process.execPath, ['--input-type=module', '-e', program, root, mode, step, kind, registryBackend], { cwd: path.resolve(import.meta.dirname, '..'), stdio: ['ignore', 'pipe', 'pipe'] });
     const chunks = []; child.stdout.on('data', c => chunks.push(c)); child.stderr.on('data', c => chunks.push(c));
     child.on('error', reject); child.on('close', (code, signal) => resolve({ code, signal, text: Buffer.concat(chunks).toString() }));
   });
 }
-for (const kind of ['picker', 'account']) {
+for (const registryBackend of ['json', 'sqlite']) for (const kind of ['picker', 'account']) {
   const steps = [kind + '-tombstoned', ...['revoked', 'drained', 'directory-removed', 'binding-removed', 'complete'].map(step => 'picker-purge-' + step), 'picker-deleted', ...(kind === 'account' ? ['account-purge-complete'] : [])];
-  for (const step of steps) test(`${kind} deletion recovers after process death at ${step}`, { timeout: 20000 }, async t => {
+  for (const step of steps) test(`[${registryBackend}] ${kind} deletion recovers after process death at ${step}`, { timeout: 20000 }, async t => {
     const root = await mkdtemp(path.join(tmpdir(), 'picker-deletion-crash-'));
     t.after(() => rm(root, { recursive: true, force: true }));
-    const crashed = await run(root, 'crash', step, kind); assert.equal(crashed.code, 86, crashed.text); assert.equal(crashed.signal, null);
-    const recovered = await run(root, 'recover', step, kind); assert.equal(recovered.code, 0, recovered.text); assert.equal(recovered.signal, null);
+    const crashed = await run(root, 'crash', step, kind, registryBackend); assert.equal(crashed.code, 86, crashed.text); assert.equal(crashed.signal, null);
+    const recovered = await run(root, 'recover', step, kind, registryBackend); assert.equal(recovered.code, 0, recovered.text); assert.equal(recovered.signal, null);
   });
 }
