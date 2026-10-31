@@ -2792,3 +2792,10 @@ No assertions were weakened or existing tests skipped. No private inputs or
 performance benchmark were needed for this service-only task. MP5's internal
 storage mutations remain behind its existing API boundary; the new hooks cover
 the operator-owned steps and those API calls, as specified in the table.
+
+
+## MP14 resource-abuse fixes
+
+MP12C2-2: durable deletion fences cancel unfinished request bodies belonging to the deleted picker before draining its accepted work. Picker-local revocation and close waits run outside the global residency queue; closing entries cannot become capacity-eviction victims. Existing accepted-write and crash recovery guarantees still apply.
+
+MP12C2-1: owned import and restore bodies arrive completely under MP7 byte reservations before acquiring the global parser slot. `multiPicker.importBodyIdleMs` defaults to 30,000 ms and accepts a positive integer override; a body with no arriving bytes for that interval receives 408 and releases admission. The timer renews on each chunk and stops at body completion. Concurrent slow owners do not occupy parser slots; a parser/apply slot that is actually busy still returns 503 with Retry-After 5. Option-absent and shared legacy backup handling remain unchanged. While an owned backup body is still arriving, its bytes also count against `multiPicker.importBodyBytesGlobal` (default 384 MiB, kept below `bodyBytesGlobal`). Held uploads from any number of accounts therefore cannot take the last 128 MiB of the global body budget that ordinary writes use: an upload that would exceed the import budget gets 429 before its body is read. Every chunk renews the idle timer, so `multiPicker.importBodyTotalMs` (default 600,000 ms) also ends a trickled body with 408. The router receives an owned backup body after authorization (owner role, origin, one receipt per picker) but before it acquires the picker's context, so slow bodies from many accounts cannot keep every private context slot active; deleting the picker cuts off a body still arriving. Context admission, the process-wide parser slot and parsing follow once the body is complete.
