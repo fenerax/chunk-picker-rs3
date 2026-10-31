@@ -479,7 +479,8 @@ test('P1.8 restoring a service backup containing a later-deleted picker keeps it
     const publicOriginFile = path.join(f.root, 'origin'); await writeFile(publicOriginFile, origin);
     const issued = await runServiceOperator({ settings: live, release: { ...release, config: { ...release.config, publicOriginFile } },
       command: 'relink-code', argument: accountB, controller: { state: async () => ({ stopped: true, active: false }) },
-      serviceIdentity: async () => ({ uid: process.getuid(), gid: process.getgid() }) });
+      // Windows has no POSIX ids; its chown is a no-op, so the ownership repair is exercised on Linux only.
+      serviceIdentity: async () => ({ uid: process.getuid?.() ?? 0, gid: process.getgid?.() ?? 0 }) });
     claimLink = issued.claimLink;
   });
   const doc = await f.registry();
