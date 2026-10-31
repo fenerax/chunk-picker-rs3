@@ -245,7 +245,9 @@ function sandboxFor(state, memberId, draft, timingMs, input, pickerId = 'legacy-
   if (normalized.previewChunkId !== undefined) output.prediction = compactSandboxPrediction(
     predictionFor(hypothetical, memberId, normalized.previewChunkId, draftSnapshot, timingMs));
   if (normalized.planningChunkId !== undefined) output.planning = chunkPlanningFor(draftSnapshot, normalized.planningChunkId);
-  sandboxCache.refresh(draftSnapshot);
+  // Empty drafts reuse a complete snapshot. Charge the retained projection and
+  // delta after assignment, regardless of which cache owns the snapshot.
+  completeCache.refresh(draftSnapshot); sandboxCache.refresh(draftSnapshot);
   return output;
 }
 const yieldToRequests = () => new Promise(resolve => setImmediate(resolve));

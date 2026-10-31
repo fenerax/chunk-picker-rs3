@@ -2184,3 +2184,83 @@ counts above are historical, not new runs for this default-only edit.
 payload, not total heap/RSS; compiled data, active jobs and allocator overhead
 remain additional. Full-roster and other save-size memory behavior are not
 claimed by the one-active-member-per-picker benchmark.
+
+
+### EN7 fix: retained sandbox projections follow snapshot ownership
+
+START `dcccaa8bf7fd36ffb6f39a13d65437540fc09514`; calculator-check reference
+`1c2a07cb584f7762c9f4bc4e5af5c8acc7220462` (fetched origin/lane/engine).
+An empty sandbox draft reuses a complete snapshot. Its retained play projection
+and delta were assigned after the projection helper refreshed that snapshot,
+then only the sandbox cache was refreshed. Refreshing both caches after these
+assignments charges the owning complete cache immediately. The other retained
+assignments in worker.mjs already refresh their owner: map locations, deferred
+views, planning indexes, prediction clones and estimates. No other site changed.
+
+Regression: “empty sandbox retained projections are charged to their owning cache
+before reply” in tests/engine-cache-worker.test.mjs. It fails on untouched START
+application code: 75651 measured bytes versus 54091 charged bytes. After the fix,
+48 requests retain and evict multiple inputs while measured snapshot bytes equal
+the ledger charge at every reply. Whole-ledger, snapshot-pool and per-picker
+limits hold. Oversized bypass alone cannot satisfy the test. Its test-only loader
+observes retained entries and the ledger without changing the production protocol.
+The existing test file is already classified and assigned open-f2p.
+
+Node 24.21.0; AMD EPYC 9V74; four-core cgroup quota; 16 GiB memory limit.
+Three fresh process-worker trials per build and picker count, each with one cold
+and two warm rounds, at 402653184 bytes. All reported trials run sequentially
+without test workloads. Two incomplete overlapping attempts were discarded.
+Input, dataset and harness hashes match between builds; input and dataset hashes
+also match EN7. Historical timings used a different host (EPYC 7763), so the
+fresh START comparison is the control for this fix. Values are median [min–max].
+
+| Metric, ms | Historical EN7 at 384 MiB | Fresh START | Fix |
+| --- | ---: | ---: | ---: |
+| Two-picker warm round | 6459.6 [5997.9–6965.7] | 8537.4 [8079.1–8684.7] | 8044.6 [7792.6–8789.3] |
+| Eight-picker mixed warm p95 | 2474.0 [2465.9–2549.5] | 3454.2 [3403.9–3476.8] | 3503.4 [3487.9–3516.3] |
+
+The two-picker median moves down 5.8%, with overlapping ranges. Eight-picker p95
+moves up 1.4% in these trials. There are zero cache-counter/hit-result differences
+across 630 paired request rows. These small timing movements do not establish a
+causal performance effect: this harness uses non-empty drafts, where the added
+complete-cache refresh has no owning entry. EN7's historical eight-picker gain
+was 16.8% against its pre-cache control; that older control was not rerun here,
+so the historical relative gain is not newly established on this host.
+
+| Peak worker RSS, MiB | Historical EN7 | Fresh START | Fix |
+| --- | ---: | ---: | ---: |
+| Two pickers | 2126.2 [2046.7–2162.6] | 2043.0 [2004.1–2068.8] | 2075.7 [1995.3–2097.5] |
+| Eight pickers | 2215.4 [2102.6–2297.6] | 2048.3 [2047.6–2081.4] | 2072.9 [2006.3–2073.9] |
+
+Every latency-probe ledger sample reports the 402653184-byte limit and stays
+within it and the 512-entry bound. This is serialized payload admission, not a
+heap/RSS ceiling; active jobs and compiled data remain additional.
+
+| Check | Pass | Fail | Skip |
+| --- | ---: | ---: | ---: |
+| tests/engine-cache-worker.test.mjs | 4 | 0 | 0 |
+| tests/engine-cache-snapshot.test.mjs | 7 | 0 | 0 |
+| tests/engine-cache-eligibility.test.mjs | 7 | 0 | 0 |
+| tests/worker-timings.test.mjs | 18 | 0 | 0 |
+| npm run test:quick | 2485 | 0 | 67 |
+
+The focused files ran individually, followed by one quick-suite run with
+RS3_TEST_CONCURRENCY=1. The full suite was not run, as requested.
+Numeric evidence: [en7fix-cache-results.json](../../scripts/perf/en7fix-cache-results.json).
+
+
+Correctness checks use seed 17, the default request caps and sequence bound 8,
+with serial reference/candidate calculators. Fresh fixture capture passed 2073,
+failed 0 and skipped 2 across 179 files, producing 3962 captures. All sixteen
+public shards pass the strict full-coverage merger. The private diagnostic
+includes eight selected states and the current state is included; it is not the
+full 414-state private gate.
+
+| Check | States | Compared requests | Differences | Errors | Corpus SHA-256 |
+| --- | ---: | ---: | ---: | ---: | --- |
+| Public | 4067 | 71980 | 0 | 0 | `b0409d442682c5496f2c59219d3b51993b23fcad9de52ab332dd6c1fce710afb` |
+| Private sample | 8 | 216 | 0 | 0 | `18991b15ed60a0319dde3f836a69a7f688a6b9a7af22b4861c523ad9f98dd502` |
+
+No checker, game behavior, byte-budget constant, state-transfer bound or existing
+test assertion changed. The only production change is the owning-cache refresh.
+**MERGE-CANDIDATE.**
