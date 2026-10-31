@@ -9,11 +9,11 @@ import { buildAccessIndex, calculateAccess, collectBaseItemSources } from '../ap
 import { permanentTaskId } from '../app/tasks/identity.mjs';
 import { bossGates } from '../app/data/boss-gates.mjs';
 import { closedBossMonsters, evaluateBossGates } from '../app/tasks/boss-gates.mjs';
+import overlay from '../app/data/reference-corrections.2026-10-31.v1.mjs';
 import { duplicateAliasChildren, referenceIssues, referenceNamespaces } from '../scripts/lib/reference-integrity.mjs';
 
 const read = path => JSON.parse(readFileSync(new URL(path, import.meta.url)));
 const raw = read('../rs3-chunkpicker-chunkinfo-export.json');
-const overlay = read('../app/data/reference-corrections.2026-10-31.v1.json');
 const prepared = prepareTaskDefinitions(raw, selectedDataset);
 const data = applyDefinitionOverlays(prepared, [overlay]);
 const hash = value => createHash('sha256').update(JSON.stringify(value)).digest('hex');
@@ -24,7 +24,7 @@ for (const catalogue of [index.world.cacheResources, index.world.cacheArchaeolog
   for (const groups of catalogue.byComponent.values()) for (const record of groups.values()) runtimeObjects.push(...record.names);
 const namespaces = referenceNamespaces(data, { runtimeObjects });
 
-test('selected server and serialized worker preparation include the registered reference overlay', () => {
+test('selected server and serialized worker preparation include the core-owned reference overlay', () => {
   const pipeline = createDefinitionPipeline();
   const server = pipeline.prepareServerDefinitions(raw, selectedDataset);
   const worker = pipeline.prepareWorkerDefinitions(structuredClone(server), selectedDataset, pipeline.preparedDefinitionStages(server));
