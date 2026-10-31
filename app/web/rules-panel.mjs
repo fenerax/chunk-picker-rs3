@@ -152,7 +152,7 @@ export function createRulesPanel(ctx) {
       if (behavior?.status === 'partial') copy.append(el('p', behavior.detail, 'rules-coverage-detail'));
       const help = details('More', el('p', isShared ? 'Shared by both players.' : 'For the selected player.', 'rules-current-description')); if (advanced(ctx)) help.append(el('p', `${isShared ? 'Shared by both players' : 'Personal'} · ${value.source}`, 'rules-current-description'));
       if (definition.explanation && definition.description) help.append(el('p', definition.description, 'rules-original-tooltip'));
-      if (limited) help.append(el('p', behavior.status === 'partial' ? behavior.detail : 'This rule is saved but does not affect tasks yet.', 'rules-coverage-detail'));
+      if (limited && behavior.status !== 'partial') help.append(el('p', 'This rule is saved but does not affect tasks yet.', 'rules-coverage-detail'));
       for (const tooltip of definition.tooltips ?? []) help.append(el('p', tooltip, 'rules-original-tooltip'));
       if (definition.currentDescription && definition.currentDescription !== definition.description) help.append(el('p', `In this picker: ${definition.currentDescription}`, 'rules-current-description'));
       if (advanced(ctx) && !isShared && !limited) help.append(el('p', `In this picker: ${behavior.detail}`, 'rules-current-description'));

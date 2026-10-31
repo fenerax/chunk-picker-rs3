@@ -318,6 +318,7 @@ test('ordinary rules show coverage warnings, truthful rare-drop polarity and ina
   const skiller = descendants(rowByRule(h, 'Skiller'));
   assert.ok(skiller.some(node => node.className === 'rules-coverage' && node.textContent === 'Partly supported'));
   assert.ok(skiller.some(node => node.className === 'rules-coverage-detail' && /Combat-level goals can still appear/.test(node.textContent)));
+  assert.equal(skiller.filter(node => node.className === 'rules-coverage-detail').length, 1);
   const rare = rowByRule(h, 'Rare Drop');
   assert.equal(controlByRule(h, 'Rare Drop').attributes['aria-label'], 'Include drops rarer than my cutoff');
   assert.ok(descendants(rare).some(node => /On includes all drop rates.*Off applies Rare Drop Amount/.test(node.textContent)));
