@@ -1,4 +1,5 @@
 import { selectedDataset, datasetJSON } from '../dataset-runtime.mjs';
+import referenceCorrections from './reference-corrections.2026-10-31.v1.mjs';
 import requirementsCorrections from './requirements-corrections.2026-10-31.v1.mjs';
 
 // Core-owned factual repairs also cover already-issued immutable legacy packs.
@@ -6,7 +7,7 @@ import requirementsCorrections from './requirements-corrections.2026-10-31.v1.mj
 const legacyReview = (selectedDataset.definitionOverlays ?? []).includes('app/data/reviewed-definition-overlays.2026-10-17.v1.json');
 export const selectedDefinitionOverlays = [
   ...await Promise.all((selectedDataset.definitionOverlays ?? []).map(datasetJSON)),
-  ...(legacyReview ? [requirementsCorrections] : []),
+  ...(legacyReview ? [referenceCorrections, requirementsCorrections] : []),
 ];
 export const selectedRetainedTaskCorrections = (await Promise.all(selectedDefinitionOverlays.flatMap(row => row.retainedTaskCorrections ?? [])
   .map(datasetJSON))).flatMap(row => row.corrections);

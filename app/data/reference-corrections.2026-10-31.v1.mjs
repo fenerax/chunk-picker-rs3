@@ -1,4 +1,5 @@
-{
+// Reviewed reference repairs applied through applyDefinitionOverlays. Archived export bytes and existing task IDs stay unchanged.
+export default {
   "schemaVersion": 1,
   "id": "reference-corrections",
   "version": "2026-10-31.v1",
@@ -6612,4 +6613,4 @@
       "reason": "Resolve the assignment to its existing base monster. Special variants remain subject to separate review."
     }
   ]
-}
+};

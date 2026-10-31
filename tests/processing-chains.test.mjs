@@ -83,7 +83,7 @@ test('ordinary source selection uses the same unambiguous case-only aliases as r
   assert.equal(ordinary(result, 'End'), true);
 });
 
-test('Hide Partial Products hides 000851 unfired bowl while preserving 000852 firing supplies', () => {
+test('Hide Partial Products hides 000851 unfired bowl only under Multi Step Processing while preserving 000852 firing supplies', () => {
   const data = fixture({ Crafting: retained('Crafting', [names.soften, names.bowl, names.fire]) },
     { Clay: 1 }, { Sink: true, "Potter's wheel": true, 'Pottery oven': true });
   for (const multi of [false, true]) {
@@ -94,8 +94,9 @@ test('Hide Partial Products hides 000851 unfired bowl while preserving 000852 fi
     assert.equal(ordinary(result, 'Bowl (unfired)'), true);
     assert.equal(ordinary(result, 'Bowl'), true);
     const presented = selectPresentedTasks(result, state, 'a', data).tasks;
-    assert.ok(!presented.some(t => t.id === 'rs3:task:000851'));
-    assert.ok(presented.some(t => t.id === 'rs3:task:000852'));
+    // Hide Partial Products is a Multi Step Processing child; Off leaves the bowl as the next Crafting goal.
+    assert.equal(presented.some(t => t.id === 'rs3:task:000851'), !multi);
+    assert.equal(presented.some(t => t.id === 'rs3:task:000852'), multi);
   }
 });
 
