@@ -38,6 +38,7 @@ export const quickTests = new Set([
   "picker-footprint.test.mjs",
   "linux-operator.test.mjs",
   "linux-multi-picker.test.mjs",
+  "linux-service-crash.test.mjs",
   "online-snapshot.test.mjs",
   "progress-sources.test.mjs",
   "public-request.test.mjs",
