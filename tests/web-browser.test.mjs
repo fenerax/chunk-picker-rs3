@@ -8,6 +8,7 @@ import { createContext, runInContext } from 'node:vm';
 import { buildWorld } from '../app/data/world.mjs';
 import { createGroupState } from '../app/core/state.mjs';
 import { createRuleRegistry } from '../app/core/rules.mjs';
+import { futureSlayerUnlocksRule } from '../app/data/slayer-unlock-gates.mjs';
 import { createTaskFactsIndex, goalProgress } from '../app/core/progress.mjs';
 import { resolveTaskAlternatives } from '../app/core/task-alternatives.mjs';
 import { originalSettings, settingDefinitions } from '../app/data/settings.mjs';
@@ -3917,7 +3918,8 @@ test('simple rule toggles queue after local saves and use the resulting revision
   });
   const pref = h.run("command({type:'set-preference',memberId:'actor1',preferenceId:'hideChecked',value:false})"); await flush();
   h.run('rulesDialog()');
-  const control = h.all().find(node => node.attributes?.['aria-label'] === 'Show Best in Slot Tasks');
+  // This rule exists in every dataset; the runner gives this file open-f2p, whose catalogue has no BiS rules.
+  const control = h.all().find(node => node.attributes?.['aria-label'] === futureSlayerUnlocksRule.label);
   control.checked = false; const saving = control.emit('change'); await flush();
   assert.equal(h.calls.filter(call => call.path === '/api/command').length, 1);
   first.resolve(); await pref; await saving;
