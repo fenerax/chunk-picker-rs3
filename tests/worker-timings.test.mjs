@@ -101,8 +101,16 @@ test('area checks reuse live baselines, include full ordinary goals and keep dra
   assert.deepEqual(unchanged.result, baseline.result);
 });
 
-test('two retained calculation graphs and transferred states evict older inputs without changing cold bytes', async t => {
-  const warm = await fixture(t), cold = await fixture(t);
+test('byte-budgeted calculation graphs and two transferred states evict older inputs without changing cold bytes', async t => {
+  const previousBudget = process.env.RS3_CALCULATOR_CACHE_BYTES;
+  let warm, cold;
+  try {
+    process.env.RS3_CALCULATOR_CACHE_BYTES = String(1024 * 1024);
+    warm = await fixture(t); cold = await fixture(t);
+  } finally {
+    if (previousBudget === undefined) delete process.env.RS3_CALCULATOR_CACHE_BYTES;
+    else process.env.RS3_CALCULATOR_CACHE_BYTES = previousBudget;
+  }
   const saved = [];
   const bytes = value => JSON.stringify(value, (key, child) => key === 'elapsedMs' ? undefined : child);
   for (let revision = 0; revision < 4; revision++) {
@@ -123,9 +131,16 @@ test('two retained calculation graphs and transferred states evict older inputs 
   // Older parsed states are released; the scheduler's mirrored LRU resends them.
   const missing = await warm.send({ type: 'evaluate', ...saved[1].request, stateJSON: undefined });
   assert.equal(missing.error?.name, 'RangeError', 'the third most recent state was released');
+  // Distinct inputs share a measured byte budget, independently of parsed-state
+  // retention. Churn enough complete graphs to evict the original calculations.
+  for (let revision = 4; revision < 44; revision++) {
+    warm.state.revision = revision;
+    const churned = await warm.send({ type: 'evaluate', ...serializedRequest(warm.state, `revision-${revision}`) });
+    assert.equal(churned.error, undefined);
+  }
   const third = await warm.send({ type: 'evaluate', ...saved[1].request });
   assert.equal(third.error, undefined);
-  assert.ok(third.timingMs.collectionMs > 0, 'the third most recent calculation was evicted');
+  assert.ok(third.timingMs.collectionMs > 0, 'byte pressure evicted the older calculation');
   const oldest = await warm.send({ type: 'evaluate', ...saved[0].request });
   assert.equal(oldest.error, undefined);
   assert.ok(oldest.timingMs.collectionMs > 0, 'the evicted full calculation is rebuilt');

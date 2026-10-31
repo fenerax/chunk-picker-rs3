@@ -1644,3 +1644,543 @@ The measured hard-budget newcomer p95 is therefore **8.06 s**, warm p95 at most 
 - Multiplayer-worktree modifications: **0**. Private-checkout modifications: **0**. Source-state hash differences: **0**. Private named-value/path matches in added repository text: **0**. Prepared private fixtures and temporary server trees remaining: **0**. No push or PR.
 
 **MERGE-CANDIDATE for the measurement scripts and report.** Production admission above the unchanged-MP4 recommendation remains conditional on calculator process admission. Diverse saves/rules, context eviction/reopening churn and concurrent advisory traffic remain outside the integrated server measurements. The earlier full-pattern calculator tables quantify their CPU/queue/memory pressure but do not substitute for an integrated stress run. No application setting or game behavior was changed.
+
+
+## EN7: byte budgets for shared calculator caches
+
+START `1c2a07cb584f7762c9f4bc4e5af5c8acc7220462`.
+
+The original measurement and validation control was `2856d0d8d19b49c4d36718bbb2cff1d61e080610`.
+The merged lane adds EN6 and plugin changes; calculator, engine, rules, dataset
+and checker source differences between those two controls are **0**. The tables
+from the initial study retain that original control. Current merged validation
+and the additional two-picker measurements are reported at the end.
+
+The default is 384 MiB across complete snapshots, sandbox snapshots and
+all eligibility variants in one calculator process. One third is reserved for
+shared eligibility proofs (128 MiB); the other two thirds form one snapshot pool
+(256 MiB) with LRU
+eviction across all pickers and both snapshot kinds. A picker's snapshots can
+occupy at most half the total (192 MiB). Even if it supplies every proof, it cannot occupy
+the whole budget. A fixed 512-entry global ceiling also bounds accounting keys
+and callbacks. `RS3_CALCULATOR_CACHE_BYTES` overrides the default in integer bytes.
+
+Proofs retain lossless gzip level-1 V8 envelopes in exact backing buffers. Hits
+restore fresh mutable results and the existing non-enumerable processing facts.
+Snapshots retain live graphs, charged by V8 serialized bytes for their baseline,
+state, deferred views, planning maps, projections and estimates, plus keys.
+Prediction closures own a separately validated state clone; its payload is
+charged independently even when the input aliases the baseline state. Lazy
+growth is remeasured; estimate additions are charged before asynchronous yields.
+Oversized or unsupported snapshots bypass retention and still return normal
+calculation results. Computation, picker-scoped keys and production message
+formats are unchanged. State transfer remains a separate two-entry cache.
+
+The hard bound is measured retained payload: 402653184 bytes, including
+full proof Buffer backing stores. It is not a universal V8 heap or RSS bound.
+Object headers, allocator overhead, compiled pack/index storage and active
+requests are additional; active requests can retain evicted graphs until they
+finish. The benchmark below tests the requested RSS constraint directly.
+
+### Cache inventory
+
+“Identity” below describes the existing key, not a new identity mechanism.
+Definition/catalogue caches deliberately share immutable pack facts. Weak caches
+release entries with their keys; their capacity is the live owner population,
+not an independent numeric LRU limit. Evaluation-local caches cannot be evicted
+by another picker because they are recreated for each evaluation. Compiled
+lookup tables used as the algorithm's primary indexes are not result caches.
+
+| Cache / module | Key and identity boundary | Capacity at START → EN7 | Retained value | Typical START payload bytes, median |
+| --- | --- | --- | --- | --- |
+| Complete snapshots, `worker` | Member + opaque picker-scoped input (or revision) + group/member/legacy rules | 2 → shared snapshot byte pool; global 512-entry ceiling | Full baseline, lazy prediction closure, planning index, estimates | 54,490,773 |
+| Sandbox snapshots, `worker` | Complete calculation key + normalized changes | 2 → shared snapshot byte pool; global 512-entry ceiling | Hypothetical state, baseline, lazy play projection and delta | 44,547,112 |
+| Saved state snapshots, `worker` | Picker ID + input | 2, unchanged | Parsed save; references can require resend after eviction | 15,352,594 |
+| Death estimates, `worker` | Resolved death settings + candidate, inside one complete snapshot | 256 per complete snapshot | Estimate result; parent snapshot supplies state/member identity | 16,091 |
+| Prediction closure, `worker` | One per complete or sandbox snapshot | 1 per snapshot | Baseline and immutable state, not per-candidate predictions | Current admission charges captured state; no isolated START closure sample |
+| Planning index, `worker` | One per complete or sandbox snapshot | 1 per snapshot | Location-to-task/evidence associations | Included in parent snapshot; no isolated sample |
+| Sandbox projection and delta, `worker` | Owning hypothetical snapshot | 1 each per draft | Play result and baseline-to-hypothetical delta | Included in parent snapshot; no isolated sample |
+| Map projections, `worker.mapLocationResults` | Result object identity | Weak, live results | Projected map locations | 160 |
+| Deferred views, `worker.viewContexts` | Result object identity | Weak; removed after full view materialization | Equipment, state and member context | 15,433,016 |
+| Sandbox task indexes, `worker` | State object identity | Weak, live states | Task catalogue lookup for draft normalization | 62,810,079 |
+| Serialized sizes, `worker` | State object identity | Weak, live transported states | Integer byte length used for transport validation | not sampled |
+| Compiled variants, `engine` | Three feature booleans; definitions belong to engine | At most 8 per engine | Compiled evaluator and access indexes | 4,922,545 |
+| Eligibility results, `eligibility-cache` | SHA-256 of conservative travel content + member + options; includes relevant partner state | 2 → 64 per dataset-bound variant; injected engines remain 2 | gzip level-1 V8 envelope; fresh mutable copy on hit | 24,705,823 |
+| Shared cache budget | Buffer or snapshot object identity, shared by one worker and all engine variants | 384 MiB total measured payload and 512 entries across both snapshots and all variants | LRU ownership ledger; eviction removes the owning cache entry | New bounded ledger; bookkeeping overhead unmeasured |
+| Obligations, `obligation-cache` | Task object, with visiting-path/read-footprint validation | 4096 per evaluation pass | Boolean proof + 256-bit read mask | 52 |
+| Obligation masks, `obligation-cache` | Task key | 32768 per evaluation pass | 256-bit mask | 85 |
+| Automatic transport baselines | Engine identity + exact travel content + member | 2 signatures per engine; member map per signature | Transport-disabled capability proof | 34,387,725 |
+| Automatic transport derived facts | World identity + exact travel content + member | 1 signature per world | Personal travel facts, renewable budgets and evidence | 46,259,755 |
+| Automatic transport implicit engines/configuration | World identity | Weak, live worlds | Compiled evaluator/configuration; immutable definitions | not sampled; 13,296,485 |
+| Teleport return proofs | World + member + evaluated routes, roots, blocks, costs, home and catalogue content | 16 per world | Return-path decisions | 67,295 |
+| Roll-pool results, `rules` | Member + task-content fingerprint + roll inputs (full state for custom hooks) | 16 per cache | Frozen pool and partner connections | 6,016 |
+| Prepared pool tokens, `rules` | Token object identity | Weak, live tokens | Exact revision/input/world/registry-bound prepared pool | not sampled |
+| Static fingerprint digests, `unlock-reuse` | Immutable tasks/registry/legacy object identity | Weak, live static trees | SHA-256 digest | 74 |
+| Item-source index, `access.itemCache` | Definitions object identity | Weak, live definitions | Gates, drop tables and parsed-rate closure | 80,346 |
+| Parsed rates, `access.compileItems` | Raw rate | Distinct rates in fixed definitions | Parsed probability | 24 |
+| Access metadata and diagnostic keys, `access` | Access result identity | Weak, live results | Spawn/source metadata and diagnostic deduplication set | 483; 127 |
+| Equipment catalogues, `presentation` | Equipment object + exact identity-bearing entry fields | Weak, live equipment dictionaries | Frozen task identities and field snapshot | 1,191,504 |
+| Boss gear catalogues, `boss-gates` | Equipment object identity | Weak, live equipment dictionaries | Tier/class/slot catalogue | 112,652 |
+| Location declarations, `chunk-planning-index` | Definitions object identity | Weak, live definitions | Sources, locations and aliases | 463,229 |
+| Catalogue aliases, `fact-projection` | Catalogue identity, then saved ID/category | Weak, live catalogues; queried aliases retained, including misses | Alias targets/category indexes | 539,766 |
+| Dynamic catalogue projections, `migration` | Task object within one dynamic catalogue index | Weak, lifetime of that index | Projected task identity | Not sampled by this workload |
+| Membership lookup/indexes, `data/item-membership*` | Immutable catalogue identity, then exact/folded name | Weak, live fixed catalogues | Item/entity/alias/review indexes and lookup closure | not sampled; 532; 57,939; 24,165 |
+| Dataset parsed inputs and values, `datasets` / `dataset-runtime` | Validated input path or value key within selected dataset | Fixed selected input/value inventory | Parsed JSON and frozen module values | 146,779; 415 |
+| Replay access, `engine` | Evaluation-local task read proof/order | Evaluation lifetime, bounded by discovery work | Own/shared access and connections | not sampled; not sampled; not sampled |
+| Replay raw access | Access index + member, transport mode, collection mode, territory + task reads | Evaluation lifetime | Raw access proofs | 11 |
+| Replay surface eligibility | World + claimed bases, overrides, F2P flag | Evaluation lifetime | Eligibility predicate | 11 |
+| Replay spatial failures | Access object + task | Evaluation lifetime | Failed spatial checks | 11 |
+| Replay base sources / ownership | Source view + task reads; source entry + own-access/object identity | Evaluation lifetime | Base item-source records and ownership flags | 11,267; 6,243 |
+| Replay expansions, `engine` / `access` | Table item, quantity/rate types and values, source/location + task reads | Evaluation lifetime | Drop-table expansion events and reads | 1,839 |
+| Replay output expansion | Category + output | Evaluation lifetime | Expanded output rows | 1,983 |
+| Replay rate cutoffs | Cutoff kind + probability, inside fixed evaluation rules | Evaluation lifetime | Boolean cutoff decision | 17; 17; 17 |
+| Membership decisions, `engine` | Definitions/item; kind/category/name/location, fixed evaluation F2P mode | Evaluation lifetime | Item/source/access blockers | 160 |
+| Preparation membership roots | Category/output or item, fixed definitions | One preparation call | Expanded membership outputs/blockers | 20 |
+| Transport memo routes/graphs | World + state object + member/options | Evaluation lifetime | Evaluated routes and graph | 375,493 |
+| Presentation membership names/tokens and legacy fields | Name/token/field/category within one state/definitions projection | Presentation-call lifetime | Membership decisions and decoded legacy lookups | not sampled; not sampled; 25; 25 |
+| Death skill estimates, `time-estimates` | Skill + target level within fixed prediction | Estimate-call lifetime | Skill time estimate | 807 |
+| Collection satisfaction, `collection` | Completion-family key within fixed state/member rules | Collection-call lifetime | Member IDs satisfying a completion family | not sampled |
+| Identity materialization / mapped labels, `identity` | Registered ID or category/label within one identity index | Index lifetime; bounded by registered/queried identity population | Materialized registry entries and decoded labels | Not sampled by this workload |
+| Completion family facts, `progress-index` | Completion-array identity / family content within one state facts index | Facts-index lifetime | Normalized IDs, member completion facts | Not sampled by this workload |
+| Fact-resolution memo, `fact-projection` | Saved ID + category within one projection | Projection-call lifetime | Resolved task ID | 27 |
+| Protocol adapter parsed states, `calculator/reference/host` | Picker ID + opaque input; revision restamped on reference | 2, unchanged | Parsed state for protocol body/ref transport | Not sampled by this workload |
+| Protocol adapter sent-state markers, `calculator/reference/host` | Picker ID + opaque input | 2, unchanged | Boolean marker for the worker transfer LRU | Not sampled by this workload |
+
+The production process-worker benchmark does not traverse the protocol adapter.
+Its two extra transfer caches are exercised by calc-check; their entry sizes
+and hit rates were not separately sampled.
+
+The prediction response/unlock-result cache used by the scheduler is not
+instantiated by the calculator. Request registries, revision/supersession
+bookkeeping, identity registries, and immutable compiled definition indexes are
+not calculation result caches and are outside this change.
+
+### Measurement and selection
+
+The initial study’s Candidate columns use 256 MiB. The approved 384 MiB
+default corresponds to the explicit 384 MiB point and the current validation
+section below; historical measurements are retained without relabeling them.
+
+With the pack/default environment configured and a disposable copied save, run:
+
+```sh
+node scripts/perf/engine-cache-profile.mjs --app-dir "$START_WORKTREE" \
+  --data-dir "$COPIED_SAVE" --counts 1,2,4,8 --runs 3 --rounds 2 \
+  --output /tmp/cache-start.json
+for budget_mib in 256 384 512; do
+  node scripts/perf/engine-cache-profile.mjs --data-dir "$COPIED_SAVE" \
+    --counts 8 --runs 3 --rounds 2 --cache-bytes "$((budget_mib * 1048576))" \
+    --output "/tmp/cache-${budget_mib}.json"
+done
+node scripts/perf/engine-cache-budget-report.mjs /tmp/cache-start.json \
+  /tmp/cache-256.json /tmp/cache-384.json /tmp/cache-512.json
+```
+
+Use `--only prepare-rules` for the separate unprimed preparation trials, and
+`--sizes --runs 1 --rounds 1` for payload diagnostics. Add `--resume` to continue
+completed trials after interruption; incomplete trials restart from a fresh worker.
+
+Node 24; identical released-pack, source-state and eight grown-state hashes on
+both sides. Every picker retains the same member IDs and revision but has
+different progress and synthetic display names. One active member per picker
+is measured; regression tests also interleave both members of eight pickers.
+One unmeasured roll-pool request per picker selects a candidate and can prime
+caches before timing. Each fresh worker then receives one cold workload round
+followed by two warm rounds. A round
+contains seven request types per picker. Three independent workers are used
+for each budget point. START uses the matching first two warm rounds from its
+three original trials; later rounds are excluded from these comparisons.
+Warm p95 is computed per trial, then reported as median [minimum, maximum].
+The mixed p95 pools the seven request types within a trial; per-type p95s follow.
+Linux VmHWM includes the calculator process relay and isolate, excluding the
+input-preparation driver. Only one calculator runs during a timed trial.
+
+An unreserved shared LRU allowed large snapshots to evict small proofs. The
+fixed reservation fixes that measured churn. The initial 16-entry experiment
+also exceeded the revised memory constraint: its eight-picker median peak was
+3377.8 MiB versus 2487.2 MiB across the original five-round START trials. Those
+results are archived in the numeric artifact and are not the current candidate.
+Trials overlapped during one interrupted restart; all affected data was discarded.
+The final budget points use the same frozen implementation and isolated workers.
+
+| Budget MiB | Mixed warm p95 ms | Area-check warm p95 ms | Warm round ms | Peak worker MiB |
+| ---: | ---: | ---: | ---: | ---: |
+| START | 2974.7 [2912.2, 3022.6] | 1941.4 [1932.5, 1993.6] | 77892.3 [76743.4, 77908.0] | 2476.3 [2387.0, 2522.3] |
+| 256 | 2157.3 [2132.2, 2190.8] | 1516.2 [1507.2, 1558.1] | 60814.4 [59862.9, 61325.1] | 2120.0 [2091.0, 2138.5] |
+| 384 | 2474.0 [2465.9, 2549.5] | 1846.7 [1844.7, 1988.2] | 68335.0 [67985.3, 68796.0] | 2215.4 [2102.6, 2297.6] |
+| 512 | 2656.2 [2647.5, 2707.3] | 2088.8 [2074.2, 2096.3] | 74196.7 [73973.4, 74621.8] | 2220.6 [2165.8, 2305.8] |
+
+The initial study selected 256 MiB: it was the smallest RSS-qualified point within 5% of
+the fastest qualified mixed warm p95. Qualification checks both median and
+maximum peak against the corresponding START value plus 300 MiB. Its median
+RSS difference is -356.3 MiB. This is a practical selection rule,
+not a claim of statistical significance from three trials.
+
+| Budget MiB | Complete snapshot warm hit % | Sandbox warm hit % | Eligibility warm hit % |
+| ---: | ---: | ---: | ---: |
+| START | 83.3 [83.3, 83.3] | 0.0 [0.0, 0.0] | 42.9 [42.9, 42.9] |
+| 256 | 83.3 [83.3, 83.3] | 0.0 [0.0, 0.0] | 100.0 [100.0, 100.0] |
+| 384 | 83.3 [83.3, 83.3] | 0.0 [0.0, 0.0] | 100.0 [100.0, 100.0] |
+| 512 | 83.3 [83.3, 83.3] | 0.0 [0.0, 0.0] | 100.0 [100.0, 100.0] |
+
+The numeric artifact preserves every observed cache hit/miss count and rate.
+Raw Map/WeakMap lookups include accounting and proof-validation lookups; a
+successful container lookup is not necessarily a usable computation proof.
+In particular, context/projection lookups now also support byte accounting.
+
+| Pickers | Mixed warm p95 ms, START | Candidate | Peak MiB, START | Candidate |
+| ---: | ---: | ---: | ---: | ---: |
+| 1 | 2966.1 [2897.5, 3080.8] | 1272.7 [1252.1, 1317.9] | 1997.6 [1842.2, 1999.3] | 1761.9 [1739.7, 1773.5] |
+| 2 | 3330.0 [3241.4, 3333.6] | 1956.3 [1955.4, 1970.8] | 2201.6 [2185.0, 2218.9] | 1943.5 [1925.7, 1998.6] |
+| 4 | 2935.7 [2909.1, 3091.0] | 2156.1 [2091.0, 2172.6] | 2317.1 [2311.1, 2368.6] | 2077.0 [1994.4, 2129.5] |
+| 8 | 2974.7 [2912.2, 3022.6] | 2157.3 [2132.2, 2190.8] | 2476.3 [2387.0, 2522.3] | 2120.0 [2091.0, 2138.5] |
+
+| Pickers | Cache | Warm hit %, START | Candidate | START hits / misses | Candidate hits / misses |
+| ---: | --- | ---: | ---: | ---: | ---: |
+| 1 | Complete | 100.0 [100.0, 100.0] | 100.0 [100.0, 100.0] | 36 / 0 | 36 / 0 |
+| 1 | Sandbox | 100.0 [100.0, 100.0] | 100.0 [100.0, 100.0] | 6 / 0 | 6 / 0 |
+| 1 | Eligibility | 37.5 [37.5, 37.5] | 100.0 [100.0, 100.0] | 9 / 15 | 24 / 0 |
+| 2 | Complete | 100.0 [100.0, 100.0] | 83.3 [83.3, 83.3] | 72 / 0 | 60 / 12 |
+| 2 | Sandbox | 100.0 [100.0, 100.0] | 0.0 [0.0, 0.0] | 12 / 0 | 0 / 12 |
+| 2 | Eligibility | 25.0 [25.0, 25.0] | 100.0 [100.0, 100.0] | 12 / 36 | 84 / 0 |
+| 4 | Complete | 83.3 [83.3, 83.3] | 83.3 [83.3, 83.3] | 120 / 24 | 120 / 24 |
+| 4 | Sandbox | 0.0 [0.0, 0.0] | 0.0 [0.0, 0.0] | 0 / 24 | 0 / 24 |
+| 4 | Eligibility | 42.9 [42.9, 42.9] | 100.0 [100.0, 100.0] | 72 / 96 | 168 / 0 |
+| 8 | Complete | 83.3 [83.3, 83.3] | 83.3 [83.3, 83.3] | 240 / 48 | 240 / 48 |
+| 8 | Sandbox | 0.0 [0.0, 0.0] | 0.0 [0.0, 0.0] | 0 / 48 | 0 / 48 |
+| 8 | Eligibility | 42.9 [42.9, 42.9] | 100.0 [100.0, 100.0] | 144 / 192 | 336 / 0 |
+
+| Pickers | Total warm round ms, START | Candidate |
+| ---: | ---: | ---: |
+| 1 | 4512.3 [4484.0, 4525.6] | 2746.4 [2675.4, 2758.7] |
+| 2 | 10602.4 [10594.6, 10650.3] | 14758.8 [14390.6, 14970.4] |
+| 4 | 38149.7 [38089.4, 39263.2] | 29426.7 [29302.7, 29675.0] |
+| 8 | 77892.3 [76743.4, 77908.0] | 60814.4 [59862.9, 61325.1] |
+
+At 256 MiB and two pickers the total warm round regresses by 39.2%, despite lower mixed
+p95 and area-check p95. Byte pressure rebuilds several previously warm snapshots;
+the full per-type table below makes that tradeoff visible. That initial 256 MiB choice prioritized the eight-picker objective; the
+approved 384 MiB default resolves this measured two-picker regression.
+
+| Pickers | Request | Cold p95 ms, START | Candidate | Warm p95 ms, START | Candidate |
+| ---: | --- | ---: | ---: | ---: | ---: |
+| 1 | evaluate | 1968.1 [1929.5, 2087.0] | 2314.6 [2284.0, 2410.5] | 538.3 [503.8, 618.0] | 606.4 [581.4, 612.5] |
+| 1 | chunk-planning | 206.9 [197.1, 279.3] | 548.8 [545.4, 551.9] | 1.5 [1.4, 1.6] | 1.8 [1.5, 3.3] |
+| 1 | sandbox | 2585.4 [2460.7, 2605.4] | 3570.5 [3547.5, 3580.8] | 62.5 [59.6, 63.4] | 71.2 [59.2, 74.5] |
+| 1 | area-check | 1749.6 [1745.6, 1848.7] | 1930.1 [1907.8, 2197.2] | 2966.1 [2897.5, 3080.8] | 1272.7 [1252.1, 1317.9] |
+| 1 | roll-pool | 79.6 [77.1, 95.1] | 92.2 [87.9, 102.3] | 115.7 [107.7, 116.3] | 110.1 [91.9, 110.7] |
+| 1 | predict | 1884.8 [1815.4, 2084.3] | 2396.2 [2282.5, 2468.3] | 1433.4 [1429.3, 1434.8] | 927.6 [881.4, 938.3] |
+| 1 | death-estimates | 235.4 [224.2, 245.0] | 552.0 [530.4, 562.1] | 1.4 [1.2, 4.9] | 1.7 [1.3, 10.1] |
+| 1 | prepare-rules (isolated) | 924.6 [865.2, 959.5] | 916.0 [904.7, 954.2] | 528.8 [478.9, 537.6] | 446.1 [428.8, 524.0] |
+| 2 | evaluate | 2973.7 [2856.2, 2985.6] | 3483.8 [3414.0, 3521.5] | 604.1 [536.3, 650.8] | 1429.1 [1370.5, 1589.8] |
+| 2 | chunk-planning | 221.5 [199.0, 245.1] | 714.8 [691.6, 790.2] | 5.7 [2.4, 7.4] | 864.5 [837.1, 951.8] |
+| 2 | sandbox | 2912.3 [2742.6, 3090.6] | 3661.3 [3514.0, 3699.0] | 63.8 [61.3, 68.1] | 1489.1 [1421.0, 1510.1] |
+| 2 | area-check | 1886.8 [1869.2, 1906.9] | 2040.9 [1999.2, 2096.4] | 4326.4 [4187.0, 4374.1] | 1065.8 [1057.6, 1078.8] |
+| 2 | roll-pool | 87.0 [85.7, 94.8] | 105.3 [99.3, 107.1] | 85.3 [84.8, 93.0] | 115.1 [112.8, 119.1] |
+| 2 | predict | 2138.0 [1827.6, 2225.0] | 2431.2 [2380.6, 2522.8] | 1138.4 [1133.2, 1163.0] | 2186.6 [2011.6, 2300.5] |
+| 2 | death-estimates | 265.6 [262.0, 316.2] | 567.6 [564.2, 617.0] | 1.9 [1.5, 5.2] | 997.4 [959.5, 1011.6] |
+| 2 | prepare-rules (isolated) | 963.1 [913.1, 1004.3] | 941.2 [940.5, 1027.2] | 438.8 [415.2, 457.8] | 426.3 [409.0, 456.8] |
+| 4 | evaluate | 3152.0 [3098.1, 3487.7] | 3588.6 [3517.9, 3670.1] | 3183.9 [3147.5, 3292.6] | 1524.7 [1482.5, 1551.1] |
+| 4 | chunk-planning | 242.7 [206.1, 412.6] | 770.0 [555.0, 808.9] | 270.6 [213.0, 276.3] | 910.0 [853.0, 943.6] |
+| 4 | sandbox | 2860.2 [2726.8, 4170.9] | 3672.1 [3610.0, 3721.3] | 2881.2 [2814.5, 2935.7] | 1461.4 [1420.1, 1524.4] |
+| 4 | area-check | 1967.5 [1898.0, 1984.3] | 2023.1 [2009.7, 2331.9] | 1904.7 [1870.4, 1921.4] | 1133.2 [1112.6, 1221.6] |
+| 4 | roll-pool | 93.9 [89.6, 123.0] | 109.7 [108.8, 111.3] | 123.2 [90.1, 135.2] | 118.8 [115.7, 129.6] |
+| 4 | predict | 2020.2 [1942.6, 2162.1] | 2581.4 [2477.5, 2656.7] | 2002.5 [1945.4, 2029.0] | 2300.8 [2269.0, 2300.8] |
+| 4 | death-estimates | 275.2 [271.2, 279.8] | 605.2 [579.3, 618.4] | 310.9 [249.4, 313.3] | 772.4 [749.0, 997.4] |
+| 4 | prepare-rules (isolated) | 987.9 [928.2, 1054.3] | 900.2 [875.4, 1063.8] | 426.2 [414.6, 441.2] | 411.7 [411.0, 427.4] |
+| 8 | evaluate | 3204.9 [3005.6, 3205.5] | 4307.7 [3629.9, 4555.4] | 3298.3 [3267.7, 3449.3] | 1684.7 [1539.3, 1831.0] |
+| 8 | chunk-planning | 216.6 [216.0, 217.4] | 828.2 [815.7, 838.3] | 220.6 [219.5, 388.6] | 992.0 [971.1, 1017.2] |
+| 8 | sandbox | 2825.7 [2747.5, 2898.2] | 3623.9 [3598.2, 3780.6] | 2946.9 [2918.1, 2959.1] | 1630.2 [1568.4, 1764.2] |
+| 8 | area-check | 2004.1 [1890.9, 2011.1] | 2190.0 [2052.3, 2262.4] | 1941.4 [1932.5, 1993.6] | 1516.2 [1507.2, 1558.1] |
+| 8 | roll-pool | 98.8 [98.1, 103.6] | 113.5 [109.5, 119.4] | 106.6 [102.6, 122.2] | 126.5 [122.6, 248.4] |
+| 8 | predict | 2610.6 [2490.4, 2635.8] | 3343.8 [3113.6, 3382.0] | 2729.1 [2600.6, 2824.3] | 2315.1 [2287.5, 2321.7] |
+| 8 | death-estimates | 326.5 [288.3, 354.7] | 707.3 [634.0, 749.9] | 330.3 [311.3, 338.9] | 1088.1 [1036.7, 1154.5] |
+| 8 | prepare-rules (isolated) | 974.5 [933.7, 1090.7] | 950.4 [929.7, 1006.7] | 454.7 [430.2, 502.5] | 497.3 [409.5, 603.0] |
+
+Prepare-rules uses separate fresh-worker trials with full state bodies and no
+roll-pool priming; it is excluded from the mixed timing and RSS comparisons.
+Cold means the first workload round: earlier requests can prime later types.
+Counter overhead is included on both sides. Subsequent runs record source and harness hashes; the original START run
+predates those metadata fields and its pinned worktree remains unchanged. The selected default uses the same construction path and numeric budget as its
+explicit-budget trials.
+
+### Typical cache entry sizes
+
+Same pack/state cohort, separate eight-picker size diagnostics from the initial
+experiment. The graph representation is unchanged; current admission additionally
+charges captured state and deferred contexts. These are serialized payload
+proxies, not marginal retained heap; overlapping containers must not be summed.
+Live samples are preferred, then admission samples. At most 32 recent values
+are sampled per cache. Functions are omitted; unsampled is not zero memory.
+The artifact preserves sample counts and Buffer backing-store measurements.
+
+| Cache / probe | START bytes, median [min, max] | Compressed-proof representation |
+| --- | ---: | ---: |
+| `/core/automatic-transport.mjs:baseline-members` | 22419456.0 [22396263.0, 26819911.0] | 24619675.5 [22396269.0, 26819905.0] |
+| `/core/automatic-transport.mjs:baseline-signatures` | 34387724.5 [22627093.0, 46148356.0] | 34387724.5 [22627099.0, 46148350.0] |
+| `/core/automatic-transport.mjs:baselines` | 65451938.0 [65451938.0, 65451938.0] | 65451938.0 [65451938.0, 65451938.0] |
+| `/core/automatic-transport.mjs:configurations` | 13296485.0 [13296485.0, 13296485.0] | 13296485.0 [13296485.0, 13296485.0] |
+| `/core/automatic-transport.mjs:derived` | 46259755.0 [46259755.0, 46259755.0] | 46259749.0 [27130127.0, 46259749.0] |
+| `/core/automatic-transport.mjs:engines` | not sampled | not sampled |
+| `/core/rules.mjs:entries` | 6016.0 [4565.0, 7696.0] | 6016.0 [4565.0, 7696.0] |
+| `/core/rules.mjs:preparedRollPools` | not sampled | not sampled |
+| `/core/teleport-return-cache.mjs:return-decisions` | 67295.0 [66252.0, 86263.0] | 67295.0 [66252.0, 86263.0] |
+| `/core/teleport-return-cache.mjs:worlds` | 1108091.5 [172521.0, 1170938.0] | 1108091.5 [172521.0, 1170938.0] |
+| `/core/transport-access.mjs:routes-and-graphs` | 375493.0 [222.0, 911005.0] | 375493.0 [222.0, 911005.0] |
+| `/data/item-membership-aliases.mjs:indexes` | 57939.0 [57939.0, 57939.0] | 57939.0 [57939.0, 57939.0] |
+| `/data/item-membership-review.mjs:indexes` | 24165.0 [24165.0, 24165.0] | 24165.0 [24165.0, 24165.0] |
+| `/data/item-membership.mjs:entityIndexes` | 532.0 [532.0, 532.0] | 532.0 [532.0, 532.0] |
+| `/data/item-membership.mjs:lookups` | not sampled | not sampled |
+| `/dataset-runtime.mjs:recorded` | 414.5 [78.0, 4111.0] | 414.5 [78.0, 4111.0] |
+| `/datasets.mjs:parsed` | 146778.5 [683.0, 7806358.0] | 146778.5 [683.0, 7806358.0] |
+| `/tasks/access.mjs:accessDetails` | 483.0 [31.0, 483.0] | 483.0 [31.0, 483.0] |
+| `/tasks/access.mjs:cutoffCache` | 17.0 [10.0, 17.0] | 17.0 [10.0, 17.0] |
+| `/tasks/access.mjs:diagnosticKeys` | 127.0 [11.0, 127.0] | 127.0 [11.0, 127.0] |
+| `/tasks/access.mjs:itemCache` | 80346.0 [80346.0, 80346.0] | 80346.0 [80346.0, 80346.0] |
+| `/tasks/access.mjs:parsedRates` | 24.0 [16.0, 30.0] | 24.0 [16.0, 30.0] |
+| `/tasks/boss-gates.mjs:gearCatalogues` | 112652.0 [112652.0, 112652.0] | 112652.0 [112652.0, 112652.0] |
+| `/tasks/chunk-planning-index.mjs:definitionIndexes` | 463229.0 [463229.0, 463229.0] | 463229.0 [463229.0, 463229.0] |
+| `/tasks/collection.mjs:satisfaction` | not sampled | not sampled |
+| `/tasks/eligibility-cache.mjs:entries` | 24705823.0 [22447662.0, 26963984.0] | 2214236.0 [2103540.0, 2773877.0] |
+| `/tasks/engine.mjs:accessSources` | not sampled | not sampled |
+| `/tasks/engine.mjs:itemMembership` | 159.5 [14.0, 224.0] | 159.5 [14.0, 224.0] |
+| `/tasks/engine.mjs:memberItems` | not sampled | not sampled |
+| `/tasks/engine.mjs:memberSources` | not sampled | not sampled |
+| `/tasks/engine.mjs:membershipOutputRoots` | 20.0 [18.0, 25.0] | 20.0 [18.0, 25.0] |
+| `/tasks/engine.mjs:primary-cutoff` | 17.0 [10.0, 17.0] | 17.0 [10.0, 17.0] |
+| `/tasks/engine.mjs:rare-cutoff` | 17.0 [9.0, 17.0] | 17.0 [9.0, 17.0] |
+| `/tasks/engine.mjs:replay.base` | 11267.0 [1808.0, 214606.0] | 11267.0 [1808.0, 214606.0] |
+| `/tasks/engine.mjs:replay.baseOwnership` | 6242.5 [3630.0, 46169.0] | 6242.5 [3630.0, 46169.0] |
+| `/tasks/engine.mjs:replay.expansions` | 1838.5 [136.0, 4401.0] | 1838.5 [136.0, 4401.0] |
+| `/tasks/engine.mjs:replay.outputCache` | 1983.0 [377.0, 11534.0] | 1983.0 [377.0, 11534.0] |
+| `/tasks/engine.mjs:replay.rawAccess` | 11.0 [11.0, 11.0] | 11.0 [11.0, 11.0] |
+| `/tasks/engine.mjs:replay.spatialFailures` | 11.0 [11.0, 11.0] | 11.0 [11.0, 11.0] |
+| `/tasks/engine.mjs:replay.surfaceEligibility` | 11.0 [11.0, 11.0] | 11.0 [11.0, 11.0] |
+| `/tasks/engine.mjs:variants` | 4922545.0 [4922543.0, 4922547.0] | 4922545.0 [4922543.0, 4922547.0] |
+| `/tasks/fact-projection.mjs:catalogueAliasIndexes` | 539766.0 [539741.0, 539791.0] | 80.0 [80.0, 80.0] |
+| `/tasks/fact-projection.mjs:index` | 25.0 [25.0, 25.0] | 25.0 [25.0, 25.0] |
+| `/tasks/fact-projection.mjs:resolutions` | 27.0 [27.0, 27.0] | 27.0 [27.0, 27.0] |
+| `/tasks/obligation-cache.mjs:entries` | 52.0 [36.0, 60.0] | 52.0 [36.0, 60.0] |
+| `/tasks/obligation-cache.mjs:masks` | 84.5 [59.0, 106.0] | 84.5 [59.0, 106.0] |
+| `/tasks/presentation.mjs:equipmentCatalogues` | 1191504.0 [1191504.0, 1191504.0] | 1191504.0 [1191504.0, 1191504.0] |
+| `/tasks/presentation.mjs:legacyCategories` | 25.0 [19.0, 31.0] | 25.0 [19.0, 31.0] |
+| `/tasks/presentation.mjs:legacyFields` | 25.0 [19.0, 31.0] | 25.0 [19.0, 31.0] |
+| `/tasks/presentation.mjs:names` | not sampled | not sampled |
+| `/tasks/presentation.mjs:tokens` | not sampled | not sampled |
+| `/tasks/time-estimates.mjs:skillCache` | 807.0 [739.0, 7487.0] | 807.0 [744.0, 870.0] |
+| `/tasks/unlock-reuse.mjs:staticDigests` | 74.0 [74.0, 74.0] | 74.0 [74.0, 74.0] |
+| `/tasks/worker.mjs:death-estimates` | 16091.0 [16091.0, 16091.0] | 18025.0 [14941.0, 52303.0] |
+| `/tasks/worker.mjs:mapLocationResults` | 160.0 [142.0, 178.0] | 142.0 [72.0, 178.0] |
+| `/tasks/worker.mjs:sandboxSnapshots` | 44547112.0 [44390201.0, 44704023.0] | 44325352.0 [44189959.0, 44704017.0] |
+| `/tasks/worker.mjs:sandboxTaskIndexes` | 62810079.0 [62810079.0, 62810079.0] | 62810079.0 [62810079.0, 62810079.0] |
+| `/tasks/worker.mjs:serializedStateSizes` | not sampled | not sampled |
+| `/tasks/worker.mjs:snapshots` | 54490773.0 [54194552.0, 54786994.0] | 54016031.0 [53949665.0, 54786994.0] |
+| `/tasks/worker.mjs:stateSnapshots` | 15352594.0 [15352579.0, 15352609.0] | 15352530.0 [15352403.0, 15352603.0] |
+| `/tasks/worker.mjs:viewContexts` | 15433016.0 [15432381.0, 15433649.0] | 15424517.0 [15409527.0, 15505837.0] |
+
+The shared ledger, owner totals and snapshot slot maps are accounting indexes,
+not additional result caches. They have at most 512 live entries; empty owner
+records are removed. Snapshot metadata/result reverse indexes are weak.
+
+### Original correctness and tests
+
+Public preparation originally ran as
+`RS3_DATASET=open-f2p node /tmp/en7/prepare-public.mjs`. Its first error lines were:
+
+```text
+file:///workspace/chunk-picker-rs3/tools/calc-check/fixture-tools.mjs:24
+    if (code !== 0) throw new Error('fixture-capture-failed');
+                          ^
+
+Error: fixture-capture-failed
+```
+
+Reproducing on untouched START identified a dataset-policy mismatch in the
+first legacy fixture file. Running capture with the normal legacy suite policy
+and without private game defaults passed 2073 tests, failed 0 and skipped 2
+across 179 files, producing 3962 captures. No checker tooling changed. A subsequent mixed-corpus launch failed with DATASET_PACK_INVALID because a legacy capture inherited open-f2p; using the legacy base policy also fixed that pin mismatch. Dataset pins and all fixtures remain intact.
+The public check uses the generated transport-definition corpus plus every
+capture and checked-in fixture; all sixteen paired shards pass the strict full-coverage
+merger. Private comparison reuses one completed 2-state shard plus six single-state shards, including the current save: 8 distinct states of 414.
+
+| Gate | States | Compared requests | Differences | Errors | Corpus hash |
+| --- | ---: | ---: | ---: | ---: | --- |
+| Public | 4067 | 70377 | 0 | 0 | `118defbe939382c3bf021b3f1546c79e708e97c15fbdfb98166c4c2a25e6340f` |
+| Private | 8 | 265 | 0 | 0 | `cdf50309f628d6b676044135fb6063b185fc9b0e0d213cbb4224dd8be40760ba` |
+
+Sequence requests are included in compared-request counts, not added again.
+Gate memory observations in the numeric artifact cover protocol-adapter process
+trees; they are distinct from the production-worker RSS used for selection.
+Only counts, hashes, sizes and durations derived from private inputs are retained.
+
+| Build | Suite | Pass | Fail | Skip |
+| --- | --- | ---: | ---: | ---: |
+| START | quick | 2464 | 0 | 68 |
+| START | full | 5614 | 3 | 140 |
+| candidate | quick | 2481 | 0 | 68 |
+| candidate | full | 5631 | 3 | 140 |
+
+Individual cache files pass: eligibility 7, snapshot accounting 7, worker
+isolation/churn 3, and worker timings 18. Only the authorized eviction-capacity
+case changed in the existing timing file; its two-entry state-transfer checks
+remain. New tests cover colliding member IDs/revisions with different states,
+shared byte eviction, per-picker limits, proof reservation, oversized bypass,
+lazy estimate replacement and independently charged prediction clones.
+
+The three pre-existing START failures are:
+
+- `art-pack-server.test.mjs`: “surface, cache, category, sprite, optimized and interior route families preserve pack bytes”.
+- `cache-resources-server.test.mjs`: “browser resource imports and retained rollback mode are served by an isolated server”.
+- `map-assets-server.test.mjs`: file-level “test failed”; Node reported no named subtest.
+
+All three reproduced individually on START and the candidate. Candidate quick
+and full each ran once with `RS3_TEST_CONCURRENCY=1`; each failing file then
+ran once in isolation. No existing test was skipped or weakened.
+The benchmark covers sequential interleaving; concurrent active jobs can retain
+evicted graphs, and other state sizes can change the payload-to-RSS ratio.
+The full 414-state private corpus and full-roster memory capacity are not claimed.
+
+### Merged lane follow-up at 256 MiB
+
+Merged `origin/lane/engine` at `1c2a07cb584f7762c9f4bc4e5af5c8acc7220462`; the checkout originally fetched only
+`main`, so its stale lane tracking ref was synchronized to the fetched lane tip.
+The report conflict retained both EN6 and EN7. The test selector retains the
+EN6 smoke test and all three EN7 files. Only the authorized eviction-capacity
+case differs in the existing timing file; its separate two-entry state-transfer
+assertions remain unchanged. All task changes are staged.
+
+The merged follow-up initially kept the 256 MiB default. A separate bounded admission
+trace (excluded from latency measurements) identifies the two-picker regression:
+
+- Mature complete snapshots cost about 81 MiB each after planning and prediction;
+  sandbox snapshots cost about 42.5 MiB each. The desired four-entry working set
+  is 247.3 MiB. Each picker needs about 123.8 MiB, below its 128 MiB ceiling.
+- The fixed one-third proof reservation leaves only 170.7 MiB for snapshots.
+  All 6 traced evictions hit this shared snapshot-pool limit; owner-limit and
+  whole-ledger-limit evictions are both 0. A picker’s planning growth evicts the
+  other picker’s sandbox, then its new sandbox evicts the other complete snapshot.
+- Thus warm complete hits fall from 72/72 to 60/72 and sandbox hits from 12/12
+  to 0/12 across the three two-picker trials. Planning indexes, prediction
+  closures and death estimates then rebuild too. State-transfer capacity remains
+  two and is not the cause. Eligibility hits improve, making area-check p95
+  lower, but the extra medium-cost requests raise total round time by 39.2%.
+
+New three-trial two-picker runs test the existing 384 and 512 MiB options.
+Input/state hashes and calculator/harness hashes match the initial candidate.
+Both larger budgets restore complete hits to 72/72 and sandbox hits to 12/12,
+removing the regression. The eight-picker columns reuse the original three
+trials of the identical calculator and numeric budgets; they are not new runs.
+All figures are median [minimum–maximum].
+
+| Budget MiB | Two-picker warm round ms | Two-picker peak MiB | Eight-picker mixed warm p95 ms | Eight-picker peak MiB |
+| ---: | ---: | ---: | ---: | ---: |
+| Original START | 10602.4 [10594.6–10650.3] | 2201.6 [2185.0–2218.9] | 2974.7 [2912.2–3022.6] | 2476.3 [2387.0–2522.3] |
+| 256 | 14758.8 [14390.6–14970.4] | 1943.5 [1925.7–1998.6] | 2157.3 [2132.2–2190.8] | 2120.0 [2091.0–2138.5] |
+| 384 | 6459.6 [5997.9–6965.7] | 2126.2 [2046.7–2162.6] | 2474.0 [2465.9–2549.5] | 2215.4 [2102.6–2297.6] |
+| 512 | 5894.4 [5849.9–5966.0] | 2110.9 [2017.9–2180.7] | 2656.2 [2647.5–2707.3] | 2220.6 [2165.8–2305.8] |
+
+A 384 MiB budget therefore avoids the two-picker regression and retains an
+eight-picker improvement: mixed warm p95 remains 16.8% below the control, with
+median peak RSS 260.9 MiB lower. At 512 MiB, the corresponding gains are 10.7%
+and 255.7 MiB. Neither preserves the full 256 MiB point’s 27.5% p95 gain and
+356.3 MiB RSS reduction. The approved default is now 384 MiB: it removes the two-picker regression while
+retaining an eight-picker gain and staying below the control RSS. This trades
+some of the 256 MiB point’s eight-picker gain for better two-picker throughput.
+`RS3_CALCULATOR_CACHE_BYTES` still allows an explicit operator override.
+Changing LRU ordering cannot make a 247 MiB working set fit the fixed 170.7 MiB
+snapshot pool; a priority or lazy-field demotion policy could trade different
+misses, but no such policy is claimed as measured or implemented here.
+
+Reproduce the larger-budget runs with `--counts 2 --runs 3 --rounds 2` and
+`--cache-bytes 402653184` or `536870912` in `engine-cache-profile.mjs`. For the
+separate diagnostic, preload `engine-cache-admission-probe.mjs` through
+`NODE_OPTIONS=--import=...` and set `RS3_CACHE_ADMISSION_TRACE` to a `/tmp/` path.
+The trace records at most 4096 events, only sizes/counts and public cache/request
+kinds; it records no state bodies or member identifiers.
+
+| Merged check | Pass | Fail | Skip |
+| --- | ---: | ---: | ---: |
+| tests/engine-cache-eligibility.test.mjs | 7 | 0 | 0 |
+| tests/engine-cache-snapshot.test.mjs | 7 | 0 | 0 |
+| tests/engine-cache-worker.test.mjs | 3 | 0 | 0 |
+| tests/worker-timings.test.mjs | 18 | 0 | 0 |
+| npm run test:quick (final recorded run, one file at a time) | 2482 | 1 | 68 |
+
+The first merged quick run passed 2482, failed 1 and skipped 68. Its only
+failure was the EN6 capacity assertion at `tests/multi-picker-capacity.test.mjs:43`:
+expected engineWorkCount 12, actual 4. The byte caches retain the alternating
+inputs, so four unique calculations replace twelve cold calculations. The
+production transport independently confirms 4 with both one and two workers.
+With explicit additional approval, only this expected count changed from 12
+to 4. The separate two-entry state-transfer assertions in the worker timing
+file remain unchanged. Current verification at the 384 MiB default follows.
+
+Fresh merged-control fixture preparation: 179 files, 2073 passed, 0 failed,
+2 skipped, 3962 captures. Merged public calc-check: **4067 states,
+70384 comparisons, 0 differences, 0 errors**, all 16 shards accepted by the
+strict coverage merger. Corpus SHA-256: `294216d56f7b33c7e5a6e978876b50c340cc67ddc6ac2a5860acc48e5bf5b4f5`.
+The earlier eight-state private check remains historical; calculator and input
+hashes are unchanged. The full-suite counts above are also pre-merge history.
+The requested merged focused files, quick suite and public gate were rerun.
+Numeric follow-up: [en7-cache-merge-results.json](../../scripts/perf/en7-cache-merge-results.json).
+
+### Approved 384 MiB default
+
+The approved default is **384 MiB (402653184 bytes)**. The process-wide ledger
+reserves 128 MiB for shared proofs and 256 MiB for both snapshot caches, with
+a 192 MiB snapshot ceiling per picker and 512 retained entries globally.
+Both the worker factory and the engine’s standalone shared-ledger fallback
+now use 384 MiB; explicit overrides and the separate two-entry state-transfer
+LRU retain their existing behavior. The only application changes since the
+measured explicit-budget candidate are those two default constants.
+
+This selection removes the measured two-picker regression: warm round time
+is 6459.6 [5997.9–6965.7] ms versus the control’s
+10602.4 [10594.6–10650.3] ms. Warm complete and sandbox hit rates are both 100%.
+The existing explicit-384-MiB eight-picker trials retain a 16.8% mixed p95 gain
+and a 260.9 MiB median peak-RSS reduction against the control. These eight-picker
+figures reuse the measured identical cache policy at the selected numeric
+budget; no new eight-picker timing is claimed for this final default edit.
+
+A fresh three-trial one-picker run uses the actual default, with no byte-budget
+override. Every telemetry sample reports a 402653184-byte limit, stays within
+that limit and has at most 512 entries. Peak worker RSS MiB, median [min–max]:
+
+| Control | Approved default |
+| ---: | ---: |
+| 1997.6 [1842.2–1999.3] | 1758.3 [1690.6–1817.5] |
+
+Only the approved EN6 assertion changed: alternating engineWorkCount is now
+4 instead of 12. It verifies four cold unique calculations and eight reused
+requests on the small synthetic corpus. The test passes with both transports
+and both worker layouts; no other assertion in that file changed. Existing
+cache tests contained no 256 MiB default pin to update. The timing-file change
+remains confined to its eviction-capacity case, including its unchanged
+two-entry state-transfer assertions.
+
+| Final default-384 check | Pass | Fail | Skip |
+| --- | ---: | ---: | ---: |
+| tests/engine-cache-eligibility.test.mjs | 7 | 0 | 0 |
+| tests/engine-cache-snapshot.test.mjs | 7 | 0 | 0 |
+| tests/engine-cache-worker.test.mjs | 3 | 0 | 0 |
+| tests/worker-timings.test.mjs | 18 | 0 | 0 |
+| tests/multi-picker-capacity.test.mjs | 1 | 0 | 0 |
+| npm run test:quick | 2483 | 0 | 68 |
+
+The five focused files ran individually, followed by one quick-suite run with
+RS3_TEST_CONCURRENCY=1 and one complete public calc-check. The full suite was
+not rerun, as requested. The public fixture capture remains the complete
+merged-control capture; the control and selected fixtures did not change.
+
+Public calc-check at the 384 MiB default: **4067 states, 70384 comparisons,
+0 differences, 0 errors**, all 16 shards accepted by the strict coverage
+merger. Corpus SHA-256: `294216d56f7b33c7e5a6e978876b50c340cc67ddc6ac2a5860acc48e5bf5b4f5`.
+Application SHA-256: `9dfc690b696dd74405c05976ec8c9b80953b8321d6c955da1f5e3bb7e3954a41`.
+Earlier validation, the failed pre-fix quick run and the 256 MiB admission trace
+remain labeled as history in the numeric report. The private gate and full-suite
+counts above are historical, not new runs for this default-only edit.
+
+**MERGE-CANDIDATE.** All changes are staged. The byte quota bounds measured
+payload, not total heap/RSS; compiled data, active jobs and allocator overhead
+remain additional. Full-roster and other save-size memory behavior are not
+claimed by the one-active-member-per-picker benchmark.

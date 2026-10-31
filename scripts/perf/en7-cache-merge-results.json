@@ -1,0 +1,3333 @@
+{
+  "start": "1c2a07cb584f7762c9f4bc4e5af5c8acc7220462",
+  "en6ProductionEngineWorkCounts": [
+    {
+      "workers": 1,
+      "count": 4
+    },
+    {
+      "workers": 2,
+      "count": 4
+    }
+  ],
+  "originalMeasurementStart": "2856d0d8d19b49c4d36718bbb2cff1d61e080610",
+  "appHash": "9dfc690b696dd74405c05976ec8c9b80953b8321d6c955da1f5e3bb7e3954a41",
+  "calculatorFileDifferences": 0,
+  "recommendation": "MERGE-CANDIDATE",
+  "en6AssertionChangeApproved": true,
+  "quickBeforeAssertionUpdate": {
+    "tests": 2551,
+    "pass": 2482,
+    "fail": 1,
+    "skipped": 68,
+    "duration_ms": 191028.309293
+  },
+  "twoPickerLargerBudgetsMeasuredAfterMerge": true,
+  "eightPickerMeasurementsReusedWithIdenticalCalculator": false,
+  "focused": [
+    {
+      "file": "tests/engine-cache-eligibility.test.mjs",
+      "tests": 7,
+      "pass": 7,
+      "fail": 0,
+      "skipped": 0,
+      "duration_ms": 78.164492
+    },
+    {
+      "file": "tests/engine-cache-snapshot.test.mjs",
+      "tests": 7,
+      "pass": 7,
+      "fail": 0,
+      "skipped": 0,
+      "duration_ms": 60.844667
+    },
+    {
+      "file": "tests/engine-cache-worker.test.mjs",
+      "tests": 3,
+      "pass": 3,
+      "fail": 0,
+      "skipped": 0,
+      "duration_ms": 812.020958
+    },
+    {
+      "file": "tests/worker-timings.test.mjs",
+      "tests": 18,
+      "pass": 18,
+      "fail": 0,
+      "skipped": 0,
+      "duration_ms": 2233.63419
+    },
+    {
+      "file": "tests/multi-picker-capacity.test.mjs",
+      "tests": 1,
+      "pass": 1,
+      "fail": 0,
+      "skipped": 0,
+      "duration_ms": 2346.113464
+    }
+  ],
+  "quick": {
+    "tests": 2551,
+    "pass": 2483,
+    "fail": 0,
+    "skipped": 68,
+    "duration_ms": 189584.795832
+  },
+  "publicGate": {
+    "states": 4067,
+    "comparisons": 70384,
+    "requests": {
+      "evaluate": 15719,
+      "predict": 817,
+      "death-estimates": 9655,
+      "chunk-planning": 8555,
+      "sandbox": 8498,
+      "area-check": 8498,
+      "roll-pool": 15719,
+      "prepare-rules": 2923
+    },
+    "differences": 0,
+    "errors": 0,
+    "corpusManifestHash": "294216d56f7b33c7e5a6e978876b50c340cc67ddc6ac2a5860acc48e5bf5b4f5",
+    "shards": 16,
+    "totalWallMs": 9565250.580566
+  },
+  "budgetRows": [
+    {
+      "byteLimit": null,
+      "two": {
+        "warmRoundMs": {
+          "n": 3,
+          "median": 10602.386,
+          "min": 10594.615,
+          "max": 10650.331
+        },
+        "warmP95Ms": {
+          "n": 3,
+          "median": 3330.002,
+          "min": 3241.43,
+          "max": 3333.589
+        },
+        "areaWarmP95Ms": {
+          "n": 3,
+          "median": 4326.402,
+          "min": 4187.041,
+          "max": 4374.112
+        },
+        "peakRSSBytes": {
+          "n": 3,
+          "median": 2308562944,
+          "min": 2291175424,
+          "max": 2326716416
+        },
+        "hits": {
+          "snapshots": {
+            "hits": 72,
+            "misses": 0,
+            "hitRate": 1
+          },
+          "sandboxSnapshots": {
+            "hits": 12,
+            "misses": 0,
+            "hitRate": 1
+          }
+        }
+      },
+      "eight": {
+        "warmP95Ms": {
+          "n": 3,
+          "median": 2974.712,
+          "min": 2912.232,
+          "max": 3022.562
+        },
+        "warmRoundMs": {
+          "n": 3,
+          "median": 77892.259,
+          "min": 76743.359,
+          "max": 77907.959
+        },
+        "areaWarmP95Ms": {
+          "n": 3,
+          "median": 1941.374,
+          "min": 1932.538,
+          "max": 1993.628
+        },
+        "peakRSSBytes": {
+          "n": 3,
+          "median": 2596634624,
+          "min": 2502914048,
+          "max": 2644828160
+        }
+      }
+    },
+    {
+      "byteLimit": 268435456,
+      "two": {
+        "warmRoundMs": {
+          "n": 3,
+          "median": 14758.796,
+          "min": 14390.581,
+          "max": 14970.448
+        },
+        "warmP95Ms": {
+          "n": 3,
+          "median": 1956.289,
+          "min": 1955.366,
+          "max": 1970.814
+        },
+        "areaWarmP95Ms": {
+          "n": 3,
+          "median": 1065.756,
+          "min": 1057.613,
+          "max": 1078.802
+        },
+        "peakRSSBytes": {
+          "n": 3,
+          "median": 2037866496,
+          "min": 2019205120,
+          "max": 2095669248
+        },
+        "hits": {
+          "snapshots": {
+            "hits": 60,
+            "misses": 12,
+            "hitRate": 0.833
+          },
+          "sandboxSnapshots": {
+            "hits": 0,
+            "misses": 12,
+            "hitRate": 0
+          }
+        }
+      },
+      "eight": {
+        "warmP95Ms": {
+          "n": 3,
+          "median": 2157.337,
+          "min": 2132.208,
+          "max": 2190.81
+        },
+        "warmRoundMs": {
+          "n": 3,
+          "median": 60814.416,
+          "min": 59862.921,
+          "max": 61325.06
+        },
+        "areaWarmP95Ms": {
+          "n": 3,
+          "median": 1516.215,
+          "min": 1507.225,
+          "max": 1558.113
+        },
+        "peakRSSBytes": {
+          "n": 3,
+          "median": 2222977024,
+          "min": 2192523264,
+          "max": 2242408448
+        }
+      }
+    },
+    {
+      "byteLimit": 402653184,
+      "two": {
+        "warmRoundMs": {
+          "n": 3,
+          "median": 6459.568,
+          "min": 5997.862,
+          "max": 6965.718
+        },
+        "warmP95Ms": {
+          "n": 3,
+          "median": 1384.051,
+          "min": 1284.59,
+          "max": 1462.43
+        },
+        "areaWarmP95Ms": {
+          "n": 3,
+          "median": 1427.453,
+          "min": 1377.347,
+          "max": 1911.256
+        },
+        "peakRSSBytes": {
+          "n": 3,
+          "median": 2229444608,
+          "min": 2146115584,
+          "max": 2267615232
+        },
+        "hits": {
+          "snapshots": {
+            "hits": 72,
+            "misses": 0,
+            "hitRate": 1
+          },
+          "sandboxSnapshots": {
+            "hits": 12,
+            "misses": 0,
+            "hitRate": 1
+          }
+        }
+      },
+      "eight": {
+        "warmP95Ms": {
+          "n": 3,
+          "median": 2474.023,
+          "min": 2465.875,
+          "max": 2549.496
+        },
+        "warmRoundMs": {
+          "n": 3,
+          "median": 68334.985,
+          "min": 67985.33,
+          "max": 68795.962
+        },
+        "areaWarmP95Ms": {
+          "n": 3,
+          "median": 1846.721,
+          "min": 1844.711,
+          "max": 1988.198
+        },
+        "peakRSSBytes": {
+          "n": 3,
+          "median": 2323034112,
+          "min": 2204741632,
+          "max": 2409172992
+        }
+      }
+    },
+    {
+      "byteLimit": 536870912,
+      "two": {
+        "warmRoundMs": {
+          "n": 3,
+          "median": 5894.44,
+          "min": 5849.869,
+          "max": 5966.01
+        },
+        "warmP95Ms": {
+          "n": 3,
+          "median": 1373.175,
+          "min": 1306.002,
+          "max": 1464.092
+        },
+        "areaWarmP95Ms": {
+          "n": 3,
+          "median": 1490.201,
+          "min": 1423.586,
+          "max": 1548.918
+        },
+        "peakRSSBytes": {
+          "n": 3,
+          "median": 2213466112,
+          "min": 2115948544,
+          "max": 2286653440
+        },
+        "hits": {
+          "snapshots": {
+            "hits": 72,
+            "misses": 0,
+            "hitRate": 1
+          },
+          "sandboxSnapshots": {
+            "hits": 12,
+            "misses": 0,
+            "hitRate": 1
+          }
+        }
+      },
+      "eight": {
+        "warmP95Ms": {
+          "n": 3,
+          "median": 2656.22,
+          "min": 2647.472,
+          "max": 2707.307
+        },
+        "warmRoundMs": {
+          "n": 3,
+          "median": 74196.733,
+          "min": 73973.442,
+          "max": 74621.771
+        },
+        "areaWarmP95Ms": {
+          "n": 3,
+          "median": 2088.763,
+          "min": 2074.175,
+          "max": 2096.307
+        },
+        "peakRSSBytes": {
+          "n": 3,
+          "median": 2328477696,
+          "min": 2271010816,
+          "max": 2417827840
+        }
+      }
+    }
+  ],
+  "validationBeforeDefaultChange": {
+    "appHash": "23fcd0565d10c21910ed5a1300d44639530d05912df591577dbf7f1f6679ccfc",
+    "focused": [
+      {
+        "file": "tests/engine-cache-eligibility.test.mjs",
+        "tests": 7,
+        "pass": 7,
+        "fail": 0,
+        "skipped": 0,
+        "duration_ms": 50.327056
+      },
+      {
+        "file": "tests/engine-cache-snapshot.test.mjs",
+        "tests": 7,
+        "pass": 7,
+        "fail": 0,
+        "skipped": 0,
+        "duration_ms": 47.487509
+      },
+      {
+        "file": "tests/engine-cache-worker.test.mjs",
+        "tests": 3,
+        "pass": 3,
+        "fail": 0,
+        "skipped": 0,
+        "duration_ms": 836.41301
+      },
+      {
+        "file": "tests/worker-timings.test.mjs",
+        "tests": 18,
+        "pass": 18,
+        "fail": 0,
+        "skipped": 0,
+        "duration_ms": 2205.843564
+      }
+    ],
+    "quick": {
+      "tests": 2551,
+      "pass": 2482,
+      "fail": 1,
+      "skipped": 68,
+      "duration_ms": 191028.309293
+    },
+    "publicGate": {
+      "states": 4067,
+      "comparisons": 70384,
+      "requests": {
+        "evaluate": 15719,
+        "predict": 817,
+        "death-estimates": 9655,
+        "chunk-planning": 8555,
+        "sandbox": 8498,
+        "area-check": 8498,
+        "roll-pool": 15719,
+        "prepare-rules": 2923
+      },
+      "differences": 0,
+      "errors": 0,
+      "corpusManifestHash": "294216d56f7b33c7e5a6e978876b50c340cc67ddc6ac2a5860acc48e5bf5b4f5",
+      "shards": 16,
+      "totalWallMs": 9358668.805302002
+    },
+    "recommendation": "NEEDS-WORK"
+  },
+  "previousMeasurementAppHash": "23fcd0565d10c21910ed5a1300d44639530d05912df591577dbf7f1f6679ccfc",
+  "currentDefaultMiB": 384,
+  "currentDefaultBytes": 402653184,
+  "proofReserveBytes": 134217728,
+  "snapshotPoolBytes": 268435456,
+  "pickerSnapshotLimitBytes": 201326592,
+  "entryLimit": 512,
+  "defaultOnlyAppChange": true,
+  "onePickerAtDefault": {
+    "inputHash": "13654556cfd6def495fcf18b96f3a481dfc9af7a13dd0a55ab19f4f87eb646c1",
+    "appHash": "9dfc690b696dd74405c05976ec8c9b80953b8321d6c955da1f5e3bb7e3954a41",
+    "node": "v24.19.0",
+    "before": {
+      "trials": 3,
+      "requests": 63,
+      "warmP95Ms": {
+        "n": 3,
+        "median": 2966.075,
+        "min": 2897.496,
+        "max": 3080.75
+      },
+      "warmRoundMs": {
+        "n": 3,
+        "median": 4512.335,
+        "min": 4484.002,
+        "max": 4525.648
+      },
+      "peakRSSBytes": {
+        "n": 3,
+        "median": 2094665728,
+        "min": 1931706368,
+        "max": 2096394240
+      },
+      "chargedBytes": null,
+      "latency": {
+        "evaluate": {
+          "coldP95Ms": {
+            "n": 3,
+            "median": 1968.057,
+            "min": 1929.549,
+            "max": 2087.017
+          },
+          "warmP95Ms": {
+            "n": 3,
+            "median": 538.255,
+            "min": 503.755,
+            "max": 617.989
+          }
+        },
+        "chunk-planning": {
+          "coldP95Ms": {
+            "n": 3,
+            "median": 206.857,
+            "min": 197.1,
+            "max": 279.307
+          },
+          "warmP95Ms": {
+            "n": 3,
+            "median": 1.475,
+            "min": 1.351,
+            "max": 1.55
+          }
+        },
+        "sandbox": {
+          "coldP95Ms": {
+            "n": 3,
+            "median": 2585.402,
+            "min": 2460.743,
+            "max": 2605.449
+          },
+          "warmP95Ms": {
+            "n": 3,
+            "median": 62.481,
+            "min": 59.647,
+            "max": 63.363
+          }
+        },
+        "area-check": {
+          "coldP95Ms": {
+            "n": 3,
+            "median": 1749.589,
+            "min": 1745.554,
+            "max": 1848.724
+          },
+          "warmP95Ms": {
+            "n": 3,
+            "median": 2966.075,
+            "min": 2897.496,
+            "max": 3080.75
+          }
+        },
+        "roll-pool": {
+          "coldP95Ms": {
+            "n": 3,
+            "median": 79.587,
+            "min": 77.125,
+            "max": 95.139
+          },
+          "warmP95Ms": {
+            "n": 3,
+            "median": 115.652,
+            "min": 107.728,
+            "max": 116.276
+          }
+        },
+        "predict": {
+          "coldP95Ms": {
+            "n": 3,
+            "median": 1884.804,
+            "min": 1815.426,
+            "max": 2084.276
+          },
+          "warmP95Ms": {
+            "n": 3,
+            "median": 1433.416,
+            "min": 1429.297,
+            "max": 1434.775
+          }
+        },
+        "death-estimates": {
+          "coldP95Ms": {
+            "n": 3,
+            "median": 235.351,
+            "min": 224.181,
+            "max": 245.045
+          },
+          "warmP95Ms": {
+            "n": 3,
+            "median": 1.351,
+            "min": 1.221,
+            "max": 4.946
+          }
+        }
+      },
+      "caches": {
+        "cold:/tasks/fact-projection.mjs:catalogueAliasIndexes": {
+          "hits": 138,
+          "misses": 60,
+          "hitRate": 0.697,
+          "hitRateRange": {
+            "n": 3,
+            "median": 0.697,
+            "min": 0.697,
+            "max": 0.697
+          },
+          "hitsRange": {
+            "n": 3,
+            "median": 46,
+            "min": 46,
+            "max": 46
+          },
+          "missesRange": {
+            "n": 3,
+            "median": 20,
+            "min": 20,
+            "max": 20
+          }
+        },
+        "cold:/core/teleport-return-cache.mjs:worlds": {
+          "hits": 18,
+          "misses": 6,
+          "hitRate": 0.75,
+          "hitRateRange": {
+            "n": 3,
+            "median": 0.75,
+            "min": 0.75,
+            "max": 0.75
+          },
+          "hitsRange": {
+            "n": 3,
+            "median": 6,
+            "min": 6,
+            "max": 6
+          },
+          "missesRange": {
+            "n": 3,
+            "median": 2,
+            "min": 2,
+            "max": 2
+          }
+        },
+        "cold:/tasks/chunk-planning-index.mjs:definitionIndexes": {
+          "hits": 24,
+          "misses": 3,
+          "hitRate": 0.889,
+          "hitRateRange": {
+            "n": 3,
+            "median": 0.889,
+            "min": 0.889,
+            "max": 0.889
+          },
+          "hitsRange": {
+            "n": 3,
+            "median": 8,
+            "min": 8,
+            "max": 8
+          },
+          "missesRange": {
+            "n": 3,
+            "median": 1,
+            "min": 1,
+            "max": 1
+          }
+        },
+        "cold:/core/automatic-transport.mjs:configurations": {
+          "hits": 12,
+          "misses": 0,
+          "hitRate": 1,
+          "hitRateRange": {
+            "n": 3,
+            "median": 1,
+            "min": 1,
+            "max": 1
+          },
+          "hitsRange": {
+            "n": 3,
+            "median": 4,
+            "min": 4,
+            "max": 4
+          },
+          "missesRange": {
+            "n": 3,
+            "median": 0,
+            "min": 0,
+            "max": 0
+          }
+        },
+        "cold:/core/automatic-transport.mjs:engines": {
+          "hits": 0,
+          "misses": 0,
+          "hitRate": null,
+          "hitRateRange": null,
+          "hitsRange": {
+            "n": 3,
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "missesRange": {
+            "n": 3,
+            "median": 0,
+            "min": 0,
+            "max": 0
+          }
+        },
+        "cold:/core/automatic-transport.mjs:baselines": {
+          "hits": 12,
+          "misses": 0,
+          "hitRate": 1,
+          "hitRateRange": {
+            "n": 3,
+            "median": 1,
+            "min": 1,
+            "max": 1
+          },
+          "hitsRange": {
+            "n": 3,
+            "median": 4,
+            "min": 4,
+            "max": 4
+          },
+          "missesRange": {
+            "n": 3,
+            "median": 0,
+            "min": 0,
+            "max": 0
+          }
+        },
+        "cold:/core/automatic-transport.mjs:derived": {
+          "hits": 30,
+          "misses": 6,
+          "hitRate": 0.833,
+          "hitRateRange": {
+            "n": 3,
+            "median": 0.833,
+            "min": 0.833,
+            "max": 0.833
+          },
+          "hitsRange": {
+            "n": 3,
+            "median": 10,
+            "min": 10,
+            "max": 10
+          },
+          "missesRange": {
+            "n": 3,
+            "median": 2,
+            "min": 2,
+            "max": 2
+          }
+        },
+        "cold:/tasks/boss-gates.mjs:gearCatalogues": {
+          "hits": 30,
+          "misses": 0,
+          "hitRate": 1,
+          "hitRateRange": {
+            "n": 3,
+            "median": 1,
+            "min": 1,
+            "max": 1
+          },
+          "hitsRange": {
+            "n": 3,
+            "median": 10,
+            "min": 10,
+            "max": 10
+          },
+          "missesRange": {
+            "n": 3,
+            "median": 0,
+            "min": 0,
+            "max": 0
+          }
+        },
+        "cold:/core/rules.mjs:preparedRollPools": {
+          "hits": 0,
+          "misses": 0,
+          "hitRate": null,
+          "hitRateRange": null,
+          "hitsRange": {
+            "n": 3,
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "missesRange": {
+            "n": 3,
+            "median": 0,
+            "min": 0,
+            "max": 0
+          }
+        },
+        "cold:/tasks/presentation.mjs:equipmentCatalogues": {
+          "hits": 21,
+          "misses": 0,
+          "hitRate": 1,
+          "hitRateRange": {
+            "n": 3,
+            "median": 1,
+            "min": 1,
+            "max": 1
+          },
+          "hitsRange": {
+            "n": 3,
+            "median": 7,
+            "min": 7,
+            "max": 7
+          },
+          "missesRange": {
+            "n": 3,
+            "median": 0,
+            "min": 0,
+            "max": 0
+          }
+        },
+        "cold:/tasks/access.mjs:itemCache": {
+          "hits": 72,
+          "misses": 0,
+          "hitRate": 1,
+          "hitRateRange": {
+            "n": 3,
+            "median": 1,
+            "min": 1,
+            "max": 1
+          },
+          "hitsRange": {
+            "n": 3,
+            "median": 24,
+            "min": 24,
+            "max": 24
+          },
+          "missesRange": {
+            "n": 3,
+            "median": 0,
+            "min": 0,
+            "max": 0
+          }
+        },
+        "cold:/tasks/access.mjs:accessDetails": {
+          "hits": 3306,
+          "misses": 0,
+          "hitRate": 1,
+          "hitRateRange": {
+            "n": 3,
+            "median": 1,
+            "min": 1,
+            "max": 1
+          },
+          "hitsRange": {
+            "n": 3,
+            "median": 1102,
+            "min": 1102,
+            "max": 1102
+          },
+          "missesRange": {
+            "n": 3,
+            "median": 0,
+            "min": 0,
+            "max": 0
+          }
+        },
+        "cold:/tasks/access.mjs:diagnosticKeys": {
+          "hits": 7899,
+          "misses": 144,
+          "hitRate": 0.982,
+          "hitRateRange": {
+            "n": 3,
+            "median": 0.982,
+            "min": 0.982,
+            "max": 0.982
+          },
+          "hitsRange": {
+            "n": 3,
+            "median": 2633,
+            "min": 2633,
+            "max": 2633
+          },
+          "missesRange": {
+            "n": 3,
+            "median": 48,
+            "min": 48,
+            "max": 48
+          }
+        },
+        "cold:/tasks/worker.mjs:mapLocationResults": {
+          "hits": 0,
+          "misses": 12,
+          "hitRate": 0,
+          "hitRateRange": {
+            "n": 3,
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "hitsRange": {
+            "n": 3,
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "missesRange": {
+            "n": 3,
+            "median": 4,
+            "min": 4,
+            "max": 4
+          }
+        },
+        "cold:/tasks/engine.mjs:variants": {
+          "hits": 48,
+          "misses": 0,
+          "hitRate": 1,
+          "hitRateRange": {
+            "n": 3,
+            "median": 1,
+            "min": 1,
+            "max": 1
+          },
+          "hitsRange": {
+            "n": 3,
+            "median": 16,
+            "min": 16,
+            "max": 16
+          },
+          "missesRange": {
+            "n": 3,
+            "median": 0,
+            "min": 0,
+            "max": 0
+          }
+        },
+        "cold:/tasks/eligibility-cache.mjs:entries": {
+          "hits": 9,
+          "misses": 12,
+          "hitRate": 0.429,
+          "hitRateRange": {
+            "n": 3,
+            "median": 0.429,
+            "min": 0.429,
+            "max": 0.429
+          },
+          "hitsRange": {
+            "n": 3,
+            "median": 3,
+            "min": 3,
+            "max": 3
+          },
+          "missesRange": {
+            "n": 3,
+            "median": 4,
+            "min": 4,
+            "max": 4
+          }
+        },
+        "cold:/tasks/worker.mjs:sandboxTaskIndexes": {
+          "hits": 0,
+          "misses": 3,
+          "hitRate": 0,
+          "hitRateRange": {
+            "n": 3,
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "hitsRange": {
+            "n": 3,
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "missesRange": {
+            "n": 3,
+            "median": 1,
+            "min": 1,
+            "max": 1
+          }
+        },
+        "cold:/tasks/worker.mjs:viewContexts": {
+          "hits": 0,
+          "misses": 0,
+          "hitRate": null,
+          "hitRateRange": null,
+          "hitsRange": {
+            "n": 3,
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "missesRange": {
+            "n": 3,
+            "median": 0,
+            "min": 0,
+            "max": 0
+          }
+        },
+        "cold:/tasks/worker.mjs:snapshots": {
+          "hits": 15,
+          "misses": 3,
+          "hitRate": 0.833,
+          "hitRateRange": {
+            "n": 3,
+            "median": 0.833,
+            "min": 0.833,
+            "max": 0.833
+          },
+          "hitsRange": {
+            "n": 3,
+            "median": 5,
+            "min": 5,
+            "max": 5
+          },
+          "missesRange": {
+            "n": 3,
+            "median": 1,
+            "min": 1,
+            "max": 1
+          }
+        },
+        "cold:/tasks/worker.mjs:stateSnapshots": {
+          "hits": 18,
+          "misses": 0,
+          "hitRate": 1,
+          "hitRateRange": {
+            "n": 3,
+            "median": 1,
+            "min": 1,
+            "max": 1
+          },
+          "hitsRange": {
+            "n": 3,
+            "median": 6,
+            "min": 6,
+            "max": 6
+          },
+          "missesRange": {
+            "n": 3,
+            "median": 0,
+            "min": 0,
+            "max": 0
+          }
+        },
+        "cold:/tasks/unlock-reuse.mjs:staticDigests": {
+          "hits": 0,
+          "misses": 18,
+          "hitRate": 0,
+          "hitRateRange": {
+            "n": 3,
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "hitsRange": {
+            "n": 3,
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "missesRange": {
+            "n": 3,
+            "median": 6,
+            "min": 6,
+            "max": 6
+          }
+        },
+        "cold:/core/rules.mjs:entries": {
+          "hits": 3,
+          "misses": 0,
+          "hitRate": 1,
+          "hitRateRange": {
+            "n": 3,
+            "median": 1,
+            "min": 1,
+            "max": 1
+          },
+          "hitsRange": {
+            "n": 3,
+            "median": 1,
+            "min": 1,
+            "max": 1
+          },
+          "missesRange": {
+            "n": 3,
+            "median": 0,
+            "min": 0,
+            "max": 0
+          }
+        },
+        "cold:/tasks/worker.mjs:sandboxSnapshots": {
+          "hits": 0,
+          "misses": 3,
+          "hitRate": 0,
+          "hitRateRange": {
+            "n": 3,
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "hitsRange": {
+            "n": 3,
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "missesRange": {
+            "n": 3,
+            "median": 1,
+            "min": 1,
+            "max": 1
+          }
+        },
+        "cold:/tasks/worker.mjs:serializedStateSizes": {
+          "hits": 0,
+          "misses": 0,
+          "hitRate": null,
+          "hitRateRange": null,
+          "hitsRange": {
+            "n": 3,
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "missesRange": {
+            "n": 3,
+            "median": 0,
+            "min": 0,
+            "max": 0
+          }
+        },
+        "cold:/core/automatic-transport.mjs:baseline-members": {
+          "hits": 69,
+          "misses": 3,
+          "hitRate": 0.958,
+          "hitRateRange": {
+            "n": 3,
+            "median": 0.958,
+            "min": 0.958,
+            "max": 0.958
+          },
+          "hitsRange": {
+            "n": 3,
+            "median": 23,
+            "min": 23,
+            "max": 23
+          },
+          "missesRange": {
+            "n": 3,
+            "median": 1,
+            "min": 1,
+            "max": 1
+          }
+        },
+        "cold:/core/automatic-transport.mjs:baseline-signatures": {
+          "hits": 9,
+          "misses": 3,
+          "hitRate": 0.75,
+          "hitRateRange": {
+            "n": 3,
+            "median": 0.75,
+            "min": 0.75,
+            "max": 0.75
+          },
+          "hitsRange": {
+            "n": 3,
+            "median": 3,
+            "min": 3,
+            "max": 3
+          },
+          "missesRange": {
+            "n": 3,
+            "median": 1,
+            "min": 1,
+            "max": 1
+          }
+        },
+        "cold:/tasks/obligation-cache.mjs:entries": {
+          "hits": 24273639,
+          "misses": 439578,
+          "hitRate": 0.982,
+          "hitRateRange": {
+            "n": 3,
+            "median": 0.982,
+            "min": 0.982,
+            "max": 0.982
+          },
+          "hitsRange": {
+            "n": 3,
+            "median": 8091213,
+            "min": 8091213,
+            "max": 8091213
+          },
+          "missesRange": {
+            "n": 3,
+            "median": 146526,
+            "min": 146526,
+            "max": 146526
+          }
+        },
+        "cold:/tasks/obligation-cache.mjs:masks": {
+          "hits": 132650391,
+          "misses": 313248,
+          "hitRate": 0.998,
+          "hitRateRange": {
+            "n": 3,
+            "median": 0.998,
+            "min": 0.998,
+            "max": 0.998
+          },
+          "hitsRange": {
+            "n": 3,
+            "median": 44216797,
+            "min": 44216797,
+            "max": 44216797
+          },
+          "missesRange": {
+            "n": 3,
+            "median": 104416,
+            "min": 104416,
+            "max": 104416
+          }
+        },
+        "cold:/core/teleport-return-cache.mjs:return-decisions": {
+          "hits": 0,
+          "misses": 24,
+          "hitRate": 0,
+          "hitRateRange": {
+            "n": 3,
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "hitsRange": {
+            "n": 3,
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "missesRange": {
+            "n": 3,
+            "median": 8,
+            "min": 8,
+            "max": 8
+          }
+        },
+        "cold:/tasks/worker.mjs:death-estimates": {
+          "hits": 3,
+          "misses": 3,
+          "hitRate": 0.5,
+          "hitRateRange": {
+            "n": 3,
+            "median": 0.5,
+            "min": 0.5,
+            "max": 0.5
+          },
+          "hitsRange": {
+            "n": 3,
+            "median": 1,
+            "min": 1,
+            "max": 1
+          },
+          "missesRange": {
+            "n": 3,
+            "median": 1,
+            "min": 1,
+            "max": 1
+          }
+        },
+        "warm:/tasks/fact-projection.mjs:catalogueAliasIndexes": {
+          "hits": 156,
+          "misses": 60,
+          "hitRate": 0.722,
+          "hitRateRange": {
+            "n": 3,
+            "median": 0.722,
+            "min": 0.722,
+            "max": 0.722
+          },
+          "hitsRange": {
+            "n": 3,
+            "median": 52,
+            "min": 52,
+            "max": 52
+          },
+          "missesRange": {
+            "n": 3,
+            "median": 20,
+            "min": 20,
+            "max": 20
+          }
+        },
+        "warm:/core/teleport-return-cache.mjs:worlds": {
+          "hits": 12,
+          "misses": 0,
+          "hitRate": 1,
+          "hitRateRange": {
+            "n": 3,
+            "median": 1,
+            "min": 1,
+            "max": 1
+          },
+          "hitsRange": {
+            "n": 3,
+            "median": 4,
+            "min": 4,
+            "max": 4
+          },
+          "missesRange": {
+            "n": 3,
+            "median": 0,
+            "min": 0,
+            "max": 0
+          }
+        },
+        "warm:/tasks/chunk-planning-index.mjs:definitionIndexes": {
+          "hits": 24,
+          "misses": 0,
+          "hitRate": 1,
+          "hitRateRange": {
+            "n": 3,
+            "median": 1,
+            "min": 1,
+            "max": 1
+          },
+          "hitsRange": {
+            "n": 3,
+            "median": 8,
+            "min": 8,
+            "max": 8
+          },
+          "missesRange": {
+            "n": 3,
+            "median": 0,
+            "min": 0,
+            "max": 0
+          }
+        },
+        "warm:/core/automatic-transport.mjs:configurations": {
+          "hits": 0,
+          "misses": 0,
+          "hitRate": null,
+          "hitRateRange": null,
+          "hitsRange": {
+            "n": 3,
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "missesRange": {
+            "n": 3,
+            "median": 0,
+            "min": 0,
+            "max": 0
+          }
+        },
+        "warm:/core/automatic-transport.mjs:engines": {
+          "hits": 0,
+          "misses": 0,
+          "hitRate": null,
+          "hitRateRange": null,
+          "hitsRange": {
+            "n": 3,
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "missesRange": {
+            "n": 3,
+            "median": 0,
+            "min": 0,
+            "max": 0
+          }
+        },
+        "warm:/core/automatic-transport.mjs:baselines": {
+          "hits": 0,
+          "misses": 0,
+          "hitRate": null,
+          "hitRateRange": null,
+          "hitsRange": {
+            "n": 3,
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "missesRange": {
+            "n": 3,
+            "median": 0,
+            "min": 0,
+            "max": 0
+          }
+        },
+        "warm:/core/automatic-transport.mjs:derived": {
+          "hits": 18,
+          "misses": 0,
+          "hitRate": 1,
+          "hitRateRange": {
+            "n": 3,
+            "median": 1,
+            "min": 1,
+            "max": 1
+          },
+          "hitsRange": {
+            "n": 3,
+            "median": 6,
+            "min": 6,
+            "max": 6
+          },
+          "missesRange": {
+            "n": 3,
+            "median": 0,
+            "min": 0,
+            "max": 0
+          }
+        },
+        "warm:/tasks/boss-gates.mjs:gearCatalogues": {
+          "hits": 30,
+          "misses": 0,
+          "hitRate": 1,
+          "hitRateRange": {
+            "n": 3,
+            "median": 1,
+            "min": 1,
+            "max": 1
+          },
+          "hitsRange": {
+            "n": 3,
+            "median": 10,
+            "min": 10,
+            "max": 10
+          },
+          "missesRange": {
+            "n": 3,
+            "median": 0,
+            "min": 0,
+            "max": 0
+          }
+        },
+        "warm:/core/rules.mjs:preparedRollPools": {
+          "hits": 0,
+          "misses": 0,
+          "hitRate": null,
+          "hitRateRange": null,
+          "hitsRange": {
+            "n": 3,
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "missesRange": {
+            "n": 3,
+            "median": 0,
+            "min": 0,
+            "max": 0
+          }
+        },
+        "warm:/tasks/presentation.mjs:equipmentCatalogues": {
+          "hits": 24,
+          "misses": 0,
+          "hitRate": 1,
+          "hitRateRange": {
+            "n": 3,
+            "median": 1,
+            "min": 1,
+            "max": 1
+          },
+          "hitsRange": {
+            "n": 3,
+            "median": 8,
+            "min": 8,
+            "max": 8
+          },
+          "missesRange": {
+            "n": 3,
+            "median": 0,
+            "min": 0,
+            "max": 0
+          }
+        },
+        "warm:/tasks/access.mjs:itemCache": {
+          "hits": 84,
+          "misses": 0,
+          "hitRate": 1,
+          "hitRateRange": {
+            "n": 3,
+            "median": 1,
+            "min": 1,
+            "max": 1
+          },
+          "hitsRange": {
+            "n": 3,
+            "median": 28,
+            "min": 28,
+            "max": 28
+          },
+          "missesRange": {
+            "n": 3,
+            "median": 0,
+            "min": 0,
+            "max": 0
+          }
+        },
+        "warm:/tasks/access.mjs:accessDetails": {
+          "hits": 5028,
+          "misses": 0,
+          "hitRate": 1,
+          "hitRateRange": {
+            "n": 3,
+            "median": 1,
+            "min": 1,
+            "max": 1
+          },
+          "hitsRange": {
+            "n": 3,
+            "median": 1676,
+            "min": 1676,
+            "max": 1676
+          },
+          "missesRange": {
+            "n": 3,
+            "median": 0,
+            "min": 0,
+            "max": 0
+          }
+        },
+        "warm:/tasks/access.mjs:diagnosticKeys": {
+          "hits": 11919,
+          "misses": 180,
+          "hitRate": 0.985,
+          "hitRateRange": {
+            "n": 3,
+            "median": 0.985,
+            "min": 0.985,
+            "max": 0.985
+          },
+          "hitsRange": {
+            "n": 3,
+            "median": 3973,
+            "min": 3973,
+            "max": 3973
+          },
+          "missesRange": {
+            "n": 3,
+            "median": 60,
+            "min": 60,
+            "max": 60
+          }
+        },
+        "warm:/tasks/worker.mjs:mapLocationResults": {
+          "hits": 6,
+          "misses": 12,
+          "hitRate": 0.333,
+          "hitRateRange": {
+            "n": 3,
+            "median": 0.333,
+            "min": 0.333,
+            "max": 0.333
+          },
+          "hitsRange": {
+            "n": 3,
+            "median": 2,
+            "min": 2,
+            "max": 2
+          },
+          "missesRange": {
+            "n": 3,
+            "median": 4,
+            "min": 4,
+            "max": 4
+          }
+        },
+        "warm:/tasks/engine.mjs:variants": {
+          "hits": 48,
+          "misses": 0,
+          "hitRate": 1,
+          "hitRateRange": {
+            "n": 3,
+            "median": 1,
+            "min": 1,
+            "max": 1
+          },
+          "hitsRange": {
+            "n": 3,
+            "median": 16,
+            "min": 16,
+            "max": 16
+          },
+          "missesRange": {
+            "n": 3,
+            "median": 0,
+            "min": 0,
+            "max": 0
+          }
+        },
+        "warm:/tasks/eligibility-cache.mjs:entries": {
+          "hits": 9,
+          "misses": 15,
+          "hitRate": 0.375,
+          "hitRateRange": {
+            "n": 3,
+            "median": 0.375,
+            "min": 0.375,
+            "max": 0.375
+          },
+          "hitsRange": {
+            "n": 3,
+            "median": 3,
+            "min": 3,
+            "max": 3
+          },
+          "missesRange": {
+            "n": 3,
+            "median": 5,
+            "min": 5,
+            "max": 5
+          }
+        },
+        "warm:/tasks/worker.mjs:sandboxTaskIndexes": {
+          "hits": 0,
+          "misses": 6,
+          "hitRate": 0,
+          "hitRateRange": {
+            "n": 3,
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "hitsRange": {
+            "n": 3,
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "missesRange": {
+            "n": 3,
+            "median": 2,
+            "min": 2,
+            "max": 2
+          }
+        },
+        "warm:/tasks/worker.mjs:viewContexts": {
+          "hits": 0,
+          "misses": 0,
+          "hitRate": null,
+          "hitRateRange": null,
+          "hitsRange": {
+            "n": 3,
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "missesRange": {
+            "n": 3,
+            "median": 0,
+            "min": 0,
+            "max": 0
+          }
+        },
+        "warm:/tasks/worker.mjs:snapshots": {
+          "hits": 36,
+          "misses": 0,
+          "hitRate": 1,
+          "hitRateRange": {
+            "n": 3,
+            "median": 1,
+            "min": 1,
+            "max": 1
+          },
+          "hitsRange": {
+            "n": 3,
+            "median": 12,
+            "min": 12,
+            "max": 12
+          },
+          "missesRange": {
+            "n": 3,
+            "median": 0,
+            "min": 0,
+            "max": 0
+          }
+        },
+        "warm:/tasks/worker.mjs:stateSnapshots": {
+          "hits": 36,
+          "misses": 0,
+          "hitRate": 1,
+          "hitRateRange": {
+            "n": 3,
+            "median": 1,
+            "min": 1,
+            "max": 1
+          },
+          "hitsRange": {
+            "n": 3,
+            "median": 12,
+            "min": 12,
+            "max": 12
+          },
+          "missesRange": {
+            "n": 3,
+            "median": 0,
+            "min": 0,
+            "max": 0
+          }
+        },
+        "warm:/tasks/unlock-reuse.mjs:staticDigests": {
+          "hits": 18,
+          "misses": 18,
+          "hitRate": 0.5,
+          "hitRateRange": {
+            "n": 3,
+            "median": 0.5,
+            "min": 0.5,
+            "max": 0.5
+          },
+          "hitsRange": {
+            "n": 3,
+            "median": 6,
+            "min": 6,
+            "max": 6
+          },
+          "missesRange": {
+            "n": 3,
+            "median": 6,
+            "min": 6,
+            "max": 6
+          }
+        },
+        "warm:/core/rules.mjs:entries": {
+          "hits": 6,
+          "misses": 0,
+          "hitRate": 1,
+          "hitRateRange": {
+            "n": 3,
+            "median": 1,
+            "min": 1,
+            "max": 1
+          },
+          "hitsRange": {
+            "n": 3,
+            "median": 2,
+            "min": 2,
+            "max": 2
+          },
+          "missesRange": {
+            "n": 3,
+            "median": 0,
+            "min": 0,
+            "max": 0
+          }
+        },
+        "warm:/tasks/worker.mjs:sandboxSnapshots": {
+          "hits": 6,
+          "misses": 0,
+          "hitRate": 1,
+          "hitRateRange": {
+            "n": 3,
+            "median": 1,
+            "min": 1,
+            "max": 1
+          },
+          "hitsRange": {
+            "n": 3,
+            "median": 2,
+            "min": 2,
+            "max": 2
+          },
+          "missesRange": {
+            "n": 3,
+            "median": 0,
+            "min": 0,
+            "max": 0
+          }
+        },
+        "warm:/tasks/worker.mjs:serializedStateSizes": {
+          "hits": 0,
+          "misses": 0,
+          "hitRate": null,
+          "hitRateRange": null,
+          "hitsRange": {
+            "n": 3,
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "missesRange": {
+            "n": 3,
+            "median": 0,
+            "min": 0,
+            "max": 0
+          }
+        },
+        "warm:/core/automatic-transport.mjs:baseline-members": {
+          "hits": 36,
+          "misses": 0,
+          "hitRate": 1,
+          "hitRateRange": {
+            "n": 3,
+            "median": 1,
+            "min": 1,
+            "max": 1
+          },
+          "hitsRange": {
+            "n": 3,
+            "median": 12,
+            "min": 12,
+            "max": 12
+          },
+          "missesRange": {
+            "n": 3,
+            "median": 0,
+            "min": 0,
+            "max": 0
+          }
+        },
+        "warm:/core/automatic-transport.mjs:baseline-signatures": {
+          "hits": 0,
+          "misses": 0,
+          "hitRate": null,
+          "hitRateRange": null,
+          "hitsRange": {
+            "n": 3,
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "missesRange": {
+            "n": 3,
+            "median": 0,
+            "min": 0,
+            "max": 0
+          }
+        },
+        "warm:/tasks/obligation-cache.mjs:entries": {
+          "hits": 18469821,
+          "misses": 421266,
+          "hitRate": 0.978,
+          "hitRateRange": {
+            "n": 3,
+            "median": 0.978,
+            "min": 0.978,
+            "max": 0.978
+          },
+          "hitsRange": {
+            "n": 3,
+            "median": 6156607,
+            "min": 6156607,
+            "max": 6156607
+          },
+          "missesRange": {
+            "n": 3,
+            "median": 140422,
+            "min": 140422,
+            "max": 140422
+          }
+        },
+        "warm:/tasks/obligation-cache.mjs:masks": {
+          "hits": 100118139,
+          "misses": 313434,
+          "hitRate": 0.997,
+          "hitRateRange": {
+            "n": 3,
+            "median": 0.997,
+            "min": 0.997,
+            "max": 0.997
+          },
+          "hitsRange": {
+            "n": 3,
+            "median": 33372713,
+            "min": 33372713,
+            "max": 33372713
+          },
+          "missesRange": {
+            "n": 3,
+            "median": 104478,
+            "min": 104478,
+            "max": 104478
+          }
+        },
+        "warm:/core/teleport-return-cache.mjs:return-decisions": {
+          "hits": 12,
+          "misses": 0,
+          "hitRate": 1,
+          "hitRateRange": {
+            "n": 3,
+            "median": 1,
+            "min": 1,
+            "max": 1
+          },
+          "hitsRange": {
+            "n": 3,
+            "median": 4,
+            "min": 4,
+            "max": 4
+          },
+          "missesRange": {
+            "n": 3,
+            "median": 0,
+            "min": 0,
+            "max": 0
+          }
+        },
+        "warm:/tasks/worker.mjs:death-estimates": {
+          "hits": 12,
+          "misses": 0,
+          "hitRate": 1,
+          "hitRateRange": {
+            "n": 3,
+            "median": 1,
+            "min": 1,
+            "max": 1
+          },
+          "hitsRange": {
+            "n": 3,
+            "median": 4,
+            "min": 4,
+            "max": 4
+          },
+          "missesRange": {
+            "n": 3,
+            "median": 0,
+            "min": 0,
+            "max": 0
+          }
+        }
+      }
+    },
+    "after": {
+      "trials": 3,
+      "requests": 63,
+      "warmP95Ms": {
+        "n": 3,
+        "median": 1326.201,
+        "min": 1293.231,
+        "max": 1332.172
+      },
+      "warmRoundMs": {
+        "n": 3,
+        "median": 2841.899,
+        "min": 2824.605,
+        "max": 2847.164
+      },
+      "peakRSSBytes": {
+        "n": 3,
+        "median": 1843671040,
+        "min": 1772691456,
+        "max": 1905795072
+      },
+      "chargedBytes": {
+        "n": 3,
+        "median": 138327382,
+        "min": 138327381,
+        "max": 138398335
+      },
+      "latency": {
+        "evaluate": {
+          "coldP95Ms": {
+            "n": 3,
+            "median": 2347.245,
+            "min": 2219.141,
+            "max": 2399.981
+          },
+          "warmP95Ms": {
+            "n": 3,
+            "median": 695.891,
+            "min": 656.47,
+            "max": 725.463
+          }
+        },
+        "chunk-planning": {
+          "coldP95Ms": {
+            "n": 3,
+            "median": 534.808,
+            "min": 519.243,
+            "max": 571.406
+          },
+          "warmP95Ms": {
+            "n": 3,
+            "median": 1.531,
+            "min": 1.484,
+            "max": 2.148
+          }
+        },
+        "sandbox": {
+          "coldP95Ms": {
+            "n": 3,
+            "median": 3494.12,
+            "min": 3299.478,
+            "max": 3632.967
+          },
+          "warmP95Ms": {
+            "n": 3,
+            "median": 63.903,
+            "min": 62.912,
+            "max": 65.129
+          }
+        },
+        "area-check": {
+          "coldP95Ms": {
+            "n": 3,
+            "median": 1898.934,
+            "min": 1874.891,
+            "max": 2236.207
+          },
+          "warmP95Ms": {
+            "n": 3,
+            "median": 1326.201,
+            "min": 1293.231,
+            "max": 1332.172
+          }
+        },
+        "roll-pool": {
+          "coldP95Ms": {
+            "n": 3,
+            "median": 87.698,
+            "min": 83.989,
+            "max": 92.359
+          },
+          "warmP95Ms": {
+            "n": 3,
+            "median": 109.503,
+            "min": 108.876,
+            "max": 113.316
+          }
+        },
+        "predict": {
+          "coldP95Ms": {
+            "n": 3,
+            "median": 2402.029,
+            "min": 2272.437,
+            "max": 2531.813
+          },
+          "warmP95Ms": {
+            "n": 3,
+            "median": 988.445,
+            "min": 895.806,
+            "max": 991.648
+          }
+        },
+        "death-estimates": {
+          "coldP95Ms": {
+            "n": 3,
+            "median": 544.933,
+            "min": 540.478,
+            "max": 559.991
+          },
+          "warmP95Ms": {
+            "n": 3,
+            "median": 1.427,
+            "min": 1.207,
+            "max": 2.272
+          }
+        }
+      },
+      "caches": {
+        "cold:/tasks/fact-projection.mjs:catalogueAliasIndexes": {
+          "hits": 138,
+          "misses": 60,
+          "hitRate": 0.697,
+          "hitRateRange": {
+            "n": 3,
+            "median": 0.697,
+            "min": 0.697,
+            "max": 0.697
+          },
+          "hitsRange": {
+            "n": 3,
+            "median": 46,
+            "min": 46,
+            "max": 46
+          },
+          "missesRange": {
+            "n": 3,
+            "median": 20,
+            "min": 20,
+            "max": 20
+          }
+        },
+        "cold:/core/teleport-return-cache.mjs:worlds": {
+          "hits": 18,
+          "misses": 6,
+          "hitRate": 0.75,
+          "hitRateRange": {
+            "n": 3,
+            "median": 0.75,
+            "min": 0.75,
+            "max": 0.75
+          },
+          "hitsRange": {
+            "n": 3,
+            "median": 6,
+            "min": 6,
+            "max": 6
+          },
+          "missesRange": {
+            "n": 3,
+            "median": 2,
+            "min": 2,
+            "max": 2
+          }
+        },
+        "cold:/tasks/chunk-planning-index.mjs:definitionIndexes": {
+          "hits": 24,
+          "misses": 3,
+          "hitRate": 0.889,
+          "hitRateRange": {
+            "n": 3,
+            "median": 0.889,
+            "min": 0.889,
+            "max": 0.889
+          },
+          "hitsRange": {
+            "n": 3,
+            "median": 8,
+            "min": 8,
+            "max": 8
+          },
+          "missesRange": {
+            "n": 3,
+            "median": 1,
+            "min": 1,
+            "max": 1
+          }
+        },
+        "cold:/core/automatic-transport.mjs:configurations": {
+          "hits": 12,
+          "misses": 0,
+          "hitRate": 1,
+          "hitRateRange": {
+            "n": 3,
+            "median": 1,
+            "min": 1,
+            "max": 1
+          },
+          "hitsRange": {
+            "n": 3,
+            "median": 4,
+            "min": 4,
+            "max": 4
+          },
+          "missesRange": {
+            "n": 3,
+            "median": 0,
+            "min": 0,
+            "max": 0
+          }
+        },
+        "cold:/core/automatic-transport.mjs:engines": {
+          "hits": 0,
+          "misses": 0,
+          "hitRate": null,
+          "hitRateRange": null,
+          "hitsRange": {
+            "n": 3,
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "missesRange": {
+            "n": 3,
+            "median": 0,
+            "min": 0,
+            "max": 0
+          }
+        },
+        "cold:/core/automatic-transport.mjs:baselines": {
+          "hits": 12,
+          "misses": 0,
+          "hitRate": 1,
+          "hitRateRange": {
+            "n": 3,
+            "median": 1,
+            "min": 1,
+            "max": 1
+          },
+          "hitsRange": {
+            "n": 3,
+            "median": 4,
+            "min": 4,
+            "max": 4
+          },
+          "missesRange": {
+            "n": 3,
+            "median": 0,
+            "min": 0,
+            "max": 0
+          }
+        },
+        "cold:/core/automatic-transport.mjs:derived": {
+          "hits": 30,
+          "misses": 6,
+          "hitRate": 0.833,
+          "hitRateRange": {
+            "n": 3,
+            "median": 0.833,
+            "min": 0.833,
+            "max": 0.833
+          },
+          "hitsRange": {
+            "n": 3,
+            "median": 10,
+            "min": 10,
+            "max": 10
+          },
+          "missesRange": {
+            "n": 3,
+            "median": 2,
+            "min": 2,
+            "max": 2
+          }
+        },
+        "cold:/tasks/boss-gates.mjs:gearCatalogues": {
+          "hits": 30,
+          "misses": 0,
+          "hitRate": 1,
+          "hitRateRange": {
+            "n": 3,
+            "median": 1,
+            "min": 1,
+            "max": 1
+          },
+          "hitsRange": {
+            "n": 3,
+            "median": 10,
+            "min": 10,
+            "max": 10
+          },
+          "missesRange": {
+            "n": 3,
+            "median": 0,
+            "min": 0,
+            "max": 0
+          }
+        },
+        "cold:/core/rules.mjs:preparedRollPools": {
+          "hits": 0,
+          "misses": 0,
+          "hitRate": null,
+          "hitRateRange": null,
+          "hitsRange": {
+            "n": 3,
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "missesRange": {
+            "n": 3,
+            "median": 0,
+            "min": 0,
+            "max": 0
+          }
+        },
+        "cold:/tasks/presentation.mjs:equipmentCatalogues": {
+          "hits": 21,
+          "misses": 0,
+          "hitRate": 1,
+          "hitRateRange": {
+            "n": 3,
+            "median": 1,
+            "min": 1,
+            "max": 1
+          },
+          "hitsRange": {
+            "n": 3,
+            "median": 7,
+            "min": 7,
+            "max": 7
+          },
+          "missesRange": {
+            "n": 3,
+            "median": 0,
+            "min": 0,
+            "max": 0
+          }
+        },
+        "cold:/tasks/access.mjs:itemCache": {
+          "hits": 72,
+          "misses": 0,
+          "hitRate": 1,
+          "hitRateRange": {
+            "n": 3,
+            "median": 1,
+            "min": 1,
+            "max": 1
+          },
+          "hitsRange": {
+            "n": 3,
+            "median": 24,
+            "min": 24,
+            "max": 24
+          },
+          "missesRange": {
+            "n": 3,
+            "median": 0,
+            "min": 0,
+            "max": 0
+          }
+        },
+        "cold:/tasks/access.mjs:accessDetails": {
+          "hits": 3306,
+          "misses": 0,
+          "hitRate": 1,
+          "hitRateRange": {
+            "n": 3,
+            "median": 1,
+            "min": 1,
+            "max": 1
+          },
+          "hitsRange": {
+            "n": 3,
+            "median": 1102,
+            "min": 1102,
+            "max": 1102
+          },
+          "missesRange": {
+            "n": 3,
+            "median": 0,
+            "min": 0,
+            "max": 0
+          }
+        },
+        "cold:/tasks/access.mjs:diagnosticKeys": {
+          "hits": 7899,
+          "misses": 144,
+          "hitRate": 0.982,
+          "hitRateRange": {
+            "n": 3,
+            "median": 0.982,
+            "min": 0.982,
+            "max": 0.982
+          },
+          "hitsRange": {
+            "n": 3,
+            "median": 2633,
+            "min": 2633,
+            "max": 2633
+          },
+          "missesRange": {
+            "n": 3,
+            "median": 48,
+            "min": 48,
+            "max": 48
+          }
+        },
+        "cold:/tasks/worker.mjs:mapLocationResults": {
+          "hits": 54,
+          "misses": 24,
+          "hitRate": 0.692,
+          "hitRateRange": {
+            "n": 3,
+            "median": 0.692,
+            "min": 0.692,
+            "max": 0.692
+          },
+          "hitsRange": {
+            "n": 3,
+            "median": 18,
+            "min": 18,
+            "max": 18
+          },
+          "missesRange": {
+            "n": 3,
+            "median": 8,
+            "min": 8,
+            "max": 8
+          }
+        },
+        "cold:/tasks/engine.mjs:variants": {
+          "hits": 48,
+          "misses": 0,
+          "hitRate": 1,
+          "hitRateRange": {
+            "n": 3,
+            "median": 1,
+            "min": 1,
+            "max": 1
+          },
+          "hitsRange": {
+            "n": 3,
+            "median": 16,
+            "min": 16,
+            "max": 16
+          },
+          "missesRange": {
+            "n": 3,
+            "median": 0,
+            "min": 0,
+            "max": 0
+          }
+        },
+        "cold:/tasks/eligibility-cache.mjs:entries": {
+          "hits": 9,
+          "misses": 12,
+          "hitRate": 0.429,
+          "hitRateRange": {
+            "n": 3,
+            "median": 0.429,
+            "min": 0.429,
+            "max": 0.429
+          },
+          "hitsRange": {
+            "n": 3,
+            "median": 3,
+            "min": 3,
+            "max": 3
+          },
+          "missesRange": {
+            "n": 3,
+            "median": 4,
+            "min": 4,
+            "max": 4
+          }
+        },
+        "cold:/tasks/worker.mjs:sandboxTaskIndexes": {
+          "hits": 0,
+          "misses": 3,
+          "hitRate": 0,
+          "hitRateRange": {
+            "n": 3,
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "hitsRange": {
+            "n": 3,
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "missesRange": {
+            "n": 3,
+            "median": 1,
+            "min": 1,
+            "max": 1
+          }
+        },
+        "cold:/tasks/worker.mjs:viewContexts": {
+          "hits": 66,
+          "misses": 0,
+          "hitRate": 1,
+          "hitRateRange": {
+            "n": 3,
+            "median": 1,
+            "min": 1,
+            "max": 1
+          },
+          "hitsRange": {
+            "n": 3,
+            "median": 22,
+            "min": 22,
+            "max": 22
+          },
+          "missesRange": {
+            "n": 3,
+            "median": 0,
+            "min": 0,
+            "max": 0
+          }
+        },
+        "cold:/tasks/worker.mjs:snapshots": {
+          "hits": 15,
+          "misses": 3,
+          "hitRate": 0.833,
+          "hitRateRange": {
+            "n": 3,
+            "median": 0.833,
+            "min": 0.833,
+            "max": 0.833
+          },
+          "hitsRange": {
+            "n": 3,
+            "median": 5,
+            "min": 5,
+            "max": 5
+          },
+          "missesRange": {
+            "n": 3,
+            "median": 1,
+            "min": 1,
+            "max": 1
+          }
+        },
+        "cold:/tasks/worker.mjs:stateSnapshots": {
+          "hits": 18,
+          "misses": 0,
+          "hitRate": 1,
+          "hitRateRange": {
+            "n": 3,
+            "median": 1,
+            "min": 1,
+            "max": 1
+          },
+          "hitsRange": {
+            "n": 3,
+            "median": 6,
+            "min": 6,
+            "max": 6
+          },
+          "missesRange": {
+            "n": 3,
+            "median": 0,
+            "min": 0,
+            "max": 0
+          }
+        },
+        "cold:/tasks/unlock-reuse.mjs:staticDigests": {
+          "hits": 0,
+          "misses": 18,
+          "hitRate": 0,
+          "hitRateRange": {
+            "n": 3,
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "hitsRange": {
+            "n": 3,
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "missesRange": {
+            "n": 3,
+            "median": 6,
+            "min": 6,
+            "max": 6
+          }
+        },
+        "cold:/core/rules.mjs:entries": {
+          "hits": 3,
+          "misses": 0,
+          "hitRate": 1,
+          "hitRateRange": {
+            "n": 3,
+            "median": 1,
+            "min": 1,
+            "max": 1
+          },
+          "hitsRange": {
+            "n": 3,
+            "median": 1,
+            "min": 1,
+            "max": 1
+          },
+          "missesRange": {
+            "n": 3,
+            "median": 0,
+            "min": 0,
+            "max": 0
+          }
+        },
+        "cold:/tasks/worker.mjs:sandboxSnapshots": {
+          "hits": 0,
+          "misses": 3,
+          "hitRate": 0,
+          "hitRateRange": {
+            "n": 3,
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "hitsRange": {
+            "n": 3,
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "missesRange": {
+            "n": 3,
+            "median": 1,
+            "min": 1,
+            "max": 1
+          }
+        },
+        "cold:/tasks/worker.mjs:serializedStateSizes": {
+          "hits": 0,
+          "misses": 0,
+          "hitRate": null,
+          "hitRateRange": null,
+          "hitsRange": {
+            "n": 3,
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "missesRange": {
+            "n": 3,
+            "median": 0,
+            "min": 0,
+            "max": 0
+          }
+        },
+        "cold:/core/automatic-transport.mjs:baseline-members": {
+          "hits": 69,
+          "misses": 3,
+          "hitRate": 0.958,
+          "hitRateRange": {
+            "n": 3,
+            "median": 0.958,
+            "min": 0.958,
+            "max": 0.958
+          },
+          "hitsRange": {
+            "n": 3,
+            "median": 23,
+            "min": 23,
+            "max": 23
+          },
+          "missesRange": {
+            "n": 3,
+            "median": 1,
+            "min": 1,
+            "max": 1
+          }
+        },
+        "cold:/core/automatic-transport.mjs:baseline-signatures": {
+          "hits": 9,
+          "misses": 3,
+          "hitRate": 0.75,
+          "hitRateRange": {
+            "n": 3,
+            "median": 0.75,
+            "min": 0.75,
+            "max": 0.75
+          },
+          "hitsRange": {
+            "n": 3,
+            "median": 3,
+            "min": 3,
+            "max": 3
+          },
+          "missesRange": {
+            "n": 3,
+            "median": 1,
+            "min": 1,
+            "max": 1
+          }
+        },
+        "cold:/tasks/obligation-cache.mjs:entries": {
+          "hits": 24273639,
+          "misses": 439578,
+          "hitRate": 0.982,
+          "hitRateRange": {
+            "n": 3,
+            "median": 0.982,
+            "min": 0.982,
+            "max": 0.982
+          },
+          "hitsRange": {
+            "n": 3,
+            "median": 8091213,
+            "min": 8091213,
+            "max": 8091213
+          },
+          "missesRange": {
+            "n": 3,
+            "median": 146526,
+            "min": 146526,
+            "max": 146526
+          }
+        },
+        "cold:/tasks/obligation-cache.mjs:masks": {
+          "hits": 132650391,
+          "misses": 313248,
+          "hitRate": 0.998,
+          "hitRateRange": {
+            "n": 3,
+            "median": 0.998,
+            "min": 0.998,
+            "max": 0.998
+          },
+          "hitsRange": {
+            "n": 3,
+            "median": 44216797,
+            "min": 44216797,
+            "max": 44216797
+          },
+          "missesRange": {
+            "n": 3,
+            "median": 104416,
+            "min": 104416,
+            "max": 104416
+          }
+        },
+        "cold:/core/teleport-return-cache.mjs:return-decisions": {
+          "hits": 0,
+          "misses": 24,
+          "hitRate": 0,
+          "hitRateRange": {
+            "n": 3,
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "hitsRange": {
+            "n": 3,
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "missesRange": {
+            "n": 3,
+            "median": 8,
+            "min": 8,
+            "max": 8
+          }
+        },
+        "cold:/tasks/worker.mjs:death-estimates": {
+          "hits": 3,
+          "misses": 3,
+          "hitRate": 0.5,
+          "hitRateRange": {
+            "n": 3,
+            "median": 0.5,
+            "min": 0.5,
+            "max": 0.5
+          },
+          "hitsRange": {
+            "n": 3,
+            "median": 1,
+            "min": 1,
+            "max": 1
+          },
+          "missesRange": {
+            "n": 3,
+            "median": 1,
+            "min": 1,
+            "max": 1
+          }
+        },
+        "warm:/tasks/fact-projection.mjs:catalogueAliasIndexes": {
+          "hits": 156,
+          "misses": 60,
+          "hitRate": 0.722,
+          "hitRateRange": {
+            "n": 3,
+            "median": 0.722,
+            "min": 0.722,
+            "max": 0.722
+          },
+          "hitsRange": {
+            "n": 3,
+            "median": 52,
+            "min": 52,
+            "max": 52
+          },
+          "missesRange": {
+            "n": 3,
+            "median": 20,
+            "min": 20,
+            "max": 20
+          }
+        },
+        "warm:/core/teleport-return-cache.mjs:worlds": {
+          "hits": 0,
+          "misses": 0,
+          "hitRate": null,
+          "hitRateRange": null,
+          "hitsRange": {
+            "n": 3,
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "missesRange": {
+            "n": 3,
+            "median": 0,
+            "min": 0,
+            "max": 0
+          }
+        },
+        "warm:/tasks/chunk-planning-index.mjs:definitionIndexes": {
+          "hits": 24,
+          "misses": 0,
+          "hitRate": 1,
+          "hitRateRange": {
+            "n": 3,
+            "median": 1,
+            "min": 1,
+            "max": 1
+          },
+          "hitsRange": {
+            "n": 3,
+            "median": 8,
+            "min": 8,
+            "max": 8
+          },
+          "missesRange": {
+            "n": 3,
+            "median": 0,
+            "min": 0,
+            "max": 0
+          }
+        },
+        "warm:/core/automatic-transport.mjs:configurations": {
+          "hits": 0,
+          "misses": 0,
+          "hitRate": null,
+          "hitRateRange": null,
+          "hitsRange": {
+            "n": 3,
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "missesRange": {
+            "n": 3,
+            "median": 0,
+            "min": 0,
+            "max": 0
+          }
+        },
+        "warm:/core/automatic-transport.mjs:engines": {
+          "hits": 0,
+          "misses": 0,
+          "hitRate": null,
+          "hitRateRange": null,
+          "hitsRange": {
+            "n": 3,
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "missesRange": {
+            "n": 3,
+            "median": 0,
+            "min": 0,
+            "max": 0
+          }
+        },
+        "warm:/core/automatic-transport.mjs:baselines": {
+          "hits": 0,
+          "misses": 0,
+          "hitRate": null,
+          "hitRateRange": null,
+          "hitsRange": {
+            "n": 3,
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "missesRange": {
+            "n": 3,
+            "median": 0,
+            "min": 0,
+            "max": 0
+          }
+        },
+        "warm:/core/automatic-transport.mjs:derived": {
+          "hits": 0,
+          "misses": 0,
+          "hitRate": null,
+          "hitRateRange": null,
+          "hitsRange": {
+            "n": 3,
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "missesRange": {
+            "n": 3,
+            "median": 0,
+            "min": 0,
+            "max": 0
+          }
+        },
+        "warm:/tasks/boss-gates.mjs:gearCatalogues": {
+          "hits": 0,
+          "misses": 0,
+          "hitRate": null,
+          "hitRateRange": null,
+          "hitsRange": {
+            "n": 3,
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "missesRange": {
+            "n": 3,
+            "median": 0,
+            "min": 0,
+            "max": 0
+          }
+        },
+        "warm:/core/rules.mjs:preparedRollPools": {
+          "hits": 0,
+          "misses": 0,
+          "hitRate": null,
+          "hitRateRange": null,
+          "hitsRange": {
+            "n": 3,
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "missesRange": {
+            "n": 3,
+            "median": 0,
+            "min": 0,
+            "max": 0
+          }
+        },
+        "warm:/tasks/presentation.mjs:equipmentCatalogues": {
+          "hits": 24,
+          "misses": 0,
+          "hitRate": 1,
+          "hitRateRange": {
+            "n": 3,
+            "median": 1,
+            "min": 1,
+            "max": 1
+          },
+          "hitsRange": {
+            "n": 3,
+            "median": 8,
+            "min": 8,
+            "max": 8
+          },
+          "missesRange": {
+            "n": 3,
+            "median": 0,
+            "min": 0,
+            "max": 0
+          }
+        },
+        "warm:/tasks/access.mjs:itemCache": {
+          "hits": 0,
+          "misses": 0,
+          "hitRate": null,
+          "hitRateRange": null,
+          "hitsRange": {
+            "n": 3,
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "missesRange": {
+            "n": 3,
+            "median": 0,
+            "min": 0,
+            "max": 0
+          }
+        },
+        "warm:/tasks/access.mjs:accessDetails": {
+          "hits": 0,
+          "misses": 0,
+          "hitRate": null,
+          "hitRateRange": null,
+          "hitsRange": {
+            "n": 3,
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "missesRange": {
+            "n": 3,
+            "median": 0,
+            "min": 0,
+            "max": 0
+          }
+        },
+        "warm:/tasks/access.mjs:diagnosticKeys": {
+          "hits": 0,
+          "misses": 0,
+          "hitRate": null,
+          "hitRateRange": null,
+          "hitsRange": {
+            "n": 3,
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "missesRange": {
+            "n": 3,
+            "median": 0,
+            "min": 0,
+            "max": 0
+          }
+        },
+        "warm:/tasks/worker.mjs:mapLocationResults": {
+          "hits": 72,
+          "misses": 12,
+          "hitRate": 0.857,
+          "hitRateRange": {
+            "n": 3,
+            "median": 0.857,
+            "min": 0.857,
+            "max": 0.857
+          },
+          "hitsRange": {
+            "n": 3,
+            "median": 24,
+            "min": 24,
+            "max": 24
+          },
+          "missesRange": {
+            "n": 3,
+            "median": 4,
+            "min": 4,
+            "max": 4
+          }
+        },
+        "warm:/tasks/engine.mjs:variants": {
+          "hits": 48,
+          "misses": 0,
+          "hitRate": 1,
+          "hitRateRange": {
+            "n": 3,
+            "median": 1,
+            "min": 1,
+            "max": 1
+          },
+          "hitsRange": {
+            "n": 3,
+            "median": 16,
+            "min": 16,
+            "max": 16
+          },
+          "missesRange": {
+            "n": 3,
+            "median": 0,
+            "min": 0,
+            "max": 0
+          }
+        },
+        "warm:/tasks/eligibility-cache.mjs:entries": {
+          "hits": 24,
+          "misses": 0,
+          "hitRate": 1,
+          "hitRateRange": {
+            "n": 3,
+            "median": 1,
+            "min": 1,
+            "max": 1
+          },
+          "hitsRange": {
+            "n": 3,
+            "median": 8,
+            "min": 8,
+            "max": 8
+          },
+          "missesRange": {
+            "n": 3,
+            "median": 0,
+            "min": 0,
+            "max": 0
+          }
+        },
+        "warm:/tasks/worker.mjs:sandboxTaskIndexes": {
+          "hits": 0,
+          "misses": 6,
+          "hitRate": 0,
+          "hitRateRange": {
+            "n": 3,
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "hitsRange": {
+            "n": 3,
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "missesRange": {
+            "n": 3,
+            "median": 2,
+            "min": 2,
+            "max": 2
+          }
+        },
+        "warm:/tasks/worker.mjs:viewContexts": {
+          "hits": 66,
+          "misses": 0,
+          "hitRate": 1,
+          "hitRateRange": {
+            "n": 3,
+            "median": 1,
+            "min": 1,
+            "max": 1
+          },
+          "hitsRange": {
+            "n": 3,
+            "median": 22,
+            "min": 22,
+            "max": 22
+          },
+          "missesRange": {
+            "n": 3,
+            "median": 0,
+            "min": 0,
+            "max": 0
+          }
+        },
+        "warm:/tasks/worker.mjs:snapshots": {
+          "hits": 36,
+          "misses": 0,
+          "hitRate": 1,
+          "hitRateRange": {
+            "n": 3,
+            "median": 1,
+            "min": 1,
+            "max": 1
+          },
+          "hitsRange": {
+            "n": 3,
+            "median": 12,
+            "min": 12,
+            "max": 12
+          },
+          "missesRange": {
+            "n": 3,
+            "median": 0,
+            "min": 0,
+            "max": 0
+          }
+        },
+        "warm:/tasks/worker.mjs:stateSnapshots": {
+          "hits": 36,
+          "misses": 0,
+          "hitRate": 1,
+          "hitRateRange": {
+            "n": 3,
+            "median": 1,
+            "min": 1,
+            "max": 1
+          },
+          "hitsRange": {
+            "n": 3,
+            "median": 12,
+            "min": 12,
+            "max": 12
+          },
+          "missesRange": {
+            "n": 3,
+            "median": 0,
+            "min": 0,
+            "max": 0
+          }
+        },
+        "warm:/tasks/unlock-reuse.mjs:staticDigests": {
+          "hits": 18,
+          "misses": 18,
+          "hitRate": 0.5,
+          "hitRateRange": {
+            "n": 3,
+            "median": 0.5,
+            "min": 0.5,
+            "max": 0.5
+          },
+          "hitsRange": {
+            "n": 3,
+            "median": 6,
+            "min": 6,
+            "max": 6
+          },
+          "missesRange": {
+            "n": 3,
+            "median": 6,
+            "min": 6,
+            "max": 6
+          }
+        },
+        "warm:/core/rules.mjs:entries": {
+          "hits": 6,
+          "misses": 0,
+          "hitRate": 1,
+          "hitRateRange": {
+            "n": 3,
+            "median": 1,
+            "min": 1,
+            "max": 1
+          },
+          "hitsRange": {
+            "n": 3,
+            "median": 2,
+            "min": 2,
+            "max": 2
+          },
+          "missesRange": {
+            "n": 3,
+            "median": 0,
+            "min": 0,
+            "max": 0
+          }
+        },
+        "warm:/tasks/worker.mjs:sandboxSnapshots": {
+          "hits": 6,
+          "misses": 0,
+          "hitRate": 1,
+          "hitRateRange": {
+            "n": 3,
+            "median": 1,
+            "min": 1,
+            "max": 1
+          },
+          "hitsRange": {
+            "n": 3,
+            "median": 2,
+            "min": 2,
+            "max": 2
+          },
+          "missesRange": {
+            "n": 3,
+            "median": 0,
+            "min": 0,
+            "max": 0
+          }
+        },
+        "warm:/tasks/worker.mjs:serializedStateSizes": {
+          "hits": 0,
+          "misses": 0,
+          "hitRate": null,
+          "hitRateRange": null,
+          "hitsRange": {
+            "n": 3,
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "missesRange": {
+            "n": 3,
+            "median": 0,
+            "min": 0,
+            "max": 0
+          }
+        },
+        "warm:/core/automatic-transport.mjs:baseline-members": {
+          "hits": 0,
+          "misses": 0,
+          "hitRate": null,
+          "hitRateRange": null,
+          "hitsRange": {
+            "n": 3,
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "missesRange": {
+            "n": 3,
+            "median": 0,
+            "min": 0,
+            "max": 0
+          }
+        },
+        "warm:/core/automatic-transport.mjs:baseline-signatures": {
+          "hits": 0,
+          "misses": 0,
+          "hitRate": null,
+          "hitRateRange": null,
+          "hitsRange": {
+            "n": 3,
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "missesRange": {
+            "n": 3,
+            "median": 0,
+            "min": 0,
+            "max": 0
+          }
+        },
+        "warm:/tasks/obligation-cache.mjs:entries": {
+          "hits": 0,
+          "misses": 0,
+          "hitRate": null,
+          "hitRateRange": null,
+          "hitsRange": {
+            "n": 3,
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "missesRange": {
+            "n": 3,
+            "median": 0,
+            "min": 0,
+            "max": 0
+          }
+        },
+        "warm:/tasks/obligation-cache.mjs:masks": {
+          "hits": 0,
+          "misses": 0,
+          "hitRate": null,
+          "hitRateRange": null,
+          "hitsRange": {
+            "n": 3,
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "missesRange": {
+            "n": 3,
+            "median": 0,
+            "min": 0,
+            "max": 0
+          }
+        },
+        "warm:/core/teleport-return-cache.mjs:return-decisions": {
+          "hits": 0,
+          "misses": 0,
+          "hitRate": null,
+          "hitRateRange": null,
+          "hitsRange": {
+            "n": 3,
+            "median": 0,
+            "min": 0,
+            "max": 0
+          },
+          "missesRange": {
+            "n": 3,
+            "median": 0,
+            "min": 0,
+            "max": 0
+          }
+        },
+        "warm:/tasks/worker.mjs:death-estimates": {
+          "hits": 12,
+          "misses": 0,
+          "hitRate": 1,
+          "hitRateRange": {
+            "n": 3,
+            "median": 1,
+            "min": 1,
+            "max": 1
+          },
+          "hitsRange": {
+            "n": 3,
+            "median": 4,
+            "min": 4,
+            "max": 4
+          },
+          "missesRange": {
+            "n": 3,
+            "median": 0,
+            "min": 0,
+            "max": 0
+          }
+        }
+      }
+    }
+  },
+  "eightPickerMeasurementsReusedWithEquivalentExplicitBudget": true,
+  "admissionAt256MiB": {
+    "events": 78,
+    "evictions": 6,
+    "evictionsByReason": {
+      "1": 0,
+      "2": 6,
+      "3": 0
+    },
+    "rejectedEntries": 0,
+    "snapshotLimit": 178956971,
+    "pickerLimit": 134217728,
+    "desiredSnapshotBytes": 259295439,
+    "desiredBytesByPicker": [
+      129777005,
+      129518434
+    ],
+    "completeBytes": [
+      85120069,
+      84990732
+    ],
+    "sandboxBytes": [
+      44656936,
+      44527702
+    ]
+  }
+}
