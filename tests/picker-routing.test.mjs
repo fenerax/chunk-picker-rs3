@@ -681,7 +681,7 @@ test('one process-wide budget refuses another complete upload with a retry while
   } finally { release.resolve(); }
 });
 
-test('a slow admitted backup upload never holds another picker behind it; the newcomer gets a retry', { timeout: 15000 }, async t => {
+test('a slow backup upload is received outside residency; another picker is served meanwhile', { timeout: 15000 }, async t => {
   const f = await fixture(t, { maxOpenContexts: 2 }), a = await f.login('101'), b = await f.login('102');
   const stream = await f.send('/api/events', a, { stream: true });
   const ended = new Promise(resolve => stream.res.once('end', resolve));
@@ -689,14 +689,14 @@ test('a slow admitted backup upload never holds another picker behind it; the ne
   const held = directUpload(f, '/api/restore/preview', { cookie: a, input: slow });
   try {
     await started.promise;
-    // The only private slot is busy with A's upload: B is refused immediately
-    // with a retry instead of waiting for A's body inside the shared queue.
-    const busy = await f.send('/api/state', b);
-    assert.equal(busy.status, 503); assert.equal(busy.headers['retry-after'], '1');
-    assert.equal(stream.res.readableEnded, false);
+    // A's body is received before its context is acquired, so it pins no slot:
+    // B takes the only private slot at once (closing A's stream) instead of
+    // waiting for A's body or getting a retry.
+    const served = await f.send('/api/state', b);
+    assert.equal(served.status, 200); await ended;
     slow.push('{}'); slow.push(null);
     const finished = await held.done; assert.notEqual(finished.status, 503);
-    const next = await f.send('/api/state', b); assert.equal(next.status, 200); await ended;
+    assert.equal((await f.send('/api/state', b)).status, 200);
     assert.equal((await f.send('/api/state', a)).json().state.revision, 0);
   } finally { if (!slow.readableEnded) slow.push(null); }
 });

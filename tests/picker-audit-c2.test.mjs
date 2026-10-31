@@ -197,6 +197,16 @@ test('MP14: a trickled import body ends at the total deadline even while bytes k
   assert.notEqual((await f.send('/api/restore/preview', a, { body: {} })).status, 503, 'the timed-out reader releases the local guard');
 });
 
+test('MP14: trickled owned uploads do not pin picker residency against cold pickers', async t => {
+  // Two owned slots: before the fix each held upload kept its context active, so a third picker got 503.
+  const f = await fixture(t, { maxOpenContexts: 3 });
+  const a = await f.login(subjects[0]), b = await f.login(subjects[1]), c = await f.login(subjects[2]);
+  const uploads = [await slowImport(f, a, a), await slowImport(f, b, b)];
+  const cold = await f.send('/api/state', c);
+  assert.equal(cold.status, 200, cold.text);
+  for (const upload of uploads) assert.equal(await within(upload.result, 10), pending, 'the held uploads are still receiving');
+});
+
 test('MP12C2-2: deleting a picker with an unfinished upload must not block unrelated picker reads',
   async t => {
     const f = await fixture(t), a = await f.login(subjects[0]), b = await f.login(subjects[1]);

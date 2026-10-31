@@ -4,7 +4,7 @@ import { isImportRoute, readBackupRequest, receiveBackupRequest } from './backup
 import { routedBody, rememberRoutedBody, httpError, json } from './picker-context-http.mjs';
 import { checkBodyWith } from './security/json.mjs';
 import { createPickerDeletion } from './picker-router-deletion.mjs';
-import { requestContext } from './security/request.mjs';
+import { requestContext, checkRequestOrigin } from './security/request.mjs';
 import { storeWriteBlocked } from './storage/snapshot.mjs';
 
 const digest = key => createHash('sha256').update(key).digest('hex');
@@ -22,9 +22,13 @@ export function createPickerRouter({ registry, legacy, openContext, publicOrigin
   // single-import guard, so many owners cannot each materialize a large backup
   // at once. Legacy keeps its own guard and is outside this budget.
   let imports = 0;
+  // Owned backup bodies are received after authorization but before their
+  // context is acquired, so a slow body never pins residency. One receipt per
+  // picker; deletion cuts off the deleted picker's receipt.
+  const receiving = new Map();
   let queue = Promise.resolve(), closed = false, closing;
   const deletion = createPickerDeletion({ registry, legacy, backupRetentionMs, afterPurge: () => pickerLimits?.forgetDeleted(),
-    fencePicker: id => { const entry = entries.get(id); if (entry && !entry.closing) entry.context.fenceDeletion(); },
+    fencePicker: id => { const pending = receiving.get(id); if (pending && !pending.complete) pending.destroy(); const entry = entries.get(id); if (entry && !entry.closing) entry.context.fenceDeletion(); },
     fenceSessions: () => {
       legacy.fenceRevokedSessions();
       for (const entry of entries.values()) if (!entry.closing) entry.context.fenceRevokedSessions();
@@ -107,7 +111,7 @@ export function createPickerRouter({ registry, legacy, openContext, publicOrigin
     if (identity && !auth && (identity.pickerId ?? 'legacy') !== pickerId) throw httpError(403, 'Picker access denied.');
     return identity;
   }
-  async function contextFor(request, security, bindBody) {
+  async function contextFor(request, security, bindBody, receiveBackup) {
     let identity, legacyCredential;
     try { identity = legacy.authenticate(request, security); } catch (error) {
       let page;
@@ -184,6 +188,7 @@ export function createPickerRouter({ registry, legacy, openContext, publicOrigin
     if (['/api/picker/delete', '/api/account/delete'].includes(route)) return { deletion: route, identity, security };
     if (pickerId === 'legacy') return { context: legacy, legacyBackup: backup, checkBody };
     if (!identity && !capability) throw httpError(401, 'Access required.');
+    if (backup) await receiveBackup(pickerId, identity);
     const entry = await acquire(pickerId, pickerLimits?.scope(capability ?? identity, pickerId));
     return { context: entry.context, entry, backup, checkBody };
   }
@@ -210,7 +215,7 @@ export function createPickerRouter({ registry, legacy, openContext, publicOrigin
       await registry.revokeCapability('plugin-key', hash);
     },
     async handle(request, response, listener) {
-      let entry, releaseImport, releaseCheckpoint, bindBody;
+      let entry, releaseImport, releaseCheckpoint, bindBody, upload, receivingId;
       try {
         if (closed) throw retry();
         releaseCheckpoint = await checkpoint.enter();
@@ -218,7 +223,18 @@ export function createPickerRouter({ registry, legacy, openContext, publicOrigin
         const options = { ...listener, publicOrigin };
         const security = listener.ingressRole === 'public' ? requestContext(request, options) : requestContextFor(request, options);
         bindBody = pickerLimits?.body(request);
-        const selected = await contextFor(request, security, bindBody); entry = selected.entry;
+        // Mirrors the context's admitImport checks that need no context, so no
+        // body is buffered for a request admitImport would refuse.
+        const receiveBackup = async (pickerId, identity) => {
+          if (!identity) throw httpError(401, 'Access required.');
+          if (identity.pickerId !== pickerId || identity.role !== 'owner' || identity.readOnly) throw httpError(403, 'Picker owner access required.');
+          checkRequestOrigin(request, security);
+          if (receiving.has(pickerId)) throw httpError(503, 'Another backup is being checked or imported. Wait for it to finish, then try again.');
+          receiving.set(pickerId, request); receivingId = pickerId;
+          bindBody?.importing();
+          upload = await receiveBackupRequest(request, { idleTimeoutMs: pickerLimits.config.importBodyIdleMs, totalTimeoutMs: pickerLimits.config.importBodyTotalMs });
+        };
+        const selected = await contextFor(request, security, bindBody, receiveBackup); entry = selected.entry;
         // Match the route exactly as the sign-in handler decodes it, after any
         // /pickers/<id> prefix is rewritten away.
         let signInRoute; try { signInRoute = decodeURIComponent((request.url ?? '/').split('?')[0]); } catch {}
@@ -227,8 +243,6 @@ export function createPickerRouter({ registry, legacy, openContext, publicOrigin
         if (selected.legacyBackup) selected.context.checkImportBody(request, selected.checkBody);
         if (selected.backup) {
           releaseImport = selected.context.admitImport(request, security);
-          bindBody?.importing();
-          const upload = await receiveBackupRequest(request, { idleTimeoutMs: pickerLimits.config.importBodyIdleMs, totalTimeoutMs: pickerLimits.config.importBodyTotalMs });
           if (imports >= maxConcurrentImports) throw Object.assign(httpError(503, 'Another backup is being checked. Wait a moment, then try again.'), { retryAfter: 5 });
           imports++;
           const releaseOwn = releaseImport; let counted = true;
@@ -249,7 +263,7 @@ export function createPickerRouter({ registry, legacy, openContext, publicOrigin
           const badInput = error instanceof SyntaxError || error instanceof TypeError || error instanceof RangeError;
           await json(request, response, error.status ?? (badInput ? 400 : 503), { message: error.status ? error.message : badInput ? 'Invalid request.' : 'The picker is unavailable. Retry in a moment.' });
         }
-      } finally { bindBody?.release(); releaseCheckpoint?.(); releaseImport?.(); if (entry) { entry.active--; if (entries.get(entry.id) === entry) idle(entry); } }
+      } finally { if (receiving.get(receivingId) === request) receiving.delete(receivingId); bindBody?.release(); releaseCheckpoint?.(); releaseImport?.(); if (entry) { entry.active--; if (entries.get(entry.id) === entry) idle(entry); } }
     },
     close() {
       if (closing) return closing;
