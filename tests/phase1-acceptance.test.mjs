@@ -639,3 +639,39 @@ test('MP15 provider cancellation preserves the claim flow for a retry', async t 
   assert.equal((await stateOf(f, cookie)).revision, 1);
   assert.equal((await f.registry()).accounts.find(a => a.id === target.accountId).defaultPickerId, target.id);
 });
+
+test('MP15 reclaim refuses an empty source with linked providers and preserves both sign-ins', async t => {
+  const f = await fixture(t, { registrationsPerAccount: 20 }), target = await restoredAccount(f), cookie = await f.login(B);
+  await f.login(C, cookie, '/auth/link/google');
+  const sourceId = (await f.registry()).accounts.find(a => a.identities.some(i => i.provider === 'discord' && i.subject === String(B))).id;
+  const link = await issueReclaim(f, target.accountId), pending = await openReclaim(f, link, cookie);
+  const before = JSON.stringify(await f.registry());
+  const callback = await f.begin(B, pending);
+  assert.equal((await callback()).status, 409);
+  assert.equal(JSON.stringify(await f.registry()), before);
+  for (const [subject, route] of [[B, '/auth/discord'], [C, '/auth/google']]) {
+    const session = await f.send('/api/session', await f.login(subject, undefined, route));
+    assert.equal(session.status, 200); assert.equal(session.json().accountId, sourceId);
+  }
+  const claimed = await f.login(A, await openReclaim(f, link));
+  assert.equal((await stateOf(f, claimed)).revision, 1);
+});
+
+test('MP15 claim refuses a deleted target default even when another membership survives', async t => {
+  const f = await fixture(t), target = await restoredAccount(f);
+  await f.login(B);
+  const link = await issueReclaim(f, target.accountId);
+  await f.restart(async () => {
+    const registry = await openRegistry(f.multiPicker);
+    try {
+      await registry.attachMembership(target.accountId, { pickerId: await f.picker(B), role: 'viewer', memberId: null });
+      await registry.beginPickerDeletion(target.id);
+    } finally { await registry.close(); }
+  });
+  const callback = await f.begin(C, await openReclaim(f, link));
+  const before = JSON.stringify(await f.registry());
+  const ledgerFile = path.join(f.multiPicker.tombstoneDir, 'ledger.json'), ledger = await readFile(ledgerFile);
+  assert.equal((await callback()).status, 409);
+  assert.equal(JSON.stringify(await f.registry()), before);
+  assert.deepEqual(await readFile(ledgerFile), ledger);
+});

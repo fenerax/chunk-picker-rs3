@@ -282,6 +282,13 @@ export async function openRegistry({ registryDir, pickerRoot, tombstoneDir, lega
     if (!picker) return null;
     return { ...copy(picker), lifecycle: blockedPicker(picker.id)?.lifecycle ?? picker.lifecycle };
   }
+  function relinkTarget(accountId) {
+    const account = visibleAccount(accountId);
+    const picker = account && current.pickers.find(p => p.id === account.defaultPickerId);
+    return account && !account.identities.length && picker?.kind === 'default' && picker.ownerAccountId === account.id
+      && picker.lifecycle === 'active' && picker.provisioning === 'ready' && !blockedPicker(picker.id)
+      && account.memberships.some(m => m.pickerId === picker.id && m.role === 'owner') ? account : null;
+  }
   function checkRelink(code, provider, subject) {
     registryIdentity(provider, subject);
     const refuse = () => { throw error(409, 'This account claim is unavailable. Ask the operator for a new link.'); };
@@ -289,11 +296,11 @@ export async function openRegistry({ registryDir, pickerRoot, tombstoneDir, lega
     const hash = createHash('sha256').update(code).digest('hex');
     const entry = current.relinkCodes?.find(c => c.hash === hash);
     if (!entry || Date.parse(entry.expiresAt) <= now()) refuse();
-    const target = visibleAccount(entry.accountId), source = accountForIdentity(current, provider, subject);
-    if (!target || target.identities.length || !target.memberships.some(m => current.pickers.some(p => p.id === m.pickerId && p.lifecycle === 'active' && !blockedPicker(p.id)))) refuse();
+    const target = relinkTarget(entry.accountId), source = accountForIdentity(current, provider, subject);
+    if (!target) refuse();
     if (source) {
       const picker = current.pickers.find(p => p.id === source.defaultPickerId);
-      if (source.id === target.id || retiredAccounts.has(source.id) || source.memberships.length !== 1
+      if (source.id === target.id || retiredAccounts.has(source.id) || source.identities.length !== 1 || source.memberships.length !== 1
         || source.memberships[0].pickerId !== picker?.id || source.memberships[0].role !== 'owner'
         || picker?.kind !== 'default' || picker.ownerAccountId !== source.id || picker.lifecycle !== 'active' || picker.provisioning !== 'ready' || blockedPicker(picker.id)
         || current.pickers.some(p => p.ownerAccountId === source.id && p.id !== picker.id)) refuse();
@@ -335,8 +342,8 @@ export async function openRegistry({ registryDir, pickerRoot, tombstoneDir, lega
       return path.join(pickerRoot, id);
     },
     issueRelinkCode(accountId, { expiresInMs = 24 * 60 * 60 * 1000 } = {}) { return enqueue(async () => {
-      const account = visibleAccount(accountId);
-      if (!account || account.identities.length || !account.memberships.some(m => current.pickers.some(p => p.id === m.pickerId && p.lifecycle === 'active' && !blockedPicker(p.id)))) throw error(409, 'This account cannot be reclaimed.');
+      const account = relinkTarget(accountId);
+      if (!account) throw error(409, 'This account cannot be reclaimed.');
       if (!Number.isSafeInteger(expiresInMs) || expiresInMs <= 0 || expiresInMs > 24 * 60 * 60 * 1000) throw error(400, 'Invalid claim lifetime.');
       const code = randomBytes(32).toString('base64url'), next = copy(current);
       const expiresAt = new Date(now() + expiresInMs).toISOString();

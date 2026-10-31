@@ -636,6 +636,55 @@ including that guard. Final quick/full results are recorded in the MP15 section
 of [multi-picker-contract.md](../multi-picker-contract.md#mp15-account-reclaim).
 Both suites and both checker modes passed. Public sign-up remains off.
 
+### MP15 adversarial review fixes
+
+Review START `fbb1ec3ef92597587a77310f25d12bc49df844ce`; Linux,
+Node 24.21.0, measured 31 October 2026. Three alternating START/fixed pairs ran
+sequentially with no tests running, using the existing `picker-footprint.mjs`,
+an empty synthetic source, bundled open-f2p, process workers, port zero,
+`--multi-picker` and `--idle-ms 250`. The two-member trial enables routing;
+the fresh solo trial keeps routing absent.
+
+Values are median [minimum–maximum] across three fresh processes per revision.
+Task time and CPU first use the median across members within each trial.
+CPU includes the HTTP process and calculator-host samples, without counting
+calculator threads twice. RSS is the existing harness's reported peak, sampled
+at 50 ms; brief peaks can be missed. These small synthetic trials do not
+establish a performance change or production capacity.
+
+| Synthetic case / measurement | START | Review fixes |
+| --- | --- | --- |
+| Two-member cold full tasks, ms | 297.98 [290.04–298.54] | 294.77 [287.82–303.77] |
+| Two-member warm full tasks, ms | 8.68 [8.22–9.22] | 10.32 [9.44–10.71] |
+| Two-member cold CPU, core-seconds | 0.3110 [0.3010–0.3151] | 0.3185 [0.3056–0.3278] |
+| Two-member reported peak RSS, MiB | 110.03 [108.69–110.43] | 109.34 [109.29–109.58] |
+| Fresh solo cold full tasks, ms | 286.72 [282.05–295.99] | 306.27 [295.41–322.77] |
+| Fresh solo warm full tasks, ms | 15.91 [14.60–17.69] | 16.71 [14.44–19.29] |
+| Fresh solo cold CPU, core-seconds | 0.2989 [0.2959–0.3197] | 0.3192 [0.3131–0.3399] |
+| Fresh solo reported peak RSS, MiB | 107.79 [107.30–109.31] | 108.86 [108.32–109.06] |
+
+
+The final review code also passed `duo-compatibility.mjs` against exact START
+with routing absent and present: **0 response / 0 size / 0 saved-state
+differences**, across **20 paired reads**. Each of the four runs returned
+**83,606,131 bytes**, ordered response-size/hash digest
+`1b4583763d891cc5bbada4fcdcab6b7eff6aebf5f38bfb93d098c08f7e4a60ba`.
+Each saved state remained **766,384 bytes**, SHA-256
+`64de39c55452925587b87af05aa01507513263761bc407f54e81bcbb699acfdc`,
+identical to the source. The private checkout had **0 changed files**.
+
+These compatibility durations are one sample per revision/mode, including
+imports, startup, reads and close, excluding copying. They have no repeated-run
+median or spread. Reported peak RSS uses the checker's existing 50 ms sampling.
+
+| Routing / compatibility measurement | START | Review fixes |
+| --- | --- | --- |
+| Absent wall seconds | 25.51 | 25.21 |
+| Absent reported peak RSS, MiB | 1221.43 | 1256.12 |
+| Present wall seconds | 25.51 | 25.77 |
+| Present reported peak RSS, MiB | 1244.08 | 1174.89 |
+
+
 ## MP14 resource-abuse fixes
 
 START `d51c63d33e3cfaee827222fda555f04a782c1007`. Node 24.21.0, Linux.

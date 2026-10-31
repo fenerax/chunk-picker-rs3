@@ -77,6 +77,33 @@ test('MP15 source with another membership or owned picker refuses without change
   await unchanged(f, () => f.registry.claimIdentity(issued.code, 'discord', 'synthetic-player', { emptyAccountId: source.account.id }));
 });
 
+for (const operation of ['issue', 'claim']) test(`MP15 ${operation} refuses an unavailable target default despite another active membership`, async t => {
+  const f = await fixture(t), r = f.registry;
+  const other = await r.firstLogin('discord', 'synthetic-other-player');
+  await r.attachMembership(f.target.account.id, { pickerId: other.picker.id, role: 'viewer', memberId: null });
+  const issued = await r.issueRelinkCode(f.target.account.id);
+  await r.beginPickerDeletion(f.target.picker.id);
+  const refuse = () => operation === 'issue' ? r.issueRelinkCode(f.target.account.id)
+    : r.claimIdentity(issued.code, 'discord', 'synthetic-player');
+  await unchanged(f, refuse);
+  await reconcileTombstones({ registry: r });
+  // Completion clears defaultPickerId; the other membership must not make a
+  // deleted restored picker reclaimable or silently provision a replacement.
+  await unchanged(f, refuse);
+});
+
+test('MP15 a source with two linked providers refuses without dropping either identity', async t => {
+  const f = await fixture(t), r = f.registry;
+  const source = await r.firstLogin('discord', 'synthetic-player');
+  await r.linkIdentity(source.account.id, 'google', 'synthetic-linked-player');
+  const issued = await r.issueRelinkCode(f.target.account.id);
+  await unchanged(f, () => r.claimIdentity(issued.code, 'discord', 'synthetic-player', { emptyAccountId: source.account.id }));
+  for (const [provider, subject] of [['discord', 'synthetic-player'], ['google', 'synthetic-linked-player']]) {
+    assert.equal(r.findIdentity(provider, subject).id, source.account.id);
+  }
+  assert.equal((await r.claimIdentity(issued.code, 'discord', 'synthetic-new-player')).id, f.target.account.id);
+});
+
 test('MP15 only hashes persist and service backups exclude claim credentials', async t => {
   const f = await fixture(t), issued = await f.registry.issueRelinkCode(f.target.account.id);
   assert.equal(Date.parse(issued.expiresAt) - Date.now() > 86300000, true);

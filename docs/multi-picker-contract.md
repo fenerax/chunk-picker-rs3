@@ -2901,6 +2901,54 @@ retirement and MP5 finishes purge. The final quick/full suites and both duo
 checker modes pass with the checkpoint guard included. The disposition is
 **MERGE-CANDIDATE**. Public sign-up remains off.
 
+### MP15 adversarial review
+
+Review START: `fbb1ec3ef92597587a77310f25d12bc49df844ce`.
+The entire lane diff and surrounding admission, OAuth, mutation, retirement and
+checkpoint paths were inspected. Six new synthetic regressions fail on START.
+
+| Severity | START location | Failing scenario | Regression coverage | Status |
+| --- | --- | --- | --- | --- |
+| P2 | `app/storage/registry.mjs:293` and `:339` | Another active membership lets a deleting/deleted restored default pass target checks. A claim consumes the code and moves the identity before session selection fails, or provisions an unrelated replacement. | `account-reclaim.test.mjs`: issue/claim unavailable-default cases, including completed deletion; `phase1-acceptance.test.mjs`: deleted-target callback preserves registry and ledger bytes. | Fixed |
+| P2 | `app/storage/registry.mjs:355` | Claiming with one of two linked providers retires the source account and silently removes its other identity. That provider subsequently provisions another account. | `account-reclaim.test.mjs`: two-provider source refuses without writes; `phase1-acceptance.test.mjs`: both sign-ins retain the source account and the code remains usable. | Fixed |
+| P2 | `scripts/linux/service-operator.mjs:105` | A refused stopped issuance skips ownership repair after opening the registry has replaced mode-0600 files as the operator. A root invocation leaves the service unable to read them. | `linux-multi-picker.test.mjs`: refused issuance repairs registry and ledger ownership, using distinct POSIX IDs under root. | Fixed |
+
+Issuance and claim now require an active, ready owned default on the target.
+Accounts with only shared memberships refuse; this path cannot restore the
+separate legacy invitation credentials. Sources with multiple linked providers
+also refuse without writes rather than splitting their sign-ins. Moving multiple providers together remains a separate recovery
+enhancement.
+Stopped issuance resolves the service identity before opening the registry and
+repairs ownership in a finally block, including issuance and registry-open errors.
+
+Review validation on Node 24.21.0:
+
+| Run | Passed | Failed | Skipped | Seconds |
+| --- | ---: | ---: | ---: | ---: |
+| Six regressions against exact START application code | 0 | 6 | 0 | 1.60 |
+| Six regressions after fixes | 6 | 0 | 0 | 2.00 |
+| All three touched test files | 78 | 0 | 0 | 72.15 |
+| `npm run test:quick` | 2,835 | 0 | 68 | 180.64 |
+| `npm test` | 5,983 | 0 | 140 | 438.75 |
+
+The touched files cover 21 reclaim tests, 36 Linux operator/recovery tests and
+21 acceptance tests. All runs had zero cancelled tests and zero TODOs. No
+existing test was weakened or skipped. An initial run of the new multi-provider
+HTTP test hit its fixture's sign-in-attempt limit during follow-up logins; the
+final test uses the existing higher-budget fixture option to verify both
+providers, separately from the existing admission-limit tests.
+
+The final review compatibility check had **0 response / 0 size / 0 saved-state
+differences** across **20 paired reads**, with routing absent and present. The
+private checkout had **0 changed files** and an unchanged source-state hash.
+Three alternating footprint pairs and the compatibility timings are recorded in
+[picker-footprint.md](perf/picker-footprint.md#mp15-adversarial-review-fixes).
+All three P2 findings are fixed; no P1 findings or unresolved regressions remain.
+The review recommendation is **MERGE-CANDIDATE**. Public sign-up remains off.
+
+
+
+
 ## MP14 resource-abuse fixes
 
 MP12C2-2: durable deletion fences cancel unfinished request bodies belonging to the deleted picker before draining its accepted work. Picker-local revocation and close waits run outside the global residency queue; closing entries cannot become capacity-eviction victims. Existing accepted-write and crash recovery guarantees still apply.

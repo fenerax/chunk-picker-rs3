@@ -101,10 +101,16 @@ export async function runServiceOperator({ settings, command, argument, evidence
       await stopped();
       const origin = (await readFile(release.config.publicOriginFile, 'utf8')).trim();
       if (new URL(origin).origin !== origin || new URL(origin).protocol !== 'https:') throw new Error('An HTTPS public origin is required.');
-      const registry = await openRegistry({ ...settings.multiPicker, legacyDir: settings.dataDir });
-      let result;
-      try { result = await registry.issueRelinkCode(argument); } finally { await registry.close(); }
-      await repairServiceOwnership({ settings, ...await serviceIdentity() });
+      const identity = await serviceIdentity();
+      let registry, result;
+      try {
+        registry = await openRegistry({ ...settings.multiPicker, legacyDir: settings.dataDir });
+        result = await registry.issueRelinkCode(argument);
+      } finally {
+        // Opening the registry replaces protected files even if issuance refuses.
+        try { await registry?.close(); }
+        finally { await repairServiceOwnership({ settings, ...identity }); }
+      }
       return { claimLink: `${origin}/auth/reclaim?code=${result.code}`, expiresAt: result.expiresAt };
     }
     if (command === 'health') {

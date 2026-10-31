@@ -806,3 +806,23 @@ test('MP15 online operator forwards only the target account through the private 
   assert.equal(calls, 1);
   assert.equal((await f.registry.claimIdentity(new URL(result.claimLink).searchParams.get('code'), 'google', 'synthetic-player')).id, accountId);
 });
+
+test('MP15 refused stopped issuance repairs registry and ledger ownership', async t => {
+  const f = await fixture(t, 1), accountId = f.pickers[1].ownerAccountId;
+  // Keep the target linked so issuance refuses after openRegistry replaces both files.
+  await f.close();
+  const publicOriginFile = path.join(f.root, 'origin'); await writeFile(publicOriginFile, 'https://picker.example');
+  const service = { uid: process.getuid?.() === 0 ? 1001 : process.getuid?.() ?? 0,
+    gid: process.getuid?.() === 0 ? 1001 : process.getgid?.() ?? 0 };
+  let identityReads = 0;
+  await assert.rejects(runServiceOperator({ settings: f.settings, command: 'relink-code', argument: accountId,
+    release: { ...f.release, config: { ...f.release.config, publicOriginFile } },
+    controller: { state: async () => ({ active: false, stopped: true }) },
+    serviceIdentity: async () => { identityReads++; return service; } }), { status: 409 });
+  if (process.getuid) for (const file of [path.join(f.settings.multiPicker.registryDir, 'registry.json'),
+    path.join(f.settings.multiPicker.tombstoneDir, 'ledger.json')]) {
+    const owner = await lstat(file);
+    assert.equal(owner.uid, service.uid); assert.equal(owner.gid, service.gid);
+  }
+  assert.equal(identityReads, 1);
+});
