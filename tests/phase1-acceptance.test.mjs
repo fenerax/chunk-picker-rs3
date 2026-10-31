@@ -16,6 +16,7 @@ const { openRegistry } = await import('../app/storage/registry.mjs');
 const { snapshotPath } = await import('../app/storage/snapshot.mjs');
 const { captureServiceCheckpoint } = await import('../scripts/linux/service-checkpoint.mjs');
 const { restoreServiceStopped } = await import('../scripts/linux/service-recovery.mjs');
+const { runServiceOperator } = await import('../scripts/linux/service-operator.mjs');
 const { readRelease } = await import('../scripts/linux/runtime.mjs');
 const { createServer } = await import('../app/server.mjs');
 const { createGroupState } = await import('../app/core/state.mjs');
@@ -38,7 +39,7 @@ function request(base, route, { body, headers = {}, method = body === undefined 
     req.on('error', reject); req.setTimeout(15000, () => req.destroy(new Error('HTTP acceptance timeout'))); req.end(bytes);
   });
 }
-async function fixture(t, { initiallyEnabled = true, beforeCommit, backupRetentionMs, taskWorkerOptions, runeMetrics, dataset = selectedDataset, ...limits } = {}) {
+async function fixture(t, { initiallyEnabled = true, beforeCommit, backupRetentionMs, taskWorkerOptions, runeMetrics, unauthenticatedLimit = 10000, dataset = selectedDataset, ...limits } = {}) {
   const root = await mkdtemp(path.join(tmpdir(), 'phase1-acceptance-'));
   const secret = path.join(root, 'secret'); await writeFile(secret, 'synthetic-secret');
   const envKeys = ['RS3_DISCORD_CLIENT_ID', 'RS3_DISCORD_CLIENT_SECRET_FILE', 'RS3_GOOGLE_CLIENT_ID', 'RS3_GOOGLE_CLIENT_SECRET_FILE'];
@@ -69,7 +70,7 @@ async function fixture(t, { initiallyEnabled = true, beforeCommit, backupRetenti
       initialState: createGroupState([{ id: 'one', name: 'Player 1' }, { id: 'two', name: 'Player 2' }]),
       port: 0, loopbackPort: 0, loopbackRole: 'public', publicOrigin: origin, signIn: 'optional', signInProvider: provider,
       backupRetentionMs, taskWorkerOptions, runeMetrics, onRequestHandler: value => { handler = value; }, beforeCommit, now: () => Date.parse('2026-10-21T12:00:00.000Z'), multiPicker: multi, predictionPrewarm: false, shutdownDeadlineMs: 500,
-      rateLimits: { unauthenticated: 10000, expensivePerIdentity: 10000 } });
+      rateLimits: { unauthenticated: unauthenticatedLimit, expensivePerIdentity: 10000 } });
     await app.listen();
   };
   await start(initiallyEnabled ? multiPicker : undefined);
@@ -446,6 +447,7 @@ test('P1.8 restoring a service backup containing a later-deleted picker keeps it
   const accountB = (await f.registry()).accounts.find(row => row.defaultPickerId === ids[1]).id;
   const paths = root => ({ dataDir: path.join(root, 'legacy'), controlDir: path.join(root, 'control'), backupDir: path.join(root, 'backups'), scratchRoot: path.join(root, 'scratch'), minFreeBytes: 0,
     multiPicker: { registryDir: path.join(root, 'registry'), pickerRoot: path.join(root, 'pickers'), tombstoneDir: f.multiPicker.tombstoneDir } });
+  let claimLink;
   const live = paths(f.root), recovered = paths(path.join(f.root, 'recovered')), backupId = crypto.randomUUID();
   await f.restart(async () => {
     const registry = await openRegistry(f.multiPicker);
@@ -469,14 +471,16 @@ test('P1.8 restoring a service backup containing a later-deleted picker keeps it
       await rename(path.join(f.root, name), path.join(f.root, 'replaced-' + name));
       await rename(path.join(f.root, 'recovered', name), path.join(f.root, name));
     }
-    // Provider identities are not in the backup. B's account and membership are;
-    // private administration relinks the sign-in (no operator command exists yet).
     const registry = await openRegistry(f.multiPicker);
     try {
       const account = registry.getAccount(accountB);
       assert.deepEqual(account.identities, []); assert.equal(account.defaultPickerId, ids[1]);
-      await registry.linkIdentity(accountB, 'discord', String(B));
     } finally { await registry.close(); }
+    const publicOriginFile = path.join(f.root, 'origin'); await writeFile(publicOriginFile, origin);
+    const issued = await runServiceOperator({ settings: live, release: { ...release, config: { ...release.config, publicOriginFile } },
+      command: 'relink-code', argument: accountB, controller: { state: async () => ({ stopped: true, active: false }) },
+      serviceIdentity: async () => ({ uid: process.getuid(), gid: process.getgid() }) });
+    claimLink = issued.claimLink;
   });
   const doc = await f.registry();
   assert.equal(doc.pickers.find(p => p.id === ids[0])?.lifecycle ?? 'deleted', 'deleted');
@@ -484,8 +488,20 @@ test('P1.8 restoring a service backup containing a later-deleted picker keeps it
   // Credentials are never part of a service backup: A's session and key stay revoked.
   assert.equal((await f.send('/api/state', a)).status, 401);
   assert.equal((await f.send('/api/plugin/v1/status', undefined, { headers: { Authorization: 'Bearer ' + keys[0] } })).status, 401);
-  const again = await f.login(B);
+  // B already signed in after recovery and has only a revision-zero default.
+  const empty = await f.login(B), emptyId = await f.picker(B);
+  const landing = await f.send(new URL(claimLink).pathname + new URL(claimLink).search, empty);
+  assert.equal(landing.status, 303);
+  const pending = landing.headers['set-cookie'][0].split(';')[0];
+  const claimPage = await f.send(landing.headers.location, pending);
+  assert.equal(claimPage.status, 200); assert.match(claimPage.text, /Reclaim your account/);
+  const again = await f.login(B, pending);
   assert.equal(await f.picker(B), ids[1]);
+  assert.notEqual(emptyId, ids[1]);
+  assert.equal((await f.send('/api/state', empty)).status, 401);
+  const ledger = JSON.parse(await readFile(path.join(f.multiPicker.tombstoneDir, 'ledger.json')));
+  assert.equal(ledger.pickers.find(p => p.pickerId === emptyId).purgeProgress, 'complete');
+  assert.equal(ledger.accounts.length, 1);
   const after = await stateOf(f, again);
   assert.equal(after.revision, before.revision); assert.equal(after.members[0].notes['12341'], 'Player 2');
   // A signs in to a fresh empty default, never the deleted game.
@@ -512,4 +528,113 @@ test('P1.9 owner capabilities remain scoped and account/global limits remain sha
   const accountLimit = await f.send('/api/tasks?memberId=owner', a2); assert.equal(accountLimit.status, 429); assert.ok(accountLimit.headers['retry-after']);
   assert.equal((await f.send('/api/tasks?memberId=owner', b)).status, 200);
   const globalLimit = await f.send('/api/tasks?memberId=owner', b); assert.equal(globalLimit.status, 429); assert.ok(globalLimit.headers['retry-after']);
+});
+
+async function issueReclaim(f, accountId) {
+  const response = await f.private('/api/operator/relink-code', { body: { accountId } });
+  assert.equal(response.status, 200);
+  return response.json().claimLink;
+}
+async function openReclaim(f, claimLink, cookie) {
+  const url = new URL(claimLink), response = await f.send(url.pathname + url.search, cookie);
+  assert.equal(response.status, 303);
+  assert.equal(response.headers['referrer-policy'] ?? 'no-referrer', 'no-referrer');
+  return response.headers['set-cookie'][0].split(';')[0];
+}
+async function restoredAccount(f) {
+  const cookie = await f.login(A);
+  await f.note(cookie, 'Player 1', 0);
+  const id = await f.picker(A), accountId = (await f.registry()).accounts.find(a => a.defaultPickerId === id).id;
+  await f.restart(async () => {
+    const registry = await openRegistry(f.multiPicker);
+    try { await registry.unlinkIdentity(accountId, 'discord'); } finally { await registry.close(); }
+  });
+  return { id, accountId };
+}
+for (const provider of ['discord', 'google']) test(`MP15 unlinked ${provider} identity reclaims restored revision and survives restart`, async t => {
+  const f = await fixture(t), target = await restoredAccount(f);
+  const link = await issueReclaim(f, target.accountId), pending = await openReclaim(f, link);
+  const page = await f.send('/auth/reclaim/signin', pending);
+  assert.equal(page.status, 200); assert.match(page.text, /Sign in with Discord/); assert.match(page.text, /Sign in with Google/);
+  assert.equal(page.headers['cache-control'], 'private, no-store'); assert.equal(page.headers['referrer-policy'], 'no-referrer');
+  const cookie = await f.login(B, pending, '/auth/' + provider);
+  const outcome = await f.send('/auth/reclaim/done', cookie);
+  assert.equal(outcome.status, 200); assert.match(outcome.text, /Account reclaimed/);
+  assert.equal((await stateOf(f, cookie)).revision, 1);
+  await f.restart();
+  assert.equal((await stateOf(f, cookie)).revision, 1);
+  const account = (await f.registry()).accounts.find(a => a.id === target.accountId);
+  assert.equal(account.defaultPickerId, target.id); assert.equal(account.identities[0].provider, provider);
+  // Used codes reach the callback and refuse without writing the registry.
+  const before = JSON.stringify(await f.registry());
+  const replay = await f.begin(C, await openReclaim(f, link), '/auth/' + provider);
+  assert.equal((await replay()).status, 409);
+  assert.equal(JSON.stringify(await f.registry()), before);
+});
+
+test('MP15 identity with gameplay refuses 409 and leaves both accounts and code unchanged', async t => {
+  const f = await fixture(t), target = await restoredAccount(f), cookie = await f.login(B);
+  await f.note(cookie, 'Player 2', 0);
+  const link = await issueReclaim(f, target.accountId), pending = await openReclaim(f, link, cookie);
+  const before = JSON.stringify(await f.registry()), state = await stateOf(f, cookie);
+  const callback = await f.begin(B, pending);
+  assert.equal((await callback()).status, 409);
+  assert.equal(JSON.stringify(await f.registry()), before); assert.deepEqual(await stateOf(f, cookie), state);
+  const restored = await f.login(C, await openReclaim(f, link));
+  assert.equal((await stateOf(f, restored)).revision, 1);
+});
+
+test('MP15 gameplay queued before a claim wins and the claim changes nothing', async t => {
+  let armed = false;
+  const entered = Promise.withResolvers(), release = Promise.withResolvers();
+  const f = await fixture(t, { beforeCommit: async () => { if (armed) { entered.resolve(); await release.promise; } } });
+  const target = await restoredAccount(f), cookie = await f.login(B);
+  await stateOf(f, cookie);
+  const pending = await openReclaim(f, await issueReclaim(f, target.accountId), cookie), callback = await f.begin(B, pending);
+  const before = JSON.stringify(await f.registry());
+  armed = true;
+  const note = f.note(cookie, 'Player 2', 0); await entered.promise;
+  try {
+    const claiming = callback(); await settle(); release.resolve();
+    assert.equal((await note).status, 200); assert.equal((await claiming).status, 409);
+    assert.equal(JSON.stringify(await f.registry()), before); assert.equal((await stateOf(f, cookie)).revision, 1);
+  } finally { release.resolve(); }
+});
+
+test('MP15 public and owner callers cannot issue codes; option-absent reclaim stays unavailable', async t => {
+  const f = await fixture(t), cookie = await f.login(A);
+  const accountId = (await f.registry()).accounts.find(a => a.identities.some(i => i.subject === String(A))).id;
+  const before = JSON.stringify(await f.registry());
+  for (const credential of [undefined, cookie]) assert.equal((await f.send('/api/operator/relink-code', credential, { body: { accountId } })).status, 403);
+  assert.equal(JSON.stringify(await f.registry()), before);
+  const absent = await fixture(t, { initiallyEnabled: false });
+  assert.equal((await absent.send('/auth/reclaim')).status, 404);
+});
+
+test('MP15 accepted and refused claim routes share the sign-in rate limit', async t => {
+  const f = await fixture(t, { unauthenticatedLimit: 6 });
+  const cookie = await f.login(A), account = (await f.registry()).accounts[0];
+  await f.restart(async () => {
+    const registry = await openRegistry(f.multiPicker);
+    try { await registry.unlinkIdentity(account.id, 'discord'); } finally { await registry.close(); }
+  });
+  const link = await issueReclaim(f, account.id), pending = await openReclaim(f, link);
+  const callback = await f.begin(B, pending);
+  const claimed = await callback(); assert.equal(claimed.status, 303);
+  // Landing, provider start and callback have each consumed one attempt.
+  for (let i = 0; i < 3; i++) assert.equal((await f.send('/auth/reclaim', cookie)).status, 409);
+  assert.equal((await f.send('/auth/reclaim', cookie)).status, 429);
+  assert.equal((await f.send('/auth/discord', cookie)).status, 429);
+});
+
+test('MP15 provider cancellation preserves the claim flow for a retry', async t => {
+  const f = await fixture(t), target = await restoredAccount(f);
+  const pending = await openReclaim(f, await issueReclaim(f, target.accountId));
+  const started = await f.send('/auth/discord', pending), url = new URL(started.headers.location);
+  const cancelled = await f.send('/auth/discord/callback?state=' + url.searchParams.get('state') + '&error=access_denied', started.headers['set-cookie'][0].split(';')[0]);
+  assert.equal(cancelled.status, 400); assert.match(cancelled.text, /Sign-in cancelled/);
+  const retry = cancelled.headers['set-cookie'].find(value => value.startsWith('__Host-rs3_preauth=') && !value.startsWith('__Host-rs3_preauth=;')).split(';')[0];
+  const cookie = await f.login(B, retry);
+  assert.equal((await stateOf(f, cookie)).revision, 1);
+  assert.equal((await f.registry()).accounts.find(a => a.id === target.accountId).defaultPickerId, target.id);
 });

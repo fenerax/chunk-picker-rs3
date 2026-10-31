@@ -189,7 +189,7 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
     invites = await openInviteStore({ dataDir, masterToken: token, masterLabel: dataset.gameDefaults.masterLabel, accounts, signInMode: signIn, pickerRegistry: pickerRouting?.registry });
     if (pickerRouting?.authenticate) invites.authenticate = (request, security) => pickerRouting.authenticate(request, security, pickerId);
     signInFlow = await openSignIn({ publicOrigin, mode: signIn, accounts, invites, provider: signInProvider,
-      unauthenticated: key => limits.unauthenticated(key), checkRequestOrigin, serializeMutation, webRoot, pickerRegistry: pickerLimits && pickerRouting?.registry ? pickerLimits.provisioningRegistry(pickerRouting.registry) : pickerRouting?.registry, syncLegacy: pickerRouting?.syncLegacy });
+      unauthenticated: key => limits.unauthenticated(key), checkRequestOrigin, serializeMutation, webRoot, pickerRegistry: pickerLimits && pickerRouting?.registry ? pickerLimits.provisioningRegistry(pickerRouting.registry) : pickerRouting?.registry, syncLegacy: pickerRouting?.syncLegacy, reclaimIdentity: pickerRouting?.reclaimIdentity });
     feedback = await openFeedbackStore({ dataDir });
     const usageMembers = store.getCalculationSnapshot().members;
     usageStorage = await openUsageStore({ dataDir, readOnly: liveSwap?.standby === true,
@@ -1866,6 +1866,12 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
   let activationPending;
   const context = {
     pickerId, store,
+    withEmptyDefault(work) {
+      return serializeMutation(() => {
+        if (closed || store.getInfo().revision !== 0) throw httpError(409, 'This sign-in already has gameplay.');
+        return work();
+      });
+    },
     fenceRevokedSessions: () => endInactiveClients(),
     revokeDeletionSessions: scope => invites.revokeDeletion(scope),
     async revokeDeletedAccount(accountId) {

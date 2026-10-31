@@ -1606,7 +1606,7 @@ used in tests.
 | Interleaved colliding jobs, stale delivery, cancellation/crash/restart and eviction during queued writes; B survives | Both P1.5 cases | MP3 `picker-jobs.test.mjs`; MP4 `picker-routing.test.mjs`; MP5 `picker-deletion.test.mjs`; MP7 `picker-fairness-isolation.test.mjs` |
 | Racing/crashed provisioning, one empty default, unchanged shared exception and separate ownership slots | P1.6; `phase1-acceptance-crash.test.mjs`: six P1.6 process-death boundaries | MP1 `registry.test.mjs`; MP4 `picker-routing.test.mjs`, `picker-routing-crash.test.mjs` |
 | Browser switch/logout during queued commands clears views/streams/preferences/recovery without replay | Both P1.7 cases | MP6 `picker-browser-session.test.mjs`; MP9 `picker-owner-ui.test.mjs` |
-| Service backup containing a deleted picker honors tombstones, revoked credentials and unchanged B | P1.8 (MP8 service backup, HTTP deletion, stopped restore, real server reopen) | MP8 `linux-multi-picker.test.mjs`, `linux-service-crash.test.mjs`; MP1 `registry.test.mjs`; MP5 `picker-deletion.test.mjs`, `picker-deletion-crash.test.mjs` cover checkpoint reconciliation, not MP8 service restoration |
+| Service backup containing a deleted picker honors tombstones, revoked credentials and unchanged B | P1.8 (MP8 service backup, HTTP deletion, stopped restore, MP15 operator code, OAuth reclaim, real server reopen) | MP8 `linux-multi-picker.test.mjs`, `linux-service-crash.test.mjs`; MP1 `registry.test.mjs`; MP5 `picker-deletion.test.mjs`, `picker-deletion-crash.test.mjs` cover checkpoint reconciliation, not MP8 service restoration |
 | Owner capabilities stay scoped; operator powers remain private; global budgets shared | P1.9 | MP4 `picker-routing.test.mjs`; MP7 `picker-limits-http.test.mjs`, `picker-limits.test.mjs`, `picker-fairness-isolation.test.mjs`; MP9 `picker-owner-ui.test.mjs` |
 
 The new files are explicitly quick/open-f2p in `scripts/test-selection.mjs`.
@@ -1779,11 +1779,12 @@ directory, A's session and plugin key return 401, and A's next sign-in gets a
 fresh empty default.
 
 B's account, membership, default picker and revision come back unchanged. The
-service format excludes provider identities by design, so B's sign-in must be
-relinked before B can reach that picker. No operator command for this exists
-yet. The test relinks through the registry storage API as a stand-in for that
-private administration. Without a relink, a returning player signs in to a new
-empty picker. That gap is an open operator follow-up and is not fixed here.
+service format excludes provider identities by design. MP15 supplies the operator
+claim-code path: the stopped operator issues B a private link; B first signs in
+to an empty default, then claims the restored account through synthetic OAuth.
+The empty account is retired and purged, its external tombstone survives, and B
+opens the restored picker at the same revision. A then signs in fresh and gets
+a new empty default. The test no longer relinks identities directly.
 
 Acceptance cases: 18 passed, 0 failed, 0 skipped, 0 TODO
 (`phase1-acceptance.test.mjs` plus `phase1-acceptance-crash.test.mjs`, Node 24.19.0).## MP11 calculator cap
@@ -2186,7 +2187,7 @@ item evidence. It excludes provider identities, capabilities, sign-in/account
 sidecars, invitations, sessions, plugin keys, access tokens, overlay links,
 feedback and usage. Unknown sidecars are excluded by default. Registry account
 IDs and explicit memberships survive; authentication must be established anew
-through private administration. No credentials are imported from a service backup.
+through the MP15 private operator claim-code command. No credentials are imported from a service backup.
 The live tombstone ledger is never included or replaced.
 
 The existing single-directory `picker-recovery-v1` backup still includes the
@@ -2582,3 +2583,111 @@ Windows execution was not available in this environment.
 The START Windows syncRecoveryTree r+ fix, JSON plugin-key fixture, and MP7
 pickerDirectory fixture are retained. OPS1's scripts/linux/files.mjs and
 scripts/linux/operator.mjs were not edited. No new test file needed classification.
+
+
+## MP15 account reclaim
+
+START: `5fce2f3984a4fdf1ea3ab4fe8935733045e3c478`. Public sign-up remains off
+and all reclaim behavior requires `multiPicker`; the option-absent sign-in and
+shared duo routes retain their existing behavior.
+
+Run `node scripts/linux/operator.mjs relink-code ACCOUNT_ID` using the pinned
+service configuration. An active service issues through the private master
+Bearer endpoint `/api/operator/relink-code`. A deliberately stopped service
+checks writer ownership, opens the registry, issues, closes and repairs service
+ownership. Maintenance evidence blocks issuance. No provider subject is supplied.
+The command returns and prints one private claim link. Relay it privately;
+application diagnostics and tests never log the link or its code.
+
+Codes contain 256 random bits, expire after 24 hours, and are stored only as
+SHA-256 hashes with account ID and expiry in the registry. Reissuing replaces
+that account's previous code. Service recovery checkpoints exclude codes, provider identities and capabilities.
+A raw stopped checkpoint with pending retirement intent refuses with 409. Restart
+the service to replay the intent into the external ledger before taking a backup;
+the checkpoint must never silently discard that intent.
+Missing, retired, identity-linked or unavailable target accounts cannot receive
+codes. Used, expired, revoked or malformed codes and a target that gained an
+identity return 409 without registry or ledger writes.
+
+The claim link sets short-lived server-side preauth state and redirects to a
+clean address. The existing sign-in page, CSS, provider buttons, OAuth state,
+PKCE, cookie binding, provider validation and unauthenticated rate budget apply.
+No provider receives the claim code. Cancellation preserves claim state for a
+retry. Success states that the account was reclaimed and links to the picker;
+refusal explains that the operator can supply a new link.
+
+An unlinked identity attaches to the target. An identity with only its empty
+default can move: the router holds that picker's mutation queue, checks revision
+0, then the registry checks exactly one owner membership and no other owned
+pickers. Gameplay committed or queued first causes 409 and preserves the code.
+Other memberships, additional owned pickers and unavailable sources also refuse.
+The registry rechecks the code, target and identity owner inside its own queue.
+
+One atomic registry replacement moves the identity, consumes the code and
+records retirement intent. The committed source is fenced synchronously. The
+same retirement helper as normal account deletion writes the external ledger;
+normal MP5 reconciliation revokes sessions and capabilities, drains the picker,
+purges data and marks deletion complete. Startup finishes any committed intent
+before provisioning or exposing accounts. Retired IDs and issued picker IDs
+remain in the external ledger and cannot be reused. A crash before the registry
+commit retains the old identity and code; a crash after it retains the new
+identity and consumed code, with retirement resumed on restart. A failed
+post-commit operation requires registry restart.
+
+Synthetic coverage lives in `account-reclaim.test.mjs` (classified quick),
+`phase1-acceptance.test.mjs` and `linux-multi-picker.test.mjs`. There are process
+kills at the four claim boundaries and seven normal deletion boundaries.
+P1.8 exercises stopped issuance, a post-restore empty account, OAuth reclaim,
+same-revision restored access, source retirement and A's independent fresh picker.
+Both configured providers, concurrent claims, cancellation, private operator
+admission, rate limits and a gameplay-write race have executable cases.
+
+Final validation on Node 24.21.0 includes the stopped-checkpoint guard:
+
+| Suite | Passed | Failed | Skipped | TODO | Seconds |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Quick | 2,790 | 0 | 67 | 0 | 231.90 |
+| Full | 5,938 | 0 | 139 | 0 | 607.35 |
+
+Each suite ran once on the final implementation. Both executed all 18
+`account-reclaim.test.mjs` cases, including the 11 process kills and the stopped
+checkpoint regression. There were 0 cancelled tests and no failure reruns.
+A synthetic interruption had reproduced 1 pending retirement becoming 0 in a
+sanitized checkpoint and restoring 1 source account with 0 external retirements.
+The final guard refuses that export until registry replay records the retirement
+in the external ledger. The focused guard run also passed 18/0/0/0.
+
+Other focused files passed: registry 25/0, Linux multi-picker operator/recovery
+35/0, routing 37/0, sign-in server/provider 24/0 and 2/0, acceptance 19/0.
+Four direct comparisons of existing sign-in HTML against START had 0 differences.
+The existing option-absent and legacy tests passed in both initial suites.
+
+| Refusal | Exact test name |
+| --- | --- |
+| Missing, retired, deleted-picker or identity-linked issuance target | `MP15 issue refuses missing, retired, deleted-picker and linked accounts` |
+| Used, expired, revoked or malformed code | `MP15 used, expired, revoked and malformed codes refuse without registry or ledger writes` |
+| Target gained an identity or was retired | `MP15 target gaining an identity or being retired refuses without changes` |
+| Source has another membership or owned picker | `MP15 source with another membership or owned picker refuses without changes` |
+| Source has committed gameplay | `MP15 identity with gameplay refuses 409 and leaves both accounts and code unchanged` |
+| Gameplay write queued before the claim | `MP15 gameplay queued before a claim wins and the claim changes nothing` |
+| Concurrent reuse | `MP15 concurrent claims consume once and link exactly one identity` |
+| Public or owner attempts to issue | `MP15 public and owner callers cannot issue codes; option-absent reclaim stays unavailable` |
+| Exhausted sign-in rate budget | `MP15 accepted and refused claim routes share the sign-in rate limit` |
+| Stopped checkpoint would discard pending retirement | `MP15 stopped checkpoint refuses pending retirement until registry replay records the external ledger` |
+
+The final-code duo checker passed with **0 response / 0 size / 0 saved-state
+differences** with routing absent and present, across **20** paired reads.
+The private checkout had **0** changed files, and the source-state hash stayed
+unchanged. Three alternating synthetic footprint pairs, ranges, reported peak
+RSS and the final-code checker's single-sample timings are recorded in
+[picker-footprint.md](perf/picker-footprint.md#mp15-account-reclaim).
+The synthetic footprint pairs preceded the final checkpoint guard; the complete
+quick/full suites and both duo modes were subsequently rerun with that guard
+included. These measurements do not establish production capacity or a speed
+change.
+
+A crash after the registry commit can consume a code before the browser receives
+success. Normal sign-in then opens the reclaimed account; registry startup replays
+retirement and MP5 finishes purge. The final quick/full suites and both duo
+checker modes pass with the checkpoint guard included. The disposition is
+**MERGE-CANDIDATE**. Public sign-up remains off.

@@ -2,7 +2,7 @@ import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { chown, readFile, rm } from 'node:fs/promises';
 import { snapshotPath } from '../../app/storage/snapshot.mjs';
-import { registryRecoveryDocument } from '../../app/storage/registry.mjs';
+import { openRegistry, registryRecoveryDocument } from '../../app/storage/registry.mjs';
 import { lockRegistry } from '../../app/storage/registry-lock.mjs';
 import { assertReleased, atomic, directory, encode, exists, headroom, inventory, json, noLinks } from './files.mjs';
 import { assertSameRelease, readRelease } from './runtime.mjs';
@@ -94,12 +94,24 @@ export async function runServiceOperator({ settings, command, argument, evidence
       const previous = await json(pause);
       if (!(command === 'restore' && previous.command === 'service-restore' && previous.backup === path.resolve(argument) || command === 'quarantine-release' && previous.command === command && previous.id === argument)) throw new Error('Reconcile maintenance evidence before continuing.');
     }
+    if (command === 'relink-code') {
+      if (!argument) throw new Error('Relink-code requires an account ID.');
+      if ((await controller.state()).active) return request(release, '/api/operator/relink-code', 'POST', { accountId: argument });
+      await stopped();
+      const origin = (await readFile(release.config.publicOriginFile, 'utf8')).trim();
+      if (new URL(origin).origin !== origin || new URL(origin).protocol !== 'https:') throw new Error('An HTTPS public origin is required.');
+      const registry = await openRegistry({ ...settings.multiPicker, legacyDir: settings.dataDir });
+      let result;
+      try { result = await registry.issueRelinkCode(argument); } finally { await registry.close(); }
+      await repairServiceOwnership({ settings, ...await serviceIdentity() });
+      return { claimLink: `${origin}/auth/reclaim?code=${result.code}`, expiresAt: result.expiresAt };
+    }
     if (command === 'health') {
       // Same operator warnings as the single-duo path, from the same status file.
       await serviceBackupWarnings(settings);
       return healthRecovery({ settings, release, controller, request, assertStopped: stopped });
     }
-    if (!['backup', 'restore', 'quarantine-release', 'deploy'].includes(command)) throw new Error('Use health, backup, restore, deploy, list, inspect or quarantine-release.');
+    if (!['backup', 'restore', 'quarantine-release', 'deploy'].includes(command)) throw new Error('Use health, backup, restore, deploy, list, inspect, relink-code or quarantine-release.');
     const wasActive = (await controller.state()).active;
     if (['restore', 'quarantine-release'].includes(command) && wasActive) throw new Error('Recovery requires a deliberately stopped service.');
     if (command === 'backup' && argument && argument !== '--stopped') throw new Error('Use backup or backup --stopped.');

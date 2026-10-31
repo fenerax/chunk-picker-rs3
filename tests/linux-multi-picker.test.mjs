@@ -774,3 +774,35 @@ test('stopped ownership reclaims a dead MP5 reconciliation lock but refuses live
   await assert.rejects(assertServiceStopped(f.settings, controller), /ownership/);
   assert.deepEqual(await readFile(lock), foreign);
 });
+
+test('MP15 stopped operator issues one private link without provider subjects and revokes the prior code', async t => {
+  const f = await fixture(t, 1), accountId = f.pickers[1].ownerAccountId;
+  await f.registry.unlinkIdentity(accountId, 'discord'); await f.close();
+  const publicOriginFile = path.join(f.root, 'origin'); await writeFile(publicOriginFile, 'https://picker.example');
+  const options = { settings: f.settings, command: 'relink-code', argument: accountId,
+    release: { ...f.release, config: { ...f.release.config, publicOriginFile } },
+    controller: { state: async () => ({ active: false, stopped: true }) },
+    serviceIdentity: async () => ({ uid: process.getuid(), gid: process.getgid() }) };
+  const first = await runServiceOperator(options), second = await runServiceOperator(options);
+  const code = result => new URL(result.claimLink).searchParams.get('code');
+  const registry = await openRegistry(f.settings.multiPicker); f.cleanup(() => registry.close());
+  await assert.rejects(registry.claimIdentity(code(first), 'discord', 'synthetic-player'), { status: 409 });
+  assert.equal((await registry.claimIdentity(code(second), 'discord', 'synthetic-player')).id, accountId);
+  assert.equal((await readFile(path.join(f.settings.multiPicker.registryDir, 'registry.json'), 'utf8')).includes(code(second)), false);
+});
+
+test('MP15 online operator forwards only the target account through the private API', async t => {
+  const f = await fixture(t, 1), accountId = f.pickers[1].ownerAccountId;
+  await f.registry.unlinkIdentity(accountId, 'discord');
+  let calls = 0;
+  const result = await runServiceOperator({ settings: f.settings, command: 'relink-code', argument: accountId, release: f.release,
+    controller: { state: async () => ({ active: true, stopped: false }) },
+    request: async (release, route, method, body) => {
+      calls++; assert.equal(release, f.release); assert.equal(route, '/api/operator/relink-code'); assert.equal(method, 'POST');
+      assert.deepEqual(body, { accountId });
+      const issued = await f.registry.issueRelinkCode(body.accountId);
+      return { claimLink: 'https://picker.example/auth/reclaim?code=' + issued.code };
+    } });
+  assert.equal(calls, 1);
+  assert.equal((await f.registry.claimIdentity(new URL(result.claimLink).searchParams.get('code'), 'google', 'synthetic-player')).id, accountId);
+});

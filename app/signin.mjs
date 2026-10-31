@@ -45,7 +45,7 @@ function page(response, input, status = 200) {
 
 /** OAuth state and tokens remain in this process; only provider subjects reach storage. */
 export async function openSignIn({ publicOrigin, mode = 'off', accounts, invites, provider = {}, unauthenticated = () => {},
-  checkRequestOrigin, serializeMutation = operation => operation(), webRoot, pickerRegistry, syncLegacy } = {}) {
+  checkRequestOrigin, serializeMutation = operation => operation(), webRoot, pickerRegistry, syncLegacy, reclaimIdentity } = {}) {
   if (!['off', 'optional', 'required'].includes(mode)) throw new TypeError('RS3_SIGNIN must be off, optional or required.');
   if (mode !== 'off' && (!publicOrigin || new URL(publicOrigin).protocol !== 'https:' || new URL(publicOrigin).origin !== publicOrigin)) throw new TypeError('Sign-in requires an HTTPS public origin.');
   const now = provider?.now ?? Date.now;
@@ -209,6 +209,25 @@ export async function openSignIn({ publicOrigin, mode = 'off', accounts, invites
         response.writeHead(200, { 'Content-Type': 'text/css; charset=utf-8', 'Cache-Control': 'private, no-store' });
         response.end(request.method === 'HEAD' ? undefined : css); return true;
       }
+      if (request.method === 'GET' && route === '/auth/reclaim' && pickerRegistry && reclaimIdentity) {
+        const query = new URL(request.url, publicOrigin).searchParams;
+        const code = query.get('code');
+        if (query.getAll('code').length !== 1 || !/^[A-Za-z0-9_-]{43}$/.test(code ?? '')) throw failure(409, 'This account claim is unavailable. Ask the operator for a new link.');
+        put(request, response, { reclaimCode: code });
+        // Strip the secret from the address before presenting provider links.
+        response.setHeader('Referrer-Policy', 'no-referrer');
+        redirect(response, '/auth/reclaim/signin'); return true;
+      }
+      if (request.method === 'GET' && route === '/auth/reclaim/signin' && pickerRegistry && reclaimIdentity) {
+        const entry = pending.get(cookie(request));
+        prune();
+        if (!entry?.reclaimCode || entry.expires <= now()) throw failure(409, 'This account claim has expired. Reopen the operator’s link.');
+        page(response, { providers, heading: 'Reclaim your account', message: 'Sign in to open your restored picker. An empty picker created after recovery will be retired.' }); return true;
+      }
+      if (request.method === 'GET' && route === '/auth/reclaim/done' && pickerRegistry) {
+        if (identity?.kind !== 'account') throw failure(401, 'Sign in to open your restored picker.');
+        page(response, { heading: 'Account reclaimed', message: 'Your sign-in is linked to your restored account.', home: true, help: false }); return true;
+      }
       if (request.method === 'GET' && route === '/auth/signin') {
         take(request, response);
         page(response, { providers, heading: 'Sign in', message: providers.length ? 'Use your linked account to open this game.' : 'No sign-in providers are configured. Ask the game administrator for help.' }); return true;
@@ -245,7 +264,7 @@ export async function openSignIn({ publicOrigin, mode = 'off', accounts, invites
         const query = new URL(request.url, publicOrigin).searchParams;
         if (!configured.has(name) || !entry || entry.provider !== name || query.getAll('state').length !== 1 || !equal(query.get('state'), entry.state)) throw failure(400, 'This sign-in request has expired. Start again; if you were joining, reopen the invite link.');
         if (query.has('error')) {
-          if (entry.inviteId) put(request, response, { inviteId: entry.inviteId });
+          if (entry.inviteId || entry.reclaimCode) put(request, response, entry.reclaimCode ? { reclaimCode: entry.reclaimCode } : { inviteId: entry.inviteId });
           page(response, { providers, heading: 'Sign-in cancelled', message: 'You can try signing in again.' }, 400); return true;
         }
         const code = query.get('code');
@@ -257,10 +276,16 @@ export async function openSignIn({ publicOrigin, mode = 'off', accounts, invites
         let subject;
         try { subject = await subjectFor(name, code, entry); }
         catch (error) {
-          if (entry.inviteId) put(request, response, { inviteId: entry.inviteId });
+          if (entry.inviteId || entry.reclaimCode) put(request, response, entry.reclaimCode ? { reclaimCode: entry.reclaimCode } : { inviteId: entry.inviteId });
           throw error;
         }
         await serializeMutation(async () => {
+          if (entry.reclaimCode && pickerRegistry && reclaimIdentity) {
+            const account = await reclaimIdentity(entry.reclaimCode, name, subject);
+            const picker = await pickerRegistry.ensureDefaultPicker(account.id);
+            const token = await invites.issuePickerSession(account.id, picker.id, name);
+            addCookie(response, invites.cookie(token, security)); redirect(response, '/auth/reclaim/done'); return;
+          }
           // Explicit duo invites and established live memberships keep the invite path.
           // Otherwise provisioning belongs to the recoverable registry transaction.
           const legacy = accounts.findIdentity(name, subject);
@@ -299,6 +324,7 @@ export async function openSignIn({ publicOrigin, mode = 'off', accounts, invites
         if (!config) throw failure(404, 'This sign-in provider is unavailable.');
         prune();
         const previous = pending.get(cookie(request));
+        if (previous?.reclaimCode && start[1]) throw failure(409, 'Use the sign-in buttons on the claim page.');
         let accountId, sessionId;
         if (start[1]) {
           if (identity?.kind !== 'account' || !identity.sessionId) throw failure(401, 'Sign in before linking another provider.');
@@ -306,7 +332,7 @@ export async function openSignIn({ publicOrigin, mode = 'off', accounts, invites
         }
         const inviteId = previous?.inviteId ?? (identity?.kind === 'invite' && !identity.admin && !identity.readOnly && identity.memberId ? identity.inviteId : undefined);
         const entry = put(request, response, { provider: name, state: random(), verifier: random(), ...(name === 'google' ? { nonce: random() } : {}),
-          ...(accountId ? { accountId, sessionId } : inviteId ? { inviteId } : {}) });
+          ...(previous?.reclaimCode ? { reclaimCode: previous.reclaimCode } : accountId ? { accountId, sessionId } : inviteId ? { inviteId } : {}) });
         const destination = new URL(SIGN_IN_ENDPOINTS[name].authorize);
         destination.search = new URLSearchParams({ client_id: config.clientId, redirect_uri: `${publicOrigin}/auth/${name}/callback`, response_type: 'code',
           scope: name === 'discord' ? 'identify' : 'openid', state: entry.state, code_challenge: createHash('sha256').update(entry.verifier).digest('base64url'), code_challenge_method: 'S256',

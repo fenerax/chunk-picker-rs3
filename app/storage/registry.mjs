@@ -1,5 +1,5 @@
 import { lstat, mkdir, readFile, realpath } from 'node:fs/promises';
-import { randomBytes, randomUUID } from 'node:crypto';
+import { randomBytes, randomUUID, createHash } from 'node:crypto';
 import path from 'node:path';
 import { durableDirectory, lockRegistry, syncDirectory, writeRegistryJson } from './registry-lock.mjs';
 import { REGISTRY_ACCOUNT, registryIdentity, registryMembers, registryObject as object } from './registry-legacy.mjs';
@@ -36,7 +36,16 @@ function validateLedger(ledger) {
 }
 
 function validate(document) {
-  if (!object(document, ['schemaVersion', 'accounts', 'pickers', 'capabilities']) || document.schemaVersion !== 1 || !Array.isArray(document.accounts) || !Array.isArray(document.pickers) || !Array.isArray(document.capabilities)) bad();
+  if (!object(document, ['schemaVersion', 'accounts', 'pickers', 'capabilities', 'relinkCodes', 'relinkRetirements']) || document.schemaVersion !== 1 || !Array.isArray(document.accounts) || !Array.isArray(document.pickers) || !Array.isArray(document.capabilities)) bad();
+  if (document.relinkCodes !== undefined) {
+    if (!Array.isArray(document.relinkCodes)) bad();
+    const seen = new Set();
+    for (const entry of document.relinkCodes) {
+      if (!object(entry, ['accountId', 'hash', 'expiresAt']) || !REGISTRY_ACCOUNT.test(entry.accountId) || !HASH.test(entry.hash) || !date(entry.expiresAt) || seen.has(entry.accountId)) bad();
+      seen.add(entry.accountId);
+    }
+  }
+  if (document.relinkRetirements !== undefined && (!Array.isArray(document.relinkRetirements) || document.relinkRetirements.some(id => !REGISTRY_ACCOUNT.test(id)) || new Set(document.relinkRetirements).size !== document.relinkRetirements.length)) bad();
   const accounts = new Map(), pickers = new Map(), identities = new Set(), defaults = new Set();
   let legacy = 0;
   for (const picker of document.pickers) {
@@ -240,6 +249,18 @@ export async function openRegistry({ registryDir, pickerRoot, tombstoneDir, lega
   function deletion(nextLedger, id) {
     if (!nextLedger.pickers.some(t => t.pickerId === id)) nextLedger.pickers.push({ pickerId: id, lifecycle: 'deleting', deletingAt: timestamp(), deletedAt: null });
   }
+  function retireAccount(nextLedger, accountId, runtimePurge) {
+    if (!nextLedger.accounts.some(t => t.accountId === accountId)) nextLedger.accounts.push({ accountId, deletedAt: timestamp(), ...(runtimePurge ? { purgeProgress: 'pending' } : {}) });
+    for (const picker of current.pickers) if (picker.kind === 'default' && picker.ownerAccountId === accountId && picker.lifecycle === 'active') deletion(nextLedger, picker.id);
+  }
+  async function finishRelinkRetirements() {
+    if (!current.relinkRetirements?.length) return;
+    const nextLedger = copy(ledger);
+    for (const id of current.relinkRetirements) retireAccount(nextLedger, id, true);
+    await saveLedger(nextLedger); await point('relink-retired');
+    const next = reconcile(current, ledger); delete next.relinkRetirements;
+    await save(next); await point('relink-reconciled');
+  }
   async function applyTombstones() {
     const next = reconcile(current, ledger);
     // Retired IDs can exist only in the external ledger after restoring an older checkpoint.
@@ -261,6 +282,24 @@ export async function openRegistry({ registryDir, pickerRoot, tombstoneDir, lega
     if (!picker) return null;
     return { ...copy(picker), lifecycle: blockedPicker(picker.id)?.lifecycle ?? picker.lifecycle };
   }
+  function checkRelink(code, provider, subject) {
+    registryIdentity(provider, subject);
+    const refuse = () => { throw error(409, 'This account claim is unavailable. Ask the operator for a new link.'); };
+    if (typeof code !== 'string' || !/^[A-Za-z0-9_-]{43}$/.test(code)) refuse();
+    const hash = createHash('sha256').update(code).digest('hex');
+    const entry = current.relinkCodes?.find(c => c.hash === hash);
+    if (!entry || Date.parse(entry.expiresAt) <= now()) refuse();
+    const target = visibleAccount(entry.accountId), source = accountForIdentity(current, provider, subject);
+    if (!target || target.identities.length || !target.memberships.some(m => current.pickers.some(p => p.id === m.pickerId && p.lifecycle === 'active' && !blockedPicker(p.id)))) refuse();
+    if (source) {
+      const picker = current.pickers.find(p => p.id === source.defaultPickerId);
+      if (source.id === target.id || retiredAccounts.has(source.id) || source.memberships.length !== 1
+        || source.memberships[0].pickerId !== picker?.id || source.memberships[0].role !== 'owner'
+        || picker?.kind !== 'default' || picker.ownerAccountId !== source.id || picker.lifecycle !== 'active' || picker.provisioning !== 'ready' || blockedPicker(picker.id)
+        || current.pickers.some(p => p.ownerAccountId === source.id && p.id !== picker.id)) refuse();
+    }
+    return { target, source, hash };
+  }
   try {
     releases.push(await lockRegistry(registryDir));
     releases.push(await lockRegistry(tombstoneDir));
@@ -272,6 +311,7 @@ export async function openRegistry({ registryDir, pickerRoot, tombstoneDir, lega
     validateLedger(ledger); validate(current);
     if (current.pickers.some(p => !ledger.issuedPickerIds.includes(p.id) || p.lifecycle !== 'active' && !ledger.pickers.some(t => t.pickerId === p.id))) bad();
     current = reconcile(current, ledger); validate(current); enforceCaps(current); rebuildIndexes(); rebuildLedgerIndexes();
+    await finishRelinkRetirements();
     // Reconcile before recovery can create a directory or expose any index.
     await saveLedger(ledger); await save(current);
     for (const picker of current.pickers.filter(p => p.lifecycle === 'active' && p.provisioning === 'reserved')) await provision(picker.id);
@@ -294,6 +334,36 @@ export async function openRegistry({ registryDir, pickerRoot, tombstoneDir, lega
       if (picker.kind === 'legacy-shared') { if (!legacyDir) throw new Error('Legacy directory is not configured.'); return legacyDir; }
       return path.join(pickerRoot, id);
     },
+    issueRelinkCode(accountId, { expiresInMs = 24 * 60 * 60 * 1000 } = {}) { return enqueue(async () => {
+      const account = visibleAccount(accountId);
+      if (!account || account.identities.length || !account.memberships.some(m => current.pickers.some(p => p.id === m.pickerId && p.lifecycle === 'active' && !blockedPicker(p.id)))) throw error(409, 'This account cannot be reclaimed.');
+      if (!Number.isSafeInteger(expiresInMs) || expiresInMs <= 0 || expiresInMs > 24 * 60 * 60 * 1000) throw error(400, 'Invalid claim lifetime.');
+      const code = randomBytes(32).toString('base64url'), next = copy(current);
+      const expiresAt = new Date(now() + expiresInMs).toISOString();
+      next.relinkCodes = (next.relinkCodes ?? []).filter(c => c.accountId !== accountId && Date.parse(c.expiresAt) > now());
+      next.relinkCodes.push({ accountId, hash: createHash('sha256').update(code).digest('hex'), expiresAt });
+      await save(next); return { code, expiresAt };
+    }); },
+    checkRelink(code, provider, subject) { usable(); return copy(checkRelink(code, provider, subject)); },
+    claimIdentity(code, provider, subject, { emptyAccountId = null, onCommit } = {}) { return enqueue(async () => {
+      const { target, source, hash } = checkRelink(code, provider, subject);
+      if ((source?.id ?? null) !== emptyAccountId) throw error(409, 'This account claim is unavailable. Ask the operator for a new link.');
+      const next = copy(current);
+      if (source) {
+        const nextLedger = copy(ledger); retireAccount(nextLedger, source.id, true); enforceCaps(next, nextLedger);
+        requireAccount(next, source.id).identities = requireAccount(next, source.id).identities.filter(i => i.provider !== provider || i.subject !== subject);
+        next.relinkRetirements = [source.id];
+      }
+      addIdentity(next, requireAccount(next, target.id), provider, subject);
+      next.relinkCodes = next.relinkCodes.filter(c => c.hash !== hash);
+      // The sole commit publishes the identity move, consumption and retirement intent.
+      await point('relink-before-commit'); await save(next);
+      try {
+        onCommit?.(source?.defaultPickerId);
+        await point('relink-committed'); await finishRelinkRetirements();
+      } catch (failure) { failed = true; throw failure; }
+      return requireAccount(current, target.id);
+    }); },
     ensureIdentity(provider, subject) { return enqueue(async () => { const next = copy(current), account = ensureIdentity(next, provider, subject); await save(next); return account; }); },
     linkIdentity(accountId, provider, subject) { return enqueue(async () => { const next = copy(current), account = requireAccount(next, accountId); addIdentity(next, account, provider, subject); await save(next); return account; }); },
     unlinkIdentity(accountId, provider) { return enqueue(async () => {
@@ -391,8 +461,7 @@ export async function openRegistry({ registryDir, pickerRoot, tombstoneDir, lega
       const account = current.accounts.find(a => a.id === accountId);
       if (!account && !ledger.accounts.some(t => t.accountId === accountId)) throw error(404, 'Account not found.');
       const next = copy(ledger);
-      if (!next.accounts.some(t => t.accountId === accountId)) next.accounts.push({ accountId, deletedAt: timestamp(), ...(runtimePurge ? { purgeProgress: 'pending' } : {}) });
-      for (const picker of current.pickers) if (picker.kind === 'default' && picker.ownerAccountId === accountId && picker.lifecycle === 'active') deletion(next, picker.id);
+      retireAccount(next, accountId, runtimePurge);
       await saveLedger(next); onTombstone?.(); await point('account-tombstoned', account?.defaultPickerId ?? null); await applyTombstones();
       return { accountId };
     }); },
@@ -420,6 +489,7 @@ export async function openRegistry({ registryDir, pickerRoot, tombstoneDir, lega
 
 export function registryRecoveryDocument(document) {
   validate(document);
+  if (document.relinkRetirements?.length) throw error(409, 'Account retirement is pending. Restart the service before taking a checkpoint.');
   return { schemaVersion: document.schemaVersion,
     accounts: document.accounts.map(account => ({ ...copy(account), identities: [] })),
     pickers: copy(document.pickers), capabilities: [] };

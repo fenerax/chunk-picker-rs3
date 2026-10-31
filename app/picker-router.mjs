@@ -5,6 +5,7 @@ import { routedBody, rememberRoutedBody, httpError, json } from './picker-contex
 import { checkBodyWith } from './security/json.mjs';
 import { createPickerDeletion } from './picker-router-deletion.mjs';
 import { requestContext } from './security/request.mjs';
+import { reconcileTombstones } from './storage/tombstones.mjs';
 import { storeWriteBlocked } from './storage/snapshot.mjs';
 
 const digest = key => createHash('sha256').update(key).digest('hex');
@@ -29,15 +30,16 @@ export function createPickerRouter({ registry, legacy, openContext, publicOrigin
       legacy.fenceRevokedSessions();
       for (const entry of entries.values()) if (!entry.closing) entry.context.fenceRevokedSessions();
     },
-    drainPicker: (id, phase) => {
+    drainPicker: (id, phase) => drainPicker(id, phase),
+  });
+  function drainPicker(id, phase) {
       if (phase === 'revoke') {
         const entry = entries.get(id);
         if (entry && !entry.closing) { clearTimeout(entry.timer); return entry.revoking ??= entry.context.revokeDeletion(); }
         return;
       }
       return serialize(async () => { const entry = entries.get(id); if (entry) { await entry.revoking; await evict(entry); } });
-    },
-  });
+  }
   function serialize(operation) {
     const pending = queue.then(operation); queue = pending.catch(() => {}); return pending;
   }
@@ -183,6 +185,25 @@ export function createPickerRouter({ registry, legacy, openContext, publicOrigin
   }
   return {
     checkpoint,
+    async reclaimIdentity(code, provider, subject) {
+      const { source } = registry.checkRelink(code, provider, subject);
+      let entry;
+      const commit = () => registry.claimIdentity(code, provider, subject, { emptyAccountId: source?.id ?? null,
+        onCommit: id => { if (id) entries.get(id)?.context.fenceDeletion(); legacy.fenceRevokedSessions(); } });
+      let account;
+      try {
+        if (source) {
+          const picker = registry.getPicker(source.defaultPickerId);
+          if (!picker || picker.kind !== 'default') throw httpError(409, 'This sign-in already has gameplay or memberships.');
+          entry = await acquire(picker.id, source.id);
+          account = await entry.context.withEmptyDefault(commit);
+        } else account = await commit();
+      } finally { if (entry) { entry.active--; idle(entry); } }
+      await reconcileTombstones({ registry, revokeSessions: scope => legacy.revokeDeletionSessions(scope),
+        revokeAccount: id => legacy.revokeDeletedAccount(id), drainPicker });
+      pickerLimits?.forgetDeleted();
+      return account;
+    },
     accountDeletionToken: deletion.accountDeletionToken,
     authenticate,
     authenticateKey(request, pickerId, memberId) {

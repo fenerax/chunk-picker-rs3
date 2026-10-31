@@ -253,6 +253,6 @@ export async function runOperator(command, argument, evidence, mode) {
   }, { skipBusy: command === 'health' });
 }
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  try { const result = await runOperator(...process.argv.slice(2)); process.stdout.write(['list', 'inspect', 'quarantine-release'].includes(process.argv[2]) ? encode(result) : 'Operator command completed.\n'); }
+  try { const result = await runOperator(...process.argv.slice(2)); process.stdout.write(['list', 'inspect', 'quarantine-release', 'relink-code'].includes(process.argv[2]) ? encode(result) : 'Operator command completed.\n'); }
   catch (error) { process.stderr.write(error.code === 'LEGACY_RESTORE_INCOMPATIBLE' ? error.message + '\n' : 'Operator command refused; keep maintenance evidence and inspect privately.\n'); process.exitCode = 1; }
 }

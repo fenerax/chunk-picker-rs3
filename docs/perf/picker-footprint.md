@@ -581,3 +581,57 @@ The compatibility gate uses the same injected store timestamp and `duo-compatibi
 | Present, sampled peak RSS, MiB | 1203.29 | 1262.91 |
 
 The checker copies inputs only into temporary directories, mints temporary plugin credentials after the browser status read, refuses external sync fetches and emits only counts, hashes, sizes and measurements. Its usage and limits are documented in `scripts/perf/README.md`. Public sign-up remains off.
+
+
+## MP15 account reclaim
+
+START `5fce2f3984a4fdf1ea3ab4fe8935733045e3c478`. Linux, Node 24.21.0,
+4-core CPU quota, 16 GiB memory limit; measured 31 October 2026. No tests ran
+during measurements. The existing harness ran three alternating START/MP15 pairs,
+sequentially, against an empty synthetic source and bundled open-f2p, process
+workers, port zero and 250 ms idle interval. `--multi-picker` enables routing for
+the two-member trial; the harness's fresh solo trial keeps the option absent.
+
+Values are median [minimum–maximum] across three fresh processes per revision.
+Two-member task timings and CPU are first reduced to their member median per
+trial. CPU sums the observed HTTP and calculator-host samples without counting
+calculator threads twice. RSS is the existing harness's reported sampled process
+sum at 50 ms intervals; brief peaks can be missed. These small synthetic trials
+are not a production capacity estimate or evidence of a speed improvement.
+
+| Synthetic case / measurement | START | MP15 |
+| --- | --- | --- |
+| Two-member, cold full tasks, ms | 390.85 [382.53–401.26] | 390.50 [382.76–404.26] |
+| Two-member, warm full tasks, ms | 14.43 [12.94–15.32] | 13.85 [13.30–14.26] |
+| Two-member, cold CPU, core-seconds | 0.413 [0.412–0.436] | 0.421 [0.417–0.433] |
+| Two-member, reported peak RSS, MiB | 109.82 [109.71–109.82] | 110.14 [109.19–113.80] |
+| Fresh solo, cold full tasks, ms | 398.00 [393.84–410.58] | 408.31 [404.43–413.72] |
+| Fresh solo, warm full tasks, ms | 25.66 [15.15–28.18] | 14.70 [14.51–22.40] |
+| Fresh solo, cold CPU, core-seconds | 0.437 [0.434–0.446] | 0.427 [0.424–0.447] |
+| Fresh solo, reported peak RSS, MiB | 109.64 [107.74–110.13] | 109.79 [108.93–109.93] |
+
+The duo compatibility checker ran on the final code, once per revision with
+routing absent and once with routing present. Both modes report **0 response / 0 size / 0
+saved-state differences**, across **20** paired reads. Each of the four runs
+returned **83,606,131 bytes**. The ordered response-size/hash digest is
+`1b4583763d891cc5bbada4fcdcab6b7eff6aebf5f38bfb93d098c08f7e4a60ba`.
+Each rewritten state is **766,384 bytes**, SHA-256
+`64de39c55452925587b87af05aa01507513263761bc407f54e81bcbb699acfdc`,
+identical to the unchanged source hash. The private checkout has **0** changed files.
+
+The checker uses fixed response timestamps and real wall duration. Timings below
+are single samples, including imports, startup, reads and close, excluding copying;
+there are no repeated-run medians or estimated spread for this gate.
+
+| Routing / checker measurement | START | MP15 |
+| --- | --- | --- |
+| Absent, wall seconds | 33.94 | 34.01 |
+| Absent, reported peak RSS, MiB | 1187.61 | 1196.90 |
+| Present, wall seconds | 32.09 | 33.01 |
+| Present, reported peak RSS, MiB | 1211.39 | 1213.02 |
+
+The synthetic footprint pairs above preceded the final stopped-checkpoint
+guard. The duo checker results in this section were rerun on the final code,
+including that guard. Final quick/full results are recorded in the MP15 section
+of [multi-picker-contract.md](../multi-picker-contract.md#mp15-account-reclaim).
+Both suites and both checker modes passed. Public sign-up remains off.

@@ -397,7 +397,7 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
       runeMetrics, progressSources, originalSync, idleMemoryOptions, predictionPrewarm,
       schedulingClock, publicOrigin, signIn, signInProvider, liveSwap, pluginItemsBetaAsLive,
       startupSignal, startupTimingMs, transport,
-      pickerRouting: pickerRegistry ? { registry: pickerRegistry, syncLegacy, sessionView: ownerSessionView } : undefined });
+      pickerRouting: pickerRegistry ? { registry: pickerRegistry, syncLegacy, sessionView: ownerSessionView, reclaimIdentity: (...args) => pickerRouter.reclaimIdentity(...args) } : undefined });
     if (pickerRegistry) {
       await reconcileTombstones({ registry: pickerRegistry, revokeSessions: scope => context.revokeDeletionSessions(scope),
         revokeAccount: id => context.revokeDeletedAccount(id) });
@@ -462,6 +462,12 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
       if (request.method !== 'POST') throw httpError(405, 'Use POST.');
       checkRequestOrigin(request, security);
       const body = await bodyJSON(request, 8192);
+      if (request.url.split('?')[0] === '/api/operator/relink-code') {
+        if (!publicOrigin || new URL(publicOrigin).protocol !== 'https:') throw httpError(409, 'An HTTPS public origin is required.');
+        if (Object.keys(body).length !== 1 || typeof body.accountId !== 'string') throw httpError(400, 'Use an account ID.');
+        const result = await pickerRegistry.issueRelinkCode(body.accountId);
+        await json(request, response, 200, { claimLink: `${publicOrigin}/auth/reclaim?code=${result.code}`, expiresAt: result.expiresAt }); return;
+      }
       if (Object.keys(body).length !== 1 || typeof body.id !== 'string') throw httpError(400, 'Use a snapshot ID.');
       if (closed) throw httpError(503, 'The writer is unavailable.');
       const { captureServiceCheckpoint } = await import('../scripts/linux/service-checkpoint.mjs');
@@ -474,7 +480,7 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
     }
   }
   const requestHandler = (request, response, listener = { host, ingressRole }) => {
-    if (pickerRouter && ['/api/operator/service-snapshot', '/api/health'].includes((request.url ?? '').split('?')[0])) return serviceOperator(request, response, listener);
+    if (pickerRouter && ['/api/operator/service-snapshot', '/api/operator/relink-code', '/api/health'].includes((request.url ?? '').split('?')[0])) return serviceOperator(request, response, listener);
     return pickerRouter ? pickerRouter.handle(request, response, listener) : contextFor(request).handle(request, response, listener);
   };
   const headerOptions = { maxHeaderSize: requestContextFor === requestContext ? http.maxHeaderSize : 64 * 1024 };
