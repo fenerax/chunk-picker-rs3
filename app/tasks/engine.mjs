@@ -39,6 +39,7 @@ import { taskRuleEnabled } from './rule-defaults.mjs';
 import { slayerUnlockGate, slayerUnlockTaskName } from '../data/slayer-unlock-gates.mjs';
 import { evaluateSlayerUnlockGate } from './slayer-unlock-gates.mjs';
 import { withActivityTimingTags } from '../data/activity-timing.mjs';
+import { withPortsScrollRule } from '../data/ports-scroll-rules.mjs';
 import { compileDialogueSupply, dialogueSupplyBlocker, dialogueSupplyNote, dialoguePaymentText, compileFiniteRewards, finiteRewardPreview,
   compilePersonalAlternatives, personalAlternativesBlocker, compileSourceLocations, sourceLocationBlocker } from './reviewed-supplies.mjs';
 
@@ -208,7 +209,7 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
   const code = definitions.codeItems ?? {};
   const compiled = [], byKey = new Map(), compileDiagnostics = [];
   for (const [category, entries] of Object.entries(definitions.challenges)) for (const [rawLabel, rawRecord] of Object.entries(entries)) {
-    const record = normalize(withActivityTimingTags(category, rawRecord, rawLabel));
+    const record = normalize(withPortsScrollRule(category, withActivityTimingTags(category, rawRecord, rawLabel), rawLabel));
     for (const field of ['Skills', 'SkillsNeeded', 'Requirements']) if (record[field]) {
       record[field] = Object.fromEntries(Object.entries(record[field]).map(([skill, level]) => {
         const canonical = canonicalSkills.get(skill.toLowerCase()) ?? (skill === 'Constituiton' ? 'Constitution' : skill);

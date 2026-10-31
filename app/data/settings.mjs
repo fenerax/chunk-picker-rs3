@@ -40,6 +40,15 @@ export const authoredSettingDefinitions = datasetRuleDefinitions("app/data/setti
 const rulePositions = positions(originalRuleStructure);
 const authoredTaskRules = datasetRuleRecords("app/data/settings.mjs#authoredTaskRules");
 export const taskRuleDefinitions = Object.freeze([...datasetRuleDefinitions("app/data/settings.mjs#taskRuleDefinitions"), futureSlayerUnlocksRule]);
+// Cutoff inputs are configuration even while their switch is off. KeyItem
+// Bosses deliberately sits outside Rare Drop's polarity (and is currently inert).
+export const independentTaskRuleControls = new Set([
+ 'Rare Drop Amount', 'Rare Drop Inclusive', 'Secondary Primary Amount',
+ 'Secondary Primary Inclusive', 'Kill X Amount', 'KeyItem Bosses',
+]);
+export const taskRuleParents = Object.freeze(Object.fromEntries(taskRuleDefinitions
+ .filter(rule => rule.parent && !independentTaskRuleControls.has(rule.id))
+ .map(rule => [rule.id, rule.parent])));
 // Worker cutoff aliases and presentation aliases are also known task rules.
 export const taskRuleCutoffDefaults = datasetValue("app/data/settings.mjs#taskRuleCutoffDefaults");
 const taskRuleTypes = new Map([...taskRuleDefinitions.map(rule => [rule.id, rule.type]), ...['Skills', 'Quests', 'Quest Complete', 'BIS', 'BIS Prayer', 'Relics', 'Show Nonskill Tasks'].map(id => [id, 'boolean'])]);
@@ -100,6 +109,10 @@ const retainedRuleBehavior = datasetValue("app/data/settings.mjs#retainedRuleBeh
  */
 export function taskRuleBehavior(id) {
  if (id === FUTURE_SLAYER_UNLOCKS_RULE) return { status: 'implemented-scope', detail: 'Includes eight Slayer Rewards before their monster, area or item is available.' };
+ if (id === 'PvM Relics') return { status: 'no-effect-dataset', detail: 'No effect with the current dataset: no combat-relic goals are declared. Which combat relics should count has not been defined.' };
+ if (id === 'All Droptables Nest') return { status: 'no-effect-dataset', detail: 'No effect with the current dataset: it has no matching nest-loot task. Custom inputs need both a matching loot task and an obtainable nest supply route.' };
+ if (id === 'KeyItem Bosses') return { status: 'retained-only', detail: 'No effect: entry-key rarity is not included in boss drop cutoffs or time estimates. How keys should count has not been defined.' };
+ if (id === 'Skiller') return { status: 'partial', detail: 'Excludes monster drops, kill-count goals and explicitly unsuitable tasks. Combat-level goals can still appear; this does not guarantee a level-3 or combat-free account.' };
  if (partialRuleBehavior[id]) return { status: 'partial', detail: partialRuleBehavior[id] };
  if (explicitRuleBehavior[id]) return { status: 'implemented-scope', detail: explicitRuleBehavior[id] };
  if (missingGeneratedBehavior[id]) return { status: 'not-implemented', detail: missingGeneratedBehavior[id] };
