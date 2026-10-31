@@ -379,3 +379,34 @@ test('amounts take k, m, b and t, and the fields check their range as typed', ()
     assert.equal(messages.at(-1) === '', ok, text);
   }
 });
+
+
+test('save membership controls Helper combat and refreshes while open, including an unchanged revision', async () => {
+  const h = dom(), owner = member();
+  owner.skillProgress.Necromancy = observed(99); owner.skillProgress.Summoning = observed(99);
+  const state = { revision: 7, rules: { 'content.f2p': false }, members: [owner] }, before = structuredClone(owner);
+  const workspace = h.document.createElement('div'); workspace.className = 'workspace'; h.addRoot(workspace);
+  const launch = h.document.createElement('button'); launch.id = 'helper-open'; h.addRoot(launch);
+  const view = createHelperView({ document: h.document, getState: () => state, getMemberId: () => owner.id, getResult: () => undefined,
+    api: async () => ({ skills: [{ skill: 'Agility', status: 'trial', f2pCap: 5 }], methods: [] }) });
+  const content = () => h.document.getElementById('helper-content');
+  const context = () => h.nodes().find(node => node.className === 'helper-context').textContent;
+  const combatFields = () => walk([content()]).filter(node => node.tag === 'label' && ['Necromancy', 'Summoning'].includes(node.textContent));
+  view.open();
+  try {
+    await until(() => find(content(), 'select'));
+    assert.match(context(), /^Members/);
+    assert.ok(Number(walk([content()]).find(node => node.tag === 'input' && node.max)?.max) > 5);
+    h.nodes().find(node => node.dataset.section === 'utilities').dispatchEvent({ type: 'click' });
+    await until(() => combatFields().length === 2);
+    assert.equal(combatFields()[0].children[0].max, 120); assert.equal(combatFields()[1].children[0].max, 99);
+    assert.match(text(content()), new RegExp(`Members combat level ${combatProjection({ Attack: 40, Necromancy: 99, Summoning: 99 }, { f2p: false })}`));
+    state.rules['content.f2p'] = true;
+    await until(() => /^F2P/.test(context()));
+    assert.equal(combatFields().length, 1); assert.equal(combatFields()[0].children[0].max, 20);
+    assert.match(text(content()), /F2P combat level/);
+    state.rules['content.f2p'] = false; state.revision++;
+    await until(() => /^Members/.test(context())); assert.equal(combatFields().length, 2);
+    assert.deepEqual(owner, before);
+  } finally { view.close(); }
+});

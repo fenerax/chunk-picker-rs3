@@ -48,6 +48,21 @@ test('empty shared list is short and offers add only when writable', () => {
   assert.equal(walk(read.root).some(writeControl), false);
 });
 
+test('empty group goals label follows the expanded state for players and viewers', async () => {
+  for (const writable of [true, false]) {
+    const c = ui([], writable);
+    const fold = () => walk(c.root).find(node => node.className === 'group-goals-fold');
+    for (const open of [true, false, true]) {
+      assert.equal(fold().textContent, open ? 'Hide' : 'Show');
+      assert.equal(fold().attributes['aria-label'], open ? 'Hide group goals' : 'Show group goals');
+      assert.equal(fold().attributes['aria-expanded'], String(open));
+      assert.equal(visible(c.root, node => node.textContent === 'No shared goals yet.').length, open ? 1 : 0);
+      await fold().emit('click');
+    }
+    assert.equal(c.calls.length, 0);
+  }
+});
+
 test('Cancel and Escape return to newly rendered Edit or Add controls without writes', async () => {
   const c = ui([goal()]);
   const originalEdit = c.find('Edit'); await originalEdit.emit('click');
