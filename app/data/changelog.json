@@ -3,6 +3,15 @@
   "entries": [
     {
       "date": "2026-10-31",
+      "title": "Levels keep syncing when RuneMetrics closes",
+      "items": [
+        "Levels from the game plugin win skill by skill, and each one remembers where it came from",
+        "RuneMetrics keeps being used for as long as it still answers, even after 10 November",
+        "Once it stops, the picker keeps your last known levels, says so once, and can read levels from the hiscores if the plugin isn't connected"
+      ]
+    },
+    {
+      "date": "2026-10-31",
       "title": "Helper, view-only links and backups work properly",
       "items": [
         "The Helper now knows your save is members: it uses members level caps, includes Summoning and uses the members combat formula",

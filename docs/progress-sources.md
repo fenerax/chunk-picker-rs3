@@ -14,12 +14,12 @@ erase the source observations. Observations live in memory and clear on restart;
 without an active plugin key, they cannot supply a sync preview.
 Plugin progress does not need a saved RuneScape account name.
 
-Otherwise the configured web source supplies progress. RuneMetrics stops at
-**10 November 2026, 00:00 UTC**, including cached results and requests crossing
-that boundary. The one date constant is `RUNE_METRICS_SUNSET_AT` in
-`app/integrations/progress-source-policy.mjs`; inject `clock: () => milliseconds`
-into `createProgressSources` (or `createServer({ progressSources: { clock } })`)
-to test it. HTTP **410 Gone** also retires RuneMetrics for this server process.
+Otherwise the configured web source supplies progress. Jagex announced that
+RuneMetrics closes on **10 November 2026**, but the picker keeps using it until
+it actually stops answering (decided 31 October 2026): HTTP **404** or **410
+Gone** retires RuneMetrics for this server process, including requests in
+flight. `RUNE_METRICS_SUNSET_AT` in `app/integrations/progress-source-policy.mjs`
+records the announced date for reference only.
 No unpublished JSON error code or text is guessed. Private profiles, missing
 names, rate limits and temporary failures keep their existing meanings.
 
