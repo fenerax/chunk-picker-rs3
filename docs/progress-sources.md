@@ -5,32 +5,68 @@ its source: **Game plugin**, **RuneMetrics**, or **RuneScape API**. Review chang
 then apply or cancel. Raw skill IDs, mapping reasons and save revision appear
 only with **Settings → Advanced**. Viewers have no sync controls.
 
-Accepted live-world plugin progress is the first source for that member for ten
-minutes. Skills have separate observation times; quest lists have their own time.
-Position, item and achievement reports do not refresh levels or quests. Stale,
-beta-world, unknown-world and far-future reports cannot take priority. Missing
-fields leave saved facts alone. Applying, dismissing or undoing a review does not
-erase the source observations. Observations live in memory and clear on restart;
-without an active plugin key, they cannot supply a sync preview.
-Plugin progress does not need a saved RuneScape account name.
+Accepted live-world plugin reports supply fresh per-field observations for ten
+minutes. Position, item and achievement pings do not refresh levels or quests;
+beta, unknown-world, stale and far-future reports cannot become fresh evidence.
+For each skill and quest, plugin evidence wins over the web. Web fields that the
+plugin has not reported can still fill gaps. Already applied `game-plugin` facts
+in `skillProgress` and `questProgress` remain authoritative after restart, key
+revocation or live-report expiry. They belong to the member, not a web account
+name. Unapplied live reports retain the existing in-memory lifetime and review
+semantics. No plugin protocol or client changes are needed.
 
-Otherwise the configured web source supplies progress. RuneMetrics stops at
-**10 November 2026, 00:00 UTC**, including cached results and requests crossing
-that boundary. The one date constant is `RUNE_METRICS_SUNSET_AT` in
-`app/integrations/progress-source-policy.mjs`; inject `clock: () => milliseconds`
-into `createProgressSources` (or `createServer({ progressSources: { clock } })`)
-to test it. HTTP **410 Gone** also retires RuneMetrics for this server process.
-No unpublished JSON error code or text is guessed. Private profiles, missing
-names, rate limits and temporary failures keep their existing meanings.
+RuneMetrics stops at **10 November 2026, 00:00 UTC**, including cached results
+and requests crossing that boundary (`RUNE_METRICS_SUNSET_AT`). HTTP **404** and
+**410** retire its endpoint for the server process. A JSON unknown-player error
+retains its meaning. DNS/connection failures and timeouts take the unavailable
+path for that request; they do not permanently retire the adapter. When closed,
+Sync progress shows this one informational message, including when a fallback
+review is available:
 
-After retirement, the replacement adapter supplies either progress or a normal
-unavailable result. The placeholder says the new API is not available yet and
-levels sync from the game plugin now. This is HTTP 200, has no Apply token, writes
-nothing and is shown as information. Fresh live plugin observations still work.
+> RuneMetrics has closed; levels and quests come from the game plugin until the new Jagex API is connected
+
+An unavailable result is HTTP 200 without an Apply token and writes nothing.
+A successful fallback still requires review and Apply. Missing fields never
+remove saved facts or completions. Existing successful RuneMetrics decreases
+remain reviewable, except that they cannot replace stored plugin evidence.
+
+### Operator switch
+
+Set `RS3_RUNEMETRICS_ENABLED=0` in the server environment to disable RuneMetrics,
+including its cache, without a code release. Restart the service after changing
+its deployment environment. Omit the variable or set it to `1` to reenable it
+before the sunset (an HTTP-retired process must restart). Tests/embedders can use
+`progressSources: { runeMetricsEnabled: false }` or an injected function; the
+function and environment are checked on every request.
+
+### Levels fallback
+
+`app/integrations/hiscores.mjs` implements the official RS3 lite endpoint:
+`https://secure.runescape.com/m=hiscore/index_lite.ws?player=Player%20x`.
+Its documented CSV format is overall `rank,total level,total XP`, then 29 rows
+of `rank,level,XP` in the canonical skill-ID order; later activity rows are
+ignored. XP is whole XP, not RuneMetrics tenths. Missing/unranked values are
+skipped; valid levels/XP remain useful even without a rank. Short/malformed
+responses fail without producing observations. Requests are on demand, bounded
+by ten seconds and 1 MiB, with redirects disabled.
+
+Hiscores is attempted only when the web source fails/is disabled/retired, the
+replacement is unavailable, and the member has neither live nor stored plugin
+levels/quests. It supplies **no quests or quest points**. It never decreases a
+saved level or XP or clears a completion. A failing fallback keeps the closed
+result (or the original actionable error for private/unknown/rate-limited and
+other temporary web errors). The [public API format reference](https://runescape.wiki/w/Application_programming_interface#Hiscores)
+and official endpoint describe the format; live shape is **unverified in this
+sandbox**, whose network policy excludes the host. No live player was queried.
+All tests use synthetic local fixtures and injected fetches.
 
 ## Adding the official web API
 
-The selector is `app/integrations/progress-sources.mjs`. A source implements
+Implement the replacement in `app/integrations/official-api.mjs` and keep callers
+unchanged. Its factory is already wired into the selector. The RuneMetrics
+disable switch selects it before the sunset; retirement selects it automatically
+afterwards. Tests may also inject a different adapter below. The selector is
+`app/integrations/progress-sources.mjs`. A source implements
 `async snapshot(member)` and optionally `close()`. A successful snapshot is:
 
 ```js
@@ -55,7 +91,7 @@ For an unavailable service return:
 
 ```js
 { available: false, source: 'official-api', sourceLabel: 'RuneScape API',
-  message: 'The new RuneScape API is not available yet. Levels sync from the game plugin now.' }
+  message: RUNE_METRICS_CLOSED_MESSAGE }
 ```
 
 Once the contract is published, implement one adapter and configure:
@@ -82,14 +118,20 @@ The existing `/api/runemetrics/preview` and `/api/runemetrics/apply` names and
 They do not force a particular source. Authentication, viewer restrictions,
 server-held review tokens and ten-minute expiry are unchanged.
 
-No new save fields or commands are added. Plugin observations use the existing
+No new member save fields or command types are added. Plugin observations use
+the existing
 `apply-game-progress` command and `game-plugin` provenance. Web observations use
 `apply-runemetrics`; its optional `source: 'official-api'` records the true source
 in the existing skill/quest facts and `runeMetricsSync` fields. Existing commands
 default to `runemetrics`. This additive allowed source value is necessary to
 avoid labelling future API observations as RuneMetrics; older app versions will
 reject saves containing it. Current validation, backups and Undo support both.
-The placeholder creates no such facts.
+Hiscores uses the same command with `source: 'hiscores'`. Mixed web/plugin
+reviews add an optional `plugin: { fetchedAt, skills, quests }` to the server-held
+command: both parts validate and apply in one revision with distinct per-field
+provenance. Backup/restore and Undo preserve them. Older versions reject hiscores
+facts and mixed commands; upgrade all readers before enabling them. The
+placeholder creates no facts.
 
 ## Public API check — 27 October 2026
 

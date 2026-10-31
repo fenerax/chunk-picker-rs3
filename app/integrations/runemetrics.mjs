@@ -48,7 +48,7 @@ export function createRuneMetricsClient({ fetchImpl = globalThis.fetch, clock = 
     if (response.status === 410) { retired = true; throw runeMetricsError('SOURCE_RETIRED', 'Levels sync from the game plugin now.', 410); }
     if (response.status === 429) throw runeMetricsError('RATE_LIMITED', 'RuneMetrics is limiting requests. Wait a few minutes before trying again.', 429);
     if ([401, 403].includes(response.status)) throw runeMetricsError('PROFILE_PRIVATE', `RuneMetrics denied access to ${name}'s profile. Check profile privacy, then try again.`, 422);
-    if (response.status === 404) throw runeMetricsError('UNKNOWN_NAME', `RuneMetrics could not find ${name}. Check this player's RuneScape name.`, 404);
+    if (response.status === 404) throw runeMetricsError('ENDPOINT_CLOSED', 'RuneMetrics endpoint is closed.', 404);
     if (!response.ok) throw runeMetricsError('UPSTREAM_ERROR', `RuneMetrics is unavailable (HTTP ${response.status}). Try again later.`, 502);
     let value;
     try {

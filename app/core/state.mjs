@@ -5,7 +5,7 @@ import { createRuleRegistry, evaluateRollPool, sampleRoll, checkedPrecomputedRol
 import { validateProgressSnapshots } from './progress-snapshots.mjs';
 import { preferenceDefinitions, validatePreference } from './preferences.mjs';
 import { validateControlSkill, validateControlLevel, validateSlayerLock } from './player-controls.mjs';
-import { defaultRuneScapeNames, validateRuneScapeName, sameRuneScapeName, validateRuneMetricsTimestamp,
+import { defaultRuneScapeNames, validateRuneScapeName, sameRuneScapeName, progressBelongsToMember, validateRuneMetricsTimestamp,
   validateObservedSkill, validateSkillProgress, validateQuestProgress, validateAchievementProgress, validateItemProgress, validateRuneMetricsProvenance } from './game-progress.mjs';
 import { applyChunkColourCommand, validateChunkColour, validateChunkColourName } from './chunk-colours.mjs';
 import { validateSticker, validateStickerId, validateSavedStickers, normalizeStickerList, resolveMemberStickers, MAX_STICKERS_PER_CHUNK } from './map-markers.mjs';
@@ -90,7 +90,7 @@ const COMMAND_KEYS = new Map([
   ['set-skill-levels', new Set(['type', 'memberId', 'skill', 'passiveLevel', 'maxLevel'])],
   ['set-runescape-name', new Set(['type', 'memberId', 'name'])],
   ['replace-member', new Set(['type', 'memberId', 'member', 'source'])],
-  ['apply-runemetrics', new Set(['type', 'memberId', 'runescapeName', 'fetchedAt', 'skills', 'quests', 'source'])],
+  ['apply-runemetrics', new Set(['type', 'memberId', 'runescapeName', 'fetchedAt', 'skills', 'quests', 'source', 'plugin'])],
   ['apply-game-progress', new Set(['type', 'memberId', 'fetchedAt', 'skills', 'quests', 'achievements', 'items'])],
   ['sync-original', new Set(['type', 'capturedAt', 'sourceHash', 'members'])],
   ['set-slayer-lock', new Set(['type', 'memberId', 'lock'])],
@@ -1836,8 +1836,8 @@ function applyCommandCopy(next, command, { expectedRevision, world, registry, ra
     case 'apply-game-progress':
     case 'apply-runemetrics': {
       const member = findMember(next, payload.memberId);
-      const plugin = payload.type === 'apply-game-progress', sourceLabel = plugin ? 'Game plugin' : payload.source === 'official-api' ? 'RuneScape API' : 'RuneMetrics';
-      if (!plugin && payload.source !== undefined && !['runemetrics', 'official-api'].includes(payload.source)) fail('Unknown web progress source.');
+      const plugin = payload.type === 'apply-game-progress', sourceLabel = plugin ? 'Game plugin' : payload.source === 'official-api' ? 'RuneScape API' : payload.source === 'hiscores' ? 'RS3 hiscores' : 'RuneMetrics';
+      if (!plugin && payload.source !== undefined && !['runemetrics', 'official-api', 'hiscores'].includes(payload.source)) fail('Unknown web progress source.');
       if (!plugin) {
         const name = validateRuneScapeName(payload.runescapeName);
         if (!sameRuneScapeName(name, member.runescapeName)) fail('RuneMetrics name does not match the current member account binding');
@@ -1881,11 +1881,37 @@ function applyCommandCopy(next, command, { expectedRevision, world, registry, ra
         if (observedItems.has(item.taskId) || observedAchievements.has(item.taskId)) fail(`Duplicate Game plugin item task: ${item.taskId}`);
         observedItems.add(item.taskId);
       }
+      const pluginReport = plugin ? undefined : payload.plugin;
+      if (pluginReport !== undefined) {
+        record(pluginReport, 'Plugin progress'); knownKeys(pluginReport, new Set(['fetchedAt', 'skills', 'quests']), 'Plugin progress');
+        validateRuneMetricsTimestamp(pluginReport.fetchedAt, 'Game plugin');
+        if (!Array.isArray(pluginReport.skills) || !Array.isArray(pluginReport.quests)) fail('Plugin skills and quests must be arrays');
+        const skillNames = new Set(), questIds = new Set();
+        for (const row of pluginReport.skills) {
+          record(row, 'Plugin skill'); knownKeys(row, new Set(['skill', 'level', 'xp']), 'Plugin skill');
+          validateObservedSkill(row.skill, row);
+          if (skillNames.has(row.skill)) fail('Duplicate plugin skill');
+          skillNames.add(row.skill);
+        }
+        for (const row of pluginReport.quests) {
+          record(row, 'Plugin quest'); knownKeys(row, new Set(['taskId', 'title']), 'Plugin quest');
+          propertyKey(row.taskId, 'Plugin quest taskId');
+          validateQuestProgress(row.taskId, { title: row.title, source: 'game-plugin', memberId: member.id, fetchedAt: pluginReport.fetchedAt }, taskRows, member.id);
+          if (questIds.has(row.taskId)) fail('Duplicate plugin quest');
+          questIds.add(row.taskId);
+        }
+      }
       // The entire trusted snapshot validates before any personal fact is applied.
       if (!plugin) payload.runescapeName = member.runescapeName;
-      if (payload.skills.length) member.skillProgress = { ...(member.skillProgress ?? {}), ...Object.fromEntries(payload.skills.map(({ skill, level, xp }) => [skill, { level, xp, ...provenance }])) };
-      if (payload.quests.length) {
-        member.questProgress = { ...(member.questProgress ?? {}), ...Object.fromEntries(payload.quests.map(({ taskId, title }) => [taskId, { title, ...provenance }])) };
+      const acceptedSkills = payload.skills.filter(row => {
+        const saved = member.skillProgress?.[row.skill];
+        if (!plugin && saved?.source === 'game-plugin' && saved.memberId === member.id) return false;
+        return payload.source !== 'hiscores' || !progressBelongsToMember(saved, member) || row.level >= saved.level && row.xp >= saved.xp;
+      });
+      const acceptedQuests = payload.quests.filter(row => plugin || member.questProgress?.[row.taskId]?.source !== 'game-plugin');
+      if (acceptedSkills.length) member.skillProgress = { ...(member.skillProgress ?? {}), ...Object.fromEntries(acceptedSkills.map(({ skill, level, xp }) => [skill, { level, xp, ...provenance }])) };
+      if (acceptedQuests.length) {
+        member.questProgress = { ...(member.questProgress ?? {}), ...Object.fromEntries(acceptedQuests.map(({ taskId, title }) => [taskId, { title, ...provenance }])) };
         member.completedTasks = [...new Set([...member.completedTasks, ...observedQuests])];
       }
       const newAchievements = achievements.filter(({ taskId }) => !member.completedTasks.includes(taskId));
@@ -1897,6 +1923,14 @@ function applyCommandCopy(next, command, { expectedRevision, world, registry, ra
       if (newItems.length) {
         member.itemProgress = { ...(member.itemProgress ?? {}), ...Object.fromEntries(newItems.map(({ taskId, title, gameItemId, evidence, seen }) => [taskId, { title, gameItemId, evidence, seen, ...provenance }])) };
         member.completedTasks = [...member.completedTasks, ...newItems.map(({ taskId }) => taskId)];
+      }
+      if (pluginReport) {
+        const pluginProvenance = { source: 'game-plugin', fetchedAt: pluginReport.fetchedAt, memberId: member.id };
+        if (pluginReport.skills.length) member.skillProgress = { ...(member.skillProgress ?? {}), ...Object.fromEntries(pluginReport.skills.map(({ skill, level, xp }) => [skill, { level, xp, ...pluginProvenance }])) };
+        if (pluginReport.quests.length) {
+          member.questProgress = { ...(member.questProgress ?? {}), ...Object.fromEntries(pluginReport.quests.map(({ taskId, title }) => [taskId, { title, ...pluginProvenance }])) };
+          member.completedTasks = [...new Set([...member.completedTasks, ...pluginReport.quests.map(row => row.taskId)])];
+        }
       }
       if (!plugin) member.runeMetricsSync = provenance;
       break;

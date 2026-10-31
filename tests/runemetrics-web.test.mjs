@@ -3,6 +3,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createContext, runInContext } from 'node:vm';
 import { createRuneMetricsControls, skillChangeText } from '../app/web/runemetrics.mjs';
+import { RUNE_METRICS_CLOSED_MESSAGE } from '../app/integrations/progress-sources.mjs';
 import { createInfoPanels } from '../app/web/info-panels.mjs';
 
 const snapshot = revision => ({
@@ -103,10 +104,10 @@ test('sync names the selected source and the unavailable state offers no Apply o
   assert.match(h.text(), /Source: Game plugin/);
   assert.doesNotMatch(h.text(), /Saved revision/);
   h.ui.fetchResponse = { available: false, memberId: 'a', runescapeName: 'AccountA', source: 'official-api',
-    message: 'The new RuneScape API is not available yet. Levels sync from the game plugin now.' };
+    message: RUNE_METRICS_CLOSED_MESSAGE };
   await h.click('Sync progress');
   assert.equal(h.find('button', 'Apply progress snapshot'), undefined);
-  assert.match(h.text(), /game plugin now/);
+  assert.ok(h.text().includes(RUNE_METRICS_CLOSED_MESSAGE));
   assert.equal(h.walk(h.ui.nodes).find(node => node.attributes.role === 'status').className, 'info-meta');
   assert.equal(h.attempts.apply.length, 0);
 });
@@ -295,4 +296,15 @@ test('RuneMetrics sync keeps raw skill IDs and save revisions in Advanced, inclu
     assert.match(h.text(), /reported level 12/);
     assert.equal(h.attempts.apply.length, 0);
   }
+});
+
+
+test('fallback preview shows the single closure message while retaining its Apply review', async () => {
+  const h = harness();
+  h.state.members[0].runescapeName = 'Player x'; h.find('input').value = 'Player x';
+  h.ui.fetchResponse = { ...snapshot(7), runescapeName: 'Player x', source: 'hiscores', sourceLabel: 'RS3 hiscores', message: RUNE_METRICS_CLOSED_MESSAGE };
+  await h.click('Sync progress');
+  assert.equal(h.text().split(RUNE_METRICS_CLOSED_MESSAGE).length - 1, 1);
+  assert.equal(h.walk(h.ui.nodes).find(node => node.attributes.role === 'status').className, 'info-meta');
+  assert.ok(h.find('button', 'Apply progress snapshot'));
 });

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createProgressSources, createPluginProgressSource, createOfficialApiSource, previewProgress } from '../app/integrations/progress-sources.mjs';
+import { createProgressSources as createSources, createPluginProgressSource, createOfficialApiSource, previewProgress } from '../app/integrations/progress-sources.mjs';
 import { createRuneMetricsClient } from '../app/integrations/runemetrics.mjs';
 import { createQuestMapping } from '../app/integrations/quest-mapping.mjs';
 import { RUNE_METRICS_SUNSET_AT, PLUGIN_PROGRESS_FRESH_MS } from '../app/integrations/progress-source-policy.mjs';
@@ -11,8 +11,9 @@ import { createTaskEngine } from '../app/tasks/engine.mjs';
 import { personalSkillProgress } from '../app/web/helper-model.mjs';
 import { customTaskDoable } from '../app/web/custom-tasks-model.mjs';
 
+const createProgressSources = options => createSources({ hiscores: { async snapshot() { throw new Error('Synthetic offline fallback'); } }, ...options });
 const beforeSunset = RUNE_METRICS_SUNSET_AT - 1000;
-const owner = { id: 'actor1', runescapeName: 'DemoExplorer' };
+const owner = { id: 'actor1', runescapeName: 'Player x' };
 const live = (at, extra = {}) => ({ sentAt: new Date(at).toISOString(), world: { beta: false },
   skills: [{ skill: 'Attack', level: 5, xp: 400 }], ...extra });
 const legacyFetch = async url => new Response(JSON.stringify(url.pathname.endsWith('/quests') ? { quests: [] }
@@ -25,10 +26,10 @@ test('fresh live plugin observations win per member; stale observations fall bac
     runeMetrics: { fetchImpl: async url => { calls++; return legacyFetch(url); } } });
   t.after(() => sources.close());
   plugin.receive(owner.id, live(now));
-  assert.equal((await sources.snapshot(owner)).source, 'game-plugin'); assert.equal(calls, 0);
-  assert.equal((await sources.snapshot({ ...owner, id: 'other' })).source, 'runemetrics'); assert.equal(calls, 2);
+  assert.equal((await sources.snapshot(owner)).plugin.source, 'game-plugin'); assert.equal(calls, 2);
+  assert.equal((await sources.snapshot({ ...owner, id: 'other' })).source, 'runemetrics'); assert.equal(calls, 4);
   now += PLUGIN_PROGRESS_FRESH_MS;
-  assert.equal((await sources.snapshot(owner)).source, 'runemetrics'); assert.equal(calls, 4);
+  assert.equal((await sources.snapshot(owner)).source, 'runemetrics'); assert.equal(calls, 6);
 });
 
 test('position pings, unrelated progress and delta updates never refresh old skill observations', () => {
@@ -59,7 +60,7 @@ test('beta, unknown world, old and far-future reports cannot become the main sou
 test('the placeholder returns a calm unavailable state without fetching', async () => {
   const value = await createOfficialApiSource().snapshot(owner);
   assert.equal(value.available, false); assert.equal(value.source, 'official-api');
-  assert.match(value.message, /not available yet.*game plugin/);
+  assert.match(value.message, /RuneMetrics has closed.*game plugin/);
 });
 
 test('the sunset boundary skips RuneMetrics including a cached result', async t => {
@@ -79,7 +80,7 @@ test('HTTP Gone latches retirement before the date; ordinary failures keep their
   t.after(() => sources.close());
   assert.equal((await sources.snapshot(owner)).available, false);
   assert.equal((await sources.snapshot(owner)).available, false); assert.equal(calls, 2);
-  for (const status of [404, 429, 503]) {
+  for (const status of [429, 503]) {
     const failing = createProgressSources({ clock: () => beforeSunset, runeMetrics: { fetchImpl: async () => new Response('', { status }) } });
     try { await assert.rejects(failing.snapshot(owner), error => error.code !== 'SOURCE_RETIRED'); }
     finally { failing.close(); }
@@ -129,7 +130,7 @@ test('one configured replacement adapter supplies normalized progress with truth
 
 test('all progress sources feed account levels, training and quest availability with their binding intact', () => {
   const engine = createTaskEngine({ chunks: { '100': {} }, challenges: { Extra: { 'Cook requirement': { SkillsNeeded: { Cooking: 30 } } } } });
-  for (const source of ['runemetrics', 'official-api', 'game-plugin']) {
+  for (const source of ['runemetrics', 'official-api', 'hiscores', 'game-plugin']) {
     const state = createGroupState([{ id: owner.id, name: 'Player', unlocked: ['100'] }]);
     const member = state.members[0]; member.runescapeName = owner.runescapeName;
     const provenance = { source, fetchedAt: new Date(beforeSunset).toISOString(),
@@ -159,7 +160,7 @@ test('plugin progress arriving during a web failure still takes priority', async
   t.after(() => sources.close());
   const request = sources.snapshot(owner);
   latest = { source: 'game-plugin' }; fail(new Error('Web offline'));
-  assert.equal(await request, latest);
+  assert.deepEqual(await request, { ...latest, message: 'RuneMetrics has closed; levels and quests come from the game plugin until the new Jagex API is connected' });
 });
 
 test('plugin progress works without a web account name and older reports cannot replace newer observations', async t => {

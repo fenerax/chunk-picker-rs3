@@ -86,7 +86,7 @@ export function createRuneMetricsControls(context, { memberId, isCurrent, onAppl
       } finally { if (active(request)) { setBusy(false); cancel.disabled = false; } }
     });
     if (context.state().revision !== value.stateRevision || savedAccount() !== value.runescapeName) { apply.disabled = true; setStatus(refreshRequired, true); }
-    else setStatus('Review the proposed changes, then Apply or Cancel.');
+    else setStatus(value.message ?? 'Review the proposed changes, then Apply or Cancel.');
     const actions = el('div', undefined, 'form-actions'); actions.append(apply, cancel);
     content.append(actions); review.replaceChildren(content);
   }

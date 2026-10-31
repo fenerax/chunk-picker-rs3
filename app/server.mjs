@@ -1927,8 +1927,6 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
               let snapshot = await progressClient.snapshot(owner);
               const current = store.getState(), latest = current.members.find(member => member.id === owner.id);
               if (!latest || latest.runescapeName !== owner.runescapeName) throw Object.assign(httpError(409, 'The RuneScape name changed while fetching. Review a new sync.'), { code: 'REVISION_CONFLICT', state: current });
-              // A plugin report arriving during a web fetch wins too.
-              snapshot = gamePlugin.progressSnapshot(latest) ?? snapshot;
               if (snapshot.available === false) { await json(request, response, 200, { ...snapshot, memberId: owner.id, runescapeName: owner.runescapeName ?? '' }); return; }
               const proposal = previewProgress(current, owner.id, snapshot, questMapping);
               const previewId = randomUUID(), createdAt = Date.now();

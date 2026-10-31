@@ -22,6 +22,7 @@ export const quickTests = new Set([
   "release-vps-additions.test.mjs",
   "online-snapshot.test.mjs",
   "progress-sources.test.mjs",
+  "progress-fallback.test.mjs",
   "public-request.test.mjs",
   "accounts-storage.test.mjs",
   "account-panel.test.mjs",

@@ -1,40 +1,62 @@
+import { createOfficialApiSource, RUNE_METRICS_CLOSED_MESSAGE } from './official-api.mjs';
+export { createOfficialApiSource, RUNE_METRICS_CLOSED_MESSAGE } from './official-api.mjs';
 import { createRuneMetricsClient, normalizeRuneMetricsSnapshot } from './runemetrics.mjs';
 import { previewProgressSnapshot } from './progress-preview.mjs';
+import { createHiscoresSource } from './hiscores.mjs';
+import { progressBelongsToMember } from '../core/game-progress.mjs';
 import { RUNE_METRICS_SUNSET_AT, PLUGIN_PROGRESS_FRESH_MS } from './progress-source-policy.mjs';
 
-export function createOfficialApiSource() {
-  return { async snapshot() { return { available: false, source: 'official-api', sourceLabel: 'RuneScape API',
-    message: 'The new RuneScape API is not available yet. Levels sync from the game plugin now.' }; } };
-}
-
-/** Sources expose snapshot(member): normalized skills (XP, not tenths), quest
- * titles/statuses and fetchedAt, or { available:false, source, message }.
- * No source writes state. The server binds the preview to its save revision. */
+/** Sources expose snapshot(member): normalized skills (actual XP), quests and
+ * fetchedAt, or available:false. Only a reviewed proposal can write state. */
 export function createProgressSources({ runeMetrics = {}, pluginSnapshot = () => null,
-  webSource = 'runemetrics', officialApi = createOfficialApiSource(), clock = runeMetrics.clock ?? Date.now } = {}) {
+  runeMetricsEnabled = () => process.env.RS3_RUNEMETRICS_ENABLED !== '0',
+  hiscores = createHiscoresSource(), webSource = 'runemetrics',
+  officialApi = createOfficialApiSource(), clock = runeMetrics.clock ?? Date.now } = {}) {
   if (!['runemetrics', 'official-api'].includes(webSource)) throw new TypeError('Unknown web progress source.');
   const legacy = createRuneMetricsClient({ ...runeMetrics, clock });
   let retired = false;
+  const enabled = () => typeof runeMetricsEnabled === 'function' ? runeMetricsEnabled() : runeMetricsEnabled;
+  const savedPlugin = member => [...Object.values(member.skillProgress ?? {}), ...Object.values(member.questProgress ?? {})]
+    .some(value => value.source === 'game-plugin' && progressBelongsToMember(value, member));
   return {
     async snapshot(member) {
-      const plugin = pluginSnapshot(member);
-      if (plugin) return plugin;
-      if (webSource === 'official-api' || retired || clock() >= RUNE_METRICS_SUNSET_AT) return officialApi.snapshot(member);
-      if (!member.runescapeName) return { available: false, source: 'runemetrics', sourceLabel: 'RuneMetrics',
-        message: 'Connect the game plugin or save this player’s RuneScape name to sync progress.' };
-      try {
-        const snapshot = normalizeRuneMetricsSnapshot(await legacy.snapshot(member));
-        return pluginSnapshot(member) ?? snapshot;
+      let web, failure, closed = false;
+      if (webSource === 'official-api' || retired || !enabled() || clock() >= RUNE_METRICS_SUNSET_AT) {
+        closed = true;
+        web = await officialApi.snapshot(member);
+      } else if (member.runescapeName) {
+        try { web = normalizeRuneMetricsSnapshot(await legacy.snapshot(member)); }
+        catch (error) {
+          // A JSON unknown-player response still has its old meaning. An HTTP
+          // endpoint 404, Gone or an unreachable endpoint can signal closure.
+          if (!['SOURCE_RETIRED', 'ENDPOINT_CLOSED', 'NETWORK_FAILURE', 'TIMEOUT'].includes(error.code)) {
+            const plugin = pluginSnapshot(member);
+            if (plugin) return plugin;
+            failure = error;
+            web = { available: false };
+          }
+          if (!failure) {
+            retired ||= error.code === 'SOURCE_RETIRED' || error.code === 'ENDPOINT_CLOSED';
+            closed = true;
+            web = await officialApi.snapshot(member);
+          }
+        }
+      } else {
+        web = { available: false, source: 'runemetrics', sourceLabel: 'RuneMetrics',
+          message: 'Connect the game plugin or save this player’s RuneScape name to sync progress.' };
       }
-      catch (error) {
-        const latestPlugin = pluginSnapshot(member);
-        if (latestPlugin) return latestPlugin;
-        if (error.code !== 'SOURCE_RETIRED') throw error;
-        retired = true;
-        return officialApi.snapshot(member);
+      let plugin = pluginSnapshot(member);
+      if ((closed || failure) && web.available === false && !plugin && !savedPlugin(member) && member.runescapeName) {
+        // Fallback failures are informational: never turn absent data into zeros.
+        try { web = await hiscores.snapshot(member); } catch { /* keep the unavailable result */ }
+        plugin = pluginSnapshot(member);
       }
+      if (failure && web.available === false && !plugin) throw failure;
+      const message = closed && (web.source !== 'official-api' || web.available === false) ? RUNE_METRICS_CLOSED_MESSAGE : undefined;
+      if (web.available === false) return plugin ? { ...plugin, ...(message ? { message } : {}) } : { ...web, ...(message ? { message } : {}) };
+      return { ...web, ...(plugin ? { plugin } : {}), ...(message ? { message } : {}) };
     },
-    close() { legacy.close(); officialApi.close?.(); },
+    close() { legacy.close(); officialApi.close?.(); hiscores.close?.(); },
   };
 }
 
