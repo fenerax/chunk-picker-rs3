@@ -2,6 +2,8 @@ import { createRequestReader, requestError } from '../app/web/live-swap-client.m
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createInfoPanels } from '../app/web/info-panels.mjs';
+import { caveFixture } from './fixtures/why-chain.mjs';
+import { buildWhyChain } from '../app/tasks/why-chain.mjs';
 
 // Exercise the shipped module with small DOM collaborators. Saves are captured,
 // never sent to a server or live member state.
@@ -43,6 +45,34 @@ function harness(preferences = {}, storage) {
   const openTraining = async () => { await panels.activityInfo(); const tile = walk(ui.nodes).find(node => node.tag === 'button' && node.attributes?.['aria-label']?.startsWith('Mining:')); assert.ok(tile, 'Mining tile'); await tile.events.click(); openDetails('Training assumptions'); };
   return { state, result, ui, panels, ctx: helpers, find, inputFor, openTraining, openDetails, nodes: () => walk(ui.nodes) };
 }
+
+test('saved Slayer chains request full server evidence despite partial browser definitions; sandbox stays local', async () => {
+  for (const sandbox of [false, true]) {
+    const h = harness(), { result, definitions } = caveFixture(), requests = [];
+    Object.assign(h.result, { tasks: result.tasks, memberId: 'a' });
+    h.result.activityInfo.slayer.masters = result.activityInfo.slayer.masters;
+    h.ctx.isSandbox = () => sandbox;
+    h.ctx.definitions = () => sandbox ? definitions : { chunks: {} };
+    h.ctx.api = async url => {
+      requests.push(url);
+      return { ...buildWhyChain(result, definitions, { master: 'Example master', assignment: 'Cave bugs' }), memberId: 'a', stateRevision: 7 };
+    };
+    Object.assign(h.result.activityInfo.slayer.masters[0], { reachable: false, eligibleCount: 0, totalCount: 1 });
+    Object.assign(h.result.activityInfo.slayer.masters[0].tasks[0], { reachableMonsters: [], weight: 1 });
+    await h.panels.activityInfo('Slayer');
+    h.openDetails('Example master ·');
+    const why = h.nodes().find(node => node.tag === 'details' && node.children[0]?.textContent === 'Why not?');
+    assert.ok(why);
+    assert.equal(requests.length, 0);
+    why.open = true; await why.events.toggle();
+    assert.equal(requests.length, sandbox ? 0 : 1);
+    if (!sandbox) assert.match(requests[0], /\/api\/task-why\?.*master=Example\+master/);
+    const text = h.nodes().map(node => node.textContent).join(' ');
+    assert.match(text, /Need Rope/);
+    assert.doesNotMatch(text, /No location is identified/);
+    assert.deepEqual(h.ui.attempts, []);
+  }
+});
 
 test('Quests expose a read-only map control for the full quest despite step filters, guarded by the panel snapshot', async () => {
   const h = harness(), controls = [];

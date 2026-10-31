@@ -1,3 +1,4 @@
+import { createWhyChainDisclosure } from '../app/web/task-why-chain.mjs';
 import { createRequestReader, requestError } from '../app/web/live-swap-client.mjs';
 import { readFile } from 'node:fs/promises';
 import { runInContext, Script } from 'node:vm';
@@ -58,6 +59,7 @@ export function runScreenGraph(context, modules) {
   for (const [name, value] of Object.entries({ ...customTasks, playerControlSkills, validateControlLevel })) if (!(name in context)) context[name] = value;
   context.createStreamSafe ??= createStreamSafe;
   context.bindTaskViewPreferences ??= get => bindTaskViewPreferences(get, () => context.localStorage);
+  context.createWhyChainDisclosure ??= createWhyChainDisclosure;
   context.createQuestMap ??= createQuestMap;
   context.buildChunkPlanningIndex ??= buildChunkPlanningIndex;
   context.selectDuoTaskLists ??= selectDuoTaskLists;

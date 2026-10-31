@@ -1,3 +1,4 @@
+import { savedWhyChain, forgetSavedWhyChain } from './task-why-http.mjs';
 import { verifyDatasetBinding } from './dataset-binding.mjs';
 import { snapshotStore, withStoreWrite } from './storage/snapshot.mjs';
 import { startupPhase } from './startup-timing.mjs';
@@ -318,6 +319,7 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
   poolRanking.sync(savedTaskFingerprint);
   let knownTaskMembers = new Set(store.getCalculationSnapshot().members.map(member => member.id));
   function rebindTaskRevision(entry, revision) {
+    if (entry.revision !== revision) forgetSavedWhyChain(entry);
     entry.revision = revision;
   }
   let neverShowIds;
@@ -373,6 +375,7 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
     // Full-detail retention never evicts the task list for another player.
     for (const result of savedTaskResults.values()) {
       if ([...savedTaskResults.values()].reduce((sum, row) => sum + retainedFullBytes(row), 0) <= 16 * 1024 * 1024) break;
+      forgetSavedWhyChain(result);
       delete result.fullGzip; delete result.fullBytes; delete result.fullResponseBytes; delete result.fullETag; delete result.fullBodyRevision;
     }
     endInactiveClients();
@@ -857,7 +860,7 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
         requirePermission();
         // Stable invitation identity: opening new sessions or changing IP cannot reset it.
         const expensiveRead = ['GET', 'HEAD'].includes(request.method)
-          && ['/api/tasks', '/api/helper-drops', '/api/teleports', '/api/training-plan', '/api/area-check', '/api/predict', '/api/death-estimates', '/api/chunk-planning'].includes(route)
+          && ['/api/task-why', '/api/tasks', '/api/helper-drops', '/api/teleports', '/api/training-plan', '/api/area-check', '/api/predict', '/api/death-estimates', '/api/chunk-planning'].includes(route)
           && !(identity.readOnly && route === '/api/tasks');
         const expensiveWrite = request.method === 'POST'
           && ['/api/sandbox/evaluate', '/api/prediction-intent', '/api/pool-ranking-intent', '/api/profile/preview', '/api/runemetrics/preview', '/api/original-sync/preview'].includes(route);
@@ -885,6 +888,11 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
             const ranking = poolRanking.read(captured.input, memberId, state.revision, ids,
               id => taskWorker?.peekPrediction(state, memberId, id, captured.input));
             await json(request, response, 200, ranking); return;
+          }
+          if (route === '/api/task-why') {
+            const query = new URL(request.url, 'http://localhost').searchParams;
+            await json(request, response, 200, await savedWhyChain(query, { revision: store.getInfo().revision, members: knownTaskMembers,
+              entry: savedTaskResults.get(query.get('memberId')), definitions: parsedDefinitions, currentRevision: () => store.getInfo().revision })); return;
           }
           if (route === '/api/tasks' && identity.readOnly) { await readSavedTasks(request, response); return; }
           if (route === '/api/backlog-search') {
@@ -1717,6 +1725,8 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
       else if (route === '/pool-ranking.mjs') file = await containedFile(webRoot, 'pool-ranking.mjs');
       else if (['/activity-filters.mjs', '/activity-view.mjs', '/activity-filters.css', '/chunk-quest-filters.mjs'].includes(route)) file = await containedFile(webRoot, route.slice(1));
       else if (['/bis-preferences.mjs', '/bis-recorded.mjs', '/bis-comparison-view.mjs', '/bis-compare.mjs', '/bis-results.mjs', '/bis-compare.css'].includes(route)) file = await containedFile(webRoot, route.slice(1));
+      else if (route === '/task-why-chain.mjs') file = await containedFile(webRoot, 'task-why-chain.mjs');
+      else if (route === '/tasks/why-chain.mjs') file = await containedFile(path.join(ROOT, 'app', 'tasks'), 'why-chain.mjs');
       else if (['/task-hover.mjs', '/task-why.mjs', '/task-focus.mjs', '/task-methods.mjs', '/task-equipment.mjs', '/task-artwork.mjs', '/task-ui.css', '/bis-panel.css', '/duo-tasks.mjs', '/duo-task-view.mjs', '/duo-tasks.css', '/task-claims.mjs', '/task-filters.mjs', '/task-filters-model.mjs', '/task-filters.css', '/custom-tasks-model.mjs', '/screen-custom-tasks.mjs'].includes(route)) file = await containedFile(webRoot, route.slice(1));
       else if (['/art-status.mjs', '/art-status.css', '/dataset-status.mjs', '/dataset-features.mjs', '/browser-task-icons.mjs'].includes(route)) file = await containedFile(webRoot, route.slice(1));
       else if (/^\/placeholder-art\/(?:skill-[a-z]+|task-(?:quest|achievements|minigame|clue|music)|pin-(?:general|transport|skilling|combat-slayer|quests-achievements|minigames|other)|item)\.svg$/.test(route)) file = await containedFile(webRoot, route.slice(1));

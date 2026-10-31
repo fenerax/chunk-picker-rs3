@@ -112,6 +112,7 @@ export const quickTests = new Set([
   "members-start-bank-names.test.mjs",
   "search-place-ranking.test.mjs",
   "task-blocker-guidance.test.mjs",
+  "task-why-chain.test.mjs",
 
   "rule-explanations.test.mjs",
   "automatic-rule-defaults.test.mjs",

@@ -1,3 +1,4 @@
+import { createWhyChainDisclosure } from './task-why-chain.mjs';
 import { sourceRateText } from '../tasks/rates.mjs';
 import { createRuneMetricsControls } from './runemetrics.mjs';
 import { taskItemIcon } from './task-artwork.mjs';
@@ -722,6 +723,11 @@ export function createInfoPanels(context) {
         const row = el('div', undefined, 'info-row'); row.append(el('strong', text(task.name)), paragraph(`${task.planningEligible ? 'Possible assignment' : 'Blocked / unknown'} · Assignment weight ${task.weight}`));
         if (task.reachableMonsters.length) row.append(paragraph(`Reachable target monsters: ${task.reachableMonsters.map(text).join(', ')}`));
         if (task.blockers.length) row.append(list(task.blockers.map(blocker => blocker.detail)));
+        if (!task.planningEligible) row.append(createWhyChainDisclosure(context, { master: master.name, assignment: task.name }, {
+          memberId: result.memberId, revision: result.stateRevision, advanced,
+          ...(context.isSandbox?.() ? { result, definitions: context.definitions?.() ?? {} } : {}),
+          current: () => context.state().revision === result.stateRevision && context.memberId() === result.memberId,
+        }));
         row.append(requirementsView({ skills: { ...task.requirements.Skills, ...(task.requirements.Level ? { Slayer: task.requirements.Level } : {}), ...(task.requirements.CombatLevel ? { Combat: task.requirements.CombatLevel } : {}) }, tasks: task.requirements.Tasks, chunks: values(task.requirements.Chunks) })); return row;
       }, 'assignments')); return detail;
     }), 'Slayer masters')); return node;

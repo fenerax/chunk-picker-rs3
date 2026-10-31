@@ -1,3 +1,4 @@
+import { createWhyChainDisclosure } from '../app/web/task-why-chain.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
@@ -10,7 +11,7 @@ import { createNoteEditor } from '../app/web/info-panels.mjs';
 // equipment/map collaborators, as the broader screen harness does.
 const dialogsSource = await readFile(new URL('../app/web/screen-task-dialogs.mjs', import.meta.url), 'utf8');
 const createScreenTaskDialogs = runInNewContext(`${dialogsSource.replace(/^import .+\r?\n/gm, '').replace(/^export /gm, '')}\ncreateScreenTaskDialogs`, {
-  createQuestMap: () => ({}), renderTaskEquipment: () => null, createNoteEditor, renderTaskBlockerGuidance,
+  createWhyChainDisclosure, createQuestMap: () => ({}), renderTaskEquipment: () => null, createNoteEditor, renderTaskBlockerGuidance,
 });
 
 class Node {

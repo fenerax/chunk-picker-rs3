@@ -32,7 +32,7 @@ export const routePermissions = Object.freeze({
     '/api/training-catalogue': 'read', '/api/house-storage-catalogue': 'read',
     '/api/helper-drops': 'read', '/api/helper-progress': 'read', '/api/xp-choices': 'read', '/api/backup-status': 'admin',
     '/api/teleports': 'write', '/api/skill-guide-catalogue': 'read', '/api/training-plan': 'write',
-    '/api/tasks': 'saved-tasks', '/api/area-check': 'read', '/api/backlog-search': 'read', '/api/pool-ranking': 'read', '/api/predict': 'write', '/api/death-estimates': 'write', '/api/chunk-planning': 'write',
+    '/api/task-why': 'read', '/api/tasks': 'saved-tasks', '/api/area-check': 'read', '/api/backlog-search': 'read', '/api/pool-ranking': 'read', '/api/predict': 'write', '/api/death-estimates': 'write', '/api/chunk-planning': 'write',
     '/api/migration': 'read', '/api/rules': 'read', '/api/backup': 'write', '/api/backups': 'write',
     '/api/backups/:id': 'write', '/api/members-start': 'write', '/api/events': 'read',
   }),
