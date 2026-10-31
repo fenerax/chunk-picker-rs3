@@ -339,3 +339,5 @@ processes/isolates; store writes use an identical injected timestamp. No respons
 fields are stripped or normalized. A nonzero response, size or state difference
 fails the command. Keep ordinary performance measurements separate from this
 fixed-clock gate.
+
+The duo comparison accepts `--extended` to also compare complete raw gameplay export, retained-backup listing, backup-status, rules and Slayer data-module responses in both modes, plus session bytes with routing absent (16 pairs absent, 15 present). Enabled routing intentionally adds the contract's session bindings; acceptance tests check those fields. Copied gameplay preserves timestamps so retained-backup listings compare the same input metadata. The default ten-response gate is unchanged. Use this during lane-to-main rehearsals to check the extracted HTTP allowlist and option-absent backup/session behavior.

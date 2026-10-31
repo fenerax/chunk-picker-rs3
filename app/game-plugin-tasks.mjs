@@ -67,20 +67,43 @@ export function pluginDoneRows({ state, result, registry, memberId }) {
   }).sort((a, b) => (Date.parse(b.doneAt) || 0) - (Date.parse(a.doneAt) || 0) || a.id.localeCompare(b.id));
 }
 
+export const PLUGIN_REMEMBERED_LOCATIONS = 512;
+const isCustomTask = id => String(id).startsWith('custom:') || String(id).startsWith('rs3:task:custom:');
+const savedSources = (state, result) => new Map([...(state.tasks ?? []), ...(result.tasks ?? [])]
+  .map(task => [resolveSavedTaskId(state.identityRegistry, task.id), task]));
+const authoredRecord = (task, definitions) => task?.record ?? definitions?.challenges?.[task?.category]?.[task?.rawLabel ?? task?.label];
+
+/** Generated goals (equipment "Obtain" rows and the like) have no authored record,
+ * and play results strip their sources, so the planning index cannot place them
+ * once they finish. Remember the map location they had while active, per member,
+ * most recent first and bounded. Authored and custom tasks are recovered instead. */
+export function rememberActiveLocations({ memory, rows, state, result, world }) {
+  const sources = savedSources(state, result), definitions = world.definitions;
+  for (const row of rows) {
+    if (!row.chunks?.length || isCustomTask(row.id)) continue;
+    const task = sources.get(row.id);
+    if (authoredRecord(task, definitions) || task?.sources?.length) continue;
+    memory.delete(row.id); memory.set(row.id, row.chunks);
+  }
+  while (memory.size > PLUGIN_REMEMBERED_LOCATIONS) memory.delete(memory.keys().next().value);
+  return memory;
+}
+
 const recentDoneRows = (rows, now) => (rows ?? []).filter(row => row.doneAt && Date.parse(row.doneAt) >= now - PLUGIN_DONE_AGE_MS && Date.parse(row.doneAt) <= now).slice(0, PLUGIN_DONE_LIMIT);
 const planningDefinitions = new WeakMap();
 
 /** Compact map projections omit completed tasks. Locate only the recent set,
  * recovering authored records stripped from play results, never evaluating tasks. */
-export function pluginDoneLocations({ rows, state, result, world, now, cache = new Map() }) {
+export function pluginDoneLocations({ rows, state, result, world, now, cache = new Map(), remembered = new Map() }) {
   const recent = recentDoneRows(rows, now), definitions = world.definitions;
-  const sources = new Map([...(state.tasks ?? []), ...(result.tasks ?? [])].map(task => [resolveSavedTaskId(state.identityRegistry, task.id), task]));
+  const sources = savedSources(state, result);
   const missing = recent.filter(row => !cache.has(row.id));
   const candidates = missing.flatMap(row => {
     const task = sources.get(row.id);
-    const record = task?.record ?? definitions?.challenges?.[task?.category]?.[task?.rawLabel ?? task?.label];
+    const record = authoredRecord(task, definitions);
     return record || task?.sources?.length ? [{ ...task, id: row.id, record: record ?? {} }] : [];
   });
+  const indexed = new Set(candidates.map(task => task.id));
   if (definitions && candidates.length) {
     // Clue markers are unrelated to task locations. Keep the shared declaration
     // index, without traversing the full clue catalogue for these bounded rows.
@@ -94,17 +117,21 @@ export function pluginDoneLocations({ rows, state, result, world, now, cache = n
     }
     for (const [id, chunks] of located) cache.set(id, [...chunks].sort());
   }
-  // A known task the index cannot place is in no chunk, as active map rows are; only a
-  // task missing from both the save and the result leaves its location unknown.
-  for (const row of missing) if (!cache.has(row.id)) cache.set(row.id, row.chunks ?? (definitions && sources.has(row.id) ? [] : null));
+  // A task with location evidence that the index cannot place is in no chunk, as active
+  // map rows are, and so is a custom task. A generated goal uses the location it had while
+  // active; without one (never listed since this process started) its location is unknown.
+  for (const row of missing) if (!cache.has(row.id)) cache.set(row.id, row.chunks ?? remembered.get(row.id)
+    ?? (definitions && (indexed.has(row.id) || isCustomTask(row.id)) ? [] : null));
   return recent.map(row => ({ ...row, chunks: cache.get(row.id) }));
 }
 
 export function pluginDoneList({ rows = null, chunkId, now }) {
   const recent = recentDoneRows(rows, now);
   const strip = ({ chunks, ...row }) => row;
+  // One finish with an unknown location must not hide the others: `here` lists every
+  // finish known to be in this chunk, and hereKnown says whether that list is complete.
   const hereKnown = rows !== null && chunkId !== null && recent.every(row => row.chunks !== null);
-  const here = hereKnown ? recent.filter(row => row.chunks.includes(chunkId)).slice(0, PLUGIN_DONE_LIMIT) : [];
+  const here = rows !== null && chunkId !== null ? recent.filter(row => row.chunks?.includes(chunkId)).slice(0, PLUGIN_DONE_LIMIT) : [];
   const all = recent.slice(0, PLUGIN_DONE_LIMIT);
   return { here: here.map(strip), all: all.map(strip), hereCount: here.length, allCount: all.length, hereKnown };
 }

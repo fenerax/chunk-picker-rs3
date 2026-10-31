@@ -498,8 +498,12 @@ surface-chunk location rule as active `here`, including interior suffix removal.
 Its locations are recovered from the same chunk-planning index as Chunk Info,
 even when recalculated map badges omit completed tasks. At most 20 rows are
 indexed per member/revision and their locations are cached.
-`done.hereKnown` is false without a recent position or known row locations, and
-`done.here` is then empty. Counts describe the capped lists; there is no paging,
+Generated goals (such as equipment "Obtain" goals) have no authored record, so
+they keep the chunks they had on the map while active (up to 512 per member,
+in memory). A finish whose location cannot be established is in `done.all` only.
+`done.hereKnown` is false without a recent position, and `done.here` is then
+empty. With a position, `done.here` lists every finish known to be in this
+chunk, and `done.hereKnown` is false only if some finish's location is unknown. Counts describe the capped lists; there is no paging,
 and active `from` never changes these lists.
 
 `doneAt` is null when the save cannot establish a finish time. Such rows cannot

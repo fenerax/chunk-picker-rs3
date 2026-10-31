@@ -2,6 +2,9 @@ import path from 'node:path';
 import { createReadStream } from 'node:fs';
 import { chmod, copyFile, lstat, mkdir, open, readFile, readdir, rename, rm, statfs, writeFile } from 'node:fs/promises';
 import { createHash, randomUUID } from 'node:crypto';
+import { spawn } from 'node:child_process';
+import { once } from 'node:events';
+import { processIdentity } from './start-check.mjs';
 
 export const sha = bytes => createHash('sha256').update(bytes).digest('hex');
 export const json = async file => JSON.parse(await readFile(file, 'utf8'));
@@ -80,11 +83,79 @@ export async function headroom(root, bytes, reserve) {
   const fs = await statfs(root, { bigint: true });
   if (fs.bavail * fs.bsize < BigInt(Math.ceil(bytes)) + BigInt(reserve)) throw new Error('Insufficient free space for recovery work and reserve.');
 }
-// An interrupted owner leaves evidence. Never guess that an old lock is stale.
-export async function exclusive(file, action, { skipBusy = false } = {}) {
+// One guard serializes lock creation with stale-owner recovery, so a
+// reclaimer that judged the previous owner dead can never move a replacement
+// lock. flock is tied to the guard's open description, so the kernel releases
+// it when its holder dies. Keep the guard's inode in place; unlinking it would
+// let observers lock different files. Removal needs no guard: a vanished lock
+// just sends recovery back to acquisition.
+async function lockGuard(file, wait) {
+  if (process.platform !== 'linux') return async () => {};
+  let guard;
+  try { guard = await open(file + '.recovery', 'a', 0o600); } catch { return null; }
+  try {
+    await noLinks(file + '.recovery');
+    // The child shares guard's open description. Its successful flock
+    // survives the child's exit until our handle closes, including SIGKILL.
+    const child = spawn('flock', ['--exclusive', ...(wait ? ['--wait', '5'] : ['--nonblock']), '3'], { stdio: ['ignore', 'ignore', 'ignore', guard.fd] });
+    const [code] = await once(child, 'exit');
+    if (code === 0) return () => guard.close();
+  } catch {}
+  await guard.close();
+  return null;
+}
+// Returns true when the lock was moved aside or vanished, so acquisition retries.
+async function recoverDeadOwner(file) {
+  if (process.platform !== 'linux') return false;
+  const release = await lockGuard(file, false);
+  if (!release) return false;
+  try {
+    await noLinks(file);
+    const owner = await json(file);
+    if (!Number.isSafeInteger(owner.pid) || owner.pid < 1
+      || !/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}:\d+$/.test(owner.processIdentity ?? '')) return false;
+    const boot = (await readFile('/proc/sys/kernel/random/boot_id', 'utf8')).trim();
+    if (owner.processIdentity.split(':')[0] === boot) {
+      try { if (await processIdentity(owner.pid) === owner.processIdentity) return false; }
+      catch (error) { if (error.code !== 'ENOENT') return false; }
+    }
+    await rename(file, path.join(path.dirname(file), 'stale-operation.lock.' + Date.now() + '.' + process.hrtime.bigint() + '-pid' + owner.pid));
+    return true;
+  } catch (error) { return error.code === 'ENOENT'; }
+  finally { await release(); }
+}
+export async function exclusive(file, action, { skipBusy = false, maxBusyMs = Infinity } = {}) {
   let handle;
-  try { handle = await open(file, 'wx', 0o600); }
-  catch (error) { if (skipBusy && error.code === 'EEXIST') return { skipped: true }; throw error; }
-  try { await handle.writeFile(encode({ pid: process.pid, startedAt: new Date().toISOString() })); return await action(); }
+  for (;;) {
+    const release = await lockGuard(file, true);
+    if (release) {
+      try {
+        try { handle = await open(file, 'wx', 0o600); }
+        catch (error) { if (error.code !== 'EEXIST') throw error; }
+        if (handle) {
+          // Write the owner record before releasing the guard: recovery never
+          // reads a partial record from a live owner.
+          try {
+            await handle.writeFile(encode({ pid: process.pid, startedAt: new Date().toISOString(),
+              processIdentity: process.platform === 'linux' ? await processIdentity(process.pid) : null }));
+            await handle.sync();
+          } catch (error) { await handle.close(); await rm(file, { force: true }); throw error; }
+        }
+      } finally { await release(); }
+      if (handle) break;
+      if (await recoverDeadOwner(file)) continue;
+    }
+    if (Number.isFinite(maxBusyMs)) {
+      // Metadata also covers malformed and legacy records, without trusting
+      // their timestamps or exposing their contents in health diagnostics.
+      const info = await lstat(file).catch(() => null);
+      if (info && Date.now() - info.mtimeMs > maxBusyMs) {
+        throw Object.assign(new Error('Operator lock held for over 30 minutes; inspect privately.'), { code: 'OPERATOR_LOCK_LONG_HELD' });
+      }
+    }
+    if (skipBusy) return { skipped: true };
+    throw Object.assign(new Error('Operator lock busy.'), { code: 'EEXIST' });
+  }
+  try { return await action(); }
   finally { await handle.close(); await rm(file); }
 }

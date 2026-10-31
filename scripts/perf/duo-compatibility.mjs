@@ -12,8 +12,8 @@ import { spawn } from 'node:child_process';
 const sha = bytes => createHash('sha256').update(bytes).digest('hex');
 const here = fileURLToPath(import.meta.url);
 const clock = fileURLToPath(new URL('./duo-compatibility-clock.mjs', import.meta.url));
-const { values } = parseArgs({ options: Object.fromEntries(
-  ['baseline', 'candidate', 'source', 'packs', 'defaults', 'out', 'internal'].map(key => [key, { type: 'string' }])) });
+const { values } = parseArgs({ options: { extended: { type: 'boolean', default: false }, ...Object.fromEntries(
+  ['baseline', 'candidate', 'source', 'packs', 'defaults', 'out', 'internal'].map(key => [key, { type: 'string' }])) } });
 
 async function trial(config) {
   const start = process.hrtime.bigint();
@@ -42,6 +42,11 @@ async function trial(config) {
     const members = app.store.getCalculationSnapshot().members.map(member => member.id);
     if (members.length !== 2) throw Error('This gate requires two members.');
     for (const route of ['/api/state', '/api/state?view=play-v1', '/api/history', '/api/game-plugin']) await capture(route);
+    // Enabled routing deliberately adds session bindings under the contract.
+    // Exact legacy-session bytes belong to the option-absent comparison.
+    if (config.extended && !config.enabled) await capture('/api/session');
+    if (config.extended) for (const route of ['/api/backup', '/api/backups', '/api/backup-status',
+      '/api/rules', '/data/slayer-unlock-gates.mjs']) await capture(route);
     for (const memberId of members) for (const view of ['', '&view=play-v1']) await capture('/api/tasks?memberId=' + encodeURIComponent(memberId) + view);
     for (const memberId of members) {
       const key = JSON.parse(await request('/api/game-plugin/keys', token, { memberId, label: 'Player 1' })).key;
@@ -68,9 +73,9 @@ async function main() {
       const pair = [];
       for (const checkout of [values.baseline, values.candidate]) {
         const run = await mkdtemp(path.join(root, 'run-')), store = path.join(run, 'game');
-        await cp(values.source, store, { recursive: true, filter: file => !['store.lock', 'access-token', 'accounts.json', 'invites.json', 'plugin-keys.json'].includes(path.basename(file)) });
+        await cp(values.source, store, { recursive: true, preserveTimestamps: true, filter: file => !['store.lock', 'access-token', 'accounts.json', 'invites.json', 'plugin-keys.json'].includes(path.basename(file)) });
         await copyFile(values.source + '.dataset.json', store + '.dataset.json');
-        const config = { checkout: path.resolve(checkout), store, root: run, enabled, result: path.join(run, 'result.json') };
+        const config = { checkout: path.resolve(checkout), store, root: run, enabled, extended: values.extended, result: path.join(run, 'result.json') };
         const input = path.join(run, 'input.json'); await writeFile(input, JSON.stringify(config), { mode: 0o600 });
         let peakRSSBytes = 0;
         await new Promise((resolve, reject) => {

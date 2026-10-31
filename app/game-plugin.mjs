@@ -5,7 +5,7 @@ import { openPluginAchievements } from './plugin-achievements.mjs';
 import { openPluginItems } from './plugin-items.mjs';
 import { GAME_ITEMS, GAME_TOOLBELT, GAME_WORN_TASKS, COINS, COIN_BILLIONS, ITEM_REVIEW_LIMIT, matchGameItems } from './integrations/game-items.mjs';
 import { fields, validatePluginReport, pluginProposal, matchPluginAchievements, ACHIEVEMENT_REVIEW_LIMIT } from './integrations/game-plugin.mjs';
-import { pluginTaskRows, pluginTaskList, pluginTaskFrom, pluginDoneRows, pluginDoneList, pluginDoneLocations, PLUGIN_DONE_AGE_MS, pluginRollSummary } from './game-plugin-tasks.mjs';
+import { pluginTaskRows, pluginTaskList, pluginTaskFrom, pluginDoneRows, pluginDoneList, pluginDoneLocations, rememberActiveLocations, PLUGIN_DONE_AGE_MS, pluginRollSummary } from './game-plugin-tasks.mjs';
 import { createPluginProgressSource } from './integrations/progress-sources.mjs';
 import { createGameCoordinates } from './core/game-coords.mjs';
 
@@ -53,7 +53,7 @@ export async function openGamePlugin({ dataDir, store, world, registry, questMap
   // Last saved task list per plugin player. The bytes are the server's own saved
   // play result, so a fresh list costs no extra memory; after a tick clears the
   // saved results, this reference keeps the list readable until the next load.
-  const retainedTasks = new Map(), taskRows = new Map();
+  const retainedTasks = new Map(), taskRows = new Map(), activeLocations = new Map();
   function state() { return store.getCalculationSnapshot().state; }
   function member(player) {
     const owner = state().members.find(owner => owner.id === player);
@@ -406,6 +406,8 @@ export async function openGamePlugin({ dataDir, store, world, registry, questMap
       cached = { bytes, revision, stale: !current, doneLocations,
         rows: pluginTaskRows({ state: snapshot, result, registry, memberId: player, stale: !current }) };
       taskRows.set(player, cached);
+      if (!activeLocations.has(player)) activeLocations.set(player, new Map());
+      rememberActiveLocations({ memory: activeLocations.get(player), rows: cached.rows, state: snapshot, result, world });
     }
     if (!cached.doneRows || cached.history !== history) {
       cached.history = history;
@@ -415,7 +417,8 @@ export async function openGamePlugin({ dataDir, store, world, registry, questMap
       result ??= JSON.parse(bytes.toString('utf8'));
       const rows = pluginDoneRows({ state: { ...snapshot, history: history ?? snapshot.history ?? [] },
         result, registry, memberId: player });
-      cached.doneRows = pluginDoneLocations({ rows, state: snapshot, result, world, now: clock(), cache: cached.doneLocations });
+      cached.doneRows = pluginDoneLocations({ rows, state: snapshot, result, world, now: clock(), cache: cached.doneLocations,
+        remembered: activeLocations.get(player) });
     }
     // Filter tasks in picker space, then keep the wire's current-chunk identity
     // consistent with status and the plugin's position/debounce checks.
@@ -587,7 +590,7 @@ export async function openGamePlugin({ dataDir, store, world, registry, questMap
     },
     rememberTasks(memberId, bytes) {
       if (closed || !bytes) return;
-      if (hasActiveKey(memberId)) retainedTasks.set(memberId, bytes); else { retainedTasks.delete(memberId); taskRows.delete(memberId); }
+      if (hasActiveKey(memberId)) retainedTasks.set(memberId, bytes); else { retainedTasks.delete(memberId); taskRows.delete(memberId); activeLocations.delete(memberId); }
     },
     revokeDeletion() { return keys.revokeDeletion(); },
     async prepareSnapshot() { await handledFlush; await flushHandled(true); await keys.flush(); },
@@ -601,7 +604,7 @@ export async function openGamePlugin({ dataDir, store, world, registry, questMap
         itemMemory.clear(); itemAcks.clear(); itemHandled.clear(); bankAssemblies.clear(); bankAcks.clear(); itemCoins.clear();
         progressSource.clear(); itemTasks = undefined;
         sequences.clear(); buckets.clear(); statuses.clear(); pendingHandled.clear();
-        rollSummaries = new WeakMap(); positions.clear(); pending.clear(); diagnostics.clear(); retainedTasks.clear(); taskRows.clear(); assemblies.clear(); completedSnapshots.clear(); achievementSummaries.clear();
+        rollSummaries = new WeakMap(); positions.clear(); pending.clear(); diagnostics.clear(); retainedTasks.clear(); taskRows.clear(); activeLocations.clear(); assemblies.clear(); completedSnapshots.clear(); achievementSummaries.clear();
       })();
       return closePromise;
     },

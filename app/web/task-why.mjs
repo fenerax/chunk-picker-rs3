@@ -5,10 +5,13 @@ const SOURCES = Object.freeze({ Automatic: 'default', Inherited: 'shared setting
 
 /** Rule labels, values and sources come from the Rules model, loaded on first use. */
 export async function createRuleDescriber(state, memberId, loadRules = () => import('./rules-model.mjs')) {
-  const { rulesCatalogue, taskRuleValue } = await loadRules();
+  const { rulesCatalogue, taskRuleValue, buildRulesSections } = await loadRules();
   const rows = new Map();
   for (const section of rulesCatalogue.sections) for (const row of section.rows) if (!rows.has(row.key)) {
     rows.set(row.key, { label: row.key === 'Achievement' ? 'Show Achievement Tasks' : row.label ?? row.key, section: section.name });
+  }
+  for (const section of buildRulesSections?.(rulesCatalogue, state) ?? []) for (const row of section.rules) {
+    if (!rows.has(row.id)) rows.set(row.id, { label: row.label, section: section.name });
   }
   return id => {
     const { value, source } = taskRuleValue(state, memberId, { id });
@@ -45,6 +48,7 @@ export function renderTaskWhy(why, { document, actions = [], openRule } = {}) {
   if (why.set?.preferred && why.set.over.length) card.append(line('Picked over', `${why.set.over.join(', ')} (same set)`));
   if (why.set && !why.set.preferred && why.set.by) card.append(line('Hidden behind', `${why.set.by} (same set)`));
   if (why.bossGate) card.append(line(why.bossGate.open === false ? 'Boss locked' : 'Boss unlocked', `${why.bossGate.boss}. ${why.bossGate.reason}`));
+  if (why.slayerUnlockGate) card.append(line(why.slayerUnlockGate.bypassed ? 'Slayer unlock rule' : why.slayerUnlockGate.open ? 'Slayer unlock ready' : 'Slayer unlock waiting', why.slayerUnlockGate.reason));
   for (const chain of why.neededFor) card.append(line('Needed for', chain.join(' → ')));
   const source = why.sources[0];
   if (source?.text) card.append(line('Possible from', `${source.text}${source.rate ? ` (${source.rate}${why.rareDrop ? `, counts because ${why.rareDrop.label} is on` : ''})` : ''}`));

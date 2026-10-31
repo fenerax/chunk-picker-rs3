@@ -36,6 +36,8 @@ import { bossGates as bossGateData } from '../data/boss-gates.mjs';
 import { applyDivinationTraining } from '../data/divination-training.mjs';
 import { personalQuestProgressBlocker } from './personal-quest-progress.mjs';
 import { taskRuleEnabled } from './rule-defaults.mjs';
+import { slayerUnlockGate, slayerUnlockTaskName } from '../data/slayer-unlock-gates.mjs';
+import { evaluateSlayerUnlockGate } from './slayer-unlock-gates.mjs';
 import { withActivityTimingTags } from '../data/activity-timing.mjs';
 import { compileDialogueSupply, dialogueSupplyBlocker, dialogueSupplyNote, dialoguePaymentText, compileFiniteRewards, finiteRewardPreview,
   compilePersonalAlternatives, personalAlternativesBlocker, compileSourceLocations, sourceLocationBlocker } from './reviewed-supplies.mjs';
@@ -266,6 +268,12 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
         dependency, byKey.get(keyOf(dependency.category, name))?.record, any)));
     }
   }
+  const slayerGates = new Map(compiled.flatMap(task => {
+    const gate = slayerUnlockGate(task.category, task.rawLabel, task.record);
+    return gate ? [[task, gate]] : [];
+  }));
+  const slayerEntranceTasks = new Map(compiled.filter(task => task.category === 'Quest')
+    .map(task => [slayerUnlockTaskName(task.rawLabel), task.key]));
   const catalogue = Object.freeze([...compiled.map(({ id, label, category, rawLabel, level }) => Object.freeze({ id, label, category, rawLabel, level, kind: 'task', aliases: Object.freeze([legacyTaskId(category, rawLabel)]) })), ...buildHouseStorageCatalogue()]);
   const processingSetFields = new Set(['bases', 'sections', 'components', 'compatibilitySections', 'areas', 'blockedAreas',
     'objects', 'npcs', 'monsters', 'shops', 'possibleAreas']);
@@ -879,6 +887,11 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
       if (required > caps[skill] && !(task.record['Allow Virtual'] && !f2p && required <= 120)) return true;
       return required > (levels[skill] ?? 1) && required > (levels[skill] ?? 1) + boost(skill, task);
     }
+    function slayerGateStatus(task, gate) {
+      return evaluateSlayerUnlockGate(gate, rules, access, name => hasItem(name, task.record, task.category), {
+        hasQuestTask: name => valid.has(slayerEntranceTasks.get(name)), slayerLevel: levels.Slayer,
+      });
+    }
     function check(task, explain = false) {
       counters.checks++;
       if (!explain && staticBlocked.has(task)) return unavailableCheck;
@@ -906,6 +919,11 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
       }
       if (record.UnlocksArea && access.blockedAreas?.has(task.rawLabel)) add('access', explain ? `${task.rawLabel} is manually blocked by the current member.` : undefined);
       if (blocked) return explain ? blockers : unavailableCheck;
+      const slayerGate = slayerGates.get(task);
+      if (slayerGate && !slayerGateStatus(task, slayerGate).open) {
+        add('slayer-unlock', explain ? `Requires: ${slayerGate.condition}` : undefined);
+        if (!explain) return unavailableCheck;
+      }
       // Manual checks need in-game evidence, never inferred map or supply access.
       // A recorded personal completion uses the existing completed-task path.
       for (const reason of task.manualChecks) add('manual-check', reason);
@@ -1318,6 +1336,7 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
       const explanation = blockers.length ? blockers.map(value => value.detail).join(' ') : taskSources.length ? 'You can reach the required locations, item sources, prerequisite tasks and training methods.' : completed.has(task.id) ? 'You recorded completing this task in-game.' : 'All listed requirements are met.';
       const sourceEligible = !processingTasks.has(task) || admitted.has(task.id) || completedTask(task);
       const row = { id: task.id, label: task.label, rawLabel: task.rawLabel, category: task.category, obligation: own, level: task.level, primary: !!record.Primary, ...(!sourceEligible && !blockers.length ? { sourceEligible: false } : {}), primaryMethod: !!primaryEligible(task, blockers.length > 0) && (task.category !== 'Smithing' || smithingPrimary), status: blockers.some(value => value.kind === 'unsupported') ? 'unsupported' : blockers.length ? 'blocked' : 'available', blockers, sources: taskSources, explanation: [explanation, ...partnerTraining, ...partnerSupplies, ...(!sourceEligible && !blockers.length ? ['You can make this recipe, but your processing rules exclude its products from available supplies and training.'] : [])].join(' '), personalCompleted: recordedCompleted.has(task.id), challengeSatisfied: challengeSatisfied(task.id), hidden: filters.length > 0, hiddenReasons: filters, wiki: task.wiki, baseQuest: record.BaseQuest, record };
+      if (slayerGates.has(task)) row.slayerUnlockGate = slayerGateStatus(task, slayerGates.get(task));
       if (task.dialogueSupply) {
         row.dialogueSupply = structuredClone(task.dialogueSupply);
         row.explanation += ` Payment: ${dialoguePaymentText(task.dialogueSupply)}. ${dialogueSupplyNote}`;

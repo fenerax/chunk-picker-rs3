@@ -636,3 +636,44 @@ medians or spread estimates. Peak RSS is the sampled process-tree sum at 50 ms.
 | Absent, peak RSS, MiB | 1176.14 | 1213.82 |
 | Present, wall seconds | 28.87 | 28.21 |
 | Present, peak RSS, MiB | 1230.36 | 1204.56 |
+
+## Multiplayer/main merge rehearsal
+
+MAIN/START: `3b1577232a6a51f77de168497ee6d03ff8096353`. LANE: `c299c4fa012a4ec4dd8075a0ba354018c8331867`. Linux, Node v24.21.0, four-core cgroup quota, 16 GiB memory limit, 31 October 2026. Application resolutions passed quick (2,819/0, 68 skips) and full (5,989/0, 140 skips) before measurements. No tests or competing calculator workloads ran during measurement.
+
+Three alternating MAIN/merged pairs use the existing footprint harness, an empty synthetic source, bundled open-f2p, process workers, port zero, 250 ms idle and a 3,500 MiB RSS guard. Pair order is MAIN/merged, merged/MAIN, MAIN/merged. The two-member candidate enables routing; MAIN ignores that unknown option. Both fresh-solo controls omit routing. Reduce member/compile observations to a median within each run, then report median [minimum–maximum] over three fresh processes per tree. CPU combines sampled HTTP and calculator-host CPU; sampled process-tree RSS uses the harness's 50 ms supervisor and may miss shorter peaks. These small fixtures test regression risk and establish no production capacity or throughput improvement.
+
+| Synthetic measurement | MAIN | Merged |
+| --- | --- | --- |
+| Two-member cold full tasks, ms | 328.16 [312.69–349.86] | 318.92 [307.60–336.05] |
+| Two-member warm full tasks, ms | 12.99 [10.17–13.95] | 9.61 [9.13–11.41] |
+| Two-member cold CPU, core-seconds | 0.344 [0.338–0.365] | 0.338 [0.331–0.360] |
+| Two-member compile, ms | 16.62 [15.81–17.23] | 15.92 [14.89–17.00] |
+| Two-member peak process-tree RSS, MiB | 109.82 [109.48–110.17] | 109.49 [108.74–109.64] |
+| Fresh solo cold full tasks, ms | 321.85 [307.94–322.37] | 337.38 [322.59–355.72] |
+| Fresh solo warm full tasks, ms | 16.39 [14.91–24.34] | 16.84 [16.49–18.00] |
+| Fresh solo cold CPU, core-seconds | 0.334 [0.327–0.358] | 0.352 [0.351–0.377] |
+| Fresh solo compile, ms | 15.80 [15.59–16.97] | 16.77 [15.89–17.21] |
+| Fresh solo peak process-tree RSS, MiB | 108.09 [107.86–108.73] | 107.75 [107.16–110.67] |
+
+Store bytes, median [minimum–maximum]: two-member MAIN 247335 [247335–247335], merged 247335 [247335–247335]; solo MAIN 246609 [246609–246609], merged 246609 [246609–246609]. Binding bytes: MAIN 163 [163–163], merged 163 [163–163] in both shapes. All twelve trials completed within the guard.
+
+The pinned checker and unchanged reference adapter at `2856d0d8d19b49c4d36718bbb2cff1d61e080610` run from temporary roots linked to MAIN or the merged app. Each routing mode prepares fresh real server copies; all four preparation state-hash difference counts are 0. The current-state gate uses seed 17, default caps, sequence 8 and serial calculators. Retained revision inventory: 414; states selected per mode: 1. Historical engine coverage remains separate.
+
+| Routing preparation | States | Comparisons | Differences | Errors | Total checker seconds | Reference peak RSS, MiB | Candidate peak RSS, MiB |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| Absent | 1 | 36 | 0 | 0 | 343.34 | 4711.61 | 4885.27 |
+| Present | 1 | 36 | 0 | 0 | 392.60 | 5010.54 | 5222.95 |
+
+Each mode is one compatibility sample, without estimated median or spread. Checker peaks are calculator RSS as sampled by the checker, excluding the supervising checker process. Corpus-manifest difference count across modes: 0; state-ID difference count: 0. Manifest SHA-256: `5c025c48b103361dc92af230b0d5e8e4796023d44b3ff124bd4de8c0e45b0d9a`; state-ID SHA-256: `a098a01d238d2520942339ebe31b49961e2e77304bbf331982352e7087e261fa`. Both engine-version SHA-256 values: `3f8a00bfef2400a0ce74dac37b015477d041e06249744e3dad0679fb5495e8b2`.
+
+The extended raw HTTP gate adds gameplay export, retained-backup list, backup status, rules and the moved browser data module to the standard ten response bodies in both modes. Exact session bytes are checked with routing absent; enabled sessions intentionally add the contract's three routing fields. Copied timestamps are preserved. Every complete raw body is compared without dropping fields; the existing fixed performance/store clocks make response measurements reproducible. Wall duration is real.
+
+| Routing | Paired responses | Body differences | Size differences | Save differences | MAIN / merged seconds | MAIN / merged peak RSS, MiB |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| Absent | 16 | 0 | 0 | 0 | 29.19 / 29.83 | 1546.92 / 1532.86 |
+| Present | 15 | 0 | 0 | 0 | 30.25 / 28.72 | 1516.16 / 1559.50 |
+
+Raw comparisons total 31 pairs. Absent runs return 154183225 bytes with ordered size/hash SHA-256 `b7f514941603d29a7e303207b3ce718bdb2fdf54dec9c1570bcf8b9c16576848`; present runs return 154183067 bytes with ordered size/hash SHA-256 `b59b065ffc3d26954555930fccc27bb00d063b7cba4b317ebd392c0066a71ff0`. Each rewritten state is 766384 bytes, SHA-256 `64de39c55452925587b87af05aa01507513263761bc407f54e81bcbb699acfdc`, identical to the source. These HTTP durations/RSS are single samples per tree/mode; no median or spread is inferred. Private checkout changed-file count: 0.
+
+In this small cohort the two-member cold median changes by −2.82%, while the option-absent solo cold median rises 4.83% (321.85 to 337.38 ms). The solo wall-time ranges barely separate; CPU ranges overlap. This is a follow-up signal, not an established cause or a production-capacity measurement. Repeat representative solo workloads before attributing it or changing operating limits.
