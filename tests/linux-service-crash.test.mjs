@@ -212,6 +212,19 @@ test('restore archive sweep: completed journal with recovered empty disks', asyn
   }, run, settings => finalState(f, settings, false, true));
 });
 
+test('a foreign destination binding before the staged binding rename is moved aside, not restored', async t => {
+  const f = await fixture(t), settings = await f.target(), options = f.restore(settings);
+  const target = pickerPath(settings, f.legacy);
+  await assert.rejects(restoreServiceStopped({ ...options, step: async label => { if (label === 'install.rename-binding') throw fault; } }), error => error === fault);
+  // The operator first tries the backup's own binding bytes: it still refuses.
+  await writeFile(target + '.dataset.json', await readFile(path.join(f.backup, 'pickers', f.legacy.id + '.dataset.json')));
+  const error = await restoreServiceStopped(options).then(() => null, error => error);
+  assert.equal(error?.code, 'OPERATOR_ACTION_REQUIRED', error?.message);
+  assert.match(error.message, /^Move .+\.dataset\.json aside after checking .+\.dataset\.json; then rerun\.$/);
+  await followMove(error);
+  await restoreServiceStopped(options);
+  assert.equal(await bindingDigest(target), await bindingDigest(path.join(f.backup, 'pickers', f.legacy.id)));
+});
 test('quarantine metadata refusals name the exact repair, and following it completes the rerun', async t => {
   const f = await fixture(t), settings = await f.target(), options = f.restore(settings);
   await restoreServiceStopped(options);

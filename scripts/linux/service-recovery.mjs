@@ -196,7 +196,9 @@ async function installPicker(settings, picker, stage, row, save, step) {
     await mutate(step, 'install.rename-store', () => rename(stageStore, target));
   }
   if (await exists(stageStore + '.dataset.json')) {
-    if (await exists(target + '.dataset.json')) throw restoreBytes(target + '.dataset.json');
+    // Any destination binding here is foreign (the staged one has not moved yet), so
+    // backup bytes cannot clear it: it must go aside for the staged rename.
+    if (await exists(target + '.dataset.json')) throw actionRequired(`Move ${target}.dataset.json aside after checking ${stageStore}.dataset.json; then rerun.`);
     if (sha(await readFile(stageStore + '.dataset.json')) !== row.bindingSha256) throw restoreBytes(stageStore + '.dataset.json');
     await mutate(step, 'install.rename-binding', () => rename(stageStore + '.dataset.json', target + '.dataset.json'));
   }
