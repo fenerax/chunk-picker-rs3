@@ -267,9 +267,13 @@ export async function openRegistry({ registryDir, pickerRoot, tombstoneDir, lega
     current = await load(file); ledger = await load(ledgerFile);
     // Only a missing file starts empty; a JSON null document fails validation.
     if (current !== undefined && ledger === undefined) throw new Error('Registry ledger is missing.');
-    if (current === undefined) current = { schemaVersion: 1, accounts: [], pickers: [], capabilities: [] };
     if (ledger === undefined) ledger = { schemaVersion: 1, issuedPickerIds: [], pickers: [], accounts: [] };
-    validateLedger(ledger); validate(current);
+    validateLedger(ledger);
+    if (current === undefined && (ledger.issuedPickerIds.length || ledger.pickers.length || ledger.accounts.length)) {
+      throw new Error(`Registry file ${file} is missing but ledger ${ledgerFile} has been used. Restore registry.json from a service backup or a known-good checkpoint, keeping the existing ledger.json.`);
+    }
+    if (current === undefined) current = { schemaVersion: 1, accounts: [], pickers: [], capabilities: [] };
+    validate(current);
     if (current.pickers.some(p => !ledger.issuedPickerIds.includes(p.id) || p.lifecycle !== 'active' && !ledger.pickers.some(t => t.pickerId === p.id))) bad();
     current = reconcile(current, ledger); validate(current); enforceCaps(current); rebuildIndexes(); rebuildLedgerIndexes();
     // Reconcile before recovery can create a directory or expose any index.

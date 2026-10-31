@@ -2,7 +2,8 @@
 
 Audited START: `b42defc930df99262b36ade59b157b201f309145` (SC1).
 This is a description of the existing file backend and a proposed boundary for a
-SQLite trial. It changes no implementation or gameplay behavior.
+SQLite trial. The SC3 startup rule below updates the implementation; gameplay
+behavior is unchanged. Other inventory anchors describe SC1.
 
 ## Scope and counting
 
@@ -88,6 +89,47 @@ reopening, and concurrency. None of the cited tests simulates filesystem power
 loss. File/directory fsync claims above come from implementation inspection.
 `tests/linux-service-crash.test.mjs` does not exist at START; the service
 interruption evidence is in `tests/linux-multi-picker.test.mjs`.
+
+## SC3: missing registry beside a used ledger
+
+SC3 START: `602876bc88088ba97f06d163eaec95b63fcc7eb0`.
+`openRegistry` refuses a missing `registryDir/registry.json` when the validated
+`tombstoneDir/ledger.json` contains any issued picker ID, picker tombstone, or
+retired account. The operator error names both paths and asks for `registry.json`
+from a service backup or known-good checkpoint, keeping the existing ledger.
+Refusal neither creates the registry nor rewrites the ledger; temporary writer
+locks are acquired and released normally. Never delete the ledger to bypass this
+check. A present registry still requires its ledger, as before.
+
+An empty ledger is the first-startup exception: with all three arrays empty,
+a missing registry starts normally. Startup durably writes the ledger before the
+registry, so a process crash between those writes must remain recoverable.
+An issued ID alone counts as used even when provisioning never completed;
+retired accounts count even when no picker was ever issued.
+
+Repository-wide caller review, including `scripts/linux/` (no operator flow
+changes required):
+
+| Caller / flow | Can reach the refusal? / result |
+| --- | --- |
+| `app/storage/registry.mjs` startup (`saveLedger`, `save`), called by `app/server.mjs` / Linux `runtime.mjs`, `serve.mjs` | Yes after registry loss beside a used ledger: deliberately refuses. Fresh install with neither file, or a crash after the initial empty ledger write, starts. Existing registry provisioning/deletion crash recovery still reconciles normally. |
+| Registry allocation, deletion and `reconcileTombstones`; `app/storage/tombstones.mjs` purge | No missing-registry open during these operations; the registry is already open. Purge removes picker data/bindings, keeps registry/ledger, and resumes against both documents. |
+| `scripts/linux/service-recovery.mjs` `reconcileServiceRecoveryTombstones` (planning and application) | No: atomically seeds scratch `registry.json` from the sanitized checkpoint **before** opening against the existing live ledger. Never initializes or restores a ledger. |
+| `restoreServiceStopped`, including interrupted/resumed recovery | No: uses the seeded adapter, then journals and publishes live `registry.json` before completion/startup. Empty target beside a used ledger is supported. `start-check.mjs` blocks incomplete recovery; unguarded app startup now also refuses while the registry is absent. |
+| `releaseServiceQuarantine`, including install/cleanup resume | No: normal release reads the existing registry and uses the seeded adapter. Missing registry already refuses that read. Completed cleanup resume does not open a registry or replace either metadata file. |
+| `scripts/linux/service-checkpoint.mjs` `captureServiceCheckpoint`, `publishServiceBackup`; `service-operator.mjs` `serviceBackup`; `online.mjs` capture/cleanup | No: write/copy/move/remove backup or spool registry images only, never the live registry or ledger. Stopped backup reads the existing registry; online capture uses its open owner. |
+| `service-operator.mjs` stopped proof, list/inspect, deploy, ownership repair | No registry open: read existing metadata, acquire/release locks, or repair ownership only. Missing registry cannot be silently recreated by these operations. Deploy startup goes through the server rule. |
+| Single-store `recovery.mjs`, `operator.mjs`, `probe.mjs`; install/runtime setup; `rehearse.mjs` | No registry/ledger creation, move or restore. Single-store recovery touches gameplay roots only; service mode dispatches to service recovery. Offline probes omit multiplayer configuration; rehearsal refuses service configuration. |
+| `scripts/perf/duo-compatibility.mjs`, `picker-footprint.mjs` | Fresh temporary registry/ledger roots per server trial; cleanup removes the complete trial root. No used-ledger/missing-registry pairing. |
+
+Synthetic evidence: `tests/registry.test.mjs` covers issued-only history,
+picker tombstones, retired-account-only history, repeated refusal without file
+writes, checkpoint restoration and lock release. Its first-startup child exits
+before the registry rename, after the empty ledger is durable, then reopens.
+`tests/linux-multi-picker.test.mjs` verifies direct opening of an empty restore
+target refuses against a used ledger, while stopped restore succeeds and the
+published registry reopens with tombstones applied. Existing quarantine/resume
+cases exercise the same adapter.
 
 ## Durable inventory
 
