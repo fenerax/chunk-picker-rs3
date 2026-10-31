@@ -277,7 +277,7 @@ function overridesFor(state, member, legacy = personalAccessProfile(state, membe
 
 /** Own access by default; an explicit territory admits connected capability
  * bases/sections through the same personal gates and source collector. */
-export function calculateAccess(index, state, memberId, { validTasks = new Set(), legacyRules = {}, territory, retainedTerritory, collectSources = true, membershipChecks, resolveAccess, getSurfaceEligibility, transportMemo } = {}) {
+export function calculateAccess(index, state, memberId, { validTasks = new Set(), legacyRules = {}, territory, retainedTerritory, collectSources = true, membershipChecks, resolveAccess, getSurfaceEligibility, transportMemo, proof } = {}) {
   if (collectSources && resolveAccess) {
     // Source gates can change while the entered locations stay identical.
     // Resolve the independently traced travel proof, then collect against the
@@ -294,7 +294,7 @@ export function calculateAccess(index, state, memberId, { validTasks = new Set()
   const result = { bases: new Set(), sections: new Set(), components: new Set(), compatibilitySections: new Set(), areas: new Set(), possibleAreas: new Set(), blockedAreas: new Set(), entranceSources: new Map(), objects: new Set(), npcs: new Set(), monsters: new Set(), shops: new Set(), spawns: new Map(), questSteps: new Map(), clues: new Map(), locations: new Map(), diagnostics: [...index.diagnostics] };
   const { definitions, nodes, resolve } = index;
   const spawnQuantities = new Map();
-  accessDetails.set(result, { spawnQuantities });
+  accessDetails.set(result, { spawnQuantities, proof });
   const rules = legacyRules?.rules ?? legacyRules ?? {};
   const f2p = state.rules?.['content.f2p'] ?? rules.F2P ?? true;
   const profile = personalAccessProfile(state, member);
@@ -361,7 +361,7 @@ export function calculateAccess(index, state, memberId, { validTasks = new Set()
     if (cacheSurface && surfaceLocation(id) && index.baseSections.has(id)) return false;
     return result.bases.has(id);
   };
-  const add = (id, { compatibility = false, resourceOnly = false } = {}) => {
+  const add = (id, { compatibility = false, resourceOnly = false, from, gate, transport = false, manual = false } = {}) => {
     if (unresolvedLocations.has(id)) { compatibility = true; resourceOnly = true; }
     if (accessible.has(id)) {
       if (!compatibility && !resourceOnly && resourceOnlyLocations.delete(id)) {
@@ -388,6 +388,10 @@ export function calculateAccess(index, state, memberId, { validTasks = new Set()
       }
       if (id === 'Puro-Puro' && rules['Puro-Puro'] === false) return false;
     }
+    proof?.location(id, { from, gate, transport, manual, resourceOnly: compatibility || resourceOnly,
+      areaTask: node?.kind === 'area' && overrides.areas[id] !== true && definitions.challenges?.Nonskill?.[id]?.UnlocksArea
+        && Object.keys(definitions.challenges.Nonskill[id]).length > 1,
+      unbound: !from && node?.kind === 'area' && overrides.areas[id] !== true });
     accessible.add(id); queue.push(id);
     if (compatibility || resourceOnly) resourceOnlyLocations.add(id);
     if (compatibility) result.compatibilitySections.add(id);
@@ -406,7 +410,7 @@ export function calculateAccess(index, state, memberId, { validTasks = new Set()
   }
   for (const [id, enabled] of entries(overrides.sections)) if (enabled === true) {
     if (!nodes.has(id)) diagnostic(result.diagnostics, 'missing-location', { location: id });
-    else add(id);
+    else add(id, { manual: true });
   }
   if (territory) for (const id of territory.sections) {
     // Recompute uncertain resource selectors with provenance below. Carrying
@@ -414,7 +418,7 @@ export function calculateAccess(index, state, memberId, { validTasks = new Set()
     if (cacheSurface && index.resourceCompatibility.some(entry => entry.to === id)) continue;
     add(id);
   }
-  for (const [id, enabled] of entries(overrides.areas)) if (enabled === true && nodes.has(id)) add(id);
+  for (const [id, enabled] of entries(overrides.areas)) if (enabled === true && nodes.has(id)) add(id, { manual: true });
   for (const [id, mapping] of unresolvedLocations) {
     add(id, { compatibility: true });
     // Explicit true overrides also remain resource-only when unresolved.
@@ -447,7 +451,7 @@ export function calculateAccess(index, state, memberId, { validTasks = new Set()
           && (!f2p || index.world.f2p.has(edge.to) || overrides.sections[`${edge.to}-0`] === true)
           && connectionGate(edge.gate, validTasks, result.diagnostics, { from, location: edge.to })) {
           transportResourceBases.add(edge.to);
-          changed = add(edge.to) || changed;
+          changed = add(edge.to, { from, gate: edge.gate, transport: true }) || changed;
           continue;
         }
         if (!eligible(edge.to) || accessible.has(edge.to)) continue;
@@ -463,7 +467,7 @@ export function calculateAccess(index, state, memberId, { validTasks = new Set()
             && !index.world.cacheWalking.fallback.has(destinationBase)) continue;
         }
         if (connectionGate(edge.gate, validTasks, result.diagnostics, { from, location: edge.to })) {
-          changed = add(edge.to, { resourceOnly: resourceOnlyLocations.has(from) }) || changed;
+          changed = add(edge.to, { from, gate: edge.gate, transport: edge.via === 'transport', resourceOnly: resourceOnlyLocations.has(from) }) || changed;
         }
       }
     }
@@ -471,14 +475,14 @@ export function calculateAccess(index, state, memberId, { validTasks = new Set()
       if (!validTasks.has(`Nonskill\u0000${connector.label}`)) continue;
       if (!connector.locations.every(id => SECTION.test(id) ? result.bases.has(id.match(SECTION)[1]) : accessible.has(id))) continue;
       if (connector.locations.length > 1 && !connector.locations.some(id => accessible.has(id) && !resourceOnlyLocations.has(id))) continue;
-      for (const id of connector.locations) if (nodes.has(id)) changed = add(id) || changed;
+      for (const id of connector.locations) if (nodes.has(id)) changed = add(id, { from: connector.locations.find(place => accessible.has(place)), gate: { Tasks: { [connector.label]: 'Nonskill' } } }) || changed;
     }
     if (cacheSurface) {
       const walked = surfaceReachability(index.world, result.bases, walkingOverrides, {
         seeds: [...accessible].filter(id => nodes.get(id)?.kind === 'section' && !resourceOnlyLocations.has(id) && !typedSeedLocations.has(id))
           .concat([...transportResourceBases].map(base => `${base}-0`),
             [...territory?.sections ?? []].filter(id => !unresolvedLocations.has(id) && !index.resourceCompatibility.some(entry => entry.to === id))),
-        seedBases: new Set(member.unlocked ?? []), f2p, eligibility: surfaceEligibility,
+        seedBases: new Set(member.unlocked ?? []), f2p, eligibility: surfaceEligibility, proof,
       });
       const reached = expandTransportReachability(index.world, travelState, memberId, walked,
         { claimed: result.bases, sectionOverrides: walkingOverrides, transportRoutes: index.world.transportRoutes, transportFactsByMember: index.world.transportFactsByMember, transportMemo });
@@ -492,7 +496,7 @@ export function calculateAccess(index, state, memberId, { validTasks = new Set()
       for (const id of projectLegacySections(index.world, reached)) if (nodes.has(id) && !unresolvedLocations.has(id)) {
         const mapping = index.world.cacheWalking.mapping.find(record => record.legacy === id);
         if (index.retained && mapping?.resourceUnresolved && !retainedLocations.has(id)) continue;
-        changed = add(id) || changed;
+        changed = add(id, { from: componentLocations(index.world, id).find(component => walked.has(component)), transport: !componentLocations(index.world, id).some(component => walked.has(component)) }) || changed;
       }
       for (const entry of index.resourceCompatibility) {
         if (accessible.has(entry.to) || !eligible(entry.to, true)) continue;
@@ -528,7 +532,7 @@ export function calculateAccess(index, state, memberId, { validTasks = new Set()
       const reached = expandTransportReachability(index.world, travelState, memberId, roots, { claimed: result.bases, sectionOverrides: overrides.sections,
         transportRoutes: index.world.transportRoutes, transportFactsByMember: index.world.transportFactsByMember, transportMemo });
       if (!territory && reached.transportNoop !== true) transportRelevant = true;
-      for (const id of reached) if (nodes.has(id)) { if (!roots.has(id)) typedSeedLocations.add(id); changed = add(id) || changed; }
+      for (const id of reached) if (nodes.has(id)) { if (!roots.has(id)) typedSeedLocations.add(id); changed = add(id, { transport: !roots.has(id) }) || changed; }
     }
   }
   if (transportAccessEnabled(state) && automaticTransportEnabled(state) && transportRelevant) for (const route of evaluateTransportRoutes(index.world, state, memberId, {
@@ -550,7 +554,7 @@ export function calculateAccess(index, state, memberId, { validTasks = new Set()
 
 function collectAccessResources(index, result, { validTasks, membershipChecks }) {
   const { definitions, nodes, resolve } = index;
-  const { accessible, spawnQuantities, sourceContext } = accessDetails.get(result);
+  const { accessible, spawnQuantities, sourceContext, proof } = accessDetails.get(result);
   const { f2p, profile, overrides, retainedLocations } = sourceContext;
   const backloggedSources = result.backloggedSources;
   const sourceMembershipBlocker = membershipChecks?.source ?? evaluateSourceMembership;
@@ -584,6 +588,7 @@ function collectAccessResources(index, result, { validTasks, membershipChecks })
         ?? definitions.taskUnlocks?.[PLURALS[kind]]?.[name]?.[originalLocation.split('-')[0]];
       if (!taskRequirements(originalGate, validTasks, result.diagnostics, { kind, source: name, location, retainedLocation: originalLocation })) return;
     }
+    proof?.entity(kind, name, location, [gate ?? fallback, ...gateLocations.map(place => definitions.taskUnlocks?.[PLURALS[kind]]?.[name]?.[place] ?? definitions.taskUnlocks?.[PLURALS[kind]]?.[name]?.[place.split('-')[0]])]);
     const field = result[KINDS[kind]];
     if (field instanceof Map) field.set(name, (field.get(name) ?? 0) + (Number(quantity) || 1));
     else field.add(name);
@@ -721,7 +726,7 @@ export function baseItemSourceView(access) {
   ]);
 }
 
-export function collectBaseItemSources(definitions, access, { rules = {}, validTasks = new Set(), expansionCache, membershipChecks } = {}) {
+export function collectBaseItemSources(definitions, access, { rules = {}, validTasks = new Set(), expansionCache, membershipChecks, proof } = {}) {
   const sourceMembershipBlocker = membershipChecks?.source ?? evaluateSourceMembership;
   const accessSourceBlocker = membershipChecks?.accessSource ?? ((kind, name, location, freeOnly) =>
     membershipSourceBlocker(kind, name, location, freeOnly) ?? sourceMembershipBlocker(kind, name, freeOnly));
@@ -769,6 +774,15 @@ export function collectBaseItemSources(definitions, access, { rules = {}, validT
     if (rules['Rare Drop'] === false && reason.kind === 'drop') {
       if (!cutoffCache.has(reason.probability)) cutoffCache.set(reason.probability, passesRateCutoff(reason.probability, rules));
       if (!cutoffCache.get(reason.probability)) return;
+    }
+    if (proof) {
+      const requirements = (gates.get(item) ?? []).filter(gate => {
+        const selector = gate.source, suffix = selector?.endsWith('-source') ? '-source' : selector?.endsWith('-npc') ? '-npc' : null;
+        return selector === undefined || selector === '' || selector === reason.source || suffix && reason.source.toLowerCase().includes(selector.slice(0, -suffix.length).toLowerCase());
+      }).map(gate => gate.gate);
+      const stock = definitions.taskUnlocks?.Shops?.[`${reason.source}^${item}`];
+      if (reason.kind === 'shop' && stock) requirements.push(stock[reason.location] ?? stock[reason.location.split('-')[0]]);
+      proof.source(item, reason, requirements);
     }
     result.items.add(item);
     if (!result.sources.has(item)) result.sources.set(item, []);

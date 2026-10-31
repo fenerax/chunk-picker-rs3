@@ -49,3 +49,17 @@
 
 .task-row:has(>.task-completion-status){grid-template-columns:auto minmax(0,1fr) auto auto}
 .task-completion-status{white-space:nowrap;font-size:var(--type-sm);color:var(--muted);align-self:start;padding-block:var(--space-3)}
+
+/* How uses the existing lazy explanation panel and type scale. */
+.task-how{font-size:var(--type-sm);min-height:32px;padding:4px;white-space:nowrap}
+.task-how-steps{margin:0;padding-left:1.5em;overflow-wrap:anywhere}
+.task-how-steps li+li{margin-top:var(--space-2)}
+
+.task-row:has(>.task-how){grid-template-columns:18px minmax(0,1fr) auto auto auto auto}
+
+.duo-task-row:has(>.task-how){grid-template-columns:18px minmax(0,1fr) auto auto auto}
+@media(max-width:720px),(max-width:980px) and (max-height:500px) and (pointer:coarse){
+  :root .task-row:has(>.task-how){grid-template-columns:44px minmax(0,1fr) auto auto auto auto}
+  :root .duo-task-row:has(>.task-how){grid-template-columns:44px minmax(0,1fr) auto auto auto}
+  .task-how{min-height:44px}
+}

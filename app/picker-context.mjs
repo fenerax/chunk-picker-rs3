@@ -618,7 +618,7 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
     if (side) await waitForList(state.revision, signal);
     // Explicit Preview needs the same quiet window as the current task list:
     // queued bulk predictions must not start between its answer and Unlock.
-    const foreground = type === 'evaluate' && !side || type === 'predict';
+    const foreground = type === 'evaluate' && !side || type === 'predict' || type === 'how-task';
     const activeTaskKey = foreground && type === 'evaluate' ? JSON.stringify([state.revision, memberId]) : undefined;
     const automaticDeath = type === 'death-estimates' && state.rules?.['travel.automatic'] === true;
     if (foreground) {
@@ -860,7 +860,7 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
         requirePermission();
         // Stable invitation identity: opening new sessions or changing IP cannot reset it.
         const expensiveRead = ['GET', 'HEAD'].includes(request.method)
-          && ['/api/task-why', '/api/tasks', '/api/helper-drops', '/api/teleports', '/api/training-plan', '/api/area-check', '/api/predict', '/api/death-estimates', '/api/chunk-planning'].includes(route)
+          && ['/api/task-why', '/api/tasks', '/api/helper-drops', '/api/teleports', '/api/training-plan', '/api/area-check', '/api/task-how', '/api/predict', '/api/death-estimates', '/api/chunk-planning'].includes(route)
           && !(identity.readOnly && route === '/api/tasks');
         const expensiveWrite = request.method === 'POST'
           && ['/api/sandbox/evaluate', '/api/prediction-intent', '/api/pool-ranking-intent', '/api/profile/preview', '/api/runemetrics/preview', '/api/original-sync/preview'].includes(route);
@@ -1123,6 +1123,31 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
               catch (error) { throw httpError(400, error.message); }
             }
             await json(request, response, 200, { ...plan, memberId, stateRevision: state.revision, progress }); return;
+          }
+          if (route === '/api/task-how') {
+            if (request.method !== 'GET') throw httpError(405, 'Method not allowed.');
+            if (identity.readOnly) throw httpError(403, 'How is unavailable in this saved view; opening it cannot start a calculator.');
+            if (!taskWorker) throw httpError(503, 'Task data is unavailable for this save.');
+            const query = new URL(request.url, 'http://localhost').searchParams;
+            const allowed = new Set(['memberId', 'taskId', 'revision']);
+            if ([...query.keys()].some(key => !allowed.has(key) || query.getAll(key).length !== 1)) throw httpError(400, 'Use a supported How request.');
+            const revisionText = query.get('revision'), memberId = query.get('memberId'), taskId = query.get('taskId');
+            if (!revisionText || !/^(0|[1-9]\d*)$/.test(revisionText) || !Number.isSafeInteger(Number(revisionText)) || !taskId || taskId.length > 512) throw httpError(400, 'Use a task and the current saved revision.');
+            const captured = calculationState(), revision = Number(revisionText);
+            if (!captured.metadata.members.some(owner => owner.id === memberId)) throw httpError(400, 'Choose a player in this save.');
+            if (revision !== captured.metadata.revision) throw httpError(409, 'Your saved map changed. Open How again with the latest map.');
+            const controller = new AbortController();
+            const disconnected = () => { if (!response.writableEnded) controller.abort(); };
+            request.once('aborted', disconnected); response.once('close', disconnected);
+            let evaluation;
+            try {
+              evaluation = await evaluatedTasks(nativeForegroundState ? captured.metadata : captured.state, memberId, 'how-task', taskId,
+                controller.signal, [], 'full', nativeForegroundState ? captured.stateInput : undefined);
+            } finally { request.off('aborted', disconnected); response.off('close', disconnected); }
+            if (response.destroyed) return;
+            if (store.getInfo().revision !== revision) throw httpError(409, 'Your saved map changed while loading How. Open it again.');
+            if (!invites.authenticate(request, security)) throw httpError(401, 'Access required.');
+            await json(request, response, 200, evaluation.result); return;
           }
           if (route === '/api/area-check') {
             if (!taskWorker) throw httpError(503, 'Task data is unavailable for this save.');
@@ -1727,7 +1752,7 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
       else if (['/bis-preferences.mjs', '/bis-recorded.mjs', '/bis-comparison-view.mjs', '/bis-compare.mjs', '/bis-results.mjs', '/bis-compare.css'].includes(route)) file = await containedFile(webRoot, route.slice(1));
       else if (route === '/task-why-chain.mjs') file = await containedFile(webRoot, 'task-why-chain.mjs');
       else if (route === '/tasks/why-chain.mjs') file = await containedFile(path.join(ROOT, 'app', 'tasks'), 'why-chain.mjs');
-      else if (['/task-hover.mjs', '/task-why.mjs', '/task-focus.mjs', '/task-methods.mjs', '/task-equipment.mjs', '/task-artwork.mjs', '/task-ui.css', '/bis-panel.css', '/duo-tasks.mjs', '/duo-task-view.mjs', '/duo-tasks.css', '/task-claims.mjs', '/task-filters.mjs', '/task-filters-model.mjs', '/task-filters.css', '/custom-tasks-model.mjs', '/screen-custom-tasks.mjs'].includes(route)) file = await containedFile(webRoot, route.slice(1));
+      else if (['/task-hover.mjs', '/task-why.mjs', '/task-how.mjs', '/task-focus.mjs', '/task-methods.mjs', '/task-equipment.mjs', '/task-artwork.mjs', '/task-ui.css', '/bis-panel.css', '/duo-tasks.mjs', '/duo-task-view.mjs', '/duo-tasks.css', '/task-claims.mjs', '/task-filters.mjs', '/task-filters-model.mjs', '/task-filters.css', '/custom-tasks-model.mjs', '/screen-custom-tasks.mjs'].includes(route)) file = await containedFile(webRoot, route.slice(1));
       else if (['/art-status.mjs', '/art-status.css', '/dataset-status.mjs', '/dataset-features.mjs', '/browser-task-icons.mjs'].includes(route)) file = await containedFile(webRoot, route.slice(1));
       else if (/^\/placeholder-art\/(?:skill-[a-z]+|task-(?:quest|achievements|minigame|clue|music)|pin-(?:general|transport|skilling|combat-slayer|quests-achievements|minigames|other)|item)\.svg$/.test(route)) file = await containedFile(webRoot, route.slice(1));
       else if (route === '/display-world.mjs') file = await containedFile(path.join(ROOT, 'app'), 'display-world.mjs');

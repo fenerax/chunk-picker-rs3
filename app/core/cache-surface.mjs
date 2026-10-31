@@ -52,23 +52,23 @@ export function createSurfaceEligibility(world, claimed, overrides = {}, { f2p =
 
 /** Walking visits claimed bases only. Owning a split base supplies no seed.
  * A supplied eligibility predicate must match this world and personal facts. */
-export function surfaceReachability(world, claimed, overrides = {}, { seeds = [], f2p = false, seedBases = claimed, eligibility } = {}) {
+export function surfaceReachability(world, claimed, overrides = {}, { seeds = [], f2p = false, seedBases = claimed, eligibility, proof } = {}) {
   const cache = world.cacheWalking, reached = new Set(), queue = [];
   if (!cache) return reached;
   const eligible = eligibility ?? createSurfaceEligibility(world, claimed, overrides, { f2p });
-  const add = id => { if (!reached.has(id) && eligible(id)) { reached.add(id); queue.push(id); } };
+  const add = (id, from, manual = false) => { if (!reached.has(id) && eligible(id)) { proof?.location(id, { from, manual }); reached.add(id); queue.push(id); } };
   for (const base of seedBases) if (world.sectionTopology.get(base)?.has('0')) {
     for (const id of componentLocations(world, `${base}-0`)) add(id);
   }
-  for (const [id, enabled] of Object.entries(overrides)) if (enabled === true) for (const component of componentLocations(world, id, { landing: true })) add(component);
-  for (const id of seeds) for (const component of componentLocations(world, id, { landing: true })) add(component);
+  for (const [id, enabled] of Object.entries(overrides)) if (enabled === true) for (const component of componentLocations(world, id, { landing: true })) add(component, id, true);
+  for (const id of seeds) for (const component of componentLocations(world, id, { landing: true })) add(component, component === id ? undefined : id);
   // Entry lists are directed incoming dependencies; cache edges are reciprocal.
   const outgoing = cache.outgoing ?? new Map();
   if (!cache.outgoing) for (const [base, sections] of cache.topology) for (const [suffix, edges] of sections) {
     const to = `${base}-${suffix}`;
     for (const from of edges) { if (!outgoing.has(from)) outgoing.set(from, []); outgoing.get(from).push(to); }
   }
-  for (let cursor = 0; cursor < queue.length; cursor++) for (const to of outgoing.get(queue[cursor]) ?? []) add(to);
+  for (let cursor = 0; cursor < queue.length; cursor++) for (const to of outgoing.get(queue[cursor]) ?? []) add(to, queue[cursor]);
   return reached;
 }
 

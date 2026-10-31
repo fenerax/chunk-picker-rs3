@@ -1,3 +1,4 @@
+import { appendTaskHow } from './task-how.mjs';
 import { gameStorage } from './screen-save-status.mjs';
 import { createTaskFactsIndex, goalProgress } from './core/progress-index.mjs';
 import { createTaskIconPainter } from './task-icon-painter.mjs';
@@ -263,6 +264,17 @@ export function createScreenTasks(c) {
   // The explanation reads the full result only when a player opens it.
   function appendWhy(row, task, ownerId = c.memberId) {
     if (isCustomTask(task)) return;
+    appendTaskHow(row, task, { document, button: c.button, readOnly: !c.canWrite(), enabled: c.preferences().showTaskHow !== false,
+      scope: () => JSON.stringify([c.state.revision, c.memberId, ownerId, c.sandbox.signature(), c.preferences().showTaskHow !== false]),
+      advanced: () => c.preferences().advanced, locationName: placeName,
+      load: async (value, signal) => {
+        if (c.preferences().showTaskHow === false) throw new Error('How is off in Settings > Tasks.');
+        if (c.sandbox.active) throw new Error('How is available for the saved map. Leave Sandbox to open it.');
+        const revision = c.state.revision;
+        const proof = await c.api(`/api/task-how?memberId=${encodeURIComponent(ownerId)}&taskId=${encodeURIComponent(value.id)}&revision=${revision}`, undefined, signal);
+        if (proof.context?.stateRevision !== revision || proof.context?.memberId !== ownerId || proof.subject?.id !== value.id) throw new Error('The saved map changed. Open How again.');
+        return proof;
+      } });
     const openRule = ruleId => Promise.resolve(c.rulesDialog({ ruleId, memberId: ownerId })).catch(c.showError);
     appendTaskWhy(row, task, { document, button: c.button, icon: c.icon, openRule, readOnly: !c.canWrite(), load: async value => {
       const revision = c.state.revision, selected = c.memberId;
