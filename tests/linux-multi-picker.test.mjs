@@ -4,13 +4,13 @@ import assert from 'node:assert/strict';
 import path from 'node:path';
 import { tmpdir } from 'node:os';
 import { randomUUID } from 'node:crypto';
-import { chown, copyFile, lstat, mkdtemp, mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises';
+import { chown, copyFile, lstat, mkdtemp, mkdir, readFile, readdir, rename, rm, writeFile } from 'node:fs/promises';
 import { withDirectoryBarriers, withStoreWrite, snapshotStore, snapshotPath } from '../app/storage/snapshot.mjs';
 import { openRegistry, registryRecoveryDocument } from '../app/storage/registry.mjs';
 import { createPickerCheckpoint } from '../app/picker-router-checkpoint.mjs';
 import { captureServiceCheckpoint, verifyServiceBackup } from '../scripts/linux/service-checkpoint.mjs';
 import { restoreServiceStopped, listServicePickers, releaseServiceQuarantine, reconcileServiceRecoveryTombstones } from '../scripts/linux/service-recovery.mjs';
-import { atomic, encode, inventory, json, sha } from '../scripts/linux/files.mjs';
+import { atomic, copyTree, encode, exists, inventory, json, sha } from '../scripts/linux/files.mjs';
 import { readRelease } from '../scripts/linux/runtime.mjs';
 import { assertServiceStopped, repairServiceOwnership, runServiceOperator, serviceBackup, serviceBackupWarnings } from '../scripts/linux/service-operator.mjs';
 import { readBackupStatus } from '../app/storage/backup-status.mjs';
@@ -256,6 +256,97 @@ test('an interrupted quarantine release finishes on retry after its record is go
   await assert.rejects(releaseServiceQuarantine(options), /destination changed/);
   // A picker that was never quarantined still has no record to release.
   await assert.rejects(releaseServiceQuarantine({ ...options, id: f.pickers[2].id }), /No quarantine record/);
+});
+
+// Interpret only the printed repair; source bytes come from the operator's
+// offline quarantine copy, checked against the instruction's literal digests.
+async function followReleaseRepair(error, offline, inspection) {
+  assert.equal(error?.code, 'OPERATOR_ACTION_REQUIRED', error?.message);
+  assert.doesNotMatch(error.message, /from the verified backup/);
+  const match = error.message.match(/^(?:Restore destination changed\. )?Move (.+) aside for inspection; (?:restore (.+) and (.+) from an offline copy of the quarantine source matching store digest ([a-f0-9]{64}) and binding SHA-256 ([a-f0-9]{64}); )?create (.+) containing only operator-quarantine.json with exactly (\{.*\}); write (.+) containing exactly (\{.*\}); recreate (.+) and write (.+) containing exactly (\{.*\}); then rerun quarantine release with the same picker and release\.$/);
+  assert(match, error.message);
+  const [, paths, retained, binding, storeHash, bindingHash, target, markerJSON, record, recordJSON, stage, journal, journalJSON] = match;
+  await mkdir(inspection);
+  for (const file of paths.split(', ')) await rename(file, path.join(inspection, randomUUID()));
+  if (retained) {
+    assert.equal(sha(encode(await inventory(offline))), storeHash);
+    assert.equal(sha(await readFile(offline + '.dataset.json')), bindingHash);
+    await copyTree(offline, retained); await copyFile(offline + '.dataset.json', binding);
+  }
+  await mkdir(target); await writeFile(path.join(target, 'operator-quarantine.json'), markerJSON);
+  await writeFile(record, recordJSON);
+  await mkdir(stage); await writeFile(journal, journalJSON);
+  return paths.split(', ');
+}
+
+for (const changed of [true, false]) test(`quarantine release repair is literal after a probe that ${changed ? 'changed' : 'did not change'} its copy`, async t => {
+  // Cover source, sibling store/binding, installed target, each source cleanup
+  // window, and completed cleanup (including the record-free entry point).
+  for (const stop of ['install.stage-directory', 'install.rename-store', 'install.rename-binding',
+    'release.installed', 'release.remove-binding', 'release.remove-record', 'release.complete', null]) {
+    await t.test(stop ?? 'completed release', async t => {
+      const f = await fixture(t), backup = await f.capture(), settings = await f.target(), picker = f.pickers[1];
+      await f.close();
+      await restoreServiceStopped({ settings, backup, release: f.release, assertStopped: stopped,
+        probe: async (...args) => { if (args[1].includes(picker.id)) throw new Error('Synthetic incompatibility'); return portableProbe(...args); } });
+      const target = path.join(settings.multiPicker.pickerRoot, picker.id);
+      const quarantine = path.join(settings.controlDir, 'quarantine', picker.id);
+      const offline = path.join(f.root, 'offline-quarantine');
+      await copyTree(quarantine, offline); await copyFile(quarantine + '.dataset.json', offline + '.dataset.json');
+      const stage = path.join(settings.controlDir, 'release-' + picker.id), journal = path.join(stage, 'progress.json');
+      let probes = 0, expected;
+      const options = { settings, id: picker.id, release: f.release, assertStopped: stopped, probe: async (...args) => {
+        probes++;
+        if (changed) {
+          const file = path.join(args[1], 'state.json'), document = await json(file);
+          // The staged-binding case changes only the binding; the others
+          // change only the store, proving either side counts as a migration.
+          if (stop !== 'install.rename-binding') {
+            document.state.members[0].name = 'Player 2';
+            await writeFile(file, encode(document));
+          }
+          else await writeFile(args[1] + '.dataset.json', encode(await json(args[1] + '.dataset.json')) + '\n');
+        }
+        expected = { digest: sha(encode(await inventory(args[1]))), binding: sha(await readFile(args[1] + '.dataset.json')),
+          state: sha(await readFile(path.join(args[1], 'state.json'))) };
+        return portableProbe(...args);
+      } };
+      const fault = new Error('Injected process death');
+      if (stop) await assert.rejects(releaseServiceQuarantine({ ...options, step: async label => { if (label === stop) throw fault; } }), error => error === fault);
+      else await releaseServiceQuarantine(options);
+      const row = await json(journal);
+      assert.equal(row.probeChanged, changed); assert.equal(row.digest, expected.digest); assert.equal(row.bindingSha256, expected.binding);
+      let corrupt;
+      if (stop === 'install.stage-directory') corrupt = path.join(stage, 'store', 'state.json');
+      else if (stop === 'install.rename-store') corrupt = path.join(row.installStage, 'store', 'state.json');
+      else if (stop === 'install.rename-binding') corrupt = path.join(row.installStage, 'store.dataset.json');
+      else corrupt = path.join(target, 'state.json');
+      await writeFile(corrupt, '{}');
+      const before = sha(encode(await inventory(path.join(settings.controlDir, 'quarantine'))));
+      const error = await releaseServiceQuarantine(options).then(() => null, error => error);
+      assert.equal(sha(encode(await inventory(path.join(settings.controlDir, 'quarantine')))), before, 'refusal preserves quarantine');
+      const consumed = ['release.remove-binding', 'release.remove-record', 'release.complete', null].includes(stop);
+      const expectedPaths = [], current = await json(journal);
+      for (const file of [target, target + '.dataset.json', current.installStage, stage,
+        ...(consumed ? [quarantine, quarantine + '.dataset.json'] : [])]) if (file && await exists(file)) expectedPaths.push(file);
+      const paths = await followReleaseRepair(error, offline, path.join(f.root, 'inspection'));
+      assert.deepEqual(paths, expectedPaths);
+      assert.deepEqual(await json(journal), { id: picker.id, status: 'pending', releaseIdentity: f.release.identity });
+      assert.deepEqual(await readdir(target), ['operator-quarantine.json']);
+      assert.equal(sha(encode(await inventory(quarantine))), sha(encode(await inventory(offline))));
+      assert.deepEqual(await releaseServiceQuarantine(options), { released: picker.id });
+      assert.equal(probes, 2, 'repair re-probes the original quarantine source');
+      assert.equal((await json(journal)).status, 'released');
+      assert.equal(sha(encode(await inventory(target))), expected.digest);
+      assert.equal(sha(await readFile(target + '.dataset.json')), expected.binding);
+      assert(!await exists(quarantine)); assert(!await exists(quarantine + '.json'));
+      await releaseServiceQuarantine(options); assert.equal(probes, 2);
+      const store = await openStore({ dataDir: target, retention: false });
+      try { assert.equal((await store.freeze()).sha256, expected.state); }
+      finally { await store.close(); }
+      if (stop === 'release.installed' || stop === 'release.remove-binding') t.diagnostic(error.message);
+    });
+  }
 });
 
 test('service recovery refuses a missing live ledger before any probe and never initializes one', async t => {
