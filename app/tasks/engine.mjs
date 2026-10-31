@@ -28,7 +28,7 @@ import { membershipSourceBlocker, membershipSourcePolicies } from '../data/acces
 import { itemMembershipBlocker as evaluateItemMembership, taskItemMembershipBlockers } from './membership.mjs';
 import { isProcessingSourceTask, processingSkills, selectProcessingSources } from './processing.mjs';
 import { combatLevelFromSkills } from '../core/combat-level.mjs';
-import { createEligibilityCache } from './eligibility-cache.mjs';
+import { createEligibilityCache, createEligibilityBudget } from './eligibility-cache.mjs';
 import { createObligationCache } from './obligation-cache.mjs';
 import { recordedEquipment } from './recorded-equipment.mjs';
 import { evaluateBossGates, closedBossMonsters, bossGearCatalogue, bestBossGear } from './boss-gates.mjs';
@@ -142,6 +142,8 @@ export function createTaskEngine(definitions, options = {}) {
     for (const key of ['cacheWalking', 'cacheResources', 'cacheArchaeology', 'cacheShops']) baseOptions[key] ??= dataset.capabilities[key];
     baseOptions.dataset = dataset;
   }
+  // All eight feature variants divide one fixed backing-buffer budget.
+  const eligibilityBudget = baseOptions.eligibilityBudget ?? createEligibilityBudget();
   const variants = new Map();
   const accessIndexes = [];
   let engine, baselineProvider;
@@ -162,7 +164,7 @@ export function createTaskEngine(definitions, options = {}) {
         data = applyMetadataCorrections(data, { corrections: catalogue.metadataCorrections ?? [] });
       }
       if (tasks) data = applySkillGuideTasks(data, { catalogue, includeInformationalMilestones: milestones });
-      variants.set(key, createCompiledTaskEngine(data, { ...baseOptions, metadataCorrections: false, equipmentCorrections: false }, accessIndexes));
+      variants.set(key, createCompiledTaskEngine(data, { ...baseOptions, metadataCorrections: false, equipmentCorrections: false, eligibilityBudget }, accessIndexes));
       configureProviders();
     }
     return variants.get(key);
@@ -183,7 +185,7 @@ export function createTaskEngine(definitions, options = {}) {
 
 function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, cacheResources = false, resourceCatalogue, resourceSelectors,
   cacheArchaeology = false, archaeologyCatalogue, metadataCorrections = false, equipmentCorrections = false, cacheShops = false, shopCatalogue,
-  lodestones, transportRoutes, transportFactsByMember } = {}, accessIndexes = []) {
+  lodestones, transportRoutes, transportFactsByMember, eligibilityBudget } = {}, accessIndexes = []) {
   if (!definitions || typeof definitions.challenges !== 'object') throw new TypeError('Task definitions need challenges.');
   definitions = applyCacheShops(definitions, { enabled: cacheShops, shops: shopCatalogue });
   if (metadataCorrections) definitions = applyMetadataCorrections(definitions);
@@ -1489,7 +1491,9 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
     result.metrics.elapsedMs = performance.now() - started;
     return result;
   }
-  const eligibilityCache = createEligibilityCache();
+  // Dataset-bound engines serve shared workers; injected definitions retain
+  // the existing small-cache default for direct callers.
+  const eligibilityCache = createEligibilityCache({ limit: dataset ? 64 : 2, budget: eligibilityBudget });
   function evaluate(state, memberId, options) {
     state = { ...state, members: state.members.map(owner => projectMemberTaskFacts(state, owner, catalogue)) };
     return eligibilityCache.evaluate(state, memberId, options, () => computeEligibility(state, memberId, options));

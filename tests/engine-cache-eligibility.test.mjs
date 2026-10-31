@@ -1,0 +1,114 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { createEligibilityCache, createEligibilityBudget } from '../app/tasks/eligibility-cache.mjs';
+
+const state = n => ({ schemaVersion: 1, revision: 7, rules: {}, tasks: [], history: [],
+  members: [{ id: 'same', name: 'Player', unlocked: [String(10000 + n)], completedTasks: [], taskStatus: {} }] });
+const proof = (n, label = 'alpha', length = 11000) => ({
+  tasks: [{ id: 'task', record: { label, unlocked: String(10000 + n), payload: 'x'.repeat(length) } }], metrics: { elapsedMs: 1 },
+});
+const call = (cache, n, compute = () => proof(n), options) => cache.evaluate(state(n), 'same', options, compute);
+function entryCost(n = 0, label = 'alpha') {
+  const cache = createEligibilityCache({ byteLimit: 1024 * 1024 });
+  call(cache, n, () => proof(n, label));
+  assert.ok(cache.bytes > 0);
+  return cache.bytes;
+}
+
+test('content keys retain 32 distinct states with colliding member IDs and revisions', () => {
+  const cache = createEligibilityCache({ limit: 64, byteLimit: 1024 * 1024 });
+  const expected = [];
+  for (let n = 0; n < 32; n++) {
+    expected.push(call(cache, n, () => proof(n, 'alpha', 1000)));
+    assert.equal(expected[n].metrics.eligibilityCacheHit, false);
+  }
+  for (let n = 0; n < 32; n++) {
+    const warm = call(cache, n, () => assert.fail('Warm state recomputed.'));
+    assert.equal(warm.metrics.eligibilityCacheHit, true);
+    assert.deepEqual(warm, expected[n]);
+    warm.tasks[0].record.label = 'caller edit';
+    assert.equal(call(cache, n).tasks[0].record.label, 'alpha');
+  }
+});
+
+test('a shared byte budget evicts across variants while keeping their values isolated', () => {
+  const costs = [entryCost(), entryCost(0, 'bravo'), entryCost(1)];
+  const byteLimit = 2 * Math.max(...costs);
+  assert.ok(3 * Math.min(...costs) > byteLimit, 'The byte budget must fit two proofs but not three.');
+  const budget = createEligibilityBudget({ byteLimit });
+  const a = createEligibilityCache({ limit: 4, budget }), b = createEligibilityCache({ limit: 4, budget });
+  const firstA = call(a, 0), firstB = call(b, 0, () => proof(0, 'bravo'));
+  assert.notDeepEqual(firstA, firstB);
+  assert.equal(budget.size, 2);
+  assert.ok(budget.bytes <= byteLimit);
+  assert.equal(a.bytes + b.bytes, budget.bytes);
+  assert.deepEqual(call(a, 0), firstA); // Touch A globally; B must be oldest.
+  call(a, 1);
+  assert.equal(b.size, 0);
+  assert.equal(b.bytes, 0);
+  assert.equal(a.size, 2);
+  assert.equal(a.bytes, budget.bytes);
+  const rebuiltB = call(b, 0, () => proof(0, 'bravo'));
+  assert.equal(rebuiltB.metrics.eligibilityCacheHit, false);
+  assert.deepEqual(rebuiltB, firstB);
+  assert.ok(budget.bytes <= budget.byteLimit);
+  assert.equal(a.bytes + b.bytes, budget.bytes);
+});
+
+test('entry eviction releases its charge and oversized results stay uncached', () => {
+  const cost = entryCost(), budget = createEligibilityBudget({ byteLimit: 4 * cost });
+  const cache = createEligibilityCache({ limit: 1, budget });
+  for (const n of [0,1,0]) {
+    assert.equal(call(cache, n).metrics.eligibilityCacheHit, false);
+    assert.equal(cache.size, 1);
+    assert.equal(cache.bytes, entryCost(n));
+    assert.equal(budget.size, 1);
+    assert.equal(budget.bytes, cache.bytes);
+  }
+  const small = createEligibilityCache({ limit: 64, byteLimit: cost - 1 });
+  for (let n = 0; n < 2; n++) {
+    assert.deepEqual(call(small, 0), call(createEligibilityCache(), 0));
+    assert.equal(small.size, 0);
+    assert.equal(small.bytes, 0);
+  }
+});
+
+test('the budget charges full backing stores rather than tiny buffer slices', () => {
+  const slice = Buffer.alloc(4096).subarray(0, 1);
+  const budget = createEligibilityBudget({ byteLimit: slice.buffer.byteLength - 1 });
+  assert.equal(budget.admit(slice, () => assert.fail('Unretained buffer evicted.')), false);
+  assert.equal(budget.bytes, 0);
+  assert.equal(budget.size, 0);
+});
+
+test('zero bounds and transport bypass preserve ordinary results without retention', () => {
+  for (const options of [{ limit: 0 }, { byteLimit: 0 }]) {
+    const cache = createEligibilityCache(options);
+    assert.deepEqual(call(cache, 0), call(createEligibilityCache(), 0));
+    assert.equal(cache.bytes, 0);
+    assert.equal(cache.size, 0);
+  }
+  const cache = createEligibilityCache();
+  call(cache, 0); const bytes = cache.bytes;
+  assert.equal(call(cache, 0, () => proof(0), { reuseEligibility: false }).metrics.eligibilityCacheHit, false);
+  assert.equal(cache.bytes, bytes);
+  assert.equal(call(cache, 0).metrics.eligibilityCacheHit, true);
+});
+
+test('zero-cost buffers remain entry bounded', () => {
+  const budget = createEligibilityBudget({ byteLimit: 1, entryLimit: 2 });
+  let evicted = 0;
+  for (let n = 0; n < 3; n++) assert.equal(budget.admit(Buffer.alloc(0), () => evicted++), true);
+  assert.equal(budget.bytes, 0);
+  assert.equal(budget.size, 2);
+  assert.equal(evicted, 1);
+});
+
+test('invalid entry and byte bounds are rejected', () => {
+  for (const value of [-1, 1.5, Infinity, NaN]) {
+    assert.throws(() => createEligibilityCache({ limit: value }), TypeError);
+    assert.throws(() => createEligibilityCache({ byteLimit: value }), TypeError);
+    assert.throws(() => createEligibilityBudget({ byteLimit: value }), TypeError);
+    assert.throws(() => createEligibilityBudget({ entryLimit: value }), TypeError);
+  }
+});

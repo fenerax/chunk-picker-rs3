@@ -40,7 +40,7 @@ test('capacity benchmark completes two synthetic pickers through the process pro
         assert.ok(phase.peakRSS >= phase.steadyRSS);
       }
       assert.equal(trial.phases.find(p => p.name === 'warm-local').engineWorkCount, 0);
-      assert.equal(trial.phases.find(p => p.name === 'alternating').engineWorkCount, 12);
+      assert.equal(trial.phases.find(p => p.name === 'alternating').engineWorkCount, 4);
     }
   }
 });

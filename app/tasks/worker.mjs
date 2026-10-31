@@ -1,3 +1,4 @@
+import { createWorkerCacheBudget, createSnapshotCache } from './snapshot-cache.mjs';
 import { startupPhase } from '../startup-timing.mjs';
 import { prepareWorkerDefinitions } from '../dataset-pipeline.mjs';
 import { selectedDataset } from '../dataset-runtime.mjs';
@@ -47,10 +48,12 @@ function mapPlayResult(result) {
     locations = projectMapTaskLocations(definitions, result, workerData.world);
     mapLocationResults.set(result, locations);
   }
+  completeCache.refreshResult(result); sandboxCache.refreshResult(result);
   return { ...projectPlayResult(result), taskLocations: locations };
 }
 const compileStarted = performance.now();
-const engineOptions = { dataset: selectedDataset, ...workerData.datasetOptions, skillGuideCatalogue: workerData.skillGuideCatalogue };
+const snapshotBudget = createWorkerCacheBudget(process.env.RS3_CALCULATOR_CACHE_BYTES === undefined ? undefined : Number(process.env.RS3_CALCULATOR_CACHE_BYTES));
+const engineOptions = { eligibilityBudget: snapshotBudget, dataset: selectedDataset, ...workerData.datasetOptions, skillGuideCatalogue: workerData.skillGuideCatalogue };
 const engine = createTaskEngine(definitions, engineOptions);
 // Structured cloning removes the world's non-enumerable definitions/provider.
 // Worker roll predictions use the same compiled baseline as task evaluation.
@@ -143,10 +146,13 @@ function evaluateFull(state, memberId, { includeViews = true, timingMs } = {}) {
   return result;
 }
 
-// Keep two coherent member/input results. Each retains a complete graph,
-// including collections and equipment goals; older revisions can be rebuilt.
-// This bound is independent of the state-transfer LRU below.
+// One byte ledger spans both snapshot caches and all eligibility variants.
+// A picker owns at most half; all shared eligibility proofs own at most a third.
+// Remaining pressure evicts globally by recency. State transfer is independent.
 const snapshots = new Map();
+const completeCache = createSnapshotCache(snapshots, snapshotBudget, {
+  context: result => viewContexts.get(result), locations: result => mapLocationResults.get(result),
+});
 const stateSnapshots = new Map();
 const latestRevisions = new Map();
 const pickerRevision = pickerId => latestRevisions.get(pickerId) ?? -1;
@@ -156,12 +162,10 @@ const pickerSnapshotKey = (pickerId, input) => JSON.stringify([pickerId, input])
 // one key the revision, and rules still separate states at an unchanged revision.
 const calculationKey = (state, memberId, input) => [typeof input === 'string' ? null : state.revision, memberId, input ?? null, state.rules, state.taskRules,
   state.members.map(owner => [owner.id, owner.taskRules, state.legacy?.maps?.[owner.sourceMapId]?.rules])];
-function snapshotFor(state, memberId, timingMs, input, includeViews = true) {
+function snapshotFor(state, memberId, timingMs, input, includeViews = true, pickerId = 'legacy-shared') {
   const key = JSON.stringify(calculationKey(state, memberId, input));
   let snapshot = snapshots.get(key), hit = !!snapshot;
   if (!snapshot) {
-    // Release the oldest graph before allocating its replacement.
-    while (snapshots.size >= 2) snapshots.delete(snapshots.keys().next().value);
     snapshot = { baseline: evaluateFull(state, memberId, { includeViews, timingMs }), includeViews, estimates: new Map() };
   }
   else if (includeViews && !snapshot.includeViews) {
@@ -170,7 +174,7 @@ function snapshotFor(state, memberId, timingMs, input, includeViews = true) {
     appendViews(snapshot.baseline, timingMs);
     snapshot.includeViews = true;
   }
-  snapshots.delete(key); snapshots.set(key, snapshot);
+  completeCache.set(key, snapshot, state, pickerId);
   return { snapshot, hit };
 }
 const taskReuseFingerprint = createTaskReuseFingerprint();
@@ -195,23 +199,30 @@ function predictionFor(state, memberId, chunkId, snapshot, timingMs) {
   let evaluations = 0;
   const planningEngine = { ...engine, evaluate: (input, member) => evaluations++ === 0 ? snapshot.baseline : evaluateFull(input, member, { includeViews: false, timingMs }) };
   return timed(timingMs, 'predictionMs', () => {
-    snapshot.predict ??= prepareChunkPrediction(state, registry);
+    if (!snapshot.predict) {
+      snapshot.predict = prepareChunkPrediction(state, registry);
+      completeCache.capture(snapshot, state); sandboxCache.capture(snapshot, state);
+    }
     return snapshot.predict(memberId, chunkId, { world: workerData.world, engine: planningEngine });
   });
 }
 function chunkPlanningFor(snapshot, chunkId) {
   const index = snapshot.planningIndex ??= buildChunkPlanningIndex(definitions, snapshot.baseline, workerData.world);
+  completeCache.refresh(snapshot); sandboxCache.refresh(snapshot);
   return { format: 'chunk-planning-v1', chunkId, rows: [...(index.byLocation.get(String(chunkId))?.values() ?? [])].map(({ task, evidence }) => ({
     task: { ...projectPlayTask(task, { retainHiddenDisplay: true }), ...(task.record?.ClueTier !== undefined ? { record: { ClueTier: task.record.ClueTier } } : {}) }, evidence,
   })), clueLocations: index.clueLocations.get(String(chunkId)) ?? [], access: snapshot.baseline.access };
 }
 const sandboxSnapshots = new Map();
-function sandboxFor(state, memberId, draft, timingMs, input) {
+const sandboxCache = createSnapshotCache(sandboxSnapshots, snapshotBudget, {
+  context: result => viewContexts.get(result), locations: result => mapLocationResults.get(result),
+});
+function sandboxFor(state, memberId, draft, timingMs, input, pickerId = 'legacy-shared') {
   let taskIndex = sandboxTaskIndexes.get(state);
   if (!taskIndex) { taskIndex = sandboxTaskCatalogue(state, sandboxCatalogue); sandboxTaskIndexes.set(state, taskIndex); }
   const normalized = timed(timingMs, 'sandboxInputMs', () => normalizeSandboxRequest(
     { memberId, baseRevision: state.revision, ...draft }, { state, world: workerData.world, catalogue: sandboxCatalogue, taskIndex }));
-  const { snapshot, hit } = snapshotFor(state, memberId, timingMs, input, false);
+  const { snapshot, hit } = snapshotFor(state, memberId, timingMs, input, false, pickerId);
   // Hypothetical inputs never enter the saved member/revision snapshot cache.
   const empty = !normalized.changes.unlockChunks.length && !normalized.changes.lockChunks.length
     && !normalized.changes.doneTasks.length && !normalized.changes.taskRules;
@@ -223,8 +234,7 @@ function sandboxFor(state, memberId, draft, timingMs, input) {
     draftSnapshot = { state: hypothetical, baseline: evaluateFull(hypothetical, memberId, { includeViews: false, timingMs }) };
   }
   if (!empty) {
-    sandboxSnapshots.delete(key); sandboxSnapshots.set(key, draftSnapshot);
-    while (sandboxSnapshots.size > 2) sandboxSnapshots.delete(sandboxSnapshots.keys().next().value);
+    sandboxCache.set(key, draftSnapshot, draftSnapshot.state, pickerId);
   }
   const hypothetical = empty ? state : draftSnapshot.state, result = draftSnapshot.baseline;
   // Cached projections outlive display-only revisions; stamp the caller's.
@@ -235,11 +245,14 @@ function sandboxFor(state, memberId, draft, timingMs, input) {
   if (normalized.previewChunkId !== undefined) output.prediction = compactSandboxPrediction(
     predictionFor(hypothetical, memberId, normalized.previewChunkId, draftSnapshot, timingMs));
   if (normalized.planningChunkId !== undefined) output.planning = chunkPlanningFor(draftSnapshot, normalized.planningChunkId);
+  // Empty drafts reuse a complete snapshot. Charge the retained projection and
+  // delta after assignment, regardless of which cache owns the snapshot.
+  completeCache.refresh(draftSnapshot); sandboxCache.refresh(draftSnapshot);
   return output;
 }
 const yieldToRequests = () => new Promise(resolve => setImmediate(resolve));
-async function deathEstimates(state, memberId, chunkIds, timingMs, request, input) {
-  const { snapshot, hit } = snapshotFor(state, memberId, timingMs, input, false);
+async function deathEstimates(state, memberId, chunkIds, timingMs, request, input, pickerId = 'legacy-shared') {
+  const { snapshot, hit } = snapshotFor(state, memberId, timingMs, input, false, pickerId);
   // A disconnect received during cold baseline work can stop before we pay
   // for the first candidate. Each later synchronous candidate is also bounded
   // by the scheduler's independent death-lane watchdog.
@@ -256,6 +269,7 @@ async function deathEstimates(state, memberId, chunkIds, timingMs, request, inpu
       const prediction = predictionFor(state, memberId, chunkId, snapshot, timingMs);
       snapshot.estimates.set(key, timed(timingMs, 'deathMs', () => estimateChunk(state, memberId, chunkId, { prediction, baseline: snapshot.baseline })));
       estimatedCount++;
+      completeCache.refresh(snapshot, true);
     }
     const estimate = snapshot.estimates.get(key);
     snapshot.estimates.delete(key); snapshot.estimates.set(key, estimate);
@@ -265,6 +279,7 @@ async function deathEstimates(state, memberId, chunkIds, timingMs, request, inpu
     // entire batch finishes. New revisions cancel the remaining old candidates.
     await yieldToRequests();
   }
+  completeCache.refresh(snapshot);
   return { memberId, stateRevision: state.revision, estimates,
     cancelled: request.cancelled || state.revision < request.latestRevision || estimates.length !== chunkIds.length,
     cache: { baselineHit: hit, estimateHits, estimatedCount, baselineEvaluations: hit ? 0 : 1, predictionEvaluations: estimatedCount } };
@@ -353,20 +368,20 @@ parentPort.on('message', async ({ id, pickerId = 'legacy-shared', type = 'evalua
       timed(timingMs, 'preparationMs', () => engine.prepare(state.rules));
       result = { prepared: true };
     } else if (type === 'roll-pool') result = timed(timingMs, 'rollPoolMs', () => rollPoolFor(state, memberId, draft ?? chunkId));
-    else if (type === 'sandbox') result = sandboxFor(state, memberId, chunkId, timingMs, input);
+    else if (type === 'sandbox') result = sandboxFor(state, memberId, chunkId, timingMs, input, pickerId);
     else if (type === 'area-check') result = timed(timingMs, 'areaCheckMs', () => {
       const { baselineTaskIds, ...requested } = chunkId;
       const draft = normalizeAreaCheckRequest(requested, { state, memberId, world: workerData.world });
-      const cached = baselineTaskIds ? undefined : snapshotFor(state, memberId, timingMs, input, false);
+      const cached = baselineTaskIds ? undefined : snapshotFor(state, memberId, timingMs, input, false, pickerId);
       return { ...analyzeAreaCheck(state, memberId, draft, {
         engine: { evaluate: (input, member) => evaluateFull(input, member, { includeViews: false, timingMs }) },
         baseline: cached?.snapshot.baseline, baselineTaskIds, definitions, world: workerData.world,
       }), cache: { baselineHit: !!baselineTaskIds || cached.hit, baselineSource: baselineTaskIds ? 'current-list' : 'worker' } };
     });
-    else if (type === 'death-estimates') result = await deathEstimates(state, memberId, chunkIds, timingMs, request, input);
+    else if (type === 'death-estimates') result = await deathEstimates(state, memberId, chunkIds, timingMs, request, input, pickerId);
     else {
       const compact = type === 'evaluate' && resultTransport === 'json-shared-v1' && resultView === 'play-v1';
-      const { snapshot } = snapshotFor(state, memberId, timingMs, input, type !== 'predict' && type !== 'chunk-planning' && !compact);
+      const { snapshot } = snapshotFor(state, memberId, timingMs, input, type !== 'predict' && type !== 'chunk-planning' && !compact, pickerId);
       if (type === 'predict') {
         // Let panel closure cancel a completed baseline before starting the
         // separate hypothetical fixed point. Keep a normal final lane response.
