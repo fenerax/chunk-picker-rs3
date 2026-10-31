@@ -96,7 +96,22 @@ export async function reconcileServiceRecoveryTombstones({ settings, checkpoint,
 }
 const mutate = async (step, label, work) => { await step(label); return work(); };
 const actionRequired = message => Object.assign(new Error(message), { code: 'OPERATOR_ACTION_REQUIRED' });
-const restoreBytes = file => actionRequired(`Restore ${file} from the verified backup after moving its current bytes aside; then rerun.`);
+// Journal digests are taken after the probe, which may migrate the store. Backup
+// bytes satisfy them only when the probe changed nothing; otherwise (or for an
+// older journal that did not record it) reset the picker so the rerun copies
+// and probes the verified backup again and journals fresh digests.
+async function restoreBytes(settings, picker, row, file) {
+  // A quarantine release keeps its own journal (row.releaseIdentity); this reset names only the restore journal.
+  if (row.probeChanged === false || row.releaseIdentity) return actionRequired(`Restore ${file} from the verified backup after moving its current bytes aside; then rerun.`);
+  const target = pickerPath(settings, picker), retained = path.join(quarantineRoot(settings), picker.id);
+  const paths = [];
+  for (const candidate of [target, target + '.dataset.json', row.installStage, retained, retained + '.dataset.json', retained + '.json']) {
+    if (candidate && await exists(candidate)) paths.push(candidate);
+  }
+  return actionRequired(`Move ${paths.join(', ') || 'nothing'} aside for inspection; replace picker ${picker.id}'s entry in ${progressFile(settings)} with exactly ${JSON.stringify({ id: picker.id, status: 'pending' })}; then rerun.`);
+}
+const probeInput = async store => ({ digest: await identity(store), binding: await exists(store + '.dataset.json') ? sha(await readFile(store + '.dataset.json')) : null });
+const probeChanged = async (store, before) => encode(await probeInput(store)) !== encode(before);
 const legacyRefusal = () => Object.assign(new Error('Legacy picker is incompatible; service restore refused. Live data was not changed.'), { code: 'LEGACY_RESTORE_INCOMPATIBLE' });
 const progressFile = settings => path.join(settings.controlDir, 'service-restore', 'progress.json');
 const quarantineRoot = settings => path.join(settings.controlDir, 'quarantine');
@@ -121,28 +136,28 @@ async function cleanInstallStage(settings, picker, row, step, excluded = false) 
     await syncRecoveryDirectory(path.dirname(stage));
   }
 }
-async function verifyInstalled(target, row) {
-  const changed = file => {
-    const error = restoreBytes(file);
+async function verifyInstalled(settings, picker, target, row) {
+  const changed = async file => {
+    const error = await restoreBytes(settings, picker, row, file);
     error.message = 'Restore destination changed. ' + error.message;
     return error;
   };
   try {
-    if (!row.digest || await identity(target) !== row.digest) throw changed(target);
-  } catch (error) { throw error.code === 'OPERATOR_ACTION_REQUIRED' ? error : changed(target); }
+    if (!row.digest || await identity(target) !== row.digest) throw await changed(target);
+  } catch (error) { throw error.code === 'OPERATOR_ACTION_REQUIRED' ? error : await changed(target); }
   if (row.bindingSha256) {
     const binding = target + '.dataset.json';
     try {
       await noLinks(binding);
-      if (sha(await readFile(binding)) !== row.bindingSha256) throw changed(binding);
-    } catch (error) { throw error.code === 'OPERATOR_ACTION_REQUIRED' ? error : changed(binding); }
+      if (sha(await readFile(binding)) !== row.bindingSha256) throw await changed(binding);
+    } catch (error) { throw error.code === 'OPERATOR_ACTION_REQUIRED' ? error : await changed(binding); }
   }
 }
 async function installPicker(settings, picker, stage, row, save, step) {
   const target = pickerPath(settings, picker), source = path.join(stage, 'store');
   await checkedTarget(target);
   if (row.status === 'restored') {
-    await verifyInstalled(target, row); await cleanInstallStage(settings, picker, row, step); return;
+    await verifyInstalled(settings, picker, target, row); await cleanInstallStage(settings, picker, row, step); return;
   }
   if (!row.installing) {
     await empty(target);
@@ -165,7 +180,7 @@ async function installPicker(settings, picker, stage, row, save, step) {
   await noLinks(local);
   if (!row.destinationReady) {
     if (!await exists(source)) throw actionRequired(`Repopulate ${source} from the verified backup; then rerun.`);
-    if (await identity(source) !== row.digest) throw restoreBytes(source);
+    if (await identity(source) !== row.digest) throw await restoreBytes(settings, picker, row, source);
     if (await exists(stageStore)) {
       const expected = new Map((await inventory(source)).map(file => [file.path, encode(file)]));
       if ((await inventory(stageStore)).some(file => expected.get(file.path) !== encode(file))) {
@@ -180,10 +195,10 @@ async function installPicker(settings, picker, stage, row, save, step) {
     const files = await inventory(source);
     await headroom(path.dirname(target), files.reduce((n, r) => n + (r.bytes ?? 0), 0), settings.minFreeBytes);
     await copyServiceTree(source, stageStore, step, 'install.copy-store');
-    if (await identity(stageStore) !== row.digest) throw restoreBytes(stageStore);
+    if (await identity(stageStore) !== row.digest) throw await restoreBytes(settings, picker, row, stageStore);
     if (row.bindingSha256 && await exists(source + '.dataset.json')) {
       await mutate(step, 'install.copy-binding', () => copyFile(source + '.dataset.json', stageStore + '.dataset.json', 1));
-      if (sha(await readFile(stageStore + '.dataset.json')) !== row.bindingSha256) throw restoreBytes(source + '.dataset.json');
+      if (sha(await readFile(stageStore + '.dataset.json')) !== row.bindingSha256) throw await restoreBytes(settings, picker, row, source + '.dataset.json');
     }
     await syncRecoveryTree(local);
     row.destinationReady = true; row.installing = true; await save('install.ready');
@@ -191,7 +206,7 @@ async function installPicker(settings, picker, stage, row, save, step) {
   // The intent owns these exact bytes, including the window between store and
   // binding renames. The source copy remains available until installation ends.
   if (await exists(stageStore)) {
-    if (await identity(stageStore) !== row.digest) throw restoreBytes(stageStore);
+    if (await identity(stageStore) !== row.digest) throw await restoreBytes(settings, picker, row, stageStore);
     await empty(target); await mutate(step, 'install.remove-target', () => rm(target, { recursive: true, force: true }));
     await mutate(step, 'install.rename-store', () => rename(stageStore, target));
   }
@@ -199,10 +214,10 @@ async function installPicker(settings, picker, stage, row, save, step) {
     // Any destination binding here is foreign (the staged one has not moved yet), so
     // backup bytes cannot clear it: it must go aside for the staged rename.
     if (await exists(target + '.dataset.json')) throw actionRequired(`Move ${target}.dataset.json aside after checking ${stageStore}.dataset.json; then rerun.`);
-    if (sha(await readFile(stageStore + '.dataset.json')) !== row.bindingSha256) throw restoreBytes(stageStore + '.dataset.json');
+    if (sha(await readFile(stageStore + '.dataset.json')) !== row.bindingSha256) throw await restoreBytes(settings, picker, row, stageStore + '.dataset.json');
     await mutate(step, 'install.rename-binding', () => rename(stageStore + '.dataset.json', target + '.dataset.json'));
   }
-  await verifyInstalled(target, row);
+  await verifyInstalled(settings, picker, target, row);
   await syncRecoveryDirectory(path.dirname(target)); await syncRecoveryDirectory(local);
   row.status = 'restored'; await save('install.restored');
   await cleanInstallStage(settings, picker, row, step);
@@ -214,7 +229,7 @@ function unverifiedQuarantine(settings, picker) {
 async function verifyQuarantined(settings, picker, row) {
   if (!row.digest) throw unverifiedQuarantine(settings, picker);
   const root = quarantineRoot(settings), target = path.join(root, picker.id);
-  await verifyInstalled(target, row);
+  await verifyInstalled(settings, picker, target, row);
   await assertPlaceholder(settings, picker);
   // The record is small fixed metadata; the backup's gameplay bytes cannot repair it.
   const record = path.join(root, picker.id + '.json'), value = { id: picker.id, kind: picker.kind, reason: 'incompatible' }, expected = encode(value);
@@ -242,17 +257,17 @@ async function quarantine(settings, picker, stageStore, row, save, step) {
   if (!row.digest) throw unverifiedQuarantine(settings, picker);
   if (await exists(stageStore)) {
     if (await exists(target)) throw actionRequired(`Move ${target} aside after checking ${stageStore}; then rerun.`);
-    if (await identity(stageStore) !== row.digest) throw restoreBytes(stageStore);
+    if (await identity(stageStore) !== row.digest) throw await restoreBytes(settings, picker, row, stageStore);
     await mutate(step, 'quarantine.rename-store', () => rename(stageStore, target));
   }
-  if (!await exists(target)) throw restoreBytes(target);
-  if (await identity(target) !== row.digest) throw restoreBytes(target);
+  if (!await exists(target)) throw await restoreBytes(settings, picker, row, target);
+  if (await identity(target) !== row.digest) throw await restoreBytes(settings, picker, row, target);
   if (await exists(stageStore + '.dataset.json')) {
     if (await exists(target + '.dataset.json')) throw actionRequired(`Move ${target}.dataset.json aside after checking ${stageStore}.dataset.json; then rerun.`);
-    if (sha(await readFile(stageStore + '.dataset.json')) !== row.bindingSha256) throw restoreBytes(stageStore + '.dataset.json');
+    if (sha(await readFile(stageStore + '.dataset.json')) !== row.bindingSha256) throw await restoreBytes(settings, picker, row, stageStore + '.dataset.json');
     await mutate(step, 'quarantine.rename-binding', () => rename(stageStore + '.dataset.json', target + '.dataset.json'));
   }
-  await verifyInstalled(target, row);
+  await verifyInstalled(settings, picker, target, row);
   if (await exists(original) && (await readdir(original)).length) await assertPlaceholder(settings, picker);
   await mutate(step, 'quarantine.placeholder-directory', () => directory(original));
   await mutate(step, 'quarantine.placeholder', () => atomic(path.join(original, 'operator-quarantine.json'), encode({ id: picker.id })));
@@ -313,7 +328,9 @@ export async function restoreServiceStopped({ settings, backup, release, assertS
     await copyServiceTree(path.join(backup, 'pickers', legacy.id), store, step, 'restore.legacy-copy');
     await mutate(step, 'restore.legacy-copy', () => copyFile(path.join(backup, 'pickers', legacy.id + '.dataset.json'), store + '.dataset.json', 1));
     try {
+      const before = await probeInput(store);
       const checked = await probe(release, store, path.join(stage, 'portable.json'));
+      legacyRow.probeChanged = await probeChanged(store, before);
       const expected = document.pickers.find(p => p.id === legacy.id)?.memberIds;
       if (!checked?.state?.members || encode(checked.state.members.map(m => m.id)) !== encode(expected)) throw legacyRefusal();
       legacyRow.checkedDigest = await identity(store);
@@ -354,7 +371,7 @@ export async function restoreServiceStopped({ settings, backup, release, assertS
       row.status = 'excluded'; await save('restore.excluded'); continue;
     }
     if (row.status === 'restored') {
-      await verifyInstalled(pickerPath(settings, picker), row);
+      await verifyInstalled(settings, picker, pickerPath(settings, picker), row);
       await cleanInstallStage(settings, picker, row, step);
       await mutate(step, 'restore.stage-cleanup', () => rm(path.join(work, picker.id), { recursive: true, force: true }));
       continue;
@@ -381,14 +398,17 @@ export async function restoreServiceStopped({ settings, backup, release, assertS
       if (picker.binding) await mutate(step, 'restore.stage-copy', () => copyFile(path.join(backup, 'pickers', picker.id + '.dataset.json'), stageStore + '.dataset.json', 1));
     }
     let incompatible = false;
+    if (picker.kind !== 'legacy-shared') row.probeChanged = false;
     if (picker.initialized && picker.kind !== 'legacy-shared') {
       // Child exits before the next picker starts; no calculator heaps coexist.
+      const before = await probeInput(stageStore);
       try {
         const checked = await probe(release, stageStore, path.join(stage, 'portable.json'));
         const expected = document.pickers.find(p => p.id === picker.id).memberIds;
         if (!checked?.state?.members || encode(checked.state.members.map(m => m.id)) !== encode(expected)) throw new Error('Picker membership mismatch.');
       }
       catch { incompatible = true; }
+      row.probeChanged = await probeChanged(stageStore, before);
     }
     await assertStopped(); await assertSameRelease(release);
     if (incompatible) await quarantine(settings, picker, stageStore, row, save, step);
@@ -433,7 +453,7 @@ export async function releaseServiceQuarantine({ settings, id, release, assertSt
   // Cleanup after the install is journaled first, so a retry after the record
   // is gone can still finish and let the operator repair ownership.
   const finish = async row => {
-    await verifyInstalled(pickerPath(settings, { id, kind: 'default' }), row);
+    await verifyInstalled(settings, { id, kind: 'default' }, pickerPath(settings, { id, kind: 'default' }), row);
     const retained = path.join(root, id);
     if (await exists(retained) && (!row.quarantineDigest || await identity(retained) !== row.quarantineDigest)) {
       throw actionRequired(`Move ${retained} aside after checking the installed target; then rerun.`);
@@ -453,7 +473,7 @@ export async function releaseServiceQuarantine({ settings, id, release, assertSt
     if (done?.id !== id || done.releaseIdentity !== release.identity || !['installed', 'released'].includes(done.status)) throw new Error('No quarantine record for this picker.');
     // Legacy is never quarantine-released, so the install is an owned picker.
     // Startup stays blocked until ownership repair, so it can't have changed.
-    await verifyInstalled(pickerPath(settings, { id, kind: 'default' }), done);
+    await verifyInstalled(settings, { id, kind: 'default' }, pickerPath(settings, { id, kind: 'default' }), done);
     return finish(done);
   }
   const record = await json(recordFile);

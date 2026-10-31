@@ -225,6 +225,46 @@ test('a foreign destination binding before the staged binding rename is moved as
   await restoreServiceStopped(options);
   assert.equal(await bindingDigest(target), await bindingDigest(path.join(f.backup, 'pickers', f.legacy.id)));
 });
+test('a probe-migrated store that later changes is reset and re-probed, not restored from pre-probe backup bytes', async t => {
+  const f = await fixture(t), settings = await f.target(), base = f.restore(settings);
+  // A catalogue migration: the probe persists a change, so journal digests differ from the backup's.
+  const options = { ...base, probe: async (release, dir, portable) => {
+    await writeFile(path.join(dir, 'migrated.json'), encode({ migrated: true })); return base.probe(release, dir, portable);
+  } };
+  await assert.rejects(restoreServiceStopped({ ...options, step: async label => { if (label === 'install.rename-store') throw fault; } }), error => error === fault);
+  const row = (await json(progressFile(settings))).pickers.find(p => p.id === f.legacy.id);
+  assert.equal(row.probeChanged, true);
+  await writeFile(path.join(row.installStage, 'store', 'state.json'), encode({ changed: true }));
+  const error = await restoreServiceStopped(options).then(() => null, error => error);
+  assert.equal(error?.code, 'OPERATOR_ACTION_REQUIRED', error?.message);
+  assert.doesNotMatch(error.message, /from the verified backup/);
+  const match = error.message.match(/^Move (.+) aside for inspection; replace picker (\S+)'s entry in (.+) with exactly (\{.*\}); then rerun\.$/);
+  assert(match, error.message); assert.equal(match[2], f.legacy.id);
+  for (const file of match[1].split(', ')) await rename(file, path.join(inspectionRoot, randomUUID()));
+  const journal = await json(match[3]);
+  journal.pickers = journal.pickers.map(p => p.id === match[2] ? JSON.parse(match[4]) : p);
+  await atomic(match[3], encode(journal));
+  await restoreServiceStopped(options);
+  const target = pickerPath(settings, f.legacy);
+  assert.deepEqual(await json(path.join(target, 'migrated.json')), { migrated: true });
+  assert.deepEqual(await json(path.join(target, 'state.json')), await json(path.join(f.backup, 'pickers', f.legacy.id, 'state.json')));
+  assert.equal(await bindingDigest(target), await bindingDigest(path.join(f.backup, 'pickers', f.legacy.id)));
+  assert.equal((await json(progressFile(settings))).pickers.find(p => p.id === f.legacy.id).status, 'restored');
+  await restoreServiceStopped(options);
+});
+
+test('an unmigrated store keeps the restore-from-backup instruction', async t => {
+  const f = await fixture(t), settings = await f.target(), options = f.restore(settings);
+  await assert.rejects(restoreServiceStopped({ ...options, step: async label => { if (label === 'install.rename-store') throw fault; } }), error => error === fault);
+  const row = (await json(progressFile(settings))).pickers.find(p => p.id === f.legacy.id);
+  assert.equal(row.probeChanged, false);
+  const changed = path.join(row.installStage, 'store', 'state.json'), original = await readFile(changed);
+  await writeFile(changed, encode({ changed: true }));
+  const error = await restoreServiceStopped(options).then(() => null, error => error);
+  assert.match(error?.message ?? '', /^Restore (.+) from the verified backup after moving its current bytes aside; then rerun\.$/);
+  await writeFile(changed, original);
+  await restoreServiceStopped(options); await finalState(f, settings);
+});
 test('quarantine metadata refusals name the exact repair, and following it completes the rerun', async t => {
   const f = await fixture(t), settings = await f.target(), options = f.restore(settings);
   await restoreServiceStopped(options);
