@@ -101,14 +101,28 @@ const actionRequired = message => Object.assign(new Error(message), { code: 'OPE
 // older journal that did not record it) reset the picker so the rerun copies
 // and probes the verified backup again and journals fresh digests.
 async function restoreBytes(settings, picker, row, file) {
-  // A quarantine release keeps its own journal (row.releaseIdentity); this reset names only the restore journal.
-  if (row.probeChanged === false || row.releaseIdentity) return actionRequired(`Restore ${file} from the verified backup after moving its current bytes aside; then rerun.`);
+  if (row.releaseIdentity) return releaseBytes(settings, picker, row);
+  if (row.probeChanged === false) return actionRequired(`Restore ${file} from the verified backup after moving its current bytes aside; then rerun.`);
   const target = pickerPath(settings, picker), retained = path.join(quarantineRoot(settings), picker.id);
   const paths = [];
   for (const candidate of [target, target + '.dataset.json', row.installStage, retained, retained + '.dataset.json', retained + '.json']) {
     if (candidate && await exists(candidate)) paths.push(candidate);
   }
   return actionRequired(`Move ${paths.join(', ') || 'nothing'} aside for inspection; replace picker ${picker.id}'s entry in ${progressFile(settings)} with exactly ${JSON.stringify({ id: picker.id, status: 'pending' })}; then rerun.`);
+}
+// A release must re-probe quarantine, not install pre-probe backup bytes under
+// post-probe digests. Cleanup may already have consumed either source endpoint.
+async function releaseBytes(settings, picker, row) {
+  const target = pickerPath(settings, picker), retained = path.join(quarantineRoot(settings), picker.id);
+  const stage = path.join(settings.controlDir, 'release-' + picker.id), journal = path.join(stage, 'progress.json');
+  const consumed = !await exists(retained) || !await exists(retained + '.dataset.json');
+  const paths = [];
+  for (const candidate of [target, target + '.dataset.json', installStage(settings, picker, row), stage,
+    ...(consumed ? [retained, retained + '.dataset.json'] : [])]) {
+    if (candidate && await exists(candidate)) paths.push(candidate);
+  }
+  const source = consumed ? `restore ${retained} and ${retained}.dataset.json from an offline copy of the quarantine source matching store digest ${row.quarantineDigest} and binding SHA-256 ${row.quarantineBindingSha256}; ` : '';
+  return actionRequired(`Move ${paths.join(', ') || 'nothing'} aside for inspection; ${source}create ${target} containing only operator-quarantine.json with exactly ${JSON.stringify({ id: picker.id })}; write ${retained}.json containing exactly ${JSON.stringify({ id: picker.id, kind: picker.kind, reason: 'incompatible' })}; recreate ${stage} and write ${journal} containing exactly ${JSON.stringify({ id: picker.id, status: 'pending', releaseIdentity: row.releaseIdentity })}; then rerun quarantine release with the same picker and release.`);
 }
 const probeInput = async store => ({ digest: await identity(store), binding: await exists(store + '.dataset.json') ? sha(await readFile(store + '.dataset.json')) : null });
 const probeChanged = async (store, before) => encode(await probeInput(store)) !== encode(before);
@@ -503,7 +517,9 @@ export async function releaseServiceQuarantine({ settings, id, release, assertSt
     row.quarantineBindingSha256 = sha(await readFile(path.join(root, id + '.dataset.json')));
     await copyServiceTree(path.join(root, id), path.join(stage, 'store'), step, 'release.copy-store');
     await mutate(step, 'release.copy-binding', () => copyFile(path.join(root, id + '.dataset.json'), path.join(stage, 'store.dataset.json'), 1));
+    const before = await probeInput(path.join(stage, 'store'));
     const checked = await probe(release, path.join(stage, 'store'), path.join(stage, 'portable.json'));
+    row.probeChanged = await probeChanged(path.join(stage, 'store'), before);
     if (encode(checked?.state?.members?.map(m => m.id)) !== encode(picker.memberIds)) throw new Error('Quarantine membership mismatch.');
     await assertStopped(); await assertSameRelease(release);
     await syncRecoveryTree(path.join(stage, 'store'));

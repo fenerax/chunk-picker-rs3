@@ -371,7 +371,7 @@ test('ambiguous evidence: release cleanup verifies installed bytes even with a r
     const quarantine = path.join(settings.controlDir, 'quarantine');
     const beforeDigest = await digest(quarantine);
     await assert.rejects(releaseServiceQuarantine(f.releaseOptions(settings)), error => {
-      assert.equal(error.code, 'OPERATOR_ACTION_REQUIRED'); assert(error.message.includes(`Restore ${target}`)); return true;
+      assert.equal(error.code, 'OPERATOR_ACTION_REQUIRED'); assert(error.message.includes(`Move ${target}`)); return true;
     });
     assert.equal(await digest(quarantine), beforeDigest, 'refusal never deletes quarantine');
     await writeFile(path.join(target, 'state.json'), original);

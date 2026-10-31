@@ -2709,6 +2709,17 @@ shared install table.
 | `release.stage-cleanup` | One disposable probe file removed. | R | Q |
 | `release.complete` | Journal records released status. | R | Q |
 
+A release journal records whether its probe changed the staged store or binding.
+A release digest mismatch names the existing target, binding and staging paths
+to preserve, then gives literal placeholder, quarantine-record and pending
+release-journal JSON so the same release copies and probes quarantine again.
+It leaves an intact quarantine source in place; if cleanup consumed either
+endpoint, preserve any survivor and restore both from an offline quarantine copy
+matching the printed pre-probe digests first. Without those retained bytes,
+manual source recovery is required; a verified service backup is not promised
+to contain the release journal's post-probe bytes. Service-restore repairs are
+unchanged.
+
 #### Ownership repair
 
 | Step label | Disk immediately after step | Same-input rerun | Test |
