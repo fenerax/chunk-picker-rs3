@@ -113,7 +113,7 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
   transport.savingConnections ??= new Map();
   transport.requestClose ??= () => context.close();
   transport.inviteUrl ??= () => `/join/${token}`;
-  const requests = new Set(), jobs = new Set();
+  const requests = new Set(), jobs = new Set(), bodyRequests = new Set();
   function track(set, operation) {
     const pending = Promise.resolve(operation());
     set.add(pending);
@@ -1882,6 +1882,9 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
     },
     fenceDeletion() {
       closed = true;
+      // These sockets belong only to the fenced picker. Do not let unfinished
+      // network bodies keep its durable deletion drain alive.
+      for (const request of bodyRequests) if (!request.complete) request.destroy();
       taskWorker?.cancelPicker?.();
       for (const client of clients) client.end();
       clients.clear(); clientCredentials.clear();
@@ -1900,15 +1903,18 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
       checkRequestOrigin(request, security);
       if (closed || handover.frozen || liveSwap?.standby) throw httpError(503, 'The picker is stopping. Retry after it restarts.');
       if (importingBackup) throw httpError(503, 'Another backup is being checked or imported. Wait for it to finish, then try again.');
-      importingBackup = true; admittedImports.add(request);
+      importingBackup = true; admittedImports.add(request); bodyRequests.add(request);
       // Router parsing precedes handle(), so include its admission in the same
       // drain set. Eviction must not reopen alongside a still-running parser.
       const drained = Promise.withResolvers(); requests.add(drained.promise);
-      return () => { admittedImports.delete(request); importingBackup = false; requests.delete(drained.promise); drained.resolve(); };
+      return () => { admittedImports.delete(request); bodyRequests.delete(request); importingBackup = false; requests.delete(drained.promise); drained.resolve(); };
     },
     authenticate: (request, security) => invites.authenticate(request, security),
     authenticatePlugin: request => gamePlugin.authenticate(request),
-    handle: (request, response, listener = { host: '127.0.0.1', ingressRole: 'private' }) => track(requests, () => requestHandler(request, response, listener)),
+    handle: (request, response, listener = { host: '127.0.0.1', ingressRole: 'private' }) => track(requests, async () => {
+      bodyRequests.add(request);
+      try { return await requestHandler(request, response, listener); } finally { bodyRequests.delete(request); }
+    }),
     activate(checkpoint) {
       if (closed || !liveSwap?.standby) return Promise.reject(new Error('Only a prepared standby can activate.'));
       if (activationPending) return Promise.reject(new Error('Standby activation is already running.'));
