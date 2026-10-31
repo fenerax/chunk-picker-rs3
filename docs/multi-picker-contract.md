@@ -2928,8 +2928,8 @@ Review validation on Node 24.21.0:
 | Six regressions against exact START application code | 0 | 6 | 0 | 1.60 |
 | Six regressions after fixes | 6 | 0 | 0 | 2.00 |
 | All three touched test files | 78 | 0 | 0 | 72.15 |
-| `npm run test:quick` | 2,835 | 0 | 68 | 180.64 |
-| `npm test` | 5,983 | 0 | 140 | 438.75 |
+| Quick suite (`npm run test:quick`) | 2,835 | 0 | 68 | 180.64 |
+| Full suite (`npm test`) | 5,983 | 0 | 140 | 438.75 |
 
 The touched files cover 21 reclaim tests, 36 Linux operator/recovery tests and
 21 acceptance tests. All runs had zero cancelled tests and zero TODOs. No
