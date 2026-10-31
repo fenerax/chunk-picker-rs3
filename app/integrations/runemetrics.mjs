@@ -44,11 +44,10 @@ export function createRuneMetricsClient({ fetchImpl = globalThis.fetch, clock = 
   let retired = false;
   async function endpoint(url, name, signal) {
     const response = await fetchImpl(url, { headers: { 'User-Agent': RUNE_METRICS_USER_AGENT, Accept: 'application/json' }, signal, redirect: 'error' });
-    // HTTP Gone is an explicit retirement signal; no JSON error code is guessed.
-    if (response.status === 410) { retired = true; throw runeMetricsError('SOURCE_RETIRED', 'Levels sync from the game plugin now.', 410); }
+    // Missing or gone endpoints signal closure; JSON NO_PROFILE remains an account error.
+    if ([404, 410].includes(response.status)) { retired = true; throw runeMetricsError('SOURCE_RETIRED', 'Levels sync from the game plugin now.', 410); }
     if (response.status === 429) throw runeMetricsError('RATE_LIMITED', 'RuneMetrics is limiting requests. Wait a few minutes before trying again.', 429);
     if ([401, 403].includes(response.status)) throw runeMetricsError('PROFILE_PRIVATE', `RuneMetrics denied access to ${name}'s profile. Check profile privacy, then try again.`, 422);
-    if (response.status === 404) throw runeMetricsError('UNKNOWN_NAME', `RuneMetrics could not find ${name}. Check this player's RuneScape name.`, 404);
     if (!response.ok) throw runeMetricsError('UPSTREAM_ERROR', `RuneMetrics is unavailable (HTTP ${response.status}). Try again later.`, 502);
     let value;
     try {
@@ -110,4 +109,11 @@ export function createRuneMetricsClient({ fetchImpl = globalThis.fetch, clock = 
     },
     close() { for (const controller of controllers) controller.abort(); cache.clear(); },
   };
+}
+
+/** Provider adapter: the raw client remains available for legacy fixture tests. */
+export function createRuneMetricsSource(options) {
+  const client = createRuneMetricsClient(options);
+  return { async snapshot(member) { return normalizeRuneMetricsSnapshot(await client.snapshot(member)); },
+    close() { client.close(); } };
 }

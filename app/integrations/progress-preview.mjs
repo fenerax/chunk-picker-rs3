@@ -2,7 +2,7 @@ import { observedSkills as observedSkillNames, validateRuneMetricsTimestamp } fr
 import { canonicalTitle, UNMAPPED_QUEST_REASONS } from './quest-mapping.mjs';
 
 export function previewProgressSnapshot(state, memberId, snapshot, questMapping) {
-  if (!['runemetrics', 'game-plugin', 'official-api'].includes(snapshot.source)) throw new TypeError('Unknown progress source.');
+  if (!['runemetrics', 'game-plugin', 'official-api', 'hiscores'].includes(snapshot.source)) throw new TypeError('Unknown progress source.');
   validateRuneMetricsTimestamp(snapshot.fetchedAt, 'Progress');
   const member = state.members.find(owner => owner.id === memberId);
   if (!member) throw new RangeError(`Unknown member: ${memberId}`);
@@ -17,7 +17,9 @@ export function previewProgressSnapshot(state, memberId, snapshot, questMapping)
       unmatched.skills.push({ id: row.id, skill, reason: 'Invalid level or XP; this row will not be applied.' }); continue;
     }
     const after = { level: row.level, xp: row.xp }, saved = member.skillProgress?.[skill];
-    observedSkills.push({ skill, ...after });
+    // The server may have newer saved facts than the member used for fetching.
+    if (snapshot.source === 'hiscores' && saved && (after.level < saved.level || after.xp < saved.xp)) continue;
+    observedSkills.push({ skill, ...after, ...(row.provenance ? { provenance: row.provenance } : {}) });
     if (!saved || saved.level !== after.level || saved.xp !== after.xp) skills.push({ skill, before: saved ? { level: saved.level, xp: saved.xp } : null, after });
   }
   let completedQuests = 0, matchedQuests = 0;
@@ -37,15 +39,16 @@ export function previewProgressSnapshot(state, memberId, snapshot, questMapping)
     if (!state.tasks.some(task => task.id === match.taskId && task.category === 'Quest')) {
       unmatched.quests.push({ title: row.title, reason: 'The mapped quest is absent from the saved catalogue.' }); continue;
     }
-    matchedQuests++; observedQuests.push({ taskId: match.taskId, title: row.title });
+    matchedQuests++; observedQuests.push({ taskId: match.taskId, title: row.title, ...(row.provenance ? { provenance: row.provenance } : {}) });
     if (!member.completedTasks.includes(match.taskId)) quests.push(match);
   }
   return {
     preview: { stateRevision: state.revision, memberId, runescapeName: member.runescapeName ?? '',
+      ...(snapshot.message ? { message: snapshot.message } : {}),
       source: snapshot.source, sourceLabel: snapshot.sourceLabel, fetchedAt: snapshot.fetchedAt, cached: snapshot.cached, skills, quests, unmatched,
       counts: { completedQuests, matchedQuests, unmatchedQuests: unmatched.quests.length } },
     command: { type: snapshot.source === 'game-plugin' ? 'apply-game-progress' : 'apply-runemetrics', memberId,
-      ...(snapshot.source === 'game-plugin' ? { achievements: [] } : { runescapeName: member.runescapeName, ...(snapshot.source === 'official-api' ? { source: 'official-api' } : {}) }),
+      ...(snapshot.source === 'game-plugin' ? { achievements: [] } : { runescapeName: member.runescapeName, ...(['official-api', 'hiscores'].includes(snapshot.source) ? { source: snapshot.source } : {}) }),
       fetchedAt: snapshot.fetchedAt, skills: observedSkills, quests: observedQuests },
   };
 }
