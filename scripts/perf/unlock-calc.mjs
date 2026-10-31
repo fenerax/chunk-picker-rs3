@@ -230,8 +230,9 @@ async function instrument(scratch, appDir) {
     ['\n        processing = evaluation.next().value;', '\n        processing = step(evaluation);'],
     ['\n    result = finalEvaluation.next().value;', '\n    result = step(finalEvaluation);'],
   ].entries()) engine = replace(engine, anchor, replacement, `fixed-point resume ${index + 1}`);
-  engine = replace(engine, '      while (changed && counters.passes - roundStart < compiled.length + 2) {\n        counters.passes++; changed = false;',
-    '      while (changed && counters.passes - roundStart < compiled.length + 2) {\n        const passStarted = performance.now(), beforeChecks = counters.checks, beforeDependencies = counters.dependencyChecks;\n        counters.passes++; changed = false;', 'inner fixed-point pass start');
+  // Anchor on the pass counter alone: newer engines put a proof-budget check between the loop header and it.
+  engine = replace(engine, '\n        counters.passes++; changed = false;',
+    '\n        const passStarted = performance.now(), beforeChecks = counters.checks, beforeDependencies = counters.dependencyChecks;\n        counters.passes++; changed = false;', 'inner fixed-point pass start');
   engine = replace(engine, '        if (discoveryExpanded) { changed = true; discoveryExpanded = false; }\n      }\n      updatePoints();',
     '        if (discoveryExpanded) { changed = true; discoveryExpanded = false; }\n        fixedPointPass(passStarted, beforeChecks, beforeDependencies, counters, blockedCheckCount, projectOnly, changed, valid.size);\n      }\n      updatePoints();', 'inner fixed-point pass end');
   engine = replace(engine, '    const rows = compiled.map(task => {\n      const blockers', '    const provenanceStarted = performance.now();\n    const rows = compiled.map(task => {\n      const blockers', 'provenance start');

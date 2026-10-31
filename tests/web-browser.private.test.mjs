@@ -10,11 +10,12 @@ import { createGroupState } from '../app/core/state.mjs';
 import { createRuleRegistry } from '../app/core/rules.mjs';
 import { createTaskFactsIndex, goalProgress } from '../app/core/progress.mjs';
 import { resolveTaskAlternatives } from '../app/core/task-alternatives.mjs';
-import { originalSettings, settingDefinitions } from '../app/data/settings.mjs';
+import { originalSettings, settingDefinitions, taskHowPreference } from '../app/data/settings.mjs';
 import { createInfoPanels, createNoteEditor, reviewedNoteRevision } from '../app/web/info-panels.mjs';
 import { createChunkQuestList } from '../app/web/chunk-quest-filters.mjs';
 import { createMapTools, applyTheme } from '../app/web/map-tools.mjs';
 import { createDeathChunks } from '../app/web/death-chunks.mjs';
+import { appendTaskHow } from '../app/web/task-how.mjs';
 import { createDeathSettings } from '../app/web/death-settings.mjs';
 import { createMiningSettings } from '../app/web/mining-settings.mjs';
 import { createWoodcuttingSettings } from '../app/web/woodcutting-settings.mjs';
@@ -164,7 +165,7 @@ function harness({ realPlanning = false, localStorage } = {}) {
     createActivityFilterControls: (collaborators, options) => createActivityFilterControls({ ...collaborators, storage: localStorage }, options), selectActivityRows,
     createChunkQuestList: (collaborators, entries) => { collaborators.storage = localStorage; return createChunkQuestList(collaborators, entries); },
     createMapDisplay: () => ({ sizes: { rollNumberScale: 1, chunkIdScale: 1, stickerScale: 1 }, open() {}, close() {}, refresh() {}, isOpen: () => false }), createHelperView: () => ({}), createBackupStatus: () => ({ start() {}, refresh: async () => {}, line: () => null }), createSandbox, openSandboxRules, createTaskHover, createTaskMethods, renderTaskEquipment, resolveTaskAlternatives, createDuoResultCache, selectDuoTasks, createDuoTaskView, createTaskFilters, appendTaskPin, appendTaskWhy, catalogued, createRuleDescriber, isTaskPinned, createTaskPinChecker, createCompletedView, createDuoCoordination, openTeleportsDialog,
-    selectDuoTaskLists, createDuoBacklogView, buildWorld, createRuleRegistry, originalSettings, settingDefinitions, createRulesPanel,
+    selectDuoTaskLists, createDuoBacklogView, buildWorld, createRuleRegistry, originalSettings, settingDefinitions, datasetSettings: settingDefinitions, taskHowPreference, appendTaskHow, createRulesPanel,
     taskItemIcon, taskIcon, taskCategoryIcon, createTaskIconPainter, skillIcon: () => null, itemIcon: () => null, loadIcons: async () => false, interiorCandidates: () => [], interiorPanel: () => ({}), describeHistoryEvent: event => event.type, createFeedback: () => ({ open() {}, setSession() {}, start() {}, stop() {} }), createUpdates: () => ({ seen() {}, openList() {} }), createRuneMetricsControls: () => ({}), createGamePlugin: () => ({ refresh: async () => {}, render() {}, open() {}, controls: () => ({}) }), createStickerPicker: () => ({ open() {}, close() {}, isOpen: () => false, element: { contains: () => false } }), createInfoPanels, createNoteEditor, reviewedNoteRevision, createMapTools, applyTheme, createTaskFactsIndex, goalProgress, createDeathSettings, createMiningSettings, createWoodcuttingSettings, createBankingSettings, mergeCommandState, projectChunkState, projectTaskState, createOriginalSync,
     EventSource: class extends Node { constructor(url) { super(); this.url = url; eventSources.push(this); } },
     createDeathChunks: ctx => createDeathChunks({ ...ctx, setTimeout: action => { const id = Symbol(); deathTimers.set(id, action); return id; }, clearTimeout: id => deathTimers.delete(id) }),
