@@ -179,7 +179,7 @@ export function createGroupGoals(c) {
     const title = c.el('h2', 'Group goals'); title.id = 'group-goals-title';
     root.setAttribute('aria-labelledby', title.id); root.setAttribute('aria-busy', String(saving));
     const open = !folded || !!draft, doneCount = list.filter(goal => goal.done).length;
-    const fold = c.button(list.length ? `${doneCount} of ${list.length} done` : 'Show', () => setFolded(open), 'group-goals-fold');
+    const fold = c.button(list.length ? `${doneCount} of ${list.length} done` : open ? 'Hide' : 'Show', () => setFolded(open), 'group-goals-fold');
     fold.setAttribute('aria-expanded', String(open)); fold.setAttribute('aria-controls', 'group-goals-body');
     fold.setAttribute('aria-label', open ? 'Hide group goals' : 'Show group goals');
     heading.append(title, fold);

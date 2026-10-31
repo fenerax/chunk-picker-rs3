@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 import { openGamePlugin } from '../app/game-plugin.mjs';
-import { pluginDoneRows, pluginDoneList, pluginDoneLocations, pluginRollSummary, PLUGIN_DONE_LIMIT, PLUGIN_DONE_AGE_MS } from '../app/game-plugin-tasks.mjs';
+import { pluginDoneRows, pluginDoneList, pluginDoneLocations, rememberActiveLocations, PLUGIN_REMEMBERED_LOCATIONS, pluginRollSummary, PLUGIN_DONE_LIMIT, PLUGIN_DONE_AGE_MS } from '../app/game-plugin-tasks.mjs';
 
 const now = Date.parse('2026-10-30T12:00:00Z');
 const registry = { resolve: rules => ({ 'tasks.completion': 'any', 'access.shared': true, ...rules }) };
@@ -178,11 +178,35 @@ test('done location recovery indexes at most 20 recent rows once and keeps missi
   assert.equal(unknown[0].chunks, null);
   const listed = pluginDoneList({ rows: unknown, chunkId: '12850', now });
   assert.equal(listed.hereKnown, false); assert.deepEqual(listed.here, []); assert.equal(listed.allCount, 1);
-  // A known finish with nothing to locate is simply not here; it must not hide the other rows.
-  const unlocatable = { id: 'nowhere', label: 'nowhere', category: 'Other' };
-  const mixed = pluginDoneLocations({ ...input, rows: [rows[0], { ...rows[1], id: 'nowhere' }],
-    result: { tasks: [tasks[0], unlocatable], taskLocations: {} }, cache: new Map() });
-  assert.deepEqual(mixed.find(row => row.id === 'nowhere').chunks, []);
-  const shown = pluginDoneList({ rows: mixed, chunkId: '12850', now });
-  assert.equal(shown.hereKnown, true); assert.deepEqual(shown.here.map(row => row.id), [rows[0].id]);
+  // A generated goal has no authored record and play results strip its sources. Unremembered,
+  // its location is unknown, but it must not hide the finishes known to be here.
+  const goal = { id: 'goal', label: 'Obtain a cape', category: 'Equipment' };
+  const mixed = pluginDoneLocations({ ...input, rows: [rows[0], { ...rows[1], id: 'goal' }],
+    result: { tasks: [tasks[0], goal], taskLocations: {} }, cache: new Map() });
+  assert.equal(mixed.find(row => row.id === 'goal').chunks, null);
+  const partial = pluginDoneList({ rows: mixed, chunkId: '12850', now });
+  assert.equal(partial.hereKnown, false); assert.deepEqual(partial.here.map(row => row.id), [rows[0].id]);
+  assert.equal(partial.allCount, 2);
+  // Remembered from when it was active, the goal stays in its chunk after finishing.
+  const remembered = pluginDoneLocations({ ...input, rows: [rows[0], { ...rows[1], id: 'goal' }],
+    result: { tasks: [tasks[0], goal], taskLocations: {} }, cache: new Map(), remembered: new Map([['goal', ['12850']]]) });
+  const shown = pluginDoneList({ rows: remembered, chunkId: '12850', now });
+  assert.equal(shown.hereKnown, true); assert.deepEqual(shown.here.map(row => row.id), [rows[0].id, 'goal']);
+  // A custom task is in no chunk, as on the map.
+  const custom = pluginDoneLocations({ ...input, rows: [{ ...rows[0], id: 'custom:walk' }],
+    result: { tasks: [{ id: 'custom:walk', label: 'walk', category: 'Custom' }], taskLocations: {} }, cache: new Map() });
+  assert.deepEqual(custom[0].chunks, []);
+});
+
+test('active generated goals remember their location; authored and custom tasks do not, and memory is bounded', () => {
+  const world = { chunks: new Map([['12850', {}]]), definitions: { challenges: { Quest: { Alpha: { Chunks: ['12850'] } } } } };
+  const result = { tasks: [{ id: 'authored', label: 'Alpha', category: 'Quest' }, { id: 'goal', label: 'Obtain a cape', category: 'Equipment' }] };
+  const memory = new Map();
+  rememberActiveLocations({ memory, world, state: state(), result, rows: [
+    { id: 'authored', chunks: ['12850'] }, { id: 'goal', chunks: ['12850'] }, { id: 'custom:walk', chunks: ['12850'] }, { id: 'nowhere', chunks: [] }] });
+  assert.deepEqual([...memory], [['goal', ['12850']]]);
+  const many = Array.from({ length: PLUGIN_REMEMBERED_LOCATIONS + 10 }, (_, index) => ({ id: `goal${index}`, chunks: ['12850'] }));
+  rememberActiveLocations({ memory, world, state: state(), result: { tasks: [] }, rows: many });
+  assert.equal(memory.size, PLUGIN_REMEMBERED_LOCATIONS);
+  assert.ok(!memory.has('goal') && !memory.has('goal0') && memory.has(`goal${PLUGIN_REMEMBERED_LOCATIONS + 9}`), 'The oldest entries go first');
 });

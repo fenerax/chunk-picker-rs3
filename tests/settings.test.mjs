@@ -38,7 +38,8 @@ test('settings and rule metadata keep the transcription checked against the reta
   assert.equal(digest, 'd0799f0d2530e088b6fc416ad19503d37c535e0706a84a7f40d2fffa00a73905');
   assert.equal(metadata.settingDefinitions.length, 27);
   assert.equal(Object.keys(metadata.originalRuleDefaults).length, 136);
-  assert.equal(metadata.taskRuleDefinitions.length, 156);
+  assert.equal(metadata.taskRuleDefinitions.filter(rule => rule.id !== 'Future Slayer unlocks').length, 156);
+  assert.equal(metadata.taskRuleDefinitions.find(rule => rule.id === 'Future Slayer unlocks').default, false);
   assert.equal(metadata.originalWorkerInputNames.length, 53);
   assert.equal(metadata.taskRuleBehavior('Normal Farming').status, 'implemented-scope');
 });
@@ -62,7 +63,7 @@ test('catalogue includes nested controls and preserves missing original defaults
 });
 
 test('coverage does not misrepresent retained or tag-gated rules as full upstream parity', () => {
-  for (const id of ['Kill X', 'Kill X Amount', 'Kill X Boss', 'Every Drop', 'Every Drop Thieving', 'Every Drop Implings', 'Every Drop BGH', 'All Droptables', 'All Droptables Nest', 'All Shops']) {
+  for (const id of ['Kill X', 'Kill X Amount', 'Kill X Boss', 'Every Drop', 'Every Drop Thieving', 'Every Drop Implings', 'Every Drop BGH', 'All Droptables', 'All Shops']) {
     assert.equal(metadata.taskRuleBehavior(id).status, 'implemented-scope', id);
   }
   assert.equal(metadata.taskRuleBehavior('Skiller').status, 'partial');
@@ -78,7 +79,9 @@ test('coverage does not misrepresent retained or tag-gated rules as full upstrea
   assert.equal(metadata.taskRuleBehavior('Cleaning herbs').status, 'retained-only');
   assert.equal(metadata.taskRuleBehavior('Show Best in Slot Weight Tasks').status, 'partial');
   assert.equal(metadata.taskRuleBehavior('BIS Skilling Relics').status, 'partial');
-  assert.equal(metadata.taskRuleBehavior('PvM Relics').status, 'partial');
+  for (const id of ['PvM Relics', 'All Droptables Nest']) assert.equal(metadata.taskRuleBehavior(id).status, 'no-effect-dataset');
+  assert.match(metadata.taskRuleBehavior('KeyItem Bosses').detail, /No effect.*key rarity/);
+  assert.match(metadata.taskRuleBehavior('Skiller').detail, /Combat-level goals can still appear/);
   assert.equal(metadata.taskRuleBehavior('Skillcape').status, 'category-gate');
   assert.equal(metadata.taskRuleBehavior('Quest Skill Reqs').status, 'retained-only');
   assert.equal(metadata.taskRuleBehavior('Show Best in Slot 1H and 2H').status, 'implemented-scope');

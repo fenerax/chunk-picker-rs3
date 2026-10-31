@@ -26,7 +26,7 @@ test('captured catalogue validates without execution and preserves source sectio
     const rendered = sections[index].rules.filter(rule => rule.original);
     assert.deepEqual(rendered.map(rule => rule.id), source.rows.map(row => row.key), source.name);
     for (const [position, row] of source.rows.entries()) {
-      assert.equal(rendered[position].label, row.key === 'Achievement' ? 'Show Achievement Tasks' : row.label ?? row.key);
+      assert.equal(rendered[position].label, row.key === 'Achievement' ? 'Show Achievement Tasks' : row.key === 'Rare Drop' ? 'Include drops rarer than my cutoff' : row.label ?? row.key);
       assert.equal(rendered[position].parent, row.parentKey ?? null);
       assert.equal(rendered[position].depth, row.depth ?? (row.parentKey ? 1 : 0));
     }
@@ -158,7 +158,7 @@ test('all captured presets produce valid primitive task values, including Suprem
     for (const value of Object.values(saved.members[0].taskRules)) assert.ok(value === null || ['boolean', 'number', 'string'].includes(typeof value), preset.name);
     if (preset.name === 'Supreme Chunker') {
       assert.equal(saved.members[0].taskRules['All Droptables'], true);
-      assert.equal(saved.members[0].taskRules['All Droptables Nest'], false);
+      assert.equal(Object.hasOwn(saved.members[0].taskRules, 'All Droptables Nest'), false, 'Inert nest preference stays unset');
     }
     for (const row of rulesCatalogue.rules) if (!isKeptTaskRule(row.key) && !Object.hasOwn(preset.values, row.key) && !rulesCatalogue.inputs.numeric.some(input => input.key === row.key) && row.key !== 'F2P') {
       assert.equal(saved.members[0].taskRules[row.key], false, `${preset.name}: omitted ${row.key}`);
@@ -223,17 +223,18 @@ const controlByRule = (h, id) => {
   const control = walk(row).find(node => ['INPUT', 'SELECT'].includes(node.tagName)); assert.ok(control, id); return control;
 };
 
-test('all 23 inert catalogue rules have one Advanced group and functional rules keep their sections', () => {
+test('all 25 inert catalogue rules have one Advanced group and functional rules keep their sections', () => {
   const state = createGroupState(owners), sections = buildRulesSections(rulesCatalogue, state, createRuleRegistry().definitions);
   const kept = [...new Set(sections.flatMap(section => section.rules).filter(rule => !rule.sharedRuleId && isKeptTaskRule(rule.id)).map(rule => rule.id))];
-  assert.equal(kept.length, 23);
+  assert.equal(kept.length, 25);
   const ordinary = visibleRulesSections(sections), advanced = visibleRulesSections(sections, true);
   assert.equal(ordinary.flatMap(section => section.rules).some(rule => kept.includes(rule.id)), false);
   assert.deepEqual(advanced.slice(0, -1), ordinary);
   const group = advanced.at(-1); assert.equal(group.id, keptRulesSectionId); assert.equal(group.name, keptRulesSectionName);
   assert.deepEqual(group.rules.map(rule => rule.id), kept);
   for (const section of sections) assert.deepEqual(ordinary.find(item => item.id === section.id)?.rules ?? [], section.rules.filter(rule => rule.sharedRuleId || !isKeptTaskRule(rule.id)));
-  for (const id of ['Skiller', 'BIS Skilling', 'BIS Skilling Relics', 'PvM Relics', 'Primary Spawns', 'Misc Combat achievements', 'Boss Collection Log']) assert.equal(isKeptTaskRule(id), false, id);
+  for (const id of ['Skiller', 'BIS Skilling', 'BIS Skilling Relics', 'Primary Spawns', 'Misc Combat achievements', 'Boss Collection Log']) assert.equal(isKeptTaskRule(id), false, id);
+  for (const id of ['PvM Relics', 'KeyItem Bosses', 'All Droptables Nest']) assert.equal(isKeptTaskRule(id), true, id);
 });
 
 test('Advanced keeps inert rules read-only with visible explanations and folded examples, including saved historical keys', async () => {
@@ -244,7 +245,7 @@ test('Advanced keeps inert rules read-only with visible explanations and folded 
   h.adopt({ ...h.snapshot(), members: h.snapshot().members.map((member, index) => index ? member : { ...member, preferences: { advanced: true } }) }); h.panel.open();
   const group = h.all().find(node => node.dataset.sectionId === keptRulesSectionId); assert.ok(group); assert.equal(group.open, false);
   const descendants = node => [node, ...node.children.filter(child => typeof child === 'object').flatMap(descendants)];
-  const rows = descendants(group).filter(node => node.dataset.ruleId); assert.equal(rows.length, 24);
+  const rows = descendants(group).filter(node => node.dataset.ruleId); assert.equal(rows.length, 26);
   assert.equal(descendants(group).some(node => ['INPUT', 'SELECT', 'BUTTON'].includes(node.tagName)), false);
   for (const row of rows) {
     assert.equal(descendants(row).filter(node => node.className === 'rules-explanation').length, 1);
@@ -306,6 +307,41 @@ test('Rules list shows new copy, folds examples and retains the original words u
   assert.equal(example.open, undefined);
   const more = nodes.find(node => node.className === 'rules-help');
   assert.ok(descendants(more).some(node => node.className === 'rules-original-tooltip'));
+  assert.equal(h.calls.length, 0);
+});
+
+test('ordinary rules show coverage warnings, truthful rare-drop polarity and inactive saved children', () => {
+  const initial = createGroupState(owners);
+  initial.members[0].taskRules = { 'Collection Log': false, 'Arc Log': true };
+  const h = panelHarness(createRulesPanel, { initialState: initial }); h.panel.open();
+  const descendants = node => [node, ...node.children.filter(child => typeof child === 'object').flatMap(descendants)];
+  const skiller = descendants(rowByRule(h, 'Skiller'));
+  assert.ok(skiller.some(node => node.className === 'rules-coverage' && node.textContent === 'Partly supported'));
+  assert.ok(skiller.some(node => node.className === 'rules-coverage-detail' && /Combat-level goals can still appear/.test(node.textContent)));
+  assert.equal(skiller.filter(node => node.className === 'rules-coverage-detail').length, 1);
+  const rare = rowByRule(h, 'Rare Drop');
+  assert.equal(controlByRule(h, 'Rare Drop').attributes['aria-label'], 'Include drops rarer than my cutoff');
+  assert.ok(descendants(rare).some(node => /On includes all drop rates.*Off applies Rare Drop Amount/.test(node.textContent)));
+  const arc = controlByRule(h, 'Arc Log');
+  assert.equal(arc.checked, true); assert.equal(arc.disabled, true);
+  assert.ok(descendants(rowByRule(h, 'Arc Log')).some(node => /Inactive while a parent is Off.*value is kept/.test(node.textContent)));
+  assert.equal(h.snapshot().members[0].taskRules['Arc Log'], true);
+  assert.equal(h.calls.length, 0);
+});
+
+test('Advanced explains inert relics, keys and dataset-specific nests without changing saved values', () => {
+  const initial = createGroupState(owners);
+  initial.members[0].taskRules = { 'PvM Relics': true, 'KeyItem Bosses': true, 'All Droptables Nest': true, 'Cleaning herbs': true, 'Cleaning Herbs': false };
+  initial.members[0].preferences = { advanced: true };
+  const h = panelHarness(createRulesPanel, { initialState: initial }); h.panel.open();
+  const descendants = node => [node, ...node.children.filter(child => typeof child === 'object').flatMap(descendants)];
+  for (const [id, message] of [['PvM Relics', /No effect.*no combat-relic goals/], ['KeyItem Bosses', /No effect.*key rarity/], ['All Droptables Nest', /No effect.*no matching nest-loot task/]]) {
+    const nodes = descendants(rowByRule(h, id));
+    assert.ok(nodes.some(node => node.className === 'rules-coverage-detail' && message.test(node.textContent)), id);
+    assert.equal(nodes.some(node => ['INPUT', 'SELECT'].includes(node.tagName)), false, id);
+  }
+  assert.ok(rowByRule(h, 'Cleaning herbs'));
+  assert.deepEqual(h.snapshot().members[0].taskRules, initial.members[0].taskRules);
   assert.equal(h.calls.length, 0);
 });
 
@@ -464,4 +500,30 @@ test('a pending direct save disables preset apply and keeps its review until the
   await apply.emit('click'); assert.equal(h.calls.length, 1); assert.equal(apply.disabled, true);
   assert.ok(h.all().includes(review));
   assert.ok(h.find('p', 'Rules changed since this review. Review the preset again.'));
+});
+
+for (const fail of [false, true]) test(`pending rule keeps its chosen value and Saving feedback until ${fail ? 'failure' : 'confirmation'}`, async () => {
+  const h = panelHarness(createRulesPanel), response = deferred(); h.panel.open();
+  const initial = controlByRule(h, 'Show Best in Slot Tasks').checked;
+  h.route(async payload => { await response.promise; if (fail) throw new Error('Refused'); h.adopt(applyCommand(h.snapshot(), payload, { now: clock })); });
+  const control = controlByRule(h, 'Show Best in Slot Tasks'); control.checked = !initial;
+  const saving = control.emit('change'); await flush();
+  assert.equal(controlByRule(h, 'Show Best in Slot Tasks').checked, !initial);
+  assert.equal(controlByRule(h, 'Show Best in Slot Tasks').disabled, true);
+  assert.ok(h.find('p', 'Saving…'));
+  assert.ok(h.all().some(node => node.className === 'rules-value-source' && node.textContent.startsWith(`Saving…: ${initial ? 'Off' : 'On'}`)));
+  assert.equal(h.calls[0].revision, undefined, 'simple toggles choose their revision inside the command queue');
+  response.resolve(); await saving;
+  assert.equal(controlByRule(h, 'Show Best in Slot Tasks').checked, fail ? initial : !initial);
+  assert.equal(controlByRule(h, 'Show Best in Slot Tasks').disabled, false);
+  assert.equal(h.errors.length, fail ? 1 : 0);
+});
+
+test('an unconfirmed rule save keeps the pending choice until recovery rather than claiming failure', async () => {
+  const h = panelHarness(createRulesPanel); h.panel.open();
+  h.route(async () => { throw Object.assign(new Error('Save confirmation needed'), {pendingCommand:true}); });
+  const control = controlByRule(h, 'Show Best in Slot Tasks'), initial = control.checked; control.checked = !initial; await control.emit('change');
+  assert.equal(controlByRule(h, 'Show Best in Slot Tasks').checked, !initial);
+  assert.equal(controlByRule(h, 'Show Best in Slot Tasks').disabled, true);
+  assert.ok(h.find('p', 'Save not confirmed. Use Retry save to confirm this choice.'));
 });

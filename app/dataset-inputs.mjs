@@ -1,5 +1,6 @@
 // Explicit legacy input allowlist. No folder enumeration or executable pack modules.
 export const DATASET_INPUTS = Object.freeze([
+  "app/data/reference-corrections.2026-10-31.v1.json",
   "app/data/reviewed-definition-overlays.2026-10-17.v1.json",
   "app/data/retained-task-corrections.2026-10-17.v2.json",
   "app/data/archaeology-task-corrections.2026-10-08.v1.json",
@@ -302,4 +303,4 @@ export const DATASET_RULE_CONTRACT_VALUE_KEYS = Object.freeze([
   "app/web/rules-model.mjs#actualDefaults"
 ]);
 
-export const DATASET_DEFINITION_OVERLAYS = Object.freeze(["app/data/reviewed-definition-overlays.2026-10-17.v1.json"]);
+export const DATASET_DEFINITION_OVERLAYS = Object.freeze(["app/data/reviewed-definition-overlays.2026-10-17.v1.json", "app/data/reference-corrections.2026-10-31.v1.json"]);

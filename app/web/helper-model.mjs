@@ -1,16 +1,18 @@
+import { datasetValue } from '../dataset-runtime.mjs';
 import { xpForLevel, levelForXp } from '../core/experience.mjs';
 import { combatLevelFromSkills } from '../core/combat-level.mjs';
 import { progressBelongsToMember } from '../core/game-progress.mjs';
 import { isCustomTask, customTaskAssignedTo } from './custom-tasks-model.mjs';
 
-// The duo is F2P. Include every trainable F2P skill and members skill trial;
-// Invention cannot be trained in F2P and has a different XP curve.
+// Standard-curve skills. Invention needs its own XP curve.
 export const helperSkills = Object.freeze(['Attack', 'Strength', 'Defence', 'Constitution', 'Ranged', 'Prayer', 'Magic',
   'Runecrafting', 'Crafting', 'Mining', 'Smithing', 'Fishing', 'Cooking', 'Firemaking', 'Woodcutting', 'Fletching',
   'Dungeoneering', 'Construction', 'Archaeology', 'Necromancy', 'Agility', 'Herblore', 'Thieving', 'Farming',
   'Hunter', 'Slayer', 'Divination', 'Summoning']);
 export { helperTrialCaps } from '../core/f2p-skill-caps.mjs';
 import { helperTrialCaps } from '../core/f2p-skill-caps.mjs';
+const helperSkillCaps = datasetValue('app/tasks/engine.mjs#skillCaps');
+export const helperSkillCap = (skill, f2p = true) => (f2p ? helperTrialCaps[skill] : undefined) ?? helperSkillCaps[skill] ?? 120;
 const skills = new Set(helperSkills);
 const validLevel = value => Number.isSafeInteger(value) && value >= 1 && value <= 120;
 const validXp = value => typeof value === 'number' && Number.isFinite(value) && value >= 0;
@@ -70,10 +72,10 @@ export function combatProjection(levels, { f2p = true } = {}) {
   return combatLevelFromSkills(levels, { f2p });
 }
 
-function levelRequirements(task) {
+function levelRequirements(task, f2p) {
   const record = task.record ?? {}, requirements = {};
   const add = (skill, level) => {
-    if (skills.has(skill) && validLevel(level) && level <= (helperTrialCaps[skill] ?? 120)) {
+    if (skills.has(skill) && validLevel(level) && level <= helperSkillCap(skill, f2p)) {
       requirements[skill] = Math.max(requirements[skill] ?? 1, level);
     }
   };
@@ -102,7 +104,7 @@ function levelRequirements(task) {
  * Optional saved state supplies assigned custom targets independently of the
  * engine's level gates. Unknown current XP/levels remain null; Invention has
  * no standard-curve XP estimate. No task evaluation or fetch occurs. */
-export function skillGoals(member, result, state) {
+export function skillGoals(member, result, state, { f2p = state?.rules?.['content.f2p'] !== false } = {}) {
   const progress = personalSkillProgress(member);
   const selected = result?.presentation?.tasks;
   const selectedIds = selected ? new Set(selected.map(task => task.id)) : null;
@@ -120,7 +122,7 @@ export function skillGoals(member, result, state) {
       || selectedIds && !selectedIds.has(task.id) || task.personalCompleted || task.challengeSatisfied
       || family.some(id => completedIds.has(id))) continue;
     seen.add(task.id);
-    const requirements = levelRequirements(task);
+    const requirements = levelRequirements(task, f2p);
     for (const [skill, targetLevel] of Object.entries(requirements)) {
       const goals = grouped.get(skill) ?? [];
       goals.push({ id: task.id, label: task.label ?? task.rawLabel ?? task.id, category: task.category, targetLevel,

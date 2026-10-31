@@ -15,7 +15,7 @@ import { createBacklogView } from './screen-backlog.mjs';
 import { selectDuoTaskLists } from './duo-task-lists.mjs';
 import { createDuoBacklogView } from './duo-backlog-view.mjs';
 import { createTickActiveTasks } from './tick-active-tasks.mjs';
-import { appendTaskWhy, catalogued, createRuleDescriber } from './task-why.mjs';
+import { appendTaskWhy, catalogued, createRuleDescriber, savedTaskWhyResult } from './task-why.mjs';
 import { createTaskFocus } from './task-focus.mjs';
 
 // Main-screen tasks; shared values and callbacks live in the explicit screen context.
@@ -83,7 +83,7 @@ export function createScreenTasks(c) {
     const taskState = c.member().taskStatus?.[task.id] ?? {};
     const completed = facts.group || facts.personal;
     if (completed || (!taskState.backlogged && task.status === 'available')) appendTaskClaim({ document, host: content, task, completed,
-      getState: () => c.state, getMemberId: () => c.sessionMember ?? c.memberId, actingForMember: () => !c.sessionMember, command: c.command, showError: c.showError,
+      readOnly: !c.canWrite(), getState: () => c.state, getMemberId: () => c.sessionMember ?? c.memberId, actingForMember: () => !c.sessionMember, command: c.command, showError: c.showError,
       canEdit: () => c.canWrite() && !c.sandbox.active && (!isCustomTask(task) || customTaskAssignedTo(task, c.sessionMember ?? c.memberId)) && c.result?.stateRevision === c.state.revision && (completed || c.claimableTaskIds?.has(task.id)) });
     if (taskState.backlogged && taskState.backlogReason) content.append(c.el('span', `Backlogged: ${taskState.backlogReason}`, 'task-meta backlog-reason'));
     c.appendCustomTaskEdit(content, task);
@@ -91,7 +91,7 @@ export function createScreenTasks(c) {
     if (task.status !== 'available' && !c.member().taskStatus?.[task.id]?.backlogged) content.append(c.el('span', task.blockers?.[0]?.detail || 'Needs review', 'blocked-reason'));
     const body = c.el('div', undefined, 'task-body'); c.taskIconPainter.append(body, task);
     body.append(content);
-    row.append(checkbox, body);
+    row.append(c.canWrite() ? checkbox : c.el('span', facts.personal ? 'Done' : 'Not done', 'task-completion-status'), body);
     appendWhy(row, task);
     // One hop to the Wiki instead of opening the task first.
     if (task.wiki) row.append(c.iconLink(task.wiki, `Open ${c.plain(task.label)} on the RuneScape Wiki`, 'wiki'));
@@ -264,8 +264,18 @@ export function createScreenTasks(c) {
   function appendWhy(row, task, ownerId = c.memberId) {
     if (isCustomTask(task)) return;
     const openRule = ruleId => Promise.resolve(c.rulesDialog({ ruleId, memberId: ownerId })).catch(c.showError);
-    appendTaskWhy(row, task, { document, button: c.button, icon: c.icon, openRule, load: async value => {
-      const result = await c.ensureDuoDetails(ownerId, false, false);
+    appendTaskWhy(row, task, { document, button: c.button, icon: c.icon, openRule, readOnly: !c.canWrite(), load: async value => {
+      const revision = c.state.revision, selected = c.memberId;
+      let result;
+      if (c.canWrite()) result = await c.ensureDuoDetails(ownerId, false, false);
+      else {
+        const [saved] = await Promise.all([c.api(`/api/tasks?memberId=${encodeURIComponent(ownerId)}`).catch(error => {
+          if (error.code !== 'TASK_DETAILS_UNAVAILABLE') throw error;
+          return c.api(`/api/tasks?view=play-v1&memberId=${encodeURIComponent(ownerId)}`);
+        }), c.ensureFullDefinitions()]);
+        if (selected !== c.memberId || revision !== c.state.revision || saved.stateRevision !== revision || saved.memberId !== ownerId) throw new Error('The selected map or saved state changed while loading. Try again.');
+        result = saved.format === 'play-v1' ? savedTaskWhyResult(saved, c.definitions) : saved;
+      }
       const describeRule = catalogued(await createRuleDescriber(taskDisplayState(), ownerId));
       return { task: result.tasks.find(item => item.id === value.id) ?? value, result, describeRule, locationName: placeName };
     } });
@@ -304,7 +314,7 @@ export function createScreenTasks(c) {
         getStorage: () => gameStorage(), getViewerId: () => c.sessionMember ?? (c.canWrite() ? 'admin' : 'viewer'),
         getClaimMember: () => c.sessionMember ?? c.memberId, actingForMember: () => !c.sessionMember,
         command: c.command, backlog: c.backlogForm, showTask: c.showTask, attachHover: c.attachDuoHover, appendWhy, appendIcon: (body, task) => c.taskIconPainter.append(body, task),
-        canComplete: () => c.canWrite() && !c.sandbox.active && c.duoEnabled(),
+        readOnly: () => !c.canWrite(), canComplete: () => c.canWrite() && !c.sandbox.active && c.duoEnabled(),
         canEdit: () => c.canWrite() && !c.sandbox.active && c.duoEnabled() && c.duoRowsReady, canInspect: () => !c.sandbox.active && (c.duoRowsReady || !c.canWrite() && c.result?.stateRevision === c.state.revision && c.result.memberId === c.memberId), showError: c.showError, onFilter: c.renderTasks,
         appendPin: (content, entry) => appendTaskPin(document, content, c.duoPins(entry)),
         appendEdit: (content, task) => { c.appendCustomTaskEdit(content, task); const edit = content.querySelector('.custom-task-edit'); if (edit) edit.disabled ||= !c.duoRowsReady; } });

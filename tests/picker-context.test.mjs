@@ -50,7 +50,7 @@ function sharedRuntime() {
   world.surface = new Set(['12341', '12342']);
   world.neighbors = new Map([['12341', ['12342']], ['12342', ['12341']]]);
   return {
-    dataset: { ...selectedDataset, capabilities: { ...selectedDataset.capabilities, features: { ...selectedDataset.capabilities.features, runeMetrics: true, originalSync: true } } }, indexedWorld: world, ruleRegistry: createRuleRegistry(),
+    dataset: { ...selectedDataset, capabilities: { ...selectedDataset.capabilities, features: { ...selectedDataset.capabilities.features, runeMetrics: true, originalSync: true, externalNames: true } } }, indexedWorld: world, ruleRegistry: createRuleRegistry(),
     taskWorker: worker, taskWorkerOptions: { workerFactory() {} },
     parsedDefinitions: definitions, parsedTaskMap: {}, identityHistory: {}, sandboxCatalogue: [],
     xpChoiceCatalogue: { choices: [], byId: new Map() }, membersStartBanks: {},
@@ -426,4 +426,30 @@ test('usage shares one global admission budget while both contexts retain indepe
   }
   await a.close();
   assert.equal((await send(b, '/api/usage', { body })).status, 429, 'closing A cannot renew the shared budget');
+});
+
+
+test('G15 provider caches and previews isolate identical member/name bindings and close independently', async t => {
+  let calls = 0;
+  const { a, b } = await fixture(t, { runeMetrics: { fetchImpl: async url => {
+    calls++;
+    return Response.json(String(url).includes('/quests') ? { quests: [] }
+      : { name: 'Player x', skillvalues: [{ id: 0, level: 20, xp: 44700 }] });
+  } } });
+  for (const context of [a, b]) await command(context, { type: 'set-runescape-name', memberId: 'one', name: 'Player x' });
+  const left = await send(a, '/api/runemetrics/preview', { body: { memberId: 'one' } });
+  const right = await send(b, '/api/runemetrics/preview', { body: { memberId: 'one' } });
+  assert.equal(left.status, 200); assert.equal(right.status, 200);
+  assert.ok(left.body.previewId); assert.ok(right.body.previewId);
+  assert.equal(left.body.cached, false); assert.equal(right.body.cached, false);
+  assert.equal(calls, 4, 'both contexts independently fetch the paired web snapshot');
+  const wrong = await send(b, '/api/runemetrics/apply', { body: { previewId: left.body.previewId, expectedRevision: b.store.getInfo().revision } });
+  assert.equal(wrong.status, 410);
+  await a.close();
+  const cached = await send(b, '/api/runemetrics/preview', { body: { memberId: 'one' } });
+  assert.equal(cached.status, 200); assert.equal(cached.body.cached, true);
+  assert.equal(calls, 4, 'closing one context preserves the other provider cache');
+  const applied = await send(b, '/api/runemetrics/apply', { body: { previewId: right.body.previewId, expectedRevision: b.store.getInfo().revision } });
+  assert.equal(applied.status, 200);
+  assert.equal(applied.body.state.members[0].skillProgress.Attack.source, 'runemetrics');
 });

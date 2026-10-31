@@ -4,7 +4,7 @@ export const keptRulesSectionId = 'kept-original-rules';
 export const keptRulesSectionName = 'Kept from the original picker, not used here';
 
 export function isKeptTaskRule(id) {
-  return ['retained-only', 'not-implemented'].includes(taskRuleBehavior(id).status);
+  return ['retained-only', 'not-implemented', 'no-effect-dataset'].includes(taskRuleBehavior(id).status);
 }
 
 /** Presentation only: keep the full catalogue and saved values intact. */

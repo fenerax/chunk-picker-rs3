@@ -123,8 +123,8 @@ export function createScreenPickerSession(c, { fetch = (...args) => globalThis.f
     })().finally(() => { checking = undefined; });
     return checking;
   }
-  async function scopedFetch(path, options) {
-    if (!session?.multiPicker) return fetch(path, options);
+  async function scopedFetch(path, options, transport = fetch) {
+    if (!session?.multiPicker) return transport(path, options);
     // Unload flushes must dispatch before teardown: skip the preflight. The
     // picker header still binds them, and the server refuses a changed session.
     if (options?.keepalive) active(); else { await check(); active(); }
@@ -134,7 +134,7 @@ export function createScreenPickerSession(c, { fetch = (...args) => globalThis.f
     requests.add(controller);
     try {
       const headers = new Headers(options?.headers); headers.set('X-Picker-Id', session.pickerRoute ?? session.pickerId);
-      const response = await fetch(path, { ...options, headers, signal: controller.signal });
+      const response = await transport(path, { ...options, headers, signal: controller.signal });
       active();
       if ([401, 403].includes(response.status)) await check();
       // Readers may finish after the account changed, even if transport ignores abort.

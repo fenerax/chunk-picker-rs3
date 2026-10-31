@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import vm from 'node:vm';
 import { createLiveSwapCommandClient, commandOutboxKey } from '../app/web/live-swap-client.mjs';
+import { createBackupUpload } from '../app/web/backup-transfer.mjs';
 import { createAccountPanel } from '../app/web/account-panel.mjs';
 
 const sources = await Promise.all(['screen-save-status'].map(name => readFile(new URL(`../app/web/${name}.mjs`, import.meta.url), 'utf8')));
@@ -329,4 +330,36 @@ test('keepalive unload flushes dispatch at once with the picker header', () => {
   void f.c.panelContext.pickerSession.fetch('/api/usage', { method: 'POST', keepalive: true, body: '{}' });
   assert.deepEqual(f.calls.map(call => call.path), ['/api/usage']);
   assert.equal(f.calls[0].options.keepalive, true); assert.equal(f.calls[0].options.headers.get('X-Picker-Id'), scopeA);
+});
+
+
+test('backup XHR uploads retain picker binding and stop on a changed session', async () => {
+  const previous = globalThis.XMLHttpRequest;
+  let xhr;
+  class FakeXHR {
+    constructor() { xhr = this; this.upload = {}; this.headers = new Headers(); }
+    open(method, path) { this.method = method; this.path = path; }
+    setRequestHeader(name, value) { this.headers.set(name, value); }
+    send(body) { this.body = body; }
+    abort() { this.aborted = true; this.onabort(); }
+  }
+  globalThis.XMLHttpRequest = FakeXHR;
+  try {
+    const f = fixture(), stages = [];
+    const upload = createBackupUpload(new File(['{}'], 'backup.json'), {}, { onStage: value => stages.push(value) });
+    const pending = upload.sendBackupRequest('/api/restore/preview', undefined, undefined,
+      (...args) => f.c.panelContext.pickerSession.fetch(...args));
+    const rejected = assert.rejects(pending, { name: 'AbortError' });
+    while (!xhr?.body) await new Promise(resolve => setImmediate(resolve));
+    assert.equal(xhr.headers.get('X-Picker-Id'), scopeA);
+    assert.equal(xhr.headers.get('Content-Type'), 'application/vnd.rs3-backup-upload+json');
+    assert.deepEqual(f.calls.map(call => call.path), ['/api/session']);
+    xhr.upload.onload(); assert.equal(stages.at(-1), 'Checking replacement…');
+    f.c.panelContext.pickerSession.stop(); await rejected;
+    assert.equal(xhr.aborted, true);
+    const g = fixture(); g.setSession(session(scopeB)); xhr = undefined;
+    await assert.rejects(upload.sendBackupRequest('/api/restore', undefined, undefined,
+      (...args) => g.c.panelContext.pickerSession.fetch(...args)), { name: 'AbortError' });
+    assert.equal(xhr, undefined, 'a changed session refuses before XHR dispatch');
+  } finally { globalThis.XMLHttpRequest = previous; }
 });

@@ -397,7 +397,7 @@ the established server exports are preserved.
 | Private state/static fields, custom tasks, aliases, evidence, rules, notes, progress | Each store owns its current snapshot, serialization/static-field references and on-disk static/history/backup namespaces. No private fields are interned across contexts. |
 | Response, identity, task, calculation and preview caches | `responseCache`, `identityLookup`, `savedTaskResults`, `calculationSnapshot`, both progress-preview maps, roll/Sandbox/ranking caches and private scheduling bookkeeping are context-local. Immutable asset/reference caches remain shared runtime resources. |
 | SSE subscribers and revocation | `clients`, `clientCredentials`, heartbeats, broadcasts and invitation reauthentication belong to the context; overlay streams belong to its overlay controller. |
-| Plugin keys, reports, fragments, sequencing, evidence | Context-owned `gamePlugin` owns its key, progress, achievement and item controllers, assemblies, sequence/rate/status maps and retained task bytes. RuneMetrics member/name caching is the explicit exception below. |
+| Plugin keys, reports, fragments, sequencing, evidence | Context-owned `gamePlugin` owns its key, progress, achievement and item controllers, assemblies, sequence/rate/status maps and retained task bytes. Web-provider caches and plugin observations are context-local as resolved against G15 below. |
 | Invitations, overlays, feedback, usage | The context constructs its account/invitation/sign-in/overlay/feedback controllers and `usageStorage`. `openUsageRoute` receives that storage and the shared usage admission function from the context; standalone callers keep their existing defaults. |
 | Backups, binding, status, restore scope | Context creation verifies the dataset binding; all retained/uploaded restore handlers use its store/dataset. Backup status receives its explicit directory. Store backup/static/history directories and snapshot spool paths derive only from this trusted data directory. The directory-keyed snapshot coordinator is the explicit exception below. |
 
@@ -427,10 +427,20 @@ the shared calculator.
   jobs, snapshots, reuse and delivery now carry picker identity, and context close
   abandons only its own jobs. MP4 below adds authenticated routing and bounded
   context eviction; fair sharing remains later work.
-- **RuneMetrics member/name cache:** `app/integrations/runemetrics.mjs` remains
-  unchanged because its replacement is landing on main. The context owns its
-  progress client and preview map, but that integration's cache/lifecycle must be
-  reconciled with the replacement before enabling multiple routed pickers.
+- **RuneMetrics member/name cache — closed against G15:** each context calls
+  `createProgressSources` independently. Its RuneMetrics adapter constructs its
+  own client with member/name-keyed cache, pending requests and abort controllers;
+  identical bindings in different pickers never share that cache. The default
+  official-API adapter is stateless and the default Hiscores adapter owns its
+  abort controllers per client. Context close calls `progressClient.close()` and
+  clears its preview map; it cannot close another context's provider. Injected
+  provider objects remain operator-supplied test/integration dependencies and
+  must not introduce shared private caches. G15's `mergePluginProgress` also runs
+  after the fetch against the latest member and this context's plugin snapshot,
+  preserving plugin provenance and web fields when a report arrives mid-fetch.
+  The replacement seam and sunset/fallback policy are retained unchanged. The
+  colliding-binding context test and G15 provider/server tests cover cache,
+  preview, close and reconciliation behavior.
 - **Snapshot coordination registry:** `app/storage/snapshot.mjs` still keeps the
   process-wide directory-keyed barrier registry so direct store/sidecar writes and
   operator snapshot callers rendezvous on the same barrier. Entries have separate
@@ -1116,7 +1126,9 @@ assertions and skip classifications are unchanged.
 Remaining work: browser deletion controls and switching/logout reconciliation
 (MP6/follow-on UI), fair sharing and measured limits (MP7), operator backup expiry
 and service-restore integration (MP8), RuneMetrics/G15 reconciliation, the full
-lane acceptance gate, and the owner's decision before opening sign-up.
+lane acceptance gate, and the owner's decision before opening sign-up. This is
+the historical MP5 list; G15 reconciliation is closed by the context-owned
+provider/cache resolution above.
 
 
 ### MP5 validation and duo gate

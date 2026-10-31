@@ -22,7 +22,7 @@ async function fixture(t, {fetchImpl = async url => response(url), timeoutMs, in
   await mkdir(path.join(root,'.local'),{recursive:true});
   const directory = await mkdtemp(path.join(root,'.local','runemetrics-test-'));
   assert.ok(!path.relative(root,directory).startsWith('..'));
-  const options = { dataDir:path.join(directory,'data'), definitions, taskMap:{}, port:0, predictionPrewarm:false, shutdownDeadlineMs:500, progressSources, runeMetrics:{clock:()=>Date.parse('2026-10-27T12:00:00Z'),fetchImpl,...(timeoutMs?{timeoutMs}:{})} };
+  const options = { dataDir:path.join(directory,'data'), definitions, taskMap:{}, port:0, predictionPrewarm:false, shutdownDeadlineMs:500, progressSources: { hiscores: { async snapshot() { throw new Error('Synthetic hiscores unavailable'); } }, ...progressSources }, runeMetrics:{clock:()=>Date.parse('2026-10-27T12:00:00Z'),fetchImpl,...(timeoutMs?{timeoutMs}:{})} };
   const applications=[];
   let app;
   t.after(async()=>{
@@ -141,7 +141,7 @@ test('after sunset the API returns a calm unavailable state without a preview to
   assert.equal(response.status, 200);
   const value = await response.json();
   assert.equal(value.available, false); assert.equal(value.memberId, 'player1');
-  assert.match(value.message, /game plugin now/); assert.equal(value.previewId, undefined);
+  assert.match(value.message, /RuneMetrics has closed.*game plugin/); assert.equal(value.previewId, undefined);
   assert.deepEqual((await (await api('/api/state')).json()).state, before);
 });
 
@@ -156,8 +156,9 @@ test('accepted live plugin progress wins the shared preview and applies with plu
       skills: { ATTACK: { level: 5, xp: 400 } }, quests: { finished: ['Broken_Home'], started: [] } }) });
   assert.equal(report.status, 200);
   const review = await (await api('/api/runemetrics/preview', { memberId: 'player1' })).json();
-  assert.equal(review.source, 'game-plugin'); assert.equal(review.sourceLabel, 'Game plugin'); assert.equal(calls, 0);
-  assert.equal(review.quests.length, 1);
+  assert.equal(review.source, 'runemetrics'); assert.equal(review.sourceLabel, 'RuneMetrics + game plugin'); assert.equal(calls, 2);
+  assert.equal(review.quests.length, 2);
+  assert.ok(review.quests.some(row => row.taskId === brokenId));
   const applied = await api('/api/runemetrics/apply', { previewId: review.previewId, expectedRevision: review.stateRevision });
   assert.equal(applied.status, 200);
   const state = (await applied.json()).state;
@@ -165,8 +166,30 @@ test('accepted live plugin progress wins the shared preview and applies with plu
   assert.equal(state.members[0].questProgress[brokenId].source, 'game-plugin');
   const undone = await api('/api/command', { expectedRevision: state.revision, command: { type: 'undo' } });
   assert.equal(undone.status, 200);
-  assert.equal((await (await api('/api/runemetrics/preview', { memberId: 'player1' })).json()).source, 'game-plugin');
+  assert.equal((await (await api('/api/runemetrics/preview', { memberId: 'player1' })).json()).sourceLabel, 'RuneMetrics + game plugin');
   now += 10 * 60 * 1000;
   assert.equal((await (await api('/api/runemetrics/preview', { memberId: 'player1' })).json()).source, 'runemetrics');
-  assert.equal(calls, 2);
+  assert.equal(calls, 4);
+});
+
+test('a synthetic hiscores fallback uses the same reviewed durable apply path and preserves quests', async t => {
+  const initialState = createGroupState([{ id: 'player-x', name: 'Player x' }]);
+  initialState.members[0].runescapeName = 'Player x';
+  initialState.tasks = [{ id: brokenId, label: 'Broken Home Complete the quest', category: 'Quest' }];
+  initialState.members[0].completedTasks = [brokenId];
+  let calls = 0;
+  const { api, reopen } = await fixture(t, { initialState,
+    fetchImpl: async () => { calls++; return new Response('', { status: 404 }); },
+    progressSources: { hiscores: { async snapshot() { return { source: 'hiscores', sourceLabel: 'RS3 hiscores',
+      fetchedAt: '2026-10-31T00:00:00.000Z', cached: false, skills: [{ skill: 'Attack', level: 5, xp: 450 }], quests: [] }; } } } });
+  const review = await (await api('/api/runemetrics/preview', { memberId: 'player-x' })).json();
+  assert.equal(review.source, 'hiscores'); assert.match(review.message, /^RuneMetrics has closed;/);
+  assert.equal(calls, 2); assert.equal(review.quests.length, 0);
+  const response = await api('/api/runemetrics/apply', { previewId: review.previewId, expectedRevision: review.stateRevision });
+  assert.equal(response.status, 200);
+  const state = (await response.json()).state;
+  assert.equal(state.members[0].skillProgress.Attack.source, 'hiscores');
+  assert.equal(state.members[0].skillProgress.Attack.xp, 450);
+  assert.deepEqual(state.members[0].completedTasks, [brokenId]);
+  assert.deepEqual((await reopen()).store.getState().members, state.members);
 });

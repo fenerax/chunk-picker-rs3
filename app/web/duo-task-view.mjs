@@ -12,7 +12,7 @@ export function duoTaskFocusKey(entry) {
 
 /** Duo rows keep their task owner separate from the selected map. */
 export function createDuoTaskView({ document, getState, getSelectedMember, command, backlog, showTask, attachHover,
-  getClaimMember = getSelectedMember, appendWhy = () => {}, getViewerId = () => 'viewer', getStorage = () => gameStorage(), actingForMember = () => false, appendIcon = () => {}, appendPin = () => {}, appendEdit = () => {}, showError, canEdit = () => true, canComplete = canEdit, canInspect = canEdit, onFilter = () => {} }) {
+  getClaimMember = getSelectedMember, appendWhy = () => {}, getViewerId = () => 'viewer', getStorage = () => gameStorage(), actingForMember = () => false, appendIcon = () => {}, appendPin = () => {}, appendEdit = () => {}, showError, readOnly = () => false, canEdit = () => true, canComplete = canEdit, canInspect = canEdit, onFilter = () => {} }) {
   const el = (tag, text, cls) => { const node = document.createElement(tag); if (text !== undefined) node.textContent = text; if (cls) node.className = cls; return node; };
   const button = (text, action, cls) => { const node = el('button', text, cls); node.type = 'button'; node.addEventListener('click', () => Promise.resolve().then(action).catch(showError)); return node; };
   let ownerFilter = 'all', enabled = false;
@@ -98,9 +98,9 @@ export function createDuoTaskView({ document, getState, getSelectedMember, comma
     }
     if (facts.group || (!backlogged && task.status === 'available')) appendTaskClaim({ document, host: content, task, taskId: commandTaskId, getState, getMemberId: getClaimMember, command, showError,
       canEdit: () => canEdit() && (!entry.inspectionOnly || facts.group) && (!isCustomTask(task) || customTaskAssignedTo(task, getClaimMember())), actingForMember,
-      completed: facts.group || entry.factsByMember?.[getClaimMember()]?.personal === true || facts.completedBy?.includes(getClaimMember()) === true });
+      readOnly: readOnly(), completed: facts.group || entry.factsByMember?.[getClaimMember()]?.personal === true || facts.completedBy?.includes(getClaimMember()) === true });
     appendEdit(content, task);
-    appendIcon(body, task); body.append(content); node.append(checkbox, body);
+    appendIcon(body, task); body.append(content); node.append(readOnly() ? el('span', checked ? 'Done' : 'Not done', 'task-completion-status') : checkbox, body);
     const defer = button(backlogged ? 'Restore…' : 'Backlog…', () => choose(node, entry, owner => backlogged
       ? command({ type: 'clear-backlog', memberId: owner, taskIds: [commandTaskId] }, entry.stateRevision)
       : backlog(node, { ...(entry.tasksByMember?.[owner] ?? task), id: commandTaskId }, undefined, owner), backlogged ? 'Restore' : 'Backlog…'), 'duo-task-backlog');

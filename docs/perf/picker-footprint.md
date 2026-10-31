@@ -738,3 +738,57 @@ medians or spread estimates. Peak RSS is the sampled process-tree sum at 50 ms.
 | Absent, peak RSS, MiB | 1176.14 | 1213.82 |
 | Present, wall seconds | 28.87 | 28.21 |
 | Present, peak RSS, MiB | 1230.36 | 1204.56 |
+
+
+## Multiplayer/main integration on current lane
+
+MAIN `a46ec91806327e01ef0e24d1f6947497b3a6c04b`, with exact G15
+`fd262bb746e9eef10b1a3471489ab001b6e287f0`, is the baseline. The candidate merges
+both into LANE `c325f31fb9812cfc6b44e9b08279e4af7ee60fd0`. START was
+`3b1577232a6a51f77de168497ee6d03ff8096353`. Node 24.21.0, Linux, 4 CPU quota
+and 16 GiB container memory limit.
+
+Three alternating baseline/candidate pairs ran sequentially with the unchanged
+`picker-footprint.mjs`, an empty synthetic source, bundled open-f2p, process
+workers, port zero, 250 ms worker idle and a 3,500 MiB RSS guard. All test processes
+had finished. The two-member candidate enables routing; MAIN ignores that option.
+The fresh-solo control uses the harness's option-absent path on both revisions.
+Clocks are normal. Each cell is median [minimum–maximum] across three fresh
+processes; two-member values first reduce each run to its member median.
+CPU sums sampled HTTP/calculator host CPU. Peak RSS is the Linux process-tree
+sum sampled every 50 ms; short peaks may be missed.
+
+| Synthetic measurement | MAIN + G15 | Merged multiplayer |
+| --- | --- | --- |
+| Two-member cold full tasks, ms | 313.23 [296.80–347.80] | 309.15 [290.37–316.81] |
+| Two-member warm full tasks, ms | 12.31 [12.07–16.25] | 9.60 [9.42–10.32] |
+| Two-member cold CPU, core-seconds | 0.3383 [0.3170–0.3787] | 0.3292 [0.3138–0.3383] |
+| Two-member peak RSS, MiB | 109.28 [109.11–110.00] | 109.80 [109.79–109.93] |
+| Fresh solo cold full tasks, ms | 325.37 [287.54–331.38] | 309.00 [298.87–332.34] |
+| Fresh solo warm full tasks, ms | 16.74 [15.14–25.26] | 15.61 [13.67–21.42] |
+| Fresh solo cold CPU, core-seconds | 0.3330 [0.3043–0.3545] | 0.3191 [0.3172–0.3684] |
+| Fresh solo peak RSS, MiB | 107.71 [107.37–108.13] | 108.84 [107.50–110.20] |
+
+Two-member store inventories are 247,335 bytes across all six runs.
+
+Fresh solo store inventories are 246,609 bytes across all six runs.
+
+Cold-time ranges overlap. These small inputs do not establish a speed improvement,
+real-pack capacity, maximum import amplification or a change to operating limits.
+The historical full-input CPU/serialization questions remain open.
+
+The required real-duo gates are **BLOCKED**: the supplied released selection has
+1 missing required input against MAIN's 95-input catalogue, with 0 extra inputs.
+LANE loads it; exact MAIN, MAIN+G15 and the merged tree refuse before opening a
+store. Both checker attempts report 0 states, 0 comparisons and 1 error; the
+extended HTTP attempt reaches 0 paired responses. No zero-difference pass or
+real-pack performance result is claimed. A separate supplementary public generated
+comparison passes 6 states / 107 comparisons / 0 differences / 0 errors.
+
+Final quick: 2,907 passed / 1 failed / 68 skipped. Final full: 6,125 passed /
+12 failed / 140 skipped. All failures reproduce on exact MAIN; no remaining
+merge-created test failure was observed. All 18 P1 cases pass. The complete
+attribution, G15 cache reconciliation and readiness inventory are in
+[multiplayer-main-gate.md](../audit/multiplayer-main-gate.md).
+
+Core CI and the required real-data gate remain blocked. Public sign-up stays off.

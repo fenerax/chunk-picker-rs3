@@ -37,7 +37,7 @@ import { evaluateRollPool, partnerConnections, createRollPoolCache, workerRollRu
 import { previewRuleProfile } from './core/planning.mjs';
 import { buildIdentityIndex, isPermanentId } from './tasks/identity.mjs';
 import { createQuestMapping } from './integrations/quest-mapping.mjs';
-import { createProgressSources, previewProgress } from './integrations/progress-sources.mjs';
+import { createProgressSources, previewProgress, mergePluginProgress } from './integrations/progress-sources.mjs';
 import { planTraining, trainingPreferences } from './tasks/training-planner.mjs';
 import { createBankingRoutes } from './training/banking-routes.mjs';
 import { createGatheringRouteLookup } from './tasks/banking-plan.mjs';
@@ -411,7 +411,10 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
     const bytes = entry?.revision === revision ? view === PLAY_VIEW
       ? lane === 'duo-v1' ? entry.duoJSON ?? entry.playJSON : projection === DUO_INSPECTION_VIEW ? inspectionBytes(entry) : projection ? entry.duoSidebarJSON ?? entry.playJSON : entry.playJSON
       : undefined : undefined;
-    if (!bytes) throw Object.assign(httpError(409, 'Current tasks are not ready yet. They will appear after a player loads them.'), { code: 'TASK_RESULTS_UNAVAILABLE' });
+    if (!bytes) {
+      const detailsOnly = entry?.revision === revision && !!entry.playJSON;
+      throw Object.assign(httpError(409, detailsOnly ? 'The saved task list is ready, but calculated details are not retained yet.' : 'Current tasks are not ready yet. They will appear after a player loads them.'), { code: detailsOnly ? 'TASK_DETAILS_UNAVAILABLE' : 'TASK_RESULTS_UNAVAILABLE' });
+    }
     const suffix = JSON.stringify({ stateRevision: revision, memberId, cache: { hit: true, savedResult: true, worker: false } });
     await jsonBytes(request, response, 200, Buffer.concat([bytes.subarray(0, bytes.length - 1), Buffer.from(`,${suffix.slice(1)}`)]));
   }
@@ -1488,7 +1491,7 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
               const current = store.getState(), latest = current.members.find(member => member.id === owner.id);
               if (!latest || latest.runescapeName !== owner.runescapeName) throw Object.assign(httpError(409, 'The RuneScape name changed while fetching. Review a new sync.'), { code: 'REVISION_CONFLICT', state: current });
               // A plugin report arriving during a web fetch wins too.
-              snapshot = gamePlugin.progressSnapshot(latest) ?? snapshot;
+              snapshot = mergePluginProgress(latest, snapshot, gamePlugin.progressSnapshot(latest));
               if (snapshot.available === false) { await json(request, response, 200, { ...snapshot, memberId: owner.id, runescapeName: owner.runescapeName ?? '' }); return; }
               const proposal = previewProgress(current, owner.id, snapshot, questMapping);
               const previewId = randomUUID(), createdAt = Date.now();
@@ -1742,7 +1745,7 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
       else if (['/partner-supply-model.mjs', '/partner-supply-view.mjs', '/partner-supply.css'].includes(route)) file = await containedFile(webRoot, route.slice(1));
       else if (['/boss-gates-view.mjs', '/boss-gates.css'].includes(route)) file = await containedFile(webRoot, route.slice(1));
       else if (['/tasks/rule-defaults.mjs', '/tasks/task-provenance.mjs', '/tasks/fact-projection.mjs', '/tasks/gameplay-compat.mjs', '/tasks/gameplay-facts.mjs', '/tasks/chunk-planning-index.mjs'].includes(route)) file = await containedFile(path.join(ROOT, 'app', 'tasks'), route.slice('/tasks/'.length));
-      else if (['/data/surface-grid.mjs', '/data/world-connections.mjs', '/data/boss-gates.mjs'].includes(route)) file = await containedFile(path.join(ROOT, 'app', 'data'), route.slice('/data/'.length));
+      else if (['/data/surface-grid.mjs', '/data/world-connections.mjs', '/data/boss-gates.mjs', '/data/slayer-unlock-gates.mjs'].includes(route)) file = await containedFile(path.join(ROOT, 'app', 'data'), route.slice('/data/'.length));
       else if (['/data/cache-archaeology.mjs', '/data/cache-interiors.mjs'].includes(route)) file = await containedFile(path.join(ROOT, 'app', 'data'), route.slice('/data/'.length));
       else if (['/rules-panel.mjs', '/rules-model.mjs', '/rules-review.mjs', '/rules-review-model.mjs', '/rules-review-preview.mjs', '/rule-explanations.mjs', '/rules-review.css', '/kept-rules.mjs', '/sandbox.mjs', '/sandbox.css', '/sandbox-rules.mjs', '/duo-coordination.mjs'].includes(route)) file = await containedFile(webRoot, route.slice(1));
       else if (['/completed-view.mjs', '/completed-model.mjs', '/completed-range.mjs', '/completed-range-preference.mjs', '/completed-view.css'].includes(route)) file = await containedFile(webRoot, route.slice(1));
@@ -1832,7 +1835,7 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
       if (!request.complete) response.setHeader('Connection', 'close');
       if (signInFlow.errorPage(request, response, security, error, status)) return;
       await json(request, response, status, { message: status === 500 ? 'The save could not be completed. Your previous save remains available.' : error.code === 'ENOENT' ? 'Not found.' : redactInviteTokens(error.message),
-        ...(error.code === 'TASK_RESULTS_UNAVAILABLE' || error.code === 'PICKER_UPDATING' || /^(?:REQUEST_|ACTION_SESSION_)/.test(error.code ?? '') ? { code: error.code } : {}),
+        ...(['TASK_RESULTS_UNAVAILABLE', 'TASK_DETAILS_UNAVAILABLE'].includes(error.code) || error.code === 'PICKER_UPDATING' || /^(?:REQUEST_|ACTION_SESSION_)/.test(error.code ?? '') ? { code: error.code } : {}),
         ...(error.code === 'ACTION_SESSION_RETIRED' && error.safeToRetry === true ? { safeToRetry: true } : {}),
         ...(error.code === 'REVISION_CONFLICT' ? await viewEnvelope(error.state, viewFor(request)) : {}),
         ...(error.code === 'REVISION_CONFLICT' && error.claimOnlyChanges === true ? { claimOnlyChanges: true } : {}),

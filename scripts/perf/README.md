@@ -339,3 +339,10 @@ processes/isolates; store writes use an identical injected timestamp. No respons
 fields are stripped or normalized. A nonzero response, size or state difference
 fails the command. Keep ordinary performance measurements separate from this
 fixed-clock gate.
+
+
+The optional `--extended` duo gate also compares session bytes when routing is
+absent, full gameplay export, retained-backup listing, backup status, rules and
+the browser data-module route. Enabled session bindings are intentional contract
+additions and are checked by acceptance tests instead of compared to a baseline
+without routing. All response and save comparisons remain exact.

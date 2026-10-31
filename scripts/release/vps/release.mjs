@@ -16,7 +16,7 @@ export async function releaseVps(command, values, execute = run) {
     await copyFile(new URL('./bundle.mjs', import.meta.url), path.join(values.out, 'bundle.mjs'), 1);
     return;
   }
-  if (!['stage', 'activate'].includes(command)) throw new Error('Use prepare, stage or activate.');
+  if (!['stage', 'derive', 'activate'].includes(command)) throw new Error('Use prepare, stage, derive or activate.');
   if (command === 'activate' && !values['go-live']) throw new Error('Activation requires explicit --go-live.');
   const host = values.host;
   if (!/^[A-Za-z0-9][A-Za-z0-9_.-]*$/.test(host ?? '')) throw new Error('Use a configured SSH alias.');
@@ -34,6 +34,15 @@ export async function releaseVps(command, values, execute = run) {
     const rebase = [values.node, path.posix.join(values.upload, 'bundle.mjs'), 'rebase', values.upload, values.target, values['operator-config'], values['tools-root']];
     execute('ssh', [host, 'sudo -- ' + rebase.map(quote).join(' ')]);
   }
+  if (command === 'derive') {
+    if (values['go-live']) throw new Error('Review cannot activate.');
+    if (values['accept-additions'] !== undefined && !/^[a-f0-9]{64}$/.test(values['accept-additions'])) throw new Error('Use the reviewed additions digest.');
+    const review = [values.node, path.posix.join(values['tools-root'], 'scripts/release/vps/review.mjs'),
+      path.posix.join(values.target, 'pointer.json'), path.posix.join(values.upload, 'verified.json'), values['operator-config'],
+      ...(values['accept-additions'] === undefined ? [] : [values['accept-additions']])];
+    execute('ssh', [host, 'sudo -- ' + review.map(quote).join(' ')]);
+    return;
+  }
   if (values['go-live']) {
     // Re-check the exact previous pointer and candidate identity under the
     // operator exclusion. No stale staged candidate can silently replace it.
@@ -44,8 +53,8 @@ export async function releaseVps(command, values, execute = run) {
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   try {
     const { positionals, values } = parseArgs({ allowPositionals: true, options: Object.fromEntries(
-      ['repo', 'release-dir', 'out', 'host', 'upload', 'target', 'operator-config', 'tools-root', 'node'].map(key => [key, { type: 'string' }]).concat([['go-live', { type: 'boolean', default: false }]])) });
+      ['repo', 'release-dir', 'out', 'host', 'upload', 'target', 'operator-config', 'tools-root', 'node', 'accept-additions'].map(key => [key, { type: 'string' }]).concat([['go-live', { type: 'boolean', default: false }]])) });
     await releaseVps(positionals[0], values);
-    process.stdout.write(values['go-live'] ? 'VPS deployment completed.\n' : 'Release prepared/staged; activation requires explicit --go-live.\n');
+    if (positionals[0] !== 'derive') process.stdout.write(values['go-live'] ? 'VPS deployment completed.\n' : 'Release prepared/staged; activation requires explicit --go-live.\n');
   } catch { process.stderr.write('VPS release refused; no automatic activation fallback.\n'); process.exitCode = 1; }
 }
