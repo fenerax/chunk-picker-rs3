@@ -1,7 +1,7 @@
 import { ANCIENT_EFFIGIES_RULE } from '../data/settings.mjs';
 import { decodeLegacyText, hasGameplayMigration } from './migration.mjs';
 import { activityTimingSourceRules } from '../data/activity-timing.mjs';
-import { taskRuleEnabled } from './rule-defaults.mjs';
+import { resolveTaskRules, taskRuleEnabled } from './rule-defaults.mjs';
 import { membershipSourceBlocker } from '../data/access-policy.mjs';
 import { sourceMembershipBlocker as evaluateSourceMembership } from '../data/source-membership.mjs';
 import { itemMembershipBlocker as evaluateItemMembership } from './membership.mjs';
@@ -296,7 +296,7 @@ export function calculateAccess(index, state, memberId, { validTasks = new Set()
   const { definitions, nodes, resolve } = index;
   const spawnQuantities = new Map();
   accessDetails.set(result, { spawnQuantities, proof });
-  const rules = legacyRules?.rules ?? legacyRules ?? {};
+  const rules = resolveTaskRules({}, {}, legacyRules?.rules ?? legacyRules);
   const f2p = state.rules?.['content.f2p'] ?? rules.F2P ?? true;
   const profile = personalAccessProfile(state, member);
   const converted = hasGameplayMigration(state, member, 'sourceBacklogs');

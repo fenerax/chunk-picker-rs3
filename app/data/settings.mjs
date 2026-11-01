@@ -76,7 +76,7 @@ export const ANCIENT_EFFIGIES_RULE = 'Ancient Effigies';
 export const universalTertiaryDescription = 'Allow universal tertiary drops (mimic tokens and spirit gems) to count towards chunk tasks';
 export const ancientEffigiesRule = Object.freeze({ id: ANCIENT_EFFIGIES_RULE, label: ANCIENT_EFFIGIES_RULE,
   description: 'Allow ancient effigies from universal tertiary drops to count towards chunk tasks',
-  type: 'boolean', default: false, category: 'Item Sources', parent: null });
+  type: 'boolean', default: true, category: 'Item Sources', parent: null });
 
 const rulePositions = positions(originalRuleStructure);
 const authoredTaskRules = datasetRuleRecords("app/data/settings.mjs#authoredTaskRules");

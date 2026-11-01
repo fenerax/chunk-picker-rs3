@@ -39,7 +39,7 @@ import { evaluateBossGates, closedBossMonsters, bossGearCatalogue, bestBossGear 
 import { bossGates as bossGateData } from '../data/boss-gates.mjs';
 import { applyDivinationTraining } from '../data/divination-training.mjs';
 import { personalQuestProgressBlocker } from './personal-quest-progress.mjs';
-import { taskRuleEnabled } from './rule-defaults.mjs';
+import { resolveTaskRules, taskRuleEnabled } from './rule-defaults.mjs';
 import { slayerUnlockGate, slayerUnlockTaskName } from '../data/slayer-unlock-gates.mjs';
 import { evaluateSlayerUnlockGate } from './slayer-unlock-gates.mjs';
 import { canTrainAllPortSkills } from '../data/port-skills.mjs';
@@ -184,7 +184,7 @@ export function createTaskEngine(definitions, options = {}) {
     const member = state.members.find(member => member.id === memberId);
     if (!member) throw new TypeError(`Unknown member: ${memberId}`);
     const legacy = state.legacy?.maps?.[member?.sourceMapId]?.rules;
-    const rules = { ...(!hasGameplayMigration(state, member) ? legacy : {}), ...state.taskRules, ...member?.taskRules };
+    const rules = resolveTaskRules(!hasGameplayMigration(state, member) ? legacy : {}, state.taskRules, member.taskRules);
     for (const { ruleId } of taskRuleDiagnostics(rules)) delete rules[ruleId];
     return variantForRules(state.rules, rules[EARLY_TRAVEL_UNLOCKS_RULE] === true && taskRuleEnabled(rules, EARLY_TRAVEL_UNLOCKS_RULE));
   };
@@ -454,7 +454,7 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
         access.diagnostics.push({ code: 'boss-gated', kind: 'Monster', source: monster, gate: gate.id, detail: gate.reason });
       }
     };
-    const rules = { ...(!hasGameplayMigration(state, member) ? legacyMap.rules : {}), ...state.taskRules, ...member.taskRules };
+    const rules = resolveTaskRules(!hasGameplayMigration(state, member) ? legacyMap.rules : {}, state.taskRules, member.taskRules);
     const ruleDiagnostics = taskRuleDiagnostics(rules, { memberId });
     for (const { ruleId } of ruleDiagnostics) {
       if (Object.hasOwn(taskRuleCutoffDefaults, ruleId)) rules[ruleId] = taskRuleCutoffDefaults[ruleId];
@@ -1163,7 +1163,7 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
       }));
       for (const { source, requirements, effigies } of outputGates.get(name) ?? []) {
         if (source === undefined || source === task.rawLabel || source?.endsWith('-source') && task.rawLabel.toLowerCase().includes(source.slice(0, -7).toLowerCase()) || source === '' && (kind === 'drop' || effigies && kind === 'task' && task.category === 'Slayer' && task.record.Source === 'drop')) {
-          if (effigies && !on(rules, 'Ancient Effigies', false)) return false;
+          if (effigies && !on(rules, 'Ancient Effigies', true)) return false;
           if (!satisfies(requirements)) return false;
         }
       }

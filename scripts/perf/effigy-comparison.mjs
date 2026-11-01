@@ -1,14 +1,14 @@
 // Compare the rule split against a pinned checkout using public inputs.
 // Private mode (--store) is disabled and fails before any save is read.
 import { parseArgs } from 'node:util';
-import { mkdtemp, cp, copyFile, readFile, writeFile, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, writeFile, rm } from 'node:fs/promises';
 import { readFileSync, readdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { pathToFileURL, fileURLToPath } from 'node:url';
 import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
-const { values } = parseArgs({ options: { ...Object.fromEntries(['baseline', 'candidate', 'store', 'out', 'internal', 'repeats', 'source-order-baseline'].map(key => [key, { type: 'string' }])), catalogue: { type: 'boolean', default: false }, 'both-on': { type: 'boolean', default: false } } });
+const { values } = parseArgs({ options: { ...Object.fromEntries(['baseline', 'candidate', 'store', 'out', 'internal', 'repeats', 'source-order-baseline'].map(key => [key, { type: 'string' }])), catalogue: { type: 'boolean', default: false }, 'both-on': { type: 'boolean', default: false }, 'lazy-default': { type: 'boolean', default: false } } });
 const sha = value => createHash('sha256').update(value).digest('hex');
 const canonical = value => JSON.stringify(value, (_, row) => row && typeof row === 'object' && !Array.isArray(row)
   ? Object.fromEntries(Object.keys(row).sort().map(key => [key, row[key]])) : row);
@@ -34,7 +34,7 @@ const statistics = numbers => {
 };
 async function internal(config) {
   const load = relative => import(pathToFileURL(path.join(config.checkout, relative)));
-  const durationsMs = [], rows = [], migration = { on: 0, off: 0 };
+  const durationsMs = [], rows = [], counts = [];
   let close = async () => {};
   try {
     if (!config.store) {
@@ -56,65 +56,25 @@ async function internal(config) {
       const engine = createTaskEngine(definitions, { dataset, cacheWalking: false, cacheResources: false, cacheArchaeology: false,
         cacheShops: false, metadataCorrections: false, equipmentCorrections: false, retainedTaskCorrections: false,
         skillGuideTasks: false, skillGuideMilestones: false, skillGuideCorrections: false });
-      for (const [tertiary, effigies] of config.bothOn ? [[true, true]] : [[false, false], [true, false], [true, true], [false, true]]) {
+      for (const [tertiary, effigies] of config.lazyDefault ? [[undefined, undefined], [true, true], [false, false]] : config.bothOn ? [[true, true]] : [[false, false], [true, false], [true, true], [false, true]]) {
         let result;
         for (let i = 0; i < config.repeats; i++) {
           const start = performance.now();
           result = engine.evaluate({ rules: { 'content.f2p': false }, members: [{ id: 'a', unlocked, completedTasks: [],
-            taskRules: { 'Universal Tertiary': tertiary, 'Ancient Effigies': effigies } }] }, 'a');
+            taskRules: { ...(tertiary === undefined ? {} : { 'Universal Tertiary': tertiary }),
+              ...(!config.lazyDefault || config.baseline ? { 'Ancient Effigies': config.lazyDefault ? tertiary !== false : effigies } : {}) } }] }, 'a');
           durationsMs.push(performance.now() - start);
         }
         rows.push(capture(result, estimateItemDrop));
+        counts.push({ tasks: result.tasks.length, items: result.items.length,
+          effigyItems: result.items.filter(item => item.name === items[0]).length,
+          effigyDependentTasksAvailable: result.tasks.filter(task => task.rawLabel === 'Use ' + items[0] && task.status === 'available').length,
+          effigySources: result.items.find(item => item.name === items[0])?.sources.length ?? 0 });
       }
     } else {
       throw Error('Private mode is disabled: it copied a save and started the server on it, which can copy or create credentials. Compare private saves with a pure filesystem reader instead.');
-      const dataDir = path.join(config.run, 'game');
-      await cp(config.store, dataDir, { recursive: true });
-      await copyFile(config.store + '.dataset.json', dataDir + '.dataset.json');
-      const { createServer } = await load('app/server.mjs');
-      const app = await createServer({ dataDir, port: 0, predictionPrewarm: false, retention: false });
-      close = () => app.close();
-      let states;
-      if (config.baseline) {
-        const current = app.store.getState();
-        const backups = (await app.store.listBackups()).filter(row => row.revision < current.revision).sort((a, b) => a.revision - b.revision);
-        if (backups.length < 7) throw Error('Insufficient samples.');
-        states = [];
-        for (let i = 0; i < 7; i++) states.push((await app.store.readBackup(backups[Math.floor(i * (backups.length - 1) / 6)].id)).state);
-        states.push(current);
-        await writeFile(config.states, JSON.stringify(states), { mode: 0o600 });
-      } else {
-        const { validateState } = await load('app/core/state.mjs');
-        states = JSON.parse(await readFile(config.states, 'utf8')).map(state => validateState(state));
-      }
-      const world = app.world, dataset = app.dataset;
-      await app.close();
-      const { createTaskScheduler } = await load('app/tasks/scheduler.mjs');
-      const { preparedDefinitionStages } = await load('app/dataset-pipeline.mjs');
-      const scheduler = await createTaskScheduler({ workerData: { definitions: world.definitions,
-        world: { chunks: world.chunks, areas: world.areas, surface: world.surface }, datasetSelection: dataset.workerSelection(),
-        datasetDigest: dataset.digest, datasetOptions: { reviewedOverlays: true }, preparedDatasetStages: preparedDefinitionStages(world.definitions) } });
-      close = () => scheduler.close();
-      for (let index = 0; index < states.length; index++) {
-        const state = states[index], preserved = [], disabled = [];
-        for (const member of state.members) {
-          if (!config.baseline) migration[member.taskRules?.['Ancient Effigies'] === true ? 'on' : 'off']++;
-          const start = performance.now();
-          const evaluation = await scheduler.evaluate(state, member.id, 'evaluate', undefined, `sample-${index}-${member.id}`);
-          durationsMs.push(performance.now() - start);
-          preserved.push(capture(evaluation.result));
-          if (!config.baseline && state.members.every(owner => owner.taskRules?.['Ancient Effigies'] === false)) {
-            disabled.push(preserved.at(-1));
-          } else if (!config.baseline) {
-            const off = { ...state, members: state.members.map(owner => ({ ...owner, taskRules: { ...owner.taskRules, 'Ancient Effigies': false } })) };
-            const evaluationOff = await scheduler.evaluate(off, member.id, 'evaluate', undefined, `off-${index}-${member.id}`);
-            disabled.push(capture(evaluationOff.result));
-          }
-        }
-        rows.push({ preserved, disabled });
-      }
     }
-    await writeFile(config.result, JSON.stringify({ rows, migration, durationsMs: statistics(durationsMs) }), { mode: 0o600 });
+    await writeFile(config.result, JSON.stringify({ rows, counts, durationsMs: statistics(durationsMs), peakRSSBytes: process.resourceUsage().maxRSS * 1024 }), { mode: 0o600 });
   } finally { await close(); }
 }
 const delta = (before, after) => ({ added: Object.keys(after).filter(key => !Object.hasOwn(before, key)).length,
@@ -124,7 +84,7 @@ const difference = (before, after) => Object.fromEntries(Object.keys(before).map
 async function main() {
   if (values.store) throw Error('Private mode is disabled: it copied a save and started the server on it, which can copy or create credentials. Compare private saves with a pure filesystem reader instead.');
   if (values.internal) return internal(JSON.parse(await readFile(values.internal, 'utf8')));
-  if (!values.baseline || !values.candidate || !values.out) throw Error('Use --baseline, --candidate and --out; optionally --catalogue for tracked public definitions or --store for eight private samples.');
+  if (!values.baseline || !values.candidate || !values.out) throw Error('Use --baseline, --candidate and --out; optionally --catalogue for selected definitions, or --lazy-default for synthetic unset-rule preservation.');
   if (values.store && values['source-order-baseline']) throw Error('Source-order attribution uses public inputs only.');
   const repeats = Number(values.repeats ?? 3);
   if (!Number.isSafeInteger(repeats) || repeats < 1) throw Error('Invalid repeat count.');
@@ -134,7 +94,7 @@ async function main() {
     for (const [index, checkout] of [values.baseline, values.candidate, ...(values['source-order-baseline'] ? [values['source-order-baseline']] : [])].entries()) {
       const run = await mkdtemp(path.join(root, 'run-'));
       const config = { checkout: path.resolve(checkout), run, store: values.store && path.resolve(values.store),
-        baseline: index === 0, catalogue: values.catalogue, repeats, bothOn: index === 2 || values['both-on'], states: path.join(root, 'states.json'), result: path.join(run, 'result.json') };
+        baseline: index === 0, catalogue: values.catalogue, repeats, bothOn: index === 2 || values['both-on'], lazyDefault: values['lazy-default'], result: path.join(run, 'result.json') };
       const input = path.join(run, 'input.json'); await writeFile(input, JSON.stringify(config), { mode: 0o600 });
       let peakRSSBytes = 0;
       const start = performance.now();
@@ -160,14 +120,13 @@ async function main() {
         child.once('error', () => { clearInterval(timer); reject(Error('Comparison child failed.')); });
         child.once('exit', code => { clearInterval(timer); code === 0 ? resolve() : reject(Error(`Comparison failed (${code}); error hash ${sha(errors)}.`)); });
       });
-      runs.push({ ...JSON.parse(await readFile(config.result, 'utf8')), peakRSSBytes, wallMs: performance.now() - start });
+      const result = JSON.parse(await readFile(config.result, 'utf8'));
+      runs.push({ ...result, peakRSSBytes: Math.max(peakRSSBytes, result.peakRSSBytes), wallMs: performance.now() - start });
     }
-    const differences = runs[0].rows.map((before, index) => values.store ? {
-      preserved: before.preserved.map((row, member) => difference(row, runs[1].rows[index].preserved[member])),
-      effigiesOff: before.preserved.map((row, member) => difference(row, runs[1].rows[index].disabled[member])),
-    } : difference(before, runs[1].rows[index]));
+    const differences = runs[0].rows.map((before, index) => difference(before, runs[1].rows[index]));
     const sourceOrder = runs[2] ? difference(runs[2].rows[0], runs[1].rows[values['both-on'] ? 0 : 2]) : undefined;
-    const report = { sourceOrder, sampleCount: differences.length, differences, migration: runs[1].migration,
+    const report = { sourceOrder, sampleCount: differences.length, differences, counts: { before: runs[0].counts, after: runs[1].counts },
+      lazyDefault: values['lazy-default'],
       before: { durationsMs: runs[0].durationsMs, peakRSSBytes: runs[0].peakRSSBytes, wallMs: runs[0].wallMs },
       after: { durationsMs: runs[1].durationsMs, peakRSSBytes: runs[1].peakRSSBytes, wallMs: runs[1].wallMs } };
     await writeFile(values.out, JSON.stringify(report, null, 2) + '\n', { mode: 0o600 });

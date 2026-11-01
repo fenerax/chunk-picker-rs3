@@ -90,7 +90,7 @@ test('new groups have explicit ownership defaults and independent arrays', () =>
   const result = createGroupState(input);
   assert.deepEqual(result, { schemaVersion: 1, revision: 0, rules: {},
     members: owners.map(owner => ({ ...owner, runescapeName: owner.id === 'player1' ? 'exampleGIMab' : 'twosamplegim', sourceMapId: null, unlocked: [], selected: [],
-      pendingRoll: [], blacklisted: [], completedTasks: [], obtainedEquipment: [], teleports: [] })), tasks: [], history: [], provenance: { ancientEffigiesMigratedMembers: owners.map(owner => owner.id) } });
+      pendingRoll: [], blacklisted: [], completedTasks: [], obtainedEquipment: [], teleports: [] })), tasks: [], history: [] });
   result.members[0].selected.push('12341');
   assert.deepEqual(result.members[1].selected, []);
   assert.deepEqual(input, owners);

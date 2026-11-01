@@ -81,9 +81,7 @@ test('serialized calculation snapshots retain every input field and stay coheren
     return state;
   } });
   const original = store.getState(), captured = store.getCalculationSnapshot();
-  // Only the effigies migration marker crosses into calculation input; archives stay out.
   const { provenance, history, ...input } = original; input.history = [];
-  input.provenance = { ancientEffigiesMigratedMembers: ['one', 'two'] };
   assert.ok(provenance.restore.previousHistory);
   assert.equal(captured, store.getCalculationSnapshot()); assert.equal(captured.revision, original.revision);
   assert.deepEqual(captured.members, [{ id: 'one' }, { id: 'two' }]); assert.equal(captured.inputKey, store.getGameplayFingerprint());
@@ -91,7 +89,7 @@ test('serialized calculation snapshots retain every input field and stay coheren
   const bytes = captured.stateJSON;
   assert.ok(bytes instanceof SharedArrayBuffer); assert.equal(captured.stateJSON, bytes);
   assert.deepEqual(JSON.parse(Buffer.from(bytes).toString('utf8')), input);
-  assert.deepEqual(captured.state, input); assert.equal(captured.state.provenance.restore, undefined); assert.deepEqual(captured.state.history, []);
+  assert.deepEqual(captured.state, input); assert.equal(captured.state.provenance, undefined); assert.deepEqual(captured.state.history, []);
   const next = store.getCalculationSnapshot(); assert.notEqual(next, captured); assert.equal(next.revision, 1);
   const nextJSON = JSON.parse(Buffer.from(next.stateJSON).toString('utf8'));
   assert.deepEqual(nextJSON, store.getCalculationState()); assert.equal(nextJSON.legacy.hookRevision, 1);

@@ -1,6 +1,24 @@
-import { UNKNOWN_DROP_RULE, unknownDropRule } from '../data/settings.mjs';
+import { decodeLegacyText } from './gameplay-compat.mjs';
+import { ANCIENT_EFFIGIES_RULE, UNKNOWN_DROP_RULE, unknownDropRule } from '../data/settings.mjs';
 import { taskRuleCutoffDefaults, taskRuleCategoryCounts, taskRuleParents, EARLY_TRAVEL_UNLOCKS_RULE } from '../data/settings.mjs';
 import { FUTURE_SLAYER_UNLOCKS_RULE } from '../data/slayer-unlock-gates.mjs';
+
+/** Resolve imported → group → personal rules into a disposable calculation copy.
+ * Ancient Effigies follows Universal Tertiary only while no layer supplies it.
+ * Never populate a saved member, history snapshot or provenance with this value. */
+export function resolveTaskRules(imported = {}, group = {}, personal = {}) {
+  const rules = { ...imported, ...group, ...personal };
+  // Decode only the two inputs to this new default. Other legacy rule keys
+  // keep their existing interpretation in each caller.
+  const inherited = Object.fromEntries(Object.entries(imported ?? {}).flatMap(([id, value]) => {
+    const decoded = decodeLegacyText(id);
+    return decoded === ANCIENT_EFFIGIES_RULE || decoded === 'Universal Tertiary' ? [[decoded, value]] : [];
+  }));
+  const effective = { ...inherited, ...group, ...personal };
+  const effigies = effective[ANCIENT_EFFIGIES_RULE] === undefined ? effective['Universal Tertiary'] : effective[ANCIENT_EFFIGIES_RULE];
+  rules[ANCIENT_EFFIGIES_RULE] = ![false, 'false', 0].includes(effigies);
+  return rules;
+}
 
 // Authored unset behavior, independent of captured upstream defaults or save
 // payloads. Literal fallbacks in engine/presentation are checked against this
@@ -36,7 +54,7 @@ export const taskRuleBooleanDefaults = Object.freeze({
   'All Shops': false, 'Every Drop': false, 'All Droptables': false,
   'Every Drop Thieving': false, 'Every Drop Implings': false, 'Every Drop BGH': false,
   'All Droptables Nest': false, RDT: false,
-  'House storage tasks': false, 'Ancient Effigies': false,
+  'House storage tasks': false, 'Ancient Effigies': true,
   'Rare Drop Inclusive': false, 'Secondary Primary Inclusive': true,
 });
 
@@ -52,6 +70,7 @@ export function taskRuleDefault(id) {
 
 /** Legacy literal fallbacks are checked against this contract; unknown tags default on. */
 export function taskRuleEnabled(rules, id, fallback = taskRuleDefault(id) ?? true) {
+  if (id === 'Ancient Effigies') rules = resolveTaskRules({}, {}, rules);
   const own = rules[id] === undefined ? fallback : ![false, 'false', 0].includes(rules[id]);
   return own && taskRuleParentsEnabled(rules, id);
 }

@@ -1,9 +1,9 @@
 import { datasetJSON } from "../dataset-runtime.mjs";
 const capturedCatalogue = await datasetJSON("app/data/original-rules-ui.2026-10-08.v1.json");
 import { ANCIENT_EFFIGIES_RULE, taskRuleDefinitions, taskRuleCutoffDefaults, independentTaskRuleControls, EARLY_TRAVEL_UNLOCKS_RULE, earlyTravelUnlocksExplanation } from '../data/settings.mjs';
-import { hasGameplayMigration } from '../tasks/gameplay-compat.mjs';
+import { decodeLegacyText, hasGameplayMigration } from '../tasks/gameplay-compat.mjs';
 import { isKeptTaskRule } from './kept-rules.mjs';
-import { taskRuleDefault } from '../tasks/rule-defaults.mjs';
+import { resolveTaskRules, taskRuleDefault } from '../tasks/rule-defaults.mjs';
 import { loadRuleExplanations } from './rule-explanations.mjs';
 import { UNKNOWN_DROP_RULE, unknownDropExplanation } from '../data/settings.mjs';
 import { FUTURE_SLAYER_UNLOCKS_RULE, futureSlayerUnlocksExplanation } from '../data/slayer-unlock-gates.mjs';
@@ -56,7 +56,7 @@ export const ruleExplanations = Object.freeze({
   ...(effigySources.length ? loadRuleExplanations({ schemaVersion: 1, entries: {
     'Universal Tertiary': { ...tertiaryExplanation, sources: tertiaryExplanation.sources.filter(source => !effigySources.includes(source)) },
     [ANCIENT_EFFIGIES_RULE]: {
-      what: 'Lets ancient effigy drops count towards chunk tasks. Other requirements still apply.',
+      what: 'Lets ancient effigy drops count towards chunk tasks. Automatic follows Universal Tertiary; other requirements still apply.',
       example: 'Turn this off to exclude ancient effigy drops while keeping mimic tokens and spirit gems on.',
       sources: effigySources,
     },
@@ -110,7 +110,7 @@ export function taskRuleValue(state, memberId, definition) {
   const member = state.members.find(owner => owner.id === memberId);
   if (!member) throw new TypeError('Unknown rules player.');
   const id = definition.id;
-  if (own(member.taskRules, id)) return { value: member.taskRules[id], source: 'Personal override', explicit: true };
+  if (own(member.taskRules, id)) return { value: id === ANCIENT_EFFIGIES_RULE ? resolveTaskRules({}, {}, member.taskRules)[id] : member.taskRules[id], source: 'Personal override', explicit: true };
   return taskRuleAutomaticValue(state, memberId, definition);
 }
 
@@ -119,10 +119,14 @@ export function taskRuleAutomaticValue(state, memberId, definition) {
   const member = state.members.find(owner => owner.id === memberId);
   if (!member) throw new TypeError('Unknown rules player.');
   const id = definition.id;
-  if (own(state.taskRules, id)) return { value: state.taskRules[id], source: 'Inherited', explicit: false };
-  const inherited = !hasGameplayMigration(state, member) && state.legacy?.maps?.[member.sourceMapId]?.rules;
-  if (own(inherited, id)) return { value: inherited[id], source: 'Imported', explicit: false };
-  return { value: taskRuleDefault(id), source: 'Automatic', explicit: false };
+  if (own(state.taskRules, id)) return { value: id === ANCIENT_EFFIGIES_RULE ? resolveTaskRules({}, state.taskRules)[id] : state.taskRules[id], source: 'Inherited', explicit: false };
+  const imported = !hasGameplayMigration(state, member) ? state.legacy?.maps?.[member.sourceMapId]?.rules : {};
+  const inherited = id === ANCIENT_EFFIGIES_RULE
+    ? Object.fromEntries(Object.entries(imported ?? {}).map(([id, value]) => [decodeLegacyText(id), value])) : imported;
+  if (own(inherited, id)) return { value: id === ANCIENT_EFFIGIES_RULE ? resolveTaskRules(inherited)[id] : inherited[id], source: 'Imported', explicit: false };
+  const personal = { ...member.taskRules }; delete personal[id];
+  const rules = resolveTaskRules(imported, state.taskRules, personal);
+  return { value: id === ANCIENT_EFFIGIES_RULE ? rules[id] : taskRuleDefault(id), source: 'Automatic', explicit: false };
 }
 
 export function ruleEnabled(definition, values, definitions) {

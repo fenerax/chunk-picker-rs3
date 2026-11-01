@@ -131,7 +131,7 @@ test('hydrates all permitted sidecar fields with hashes over decompressed UTF-8 
   const dir = await directory(t);
   const state = createGroupState([member()]);
   state.legacy = { evidence: 'Player 1 é'.repeat(40000) };
-  state.provenance = { ...state.provenance, evidence: 'small retained field' };
+  state.provenance = { evidence: 'small retained field' };
   state.identityRegistry = { schemaVersion: 1, entries: {}, aliases: {}, unresolved: [] };
   const document = exportBackup(state);
   document.storage = { schemaVersion: 1, fields: {} };

@@ -4,14 +4,14 @@ import { createCollectionEngine } from '../app/tasks/collection.mjs';
 import referenceCorrections from '../app/data/reference-corrections.2026-10-31.v1.mjs';
 import { applyDefinitionOverlays } from '../app/data/definition-overlays.mjs';
 import { createTaskEngine } from '../app/tasks/engine.mjs';
-import { mkdtemp, rm, readFile, writeFile } from 'node:fs/promises';
+import { mkdtemp, rm } from 'node:fs/promises';
 import path from 'node:path';
 import os from 'node:os';
 import { createGroupState, validateState, applyCommand, exportBackup, importBackup } from '../app/core/state.mjs';
 import { openStore } from '../app/storage/store.mjs';
-import { taskRuleDefault } from '../app/tasks/rule-defaults.mjs';
+import { resolveTaskRules, taskRuleDefault, taskRuleEnabled } from '../app/tasks/rule-defaults.mjs';
 import { taskRuleDefinitions, taskRuleBehavior } from '../app/data/settings.mjs';
-import { buildRulesSections, rulesCatalogue } from '../app/web/rules-model.mjs';
+import { buildRulesSections, rulesCatalogue, taskRuleValue, taskRuleAutomaticValue, planTaskRuleChange } from '../app/web/rules-model.mjs';
 
 const items = ['Starved ancient effigy', 'Mimic kill token', 'Spirit sapphire', 'Spirit emerald', 'Spirit ruby'];
 const definitions = () => ({ chunks: { '1': { Monster: { 'Fixture monster': true } } },
@@ -51,113 +51,134 @@ test('other effigy requirements and non-tertiary sources remain independent', ()
   assert.equal(result.items.some(row => row.name === items[0]), true);
 });
 
+import { assertPreserved } from '../scripts/private-companion/release-pack-check.mjs';
+import { digestValue } from '../scripts/private-companion/release-identity.mjs';
+
 const fresh = () => createGroupState([{ id: 'a', name: 'Fixture player' }]);
-const old = () => { const saved = fresh(); delete saved.provenance; return saved; };
-for (const value of [true, false]) test(`old save copies Universal Tertiary=${value} once`, () => {
-  const saved = old(); saved.members[0].taskRules = { 'Universal Tertiary': value };
-  const migrated = validateState(saved);
-  assert.equal(migrated.members[0].taskRules['Ancient Effigies'], value);
-  assert.equal(saved.members[0].taskRules['Ancient Effigies'], undefined);
-  assert.deepEqual(validateState(migrated), migrated);
-  assert.deepEqual(importBackup(exportBackup(migrated)), migrated);
-  const reset = applyCommand(migrated, { type: 'reset-task-rule', memberId: 'a', ruleId: 'Ancient Effigies' });
-  assert.equal(validateState(reset).members[0].taskRules['Ancient Effigies'], undefined);
-  const changed = applyCommand(reset, { type: 'set-task-rule', memberId: 'a', ruleId: 'Universal Tertiary', value: !value });
-  assert.equal(validateState(changed).members[0].taskRules['Ancient Effigies'], undefined);
+const effigyDefinition = { id: 'Ancient Effigies' };
+const roundTrips = saved => {
+  assert.deepEqual(validateState(saved), saved);
+  assert.deepEqual(importBackup(exportBackup(saved)), saved);
+};
+// Match the authoritative progress fields and retained-history hashes consumed
+// by the unchanged release-pack-check helper, without opening a server.
+const preservationReport = saved => {
+  const progress = Object.fromEntries(Object.entries(saved).filter(([key]) => !['identityRegistry', 'tasks', 'legacy', 'revision', 'history', 'provenance'].includes(key)));
+  progress.provenance = Object.fromEntries(Object.entries(saved.provenance ?? {}).filter(([key]) => !['taskIdentityMigration', 'historyArchive'].includes(key)));
+  const migration = saved.provenance?.taskIdentityMigration ?? {};
+  return { progressFields: Object.fromEntries(Object.entries(progress).map(([key, value]) => [key, digestValue(value)])),
+    progressDigest: digestValue(progress), taskIds: saved.tasks.map(task => task.id),
+    historyEvents: saved.history.map(digestValue), historyTypes: saved.history.map(event => event.type),
+    migrationArchives: (migration.archives ?? []).map(digestValue), migrationConversions: (migration.conversions ?? []).map(digestValue),
+    migrationConflicts: (migration.conflicts ?? []).map(digestValue) };
+};
+
+for (const value of [undefined, true, false]) test(`old save is deep-equal and release-preserved: tertiary=${value}`, () => {
+  let saved = fresh();
+  if (value !== undefined) saved.members[0].taskRules = { 'Universal Tertiary': value };
+  saved = applyCommand(saved, { type: 'set-task-rule', memberId: 'a', ruleId: 'Every Drop', value: true });
+  assert.equal(saved.provenance, undefined);
+  const before = structuredClone(saved), loaded = validateState(saved);
+  assert.deepEqual(loaded, before);
+  assert.deepEqual(saved, before);
+  assert.equal(Object.hasOwn(loaded.members[0].taskRules ?? {}, 'Ancient Effigies'), false);
+  assert.equal(loaded.provenance, undefined);
+  assertPreserved(preservationReport(before), preservationReport(loaded));
+  const corrupted = structuredClone(loaded); corrupted.members[0].taskRules = { 'Ancient Effigies': true };
+  assert.throws(() => assertPreserved(preservationReport(before), preservationReport(corrupted)), /fields=members/);
+  roundTrips(loaded);
 });
 
-test('fresh defaults are off, older unset saves preserve automatic on, explicit new values win', () => {
-  assert.equal(fresh().members[0].taskRules?.['Ancient Effigies'], undefined);
-  assert.equal(taskRuleDefault('Ancient Effigies'), false);
-  assert.equal(validateState(old()).members[0].taskRules['Ancient Effigies'], true);
-  const saved = old(); saved.members[0].taskRules = { 'Universal Tertiary': true, 'Ancient Effigies': false };
-  assert.equal(validateState(saved).members[0].taskRules['Ancient Effigies'], false);
+for (const value of [undefined, true, false, 'false', 0, null]) test(`lazy default agrees across engine, access, collection and Settings: tertiary=${value}`, () => {
+  const rules = value === undefined ? {} : { 'Universal Tertiary': value };
+  const saved = state(rules), before = structuredClone(saved), allowed = ![false, 'false', 0].includes(value);
+  const data = definitions(), engine = createTaskEngine(data, options), result = engine.evaluate(saved, 'a');
+  assert.equal(resolveTaskRules({}, {}, rules)['Ancient Effigies'], allowed);
+  assert.equal(taskRuleEnabled(rules, 'Ancient Effigies'), allowed);
+  assert.equal(taskRuleValue(saved, 'a', effigyDefinition).value, allowed);
+  assert.equal(result.items.some(row => row.name === items[0]), allowed);
+  assert.equal(result.tasks.find(row => row.rawLabel === 'Use ' + items[0]).status, allowed ? 'available' : 'blocked');
+  const collectionState = structuredClone(saved); collectionState.members[0].taskRules['Every Drop'] = true;
+  assert.equal(createCollectionEngine(data).evaluate(collectionState, 'a', result).tasks.some(row => row.item === items[0]), allowed);
+  assert.deepEqual(saved, before);
 });
 
-test('legacy rules are decoded, and completed gameplay migration does not revive old values', () => {
-  const saved = old(); saved.members[0].sourceMapId = 'fixture-map';
+test('imported → group → member merge precedes the lazy default, and explicit effigy values win', () => {
+  const saved = fresh(); saved.members[0].sourceMapId = 'fixture-map';
   saved.legacy = { maps: { 'fixture-map': { rules: { 'Universal%20Tertiary': false } } } };
-  assert.equal(validateState(saved).members[0].taskRules['Ancient Effigies'], false);
+  const value = () => taskRuleValue(saved, 'a', effigyDefinition).value;
+  assert.equal(value(), false);
+  saved.taskRules = { 'Universal Tertiary': true }; assert.equal(value(), true);
+  saved.members[0].taskRules = { 'Universal Tertiary': false }; assert.equal(value(), false);
+  saved.legacy.maps['fixture-map'].rules['Ancient%20Effigies'] = true; assert.equal(value(), true);
+  saved.taskRules['Ancient Effigies'] = false; assert.equal(value(), false);
+  saved.members[0].taskRules['Ancient Effigies'] = true; assert.equal(value(), true);
+  delete saved.members[0].taskRules; delete saved.taskRules;
   saved.legacy.gameplayMigration = { schemaVersion: 2, migratedMembers: [{ memberId: 'a', sourceMapId: 'fixture-map' }] };
-  assert.equal(validateState(saved).members[0].taskRules['Ancient Effigies'], true);
-  saved.members[0].taskRules = { 'Universal Tertiary': false };
-  assert.equal(validateState(saved).members[0].taskRules['Ancient Effigies'], false);
-});
-
-test('both independent switches appear in Item Sources with current descriptions', () => {
-  const sections = buildRulesSections(rulesCatalogue, fresh());
-  const group = sections.find(section => section.rules.some(rule => rule.id === 'Universal Tertiary'));
-  const effigies = group.rules.find(rule => rule.id === 'Ancient Effigies');
-  assert.ok(effigies); assert.equal(effigies.parent, null); assert.equal(effigies.default, false);
-  assert.equal(effigies.description, 'Allow ancient effigies from universal tertiary drops to count towards chunk tasks');
-  assert.equal(taskRuleDefinitions.find(rule => rule.id === 'Ancient Effigies').category, 'Item Sources');
-  assert.doesNotMatch(group.rules.find(rule => rule.id === 'Universal Tertiary').description, /effig/i);
-  assert.equal(taskRuleBehavior('Ancient Effigies').status, 'implemented-scope');
-});
-
-test('Automatic survives provenance archived by one or more restores', () => {
-  const saved = old(); saved.members[0].taskRules = { 'Universal Tertiary': true };
-  let restored = applyCommand(validateState(saved), { type: 'reset-task-rule', memberId: 'a', ruleId: 'Ancient Effigies' });
-  for (let i = 0; i < 2; i++) {
-    restored.provenance = { restore: { incomingProvenance: restored.provenance } };
-    restored = validateState(restored);
-    assert.equal(restored.members[0].taskRules['Ancient Effigies'], undefined);
+  assert.equal(value(), true);
+  assert.equal(taskRuleDefault('Ancient Effigies'), true);
+  for (const explicit of [true, false, 'false', 0, null]) {
+    assert.equal(resolveTaskRules({}, { 'Ancient Effigies': explicit }, { 'Universal Tertiary': false })['Ancient Effigies'], ![false, 'false', 0].includes(explicit));
   }
 });
 
-test('undoing an older full-member snapshot keeps the migrated effigy choice', () => {
-  const saved = old(); saved.members[0].taskRules = { 'Universal Tertiary': true };
-  const snapshot = structuredClone(saved.members[0]);
-  saved.revision = 1;
-  saved.members[0].notes = { '1': 'Fixture note' };
+test('Settings writes an ordinary override, Automatic deletes it, and both commands undo', () => {
+  let saved = fresh(); saved.members[0].taskRules = { 'Universal Tertiary': false };
+  const plan = planTaskRuleChange(saved, ['a'], effigyDefinition, true);
+  assert.deepEqual(plan.commands, [{ type: 'set-task-rule', memberId: 'a', ruleId: 'Ancient Effigies', value: true }]);
+  saved = applyCommand(saved, plan.commands[0]);
+  assert.equal(taskRuleValue(saved, 'a', effigyDefinition).value, true);
+  assert.equal(taskRuleAutomaticValue(saved, 'a', effigyDefinition).value, false);
+  const reset = applyCommand(saved, { type: 'reset-task-rule', memberId: 'a', ruleId: 'Ancient Effigies' });
+  assert.equal(Object.hasOwn(reset.members[0].taskRules, 'Ancient Effigies'), false);
+  assert.equal(taskRuleValue(reset, 'a', effigyDefinition).value, false);
+  assert.equal(applyCommand(reset, { type: 'undo' }).members[0].taskRules['Ancient Effigies'], true);
+  const undone = applyCommand(saved, { type: 'undo' });
+  assert.equal(Object.hasOwn(undone.members[0].taskRules, 'Ancient Effigies'), false);
+  const changed = applyCommand(reset, { type: 'set-task-rule', memberId: 'a', ruleId: 'Universal Tertiary', value: true });
+  assert.equal(taskRuleValue(changed, 'a', effigyDefinition).value, true);
+  roundTrips(changed);
+});
+
+test('old sparse container patches and full-member undo snapshots stay unchanged and undo normally', () => {
+  const sparse = applyCommand(fresh(), { type: 'set-task-rule', memberId: 'a', ruleId: 'Universal Tertiary', value: false });
+  assert.deepEqual(sparse.history[0].undo.memberChanges[0].changes.map(patch => patch.kind), ['object', 'value']);
+  assert.deepEqual(validateState(sparse), sparse);
+  assert.equal(applyCommand(sparse, { type: 'undo' }).members[0].taskRules, undefined);
+  const saved = fresh(), snapshot = structuredClone(saved.members[0]);
+  saved.revision = 1; saved.members[0].notes = { '1': 'Fixture note' };
   saved.history = [{ id: 'revision-1', revision: 1, type: 'set-note', at: '2026-10-31T00:00:00.000Z', undo: { members: [snapshot] } }];
-  const migrated = validateState(saved);
-  const undone = applyCommand(migrated, { type: 'undo' });
+  const before = structuredClone(saved), loaded = validateState(saved);
+  assert.deepEqual(loaded, before);
+  assertPreserved(preservationReport(before), preservationReport(loaded));
+  const undone = applyCommand(loaded, { type: 'undo' });
   assert.equal(undone.members[0].notes, undefined);
-  assert.equal(undone.members[0].taskRules['Ancient Effigies'], true);
-  assert.equal(saved.history[0].undo.members[0].taskRules['Ancient Effigies'], undefined);
+  assert.equal(undone.members[0].taskRules, undefined);
 });
 
-const roundTrips = state => {
-  assert.deepEqual(validateState(state), state);
-  assert.deepEqual(importBackup(exportBackup(state)), state);
-};
-
-test('older sparse undo that created taskRules still validates, undoes and exports after migration', () => {
-  let saved = applyCommand(fresh(), { type: 'set-task-rule', memberId: 'a', ruleId: 'Universal Tertiary', value: false });
-  assert.deepEqual(saved.history.at(-1).undo.memberChanges[0].changes.map(patch => patch.kind), ['object', 'value']);
-  delete saved.provenance;
-  const migrated = validateState(saved);
-  assert.equal(migrated.members[0].taskRules['Ancient Effigies'], false);
-  roundTrips(migrated);
-  const undone = applyCommand(migrated, { type: 'undo' });
-  assert.deepEqual(undone.members[0].taskRules, { 'Ancient Effigies': false });
-  roundTrips(undone);
-  assert.equal(saved.history.at(-1).undo.memberChanges[0].changes.length, 2, 'the caller keeps its own history');
-});
-
-test('an older event that only created an empty taskRules no longer has an undo after migration', () => {
-  let saved = applyCommand(fresh(), { type: 'set-profile', memberId: 'a', rules: fresh().rules, taskRules: {} });
-  saved = applyCommand(saved, { type: 'set-task-rule', memberId: 'a', ruleId: 'Universal Tertiary', value: true });
-  delete saved.provenance;
-  const migrated = validateState(saved);
-  assert.equal(migrated.history[0].undo, undefined);
-  assert.ok(migrated.history[1].undo.memberChanges);
-  roundTrips(migrated);
-  const undone = applyCommand(migrated, { type: 'undo' });
-  assert.deepEqual(undone.members[0].taskRules, { 'Ancient Effigies': true });
-  roundTrips(undone);
-});
-
-test('a calculation snapshot of a fresh save keeps Ancient Effigies on Automatic', async t => {
+test('store opening and calculation validation preserve a synthetic old save without provenance', async t => {
   const dataDir = await mkdtemp(path.join(os.tmpdir(), 'rs3-effigies-'));
-  const store = await openStore({ dataDir, initialState: fresh(), retention: false,
+  let saved = fresh(); saved.members[0].taskRules = { 'Universal Tertiary': false };
+  const store = await openStore({ dataDir, initialState: saved, retention: false,
     world: { chunks: new Map(), neighbors: new Map(), walkable: new Set(), f2p: new Set() } });
   t.after(async () => { await store.close(); await rm(dataDir, { recursive: true, force: true }); });
+  assert.deepEqual(store.getState(), saved);
+  assertPreserved(preservationReport(saved), preservationReport(store.getState()));
   const snapshot = store.getCalculationSnapshot();
-  assert.equal(validateState(snapshot.state).members[0].taskRules?.['Ancient Effigies'], undefined);
-  assert.equal(validateState(JSON.parse(Buffer.from(snapshot.stateJSON).toString())).members[0].taskRules?.['Ancient Effigies'], undefined);
-  assert.deepEqual(Object.keys(snapshot.state.provenance), ['ancientEffigiesMigratedMembers']);
+  assert.equal(snapshot.state.provenance, undefined);
+  assert.deepEqual(validateState(snapshot.state), snapshot.state);
+  assert.deepEqual(validateState(JSON.parse(Buffer.from(snapshot.stateJSON).toString())), snapshot.state);
+});
+
+test('both independent switches appear together with an Automatic explanation', () => {
+  const sections = buildRulesSections(rulesCatalogue, fresh());
+  const group = sections.find(section => section.rules.some(rule => rule.id === 'Universal Tertiary'));
+  const effigies = group.rules.find(rule => rule.id === 'Ancient Effigies');
+  assert.ok(effigies); assert.equal(effigies.parent, null); assert.equal(effigies.default, true);
+  assert.equal(effigies.description, 'Allow ancient effigies from universal tertiary drops to count towards chunk tasks');
+  assert.match(effigies.explanation.what, /Automatic follows Universal Tertiary/);
+  assert.equal(taskRuleDefinitions.find(rule => rule.id === 'Ancient Effigies').category, 'Item Sources');
+  assert.equal(taskRuleBehavior('Ancient Effigies').status, 'implemented-scope');
 });
 
 for (const [tertiary, effigies] of [[false, false], [true, false], [true, true], [false, true]]) {
@@ -211,91 +232,40 @@ test('four low-combat effigy corrections remove only their invalid output, regar
   }
 });
 
-test('archived pre-migration undo history is repaired when the store hydrates it', async t => {
-  const dataDir = await mkdtemp(path.join(os.tmpdir(), 'rs3-effigies-archive-'));
-  const world = { chunks: new Map([['100', { id: '100', name: 'Fixture chunk' }]]), neighbors: new Map(), walkable: new Set(['100']), f2p: new Set(['100']) };
-  const open = () => openStore({ dataDir, initialState: fresh(), world, retention: { backupDays: 90, historyEntries: 2 } });
-  t.after(() => rm(dataDir, { recursive: true, force: true }));
-  let store = await open();
-  // Revision 1 creates the member's taskRules dictionary (a sparse container patch).
-  await store.command({ type: 'set-task-rule', memberId: 'a', ruleId: 'Universal Tertiary', value: false }, 0);
-  for (let revision = 1; revision < 7; revision++) await store.command({ type: 'set-note', memberId: 'a', chunkId: '100', note: 'Fixture note ' + revision }, revision);
-  assert.ok(store.getInfo().retention.historyArchives > 0, 'the taskRules event is archived');
-  await store.close();
-  // Make it a save from before the Ancient Effigies switch existed.
-  const file = path.join(dataDir, 'state.json'), saved = JSON.parse(await readFile(file, 'utf8'));
-  const body = saved.state ?? saved;
-  assert.equal(saved.storage, undefined, 'the fixture save keeps provenance inline');
-  delete body.provenance.ancientEffigiesMigratedMembers;
-  delete body.provenance.ancientEffigiesMigration;
-  for (const member of body.members) delete member.taskRules['Ancient Effigies'];
-  await writeFile(file, JSON.stringify(saved));
-  store = await open();
-  t.after(() => store.close());
-  assert.equal(store.getState().members[0].taskRules['Ancient Effigies'], false);
-  // Hydrating every archived event (backup/export/undo) must not fail validation.
-  const backup = await store.backup();
-  assert.equal(backup.state.members[0].taskRules['Ancient Effigies'], false);
-  // Undo back through the archived events, including the one that created taskRules.
-  let revision = store.getInfo().revision;
-  for (let i = 0; i < 7; i++) {
-    const target = (await store.backup()).state.history.filter(event => event.undo && event.undoneRevision === undefined && event.type !== 'undo').at(-1);
-    if (!target) break;
-    await store.command({ type: 'undo', undoRevision: target.revision }, revision);
-    revision = store.getInfo().revision;
+for (const value of [false, 'false', 0, true, null]) test(`explicit effigy truthiness is shared by engine and Settings: ${value}`, () => {
+  const saved = state({ 'Universal Tertiary': true, 'Ancient Effigies': value }), allowed = ![false, 'false', 0].includes(value);
+  assert.equal(taskRuleValue(saved, 'a', effigyDefinition).value, allowed);
+  assert.equal(taskRuleEnabled(saved.members[0].taskRules, 'Ancient Effigies'), allowed);
+  assert.equal(createTaskEngine(definitions(), options).evaluate(saved, 'a').items.some(row => row.name === items[0]), allowed);
+});
+
+test('restore provenance and retained undo history gain no effigy metadata', () => {
+  const saved = fresh();
+  saved.provenance = { restore: { incomingProvenance: { fixture: true }, previousHistory: [], incomingHistory: [] } };
+  saved.members[0].taskRules = { 'Universal Tertiary': false };
+  const before = structuredClone(saved), loaded = validateState(saved);
+  assert.deepEqual(loaded, before);
+  assertPreserved(preservationReport(before), preservationReport(loaded));
+});
+
+test('task explanations describe the same lazy value as Settings and the calculator', async () => {
+  const { createRuleDescriber } = await import('../app/web/task-why.mjs');
+  for (const tertiary of [undefined, true, false, 'false', 0]) {
+    const saved = state(tertiary === undefined ? {} : { 'Universal Tertiary': tertiary });
+    const before = structuredClone(saved), describe = await createRuleDescriber(saved, 'a');
+    assert.equal(describe('Ancient Effigies').on, ![false, 'false', 0].includes(tertiary));
+    assert.equal(describe('Ancient Effigies').source, 'Automatic');
+    assert.deepEqual(saved, before);
   }
-  assert.deepEqual(store.getState().members[0].taskRules, { 'Ancient Effigies': false });
 });
 
-test('an archived full-member snapshot keeps the migrated choice when it is undone', () => {
-  const saved = old(); saved.members[0].taskRules = { 'Universal Tertiary': true };
-  const snapshot = structuredClone(saved.members[0]);
-  saved.revision = 1; saved.members[0].notes = { '1': 'Fixture note' };
-  const archivedEvent = { id: 'revision-1', revision: 1, type: 'set-note', at: '2026-10-31T00:00:00.000Z', undo: { members: [snapshot] } };
-  // The active state is migrated without its archived event, as the store does at load.
-  const active = validateState(saved);
-  assert.equal(active.provenance.ancientEffigiesMigration.a.revision, 1);
-  const hydrated = validateState({ ...active, history: [structuredClone(archivedEvent)] });
-  assert.equal(hydrated.history[0].undo.members[0].taskRules['Ancient Effigies'], true);
-  const undone = applyCommand(hydrated, { type: 'undo' });
-  assert.equal(undone.members[0].notes, undefined);
-  assert.equal(undone.members[0].taskRules['Ancient Effigies'], true);
-  // Snapshots recorded after migration are never rewritten.
-  const reset = applyCommand(undone, { type: 'reset-task-rule', memberId: 'a', ruleId: 'Ancient Effigies' });
-  assert.equal(validateState(reset).members[0].taskRules['Ancient Effigies'], undefined);
-});
-test('a restore starts new revision numbers, so incoming migration boundaries never rewrite later events', () => {
-  const saved = old();
-  saved.members.push({ ...structuredClone(saved.members[0]), id: 'b', name: 'Player b' });
-  saved.revision = 100;
-  const migrated = validateState(saved);
-  assert.equal(migrated.provenance.ancientEffigiesMigration.b.revision, 100);
-  // The store keeps the incoming provenance inside the restore record and numbers from the target store.
-  const restored = validateState({ ...migrated, revision: 1, history: [{ id: 'revision-1', revision: 1, type: 'restore', at: '2026-11-01T00:00:00.000Z' }],
-    provenance: { restore: { incomingRevision: 100, incomingHistory: [], previousHistory: [], incomingProvenance: migrated.provenance } } });
-  delete restored.members[1].taskRules;
-  const later = applyCommand(validateState(restored), { type: 'set-task-rule', memberId: 'b', ruleId: 'Universal Tertiary', value: false });
-  assert.deepEqual(later.history.at(-1).undo.memberChanges[0].changes.map(patch => patch.kind), ['object', 'value']);
-  roundTrips(later);
-  assert.equal(applyCommand(later, { type: 'undo' }).members[1].taskRules, undefined);
-  assert.equal(restored.provenance.ancientEffigiesMigration, undefined, 'no boundary in the new numbering');
-});
-
-test('a member id that names an Object prototype key keeps its own migration boundary', () => {
-  const saved = old(); saved.members[0].id = '__proto__'; saved.members[0].taskRules = { 'Universal Tertiary': false };
-  saved.revision = 3;
-  const migrated = validateState(saved);
-  assert.equal(Object.getPrototypeOf(migrated.provenance.ancientEffigiesMigration), Object.prototype);
-  assert.ok(Object.hasOwn(migrated.provenance.ancientEffigiesMigration, '__proto__'));
-  assert.deepEqual(migrated.provenance.ancientEffigiesMigration['__proto__'], { revision: 3, value: false, dropContainers: true });
-  roundTrips(migrated);
-});
-
-test('a stored null Ancient Effigies value records a boundary that still validates', () => {
-  const saved = old(); saved.members[0].taskRules = { 'Ancient Effigies': null };
-  const migrated = validateState(saved);
-  assert.equal(migrated.provenance.ancientEffigiesMigration.a.value, null);
-  roundTrips(migrated);
-  assert.throws(() => validateState({ ...migrated, provenance: { ...migrated.provenance, ancientEffigiesMigration: { a: { revision: 0, value: {} } } } }),
-    /Invalid Ancient effigies migration boundary/);
+test('the lazy default preserves unrelated imported rule keys and their previous Settings interpretation', () => {
+  const imported = { 'Show%20Nonskill%20Tasks': false, 'Universal%20Tertiary': false };
+  const before = structuredClone(imported), resolved = resolveTaskRules(imported);
+  assert.deepEqual(resolved, { ...imported, 'Ancient Effigies': false });
+  assert.deepEqual(imported, before);
+  const saved = fresh(); saved.members[0].sourceMapId = 'fixture-map';
+  saved.legacy = { maps: { 'fixture-map': { rules: imported } } };
+  assert.deepEqual(taskRuleValue(saved, 'a', { id: 'Show Nonskill Tasks' }), { value: false, source: 'Automatic', explicit: false });
+  assert.equal(taskRuleValue(saved, 'a', effigyDefinition).value, false);
 });

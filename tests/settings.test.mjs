@@ -42,7 +42,7 @@ test('settings and rule metadata keep the transcription checked against the reta
   assert.equal(metadata.taskRuleDefinitions.find(rule => rule.id === 'Future Slayer unlocks').default, false);
   assert.equal(metadata.taskRuleDefinitions.find(rule => rule.id === 'Kills before moving on from an unknown-rate drop').default, 3);
   assert.equal(metadata.taskRuleDefinitions.find(rule => rule.id === 'Early Travel Unlocks').default, false);
-  assert.equal(metadata.taskRuleDefinitions.find(rule => rule.id === 'Ancient Effigies').default, false);
+  assert.equal(metadata.taskRuleDefinitions.find(rule => rule.id === 'Ancient Effigies').default, true);
   assert.equal(metadata.originalWorkerInputNames.length, 53);
   assert.equal(metadata.taskRuleBehavior('Normal Farming').status, 'implemented-scope');
 });
