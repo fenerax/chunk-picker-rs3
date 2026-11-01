@@ -18,6 +18,8 @@ export const quickTests = new Set([
   "completion-truth-table.test.mjs",
   "collection-boundaries.test.mjs",
   "roll-boundaries.test.mjs",
+
+  "y03-fuzz-ci.test.mjs",
   "quest-requirements-corrections.test.mjs",
   "task-how.test.mjs",
   "task-how-server.test.mjs",
@@ -320,6 +322,8 @@ const fullOnlyPatterns = [
 const fullOnlyTests = new Set([
   "picker-properties.test.mjs",
   "setup-start-pool.test.mjs",
+
+  "y03-fuzz-ci-integration.test.mjs",
   "progress-providers.test.mjs",
   "plugin-reads-server.test.mjs",
   "roll-pool-worker.test.mjs",
@@ -493,6 +497,7 @@ const fullOnlyTests = new Set([
 // still peak at 550 MiB or more on duo-legacy. They run first, alone, so three files at
 // once stay bounded by the ordinary files (top 12 at three at once: 1.45 GiB).
 export const soloTests = new Set([
+  "y03-fuzz-ci-integration.test.mjs",
   "activity.test.mjs",
   "area-check-server.private.test.mjs",
   "art-pack-server.test.mjs",

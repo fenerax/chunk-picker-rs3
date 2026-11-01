@@ -69,6 +69,10 @@ jobs:
           retention-days: 14
           if-no-files-found: error
 
+  differential:
+    needs: test
+    uses: ./.github/workflows/differential.yml
+
   # The test files that skip Windows and PowerShell cases on Linux, run on
   # hosted Windows. The coverage job matches each Linux skip to its exact case.
   windows:
