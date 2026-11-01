@@ -9,7 +9,7 @@ import { setTimeout as delay } from 'node:timers/promises';
 import { createHash, randomBytes } from 'node:crypto';
 import { gzip, gunzip, constants } from 'node:zlib';
 import { promisify, isDeepStrictEqual } from 'node:util';
-import { applyValidatedCommand, BACKUP_FORMAT, SCHEMA_VERSION, createGroupState, importBackup, validateState, validateOwnedState, validateHistoryActor, getUndoEligibility, hasRetainedSparseUndo, cancelTaskClaimUndo } from '../core/state.mjs';
+import { applyValidatedCommand, BACKUP_FORMAT, SCHEMA_VERSION, createGroupState, importBackup, validateState, validateOwnedState, validateHistoryActor, getUndoEligibility, hasRetainedSparseUndo, cancelTaskClaimUndo, hasRandomStartChoices } from '../core/state.mjs';
 import { resolveSavedTaskId } from '../tasks/migration.mjs';
 import { evaluateRollPool, partnerConnections, createRollPoolCache } from '../core/rules.mjs';
 import { captureProgressSnapshot, buildProgressModel } from '../core/progress-timeline.mjs';
@@ -542,12 +542,19 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     refreshSnapshots();
     if (!calculationSnapshot) {
       const { provenance, history, taskClaims, progressSnapshots, finishLine, groupGoals, ruleReviews, ...input } = current;
-      input.history = [];
+      // Preview section effects change when a random-start offer is created or
+      // resolved. Keep its provenance and invalidate browser/ranking caches too.
+      const randomStarts = current.members.filter(member => hasRandomStartChoices(current, member)).map(member => [member.id, member.pendingRoll]);
+      input.history = randomStarts.length ? history : [];
       let state, stateJSON, taskInputKey, rollInputKey;
       const revision = current.revision, members = Object.freeze(current.members.map(member => Object.freeze({ id: member.id })));
       const inputKey = gameplayFingerprint();
       calculationSnapshot = { revision, members, inputKey,
-        get taskInputKey() { return taskInputKey ??= taskReuseFingerprint(input); },
+        get taskInputKey() {
+          return taskInputKey ??= randomStarts.length
+            ? createHash('sha256').update(JSON.stringify([taskReuseFingerprint(input), randomStarts])).digest('hex')
+            : taskReuseFingerprint(input);
+        },
         get rollInputKey() { return rollInputKey ??= rollPoolCache.input(input); },
         get state() { return state ??= structuredClone(input); },
         get stateJSON() {
