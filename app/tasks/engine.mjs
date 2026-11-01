@@ -4,7 +4,7 @@ import { datasetValue } from '../dataset-runtime.mjs';
 import { prepareTaskDefinitions } from '../dataset-pipeline.mjs';
 import { requireSelectedDataset } from '../dataset-runtime.mjs';
 import { importedXpAllocations, xpChoiceAllocation } from '../core/xp-choices.mjs';
-import { buildAccessIndex, calculateAccess, collectBaseItemSources, baseItemSourceView, walkingConnections, copyAccess } from './access.mjs';
+import { splitEffigyGate, buildAccessIndex, calculateAccess, collectBaseItemSources, baseItemSourceView, walkingConnections, copyAccess } from './access.mjs';
 import { decodeLegacyText, hasGameplayMigration, projectMemberTaskFacts } from './migration.mjs';
 import { playerControlSkills, resolvePlayerControls } from '../core/player-controls.mjs';
 import { progressBelongsToMember, observedSkills } from '../core/game-progress.mjs';
@@ -293,7 +293,8 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
   for (const [selector, requirements] of Object.entries(definitions.taskUnlocks?.Items ?? {})) {
     const [item, source] = selector.split('^');
     const list = outputGates.get(item) ?? [];
-    list.push({ source, requirements }); outputGates.set(item, list);
+    const split = item === 'Starved ancient effigy' ? splitEffigyGate(requirements) : { gate: requirements, effigies: false };
+    list.push({ source, requirements: split.gate, effigies: split.effigies }); outputGates.set(item, list);
   }
   const producers = new Map();
   const declaredOutputRoots = new Map();
@@ -1103,8 +1104,9 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
         publicationReads?.set(key, present);
         return present;
       }));
-      for (const { source, requirements } of outputGates.get(name) ?? []) {
-        if (source === undefined || source === task.rawLabel || source?.endsWith('-source') && task.rawLabel.toLowerCase().includes(source.slice(0, -7).toLowerCase()) || source === '' && kind === 'drop') {
+      for (const { source, requirements, effigies } of outputGates.get(name) ?? []) {
+        if (source === undefined || source === task.rawLabel || source?.endsWith('-source') && task.rawLabel.toLowerCase().includes(source.slice(0, -7).toLowerCase()) || source === '' && (kind === 'drop' || effigies && kind === 'task' && task.category === 'Slayer' && task.record.Source === 'drop')) {
+          if (effigies && !on(rules, 'Ancient Effigies', false)) return false;
           if (!satisfies(requirements)) return false;
         }
       }

@@ -1,6 +1,6 @@
 import { datasetJSON } from "../dataset-runtime.mjs";
 const capturedCatalogue = await datasetJSON("app/data/original-rules-ui.2026-10-08.v1.json");
-import { taskRuleDefinitions, taskRuleCutoffDefaults, independentTaskRuleControls } from '../data/settings.mjs';
+import { ANCIENT_EFFIGIES_RULE, taskRuleDefinitions, taskRuleCutoffDefaults, independentTaskRuleControls } from '../data/settings.mjs';
 import { hasGameplayMigration } from '../tasks/gameplay-compat.mjs';
 import { isKeptTaskRule } from './kept-rules.mjs';
 import { taskRuleDefault } from '../tasks/rule-defaults.mjs';
@@ -44,8 +44,22 @@ export function loadRulesCatalogue(raw) {
 
 export const rulesCatalogue = loadRulesCatalogue(capturedCatalogue);
 if (rulesCatalogue.explanationsFile && !/^app\/data\/[a-z0-9.-]+\.json$/.test(rulesCatalogue.explanationsFile)) throw new TypeError('Invalid rule explanations path.');
+const selectedRuleExplanations = rulesCatalogue.explanationsFile
+  ? loadRuleExplanations(await datasetJSON(rulesCatalogue.explanationsFile)) : {};
+const tertiaryExplanation = selectedRuleExplanations['Universal Tertiary'];
+// Carry forward the existing effigy revision credit. This split changes rule
+// behavior and introduces no new Wiki facts.
+const effigySources = tertiaryExplanation?.sources.filter(source => source.title === 'Starved ancient effigy') ?? [];
 export const ruleExplanations = Object.freeze({
-  ...(rulesCatalogue.explanationsFile ? loadRuleExplanations(await datasetJSON(rulesCatalogue.explanationsFile)) : {}),
+  ...selectedRuleExplanations,
+  ...(effigySources.length ? loadRuleExplanations({ schemaVersion: 1, entries: {
+    'Universal Tertiary': { ...tertiaryExplanation, sources: tertiaryExplanation.sources.filter(source => !effigySources.includes(source)) },
+    [ANCIENT_EFFIGIES_RULE]: {
+      what: 'Lets ancient effigy drops count towards chunk tasks. Other requirements still apply.',
+      example: 'Turn this off to exclude ancient effigy drops while keeping mimic tokens and spirit gems on.',
+      sources: effigySources,
+    },
+  } }) : {}),
   ...loadRuleExplanations({ schemaVersion: 1, entries: { [FUTURE_SLAYER_UNLOCKS_RULE]: futureSlayerUnlocksExplanation } }),
 });
 
@@ -56,7 +70,7 @@ export function buildRulesSections(catalogue, state, sharedDefinitions = []) {
     seen.add(row.key);
     const definition = definitions.get(row.key) ?? { id: row.key, label: row.label, type: 'boolean' };
     return { ...definition, label: row.key === 'Achievement' ? 'Show Achievement Tasks' : row.key === 'Rare Drop' ? 'Include drops rarer than my cutoff' : row.label ?? row.key,
-      description: row.key === 'Rare Drop' ? 'On includes all drop rates. Off applies Rare Drop Amount and Rare Drop Inclusive; unknown rates remain included.' : row.descriptionText ?? text(row.descriptionHtml), tooltips: (row.tooltips ?? []).map(tooltip => text(tooltip.descriptionHtml)), currentDescription: definition.description, original: true,
+      description: row.key === 'Universal Tertiary' ? definition.description : row.key === 'Rare Drop' ? 'On includes all drop rates. Off applies Rare Drop Amount and Rare Drop Inclusive; unknown rates remain included.' : row.descriptionText ?? text(row.descriptionHtml), tooltips: (row.tooltips ?? []).map(tooltip => text(tooltip.descriptionHtml)), currentDescription: definition.description, original: true,
       parent: row.parentKey ?? null, depth: row.depth ?? (row.parentKey ? 1 : 0), control: row.control,
       difficultyMarker: row.difficultyMarker,
       ...(row.key === 'F2P' ? { sharedRuleId: 'content.f2p', scope: 'shared' } : {}) };
@@ -72,6 +86,12 @@ export function buildRulesSections(catalogue, state, sharedDefinitions = []) {
       while (end < section.rules.length && section.rules[end].parent === definition.parent) end++;
       section.rules.splice(end, 0, { ...definition, depth: (section.rules[index].depth ?? 0) + 1, original: false }); seen.add(definition.id);
     }
+  }
+  const itemSources = sections.find(section => section.rules.some(rule => rule.id === 'Universal Tertiary'));
+  if (itemSources && definitions.has(ANCIENT_EFFIGIES_RULE)) {
+    const index = itemSources.rules.findIndex(rule => rule.id === 'Universal Tertiary');
+    itemSources.rules.splice(index + 1, 0, { ...definitions.get(ANCIENT_EFFIGIES_RULE), depth: 0, original: false });
+    seen.add(ANCIENT_EFFIGIES_RULE);
   }
   const extra = taskRuleDefinitions.filter(rule => !seen.has(rule.id)).map(rule => ({ ...rule, depth: 0, original: false }));
   for (const member of state.members ?? []) for (const [id, value] of Object.entries(member.taskRules ?? {})) {

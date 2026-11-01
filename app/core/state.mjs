@@ -12,8 +12,8 @@ import { applyChunkColourCommand, validateChunkColour, validateChunkColourName }
 import { validateSticker, validateStickerId, validateSavedStickers, normalizeStickerList, resolveMemberStickers, MAX_STICKERS_PER_CHUNK } from './map-markers.mjs';
 import { validateTransportFacts } from './transport-access.mjs';
 import { transportRouteById } from '../data/transport-routes.mjs';
-import { taskRuleValueError, taskRuleDiagnostics } from '../data/settings.mjs';
-import { decodeLegacyText, resolveSavedTaskId, migrateTaskIdentities } from '../tasks/migration.mjs';
+import { ANCIENT_EFFIGIES_RULE, taskRuleValueError, taskRuleDiagnostics } from '../data/settings.mjs';
+import { decodeLegacyText, hasGameplayMigration, resolveSavedTaskId, migrateTaskIdentities } from '../tasks/migration.mjs';
 import { isPermanentId, legacyTaskId, lookupPermanentId } from '../tasks/identity.mjs';
 import { normalizeMembersStartOptions, membersStartPools, rollMembersStarts } from './members-start.mjs';
 import { SETUP_START, setupStartPools } from './setup-guide.mjs';
@@ -633,7 +633,39 @@ export function createGroupState(members = [], registry) {
   return validateState({ schemaVersion: SCHEMA_VERSION, revision: 0, rules: {},
     members: members.map(member => ({ sourceMapId: null, unlocked: [], selected: [], pendingRoll: [],
       blacklisted: [], completedTasks: [], teleports: [], ...member })),
-    tasks: [], history: [] }, registry);
+    tasks: [], history: [], provenance: { ancientEffigiesMigratedMembers: members.map(member => member.id) } }, registry);
+}
+
+// Validation owns this copy. Remember each migrated owner so resetting the
+// new rule to Automatic never copies Universal Tertiary a second time.
+function migrateAncientEffigies(state) {
+  // Restore archives keep the incoming provenance even when storage replaces
+  // the outer provenance. A reset rule must stay Automatic after restore too.
+  let provenance = state.provenance;
+  while (provenance && !provenance.ancientEffigiesMigratedMembers && provenance.restore?.incomingProvenance)
+    provenance = provenance.restore.incomingProvenance;
+  const migrated = new Set(provenance?.ancientEffigiesMigratedMembers ?? []);
+  for (const member of state.members) {
+    if (migrated.has(member.id)) continue;
+    const imported = hasGameplayMigration(state, member) ? {} : Object.fromEntries(Object.entries(
+      state.legacy?.maps?.[member.sourceMapId]?.rules ?? {}).map(([id, value]) => [decodeLegacyText(id), value]));
+    const rules = { ...imported, ...state.taskRules, ...member.taskRules };
+    if (!Object.hasOwn(rules, ANCIENT_EFFIGIES_RULE)) {
+      // Unknown category tags historically defaulted on, including this one.
+      const oldValue = rules['Universal Tertiary'] === undefined || ![false, 'false', 0].includes(rules['Universal Tertiary']);
+      member.taskRules = { ...member.taskRules, [ANCIENT_EFFIGIES_RULE]: oldValue };
+    }
+    // Old full-member undo snapshots predate the new switch. Keep the value
+    // chosen at migration when undoing an older, unrelated command.
+    const effigies = member.taskRules?.[ANCIENT_EFFIGIES_RULE] ?? rules[ANCIENT_EFFIGIES_RULE];
+    for (const event of state.history) for (const snapshot of event.undo?.members ?? []) {
+      if (snapshot.id === member.id && !Object.hasOwn(snapshot.taskRules ?? {}, ANCIENT_EFFIGIES_RULE))
+        snapshot.taskRules = { ...snapshot.taskRules, [ANCIENT_EFFIGIES_RULE]: effigies };
+    }
+    migrated.add(member.id);
+  }
+  state.provenance = { ...state.provenance, ancientEffigiesMigratedMembers: [...migrated] };
+  return state;
 }
 
 export function validateState(state, registry) {
@@ -916,7 +948,7 @@ function validateStateCopy(copy, registry) {
       }
     }
   }
-  return copy;
+  return migrateAncientEffigies(copy);
 }
 
 export function exportBackup(state, registry) {
@@ -1325,7 +1357,7 @@ function prepareUndo(state, undoRevision, registry) {
     const task = rows.get(id) ?? claimTaskRow(state, id); if (!task) fail(`Undo task claim references absent task: ${id}`); referenced.set(id, task);
   }
   validateOwnedState({ schemaVersion: state.schemaVersion, revision: state.revision, rules: restored.rules,
-    members: restored.members, tasks: [...referenced.values()], history: [], ...(restored.taskClaims !== undefined ? { taskClaims: restored.taskClaims } : {}) }, registry);
+    provenance: { ancientEffigiesMigratedMembers: state.members.map(member => member.id) }, members: restored.members, tasks: [...referenced.values()], history: [], ...(restored.taskClaims !== undefined ? { taskClaims: restored.taskClaims } : {}) }, registry);
   if (restored.finishLine !== undefined) validateFinishLine(restored.finishLine, new Set(state.members.map(member => member.id)));
   if (restored.groupGoals !== undefined) validateGroupGoals(restored.groupGoals, new Set(state.members.map(member => member.id)));
   return { target, restored, skippedClaimIds };
@@ -1385,7 +1417,7 @@ function validateCommandGameplay(state, baseline, registry) {
     if (!task) fail(`Command task claim references absent task: ${id}`); referenced.set(id, task);
   }
   const checked = validateOwnedState({ schemaVersion: state.schemaVersion, revision: state.revision, rules: state.rules,
-    members: state.members, tasks: [...referenced.values()], history: [], ...(state.taskClaims !== undefined ? { taskClaims: state.taskClaims } : {}) }, registry);
+    provenance: { ancientEffigiesMigratedMembers: state.members.map(member => member.id) }, members: state.members, tasks: [...referenced.values()], history: [], ...(state.taskClaims !== undefined ? { taskClaims: state.taskClaims } : {}) }, registry);
   const diagnostics = [...(checked.provenance?.taskRuleDiagnostics ?? []),
     ...(baseline.provenance?.taskRuleDiagnostics ?? []).filter(item => item.sourceMapId !== undefined)];
   if (JSON.stringify(diagnostics) !== JSON.stringify(baseline.provenance?.taskRuleDiagnostics ?? [])) {

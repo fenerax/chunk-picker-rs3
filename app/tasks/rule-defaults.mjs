@@ -33,7 +33,7 @@ export const taskRuleBooleanDefaults = Object.freeze({
   'All Shops': false, 'Every Drop': false, 'All Droptables': false,
   'Every Drop Thieving': false, 'Every Drop Implings': false, 'Every Drop BGH': false,
   'All Droptables Nest': false, RDT: false,
-  'House storage tasks': false,
+  'House storage tasks': false, 'Ancient Effigies': false,
   'Rare Drop Inclusive': false, 'Secondary Primary Inclusive': true,
 });
 

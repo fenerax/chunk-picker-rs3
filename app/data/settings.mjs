@@ -38,9 +38,19 @@ const settingLabels = datasetValue("app/data/settings.mjs#settingLabels");
 export const settingDefinitions = datasetRuleDefinitions("app/data/settings.mjs#settingDefinitions");
 export const taskHowPreference = Object.freeze({ id: 'showTaskHow', label: 'Show How?', type: 'boolean', default: true });
 export const authoredSettingDefinitions = Object.freeze([...datasetRuleDefinitions("app/data/settings.mjs#authoredSettingDefinitions"), taskHowPreference]);
+export const ANCIENT_EFFIGIES_RULE = 'Ancient Effigies';
+export const universalTertiaryDescription = 'Allow universal tertiary drops (mimic tokens and spirit gems) to count towards chunk tasks';
+export const ancientEffigiesRule = Object.freeze({ id: ANCIENT_EFFIGIES_RULE, label: ANCIENT_EFFIGIES_RULE,
+  description: 'Allow ancient effigies from universal tertiary drops to count towards chunk tasks',
+  type: 'boolean', default: false, category: 'Item Sources', parent: null });
+
 const rulePositions = positions(originalRuleStructure);
 const authoredTaskRules = datasetRuleRecords("app/data/settings.mjs#authoredTaskRules");
-export const taskRuleDefinitions = Object.freeze([...datasetRuleDefinitions("app/data/settings.mjs#taskRuleDefinitions"), futureSlayerUnlocksRule]);
+export const taskRuleDefinitions = Object.freeze([
+ ...datasetRuleDefinitions("app/data/settings.mjs#taskRuleDefinitions").map(rule => rule.id === 'Universal Tertiary'
+  ? Object.freeze({ ...rule, description: universalTertiaryDescription }) : rule),
+ ancientEffigiesRule, futureSlayerUnlocksRule,
+]);
 // Cutoff inputs are configuration even while their switch is off. KeyItem
 // Bosses deliberately sits outside Rare Drop's polarity (and is currently inert).
 export const independentTaskRuleControls = new Set([
@@ -109,6 +119,7 @@ const retainedRuleBehavior = datasetValue("app/data/settings.mjs#retainedRuleBeh
  * Never use original defaults as effective imported values: absence is inheritance.
  */
 export function taskRuleBehavior(id) {
+ if (id === ancientEffigiesRule.id) return { status: 'implemented-scope', detail: 'Controls ancient effigy sources with the universal tertiary prerequisite. Other source requirements still apply.' };
  if (id === FUTURE_SLAYER_UNLOCKS_RULE) return { status: 'implemented-scope', detail: 'Includes eight Slayer Rewards before their monster, area or item is available.' };
  if (id === 'PvM Relics') return { status: 'no-effect-dataset', detail: 'No effect with the current dataset: no combat-relic goals are declared. Which combat relics should count has not been defined.' };
  if (id === 'All Droptables Nest') return { status: 'no-effect-dataset', detail: 'No effect with the current dataset: it has no matching nest-loot task. Custom inputs need both a matching loot task and an obtainable nest supply route.' };
