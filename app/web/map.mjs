@@ -473,9 +473,11 @@ export class ChunkMap {
     this.visibleTaskCounts = new Map([...(this.taskCounts ?? [])].filter(([id]) => this.unlocked.has(id)));
     this.poolIds = new Set((pool?.eligible ?? (Array.isArray(pool) ? pool : [])).map(entry => typeof entry === 'string' ? entry : entry.id));
     this.lodestoneOptions = new Set((pool?.eligible ?? []).filter(entry => entry.reasons?.some(reason => reason.travelKind === 'lodestone')).map(entry => entry.id));
-    // Hand-picked selections keep their order; automatic options follow by ID.
-    const extraCandidates = [...this.poolIds].filter(id => !this.active.selectedRanks.has(id) && !this.active.unlockedSet.has(id) && !this.active.pendingSet.has(id)).sort((a, b) => Number(a) - Number(b));
-    this.candidateRanks = new Map([...this.active.selectedRanks, ...extraCandidates.map((id, index) => [id, this.active.selected.length + index + 1])]);
+    // Only the response pool supplies roll numbers. Eligible hand selections keep
+    // their relative order; automatic options follow by ID, in either map view.
+    const handCandidates = this.active.selected.filter(id => this.poolIds.has(id));
+    const extraCandidates = [...this.poolIds].filter(id => !this.active.selectedRanks.has(id)).sort((a, b) => Number(a) - Number(b));
+    this.candidateRanks = new Map([...handCandidates, ...extraCandidates].map((id, index) => [id, index + 1]));
     // Model-dependent ownership and reveal geometry are shared by every pan frame.
     this.cellStates = new Map();
     const colourStyles = chunkColourStyles(preferences);
@@ -484,7 +486,7 @@ export class ChunkMap {
       const owners = this.visibleMembers.filter(owner => owner.unlockedSet.has(id));
       const selected = this.visibleMembers.filter(owner => owner.selectedRanks.has(id));
       const pending = this.visibleMembers.some(owner => owner.pendingSet.has(id));
-      const candidate = !owners.length && !pending && this.candidateRanks.has(id);
+      const candidate = this.candidateRanks.has(id);
       const colourPaint = chunkColourPaint(this.visibleMembers, id, colourStyles);
       this.cellStates.set(id, { owners, selected, pending, candidate, colourPaint });
       if (owners.length || selected.length || pending || candidate) this.revealPath?.rect(point.x * CELL, point.y * CELL, CELL, CELL);
@@ -787,10 +789,19 @@ export class ChunkMap {
     const owners = this.visibleMembers.filter(owner => owner.unlockedSet.has(id)).map(owner => owner.name);
     const selected = this.visibleMembers.filter(owner => owner.selectedRanks.has(id));
     const pending = this.visibleMembers.filter(owner => owner.pendingSet.has(id));
-    const status = pending.length ? `Roll choice: ${pending.map(owner => owner.name).join(', ')}`
-      : selected.length ? selected.map(owner => `In roll pool (added by hand) ${owner.selectedRanks.get(id)}: ${owner.name}`).join(', ')
-      : owners.length ? `Unlocked: ${owners.join(', ')}` : this.active.blacklisted?.includes(id) ? 'Never roll' : this.candidateRanks?.has(id)
-        ? `${this.lodestoneOptions?.has(id) ? 'Lodestone roll option' : 'Automatic roll option'} ${this.candidateRanks.get(id)}` : 'Locked';
+    const rank = this.candidateRanks?.get(id);
+    const rollStatus = rank
+      ? `${this.active.selectedRanks.has(id) && this.model.state.rules?.['roll.selected'] !== false ? 'Hand-added roll option' : this.lodestoneOptions?.has(id) ? 'Lodestone roll option' : 'Automatic roll option'} ${rank} for ${this.active.name}`
+      : this.active.pendingSet.has(id) ? `Offered in ${this.active.name}’s pending roll.`
+      : this.active.unlockedSet.has(id) ? null : `Outside ${this.active.name}’s current roll pool.`;
+    const status = [rollStatus,
+      ...(pending.length ? [`Roll choice: ${pending.map(owner => owner.name).join(', ')}`] : []),
+      ...(owners.length ? [`Unlocked: ${owners.join(', ')}`] : []),
+      ...selected.map(owner => `Saved hand selection ${owner.selectedRanks.get(id)}: ${owner.name}`),
+      ...(this.model.state.rules?.['roll.selected'] === false
+        ? selected.map(owner => `Hand selections are disabled for ${owner.name}.`) : []),
+      ...(this.active.blacklisted?.includes(id) ? ['Never roll'] : []),
+    ].filter(Boolean).join('\n') || 'Locked';
     const annotations = this.visibleMembers.flatMap(owner => {
       return [...(owner.startingChunk === id ? [`${owner.name}: Starting marker`] : []),
         ...(owner.stickers[id] ?? []).map(marker => `${owner.name}: ${stickerLabel(marker.type)}${marker.text ? ` · ${marker.text}` : ''}`)];
@@ -1016,13 +1027,12 @@ export class ChunkMap {
     for (const { id, x, y, owners, selected, pending } of cells) {
       if (this.sandboxUnlocks?.has(id) || this.sandboxLocks?.has(id)) drawSandboxMarker(context, x, y, size, this.sandboxLocks.has(id));
       let color = null;
-      let rank = owners.length || pending ? this.active.selectedRanks.get(id) : this.candidateRanks.get(id);
-      const automaticOption = !selected.length && rank && !owners.length && !pending;
+      const rank = this.candidateRanks?.get(id);
+      const automaticOption = rank && (!this.active.selectedRanks.has(id) || this.model.state?.rules?.['roll.selected'] === false);
       if (selected.length) {
         context.fillStyle = highvis ? 'rgba(100,255,100,.22)' : 'rgba(100,255,100,.42)';
         context.fillRect(x, y, size, size);
         color = '#5fe35a';
-        rank ??= selected[0]?.selectedRanks.get(id);
       }
       if (automaticOption) {
         context.fillStyle = highvis ? 'rgba(110,190,255,.12)' : 'rgba(110,190,255,.18)';
@@ -1045,8 +1055,7 @@ export class ChunkMap {
     this.activityLayerRenderer?.draw(context, this, { ...this.activityLayerPreferences, theme: this.model.preferences.theme });
     // Inset activity outlines stay below every label and personal marker.
     for (const { id, x, y, owners, selected, pending } of cells) {
-      const rank = (owners.length || pending ? this.active.selectedRanks.get(id) : this.candidateRanks.get(id))
-        ?? selected[0]?.selectedRanks.get(id);
+      const rank = this.candidateRanks?.get(id);
       // Group view marks only chunks that not every visible member owns.
       if (!this.pins && owners.length && owners.length < this.visibleMembers.length && size >= 12) this.drawOwnerTabs(context, owners, x, y, size, id);
       const idLayout = showIds && size >= 35 ? chunkIdLayout(this.visibleMembers, id, size,

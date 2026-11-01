@@ -100,8 +100,9 @@ export function createScreenMap(c) {
     c.$('map-legend').replaceChildren(
       ...(visible.some(owner => owner.unlocked?.length) ? [item('Unlocked', 'border', c.preferences().unlockedBorderColor || '#FF0000')] : []), ...owners,
       ...(disconnected ? [item('Disconnected partner', 'disconnected')] : []),
-      ...(visible.some(owner => owner.selected?.length) ? [item('In roll pool (added by hand)', 'selected')] : []),
-      ...(c.pool?.eligible?.some(row => !visible.some(owner => owner.selected?.includes(row.id))) ? [item('Automatic roll option (numbered)', 'pool')] : []),
+      ...(c.pool?.eligible?.length ? [item(`${c.member().name}’s roll options (numbered)`, 'pool')] : []),
+      ...visible.filter(owner => owner.selected?.length).map(owner => item(`${owner.name}’s saved hand selections`, 'selected')),
+      c.el('span', `Numbers show ${c.member().name}’s current roll options. Saved selections and partner overlays do not imply eligibility.`, 'status-detail'),
       ...(visible.some(owner => owner.pendingRoll?.length) ? [item('Roll choices', 'pending')] : []),
       item('Chunk info open', 'open'),
       chunkColourLegend(c, visible),
