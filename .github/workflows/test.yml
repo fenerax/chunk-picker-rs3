@@ -87,7 +87,7 @@ jobs:
         with:
           path: .local/gh-coverage/wiki-open-f2p
           key: wiki-open-f2p-${{ hashFiles('app/datasets/open-f2p/authored/batch.json') }}
-      - run: npm run test:quick
+      # The full suite already runs every quick file, so one run is enough.
       - run: npm test
         env:
           RS3_COVERAGE_REPORT: ${{ runner.temp }}/test.json

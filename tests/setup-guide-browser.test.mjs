@@ -14,6 +14,12 @@ const { createGroupState } = await import('../app/core/state.mjs');
 
 for (const count of [1, 2]) for (const mode of ['keyboard', 'pointer']) {
   test(`setup step focus and close lifecycle: ${count} member(s), ${mode}`, { timeout: 60000 }, async t => {
+    // The adaptive runner transports errors over IPC, which can lose an
+    // AssertionError's non-enumerable message. Diagnostics survive that hop.
+    const equal = (actual, expected, message) => {
+      if (actual !== expected) t.diagnostic(`Assertion failed: ${message}`);
+      assert.equal(actual, expected, message);
+    };
     const scratch = await mkdtemp(path.join(tmpdir(), 'picker-setup-focus-'));
     let server, browser;
     t.after(async () => { await browser?.close(); await server?.close(); await rm(scratch, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }); });
@@ -25,16 +31,24 @@ for (const count of [1, 2]) for (const mode of ['keyboard', 'pointer']) {
       extraArgs: process.platform === 'linux' ? ['--no-sandbox', '--disable-dev-shm-usage'] : [],
     });
     const evaluate = browser.evaluate;
+    const afterCloseEvent = async action => {
+      // close() clears `open` synchronously, but the native close event (and
+      // the application's opener restoration) can arrive after another frame.
+      // Observe the event before input, including Settings -> Setup reopening.
+      await evaluate(`void (window.setupCloseEvent = new Promise(resolve => document.getElementById('tool-dialog').addEventListener('close', () => resolve(true), { once: true })))`);
+      await action();
+      await evaluate(`window.setupCloseEvent`);
+    };
     const button = label => `Array.from(document.querySelectorAll('#tool-dialog button')).find(node => node.textContent === ${JSON.stringify(label)})`;
     const key = async (key, code, windowsVirtualKeyCode) => {
       await browser.send('Input.dispatchKeyEvent', { type: 'keyDown', key, code, windowsVirtualKeyCode, ...(key === 'Enter' ? { text: '\r' } : {}) });
       await browser.send('Input.dispatchKeyEvent', { type: 'keyUp', key, code, windowsVirtualKeyCode });
     };
     const activate = async expression => {
-      assert.equal(await evaluate(`!!(${expression})`), true, 'activation target exists');
+      equal(await evaluate(`!!(${expression})`), true, `activation target exists: ${expression}`);
       if (mode === 'keyboard') {
         for (let i = 0; i < 100 && !await evaluate(`document.activeElement === (${expression})`); i++) await key('Tab', 'Tab', 9);
-        assert.equal(await evaluate(`document.activeElement === (${expression})`), true, 'target reachable by Tab');
+        equal(await evaluate(`document.activeElement === (${expression})`), true, `target reachable by Tab: ${expression}`);
         await key('Enter', 'Enter', 13);
       } else {
         const point = await evaluate(`(() => { const node = ${expression}; node.scrollIntoView({block:'center'}); const r = node.getBoundingClientRect(); return { x:r.x+r.width/2, y:r.y+r.height/2 }; })()`);
@@ -47,20 +61,18 @@ for (const count of [1, 2]) for (const mode of ['keyboard', 'pointer']) {
     await browser.send('Page.navigate', { url: server.inviteUrl });
     await step('roll');
     await browser.send('Page.bringToFront');
-    assert.equal(await inside(), true, 'initial native open focuses inside');
-    await activate(button('Skip setup'));
+    equal(await inside(), true, 'initial native open focuses inside');
+    await afterCloseEvent(() => activate(button('Skip setup')));
     await until(() => evaluate(`!document.getElementById('tool-dialog').open`));
-    await sleep(50);
-    assert.equal(await evaluate(`document.activeElement.id`), 'map-hover', 'automatic open returns to a meaningful map target');
+    equal(await evaluate(`document.activeElement.id`), 'map-hover', 'automatic open returns to a meaningful map target');
 
     const reopen = async () => {
       await activate(`document.querySelector('#more-tools > summary')`);
       await activate(`document.getElementById('settings-open')`);
       await until(() => evaluate(`!!(${button('Setup guide…')})`));
-      await activate(button('Setup guide…'));
+      await afterCloseEvent(() => activate(button('Setup guide…')));
       await step('roll');
-      await sleep(50); // Also allow the Settings close event queued before reopening.
-      assert.equal(await inside(), true, 'reopening focuses inside');
+      equal(await inside(), true, 'reopening focuses inside');
     };
     await reopen();
     await evaluate(`window.originalSetupDialog = document.getElementById('tool-dialog')`);
@@ -75,34 +87,30 @@ for (const count of [1, 2]) for (const mode of ['keyboard', 'pointer']) {
       await sleep(300);
       delays.push(performance.now() - started);
       observations.push(await inside() && await evaluate(`document.activeElement === document.querySelector('.setup-guide-body > h3')`));
-      assert.equal(await evaluate(`window.originalSetupDialog === document.getElementById('tool-dialog') && !window.oldSetupRoot.isConnected`), true, 'same modal, old step removed');
+      equal(await evaluate(`window.originalSetupDialog === document.getElementById('tool-dialog') && !window.oldSetupRoot.isConnected`), true, `same modal, old step removed: ${label} -> ${expected}`);
     }
-    await activate(button('Finish'));
+    await afterCloseEvent(() => activate(button('Finish')));
     await until(() => evaluate(`!document.getElementById('tool-dialog').open`));
-    await sleep(50);
-    assert.equal(await evaluate(`document.activeElement === document.querySelector('#more-tools > summary')`), true, 'Finish preserves the external opener');
+    equal(await evaluate(`document.activeElement === document.querySelector('#more-tools > summary')`), true, 'Finish preserves the external opener');
     await reopen();
     await activate(button('Next')); await step('theme');
-    await key('Escape', 'Escape', 27);
+    await afterCloseEvent(() => key('Escape', 'Escape', 27));
     await until(() => evaluate(`!document.getElementById('tool-dialog').open`));
-    await sleep(50);
-    assert.equal(await evaluate(`document.activeElement === document.querySelector('#more-tools > summary')`), true, 'Escape preserves the external opener');
+    equal(await evaluate(`document.activeElement === document.querySelector('#more-tools > summary')`), true, 'Escape preserves the external opener');
     await reopen();
-    await activate(button('Skip setup'));
+    await afterCloseEvent(() => activate(button('Skip setup')));
     await until(() => evaluate(`!document.getElementById('tool-dialog').open`));
-    await sleep(50);
-    assert.equal(await evaluate(`document.activeElement === document.querySelector('#more-tools > summary')`), true, 'Skip preserves the external opener');
+    equal(await evaluate(`document.activeElement === document.querySelector('#more-tools > summary')`), true, 'Skip preserves the external opener');
     await reopen();
-    await activate(`document.querySelector('#tool-dialog .close-button')`);
+    await afterCloseEvent(() => activate(`document.querySelector('#tool-dialog .close-button')`));
     await until(() => evaluate(`!document.getElementById('tool-dialog').open`));
-    await sleep(50);
-    assert.equal(await evaluate(`document.activeElement === document.querySelector('#more-tools > summary')`), true, 'Close preserves the external opener');
+    equal(await evaluate(`document.activeElement === document.querySelector('#more-tools > summary')`), true, 'Close preserves the external opener');
     const state = await evaluate(`fetch('/api/state').then(r => r.json()).then(value => value.state)`);
-    assert.equal(state.members.length, count);
-    assert.equal(state.members[0].preferences.setupGuide, 'finished', 'reopened skip and Escape preserve the earlier finish');
-    assert.equal(state.history.filter(row => row.type === 'set-preference').length, 2, 'navigation sends no gameplay commands');
+    equal(state.members.length, count, 'setup preserves the member count');
+    equal(state.members[0].preferences.setupGuide, 'finished', 'reopened skip and Escape preserve the earlier finish');
+    equal(state.history.filter(row => row.type === 'set-preference').length, 2, 'navigation sends no gameplay commands');
     const sorted = delays.toSorted((a, b) => a - b);
     t.diagnostic(`Delayed focus: ${observations.filter(Boolean).length}/${observations.length}; observation ms median=${sorted[3].toFixed(1)}, range=${sorted[0].toFixed(1)}–${sorted.at(-1).toFixed(1)}`);
-    assert.ok(observations.every(Boolean), 'Next and Back keep visible focus inside the current native modal without further input');
+    equal(observations.every(Boolean), true, 'Next and Back keep visible focus inside the current native modal without further input');
   });
 }
