@@ -78,7 +78,7 @@ export function createScreenMap(c) {
     const count = (value, label) => { const node = c.el('span', undefined, 'map-count'); node.append(c.el('strong', value.toLocaleString()), ` ${label}`); return node; };
     c.$('map-counts').replaceChildren(count(owner.unlocked.length, `${owner.name} unlocked`), count(new Set(projected.members.flatMap(item => item.unlocked)).size, 'group'), count(c.pool.eligible.length, 'can be rolled'));
     c.copyLists?.map(owner, c.pool);
-    c.$('empty-map').hidden = owner.unlocked.length > 0;
+    c.$('empty-map').hidden = owner.unlocked.length > 0 || owner.pendingRoll.length > 0;
     c.renderLegend();
   }
 
