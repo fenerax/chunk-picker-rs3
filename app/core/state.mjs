@@ -678,13 +678,15 @@ function repairPreMigrationHistory(history, memberId, { revision, value, dropCon
 
 function validEffigiesBoundary(boundary) {
   return boundary && typeof boundary === 'object' && Number.isSafeInteger(boundary.revision) && boundary.revision >= 0
-    && ['boolean', 'string', 'number'].includes(typeof boundary.value) && (boundary.dropContainers === undefined || boundary.dropContainers === true);
+    && (boundary.value === null || ['boolean', 'string', 'number'].includes(typeof boundary.value)) && (boundary.dropContainers === undefined || boundary.dropContainers === true);
 }
 
 // Before the sparse undo chain is checked: an archived event from before the
 // migration may still create the taskRules container the migration now fills.
+// Only the outer provenance shares this history's revision numbers. A
+// restore starts a new numbering, so archived incoming boundaries never apply.
 function repairArchivedEffigiesHistory(state) {
-  const boundaries = effigiesProvenance(state)?.ancientEffigiesMigration;
+  const boundaries = state.provenance?.ancientEffigiesMigration;
   if (boundaries === undefined) return;
   record(boundaries, 'provenance.ancientEffigiesMigration');
   for (const [memberId, boundary] of Object.entries(boundaries)) {
@@ -698,7 +700,8 @@ function repairArchivedEffigiesHistory(state) {
 function migrateAncientEffigies(state) {
   const provenance = effigiesProvenance(state);
   const migrated = new Set(provenance?.ancientEffigiesMigratedMembers ?? []);
-  const boundaries = { ...provenance?.ancientEffigiesMigration };
+  // A Map keeps member ids such as __proto__ as ordinary keys.
+  const boundaries = new Map(Object.entries(state.provenance?.ancientEffigiesMigration ?? {}));
   for (const member of state.members) {
     if (migrated.has(member.id)) continue;
     const imported = hasGameplayMigration(state, member) ? {} : Object.fromEntries(Object.entries(
@@ -718,11 +721,11 @@ function migrateAncientEffigies(state) {
       if (snapshot.id === member.id && !Object.hasOwn(snapshot.taskRules ?? {}, ANCIENT_EFFIGIES_RULE))
         snapshot.taskRules = { ...snapshot.taskRules, [ANCIENT_EFFIGIES_RULE]: effigies };
     }
-    if (Number.isSafeInteger(state.revision)) boundaries[member.id] = boundary;
+    if (Number.isSafeInteger(state.revision)) boundaries.set(member.id, boundary);
     migrated.add(member.id);
   }
   state.provenance = { ...state.provenance, ancientEffigiesMigratedMembers: [...migrated],
-    ...(Object.keys(boundaries).length ? { ancientEffigiesMigration: boundaries } : {}) };
+    ...(boundaries.size ? { ancientEffigiesMigration: Object.fromEntries(boundaries) } : {}) };
   return state;
 }
 

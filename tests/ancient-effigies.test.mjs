@@ -264,3 +264,38 @@ test('an archived full-member snapshot keeps the migrated choice when it is undo
   const reset = applyCommand(undone, { type: 'reset-task-rule', memberId: 'a', ruleId: 'Ancient Effigies' });
   assert.equal(validateState(reset).members[0].taskRules['Ancient Effigies'], undefined);
 });
+test('a restore starts new revision numbers, so incoming migration boundaries never rewrite later events', () => {
+  const saved = old();
+  saved.members.push({ ...structuredClone(saved.members[0]), id: 'b', name: 'Player b' });
+  saved.revision = 100;
+  const migrated = validateState(saved);
+  assert.equal(migrated.provenance.ancientEffigiesMigration.b.revision, 100);
+  // The store keeps the incoming provenance inside the restore record and numbers from the target store.
+  const restored = validateState({ ...migrated, revision: 1, history: [{ id: 'revision-1', revision: 1, type: 'restore', at: '2026-11-01T00:00:00.000Z' }],
+    provenance: { restore: { incomingRevision: 100, incomingHistory: [], previousHistory: [], incomingProvenance: migrated.provenance } } });
+  delete restored.members[1].taskRules;
+  const later = applyCommand(validateState(restored), { type: 'set-task-rule', memberId: 'b', ruleId: 'Universal Tertiary', value: false });
+  assert.deepEqual(later.history.at(-1).undo.memberChanges[0].changes.map(patch => patch.kind), ['object', 'value']);
+  roundTrips(later);
+  assert.equal(applyCommand(later, { type: 'undo' }).members[1].taskRules, undefined);
+  assert.equal(restored.provenance.ancientEffigiesMigration, undefined, 'no boundary in the new numbering');
+});
+
+test('a member id that names an Object prototype key keeps its own migration boundary', () => {
+  const saved = old(); saved.members[0].id = '__proto__'; saved.members[0].taskRules = { 'Universal Tertiary': false };
+  saved.revision = 3;
+  const migrated = validateState(saved);
+  assert.equal(Object.getPrototypeOf(migrated.provenance.ancientEffigiesMigration), Object.prototype);
+  assert.ok(Object.hasOwn(migrated.provenance.ancientEffigiesMigration, '__proto__'));
+  assert.deepEqual(migrated.provenance.ancientEffigiesMigration['__proto__'], { revision: 3, value: false, dropContainers: true });
+  roundTrips(migrated);
+});
+
+test('a stored null Ancient Effigies value records a boundary that still validates', () => {
+  const saved = old(); saved.members[0].taskRules = { 'Ancient Effigies': null };
+  const migrated = validateState(saved);
+  assert.equal(migrated.provenance.ancientEffigiesMigration.a.value, null);
+  roundTrips(migrated);
+  assert.throws(() => validateState({ ...migrated, provenance: { ...migrated.provenance, ancientEffigiesMigration: { a: { revision: 0, value: {} } } } }),
+    /Invalid Ancient effigies migration boundary/);
+});
