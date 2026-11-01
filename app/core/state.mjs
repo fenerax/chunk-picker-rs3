@@ -636,6 +636,23 @@ export function createGroupState(members = [], registry) {
     tasks: [], history: [], provenance: { ancientEffigiesMigratedMembers: members.map(member => member.id) } }, registry);
 }
 
+// The migrated switch now exists at every older revision too, so a sparse
+// patch that created or removed this owner's taskRules dictionary describes no
+// change. Drop it; leaf patches already restore beneath a present dictionary.
+// Undone events and undo events are never replayed, so they stay as recorded.
+function dropTaskRuleContainerPatches(history, memberId) {
+  for (const event of history) {
+    const undo = event.undo;
+    if (!undo?.memberChanges || event.undoneRevision !== undefined || event.type === 'undo') continue;
+    undo.memberChanges = undo.memberChanges.map(change => change.id !== memberId ? change : { ...change,
+      changes: change.changes.filter(patch => !(patch.kind === 'object' && patch.path.length === 1 && patch.path[0] === 'taskRules')) })
+      .filter(change => change.changes.length);
+    if (!undo.memberChanges.length) delete undo.memberChanges;
+    // Creating an empty dictionary was this event's only personal change: undoing it now changes nothing.
+    if (!Object.keys(undo).length) delete event.undo;
+  }
+}
+
 // Validation owns this copy. Remember each migrated owner so resetting the
 // new rule to Automatic never copies Universal Tertiary a second time.
 function migrateAncientEffigies(state) {
@@ -654,6 +671,7 @@ function migrateAncientEffigies(state) {
       // Unknown category tags historically defaulted on, including this one.
       const oldValue = rules['Universal Tertiary'] === undefined || ![false, 'false', 0].includes(rules['Universal Tertiary']);
       member.taskRules = { ...member.taskRules, [ANCIENT_EFFIGIES_RULE]: oldValue };
+      dropTaskRuleContainerPatches(state.history, member.id);
     }
     // Old full-member undo snapshots predate the new switch. Keep the value
     // chosen at migration when undoing an older, unrelated command.

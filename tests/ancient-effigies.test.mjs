@@ -4,7 +4,11 @@ import { createCollectionEngine } from '../app/tasks/collection.mjs';
 import referenceCorrections from '../app/data/reference-corrections.2026-10-31.v1.mjs';
 import { applyDefinitionOverlays } from '../app/data/definition-overlays.mjs';
 import { createTaskEngine } from '../app/tasks/engine.mjs';
+import { mkdtemp, rm } from 'node:fs/promises';
+import path from 'node:path';
+import os from 'node:os';
 import { createGroupState, validateState, applyCommand, exportBackup, importBackup } from '../app/core/state.mjs';
+import { openStore } from '../app/storage/store.mjs';
 import { taskRuleDefault } from '../app/tasks/rule-defaults.mjs';
 import { taskRuleDefinitions, taskRuleBehavior } from '../app/data/settings.mjs';
 import { buildRulesSections, rulesCatalogue } from '../app/web/rules-model.mjs';
@@ -112,6 +116,48 @@ test('undoing an older full-member snapshot keeps the migrated effigy choice', (
   assert.equal(undone.members[0].notes, undefined);
   assert.equal(undone.members[0].taskRules['Ancient Effigies'], true);
   assert.equal(saved.history[0].undo.members[0].taskRules['Ancient Effigies'], undefined);
+});
+
+const roundTrips = state => {
+  assert.deepEqual(validateState(state), state);
+  assert.deepEqual(importBackup(exportBackup(state)), state);
+};
+
+test('older sparse undo that created taskRules still validates, undoes and exports after migration', () => {
+  let saved = applyCommand(fresh(), { type: 'set-task-rule', memberId: 'a', ruleId: 'Universal Tertiary', value: false });
+  assert.deepEqual(saved.history.at(-1).undo.memberChanges[0].changes.map(patch => patch.kind), ['object', 'value']);
+  delete saved.provenance;
+  const migrated = validateState(saved);
+  assert.equal(migrated.members[0].taskRules['Ancient Effigies'], false);
+  roundTrips(migrated);
+  const undone = applyCommand(migrated, { type: 'undo' });
+  assert.deepEqual(undone.members[0].taskRules, { 'Ancient Effigies': false });
+  roundTrips(undone);
+  assert.equal(saved.history.at(-1).undo.memberChanges[0].changes.length, 2, 'the caller keeps its own history');
+});
+
+test('an older event that only created an empty taskRules no longer has an undo after migration', () => {
+  let saved = applyCommand(fresh(), { type: 'set-profile', memberId: 'a', rules: fresh().rules, taskRules: {} });
+  saved = applyCommand(saved, { type: 'set-task-rule', memberId: 'a', ruleId: 'Universal Tertiary', value: true });
+  delete saved.provenance;
+  const migrated = validateState(saved);
+  assert.equal(migrated.history[0].undo, undefined);
+  assert.ok(migrated.history[1].undo.memberChanges);
+  roundTrips(migrated);
+  const undone = applyCommand(migrated, { type: 'undo' });
+  assert.deepEqual(undone.members[0].taskRules, { 'Ancient Effigies': true });
+  roundTrips(undone);
+});
+
+test('a calculation snapshot of a fresh save keeps Ancient Effigies on Automatic', async t => {
+  const dataDir = await mkdtemp(path.join(os.tmpdir(), 'rs3-effigies-'));
+  const store = await openStore({ dataDir, initialState: fresh(), retention: false,
+    world: { chunks: new Map(), neighbors: new Map(), walkable: new Set(), f2p: new Set() } });
+  t.after(async () => { await store.close(); await rm(dataDir, { recursive: true, force: true }); });
+  const snapshot = store.getCalculationSnapshot();
+  assert.equal(validateState(snapshot.state).members[0].taskRules?.['Ancient Effigies'], undefined);
+  assert.equal(validateState(JSON.parse(Buffer.from(snapshot.stateJSON).toString())).members[0].taskRules?.['Ancient Effigies'], undefined);
+  assert.deepEqual(Object.keys(snapshot.state.provenance), ['ancientEffigiesMigratedMembers']);
 });
 
 for (const [tertiary, effigies] of [[false, false], [true, false], [true, true], [false, true]]) {
