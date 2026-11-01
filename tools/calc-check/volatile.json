@@ -1,0 +1,35 @@
+[
+  {
+    "path": "**.metrics.elapsedMs",
+    "source": "app/tasks/engine.mjs:1355",
+    "reason": "Elapsed wall-clock evaluation duration computed with performance.now()."
+  },
+  {
+    "path": "**.cache.baselineHit",
+    "source": "app/tasks/worker.mjs:250",
+    "reason": "Whether the baseline result was already cached.",
+    "additionalSources": [
+      "app/tasks/worker.mjs:340"
+    ]
+  },
+  {
+    "path": "**.cache.estimateHits",
+    "source": "app/tasks/worker.mjs:250",
+    "reason": "Number of candidates served from the estimate cache."
+  },
+  {
+    "path": "**.cache.estimatedCount",
+    "source": "app/tasks/worker.mjs:250",
+    "reason": "Number of candidates calculated rather than read from cache."
+  },
+  {
+    "path": "**.cache.baselineEvaluations",
+    "source": "app/tasks/worker.mjs:250",
+    "reason": "Baseline evaluations performed for this request."
+  },
+  {
+    "path": "**.cache.predictionEvaluations",
+    "source": "app/tasks/worker.mjs:250",
+    "reason": "Prediction evaluations performed for this request."
+  }
+]

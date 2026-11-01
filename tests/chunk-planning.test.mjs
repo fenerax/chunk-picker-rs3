@@ -1,5 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { serialize } from 'node:v8';
+import { chunkPlanningIndexBytes } from '../app/tasks/chunk-planning-index.mjs';
+import { snapshotBytes, trackPlanningIndex, createSnapshotCache, createWorkerCacheBudget } from '../app/tasks/snapshot-cache.mjs';
 import { baseLocationId, buildChunkPlanningIndex, buildChunkPlanningIndexIncremental, createChunkPlanning } from '../app/web/chunk-planning.mjs';
 
 const fixture = () => ({ chunks: { '12342': { Sections: { '1': { Object: { Anvil: 1 } }, '2': { NPC: { Banker: 1 } } } }, 'Puro-Puro': { Object: { Portal: 1 } }, 'Dorgesh-Kaan': {}, '9000': { Name: 'Dorgesh-Kaan' } }, clues: { easy: { '12342-1': true, 'Puro-Puro': false } }, codeItems: { chunksPlus: { 'Village[+]': ['12342-1', 'Puro-Puro'] } } });
@@ -223,4 +226,26 @@ test('On the map lists exactly the badge tasks and says whose the rest are', asy
   onMap = [{ memberIds: ['a'], taskIdByMember: { a: 'top' } }]; section = await open();
   assert.ok(walk(section).some(node => node.textContent === 'On the map 1' && node.attributes['aria-pressed'] === 'true'), 'the map choice is remembered');
   assert.ok(walk(section).some(node => /^The map number here \(1\) counts your active tasks/.test(node.textContent)));
+});
+
+test('producer planning bounds match validated accounting and cover joint native bytes', async () => {
+  const definitions = fixture();
+  const result = { tasks: Array.from({ length: 8300 }, (_, i) => ({ id: `task-${i}`, record: { Chunks: ['12342-1'] },
+    sources: [{ location: '12342-1', name: i % 2 ? 'Latin \u00e9' : 'wide \u6f22\u5b57' }] })) };
+  result.tasks[0].id = ('漢' + 'sliced-id-'.repeat(30)).slice(1);
+  result.tasks[0].sources[0].name = ('漢' + 'sliced-source-'.repeat(20)).slice(1);
+  result.tasks[1].sources[0].name = 'wide 漢字'.repeat(300);
+  result.tasks[0].sources.push(...Array.from({ length: 180 }, (_, i) => ({ location: '12342-1', name: `extra-${i} \u6f22` })));
+  for (const index of [buildChunkPlanningIndex(definitions, result), await buildChunkPlanningIndexIncremental(definitions, result)]) {
+    assert.ok(chunkPlanningIndexBytes(index, result) > 0);
+    const snapshot = { baseline: result, planningIndex: trackPlanningIndex(index, result) };
+    const budget = createWorkerCacheBudget(64 * 1024 * 1024), cache = createSnapshotCache(new Map(), budget);
+    cache.set('a', snapshot, undefined, '1');
+    assert.equal(budget.bytes, snapshotBytes(snapshot, undefined) + 2, 'producer counters match independently validated traversal across width boundaries');
+    assert.ok(budget.bytes >= serialize([result, index.byLocation, index.clueLocations]).byteLength);
+    const rows = index.byLocation; index.byLocation = new Map(rows);
+    assert.equal(chunkPlanningIndexBytes(index, result), undefined, 'replacing a root revokes the producer measurement');
+    index.byLocation = rows;
+    assert.equal(chunkPlanningIndexBytes(index, { ...result }), undefined);
+  }
 });

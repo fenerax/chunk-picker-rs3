@@ -1,0 +1,307 @@
+{
+  "start": "dcccaa8bf7fd36ffb6f39a13d65437540fc09514",
+  "reference": "1c2a07cb584f7762c9f4bc4e5af5c8acc7220462",
+  "node": "v24.21.0",
+  "cpu": "AMD EPYC 9V74",
+  "cpuQuota": 4,
+  "memoryLimitBytes": 17179869184,
+  "regression": {
+    "name": "empty sandbox retained projections are charged to their owning cache before reply",
+    "failsOnStart": true,
+    "startMeasuredBytes": 75651,
+    "startChargedBytes": 54091,
+    "requests": 48,
+    "byteLimit": 262144
+  },
+  "otherSitesFixed": 0,
+  "focused": [
+    {
+      "file": "tests/engine-cache-worker.test.mjs",
+      "pass": 4,
+      "fail": 0
+    },
+    {
+      "file": "tests/engine-cache-snapshot.test.mjs",
+      "pass": 7,
+      "fail": 0
+    },
+    {
+      "file": "tests/engine-cache-eligibility.test.mjs",
+      "pass": 7,
+      "fail": 0
+    },
+    {
+      "file": "tests/worker-timings.test.mjs",
+      "pass": 18,
+      "fail": 0
+    }
+  ],
+  "historicalEN7": {
+    "twoPickerWarmRoundMs": {
+      "median": 6459.6,
+      "min": 5997.9,
+      "max": 6965.7
+    },
+    "eightPickerWarmP95Ms": {
+      "median": 2474,
+      "min": 2465.9,
+      "max": 2549.5
+    },
+    "eightPickerGainPercent": 16.8
+  },
+  "discardedIncompleteOverlappingTrials": 2,
+  "probes": {
+    "2": {
+      "cacheCounterDifferenceRows": 0,
+      "comparedRows": 126,
+      "before": {
+        "datasetHash": "3768ecbd4197cab2f42241ebd631904d2871bded05858a0bcb535eeba0b1898f",
+        "sourceHash": "13654556cfd6def495fcf18b96f3a481dfc9af7a13dd0a55ab19f4f87eb646c1",
+        "stateHashes": [
+          "2c08690c518c1cc6ecc51b703217e41b9080c80279cb14a3c67cefa98bdff652",
+          "aef5898408f9c2ef261422169eafebbe8ba0f2c1cdabcf1352c4a74166431c1f"
+        ],
+        "appSourceHash": "9dfc690b696dd74405c05976ec8c9b80953b8321d6c955da1f5e3bb7e3954a41",
+        "harnessHash": "e45e290bf98f6fd17d78336d809313b77bb6ce7aba47da8f6d6f3eec6bf56f69",
+        "byteLimit": 402653184,
+        "warmRounds": 2,
+        "trials": 3,
+        "requests": 126,
+        "warmRoundMs": {
+          "n": 3,
+          "median": 8537.434,
+          "min": 8079.066,
+          "max": 8684.719
+        },
+        "warmP95Ms": {
+          "n": 3,
+          "median": 1779.08,
+          "min": 1698.749,
+          "max": 1807.941
+        },
+        "peakRSSBytes": {
+          "n": 3,
+          "median": 2142228480,
+          "min": 2101485568,
+          "max": 2169270272
+        },
+        "chargedBytes": {
+          "n": 3,
+          "median": 276457141,
+          "min": 276386288,
+          "max": 276457147
+        }
+      },
+      "after": {
+        "datasetHash": "3768ecbd4197cab2f42241ebd631904d2871bded05858a0bcb535eeba0b1898f",
+        "sourceHash": "13654556cfd6def495fcf18b96f3a481dfc9af7a13dd0a55ab19f4f87eb646c1",
+        "stateHashes": [
+          "2c08690c518c1cc6ecc51b703217e41b9080c80279cb14a3c67cefa98bdff652",
+          "aef5898408f9c2ef261422169eafebbe8ba0f2c1cdabcf1352c4a74166431c1f"
+        ],
+        "appSourceHash": "4ee1deecea64c40eb63cc614f57c82587ef9697a8b02ccf48915a7c0794ce29a",
+        "harnessHash": "e45e290bf98f6fd17d78336d809313b77bb6ce7aba47da8f6d6f3eec6bf56f69",
+        "byteLimit": 402653184,
+        "warmRounds": 2,
+        "trials": 3,
+        "requests": 126,
+        "warmRoundMs": {
+          "n": 3,
+          "median": 8044.619,
+          "min": 7792.587,
+          "max": 8789.321
+        },
+        "warmP95Ms": {
+          "n": 3,
+          "median": 1805.835,
+          "min": 1667.062,
+          "max": 1809.073
+        },
+        "peakRSSBytes": {
+          "n": 3,
+          "median": 2176540672,
+          "min": 2092183552,
+          "max": 2199392256
+        },
+        "chargedBytes": {
+          "n": 3,
+          "median": 276386439,
+          "min": 276386286,
+          "max": 276457530
+        }
+      }
+    },
+    "8": {
+      "cacheCounterDifferenceRows": 0,
+      "comparedRows": 504,
+      "before": {
+        "datasetHash": "3768ecbd4197cab2f42241ebd631904d2871bded05858a0bcb535eeba0b1898f",
+        "sourceHash": "13654556cfd6def495fcf18b96f3a481dfc9af7a13dd0a55ab19f4f87eb646c1",
+        "stateHashes": [
+          "2c08690c518c1cc6ecc51b703217e41b9080c80279cb14a3c67cefa98bdff652",
+          "aef5898408f9c2ef261422169eafebbe8ba0f2c1cdabcf1352c4a74166431c1f",
+          "a5fd8b1c6119327647a63747f964224e3c3107a83395eeb955fe6edd5bfde4a5",
+          "ad4498568faf32ffccbdae0ada4ea8f8f62c410ecaf92f9b29bfe4e05f3e63df",
+          "66dd3564e99842ecab3476cd33290a2f62c6c2bfa878e701d302229ea52f2a9b",
+          "d5991f80cfbdac1951b48f8c50a79bb25e487c9ec803167b6190e41177e0dd8d",
+          "2afb052a254000c9e44b0c6a843f477a310543792dabd24d00814c2a206c6365",
+          "58eb73ee0bf50ca10d865ac60dc3daa8c44c8b4235b1dd7b825dafef72096f8a"
+        ],
+        "appSourceHash": "9dfc690b696dd74405c05976ec8c9b80953b8321d6c955da1f5e3bb7e3954a41",
+        "harnessHash": "e45e290bf98f6fd17d78336d809313b77bb6ce7aba47da8f6d6f3eec6bf56f69",
+        "byteLimit": 402653184,
+        "warmRounds": 2,
+        "trials": 3,
+        "requests": 504,
+        "warmRoundMs": {
+          "n": 3,
+          "median": 97112.202,
+          "min": 96887.071,
+          "max": 99229.868
+        },
+        "warmP95Ms": {
+          "n": 3,
+          "median": 3454.187,
+          "min": 3403.941,
+          "max": 3476.755
+        },
+        "peakRSSBytes": {
+          "n": 3,
+          "median": 2147819520,
+          "min": 2147024896,
+          "max": 2182455296
+        },
+        "chargedBytes": {
+          "n": 3,
+          "median": 335076640,
+          "min": 335006598,
+          "max": 335438805
+        }
+      },
+      "after": {
+        "datasetHash": "3768ecbd4197cab2f42241ebd631904d2871bded05858a0bcb535eeba0b1898f",
+        "sourceHash": "13654556cfd6def495fcf18b96f3a481dfc9af7a13dd0a55ab19f4f87eb646c1",
+        "stateHashes": [
+          "2c08690c518c1cc6ecc51b703217e41b9080c80279cb14a3c67cefa98bdff652",
+          "aef5898408f9c2ef261422169eafebbe8ba0f2c1cdabcf1352c4a74166431c1f",
+          "a5fd8b1c6119327647a63747f964224e3c3107a83395eeb955fe6edd5bfde4a5",
+          "ad4498568faf32ffccbdae0ada4ea8f8f62c410ecaf92f9b29bfe4e05f3e63df",
+          "66dd3564e99842ecab3476cd33290a2f62c6c2bfa878e701d302229ea52f2a9b",
+          "d5991f80cfbdac1951b48f8c50a79bb25e487c9ec803167b6190e41177e0dd8d",
+          "2afb052a254000c9e44b0c6a843f477a310543792dabd24d00814c2a206c6365",
+          "58eb73ee0bf50ca10d865ac60dc3daa8c44c8b4235b1dd7b825dafef72096f8a"
+        ],
+        "appSourceHash": "4ee1deecea64c40eb63cc614f57c82587ef9697a8b02ccf48915a7c0794ce29a",
+        "harnessHash": "e45e290bf98f6fd17d78336d809313b77bb6ce7aba47da8f6d6f3eec6bf56f69",
+        "byteLimit": 402653184,
+        "warmRounds": 2,
+        "trials": 3,
+        "requests": 504,
+        "warmRoundMs": {
+          "n": 3,
+          "median": 100888.5,
+          "min": 99913.667,
+          "max": 101574.085
+        },
+        "warmP95Ms": {
+          "n": 3,
+          "median": 3503.381,
+          "min": 3487.891,
+          "max": 3516.32
+        },
+        "peakRSSBytes": {
+          "n": 3,
+          "median": 2173562880,
+          "min": 2103799808,
+          "max": 2174660608
+        },
+        "chargedBytes": {
+          "n": 3,
+          "median": 335508143,
+          "min": 335438732,
+          "max": 335581074
+        }
+      }
+    }
+  },
+  "limitations": [
+    "Serialized payload admission is not a V8 heap or RSS limit.",
+    "Historical timings used different hardware; the current paired runs use identical input and harness hashes.",
+    "The latency harness uses non-empty sandbox drafts."
+  ],
+  "quick": {
+    "command": "npm run test:quick",
+    "pass": 2485,
+    "fail": 0,
+    "skip": 67,
+    "durationMs": 296246.950657
+  },
+  "fixtureCapture": {
+    "files": 179,
+    "tests": 2075,
+    "passed": 2073,
+    "failed": 0,
+    "skipped": 2,
+    "capturedStates": 3962
+  },
+  "publicGate": {
+    "states": 4067,
+    "comparisons": 71980,
+    "requests": {
+      "evaluate": 15892,
+      "predict": 897,
+      "death-estimates": 9963,
+      "chunk-planning": 8635,
+      "sandbox": 8671,
+      "area-check": 8671,
+      "roll-pool": 15892,
+      "prepare-rules": 3359
+    },
+    "differences": 0,
+    "errors": 0,
+    "totalWallMs": 29133204.860257994,
+    "maxShardWallMs": 2007360.456623,
+    "corpusManifestHash": "b0409d442682c5496f2c59219d3b51993b23fcad9de52ab332dd6c1fce710afb",
+    "seed": 17,
+    "engineVersions": {
+      "reference": [
+        {
+          "name": "javascript-reference",
+          "version": "250ba6e7cc4cc44e930d36d5d797c40619a95ca7ae6bff2acdd8b92810cbd8e5"
+        }
+      ],
+      "candidate": [
+        {
+          "name": "javascript-reference",
+          "version": "c5cb2303bede71c80ee7fc42ddcb1974ded0d770ee57ae7c872fd73ddb8fe8ec"
+        }
+      ]
+    },
+    "shards": 16
+  },
+  "privateGate": {
+    "states": 8,
+    "comparisons": 216,
+    "requests": {
+      "evaluate": 36,
+      "predict": 38,
+      "death-estimates": 22,
+      "chunk-planning": 36,
+      "sandbox": 20,
+      "area-check": 20,
+      "roll-pool": 36,
+      "prepare-rules": 8
+    },
+    "differences": 0,
+    "errors": 0,
+    "corpusManifestHash": "18991b15ed60a0319dde3f836a69a7f688a6b9a7af22b4861c523ad9f98dd502",
+    "seed": 17,
+    "inventoryStates": 414,
+    "durationMs": 2248705.571076,
+    "peakRSSBytes": {
+      "reference": 4925014016,
+      "candidate": 5280460800
+    }
+  },
+  "recommendation": "MERGE-CANDIDATE"
+}

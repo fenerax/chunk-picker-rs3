@@ -94,7 +94,7 @@ orchestrator supplied verified facts and revisions on 2026-11-01:
 - [Template:DropsLine, revision 36897552](https://runescape.wiki/w/Template:DropsLine?oldid=36897552):
   the words are described in prose; Varies, Random and Once are special cases.
 
-`app/data/unknown-drop-estimates.v1.json` keeps these facts and the following
+`app/data/unknown-drop-estimates.v1.mjs` keeps these facts and the following
 **authored estimates** in separate fields. These denominators are decisions,
 not official wiki thresholds. Very rare is an adjustable choice in an open-ended
 band.
@@ -231,7 +231,7 @@ identical trials. Peak RSS samples include the whole measurement child tree
 
 ## Files changed
 
-- `app/data/unknown-drop-estimates.v1.json`: cited wiki facts and separate authored estimates.
+- `app/data/unknown-drop-estimates.v1.mjs`: cited wiki facts and separate authored estimates.
 - `app/data/settings.mjs`: rule, validation, explanation and supported-behaviour metadata.
 - `app/tasks/rule-defaults.mjs`: authored automatic value of 3.
 - `app/tasks/unknown-drop-warnings.mjs`: advisory dependency calculation and warning text.

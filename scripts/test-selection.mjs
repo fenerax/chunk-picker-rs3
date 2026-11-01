@@ -15,6 +15,13 @@ export const adaptiveOptionsFor = (suite, env = process.env) => {
 
 // Reviewed small fixtures and model/controller tests. No running browser or full catalogue.
 export const quickTests = new Set([
+  "multi-picker-capacity.test.mjs",
+  "calculator-bundle.test.mjs",
+  "worker-picker-keys.test.mjs",
+  "engine-cache-multi-picker.test.mjs",
+  "engine-cache-worker.test.mjs",
+  "engine-cache-snapshot.test.mjs",
+  "engine-cache-eligibility.test.mjs",
   "perf-private-guards.test.mjs",
   "unknown-drop-warnings.test.mjs",
   "completion-codec.test.mjs",
@@ -52,7 +59,6 @@ export const quickTests = new Set([
   "picker-context.test.mjs",
   "picker-jobs.test.mjs",
   "json-duplicates.test.mjs",
-  "worker-picker-keys.test.mjs",
   "registry.test.mjs",
   "picker-footprint.test.mjs",
   "linux-operator.test.mjs",
@@ -329,6 +335,8 @@ const fullOnlyPatterns = [
 
 // Remaining integration/provenance tests are named explicitly to catch unreviewed additions.
 const fullOnlyTests = new Set([
+  "calculator-bundle-worker.test.mjs",
+  "calc-check.test.mjs",
   "short-height-browser.test.mjs",
   "backup-file-browser.test.mjs",
   "phone-controls-browser.test.mjs",
@@ -565,6 +573,9 @@ export const soloTests = new Set([
 // worker from their own definitions and assert nothing about duo-legacy content. They
 // run on the public open-f2p dataset, in the environment core's lane gives them.
 export const openF2PTests = new Set([
+  "multi-picker-capacity.test.mjs",
+  "calculator-bundle.test.mjs",
+  "calculator-bundle-worker.test.mjs",
   "short-height-browser.test.mjs",
   "completion-codec.test.mjs",
   "phase1-acceptance.test.mjs",
@@ -588,6 +599,10 @@ export const openF2PTests = new Set([
   "progress-providers.test.mjs",
   "plugin-reads-server.test.mjs",
   "worker-picker-keys.test.mjs",
+  "engine-cache-multi-picker.test.mjs",
+  "engine-cache-worker.test.mjs",
+  "engine-cache-snapshot.test.mjs",
+  "engine-cache-eligibility.test.mjs",
   "roll-pool-worker.test.mjs",
   "area-check-server.test.mjs",
   "area-check-worker.test.mjs",

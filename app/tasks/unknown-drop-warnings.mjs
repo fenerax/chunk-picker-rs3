@@ -1,4 +1,4 @@
-import estimates from '../data/unknown-drop-estimates.v1.json' with { type: 'json' };
+import estimates from '../data/unknown-drop-estimates.v1.mjs';
 import { UNKNOWN_DROP_RULE, unknownDropRule } from '../data/settings.mjs';
 import { taskRuleValueError } from '../data/settings.mjs';
 import { parseDropRate } from './rates.mjs';
