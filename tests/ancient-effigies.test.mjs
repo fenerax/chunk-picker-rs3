@@ -89,6 +89,20 @@ for (const value of [undefined, true, false]) test(`old save is deep-equal and r
   roundTrips(loaded);
 });
 
+// Codex review r1, P2 1: legacy effigy values gain no taskRuleDiagnostics provenance.
+for (const value of ['false', 0, null, 'true', 1]) test(`legacy effigy values stay deep-equal and release-preserved: ${JSON.stringify(value)}`, () => {
+  const saved = fresh();
+  saved.members[0].taskRules = { 'Ancient Effigies': value };
+  saved.legacy = { maps: { m: { rules: { 'Ancient Effigies': value } } } };
+  saved.members[0].sourceMapId = 'm';
+  const before = structuredClone(saved);
+  const loaded = validateState(saved);
+  assert.deepEqual(loaded, before);
+  assert.equal(loaded.provenance?.taskRuleDiagnostics, undefined);
+  assertPreserved(preservationReport(before), preservationReport(loaded));
+  assert.throws(() => applyCommand(loaded, { type: 'set-task-rule', memberId: 'a', ruleId: 'Ancient Effigies', value: 'false' }), /boolean/);
+});
+
 for (const value of [undefined, true, false, 'false', 0, null]) test(`lazy default agrees across engine, access, collection and Settings: tertiary=${value}`, () => {
   const rules = value === undefined ? {} : { 'Universal Tertiary': value };
   const saved = state(rules), before = structuredClone(saved), allowed = ![false, 'false', 0].includes(value);

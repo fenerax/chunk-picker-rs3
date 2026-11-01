@@ -130,7 +130,11 @@ export function taskRuleValueError(id, value) {
 }
 
 export function taskRuleDiagnostics(rules = {}, context = {}) {
- return Object.entries(rules ?? {}).flatMap(([ruleId, value]) => {
+ // Saves from before the effigies switch may hold legacy values for this tag
+ // ('false', 0, null). They were never diagnosed, and the lazy default reads them
+ // by truthiness, so validation must not add provenance for them. Commands still
+ // require a boolean (validateTaskRule).
+ return Object.entries(rules ?? {}).filter(([ruleId]) => ruleId !== ANCIENT_EFFIGIES_RULE).flatMap(([ruleId, value]) => {
   const error = taskRuleValueError(ruleId, value);
   return error ? [{ code: 'invalid-task-rule', ...context, ruleId, value, detail: `${error} The saved value is preserved for review; evaluation uses the rule default${Object.hasOwn(taskRuleCutoffDefaults, ruleId) ? ` (${taskRuleCutoffDefaults[ruleId]})` : ''}.` }] : [];
  });
