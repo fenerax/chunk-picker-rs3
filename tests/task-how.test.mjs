@@ -2,8 +2,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { performance } from 'node:perf_hooks';
 import { createTaskEngine, taskId } from '../app/tasks/engine.mjs';
+import { duoFixture } from './fixtures/partner.mjs';
 import { createHowCache } from '../app/tasks/how-cache.mjs';
-import { caveDefinitions, caveState } from './task-how-fixture.mjs';
+import { pathDefinitions, pathState, caveDefinitions, caveState } from './task-how-fixture.mjs';
 const id = taskId('Extra', 'Defeat a cave bug');
 const labels = proof => Object.values(proof.nodes).map(node => node.label).join('\n');
 function graph(proof) {
@@ -170,4 +171,56 @@ test('a later simpler entrance rebinds the cave location to the same selected wi
   const proof = createTaskEngine(defs).how(caveState(['12593', '12850']), 'one', id);
   assert.equal(proof.proofStatus, 'complete'); assert.match(labels(proof), /Swamp entrance/);
   assert.doesNotMatch(labels(proof), /Lost Tribe|Cellar entrance|from Lumbridge cellar/); graph(proof);
+});
+
+test('historical personal producers keep supply without inventing partner ownership or current access', () => {
+  for (const shared of [false, true]) {
+    const engine = createTaskEngine(pathDefinitions()), state = pathState();
+    state.rules['access.shared'] = shared;
+    if (shared) state.members.push({ id: 'two', unlocked: ['400'], completedTasks: [] });
+    const input = structuredClone(state), before = engine.evaluate(state, 'one');
+    const proof = engine.how(state, 'one', taskId('Extra', 'Use historical supply'));
+    assert.equal(proof.availability, 'available'); assert.equal(proof.proofStatus, 'partial');
+    assert.deepEqual(proof.gaps.map(gap => gap.kind), ['historical-source-access']);
+    assert.equal(proof.gaps[0].detail, 'This supply comes from a recorded completion; its current production access is not established.');
+    assert.ok(Object.values(proof.nodes).some(node => node.rule === 'recorded-completion' && node.evidenceClass === 'personal'));
+    assert.doesNotMatch(labels(proof), /partner access/); graph(proof);
+    assert.deepEqual(state, input);
+    const after = engine.evaluate(state, 'one');
+    // Only evaluation duration is nondeterministic; all gameplay fields compare.
+    delete before.metrics.elapsedMs; delete after.metrics.elapsedMs;
+    assert.deepEqual(after, before);
+  }
+});
+test('current own and genuine partner producers retain their access evidence', () => {
+  const state = pathState(); state.members[0].completedTasks = []; state.members[0].unlocked.push('400');
+  const own = createTaskEngine(pathDefinitions()).how(state, 'one', taskId('Extra', 'Use historical supply'));
+  assert.equal(own.availability, 'available'); assert.equal(own.proofStatus, 'complete');
+  assert.deepEqual(own.gaps, []); graph(own);
+  const { state: shared, engine } = duoFixture();
+  const partner = engine.how(shared, 'player1', taskId('Extra', 'Own'));
+  assert.equal(partner.availability, 'available'); assert.equal(partner.proofStatus, 'partial');
+  assert.ok(partner.gaps.some(gap => gap.detail === 'This supply uses partner access.'));
+  assert.ok(!partner.gaps.some(gap => gap.kind === 'historical-source-access')); graph(partner);
+});
+test('personal obtain records remain complete supply roots without current producer access', () => {
+  const definitions = pathDefinitions(), state = pathState();
+  definitions.equipment = { Token: { slot: 'head', class: 'melee', tier: 1 } };
+  state.members[0].completedTasks = []; state.members[0].obtainedEquipment = ['Token'];
+  const proof = createTaskEngine(definitions).how(state, 'one', taskId('Extra', 'Use historical supply'));
+  assert.equal(proof.availability, 'available'); assert.equal(proof.proofStatus, 'complete');
+  assert.match(labels(proof), /You recorded obtaining Token/); assert.deepEqual(proof.gaps, []); graph(proof);
+});
+test('spatial all, any and count groups export only sufficient distinct selected witnesses', () => {
+  const engine = createTaskEngine(pathDefinitions()), state = pathState(), input = structuredClone(state);
+  for (const [goal, count] of [['Use both stations', 2], ['Use any station', 1], ['Use two stations', 2]]) {
+    const before = engine.evaluate(state, 'one');
+    const proof = engine.how(state, 'one', taskId('Extra', goal));
+    assert.equal(proof.proofStatus, 'complete');
+    const placements = Object.values(proof.nodes).filter(node => node.kind === 'placement');
+    assert.equal(placements.length, count); assert.equal(new Set(placements.map(node => node.subjectId)).size, count);
+    graph(proof);
+    const after = engine.evaluate(state, 'one'); delete before.metrics.elapsedMs; delete after.metrics.elapsedMs;
+    assert.deepEqual(after, before); assert.deepEqual(state, input);
+  }
 });
