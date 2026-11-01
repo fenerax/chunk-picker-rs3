@@ -287,3 +287,19 @@ test('dialogue payments use AND within clauses and OR between reachable clauses'
   d.chunks[100].Spawn.Coins = 1;
   check(undefined);
 });
+
+test('a diary tier waived by Show Diary Tasks Any adds no cost to the rare-drop warning', () => {
+  const area = record => ({ BaseQuest: 'Fixture Achievements', Category: ['Show Diary Tasks'], ...record });
+  const d = fixture('Rare');
+  d.challenges.Diary = {
+    'Fixture earlier tier': area({ ManualShow: true, Reward: 'Fixture tier token', NPCs: ['Inaccessible fixture NPC'] }),
+    'Fixture later duty': area({ Items: ['Gem'], Tasks: { 'Fixture earlier tier': 'Diary' } }),
+  };
+  for (const Any of [false, true]) {
+    const result = createTaskEngine(d).evaluate(state({ 'Show Diary Tasks': true, 'Show Diary Tasks Any': Any }), 'm');
+    const duty = result.tasks.find(row => row.rawLabel === 'Fixture later duty');
+    assert.equal(result.tasks.find(row => row.rawLabel === 'Fixture earlier tier').status, 'blocked');
+    assert.equal(duty.status, Any ? 'available' : 'blocked', `Any=${Any}`);
+    assert.equal(duty.unknownDropKills, Any ? 384 : undefined, `Any=${Any}`);
+  }
+});

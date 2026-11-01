@@ -39,8 +39,8 @@ export function createScreenMap(c) {
     c.finishLine?.refresh();
     c.partnerSupply?.refresh();
     c.bossGatesView?.refresh();
-    c.$('undo').disabled = !c.canWrite() || c.sandbox.active || !c.state.history.some(event => event.undo && !event.undoneRevision);
-    c.duoCoordination?.render();
+    if (c.duoCoordination) c.duoCoordination.render();
+    else c.$('undo').disabled = !c.canWrite() || c.sandbox.active || !c.state.history.some(event => event.undo && !event.undoneRevision);
     c.gamePlugin?.render();
     for (const id of ['settings-open', 'game-plugin-open', 'bis-open', 'activity-open', 'teleports-open', 'backup-open', 'original-sync-open', 'invites-open', 'feedback-open', 'custom-task-open', 'random-start']) if (c.$(id)) c.$(id).disabled = c.sandbox.active;
     for (const theme of ['dark', 'gray', 'light']) { const choice = c.$(`theme-${theme}`); if (choice) choice.disabled = c.sandbox.active; }
