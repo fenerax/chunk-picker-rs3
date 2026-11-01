@@ -3,6 +3,81 @@
   "entries": [
     {
       "date": "2026-11-01",
+      "title": "Ancient effigies have their own switch",
+      "items": [
+        "Effigy drops now have their own setting, off by default, so effigies only count if you turn it on",
+        "Four monsters under combat level 20 no longer list effigies, matching the RuneScape Wiki"
+      ]
+    },
+    {
+      "date": "2026-11-01",
+      "title": "Travel unlocks and time-gated tasks",
+      "items": [
+        "Balloon routes, Max Guild portal attunement and portal nexus teleports wait until their destinations are reachable. The new Early Travel Unlocks rule brings back the old behaviour",
+        "77 more farm upgrade, player-owned port and breeding tasks are marked time-gated",
+        "Port skill goals open together once all 12 are reachable, instead of one at a time"
+      ]
+    },
+    {
+      "date": "2026-11-01",
+      "title": "Rare drops with no listed rate",
+      "items": [
+        "Tasks that rely only on a drop the wiki calls \"Rare\" or \"Very rare\" now suggest when to move on, for example after about 384 kills",
+        "Choose how long to keep trying with the new \"Kills before moving on from an unknown-rate drop\" rule under Rare Drop"
+      ]
+    },
+    {
+      "date": "2026-11-01",
+      "title": "Clearer explanations",
+      "items": [
+        "Task details and \"Why?\" name the rule that hides or redirects a task instead of a general \"requirements not met\"",
+        "\"Why?\" lists each task once per choice group",
+        "\"How?\" keeps both places when a task needs two at once, and no longer claims partner access without proof",
+        "Counts say what they count: unique tasks, goals or chunks you can roll",
+        "A skill method name in Activity Info no longer shows a stray symbol"
+      ]
+    },
+    {
+      "date": "2026-11-01",
+      "title": "Requirement fixes",
+      "items": [
+        "Quests show under \"Can do now\" when finishing the whole quest already proves the stage they need",
+        "Slayer masters show as unavailable until their level and quest requirements are met",
+        "Ardougne Hard and its cloak wait for Artillery Strike"
+      ]
+    },
+    {
+      "date": "2026-11-01",
+      "title": "Rolls, starts and the map",
+      "items": [
+        "Two members random starts that had nowhere to go now work, and a third that could not be confirmed is no longer offered",
+        "Previewing a random start shows the same new tasks that accepting it gives",
+        "Map numbers and the legend match the chunks you can actually roll, and disabled selections say why",
+        "With \"New task options\" on, chunks in the roll pool show how many new tasks they would open",
+        "While your first roll waits, the screen shows the choices you can make"
+      ]
+    },
+    {
+      "date": "2026-11-01",
+      "title": "Easier to use on every screen",
+      "items": [
+        "Long task names wrap instead of running off the screen",
+        "Controls stay visible on phones with long display names and on very short screens",
+        "Keyboard focus stays in place in the setup guide, owner filters and repeated Undo",
+        "Screen readers announce the backup button and the chosen file",
+        "High-contrast mode underlines the selected tab, and Light theme buttons keep readable text on hover",
+        "Cancelling optional sign-in lets you carry on with your invitation"
+      ]
+    },
+    {
+      "date": "2026-11-01",
+      "title": "Steadier when several players load at once",
+      "items": [
+        "When several pickers open at the same time, requests wait their turn for a moment instead of being turned away"
+      ]
+    },
+    {
+      "date": "2026-11-01",
       "title": "Five starting banks can roll again",
       "items": [
         "New runs starting at five banks had no chunks to roll. They now get their first chunks like every other start",
