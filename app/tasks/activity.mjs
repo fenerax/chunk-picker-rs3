@@ -4,6 +4,7 @@ import { passesRateCutoff } from './rates.mjs';
 import { achievementFamilyRequired } from './achievements.mjs';
 import { buildQuestReadiness, isWholeQuestTask, questGroupName } from './activity-readiness.mjs';
 import { taskRuleEnabled } from './rule-defaults.mjs';
+import { effectiveSectionOverrides } from '../core/rules.mjs';
 import { currentSlayerLevels, currentSlayerMasterAccess, slayerTargetAccess, slayerStuckSummary } from './slayer-assignments.mjs';
 
 const list = value => value == null ? [] : Array.isArray(value) ? value : [value];
@@ -104,7 +105,8 @@ export function buildActivityInfo(result, state, memberId, definitions = {}) {
     const raw = value.split('--')[0];
     return byId.get(taskId(category, raw, definitions.challenges?.[category]?.[raw]));
   }).filter(Boolean);
-  const targetNow = slayerTargetAccess(result, definitions, resolveAssignmentTasks, currentLevels);
+  const confirmedSections = new Set(Object.entries(member ? effectiveSectionOverrides(state, member) : {}).filter(([, value]) => value === true).map(([id]) => id));
+  const targetNow = slayerTargetAccess(result, definitions, resolveAssignmentTasks, currentLevels, confirmedSections);
   const masters = Object.entries(definitions.slayerMasterTasks ?? {}).map(([name, assignments]) => {
     const aliases = name.split('/');
     const method = slayerRows.find(row => /assignment|assignement|bounty/i.test(row.rawLabel) && (name === 'Death' ? /Reaper assignment/.test(row.rawLabel) : aliases.some(alias => row.record?.NPCs?.includes(alias) || row.rawLabel.includes(`~|${alias}|~`))));

@@ -265,3 +265,23 @@ test("a quest gate on the master's own location blocks current access until fini
     assert.equal(higher().warnings.current.poolWeight, 10, kind);
   }
 });
+test("a section the player confirmed proves the master's location; its own gates still apply", () => {
+  const f = masterGateFixture({ combat: 30 });
+  const higher = () => f.view().slayer.masters.find(master => master.name === 'Higher');
+  const quest = f.result.tasks.find(task => task.category === 'Quest');
+  // Duradel's and Turael's pattern: a split chunk whose section has no listed neighbour.
+  f.definitions.chunks['10001'].Sections = { 1: {}, 2: {} };
+  f.definitions.sections = { 10001: { 1: [] } };
+  f.result.access.sections = [...(f.result.access.sections ?? []), '10001-1'];
+  f.result.access.locations['NPC:Higher'] = ['10001-1'];
+  assert.equal(higher().currentAccess.status, 'unknown', 'an unconfirmed section has no route proof');
+  f.state.members[0].sectionOverrides = { '10001-1': false };
+  assert.equal(higher().currentAccess.status, 'unknown', 'a section marked unreachable proves nothing');
+  f.state.members[0].sectionOverrides = { '10001-1': true };
+  assert.equal(higher().currentAccess.status, 'available');
+  assert.equal(higher().warnings.current.poolWeight, 10);
+  f.definitions.taskUnlocks = { NPCs: { Higher: { '10001': [{ [f.questLabel]: 'Quest' }] } } };
+  assert.equal(higher().currentAccess.status, 'unavailable', 'the source gate still applies in a confirmed section');
+  quest.personalCompleted = true;
+  assert.equal(higher().currentAccess.status, 'available');
+});

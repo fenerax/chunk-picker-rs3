@@ -51,7 +51,7 @@ export function currentSlayerMasterAccess(method, levels, resolveTasks, npcNow) 
 /** Bounded display-only proof over serialized access. Missing route evidence stays unknown.
  * Access is a planning union: area tasks, Connect gates and source taskUnlocks may
  * depend on unfinished quests. Never use monster membership alone as a NOW proof. */
-export function slayerTargetAccess(result, definitions, resolveTasks, levels) {
+export function slayerTargetAccess(result, definitions, resolveTasks, levels, confirmedSections = new Set()) {
   const access = result.access ?? {}, places = new Set([...list(access.bases), ...list(access.sections), ...list(access.areas)]);
   const tasks = new Map((result.tasks ?? []).map(row => [`${row.category}\0${row.rawLabel}`, row]));
   const memo = new Map(), active = new Set();
@@ -103,7 +103,9 @@ export function slayerTargetAccess(result, definitions, resolveTasks, levels) {
       // A section reached only through an interior or a quest connector is not
       // independently proved by membership in the planning access union.
       const section = /^(\d+)-(\d+)$/.exec(id), neighbors = section && definitions.sections?.[section[1]]?.[section[2]];
-      if (neighbors?.length) checks.push(any(neighbors.filter(place => places.has(place)).map(checkPlace)));
+      // A section the player confirmed reachable is its own route proof; its quest and area gates above still apply.
+      if (section && confirmedSections.has(id)) checks.push(yes());
+      else if (neighbors?.length) checks.push(any(neighbors.filter(place => places.has(place)).map(checkPlace)));
       else if (section && Object.keys(definitions.chunks?.[base]?.Sections ?? {}).length > 1) checks.push(unknown());
       else if (!section && definitions.chunks?.[base]?.Sections) checks.push(unknown());
     } else {
