@@ -70,12 +70,11 @@ also meets 4.5:1 contrast in all current themes using the existing palette token
 
 ## Short-height browser regression
 
-`tests/short-height-browser.test.mjs` is a full-only browser test. It requires an
-external Playwright Core installation and Chromium; no app dependencies are added:
+`tests/short-height-browser.test.mjs` is a full-only, open-f2p browser test. It
+auto-detects Chrome/Chromium and drives its DevTools Protocol without npm dependencies:
 
 ```sh
-PLAYWRIGHT_MODULE=/path/to/playwright-core CHROME_PATH=/usr/bin/chromium \
-  node --test tests/short-height-browser.test.mjs
+node --test tests/short-height-browser.test.mjs
 ```
 
 The reusable `scripts/perf/short-height-browser.mjs` harness starts the production
@@ -85,13 +84,14 @@ preferences (24 px default/minimum). It measures settled native Tab and Shift+Ta
 bounds and center hit ownership for Roll, Controls, roll results, task search,
 task details, and confirmation/Cancel. A separate longer synthetic task checks a
 wrapping dialog title. The harness never scrolls controls into view; production focus handling is included.
-The test is opt-in when the external browser tools are unavailable.
+The test runs wherever Chrome is available and skips only when Chrome is not found.
+Set `CHROME_PATH` to override browser discovery. Tab and Shift+Tab use real CDP
+`Input.dispatchKeyEvent` events for every measured focus stop.
 
 For three alternating START/candidate UI pairs at the critical height and JSON measurements:
 
 ```sh
-PLAYWRIGHT_MODULE=/path/to/playwright-core CHROME_PATH=/usr/bin/chromium \
-  node scripts/perf/short-height-browser.mjs --baseline START --height 240 --output /tmp/short-height.json
+node scripts/perf/short-height-browser.mjs --baseline START --height 240 --output /tmp/short-height.json
 ```
 
 Replace `START` with the full checkout commit hash. Baseline failures are recorded;
