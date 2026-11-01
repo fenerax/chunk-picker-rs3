@@ -243,7 +243,7 @@ test('HTTP item journals retain observation worlds across lost replies and reope
   const initialState = createGroupState([{ id: 'actor1', name: 'Synthetic player' }]);
   initialState.tasks.push({ id: goal, category: 'BiS', label: 'Synthetic Obtain goal' }, { id: wear, category: 'Skill', label: 'Synthetic Wear task' });
   const f = await fixture(t, { initialState }), created = await f.create();
-  const journal = 'aaaaaaaaaaaaaaaa', event = [1, item, 'Synthetic beta item'];
+  const journal = 'aaaaaaaaaaaaaaaa', event = [1, item, 'Synthetic beta item', 'beta'];
   const items = (events, worn = []) => ({ snapshot: '0123456789abcdef', worn, backpack: [], journal: { id: journal, events } });
   async function send(seq, events, beta = false, worn = []) {
     const response = await f.plugin('/api/plugin/v1/report', created.key, report(seq, { world: { id: beta ? 204 : 1, beta }, items: items(events, worn) }));
@@ -268,7 +268,7 @@ test('HTTP item journals retain observation worlds across lost replies and reope
     const history = f.app.store.getState().history.filter(row => row.command?.items?.length);
     assert.deepEqual(history.map(row => row.source), live ? ['game-plugin'] : []);
     const preview = await (await f.admin('/api/game-plugin/review?memberId=actor1')).json();
-    assert.deepEqual(preview.items.map(row => [row.taskId, row.world]), live ? [[wear, 'live']] : [[goal, 'unknown'], [wear, 'unknown']]);
+    assert.deepEqual(preview.items.map(row => [row.taskId, row.world]), live ? [[wear, 'live']] : [[goal, 'beta'], [wear, 'beta']]);
   }
   await inspect(false);
   const invalid = await f.plugin('/api/plugin/v1/report', created.key, report(3, { items: items([[2, item, 'Synthetic item', 'invalid']]) }));

@@ -268,11 +268,13 @@ strictly increasing positive integers across that journal, regardless of environ
 ID restarts event counting, but does not change retained events' environments.
 The same journal ID/event ID must always retain the same item, name and environment.
 
-Legacy `[eventId, itemId, name]` triples are still accepted, as **unknown-world**
-evidence. They can produce labelled review rows, but cannot persist live owned/worn
-facts or automatically tick live goals, even in a live report. This includes old
-queued events after a sender upgrade: keep them unknown unless their observation
-environment was actually retained. Current live containers continue to work.
+Legacy `[eventId, itemId, name]` triples are still accepted and keep the earlier
+rule: they take the **delivery** report's world. In a live report they can persist
+live owned/worn facts and tick live goals; in a beta or unknown-world report they
+stay labelled review rows. So an item worn on beta and still queued when a live
+report is sent counts as live. Closing that gap is what the four-field form is for.
+After a sender upgrade, send old queued events as `"unknown"` unless their
+observation environment was actually retained.
 Send four-field events only after observing `"item-journal-world"` in status;
 older receivers reject them. A sender requiring reliable historical live evidence
 must upgrade to retain and send the observation environment. This repository's
@@ -333,7 +335,7 @@ Any live evidence and its watermark must reach the sidecar before that prefix is
 acknowledged. If the write fails, the prior journal acknowledgement is retained
 for retry. Beta and unknown evidence is accepted into separate memory records,
 as before; it does not survive receiver restart without a retransmission. Legacy
-triples receive the same delivery acknowledgement after unknown-world handling.
+triples receive the same delivery acknowledgement in their delivery world.
 A lost reply must be retried with the original event environment, even after a
 world transition. No existing evidence or saves are reclassified by this change;
 actual sender exposure would need separate verification before any migration.

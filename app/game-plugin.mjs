@@ -274,10 +274,10 @@ export async function openGamePlugin({ dataDir, store, world, registry, questMap
     // The first look needs both containers; until then only the snapshot is acknowledged.
     if (!saved && (value.worn === null || value.backpack === null)) { itemAcks.set(player, ack); return; }
     const entries = [...(value.worn ?? []).map(([, id, , name]) => [id, name, true]), ...(value.backpack ?? []).map(([, id, , name]) => [id, name, false])];
-    // Containers describe the delivery world. Journal events describe their own
-    // observation environment; legacy triples are unknown even in a live report.
+    // Containers describe the delivery world. Four-field journal events carry their
+    // own observation environment; legacy triples keep the delivery world, as before.
     const groups = new Map([[world, entries]]);
-    for (const [, , , origin = 'unknown'] of value.journal.events) {
+    for (const [, , , origin = world] of value.journal.events) {
       const scope = itemsBetaAsLive && origin === 'beta' ? 'live' : origin;
       if (!groups.has(scope)) groups.set(scope, []);
     }
@@ -292,7 +292,7 @@ export async function openGamePlugin({ dataDir, store, world, registry, questMap
       const record = prior ?? { baselineAt: now, items: {}, handled: [], journal: null };
       const after = record.journal?.id === value.journal.id ? record.journal.event : 0;
       const scoped = groups.get(scope);
-      for (const [event, id, name, origin = 'unknown'] of value.journal.events) {
+      for (const [event, id, name, origin = world] of value.journal.events) {
         if (event > after && (itemsBetaAsLive && origin === 'beta' ? 'live' : origin) === scope) scoped.push([id, name, true]);
       }
       const added = addEvidence(record, scoped, now, !prior);

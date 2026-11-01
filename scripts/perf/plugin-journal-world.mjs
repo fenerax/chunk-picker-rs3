@@ -55,9 +55,12 @@ if (process.argv[2] === '--worker') {
   try {
     await start();
     ({ key } = await controller.create({ admin: true }, { memberId: 'synthetic', label: 'Synthetic benchmark' }));
-    assert.equal((await send(false)).items.journal.event, 0);
-    assert.equal((await send(true, mode === 'lost-beta-ack' ? [event] : [], worn)).items.journal.event, mode === 'lost-beta-ack' ? 1 : 0);
-    await send(false, mode === 'lost-beta-ack' ? [event] : [], mode === 'direct-live' ? worn : []);
+    const first = await send(false);
+    assert.equal(first.items.journal.event, 0);
+    // An upgraded sender tags the event once the receiver advertises it; legacy triples keep the delivery world.
+    const queued = first.accepts.includes('item-journal-world') ? [[...event, 'beta']] : [event];
+    assert.equal((await send(true, mode === 'lost-beta-ack' ? queued : [], worn)).items.journal.event, mode === 'lost-beta-ack' ? 1 : 0);
+    await send(false, mode === 'lost-beta-ack' ? queued : [], mode === 'direct-live' ? worn : []);
     const completed = await inspect();
     await controller.close(); await store.close(); await start();
     await send(false);

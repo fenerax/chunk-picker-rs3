@@ -342,11 +342,11 @@ test('coins on hand add pouch, backpack and bank on live worlds, only when the t
   assert.doesNotThrow(() => validateState(f.state));
 });
 
-// Real durable store: the retained event must never borrow the delivery world's provenance.
-for (const format of ['legacy', 'scoped']) for (const mode of ['lost-beta-ack', 'offline-beta', 'rotated-retained-beta', 'unknown-origin', 'delivered-beta-ack', 'transition-clear', 'direct-beta', 'direct-live']) {
-  test(`durable journal environment isolation: ${mode} (${format})`, async t => {
+// Real durable store: a four-field event must never borrow the delivery world's provenance.
+for (const mode of ['lost-beta-ack', 'offline-beta', 'rotated-retained-beta', 'unknown-origin', 'delivered-beta-ack', 'transition-clear', 'direct-beta', 'direct-live']) {
+  test(`durable journal environment isolation: ${mode}`, async t => {
     const f = await fixture(t, { durable: true });
-    const event = [1, CHAINBODY, 'Synthetic worn item', ...(format === 'scoped' ? [mode === 'unknown-origin' ? 'unknown' : 'beta'] : [])];
+    const event = [1, CHAINBODY, 'Synthetic worn item', mode === 'unknown-origin' ? 'unknown' : 'beta'];
     const first = await f.send(items());
     assert.deepEqual(first.items.journal, { id: journalId, event: 0 });
     let pending = ['direct-beta', 'direct-live'].includes(mode) ? [] : [event], id = journalId;
@@ -380,13 +380,28 @@ for (const format of ['legacy', 'scoped']) for (const mode of ['lost-beta-ack', 
       assert.equal(rows.filter(row => row.taskId === WEAR_TASK && row.world === 'live').length, live ? 1 : 0);
     }
     await inspect();
-    if (pending.length && !live) assert.ok(f.review().items.some(row => row.taskId === WEAR_TASK && row.world === (format === 'legacy' || mode === 'unknown-origin' ? 'unknown' : 'beta')), 'Non-live evidence stays available for explicit review');
+    if (pending.length && !live) assert.ok(f.review().items.some(row => row.taskId === WEAR_TASK && row.world === (mode === 'unknown-origin' ? 'unknown' : 'beta')), 'Non-live evidence stays available for explicit review');
     await f.restart();
     await f.send(items({ id, events: pending }));
     await inspect();
     assert.deepEqual(f.warnings, []);
   });
 }
+
+// Legacy triples (today's plugin) keep the delivery world: no live goal is lost while
+// the plugin doesn't send observation worlds yet, and beta reports still tick nothing.
+for (const delivery of [false, true, null]) test(`legacy journal triples follow delivery world ${delivery}`, async t => {
+  const f = await fixture(t, { durable: true });
+  await f.send(items());
+  const world = delivery === false ? 'live' : delivery ? 'beta' : 'unknown', live = world === 'live';
+  const status = await f.send(items({ events: [[1, CHAINBODY, 'Synthetic worn item']] }), delivery);
+  assert.equal(status.items.journal.event, 1);
+  const record = JSON.parse(await readFile(path.join(f.dataDir, 'plugin-items.json'), 'utf8')).players.a;
+  assert.equal(Boolean(record.items[CHAINBODY]?.wornAt), live);
+  assert.equal(f.state.members[0].completedTasks.includes(goal('000597')), live);
+  assert.equal(f.state.members[0].completedTasks.includes(WEAR_TASK), false);
+  assert.ok(f.review().items.some(row => row.taskId === WEAR_TASK && row.world === world));
+});
 
 test('journal observation environments are validated independently of the report world', () => {
   const base = { v: 1, seq: 1, sentAt: '2026-10-22T12:00:00.000Z', position: { x: 1, z: 1, floor: 0 } };
@@ -445,7 +460,7 @@ test('mixed-world journal queues keep both memory scopes and only live facts rea
 test('live inventory wins over unknown journal proposals, including a failed automatic command', async t => {
   const f = await fixture(t);
   f.failing.command = true;
-  await f.send(items({ worn: [[0, CHAINBODY, 1, 'Synthetic live item']], events: [[1, CHAINBODY, 'Synthetic old item']] }));
+  await f.send(items({ worn: [[0, CHAINBODY, 1, 'Synthetic live item']], events: [[1, CHAINBODY, 'Synthetic old item', 'unknown']] }));
   assert.deepEqual(f.review().items.map(row => [row.taskId, row.world]), [[goal('000597'), 'live'], [WEAR_TASK, 'live']]);
   f.failing.command = false;
   await f.send(items());
