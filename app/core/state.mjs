@@ -1,4 +1,5 @@
 import { startingSectionLocations } from './cache-surface.mjs';
+import { decodeCompletionDocument } from './completion-codec.mjs';
 import { validateSavedXpChoices, validateXpChoices } from './xp-choices.mjs';
 import { selectedDataset } from '../dataset-runtime.mjs';
 import { createTaskFactsIndex } from './progress-index.mjs';
@@ -1024,6 +1025,7 @@ export function importBackup(document, registry) {
   }
   record(backup, 'backup');
   if (backup.format !== BACKUP_FORMAT) fail('Unsupported backup format');
+  backup = decodeCompletionDocument(backup);
   if (backup.schemaVersion !== SCHEMA_VERSION) fail(`Unsupported backup schema version: ${backup.schemaVersion}`);
   return validateState(backup.state, registry);
 }
@@ -1268,7 +1270,7 @@ function knownRandomStartDestination(world, id, member, settings) {
   if (!randomStartHasEntry(world, id, member, settings)) fail(`Chunk ${id} has no certified random-start entry`);
 }
 
-function seedRandomStartSections(member, ids, world) {
+export function seedRandomStartSections(member, ids, world) {
   for (const id of ids) {
     // SFIX1's seeds (section 1 and certified banks) first; a reviewed
     // missing-policy entry only for a start with no other seed.
@@ -1289,7 +1291,8 @@ function pendingOffer(state, member) {
   return ['random-start', 'roll'].includes(offer?.type) && JSON.stringify(offer.command.rolled) === JSON.stringify(member.pendingRoll) ? offer : undefined;
 }
 
-function hasRandomStartChoices(state, member) {
+export function hasRandomStartChoices(state, member) {
+  if (!member.pendingRoll?.length) return false;
   const offer = pendingOffer(state, member);
   return offer?.type === 'random-start' && offer.command.count === 2;
 }
