@@ -78,7 +78,7 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 export async function createPickerContext({ pickerId, dataDir, runtime,
   initialState, prepareState, beforeCommit, now, random, retention, initialImport,
   runeMetrics = {}, progressSources = {}, originalSync = {},
-  idleMemoryOptions, predictionPrewarm = true,
+  idleMemoryOptions, predictionPrewarm = true, prepareStateResponse = true,
   schedulingClock = { now: () => performance.now(), setTimeout, clearTimeout },
   publicOrigin, signIn = 'off', signInProvider, pickerRouting, liveSwap, pluginItemsBetaAsLive = false,
   startupSignal, startupTimingMs = {},
@@ -1965,6 +1965,9 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
   let activationPending;
   const context = {
     pickerId, store,
+    getRetentionCounts: () => ({ requests: requests.size, jobs: jobs.size, bodies: bodyRequests.size,
+      clients: clients.size + clientCredentials.size, responses: responseCache.size, responseBytes: responseCache.bytes,
+      savedResults: savedTaskResults.size, readiness: readinessPrepared ? 1 : 0, store: store ? 1 : 0 }),
     withEmptyDefault(work) {
       return serializeMutation(() => {
         if (closed || store.getInfo().revision !== 0) throw httpError(409, 'This sign-in already has gameplay.');
@@ -2072,6 +2075,10 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
             // worker recovery path when calculation is unavailable.
           } finally { startupTimingMs.variantMs = performance.now() - started; }
         }
+        // Owned contexts can admit task/draft reads without preparing an
+        // unrelated play body. The authenticated state route builds the same
+        // revision-keyed representation on demand.
+        if (!prepareStateResponse) return;
         const info = store.getInfo(), started = performance.now();
         // Only the existing play representation is prepared. Backups, full
         // state and optional reference data remain demand loaded. All HTTP
@@ -2115,7 +2122,8 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
         while (requests.size) await Promise.allSettled([...requests]);
         await mutationQueue;
         await claimCleanupRun;
-        await readinessPrepared;
+        await readinessPrepared; readinessPrepared = undefined;
+        startupWarmup = undefined;
         unsubscribe(); unsubscribeWorker?.(); unsubscribeResidency?.(); unsubscribePredictions?.();
         await overlays.close();
         await Promise.all([signInFlow.close(), accounts.close(), invites.close(), feedback.close(), usage.close(), gamePlugin.close()]);

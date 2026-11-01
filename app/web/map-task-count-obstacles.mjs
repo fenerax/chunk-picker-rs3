@@ -21,8 +21,7 @@ export function taskCountObstacles(map, { chunkIdLayout, layoutStickerCluster, s
     const x = point.x * size, y = point.y * size, state = map.cellStates.get(id);
     const idLayout = prefs.ids && size >= 35 ? chunkIdLayout(members, id, size, prefs.stickerScale, prefs.chunkIdScale) : null;
     if (idLayout) add(x + 2, y + size - 5 - idLayout.fontSize, idLayout.idRight - 2, idLayout.fontSize + 2);
-    const rank = (state?.owners.length || state?.pending ? map.active.selectedRanks.get(id) : map.candidateRanks.get(id))
-      ?? state?.selected?.[0]?.selectedRanks.get(id);
+    const rank = map.candidateRanks.get(id);
     if (rank && size >= 11) add(x + 1, y + 1, size - 2, size - 3 - (idLayout ? idLayout.fontSize + 4 : 0));
     if (members.length > 1 && state?.owners.length && state.owners.length < members.length && size >= 12) {
       const tab = Math.max(6, Math.min(18, size * .13));

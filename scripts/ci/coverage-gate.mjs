@@ -43,11 +43,12 @@ function validateReport(report, lane, expectedFiles) {
   }
 }
 
-/** A skip with no result on the other OS is also uncovered. Files, names and
+/** A skip with no pass in any required job is also uncovered. Files, names and
  * duplicate-name occurrences must match; aggregate counts cannot prove this. */
-export function evaluateCoverage({ ubuntu, windows, allowlist, files, windowsFiles }) {
+export function evaluateCoverage({ ubuntu, windows, differential, allowlist, files, windowsFiles, differentialFiles }) {
   validateReport(ubuntu, 'test', files);
   validateReport(windows, 'windows', windowsFiles);
+  validateReport(differential, 'differential', differentialFiles);
   if (allowlist?.schema !== 'rs3-coverage-allowlist-v1' || !Array.isArray(allowlist.tests)) throw Error('Invalid coverage allowlist.');
   const allowances = new Map();
   for (const row of allowlist.tests) {
@@ -59,7 +60,7 @@ export function evaluateCoverage({ ubuntu, windows, allowlist, files, windowsFil
     allowances.set(key, row);
   }
   const tests = new Map();
-  for (const report of [ubuntu, windows]) for (const row of report.tests) {
+  for (const report of [ubuntu, windows, differential]) for (const row of report.tests) {
     if (!tests.has(row.key)) tests.set(row.key, { ...row, lanes: {} });
     tests.get(row.key).lanes[report.lane] = row.status;
   }
@@ -79,12 +80,15 @@ export async function coverageGate(directory, checkout = fileURLToPath(new URL('
   const { discoverTests } = await import(new URL('../test-selection.mjs', import.meta.url));
   const { windowsBoundTests } = await import(new URL('../private-companion/neutral-lane.mjs', import.meta.url));
   const read = async file => JSON.parse(await readFile(file, 'utf8'));
-  const [ubuntu, windows, allowlist, inventory] = await Promise.all([
+  const [ubuntu, windows, differential, allowlist, inventory, differentialInventory] = await Promise.all([
     read(path.join(directory, 'test.json')), read(path.join(directory, 'windows.json')),
+    read(path.join(directory, 'differential.json')),
     read(path.join(checkout, '.github/coverage-allowlist.json')), discoverTests(path.join(checkout, 'tests'), 'full'),
+    discoverTests(path.join(checkout, 'tests'), 'differential'),
   ]);
-  return evaluateCoverage({ ubuntu, windows, allowlist,
-    files: inventory.map(file => `tests/${file}`), windowsFiles: windowsBoundTests.map(file => `tests/${file}`) });
+  return evaluateCoverage({ ubuntu, windows, differential, allowlist,
+    files: inventory.map(file => `tests/${file}`), windowsFiles: windowsBoundTests.map(file => `tests/${file}`),
+    differentialFiles: differentialInventory.map(file => `tests/${file}`) });
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
@@ -92,7 +96,7 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
     if (process.argv.length !== 3) throw Error('Usage: node scripts/ci/coverage-gate.mjs <report directory>');
     // Rerunning failed jobs can leave an earlier attempt's artifacts behind.
     // They cannot rescue a job that failed or was cancelled this time.
-    for (const key of ['RS3_COVERAGE_TEST_RESULT', 'RS3_COVERAGE_WINDOWS_RESULT'])
+    for (const key of ['RS3_COVERAGE_TEST_RESULT', 'RS3_COVERAGE_WINDOWS_RESULT', 'RS3_COVERAGE_DIFFERENTIAL_RESULT'])
       if (process.env[key] !== undefined && process.env[key] !== 'success') throw Error('An upstream test job did not succeed.');
     const result = await coverageGate(path.resolve(process.argv[2]));
     console.log(`Coverage: ${result.covered}/${result.total} tests passed somewhere; ${result.allowed.length} reviewed exceptions; ${result.uncovered.length} uncovered.`);

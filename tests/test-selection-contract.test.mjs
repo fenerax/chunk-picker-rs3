@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { classifyTest, concurrencyFor, fullConcurrency, selectTests } from '../scripts/test-selection.mjs';
+import { classifyTest, concurrencyFor, fullConcurrency, selectTests, testRunPolicy } from '../scripts/test-selection.mjs';
 import { hardCodedTestPorts } from '../scripts/test-port-check.mjs';
 import { testRunEnvironment } from '../scripts/test-run-environment.mjs';
 import { execFileSync } from 'node:child_process';
@@ -41,10 +41,10 @@ test('timing failures redact player, administrator, overlay and bearer credentia
   assert.equal(redact(`credential: "${'Z'.repeat(43)}"`), 'credential: "<token>"');
 });
 
-test('full suite retains every classified file and heavy families remain full-only', () => {
+test('full suite retains quick and full-only files and heavy families remain full-only', () => {
   const files = ['state.test.mjs', 'server.test.mjs', 'web-browser.test.mjs', 'perf-harness.test.mjs',
     'cache-game-data-items.test.mjs', 'original-parity.test.mjs', 'command-performance.test.mjs',
-    'duo-focus-browser.test.mjs', 'setup-guide-browser.test.mjs'];
+    'duo-focus-browser.test.mjs', 'setup-guide-browser.test.mjs', 'backup-file-browser.test.mjs'];
   assert.deepEqual(selectTests(files), ['state.test.mjs']);
   assert.deepEqual(selectTests(files, 'full'), [...files].sort());
   for (const name of files.slice(1)) assert.equal(classifyTest(name), 'full-only', name);
@@ -58,8 +58,8 @@ test('full suite retains every classified file and heavy families remain full-on
   assert.deepEqual(hardCodedTestPorts(`const chunkId = ${9049}; assert.equal(value, chunkId)`), []);
 });
 
-test('unclassified additions fail both suites instead of disappearing from quick feedback', () => {
-  for (const suite of ['quick', 'full']) {
+test('unclassified additions fail every suite instead of disappearing from quick feedback', () => {
+  for (const suite of ['quick', 'full', 'differential']) {
     assert.throws(() => selectTests(['state.test.mjs', 'new-model.test.mjs'], suite), /Unclassified tests: new-model/);
   }
   assert.equal(classifyTest('new-model.test.mjs'), null);
@@ -71,6 +71,18 @@ test('unclassified additions fail both suites instead of disappearing from quick
   assert.deepEqual(selectTests(['state.test.mjs', 'fixture.mjs', 'terrain-assets-exporter.test.py']), ['state.test.mjs']);
   assert.throws(() => selectTests([], 'quick'), /No tests selected/);
   assert.throws(() => selectTests(['state.test.mjs'], 'unknown'), /Suite must/);
+});
+
+test('detector integration belongs only to the separately reported differential suite', () => {
+  const integration = 'y03-fuzz-ci-integration.test.mjs', unit = 'y03-fuzz-ci.test.mjs';
+  const files = [integration, unit, 'server.test.mjs'];
+  assert.equal(classifyTest(integration), 'differential-only');
+  assert.equal(classifyTest(unit), 'quick');
+  assert.deepEqual(selectTests(files, 'quick'), [unit]);
+  assert.deepEqual(selectTests(files, 'full'), ['server.test.mjs', unit]);
+  assert.deepEqual(selectTests(files, 'differential'), [integration]);
+  assert.equal(testRunPolicy(integration).solo, false);
+  assert.equal(concurrencyFor('differential', {}), 1);
 });
 
 test('suite concurrency uses the measured default unless a valid override is given', () => {

@@ -6,12 +6,12 @@ import { once } from 'node:events';
 import { spec } from 'node:test/reporters';
 
 if (process.argv.includes('--help')) {
-  console.log('Usage: node scripts/test.mjs [quick|full] [--list]\nFull starts at 2 files and adapts up to 6; quick caps at 2. RS3_TEST_CONCURRENCY (1-6) sets the cap. Every admission reserves 1 GiB per active worker above a 4 GiB free-memory floor.');
+  console.log('Usage: node scripts/test.mjs [quick|full|differential] [--list]\nFull starts at 2 files and adapts up to 6; quick caps at 2; differential defaults to 1. RS3_TEST_CONCURRENCY (1-6) sets the cap. Every admission reserves 1 GiB per active worker above a 4 GiB free-memory floor.');
 } else {
   const { discoverTests, adaptiveOptionsFor } = await import('./test-selection.mjs');
   const suite = process.argv[2] ?? 'full';
   const options = process.argv.slice(3);
-  if (process.env.RS3_COVERAGE_REPORT && (suite !== 'full' || options.includes('--list'))) throw new Error('Coverage reports require a full test run');
+  if (process.env.RS3_COVERAGE_REPORT && (!['full', 'differential'].includes(suite) || options.includes('--list'))) throw new Error('Coverage reports require a full or differential test run');
   if (options.some(option => option !== '--list')) throw new Error('Only --list is supported');
   const files = await discoverTests(undefined, suite);
   console.log(`${suite}: ${files.length} test files`);
@@ -20,7 +20,7 @@ if (process.argv.includes('--help')) {
   } else {
     const cwd = fileURLToPath(new URL('../', import.meta.url));
     const coverage = process.env.RS3_COVERAGE_REPORT ? (await import('./ci/coverage-reporter.mjs')).createCoverageReporter({
-      lane: process.env.RS3_COVERAGE_LANE ?? 'test', cwd, files: files.map(name => `tests/${name}`) }) : undefined;
+      lane: process.env.RS3_COVERAGE_LANE ?? (suite === 'differential' ? 'differential' : 'test'), cwd, files: files.map(name => `tests/${name}`) }) : undefined;
     const { testRunEnvironment } = await import('./test-run-environment.mjs');
     const { runAdaptive } = await import('./adaptive-test-runner.mjs');
     const environment = await testRunEnvironment();

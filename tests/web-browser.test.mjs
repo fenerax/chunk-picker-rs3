@@ -231,7 +231,7 @@ test('saved chunk actions refresh while focused and keep an independent note dra
   h.adopt(next);
   assert.equal(h.context.document.activeElement, textarea);
   assert.equal(textarea.value, 'Keep this unsaved draft');
-  assert.ok(h.find('p', 'In roll pool (added by hand)'));
+  assert.ok(h.find('p', 'Saved hand selection'));
   assert.ok(h.find('button', 'Remove from roll pool'));
   assert.ok(!h.find('button', 'Add to roll pool'));
   const remove = h.find('button', 'Remove from roll pool'); remove.focus();
@@ -336,6 +336,39 @@ test('Advanced hides calculation details by default and follows the selected pla
   await h.run('engineDetails()'); assert.equal(h.nodes.get('tool-dialog').open, false);
   h.run("memberId = 'actor1'; applySession({ readOnly: true })");
   assert.equal(h.run('advanced()'), false); assert.equal(h.run('preferences().advanced'), false);
+});
+
+test('field labels target simple controls and an explicit inner control without labeling its wrapper', () => {
+  const h = harness();
+  const simple = h.run("field('Search', input('text'))");
+  assert.equal(simple.firstChild.htmlFor, simple.children[1].id);
+  const compound = h.run("(() => { const wrap = el('span'), choose = button('Choose', () => {}); choose.id = 'existing-choice'; wrap.append(choose); return field('Purpose', wrap, choose); })()");
+  assert.equal(compound.firstChild.htmlFor, 'existing-choice');
+  assert.equal(compound.firstChild.id, 'existing-choice-label');
+  assert.equal(compound.children[1].id, undefined);
+  assert.notEqual(h.run("field('Other', input('text')).firstChild.htmlFor"), simple.firstChild.htmlFor);
+});
+
+for (const legacy of [true, false]) test(`backup picker associates its button with purpose and changing filename (legacy=${legacy})`, async () => {
+  const h = harness();
+  h.context.backupLegacyFeature = legacy;
+  h.run('supportsFeature = () => backupLegacyFeature; backupDialog()');
+  const choose = h.find('button', 'Choose file…'), file = h.all().find(node => node.type === 'file');
+  const name = h.all().find(node => node.className === 'file-picker-name');
+  const label = h.all().find(node => node.htmlFor === choose.id);
+  assert.equal(label.textContent, legacy ? 'Choose a full backup or an exported copy of both maps' : 'Choose a full backup');
+  assert.equal(choose.getAttribute('aria-labelledby'), `${choose.firstChild.id} ${label.id}`);
+  assert.equal(choose.getAttribute('aria-describedby'), name.id);
+  assert.equal(name.textContent, 'No file chosen');
+  assert.equal(file.tabIndex, -1);
+  let opened = 0; file.click = () => opened++;
+  await choose.emit('click'); assert.equal(opened, 1);
+  for (const filename of ['first.json', 'second.json.gz', undefined]) {
+    file.files = filename ? [{ name: filename }] : [];
+    await file.emit('change');
+    assert.equal(name.textContent, filename ?? 'No file chosen');
+    assert.equal(choose.getAttribute('aria-describedby'), name.id);
+  }
 });
 
 test('Advanced gates History commands and backup reports without removing the ordinary actions', () => {
@@ -4079,6 +4112,49 @@ test('F4 backup preview feedback belongs to the selected file', async () => {
   assert.ok(h.find('button', 'Apply reviewed replacement'));
   assert.ok(!h.all().some(node => /gzip.*corrupt|corrupt.*gzip/i.test(node.textContent)));
   assert.ok(h.find('span', 'Independent feedback'));
+});
+
+for (const groupView of [false, true]) test(`map legend scopes roll numbers and saved selections after response adoption (${groupView ? 'group' : 'personal'})`, () => {
+  const h = hydratedMapHarness(), envelope = h.envelope(8);
+  envelope.state.rules['roll.selected'] = false;
+  envelope.state.members[0].selected = ['12341']; envelope.state.members[1].selected = ['12342'];
+  envelope.pools.actor1.eligible = [{ id: '12342', reasons: [] }];
+  h.context.envelope = envelope; h.context.groupView = groupView;
+  h.run("$('group-view').checked=groupView;adopt(envelope.state,envelope.pools,undefined,false)");
+  assert.deepEqual([...h.map.candidateRanks], [['12342', 1]]);
+  const text = node => typeof node === 'string' ? node : [node.textContent, ...node.children.map(text)].join(' ');
+  const legend = text(h.nodes.get('map-legend'));
+  assert.match(legend, /Player’s roll options \(numbered\)/);
+  assert.match(legend, /Player’s saved hand selections/);
+  assert.equal(legend.includes('Reed’s saved hand selections'), groupView);
+  assert.doesNotMatch(legend, /In roll pool/);
+  assert.equal(h.run('rollCandidateCount()'), 1);
+  assert.equal(h.nodes.get('pick').disabled, false); assert.equal(h.nodes.get('roll-two').disabled, true);
+  h.run("showChunk('12341')");
+  assert.ok(h.find('p', 'Saved hand selection'));
+  assert.ok(h.find('p', 'Outside Player’s current roll pool.'));
+  assert.ok(h.find('p', 'Hand selections are disabled for Player. The saved selection is kept.'));
+  h.run("showChunk('12342')");
+  assert.ok(h.find('p', 'Eligible for Player’s next roll.'));
+  h.run("applySession({readOnly:true,capabilities:{canWrite:false}});renderState();showChunk('12342')");
+  assert.equal(h.nodes.get('pick').disabled, true);
+  assert.ok(!h.find('button', 'Add to roll pool'));
+  assert.deepEqual([...h.map.candidateRanks], [['12342', 1]], 'Read-only permission never changes eligibility');
+  h.run("memberId='reed';renderState()");
+  assert.equal(h.map.candidateRanks.size, 0, 'Switching players adopts that player’s response membership');
+  assert.match(text(h.nodes.get('map-legend')), /Numbers show Reed’s current roll options/);
+  assert.equal(h.run('rollCandidateCount()'), 0);
+});
+
+test('disabled saved selection explanation survives absent excluded entries and later rule changes', () => {
+  const h = harness();
+  h.run("member().selected=['12341'];state.rules['roll.selected']=false;showChunk('12341')");
+  assert.ok(h.find('p', 'Hand selections are disabled for Player. The saved selection is kept.'));
+  const next = h.snapshot(); next.revision++; next.rules['roll.selected'] = true; h.adopt(next);
+  assert.ok(!h.find('p', 'Hand selections are disabled for Player. The saved selection is kept.'));
+  h.run("pool.excluded=[{id:'12341',reasons:[{ruleId:'state.blacklisted',detail:'Excluded'}]}];showChunk('12341')");
+  assert.ok(h.find('p', 'Outside Player’s current roll pool.'));
+  assert.ok(h.find('p', 'Set to never roll for this player.'));
 });
 
 test('actual task dialog shows the existing fallback diagnostic and expands Why with the same warning', async () => {
