@@ -21,6 +21,7 @@ export const taskRuleBooleanDefaults = Object.freeze({
   InsidePOH: true, 'Primary Spawns': true, 'Rare Drop': true,
   Boss: true, Minigame: true, 'Puro-Puro': true,
   Boosting: false, Skiller: false, 'Farming Primary': false,
+  Timegated: false,
   'Wield Crafted Items': false, 'Multi Step Processing': false,
   'Secondary Primary': false, 'Smithing by Smelting': false,
   'Show Diary Tasks Any': false, 'Show Quest Tasks Complete': false,
