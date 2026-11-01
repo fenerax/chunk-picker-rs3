@@ -345,6 +345,20 @@ test('Advanced explains inert relics, keys and dataset-specific nests without ch
   assert.equal(h.calls.length, 0);
 });
 
+// Codex review r1 on #94, P2 2: an effigies override that matches Automatic today is still
+// pinned; Automatic follows Universal Tertiary later, so reset stays available.
+test('Ancient Effigies override matching Automatic still offers reset', async () => {
+  const state = createGroupState(owners); state.members[0].taskRules = { 'Ancient Effigies': false, 'Universal Tertiary': false };
+  const h = panelHarness(createRulesPanel, { initialState: state }); h.panel.open();
+  const descendants = node => [node, ...node.children.filter(child => typeof child === 'object').flatMap(descendants)];
+  const nodes = descendants(rowByRule(h, 'Ancient Effigies'));
+  assert.equal(nodes.some(node => node.textContent === 'Same as automatic'), false);
+  const reset = nodes.find(node => node.tagName === 'BUTTON' && node.textContent === 'Use automatic (follows Universal Tertiary)'); assert.ok(reset);
+  await reset.emit('click');
+  assert.equal(Object.hasOwn(h.snapshot().members[0].taskRules, 'Ancient Effigies'), false);
+  assert.equal(h.snapshot().members[0].taskRules['Universal Tertiary'], false);
+});
+
 test('Chunk Rules cutoff switches save, reset to automatic and Undo without changing retained values', async () => {
   const state = createGroupState(owners); state.members[0].taskRules = { Pouch: true, 'Rare Drop Inclusive': false, 'Secondary Primary Inclusive': true };
   const h = panelHarness(createRulesPanel, { initialState: state }); h.panel.open();

@@ -1,4 +1,4 @@
-import { taskRuleBehavior, taskRuleCategoryCounts } from '../data/settings.mjs';
+import { ANCIENT_EFFIGIES_RULE, taskRuleBehavior, taskRuleCategoryCounts } from '../data/settings.mjs';
 import { taskRuleAutomaticValue, planTaskRuleChange } from './rules-model.mjs';
 import { captureReview, reviewChanges, reviewRules, reviewSelection, reviewRecord, reviewValue, ruleValueText, reviewSummary, reviewRuleLabel } from './rules-review-model.mjs';
 import { createRuleReviewPreview, rulePreviewText } from './rules-review-preview.mjs';
@@ -111,10 +111,12 @@ export function createRulesReview(ctx) {
         }
         if (!rule.sharedRuleId) {
           const automatic = ids().map(id => taskRuleAutomaticValue(state, id, rule).value);
-          const same = automatic.every((value, i) => Object.is(value, reviewValue(state, ids()[i], rule, registry)));
+          // Automatic effigies follow Universal Tertiary: a saved override stays resettable even when it matches today.
+          const follows = rule.id === ANCIENT_EFFIGIES_RULE && ids().some(id => Object.hasOwn(state.members.find(member => member.id === id)?.taskRules ?? {}, rule.id));
+          const same = !follows && automatic.every((value, i) => Object.is(value, reviewValue(state, ids()[i], rule, registry)));
           if (same) controls.append(el('p', 'Same as automatic', 'field-help rules-walk-automatic'));
           else {
-            const reset = button(`Use automatic (${automatic.every(value => Object.is(value, automatic[0])) ? ruleValueText(automatic[0]) : 'different values'})`, async () => {
+            const reset = button(`Use automatic (${follows ? 'follows Universal Tertiary' : automatic.every(value => Object.is(value, automatic[0])) ? ruleValueText(automatic[0]) : 'different values'})`, async () => {
               if (!fresh()) { options.stale(); render(); return; }
               cancel(); await options.save(ids().filter(id => Object.hasOwn(ctx.state().members.find(member => member.id === id).taskRules ?? {}, rule.id))
                 .map(memberId => ({ type: 'reset-task-rule', memberId, ruleId: rule.id })), renderedRevision);

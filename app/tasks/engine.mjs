@@ -6,7 +6,7 @@ import { datasetValue } from '../dataset-runtime.mjs';
 import { prepareTaskDefinitions } from '../dataset-pipeline.mjs';
 import { requireSelectedDataset } from '../dataset-runtime.mjs';
 import { importedXpAllocations, xpChoiceAllocation } from '../core/xp-choices.mjs';
-import { buildAccessIndex, calculateAccess, collectBaseItemSources, baseItemSourceView, walkingConnections, copyAccess } from './access.mjs';
+import { splitEffigyGate, buildAccessIndex, calculateAccess, collectBaseItemSources, baseItemSourceView, walkingConnections, copyAccess } from './access.mjs';
 import { decodeLegacyText, hasGameplayMigration, projectMemberTaskFacts } from './migration.mjs';
 import { playerControlSkills, resolvePlayerControls } from '../core/player-controls.mjs';
 import { progressBelongsToMember, observedSkills } from '../core/game-progress.mjs';
@@ -39,7 +39,7 @@ import { evaluateBossGates, closedBossMonsters, bossGearCatalogue, bestBossGear 
 import { bossGates as bossGateData } from '../data/boss-gates.mjs';
 import { applyDivinationTraining } from '../data/divination-training.mjs';
 import { personalQuestProgressBlocker } from './personal-quest-progress.mjs';
-import { taskRuleEnabled } from './rule-defaults.mjs';
+import { resolveTaskRules, taskRuleEnabled } from './rule-defaults.mjs';
 import { slayerUnlockGate, slayerUnlockTaskName } from '../data/slayer-unlock-gates.mjs';
 import { evaluateSlayerUnlockGate } from './slayer-unlock-gates.mjs';
 import { canTrainAllPortSkills } from '../data/port-skills.mjs';
@@ -184,7 +184,7 @@ export function createTaskEngine(definitions, options = {}) {
     const member = state.members.find(member => member.id === memberId);
     if (!member) throw new TypeError(`Unknown member: ${memberId}`);
     const legacy = state.legacy?.maps?.[member?.sourceMapId]?.rules;
-    const rules = { ...(!hasGameplayMigration(state, member) ? legacy : {}), ...state.taskRules, ...member?.taskRules };
+    const rules = resolveTaskRules(!hasGameplayMigration(state, member) ? legacy : {}, state.taskRules, member.taskRules);
     for (const { ruleId } of taskRuleDiagnostics(rules)) delete rules[ruleId];
     return variantForRules(state.rules, rules[EARLY_TRAVEL_UNLOCKS_RULE] === true && taskRuleEnabled(rules, EARLY_TRAVEL_UNLOCKS_RULE));
   };
@@ -317,7 +317,8 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
   for (const [selector, requirements] of Object.entries(definitions.taskUnlocks?.Items ?? {})) {
     const [item, source] = selector.split('^');
     const list = outputGates.get(item) ?? [];
-    list.push({ source, requirements }); outputGates.set(item, list);
+    const split = item === 'Starved ancient effigy' ? splitEffigyGate(requirements) : { gate: requirements, effigies: false };
+    list.push({ source, requirements: split.gate, effigies: split.effigies }); outputGates.set(item, list);
   }
   const producers = new Map();
   const declaredOutputRoots = new Map();
@@ -453,7 +454,7 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
         access.diagnostics.push({ code: 'boss-gated', kind: 'Monster', source: monster, gate: gate.id, detail: gate.reason });
       }
     };
-    const rules = { ...(!hasGameplayMigration(state, member) ? legacyMap.rules : {}), ...state.taskRules, ...member.taskRules };
+    const rules = resolveTaskRules(!hasGameplayMigration(state, member) ? legacyMap.rules : {}, state.taskRules, member.taskRules);
     const ruleDiagnostics = taskRuleDiagnostics(rules, { memberId });
     for (const { ruleId } of ruleDiagnostics) {
       if (Object.hasOwn(taskRuleCutoffDefaults, ruleId)) rules[ruleId] = taskRuleCutoffDefaults[ruleId];
@@ -1160,8 +1161,9 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
         publicationReads?.set(key, present);
         return present;
       }));
-      for (const { source, requirements } of outputGates.get(name) ?? []) {
-        if (source === undefined || source === task.rawLabel || source?.endsWith('-source') && task.rawLabel.toLowerCase().includes(source.slice(0, -7).toLowerCase()) || source === '' && kind === 'drop') {
+      for (const { source, requirements, effigies } of outputGates.get(name) ?? []) {
+        if (source === undefined || source === task.rawLabel || source?.endsWith('-source') && task.rawLabel.toLowerCase().includes(source.slice(0, -7).toLowerCase()) || source === '' && (kind === 'drop' || effigies && kind === 'task' && task.category === 'Slayer' && task.record.Source === 'drop')) {
+          if (effigies && !on(rules, 'Ancient Effigies', true)) return false;
           if (!satisfies(requirements)) return false;
         }
       }

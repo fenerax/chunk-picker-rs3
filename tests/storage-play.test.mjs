@@ -82,6 +82,7 @@ test('serialized calculation snapshots retain every input field and stay coheren
   } });
   const original = store.getState(), captured = store.getCalculationSnapshot();
   const { provenance, history, ...input } = original; input.history = [];
+  assert.ok(provenance.restore.previousHistory);
   assert.equal(captured, store.getCalculationSnapshot()); assert.equal(captured.revision, original.revision);
   assert.deepEqual(captured.members, [{ id: 'one' }, { id: 'two' }]); assert.equal(captured.inputKey, store.getGameplayFingerprint());
   await store.command({ type: 'set-note', memberId: 'one', chunkId: '12341', note: 'Next revision' }, 0);

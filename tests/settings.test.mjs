@@ -19,7 +19,10 @@ test('task-rule cutoff validation accepts consumed rates and denominators while 
 test('known task toggles are boolean, kill counts are positive integers and unknown rules remain declarative', () => {
   for (const { id, type } of metadata.taskRuleDefinitions) if (type === 'boolean') {
     for (const value of [true, false]) assert.equal(metadata.taskRuleValueError(id, value), null, id);
-    for (const value of ['true', 'false', 0, 1, null]) assert.match(metadata.taskRuleValueError(id, value), /boolean/, id);
+    // Ancient Effigies keeps accepting legacy primitives, as before it had a definition.
+    for (const value of ['true', 'false', 0, 1, null]) id === 'Ancient Effigies'
+      ? assert.equal(metadata.taskRuleValueError(id, value), null, id)
+      : assert.match(metadata.taskRuleValueError(id, value), /boolean/, id);
   }
   for (const value of [1, '16', '1e3', Number.MAX_SAFE_INTEGER]) assert.equal(metadata.taskRuleValueError('Kill X Amount', value), null);
   for (const value of [0, -1, 'banana', '1/16', true, Number.MAX_SAFE_INTEGER + 1]) assert.match(metadata.taskRuleValueError('Kill X Amount', value), /positive safe integer/);
@@ -38,10 +41,11 @@ test('settings and rule metadata keep the transcription checked against the reta
   assert.equal(digest, 'd0799f0d2530e088b6fc416ad19503d37c535e0706a84a7f40d2fffa00a73905');
   assert.equal(metadata.settingDefinitions.length, 27);
   assert.equal(Object.keys(metadata.originalRuleDefaults).length, 136);
-  assert.equal(metadata.taskRuleDefinitions.filter(rule => !['Future Slayer unlocks', 'Kills before moving on from an unknown-rate drop', 'Early Travel Unlocks'].includes(rule.id)).length, 156);
+  assert.equal(metadata.taskRuleDefinitions.filter(rule => !['Future Slayer unlocks', 'Kills before moving on from an unknown-rate drop', 'Early Travel Unlocks', 'Ancient Effigies'].includes(rule.id)).length, 156);
   assert.equal(metadata.taskRuleDefinitions.find(rule => rule.id === 'Future Slayer unlocks').default, false);
   assert.equal(metadata.taskRuleDefinitions.find(rule => rule.id === 'Kills before moving on from an unknown-rate drop').default, 3);
   assert.equal(metadata.taskRuleDefinitions.find(rule => rule.id === 'Early Travel Unlocks').default, false);
+  assert.equal(metadata.taskRuleDefinitions.find(rule => rule.id === 'Ancient Effigies').default, true);
   assert.equal(metadata.originalWorkerInputNames.length, 53);
   assert.equal(metadata.taskRuleBehavior('Normal Farming').status, 'implemented-scope');
 });

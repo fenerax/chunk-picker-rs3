@@ -41,7 +41,8 @@ test('play state, acknowledgement and conflict retain coherent revisions and exa
   for (const field of ['members', 'tasks', 'rules', 'legacy', 'history']) assert.deepEqual(play.state[field], projectPlayState(full.state)[field]);
   for (const owner of full.state.members) assert.deepEqual(play.pools[owner.id].partnerConnections, partnerConnections(world, full.state, owner.id));
   assert.deepEqual((await (await request('/api/history')).json()).previousHistory, full.state.provenance.restore.previousHistory);
-  const calculation = app.store.getCalculationState(); assert.deepEqual(calculation.history, []); assert.equal(calculation.provenance, undefined);
+  const calculation = app.store.getCalculationState(); assert.deepEqual(calculation.history, []);
+  assert.equal(calculation.provenance, undefined);
   assert.deepEqual(calculation.identityRegistry, full.state.identityRegistry); assert.deepEqual(app.store.getRules(), full.state.rules);
   const body = { expectedRevision: full.state.revision, command: { type: 'set-note', memberId: 'one', chunkId: '12341', note: 'Saved' } };
   const saved = await (await request('/api/command?view=play-v1', { body })).json();
