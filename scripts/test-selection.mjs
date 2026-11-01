@@ -318,6 +318,7 @@ const fullOnlyPatterns = [
 
 // Remaining integration/provenance tests are named explicitly to catch unreviewed additions.
 const fullOnlyTests = new Set([
+  "picker-properties.test.mjs",
   "progress-providers.test.mjs",
   "plugin-reads-server.test.mjs",
   "roll-pool-worker.test.mjs",
