@@ -79,3 +79,30 @@ test('a failed new-account claim rolls back the account and its prepared members
   assert.deepEqual(accounts.list(), [], 'Rollback persists across reopening');
   await assert.rejects(() => flow.handle(request(route, preauth), response(), { route: '/auth/discord/callback', security }), { status: 400 });
 });
+
+const pendingCookie = res => res.getHeader('set-cookie').filter(value => !value.startsWith('__Host-rs3_preauth=;')).at(-1)?.split(';')[0];
+for (const scenario of ['unclaimed', 'unassigned', 'claimed', 'revoked', 'removed', 'admin', 'viewer', 'account', 'picker', 'no invite']) {
+  test(`optional cancellation rechecks live invite eligibility: ${scenario}`, async t => {
+    let invite = { id: randomUUID(), memberId: 'player', admin: false, viewer: false, revoked: false };
+    const { flow } = await fixture(t, { mode: 'optional', invites: { get: id => id === invite?.id ? invite : null } });
+    const joined = response();
+    if (scenario !== 'no invite') await flow.join(request('/join/fixture'), joined, { invite, security });
+    const started = response();
+    await flow.handle(request('/auth/discord', scenario === 'no invite' ? undefined : pendingCookie(joined)), started, { route: '/auth/discord', security });
+    if (scenario === 'unassigned') invite.memberId = null;
+    if (scenario === 'claimed') invite.claimedAccountId = randomUUID();
+    if (scenario === 'revoked') invite.revoked = true;
+    if (scenario === 'admin') invite.admin = true;
+    if (scenario === 'viewer') invite.viewer = true;
+    if (scenario === 'removed') invite = null;
+    const identity = scenario === 'account' ? { kind: 'account' } : scenario === 'picker' ? { pickerId: randomUUID() } : undefined;
+    const state = new URL(started.getHeader('location')).searchParams.get('state');
+    const route = `/auth/discord/callback?${new URLSearchParams({ state, error: 'access_denied' })}`;
+    const cancelled = response();
+    await flow.handle(request(route, pendingCookie(started)), cancelled, { route: '/auth/discord/callback', security, identity });
+    assert.equal(cancelled.status, 400);
+    assert.match(cancelled.body, /href="\/auth\/discord"/);
+    assert.equal(cancelled.body.includes('action="/auth/invite"'), ['unclaimed', 'unassigned'].includes(scenario));
+    assert.doesNotMatch(cancelled.body, /action="\/auth\/claim"/);
+  });
+}

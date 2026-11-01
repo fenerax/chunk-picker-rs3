@@ -73,6 +73,8 @@ export async function operatorSettings() {
   await noLinks(file);
   const settings = await json(file);
   for (const key of ['current', 'dataDir', 'controlDir', 'scratchRoot', 'backupDir']) if (!path.isAbsolute(settings[key] ?? '')) throw new Error('Operator paths must be absolute.');
+  // Adjacent binding and status files belong beside the resolved store directory.
+  settings.dataDir = path.resolve(settings.dataDir);
   if (settings.service !== 'chunk-picker.service') throw new Error('Unexpected service identity.');
   if (settings.multiPicker) {
     const { validateServicePaths } = await import('./service-checkpoint.mjs');

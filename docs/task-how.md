@@ -76,3 +76,57 @@ An area goal explains its actual captured entry, rather than only the global
 permission. A marker containing only `UnlocksArea` does not add a separate
 permission requirement to an otherwise witnessed walking entry. A permission
 without captured physical access remains partial.
+
+Folded task places describe the selected proof's conjunction. An alternative
+selects one sufficient witness, and a count group selects the required distinct
+witnesses; their unchosen places are not listed. Shared prerequisites appear
+once, before every action that needs them.
+
+A non-own source flag alone is not partner evidence. A personal producer
+completion remains a permitted supply root even without current production
+access, with a `historical-source-access` gap and a partial explanation. Other
+unproven supply access uses `source-access`. Partner attribution requires an
+admitted shared physical source or captured partner evidence in the producer.
+
+`node scripts/perf/how-paths-browser.mjs` checks the wired task list, HTTP process
+worker transport, default/Advanced visible text, owner selection and saved How
+preferences at desktop and phone widths using public synthetic inputs. It needs
+Chromium (default `/usr/bin/chromium`, overridable with `--chromium`).
+`how-paths-equivalence.mjs` compares START and candidate with the public comparison
+evaluator on a copied current save and seven evenly spaced retained revisions.
+It reports aggregates only and permits only the intended historical gap change
+in sampled proofs; it is not the full calculator checker.
+
+
+## Validation (2026-11-01)
+
+START: `e431da314b682946c27f601ec78f17eab8a790eb`; Node 24.21.0.
+The two public synthetic false claims reproduce on START and disappear after
+this change. The touched How tests pass 36/0; the broader How/access/completion
+set passes 103/0. The wired browser harness passes 20 captures across two widths
+and both modes, with 20 successful HTTP responses and process-worker jobs.
+Existing classified test files were extended; no new test files were added.
+
+The fixed-clock private comparison covers eight states and 16 member evaluations.
+Input, gameplay and sampled-proof difference counts are all zero. It uses the
+public comparison evaluator, roll pools and two task-list projections. Each
+member/state contributes one selected How proof. The full `tools/calc-check`
+checker is unavailable on main and was not run.
+
+Diagnostic timings below are one pass per revision over the same heterogeneous
+sample. Medians and [min, max] are seconds measured with a real monotonic clock;
+the proof budget clock and store opening time are held fixed for parity. Main
+process RSS includes retained comparison engines and is not a server footprint.
+
+| Measurement | START | Fixed |
+| --- | ---: | ---: |
+| Combined evaluation/pool/view/proof sample | 9.26 [2.91, 14.01] | 10.24 [2.87, 14.67] |
+| How replay | 3.23 [0.45, 7.01] | 3.62 [0.54, 8.05] |
+| Main process peak RSS (MiB) | 4084.87 | 4134.75 |
+
+Normal quick, with dataset overrides cleared, finishes at 2990 passed, 0 failed, 68 skipped.
+An initial quick run alongside the heavy comparison finished at 2,989 passed,
+1 failed and 68 skipped: the existing lock-recovery concurrency test admitted
+two contenders against an expectation of one with a 50 ms timing barrier. Its file passed
+8/0 alone on both START and candidate, and the complete quick rerun without the
+comparison workload passed. No assertions or policies were changed.
