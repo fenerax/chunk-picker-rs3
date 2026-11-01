@@ -12,6 +12,61 @@ export function isWholeQuestTask(row) {
     || !(row.record?.BaseQuest || /~\||Archaeology Mystery:/i.test(row.rawLabel ?? label));
 }
 
+// A completion proves only stages that every finite declared route needs.
+// Test structural reachability with each requested stage removed. This keeps
+// counted alternatives and cycles intact without using account levels, map
+// access, rewards or the engine's planning closure as completion evidence.
+function completedStageEvidence(quests, completed, dependencies) {
+  const groups = new Map();
+  for (const row of quests) {
+    const name = questGroupName(row), group = groups.get(name) ?? [];
+    group.push(row); groups.set(name, group);
+  }
+  const proofs = new Map();
+  return target => {
+    if (isWholeQuestTask(target)) return false;
+    const name = questGroupName(target);
+    if (!proofs.has(name)) {
+      const rows = groups.get(name) ?? [];
+      const roots = rows.filter(row => isWholeQuestTask(row) && completed.has(row.id));
+      const graph = new Map((roots.length ? rows : []).map(row => [row.id, dependencies(row)]));
+      const reachable = omitted => {
+        const reached = new Set();
+        let changed = true;
+        while (changed) {
+          changed = false;
+          for (const row of rows) {
+            if (row.id === omitted || reached.has(row.id)) continue;
+            if (graph.get(row.id).every(group => Number.isSafeInteger(group.count) && group.count > 0
+              && group.targets.filter(({ row: child }) => child
+                && (questGroupName(child) !== name || child.category !== 'Quest' || reached.has(child.id))).length >= group.count)) {
+              reached.add(row.id); changed = true;
+            }
+          }
+        }
+        return reached;
+      };
+      // Unknown targets must not silently remove a possible alternative route.
+      // Fail closed for roots whose declared dependency graph is incomplete.
+      const reviewed = (row, seen = new Set()) => {
+        if (seen.has(row.id)) return true;
+        seen.add(row.id);
+        return graph.get(row.id).every(group => group.targets.length && group.targets.every(({ row: child }) => child
+          && (child.category !== 'Quest' || questGroupName(child) !== name || reviewed(child, seen))));
+      };
+      const baseline = roots.length ? reachable() : new Set();
+      const validRoots = roots.filter(row => baseline.has(row.id) && reviewed(row));
+      proofs.set(name, { roots: validRoots, reachable, stages: new Map() });
+    }
+    const proof = proofs.get(name);
+    if (!proof.stages.has(target.id)) {
+      const without = proof.roots.length ? proof.reachable(target.id) : new Set();
+      proof.stages.set(target.id, proof.roots.some(row => !without.has(row.id)));
+    }
+    return proof.stages.get(target.id);
+  };
+}
+
 /** Overlay personal requirements on the engine's reachable source evidence.
  * The selector evaluator remains authoritative; this adapter only translates
  * retained record fields and supplies recorded account facts. */
@@ -20,6 +75,19 @@ export function buildQuestReadiness(result, state, memberId, definitions = {}) {
   const rows = result.tasks ?? [], quests = rows.filter(row => row.category === 'Quest');
   const byKey = new Map(rows.map(row => [`${row.category}:${row.rawLabel}`, row]));
   const completed = new Set(availability.completedTasks.map(row => row.id));
+  const aliases = definitions.codeItems?.tasksPlus ?? {};
+  const dependencies = row => Object.entries(row.record?.Tasks ?? {}).flatMap(([token, category]) => {
+    const match = /^(.*\[\+\])(?:x(\d+))?$/.exec(token);
+    const matches = match && !Object.hasOwn(aliases, match[1]) ? Object.keys(aliases).filter(key => key.toLowerCase() === match[1].toLowerCase()) : [];
+    const key = match && (Object.hasOwn(aliases, match[1]) ? match[1] : matches.length === 1 ? matches[0] : undefined);
+    const names = match ? list(aliases[key]) : [token];
+    const targets = [...new Set(names.map(name => String(name).split('--')[0]))]
+      .map(name => ({ name, row: byKey.get(`${category}:${name}`) }));
+    // Reference self-links describe alternative production, not prior completion.
+    if (targets.length && targets.every(target => target.row?.id === row.id)) return [];
+    return [{ token, category, targets, count: Number(match?.[2] ?? 1) }];
+  });
+  const completedStage = completedStageEvidence(quests, completed, dependencies);
   const skills = { ...availability.skills };
   const combatSkills = ['Attack', 'Strength', 'Defence', 'Constitution', 'Ranged', 'Prayer', 'Magic', 'Summoning', 'Necromancy'];
   if (combatSkills.every(skill => Number.isFinite(skills[skill]))) skills.Combat = combatLevelFromSkills(skills, { f2p: availability.members !== true });
@@ -39,24 +107,17 @@ export function buildQuestReadiness(result, state, memberId, definitions = {}) {
     for (const [field, kind] of [['Chunks', 'chunk'], ['Items', 'item'], ['Objects', 'object'], ['NPCs', 'npc'], ['Monsters', 'monster'], ['Monster', 'monster'], ['Shops', 'shop']]) {
       for (const name of list(record[field])) requirements.push({ kind, name });
     }
-    for (const [token, category] of Object.entries(record.Tasks ?? {})) {
-      const match = /^(.*\[\+\])(?:x(\d+))?$/.exec(token);
-      const aliases = definitions.codeItems?.tasksPlus ?? {};
-      const aliasKey = match && (Object.hasOwn(aliases, match[1]) ? match[1] : Object.keys(aliases).find(key => key.toLowerCase() === match[1].toLowerCase()));
-      const names = match ? list(aliases[aliasKey]) : [token];
-      const targets = names.map(name => ({ name: String(name).split('--')[0], row: byKey.get(`${category}:${String(name).split('--')[0]}`) }));
-      // Reference self-links annotate alternative production routes, rather
-      // than requiring the task to have been performed already.
-      if (targets.length && targets.every(target => target.row?.id === row.id)) continue;
+    for (const { token, category, targets, count } of dependencies(row)) {
       const name = `Readiness ${row.id} ${token}[+]`;
       rowFacts.aliases.quest[name] = [...new Set(targets.map(target => `${category}:${target.name}`))];
       for (const target of targets) {
         const internal = category === 'Quest' && target.row && questGroupName(target.row) === questGroupName(row);
         const ready = target.row && (completed.has(target.row.id)
+          || category === 'Quest' && !internal && completedStage(target.row)
           || (category !== 'Quest' || internal) && target.row.id !== row.id && evaluate(target.row).canDoNow);
         if (ready) rowFacts.completedQuests.push(`${category}:${target.name}`);
       }
-      requirements.push({ kind: 'quest', name: `${name}x${Number(match?.[2] ?? 1)}` });
+      requirements.push({ kind: 'quest', name: `${name}x${count}` });
     }
     if (record.RequirementAlternatives) requirements.push({ anyOf: list(record.RequirementAlternatives).map(clause => {
       const keys = clause && typeof clause === 'object' && !Array.isArray(clause) ? Object.keys(clause) : [];

@@ -1,3 +1,4 @@
+import { taskExplanation } from '../app/tasks/task-provenance.mjs';
 import { appendTaskClaim, createTaskClaimClock } from '../app/web/task-claims.mjs';
 import { observeScreenBars } from '../app/web/phone-layout.mjs';
 import { readScreenGraph, runScreenGraph } from './browser-screen-harness.mjs';
@@ -12,6 +13,7 @@ import { futureSlayerUnlocksRule } from '../app/data/slayer-unlock-gates.mjs';
 import { createTaskFactsIndex, goalProgress } from '../app/core/progress.mjs';
 import { resolveTaskAlternatives } from '../app/core/task-alternatives.mjs';
 import { originalSettings, settingDefinitions, taskHowPreference } from '../app/data/settings.mjs';
+import { buildActivityInfo } from '../app/tasks/activity.mjs';
 import { createInfoPanels, createNoteEditor, reviewedNoteRevision } from '../app/web/info-panels.mjs';
 import { createChunkQuestList } from '../app/web/chunk-quest-filters.mjs';
 import { createMapTools, applyTheme } from '../app/web/map-tools.mjs';
@@ -229,7 +231,7 @@ test('saved chunk actions refresh while focused and keep an independent note dra
   h.adopt(next);
   assert.equal(h.context.document.activeElement, textarea);
   assert.equal(textarea.value, 'Keep this unsaved draft');
-  assert.ok(h.find('p', 'In roll pool (added by hand)'));
+  assert.ok(h.find('p', 'Saved hand selection'));
   assert.ok(h.find('button', 'Remove from roll pool'));
   assert.ok(!h.find('button', 'Add to roll pool'));
   const remove = h.find('button', 'Remove from roll pool'); remove.focus();
@@ -1732,7 +1734,7 @@ function harness({ realPlanning = false, localStorage, documentEvents = false } 
     artStatusText, datasetStatusText, loadArtStatus: async () => null, installPictureFallbacks() {}, observeArtStatus: listener => listener(null),
     createActivityFilterControls: (collaborators, options) => createActivityFilterControls({ ...collaborators, storage: localStorage }, options), selectActivityRows,
     travelIntoChunk, createChunkQuestList: (collaborators, entries) => { collaborators.storage = localStorage; return createChunkQuestList(collaborators, entries); },
-    createMapDisplay: () => ({ sizes: { rollNumberScale: 1, chunkIdScale: 1, stickerScale: 1 }, open() {}, close() {}, refresh() {}, isOpen: () => false }), createHelperView: () => ({}), createBackupStatus: () => ({ start() {}, refresh: async () => {}, line: () => null }), createSandbox, openSandboxRules, createTaskHover, createTaskMethods, renderTaskEquipment, resolveTaskAlternatives, createDuoResultCache, selectDuoTasks, createDuoTaskView, createTaskFilters, appendTaskPin, appendTaskWhy, catalogued, createRuleDescriber, savedTaskWhyResult, isTaskPinned, createTaskPinChecker, createCompletedView, createDuoCoordination, openTeleportsDialog,
+    createMapDisplay: () => ({ sizes: { rollNumberScale: 1, chunkIdScale: 1, stickerScale: 1 }, open() {}, close() {}, refresh() {}, isOpen: () => false }), createHelperView: () => ({}), createBackupStatus: () => ({ start() {}, refresh: async () => {}, line: () => null }), createSandbox, openSandboxRules, createTaskHover, createTaskMethods, renderTaskEquipment, resolveTaskAlternatives, createDuoResultCache, selectDuoTasks, createDuoTaskView, createTaskFilters, appendTaskPin, appendTaskWhy, taskExplanation, catalogued, createRuleDescriber, savedTaskWhyResult, isTaskPinned, createTaskPinChecker, createCompletedView, createDuoCoordination, openTeleportsDialog,
     selectDuoTaskLists, createDuoBacklogView, buildWorld, createRuleRegistry, originalSettings, settingDefinitions, datasetSettings: settingDefinitions, taskHowPreference, appendTaskHow, createRulesPanel,
     taskItemIcon, taskIcon, taskCategoryIcon, createTaskIconPainter, skillIcon: () => null, itemIcon: () => null, loadIcons: async () => false, interiorCandidates: () => [], interiorPanel: () => ({}), describeHistoryEvent: event => event.type, createFeedback: () => ({ open() {}, setSession() {}, start() {}, stop() {} }), createUpdates: () => ({ seen() {}, openList() {} }), createRuneMetricsControls: () => ({}), createGamePlugin: () => ({ refresh: async () => {}, render() {}, open() {}, controls: () => ({}) }), createStickerPicker: () => ({ open() {}, close() {}, isOpen: () => false, element: { contains: () => false } }), createInfoPanels, createNoteEditor, reviewedNoteRevision, createMapTools, applyTheme, createTaskFactsIndex, goalProgress, createDeathSettings, createMiningSettings, createWoodcuttingSettings, createBankingSettings, mergeCommandState, projectChunkState, projectTaskState, createOriginalSync,
     EventSource: class extends Node { constructor(url) { super(); this.url = url; eventSources.push(this); } },
@@ -4077,6 +4079,85 @@ test('F4 backup preview feedback belongs to the selected file', async () => {
   assert.ok(h.find('button', 'Apply reviewed replacement'));
   assert.ok(!h.all().some(node => /gzip.*corrupt|corrupt.*gzip/i.test(node.textContent)));
   assert.ok(h.find('span', 'Independent feedback'));
+});
+
+for (const groupView of [false, true]) test(`map legend scopes roll numbers and saved selections after response adoption (${groupView ? 'group' : 'personal'})`, () => {
+  const h = hydratedMapHarness(), envelope = h.envelope(8);
+  envelope.state.rules['roll.selected'] = false;
+  envelope.state.members[0].selected = ['12341']; envelope.state.members[1].selected = ['12342'];
+  envelope.pools.actor1.eligible = [{ id: '12342', reasons: [] }];
+  h.context.envelope = envelope; h.context.groupView = groupView;
+  h.run("$('group-view').checked=groupView;adopt(envelope.state,envelope.pools,undefined,false)");
+  assert.deepEqual([...h.map.candidateRanks], [['12342', 1]]);
+  const text = node => typeof node === 'string' ? node : [node.textContent, ...node.children.map(text)].join(' ');
+  const legend = text(h.nodes.get('map-legend'));
+  assert.match(legend, /Player’s roll options \(numbered\)/);
+  assert.match(legend, /Player’s saved hand selections/);
+  assert.equal(legend.includes('Reed’s saved hand selections'), groupView);
+  assert.doesNotMatch(legend, /In roll pool/);
+  assert.equal(h.run('rollCandidateCount()'), 1);
+  assert.equal(h.nodes.get('pick').disabled, false); assert.equal(h.nodes.get('roll-two').disabled, true);
+  h.run("showChunk('12341')");
+  assert.ok(h.find('p', 'Saved hand selection'));
+  assert.ok(h.find('p', 'Outside Player’s current roll pool.'));
+  assert.ok(h.find('p', 'Hand selections are disabled for Player. The saved selection is kept.'));
+  h.run("showChunk('12342')");
+  assert.ok(h.find('p', 'Eligible for Player’s next roll.'));
+  h.run("applySession({readOnly:true,capabilities:{canWrite:false}});renderState();showChunk('12342')");
+  assert.equal(h.nodes.get('pick').disabled, true);
+  assert.ok(!h.find('button', 'Add to roll pool'));
+  assert.deepEqual([...h.map.candidateRanks], [['12342', 1]], 'Read-only permission never changes eligibility');
+  h.run("memberId='reed';renderState()");
+  assert.equal(h.map.candidateRanks.size, 0, 'Switching players adopts that player’s response membership');
+  assert.match(text(h.nodes.get('map-legend')), /Numbers show Reed’s current roll options/);
+  assert.equal(h.run('rollCandidateCount()'), 0);
+});
+
+test('disabled saved selection explanation survives absent excluded entries and later rule changes', () => {
+  const h = harness();
+  h.run("member().selected=['12341'];state.rules['roll.selected']=false;showChunk('12341')");
+  assert.ok(h.find('p', 'Hand selections are disabled for Player. The saved selection is kept.'));
+  const next = h.snapshot(); next.revision++; next.rules['roll.selected'] = true; h.adopt(next);
+  assert.ok(!h.find('p', 'Hand selections are disabled for Player. The saved selection is kept.'));
+  h.run("pool.excluded=[{id:'12341',reasons:[{ruleId:'state.blacklisted',detail:'Excluded'}]}];showChunk('12341')");
+  assert.ok(h.find('p', 'Outside Player’s current roll pool.'));
+  assert.ok(h.find('p', 'Set to never roll for this player.'));
+});
+
+test('actual task dialog shows the existing fallback diagnostic and expands Why with the same warning', async () => {
+  const h = harness();
+  const visible = { id: 'builtin:fallback', label: 'Fixture fallback', rawLabel: 'Fixture fallback', category: 'Mining', status: 'available',
+    explanation: 'All listed requirements are met.', record: {} };
+  const warning = 'Your saved task choice is unavailable. Showing Fixture fallback.';
+  h.context.fallbackTask = visible;
+  h.context.fallbackResult = { ...taskResult(7), tasks: [visible], presentation: { tasks: [visible], alternatives: {}, diagnostics: [
+    { kind: 'unavailable-task-alternative', chosen: visible.id, detail: warning },
+  ] } };
+  h.run('result = fullResult = fallbackResult; showTask(fallbackTask, true)');
+  assert.ok(h.all().some(node => node.textContent === `${visible.explanation} ${warning}`));
+  const why = h.all().find(node => node.className === 'icon-button task-why');
+  assert.ok(why); await why.emit('click'); await flush();
+  assert.ok(h.all().some(node => node.textContent?.includes(warning) || node.children?.includes(warning)));
+  assert.equal(why.getAttribute('aria-expanded'), 'true');
+});
+
+test('wired quest search renders mandatory-stage readiness from personal whole completion', async () => {
+  for (const completed of [false, true]) {
+    const h = harness(), state = h.snapshot();
+    const row = (id, title, step, record = {}) => ({ id, category: 'Quest', baseQuest: title,
+      rawLabel: `~|${title}|~ ${step}`, label: `${title} ${step}`, record, status: 'available', blockers: [] });
+    const stage = row('stage', 'Earlier', '5');
+    const whole = row('whole', 'Earlier', 'Complete the quest', { QuestPoints: 1, Tasks: { [stage.rawLabel]: 'Quest' } });
+    whole.personalCompleted = completed;
+    const finish = row('finish', 'Later', 'Complete the miniquest', { QuestPoints: 0, Tasks: { [stage.rawLabel]: 'Quest' } });
+    const full = { ...taskResult(7), tasks: [stage, whole, finish] };
+    full.activityInfo = buildActivityInfo(full, state, 'actor1');
+    await openQuestSearch(h, full);
+    await questSearchChip(h, 'Can do now').emit('click'); await flush();
+    assert.equal(searchLabels(h).includes(finish.label), completed);
+    assert.ok(h.calls.every(call => !call.body));
+    assert.deepEqual(h.snapshot(), state);
+  }
 });
 
 // Minimized public count contracts: no calculator or private catalogue inputs.

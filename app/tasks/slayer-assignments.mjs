@@ -1,5 +1,6 @@
 import { combatLevelFromSkills } from '../core/combat-level.mjs';
 import { plainLabel } from './engine.mjs';
+import { questGroupName } from './activity-readiness.mjs';
 
 const list = value => value == null ? [] : Array.isArray(value) ? value : [value];
 const yes = () => ({ status: 'doable', quests: [] });
@@ -22,10 +23,35 @@ export function currentSlayerLevels(result, { f2p = true } = {}) {
   return levels;
 }
 
+/** Intersect the planning method with personal, current master requirements.
+ * An available method can still require training or an unfinished quest. */
+export function currentSlayerMasterAccess(method, levels, resolveTasks, npcNow) {
+  if (method?.status !== 'available') return { status: 'unavailable', reasons: ['No verified assignment method is reachable.'] };
+  const unmet = [], missing = [], record = method.record ?? {};
+  for (const [skill, level] of Object.entries({ ...record.Skills, ...record.SkillsNeeded, ...(record.Level ? { Slayer: record.Level } : {}) })) {
+    if (levels[skill] == null) missing.push(`Sync your ${skill} level to check this master.`);
+    else if (levels[skill] < level) unmet.push(`Requires ${skill} ${level} (recorded ${levels[skill]}).`);
+  }
+  for (const [label, category] of Object.entries(record.Tasks ?? {})) {
+    const candidates = resolveTasks(label, category);
+    if (candidates.some(row => row.personalCompleted)) continue;
+    if (category === 'Quest' && candidates.length) unmet.push(`Complete ${[...new Set(candidates.map(questGroupName))].join(' or ')} yourself to use this master.`);
+    else missing.push(`The prerequisite ${plainLabel(label)} cannot be checked right now.`);
+  }
+  // The master's location can carry its own quest gates, outside the method
+  // record: Chaeldar is in Zanaris (Lost City), Duradel's hut needs Shilo Village.
+  for (const npc of npcNow ? list(record.NPCs) : []) {
+    const place = npcNow(npc), name = npc.split('#')[0];
+    if (place.status === 'stuck') unmet.push(place.quests.length ? `Reaching ${name} needs ${place.quests.join(' and ')} finished.` : `${name} cannot be reached right now.`);
+    else if (place.status === 'unknown') missing.push(`Whether you can reach ${name} cannot be checked right now.`);
+  }
+  return { status: unmet.length ? 'unavailable' : missing.length ? 'unknown' : 'available', reasons: [...unmet, ...missing] };
+}
+
 /** Bounded display-only proof over serialized access. Missing route evidence stays unknown.
  * Access is a planning union: area tasks, Connect gates and source taskUnlocks may
  * depend on unfinished quests. Never use monster membership alone as a NOW proof. */
-export function slayerTargetAccess(result, definitions, resolveTasks, levels) {
+export function slayerTargetAccess(result, definitions, resolveTasks, levels, confirmedSections = new Set()) {
   const access = result.access ?? {}, places = new Set([...list(access.bases), ...list(access.sections), ...list(access.areas)]);
   const tasks = new Map((result.tasks ?? []).map(row => [`${row.category}\0${row.rawLabel}`, row]));
   const memo = new Map(), active = new Set();
@@ -77,7 +103,9 @@ export function slayerTargetAccess(result, definitions, resolveTasks, levels) {
       // A section reached only through an interior or a quest connector is not
       // independently proved by membership in the planning access union.
       const section = /^(\d+)-(\d+)$/.exec(id), neighbors = section && definitions.sections?.[section[1]]?.[section[2]];
-      if (neighbors?.length) checks.push(any(neighbors.filter(place => places.has(place)).map(checkPlace)));
+      // A section the player confirmed reachable is its own route proof; its quest and area gates above still apply.
+      if (section && confirmedSections.has(id)) checks.push(yes());
+      else if (neighbors?.length) checks.push(any(neighbors.filter(place => places.has(place)).map(checkPlace)));
       else if (section && Object.keys(definitions.chunks?.[base]?.Sections ?? {}).length > 1) checks.push(unknown());
       else if (!section && definitions.chunks?.[base]?.Sections) checks.push(unknown());
     } else {
@@ -95,7 +123,7 @@ export function slayerTargetAccess(result, definitions, resolveTasks, levels) {
     if (value.status === 'doable') memo.set(id, value);
     return value;
   }
-  return monster => {
+  const target = monster => {
     visits = 0;
     const locations = list(access.locations?.[`Monster:${monster}`]);
     return any(locations.map(location => {
@@ -115,6 +143,14 @@ export function slayerTargetAccess(result, definitions, resolveTasks, levels) {
       return all(checks);
     }));
   };
+  // Same place proof for an NPC (a Slayer master), with its own source gates.
+  target.npc = npc => {
+    visits = 0;
+    const gates = definitions.taskUnlocks?.NPCs?.[npc];
+    return any(list(access.locations?.[`NPC:${npc}`]).map(location =>
+      all([checkPlace(location), requirements(gates?.[location] ?? gates?.[location.split('-')[0]])])));
+  };
+  return target;
 }
 
 const friendlyChance = chance => {

@@ -43,7 +43,7 @@ export function processingLevel(row, rules, definitions, items, access = {}) {
  */
 export function selectProcessingSources(rows, itemRows, training, rules, definitions = {}, access = {}, ordinaryInput) {
   const items = new Map(itemRows.map(item => [item.name, item]));
-  const eligible = new Set(), candidates = new Set(), conditional = new Set(), multi = new Set(), groups = new Map(), effectiveLevels = {}, diagnostics = [];
+  const eligible = new Set(), candidates = new Set(), conditional = new Set(), multi = new Set(), groups = new Map(), effectiveLevels = {}, diagnostics = [], sourceExclusions = {};
   const byId = new Map(rows.map(row => [row.id, row]));
   const level = row => effectiveLevels[row.id] ??= processingLevel(row, rules, definitions, items, access);
   const sourceRow = source => byId.get(source.taskId);
@@ -85,8 +85,17 @@ export function selectProcessingSources(rows, itemRows, training, rules, definit
   for (const row of rows) {
     if (row.personalCompleted && row.status !== 'unsupported') { eligible.add(row.id); continue; }
     if (row.status !== 'available') continue;
-    if (row.record?.NoXp && list(row.record.Output).some(name =>
-      (items.get(name)?.sources ?? []).some(source => source.taskId !== row.id && source.processingMode !== 'multi'))) continue;
+    // One duplicate is sufficient evidence. Preserve the gate's short-circuit
+    // rather than scanning every output to build an exhaustive explanation.
+    let duplicate;
+    if (row.record?.NoXp && list(row.record.Output).some(name => {
+      if (!(items.get(name)?.sources ?? []).some(source => source.taskId !== row.id && source.processingMode !== 'multi')) return false;
+      duplicate = name; return true;
+    })) {
+      sourceExclusions[row.id] = { kind: 'no-xp-duplicate-output', items: [duplicate],
+        detail: `This no-XP recipe duplicates ${duplicate}, already available from an independent source. The current duplicate-output rule excludes all of this recipe’s outputs from supplies and training.` };
+      continue;
+    }
     // One independent ingredient cannot turn a conditional ingredient into
     // ordinary supplies. Otherwise a winning bowstring/thread group admits
     // the finished product, raises its skill frontier and admits its own
@@ -158,5 +167,5 @@ export function selectProcessingSources(rows, itemRows, training, rules, definit
   }
   const multiTaskIds = enabled(rules, 'Multi Step Processing') ? [...candidates].filter(id => !eligible.has(id)
     && (training?.[byId.get(id).category]?.primary || training?.[byId.get(id).category]?.manualPrimary)) : [];
-  return { eligibleTaskIds: [...eligible], multiTaskIds, effectiveLevels, diagnostics };
+  return { eligibleTaskIds: [...eligible], multiTaskIds, effectiveLevels, diagnostics, sourceExclusions };
 }

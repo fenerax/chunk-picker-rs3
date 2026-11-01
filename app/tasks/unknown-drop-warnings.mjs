@@ -3,6 +3,8 @@ import { UNKNOWN_DROP_RULE, unknownDropRule } from '../data/settings.mjs';
 import { taskRuleValueError } from '../data/settings.mjs';
 import { parseDropRate } from './rates.mjs';
 import { processingSkills } from './processing.mjs';
+import { relaxesAchievementDependency } from './achievements.mjs';
+import { taskRuleEnabled } from './rule-defaults.mjs';
 
 const list = value => value == null ? [] : Array.isArray(value) ? value : [value];
 const contexts = new WeakMap();
@@ -53,9 +55,9 @@ export function unknownDropContext(result, definitions = {}, allowedSource, rule
   const aliases = definitions.codeItems?.itemsPlus ?? {};
   function choices(token, registry = aliases) {
     const clean = String(token).replaceAll('*', ''), match = /^(.*\[\+\])(?:x(\d+))?$/.exec(clean);
-    if (!match) return { names: [clean], count: 1 };
+    if (!match) return { names: [clean], count: 1, alias: false };
     const key = Object.hasOwn(registry, match[1]) ? match[1] : Object.keys(registry).find(key => key.toLowerCase() === match[1].toLowerCase());
-    return { names: list(registry[key] ?? clean), count: Number(match[2] ?? 1) };
+    return { names: list(registry[key] ?? clean), count: Number(match[2] ?? 1), alias: true };
   }
   function sourceNode(source) {
     // Task outputs and task rewards both depend on their producing task. A
@@ -67,6 +69,10 @@ export function unknownDropContext(result, definitions = {}, allowedSource, rule
     configure(target, producer ? [producer] : [], () => Math.max(estimate, producer?.value ?? 0));
     return target;
   }
+  // The engine waives some diary tiers (Show Diary Tasks Any, Combat Mastery);
+  // a waived prerequisite costs nothing here either.
+  const anyAchievements = taskRuleEnabled(rules, 'Show Diary Tasks Any', false);
+  const free = () => { const value = node(); configure(value, [], () => 0); return value; };
   const sourceNodes = new WeakMap(), wieldNodes = new Map();
   for (const item of items.values()) {
     for (const source of item.sources ?? []) sourceNodes.set(source, sourceNode(source));
@@ -99,7 +105,8 @@ export function unknownDropContext(result, definitions = {}, allowedSource, rule
       return { deps: names.map(name => itemChoice(name, row)), count };
     });
     const dependencies = Object.entries(row.record?.Tasks ?? {}).flatMap(([label, category]) => {
-      const { names, count } = choices(label, definitions.codeItems?.tasksPlus ?? {});
+      const { names, count, alias } = choices(label, definitions.codeItems?.tasksPlus ?? {});
+      const dependency = { category, token: String(label), alias };
       const rawNames = [...new Set(names.map(name => String(name).split('--')[0]))];
       const self = name => category === row.category && name === (row.rawLabel ?? row.label);
       // All-self links are annotations; mixed aliases must still satisfy their
@@ -107,10 +114,11 @@ export function unknownDropContext(result, definitions = {}, allowedSource, rule
       if (rawNames.every(self)) return [];
       return [{ deps: rawNames.filter(name => !self(name)).map(name => {
         const task = tasks.get(keys.get(`${category}\0${name}`));
+        if (task && relaxesAchievementDependency(row.category, row.record ?? {}, dependency, task.row.record, anyAchievements)) return free();
         if (!task?.row.personalCompleted) return task?.row.status === 'available' ? task.node : undefined;
         // A completed prerequisite needs no new acquisition. Its recipe still
         // needs supplies when used as a producer of additional items.
-        const completed = node(); configure(completed, [], () => 0); return completed;
+        return free();
       }).filter(Boolean), count }];
     });
     groups.push(...dependencies);

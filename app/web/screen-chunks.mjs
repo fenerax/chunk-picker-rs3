@@ -108,10 +108,11 @@ export function createScreenChunks(c) {
   function chunkSummary(id, indexed, record) {
     const content = c.el('div', undefined, 'chunk-live-summary');
     const owned = c.state.members.filter(item => item.unlocked.includes(id)).map(item => item.name), area = c.world.areas.has(id);
-    content.append(c.el('p', area ? c.result?.access.areas.includes(id) ? 'Accessible interior' : 'Interior not currently accessible' : owned.length ? `Unlocked by ${owned.join(' and ')}` : c.member().pendingRoll.includes(id) ? 'Pending roll choice' : c.member().selected.includes(id) ? 'In roll pool (added by hand)' : c.member().blacklisted.includes(id) ? 'Never roll' : 'Locked', 'chunk-status'));
+    content.append(c.el('p', area ? c.result?.access.areas.includes(id) ? 'Accessible interior' : 'Interior not currently accessible' : owned.length ? `Unlocked by ${owned.join(' and ')}` : c.member().pendingRoll.includes(id) ? 'Pending roll choice' : c.member().selected.includes(id) ? 'Saved hand selection' : c.member().blacklisted.includes(id) ? 'Never roll' : 'Locked', 'chunk-status'));
     const facts = c.el('div', undefined, 'chunk-facts'), entry = [...c.pool.eligible, ...c.pool.excluded].find(item => item.id === id);
     const mine = c.member().unlocked.includes(id);
     if (!area && !mine) facts.append(c.el('p', c.member().pendingRoll.includes(id) ? `Offered in ${c.member().name}’s pending roll.` : c.pool.eligible.some(item => item.id === id) ? `Eligible for ${c.member().name}’s next roll.` : `Outside ${c.member().name}’s current roll pool.`, 'status-detail'));
+    if (!area && c.member().selected.includes(id) && c.state.rules?.['roll.selected'] === false) facts.append(c.el('p', `Hand selections are disabled for ${c.member().name}. The saved selection is kept.`, 'status-detail'));
     const connection = mine ? null : c.result?.partnerConnections?.byChunk?.[id];
     if (connection) {
       facts.append(c.el('p', connection.connected ? `Connected partner chunk · usable by ${c.member().name}` : `Partner chunk · no round trip for ${c.member().name}`, 'status-detail'));

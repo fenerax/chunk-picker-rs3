@@ -39,8 +39,8 @@ export function createScreenMap(c) {
     c.finishLine?.refresh();
     c.partnerSupply?.refresh();
     c.bossGatesView?.refresh();
-    c.$('undo').disabled = !c.canWrite() || c.sandbox.active || !c.state.history.some(event => event.undo && !event.undoneRevision);
-    c.duoCoordination?.render();
+    if (c.duoCoordination) c.duoCoordination.render();
+    else c.$('undo').disabled = !c.canWrite() || c.sandbox.active || !c.state.history.some(event => event.undo && !event.undoneRevision);
     c.gamePlugin?.render();
     for (const id of ['settings-open', 'game-plugin-open', 'bis-open', 'activity-open', 'teleports-open', 'backup-open', 'original-sync-open', 'invites-open', 'feedback-open', 'custom-task-open', 'random-start']) if (c.$(id)) c.$(id).disabled = c.sandbox.active;
     for (const theme of ['dark', 'gray', 'light']) { const choice = c.$(`theme-${theme}`); if (choice) choice.disabled = c.sandbox.active; }
@@ -104,8 +104,9 @@ export function createScreenMap(c) {
     c.$('map-legend').replaceChildren(
       ...(visible.some(owner => owner.unlocked?.length) ? [item('Unlocked', 'border', c.preferences().unlockedBorderColor || '#FF0000')] : []), ...owners,
       ...(disconnected ? [item('Disconnected partner', 'disconnected')] : []),
-      ...(visible.some(owner => owner.selected?.length) ? [item('In roll pool (added by hand)', 'selected')] : []),
-      ...(c.pool?.eligible?.some(row => !visible.some(owner => owner.selected?.includes(row.id))) ? [item('Automatic roll option (numbered)', 'pool')] : []),
+      ...(c.pool?.eligible?.length ? [item(`${c.member().name}’s roll options (numbered)`, 'pool')] : []),
+      ...visible.filter(owner => owner.selected?.length).map(owner => item(`${owner.name}’s saved hand selections`, 'selected')),
+      c.el('span', `Numbers show ${c.member().name}’s current roll options. Saved selections and partner overlays do not imply eligibility.`, 'status-detail'),
       ...(visible.some(owner => owner.pendingRoll?.length) ? [item('Roll choices', 'pending')] : []),
       item('Chunk info open', 'open'),
       chunkColourLegend(c, visible),

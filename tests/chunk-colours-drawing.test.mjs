@@ -70,10 +70,11 @@ test('automatic lodestone options differ from saved selections and deselection u
   map.setHover(id); assert.match(map.tooltip.textContent, /Lodestone roll option/);
   state.members[0].selected.push(id);
   map.setModel({ world, state, memberId: 'actor1', pool }); map.setHover(id);
-  assert.match(map.tooltip.textContent, /added by hand/);
+  assert.match(map.tooltip.textContent, /Hand-added roll option 1 for Player/);
+  assert.match(map.tooltip.textContent, /Saved hand selection 2: Player/);
   state.members[0].selected = state.members[0].selected.filter(value => value !== id);
   map.setModel({ world, state, memberId: 'actor1', pool: { eligible: [] } }); map.setHover(id);
-  assert.match(map.tooltip.textContent, /Locked/);
+  assert.match(map.tooltip.textContent, /Outside .*current roll pool/);
   assert.doesNotMatch(map.tooltip.textContent, /roll option|added by hand/);
 });
 
@@ -180,7 +181,7 @@ test('hover and accessible description name each personal colour literally along
   map.setModel({ world, state, memberId: 'reed' });
   map.setHover(chunkId(0, 0));
   assert.ok(!map.tooltip.textContent.includes('Quest route'));
-  assert.match(map.tooltip.textContent, /Locked/);
+  assert.match(map.tooltip.textContent, /Outside .*current roll pool/);
   assert.match(map.tooltip.textContent, /Reed: colour · <Training>/);
 });
 

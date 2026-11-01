@@ -335,3 +335,25 @@ test('a viewer can see ownership but cannot claim, clear or take over', async ()
     assert.ok(!walk(row).some(node => node.className === 'task-claim-confirm'));
   }
 });
+
+
+test('owner chip identity survives activation, routine redraws and renamed members', async () => {
+  const h = harness(); h.view.setEnabled(true);
+  const chip = find(h.view.controls(), 'button', 'Reed');
+  await chip.emit('click'); h.view.setEnabled(true); h.view.refresh();
+  assert.equal(find(h.view.controls(), 'button', 'Reed'), chip);
+  assert.equal(chip.attributes['aria-pressed'], 'true');
+  h.state.members[1].name = 'Renamed'; h.view.refresh();
+  assert.equal(find(h.view.controls(), 'button', 'Renamed'), chip);
+  assert.equal(h.commands.length, 0);
+});
+
+test('owner chips refresh their command targets when membership changes', async () => {
+  const h = harness(); h.view.setEnabled(true);
+  await click(h.view.controls(), 'Reed');
+  h.state.members = [{ id: 'new', name: 'New' }]; h.view.refresh();
+  assert.equal(h.view.filter(), 'all');
+  assert.equal(find(h.view.controls(), 'button', 'Reed'), undefined);
+  await click(h.view.controls(), 'New'); assert.equal(h.view.filter(), 'new');
+  assert.equal(h.commands.length, 0);
+});
