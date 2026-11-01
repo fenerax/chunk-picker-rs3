@@ -56,7 +56,7 @@ export function createHelperView({ api, getState, getMemberId, getResult, getPre
       for (const section of helperSections) { const button = el('button', section.label); button.type = 'button'; button.dataset.section = section.id; button.dataset.usage = `helper:tab:${section.id}`; button.addEventListener('click', () => { active = section.id; void render(); }); nav.append(button); }
       host = el('div', undefined, 'helper-content'); host.id = 'helper-content';
       context = el('p', '', 'helper-context');
-      const layout = el('div', undefined, 'helper-layout'); layout.append(nav, host); page.append(header, context, layout); picker.after(page);
+      const layout = el('div', undefined, 'helper-layout'); layout.append(nav, host); page.append(header, context, layout); picker.after(page); launch.setAttribute('aria-controls', 'helper-page');
       selector.addEventListener('change', () => { owner = selector.value; const mapSelect = document.getElementById('member'); if (mapSelect && mapSelect.value !== owner) { mapSelect.value = owner; mapSelect.dispatchEvent(new Event('change')); } void render(); });
       document.addEventListener('keydown', event => { if (event.key === 'Escape' && !event.defaultPrevented && !page.hidden && !document.getElementById('tool-dialog')?.open) { event.preventDefault(); close(); } });
     }
@@ -64,6 +64,6 @@ export function createHelperView({ api, getState, getMemberId, getResult, getPre
     for (const member of getState().members) { const option = el('option', member.name); option.value = member.id; selector.append(option); } selector.value = owner;
     picker.hidden = true; page.hidden = false; launch.setAttribute('aria-pressed', 'true'); document.getElementById('helper-title').focus(); void render(); clearTimeout(timer); watch();
   }
-  launch.addEventListener('click', () => page && !page.hidden ? close() : open()); launch.setAttribute('aria-controls', 'helper-page'); launch.setAttribute('aria-pressed', 'false');
+  launch.addEventListener('click', () => page && !page.hidden ? close() : open()); launch.setAttribute('aria-pressed', 'false');
   return { open, close };
 }

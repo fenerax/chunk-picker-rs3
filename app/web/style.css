@@ -520,7 +520,7 @@ details[open]>summary::before{transform:rotate(45deg)}
 .task-row{display:grid;grid-template-columns:18px minmax(0,1fr) auto auto auto;gap:var(--space-4);align-items:start;padding:var(--space-4) var(--space-3);margin:0 var(--space-legacy-negative-0-4rem);font-size:var(--type-body);line-height:var(--leading-body);border-radius:var(--radius-sm)}
 .task-row:hover{background:color-mix(in srgb,var(--surface) 60%,transparent)}
 .task-row input{margin-top:var(--space-1)}
-.task-label-button{text-align:left;background:transparent;border:0;padding:0;line-height:var(--leading-body);font-size:inherit;color:inherit;border-radius:var(--radius-xs)}
+.task-label-button{max-width:100%;min-width:0;overflow-wrap:anywhere;white-space:normal;text-align:left;background:transparent;border:0;padding:0;line-height:var(--leading-body);font-size:inherit;color:inherit;border-radius:var(--radius-xs)}
 .task-label-button:hover{background:transparent;color:inherit;text-decoration:underline;text-decoration-color:color-mix(in srgb,currentColor 40%,transparent);text-underline-offset:.18em;filter:none}
 .task-category{font-weight:var(--weight-bold)}
 .task-row[data-completed=true] .task-label-button{color:var(--completed-colour,var(--color-completed-default));text-decoration:var(--completed-decoration,line-through)}

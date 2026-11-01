@@ -410,3 +410,16 @@ test('save membership controls Helper combat and refreshes while open, including
     assert.deepEqual(owner, before);
   } finally { view.close(); }
 });
+
+
+test('F4 Helper controls only references its lazily created panel once it exists', t => {
+  const h = dom(), launch = h.document.createElement('button'), picker = h.document.createElement('div');
+  launch.id = 'helper-open'; picker.className = 'workspace'; h.addRoot(launch); h.addRoot(picker);
+  const helper = createHelperView({ document: h.document, api: async () => ({}), getState: () => ({ revision: 1, members: [{ id: 'actor1', name: 'Player' }] }), getMemberId: () => 'actor1', getResult: () => undefined });
+  t.after(() => helper.close());
+  assert.equal(launch.attributes['aria-controls'], undefined);
+  helper.open();
+  assert.equal(launch.attributes['aria-controls'], 'helper-page');
+  assert.ok(h.document.getElementById(launch.attributes['aria-controls']));
+  helper.close(); assert.ok(h.document.getElementById(launch.attributes['aria-controls']));
+});

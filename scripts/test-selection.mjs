@@ -16,6 +16,9 @@ export const adaptiveOptionsFor = (suite, env = process.env) => {
 // Reviewed small fixtures and model/controller tests. No running browser or full catalogue.
 export const quickTests = new Set([
   "unknown-drop-warnings.test.mjs",
+  "completion-truth-table.test.mjs",
+  "collection-boundaries.test.mjs",
+  "roll-boundaries.test.mjs",
   "quest-requirements-corrections.test.mjs",
   "task-how.test.mjs",
   "task-how-server.test.mjs",
@@ -316,6 +319,7 @@ const fullOnlyPatterns = [
 
 // Remaining integration/provenance tests are named explicitly to catch unreviewed additions.
 const fullOnlyTests = new Set([
+  "picker-properties.test.mjs",
   "setup-start-pool.test.mjs",
   "progress-providers.test.mjs",
   "plugin-reads-server.test.mjs",
