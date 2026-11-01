@@ -67,7 +67,24 @@ export function createHowCapture({ state, memberId, definitions, byKey, complete
     const captured = sourceReasons.get(sourceKey(name, source));
     const deps = [...(captured ?? [])];
     if (!captured && ['drop', 'shop', 'object', 'spawn'].includes(source.kind) && !source.taskId) deps.push(gap(exhausted ? 'budget' : 'missing-evidence', 'The source admission evidence was not captured.'));
-    if (source.own === false) deps.push(gap('partner-duo', 'This supply uses partner access.'));
+    if (source.own === false) {
+      const producer = source.taskId && byId.get(source.taskId);
+      // A personal completion can publish output even when its current place is
+      // unavailable. Non-own supply alone does not establish partner ownership.
+      if (producer && completedTask(producer)) deps.push(gap('historical-source-access', 'This supply comes from a recorded completion; its current production access is not established.'));
+      else {
+        const seen = new Set();
+        const partnerEvidence = id => {
+          if (seen.has(id)) return false; seen.add(id);
+          const node = nodes.get(id);
+          return node?.gap === 'partner-duo' || (node?.allOf ?? []).some(partnerEvidence);
+        };
+        const shared = state.rules?.['access.shared'] !== false && state.members.some(owner => owner.id !== memberId && owner.unlocked?.length);
+        const admittedPartnerSource = source.location && ['drop', 'shop', 'object', 'spawn'].includes(source.kind);
+        if (shared && (admittedPartnerSource || producer && partnerEvidence(facts.get(`task:${producer.key}`)))) deps.push(gap('partner-duo', 'This supply uses partner access.'));
+        else deps.push(gap('source-access', 'Current access to this supply is not established.'));
+      }
+    }
     if (source.taskId) {
       const task = byId.get(source.taskId);
       deps.push(task ? taskRef(task.key) : gap('unsupported-kind', 'This item has a generated producer.'));
@@ -166,6 +183,7 @@ export function createHowCapture({ state, memberId, definitions, byKey, complete
     if (processingTasks.has(task)) unsupported.push('processing');
     if (task.category === 'Slayer') unsupported.push('slayer-assignments');
     if (env.slayerGate?.(task)) unsupported.push('slayer-unlock');
+    if (env.usefulGate?.(task)) unsupported.push('useful-unlock');
     if (['QuestPointsNeeded', 'KudosNeeded', 'CombatScoreNeeded', 'TotalLevelNeeded', 'TotalVirtualLevelNeeded'].some(key => task.record[key] !== undefined)) unsupported.push('points');
     if (task.record.RequirementAlternatives || task.record.PersonalQuestProgress || task.personalAlternatives.length || task.dialogueSupply || task.sourceLocations.length || task.record.ClueTier || task.record.ConnectsSections) unsupported.push('special-requirements');
     for (const kind of unsupported) deps.push(gap(kind, `The picker can't show this ${kind.replaceAll('-', ' ')} step yet.`));

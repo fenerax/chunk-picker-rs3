@@ -1,4 +1,5 @@
-import { taskRuleCutoffDefaults, taskRuleCategoryCounts, taskRuleParents } from '../data/settings.mjs';
+import { UNKNOWN_DROP_RULE, unknownDropRule } from '../data/settings.mjs';
+import { taskRuleCutoffDefaults, taskRuleCategoryCounts, taskRuleParents, EARLY_TRAVEL_UNLOCKS_RULE } from '../data/settings.mjs';
 import { FUTURE_SLAYER_UNLOCKS_RULE } from '../data/slayer-unlock-gates.mjs';
 
 // Authored unset behavior, independent of captured upstream defaults or save
@@ -6,6 +7,7 @@ import { FUTURE_SLAYER_UNLOCKS_RULE } from '../data/slayer-unlock-gates.mjs';
 // contract by automatic-rule-defaults.test.mjs. Unknown category tags default on.
 export const taskRuleBooleanDefaults = Object.freeze({
   [FUTURE_SLAYER_UNLOCKS_RULE]: false,
+  [EARLY_TRAVEL_UNLOCKS_RULE]: false,
   // F2P is normalized from shared content.f2p, whose unset value is true.
   F2P: true, Skills: true, Quests: true, Achievement: true, Extra: true,
   Attack: true, Strength: true, Defence: true, Constitution: true, Ranged: true,
@@ -21,6 +23,7 @@ export const taskRuleBooleanDefaults = Object.freeze({
   InsidePOH: true, 'Primary Spawns': true, 'Rare Drop': true,
   Boss: true, Minigame: true, 'Puro-Puro': true,
   Boosting: false, Skiller: false, 'Farming Primary': false,
+  Timegated: false,
   'Wield Crafted Items': false, 'Multi Step Processing': false,
   'Secondary Primary': false, 'Smithing by Smelting': false,
   'Show Diary Tasks Any': false, 'Show Quest Tasks Complete': false,
@@ -41,6 +44,7 @@ export const taskRuleBooleanDefaults = Object.freeze({
 export function taskRuleDefault(id) {
   if (Object.hasOwn(taskRuleBooleanDefaults, id)) return taskRuleBooleanDefaults[id];
   if (Object.hasOwn(taskRuleCutoffDefaults, id)) return taskRuleCutoffDefaults[id];
+  if (id === UNKNOWN_DROP_RULE) return unknownDropRule.default;
   if (id === 'Kill X Amount') return 1;
   if (Object.hasOwn(taskRuleCategoryCounts, id) && taskRuleCategoryCounts[id]) return true;
   return undefined;

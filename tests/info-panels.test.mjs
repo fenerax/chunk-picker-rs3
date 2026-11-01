@@ -2,6 +2,9 @@ import { createRequestReader, requestError } from '../app/web/live-swap-client.m
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createInfoPanels } from '../app/web/info-panels.mjs';
+import { buildActivityInfo } from '../app/tasks/activity.mjs';
+import { plainLabel } from '../app/tasks/engine.mjs';
+import { createScreenUi } from '../app/web/screen-ui.mjs';
 import { caveFixture } from './fixtures/why-chain.mjs';
 import { buildWhyChain } from '../app/tasks/why-chain.mjs';
 
@@ -45,6 +48,43 @@ function harness(preferences = {}, storage) {
   const openTraining = async () => { await panels.activityInfo(); const tile = walk(ui.nodes).find(node => node.tag === 'button' && node.attributes?.['aria-label']?.startsWith('Mining:')); assert.ok(tile, 'Mining tile'); await tile.events.click(); openDetails('Training assumptions'); };
   return { state, result, ui, panels, ctx: helpers, find, inputFor, openTraining, openDetails, nodes: () => walk(ui.nodes) };
 }
+
+test('Activity Info skill methods hide unmatched Wiki delimiters without changing task references or goals', async () => {
+  const controls = [
+    ['rs3:task:000038', 'Enter the Polar eagle eyrie|~', 'Enter the Polar eagle eyrie'],
+    ['missing-opening', 'Climb the wall|~', 'Climb the wall'],
+    ['missing-closing', 'Climb ~|the wall', 'Climb the wall'],
+    ['balanced', 'Climb ~|Example wall|~', 'Climb Example wall'],
+    ['variant', 'Climb ~|Example wall#North|~', 'Climb Example wall'],
+    ['alias', 'Climb ~|Walls|~[+]2', 'Climb Walls2'],
+    ['mixed', 'Climb ~|Example wall#North|~ then ~|the fence', 'Climb Example wall then the fence'],
+    ['literal', 'Climb | walk ~ rest', 'Climb | walk ~ rest'],
+  ];
+  for (const [id, rawLabel, displayed] of controls) {
+    const h = harness(), screen = {}; createScreenUi(screen); h.ctx.plain = screen.plain;
+    const task = { id, rawLabel, label: plainLabel(rawLabel), category: 'Agility', level: 35, primary: false,
+      status: 'blocked', obligation: true, personalCompleted: false, challengeSatisfied: false,
+      blockers: [{ kind: 'tasks', detail: 'Complete the prerequisite first.' }] };
+    Object.assign(h.result, { tasks: [task], training: { Agility: { level: 1, cap: 99 } }, presentation: { tasks: [] } });
+    h.result.activityInfo = buildActivityInfo(h.result, h.state, 'a');
+    const beforeState = structuredClone(h.state), beforeResult = structuredClone(h.result);
+    await h.panels.activityInfo();
+    const tile = h.nodes().find(node => node.attributes['aria-label']?.startsWith('Agility:'));
+    assert.ok(tile, id); await tile.events.click();
+    const name = h.nodes().find(node => node.className === 'method-name');
+    assert.equal(name.textContent, displayed, id);
+    assert.ok(h.find('span', 'Blocked'), id);
+    const goals = h.nodes().find(node => node.className === 'skill-stat' && node.children.some(child => child.textContent === 'active goals'));
+    assert.equal(goals.children[0].textContent, '0');
+    await name.events.click();
+    const summary = h.result.activityInfo.skills[0].blockedTasks[0];
+    assert.equal(h.ui.shownTasks[0], summary, 'opening keeps the original summary');
+    assert.equal(summary.id, id); assert.equal(summary.evidenceTaskId, id);
+    assert.equal(summary.label, task.label, 'only the button text is repaired');
+    assert.deepEqual(h.state, beforeState); assert.deepEqual(h.result, beforeResult);
+    assert.deepEqual(h.ui.attempts, []);
+  }
+});
 
 test('saved Slayer chains request full server evidence despite partial browser definitions; sandbox stays local', async () => {
   for (const sandbox of [false, true]) {

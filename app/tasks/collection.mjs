@@ -1,3 +1,4 @@
+import { unknownDropContext, addUnknownDropWarnings } from './unknown-drop-warnings.mjs';
 import { requireSelectedDataset } from '../dataset-runtime.mjs';
 import { decodeLegacyText, hasGameplayMigration, stableTaskId, projectMemberTaskFacts, resolveSavedTaskId } from './migration.mjs';
 import { parseDropRate, composeDropRates, passesRateCutoff, rateEvidence } from './rates.mjs';
@@ -348,6 +349,7 @@ export function createCollectionEngine(definitions, { dataset, cacheShops = data
       for (const [item, { drop, sources }] of everyRows) emit(drop.everyRaw, drop.everyId, 'Every Drop', sources, { item, rate: drop.rate, collectionSource: channel.display }, `Every Drop\u0000${collectionEntityId('item', item)}`);
     }
     const tasks = [...generated.values()].sort((a, b) => a.rawLabel.localeCompare(b.rawLabel));
+    addUnknownDropWarnings(tasks, unknownDropContext(result, definitions, undefined, rules), rules);
     const everyGroups = new Map();
     for (const row of tasks) if (row.record.Label === 'Every Drop') { const peers = everyGroups.get(row.item) ?? []; peers.push(row.id); everyGroups.set(row.item, peers); }
     // Presentation adds the chosen source's alternatives. Keep just the default
