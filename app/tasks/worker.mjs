@@ -1,3 +1,5 @@
+const PROFILE_ENABLED = process.env.RS3_PROFILE === '1';
+const profile = PROFILE_ENABLED ? await import('../profile-spans.mjs') : undefined;
 import { createWorkerCacheBudget, createSnapshotCache, trackPlanningIndex, trackSnapshotCore } from './snapshot-cache.mjs';
 import { createHowCache } from './how-cache.mjs';
 import { startupPhase } from '../startup-timing.mjs';
@@ -29,6 +31,7 @@ import { analyzeAreaCheck, normalizeAreaCheckRequest } from './area-check.mjs';
 import { constants as zlibConstants, crc32, gzipSync } from 'node:zlib';
 import { serialize } from 'node:v8';
 
+const profileBodyStarted = PROFILE_ENABLED ? profile.now() : 0;
 startupPhase('worker:modules');
 // Definitions compile once in this isolated worker. Evaluation never runs on
 // the HTTP/save event loop and receives a structured-cloned state snapshot.
@@ -79,7 +82,8 @@ const derivedIds = new Set([...equipmentCatalogue, ...collectionEngine.catalogue
 const sandboxCatalogue = [...engine.catalogue, ...equipmentCatalogue, ...collectionEngine.catalogue, ...houseStorageCatalogue, ...generatedTaskCatalogue];
 const sandboxTaskIndexes = new WeakMap();
 const progressRequests = new WeakMap();
-function timed(timingMs, stage, operation) {
+const timed = PROFILE_ENABLED ? (timingMs, stage, operation) => rawTimed(timingMs, stage, () => profile.span(stage, operation)) : rawTimed;
+function rawTimed(timingMs, stage, operation) {
   const started = performance.now();
   try { return operation(); }
   finally {
@@ -329,7 +333,8 @@ async function deathEstimates(state, memberId, chunkIds, timingMs, request, inpu
 
 const requests = new Map();
 const serializedStateSizes = new WeakMap();
-function sharedJSON(value) {
+const sharedJSON = PROFILE_ENABLED ? value => profile.span('worker.resultSerialization', () => rawSharedJSON(value)) : rawSharedJSON;
+function rawSharedJSON(value) {
   const bytes = Buffer.from(JSON.stringify(value));
   const shared = new SharedArrayBuffer(bytes.length);
   Buffer.from(shared).set(bytes);
@@ -371,7 +376,7 @@ function serializedState({ stateJSON, stateJSONBytes, stateRevision, stateMember
   serializedStateSizes.set(state, stateJSONBytes);
   return state;
 }
-parentPort.on('message', async ({ id, pickerId = 'legacy-shared', type = 'evaluate', state, memberId, chunkId, draft, chunkIds = [], revision, input, snapshotKey, resultTransport, resultView = 'full', cancellation, predictionProgress = false,
+const handleMessage = async ({ id, pickerId = 'legacy-shared', type = 'evaluate', state, memberId, chunkId, draft, chunkIds = [], revision, input, snapshotKey, resultTransport, resultView = 'full', cancellation, predictionProgress = false,
   stateTransport, stateJSON, stateJSONBytes, stateRevision, stateMemberIds, duoProjection = false, duoSidebarProjection = false, reportProgress = false }) => {
   if (type === 'cancel') { if (requests.get(id)?.pickerId === pickerId) requests.get(id).cancelled = true; return; }
   if (type === 'supersede') { latestRevisions.set(pickerId, Math.max(pickerRevision(pickerId), revision)); return; }
@@ -487,12 +492,16 @@ parentPort.on('message', async ({ id, pickerId = 'legacy-shared', type = 'evalua
         ...(duoSidebarProjection && duoSidebarJSON ? { duoSidebarJSON } : {}), cancelled: !!result.cancelled }
       : { result };
     timingMs.totalMs = performance.now() - started;
-    parentPort.postMessage({ id, ...payload, ...(unlockReuse ? { unlockReuse } : {}), ...(partnerUnlockReuse ? { partnerUnlockReuse } : {}), evaluationMs: timingMs.totalMs, timingMs });
+    const message = { id, ...payload, ...(unlockReuse ? { unlockReuse } : {}), ...(partnerUnlockReuse ? { partnerUnlockReuse } : {}), evaluationMs: timingMs.totalMs, timingMs };
+    if (PROFILE_ENABLED) { message._profileReplySentAt = profile.now(); profile.span('worker.messageSerialization', () => parentPort.postMessage(message)); }
+    else parentPort.postMessage(message);
   } catch (error) {
     timingMs.totalMs = performance.now() - started;
     parentPort.postMessage({ id, error: { name: error.name, message: error.message }, evaluationMs: timingMs.totalMs, timingMs });
   } finally { requests.delete(id); }
-});
+};
+if (PROFILE_ENABLED) profile.installWorker(parentPort, handleMessage);
+else parentPort.on('message', handleMessage);
 
 // Module dependencies include top-level await. Let ESM finish its fulfillment
 // callbacks before the scheduler can retire this isolate, even with idleMs=1.
@@ -504,6 +513,7 @@ startupPhase('worker:compiled');
 // One structured-clone byte string crosses thread and process boundaries as a
 // copy; a graph would be cloned, walked and cloned again on every hop.
 setImmediate(() => {
+  if (PROFILE_ENABLED) profile.startup('calculator.initialize', profileBodyStarted, profile.now());
   // Advisory workers still compile/use every local catalogue. Only their
   // unused ready payload is suppressed by the scheduler's explicit opt-out.
   if (workerData.omitReadyCatalogue === true) {

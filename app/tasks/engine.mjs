@@ -1,3 +1,5 @@
+const PROFILE_ENABLED = process.env.RS3_PROFILE === '1';
+const profile = PROFILE_ENABLED ? await import('../profile-spans.mjs') : undefined;
 import { unknownDropContext, addUnknownDropWarnings } from './unknown-drop-warnings.mjs';
 import { EARLY_TRAVEL_UNLOCKS_RULE, travelRewardKind, usefulTravelRecord, furnitureWorkbenches, nexusDestinationClauses, unlockLabel } from '../data/travel-reward-gates.mjs';
 import { createHowCapture } from './how-proof.mjs';
@@ -1612,9 +1614,10 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
   // Dataset-bound engines serve shared workers; injected definitions retain
   // the existing small-cache default for direct callers.
   const eligibilityCache = createEligibilityCache({ limit: dataset ? 64 : 2, budget: eligibilityBudget });
+  const computeProfiledEligibility = PROFILE_ENABLED ? (...args) => profile.span('eligibility', () => computeEligibility(...args)) : computeEligibility;
   function evaluate(state, memberId, options) {
     state = { ...state, members: state.members.map(owner => projectMemberTaskFacts(state, owner, catalogue)) };
-    return eligibilityCache.evaluate(state, memberId, options, () => computeEligibility(state, memberId, options));
+    return eligibilityCache.evaluate(state, memberId, options, () => computeProfiledEligibility(state, memberId, options));
   }
   function how(state, memberId, taskId, { limits, context, cancelled } = {}) {
     state = { ...state, members: state.members.map(owner => projectMemberTaskFacts(state, owner, catalogue)) };

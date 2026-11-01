@@ -1,3 +1,5 @@
+const PROFILE_ENABLED = process.env.RS3_PROFILE === '1';
+const profile = PROFILE_ENABLED ? await import('./profile-spans.mjs') : undefined;
 import { savedWhyChain, forgetSavedWhyChain } from './task-why-http.mjs';
 import { verifyDatasetBinding } from './dataset-binding.mjs';
 import { snapshotStore, withStoreWrite } from './storage/snapshot.mjs';
@@ -58,7 +60,7 @@ import { projectPlayState, projectPlayResult, PLAY_VIEW } from './play-view.mjs'
 import { projectBrowserState } from './web/browser-state.mjs';
 import { projectDuoPlayResult, projectDuoInspectionJSON, DUO_INSPECTION_VIEW } from './duo-play-view.mjs';
 import { selectDuoTasks } from './web/duo-tasks.mjs';
-import { createRepresentation, createGzipRepresentation, createStateResponseBuilds, createResponseLeases, sendRepresentation, createResponseCache, negotiateEncoding, PRIVATE_NO_STORE, PRIVATE_REVALIDATE } from './http-response.mjs';
+import { createRepresentation as rawCreateRepresentation, createGzipRepresentation, createStateResponseBuilds, createResponseLeases, sendRepresentation, createResponseCache, negotiateEncoding, PRIVATE_NO_STORE, PRIVATE_REVALIDATE } from './http-response.mjs';
 import { crc32, deflateRawSync } from 'node:zlib';
 import { normalizeSandboxRequest, sandboxTaskCatalogue, applySandboxChanges } from './sandbox.mjs';
 import { normalizeAreaCheckRequest } from './tasks/area-check.mjs';
@@ -70,6 +72,8 @@ import { createIdleMemoryReclaimer } from './idle-memory.mjs';
 import { releaseAutomaticTransportCaches } from './core/automatic-transport.mjs';
 import { buildXpChoiceView } from './core/xp-choices.mjs';
 import { artBinding } from './art-bindings.mjs';
+
+const createRepresentation = PROFILE_ENABLED ? (...args) => profile.wrapMethods(rawCreateRepresentation(...args), ['encoded'], 'response.compression-or-cache') : rawCreateRepresentation;
 
 import { MAX_BODY, NOTE_PREWARM_QUIET_MS, MIME, httpError, commandPermissions, apiPermission, redactInviteTokens, savedTaskSuffix, gzipSavedTaskResult, redactInviteFields, coordinationView, routeIsRuneMetrics, json, acceptsFastGzip, jsonBytes, commandJSON, bodyJSON, routedBody, sendCached, containedFile, migrationSummary, convertLegacyCapture } from './picker-context-http.mjs';
 
@@ -163,6 +167,7 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
       const { level, ...task } = row; return [task.id, task];
     })) : undefined,
     readOnly: liveSwap?.standby === true, liveSwapStrict: liveSwap?.strict === true, expectedCheckpoint: liveSwap?.checkpoint, onActivationTiming: liveSwap?.onActivationTiming });
+  if (PROFILE_ENABLED) profile.wrapMethods(store, ['command', 'commandSerialized', 'getStateSnapshot'], 'store');
   try {
     startupSignal?.throwIfAborted();
     if (initialImport) {
@@ -251,6 +256,7 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
   const stateResponseLeases = createResponseLeases({ maxBytes: responseBudget });
   const sandboxPools = createResponseCache({ maxEntries: 32, maxBytes: 4 * 1024 * 1024 });
   const poolRanking = createPoolRanking(), rankingPools = new Map();
+  if (PROFILE_ENABLED) profile.wrapMethods(poolRanking, ['read', 'record', 'missing'], 'poolRanking');
   let rankingPoolInput, rankingLeaseTimer;
   async function rankingPoolIds(state, memberId) {
     const input = rollPoolCache.input(state);

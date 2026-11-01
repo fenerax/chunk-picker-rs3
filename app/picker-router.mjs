@@ -1,3 +1,5 @@
+const PROFILE_ENABLED = process.env.RS3_PROFILE === '1';
+const profile = PROFILE_ENABLED ? await import('./profile-spans.mjs') : undefined;
 import { createPickerAdmission, COLD_OPEN_ADMISSION } from './picker-admission.mjs';
 import { setTimeout as admissionDelay } from 'node:timers/promises';
 import { createPickerCheckpoint } from './picker-router-checkpoint.mjs';
@@ -127,7 +129,8 @@ export function createPickerRouter({ registry, legacy, openContext, publicOrigin
         await admissionDelay(COLD_OPEN_ADMISSION.retryMs, undefined, { signal });
       }
     };
-    return admission ? admission.run(owner, open, signal) : open(signal);
+    const work = PROFILE_ENABLED ? profile.bind(signal => profile.span('context.open', () => open(signal))) : open;
+    return admission ? admission.run(owner, work, signal) : work(signal);
   }
   function authenticate(request, security, pickerId) {
     const identity = legacy.authenticate(request, security);
