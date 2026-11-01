@@ -1,4 +1,5 @@
 import path from 'node:path';
+import { bindingPath } from '../../app/dataset-binding.mjs';
 import { spawn } from 'node:child_process';
 import { chmod, copyFile, mkdtemp, mkdir, readFile, readdir, rename, rm, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
@@ -29,12 +30,12 @@ async function runChildProbe(release, dataDir, output, mode) {
 }
 export async function storeIdentity(dataDir) {
   await assertReleased(dataDir);
-  await noLinks(dataDir + '.dataset.json');
-  return { files: await inventory(dataDir), binding: sha(await readFile(dataDir + '.dataset.json')) };
+  await noLinks(bindingPath(dataDir));
+  return { files: await inventory(dataDir), binding: sha(await readFile(bindingPath(dataDir))) };
 }
 async function snapshot(dataDir, target, binding) {
   await copyTree(dataDir, target);
-  await writeFile(target + '.dataset.json', binding ?? await readFile(dataDir + '.dataset.json'), { flag: 'wx', mode: 0o600 });
+  await writeFile(bindingPath(target), binding ?? await readFile(bindingPath(dataDir)), { flag: 'wx', mode: 0o600 });
 }
 export async function backupStopped({ dataDir, backupDir, scratchRoot, release, keep = 30, minFreeBytes, probe = runProbe }) {
   if (!Number.isSafeInteger(keep) || keep < 1) throw new Error('Backup count must be positive.');
@@ -80,9 +81,11 @@ export async function verifyBackup(backup) {
   return manifest;
 }
 export async function restoreStopped({ backup, dataDir, scratchRoot, release, minFreeBytes, probe = runProbe }) {
+  // Match the application's lexical directory identity before parent checks or creation.
+  dataDir = path.resolve(dataDir);
   outside(backup, dataDir); outside(dataDir, backup); outside(dataDir, scratchRoot);
   await noLinks(path.dirname(dataDir));
-  if (await exists(dataDir + '.dataset.json')) throw new Error('Restore refuses an existing binding.');
+  if (await exists(bindingPath(dataDir))) throw new Error('Restore refuses an existing binding.');
   if (await exists(dataDir)) {
     await noLinks(dataDir);
     if ((await readdir(dataDir)).length) throw new Error('Restore requires an empty data directory.');
@@ -100,7 +103,7 @@ export async function restoreStopped({ backup, dataDir, scratchRoot, release, mi
       if ((await readdir(dataDir)).length) throw new Error('Restore target changed.');
     } else await mkdir(dataDir, { mode: 0o700 });
     // Exclusive binding creation prevents an existing game being replaced.
-    await writeFile(dataDir + '.dataset.json', await readFile(path.join(backup, 'store.dataset.json')), { flag: 'wx', mode: 0o600 });
+    await writeFile(bindingPath(dataDir), await readFile(path.join(backup, 'store.dataset.json')), { flag: 'wx', mode: 0o600 });
     for (const row of manifest.files.filter(row => row.path.startsWith('store/'))) {
       const relative = row.path.slice(6), target = path.join(dataDir, relative);
       if (row.directory) await mkdir(target, { mode: 0o700 });
@@ -118,7 +121,7 @@ export async function checkStoppedCompatibility({ dataDir, scratchRoot, current,
   if (typeof assertStopped !== 'function') throw new Error('A stopped-service ownership check is required.');
   await assertStopped();
   const before = await storeIdentity(dataDir);
-  const binding = await readFile(dataDir + '.dataset.json');
+  const binding = await readFile(bindingPath(dataDir));
   outside(dataDir, scratchRoot); await directory(scratchRoot);
   await headroom(scratchRoot, before.files.reduce((sum, row) => sum + (row.bytes ?? 0), 0) * 6, minFreeBytes);
   const scratch = await mkdtemp(path.join(scratchRoot, 'compatibility-'));
@@ -140,7 +143,7 @@ export async function checkStoppedCompatibility({ dataDir, scratchRoot, current,
   } finally { await rm(scratch, { recursive: true, force: true }); }
 }
 export async function writeBackupStatus(dataDir, { result, byteSize = null, at = new Date().toISOString() }) {
-  const parent = path.dirname(dataDir), file = path.join(parent, 'backup-status.json');
+  const parent = path.dirname(path.resolve(dataDir)), file = path.join(parent, 'backup-status.json');
   let previous;
   try { previous = await json(file); } catch {}
   await atomic(file, encode({ lastRunAt: at, result, byteSize, lastSuccessAt: result === 'success' ? at : previous?.lastSuccessAt ?? null }), 0o644);
