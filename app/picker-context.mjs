@@ -77,7 +77,7 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 export async function createPickerContext({ pickerId, dataDir, runtime,
   initialState, prepareState, beforeCommit, now, random, retention, initialImport,
   runeMetrics = {}, progressSources = {}, originalSync = {},
-  idleMemoryOptions, predictionPrewarm = true,
+  idleMemoryOptions, predictionPrewarm = true, prepareStateResponse = true,
   schedulingClock = { now: () => performance.now(), setTimeout, clearTimeout },
   publicOrigin, signIn = 'off', signInProvider, pickerRouting, liveSwap, pluginItemsBetaAsLive = false,
   startupSignal, startupTimingMs = {},
@@ -2009,6 +2009,10 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
             // worker recovery path when calculation is unavailable.
           } finally { startupTimingMs.variantMs = performance.now() - started; }
         }
+        // Owned contexts can admit task/draft reads without preparing an
+        // unrelated play body. The authenticated state route builds the same
+        // revision-keyed representation on demand.
+        if (!prepareStateResponse) return;
         const info = store.getInfo(), started = performance.now();
         // Only the existing play representation is prepared. Backups, full
         // state and optional reference data remain demand loaded. All HTTP

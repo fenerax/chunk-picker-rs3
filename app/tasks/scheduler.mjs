@@ -530,7 +530,12 @@ async function createWorkerLane({ workerData, workerFactory = nativeWorker, incl
   let lastTimingMs = {};
   let sleepTimer, lastRequestAt = idleClock.now(), idleStops = 0;
   let lastProgressAt = idleClock.now(), manualRestart;
-  let initialAborted = false;
+  let initialAborted = false, cancelledGrace;
+  function clearCancelledGrace(entry) {
+    if (cancelledGrace && (!entry || cancelledGrace.entry === entry)) {
+      deadlineClock.clearTimeout(cancelledGrace.timer); cancelledGrace = undefined;
+    }
+  }
   function abortInitial() {
     initialAborted = true;
     initialReject(Object.assign(new Error('Task worker initialization cancelled.'), { name: 'AbortError', status: 503 }));
@@ -556,6 +561,7 @@ async function createWorkerLane({ workerData, workerFactory = nativeWorker, incl
     // Idle warming and abandoned work are expendable. Real requests keep their
     // worker until every waiter has received a complete response.
     if (active?.waiters.size || active?.reuseWaiters?.size || queue.length) return;
+    clearCancelledGrace();
     scheduler.cancelPrewarm();
     if (active) { deadlineClock.clearTimeout(active.timer); active = undefined; }
     clearImmediate(idleTimer); idleTimer = undefined;
@@ -639,6 +645,7 @@ async function createWorkerLane({ workerData, workerFactory = nativeWorker, incl
     settle(entry, error);
   }
   function retire() {
+    clearCancelledGrace();
     if (active) {
       deadlineClock.clearTimeout(active.timer); active.reuseRevision = undefined;
       cancel(active, superseded()); active = undefined;
@@ -660,6 +667,7 @@ async function createWorkerLane({ workerData, workerFactory = nativeWorker, incl
   }
   function failure(kind) {
     if (closed || status === 'restarting' || status === 'restart-required') return;
+    clearCancelledGrace();
     firstCalculation = true;
     failures++; lastFailure = { kind, at: new Date().toISOString() };
     clearTimeout(startupTimer);
@@ -818,6 +826,7 @@ async function createWorkerLane({ workerData, workerFactory = nativeWorker, incl
         return;
       }
       const entry = active; active = undefined; deadlineClock.clearTimeout(entry.timer);
+      clearCancelledGrace(entry);
       if (entry.waiters.size || entry.reuseWaiters?.size) lastRequestAt = idleClock.now();
       recordTimings(message.timingMs ?? { totalMs: message.evaluationMs });
       if (message.error) {
@@ -849,6 +858,21 @@ async function createWorkerLane({ workerData, workerFactory = nativeWorker, incl
     yieldForInteractive() {
       if (closed || status !== 'ready' || !active || !(active.warm || active.discarded)
         || active.waiters.size || active.reuseWaiters?.size) return false;
+      if (calculatorPool && active.discarded) {
+        // An abandoned native calculation already received its atomic cancel.
+        // Let a cooperative reply release the existing host before paying for
+        // replacement compilation. A stuck producer still retires promptly.
+        if (!cancelledGrace) {
+          const entry = active;
+          const timer = deadlineClock.setTimeout(() => {
+            if (cancelledGrace?.entry !== entry) return;
+            cancelledGrace = undefined;
+            if (!closed && active === entry && entry.discarded && !entry.waiters.size && !entry.reuseWaiters?.size) retire();
+          }, 25);
+          timer?.unref?.(); cancelledGrace = { entry, timer };
+        }
+        return false;
+      }
       if (active.warm) { active.warm = false; warmCounts.cancelled++; }
       return retire();
     },
@@ -989,7 +1013,7 @@ async function createWorkerLane({ workerData, workerFactory = nativeWorker, incl
           if (!entry.waiters.delete(waiter)) return;
           signal.removeEventListener('abort', waiter.abort);
           reject(Object.assign(new Error('Requester disconnected.'), { name: 'AbortError' }));
-          if (!entry.waiters.size && !entry.warm) { counts.cancelled++; cancel(entry, unavailable('Calculation abandoned by its requesters.')); }
+          if (!entry.waiters.size && !entry.warm) { counts.cancelled++; cancel(entry, unavailable('Calculation abandoned by its requesters.')); pump(); }
           armSleep();
         };
         entry.waiters.add(waiter); signal?.addEventListener('abort', waiter.abort, { once: true });
@@ -1162,6 +1186,7 @@ async function createWorkerLane({ workerData, workerFactory = nativeWorker, incl
       if (manualRestart) { await manualRestart; return false; }
       if (closed || !(scheduler.getHealth().stuck || status === 'restart-required')) return false;
       manualRestart = (async () => {
+        clearCancelledGrace();
         clearTimeout(restartTimer); clearTimeout(startupTimer); clearImmediate(idleTimer); idleTimer = undefined;
         idleClock.clearTimeout(sleepTimer); sleepTimer = undefined;
         status = 'restarting'; generation++;
@@ -1190,6 +1215,7 @@ async function createWorkerLane({ workerData, workerFactory = nativeWorker, incl
       if (closePromise) return closePromise;
       signal?.removeEventListener('abort', abortInitial);
       if (!closed) {
+        clearCancelledGrace();
         closed = true; status = 'closed'; generation++;
         initialReject(unavailable('The task server is closing.'));
         announce(); listeners.clear();

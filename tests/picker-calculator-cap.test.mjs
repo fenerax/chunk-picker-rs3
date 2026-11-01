@@ -25,7 +25,7 @@ function factory({ delayedTermination = false, failOnCreate } = {}) {
   let live = 0, peak = 0, attempts = 0;
   const create = () => {
     if (++attempts === failOnCreate) throw new Error('Synthetic calculator creation failure.');
-    const worker = new EventEmitter(); worker.messages = []; live++; peak = Math.max(peak, live);
+    const worker = new EventEmitter(); worker.messages = []; worker.terminated = false; live++; peak = Math.max(peak, live);
     worker.postMessage = message => {
       worker.messages.push(message);
       if (['cancel', 'supersede'].includes(message.type)) return;
@@ -382,4 +382,41 @@ test('absent cap retains immediate independent dispatch and START queue and resp
   assert.equal(f.jobs.length, 1, 'legacy next queued job dispatches synchronously on completion');
   finish(await f.next()); await second; finish(await f.next()); await third;
   assert.equal(scheduler.getDiagnostics().deathLane.counts.rejected, 1);
+});
+
+function cancellationClock() {
+  const timers=new Set();
+  return {timers,setTimeout(callback,ms){const timer={callback(){timers.delete(timer);callback();},ms};timers.add(timer);return timer;},clearTimeout(timer){timers.delete(timer);}};
+}
+test('cooperative cancellation retains the pooled host and dispatches a quiet picker after the cancelled reply', async t => {
+  const clock=cancellationClock(),{f,scheduler,scopes:[a,b]}=await fixture(t,{deadlineClock:clock});
+  const controller=new AbortController();
+  const cancelled=a.evaluate(state(), 'one','sandbox',{},'abandoned','input',controller.signal),rejected=assert.rejects(cancelled,{name:'AbortError'});
+  const old=await f.next();controller.abort();await rejected;const quiet=evaluate(b,'quiet','sandbox');await tick();
+  const retained=!old.worker.terminated;
+  finish(old,'discarded');const next=await f.next();finish(next,'quiet');
+  assert.equal((await quiet).result.marker,'quiet');assert.equal(retained,true);
+  assert.equal(next.worker,old.worker);assert.equal([...clock.timers].filter(x=>x.ms===25).length,0);
+  assert.ok(scheduler.getDiagnostics().calculators.peak<=2);
+});
+test('an uncooperative cancelled job retires after the finite grace and replacement waits for real exit', async t => {
+  const clock=cancellationClock(),{f,scopes:[a,b]}=await fixture(t,{deadlineClock:clock},{delayedTermination:true});
+  const controller=new AbortController();
+  const cancelled=a.evaluate(state(),'one','sandbox',{},'abandoned','input',controller.signal),rejected=assert.rejects(cancelled,{name:'AbortError'});
+  const old=await f.next(),quiet=evaluate(b,'quiet','sandbox');await tick();
+  controller.abort();await rejected;await tick();
+  const grace=[...clock.timers].find(x=>x.ms===25);assert.ok(grace);assert.equal(old.worker.terminated,false);
+  grace.callback();await tick();assert.equal(old.worker.terminated,true);assert.equal(f.live,2);assert.equal(f.workers.length,2);
+  old.worker.exit();const next=await f.next();assert.notEqual(next.worker,old.worker);
+  finish(old,'late');finish(next,'quiet');assert.equal((await quiet).result.marker,'quiet');assert.ok(f.peak<=2);
+});
+test('shutdown clears cancellation grace and a late grace callback cannot resurrect a host', async t => {
+  const clock=cancellationClock(),{f,scheduler,scopes:[a,b]}=await fixture(t,{deadlineClock:clock});
+  const controller=new AbortController();
+  const cancelled=a.evaluate(state(),'one','sandbox',{},'abandoned','input',controller.signal),rejected=assert.rejects(cancelled,{name:'AbortError'});
+  await f.next();controller.abort();await rejected;
+  const quiet=evaluate(b,'quiet','sandbox'),quietRejected=assert.rejects(quiet,{status:503});await tick();
+  const grace=[...clock.timers].find(x=>x.ms===25);assert.ok(grace);await scheduler.close();await quietRejected;
+  const count=f.workers.length;grace.callback();await tick();assert.equal(f.workers.length,count);assert.equal(f.live,0);
+  assert.equal([...clock.timers].filter(x=>x.ms===25).length,0);
 });
