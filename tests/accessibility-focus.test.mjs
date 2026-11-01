@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createScreenDialogs } from '../app/web/screen-dialogs.mjs';
+import { createScreenDialogs, keepDialogFocusVisible } from '../app/web/screen-dialogs.mjs';
 import { handleScreenEscape } from '../app/web/screen-controls.mjs';
 import { createHelperView } from '../app/web/helper.mjs';
 
@@ -158,4 +158,28 @@ test('F4 Completed Tasks review is outside its interactive summary', async () =>
   const details = html.match(/<details id="completed-details">([\s\S]*?)<\/details>/)?.[1];
   assert.ok(details); assert.doesNotMatch(details.match(/<summary>([\s\S]*?)<\/summary>/)[1], /<(?:button|input|a)\b/);
   assert.match(details, /<button id="completed-review"/);
+});
+
+
+test('dialog focus reveals a whole control after native caret scrolling and progressive detail reflow', () => {
+  const dialog = new EventTarget(); dialog.open = true;
+  let frame, mutation, resize, box = { top: 190, bottom: 265, height: 75 };
+  const active = { getBoundingClientRect: () => box };
+  const content = { clientTop: 1, clientHeight: 160, scrollTop: 100, contains: node => node === active, getBoundingClientRect: () => ({ top: 60 }) };
+  const document = { activeElement: active, querySelector: () => ({}) };
+  const view = { requestAnimationFrame: callback => { assert.equal(frame, undefined); frame = callback; },
+    MutationObserver: class { constructor(callback) { mutation = callback; } observe() {} },
+    ResizeObserver: class { constructor(callback) { resize = callback; } observe() {} } };
+  const flush = () => { const callback = frame; frame = undefined; callback(); };
+  keepDialogFocusVisible({ document, dialog, content, view });
+  dialog.dispatchEvent(new Event('focusin')); mutation(); resize(); flush();
+  assert.equal(content.scrollTop, 144); assert.equal(document.activeElement, active);
+  box = { top: 35, bottom: 79, height: 44 }; mutation(); flush();
+  assert.equal(content.scrollTop, 118);
+  box = { top: 190, bottom: 234, height: 44 }; resize(); flush();
+  assert.equal(content.scrollTop, 131);
+  box = { top: 70, bottom: 114, height: 44 }; dialog.dispatchEvent(new Event('focusin')); flush();
+  assert.equal(content.scrollTop, 131);
+  dialog.open = false; mutation(); flush(); assert.equal(content.scrollTop, 131);
+  dialog.open = true; document.activeElement = {}; resize(); flush(); assert.equal(content.scrollTop, 131);
 });

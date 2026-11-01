@@ -330,6 +330,7 @@ const fullOnlyPatterns = [
 
 // Remaining integration/provenance tests are named explicitly to catch unreviewed additions.
 const fullOnlyTests = new Set([
+  "short-height-browser.test.mjs",
   "backup-file-browser.test.mjs",
   "phone-controls-browser.test.mjs",
   "picker-properties.test.mjs",
@@ -565,6 +566,7 @@ export const soloTests = new Set([
 // worker from their own definitions and assert nothing about duo-legacy content. They
 // run on the public open-f2p dataset, in the environment core's lane gives them.
 export const openF2PTests = new Set([
+  "short-height-browser.test.mjs",
   "completion-codec.test.mjs",
   "phase1-acceptance.test.mjs",
   "phase1-acceptance-crash.test.mjs",
