@@ -1,3 +1,4 @@
+import { drawAvailabilityCell, availabilityDescription } from './map-availability.mjs';
 import { gameStorage } from './screen-save-status.mjs';
 import { SURFACE_GRID, surfaceCoordinates } from '../data/surface-grid.mjs';
 import { selectedDataset } from '../dataset-runtime.mjs';
@@ -402,6 +403,12 @@ export class ChunkMap {
     if (changed.includes('stickerScale') && this.pins) this.dirty.pins = true;
     if (changed.some(key => ['taskCountScale', 'showTaskCounts', 'showPlaceNames'].includes(key)) && this.pinContext) this.dirty.pins = true;
     this.schedule();
+  }
+
+  setAvailability(model) {
+    if (this.availability === model || this.disposed) return;
+    this.availability = model;
+    this.dirty.state = true; this.dirty.hover = true; this.schedule();
   }
 
   setTaskCounts(counts) {
@@ -819,7 +826,7 @@ export class ChunkMap {
       .filter(row => layerPreferences.clueTier === 'all' || row.tier === layerPreferences.clueTier).map(row => row.tier))] : [];
     const activityLabels = [...(clueTiers.length ? [`Recorded clue locations: ${clueTiers.join(', ')}. Requirements not checked.`] : []),
       ...(layerPreferences.showSlayer && this.activityLayers?.slayer?.has(id) ? [`Locked Slayer task: ${this.activityLayers.slayerLabel ?? 'target'} · recorded monster locations`] : [])];
-    const lines = [...hypothetical, ...membership, ...taskLabel, ...activityLabels, ...colours, ...annotations, ...deathLabel, ...(travel ? [travel.connected ? `${travel.ownerName}'s chunk, connected for ${this.active.name}: out: ${travel.out}; back: ${travel.back}` : `${travel.ownerName}'s chunk, not connected for ${this.active.name}: ${travel.reason}`] : [])];
+    const lines = [...availabilityDescription(this.availability, id), ...hypothetical, ...membership, ...taskLabel, ...activityLabels, ...colours, ...annotations, ...deathLabel, ...(travel ? [travel.connected ? `${travel.ownerName}'s chunk, connected for ${this.active.name}: out: ${travel.out}; back: ${travel.back}` : `${travel.ownerName}'s chunk, not connected for ${this.active.name}: ${travel.reason}`] : [])];
     const hit = this.pinHitAt();
     if (hit) {
       const detail = hit.detail;
@@ -1012,6 +1019,8 @@ export class ChunkMap {
         drawChunkColours(context, colourPaint, x, y, size, { fill: !coloursBatched, accents: colourAccents });
       }
     }
+    // Availability stays inset from ownership borders and below map labels.
+    if (this.availability) for (const { id, x, y } of cells) drawAvailabilityCell(context, this.availability, id, x, y, size);
     // Pass 2: restore the chunk grid over revealed terrain in one path.
     context.beginPath();
     for (const { x, y, owners, selected, pending, candidate } of cells) {
@@ -1368,6 +1377,7 @@ export class ChunkMap {
     this.placeLabels?.dispose();
     this.taskCounts = this.visibleTaskCounts = new Map();
     this.taskCountScene = null;
+    this.availability = null;
     this.chunkColourLayer = null;
     releaseChunkColourOverview(this.chunkColourOverview);
     this.chunkColourOverview = null;

@@ -694,3 +694,18 @@ test('disabled saved selections can still be eligible through an automatic rule'
   assert.match(tooltip.textContent, /Hand selections are disabled for One/);
   assert.doesNotMatch(tooltip.textContent, /Hand-added roll option|Outside .*roll pool/);
 });
+
+test('passive availability repaints counts and hover while preserving terrain, ownership and hit testing', t => {
+  const { map, counters, tooltip, flush } = harness(t);
+  const terrain = counters[0].clear, member = map.active, candidates = map.candidateRanks;
+  map.pointer = { x: 150, y: 250 }; map.setHover('7494');
+  for (const count of [3, 0, null]) {
+    map.setAvailability({ counts: new Map([['7494', count]]), maximum: 3, skill: '' }); flush();
+    assert.match(tooltip.textContent, count === null ? /New task options: unknown/ : new RegExp(`New task options: ${count}; checked`));
+    assert.equal(map.chunkAt(map.pointer), '7494');
+    assert.equal(map.active, member); assert.equal(map.candidateRanks, candidates);
+    assert.equal(counters[0].clear, terrain, 'Overlay updates never invalidate terrain');
+  }
+  map.setAvailability(null); flush();
+  assert.doesNotMatch(tooltip.textContent, /New task options/);
+});

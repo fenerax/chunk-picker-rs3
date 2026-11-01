@@ -480,10 +480,15 @@ export function createScreenTasks(c) {
     c.taskListRows.set('completed-tasks', completedRows); c.renderCompleted(completedRows, jobs, generation);
     c.taskListRows.set('backlog-tasks', backlogRows);
     if (typeof c.renderBacklog === 'function') c.renderBacklog(backlogRows, jobs, generation);
-    if (!groupOn) c.$('task-count').textContent = c.preferences().numTasksPercent ? `${goalProgress(goals, c.taskFactsCache).percent}% complete` : active.length.toLocaleString();
+    const showProgress = !groupOn && c.preferences().numTasksPercent;
+    c.$('task-progress-help').hidden = !showProgress;
+    if (!groupOn) {
+      const progress = showProgress ? goalProgress(goals, c.taskFactsCache) : undefined;
+      c.$('task-count').textContent = progress ? `${progress.percent}% complete · ${progress.completed} of ${progress.total} included goal${progress.total === 1 ? '' : 's'}` : active.length.toLocaleString();
+    }
     if (!groupOn && view && view.stateRevision !== c.state.revision) c.$('task-count').textContent += ' · previous count, updating';
     const updating = groupOn && !duoReady ? ' · updating' : '';
-    c.$('backlog-count').textContent = `(${backlogRows.length}${updating})`; c.$('completed-count').textContent = `(${completedRows.length}${updating})`;
+    c.$('backlog-count').textContent = `(${backlogRows.length} unique task${backlogRows.length === 1 ? '' : 's'}${updating})`; c.$('completed-count').textContent = `(${completedRows.length}${updating})`;
     const areaList = c.$('accessible-areas');
     if (!areaList.parentElement || areaList.parentElement.open) areaList.replaceChildren(c.list(view?.access.areas ?? []));
     c.taskRenderDone = c.paintTaskJobs(jobs, generation).then(async painted => {

@@ -60,7 +60,10 @@ export function createPoolRanking({ limit = 512, byteLimit = 2 * 1024 * 1024, le
       return true;
     },
     read(nextInput, memberId, revision, ids, peek = () => undefined) {
-      sync(nextInput);
+      // Only the live save owner may advance input. A delayed reader cannot
+      // discard summaries retained for a newer save.
+      if (input === undefined) sync(nextInput);
+      if (nextInput !== input) return undefined;
       const pool = new Set(ids.map(String));
       for (const id of pools.get(memberId) ?? []) if (!pool.has(id)) counts.delete(key(memberId, id));
       pools.set(memberId, pool);
