@@ -276,9 +276,12 @@ export async function openGamePlugin({ dataDir, store, world, registry, questMap
     // The first look needs both containers; until then only the snapshot is acknowledged.
     if (!saved && (value.worn === null || value.backpack === null)) { itemAcks.set(player, ack); return; }
     const entries = [...(value.worn ?? []).map(([, id, , name]) => [id, name, true]), ...(value.backpack ?? []).map(([, id, , name]) => [id, name, false])];
+    // Toolbelt evidence goes after the delivery world's journal events, as before: the
+    // first entry for an item names it, so a reported journal name wins over the tool name.
+    const tools = [];
     for (const [name, level] of value.toolbelt ?? []) {
       const id = GAME_TOOLBELT.get(`${name}=${level}`);
-      if (id !== undefined) entries.push([id, null, false]);
+      if (id !== undefined) tools.push([id, null, false]);
     }
     // Containers and legacy triples belong to the delivery world, as before. Four-field
     // events carry their observation environment: live ones join the live record, beta
@@ -297,8 +300,9 @@ export async function openGamePlugin({ dataDir, store, world, registry, questMap
       const prior = slot === 'delivery' ? saved : slot === 'live' ? itemRecord(player, 'live') : journal.has(slot) ? structuredClone(journal.get(slot)) : null;
       const record = prior ?? { baselineAt: now, items: {}, handled: [], journal: null };
       const after = record.journal?.id === value.journal.id ? record.journal.event : 0;
-      const scoped = slot === 'delivery' ? entries : [];
+      const scoped = slot === 'delivery' ? [...entries] : [];
       for (const event of value.journal.events) if (event[0] > after && slotOf(event) === slot) scoped.push([event[1], event[2], true]);
+      if (slot === 'delivery') scoped.push(...tools);
       const added = addEvidence(record, scoped, now, !prior);
       for (const row of added.unmapped) if (!unmapped.has(row.gameItemId)) unmapped.set(row.gameItemId, row);
       const last = Math.max(after, value.journal.events.at(-1)?.[0] ?? 0);

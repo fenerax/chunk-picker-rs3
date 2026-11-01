@@ -403,6 +403,22 @@ for (const delivery of [false, true, null]) test(`legacy journal triples follow 
   assert.ok(f.review().items.some(row => row.taskId === WEAR_TASK && row.world === world));
 });
 
+// Codex review r2, P3: tool belt evidence still follows the delivery world's journal
+// events, so a reported journal name keeps naming the item, as before.
+for (const delivery of [false, true]) test(`journal names win over tool belt names ${delivery ? 'beta' : 'live'}`, async t => {
+  const f = await fixture(t, { durable: true });
+  await f.send({ ...items({ events: [[1, RUNE_HATCHET, 'Synthetic reported hatchet name']] }), toolbelt: [['HATCHET_LEVEL', 6]] }, delivery);
+  const hatchet = (f.review()?.items ?? []).filter(row => row.gameItemId === RUNE_HATCHET);
+  if (delivery) {
+    assert.ok(hatchet.length > 0);
+    for (const row of hatchet) assert.equal(row.gameName, 'Synthetic reported hatchet name');
+  } else {
+    for (const row of hatchet) assert.equal(row.gameName, 'Synthetic reported hatchet name');
+    const record = JSON.parse(await readFile(path.join(f.dataDir, 'plugin-items.json'), 'utf8')).players.a;
+    assert.equal(record.items[RUNE_HATCHET].name, 'Synthetic reported hatchet name');
+  }
+});
+
 // Codex review r1, finding 1: an acknowledged qualified beta event the sender has dropped
 // keeps its review rows on later item and bank reports until they are handled.
 test('acknowledged qualified journal rows stay in review on later reports', async t => {
