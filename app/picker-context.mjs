@@ -33,6 +33,7 @@ import { requestContext, checkRequestOrigin, writeEvent } from './security/reque
 import { evaluateTransportRoutes } from './core/transport-access.mjs';
 import { personalTeleportRows } from './core/teleport-returns.mjs';
 import { importBackup, previewRestore, BACKUP_FORMAT, SCHEMA_VERSION } from './core/state.mjs';
+import { decodeCompletionDocument } from './storage/completion-codec.mjs';
 import { TICK_ACTIVE_TASKS, tickActiveTasksDenied } from './core/tick-active-tasks.mjs';
 import { evaluateRollPool, partnerConnections, createRollPoolCache, workerRollRules } from './core/rules.mjs';
 import { previewRuleProfile } from './core/planning.mjs';
@@ -271,6 +272,7 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
       if (backup === undefined) { if (!datasetFeature(dataset, 'originalSync')) throw httpError(422, 'Choose a backup from this starter game dataset.'); return undefined; }
       if (!backup || typeof backup !== 'object' || Array.isArray(backup)) throw httpError(400, 'Backup must be a JSON object.');
       if (backup.format !== BACKUP_FORMAT) throw httpError(400, 'Unsupported backup format.');
+      backup = decodeCompletionDocument(backup);
       if (backup.schemaVersion !== SCHEMA_VERSION) throw httpError(400, 'Unsupported backup schema version.');
       return requireGameBackup(dataset, backup);
     }
@@ -1772,6 +1774,7 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
       if (route === '/') file = await containedFile(webRoot, 'index.html');
       else if (['/overlay-panel.mjs', '/overlay-panel.css', '/game-plugin.mjs', '/game-plugin.css', '/signin.css', '/account-panel.mjs', '/accounts-panel.mjs'].includes(route)) file = await containedFile(webRoot, route.slice(1));
       else if (route === '/core/chunk-colours.mjs') file = await containedFile(path.join(ROOT, 'app', 'core'), 'chunk-colours.mjs');
+      else if (route === '/core/completion-codec.mjs') file = await containedFile(path.join(ROOT, 'app', 'core'), 'completion-codec.mjs');
       else if (['/chunk-colour-picker.mjs', '/map-chunk-colours.mjs', '/chunk-colours.css'].includes(route)) file = await containedFile(webRoot, route.slice(1));
       else if (['/lamp-choices.mjs', '/lamp-choices.css'].includes(route)) file = await containedFile(webRoot, route.slice(1));
       else if (route === '/core/xp-choices.mjs') file = await containedFile(path.join(ROOT, 'app', 'core'), 'xp-choices.mjs');

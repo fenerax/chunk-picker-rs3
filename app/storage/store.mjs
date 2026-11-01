@@ -1,4 +1,5 @@
 import { withStoreWrite } from './snapshot.mjs';
+import { createCompletionEncoder, decodeCompletionDocument } from './completion-codec.mjs';
 import { link, mkdir, open, readFile, readdir, realpath, rename, stat, unlink, utimes } from 'node:fs/promises';
 import path from 'node:path';
 import { hostname } from 'node:os';
@@ -231,8 +232,10 @@ async function atomicWrite(file, contents, beforeRename) {
 }
 
 /** One durable, exclusively locked store. All writes share one revision queue. */
-export async function openStore({ dataDir, world, registry, initialState, migrateState, prepareState, beforeCommit, beforeLockRecovery, now, random, taskCatalogue, retention, progressQuestPoints, membersStartBanks, xpChoiceCatalogue, readOnly = false, liveSwapStrict = false, expectedCheckpoint, onActivationTiming, rollPoolCache, computeRollPool } = {}) {
+export async function openStore({ dataDir, world, registry, initialState, migrateState, prepareState, beforeCommit, beforeLockRecovery, now, random, taskCatalogue, retention, progressQuestPoints, membersStartBanks, xpChoiceCatalogue, readOnly = false, liveSwapStrict = false, expectedCheckpoint, onActivationTiming, rollPoolCache, computeRollPool, completionCodec = process.env.RS3_COMPLETION_CODEC === '1' } = {}) {
   if (!dataDir) throw new TypeError('dataDir is required.');
+  if (typeof completionCodec !== 'boolean') throw new TypeError('completionCodec must be boolean.');
+  const encodeCompletions = completionCodec ? createCompletionEncoder() : document => document;
   const policy = retention === false ? false : { ...DEFAULT_RETENTION, ...retention };
   if (policy) {
     if (!Number.isSafeInteger(policy.backupDays) || policy.backupDays < 1) throw new TypeError('retention.backupDays must be a positive safe integer.');
@@ -416,7 +419,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     return { ...document, state };
   }
   async function importStoredBackup(document, ownsDocument = false) {
-    document = parseSavedDocument(document);
+    document = decodeCompletionDocument(parseSavedDocument(document));
     const state = importSavedState(await hydrateStaticDocument(document, ownsDocument), registry);
     if (document.coordination !== undefined) coordination.set(state, validateCoordination(document.coordination, state.revision));
     for (const [key, reference] of Object.entries(document.storage?.fields ?? {})) {
@@ -462,10 +465,10 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
       fields[key] = await staticReference(key, value, bytes);
       delete compact[key];
     }
-    if (!Object.keys(fields).length) return serialized(state, ledger);
-    return `${JSON.stringify({ ...envelope(compact), ...(coordination.has(state) ? { coordination: coordinationOf(state) } : {}),
+    if (!Object.keys(fields).length && !completionCodec) return serialized(state, ledger);
+    return `${JSON.stringify(encodeCompletions({ ...envelope(compact), ...(coordination.has(state) ? { coordination: coordinationOf(state) } : {}),
       ...(ledger ? { actionReceipts: ledger } : {}),
-      ...(Object.keys(fields).length ? { storage: { schemaVersion: 1, fields } } : {}) })}\n`;
+      ...(Object.keys(fields).length ? { storage: { schemaVersion: 1, fields } } : {}) }))}\n`;
   }
   function gameplayFingerprint() {
     return fingerprint(current);

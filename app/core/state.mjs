@@ -1,4 +1,5 @@
 import { startingSectionLocations } from './cache-surface.mjs';
+import { decodeCompletionDocument } from './completion-codec.mjs';
 import { validateSavedXpChoices, validateXpChoices } from './xp-choices.mjs';
 import { selectedDataset } from '../dataset-runtime.mjs';
 import { createTaskFactsIndex } from './progress-index.mjs';
@@ -931,6 +932,7 @@ export function importBackup(document, registry) {
   }
   record(backup, 'backup');
   if (backup.format !== BACKUP_FORMAT) fail('Unsupported backup format');
+  backup = decodeCompletionDocument(backup);
   if (backup.schemaVersion !== SCHEMA_VERSION) fail(`Unsupported backup schema version: ${backup.schemaVersion}`);
   return validateState(backup.state, registry);
 }
