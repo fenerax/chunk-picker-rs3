@@ -3,6 +3,30 @@
   "entries": [
     {
       "date": "2026-11-01",
+      "title": "Ancient effigies have their own switch",
+      "items": [
+        "A new Ancient Effigies setting lets you turn effigy tasks on or off. Until you change it, it follows Universal Tertiary",
+        "Four monsters under combat level 20 no longer list effigies, matching the RuneScape Wiki"
+      ]
+    },
+    {
+      "date": "2026-11-01",
+      "title": "Faster when several groups are on",
+      "items": [
+        "Groups using the picker at the same time now share cached calculator work, so repeat answers come back about twice as fast",
+        "Busy periods use less memory"
+      ]
+    },
+    {
+      "date": "2026-11-01",
+      "title": "Behind the scenes",
+      "items": [
+        "The picker can record where its time goes, to aim future speed work",
+        "Ready for a plugin update that keeps items worn on beta from ticking live Obtain goals"
+      ]
+    },
+    {
+      "date": "2026-11-01",
       "title": "Travel unlocks and time-gated tasks",
       "items": [
         "Balloon routes, Max Guild portal attunement and portal nexus teleports wait until their destinations are reachable. The new Early Travel Unlocks rule brings back the old behaviour",
