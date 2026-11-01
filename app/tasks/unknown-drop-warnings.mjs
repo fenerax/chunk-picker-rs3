@@ -2,15 +2,20 @@ import estimates from '../data/unknown-drop-estimates.v1.json' with { type: 'jso
 import { UNKNOWN_DROP_RULE, unknownDropRule } from '../data/settings.mjs';
 import { taskRuleValueError } from '../data/settings.mjs';
 import { parseDropRate } from './rates.mjs';
+import { processingSkills } from './processing.mjs';
 
 const list = value => value == null ? [] : Array.isArray(value) ? value : [value];
 const contexts = new WeakMap();
 // Keep closures outside graph construction so a retained context cannot keep
 // its solver's nodes, edges, source records and task rows alive.
-const scalarContext = (itemCosts, taskCosts) => ({
+const scalarContext = (itemCosts, taskCosts, wieldCosts = new Map()) => ({
   item: name => itemCosts.get(name) ?? Infinity,
   task: id => taskCosts.get(id) ?? Infinity,
+  wield: name => wieldCosts.get(name) ?? itemCosts.get(name) ?? Infinity,
 });
+const craftedSource = source => source.kind === 'task' && processingSkills.has(source.category);
+// Same equipment source policy and truth test as time estimates.
+const wieldCraftedAllowed = rules => ![undefined, false, 'false', 0].includes(rules['Wield Crafted Items']);
 
 /** Estimates are advisory. Never substitute them into source probabilities. */
 export function unknownDropEstimate(source) {
@@ -50,16 +55,25 @@ export function unknownDropContext(result, definitions = {}, allowedSource, rule
     return { names: list(registry[key] ?? clean), count: Number(match[2] ?? 1) };
   }
   function sourceNode(source) {
-    const target = node(), producer = source.kind === 'task' && tasks.get(source.taskId)?.node;
+    // Task outputs and task rewards both depend on their producing task. A
+    // reward already received needs no new acquisition; a recipe output still
+    // needs its supplies to make another.
+    const producing = (source.kind === 'task' || source.kind === 'reward') && source.taskId !== undefined ? tasks.get(source.taskId) : undefined;
+    const target = node(), producer = producing && !(source.kind === 'reward' && producing.row.personalCompleted) && producing.node;
     const estimate = unknownDropEstimate(source);
     configure(target, producer ? [producer] : [], () => Math.max(estimate, producer?.value ?? 0));
     return target;
   }
-  const sourceNodes = new WeakMap();
+  const sourceNodes = new WeakMap(), wieldNodes = new Map();
   for (const item of items.values()) {
     const sources = (item.sources ?? []).filter(source => source.processingMode !== 'multi');
     const deps = sources.map(source => { const target = sourceNode(source); sourceNodes.set(source, target); return target; });
     configure(item.node, deps, () => deps.reduce((cost, dep) => Math.min(cost, dep.value), Infinity));
+    // Equipment with Wield Crafted Items off admits no processing-task source
+    // (the engine's equipment policy), so a recipe is no alternative there.
+    const wieldDeps = sources.filter(source => !craftedSource(source)).map(source => sourceNodes.get(source));
+    const wield = node(); configure(wield, wieldDeps, () => wieldDeps.reduce((cost, dep) => Math.min(cost, dep.value), Infinity));
+    wieldNodes.set(item.name, wield);
   }
   for (const { row, node: target } of tasks.values()) {
     // Eligibility-cache copies retain the engine's source-policy proof in the
@@ -81,14 +95,14 @@ export function unknownDropContext(result, definitions = {}, allowedSource, rule
       return { deps, count };
     });
     const dependencies = Object.entries(row.record?.Tasks ?? {}).map(([label, category]) => {
-      const { names } = choices(label, definitions.codeItems?.tasksPlus ?? {});
+      const { names, count } = choices(label, definitions.codeItems?.tasksPlus ?? {});
       return { deps: names.map(name => {
         const task = tasks.get(keys.get(`${category}\0${String(name).split('--')[0]}`));
         if (!task?.row.personalCompleted) return task?.node;
         // A completed prerequisite needs no new acquisition. Its recipe still
         // needs supplies when used as a producer of additional items.
         const completed = node(); configure(completed, [], () => 0); return completed;
-      }).filter(Boolean), count: 1 };
+      }).filter(Boolean), count };
     }).filter(group => group.deps.length);
     groups.push(...dependencies);
     const deps = groups.flatMap(group => group.deps);
@@ -107,7 +121,8 @@ export function unknownDropContext(result, definitions = {}, allowedSource, rule
     for (const parent of target.parents) if (!queued.has(parent)) { queued.add(parent); queue.push(parent); }
   }
   const context = scalarContext(new Map([...items].map(([name, item]) => [name, item.node.value])),
-    new Map([...tasks].map(([id, task]) => [id, task.node.value])));
+    new Map([...tasks].map(([id, task]) => [id, task.node.value])),
+    new Map([...wieldNodes].map(([name, wield]) => [name, wield.value])));
   contexts.set(result, context);
   return context;
 }
@@ -122,7 +137,9 @@ export function addUnknownDropWarnings(rows, context, rules = {}) {
   for (const row of rows) {
     if (row.unknownDropWarning && row.explanation?.endsWith(row.unknownDropWarning)) row.explanation = row.explanation.slice(0, -row.unknownDropWarning.length).trimEnd();
     delete row.unknownDropWarning; delete row.unknownDropKills;
-    const estimate = row.item || row.equipmentName ? context.item(row.item ?? row.equipmentName) : context.task(row.id);
+    const estimate = row.item ? context.item(row.item)
+      : row.equipmentName ? (wieldCraftedAllowed(rules) ? context.item(row.equipmentName) : context.wield(row.equipmentName))
+        : context.task(row.id);
     const kills = Math.ceil(estimate * multiplier);
     if (!(estimate > 0) || !Number.isSafeInteger(kills)) continue;
     row.unknownDropWarning = `Drop rate unknown (the wiki says rare). Move on after about ${kills.toLocaleString('en-US')} kills.`;

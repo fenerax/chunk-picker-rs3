@@ -146,6 +146,35 @@ test('cached results preserve source restrictions in downstream guidance', () =>
   }
 });
 
+test('task rewards carry their producing task reliance until received', () => {
+  const rows = [{ id: 'q', category: 'Quest', rawLabel: 'Q', record: { Items: ['Gem'] } }];
+  const items = [{ name: 'Gem', sources: [{ kind: 'drop', rawRate: 'Rare', probability: null }] },
+    { name: 'Medal', sources: [{ kind: 'reward', taskId: 'q' }] }];
+  assert.equal(unknownDropContext({ tasks: rows, items }).item('Medal'), 128);
+  rows[0].personalCompleted = true;
+  assert.equal(unknownDropContext({ tasks: rows, items }).item('Medal'), 0);
+});
+test('equipment with Wield Crafted Items off ignores recipe alternatives', () => {
+  const rows = [{ id: 'craft', category: 'Crafting', rawLabel: 'Craft', record: {} }];
+  const items = [{ name: 'Ring', sources: [{ kind: 'task', taskId: 'craft', category: 'Crafting' }, { kind: 'drop', rawRate: 'Very rare', probability: null }] }];
+  const context = unknownDropContext({ tasks: rows, items });
+  assert.equal(context.item('Ring'), 0); assert.equal(context.wield('Ring'), 1000);
+  const off = addUnknownDropWarnings([{ equipmentName: 'Ring' }], context, { 'Wield Crafted Items': false });
+  assert.equal(off[0].unknownDropKills, 3000);
+  const on = addUnknownDropWarnings([{ equipmentName: 'Ring' }], context, { 'Wield Crafted Items': true });
+  assert.equal(on[0].unknownDropWarning, undefined);
+  assert.equal(addUnknownDropWarnings([{ item: 'Ring' }], context, {})[0].unknownDropWarning, undefined);
+});
+test('counted task prerequisite aliases keep their required count', () => {
+  const rows = [{ id: 'a', category: 'Crafting', rawLabel: 'A', record: {} },
+    { id: 'b', category: 'Crafting', rawLabel: 'B', record: { Items: ['Gem'] } },
+    { id: 't', category: 'Crafting', rawLabel: 'T', record: { Tasks: { 'Any[+]x2': 'Crafting' } } },
+    { id: 'u', category: 'Crafting', rawLabel: 'U', record: { Tasks: { 'Any[+]': 'Crafting' } } }];
+  const items = [{ name: 'Gem', sources: [{ kind: 'drop', rawRate: 'Rare', probability: null }] }];
+  const context = unknownDropContext({ tasks: rows, items }, { codeItems: { tasksPlus: { 'Any[+]': ['A', 'B'] } } });
+  assert.equal(context.task('t'), 128); assert.equal(context.task('u'), 0);
+});
+
 test('completed prerequisites need no new drop but additional recipe supplies do', () => {
   const d = fixture('Rare'); d.challenges.Crafting.Finish = { Tasks: { Use: 'Crafting' } };
   const engine = createTaskEngine(d), doc = state({});
