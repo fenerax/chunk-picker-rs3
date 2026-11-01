@@ -1,4 +1,5 @@
 import test from 'node:test';
+import { masterGateFixture } from './fixtures/slayer-master-gates.mjs';
 import assert from 'node:assert/strict';
 import { buildActivityInfo } from '../app/tasks/activity.mjs';
 import { currentSlayerLevels } from '../app/tasks/slayer-assignments.mjs';
@@ -165,4 +166,69 @@ test('changing assignment display tables leaves engine planning task results unc
   assert.deepEqual(after.tasks, before.tasks);
   assert.deepEqual(after.training, before.training);
   assert.deepEqual(after.presentation?.tasks, before.presentation?.tasks);
+});
+
+
+test('current master Combat 29/30/31 gates intersect shared assignments without changing planning', () => {
+  for (const combat of [29, 30, 31]) {
+    const f = masterGateFixture({ combat });
+    assert.equal(currentSlayerLevels(f.result, { f2p: false }).Combat, combat);
+    const before = structuredClone(f.result), masters = f.view().slayer.masters;
+    const higher = masters.find(master => master.name === 'Higher');
+    assert.equal(higher.reachable, true);
+    assert.equal(higher.warnings.planning.poolWeight, 10);
+    assert.equal(higher.currentAccess.status, combat < 30 ? 'unavailable' : 'available');
+    assert.equal(higher.tasks[0].currentUnlocked, combat >= 30);
+    assert.equal(higher.warnings.current.poolWeight ?? null, combat < 30 ? null : 10);
+    assert.equal(masters.filter(master => master.tasks[0].currentUnlocked && master.tasks[0].currentStatus === 'doable').length, combat < 30 ? 1 : 2);
+    if (combat < 30) assert.match(higher.warnings.current.line, /unavailable.*Combat 30/);
+    assert.deepEqual(f.result, before);
+  }
+});
+
+test('master-only Slayer and personal quest gates do not borrow planning or another player completion', () => {
+  const low = masterGateFixture({ combat: 30, slayer: 9 });
+  const higher = f => f.view().slayer.masters.find(master => master.name === 'Higher');
+  assert.equal(higher(low).currentAccess.status, 'unavailable');
+  assert.equal(higher(low).tasks[0].currentUnlocked, false);
+  assert.match(higher(low).warnings.current.line, /Slayer 10/);
+  const f = masterGateFixture({ combat: 30, quest: true });
+  const quest = f.result.tasks.find(task => task.category === 'Quest');
+  assert.equal(quest.status, 'available');
+  assert.equal(higher(f).reachable, false, 'The engine already blocks the pending master quest');
+  assert.equal(higher(f).tasks[0].currentUnlocked, false);
+  // Also exercise a projected planning-available method: current access must
+  // independently require personal completion rather than trust that status.
+  f.result.tasks.find(task => task.rawLabel === f.higher).status = 'available';
+  quest.challengeSatisfied = true;
+  assert.equal(higher(f).reachable, true);
+  assert.equal(higher(f).tasks[0].planningEligible, true);
+  assert.equal(higher(f).currentAccess.status, 'unavailable');
+  assert.match(higher(f).warnings.current.line, /Complete Example gate yourself/);
+  quest.personalCompleted = true;
+  assert.equal(higher(f).currentAccess.status, 'available');
+  assert.equal(higher(f).warnings.current.poolWeight, 10);
+  assert.equal(higher(f).tasks[0].currentStatus, 'doable');
+});
+
+test('missing observations and unresolved master prerequisites supply no current denominator', () => {
+  const f = masterGateFixture({ combat: 30 });
+  const higher = () => f.view().slayer.masters.find(master => master.name === 'Higher');
+  delete f.result.training.Constitution.observedLevel;
+  assert.equal(higher().currentAccess.status, 'unknown');
+  assert.equal(higher().tasks[0].currentUnlocked, false);
+  assert.equal(higher().warnings.current.poolWeight, undefined);
+  assert.match(higher().warnings.current.line, /Sync your levels/);
+  f.result.training.Constitution = observation(28);
+  delete f.result.training.Slayer.observedLevel;
+  assert.equal(higher().currentAccess.status, 'unknown');
+  assert.equal(higher().tasks[0].currentUnlocked, false);
+  assert.match(higher().warnings.current.line, /Sync your levels/);
+  f.result.training.Slayer = observation(10);
+  const method = f.result.tasks.find(task => task.rawLabel === f.higher);
+  method.record.Tasks = { 'Unresolved gate': 'Quest' };
+  assert.equal(higher().currentAccess.status, 'unknown');
+  assert.equal(higher().tasks[0].currentUnlocked, false);
+  assert.match(higher().warnings.current.line, /availability is unknown/);
+  assert.equal(higher().warnings.current.poolWeight, undefined);
 });

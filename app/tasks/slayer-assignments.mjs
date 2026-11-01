@@ -1,5 +1,6 @@
 import { combatLevelFromSkills } from '../core/combat-level.mjs';
 import { plainLabel } from './engine.mjs';
+import { questGroupName } from './activity-readiness.mjs';
 
 const list = value => value == null ? [] : Array.isArray(value) ? value : [value];
 const yes = () => ({ status: 'doable', quests: [] });
@@ -20,6 +21,24 @@ export function currentSlayerLevels(result, { f2p = true } = {}) {
   // Do not let the formula's missing-skill defaults turn unknown stats into current levels.
   if (levels.Combat == null && combatSkills.every(skill => levels[skill] != null)) levels.Combat = combatLevelFromSkills(levels, { f2p });
   return levels;
+}
+
+/** Intersect the planning method with personal, current master requirements.
+ * An available method can still require training or an unfinished quest. */
+export function currentSlayerMasterAccess(method, levels, resolveTasks) {
+  if (method?.status !== 'available') return { status: 'unavailable', reasons: ['No verified assignment method is reachable.'] };
+  const unmet = [], missing = [], record = method.record ?? {};
+  for (const [skill, level] of Object.entries({ ...record.Skills, ...record.SkillsNeeded, ...(record.Level ? { Slayer: record.Level } : {}) })) {
+    if (levels[skill] == null) missing.push(`Sync your ${skill} level to check this master.`);
+    else if (levels[skill] < level) unmet.push(`Requires ${skill} ${level} (recorded ${levels[skill]}).`);
+  }
+  for (const [label, category] of Object.entries(record.Tasks ?? {})) {
+    const candidates = resolveTasks(label, category);
+    if (candidates.some(row => row.personalCompleted)) continue;
+    if (category === 'Quest' && candidates.length) unmet.push(`Complete ${[...new Set(candidates.map(questGroupName))].join(' or ')} yourself to use this master.`);
+    else missing.push(`The prerequisite ${plainLabel(label)} cannot be checked right now.`);
+  }
+  return { status: unmet.length ? 'unavailable' : missing.length ? 'unknown' : 'available', reasons: [...unmet, ...missing] };
 }
 
 /** Bounded display-only proof over serialized access. Missing route evidence stays unknown.
