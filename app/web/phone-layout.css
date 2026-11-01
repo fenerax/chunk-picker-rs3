@@ -8,7 +8,11 @@
   .phone-layout #save-status { order:1;margin-left:auto;max-width:100%;white-space:normal; }
   .phone-layout .player-controls { order:3;flex-basis:100%;padding-left:0;border-left:0;justify-content:space-between;gap:var(--space-4); }
   :is(#update-banner,#notice,#backup-status-notice,#sandbox-banner,#duo-catchup,#duo-live) { padding-inline:max(var(--space-6),env(safe-area-inset-left,0px)) max(var(--space-6),env(safe-area-inset-right,0px)); }
-  .phone-layout .workspace { display:block;height:calc(100dvh - var(--topbar-height,110px) - var(--phone-tabs-height));min-height:0; }
+  /* Let the document scroll the bars away when they leave too little room for
+     map controls and results. Reserve the fixed tabs in native focus scrolling. */
+  :root.phone-layout { scroll-padding-bottom:calc(var(--phone-tabs-height) + .5rem); }
+  .phone-layout body { padding-bottom:var(--phone-tabs-height); }
+  .phone-layout .workspace { display:block;height:max(28rem,calc(100dvh - var(--topbar-height,110px) - var(--phone-tabs-height)));min-height:0; }
   .phone-layout .map-panel { height:100%; }
   .phone-layout .map-stage { position:absolute;inset:0;height:100%;min-height:0; }
   .phone-layout .map-toolbar { top:4.25rem;left:calc(.5rem + env(safe-area-inset-left,0px));right:calc(.5rem + env(safe-area-inset-right,0px));flex-wrap:nowrap;overflow-x:auto;scrollbar-width:thin;scrollbar-color:var(--gold) var(--panel);pointer-events:auto;padding-bottom:var(--space-legacy-2px); }

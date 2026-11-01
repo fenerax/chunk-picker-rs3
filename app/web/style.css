@@ -551,10 +551,14 @@ details[open]>summary::before{transform:rotate(45deg)}
 
 /* Dialogs */
 dialog{color:var(--panel-text,var(--text));background:var(--panel);border:var(--border-thin) solid var(--hairline);border-radius:var(--radius-dialog);box-shadow:var(--shadow-dialog);width:min(760px,calc(100vw - 1.5rem));max-height:calc(100dvh - 2rem);padding:0;scrollbar-width:thin}
+/* Keep the title outside the body scrollport so native Tab cannot hide a
+   focused control behind it, including when the title wraps. */
+#tool-dialog[open]{display:flex;flex-direction:column;overflow:hidden}
 dialog::backdrop{background:var(--color-fixed-0a0806b3);backdrop-filter:blur(3px)}
-.dialog-header{position:sticky;top:0;z-index:1;display:flex;align-items:center;justify-content:space-between;padding:var(--space-6) var(--space-6);background:var(--panel);border-bottom:var(--border-thin) solid var(--hairline)}
-.dialog-header h2{font-size:var(--type-title)}
-#dialog-content{padding:var(--space-6) var(--space-6) var(--space-7);overflow:auto}
+.dialog-header{flex:none;display:flex;align-items:center;justify-content:space-between;padding:var(--space-6) var(--space-6);background:var(--panel);border-bottom:var(--border-thin) solid var(--hairline)}
+.dialog-header h2{min-width:0;overflow-wrap:anywhere;font-size:var(--type-title)}
+.dialog-header .close-button{flex:none}
+#dialog-content{min-height:0;padding:var(--space-6) var(--space-6) var(--space-7);overflow:auto}
 .form-stack{display:flex;flex-direction:column;gap:var(--space-5)}
 .form-stack>label{display:flex;flex-direction:column;align-items:stretch;gap:var(--space-2)}
 .form-stack>label:has(>input[type=checkbox]){flex-direction:row;align-items:center;gap:var(--space-4)}

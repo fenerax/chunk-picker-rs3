@@ -4,6 +4,33 @@ import { backupSaveLabel } from './backup-status.mjs';
 import { createSearchDialog } from './screen-search.mjs';
 import { createBackupUpload, downloadFullBackup } from './backup-transfer.mjs';
 
+// Native textarea focus can reveal only the caret, and progressive details can
+// move a control after the browser has scrolled it. Keep the whole focused box
+// in the body scrollport without changing focus, selection or the outer page.
+export function keepDialogFocusVisible({ document, dialog, content, view = globalThis }) {
+  let pending = false;
+  const schedule = () => {
+    if (pending) return;
+    pending = true;
+    view.requestAnimationFrame(() => {
+      pending = false;
+      const active = document.activeElement;
+      if (!dialog.open || !content.contains(active) || !content.clientHeight) return;
+      const box = active.getBoundingClientRect(), body = content.getBoundingClientRect();
+      const top = body.top + content.clientTop, bottom = top + content.clientHeight;
+      if (box.height <= content.clientHeight && box.bottom > bottom) content.scrollTop += box.bottom - bottom;
+      else if (box.top < top) content.scrollTop += box.top - top;
+    });
+  };
+  dialog.addEventListener('focusin', schedule);
+  if (view.MutationObserver) new view.MutationObserver(schedule).observe(content, { childList: true, subtree: true, characterData: true });
+  if (view.ResizeObserver) {
+    const observer = new view.ResizeObserver(schedule);
+    observer.observe(content);
+    observer.observe(document.querySelector('.dialog-header'));
+  }
+}
+
 // Main-screen dialogs; shared values and callbacks live in the explicit screen context.
 export function createScreenDialogs(c) {
   const search = createSearchDialog(c);
@@ -33,6 +60,7 @@ export function createScreenDialogs(c) {
 
   function bindDialogLifecycle() {
     const dialog = c.$('tool-dialog');
+    keepDialogFocusVisible({ document, dialog, content: c.$('dialog-content') });
     dialog.addEventListener('close', () => { if (!dialog.open) { search.clear(); restoreDialogFocus(); } });
     dialog.addEventListener('cancel', c.beginDialogRequest); document.querySelector('.dialog-header').addEventListener('submit', c.beginDialogRequest);
     const outside = event => { const box = dialog.getBoundingClientRect?.(); return !!box && (event.clientX < box.left || event.clientX > box.right || event.clientY < box.top || event.clientY > box.bottom); };
