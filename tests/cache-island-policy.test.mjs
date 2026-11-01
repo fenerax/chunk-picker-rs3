@@ -6,7 +6,8 @@ import { buildWorld } from '../app/data/world.mjs';
 import { cacheEntryPolicies, cacheEntryKinds } from '../app/data/cache-entry-policy.mjs';
 import { createRuleRegistry, evaluateRollPool, reachableSections, partnerConnections } from '../app/core/rules.mjs';
 import { createGroupState, applyCommand } from '../app/core/state.mjs';
-import { surfaceReachability } from '../app/core/cache-surface.mjs';
+import { surfaceReachability, componentLocations } from '../app/core/cache-surface.mjs';
+import { prepareServerDefinitions } from '../app/dataset-pipeline.mjs';
 import { evaluatePartnerConnections } from '../app/core/territory.mjs';
 import surfaceCorrections from '../app/data/cache-surface-corrections.2026-10-08.v1.json' with { type: 'json' };
 
@@ -207,5 +208,168 @@ test('exact copied-cache labels and two evidenced blocked-floor records display 
     assert.equal(world.f2p.has(base), false);
     assert.equal(world.componentMembership.has(base), false);
     assert.equal(Object.hasOwn(definitions.chunks, base), false, 'no authored contents are added');
+  }
+});
+
+
+// Use the same prepared public definitions as production for the broader random
+// corpus, rather than substituting a bank pool or a hand-picked candidate world.
+const startWorld = buildWorld(prepareServerDefinitions(definitions, selectedDataset, { reviewedOverlays: true }), { dataset: selectedDataset });
+const startState = (f2p = false) => {
+  const state = stateFor(); state.rules = { 'content.f2p': f2p }; return state;
+};
+const originalStartCandidates = f2p => [...startWorld.surface].filter(id => startWorld.chunks.has(id)
+  && startWorld.walkable.has(id) && !startWorld.cacheWalking.blockedRegions.has(id)
+  && (!f2p || startWorld.f2p.has(id))).sort();
+const certifiedStarts = ['9515', '9771'];
+const currentStartCandidates = originalStartCandidates(false).filter(id => id !== '13353');
+const startOptions = id => ({ world: startWorld, now: () => '2026-11-01T00:00:00.000Z',
+  random: () => (currentStartCandidates.indexOf(id) + 0.5) / currentStartCandidates.length });
+
+function randomOffer(id) {
+  let calls = 0;
+  const options = startOptions(id);
+  return applyCommand(startState(), { type: 'random-start', memberId: 'player1', count: 2 },
+    { ...options, random: () => calls++ ? 0 : options.random() });
+}
+
+test('members random-start enumerates every exposed outcome outside the reviewed bank subset', () => {
+  const broad = originalStartCandidates(false), outcomes = new Set();
+  assert.equal(broad.length, 646);
+  // A grid finer than either pool exercises every real RNG interval. Do not
+  // replace production admission with the expected candidate list.
+  for (let i = 0; i < broad.length; i++) {
+    const changed = applyCommand(startState(), { type: 'random-start', memberId: 'player1', count: 1 },
+      { world: startWorld, random: () => (i + 0.5) / broad.length });
+    outcomes.add(changed.members[0].unlocked[0]);
+  }
+  assert.deepEqual([...outcomes].sort(), currentStartCandidates);
+  assert.equal(outcomes.size, 645);
+  const missing = [...outcomes].filter(id => startWorld.sectionTopology.get(id)?.has('0')
+    && !startWorld.cacheWalking.legacyToComponents.has(`${id}-0`));
+  assert.deepEqual(missing, certifiedStarts);
+  for (const id of missing) {
+    const started = applyCommand(startState(), { type: 'random-start', memberId: 'player1', count: 1 }, startOptions(id));
+    assert.ok(reachableSections(startWorld, started, 'player1').length > 0);
+    assert.ok(evaluateRollPool(startWorld, started, 'player1').eligible.length > 0);
+  }
+});
+
+for (const id of certifiedStarts) test(`reviewed start-only entry ${id} supports direct and choice starts with an ordinary next roll`, () => {
+  const original = startState(), before = structuredClone(original), options = startOptions(id);
+  const direct = applyCommand(original, { type: 'random-start', memberId: 'player1', count: 1 }, options);
+  const offered = randomOffer(id);
+  assert.ok(offered.members[0].pendingRoll.includes(id));
+  assert.equal(offered.members[0].sectionOverrides, undefined, 'Offering choices grants no entry');
+  const chosen = applyCommand(offered, { type: 'unlock-selection', memberId: 'player1', chunkId: id }, options);
+  const picked = applyCommand(offered, { type: 'pick-for-me', memberId: 'player1' }, { ...options, random: () => 0 });
+  const both = applyCommand(offered, { type: 'unlock-both', memberId: 'player1' }, options);
+  for (const started of [direct, chosen, picked, both]) {
+    assert.ok(started.members[0].unlocked.includes(id));
+    assert.equal(started.members[0].sectionOverrides[`${id}-1000001`], true);
+    assert.ok(reachableSections(startWorld, started, 'player1').includes(`${id}-1000001`));
+    assert.ok(evaluateRollPool(startWorld, started, 'player1').eligible.length > 0);
+    assert.doesNotThrow(() => applyCommand(started, { type: 'roll', memberId: 'player1', count: 1 }, { ...options, random: () => 0 }));
+  }
+  assert.equal(evaluateRollPool(startWorld, direct, 'player1').eligible.length, 2);
+  assert.deepEqual(applyCommand(direct, { type: 'undo' }, options).members, before.members);
+  assert.deepEqual(original, before);
+});
+
+test('start certificates require exact boundary signatures and independent reciprocal accepted endpoints', () => {
+  for (const [id, anchor] of [['9515', '9516'], ['9771', '9772']]) {
+    const entry = `${id}-1000001`, outgoing = startWorld.cacheWalking.outgoing.get(entry);
+    const signature = startWorld.sectionTopology.get(id).get('0').map(value => value.split('-')[0]).sort();
+    assert.deepEqual([...new Set(outgoing.map(value => value.split('-')[0]))].sort(), signature);
+    assert.deepEqual(startWorld.cacheWalking.legacyToComponents.get(`${anchor}-0`), [`${anchor}-1000001`]);
+    assert.ok(outgoing.includes(`${anchor}-1000001`));
+    assert.ok(startWorld.cacheWalking.outgoing.get(`${anchor}-1000001`).includes(entry));
+    assert.ok(startWorld.sectionTopology.get(anchor).get('0').includes(id));
+  }
+  assert.deepEqual(startWorld.sectionTopology.get('13353').get('0'), ['13354-1']);
+  assert.deepEqual(componentLocations(startWorld, '13354-1'), ['13354-1000003']);
+  assert.deepEqual(startWorld.cacheWalking.outgoing.get('13353-1000001'), ['13354-1000001']);
+});
+
+test('unresolved saved random offers fail atomically before draws, while ordinary offers retain their rules', () => {
+  // Model an offer saved before the missing-policy admission guard. Generate
+  // its complete history/undo record through the real command, then restore it
+  // against the current world with the absent policy row.
+  const permissive = { ...startWorld, cacheWalking: { ...startWorld.cacheWalking,
+    legacyToComponents: new Map([...startWorld.cacheWalking.legacyToComponents, ['13353-0', []]]) } };
+  let calls = 0;
+  const broad = originalStartCandidates(false);
+  const offered = applyCommand(startState(), { type: 'random-start', memberId: 'player1', count: 2 }, {
+    world: permissive, random: () => calls++ ? 0 : (broad.indexOf('13353') + 0.5) / broad.length,
+  });
+  assert.ok(offered.members[0].pendingRoll.includes('13353'));
+  const before = structuredClone(offered);
+  const quiet = { world: startWorld, random: () => assert.fail('No draw for an uncertified offer'),
+    now: () => assert.fail('No event for an uncertified offer') };
+  for (const command of [
+    { type: 'unlock-selection', memberId: 'player1', chunkId: '13353' },
+    { type: 'pick-for-me', memberId: 'player1' },
+    { type: 'unlock-both', memberId: 'player1' },
+  ]) {
+    assert.throws(() => applyCommand(offered, command, quiet), /no certified random-start entry/);
+    assert.deepEqual(offered, before);
+  }
+  const ordinary = startState(); ordinary.members[0].pendingRoll = ['13353', '9515'];
+  const chosen = applyCommand(ordinary, { type: 'unlock-selection', memberId: 'player1', chunkId: '13353' }, { world: startWorld });
+  assert.deepEqual(chosen.members[0].unlocked, ['13353']);
+  assert.equal(chosen.members[0].sectionOverrides, undefined);
+});
+
+test('members certificates cannot bypass membership masks, saved blocks or absent components', () => {
+  for (const id of certifiedStarts) {
+    const limited = { ...startWorld, surface: new Set([id]), f2p: new Set([id]) };
+    for (const state of [startState(true), ...[`${id}-0`, `${id}-1000001`].map(block => {
+      const state = startState(); state.members[0].sectionOverrides = { [block]: false }; return state;
+    })]) {
+      const before = structuredClone(state);
+      assert.throws(() => applyCommand(state, { type: 'random-start', memberId: 'player1', count: 1 },
+        { world: limited, random: () => assert.fail('Blocked entry must be filtered before a draw') }), /Roll count/);
+      assert.deepEqual(state, before);
+    }
+    const missing = { ...limited, cacheWalking: { ...limited.cacheWalking, components: new Map(limited.cacheWalking.components) } };
+    missing.cacheWalking.components.delete(`${id}-1000001`);
+    assert.throws(() => applyCommand(startState(), { type: 'random-start', memberId: 'player1' },
+      { world: missing, random: () => assert.fail('Missing certificate component') }), /Roll count/);
+    const offer = randomOffer(id); offer.members[0].sectionOverrides = { [`${id}-0`]: false };
+    assert.throws(() => applyCommand(offer, { type: 'unlock-selection', memberId: 'player1', chunkId: id },
+      { world: startWorld }), /no certified random-start entry/);
+    offer.members[0].sectionOverrides = {}; offer.rules['content.f2p'] = true;
+    assert.throws(() => applyCommand(offer, { type: 'unlock-both', memberId: 'player1' },
+      { world: startWorld }), /no certified random-start entry/);
+  }
+});
+
+test('start-only entries do not remap ownership, saved selectors, resources or unknown correspondence', () => {
+  for (const id of [...certifiedStarts, '13353']) {
+    assert.deepEqual(componentLocations(startWorld, `${id}-0`), []);
+    assert.equal(startWorld.cacheWalking.legacyToComponents.has(`${id}-0`), false);
+    assert.equal(startWorld.cacheWalking.resourceAliases.has(`${id}-1000001`), false);
+    const state = startState(); state.members[0].unlocked = [id];
+    assert.deepEqual(reachableSections(startWorld, state, 'player1'), []);
+    state.members[0].sectionOverrides = { [`${id}-0`]: true };
+    assert.deepEqual(reachableSections(startWorld, state, 'player1'), []);
+  }
+});
+
+test('F2P random-start outcomes and reviewed bank eligibility remain unchanged', async () => {
+  const candidates = originalStartCandidates(true), outcomes = [];
+  assert.equal(candidates.length, 170);
+  for (let i = 0; i < candidates.length; i++) {
+    const started = applyCommand(startState(true), { type: 'random-start', memberId: 'player1' },
+      { world: startWorld, random: () => (i + 0.5) / candidates.length });
+    outcomes.push(started.members[0].unlocked[0]);
+  }
+  assert.deepEqual(outcomes, candidates);
+  const banks = JSON.parse(await readFile(new URL('../app/data/members-start-banks.2026-10-12.v1.json', import.meta.url)));
+  assert.equal(banks.optionAF2PExtension.length, 23);
+  for (const bank of banks.optionAF2PExtension) {
+    assert.ok(currentStartCandidates.includes(bank.chunkId));
+    assert.ok(candidates.includes(bank.chunkId));
+    assert.equal([...certifiedStarts, '13353'].includes(bank.chunkId), false);
   }
 });
