@@ -203,9 +203,10 @@ function predictionFor(state, memberId, chunkId, snapshot, timingMs, source = st
   let evaluations = 0;
   const planningEngine = { ...engine, evaluate: (input, member) => evaluations++ === 0 ? snapshot.baseline : evaluateFull(input, member, { includeViews: false, timingMs }) };
   return timed(timingMs, 'predictionMs', () => {
-    if (snapshot.predictionRevision !== state.revision) {
+    // A cached sandbox draft keeps its prediction but not its state; the caller's state carries the revision.
+    if (!snapshot.predict || snapshot.predictionRevision !== source.revision) {
       snapshot.predict = prepareChunkPrediction(state, registry);
-      snapshot.predictionRevision = state.revision;
+      snapshot.predictionRevision = source.revision;
       completeCache.capture(snapshot, state, source); sandboxCache.capture(snapshot, state, source);
     }
     return snapshot.predict(memberId, chunkId, { world: rollWorld, engine: planningEngine });
@@ -254,7 +255,7 @@ function sandboxFor(state, memberId, draft, timingMs, input, pickerId = 'legacy-
     draftSnapshot = { ...draftSnapshot };
     sandboxCache.stage(key, draftSnapshot, undefined, pickerId);
   }
-  const hypothetical = empty ? state : draftSnapshot.state ?? (normalized.previewChunkId !== undefined && !draftSnapshot.predict
+  const hypothetical = empty ? state : draftSnapshot.state ?? (normalized.previewChunkId !== undefined && (!draftSnapshot.predict || draftSnapshot.predictionRevision !== state.revision)
     ? applySandboxChanges(state, memberId, normalized.changes, sandboxCatalogue, taskIndex) : undefined);
   const result = draftSnapshot.baseline;
   // Cached projections outlive display-only revisions; stamp the caller's.

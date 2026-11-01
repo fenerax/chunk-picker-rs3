@@ -1,4 +1,6 @@
-{
+// Cited wiki facts and authored estimates for drops with no listed rate (see docs/qa/r3-rare-drops.md).
+// A module, not JSON, so the calculator bundle never reads source JSON.
+export default {
   "schemaVersion": 1,
   "wikiFacts": [
     {
@@ -60,4 +62,4 @@
     "random",
     "once"
   ]
-}
+};
