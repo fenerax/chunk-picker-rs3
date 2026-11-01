@@ -31,6 +31,7 @@ export const quickTests = new Set([
   "roll-boundaries.test.mjs",
 
   "y03-fuzz-ci.test.mjs",
+  "ancient-effigies.test.mjs",
   "task-rule-explanations.test.mjs",
   "timegated-port-skills.test.mjs",
   "travel-reward-gates.test.mjs",

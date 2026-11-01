@@ -40,11 +40,11 @@ test('selected explanation catalogue covers normal, Advanced and saved compatibi
   const sections = buildRulesSections(rulesCatalogue, state, builtInRules);
   const all = sections.flatMap(section => section.rules);
   const authored = all.filter(rule => !Object.hasOwn(data.entries, rule.id));
-  assert.deepEqual(authored.map(rule => rule.id), [UNKNOWN_DROP_RULE, FUTURE_SLAYER_UNLOCKS_RULE, EARLY_TRAVEL_UNLOCKS_RULE]);
+  assert.deepEqual(authored.map(rule => rule.id), [UNKNOWN_DROP_RULE, 'Ancient Effigies', FUTURE_SLAYER_UNLOCKS_RULE, EARLY_TRAVEL_UNLOCKS_RULE]);
   loadRuleExplanations(structuredClone(data), all.filter(rule => !authored.includes(rule)).map(rule => rule.id));
   loadRuleExplanations({ schemaVersion: 1, entries: structuredClone(ruleExplanations) }, all.map(rule => rule.id));
-  assert.equal(all.length, data.coverage.total + 3);
-  assert.equal(visibleRulesSections(sections).flatMap(section => section.rules).length, data.coverage.normal + 3);
+  assert.equal(all.length, data.coverage.total + 4);
+  assert.equal(visibleRulesSections(sections).flatMap(section => section.rules).length, data.coverage.normal + 4);
   assert.ok(all.every(rule => rule.explanation === ruleExplanations[rule.id]));
   for (const rule of all) {
     const prose = [rule.explanation.what, rule.explanation.example, rule.explanation.grindWarning ?? ''].join(' ');

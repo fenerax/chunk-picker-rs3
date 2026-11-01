@@ -1,6 +1,7 @@
+import { ANCIENT_EFFIGIES_RULE } from '../data/settings.mjs';
 import { decodeLegacyText, hasGameplayMigration } from './migration.mjs';
 import { activityTimingSourceRules } from '../data/activity-timing.mjs';
-import { taskRuleEnabled } from './rule-defaults.mjs';
+import { resolveTaskRules, taskRuleEnabled } from './rule-defaults.mjs';
 import { membershipSourceBlocker } from '../data/access-policy.mjs';
 import { sourceMembershipBlocker as evaluateSourceMembership } from '../data/source-membership.mjs';
 import { itemMembershipBlocker as evaluateItemMembership } from './membership.mjs';
@@ -295,7 +296,7 @@ export function calculateAccess(index, state, memberId, { validTasks = new Set()
   const { definitions, nodes, resolve } = index;
   const spawnQuantities = new Map();
   accessDetails.set(result, { spawnQuantities, proof });
-  const rules = legacyRules?.rules ?? legacyRules ?? {};
+  const rules = resolveTaskRules({}, {}, legacyRules?.rules ?? legacyRules);
   const f2p = state.rules?.['content.f2p'] ?? rules.F2P ?? true;
   const profile = personalAccessProfile(state, member);
   const converted = hasGameplayMigration(state, member, 'sourceBacklogs');
@@ -691,13 +692,26 @@ export function walkingConnections(index, validTasks) {
 
 export { cutoffProbability as dropThresholdProbability } from './rates.mjs';
 
+// Split only the existing universal-tertiary prerequisite. Other source and
+// task requirements, including non-tertiary effigy routes, stay intact.
+export function splitEffigyGate(gate) {
+  if (Array.isArray(gate)) {
+    const parts = gate.map(splitEffigyGate);
+    return { gate: parts.map(part => part.gate), effigies: parts.some(part => part.effigies) };
+  }
+  if (!gate || typeof gate !== 'object' || gate['Universal tertiary'] !== 'Nonskill') return { gate, effigies: false };
+  const { ['Universal tertiary']: removed, ...rest } = gate;
+  return { gate: rest, effigies: true };
+}
+
 function compileItems(definitions) {
   if (itemCache.has(definitions)) return itemCache.get(definitions);
   const gates = new Map();
   for (const [selector, gate] of entries(definitions.taskUnlocks?.Items)) {
     const [item, source] = selector.split('^');
     if (!gates.has(item)) gates.set(item, []);
-    gates.get(item).push({ source, gate });
+    const split = item === 'Starved ancient effigy' ? splitEffigyGate(gate) : { gate, effigies: false };
+    gates.get(item).push({ source, ...split });
   }
   const parsedRates = new Map();
   const parseRate = raw => {
@@ -769,6 +783,11 @@ export function collectBaseItemSources(definitions, access, { rules = {}, validT
       const selector = gate.source;
       const suffix = selector?.endsWith('-source') ? '-source' : selector?.endsWith('-npc') ? '-npc' : null;
       const applies = selector === undefined || selector === '' || selector === reason.source || (suffix && reason.source.toLowerCase().includes(selector.slice(0, -suffix.length).toLowerCase()));
+      if (applies && gate.effigies && !taskRuleEnabled(rules, ANCIENT_EFFIGIES_RULE)) {
+        diagnostic(result.diagnostics, 'item-rule-disabled', { item, source: reason.source, rule: ANCIENT_EFFIGIES_RULE,
+          detail: `Turned off in Rules: ${ANCIENT_EFFIGIES_RULE}.` });
+        return;
+      }
       if (applies && !taskRequirements(gate.gate, validTasks, result.diagnostics, { item, source: reason.source })) return;
     }
     if (rules['Rare Drop'] === false && reason.kind === 'drop') {
