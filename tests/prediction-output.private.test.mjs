@@ -119,13 +119,17 @@ const fingerprint = value => createHash('sha256').update(JSON.stringify(value, (
 // the six Legio monsters for Legiones. Dropping only bossGates reproduces rel31
 // 3b15772's stripped hashes in all six modes; the new hashes match CI run
 // 41166557018 (Linux) and Windows.
+// Ancient Effigies 2026-11-01: the rule's save migration marks each member once, so
+// every prediction.state gains provenance.ancientEffigiesMigratedMembers. A complete
+// leaf diff against main 2a76bfd changes only that field in all six modes; no task,
+// item, access or prediction value, ordering or counter changes.
 const expected = {
-  shared: '77235445d40c8f2712d7ea5a97d3ea0ea1f1a4dd97d962cce0367f44d3687fc3',
-  unshared: '632d9e1bda861c267200ac33246a243c7293ffe9b744d9f6823875a76ec6bd43',
-  'member-inclusive': '3d9852535ade17fa3b3803c0b6a1d3e94563f43d2d61350c031b056bc4cfe939',
-  backlogs: '4d09fe2e1557df80de0fda2007e64c215ed4852782fe744c1f2b896f3c08d816',
-  personal: '1bf9442179d03b26ff47cdb06375eddf243b701375360fe897b8aeb1ddbfa9e2',
-  'legacy-all': '69ce853874effbb7da38a1c557c03318e1a9d96ca147394ae18d7f2dbbf0fa07',
+  shared: 'ce0d0f105a42bac3482bf847d1512a4ab3b28a5b3dbd193ca8d9e2436f7db370',
+  unshared: 'f7f044bcb9b3412bf203d5fa3abb159e07c0696acb69131bcd6b83deef936271',
+  'member-inclusive': '85631ddabac7263d2df4bcab1dc6a707993c35f694b44200c9ec9f7bdb0d5d3d',
+  backlogs: '5a0273ac76da4243e90423b24e4f1f8a57d3480cdbe1d244ad287370f4941dbe',
+  personal: '9d46de4dc4925be0e9d3793689f15c76caefa6f1c362e610c3689e5bf70a5c67',
+  'legacy-all': 'acb507f13b3633ab887db304a7661216d224a7d80e884fae962a2425b7f156c6',
 };
 
 for (const [mode, golden] of Object.entries(expected)) test(`full prediction output retains baseline behavior: ${mode}`, () => {
