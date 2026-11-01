@@ -22,6 +22,7 @@ export const quickTests = new Set([
   "collection-boundaries.test.mjs",
   "roll-boundaries.test.mjs",
 
+  "task-rule-explanations.test.mjs",
   "timegated-port-skills.test.mjs",
   "travel-reward-gates.test.mjs",
   "quest-requirements-corrections.test.mjs",

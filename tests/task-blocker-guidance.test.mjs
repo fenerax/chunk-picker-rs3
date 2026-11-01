@@ -1,3 +1,5 @@
+import { taskExplanation } from '../app/tasks/task-provenance.mjs';
+import { appendTaskWhy, catalogued, createRuleDescriber } from '../app/web/task-why.mjs';
 import { createWhyChainDisclosure } from '../app/web/task-why-chain.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -11,6 +13,7 @@ import { createNoteEditor } from '../app/web/info-panels.mjs';
 // equipment/map collaborators, as the broader screen harness does.
 const dialogsSource = await readFile(new URL('../app/web/screen-task-dialogs.mjs', import.meta.url), 'utf8');
 const createScreenTaskDialogs = runInNewContext(`${dialogsSource.replace(/^import .+\r?\n/gm, '').replace(/^export /gm, '')}\ncreateScreenTaskDialogs`, {
+  taskExplanation, appendTaskWhy, catalogued, createRuleDescriber, document: { createElement: tag => new Node(tag) },
   createWhyChainDisclosure, createQuestMap: () => ({}), renderTaskEquipment: () => null, createNoteEditor, renderTaskBlockerGuidance,
 });
 
@@ -26,7 +29,7 @@ const walk = node => [node, ...node.children.flatMap(walk)];
 function harness() {
   const actions = [], c = {
     memberId: 'owner',
-    el: (tag, text, cls) => new Node(tag, text, cls), plain: value => value,
+    el: (tag, text, cls) => new Node(tag, text, cls), plain: value => value, icon: name => new Node('span', name),
     button(text, action) { const node = new Node('button', text); node.action = action; return node; },
     details(text, body) { const node = new Node('details', text); node.append(body); return node; },
     sourceView(sources, result, openTask) { actions.push({ sources, result, openTask }); return new Node('sources'); },

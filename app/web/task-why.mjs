@@ -60,6 +60,8 @@ export function renderTaskWhy(why, { document, actions = [], openRule, readOnly 
   for (const chain of why.neededFor) card.append(line('Needed for', chain.join(' → ')));
   const source = why.sources[0];
   if (source?.text) card.append(line('Possible from', `${source.text}${source.rate ? ` (${source.rate}${why.rareDrop ? `, counts because ${why.rareDrop.label} is on` : ''})` : ''}`));
+  for (const reason of why.conditions ?? []) if (!why.hidden.includes(reason.detail)) card.append(line('Source condition', reason.detail));
+  for (const warning of why.warnings ?? []) card.append(line('Saved choice', warning.detail));
   for (const reason of why.hidden) card.append(line('Hidden', reason));
   if (actions.length) { const row = el('p', undefined, 'task-why-actions'); row.append(...actions); card.append(row); }
   return card;

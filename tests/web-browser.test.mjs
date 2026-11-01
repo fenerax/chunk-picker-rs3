@@ -1,3 +1,4 @@
+import { taskExplanation } from '../app/tasks/task-provenance.mjs';
 import { appendTaskClaim, createTaskClaimClock } from '../app/web/task-claims.mjs';
 import { observeScreenBars } from '../app/web/phone-layout.mjs';
 import { readScreenGraph, runScreenGraph } from './browser-screen-harness.mjs';
@@ -1733,7 +1734,7 @@ function harness({ realPlanning = false, localStorage, documentEvents = false } 
     artStatusText, datasetStatusText, loadArtStatus: async () => null, installPictureFallbacks() {}, observeArtStatus: listener => listener(null),
     createActivityFilterControls: (collaborators, options) => createActivityFilterControls({ ...collaborators, storage: localStorage }, options), selectActivityRows,
     travelIntoChunk, createChunkQuestList: (collaborators, entries) => { collaborators.storage = localStorage; return createChunkQuestList(collaborators, entries); },
-    createMapDisplay: () => ({ sizes: { rollNumberScale: 1, chunkIdScale: 1, stickerScale: 1 }, open() {}, close() {}, refresh() {}, isOpen: () => false }), createHelperView: () => ({}), createBackupStatus: () => ({ start() {}, refresh: async () => {}, line: () => null }), createSandbox, openSandboxRules, createTaskHover, createTaskMethods, renderTaskEquipment, resolveTaskAlternatives, createDuoResultCache, selectDuoTasks, createDuoTaskView, createTaskFilters, appendTaskPin, appendTaskWhy, catalogued, createRuleDescriber, savedTaskWhyResult, isTaskPinned, createTaskPinChecker, createCompletedView, createDuoCoordination, openTeleportsDialog,
+    createMapDisplay: () => ({ sizes: { rollNumberScale: 1, chunkIdScale: 1, stickerScale: 1 }, open() {}, close() {}, refresh() {}, isOpen: () => false }), createHelperView: () => ({}), createBackupStatus: () => ({ start() {}, refresh: async () => {}, line: () => null }), createSandbox, openSandboxRules, createTaskHover, createTaskMethods, renderTaskEquipment, resolveTaskAlternatives, createDuoResultCache, selectDuoTasks, createDuoTaskView, createTaskFilters, appendTaskPin, appendTaskWhy, taskExplanation, catalogued, createRuleDescriber, savedTaskWhyResult, isTaskPinned, createTaskPinChecker, createCompletedView, createDuoCoordination, openTeleportsDialog,
     selectDuoTaskLists, createDuoBacklogView, buildWorld, createRuleRegistry, originalSettings, settingDefinitions, datasetSettings: settingDefinitions, taskHowPreference, appendTaskHow, createRulesPanel,
     taskItemIcon, taskIcon, taskCategoryIcon, createTaskIconPainter, skillIcon: () => null, itemIcon: () => null, loadIcons: async () => false, interiorCandidates: () => [], interiorPanel: () => ({}), describeHistoryEvent: event => event.type, createFeedback: () => ({ open() {}, setSession() {}, start() {}, stop() {} }), createUpdates: () => ({ seen() {}, openList() {} }), createRuneMetricsControls: () => ({}), createGamePlugin: () => ({ refresh: async () => {}, render() {}, open() {}, controls: () => ({}) }), createStickerPicker: () => ({ open() {}, close() {}, isOpen: () => false, element: { contains: () => false } }), createInfoPanels, createNoteEditor, reviewedNoteRevision, createMapTools, applyTheme, createTaskFactsIndex, goalProgress, createDeathSettings, createMiningSettings, createWoodcuttingSettings, createBankingSettings, mergeCommandState, projectChunkState, projectTaskState, createOriginalSync,
     EventSource: class extends Node { constructor(url) { super(); this.url = url; eventSources.push(this); } },
@@ -4078,6 +4079,23 @@ test('F4 backup preview feedback belongs to the selected file', async () => {
   assert.ok(h.find('button', 'Apply reviewed replacement'));
   assert.ok(!h.all().some(node => /gzip.*corrupt|corrupt.*gzip/i.test(node.textContent)));
   assert.ok(h.find('span', 'Independent feedback'));
+});
+
+test('actual task dialog shows the existing fallback diagnostic and expands Why with the same warning', async () => {
+  const h = harness();
+  const visible = { id: 'builtin:fallback', label: 'Fixture fallback', rawLabel: 'Fixture fallback', category: 'Mining', status: 'available',
+    explanation: 'All listed requirements are met.', record: {} };
+  const warning = 'Your saved task choice is unavailable. Showing Fixture fallback.';
+  h.context.fallbackTask = visible;
+  h.context.fallbackResult = { ...taskResult(7), tasks: [visible], presentation: { tasks: [visible], alternatives: {}, diagnostics: [
+    { kind: 'unavailable-task-alternative', chosen: visible.id, detail: warning },
+  ] } };
+  h.run('result = fullResult = fallbackResult; showTask(fallbackTask, true)');
+  assert.ok(h.all().some(node => node.textContent === `${visible.explanation} ${warning}`));
+  const why = h.all().find(node => node.className === 'icon-button task-why');
+  assert.ok(why); await why.emit('click'); await flush();
+  assert.ok(h.all().some(node => node.textContent?.includes(warning) || node.children?.includes(warning)));
+  assert.equal(why.getAttribute('aria-expanded'), 'true');
 });
 
 test('wired quest search renders mandatory-stage readiness from personal whole completion', async () => {
