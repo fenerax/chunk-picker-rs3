@@ -7,8 +7,41 @@ on:
 permissions:
   contents: read
 
+# A newer push or pull request update cancels the older run for the same ref.
+# Main keeps one run per commit.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.ref == 'refs/heads/main' && github.sha || github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
 jobs:
+  # A push to a branch with an open pull request skips the jobs below: the
+  # pull_request run tests the same head merged with main. Main, tags, branches
+  # with no open pull request and fork pull requests always run. An API error
+  # runs the jobs.
+  gate:
+    name: gate (tests)
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    permissions:
+      pull-requests: read
+    outputs:
+      run: ${{ steps.check.outputs.run }}
+    steps:
+      - id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          run=true
+          if [ "$GITHUB_EVENT_NAME" = push ] && [ "$GITHUB_REF_TYPE" = branch ] && [ "$GITHUB_REF_NAME" != "$DEFAULT_BRANCH" ]; then
+            open=$(gh api -X GET "repos/$GITHUB_REPOSITORY/pulls" -f state=open -f head="$GITHUB_REPOSITORY_OWNER:$GITHUB_REF_NAME" --jq length 2>/dev/null || echo 0)
+            if [ "${open:-0}" -gt 0 ] 2>/dev/null; then run=false; fi
+          fi
+          echo "run=$run" | tee -a "$GITHUB_OUTPUT"
+
   test:
+    needs: gate
+    if: needs.gate.outputs.run == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -54,7 +87,7 @@ jobs:
         with:
           path: .local/gh-coverage/wiki-open-f2p
           key: wiki-open-f2p-${{ hashFiles('app/datasets/open-f2p/authored/batch.json') }}
-      - run: npm run test:quick
+      # The full suite already runs every quick file, so one run is enough.
       - run: npm test
         env:
           RS3_COVERAGE_REPORT: ${{ runner.temp }}/test.json
@@ -72,6 +105,8 @@ jobs:
   # The test files that skip Windows and PowerShell cases on Linux, run on
   # hosted Windows. The coverage job matches each Linux skip to its exact case.
   windows:
+    needs: gate
+    if: needs.gate.outputs.run == 'true'
     runs-on: windows-latest
     timeout-minutes: 20
     steps:
@@ -108,8 +143,8 @@ jobs:
           if-no-files-found: error
 
   coverage:
-    needs: [test, windows]
-    if: always()
+    needs: [gate, test, windows]
+    if: always() && needs.gate.outputs.run == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -134,6 +169,8 @@ jobs:
   # new commit's changes, message and noreply attribution. The private-value
   # corpus stays on the release PC, whose pre-push hook checks it.
   secrets:
+    needs: gate
+    if: needs.gate.outputs.run == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
