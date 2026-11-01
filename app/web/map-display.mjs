@@ -83,6 +83,7 @@ export function createMapDisplay(c) {
     content.append(taskCountOption(), sizeRow('taskCountScale', 'Task counts size'), c.el('p', 'Counts use the default Active Tasks filters.', 'map-display-note'));
     if (c.supportsFeature?.('mapMetadata') !== false) content.append(placeNamesOption(), c.el('p', 'Zoom in for smaller places. Crowded names are hidden.', 'map-display-note'));
     if (c.activityLayers) content.append(c.activityLayers.controls('display'));
+    if (c.mapAvailability) content.append(c.mapAvailability.controls());
     if (c.canWrite()) {
       const saved = c.el('div', undefined, 'map-display-saved');
       saved.append(c.el('p', `Saved for ${c.member().name}`, 'map-display-note'), savedControl('highvis', 'High visibility map'), savedControl('unlockedBorderColor', 'Unlocked border colour', 'color'), savedControl('defaultStickerColor', 'Default sticker colour', 'color'));

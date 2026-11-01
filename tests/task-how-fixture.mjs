@@ -29,3 +29,33 @@ export function caveDefinitions({ circular = false } = {}) {
   };
 }
 export function caveState(unlocked = ['12593']) { return { revision: 7, rules: { 'content.f2p': false, 'access.shared': false }, taskRules: {}, members: [{ id: 'one', unlocked, completedTasks: [] }] }; }
+
+// Public synthetic placements and a historical producer with no current access.
+export function pathDefinitions() {
+  return {
+    walkableChunks: ['100', '200', '300', '400'], walkableChunksF2P: ['100', '200', '300', '400'],
+    chunks: {
+      '100': { Nickname: 'West', Object: { Anvil: 1 } },
+      '200': { Nickname: 'East', Object: { Furnace: 1 } },
+      '300': { Nickname: 'North', Object: { Loom: 1 } },
+      '400': { Nickname: 'Workshop' },
+    },
+    challenges: {
+      Crafting: { Producer: { Chunks: ['400'], Output: 'Token' } },
+      Quest: { Prepare: { Objects: ['Anvil'] } },
+      Extra: {
+        'Use both stations': { Objects: ['Anvil', 'Furnace'] },
+        'Use any station': { Objects: ['Stations[+]'] },
+        'Use two stations': { Objects: ['Stations[+]x2'] },
+        'Use shared preparation': { Objects: ['Anvil', 'Furnace'], Tasks: { Prepare: 'Quest' } },
+        'Use historical supply': { Items: ['Token'] },
+      },
+    },
+    codeItems: { objectsPlus: { 'Stations[+]': ['Anvil', 'Furnace', 'Loom'] } },
+  };
+}
+export function pathState() {
+  const state = caveState(['100', '200', '300']);
+  state.members[0].completedTasks = ['rs3:Crafting:Producer'];
+  return state;
+}

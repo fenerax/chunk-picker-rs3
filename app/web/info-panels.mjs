@@ -615,6 +615,10 @@ export function createInfoPanels(context) {
     };
     showGrid(); return host;
   }
+  // The normal formatter handles balanced Wiki links and variants first. Only
+  // leftover delimiter tokens are hidden here; the task and its label stay intact.
+  const skillMethodLabel = value => text(value).replace(/~\||\|~/g, '').trim();
+
   function skillDetail(skill, result, back) {
     const node = el('div', undefined, 'skill-detail'), observed = snapshots.get(result)?.observedSkills?.[skill.skill];
     const header = el('div', undefined, 'skill-detail-head'), titles = el('div');
@@ -625,7 +629,7 @@ export function createInfoPanels(context) {
     node.append(header, stats, trainingPlanner(skill, result, observed));
     const methods = el('section', undefined, 'skill-methods'); methods.append(el('h4', 'Training methods', 'content-heading'));
     methods.append(paged(skill.filteredTasks ?? skill.availableTasks, task => {
-      const row = el('div', undefined, 'method-row'), name = button(text(task.label), () => showTask(task), 'method-name');
+      const row = el('div', undefined, 'method-row'), name = button(skillMethodLabel(task.label), () => showTask(task), 'method-name');
       const status = task.personalCompleted || task.challengeSatisfied ? 'Done' : task.status === 'available' && !task.blockers?.length ? 'Doable' : 'Blocked';
       row.append(el('span', task.level ? String(task.level) : '–', 'method-level'), name, el('span', `${status}${task.primary ? ' · Primary' : ''}`, 'method-tag'));
       return row;

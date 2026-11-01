@@ -95,3 +95,21 @@ test('retained reference supplies all skill, quest, achievement, master and clue
   assert.equal(activity.clues.tiers.reduce((sum, tier) => sum + tier.totalCount, 0), result.tasks.filter(task => task.record.ClueTier && task.obligation).length);
   assert.equal(JSON.stringify(state), before);
 });
+
+test('the public malformed method keeps its permanent identity, blocked obligation and zero active goals', async () => {
+  const definitions = JSON.parse(await readFile(new URL('../rs3-chunkpicker-chunkinfo-export.json', import.meta.url), 'utf8'));
+  const state = saved(); state.rules['content.f2p'] = false;
+  state.members[0].unlocked = ['10811']; state.members[1].unlocked = [];
+  const result = createTaskEngine(definitions, { dataset: selectedDataset }).evaluate(state, 'player2');
+  const before = JSON.stringify({ state, result });
+  const task = result.tasks.find(task => task.id === 'rs3:task:000038');
+  assert.equal(task.label, 'Enter the Polar eagle eyrie|~', 'the source label is not rewritten');
+  assert.equal(task.status, 'blocked'); assert.equal(task.obligation, true);
+  const skill = buildActivityInfo(result, state, 'player2', definitions).skills.find(skill => skill.skill === 'Agility');
+  const method = skill.blockedTasks.find(method => method.id === task.id);
+  assert.ok(method, 'normal Activity Info admission includes the method');
+  assert.equal(method.evidenceTaskId, task.id); assert.equal(method.label, task.label);
+  assert.equal(method.personalCompleted, false); assert.equal(method.challengeSatisfied, false);
+  assert.equal(skill.selectedGoals.length, 0);
+  assert.equal(JSON.stringify({ state, result }), before);
+});
