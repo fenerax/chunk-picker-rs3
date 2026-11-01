@@ -196,7 +196,7 @@ test('replacement rebases the live revision and preserves incoming history and p
   const incoming = createGroupState([{ id: 'actor1', name: 'Player' }, { id: 'reed', name: 'Reed' }]);
   incoming.revision = 99;
   incoming.history = [{ id: 'revision-98', revision: 98, type: 'roll', at: '2026-10-07T00:00:00.000Z' }];
-  incoming.provenance = { arbitrary: { notes: 'Retain imported evidence' } };
+  incoming.provenance = { ...incoming.provenance, arbitrary: { notes: 'Retain imported evidence' } };
   incoming.members[0].unlocked = ['12341'];
   const changed = await store.replace(exportBackup(incoming), 1);
   assert.equal(changed.revision, 2);
