@@ -39,8 +39,8 @@ export function createScreenMap(c) {
     c.finishLine?.refresh();
     c.partnerSupply?.refresh();
     c.bossGatesView?.refresh();
-    c.$('undo').disabled = !c.canWrite() || c.sandbox.active || !c.state.history.some(event => event.undo && !event.undoneRevision);
-    c.duoCoordination?.render();
+    if (c.duoCoordination) c.duoCoordination.render();
+    else c.$('undo').disabled = !c.canWrite() || c.sandbox.active || !c.state.history.some(event => event.undo && !event.undoneRevision);
     c.gamePlugin?.render();
     for (const id of ['settings-open', 'game-plugin-open', 'bis-open', 'activity-open', 'teleports-open', 'backup-open', 'original-sync-open', 'invites-open', 'feedback-open', 'custom-task-open', 'random-start']) if (c.$(id)) c.$(id).disabled = c.sandbox.active;
     for (const theme of ['dark', 'gray', 'light']) { const choice = c.$(`theme-${theme}`); if (choice) choice.disabled = c.sandbox.active; }
@@ -82,7 +82,7 @@ export function createScreenMap(c) {
     c.$('map-counts').replaceChildren(count(owner.unlocked.length, `chunks unlocked by ${owner.name}`), count(new Set(projected.members.flatMap(item => item.unlocked)).size, 'unique chunks unlocked by group'), count(c.pool.eligible.length, `chunks in ${owner.name}’s ordinary roll pool`),
       ...(c.preferences().randomStartAlways ? [count(c.rollCandidateCount(), `roll-anywhere candidate chunks for ${owner.name}`)] : []));
     c.copyLists?.map(owner, c.pool);
-    c.$('empty-map').hidden = owner.unlocked.length > 0;
+    c.$('empty-map').hidden = owner.unlocked.length > 0 || owner.pendingRoll.length > 0;
     c.renderLegend();
   }
 

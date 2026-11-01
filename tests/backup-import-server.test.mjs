@@ -8,7 +8,8 @@ import http from 'node:http';
 import { Readable } from 'node:stream';
 import { createGunzip, gzipSync } from 'node:zlib';
 import { createServer } from '../app/server.mjs';
-import { createGroupState, exportBackup } from '../app/core/state.mjs';
+import { createGroupState, exportBackup, applyCommand } from '../app/core/state.mjs';
+import { createCompletionEncoder } from '../app/storage/completion-codec.mjs';
 import { parseJSONStream } from '../app/storage/json-stream.mjs';
 import { MAX_UPLOAD_BYTES, readBackupRequest } from '../app/backup-transfer.mjs';
 import { createBackupUpload } from '../app/web/backup-transfer.mjs';
@@ -16,6 +17,28 @@ import { createBackupUpload } from '../app/web/backup-transfer.mjs';
 const definitions = { chunks: { '100': {}, '101': {}, '102': {} }, walkableChunks: ['100', '101', '102'], walkableChunksF2P: ['100', '101', '102'] };
 const state = () => createGroupState([{ id: 'player1', name: 'Player 1', unlocked: ['100'] }, { id: 'player2', name: 'Player 2', unlocked: ['101'] }]);
 const backupFile = backup => new File([JSON.stringify(backup)], 'synthetic-backup.json', { type: 'application/json' });
+
+test('versioned completion saves upload through preview and restore, and download as legacy backups', async t => {
+  const f = await fixture(t);
+  let incoming = state();
+  incoming.tasks.push({ id: 'custom:codec', label: 'Synthetic completion', category: 'custom' });
+  incoming = applyCommand(incoming, { type: 'complete-task', memberId: 'player1', taskId: 'custom:codec', completed: true });
+  const compact = createCompletionEncoder()(exportBackup(incoming));
+  assert.equal(compact.schemaVersion, 2);
+  const preview = await f.upload('/api/restore/preview', backupFile(compact));
+  assert.equal(preview.status, 200);
+  const restored = await f.upload('/api/restore', backupFile(compact), { expectedRevision: 0 });
+  assert.equal(restored.status, 200);
+  assert.deepEqual(f.application.store.getState().members, incoming.members);
+  const downloaded = await (await f.request('/api/backup')).json();
+  assert.equal(downloaded.schemaVersion, 1);
+  assert.equal(downloaded.completionArrays, undefined);
+  const corrupt = structuredClone(compact);
+  corrupt.completionArrays.entries[0].sha256 = '0'.repeat(64);
+  const refused = await f.upload('/api/restore/preview', backupFile(corrupt));
+  assert.equal(refused.status, 400);
+  assert.deepEqual(f.application.store.getState().members, incoming.members);
+});
 
 async function fixture(t, initialState = state()) {
   const directory = await mkdtemp(path.join(os.tmpdir(), 'rs3-backup-import-'));

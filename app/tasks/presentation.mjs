@@ -1,4 +1,4 @@
-import { skillCaps, taskId } from './engine.mjs';
+import { skillCaps, taskId, plainLabel } from './engine.mjs';
 import { decodeLegacyText, hasGameplayMigration, projectMemberTaskFacts, resolveSavedTaskId } from './migration.mjs';
 import { resolveTaskAlternatives } from '../core/task-alternatives.mjs';
 import { primaryEquipmentSource } from './rates.mjs';
@@ -160,7 +160,8 @@ export function selectPresentedTasks(result, state, memberId, definitions = {}, 
   }
 
   for (const row of rows) {
-    if (row.obligation === false) hide(row, 'Outside this member’s own obligation map.');
+    if (row.obligation === false) hide(row, row.sourcePolicyRejections?.some(reason => reason.local)
+      ? 'Local supplies do not meet this task’s source conditions.' : 'Outside this member’s own obligation map.');
     const data = record(row);
     if ((state.rules?.['content.f2p'] ?? true) && membersEquipmentRequirement(row, data, definitions, membershipSelection)) hide(row, 'This equipment requires membership in free-to-play mode.');
     if (row.status !== 'available') hide(row, 'Task is not available.');
@@ -241,7 +242,8 @@ export function selectPresentedTasks(result, state, memberId, definitions = {}, 
   diagnostics.push(...sourceSelection.diagnostics);
   const sourceIds = new Set(sourceSelection.eligibleTaskIds);
   for (const row of rows) if (row.sourceEligible === false || row.status === 'available' && !sourceIds.has(row.id)) {
-    hide(row, 'A lower-level processing method or its source frontier excludes this recipe.');
+    hide(row, row.sourceExclusion?.detail ?? sourceSelection.sourceExclusions?.[row.id]?.detail
+      ?? 'A lower-level processing method or its source frontier excludes this recipe.');
   }
   const priority = row => {
     const number = Number(record(row).Priority ?? record(row).priority);
@@ -274,7 +276,7 @@ export function selectPresentedTasks(result, state, memberId, definitions = {}, 
     const exact = peers.find(row => row.id === preferred || row.rawLabel === preferred || row.aliases?.includes(preferred));
     const chosen = exact ?? ranked[0];
     if (preferred && !exact) diagnostics.push({ kind: 'unavailable-task-alternative', category, group: String(highest), preferred: savedChoice, chosen: chosen.id,
-      detail: 'Your saved task choice is unavailable or could not be matched. The highest-ranked available alternative is shown.' });
+      detail: `Your saved task choice “${plainLabel(state.tasks?.find(task => task.id === savedChoice)?.label ?? savedChoice)}” is unavailable or could not be matched for ${category} level ${highest}. Showing “${plainLabel(chosen.label ?? chosen.rawLabel)}”, the highest-ranked available alternative.` });
     selected.push(chosen);
     alternatives[chosen.id] = peers.filter(row => row !== chosen).map(row => row.id);
     for (const row of group) if (row !== chosen) hide(row, level(row) === highest ? 'An alternative at the current goal level.' : 'A higher skill goal is available.');

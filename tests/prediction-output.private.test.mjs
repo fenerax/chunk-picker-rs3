@@ -119,12 +119,18 @@ const fingerprint = value => createHash('sha256').update(JSON.stringify(value, (
 // the six Legio monsters for Legiones. Dropping only bossGates reproduces rel31
 // 3b15772's stripped hashes in all six modes; the new hashes match CI run
 // 41166557018 (Linux) and Windows.
+// Rule explanations 2026-11-01: tasks hidden only because local sources fail the
+// task's source conditions (drop-only, non-shop, Wield Crafted Items) now say so and
+// list sourcePolicyRejections, instead of the wrong "outside the member's own reachable
+// map" reason. A complete leaf diff against main 2a76bfd changes only explanation,
+// hiddenReasons[0] and the new sourcePolicyRejections on those rows (9/9/6/0/9/0
+// leaves by mode); no status, item, access or prediction value changes.
 const expected = {
-  shared: '77235445d40c8f2712d7ea5a97d3ea0ea1f1a4dd97d962cce0367f44d3687fc3',
-  unshared: '632d9e1bda861c267200ac33246a243c7293ffe9b744d9f6823875a76ec6bd43',
-  'member-inclusive': '3d9852535ade17fa3b3803c0b6a1d3e94563f43d2d61350c031b056bc4cfe939',
+  shared: 'f71e3d3a6d761c8832b5f3fcadf65fb76a42d673eb3fc6d8ae6f79e6bd61c2a9',
+  unshared: 'c08526cd3dd27d691c46071f70d8b2bf6e13862a7d6135fc12dfa1d6c5e45a7b',
+  'member-inclusive': 'fb997d6e41ac374bcf35e2046adb44014b2d16370690432127ea3047bf8c3f87',
   backlogs: '4d09fe2e1557df80de0fda2007e64c215ed4852782fe744c1f2b896f3c08d816',
-  personal: '1bf9442179d03b26ff47cdb06375eddf243b701375360fe897b8aeb1ddbfa9e2',
+  personal: 'bdaecf3fb234784e1821b651240b204fbc0579661cfdb8d66984b39991507c70',
   'legacy-all': '69ce853874effbb7da38a1c557c03318e1a9d96ca147394ae18d7f2dbbf0fa07',
 };
 
