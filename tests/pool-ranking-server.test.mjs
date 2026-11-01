@@ -55,6 +55,13 @@ test('pool reads do no worker work; visible comparison checks every chunk and re
   assert.deepEqual((await f.get('/api/pool-ranking?memberId=reed')).rows, checked.rows);
   assert.deepEqual((await f.get('/api/diagnostics')).predictionLane, diag.predictionLane);
   assert.equal((await f.request('/pool-ranking.mjs')).status, 200);
+  const saved = await f.request('/api/command?view=play-v1', { expectedRevision: 0,
+    command: { type: 'set-note', memberId: 'reed', chunkId: ids[0], note: 'Display-only edit' } });
+  assert.equal(saved.status, 200); await saved.arrayBuffer();
+  const restamped = await f.get('/api/pool-ranking?memberId=reed');
+  assert.equal(restamped.stateRevision, 1);
+  assert.deepEqual(restamped.rows, checked.rows, 'Display-only reuse keeps exact counts under the current revision');
+  assert.deepEqual((await f.get('/api/diagnostics')).predictionLane, diag.predictionLane);
 });
 test('viewers can see saved ranking but cannot start work, and invalid/stale intents are rejected', async t => {
   const f = await fixture(t);
@@ -93,4 +100,45 @@ test('closing cancels only ranking; pending task lists defer it and stale comple
   await delay(20);
   assert.equal((await f.get('/api/pool-ranking?memberId=reed')).checked, 0, 'Cancelled result cannot mark a row checked');
   assert.equal(workers[1].messages.filter(message => message.type === 'predict').length, 1);
+});
+
+test('a pool read held across an HTTP save rejects its captured owner before retaining rows', { timeout: 20000 }, async t => {
+  const { Worker } = await import('node:worker_threads');
+  let release, hold = false, markHeld;
+  const held = new Promise(resolve => { markHeld = resolve; });
+  const f = await fixture(t, { taskWorkerOptions: { workerFactory(data) {
+    const worker = new Worker(new URL('../app/tasks/worker.mjs', import.meta.url), { workerData: data });
+    const send = worker.postMessage.bind(worker);
+    worker.postMessage = message => {
+      if (hold && message.type === 'roll-pool') {
+        hold = false; release = () => send(message); markHeld();
+      } else send(message);
+    };
+    return worker;
+  } } });
+  t.after(() => release?.());
+  await f.app.store.command({ type: 'set-skill-levels', memberId: 'reed', skill: 'Mining', passiveLevel: 2 }, 0);
+  hold = true;
+  const old = f.request('/api/pool-ranking?memberId=reed');
+  await held;
+  const saving = f.request('/api/command?view=play-v1', { expectedRevision: 1,
+    command: { type: 'set-chunk', memberId: 'reed', chunkId: ids[1], status: 'unlocked' } });
+  await until(async () => f.app.store.getInfo().revision, value => value === 2);
+  release(); release = undefined;
+  const saved = await saving;
+  assert.equal(saved.status, 200); await saved.arrayBuffer();
+  const rejected = await old;
+  assert.equal(rejected.status, 409, 'An asynchronous old read cannot take ownership of current summaries');
+  await rejected.arrayBuffer();
+  const current = await f.get('/api/pool-ranking?memberId=reed');
+  assert.equal(current.stateRevision, 2);
+  await f.get(`/api/predict?memberId=reed&chunkId=${current.rows[0].id}`);
+  const checked = await f.get('/api/pool-ranking?memberId=reed');
+  assert.ok(checked.checked >= 1);
+  const before = await f.get('/api/diagnostics');
+  for (let i = 0; i < 3; i++) assert.deepEqual((await f.get('/api/pool-ranking?memberId=reed')).rows, checked.rows);
+  const after = await f.get('/api/diagnostics');
+  assert.deepEqual(after.predictionLane, before.predictionLane);
+  assert.equal(after.poolRanking.watchers, 0);
+  assert.equal((await f.request('/map-availability.mjs')).status, 200);
 });

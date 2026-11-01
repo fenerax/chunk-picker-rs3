@@ -1,4 +1,5 @@
 import { startingSectionLocations } from './cache-surface.mjs';
+import { decodeCompletionDocument } from './completion-codec.mjs';
 import { validateSavedXpChoices, validateXpChoices } from './xp-choices.mjs';
 import { selectedDataset } from '../dataset-runtime.mjs';
 import { createTaskFactsIndex } from './progress-index.mjs';
@@ -17,6 +18,7 @@ import { decodeLegacyText, resolveSavedTaskId, migrateTaskIdentities } from '../
 import { isPermanentId, legacyTaskId, lookupPermanentId } from '../tasks/identity.mjs';
 import { normalizeMembersStartOptions, membersStartPools, rollMembersStarts } from './members-start.mjs';
 import { SETUP_START, setupStartPools } from './setup-guide.mjs';
+import { createSurfaceEligibility } from './cache-surface.mjs';
 import { validateFinishLine, validateFinishLineItemId, validateFinishLineOverride, validateFinishLineText,
   validateFinishLineChange, restoreFinishLineChange, MAX_FINISH_LINE_CUSTOM_ITEMS, finishLineCommandTypes } from './finish-line.mjs';
 import { groupGoalCommandKeys, groupGoalCommandTypes, applyGroupGoalCommand, validateGroupGoals,
@@ -930,6 +932,7 @@ export function importBackup(document, registry) {
   }
   record(backup, 'backup');
   if (backup.format !== BACKUP_FORMAT) fail('Unsupported backup format');
+  backup = decodeCompletionDocument(backup);
   if (backup.schemaVersion !== SCHEMA_VERSION) fail(`Unsupported backup schema version: ${backup.schemaVersion}`);
   return validateState(backup.state, registry);
 }
@@ -1148,9 +1151,40 @@ function clearSelectedAfterUnlock(state, member, registry) {
   if (registryOrDefault(registry).resolve(state.rules)['roll.clearSelected']) member.selected = [];
 }
 
+// Start-only certificates, reviewed against exact boundary signatures and an
+// independently mapped reciprocal endpoint. These do not map saved selectors,
+// project resources, or make ordinary ownership an entry. See docs/qa/random-start-entry.md.
+const missingPolicyStartEntries = new Map([
+  ['9515', '9515-1000001'],
+  ['9771', '9771-1000001'],
+]);
+
+function missingRandomStartCorrespondence(world, id) {
+  const cache = world?.cacheWalking;
+  return !!cache && world.sectionTopology?.get(id)?.has('0') && !cache.fallback.has(id)
+    && !cache.legacyToComponents.has(`${id}-0`);
+}
+
+function randomStartHasEntry(world, id, member, settings) {
+  if (!missingRandomStartCorrespondence(world, id)) return true;
+  const entry = missingPolicyStartEntries.get(id);
+  return !!entry && world.cacheWalking.components.has(entry)
+    && createSurfaceEligibility(world, new Set([id]), member.sectionOverrides, { f2p: settings['content.f2p'] })(entry);
+}
+
+function knownRandomStartDestination(world, id, member, settings) {
+  knownRollDestination(world, id);
+  if (!randomStartHasEntry(world, id, member, settings)) fail(`Chunk ${id} has no certified random-start entry`);
+}
+
 function seedRandomStartSections(member, ids, world) {
-  for (const id of ids) for (const location of startingSectionLocations(world, id)) {
-    member.sectionOverrides = { ...(member.sectionOverrides ?? {}), [location]: true };
+  for (const id of ids) {
+    // SFIX1's seeds (section 1 and certified banks) first; a reviewed
+    // missing-policy entry only for a start with no other seed.
+    let locations = startingSectionLocations(world, id);
+    const missing = missingRandomStartCorrespondence(world, id) ? missingPolicyStartEntries.get(id) : undefined;
+    if (!locations.length && missing) locations = [missing];
+    for (const location of locations) member.sectionOverrides = { ...(member.sectionOverrides ?? {}), [location]: true };
   }
 }
 
@@ -2035,14 +2069,20 @@ function applyCommandCopy(next, command, { expectedRevision, world, registry, ra
       const member = findMember(next, payload.memberId);
       if (payload.type === 'pick-for-me') {
         if (!member.pendingRoll.length) fail('No pending roll to pick from');
-        for (const id of member.pendingRoll) knownRollDestination(world, id);
+        const randomStart = hasRandomStartChoices(next, member);
+        const settings = registryOrDefault(registry).resolve(next.rules);
+        for (const id of member.pendingRoll) {
+          if (randomStart) knownRandomStartDestination(world, id, member, settings);
+          else knownRollDestination(world, id);
+        }
         payload.chunkId = sampleRoll(member.pendingRoll.map(id => ({ id })), 1, random)[0].id;
       }
       chunk(payload.chunkId, 'chunkId');
       if (!member.pendingRoll.includes(payload.chunkId)) fail(`${world?.chunks.get(payload.chunkId)?.name || `Chunk ${payload.chunkId}`} is not a pending roll choice for ${member.name || member.id}`);
       const randomStart = hasRandomStartChoices(next, member);
       if (randomStart && !world) fail('A world is required to unlock random start choices');
-      knownRollDestination(world, payload.chunkId);
+      if (randomStart) knownRandomStartDestination(world, payload.chunkId, member, registryOrDefault(registry).resolve(next.rules));
+      else knownRollDestination(world, payload.chunkId);
       returnUnpickedChoices(next, member, member.pendingRoll.filter(id => id !== payload.chunkId), registry);
       member.pendingRoll = [];
       member.unlocked.push(payload.chunkId);
@@ -2064,7 +2104,11 @@ function applyCommandCopy(next, command, { expectedRevision, world, registry, ra
       const randomStart = hasRandomStartChoices(next, member);
       if (randomStart && !world) fail('A world is required to unlock random start choices');
       const choices = [...member.pendingRoll];
-      for (const id of choices) knownRollDestination(world, id);
+      const settings = registryOrDefault(registry).resolve(next.rules);
+      for (const id of choices) {
+        if (randomStart) knownRandomStartDestination(world, id, member, settings);
+        else knownRollDestination(world, id);
+      }
       member.unlocked.push(...choices); member.pendingRoll = [];
       if (!randomStart) addManualNeighbors(next, member, choices, world, registry);
       if (randomStart) seedRandomStartSections(member, choices, world);
@@ -2123,7 +2167,8 @@ function applyCommandCopy(next, command, { expectedRevision, world, registry, ra
       const accessible = new Set(member.unlocked);
       const blacklisted = new Set(member.blacklisted);
       const pool = [...(world.surface ?? world.chunks.keys())].filter(id => BASE_CHUNK.test(id) && world.chunks.has(id) && world.walkable.has(id)
-        && !world.cacheWalking?.blockedRegions?.has(id) && (!settings['content.f2p'] || world.f2p.has(id)) && !accessible.has(id) && !blacklisted.has(id)).sort().map(id => ({ id }));
+        && !world.cacheWalking?.blockedRegions?.has(id) && (!settings['content.f2p'] || world.f2p.has(id)) && !accessible.has(id) && !blacklisted.has(id)
+        && randomStartHasEntry(world, id, member, settings)).sort().map(id => ({ id }));
       const ids = sampleRoll(pool, count, random).map(choice => choice.id);
       if (count === 2) payload.handSelected = ids.filter(id => member.selected.includes(id));
       member.selected = member.selected.filter(candidate => !ids.includes(candidate));

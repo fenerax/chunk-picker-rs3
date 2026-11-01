@@ -166,8 +166,8 @@ test('equipment with Wield Crafted Items off ignores recipe alternatives', () =>
   assert.equal(addUnknownDropWarnings([{ item: 'Ring' }], context, {})[0].unknownDropWarning, undefined);
 });
 test('counted task prerequisite aliases keep their required count', () => {
-  const rows = [{ id: 'a', category: 'Crafting', rawLabel: 'A', record: {} },
-    { id: 'b', category: 'Crafting', rawLabel: 'B', record: { Items: ['Gem'] } },
+  const rows = [{ id: 'a', category: 'Crafting', rawLabel: 'A', status: 'available', record: {} },
+    { id: 'b', category: 'Crafting', rawLabel: 'B', status: 'available', record: { Items: ['Gem'] } },
     { id: 't', category: 'Crafting', rawLabel: 'T', record: { Tasks: { 'Any[+]x2': 'Crafting' } } },
     { id: 'u', category: 'Crafting', rawLabel: 'U', record: { Tasks: { 'Any[+]': 'Crafting' } } }];
   const items = [{ name: 'Gem', sources: [{ kind: 'drop', rawRate: 'Rare', probability: null }] }];
@@ -182,4 +182,108 @@ test('completed prerequisites need no new drop but additional recipe supplies do
   const result = engine.evaluate(doc, 'm');
   assert.equal(result.tasks.find(row => row.rawLabel === 'Finish').unknownDropWarning, undefined);
   assert.equal(unknownDropContext(result, d).item('Polished gem'), 128);
+});
+
+test('unavailable task alias alternatives cannot hide a reachable rare prerequisite', () => {
+  const d = fixture('Rare');
+  d.chunks[200] = {};
+  d.codeItems = { tasksPlus: { 'Routes[+]': ['Costly', 'Free'] } };
+  d.challenges.Crafting.Costly = { Items: ['Gem'] };
+  d.challenges.Crafting.Free = { Chunks: ['200'] };
+  d.challenges.Crafting.Use.Items = [];
+  d.challenges.Crafting.Use.Tasks = { 'Routes[+]': 'Crafting' };
+  const engine = createTaskEngine(d), doc = state({});
+  const result = engine.evaluate(doc, 'm');
+  assert.equal(result.tasks.find(row => row.rawLabel === 'Free').status, 'blocked');
+  assert.equal(result.tasks.find(row => row.rawLabel === 'Costly').status, 'available');
+  assert.equal(use(result).status, 'available');
+  assert.equal(use(result).unknownDropKills, 384);
+  assert.equal(result.tasks.find(row => row.rawLabel === 'Finish').unknownDropKills, 384);
+  doc.members[0].completedTasks = [engine.catalogue.find(row => row.rawLabel === 'Free').id];
+  assert.equal(use(engine.evaluate(doc, 'm')).unknownDropWarning, undefined);
+});
+
+test('virtual processing supplies carry rare reliance only to admitted consumers', () => {
+  const d = { chunks: { 100: { Monster: { Rat: true } } }, drops: { Rat: { Ore: { 1: 'Rare' } } },
+    challenges: { Smithing: {
+      Low: { Level: 1, Items: ['Ore'], Output: 'Low bar', Primary: true },
+      High: { Level: 10, Items: ['Ore'], Output: 'High bar', Primary: true },
+    }, Crafting: {
+      Use: { Level: 20, Items: ['High bar'], Output: 'Product', Primary: true },
+      Denied: { Level: 5, Items: ['High bar'] },
+      Finish: { Level: 20, Items: ['Product'] },
+    } } };
+  const doc = state({ 'Multi Step Processing': true, 'Highest Level': false });
+  doc.members[0].primaryOverrides = { Crafting: true, Smithing: true };
+  const engine = createTaskEngine(d);
+  for (let pass = 0; pass < 2; pass++) {
+    const result = engine.evaluate(doc, 'm');
+    assert.equal(result.items.find(row => row.name === 'High bar').sources[0].processingMode, 'multi');
+    assert.equal(use(result).status, 'available');
+    assert.equal(use(result).unknownDropKills, 384);
+    assert.equal(result.tasks.find(row => row.rawLabel === 'Finish').unknownDropKills, 384);
+    const denied = result.tasks.find(row => row.rawLabel === 'Denied');
+    assert.equal(denied.status, 'blocked');
+    assert.equal(unknownDropContext(result, d).task(denied.id), Infinity);
+    assert.equal(unknownDropContext(result, d).item('High bar'), Infinity, 'virtual output is not ordinary item proof');
+  }
+});
+
+test('annotation-only task self-links do not block rare warnings or their products', () => {
+  const d = fixture('Rare');
+  d.challenges.Crafting.Use.Tasks = { Use: 'Crafting' };
+  const result = createTaskEngine(d).evaluate(state({}), 'm');
+  assert.equal(use(result).status, 'available');
+  assert.equal(use(result).unknownDropKills, 384);
+  assert.equal(result.tasks.find(row => row.rawLabel === 'Finish').unknownDropKills, 384);
+  assert.equal(unknownDropContext(result, d).item('Polished gem'), 128);
+});
+
+test('requirement alternatives leave unconditional item and task rare costs intact', () => {
+  for (const personal of [false, true]) for (const prerequisite of [false, true]) {
+    const d = fixture('Rare');
+    d.challenges.Quest = { 'Example completion': { QuestPoints: 1, BaseQuest: 'Example quest' } };
+    const record = d.challenges.Crafting.Use;
+    if (prerequisite) {
+      d.challenges.Crafting.Costly = { Items: record.Items };
+      delete record.Items;
+      record.Tasks = { Costly: 'Crafting' };
+    }
+    if (personal) record.PersonalRequirementAlternatives = [{ quest: 'Example quest' }];
+    else record.RequirementAlternatives = [{ Skills: { Crafting: 1 } }, { TotalLevelNeeded: 1 }];
+    const engine = createTaskEngine(d), doc = state({});
+    doc.members[0].completedTasks = [engine.catalogue.find(row => row.rawLabel === 'Example completion').id];
+    const result = engine.evaluate(doc, 'm');
+    assert.equal(use(result).status, 'available');
+    assert.equal(use(result).unknownDropKills, 384);
+    assert.equal(result.tasks.find(row => row.rawLabel === 'Finish').unknownDropKills, 384);
+  }
+});
+
+test('dialogue payments use AND within clauses and OR between reachable clauses', () => {
+  const d = fixture('Rare');
+  d.chunks[100].NPC = { Supplier: true };
+  d.chunks[100].Spawn = { Token: 1 };
+  d.drops.Rat.Badge = { 1: 'Very rare' };
+  d.challenges.Nonskill = { Purchase: { NPCs: ['Supplier'], Output: 'Purchased gem',
+    DialogueSupply: { mode: 'closure-only', paymentAlternatives: [{ Gem: 2, Token: 1 }, { Coins: 10 }] } } };
+  d.challenges.Crafting.Use.Items = ['Purchased gem'];
+  d.challenges.Crafting.Use.ManualNonProcessing = true;
+  const check = kills => {
+    const result = createTaskEngine(d).evaluate(state({}), 'm');
+    const purchase = result.tasks.find(row => row.rawLabel === 'Purchase');
+    assert.equal(purchase.status, 'available');
+    for (const row of [purchase, use(result), result.tasks.find(row => row.rawLabel === 'Finish')]) {
+      assert.equal(row.status, 'available');
+      assert.equal(row.unknownDropKills, kills);
+    }
+    assert.equal(unknownDropContext(result, d).item('Purchased gem'), kills === undefined ? 0 : kills / 3);
+  };
+  check(384);
+  d.challenges.Nonskill.Purchase.DialogueSupply.paymentAlternatives = [{ Gem: 2, Badge: 1 }, { Coins: 10 }];
+  check(3000);
+  d.challenges.Nonskill.Purchase.DialogueSupply.paymentAlternatives.push({ Gem: 2 });
+  check(384);
+  d.chunks[100].Spawn.Coins = 1;
+  check(undefined);
 });

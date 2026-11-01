@@ -122,3 +122,21 @@ test('partner metadata search loads each owner once per revision and restores on
   await h.search('lumbridge'); await flush(); assert.equal(loads.length, 2);
   assert.deepEqual(h.render().rows[0].memberIds, ['actor1']);
 });
+
+
+test('count labels: one unique backlog task can have two reason rows without changing identities', async () => {
+  const h = harness({ count: 1 });
+  h.entries[0].statusByMember.reed.backlogReason = 'Waiting';
+  const result = h.render();
+  assert.equal(result.total, 1); assert.equal(result.rows.length, 2);
+  assert.match(h.host.textContent, /1 unique task · 2 reason rows/);
+  assert.match(h.host.textContent, /A task may appear under more than one reason/);
+  assert.ok(h.find('span', 'Later (1 reason row)'));
+  assert.ok(h.find('span', 'Waiting (1 reason row)'));
+  for (const details of walk(h.target).filter(node => node.tagName === 'DETAILS')) { details.open = true; await details.emit('toggle'); }
+  assert.deepEqual(h.painted.map(row => row.id), ['task:0', 'task:0']);
+  h.filter(); h.render();
+  assert.match(h.host.textContent, /1 unique task · 1 reason row/);
+  await h.search('absent');
+  assert.match(h.host.textContent, /0 of 1 unique task · 0 reason rows/);
+});

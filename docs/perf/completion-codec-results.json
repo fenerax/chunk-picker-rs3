@@ -1,0 +1,1053 @@
+{
+  "node": "v24.21.0",
+  "trials": [
+    {
+      "before": {
+        "rows": [
+          {
+            "count": 100,
+            "pairMs": 7.564041000000088,
+            "totalMs": 686.1401120000002,
+            "stateBytes": 257816,
+            "gzipBytes": 12862,
+            "diskBytes": 2099280,
+            "stateHash": "025aaa113ffc5ad1b072cd8930ad5fc52b1257c06cbc3e30ba884de4438fcac5",
+            "historyHash": "8593f9bf63ec97ab627997672bd695f5532246a0e61e16130eca0c7f829e213c",
+            "inverseReferences": 10000,
+            "reloadMs": 25.34006199999999,
+            "peakRSSBytes": 236437504
+          },
+          {
+            "count": 250,
+            "pairMs": 20.36554100000012,
+            "totalMs": 2832.4991049999985,
+            "stateBytes": 1029416,
+            "gzipBytes": 35008,
+            "diskBytes": 9564552,
+            "stateHash": "0010c81a973cdbedd3f6360099ac284afdc9d67086ed33e733e6bb3ecb634e3a",
+            "historyHash": "9473c336fe11281e981c0b997b292ffb8c72b8d175d018bfbc4b35913a3729e0",
+            "inverseReferences": 62500,
+            "reloadMs": 42.53486800000019,
+            "peakRSSBytes": 315666432
+          },
+          {
+            "count": 500,
+            "pairMs": 64.00298900000053,
+            "totalMs": 13695.742208,
+            "stateBytes": 3615419,
+            "gzipBytes": 114902,
+            "diskBytes": 47286793,
+            "stateHash": "a5b33bee595975434baac064f07465ac30c6b6210beef1b462b8cd81be66ab48",
+            "historyHash": "3e4486e696d8677213f18851aca19848d5be9d14f6e4d83a768c11830c28017a",
+            "inverseReferences": 250000,
+            "reloadMs": 124.32040700000107,
+            "peakRSSBytes": 410648576
+          },
+          {
+            "count": 1000,
+            "pairMs": 210.5907620000071,
+            "totalMs": 85442.9117100001,
+            "stateBytes": 13664419,
+            "gzipBytes": 482598,
+            "diskBytes": 328623118,
+            "stateHash": "202ccf3919ee1795f8a256aa15b8c195d4dcb269deb9e511af4a690b7ed7cc76",
+            "historyHash": "36df86de366f3141600c2d3a152927fc4a8bde5b7a7d412991f59697a7e58b77",
+            "inverseReferences": 1000000,
+            "reloadMs": 383.93443999999727,
+            "peakRSSBytes": 758738944
+          }
+        ],
+        "undoMs": 118.09857800000464,
+        "undoHash": "6f2b029fed4bdd46cf14ec7eceeba548fbf6db8baf1a8607152b35fff61545d2",
+        "peakRSSBytes": 758738944
+      },
+      "after": {
+        "rows": [
+          {
+            "count": 100,
+            "pairMs": 7.991755000000012,
+            "totalMs": 700.0248160000004,
+            "stateBytes": 158199,
+            "gzipBytes": 16789,
+            "diskBytes": 2462705,
+            "stateHash": "025aaa113ffc5ad1b072cd8930ad5fc52b1257c06cbc3e30ba884de4438fcac5",
+            "historyHash": "8593f9bf63ec97ab627997672bd695f5532246a0e61e16130eca0c7f829e213c",
+            "inverseReferences": 10000,
+            "reloadMs": 18.553361999999993,
+            "peakRSSBytes": 231133184
+          },
+          {
+            "count": 250,
+            "pairMs": 15.313513000000057,
+            "totalMs": 2514.647722000002,
+            "stateBytes": 308949,
+            "gzipBytes": 31413,
+            "diskBytes": 9886089,
+            "stateHash": "0010c81a973cdbedd3f6360099ac284afdc9d67086ed33e733e6bb3ecb634e3a",
+            "historyHash": "9473c336fe11281e981c0b997b292ffb8c72b8d175d018bfbc4b35913a3729e0",
+            "inverseReferences": 62500,
+            "reloadMs": 61.030913000000055,
+            "peakRSSBytes": 290971648
+          },
+          {
+            "count": 500,
+            "pairMs": 34.06420100000105,
+            "totalMs": 9174.463931000006,
+            "stateBytes": 560202,
+            "gzipBytes": 54212,
+            "diskBytes": 31579055,
+            "stateHash": "a5b33bee595975434baac064f07465ac30c6b6210beef1b462b8cd81be66ab48",
+            "historyHash": "3e4486e696d8677213f18851aca19848d5be9d14f6e4d83a768c11830c28017a",
+            "inverseReferences": 250000,
+            "reloadMs": 129.74721099999988,
+            "peakRSSBytes": 369643520
+          },
+          {
+            "count": 1000,
+            "pairMs": 109.148549000005,
+            "totalMs": 45822.289997000065,
+            "stateBytes": 1064704,
+            "gzipBytes": 100476,
+            "diskBytes": 109717375,
+            "stateHash": "202ccf3919ee1795f8a256aa15b8c195d4dcb269deb9e511af4a690b7ed7cc76",
+            "historyHash": "36df86de366f3141600c2d3a152927fc4a8bde5b7a7d412991f59697a7e58b77",
+            "inverseReferences": 1000000,
+            "reloadMs": 346.7603050000034,
+            "peakRSSBytes": 604332032
+          }
+        ],
+        "undoMs": 98.84026399999857,
+        "undoHash": "6f2b029fed4bdd46cf14ec7eceeba548fbf6db8baf1a8607152b35fff61545d2",
+        "peakRSSBytes": 604332032
+      }
+    },
+    {
+      "after": {
+        "rows": [
+          {
+            "count": 100,
+            "pairMs": 7.96768899999995,
+            "totalMs": 740.74393,
+            "stateBytes": 158199,
+            "gzipBytes": 16789,
+            "diskBytes": 2462705,
+            "stateHash": "025aaa113ffc5ad1b072cd8930ad5fc52b1257c06cbc3e30ba884de4438fcac5",
+            "historyHash": "8593f9bf63ec97ab627997672bd695f5532246a0e61e16130eca0c7f829e213c",
+            "inverseReferences": 10000,
+            "reloadMs": 19.510693999999944,
+            "peakRSSBytes": 230952960
+          },
+          {
+            "count": 250,
+            "pairMs": 14.473668000000089,
+            "totalMs": 2561.132488,
+            "stateBytes": 308949,
+            "gzipBytes": 31413,
+            "diskBytes": 9886089,
+            "stateHash": "0010c81a973cdbedd3f6360099ac284afdc9d67086ed33e733e6bb3ecb634e3a",
+            "historyHash": "9473c336fe11281e981c0b997b292ffb8c72b8d175d018bfbc4b35913a3729e0",
+            "inverseReferences": 62500,
+            "reloadMs": 52.28606300000001,
+            "peakRSSBytes": 289316864
+          },
+          {
+            "count": 500,
+            "pairMs": 33.80419999999867,
+            "totalMs": 9110.013022000005,
+            "stateBytes": 560202,
+            "gzipBytes": 54212,
+            "diskBytes": 31579055,
+            "stateHash": "a5b33bee595975434baac064f07465ac30c6b6210beef1b462b8cd81be66ab48",
+            "historyHash": "3e4486e696d8677213f18851aca19848d5be9d14f6e4d83a768c11830c28017a",
+            "inverseReferences": 250000,
+            "reloadMs": 128.90420099999938,
+            "peakRSSBytes": 368254976
+          },
+          {
+            "count": 1000,
+            "pairMs": 108.82253900000069,
+            "totalMs": 45725.63221900006,
+            "stateBytes": 1064704,
+            "gzipBytes": 100476,
+            "diskBytes": 109717375,
+            "stateHash": "202ccf3919ee1795f8a256aa15b8c195d4dcb269deb9e511af4a690b7ed7cc76",
+            "historyHash": "36df86de366f3141600c2d3a152927fc4a8bde5b7a7d412991f59697a7e58b77",
+            "inverseReferences": 1000000,
+            "reloadMs": 337.7842640000017,
+            "peakRSSBytes": 537964544
+          }
+        ],
+        "undoMs": 109.59065099999862,
+        "undoHash": "6f2b029fed4bdd46cf14ec7eceeba548fbf6db8baf1a8607152b35fff61545d2",
+        "peakRSSBytes": 559398912
+      },
+      "before": {
+        "rows": [
+          {
+            "count": 100,
+            "pairMs": 7.458896999999979,
+            "totalMs": 659.3370839999998,
+            "stateBytes": 257816,
+            "gzipBytes": 12862,
+            "diskBytes": 2099280,
+            "stateHash": "025aaa113ffc5ad1b072cd8930ad5fc52b1257c06cbc3e30ba884de4438fcac5",
+            "historyHash": "8593f9bf63ec97ab627997672bd695f5532246a0e61e16130eca0c7f829e213c",
+            "inverseReferences": 10000,
+            "reloadMs": 15.46335600000009,
+            "peakRSSBytes": 233623552
+          },
+          {
+            "count": 250,
+            "pairMs": 19.719837000000098,
+            "totalMs": 2841.100474000001,
+            "stateBytes": 1029416,
+            "gzipBytes": 35008,
+            "diskBytes": 9564552,
+            "stateHash": "0010c81a973cdbedd3f6360099ac284afdc9d67086ed33e733e6bb3ecb634e3a",
+            "historyHash": "9473c336fe11281e981c0b997b292ffb8c72b8d175d018bfbc4b35913a3729e0",
+            "inverseReferences": 62500,
+            "reloadMs": 44.41886599999998,
+            "peakRSSBytes": 315490304
+          },
+          {
+            "count": 500,
+            "pairMs": 64.29490900000019,
+            "totalMs": 13686.22713099999,
+            "stateBytes": 3615419,
+            "gzipBytes": 114902,
+            "diskBytes": 47286793,
+            "stateHash": "a5b33bee595975434baac064f07465ac30c6b6210beef1b462b8cd81be66ab48",
+            "historyHash": "3e4486e696d8677213f18851aca19848d5be9d14f6e4d83a768c11830c28017a",
+            "inverseReferences": 250000,
+            "reloadMs": 120.57565400000021,
+            "peakRSSBytes": 411525120
+          },
+          {
+            "count": 1000,
+            "pairMs": 231.8406859999959,
+            "totalMs": 83855.58130699999,
+            "stateBytes": 13664419,
+            "gzipBytes": 482598,
+            "diskBytes": 328623118,
+            "stateHash": "202ccf3919ee1795f8a256aa15b8c195d4dcb269deb9e511af4a690b7ed7cc76",
+            "historyHash": "36df86de366f3141600c2d3a152927fc4a8bde5b7a7d412991f59697a7e58b77",
+            "inverseReferences": 1000000,
+            "reloadMs": 393.15910400000575,
+            "peakRSSBytes": 781209600
+          }
+        ],
+        "undoMs": 123.85096000001067,
+        "undoHash": "6f2b029fed4bdd46cf14ec7eceeba548fbf6db8baf1a8607152b35fff61545d2",
+        "peakRSSBytes": 781209600
+      }
+    },
+    {
+      "before": {
+        "rows": [
+          {
+            "count": 100,
+            "pairMs": 7.569760999999971,
+            "totalMs": 676.1239230000006,
+            "stateBytes": 257816,
+            "gzipBytes": 12862,
+            "diskBytes": 2099280,
+            "stateHash": "025aaa113ffc5ad1b072cd8930ad5fc52b1257c06cbc3e30ba884de4438fcac5",
+            "historyHash": "8593f9bf63ec97ab627997672bd695f5532246a0e61e16130eca0c7f829e213c",
+            "inverseReferences": 10000,
+            "reloadMs": 16.85119099999997,
+            "peakRSSBytes": 239497216
+          },
+          {
+            "count": 250,
+            "pairMs": 22.782624000000396,
+            "totalMs": 2895.140358,
+            "stateBytes": 1029416,
+            "gzipBytes": 35008,
+            "diskBytes": 9564552,
+            "stateHash": "0010c81a973cdbedd3f6360099ac284afdc9d67086ed33e733e6bb3ecb634e3a",
+            "historyHash": "9473c336fe11281e981c0b997b292ffb8c72b8d175d018bfbc4b35913a3729e0",
+            "inverseReferences": 62500,
+            "reloadMs": 46.29705100000001,
+            "peakRSSBytes": 326541312
+          },
+          {
+            "count": 500,
+            "pairMs": 65.23050800000055,
+            "totalMs": 14063.533479999993,
+            "stateBytes": 3615419,
+            "gzipBytes": 114902,
+            "diskBytes": 47286793,
+            "stateHash": "a5b33bee595975434baac064f07465ac30c6b6210beef1b462b8cd81be66ab48",
+            "historyHash": "3e4486e696d8677213f18851aca19848d5be9d14f6e4d83a768c11830c28017a",
+            "inverseReferences": 250000,
+            "reloadMs": 111.69836899999973,
+            "peakRSSBytes": 382328832
+          },
+          {
+            "count": 1000,
+            "pairMs": 221.262619000001,
+            "totalMs": 85770.5376839999,
+            "stateBytes": 13664419,
+            "gzipBytes": 482598,
+            "diskBytes": 328623118,
+            "stateHash": "202ccf3919ee1795f8a256aa15b8c195d4dcb269deb9e511af4a690b7ed7cc76",
+            "historyHash": "36df86de366f3141600c2d3a152927fc4a8bde5b7a7d412991f59697a7e58b77",
+            "inverseReferences": 1000000,
+            "reloadMs": 388.1945010000054,
+            "peakRSSBytes": 692637696
+          }
+        ],
+        "undoMs": 122.16995299998962,
+        "undoHash": "6f2b029fed4bdd46cf14ec7eceeba548fbf6db8baf1a8607152b35fff61545d2",
+        "peakRSSBytes": 692637696
+      },
+      "after": {
+        "rows": [
+          {
+            "count": 100,
+            "pairMs": 8.465090000000032,
+            "totalMs": 773.6684879999997,
+            "stateBytes": 158199,
+            "gzipBytes": 16789,
+            "diskBytes": 2462705,
+            "stateHash": "025aaa113ffc5ad1b072cd8930ad5fc52b1257c06cbc3e30ba884de4438fcac5",
+            "historyHash": "8593f9bf63ec97ab627997672bd695f5532246a0e61e16130eca0c7f829e213c",
+            "inverseReferences": 10000,
+            "reloadMs": 18.596918000000073,
+            "peakRSSBytes": 230883328
+          },
+          {
+            "count": 250,
+            "pairMs": 15.23268199999984,
+            "totalMs": 2598.561262999998,
+            "stateBytes": 308949,
+            "gzipBytes": 31413,
+            "diskBytes": 9886089,
+            "stateHash": "0010c81a973cdbedd3f6360099ac284afdc9d67086ed33e733e6bb3ecb634e3a",
+            "historyHash": "9473c336fe11281e981c0b997b292ffb8c72b8d175d018bfbc4b35913a3729e0",
+            "inverseReferences": 62500,
+            "reloadMs": 55.47703300000012,
+            "peakRSSBytes": 289460224
+          },
+          {
+            "count": 500,
+            "pairMs": 34.877559000000474,
+            "totalMs": 9096.721947999999,
+            "stateBytes": 560202,
+            "gzipBytes": 54212,
+            "diskBytes": 31579055,
+            "stateHash": "a5b33bee595975434baac064f07465ac30c6b6210beef1b462b8cd81be66ab48",
+            "historyHash": "3e4486e696d8677213f18851aca19848d5be9d14f6e4d83a768c11830c28017a",
+            "inverseReferences": 250000,
+            "reloadMs": 136.73191000000043,
+            "peakRSSBytes": 376385536
+          },
+          {
+            "count": 1000,
+            "pairMs": 109.8897730000026,
+            "totalMs": 46184.94378200003,
+            "stateBytes": 1064704,
+            "gzipBytes": 100476,
+            "diskBytes": 109717375,
+            "stateHash": "202ccf3919ee1795f8a256aa15b8c195d4dcb269deb9e511af4a690b7ed7cc76",
+            "historyHash": "36df86de366f3141600c2d3a152927fc4a8bde5b7a7d412991f59697a7e58b77",
+            "inverseReferences": 1000000,
+            "reloadMs": 337.09877399999823,
+            "peakRSSBytes": 700608512
+          }
+        ],
+        "undoMs": 117.74519500000315,
+        "undoHash": "6f2b029fed4bdd46cf14ec7eceeba548fbf6db8baf1a8607152b35fff61545d2",
+        "peakRSSBytes": 700608512
+      }
+    },
+    {
+      "after": {
+        "rows": [
+          {
+            "count": 100,
+            "pairMs": 7.812666999999919,
+            "totalMs": 732.0336849999999,
+            "stateBytes": 158199,
+            "gzipBytes": 16789,
+            "diskBytes": 2462705,
+            "stateHash": "025aaa113ffc5ad1b072cd8930ad5fc52b1257c06cbc3e30ba884de4438fcac5",
+            "historyHash": "8593f9bf63ec97ab627997672bd695f5532246a0e61e16130eca0c7f829e213c",
+            "inverseReferences": 10000,
+            "reloadMs": 22.26597400000003,
+            "peakRSSBytes": 223756288
+          },
+          {
+            "count": 250,
+            "pairMs": 15.221164999999928,
+            "totalMs": 2600.7135110000017,
+            "stateBytes": 308949,
+            "gzipBytes": 31413,
+            "diskBytes": 9886089,
+            "stateHash": "0010c81a973cdbedd3f6360099ac284afdc9d67086ed33e733e6bb3ecb634e3a",
+            "historyHash": "9473c336fe11281e981c0b997b292ffb8c72b8d175d018bfbc4b35913a3729e0",
+            "inverseReferences": 62500,
+            "reloadMs": 46.9867949999998,
+            "peakRSSBytes": 287293440
+          },
+          {
+            "count": 500,
+            "pairMs": 35.54091700000026,
+            "totalMs": 9313.599200999999,
+            "stateBytes": 560202,
+            "gzipBytes": 54212,
+            "diskBytes": 31579055,
+            "stateHash": "a5b33bee595975434baac064f07465ac30c6b6210beef1b462b8cd81be66ab48",
+            "historyHash": "3e4486e696d8677213f18851aca19848d5be9d14f6e4d83a768c11830c28017a",
+            "inverseReferences": 250000,
+            "reloadMs": 137.275619,
+            "peakRSSBytes": 365887488
+          },
+          {
+            "count": 1000,
+            "pairMs": 107.35203200000251,
+            "totalMs": 45322.39092699996,
+            "stateBytes": 1064704,
+            "gzipBytes": 100476,
+            "diskBytes": 109717375,
+            "stateHash": "202ccf3919ee1795f8a256aa15b8c195d4dcb269deb9e511af4a690b7ed7cc76",
+            "historyHash": "36df86de366f3141600c2d3a152927fc4a8bde5b7a7d412991f59697a7e58b77",
+            "inverseReferences": 1000000,
+            "reloadMs": 327.50457099999767,
+            "peakRSSBytes": 525066240
+          }
+        ],
+        "undoMs": 108.16185199999745,
+        "undoHash": "6f2b029fed4bdd46cf14ec7eceeba548fbf6db8baf1a8607152b35fff61545d2",
+        "peakRSSBytes": 571441152
+      },
+      "before": {
+        "rows": [
+          {
+            "count": 100,
+            "pairMs": 7.2266630000000305,
+            "totalMs": 663.0135710000004,
+            "stateBytes": 257816,
+            "gzipBytes": 12862,
+            "diskBytes": 2099280,
+            "stateHash": "025aaa113ffc5ad1b072cd8930ad5fc52b1257c06cbc3e30ba884de4438fcac5",
+            "historyHash": "8593f9bf63ec97ab627997672bd695f5532246a0e61e16130eca0c7f829e213c",
+            "inverseReferences": 10000,
+            "reloadMs": 24.086086000000023,
+            "peakRSSBytes": 240308224
+          },
+          {
+            "count": 250,
+            "pairMs": 20.071460000000116,
+            "totalMs": 2788.843152999999,
+            "stateBytes": 1029416,
+            "gzipBytes": 35008,
+            "diskBytes": 9564552,
+            "stateHash": "0010c81a973cdbedd3f6360099ac284afdc9d67086ed33e733e6bb3ecb634e3a",
+            "historyHash": "9473c336fe11281e981c0b997b292ffb8c72b8d175d018bfbc4b35913a3729e0",
+            "inverseReferences": 62500,
+            "reloadMs": 54.575781000000006,
+            "peakRSSBytes": 322437120
+          },
+          {
+            "count": 500,
+            "pairMs": 64.69387499999903,
+            "totalMs": 13605.802129000007,
+            "stateBytes": 3615419,
+            "gzipBytes": 114902,
+            "diskBytes": 47286793,
+            "stateHash": "a5b33bee595975434baac064f07465ac30c6b6210beef1b462b8cd81be66ab48",
+            "historyHash": "3e4486e696d8677213f18851aca19848d5be9d14f6e4d83a768c11830c28017a",
+            "inverseReferences": 250000,
+            "reloadMs": 117.51068099999975,
+            "peakRSSBytes": 388939776
+          },
+          {
+            "count": 1000,
+            "pairMs": 231.36331300000893,
+            "totalMs": 84769.080041,
+            "stateBytes": 13664419,
+            "gzipBytes": 482598,
+            "diskBytes": 328623118,
+            "stateHash": "202ccf3919ee1795f8a256aa15b8c195d4dcb269deb9e511af4a690b7ed7cc76",
+            "historyHash": "36df86de366f3141600c2d3a152927fc4a8bde5b7a7d412991f59697a7e58b77",
+            "inverseReferences": 1000000,
+            "reloadMs": 386.64942800000426,
+            "peakRSSBytes": 772870144
+          }
+        ],
+        "undoMs": 122.70686700000078,
+        "undoHash": "6f2b029fed4bdd46cf14ec7eceeba548fbf6db8baf1a8607152b35fff61545d2",
+        "peakRSSBytes": 772870144
+      }
+    },
+    {
+      "before": {
+        "rows": [
+          {
+            "count": 100,
+            "pairMs": 7.5557999999999765,
+            "totalMs": 693.8413829999997,
+            "stateBytes": 257816,
+            "gzipBytes": 12862,
+            "diskBytes": 2099280,
+            "stateHash": "025aaa113ffc5ad1b072cd8930ad5fc52b1257c06cbc3e30ba884de4438fcac5",
+            "historyHash": "8593f9bf63ec97ab627997672bd695f5532246a0e61e16130eca0c7f829e213c",
+            "inverseReferences": 10000,
+            "reloadMs": 21.49396200000001,
+            "peakRSSBytes": 244789248
+          },
+          {
+            "count": 250,
+            "pairMs": 20.320694999999887,
+            "totalMs": 2888.4505760000015,
+            "stateBytes": 1029416,
+            "gzipBytes": 35008,
+            "diskBytes": 9564552,
+            "stateHash": "0010c81a973cdbedd3f6360099ac284afdc9d67086ed33e733e6bb3ecb634e3a",
+            "historyHash": "9473c336fe11281e981c0b997b292ffb8c72b8d175d018bfbc4b35913a3729e0",
+            "inverseReferences": 62500,
+            "reloadMs": 47.01985599999989,
+            "peakRSSBytes": 325431296
+          },
+          {
+            "count": 500,
+            "pairMs": 71.12102399999822,
+            "totalMs": 14245.630640000014,
+            "stateBytes": 3615419,
+            "gzipBytes": 114902,
+            "diskBytes": 47286793,
+            "stateHash": "a5b33bee595975434baac064f07465ac30c6b6210beef1b462b8cd81be66ab48",
+            "historyHash": "3e4486e696d8677213f18851aca19848d5be9d14f6e4d83a768c11830c28017a",
+            "inverseReferences": 250000,
+            "reloadMs": 173.88061799999923,
+            "peakRSSBytes": 399028224
+          },
+          {
+            "count": 1000,
+            "pairMs": 235.27627899999788,
+            "totalMs": 89653.94541600012,
+            "stateBytes": 13664419,
+            "gzipBytes": 482598,
+            "diskBytes": 328623118,
+            "stateHash": "202ccf3919ee1795f8a256aa15b8c195d4dcb269deb9e511af4a690b7ed7cc76",
+            "historyHash": "36df86de366f3141600c2d3a152927fc4a8bde5b7a7d412991f59697a7e58b77",
+            "inverseReferences": 1000000,
+            "reloadMs": 388.3603410000069,
+            "peakRSSBytes": 681684992
+          }
+        ],
+        "undoMs": 121.88453399999707,
+        "undoHash": "6f2b029fed4bdd46cf14ec7eceeba548fbf6db8baf1a8607152b35fff61545d2",
+        "peakRSSBytes": 681684992
+      },
+      "after": {
+        "rows": [
+          {
+            "count": 100,
+            "pairMs": 8.245677999999998,
+            "totalMs": 801.7288049999996,
+            "stateBytes": 158199,
+            "gzipBytes": 16789,
+            "diskBytes": 2462705,
+            "stateHash": "025aaa113ffc5ad1b072cd8930ad5fc52b1257c06cbc3e30ba884de4438fcac5",
+            "historyHash": "8593f9bf63ec97ab627997672bd695f5532246a0e61e16130eca0c7f829e213c",
+            "inverseReferences": 10000,
+            "reloadMs": 19.193284999999946,
+            "peakRSSBytes": 228126720
+          },
+          {
+            "count": 250,
+            "pairMs": 15.543669000000136,
+            "totalMs": 2666.951901999998,
+            "stateBytes": 308949,
+            "gzipBytes": 31413,
+            "diskBytes": 9886089,
+            "stateHash": "0010c81a973cdbedd3f6360099ac284afdc9d67086ed33e733e6bb3ecb634e3a",
+            "historyHash": "9473c336fe11281e981c0b997b292ffb8c72b8d175d018bfbc4b35913a3729e0",
+            "inverseReferences": 62500,
+            "reloadMs": 60.98471300000028,
+            "peakRSSBytes": 286916608
+          },
+          {
+            "count": 500,
+            "pairMs": 37.348063999999795,
+            "totalMs": 9560.918827,
+            "stateBytes": 560202,
+            "gzipBytes": 54212,
+            "diskBytes": 31579055,
+            "stateHash": "a5b33bee595975434baac064f07465ac30c6b6210beef1b462b8cd81be66ab48",
+            "historyHash": "3e4486e696d8677213f18851aca19848d5be9d14f6e4d83a768c11830c28017a",
+            "inverseReferences": 250000,
+            "reloadMs": 122.01659899999868,
+            "peakRSSBytes": 365056000
+          },
+          {
+            "count": 1000,
+            "pairMs": 110.07016699999804,
+            "totalMs": 46221.306137000014,
+            "stateBytes": 1064704,
+            "gzipBytes": 100476,
+            "diskBytes": 109717375,
+            "stateHash": "202ccf3919ee1795f8a256aa15b8c195d4dcb269deb9e511af4a690b7ed7cc76",
+            "historyHash": "36df86de366f3141600c2d3a152927fc4a8bde5b7a7d412991f59697a7e58b77",
+            "inverseReferences": 1000000,
+            "reloadMs": 329.71838999999454,
+            "peakRSSBytes": 617361408
+          }
+        ],
+        "undoMs": 91.68302599999879,
+        "undoHash": "6f2b029fed4bdd46cf14ec7eceeba548fbf6db8baf1a8607152b35fff61545d2",
+        "peakRSSBytes": 617361408
+      }
+    }
+  ],
+  "summary": [
+    {
+      "count": 100,
+      "before": {
+        "pairMs": {
+          "median": 7.5557999999999765,
+          "min": 7.2266630000000305,
+          "max": 7.569760999999971
+        },
+        "totalMs": {
+          "median": 676.1239230000006,
+          "min": 659.3370839999998,
+          "max": 693.8413829999997
+        },
+        "stateBytes": {
+          "median": 257816,
+          "min": 257816,
+          "max": 257816
+        },
+        "gzipBytes": {
+          "median": 12862,
+          "min": 12862,
+          "max": 12862
+        },
+        "diskBytes": {
+          "median": 2099280,
+          "min": 2099280,
+          "max": 2099280
+        },
+        "reloadMs": {
+          "median": 21.49396200000001,
+          "min": 15.46335600000009,
+          "max": 25.34006199999999
+        },
+        "peakRSSBytes": {
+          "median": 239497216,
+          "min": 233623552,
+          "max": 244789248
+        }
+      },
+      "after": {
+        "pairMs": {
+          "median": 7.991755000000012,
+          "min": 7.812666999999919,
+          "max": 8.465090000000032
+        },
+        "totalMs": {
+          "median": 740.74393,
+          "min": 700.0248160000004,
+          "max": 801.7288049999996
+        },
+        "stateBytes": {
+          "median": 158199,
+          "min": 158199,
+          "max": 158199
+        },
+        "gzipBytes": {
+          "median": 16789,
+          "min": 16789,
+          "max": 16789
+        },
+        "diskBytes": {
+          "median": 2462705,
+          "min": 2462705,
+          "max": 2462705
+        },
+        "reloadMs": {
+          "median": 19.193284999999946,
+          "min": 18.553361999999993,
+          "max": 22.26597400000003
+        },
+        "peakRSSBytes": {
+          "median": 230883328,
+          "min": 223756288,
+          "max": 231133184
+        }
+      }
+    },
+    {
+      "count": 250,
+      "before": {
+        "pairMs": {
+          "median": 20.320694999999887,
+          "min": 19.719837000000098,
+          "max": 22.782624000000396
+        },
+        "totalMs": {
+          "median": 2841.100474000001,
+          "min": 2788.843152999999,
+          "max": 2895.140358
+        },
+        "stateBytes": {
+          "median": 1029416,
+          "min": 1029416,
+          "max": 1029416
+        },
+        "gzipBytes": {
+          "median": 35008,
+          "min": 35008,
+          "max": 35008
+        },
+        "diskBytes": {
+          "median": 9564552,
+          "min": 9564552,
+          "max": 9564552
+        },
+        "reloadMs": {
+          "median": 46.29705100000001,
+          "min": 42.53486800000019,
+          "max": 54.575781000000006
+        },
+        "peakRSSBytes": {
+          "median": 322437120,
+          "min": 315490304,
+          "max": 326541312
+        }
+      },
+      "after": {
+        "pairMs": {
+          "median": 15.23268199999984,
+          "min": 14.473668000000089,
+          "max": 15.543669000000136
+        },
+        "totalMs": {
+          "median": 2598.561262999998,
+          "min": 2514.647722000002,
+          "max": 2666.951901999998
+        },
+        "stateBytes": {
+          "median": 308949,
+          "min": 308949,
+          "max": 308949
+        },
+        "gzipBytes": {
+          "median": 31413,
+          "min": 31413,
+          "max": 31413
+        },
+        "diskBytes": {
+          "median": 9886089,
+          "min": 9886089,
+          "max": 9886089
+        },
+        "reloadMs": {
+          "median": 55.47703300000012,
+          "min": 46.9867949999998,
+          "max": 61.030913000000055
+        },
+        "peakRSSBytes": {
+          "median": 289316864,
+          "min": 286916608,
+          "max": 290971648
+        }
+      }
+    },
+    {
+      "count": 500,
+      "before": {
+        "pairMs": {
+          "median": 64.69387499999903,
+          "min": 64.00298900000053,
+          "max": 71.12102399999822
+        },
+        "totalMs": {
+          "median": 13695.742208,
+          "min": 13605.802129000007,
+          "max": 14245.630640000014
+        },
+        "stateBytes": {
+          "median": 3615419,
+          "min": 3615419,
+          "max": 3615419
+        },
+        "gzipBytes": {
+          "median": 114902,
+          "min": 114902,
+          "max": 114902
+        },
+        "diskBytes": {
+          "median": 47286793,
+          "min": 47286793,
+          "max": 47286793
+        },
+        "reloadMs": {
+          "median": 120.57565400000021,
+          "min": 111.69836899999973,
+          "max": 173.88061799999923
+        },
+        "peakRSSBytes": {
+          "median": 399028224,
+          "min": 382328832,
+          "max": 411525120
+        }
+      },
+      "after": {
+        "pairMs": {
+          "median": 34.877559000000474,
+          "min": 33.80419999999867,
+          "max": 37.348063999999795
+        },
+        "totalMs": {
+          "median": 9174.463931000006,
+          "min": 9096.721947999999,
+          "max": 9560.918827
+        },
+        "stateBytes": {
+          "median": 560202,
+          "min": 560202,
+          "max": 560202
+        },
+        "gzipBytes": {
+          "median": 54212,
+          "min": 54212,
+          "max": 54212
+        },
+        "diskBytes": {
+          "median": 31579055,
+          "min": 31579055,
+          "max": 31579055
+        },
+        "reloadMs": {
+          "median": 129.74721099999988,
+          "min": 122.01659899999868,
+          "max": 137.275619
+        },
+        "peakRSSBytes": {
+          "median": 368254976,
+          "min": 365056000,
+          "max": 376385536
+        }
+      }
+    },
+    {
+      "count": 1000,
+      "before": {
+        "pairMs": {
+          "median": 231.36331300000893,
+          "min": 210.5907620000071,
+          "max": 235.27627899999788
+        },
+        "totalMs": {
+          "median": 85442.9117100001,
+          "min": 83855.58130699999,
+          "max": 89653.94541600012
+        },
+        "stateBytes": {
+          "median": 13664419,
+          "min": 13664419,
+          "max": 13664419
+        },
+        "gzipBytes": {
+          "median": 482598,
+          "min": 482598,
+          "max": 482598
+        },
+        "diskBytes": {
+          "median": 328623118,
+          "min": 328623118,
+          "max": 328623118
+        },
+        "reloadMs": {
+          "median": 388.1945010000054,
+          "min": 383.93443999999727,
+          "max": 393.15910400000575
+        },
+        "peakRSSBytes": {
+          "median": 758738944,
+          "min": 681684992,
+          "max": 781209600
+        }
+      },
+      "after": {
+        "pairMs": {
+          "median": 109.148549000005,
+          "min": 107.35203200000251,
+          "max": 110.07016699999804
+        },
+        "totalMs": {
+          "median": 45822.289997000065,
+          "min": 45322.39092699996,
+          "max": 46221.306137000014
+        },
+        "stateBytes": {
+          "median": 1064704,
+          "min": 1064704,
+          "max": 1064704
+        },
+        "gzipBytes": {
+          "median": 100476,
+          "min": 100476,
+          "max": 100476
+        },
+        "diskBytes": {
+          "median": 109717375,
+          "min": 109717375,
+          "max": 109717375
+        },
+        "reloadMs": {
+          "median": 337.09877399999823,
+          "min": 327.50457099999767,
+          "max": 346.7603050000034
+        },
+        "peakRSSBytes": {
+          "median": 604332032,
+          "min": 525066240,
+          "max": 700608512
+        }
+      }
+    }
+  ],
+  "differences": 0,
+  "sample": {
+    "samples": [
+      {
+        "beforeBytes": 3300433,
+        "afterBytes": 3300433,
+        "beforeGzipBytes": 459679,
+        "afterGzipBytes": 459679,
+        "encodeMs": 0.25124800000003233,
+        "decodeMs": 6.713571000000229,
+        "importMs": 44.76589800000011,
+        "differences": 0,
+        "sha256": "5d93856ff284b8d5a0d9bcbb7b63eb2106551e7308d30c6b1030ac34dd618e56",
+        "peakRSSBytes": 908120064
+      },
+      {
+        "beforeBytes": 38043508,
+        "afterBytes": 38043508,
+        "beforeGzipBytes": 5539741,
+        "afterGzipBytes": 5539741,
+        "encodeMs": 0.254863999999543,
+        "decodeMs": 136.849647,
+        "importMs": 738.0598170000003,
+        "undo": {
+          "beforeMs": 767.6065450000006,
+          "afterMs": 751.9511170000005,
+          "differences": 0
+        },
+        "differences": 0,
+        "sha256": "6645bcab5d97ea6b1a3fce6f18155f8305f6ca4a3e7ba9e8b03128f4dce32ed1",
+        "peakRSSBytes": 1672982528
+      },
+      {
+        "beforeBytes": 38150173,
+        "afterBytes": 38150434,
+        "beforeGzipBytes": 5550819,
+        "afterGzipBytes": 5551035,
+        "encodeMs": 0.7192830000003596,
+        "decodeMs": 140.44711499999903,
+        "importMs": 806.0713890000006,
+        "undo": {
+          "beforeMs": 815.4586899999995,
+          "afterMs": 839.5426919999991,
+          "differences": 0
+        },
+        "differences": 0,
+        "sha256": "ab0a054a9b3d94738cf374a8314fe483b844545f633e22ca944b10d8bc0dac05",
+        "peakRSSBytes": 1999917056
+      },
+      {
+        "beforeBytes": 38214084,
+        "afterBytes": 38214345,
+        "beforeGzipBytes": 5555626,
+        "afterGzipBytes": 5555672,
+        "encodeMs": 0.4510790000022098,
+        "decodeMs": 130.0129510000006,
+        "importMs": 737.3529390000003,
+        "undo": {
+          "beforeMs": 829.3620110000011,
+          "afterMs": 871.8322159999989,
+          "differences": 0
+        },
+        "differences": 0,
+        "sha256": "70f224178c6e5a20d360b6d012e86faf60966d42fb49745afb3073ef82351962",
+        "peakRSSBytes": 2023886848
+      },
+      {
+        "beforeBytes": 38318383,
+        "afterBytes": 38318644,
+        "beforeGzipBytes": 5559664,
+        "afterGzipBytes": 5559969,
+        "encodeMs": 0.4020060000002559,
+        "decodeMs": 143.97176299999774,
+        "importMs": 801.5088230000001,
+        "undo": {
+          "beforeMs": 863.0670499999978,
+          "afterMs": 924.6737250000006,
+          "differences": 0
+        },
+        "differences": 0,
+        "sha256": "3005fe7c02392e859c3688e114527d70ce1ef52b14bdba48291fbf364cc78f76",
+        "peakRSSBytes": 2030678016
+      },
+      {
+        "beforeBytes": 38363603,
+        "afterBytes": 38363864,
+        "beforeGzipBytes": 5563879,
+        "afterGzipBytes": 5564191,
+        "encodeMs": 0.3662119999935385,
+        "decodeMs": 133.4067619999987,
+        "importMs": 762.0408730000054,
+        "undo": {
+          "beforeMs": 816.8585989999992,
+          "afterMs": 910.6505909999978,
+          "differences": 0
+        },
+        "differences": 0,
+        "sha256": "6217215a8abfb160e4b46bc83e43d632f8da43bb6f2db553e3b1ccf8b2c64cca",
+        "peakRSSBytes": 2038583296
+      },
+      {
+        "beforeBytes": 54253178,
+        "afterBytes": 54253439,
+        "beforeGzipBytes": 7897422,
+        "afterGzipBytes": 7897916,
+        "encodeMs": 0.5645499999955064,
+        "decodeMs": 237.03709700000036,
+        "importMs": 1095.4937629999986,
+        "undo": {
+          "beforeMs": 1287.7889910000013,
+          "afterMs": 1128.285106999996,
+          "differences": 0
+        },
+        "differences": 0,
+        "sha256": "20c4d82b7bbff8d428fe516b55c6e533744360fa6cc831a455c0e85f7ec3facc",
+        "peakRSSBytes": 2493882368
+      },
+      {
+        "beforeBytes": 54382966,
+        "afterBytes": 54382822,
+        "beforeGzipBytes": 7914217,
+        "afterGzipBytes": 7914317,
+        "encodeMs": 0.7710020000013174,
+        "decodeMs": 236.57263100000273,
+        "importMs": 1087.047706999998,
+        "undo": {
+          "beforeMs": 1206.759484999995,
+          "afterMs": 1068.307034000005,
+          "differences": 0
+        },
+        "differences": 0,
+        "sha256": "714c3c420411d009d6e4b839e988e435eb60e2e5e8f4ad834ee3e4760c27ada0",
+        "peakRSSBytes": 2502496256
+      }
+    ],
+    "differences": 0,
+    "peakRSSBytes": 2502496256
+  }
+}
