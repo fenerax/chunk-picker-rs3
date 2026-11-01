@@ -52,6 +52,7 @@ export const quickTests = new Set([
   "registry.test.mjs",
   "picker-footprint.test.mjs",
   "linux-operator.test.mjs",
+  "linux-recovery-paths.test.mjs",
   "linux-multi-picker.test.mjs",
   "linux-service-crash.test.mjs",
   "linux-lock-recovery.test.mjs",
@@ -328,6 +329,7 @@ const fullOnlyTests = new Set([
   "setup-start-pool.test.mjs",
 
   "y03-fuzz-ci-integration.test.mjs",
+  "setup-guide-browser.test.mjs",
   "progress-providers.test.mjs",
   "plugin-reads-server.test.mjs",
   "roll-pool-worker.test.mjs",
