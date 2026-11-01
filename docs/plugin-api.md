@@ -333,8 +333,12 @@ for the same journal ID. An acknowledgement covers all environments in the
 received journal prefix; it does not certify live provenance or a task tick.
 Any live evidence and its watermark must reach the sidecar before that prefix is
 acknowledged. If the write fails, the prior journal acknowledgement is retained
-for retry. Beta and unknown evidence is accepted into separate memory records,
-as before; it does not survive receiver restart without a retransmission. Legacy
+for retry. Beta and unknown evidence stays in memory and does not survive a
+receiver restart without a retransmission. A beta or unknown-world report's own
+containers and legacy triples share one memory slot, as before: the next beta or
+unknown report replaces it. Four-field beta and unknown events keep their own
+record per environment, and their rows stay in every later review (items or
+bank) until handled, even after the sender drops the acknowledged events. Legacy
 triples receive the same delivery acknowledgement in their delivery world.
 A lost reply must be retried with the original event environment, even after a
 world transition. No existing evidence or saves are reclassified by this change;

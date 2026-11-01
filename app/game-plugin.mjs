@@ -41,7 +41,7 @@ export async function openGamePlugin({ dataDir, store, world, registry, questMap
   const handled = await openPluginAchievements({ dataDir, members: () => state().members, clock, log });
   const itemStore = await openPluginItems({ dataDir, members: () => state().members, clock, log });
   // Beta and unknown-world item evidence stays in memory, apart from live evidence.
-  const itemMemory = new Map(), itemAcks = new Map(), itemHandled = new Map();
+  const itemMemory = new Map(), journalMemory = new Map(), itemAcks = new Map(), itemHandled = new Map();
   // One unfinished bank set per player, the last complete one, and coin counts by container.
   const bankAssemblies = new Map(), bankAcks = new Map(), itemCoins = new Map();
   let itemTasks;
@@ -190,16 +190,17 @@ export async function openGamePlugin({ dataDir, store, world, registry, questMap
   }
   // itemsBetaAsLive is for a synthetic scratch save only: beta items then tick it as live ones would.
   const itemWorld = report => report.world?.beta === false || itemsBetaAsLive && report.world?.beta === true ? 'live' : report.world?.beta === true ? 'beta' : 'unknown';
+  // Delivery-world records keep the single-slot lifecycle reports always had: a beta or
+  // unknown report replaces the other's memory. Qualified (four-field) beta and unknown
+  // journal events keep their own records in journalMemory until their rows are handled.
   function itemRecord(player, world) {
-    const memory = itemMemory.get(player)?.get(world);
-    return world === 'live' ? itemStore.get(player) : memory ? structuredClone(memory) : null;
+    const memory = itemMemory.get(player);
+    return world === 'live' ? itemStore.get(player) : memory?.world === world ? structuredClone(memory.record) : null;
   }
+  const journalRecords = player => [...journalMemory.get(player) ?? []].map(([world, record]) => ({ record, world }));
   // Live records are saved; beta and unknown ones stay in memory. False when the write failed.
   async function keepItemRecord(player, world, record) {
-    if (world !== 'live') {
-      const memory = itemMemory.get(player) ?? new Map();
-      memory.set(world, record); itemMemory.set(player, memory); return true;
-    }
+    if (world !== 'live') { itemMemory.set(player, { world, record }); return true; }
     try { await itemStore.put(player, record); return true; }
     catch { log('Could not save plugin item evidence; the plugin will send it again.'); return false; }
   }
@@ -220,7 +221,8 @@ export async function openGamePlugin({ dataDir, store, world, registry, questMap
     const owner = member(player), dismissed = itemHandled.get(player);
     // Prefer live rows when several environments support the same task. Match all
     // records before publishing one review, so queued evidence cannot hide containers.
-    const results = [{ record, world }, ...others].sort((a, b) =>
+    // Retained journal records join every review (items and bank) until handled.
+    const results = [{ record, world }, ...others, ...journalRecords(player)].sort((a, b) =>
       ['live', 'beta', 'unknown'].indexOf(a.world) - ['live', 'beta', 'unknown'].indexOf(b.world)).map(({ record, world }) =>
       matchGameItems({ evidence: new Map(Object.entries(record.items).map(([id, fact]) => [Number(id), fact])),
         task: itemTask, completed: new Set(owner.completedTasks), world, autoTick: world === 'live',
@@ -274,42 +276,47 @@ export async function openGamePlugin({ dataDir, store, world, registry, questMap
     // The first look needs both containers; until then only the snapshot is acknowledged.
     if (!saved && (value.worn === null || value.backpack === null)) { itemAcks.set(player, ack); return; }
     const entries = [...(value.worn ?? []).map(([, id, , name]) => [id, name, true]), ...(value.backpack ?? []).map(([, id, , name]) => [id, name, false])];
-    // Containers describe the delivery world. Four-field journal events carry their
-    // own observation environment; legacy triples keep the delivery world, as before.
-    const groups = new Map([[world, entries]]);
-    for (const [, , , origin = world] of value.journal.events) {
-      const scope = itemsBetaAsLive && origin === 'beta' ? 'live' : origin;
-      if (!groups.has(scope)) groups.set(scope, []);
-    }
     for (const [name, level] of value.toolbelt ?? []) {
       const id = GAME_TOOLBELT.get(`${name}=${level}`);
       if (id !== undefined) entries.push([id, null, false]);
     }
-    const records = [], unmapped = new Map();
-    // Save live evidence before acknowledging any of the report's journal events.
-    for (const scope of ['live', 'beta', 'unknown'].filter(scope => groups.has(scope))) {
-      const prior = scope === world ? saved : itemRecord(player, scope);
+    // Containers and legacy triples belong to the delivery world, as before. Four-field
+    // events carry their observation environment: live ones join the live record, beta
+    // and unknown ones their own journal record, whatever world delivers them.
+    const slotOf = event => {
+      if (event.length < 4) return 'delivery';
+      const scope = itemsBetaAsLive && event[3] === 'beta' ? 'live' : event[3];
+      return scope === 'live' ? world === 'live' ? 'delivery' : 'live' : scope;
+    };
+    // The persisted live record goes first, so a failed write changes no memory.
+    const slots = [...new Set([world === 'live' ? 'delivery' : 'live', 'delivery', 'beta', 'unknown'])]
+      .filter(slot => slot === 'delivery' || value.journal.events.some(event => slotOf(event) === slot));
+    const journal = journalMemory.get(player) ?? new Map(), records = new Map(), unmapped = new Map();
+    for (const slot of slots) {
+      const scope = slot === 'delivery' ? world : slot;
+      const prior = slot === 'delivery' ? saved : slot === 'live' ? itemRecord(player, 'live') : journal.has(slot) ? structuredClone(journal.get(slot)) : null;
       const record = prior ?? { baselineAt: now, items: {}, handled: [], journal: null };
       const after = record.journal?.id === value.journal.id ? record.journal.event : 0;
-      const scoped = groups.get(scope);
-      for (const [event, id, name, origin = world] of value.journal.events) {
-        if (event > after && (itemsBetaAsLive && origin === 'beta' ? 'live' : origin) === scope) scoped.push([id, name, true]);
-      }
+      const scoped = slot === 'delivery' ? entries : [];
+      for (const event of value.journal.events) if (event[0] > after && slotOf(event) === slot) scoped.push([event[1], event[2], true]);
       const added = addEvidence(record, scoped, now, !prior);
       for (const row of added.unmapped) if (!unmapped.has(row.gameItemId)) unmapped.set(row.gameItemId, row);
       const last = Math.max(after, value.journal.events.at(-1)?.[0] ?? 0);
       const journalChanged = record.journal?.id !== value.journal.id || last > after;
       record.journal = { id: value.journal.id, event: last };
-      if ((!prior || added.changed || journalChanged) && !await keepItemRecord(player, scope, record)) { itemAcks.set(player, ack); return; }
-      records.push({ record, world: scope });
+      if (slot === 'beta' || slot === 'unknown') { journal.set(slot, record); journalMemory.set(player, journal); }
+      // Save live evidence before acknowledging any of the report's journal events.
+      else if ((!prior || added.changed || journalChanged) && !await keepItemRecord(player, scope, record)) { itemAcks.set(player, ack); return; }
+      records.set(slot, { record, world: scope });
     }
-    const record = records.find(row => row.world === world).record;
+    const record = records.get('delivery').record;
     itemAcks.set(player, { snapshot: value.snapshot, journal: record.journal });
     // A container the plugin couldn't read keeps its last coin count.
     const coins = coinParts(player, world, record.bank?.coins ?? null);
     if (value.pouch) coins.pouch = coinCount(value.pouch, true);
     if (value.backpack) coins.backpack = coinCount(value.backpack);
-    await matchItems(player, report, record, world, [...unmapped.values()], records.filter(row => row.world !== world));
+    // Journal records reach the review through journalRecords; only a live record joins here.
+    await matchItems(player, report, record, world, [...unmapped.values()], records.has('live') ? [records.get('live')] : []);
     await updateCoins(player, world);
   }
   // Bank parts arrive in order, part 1 first; a new part 1 replaces an unfinished set. Status
@@ -629,7 +636,7 @@ export async function openGamePlugin({ dataDir, store, world, registry, questMap
         await handledFlush;
         await flushHandled(true);
         await Promise.all([keys.close(), handled.close(), itemStore.close()]);
-        itemMemory.clear(); itemAcks.clear(); itemHandled.clear(); bankAssemblies.clear(); bankAcks.clear(); itemCoins.clear();
+        itemMemory.clear(); journalMemory.clear(); itemAcks.clear(); itemHandled.clear(); bankAssemblies.clear(); bankAcks.clear(); itemCoins.clear();
         progressSource.clear(); itemTasks = undefined;
         sequences.clear(); buckets.clear(); statuses.clear(); pendingHandled.clear();
         rollSummaries = new WeakMap(); positions.clear(); pending.clear(); diagnostics.clear(); retainedTasks.clear(); taskRows.clear(); activeLocations.clear(); assemblies.clear(); completedSnapshots.clear(); achievementSummaries.clear();

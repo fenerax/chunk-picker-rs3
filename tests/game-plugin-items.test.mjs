@@ -403,6 +403,36 @@ for (const delivery of [false, true, null]) test(`legacy journal triples follow 
   assert.ok(f.review().items.some(row => row.taskId === WEAR_TASK && row.world === world));
 });
 
+// Codex review r1, finding 1: an acknowledged qualified beta event the sender has dropped
+// keeps its review rows on later item and bank reports until they are handled.
+test('acknowledged qualified journal rows stay in review on later reports', async t => {
+  const f = await fixture(t, { durable: true });
+  await f.send(items());
+  const status = await f.send(items({ events: [[1, CHAINBODY, 'Synthetic beta item', 'beta']] }));
+  assert.equal(status.items.journal.event, 1);
+  const beta = () => (f.review()?.items ?? []).filter(row => row.world === 'beta').map(row => row.taskId).sort();
+  const expected = [goal('000597'), WEAR_TASK].sort();
+  assert.deepEqual(beta(), expected);
+  await f.send(items());
+  assert.deepEqual(beta(), expected, 'Dropping the acknowledged event keeps its rows');
+  await f.sendBank(bank(1, 1, [[YEW_SHORTBOW, 1]]));
+  assert.deepEqual(beta(), expected, 'A bank report keeps them too');
+  assert.equal(f.state.members[0].completedTasks.includes(goal('000597')), false);
+  const record = JSON.parse(await readFile(path.join(f.dataDir, 'plugin-items.json'), 'utf8')).players.a;
+  assert.equal(record.items[CHAINBODY], undefined, 'Beta evidence never reaches disk');
+});
+
+// Codex review r1, finding 2: legacy-only reports keep main's single memory slot, so an
+// unknown-world report replaces beta memory and the next unreadable beta look waits.
+test('legacy beta memory is replaced by an unknown-world report, as before', async t => {
+  const f = await fixture(t);
+  assert.equal((await f.send(items({ events: [[1, CHAINBODY, 'Synthetic worn item']] }), true)).items.journal.event, 1);
+  assert.equal((await f.send(items(), null)).items.journal.event, 0);
+  const third = await f.send(items({ worn: null, events: [[2, YEW_SHORTBOW, 'Synthetic bow']] }), true);
+  assert.equal(third.items.journal.event, 0, 'First readable look still needed; nothing new acknowledged');
+  assert.equal((f.review()?.items ?? []).some(row => row.taskId === goal('000597')), false, 'Old beta proposals do not resurface');
+});
+
 test('journal observation environments are validated independently of the report world', () => {
   const base = { v: 1, seq: 1, sentAt: '2026-10-22T12:00:00.000Z', position: { x: 1, z: 1, floor: 0 } };
   for (const origin of ['live', 'beta', 'unknown']) assert.doesNotThrow(() => validatePluginReport({ ...base,
