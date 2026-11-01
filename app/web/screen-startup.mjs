@@ -108,7 +108,7 @@ export function createScreenStartup(c) {
     c.adopt(loaded.state, loaded.pools, undefined, false); c.map.centerOnUnlocked(); c.saved('Saved', false, c.state.revision); void c.loadTasks();
     c.duoCoordination = createDuoCoordination({ canWrite: c.canWrite, api: c.api, viewer: session ?? {}, getState: () => ({ revision: c.state.revision, members: c.state.members, sandboxActive: c.sandbox.active }),
       lookups: () => { const names = c.historyLookups(); return { ...names, chunkName: id => c.advanced() ? `${names.chunkName(id)} (${id})` : names.chunkName(id) }; }, el: c.el, button: c.button, openDialog: c.openDialog, closeDialog: c.closeDialog, command: c.command, openHistory: c.historyDialog,
-      undoButton: c.$('undo'), ownHost: c.$('undo-own'), catchUpHost: c.$('duo-catchup'), liveHost: c.$('duo-live'),
+      undoButton: c.$('undo'), undoFocusFallback: () => c.phoneLayout?.isPhone ? c.$('phone-tab-map') : c.$('info-tools')?.querySelector('summary'), ownHost: c.$('undo-own'), catchUpHost: c.$('duo-catchup'), liveHost: c.$('duo-live'),
       storage: (() => { try { return gameStorage(); } catch { return null; } })() });
     void c.duoCoordination.refresh();
     void c.gamePlugin.refresh();
