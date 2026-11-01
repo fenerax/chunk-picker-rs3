@@ -98,3 +98,36 @@ test('alternative requirements do not erase genuine skill levels or their presen
   assert.deepEqual(selected.tasks.map(task => task.id), ['high']);
   assert.match(selected.suppressed.low[0], /higher skill goal/);
 });
+
+test('mixed skill clauses have explicit grouping with unchanged truth and partial How gaps', () => {
+  for (const [clauses, wording] of [
+    [[{ Skills: { Mining: 2, Fishing: 2 } }, { Skills: { Cooking: 2 } }], '(Mining 2 and Fishing 2) or Cooking 2'],
+    [[{ Skills: { Mining: 2 } }, { Skills: { Fishing: 2, Cooking: 2 } }], 'Mining 2 or (Fishing 2 and Cooking 2)'],
+    [[{ Skills: { Mining: 2, Fishing: 2 } }, { Skills: { Fishing: 2, Cooking: 2 } }], '(Mining 2 and Fishing 2) or (Fishing 2 and Cooking 2)'],
+  ]) {
+    const engine = createTaskEngine(definitions(clauses), { reviewedOverlays: false });
+    const saved = state();
+    const blocker = row(engine, saved).blockers.find(blocker => blocker.kind === 'requirements');
+    assert.equal(blocker.detail, `Requires one of: ${wording}.`);
+    // Independent reading of the displayed parenthesized OR-of-AND sentence.
+    for (const Mining of [1, 2, 3]) for (const Fishing of [1, 2, 3]) for (const Cooking of [1, 2, 3]) {
+      const levels = { Mining, Fishing, Cooking };
+      const expected = wording.split(' or ').some(clause => clause.replace(/[()]/g, '').split(' and ').every(atom => {
+        const [skill, required] = atom.split(' '); return levels[skill] >= Number(required);
+      }));
+      saved.members[0].passiveLevels = levels;
+      assert.equal(row(engine, saved).status === 'available', expected);
+    }
+    const proof = engine.how(saved, 'a', row(engine, saved).id);
+    assert.equal(proof.proofStatus, 'partial');
+    assert.ok(proof.gaps.some(gap => gap.kind === 'special-requirements'));
+  }
+});
+test('alternative descriptions remain authored and single-clause conjunctions remain explicit', () => {
+  const fixture = definitions([{ Skills: { Mining: 2, Fishing: 2 } }]);
+  assert.equal(row(createTaskEngine(fixture), state()).blockers.find(blocker => blocker.kind === 'requirements').detail,
+    'Requires one of: Mining 2 and Fishing 2.');
+  fixture.challenges.Extra.Gate.RequirementAlternativesDescription = 'the authored entry condition.';
+  assert.equal(row(createTaskEngine(fixture), state()).blockers.find(blocker => blocker.kind === 'requirements').detail,
+    'Requires the authored entry condition.');
+});

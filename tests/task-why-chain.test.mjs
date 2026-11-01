@@ -265,3 +265,100 @@ test('sandbox assignment evidence builds lazily without a saved-map request', as
   node.open = true; await node.events.toggle();
   assert.match(walk(node).map(value => value.textContent).join(' '), /Need Agility 13/);
 });
+
+// Public synthetic task identities; annotations never add another subject.
+function alternativeFixture(names = ['A', 'A--variant', 'B'], required = 2) {
+  const definitions = { chunks: { '100': {}, '101': {}, '102': {} }, challenges: { Quest: {
+    A: { Chunks: ['100'] }, B: { Chunks: ['101'] }, C: { Chunks: ['102'] },
+    Goal: { Tasks: { [`Choices[+]x${required}`]: 'Quest' } },
+  } }, codeItems: { tasksPlus: { 'Choices[+]': names } } };
+  const state = { revision: 7, rules: { 'content.f2p': false }, members: [{ id: 'player', unlocked: ['100'], completedTasks: [] }] };
+  return { definitions, state };
+}
+function alternativeRun(definitions, state) {
+  const result = createTaskEngine(definitions, { reviewedOverlays: false }).evaluate(state, 'player');
+  const row = result.tasks.find(row => row.rawLabel === 'Goal');
+  return { result, row, chain: buildWhyChain(result, definitions, { taskId: row.id }) };
+}
+// Read the residual Boolean structure: satisfied tasks have no blockers;
+// unreachable synthetic locations remain false. No evaluator supplies expected truth.
+function residualTruth(node) {
+  if (node.kind === 'location' && node.detail?.startsWith('No reachable access')) return false;
+  const values = (node.children ?? []).map(residualTruth);
+  return node.mode === 'any' ? values.filter(Boolean).length >= node.required : values.every(Boolean);
+}
+test('annotated aliases show distinct canonical alternatives in the attainable 2-of-2 case', () => {
+  const { definitions, state } = alternativeFixture();
+  const { row, chain } = alternativeRun(definitions, state);
+  assert.equal(row.status, 'blocked');
+  const choices = walk(chain.root).find(node => node.required === 2);
+  assert.deepEqual(choices.children.map(node => node.children[0].taskId), ['rs3:Quest:A', 'rs3:Quest:B']);
+  assert.equal(residualTruth(chain.root), false);
+  assert.equal(chain.truncated, false);
+  state.members[0].unlocked.push('101');
+  assert.equal(alternativeRun(definitions, state).row.status, 'available');
+});
+test('one canonical subject cannot satisfy two required alternatives and the renderer keeps the threshold', () => {
+  const { definitions, state } = alternativeFixture(['A', 'A--first', 'A--second']);
+  const { row, chain } = alternativeRun(definitions, state);
+  assert.equal(row.status, 'blocked');
+  const choices = walk(chain.root).find(node => node.required === 2);
+  assert.equal(choices.children.length, 1);
+  assert.equal(residualTruth(chain.root), false);
+  const rendered = walk(renderWhyChain(context(), chain)).map(node => node.textContent).join(' ');
+  assert.match(rendered, /Need 2 of these tasks/);
+  assert.match(rendered, /Need 2 of these alternatives:/);
+});
+test('genuinely distinct 2-of-3 alternatives preserve every branch and the full truth table', () => {
+  const { definitions, state } = alternativeFixture(['A', 'A--variant', 'B', 'C']);
+  for (let mask = 0; mask < 8; mask++) {
+    state.members[0].unlocked = ['100', '101', '102'].filter((_, i) => mask & 1 << i);
+    const expected = state.members[0].unlocked.length >= 2;
+    const { row, chain } = alternativeRun(definitions, state);
+    assert.equal(row.status === 'available', expected);
+    assert.equal(residualTruth(chain.root), expected);
+    if (!expected) assert.equal(walk(chain.root).find(node => node.required === 2).children.length, 3);
+  }
+});
+test('nested shared subtrees retain AND/OR boundaries while sibling annotations deduplicate', () => {
+  const { definitions, state } = alternativeFixture(['Left', 'Left--variant', 'Right']);
+  Object.assign(definitions.challenges.Quest, {
+    Left: { Tasks: { 'Left choices[+]': 'Quest' } },
+    Right: { Tasks: { A: 'Quest', C: 'Quest' } },
+  });
+  definitions.codeItems.tasksPlus['Left choices[+]'] = ['A', 'B'];
+  for (let mask = 0; mask < 8; mask++) {
+    state.members[0].unlocked = ['100', '101', '102'].filter((_, i) => mask & 1 << i);
+    const [a, b, c] = [0, 1, 2].map(i => !!(mask & 1 << i));
+    const expected = (a || b) && a && c;
+    const { row, chain } = alternativeRun(definitions, state);
+    assert.equal(row.status === 'available', expected);
+    assert.equal(residualTruth(chain.root), expected);
+    if (!expected) assert.equal(walk(chain.root).find(node => node.required === 2).children.length, 2);
+  }
+  state.members[0].unlocked = [];
+  const { chain } = alternativeRun(definitions, state);
+  assert.equal(walk(chain.root).filter(node => node.taskId === 'rs3:Quest:A').length, 2, 'Shared subjects remain visible in separate logical branches');
+  const text = walk(renderWhyChain(context(), chain)).map(node => node.textContent).join(' ');
+  assert.match(text, /All needed:/); assert.match(text, /Either route \/ source:/);
+});
+test('saved serialization and lazy disclosure preserve corrected canonical alternatives', async () => {
+  const { definitions, state } = alternativeFixture();
+  const { result, row } = alternativeRun(definitions, state);
+  const chain = await savedWhyChain(new URLSearchParams({ memberId: 'player', revision: '7', taskId: row.id }), {
+    revision: 7, members: new Set(['player']), entry: { revision: 7, fullGzip: gzipSync(JSON.stringify(result)) }, definitions, currentRevision: () => 7,
+  });
+  assert.equal(walk(chain.root).filter(node => node.taskId === 'rs3:Quest:A').length, 1);
+  for (const preview of [false, true]) {
+    let requests = 0;
+    const c = context(async () => { requests++; return JSON.parse(JSON.stringify(chain)); });
+    const disclosure = createWhyChainDisclosure(c, { taskId: row.id }, { memberId: 'player', revision: 7, ...(preview ? { result, definitions } : {}) });
+    assert.equal(requests, 0);
+    disclosure.open = true; await disclosure.events.toggle();
+    assert.equal(requests, preview ? 0 : 1);
+    const text = walk(disclosure).map(node => node.textContent).join(' ');
+    assert.match(text, /Need 2 of these alternatives:/);
+    assert.equal(walk(disclosure).filter(node => node.tag === 'summary' && node.textContent === 'A').length, 0);
+    assert.equal(walk(disclosure).filter(node => node.tag === 'p' && node.textContent === 'A').length, 1);
+  }
+});
