@@ -15,7 +15,7 @@ export function createDuoTaskView({ document, getState, getSelectedMember, comma
   getClaimMember = getSelectedMember, appendWhy = () => {}, getViewerId = () => 'viewer', getStorage = () => gameStorage(), actingForMember = () => false, appendIcon = () => {}, appendPin = () => {}, appendEdit = () => {}, showError, readOnly = () => false, canEdit = () => true, canComplete = canEdit, canInspect = canEdit, onFilter = () => {} }) {
   const el = (tag, text, cls) => { const node = document.createElement(tag); if (text !== undefined) node.textContent = text; if (cls) node.className = cls; return node; };
   const button = (text, action, cls) => { const node = el('button', text, cls); node.type = 'button'; node.addEventListener('click', () => Promise.resolve().then(action).catch(showError)); return node; };
-  let ownerFilter = 'all', enabled = false;
+  let ownerFilter = 'all', enabled = false, chipSignature;
   let storage;
   try { storage = getStorage(); } catch { /* Storage may be denied by the browser. */ }
   let viewerId = getViewerId(), personalFilter = readDuoPersonalFilter(storage, viewerId);
@@ -32,10 +32,18 @@ export function createDuoTaskView({ document, getState, getSelectedMember, comma
     if (viewerId !== getViewerId()) { viewerId = getViewerId(); personalFilter = readDuoPersonalFilter(storage, viewerId); }
     const owners = getState().members;
     if (!['all', 'both', ...owners.map(owner => owner.id)].includes(ownerFilter)) ownerFilter = 'all';
-    chips.replaceChildren(...[{ id: 'all', name: 'All' }, ...owners, { id: 'both', name: 'Both' }].map(owner => {
-      const chip = button(owner.name, () => { ownerFilter = owner.id; refresh(); onFilter(); }, 'duo-task-chip');
-      chip.setAttribute('aria-pressed', String(owner.id === ownerFilter)); return chip;
-    }));
+    const choices = [{ id: 'all', name: 'All' }, ...owners, { id: 'both', name: 'Both' }];
+    const signature = JSON.stringify(choices.map(owner => owner.id));
+    // Routine task redraws and filter activation must retain the focused chip.
+    if (signature !== chipSignature) {
+      chips.replaceChildren(...choices.map(owner => button(owner.name, () => { ownerFilter = owner.id; refresh(); onFilter(); }, 'duo-task-chip')));
+      chipSignature = signature;
+    }
+    choices.forEach((owner, index) => {
+      const chip = chips.children[index];
+      chip.textContent = owner.name;
+      chip.setAttribute('aria-pressed', String(owner.id === ownerFilter));
+    });
     const name = owners.find(owner => owner.id === getSelectedMember())?.name ?? 'selected player';
     secondary.replaceChildren(...[['group', 'Normal group tasks'], ['not-done', `Not done by ${name}`], ['only-player', `Only ${name} can do`]].map(([value, text]) => { const option = el('option', text); option.value = value; return option; }));
     secondary.value = personalFilter;

@@ -57,10 +57,27 @@ export function readSeenRevision(storage, key) {
 }
 export function writeSeenRevision(storage, key, revision) { try { storage?.setItem(key, String(revision)); } catch {} }
 
-export function createDuoCoordination({ canWrite = () => true, api, viewer, getState, lookups, el, button, openDialog, closeDialog, command, openHistory, undoButton, ownHost, catchUpHost, liveHost, storage,
+export function createDuoCoordination({ canWrite = () => true, api, viewer, getState, lookups, el, button, openDialog, closeDialog, command, openHistory, undoButton, undoFocusFallback = () => undefined, ownHost, catchUpHost, liveHost, storage,
   setTimer = setTimeout, clearTimer = clearTimeout, now = Date.now }) {
   const key = seenRevisionKey(viewer, getState().members), lastVisit = readSeenRevision(storage, key), openedRevision = getState().revision;
   let snapshot, processedRevision, loading, requested = false, initialized = false, liveEvents = [], liveTime = 0, liveTimer, metadataFailed = false;
+  const document = undoButton.ownerDocument, view = document?.defaultView;
+  let undoFocusPending = false;
+  const cancelUndoFocus = () => { undoFocusPending = false; };
+  const focusEvents = ['keydown', 'pointerdown', 'mousedown', 'touchstart', 'focusin'];
+  for (const type of focusEvents) document?.addEventListener(type, cancelUndoFocus, true);
+  view?.addEventListener('blur', cancelUndoFocus);
+  const visible = node => node?.isConnected && !node.hidden && node.checkVisibility?.() !== false;
+  function restoreUndoFocus() {
+    if (!undoFocusPending) return;
+    const active = document.activeElement;
+    if (active && active !== undoButton && active !== document.body && active !== document.documentElement && active.isConnected !== false) { cancelUndoFocus(); return; }
+    if (!canWrite() || getState().sandboxActive || !visible(undoButton)) { cancelUndoFocus(); return; }
+    if (!current() && !metadataFailed) return;
+    const target = undoButton.disabled ? undoFocusFallback() : undoButton;
+    cancelUndoFocus();
+    if (visible(target) && !target.disabled) target.focus({ preventScroll: true });
+  }
   const current = () => snapshot?.stateRevision === getState().revision;
   const describe = event => describeHistoryEvent(event, lookups());
   const undoLabel = event => event ? `Undo: ${describe(event)}${event.actor?.label ? ` · by ${event.actor.label}` : ''}` : 'Undo';
@@ -73,9 +90,12 @@ export function createDuoCoordination({ canWrite = () => true, api, viewer, getS
     const retry = metadataFailed && !current();
     undoButton.textContent = retry ? 'Retry Undo' : 'Undo';
     undoButton.hidden = !canWrite();
+    // Capture before native disabling blurs the button. Revision protection stays intact.
+    if (!current() && !metadataFailed && !undoButton.disabled && document?.activeElement === undoButton) undoFocusPending = true;
     undoButton.disabled = !canWrite() || getState().sandboxActive || (!current() ? !metadataFailed : !latest?.canUndo);
     // A short word in the toolbar; what it would undo is in the tooltip and the confirmation.
     undoButton.title = latest?.reason ? undoReason(latest.reason) : retry ? 'Retry Undo' : undoLabel(latest?.event);
+    restoreUndoFocus();
     ownHost?.replaceChildren();
     const own = snapshot?.ownUndo, revision = snapshot?.stateRevision;
     if (canWrite() && current() && own?.canUndo && !getState().sandboxActive) ownHost?.append(button('Undo my last change', () => undo(own, revision), 'undo-own-action'));
@@ -153,7 +173,7 @@ export function createDuoCoordination({ canWrite = () => true, api, viewer, getS
     return loading;
   }
   function changed() { render(); if (!current()) void refresh(); }
-  return { refresh, changed, render, undo, undoControl, ownControls, undoLabel, dispose() { clearTimer(liveTimer); } };
+  return { refresh, changed, render, undo, undoControl, ownControls, undoLabel, dispose() { clearTimer(liveTimer); cancelUndoFocus(); for (const type of focusEvents) document?.removeEventListener(type, cancelUndoFocus, true); view?.removeEventListener('blur', cancelUndoFocus); } };
 }
 
 function undoReason(reason = '') {
