@@ -42,6 +42,7 @@ import { personalQuestProgressBlocker } from './personal-quest-progress.mjs';
 import { taskRuleEnabled } from './rule-defaults.mjs';
 import { slayerUnlockGate, slayerUnlockTaskName } from '../data/slayer-unlock-gates.mjs';
 import { evaluateSlayerUnlockGate } from './slayer-unlock-gates.mjs';
+import { canTrainAllPortSkills } from '../data/port-skills.mjs';
 import { withActivityTimingTags } from '../data/activity-timing.mjs';
 import { withPortsScrollRule } from '../data/ports-scroll-rules.mjs';
 import { compileDialogueSupply, dialogueSupplyBlocker, dialogueSupplyNote, dialoguePaymentText, compileFiniteRewards, finiteRewardPreview,
@@ -967,6 +968,9 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
       }
       if (record.UnlocksArea && access.blockedAreas?.has(task.rawLabel)) add('access', explain ? `${task.rawLabel} is manually blocked by the current member.` : undefined);
       if (blocked) return explain ? blockers : unavailableCheck;
+      if (task.tags.includes('PortSkills') && !canTrainAllPortSkills(levels, caps)) {
+        add('training', explain ? 'These goals start when all twelve port skills can reach level 90.' : undefined);
+      }
       const slayerGate = slayerGates.get(task);
       if (slayerGate && !slayerGateStatus(task, slayerGate).open) {
         add('slayer-unlock', explain ? `Requires: ${slayerGate.condition}` : undefined);
