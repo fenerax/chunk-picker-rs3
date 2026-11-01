@@ -23,6 +23,14 @@ Doable continues to describe the existing task calculation, which can include
 levels the chunks support training to. Obtainable supplies retain the existing
 source semantics rather than claiming items are in the inventory.
 
+Personal whole-quest completion also supplies readiness evidence for an external
+stage of that same quest when every finite declared completion route requires
+it. Counted alternatives, subquest boundaries and optional/postquest stages
+retain their distinctions; incomplete or unsatisfiable declarations prove
+nothing. This evidence neither marks stages done nor grants their outputs or
+rewards, and does not change planning eligibility. It uses the same current-account
+provenance checks as exact personal completion.
+
 Activity Done includes personal or duo challenge completion, as the existing
 activity progress rows do. Slayer assignments have no saved assignment-completion
 record; Done can therefore show a checked assignment method, but does not infer

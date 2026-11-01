@@ -12,6 +12,7 @@ import { futureSlayerUnlocksRule } from '../app/data/slayer-unlock-gates.mjs';
 import { createTaskFactsIndex, goalProgress } from '../app/core/progress.mjs';
 import { resolveTaskAlternatives } from '../app/core/task-alternatives.mjs';
 import { originalSettings, settingDefinitions, taskHowPreference } from '../app/data/settings.mjs';
+import { buildActivityInfo } from '../app/tasks/activity.mjs';
 import { createInfoPanels, createNoteEditor, reviewedNoteRevision } from '../app/web/info-panels.mjs';
 import { createChunkQuestList } from '../app/web/chunk-quest-filters.mjs';
 import { createMapTools, applyTheme } from '../app/web/map-tools.mjs';
@@ -4042,4 +4043,24 @@ test('F4 backup preview feedback belongs to the selected file', async () => {
   assert.ok(h.find('button', 'Apply reviewed replacement'));
   assert.ok(!h.all().some(node => /gzip.*corrupt|corrupt.*gzip/i.test(node.textContent)));
   assert.ok(h.find('span', 'Independent feedback'));
+});
+
+
+test('wired quest search renders mandatory-stage readiness from personal whole completion', async () => {
+  for (const completed of [false, true]) {
+    const h = harness(), state = h.snapshot();
+    const row = (id, title, step, record = {}) => ({ id, category: 'Quest', baseQuest: title,
+      rawLabel: `~|${title}|~ ${step}`, label: `${title} ${step}`, record, status: 'available', blockers: [] });
+    const stage = row('stage', 'Earlier', '5');
+    const whole = row('whole', 'Earlier', 'Complete the quest', { QuestPoints: 1, Tasks: { [stage.rawLabel]: 'Quest' } });
+    whole.personalCompleted = completed;
+    const finish = row('finish', 'Later', 'Complete the miniquest', { QuestPoints: 0, Tasks: { [stage.rawLabel]: 'Quest' } });
+    const full = { ...taskResult(7), tasks: [stage, whole, finish] };
+    full.activityInfo = buildActivityInfo(full, state, 'actor1');
+    await openQuestSearch(h, full);
+    await questSearchChip(h, 'Can do now').emit('click'); await flush();
+    assert.equal(searchLabels(h).includes(finish.label), completed);
+    assert.ok(h.calls.every(call => !call.body));
+    assert.deepEqual(h.snapshot(), state);
+  }
 });
