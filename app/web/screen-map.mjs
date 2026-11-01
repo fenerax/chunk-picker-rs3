@@ -2,11 +2,13 @@ import { gameStorage } from './screen-save-status.mjs';
 import { projectChunkState } from './command-state.mjs';
 import { chunkColourLegend } from './chunk-colour-picker.mjs';
 import { createTravelLinesKey } from './map-info.mjs';
+import { createMapAvailability } from './map-availability.mjs';
 import { createMapTaskCounts } from './map-task-counts.mjs';
 import { createMapActivityLayers } from './map-activity-layers.mjs';
 
 // Main-screen map; shared values and callbacks live in the explicit screen context.
 export function createScreenMap(c) {
+  c.mapAvailability = createMapAvailability(c);
   c.mapTaskCounts = createMapTaskCounts(c);
   c.activityLayers = createMapActivityLayers(c);
   function mapControls() {
@@ -75,8 +77,10 @@ export function createScreenMap(c) {
     c.map.setModel({ world: c.world, state: projected, memberId: c.memberId, groupView: c.$('group-view').checked, pool: c.pool, preferences: c.preferences(), sandbox: c.sandbox.markers() });
     c.questMap?.refresh();
     void c.activityLayers.refresh();
+    c.mapAvailability.refresh();
     const count = (value, label) => { const node = c.el('span', undefined, 'map-count'); node.append(c.el('strong', value.toLocaleString()), ` ${label}`); return node; };
-    c.$('map-counts').replaceChildren(count(owner.unlocked.length, `${owner.name} unlocked`), count(new Set(projected.members.flatMap(item => item.unlocked)).size, 'group'), count(c.pool.eligible.length, 'can be rolled'));
+    c.$('map-counts').replaceChildren(count(owner.unlocked.length, `chunks unlocked by ${owner.name}`), count(new Set(projected.members.flatMap(item => item.unlocked)).size, 'unique chunks unlocked by group'), count(c.pool.eligible.length, `chunks in ${owner.name}’s ordinary roll pool`),
+      ...(c.preferences().randomStartAlways ? [count(c.rollCandidateCount(), `roll-anywhere candidate chunks for ${owner.name}`)] : []));
     c.copyLists?.map(owner, c.pool);
     c.$('empty-map').hidden = owner.unlocked.length > 0;
     c.renderLegend();
@@ -111,7 +115,7 @@ export function createScreenMap(c) {
       ...(c.preferences().showDeathChunks !== false && c.map.deathMarkers?.size ? [item('Estimated death chunk', 'death')] : []),
       ...(c.map.pins?.enabled?.size ? [item('Map icons', 'pin')] : []),
       ...(c.map.overlay === 'membership' ? [item('Members-only land', 'members'), item('Free-to-play boundary', 'members-edge'), item('Not walkable', 'border', '#96a5b4')] : []),
-      c.activityLayers.controls('legend'), c.mapControls(),
+      c.activityLayers.controls('legend'), c.mapAvailability.legend(), c.mapControls(),
       ...(c.map.travelLinesVisible !== false && typeof createTravelLinesKey === 'function' ? [(() => { const group = c.el('div', undefined, 'legend-travel'); group.append(c.el('span', 'Travel lines (selected chunk)', 'legend-travel-title'), createTravelLinesKey(document)); return group; })()] : []));
     if (focusedLayer) c.$(focusedLayer)?.focus?.();
   }

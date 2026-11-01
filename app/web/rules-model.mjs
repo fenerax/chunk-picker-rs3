@@ -1,6 +1,6 @@
 import { datasetJSON } from "../dataset-runtime.mjs";
 const capturedCatalogue = await datasetJSON("app/data/original-rules-ui.2026-10-08.v1.json");
-import { taskRuleDefinitions, taskRuleCutoffDefaults, independentTaskRuleControls } from '../data/settings.mjs';
+import { taskRuleDefinitions, taskRuleCutoffDefaults, independentTaskRuleControls, EARLY_TRAVEL_UNLOCKS_RULE, earlyTravelUnlocksExplanation } from '../data/settings.mjs';
 import { hasGameplayMigration } from '../tasks/gameplay-compat.mjs';
 import { isKeptTaskRule } from './kept-rules.mjs';
 import { taskRuleDefault } from '../tasks/rule-defaults.mjs';
@@ -47,7 +47,7 @@ export const rulesCatalogue = loadRulesCatalogue(capturedCatalogue);
 if (rulesCatalogue.explanationsFile && !/^app\/data\/[a-z0-9.-]+\.json$/.test(rulesCatalogue.explanationsFile)) throw new TypeError('Invalid rule explanations path.');
 export const ruleExplanations = Object.freeze({
   ...(rulesCatalogue.explanationsFile ? loadRuleExplanations(await datasetJSON(rulesCatalogue.explanationsFile)) : {}),
-  ...loadRuleExplanations({ schemaVersion: 1, entries: { [FUTURE_SLAYER_UNLOCKS_RULE]: futureSlayerUnlocksExplanation, [UNKNOWN_DROP_RULE]: unknownDropExplanation } }),
+  ...loadRuleExplanations({ schemaVersion: 1, entries: { [FUTURE_SLAYER_UNLOCKS_RULE]: futureSlayerUnlocksExplanation, [UNKNOWN_DROP_RULE]: unknownDropExplanation, [EARLY_TRAVEL_UNLOCKS_RULE]: earlyTravelUnlocksExplanation } }),
 });
 
 /** Original copy and order are presentation data; current types stay registry-owned. */
