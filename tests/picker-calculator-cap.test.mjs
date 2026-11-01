@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { EventEmitter, once } from 'node:events';
+import { Readable, Writable } from 'node:stream';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -25,7 +26,7 @@ function factory({ delayedTermination = false, failOnCreate } = {}) {
   let live = 0, peak = 0, attempts = 0;
   const create = () => {
     if (++attempts === failOnCreate) throw new Error('Synthetic calculator creation failure.');
-    const worker = new EventEmitter(); worker.messages = []; live++; peak = Math.max(peak, live);
+    const worker = new EventEmitter(); worker.messages = []; worker.terminated = false; live++; peak = Math.max(peak, live);
     worker.postMessage = message => {
       worker.messages.push(message);
       if (['cancel', 'supersede'].includes(message.type)) return;
@@ -56,7 +57,7 @@ async function fixture(t, options = {}, factoryOptions) {
   t.after(async () => { for (const worker of f.workers) worker.exit(); await scheduler.close(); });
   return { f, scheduler, scopes: ids.map(id => scheduler.forPicker(id)) };
 }
-async function contexts(t, scheduler) {
+async function contexts(t, scheduler, options = {}) {
   const root = await mkdtemp(path.join(tmpdir(), 'picker-cap-')), opened = [];
   const runtime = { dataset: selectedDataset, indexedWorld: buildWorld(definitions), ruleRegistry: createRuleRegistry(), taskWorker: scheduler,
     taskWorkerOptions: { workerFactory() {} }, parsedDefinitions: definitions, parsedTaskMap: {}, identityHistory: {}, sandboxCatalogue: [],
@@ -65,7 +66,7 @@ async function contexts(t, scheduler) {
     definitionCache: createRepresentation('{}'), taskCache: createRepresentation('{}'), staticCache: createResponseCache(), releaseReferences() {}, appVersion: 'synthetic' };
   t.after(async () => { await Promise.all(opened.map(context => context.close())); await rm(root, { recursive: true, force: true }); });
   for (const id of ids) opened.push(await createPickerContext({ pickerId: id, dataDir: path.join(root, id), runtime,
-    initialState: state(id), predictionPrewarm: false }));
+    initialState: state(id), predictionPrewarm: false, ...options }));
   return opened;
 }
 
@@ -382,4 +383,68 @@ test('absent cap retains immediate independent dispatch and START queue and resp
   assert.equal(f.jobs.length, 1, 'legacy next queued job dispatches synchronously on completion');
   finish(await f.next()); await second; finish(await f.next()); await third;
   assert.equal(scheduler.getDiagnostics().deathLane.counts.rejected, 1);
+});
+
+function cancellationClock() {
+  const timers=new Set();
+  return {timers,setTimeout(callback,ms){const timer={callback(){timers.delete(timer);callback();},ms};timers.add(timer);return timer;},clearTimeout(timer){timers.delete(timer);}};
+}
+test('cooperative cancellation retains the pooled host and dispatches a quiet picker after the cancelled reply', async t => {
+  const clock=cancellationClock(),{f,scheduler,scopes:[a,b]}=await fixture(t,{deadlineClock:clock});
+  const controller=new AbortController();
+  const cancelled=a.evaluate(state(), 'one','sandbox',{},'abandoned','input',controller.signal),rejected=assert.rejects(cancelled,{name:'AbortError'});
+  const old=await f.next();controller.abort();await rejected;const quiet=evaluate(b,'quiet','sandbox');await tick();
+  const retained=!old.worker.terminated;
+  finish(old,'discarded');const next=await f.next();finish(next,'quiet');
+  assert.equal((await quiet).result.marker,'quiet');assert.equal(retained,true);
+  assert.equal(next.worker,old.worker);assert.equal([...clock.timers].filter(x=>x.ms===25).length,0);
+  assert.ok(scheduler.getDiagnostics().calculators.peak<=2);
+});
+test('an uncooperative cancelled job retires after the finite grace and replacement waits for real exit', async t => {
+  const clock=cancellationClock(),{f,scopes:[a,b]}=await fixture(t,{deadlineClock:clock},{delayedTermination:true});
+  const controller=new AbortController();
+  const cancelled=a.evaluate(state(),'one','sandbox',{},'abandoned','input',controller.signal),rejected=assert.rejects(cancelled,{name:'AbortError'});
+  const old=await f.next(),quiet=evaluate(b,'quiet','sandbox');await tick();
+  controller.abort();await rejected;await tick();
+  const grace=[...clock.timers].find(x=>x.ms===25);assert.ok(grace);assert.equal(old.worker.terminated,false);
+  grace.callback();await tick();assert.equal(old.worker.terminated,true);assert.equal(f.live,2);assert.equal(f.workers.length,2);
+  old.worker.exit();const next=await f.next();assert.notEqual(next.worker,old.worker);
+  finish(old,'late');finish(next,'quiet');assert.equal((await quiet).result.marker,'quiet');assert.ok(f.peak<=2);
+});
+test('shutdown clears cancellation grace and a late grace callback cannot resurrect a host', async t => {
+  const clock=cancellationClock(),{f,scheduler,scopes:[a,b]}=await fixture(t,{deadlineClock:clock});
+  const controller=new AbortController();
+  const cancelled=a.evaluate(state(),'one','sandbox',{},'abandoned','input',controller.signal),rejected=assert.rejects(cancelled,{name:'AbortError'});
+  await f.next();controller.abort();await rejected;
+  const quiet=evaluate(b,'quiet','sandbox'),quietRejected=assert.rejects(quiet,{status:503});await tick();
+  const grace=[...clock.timers].find(x=>x.ms===25);assert.ok(grace);await scheduler.close();await quietRejected;
+  const count=f.workers.length;grace.callback();await tick();assert.equal(f.workers.length,count);assert.equal(f.live,0);
+  assert.equal([...clock.timers].filter(x=>x.ms===25).length,0);
+});
+
+
+test('deferred owned context eviction releases response bodies, pending jobs and cancellation grace', async t => {
+  const clock=cancellationClock(),{f,scheduler,scopes:[a,b]}=await fixture(t,{deadlineClock:clock});
+  const opened=await contexts(t,scheduler,{prepareStateResponse:false}),context=opened[0];
+  await context.prepare();assert.equal(context.getRetentionCounts().responses,0);
+  const request=Readable.from([]);Object.assign(request,{method:'GET',url:'/api/state?view=play-v1',complete:true,
+    socket:{remoteAddress:'127.0.0.1'},headers:{host:'localhost',authorization:'Bearer '+context.store.getAccessToken(),'accept-encoding':'identity'}});
+  const chunks=[],response=new Writable({write(bytes,_encoding,done){chunks.push(Buffer.from(bytes));done();}});
+  response.setHeader=()=>{};response.writeHead=status=>{response.statusCode=status;response.headersSent=true;};
+  await context.handle(request,response);assert.equal(response.statusCode,200);
+  assert.equal(JSON.parse(Buffer.concat(chunks)).format,'play-v1');
+  assert.equal(context.getRetentionCounts().responses,1);assert.ok(context.getRetentionCounts().responseBytes>0);
+  const abandoned=a.evaluate(state(),'one','sandbox',{},'evicted','input'),rejected=assert.rejects(abandoned,{status:503});
+  const old=await f.next(),quiet=evaluate(b,'quiet-after-evict','sandbox');
+  await context.close();await rejected;await tick();
+  assert.equal([...clock.timers].filter(x=>x.ms===25).length,1);
+  finish(old,'late-cancelled');const next=await f.next();finish(next,'quiet');assert.equal((await quiet).result.marker,'quiet');
+  await Promise.all(opened.map(value=>value.close()));await tick();
+  for(const value of opened)assert.deepEqual(value.getRetentionCounts(),{requests:0,jobs:0,bodies:0,clients:0,responses:0,responseBytes:0,savedResults:0,readiness:0,store:0});
+  for(const lane of [scheduler.getDiagnostics(),scheduler.getDiagnostics().predictionLane]){
+    assert.equal(lane.queue.depth,0);assert.equal(lane.queue.active,0);assert.equal(lane.cache.entries,0);assert.equal(lane.cache.bytes,0);
+    assert.deepEqual(lane.retainedWork,{pending:0,cancellationGrace:0,stateInputs:0});
+  }
+  assert.equal([...clock.timers].filter(x=>x.ms===25).length,0);
+  await assert.rejects(evaluate(a,'closed-retry'),{status:503});
 });
