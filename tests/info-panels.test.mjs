@@ -1,5 +1,6 @@
 import { createRequestReader, requestError } from '../app/web/live-swap-client.mjs';
 import test from 'node:test';
+import { masterGateFixture } from './fixtures/slayer-master-gates.mjs';
 import assert from 'node:assert/strict';
 import { createInfoPanels } from '../app/web/info-panels.mjs';
 import { buildActivityInfo } from '../app/tasks/activity.mjs';
@@ -610,5 +611,25 @@ test('Slayer chances show before expansion, with exact weights in advanced detai
     assert.ok(h.find('p', 'Possible after The Blood Pact.'));
     const exact = h.find('p', "Planning: 15 / 60 assignment weight can't be done (25.00%); 0 / 60 can't be checked.");
     assert.equal(!!exact, advanced);
+  }
+});
+
+
+test('rendered Slayer panel agrees with current master gate and denominator on engine results', async () => {
+  for (const combat of [29, 30, 31]) for (const advanced of [false, true]) {
+    const f = masterGateFixture({ combat }), h = harness({ advanced });
+    Object.assign(h.result, f.result, { activityInfo: f.view(), stateRevision: 7, memberId: 'a' });
+    await h.panels.activityInfo('Slayer');
+    h.openDetails('Higher ·');
+    const text = h.nodes().map(node => node.textContent).join(' ');
+    assert.match(text, /Higher · 1 of 1 assignments possible/);
+    const exact = "Right now: 0 / 10 assignment weight can't be done (0.00%); 0 / 10 can't be checked.";
+    // The lower master remains usable in the same rendered panel.
+    assert.equal(h.nodes().filter(node => node.textContent === exact).length, advanced && combat >= 30 ? 1 : 0);
+    if (combat < 30) {
+      assert.match(text, /Right now: this master is unavailable.*Combat 30/);
+      assert.equal(h.result.activityInfo.slayer.masters[1].warnings.current.poolWeight, undefined);
+    } else assert.doesNotMatch(text, /this master is unavailable/);
+    assert.deepEqual(h.ui.attempts, []);
   }
 });
