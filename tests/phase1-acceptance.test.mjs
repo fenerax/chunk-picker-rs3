@@ -634,6 +634,8 @@ test('MP15 provider cancellation preserves the claim flow for a retry', async t 
   const started = await f.send('/auth/discord', pending), url = new URL(started.headers.location);
   const cancelled = await f.send('/auth/discord/callback?state=' + url.searchParams.get('state') + '&error=access_denied', started.headers['set-cookie'][0].split(';')[0]);
   assert.equal(cancelled.status, 400); assert.match(cancelled.text, /Sign-in cancelled/);
+  assert.doesNotMatch(cancelled.text, /action="\/auth\/invite"/);
+  assert.match(cancelled.text, /href="\/auth\/discord"/);
   const retry = cancelled.headers['set-cookie'].find(value => value.startsWith('__Host-rs3_preauth=') && !value.startsWith('__Host-rs3_preauth=;')).split(';')[0];
   const cookie = await f.login(B, retry);
   assert.equal((await stateOf(f, cookie)).revision, 1);
