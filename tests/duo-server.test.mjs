@@ -115,7 +115,8 @@ test('both lanes share exact captured native state and peer compact promotion pr
   assert.equal(partnerInput.duoProjection, true); assert.equal(selectedInput.duoProjection, undefined);
   assert.equal(partnerInput.stateJSON, selectedInput.stateJSON); assert.equal(partnerInput.input, selectedInput.input); assert.equal(partnerInput.snapshotKey, selectedInput.snapshotKey);
   const captured = JSON.parse(Buffer.from(partnerInput.stateJSON).toString('utf8'));
-  assert.equal(captured.revision, 0); assert.deepEqual(captured.members.map(member => member.id), ['one', 'two']); assert.equal(captured.provenance, undefined);
+  assert.equal(captured.revision, 0); assert.deepEqual(captured.members.map(member => member.id), ['one', 'two']);
+  assert.deepEqual(captured.provenance, { ancientEffigiesMigratedMembers: ['one', 'two'] }, 'Only the effigies marker reaches calculation bytes');
   peer.workers[0].finish(); const peerPayload = await (await partner).json();
   own.workers[0].finish(); await selected;
   assert.equal(peerPayload.format, 'play-v1'); assert.equal(peerPayload.memberId, 'two'); assert.equal(peerPayload.stateRevision, 0); assert.equal(peerPayload.tasks[0].record, undefined);

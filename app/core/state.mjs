@@ -13,8 +13,8 @@ import { applyChunkColourCommand, validateChunkColour, validateChunkColourName }
 import { validateSticker, validateStickerId, validateSavedStickers, normalizeStickerList, resolveMemberStickers, MAX_STICKERS_PER_CHUNK } from './map-markers.mjs';
 import { validateTransportFacts } from './transport-access.mjs';
 import { transportRouteById } from '../data/transport-routes.mjs';
-import { taskRuleValueError, taskRuleDiagnostics } from '../data/settings.mjs';
-import { decodeLegacyText, resolveSavedTaskId, migrateTaskIdentities } from '../tasks/migration.mjs';
+import { ANCIENT_EFFIGIES_RULE, taskRuleValueError, taskRuleDiagnostics } from '../data/settings.mjs';
+import { decodeLegacyText, hasGameplayMigration, resolveSavedTaskId, migrateTaskIdentities } from '../tasks/migration.mjs';
 import { isPermanentId, legacyTaskId, lookupPermanentId } from '../tasks/identity.mjs';
 import { normalizeMembersStartOptions, membersStartPools, rollMembersStarts } from './members-start.mjs';
 import { SETUP_START, setupStartPools } from './setup-guide.mjs';
@@ -635,7 +635,99 @@ export function createGroupState(members = [], registry) {
   return validateState({ schemaVersion: SCHEMA_VERSION, revision: 0, rules: {},
     members: members.map(member => ({ sourceMapId: null, unlocked: [], selected: [], pendingRoll: [],
       blacklisted: [], completedTasks: [], teleports: [], ...member })),
-    tasks: [], history: [] }, registry);
+    tasks: [], history: [], provenance: { ancientEffigiesMigratedMembers: members.map(member => member.id) } }, registry);
+}
+
+// The migrated switch now exists at every older revision too, so a sparse
+// patch that created or removed this owner's taskRules dictionary describes no
+// change. Drop it; leaf patches already restore beneath a present dictionary.
+// Undone events and undo events are never replayed, so they stay as recorded.
+function dropTaskRuleContainerPatches(history, memberId) {
+  for (const event of history) {
+    const undo = event.undo;
+    if (!undo?.memberChanges || event.undoneRevision !== undefined || event.type === 'undo') continue;
+    undo.memberChanges = undo.memberChanges.map(change => change.id !== memberId ? change : { ...change,
+      changes: change.changes.filter(patch => !(patch.kind === 'object' && patch.path.length === 1 && patch.path[0] === 'taskRules')) })
+      .filter(change => change.changes.length);
+    if (!undo.memberChanges.length) delete undo.memberChanges;
+    // Creating an empty dictionary was this event's only personal change: undoing it now changes nothing.
+    if (!Object.keys(undo).length) delete event.undo;
+  }
+}
+
+// Restore archives keep the incoming provenance even when storage replaces
+// the outer provenance. A reset rule must stay Automatic after restore too.
+function effigiesProvenance(state) {
+  let provenance = state.provenance;
+  while (provenance && !provenance.ancientEffigiesMigratedMembers && provenance.restore?.incomingProvenance)
+    provenance = provenance.restore.incomingProvenance;
+  return provenance;
+}
+
+// Events up to the migration revision predate the new switch. Repairing them
+// is idempotent, so it also covers archived events hydrated later.
+function repairPreMigrationHistory(history, memberId, { revision, value, dropContainers }) {
+  const older = history.filter(event => event.revision <= revision);
+  if (dropContainers) dropTaskRuleContainerPatches(older, memberId);
+  // Old full-member undo snapshots predate the new switch. Keep the value
+  // chosen at migration when undoing an older, unrelated command.
+  for (const event of older) for (const snapshot of event.undo?.members ?? []) {
+    if (snapshot.id === memberId && !Object.hasOwn(snapshot.taskRules ?? {}, ANCIENT_EFFIGIES_RULE))
+      snapshot.taskRules = { ...snapshot.taskRules, [ANCIENT_EFFIGIES_RULE]: value };
+  }
+}
+
+function validEffigiesBoundary(boundary) {
+  return boundary && typeof boundary === 'object' && Number.isSafeInteger(boundary.revision) && boundary.revision >= 0
+    && (boundary.value === null || ['boolean', 'string', 'number'].includes(typeof boundary.value)) && (boundary.dropContainers === undefined || boundary.dropContainers === true);
+}
+
+// Before the sparse undo chain is checked: an archived event from before the
+// migration may still create the taskRules container the migration now fills.
+// Only the outer provenance shares this history's revision numbers. A
+// restore starts a new numbering, so archived incoming boundaries never apply.
+function repairArchivedEffigiesHistory(state) {
+  const boundaries = state.provenance?.ancientEffigiesMigration;
+  if (boundaries === undefined) return;
+  record(boundaries, 'provenance.ancientEffigiesMigration');
+  for (const [memberId, boundary] of Object.entries(boundaries)) {
+    if (!validEffigiesBoundary(boundary)) fail('Invalid Ancient effigies migration boundary');
+    repairPreMigrationHistory(state.history, memberId, boundary);
+  }
+}
+
+// Validation owns this copy. Remember each migrated owner so resetting the
+// new rule to Automatic never copies Universal Tertiary a second time.
+function migrateAncientEffigies(state) {
+  const provenance = effigiesProvenance(state);
+  const migrated = new Set(provenance?.ancientEffigiesMigratedMembers ?? []);
+  // A Map keeps member ids such as __proto__ as ordinary keys.
+  const boundaries = new Map(Object.entries(state.provenance?.ancientEffigiesMigration ?? {}));
+  for (const member of state.members) {
+    if (migrated.has(member.id)) continue;
+    const imported = hasGameplayMigration(state, member) ? {} : Object.fromEntries(Object.entries(
+      state.legacy?.maps?.[member.sourceMapId]?.rules ?? {}).map(([id, value]) => [decodeLegacyText(id), value]));
+    const rules = { ...imported, ...state.taskRules, ...member.taskRules };
+    let dropContainers = false;
+    if (!Object.hasOwn(rules, ANCIENT_EFFIGIES_RULE)) {
+      // Unknown category tags historically defaulted on, including this one.
+      const oldValue = rules['Universal Tertiary'] === undefined || ![false, 'false', 0].includes(rules['Universal Tertiary']);
+      member.taskRules = { ...member.taskRules, [ANCIENT_EFFIGIES_RULE]: oldValue };
+      dropContainers = true;
+    }
+    const effigies = member.taskRules?.[ANCIENT_EFFIGIES_RULE] ?? rules[ANCIENT_EFFIGIES_RULE];
+    const boundary = { revision: state.revision, value: effigies, ...(dropContainers ? { dropContainers } : {}) };
+    if (dropContainers) dropTaskRuleContainerPatches(state.history, member.id);
+    for (const event of state.history) for (const snapshot of event.undo?.members ?? []) {
+      if (snapshot.id === member.id && !Object.hasOwn(snapshot.taskRules ?? {}, ANCIENT_EFFIGIES_RULE))
+        snapshot.taskRules = { ...snapshot.taskRules, [ANCIENT_EFFIGIES_RULE]: effigies };
+    }
+    if (Number.isSafeInteger(state.revision)) boundaries.set(member.id, boundary);
+    migrated.add(member.id);
+  }
+  state.provenance = { ...state.provenance, ancientEffigiesMigratedMembers: [...migrated],
+    ...(boundaries.size ? { ancientEffigiesMigration: Object.fromEntries(boundaries) } : {}) };
+  return state;
 }
 
 export function validateState(state, registry) {
@@ -858,6 +950,7 @@ function validateStateCopy(copy, registry) {
       if (!target?.undo || target.undoneRevision !== event.revision) fail('History undo target is invalid');
     }
   }
+  repairArchivedEffigiesHistory(copy);
   // Check the remaining sparse undo chain against a private working copy.
   // Older snapshots have no after-value guards, but still form valid boundaries
   // for later sparse deltas. This catches stale/corrupt imported history before
@@ -918,7 +1011,7 @@ function validateStateCopy(copy, registry) {
       }
     }
   }
-  return copy;
+  return migrateAncientEffigies(copy);
 }
 
 export function exportBackup(state, registry) {
@@ -1360,7 +1453,7 @@ function prepareUndo(state, undoRevision, registry) {
     const task = rows.get(id) ?? claimTaskRow(state, id); if (!task) fail(`Undo task claim references absent task: ${id}`); referenced.set(id, task);
   }
   validateOwnedState({ schemaVersion: state.schemaVersion, revision: state.revision, rules: restored.rules,
-    members: restored.members, tasks: [...referenced.values()], history: [], ...(restored.taskClaims !== undefined ? { taskClaims: restored.taskClaims } : {}) }, registry);
+    provenance: { ancientEffigiesMigratedMembers: state.members.map(member => member.id) }, members: restored.members, tasks: [...referenced.values()], history: [], ...(restored.taskClaims !== undefined ? { taskClaims: restored.taskClaims } : {}) }, registry);
   if (restored.finishLine !== undefined) validateFinishLine(restored.finishLine, new Set(state.members.map(member => member.id)));
   if (restored.groupGoals !== undefined) validateGroupGoals(restored.groupGoals, new Set(state.members.map(member => member.id)));
   return { target, restored, skippedClaimIds };
@@ -1420,7 +1513,7 @@ function validateCommandGameplay(state, baseline, registry) {
     if (!task) fail(`Command task claim references absent task: ${id}`); referenced.set(id, task);
   }
   const checked = validateOwnedState({ schemaVersion: state.schemaVersion, revision: state.revision, rules: state.rules,
-    members: state.members, tasks: [...referenced.values()], history: [], ...(state.taskClaims !== undefined ? { taskClaims: state.taskClaims } : {}) }, registry);
+    provenance: { ancientEffigiesMigratedMembers: state.members.map(member => member.id) }, members: state.members, tasks: [...referenced.values()], history: [], ...(state.taskClaims !== undefined ? { taskClaims: state.taskClaims } : {}) }, registry);
   const diagnostics = [...(checked.provenance?.taskRuleDiagnostics ?? []),
     ...(baseline.provenance?.taskRuleDiagnostics ?? []).filter(item => item.sourceMapId !== undefined)];
   if (JSON.stringify(diagnostics) !== JSON.stringify(baseline.provenance?.taskRuleDiagnostics ?? [])) {
