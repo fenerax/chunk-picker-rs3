@@ -1,3 +1,4 @@
+import { startingSectionLocations } from './cache-surface.mjs';
 import { validateSavedXpChoices, validateXpChoices } from './xp-choices.mjs';
 import { selectedDataset } from '../dataset-runtime.mjs';
 import { createTaskFactsIndex } from './progress-index.mjs';
@@ -1148,8 +1149,8 @@ function clearSelectedAfterUnlock(state, member, registry) {
 }
 
 function seedRandomStartSections(member, ids, world) {
-  for (const id of ids) if (world?.sectionTopology?.get(id)?.has('1')) {
-    member.sectionOverrides = { ...(member.sectionOverrides ?? {}), [`${id}-1`]: true };
+  for (const id of ids) for (const location of startingSectionLocations(world, id)) {
+    member.sectionOverrides = { ...(member.sectionOverrides ?? {}), [location]: true };
   }
 }
 
