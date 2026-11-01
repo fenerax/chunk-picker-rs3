@@ -36,6 +36,15 @@ test('coverage keys normalize OS paths and retain nested identity and repeated n
   assert.deepEqual(linux.completedFiles, [file]);
 });
 
+test('differential uses the same native case and completion checks as the OS lanes', () => {
+  const r = createCoverageReporter({ lane: 'differential', cwd: '/repo', files: [file] });
+  r.onEvent(event(1, 'detector'));
+  r.onFile({ file, passed: true, summary: summary(1) });
+  assert.equal(r.report().lane, 'differential');
+  assert.equal(r.report().passed, true);
+  assert.throws(() => createCoverageReporter({ lane: 'unknown', files: [file] }), /Unknown coverage lane/);
+});
+
 test('coverage preserves skipped suites, todo, failures and cancellations', () => {
   const r = reporter();
   r.onEvent(event(1, 'skipped suite', { skip: 'Windows only', details: { type: 'suite', passed: true } }));
