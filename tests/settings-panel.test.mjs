@@ -139,3 +139,13 @@ test('the Top bar section lists the button switches only when the top bar module
   const search = h.control('Find a setting'); search.value = 'sync levels'; search.events.input();
   assert.deepEqual(h.headings(), ['Top bar']);
 });
+
+
+test('completion percentage and Hide completed settings explain the changing included-goal denominator', () => {
+  const h = harness({ remembered: 'tasks' }); h.panel.settings();
+  const help = id => h.nodes().find(node => node.id === `setting-help-actor1-${id}`).textContent;
+  assert.match(help('numTasksPercent'), /completed included goals divided by all included goals/);
+  assert.match(help('numTasksPercent'), /Hide completed, search.*denominator/);
+  assert.match(help('numTasksPercent'), /Category filters and folds do not/);
+  assert.match(help('hideChecked'), /Completed Tasks keeps its own count/);
+});

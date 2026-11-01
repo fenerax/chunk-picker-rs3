@@ -21,6 +21,7 @@ export const quickTests = new Set([
   "roll-boundaries.test.mjs",
 
   "y03-fuzz-ci.test.mjs",
+  "timegated-port-skills.test.mjs",
   "travel-reward-gates.test.mjs",
   "quest-requirements-corrections.test.mjs",
   "task-how.test.mjs",
@@ -242,6 +243,7 @@ export const quickTests = new Set([
   "manual-checks.test.mjs",
   "map-capture.test.mjs",
   "map-display-panel.test.mjs",
+  "map-availability.test.mjs",
   "map-activity-layer-model.test.mjs",
   "map-activity-layer-renderer.test.mjs",
   "map-activity-layers.test.mjs",
