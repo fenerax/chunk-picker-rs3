@@ -1,8 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { serialize } from 'node:v8';
-import { createSnapshotCache, snapshotBytes, createWorkerCacheBudget } from '../app/tasks/snapshot-cache.mjs';
-import { createEligibilityBudget } from '../app/tasks/eligibility-cache.mjs';
+import { createSnapshotCache, snapshotBytes, createWorkerCacheBudget, trackPlanningIndex, trackSnapshotCore } from '../app/tasks/snapshot-cache.mjs';
+import { createEligibilityBudget, createEligibilityCache } from '../app/tasks/eligibility-cache.mjs';
 
 const value = label => ({ baseline: { tasks: [{ label: label.repeat(400) }], metrics: {} }, estimates: new Map() });
 const state = { revision: 1, members: [{ id: 'same', unlocked: [] }] };
@@ -184,4 +184,163 @@ test('immutable state sizing is shared across member snapshots and forced refres
   // Replacing a state root must get its own measurement, including large data.
   cache.set('c', value('c'), { ...state, payload: 'x'.repeat(2 * 1024 * 1024) }, '2');
   assert.equal(entries.has('c'), false); assert.ok(budget.bytes <= budget.byteLimit);
+});
+
+test('planning growth bounds native bytes without walking the stable baseline again', () => {
+  let reads = 0;
+  const shared = { text: 'wide \u6f22\u5b57 and Latin \u00e9' };
+  const tasks = Array.from({ length: 80 }, (_, i) => ({ id: `task-${i}`, record: { shared, payload: 'x'.repeat(1000) } }));
+  const snapshot = { baseline: { tasks, metrics: {}, get stable() { reads++; return 'large'.repeat(1000); } }, estimates: new Map() };
+  const entries = new Map(), budget = createWorkerCacheBudget(64 * 1024 * 1024), cache = createSnapshotCache(entries, budget);
+  cache.set('a', snapshot, state, '1');
+  assert.equal(reads, 1);
+  const byLocation = new Map();
+  for (let i = 0; i < 1000; i++) byLocation.set(`location-${i}`, new Map(tasks.slice(0, 20).map(task => [task.id, {
+    task, evidence: [{ location: `location-${i}`, reason: 'ASCII \u00e9 \u6f22\u5b57 ^ evidence' }],
+  }])));
+  const marker = {};
+  snapshot.planningIndex = trackPlanningIndex({ byLocation, clueLocations: new Map([['clue', Array(20000).fill(marker)]]) }, snapshot.baseline);
+  cache.refresh(snapshot);
+  assert.equal(reads, 1, 'new planning data must not reserialize the baseline');
+  assert.equal(entries.size, 1);
+  assert.equal(budget.bytes, snapshotBytes(snapshot, state) + 2, 'producer fast path agrees with independent validated sizing');
+  const native = () => serialize([snapshot.baseline, snapshot.baseline.processing, snapshot.planningIndex.byLocation,
+    snapshot.planningIndex.clueLocations, snapshot.playResult, snapshot.sandboxDelta, snapshot.estimates, state]).byteLength;
+  assert.ok(budget.bytes >= native(), 'cover an independent joint native measurement, including reference-ID growth');
+  const playAlias = {};
+  snapshot.playResult = { repeated: Array(20000).fill(playAlias) };
+  cache.refresh(snapshot);
+  assert.ok(budget.bytes >= native());
+  const row = byLocation.values().next().value.values().next().value;
+  row.evidence.push({ location: 'new', reason: '\u6f22'.repeat(5000) });
+  cache.refresh(snapshot, true);
+  assert.ok(budget.bytes >= native(), 'forced in-place planning growth is covered');
+  row.evidence[0].extra = 'z'.repeat(30000); cache.refresh(snapshot, true);
+  assert.ok(budget.bytes >= native(), 'forced unknown fields revoke the producer proof');
+});
+
+test('unrecognized planning shapes keep joint native sizing and shared aliases', () => {
+  const task = { payload: 'x'.repeat(4000) }, snapshot = { baseline: { tasks: [task], metrics: {} } };
+  const entries = new Map(), budget = createWorkerCacheBudget(1024 * 1024), cache = createSnapshotCache(entries, budget);
+  cache.set('a', snapshot, state, '1');
+  snapshot.planningIndex = { byLocation: new Map([['location', new Map([['task', {
+    task, evidence: [{ location: 'location', reason: 'evidence', extra: 'x'.repeat(20000) }],
+  }]])]]), clueLocations: new Map() };
+  cache.refresh(snapshot);
+  const native = serialize([snapshot.baseline, snapshot.planningIndex.byLocation, snapshot.planningIndex.clueLocations, state]).byteLength;
+  assert.ok(budget.bytes >= native);
+  assert.equal(entries.size, 1);
+});
+
+
+test('context-owned state is released after views materialize and replacement context is charged', () => {
+  const input = { ...state, payload: 's'.repeat(200000) }, snapshot = value('a');
+  let context = { state: input, equipment: {} };
+  const entries = new Map(), budget = createWorkerCacheBudget(4 * 1024 * 1024);
+  const cache = createSnapshotCache(entries, budget, { context: () => context, contextOwnsState: true });
+  cache.set('a', snapshot, input, '1');
+  const before = budget.bytes;
+  assert.ok(before >= serialize(input).byteLength);
+  context = undefined; cache.refresh(snapshot);
+  assert.ok(budget.bytes < before - 190000, 'accounting metadata must not become a state owner');
+  assert.ok(budget.bytes >= serialize(snapshot.baseline).byteLength);
+  context = { state: { ...state, payload: 't'.repeat(300000) }, equipment: {} }; cache.refresh(snapshot);
+  assert.ok(budget.bytes >= serialize(context.state).byteLength);
+  assert.ok(budget.bytes <= budget.byteLimit);
+});
+
+
+test('staged oversized drafts leave the baseline and prior draft ledger untouched', () => {
+  const baseline = value('a'), old = { playResult: { tasks: [] } };
+  const budget = createWorkerCacheBudget(16 * cost), complete = new Map(), drafts = new Map();
+  const current = createSnapshotCache(complete, budget), cache = createSnapshotCache(drafts, budget);
+  current.set('base', baseline, state, 'one'); cache.set('draft', old, undefined, 'one');
+  const before = budget.bytes, count = budget.size;
+  const candidate = { baseline: { tasks: [{ payload: 'x'.repeat(100 * cost) }] }, playResult: old.playResult };
+  cache.stage('draft', candidate, undefined, 'one');
+  cache.capture(candidate, state); cache.refresh(candidate);
+  assert.equal(budget.bytes, before, 'building optional fields must not publish an intermediate entry');
+  assert.equal(cache.set('draft', candidate, undefined, 'one', { preserve: [baseline] }), false);
+  assert.equal(complete.get('base'), baseline); assert.equal(drafts.get('draft'), old);
+  assert.equal(budget.bytes, before); assert.equal(budget.size, count);
+});
+
+test('protected admission rejects combined pressure before evicting and copies prediction charges', () => {
+  const entries = new Map(), budget = createEligibilityBudget({ byteLimit: 100 * cost, ownerByteLimit: 3 * cost });
+  const cache = createSnapshotCache(entries, budget), baseline = value('a'), draft = value('b');
+  cache.set('base', baseline, state, 'one'); cache.set('draft', draft, state, 'one');
+  const before = budget.bytes;
+  const large = { baseline: { tasks: [{ payload: 'x'.repeat(2 * cost) }] } };
+  cache.stage('draft', large, undefined, 'one');
+  assert.equal(cache.set('draft', large, undefined, 'one', { preserve: [baseline] }), false);
+  assert.equal(entries.get('draft'), draft); assert.equal(entries.get('base'), baseline); assert.equal(budget.bytes, before);
+  draft.predict = () => {}; cache.capture(draft, state);
+  const copy = { ...draft }; cache.stage('draft', copy, state, 'one');
+  assert.equal(cache.measure(copy), cache.measure(draft));
+  assert.ok(cache.measure(copy) >= snapshotBytes(copy, state, undefined, undefined, serialize(state).byteLength) + 8);
+});
+
+
+test('prediction clone bounds reuse an immutable source and cover changed graph references', () => {
+  const shared = { payload: 'wide \u6f22 ^'.repeat(1000) };
+  const source = { tasks: Array(100).fill(shared), members: [{ id: 'one', unlocked: ['a'] }], rules: {} };
+  const snapshot = { baseline: { tasks: [] } }, budget = createEligibilityBudget({ byteLimit: 1024 * 1024 }), entries = new Map();
+  const cache = createSnapshotCache(entries, budget); cache.set('a', snapshot, source, 'one');
+  const hypothetical = { ...source, members: [{ id: 'one', unlocked: ['a', 'b'], alias: shared }] };
+  const before = budget.bytes; snapshot.predict = () => {}; cache.capture(snapshot, hypothetical, source);
+  assert.ok(budget.bytes - before >= serialize(hypothetical).byteLength);
+  assert.ok(budget.bytes <= budget.byteLimit);
+});
+
+
+test('Latin-1 text with two-byte backing strings receives its full native charge', () => {
+  const task = { id: 'task' }, baseline = { tasks: [task] };
+  const reason = ('\u6f22' + 'a'.repeat(200)).slice(1);
+  assert.ok(serialize(reason).byteLength > 400);
+  const index = { byLocation: new Map([['location', new Map([['task', { task,
+    evidence: Array.from({ length: 10000 }, () => ({ location: 'location', reason })) }]])]]), clueLocations: new Map() };
+  const snapshot = { baseline, planningIndex: trackPlanningIndex(index, baseline) }, budget = createWorkerCacheBudget(32 * 1024 * 1024);
+  const cache = createSnapshotCache(new Map(), budget); cache.set('a', snapshot, undefined, '1');
+  assert.ok(budget.bytes >= serialize([baseline, index.byLocation, index.clueLocations]).byteLength);
+});
+
+
+test('releasing large measurement buffers never detaches retained caller data', () => {
+  const data = new Uint8Array(200000).fill(7), state = { data }, snapshot = { baseline: { tasks: [{ data }] } };
+  const budget = createWorkerCacheBudget(4 * 1024 * 1024), cache = createSnapshotCache(new Map(), budget);
+  cache.set('a', snapshot, state, '1'); cache.refresh(snapshot, true);
+  assert.equal(data.byteLength, 200000); assert.equal(data.buffer.byteLength, 200000);
+  assert.ok(data.every(value => value === 7));
+  assert.ok(budget.bytes >= serialize([snapshot.baseline, state]).byteLength);
+});
+
+
+test('producer proof bounds cover additions and aliases without rereading immutable engine rows', () => {
+  let reads = 0;
+  const source = { ...state, rules: {}, members: [{ id: 'same', completedTasks: [], taskStatus: {} }] };
+  const producerBudget = createEligibilityBudget({ byteLimit: 8 * 1024 * 1024 });
+  const proof = createEligibilityCache({ budget: producerBudget });
+  const shared = { text: '漢 wide '.repeat(200) };
+  const baseline = producerBudget.measureResult(() => proof.evaluate(source, 'same', undefined, () => ({
+    tasks: Array.from({ length: 500 }, (_, i) => ({ id: `core-${i}`, challengeSatisfied: false,
+      record: { get text() { reads++; return ('漢' + 'Latin slice '.repeat(40)).slice(1); }, shared } })),
+    access: { shared, values: ['plain', '漢'] }, items: [], diagnostics: [{ text: 'original' }], metrics: { availableCount: 1 },
+  })));
+  trackSnapshotCore(baseline);
+  const measured = reads;
+  const core = [...baseline.tasks];
+  baseline.tasks = [...core, { id: 'extra', record: { text: 'new 漢'.repeat(100) } }];
+  baseline.diagnostics.push({ text: 'additional 漢'.repeat(80) });
+  baseline.metrics.availableCount = 500000;
+  baseline.presentation = { tasks: core, diagnostics: [], metrics: { count: core.length } };
+  baseline.collectionPlanning = { extra: baseline.tasks.at(-1) };
+  const snapshot = { baseline, playResult: { access: baseline.access, tasks: [{ id: 'extra' }] }, sandboxDelta: { count: 1 } };
+  const budget = createWorkerCacheBudget(16 * 1024 * 1024), cache = createSnapshotCache(new Map(), budget);
+  assert.equal(cache.set('a', snapshot, undefined, '1'), true);
+  assert.equal(reads, measured, 'native sizing must not reread the already serialized core rows');
+  const native = serialize([baseline, baseline.processing, undefined, undefined, snapshot.playResult, snapshot.sandboxDelta]).byteLength + 2;
+  assert.ok(budget.bytes >= native, `producer bound ${budget.bytes} must cover independent native ${native}`);
+  cache.refresh(snapshot, true);
+  assert.ok(reads > measured, 'forced refresh revokes producer trust and measures the graph');
+  assert.equal(budget.bytes, snapshotBytes(snapshot, undefined) + 2);
 });

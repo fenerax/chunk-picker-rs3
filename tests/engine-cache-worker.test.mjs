@@ -30,7 +30,7 @@ registerHooks({ load(url, context, next) {
     replacement = anchor + \`
   globalThis.__cacheAccounting.measures.push(() => [...entries].map(([key, value]) => {
       const entry = metadata.get(value);
-      return { owner: 'picker:' + entry.owner, cost: snapshotBytes(value, entry.state,
+      return { projectionOnly: !value.baseline && !!value.playResult, sandbox: !!value.playResult, ownsState: !!entry.state || !!context(value.baseline)?.state, owner: 'picker:' + entry.owner, cost: snapshotBytes(value, entry.state,
         context(value.baseline), locations(value.baseline), entry.predictionBytes)
         + Buffer.byteLength(key) + Buffer.byteLength(entry.owner) };
     }));\`;
@@ -143,4 +143,64 @@ test('empty sandbox retained projections are charged to their owning cache befor
     maxEntries = Math.max(maxEntries, measured.length);
   }
   assert.ok(maxEntries > 1 && maxEntries < 48, 'multiple inputs must be retained and then evicted');
+});
+
+test('sandbox drafts retain reusable baselines without owning deferred view state', async t => {
+  const send = await fixture(t, 1024 * 1024, true);
+  const draft = { changes: { unlockChunks: ['12852'] } };
+  const request = { type: 'sandbox', chunkId: draft };
+  const cold = await send(0, 'one', request);
+  const warm = await send(0, 'one', request);
+  assert.equal(cold.cache.hypotheticalHit, false);
+  assert.equal(warm.cache.hypotheticalHit, true);
+  assert.ok(warm.accounting.measured.some(row => row.sandbox && !row.ownsState), 'retain the full reusable draft without its unused deferred-view state');
+  const content = ({ accounting, prediction, ...value }) => normalize(value);
+  assert.deepEqual(content(warm), content(cold));
+  const detailedRequest = { type: 'sandbox', chunkId: { ...draft, previewChunkId: '12851', planningChunkId: '12852' } };
+  const detailed = await send(0, 'one', detailedRequest);
+  const control = await send(0, 'one', { ...detailedRequest, input: 'uncached-control' });
+  assert.equal(detailed.cache.hypotheticalHit, true);
+  assert.deepEqual(content(detailed), content(control));
+  assert.deepEqual(detailed.prediction.delta, control.prediction.delta);
+  assert.deepEqual(detailed.prediction.coverage, control.prediction.coverage);
+  const plainAgain = await send(0, 'one', request);
+  assert.deepEqual(content(plainAgain), content(cold));
+  for (const reply of [cold, warm, detailed, control, plainAgain]) {
+    const { measured, charged } = reply.accounting;
+    const sum = rows => rows.reduce((total, row) => total + row.cost, 0);
+    assert.equal(sum(measured), sum(charged.filter(row => row.owner !== 'eligibility')));
+    assert.ok(sum(charged) <= 1024 * 1024);
+  }
+});
+
+
+test('shared picker workers retain ordinary projections within the same ledger', async t => {
+  const send = await fixture(t, 1024 * 1024, true), request = { type: 'sandbox', chunkId: { changes: { unlockChunks: ['12852'] } } };
+  await send(0, 'one', request);
+  const second = await send(1, 'one', request), warm = await send(1, 'one', request);
+  assert.ok(second.accounting.measured.some(row => row.projectionOnly));
+  assert.equal(warm.cache.baselineHit, true); assert.equal(warm.cache.hypotheticalHit, true);
+  const { measured, charged } = warm.accounting;
+  assert.equal(measured.reduce((n, row) => n + row.cost, 0), charged.filter(row => row.owner !== 'eligibility').reduce((n, row) => n + row.cost, 0));
+  assert.ok(charged.reduce((n, row) => n + row.cost, 0) <= 1024 * 1024);
+});
+
+
+test('cached detailed and ordinary drafts stay warm when valid admission evicts the current baseline', async t => {
+  const request = { type: 'sandbox', chunkId: { changes: { unlockChunks: ['12852'] }, previewChunkId: '12851', planningChunkId: '12852' } };
+  const control = await fixture(t, 1024 * 1024, true), expected = await control(0, 'one', request);
+  const draftCost = expected.accounting.measured.find(row => row.sandbox).cost;
+  const send = await fixture(t, 2 * (draftCost + 256), true), cold = await send(0, 'one', request);
+  assert.equal(cold.accounting.measured.filter(row => !row.sandbox).length, 0, 'valid final admission may evict the current baseline');
+  const warm = await send(0, 'one', request), ordinary = await send(0, 'one', { type: 'sandbox', chunkId: { changes: { unlockChunks: ['12852'] } } });
+  assert.equal(warm.cache.baselineHit, false); assert.equal(warm.cache.hypotheticalHit, true);
+  assert.equal(ordinary.cache.baselineHit, false); assert.equal(ordinary.cache.hypotheticalHit, true);
+  const content = ({ accounting, prediction, ...value }) => normalize(value);
+  assert.deepEqual(content(cold), content(expected)); assert.deepEqual(content(warm), content(expected));
+  assert.deepEqual(warm.prediction.delta, expected.prediction.delta);
+  for (const value of [cold, warm, ordinary]) {
+    const { measured, charged } = value.accounting;
+    assert.equal(measured.reduce((n, row) => n + row.cost, 0), charged.filter(row => row.owner !== 'eligibility').reduce((n, row) => n + row.cost, 0));
+    assert.ok(charged.reduce((n, row) => n + row.cost, 0) <= 2 * (draftCost + 256));
+  }
 });

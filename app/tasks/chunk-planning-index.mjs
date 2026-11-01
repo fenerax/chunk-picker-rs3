@@ -1,6 +1,34 @@
 const values = value => value == null ? [] : Array.isArray(value) ? value : [value];
 const entries = value => value && typeof value === 'object' ? Object.entries(value) : [];
 const definitionIndexes = new WeakMap();
+const planningSizes = new WeakMap();
+export const planningVarintBytes = n => n < 128 ? 1 : n < 16384 ? 2 : n < 2097152 ? 3 : n < 268435456 ? 4 : 5;
+export const planningMapBytes = n => 2 + planningVarintBytes(2 * n);
+export const planningArrayBytes = n => 3 + 2 * planningVarintBytes(n);
+export function planningStringBytes(value) {
+  if (typeof value !== 'string') throw new TypeError('Unsupported planning string.');
+  // Even Latin-1 content can have two-byte backing after slicing in V8.
+  const bytes = 2 * value.length;
+  return bytes + 2 + planningVarintBytes(bytes);
+}
+const mapGrowth = count => count === 64 || count === 8192 || count === 1048576 || count === 134217728 ? 1 : 0;
+function planningSizer() {
+  let bytes = planningMapBytes(0), valid = true;
+  return {
+    location(key, count) { bytes += planningStringBytes(key) + 3 + mapGrowth(count); },
+    row(idBytes, count) { if (idBytes === undefined) valid = false; bytes += (idBytes ?? 0) + 30 + mapGrowth(count); },
+    evidence(locationBytes, reasonBytes, count) {
+      if (count > 1000000) valid = false;
+      bytes += 21 + locationBytes + reasonBytes + (count === 128 || count === 16384 ? 2 : 0);
+    },
+    finish() { return valid && Number.isSafeInteger(bytes) ? bytes : undefined; },
+  };
+}
+export function chunkPlanningIndexBytes(index, baseline) {
+  const size = planningSizes.get(index);
+  return size && size.baseline.deref() === baseline && size.rows.deref() === index.byLocation
+    && size.clues.deref() === index.clueLocations ? size.bytes : undefined;
+}
 
 /** Numeric section IDs share a surface base. Hyphenated interior names do not. */
 export function baseLocationId(location) {
@@ -37,6 +65,7 @@ function declarationIndex(definitions, world) {
  * turn a clue location marker into proof of a doable step. */
 function* chunkPlanningIndexSteps(definitions, result, world) {
   const declarations = declarationIndex(definitions, world), byLocation = new Map(), clueLocations = new Map(), locationKeys = new Map();
+  let accounting = planningSizer(), taskIdBytes;
   const canonical = location => declarations.aliases.get(String(location)) ?? String(location);
   const keys = location => {
     const id = canonical(location);
@@ -46,10 +75,15 @@ function* chunkPlanningIndexSteps(definitions, result, world) {
   const add = (task, location, reason) => {
     const id = canonical(location);
     if (!declarations.locations.has(id)) return;
+    const locationBytes = planningStringBytes(id), reasonBytes = planningStringBytes(reason);
     for (const key of keys(id)) {
-      const rows = byLocation.get(key) ?? new Map();
-      const row = rows.get(task.id) ?? { task, evidence: [] };
-      if (!row.evidence.some(evidence => evidence.location === id && evidence.reason === reason)) row.evidence.push({ location: id, reason });
+      let rows = byLocation.get(key);
+      if (!rows) { rows = new Map(); byLocation.set(key, rows); accounting.location(key, byLocation.size); }
+      let row = rows.get(task.id);
+      if (!row) { row = { task, evidence: [] }; rows.set(task.id, row); accounting.row(taskIdBytes, rows.size); }
+      if (!row.evidence.some(evidence => evidence.location === id && evidence.reason === reason)) {
+        row.evidence.push({ location: id, reason }); accounting.evidence(locationBytes, reasonBytes, row.evidence.length);
+      }
       rows.set(task.id, row); byLocation.set(key, rows);
     }
   };
@@ -58,6 +92,7 @@ function* chunkPlanningIndexSteps(definitions, result, world) {
     return values(definitions.codeItems?.[`${kind}Plus`]?.[clean] ?? clean);
   };
   for (const task of result.tasks ?? []) {
+    taskIdBytes = typeof task.id === 'string' ? planningStringBytes(task.id) : undefined;
     const record = task.record ?? {};
     for (const token of values(record.Chunks)) for (const location of expand('chunks', token)) add(task, location, 'Declared location requirement');
     for (const [field, kind, aliasKind] of [['Objects', 'Object', 'objects'], ['NPCs', 'NPC', 'npcs'], ['Monsters', 'Monster', 'monsters'], ['Monster', 'Monster', 'monsters'], ['Shops', 'Shop', 'shops'], ['Spawns', 'Spawn', 'items'], ['Items', 'Spawn', 'items']]) {
@@ -79,12 +114,16 @@ function* chunkPlanningIndexSteps(definitions, result, world) {
   for (const [tier, markers] of entries(definitions.clues)) for (const [location, marker] of entries(markers)) {
     const id = canonical(location);
     if (!declarations.locations.has(id)) continue;
+
     for (const key of keys(id)) {
       const rows = clueLocations.get(key) ?? []; rows.push({ tier, location: id, marker }); clueLocations.set(key, rows);
     }
     yield;
   }
-  return { byLocation, clueLocations, canonical };
+  const index = { byLocation, clueLocations, canonical }, bytes = accounting.finish();
+  accounting = undefined; taskIdBytes = undefined;
+  if (bytes !== undefined) planningSizes.set(index, { bytes, baseline: new WeakRef(result), rows: new WeakRef(byLocation), clues: new WeakRef(clueLocations) });
+  return index;
 }
 
 export function buildChunkPlanningIndex(definitions, result, world) {
