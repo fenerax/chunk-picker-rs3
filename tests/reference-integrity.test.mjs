@@ -6,6 +6,7 @@ import { selectedDataset } from '../app/dataset-runtime.mjs';
 import { prepareTaskDefinitions, createDefinitionPipeline } from '../app/dataset-pipeline.mjs';
 import { applyDefinitionOverlays } from '../app/data/definition-overlays.mjs';
 import { buildAccessIndex, calculateAccess, collectBaseItemSources } from '../app/tasks/access.mjs';
+import { createTaskEngine } from '../app/tasks/engine.mjs';
 import { permanentTaskId } from '../app/tasks/identity.mjs';
 import { bossGates } from '../app/data/boss-gates.mjs';
 import { closedBossMonsters, evaluateBossGates } from '../app/tasks/boss-gates.mjs';
@@ -140,4 +141,94 @@ test('integrity checks detect newly broken names, alias cardinality and assignme
   assert.equal(issues.filter(issue => issue.kind === 'task-prerequisite').length, 1);
   assert.equal(issues.filter(issue => issue.kind === 'assignment').length, 1);
   assert.deepEqual(duplicateAliasChildren(fixture), [{ table: 'itemsPlus', name: 'Repeated[+]' }]);
+});
+
+// Project the selected, prepared aggregate onto isolated access gates. These
+// public declarations exercise real tier membership without unrelated travel.
+const hardPrefix = '~|Ardougne Achievements#Hard|~';
+const hardParent = hardPrefix + ' Complete the Hard Achievements';
+const artillery = hardPrefix + ' Artillery Strike';
+const hardDuties = Object.keys(prepared.challenges.Diary[hardParent].Tasks).filter(label => label.startsWith(hardPrefix));
+const diaryOptions = { cacheWalking: false, cacheResources: false, cacheArchaeology: false, cacheShops: false,
+  metadataCorrections: false, equipmentCorrections: false, retainedTaskCorrections: false,
+  retainedUnsupportedCorrections: false, divinationTraining: false, skillGuideTasks: false, skillGuideMilestones: false };
+function hardFixture() {
+  const parent = structuredClone(prepared.challenges.Diary[hardParent]);
+  const Diary = { [hardParent]: { ...parent, Chunks: ['100'] } };
+  for (const label of Object.keys(parent.Tasks)) Diary[label] = { BaseQuest: parent.BaseQuest,
+    Category: ['Show Diary Tasks'], Chunks: ['200'] };
+  const definitions = { chunks: { '100': {}, '200': {} }, challenges: { Diary } };
+  const ids = Object.fromEntries(Object.entries(Diary).map(([label, record]) => [label, permanentTaskId('Diary', label, record)]));
+  const saved = { rules: { 'content.f2p': false }, members: ['a', 'b'].map(id => ({ id, unlocked: ['100'],
+    completedTasks: Object.keys(parent.Tasks).filter(label => label !== artillery).map(label => ids[label]),
+    taskRules: { Achievement: true, 'Show Diary Tasks': true } })) };
+  return { definitions, saved, ids };
+}
+function checkHard(fixture, available) {
+  const before = structuredClone(fixture);
+  const result = createTaskEngine(fixture.definitions, diaryOptions).evaluate(fixture.saved, 'a');
+  assert.equal(result.tasks.find(row => row.rawLabel === hardParent).status, available ? 'available' : 'blocked');
+  const rewards = prepared.challenges.Diary[hardParent].Reward;
+  assert.equal(result.items.some(row => rewards.includes(row.name)), available, 'potential reward supply follows the whole tier gate');
+  assert.equal(result.tasks.find(row => row.rawLabel === hardParent).personalCompleted, false, 'eligibility does not record a claim or completion');
+  assert.deepEqual(fixture, before, 'evaluation preserves personal completion and reward ownership');
+  return result;
+}
+
+test('Ardougne Hard declares all 17 required same-tier duties and retains every prior prerequisite', () => {
+  assert.equal(hardDuties.length, 17);
+  assert.ok(hardDuties.includes(artillery));
+  assert.deepEqual(prepared.challenges.Diary[hardParent].Tasks,
+    { ...raw.challenges.Diary[hardParent].Tasks, [artillery]: 'Diary' });
+  assert.deepEqual(hardDuties.toSorted(), Object.entries(prepared.challenges.Diary)
+    .filter(([label, record]) => label.startsWith(hardPrefix) && !record.ManualShow).map(([label]) => label).toSorted());
+  const evidence = overlay.provenance.ardougneHard;
+  assert.equal(evidence.tier.revisionId, 36199598);
+  assert.equal(evidence.constituent.revisionId, 37053862);
+  assert.equal(evidence.constituent.achievementId, 502);
+  assert.ok(Object.keys(prepared.challenges.Diary[artillery].Tasks).some(label => label.includes('Catapult Construction')));
+  assert.equal(prepared.challenges.Diary[artillery]['Not F2P'], true);
+});
+
+test('blocked Artillery Strike blocks the aggregate and reward under both Any and Complete settings', () => {
+  for (const any of [false, true]) for (const complete of [false, true]) {
+    const fixture = hardFixture();
+    Object.assign(fixture.saved.members[0].taskRules, { 'Show Diary Tasks Any': any, 'Show Diary Tasks Complete': complete });
+    const result = checkHard(fixture, false);
+    assert.equal(result.tasks.find(row => row.rawLabel === artillery).status, 'blocked');
+    fixture.saved.members[0].completedTasks.push(fixture.ids[artillery]);
+    checkHard(fixture, true);
+  }
+});
+
+test('every required constituent and the previous tier independently gate the Hard aggregate reward', () => {
+  const fixture = hardFixture();
+  fixture.saved.members[0].completedTasks.push(fixture.ids[artillery]);
+  checkHard(fixture, true);
+  for (const label of Object.keys(prepared.challenges.Diary[hardParent].Tasks)) {
+    const blocked = structuredClone(fixture);
+    blocked.saved.members[0].completedTasks = blocked.saved.members[0].completedTasks.filter(id => id !== fixture.ids[label]);
+    checkHard(blocked, false);
+  }
+});
+
+test('partner completion and challenge checks do not replace personal Artillery Strike completion', () => {
+  for (const scope of ['any', 'all', 'personal']) {
+    const fixture = hardFixture();
+    fixture.saved.rules['tasks.completion'] = scope;
+    fixture.saved.members[1].completedTasks.push(fixture.ids[artillery]);
+    fixture.saved.members[0].taskStatus = { [fixture.ids[artillery]]: { challengeCompleted: true } };
+    checkHard(fixture, false);
+    fixture.saved.members[0].completedTasks.push(fixture.ids[artillery]);
+    checkHard(fixture, true);
+  }
+});
+
+test('all 17 attainable duties admit the aggregate and potential reward without granting a held reward', () => {
+  const fixture = hardFixture();
+  fixture.saved.members[0].completedTasks = [];
+  fixture.saved.members[0].unlocked.push('200');
+  const result = checkHard(fixture, true);
+  assert.ok(hardDuties.every(label => result.tasks.find(row => row.rawLabel === label).status === 'available'));
+  assert.ok(result.tasks.filter(row => hardDuties.includes(row.rawLabel)).every(row => !row.personalCompleted));
 });
