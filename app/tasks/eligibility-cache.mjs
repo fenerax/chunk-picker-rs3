@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { isMainThread } from 'node:worker_threads';
 import { serialize, deserialize, DefaultDeserializer } from 'node:v8';
 import { zstdCompressSync, zstdDecompressSync, constants } from 'node:zlib';
 import { automaticTravelInputKey } from '../core/travel-inputs.mjs';
@@ -47,6 +48,12 @@ function retainResult(result, measure = false) {
   return wire;
 }
 function compactResult(raw) {
+  // Worker.terminate() can interrupt Node between creating a native zstd
+  // handle and initializing it; its cleanup then aborts the whole process
+  // (Node 24.21.0, node_zlib.cc:477). A JS catch cannot contain that abort.
+  // Keep worker proofs raw and fully charged, including small/oversized
+  // synchronous admissions. Process calculators also use a worker thread.
+  if (!isMainThread) return raw;
   compacted.add(raw);
   try {
     const bytes = zstdCompressSync(raw, { params: { [constants.ZSTD_c_compressionLevel]: 1 } });
@@ -200,7 +207,7 @@ export function createEligibilityCache({ limit = 2, byteLimit = 128 * 1024 * 102
   };
   let compactionPending = false;
   const compactWhenIdle = () => {
-    if (compactionPending) return;
+    if (!isMainThread || compactionPending) return;
     compactionPending = true;
     setImmediate(() => {
       compactionPending = false;
