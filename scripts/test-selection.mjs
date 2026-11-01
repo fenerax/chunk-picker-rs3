@@ -18,6 +18,8 @@ export const quickTests = new Set([
   "completion-truth-table.test.mjs",
   "collection-boundaries.test.mjs",
   "roll-boundaries.test.mjs",
+
+  "task-rule-explanations.test.mjs",
   "quest-requirements-corrections.test.mjs",
   "task-how.test.mjs",
   "task-how-server.test.mjs",

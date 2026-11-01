@@ -775,10 +775,10 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
       if (Object.hasOwn(source, 'probability')) return source.primary === true && passesRateCutoff(source.probability, rules, 'primary');
       return source.primary === true;
     };
-    const matchesItemSources = (list, record, category, itemName) => {
+    const matchesItemSources = (list, record, category, itemName, evidence) => {
       // Virtual outputs from an unselected processing candidate are conditional
       // multistep supplies, not ordinary output or equipment proof (worker:4457).
-      let allowMulti;
+      let allowMulti, rejectedMulti = false, rejectedCrafted = false;
       // Prayer recipes consume crafted materials (incense, urns, etc.). Wielding
       // restrictions apply to equipment/training rows, not those recipe inputs.
       const prayerRecipe = category === 'Prayer' && array(record?.Output).length > 0 && !definitions.equipment?.[itemName];
@@ -791,15 +791,24 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
         if (source.processingMode === 'multi') {
           allowMulti ??= on(rules, 'Multi Step Processing', false)
             && !(['Extra', 'Nonskill'].includes(category) || (MONSTER_TRAINING.has(category) || ['Ranged', 'Prayer', 'Summoning', 'Necromancy'].includes(category)) && !record?.['Not Equip']);
-          if (!(allowMulti && Number(record?.Level ?? 1) >= source.producerLevel)) continue;
+          if (!(allowMulti && Number(record?.Level ?? 1) >= source.producerLevel)) { rejectedMulti = true; continue; }
         }
         const type = excludeCrafted || !nonShop || !channel ? sourceType(source) : null;
-        if (excludeCrafted && type === 'task' && PROCESSING.has(source.category)) continue;
+        if (excludeCrafted && type === 'task' && PROCESSING.has(source.category)) { rejectedCrafted = true; continue; }
         nonShop ||= !type.includes('shop');
         allowed ||= record.AllowedSources.includes(sourceName(source));
         channel ||= type.includes(record.Source);
         // Each constraint can be witnessed by a different admitted source.
         if (nonShop && allowed && channel) return true;
+      }
+      // Observe the same predicate only on the final explanation path. Each
+      // condition is witnessed independently; never require one source to pass all.
+      if (evidence) {
+        if (!allowed) evidence.push({ kind: 'allowed-sources', detail: `allowed sources: ${array(record.AllowedSources).map(plainLabel).join(', ')}` });
+        if (!nonShop) evidence.push({ kind: 'non-shop', detail: 'a non-shop source is required' });
+        if (!channel) evidence.push({ kind: 'source-channel', detail: `required source channel: ${record.Source}` });
+        if (rejectedCrafted) evidence.push({ kind: 'crafted-wielding', detail: 'Wield Crafted Items is off for this equipment or training requirement' });
+        if (rejectedMulti) evidence.push({ kind: 'conditional-processing', detail: 'conditional multistep supplies are not admitted for this requirement at its current level and processing settings' });
       }
       return false;
     };
@@ -1330,9 +1339,22 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
                 .every(selector => selector.locations.includes(location))) });
         }
       }
+      const sourcePolicyRejections = [];
+      for (const requirement of blockers.some(blocker => blocker.kind === 'items') ? task.itemRequirements : []) {
+        if (requirementAvailable(requirement, task)) continue;
+        for (const name of requirement.alternatives ?? [requirement.clean]) {
+          const supplies = sourceList(name), conditions = [];
+          if (!items.has(name) || !supplies.length || matchesItemSources(supplies, record, task.category, name, conditions) || !conditions.length) continue;
+          const local = supplies.some(ownSource);
+          sourcePolicyRejections.push({ item: name, local, conditions,
+            detail: `${plainLabel(name)} is available${local ? ' locally' : ''}, but its sources do not meet this task’s conditions: ${conditions.map(condition => condition.detail).join('; ')}.` });
+        }
+      }
       const filters = [];
       const own = obligation(task);
-      if (!own) filters.push('This task is outside the member’s own reachable map; partner access is a convenience.');
+      if (!own) filters.push(sourcePolicyRejections.some(reason => reason.local)
+        ? 'Local supplies do not meet this task’s source conditions.'
+        : 'This task is outside the member’s own reachable map; partner access is a convenience.');
       if (caps[task.category] && hideSkills) filters.push('Skills are hidden by the task rule.');
       if (task.category === 'Quest' && hideQuests) filters.push('Quests are hidden by the task rule.');
       if (task.category === 'Quest' && wholeQuests && record.QuestPoints === undefined && !record.ManualShow) filters.push('Quest tasks are configured to show whole completion tasks.');
@@ -1355,6 +1377,10 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
       const explanation = blockers.length ? blockers.map(value => value.detail).join(' ') : taskSources.length ? 'You can reach the required locations, item sources, prerequisite tasks and training methods.' : completed.has(task.id) ? 'You recorded completing this task in-game.' : 'All listed requirements are met.';
       const sourceEligible = !processingTasks.has(task) || admitted.has(task.id) || completedTask(task);
       const row = { id: task.id, label: task.label, rawLabel: task.rawLabel, category: task.category, obligation: own, level: task.level, primary: !!record.Primary, ...(!sourceEligible && !blockers.length ? { sourceEligible: false } : {}), primaryMethod: !!primaryEligible(task, blockers.length > 0) && (task.category !== 'Smithing' || smithingPrimary), status: blockers.some(value => value.kind === 'unsupported') ? 'unsupported' : blockers.length ? 'blocked' : 'available', blockers, sources: taskSources, explanation: [explanation, ...partnerTraining, ...partnerSupplies, ...(!sourceEligible && !blockers.length ? ['You can make this recipe, but your processing rules exclude its products from available supplies and training.'] : [])].join(' '), personalCompleted: recordedCompleted.has(task.id), challengeSatisfied: challengeSatisfied(task.id), hidden: filters.length > 0, hiddenReasons: filters, wiki: task.wiki, baseQuest: record.BaseQuest, record };
+      if (sourcePolicyRejections.length) {
+        row.sourcePolicyRejections = sourcePolicyRejections;
+        row.explanation += ` ${sourcePolicyRejections.map(reason => reason.detail).join(' ')}`;
+      }
       if (slayerGates.has(task)) row.slayerUnlockGate = slayerGateStatus(task, slayerGates.get(task));
       if (task.dialogueSupply) {
         row.dialogueSupply = structuredClone(task.dialogueSupply);
@@ -1390,6 +1416,10 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
     processing = selectProcessingSources(rows, [...items].map(name => ({ name, sources: sourceList(name) })),
       Object.fromEntries(Object.keys(skillCaps).map(skill => [skill, { passiveLevel: passive[skill], primary: trained.has(skill),
         manualPrimary: playerControls.primaryOverrides[skill] === true }])), rules, definitions, serializedAccess, ordinaryProcessingInput);
+    for (const row of rows) if (row.sourceEligible === false && processing.sourceExclusions[row.id]) {
+      row.sourceExclusion = processing.sourceExclusions[row.id];
+      row.explanation = row.explanation.replace('You can make this recipe, but your processing rules exclude its products from available supplies and training.', row.sourceExclusion.detail);
+    }
     const result = { tasks: rows, houseStorage: { ...houseStorage, tasks: undefined }, playerControls, effectiveSlayerLock, slayerLockRelease, bossGates, access: serializedAccess, obligationAccess: serializeAccess(ownAccess), ownItems: [...ownItems].sort(), ownItemOrigins, partnerConnections: connections ?? { regions: [], byChunk: {} }, items: [...items].sort().map(name => ({ name, sources: sourceList(name) })), equipment, training: Object.fromEntries(Object.keys(skillCaps).map(skill => [skill, { level: levels[skill], cap: caps[skill], primary: trained.has(skill), passiveLevel: passive[skill], viaPartners: ownTraining.has(skill) ? [] : [...(trainingVia.get(skill) ?? [])], primaryOverride: playerControls.primaryOverrides[skill] ?? null, manualPrimary: playerControls.primaryOverrides[skill] === true, passiveOverride: playerControls.passiveLevels[skill] ?? null, maxOverride: playerControls.maxLevels[skill] ?? null, observedLevel: observedProgress[skill]?.level ?? null, observedXp: observedProgress[skill]?.xp ?? null, observedSource: observedProgress[skill]?.source ?? null, observedFetchedAt: observedProgress[skill]?.fetchedAt ?? null, observedRunescapeName: observedProgress[skill]?.runescapeName ?? null, observedCapabilityLevel: observedProgress[skill] ? Math.min(observedProgress[skill].level, caps[skill]) : null }])), points, metrics: { ...counters, elapsedMs: performance.now() - started, catalogueCount: compiled.length, availableCount: rows.filter(row => row.status === 'available' && row.obligation).length, unsupportedCount: unsupported }, diagnostics, coverage: { declaredTasks: compiled.length, supportedTasks: compiled.length - unsupported, unsupportedTasks: unsupported, supportedFields: [...KNOWN].filter(field => !['Categories', 'OutputVar'].includes(field)), unsupportedFields: ['Categories', 'OutputVar'], unsupportedRules: UNSUPPORTED_RULES, limitations: ['Some original highest-level task links and Best in Slot comparisons are still incomplete.', 'Some optional XP choices and special item sources are still incomplete. Tasks with unsupported requirements or unidentified sources are excluded.'] } };
     if (proof) Object.defineProperty(result, 'howProof', { value: proof.finish(howRequest.taskId, result, howRequest.context) });
     Object.defineProperty(result, 'processing', { value: processing });
