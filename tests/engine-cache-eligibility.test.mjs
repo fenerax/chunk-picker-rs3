@@ -259,3 +259,59 @@ test('measurement scope restores on failure and does not mark ordinary proof res
   assert.equal(budget.measuringResult, false);
   const result = call(cache, 0); assert.equal(eligibilityResultBytes(result), undefined);
 });
+
+for (const mode of ['idle', 'small', 'oversized']) test(`worker retirement never constructs an eligibility zstd handle (${mode})`, () => {
+  // Contain the pre-fix native abort in a subprocess. The options getter stops
+  // Node's real zstd constructor after new binding.ZstdCompress(), before init.
+  // The parent retires the worker at that boundary, reproducing the CI abort
+  // deterministically. Fixed workers never enter that constructor at all.
+  const workerSource = `
+    import assert from 'node:assert/strict';
+    import { parentPort } from 'node:worker_threads';
+    import zlib from 'node:zlib';
+    import { syncBuiltinESMExports } from 'node:module';
+    import { createEligibilityCache, createEligibilityBudget } from ${JSON.stringify(new URL('../app/tasks/eligibility-cache.mjs', import.meta.url).href)};
+    const compress = zlib.zstdCompressSync;
+    zlib.zstdCompressSync = (raw, options) => compress(raw, {
+      ...options,
+      get pledgedSrcSize() {
+        parentPort.postMessage('uninitialized-handle');
+        Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0);
+      },
+    });
+    zlib.zstdDecompressSync = () => assert.fail('Workers must not create zstd decoders either');
+    syncBuiltinESMExports();
+    const state = ${state.toString()}, proof = ${proof.toString()};
+    const mode = ${JSON.stringify(mode)};
+    const budget = createEligibilityBudget({ byteLimit: mode === 'oversized' ? 1000 : 200000 });
+    const cache = createEligibilityCache({ limit: 1, budget });
+    const expected = proof(0, 'alpha', mode === 'small' ? 1000 : 120000);
+    const call = () => cache.evaluate(state(0), 'same', undefined, () => structuredClone(expected));
+    const cold = call(), before = cache.bytes;
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(cache.bytes, before, 'raw backing stores stay charged after idle');
+    assert.equal(cache.bytes, budget.bytes);
+    const warm = call();
+    assert.deepEqual(warm, cold);
+    assert.equal(warm.metrics.eligibilityCacheHit, mode !== 'oversized');
+    if (mode === 'oversized') { assert.equal(cache.size, 0); assert.equal(cache.bytes, 0); }
+    else {
+      assert.equal(cache.size, 1);
+      assert.ok(cache.bytes >= expected.tasks[0].record.payload.length);
+      assert.ok(budget.admit(Buffer.allocUnsafeSlow(200000), () => {}));
+      assert.equal(cache.size, 0); assert.equal(cache.bytes, 0);
+    }
+    parentPort.postMessage('checked');
+  `;
+  const source = `
+    import assert from 'node:assert/strict';
+    import { Worker } from 'node:worker_threads';
+    import { once } from 'node:events';
+    const worker = new Worker(new URL('data:text/javascript,' + encodeURIComponent(${JSON.stringify(workerSource)})));
+    const [message] = await once(worker, 'message');
+    await worker.terminate();
+    assert.equal(message, 'checked');
+  `;
+  const child = spawnSync(process.execPath, ['--input-type=module', '--eval', source], { encoding: 'utf8', timeout: 10000 });
+  assert.equal(child.status, 0, child.stderr);
+});
