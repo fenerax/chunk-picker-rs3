@@ -35,9 +35,10 @@ export function parse(args) {
   return options;
 }
 export function syntheticEnvironment(source, scratch, root, enabled, cpu = false) {
-  const env = { ...source, RS3_DATASET: 'open-f2p', RS3_STACK_SCRATCH: scratch, RS3_STACK_ROOT: root, RS3_TASK_WORKER_MODE: source.RS3_TASK_WORKER_MODE ?? 'process' };
-  // Never inherit private datasets, game defaults, live storage or ingress.
-  for (const key of Object.keys(env)) if (/^RS3_(?:PACK|GAME_|DATA_DIR|DATASET_|MAP_ASSETS|TERRAIN_ASSETS|ICON_ASSETS|PUBLIC_ORIGIN|LOOPBACK|PROFILE|SIGNIN|DISCORD_|GOOGLE_)/.test(key)) delete env[key];
+  // Deny by default: no inherited RS3_ setting reaches the synthetic server, so private
+  // datasets, add-ons, game defaults, live storage, ingress and operator logs stay out.
+  const env = Object.fromEntries(Object.entries(source).filter(([key]) => !/^RS3_/i.test(key)));
+  Object.assign(env, { RS3_DATASET: 'open-f2p', RS3_STACK_SCRATCH: scratch, RS3_STACK_ROOT: root, RS3_TASK_WORKER_MODE: source.RS3_TASK_WORKER_MODE === 'thread' ? 'thread' : 'process' });
   if (enabled) { env.RS3_PROFILE = '1'; if (cpu) env.RS3_PROFILE_CPU = '1'; env.RS3_PROFILE_RELAY = '1'; env.RS3_PROFILE_DIR = path.join(scratch, 'trace'); }
   return env;
 }

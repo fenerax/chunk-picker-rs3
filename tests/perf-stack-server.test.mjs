@@ -2,6 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtemp, readdir, readFile, rm } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 import { startServer } from '../scripts/perf/profile-stack.mjs';
 import { stopChild } from '../scripts/perf/cdp.mjs';
 
@@ -11,7 +13,7 @@ test('real server and process calculator retain results with profiling on and of
   const results=[];
   for(const mode of ['off','spans','cpu']){
     const enabled=mode!=='off';
-    const scratch=await mkdtemp('/tmp/rs3-profile-server-test-');let server;
+    const scratch=await mkdtemp(path.join(tmpdir(),'rs3-profile-server-test-'));let server;
     try{
       server=await startServer({root,profile:enabled,cpu:mode==='cpu'},scratch);
       const origin=new URL(server.inviteUrl).origin,token=new URL(server.inviteUrl).pathname.slice('/join/'.length);

@@ -2,6 +2,7 @@
 // Equivalent synthetic route observer for paired START/off measurements.
 import {mkdtemp,rm,writeFile,mkdir} from 'node:fs/promises';
 import path from 'node:path';
+import {tmpdir} from 'node:os';
 import {fileURLToPath} from 'node:url';
 import {startServer} from '../profile-stack.mjs';
 import {stopChild} from '../cdp.mjs';
@@ -12,7 +13,7 @@ if(!baseline||!out)throw Error('Usage: compare-routes.mjs START_WORKTREE OUTPUT_
 const pairs=Number(process.argv[4]??20);if(!Number.isInteger(pairs)||pairs<20)throw Error('At least 20 pairs required');
 const branch=fileURLToPath(new URL('../../../',import.meta.url)),rows=[];
 async function sample(root){
- const scratch=await mkdtemp('/tmp/rs3-stack-route-');let server;
+ const scratch=await mkdtemp(path.join(tmpdir(),'rs3-stack-route-'));let server;
  try{
   const startupStarted=performance.now();server=await startServer({root,profile:false},scratch);const startupMs=performance.now()-startupStarted;const url=new URL(server.inviteUrl),token=url.pathname.slice('/join/'.length);
   const metrics=[{name:'startup',ms:startupMs}];

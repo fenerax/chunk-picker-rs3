@@ -13,13 +13,21 @@ const role = isMainThread ? (process.env.RS3_PROFILE_ROLE ?? 'server') : 'engine
 const processId = `${process.pid}-${threadId}`;
 if (directory) try { mkdirSync(directory, { recursive: true }); } catch {}
 let sequence = 0;
+// Trace output is bounded per process so a long-running profiled server cannot fill the disk.
+const maxBytes = Number(process.env.RS3_PROFILE_MAX_BYTES) > 0 ? Number(process.env.RS3_PROFILE_MAX_BYTES) : 256 * 2 ** 20;
+let written = 0, truncated = false;
 export const now = () => Number(process.hrtime.bigint()) / 1e6;
 export const current = () => storage.getStore();
 export const capture = () => current() && { ...current() };
 const validId = value => typeof value === 'string' && /^[a-zA-Z0-9_.-]{1,120}$/.test(value);
 export function emit(value) {
-  if (!directory) return;
-  try { appendFileSync(path.join(directory, `${processId}.jsonl`), JSON.stringify({ processId, layer: role, ...value }) + '\n'); }
+  if (!directory || truncated) return;
+  try {
+    let line = JSON.stringify({ processId, layer: role, ...value }) + '\n';
+    if (written + Buffer.byteLength(line) > maxBytes) { truncated = true; line = JSON.stringify({ processId, layer: role, kind: 'truncated', maxBytes }) + '\n'; }
+    written += Buffer.byteLength(line);
+    appendFileSync(path.join(directory, `${processId}.jsonl`), line);
+  }
   catch { /* Diagnostics must never alter gameplay. */ }
 }
 export function interval(name, start, end, context = current(), extra = {}) {
@@ -45,7 +53,8 @@ export function wrapMethods(object, names, prefix) {
 }
 export function request(request, response, work) {
   const profileId = request.headers['x-rs3-profile'];
-  if (!validId(profileId)) return work();
+  // Client headers are honoured only while the harness has a scenario running.
+  if (!activeScenario || !validId(profileId)) return work();
   const start = now(), id = `${processId}:${++sequence}`, context = { profileId, spanId: id };
   const route = (request.url ?? '').split('?')[0];
   // Open-ended SSE is deliberately excluded from request wall-time coverage.
@@ -120,21 +129,23 @@ export function workerHandler(handler) {
 let cpu, cpuStart, scenario;
 const delay = CPU_ENABLED ? monitorEventLoopDelay({ resolution: 10 }) : undefined;
 const gc = [];
-if (CPU_ENABLED) new PerformanceObserver(list => { for (const e of list.getEntries()) gc.push({ start: now() - (performance.now() - e.startTime), duration: e.duration }); }).observe({ entryTypes: ['gc'] });
+// Observed only during a capture, and bounded, so an idle profiled process retains nothing.
+const gcObserver = CPU_ENABLED ? new PerformanceObserver(list => { for (const e of list.getEntries()) if (gc.length < 100000) gc.push({ start: now() - (performance.now() - e.startTime), duration: e.duration }); }) : undefined;
 export async function control(message) {
   if (message.action === 'clock') return { clock: now(), processId };
   if (!CPU_ENABLED) return;
   if (message.action === 'start') {
     if (cpu) return;
-    scenario = message.scenario; gc.length = 0; delay.reset(); delay.enable();
+    scenario = message.scenario; gc.length = 0; gcObserver.observe({ entryTypes: ['gc'] }); delay.reset(); delay.enable();
     cpu = new Session(); cpu.connect(); await cpu.post('Profiler.enable');
     await cpu.post('Profiler.setSamplingInterval', { interval: 1000 });
     cpuStart = now(); await cpu.post('Profiler.start');
   } else if (message.action === 'stop' && cpu) {
     const session = cpu; cpu = undefined;
-    const { profile } = await session.post('Profiler.stop'); session.disconnect(); delay.disable();
+    const { profile } = await session.post('Profiler.stop'); session.disconnect(); delay.disable(); gcObserver.disconnect();
     const end = now();
-    emit({ kind: 'cpu', scenario, start: cpuStart, end, profile, gc: [...gc], eventLoop: { meanMs: Number.isFinite(delay.mean) ? delay.mean / 1e6 : 0, maxMs: delay.max / 1e6 }, rssBytes: process.memoryUsage().rss });
+    const events = gc.splice(0);
+    emit({ kind: 'cpu', scenario, start: cpuStart, end, profile, gc: events, eventLoop: { meanMs: Number.isFinite(delay.mean) ? delay.mean / 1e6 : 0, maxMs: delay.max / 1e6 }, rssBytes: process.memoryUsage().rss });
   }
 }
 const endpoints = new Map(); let controlSequence = 0, activeScenario;

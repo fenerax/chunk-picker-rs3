@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import { mkdtemp, readFile, readdir, rm } from 'node:fs/promises';
 import { runInNewContext } from 'node:vm';
 import { spawnSync } from 'node:child_process';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 import { reconcile, interactionWindows, stats, html } from '../scripts/perf/profile-stack/report.mjs';
 import { parse, syntheticEnvironment } from '../scripts/perf/profile-stack.mjs';
 import { harness } from '../scripts/perf/profile-stack/harness.mjs';
@@ -18,11 +20,11 @@ test('unset profiling does not load profiling code, inspector, or observers thro
     const loaded=[];registerHooks({load(url,c,next){loaded.push(url);return next(url,c)}});
     await import('./app/server.mjs');
     assert.equal(loaded.some(u=>u.includes('profile-spans')||u.includes('inspector')),false);
-  `], { cwd: root, env: syntheticEnvironment(process.env, '/tmp/unused-profile-test', root.pathname, false), encoding:'utf8' });
+  `], { cwd: root, env: syntheticEnvironment(process.env, path.join(tmpdir(), 'unused-profile-test'), root.pathname, false), encoding:'utf8' });
   assert.equal(result.status,0,result.stderr);
 });
 test('contexts remain separate through asynchronous work and failures, and span parents cross jobs', async t => {
-  const dir=await mkdtemp('/tmp/rs3-span-test-');t.after(()=>rm(dir,{recursive:true,force:true}));
+  const dir=await mkdtemp(path.join(tmpdir(),'rs3-span-test-'));t.after(()=>rm(dir,{recursive:true,force:true}));
   const result=spawnSync(process.execPath,['--input-type=module','-e',`
     import assert from 'node:assert/strict';import {EventEmitter} from 'node:events';
     const p=await import('./app/profile-spans.mjs');
@@ -31,6 +33,9 @@ test('contexts remain separate through asynchronous work and failures, and span 
       return p.request({headers:{'x-rs3-profile':id},url:'/api/state'},response,async()=>{
         try {return await p.span('outer',async()=>{await new Promise(r=>setTimeout(r,5));const entry={};p.queued(entry);p.dispatch(entry);await p.workerHandler(async()=>p.span('inner',()=>{if(fail)throw Error('expected');return 7}))({_profile:entry._profile,type:'evaluate'});p.completed(entry);return 7;});}
         finally{response.end();}});}
+    const idle=new EventEmitter();idle.end=()=>idle.emit('finish');
+    await p.request({headers:{'x-rs3-profile':'outside-scenario'},url:'/api/state'},idle,async()=>{p.span('ignored',()=>1);idle.end();});
+    await p.scenarioControl('start','t');
     const values=await Promise.allSettled([run('click-a',false),run('click-b',true)]);
     assert.equal(values[0].value,7);assert.equal(values[1].status,'rejected');
     assert.equal(p.current(),undefined);
@@ -42,6 +47,18 @@ test('contexts remain separate through asynchronous work and failures, and span 
   const ids=new Map(rows.map(r=>[r.id,r]));assert.ok(rows.length>=10);
   for(const row of rows){assert.ok(['click-a','click-b'].includes(row.profileId));assert.ok(row.end>=row.start);if(row.parentId)assert.equal(ids.get(row.parentId)?.profileId,row.profileId);}
   assert.ok(rows.some(r=>r.name==='inner'&&r.profileId==='click-b'));
+});
+test('trace output stops at its byte limit with one truncation marker',async t=>{
+  const dir=await mkdtemp(path.join(tmpdir(),'rs3-span-limit-'));t.after(()=>rm(dir,{recursive:true,force:true}));
+  const result=spawnSync(process.execPath,['--input-type=module','-e',`
+    const p=await import('./app/profile-spans.mjs');
+    for(let i=0;i<500;i++)p.emit({kind:'span',name:'x'.repeat(100),start:i,end:i});
+  `],{cwd:root,env:{...process.env,RS3_PROFILE:'1',RS3_PROFILE_DIR:dir,RS3_PROFILE_MAX_BYTES:'4096'},encoding:'utf8'});
+  assert.equal(result.status,0,result.stderr);
+  const text=(await Promise.all((await readdir(dir)).map(file=>readFile(path.join(dir,file),'utf8')))).join('');
+  assert.ok(Buffer.byteLength(text)<=4096+200,String(Buffer.byteLength(text)));
+  const rows=text.trim().split('\n').map(JSON.parse);
+  assert.equal(rows.filter(r=>r.kind==='truncated').length,1);assert.equal(rows.at(-1).kind,'truncated');
 });
 test('coverage clips spans, ignores envelopes and partitions overlaps without double counting',()=>{
   const s=reconcile(10,30,[{layer:'server',name:'routing',start:0,end:100,envelope:true},{layer:'browser',name:'render',start:5,end:20},{layer:'engine',name:'evaluate',start:15,end:25}]);
@@ -62,7 +79,9 @@ test('coverage clips spans, ignores envelopes and partitions overlaps without do
 test('synthetic runner rejects private input, strips inherited private settings, validates scenarios',()=>{
   assert.throws(()=>parse(['--private-state','/tmp/save']),/not supported/);
   assert.throws(()=>parse(['--runs','0']),/Runs/);assert.throws(()=>parse(['--scenario','unknown']),/scenario/);
-  const e=syntheticEnvironment({RS3_GAME_DEFAULTS_FILE:'secret',RS3_PACKS_DIR:'secret',RS3_PROFILE:'1',RS3_PROFILE_DIR:'secret',RS3_DATASET:'duo-legacy',RS3_DATASET_PROFILE:'secret'},'/tmp/synthetic','/tmp/root',false);
+  const e=syntheticEnvironment({RS3_GAME_DEFAULTS_FILE:'secret',RS3_PACKS_DIR:'secret',RS3_PROFILE:'1',RS3_PROFILE_DIR:'secret',RS3_DATASET:'duo-legacy',RS3_DATASET_PROFILE:'secret',RS3_PRIVATE_ADDON:'secret',RS3_PRIVATE_ADDON_SHA256:'secret',RS3_STARTUP_TIMING_LOG:'secret',RS3_WORKER_MEMORY_PROBE_IMPORT:'secret',RS3_TASK_WORKER_MODE:'thread'},'/tmp/synthetic','/tmp/root',false);
+  for(const key of ['RS3_PRIVATE_ADDON','RS3_PRIVATE_ADDON_SHA256','RS3_STARTUP_TIMING_LOG','RS3_WORKER_MEMORY_PROBE_IMPORT'])assert.equal(e[key],undefined,key);
+  assert.equal(e.RS3_TASK_WORKER_MODE,'thread');
   assert.equal(e.RS3_DATASET,'open-f2p');assert.equal(e.RS3_PACKS_DIR,undefined);assert.equal(e.RS3_GAME_DEFAULTS_FILE,undefined);assert.equal(e.RS3_PROFILE,undefined);assert.equal(e.RS3_PROFILE_DIR,undefined);assert.equal(e.RS3_DATASET_PROFILE,undefined);
 });
 test('report embeds data safely and needs no network resources',()=>{
