@@ -34,7 +34,13 @@ export function createScreenUi(c) {
 
   c.fieldSequence = 0;
 
-  c.field = (text, control) => { const wrap = c.el('div', undefined, 'form-field'), label = c.el('label', text); if (!control.id) control.id = `field-${++c.fieldSequence}`; label.htmlFor = control.id; wrap.append(label, control); return wrap; };
+  // Compound fields render a wrapper but label their operable inner control.
+  c.field = (text, control, labelControl = control) => {
+    const wrap = c.el('div', undefined, 'form-field'), label = c.el('label', text);
+    if (!labelControl.id) labelControl.id = `field-${++c.fieldSequence}`;
+    label.htmlFor = labelControl.id; label.id = `${labelControl.id}-label`;
+    wrap.append(label, control); return wrap;
+  };
 
   c.wikiSearch = name => `https://runescape.wiki/w/Special:Search?search=${encodeURIComponent(name)}`;
 

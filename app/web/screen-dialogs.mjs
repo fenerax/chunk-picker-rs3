@@ -4,6 +4,33 @@ import { backupSaveLabel } from './backup-status.mjs';
 import { createSearchDialog } from './screen-search.mjs';
 import { createBackupUpload, downloadFullBackup } from './backup-transfer.mjs';
 
+// Native textarea focus can reveal only the caret, and progressive details can
+// move a control after the browser has scrolled it. Keep the whole focused box
+// in the body scrollport without changing focus, selection or the outer page.
+export function keepDialogFocusVisible({ document, dialog, content, view = globalThis }) {
+  let pending = false;
+  const schedule = () => {
+    if (pending) return;
+    pending = true;
+    view.requestAnimationFrame(() => {
+      pending = false;
+      const active = document.activeElement;
+      if (!dialog.open || !content.contains(active) || !content.clientHeight) return;
+      const box = active.getBoundingClientRect(), body = content.getBoundingClientRect();
+      const top = body.top + content.clientTop, bottom = top + content.clientHeight;
+      if (box.height <= content.clientHeight && box.bottom > bottom) content.scrollTop += box.bottom - bottom;
+      else if (box.top < top) content.scrollTop += box.top - top;
+    });
+  };
+  dialog.addEventListener('focusin', schedule);
+  if (view.MutationObserver) new view.MutationObserver(schedule).observe(content, { childList: true, subtree: true, characterData: true });
+  if (view.ResizeObserver) {
+    const observer = new view.ResizeObserver(schedule);
+    observer.observe(content);
+    observer.observe(document.querySelector('.dialog-header'));
+  }
+}
+
 // Main-screen dialogs; shared values and callbacks live in the explicit screen context.
 export function createScreenDialogs(c) {
   const search = createSearchDialog(c);
@@ -33,6 +60,7 @@ export function createScreenDialogs(c) {
 
   function bindDialogLifecycle() {
     const dialog = c.$('tool-dialog');
+    keepDialogFocusVisible({ document, dialog, content: c.$('dialog-content') });
     dialog.addEventListener('close', () => { if (!dialog.open) { search.clear(); restoreDialogFocus(); } });
     dialog.addEventListener('cancel', c.beginDialogRequest); document.querySelector('.dialog-header').addEventListener('submit', c.beginDialogRequest);
     const outside = event => { const box = dialog.getBoundingClientRect?.(); return !!box && (event.clientX < box.left || event.clientX > box.right || event.clientY < box.top || event.clientY > box.bottom); };
@@ -89,14 +117,21 @@ export function createScreenDialogs(c) {
 
   function download(value, name) { const blob = new Blob([JSON.stringify(value, null, 2)], { type: 'application/json' }), url = URL.createObjectURL(blob), link = c.el('a'); link.href = url; link.download = name; link.click(); setTimeout(() => URL.revokeObjectURL(url), 1000); }
 
-  // A normal button and the chosen file's name, in place of the browser's own file box.
-  // The button comes first so the surrounding field label names it.
-  function filePicker(file) {
+  // Keep native button activation; expose the purpose and current filename on it.
+  function filePicker(file, purpose) {
     const wrap = c.el('span', undefined, 'file-picker'), name = c.el('span', 'No file chosen', 'file-picker-name');
+    const choose = c.button('Choose file…', () => file.click());
+    const field = c.field(purpose, wrap, choose);
+    const action = c.el('span', choose.textContent); action.id = `${choose.id}-action`;
+    choose.replaceChildren(action);
+    name.id = `${choose.id}-filename`;
+    // Include the visible button text as well as the surrounding purpose label.
+    choose.setAttribute('aria-labelledby', `${action.id} ${field.firstChild.id}`);
+    choose.setAttribute('aria-describedby', name.id);
     file.className = 'file-picker-input'; file.tabIndex = -1;
     file.addEventListener('change', () => { name.textContent = file.files?.[0]?.name ?? 'No file chosen'; });
-    wrap.append(c.button('Choose file…', () => file.click()), name, file);
-    return wrap;
+    wrap.append(choose, name, file);
+    return field;
   }
   async function readJSON(file) { const selected = file.files[0]; if (!selected) throw new Error('Choose a JSON file.'); if (selected.size > 32 * 1024 * 1024) throw new Error('This file is larger than 32 MB.'); try { return JSON.parse(await selected.text()); } catch { throw new Error('The file is not valid JSON.'); } }
 
@@ -120,8 +155,9 @@ export function createScreenDialogs(c) {
     if (statusLine) content.prepend(statusLine);
     const file = c.input('file'); file.accept = '.json,.json.gz,application/json,application/gzip'; const preview = c.el('div');
     const progress = c.el('p', '', 'status-detail'); progress.setAttribute('role', 'status'); progress.setAttribute('aria-live', 'polite');
+    const previewError = c.el('p', '', 'status-detail'); previewError.setAttribute('role', 'alert'); previewError.hidden = true;
     const cancel = c.button('Cancel preview', () => { invalidatePreview(); progress.textContent = 'Preview cancelled.'; previewButton.focus?.(); }); cancel.hidden = true;
-    const invalidatePreview = () => { previewRequest++; previewController?.abort(); previewController = undefined; reading = false; previewButton.disabled = false; cancel.hidden = true; progress.textContent = ''; preview.replaceChildren(); };
+    const invalidatePreview = () => { previewRequest++; previewController?.abort(); previewController = undefined; reading = false; previewButton.disabled = false; cancel.hidden = true; progress.textContent = ''; previewError.textContent = ''; previewError.hidden = true; preview.replaceChildren(); };
     // Admins replace both maps or one player's; an invite that owns a player restores only that map.
     const scopes = c.sessionAdmin ? [{ value: '', label: 'Both maps (whole save)' }, ...c.state.members.map(member => ({ value: member.id, label: `Only ${member.name}’s map` }))] : [];
     const scope = scopes.length ? c.select(scopes, '') : null;
@@ -132,7 +168,7 @@ export function createScreenDialogs(c) {
     const scopedMember = () => owner ? null : c.sessionAdmin ? scope.value || null : c.sessionMember;
     const read = async (document, generation = c.dialogGeneration, request = ++previewRequest, backupId) => {
       if (reading || submitting) return;
-      reading = true; previewButton.disabled = true; preview.replaceChildren(); cancel.hidden = false;
+      reading = true; previewButton.disabled = true; previewError.textContent = ''; previewError.hidden = true; preview.replaceChildren(); cancel.hidden = false;
       const controller = new AbortController(); previewController = controller;
       const stage = text => { if (previewController === controller && c.dialogCurrent(generation) && request === previewRequest) progress.textContent = text; };
       stage(backupId !== undefined ? 'Checking replacement…' : 'Preparing backup…');
@@ -156,7 +192,7 @@ export function createScreenDialogs(c) {
         finally { submitting = false; if (c.dialogCurrent(generation)) { previewButton.disabled = false; file.disabled = false; if (scope) scope.disabled = false; } }
       });
       preview.append(apply); stage('Replacement ready to review.');
-      } catch (error) { if (error.name !== 'AbortError' && c.dialogCurrent(generation) && request === previewRequest) { progress.textContent = 'Preview failed. Try again.'; c.showError(error); } }
+      } catch (error) { if (error.name !== 'AbortError' && c.dialogCurrent(generation) && request === previewRequest) { progress.textContent = 'Preview failed. Try again.'; previewError.textContent = `${error.message || String(error)} Choose a full backup downloaded with Download full backup above.`; previewError.hidden = false; } }
       finally { if (previewController === controller) { previewController = undefined; reading = false; previewButton.disabled = false; cancel.hidden = true; } }
     };
     const retained = c.el('div', undefined, 'form-stack'); retained.append(c.button('Browse previous saves', async () => {
@@ -182,7 +218,7 @@ export function createScreenDialogs(c) {
     else if (scope) content.append(c.field('Replace', scope));
     else content.append(c.el('p', `Restoring here replaces only ${ownName}’s map. The other map, shared rules and History stay, and Undo can reverse it.`, 'status-detail'));
     const previewButton = c.button(legacyImport ? 'Preview import / restore' : 'Preview restore', () => read());
-    content.append(c.field(legacyImport ? 'Choose a full backup or an exported copy of both maps' : 'Choose a full backup', filePicker(file)), c.el('p', 'Choose .json or .json.gz. Backups download compressed. Limit: 256 MiB after decompression.', 'status-detail'), previewButton, progress, cancel, preview, retained, ...(legacyImport && c.advanced() ? [c.button('View migration report', async () => { const generation = c.beginDialogRequest(), value = await c.api('/api/migration'); if (c.dialogCurrent(generation)) c.openDialog('Migration report', c.lazyJSON('Imported names and unmatched records', value)); })] : [])); c.openDialog('Backup & Import', content);
+    content.append(filePicker(file, legacyImport ? 'Choose a full backup or an exported copy of both maps' : 'Choose a full backup'), c.el('p', 'Choose .json or .json.gz. Backups download compressed. Limit: 256 MiB after decompression.', 'status-detail'), previewButton, progress, previewError, cancel, preview, retained, ...(legacyImport && c.advanced() ? [c.button('View migration report', async () => { const generation = c.beginDialogRequest(), value = await c.api('/api/migration'); if (c.dialogCurrent(generation)) c.openDialog('Migration report', c.lazyJSON('Imported names and unmatched records', value)); })] : [])); c.openDialog('Backup & Import', content);
     c.$('tool-dialog')?.addEventListener('close', () => { previewController?.abort(); }, { once: true });
   }
 

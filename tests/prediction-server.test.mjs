@@ -6,7 +6,9 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { EventEmitter } from 'node:events';
 import { createServer } from '../app/server.mjs';
-import { createGroupState } from '../app/core/state.mjs';
+import { createGroupState, applyCommand, exportBackup, importBackup } from '../app/core/state.mjs';
+import { randomStartFixture, randomStartDefinitions } from './fixtures/random-start.mjs';
+import { predictChunk } from '../app/core/planning.mjs';
 import { createRuleRegistry } from '../app/core/rules.mjs';
 
 const fixtureRules = createRuleRegistry();
@@ -18,6 +20,65 @@ const definitions = {
   walkableChunks: ['12341', '12342', '12597', '13108'], walkableChunksF2P: ['12341', '12342', '12597', '13108'],
   challenges: { Quest: { Present: { Chunks: ['12341'] }, Future: { Chunks: ['12342'] } } },
 };
+
+test('HTTP previews follow random-start provenance across warm caches, edits, backup import and store reload', async t => {
+  const dataDir = await mkdtemp(path.join(tmpdir(), 'rs3-random-start-preview-'));
+  const { state, engine, world } = randomStartFixture();
+  let app;
+  t.after(async () => { await app?.close(); await rm(dataDir, { recursive: true, force: true }); });
+  const start = async () => {
+    app = await createServer({ dataset: fixtureDataset, dataDir, port: 0, predictionPrewarm: false,
+      shutdownDeadlineMs: 5000, definitions: randomStartDefinitions, taskMap: {}, initialState: state, random: () => 0 });
+    await app.listen();
+  };
+  await start();
+  const request = async (route, command) => {
+    const origin = `http://127.0.0.1:${app.address().port}`;
+    const response = await fetch(origin + route, { method: command ? 'POST' : 'GET',
+      headers: { Authorization: `Bearer ${app.store.getAccessToken()}`, Origin: origin, 'Content-Type': 'application/json' },
+      ...(command ? { body: JSON.stringify({ expectedRevision: app.store.getInfo().revision, command }) } : {}) });
+    assert.equal(response.status, 200);
+    return response.json();
+  };
+  const preview = chunkId => request(`/api/predict?memberId=synthetic&chunkId=${chunkId}`);
+  const ordinaryInput = app.store.getCalculationSnapshot().taskInputKey;
+  assert.equal((await preview('12850')).delta.tasksAdded.length, 0, 'Warm an ordinary unlock before the offer');
+  await request('/api/command', { type: 'random-start', memberId: 'synthetic', count: 2 });
+  const offerInput = app.store.getCalculationSnapshot().taskInputKey;
+  assert.notEqual(offerInput, ordinaryInput, 'Invalidate browser and ranking previews when provenance changes');
+  assert.ok(app.store.getCalculationSnapshot().state.history.length, 'Calculator receives the pending offer origin');
+  assert.ok(JSON.parse(Buffer.from(app.store.getCalculationSnapshot().stateJSON).toString()).history.length);
+  for (const chunkId of ['12850', '12851']) {
+    const predicted = await preview(chunkId);
+    assert.equal(predicted.delta.tasksAdded.length, 1);
+    const expected = predictChunk(app.store.getState(), 'synthetic', chunkId, { world, engine });
+    assert.deepEqual(predicted.delta.tasksAdded.map(row => row.id), expected.delta.tasksAdded.map(row => row.id));
+  }
+  assert.equal((await preview('12850')).cache.hit, true);
+  await request('/api/command', { type: 'set-preference', memberId: 'synthetic', preferenceId: 'theme', value: 'dark' });
+  await request('/api/command', { type: 'set-note', memberId: 'synthetic', chunkId: '12850', note: 'Synthetic note' });
+  assert.equal(app.store.getCalculationSnapshot().taskInputKey, offerInput, 'Non-gameplay edits retain the offer cache');
+  assert.equal((await preview('12850')).delta.tasksAdded.length, 1);
+  const backup = importBackup(exportBackup(app.store.getState()));
+  assert.equal(predictChunk(backup, 'synthetic', '12850', { world, engine }).delta.tasksAdded.length, 1);
+  await app.close(); await start();
+  const predicted = await preview('12850');
+  assert.equal(predicted.delta.tasksAdded.length, 1);
+  const beforeAcceptance = app.store.getState();
+  await request('/api/command', { type: 'unlock-selection', memberId: 'synthetic', chunkId: '12850' });
+  const actual = await request('/api/tasks?memberId=synthetic');
+  for (const task of predicted.delta.tasksAdded) {
+    const realized = actual.tasks.find(row => row.id === task.id);
+    for (const field of ['status', 'explanation', 'blockers']) assert.deepEqual(task[field], realized[field], field);
+  }
+  assert.deepEqual(app.store.getState().members, applyCommand(beforeAcceptance,
+    { type: 'unlock-selection', memberId: 'synthetic', chunkId: '12850' }, { world }).members);
+  assert.deepEqual(app.store.getCalculationSnapshot().state.history, [], 'Release unneeded provenance after accepting');
+  await app.close(); await start();
+  assert.equal(app.store.getState().members[0].sectionOverrides['12850-1'], true);
+  const reloaded = await request('/api/tasks?memberId=synthetic');
+  assert.deepEqual(reloaded.tasks, actual.tasks);
+});
 async function until(operation, predicate) {
   const deadline = Date.now() + 15000;
   let value;

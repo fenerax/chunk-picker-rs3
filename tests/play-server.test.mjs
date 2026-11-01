@@ -41,7 +41,8 @@ test('play state, acknowledgement and conflict retain coherent revisions and exa
   for (const field of ['members', 'tasks', 'rules', 'legacy', 'history']) assert.deepEqual(play.state[field], projectPlayState(full.state)[field]);
   for (const owner of full.state.members) assert.deepEqual(play.pools[owner.id].partnerConnections, partnerConnections(world, full.state, owner.id));
   assert.deepEqual((await (await request('/api/history')).json()).previousHistory, full.state.provenance.restore.previousHistory);
-  const calculation = app.store.getCalculationState(); assert.deepEqual(calculation.history, []); assert.equal(calculation.provenance, undefined);
+  const calculation = app.store.getCalculationState(); assert.deepEqual(calculation.history, []);
+  assert.deepEqual(calculation.provenance, { ancientEffigiesMigratedMembers: full.state.members.map(member => member.id) }, 'Only the effigies marker reaches calculation input');
   assert.deepEqual(calculation.identityRegistry, full.state.identityRegistry); assert.deepEqual(app.store.getRules(), full.state.rules);
   const body = { expectedRevision: full.state.revision, command: { type: 'set-note', memberId: 'one', chunkId: '12341', note: 'Saved' } };
   const saved = await (await request('/api/command?view=play-v1', { body })).json();
@@ -249,4 +250,65 @@ test('two authenticated clients receive each play commit over SSE and merge cohe
   } finally {
     for (const client of clients) { client.controller.abort(); await client.reader.cancel().catch(() => {}); }
   }
+});
+
+test('oversized full-state gzip uses immutable parts without reading joined JSON', async t => {
+  const previous = process.env.RS3_FULL_STATE_GZIP_PARTS; process.env.RS3_FULL_STATE_GZIP_PARTS = '1';
+  t.after(() => { if (previous === undefined) delete process.env.RS3_FULL_STATE_GZIP_PARTS; else process.env.RS3_FULL_STATE_GZIP_PARTS = previous; });
+  const { app, request, origin } = await fixture(t);
+  const snapshot = app.store.getStateSnapshot;
+  let captures = 0;
+  const payload = 'x'.repeat(49 * 1024 * 1024);
+  app.store.getStateSnapshot = async options => {
+    if (options?.view) return snapshot(options);
+    captures++;
+    return { revision: app.store.getInfo().revision,
+      stateJSONParts: ['{"payload":"', payload, '","unicode":"🦊 Île"}'], pools: { one: { eligible: [] }, two: { eligible: ['synthetic'] } },
+      get stateJSON() { throw new Error('Full-state JSON must not be joined for oversized gzip'); } };
+  };
+  assert.equal((await fetch(origin + '/api/state', { headers: { 'Accept-Encoding': 'gzip' } })).status, 401);
+  let fullRawBuffers = 0;
+  const originalFrom = Buffer.from, originalConcat = Buffer.concat;
+  const observedFrom = t.mock.method(Buffer, 'from', function(value, ...args) {
+    if (typeof value === 'string' && Buffer.byteLength(value) > 48 * 1024 * 1024) fullRawBuffers++;
+    return originalFrom.call(this, value, ...args);
+  });
+  const observedConcat = t.mock.method(Buffer, 'concat', function(chunks, length) {
+    if ((length ?? chunks.reduce((sum, chunk) => sum + chunk.length, 0)) > 48 * 1024 * 1024) fullRawBuffers++;
+    return originalConcat.call(this, chunks, length);
+  });
+  const first = await request('/api/state', { headers: { 'Accept-Encoding': 'gzip, identity;q=0' } });
+  observedFrom.mock.restore(); observedConcat.mock.restore();
+  assert.equal(first.status, 200); assert.equal(fullRawBuffers, 0);
+  const decoded = await first.text();
+  assert.equal(JSON.parse(decoded).state.payload.length, payload.length);
+  assert.equal(JSON.parse(decoded).state.unicode, '🦊 Île');
+  assert.deepEqual(JSON.parse(decoded).pools.two.eligible, ['synthetic']);
+  const etag = first.headers.get('etag');
+  const head = await request('/api/state', { method: 'HEAD', headers: { 'Accept-Encoding': 'gzip', 'If-None-Match': `"other", W/${etag}` } });
+  assert.equal(head.status, 304); assert.equal(await head.text(), '');
+  assert.equal(head.headers.get('vary'), 'Accept-Encoding');
+  assert.match(head.headers.get('cache-control'), /^private/);
+  assert.equal(captures, 1, 'compressed-only cache retains no joined state');
+});
+
+test('opted-in small state preserves identity, Brotli, wildcard and refusal negotiation', async t => {
+  const previous = process.env.RS3_FULL_STATE_GZIP_PARTS; process.env.RS3_FULL_STATE_GZIP_PARTS = '1';
+  t.after(() => { if (previous === undefined) delete process.env.RS3_FULL_STATE_GZIP_PARTS; else process.env.RS3_FULL_STATE_GZIP_PARTS = previous; });
+  const { app, request } = await fixture(t);
+  const { createRepresentation } = await import('../app/http-response.mjs');
+  const saved = await app.store.getStateSnapshot({});
+  const plain = Buffer.from(`{"state":${saved.stateJSON},"pools":${JSON.stringify(saved.pools)},"store":${JSON.stringify(app.store.getInfo())}}`);
+  const control = createRepresentation(plain);
+  for (const [accept, encoding] of [['gzip;q=0', 'identity'], ['gzip;q=0.5', 'identity'], ['gzip, identity;q=0', 'gzip'],
+    ['br, gzip', 'br'], ['*;q=0.5, identity;q=0', 'br'], ['br;q=0, gzip, identity;q=0', 'gzip']]) {
+    const expected = await control.encoded(encoding);
+    const response = await request('/api/state', { headers: { 'Accept-Encoding': accept } });
+    assert.equal(response.status, 200); assert.equal(response.headers.get('content-encoding'), encoding === 'identity' ? null : encoding);
+    assert.equal(response.headers.get('etag'), expected.etag); assert.equal(Number(response.headers.get('content-length')), expected.bytes.length);
+    assert.equal(await response.text(), plain.toString());
+    const head = await request('/api/state', { method: 'HEAD', headers: { 'Accept-Encoding': accept } });
+    assert.equal(head.status, 200); assert.equal(Number(head.headers.get('content-length')), expected.bytes.length); assert.equal(await head.text(), '');
+  }
+  assert.equal((await request('/api/state', { headers: { 'Accept-Encoding': '*;q=0' } })).status, 406);
 });

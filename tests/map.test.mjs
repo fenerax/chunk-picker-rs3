@@ -121,7 +121,8 @@ test('activity model and preference changes repaint state without redrawing base
 });
 
 test('activity outlines paint after roll fills and before roll labels and personal markers', t => {
-  const { map, flush } = harness(t);
+  const { map, world, state, flush } = harness(t);
+  map.setModel({ world, state, memberId: 'one', pool: { eligible: [{ id: '7494' }] } }); flush();
   const events = [], context = map.contexts[1];
   const fill = context.fillRect.bind(context), text = context.fillText.bind(context);
   context.fillRect = (...args) => { events.push('fill'); fill(...args); };
@@ -586,4 +587,125 @@ test('new details appear under a stationary cursor without repainting terrain or
     description: 'Start guidance: Talk to the cook in Lumbridge Castle.' }] }, connections: { connections: [] } });
   flush();
   assert.match(tooltip.textContent, /Quest start: Cook's Assistant\. Start guidance: Talk to the cook/);
+});
+
+
+for (const groupView of [false, true]) test(`saved selections never supply eligibility or roll numbers (${groupView ? 'group' : 'personal'})`, t => {
+  const { map, world, state, tooltip, counters, flush } = harness(t);
+  state.rules = { 'roll.selected': false };
+  state.members[1].selected = ['7494'];
+  map.setModel({ world, state, memberId: 'one', groupView, pool: { eligible: [], excluded: [] } });
+  counters[1].text.length = 0; flush();
+  assert.equal(map.candidateRanks.size, 0);
+  assert.equal(map.cellStates.get('7494').candidate, false);
+  assert.ok(!counters[1].text.includes('1'), 'Saved order is not painted as a roll number');
+  map.pointerMove({ clientX: 160, clientY: 300 }); flush();
+  assert.match(tooltip.textContent, /Outside One’s current roll pool/);
+  assert.match(tooltip.textContent, /Saved hand selection 1: One/);
+  assert.match(tooltip.textContent, /Hand selections are disabled for One/);
+  assert.equal(tooltip.textContent.includes('Saved hand selection 1: Two'), groupView);
+  assert.equal(tooltip.textContent.includes('Hand selections are disabled for Two.'), groupView);
+  assert.doesNotMatch(tooltip.textContent, /roll option|In roll pool/);
+});
+
+for (const groupView of [false, true]) test(`partner hand selections remain owner-labelled context (${groupView ? 'group' : 'personal'})`, t => {
+  const { map, world, state, tooltip, counters, flush } = harness(t);
+  state.members[0].selected = []; state.members[1].selected = ['7494'];
+  map.setModel({ world, state, memberId: 'one', groupView, pool: { eligible: [], excluded: [] } });
+  counters[1].text.length = 0; flush();
+  assert.equal(map.candidateRanks.size, 0);
+  assert.ok(!counters[1].text.includes('1'));
+  assert.equal(map.cellStates.get('7494').selected.length, Number(groupView));
+  map.pointerMove({ clientX: 160, clientY: 300 }); flush();
+  assert.match(tooltip.textContent, /Outside One’s current roll pool/);
+  assert.equal(tooltip.textContent.includes('Saved hand selection 1: Two'), groupView);
+  assert.doesNotMatch(tooltip.textContent, /roll option|In roll pool/);
+});
+
+for (const groupView of [false, true]) for (const pins of [false, true]) test(`partner ownership cannot hide eligible roll numbers (${groupView ? 'group' : 'personal'}, pins ${pins})`, t => {
+  const { map, world, state, tooltip, counters, flush } = harness(t, { pins });
+  state.members[0].selected = [];
+  const pool = { eligible: [{ id: '7751', reasons: [] }], excluded: [] };
+  const before = JSON.stringify({ state, pool });
+  map.setModel({ world, state, memberId: 'one', groupView, pool });
+  counters[1].text.length = 0; flush();
+  assert.equal(map.cellStates.get('7751').candidate, true);
+  assert.equal(map.candidateRanks.get('7751'), 1);
+  assert.ok(counters[1].text.includes('1'), 'Eligible partner destination paints its current-player number');
+  map.pointerMove({ clientX: 270, clientY: 170 }); flush();
+  assert.match(tooltip.textContent, /Automatic roll option 1 for One/);
+  assert.equal(tooltip.textContent.includes('Unlocked: Two'), groupView);
+  assert.doesNotMatch(tooltip.textContent, /Saved hand selection/);
+  assert.equal(JSON.stringify({ state, pool }), before, 'Presentation never mutates pool or state');
+});
+
+test('eligible hand order precedes automatic IDs and new response membership replaces every rank', t => {
+  const { map, world, state, tooltip, flush } = harness(t);
+  state.members[0].selected = ['missing', '7751', '7494'];
+  const rankedWorld = buildWorld({ chunks: { '7495': {}, '7494': {}, '7751': {}, '7750': {} }, walkableChunks: [], walkableChunksF2P: [] });
+  const pool = { eligible: [{ id: '7750' }, { id: '7494' }, { id: '7751' }], excluded: [] };
+  map.setModel({ world: rankedWorld, state, memberId: 'one', pool }); flush();
+  assert.deepEqual([...map.candidateRanks], [['7751', 1], ['7494', 2], ['7750', 3]]);
+  map.pointerMove({ clientX: 270, clientY: 170 }); flush();
+  assert.match(tooltip.textContent, /Hand-added roll option 1 for One/);
+  map.setModel({ world, state: { ...state, revision: 2 }, memberId: 'one', pool: { eligible: [], excluded: [] } }); flush();
+  assert.equal(map.candidateRanks.size, 0);
+  assert.match(tooltip.textContent, /Outside One’s current roll pool/);
+  assert.doesNotMatch(tooltip.textContent, /roll option/);
+});
+
+test('pending choices retain their owners without supplying or suppressing current-player eligibility', t => {
+  const { map, world, state, tooltip, counters, flush } = harness(t);
+  state.members[0].selected = []; state.members[0].pendingRoll = ['7494'];
+  state.members[1].unlocked = []; state.members[1].pendingRoll = ['7751'];
+  map.setModel({ world, state, memberId: 'one', groupView: true, pool: { eligible: [{ id: '7751' }], excluded: [] } });
+  counters[1].text.length = 0; flush();
+  assert.deepEqual([...map.candidateRanks], [['7751', 1]]);
+  map.pointerMove({ clientX: 160, clientY: 300 }); flush();
+  assert.match(tooltip.textContent, /Offered in One’s pending roll/);
+  assert.doesNotMatch(tooltip.textContent, /roll option/);
+  map.pointerMove({ clientX: 270, clientY: 170 }); flush();
+  assert.match(tooltip.textContent, /Automatic roll option 1 for One/);
+  assert.match(tooltip.textContent, /Roll choice: Two/);
+  map.setModel({ world, state, memberId: 'one', pool: null }); flush();
+  assert.equal(map.candidateRanks.size, 0, 'Missing response data never promotes saved selections');
+});
+
+
+test('an eligible destination selected only by a partner retains the active automatic option', t => {
+  const { map, world, state, tooltip, counters, flush } = harness(t);
+  state.members[0].selected = []; state.members[1].selected = ['7494'];
+  map.setModel({ world, state, memberId: 'one', groupView: true, pool: { eligible: [{ id: '7494' }] } });
+  counters[1].text.length = 0; flush();
+  assert.equal(map.cellStates.get('7494').candidate, true);
+  assert.ok(counters[1].text.includes('1'));
+  map.pointerMove({ clientX: 160, clientY: 300 }); flush();
+  assert.match(tooltip.textContent, /Automatic roll option 1 for One/);
+  assert.match(tooltip.textContent, /Saved hand selection 1: Two/);
+});
+
+test('disabled saved selections can still be eligible through an automatic rule', t => {
+  const { map, world, state, tooltip, flush } = harness(t);
+  state.rules = { 'roll.selected': false };
+  map.setModel({ world, state, memberId: 'one', pool: { eligible: [{ id: '7494', reasons: [{ travelKind: 'lodestone' }] }] } }); flush();
+  map.pointerMove({ clientX: 160, clientY: 300 }); flush();
+  assert.match(tooltip.textContent, /Lodestone roll option 1 for One/);
+  assert.match(tooltip.textContent, /Saved hand selection 1: One/);
+  assert.match(tooltip.textContent, /Hand selections are disabled for One/);
+  assert.doesNotMatch(tooltip.textContent, /Hand-added roll option|Outside .*roll pool/);
+});
+
+test('passive availability repaints counts and hover while preserving terrain, ownership and hit testing', t => {
+  const { map, counters, tooltip, flush } = harness(t);
+  const terrain = counters[0].clear, member = map.active, candidates = map.candidateRanks;
+  map.pointer = { x: 150, y: 250 }; map.setHover('7494');
+  for (const count of [3, 0, null]) {
+    map.setAvailability({ counts: new Map([['7494', count]]), maximum: 3, skill: '' }); flush();
+    assert.match(tooltip.textContent, count === null ? /New task options: unknown/ : new RegExp(`New task options: ${count}; checked`));
+    assert.equal(map.chunkAt(map.pointer), '7494');
+    assert.equal(map.active, member); assert.equal(map.candidateRanks, candidates);
+    assert.equal(counters[0].clear, terrain, 'Overlay updates never invalidate terrain');
+  }
+  map.setAvailability(null); flush();
+  assert.doesNotMatch(tooltip.textContent, /New task options/);
 });

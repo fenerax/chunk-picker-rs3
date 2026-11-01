@@ -2,11 +2,13 @@ import { gameStorage } from './screen-save-status.mjs';
 import { projectChunkState } from './command-state.mjs';
 import { chunkColourLegend } from './chunk-colour-picker.mjs';
 import { createTravelLinesKey } from './map-info.mjs';
+import { createMapAvailability } from './map-availability.mjs';
 import { createMapTaskCounts } from './map-task-counts.mjs';
 import { createMapActivityLayers } from './map-activity-layers.mjs';
 
 // Main-screen map; shared values and callbacks live in the explicit screen context.
 export function createScreenMap(c) {
+  c.mapAvailability = createMapAvailability(c);
   c.mapTaskCounts = createMapTaskCounts(c);
   c.activityLayers = createMapActivityLayers(c);
   function mapControls() {
@@ -37,8 +39,8 @@ export function createScreenMap(c) {
     c.finishLine?.refresh();
     c.partnerSupply?.refresh();
     c.bossGatesView?.refresh();
-    c.$('undo').disabled = !c.canWrite() || c.sandbox.active || !c.state.history.some(event => event.undo && !event.undoneRevision);
-    c.duoCoordination?.render();
+    if (c.duoCoordination) c.duoCoordination.render();
+    else c.$('undo').disabled = !c.canWrite() || c.sandbox.active || !c.state.history.some(event => event.undo && !event.undoneRevision);
     c.gamePlugin?.render();
     for (const id of ['settings-open', 'game-plugin-open', 'bis-open', 'activity-open', 'teleports-open', 'backup-open', 'original-sync-open', 'invites-open', 'feedback-open', 'custom-task-open', 'random-start']) if (c.$(id)) c.$(id).disabled = c.sandbox.active;
     for (const theme of ['dark', 'gray', 'light']) { const choice = c.$(`theme-${theme}`); if (choice) choice.disabled = c.sandbox.active; }
@@ -54,7 +56,8 @@ export function createScreenMap(c) {
       const actions = c.el('div', undefined, 'pending-actions');
       actions.append(c.button('Pick for me', () => c.acceptRoll({ type: 'pick-for-me', memberId: c.memberId })));
       if (c.member().pendingRoll.length > 1) actions.append(c.button('Unlock both', () => c.acceptRoll({ type: 'unlock-both', memberId: c.memberId })));
-      actions.append(c.button('Cancel roll', () => c.command({ type: 'cancel-roll', memberId: c.memberId }), 'cancel-roll')); if (c.canWrite()) pending.append(actions);
+      actions.append(c.button('Cancel roll', () => c.acceptRoll({ type: 'cancel-roll', memberId: c.memberId }), 'cancel-roll')); if (c.canWrite()) pending.append(actions);
+      for (const button of pending.querySelectorAll('button')) if (button.className !== 'choice-view') button.disabled = c.rollBusy;
     }
     c.$('recent-panel').hidden = !c.preferences().recent || !!c.member().pendingRoll.length;
     c.$('recent-content').replaceChildren(c.mapTools.recentPanel());
@@ -74,10 +77,12 @@ export function createScreenMap(c) {
     c.map.setModel({ world: c.world, state: projected, memberId: c.memberId, groupView: c.$('group-view').checked, pool: c.pool, preferences: c.preferences(), sandbox: c.sandbox.markers() });
     c.questMap?.refresh();
     void c.activityLayers.refresh();
+    c.mapAvailability.refresh();
     const count = (value, label) => { const node = c.el('span', undefined, 'map-count'); node.append(c.el('strong', value.toLocaleString()), ` ${label}`); return node; };
-    c.$('map-counts').replaceChildren(count(owner.unlocked.length, `${owner.name} unlocked`), count(new Set(projected.members.flatMap(item => item.unlocked)).size, 'group'), count(c.pool.eligible.length, 'can be rolled'));
+    c.$('map-counts').replaceChildren(count(owner.unlocked.length, `chunks unlocked by ${owner.name}`), count(new Set(projected.members.flatMap(item => item.unlocked)).size, 'unique chunks unlocked by group'), count(c.pool.eligible.length, `chunks in ${owner.name}’s ordinary roll pool`),
+      ...(c.preferences().randomStartAlways ? [count(c.rollCandidateCount(), `roll-anywhere candidate chunks for ${owner.name}`)] : []));
     c.copyLists?.map(owner, c.pool);
-    c.$('empty-map').hidden = owner.unlocked.length > 0;
+    c.$('empty-map').hidden = owner.unlocked.length > 0 || owner.pendingRoll.length > 0;
     c.renderLegend();
   }
 
@@ -99,8 +104,9 @@ export function createScreenMap(c) {
     c.$('map-legend').replaceChildren(
       ...(visible.some(owner => owner.unlocked?.length) ? [item('Unlocked', 'border', c.preferences().unlockedBorderColor || '#FF0000')] : []), ...owners,
       ...(disconnected ? [item('Disconnected partner', 'disconnected')] : []),
-      ...(visible.some(owner => owner.selected?.length) ? [item('In roll pool (added by hand)', 'selected')] : []),
-      ...(c.pool?.eligible?.some(row => !visible.some(owner => owner.selected?.includes(row.id))) ? [item('Automatic roll option (numbered)', 'pool')] : []),
+      ...(c.pool?.eligible?.length ? [item(`${c.member().name}’s roll options (numbered)`, 'pool')] : []),
+      ...visible.filter(owner => owner.selected?.length).map(owner => item(`${owner.name}’s saved hand selections`, 'selected')),
+      c.el('span', `Numbers show ${c.member().name}’s current roll options. Saved selections and partner overlays do not imply eligibility.`, 'status-detail'),
       ...(visible.some(owner => owner.pendingRoll?.length) ? [item('Roll choices', 'pending')] : []),
       item('Chunk info open', 'open'),
       chunkColourLegend(c, visible),
@@ -110,7 +116,7 @@ export function createScreenMap(c) {
       ...(c.preferences().showDeathChunks !== false && c.map.deathMarkers?.size ? [item('Estimated death chunk', 'death')] : []),
       ...(c.map.pins?.enabled?.size ? [item('Map icons', 'pin')] : []),
       ...(c.map.overlay === 'membership' ? [item('Members-only land', 'members'), item('Free-to-play boundary', 'members-edge'), item('Not walkable', 'border', '#96a5b4')] : []),
-      c.activityLayers.controls('legend'), c.mapControls(),
+      c.activityLayers.controls('legend'), c.mapAvailability.legend(), c.mapControls(),
       ...(c.map.travelLinesVisible !== false && typeof createTravelLinesKey === 'function' ? [(() => { const group = c.el('div', undefined, 'legend-travel'); group.append(c.el('span', 'Travel lines (selected chunk)', 'legend-travel-title'), createTravelLinesKey(document)); return group; })()] : []));
     if (focusedLayer) c.$(focusedLayer)?.focus?.();
   }

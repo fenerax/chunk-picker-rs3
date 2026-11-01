@@ -1,3 +1,5 @@
+import { createPickerAdmission, COLD_OPEN_ADMISSION } from './picker-admission.mjs';
+import { setTimeout as admissionDelay } from 'node:timers/promises';
 import { createPickerCheckpoint } from './picker-router-checkpoint.mjs';
 import { createHash } from 'node:crypto';
 import { isImportRoute, readBackupRequest, receiveBackupRequest } from './backup-transfer.mjs';
@@ -15,10 +17,11 @@ const retry = () => Object.assign(httpError(503, 'The picker is unavailable. Ret
 /** The only residency and HTTP selection boundary. IDs from requests are checks,
  * never inputs to acquisition, registry path lookup or capability registration. */
 export function createPickerRouter({ registry, legacy, openContext, publicOrigin, requestContextFor = requestContext,
-  pickerLimits, unauthenticated = () => {}, backupRetentionMs, maxOpenContexts = 7, idleCloseMs = 10 * 60 * 1000, maxConcurrentImports = 1 }) {
+  pickerLimits, onAdmission, unauthenticated = () => {}, backupRetentionMs, maxOpenContexts = 7, idleCloseMs = 10 * 60 * 1000, maxConcurrentImports = 1 }) {
   if (!Number.isSafeInteger(maxOpenContexts) || maxOpenContexts < 1 || !Number.isSafeInteger(idleCloseMs) || idleCloseMs < 1) throw new TypeError('Invalid picker residency limits.');
   if (!Number.isSafeInteger(maxConcurrentImports) || maxConcurrentImports < 1) throw new TypeError('Invalid picker import limit.');
   const entries = new Map();
+  const admission = pickerLimits && createPickerAdmission({ limits: pickerLimits, onEvent: onAdmission });
   // Process-wide budget for owned backup parsers, on top of each context's own
   // single-import guard, so many owners cannot each materialize a large backup
   // at once. Legacy keeps its own guard and is outside this budget.
@@ -74,36 +77,57 @@ export function createPickerRouter({ registry, legacy, openContext, publicOrigin
     }, idleCloseMs);
     entry.timer.unref();
   }
-  async function acquire(id, owner) {
-    const release = !entries.has(id) ? pickerLimits?.coldStart(owner) : undefined;
-    // Wait for this directory before entering the global residency queue.
-    // The cold-start lease still refuses admission before any factory is called.
-    try { return await checkpoint.open(id, () => serialize(async () => {
+  async function acquire(id, owner, signal) {
+    const attempt = () => checkpoint.open(id, () => serialize(async () => {
+      signal?.throwIfAborted();
       if (closed) throw retry();
       if (registry.getPicker(id)?.lifecycle !== 'active') throw httpError(403, 'Picker access denied.');
       let entry = entries.get(id);
+      if (entry?.closing) return null;
       if (!entry) {
         if (maxOpenContexts === 1) throw retry();
         if (entries.size >= maxOpenContexts - 1) {
-          // Map order is the request LRU. Only an idle context is evicted here:
-          // draining a busy one would hold this queue, and so every picker's
-          // acquisition, behind its slowest request or upload. While every
-          // resident context is busy the newcomer gets a retry. Streams do not
-          // pin a heavy context against capacity eviction.
-          // A context whose directory a checkpoint holds is skipped too: its close
-          // waits for the copy while every acquisition waits here.
+          // Only idle contexts may be evicted. Wait outside the residency queue
+          // if every context is busy or held by a checkpoint.
           const victim = [...entries.values()].find(candidate => !candidate.active && !candidate.closing && !checkpointBlocked(candidate));
-          if (!victim) throw retry();
+          if (!victim) return null;
           await evict(victim);
+          signal?.throwIfAborted();
         }
         const context = await openContext(id);
-        if (closed || registry.getPicker(id)?.lifecycle !== 'active') { await context.close(); throw retry(); }
+        if (closed || signal?.aborted || registry.getPicker(id)?.lifecycle !== 'active') { await context.close(); signal?.throwIfAborted(); throw retry(); }
         entry = { id, context, active: 0, streams: new Set() };
       }
       clearTimeout(entry.timer);
       entries.delete(id); entries.set(id, entry); entry.active++;
       return entry;
-    })); } finally { release?.(); }
+    }));
+    // Warm acquisition has no await between checking closing/active and pinning
+    // the entry. That is atomic with victim selection on the event loop, so an
+    // unrelated cold factory must not hold it behind the residency queue. The
+    // per-directory checkpoint barrier still applies; recheck after that wait.
+    if (entries.has(id)) {
+      const entry = await checkpoint.open(id, () => {
+        signal?.throwIfAborted();
+        if (closed) throw retry();
+        if (registry.getPicker(id)?.lifecycle !== 'active') throw httpError(403, 'Picker access denied.');
+        const warm = entries.get(id);
+        if (!warm || warm.closing) return null;
+        clearTimeout(warm.timer); entries.delete(id); entries.set(id, warm); warm.active++; return warm;
+      });
+      if (entry) return entry;
+    }
+    const open = async admittedSignal => {
+      signal = admittedSignal ?? signal;
+      for (let retries = 0; ; retries++) {
+        signal?.throwIfAborted();
+        const entry = await attempt();
+        if (entry) return entry;
+        if (!admission || retries >= COLD_OPEN_ADMISSION.maxRetries) throw retry();
+        await admissionDelay(COLD_OPEN_ADMISSION.retryMs, undefined, { signal });
+      }
+    };
+    return admission ? admission.run(owner, open, signal) : open(signal);
   }
   function authenticate(request, security, pickerId) {
     const identity = legacy.authenticate(request, security);
@@ -113,7 +137,7 @@ export function createPickerRouter({ registry, legacy, openContext, publicOrigin
     if (identity && !auth && (identity.pickerId ?? 'legacy') !== pickerId) throw httpError(403, 'Picker access denied.');
     return identity;
   }
-  async function contextFor(request, security, bindBody, receiveBackup) {
+  async function contextFor(request, security, bindBody, receiveBackup, signal) {
     let identity, legacyCredential;
     try { identity = legacy.authenticate(request, security); } catch (error) {
       let page;
@@ -191,7 +215,7 @@ export function createPickerRouter({ registry, legacy, openContext, publicOrigin
     if (pickerId === 'legacy') return { context: legacy, legacyBackup: backup, checkBody };
     if (!identity && !capability) throw httpError(401, 'Access required.');
     if (backup) await receiveBackup(pickerId, identity);
-    const entry = await acquire(pickerId, pickerLimits?.scope(capability ?? identity, pickerId));
+    const entry = await acquire(pickerId, pickerLimits?.scope(capability ?? identity, pickerId), signal);
     return { context: entry.context, entry, backup, checkBody };
   }
   return {
@@ -206,7 +230,7 @@ export function createPickerRouter({ registry, legacy, openContext, publicOrigin
         if (source) {
           const picker = registry.getPicker(source.defaultPickerId);
           if (!picker || picker.kind !== 'default') throw httpError(409, 'This sign-in already has gameplay or memberships.');
-          entry = await acquire(picker.id, source.id);
+          entry = await acquire(picker.id, pickerLimits?.scope(source, picker.id));
           account = await entry.context.withEmptyDefault(commit);
         } else account = await commit();
       } finally { if (entry) { entry.active--; idle(entry); } }
@@ -237,6 +261,10 @@ export function createPickerRouter({ registry, legacy, openContext, publicOrigin
     },
     async handle(request, response, listener) {
       let entry, releaseImport, releaseCheckpoint, bindBody, upload, receivingId;
+      const controller = new AbortController();
+      const disconnected = () => { if (!response.writableEnded) controller.abort(); };
+      request.once('aborted', disconnected); response.once('close', disconnected);
+      if (request.aborted || response.destroyed) controller.abort();
       try {
         if (closed) throw retry();
         releaseCheckpoint = await checkpoint.enter();
@@ -255,7 +283,8 @@ export function createPickerRouter({ registry, legacy, openContext, publicOrigin
           bindBody?.importing();
           upload = await receiveBackupRequest(request, { idleTimeoutMs: pickerLimits.config.importBodyIdleMs, totalTimeoutMs: pickerLimits.config.importBodyTotalMs });
         };
-        const selected = await contextFor(request, security, bindBody, receiveBackup); entry = selected.entry;
+        const selected = await contextFor(request, security, bindBody, receiveBackup, controller.signal); entry = selected.entry;
+        controller.signal.throwIfAborted();
         // Match the route exactly as the sign-in handler decodes it, after any
         // /pickers/<id> prefix is rewritten away.
         let signInRoute; try { signInRoute = decodeURIComponent((request.url ?? '/').split('?')[0]); } catch {}
@@ -284,13 +313,13 @@ export function createPickerRouter({ registry, legacy, openContext, publicOrigin
           const badInput = error instanceof SyntaxError || error instanceof TypeError || error instanceof RangeError;
           await json(request, response, error.status ?? (badInput ? 400 : 503), { message: error.status ? error.message : badInput ? 'Invalid request.' : 'The picker is unavailable. Retry in a moment.' });
         }
-      } finally { if (receiving.get(receivingId) === request) receiving.delete(receivingId); bindBody?.release(); releaseCheckpoint?.(); releaseImport?.(); if (entry) { entry.active--; if (entries.get(entry.id) === entry) idle(entry); } }
+      } finally { request.off('aborted', disconnected); response.off('close', disconnected); if (receiving.get(receivingId) === request) receiving.delete(receivingId); bindBody?.release(); releaseCheckpoint?.(); releaseImport?.(); if (entry) { entry.active--; if (entries.get(entry.id) === entry) idle(entry); } }
     },
     close() {
       if (closing) return closing;
       closed = true;
       for (const entry of entries.values()) clearTimeout(entry.timer);
-      closing = deletion.drain().then(() => serialize(async () => { await Promise.all([...entries.values()].map(evict)); }));
+      closing = Promise.all([admission?.close(), deletion.drain()]).then(() => serialize(async () => { await Promise.all([...entries.values()].map(evict)); }));
       return closing;
     },
   };

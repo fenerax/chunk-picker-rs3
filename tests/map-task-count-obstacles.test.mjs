@@ -4,7 +4,7 @@ import { taskCountAnnotationCells, taskCountObstacles } from '../app/web/map-tas
 import { chunkIdLayout, layoutStickerCluster } from '../app/web/map.mjs';
 import { MapTaskCountRenderer } from '../app/web/map-task-count-renderer.mjs';
 
-test('cached annotation sources retain every obstacle, including partner ranks and visible global IDs', () => {
+test('cached annotation sources retain every obstacle, including saved overlays and visible global IDs', () => {
   const ids = Array.from({ length: 9 }, (_, index) => String(12342 + index));
   const [selected, candidate, flag, sticker, tab, shared, partner, death] = ids;
   const members = [{ id: 'actor1', startingChunk: flag, stickers: { [sticker]: [{ id: 'star' }], outside: [{ id: 'ignored' }] },
@@ -70,4 +70,16 @@ test('badges stay clear of actual marker geometry at all zooms and 200% display 
     for (const a of entries) for (const b of obstacles) assert.ok(a.x + a.width <= b.x || b.x + b.width <= a.x
       || a.y + a.height <= b.y || b.y + b.height <= a.y, `Collision at cell ${size}`);
   }
+});
+
+
+test('only current-player eligible ranks reserve roll-number geometry', () => {
+  const member = { id: 'one', stickers: {}, selectedRanks: new Map([['12341', 1]]) };
+  const partner = { id: 'two', stickers: {}, selectedRanks: new Map([['12342', 2]]) };
+  const map = { zoom: 1, model: { preferences: {} }, visibleMembers: [member, partner], active: member,
+    cells: new Map([['12341', { x: 0, y: 0 }], ['12342', { x: 1, y: 0 }], ['12343', { x: 2, y: 0 }]]),
+    cellStates: new Map([['12341', { owners: [], selected: [member] }], ['12342', { owners: [], selected: [partner] }],
+      ['12343', { owners: [], selected: [] }]]), candidateRanks: new Map([['12343', 1]]), deathMarkers: new Map() };
+  assert.deepEqual(taskCountObstacles(map, { chunkIdLayout, layoutStickerCluster }),
+    [{ x: 257, y: 1, width: 126, height: 125 }]);
 });

@@ -203,11 +203,12 @@ function predictionFor(state, memberId, chunkId, snapshot, timingMs, source = st
   let evaluations = 0;
   const planningEngine = { ...engine, evaluate: (input, member) => evaluations++ === 0 ? snapshot.baseline : evaluateFull(input, member, { includeViews: false, timingMs }) };
   return timed(timingMs, 'predictionMs', () => {
-    if (!snapshot.predict) {
+    if (snapshot.predictionRevision !== state.revision) {
       snapshot.predict = prepareChunkPrediction(state, registry);
+      snapshot.predictionRevision = state.revision;
       completeCache.capture(snapshot, state, source); sandboxCache.capture(snapshot, state, source);
     }
-    return snapshot.predict(memberId, chunkId, { world: workerData.world, engine: planningEngine });
+    return snapshot.predict(memberId, chunkId, { world: rollWorld, engine: planningEngine });
   });
 }
 function chunkPlanningFor(snapshot, chunkId) {

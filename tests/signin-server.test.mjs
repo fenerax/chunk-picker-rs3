@@ -216,9 +216,85 @@ test('cancelled and failed provider attempts can retry the same invitation with 
   const cancelled = await client.request(`/auth/discord/callback?${new URLSearchParams({ state: first.state, error: 'access_denied' })}`);
   assert.equal(cancelled.status, 400); assert.match(await cancelled.text(), /Sign-in cancelled/);
   const retry = await f.begin(client, 'google'); assert.notEqual(retry.state, first.state);
+  assert.notEqual(retry.authorization.searchParams.get('code_challenge'), first.authorization.searchParams.get('code_challenge'));
+  const replay = await f.browser().request(`/auth/discord/callback?${new URLSearchParams({ state: first.state, error: 'access_denied' })}`);
+  assert.equal(replay.status, 400);
+  assert.equal(f.provider.calls.length, 0);
   const failed = await f.callback(client, retry, { tokenFailure: true }); assert.equal(failed.response.status, 502);
   const completed = await f.callback(client, await f.begin(client, 'google')); assert.equal(completed.response.status, 303);
   assert.equal((await session(client)).memberId, invitation.invite.memberId);
+});
+
+// Provider consent is simulated; these requests exercise the production HTTP routes.
+for (const name of ['discord', 'google']) test(`cancelled ${name} consent keeps optional invite entry and sign-in retry visible`, async t => {
+  const f = await fixture(t), invitation = await f.invite(), client = f.browser();
+  const before = await (await f.admin('/api/state')).json();
+  const initial = await client.request(new URL(invitation.link).pathname);
+  assert.match(await initial.text(), /action="\/auth\/invite"/);
+  const flow = await f.begin(client, name);
+  const cancelled = await client.request(`/auth/${name}/callback?${new URLSearchParams({ state: flow.state, error: 'access_denied' })}`);
+  assert.equal(cancelled.status, 400);
+  const html = await cancelled.text();
+  assert.match(html, /Sign-in cancelled/);
+  assert.match(html, /href="\/auth\/discord"/);
+  assert.match(html, /href="\/auth\/google"/);
+  assert.match(html, /<form[^>]+method="post" action="\/auth\/invite"/);
+  assert.match(html, /Continue with invite link/);
+  assert.equal(f.provider.calls.length, 0);
+  assert.equal((await client.request('/api/session')).status, 401);
+  assert.equal((await f.browser().request('/auth/invite', { body: {} })).status, 400, 'Continuation is bound to the pending browser');
+  assert.equal((await client.request('/auth/invite', { body: {}, headers: { Origin: 'https://foreign.example' } })).status, 403);
+  const continued = await client.request('/auth/invite', { method: 'POST', headers: { Origin: 'null', 'Sec-Fetch-Site': 'same-origin' } });
+  assert.equal(continued.status, 303);
+  assert.equal(continued.headers.get('location'), '/');
+  const identity = await session(client);
+  assert.equal(identity.kind, 'invite'); assert.equal(identity.memberId, invitation.invite.memberId);
+  assert.equal((await client.request('/auth/invite', { body: {} })).status, 400, 'Continuation is single-use');
+  assert.equal((await (await f.admin('/api/accounts')).json()).accounts.length, 0);
+  assert.deepEqual(await (await f.admin('/api/state')).json(), before, 'Joining never changes gameplay');
+});
+
+test('required cancellation retains sign-in retry and rejects invitation-only entry', async t => {
+  const f = await fixture(t, 'required'), client = f.browser(), invitation = await f.invite();
+  const flow = await f.begin(client, 'discord', invitation);
+  const cancelled = await client.request(`/auth/discord/callback?${new URLSearchParams({ state: flow.state, error: 'access_denied' })}`);
+  assert.equal(cancelled.status, 400);
+  assert.match(await cancelled.text(), /href="\/auth\/discord"/);
+  assert.doesNotMatch(await cancelled.text(), /action="\/auth\/invite"/);
+  assert.equal((await client.request('/auth/invite', { body: {} })).status, 403);
+  assert.equal((await client.request('/api/session')).status, 401);
+});
+
+test('claimed invitations stay unavailable for invitation-only entry after cancellation', async t => {
+  const f = await fixture(t), invitation = await f.invite(), owner = f.browser(), stranger = f.browser();
+  await signIn(f, owner, 'discord', invitation);
+  const flow = await f.begin(stranger, 'google', invitation);
+  const cancelled = await stranger.request(`/auth/google/callback?${new URLSearchParams({ state: flow.state, error: 'access_denied' })}`);
+  assert.equal(cancelled.status, 400);
+  assert.doesNotMatch(await cancelled.text(), /action="\/auth\/invite"/);
+  assert.equal((await stranger.request('/auth/invite', { body: {} })).status, 403);
+  assert.equal((await stranger.request('/api/session')).status, 401);
+});
+
+test('an invitation claimed during consent is rechecked when rendering cancellation', async t => {
+  const f = await fixture(t), invitation = await f.invite(), owner = f.browser(), client = f.browser();
+  const flow = await f.begin(client, 'google', invitation);
+  await signIn(f, owner, 'discord', invitation);
+  const cancelled = await client.request(`/auth/google/callback?${new URLSearchParams({ state: flow.state, error: 'access_denied' })}`);
+  assert.equal(cancelled.status, 400);
+  assert.doesNotMatch(await cancelled.text(), /action="\/auth\/invite"/);
+  assert.equal((await client.request('/auth/invite', { body: {} })).status, 403);
+});
+
+test('off mode keeps direct invite entry and exposes no cancellation flow', async t => {
+  const f = await fixture(t, 'off'), invitation = await f.invite(), client = f.browser();
+  assert.equal((await client.request(new URL(invitation.link).pathname)).status, 303);
+  assert.equal((await session(client)).kind, 'invite');
+  for (const route of ['/auth/discord', '/auth/discord/callback?error=access_denied', '/auth/invite']) {
+    const result = await client.request(route, route === '/auth/invite' ? { body: {} } : {});
+    assert.equal(result.status, 404);
+    assert.doesNotMatch(await result.text(), /Continue with invite link/);
+  }
 });
 
 test('both providers claim player invitations using PKCE and restore account sessions after restart', { timeout: 30000 }, async t => {

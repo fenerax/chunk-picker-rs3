@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { appendTaskHow, renderTaskHow, taskHowSteps } from '../app/web/task-how.mjs';
 import { createTaskEngine, taskId } from '../app/tasks/engine.mjs';
-import { caveDefinitions, caveState } from './task-how-fixture.mjs';
+import { pathDefinitions, pathState, caveDefinitions, caveState } from './task-how-fixture.mjs';
 import { createGroupState, applyCommand, exportBackup, importBackup } from '../app/core/state.mjs';
 import { preferenceDefinitions, validatePreference } from '../app/core/preferences.mjs';
 class Node {
@@ -102,3 +102,40 @@ test('chunk-data access reads as one footnote, not a step or a partial banner', 
   const mixed = { ...soft, gaps: [...soft.gaps, { node: 'p', kind: 'processing' }] };
   assert.match(text(renderTaskHow(mixed, { document })), /partial explanation/);
 });
+
+for (const advanced of [false, true]) {
+  test(`selected all/any/count placements render truthful visible steps (${advanced ? 'Advanced' : 'default'})`, () => {
+    const engine = createTaskEngine(pathDefinitions());
+    for (const [goal, expected] of [
+      ['Use both stations', 'Use both stations — in West and East.'],
+      ['Use any station', 'Use any station — in West.'],
+      ['Use two stations', 'Use two stations — in West and East.'],
+      ['Use shared preparation', 'Use shared preparation — in West and East.'],
+    ]) {
+      const proof = engine.how(pathState(), 'one', taskId('Extra', goal));
+      const input = structuredClone(proof), rendered = renderTaskHow(proof, { document, advanced });
+      const list = rendered.children.find(node => node.tagName === 'ol');
+      assert.equal(list.children.at(-1).textContent, expected);
+      assert.doesNotMatch(text(rendered), /West or East|in North/);
+      assert.equal(list.children.filter(node => node.textContent === 'Prepare — in West.').length, goal === 'Use shared preparation' ? 1 : 0);
+      assert.deepEqual(proof, input);
+    }
+  });
+  test(`historical access gap is neutral in visible text (${advanced ? 'Advanced' : 'default'})`, () => {
+    const proof = createTaskEngine(pathDefinitions()).how(pathState(), 'one', taskId('Extra', 'Use historical supply'));
+    const rendered = renderTaskHow(proof, { document, advanced });
+    const messages = rendered.children.find(node => node.tagName === 'ol').children.map(node => node.textContent);
+    assert.deepEqual(messages, advanced ? [
+      'This supply comes from a recorded completion; its current production access is not established.',
+      'You recorded completing Producer.',
+      'Get Token.', 'Obtain Token.', 'Obtain Token.',
+      'The task passes the current membership, rule and source policies.', 'Use historical supply.',
+    ] : [
+      'This supply comes from a recorded completion; its current production access is not established.',
+      'You recorded completing Producer.',
+      'Get Token.', 'Use historical supply.',
+    ]);
+    assert.match(text(rendered), /partial explanation/);
+    assert.doesNotMatch(text(rendered), /partner access/);
+  });
+}

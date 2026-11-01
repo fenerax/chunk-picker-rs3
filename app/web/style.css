@@ -198,11 +198,12 @@
 :root{font-family:var(--font-body-system);font-size:var(--type-legacy-15px);color-scheme:dark;
   --display:"Palatino Linotype","Book Antiqua",Palatino,"Iowan Old Style",Georgia,serif;
   --bg:#141310;--panel:#1c1a16;--surface:#2b2822;--border:#3b372f;--text:#ece4d3;--muted:#b9af9d;--link:#e8bd68;--focus:#f5c451;--danger:#ff9e94;
-  --gold:#d9a441;--gold-strong:#e9b955;--on-gold:#1d1406;--brand:var(--gold);--brand-strong:var(--gold-strong);--ok:#7fc98f;
+  --gold:#d9a441;--gold-strong:#e9b955;--on-gold:#1d1406;--primary-hover:var(--gold-strong);--brand:var(--gold);--brand-strong:var(--gold-strong);--ok:#7fc98f;
   --hairline:color-mix(in srgb,var(--border) 70%,transparent);
   --radius:10px;--radius-sm:6px;--shadow:0 12px 32px #0000008c;--float:color-mix(in srgb,var(--panel) 92%,transparent);
   background:var(--bg);color:var(--text)}
 :root[data-scheme=light]{--gold:#9a6608;--gold-strong:#ad740c;--on-gold:#fffaf0;--ok:#2f7d48;--shadow:0 12px 32px #4a3a1a2e}
+:root[data-theme=light]{--primary-hover:#875906}
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--text);-webkit-font-smoothing:antialiased}
 button,input,select,textarea{font:inherit}
@@ -473,8 +474,9 @@ details[open]>summary::before{transform:rotate(45deg)}
 .pending-choice .primary-action{grid-column:2;grid-row:1 / span 2;max-width:11rem;overflow-wrap:break-word}
 .pending-actions{display:flex;flex-wrap:wrap;gap:var(--space-3);padding-top:var(--space-5);border-top:var(--border-thin) solid var(--hairline)}
 .pending-actions .cancel-roll{margin-left:auto}
+/* Keep primary hover separate from the accent used by selected controls. */
 .primary-action{background:var(--gold);border-color:var(--gold);color:var(--on-gold);font-weight:var(--weight-bold)}
-.primary-action:hover{background:var(--gold-strong);filter:none}
+.primary-action:hover{background:var(--primary-hover);filter:none}
 .recent-panel{padding:var(--space-5) var(--space-6);background:var(--float);color:var(--panel-text,var(--text));border:var(--border-thin) solid var(--hairline);border-radius:var(--radius);font-size:var(--type-body);box-shadow:var(--shadow-toolbar);backdrop-filter:blur(8px)}
 .recent-panel>summary{font-family:var(--display);font-weight:var(--weight-semibold);font-size:var(--type-base);min-height:24px}
 .recent-rolls h3{font-size:var(--type-body);margin:var(--space-4) 0 var(--space-2)}
@@ -520,7 +522,7 @@ details[open]>summary::before{transform:rotate(45deg)}
 .task-row{display:grid;grid-template-columns:18px minmax(0,1fr) auto auto auto;gap:var(--space-4);align-items:start;padding:var(--space-4) var(--space-3);margin:0 var(--space-legacy-negative-0-4rem);font-size:var(--type-body);line-height:var(--leading-body);border-radius:var(--radius-sm)}
 .task-row:hover{background:color-mix(in srgb,var(--surface) 60%,transparent)}
 .task-row input{margin-top:var(--space-1)}
-.task-label-button{text-align:left;background:transparent;border:0;padding:0;line-height:var(--leading-body);font-size:inherit;color:inherit;border-radius:var(--radius-xs)}
+.task-label-button{max-width:100%;min-width:0;overflow-wrap:anywhere;white-space:normal;text-align:left;background:transparent;border:0;padding:0;line-height:var(--leading-body);font-size:inherit;color:inherit;border-radius:var(--radius-xs)}
 .task-label-button:hover{background:transparent;color:inherit;text-decoration:underline;text-decoration-color:color-mix(in srgb,currentColor 40%,transparent);text-underline-offset:.18em;filter:none}
 .task-category{font-weight:var(--weight-bold)}
 .task-row[data-completed=true] .task-label-button{color:var(--completed-colour,var(--color-completed-default));text-decoration:var(--completed-decoration,line-through)}
@@ -551,10 +553,14 @@ details[open]>summary::before{transform:rotate(45deg)}
 
 /* Dialogs */
 dialog{color:var(--panel-text,var(--text));background:var(--panel);border:var(--border-thin) solid var(--hairline);border-radius:var(--radius-dialog);box-shadow:var(--shadow-dialog);width:min(760px,calc(100vw - 1.5rem));max-height:calc(100dvh - 2rem);padding:0;scrollbar-width:thin}
+/* Keep the title outside the body scrollport so native Tab cannot hide a
+   focused control behind it, including when the title wraps. */
+#tool-dialog[open]{display:flex;flex-direction:column;overflow:hidden}
 dialog::backdrop{background:var(--color-fixed-0a0806b3);backdrop-filter:blur(3px)}
-.dialog-header{position:sticky;top:0;z-index:1;display:flex;align-items:center;justify-content:space-between;padding:var(--space-6) var(--space-6);background:var(--panel);border-bottom:var(--border-thin) solid var(--hairline)}
-.dialog-header h2{font-size:var(--type-title)}
-#dialog-content{padding:var(--space-6) var(--space-6) var(--space-7);overflow:auto}
+.dialog-header{flex:none;display:flex;align-items:center;justify-content:space-between;padding:var(--space-6) var(--space-6);background:var(--panel);border-bottom:var(--border-thin) solid var(--hairline)}
+.dialog-header h2{min-width:0;overflow-wrap:anywhere;font-size:var(--type-title)}
+.dialog-header .close-button{flex:none}
+#dialog-content{min-height:0;padding:var(--space-6) var(--space-6) var(--space-7);overflow:auto}
 .form-stack{display:flex;flex-direction:column;gap:var(--space-5)}
 .form-stack>label{display:flex;flex-direction:column;align-items:stretch;gap:var(--space-2)}
 .form-stack>label:has(>input[type=checkbox]){flex-direction:row;align-items:center;gap:var(--space-4)}
@@ -812,6 +818,8 @@ dialog:has(.rules-panel){width:min(1100px,calc(100vw - 2rem));height:min(850px,c
 .tab-bar .tab:hover{color:var(--panel-text,var(--text));filter:none}
 .tab-bar .tab[aria-selected=true]{color:var(--panel-text,var(--text));border-bottom-color:var(--gold)}
 .tab-bar .tab:focus-visible{outline-offset:var(--border-legacy--2px)}
+/* Keep the state marker when forced colors flatten backgrounds and borders. */
+@media(forced-colors:active){.tab-bar .tab[aria-selected=true]{text-decoration:underline;text-decoration-thickness:var(--border-focus);text-underline-offset:.2em}}
 .tab-panel{font-size:var(--type-body);min-height:3rem}
 .tab-panel>details>summary{display:none}
 .tab-panel>details.chunk-section{border-top:0;margin-top:0;padding-top:0}

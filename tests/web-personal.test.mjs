@@ -10,6 +10,7 @@ import { createTaskFilters, appendTaskPin } from '../app/web/task-filters.mjs';
 import { isTaskPinned, createTaskPinChecker } from '../app/web/task-filters-model.mjs';
 import { supportsDatasetFeature } from '../app/web/dataset-features.mjs';
 import { renderTaskBlockerGuidance } from '../app/web/screen-task-guidance.mjs';
+import { taskExplanation } from '../app/tasks/task-provenance.mjs';
 
 const graph = await readScreenGraph();
 const taskDialogSource = ['showTask', 'taskDetailSections'].map(name => screenFunctionSource(graph, name)).join('\n');
@@ -24,7 +25,7 @@ function dialogHarness() {
   const context = createContext({ appendTaskClaim, createTaskClaimClock,
     supportsFeature: feature => supportsDatasetFeature({ capabilities: { features: {} } }, feature),
     canWrite: () => true, advanced: () => false, createMapDisplay: () => ({ sizes: { rollNumberScale: 1, chunkIdScale: 1, stickerScale: 1 }, open() {}, close() {}, refresh() {}, isOpen: () => false }), createHelperView: () => ({}), createBackupStatus: () => ({ start() {}, refresh: async () => {}, line: () => null }), createDuoCoordination, sandbox: { active: false }, duoEnabled: () => false, state, memberId: 'reed', result: undefined, fullResult: undefined, definitions: {}, document: { createElement: node }, itemIcon: () => null,
-    createNoteEditor, renderTaskEquipment, renderTaskBlockerGuidance, createTaskFilters, appendTaskPin, isTaskPinned, createTaskPinChecker, dialogCurrent: () => true,
+    createNoteEditor, renderTaskEquipment, renderTaskBlockerGuidance, taskExplanation, createTaskFilters, appendTaskPin, isTaskPinned, createTaskPinChecker, dialogCurrent: () => true,
     el: node, field: () => node('label'), openDialog() {},
     check(label, checked, action) { controls.push({ label, checked, action }); return node('checkbox'); },
     button(label, action) { buttons.push({ label, action }); return node('button'); },

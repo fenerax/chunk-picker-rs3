@@ -274,3 +274,16 @@ test('shipped dialog lifecycle allows Search map interaction and restores modal 
   await dialog.emit('close'); assert.equal(h.matches.at(-1).length, 241);
   dialog.open = false; await dialog.emit('close'); assert.deepEqual(h.matches.at(-1), []);
 });
+
+
+test('F4 blank chunk search shows surface results before numeric off-map records', async t => {
+  const h = harness(t, { size: 1 });
+  const interiors = Array.from({ length: 125 }, (_, i) => ({ id: String(i + 1), name: `Interior ${i + 1}`, search: `${i + 1} interior` }));
+  h.c.world.surface = new Set(['10000']);
+  h.c.chunkSearch = [...interiors, ...h.c.chunkSearch];
+  h.c.world.chunks = new Map(h.c.chunkSearch.map(row => [row.id, { name: row.name }]));
+  h.search.open(); await h.settle();
+  assert.ok(h.find('Chunk 10000'));
+  assert.equal(h.all().filter(node => node.className === 'search-result').length, 120);
+  await h.type('125'); assert.ok(h.find('Off-map record · 125'));
+});

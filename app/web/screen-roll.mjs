@@ -27,7 +27,7 @@ export function createScreenRoll(c) {
     if (c.rollBusy || !owner || owner.pendingRoll.length || candidates < count) return;
     if (c.preferences().rollWarning && !confirmed) {
       const reviewedMember = c.memberId, revision = c.state.revision;
-      const generation = c.openDialog('Confirm chunk roll', c.el('p', `Roll ${count === 2 ? 'two choices' : 'one chunk'} for ${owner.name} from ${candidates} chunks in the roll pool?`), c.button('Roll now', async () => {
+      const generation = c.openDialog('Confirm chunk roll', c.el('p', `Roll ${count === 2 ? 'two choices' : 'one chunk'} for ${owner.name} from ${candidates} ${c.preferences().randomStartAlways ? 'roll-anywhere candidate chunks' : 'chunks in their ordinary roll pool'}?`), c.button('Roll now', async () => {
         if (c.memberId !== reviewedMember || c.state.revision !== revision) throw new Error('The map changed. Close this window and review the roll again.');
         c.closeDialog(generation); await c.rollChunks(count, true);
       }), c.button('Cancel', () => c.closeDialog(generation))); return;
@@ -87,10 +87,14 @@ export function createScreenRoll(c) {
   }
 
   async function acceptRoll(payload) {
+    if (!c.canWrite() || c.rollBusy || c.hasPendingCommand?.()) return;
     const generation = c.dialogGeneration;
-    const before = c.preferences().newTasks ? await c.ensureResult() : null;
-    await c.command(payload);
-    if (before && payload.memberId === c.memberId) await c.newTaskPopup(before, generation);
+    c.rollBusy = true; c.renderState();
+    try {
+      const before = payload.type !== 'cancel-roll' && c.preferences().newTasks ? await c.ensureResult() : null;
+      await c.command(payload);
+      if (before && payload.memberId === c.memberId) await c.newTaskPopup(before, generation);
+    } finally { c.rollBusy = false; c.renderState(); }
   }
 
   Object.assign(c, { renderRollControls, rollCandidateCount, rollChunks, presentRoll, newTaskPopup, unpickDialog, acceptRoll });

@@ -3,7 +3,7 @@ import { mkdir, writeFile } from 'node:fs/promises';
 
 /** Collect native Node 24 events, before any human reporter buffers them. */
 export function createCoverageReporter({ lane = 'test', cwd = process.cwd(), files } = {}) {
-  if (!['test', 'windows'].includes(lane)) throw new Error('Unknown coverage lane');
+  if (!['test', 'windows', 'differential'].includes(lane)) throw new Error('Unknown coverage lane');
   // Use the root's path dialect so fixtures and reports work on either OS.
   const paths = /^[A-Za-z]:[\\/]/.test(cwd) ? path.win32 : path.posix;
   const relative = file => {
