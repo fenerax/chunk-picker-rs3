@@ -1,3 +1,5 @@
+const PROFILE_ENABLED = process.env.RS3_PROFILE === '1';
+const profile = PROFILE_ENABLED ? await import('./profile-spans.mjs') : undefined;
 import { createUsageRateLimit } from './usage-route.mjs';
 import { bodyJSON, json } from './picker-context-http.mjs';
 import { httpError, redactInviteTokens, serverReadyMessage, cachedJSON } from './picker-context-http.mjs';
@@ -484,9 +486,10 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
     return pickerRouter ? pickerRouter.handle(request, response, listener) : contextFor(request).handle(request, response, listener);
   };
   const headerOptions = { maxHeaderSize: requestContextFor === requestContext ? http.maxHeaderSize : 64 * 1024 };
-  const server = httpServer ?? http.createServer(headerOptions, requestHandler);
+  const profiledRequestHandler = PROFILE_ENABLED ? (request, response, listener) => profile.request(request, response, () => requestHandler(request, response, listener)) : requestHandler;
+  const server = httpServer ?? http.createServer(headerOptions, profiledRequestHandler);
   const loopbackServer = httpLoopbackServer ?? (loopbackPort === undefined ? null : http.createServer(headerOptions,
-    (request, response) => requestHandler(request, response, { host: '127.0.0.1', ingressRole: loopbackRole })));
+    (request, response) => profiledRequestHandler(request, response, { host: '127.0.0.1', ingressRole: loopbackRole })));
   for (const listener of [server, loopbackServer]) listener?.on('connection', socket => { connections.add(socket); socket.once('close', () => connections.delete(socket)); });
   let closed = false, closePromise, listening;
   const handle = {
@@ -543,7 +546,7 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
       return closePromise;
     },
   };
-  onRequestHandler?.(requestHandler);
+  onRequestHandler?.(profiledRequestHandler);
   startupPhase('create:handler');
   startupSignal?.removeEventListener('abort', abortCalculator);
   return handle;

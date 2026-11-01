@@ -1,3 +1,5 @@
+const PROFILE_ENABLED = process.env.RS3_PROFILE === '1';
+const profile = PROFILE_ENABLED ? await import('../profile-spans.mjs') : undefined;
 import { createWorkerCacheBudget, createSnapshotCache, trackPlanningIndex, trackSnapshotCore } from './snapshot-cache.mjs';
 import { createHowCache } from './how-cache.mjs';
 import { startupPhase } from '../startup-timing.mjs';
@@ -29,6 +31,7 @@ import { analyzeAreaCheck, normalizeAreaCheckRequest } from './area-check.mjs';
 import { constants as zlibConstants, crc32, gzipSync } from 'node:zlib';
 import { serialize } from 'node:v8';
 
+const profileBodyStarted = PROFILE_ENABLED ? profile.now() : 0;
 startupPhase('worker:modules');
 // Definitions compile once in this isolated worker. Evaluation never runs on
 // the HTTP/save event loop and receives a structured-cloned state snapshot.
@@ -79,9 +82,10 @@ const derivedIds = new Set([...equipmentCatalogue, ...collectionEngine.catalogue
 const sandboxCatalogue = [...engine.catalogue, ...equipmentCatalogue, ...collectionEngine.catalogue, ...houseStorageCatalogue, ...generatedTaskCatalogue];
 const sandboxTaskIndexes = new WeakMap();
 const progressRequests = new WeakMap();
+// Keep this head byte-identical: scripts/perf/unlock-calc.mjs patches it for heap sampling.
 function timed(timingMs, stage, operation) {
   const started = performance.now();
-  try { return operation(); }
+  try { return PROFILE_ENABLED ? profile.span(stage, operation) : operation(); }
   finally {
     if (timingMs) timingMs[stage] = (timingMs[stage] ?? 0) + performance.now() - started;
     const progress = progressRequests.get(timingMs), time = performance.now();
@@ -335,6 +339,8 @@ function sharedJSON(value) {
   Buffer.from(shared).set(bytes);
   return shared;
 }
+// Wrapped by reassignment so the declaration above stays byte-identical for scripts/perf/unlock-calc.mjs.
+if (PROFILE_ENABLED) { const raw = sharedJSON; sharedJSON = value => profile.span('worker.resultSerialization', () => raw(value)); }
 function compressUnlockReuse(value) {
   value.gzipJSONPrefixMetadata = {};
   value.gzipJSONPrefixes = Object.fromEntries(['playJSON', 'duoJSON', 'duoSidebarJSON'].map(key => {
@@ -371,7 +377,7 @@ function serializedState({ stateJSON, stateJSONBytes, stateRevision, stateMember
   serializedStateSizes.set(state, stateJSONBytes);
   return state;
 }
-parentPort.on('message', async ({ id, pickerId = 'legacy-shared', type = 'evaluate', state, memberId, chunkId, draft, chunkIds = [], revision, input, snapshotKey, resultTransport, resultView = 'full', cancellation, predictionProgress = false,
+const handleMessage = async ({ id, pickerId = 'legacy-shared', type = 'evaluate', state, memberId, chunkId, draft, chunkIds = [], revision, input, snapshotKey, resultTransport, resultView = 'full', cancellation, predictionProgress = false,
   stateTransport, stateJSON, stateJSONBytes, stateRevision, stateMemberIds, duoProjection = false, duoSidebarProjection = false, reportProgress = false }) => {
   if (type === 'cancel') { if (requests.get(id)?.pickerId === pickerId) requests.get(id).cancelled = true; return; }
   if (type === 'supersede') { latestRevisions.set(pickerId, Math.max(pickerRevision(pickerId), revision)); return; }
@@ -492,7 +498,9 @@ parentPort.on('message', async ({ id, pickerId = 'legacy-shared', type = 'evalua
     timingMs.totalMs = performance.now() - started;
     parentPort.postMessage({ id, error: { name: error.name, message: error.message }, evaluationMs: timingMs.totalMs, timingMs });
   } finally { requests.delete(id); }
-});
+};
+if (PROFILE_ENABLED) profile.installWorker(parentPort, handleMessage);
+else parentPort.on('message', handleMessage);
 
 // Module dependencies include top-level await. Let ESM finish its fulfillment
 // callbacks before the scheduler can retire this isolate, even with idleMs=1.
@@ -504,6 +512,7 @@ startupPhase('worker:compiled');
 // One structured-clone byte string crosses thread and process boundaries as a
 // copy; a graph would be cloned, walked and cloned again on every hop.
 setImmediate(() => {
+  if (PROFILE_ENABLED) profile.startup('calculator.initialize', profileBodyStarted, profile.now());
   // Advisory workers still compile/use every local catalogue. Only their
   // unused ready payload is suppressed by the scheduler's explicit opt-out.
   if (workerData.omitReadyCatalogue === true) {

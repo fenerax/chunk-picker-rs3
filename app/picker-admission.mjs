@@ -1,3 +1,5 @@
+const PROFILE_ENABLED = process.env.RS3_PROFILE === '1';
+const profile = PROFILE_ENABLED ? await import('./profile-spans.mjs') : undefined;
 // Cold acquisition bounds include work already opening. Cancelling its HTTP
 // waiter does not free a permit until the underlying factory has settled.
 export const COLD_OPEN_ADMISSION = Object.freeze({ maxPending: 64, perAccount: 2, deadlineMs: 2000, retryMs: 25, maxRetries: 80 });
@@ -40,6 +42,7 @@ export function createPickerAdmission({ limits, onEvent, bounds = COLD_OPEN_ADMI
         let release;
         try { release = limits.coldStart(item.owner); }
         catch (error) { item.settled = true; item.reject(error); remove(item); observe('lease-refused', item); continue; }
+        if (PROFILE_ENABLED) profile.interval('admission.queue', item._profileAt, profile.now(), item._profile);
         group.active++; active.add(item); item.startedAt = performance.now(); observe('started', item);
         void Promise.resolve().then(() => { item.controller.signal.throwIfAborted(); return item.work(item.controller.signal); }).then(
           value => { if (!item.settled) { item.settled = true; item.resolve(value); observe('completed', item); } },
@@ -58,6 +61,7 @@ export function createPickerAdmission({ limits, onEvent, bounds = COLD_OPEN_ADMI
       if (signal?.aborted) return Promise.reject(refused('cancelled'));
       const account = owner.accountId, group = groups.get(account);
       const item = { account, owner, work, signal, queuedAt: performance.now(), controller: new AbortController() };
+      if (PROFILE_ENABLED) { item._profile = profile.capture(); item._profileAt = profile.now(); }
       if ((group?.count ?? 0) >= bounds.perAccount || pending >= bounds.maxPending) {
         const reason = (group?.count ?? 0) >= bounds.perAccount ? 'account-full' : 'queue-full';
         observe(reason, item); return Promise.reject(refused(reason));

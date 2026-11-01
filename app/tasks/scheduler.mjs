@@ -1,3 +1,5 @@
+const PROFILE_ENABLED = process.env.RS3_PROFILE === '1';
+const profile = PROFILE_ENABLED ? await import('../profile-spans.mjs') : undefined;
 import { Worker } from 'node:worker_threads';
 import { ProcessWorker } from './process-worker.mjs';
 import { createCalculatorPool } from './calculator-pool.mjs';
@@ -485,6 +487,7 @@ async function createWorkerLane({ workerData, workerFactory = nativeWorker, incl
   positive(idleMs, 'idleMs');
   positive(stuckMs, 'stuckMs');
   let worker, generation = 0, sequence = 0, active, closed = false, restartTimer, startupTimer, initialResolve, initialReject, closePromise, idleTimer;
+  const profileLane = PROFILE_ENABLED ? profile.lane() : undefined;
   const latestRevisions = new Map(), prewarmSubscriptions = new Map(), closedPickers = new Set();
   const revisionFor = pickerId => latestRevisions.get(pickerId) ?? -1;
   let firstCalculation = true;
@@ -734,6 +737,7 @@ async function createWorkerLane({ workerData, workerFactory = nativeWorker, incl
     if (closed || status !== 'ready' || active) { if (entry) (entry.warm ? warmQueue : queue).unshift(entry); return; }
     if (!entry) return;
     active = entry; entry.startedAt = idleClock.now(); entry.id = ++sequence;
+    if (PROFILE_ENABLED) profile.dispatch(entry);
     entry.cancellation = new SharedArrayBuffer(4);
     entry.sourceRevision = entry.state.revision;
     if (entry.type === 'predict') {
@@ -767,13 +771,15 @@ async function createWorkerLane({ workerData, workerFactory = nativeWorker, incl
       stateMemberIds: entry.state.members.map(member => member.id), stateJSONBytes: entry.stateInput.stateJSON.byteLength,
       ...(fresh ? { stateJSON: entry.stateInput.stateJSON } : {}) } : {};
     entry.snapshotKey = snapshotKey;
-    try { worker.postMessage({ id: entry.id, pickerId: entry.pickerId, type: entry.type, reportProgress: true, state, snapshotKey, input: entry.input, memberId: entry.memberId, chunkId: entry.chunkId, chunkIds: entry.chunkIds, cancellation: entry.cancellation,
+    try { const workerMessage = { id: entry.id, pickerId: entry.pickerId, type: entry.type, reportProgress: true, state, snapshotKey, input: entry.input, memberId: entry.memberId, chunkId: entry.chunkId, chunkIds: entry.chunkIds, cancellation: entry.cancellation,
       ...(entry.type === 'predict' ? { predictionProgress: true } : {}),
       ...(entry.type === 'roll-pool' && entry.chunkId !== undefined ? { draft: entry.chunkId } : {}), ...serialized,
       ...(entry.type === 'evaluate' ? { resultTransport: 'json-shared-v1', resultView: entry.resultView,
         ...(duoResults && entry.resultView === 'play-v1' ? { duoProjection: true } : {}),
         ...(entry.duoSidebarProjection ? { duoSidebarProjection: true } : {}) }
-        : entry.type === 'sandbox' ? { resultTransport: 'json-shared-v1' } : {}) });
+        : entry.type === 'sandbox' ? { resultTransport: 'json-shared-v1' } : {}) };
+      if (PROFILE_ENABLED) { profile.sending(entry); if (entry._profile) workerMessage._profile = entry._profile; profile.span('worker.message.send', () => worker.postMessage(workerMessage), entry._profile); }
+      else worker.postMessage(workerMessage);
       if (snapshotKey) { sentSnapshots.delete(sentKey); sentSnapshots.set(sentKey, fresh ? { kind: entry.stateInput ? 'json-shared-v1' : 'object', revision: entry.state.revision } : sent); while (sentSnapshots.size > STATE_SNAPSHOT_LIMIT) sentSnapshots.delete(sentSnapshots.keys().next().value); }
     }
     catch { failure('worker-send'); }
@@ -790,15 +796,19 @@ async function createWorkerLane({ workerData, workerFactory = nativeWorker, incl
     sentSnapshots.clear();
     for (const [key, value] of cache) if (value.type === 'prepare-rules') cache.delete(key);
     // Custom factories retain their exact workerData contract. Reapply on every wake/restart.
+    if (PROFILE_ENABLED) profile.workerStarting(profileLane);
     try { worker = calculatorPool ? calculatorPool.createEndpoint(includeReadyCatalogue)
       : workerFactory(workerFactory === nativeWorker ? nativeWorkerInput(workerData, includeReadyCatalogue) : workerData); }
     catch { failure('worker-start'); return; }
+    if (PROFILE_ENABLED) profile.workerSpawned(profileLane, worker);
     startupTimer = setTimeout(() => failure('startup-deadline'), startupDeadlineMs);
     worker.on('error', () => { if (ownGeneration === generation) failure('worker-error'); });
     worker.on('exit', () => { if (ownGeneration === generation && !closed) failure('worker-exit'); });
     worker.on('message', message => {
       if (ownGeneration !== generation || closed) return;
+      if (PROFILE_ENABLED && (message._rs3ProfileReply || message._rs3ProfileRelayReply)) return;
       if (message.type === 'ready') {
+        if (PROFILE_ENABLED) { profile.workerReady(profileLane, worker); profile.attach(worker); }
         supported = new Set(message.supports ?? []);
         if (workerData?.datasetDigest && (message.datasetDigest !== undefined || workerFactory === nativeWorker)
           && message.datasetDigest !== workerData.datasetDigest) { failure('dataset-mismatch'); return; }
@@ -828,6 +838,7 @@ async function createWorkerLane({ workerData, workerFactory = nativeWorker, incl
         return;
       }
       const entry = active; active = undefined; deadlineClock.clearTimeout(entry.timer);
+      if (PROFILE_ENABLED) profile.completed(entry, message);
       clearCancelledGrace(entry);
       if (entry.waiters.size || entry.reuseWaiters?.size) lastRequestAt = idleClock.now();
       recordTimings(message.timingMs ?? { totalMs: message.evaluationMs });
@@ -1005,6 +1016,7 @@ async function createWorkerLane({ workerData, workerFactory = nativeWorker, incl
         const releaseFair = admitFair(pickerId, { interactive: true });
         if (!releaseFair) { counts.rejected++; return Promise.reject(queueFull()); }
         entry = { releaseFair, key, originalKey, pickerId, input, state, stateInput, memberId, type, chunkId, chunkIds, resultView, duoSidebarProjection, revision: state.revision, queuedAt: idleClock.now(), waiters: new Set() };
+        if (PROFILE_ENABLED) profile.queued(entry, profileLane);
         pending.set(key, entry);
         if (!fairness && (type === 'predict' || type === 'evaluate' && resultView === 'play-v1')) queue.unshift(entry); else queue.push(entry);
         deadline(entry);
@@ -1109,6 +1121,7 @@ async function createWorkerLane({ workerData, workerFactory = nativeWorker, incl
         snapshot ??= stateInput ? state : structuredClone(state);
         const entry = { releaseFair, key, originalKey, pickerId, input, state: snapshot, stateInput, memberId, type: 'evaluate', resultView,
           revision: state.revision, queuedAt: idleClock.now(), waiters: new Set(), warm: true };
+        if (PROFILE_ENABLED) profile.queued(entry, profileLane);
         pending.set(key, entry); warmQueue.push(entry); queued++; warmCounts.queued++;
       }
       pump(); return { queued };
@@ -1143,6 +1156,7 @@ async function createWorkerLane({ workerData, workerFactory = nativeWorker, incl
         snapshot ??= structuredClone(state);
         const entry = { releaseFair, key, originalKey: JSON.parse(key)[1], pickerId, input, state: snapshot, memberId, type: 'predict', chunkId, revision: state.revision,
           queuedAt: idleClock.now(), waiters: new Set(), warm: true, purpose };
+        if (PROFILE_ENABLED) profile.queued(entry, profileLane);
         pending.set(key, entry); warmQueue.push(entry); queued++; warmCounts.queued++;
       }
       const abort = () => scheduler.cancelPrewarm({}, pickerId);
