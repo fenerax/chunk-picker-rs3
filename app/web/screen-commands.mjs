@@ -8,7 +8,7 @@ import { createSaveRecovery } from './screen-save-recovery.mjs';
 // Main-screen commands; shared values and callbacks live in the explicit screen context.
 export function createScreenCommands(c) {
   const readRequest = createRequestReader({ fetch: (...args) => c.panelContext?.pickerSession ? c.panelContext?.pickerSession.fetch(...args) : fetch(...args) });
-  let durableCommands, connectionNoticeShown = false;
+  let durableCommands, recoveredForm, connectionNoticeShown = false;
   const showSaveRetry = createSaveRecovery(c, {
     retry: () => {
       const task = c.queue.then(() => c.recoverPendingCommand({ retry: true }));
@@ -21,7 +21,7 @@ export function createScreenCommands(c) {
     discard: () => {
       if (!confirm('Check History first: this change may already be saved. Discard the pending save and start a fresh saving session?')) return;
       const task = c.queue.then(async () => {
-        await commandClient().discard(); showSaveRetry(false);
+        await commandClient().discard(); recoveredForm = undefined; showSaveRetry(false);
         if (!c.$('tool-dialog')?.open) c.$('history-open')?.focus();
         const response = await c.api('/api/state'); c.adopt(response.state, response.pools);
         c.saved('Pending save discarded', false, undefined, { resolved: true }); c.notice?.('Pending save discarded. Check History before repeating the change.');
@@ -35,7 +35,7 @@ export function createScreenCommands(c) {
     if (event?.status === 'paused') { c.saved('Save not confirmed', true); showSaveRetry(true); }
     else { showSaveRetry(false); if (event?.status !== 'confirmed') c.saved('Reconnecting… Confirming save', true); }
   } });
-  c.panelContext?.pickerSession?.registerCommands({ pending: () => hasPendingCommand(), stop: () => { durableCommands?.stop(); showSaveRetry(false); checks = []; } });
+  c.panelContext?.pickerSession?.registerCommands({ pending: () => hasPendingCommand(), stop: () => { durableCommands?.stop(); recoveredForm = undefined; showSaveRetry(false); checks = []; } });
   const feedback = createCalculationFeedback({ show(text) {
     let node = c.$('calculation-status');
     if (!node && text) {
@@ -138,13 +138,15 @@ export function createScreenCommands(c) {
     const response = await c.api('/api/command', pending, undefined, { retry });
     c.adopt(response.state, response.pools);
     c.saved('Saved', false, c.state.revision, { confirmed: true });
+    const form = recoveredForm; recoveredForm = undefined;
+    if (form?.requestId === pending.requestId) form.complete();
     if (retry) c.notice?.('Saved. Your pending change is confirmed.');
     } catch (error) { if (error.pendingCommand && !error.insecureConnection) showSaveRetry(true); throw error; }
   }
   function hasPendingCommand() { try { return Boolean(commandClient().pending()); } catch { return true; } }
   function pendingCommandPaused() { try { return commandClient().paused(); } catch { return false; } }
 
-  function command(payload, reviewedRevision, reviewedNote, reviewCurrent, chunkPreview) {
+  function command(payload, reviewedRevision, reviewedNote, reviewCurrent, chunkPreview, onRecovered) {
     if (!c.canWrite()) return Promise.reject(new Error('This link is view only.'));
     if (c.sandbox.active) return c.sandbox.command(payload);
     const finishQueued = typeof c.panelContext !== 'undefined' ? c.panelContext?.pickerSession?.queueCommand() : undefined;
@@ -199,6 +201,10 @@ export function createScreenCommands(c) {
         }
         catch (error) {
           if (gameplayAttempt) c.finishGameplayAttempt(gameplayAttempt);
+          if (error.pendingCommand && onRecovered) {
+            const pending = commandClient().pending();
+            if (pending) recoveredForm = { requestId: pending.requestId, complete: onRecovered };
+          }
           if (error.status !== 409 || !retryCurrent()) throw error;
           if (error.claimOnlyChanges && canRetryClaims && claimReviewCurrent() && !retriedClaims && c.state.revision === error.stateRevision && error.stateRevision > expectedRevision) {
             reviewedNoteRevision(c.state, requestCommand, reviewedRevision, reviewedNote);

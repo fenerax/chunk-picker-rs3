@@ -3972,3 +3972,74 @@ test('viewer Why uses saved facts when full details are absent, keeping all requ
   assert.equal(h.all().some(node => node.className === 'task-why-retry'), false);
   assert.ok(h.calls.every(call => call.body === undefined));
 });
+
+
+// F4.1: hold the response open so repeated and competing player clicks overlap.
+for (const action of ['Unlock Chunk 12341', 'Unlock Chunk 12342', 'Pick for me', 'Unlock both', 'Cancel roll'])
+test(`F4 pending choice suppresses competing action ${action}`, async () => {
+  const h = harness(), reply = deferred();
+  h.run("state.members[0].pendingRoll = ['12341', '12342']; renderState()");
+  h.route(() => reply.promise);
+  const buttons = h.nodes.get('pending-panel').querySelectorAll('button');
+  const firstButton = buttons.find(node => node.textContent === 'Unlock Chunk 12341');
+  const competingButton = buttons.find(node => node.textContent === action);
+  const first = firstButton.emit('click'), second = competingButton.emit('click');
+  await flush();
+  const next = h.snapshot(); next.revision++; next.members[0].pendingRoll = []; next.members[0].unlocked = ['12341'];
+  const busy = h.nodes.get('pending-panel').querySelectorAll('button');
+  const controls = busy.filter(node => node.className !== 'choice-view');
+  const disabled = controls.length > 0 && controls.every(node => node.disabled);
+  reply.resolve({ state: next, pools: {} }); await Promise.all([first, second]);
+  assert.equal(disabled, true);
+  assert.equal(h.calls.filter(call => call.path === '/api/command').length, 1);
+});
+
+test('F4 pending choice guard releases after a refusal and cancellation never opens new tasks', async () => {
+  const h = harness(); h.run("state.members[0].pendingRoll = ['12341', '12342']; renderState()");
+  h.route(() => ({ ok: false, status: 400, value: { error: 'Synthetic refusal' } }));
+  await assert.rejects(h.run("acceptRoll({ type: 'unlock-both', memberId: 'actor1' })"), { status: 400 });
+  assert.equal(h.run('rollBusy'), false);
+  h.run('state.members[0].preferences.newTasks = true');
+  h.route(() => { const state = h.snapshot(); state.revision++; state.members[0].pendingRoll = []; return { state, pools: {} }; });
+  await h.run("acceptRoll({ type: 'cancel-roll', memberId: 'actor1' })");
+  assert.equal(h.calls.filter(call => call.path === '/api/command').length, 2);
+  assert.notEqual(h.nodes.get('dialog-title')?.textContent, 'New chunk tasks');
+});
+
+// F4.2: model an exhausted transport and its later receipt using the real screen queue.
+for (const replacement of [false, true]) test(`F4 recovered custom task ${replacement ? 'preserves a newer dialog' : 'closes its failed form'}`, async () => {
+  const h = harness(); let pending, recovered = false, sends = 0;
+  h.context.createLiveSwapCommandClient = () => ({
+    connectionMessage: () => '', confirm: async () => {}, pending: () => pending, paused: () => !!pending,
+    async send(body) {
+      sends++;
+      if (!recovered) { pending = { ...body, requestId: 'task-receipt' }; throw Object.assign(new Error('Save not confirmed'), { pendingCommand: true, retryPaused: true }); }
+      const state = h.snapshot(); state.revision++; state.tasks.push(pending.command.task); pending = undefined;
+      return { response: { ok: true, status: 200 }, value: { state, pools: {} } };
+    },
+  });
+  h.run('customTaskDialog()');
+  const form = h.find('form'), description = form.querySelector('input'); description.value = 'Synthetic recovery task';
+  await form.emit('submit', { preventDefault() {} }); await h.run('queue');
+  assert.ok(form.querySelector('p').textContent.includes('Save not confirmed'));
+  if (replacement) h.run('settingsPanels.settings()');
+  recovered = true; await h.run('recoverPendingCommand({ retry: true })');
+  assert.equal(h.run('state.tasks.length'), 2); assert.equal(sends, 2);
+  if (replacement) assert.equal(h.nodes.get('dialog-title').textContent, 'Settings');
+  else assert.equal(h.nodes.get('tool-dialog').open, false);
+});
+
+// F4.7: an invalid upload followed by a valid preview must replace obsolete feedback.
+test('F4 backup preview feedback belongs to the selected file', async () => {
+  const h = harness(), preview = { currentRevision: 7, members: [], rules: { changed: [] }, warnings: [] };
+  h.run("notice('Independent feedback', true); backupDialog()");
+  const file = h.all().find(node => node.type === 'file');
+  file.files = [new File(['invalid gzip'], 'invalid.json.gz')];
+  await h.click('Preview import / restore');
+  assert.ok(h.find('p', 'Preview failed. Try again.') || h.all().some(node => /gzip.*corrupt|corrupt.*gzip/i.test(node.textContent)));
+  file.files = [new File(['{}'], 'valid.json')]; await file.emit('change');
+  h.route(() => ({ preview })); await h.click('Preview import / restore');
+  assert.ok(h.find('button', 'Apply reviewed replacement'));
+  assert.ok(!h.all().some(node => /gzip.*corrupt|corrupt.*gzip/i.test(node.textContent)));
+  assert.ok(h.find('span', 'Independent feedback'));
+});

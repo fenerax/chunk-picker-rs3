@@ -87,10 +87,14 @@ export function createScreenRoll(c) {
   }
 
   async function acceptRoll(payload) {
+    if (!c.canWrite() || c.rollBusy || c.hasPendingCommand?.()) return;
     const generation = c.dialogGeneration;
-    const before = c.preferences().newTasks ? await c.ensureResult() : null;
-    await c.command(payload);
-    if (before && payload.memberId === c.memberId) await c.newTaskPopup(before, generation);
+    c.rollBusy = true; c.renderState();
+    try {
+      const before = payload.type !== 'cancel-roll' && c.preferences().newTasks ? await c.ensureResult() : null;
+      await c.command(payload);
+      if (before && payload.memberId === c.memberId) await c.newTaskPopup(before, generation);
+    } finally { c.rollBusy = false; c.renderState(); }
   }
 
   Object.assign(c, { renderRollControls, rollCandidateCount, rollChunks, presentRoll, newTaskPopup, unpickDialog, acceptRoll });
