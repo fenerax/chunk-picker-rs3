@@ -1,7 +1,6 @@
 // Bounded START/candidate comparison. Run each root separately, sequentially.
 // Public: --root CHECKOUT --out /tmp/report.json [--browser]
-// Private: add --data-dir COPIED_STORE; output is hashes/counts/timings only.
-// Private stores and all reports must remain outside the public checkout.
+// Private mode (--data-dir) is disabled and fails before any save is read.
 import assert from 'node:assert/strict';
 import { mkdtemp, cp, copyFile, rm, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -19,6 +18,7 @@ const [major, minor] = process.versions.node.split('.').map(Number);
 if (major < 24 || major === 24 && minor < 20) throw Error('Node 24.20+ required.');
 if (!values.root || !values.out) throw Error('--root and --out required.');
 const root = path.resolve(values.root), privateMode = Boolean(values['data-dir']);
+if (privateMode) throw Error('Private mode is disabled: it copied a save and started the server on it, which can copy or create credentials. Compare private saves with a pure filesystem reader instead.');
 const load = file => import(pathToFileURL(path.join(root, file)));
 const hash = value => createHash('sha256').update(typeof value === 'string' ? value : JSON.stringify(value,
   (key, row) => ['elapsedMs', 'timingMs'].includes(key) ? undefined : row && typeof row === 'object' && !Array.isArray(row)
