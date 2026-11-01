@@ -198,11 +198,12 @@
 :root{font-family:var(--font-body-system);font-size:var(--type-legacy-15px);color-scheme:dark;
   --display:"Palatino Linotype","Book Antiqua",Palatino,"Iowan Old Style",Georgia,serif;
   --bg:#141310;--panel:#1c1a16;--surface:#2b2822;--border:#3b372f;--text:#ece4d3;--muted:#b9af9d;--link:#e8bd68;--focus:#f5c451;--danger:#ff9e94;
-  --gold:#d9a441;--gold-strong:#e9b955;--on-gold:#1d1406;--brand:var(--gold);--brand-strong:var(--gold-strong);--ok:#7fc98f;
+  --gold:#d9a441;--gold-strong:#e9b955;--on-gold:#1d1406;--primary-hover:var(--gold-strong);--brand:var(--gold);--brand-strong:var(--gold-strong);--ok:#7fc98f;
   --hairline:color-mix(in srgb,var(--border) 70%,transparent);
   --radius:10px;--radius-sm:6px;--shadow:0 12px 32px #0000008c;--float:color-mix(in srgb,var(--panel) 92%,transparent);
   background:var(--bg);color:var(--text)}
 :root[data-scheme=light]{--gold:#9a6608;--gold-strong:#ad740c;--on-gold:#fffaf0;--ok:#2f7d48;--shadow:0 12px 32px #4a3a1a2e}
+:root[data-theme=light]{--primary-hover:#875906}
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--text);-webkit-font-smoothing:antialiased}
 button,input,select,textarea{font:inherit}
@@ -473,8 +474,9 @@ details[open]>summary::before{transform:rotate(45deg)}
 .pending-choice .primary-action{grid-column:2;grid-row:1 / span 2;max-width:11rem;overflow-wrap:break-word}
 .pending-actions{display:flex;flex-wrap:wrap;gap:var(--space-3);padding-top:var(--space-5);border-top:var(--border-thin) solid var(--hairline)}
 .pending-actions .cancel-roll{margin-left:auto}
+/* Keep primary hover separate from the accent used by selected controls. */
 .primary-action{background:var(--gold);border-color:var(--gold);color:var(--on-gold);font-weight:var(--weight-bold)}
-.primary-action:hover{background:var(--gold-strong);filter:none}
+.primary-action:hover{background:var(--primary-hover);filter:none}
 .recent-panel{padding:var(--space-5) var(--space-6);background:var(--float);color:var(--panel-text,var(--text));border:var(--border-thin) solid var(--hairline);border-radius:var(--radius);font-size:var(--type-body);box-shadow:var(--shadow-toolbar);backdrop-filter:blur(8px)}
 .recent-panel>summary{font-family:var(--display);font-weight:var(--weight-semibold);font-size:var(--type-base);min-height:24px}
 .recent-rolls h3{font-size:var(--type-body);margin:var(--space-4) 0 var(--space-2)}
