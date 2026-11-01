@@ -61,7 +61,12 @@ test('one witness per OR; xN dependencies keep distinct canonical subjects', () 
   const definitions = { chunks: { '100': {} }, challenges: { Quest: { A: {}, B: {}, C: {} }, Extra: { Goal: { Tasks: { 'Choices[+]x2': 'Quest' } } } }, codeItems: { tasksPlus: { 'Choices[+]': ['A', 'A--duplicate', 'B', 'C'] } } };
   const proof = createTaskEngine(definitions).how(caveState(['100']), 'one', taskId('Extra', 'Goal'));
   assert.equal(proof.proofStatus, 'complete');
-  assert.equal(Object.values(proof.nodes).filter(node => node.kind === 'task' && node.subjectId !== taskId('Extra', 'Goal')).length, 2); graph(proof);
+  const selected = Object.values(proof.nodes).filter(node => node.kind === 'task' && node.subjectId !== taskId('Extra', 'Goal'));
+  assert.equal(selected.length, 2);
+  assert.equal(new Set(selected.map(node => node.subjectId)).size, 2);
+  assert.deepEqual(selected.map(node => node.subjectId).sort(), [taskId('Quest', 'A'), taskId('Quest', 'B')]);
+  assert.ok(!selected.some(node => node.subjectId === taskId('Quest', 'C')), 'How intentionally chooses only a sufficient route');
+  graph(proof);
 });
 test('unsupported subjects and points are honest gaps, separate proof cache is bounded and copies values', () => {
   const defs = { chunks: { '100': {} }, challenges: { Extra: { Goal: { TotalLevelNeeded: 1 } } } };

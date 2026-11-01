@@ -1080,7 +1080,7 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
         add('requirements', explain ? typeof record.RequirementAlternativesDescription === 'string' ? `Requires ${record.RequirementAlternativesDescription}` : `Requires one of: ${task.requirementAlternatives.map(clause => [
           ...clause.needs.map(([skill, required]) => `${skill} ${required}`),
           ...clause.points.map(([name, required]) => `${name === 'TotalLevelNeeded' ? 'total level' : name} ${required}`)
-        ].join(' and ')).join(' or ')}.` : undefined);
+        ].join(' and ')).map(clause => task.requirementAlternatives.length > 1 && clause.includes(' and ') ? `(${clause})` : clause).join(' or ')}.` : undefined);
       }
       if (record.ClueTier) {
         const clues = access.clues.get(record.ClueTier);

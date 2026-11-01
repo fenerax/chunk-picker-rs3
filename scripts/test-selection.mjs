@@ -242,6 +242,7 @@ export const quickTests = new Set([
   "manual-checks.test.mjs",
   "map-capture.test.mjs",
   "map-display-panel.test.mjs",
+  "map-availability.test.mjs",
   "map-activity-layer-model.test.mjs",
   "map-activity-layer-renderer.test.mjs",
   "map-activity-layers.test.mjs",

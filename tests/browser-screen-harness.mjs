@@ -20,6 +20,7 @@ import { chunkColourLegend } from '../app/web/chunk-colour-picker.mjs';
 import { createGroupGoals } from '../app/web/group-goals.mjs';
 import { groupGoalCommandTypes } from '../app/core/group-goal-types.mjs';
 import { createCalculationFeedback, calculationLabel } from '../app/web/calculation-feedback.mjs';
+import { createMapAvailability } from '../app/web/map-availability.mjs';
 import { createMapActivityLayers } from '../app/web/map-activity-layers.mjs';
 import { dialogUsageId, handleUsageControl } from '../app/web/usage-client.mjs';
 import { usageSummary } from '../app/web/usage-model.mjs';
@@ -80,6 +81,7 @@ export function runScreenGraph(context, modules) {
   context.calculationLabel ??= calculationLabel;
   context.createRequestReader ??= options => createRequestReader({ ...options, now: () => context.Date?.now() ?? Date.now() });
   context.requestError ??= requestError;
+  context.createMapAvailability ??= createMapAvailability;
   context.createMapActivityLayers ??= createMapActivityLayers;
   context.createTaskFocus ??= createTaskFocus;
   context.browserUUID ??= () => browserUUID(context.crypto ?? globalThis.crypto);

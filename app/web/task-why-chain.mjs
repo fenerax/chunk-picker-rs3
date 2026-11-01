@@ -10,7 +10,7 @@ export function renderWhyChain(c, chain, { advanced = false } = {}) {
     if (value.detail) content.append(c.el('p', value.detail, 'status-detail'));
     if (advanced && value.technical && value.technical !== value.label) content.append(c.el('p', value.technical, 'status-detail'));
     if (children.length) {
-      if (children.length > 1) content.append(c.el('p', value.mode === 'examples' ? 'Some training methods to inspect:' : value.mode === 'any'
+      if (children.length > 1 || value.mode === 'any' && value.required > 1) content.append(c.el('p', value.mode === 'examples' ? 'Some training methods to inspect:' : value.mode === 'any'
         ? value.required > 1 ? `Need ${value.required} of these alternatives:` : 'Either route / source:' : 'All needed:', 'status-detail'));
       const list = c.el('ul', undefined, 'why-chain-list');
       list.append(...children.map(child => render(child)));
