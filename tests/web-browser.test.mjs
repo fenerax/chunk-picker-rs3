@@ -7,12 +7,13 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { createContext, runInContext } from 'node:vm';
 import { buildWorld } from '../app/data/world.mjs';
-import { createGroupState } from '../app/core/state.mjs';
+import { applyCommand, createGroupState } from '../app/core/state.mjs';
 import { createRuleRegistry } from '../app/core/rules.mjs';
 import { futureSlayerUnlocksRule } from '../app/data/slayer-unlock-gates.mjs';
 import { createTaskFactsIndex, goalProgress } from '../app/core/progress.mjs';
 import { resolveTaskAlternatives } from '../app/core/task-alternatives.mjs';
 import { originalSettings, settingDefinitions, taskHowPreference } from '../app/data/settings.mjs';
+import { buildActivityInfo } from '../app/tasks/activity.mjs';
 import { createInfoPanels, createNoteEditor, reviewedNoteRevision } from '../app/web/info-panels.mjs';
 import { createChunkQuestList } from '../app/web/chunk-quest-filters.mjs';
 import { createMapTools, applyTheme } from '../app/web/map-tools.mjs';
@@ -91,6 +92,41 @@ test('uifix: starting guidance follows the selected unstarted member', () => {
   assert.equal(h.nodes.get('empty-map').hidden, false);
   h.run("memberId = state.members[0].id; renderState()"); assert.equal(h.nodes.get('empty-map').hidden, true);
   h.run("memberId = state.members[1].id; member().selected = ['12342']; renderState()"); assert.equal(h.nodes.get('empty-map').hidden, false);
+});
+
+for (const choices of [1, 2]) test(`first-start guidance yields to ${choices} pending choice(s) for the selected member`, () => {
+  const h = harness();
+  h.run(`member().pendingRoll = ['12341', '12342'].slice(0, ${choices}); renderState()`);
+  assert.equal(h.nodes.get('empty-map').hidden, true, 'The incompatible first-start card is hidden');
+  assert.equal(h.nodes.get('pending-panel').hidden, false);
+  assert.ok(h.find('button', 'Unlock Chunk 12341'));
+  assert.ok(h.find('button', 'Cancel roll'));
+  h.run("memberId = state.members[1].id; member().selected = ['12342']; renderState()");
+  assert.equal(h.nodes.get('empty-map').hidden, false, 'Another unstarted member retains guidance with manual selections');
+  assert.equal(h.nodes.get('pending-panel').hidden, true);
+  h.run('memberId = state.members[0].id; renderState()');
+  assert.equal(h.nodes.get('empty-map').hidden, true, 'Switching back restores pending guidance');
+});
+
+for (const action of ['Unlock Chunk 12341', 'Unlock Chunk 12342', 'Pick for me', 'Unlock both', 'Cancel roll'])
+test(`first-start guidance follows ${action}, undo and cancellation`, async () => {
+  const h = harness();
+  h.run("state.tasks = state.tasks.map(({ status, ...task }) => task); member().pendingRoll = ['12341', '12342']; renderState()");
+  h.route((path, body) => path.startsWith('/api/tasks') ? taskResult(h.run('state.revision')) : {
+    state: applyCommand(h.snapshot(), body.command, { world: h.context.initialWorld, random: () => 0 }), pools: {},
+  });
+  assert.equal(h.nodes.get('empty-map').hidden, true);
+  await h.click(action);
+  assert.equal(h.run('member().pendingRoll.length'), 0);
+  assert.equal(h.nodes.get('pending-panel').hidden, true);
+  assert.equal(h.run('member().unlocked.length'), action === 'Cancel roll' ? 0 : action === 'Unlock both' ? 2 : 1);
+  assert.equal(h.nodes.get('empty-map').hidden, action !== 'Cancel roll');
+  await h.run("command({ type: 'undo' })");
+  assert.equal(h.nodes.get('empty-map').hidden, true, 'Undo restores pending choices without first-start guidance');
+  assert.equal(h.nodes.get('pending-panel').hidden, false);
+  await h.click('Cancel roll');
+  assert.equal(h.nodes.get('empty-map').hidden, false, 'Cancellation restores ordinary first-start guidance');
+  assert.equal(h.nodes.get('pending-panel').hidden, true);
 });
 
 for (const clipped of [false, true]) test(`uifix: note search ${clipped ? 'expands a clipped note' : 'keeps a short note compact'}`, async () => {
@@ -4060,6 +4096,25 @@ test('actual task dialog shows the existing fallback diagnostic and expands Why 
   assert.ok(why); await why.emit('click'); await flush();
   assert.ok(h.all().some(node => node.textContent?.includes(warning) || node.children?.includes(warning)));
   assert.equal(why.getAttribute('aria-expanded'), 'true');
+});
+
+test('wired quest search renders mandatory-stage readiness from personal whole completion', async () => {
+  for (const completed of [false, true]) {
+    const h = harness(), state = h.snapshot();
+    const row = (id, title, step, record = {}) => ({ id, category: 'Quest', baseQuest: title,
+      rawLabel: `~|${title}|~ ${step}`, label: `${title} ${step}`, record, status: 'available', blockers: [] });
+    const stage = row('stage', 'Earlier', '5');
+    const whole = row('whole', 'Earlier', 'Complete the quest', { QuestPoints: 1, Tasks: { [stage.rawLabel]: 'Quest' } });
+    whole.personalCompleted = completed;
+    const finish = row('finish', 'Later', 'Complete the miniquest', { QuestPoints: 0, Tasks: { [stage.rawLabel]: 'Quest' } });
+    const full = { ...taskResult(7), tasks: [stage, whole, finish] };
+    full.activityInfo = buildActivityInfo(full, state, 'actor1');
+    await openQuestSearch(h, full);
+    await questSearchChip(h, 'Can do now').emit('click'); await flush();
+    assert.equal(searchLabels(h).includes(finish.label), completed);
+    assert.ok(h.calls.every(call => !call.body));
+    assert.deepEqual(h.snapshot(), state);
+  }
 });
 
 // Minimized public count contracts: no calculator or private catalogue inputs.

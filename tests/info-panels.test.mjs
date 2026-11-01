@@ -1,8 +1,9 @@
 import { createRequestReader, requestError } from '../app/web/live-swap-client.mjs';
 import test from 'node:test';
+import { masterGateFixture } from './fixtures/slayer-master-gates.mjs';
 import assert from 'node:assert/strict';
-import { createInfoPanels } from '../app/web/info-panels.mjs';
 import { buildActivityInfo } from '../app/tasks/activity.mjs';
+import { createInfoPanels } from '../app/web/info-panels.mjs';
 import { plainLabel } from '../app/tasks/engine.mjs';
 import { createScreenUi } from '../app/web/screen-ui.mjs';
 import { caveFixture } from './fixtures/why-chain.mjs';
@@ -610,5 +611,51 @@ test('Slayer chances show before expansion, with exact weights in advanced detai
     assert.ok(h.find('p', 'Possible after The Blood Pact.'));
     const exact = h.find('p', "Planning: 15 / 60 assignment weight can't be done (25.00%); 0 / 60 can't be checked.");
     assert.equal(!!exact, advanced);
+  }
+});
+
+
+test('Activity Info renders whole-only mandatory-stage evidence through its Can do now chip', async () => {
+  for (const completed of [false, true]) {
+    const h = harness();
+    const row = (id, title, step, record = {}) => ({ id, category: 'Quest', baseQuest: title,
+      rawLabel: `~|${title}|~ ${step}`, label: `${title} ${step}`, record, status: 'available', blockers: [] });
+    const stage = row('stage', 'Earlier', '5');
+    const whole = row('whole', 'Earlier', 'Complete the quest', { QuestPoints: 1, Tasks: { [stage.rawLabel]: 'Quest' } });
+    whole.personalCompleted = completed;
+    const finish = row('finish', 'Later', 'Complete the miniquest', { QuestPoints: 0, Tasks: { [stage.rawLabel]: 'Quest' } });
+    h.result.tasks = [stage, whole, finish];
+    h.result.activityInfo = buildActivityInfo(h.result, h.state, 'a');
+    const before = structuredClone(h.state);
+    await h.panels.activityInfo('Quests');
+    const group = h.nodes().find(node => node.attributes['aria-label'] === 'Quest progress');
+    await group.children.find(node => node.tag === 'button' && node.textContent === 'Can do now').events.click();
+    assert.equal(h.nodes().some(node => node.tag === 'summary' && node.textContent.startsWith('Later ·')), completed);
+    if (completed) {
+      h.openDetails('Later ·');
+      assert.ok(h.find('strong', finish.label));
+      assert.ok(h.nodes().some(node => /Steps you marked done: 0\/1/.test(node.textContent)));
+    }
+    assert.deepEqual(h.ui.attempts, []);
+    assert.deepEqual(h.state, before);
+  }
+});
+
+test('rendered Slayer panel agrees with current master gate and denominator on engine results', async () => {
+  for (const combat of [29, 30, 31]) for (const advanced of [false, true]) {
+    const f = masterGateFixture({ combat }), h = harness({ advanced });
+    Object.assign(h.result, f.result, { activityInfo: f.view(), stateRevision: 7, memberId: 'a' });
+    await h.panels.activityInfo('Slayer');
+    h.openDetails('Higher ·');
+    const text = h.nodes().map(node => node.textContent).join(' ');
+    assert.match(text, /Higher · 1 of 1 assignments possible/);
+    const exact = "Right now: 0 / 10 assignment weight can't be done (0.00%); 0 / 10 can't be checked.";
+    // The lower master remains usable in the same rendered panel.
+    assert.equal(h.nodes().filter(node => node.textContent === exact).length, advanced && combat >= 30 ? 1 : 0);
+    if (combat < 30) {
+      assert.match(text, /Right now: this master is unavailable.*Combat 30/);
+      assert.equal(h.result.activityInfo.slayer.masters[1].warnings.current.poolWeight, undefined);
+    } else assert.doesNotMatch(text, /this master is unavailable/);
+    assert.deepEqual(h.ui.attempts, []);
   }
 });

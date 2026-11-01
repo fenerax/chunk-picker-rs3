@@ -6,6 +6,7 @@ import { deserialize } from 'node:v8';
 import { createUnlockResultCache, taskReuseInputKey } from './unlock-reuse.mjs';
 import { STATE_SNAPSHOT_LIMIT } from './state-transfer.mjs';
 import { TASK_WORKER_RESOURCE_LIMITS } from './worker-limits.mjs';
+import { hasRandomStartChoices } from '../core/state.mjs';
 
 // The server's compatibility context has one protocol identity.
 export function pickerJobId(pickerId = 'legacy-shared') {
@@ -35,7 +36,8 @@ const nativeWorker = data => process.env.RS3_TASK_WORKER_MODE === 'thread'
 export const nativeWorkerInput = (workerData, includeReadyCatalogue) => ({ ...workerData, omitReadyCatalogue: !includeReadyCatalogue });
 // Rules are included even for direct callers that omit the gameplay fingerprint.
 const predictionInput = (state, input) => createHash('sha256').update(JSON.stringify([input,
-  state.rules, state.taskRules, state.members?.map(member => [member.id, member.taskRules, state.legacy?.maps?.[member.sourceMapId]?.rules])])).digest('hex');
+  state.rules, state.taskRules, state.members?.map(member => [member.id, member.taskRules, state.legacy?.maps?.[member.sourceMapId]?.rules,
+    hasRandomStartChoices(state, member) ? member.pendingRoll : []])])).digest('hex');
 export const predictionCacheKey = (state, memberId, chunkId, input) => JSON.stringify([state.revision, memberId, String(chunkId), predictionInput(state, input)]);
 
 // Preserve lazy result access when adding per-waiter metadata. Object spread

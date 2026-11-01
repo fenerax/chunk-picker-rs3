@@ -15,7 +15,9 @@ export const adaptiveOptionsFor = (suite, env = process.env) => {
 
 // Reviewed small fixtures and model/controller tests. No running browser or full catalogue.
 export const quickTests = new Set([
+  "perf-private-guards.test.mjs",
   "unknown-drop-warnings.test.mjs",
+  "completion-codec.test.mjs",
   "completion-truth-table.test.mjs",
   "collection-boundaries.test.mjs",
   "roll-boundaries.test.mjs",
@@ -325,6 +327,7 @@ const fullOnlyPatterns = [
 
 // Remaining integration/provenance tests are named explicitly to catch unreviewed additions.
 const fullOnlyTests = new Set([
+  "phone-controls-browser.test.mjs",
   "picker-properties.test.mjs",
   "setup-start-pool.test.mjs",
   "setup-guide-browser.test.mjs",
@@ -556,6 +559,7 @@ export const soloTests = new Set([
 // worker from their own definitions and assert nothing about duo-legacy content. They
 // run on the public open-f2p dataset, in the environment core's lane gives them.
 export const openF2PTests = new Set([
+  "completion-codec.test.mjs",
   "phase1-acceptance.test.mjs",
   "phase1-acceptance-crash.test.mjs",
   "picker-audit-b.test.mjs",

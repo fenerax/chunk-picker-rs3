@@ -1,7 +1,7 @@
 // Verify all members of a copied store and evenly sampled retained revisions.
 // Output contains only counts, hashes, sizes and durations. No gameplay is saved.
-// Run with the matching dataset/pack/defaults environment, then:
-// node scripts/perf/roll-pool-equivalence.mjs --store /scratch/store --out /tmp/equivalence.json
+// DISABLED: --store started the server on a private copy, which can copy or
+// create credentials. Every run now stops with PRIVATE_DISABLED.
 import { cp, copyFile, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { tmpdir } from 'node:os';
@@ -13,7 +13,10 @@ import { preparedDefinitionStages } from '../../app/dataset-pipeline.mjs';
 import { createTaskScheduler } from '../../app/tasks/scheduler.mjs';
 import { createTaskReuseFingerprint } from '../../app/tasks/unlock-reuse.mjs';
 
+export const PRIVATE_DISABLED = 'Private mode is disabled: it copied a save and started the server on it, which can copy or create credentials. Compare private saves with a pure filesystem reader instead.';
 const { values } = parseArgs({ options: { store: { type: 'string' }, out: { type: 'string' }, samples: { type: 'string', default: '50' } } });
+// This script has no public mode: --store is its only input.
+if (values.store) throw new Error(PRIVATE_DISABLED);
 if (!values.store || !values.out) throw new Error('Use --store and --out outside the checkout.');
 const count = Number(values.samples);
 if (!Number.isSafeInteger(count) || count < 1) throw new Error('Invalid sample count.');
